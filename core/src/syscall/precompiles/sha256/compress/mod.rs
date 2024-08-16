@@ -5,7 +5,10 @@ mod trace;
 
 use serde::{Deserialize, Serialize};
 
-use crate::runtime::{MemoryReadRecord, MemoryWriteRecord};
+use crate::{
+    memory::MemoryLocalEvent,
+    runtime::{MemoryReadRecord, MemoryWriteRecord},
+};
 
 pub const SHA_COMPRESS_K: [u32; 64] = [
     0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
@@ -31,6 +34,7 @@ pub struct ShaCompressEvent {
     pub h_read_records: [MemoryReadRecord; 8],
     pub w_i_read_records: Vec<MemoryReadRecord>,
     pub h_write_records: [MemoryWriteRecord; 8],
+    pub local_mem_access: Vec<MemoryLocalEvent>,
 }
 
 /// Implements the SHA compress operation which loops over 0 = [0, 63] and modifies A-H in each

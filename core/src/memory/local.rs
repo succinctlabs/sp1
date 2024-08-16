@@ -81,10 +81,34 @@ impl<F: PrimeField32> MachineAir<F> for MemoryLocalChip {
             .iter()
             .flat_map(|x| x.local_mem_access.iter());
 
+        let ed_add_local_mem_events = input
+            .ed_add_events
+            .iter()
+            .flat_map(|x| x.local_mem_access.iter());
+
+        let ed_decompress_local_mem_events = input
+            .ed_decompress_events
+            .iter()
+            .flat_map(|x| x.local_mem_access.iter());
+
+        let sha_compress_local_mem_events = input
+            .sha_compress_events
+            .iter()
+            .flat_map(|x| x.local_mem_access.iter());
+
+        let sha_extend_local_mem_events = input
+            .sha_extend_events
+            .iter()
+            .flat_map(|x| x.local_mem_access.iter());
+
         for local_mem_event in input
             .local_memory_access
             .iter()
             .chain(keccak_local_mem_events)
+            .chain(ed_add_local_mem_events)
+            .chain(ed_decompress_local_mem_events)
+            .chain(sha_compress_local_mem_events)
+            .chain(sha_extend_local_mem_events)
         {
             let mut row = [F::zero(); NUM_MEMORY_LOCAL_INIT_COLS];
             let cols: &mut MemoryLocalInitCols<F> = row.as_mut_slice().borrow_mut();
@@ -119,7 +143,36 @@ impl<F: PrimeField32> MachineAir<F> for MemoryLocalChip {
             .flat_map(|x| x.local_mem_access.iter())
             .collect_vec();
 
-        !keccak_local_mem_events.is_empty() || !shard.local_memory_access.is_empty()
+        let ed_add_local_mem_events = shard
+            .ed_add_events
+            .iter()
+            .flat_map(|x| x.local_mem_access.iter())
+            .collect_vec();
+
+        let ed_decompress_local_mem_events = shard
+            .ed_decompress_events
+            .iter()
+            .flat_map(|x| x.local_mem_access.iter())
+            .collect_vec();
+
+        let sha_compress_local_mem_events = shard
+            .sha_compress_events
+            .iter()
+            .flat_map(|x| x.local_mem_access.iter())
+            .collect_vec();
+
+        let sha_extend_local_mem_events = shard
+            .sha_extend_events
+            .iter()
+            .flat_map(|x| x.local_mem_access.iter())
+            .collect_vec();
+
+        !keccak_local_mem_events.is_empty()
+            || !shard.local_memory_access.is_empty()
+            || !ed_add_local_mem_events.is_empty()
+            || !ed_decompress_local_mem_events.is_empty()
+            || !sha_compress_local_mem_events.is_empty()
+            || !sha_extend_local_mem_events.is_empty()
     }
 
     fn included_phase1(&self) -> bool {

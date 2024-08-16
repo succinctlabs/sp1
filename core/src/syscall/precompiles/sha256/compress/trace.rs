@@ -14,7 +14,7 @@ use super::{
 use crate::{
     air::{MachineAir, Word},
     bytes::{event::ByteRecord, ByteLookupEvent},
-    runtime::{ExecutionRecord, Program},
+    runtime::{ExecutionRecord, Program, SyscallCode},
     utils::pad_rows,
 };
 
@@ -100,7 +100,12 @@ impl<F: PrimeField32> MachineAir<F> for ShaCompressChip {
             })
             .collect::<Vec<_>>();
 
-        output.add_sharded_byte_lookup_events(blu_batches.iter().collect_vec());
+        let syscall_blu = output
+            .syscall_byte_lookups
+            .entry(SyscallCode::SHA_COMPRESS)
+            .or_default();
+
+        syscall_blu.add_sharded_byte_lookup_events(blu_batches.iter().collect_vec());
     }
 
     fn included(&self, shard: &Self::Record) -> bool {

@@ -3,6 +3,7 @@ pub mod keccak256;
 pub mod sha256;
 pub mod uint256;
 pub mod weierstrass;
+use crate::memory::MemoryLocalEvent;
 use crate::operations::field::params::{NumLimbs, NumWords};
 use crate::runtime::SyscallContext;
 use crate::utils::ec::weierstrass::bls12_381::bls12381_decompress;
@@ -29,6 +30,7 @@ pub struct ECAddEvent {
     pub q: Vec<u32>,
     pub p_memory_records: Vec<MemoryWriteRecord>,
     pub q_memory_records: Vec<MemoryReadRecord>,
+    pub local_mem_access: Vec<MemoryLocalEvent>,
 }
 
 /// Create an elliptic curve add event. It takes two pointers to memory locations, reads the points
@@ -52,9 +54,30 @@ pub fn create_ec_add_event<E: EllipticCurve>(
 
     let num_words = <E::BaseField as NumWords>::WordsCurvePoint::USIZE;
 
+    for i in 0..num_words {
+        let addr = q_ptr + i as u32 * 4;
+        let local_mem_access = rt.rt.local_memory_access.remove(&addr);
+
+        if let Some(local_mem_access) = local_mem_access {
+            rt.rt.record.local_memory_access.push(local_mem_access);
+        }
+    }
+
     let p = rt.slice_unsafe(p_ptr, num_words);
 
     let (q_memory_records, q) = rt.mr_slice(q_ptr, num_words);
+
+    let mut ec_add_local_mem_access = Vec::new();
+    for i in 0..num_words {
+        let addr = q_ptr + i as u32 * 4;
+        let local_mem_access = rt
+            .rt
+            .local_memory_access
+            .remove(&addr)
+            .expect("Expected local memory access");
+
+        ec_add_local_mem_access.push(local_mem_access);
+    }
 
     // When we write to p, we want the clk to be incremented because p and q could be the same.
     rt.clk += 1;
@@ -65,7 +88,27 @@ pub fn create_ec_add_event<E: EllipticCurve>(
 
     let result_words = result_affine.to_words_le();
 
+    for i in 0..result_words.len() {
+        let addr = p_ptr + i as u32 * 4;
+        let local_mem_access = rt.rt.local_memory_access.remove(&addr);
+
+        if let Some(local_mem_access) = local_mem_access {
+            rt.rt.record.local_memory_access.push(local_mem_access);
+        }
+    }
+
     let p_memory_records = rt.mw_slice(p_ptr, &result_words);
+
+    for i in 0..result_words.len() {
+        let addr = p_ptr + i as u32 * 4;
+        let local_mem_access = rt
+            .rt
+            .local_memory_access
+            .remove(&addr)
+            .expect("Expected local memory access");
+
+        ec_add_local_mem_access.push(local_mem_access);
+    }
 
     ECAddEvent {
         lookup_id: rt.syscall_lookup_id,
@@ -78,6 +121,7 @@ pub fn create_ec_add_event<E: EllipticCurve>(
         q,
         p_memory_records,
         q_memory_records,
+        local_mem_access: ec_add_local_mem_access,
     }
 }
 

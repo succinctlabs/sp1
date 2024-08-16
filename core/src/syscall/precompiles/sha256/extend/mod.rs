@@ -6,7 +6,10 @@ mod trace;
 
 pub use columns::*;
 
-use crate::runtime::{MemoryReadRecord, MemoryWriteRecord};
+use crate::{
+    memory::MemoryLocalEvent,
+    runtime::{MemoryReadRecord, MemoryWriteRecord},
+};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -21,6 +24,7 @@ pub struct ShaExtendEvent {
     pub w_i_minus_16_reads: Vec<MemoryReadRecord>,
     pub w_i_minus_7_reads: Vec<MemoryReadRecord>,
     pub w_i_writes: Vec<MemoryWriteRecord>,
+    pub local_mem_access: Vec<MemoryLocalEvent>,
 }
 
 /// Implements the SHA extension operation which loops over i = [16, 63] and modifies w[i] in each

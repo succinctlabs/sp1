@@ -22,6 +22,15 @@ impl Syscall for ShaCompressChip {
         let mut w_i_read_records = Vec::new();
         let mut h_write_records = Vec::new();
 
+        for i in 0..8 {
+            let addr = h_ptr + i as u32 * 4;
+            let local_mem_access = rt.rt.local_memory_access.remove(&addr);
+
+            if let Some(local_mem_access) = local_mem_access {
+                rt.rt.record.local_memory_access.push(local_mem_access);
+            }
+        }
+
         // Execute the "initialize" phase where we read in the h values.
         let mut hx = [0u32; 8];
         for i in 0..8 {
@@ -40,6 +49,16 @@ impl Syscall for ShaCompressChip {
         let mut f = hx[5];
         let mut g = hx[6];
         let mut h = hx[7];
+
+        for i in 0..64 {
+            let addr = w_ptr + i as u32 * 4;
+            let local_mem_access = rt.rt.local_memory_access.remove(&addr);
+
+            if let Some(local_mem_access) = local_mem_access {
+                rt.rt.record.local_memory_access.push(local_mem_access);
+            }
+        }
+
         for i in 0..64 {
             let s1 = e.rotate_right(6) ^ e.rotate_right(11) ^ e.rotate_right(25);
             let ch = (e & f) ^ (!e & g);
@@ -64,6 +83,19 @@ impl Syscall for ShaCompressChip {
             b = a;
             a = temp1.wrapping_add(temp2);
         }
+
+        let mut sha_compress_local_mem_access = Vec::new();
+        for i in 0..64 {
+            let addr = w_ptr + i as u32 * 4;
+            let local_mem_access = rt
+                .rt
+                .local_memory_access
+                .remove(&addr)
+                .expect("Expected local memory access");
+
+            sha_compress_local_mem_access.push(local_mem_access);
+        }
+
         // Increment the clk by 1 before writing to h, since we've already read h at the start_clk
         // during the initialization phase.
         rt.clk += 1;
@@ -73,6 +105,17 @@ impl Syscall for ShaCompressChip {
         for i in 0..8 {
             let record = rt.mw(h_ptr + i as u32 * 4, hx[i].wrapping_add(v[i]));
             h_write_records.push(record);
+        }
+
+        for i in 0..8 {
+            let addr = h_ptr + i as u32 * 4;
+            let local_mem_access = rt
+                .rt
+                .local_memory_access
+                .remove(&addr)
+                .expect("Expected local memory access");
+
+            sha_compress_local_mem_access.push(local_mem_access);
         }
 
         // Push the SHA extend event.
@@ -91,6 +134,7 @@ impl Syscall for ShaCompressChip {
             h_read_records: h_read_records.try_into().unwrap(),
             w_i_read_records,
             h_write_records: h_write_records.try_into().unwrap(),
+            local_mem_access: sha_compress_local_mem_access,
         });
 
         None
