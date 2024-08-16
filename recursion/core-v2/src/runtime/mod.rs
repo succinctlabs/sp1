@@ -105,8 +105,8 @@ pub struct Runtime<'a, F: PrimeField32, EF: ExtensionField<F>, Diffusion> {
     /// The program.
     pub program: RecursionProgram<F>,
 
-    /// Memory.
-    pub memory: HashMap<Address<F>, MemoryEntry<F>>,
+    /// Memory. From canonical usize of an Address to a MemoryEntry.
+    pub memory: Memory<F>,
 
     /// The execution record.
     pub record: ExecutionRecord<F>,
@@ -204,7 +204,7 @@ where
             clk: F::zero(),
             program: program.clone(),
             pc: F::zero(),
-            memory: HashMap::new(),
+            memory: Default::default(),
             record,
             witness_stream: VecDeque::new(),
             cycle_tracker: HashMap::new(),
@@ -227,40 +227,6 @@ where
         tracing::debug!("Branch Operations: {}", self.nb_branch_ops);
         for (name, entry) in self.cycle_tracker.iter().sorted_by_key(|(name, _)| *name) {
             tracing::debug!("> {}: {}", name, entry.cumulative_cycles);
-        }
-    }
-
-    /// Read from a memory address. Decrements the memory entry's mult count.
-    ///
-    /// # Panics
-    /// Panics if the address is unassigned.
-    fn mr(&mut self, addr: Address<F>) -> &mut MemoryEntry<F> {
-        self.mr_mult(addr, F::one())
-    }
-
-    /// Read from a memory address. Reduces the memory entry's mult count by the given amount.
-    ///
-    /// # Panics
-    /// Panics if the address is unassigned.
-    fn mr_mult(&mut self, addr: Address<F>, mult: F) -> &mut MemoryEntry<F> {
-        match self.memory.entry(addr) {
-            Entry::Occupied(mut entry) => {
-                let entry_mult = &mut entry.get_mut().mult;
-                *entry_mult -= mult;
-                entry.into_mut()
-            }
-            Entry::Vacant(_) => panic!("tried to read from unassigned address: {addr:?}",),
-        }
-    }
-
-    /// Write to a memory address, setting the given value and mult.
-    ///
-    /// # Panics
-    /// Panics if the address is already assigned.
-    fn mw(&mut self, addr: Address<F>, val: Block<F>, mult: F) -> &mut MemoryEntry<F> {
-        match self.memory.entry(addr) {
-            Entry::Occupied(entry) => panic!("tried to write to assigned address: {entry:?}"),
-            Entry::Vacant(entry) => entry.insert(MemoryEntry { val, mult }),
         }
     }
 
@@ -301,8 +267,8 @@ where
                     },
                 ) => {
                     self.nb_base_ops += 1;
-                    let in1 = self.mr(addrs.in1).val[0];
-                    let in2 = self.mr(addrs.in2).val[0];
+                    let in1 = self.memory.mr(addrs.in1).val[0];
+                    let in2 = self.memory.mr(addrs.in2).val[0];
                     // Do the computation.
                     let out = match opcode {
                         BaseAluOpcode::AddF => in1 + in2,
@@ -326,7 +292,7 @@ where
                             }
                         },
                     };
-                    self.mw(addrs.out, Block::from(out), mult);
+                    self.memory.mw(addrs.out, Block::from(out), mult);
                     self.record
                         .base_alu_events
                         .push(BaseAluEvent { out, in1, in2 });
@@ -339,8 +305,8 @@ where
                     },
                 ) => {
                     self.nb_ext_ops += 1;
-                    let in1 = self.mr(addrs.in1).val;
-                    let in2 = self.mr(addrs.in2).val;
+                    let in1 = self.memory.mr(addrs.in1).val;
+                    let in2 = self.memory.mr(addrs.in2).val;
                     // Do the computation.
                     let in1_ef = EF::from_base_slice(&in1.0);
                     let in2_ef = EF::from_base_slice(&in2.0);
@@ -367,7 +333,7 @@ where
                         },
                     };
                     let out = Block::from(out_ef.as_base_slice());
-                    self.mw(addrs.out, out, mult);
+                    self.memory.mw(addrs.out, out, mult);
                     self.record
                         .ext_alu_events
                         .push(ExtAluEvent { out, in1, in2 });
@@ -381,13 +347,13 @@ where
                     self.nb_memory_ops += 1;
                     match kind {
                         MemAccessKind::Read => {
-                            let mem_entry = self.mr_mult(addr, mult);
+                            let mem_entry = self.memory.mr_mult(addr, mult);
                             assert_eq!(
                                 mem_entry.val, val,
                                 "stored memory value should be the specified value"
                             );
                         }
-                        MemAccessKind::Write => drop(self.mw(addr, val, mult)),
+                        MemAccessKind::Write => drop(self.memory.mw(addr, val, mult)),
                     }
                     self.record.mem_const_count += 1;
                 }
@@ -396,7 +362,7 @@ where
                     mults,
                 }) => {
                     self.nb_poseidons += 1;
-                    let in_vals = std::array::from_fn(|i| self.mr(input[i]).val[0]);
+                    let in_vals = std::array::from_fn(|i| self.memory.mr(input[i]).val[0]);
                     let perm_output = self.perm.as_ref().unwrap().permute(in_vals);
 
                     perm_output
@@ -404,7 +370,7 @@ where
                         .zip(output)
                         .zip(mults)
                         .for_each(|((&val, addr), mult)| {
-                            self.mw(addr, Block::from(val), mult);
+                            self.memory.mw(addr, Block::from(val), mult);
                         });
                     self.record.poseidon2_events.push(Poseidon2Event {
                         input: in_vals,
@@ -416,15 +382,16 @@ where
                     mult,
                 }) => {
                     self.nb_exp_reverse_bits += 1;
-                    let base_val = self.mr(base).val[0];
-                    let exp_bits: Vec<_> = exp.iter().map(|bit| self.mr(*bit).val[0]).collect();
+                    let base_val = self.memory.mr(base).val[0];
+                    let exp_bits: Vec<_> =
+                        exp.iter().map(|bit| self.memory.mr(*bit).val[0]).collect();
                     let exp_val = exp_bits
                         .iter()
                         .enumerate()
                         .fold(0, |acc, (i, &val)| acc + val.as_canonical_u32() * (1 << i));
                     let out =
                         base_val.exp_u64(reverse_bits_len(exp_val as usize, exp_bits.len()) as u64);
-                    self.mw(result, Block::from(out), mult);
+                    self.memory.mw(result, Block::from(out), mult);
                     self.record
                         .exp_reverse_bits_len_events
                         .push(ExpReverseBitsEvent {
@@ -438,14 +405,14 @@ where
                     input_addr,
                 }) => {
                     self.nb_bit_decompositions += 1;
-                    let num = self.mr_mult(input_addr, F::zero()).val[0].as_canonical_u32();
+                    let num = self.memory.mr_mult(input_addr, F::zero()).val[0].as_canonical_u32();
                     // Decompose the num into LE bits.
                     let bits = (0..output_addrs_mults.len())
                         .map(|i| Block::from(F::from_canonical_u32((num >> i) & 1)))
                         .collect::<Vec<_>>();
                     // Write the bits to the array at dst.
                     for (bit, (addr, mult)) in bits.into_iter().zip(output_addrs_mults) {
-                        self.mw(addr, bit, mult);
+                        self.memory.mw(addr, bit, mult);
                         self.record.mem_var_events.push(MemEvent { inner: bit });
                     }
                 }
@@ -458,20 +425,20 @@ where
                     ro_mults,
                 }) => {
                     self.nb_fri_fold += 1;
-                    let x = self.mr(base_single_addrs.x).val[0];
-                    let z = self.mr(ext_single_addrs.z).val;
+                    let x = self.memory.mr(base_single_addrs.x).val[0];
+                    let z = self.memory.mr(ext_single_addrs.z).val;
                     let z: EF = z.ext();
-                    let alpha = self.mr(ext_single_addrs.alpha).val;
+                    let alpha = self.memory.mr(ext_single_addrs.alpha).val;
                     let alpha: EF = alpha.ext();
                     let mat_opening = ext_vec_addrs
                         .mat_opening
                         .iter()
-                        .map(|addr| self.mr(*addr).val)
+                        .map(|addr| self.memory.mr(*addr).val)
                         .collect_vec();
                     let ps_at_z = ext_vec_addrs
                         .ps_at_z
                         .iter()
-                        .map(|addr| self.mr(*addr).val)
+                        .map(|addr| self.memory.mr(*addr).val)
                         .collect_vec();
 
                     for m in 0..ps_at_z.len() {
@@ -486,20 +453,21 @@ where
                         let quotient = (-p_at_z + p_at_x) / (-z + x);
 
                         // First we peek to get the current value.
-                        let alpha_pow: EF = self.mr(ext_vec_addrs.alpha_pow_input[m]).val.ext();
+                        let alpha_pow: EF =
+                            self.memory.mr(ext_vec_addrs.alpha_pow_input[m]).val.ext();
 
-                        let ro: EF = self.mr(ext_vec_addrs.ro_input[m]).val.ext();
+                        let ro: EF = self.memory.mr(ext_vec_addrs.ro_input[m]).val.ext();
 
                         let new_ro = ro + alpha_pow * quotient;
                         let new_alpha_pow = alpha_pow * alpha;
 
-                        let _ = self.mw(
+                        let _ = self.memory.mw(
                             ext_vec_addrs.ro_output[m],
                             Block::from(new_ro.as_base_slice()),
                             ro_mults[m],
                         );
 
-                        let _ = self.mw(
+                        let _ = self.memory.mw(
                             ext_vec_addrs.alpha_pow_output[m],
                             Block::from(new_alpha_pow.as_base_slice()),
                             alpha_pow_mults[m],
@@ -528,7 +496,7 @@ where
                 }) => {
                     let pv_addrs = public_values_addrs.to_vec();
                     let pv_values: [F; RECURSIVE_PROOF_NUM_PV_ELTS] =
-                        array::from_fn(|i| self.mr(pv_addrs[i]).val[0]);
+                        array::from_fn(|i| self.memory.mr(pv_addrs[i]).val[0]);
                     self.record.public_values = *pv_values.as_slice().borrow();
                     self.record
                         .commit_pv_hash_events
@@ -543,12 +511,12 @@ where
                 }) => match field_elt_type {
                     FieldEltType::Base => {
                         self.nb_print_f += 1;
-                        let f = self.mr_mult(addr, F::zero()).val[0];
+                        let f = self.memory.mr_mult(addr, F::zero()).val[0];
                         writeln!(self.debug_stdout, "PRINTF={f}")
                     }
                     FieldEltType::Extension => {
                         self.nb_print_e += 1;
-                        let ef = self.mr_mult(addr, F::zero()).val;
+                        let ef = self.memory.mr_mult(addr, F::zero()).val;
                         writeln!(self.debug_stdout, "PRINTEF={ef:?}")
                     }
                 }
@@ -558,11 +526,11 @@ where
                     input_addr,
                 }) => {
                     self.nb_bit_decompositions += 1;
-                    let fs = self.mr_mult(input_addr, F::zero()).val;
+                    let fs = self.memory.mr_mult(input_addr, F::zero()).val;
                     // Write the bits to the array at dst.
                     for (f, (addr, mult)) in fs.into_iter().zip(output_addrs_mults) {
                         let felt = Block::from(f);
-                        self.mw(addr, felt, mult);
+                        self.memory.mw(addr, felt, mult);
                         self.record.mem_var_events.push(MemEvent { inner: felt });
                     }
                 }
@@ -574,12 +542,7 @@ where
                     let witness = self.witness_stream.drain(0..output_addrs_mults.len());
                     for ((addr, mult), val) in zip(output_addrs_mults, witness) {
                         // Inline [`Self::mw`] to mutably borrow multiple fields of `self`.
-                        match self.memory.entry(addr) {
-                            Entry::Occupied(entry) => {
-                                panic!("tried to write to assigned address: {entry:?}")
-                            }
-                            Entry::Vacant(entry) => drop(entry.insert(MemoryEntry { val, mult })),
-                        }
+                        self.memory.mw(addr, val, mult);
                         self.record.mem_var_events.push(MemEvent { inner: val });
                     }
                 }
@@ -594,5 +557,46 @@ where
             }
         }
         Ok(())
+    }
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct Memory<F> {
+    pub inner: HashMap<Address<F>, MemoryEntry<F>>,
+}
+
+impl<F: PrimeField32> Memory<F> {
+    /// Read from a memory address. Decrements the memory entry's mult count.
+    ///
+    /// # Panics
+    /// Panics if the address is unassigned.
+    pub fn mr(&mut self, addr: Address<F>) -> &mut MemoryEntry<F> {
+        self.mr_mult(addr, F::one())
+    }
+
+    /// Read from a memory address. Reduces the memory entry's mult count by the given amount.
+    ///
+    /// # Panics
+    /// Panics if the address is unassigned.
+    pub fn mr_mult(&mut self, addr: Address<F>, mult: F) -> &mut MemoryEntry<F> {
+        match self.inner.entry(addr) {
+            Entry::Occupied(mut entry) => {
+                let entry_mult = &mut entry.get_mut().mult;
+                *entry_mult -= mult;
+                entry.into_mut()
+            }
+            Entry::Vacant(_) => panic!("tried to read from unassigned address: {addr:?}",),
+        }
+    }
+
+    /// Write to a memory address, setting the given value and mult.
+    ///
+    /// # Panics
+    /// Panics if the address is already assigned.
+    pub fn mw(&mut self, addr: Address<F>, val: Block<F>, mult: F) -> &mut MemoryEntry<F> {
+        match self.inner.entry(addr) {
+            Entry::Occupied(entry) => panic!("tried to write to assigned address: {entry:?}"),
+            Entry::Vacant(entry) => entry.insert(MemoryEntry { val, mult }),
+        }
     }
 }
