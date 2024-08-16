@@ -98,7 +98,7 @@ pub fn scenario_end<T: Serialize + DeserializeOwned>(
     args: &ProveArgs<T>,
     core_proof: &Vec<u8>,
     compress_proof: &Vec<u8>,
-) {
+) -> Result<SP1ProofWithPublicValues> {
     let compress_proof_obj: SP1ReduceProof<BabyBearPoseidon2> =
         bincode::deserialize(compress_proof).unwrap();
 
@@ -114,4 +114,6 @@ pub fn scenario_end<T: Serialize + DeserializeOwned>(
 
     client.verify(&proof, &vk).unwrap();
     tracing::info!("Successfully verified compress proof");
+
+    Ok(proof)
 }

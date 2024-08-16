@@ -4,7 +4,7 @@ use crate::multi_prover::{
     operator::{operator_prove_plonk, operator_prove_shrink},
 };
 use crate::{PlonkBn254Proof, SP1Proof, SP1ProofWithPublicValues};
-use anyhow::Result;
+use anyhow::{Ok, Result};
 use serde::{de::DeserializeOwned, Serialize};
 use sp1_prover::SP1CoreProof;
 use tracing::info_span;
@@ -34,7 +34,7 @@ pub fn scenario_end<T: Serialize + DeserializeOwned>(
     args: &ProveArgs<T>,
     core_proof: &Vec<u8>,
     plonk_proof: &Vec<u8>,
-) {
+) -> Result<SP1ProofWithPublicValues> {
     let plonk_proof: PlonkBn254Proof = bincode::deserialize(plonk_proof).unwrap();
 
     let (client, _, _, vk) = common::init_client(args);
@@ -49,4 +49,6 @@ pub fn scenario_end<T: Serialize + DeserializeOwned>(
 
     client.verify(&proof, &vk).unwrap();
     tracing::info!("Successfully verified compress proof");
+
+    Ok(proof)
 }
