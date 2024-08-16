@@ -17,12 +17,11 @@ use std::{
     collections::VecDeque,
     fmt::Debug,
     io::{stdout, Write},
-    iter::zip,
+    iter::{repeat, zip},
     marker::PhantomData,
     sync::Arc,
 };
 
-use hashbrown::hash_map::Entry;
 use hashbrown::HashMap;
 use itertools::Itertools;
 use p3_field::{AbstractField, ExtensionField, PrimeField32};
@@ -184,7 +183,6 @@ where
             POSEIDON2_SBOX_DEGREE,
         >,
     ) -> Self {
-        // let program = Arc::clone(program);
         let program = Arc::new(program.to_owned());
         let record = ExecutionRecord::<F> {
             program: Arc::clone(&program),
@@ -564,7 +562,7 @@ where
 
 #[derive(Clone, Debug, Default)]
 pub struct Memory<F> {
-    pub inner: HashMap<Address<F>, MemoryEntry<F>>,
+    pub inner: Vec<Option<MemoryEntry<F>>>,
 }
 
 impl<F: PrimeField32> Memory<F> {
@@ -572,7 +570,7 @@ impl<F: PrimeField32> Memory<F> {
     ///
     /// # Panics
     /// Panics if the address is unassigned.
-    pub fn mr(&mut self, addr: Address<F>) -> &mut MemoryEntry<F> {
+    pub fn mr(&mut self, addr: Address<F>) -> &MemoryEntry<F> {
         self.mr_mult(addr, F::one())
     }
 
@@ -580,14 +578,16 @@ impl<F: PrimeField32> Memory<F> {
     ///
     /// # Panics
     /// Panics if the address is unassigned.
-    pub fn mr_mult(&mut self, addr: Address<F>, mult: F) -> &mut MemoryEntry<F> {
-        match self.inner.entry(addr) {
-            Entry::Occupied(mut entry) => {
-                let entry_mult = &mut entry.get_mut().mult;
-                *entry_mult -= mult;
-                entry.into_mut()
+    pub fn mr_mult(&mut self, addr: Address<F>, mult: F) -> &MemoryEntry<F> {
+        match self.inner.get_mut(addr.0.as_canonical_u32() as usize) {
+            Some(Some(entry)) => {
+                entry.mult -= mult;
+                entry
             }
-            Entry::Vacant(_) => panic!("tried to read from unassigned address: {addr:?}",),
+            _ => panic!(
+                "tried to read from unassigned address: {addr:?}\nbacktrace: {:?}",
+                backtrace::Backtrace::new()
+            ),
         }
     }
 
@@ -595,10 +595,16 @@ impl<F: PrimeField32> Memory<F> {
     ///
     /// # Panics
     /// Panics if the address is already assigned.
-    pub fn mw(&mut self, addr: Address<F>, val: Block<F>, mult: F) -> &mut MemoryEntry<F> {
-        match self.inner.entry(addr) {
-            Entry::Occupied(entry) => panic!("tried to write to assigned address: {entry:?}"),
-            Entry::Vacant(entry) => entry.insert(MemoryEntry { val, mult }),
+    pub fn mw(&mut self, addr: Address<F>, val: Block<F>, mult: F) -> &MemoryEntry<F> {
+        let addr_usize = addr.0.as_canonical_u32() as usize;
+        self.inner
+            .extend(repeat(None).take((addr_usize + 1).saturating_sub(self.inner.len())));
+        match &mut self.inner[addr_usize] {
+            Some(entry) => panic!(
+                "tried to write to assigned address: {entry:?}\nbacktrace: {:?}",
+                backtrace::Backtrace::new()
+            ),
+            entry @ None => entry.insert(MemoryEntry { val, mult }),
         }
     }
 }
