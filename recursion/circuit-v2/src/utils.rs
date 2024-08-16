@@ -78,7 +78,7 @@ pub(crate) mod tests {
         let records = vec![runtime.record];
 
         // Run with the poseidon2 wide chip.
-        let proof_wide_span = tracing::debug_span!("Prove with wide machine").entered();
+        let proof_wide_span = tracing::debug_span!("Run test with wide machine").entered();
         let wide_machine = RecursionAir::<_, 3, 0>::machine_wide(SC::default());
         let (pk, vk) = wide_machine.setup(&program);
         let result = run_test_machine_with_prover::<_, _, P>(records.clone(), wide_machine, pk, vk);

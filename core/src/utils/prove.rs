@@ -682,13 +682,13 @@ where
     PcsProverData<SC>: Send + Sync + Serialize + DeserializeOwned,
     OpeningProof<SC>: Send + Sync,
 {
-    let start = Instant::now();
     let prover = P::new(machine);
     let mut challenger = prover.config().challenger();
+    let prove_span = tracing::debug_span!("prove").entered();
     let proof = prover
         .prove(&pk, records, &mut challenger, SP1CoreOpts::default())
         .unwrap();
-    let time = start.elapsed().as_millis();
+    prove_span.exit();
     let nb_bytes = bincode::serialize(&proof).unwrap().len();
 
     let mut challenger = prover.config().challenger();
