@@ -82,10 +82,11 @@ pub(crate) mod tests {
         let wide_machine = RecursionAir::<_, 3, 0>::machine_wide(SC::default());
         let (pk, vk) = wide_machine.setup(&program);
         let result = run_test_machine_with_prover::<_, _, P>(records.clone(), wide_machine, pk, vk);
+        proof_wide_span.exit();
+
         if let Err(e) = result {
             panic!("Verification failed: {:?}", e);
         }
-        proof_wide_span.exit();
     }
 
     #[allow(dead_code)]
