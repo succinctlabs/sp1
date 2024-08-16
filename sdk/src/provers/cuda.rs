@@ -5,12 +5,8 @@ use sp1_prover::{components::DefaultProverComponents, SP1Prover, SP1Stdin};
 
 use super::ProverType;
 use crate::{
-    install::try_install_plonk_bn254_artifacts,
-    provers::{
-        utils::{enough_ram_for_plonk, PLONK_MEMORY_GB_REQUIREMENT},
-        ProofOpts,
-    },
-    Prover, SP1Proof, SP1ProofKind, SP1ProofWithPublicValues, SP1ProvingKey, SP1VerifyingKey,
+    install::try_install_plonk_bn254_artifacts, provers::ProofOpts, Prover, SP1Proof, SP1ProofKind,
+    SP1ProofWithPublicValues, SP1ProvingKey, SP1VerifyingKey,
 };
 
 /// An implementation of [crate::ProverClient] that can generate proofs locally using CUDA.
@@ -53,13 +49,6 @@ impl Prover<DefaultProverComponents> for CudaProver {
         kind: SP1ProofKind,
     ) -> Result<SP1ProofWithPublicValues> {
         tracing::warn!("opts and context are ignored for the cuda prover");
-
-        if kind == SP1ProofKind::Plonk && !enough_ram_for_plonk() {
-            return Err(anyhow::anyhow!(format!(
-                "not enough memory to generate plonk proof. at least {}GB is required.",
-                PLONK_MEMORY_GB_REQUIREMENT
-            )));
-        }
 
         // Generate the core proof.
         let proof = self.cuda_prover.prove_core(pk, &stdin)?;

@@ -2,7 +2,6 @@ mod cpu;
 #[cfg(feature = "cuda")]
 mod cuda;
 mod mock;
-mod utils;
 
 pub use cpu::CpuProver;
 #[cfg(feature = "cuda")]
