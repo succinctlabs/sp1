@@ -7,7 +7,8 @@ use p3_matrix::Matrix;
 use p3_maybe_rayon::prelude::{ParallelIterator, ParallelSlice};
 
 use crate::bytes::event::ByteRecord;
-use crate::{runtime::Program, stark::MachineRecord};
+use crate::runtime::Program;
+use crate::runtime::SyscallCode;
 
 use crate::{air::MachineAir, runtime::ExecutionRecord};
 
@@ -33,11 +34,10 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
         let chunk_size = std::cmp::max(num_events / num_cpus::get(), 1);
 
         // Use par_chunks to generate the trace in parallel.
-        let rows_and_records = (0..num_events)
+        let rows_and_blu_events = (0..num_events)
             .collect::<Vec<_>>()
             .par_chunks(chunk_size)
             .map(|chunk| {
-                let mut record = ExecutionRecord::default();
                 let mut new_byte_lookup_events = Vec::new();
 
                 // First generate all the p3_keccak_air traces at once.
@@ -117,16 +117,20 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
                         rows
                     })
                     .collect::<Vec<_>>();
-                record.add_byte_lookup_events(new_byte_lookup_events);
-                (rows, record)
+                (rows, new_byte_lookup_events)
             })
             .collect::<Vec<_>>();
 
         // Generate the trace rows for each event.
         let mut rows: Vec<[F; NUM_KECCAK_MEM_COLS]> = vec![];
-        for (mut row, mut record) in rows_and_records {
+        let syscall_blu = output
+            .syscall_byte_lookups
+            .entry(SyscallCode::KECCAK_PERMUTE)
+            .or_default();
+
+        for (mut row, blu_events) in rows_and_blu_events {
             rows.append(&mut row);
-            output.append(&mut record);
+            syscall_blu.add_byte_lookup_events(blu_events);
         }
 
         let nb_rows = rows.len();

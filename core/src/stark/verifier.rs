@@ -1,5 +1,4 @@
 use core::fmt::Display;
-use std::borrow::Borrow;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::marker::PhantomData;
@@ -25,8 +24,6 @@ use super::StarkVerifyingKey;
 use super::Val;
 use crate::air::InteractionScope;
 use crate::air::MachineAir;
-use crate::air::PublicValues;
-use crate::air::Word;
 use crate::stark::MachineChip;
 
 pub struct Verifier<SC, A>(PhantomData<SC>, PhantomData<A>);

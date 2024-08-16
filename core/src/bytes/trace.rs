@@ -1,6 +1,5 @@
 use std::borrow::BorrowMut;
 
-use hashbrown::HashMap;
 use p3_field::Field;
 use p3_matrix::dense::RowMajorMatrix;
 
@@ -48,24 +47,20 @@ impl<F: Field> MachineAir<F> for ByteChip<F> {
             NUM_BYTE_MULT_COLS,
         );
 
-        let shard = input.public_values.execution_shard;
-        for (lookup, mult) in input
-            .byte_lookups
-            .get(&shard)
-            .unwrap_or(&HashMap::new())
-            .iter()
-        {
-            let row = if lookup.opcode != ByteOpcode::U16Range {
-                (((lookup.b as u16) << 8) + lookup.c as u16) as usize
-            } else {
-                lookup.a1 as usize
-            };
-            let index = lookup.opcode as usize;
-            let channel = lookup.channel as usize;
+        for (shard, blu) in input.byte_lookups.iter() {
+            for (lookup, mult) in blu.iter() {
+                let row = if lookup.opcode != ByteOpcode::U16Range {
+                    (((lookup.b as u16) << 8) + lookup.c as u16) as usize
+                } else {
+                    lookup.a1 as usize
+                };
+                let index = lookup.opcode as usize;
+                let channel = lookup.channel as usize;
 
-            let cols: &mut ByteMultCols<F> = trace.row_mut(row).borrow_mut();
-            cols.mult_channels[channel].multiplicities[index] += F::from_canonical_usize(*mult);
-            cols.shard = F::from_canonical_u32(shard);
+                let cols: &mut ByteMultCols<F> = trace.row_mut(row).borrow_mut();
+                cols.mult_channels[channel].multiplicities[index] += F::from_canonical_usize(*mult);
+                cols.shard = F::from_canonical_u32(*shard);
+            }
         }
 
         trace

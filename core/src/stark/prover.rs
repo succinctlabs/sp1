@@ -1,7 +1,6 @@
 use core::fmt::Display;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
-use std::borrow::Borrow;
 use std::cmp::Reverse;
 use std::error::Error;
 
@@ -22,8 +21,6 @@ use super::{types::*, StarkGenericConfig};
 use super::{Com, OpeningProof};
 use super::{StarkProvingKey, VerifierConstraintFolder};
 use crate::air::MachineAir;
-use crate::air::PublicValues;
-use crate::air::Word;
 use crate::lookup::InteractionBuilder;
 use crate::stark::record::MachineRecord;
 use crate::stark::DebugConstraintBuilder;

@@ -23,7 +23,7 @@ use super::{NUM_LIMBS, WORDS_CURVE_POINT};
 use crate::air::BaseAirBuilder;
 use crate::air::MachineAir;
 use crate::air::SP1AirBuilder;
-use crate::bytes::event::ByteRecord;
+use crate::bytes::event::{add_sharded_byte_lookup_events, ByteRecord};
 use crate::bytes::ByteLookupEvent;
 use crate::memory::value_as_limbs;
 use crate::memory::MemoryReadCols;
@@ -225,7 +225,12 @@ impl<F: PrimeField32, E: EllipticCurve + EdwardsParameters> MachineAir<F> for Ed
             })
             .collect::<Vec<_>>();
 
-        output.add_sharded_byte_lookup_events(blu_batches.iter().collect_vec());
+        let syscall_blu = output
+            .syscall_byte_lookups
+            .entry(SyscallCode::ED_ADD)
+            .or_default();
+
+        add_sharded_byte_lookup_events(syscall_blu, blu_batches.iter().collect_vec());
     }
 
     fn included(&self, shard: &Self::Record) -> bool {

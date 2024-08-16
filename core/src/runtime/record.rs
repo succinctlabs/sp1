@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 
 use super::program::Program;
 use super::Opcode;
+use super::SyscallCode;
 use crate::air::PublicValues;
 use crate::alu::AluEvent;
 use crate::bytes::event::add_sharded_byte_lookup_events;
@@ -92,6 +93,8 @@ pub struct ExecutionRecord {
     pub bls12381_double_events: Vec<ECDoubleEvent>,
 
     pub uint256_mul_events: Vec<Uint256MulEvent>,
+
+    pub syscall_byte_lookups: HashMap<SyscallCode, HashMap<u32, HashMap<ByteLookupEvent, usize>>>,
 
     pub global_memory_initialize_events: Vec<MemoryInitializeFinalizeEvent>,
 
@@ -261,6 +264,16 @@ impl MachineRecord for ExecutionRecord {
             self.add_sharded_byte_lookup_events(vec![&other.byte_lookups]);
         }
 
+        for (syscall, byte_lookups) in other.syscall_byte_lookups.iter() {
+            let entry = self.syscall_byte_lookups.entry(*syscall).or_default();
+            for (shard, byte_lookup) in byte_lookups.iter() {
+                let entry = entry.entry(*shard).or_default();
+                for (event, count) in byte_lookup.iter() {
+                    *entry.entry(*event).or_default() += *count;
+                }
+            }
+        }
+
         self.global_memory_initialize_events
             .append(&mut other.global_memory_initialize_events);
         self.global_memory_finalize_events
@@ -391,6 +404,7 @@ impl ExecutionRecord {
                 &mut self.global_memory_initialize_events,
             ),
             global_memory_finalize_events: std::mem::take(&mut self.global_memory_finalize_events),
+            syscall_byte_lookups: std::mem::take(&mut self.syscall_byte_lookups),
             ..Default::default()
         }
     }
@@ -401,9 +415,14 @@ impl ExecutionRecord {
         let mut shards = Vec::new();
 
         macro_rules! split_events {
-            ($self:ident, $events:ident, $shards:ident, $threshold:expr, $exact:expr) => {
+            ($self:ident, $events:ident, $syscall:expr, $shards:ident, $threshold:expr, $exact:expr) => {
                 let events = std::mem::take(&mut $self.$events);
                 let chunks = events.chunks_exact($threshold);
+                let blu_events = $self
+                    .syscall_byte_lookups
+                    .entry($syscall)
+                    .or_default()
+                    .clone();
                 if !$exact {
                     $self.$events = chunks.remainder().to_vec();
                 } else {
@@ -411,6 +430,7 @@ impl ExecutionRecord {
                     if !remainder.is_empty() {
                         $shards.push(ExecutionRecord {
                             $events: chunks.remainder().to_vec(),
+                            byte_lookups: blu_events.clone(),
                             program: self.program.clone(),
                             ..Default::default()
                         });
@@ -419,6 +439,7 @@ impl ExecutionRecord {
                 let mut event_shards = chunks
                     .map(|chunk| ExecutionRecord {
                         $events: chunk.to_vec(),
+                        byte_lookups: blu_events.clone(),
                         program: self.program.clone(),
                         ..Default::default()
                     })
@@ -430,6 +451,7 @@ impl ExecutionRecord {
         split_events!(
             self,
             keccak_permute_events,
+            SyscallCode::KECCAK_PERMUTE,
             shards,
             opts.keccak_split_threshold,
             last
@@ -437,6 +459,7 @@ impl ExecutionRecord {
         split_events!(
             self,
             secp256k1_add_events,
+            SyscallCode::SECP256K1_ADD,
             shards,
             opts.deferred_shift_threshold,
             last
@@ -444,6 +467,7 @@ impl ExecutionRecord {
         split_events!(
             self,
             secp256k1_double_events,
+            SyscallCode::SECP256K1_DOUBLE,
             shards,
             opts.deferred_shift_threshold,
             last
@@ -451,6 +475,7 @@ impl ExecutionRecord {
         split_events!(
             self,
             bn254_add_events,
+            SyscallCode::BN254_ADD,
             shards,
             opts.deferred_shift_threshold,
             last
@@ -458,6 +483,7 @@ impl ExecutionRecord {
         split_events!(
             self,
             bn254_double_events,
+            SyscallCode::BN254_DOUBLE,
             shards,
             opts.deferred_shift_threshold,
             last
@@ -465,6 +491,7 @@ impl ExecutionRecord {
         split_events!(
             self,
             bls12381_add_events,
+            SyscallCode::BLS12381_ADD,
             shards,
             opts.deferred_shift_threshold,
             last
@@ -472,6 +499,7 @@ impl ExecutionRecord {
         split_events!(
             self,
             bls12381_double_events,
+            SyscallCode::BLS12381_DOUBLE,
             shards,
             opts.deferred_shift_threshold,
             last
@@ -479,6 +507,7 @@ impl ExecutionRecord {
         split_events!(
             self,
             sha_extend_events,
+            SyscallCode::SHA_EXTEND,
             shards,
             opts.sha_extend_split_threshold,
             last
@@ -486,6 +515,7 @@ impl ExecutionRecord {
         split_events!(
             self,
             sha_compress_events,
+            SyscallCode::SHA_COMPRESS,
             shards,
             opts.sha_compress_split_threshold,
             last
@@ -493,6 +523,7 @@ impl ExecutionRecord {
         split_events!(
             self,
             ed_add_events,
+            SyscallCode::ED_ADD,
             shards,
             opts.deferred_shift_threshold,
             last
@@ -500,6 +531,7 @@ impl ExecutionRecord {
         split_events!(
             self,
             ed_decompress_events,
+            SyscallCode::ED_DECOMPRESS,
             shards,
             opts.deferred_shift_threshold,
             last
@@ -507,6 +539,7 @@ impl ExecutionRecord {
         split_events!(
             self,
             k256_decompress_events,
+            SyscallCode::SECP256K1_DECOMPRESS,
             shards,
             opts.deferred_shift_threshold,
             last
@@ -514,6 +547,7 @@ impl ExecutionRecord {
         split_events!(
             self,
             uint256_mul_events,
+            SyscallCode::UINT256_MUL,
             shards,
             opts.deferred_shift_threshold,
             last
@@ -521,6 +555,7 @@ impl ExecutionRecord {
         split_events!(
             self,
             bls12381_decompress_events,
+            SyscallCode::BLS12381_DECOMPRESS,
             shards,
             opts.deferred_shift_threshold,
             last
