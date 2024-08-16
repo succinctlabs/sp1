@@ -301,9 +301,9 @@ pub mod tests {
     type C = InnerConfig;
     type A = RiscvAir<F>;
 
-    pub fn test_verify_shard_with_prover<
+    pub fn test_verify_shard_with_provers<
         CoreP: MachineProver<SC, A>,
-        P: MachineProver<SC, RecursionAir<F, 3, 0>>,
+        RecP: MachineProver<SC, RecursionAir<F, 3, 0>>,
     >(
         elf: &[u8],
         num_shards_in_batch: Option<usize>,
@@ -358,13 +358,13 @@ pub mod tests {
             StarkVerifier::verify_shard(&mut builder, &vk, &machine, &mut challenger, &proof);
         }
 
-        run_test_recursion_with_prover::<P>(builder.operations, witness_stream);
+        run_test_recursion_with_prover::<RecP>(builder.operations, witness_stream);
     }
 
     #[test]
     fn test_verify_shard() {
         use sp1_core::stark::CpuProver;
         use sp1_core::utils::tests::FIBONACCI_ELF;
-        test_verify_shard_with_prover::<CpuProver<_, _>, CpuProver<_, _>>(FIBONACCI_ELF, Some(2));
+        test_verify_shard_with_provers::<CpuProver<_, _>, CpuProver<_, _>>(FIBONACCI_ELF, Some(2));
     }
 }
