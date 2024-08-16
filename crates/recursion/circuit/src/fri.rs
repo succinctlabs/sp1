@@ -75,6 +75,7 @@ pub fn verify_two_adic_pcs<C: Config>(
 ) {
     builder.cycle_tracker("2adic");
     let alpha = challenger.sample_ext(builder);
+    builder.print_e(alpha);
     let log_global_max_height = log2_strict_usize(
         rounds
             .iter()
@@ -85,8 +86,6 @@ pub fn verify_two_adic_pcs<C: Config>(
             .unwrap(),
     );
 
-    println!("circuit log_global_max_height: {}", log_global_max_height);
-
     let fri_challenges = verify_shape_and_sample_challenges(
         builder,
         config,
@@ -94,6 +93,18 @@ pub fn verify_two_adic_pcs<C: Config>(
         log_global_max_height,
         challenger,
     );
+
+    for index in &fri_challenges.query_indices {
+        builder.print_v(*index);
+    }
+
+    for beta in &fri_challenges.betas {
+        builder.print_e(*beta);
+    }
+
+    for beta in &fri_challenges.normalize_betas {
+        builder.print_e(*beta);
+    }
 
     // The powers of alpha, where the ith element is alpha^i.
     let mut alpha_pows: Vec<Ext<C::F, C::EF>> =
@@ -119,7 +130,6 @@ pub fn verify_two_adic_pcs<C: Config>(
                     .collect_vec();
 
                 let batch_max_height = batch_heights.iter().max().expect("Empty batch?");
-                println!("Circuit batch max height: {}", batch_max_height);
                 let log_batch_max_height = log2_strict_usize(*batch_max_height);
                 let bits_reduced = log_global_max_height - log_batch_max_height;
 
@@ -152,15 +162,12 @@ pub fn verify_two_adic_pcs<C: Config>(
                         builder.exp_f_bits(two_adic_generator, rev_reduced_index);
                     let x: Felt<_> = builder.eval(g * two_adic_generator_exp);
 
-                    builder.print_f(x);
-
                     for (z, ps_at_z) in izip!(mat_points, mat_values) {
-                        builder.cycle_tracker("2adic-hot-loop");
+                        builder.cycle_tracker("2adic-hotloop");
                         let mut acc: Ext<C::F, C::EF> =
                             builder.eval(SymbolicExt::from_f(C::EF::zero()));
                         for (p_at_x, &p_at_z) in izip!(mat_opening.clone(), ps_at_z) {
                             let pow = log_height_pow[log_height];
-
                             // Fill in any missing powers of alpha.
                             (alpha_pows.len()..pow + 1).for_each(|_| {
                                 let new_alpha = builder.eval(*alpha_pows.last().unwrap() * alpha);
@@ -175,8 +182,8 @@ pub fn verify_two_adic_pcs<C: Config>(
                         } else {
                             ro[log_height] = Some(builder.eval(acc / (*z - x)));
                         }
+                        builder.cycle_tracker("2adic-hotloop");
                     }
-                    builder.cycle_tracker("2adic-hot-loop");
                 }
             }
             ro
@@ -219,7 +226,6 @@ pub fn verify_challenges<C: Config>(
         proof.normalize_query_proofs.clone(),
         reduced_openings
     ) {
-        builder.print_v(index);
         let index_bits = builder.num2bits_v_circuit(index, 32);
         let normalized_openings = verify_normalization_phase(
             builder,
@@ -333,7 +339,6 @@ fn verify_fold_step<C: Config>(
     x: Felt<C::F>,
 ) -> Ext<C::F, C::EF> {
     let index_bits = builder.num2bits_v_circuit(index, 32);
-    builder.print_v(index);
     let mut index_self_in_siblings = index_bits[..num_folds].to_vec();
     let mut index_set = index_bits[num_folds..].to_vec();
 
@@ -361,9 +366,6 @@ fn verify_fold_step<C: Config>(
 
     let mut ord_idx = index_self_in_siblings;
     let mut ord_evals: Vec<Ext<_, _>> = vec![];
-
-    println!("evals length: {}", evals.len());
-    println!("ord_idx_bits: {:?}", ord_idx.len());
 
     for _ in 0..(1 << num_folds) {
         // ord_evals.push(builder.eval(SymbolicExt::from_f(C::EF::zero())));
@@ -502,7 +504,9 @@ pub mod tests {
     use p3_bn254_fr::Bn254Fr;
     use p3_challenger::{CanObserve, CanSample, FieldChallenger};
     use p3_commit::{Pcs, TwoAdicMultiplicativeCoset};
-    use p3_field::AbstractField;
+    use p3_field::{
+        extension::BinomialExtensionField, AbstractExtensionField, AbstractField, ExtensionField,
+    };
     use p3_fri::{verifier, TwoAdicFriPcsProof};
     use p3_matrix::dense::RowMajorMatrix;
     use p3_util::reverse_slice_index_bits;
@@ -513,7 +517,7 @@ pub mod tests {
     use sp1_recursion_compiler::{
         config::OuterConfig,
         constraints::ConstraintCompiler,
-        ir::{Builder, Ext, Felt, SymbolicExt, SymbolicFelt, Var, Witness},
+        ir::{Builder, Ext, Felt, SymbolicExt, SymbolicFelt, SymbolicVar, Var, Witness},
     };
     use sp1_recursion_core::stark::config::{
         outer_perm, test_fri_config, OuterChallenge, OuterChallengeMmcs, OuterChallenger,
@@ -764,6 +768,13 @@ pub mod tests {
             builder.assert_ext_eq(
                 SymbolicExt::from_f(fri_challenges_gt.betas[i]),
                 fri_challenges.betas[i],
+            );
+        }
+
+        for i in 0..fri_challenges_gt.normalize_betas.len() {
+            builder.assert_ext_eq(
+                SymbolicExt::from_f(fri_challenges_gt.normalize_betas[i]),
+                fri_challenges.normalize_betas[i],
             );
         }
 
