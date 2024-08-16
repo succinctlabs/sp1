@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"os"
 	"sync"
-	"unsafe"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend/groth16"
@@ -104,7 +103,7 @@ func ProveGroth16Bn254(dataDir *C.char, witnessPath *C.char) *C.C_Groth16Bn254Pr
 
 	sp1Groth16Bn254Proof := sp1.ProveGroth16(dataDirString, witnessPathString)
 
-	ms := C.malloc(C.size_t(unsafe.Sizeof(C.C_Groth16Bn254Proof{})))
+	ms := C.malloc(C.sizeof_C_Groth16Bn254Proof)
 	if ms == nil {
 		return nil
 	}
@@ -119,7 +118,9 @@ func ProveGroth16Bn254(dataDir *C.char, witnessPath *C.char) *C.C_Groth16Bn254Pr
 
 //export BuildGroth16Bn254
 func BuildGroth16Bn254(dataDir *C.char) {
+	// Sanity check the required arguments have been provided.
 	dataDirString := C.GoString(dataDir)
+
 	sp1.BuildGroth16(dataDirString)
 }
 
