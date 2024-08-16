@@ -929,6 +929,7 @@ pub mod tests {
     use super::*;
 
     use anyhow::Result;
+    use build::try_build_groth16_bn254_artifacts_dev;
     use build::try_build_plonk_bn254_artifacts_dev;
     use p3_field::PrimeField32;
     use sp1_core_machine::io::SP1Stdin;
@@ -1024,7 +1025,8 @@ pub mod tests {
         tracing::info!("generate plonk bn254 proof");
         let artifacts_dir =
             try_build_plonk_bn254_artifacts_dev(prover.wrap_vk(), &wrapped_bn254_proof.proof);
-        let plonk_bn254_proof = prover.wrap_plonk_bn254(wrapped_bn254_proof, &artifacts_dir);
+        let plonk_bn254_proof =
+            prover.wrap_plonk_bn254(wrapped_bn254_proof.clone(), &artifacts_dir);
         println!("{:?}", plonk_bn254_proof);
 
         prover.verify_plonk_bn254(&plonk_bn254_proof, &vk, &public_values, &artifacts_dir)?;

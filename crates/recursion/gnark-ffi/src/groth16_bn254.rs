@@ -74,9 +74,9 @@ impl Groth16Bn254Prover {
         build_groth16_bn254(build_dir.to_str().unwrap());
 
         // Write the corresponding asset files to the build dir.
-        let sp1_verifier_path = build_dir.join("SP1Verifier.sol");
+        let sp1_verifier_path = build_dir.join("Groth16SP1Verifier.sol");
         let vkey_hash = Self::get_vkey_hash(&build_dir);
-        let sp1_verifier_str = include_str!("../assets/SP1Verifier.txt")
+        let sp1_verifier_str = include_str!("../assets/Groth16SP1Verifier.txt")
             .replace("{SP1_CIRCUIT_VERSION}", SP1_CIRCUIT_VERSION)
             .replace("{VERIFIER_HASH}", format!("0x{}", hex::encode(vkey_hash)).as_str());
         let mut sp1_verifier_file = File::create(sp1_verifier_path).unwrap();

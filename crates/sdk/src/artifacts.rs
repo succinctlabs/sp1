@@ -19,14 +19,14 @@ pub fn export_solidity_plonk_bn254_verifier(output_dir: impl Into<PathBuf>) -> R
     } else {
         try_install_circuit_artifacts()
     };
-    let verifier_path = artifacts_dir.join("SP1Verifier.sol");
+    let verifier_path = artifacts_dir.join("PlonkSP1Verifier.sol");
 
     if !verifier_path.exists() {
         return Err(anyhow::anyhow!("verifier file not found at {:?}", verifier_path));
     }
 
     std::fs::create_dir_all(&output_dir).context("Failed to create output directory.")?;
-    let output_path = output_dir.join("SP1Verifier.sol");
+    let output_path = output_dir.join("PlonkSP1Verifier.sol");
     std::fs::copy(&verifier_path, &output_path).context("Failed to copy verifier file.")?;
     tracing::info!(
         "exported verifier from {} to {}",
@@ -48,14 +48,14 @@ pub fn export_solidity_groth16_bn254_verifier(output_dir: impl Into<PathBuf>) ->
     } else {
         try_install_circuit_artifacts()
     };
-    let verifier_path = artifacts_dir.join("SP1Verifier.sol");
+    let verifier_path = artifacts_dir.join("Groth16SP1Verifier.sol");
 
     if !verifier_path.exists() {
         return Err(anyhow::anyhow!("verifier file not found at {:?}", verifier_path));
     }
 
     std::fs::create_dir_all(&output_dir).context("Failed to create output directory.")?;
-    let output_path = output_dir.join("SP1Verifier.sol");
+    let output_path = output_dir.join("Groth16SP1Verifier.sol");
     std::fs::copy(&verifier_path, &output_path).context("Failed to copy verifier file.")?;
     tracing::info!(
         "exported verifier from {} to {}",
