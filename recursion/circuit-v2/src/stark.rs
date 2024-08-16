@@ -306,6 +306,7 @@ pub mod tests {
         RecP: MachineProver<SC, RecursionAir<F, 3, 0>>,
     >(
         elf: &[u8],
+        opts: SP1CoreOpts,
         num_shards_in_batch: Option<usize>,
     ) {
         // Generate a dummy proof.
@@ -317,7 +318,7 @@ pub mod tests {
             Program::from(elf),
             &SP1Stdin::new(),
             SC::default(),
-            SP1CoreOpts::default(),
+            opts,
         )
         .unwrap();
         let mut challenger = machine.config().challenger();
@@ -365,6 +366,10 @@ pub mod tests {
     fn test_verify_shard() {
         use sp1_core::stark::CpuProver;
         use sp1_core::utils::tests::FIBONACCI_ELF;
-        test_verify_shard_with_provers::<CpuProver<_, _>, CpuProver<_, _>>(FIBONACCI_ELF, Some(2));
+        test_verify_shard_with_provers::<CpuProver<_, _>, CpuProver<_, _>>(
+            FIBONACCI_ELF,
+            SP1CoreOpts::default(),
+            Some(2),
+        );
     }
 }
