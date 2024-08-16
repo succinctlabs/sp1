@@ -16,6 +16,8 @@ pub mod install;
 pub mod network;
 #[cfg(feature = "network")]
 pub use crate::network::prover::NetworkProver;
+#[cfg(feature = "cuda")]
+pub use crate::provers::CudaProver;
 
 pub mod proof;
 pub mod provers;
@@ -29,7 +31,7 @@ pub use provers::SP1VerificationError;
 use sp1_prover::components::DefaultProverComponents;
 use std::env;
 
-pub use provers::{LocalProver, MockProver, Prover};
+pub use provers::{CpuProver, MockProver, Prover};
 
 pub use sp1_core::runtime::{ExecutionReport, Hook, HookEnv, SP1Context, SP1ContextBuilder};
 use sp1_core::SP1_CIRCUIT_VERSION;
@@ -48,7 +50,8 @@ impl ProverClient {
     /// Creates a new [ProverClient].
     ///
     /// Setting the `SP1_PROVER` enviroment variable can change the prover used under the hood.
-    /// - `local` (default): Uses [LocalProver]. Recommended for proving end-to-end locally.
+    /// - `local` (default): Uses [CpuProver] or [CudaProver] if the `cuda` feature is enabled.
+    ///                      Recommended for proving end-to-end locally.
     /// - `mock`: Uses [MockProver]. Recommended for testing and development.
     /// - `network`: Uses [NetworkProver]. Recommended for outsourcing proof generation to an RPC.
     ///
@@ -70,7 +73,10 @@ impl ProverClient {
                 prover: Box::new(MockProver::new()),
             },
             "local" => Self {
-                prover: Box::new(LocalProver::new()),
+                #[cfg(not(feature = "cuda"))]
+                prover: Box::new(CpuProver::new()),
+                #[cfg(feature = "cuda")]
+                prover: Box::new(CudaProver::new()),
             },
             "network" => {
                 cfg_if! {
@@ -121,7 +127,7 @@ impl ProverClient {
     /// ```
     pub fn local() -> Self {
         Self {
-            prover: Box::new(LocalProver::new()),
+            prover: Box::new(CpuProver::new()),
         }
     }
 

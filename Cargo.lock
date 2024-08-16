@@ -4992,6 +4992,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "sp1-cuda"
+version = "1.1.1"
+dependencies = [
+ "bincode",
+ "ctrlc",
+ "prost",
+ "prost-build",
+ "prost-types",
+ "serde",
+ "serde_json",
+ "sp1-core",
+ "sp1-prover",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "twirp-build-rs",
+ "twirp-rs",
+]
+
+[[package]]
 name = "sp1-derive"
 version = "1.1.1"
 dependencies = [
@@ -5350,6 +5370,7 @@ dependencies = [
  "serde_json",
  "sha2",
  "sp1-core",
+ "sp1-cuda",
  "sp1-prover",
  "strum",
  "strum_macros",
@@ -5360,26 +5381,6 @@ dependencies = [
  "tracing",
  "twirp-rs",
  "vergen",
-]
-
-[[package]]
-name = "sp1-server"
-version = "1.1.1"
-dependencies = [
- "bincode",
- "ctrlc",
- "prost",
- "prost-build",
- "prost-types",
- "serde",
- "serde_json",
- "sp1-core",
- "sp1-prover",
- "tokio",
- "tracing",
- "tracing-subscriber",
- "twirp-build-rs",
- "twirp-rs",
 ]
 
 [[package]]

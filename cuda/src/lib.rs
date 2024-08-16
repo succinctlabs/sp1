@@ -4,6 +4,9 @@ pub mod proto {
 }
 
 use core::time::Duration;
+use std::io::BufReader;
+use std::io::Read;
+use std::io::Write;
 use std::process::Command;
 use std::process::Stdio;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -11,12 +14,14 @@ use std::sync::Arc;
 
 use crate::proto::api::ProverServiceClient;
 
+use proto::api::ReadyRequest;
 use serde::{Deserialize, Serialize};
 use sp1_core::io::SP1Stdin;
 use sp1_core::stark::ShardProof;
 use sp1_core::utils::SP1CoreProverError;
 use sp1_prover::types::SP1ProvingKey;
 use sp1_prover::InnerSC;
+use sp1_prover::OuterSC;
 use sp1_prover::SP1CoreProof;
 use sp1_prover::SP1RecursionProverError;
 use sp1_prover::SP1ReduceProof;
@@ -30,7 +35,7 @@ use twirp::Client;
 /// This is currently used to provide experimental support for GPU hardware acceleration.
 ///
 /// **WARNING**: This is an experimental feature and may not work as expected.
-pub struct SP1ProverServer {
+pub struct SP1CudaProver {
     /// The gRPC client to communicate with the container.
     client: Client,
     /// The name of the container.
@@ -63,42 +68,78 @@ pub struct CompressRequestPayload {
     pub deferred_proofs: Vec<ShardProof<InnerSC>>,
 }
 
-impl SP1ProverServer {
+/// The payload for the [sp1_prover::SP1Prover::shrink] method.
+///
+/// We use this object to serialize and deserialize the payload from the client to the server.
+#[derive(Serialize, Deserialize)]
+pub struct ShrinkRequestPayload {
+    pub reduced_proof: SP1ReduceProof<InnerSC>,
+}
+
+/// The payload for the [sp1_prover::SP1Prover::wrap_bn254] method.
+///
+/// We use this object to serialize and deserialize the payload from the client to the server.
+#[derive(Serialize, Deserialize)]
+pub struct WrapRequestPayload {
+    pub reduced_proof: SP1ReduceProof<InnerSC>,
+}
+
+impl SP1CudaProver {
     /// Creates a new [SP1Prover] that runs inside a Docker container and returns a
     /// [SP1ProverClient] that can be used to communicate with the container.
     pub fn new() -> Self {
         let container_name = "sp1-gpu";
-        let image_name = "jtguibas/sp1-gpu:v1.1.5";
+        let image_name = "jtguibas/sp1-gpu:v1.2.0-experimental";
 
         let cleaned_up = Arc::new(AtomicBool::new(false));
         let cleanup_name = container_name;
         let cleanup_flag = cleaned_up.clone();
 
-        // Spawn a new thread to start the Docker container.
+        // Pull the docker image if it's not present.
+        Command::new("sudo")
+            .args(["docker", "pull", image_name])
+            .output()
+            .expect("failed to pull docker image");
+
+        // Start the docker container.
+        let rust_log_level = std::env::var("RUST_LOG").unwrap_or("none".to_string());
+        let mut child = Command::new("sudo")
+            .args([
+                "docker",
+                "run",
+                "-e",
+                format!("RUST_LOG={}", rust_log_level).as_str(),
+                "-p",
+                "3000:3000",
+                "--rm",
+                "--runtime=nvidia",
+                "--gpus",
+                "all",
+                "--name",
+                container_name,
+                image_name,
+            ])
+            .stdout(Stdio::piped())
+            .spawn()
+            .expect("failed to start Docker container");
+
+        let stdout = child.stdout.take().unwrap();
         std::thread::spawn(move || {
-            Command::new("sudo")
-                .args([
-                    "docker",
-                    "run",
-                    "-e",
-                    "RUST_LOG=debug",
-                    "-p",
-                    "3000:3000",
-                    "--rm",
-                    "--runtime=nvidia",
-                    "--gpus",
-                    "all",
-                    "--name",
-                    container_name,
-                    image_name,
-                ])
-                .stdin(Stdio::inherit())
-                .stdout(Stdio::inherit())
-                .stderr(Stdio::inherit())
-                .status()
-                .expect("failed to start Docker container");
+            let mut reader = BufReader::new(stdout);
+            let mut buffer = [0; 1024];
+            loop {
+                match reader.read(&mut buffer) {
+                    Ok(0) => break,
+                    Ok(n) => {
+                        std::io::stdout().write_all(&buffer[..n]).unwrap();
+                        std::io::stdout().flush().unwrap();
+                    }
+                    Err(_) => break,
+                }
+            }
         });
 
+        // Kill the container on control-c.
         ctrlc::set_handler(move || {
             tracing::debug!("received Ctrl+C, cleaning up...");
             if !cleanup_flag.load(Ordering::SeqCst) {
@@ -109,10 +150,32 @@ impl SP1ProverServer {
         })
         .unwrap();
 
-        tracing::debug!("sleeping for 20 seconds to allow server to start");
-        std::thread::sleep(Duration::from_secs(20));
+        // Wait a few seconds for the container to start.
+        std::thread::sleep(Duration::from_secs(2));
 
-        SP1ProverServer {
+        // Check if the container is ready.
+        let client = Client::from_base_url(
+            Url::parse("http://localhost:3000/twirp/").expect("failed to parse url"),
+        )
+        .expect("failed to create client");
+        let rt = Runtime::new().unwrap();
+        rt.block_on(async {
+            tracing::info!("waiting for proving server to be ready");
+            loop {
+                let request = ReadyRequest {};
+                let response = client.ready(request).await;
+                if let Ok(response) = response {
+                    if response.ready {
+                        tracing::info!("proving server is ready");
+                        break;
+                    }
+                }
+                tracing::info!("proving server is not ready, retrying...");
+                std::thread::sleep(Duration::from_secs(2));
+            }
+        });
+
+        SP1CudaProver {
             client: Client::from_base_url(
                 Url::parse("http://localhost:3000/twirp/").expect("failed to parse url"),
             )
@@ -124,7 +187,7 @@ impl SP1ProverServer {
 
     /// Executes the [sp1_prover::SP1Prover::prove_core] method inside the container.
     ///
-    /// TODO: We can probably create a trait to unify [sp1_prover::SP1Prover] and [SP1ProverClient].
+    /// You will need at least 24GB of VRAM to run this method.
     ///
     /// **WARNING**: This is an experimental feature and may not work as expected.
     pub fn prove_core(
@@ -149,7 +212,7 @@ impl SP1ProverServer {
 
     /// Executes the [sp1_prover::SP1Prover::compress] method inside the container.
     ///
-    /// TODO: We can probably create a trait to unify [sp1_prover::SP1Prover] and [SP1ProverClient].
+    /// You will need at least 24GB of VRAM to run this method.
     ///
     /// **WARNING**: This is an experimental feature and may not work as expected.
     pub fn compress(
@@ -174,15 +237,63 @@ impl SP1ProverServer {
         let proof: SP1ReduceProof<InnerSC> = bincode::deserialize(&response.result).unwrap();
         Ok(proof)
     }
+
+    /// Executes the [sp1_prover::SP1Prover::shrink] method inside the container.
+    ///
+    /// You will need at least 40GB of VRAM to run this method.
+    ///
+    /// **WARNING**: This is an experimental feature and may not work as expected.
+    pub fn shrink(
+        &self,
+        reduced_proof: SP1ReduceProof<InnerSC>,
+    ) -> Result<SP1ReduceProof<InnerSC>, SP1RecursionProverError> {
+        let payload = ShrinkRequestPayload {
+            reduced_proof: reduced_proof.clone(),
+        };
+        let request = crate::proto::api::ShrinkRequest {
+            data: bincode::serialize(&payload).unwrap(),
+        };
+
+        let rt = Runtime::new().unwrap();
+        let response = rt
+            .block_on(async { self.client.shrink(request).await })
+            .unwrap();
+        let proof: SP1ReduceProof<InnerSC> = bincode::deserialize(&response.result).unwrap();
+        Ok(proof)
+    }
+
+    /// Executes the [sp1_prover::SP1Prover::wrap_bn254] method inside the container.
+    ///
+    /// You will need at least 40GB of VRAM to run this method.
+    ///
+    /// **WARNING**: This is an experimental feature and may not work as expected.
+    pub fn wrap_bn254(
+        &self,
+        reduced_proof: SP1ReduceProof<InnerSC>,
+    ) -> Result<SP1ReduceProof<OuterSC>, SP1RecursionProverError> {
+        let payload = WrapRequestPayload {
+            reduced_proof: reduced_proof.clone(),
+        };
+        let request = crate::proto::api::WrapRequest {
+            data: bincode::serialize(&payload).unwrap(),
+        };
+
+        let rt = Runtime::new().unwrap();
+        let response = rt
+            .block_on(async { self.client.wrap(request).await })
+            .unwrap();
+        let proof: SP1ReduceProof<OuterSC> = bincode::deserialize(&response.result).unwrap();
+        Ok(proof)
+    }
 }
 
-impl Default for SP1ProverServer {
+impl Default for SP1CudaProver {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl Drop for SP1ProverServer {
+impl Drop for SP1CudaProver {
     fn drop(&mut self) {
         if !self.cleaned_up.load(Ordering::SeqCst) {
             tracing::debug!("dropping SP1ProverClient, cleaning up...");
@@ -194,19 +305,21 @@ impl Drop for SP1ProverServer {
 
 /// Cleans up the a docker container with the given name.
 fn cleanup_container(container_name: &str) {
-    tracing::debug!("cleaning up container: {}", container_name);
     if let Err(e) = Command::new("sudo")
         .args(["docker", "rm", "-f", container_name])
-        .status()
+        .output()
     {
         eprintln!("failed to remove container: {}", e);
     }
 }
 
+#[allow(unused_imports)]
+#[cfg(feature = "protobuf")]
 #[cfg(test)]
 mod tests {
-    use sp1_core::utils;
+    use sp1_core::runtime::SP1Context;
     use sp1_core::utils::tests::FIBONACCI_ELF;
+    use sp1_core::utils::{self, SP1ProverOpts};
     use sp1_prover::components::DefaultProverComponents;
     use sp1_prover::{InnerSC, SP1CoreProof, SP1Prover, SP1ReduceProof};
     use twirp::url::Url;
@@ -214,16 +327,14 @@ mod tests {
 
     use crate::SP1Stdin;
     use crate::{proto::api::ProverServiceClient, ProveCoreRequestPayload};
-    use crate::{CompressRequestPayload, SP1ProverServer};
+    use crate::{CompressRequestPayload, SP1CudaProver};
 
-    #[ignore]
     #[test]
     fn test_client() {
         utils::setup_logger();
 
-        let client = SP1ProverServer::new();
-
         let prover = SP1Prover::<DefaultProverComponents>::new();
+        let client = SP1CudaProver::new();
         let (pk, vk) = prover.setup(FIBONACCI_ELF);
 
         println!("proving core");
@@ -237,9 +348,20 @@ mod tests {
 
         println!("verifying compress");
         prover.verify_compressed(&proof, &vk).unwrap();
+
+        println!("proving shrink");
+        let proof = client.shrink(proof).unwrap();
+
+        println!("verifying shrink");
+        prover.verify_shrink(&proof, &vk).unwrap();
+
+        println!("proving wrap_bn254");
+        let proof = client.wrap_bn254(proof).unwrap();
+
+        println!("verifying wrap_bn254");
+        prover.verify_wrap_bn254(&proof, &vk).unwrap();
     }
 
-    #[ignore]
     #[tokio::test]
     async fn test_prove_core() {
         let client =

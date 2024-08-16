@@ -1,7 +1,6 @@
 use anyhow::Result;
 use sp1_core::runtime::SP1Context;
-use sp1_prover::{components::SP1ProverComponents, SP1Prover, SP1Stdin};
-use sysinfo::System;
+use sp1_prover::{components::DefaultProverComponents, SP1Prover, SP1Stdin};
 
 use crate::{
     install::try_install_plonk_bn254_artifacts, provers::ProofOpts, Prover, SP1Proof, SP1ProofKind,
@@ -11,11 +10,11 @@ use crate::{
 use super::ProverType;
 
 /// An implementation of [crate::ProverClient] that can generate end-to-end proofs locally.
-pub struct LocalProver<C: SP1ProverComponents> {
-    prover: SP1Prover<C>,
+pub struct CpuProver {
+    prover: SP1Prover<DefaultProverComponents>,
 }
 
-impl<C: SP1ProverComponents> LocalProver<C> {
+impl CpuProver {
     /// Creates a new [LocalProver].
     pub fn new() -> Self {
         let prover = SP1Prover::new();
@@ -23,21 +22,21 @@ impl<C: SP1ProverComponents> LocalProver<C> {
     }
 
     /// Creates a new [LocalProver] from an existing [SP1Prover].
-    pub fn from_prover(prover: SP1Prover<C>) -> Self {
+    pub fn from_prover(prover: SP1Prover<DefaultProverComponents>) -> Self {
         Self { prover }
     }
 }
 
-impl<C: SP1ProverComponents> Prover<C> for LocalProver<C> {
+impl Prover<DefaultProverComponents> for CpuProver {
     fn id(&self) -> ProverType {
-        ProverType::Local
+        ProverType::Cpu
     }
 
     fn setup(&self, elf: &[u8]) -> (SP1ProvingKey, SP1VerifyingKey) {
         self.prover.setup(elf)
     }
 
-    fn sp1_prover(&self) -> &SP1Prover<C> {
+    fn sp1_prover(&self) -> &SP1Prover<DefaultProverComponents> {
         &self.prover
     }
 
@@ -49,13 +48,7 @@ impl<C: SP1ProverComponents> Prover<C> for LocalProver<C> {
         context: SP1Context<'a>,
         kind: SP1ProofKind,
     ) -> Result<SP1ProofWithPublicValues> {
-        let total_ram_gb = System::new_all().total_memory() / 1_000_000_000;
-        if kind == SP1ProofKind::Plonk && total_ram_gb <= 120 {
-            return Err(anyhow::anyhow!(
-                "not enough memory to generate plonk proof. at least 128GB is required."
-            ));
-        }
-
+        // Generate the core proof.
         let proof = self
             .prover
             .prove_core(pk, &stdin, opts.sp1_prover_opts, context)?;
@@ -67,8 +60,11 @@ impl<C: SP1ProverComponents> Prover<C> for LocalProver<C> {
                 sp1_version: self.version().to_string(),
             });
         }
+
         let deferred_proofs = stdin.proofs.iter().map(|p| p.0.clone()).collect();
         let public_values = proof.public_values.clone();
+
+        // Generate the compressed proof.
         let reduce_proof =
             self.prover
                 .compress(&pk.vk, proof, deferred_proofs, opts.sp1_prover_opts)?;
@@ -80,7 +76,11 @@ impl<C: SP1ProverComponents> Prover<C> for LocalProver<C> {
                 sp1_version: self.version().to_string(),
             });
         }
+
+        // Generate the shrink proof.
         let compress_proof = self.prover.shrink(reduce_proof, opts.sp1_prover_opts)?;
+
+        // Genenerate the wrap proof.
         let outer_proof = self
             .prover
             .wrap_bn254(compress_proof, opts.sp1_prover_opts)?;
@@ -104,11 +104,12 @@ impl<C: SP1ProverComponents> Prover<C> for LocalProver<C> {
                 sp1_version: self.version().to_string(),
             });
         }
+
         unreachable!()
     }
 }
 
-impl<C: SP1ProverComponents> Default for LocalProver<C> {
+impl Default for CpuProver {
     fn default() -> Self {
         Self::new()
     }
