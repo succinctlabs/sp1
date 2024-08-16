@@ -5,7 +5,7 @@ use crate::common::memory_layouts::SerializableReduceLayout;
 use crate::{
     common::{
         memory_layouts::{SerializableDeferredLayout, SerializableRecursionLayout},
-        types::{LayoutType, RecordType},
+        types::LayoutType,
     },
     operator::utils::ChallengerState,
     ProveArgs,

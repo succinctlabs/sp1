@@ -4,13 +4,13 @@ pub mod utils;
 use crate::common;
 use crate::common::{
     memory_layouts::{SerializableDeferredLayout, SerializableRecursionLayout},
-    types::{CommitmentType, PublicValueStreamType, RecordType},
+    types::{CommitmentType, PublicValueStreamType},
 };
 use crate::ProveArgs;
 use p3_baby_bear::BabyBear;
 use sp1_core::air::{PublicValues, Word};
 use sp1_core::stark::{MachineProver, StarkGenericConfig};
-use sp1_core::{stark::ShardProof, utils::BabyBearPoseidon2};
+use sp1_core::utils::BabyBearPoseidon2;
 use sp1_prover::{SP1CoreProof, SP1ReduceProof};
 use std::borrow::Borrow;
 use steps::{
