@@ -144,6 +144,10 @@ impl<F: PrimeField> MachineAir<F> for MemoryProgramChip {
     fn included(&self, _: &Self::Record) -> bool {
         true
     }
+
+    fn included_phase1(&self) -> bool {
+        true
+    }
 }
 
 impl<F> BaseAir<F> for MemoryProgramChip {
