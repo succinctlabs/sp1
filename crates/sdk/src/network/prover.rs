@@ -38,10 +38,7 @@ impl NetworkProver {
         log::info!("Client circuit version: {}", version);
 
         let local_prover = CpuProver::new();
-        Self {
-            client: NetworkClient::new(private_key),
-            local_prover,
-        }
+        Self { client: NetworkClient::new(private_key), local_prover }
     }
 
     /// Requests a proof from the prover network, returning the proof ID.

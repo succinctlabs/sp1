@@ -16,6 +16,7 @@ use crate::proto::api::ProverServiceClient;
 
 use proto::api::ReadyRequest;
 use serde::{Deserialize, Serialize};
+use sp1_core_machine::{io::SP1Stdin, utils::SP1CoreProverError};
 use sp1_prover::types::SP1ProvingKey;
 use sp1_prover::InnerSC;
 use sp1_prover::OuterSC;
@@ -23,7 +24,6 @@ use sp1_prover::SP1CoreProof;
 use sp1_prover::SP1RecursionProverError;
 use sp1_prover::SP1ReduceProof;
 use sp1_prover::SP1VerifyingKey;
-use sp1_core_machine::{io::SP1Stdin, utils::SP1CoreProverError};
 use sp1_stark::ShardProof;
 use tokio::runtime::Runtime;
 use twirp::{url::Url, Client};
@@ -232,17 +232,12 @@ impl SP1CudaProver {
         &self,
         reduced_proof: SP1ReduceProof<InnerSC>,
     ) -> Result<SP1ReduceProof<InnerSC>, SP1RecursionProverError> {
-        let payload = ShrinkRequestPayload {
-            reduced_proof: reduced_proof.clone(),
-        };
-        let request = crate::proto::api::ShrinkRequest {
-            data: bincode::serialize(&payload).unwrap(),
-        };
+        let payload = ShrinkRequestPayload { reduced_proof: reduced_proof.clone() };
+        let request =
+            crate::proto::api::ShrinkRequest { data: bincode::serialize(&payload).unwrap() };
 
         let rt = Runtime::new().unwrap();
-        let response = rt
-            .block_on(async { self.client.shrink(request).await })
-            .unwrap();
+        let response = rt.block_on(async { self.client.shrink(request).await }).unwrap();
         let proof: SP1ReduceProof<InnerSC> = bincode::deserialize(&response.result).unwrap();
         Ok(proof)
     }
@@ -256,17 +251,12 @@ impl SP1CudaProver {
         &self,
         reduced_proof: SP1ReduceProof<InnerSC>,
     ) -> Result<SP1ReduceProof<OuterSC>, SP1RecursionProverError> {
-        let payload = WrapRequestPayload {
-            reduced_proof: reduced_proof.clone(),
-        };
-        let request = crate::proto::api::WrapRequest {
-            data: bincode::serialize(&payload).unwrap(),
-        };
+        let payload = WrapRequestPayload { reduced_proof: reduced_proof.clone() };
+        let request =
+            crate::proto::api::WrapRequest { data: bincode::serialize(&payload).unwrap() };
 
         let rt = Runtime::new().unwrap();
-        let response = rt
-            .block_on(async { self.client.wrap(request).await })
-            .unwrap();
+        let response = rt.block_on(async { self.client.wrap(request).await }).unwrap();
         let proof: SP1ReduceProof<OuterSC> = bincode::deserialize(&response.result).unwrap();
         Ok(proof)
     }
@@ -290,10 +280,7 @@ impl Drop for SP1CudaProver {
 
 /// Cleans up the a docker container with the given name.
 fn cleanup_container(container_name: &str) {
-    if let Err(e) = Command::new("sudo")
-        .args(["docker", "rm", "-f", container_name])
-        .output()
-    {
+    if let Err(e) = Command::new("sudo").args(["docker", "rm", "-f", container_name]).output() {
         eprintln!("failed to remove container: {}", e);
     }
 }
@@ -311,7 +298,6 @@ mod tests {
     use crate::{proto::api::ProverServiceClient, ProveCoreRequestPayload};
     use crate::{CompressRequestPayload, SP1CudaProver};
     use sp1_core_machine::{utils, utils::tests::FIBONACCI_ELF};
-
 
     #[test]
     fn test_client() {

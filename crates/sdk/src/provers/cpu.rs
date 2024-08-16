@@ -5,12 +5,8 @@ use sp1_prover::components::DefaultProverComponents;
 use sp1_prover::SP1Prover;
 
 use crate::{
-    install::try_install_plonk_bn254_artifacts,
-    provers::{
-        utils::{enough_ram_for_plonk, PLONK_MEMORY_GB_REQUIREMENT},
-        ProofOpts,
-    },
-    Prover, SP1Proof, SP1ProofKind, SP1ProofWithPublicValues, SP1ProvingKey, SP1VerifyingKey,
+    install::try_install_plonk_bn254_artifacts, provers::ProofOpts, Prover, SP1Proof, SP1ProofKind,
+    SP1ProofWithPublicValues, SP1ProvingKey, SP1VerifyingKey,
 };
 
 use super::ProverType;
