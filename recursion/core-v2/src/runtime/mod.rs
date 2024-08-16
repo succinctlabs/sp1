@@ -308,22 +308,28 @@ where
                         BaseAluOpcode::AddF => in1 + in2,
                         BaseAluOpcode::SubF => in1 - in2,
                         BaseAluOpcode::MulF => in1 * in2,
-                        BaseAluOpcode::DivF => in1.try_div(in2).unwrap_or(AbstractField::one()),
+                        BaseAluOpcode::DivF => match in1.try_div(in2) {
+                            Some(x) => x,
+                            None => {
+                                // Check for division exceptions and error. Note that 0/0 is defined to be 1.
+                                if in1.is_zero() {
+                                    AbstractField::one()
+                                } else {
+                                    return Err(RuntimeError::DivFOutOfDomain {
+                                        in1,
+                                        in2,
+                                        instr,
+                                        pc: self.pc.as_canonical_u32() as usize,
+                                        trace: self.nearest_pc_backtrace(),
+                                    });
+                                }
+                            }
+                        },
                     };
                     self.mw(addrs.out, Block::from(out), mult);
                     self.record
                         .base_alu_events
                         .push(BaseAluEvent { out, in1, in2 });
-                    // Check for division exceptions and error. Note that 0/0 is defined to be 1.
-                    if opcode == BaseAluOpcode::DivF && !in1.is_zero() && in2.is_zero() {
-                        return Err(RuntimeError::DivFOutOfDomain {
-                            in1,
-                            in2,
-                            instr,
-                            pc: self.pc.as_canonical_u32() as usize,
-                            trace: self.nearest_pc_backtrace(),
-                        });
-                    }
                 }
                 Instruction::ExtAlu(
                     instr @ ExtAluInstr {
@@ -342,25 +348,29 @@ where
                         ExtAluOpcode::AddE => in1_ef + in2_ef,
                         ExtAluOpcode::SubE => in1_ef - in2_ef,
                         ExtAluOpcode::MulE => in1_ef * in2_ef,
-                        ExtAluOpcode::DivE => {
-                            in1_ef.try_div(in2_ef).unwrap_or(AbstractField::one())
-                        }
+                        ExtAluOpcode::DivE => match in1_ef.try_div(in2_ef) {
+                            Some(x) => x,
+                            None => {
+                                // Check for division exceptions and error. Note that 0/0 is defined to be 1.
+                                if in1_ef.is_zero() {
+                                    AbstractField::one()
+                                } else {
+                                    return Err(RuntimeError::DivEOutOfDomain {
+                                        in1: in1_ef,
+                                        in2: in2_ef,
+                                        instr,
+                                        pc: self.pc.as_canonical_u32() as usize,
+                                        trace: self.nearest_pc_backtrace(),
+                                    });
+                                }
+                            }
+                        },
                     };
                     let out = Block::from(out_ef.as_base_slice());
                     self.mw(addrs.out, out, mult);
                     self.record
                         .ext_alu_events
                         .push(ExtAluEvent { out, in1, in2 });
-                    // Check for division exceptions and error. Note that 0/0 is defined to be 1.
-                    if opcode == ExtAluOpcode::DivE && !in1_ef.is_zero() && in2_ef.is_zero() {
-                        return Err(RuntimeError::DivEOutOfDomain {
-                            in1: in1_ef,
-                            in2: in2_ef,
-                            instr,
-                            pc: self.pc.as_canonical_u32() as usize,
-                            trace: self.nearest_pc_backtrace(),
-                        });
-                    }
                 }
                 Instruction::Mem(MemInstr {
                     addrs: MemIo { inner: addr },
