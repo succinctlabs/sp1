@@ -95,6 +95,12 @@ where
         let p3_ef_inverse = p3_ef.inverse();
         Self(p3_ef_inverse.as_base_slice().try_into().unwrap())
     }
+
+    pub fn try_inverse(&self) -> Option<Self> {
+        let p3_ef = BinomialExtensionField::from_base_slice(&self.0);
+        let p3_ef_inverse = p3_ef.try_inverse()?;
+        Some(Self(p3_ef_inverse.as_base_slice().try_into().unwrap()))
+    }
 }
 
 impl<T: AbstractField + Copy> Neg for BinomialExtension<T> {

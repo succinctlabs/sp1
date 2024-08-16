@@ -1,4 +1,8 @@
-use super::{Array, FriFoldInput, MemIndex, Ptr, TracedVec};
+use sp1_recursion_core::air::RecursionPublicValues;
+
+use super::{
+    Array, CircuitV2FriFoldInput, CircuitV2FriFoldOutput, FriFoldInput, MemIndex, Ptr, TracedVec,
+};
 use super::{Config, Ext, Felt, Usize, Var};
 
 /// An intermeddiate instruction set for implementing programs.
@@ -210,6 +214,10 @@ pub enum DslIr<C: Config> {
     CircuitPoseidon2Permute([Var<C::N>; 3]),
     /// Permutates an array of BabyBear elements in the circuit.
     CircuitPoseidon2PermuteBabyBear([Felt<C::F>; 16]),
+    /// Permutates an array of BabyBear elements in the circuit using the skinny precompile.
+    CircuitV2Poseidon2PermuteBabyBear([Felt<C::F>; 16], [Felt<C::F>; 16]),
+    /// Commits the public values.
+    CircuitV2CommitPublicValues(Box<RecursionPublicValues<Felt<C::F>>>),
 
     // Miscellaneous instructions.
     /// Decompose hint operation of a usize into an array. (output = num2bits(usize)).
@@ -218,6 +226,8 @@ pub enum DslIr<C: Config> {
     HintBitsV(Array<C, Var<C::N>>, Var<C::N>),
     /// Decompose hint operation of a field element into an array. (output = num2bits(felt)).
     HintBitsF(Array<C, Var<C::N>>, Felt<C::F>),
+    /// Decompose hint operation of a field element into an array. (output = num2bits(felt)).
+    CircuitV2HintBitsF(Vec<Felt<C::F>>, Felt<C::F>),
     /// Prints a variable.
     PrintV(Var<C::N>),
     /// Prints a field element.
@@ -237,6 +247,10 @@ pub enum DslIr<C: Config> {
     HintFelts(Array<C, Felt<C::F>>),
     /// Hint an array of extension field elements.
     HintExts(Array<C, Ext<C::F, C::EF>>),
+    /// Hint an array of field elements.
+    CircuitV2HintFelts(Vec<Felt<C::F>>),
+    /// Hint an array of extension field elements.
+    CircuitV2HintExts(Vec<Ext<C::F, C::EF>>),
     /// Witness a variable. Should only be used when target is a gnark circuit.
     WitnessVar(Var<C::N>, u32),
     /// Witness a field element. Should only be used when target is a gnark circuit.
@@ -262,6 +276,9 @@ pub enum DslIr<C: Config> {
     /// Executes a FRI fold operation. 1st field is the size of the fri fold input array.  2nd field
     /// is the fri fold input array.  See [`FriFoldInput`] for more details.
     FriFold(Var<C::N>, Array<C, FriFoldInput<C>>),
+    // FRI specific instructions.
+    /// Executes a FRI fold operation. Input is the fri fold input array.  See [`FriFoldInput`] for more details.
+    CircuitV2FriFold(CircuitV2FriFoldOutput<C>, CircuitV2FriFoldInput<C>),
     /// Select's a variable based on a condition. (select(cond, true_val, false_val) => output).
     /// Should only be used when target is a gnark circuit.
     CircuitSelectV(Var<C::N>, Var<C::N>, Var<C::N>, Var<C::N>),
@@ -286,7 +303,13 @@ pub enum DslIr<C: Config> {
     LessThan(Var<C::N>, Var<C::N>, Var<C::N>),
     /// Tracks the number of cycles used by a block of code annotated by the string input.
     CycleTracker(String),
+    /// Tracks the number of cycles used by a block of code annotated by the string input.
+    CycleTrackerV2Enter(String),
+    /// Tracks the number of cycles used by a block of code annotated by the string input.
+    CycleTrackerV2Exit,
 
     // Reverse bits exponentiation.
     ExpReverseBitsLen(Ptr<C::N>, Var<C::N>, Var<C::N>),
+    /// Reverse bits exponentiation. Output, base, exponent bits.
+    CircuitV2ExpReverseBits(Felt<C::F>, Felt<C::F>, Vec<Felt<C::F>>),
 }

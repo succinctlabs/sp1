@@ -78,6 +78,12 @@ pub struct Runtime<F: PrimeField32, EF: ExtensionField<F>, Diffusion> {
 
     pub nb_poseidons: usize,
 
+    pub nb_poseidon_permutes: usize,
+
+    pub nb_erb_lens: usize,
+
+    pub nb_fri_folds: usize,
+
     pub nb_bit_decompositions: usize,
 
     pub nb_ext_ops: usize,
@@ -184,6 +190,9 @@ where
         Self {
             timestamp: 0,
             nb_poseidons: 0,
+            nb_poseidon_permutes: 0,
+            nb_erb_lens: 0,
+            nb_fri_folds: 0,
             nb_bit_decompositions: 0,
             nb_ext_ops: 0,
             nb_base_ops: 0,
@@ -217,6 +226,9 @@ where
         Self {
             timestamp: 0,
             nb_poseidons: 0,
+            nb_poseidon_permutes: 0,
+            nb_erb_lens: 0,
+            nb_fri_folds: 0,
             nb_bit_decompositions: 0,
             nb_ext_ops: 0,
             nb_base_ops: 0,
@@ -245,6 +257,9 @@ where
     pub fn print_stats(&self) {
         tracing::debug!("Total Cycles: {}", self.timestamp);
         tracing::debug!("Poseidon Operations: {}", self.nb_poseidons);
+        tracing::debug!("Poseidon Permute Operations: {}", self.nb_poseidon_permutes);
+        tracing::debug!("Exp Reverse Bits Len Operations: {}", self.nb_erb_lens);
+        tracing::debug!("FRI Fold Operations: {}", self.nb_fri_folds);
         tracing::debug!("Field Operations: {}", self.nb_base_ops);
         tracing::debug!("Extension Operations: {}", self.nb_ext_ops);
         tracing::debug!("Memory Operations: {}", self.nb_memory_ops);
@@ -672,6 +687,7 @@ where
                 }
                 Opcode::Poseidon2Compress => {
                     self.nb_poseidons += 1;
+                    self.nb_poseidon_permutes += 1;
 
                     let (a_val, b_val, c_val) = self.all_rr(&instruction);
 
@@ -770,7 +786,7 @@ where
                         .collect_vec();
 
                     let permuter = self.perm.as_ref().unwrap().clone();
-                    absorb_event.populate_iterations(
+                    self.nb_poseidon_permutes += absorb_event.populate_iterations(
                         start_addr,
                         input_len,
                         &memory_records,
@@ -800,6 +816,7 @@ where
                     let do_perm = self.p2_hash_state_cursor != 0;
                     let perm_output = self.perm.as_ref().unwrap().permute(self.p2_hash_state);
                     let state = if do_perm {
+                        self.nb_poseidon_permutes += 1;
                         perm_output
                     } else {
                         self.p2_hash_state
@@ -871,6 +888,7 @@ where
 
                     let mut timestamp = self.clk;
 
+                    self.nb_fri_folds += ps_at_z_len.as_canonical_u32() as usize;
                     // Read the input values.
                     for m in 0..ps_at_z_len.as_canonical_u32() {
                         let m = F::from_canonical_u32(m);
@@ -983,6 +1001,7 @@ where
                     let mut x_record = self.mr(base, timestamp).0;
 
                     // Iterate over the `len` least-significant bits of the exponent.
+                    self.nb_erb_lens += len.as_canonical_u32() as usize;
                     for m in 0..len.as_canonical_u32() {
                         let m = F::from_canonical_u32(m);
 

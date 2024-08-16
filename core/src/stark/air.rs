@@ -3,6 +3,9 @@ pub use crate::air::SP1AirBuilder;
 use crate::air::{MachineAir, SP1_PROOF_NUM_PV_ELTS};
 use crate::memory::{MemoryChipType, MemoryProgramChip};
 use crate::stark::Chip;
+use crate::syscall::precompiles::fptower::Fp2AddSubAssignChip;
+use crate::utils::ec::weierstrass::bls12_381::Bls12381BaseField;
+use crate::utils::ec::weierstrass::bn254::Bn254BaseField;
 use crate::StarkGenericConfig;
 use p3_field::PrimeField32;
 pub use riscv_chips::*;
@@ -23,6 +26,8 @@ pub(crate) mod riscv_chips {
     pub use crate::program::ProgramChip;
     pub use crate::syscall::precompiles::edwards::EdAddAssignChip;
     pub use crate::syscall::precompiles::edwards::EdDecompressChip;
+    pub use crate::syscall::precompiles::fptower::Fp2MulAssignChip;
+    pub use crate::syscall::precompiles::fptower::FpOpChip;
     pub use crate::syscall::precompiles::keccak256::KeccakPermuteChip;
     pub use crate::syscall::precompiles::sha256::ShaCompressChip;
     pub use crate::syscall::precompiles::sha256::ShaExtendChip;
@@ -99,6 +104,18 @@ pub enum RiscvAir<F: PrimeField32> {
     Uint256Mul(Uint256MulChip),
     /// A precompile for decompressing a point on the BLS12-381 curve.
     Bls12381Decompress(WeierstrassDecompressChip<SwCurve<Bls12381Parameters>>),
+    /// A precompile for BLS12-381 fp operation.
+    Bls12381Fp(FpOpChip<Bls12381BaseField>),
+    /// A precompile for BLS12-381 fp2 multiplication.
+    Bls12381Fp2Mul(Fp2MulAssignChip<Bls12381BaseField>),
+    /// A precompile for BLS12-381 fp2 addition/subtraction.
+    Bls12381Fp2AddSub(Fp2AddSubAssignChip<Bls12381BaseField>),
+    /// A precompile for BN-254 fp operation.
+    Bn254Fp(FpOpChip<Bn254BaseField>),
+    /// A precompile for BN-254 fp2 multiplication.
+    Bn254Fp2Mul(Fp2MulAssignChip<Bn254BaseField>),
+    /// A precompile for BN-254 fp2 addition/subtraction.
+    Bn254Fp2AddSub(Fp2AddSubAssignChip<Bn254BaseField>),
 }
 
 impl<F: PrimeField32> RiscvAir<F> {
@@ -148,6 +165,18 @@ impl<F: PrimeField32> RiscvAir<F> {
         chips.push(RiscvAir::Bls12381Double(bls12381_double));
         let uint256_mul = Uint256MulChip::default();
         chips.push(RiscvAir::Uint256Mul(uint256_mul));
+        let bls12381_fp = FpOpChip::<Bls12381BaseField>::new();
+        chips.push(RiscvAir::Bls12381Fp(bls12381_fp));
+        let bls12381_fp2_addsub = Fp2AddSubAssignChip::<Bls12381BaseField>::new();
+        chips.push(RiscvAir::Bls12381Fp2AddSub(bls12381_fp2_addsub));
+        let bls12381_fp2_mul = Fp2MulAssignChip::<Bls12381BaseField>::new();
+        chips.push(RiscvAir::Bls12381Fp2Mul(bls12381_fp2_mul));
+        let bn254_fp = FpOpChip::<Bn254BaseField>::new();
+        chips.push(RiscvAir::Bn254Fp(bn254_fp));
+        let bn254_fp2_addsub = Fp2AddSubAssignChip::<Bn254BaseField>::new();
+        chips.push(RiscvAir::Bn254Fp2AddSub(bn254_fp2_addsub));
+        let bn254_fp2_mul = Fp2MulAssignChip::<Bn254BaseField>::new();
+        chips.push(RiscvAir::Bn254Fp2Mul(bn254_fp2_mul));
         let bls12381_decompress =
             WeierstrassDecompressChip::<SwCurve<Bls12381Parameters>>::with_lexicographic_rule();
         chips.push(RiscvAir::Bls12381Decompress(bls12381_decompress));

@@ -1,5 +1,6 @@
 use crate::utils::AffinePoint;
-use crate::{syscall_bls12381_add, syscall_bls12381_double};
+use crate::{syscall_bls12381_add, syscall_bls12381_decompress, syscall_bls12381_double};
+use std::io::ErrorKind;
 
 /// The number of limbs in [Bls12381AffinePoint].
 pub const N: usize = 24;
@@ -46,4 +47,18 @@ impl AffinePoint<N> for Bls12381AffinePoint {
             syscall_bls12381_double(a);
         }
     }
+}
+
+/// Decompresses a compressed public key using bls12381_decompress precompile.
+pub fn decompress_pubkey(compressed_key: &[u8; 48]) -> Result<[u8; 96], ErrorKind> {
+    let mut decompressed_key = [0u8; 96];
+    decompressed_key[..48].copy_from_slice(compressed_key);
+
+    let sign_bit = ((decompressed_key[0] & 0b_0010_0000) >> 5) == 1;
+    decompressed_key[0] &= 0b_0001_1111;
+    unsafe {
+        syscall_bls12381_decompress(&mut decompressed_key, sign_bit);
+    }
+
+    Ok(decompressed_key)
 }

@@ -69,7 +69,7 @@ extern "C" {
     pub fn syscall_exit_unconstrained();
 
     /// Defers the verification of a valid SP1 zkVM proof.
-    pub fn syscall_verify_sp1_proof(vkey: &[u32; 8], pv_digest: &[u8; 32]);
+    pub fn syscall_verify_sp1_proof(vk_digest: &[u32; 8], pv_digest: &[u8; 32]);
 
     /// Returns the length of the next element in the hint stream.
     pub fn syscall_hint_len() -> usize;
@@ -91,4 +91,41 @@ extern "C" {
         y: *const [u32; 8],
         modulus: *const [u32; 8],
     );
+
+    /// Executes a BLS12-381 field addition on the given inputs.
+    pub fn syscall_bls12381_fp_addmod(p: *mut u32, q: *const u32);
+
+    /// Executes a BLS12-381 field subtraction on the given inputs.
+    pub fn syscall_bls12381_fp_submod(p: *mut u32, q: *const u32);
+
+    /// Executes a BLS12-381 field multiplication on the given inputs.
+    pub fn syscall_bls12381_fp_mulmod(p: *mut u32, q: *const u32);
+
+    /// Executes a BLS12-381 Fp2 addition on the given inputs.
+    pub fn syscall_bls12381_fp2_addmod(p: *mut u32, q: *const u32);
+
+    /// Executes a BLS12-381 Fp2 subtraction on the given inputs.
+    pub fn syscall_bls12381_fp2_submod(p: *mut u32, q: *const u32);
+
+    /// Executes a BLS12-381 Fp2 multiplication on the given inputs.
+    pub fn syscall_bls12381_fp2_mulmod(p: *mut u32, q: *const u32);
+
+    /// Executes a BN254 field addition on the given inputs.
+    pub fn syscall_bn254_fp_addmod(p: *mut u32, q: *const u32);
+
+    /// Executes a BN254 field subtraction on the given inputs.
+    pub fn syscall_bn254_fp_submod(p: *mut u32, q: *const u32);
+
+    /// Executes a BN254 field multiplication on the given inputs.
+    pub fn syscall_bn254_fp_mulmod(p: *mut u32, q: *const u32);
+
+    /// Executes a BN254 Fp2 addition on the given inputs.
+    pub fn syscall_bn254_fp2_addmod(p: *mut u32, q: *const u32);
+
+    /// Executes a BN254 Fp2 subtraction on the given inputs.
+    pub fn syscall_bn254_fp2_submod(p: *mut u32, q: *const u32);
+
+    /// Executes a BN254 Fp2 multiplication on the given inputs.
+    pub fn syscall_bn254_fp2_mulmod(p: *mut u32, q: *const u32);
+
 }

@@ -10,8 +10,10 @@ members = [
   "primitives",
   "prover",
   "recursion/circuit",
+  "recursion/circuit-v2",
   "recursion/compiler",
   "recursion/core",
+  "recursion/core-v2",
   "recursion/derive",
   "recursion/gnark-cli",
   "recursion/gnark-ffi",
@@ -53,10 +55,12 @@ sp1-primitives = { path = "primitives", version = "1.1.1" }
 sp1-prover = { path = "prover", version = "1.1.1" }
 sp1-recursion-compiler = { path = "recursion/compiler", version = "1.1.1" }
 sp1-recursion-core = { path = "recursion/core", version = "1.1.1", default-features = false }
+sp1-recursion-core-v2 = { path = "recursion/core-v2", version = "1.1.1", default-features = false }
 sp1-recursion-derive = { path = "recursion/derive", version = "1.1.1", default-features = false }
 sp1-recursion-gnark-ffi = { path = "recursion/gnark-ffi", version = "1.1.1", default-features = false }
 sp1-recursion-program = { path = "recursion/program", version = "1.1.1", default-features = false }
 sp1-recursion-circuit = { path = "recursion/circuit", version = "1.1.1", default-features = false }
+sp1-recursion-circuit-v2 = { path = "recursion/circuit-v2", version = "1.1.1", default-features = false }
 sp1-sdk = { path = "sdk", version = "1.1.1" }
 sp1-server = { path = "server", version = "1.1.1" }
 sp1-lib = { path = "zkvm/lib", version = "1.1.1", default-features = false }
