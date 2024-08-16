@@ -282,8 +282,6 @@ pub mod tests {
 
     use sp1_core::io::SP1Stdin;
     use sp1_core::runtime::Program;
-    use sp1_core::stark::CpuProver;
-    use sp1_core::utils::tests::FIBONACCI_ELF;
     use sp1_core::utils::InnerVal;
     use sp1_core::utils::SP1CoreOpts;
     use sp1_core::{
@@ -303,16 +301,19 @@ pub mod tests {
     type C = InnerConfig;
     type A = RiscvAir<F>;
 
-    pub fn test_verify_shard_with_prover<P: MachineProver<SC, RecursionAir<F, 3, 0>>>(
+    pub fn test_verify_shard_with_prover<
+        CoreP: MachineProver<SC, A>,
+        P: MachineProver<SC, RecursionAir<F, 3, 0>>,
+    >(
+        elf: &[u8],
         num_shards_in_batch: Option<usize>,
     ) {
         // Generate a dummy proof.
         sp1_core::utils::setup_logger();
-        let elf = FIBONACCI_ELF;
 
         let machine = A::machine(SC::default());
         let (_, vk) = machine.setup(&Program::from(elf));
-        let (proof, _, _) = sp1_core::utils::prove::<_, CpuProver<_, _>>(
+        let (proof, _, _) = sp1_core::utils::prove::<_, CoreP>(
             Program::from(elf),
             &SP1Stdin::new(),
             SC::default(),
@@ -362,6 +363,8 @@ pub mod tests {
 
     #[test]
     fn test_verify_shard() {
-        test_verify_shard_with_prover::<CpuProver<_, _>>(Some(2));
+        use sp1_core::stark::CpuProver;
+        use sp1_core::utils::tests::FIBONACCI_ELF;
+        test_verify_shard_with_prover::<CpuProver<_, _>, CpuProver<_, _>>(FIBONACCI_ELF, Some(2));
     }
 }
