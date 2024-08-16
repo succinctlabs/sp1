@@ -9,6 +9,8 @@ use crate::multi_prover::common::ProveArgs;
 use anyhow::Result;
 use p3_baby_bear::BabyBear;
 use p3_field::AbstractField;
+use serde::de::DeserializeOwned;
+use serde::Serialize;
 use sp1_core::air::Word;
 use sp1_core::runtime::ExecutionReport;
 use sp1_core::{
@@ -20,8 +22,8 @@ use sp1_core::{
 use sp1_prover::ReduceProgramType;
 use std::fs::File;
 
-pub fn worker_commit_checkpoint_impl(
-    args: &ProveArgs,
+pub fn worker_commit_checkpoint_impl<T: Serialize + DeserializeOwned>(
+    args: &ProveArgs<T>,
     idx: u32,
     checkpoint: &mut File,
     is_last_checkpoint: bool,
@@ -104,8 +106,8 @@ pub fn worker_commit_checkpoint_impl(
     Ok((commitments, records))
 }
 
-pub fn worker_prove_checkpoint_impl(
-    args: &ProveArgs,
+pub fn worker_prove_checkpoint_impl<T: Serialize + DeserializeOwned>(
+    args: &ProveArgs<T>,
     challenger: ChallengerType,
     records: Vec<RecordType>,
 ) -> Result<Vec<ShardProof<BabyBearPoseidon2>>> {
@@ -134,8 +136,8 @@ pub fn worker_prove_checkpoint_impl(
     Ok(shard_proofs)
 }
 
-pub fn worker_compress_proofs_for_recursion(
-    args: &ProveArgs,
+pub fn worker_compress_proofs_for_recursion<T: Serialize + DeserializeOwned>(
+    args: &ProveArgs<T>,
     mut layout: SerializableRecursionLayout,
 ) -> Result<(ShardProof<BabyBearPoseidon2>, ReduceProgramType)> {
     let (client, stdin, pk, _) = common::init_client(&args);
@@ -175,8 +177,8 @@ pub fn worker_compress_proofs_for_recursion(
         .map_err(|e| anyhow::anyhow!("failed to compress machine proof: {:?}", e))
 }
 
-pub fn worker_compress_proofs_for_deferred(
-    args: &ProveArgs,
+pub fn worker_compress_proofs_for_deferred<T: Serialize + DeserializeOwned>(
+    args: &ProveArgs<T>,
     mut layout: SerializableDeferredLayout,
     last_proof_pv: PublicValues<Word<BabyBear>, BabyBear>,
 ) -> Result<(ShardProof<BabyBearPoseidon2>, ReduceProgramType)> {
@@ -223,8 +225,8 @@ pub fn worker_compress_proofs_for_deferred(
         .map_err(|e| anyhow::anyhow!("failed to compress machine proof: {:?}", e))
 }
 
-pub fn worker_compress_proofs_for_reduce(
-    args: &ProveArgs,
+pub fn worker_compress_proofs_for_reduce<T: Serialize + DeserializeOwned>(
+    args: &ProveArgs<T>,
     layout: SerializableReduceLayout,
 ) -> Result<(ShardProof<BabyBearPoseidon2>, ReduceProgramType)> {
     let (client, _, pk, _) = common::init_client(&args);

@@ -3,7 +3,7 @@ pub mod types;
 
 use crate::{ProverClient, SP1ProofKind};
 use anyhow::Result;
-use serde::{Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use sp1_core::{
     runtime::{Program, Runtime, SP1Context, SP1ContextBuilder},
     utils::SP1ProverOpts,
@@ -18,12 +18,12 @@ use sysinfo::System;
 static LIMIT_RAM_GB: u64 = 120;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct ProveArgs {
-    pub zkvm_input: Vec<u8>,
+pub struct ProveArgs<T: Serialize> {
+    pub zkvm_input: T,
     pub elf: Vec<u8>,
 }
 
-impl ProveArgs {
+impl<T: Serialize + DeserializeOwned> ProveArgs<T> {
     pub fn to_bytes(&self) -> Vec<u8> {
         bincode::serialize(self).unwrap()
     }
@@ -33,7 +33,9 @@ impl ProveArgs {
     }
 }
 
-pub fn init_client(args: &ProveArgs) -> (ProverClient, SP1Stdin, SP1ProvingKey, SP1VerifyingKey) {
+pub fn init_client<T: Serialize>(
+    args: &ProveArgs<T>,
+) -> (ProverClient, SP1Stdin, SP1ProvingKey, SP1VerifyingKey) {
     let client = ProverClient::new();
     let (pk, vk) = client.setup(&args.elf);
     let mut stdin = SP1Stdin::new();

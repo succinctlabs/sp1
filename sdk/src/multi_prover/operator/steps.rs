@@ -8,6 +8,7 @@ use crate::multi_prover::common::{self, ProveArgs};
 use anyhow::Result;
 use p3_baby_bear::BabyBear;
 use p3_challenger::CanObserve;
+use serde::Serialize;
 use sp1_core::stark::{MachineRecord, RiscvAir};
 use sp1_core::{
     runtime::Runtime,
@@ -58,8 +59,8 @@ fn operator_split_into_checkpoints(
     Ok((public_values_stream, public_values, checkpoints))
 }
 
-pub fn operator_split_into_checkpoints_impl(
-    args: &ProveArgs,
+pub fn operator_split_into_checkpoints_impl<T: Serialize>(
+    args: &ProveArgs<T>,
 ) -> Result<(
     PublicValueStreamType,
     PublicValuesType,
@@ -84,8 +85,8 @@ pub fn operator_split_into_checkpoints_impl(
     ))
 }
 
-pub fn operator_absorb_commits_impl(
-    args: &ProveArgs,
+pub fn operator_absorb_commits_impl<T: Serialize>(
+    args: &ProveArgs<T>,
     commitments_vec: Vec<Vec<CommitmentType>>,
     records_vec: Vec<Vec<RecordType>>,
 ) -> Result<ChallengerType> {
@@ -128,8 +129,8 @@ pub fn operator_absorb_commits_impl(
     Ok(challenger)
 }
 
-pub fn construct_sp1_core_proof_impl(
-    args: &ProveArgs,
+pub fn construct_sp1_core_proof_impl<T: Serialize>(
+    args: &ProveArgs<T>,
     shard_proofs_vec: Vec<Vec<ShardProof<BabyBearPoseidon2>>>,
     public_values_stream: PublicValueStreamType,
     cycles: u64,
@@ -224,8 +225,8 @@ pub fn operator_prepare_compress_input_chunks_impl(
     Ok(result)
 }
 
-pub fn operator_prove_shrink_impl(
-    args: &ProveArgs,
+pub fn operator_prove_shrink_impl<T: Serialize>(
+    args: &ProveArgs<T>,
     compress_proof: SP1ReduceProof<BabyBearPoseidon2>,
 ) -> Result<SP1ReduceProof<BabyBearPoseidon2>> {
     let (client, _, pk, _) = common::init_client(args);
@@ -237,8 +238,8 @@ pub fn operator_prove_shrink_impl(
         .map_err(|e| anyhow::anyhow!(e))
 }
 
-pub fn operator_prove_plonk_impl(
-    args: &ProveArgs,
+pub fn operator_prove_plonk_impl<T: Serialize>(
+    args: &ProveArgs<T>,
     shrink_proof: SP1ReduceProof<BabyBearPoseidon2>,
 ) -> Result<PlonkBn254Proof> {
     let (client, _, pk, _) = common::init_client(args);

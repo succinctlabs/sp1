@@ -8,10 +8,12 @@ use crate::multi_prover::{
 };
 use crate::{SP1Proof, SP1ProofWithPublicValues};
 use anyhow::Result;
+use serde::de::DeserializeOwned;
+use serde::Serialize;
 use sp1_prover::SP1CoreProof;
 use tracing::info_span;
 
-pub fn mpc_prove_core(args: ProveArgs) -> Result<Vec<u8>> {
+pub fn mpc_prove_core<T: Serialize + DeserializeOwned>(args: &ProveArgs<T>) -> Result<Vec<u8>> {
     let span = info_span!("kroma_core");
     let _guard = span.entered();
 
@@ -21,7 +23,7 @@ pub fn mpc_prove_core(args: ProveArgs) -> Result<Vec<u8>> {
     let mut checkpoints = Vec::new();
     let mut cycles = 0;
     info_span!("o_split_checkpoints").in_scope(|| {
-        operator_split_into_checkpoints(
+        operator_split_into_checkpoints::<T>(
             &serialize_args,
             &mut public_values_stream,
             &mut public_values,
@@ -37,7 +39,7 @@ pub fn mpc_prove_core(args: ProveArgs) -> Result<Vec<u8>> {
         for (worker_idx, checkpoint) in checkpoints.iter_mut().enumerate() {
             let mut commitments = Vec::new();
             let mut records = Vec::new();
-            worker_commit_checkpoint(
+            worker_commit_checkpoint::<T>(
                 &serialize_args,
                 worker_idx as u32,
                 checkpoint,
@@ -54,7 +56,7 @@ pub fn mpc_prove_core(args: ProveArgs) -> Result<Vec<u8>> {
 
     let mut challenger_state = Vec::new();
     info_span!("o_absorb_commits").in_scope(|| {
-        operator_absorb_commits(
+        operator_absorb_commits::<T>(
             &serialize_args,
             &commitments_vec,
             &records_vec,
@@ -67,7 +69,7 @@ pub fn mpc_prove_core(args: ProveArgs) -> Result<Vec<u8>> {
         let num_workers = records_vec.len();
         for (worker_idx, records) in records_vec.into_iter().enumerate() {
             let mut shard_proofs = Vec::new();
-            worker_prove_checkpoint(
+            worker_prove_checkpoint::<T>(
                 &serialize_args,
                 &challenger_state,
                 records.as_slice(),
@@ -80,7 +82,7 @@ pub fn mpc_prove_core(args: ProveArgs) -> Result<Vec<u8>> {
 
     let mut proof = Vec::new();
     info_span!("o_construct_sp1_core_proof").in_scope(|| {
-        operator_construct_sp1_core_proof(
+        operator_construct_sp1_core_proof::<T>(
             &serialize_args,
             &shard_proofs_vec,
             &public_values_stream,
@@ -93,7 +95,10 @@ pub fn mpc_prove_core(args: ProveArgs) -> Result<Vec<u8>> {
     Ok(proof)
 }
 
-pub fn scenario_end(args: &ProveArgs, core_proof: &Vec<u8>) -> Result<SP1ProofWithPublicValues> {
+pub fn scenario_end<T: Serialize + DeserializeOwned>(
+    args: &ProveArgs<T>,
+    core_proof: &Vec<u8>,
+) -> Result<SP1ProofWithPublicValues> {
     let core_proof_obj: SP1CoreProof = bincode::deserialize(core_proof).unwrap();
 
     let (client, _, _, vk) = common::init_client(args);

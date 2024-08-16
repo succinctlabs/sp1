@@ -7,6 +7,8 @@ use crate::multi_prover::common::{
     types::{CommitmentType, PublicValueStreamType},
 };
 use p3_baby_bear::BabyBear;
+use serde::de::DeserializeOwned;
+use serde::Serialize;
 use sp1_core::air::{PublicValues, Word};
 use sp1_core::stark::{MachineProver, StarkGenericConfig};
 use sp1_core::utils::BabyBearPoseidon2;
@@ -19,14 +21,14 @@ use steps::{
 };
 use utils::{read_bin_file_to_vec, ChallengerState};
 
-pub fn operator_split_into_checkpoints(
+pub fn operator_split_into_checkpoints<T: Serialize + DeserializeOwned>(
     args: &[u8],
     o_public_values_stream: &mut Vec<u8>,
     o_public_values: &mut Vec<u8>,
     o_checkpoints: &mut Vec<Vec<u8>>,
     o_cycles: &mut u64,
 ) {
-    let args_obj = ProveArgs::from_slice(args);
+    let args_obj: ProveArgs<T> = ProveArgs::from_slice(args);
     let (public_values_stream, public_values, checkpoints, cycles) =
         operator_split_into_checkpoints_impl(&args_obj).unwrap();
 
@@ -39,13 +41,13 @@ pub fn operator_split_into_checkpoints(
     *o_cycles = cycles;
 }
 
-pub fn operator_absorb_commits(
+pub fn operator_absorb_commits<T: Serialize + DeserializeOwned>(
     args: &[u8],
     commitments_vec: &[Vec<Vec<u8>>],
     records_vec: &[Vec<Vec<u8>>],
     o_challenger_state: &mut Vec<u8>,
 ) {
-    let args_obj = ProveArgs::from_slice(args);
+    let args_obj: ProveArgs<T> = ProveArgs::from_slice(args);
     let commitments_vec: Vec<Vec<CommitmentType>> = commitments_vec
         .iter()
         .map(|commitments| {
@@ -76,14 +78,14 @@ pub fn operator_absorb_commits(
     *o_challenger_state = ChallengerState::from(&challenger).to_bytes();
 }
 
-pub fn operator_construct_sp1_core_proof(
+pub fn operator_construct_sp1_core_proof<T: Serialize + DeserializeOwned>(
     args: &Vec<u8>,
     shard_proofs_vec: &[Vec<Vec<u8>>],
     public_values_stream: &[u8],
     cycles: u64,
     o_proof: &mut Vec<u8>,
 ) {
-    let args_obj = ProveArgs::from_slice(args.as_slice());
+    let args_obj: ProveArgs<T> = ProveArgs::from_slice(args.as_slice());
     let shard_proofs_vec_obj = shard_proofs_vec
         .iter()
         .map(|proofs| {
@@ -106,14 +108,14 @@ pub fn operator_construct_sp1_core_proof(
     *o_proof = bincode::serialize(&proof).unwrap();
 }
 
-pub fn operator_prepare_compress_inputs(
+pub fn operator_prepare_compress_inputs<T: Serialize + DeserializeOwned>(
     args: &Vec<u8>,
     core_proof: &[u8],
     o_rec_layouts: &mut Vec<Vec<u8>>,
     o_def_layouts: &mut Vec<Vec<u8>>,
     o_last_proof_public_values: &mut Vec<u8>,
 ) {
-    let args_obj = ProveArgs::from_slice(args.as_slice());
+    let args_obj: ProveArgs<T> = ProveArgs::from_slice(args.as_slice());
     let core_proof_obj: SP1CoreProof = bincode::deserialize(&core_proof).unwrap();
 
     let (client, stdin, _, vk) = common::init_client(&args_obj);
@@ -173,8 +175,12 @@ pub fn operator_prepare_compress_input_chunks(
         .collect();
 }
 
-pub fn operator_prove_shrink(args: &[u8], compressed_proof: &[u8], o_shrink_proof: &mut Vec<u8>) {
-    let args_obj = ProveArgs::from_slice(args);
+pub fn operator_prove_shrink<T: Serialize + DeserializeOwned>(
+    args: &[u8],
+    compressed_proof: &[u8],
+    o_shrink_proof: &mut Vec<u8>,
+) {
+    let args_obj: ProveArgs<T> = ProveArgs::from_slice(args);
     let compressed_proof_obj: SP1ReduceProof<BabyBearPoseidon2> =
         bincode::deserialize(compressed_proof).unwrap();
 
@@ -183,8 +189,12 @@ pub fn operator_prove_shrink(args: &[u8], compressed_proof: &[u8], o_shrink_proo
     *o_shrink_proof = bincode::serialize(&shrink_proof).unwrap();
 }
 
-pub fn operator_prove_plonk(args: &Vec<u8>, shrink_proof: &[u8], o_plonk_proof: &mut Vec<u8>) {
-    let args_obj = ProveArgs::from_slice(args.as_slice());
+pub fn operator_prove_plonk<T: Serialize + DeserializeOwned>(
+    args: &Vec<u8>,
+    shrink_proof: &[u8],
+    o_plonk_proof: &mut Vec<u8>,
+) {
+    let args_obj: ProveArgs<T> = ProveArgs::from_slice(args.as_slice());
     let shrink_proof_obj: SP1ReduceProof<BabyBearPoseidon2> =
         bincode::deserialize(shrink_proof).unwrap();
 
