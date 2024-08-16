@@ -103,7 +103,7 @@ pub struct Runtime<'a, F: PrimeField32, EF: ExtensionField<F>, Diffusion> {
     pub pc: F,
 
     /// The program.
-    pub program: RecursionProgram<F>,
+    pub program: Arc<RecursionProgram<F>>,
 
     /// Memory. From canonical usize of an Address to a MemoryEntry.
     pub memory: Memory<F>,
@@ -184,8 +184,10 @@ where
             POSEIDON2_SBOX_DEGREE,
         >,
     ) -> Self {
+        // let program = Arc::clone(program);
+        let program = Arc::new(program.to_owned());
         let record = ExecutionRecord::<F> {
-            program: Arc::new(program.clone()),
+            program: Arc::clone(&program),
             ..Default::default()
         };
         Self {
@@ -202,7 +204,7 @@ where
             nb_print_f: 0,
             nb_print_e: 0,
             clk: F::zero(),
-            program: program.clone(),
+            program,
             pc: F::zero(),
             memory: Default::default(),
             record,
