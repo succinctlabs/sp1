@@ -176,7 +176,7 @@ impl SP1Bn254ProofData {
         }
     }
 
-    pub fn raw_proof(&self) -> &str {
+    pub fn get_raw_proof(&self) -> &str {
         match self {
             SP1Bn254ProofData::Plonk(proof) => &proof.raw_proof,
             SP1Bn254ProofData::Groth16(proof) => &proof.raw_proof,
