@@ -31,6 +31,7 @@ itertools = "0.13.0"
 serde = { version = "1.0.204", features = ["derive"] }
 backtrace = "0.3.71"
 tracing = "0.1.40"
+rayon = "1.10.0"
 
 [dev-dependencies]
 p3-challenger = { workspace = true }

@@ -155,6 +155,8 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use machine::{tests::run_recursion_test_machines, RecursionAir};
     use p3_baby_bear::{BabyBear, DiffusionMatrixBabyBear};
     use p3_field::AbstractField;
@@ -177,8 +179,9 @@ mod tests {
     type A = RecursionAir<F, 3, 1>;
 
     pub fn prove_program(program: RecursionProgram<F>) {
+        let program = Arc::new(program);
         let mut runtime = Runtime::<F, EF, DiffusionMatrixBabyBear>::new(
-            &program,
+            program.clone(),
             BabyBearPoseidon2Inner::new().perm,
         );
         runtime.run().unwrap();

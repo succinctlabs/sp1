@@ -31,6 +31,8 @@ pub fn commit_recursion_public_values<C: Config>(
 
 #[cfg(any(test, feature = "export-tests"))]
 pub(crate) mod tests {
+    use std::sync::Arc;
+
     use sp1_core::stark::CpuProver;
     use sp1_core::stark::MachineProver;
     use sp1_core::utils::run_test_machine_with_prover;
@@ -63,15 +65,16 @@ pub(crate) mod tests {
 
         let compile_span = tracing::debug_span!("compile").entered();
         let mut compiler = AsmCompiler::<AsmConfig<F, EF>>::default();
-        let program = compiler.compile(operations);
+        let program = Arc::new(compiler.compile(operations));
         compile_span.exit();
 
         let config = SC::default();
 
         let run_span = tracing::debug_span!("run the recursive program").entered();
-        let mut runtime = Runtime::<F, EF, _>::new(&program, config.perm.clone());
+        let mut runtime = tracing::debug_span!("runtime new")
+            .in_scope(|| Runtime::<F, EF, _>::new(program.clone(), config.perm.clone()));
         runtime.witness_stream.extend(witness_stream);
-        runtime.run().unwrap();
+        tracing::debug_span!("run").in_scope(|| runtime.run().unwrap());
         assert!(runtime.witness_stream.is_empty());
         run_span.exit();
 

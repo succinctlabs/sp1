@@ -211,6 +211,8 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize, const COL_P
 #[cfg(test)]
 pub mod tests {
 
+    use std::sync::Arc;
+
     use machine::RecursionAir;
     use p3_baby_bear::DiffusionMatrixBabyBear;
     use p3_field::{
@@ -234,7 +236,9 @@ pub mod tests {
 
     /// Runs the given program on machines that use the wide and skinny Poseidon2 chips.
     pub fn run_recursion_test_machines(program: RecursionProgram<F>) {
-        let mut runtime = Runtime::<F, EF, DiffusionMatrixBabyBear>::new(&program, SC::new().perm);
+        let program = Arc::new(program);
+        let mut runtime =
+            Runtime::<F, EF, DiffusionMatrixBabyBear>::new(program.clone(), SC::new().perm);
         runtime.run().unwrap();
 
         // Run with the poseidon2 wide chip.

@@ -5189,6 +5189,7 @@ dependencies = [
  "p3-symmetric",
  "p3-util",
  "rand",
+ "rayon",
  "serde",
  "sp1-core",
  "sp1-primitives",

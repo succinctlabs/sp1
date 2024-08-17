@@ -231,6 +231,6 @@ pub fn commit_public_values<F: AbstractField>(
     let pv_address: &RecursionPublicValues<Address<F>> = pv_a.as_slice().borrow();
 
     Instruction::CommitPublicValues(CommitPublicValuesInstr {
-        pv_addrs: pv_address.clone(),
+        pv_addrs: Box::new(pv_address.clone()),
     })
 }
