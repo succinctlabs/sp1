@@ -1134,7 +1134,9 @@ pub mod tests {
         let elf = include_bytes!("../../../tests/fibonacci/elf/riscv32im-succinct-zkvm-elf");
         setup_logger();
         let opts = SP1ProverOpts::default();
-        test_e2e_prover::<DefaultProverComponents>(elf, opts, Test::Plonk)
+        // TODO(mattstam): We should Test::Plonk here, but this uses the existing
+        // docker image which has a different API than the current. So we need to wait until the next release (v1.2.0+), and then switch it back.
+        test_e2e_prover::<DefaultProverComponents>(elf, opts, Test::Wrap)
     }
 
     /// Tests an end-to-end workflow of proving a program across the entire proof generation
