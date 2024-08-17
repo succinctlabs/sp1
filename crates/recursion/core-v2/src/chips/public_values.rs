@@ -81,7 +81,8 @@ impl<F: PrimeField32> MachineAir<F> for PublicValuesChip {
             tracing::warn!("Expected exactly one CommitPVHash instruction.");
         }
 
-        // We only take 1 commit pv hash instruction, since our air only checks for one public values hash.
+        // We only take 1 commit pv hash instruction, since our air only checks for one public
+        // values hash.
         for instr in commit_pv_hash_instrs.iter().take(1) {
             for (i, addr) in instr.pv_addrs.digest.iter().enumerate() {
                 let mut row = [F::zero(); NUM_PUBLIC_VALUES_PREPROCESSED_COLS];
@@ -113,7 +114,8 @@ impl<F: PrimeField32> MachineAir<F> for PublicValuesChip {
 
         let mut rows: Vec<[F; NUM_PUBLIC_VALUES_COLS]> = Vec::new();
 
-        // We only take 1 commit pv hash instruction, since our air only checks for one public values hash.
+        // We only take 1 commit pv hash instruction, since our air only checks for one public
+        // values hash.
         for event in input.commit_pv_hash_events.iter().take(1) {
             for element in event.public_values.digest.iter() {
                 let mut row = [F::zero(); NUM_PUBLIC_VALUES_COLS];
@@ -156,7 +158,8 @@ where
         builder.send_single(local_prepr.pv_mem.addr, local.pv_element, local_prepr.pv_mem.mult);
 
         for (i, pv_elm) in public_values.digest.iter().enumerate() {
-            // Ensure that the public value element is the same for all rows within a fri fold invocation.
+            // Ensure that the public value element is the same for all rows within a fri fold
+            // invocation.
             builder.when(local_prepr.pv_idx[i]).assert_eq(pv_elm.clone(), local.pv_element);
         }
     }
@@ -164,30 +167,24 @@ where
 
 #[cfg(test)]
 mod tests {
-    use rand::rngs::StdRng;
-    use rand::Rng;
-    use rand::SeedableRng;
+    use rand::{rngs::StdRng, Rng, SeedableRng};
     use sp1_core_machine::utils::setup_logger;
-    use sp1_recursion_core::air::RecursionPublicValues;
-    use sp1_recursion_core::air::NUM_PV_ELMS_TO_HASH;
-    use sp1_recursion_core::air::RECURSIVE_PROOF_NUM_PV_ELTS;
-    use sp1_recursion_core::stark::config::BabyBearPoseidon2Outer;
-    use sp1_stark::air::MachineAir;
-    use sp1_stark::StarkGenericConfig;
-    use std::array;
-    use std::borrow::Borrow;
+    use sp1_recursion_core::{
+        air::{RecursionPublicValues, NUM_PV_ELMS_TO_HASH, RECURSIVE_PROOF_NUM_PV_ELTS},
+        stark::config::BabyBearPoseidon2Outer,
+    };
+    use sp1_stark::{air::MachineAir, StarkGenericConfig};
+    use std::{array, borrow::Borrow};
 
     use p3_baby_bear::BabyBear;
     use p3_field::AbstractField;
     use p3_matrix::dense::RowMajorMatrix;
 
-    use crate::chips::public_values::PublicValuesChip;
-    use crate::machine::tests::run_recursion_test_machines;
-    use crate::CommitPublicValuesEvent;
-    use crate::DIGEST_SIZE;
     use crate::{
+        chips::public_values::PublicValuesChip,
+        machine::tests::run_recursion_test_machines,
         runtime::{instruction as instr, ExecutionRecord},
-        MemAccessKind, RecursionProgram,
+        CommitPublicValuesEvent, MemAccessKind, RecursionProgram, DIGEST_SIZE,
     };
 
     #[test]

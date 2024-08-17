@@ -7,13 +7,10 @@ use sp1_stark::air::{BinomialExtension, MachineAir};
 use std::borrow::BorrowMut;
 use tracing::instrument;
 
-use p3_air::{Air, BaseAir};
-use p3_air::{AirBuilder, PairBuilder};
+use p3_air::{Air, AirBuilder, BaseAir, PairBuilder};
 use p3_field::PrimeField32;
-use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::Matrix;
-use sp1_stark::air::BaseAirBuilder;
-use sp1_stark::air::ExtensionAirBuilder;
+use p3_matrix::{dense::RowMajorMatrix, Matrix};
+use sp1_stark::air::{BaseAirBuilder, ExtensionAirBuilder};
 
 use sp1_derive::AlignedBorrow;
 use sp1_recursion_core::air::Block;
@@ -109,7 +106,11 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for FriFoldChip<DEGREE>
             .instructions
             .iter()
             .filter_map(|instruction| {
-                if let Instruction::FriFold(instr) = instruction { Some(instr) } else { None }
+                if let Instruction::FriFold(instr) = instruction {
+                    Some(instr)
+                } else {
+                    None
+                }
             })
             .for_each(|instruction| {
                 let FriFoldInstr {
@@ -352,23 +353,19 @@ where
 #[cfg(test)]
 mod tests {
     use p3_field::AbstractExtensionField;
-    use rand::rngs::StdRng;
-    use rand::Rng;
-    use rand::SeedableRng;
+    use rand::{rngs::StdRng, Rng, SeedableRng};
     use sp1_core_machine::utils::setup_logger;
-    use sp1_recursion_core::air::Block;
-    use sp1_recursion_core::stark::config::BabyBearPoseidon2Outer;
-    use sp1_stark::air::MachineAir;
-    use sp1_stark::StarkGenericConfig;
+    use sp1_recursion_core::{air::Block, stark::config::BabyBearPoseidon2Outer};
+    use sp1_stark::{air::MachineAir, StarkGenericConfig};
     use std::mem::size_of;
 
     use p3_baby_bear::BabyBear;
     use p3_field::AbstractField;
     use p3_matrix::dense::RowMajorMatrix;
 
-    use crate::chips::fri_fold::FriFoldChip;
-    use crate::machine::tests::run_recursion_test_machines;
     use crate::{
+        chips::fri_fold::FriFoldChip,
+        machine::tests::run_recursion_test_machines,
         runtime::{instruction as instr, ExecutionRecord},
         FriFoldBaseIo, FriFoldEvent, FriFoldExtSingleIo, FriFoldExtVecIo, Instruction,
         MemAccessKind, RecursionProgram,

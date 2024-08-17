@@ -1,10 +1,10 @@
 use p3_air::AirBuilderWithPublicValues;
 use p3_field::AbstractField;
 use sp1_recursion_core::air::Block;
-use sp1_stark::air::AirInteraction;
-use sp1_stark::air::BaseAirBuilder;
-use sp1_stark::air::MachineAirBuilder;
-use sp1_stark::InteractionKind;
+use sp1_stark::{
+    air::{AirInteraction, BaseAirBuilder, MachineAirBuilder},
+    InteractionKind,
+};
 
 use crate::*;
 

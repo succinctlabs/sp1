@@ -1,14 +1,15 @@
 use num::BigUint;
-use sp1_curves::params::NumWords;
-use sp1_curves::weierstrass::FieldType;
-use sp1_curves::weierstrass::FpOpField;
+use sp1_curves::{
+    params::NumWords,
+    weierstrass::{FieldType, FpOpField},
+};
 use std::marker::PhantomData;
 use typenum::Unsigned;
 
-use crate::events::FieldOperation;
-use crate::events::FpOpEvent;
-use crate::syscalls::Syscall;
-use crate::syscalls::SyscallContext;
+use crate::{
+    events::{FieldOperation, FpOpEvent},
+    syscalls::{Syscall, SyscallContext},
+};
 
 pub struct FpOpSyscall<P> {
     op: FieldOperation,
@@ -137,8 +138,8 @@ impl<P: FpOpField> Syscall for FpOpSyscall<P> {
 //         }
 //     }
 
-//     fn generate_trace(&self, input: &Self::Record, output: &mut Self::Record) -> RowMajorMatrix<F> {
-//         let events = match P::FIELD_TYPE {
+//     fn generate_trace(&self, input: &Self::Record, output: &mut Self::Record) ->
+// RowMajorMatrix<F> {         let events = match P::FIELD_TYPE {
 //             FieldType::Bn254 => &input.bn254_fp_events,
 //             FieldType::Bls12381 => &input.bls12381_fp_events,
 //         };
@@ -215,7 +216,8 @@ impl<P: FpOpField> Syscall for FpOpSyscall<P> {
 
 //         // Convert the trace to a row major matrix.
 //         let mut trace =
-//             RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), num_fp_cols::<P>());
+//             RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(),
+// num_fp_cols::<P>());
 
 //         // Write the nonces to the trace.
 //         for i in 0..trace.height() {
@@ -294,16 +296,16 @@ impl<P: FpOpField> Syscall for FpOpSyscall<P> {
 //         builder.eval_memory_access_slice(
 //             local.shard,
 //             local.channel,
-//             local.clk + AB::F::from_canonical_u32(1), // We read p at +1 since p, q could be the same.
-//             local.x_ptr,
+//             local.clk + AB::F::from_canonical_u32(1), // We read p at +1 since p, q could be the
+// same.             local.x_ptr,
 //             &local.x_access,
 //             local.is_real,
 //         );
 
 //         // Select the correct syscall id based on the operation flags.
 //         //
-//         // *Remark*: If support for division is added, we will need to add the division syscall id.
-//         let (add_syscall_id, sub_syscall_id, mul_syscall_id) = match P::FIELD_TYPE {
+//         // *Remark*: If support for division is added, we will need to add the division syscall
+// id.         let (add_syscall_id, sub_syscall_id, mul_syscall_id) = match P::FIELD_TYPE {
 //             FieldType::Bn254 => (
 //                 AB::F::from_canonical_u32(SyscallCode::BN254_FP_ADD.syscall_id()),
 //                 AB::F::from_canonical_u32(SyscallCode::BN254_FP_SUB.syscall_id()),

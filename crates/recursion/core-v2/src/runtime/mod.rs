@@ -22,8 +22,7 @@ use std::{
     sync::Arc,
 };
 
-use hashbrown::hash_map::Entry;
-use hashbrown::HashMap;
+use hashbrown::{hash_map::Entry, HashMap};
 use itertools::Itertools;
 use p3_field::{AbstractField, ExtensionField, PrimeField32};
 use p3_poseidon2::{Poseidon2, Poseidon2ExternalMatrixGeneral};
@@ -48,7 +47,8 @@ pub const PERMUTATION_WIDTH: usize = 16;
 pub const POSEIDON2_SBOX_DEGREE: u64 = 7;
 pub const HASH_RATE: usize = 8;
 
-/// The current verifier implementation assumes that we are using a 256-bit hash with 32-bit elements.
+/// The current verifier implementation assumes that we are using a 256-bit hash with 32-bit
+/// elements.
 pub const DIGEST_SIZE: usize = 8;
 
 pub const NUM_BITS: usize = 31;
@@ -184,10 +184,8 @@ where
             POSEIDON2_SBOX_DEGREE,
         >,
     ) -> Self {
-        let record = ExecutionRecord::<F> {
-            program: Arc::new(program.clone()),
-            ..Default::default()
-        };
+        let record =
+            ExecutionRecord::<F> { program: Arc::new(program.clone()), ..Default::default() };
         Self {
             timestamp: 0,
             nb_poseidons: 0,
@@ -293,13 +291,7 @@ where
             let next_clk = self.clk + F::from_canonical_u32(4);
             let next_pc = self.pc + F::one();
             match instruction {
-                Instruction::BaseAlu(
-                    instr @ BaseAluInstr {
-                        opcode,
-                        mult,
-                        addrs,
-                    },
-                ) => {
+                Instruction::BaseAlu(instr @ BaseAluInstr { opcode, mult, addrs }) => {
                     self.nb_base_ops += 1;
                     let in1 = self.mr(addrs.in1).val[0];
                     let in2 = self.mr(addrs.in2).val[0];
@@ -311,9 +303,7 @@ where
                         BaseAluOpcode::DivF => in1.try_div(in2).unwrap_or(AbstractField::one()),
                     };
                     self.mw(addrs.out, Block::from(out), mult);
-                    self.record
-                        .base_alu_events
-                        .push(BaseAluEvent { out, in1, in2 });
+                    self.record.base_alu_events.push(BaseAluEvent { out, in1, in2 });
                     // Check for division exceptions and error. Note that 0/0 is defined to be 1.
                     if opcode == BaseAluOpcode::DivF && !in1.is_zero() && in2.is_zero() {
                         return Err(RuntimeError::DivFOutOfDomain {
@@ -325,13 +315,7 @@ where
                         });
                     }
                 }
-                Instruction::ExtAlu(
-                    instr @ ExtAluInstr {
-                        opcode,
-                        mult,
-                        addrs,
-                    },
-                ) => {
+                Instruction::ExtAlu(instr @ ExtAluInstr { opcode, mult, addrs }) => {
                     self.nb_ext_ops += 1;
                     let in1 = self.mr(addrs.in1).val;
                     let in2 = self.mr(addrs.in2).val;
@@ -348,9 +332,7 @@ where
                     };
                     let out = Block::from(out_ef.as_base_slice());
                     self.mw(addrs.out, out, mult);
-                    self.record
-                        .ext_alu_events
-                        .push(ExtAluEvent { out, in1, in2 });
+                    self.record.ext_alu_events.push(ExtAluEvent { out, in1, in2 });
                     // Check for division exceptions and error. Note that 0/0 is defined to be 1.
                     if opcode == ExtAluOpcode::DivE && !in1_ef.is_zero() && in2_ef.is_zero() {
                         return Err(RuntimeError::DivEOutOfDomain {
@@ -389,17 +371,12 @@ where
                     let in_vals = std::array::from_fn(|i| self.mr(input[i]).val[0]);
                     let perm_output = self.perm.as_ref().unwrap().permute(in_vals);
 
-                    perm_output
-                        .iter()
-                        .zip(output)
-                        .zip(mults)
-                        .for_each(|((&val, addr), mult)| {
-                            self.mw(addr, Block::from(val), mult);
-                        });
-                    self.record.poseidon2_events.push(Poseidon2Event {
-                        input: in_vals,
-                        output: perm_output,
+                    perm_output.iter().zip(output).zip(mults).for_each(|((&val, addr), mult)| {
+                        self.mw(addr, Block::from(val), mult);
                     });
+                    self.record
+                        .poseidon2_events
+                        .push(Poseidon2Event { input: in_vals, output: perm_output });
                 }
                 Instruction::ExpReverseBitsLen(ExpReverseBitsInstr {
                     addrs: ExpReverseBitsIo { base, exp, result },
@@ -415,18 +392,13 @@ where
                     let out =
                         base_val.exp_u64(reverse_bits_len(exp_val as usize, exp_bits.len()) as u64);
                     self.mw(result, Block::from(out), mult);
-                    self.record
-                        .exp_reverse_bits_len_events
-                        .push(ExpReverseBitsEvent {
-                            result: out,
-                            base: base_val,
-                            exp: exp_bits,
-                        });
+                    self.record.exp_reverse_bits_len_events.push(ExpReverseBitsEvent {
+                        result: out,
+                        base: base_val,
+                        exp: exp_bits,
+                    });
                 }
-                Instruction::HintBits(HintBitsInstr {
-                    output_addrs_mults,
-                    input_addr,
-                }) => {
+                Instruction::HintBits(HintBitsInstr { output_addrs_mults, input_addr }) => {
                     self.nb_bit_decompositions += 1;
                     let num = self.mr_mult(input_addr, F::zero()).val[0].as_canonical_u32();
                     // Decompose the num into LE bits.
@@ -458,11 +430,8 @@ where
                         .iter()
                         .map(|addr| self.mr(*addr).val)
                         .collect_vec();
-                    let ps_at_z = ext_vec_addrs
-                        .ps_at_z
-                        .iter()
-                        .map(|addr| self.mr(*addr).val)
-                        .collect_vec();
+                    let ps_at_z =
+                        ext_vec_addrs.ps_at_z.iter().map(|addr| self.mr(*addr).val).collect_vec();
 
                     for m in 0..ps_at_z.len() {
                         // let m = F::from_canonical_u32(m);
@@ -522,15 +491,10 @@ where
                     self.record.public_values = *pv_values.as_slice().borrow();
                     self.record
                         .commit_pv_hash_events
-                        .push(CommitPublicValuesEvent {
-                            public_values: self.record.public_values,
-                        });
+                        .push(CommitPublicValuesEvent { public_values: self.record.public_values });
                 }
 
-                Instruction::Print(PrintInstr {
-                    field_elt_type,
-                    addr,
-                }) => match field_elt_type {
+                Instruction::Print(PrintInstr { field_elt_type, addr }) => match field_elt_type {
                     FieldEltType::Base => {
                         self.nb_print_f += 1;
                         let f = self.mr_mult(addr, F::zero()).val[0];

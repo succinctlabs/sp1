@@ -200,7 +200,8 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
             // Add round constants.
             //
             // Optimization: Since adding a constant is a degree 1 operation, we can avoid adding
-            // columns for it, and instead include it in the constraint for the x^3 part of the sbox.
+            // columns for it, and instead include it in the constraint for the x^3 part of the
+            // sbox.
             let round = if r < NUM_EXTERNAL_ROUNDS / 2 { r } else { r + NUM_INTERNAL_ROUNDS };
             let mut add_rc = *round_state;
             for i in 0..WIDTH {
@@ -281,8 +282,7 @@ mod tests {
     use p3_field::AbstractField;
     use p3_matrix::dense::RowMajorMatrix;
     use p3_symmetric::Permutation;
-    use sp1_stark::air::MachineAir;
-    use sp1_stark::inner_perm;
+    use sp1_stark::{air::MachineAir, inner_perm};
     use zkhash::ark_ff::UniformRand;
 
     use crate::{

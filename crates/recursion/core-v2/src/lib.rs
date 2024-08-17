@@ -164,8 +164,8 @@ pub struct FriFoldBaseIo<V> {
     pub x: V,
 }
 
-/// An instruction invoking the FRI fold operation. Addresses for extension field elements are of the
-/// same type as for base field elements.
+/// An instruction invoking the FRI fold operation. Addresses for extension field elements are of
+/// the same type as for base field elements.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FriFoldInstr<F> {
     pub base_single_addrs: FriFoldBaseIo<Address<F>>,

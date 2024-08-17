@@ -1,16 +1,12 @@
 use core::borrow::Borrow;
 use itertools::Itertools;
-use p3_air::PairBuilder;
-use p3_air::{Air, AirBuilder, BaseAir};
-use p3_field::Field;
-use p3_field::PrimeField32;
-use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::Matrix;
+use p3_air::{Air, AirBuilder, BaseAir, PairBuilder};
+use p3_field::{Field, PrimeField32};
+use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use sp1_core_machine::utils::pad_to_power_of_two;
 use sp1_derive::AlignedBorrow;
 use sp1_stark::air::MachineAir;
-use std::borrow::BorrowMut;
-use std::iter::zip;
+use std::{borrow::BorrowMut, iter::zip};
 
 use crate::{builder::SP1RecursionAirBuilder, *};
 

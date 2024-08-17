@@ -1,6 +1,8 @@
-use std::borrow::Borrow;
-use std::panic::{self, AssertUnwindSafe};
-use std::process::exit;
+use std::{
+    borrow::Borrow,
+    panic::{self, AssertUnwindSafe},
+    process::exit,
+};
 
 use p3_air::{
     Air, AirBuilder, AirBuilderWithPublicValues, ExtensionBuilder, PairBuilder,
@@ -216,7 +218,11 @@ where
     }
 
     fn is_transition_window(&self, size: usize) -> Self::Expr {
-        if size == 2 { self.is_transition } else { panic!("only supports a window size of 2") }
+        if size == 2 {
+            self.is_transition
+        } else {
+            panic!("only supports a window size of 2")
+        }
     }
 
     fn main(&self) -> Self::M {

@@ -1,14 +1,15 @@
 use num::BigUint;
-use sp1_curves::params::NumWords;
-use sp1_curves::weierstrass::FieldType;
-use sp1_curves::weierstrass::FpOpField;
+use sp1_curves::{
+    params::NumWords,
+    weierstrass::{FieldType, FpOpField},
+};
 use std::marker::PhantomData;
 use typenum::Unsigned;
 
-use crate::events::FieldOperation;
-use crate::events::Fp2AddSubEvent;
-use crate::syscalls::Syscall;
-use crate::syscalls::SyscallContext;
+use crate::{
+    events::{FieldOperation, Fp2AddSubEvent},
+    syscalls::{Syscall, SyscallContext},
+};
 
 pub struct Fp2AddSubSyscall<P> {
     op: FieldOperation,

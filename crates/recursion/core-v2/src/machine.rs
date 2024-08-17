@@ -51,7 +51,8 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize, const COL_P
         StarkMachine::new(config, chips, PROOF_MAX_NUM_PVS)
     }
 
-    /// A recursion machine that can have dynamic trace sizes, and uses the wide variant of Poseidon2.
+    /// A recursion machine that can have dynamic trace sizes, and uses the wide variant of
+    /// Poseidon2.
     pub fn machine_wide<SC: StarkGenericConfig<Val = F>>(config: SC) -> StarkMachine<SC, Self> {
         let chips = Self::get_all_wide().into_iter().map(Chip::new).collect::<Vec<_>>();
         StarkMachine::new(config, chips, PROOF_MAX_NUM_PVS)
@@ -87,8 +88,8 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize, const COL_P
     // }
 
     // /// A recursion machine with fixed trace sizes tuned to work specifically for the wrap layer.
-    // pub fn wrap_machine_dyn<SC: StarkGenericConfig<Val = F>>(config: SC) -> StarkMachine<SC, Self> {
-    //     let chips = Self::get_wrap_dyn_all()
+    // pub fn wrap_machine_dyn<SC: StarkGenericConfig<Val = F>>(config: SC) -> StarkMachine<SC,
+    // Self> {     let chips = Self::get_wrap_dyn_all()
     //         .into_iter()
     //         .map(Chip::new)
     //         .collect::<Vec<_>>();

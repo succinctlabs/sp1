@@ -6,8 +6,7 @@ use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 
-use super::program::Program;
-use super::Opcode;
+use super::{program::Program, Opcode};
 use crate::events::{
     add_sharded_byte_lookup_events, AluEvent, ByteLookupEvent, ByteRecord, CpuEvent,
     EdDecompressEvent, EllipticCurveAddEvent, EllipticCurveDecompressEvent,

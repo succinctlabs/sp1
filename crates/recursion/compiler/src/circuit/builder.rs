@@ -48,9 +48,7 @@ impl<C: Config> CircuitV2Builder<C> for Builder<C> {
 
     /// Converts a felt to bits inside a circuit.
     fn num2bits_v2_f(&mut self, num: Felt<C::F>, num_bits: usize) -> Vec<Felt<C::F>> {
-        let output = std::iter::from_fn(|| Some(self.uninit()))
-            .take(num_bits)
-            .collect::<Vec<_>>();
+        let output = std::iter::from_fn(|| Some(self.uninit())).take(num_bits).collect::<Vec<_>>();
         self.push(DslIr::CircuitV2HintBitsF(output.clone(), num));
 
         let x: SymbolicFelt<_> = output
@@ -74,16 +72,14 @@ impl<C: Config> CircuitV2Builder<C> for Builder<C> {
         power_bits: Vec<Felt<C::F>>,
     ) -> Felt<C::F> {
         let output: Felt<_> = self.uninit();
-        self.operations
-            .push(DslIr::CircuitV2ExpReverseBits(output, input, power_bits));
+        self.operations.push(DslIr::CircuitV2ExpReverseBits(output, input, power_bits));
         output
     }
 
     /// Applies the Poseidon2 permutation to the given array.
     fn poseidon2_permute_v2(&mut self, array: [Felt<C::F>; WIDTH]) -> [Felt<C::F>; WIDTH] {
         let output: [Felt<C::F>; WIDTH] = core::array::from_fn(|_| self.uninit());
-        self.operations
-            .push(DslIr::CircuitV2Poseidon2PermuteBabyBear(output, array));
+        self.operations.push(DslIr::CircuitV2Poseidon2PermuteBabyBear(output, array));
         output
     }
 
@@ -118,17 +114,12 @@ impl<C: Config> CircuitV2Builder<C> for Builder<C> {
 
     /// Runs FRI fold.
     fn fri_fold_v2(&mut self, input: CircuitV2FriFoldInput<C>) -> CircuitV2FriFoldOutput<C> {
-        let mut uninit_vec = |len| {
-            std::iter::from_fn(|| Some(self.uninit()))
-                .take(len)
-                .collect()
-        };
+        let mut uninit_vec = |len| std::iter::from_fn(|| Some(self.uninit())).take(len).collect();
         let output = CircuitV2FriFoldOutput {
             alpha_pow_output: uninit_vec(input.alpha_pow_input.len()),
             ro_output: uninit_vec(input.ro_input.len()),
         };
-        self.operations
-            .push(DslIr::CircuitV2FriFold(output.clone(), input));
+        self.operations.push(DslIr::CircuitV2FriFold(output.clone(), input));
         output
     }
 
@@ -151,8 +142,7 @@ impl<C: Config> CircuitV2Builder<C> for Builder<C> {
 
     // Commits public values.
     fn commit_public_values_v2(&mut self, public_values: RecursionPublicValues<Felt<C::F>>) {
-        self.operations
-            .push(DslIr::CircuitV2CommitPublicValues(Box::new(public_values)));
+        self.operations.push(DslIr::CircuitV2CommitPublicValues(Box::new(public_values)));
     }
 
     fn cycle_tracker_v2_enter(&mut self, name: String) {
@@ -175,18 +165,14 @@ impl<C: Config> CircuitV2Builder<C> for Builder<C> {
 
     /// Hint a vector of felts.
     fn hint_felts_v2(&mut self, len: usize) -> Vec<Felt<C::F>> {
-        let arr = std::iter::from_fn(|| Some(self.uninit()))
-            .take(len)
-            .collect::<Vec<_>>();
+        let arr = std::iter::from_fn(|| Some(self.uninit())).take(len).collect::<Vec<_>>();
         self.operations.push(DslIr::CircuitV2HintFelts(arr.clone()));
         arr
     }
 
     /// Hint a vector of exts.
     fn hint_exts_v2(&mut self, len: usize) -> Vec<Ext<C::F, C::EF>> {
-        let arr = std::iter::from_fn(|| Some(self.uninit()))
-            .take(len)
-            .collect::<Vec<_>>();
+        let arr = std::iter::from_fn(|| Some(self.uninit())).take(len).collect::<Vec<_>>();
         self.operations.push(DslIr::CircuitV2HintExts(arr.clone()));
         arr
     }

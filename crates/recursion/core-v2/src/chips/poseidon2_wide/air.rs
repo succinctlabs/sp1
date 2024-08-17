@@ -1,8 +1,7 @@
 //! The air module contains the AIR constraints for the poseidon2 chip.  
 //! At the moment, we're only including memory constraints to test the new memory argument.
 
-use std::array;
-use std::borrow::Borrow;
+use std::{array, borrow::Borrow};
 
 use p3_air::{Air, BaseAir, PairBuilder};
 use p3_field::AbstractField;
@@ -12,10 +11,11 @@ use sp1_recursion_core::poseidon2_wide::NUM_EXTERNAL_ROUNDS;
 
 use crate::builder::SP1RecursionAirBuilder;
 
-use super::columns::permutation::Poseidon2;
-use super::columns::preprocessed::Poseidon2PreprocessedCols;
-use super::columns::{NUM_POSEIDON2_DEGREE3_COLS, NUM_POSEIDON2_DEGREE9_COLS};
 use super::{
+    columns::{
+        permutation::Poseidon2, preprocessed::Poseidon2PreprocessedCols,
+        NUM_POSEIDON2_DEGREE3_COLS, NUM_POSEIDON2_DEGREE9_COLS,
+    },
     external_linear_layer, internal_linear_layer, Poseidon2WideChip, NUM_INTERNAL_ROUNDS, WIDTH,
 };
 
@@ -98,11 +98,7 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
         }
 
         // Add the round constants.
-        let round = if r < NUM_EXTERNAL_ROUNDS / 2 {
-            r
-        } else {
-            r + NUM_INTERNAL_ROUNDS
-        };
+        let round = if r < NUM_EXTERNAL_ROUNDS / 2 { r } else { r + NUM_INTERNAL_ROUNDS };
         let add_rc: [AB::Expr; WIDTH] = array::from_fn(|i| {
             local_state[i].clone() + AB::F::from_wrapped_u32(RC_16_30_U32[round][i])
         });
@@ -152,11 +148,8 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
         for r in 0..NUM_INTERNAL_ROUNDS {
             // Add the round constant.
             let round = r + NUM_EXTERNAL_ROUNDS / 2;
-            let add_rc = if r == 0 {
-                state[0].clone()
-            } else {
-                s0[r - 1].into()
-            } + AB::Expr::from_wrapped_u32(RC_16_30_U32[round][0]);
+            let add_rc = if r == 0 { state[0].clone() } else { s0[r - 1].into() }
+                + AB::Expr::from_wrapped_u32(RC_16_30_U32[round][0]);
 
             let mut sbox_deg_3 = add_rc.clone() * add_rc.clone() * add_rc.clone();
             if let Some(internal_sbox) = local_row.internal_rounds_sbox() {
@@ -164,7 +157,8 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
                 sbox_deg_3 = internal_sbox[r].into();
             }
 
-            // See `populate_internal_rounds` for why we don't have columns for the sbox output here.
+            // See `populate_internal_rounds` for why we don't have columns for the sbox output
+            // here.
             let sbox_deg_7 = sbox_deg_3.clone() * sbox_deg_3.clone() * add_rc.clone();
 
             // Apply the linear layer.

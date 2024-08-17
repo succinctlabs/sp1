@@ -1,18 +1,17 @@
-use std::borrow::BorrowMut;
-use std::{borrow::Borrow, marker::PhantomData};
+use std::{
+    borrow::{Borrow, BorrowMut},
+    marker::PhantomData,
+};
 
 use crate::air::MemoryAirBuilder;
 use generic_array::GenericArray;
 use itertools::Itertools;
-use num::BigUint;
-use num::Zero;
+use num::{BigUint, Zero};
 use p3_air::{Air, AirBuilder, BaseAir};
-use p3_field::AbstractField;
-use p3_field::PrimeField32;
+use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
-use sp1_core_executor::events::ByteRecord;
 use sp1_core_executor::{
-    events::{ByteLookupEvent, FieldOperation},
+    events::{ByteLookupEvent, ByteRecord, FieldOperation},
     syscalls::SyscallCode,
     ExecutionRecord, Program,
 };
@@ -371,7 +370,8 @@ where
         builder.eval_memory_access_slice(
             local.shard,
             local.channel,
-            local.clk + AB::F::from_canonical_u32(1), // We read p at +1 since p, q could be the same.
+            local.clk + AB::F::from_canonical_u32(1), /* We read p at +1 since p, q could be the
+                                                       * same. */
             local.x_ptr,
             &local.x_access,
             local.is_real,

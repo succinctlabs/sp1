@@ -1,11 +1,9 @@
 #![allow(clippy::needless_range_loop)]
 
 use core::borrow::Borrow;
-use p3_air::{Air, BaseAir};
-use p3_air::{AirBuilder, PairBuilder};
+use p3_air::{Air, AirBuilder, BaseAir, PairBuilder};
 use p3_field::{AbstractField, PrimeField32};
-use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::Matrix;
+use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use sp1_core_machine::utils::pad_rows_fixed;
 use sp1_derive::AlignedBorrow;
 use sp1_stark::air::{BaseAirBuilder, ExtensionAirBuilder, MachineAir, SP1AirBuilder};
@@ -228,7 +226,8 @@ impl<const DEGREE: usize> ExpReverseBitsLenChip<DEGREE> {
             builder.assert_eq(lhs, rhs);
         }
 
-        // Constrain mem read for x.  The read mult is one for only the first row, and zero for all others.
+        // Constrain mem read for x.  The read mult is one for only the first row, and zero for all
+        // others.
         builder.send_single(local_prepr.x_mem.addr, local.x, local_prepr.x_mem.mult);
 
         // Ensure that the value at the x memory access is unchanged when not `is_last`.
@@ -258,8 +257,8 @@ impl<const DEGREE: usize> ExpReverseBitsLenChip<DEGREE> {
             .when_not(local.current_bit)
             .assert_eq(local.multiplier, AB::Expr::one());
 
-        // To get `next.accum`, we multiply `local.prev_accum_squared` by `local.multiplier` when not
-        // `is_last`.
+        // To get `next.accum`, we multiply `local.prev_accum_squared` by `local.multiplier` when
+        // not `is_last`.
         builder.when(local_prepr.is_real).assert_eq(
             local.prev_accum_squared_times_multiplier,
             local.prev_accum_squared * local.multiplier,
@@ -311,27 +310,22 @@ where
 mod tests {
     use itertools::Itertools;
     use p3_util::reverse_bits_len;
-    use rand::rngs::StdRng;
-    use rand::Rng;
-    use rand::SeedableRng;
+    use rand::{rngs::StdRng, Rng, SeedableRng};
     use sp1_core_machine::utils::setup_logger;
     use sp1_recursion_core::stark::config::BabyBearPoseidon2Outer;
-    use sp1_stark::air::MachineAir;
-    use sp1_stark::StarkGenericConfig;
+    use sp1_stark::{air::MachineAir, StarkGenericConfig};
     use std::iter::once;
 
     use p3_baby_bear::BabyBear;
     use p3_field::{AbstractField, PrimeField32};
     use p3_matrix::dense::RowMajorMatrix;
 
-    use crate::chips::exp_reverse_bits::ExpReverseBitsLenChip;
-    use crate::machine::tests::run_recursion_test_machines;
-    use crate::runtime::instruction as instr;
-    use crate::runtime::ExecutionRecord;
-    use crate::ExpReverseBitsEvent;
-    use crate::Instruction;
-    use crate::MemAccessKind;
-    use crate::RecursionProgram;
+    use crate::{
+        chips::exp_reverse_bits::ExpReverseBitsLenChip,
+        machine::tests::run_recursion_test_machines,
+        runtime::{instruction as instr, ExecutionRecord},
+        ExpReverseBitsEvent, Instruction, MemAccessKind, RecursionProgram,
+    };
 
     #[test]
     fn prove_babybear_circuit_erbl() {

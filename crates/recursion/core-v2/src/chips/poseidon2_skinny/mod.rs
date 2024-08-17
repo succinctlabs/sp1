@@ -1,6 +1,5 @@
 use p3_baby_bear::{MONTY_INVERSE, POSEIDON2_INTERNAL_MATRIX_DIAG_16_BABYBEAR_MONTY};
-use p3_field::AbstractField;
-use p3_field::PrimeField32;
+use p3_field::{AbstractField, PrimeField32};
 
 pub mod air;
 pub mod columns;
@@ -76,16 +75,17 @@ pub(crate) mod tests {
 
     use std::iter::once;
 
-    use crate::machine::RecursionAir;
-    use crate::{runtime::instruction as instr, MemAccessKind, RecursionProgram, Runtime};
+    use crate::{
+        machine::RecursionAir, runtime::instruction as instr, MemAccessKind, RecursionProgram,
+        Runtime,
+    };
     use p3_baby_bear::{BabyBear, DiffusionMatrixBabyBear};
     use p3_field::{AbstractField, PrimeField32};
     use p3_symmetric::Permutation;
 
     use sp1_core_machine::utils::{run_test_machine, setup_logger};
     use sp1_recursion_core::stark::config::BabyBearPoseidon2Outer;
-    use sp1_stark::baby_bear_poseidon2::BabyBearPoseidon2;
-    use sp1_stark::{inner_perm, StarkGenericConfig};
+    use sp1_stark::{baby_bear_poseidon2::BabyBearPoseidon2, inner_perm, StarkGenericConfig};
     use zkhash::ark_ff::UniformRand;
 
     use super::WIDTH;

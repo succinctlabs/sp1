@@ -1,14 +1,16 @@
 use std::marker::PhantomData;
 
 use num::BigUint;
-use sp1_curves::params::NumWords;
-use sp1_curves::weierstrass::FieldType;
-use sp1_curves::weierstrass::FpOpField;
+use sp1_curves::{
+    params::NumWords,
+    weierstrass::{FieldType, FpOpField},
+};
 use typenum::Unsigned;
 
-use crate::events::Fp2MulEvent;
-use crate::syscalls::Syscall;
-use crate::syscalls::SyscallContext;
+use crate::{
+    events::Fp2MulEvent,
+    syscalls::{Syscall, SyscallContext},
+};
 
 pub struct Fp2MulSyscall<P> {
     _marker: PhantomData<P>,

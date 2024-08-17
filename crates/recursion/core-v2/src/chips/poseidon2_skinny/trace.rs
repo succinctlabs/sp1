@@ -50,13 +50,13 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2SkinnyChip
         let mut rows = Vec::new();
 
         for event in &input.poseidon2_events {
-            // We have one row for input, one row for output, NUM_EXTERNAL_ROUNDS rows for the external rounds,
-            // and one row for all internal rounds.
+            // We have one row for input, one row for output, NUM_EXTERNAL_ROUNDS rows for the
+            // external rounds, and one row for all internal rounds.
             let mut row_add = [[F::zero(); NUM_POSEIDON2_COLS]; NUM_EXTERNAL_ROUNDS + 3];
 
-            // The first row should have event.input and [event.input[0].clone(); NUM_INTERNAL_ROUNDS-1]
-            // in its state columns. The sbox_state will be modified in the computation of the
-            // first row.
+            // The first row should have event.input and [event.input[0].clone();
+            // NUM_INTERNAL_ROUNDS-1] in its state columns. The sbox_state will be
+            // modified in the computation of the first row.
             {
                 let (first_row, second_row) = &mut row_add[0..2].split_at_mut(1);
                 let input_cols: &mut Poseidon2Cols<F> = first_row[0].as_mut_slice().borrow_mut();
@@ -68,8 +68,8 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2SkinnyChip
             }
 
             // For each external round, and once for all the internal rounds at the same time, apply
-            // the corresponding operation. This will change the state and internal_rounds_s0 variable
-            // in row r+1.
+            // the corresponding operation. This will change the state and internal_rounds_s0
+            // variable in row r+1.
             for i in 1..OUTPUT_ROUND_IDX {
                 let next_state_var = {
                     let cols: &mut Poseidon2Cols<F> = row_add[i].as_mut_slice().borrow_mut();
@@ -214,7 +214,8 @@ impl<const DEGREE: usize> Poseidon2SkinnyChip<DEGREE> {
             // Add round constants.
 
             // Optimization: Since adding a constant is a degree 1 operation, we can avoid adding
-            // columns for it, and instead include it in the constraint for the x^3 part of the sbox.
+            // columns for it, and instead include it in the constraint for the x^3 part of the
+            // sbox.
             let round = if r < NUM_EXTERNAL_ROUNDS / 2 { r } else { r + NUM_INTERNAL_ROUNDS - 1 };
             let mut add_rc = *round_state;
             (0..WIDTH).for_each(|i| add_rc[i] += F::from_wrapped_u32(RC_16_30_U32[round][i]));
@@ -279,8 +280,7 @@ mod tests {
     use p3_field::AbstractField;
     use p3_matrix::dense::RowMajorMatrix;
     use p3_symmetric::Permutation;
-    use sp1_stark::air::MachineAir;
-    use sp1_stark::inner_perm;
+    use sp1_stark::{air::MachineAir, inner_perm};
     use zkhash::ark_ff::UniformRand;
 
     use crate::{

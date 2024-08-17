@@ -88,12 +88,7 @@ pub fn outer_fri_config_with_blowup(log_blowup: usize) -> FriConfig<OuterChallen
             Err(_) => 100 / log_blowup,
         }
     };
-    FriConfig {
-        log_blowup,
-        num_queries,
-        proof_of_work_bits: 16,
-        mmcs: challenge_mmcs,
-    }
+    FriConfig { log_blowup, num_queries, proof_of_work_bits: 16, mmcs: challenge_mmcs }
 }
 
 #[derive(Deserialize)]

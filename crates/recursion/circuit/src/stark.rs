@@ -1,6 +1,4 @@
-use std::borrow::Borrow;
-use std::fmt::Debug;
-use std::marker::PhantomData;
+use std::{borrow::Borrow, fmt::Debug, marker::PhantomData};
 
 use crate::{
     fri::verify_two_adic_pcs,
@@ -15,20 +13,18 @@ use p3_bn254_fr::Bn254Fr;
 use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::{AbstractField, TwoAdicField};
 use p3_util::log2_strict_usize;
-use sp1_core_machine::utils::Span;
-use sp1_core_machine::utils::SpanBuilder;
-use sp1_core_machine::utils::SpanBuilderError;
+use sp1_core_machine::utils::{Span, SpanBuilder, SpanBuilderError};
 use sp1_recursion_compiler::{
     config::OuterConfig,
     constraints::{Constraint, ConstraintCompiler},
     ir::{Builder, Config, DslIr, Ext, Felt, Usize, Var, Witness},
     prelude::SymbolicVar,
 };
-use sp1_recursion_core::stark::utils::sp1_dev_mode;
 use sp1_recursion_core::{
     air::{RecursionPublicValues, NUM_PV_ELMS_TO_HASH},
     stark::{
         config::{outer_fri_config_with_blowup, BabyBearPoseidon2Outer},
+        utils::sp1_dev_mode,
         RecursionAirWideDeg17,
     },
 };
@@ -55,7 +51,11 @@ pub struct StarkVerifierCircuit<C: Config, SC: StarkGenericConfig> {
 
 impl<C: Config, SC: StarkGenericConfig> StarkVerifierCircuit<C, SC>
 where
-    SC: StarkGenericConfig<Val = C::F, Challenge = C::EF, Domain = TwoAdicMultiplicativeCoset<C::F>>,
+    SC: StarkGenericConfig<
+        Val = C::F,
+        Challenge = C::EF,
+        Domain = TwoAdicMultiplicativeCoset<C::F>,
+    >,
 {
     pub fn verify_shard<A, const DEGREE: usize>(
         builder: &mut Builder<C>,
@@ -368,8 +368,8 @@ pub(crate) mod tests {
 
     use sp1_recursion_core::{cpu::Instruction, runtime::Opcode};
 
-    pub fn basic_program<F: p3_field::PrimeField32>()
-    -> sp1_recursion_core::runtime::RecursionProgram<F> {
+    pub fn basic_program<F: p3_field::PrimeField32>(
+    ) -> sp1_recursion_core::runtime::RecursionProgram<F> {
         let zero = [F::zero(); 4];
         let one = [F::one(), F::zero(), F::zero(), F::zero()];
         let mut instructions = vec![Instruction::new(
