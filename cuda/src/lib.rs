@@ -4,6 +4,7 @@ pub mod proto {
 }
 
 use core::time::Duration;
+use std::future::Future;
 use std::io::BufReader;
 use std::io::Read;
 use std::io::Write;
@@ -26,7 +27,9 @@ use sp1_prover::SP1CoreProof;
 use sp1_prover::SP1RecursionProverError;
 use sp1_prover::SP1ReduceProof;
 use sp1_prover::SP1VerifyingKey;
+use tokio::runtime;
 use tokio::runtime::Runtime;
+use tokio::task::block_in_place;
 use twirp::url::Url;
 use twirp::Client;
 
@@ -158,8 +161,7 @@ impl SP1CudaProver {
             Url::parse("http://localhost:3000/twirp/").expect("failed to parse url"),
         )
         .expect("failed to create client");
-        let rt = Runtime::new().unwrap();
-        rt.block_on(async {
+        block_on(async {
             tracing::info!("waiting for proving server to be ready");
             loop {
                 let request = ReadyRequest {};
@@ -202,10 +204,7 @@ impl SP1CudaProver {
         let request = crate::proto::api::ProveCoreRequest {
             data: bincode::serialize(&payload).unwrap(),
         };
-        let rt = Runtime::new().unwrap();
-        let response = rt
-            .block_on(async { self.client.prove_core(request).await })
-            .unwrap();
+        let response = block_on(async { self.client.prove_core(request).await }).unwrap();
         let proof: SP1CoreProof = bincode::deserialize(&response.result).unwrap();
         Ok(proof)
     }
@@ -230,10 +229,7 @@ impl SP1CudaProver {
             data: bincode::serialize(&payload).unwrap(),
         };
 
-        let rt = Runtime::new().unwrap();
-        let response = rt
-            .block_on(async { self.client.compress(request).await })
-            .unwrap();
+        let response = block_on(async { self.client.compress(request).await }).unwrap();
         let proof: SP1ReduceProof<InnerSC> = bincode::deserialize(&response.result).unwrap();
         Ok(proof)
     }
@@ -278,10 +274,7 @@ impl SP1CudaProver {
             data: bincode::serialize(&payload).unwrap(),
         };
 
-        let rt = Runtime::new().unwrap();
-        let response = rt
-            .block_on(async { self.client.wrap(request).await })
-            .unwrap();
+        let response = block_on(async { self.client.wrap(request).await }).unwrap();
         let proof: SP1ReduceProof<OuterSC> = bincode::deserialize(&response.result).unwrap();
         Ok(proof)
     }
@@ -310,6 +303,19 @@ fn cleanup_container(container_name: &str) {
         .output()
     {
         eprintln!("failed to remove container: {}", e);
+    }
+}
+
+/// Utility method for blocking on an async function. If we're already in a tokio runtime, we'll
+/// block in place. Otherwise, we'll create a new runtime.
+fn block_on<T>(fut: impl Future<Output = T>) -> T {
+    // Handle case if we're already in an tokio runtime.
+    if let Ok(handle) = runtime::Handle::try_current() {
+        block_in_place(|| handle.block_on(fut))
+    } else {
+        // Otherwise create a new runtime.
+        let rt = runtime::Runtime::new().expect("Failed to create a new runtime");
+        rt.block_on(fut)
     }
 }
 
