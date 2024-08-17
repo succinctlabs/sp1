@@ -308,7 +308,7 @@ fn cleanup_container(container_name: &str) {
 
 /// Utility method for blocking on an async function. If we're already in a tokio runtime, we'll
 /// block in place. Otherwise, we'll create a new runtime.
-fn block_on<T>(fut: impl Future<Output = T>) -> T {
+pub fn block_on<T>(fut: impl Future<Output = T>) -> T {
     // Handle case if we're already in an tokio runtime.
     if let Ok(handle) = runtime::Handle::try_current() {
         block_in_place(|| handle.block_on(fut))

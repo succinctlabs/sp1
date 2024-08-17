@@ -1,7 +1,6 @@
 use std::time::Instant;
 use std::{env, time::Duration};
 
-use crate::install::block_on;
 use crate::proto::network::ProofMode;
 use crate::{
     network::client::{NetworkClient, DEFAULT_PROVER_NETWORK_RPC},
@@ -12,6 +11,7 @@ use crate::{SP1Context, SP1ProofKind, SP1ProofWithPublicValues, SP1ProvingKey, S
 use anyhow::Result;
 use serde::de::DeserializeOwned;
 use sp1_core::utils::SP1ProverOpts;
+use sp1_cuda::block_on;
 use sp1_prover::components::DefaultProverComponents;
 use sp1_prover::{SP1Prover, SP1Stdin, SP1_CIRCUIT_VERSION};
 use tokio::time::sleep;
