@@ -9,10 +9,8 @@ mod tests {
     use p3_baby_bear::DiffusionMatrixBabyBear;
     use p3_field::{AbstractExtensionField, AbstractField};
     use rand::{rngs::StdRng, Rng, SeedableRng};
-    use sp1_core::{
-        stark::{Chip, StarkGenericConfig, StarkMachine, PROOF_MAX_NUM_PVS},
-        utils::{run_test_machine, setup_logger, BabyBearPoseidon2Inner},
-    };
+
+    use sp1_core_machine::utils::{run_test_machine, setup_logger};
     use sp1_recursion_core_v2::{
         chips::{
             alu_base::BaseAluChip,
@@ -24,6 +22,9 @@ mod tests {
         },
         machine::RecursionAir,
         Runtime, RuntimeError,
+    };
+    use sp1_stark::{
+        BabyBearPoseidon2Inner, Chip, StarkGenericConfig, StarkMachine, PROOF_MAX_NUM_PVS,
     };
 
     use crate::{
@@ -186,9 +187,8 @@ mod tests {
         let mut compiler = AsmCompiler::default();
         let program = compiler.compile(operations);
         let mut runtime = Runtime::<F, EF, DiffusionMatrixBabyBear>::new(&program, SC::new().perm);
-        runtime.witness_stream = [vec![F::one().into(), F::one().into(), F::two().into()]]
-            .concat()
-            .into();
+        runtime.witness_stream =
+            [vec![F::one().into(), F::one().into(), F::two().into()]].concat().into();
 
         match runtime.run() {
             Err(RuntimeError::EmptyWitnessStream) => (),

@@ -172,6 +172,7 @@ mod tests {
     use sp1_recursion_core::air::NUM_PV_ELMS_TO_HASH;
     use sp1_recursion_core::air::RECURSIVE_PROOF_NUM_PV_ELTS;
     use sp1_recursion_core::stark::config::BabyBearPoseidon2Outer;
+    use sp1_stark::air::MachineAir;
     use sp1_stark::StarkGenericConfig;
     use std::array;
     use std::borrow::Borrow;

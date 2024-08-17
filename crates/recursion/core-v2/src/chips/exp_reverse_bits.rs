@@ -316,6 +316,7 @@ mod tests {
     use rand::SeedableRng;
     use sp1_core_machine::utils::setup_logger;
     use sp1_recursion_core::stark::config::BabyBearPoseidon2Outer;
+    use sp1_stark::air::MachineAir;
     use sp1_stark::StarkGenericConfig;
     use std::iter::once;
 

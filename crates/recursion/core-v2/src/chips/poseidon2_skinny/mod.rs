@@ -27,10 +27,7 @@ impl<const DEGREE: usize> Default for Poseidon2SkinnyChip<DEGREE> {
     fn default() -> Self {
         // We only support machines with degree 9.
         assert!(DEGREE >= 9);
-        Self {
-            fixed_log2_rows: None,
-            pad: true,
-        }
+        Self { fixed_log2_rows: None, pad: true }
     }
 }
 pub fn apply_m_4<AF>(x: &mut [AF])
@@ -53,12 +50,8 @@ pub(crate) fn external_linear_layer<AF: AbstractField>(state: &mut [AF; WIDTH]) 
     for j in (0..WIDTH).step_by(4) {
         apply_m_4(&mut state[j..j + 4]);
     }
-    let sums: [AF; 4] = core::array::from_fn(|k| {
-        (0..WIDTH)
-            .step_by(4)
-            .map(|j| state[j + k].clone())
-            .sum::<AF>()
-    });
+    let sums: [AF; 4] =
+        core::array::from_fn(|k| (0..WIDTH).step_by(4).map(|j| state[j + k].clone()).sum::<AF>());
 
     for j in 0..WIDTH {
         state[j] += sums[j % 4].clone();
@@ -88,10 +81,11 @@ pub(crate) mod tests {
     use p3_baby_bear::{BabyBear, DiffusionMatrixBabyBear};
     use p3_field::{AbstractField, PrimeField32};
     use p3_symmetric::Permutation;
-    use sp1_core::stark::StarkGenericConfig;
-    use sp1_core::utils::{inner_perm, run_test_machine, setup_logger, BabyBearPoseidon2};
 
+    use sp1_core_machine::utils::{run_test_machine, setup_logger};
     use sp1_recursion_core::stark::config::BabyBearPoseidon2Outer;
+    use sp1_stark::baby_bear_poseidon2::BabyBearPoseidon2;
+    use sp1_stark::{inner_perm, StarkGenericConfig};
     use zkhash::ark_ff::UniformRand;
 
     use super::WIDTH;
@@ -111,9 +105,7 @@ pub(crate) mod tests {
 
         let rng = &mut rand::thread_rng();
         let input_1: [BabyBear; WIDTH] = std::array::from_fn(|_| BabyBear::rand(rng));
-        let output_1 = inner_perm()
-            .permute(input_1)
-            .map(|x| BabyBear::as_canonical_u32(&x));
+        let output_1 = inner_perm().permute(input_1).map(|x| BabyBear::as_canonical_u32(&x));
         let input_1 = input_1.map(|x| BabyBear::as_canonical_u32(&x));
 
         let instructions =
@@ -141,10 +133,7 @@ pub(crate) mod tests {
                 }))
                 .collect::<Vec<_>>();
 
-        let program = RecursionProgram {
-            instructions,
-            traces: Default::default(),
-        };
+        let program = RecursionProgram { instructions, traces: Default::default() };
         let mut runtime =
             Runtime::<F, EF, DiffusionMatrixBabyBear>::new(&program, BabyBearPoseidon2::new().perm);
         runtime.run().unwrap();

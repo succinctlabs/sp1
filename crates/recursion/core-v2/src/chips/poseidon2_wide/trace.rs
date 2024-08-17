@@ -281,6 +281,7 @@ mod tests {
     use p3_field::AbstractField;
     use p3_matrix::dense::RowMajorMatrix;
     use p3_symmetric::Permutation;
+    use sp1_stark::air::MachineAir;
     use sp1_stark::inner_perm;
     use zkhash::ark_ff::UniformRand;
 
