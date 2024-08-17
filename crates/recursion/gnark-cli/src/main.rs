@@ -1,8 +1,12 @@
 //! A simple CLI that wraps the gnark-ffi crate. This is called using Docker in gnark-ffi when the
 //! native feature is disabled.
 
-use sp1_recursion_gnark_ffi::ffi::{
-    build_plonk_bn254, prove_plonk_bn254, test_plonk_bn254, verify_plonk_bn254,
+use sp1_recursion_gnark_ffi::{
+    ffi::{
+        build_groth16_bn254, build_plonk_bn254, test_groth16_bn254, test_plonk_bn254,
+        verify_groth16_bn254, verify_plonk_bn254,
+    },
+    ProofBn254,
 };
 
 use clap::{Args, Parser, Subcommand};
@@ -17,18 +21,19 @@ struct Cli {
     command: Command,
 }
 
-#[allow(clippy::enum_variant_names)]
 #[derive(Debug, Subcommand)]
 enum Command {
-    BuildPlonk(BuildArgs),
-    ProvePlonk(ProveArgs),
-    VerifyPlonk(VerifyArgs),
-    TestPlonk(TestArgs),
+    Build(BuildArgs),
+    Prove(ProveArgs),
+    Verify(VerifyArgs),
+    Test(TestArgs),
 }
 
 #[derive(Debug, Args)]
 struct BuildArgs {
     data_dir: String,
+    #[arg(short, long)]
+    system: String,
 }
 
 #[derive(Debug, Args)]
@@ -36,6 +41,8 @@ struct ProveArgs {
     data_dir: String,
     witness_path: String,
     output_path: String,
+    #[arg(short, long)]
+    system: String,
 }
 
 #[derive(Debug, Args)]
@@ -45,34 +52,62 @@ struct VerifyArgs {
     vkey_hash: String,
     committed_values_digest: String,
     output_path: String,
+    #[arg(short, long)]
+    system: String,
 }
 
 #[derive(Debug, Args)]
 struct TestArgs {
     witness_json: String,
     constraints_json: String,
+    #[arg(short, long)]
+    system: String,
 }
 
 fn run_build(args: BuildArgs) {
-    build_plonk_bn254(&args.data_dir);
+    match args.system.as_str() {
+        "plonk" => build_plonk_bn254(&args.data_dir),
+        "groth16" => build_groth16_bn254(&args.data_dir),
+        _ => panic!("Unsupported system: {}", args.system),
+    }
 }
 
 fn run_prove(args: ProveArgs) {
-    let proof = prove_plonk_bn254(&args.data_dir, &args.witness_path);
+    let proof = match args.system.as_str() {
+        "plonk" => prove_plonk_bn254(&args.data_dir, &args.witness_path),
+        "groth16" => prove_groth16_bn254(&args.data_dir, &args.witness_path),
+        _ => panic!("Unsupported system: {}", args.system),
+    };
     let mut file = File::create(&args.output_path).unwrap();
     bincode::serialize_into(&mut file, &proof).unwrap();
 }
 
+fn prove_plonk_bn254(data_dir: &str, witness_path: &str) -> ProofBn254 {
+    ProofBn254::Plonk(sp1_recursion_gnark_ffi::ffi::prove_plonk_bn254(data_dir, witness_path))
+}
+
+fn prove_groth16_bn254(data_dir: &str, witness_path: &str) -> ProofBn254 {
+    ProofBn254::Groth16(sp1_recursion_gnark_ffi::ffi::prove_groth16_bn254(data_dir, witness_path))
+}
+
 fn run_verify(args: VerifyArgs) {
-    // For proof, we read the string from file since it can be large.
     let file = File::open(&args.proof_path).unwrap();
     let proof = read_to_string(file).unwrap();
-    let result = verify_plonk_bn254(
-        &args.data_dir,
-        proof.trim(),
-        &args.vkey_hash,
-        &args.committed_values_digest,
-    );
+    let result = match args.system.as_str() {
+        "plonk" => verify_plonk_bn254(
+            &args.data_dir,
+            proof.trim(),
+            &args.vkey_hash,
+            &args.committed_values_digest,
+        ),
+        "groth16" => verify_groth16_bn254(
+            &args.data_dir,
+            proof.trim(),
+            &args.vkey_hash,
+            &args.committed_values_digest,
+        ),
+        _ => panic!("Unsupported system: {}", args.system),
+    };
     let output = match result {
         Ok(_) => "OK".to_string(),
         Err(e) => e,
@@ -82,16 +117,20 @@ fn run_verify(args: VerifyArgs) {
 }
 
 fn run_test(args: TestArgs) {
-    test_plonk_bn254(&args.witness_json, &args.constraints_json);
+    match args.system.as_str() {
+        "plonk" => test_plonk_bn254(&args.witness_json, &args.constraints_json),
+        "groth16" => test_groth16_bn254(&args.witness_json, &args.constraints_json),
+        _ => panic!("Unsupported system: {}", args.system),
+    }
 }
 
 fn main() {
     let cli = Cli::parse();
 
     match cli.command {
-        Command::BuildPlonk(args) => run_build(args),
-        Command::ProvePlonk(args) => run_prove(args),
-        Command::VerifyPlonk(args) => run_verify(args),
-        Command::TestPlonk(args) => run_test(args),
+        Command::Build(args) => run_build(args),
+        Command::Prove(args) => run_prove(args),
+        Command::Verify(args) => run_verify(args),
+        Command::Test(args) => run_test(args),
     }
 }

@@ -13,8 +13,9 @@ use p3_baby_bear::BabyBear;
 use p3_field::{AbstractField, PrimeField};
 use p3_fri::{FriProof, TwoAdicFriPcsProof};
 use sp1_prover::{
-    components::DefaultProverComponents, verify::verify_plonk_bn254_public_inputs, HashableKey,
-    PlonkBn254Proof, SP1Prover,
+    components::DefaultProverComponents,
+    verify::{verify_groth16_bn254_public_inputs, verify_plonk_bn254_public_inputs},
+    Groth16Bn254Proof, HashableKey, PlonkBn254Proof, SP1Prover,
 };
 
 use super::{ProofOpts, ProverType};
@@ -107,6 +108,23 @@ impl Prover<DefaultProverComponents> for MockProver {
                     sp1_version: self.version().to_string(),
                 })
             }
+            SP1ProofKind::Groth16 => {
+                let (public_values, _) = self.prover.execute(&pk.elf, &stdin, context)?;
+                Ok(SP1ProofWithPublicValues {
+                    proof: SP1Proof::Groth16(Groth16Bn254Proof {
+                        public_inputs: [
+                            pk.vk.hash_bn254().as_canonical_biguint().to_string(),
+                            public_values.hash().to_string(),
+                        ],
+                        encoded_proof: "".to_string(),
+                        raw_proof: "".to_string(),
+                        groth16_vkey_hash: [0; 32],
+                    }),
+                    stdin,
+                    public_values,
+                    sp1_version: self.version().to_string(),
+                })
+            }
         }
     }
 
@@ -119,6 +137,10 @@ impl Prover<DefaultProverComponents> for MockProver {
             SP1Proof::Plonk(PlonkBn254Proof { public_inputs, .. }) => {
                 verify_plonk_bn254_public_inputs(vkey, &bundle.public_values, public_inputs)
                     .map_err(SP1VerificationError::Plonk)
+            }
+            SP1Proof::Groth16(Groth16Bn254Proof { public_inputs, .. }) => {
+                verify_groth16_bn254_public_inputs(vkey, &bundle.public_values, public_inputs)
+                    .map_err(SP1VerificationError::Groth16)
             }
             _ => Ok(()),
         }
