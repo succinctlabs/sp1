@@ -36,7 +36,7 @@ clap = { version = "4.5.9", features = ["derive", "env"] }
 hex = "0.4.3"
 anyhow = "1.0.83"
 dirs = "5.0.1"
-tempfile = "3.10.1"
+tempfile = "3.12.0"
 subtle-encoding = "0.5.1"
 serial_test = "3.1.1"
 num-bigint = "0.4.6"

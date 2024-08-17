@@ -54,7 +54,7 @@ k256 = { version = "0.13.3", features = ["expose-field"] }
 num_cpus = "1.16.0"
 serde_with = "3.9.0"
 size = "0.4.1"
-tempfile = "3.10.1"
+tempfile = "3.12.0"
 tracing = "0.1.40"
 tracing-forest = { version = "0.1.6", features = ["ansi", "smallvec"] }
 tracing-subscriber = { version = "0.3.18", features = ["std", "env-filter"] }
