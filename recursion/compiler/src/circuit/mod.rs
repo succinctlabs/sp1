@@ -6,6 +6,8 @@ pub use compiler::*;
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use p3_baby_bear::DiffusionMatrixBabyBear;
     use p3_field::{AbstractExtensionField, AbstractField};
     use rand::{rngs::StdRng, Rng, SeedableRng};
@@ -85,9 +87,9 @@ mod tests {
 
         let operations = builder.operations;
         let mut compiler = AsmCompiler::default();
-        let program = compiler.compile(operations);
+        let program = Arc::new(compiler.compile(operations));
         let mut runtime = Runtime::<F, EF, DiffusionMatrixBabyBear>::new(
-            &program,
+            program.clone(),
             BabyBearPoseidon2Inner::new().perm,
         );
         runtime.run().unwrap();
@@ -147,8 +149,9 @@ mod tests {
 
         let operations = builder.operations;
         let mut compiler = AsmCompiler::default();
-        let program = compiler.compile(operations);
-        let mut runtime = Runtime::<F, EF, DiffusionMatrixBabyBear>::new(&program, SC::new().perm);
+        let program = Arc::new(compiler.compile(operations));
+        let mut runtime =
+            Runtime::<F, EF, DiffusionMatrixBabyBear>::new(program.clone(), SC::new().perm);
         runtime.witness_stream = [
             vec![F::one().into(), F::one().into(), F::two().into()],
             vec![F::zero().into(), F::one().into(), F::two().into()],
@@ -184,8 +187,9 @@ mod tests {
 
         let operations = builder.operations;
         let mut compiler = AsmCompiler::default();
-        let program = compiler.compile(operations);
-        let mut runtime = Runtime::<F, EF, DiffusionMatrixBabyBear>::new(&program, SC::new().perm);
+        let program = Arc::new(compiler.compile(operations));
+        let mut runtime =
+            Runtime::<F, EF, DiffusionMatrixBabyBear>::new(program.clone(), SC::new().perm);
         runtime.witness_stream = [vec![F::one().into(), F::one().into(), F::two().into()]]
             .concat()
             .into();

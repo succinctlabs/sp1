@@ -174,7 +174,7 @@ where
     >: CryptographicPermutation<[F; PERMUTATION_WIDTH]>,
 {
     pub fn new(
-        program: &RecursionProgram<F>,
+        program: Arc<RecursionProgram<F>>,
         perm: Poseidon2<
             F,
             Poseidon2ExternalMatrixGeneral,
@@ -183,9 +183,8 @@ where
             POSEIDON2_SBOX_DEGREE,
         >,
     ) -> Self {
-        let program = Arc::new(program.to_owned());
         let record = ExecutionRecord::<F> {
-            program: Arc::clone(&program),
+            program: program.clone(),
             ..Default::default()
         };
         Self {

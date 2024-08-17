@@ -811,7 +811,7 @@ impl<C: Config> Reg<C> for Address<C::F> {
 
 #[cfg(test)]
 mod tests {
-    use std::{collections::VecDeque, io::BufRead, iter::zip};
+    use std::{collections::VecDeque, io::BufRead, iter::zip, sync::Arc};
 
     use p3_baby_bear::DiffusionMatrixBabyBear;
     use p3_field::{Field, PrimeField32};
@@ -849,11 +849,11 @@ mod tests {
 
     fn test_operations_with_runner(
         operations: TracedVec<DslIr<AsmConfig<F, EF>>>,
-        run: impl FnOnce(&RecursionProgram<F>) -> ExecutionRecord<F>,
+        run: impl FnOnce(Arc<RecursionProgram<F>>) -> ExecutionRecord<F>,
     ) {
         let mut compiler = super::AsmCompiler::<AsmConfig<F, EF>>::default();
-        let program = compiler.compile(operations);
-        let record = run(&program);
+        let program = Arc::new(compiler.compile(operations));
+        let record = run(program.clone());
 
         // Run with the poseidon2 wide chip.
         let wide_machine = RecursionAir::<_, 3, 0>::machine_wide(BabyBearPoseidon2::default());
