@@ -12,7 +12,7 @@ use sp1_core_machine::{
 };
 use sp1_primitives::poseidon2_hash;
 use sp1_recursion_core::{air::RecursionPublicValues, stark::config::BabyBearPoseidon2Outer};
-use sp1_recursion_gnark_ffi::proof::PlonkBn254Proof;
+use sp1_recursion_gnark_ffi::proof::{Groth16Bn254Proof, PlonkBn254Proof};
 use sp1_recursion_program::machine::{
     SP1CompressMemoryLayout, SP1DeferredMemoryLayout, SP1RecursionMemoryLayout,
 };
@@ -144,11 +144,15 @@ pub type SP1ReducedProof = SP1ProofWithMetadata<SP1ReducedProofData>;
 /// An SP1 proof that has been wrapped into a single PLONK proof and can be verified onchain.
 pub type SP1PlonkBn254Proof = SP1ProofWithMetadata<SP1PlonkBn254ProofData>;
 
-/// An SP1 proof that has been wrapped into a single PLONK proof and can be verified onchain.
-pub type SP1PlonkProof = SP1ProofWithMetadata<SP1PlonkProofData>;
+/// An SP1 proof that has been wrapped into a single Groth16 proof and can be verified onchain.
+pub type SP1Groth16Bn254Proof = SP1ProofWithMetadata<SP1Groth16Bn254ProofData>;
+
+/// An SP1 proof that has been wrapped into a single proof and can be verified onchain.
+pub type SP1Proof = SP1ProofWithMetadata<SP1ProofData>;
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct SP1CoreProofData(pub Vec<ShardProof<CoreSC>>);
+
 #[derive(Serialize, Deserialize, Clone)]
 pub struct SP1ReducedProofData(pub ShardProof<InnerSC>);
 
@@ -156,7 +160,29 @@ pub struct SP1ReducedProofData(pub ShardProof<InnerSC>);
 pub struct SP1PlonkBn254ProofData(pub PlonkBn254Proof);
 
 #[derive(Serialize, Deserialize, Clone)]
-pub struct SP1PlonkProofData(pub PlonkBn254Proof);
+pub struct SP1Groth16Bn254ProofData(pub Groth16Bn254Proof);
+
+#[derive(Serialize, Deserialize, Clone)]
+pub enum SP1ProofData {
+    Plonk(PlonkBn254Proof),
+    Groth16(Groth16Bn254Proof),
+}
+
+impl SP1ProofData {
+    pub fn get_proof_system(&self) -> &str {
+        match self {
+            SP1ProofData::Plonk(_) => "Plonk",
+            SP1ProofData::Groth16(_) => "Groth16",
+        }
+    }
+
+    pub fn get_raw_proof(&self) -> &str {
+        match self {
+            SP1ProofData::Plonk(proof) => &proof.raw_proof,
+            SP1ProofData::Groth16(proof) => &proof.raw_proof,
+        }
+    }
+}
 
 /// An intermediate proof which proves the execution over a range of shards.
 #[derive(Serialize, Deserialize, Clone)]
