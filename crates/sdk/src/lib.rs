@@ -5,6 +5,9 @@
 //! Visit the [Getting Started](https://succinctlabs.github.io/sp1/getting-started.html) section
 //! in the official SP1 documentation for a quick start guide.
 
+#[cfg(debug_assertions)]
+compile_error!("sp1-sdk must be used in release mode. Please compile sp1-sdk with --release flag.");
+
 #[rustfmt::skip]
 pub mod proto {
     pub mod network;
