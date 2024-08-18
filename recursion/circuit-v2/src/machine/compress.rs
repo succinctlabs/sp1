@@ -1,12 +1,13 @@
 use std::{array, borrow::BorrowMut, marker::PhantomData};
 
+use p3_air::Air;
 use p3_baby_bear::BabyBear;
 use p3_field::AbstractField;
 
 use p3_commit::Mmcs;
 use p3_matrix::dense::RowMajorMatrix;
 use sp1_core::{
-    air::{Word, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS},
+    air::{MachineAir, Word, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS},
     stark::{ShardProof, StarkGenericConfig, StarkMachine, StarkVerifyingKey},
     utils::DIGEST_SIZE,
 };
@@ -18,9 +19,10 @@ use sp1_recursion_core_v2::{
 // TODO: Migrate this type to here.
 use sp1_recursion_program::{fri::TwoAdicFriPcsVariable, machine::ReduceProgramType};
 
+use crate::{challenger::CanObserveVariable, stark::StarkVerifier};
 use crate::{
-    challenger::DuplexChallengerVariable, stark::ShardProofVariable, BabyBearFriConfigVariable,
-    CircuitConfig, VerifyingKeyVariable,
+    challenger::DuplexChallengerVariable, constraints::RecursiveVerifierConstraintFolder,
+    stark::ShardProofVariable, BabyBearFriConfigVariable, CircuitConfig, VerifyingKeyVariable,
 };
 
 /// A program to verify a batch of recursive proofs and aggregate their public values.
@@ -52,6 +54,7 @@ where
     SC: BabyBearFriConfigVariable<C>,
     C: CircuitConfig<F = SC::Val, EF = SC::Challenge, Bit = Felt<BabyBear>>,
     <SC::ValMmcs as Mmcs<BabyBear>>::ProverData<RowMajorMatrix<BabyBear>>: Clone,
+    A: MachineAir<SC::Val> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, C>>,
 {
     /// Verify a batch of recursive proofs and aggregate their public values.
     ///
@@ -114,6 +117,25 @@ where
         let finalize_addr_bits: [Felt<_>; 32] = core::array::from_fn(|_| builder.uninit());
 
         // Verify proofs, check consistency, and aggregate public values.
-        for (i, (vk, shard_proof)) in vks_and_proofs.into_iter().enumerate() {}
+        for (i, (vk, shard_proof)) in vks_and_proofs.into_iter().enumerate() {
+            // Verify the shard proof.
+
+            // Prepare a challenger.
+            let mut challenger = machine.config().challenger_variable(builder);
+
+            // Observe the vk and start pc.
+            challenger.observe(builder, vk.commitment);
+            challenger.observe(builder, vk.pc_start);
+
+            // Observe the main commitment and public values.
+            challenger.observe(builder, shard_proof.commitment.main_commit);
+            challenger.observe_slice(
+                builder,
+                shard_proof.public_values[0..machine.num_pv_elts()]
+                    .iter()
+                    .copied(),
+            );
+            StarkVerifier::verify_shard(builder, &vk, machine, &mut challenger, &shard_proof);
+        }
     }
 }

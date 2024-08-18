@@ -228,13 +228,7 @@ where
             // Do not verify the cumulative sum here, since the permutation challenge is shared
             // between all shards.
             let mut challenger = leaf_challenger.copy(builder);
-            StarkVerifier::<C, SC, _>::verify_shard(
-                builder,
-                &vk,
-                machine,
-                &mut challenger,
-                &shard_proof,
-            );
+            StarkVerifier::verify_shard(builder, &vk, machine, &mut challenger, &shard_proof);
 
             // // First shard has a "CPU" constraint.
             // {
