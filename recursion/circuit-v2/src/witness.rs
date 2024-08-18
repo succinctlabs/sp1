@@ -94,6 +94,18 @@ impl<C: Config, T: Witnessable<C>, const N: usize> Witnessable<C> for [T; N] {
     }
 }
 
+impl<C: Config, T: Witnessable<C>, U: Witnessable<C>> Witnessable<C> for (T, U) {
+    type WitnessVariable = (T::WitnessVariable, U::WitnessVariable);
+
+    fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
+        (self.0.read(builder), self.1.read(builder))
+    }
+
+    fn write(&self) -> Vec<Witness<C>> {
+        [self.0.write(), self.1.write()].concat()
+    }
+}
+
 impl<C: Config, T: Witnessable<C>> Witnessable<C> for Vec<T> {
     type WitnessVariable = Vec<T::WitnessVariable>;
 

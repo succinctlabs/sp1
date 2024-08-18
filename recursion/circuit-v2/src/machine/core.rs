@@ -8,6 +8,9 @@ use p3_baby_bear::BabyBear;
 use p3_commit::Mmcs;
 use p3_field::AbstractField;
 use p3_matrix::dense::RowMajorMatrix;
+use sp1_core::stark::ShardProof;
+use sp1_core::stark::StarkGenericConfig;
+use sp1_core::stark::StarkVerifyingKey;
 
 use crate::utils::commit_recursion_public_values;
 use crate::CircuitConfig;
@@ -37,6 +40,14 @@ pub struct SP1RecursionWitnessVariable<
     pub leaf_challenger: SC::FriChallengerVariable,
     pub initial_reconstruct_challenger: DuplexChallengerVariable<C>,
     pub is_complete: Felt<C::F>,
+}
+
+pub struct SP1RecursionWitnessValues<'a, SC: StarkGenericConfig> {
+    pub vk: &'a StarkVerifyingKey<SC>,
+    pub shard_proofs: Vec<ShardProof<SC>>,
+    pub leaf_challenger: &'a SC::Challenger,
+    pub initial_reconstruct_challenger: SC::Challenger,
+    pub is_complete: bool,
 }
 
 /// A program for recursively verifying a batch of SP1 proofs.

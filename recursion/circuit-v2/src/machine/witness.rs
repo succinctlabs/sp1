@@ -1,11 +1,9 @@
 use std::borrow::Borrow;
 
-use p3_baby_bear::BabyBear;
 use p3_challenger::DuplexChallenger;
 use p3_field::AbstractField;
 use p3_symmetric::Hash;
 
-use sp1_core::air::MachineAir;
 use sp1_core::stark::StarkVerifyingKey;
 use sp1_core::utils::BabyBearPoseidon2;
 use sp1_core::utils::InnerChallenge;
@@ -21,7 +19,9 @@ use crate::witness::Witnessable;
 use crate::CircuitConfig;
 use crate::VerifyingKeyVariable;
 
-use super::SP1RecursionMemoryLayout;
+use super::SP1CompressWitnessValues;
+use super::SP1CompressWitnessVariable;
+use super::SP1RecursionWitnessValues;
 use super::SP1RecursionWitnessVariable;
 
 impl<C> Witnessable<C> for DuplexChallenger<InnerVal, InnerPerm, 16, 8>
@@ -97,10 +97,9 @@ where
     }
 }
 
-impl<'a, C, A> Witnessable<C> for SP1RecursionMemoryLayout<'a, BabyBearPoseidon2, A>
+impl<'a, C> Witnessable<C> for SP1RecursionWitnessValues<'a, BabyBearPoseidon2>
 where
     C: CircuitConfig<F = InnerVal, EF = InnerChallenge, Bit = Felt<InnerVal>>,
-    A: MachineAir<BabyBear>,
 {
     type WitnessVariable = SP1RecursionWitnessVariable<C, BabyBearPoseidon2>;
 
@@ -128,5 +127,28 @@ where
             Witnessable::<C>::write(&InnerVal::from_bool(self.is_complete)),
         ]
         .concat()
+    }
+}
+
+impl<C> Witnessable<C> for SP1CompressWitnessValues<BabyBearPoseidon2>
+where
+    C: CircuitConfig<F = InnerVal, EF = InnerChallenge, Bit = Felt<InnerVal>>,
+{
+    type WitnessVariable = SP1CompressWitnessVariable<C, BabyBearPoseidon2>;
+
+    fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
+        let vks_and_proofs = self.vks_and_proofs.read(builder);
+        let is_complete = self.is_complete;
+        let kinds = self.kinds.clone();
+
+        SP1CompressWitnessVariable {
+            vks_and_proofs,
+            is_complete,
+            kinds,
+        }
+    }
+
+    fn write(&self) -> Vec<crate::witness::Witness<C>> {
+        Witnessable::<C>::write(&self.vks_and_proofs)
     }
 }
