@@ -49,7 +49,7 @@ strum_macros = "0.26.4"
 strum = "0.26.3"
 thiserror = "1.0.63"
 hashbrown = "0.14.5"
-sysinfo = "0.30.13"
+sysinfo = "0.31.2"
 sp1-core-executor = { workspace = true }
 sp1-stark = { workspace = true }
 
