@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"encoding/hex"
 
+	groth16 "github.com/consensys/gnark/backend/groth16"
+	groth16_bn254 "github.com/consensys/gnark/backend/groth16/bn254"
 	plonk "github.com/consensys/gnark/backend/plonk"
 	plonk_bn254 "github.com/consensys/gnark/backend/plonk/bn254"
 	"github.com/consensys/gnark/frontend"
@@ -21,6 +23,27 @@ func NewSP1PlonkBn254Proof(proof *plonk.Proof, witnessInput WitnessInput) Proof 
 
 	// Cast plonk proof into plonk_bn254 proof so we can call MarshalSolidity.
 	p := (*proof).(*plonk_bn254.Proof)
+
+	encodedProof := p.MarshalSolidity()
+
+	return Proof{
+		PublicInputs: publicInputs,
+		EncodedProof: hex.EncodeToString(encodedProof),
+		RawProof:     hex.EncodeToString(proofBytes),
+	}
+}
+
+func NewSP1Groth16Proof(proof *groth16.Proof, witnessInput WitnessInput) Proof {
+	var buf bytes.Buffer
+	(*proof).WriteRawTo(&buf)
+	proofBytes := buf.Bytes()
+
+	var publicInputs [2]string
+	publicInputs[0] = witnessInput.VkeyHash
+	publicInputs[1] = witnessInput.CommitedValuesDigest
+
+	// Cast groth16 proof into groth16_bn254 proof so we can call MarshalSolidity.
+	p := (*proof).(*groth16_bn254.Proof)
 
 	encodedProof := p.MarshalSolidity()
 

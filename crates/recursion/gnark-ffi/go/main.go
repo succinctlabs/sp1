@@ -8,6 +8,12 @@ typedef struct {
 	char *EncodedProof;
 	char *RawProof;
 } C_PlonkBn254Proof;
+
+typedef struct {
+	char *PublicInputs[2];
+	char *EncodedProof;
+	char *RawProof;
+} C_Groth16Bn254Proof;
 */
 import "C"
 import (
@@ -35,7 +41,7 @@ func ProvePlonkBn254(dataDir *C.char, witnessPath *C.char) *C.C_PlonkBn254Proof 
 	dataDirString := C.GoString(dataDir)
 	witnessPathString := C.GoString(witnessPath)
 
-	sp1PlonkBn254Proof := sp1.Prove(dataDirString, witnessPathString)
+	sp1PlonkBn254Proof := sp1.ProvePlonk(dataDirString, witnessPathString)
 
 	ms := C.malloc(C.sizeof_C_PlonkBn254Proof)
 	if ms == nil {
@@ -55,7 +61,7 @@ func BuildPlonkBn254(dataDir *C.char) {
 	// Sanity check the required arguments have been provided.
 	dataDirString := C.GoString(dataDir)
 
-	sp1.Build(dataDirString)
+	sp1.BuildPlonk(dataDirString)
 }
 
 //export VerifyPlonkBn254
@@ -65,7 +71,7 @@ func VerifyPlonkBn254(dataDir *C.char, proof *C.char, vkeyHash *C.char, commited
 	vkeyHashString := C.GoString(vkeyHash)
 	commitedValuesDigestString := C.GoString(commitedValuesDigest)
 
-	err := sp1.Verify(dataDirString, proofString, vkeyHashString, commitedValuesDigestString)
+	err := sp1.VerifyPlonk(dataDirString, proofString, vkeyHashString, commitedValuesDigestString)
 	if err != nil {
 		return C.CString(err.Error())
 	}
@@ -90,11 +96,69 @@ func TestPlonkBn254(witnessPath *C.char, constraintsJson *C.char) *C.char {
 	return nil
 }
 
+//export ProveGroth16Bn254
+func ProveGroth16Bn254(dataDir *C.char, witnessPath *C.char) *C.C_Groth16Bn254Proof {
+	dataDirString := C.GoString(dataDir)
+	witnessPathString := C.GoString(witnessPath)
+
+	sp1Groth16Bn254Proof := sp1.ProveGroth16(dataDirString, witnessPathString)
+
+	ms := C.malloc(C.sizeof_C_Groth16Bn254Proof)
+	if ms == nil {
+		return nil
+	}
+
+	structPtr := (*C.C_Groth16Bn254Proof)(ms)
+	structPtr.PublicInputs[0] = C.CString(sp1Groth16Bn254Proof.PublicInputs[0])
+	structPtr.PublicInputs[1] = C.CString(sp1Groth16Bn254Proof.PublicInputs[1])
+	structPtr.EncodedProof = C.CString(sp1Groth16Bn254Proof.EncodedProof)
+	structPtr.RawProof = C.CString(sp1Groth16Bn254Proof.RawProof)
+	return structPtr
+}
+
+//export BuildGroth16Bn254
+func BuildGroth16Bn254(dataDir *C.char) {
+	// Sanity check the required arguments have been provided.
+	dataDirString := C.GoString(dataDir)
+
+	sp1.BuildGroth16(dataDirString)
+}
+
+//export VerifyGroth16Bn254
+func VerifyGroth16Bn254(dataDir *C.char, proof *C.char, vkeyHash *C.char, committedValuesDigest *C.char) *C.char {
+	dataDirString := C.GoString(dataDir)
+	proofString := C.GoString(proof)
+	vkeyHashString := C.GoString(vkeyHash)
+	committedValuesDigestString := C.GoString(committedValuesDigest)
+
+	err := sp1.VerifyGroth16(dataDirString, proofString, vkeyHashString, committedValuesDigestString)
+	if err != nil {
+		return C.CString(err.Error())
+	}
+	return nil
+}
+
+//export TestGroth16Bn254
+func TestGroth16Bn254(witnessJson *C.char, constraintsJson *C.char) *C.char {
+	// Because of the global env variables used here, we need to lock this function
+	testMutex.Lock()
+	witnessPathString := C.GoString(witnessJson)
+	constraintsJsonString := C.GoString(constraintsJson)
+	os.Setenv("WITNESS_JSON", witnessPathString)
+	os.Setenv("CONSTRAINTS_JSON", constraintsJsonString)
+	err := TestMain()
+	testMutex.Unlock()
+	if err != nil {
+		return C.CString(err.Error())
+	}
+	return nil
+}
+
 func TestMain() error {
 	// Get the file name from an environment variable.
 	fileName := os.Getenv("WITNESS_JSON")
 	if fileName == "" {
-		fileName = "witness.json"
+		fileName = "plonk_witness.json"
 	}
 
 	// Read the file.

@@ -7,49 +7,44 @@ use tokio::{runtime, task::block_in_place};
 
 use crate::SP1_CIRCUIT_VERSION;
 
-/// The base URL for the S3 bucket containing the plonk bn254 artifacts.
-pub const PLONK_BN254_ARTIFACTS_URL_BASE: &str = "https://sp1-circuits.s3-us-east-2.amazonaws.com";
+/// The base URL for the S3 bucket containing the ciruit artifacts.
+pub const CIRCUIT_ARTIFACTS_URL_BASE: &str = "https://sp1-circuits.s3-us-east-2.amazonaws.com";
 
-/// Gets the directory where the PLONK artifacts are installed.
-fn plonk_bn254_artifacts_dir() -> PathBuf {
-    dirs::home_dir()
-        .unwrap()
-        .join(".sp1")
-        .join("circuits")
-        .join("plonk_bn254")
-        .join(SP1_CIRCUIT_VERSION)
+/// Gets the directory where the circuit artifacts are installed.
+fn circuit_artifacts_dir() -> PathBuf {
+    dirs::home_dir().unwrap().join(".sp1").join("circuits").join(SP1_CIRCUIT_VERSION)
 }
 
-/// Tries to install the PLONK artifacts if they are not already installed.
-pub fn try_install_plonk_bn254_artifacts() -> PathBuf {
-    let build_dir = plonk_bn254_artifacts_dir();
+/// Tries to install the circuit artifacts if they are not already installed.
+pub fn try_install_circuit_artifacts() -> PathBuf {
+    let build_dir = circuit_artifacts_dir();
 
     if build_dir.exists() {
         println!(
-            "[sp1] plonk bn254 artifacts already seem to exist at {}. if you want to re-download them, delete the directory",
+            "[sp1] circuit artifacts already seem to exist at {}. if you want to re-download them, delete the directory",
             build_dir.display()
         );
     } else {
         println!(
-            "[sp1] plonk bn254 artifacts for version {} do not exist at {}. downloading...",
+            "[sp1] circuit artifacts for version {} do not exist at {}. downloading...",
             SP1_CIRCUIT_VERSION,
             build_dir.display()
         );
-        install_plonk_bn254_artifacts(build_dir.clone());
+        install_circuit_artifacts(build_dir.clone());
     }
     build_dir
 }
 
-/// Install the latest plonk bn254 artifacts.
+/// Install the latest circuit artifacts.
 ///
-/// This function will download the latest plonk bn254 artifacts from the S3 bucket and extract them
+/// This function will download the latest circuit artifacts from the S3 bucket and extract them
 /// to the directory specified by [plonk_bn254_artifacts_dir()].
-pub fn install_plonk_bn254_artifacts(build_dir: PathBuf) {
+pub fn install_circuit_artifacts(build_dir: PathBuf) {
     // Create the build directory.
     std::fs::create_dir_all(&build_dir).expect("failed to create build directory");
 
     // Download the artifacts.
-    let download_url = format!("{}/{}.tar.gz", PLONK_BN254_ARTIFACTS_URL_BASE, SP1_CIRCUIT_VERSION);
+    let download_url = format!("{}/{}.tar.gz", CIRCUIT_ARTIFACTS_URL_BASE, SP1_CIRCUIT_VERSION);
     let mut artifacts_tar_gz_file =
         tempfile::NamedTempFile::new().expect("failed to create tempfile");
     let client = Client::builder().build().expect("failed to create reqwest client");
@@ -71,9 +66,8 @@ pub fn install_plonk_bn254_artifacts(build_dir: PathBuf) {
     println!("[sp1] downloaded {} to {:?}", download_url, build_dir.to_str().unwrap(),);
 }
 
-/// The directory where the plonk bn254 artifacts will be stored based on
-/// [PLONK_BN254_ARTIFACTS_VERSION] and [PLONK_BN254_ARTIFACTS_URL_BASE].
-pub fn install_plonk_bn254_artifacts_dir() -> PathBuf {
+/// The directory where the circuit artifacts will be stored.
+pub fn install_circuit_artifacts_dir() -> PathBuf {
     dirs::home_dir().unwrap().join(".sp1").join("circuits").join(SP1_CIRCUIT_VERSION)
 }
 

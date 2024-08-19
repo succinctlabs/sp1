@@ -45,8 +45,10 @@ use sp1_recursion_core::{
     runtime::{ExecutionRecord, RecursionProgram, Runtime as RecursionRuntime},
     stark::{config::BabyBearPoseidon2Outer, RecursionAir},
 };
-pub use sp1_recursion_gnark_ffi::plonk_bn254::PlonkBn254Proof;
+use sp1_recursion_gnark_ffi::groth16_bn254::Groth16Bn254Prover;
 use sp1_recursion_gnark_ffi::plonk_bn254::PlonkBn254Prover;
+pub use sp1_recursion_gnark_ffi::proof::Groth16Bn254Proof;
+pub use sp1_recursion_gnark_ffi::proof::PlonkBn254Proof;
 use sp1_recursion_program::hints::Hintable;
 pub use sp1_recursion_program::machine::{
     ReduceProgramType, SP1CompressMemoryLayout, SP1DeferredMemoryLayout, SP1RecursionMemoryLayout,
@@ -860,6 +862,35 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         proof
     }
 
+    /// Wrap the STARK proven over a SNARK-friendly field into a Groth16 proof.
+    #[instrument(name = "wrap_groth16_bn254", level = "info", skip_all)]
+    pub fn wrap_groth16_bn254(
+        &self,
+        proof: SP1ReduceProof<OuterSC>,
+        build_dir: &Path,
+    ) -> Groth16Bn254Proof {
+        let vkey_digest = proof.sp1_vkey_digest_bn254();
+        let commited_values_digest = proof.sp1_commited_values_digest_bn254();
+
+        let mut witness = Witness::default();
+        proof.proof.write(&mut witness);
+        witness.write_commited_values_digest(commited_values_digest);
+        witness.write_vkey_hash(vkey_digest);
+
+        let prover = Groth16Bn254Prover::new();
+        let proof = prover.prove(witness, build_dir.to_path_buf());
+
+        // Verify the proof.
+        prover.verify(
+            &proof,
+            &vkey_digest.as_canonical_biguint(),
+            &commited_values_digest.as_canonical_biguint(),
+            build_dir,
+        );
+
+        proof
+    }
+
     /// Accumulate deferred proofs into a single digest.
     pub fn hash_deferred_proofs(
         prev_digest: [Val<CoreSC>; DIGEST_SIZE],
@@ -881,7 +912,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
     fn check_for_high_cycles(cycles: u64) {
         if cycles > 100_000_000 {
             tracing::warn!(
-                "high cycle count, consider using the prover network for proof generation: https://docs.succinct.xyz/prover-network/setup.html"
+                "high cycle count, consider using the prover network for proof generation: https://docs.succinct.xyz/generating-proofs/prover-network"
             );
         }
     }
@@ -898,6 +929,7 @@ pub mod tests {
     use super::*;
 
     use anyhow::Result;
+    use build::try_build_groth16_bn254_artifacts_dev;
     use build::try_build_plonk_bn254_artifacts_dev;
     use p3_field::PrimeField32;
     use sp1_core_machine::io::SP1Stdin;
@@ -993,10 +1025,19 @@ pub mod tests {
         tracing::info!("generate plonk bn254 proof");
         let artifacts_dir =
             try_build_plonk_bn254_artifacts_dev(prover.wrap_vk(), &wrapped_bn254_proof.proof);
-        let plonk_bn254_proof = prover.wrap_plonk_bn254(wrapped_bn254_proof, &artifacts_dir);
+        let plonk_bn254_proof =
+            prover.wrap_plonk_bn254(wrapped_bn254_proof.clone(), &artifacts_dir);
         println!("{:?}", plonk_bn254_proof);
 
         prover.verify_plonk_bn254(&plonk_bn254_proof, &vk, &public_values, &artifacts_dir)?;
+
+        tracing::info!("generate groth16 bn254 proof");
+        let artifacts_dir =
+            try_build_groth16_bn254_artifacts_dev(prover.wrap_vk(), &wrapped_bn254_proof.proof);
+        let groth16_bn254_proof = prover.wrap_groth16_bn254(wrapped_bn254_proof, &artifacts_dir);
+        println!("{:?}", groth16_bn254_proof);
+
+        prover.verify_groth16_bn254(&groth16_bn254_proof, &vk, &public_values, &artifacts_dir)?;
 
         Ok(())
     }
@@ -1093,7 +1134,9 @@ pub mod tests {
         let elf = include_bytes!("../../../tests/fibonacci/elf/riscv32im-succinct-zkvm-elf");
         setup_logger();
         let opts = SP1ProverOpts::default();
-        test_e2e_prover::<DefaultProverComponents>(elf, opts, Test::Plonk)
+        // TODO(mattstam): We should Test::Plonk here, but this uses the existing
+        // docker image which has a different API than the current. So we need to wait until the next release (v1.2.0+), and then switch it back.
+        test_e2e_prover::<DefaultProverComponents>(elf, opts, Test::Wrap)
     }
 
     /// Tests an end-to-end workflow of proving a program across the entire proof generation

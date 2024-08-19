@@ -6,7 +6,7 @@ use indicatif::{ProgressBar, ProgressStyle};
 use reqwest::Client;
 pub use sp1_prover::build::build_plonk_bn254_artifacts_with_dummy;
 
-use crate::install::try_install_plonk_bn254_artifacts;
+use crate::install::try_install_circuit_artifacts;
 
 /// Exports the solidity verifier for PLONK proofs to the specified output directory.
 ///
@@ -17,16 +17,45 @@ pub fn export_solidity_plonk_bn254_verifier(output_dir: impl Into<PathBuf>) -> R
     let artifacts_dir = if sp1_prover::build::sp1_dev_mode() {
         sp1_prover::build::plonk_bn254_artifacts_dev_dir()
     } else {
-        try_install_plonk_bn254_artifacts()
+        try_install_circuit_artifacts()
     };
-    let verifier_path = artifacts_dir.join("SP1Verifier.sol");
+    let verifier_path = artifacts_dir.join("PlonkSP1Verifier.sol");
 
     if !verifier_path.exists() {
         return Err(anyhow::anyhow!("verifier file not found at {:?}", verifier_path));
     }
 
     std::fs::create_dir_all(&output_dir).context("Failed to create output directory.")?;
-    let output_path = output_dir.join("SP1Verifier.sol");
+    let output_path = output_dir.join("PlonkSP1Verifier.sol");
+    std::fs::copy(&verifier_path, &output_path).context("Failed to copy verifier file.")?;
+    tracing::info!(
+        "exported verifier from {} to {}",
+        verifier_path.display(),
+        output_path.display()
+    );
+
+    Ok(())
+}
+
+/// Exports the solidity verifier for Groth16 proofs to the specified output directory.
+///
+/// WARNING: If you are on development mode, this function assumes that the Groth16 artifacts have
+/// already been built.
+pub fn export_solidity_groth16_bn254_verifier(output_dir: impl Into<PathBuf>) -> Result<()> {
+    let output_dir: PathBuf = output_dir.into();
+    let artifacts_dir = if sp1_prover::build::sp1_dev_mode() {
+        sp1_prover::build::groth16_bn254_artifacts_dev_dir()
+    } else {
+        try_install_circuit_artifacts()
+    };
+    let verifier_path = artifacts_dir.join("Groth16SP1Verifier.sol");
+
+    if !verifier_path.exists() {
+        return Err(anyhow::anyhow!("verifier file not found at {:?}", verifier_path));
+    }
+
+    std::fs::create_dir_all(&output_dir).context("Failed to create output directory.")?;
+    let output_path = output_dir.join("Groth16SP1Verifier.sol");
     std::fs::copy(&verifier_path, &output_path).context("Failed to copy verifier file.")?;
     tracing::info!(
         "exported verifier from {} to {}",
@@ -71,8 +100,16 @@ pub async fn download_file(
 #[cfg(test)]
 mod tests {
     #[test]
-    fn test_verifier_export() {
+    fn test_plonk_verifier_export() {
         crate::artifacts::export_solidity_plonk_bn254_verifier(tempfile::tempdir().unwrap().path())
             .expect("failed to export verifier");
+    }
+
+    #[test]
+    fn test_groth16_verifier_export() {
+        crate::artifacts::export_solidity_groth16_bn254_verifier(
+            tempfile::tempdir().unwrap().path(),
+        )
+        .expect("failed to export verifier");
     }
 }

@@ -5,7 +5,7 @@
 //! Although we cast to *mut c_char because the Go signatures can't be immutable, the Go functions
 //! should not modify the strings.
 
-use crate::PlonkBn254Proof;
+use crate::{Groth16Bn254Proof, PlonkBn254Proof};
 use cfg_if::cfg_if;
 use sp1_core_machine::SP1_CIRCUIT_VERSION;
 use std::ffi::{c_char, CString};
@@ -16,31 +16,83 @@ mod bind {
 }
 use bind::*;
 
-pub fn prove_plonk_bn254(data_dir: &str, witness_path: &str) -> PlonkBn254Proof {
-    let data_dir = CString::new(data_dir).expect("CString::new failed");
-    let witness_path = CString::new(witness_path).expect("CString::new failed");
-
-    let proof = unsafe {
-        let proof = bind::ProvePlonkBn254(
-            data_dir.as_ptr() as *mut c_char,
-            witness_path.as_ptr() as *mut c_char,
-        );
-        // Safety: The pointer is returned from the go code and is guaranteed to be valid.
-        *proof
-    };
-
-    proof.into_rust()
+enum ProofSystem {
+    Plonk,
+    Groth16,
 }
 
-pub fn build_plonk_bn254(data_dir: &str) {
-    let data_dir = CString::new(data_dir).expect("CString::new failed");
+enum ProofResult {
+    Plonk(C_PlonkBn254Proof),
+    Groth16(C_Groth16Bn254Proof),
+}
 
-    unsafe {
-        bind::BuildPlonkBn254(data_dir.as_ptr() as *mut c_char);
+impl ProofSystem {
+    fn build_fn(&self) -> unsafe extern "C" fn(*mut c_char) {
+        match self {
+            ProofSystem::Plonk => bind::BuildPlonkBn254,
+            ProofSystem::Groth16 => bind::BuildGroth16Bn254,
+        }
+    }
+
+    fn prove_fn(&self) -> ProveFunction {
+        match self {
+            ProofSystem::Plonk => ProveFunction::Plonk(bind::ProvePlonkBn254),
+            ProofSystem::Groth16 => ProveFunction::Groth16(bind::ProveGroth16Bn254),
+        }
+    }
+
+    fn verify_fn(
+        &self,
+    ) -> unsafe extern "C" fn(*mut c_char, *mut c_char, *mut c_char, *mut c_char) -> *mut c_char
+    {
+        match self {
+            ProofSystem::Plonk => bind::VerifyPlonkBn254,
+            ProofSystem::Groth16 => bind::VerifyGroth16Bn254,
+        }
+    }
+
+    fn test_fn(&self) -> unsafe extern "C" fn(*mut c_char, *mut c_char) -> *mut c_char {
+        match self {
+            ProofSystem::Plonk => bind::TestPlonkBn254,
+            ProofSystem::Groth16 => bind::TestGroth16Bn254,
+        }
     }
 }
 
-pub fn verify_plonk_bn254(
+enum ProveFunction {
+    Plonk(unsafe extern "C" fn(*mut c_char, *mut c_char) -> *mut C_PlonkBn254Proof),
+    Groth16(unsafe extern "C" fn(*mut c_char, *mut c_char) -> *mut C_Groth16Bn254Proof),
+}
+
+fn build(system: ProofSystem, data_dir: &str) {
+    let data_dir = CString::new(data_dir).expect("CString::new failed");
+    unsafe {
+        (system.build_fn())(data_dir.as_ptr() as *mut c_char);
+    }
+}
+
+fn prove(system: ProofSystem, data_dir: &str, witness_path: &str) -> ProofResult {
+    let data_dir = CString::new(data_dir).expect("CString::new failed");
+    let witness_path = CString::new(witness_path).expect("CString::new failed");
+
+    unsafe {
+        match system.prove_fn() {
+            ProveFunction::Plonk(func) => {
+                let proof =
+                    func(data_dir.as_ptr() as *mut c_char, witness_path.as_ptr() as *mut c_char);
+                ProofResult::Plonk(*proof)
+            }
+            ProveFunction::Groth16(func) => {
+                let proof =
+                    func(data_dir.as_ptr() as *mut c_char, witness_path.as_ptr() as *mut c_char);
+                ProofResult::Groth16(*proof)
+            }
+        }
+    }
+}
+
+fn verify(
+    system: ProofSystem,
     data_dir: &str,
     proof: &str,
     vkey_hash: &str,
@@ -53,7 +105,7 @@ pub fn verify_plonk_bn254(
         CString::new(committed_values_digest).expect("CString::new failed");
 
     let err_ptr = unsafe {
-        bind::VerifyPlonkBn254(
+        (system.verify_fn())(
             data_dir.as_ptr() as *mut c_char,
             proof.as_ptr() as *mut c_char,
             vkey_hash.as_ptr() as *mut c_char,
@@ -69,20 +121,70 @@ pub fn verify_plonk_bn254(
     }
 }
 
-pub fn test_plonk_bn254(witness_json: &str, constraints_json: &str) {
+fn test(system: ProofSystem, witness_json: &str, constraints_json: &str) {
     unsafe {
         let witness_json = CString::new(witness_json).expect("CString::new failed");
-        let build_dir = CString::new(constraints_json).expect("CString::new failed");
-        let err_ptr = bind::TestPlonkBn254(
+        let constraints_json = CString::new(constraints_json).expect("CString::new failed");
+        let err_ptr = (system.test_fn())(
             witness_json.as_ptr() as *mut c_char,
-            build_dir.as_ptr() as *mut c_char,
+            constraints_json.as_ptr() as *mut c_char,
         );
         if !err_ptr.is_null() {
             // Safety: The error message is returned from the go code and is guaranteed to be valid.
             let err = CString::from_raw(err_ptr);
-            panic!("TestPlonkBn254 failed: {}", err.into_string().unwrap());
+            panic!("Test failed: {}", err.into_string().unwrap());
         }
     }
+}
+
+// Public API functions
+
+pub fn build_plonk_bn254(data_dir: &str) {
+    build(ProofSystem::Plonk, data_dir)
+}
+
+pub fn prove_plonk_bn254(data_dir: &str, witness_path: &str) -> PlonkBn254Proof {
+    match prove(ProofSystem::Plonk, data_dir, witness_path) {
+        ProofResult::Plonk(proof) => proof.into(),
+        _ => unreachable!(),
+    }
+}
+
+pub fn verify_plonk_bn254(
+    data_dir: &str,
+    proof: &str,
+    vkey_hash: &str,
+    committed_values_digest: &str,
+) -> Result<(), String> {
+    verify(ProofSystem::Plonk, data_dir, proof, vkey_hash, committed_values_digest)
+}
+
+pub fn test_plonk_bn254(witness_json: &str, constraints_json: &str) {
+    test(ProofSystem::Plonk, witness_json, constraints_json)
+}
+
+pub fn build_groth16_bn254(data_dir: &str) {
+    build(ProofSystem::Groth16, data_dir)
+}
+
+pub fn prove_groth16_bn254(data_dir: &str, witness_path: &str) -> Groth16Bn254Proof {
+    match prove(ProofSystem::Groth16, data_dir, witness_path) {
+        ProofResult::Groth16(proof) => proof.into(),
+        _ => unreachable!(),
+    }
+}
+
+pub fn verify_groth16_bn254(
+    data_dir: &str,
+    proof: &str,
+    vkey_hash: &str,
+    committed_values_digest: &str,
+) -> Result<(), String> {
+    verify(ProofSystem::Groth16, data_dir, proof, vkey_hash, committed_values_digest)
+}
+
+pub fn test_groth16_bn254(witness_json: &str, constraints_json: &str) {
+    test(ProofSystem::Groth16, witness_json, constraints_json)
 }
 
 pub fn test_babybear_poseidon2() {
@@ -91,7 +193,7 @@ pub fn test_babybear_poseidon2() {
         if !err_ptr.is_null() {
             // Safety: The error message is returned from the go code and is guaranteed to be valid.
             let err = CString::from_raw(err_ptr);
-            panic!("TestPlonkBn254 failed: {}", err.into_string().unwrap());
+            panic!("TestPoseidonBabyBear2 failed: {}", err.into_string().unwrap());
         }
     }
 }
@@ -102,26 +204,38 @@ pub fn test_babybear_poseidon2() {
 /// This function frees the string memory, so the caller must ensure that the pointer is not used
 /// after this function is called.
 unsafe fn c_char_ptr_to_string(input: *mut c_char) -> String {
-    unsafe {
-        CString::from_raw(input) // Converts a pointer that C uses into a CString
-            .into_string()
-            .expect("CString::into_string failed")
-    }
+    CString::from_raw(input).into_string().expect("CString::into_string failed")
 }
 
-impl C_PlonkBn254Proof {
-    /// Converts a C PlonkBn254Proof into a Rust PlonkBn254Proof, freeing the C strings.
-    fn into_rust(self) -> PlonkBn254Proof {
+impl From<C_PlonkBn254Proof> for PlonkBn254Proof {
+    fn from(c_proof: C_PlonkBn254Proof) -> Self {
         // Safety: The raw pointers are not used anymore after converted into Rust strings.
         unsafe {
             PlonkBn254Proof {
                 public_inputs: [
-                    c_char_ptr_to_string(self.PublicInputs[0]),
-                    c_char_ptr_to_string(self.PublicInputs[1]),
+                    c_char_ptr_to_string(c_proof.PublicInputs[0]),
+                    c_char_ptr_to_string(c_proof.PublicInputs[1]),
                 ],
-                encoded_proof: c_char_ptr_to_string(self.EncodedProof),
-                raw_proof: c_char_ptr_to_string(self.RawProof),
+                encoded_proof: c_char_ptr_to_string(c_proof.EncodedProof),
+                raw_proof: c_char_ptr_to_string(c_proof.RawProof),
                 plonk_vkey_hash: [0; 32],
+            }
+        }
+    }
+}
+
+impl From<C_Groth16Bn254Proof> for Groth16Bn254Proof {
+    fn from(c_proof: C_Groth16Bn254Proof) -> Self {
+        // Safety: The raw pointers are not used anymore after converted into Rust strings.
+        unsafe {
+            Groth16Bn254Proof {
+                public_inputs: [
+                    c_char_ptr_to_string(c_proof.PublicInputs[0]),
+                    c_char_ptr_to_string(c_proof.PublicInputs[1]),
+                ],
+                encoded_proof: c_char_ptr_to_string(c_proof.EncodedProof),
+                raw_proof: c_char_ptr_to_string(c_proof.RawProof),
+                groth16_vkey_hash: [0; 32],
             }
         }
     }

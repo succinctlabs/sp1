@@ -5,9 +5,9 @@ use std::{
 };
 
 use crate::{
-    ffi::{build_plonk_bn254, prove_plonk_bn254, test_plonk_bn254, verify_plonk_bn254},
+    ffi::{build_groth16_bn254, prove_groth16_bn254, test_groth16_bn254, verify_groth16_bn254},
     witness::GnarkWitness,
-    PlonkBn254Proof,
+    Groth16Bn254Proof,
 };
 
 use num_bigint::BigUint;
@@ -20,16 +20,17 @@ use sp1_recursion_compiler::{
 
 /// A prover that can generate proofs with the PLONK protocol using bindings to Gnark.
 #[derive(Debug, Clone)]
-pub struct PlonkBn254Prover;
+pub struct Groth16Bn254Prover;
 
-impl PlonkBn254Prover {
-    /// Creates a new [PlonkBn254Prover].
+/// A prover that can generate proofs with the Groth16 protocol using bindings to Gnark.
+impl Groth16Bn254Prover {
+    /// Creates a new [Groth16Bn254Prover].
     pub fn new() -> Self {
         Self
     }
 
     pub fn get_vkey_hash(build_dir: &Path) -> [u8; 32] {
-        let vkey_path = build_dir.join("plonk_vk.bin");
+        let vkey_path = build_dir.join("groth16_vk.bin");
         let vk_bin_bytes = std::fs::read(vkey_path).unwrap();
         Sha256::digest(vk_bin_bytes).into()
     }
@@ -48,13 +49,13 @@ impl PlonkBn254Prover {
         let serialized = serde_json::to_string(&gnark_witness).unwrap();
         witness_file.write_all(serialized.as_bytes()).unwrap();
 
-        test_plonk_bn254(
+        test_groth16_bn254(
             witness_file.path().to_str().unwrap(),
             constraints_file.path().to_str().unwrap(),
-        );
+        )
     }
 
-    /// Builds the PLONK circuit locally.
+    /// Builds the Groth16 circuit locally.
     pub fn build<C: Config>(constraints: Vec<Constraint>, witness: Witness<C>, build_dir: PathBuf) {
         let serialized = serde_json::to_string(&constraints).unwrap();
 
@@ -64,27 +65,27 @@ impl PlonkBn254Prover {
         file.write_all(serialized.as_bytes()).unwrap();
 
         // Write witness.
-        let witness_path = build_dir.join("plonk_witness.json");
+        let witness_path = build_dir.join("groth16_witness.json");
         let gnark_witness = GnarkWitness::new(witness);
         let mut file = File::create(witness_path).unwrap();
         let serialized = serde_json::to_string(&gnark_witness).unwrap();
         file.write_all(serialized.as_bytes()).unwrap();
 
-        build_plonk_bn254(build_dir.to_str().unwrap());
+        build_groth16_bn254(build_dir.to_str().unwrap());
 
         // Write the corresponding asset files to the build dir.
-        let sp1_verifier_path = build_dir.join("PlonkSP1Verifier.sol");
+        let sp1_verifier_path = build_dir.join("Groth16SP1Verifier.sol");
         let vkey_hash = Self::get_vkey_hash(&build_dir);
         let sp1_verifier_str = include_str!("../assets/SP1Verifier.txt")
             .replace("{SP1_CIRCUIT_VERSION}", SP1_CIRCUIT_VERSION)
             .replace("{VERIFIER_HASH}", format!("0x{}", hex::encode(vkey_hash)).as_str())
-            .replace("{PROOF_SYSTEM}", "Plonk");
+            .replace("{PROOF_SYSTEM}", "Groth16");
         let mut sp1_verifier_file = File::create(sp1_verifier_path).unwrap();
         sp1_verifier_file.write_all(sp1_verifier_str.as_bytes()).unwrap();
     }
 
-    /// Generates a PLONK proof given a witness.
-    pub fn prove<C: Config>(&self, witness: Witness<C>, build_dir: PathBuf) -> PlonkBn254Proof {
+    /// Generates a Groth16 proof given a witness.
+    pub fn prove<C: Config>(&self, witness: Witness<C>, build_dir: PathBuf) -> Groth16Bn254Proof {
         // Write witness.
         let mut witness_file = tempfile::NamedTempFile::new().unwrap();
         let gnark_witness = GnarkWitness::new(witness);
@@ -92,24 +93,23 @@ impl PlonkBn254Prover {
         witness_file.write_all(serialized.as_bytes()).unwrap();
 
         let mut proof =
-            prove_plonk_bn254(build_dir.to_str().unwrap(), witness_file.path().to_str().unwrap());
-        proof.plonk_vkey_hash = Self::get_vkey_hash(&build_dir);
+            prove_groth16_bn254(build_dir.to_str().unwrap(), witness_file.path().to_str().unwrap());
+        proof.groth16_vkey_hash = Self::get_vkey_hash(&build_dir);
         proof
     }
 
-    /// Verify a PLONK proof and verify that the supplied vkey_hash and committed_values_digest
-    /// match.
+    /// Verify a Groth16proof and verify that the supplied vkey_hash and committed_values_digest match.
     pub fn verify(
         &self,
-        proof: &PlonkBn254Proof,
+        proof: &Groth16Bn254Proof,
         vkey_hash: &BigUint,
         committed_values_digest: &BigUint,
         build_dir: &Path,
     ) {
-        if proof.plonk_vkey_hash != Self::get_vkey_hash(build_dir) {
+        if proof.groth16_vkey_hash != Self::get_vkey_hash(build_dir) {
             panic!("Proof vkey hash does not match circuit vkey hash, it was generated with a different circuit.");
         }
-        verify_plonk_bn254(
+        verify_groth16_bn254(
             build_dir.to_str().unwrap(),
             &proof.raw_proof,
             &vkey_hash.to_string(),
@@ -119,7 +119,7 @@ impl PlonkBn254Prover {
     }
 }
 
-impl Default for PlonkBn254Prover {
+impl Default for Groth16Bn254Prover {
     fn default() -> Self {
         Self::new()
     }

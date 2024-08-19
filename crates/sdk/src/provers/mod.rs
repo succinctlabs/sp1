@@ -17,7 +17,7 @@ use strum_macros::EnumString;
 use thiserror::Error;
 
 use crate::{
-    install::try_install_plonk_bn254_artifacts, SP1Proof, SP1ProofKind, SP1ProofWithPublicValues,
+    install::try_install_circuit_artifacts, SP1Proof, SP1ProofKind, SP1ProofWithPublicValues,
 };
 
 /// The type of prover.
@@ -47,6 +47,8 @@ pub enum SP1VerificationError {
     Recursion(MachineVerificationError<InnerSC>),
     #[error("Plonk verification error: {0}")]
     Plonk(anyhow::Error),
+    #[error("Groth16 verification error: {0}")]
+    Groth16(anyhow::Error),
 }
 
 /// An implementation of [crate::ProverClient].
@@ -82,28 +84,41 @@ pub trait Prover<C: SP1ProverComponents>: Send + Sync {
         if bundle.sp1_version != self.version() {
             return Err(SP1VerificationError::VersionMismatch(bundle.sp1_version.clone()));
         }
-        match bundle.proof.clone() {
+        match &bundle.proof {
             SP1Proof::Core(proof) => self
                 .sp1_prover()
-                .verify(&SP1CoreProofData(proof), vkey)
+                .verify(&SP1CoreProofData(proof.clone()), vkey)
                 .map_err(SP1VerificationError::Core),
             SP1Proof::Compressed(proof) => self
                 .sp1_prover()
-                .verify_compressed(&SP1ReduceProof { proof }, vkey)
+                .verify_compressed(&SP1ReduceProof { proof: proof.clone() }, vkey)
                 .map_err(SP1VerificationError::Recursion),
             SP1Proof::Plonk(proof) => self
                 .sp1_prover()
                 .verify_plonk_bn254(
-                    &proof,
+                    proof,
                     vkey,
                     &bundle.public_values,
                     &if sp1_prover::build::sp1_dev_mode() {
                         sp1_prover::build::plonk_bn254_artifacts_dev_dir()
                     } else {
-                        try_install_plonk_bn254_artifacts()
+                        try_install_circuit_artifacts()
                     },
                 )
                 .map_err(SP1VerificationError::Plonk),
+            SP1Proof::Groth16(proof) => self
+                .sp1_prover()
+                .verify_groth16_bn254(
+                    proof,
+                    vkey,
+                    &bundle.public_values,
+                    &if sp1_prover::build::sp1_dev_mode() {
+                        sp1_prover::build::groth16_bn254_artifacts_dev_dir()
+                    } else {
+                        try_install_circuit_artifacts()
+                    },
+                )
+                .map_err(SP1VerificationError::Groth16),
         }
     }
 }

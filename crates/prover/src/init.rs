@@ -4,7 +4,8 @@ pub use sp1_core_machine::io::{SP1PublicValues, SP1Stdin};
 use sp1_primitives::types::RecursionProgramType;
 use sp1_recursion_compiler::config::InnerConfig;
 use sp1_recursion_core::runtime::RecursionProgram;
-pub use sp1_recursion_gnark_ffi::plonk_bn254::PlonkBn254Proof;
+pub use sp1_recursion_gnark_ffi::groth16_bn254::Groth16Bn254Prover;
+pub use sp1_recursion_gnark_ffi::plonk_bn254::PlonkBn254Prover;
 pub use sp1_recursion_program::machine::{
     ReduceProgramType, SP1CompressMemoryLayout, SP1DeferredMemoryLayout, SP1RecursionMemoryLayout,
     SP1RootMemoryLayout,

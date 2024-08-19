@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use sp1_core_machine::io::{SP1PublicValues, SP1Stdin};
 use strum_macros::{EnumDiscriminants, EnumTryAs};
 
-use sp1_prover::{CoreSC, InnerSC, PlonkBn254Proof};
+use sp1_prover::{CoreSC, Groth16Bn254Proof, InnerSC, PlonkBn254Proof};
 use sp1_stark::{MachineVerificationError, ShardProof};
 
 /// A proof generated with SP1 of a particular proof mode.
@@ -17,6 +17,7 @@ pub enum SP1Proof {
     Core(Vec<ShardProof<CoreSC>>),
     Compressed(ShardProof<InnerSC>),
     Plonk(PlonkBn254Proof),
+    Groth16(Groth16Bn254Proof),
 }
 
 /// A proof generated with SP1, bundled together with stdin, public values, and the SP1 version.
@@ -49,7 +50,7 @@ impl SP1ProofWithPublicValues {
         }
     }
 
-    /// For Plonk proofs, returns the proof in a byte encoding the onchain verifier accepts.
+    /// For Plonk or Groth16 proofs, returns the proof in a byte encoding the onchain verifier accepts.
     /// The bytes consist of the first four bytes of Plonk vkey hash followed by the encoded proof.
     pub fn bytes(&self) -> Vec<u8> {
         match &self.proof {
@@ -61,7 +62,15 @@ impl SP1ProofWithPublicValues {
                 );
                 bytes
             }
-            _ => unimplemented!("only Plonk proofs are verifiable onchain"),
+            SP1Proof::Groth16(groth16_proof) => {
+                let mut bytes = Vec::with_capacity(4 + groth16_proof.encoded_proof.len());
+                bytes.extend_from_slice(&groth16_proof.groth16_vkey_hash[..4]);
+                bytes.extend_from_slice(
+                    &hex::decode(&groth16_proof.encoded_proof).expect("Invalid Groth16 proof"),
+                );
+                bytes
+            }
+            _ => unimplemented!("only Plonk and Groth16 proofs are verifiable onchain"),
         }
     }
 }

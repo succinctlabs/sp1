@@ -12,6 +12,7 @@ use sp1_prover::{
 use sp1_recursion_circuit::{stark::build_wrap_circuit, witness::Witnessable};
 use sp1_recursion_compiler::ir::Witness;
 use sp1_recursion_core::air::RecursionPublicValues;
+use sp1_recursion_gnark_ffi::Groth16Bn254Prover;
 use sp1_recursion_gnark_ffi::PlonkBn254Prover;
 use sp1_stark::SP1ProverOpts;
 use subtle_encoding::hex;
@@ -21,6 +22,8 @@ use subtle_encoding::hex;
 struct Args {
     #[clap(short, long)]
     build_dir: String,
+    #[arg(short, long)]
+    system: String,
 }
 
 pub fn main() {
@@ -69,19 +72,19 @@ pub fn main() {
     witness.write_commited_values_digest(committed_values_digest);
     witness.write_vkey_hash(vkey_hash);
 
-    tracing::info!("sanity check gnark test");
+    tracing::info!("sanity check plonk test");
     PlonkBn254Prover::test(constraints.clone(), witness.clone());
 
-    tracing::info!("sanity check gnark build");
+    tracing::info!("sanity check plonk build");
     PlonkBn254Prover::build(constraints.clone(), witness.clone(), build_dir.clone());
 
-    tracing::info!("sanity check gnark prove");
+    tracing::info!("sanity check plonk prove");
     let plonk_bn254_prover = PlonkBn254Prover::new();
 
-    tracing::info!("gnark prove");
+    tracing::info!("plonk prove");
     let proof = plonk_bn254_prover.prove(witness.clone(), build_dir.clone());
 
-    tracing::info!("verify gnark proof");
+    tracing::info!("verify plonk proof");
     plonk_bn254_prover.verify(
         &proof,
         &vkey_hash.as_canonical_biguint(),
@@ -89,5 +92,27 @@ pub fn main() {
         &build_dir,
     );
 
-    println!("{:?}", String::from_utf8(hex::encode(proof.encoded_proof)).unwrap());
+    println!("plonk proof: {:?}", String::from_utf8(hex::encode(proof.encoded_proof)).unwrap());
+
+    tracing::info!("sanity check groth16 test");
+    Groth16Bn254Prover::test(constraints.clone(), witness.clone());
+
+    tracing::info!("sanity check groth16 build");
+    Groth16Bn254Prover::build(constraints.clone(), witness.clone(), build_dir.clone());
+
+    tracing::info!("sanity check groth16 prove");
+    let groth16_bn254_prover = Groth16Bn254Prover::new();
+
+    tracing::info!("groth16 prove");
+    let proof = groth16_bn254_prover.prove(witness.clone(), build_dir.clone());
+
+    tracing::info!("verify groth16 proof");
+    groth16_bn254_prover.verify(
+        &proof,
+        &vkey_hash.as_canonical_biguint(),
+        &committed_values_digest.as_canonical_biguint(),
+        &build_dir,
+    );
+
+    println!("groth16 proof: {:?}", String::from_utf8(hex::encode(proof.encoded_proof)).unwrap());
 }

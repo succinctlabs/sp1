@@ -182,6 +182,7 @@ impl From<SP1ProofKind> for ProofMode {
             SP1ProofKind::Core => Self::Core,
             SP1ProofKind::Compressed => Self::Compressed,
             SP1ProofKind::Plonk => Self::Plonk,
+            SP1ProofKind::Groth16 => Self::Groth16,
         }
     }
 }
