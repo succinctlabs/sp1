@@ -209,5 +209,7 @@ pub fn commit_public_values<F: AbstractField>(
     let pv_a = public_values_a.to_vec().map(|pv| Address(F::from_canonical_u32(pv)));
     let pv_address: &RecursionPublicValues<Address<F>> = pv_a.as_slice().borrow();
 
-    Instruction::CommitPublicValues(CommitPublicValuesInstr { pv_addrs: pv_address.clone() })
+    Instruction::CommitPublicValues(CommitPublicValuesInstr {
+        pv_addrs: Box::new(pv_address.clone()),
+    })
 }

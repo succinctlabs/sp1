@@ -1,41 +1,42 @@
 use itertools::{izip, Itertools};
+use p3_baby_bear::BabyBear;
 use p3_commit::PolynomialSpace;
 use p3_field::{AbstractField, TwoAdicField};
 use p3_fri::FriConfig;
 use p3_matrix::Dimensions;
 use p3_util::log2_strict_usize;
-use sp1_recursion_compiler::{
-    circuit::CircuitV2Builder,
-    ir::{Builder, Config, Felt, SymbolicExt, SymbolicFelt, Variable},
-};
+use sp1_recursion_compiler::ir::{Builder, Felt, SymbolicExt, SymbolicFelt};
 use std::{
     cmp::Reverse,
-    iter::{once, repeat, repeat_with, zip},
-    ops::{Add, Mul},
+    iter::{once, repeat_with, zip},
 };
 
 use crate::{
-    challenger::{CanSampleBitsVariable, FeltChallenger},
-    *,
+    challenger::{CanSampleBitsVariable, FieldChallengerVariable},
+    BabyBearFriConfigVariable, CanObserveVariable, CircuitConfig, Ext, FriChallenges, FriMmcs,
+    FriProofVariable, FriQueryProofVariable, TwoAdicPcsProofVariable, TwoAdicPcsRoundVariable,
 };
 
-pub fn verify_shape_and_sample_challenges<C: Config, SC: BabyBearFriConfigVariable<C = C>>(
+pub fn verify_shape_and_sample_challenges<
+    C: CircuitConfig<F = BabyBear>,
+    SC: BabyBearFriConfigVariable<C>,
+>(
     builder: &mut Builder<C>,
     config: &FriConfig<FriMmcs<SC>>,
-    proof: &FriProofVariable<C>,
+    proof: &FriProofVariable<C, SC>,
     challenger: &mut SC::FriChallengerVariable,
 ) -> FriChallenges<C> {
     let betas = proof
         .commit_phase_commits
         .iter()
-        .map(|&commitment| {
-            challenger.observe_slice(builder, commitment);
+        .map(|commitment| {
+            challenger.observe(builder, *commitment);
             challenger.sample_ext(builder)
         })
         .collect();
 
     // Observe the final polynomial.
-    let final_poly_felts = builder.ext2felt_circuit(proof.final_poly);
+    let final_poly_felts = C::ext2felt(builder, proof.final_poly);
     final_poly_felts.iter().for_each(|felt| {
         challenger.observe(builder, *felt);
     });
@@ -44,7 +45,7 @@ pub fn verify_shape_and_sample_challenges<C: Config, SC: BabyBearFriConfigVariab
     challenger.check_witness(builder, config.proof_of_work_bits, proof.pow_witness);
 
     let log_max_height = proof.commit_phase_commits.len() + config.log_blowup;
-    let query_indices: Vec<Vec<Felt<_>>> =
+    let query_indices: Vec<Vec<C::Bit>> =
         repeat_with(|| challenger.sample_bits(builder, log_max_height))
             .take(config.num_queries)
             .collect();
@@ -52,12 +53,12 @@ pub fn verify_shape_and_sample_challenges<C: Config, SC: BabyBearFriConfigVariab
     FriChallenges { query_indices, betas }
 }
 
-pub fn verify_two_adic_pcs<C: Config, SC: BabyBearFriConfigVariable<C = C>>(
+pub fn verify_two_adic_pcs<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVariable<C>>(
     builder: &mut Builder<C>,
     config: &FriConfig<FriMmcs<SC>>,
-    proof: &TwoAdicPcsProofVariable<C>,
+    proof: &TwoAdicPcsProofVariable<C, SC>,
     challenger: &mut SC::FriChallengerVariable,
-    rounds: Vec<TwoAdicPcsRoundVariable<C>>,
+    rounds: Vec<TwoAdicPcsRoundVariable<C, SC>>,
 ) {
     let alpha = challenger.sample_ext(builder);
 
@@ -92,7 +93,7 @@ pub fn verify_two_adic_pcs<C: Config, SC: BabyBearFriConfigVariable<C = C>>(
 
                 let reduced_index_bits = index_bits[bits_reduced..].to_vec();
 
-                verify_batch::<C, SC, 1>(
+                verify_batch::<C, SC>(
                     builder,
                     batch_commit,
                     batch_dims,
@@ -115,7 +116,7 @@ pub fn verify_two_adic_pcs<C: Config, SC: BabyBearFriConfigVariable<C = C>>(
                     let two_adic_generator: Felt<_> =
                         builder.eval(C::F::two_adic_generator(log_height));
                     let two_adic_generator_exp =
-                        builder.exp_reverse_bits_v2(two_adic_generator, reduced_index_bits_trunc);
+                        C::exp_reverse_bits(builder, two_adic_generator, reduced_index_bits_trunc);
                     let x: Felt<_> = builder.eval(g * two_adic_generator_exp);
 
                     for (z, ps_at_z) in izip!(&mat_points, mat_values) {
@@ -143,10 +144,10 @@ pub fn verify_two_adic_pcs<C: Config, SC: BabyBearFriConfigVariable<C = C>>(
     );
 }
 
-pub fn verify_challenges<C: Config, SC: BabyBearFriConfigVariable<C = C>>(
+pub fn verify_challenges<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVariable<C>>(
     builder: &mut Builder<C>,
     config: &FriConfig<FriMmcs<SC>>,
-    proof: &FriProofVariable<C>,
+    proof: &FriProofVariable<C, SC>,
     challenges: &FriChallenges<C>,
     reduced_openings: Vec<[Ext<C::F, C::EF>; 32]>,
 ) {
@@ -168,11 +169,11 @@ pub fn verify_challenges<C: Config, SC: BabyBearFriConfigVariable<C = C>>(
     }
 }
 
-pub fn verify_query<C: Config, SC: BabyBearFriConfigVariable<C = C>>(
+pub fn verify_query<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVariable<C>>(
     builder: &mut Builder<C>,
-    commit_phase_commits: Vec<DigestVariable<C>>,
-    index_bits: &[Felt<C::F>],
-    proof: FriQueryProofVariable<C>,
+    commit_phase_commits: Vec<SC::Digest>,
+    index_bits: &[C::Bit],
+    proof: FriQueryProofVariable<C, SC>,
     betas: Vec<Ext<C::F, C::EF>>,
     reduced_openings: [Ext<C::F, C::EF>; 32],
     log_max_height: usize,
@@ -181,7 +182,7 @@ pub fn verify_query<C: Config, SC: BabyBearFriConfigVariable<C = C>>(
     let two_adic_generator: Felt<_> = builder.constant(C::F::two_adic_generator(log_max_height));
 
     let x_felt =
-        builder.exp_reverse_bits_v2(two_adic_generator, index_bits[..log_max_height].to_vec());
+        C::exp_reverse_bits(builder, two_adic_generator, index_bits[..log_max_height].to_vec());
     let mut x: Ext<_, _> = builder.eval(SymbolicExt::one() * SymbolicFelt::from(x_felt));
 
     for (offset, log_folded_height, commit, step, beta) in izip!(
@@ -193,20 +194,23 @@ pub fn verify_query<C: Config, SC: BabyBearFriConfigVariable<C = C>>(
     ) {
         folded_eval = builder.eval(folded_eval + reduced_openings[log_folded_height + 1]);
 
-        let one: Felt<_> = builder.constant(C::F::one());
-        let index_sibling: Felt<_> = builder.eval(one - index_bits[offset]);
+        let index_sibling_complement: C::Bit = index_bits[offset].clone();
+        // let index_sibling_complement: Felt<_> = builder.constant(C::F::one());
         let index_pair = &index_bits[(offset + 1)..];
 
-        let evals_ext =
-            select_chain(builder, index_sibling, once(step.sibling_value), once(folded_eval))
-                .collect::<Vec<_>>();
+        let evals_ext = C::select_chain_ef(
+            builder,
+            index_sibling_complement.clone(),
+            once(folded_eval),
+            once(step.sibling_value),
+        );
         let evals_felt = vec![
-            builder.ext2felt_v2(evals_ext[0]).to_vec(),
-            builder.ext2felt_v2(evals_ext[1]).to_vec(),
+            C::ext2felt(builder, evals_ext[0]).to_vec(),
+            C::ext2felt(builder, evals_ext[1]).to_vec(),
         ];
 
         let dims = &[Dimensions { width: 2, height: (1 << log_folded_height) }];
-        verify_batch::<C, SC, 4>(
+        verify_batch::<C, SC>(
             builder,
             commit,
             dims.to_vec(),
@@ -216,7 +220,7 @@ pub fn verify_query<C: Config, SC: BabyBearFriConfigVariable<C = C>>(
         );
 
         let xs_new: Ext<_, _> = builder.eval(x * C::EF::two_adic_generator(1));
-        let xs = select_chain(builder, index_sibling, once(xs_new), once(x)).collect::<Vec<_>>();
+        let xs = C::select_chain_ef(builder, index_sibling_complement, once(x), once(xs_new));
         folded_eval = builder
             .eval(evals_ext[0] + (beta - xs[0]) * (evals_ext[1] - evals_ext[0]) / (xs[1] - xs[0]));
         x = builder.eval(x * x);
@@ -225,13 +229,13 @@ pub fn verify_query<C: Config, SC: BabyBearFriConfigVariable<C = C>>(
     folded_eval
 }
 
-pub fn verify_batch<C: Config, SC: BabyBearFriConfigVariable<C = C>, const D: usize>(
+pub fn verify_batch<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVariable<C>>(
     builder: &mut Builder<C>,
-    commit: DigestVariable<C>,
+    commit: SC::Digest,
     dimensions: Vec<Dimensions>,
-    index_bits: Vec<Felt<C::F>>,
+    index_bits: Vec<C::Bit>,
     opened_values: Vec<Vec<Vec<Felt<C::F>>>>,
-    proof: Vec<DigestVariable<C>>,
+    proof: Vec<SC::Digest>,
 ) {
     let mut heights_tallest_first =
         dimensions.iter().enumerate().sorted_by_key(|(_, dims)| Reverse(dims.height)).peekable();
@@ -245,12 +249,12 @@ pub fn verify_batch<C: Config, SC: BabyBearFriConfigVariable<C = C>, const D: us
         .collect::<Vec<_>>();
     let felt_slice: Vec<Felt<C::F>> =
         ext_slice.iter().flat_map(|ext| ext.as_slice()).cloned().collect::<Vec<_>>();
-    let mut root = builder.poseidon2_hash_v2(&felt_slice);
+    let mut root: SC::Digest = SC::hash(builder, &felt_slice[..]);
 
-    for (bit, sibling) in zip(index_bits, proof) {
-        let pre_root = select_chain(builder, bit, root, sibling).collect::<Vec<_>>();
+    zip(index_bits, proof).for_each(|(bit, sibling): (C::Bit, SC::Digest)| {
+        let compress_args = SC::select_chain_digest(builder, bit, [root, sibling]);
 
-        root = builder.poseidon2_compress_v2(pre_root);
+        root = SC::compress(builder, compress_args);
         curr_height_padded >>= 1;
 
         let next_height = heights_tallest_first
@@ -266,38 +270,12 @@ pub fn verify_batch<C: Config, SC: BabyBearFriConfigVariable<C = C>, const D: us
                 .collect::<Vec<_>>();
             let felt_slice: Vec<Felt<C::F>> =
                 ext_slice.iter().flat_map(|ext| ext.as_slice()).cloned().collect::<Vec<_>>();
-            let next_height_openings_digest = builder.poseidon2_hash_v2(&felt_slice);
-            root =
-                builder.poseidon2_compress_v2(root.into_iter().chain(next_height_openings_digest));
+            let next_height_openings_digest = SC::hash(builder, &felt_slice);
+            root = SC::compress(builder, [root, next_height_openings_digest]);
         }
-    }
+    });
 
-    zip(root, commit).for_each(|(e1, e2)| builder.assert_felt_eq(e1, e2));
-}
-
-fn select_chain<'a, C, R, S>(
-    builder: &'a mut Builder<C>,
-    should_swap: R,
-    first: impl IntoIterator<Item = S> + Clone + 'a,
-    second: impl IntoIterator<Item = S> + Clone + 'a,
-) -> impl Iterator<Item = S> + 'a
-where
-    C: Config,
-    R: Variable<C> + Into<<R as Variable<C>>::Expression> + 'a,
-    S: Variable<C> + Into<<S as Variable<C>>::Expression> + 'a,
-    <R as Variable<C>>::Expression: AbstractField,
-    <S as Variable<C>>::Expression: Add<Output = <S as Variable<C>>::Expression>
-        + Mul<<R as Variable<C>>::Expression, Output = <S as Variable<C>>::Expression>,
-{
-    let should_swap: <R as Variable<C>>::Expression = should_swap.into();
-    let one = <R as Variable<C>>::Expression::one();
-    let shouldnt_swap = one - should_swap.clone();
-
-    let id_branch =
-        first.clone().into_iter().chain(second.clone()).map(<S as Variable<C>>::Expression::from);
-    let swap_branch = second.into_iter().chain(first).map(<S as Variable<C>>::Expression::from);
-    zip(zip(id_branch, swap_branch), zip(repeat(shouldnt_swap), repeat(should_swap)))
-        .map(|((id_v, sw_v), (id_c, sw_c))| builder.eval(id_v * id_c + sw_v * sw_c))
+    SC::assert_digest_eq(builder, root, commit);
 }
 
 #[cfg(test)]
@@ -305,7 +283,7 @@ mod tests {
     use super::*;
     use crate::{
         challenger::DuplexChallengerVariable, utils::tests::run_test_recursion,
-        BatchOpeningVariable, DigestVariable, FriCommitPhaseProofStepVariable, FriProofVariable,
+        BatchOpeningVariable, FriCommitPhaseProofStepVariable, FriProofVariable,
         FriQueryProofVariable, TwoAdicPcsMatsVariable, TwoAdicPcsProofVariable,
     };
     use p3_challenger::{CanObserve, CanSample, FieldChallenger};
@@ -323,12 +301,16 @@ mod tests {
         ir::{Builder, Ext, SymbolicExt},
     };
     use sp1_stark::{
-        inner_fri_config, inner_perm, InnerChallenge, InnerChallengeMmcs, InnerChallenger,
-        InnerCompress, InnerDft, InnerFriProof, InnerHash, InnerPcs, InnerVal, InnerValMmcs,
+        baby_bear_poseidon2::BabyBearPoseidon2, inner_fri_config, inner_perm, InnerChallenge,
+        InnerChallengeMmcs, InnerChallenger, InnerCompress, InnerDft, InnerFriProof, InnerHash,
+        InnerPcs, InnerVal, InnerValMmcs, StarkGenericConfig,
     };
 
     use sp1_recursion_core_v2::DIGEST_SIZE;
 
+    use crate::Digest;
+
+    type C = InnerConfig;
     type SC = BabyBearPoseidon2;
     type F = <SC as StarkGenericConfig>::Val;
     type EF = <SC as StarkGenericConfig>::Challenge;
@@ -336,7 +318,7 @@ mod tests {
     pub fn const_fri_proof(
         builder: &mut AsmBuilder<F, EF>,
         fri_proof: InnerFriProof,
-    ) -> FriProofVariable<InnerConfig> {
+    ) -> FriProofVariable<InnerConfig, SC> {
         // Set the commit phase commits.
         let commit_phase_commits = fri_proof
             .commit_phase_commits
@@ -382,7 +364,7 @@ mod tests {
     pub fn const_two_adic_pcs_proof(
         builder: &mut Builder<InnerConfig>,
         proof: TwoAdicFriPcsProof<InnerVal, InnerChallenge, InnerValMmcs, InnerChallengeMmcs>,
-    ) -> TwoAdicPcsProofVariable<InnerConfig> {
+    ) -> TwoAdicPcsProofVariable<InnerConfig, SC> {
         let fri_proof = const_fri_proof(builder, proof.fri_proof);
         let query_openings = proof
             .query_openings
@@ -418,8 +400,8 @@ mod tests {
         builder: &mut Builder<InnerConfig>,
         commit: [F; DIGEST_SIZE],
         os: Vec<(TwoAdicMultiplicativeCoset<InnerVal>, Vec<(InnerChallenge, Vec<InnerChallenge>)>)>,
-    ) -> (DigestVariable<InnerConfig>, Vec<TwoAdicPcsRoundVariable<InnerConfig>>) {
-        let commit: DigestVariable<InnerConfig> = commit.map(|x| builder.eval(x));
+    ) -> (Digest<InnerConfig, SC>, Vec<TwoAdicPcsRoundVariable<InnerConfig, SC>>) {
+        let commit: Digest<InnerConfig, SC> = commit.map(|x| builder.eval(x));
 
         let mut domains_points_and_opens = Vec::new();
         for (domain, poly) in os.into_iter() {
@@ -476,9 +458,9 @@ mod tests {
             .map(|x| x.into_iter().map(|y| vec![builder.eval::<Felt<_>, _>(y)]).collect())
             .collect();
         let index = builder.eval(F::from_canonical_u32(6));
-        let index_bits = builder.num2bits_v2_f(index, 32);
+        let index_bits = C::num2bits(&mut builder, index, 32);
         let proof = proof.into_iter().map(|p| p.map(|x| builder.eval(x))).collect();
-        verify_batch::<_, SC, 1>(
+        verify_batch::<_, SC>(
             &mut builder,
             commit,
             large_mat_dims.chain(medium_mat_dims).chain(small_mat_dims).collect_vec(),
@@ -561,7 +543,7 @@ mod tests {
 
         for i in 0..fri_challenges_gt.query_indices.len() {
             let query_indices =
-                builder.bits2num_v2_f(fri_challenges.query_indices[i].iter().cloned());
+                C::bits2num(&mut builder, fri_challenges.query_indices[i].iter().cloned());
             builder.assert_felt_eq(
                 F::from_canonical_usize(fri_challenges_gt.query_indices[i]),
                 query_indices,

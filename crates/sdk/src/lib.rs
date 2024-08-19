@@ -16,6 +16,8 @@ pub mod install;
 pub mod network;
 #[cfg(feature = "network")]
 pub use crate::network::prover::NetworkProver;
+#[cfg(feature = "cuda")]
+pub use crate::provers::CudaProver;
 
 pub mod proof;
 pub mod provers;
@@ -29,7 +31,7 @@ pub use provers::SP1VerificationError;
 use sp1_prover::components::DefaultProverComponents;
 use std::env;
 
-pub use provers::{LocalProver, MockProver, Prover};
+pub use provers::{CpuProver, MockProver, Prover};
 
 pub use sp1_core_executor::{ExecutionReport, SP1Context, SP1ContextBuilder};
 pub use sp1_core_machine::{io::SP1Stdin, SP1_CIRCUIT_VERSION};
@@ -48,7 +50,8 @@ impl ProverClient {
     /// Creates a new [ProverClient].
     ///
     /// Setting the `SP1_PROVER` enviroment variable can change the prover used under the hood.
-    /// - `local` (default): Uses [LocalProver]. Recommended for proving end-to-end locally.
+    /// - `local` (default): Uses [CpuProver] or [CudaProver] if the `cuda` feature is enabled.
+    ///   Recommended for proving end-to-end locally.
     /// - `mock`: Uses [MockProver]. Recommended for testing and development.
     /// - `network`: Uses [NetworkProver]. Recommended for outsourcing proof generation to an RPC.
     ///
@@ -67,7 +70,12 @@ impl ProverClient {
         #[allow(unreachable_code)]
         match env::var("SP1_PROVER").unwrap_or("local".to_string()).to_lowercase().as_str() {
             "mock" => Self { prover: Box::new(MockProver::new()) },
-            "local" => Self { prover: Box::new(LocalProver::new()) },
+            "local" => Self {
+                #[cfg(not(feature = "cuda"))]
+                prover: Box::new(CpuProver::new()),
+                #[cfg(feature = "cuda")]
+                prover: Box::new(CudaProver::new()),
+            },
             "network" => {
                 cfg_if! {
                     if #[cfg(feature = "network")] {
@@ -114,7 +122,7 @@ impl ProverClient {
     /// let client = ProverClient::local();
     /// ```
     pub fn local() -> Self {
-        Self { prover: Box::new(LocalProver::new()) }
+        Self { prover: Box::new(CpuProver::new()) }
     }
 
     /// Creates a new [ProverClient] with the network prover.

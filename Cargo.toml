@@ -27,7 +27,7 @@ members = [
   "crates/recursion/gnark-ffi",
   "crates/recursion/program",
   "crates/sdk",
-  "crates/server",
+  "crates/cuda",
   "crates/stark",
   "crates/zkvm/*",
 ]
@@ -64,7 +64,7 @@ sp1-recursion-gnark-ffi = { path = "crates/recursion/gnark-ffi", version = "1.1.
 sp1-recursion-program = { path = "crates/recursion/program", version = "1.1.1", default-features = false }
 sp1-recursion-circuit = { path = "crates/recursion/circuit", version = "1.1.1", default-features = false }
 sp1-sdk = { path = "crates/sdk", version = "1.1.1" }
-sp1-server = { path = "crates/server", version = "1.1.1" }
+sp1-cuda = { path = "crates/cuda", version = "1.1.1" }
 sp1-stark = { path = "crates/stark", version = "1.1.1" }
 sp1-lib = { path = "crates/zkvm/lib", version = "1.1.1", default-features = false }
 sp1-zkvm = { path = "crates/zkvm/entrypoint", version = "1.1.1", default-features = false }

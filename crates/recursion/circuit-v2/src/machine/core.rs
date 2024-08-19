@@ -17,25 +17,34 @@ use sp1_stark::{
     StarkMachine, Word,
 };
 
-use crate::utils::commit_recursion_public_values;
+use crate::{
+    utils::commit_recursion_public_values, BabyBearFriConfig, BabyBearFriConfigVariable,
+    CircuitConfig,
+};
 
 use sp1_recursion_compiler::{
     circuit::CircuitV2Builder,
     ir::{Builder, Config, Ext, ExtConst, Felt},
 };
 
-use sp1_recursion_core_v2::air::{RecursionPublicValues, RECURSIVE_PROOF_NUM_PV_ELTS};
+use sp1_recursion_core_v2::{
+    air::{RecursionPublicValues, RECURSIVE_PROOF_NUM_PV_ELTS},
+    DIGEST_SIZE,
+};
 
 use crate::{
     challenger::{CanObserveVariable, DuplexChallengerVariable},
     stark::{ShardProofVariable, StarkVerifier},
-    BabyBearFriConfig, BabyBearFriConfigVariable, VerifyingKeyVariable,
+    VerifyingKeyVariable,
 };
 
-pub struct SP1RecursionWitnessVariable<C: Config> {
-    pub vk: VerifyingKeyVariable<C>,
-    pub shard_proofs: Vec<ShardProofVariable<C>>,
-    pub leaf_challenger: DuplexChallengerVariable<C>,
+pub struct SP1RecursionWitnessVariable<
+    C: CircuitConfig<F = BabyBear>,
+    SC: BabyBearFriConfigVariable<C>,
+> {
+    pub vk: VerifyingKeyVariable<C, SC>,
+    pub shard_proofs: Vec<ShardProofVariable<C, SC>>,
+    pub leaf_challenger: SC::FriChallengerVariable,
     pub initial_reconstruct_challenger: DuplexChallengerVariable<C>,
     pub is_complete: Felt<C::F>,
 }
@@ -48,8 +57,12 @@ pub struct SP1RecursiveVerifier<C: Config, SC: BabyBearFriConfig> {
 
 impl<C, SC> SP1RecursiveVerifier<C, SC>
 where
-    SC: BabyBearFriConfigVariable<C = C, FriChallengerVariable = DuplexChallengerVariable<C>>,
-    C: Config<F = SC::Val, EF = SC::Challenge>,
+    SC: BabyBearFriConfigVariable<
+        C,
+        FriChallengerVariable = DuplexChallengerVariable<C>,
+        Digest = [Felt<BabyBear>; DIGEST_SIZE],
+    >,
+    C: CircuitConfig<F = SC::Val, EF = SC::Challenge, Bit = Felt<BabyBear>>,
     <SC::ValMmcs as Mmcs<BabyBear>>::ProverData<RowMajorMatrix<BabyBear>>: Clone,
 {
     /// Verify a batch of SP1 shard proofs and aggregate their public values.
@@ -81,7 +94,7 @@ where
     pub fn verify(
         builder: &mut Builder<C>,
         machine: &StarkMachine<SC, RiscvAir<SC::Val>>,
-        input: SP1RecursionWitnessVariable<C>,
+        input: SP1RecursionWitnessVariable<C, SC>,
     ) {
         // Read input.
         let SP1RecursionWitnessVariable {
