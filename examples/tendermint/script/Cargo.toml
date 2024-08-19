@@ -22,3 +22,6 @@ sha2 = "0.10.8"
 
 [build-dependencies]
 sp1-helper = { workspace = true }
+
+[features]
+cuda = ["sp1-sdk/cuda"]

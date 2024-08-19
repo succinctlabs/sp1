@@ -781,6 +781,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
+name = "cfg_aliases"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fd16c4719339c4530435d38e511904438d07cce7950afa3718a84ac36c10e89e"
+
+[[package]]
 name = "chess-script"
 version = "1.1.0"
 dependencies = [
@@ -1071,6 +1077,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0369ee1ad671834580515889b80f2ea915f23b8be8d0daa4bbaf2ac5c7590835"
 dependencies = [
  "cipher",
+]
+
+[[package]]
+name = "ctrlc"
+version = "3.4.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "672465ae37dc1bc6380a6547a8883d5dd397b0f1faaad4f265726cc7042a5345"
+dependencies = [
+ "nix",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -2784,6 +2800,18 @@ dependencies = [
  "security-framework",
  "security-framework-sys",
  "tempfile",
+]
+
+[[package]]
+name = "nix"
+version = "0.28.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ab2156c4fce2f8df6c499cc1c763e4394b7482525bf2a9701c9d79d215f519e4"
+dependencies = [
+ "bitflags 2.6.0",
+ "cfg-if",
+ "cfg_aliases",
+ "libc",
 ]
 
 [[package]]
@@ -4819,6 +4847,7 @@ dependencies = [
 ]
 
 [[package]]
+<<<<<<< HEAD
 name = "sp1-core-executor"
 version = "1.1.1"
 dependencies = [
@@ -4853,6 +4882,9 @@ dependencies = [
 
 [[package]]
 name = "sp1-core-machine"
+=======
+name = "sp1-core"
+>>>>>>> experimental
 version = "1.1.1"
 dependencies = [
  "anyhow",
@@ -4916,6 +4948,7 @@ dependencies = [
 ]
 
 [[package]]
+<<<<<<< HEAD
 name = "sp1-curves"
 version = "1.1.1"
 dependencies = [
@@ -4931,6 +4964,23 @@ dependencies = [
  "sp1-primitives",
  "sp1-stark",
  "typenum",
+=======
+name = "sp1-cuda"
+version = "1.1.1"
+dependencies = [
+ "bincode",
+ "ctrlc",
+ "prost",
+ "prost-types",
+ "serde",
+ "serde_json",
+ "sp1-core",
+ "sp1-prover",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "twirp-rs",
+>>>>>>> experimental
 ]
 
 [[package]]
@@ -5178,8 +5228,13 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.10.8",
+<<<<<<< HEAD
  "sp1-core-executor",
  "sp1-core-machine",
+=======
+ "sp1-core",
+ "sp1-cuda",
+>>>>>>> experimental
  "sp1-prover",
  "sp1-stark",
  "strum",

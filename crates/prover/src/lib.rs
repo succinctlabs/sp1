@@ -32,8 +32,8 @@ use p3_challenger::CanObserve;
 use p3_field::{AbstractField, PrimeField};
 use p3_matrix::dense::RowMajorMatrix;
 use sp1_core_executor::{ExecutionError, ExecutionReport, Executor, Program, SP1Context};
+pub use sp1_core_machine::io::SP1Stdin;
 use sp1_core_machine::{
-    io::SP1Stdin,
     riscv::RiscvAir,
     utils::{concurrency::TurnBasedSync, SP1CoreProverError},
 };

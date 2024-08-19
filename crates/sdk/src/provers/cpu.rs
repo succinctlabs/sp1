@@ -1,13 +1,6 @@
 use anyhow::Result;
-<<<<<<<< HEAD:crates/sdk/src/provers/local.rs
 use sp1_core_executor::SP1Context;
-use sp1_core_machine::io::SP1Stdin;
-use sp1_prover::{components::SP1ProverComponents, SP1Prover};
-use sysinfo::System;
-========
-use sp1_core::runtime::SP1Context;
 use sp1_prover::{components::DefaultProverComponents, SP1Prover, SP1Stdin};
->>>>>>>> experimental:crates/sdk/src/provers/cpu.rs
 
 use crate::{
     install::try_install_circuit_artifacts, provers::ProofOpts, Prover, SP1Proof, SP1ProofKind,
@@ -55,21 +48,8 @@ impl Prover<DefaultProverComponents> for CpuProver {
         context: SP1Context<'a>,
         kind: SP1ProofKind,
     ) -> Result<SP1ProofWithPublicValues> {
-<<<<<<<< HEAD:crates/sdk/src/provers/local.rs
-        let total_ram_gb = System::new_all().total_memory() / 1_000_000_000;
-        if kind == SP1ProofKind::Plonk && total_ram_gb <= 120 {
-            return Err(anyhow::anyhow!(
-                "not enough memory to generate plonk proof. at least 128GB is required."
-            ));
-        }
-
-        let proof = self.prover.prove_core(pk, &stdin, opts.sp1_prover_opts, context)?;
-========
         // Generate the core proof.
-        let proof = self
-            .prover
-            .prove_core(pk, &stdin, opts.sp1_prover_opts, context)?;
->>>>>>>> experimental:crates/sdk/src/provers/cpu.rs
+        let proof = self.prover.prove_core(pk, &stdin, opts.sp1_prover_opts, context)?;
         if kind == SP1ProofKind::Core {
             return Ok(SP1ProofWithPublicValues {
                 proof: SP1Proof::Core(proof.proof.0),
@@ -96,15 +76,9 @@ impl Prover<DefaultProverComponents> for CpuProver {
 
         // Generate the shrink proof.
         let compress_proof = self.prover.shrink(reduce_proof, opts.sp1_prover_opts)?;
-<<<<<<<< HEAD:crates/sdk/src/provers/local.rs
-        let outer_proof = self.prover.wrap_bn254(compress_proof, opts.sp1_prover_opts)?;
-========
 
         // Genenerate the wrap proof.
-        let outer_proof = self
-            .prover
-            .wrap_bn254(compress_proof, opts.sp1_prover_opts)?;
->>>>>>>> experimental:crates/sdk/src/provers/cpu.rs
+        let outer_proof = self.prover.wrap_bn254(compress_proof, opts.sp1_prover_opts)?;
 
         if kind == SP1ProofKind::Plonk {
             let plonk_bn254_aritfacts = if sp1_prover::build::sp1_dev_mode() {

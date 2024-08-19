@@ -73,7 +73,7 @@ pub(crate) fn internal_linear_layer<F: AbstractField>(state: &mut [F; WIDTH]) {
 #[cfg(test)]
 pub(crate) mod tests {
 
-    use std::iter::once;
+    use std::{iter::once, sync::Arc};
 
     use crate::{
         machine::RecursionAir, runtime::instruction as instr, MemAccessKind, RecursionProgram,
@@ -133,9 +133,11 @@ pub(crate) mod tests {
                 }))
                 .collect::<Vec<_>>();
 
-        let program = RecursionProgram { instructions, traces: Default::default() };
-        let mut runtime =
-            Runtime::<F, EF, DiffusionMatrixBabyBear>::new(&program, BabyBearPoseidon2::new().perm);
+        let program = Arc::new(RecursionProgram { instructions, traces: Default::default() });
+        let mut runtime = Runtime::<F, EF, DiffusionMatrixBabyBear>::new(
+            program.clone(),
+            BabyBearPoseidon2::new().perm,
+        );
         runtime.run().unwrap();
 
         let config = SC::new();
