@@ -242,6 +242,7 @@ impl<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVariable<C>> ShardProof
     }
 }
 
+#[allow(unused_imports)]
 #[cfg(any(test, feature = "export-tests"))]
 pub mod tests {
     use std::collections::VecDeque;
