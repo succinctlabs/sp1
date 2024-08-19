@@ -15,7 +15,6 @@ mod utils;
 mod subproof;
 
 pub use context::*;
-use hashbrown::HashSet;
 pub use hooks::*;
 pub use instruction::*;
 pub use memory::*;
@@ -122,7 +121,7 @@ pub struct Runtime<'a> {
 
     /// Memory addresses that were touched in this batch of shards. Used to minimize the size of
     /// checkpoints.
-    pub touched_memory: HashSet<u32, BuildNoHashHasher<u32>>,
+    pub memory_checkpoint: HashMap<u32, Option<MemoryRecord>, BuildNoHashHasher<u32>>,
 }
 
 #[derive(Error, Debug, Serialize, Deserialize)]
@@ -203,7 +202,7 @@ impl<'a> Runtime<'a> {
             hook_registry,
             opts,
             max_cycles: context.max_cycles,
-            touched_memory: Default::default(),
+            memory_checkpoint: Default::default(),
         }
     }
 
@@ -234,10 +233,15 @@ impl<'a> Runtime<'a> {
         for i in 0..32 {
             let addr = Register::from_u32(i as u32) as u32;
             registers[i] = match self.state.memory.get(&addr) {
-                Some(record) => record.value,
-                None => 0,
+                Some(record) => {
+                    self.memory_checkpoint.entry(addr).or_insert(Some(*record));
+                    record.value
+                }
+                None => {
+                    self.memory_checkpoint.entry(addr).or_insert(None);
+                    0
+                }
             };
-            self.touched_memory.insert(addr);
         }
         registers
     }
@@ -245,19 +249,29 @@ impl<'a> Runtime<'a> {
     /// Get the current value of a register.
     pub fn register(&mut self, register: Register) -> u32 {
         let addr = register as u32;
-        self.touched_memory.insert(addr);
         match self.state.memory.get(&addr) {
-            Some(record) => record.value,
-            None => 0,
+            Some(record) => {
+                self.memory_checkpoint.entry(addr).or_insert(Some(*record));
+                record.value
+            }
+            None => {
+                self.memory_checkpoint.entry(addr).or_insert(None);
+                0
+            }
         }
     }
 
     /// Get the current value of a word.
     pub fn word(&mut self, addr: u32) -> u32 {
-        self.touched_memory.insert(addr);
         match self.state.memory.get(&addr) {
-            Some(record) => record.value,
-            None => 0,
+            Some(record) => {
+                self.memory_checkpoint.entry(addr).or_insert(Some(*record));
+                record.value
+            }
+            None => {
+                self.memory_checkpoint.entry(addr).or_insert(None);
+                0
+            }
         }
     }
 
@@ -268,6 +282,7 @@ impl<'a> Runtime<'a> {
     }
 
     /// Get the current timestamp for a given memory access position.
+    #[inline]
     pub const fn timestamp(&self, position: &MemoryAccessPosition) -> u32 {
         self.state.clk + *position as u32
     }
@@ -284,10 +299,19 @@ impl<'a> Runtime<'a> {
     }
 
     /// Read a word from memory and create an access record.
+    #[inline]
     pub fn mr(&mut self, addr: u32, shard: u32, timestamp: u32) -> MemoryReadRecord {
         // Get the memory record entry.
-        self.touched_memory.insert(addr);
         let entry = self.state.memory.entry(addr);
+        match entry {
+            Entry::Occupied(ref entry) => {
+                let record = entry.get();
+                self.memory_checkpoint.entry(addr).or_insert(Some(*record));
+            }
+            Entry::Vacant(_) => {
+                self.memory_checkpoint.entry(addr).or_insert(None);
+            }
+        }
 
         // If we're in unconstrained mode, we don't want to modify state, so we'll save the
         // original state if it's the first time modifying it.
@@ -326,10 +350,19 @@ impl<'a> Runtime<'a> {
     }
 
     /// Write a word to memory and create an access record.
+    #[inline]
     pub fn mw(&mut self, addr: u32, value: u32, shard: u32, timestamp: u32) -> MemoryWriteRecord {
         // Get the memory record entry.
-        self.touched_memory.insert(addr);
         let entry = self.state.memory.entry(addr);
+        match entry {
+            Entry::Occupied(ref entry) => {
+                let record = entry.get();
+                self.memory_checkpoint.entry(addr).or_insert(Some(*record));
+            }
+            Entry::Vacant(_) => {
+                self.memory_checkpoint.entry(addr).or_insert(None);
+            }
+        }
 
         // If we're in unconstrained mode, we don't want to modify state, so we'll save the
         // original state if it's the first time modifying it.
@@ -377,6 +410,7 @@ impl<'a> Runtime<'a> {
     }
 
     /// Read from memory, assuming that all addresses are aligned.
+    #[inline]
     pub fn mr_cpu(&mut self, addr: u32, position: MemoryAccessPosition) -> u32 {
         // Assert that the address is aligned.
         assert_valid_memory_access!(addr, position);
@@ -397,6 +431,7 @@ impl<'a> Runtime<'a> {
     }
 
     /// Write to memory.
+    #[inline]
     pub fn mw_cpu(&mut self, addr: u32, value: u32, position: MemoryAccessPosition) {
         // Assert that the address is aligned.
         assert_valid_memory_access!(addr, position);
@@ -428,11 +463,13 @@ impl<'a> Runtime<'a> {
     }
 
     /// Read from a register.
+    #[inline]
     pub fn rr(&mut self, register: Register, position: MemoryAccessPosition) -> u32 {
         self.mr_cpu(register as u32, position)
     }
 
     /// Write to a register.
+    #[inline]
     pub fn rw(&mut self, register: Register, value: u32) {
         // The only time we are writing to a register is when it is in operand A.
         // Register %x0 should always be 0. See 2.6 Load and Store Instruction on
@@ -537,7 +574,8 @@ impl<'a> Runtime<'a> {
     }
 
     /// Fetch the destination register and input operand values for an ALU instruction.
-    fn alu_rr(&mut self, instruction: Instruction) -> (Register, u32, u32) {
+    #[inline]
+    fn alu_rr(&mut self, instruction: &Instruction) -> (Register, u32, u32) {
         if !instruction.imm_c {
             let (rd, rs1, rs2) = instruction.r_type();
             let c = self.rr(rs2, MemoryAccessPosition::C);
@@ -559,9 +597,10 @@ impl<'a> Runtime<'a> {
     }
 
     /// Set the destination register with the result and emit an ALU event.
+    #[inline]
     fn alu_rw(
         &mut self,
-        instruction: Instruction,
+        instruction: &Instruction,
         rd: Register,
         a: u32,
         b: u32,
@@ -575,7 +614,8 @@ impl<'a> Runtime<'a> {
     }
 
     /// Fetch the input operand values for a load instruction.
-    fn load_rr(&mut self, instruction: Instruction) -> (Register, u32, u32, u32, u32) {
+    #[inline]
+    fn load_rr(&mut self, instruction: &Instruction) -> (Register, u32, u32, u32, u32) {
         let (rd, rs1, imm) = instruction.i_type();
         let (b, c) = (self.rr(rs1, MemoryAccessPosition::B), imm);
         let addr = b.wrapping_add(c);
@@ -584,7 +624,8 @@ impl<'a> Runtime<'a> {
     }
 
     /// Fetch the input operand values for a store instruction.
-    fn store_rr(&mut self, instruction: Instruction) -> (u32, u32, u32, u32, u32) {
+    #[inline]
+    fn store_rr(&mut self, instruction: &Instruction) -> (u32, u32, u32, u32, u32) {
         let (rs1, rs2, imm) = instruction.s_type();
         let c = imm;
         let b = self.rr(rs2, MemoryAccessPosition::B);
@@ -595,7 +636,8 @@ impl<'a> Runtime<'a> {
     }
 
     /// Fetch the input operand values for a branch instruction.
-    fn branch_rr(&mut self, instruction: Instruction) -> (u32, u32, u32) {
+    #[inline]
+    fn branch_rr(&mut self, instruction: &Instruction) -> (u32, u32, u32) {
         let (rs1, rs2, imm) = instruction.b_type();
         let c = imm;
         let b = self.rr(rs2, MemoryAccessPosition::B);
@@ -604,13 +646,14 @@ impl<'a> Runtime<'a> {
     }
 
     /// Fetch the instruction at the current program counter.
+    #[inline]
     fn fetch(&self) -> Instruction {
         let idx = ((self.state.pc - self.program.pc_base) / 4) as usize;
         self.program.instructions[idx]
     }
 
     /// Execute the given instruction over the current state of the runtime.
-    fn execute_instruction(&mut self, instruction: Instruction) -> Result<(), ExecutionError> {
+    fn execute_instruction(&mut self, instruction: &Instruction) -> Result<(), ExecutionError> {
         let mut pc = self.state.pc;
         let mut clk = self.state.clk;
         let mut exit_code = 0u32;
@@ -621,6 +664,7 @@ impl<'a> Runtime<'a> {
         let (a, b, c): (u32, u32, u32);
         let (addr, memory_read_value): (u32, u32);
         let mut memory_store_value: Option<u32> = None;
+
         self.memory_accesses = MemoryAccessRecord::default();
 
         let lookup_id = create_alu_lookup_id();
@@ -709,15 +753,7 @@ impl<'a> Runtime<'a> {
                 memory_store_value = Some(memory_read_value);
                 self.rw(rd, a);
             }
-            Opcode::LW => {
-                (rd, b, c, addr, memory_read_value) = self.load_rr(instruction);
-                if addr % 4 != 0 {
-                    return Err(ExecutionError::InvalidMemoryAccess(Opcode::LW, addr));
-                }
-                a = memory_read_value;
-                memory_store_value = Some(memory_read_value);
-                self.rw(rd, a);
-            }
+
             Opcode::LBU => {
                 (rd, b, c, addr, memory_read_value) = self.load_rr(instruction);
                 let value = (memory_read_value).to_le_bytes()[(addr % 4) as usize];
@@ -736,6 +772,15 @@ impl<'a> Runtime<'a> {
                     _ => unreachable!(),
                 };
                 a = (value as u16) as u32;
+                memory_store_value = Some(memory_read_value);
+                self.rw(rd, a);
+            }
+            Opcode::LW => {
+                (rd, b, c, addr, memory_read_value) = self.load_rr(instruction);
+                if addr % 4 != 0 {
+                    return Err(ExecutionError::InvalidMemoryAccess(Opcode::LW, addr));
+                }
+                a = memory_read_value;
                 memory_store_value = Some(memory_read_value);
                 self.rw(rd, a);
             }
@@ -1018,7 +1063,7 @@ impl<'a> Runtime<'a> {
                 clk,
                 pc,
                 next_pc,
-                instruction,
+                *instruction,
                 a,
                 b,
                 c,
@@ -1042,7 +1087,7 @@ impl<'a> Runtime<'a> {
         self.log(&instruction);
 
         // Execute the instruction.
-        self.execute_instruction(instruction)?;
+        self.execute_instruction(&instruction)?;
 
         // Increment the clock.
         self.state.global_clk += 1;
@@ -1087,31 +1132,39 @@ impl<'a> Runtime<'a> {
     /// Execute up to `self.shard_batch_size` cycles, returning the checkpoint from before execution
     /// and whether the program ended.
     pub fn execute_state(&mut self) -> Result<(ExecutionState, bool), ExecutionError> {
-        self.touched_memory.clear();
+        self.memory_checkpoint.clear();
         self.emit_events = false;
-        self.print_report = false;
-        let mut state = self.state.clone();
-        let done = self.execute()?;
-        // Remove the untouched addresses from the checkpoint. Skip if `done` since we need all of
-        // `state.memory` for MemoryFinalize
-        let touched_memory = std::mem::take(&mut self.touched_memory);
-        if !done {
-            state.memory = touched_memory
-                .iter()
-                .filter_map(|addr| state.memory.get(addr).map(|record| (*addr, *record)))
-                .collect();
+        self.print_report = true;
 
-            state.uninitialized_memory = touched_memory
-                .into_iter()
-                .filter_map(|addr| {
-                    state
-                        .uninitialized_memory
-                        .get(&addr)
-                        .map(|record| (addr, *record))
-                })
-                .collect();
-        }
-        Ok((state, done))
+        // Take memory out and then clone so that memory is not cloned.
+        let memory = std::mem::take(&mut self.state.memory);
+        let mut checkpoint = tracing::info_span!("clone").in_scope(|| self.state.clone());
+        self.state.memory = memory;
+
+        let done = tracing::info_span!("execute").in_scope(|| self.execute())?;
+        // Create a checkpoint using `memory_checkpoint`. Just include all memory if `done` since we
+        // need it all for MemoryFinalize.
+        tracing::info_span!("create memory checkpoint").in_scope(|| {
+            let memory_checkpoint = std::mem::take(&mut self.memory_checkpoint);
+            if done {
+                // If we're done, we need to include all memory. But we need to reset any modified
+                // memory to as it was before the execution.
+                checkpoint.memory.clone_from(&self.state.memory);
+                memory_checkpoint.into_iter().for_each(|(addr, record)| {
+                    if let Some(record) = record {
+                        checkpoint.memory.insert(addr, record);
+                    } else {
+                        checkpoint.memory.remove(&addr);
+                    }
+                });
+            } else {
+                checkpoint.memory = memory_checkpoint
+                    .into_iter()
+                    .filter_map(|(addr, record)| record.map(|record| (addr, record)))
+                    .collect();
+            }
+        });
+        Ok((checkpoint, done))
     }
 
     fn initialize(&mut self) {
