@@ -555,9 +555,6 @@ impl<C: Config> AsmCompiler<C> {
 
         // Replace the mults using the address count data gathered in this previous.
         // Exhaustive match for refactoring purposes.
-        // TODO test if using the following is any good
-        // let mut assigner =
-        //     |mult: &mut F, addr: &Address<F>| *mult = self.addr_to_mult.remove(addr).unwrap();
         tracing::debug_span!("backfill mult").in_scope(|| {
             for asm_instr in instrs.iter_mut() {
                 match asm_instr {
