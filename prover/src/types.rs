@@ -15,6 +15,7 @@ use sp1_core::{
     utils::DIGEST_SIZE,
 };
 use sp1_primitives::poseidon2_hash;
+use sp1_recursion_circuit_v2::machine::{SP1CompressWitnessValues, SP1RecursionWitnessValues};
 use sp1_recursion_core::{air::RecursionPublicValues, stark::config::BabyBearPoseidon2Outer};
 use sp1_recursion_gnark_ffi::plonk_bn254::PlonkBn254Proof;
 use sp1_recursion_program::machine::{
@@ -209,9 +210,17 @@ pub enum SP1RecursionProverError {
     RuntimeError(String),
 }
 
-#[allow(clippy::large_enum_variant)]
-pub enum SP1CompressMemoryLayouts<'a> {
-    Core(SP1RecursionMemoryLayout<'a, InnerSC, RiscvAir<BabyBear>>),
-    Deferred(SP1DeferredMemoryLayout<'a, InnerSC, CompressAir<BabyBear>>),
-    Compress(SP1CompressMemoryLayout<'a, InnerSC, CompressAir<BabyBear>>),
+// #[allow(clippy::large_enum_variant)]
+// pub enum SP1CompressMemoryLayouts<'a> {
+//     Core(SP1RecursionMemoryLayout<'a, InnerSC, RiscvAir<BabyBear>>),
+//     Deferred(SP1DeferredMemoryLayout<'a, InnerSC, CompressAir<BabyBear>>),
+//     Compress(SP1CompressMemoryLayout<'a, InnerSC, CompressAir<BabyBear>>),
+// }
+
+pub enum SP1CompressWitness<'a> {
+    Core(SP1RecursionWitnessValues<'a, InnerSC>),
+    Compress {
+        shard_proofs: Vec<ShardProof<InnerSC>>,
+        is_complete: bool,
+    },
 }
