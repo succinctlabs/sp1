@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use super::CurveType;
 use crate::{
-    params::{FieldParameters, NumLimbs},
+    params::{FieldParameters, NumLimbs, NumWords},
     utils::biguint_to_bits_le,
     AffinePoint, EllipticCurve, EllipticCurveParameters,
 };
@@ -167,6 +167,16 @@ impl<E: WeierstrassParameters> AffinePoint<SwCurve<E>> {
 
         AffinePoint::new(x_3n, y_3n)
     }
+}
+
+#[derive(Debug)]
+pub enum FieldType {
+    Bls12381,
+    Bn254,
+}
+
+pub trait FpOpField: FieldParameters + NumWords {
+    const FIELD_TYPE: FieldType;
 }
 
 #[cfg(test)]

@@ -348,3 +348,19 @@ impl<C: Config, V: FromConstant<C> + MemVariable<C>> FromConstant<C> for Array<C
         array
     }
 }
+
+impl<C: Config, V: FromConstant<C> + MemVariable<C>> FromConstant<C> for Vec<V> {
+    type Constant = Vec<V::Constant>;
+
+    fn constant(value: Self::Constant, builder: &mut Builder<C>) -> Self {
+        value.into_iter().map(|x| V::constant(x, builder)).collect()
+    }
+}
+
+impl<C: Config, V: FromConstant<C> + MemVariable<C>, const N: usize> FromConstant<C> for [V; N] {
+    type Constant = [V::Constant; N];
+
+    fn constant(value: Self::Constant, builder: &mut Builder<C>) -> Self {
+        value.map(|x| V::constant(x, builder))
+    }
+}

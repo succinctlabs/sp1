@@ -1,6 +1,6 @@
 use crate::{
     memory::{value_as_limbs, MemoryReadCols, MemoryWriteCols},
-    operations::field::field_op::{FieldOpCols, FieldOperation},
+    operations::field::field_op::FieldOpCols,
 };
 
 use crate::{
@@ -17,7 +17,11 @@ use num::{BigUint, One, Zero};
 use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
-use sp1_core_executor::{events::ByteRecord, syscalls::SyscallCode, ExecutionRecord, Program};
+use sp1_core_executor::{
+    events::{ByteRecord, FieldOperation},
+    syscalls::SyscallCode,
+    ExecutionRecord, Program,
+};
 use sp1_curves::{
     params::{Limbs, NumLimbs, NumWords},
     uint256::U256Field,

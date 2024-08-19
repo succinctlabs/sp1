@@ -58,6 +58,7 @@ pub fn verify_two_adic_pcs<C: Config>(
     challenger: &mut MultiField32ChallengerVariable<C>,
     rounds: Vec<TwoAdicPcsRoundVariable<C>>,
 ) {
+    builder.cycle_tracker("2adic");
     let alpha = challenger.sample_ext(builder);
 
     let fri_challenges =
@@ -122,6 +123,7 @@ pub fn verify_two_adic_pcs<C: Config>(
                     let x: Felt<_> = builder.eval(g * two_adic_generator_exp);
 
                     for (z, ps_at_z) in izip!(mat_points, mat_values) {
+                        builder.cycle_tracker("2adic-hotloop");
                         let mut acc: Ext<C::F, C::EF> =
                             builder.eval(SymbolicExt::from_f(C::EF::zero()));
                         for (p_at_x, &p_at_z) in izip!(mat_opening.clone(), ps_at_z) {
@@ -136,14 +138,18 @@ pub fn verify_two_adic_pcs<C: Config>(
                             log_height_pow[log_height] += 1;
                         }
                         ro[log_height] = builder.eval(ro[log_height] + acc / (*z - x));
+                        builder.cycle_tracker("2adic-hotloop");
                     }
                 }
             }
             ro
         })
         .collect::<Vec<_>>();
+    builder.cycle_tracker("2adic");
 
+    builder.cycle_tracker("challenges");
     verify_challenges(builder, config, &proof.fri_proof, &fri_challenges, reduced_openings);
+    builder.cycle_tracker("challenges");
 }
 
 pub fn verify_challenges<C: Config>(

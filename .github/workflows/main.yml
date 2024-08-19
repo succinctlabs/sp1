@@ -5,12 +5,7 @@ on:
     branches:
       - main
     paths:
-      - "cli/**"
-      - "core/**"
-      - "prover/**"
-      - "recursion/**"
-      - "derive/**"
-      - "sdk/**"
+      - "crates/**"
       - ".github/workflows/**"
 
 concurrency:

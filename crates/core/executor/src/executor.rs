@@ -125,6 +125,10 @@ pub enum ExecutionError {
     #[error("exceeded cycle limit of {0}")]
     ExceededCycleLimit(u64),
 
+    /// The execution failed because the syscall was called in unconstrained mode.
+    #[error("syscall called in unconstrained mode")]
+    InvalidSyscallUsage(u64),
+
     /// The execution failed with an unimplemented feature.
     #[error("got unimplemented as opcode")]
     Unimplemented(),
@@ -842,6 +846,18 @@ impl<'a> Executor<'a> {
                     self.report.syscall_counts.entry(syscall).and_modify(|c| *c += 1).or_insert(1);
                 }
 
+                // `hint_slice` is allowed in unconstrained mode since it is used to write the hint.
+                // Other syscalls are not allowed because they can lead to non-deterministic
+                // behavior, especially since many syscalls modify memory in place,
+                // which is not permitted in unconstrained mode. This will result in
+                // non-zero memory interactions when generating a proof.
+
+                if self.unconstrained
+                    && (syscall != SyscallCode::EXIT_UNCONSTRAINED && syscall != SyscallCode::WRITE)
+                {
+                    return Err(ExecutionError::InvalidSyscallUsage(syscall_id as u64));
+                }
+
                 let syscall_impl = self.get_syscall(syscall).cloned();
                 let mut precompile_rt = SyscallContext::new(self);
                 precompile_rt.syscall_lookup_id = syscall_lookup_id;
@@ -883,8 +899,9 @@ impl<'a> Executor<'a> {
                 exit_code = returned_exit_code;
 
                 // Update the syscall counts.
-                let syscall_count = self.state.syscall_counts.entry(syscall).or_insert(0);
-                let (threshold, multiplier) = match syscall {
+                let syscall_for_count = syscall.count_map();
+                let syscall_count = self.state.syscall_counts.entry(syscall_for_count).or_insert(0);
+                let (threshold, multiplier) = match syscall_for_count {
                     SyscallCode::KECCAK_PERMUTE => (self.opts.split_opts.keccak, 24),
                     SyscallCode::SHA_EXTEND => (self.opts.split_opts.sha_extend, 48),
                     SyscallCode::SHA_COMPRESS => (self.opts.split_opts.sha_compress, 80),

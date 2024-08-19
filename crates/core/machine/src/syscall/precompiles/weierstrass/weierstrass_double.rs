@@ -12,7 +12,7 @@ use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use p3_maybe_rayon::prelude::{ParallelIterator, ParallelSlice};
 use sp1_core_executor::{
-    events::{ByteLookupEvent, ByteRecord},
+    events::{ByteLookupEvent, ByteRecord, FieldOperation},
     syscalls::SyscallCode,
     ExecutionRecord, Program,
 };
@@ -29,7 +29,7 @@ use sp1_stark::{
 
 use crate::{
     memory::{MemoryCols, MemoryWriteCols},
-    operations::field::field_op::{FieldOpCols, FieldOperation},
+    operations::field::field_op::FieldOpCols,
     utils::{limbs_from_prev_access, pad_rows},
 };
 

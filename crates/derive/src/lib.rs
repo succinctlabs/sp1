@@ -99,7 +99,6 @@ pub fn machine_air_derive(input: TokenStream) -> TokenStream {
 
     let name = &ast.ident;
     let generics = &ast.generics;
-    let sp1_core_path = find_sp1_core_path(&ast.attrs);
     let execution_record_path = find_execution_record_path(&ast.attrs);
     let program_path = find_program_path(&ast.attrs);
     let builder_path = find_builder_path(&ast.attrs);
@@ -146,47 +145,47 @@ pub fn machine_air_derive(input: TokenStream) -> TokenStream {
             let name_arms = variants.iter().map(|(variant_name, field)| {
                 let field_ty = &field.ty;
                 quote! {
-                    #name::#variant_name(x) => <#field_ty as #sp1_core_path::air::MachineAir<F>>::name(x)
+                    #name::#variant_name(x) => <#field_ty as sp1_stark::air::MachineAir<F>>::name(x)
                 }
             });
 
             let preprocessed_width_arms = variants.iter().map(|(variant_name, field)| {
                 let field_ty = &field.ty;
                 quote! {
-                    #name::#variant_name(x) => <#field_ty as #sp1_core_path::air::MachineAir<F>>::preprocessed_width(x)
+                    #name::#variant_name(x) => <#field_ty as sp1_stark::air::MachineAir<F>>::preprocessed_width(x)
                 }
             });
 
             let generate_preprocessed_trace_arms = variants.iter().map(|(variant_name, field)| {
                 let field_ty = &field.ty;
                 quote! {
-                    #name::#variant_name(x) => <#field_ty as #sp1_core_path::air::MachineAir<F>>::generate_preprocessed_trace(x, program)
+                    #name::#variant_name(x) => <#field_ty as sp1_stark::air::MachineAir<F>>::generate_preprocessed_trace(x, program)
                 }
             });
 
             let generate_trace_arms = variants.iter().map(|(variant_name, field)| {
                 let field_ty = &field.ty;
                 quote! {
-                    #name::#variant_name(x) => <#field_ty as #sp1_core_path::air::MachineAir<F>>::generate_trace(x, input, output)
+                    #name::#variant_name(x) => <#field_ty as sp1_stark::air::MachineAir<F>>::generate_trace(x, input, output)
                 }
             });
 
             let generate_dependencies_arms = variants.iter().map(|(variant_name, field)| {
                 let field_ty = &field.ty;
                 quote! {
-                    #name::#variant_name(x) => <#field_ty as #sp1_core_path::air::MachineAir<F>>::generate_dependencies(x, input, output)
+                    #name::#variant_name(x) => <#field_ty as sp1_stark::air::MachineAir<F>>::generate_dependencies(x, input, output)
                 }
             });
 
             let included_arms = variants.iter().map(|(variant_name, field)| {
                 let field_ty = &field.ty;
                 quote! {
-                    #name::#variant_name(x) => <#field_ty as #sp1_core_path::air::MachineAir<F>>::included(x, shard)
+                    #name::#variant_name(x) => <#field_ty as sp1_stark::air::MachineAir<F>>::included(x, shard)
                 }
             });
 
             let machine_air = quote! {
-                impl #impl_generics #sp1_core_path::air::MachineAir<F> for #name #ty_generics #where_clause {
+                impl #impl_generics sp1_stark::air::MachineAir<F> for #name #ty_generics #where_clause {
                     type Record = #execution_record_path;
 
                     type Program = #program_path;
@@ -305,19 +304,6 @@ pub fn cycle_tracker(_attr: TokenStream, item: TokenStream) -> TokenStream {
     };
 
     result.into()
-}
-
-fn find_sp1_core_path(attrs: &[syn::Attribute]) -> syn::Ident {
-    for attr in attrs {
-        if attr.path.is_ident("sp1_core_path") {
-            if let Ok(syn::Meta::NameValue(meta)) = attr.parse_meta() {
-                if let syn::Lit::Str(lit_str) = &meta.lit {
-                    return syn::Ident::new(&lit_str.value(), lit_str.span());
-                }
-            }
-        }
-    }
-    syn::Ident::new("sp1_stark", proc_macro2::Span::call_site())
 }
 
 fn find_execution_record_path(attrs: &[syn::Attribute]) -> syn::Path {

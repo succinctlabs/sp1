@@ -10,7 +10,11 @@ use num::{BigUint, Zero};
 use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
-use sp1_core_executor::{events::ByteRecord, syscalls::SyscallCode, ExecutionRecord, Program};
+use sp1_core_executor::{
+    events::{ByteRecord, FieldOperation},
+    syscalls::SyscallCode,
+    ExecutionRecord, Program,
+};
 use sp1_curves::{
     params::{limbs_from_vec, FieldParameters, Limbs, NumLimbs, NumWords},
     weierstrass::{bls12_381::bls12381_sqrt, secp256k1::secp256k1_sqrt, WeierstrassParameters},
@@ -23,11 +27,7 @@ use typenum::Unsigned;
 
 use crate::{
     memory::{MemoryReadCols, MemoryReadWriteCols},
-    operations::field::{
-        field_op::{FieldOpCols, FieldOperation},
-        field_sqrt::FieldSqrtCols,
-        range::FieldLtCols,
-    },
+    operations::field::{field_op::FieldOpCols, field_sqrt::FieldSqrtCols, range::FieldLtCols},
     utils::{bytes_to_words_le_vec, limbs_from_access, limbs_from_prev_access, pad_rows},
 };
 

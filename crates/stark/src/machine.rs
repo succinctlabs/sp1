@@ -367,13 +367,15 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
             // Compute some statistics.
             for i in 0..chips.len() {
                 let trace_width = traces[i].0.width();
+                let pre_width = traces[i].1.map_or(0, p3_matrix::Matrix::width);
                 let permutation_width = permutation_traces[i].width()
                     * <SC::Challenge as AbstractExtensionField<SC::Val>>::D;
-                let total_width = trace_width + permutation_width;
+                let total_width = trace_width + pre_width + permutation_width;
                 tracing::debug!(
-                    "{:<11} | Main Cols = {:<5} | Perm Cols = {:<5} | Rows = {:<10} | Cells = {:<10}",
+                    "{:<11} | Main Cols = {:<5} | Pre Cols = {:<5} | Perm Cols = {:<5} | Rows = {:<10} | Cells = {:<10}",
                     chips[i].name(),
                     trace_width,
+                    pre_width,
                     permutation_width,
                     traces[i].0.height(),
                     total_width * traces[i].0.height(),
@@ -382,11 +384,11 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
 
             tracing::info_span!("debug constraints").in_scope(|| {
                 for i in 0..chips.len() {
-                    let permutation_trace =
+                    let preprocessed_trace =
                         pk.chip_ordering.get(&chips[i].name()).map(|index| &pk.traces[*index]);
                     debug_constraints::<SC, A>(
                         chips[i],
-                        permutation_trace,
+                        preprocessed_trace,
                         &traces[i].0,
                         &permutation_traces[i],
                         &permutation_challenges,
@@ -395,6 +397,10 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
                 }
             });
         }
+
+        tracing::info!("Constraints verified successfully");
+
+        println!("Cumulative sum: {cumulative_sum}");
 
         // If the cumulative sum is not zero, debug the interactions.
         if !cumulative_sum.is_zero() {

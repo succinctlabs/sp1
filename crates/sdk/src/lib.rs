@@ -5,9 +5,6 @@
 //! Visit the [Getting Started](https://succinctlabs.github.io/sp1/getting-started.html) section
 //! in the official SP1 documentation for a quick start guide.
 
-#[cfg(debug_assertions)]
-compile_error!("sp1-sdk must be built in release mode. Please compile with the --release flag.");
-
 #[rustfmt::skip]
 pub mod proto {
     pub mod network;
@@ -64,6 +61,10 @@ impl ProverClient {
     /// let client = ProverClient::new();
     /// ```
     pub fn new() -> Self {
+        #[cfg(debug_assertions)]
+        panic!("sp1-sdk must be built in release mode. please compile with the --release flag.");
+
+        #[allow(unreachable_code)]
         match env::var("SP1_PROVER").unwrap_or("local".to_string()).to_lowercase().as_str() {
             "mock" => Self { prover: Box::new(MockProver::new()) },
             "local" => Self { prover: Box::new(LocalProver::new()) },
@@ -261,10 +262,7 @@ impl Default for ProverClient {
 #[cfg(test)]
 mod tests {
 
-    use std::sync::atomic::{AtomicU32, Ordering};
-
     use crate::{utils, ProverClient, SP1Stdin};
-    use sp1_core_executor::{hook_ecrecover, FD_ECRECOVER_HOOK};
 
     #[test]
     fn test_execute() {
@@ -275,45 +273,6 @@ mod tests {
         let mut stdin = SP1Stdin::new();
         stdin.write(&10usize);
         client.execute(elf, stdin).run().unwrap();
-    }
-
-    #[test]
-    fn test_execute_new() {
-        // Wrap the hook and check that it was called.
-        let call_ct = AtomicU32::new(0);
-        utils::setup_logger();
-        let client = ProverClient::local();
-        let elf = include_bytes!("../../../tests/ecrecover/elf/riscv32im-succinct-zkvm-elf");
-        let stdin = SP1Stdin::new();
-        client
-            .execute(elf, stdin)
-            .with_hook(FD_ECRECOVER_HOOK, |env, buf| {
-                call_ct.fetch_add(1, Ordering::Relaxed);
-                hook_ecrecover(env, buf)
-            })
-            .run()
-            .unwrap();
-        assert_ne!(call_ct.into_inner(), 0);
-    }
-
-    #[test]
-    fn test_prove_new() {
-        // Wrap the hook and check that it was called.
-        let call_ct = AtomicU32::new(0);
-        utils::setup_logger();
-        let client = ProverClient::local();
-        let elf = include_bytes!("../../../tests/ecrecover/elf/riscv32im-succinct-zkvm-elf");
-        let stdin = SP1Stdin::new();
-        let (pk, _) = client.setup(elf);
-        client
-            .prove(&pk, stdin)
-            .with_hook(FD_ECRECOVER_HOOK, |env, buf| {
-                call_ct.fetch_add(1, Ordering::Relaxed);
-                hook_ecrecover(env, buf)
-            })
-            .run()
-            .unwrap();
-        assert_ne!(call_ct.into_inner(), 0);
     }
 
     #[test]

@@ -11,7 +11,7 @@ use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use sp1_core_executor::{
-    events::{ByteLookupEvent, ByteRecord},
+    events::{ByteLookupEvent, ByteRecord, FieldOperation},
     syscalls::SyscallCode,
     ExecutionRecord, Program,
 };
@@ -26,7 +26,7 @@ use typenum::Unsigned;
 
 use crate::{
     memory::{MemoryCols, MemoryReadCols, MemoryWriteCols},
-    operations::field::field_op::{FieldOpCols, FieldOperation},
+    operations::field::field_op::FieldOpCols,
     utils::{limbs_from_prev_access, pad_rows},
 };
 

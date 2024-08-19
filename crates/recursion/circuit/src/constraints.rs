@@ -138,6 +138,8 @@ where
     ) where
         A: MachineAir<C::F> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, C>>,
     {
+        builder.cycle_tracker("verify constraints");
+
         let opening = ChipOpening::from_variable(builder, chip, opening);
         let sels = trace_domain.selectors_at_point(builder, zeta);
 
@@ -154,6 +156,8 @@ where
         let quotient: Ext<_, _> = Self::recompute_quotient(builder, &opening, qc_domains, zeta);
 
         builder.assert_ext_eq(folded_constraints * sels.inv_zeroifier, quotient);
+
+        builder.cycle_tracker("verify constraints");
     }
 }
 

@@ -16,7 +16,7 @@ checksum = "0c4b4d0bd25bd0b74681c0ad21497610ce1b7c91b1022cd21c80c6fbdd9476b0"
 
 [[package]]
 name = "biguint-mul-test"
-version = "0.1.0"
+version = "1.0.1"
 dependencies = [
  "bytemuck",
  "num",
@@ -289,7 +289,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-derive"
-version = "0.1.0"
+version = "1.0.1"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -298,7 +298,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-lib"
-version = "0.1.0"
+version = "1.0.1"
 dependencies = [
  "anyhow",
  "bincode",
@@ -308,7 +308,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-zkvm"
-version = "0.1.0"
+version = "1.0.1"
 dependencies = [
  "bincode",
  "cfg-if",

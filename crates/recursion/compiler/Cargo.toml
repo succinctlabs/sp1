@@ -24,6 +24,7 @@ p3-util = { workspace = true }
 sp1-core-machine = { workspace = true }
 sp1-primitives = { workspace = true }
 sp1-recursion-core = { workspace = true }
+sp1-recursion-core-v2 = { workspace = true }
 sp1-recursion-derive = { workspace = true }
 sp1-stark = { workspace = true }
 

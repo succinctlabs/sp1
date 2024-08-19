@@ -5,6 +5,7 @@ mod logger;
 mod programs;
 mod prove;
 mod serde;
+mod span;
 mod tracer;
 
 pub use buffer::*;
@@ -12,6 +13,7 @@ pub use logger::*;
 pub use prove::*;
 pub use serde::*;
 use sp1_curves::params::Limbs;
+pub use span::*;
 pub use tracer::*;
 
 #[cfg(any(test, feature = "programs"))]

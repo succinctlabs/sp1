@@ -4,7 +4,7 @@ use num::{BigUint, Num, Zero};
 use serde::{Deserialize, Serialize};
 use typenum::{U48, U94};
 
-use super::{SwCurve, WeierstrassParameters};
+use super::{FieldType, FpOpField, SwCurve, WeierstrassParameters};
 use crate::{
     params::{FieldParameters, NumLimbs},
     CurveType, EllipticCurveParameters,
@@ -49,6 +49,10 @@ impl FieldParameters for Bls12381BaseField {
         )
         .unwrap()
     }
+}
+
+impl FpOpField for Bls12381BaseField {
+    const FIELD_TYPE: FieldType = FieldType::Bls12381;
 }
 
 impl NumLimbs for Bls12381BaseField {
