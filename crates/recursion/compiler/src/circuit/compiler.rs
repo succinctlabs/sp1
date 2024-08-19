@@ -528,6 +528,7 @@ impl<C: Config> AsmCompiler<C> {
 
         // Replace the mults using the address count data gathered in this previous.
         // Exhaustive match for refactoring purposes.
+        let total_memory = self.addr_to_mult.len() + self.consts.len();
         let mut backfill =
             |(mult, addr): (&mut F, &Address<F>)| *mult = self.addr_to_mult.remove(addr).unwrap();
         tracing::debug_span!("backfill mult").in_scope(|| {
@@ -614,7 +615,7 @@ impl<C: Config> AsmCompiler<C> {
                 (instrs_consts.chain(instrs).collect(), traces)
             }
         });
-        RecursionProgram { instructions, traces }
+        RecursionProgram { instructions, total_memory, traces }
     }
 }
 

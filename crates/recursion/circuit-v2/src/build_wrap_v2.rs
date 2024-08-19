@@ -180,7 +180,7 @@
 //     let machine = machine_maker();
 //     let program = RecursionProgram {
 //         instructions,
-//         traces: Default::default(),
+//         ..Default::default()
 //     };
 //     let mut runtime = Runtime::<
 //         BabyBear,

@@ -215,7 +215,7 @@ mod tests {
         let public_values_a: &RecursionPublicValues<u32> = public_values_a.as_slice().borrow();
         instructions.push(instr::commit_public_values(public_values_a));
 
-        let program = RecursionProgram { instructions, traces: Default::default() };
+        let program = RecursionProgram { instructions, ..Default::default() };
 
         run_recursion_test_machines(program);
     }

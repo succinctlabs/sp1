@@ -185,6 +185,7 @@ where
         >,
     ) -> Self {
         let record = ExecutionRecord::<F> { program: program.clone(), ..Default::default() };
+        let memory = Memory { inner: Vec::with_capacity(program.total_memory) };
         Self {
             timestamp: 0,
             nb_poseidons: 0,
@@ -201,7 +202,7 @@ where
             clk: F::zero(),
             program,
             pc: F::zero(),
-            memory: Default::default(),
+            memory,
             record,
             witness_stream: VecDeque::new(),
             cycle_tracker: HashMap::new(),
