@@ -283,8 +283,7 @@ fn cleanup_container(container_name: &str) {
     }
 }
 
-// #[allow(unused_imports)]
-// #[cfg(feature = "protobuf")]
+#[cfg(feature = "protobuf")]
 #[cfg(test)]
 mod tests {
     use sp1_core_machine::utils::{setup_logger, tests::FIBONACCI_ELF};
