@@ -138,7 +138,7 @@ where
 
     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
         let vks_and_proofs = self.vks_and_proofs.read(builder);
-        let is_complete = self.is_complete;
+        let is_complete = InnerVal::from_bool(self.is_complete).read(builder);
         let kinds = self.kinds.clone();
 
         SP1CompressWitnessVariable {
@@ -149,6 +149,10 @@ where
     }
 
     fn write(&self) -> Vec<crate::witness::Witness<C>> {
-        Witnessable::<C>::write(&self.vks_and_proofs)
+        [
+            Witnessable::<C>::write(&self.vks_and_proofs),
+            Witnessable::<C>::write(&InnerVal::from_bool(self.is_complete)),
+        ]
+        .concat()
     }
 }

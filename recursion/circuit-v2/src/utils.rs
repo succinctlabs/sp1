@@ -1,9 +1,12 @@
+use std::array;
 use std::borrow::BorrowMut;
 
+use itertools::Itertools;
 use sp1_recursion_compiler::{
     circuit::CircuitV2Builder,
     ir::{Builder, Config, Felt},
 };
+use sp1_recursion_core_v2::air::ChallengerPublicValues;
 use sp1_recursion_core_v2::air::{
     RecursionPublicValues, NUM_PV_ELMS_TO_HASH, RECURSIVE_PROOF_NUM_PV_ELTS,
 };
@@ -26,6 +29,56 @@ pub fn commit_recursion_public_values<C: Config>(
     let pv_digest = builder.poseidon2_hash_v2(&pv_elements[0..NUM_PV_ELMS_TO_HASH]);
     for element in pv_digest {
         builder.commit_public_value(element);
+    }
+}
+
+pub fn uninit_challenger_pv<C: Config>(
+    builder: &mut Builder<C>,
+) -> ChallengerPublicValues<Felt<C::F>> {
+    let sponge_state = array::from_fn(|_| builder.uninit());
+    let num_inputs = builder.uninit();
+    let input_buffer = array::from_fn(|_| builder.uninit());
+    let num_outputs = builder.uninit();
+    let output_buffer = array::from_fn(|_| builder.uninit());
+    ChallengerPublicValues {
+        sponge_state,
+        num_inputs,
+        input_buffer,
+        num_outputs,
+        output_buffer,
+    }
+}
+
+pub fn assign_challenger_pv<C: Config>(
+    builder: &mut Builder<C>,
+    dst: &mut ChallengerPublicValues<Felt<C::F>>,
+    src: &ChallengerPublicValues<Felt<C::F>>,
+) {
+    // Assign the sponge state.
+    for (dst, src) in dst.sponge_state.iter_mut().zip_eq(src.sponge_state.iter()) {
+        builder.assign(*dst, *src);
+    }
+
+    // Assign the input buffer.
+
+    // assign the number of inputs.
+    builder.assign(dst.num_inputs, src.num_inputs);
+    // Assign the buffer values.
+    for (dst, src) in dst.input_buffer.iter_mut().zip_eq(src.input_buffer.iter()) {
+        builder.assign(*dst, *src);
+    }
+
+    // Assign the output buffer.
+
+    // assign the number of outputs.
+    builder.assign(dst.num_outputs, src.num_outputs);
+    // Assign the buffer values.
+    for (dst, src) in dst
+        .output_buffer
+        .iter_mut()
+        .zip_eq(src.output_buffer.iter())
+    {
+        builder.assign(*dst, *src);
     }
 }
 
