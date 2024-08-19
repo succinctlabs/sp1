@@ -5,9 +5,6 @@
 //! Visit the [Getting Started](https://succinctlabs.github.io/sp1/getting-started.html) section
 //! in the official SP1 documentation for a quick start guide.
 
-#[cfg(debug_assertions)]
-compile_error!("sp1-sdk must be built in release mode. Please compile with the --release flag.");
-
 #[rustfmt::skip]
 pub mod proto {
     pub mod network;
@@ -64,6 +61,9 @@ impl ProverClient {
     /// let client = ProverClient::new();
     /// ```
     pub fn new() -> Self {
+        #[cfg(debug_assertions)]
+        panic!("sp1-sdk must be built in release mode. please compile with the --release flag.");
+
         match env::var("SP1_PROVER").unwrap_or("local".to_string()).to_lowercase().as_str() {
             "mock" => Self { prover: Box::new(MockProver::new()) },
             "local" => Self { prover: Box::new(LocalProver::new()) },
