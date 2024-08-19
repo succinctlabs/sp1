@@ -528,6 +528,8 @@ impl<C: Config> AsmCompiler<C> {
 
         // Replace the mults using the address count data gathered in this previous.
         // Exhaustive match for refactoring purposes.
+        let mut backfill =
+            |(mult, addr): (&mut F, &Address<F>)| *mult = self.addr_to_mult.remove(addr).unwrap();
         tracing::debug_span!("backfill mult").in_scope(|| {
             for asm_instr in instrs.iter_mut() {
                 match asm_instr {
@@ -535,35 +537,33 @@ impl<C: Config> AsmCompiler<C> {
                         mult,
                         addrs: BaseAluIo { out: ref addr, .. },
                         ..
-                    }) => *mult = self.addr_to_mult.remove(addr).unwrap(),
+                    }) => backfill((mult, addr)),
                     Instruction::ExtAlu(ExtAluInstr {
                         mult,
                         addrs: ExtAluIo { out: ref addr, .. },
                         ..
-                    }) => *mult = self.addr_to_mult.remove(addr).unwrap(),
+                    }) => backfill((mult, addr)),
                     Instruction::Mem(MemInstr {
                         addrs: MemIo { inner: ref addr },
                         mult,
                         kind: MemAccessKind::Write,
                         ..
-                    }) => *mult = self.addr_to_mult.remove(addr).unwrap(),
+                    }) => backfill((mult, addr)),
                     Instruction::Poseidon2(Poseidon2SkinnyInstr {
                         addrs: Poseidon2Io { output: ref addrs, .. },
                         mults,
                     }) => {
-                        for (mult, addr) in mults.iter_mut().zip(addrs) {
-                            *mult = self.addr_to_mult.remove(addr).unwrap()
-                        }
+                        mults.iter_mut().zip(addrs).for_each(&mut backfill);
                     }
                     Instruction::ExpReverseBitsLen(ExpReverseBitsInstr {
                         addrs: ExpReverseBitsIo { result: ref addr, .. },
                         mult,
-                    }) => *mult = self.addr_to_mult.remove(addr).unwrap(),
+                    }) => backfill((mult, addr)),
                     Instruction::HintBits(HintBitsInstr { output_addrs_mults, .. })
                     | Instruction::Hint(HintInstr { output_addrs_mults, .. }) => {
-                        for (addr, mult) in output_addrs_mults.iter_mut() {
-                            *mult = self.addr_to_mult.remove(addr).unwrap()
-                        }
+                        output_addrs_mults
+                            .iter_mut()
+                            .for_each(|(addr, mult)| backfill((mult, addr)));
                     }
                     Instruction::FriFold(FriFoldInstr {
                         ext_vec_addrs: FriFoldExtVecIo { ref alpha_pow_output, ref ro_output, .. },
@@ -571,19 +571,16 @@ impl<C: Config> AsmCompiler<C> {
                         ro_mults,
                         ..
                     }) => {
-                        for (mult, addr) in alpha_pow_mults.iter_mut().zip(alpha_pow_output) {
-                            *mult = self.addr_to_mult.remove(addr).unwrap()
-                        }
-                        for (mult, addr) in ro_mults.iter_mut().zip(ro_output) {
-                            *mult = self.addr_to_mult.remove(addr).unwrap()
-                        }
+                        // Using `.chain` seems to be less performant.
+                        alpha_pow_mults.iter_mut().zip(alpha_pow_output).for_each(&mut backfill);
+                        ro_mults.iter_mut().zip(ro_output).for_each(&mut backfill);
                     }
                     Instruction::HintExt2Felts(HintExt2FeltsInstr {
                         output_addrs_mults, ..
                     }) => {
-                        for (addr, mult) in output_addrs_mults.iter_mut() {
-                            *mult = self.addr_to_mult.remove(addr).unwrap()
-                        }
+                        output_addrs_mults
+                            .iter_mut()
+                            .for_each(|(addr, mult)| backfill((mult, addr)));
                     }
                     // Instructions that do not write to memory.
                     Instruction::Mem(MemInstr { kind: MemAccessKind::Read, .. })
