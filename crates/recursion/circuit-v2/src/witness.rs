@@ -1,20 +1,17 @@
 use std::borrow::Borrow;
 
 use p3_field::AbstractExtensionField;
-
 use p3_fri::{CommitPhaseProofStep, QueryProof};
-use sp1_core::{
-    stark::{AirOpenedValues, ChipOpenedValues, ShardCommitment, ShardOpenedValues, ShardProof},
-    utils::{
-        BabyBearPoseidon2, InnerBatchOpening, InnerChallenge, InnerChallengeMmcs, InnerDigest,
-        InnerDigestHash, InnerFriProof, InnerPcsProof, InnerVal,
-    },
-};
 use sp1_recursion_compiler::{
     circuit::CircuitV2Builder,
     ir::{Builder, Config, Ext, Felt},
 };
 use sp1_recursion_core_v2::air::Block;
+use sp1_stark::{
+    baby_bear_poseidon2::BabyBearPoseidon2, AirOpenedValues, ChipOpenedValues, InnerBatchOpening,
+    InnerChallenge, InnerChallengeMmcs, InnerDigest, InnerDigestHash, InnerFriProof, InnerPcsProof,
+    InnerVal, ShardCommitment, ShardOpenedValues, ShardProof,
+};
 
 use crate::{
     stark::{ShardCommitmentVariable, ShardProofVariable},
@@ -75,17 +72,12 @@ impl<C: Config, T: Witnessable<C>, const N: usize> Witnessable<C> for [T; N] {
     type WitnessVariable = [T::WitnessVariable; N];
 
     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
-        self.iter()
-            .map(|x| x.read(builder))
-            .collect::<Vec<_>>()
-            .try_into()
-            .unwrap_or_else(|x: Vec<_>| {
+        self.iter().map(|x| x.read(builder)).collect::<Vec<_>>().try_into().unwrap_or_else(
+            |x: Vec<_>| {
                 // Cannot just `.unwrap()` without requiring Debug bounds.
-                panic!(
-                    "could not coerce vec of len {} into array of len {N}",
-                    x.len()
-                )
-            })
+                panic!("could not coerce vec of len {} into array of len {N}", x.len())
+            },
+        )
     }
 
     fn write(&self) -> Vec<Witness<C>> {
@@ -146,11 +138,7 @@ impl<C: Config<F = InnerVal, EF = InnerChallenge>> Witnessable<C>
         let main_commit = InnerDigest::from(self.main_commit).read(builder);
         let permutation_commit = InnerDigest::from(self.permutation_commit).read(builder);
         let quotient_commit = InnerDigest::from(self.quotient_commit).read(builder);
-        Self::WitnessVariable {
-            main_commit,
-            permutation_commit,
-            quotient_commit,
-        }
+        Self::WitnessVariable { main_commit, permutation_commit, quotient_commit }
     }
 
     fn write(&self) -> Vec<Witness<C>> {
@@ -237,18 +225,12 @@ impl<C: Config<F = InnerVal, EF = InnerChallenge>> Witnessable<C> for InnerPcsPr
     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
         let fri_proof = self.fri_proof.read(builder);
         let query_openings = self.query_openings.read(builder);
-        Self::WitnessVariable {
-            fri_proof,
-            query_openings,
-        }
+        Self::WitnessVariable { fri_proof, query_openings }
     }
 
     fn write(&self) -> Vec<Witness<C>> {
-        [
-            Witnessable::<C>::write(&self.fri_proof),
-            Witnessable::<C>::write(&self.query_openings),
-        ]
-        .concat()
+        [Witnessable::<C>::write(&self.fri_proof), Witnessable::<C>::write(&self.query_openings)]
+            .concat()
     }
 }
 
@@ -263,18 +245,12 @@ impl<C: Config<F = InnerVal, EF = InnerChallenge>> Witnessable<C> for InnerBatch
             .map(|a| a.into_iter().map(|b| vec![b]).collect())
             .collect();
         let opening_proof = self.opening_proof.read(builder);
-        Self::WitnessVariable {
-            opened_values,
-            opening_proof,
-        }
+        Self::WitnessVariable { opened_values, opening_proof }
     }
 
     fn write(&self) -> Vec<Witness<C>> {
-        [
-            Witnessable::<C>::write(&self.opened_values),
-            Witnessable::<C>::write(&self.opening_proof),
-        ]
-        .concat()
+        [Witnessable::<C>::write(&self.opened_values), Witnessable::<C>::write(&self.opening_proof)]
+            .concat()
     }
 }
 
@@ -293,12 +269,7 @@ impl<C: Config<F = InnerVal, EF = InnerChallenge>> Witnessable<C> for InnerFriPr
         let query_proofs = self.query_proofs.read(builder);
         let final_poly = self.final_poly.read(builder);
         let pow_witness = self.pow_witness.read(builder);
-        Self::WitnessVariable {
-            commit_phase_commits,
-            query_proofs,
-            final_poly,
-            pow_witness,
-        }
+        Self::WitnessVariable { commit_phase_commits, query_proofs, final_poly, pow_witness }
     }
 
     fn write(&self) -> Vec<Witness<C>> {
@@ -325,9 +296,7 @@ impl<C: Config<F = InnerVal, EF = InnerChallenge>> Witnessable<C>
 
     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
         let commit_phase_openings = self.commit_phase_openings.read(builder);
-        Self::WitnessVariable {
-            commit_phase_openings,
-        }
+        Self::WitnessVariable { commit_phase_openings }
     }
 
     fn write(&self) -> Vec<Witness<C>> {
@@ -343,17 +312,11 @@ impl<C: Config<F = InnerVal, EF = InnerChallenge>> Witnessable<C>
     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
         let sibling_value = self.sibling_value.read(builder);
         let opening_proof = self.opening_proof.read(builder);
-        Self::WitnessVariable {
-            sibling_value,
-            opening_proof,
-        }
+        Self::WitnessVariable { sibling_value, opening_proof }
     }
 
     fn write(&self) -> Vec<Witness<C>> {
-        [
-            Witnessable::<C>::write(&self.sibling_value),
-            Witnessable::<C>::write(&self.opening_proof),
-        ]
-        .concat()
+        [Witnessable::<C>::write(&self.sibling_value), Witnessable::<C>::write(&self.opening_proof)]
+            .concat()
     }
 }

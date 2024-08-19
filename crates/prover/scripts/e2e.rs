@@ -12,8 +12,7 @@ use sp1_prover::{
 use sp1_recursion_circuit::{stark::build_wrap_circuit, witness::Witnessable};
 use sp1_recursion_compiler::ir::Witness;
 use sp1_recursion_core::air::RecursionPublicValues;
-use sp1_recursion_gnark_ffi::Groth16Bn254Prover;
-use sp1_recursion_gnark_ffi::PlonkBn254Prover;
+use sp1_recursion_gnark_ffi::{Groth16Bn254Prover, PlonkBn254Prover};
 use sp1_stark::SP1ProverOpts;
 use subtle_encoding::hex;
 

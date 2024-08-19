@@ -76,8 +76,8 @@
 
 //     // TODO: Add back.
 //     // let one_felt: Felt<_> = builder.constant(BabyBear::one());
-//     // Proof must be complete. In the reduce program, this will ensure that the SP1 proof has been
-//     // fully accumulated.
+//     // Proof must be complete. In the reduce program, this will ensure that the SP1 proof has
+// been     // fully accumulated.
 //     // builder.assert_felt_eq(pv.is_complete, one_felt);
 
 //     // Convert pv.sp1_vk_digest into Bn254
@@ -155,8 +155,8 @@
 //     // Verify the public values digest.
 //     // let calculated_digest = builder.p2_babybear_hash(&pv_elements[0..NUM_PV_ELMS_TO_HASH]);
 //     // let expected_digest = pv.digest;
-//     // for (calculated_elm, expected_elm) in calculated_digest.iter().zip(expected_digest.iter()) {
-//     //     builder.assert_felt_eq(*expected_elm, *calculated_elm);
+//     // for (calculated_elm, expected_elm) in calculated_digest.iter().zip(expected_digest.iter())
+// {     //     builder.assert_felt_eq(*expected_elm, *calculated_elm);
 //     // }
 
 //     let mut backend = ConstraintCompiler::<OuterConfig>::default();

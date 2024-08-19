@@ -1,11 +1,15 @@
 use std::iter::zip;
 
 use p3_field::AbstractField;
-use sp1_recursion_compiler::circuit::CircuitV2Builder;
-use sp1_recursion_compiler::prelude::{Builder, Config, Ext, Felt};
-use sp1_recursion_core_v2::air::ChallengerPublicValues;
-use sp1_recursion_core_v2::runtime::{HASH_RATE, PERMUTATION_WIDTH};
-use sp1_recursion_core_v2::NUM_BITS;
+use sp1_recursion_compiler::{
+    circuit::CircuitV2Builder,
+    prelude::{Builder, Config, Ext, Felt},
+};
+use sp1_recursion_core_v2::{
+    air::ChallengerPublicValues,
+    runtime::{HASH_RATE, PERMUTATION_WIDTH},
+    NUM_BITS,
+};
 
 use crate::{DigestVariable, VerifyingKeyVariable};
 
@@ -57,11 +61,7 @@ impl<C: Config> DuplexChallengerVariable<C> {
 
     /// Creates a new challenger with the same state as an existing challenger.
     pub fn copy(&self, builder: &mut Builder<C>) -> Self {
-        let DuplexChallengerVariable {
-            sponge_state,
-            input_buffer,
-            output_buffer,
-        } = self;
+        let DuplexChallengerVariable { sponge_state, input_buffer, output_buffer } = self;
         let sponge_state = sponge_state.map(|x| builder.eval(x));
         let mut copy_vec = |v: &Vec<Felt<C::F>>| v.iter().map(|x| builder.eval(*x)).collect();
         DuplexChallengerVariable::<C> {
@@ -120,9 +120,7 @@ impl<C: Config> DuplexChallengerVariable<C> {
             self.duplexing(builder);
         }
 
-        self.output_buffer
-            .pop()
-            .expect("output buffer should be non-empty")
+        self.output_buffer.pop().expect("output buffer should be non-empty")
     }
 
     pub fn sample_bits(&mut self, builder: &mut Builder<C>, nb_bits: usize) -> Vec<Felt<C::F>> {
@@ -238,20 +236,15 @@ impl<C: Config> FeltChallenger<C> for DuplexChallengerVariable<C> {
 #[cfg(test)]
 pub(crate) mod tests {
     use crate::utils::tests::run_test_recursion;
-    use p3_challenger::CanObserve;
-    use p3_challenger::CanSample;
-    use p3_challenger::FieldChallenger;
+    use p3_challenger::{CanObserve, CanSample, FieldChallenger};
     use p3_field::AbstractField;
-    use sp1_core::stark::StarkGenericConfig;
-    use sp1_core::utils::BabyBearPoseidon2;
-    use sp1_recursion_compiler::asm::AsmBuilder;
-    use sp1_recursion_compiler::asm::AsmConfig;
-    use sp1_recursion_compiler::ir::Ext;
-    use sp1_recursion_compiler::ir::ExtConst;
-    use sp1_recursion_compiler::ir::Felt;
+    use sp1_recursion_compiler::{
+        asm::{AsmBuilder, AsmConfig},
+        ir::{Ext, ExtConst, Felt},
+    };
+    use sp1_stark::{baby_bear_poseidon2::BabyBearPoseidon2, StarkGenericConfig};
 
-    use crate::challenger::DuplexChallengerVariable;
-    use crate::challenger::FeltChallenger;
+    use crate::challenger::{DuplexChallengerVariable, FeltChallenger};
 
     type SC = BabyBearPoseidon2;
     type F = <SC as StarkGenericConfig>::Val;

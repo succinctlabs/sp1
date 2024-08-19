@@ -98,7 +98,8 @@ impl Groth16Bn254Prover {
         proof
     }
 
-    /// Verify a Groth16proof and verify that the supplied vkey_hash and committed_values_digest match.
+    /// Verify a Groth16proof and verify that the supplied vkey_hash and committed_values_digest
+    /// match.
     pub fn verify(
         &self,
         proof: &Groth16Bn254Proof,

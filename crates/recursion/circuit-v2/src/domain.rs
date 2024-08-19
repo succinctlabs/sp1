@@ -1,8 +1,5 @@
-use p3_commit::PolynomialSpace;
-use p3_commit::{LagrangeSelectors, TwoAdicMultiplicativeCoset};
-use p3_field::AbstractExtensionField;
-use p3_field::Field;
-use p3_field::{AbstractField, TwoAdicField};
+use p3_commit::{LagrangeSelectors, PolynomialSpace, TwoAdicMultiplicativeCoset};
+use p3_field::{AbstractExtensionField, AbstractField, Field, TwoAdicField};
 use sp1_recursion_compiler::prelude::*;
 
 /// Reference: [p3_commit::PolynomialSpace]

@@ -5160,6 +5160,46 @@ dependencies = [
 ]
 
 [[package]]
+name = "sp1-recursion-circuit-v2"
+version = "1.1.1"
+dependencies = [
+ "bincode",
+ "ff 0.13.0",
+ "hashbrown 0.14.5",
+ "itertools 0.13.0",
+ "p3-air",
+ "p3-baby-bear",
+ "p3-bn254-fr",
+ "p3-challenger",
+ "p3-commit",
+ "p3-dft",
+ "p3-field",
+ "p3-fri",
+ "p3-matrix",
+ "p3-maybe-rayon",
+ "p3-merkle-tree",
+ "p3-poseidon2",
+ "p3-symmetric",
+ "p3-util",
+ "rand",
+ "serde",
+ "sp1-core-executor",
+ "sp1-core-machine",
+ "sp1-primitives",
+ "sp1-prover",
+ "sp1-recursion-circuit",
+ "sp1-recursion-compiler",
+ "sp1-recursion-core-v2",
+ "sp1-recursion-derive",
+ "sp1-recursion-gnark-ffi",
+ "sp1-recursion-program",
+ "sp1-stark",
+ "stacker",
+ "tracing",
+ "zkhash",
+]
+
+[[package]]
 name = "sp1-recursion-compiler"
 version = "1.1.1"
 dependencies = [

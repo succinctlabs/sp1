@@ -4,13 +4,13 @@ use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::{AbstractField, TwoAdicField};
 use p3_matrix::Dimensions;
 
-use sp1_core::{stark::StarkVerifyingKey, utils::BabyBearPoseidon2};
 use sp1_recursion_compiler::{
     circuit::CircuitV2Builder,
     ir::{Builder, Config, Ext, Felt},
 };
 
 use sp1_recursion_core_v2::DIGEST_SIZE;
+use sp1_stark::{baby_bear_poseidon2::BabyBearPoseidon2, StarkVerifyingKey};
 
 use crate::challenger::CanObserveVariable;
 

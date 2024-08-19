@@ -1,39 +1,34 @@
 use hashbrown::HashMap;
-use itertools::izip;
-use itertools::Itertools;
+use itertools::{izip, Itertools};
 use p3_commit::Mmcs;
 use p3_matrix::dense::RowMajorMatrix;
 
 use p3_air::Air;
 use p3_baby_bear::BabyBear;
-use p3_commit::Pcs;
-use p3_commit::TwoAdicMultiplicativeCoset;
+use p3_commit::{Pcs, TwoAdicMultiplicativeCoset};
 use p3_field::TwoAdicField;
+use sp1_stark::{ShardOpenedValues, Val};
 
 use p3_commit::PolynomialSpace;
-use sp1_core::air::MachineAir;
-use sp1_core::stark::ShardOpenedValues;
-use sp1_core::stark::StarkGenericConfig;
-use sp1_core::stark::StarkMachine;
-use sp1_core::stark::Val;
 
-use sp1_core::stark::StarkVerifyingKey;
-use sp1_recursion_compiler::circuit::CircuitV2Builder;
-use sp1_recursion_compiler::ir::{Builder, Config, Ext};
-use sp1_recursion_compiler::prelude::Felt;
+use sp1_recursion_compiler::{
+    circuit::CircuitV2Builder,
+    ir::{Builder, Config, Ext},
+    prelude::Felt,
+};
+use sp1_stark::{air::MachineAir, StarkGenericConfig, StarkMachine, StarkVerifyingKey};
 
-use crate::BabyBearFriConfigVariable;
-use crate::DigestVariable;
-use crate::TwoAdicPcsMatsVariable;
-use crate::TwoAdicPcsProofVariable;
+use crate::{
+    BabyBearFriConfigVariable, DigestVariable, TwoAdicPcsMatsVariable, TwoAdicPcsProofVariable,
+};
 
-use crate::challenger::CanObserveVariable;
-use crate::challenger::FeltChallenger;
-use crate::constraints::RecursiveVerifierConstraintFolder;
-use crate::domain::PolynomialSpaceVariable;
-use crate::fri::verify_two_adic_pcs;
-use crate::TwoAdicPcsRoundVariable;
-use crate::VerifyingKeyVariable;
+use crate::{
+    challenger::{CanObserveVariable, FeltChallenger},
+    constraints::RecursiveVerifierConstraintFolder,
+    domain::PolynomialSpaceVariable,
+    fri::verify_two_adic_pcs,
+    TwoAdicPcsRoundVariable, VerifyingKeyVariable,
+};
 
 /// Reference: [sp1_core::stark::ShardProof]
 #[derive(Clone)]
@@ -98,9 +93,7 @@ where
     ) where
         A: for<'a> Air<RecursiveVerifierConstraintFolder<'a, C>>,
     {
-        let chips = machine
-            .shard_chips_ordered(&proof.chip_ordering)
-            .collect::<Vec<_>>();
+        let chips = machine.shard_chips_ordered(&proof.chip_ordering).collect::<Vec<_>>();
 
         let ShardProofVariable {
             commitment,
@@ -110,31 +103,21 @@ where
             public_values,
         } = proof;
 
-        let log_degrees = opened_values
-            .chips
-            .iter()
-            .map(|val| val.log_degree)
-            .collect::<Vec<_>>();
+        let log_degrees = opened_values.chips.iter().map(|val| val.log_degree).collect::<Vec<_>>();
 
-        let log_quotient_degrees = chips
-            .iter()
-            .map(|chip| chip.log_quotient_degree())
-            .collect::<Vec<_>>();
+        let log_quotient_degrees =
+            chips.iter().map(|chip| chip.log_quotient_degree()).collect::<Vec<_>>();
 
         let trace_domains = log_degrees
             .iter()
             .map(|log_degree| Self::natural_domain_for_degree(machine.config(), 1 << log_degree))
             .collect::<Vec<_>>();
 
-        let ShardCommitmentVariable {
-            main_commit,
-            permutation_commit,
-            quotient_commit,
-        } = commitment;
+        let ShardCommitmentVariable { main_commit, permutation_commit, quotient_commit } =
+            commitment;
 
-        let permutation_challenges = (0..2)
-            .map(|_| challenger.sample_ext(builder))
-            .collect::<Vec<_>>();
+        let permutation_challenges =
+            (0..2).map(|_| challenger.sample_ext(builder)).collect::<Vec<_>>();
 
         challenger.observe_slice(builder, *permutation_commit);
 
@@ -174,10 +157,7 @@ where
             .map(|(domain, values)| TwoAdicPcsMatsVariable::<C> {
                 domain: *domain,
                 points: vec![zeta, domain.next_point_variable(builder, zeta)],
-                values: vec![
-                    values.permutation.local.clone(),
-                    values.permutation.next.clone(),
-                ],
+                values: vec![values.permutation.local.clone(), values.permutation.next.clone()],
             })
             .collect::<Vec<_>>();
 
@@ -199,15 +179,13 @@ where
             .iter()
             .zip_eq(quotient_chunk_domains.iter())
             .flat_map(|(values, qc_domains)| {
-                values
-                    .quotient
-                    .iter()
-                    .zip_eq(qc_domains)
-                    .map(move |(values, q_domain)| TwoAdicPcsMatsVariable::<C> {
+                values.quotient.iter().zip_eq(qc_domains).map(move |(values, q_domain)| {
+                    TwoAdicPcsMatsVariable::<C> {
                         domain: *q_domain,
                         points: vec![zeta],
                         values: vec![values.clone()],
-                    })
+                    }
+                })
             })
             .collect::<Vec<_>>();
 
@@ -239,12 +217,9 @@ where
 
         // Verify the constrtaint evaluations.
         builder.cycle_tracker_v2_enter("stage-e-verify-constraints".to_string());
-        for (chip, trace_domain, qc_domains, values) in izip!(
-            chips.iter(),
-            trace_domains,
-            quotient_chunk_domains,
-            opened_values.chips.iter(),
-        ) {
+        for (chip, trace_domain, qc_domains, values) in
+            izip!(chips.iter(), trace_domains, quotient_chunk_domains, opened_values.chips.iter(),)
+        {
             // Verify the shape of the opening arguments matches the expected values.
             Self::verify_opening_shape(chip, values).unwrap();
             // Verify the constraint evaluation.
@@ -282,29 +257,27 @@ impl<C: Config> ShardProofVariable<C> {
 pub(crate) mod tests {
     use std::collections::VecDeque;
 
-    use crate::challenger::CanObserveVariable;
-    use crate::challenger::DuplexChallengerVariable;
+    use crate::challenger::{CanObserveVariable, DuplexChallengerVariable};
     use p3_challenger::{CanObserve, FieldChallenger};
 
-    use sp1_core::io::SP1Stdin;
-    use sp1_core::runtime::Program;
-    use sp1_core::stark::CpuProver;
-    use sp1_core::utils::tests::FIBONACCI_ELF;
-    use sp1_core::utils::InnerChallenge;
-    use sp1_core::utils::InnerVal;
-    use sp1_core::utils::SP1CoreOpts;
-    use sp1_core::{
-        stark::{RiscvAir, StarkGenericConfig},
-        utils::BabyBearPoseidon2,
+    use sp1_core_executor::{programs::tests::FIBONACCI_ELF, Program};
+    use sp1_core_machine::{
+        riscv::RiscvAir,
+        utils::{prove, setup_logger},
     };
-    use sp1_recursion_compiler::config::InnerConfig;
-    use sp1_recursion_compiler::ir::{Builder, ExtConst};
+    use sp1_prover::init::SP1Stdin;
+    use sp1_recursion_compiler::{
+        config::InnerConfig,
+        ir::{Builder, ExtConst},
+    };
 
     use sp1_recursion_core_v2::runtime::DIGEST_SIZE;
+    use sp1_stark::{
+        baby_bear_poseidon2::BabyBearPoseidon2, CpuProver, InnerChallenge, InnerVal, SP1CoreOpts,
+    };
 
     use super::*;
-    use crate::utils::tests::run_test_recursion;
-    use crate::witness::*;
+    use crate::{utils::tests::run_test_recursion, witness::*};
 
     type SC = BabyBearPoseidon2;
     type F = InnerVal;
@@ -315,14 +288,14 @@ pub(crate) mod tests {
     #[test]
     fn test_permutation_challenges() {
         // Generate a dummy proof.
-        sp1_core::utils::setup_logger();
+        setup_logger();
         let elf = FIBONACCI_ELF;
 
         let machine = A::machine(SC::default());
-        let (_, vk) = machine.setup(&Program::from(elf));
+        let (_, vk) = machine.setup(&Program::from(elf).unwrap());
         let mut challenger_val = machine.config().challenger();
-        let (proof, _, _) = sp1_core::utils::prove::<_, CpuProver<_, _>>(
-            Program::from(elf),
+        let (proof, _, _) = prove::<_, CpuProver<_, _>>(
+            Program::from(elf).unwrap(),
             &SP1Stdin::new(),
             SC::default(),
             SP1CoreOpts::default(),
@@ -338,9 +311,8 @@ pub(crate) mod tests {
             challenger_val.observe_slice(&proof.public_values[0..machine.num_pv_elts()]);
         });
 
-        let permutation_challenges = (0..2)
-            .map(|_| challenger_val.sample_ext_element::<EF>())
-            .collect::<Vec<_>>();
+        let permutation_challenges =
+            (0..2).map(|_| challenger_val.sample_ext_element::<EF>()).collect::<Vec<_>>();
 
         // Observe all the commitments.
         let mut builder = Builder::<InnerConfig>::default();
@@ -363,15 +335,11 @@ pub(crate) mod tests {
         }
 
         // Sample the permutation challenges.
-        let permutation_challenges_var = (0..2)
-            .map(|_| challenger.sample_ext(&mut builder))
-            .collect::<Vec<_>>();
+        let permutation_challenges_var =
+            (0..2).map(|_| challenger.sample_ext(&mut builder)).collect::<Vec<_>>();
 
         for i in 0..2 {
-            builder.assert_ext_eq(
-                permutation_challenges_var[i],
-                permutation_challenges[i].cons(),
-            );
+            builder.assert_ext_eq(permutation_challenges_var[i], permutation_challenges[i].cons());
         }
 
         run_test_recursion(builder.operations, witness_stream);
@@ -380,13 +348,13 @@ pub(crate) mod tests {
     #[test]
     fn test_verify_shard() {
         // Generate a dummy proof.
-        sp1_core::utils::setup_logger();
+        setup_logger();
         let elf = FIBONACCI_ELF;
 
         let machine = A::machine(SC::default());
-        let (_, vk) = machine.setup(&Program::from(elf));
-        let (proof, _, _) = sp1_core::utils::prove::<_, CpuProver<_, _>>(
-            Program::from(elf),
+        let (_, vk) = machine.setup(&Program::from(elf).unwrap());
+        let (proof, _, _) = prove::<_, CpuProver<_, _>>(
+            Program::from(elf).unwrap(),
             &SP1Stdin::new(),
             SC::default(),
             SP1CoreOpts::default(),

@@ -1,15 +1,14 @@
 use p3_air::{Air, BaseAir};
 use p3_baby_bear::BabyBear;
-use p3_commit::PolynomialSpace;
-use p3_commit::{LagrangeSelectors, Mmcs, TwoAdicMultiplicativeCoset};
-use p3_field::TwoAdicField;
-use p3_field::{AbstractExtensionField, AbstractField};
+use p3_commit::{LagrangeSelectors, Mmcs, PolynomialSpace, TwoAdicMultiplicativeCoset};
+use p3_field::{AbstractExtensionField, AbstractField, TwoAdicField};
 use p3_matrix::dense::RowMajorMatrix;
 
-use sp1_core::air::MachineAir;
-use sp1_core::stark::{AirOpenedValues, GenericVerifierConstraintFolder, MachineChip};
-use sp1_core::stark::{ChipOpenedValues, OpeningShapeError};
 use sp1_recursion_compiler::ir::{Builder, Config, Ext, Felt, SymbolicExt};
+use sp1_stark::{
+    air::MachineAir, AirOpenedValues, ChipOpenedValues, GenericVerifierConstraintFolder,
+    MachineChip, OpeningShapeError,
+};
 
 use crate::{domain::PolynomialSpaceVariable, stark::StarkVerifier, BabyBearFriConfigVariable};
 
@@ -129,9 +128,7 @@ where
                     .map(|(_, other_domain)| {
                         let first_point = builder.eval(domain.first_point());
                         other_domain.zp_at_point_variable(builder, zeta)
-                            * other_domain
-                                .zp_at_point_variable(builder, first_point)
-                                .inverse()
+                            * other_domain.zp_at_point_variable(builder, first_point).inverse()
                     })
                     .product::<SymbolicExt<_, _>>()
             })

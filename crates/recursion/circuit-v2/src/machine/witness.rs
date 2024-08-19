@@ -2,25 +2,18 @@ use std::borrow::Borrow;
 
 use p3_baby_bear::BabyBear;
 use p3_challenger::DuplexChallenger;
-use p3_field::AbstractField;
 use p3_symmetric::Hash;
 
-use sp1_core::air::MachineAir;
-use sp1_core::stark::StarkVerifyingKey;
-use sp1_core::utils::BabyBearPoseidon2;
-use sp1_core::utils::InnerChallenge;
-use sp1_core::utils::InnerPerm;
-use sp1_core::utils::InnerVal;
+use p3_field::AbstractField;
+use sp1_recursion_compiler::ir::{Builder, Config};
+use sp1_stark::{
+    air::MachineAir, baby_bear_poseidon2::BabyBearPoseidon2, InnerChallenge, InnerPerm, InnerVal,
+    StarkVerifyingKey,
+};
 
-use sp1_recursion_compiler::ir::Builder;
-use sp1_recursion_compiler::ir::Config;
+use crate::{challenger::DuplexChallengerVariable, witness::Witnessable, VerifyingKeyVariable};
 
-use crate::challenger::DuplexChallengerVariable;
-use crate::witness::Witnessable;
-use crate::VerifyingKeyVariable;
-
-use super::SP1RecursionMemoryLayout;
-use super::SP1RecursionWitnessVariable;
+use super::{SP1RecursionMemoryLayout, SP1RecursionWitnessVariable};
 
 impl<C> Witnessable<C> for DuplexChallenger<InnerVal, InnerPerm, 16, 8>
 where
@@ -32,11 +25,7 @@ where
         let sponge_state = self.sponge_state.read(builder);
         let input_buffer = self.input_buffer.read(builder);
         let output_buffer = self.output_buffer.read(builder);
-        DuplexChallengerVariable {
-            sponge_state,
-            input_buffer,
-            output_buffer,
-        }
+        DuplexChallengerVariable { sponge_state, input_buffer, output_buffer }
     }
 
     fn write(&self) -> Vec<crate::witness::Witness<C>> {
@@ -78,20 +67,11 @@ where
         let pc_start = self.pc_start.read(builder);
         let chip_information = self.chip_information.clone();
         let chip_ordering = self.chip_ordering.clone();
-        VerifyingKeyVariable {
-            commitment,
-            pc_start,
-            chip_information,
-            chip_ordering,
-        }
+        VerifyingKeyVariable { commitment, pc_start, chip_information, chip_ordering }
     }
 
     fn write(&self) -> Vec<crate::witness::Witness<C>> {
-        [
-            Witnessable::<C>::write(&self.commit),
-            Witnessable::<C>::write(&self.pc_start),
-        ]
-        .concat()
+        [Witnessable::<C>::write(&self.commit), Witnessable::<C>::write(&self.pc_start)].concat()
     }
 }
 

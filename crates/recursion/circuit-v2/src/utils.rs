@@ -31,29 +31,22 @@ pub fn commit_recursion_public_values<C: Config>(
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use sp1_core::utils::setup_logger;
-    use sp1_core::utils::BabyBearPoseidon2;
-    use sp1_core::utils::InnerChallenge;
-    use sp1_core::utils::InnerVal;
-    use sp1_recursion_compiler::asm::AsmConfig;
-    use sp1_recursion_compiler::circuit::AsmCompiler;
-    use sp1_recursion_compiler::ir::DslIr;
+    use sp1_core_machine::utils::{run_test_machine, setup_logger};
+    use sp1_recursion_compiler::{asm::AsmConfig, circuit::AsmCompiler, ir::DslIr};
 
     use sp1_recursion_compiler::ir::TracedVec;
-    use sp1_recursion_core_v2::machine::RecursionAir;
-    use sp1_recursion_core_v2::Runtime;
+    use sp1_recursion_core_v2::{machine::RecursionAir, Runtime};
+    use sp1_stark::{baby_bear_poseidon2::BabyBearPoseidon2, InnerChallenge, InnerVal};
 
     use crate::witness::Witness;
-
-    use sp1_core::utils::run_test_machine;
 
     type SC = BabyBearPoseidon2;
     type F = InnerVal;
     type EF = InnerChallenge;
 
     /// A simplified version of some code from `recursion/core/src/stark/mod.rs`.
-    /// Takes in a program and runs it with the given witness and generates a proof with a variety of
-    /// machines depending on the provided test_config.
+    /// Takes in a program and runs it with the given witness and generates a proof with a variety
+    /// of machines depending on the provided test_config.
     pub(crate) fn run_test_recursion(
         operations: TracedVec<DslIr<AsmConfig<F, EF>>>,
         witness_stream: impl IntoIterator<Item = Witness<AsmConfig<F, EF>>>,

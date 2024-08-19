@@ -64,6 +64,7 @@ impl ProverClient {
         #[cfg(debug_assertions)]
         panic!("sp1-sdk must be built in release mode. please compile with the --release flag.");
 
+        #[allow(unreachable_code)]
         match env::var("SP1_PROVER").unwrap_or("local".to_string()).to_lowercase().as_str() {
             "mock" => Self { prover: Box::new(MockProver::new()) },
             "local" => Self { prover: Box::new(LocalProver::new()) },

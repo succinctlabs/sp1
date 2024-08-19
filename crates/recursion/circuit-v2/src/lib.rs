@@ -19,6 +19,10 @@ pub mod stark;
 pub(crate) mod utils;
 pub mod witness;
 
+use sp1_stark::{
+    baby_bear_poseidon2::{BabyBearPoseidon2, ValMmcs},
+    StarkGenericConfig,
+};
 pub use types::*;
 
 use p3_challenger::{CanObserve, CanSample, FieldChallenger, GrindingChallenger};
@@ -28,7 +32,6 @@ use p3_fri::{FriConfig, TwoAdicFriPcs};
 use sp1_recursion_core_v2::stark::config::{BabyBearPoseidon2Outer, OuterValMmcs};
 
 use p3_baby_bear::BabyBear;
-use sp1_core::{stark::StarkGenericConfig, utils::BabyBearPoseidon2};
 
 type EF = <BabyBearPoseidon2 as StarkGenericConfig>::Challenge;
 
@@ -72,12 +75,9 @@ pub trait BabyBearFriConfigVariable: BabyBearFriConfig {
 }
 
 impl BabyBearFriConfig for BabyBearPoseidon2 {
-    type ValMmcs = sp1_core::utils::baby_bear_poseidon2::ValMmcs;
+    type ValMmcs = ValMmcs;
     type FriChallenger = <Self as StarkGenericConfig>::Challenger;
-    type RowMajorProverData =
-        <sp1_core::utils::baby_bear_poseidon2::ValMmcs as Mmcs<BabyBear>>::ProverData<
-            RowMajorMatrix<BabyBear>,
-        >;
+    type RowMajorProverData = <ValMmcs as Mmcs<BabyBear>>::ProverData<RowMajorMatrix<BabyBear>>;
 
     fn fri_config(&self) -> &FriConfig<FriMmcs<Self>> {
         self.pcs().fri_config()

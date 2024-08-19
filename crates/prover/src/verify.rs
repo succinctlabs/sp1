@@ -449,8 +449,8 @@ pub fn verify_plonk_bn254_public_inputs(
     Ok(())
 }
 
-/// Verify the vk_hash and public_values_hash in the public inputs of the Groth16Bn254Proof match the
-/// expected values.
+/// Verify the vk_hash and public_values_hash in the public inputs of the Groth16Bn254Proof match
+/// the expected values.
 pub fn verify_groth16_bn254_public_inputs(
     vk: &SP1VerifyingKey,
     public_values: &SP1PublicValues,
