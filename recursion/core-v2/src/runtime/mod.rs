@@ -37,10 +37,10 @@ use crate::*;
 
 /// The heap pointer address.
 pub const HEAP_PTR: i32 = -4;
-pub const HEAP_START_ADDRESS: usize = STACK_SIZE + 4;
+// pub const HEAP_START_ADDRESS: usize = STACK_SIZE + 4;
 
-pub const STACK_SIZE: usize = 1 << 24;
-pub const MEMORY_SIZE: usize = 1 << 28;
+// pub const STACK_SIZE: usize = 1 << 24;
+// pub const MEMORY_SIZE: usize = 1 << 28;
 
 /// The width of the Poseidon2 permutation.
 pub const PERMUTATION_WIDTH: usize = 16;

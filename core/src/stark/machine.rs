@@ -82,7 +82,7 @@ impl<SC: StarkGenericConfig> StarkProvingKey<SC> {
 
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(bound(serialize = "Dom<SC>: Serialize"))]
-#[serde(bound(deserialize = "Dom<SC>: DeserializeOwned"))]
+#[serde(bound(deserialize = "Dom<SC>: Deserialize<'de>"))]
 pub struct StarkVerifyingKey<SC: StarkGenericConfig> {
     pub commit: Com<SC>,
     pub pc_start: Val<SC>,

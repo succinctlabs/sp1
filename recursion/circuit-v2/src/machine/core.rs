@@ -107,37 +107,38 @@ where
         } = input;
 
         // Initialize shard variables.
-        let initial_shard: Felt<_> = builder.uninit();
-        let current_shard: Felt<_> = builder.uninit();
+        let mut initial_shard: Felt<_> = builder.uninit();
+        let mut current_shard: Felt<_> = builder.uninit();
 
         // Initialize execution shard variables.
-        let initial_execution_shard: Felt<_> = builder.uninit();
-        let current_execution_shard: Felt<_> = builder.uninit();
+        let mut initial_execution_shard: Felt<_> = builder.uninit();
+        let mut current_execution_shard: Felt<_> = builder.uninit();
 
         // Initialize program counter variables.
-        let start_pc: Felt<_> = builder.uninit();
-        let current_pc: Felt<_> = builder.uninit();
+        let mut start_pc: Felt<_> = builder.uninit();
+        let mut current_pc: Felt<_> = builder.uninit();
 
         // Initialize memory initialization and finalization variables.
-        let initial_previous_init_addr_bits: [Felt<_>; 32] = array::from_fn(|_| builder.uninit());
-        let initial_previous_finalize_addr_bits: [Felt<_>; 32] =
+        let mut initial_previous_init_addr_bits: [Felt<_>; 32] =
             array::from_fn(|_| builder.uninit());
-        let current_init_addr_bits: [Felt<_>; 32] = array::from_fn(|_| builder.uninit());
-        let current_finalize_addr_bits: [Felt<_>; 32] = array::from_fn(|_| builder.uninit());
+        let mut initial_previous_finalize_addr_bits: [Felt<_>; 32] =
+            array::from_fn(|_| builder.uninit());
+        let mut current_init_addr_bits: [Felt<_>; 32] = array::from_fn(|_| builder.uninit());
+        let mut current_finalize_addr_bits: [Felt<_>; 32] = array::from_fn(|_| builder.uninit());
 
         // Initialize the exit code variable.
-        let exit_code: Felt<_> = builder.uninit();
+        let mut exit_code: Felt<_> = builder.uninit();
 
         // Initialize the public values digest.
-        let committed_value_digest: [Word<Felt<_>>; PV_DIGEST_NUM_WORDS] =
+        let mut committed_value_digest: [Word<Felt<_>>; PV_DIGEST_NUM_WORDS] =
             array::from_fn(|_| Word(array::from_fn(|_| builder.uninit())));
 
         // Initialize the deferred proofs digest.
-        let deferred_proofs_digest: [Felt<_>; POSEIDON_NUM_WORDS] =
+        let mut deferred_proofs_digest: [Felt<_>; POSEIDON_NUM_WORDS] =
             array::from_fn(|_| builder.uninit());
 
         // Initialize the challenger variables.
-        let leaf_challenger_public_values = leaf_challenger.public_values(builder);
+        let mut leaf_challenger_public_values = leaf_challenger.public_values(builder);
         let mut reconstruct_challenger: DuplexChallengerVariable<_> =
             initial_reconstruct_challenger.copy(builder);
 
@@ -162,54 +163,54 @@ where
             // If this is the first proof in the batch, initialize the variables.
             if i == 0 {
                 // Shard.
-                builder.assign(initial_shard, public_values.shard);
-                builder.assign(current_shard, public_values.shard);
+                initial_shard = public_values.shard;
+                current_shard = public_values.shard;
 
                 // Execution shard.
-                builder.assign(initial_execution_shard, public_values.execution_shard);
-                builder.assign(current_execution_shard, public_values.execution_shard);
+                initial_execution_shard = public_values.execution_shard;
+                current_execution_shard = public_values.execution_shard;
 
                 // Program counter.
-                builder.assign(start_pc, public_values.start_pc);
-                builder.assign(current_pc, public_values.start_pc);
+                start_pc = public_values.start_pc;
+                current_pc = public_values.start_pc;
 
                 // Memory initialization & finalization.
                 for ((bit, pub_bit), first_bit) in current_init_addr_bits
-                    .iter()
+                    .iter_mut()
                     .zip(public_values.previous_init_addr_bits.iter())
-                    .zip(initial_previous_init_addr_bits.iter())
+                    .zip(initial_previous_init_addr_bits.iter_mut())
                 {
-                    builder.assign(*bit, *pub_bit);
-                    builder.assign(*first_bit, *pub_bit);
+                    *bit = *pub_bit;
+                    *first_bit = *pub_bit;
                 }
                 for ((bit, pub_bit), first_bit) in current_finalize_addr_bits
-                    .iter()
+                    .iter_mut()
                     .zip(public_values.previous_finalize_addr_bits.iter())
-                    .zip(initial_previous_finalize_addr_bits.iter())
+                    .zip(initial_previous_finalize_addr_bits.iter_mut())
                 {
-                    builder.assign(*bit, *pub_bit);
-                    builder.assign(*first_bit, *pub_bit);
+                    *bit = *pub_bit;
+                    *first_bit = *pub_bit;
                 }
 
                 // Exit code.
-                builder.assign(exit_code, public_values.exit_code);
+                exit_code = public_values.exit_code;
 
                 // Commited public values digests.
                 for (word, first_word) in committed_value_digest
-                    .iter()
+                    .iter_mut()
                     .zip_eq(public_values.committed_value_digest.iter())
                 {
-                    for (byte, first_byte) in word.0.iter().zip_eq(first_word.0.iter()) {
-                        builder.assign(*byte, *first_byte);
+                    for (byte, first_byte) in word.0.iter_mut().zip_eq(first_word.0.iter()) {
+                        *byte = *first_byte;
                     }
                 }
 
                 // Deferred proofs digests.
                 for (digest, first_digest) in deferred_proofs_digest
-                    .iter()
+                    .iter_mut()
                     .zip_eq(public_values.deferred_proofs_digest.iter())
                 {
-                    builder.assign(*digest, *first_digest);
+                    *digest = *first_digest;
                 }
             }
 
@@ -276,10 +277,7 @@ where
                     // Assert that the shard of the proof is equal to the current shard.
                     // builder.assert_felt_eq(current_execution_shard, public_values.execution_shard);
 
-                    builder.assign(
-                        current_execution_shard,
-                        current_execution_shard + C::F::one(),
-                    );
+                    current_execution_shard = builder.eval(current_execution_shard + C::F::one());
                 }
             }
 
@@ -305,7 +303,7 @@ where
                 // });
 
                 // Update current_pc to be the end_pc of the current proof.
-                builder.assign(current_pc, public_values.next_pc);
+                current_pc = public_values.next_pc;
             }
 
             // Exit code constraints.
@@ -373,18 +371,18 @@ where
 
                 // Update the MemoryInitialize address bits.
                 for (bit, pub_bit) in current_init_addr_bits
-                    .iter()
+                    .iter_mut()
                     .zip(public_values.last_init_addr_bits.iter())
                 {
-                    builder.assign(*bit, *pub_bit);
+                    *bit = *pub_bit;
                 }
 
                 // Update the MemoryFinalize address bits.
                 for (bit, pub_bit) in current_finalize_addr_bits
-                    .iter()
+                    .iter_mut()
                     .zip(public_values.last_finalize_addr_bits.iter())
                 {
-                    builder.assign(*bit, *pub_bit);
+                    *bit = *pub_bit;
                 }
             }
 
