@@ -354,9 +354,6 @@ where
                     self.record
                         .poseidon2_events
                         .push(Poseidon2Event { input: in_vals, output: perm_output });
-                    self.record
-                        .poseidon2_events
-                        .push(Poseidon2Event { input: in_vals, output: perm_output });
                 }
                 Instruction::ExpReverseBitsLen(ExpReverseBitsInstr {
                     addrs: ExpReverseBitsIo { base, exp, result },
