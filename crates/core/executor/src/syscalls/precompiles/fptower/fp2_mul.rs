@@ -49,6 +49,7 @@ impl<P: FpOpField> Syscall for Fp2MulSyscall<P> {
         let bc1 = &BigUint::from_slice(bc1);
         let modulus = &BigUint::from_bytes_le(P::MODULUS);
 
+        #[allow(clippy::match_bool)]
         let c0 = match (ac0 * bc0) % modulus < (ac1 * bc1) % modulus {
             true => ((modulus + (ac0 * bc0) % modulus) - (ac1 * bc1) % modulus) % modulus,
             false => ((ac0 * bc0) % modulus - (ac1 * bc1) % modulus) % modulus,

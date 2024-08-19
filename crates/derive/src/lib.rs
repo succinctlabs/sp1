@@ -99,7 +99,6 @@ pub fn machine_air_derive(input: TokenStream) -> TokenStream {
 
     let name = &ast.ident;
     let generics = &ast.generics;
-    let sp1_core_path = find_sp1_core_path(&ast.attrs);
     let execution_record_path = find_execution_record_path(&ast.attrs);
     let program_path = find_program_path(&ast.attrs);
     let builder_path = find_builder_path(&ast.attrs);
@@ -305,19 +304,6 @@ pub fn cycle_tracker(_attr: TokenStream, item: TokenStream) -> TokenStream {
     };
 
     result.into()
-}
-
-fn find_sp1_core_path(attrs: &[syn::Attribute]) -> syn::Ident {
-    for attr in attrs {
-        if attr.path.is_ident("sp1_core_path") {
-            if let Ok(syn::Meta::NameValue(meta)) = attr.parse_meta() {
-                if let syn::Lit::Str(lit_str) = &meta.lit {
-                    return syn::Ident::new(&lit_str.value(), lit_str.span());
-                }
-            }
-        }
-    }
-    syn::Ident::new("sp1_stark", proc_macro2::Span::call_site())
 }
 
 fn find_execution_record_path(attrs: &[syn::Attribute]) -> syn::Path {

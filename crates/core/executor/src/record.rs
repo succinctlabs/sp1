@@ -72,21 +72,20 @@ pub struct ExecutionRecord {
     pub memory_initialize_events: Vec<MemoryInitializeFinalizeEvent>,
     /// A trace of the memory finalize events.
     pub memory_finalize_events: Vec<MemoryInitializeFinalizeEvent>,
-
+    /// A trace of the bls12381 decompress events.
     pub bls12381_decompress_events: Vec<EllipticCurveDecompressEvent>,
-
+    /// A trace of the bls12381 fp events.
     pub bls12381_fp_events: Vec<FpOpEvent>,
-
+    /// A trace of the bls12381 fp2 add/sub events.
     pub bls12381_fp2_addsub_events: Vec<Fp2AddSubEvent>,
-
+    /// A trace of the bls12381 fp2 mul events.
     pub bls12381_fp2_mul_events: Vec<Fp2MulEvent>,
-
+    /// A trace of the bn254 fp events.
     pub bn254_fp_events: Vec<FpOpEvent>,
-
+    /// A trace of the bn254 fp2 add/sub events.
     pub bn254_fp2_addsub_events: Vec<Fp2AddSubEvent>,
-
+    /// A trace of the bn254 fp2 mul events.
     pub bn254_fp2_mul_events: Vec<Fp2MulEvent>,
-
     /// The public values.
     pub public_values: PublicValues<u32, u32>,
     /// The nonce lookup.

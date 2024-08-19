@@ -156,6 +156,18 @@ impl SyscallCode {
             0x00_00_00_F0 => SyscallCode::HINT_LEN,
             0x00_00_00_F1 => SyscallCode::HINT_READ,
             0x00_01_01_1D => SyscallCode::UINT256_MUL,
+            0x00_01_01_20 => SyscallCode::BLS12381_FP_ADD,
+            0x00_01_01_21 => SyscallCode::BLS12381_FP_SUB,
+            0x00_01_01_22 => SyscallCode::BLS12381_FP_MUL,
+            0x00_01_01_23 => SyscallCode::BLS12381_FP2_ADD,
+            0x00_01_01_24 => SyscallCode::BLS12381_FP2_SUB,
+            0x00_01_01_25 => SyscallCode::BLS12381_FP2_MUL,
+            0x00_01_01_26 => SyscallCode::BN254_FP_ADD,
+            0x00_01_01_27 => SyscallCode::BN254_FP_SUB,
+            0x00_01_01_28 => SyscallCode::BN254_FP_MUL,
+            0x00_01_01_29 => SyscallCode::BN254_FP2_ADD,
+            0x00_01_01_2A => SyscallCode::BN254_FP2_SUB,
+            0x00_01_01_2B => SyscallCode::BN254_FP2_MUL,
             0x00_00_01_1C => SyscallCode::BLS12381_DECOMPRESS,
             _ => panic!("invalid syscall number: {value}"),
         }
@@ -180,6 +192,8 @@ impl SyscallCode {
     }
 
     /// Map a syscall to another one in order to coalesce their counts.
+    #[must_use]
+    #[allow(clippy::match_same_arms)]
     pub fn count_map(&self) -> Self {
         match self {
             SyscallCode::BN254_FP_SUB => SyscallCode::BN254_FP_ADD,

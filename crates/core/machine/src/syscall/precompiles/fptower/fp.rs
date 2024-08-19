@@ -17,7 +17,7 @@ use sp1_core_executor::{
     ExecutionRecord, Program,
 };
 use sp1_curves::{
-    params::{FieldParameters, Limbs, NumLimbs, NumWords},
+    params::{Limbs, NumLimbs},
     weierstrass::{FieldType, FpOpField},
 };
 use sp1_derive::AlignedBorrow;
@@ -28,8 +28,6 @@ use crate::{
     operations::field::field_op::FieldOpCols,
     utils::{limbs_from_prev_access, pad_rows, words_to_bytes_le_vec},
 };
-
-use super::fp2_mul::Fp2MulAssignCols;
 
 pub const fn num_fp_cols<P: FpOpField>() -> usize {
     size_of::<FpOpCols<u8, P>>()

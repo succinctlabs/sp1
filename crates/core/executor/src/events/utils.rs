@@ -25,6 +25,7 @@ pub fn create_alu_lookups() -> [u128; 6] {
 /// The first column consists of the counts, is right-justified, and is padded precisely
 /// enough to fit all the numbers. The second column consists of the labels (e.g. `OpCode`s).
 /// The columns are separated by a single space character.
+#[allow(clippy::type_complexity)]
 pub fn sorted_table_lines<'a, K, V>(
     table: impl IntoIterator<Item = (K, V)> + 'a,
 ) -> Map<

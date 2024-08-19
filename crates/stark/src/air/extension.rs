@@ -91,12 +91,16 @@ impl<F> BinomialExtension<F>
 where
     F: BinomiallyExtendable<4>,
 {
+    /// Returns the multiplicative inverse of the element.
+    #[must_use]
     pub fn inverse(&self) -> Self {
         let p3_ef = BinomialExtensionField::from_base_slice(&self.0);
         let p3_ef_inverse = p3_ef.inverse();
         Self(p3_ef_inverse.as_base_slice().try_into().unwrap())
     }
 
+    /// Returns the multiplicative inverse of the element, if it exists.
+    #[must_use]
     pub fn try_inverse(&self) -> Option<Self> {
         let p3_ef = BinomialExtensionField::from_base_slice(&self.0);
         let p3_ef_inverse = p3_ef.try_inverse()?;
