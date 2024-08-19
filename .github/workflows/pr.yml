@@ -7,14 +7,7 @@ on:
     branches:
       - "**"
     paths:
-      - "cli/**"
-      - "core/**"
-      - "prover/**"
-      - "recursion/**"
-      - "derive/**"
-      - "sdk/**"
-      - "zkvm/**"
-      - "tests/**"
+      - "crates/**"
       - "examples/**"
       - "Cargo.toml"
       - ".github/workflows/**"
