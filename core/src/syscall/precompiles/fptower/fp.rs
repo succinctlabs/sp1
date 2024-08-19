@@ -91,8 +91,12 @@ impl<P: FpOpField> Syscall for FpOpSyscall<P> {
         let (y_memory_records, y) = rt.mr_slice(y_ptr, num_words);
 
         let modulus = &BigUint::from_bytes_le(P::MODULUS);
-        let a = BigUint::from_slice(&x) % modulus;
-        let b = BigUint::from_slice(&y) % modulus;
+        let a = BigUint::from_slice(&x);
+        let b = BigUint::from_slice(&y);
+
+        println!("a: {}", a < *modulus);
+        println!("b: {}", b < *modulus);
+        println!("modulus: {}", modulus);
 
         let result = match self.op {
             FieldOperation::Add => (a + b) % modulus,
@@ -127,6 +131,36 @@ impl<P: FpOpField> Syscall for FpOpSyscall<P> {
             }
             FieldType::Bls12381 => {
                 rt.record_mut().bls12381_fp_events.push(FpOpEvent {
+                    lookup_id,
+                    shard,
+                    channel,
+                    clk,
+                    x_ptr,
+                    x,
+                    y_ptr,
+                    y,
+                    op: self.op,
+                    x_memory_records,
+                    y_memory_records,
+                });
+            }
+            FieldType::Bn254Scalar => {
+                rt.record_mut().bn254_fr_events.push(FpOpEvent {
+                    lookup_id,
+                    shard,
+                    channel,
+                    clk,
+                    x_ptr,
+                    x,
+                    y_ptr,
+                    y,
+                    op: self.op,
+                    x_memory_records,
+                    y_memory_records,
+                });
+            }
+            FieldType::Bls12381Scalar => {
+                rt.record_mut().bls12381_fr_events.push(FpOpEvent {
                     lookup_id,
                     shard,
                     channel,
@@ -192,6 +226,8 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for FpOpChip<P> {
         match P::FIELD_TYPE {
             FieldType::Bn254 => "Bn254FpOpAssign".to_string(),
             FieldType::Bls12381 => "Bls12381FpOpAssign".to_string(),
+            FieldType::Bn254Scalar => "Bn254FrOpAssign".to_string(),
+            FieldType::Bls12381Scalar => "Bls12381FrOpAssign".to_string(),
         }
     }
 
@@ -199,6 +235,8 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for FpOpChip<P> {
         let events = match P::FIELD_TYPE {
             FieldType::Bn254 => &input.bn254_fp_events,
             FieldType::Bls12381 => &input.bls12381_fp_events,
+            FieldType::Bn254Scalar => &input.bn254_fr_events,
+            FieldType::Bls12381Scalar => &input.bls12381_fr_events,
         };
 
         let mut rows = Vec::new();
@@ -291,6 +329,8 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for FpOpChip<P> {
         match P::FIELD_TYPE {
             FieldType::Bn254 => !shard.bn254_fp_events.is_empty(),
             FieldType::Bls12381 => !shard.bls12381_fp_events.is_empty(),
+            FieldType::Bn254Scalar => !shard.bn254_fr_events.is_empty(),
+            FieldType::Bls12381Scalar => !shard.bls12381_fr_events.is_empty(),
         }
     }
 }
@@ -375,6 +415,16 @@ where
                 AB::F::from_canonical_u32(SyscallCode::BLS12381_FP_ADD.syscall_id()),
                 AB::F::from_canonical_u32(SyscallCode::BLS12381_FP_SUB.syscall_id()),
                 AB::F::from_canonical_u32(SyscallCode::BLS12381_FP_MUL.syscall_id()),
+            ),
+            FieldType::Bn254Scalar => (
+                AB::F::from_canonical_u32(SyscallCode::BN254_FR_ADD.syscall_id()),
+                AB::F::from_canonical_u32(SyscallCode::BN254_FR_SUB.syscall_id()),
+                AB::F::from_canonical_u32(SyscallCode::BN254_FR_MUL.syscall_id()),
+            ),
+            FieldType::Bls12381Scalar => (
+                AB::F::from_canonical_u32(SyscallCode::BLS12381_FR_ADD.syscall_id()),
+                AB::F::from_canonical_u32(SyscallCode::BLS12381_FR_SUB.syscall_id()),
+                AB::F::from_canonical_u32(SyscallCode::BLS12381_FR_MUL.syscall_id()),
             ),
         };
         let syscall_id_felt = local.is_add * add_syscall_id

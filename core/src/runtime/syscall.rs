@@ -21,8 +21,10 @@ use crate::syscall::{
     SyscallHalt, SyscallHintLen, SyscallHintRead, SyscallVerifySP1Proof, SyscallWrite,
 };
 use crate::utils::ec::edwards::ed25519::{Ed25519, Ed25519Parameters};
-use crate::utils::ec::weierstrass::bls12_381::{Bls12381, Bls12381BaseField};
-use crate::utils::ec::weierstrass::bn254::Bn254BaseField;
+use crate::utils::ec::weierstrass::bls12_381::{
+    Bls12381, Bls12381BaseField, Bls12381ScalarBaseField,
+};
+use crate::utils::ec::weierstrass::bn254::{Bn254BaseField, Bn254ScalarBaseField};
 use crate::utils::ec::weierstrass::{bn254::Bn254, secp256k1::Secp256k1};
 use crate::{runtime::ExecutionRecord, runtime::MemoryReadRecord, runtime::MemoryWriteRecord};
 
@@ -141,6 +143,24 @@ pub enum SyscallCode {
 
     /// Executes the `BN254_FP2_MUL` precompile.
     BN254_FP2_MUL = 0x00_01_01_2B,
+
+    /// Executes the `BLS12381_FR_ADD` precompile.
+    BLS12381_FR_ADD = 0x00_01_01_2C,
+
+    /// Executes the `BLS12381_FR_ADD` precompile.
+    BLS12381_FR_SUB = 0x00_01_01_2D,
+
+    /// Executes the `BLS12381_FR_ADD` precompile.
+    BLS12381_FR_MUL = 0x00_01_01_2E,
+
+    /// Executes the `BN254_FR_ADD` precompile.
+    BN254_FR_ADD = 0x00_01_01_30,
+
+    /// Executes the `BN254_FR_ADD` precompile.
+    BN254_FR_SUB = 0x00_01_01_31,
+
+    /// Executes the `BN254_FR_ADD` precompile.
+    BN254_FR_MUL = 0x00_01_01_33,
 }
 
 impl SyscallCode {
@@ -181,6 +201,12 @@ impl SyscallCode {
             0x00_01_01_29 => SyscallCode::BN254_FP2_ADD,
             0x00_01_01_2A => SyscallCode::BN254_FP2_SUB,
             0x00_01_01_2B => SyscallCode::BN254_FP2_MUL,
+            0x00_01_01_2C => SyscallCode::BLS12381_FR_ADD,
+            0x00_01_01_2D => SyscallCode::BLS12381_FR_SUB,
+            0x00_01_01_2E => SyscallCode::BLS12381_FR_MUL,
+            0x00_01_01_30 => SyscallCode::BN254_FR_ADD,
+            0x00_01_01_31 => SyscallCode::BN254_FR_SUB,
+            0x00_01_01_33 => SyscallCode::BN254_FR_MUL,
             0x00_00_01_1C => SyscallCode::BLS12381_DECOMPRESS,
             _ => panic!("invalid syscall number: {}", value),
         }
@@ -207,6 +233,12 @@ impl SyscallCode {
             SyscallCode::BLS12381_FP_SUB => SyscallCode::BLS12381_FP_ADD,
             SyscallCode::BLS12381_FP_MUL => SyscallCode::BLS12381_FP_ADD,
             SyscallCode::BLS12381_FP2_SUB => SyscallCode::BLS12381_FP2_ADD,
+            SyscallCode::BLS12381_FR_ADD => SyscallCode::BLS12381_FR_ADD,
+            SyscallCode::BLS12381_FR_SUB => SyscallCode::BLS12381_FR_ADD,
+            SyscallCode::BLS12381_FR_MUL => SyscallCode::BLS12381_FR_ADD,
+            SyscallCode::BN254_FR_ADD => SyscallCode::BN254_FR_ADD,
+            SyscallCode::BN254_FR_SUB => SyscallCode::BN254_FR_ADD,
+            SyscallCode::BN254_FR_MUL => SyscallCode::BN254_FR_ADD,
             _ => *self,
         }
     }
@@ -388,6 +420,42 @@ pub fn default_syscall_map() -> HashMap<SyscallCode, Arc<dyn Syscall>> {
     syscall_map.insert(
         SyscallCode::BLS12381_FP_MUL,
         Arc::new(FpOpSyscall::<Bls12381BaseField>::new(FieldOperation::Mul)),
+    );
+    syscall_map.insert(
+        SyscallCode::BLS12381_FR_ADD,
+        Arc::new(FpOpSyscall::<Bls12381ScalarBaseField>::new(
+            FieldOperation::Add,
+        )),
+    );
+    syscall_map.insert(
+        SyscallCode::BLS12381_FR_SUB,
+        Arc::new(FpOpSyscall::<Bls12381ScalarBaseField>::new(
+            FieldOperation::Sub,
+        )),
+    );
+    syscall_map.insert(
+        SyscallCode::BLS12381_FR_MUL,
+        Arc::new(FpOpSyscall::<Bls12381ScalarBaseField>::new(
+            FieldOperation::Mul,
+        )),
+    );
+    syscall_map.insert(
+        SyscallCode::BN254_FR_ADD,
+        Arc::new(FpOpSyscall::<Bn254ScalarBaseField>::new(
+            FieldOperation::Add,
+        )),
+    );
+    syscall_map.insert(
+        SyscallCode::BN254_FR_SUB,
+        Arc::new(FpOpSyscall::<Bn254ScalarBaseField>::new(
+            FieldOperation::Sub,
+        )),
+    );
+    syscall_map.insert(
+        SyscallCode::BN254_FR_MUL,
+        Arc::new(FpOpSyscall::<Bn254ScalarBaseField>::new(
+            FieldOperation::Mul,
+        )),
     );
     syscall_map.insert(
         SyscallCode::BLS12381_FP2_ADD,
@@ -579,6 +647,24 @@ mod tests {
                 }
                 SyscallCode::BN254_FP2_MUL => {
                     assert_eq!(code as u32, sp1_zkvm::syscalls::BN254_FP2_MUL)
+                }
+                SyscallCode::BLS12381_FR_ADD => {
+                    assert_eq!(code as u32, sp1_zkvm::syscalls::BLS12381_FR_ADD)
+                }
+                SyscallCode::BLS12381_FR_SUB => {
+                    assert_eq!(code as u32, sp1_zkvm::syscalls::BLS12381_FR_SUB)
+                }
+                SyscallCode::BLS12381_FR_MUL => {
+                    assert_eq!(code as u32, sp1_zkvm::syscalls::BLS12381_FR_MUL)
+                }
+                SyscallCode::BN254_FR_ADD => {
+                    assert_eq!(code as u32, sp1_zkvm::syscalls::BN254_FR_ADD)
+                }
+                SyscallCode::BN254_FR_SUB => {
+                    assert_eq!(code as u32, sp1_zkvm::syscalls::BN254_FR_SUB)
+                }
+                SyscallCode::BN254_FR_MUL => {
+                    assert_eq!(code as u32, sp1_zkvm::syscalls::BN254_FR_MUL)
                 }
             }
         }

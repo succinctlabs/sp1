@@ -141,6 +141,7 @@ impl<P: FpOpField> Syscall for Fp2MulAssignChip<P> {
                 x_memory_records,
                 y_memory_records,
             }),
+            _ => panic!("Invalid field type"),
         };
         None
     }
@@ -236,6 +237,7 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for Fp2MulAssignChip<P> {
         match P::FIELD_TYPE {
             FieldType::Bn254 => "Bn254Fp2MulAssign".to_string(),
             FieldType::Bls12381 => "Bls12831Fp2MulAssign".to_string(),
+            _ => panic!("Invalid field type"),
         }
     }
 
@@ -243,6 +245,7 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for Fp2MulAssignChip<P> {
         let events = match P::FIELD_TYPE {
             FieldType::Bn254 => &input.bn254_fp2_mul_events,
             FieldType::Bls12381 => &input.bls12381_fp2_mul_events,
+            _ => panic!("Invalid field type"),
         };
 
         let mut rows = Vec::new();
@@ -336,6 +339,7 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for Fp2MulAssignChip<P> {
         match P::FIELD_TYPE {
             FieldType::Bn254 => !shard.bn254_fp2_mul_events.is_empty(),
             FieldType::Bls12381 => !shard.bls12381_fp2_mul_events.is_empty(),
+            _ => panic!("Invalid field type"),
         }
     }
 }
@@ -477,6 +481,7 @@ where
             FieldType::Bls12381 => {
                 AB::F::from_canonical_u32(SyscallCode::BLS12381_FP2_MUL.syscall_id())
             }
+            _ => panic!("Invalid field type"),
         };
 
         builder.receive_syscall(

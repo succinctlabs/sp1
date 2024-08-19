@@ -128,4 +128,22 @@ extern "C" {
     /// Executes a BN254 Fp2 multiplication on the given inputs.
     pub fn syscall_bn254_fp2_mulmod(p: *mut u32, q: *const u32);
 
+    /// Executes a BLS12-381 Fr field addition on the given inputs.
+    pub fn syscall_bls12381_fr_addmod(p: *mut u32, q: *const u32);
+
+    /// Executes a BLS12-381 Fr field subtraction on the given inputs.
+    pub fn syscall_bls12381_fr_submod(p: *mut u32, q: *const u32);
+
+    /// Executes a BLS12-381 Fr field multiplication on the given inputs.
+    pub fn syscall_bls12381_fr_mulmod(p: *mut u32, q: *const u32);
+
+    /// Executes a BN254 Fr field addition on the given inputs.
+    pub fn syscall_bn254_fr_addmod(p: *mut u32, q: *const u32);
+
+    /// Executes a BN254 Fr field subtraction on the given inputs.
+    pub fn syscall_bn254_fr_submod(p: *mut u32, q: *const u32);
+
+    /// Executes a BN254 Fr field multiplication on the given inputs.
+    pub fn syscall_bn254_fr_mulmod(p: *mut u32, q: *const u32);
+
 }

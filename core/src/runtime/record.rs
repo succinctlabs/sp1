@@ -105,11 +105,15 @@ pub struct ExecutionRecord {
 
     pub bls12381_fp2_mul_events: Vec<Fp2MulEvent>,
 
+    pub bls12381_fr_events: Vec<FpOpEvent>,
+
     pub bn254_fp_events: Vec<FpOpEvent>,
 
     pub bn254_fp2_addsub_events: Vec<Fp2AddSubEvent>,
 
     pub bn254_fp2_mul_events: Vec<Fp2MulEvent>,
+
+    pub bn254_fr_events: Vec<FpOpEvent>,
 
     /// The public values.
     pub public_values: PublicValues<u32, u32>,
@@ -285,11 +289,14 @@ impl MachineRecord for ExecutionRecord {
             .append(&mut other.uint256_mul_events);
         self.bls12381_fp_events
             .append(&mut other.bls12381_fp_events);
+        self.bls12381_fr_events
+            .append(&mut other.bls12381_fr_events);
         self.bls12381_fp2_addsub_events
             .append(&mut other.bls12381_fp2_addsub_events);
         self.bls12381_fp2_mul_events
             .append(&mut other.bls12381_fp2_mul_events);
         self.bn254_fp_events.append(&mut other.bn254_fp_events);
+        self.bn254_fr_events.append(&mut other.bn254_fr_events);
         self.bn254_fp2_addsub_events
             .append(&mut other.bn254_fp2_addsub_events);
         self.bn254_fp2_mul_events
@@ -418,6 +425,7 @@ impl ExecutionRecord {
             secp256k1_add_events: std::mem::take(&mut self.secp256k1_add_events),
             secp256k1_double_events: std::mem::take(&mut self.secp256k1_double_events),
             bn254_fp_events: std::mem::take(&mut self.bn254_fp_events),
+            bn254_fr_events: std::mem::take(&mut self.bn254_fr_events),
             bn254_fp2_addsub_events: std::mem::take(&mut self.bn254_fp2_addsub_events),
             bn254_fp2_mul_events: std::mem::take(&mut self.bn254_fp2_mul_events),
             bn254_add_events: std::mem::take(&mut self.bn254_add_events),
@@ -431,6 +439,7 @@ impl ExecutionRecord {
             k256_decompress_events: std::mem::take(&mut self.k256_decompress_events),
             uint256_mul_events: std::mem::take(&mut self.uint256_mul_events),
             bls12381_fp_events: std::mem::take(&mut self.bls12381_fp_events),
+            bls12381_fr_events: std::mem::take(&mut self.bls12381_fr_events),
             bls12381_fp2_addsub_events: std::mem::take(&mut self.bls12381_fp2_addsub_events),
             bls12381_fp2_mul_events: std::mem::take(&mut self.bls12381_fp2_mul_events),
             bls12381_decompress_events: std::mem::take(&mut self.bls12381_decompress_events),
@@ -579,6 +588,13 @@ impl ExecutionRecord {
         );
         split_events!(
             self,
+            bls12381_fr_events,
+            shards,
+            opts.deferred_shift_threshold,
+            last
+        );
+        split_events!(
+            self,
             bls12381_fp2_addsub_events,
             shards,
             opts.deferred_shift_threshold,
@@ -594,6 +610,13 @@ impl ExecutionRecord {
         split_events!(
             self,
             bn254_fp_events,
+            shards,
+            opts.deferred_shift_threshold,
+            last
+        );
+        split_events!(
+            self,
+            bn254_fr_events,
             shards,
             opts.deferred_shift_threshold,
             last

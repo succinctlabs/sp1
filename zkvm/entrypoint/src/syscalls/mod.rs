@@ -141,3 +141,21 @@ pub const BN254_FP2_SUB: u32 = 0x00_01_01_2A;
 
 /// Executes the `BN254_FP2_MUL` precompile.
 pub const BN254_FP2_MUL: u32 = 0x00_01_01_2B;
+
+/// Executes the `BLS12381_FR_ADD` precompile.
+pub const BLS12381_FR_ADD: u32 = 0x00_01_01_2C;
+
+/// Executes the `BLS12381_FR_ADD` precompile.
+pub const BLS12381_FR_SUB: u32 = 0x00_01_01_2D;
+
+/// Executes the `BLS12381_FR_ADD` precompile.
+pub const BLS12381_FR_MUL: u32 = 0x00_01_01_2E;
+
+/// Executes the `BN254_FR_ADD` precompile.
+pub const BN254_FR_ADD: u32 = 0x00_01_01_30;
+
+/// Executes the `BN254_FR_ADD` precompile.
+pub const BN254_FR_SUB: u32 = 0x00_01_01_31;
+
+/// Executes the `BN254_FR_ADD` precompile.
+pub const BN254_FR_MUL: u32 = 0x00_01_01_33;

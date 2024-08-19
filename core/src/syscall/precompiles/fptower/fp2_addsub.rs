@@ -157,6 +157,7 @@ impl<P: FpOpField> Syscall for Fp2AddSubSyscall<P> {
                         y_memory_records,
                     });
             }
+            _ => panic!("Invalid field type"),
         }
         None
     }
@@ -212,6 +213,7 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for Fp2AddSubAssignChip<P> {
         match P::FIELD_TYPE {
             FieldType::Bn254 => "Bn254Fp2AddSubAssign".to_string(),
             FieldType::Bls12381 => "Bls12831Fp2AddSubAssign".to_string(),
+            _ => panic!("Invalid field type"),
         }
     }
 
@@ -219,6 +221,7 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for Fp2AddSubAssignChip<P> {
         let events = match P::FIELD_TYPE {
             FieldType::Bn254 => &input.bn254_fp2_addsub_events,
             FieldType::Bls12381 => &input.bls12381_fp2_addsub_events,
+            _ => panic!("Invalid field type"),
         };
 
         let mut rows = Vec::new();
@@ -317,6 +320,7 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for Fp2AddSubAssignChip<P> {
         match P::FIELD_TYPE {
             FieldType::Bn254 => !shard.bn254_fp2_addsub_events.is_empty(),
             FieldType::Bls12381 => !shard.bls12381_fp2_addsub_events.is_empty(),
+            _ => panic!("Invalid field type"),
         }
     }
 }
@@ -424,6 +428,7 @@ where
                 AB::F::from_canonical_u32(SyscallCode::BLS12381_FP2_ADD.syscall_id()),
                 AB::F::from_canonical_u32(SyscallCode::BLS12381_FP2_SUB.syscall_id()),
             ),
+            _ => panic!("Invalid field type"),
         };
 
         let syscall_id_felt =

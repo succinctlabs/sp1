@@ -240,3 +240,117 @@ pub extern "C" fn syscall_bn254_fp2_mulmod(x: *mut u32, y: *const u32) {
     #[cfg(not(target_os = "zkvm"))]
     unreachable!()
 }
+
+/// Fr addition operation.
+///
+/// The result is written over the first input.
+#[allow(unused_variables)]
+#[no_mangle]
+pub extern "C" fn syscall_bn254_fr_addmod(x: *mut u32, y: *const u32) {
+    #[cfg(target_os = "zkvm")]
+    unsafe {
+        asm!(
+            "ecall",
+            in("t0") crate::syscalls::BN254_FR_ADD,
+            in("a0") x,
+            in("a1") y,
+        );
+    }
+    #[cfg(not(target_os = "zkvm"))]
+    unreachable!()
+}
+
+/// Fr subtraction operation.
+///
+/// The result is written over the first input.
+#[allow(unused_variables)]
+#[no_mangle]
+pub extern "C" fn syscall_bn254_fr_submod(x: *mut u32, y: *const u32) {
+    #[cfg(target_os = "zkvm")]
+    unsafe {
+        asm!(
+            "ecall",
+            in("t0") crate::syscalls::BN254_FR_SUB,
+            in("a0") x,
+            in("a1") y,
+        );
+    }
+    #[cfg(not(target_os = "zkvm"))]
+    unreachable!()
+}
+
+/// Fr multiplication operation.
+///
+/// The result is written over the first input.
+#[allow(unused_variables)]
+#[no_mangle]
+pub extern "C" fn syscall_bn254_fr_mulmod(x: *mut u32, y: *const u32) {
+    #[cfg(target_os = "zkvm")]
+    unsafe {
+        asm!(
+            "ecall",
+            in("t0") crate::syscalls::BN254_FR_MUL,
+            in("a0") x,
+            in("a1") y,
+        );
+    }
+    #[cfg(not(target_os = "zkvm"))]
+    unreachable!()
+}
+
+/// Fr addition operation.
+///
+/// The result is written over the first input.
+#[allow(unused_variables)]
+#[no_mangle]
+pub extern "C" fn syscall_bls12381_fr_addmod(x: *mut u32, y: *const u32) {
+    #[cfg(target_os = "zkvm")]
+    unsafe {
+        asm!(
+            "ecall",
+            in("t0") crate::syscalls::BLS12381_FR_ADD,
+            in("a0") x,
+            in("a1") y,
+        );
+    }
+    #[cfg(not(target_os = "zkvm"))]
+    unreachable!()
+}
+
+/// Fr subtraction operation.
+///
+/// The result is written over the first input.
+#[allow(unused_variables)]
+#[no_mangle]
+pub extern "C" fn syscall_bls12381_fr_submod(x: *mut u32, y: *const u32) {
+    #[cfg(target_os = "zkvm")]
+    unsafe {
+        asm!(
+            "ecall",
+            in("t0") crate::syscalls::BLS12381_FR_SUB,
+            in("a0") x,
+            in("a1") y,
+        );
+    }
+    #[cfg(not(target_os = "zkvm"))]
+    unreachable!()
+}
+
+/// Fr multiplication operation.
+///
+/// The result is written over the first input.
+#[allow(unused_variables)]
+#[no_mangle]
+pub extern "C" fn syscall_bls12381_fr_mulmod(x: *mut u32, y: *const u32) {
+    #[cfg(target_os = "zkvm")]
+    unsafe {
+        asm!(
+            "ecall",
+            in("t0") crate::syscalls::BLS12381_FR_MUL,
+            in("a0") x,
+            in("a1") y,
+        );
+    }
+    #[cfg(not(target_os = "zkvm"))]
+    unreachable!()
+}

@@ -4,7 +4,7 @@ use amcl::bls381::fp::FP;
 use generic_array::GenericArray;
 use num::{BigUint, Num, Zero};
 use serde::{Deserialize, Serialize};
-use typenum::{U48, U94};
+use typenum::{U32, U48, U62, U94};
 
 use super::{SwCurve, WeierstrassParameters};
 use crate::operations::field::params::FieldParameters;
@@ -140,6 +140,37 @@ pub fn bls12381_sqrt(a: &BigUint) -> BigUint {
     let a_sqrt = FP::new_big(a_big).sqrt();
 
     BigUint::from_str_radix(a_sqrt.to_string().as_str(), 16).unwrap()
+}
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, Serialize, Deserialize)]
+/// Bls12381 base field parameter
+pub struct Bls12381ScalarBaseField;
+
+impl FieldParameters for Bls12381ScalarBaseField {
+    const NB_LIMBS: usize = 32;
+
+    const MODULUS: &'static [u8] = &[
+        1, 0, 0, 0, 255, 255, 255, 255, 254, 91, 254, 255, 2, 164, 189, 83, 5, 216, 161, 9, 8, 216,
+        57, 51, 72, 125, 157, 41, 83, 167, 237, 115,
+    ];
+    const WITNESS_OFFSET: usize = 1usize << 14;
+
+    fn modulus() -> BigUint {
+        BigUint::from_str_radix(
+            "52435875175126190479447740508185965837690552500527637822603658699938581184513",
+            10,
+        )
+        .unwrap()
+    }
+}
+
+impl NumLimbs for Bls12381ScalarBaseField {
+    type Limbs = U32;
+    type Witness = U62;
+}
+
+impl FpOpField for Bls12381ScalarBaseField {
+    const FIELD_TYPE: FieldType = FieldType::Bls12381Scalar;
 }
 
 #[cfg(test)]
