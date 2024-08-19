@@ -2,6 +2,7 @@ use std::{iter::Zip, vec::IntoIter};
 
 use backtrace::Backtrace;
 use p3_field::AbstractField;
+use sp1_core::utils::sp1_debug_mode;
 use sp1_primitives::types::RecursionProgramType;
 
 use super::{
@@ -49,18 +50,11 @@ impl<T> TracedVec<T> {
     /// Pushes a value to the vector and records a backtrace if SP1_DEBUG is enabled
     pub fn trace_push(&mut self, value: T) {
         self.vec.push(value);
-        match std::env::var("SP1_DEBUG")
-            .unwrap_or("false".to_string())
-            .to_lowercase()
-            .as_str()
-        {
-            "true" => {
-                self.traces.push(Some(Backtrace::new_unresolved()));
-            }
-            _ => {
-                self.traces.push(None);
-            }
-        };
+        if sp1_debug_mode() {
+            self.traces.push(Some(Backtrace::new_unresolved()));
+        } else {
+            self.traces.push(None);
+        }
     }
 
     pub fn extend<I: IntoIterator<Item = (T, Option<Backtrace>)>>(&mut self, iter: I) {

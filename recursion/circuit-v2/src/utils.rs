@@ -71,8 +71,7 @@ pub(crate) mod tests {
         let config = SC::default();
 
         let run_span = tracing::debug_span!("run the recursive program").entered();
-        let mut runtime = tracing::debug_span!("runtime new")
-            .in_scope(|| Runtime::<F, EF, _>::new(program.clone(), config.perm.clone()));
+        let mut runtime = Runtime::<F, EF, _>::new(program.clone(), config.perm.clone());
         runtime.witness_stream.extend(witness_stream);
         tracing::debug_span!("run").in_scope(|| runtime.run().unwrap());
         assert!(runtime.witness_stream.is_empty());

@@ -1,15 +1,14 @@
-use backtrace::Backtrace;
 use chips::poseidon2_skinny::WIDTH;
 use core::fmt::Debug;
 use instruction::{FieldEltType, HintBitsInstr, HintExt2FeltsInstr, HintInstr, PrintInstr};
 use p3_field::{AbstractExtensionField, AbstractField, Field, PrimeField, TwoAdicField};
-use sp1_core::utils::SpanBuilder;
+use sp1_core::utils::{sp1_debug_mode, SpanBuilder};
 use sp1_recursion_core::air::{Block, RecursionPublicValues, RECURSIVE_PROOF_NUM_PV_ELTS};
 use sp1_recursion_core_v2::{BaseAluInstr, BaseAluOpcode};
 use std::{
     borrow::Borrow,
     collections::{hash_map::Entry, HashMap},
-    iter::zip,
+    iter::repeat,
     mem::transmute,
 };
 
@@ -391,11 +390,14 @@ impl<C: Config> AsmCompiler<C> {
         .into()
     }
 
+    /// Compiles one instruction, passing one or more instructions to `consumer`.
+    ///
+    /// We do not simply return a `Vec` for performance reasons --- results would be immediately fed
+    /// to `flat_map`, so we employ fusion/deforestation to eliminate intermediate data structures.
     pub fn compile_one<F>(
         &mut self,
         ir_instr: DslIr<C>,
-        trace: Option<Backtrace>,
-        mut f: impl FnMut(CompileOneItem<C::F>),
+        mut consumer: impl FnMut(Result<CompileOneItem<C::F>, DslIr<C>>),
     ) where
         F: PrimeField + TwoAdicField,
         C: Config<N = F, F = F> + Debug,
@@ -404,6 +406,7 @@ impl<C: Config> AsmCompiler<C> {
         use BaseAluOpcode::*;
         use ExtAluOpcode::*;
 
+        let mut f = |instr| consumer(Ok(instr));
         match ir_instr {
             DslIr::ImmV(dst, src) => f(self.mem_write_const(dst, Imm::F(src))),
             DslIr::ImmF(dst, src) => f(self.mem_write_const(dst, Imm::F(src))),
@@ -493,7 +496,7 @@ impl<C: Config> AsmCompiler<C> {
             DslIr::CircuitExt2Felt(felts, ext) => f(self.ext2felts(felts, ext)),
             DslIr::CycleTrackerV2Enter(name) => f(CompileOneItem::CycleTrackerEnter(name)),
             DslIr::CycleTrackerV2Exit => f(CompileOneItem::CycleTrackerExit),
-            instr => panic!("unsupported instruction: {instr:?}\nbacktrace: {trace:?}"),
+            instr => consumer(Err(instr)),
         }
     }
 
@@ -503,55 +506,60 @@ impl<C: Config> AsmCompiler<C> {
         F: PrimeField + TwoAdicField,
         C: Config<N = F, F = F> + Debug,
     {
+        // In debug mode, we perform cycle tracking and keep track of backtraces.
+        // Otherwise, we ignore cycle tracking instructions and pass around an empty Vec of traces.
+        let debug_mode = sp1_debug_mode();
         // Compile each IR instruction into a list of ASM instructions, then combine them.
         // This step also counts the number of times each address is read from.
-        let annotated_instrs = tracing::debug_span!("compile_one loop").in_scope(|| {
-            let mut acc = vec![];
-            for (ir_instr, trace) in operations {
-                self.compile_one(ir_instr, trace, |item| {
-                    acc.push((item, None /* TODO FIXME */))
-                });
-            }
-            // operations
-            //     .into_iter()
-            //     .flat_map(|(ir_instr, trace)| zip(self.compile_one(ir_instr, trace), repeat(None)))
-            //     .collect::<Vec<_>>()
-            acc
-        });
-
-        // Cycle tracking logic.
-        let (mut instrs, cycle_tracker_root_span) = tracing::debug_span!("cycle_tracking")
-            .in_scope(|| {
+        let (mut instrs, traces) = tracing::debug_span!("compile_one loop").in_scope(|| {
+            let mut instrs = vec![];
+            let mut traces = vec![];
+            if debug_mode {
                 let mut span_builder =
                     SpanBuilder::<_, &'static str>::new("cycle_tracker".to_string());
-                let instrs = annotated_instrs
-                    .into_iter()
-                    .filter_map(|(item, trace)| match item {
-                        CompileOneItem::Instr(instr) => {
+                for (ir_instr, trace) in operations {
+                    self.compile_one(ir_instr, |item| match item {
+                        Ok(CompileOneItem::Instr(instr)) => {
                             span_builder.item(instr_name(&instr));
-                            Some((instr, trace))
+                            instrs.push(instr);
+                            traces.push(trace.clone());
                         }
-                        CompileOneItem::CycleTrackerEnter(name) => {
+                        Ok(CompileOneItem::CycleTrackerEnter(name)) => {
                             span_builder.enter(name);
-                            None
                         }
-                        CompileOneItem::CycleTrackerExit => {
+                        Ok(CompileOneItem::CycleTrackerExit) => {
                             span_builder.exit().unwrap();
-                            None
                         }
-                    })
-                    .collect::<Vec<_>>();
-                (instrs, span_builder.finish().unwrap())
-            });
-        for line in cycle_tracker_root_span.lines() {
-            tracing::info!("{}", line);
-        }
+                        Err(instr) => {
+                            panic!("unsupported instruction: {instr:?}\nbacktrace: {:?}", trace)
+                        }
+                    });
+                }
+                let cycle_tracker_root_span = span_builder.finish().unwrap();
+                for line in cycle_tracker_root_span.lines() {
+                    tracing::info!("{}", line);
+                }
+            } else {
+                for (ir_instr, trace) in operations {
+                    self.compile_one(ir_instr, |item| match item {
+                        Ok(CompileOneItem::Instr(instr)) => instrs.push(instr),
+                        Ok(_) => (),
+                        Err(instr) => {
+                            panic!("unsupported instruction: {instr:?}\nbacktrace: {:?}", trace)
+                        }
+                    });
+                }
+            }
+            (instrs, traces)
+        });
 
         // Replace the mults using the address count data gathered in this previous.
         // Exhaustive match for refactoring purposes.
-        // let addr_to_mult = &mut self.addr_to_mult;
+        // TODO test if using the following is any good
+        // let mut assigner =
+        //     |mult: &mut F, addr: &Address<F>| *mult = self.addr_to_mult.remove(addr).unwrap();
         tracing::debug_span!("backfill mult").in_scope(|| {
-            for (asm_instr, _) in instrs.iter_mut() {
+            for asm_instr in instrs.iter_mut() {
                 match asm_instr {
                     Instruction::BaseAlu(BaseAluInstr {
                         mult,
@@ -634,6 +642,7 @@ impl<C: Config> AsmCompiler<C> {
         });
         debug_assert!(self.addr_to_mult.is_empty());
         // Initialize constants.
+        let total_consts = self.consts.len();
         let instrs_consts = self.consts.drain().map(|(imm, (addr, mult))| {
             Instruction::Mem(MemInstr {
                 addrs: MemIo { inner: addr },
@@ -650,9 +659,13 @@ impl<C: Config> AsmCompiler<C> {
         self.fp_to_addr.clear();
         // Place constant-initializing instructions at the top.
         let (instructions, traces) = tracing::debug_span!("construct program").in_scope(|| {
-            zip(instrs_consts, std::iter::repeat(None))
-                .chain(instrs)
-                .unzip()
+            if debug_mode {
+                let instrs_all = instrs_consts.chain(instrs);
+                let traces_all = repeat(None).take(total_consts).chain(traces);
+                (instrs_all.collect(), traces_all.collect())
+            } else {
+                (instrs_consts.chain(instrs).collect(), traces)
+            }
         });
         RecursionProgram {
             instructions,
