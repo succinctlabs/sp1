@@ -10,9 +10,9 @@ Define the core structure of your chip. This struct will represent the chip and 
 
 ```rust
 #[derive(Default)]
-pub struct CustomOpChip;
+pub struct MyCustomOpChip;
 
-impl CustomOpChip {
+impl MyCustomOpChip {
     pub const fn new() -> Self {
         Self
     }
@@ -25,7 +25,7 @@ Define the necessary data structures that your chip will use. This might include
 ```rust
 #[derive(Debug, Clone, AlignedBorrow)]
 #[repr(C)]
-pub struct CustomOpCols<T> {
+pub struct MyCustomOpCols<T> {
     pub shard: T,
     pub channel: T,
     pub clk: T,
@@ -60,12 +60,12 @@ impl Syscall for Uint256MulChip {
 The `MachineAir` trait integrates your chip with SP1’s Algebraic Intermediate Representation (AIR). This involves generating and evaluating traces that represent the chip's operations.
 
 ```rust
-impl<F: PrimeField32> MachineAir<F> for CustomOpChip {
+impl<F: PrimeField32> MachineAir<F> for MyCustomOpChip {
     type Record = ExecutionRecord;
     type Program = Program;
 
     fn name(&self) -> String {
-        "CustomOp".to_string()
+        "MyCustomOp".to_string()
     }
 
     fn generate_trace(
@@ -92,7 +92,7 @@ pub struct ExecutionRecord {
     // Other existing fields...
 
     /// A trace of the events for your custom operation.
-    pub custom_op_events: Vec<CustomOpEvent>,
+    pub custom_op_events: Vec<MyCustomOpEvent>,
 }
 ```
 
@@ -159,14 +159,14 @@ pub fn split(&mut self, last: bool, opts: SplitOpts) -> Vec<ExecutionRecord> {
 To fully integrate your chip with the SP1 AIR framework, implement the `Air` and `BaseAir` traits. These traits define how your chip’s operations are evaluated within the AIR system.
 
 ```rust
-impl<F> BaseAir<F> for CustomOpChip {
+impl<F> BaseAir<F> for MyCustomOpChip {
     fn width(&self) -> usize {
         // Define the number of columns your chip requires
         NUM_COLS
     }
 }
 
-impl<AB> Air<AB> for CustomOpChip
+impl<AB> Air<AB> for MyCustomOpChip
 where
     AB: SP1AirBuilder,
     Limbs<AB::Var, <U256Field as NumLimbs>::Limbs>: Copy,
@@ -188,8 +188,8 @@ In the `SyscallCode` enum, define a new variant for your custom syscall. The var
 pub enum SyscallCode {
     // Existing syscalls...
 
-    /// Executes the `CUSTOM_OP` precompile.
-    CUSTOM_OP = 0x00_01_01_2C,  // Replace with the appropriate unique value
+    /// Executes the `MY_CUSTOM_OP` precompile.
+    MY_CUSTOM_OP = 0x00_01_01_2C,  // Replace with the appropriate unique value
 }
 ```
 
@@ -220,7 +220,7 @@ pub fn default_syscall_map() -> HashMap<SyscallCode, Arc<dyn Syscall>> {
     // Other syscall maps...
     syscall_map.insert(
         SyscallCode::CUSTOM_OP,
-        Arch::new(CustomOpChip::new())
+        Arch::new(MyCustomOpChip::new())
     )
 }
 ```
