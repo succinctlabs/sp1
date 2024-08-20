@@ -96,18 +96,19 @@ mod zkvm {
 macro_rules! entrypoint {
     ($path:path) => {
         #[cfg(target_os = "zkvm")]
-        mod zkvm_impl {
-            use $crate::heap::SimpleAlloc;
+        use $crate::heap::SimpleAlloc;
 
-            pub const ZKVM_ENTRY: fn() = $path;
+        #[cfg(target_os = "zkvm")]
+        pub const ZKVM_ENTRY: fn() = $path;
 
-            #[global_allocator]
-            static HEAP: SimpleAlloc = SimpleAlloc;
+        #[cfg(target_os = "zkvm")]
+        #[global_allocator]
+        static HEAP: SimpleAlloc = SimpleAlloc;
 
-            #[no_mangle]
-            pub fn main() {
-                ZKVM_ENTRY()
-            }
+        #[cfg(target_os = "zkvm")]
+        #[no_mangle]
+        pub fn main() {
+            ZKVM_ENTRY()
         }
 
         #[cfg(not(target_os = "zkvm"))]
