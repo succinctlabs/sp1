@@ -57,6 +57,7 @@ pub struct NormalizeQueryProofVariable<C: Config> {
 pub struct FriChallenges<C: Config> {
     pub query_indices: Vec<Var<C::N>>,
     pub betas: Vec<Ext<C::F, C::EF>>,
+    pub normalize_betas: Vec<Ext<C::F, C::EF>>,
 }
 
 #[derive(Clone)]

@@ -37,6 +37,7 @@ p3-merkle-tree = { workspace = true }
 p3-poseidon2 = { workspace = true }
 zkhash = "0.2.0"
 rand = "0.8.5"
+rand_chacha = "0.9.0-alpha.1"
 sp1-recursion-gnark-ffi = { workspace = true }
 
 [features]

@@ -177,6 +177,7 @@ func TestMain() error {
 	// Compile the circuit.
 	circuit := sp1.NewCircuit(inputs)
 	builder := scs.NewBuilder
+
 	scs, err := frontend.Compile(ecc.BN254.ScalarField(), builder, &circuit)
 	if err != nil {
 		return err

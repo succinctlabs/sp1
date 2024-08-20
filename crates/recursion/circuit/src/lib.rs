@@ -24,12 +24,18 @@ mod tests {
     use p3_baby_bear::BabyBear;
     use p3_bn254_fr::Bn254Fr;
     use p3_field::AbstractField;
-    use sp1_recursion_compiler::{
-        config::OuterConfig,
-        constraints::ConstraintCompiler,
-        ir::{Builder, Config, Ext, ExtConst, Felt, Witness},
-    };
+    use sp1_recursion_compiler::config::OuterConfig;
+    use sp1_recursion_compiler::constraints::ConstraintCompiler;
+    use sp1_recursion_compiler::ir::Config;
+    use sp1_recursion_compiler::ir::Ext;
+    use sp1_recursion_compiler::ir::ExtConst;
+    use sp1_recursion_compiler::ir::SymbolicExt;
+    use sp1_recursion_compiler::ir::SymbolicVar;
+    use sp1_recursion_compiler::ir::Var;
+    use sp1_recursion_compiler::ir::{Builder, Felt, Witness};
     use sp1_recursion_gnark_ffi::PlonkBn254Prover;
+
+    use crate::utils::access_index_with_var_e;
 
     #[test]
     fn test_base_babybear() {
@@ -178,4 +184,44 @@ mod tests {
 
         PlonkBn254Prover::test::<OuterConfig>(constraints.clone(), witness);
     }
+
+    #[test]
+    fn test_access_index_with_var_e() {
+        let mut builder = Builder::<OuterConfig>::default();
+        type EF = <OuterConfig as Config>::EF;
+
+        let vec: Vec<Ext<_, _>> = (0..8)
+            .map(|i| builder.eval(SymbolicExt::from_f(EF::from_canonical_u32(i))))
+            .collect::<Vec<_>>();
+
+        for elem in vec.iter() {
+            builder.print_e(*elem);
+        }
+
+        for i in 0..8 {
+            let index: Var<_> = builder.eval(SymbolicVar::from_f(Bn254Fr::from_canonical_usize(i)));
+            let index_bits: Vec<Var<_>> = builder.num2bits_v_circuit(index, 3);
+
+            let result = access_index_with_var_e(&mut builder, &vec, index_bits);
+
+            builder.assert_ext_eq(vec[i], result);
+        }
+
+        let mut backend = ConstraintCompiler::<OuterConfig>::default();
+        let constraints = backend.emit(builder.operations);
+
+        let witness = Witness::default();
+
+        PlonkBn254Prover::test::<OuterConfig>(constraints.clone(), witness);
+    }
+
+    // #[test]
+    // fn test_lagrange_interpolate() {
+    //     let xs = [5, 1, 3, 9].map(BabyBear::from_canonical_u32);
+    //     let ys = [1, 2, 3, 4].map(BabyBear::from_canonical_u32);
+
+    //     for (x, y) in xs.iter().zip(ys.iter()) {
+    //         assert_eq!(interpolate_lagrange_and_evaluate(&xs, &ys, *x), *y);
+    //     }
+    // }
 }

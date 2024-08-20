@@ -666,7 +666,7 @@ dependencies = [
  "ff 0.12.1",
  "group 0.12.1",
  "pairing",
- "rand_core",
+ "rand_core 0.6.4",
  "subtle",
 ]
 
@@ -1105,7 +1105,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0dc92fb57ca44df6db8059111ab3af99a63d5d0f8375d9972e319a379c6bab76"
 dependencies = [
  "generic-array 0.14.7",
- "rand_core",
+ "rand_core 0.6.4",
  "subtle",
  "zeroize",
 ]
@@ -1392,7 +1392,7 @@ dependencies = [
  "generic-array 0.14.7",
  "group 0.13.0",
  "pkcs8",
- "rand_core",
+ "rand_core 0.6.4",
  "sec1",
  "subtle",
  "zeroize",
@@ -1751,7 +1751,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d013fc25338cc558c5c2cfbad646908fb23591e2404481826742b651c9af7160"
 dependencies = [
  "bitvec",
- "rand_core",
+ "rand_core 0.6.4",
  "subtle",
 ]
 
@@ -1764,7 +1764,7 @@ dependencies = [
  "bitvec",
  "byteorder",
  "ff_derive",
- "rand_core",
+ "rand_core 0.6.4",
  "subtle",
 ]
 
@@ -2056,7 +2056,7 @@ checksum = "5dfbfb3a6cfbd390d5c9564ab283a0349b9b9fcd46a706c1eb10e0db70bfbac7"
 dependencies = [
  "ff 0.12.1",
  "memuse",
- "rand_core",
+ "rand_core 0.6.4",
  "subtle",
 ]
 
@@ -2067,7 +2067,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f0f9ef7462f7c099f518d754361858f86d8a07af53ba9af0fe635bbccb151a63"
 dependencies = [
  "ff 0.13.0",
- "rand_core",
+ "rand_core 0.6.4",
  "subtle",
 ]
 
@@ -2138,7 +2138,7 @@ dependencies = [
  "ff 0.12.1",
  "group 0.12.1",
  "pasta_curves 0.4.1",
- "rand_core",
+ "rand_core 0.6.4",
  "rayon",
 ]
 
@@ -2631,7 +2631,7 @@ dependencies = [
  "bls12_381",
  "ff 0.12.1",
  "group 0.12.1",
- "rand_core",
+ "rand_core 0.6.4",
  "subtle",
 ]
 
@@ -3749,7 +3749,7 @@ dependencies = [
  "lazy_static",
  "num-traits",
  "rand",
- "rand_chacha",
+ "rand_chacha 0.3.1",
  "rand_xorshift",
  "regex-syntax 0.8.4",
  "rusty-fork",
@@ -3895,8 +3895,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "34af8d1a0e25924bc5b7c43c079c942339d8f0a8b57c39049bef581b46327404"
 dependencies = [
  "libc",
- "rand_chacha",
- "rand_core",
+ "rand_chacha 0.3.1",
+ "rand_core 0.6.4",
 ]
 
 [[package]]
@@ -3906,7 +3906,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e6c10a63a0fa32252be49d21e7709d4d4baf8d231c2dbce1eaa8141b9b127d88"
 dependencies = [
  "ppv-lite86",
- "rand_core",
+ "rand_core 0.6.4",
+]
+
+[[package]]
+name = "rand_chacha"
+version = "0.9.0-alpha.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d299e9db34f6623b2a9e86c015d6e173d5f46d64d4b9b8cc46ae8a982a50b04c"
+dependencies = [
+ "ppv-lite86",
+ "rand_core 0.9.0-alpha.2",
 ]
 
 [[package]]
@@ -3919,12 +3929,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "rand_core"
+version = "0.9.0-alpha.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f4e93f5a5e3c528cda9acb0928c31b2ba868c551cc46e67b778075e34aab9906"
+dependencies = [
+ "getrandom",
+ "zerocopy",
+]
+
+[[package]]
 name = "rand_xorshift"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d25bf25ec5ae4a3f1b92f929810509a2f53d7dca2f50b794ff57e3face536c8f"
 dependencies = [
- "rand_core",
+ "rand_core 0.6.4",
 ]
 
 [[package]]
@@ -4759,7 +4779,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "77549399552de45a898a580c1b41d445bf730df867cc44e6c0233bbc4b8329de"
 dependencies = [
  "digest 0.10.7",
- "rand_core",
+ "rand_core 0.6.4",
 ]
 
 [[package]]
@@ -5108,6 +5128,7 @@ dependencies = [
  "p3-symmetric",
  "p3-util",
  "rand",
+ "rand_chacha 0.9.0-alpha.2",
  "serde",
  "sp1-core-machine",
  "sp1-recursion-compiler",
@@ -6111,9 +6132,9 @@ checksum = "0336d538f7abc86d282a4189614dfaa90810dfc2c6f6427eaf88e16311dd225d"
 
 [[package]]
 name = "unicode-xid"
-version = "0.2.4"
+version = "0.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f962df74c8c05a667b5ee8bcf162993134c104e96440b663c8daa176dc772d8c"
+checksum = "229730647fbc343e3a80e463c1db7f78f3855d3f3739bee0dda773c9a037c90a"
 
 [[package]]
 name = "untrusted"
