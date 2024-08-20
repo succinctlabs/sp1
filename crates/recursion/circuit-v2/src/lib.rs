@@ -108,6 +108,12 @@ pub trait CircuitConfig: Config {
         ext: Ext<<Self as Config>::F, <Self as Config>::EF>,
     ) -> [Felt<<Self as Config>::F>; D];
 
+    fn flip_bit(builder: &mut Builder<Self>, bit: Self::Bit) -> Self::Bit;
+
+    fn bit_xor(builder: &mut Builder<Self>, a: Self::Bit, b: Self::Bit) -> Self::Bit;
+
+    fn bit_and(builder: &mut Builder<Self>, a: Self::Bit, b: Self::Bit) -> Self::Bit;
+
     fn exp_reverse_bits(
         builder: &mut Builder<Self>,
         input: Felt<<Self as Config>::F>,
@@ -131,14 +137,10 @@ pub trait CircuitConfig: Config {
         bit_len: usize,
     ) -> Vec<Self::Bit> {
         assert!(bit_len <= NUM_BITS);
-        let mut result_bits = Vec::with_capacity(bit_len);
-        for (i, bit) in result_bits.iter_mut().enumerate() {
+        let mut result_bits = Vec::new();
+        for i in 0..bit_len {
             let idx = bit_len - i - 1;
-            *bit = if idx < input.len() {
-                input[idx]
-            } else {
-                builder.eval(Self::BitExpression::zero())
-            };
+            result_bits.push(input[idx]);
         }
         result_bits
     }
@@ -163,6 +165,29 @@ impl CircuitConfig for InnerConfig {
         ext: Ext<<Self as Config>::F, <Self as Config>::EF>,
     ) -> [Felt<<Self as Config>::F>; D] {
         builder.ext2felt_v2(ext)
+    }
+
+    fn flip_bit(
+        builder: &mut Builder<Self>,
+        bit: Felt<<Self as Config>::F>,
+    ) -> Felt<<Self as Config>::F> {
+        builder.eval(SymbolicFelt::from_f(Self::F::one()) - bit)
+    }
+
+    fn bit_xor(
+        builder: &mut Builder<Self>,
+        a: Felt<<Self as Config>::F>,
+        b: Felt<<Self as Config>::F>,
+    ) -> Felt<<Self as Config>::F> {
+        builder.eval(a + b - a * b * Self::F::from_wrapped_u32(2))
+    }
+
+    fn bit_and(
+        builder: &mut Builder<Self>,
+        a: Felt<<Self as Config>::F>,
+        b: Felt<<Self as Config>::F>,
+    ) -> Felt<<Self as Config>::F> {
+        builder.eval(a * b)
     }
 
     fn exp_reverse_bits(

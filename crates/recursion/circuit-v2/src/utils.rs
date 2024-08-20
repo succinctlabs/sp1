@@ -41,8 +41,9 @@ pub fn access_index_with_var_e<C: CircuitConfig>(
 ) -> Ext<C::F, C::EF> {
     let mut index_bits = index_bits.clone();
     let mut result = vec.to_vec();
-    if vec.len() > index_bits.len() {
-        for _ in index_bits.len()..vec.len() {
+    if log2_strict_usize(vec.len()) > index_bits.len() {
+        println!("We're padding the index bits");
+        for _ in index_bits.len()..log2_strict_usize(vec.len()) {
             index_bits.push(builder.eval(C::BitExpression::zero()));
         }
     }
