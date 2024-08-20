@@ -20,7 +20,7 @@ amcl = { package = "snowbridge-amcl", version = "1.0.2", default-features = fals
   "bls381",
 ] }
 elliptic-curve = "0.13.8"
-
+dashu = "0.4.2"
 
 sp1-stark = { workspace = true }
 
