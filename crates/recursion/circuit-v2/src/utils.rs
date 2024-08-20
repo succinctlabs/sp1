@@ -1,12 +1,10 @@
-use std::{array, borrow::BorrowMut, mem::MaybeUninit};
+use std::mem::MaybeUninit;
 
 use sp1_recursion_compiler::{
     circuit::CircuitV2Builder,
     ir::{Builder, Config, Felt},
 };
-use sp1_recursion_core_v2::air::{
-    ChallengerPublicValues, RecursionPublicValues, NUM_PV_ELMS_TO_HASH, RECURSIVE_PROOF_NUM_PV_ELTS,
-};
+use sp1_recursion_core_v2::air::{ChallengerPublicValues, RecursionPublicValues};
 
 /// Register and commits the recursion public values.
 pub fn commit_recursion_public_values<C: Config>(
@@ -14,22 +12,10 @@ pub fn commit_recursion_public_values<C: Config>(
     public_values: RecursionPublicValues<Felt<C::F>>,
 ) {
     builder.commit_public_values_v2(public_values);
-    // let mut pv_elements: [Felt<_>; RECURSIVE_PROOF_NUM_PV_ELTS] =
-    //     core::array::from_fn(|_| builder.uninit());
-    // *pv_elements.as_mut_slice().borrow_mut() = *public_values;
-    // let pv_elms_no_digest = &pv_elements[0..NUM_PV_ELMS_TO_HASH];
-
-    // for value in pv_elms_no_digest.iter() {
-    //     builder.register_public_value(*value);
-    // }
-
-    // // Hash the public values.
-    // let pv_digest = builder.poseidon2_hash_v2(&pv_elements[0..NUM_PV_ELMS_TO_HASH]);
-    // for element in pv_digest {}
 }
 
 pub(crate) unsafe fn uninit_challenger_pv<C: Config>(
-    builder: &mut Builder<C>,
+    _builder: &mut Builder<C>,
 ) -> ChallengerPublicValues<Felt<C::F>> {
     unsafe { MaybeUninit::zeroed().assume_init() }
 }
