@@ -165,7 +165,7 @@ jobs:
 
           [[ "$target" == *windows* ]] && exe=".exe"
 
-          RUSTFLAGS='-C target-feature=+crt-static' cargo build --release -p sp1-cli --target "$target" "${flags[@]}"
+          cargo build --release -p sp1-cli --target "$target" "${flags[@]}"
 
           bins=(cargo-prove)
           for name in "${bins[@]}"; do
