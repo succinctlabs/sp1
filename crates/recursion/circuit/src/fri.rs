@@ -277,6 +277,11 @@ fn verify_normalization_phase<C: Config>(
         let num_folds = (log_height - config.log_blowup) % config.log_arity;
         let log_folded_height = log_height - num_folds;
 
+        let g = C::F::two_adic_generator(num_folds);
+        let g_powers = g.powers().take(1 << num_folds).collect::<Vec<_>>();
+
+        let xs = g_powers.iter().map(|y| builder.eval(new_x * *y)).collect::<Vec<Felt<_>>>();
+
         debug_assert!((log_folded_height - config.log_blowup) % config.log_arity == 0);
 
         let new_index_bits = index_bits[(log_max_height - log_height)..].to_vec();
@@ -295,7 +300,7 @@ fn verify_normalization_phase<C: Config>(
             commit,
             new_index,
             log_height - num_folds,
-            new_x,
+            xs,
         );
         new_openings[log_folded_height] = builder.eval(new_openings[log_folded_height] + fold_add);
     }
@@ -312,7 +317,7 @@ fn verify_fold_step<C: Config>(
     commit: OuterDigestVariable<C>,
     index: Var<C::N>,
     log_folded_height: usize,
-    x: Felt<C::F>,
+    xs: Vec<Felt<C::F>>,
 ) -> Ext<C::F, C::EF> {
     let index_bits = builder.num2bits_v_circuit(index, 32);
     let mut index_self_in_siblings = index_bits[..num_folds].to_vec();
@@ -335,10 +340,13 @@ fn verify_fold_step<C: Config>(
         step.opening_proof.clone(),
     );
 
-    let g = C::F::two_adic_generator(num_folds);
-    let g_powers = g.powers().take(1 << num_folds).collect::<Vec<_>>();
+    // let g = C::F::two_adic_generator(num_folds);
+    // let g_powers = g.powers().take(1 << num_folds).collect::<Vec<_>>();
 
-    let xs = g_powers.iter().map(|y| builder.eval(x * *y)).collect::<Vec<Felt<_>>>();
+    // let xs = g_powers
+    //     .iter()
+    //     .map(|y| builder.eval(x * *y))
+    //     .collect::<Vec<Felt<_>>>();
 
     let mut ord_idx_bits = index_self_in_siblings;
     let mut ord_evals: Vec<Ext<_, _>> = vec![];
@@ -349,8 +357,7 @@ fn verify_fold_step<C: Config>(
         ord_idx_bits = next_index_in_coset(builder, ord_idx_bits);
     }
 
-    let result = interpolate_lagrange_and_evaluate(builder, &xs, &ord_evals, beta);
-    result
+    interpolate_lagrange_and_evaluate(builder, &xs, &ord_evals, beta);
 }
 
 pub fn verify_query<C: Config>(
@@ -371,6 +378,8 @@ pub fn verify_query<C: Config>(
     }) {
         builder.assert_ext_eq(*ro, SymbolicExt::from_f(C::EF::zero()));
     }
+    let g = C::F::two_adic_generator(config.log_arity);
+    let g_powers = g.powers().take(1 << config.log_arity).collect::<Vec<_>>();
 
     let mut folded_eval: Ext<C::F, C::EF> = reduced_openings[log_max_normalized_height];
     let two_adic_generator =
@@ -391,6 +400,7 @@ pub fn verify_query<C: Config>(
     )
     .enumerate()
     {
+        let xs = g_powers.iter().map(|y| builder.eval(x * *y)).collect();
         folded_eval = verify_fold_step(
             builder,
             folded_eval,
@@ -400,7 +410,7 @@ pub fn verify_query<C: Config>(
             commit,
             index,
             log_folded_height,
-            x,
+            xs,
         );
         index = builder.bits2num_v_circuit(&index_bits[(i + 1) * config.log_arity..]);
         x = builder.exp_power_of_2(x, config.log_arity);
@@ -520,7 +530,7 @@ pub mod tests {
         DIGEST_SIZE,
     };
 
-    pub const TEST_LOG_ARITY: usize = 1;
+    pub const TEST_LOG_ARITY: usize = 2;
 
     pub fn const_fri_proof(
         builder: &mut Builder<OuterConfig>,
