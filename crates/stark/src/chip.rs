@@ -55,6 +55,7 @@ impl<F: PrimeField32, A: MachineAir<F>> Chip<F, A> {
 impl<F, A> Chip<F, A>
 where
     F: Field,
+    A: BaseAir<F>,
 {
     /// Records the interactions and constraint degree from the air and crates a new chip.
     pub fn new(air: A) -> Self
@@ -127,6 +128,12 @@ where
     #[inline]
     pub fn permutation_width(&self) -> usize {
         permutation_trace_width(self.sends().len() + self.receives().len(), self.logup_batch_size())
+    }
+
+    /// Returns the cost of a row in the chip.
+    #[inline]
+    pub fn cost(&self) -> u64 {
+        (self.width() * 4 * self.permutation_width()) as u64
     }
 
     /// Returns the width of the quotient polynomial.
