@@ -313,6 +313,9 @@ impl<C: Config> AsmCompiler<C> {
         &mut self,
         public_values: &RecursionPublicValues<Felt<C::F>>,
     ) -> CompileOneItem<C::F> {
+        public_values.digest.iter().for_each(|x| {
+            let _ = x.read(self);
+        });
         let pv_addrs =
             unsafe {
                 transmute::<
@@ -320,7 +323,7 @@ impl<C: Config> AsmCompiler<C> {
                     [Felt<C::F>; RECURSIVE_PROOF_NUM_PV_ELTS],
                 >(*public_values)
             }
-            .map(|pv| pv.read(self));
+            .map(|pv| pv.read_ghost(self));
 
         let public_values_a: &RecursionPublicValues<Address<C::F>> = pv_addrs.as_slice().borrow();
         Instruction::CommitPublicValues(CommitPublicValuesInstr {
