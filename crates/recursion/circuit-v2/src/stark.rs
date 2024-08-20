@@ -6,7 +6,7 @@ use p3_matrix::dense::RowMajorMatrix;
 use p3_air::Air;
 use p3_baby_bear::BabyBear;
 use p3_commit::{Pcs, TwoAdicMultiplicativeCoset};
-use p3_field::TwoAdicField;
+use p3_field::{AbstractField, TwoAdicField};
 use sp1_stark::{ShardCommitment, ShardOpenedValues, Val};
 
 use p3_commit::PolynomialSpace;
@@ -204,11 +204,15 @@ where
         verify_two_adic_pcs::<C, SC>(builder, config, opening_proof, challenger, rounds);
         builder.cycle_tracker_v2_exit();
 
+        let mut count = 0;
         // Verify the constrtaint evaluations.
         builder.cycle_tracker_v2_enter("stage-e-verify-constraints".to_string());
         for (chip, trace_domain, qc_domains, values) in
             izip!(chips.iter(), trace_domains, quotient_chunk_domains, opened_values.chips.iter(),)
         {
+            println!("verify chip: {}", chip.name());
+            let count_f: Felt<_> = builder.eval(C::F::from_canonical_usize(count));
+            builder.print_f(count_f);
             // Verify the shape of the opening arguments matches the expected values.
             Self::verify_opening_shape(chip, values).unwrap();
             // Verify the constraint evaluation.
@@ -223,6 +227,7 @@ where
                 &permutation_challenges,
                 public_values,
             );
+            count += 1;
         }
         builder.cycle_tracker_v2_exit();
     }

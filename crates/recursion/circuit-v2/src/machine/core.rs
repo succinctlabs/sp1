@@ -537,6 +537,8 @@ where
             recursion_public_values.end_reconstruct_deferred_digest = end_deferred_digest;
             recursion_public_values.exit_code = exit_code;
             recursion_public_values.is_complete = is_complete;
+            // TODO: set the digest according to the previous values.
+            recursion_public_values.digest = array::from_fn(|_| builder.eval(C::F::zero()));
 
             // // If the proof represents a complete proof, make completeness assertions.
             // //

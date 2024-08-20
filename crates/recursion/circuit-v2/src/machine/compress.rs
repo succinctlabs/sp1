@@ -448,6 +448,8 @@ where
         compress_public_values.cumulative_sum = cumulative_sum;
         // Assign the `is_complete` flag.
         compress_public_values.is_complete = is_complete;
+        // TODO: set the digest according to the previous values.
+        compress_public_values.digest = array::from_fn(|_| builder.eval(C::F::zero()));
 
         // // If the proof is complete, make completeness assertions and set the flag. Otherwise, check
         // // the flag is zero and set the public value to zero.

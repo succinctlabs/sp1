@@ -174,8 +174,8 @@ where
 
             builder.when(access.is_add).assert_eq(in1 + in2, out);
             builder.when(access.is_sub).assert_eq(in1, in2 + out);
-            builder.when(access.is_mul).assert_eq(in1 * in2, out);
             builder.when(access.is_div).assert_eq(in1, in2 * out);
+            builder.when(access.is_mul).assert_eq(out, in1 * in2);
 
             builder.receive_single(access.addrs.in1, in1, is_real.clone());
 
