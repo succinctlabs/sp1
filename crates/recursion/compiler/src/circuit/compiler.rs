@@ -238,13 +238,13 @@ impl<C: Config> AsmCompiler<C> {
         dst: [impl Reg<C>; WIDTH],
         src: [impl Reg<C>; WIDTH],
     ) -> CompileOneItem<C::F> {
-        Instruction::Poseidon2(Poseidon2Instr {
+        Instruction::Poseidon2(Box::new(Poseidon2Instr {
             addrs: Poseidon2Io {
                 input: src.map(|r| r.read(self)),
                 output: dst.map(|r| r.write(self)),
             },
             mults: [C::F::zero(); WIDTH],
-        })
+        }))
         .into()
     }
 
@@ -290,7 +290,7 @@ impl<C: Config> AsmCompiler<C> {
             ro_input,
         }: CircuitV2FriFoldInput<C>,
     ) -> CompileOneItem<C::F> {
-        Instruction::FriFold(FriFoldInstr {
+        Instruction::FriFold(Box::new(FriFoldInstr {
             // Calculate before moving the vecs.
             alpha_pow_mults: vec![C::F::zero(); alpha_pow_output.len()],
             ro_mults: vec![C::F::zero(); ro_output.len()],
@@ -305,7 +305,7 @@ impl<C: Config> AsmCompiler<C> {
                 alpha_pow_output: alpha_pow_output.into_iter().map(|e| e.write(self)).collect(),
                 ro_output: ro_output.into_iter().map(|e| e.write(self)).collect(),
             },
-        })
+        }))
         .into()
     }
 
@@ -326,9 +326,9 @@ impl<C: Config> AsmCompiler<C> {
             .map(|pv| pv.read_ghost(self));
 
         let public_values_a: &RecursionPublicValues<Address<C::F>> = pv_addrs.as_slice().borrow();
-        Instruction::CommitPublicValues(CommitPublicValuesInstr {
-            pv_addrs: Box::new(*public_values_a),
-        })
+        Instruction::CommitPublicValues(Box::new(CommitPublicValuesInstr {
+            pv_addrs: *public_values_a,
+        }))
         .into()
     }
 
@@ -550,10 +550,11 @@ impl<C: Config> AsmCompiler<C> {
                         kind: MemAccessKind::Write,
                         ..
                     }) => backfill((mult, addr)),
-                    Instruction::Poseidon2(Poseidon2SkinnyInstr {
-                        addrs: Poseidon2Io { output: ref addrs, .. },
-                        mults,
-                    }) => {
+                    Instruction::Poseidon2(instr) => {
+                        let Poseidon2SkinnyInstr {
+                            addrs: Poseidon2Io { output: ref addrs, .. },
+                            mults,
+                        } = instr.as_mut();
                         mults.iter_mut().zip(addrs).for_each(&mut backfill);
                     }
                     Instruction::ExpReverseBitsLen(ExpReverseBitsInstr {
@@ -566,12 +567,14 @@ impl<C: Config> AsmCompiler<C> {
                             .iter_mut()
                             .for_each(|(addr, mult)| backfill((mult, addr)));
                     }
-                    Instruction::FriFold(FriFoldInstr {
-                        ext_vec_addrs: FriFoldExtVecIo { ref alpha_pow_output, ref ro_output, .. },
-                        alpha_pow_mults,
-                        ro_mults,
-                        ..
-                    }) => {
+                    Instruction::FriFold(instr) => {
+                        let FriFoldInstr {
+                            ext_vec_addrs:
+                                FriFoldExtVecIo { ref alpha_pow_output, ref ro_output, .. },
+                            alpha_pow_mults,
+                            ro_mults,
+                            ..
+                        } = instr.as_mut();
                         // Using `.chain` seems to be less performant.
                         alpha_pow_mults.iter_mut().zip(alpha_pow_output).for_each(&mut backfill);
                         ro_mults.iter_mut().zip(ro_output).for_each(&mut backfill);

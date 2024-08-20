@@ -189,7 +189,7 @@ pub struct FriFoldEvent<F> {
 /// it's digest.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CommitPublicValuesInstr<F> {
-    pub pv_addrs: Box<RecursionPublicValues<Address<F>>>,
+    pub pv_addrs: RecursionPublicValues<Address<F>>,
 }
 
 /// The event for committing to the public values.

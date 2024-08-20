@@ -119,7 +119,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for FriFoldChip<DEGREE>
                     ext_vec_addrs,
                     alpha_pow_mults,
                     ro_mults,
-                } = instruction;
+                } = instruction.as_ref();
                 let mut row_add =
                     vec![[F::zero(); NUM_FRI_FOLD_PREPROCESSED_COLS]; ext_vec_addrs.ps_at_z.len()];
 
