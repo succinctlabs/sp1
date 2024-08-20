@@ -5,6 +5,7 @@ pub mod proto {
 
 use core::time::Duration;
 use std::{
+    future::Future,
     io::{BufReader, Read, Write},
     process::{Command, Stdio},
     sync::{
@@ -23,7 +24,7 @@ use sp1_prover::{
     SP1VerifyingKey,
 };
 use sp1_stark::ShardProof;
-use tokio::runtime::Runtime;
+use tokio::task::block_in_place;
 use twirp::{url::Url, Client};
 
 /// A remote client to [sp1_prover::SP1Prover] that runs inside a container.
@@ -154,8 +155,7 @@ impl SP1CudaProver {
             Url::parse("http://localhost:3000/twirp/").expect("failed to parse url"),
         )
         .expect("failed to create client");
-        let rt = Runtime::new().unwrap();
-        rt.block_on(async {
+        block_on(async {
             tracing::info!("waiting for proving server to be ready");
             loop {
                 let request = ReadyRequest {};
@@ -194,8 +194,7 @@ impl SP1CudaProver {
         let payload = ProveCoreRequestPayload { pk: pk.clone(), stdin: stdin.clone() };
         let request =
             crate::proto::api::ProveCoreRequest { data: bincode::serialize(&payload).unwrap() };
-        let rt = Runtime::new().unwrap();
-        let response = rt.block_on(async { self.client.prove_core(request).await }).unwrap();
+        let response = block_on(async { self.client.prove_core(request).await }).unwrap();
         let proof: SP1CoreProof = bincode::deserialize(&response.result).unwrap();
         Ok(proof)
     }
@@ -215,8 +214,7 @@ impl SP1CudaProver {
         let request =
             crate::proto::api::CompressRequest { data: bincode::serialize(&payload).unwrap() };
 
-        let rt = Runtime::new().unwrap();
-        let response = rt.block_on(async { self.client.compress(request).await }).unwrap();
+        let response = block_on(async { self.client.compress(request).await }).unwrap();
         let proof: SP1ReduceProof<InnerSC> = bincode::deserialize(&response.result).unwrap();
         Ok(proof)
     }
@@ -234,8 +232,7 @@ impl SP1CudaProver {
         let request =
             crate::proto::api::ShrinkRequest { data: bincode::serialize(&payload).unwrap() };
 
-        let rt = Runtime::new().unwrap();
-        let response = rt.block_on(async { self.client.shrink(request).await }).unwrap();
+        let response = block_on(async { self.client.shrink(request).await }).unwrap();
         let proof: SP1ReduceProof<InnerSC> = bincode::deserialize(&response.result).unwrap();
         Ok(proof)
     }
@@ -253,8 +250,7 @@ impl SP1CudaProver {
         let request =
             crate::proto::api::WrapRequest { data: bincode::serialize(&payload).unwrap() };
 
-        let rt = Runtime::new().unwrap();
-        let response = rt.block_on(async { self.client.wrap(request).await }).unwrap();
+        let response = block_on(async { self.client.wrap(request).await }).unwrap();
         let proof: SP1ReduceProof<OuterSC> = bincode::deserialize(&response.result).unwrap();
         Ok(proof)
     }
@@ -280,6 +276,21 @@ impl Drop for SP1CudaProver {
 fn cleanup_container(container_name: &str) {
     if let Err(e) = Command::new("sudo").args(["docker", "rm", "-f", container_name]).output() {
         eprintln!("failed to remove container: {}", e);
+    }
+}
+
+/// Utility method for blocking on an async function.
+///
+/// If we're already in a tokio runtime, we'll block in place. Otherwise, we'll create a new
+/// runtime.
+pub fn block_on<T>(fut: impl Future<Output = T>) -> T {
+    // Handle case if we're already in an tokio runtime.
+    if let Ok(handle) = tokio::runtime::Handle::try_current() {
+        block_in_place(|| handle.block_on(fut))
+    } else {
+        // Otherwise create a new runtime.
+        let rt = tokio::runtime::Runtime::new().expect("Failed to create a new runtime");
+        rt.block_on(fut)
     }
 }
 
