@@ -1,12 +1,17 @@
-use std::borrow::BorrowMut;
+use std::{borrow::BorrowMut, iter::once};
 
+use p3_field::AbstractField;
+
+use sp1_core::utils::log2_strict_usize;
 use sp1_recursion_compiler::{
     circuit::CircuitV2Builder,
-    ir::{Builder, Config, Felt},
+    ir::{Builder, Config, Ext, Felt},
 };
 use sp1_recursion_core_v2::air::{
     RecursionPublicValues, NUM_PV_ELMS_TO_HASH, RECURSIVE_PROOF_NUM_PV_ELTS,
 };
+
+use crate::CircuitConfig;
 
 /// Register and commits the recursion public values.
 pub fn commit_recursion_public_values<C: Config>(
@@ -27,6 +32,28 @@ pub fn commit_recursion_public_values<C: Config>(
     for element in pv_digest {
         builder.commit_public_value(element);
     }
+}
+
+pub fn access_index_with_var_e<C: CircuitConfig>(
+    builder: &mut Builder<C>,
+    vec: &[Ext<C::F, C::EF>],
+    index_bits: Vec<C::Bit>,
+) -> Ext<C::F, C::EF> {
+    let mut index_bits = index_bits.clone();
+    let mut result = vec.to_vec();
+    if vec.len() > index_bits.len() {
+        for _ in index_bits.len()..vec.len() {
+            index_bits.push(builder.eval(C::BitExpression::zero()));
+        }
+    }
+    for &bit in index_bits[..log2_strict_usize(vec.len())].iter() {
+        result = (0..result.len() / 2)
+            .map(|i| {
+                C::select_chain_ef(builder, bit, once(result[2 * i + 1]), once(result[2 * i]))[0]
+            })
+            .collect();
+    }
+    result[0]
 }
 
 #[cfg(any(test, feature = "export-tests"))]

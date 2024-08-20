@@ -25,6 +25,10 @@ pub struct VerifyingKeyVariable<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriCo
 pub struct FriProofVariable<C: CircuitConfig, H: FieldHasherVariable<C>> {
     pub commit_phase_commits: Vec<H::Digest>,
     pub query_proofs: Vec<FriQueryProofVariable<C, H>>,
+
+    pub normalize_phase_commits: Vec<H::Digest>,
+    pub normalize_query_proofs: Vec<NormalizeQueryProofVariable<C, H>>,
+
     pub final_poly: Ext<C::F, C::EF>,
     pub pow_witness: Felt<C::F>,
 }
@@ -32,7 +36,7 @@ pub struct FriProofVariable<C: CircuitConfig, H: FieldHasherVariable<C>> {
 /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/fri/src/proof.rs#L32
 #[derive(Clone)]
 pub struct FriCommitPhaseProofStepVariable<C: CircuitConfig, H: FieldHasherVariable<C>> {
-    pub sibling_value: Ext<C::F, C::EF>,
+    pub siblings: Vec<Ext<C::F, C::EF>>,
     pub opening_proof: Vec<H::Digest>,
 }
 
@@ -42,11 +46,18 @@ pub struct FriQueryProofVariable<C: CircuitConfig, H: FieldHasherVariable<C>> {
     pub commit_phase_openings: Vec<FriCommitPhaseProofStepVariable<C, H>>,
 }
 
+// TODO: add reference
+#[derive(Clone)]
+pub struct NormalizeQueryProofVariable<C: CircuitConfig, H: FieldHasherVariable<C>> {
+    pub normalize_phase_openings: Vec<FriCommitPhaseProofStepVariable<C, H>>,
+}
+
 /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/fri/src/verifier.rs#L22
 #[derive(Clone)]
 pub struct FriChallenges<C: CircuitConfig> {
     pub query_indices: Vec<Vec<C::Bit>>,
     pub betas: Vec<Ext<C::F, C::EF>>,
+    pub normalize_betas: Vec<Ext<C::F, C::EF>>,
 }
 
 #[derive(Clone)]

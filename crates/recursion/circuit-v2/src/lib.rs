@@ -40,7 +40,7 @@ use p3_dft::Radix2DitParallel;
 use p3_fri::{FriConfig, TwoAdicFriPcs};
 use sp1_recursion_core_v2::{
     stark::config::{BabyBearPoseidon2Outer, OuterValMmcs},
-    D,
+    D, NUM_BITS,
 };
 
 use p3_baby_bear::BabyBear;
@@ -93,7 +93,7 @@ pub trait BabyBearFriConfigVariable<C: CircuitConfig<F = BabyBear>>:
 }
 
 pub trait CircuitConfig: Config {
-    type Bit: Clone + Variable<Self, Expression = Self::BitExpression>;
+    type Bit: Copy + Clone + Variable<Self, Expression = Self::BitExpression>;
     type BitExpression: AbstractField
         + Mul<
             <Felt<Self::F> as Variable<Self>>::Expression,
@@ -124,6 +124,24 @@ pub trait CircuitConfig: Config {
         builder: &mut Builder<Self>,
         bits: impl IntoIterator<Item = Self::Bit>,
     ) -> Felt<<Self as Config>::F>;
+
+    fn reverse_bits_len(
+        builder: &mut Builder<Self>,
+        input: &[Self::Bit],
+        bit_len: usize,
+    ) -> Vec<Self::Bit> {
+        assert!(bit_len <= NUM_BITS);
+        let mut result_bits = Vec::with_capacity(bit_len);
+        for (i, bit) in result_bits.iter_mut().enumerate() {
+            let idx = bit_len - i - 1;
+            *bit = if idx < input.len() {
+                input[idx]
+            } else {
+                builder.eval(Self::BitExpression::zero())
+            };
+        }
+        result_bits
+    }
 
     #[allow(clippy::type_complexity)]
     fn select_chain_ef(

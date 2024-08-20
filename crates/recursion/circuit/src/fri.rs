@@ -322,8 +322,8 @@ fn verify_fold_step<C: Config>(
     xs: Vec<Felt<C::F>>,
 ) -> Ext<C::F, C::EF> {
     let index_bits = builder.num2bits_v_circuit(index, 32);
-    let mut index_self_in_siblings = index_bits[..num_folds].to_vec();
-    let mut index_set = index_bits[num_folds..].to_vec();
+    let index_self_in_siblings = index_bits[..num_folds].to_vec();
+    let index_set = index_bits[num_folds..].to_vec();
 
     let evals: Vec<Ext<C::F, C::EF>> = step.siblings.clone();
     let expected_eval = access_index_with_var_e(builder, &evals, index_self_in_siblings.clone());
