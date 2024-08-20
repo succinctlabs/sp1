@@ -7,12 +7,7 @@ use p3_field::{
 use sp1_core_machine::utils::{sp1_debug_mode, SpanBuilder};
 use sp1_recursion_core::air::{Block, RecursionPublicValues, RECURSIVE_PROOF_NUM_PV_ELTS};
 use sp1_recursion_core_v2::{BaseAluInstr, BaseAluOpcode};
-use std::{
-    borrow::Borrow,
-    collections::{hash_map::Entry, HashMap},
-    iter::repeat,
-    mem::transmute,
-};
+use std::{borrow::Borrow, collections::HashMap, iter::repeat, mem::transmute};
 use vec_map::VecMap;
 
 use sp1_recursion_core_v2::*;
