@@ -89,6 +89,7 @@ Clone the `sp1` repository and navigate to the root directory.
 ```bash
 git clone git@github.com:succinctlabs/sp1.git
 cd sp1
+cd crates
 cd cli
 cargo install --locked --path .
 cd ~
