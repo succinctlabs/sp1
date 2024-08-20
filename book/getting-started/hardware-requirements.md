@@ -1,21 +1,21 @@
 # Proof Generation Requirements
 
-## Prover Network (Recommended)
-
-We recommend that developers who want to use SP1 for non-trivial programs generate proofs on our [Prover Network's](../generating-proofs/prover-network.md) private beta. The prover network generates SP1 proofs across multiple machines, reducing latency and also runs SP1 on optimized hardware instances that result in faster + cheaper proof generation times (including SP1's GPU prover that is not yet available for local proving).
+<div class="warning">
+We recommend that developers who want to use SP1 for non-trivial programs generate proofs on our prover network. The prover network generates SP1 proofs across multiple machines, reducing latency and also runs SP1 on optimized hardware instances that result in faster + cheaper proof generation times.
 
 We recommend that for any production benchmarking, you use the prover network to estimate latency and costs of proof generation.
+</div>
 
 ## Local Proving
 
-If you want to generate SP1 proofs locally, here is an overview of the hardware requirements required. These requires depend on which [types of proofs](../generating-proofs/proof-types.md) you want to generate and can also change over time as the design of the zKVM evolves.
+If you want to generate SP1 proofs locally, this section has an overview of the hardware requirements required. These requires depend on which [types of proofs](../generating-proofs/proof-types.md) you want to generate and can also change over time as the design of the zKVM evolves.
 
 **The most important requirement is CPU for performance/latency and RAM to prevent running out of memory.**
 
 |                | Mock / Network               | Core / Compress                    | PLONK (EVM)                |
 |----------------|------------------------------|------------------------------------|----------------------------|
 | CPU            | 1+, single-core perf matters | 16+, more is better                | 32+, more is better        |
-| Memory         | 8GB+, more is better         | 32GB+, more if you have more cores | 128GB+ (for PLONK)         |
+| Memory         | 8GB+, more is better         | 32GB+, more if you have more cores | 64GB+ (for PLONK)         |
 | Disk           | 20GB+                        | 20GB+                              | 100GB+ (for trusted setup) |
 | EVM Compatible | ✅                            | ❌                                  | ✅                          |
 
