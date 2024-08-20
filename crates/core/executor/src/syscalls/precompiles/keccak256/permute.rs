@@ -3,18 +3,12 @@ use crate::{
     syscalls::{Syscall, SyscallContext},
 };
 
-use p3_keccak_air::{NUM_ROUNDS, RC};
+use tiny_keccak::keccakf;
 
 pub(crate) const STATE_SIZE: usize = 25;
 
 // The permutation state is 25 u64's.  Our word size is 32 bits, so it is 50 words.
 pub const STATE_NUM_WORDS: usize = STATE_SIZE * 2;
-
-pub const RHO: [u32; 24] =
-    [1, 3, 6, 10, 15, 21, 28, 36, 45, 55, 2, 14, 27, 41, 56, 8, 25, 43, 62, 18, 39, 61, 20, 44];
-
-pub const PI: [usize; 24] =
-    [10, 7, 11, 17, 18, 3, 5, 16, 8, 21, 24, 4, 15, 23, 19, 13, 12, 2, 20, 14, 22, 9, 6, 1];
 
 pub(crate) struct Keccak256PermuteSyscall;
 
@@ -46,46 +40,8 @@ impl Syscall for Keccak256PermuteSyscall {
 
         let saved_state = state.clone();
 
-        for i in 0..NUM_ROUNDS {
-            let mut array: [u64; 5 * 5] = [0; 5 * 5];
-
-            // Theta
-            for x in 0..5 {
-                for y_count in 0..5 {
-                    let y = y_count * 5;
-                    array[x] ^= state[x + y];
-                }
-            }
-
-            for x in 0..5 {
-                for y_count in 0..5 {
-                    let y = y_count * 5;
-                    state[y + x] ^= array[(x + 4) % 5] ^ array[(x + 1) % 5].rotate_left(1);
-                }
-            }
-
-            // Rho and pi
-            let mut last = state[1];
-            for x in 0..24 {
-                array[0] = state[PI[x]];
-                state[PI[x]] = last.rotate_left(RHO[x]);
-                last = array[0];
-            }
-
-            // Chi
-            for y_step in 0..5 {
-                let y = y_step * 5;
-
-                array[..5].copy_from_slice(&state[y..(5 + y)]);
-
-                for x in 0..5 {
-                    state[y + x] = array[x] ^ ((!array[(x + 1) % 5]) & (array[(x + 2) % 5]));
-                }
-            }
-
-            // Iota
-            state[0] ^= RC[i];
-        }
+        let mut state = state.try_into().unwrap();
+        keccakf(&mut state);
 
         // Increment the clk by 1 before writing because we read from memory at start_clk.
         rt.clk += 1;
