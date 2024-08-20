@@ -9,17 +9,19 @@ use crate::{
     BuildArgs,
 };
 
-/// Build a program with the specified [`BuildArgs`]. The `program_dir` is specified as an argument when
-/// the program is built via `build_program`.
+/// Build a program with the specified [`BuildArgs`]. The `program_dir` is specified as an argument
+/// when the program is built via `build_program`.
 ///
 /// # Arguments
 ///
-/// * `args` - A reference to a `BuildArgs` struct that holds various arguments used for building the program.
+/// * `args` - A reference to a `BuildArgs` struct that holds various arguments used for building
+///   the program.
 /// * `program_dir` - An optional `PathBuf` specifying the directory of the program to be built.
 ///
 /// # Returns
 ///
-/// * `Result<Utf8PathBuf>` - The path to the built program as a `Utf8PathBuf` on success, or an error on failure.
+/// * `Result<Utf8PathBuf>` - The path to the built program as a `Utf8PathBuf` on success, or an
+///   error on failure.
 pub fn execute_build_program(
     args: &BuildArgs,
     program_dir: Option<PathBuf>,
@@ -27,17 +29,14 @@ pub fn execute_build_program(
     // If the program directory is not specified, use the current directory.
     let program_dir = program_dir
         .unwrap_or_else(|| std::env::current_dir().expect("Failed to get current directory."));
-    let program_dir: Utf8PathBuf = program_dir
-        .try_into()
-        .expect("Failed to convert PathBuf to Utf8PathBuf");
+    let program_dir: Utf8PathBuf =
+        program_dir.try_into().expect("Failed to convert PathBuf to Utf8PathBuf");
 
     // Get the program metadata.
     let program_metadata_file = program_dir.join("Cargo.toml");
     let mut program_metadata_cmd = cargo_metadata::MetadataCommand::new();
-    let program_metadata = program_metadata_cmd
-        .manifest_path(program_metadata_file)
-        .exec()
-        .unwrap();
+    let program_metadata =
+        program_metadata_cmd.manifest_path(program_metadata_file).exec().unwrap();
 
     // Get the command corresponding to Docker or local build.
     let cmd = if args.docker {
@@ -59,10 +58,7 @@ pub(crate) fn build_program_internal(path: &str, args: Option<BuildArgs>) {
     let mut metadata_cmd = cargo_metadata::MetadataCommand::new();
     let metadata = metadata_cmd.manifest_path(metadata_file).exec().unwrap();
     let root_package = metadata.root_package();
-    let root_package_name = root_package
-        .as_ref()
-        .map(|p| p.name.as_str())
-        .unwrap_or("Program");
+    let root_package_name = root_package.as_ref().map(|p| p.name.as_str()).unwrap_or("Program");
 
     // Skip the program build if the SP1_SKIP_PROGRAM_BUILD environment variable is set to true.
     let skip_program_build = std::env::var("SP1_SKIP_PROGRAM_BUILD")
@@ -80,8 +76,9 @@ pub(crate) fn build_program_internal(path: &str, args: Option<BuildArgs>) {
     // Activate the build command if the dependencies change.
     cargo_rerun_if_changed(&metadata, program_dir);
 
-    // Check if RUSTC_WORKSPACE_WRAPPER is set to clippy-driver (i.e. if `cargo clippy` is the current
-    // compiler). If so, don't execute `cargo prove build` because it breaks rust-analyzer's `cargo clippy` feature.
+    // Check if RUSTC_WORKSPACE_WRAPPER is set to clippy-driver (i.e. if `cargo clippy` is the
+    // current compiler). If so, don't execute `cargo prove build` because it breaks
+    // rust-analyzer's `cargo clippy` feature.
     let is_clippy_driver = std::env::var("RUSTC_WORKSPACE_WRAPPER")
         .map(|val| val.contains("clippy-driver"))
         .unwrap_or(false);
@@ -100,9 +97,5 @@ pub(crate) fn build_program_internal(path: &str, args: Option<BuildArgs>) {
         panic!("Failed to build SP1 program: {}.", err);
     }
 
-    println!(
-        "cargo:warning={} built at {}",
-        root_package_name,
-        current_datetime()
-    );
+    println!("cargo:warning={} built at {}", root_package_name, current_datetime());
 }

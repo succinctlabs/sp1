@@ -82,8 +82,8 @@ impl Default for BuildArgs {
 
 /// Builds the program if the program at the specified path, or one of its dependencies, changes.
 ///
-/// This function monitors the program and its dependencies for changes. If any changes are detected,
-/// it triggers a rebuild of the program.
+/// This function monitors the program and its dependencies for changes. If any changes are
+/// detected, it triggers a rebuild of the program.
 ///
 /// # Arguments
 ///

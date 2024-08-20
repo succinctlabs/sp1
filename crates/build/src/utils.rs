@@ -14,8 +14,8 @@ pub(crate) fn copy_elf_to_output_dir(
     let root_package = program_metadata.root_package();
     let root_package_name = root_package.as_ref().map(|p| &p.name);
 
-    // The ELF is written to a target folder specified by the program's package. If built with Docker,
-    // includes /docker after HELPER_TARGET_SUBDIR.
+    // The ELF is written to a target folder specified by the program's package. If built with
+    // Docker, includes /docker after HELPER_TARGET_SUBDIR.
     let target_dir_suffix = if args.docker {
         format!("{}/{}", HELPER_TARGET_SUBDIR, "docker")
     } else {
@@ -42,11 +42,7 @@ pub(crate) fn copy_elf_to_output_dir(
         BUILD_TARGET.to_string()
     };
 
-    let elf_dir = program_metadata
-        .target_directory
-        .parent()
-        .unwrap()
-        .join(&args.output_directory);
+    let elf_dir = program_metadata.target_directory.parent().unwrap().join(&args.output_directory);
     fs::create_dir_all(&elf_dir)?;
     let result_elf_path = elf_dir.join(elf_name);
 
@@ -73,19 +69,13 @@ pub(crate) fn cargo_rerun_if_changed(metadata: &Metadata, program_dir: &Path) {
     ];
     for dir in dirs {
         if dir.exists() {
-            println!(
-                "cargo::rerun-if-changed={}",
-                dir.canonicalize().unwrap().display()
-            );
+            println!("cargo::rerun-if-changed={}", dir.canonicalize().unwrap().display());
         }
     }
 
     // Re-run the build script if the workspace root's Cargo.lock changes. If the program is its own
     // workspace, this will be the program's Cargo.lock.
-    println!(
-        "cargo:rerun-if-changed={}",
-        metadata.workspace_root.join("Cargo.lock").as_str()
-    );
+    println!("cargo:rerun-if-changed={}", metadata.workspace_root.join("Cargo.lock").as_str());
 
     // Re-run if any local dependency changes.
     for package in &metadata.packages {
