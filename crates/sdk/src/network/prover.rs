@@ -4,7 +4,6 @@ use std::{
 };
 
 use crate::{
-    install::block_on,
     network::client::{NetworkClient, DEFAULT_PROVER_NETWORK_RPC},
     proto::network::{ProofMode, ProofStatus},
     Prover, SP1Context, SP1ProofKind, SP1ProofWithPublicValues, SP1ProvingKey, SP1VerifyingKey,
@@ -12,6 +11,7 @@ use crate::{
 use anyhow::Result;
 use serde::de::DeserializeOwned;
 use sp1_core_machine::io::SP1Stdin;
+use sp1_cuda::block_on;
 use sp1_prover::{components::DefaultProverComponents, SP1Prover, SP1_CIRCUIT_VERSION};
 use sp1_stark::SP1ProverOpts;
 use tokio::time::sleep;
