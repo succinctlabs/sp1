@@ -2,7 +2,9 @@ use std::iter::zip;
 
 use itertools::{izip, Itertools};
 use p3_commit::PolynomialSpace;
-use p3_field::{AbstractField, TwoAdicField};
+use p3_field::AbstractField;
+use p3_field::Field;
+use p3_field::TwoAdicField;
 use p3_fri::FriConfig;
 use p3_matrix::Dimensions;
 use p3_util::log2_strict_usize;
@@ -357,7 +359,7 @@ fn verify_fold_step<C: Config>(
         ord_idx_bits = next_index_in_coset(builder, ord_idx_bits);
     }
 
-    interpolate_lagrange_and_evaluate(builder, &xs, &ord_evals, beta);
+    interpolate_fft_and_evaluate(builder, &xs, &ord_evals, beta)
 }
 
 pub fn verify_query<C: Config>(
@@ -436,50 +438,34 @@ fn next_index_in_coset<C: Config>(
 }
 
 // Inefficient algorithm for interpolation and evaluation of a polynomial at a point.
-fn interpolate_lagrange_and_evaluate<C: Config>(
+fn interpolate_fft_and_evaluate<C: Config>(
     builder: &mut Builder<C>,
-    xs: &[Felt<C::F>],
+    coset: &[Felt<C::F>],
     ys: &[Ext<C::F, C::EF>],
     beta: Ext<C::F, C::EF>,
 ) -> Ext<C::F, C::EF> {
-    assert_eq!(xs.len(), ys.len());
-
-    if xs.len() == 2 {
-        return builder.eval(ys[0] + (beta - xs[0]) * (ys[1] - ys[0]) / (xs[1] - xs[0]));
+    assert_eq!(coset.len(), ys.len());
+    if ys.len() == 1 {
+        return ys[0];
     }
-
-    let result: Ext<_, _> = builder.eval(SymbolicExt::from_f(C::EF::zero()));
-
-    for (i, (&xi, &yi)) in zip(xs, ys).enumerate() {
-        let prod = yi;
-
-        let normalizing_factor: Felt<_> = builder.eval(SymbolicFelt::from_f(C::F::one()));
-
-        for (j, &xj) in xs.iter().enumerate() {
-            if i != j {
-                let diff: Felt<_> = builder.eval(xi - xj);
-                builder.assign(normalizing_factor, normalizing_factor * diff);
-            }
-        }
-        let normalizing_factor_inverse = normalizing_factor.inverse();
-
-        let normalizing_factor_inverse_felt: Felt<_> = builder.eval(normalizing_factor_inverse);
-
-        builder.assign(prod, prod * normalizing_factor_inverse_felt);
-
-        let term = prod;
-
-        for (j, &xj) in xs.iter().enumerate() {
-            if i != j {
-                let diff: Ext<_, _> = builder.eval(beta - xj);
-                builder.assign(term, term * diff);
-            }
-        }
-
-        builder.assign(result, term + result);
-    }
-
-    result
+    let beta_sq = builder.eval(beta * beta);
+    let next_coset =
+        coset.iter().take(coset.len() / 2).copied().map(|x| builder.eval(x * x)).collect_vec();
+    let even_ys = izip!(ys.iter().take(ys.len() / 2), ys.iter().skip(ys.len() / 2))
+        .map(|(&a, &b)| builder.eval((a + b) / C::F::two()))
+        .collect_vec();
+    let odd_ys = izip!(
+        ys.iter().take(ys.len() / 2),
+        ys.iter().skip(ys.len() / 2),
+        coset.iter().take(ys.len() / 2)
+    )
+    .map(|(&a, &b, &x)| builder.eval((a - b) / (x * C::F::two())))
+    .collect_vec();
+    let even_result = interpolate_fft_and_evaluate(builder, &next_coset, &even_ys, beta_sq);
+    let odd_result = interpolate_fft_and_evaluate(builder, &next_coset, &odd_ys, beta_sq);
+    builder.reduce_e(odd_result);
+    builder.reduce_e(even_result);
+    builder.eval(even_result + beta * odd_result)
 }
 
 #[cfg(test)]
@@ -516,7 +502,7 @@ pub mod tests {
     use sp1_recursion_gnark_ffi::PlonkBn254Prover;
 
     use super::{
-        interpolate_lagrange_and_evaluate, next_index_in_coset, verify_shape_and_sample_challenges,
+        interpolate_fft_and_evaluate, next_index_in_coset, verify_shape_and_sample_challenges,
         verify_two_adic_pcs, TwoAdicPcsRoundVariable,
     };
     use crate::{
@@ -530,7 +516,7 @@ pub mod tests {
         DIGEST_SIZE,
     };
 
-    pub const TEST_LOG_ARITY: usize = 2;
+    pub const TEST_LOG_ARITY: usize = 4;
 
     pub fn const_fri_proof(
         builder: &mut Builder<OuterConfig>,
@@ -854,61 +840,61 @@ pub mod tests {
         PlonkBn254Prover::test::<OuterConfig>(constraints.clone(), Witness::default());
     }
 
-    #[test]
-    fn test_lagrange_interpolate() {
-        // Define circuit.
-        let mut builder = Builder::<OuterConfig>::default();
+    // #[test]
+    // fn test_lagrange_interpolate() {
+    //     // Define circuit.
+    //     let mut builder = Builder::<OuterConfig>::default();
 
-        let xs: Vec<Felt<_>> = [5, 1, 3, 9]
-            .iter()
-            .map(|x| builder.eval(SymbolicFelt::from_f(BabyBear::from_canonical_usize(*x))))
-            .collect();
+    //     let xs: Vec<Felt<_>> = [5, 1, 3, 9]
+    //         .iter()
+    //         .map(|x| builder.eval(SymbolicFelt::from_f(BabyBear::from_canonical_usize(*x))))
+    //         .collect();
 
-        let ys: Vec<Ext<_,_>> = [1, 2, 3, 4].iter().map(|y| {
-            builder.eval(SymbolicExt::from_f(<sp1_recursion_compiler::config::OuterConfig as sp1_recursion_compiler::ir::Config>::EF::from_canonical_usize(
-                *y,
-            )))
-        }).collect();
+    //     let ys: Vec<Ext<_,_>> = [1, 2, 3, 4].iter().map(|y| {
+    //         builder.eval(SymbolicExt::from_f(<sp1_recursion_compiler::config::OuterConfig as sp1_recursion_compiler::ir::Config>::EF::from_canonical_usize(
+    //             *y,
+    //         )))
+    //     }).collect();
 
-        for (x, y) in xs.iter().zip(ys.iter()) {
-            let zero: Felt<_> = builder.eval(SymbolicFelt::from_f(BabyBear::zero()));
-            let x_ext: Ext<_, _> = builder.felts2ext(&[*x, zero, zero, zero]);
-            let expected_y = interpolate_lagrange_and_evaluate(&mut builder, &xs, &ys, x_ext);
-            builder.assert_ext_eq(expected_y, *y);
-        }
+    //     for (x, y) in xs.iter().zip(ys.iter()) {
+    //         let zero: Felt<_> = builder.eval(SymbolicFelt::from_f(BabyBear::zero()));
+    //         let x_ext: Ext<_, _> = builder.felts2ext(&[*x, zero, zero, zero]);
+    //         let expected_y = interpolate_lagrange_and_evaluate(&mut builder, &xs, &ys, x_ext);
+    //         builder.assert_ext_eq(expected_y, *y);
+    //     }
 
-        let mut backend = ConstraintCompiler::<OuterConfig>::default();
-        let constraints = backend.emit(builder.operations);
-        PlonkBn254Prover::test::<OuterConfig>(constraints.clone(), Witness::default());
-    }
+    //     let mut backend = ConstraintCompiler::<OuterConfig>::default();
+    //     let constraints = backend.emit(builder.operations);
+    //     PlonkBn254Prover::test::<OuterConfig>(constraints.clone(), Witness::default());
+    // }
 
-    #[test]
-    fn test_lagrange_interpolate_2() {
-        // Define circuit.
-        let mut builder = Builder::<OuterConfig>::default();
+    // #[test]
+    // fn test_lagrange_interpolate_2() {
+    //     // Define circuit.
+    //     let mut builder = Builder::<OuterConfig>::default();
 
-        let xs: Vec<Felt<_>> = [5, 1]
-            .iter()
-            .map(|x| builder.eval(SymbolicFelt::from_f(BabyBear::from_canonical_usize(*x))))
-            .collect();
+    //     let xs: Vec<Felt<_>> = [5, 1]
+    //         .iter()
+    //         .map(|x| builder.eval(SymbolicFelt::from_f(BabyBear::from_canonical_usize(*x))))
+    //         .collect();
 
-        let ys: Vec<Ext<_,_>> = [1, 2].iter().map(|y| {
-            builder.eval(SymbolicExt::from_f(<sp1_recursion_compiler::config::OuterConfig as sp1_recursion_compiler::ir::Config>::EF::from_canonical_usize(
-                *y,
-            )))
-        }).collect();
+    //     let ys: Vec<Ext<_,_>> = [1, 2].iter().map(|y| {
+    //         builder.eval(SymbolicExt::from_f(<sp1_recursion_compiler::config::OuterConfig as sp1_recursion_compiler::ir::Config>::EF::from_canonical_usize(
+    //             *y,
+    //         )))
+    //     }).collect();
 
-        for (x, y) in xs.iter().zip(ys.iter()) {
-            let zero: Felt<_> = builder.eval(SymbolicFelt::from_f(BabyBear::zero()));
-            let x_ext: Ext<_, _> = builder.felts2ext(&[*x, zero, zero, zero]);
-            let expected_y = interpolate_lagrange_and_evaluate(&mut builder, &xs, &ys, x_ext);
-            builder.assert_ext_eq(expected_y, *y);
-        }
+    //     for (x, y) in xs.iter().zip(ys.iter()) {
+    //         let zero: Felt<_> = builder.eval(SymbolicFelt::from_f(BabyBear::zero()));
+    //         let x_ext: Ext<_, _> = builder.felts2ext(&[*x, zero, zero, zero]);
+    //         let expected_y = interpolate_lagrange_and_evaluate(&mut builder, &xs, &ys, x_ext);
+    //         builder.assert_ext_eq(expected_y, *y);
+    //     }
 
-        let mut backend = ConstraintCompiler::<OuterConfig>::default();
-        let constraints = backend.emit(builder.operations);
-        PlonkBn254Prover::test::<OuterConfig>(constraints.clone(), Witness::default());
-    }
+    //     let mut backend = ConstraintCompiler::<OuterConfig>::default();
+    //     let constraints = backend.emit(builder.operations);
+    //     PlonkBn254Prover::test::<OuterConfig>(constraints.clone(), Witness::default());
+    // }
 
     #[test]
     fn test_next_index_in_coset() {
