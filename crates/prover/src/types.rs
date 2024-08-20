@@ -244,7 +244,7 @@ pub enum SP1RecursionProverError {
 
 #[allow(clippy::large_enum_variant)]
 pub enum SP1CircuitWitness {
-    Core(SP1RecursionWitnessValues<InnerSC>),
+    Core(SP1RecursionWitnessValues<CoreSC>),
     // Deferred(SP1DeferredMemoryLayout<InnerSC, CompressAir<BabyBear>>),
     Compress(SP1CompressWitnessValues<InnerSC>),
 }

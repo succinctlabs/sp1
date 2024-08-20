@@ -52,7 +52,7 @@ impl<C: Config, T: Witnessable<C>, U: Witnessable<C>> Witnessable<C> for (T, U) 
     }
 
     fn write(&self) -> Vec<Witness<C>> {
-        self.0.write().into_iter().chain(self.1.write()).collect()
+        [self.0.write(), self.1.write()].concat()
     }
 }
 

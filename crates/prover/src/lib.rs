@@ -554,6 +554,20 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                                     self.compress_prover.open(&pk, data, &mut challenger).unwrap()
                                 });
 
+                                // Verify the proof.
+
+                                #[cfg(feature = "debug")]
+                                self.compress_prover
+                                    .machine()
+                                    .verify(
+                                        &vk,
+                                        &sp1_stark::MachineProof {
+                                            shard_proofs: vec![proof.clone()],
+                                        },
+                                        &mut self.compress_prover.config().challenger(),
+                                    )
+                                    .unwrap();
+
                                 // Wait for our turn to update the state.
                                 prover_sync.wait_for_turn(index);
 
