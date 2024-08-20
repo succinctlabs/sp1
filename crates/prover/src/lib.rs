@@ -207,14 +207,23 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         // Compile the program.
 
         // Get the operations.
+        let operations_span =
+            tracing::debug_span!("Get operations for the recursion program").entered();
         let mut builder = Builder::<InnerConfig>::default();
+        let input_read_span = tracing::debug_span!("Read input values").entered();
         let input = input.read(&mut builder);
+        input_read_span.exit();
+        let verify_span = tracing::debug_span!("Verify recursion program").entered();
         SP1RecursiveVerifier::verify(&mut builder, self.core_prover.machine(), input);
+        verify_span.exit();
         let operations = builder.operations;
+        operations_span.exit();
 
         // Compile the program.
-        let mut compiler = AsmCompiler::<InnerConfig>::default();
-        Arc::new(compiler.compile(operations))
+        tracing::debug_span!("Compile recursion program").in_scope(|| {
+            let mut compiler = AsmCompiler::<InnerConfig>::default();
+            Arc::new(compiler.compile(operations))
+        })
     }
 
     pub fn compress_program(
@@ -224,14 +233,23 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         // Compile the program.
 
         // Get the operations.
+        let operations_span =
+            tracing::debug_span!("Get operations for the compress program").entered();
         let mut builder = Builder::<InnerConfig>::default();
+        let input_read_span = tracing::debug_span!("Read input values").entered();
         let input = input.read(&mut builder);
+        input_read_span.exit();
+        let verify_span = tracing::debug_span!("Verify compress program").entered();
         SP1CompressVerifier::verify(&mut builder, self.compress_prover.machine(), input);
+        verify_span.exit();
         let operations = builder.operations;
+        operations_span.exit();
 
         // Compile the program.
-        let mut compiler = AsmCompiler::<InnerConfig>::default();
-        Arc::new(compiler.compile(operations))
+        tracing::debug_span!("Compile compress program").in_scope(|| {
+            let mut compiler = AsmCompiler::<InnerConfig>::default();
+            Arc::new(compiler.compile(operations))
+        })
     }
 
     pub fn get_recursion_core_inputs(

@@ -201,10 +201,13 @@ where
         // Verify the pcs proof
         builder.cycle_tracker_v2_enter("stage-d-verify-pcs".to_string());
         let config = machine.config().fri_config();
+        let verify_pcs_span = tracing::debug_span!("Verify PCS proof, operations").entered();
         verify_two_adic_pcs::<C, SC>(builder, config, opening_proof, challenger, rounds);
+        verify_pcs_span.exit();
         builder.cycle_tracker_v2_exit();
 
         // Verify the constrtaint evaluations.
+        let verify_constraints_span = tracing::debug_span!("Verify constraints").entered();
         builder.cycle_tracker_v2_enter("stage-e-verify-constraints".to_string());
         for (chip, trace_domain, qc_domains, values) in
             izip!(chips.iter(), trace_domains, quotient_chunk_domains, opened_values.chips.iter(),)
@@ -224,6 +227,7 @@ where
                 public_values,
             );
         }
+        verify_constraints_span.exit();
         builder.cycle_tracker_v2_exit();
     }
 }

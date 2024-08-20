@@ -143,7 +143,9 @@ where
                 builder,
                 shard_proof.public_values[0..machine.num_pv_elts()].iter().copied(),
             );
+            let verify_shard_span = tracing::debug_span!("Verify operations shard").entered();
             StarkVerifier::verify_shard(builder, &vk, machine, &mut challenger, &shard_proof);
+            verify_shard_span.exit();
 
             // Get the current public values.
             let current_public_values: &RecursionPublicValues<Felt<C::F>> =

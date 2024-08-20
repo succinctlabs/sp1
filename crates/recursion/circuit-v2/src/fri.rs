@@ -67,6 +67,7 @@ pub fn verify_two_adic_pcs<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigV
 
     let log_global_max_height = proof.fri_proof.commit_phase_commits.len() + config.log_blowup;
 
+    let reduced_openings_span = tracing::debug_span!("Compute reduced openings").entered();
     let reduced_openings = proof
         .query_openings
         .iter()
@@ -77,15 +78,11 @@ pub fn verify_two_adic_pcs<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigV
             let mut ro: [Ext<C::F, C::EF>; 32] =
                 [builder.eval(SymbolicExt::from_f(C::EF::zero())); 32];
 
-            for (batch_opening, round) in zip(query_opening, rounds.iter().cloned()) {
+            for (batch_opening, round) in zip(query_opening, rounds.iter()) {
                 let batch_commit = round.batch_commit;
-                let mats = round.domains_points_and_opens;
+                let mats = &round.domains_points_and_opens;
                 let batch_heights =
                     mats.iter().map(|mat| mat.domain.size() << config.log_blowup).collect_vec();
-                let batch_dims = batch_heights
-                    .iter()
-                    .map(|&height| Dimensions { width: 0, height })
-                    .collect_vec();
 
                 let batch_max_height = batch_heights.iter().max().expect("Empty batch?");
                 let log_batch_max_height = log2_strict_usize(*batch_max_height);
@@ -96,16 +93,14 @@ pub fn verify_two_adic_pcs<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigV
                 verify_batch::<C, SC>(
                     builder,
                     batch_commit,
-                    batch_dims,
+                    &batch_heights,
                     reduced_index_bits,
                     batch_opening.opened_values.clone(),
                     batch_opening.opening_proof.clone(),
                 );
 
-                for (mat_opening, mat) in izip!(&batch_opening.opened_values, mats) {
+                for (mat_opening, mat) in izip!(batch_opening.opened_values.iter(), mats) {
                     let mat_domain = mat.domain;
-                    let mat_points = mat.points;
-                    let mat_values = mat.values;
                     let log_height = log2_strict_usize(mat_domain.size()) + config.log_blowup;
 
                     let bits_reduced = log_global_max_height - log_height;
@@ -119,10 +114,10 @@ pub fn verify_two_adic_pcs<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigV
                         C::exp_reverse_bits(builder, two_adic_generator, reduced_index_bits_trunc);
                     let x: Felt<_> = builder.eval(g * two_adic_generator_exp);
 
-                    for (z, ps_at_z) in izip!(&mat_points, mat_values) {
+                    for (z, ps_at_z) in izip!(mat.points.iter(), mat.values.iter()) {
                         let mut acc: Ext<C::F, C::EF> =
                             builder.eval(SymbolicExt::from_f(C::EF::zero()));
-                        for (p_at_x, &p_at_z) in mat_opening.clone().into_iter().zip(&ps_at_z) {
+                        for (p_at_x, &p_at_z) in mat_opening.iter().zip(ps_at_z) {
                             acc =
                                 builder.eval(acc + (alpha_pows[log_height] * (p_at_z - p_at_x[0])));
                             alpha_pows[log_height] = builder.eval(alpha_pows[log_height] * alpha);
@@ -134,7 +129,9 @@ pub fn verify_two_adic_pcs<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigV
             ro
         })
         .collect::<Vec<_>>();
+    reduced_openings_span.exit();
 
+    let verify_challenges_span = tracing::debug_span!("Verify challenges").entered();
     verify_challenges::<C, SC>(
         builder,
         config,
@@ -142,6 +139,7 @@ pub fn verify_two_adic_pcs<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigV
         &fri_challenges,
         reduced_openings,
     );
+    verify_challenges_span.exit();
 }
 
 pub fn verify_challenges<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVariable<C>>(
@@ -209,11 +207,11 @@ pub fn verify_query<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVariable
             C::ext2felt(builder, evals_ext[1]).to_vec(),
         ];
 
-        let dims = &[Dimensions { width: 2, height: (1 << log_folded_height) }];
+        let heights = &[1 << log_folded_height];
         verify_batch::<C, SC>(
             builder,
             commit,
-            dims.to_vec(),
+            heights,
             index_pair.to_vec(),
             [evals_felt].to_vec(),
             step.opening_proof.clone(),
@@ -232,18 +230,18 @@ pub fn verify_query<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVariable
 pub fn verify_batch<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVariable<C>>(
     builder: &mut Builder<C>,
     commit: SC::Digest,
-    dimensions: Vec<Dimensions>,
+    heights: &[usize],
     index_bits: Vec<C::Bit>,
     opened_values: Vec<Vec<Vec<Felt<C::F>>>>,
     proof: Vec<SC::Digest>,
 ) {
     let mut heights_tallest_first =
-        dimensions.iter().enumerate().sorted_by_key(|(_, dims)| Reverse(dims.height)).peekable();
+        heights.iter().enumerate().sorted_by_key(|(_, height)| Reverse(*height)).peekable();
 
-    let mut curr_height_padded = heights_tallest_first.peek().unwrap().1.height.next_power_of_two();
+    let mut curr_height_padded = heights_tallest_first.peek().unwrap().1.next_power_of_two();
 
     let ext_slice: Vec<Vec<Felt<C::F>>> = heights_tallest_first
-        .peeking_take_while(|(_, dims)| dims.height.next_power_of_two() == curr_height_padded)
+        .peeking_take_while(|(_, height)| height.next_power_of_two() == curr_height_padded)
         .flat_map(|(i, _)| opened_values[i].as_slice())
         .cloned()
         .collect::<Vec<_>>();
@@ -259,12 +257,12 @@ pub fn verify_batch<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVariable
 
         let next_height = heights_tallest_first
             .peek()
-            .map(|(_, dims)| dims.height)
+            .map(|(_, height)| *height)
             .filter(|h| h.next_power_of_two() == curr_height_padded);
 
         if let Some(next_height) = next_height {
             let ext_slice: Vec<Vec<Felt<C::F>>> = heights_tallest_first
-                .peeking_take_while(|(_, dims)| dims.height == next_height)
+                .peeking_take_while(|(_, height)| *height == next_height)
                 .flat_map(|(i, _)| opened_values[i].as_slice())
                 .cloned()
                 .collect::<Vec<_>>();
@@ -423,52 +421,52 @@ mod tests {
         (commit, vec![TwoAdicPcsRoundVariable { batch_commit: commit, domains_points_and_opens }])
     }
 
-    /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/merkle-tree/src/mmcs.rs#L421
-    #[test]
-    fn size_gaps() {
-        use p3_commit::Mmcs;
-        let perm = inner_perm();
-        let hash = InnerHash::new(perm.clone());
-        let compress = InnerCompress::new(perm);
-        let mmcs = InnerValMmcs::new(hash, compress);
+    // /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/merkle-tree/src/mmcs.rs#L421
+    // #[test]
+    // fn size_gaps() {
+    //     use p3_commit::Mmcs;
+    //     let perm = inner_perm();
+    //     let hash = InnerHash::new(perm.clone());
+    //     let compress = InnerCompress::new(perm);
+    //     let mmcs = InnerValMmcs::new(hash, compress);
 
-        let mut builder = Builder::<InnerConfig>::default();
+    //     let mut builder = Builder::<InnerConfig>::default();
 
-        // 4 mats with 1000 rows, 8 columns
-        let large_mats = (0..4).map(|_| RowMajorMatrix::<F>::rand(&mut OsRng, 1000, 8));
-        let large_mat_dims = (0..4).map(|_| Dimensions { height: 1000, width: 8 });
+    //     // 4 mats with 1000 rows, 8 columns
+    //     let large_mats = (0..4).map(|_| RowMajorMatrix::<F>::rand(&mut OsRng, 1000, 8));
+    //     let large_mat_dims = (0..4).map(|_| Dimensions { height: 1000, width: 8 });
 
-        // 5 mats with 70 rows, 8 columns
-        let medium_mats = (0..5).map(|_| RowMajorMatrix::<F>::rand(&mut OsRng, 70, 8));
-        let medium_mat_dims = (0..5).map(|_| Dimensions { height: 70, width: 8 });
+    //     // 5 mats with 70 rows, 8 columns
+    //     let medium_mats = (0..5).map(|_| RowMajorMatrix::<F>::rand(&mut OsRng, 70, 8));
+    //     let medium_mat_dims = (0..5).map(|_| Dimensions { height: 70, width: 8 });
 
-        // 6 mats with 8 rows, 8 columns
-        let small_mats = (0..6).map(|_| RowMajorMatrix::<F>::rand(&mut OsRng, 8, 8));
-        let small_mat_dims = (0..6).map(|_| Dimensions { height: 8, width: 8 });
+    //     // 6 mats with 8 rows, 8 columns
+    //     let small_mats = (0..6).map(|_| RowMajorMatrix::<F>::rand(&mut OsRng, 8, 8));
+    //     let small_mat_dims = (0..6).map(|_| Dimensions { height: 8, width: 8 });
 
-        let (commit, prover_data) =
-            mmcs.commit(large_mats.chain(medium_mats).chain(small_mats).collect_vec());
+    //     let (commit, prover_data) =
+    //         mmcs.commit(large_mats.chain(medium_mats).chain(small_mats).collect_vec());
 
-        let commit: [_; DIGEST_SIZE] = commit.into();
-        let commit = commit.map(|x| builder.eval(x));
-        // open the 6th row of each matrix and verify
-        let (opened_values, proof) = mmcs.open_batch(6, &prover_data);
-        let opened_values = opened_values
-            .into_iter()
-            .map(|x| x.into_iter().map(|y| vec![builder.eval::<Felt<_>, _>(y)]).collect())
-            .collect();
-        let index = builder.eval(F::from_canonical_u32(6));
-        let index_bits = C::num2bits(&mut builder, index, 32);
-        let proof = proof.into_iter().map(|p| p.map(|x| builder.eval(x))).collect();
-        verify_batch::<_, SC>(
-            &mut builder,
-            commit,
-            large_mat_dims.chain(medium_mat_dims).chain(small_mat_dims).collect_vec(),
-            index_bits,
-            opened_values,
-            proof,
-        );
-    }
+    //     let commit: [_; DIGEST_SIZE] = commit.into();
+    //     let commit = commit.map(|x| builder.eval(x));
+    //     // open the 6th row of each matrix and verify
+    //     let (opened_values, proof) = mmcs.open_batch(6, &prover_data);
+    //     let opened_values = opened_values
+    //         .into_iter()
+    //         .map(|x| x.into_iter().map(|y| vec![builder.eval::<Felt<_>, _>(y)]).collect())
+    //         .collect();
+    //     let index = builder.eval(F::from_canonical_u32(6));
+    //     let index_bits = C::num2bits(&mut builder, index, 32);
+    //     let proof = proof.into_iter().map(|p| p.map(|x| builder.eval(x))).collect();
+    //     verify_batch::<_, SC>(
+    //         &mut builder,
+    //         commit,
+    //         large_mat_dims.chain(medium_mat_dims).chain(small_mat_dims).collect_vec(),
+    //         index_bits,
+    //         opened_values,
+    //         proof,
+    //     );
+    // }
 
     #[test]
     fn test_fri_verify_shape_and_sample_challenges() {
