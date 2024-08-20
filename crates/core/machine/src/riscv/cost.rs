@@ -14,7 +14,7 @@ pub trait CostEstimator {
     /// The gas is defined as the trace area divided by the lowerbound per cpu cycle.
     ///
     /// NOTE: This is an approximation and may not be accurate. For example, it does not currently
-    /// account for dependencies and factor in the cost of unique memory accesses.
+    /// account for dependencies.
     fn estimate_gas(&self) -> u64 {
         let costs = RiscvAir::<BabyBear>::costs();
         let cpu_gas = costs[&RiscvAirDiscriminants::Cpu];
@@ -26,7 +26,7 @@ pub trait CostEstimator {
 impl CostEstimator for ExecutionReport {
     fn estimate_area(&self) -> u64 {
         let mut total_area = 0;
-        let mut total_chips = 5;
+        let mut total_chips = 3;
         let (chips, costs) = RiscvAir::<BabyBear>::get_chips_and_costs();
 
         let cpu_events = self.total_instruction_count();
@@ -179,6 +179,14 @@ impl CostEstimator for ExecutionReport {
         let lt_events = *self.opcode_counts.get(&Opcode::SLT).unwrap_or(&0)
             + *self.opcode_counts.get(&Opcode::SLTU).unwrap_or(&0);
         total_area += (lt_events as u64) * costs[&RiscvAirDiscriminants::Lt];
+        total_chips += 1;
+
+        let memory_initialize_events = self.touched_memory_addresses;
+        total_area += (memory_initialize_events as u64) * costs[&RiscvAirDiscriminants::MemoryInit];
+        total_chips += 1;
+
+        let memory_finalize_events = self.touched_memory_addresses;
+        total_area += (memory_finalize_events as u64) * costs[&RiscvAirDiscriminants::MemoryFinal];
         total_chips += 1;
 
         assert_eq!(total_chips, chips.len(), "chip count mismatch");

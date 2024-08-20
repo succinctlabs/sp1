@@ -536,9 +536,10 @@ where
         // Log some of the `ExecutionReport` information.
         let report_aggregate = report_aggregate.lock().unwrap();
         tracing::info!(
-            "execution report (totals): total_cycles={}, total_syscall_cycles={}",
+            "execution report (totals): total_cycles={}, total_syscall_cycles={}, touched_memory_addresses={}",
             report_aggregate.total_instruction_count(),
             report_aggregate.total_syscall_count(),
+            report_aggregate.touched_memory_addresses,
         );
 
         // Print the opcode and syscall count tables like `du`: sorted by count (descending) and
