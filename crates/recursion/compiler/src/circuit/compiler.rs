@@ -1,7 +1,9 @@
 use chips::poseidon2_skinny::WIDTH;
 use core::fmt::Debug;
 use instruction::{FieldEltType, HintBitsInstr, HintExt2FeltsInstr, HintInstr, PrintInstr};
-use p3_field::{AbstractExtensionField, AbstractField, Field, PrimeField, TwoAdicField};
+use p3_field::{
+    AbstractExtensionField, AbstractField, Field, PrimeField, PrimeField64, TwoAdicField,
+};
 use sp1_core_machine::utils::{sp1_debug_mode, SpanBuilder};
 use sp1_recursion_core::air::{Block, RecursionPublicValues, RECURSIVE_PROOF_NUM_PV_ELTS};
 use sp1_recursion_core_v2::{BaseAluInstr, BaseAluOpcode};
@@ -11,6 +13,7 @@ use std::{
     iter::repeat,
     mem::transmute,
 };
+use vec_map::VecMap;
 
 use sp1_recursion_core_v2::*;
 
@@ -21,14 +24,17 @@ use crate::prelude::*;
 pub struct AsmCompiler<C: Config> {
     pub next_addr: C::F,
     /// Map the frame pointers of the variables to the "physical" addresses.
-    pub fp_to_addr: HashMap<i32, Address<C::F>>,
+    pub virtual_to_physical: VecMap<Address<C::F>>,
     /// Map base or extension field constants to "physical" addresses and mults.
     pub consts: HashMap<Imm<C::F, C::EF>, (Address<C::F>, C::F)>,
     /// Map each "physical" address to its read count.
-    pub addr_to_mult: HashMap<Address<C::F>, C::F>,
+    pub addr_to_mult: VecMap<C::F>,
 }
 
-impl<C: Config> AsmCompiler<C> {
+impl<C: Config> AsmCompiler<C>
+where
+    C::F: PrimeField64,
+{
     /// Allocate a fresh address. Checks that the address space is not full.
     pub fn alloc(next_addr: &mut C::F) -> Address<C::F> {
         let id = Address(*next_addr);
@@ -42,26 +48,27 @@ impl<C: Config> AsmCompiler<C> {
     /// Map `fp` to its existing address without changing its mult.
     ///
     /// Ensures that `fp` has already been assigned an address.
-    pub fn read_ghost_fp(&mut self, fp: i32) -> Address<C::F> {
-        self.read_fp_internal(fp, false)
+    pub fn read_ghost_vaddr(&mut self, vaddr: usize) -> Address<C::F> {
+        self.read_vaddr_internal(vaddr, false)
     }
 
     /// Map `fp` to its existing address and increment its mult.
     ///
     /// Ensures that `fp` has already been assigned an address.
-    pub fn read_fp(&mut self, fp: i32) -> Address<C::F> {
-        self.read_fp_internal(fp, true)
+    pub fn read_vaddr(&mut self, vaddr: usize) -> Address<C::F> {
+        self.read_vaddr_internal(vaddr, true)
     }
 
-    pub fn read_fp_internal(&mut self, fp: i32, increment_mult: bool) -> Address<C::F> {
-        match self.fp_to_addr.entry(fp) {
-            Entry::Vacant(entry) => panic!("expected entry in fp_to_addr: {entry:?}"),
+    pub fn read_vaddr_internal(&mut self, vaddr: usize, increment_mult: bool) -> Address<C::F> {
+        use vec_map::Entry;
+        match self.virtual_to_physical.entry(vaddr) {
+            Entry::Vacant(_) => panic!("expected entry: virtual_physical[{:?}]", vaddr),
             Entry::Occupied(entry) => {
                 if increment_mult {
                     // This is a read, so we increment the mult.
-                    match self.addr_to_mult.get_mut(entry.get()) {
+                    match self.addr_to_mult.get_mut(entry.get().as_usize()) {
                         Some(mult) => *mult += C::F::one(),
-                        None => panic!("expected entry in addr_mult: {entry:?}"),
+                        None => panic!("expected entry: virtual_physical[{:?}]", vaddr),
                     }
                 }
                 *entry.into_mut()
@@ -72,17 +79,20 @@ impl<C: Config> AsmCompiler<C> {
     /// Map `fp` to a fresh address and initialize the mult to 0.
     ///
     /// Ensures that `fp` has not already been written to.
-    pub fn write_fp(&mut self, fp: i32) -> Address<C::F> {
-        match self.fp_to_addr.entry(fp) {
+    pub fn write_fp(&mut self, vaddr: usize) -> Address<C::F> {
+        use vec_map::Entry;
+        match self.virtual_to_physical.entry(vaddr) {
             Entry::Vacant(entry) => {
                 let addr = Self::alloc(&mut self.next_addr);
                 // This is a write, so we set the mult to zero.
-                if let Some(x) = self.addr_to_mult.insert(addr, C::F::zero()) {
+                if let Some(x) = self.addr_to_mult.insert(addr.as_usize(), C::F::zero()) {
                     panic!("unexpected entry in addr_to_mult: {x:?}");
                 }
                 *entry.insert(addr)
             }
-            Entry::Occupied(entry) => panic!("unexpected entry in fp_to_addr: {entry:?}"),
+            Entry::Occupied(entry) => {
+                panic!("unexpected entry: virtual_to_physical[{:?}] = {:?}", vaddr, entry.get())
+            }
         }
     }
 
@@ -101,8 +111,9 @@ impl<C: Config> AsmCompiler<C> {
     }
 
     fn read_addr_internal(&mut self, addr: Address<C::F>, increment_mult: bool) -> &mut C::F {
-        match self.addr_to_mult.entry(addr) {
-            Entry::Vacant(entry) => panic!("expected entry in addr_to_mult: {entry:?}"),
+        use vec_map::Entry;
+        match self.addr_to_mult.entry(addr.as_usize()) {
+            Entry::Vacant(_) => panic!("expected entry: addr_to_mult[{:?}]", addr.as_usize()),
             Entry::Occupied(entry) => {
                 // This is a read, so we increment the mult.
                 let mult = entry.into_mut();
@@ -118,9 +129,12 @@ impl<C: Config> AsmCompiler<C> {
     ///
     /// Ensures that `addr` has not already been written to.
     pub fn write_addr(&mut self, addr: Address<C::F>) -> &mut C::F {
-        match self.addr_to_mult.entry(addr) {
+        use vec_map::Entry;
+        match self.addr_to_mult.entry(addr.as_usize()) {
             Entry::Vacant(entry) => entry.insert(C::F::zero()),
-            Entry::Occupied(entry) => panic!("unexpected entry in addr_to_mult: {entry:?}"),
+            Entry::Occupied(entry) => {
+                panic!("unexpected entry: addr_to_mult[{:?}] = {:?}", addr.as_usize(), entry.get())
+            }
         }
     }
 
@@ -529,8 +543,9 @@ impl<C: Config> AsmCompiler<C> {
         // Replace the mults using the address count data gathered in this previous.
         // Exhaustive match for refactoring purposes.
         let total_memory = self.addr_to_mult.len() + self.consts.len();
-        let mut backfill =
-            |(mult, addr): (&mut F, &Address<F>)| *mult = self.addr_to_mult.remove(addr).unwrap();
+        let mut backfill = |(mult, addr): (&mut F, &Address<F>)| {
+            *mult = self.addr_to_mult.remove(addr.as_usize()).unwrap()
+        };
         tracing::debug_span!("backfill mult").in_scope(|| {
             for asm_instr in instrs.iter_mut() {
                 match asm_instr {
@@ -607,7 +622,7 @@ impl<C: Config> AsmCompiler<C> {
         tracing::debug!("number of consts to initialize: {}", instrs_consts.len());
         // Reset the other fields.
         self.next_addr = Default::default();
-        self.fp_to_addr.clear();
+        self.virtual_to_physical.clear();
         // Place constant-initializing instructions at the top.
         let (instructions, traces) = tracing::debug_span!("construct program").in_scope(|| {
             if debug_mode {
@@ -718,28 +733,28 @@ impl_reg_borrowed!(&T);
 impl_reg_borrowed!(&mut T);
 impl_reg_borrowed!(Box<T>);
 
-macro_rules! impl_reg_fp {
-    ($a:ty) => {
-        impl<C: Config> Reg<C> for $a {
+macro_rules! impl_reg_vaddr {
+    ($a:ty, $offset:expr) => {
+        impl<C: Config<F: PrimeField64>> Reg<C> for $a {
             fn read(&self, compiler: &mut AsmCompiler<C>) -> Address<C::F> {
-                compiler.read_fp(self.fp())
+                compiler.read_vaddr(self.0 as usize * 3 + $offset)
             }
             fn read_ghost(&self, compiler: &mut AsmCompiler<C>) -> Address<C::F> {
-                compiler.read_ghost_fp(self.fp())
+                compiler.read_ghost_vaddr(self.0 as usize * 3 + $offset)
             }
             fn write(&self, compiler: &mut AsmCompiler<C>) -> Address<C::F> {
-                compiler.write_fp(self.fp())
+                compiler.write_fp(self.0 as usize * 3 + $offset)
             }
         }
     };
 }
 
 // These three types have `.fp()` but they don't share a trait.
-impl_reg_fp!(Var<C::F>);
-impl_reg_fp!(Felt<C::F>);
-impl_reg_fp!(Ext<C::F, C::EF>);
+impl_reg_vaddr!(Var<C::F>, 1);
+impl_reg_vaddr!(Felt<C::F>, 2);
+impl_reg_vaddr!(Ext<C::F, C::EF>, 0);
 
-impl<C: Config> Reg<C> for Imm<C::F, C::EF> {
+impl<C: Config<F: PrimeField64>> Reg<C> for Imm<C::F, C::EF> {
     fn read(&self, compiler: &mut AsmCompiler<C>) -> Address<C::F> {
         compiler.read_const(*self)
     }
@@ -753,7 +768,7 @@ impl<C: Config> Reg<C> for Imm<C::F, C::EF> {
     }
 }
 
-impl<C: Config> Reg<C> for Address<C::F> {
+impl<C: Config<F: PrimeField64>> Reg<C> for Address<C::F> {
     fn read(&self, compiler: &mut AsmCompiler<C>) -> Address<C::F> {
         compiler.read_addr(*self);
         *self

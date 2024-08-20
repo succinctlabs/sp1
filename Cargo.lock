@@ -5350,6 +5350,7 @@ dependencies = [
  "sp1-recursion-derive",
  "sp1-stark",
  "tracing",
+ "vec_map",
 ]
 
 [[package]]

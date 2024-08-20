@@ -25,6 +25,7 @@ use crate::chips::poseidon2_skinny::WIDTH;
 pub struct Address<F>(pub F);
 
 impl<F: PrimeField64> Address<F> {
+    #[inline]
     pub fn as_usize(&self) -> usize {
         self.0.as_canonical_u64() as usize
     }
