@@ -26,6 +26,10 @@ pub struct RecursionShardOpenedValuesVariable<C: Config> {
 pub struct FriProofVariable<C: Config> {
     pub commit_phase_commits: Vec<OuterDigestVariable<C>>,
     pub query_proofs: Vec<FriQueryProofVariable<C>>,
+
+    pub normalize_phase_commits: Vec<OuterDigestVariable<C>>,
+    pub normalize_query_proofs: Vec<NormalizeQueryProofVariable<C>>,
+
     pub final_poly: Ext<C::F, C::EF>,
     pub pow_witness: Felt<C::F>,
 }
@@ -33,7 +37,7 @@ pub struct FriProofVariable<C: Config> {
 /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/fri/src/proof.rs#L32
 #[derive(Clone)]
 pub struct FriCommitPhaseProofStepVariable<C: Config> {
-    pub sibling_value: Ext<C::F, C::EF>,
+    pub siblings: Vec<Ext<C::F, C::EF>>,
     pub opening_proof: Vec<OuterDigestVariable<C>>,
 }
 
@@ -41,6 +45,11 @@ pub struct FriCommitPhaseProofStepVariable<C: Config> {
 #[derive(Clone)]
 pub struct FriQueryProofVariable<C: Config> {
     pub commit_phase_openings: Vec<FriCommitPhaseProofStepVariable<C>>,
+}
+
+#[derive(Clone)]
+pub struct NormalizeQueryProofVariable<C: Config> {
+    pub normalize_phase_openings: Vec<FriCommitPhaseProofStepVariable<C>>,
 }
 
 /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/fri/src/verifier.rs#L22

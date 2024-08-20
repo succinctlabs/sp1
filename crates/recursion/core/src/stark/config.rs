@@ -4,10 +4,11 @@ use p3_challenger::MultiField32Challenger;
 use p3_commit::ExtensionMmcs;
 use p3_dft::Radix2DitParallel;
 use p3_field::extension::BinomialExtensionField;
-use p3_fri::{
-    BatchOpening, CommitPhaseProofStep, FriConfig, FriProof, QueryProof, TwoAdicFriPcs,
-    TwoAdicFriPcsProof,
-};
+use p3_fri::BatchOpening;
+use p3_fri::CommitPhaseProofStep;
+use p3_fri::NormalizeQueryProof;
+use p3_fri::QueryProof;
+use p3_fri::{FriConfig, FriProof, TwoAdicFriPcs, TwoAdicFriPcsProof};
 use p3_merkle_tree::FieldMerkleTreeMmcs;
 use p3_poseidon2::{Poseidon2, Poseidon2ExternalMatrixGeneral};
 use p3_symmetric::{Hash, MultiField32PaddingFreeSponge, TruncatedPermutation};
@@ -31,6 +32,7 @@ pub type OuterChallenger = MultiField32Challenger<OuterVal, Bn254Fr, OuterPerm, 
 pub type OuterPcs = TwoAdicFriPcs<OuterVal, OuterDft, OuterValMmcs, OuterChallengeMmcs>;
 
 pub type OuterQueryProof = QueryProof<OuterChallenge, OuterChallengeMmcs>;
+pub type OuterNormalizeQueryProof = NormalizeQueryProof<OuterChallenge, OuterChallengeMmcs>;
 pub type OuterCommitPhaseStep = CommitPhaseProofStep<OuterChallenge, OuterChallengeMmcs>;
 pub type OuterFriProof = FriProof<OuterChallenge, OuterChallengeMmcs, OuterVal>;
 pub type OuterBatchOpening = BatchOpening<OuterVal, OuterValMmcs>;
@@ -71,7 +73,13 @@ pub fn outer_fri_config() -> FriConfig<OuterChallengeMmcs> {
             Err(_) => 25,
         }
     };
-    FriConfig { log_blowup: 4, num_queries, proof_of_work_bits: 16, mmcs: challenge_mmcs }
+    FriConfig {
+        log_blowup: 4,
+        log_arity: 1,
+        num_queries,
+        proof_of_work_bits: 16,
+        mmcs: challenge_mmcs,
+    }
 }
 
 /// The FRI config for outer recursion.
@@ -88,7 +96,13 @@ pub fn outer_fri_config_with_blowup(log_blowup: usize) -> FriConfig<OuterChallen
             Err(_) => 100 / log_blowup,
         }
     };
-    FriConfig { log_blowup, num_queries, proof_of_work_bits: 16, mmcs: challenge_mmcs }
+    FriConfig {
+        log_blowup,
+        log_arity: 1,
+        num_queries,
+        proof_of_work_bits: 16,
+        mmcs: challenge_mmcs,
+    }
 }
 
 #[derive(Deserialize)]
@@ -170,5 +184,11 @@ pub fn test_fri_config() -> FriConfig<OuterChallengeMmcs> {
     let hash = OuterHash::new(perm.clone()).unwrap();
     let compress = OuterCompress::new(perm.clone());
     let challenge_mmcs = OuterChallengeMmcs::new(OuterValMmcs::new(hash, compress));
-    FriConfig { log_blowup: 1, num_queries: 1, proof_of_work_bits: 1, mmcs: challenge_mmcs }
+    FriConfig {
+        log_blowup: 1,
+        log_arity: 1,
+        num_queries: 1,
+        proof_of_work_bits: 1,
+        mmcs: challenge_mmcs,
+    }
 }

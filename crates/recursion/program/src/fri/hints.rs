@@ -74,9 +74,13 @@ impl Hintable<C> for InnerCommitPhaseStep {
     fn write(&self) -> Vec<Vec<Block<<C as Config>::F>>> {
         let mut stream = Vec::new();
 
-        let sibling_value: &[InnerVal] = self.sibling_value.as_base_slice();
-        let sibling_value = Block::from(sibling_value);
-        stream.push(vec![sibling_value]);
+        let siblings: Vec<&[InnerVal]> = self
+            .siblings
+            .iter()
+            .map(AbstractExtensionField::as_base_slice)
+            .collect();
+        let sibling_value = siblings.into_iter().map(Block::from).collect();
+        stream.push(sibling_value);
 
         stream.extend(Vec::<InnerDigest>::write(&self.opening_proof));
 

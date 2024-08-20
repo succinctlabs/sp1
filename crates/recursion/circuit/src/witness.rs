@@ -5,16 +5,18 @@ use sp1_recursion_compiler::{
 };
 use sp1_recursion_core::stark::config::{
     BabyBearPoseidon2Outer, OuterBatchOpening, OuterChallenge, OuterCommitPhaseStep, OuterDigest,
-    OuterFriProof, OuterPcsProof, OuterQueryProof, OuterVal,
+    OuterFriProof, OuterNormalizeQueryProof, OuterPcsProof, OuterQueryProof, OuterVal,
 };
+
 use sp1_stark::{
     AirOpenedValues, ChipOpenedValues, ShardCommitment, ShardOpenedValues, ShardProof,
 };
 
 use crate::types::{
     AirOpenedValuesVariable, BatchOpeningVariable, ChipOpenedValuesVariable,
-    FriCommitPhaseProofStepVariable, FriProofVariable, FriQueryProofVariable, OuterDigestVariable,
-    RecursionShardOpenedValuesVariable, RecursionShardProofVariable, TwoAdicPcsProofVariable,
+    FriCommitPhaseProofStepVariable, FriProofVariable, FriQueryProofVariable,
+    NormalizeQueryProofVariable, OuterDigestVariable, RecursionShardOpenedValuesVariable,
+    RecursionShardProofVariable, TwoAdicPcsProofVariable,
 };
 
 pub trait Witnessable<C: Config> {
@@ -197,13 +199,13 @@ impl Witnessable<C> for OuterCommitPhaseStep {
     type WitnessVariable = FriCommitPhaseProofStepVariable<C>;
 
     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
-        let sibling_value = self.sibling_value.read(builder);
+        let siblings = self.siblings.iter().map(|sibling| sibling.read(builder)).collect();
         let opening_proof = self.opening_proof.read(builder);
-        FriCommitPhaseProofStepVariable { sibling_value, opening_proof }
+        FriCommitPhaseProofStepVariable { siblings, opening_proof }
     }
 
     fn write(&self, witness: &mut Witness<C>) {
-        self.sibling_value.write(witness);
+        self.siblings.write(witness);
         self.opening_proof.write(witness);
     }
 }
@@ -223,6 +225,20 @@ impl Witnessable<C> for OuterQueryProof {
 }
 impl VectorWitnessable<C> for OuterQueryProof {}
 
+impl Witnessable<C> for OuterNormalizeQueryProof {
+    type WitnessVariable = NormalizeQueryProofVariable<C>;
+
+    fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
+        let normalize_phase_openings = self.normalize_phase_openings.read(builder);
+        NormalizeQueryProofVariable { normalize_phase_openings }
+    }
+
+    fn write(&self, witness: &mut Witness<C>) {
+        self.normalize_phase_openings.write(witness);
+    }
+}
+impl VectorWitnessable<C> for OuterNormalizeQueryProof {}
+
 impl Witnessable<C> for OuterFriProof {
     type WitnessVariable = FriProofVariable<C>;
 
@@ -235,10 +251,26 @@ impl Witnessable<C> for OuterFriProof {
                 commit.read(builder)
             })
             .collect();
+        let normalize_phase_commits = self
+            .normalize_phase_commits
+            .iter()
+            .map(|commit| {
+                let commit: OuterDigest = (*commit).into();
+                commit.read(builder)
+            })
+            .collect();
         let query_proofs = self.query_proofs.read(builder);
+        let normalize_query_proofs = self.normalize_query_proofs.read(builder);
         let final_poly = self.final_poly.read(builder);
         let pow_witness = self.pow_witness.read(builder);
-        FriProofVariable { commit_phase_commits, query_proofs, final_poly, pow_witness }
+        FriProofVariable {
+            commit_phase_commits,
+            normalize_query_proofs,
+            normalize_phase_commits,
+            query_proofs,
+            final_poly,
+            pow_witness,
+        }
     }
 
     fn write(&self, witness: &mut Witness<C>) {

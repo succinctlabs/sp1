@@ -77,6 +77,8 @@ impl Prover<DefaultProverComponents> for MockProver {
                         opening_proof: TwoAdicFriPcsProof {
                             fri_proof: FriProof {
                                 commit_phase_commits: vec![],
+                                normalize_phase_commits: vec![],
+                                normalize_query_proofs: vec![],
                                 query_proofs: vec![],
                                 final_poly: Default::default(),
                                 pow_witness: BabyBear::zero(),
