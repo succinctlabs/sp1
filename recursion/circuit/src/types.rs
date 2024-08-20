@@ -2,7 +2,7 @@ use p3_air::BaseAir;
 use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::AbstractExtensionField;
 use sp1_core::{
-    air::{InteractionScope, MachineAir},
+    air::MachineAir,
     stark::{AirOpenedValues, Chip, ChipOpenedValues, ShardCommitment},
 };
 use sp1_recursion_compiler::ir::{Array, Builder, Config, Ext, ExtConst, Felt, FromConstant, Var};
@@ -112,12 +112,13 @@ impl<C: Config> FromConstant<C> for ChipOpenedValuesVariable<C> {
         ChipOpenedValuesVariable {
             preprocessed: builder.constant(value.preprocessed),
             main: builder.constant(value.main),
-            permutation: builder.constant(value.global_permutation),
+            permutation: builder.constant(value.permutation),
             quotient: value
                 .quotient
                 .iter()
                 .map(|x| x.iter().map(|y| builder.constant(*y)).collect())
                 .collect(),
+            // TODO: Need to add field for local cumulative sum.
             cumulative_sum: builder.eval(value.global_cumulative_sum.cons()),
             log_degree: value.log_degree,
         }
@@ -167,7 +168,7 @@ impl<C: Config> ChipOpening<C> {
             local: vec![],
             next: vec![],
         };
-        let permutation_width = C::EF::D * chip.permutation_width(InteractionScope::Global);
+        let permutation_width = C::EF::D * chip.permutation_width();
 
         for i in 0..permutation_width {
             permutation.local.push(opening.permutation.local[i]);

@@ -133,15 +133,15 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
     pub fn new() -> Self {
         let prover = Self::uninitialized();
         // Initialize everything except wrap key which is a bit slow.
-        prover.recursion_program();
-        prover.deferred_program();
-        prover.compress_program();
-        prover.shrink_program();
-        prover.wrap_program();
-        prover.recursion_keys();
-        prover.deferred_keys();
-        prover.compress_keys();
-        prover.shrink_keys();
+        // prover.recursion_program();
+        // prover.deferred_program();
+        // prover.compress_program();
+        // prover.shrink_program();
+        // prover.wrap_program();
+        // prover.recursion_keys();
+        // prover.deferred_keys();
+        // prover.compress_keys();
+        // prover.shrink_keys();
         prover
     }
 

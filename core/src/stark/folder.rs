@@ -3,16 +3,14 @@ use std::{
     ops::{Add, Mul, MulAssign, Sub},
 };
 
-use hashbrown::HashMap;
 use p3_field::{AbstractField, ExtensionField, Field};
 use p3_matrix::dense::RowMajorMatrixView;
 use p3_matrix::stack::VerticalPair;
 
 use super::{Challenge, PackedChallenge, PackedVal, StarkGenericConfig, Val};
-use crate::air::{EmptyMessageBuilder, InteractionScope, MultiTableAirBuilder};
+use crate::air::{EmptyMessageBuilder, MultiTableAirBuilder};
 use p3_air::{
     AirBuilder, AirBuilderWithPublicValues, ExtensionBuilder, PairBuilder, PermutationAirBuilder,
-    PermutationError,
 };
 
 /// A folder for prover constraints.
@@ -21,15 +19,12 @@ pub struct ProverConstraintFolder<'a, SC: StarkGenericConfig> {
         VerticalPair<RowMajorMatrixView<'a, PackedVal<SC>>, RowMajorMatrixView<'a, PackedVal<SC>>>,
     pub main:
         VerticalPair<RowMajorMatrixView<'a, PackedVal<SC>>, RowMajorMatrixView<'a, PackedVal<SC>>>,
-    pub perms: HashMap<
-        InteractionScope,
-        VerticalPair<
-            RowMajorMatrixView<'a, PackedChallenge<SC>>,
-            RowMajorMatrixView<'a, PackedChallenge<SC>>,
-        >,
+    pub perm: VerticalPair<
+        RowMajorMatrixView<'a, PackedChallenge<SC>>,
+        RowMajorMatrixView<'a, PackedChallenge<SC>>,
     >,
-    pub cumulative_sums: HashMap<InteractionScope, SC::Challenge>,
-    pub perm_challenges: HashMap<InteractionScope, &'a [PackedChallenge<SC>]>,
+    pub perm_challenges: &'a [PackedChallenge<SC>],
+    pub cumulative_sums: &'a [PackedChallenge<SC>],
     pub is_first_row: PackedVal<SC>,
     pub is_last_row: PackedVal<SC>,
     pub is_transition: PackedVal<SC>,
@@ -89,9 +84,7 @@ impl<'a, SC: StarkGenericConfig> ExtensionBuilder for ProverConstraintFolder<'a,
     }
 }
 
-impl<'a, SC: StarkGenericConfig> PermutationAirBuilder<InteractionScope>
-    for ProverConstraintFolder<'a, SC>
-{
+impl<'a, SC: StarkGenericConfig> PermutationAirBuilder for ProverConstraintFolder<'a, SC> {
     type MP = VerticalPair<
         RowMajorMatrixView<'a, PackedChallenge<SC>>,
         RowMajorMatrixView<'a, PackedChallenge<SC>>,
@@ -99,32 +92,20 @@ impl<'a, SC: StarkGenericConfig> PermutationAirBuilder<InteractionScope>
 
     type RandomVar = PackedChallenge<SC>;
 
-    fn permutation(&self, perm_type: InteractionScope) -> Result<Self::MP, PermutationError> {
-        match self.perms.get(&perm_type) {
-            Some(perm) => Ok(*perm),
-            None => Err(PermutationError::InvalidVariant),
-        }
+    fn permutation(&self) -> Self::MP {
+        self.perm
     }
 
-    fn permutation_randomness(
-        &self,
-        perm_type: InteractionScope,
-    ) -> Result<&[Self::RandomVar], PermutationError> {
-        match self.perm_challenges.get(&perm_type) {
-            Some(challenges) => Ok(challenges),
-            None => Err(PermutationError::InvalidVariant),
-        }
+    fn permutation_randomness(&self) -> &[Self::RandomVar] {
+        self.perm_challenges
     }
 }
 
-impl<'a, SC: StarkGenericConfig> MultiTableAirBuilder for ProverConstraintFolder<'a, SC> {
+impl<'a, SC: StarkGenericConfig> MultiTableAirBuilder<'a> for ProverConstraintFolder<'a, SC> {
     type Sum = PackedChallenge<SC>;
 
-    fn cumulative_sum(&self, perm_type: InteractionScope) -> Result<Self::Sum, PermutationError> {
-        match self.cumulative_sums.get(&perm_type) {
-            Some(sum) => Ok(PackedChallenge::<SC>::from_f(*sum)),
-            None => Err(PermutationError::InvalidVariant),
-        }
+    fn cumulative_sums(&self) -> &'a [Self::Sum] {
+        self.cumulative_sums
     }
 }
 
@@ -157,12 +138,9 @@ pub type VerifierConstraintFolder<'a, SC> = GenericVerifierConstraintFolder<
 pub struct GenericVerifierConstraintFolder<'a, F, EF, PubVar, Var, Expr> {
     pub preprocessed: VerticalPair<RowMajorMatrixView<'a, Var>, RowMajorMatrixView<'a, Var>>,
     pub main: VerticalPair<RowMajorMatrixView<'a, Var>, RowMajorMatrixView<'a, Var>>,
-    pub perms: HashMap<
-        InteractionScope,
-        VerticalPair<RowMajorMatrixView<'a, Var>, RowMajorMatrixView<'a, Var>>,
-    >,
-    pub cumulative_sums: HashMap<InteractionScope, Var>,
-    pub perm_challenges: HashMap<InteractionScope, &'a [Var]>,
+    pub perm: VerticalPair<RowMajorMatrixView<'a, Var>, RowMajorMatrixView<'a, Var>>,
+    pub perm_challenges: &'a [Var],
+    pub cumulative_sums: &'a [Var],
     pub is_first_row: Var,
     pub is_last_row: Var,
     pub is_transition: Var,
@@ -274,7 +252,7 @@ where
     }
 }
 
-impl<'a, F, EF, PubVar, Var, Expr> PermutationAirBuilder<InteractionScope>
+impl<'a, F, EF, PubVar, Var, Expr> PermutationAirBuilder
     for GenericVerifierConstraintFolder<'a, F, EF, PubVar, Var, Expr>
 where
     F: Field,
@@ -306,25 +284,16 @@ where
     type MP = VerticalPair<RowMajorMatrixView<'a, Var>, RowMajorMatrixView<'a, Var>>;
     type RandomVar = Var;
 
-    fn permutation(&self, perm_type: InteractionScope) -> Result<Self::MP, PermutationError> {
-        match self.perms.get(&perm_type) {
-            Some(perm) => Ok(*perm),
-            None => Err(PermutationError::InvalidVariant),
-        }
+    fn permutation(&self) -> Self::MP {
+        self.perm
     }
 
-    fn permutation_randomness(
-        &self,
-        perm_type: InteractionScope,
-    ) -> Result<&[Self::RandomVar], PermutationError> {
-        match self.perm_challenges.get(&perm_type) {
-            Some(challenges) => Ok(challenges),
-            None => Err(PermutationError::InvalidVariant),
-        }
+    fn permutation_randomness(&self) -> &[Self::Var] {
+        self.perm_challenges
     }
 }
 
-impl<'a, F, EF, PubVar, Var, Expr> MultiTableAirBuilder
+impl<'a, F, EF, PubVar, Var, Expr> MultiTableAirBuilder<'a>
     for GenericVerifierConstraintFolder<'a, F, EF, PubVar, Var, Expr>
 where
     F: Field,
@@ -355,11 +324,8 @@ where
 {
     type Sum = Var;
 
-    fn cumulative_sum(&self, perm_type: InteractionScope) -> Result<Self::Sum, PermutationError> {
-        match self.cumulative_sums.get(&perm_type) {
-            Some(sum) => Ok(*sum),
-            None => Err(PermutationError::InvalidVariant),
-        }
+    fn cumulative_sums(&self) -> &'a [Self::Sum] {
+        self.cumulative_sums
     }
 }
 

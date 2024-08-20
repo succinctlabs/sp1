@@ -5,9 +5,8 @@ use p3_matrix::dense::RowMajorMatrixView;
 use p3_matrix::stack::VerticalPair;
 use serde::{Deserialize, Serialize};
 
-use crate::air::InteractionScope;
-
 use super::{Challenge, Com, OpeningProof, StarkGenericConfig, Val};
+use crate::air::InteractionScope;
 
 pub type QuotientOpenedValues<T> = Vec<T>;
 
@@ -41,8 +40,7 @@ impl<SC: StarkGenericConfig, M, P> ShardMainData<SC, M, P> {
 pub struct ShardCommitment<C> {
     pub phase1_main_commit: C,
     pub main_commit: C,
-    pub global_permutation_commit: C,
-    pub local_permutation_commit: C,
+    pub permutation_commit: C,
     pub quotient_commit: C,
 }
 
@@ -56,8 +54,7 @@ pub struct AirOpenedValues<T> {
 pub struct ChipOpenedValues<T: Serialize> {
     pub preprocessed: AirOpenedValues<T>,
     pub main: AirOpenedValues<T>,
-    pub global_permutation: AirOpenedValues<T>,
-    pub local_permutation: AirOpenedValues<T>,
+    pub permutation: AirOpenedValues<T>,
     pub quotient: Vec<Vec<T>>,
     pub global_cumulative_sum: T,
     pub local_cumulative_sum: T,

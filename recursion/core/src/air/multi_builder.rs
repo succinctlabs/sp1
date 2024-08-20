@@ -1,6 +1,6 @@
 use p3_air::{
     AirBuilder, AirBuilderWithPublicValues, ExtensionBuilder, FilteredAirBuilder,
-    PermutationAirBuilder, PermutationError,
+    PermutationAirBuilder,
 };
 use sp1_core::air::{InteractionScope, MessageBuilder};
 
@@ -75,22 +75,17 @@ impl<'a, AB: ExtensionBuilder> ExtensionBuilder for MultiBuilder<'a, AB> {
     }
 }
 
-impl<'a, AB: PermutationAirBuilder<InteractionScope>> PermutationAirBuilder<InteractionScope>
-    for MultiBuilder<'a, AB>
-{
+impl<'a, AB: PermutationAirBuilder> PermutationAirBuilder for MultiBuilder<'a, AB> {
     type MP = AB::MP;
 
     type RandomVar = AB::RandomVar;
 
-    fn permutation(&self, perm_type: InteractionScope) -> Result<Self::MP, PermutationError> {
-        self.inner.permutation(perm_type)
+    fn permutation(&self) -> Self::MP {
+        self.inner.permutation()
     }
 
-    fn permutation_randomness(
-        &self,
-        perm_type: InteractionScope,
-    ) -> Result<&[Self::RandomVar], PermutationError> {
-        self.inner.permutation_randomness(perm_type)
+    fn permutation_randomness(&self) -> &[Self::RandomVar] {
+        self.inner.permutation_randomness()
     }
 }
 

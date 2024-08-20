@@ -71,8 +71,7 @@ impl Prover<DefaultProverComponents> for MockProver {
                         commitment: ShardCommitment {
                             phase1_main_commit: [BabyBear::zero(); 8].into(),
                             main_commit: [BabyBear::zero(); 8].into(),
-                            global_permutation_commit: [BabyBear::zero(); 8].into(),
-                            local_permutation_commit: [BabyBear::zero(); 8].into(),
+                            permutation_commit: [BabyBear::zero(); 8].into(),
                             quotient_commit: [BabyBear::zero(); 8].into(),
                         },
                         opened_values: ShardOpenedValues { chips: vec![] },

@@ -15,7 +15,6 @@ use p3_maybe_rayon::prelude::*;
 use serde::de::DeserializeOwned;
 use serde::Deserialize;
 use serde::Serialize;
-use std::borrow::Borrow;
 use std::cmp::Reverse;
 use std::fmt::Debug;
 use tracing::instrument;
@@ -25,8 +24,6 @@ use super::Dom;
 use crate::air::InteractionScope;
 use crate::air::MachineAir;
 use crate::air::MachineProgram;
-use crate::air::PublicValues;
-use crate::air::Word;
 use crate::lookup::debug_interactions_with_all_chips;
 use crate::lookup::InteractionKind;
 use crate::stark::record::MachineRecord;
@@ -321,37 +318,20 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
 
         // Verify the cumulative sum is 0.
         tracing::debug_span!("verify cumulative sum is 0").in_scope(|| {
-            let mut global_sum = SC::Challenge::zero();
+            let mut sum = SC::Challenge::zero();
+            let mut local_sum_failed = false;
             for proof in proof.shard_proofs.iter() {
-                global_sum += proof.cumulative_sum(InteractionScope::Global);
-            }
-            if !global_sum.is_zero() {
-                println!("Global sum is not zero");
-            } else {
-                println!("Global sum is zero");
-            }
-
-            let mut local_bus_fail = false;
-            for proof in proof.shard_proofs.iter() {
-                let pv: &PublicValues<Word<SC::Val>, SC::Val> =
-                    proof.public_values.as_slice().borrow();
+                sum += proof.cumulative_sum(InteractionScope::Global);
                 if !proof.cumulative_sum(InteractionScope::Local).is_zero() {
-                    local_bus_fail = true;
-                    println!("Local sum is not zero for shard {}", pv.shard);
-                } else {
-                    println!("Local sum is zero for shard {}", pv.shard);
+                    local_sum_failed = true;
+                    break;
                 }
             }
 
-            if !global_sum.is_zero() {
-                return Err(MachineVerificationError::NonZeroCumulativeSum);
+            match sum.is_zero() && !local_sum_failed {
+                true => Ok(()),
+                false => Err(MachineVerificationError::NonZeroCumulativeSum),
             }
-
-            if local_bus_fail {
-                return Err(MachineVerificationError::NonZeroCumulativeSum);
-            }
-
-            Ok(())
         })
     }
 
@@ -368,19 +348,17 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
         tracing::debug!("checking constraints for each shard");
 
         // Obtain the challenges used for the global permutation argument.
-        let mut global_permutation_challenges: Vec<SC::Challenge> = Vec::new();
+        let mut permutation_challenges: Vec<SC::Challenge> = Vec::new();
         for _ in 0..2 {
-            global_permutation_challenges.push(challenger.sample_ext_element());
+            permutation_challenges.push(challenger.sample_ext_element());
         }
 
         // Obtain the challenges used for the local permutation argument.
-        let mut local_permutation_challenges: Vec<SC::Challenge> = Vec::new();
         for _ in 0..2 {
-            local_permutation_challenges.push(challenger.sample_ext_element());
+            permutation_challenges.push(challenger.sample_ext_element());
         }
 
         let mut global_cumulative_sum = SC::Challenge::zero();
-        let mut local_cumulative_sum_is_zero = true;
         for shard in records.iter() {
             // Filter the chips based on what is used.
             let chips = self.shard_chips(shard);
@@ -408,49 +386,33 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
                     .par_iter()
                     .zip(traces.par_iter_mut())
                     .map(|(chip, (main_trace, pre_trace))| {
-                        let (global_perm_trace, local_perm_trace) = chip
-                            .generate_permutation_trace(
-                                *pre_trace,
-                                main_trace,
-                                &global_permutation_challenges,
-                                &local_permutation_challenges,
-                            );
-                        let [global_cumulative_sums, local_cumulative_sums] =
-                            [&global_perm_trace, &local_perm_trace].map(|perm_trace| {
-                                perm_trace
-                                    .row_slice(perm_trace.height() - 1)
-                                    .last()
-                                    .copied()
-                                    .unwrap()
-                            });
-                        (
-                            (global_perm_trace, local_perm_trace),
-                            (global_cumulative_sums, local_cumulative_sums),
-                        )
+                        let (trace, global_sum, local_sum) = chip.generate_permutation_trace(
+                            *pre_trace,
+                            main_trace,
+                            &permutation_challenges,
+                        );
+                        (trace, [global_sum, local_sum])
                     })
                     .unzip_into_vecs(&mut permutation_traces, &mut cumulative_sums);
             });
 
-            let (global_permutation_traces, local_permutation_traces): (Vec<_>, Vec<_>) =
-                permutation_traces.into_iter().unzip();
-            let (global_cumulative_sums, local_cumulative_sums): (Vec<_>, Vec<_>) =
-                cumulative_sums.into_iter().unzip();
-
-            global_cumulative_sum += global_cumulative_sums
+            global_cumulative_sum += cumulative_sums
                 .iter()
-                .copied()
+                .map(|sum| sum[0])
                 .sum::<SC::Challenge>();
 
-            let local_cumulative_sum = local_cumulative_sums.iter().copied().sum::<SC::Challenge>();
+            let local_cumulative_sum = cumulative_sums
+                .iter()
+                .map(|sum| sum[1])
+                .sum::<SC::Challenge>();
             if !local_cumulative_sum.is_zero() {
-                local_cumulative_sum_is_zero = false;
+                panic!("Local cumulative sum is not zero");
             }
 
             // Compute some statistics.
             for i in 0..chips.len() {
                 let trace_width = traces[i].0.width();
-                let permutation_width = (global_permutation_traces[i].width()
-                    + local_permutation_traces[i].width())
+                let permutation_width = permutation_traces[i].width()
                     * <SC::Challenge as AbstractExtensionField<SC::Val>>::D;
                 let total_width = trace_width + permutation_width;
                 tracing::debug!(
@@ -473,25 +435,24 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
                         chips[i],
                         permutation_trace,
                         &traces[i].0,
-                        &global_permutation_traces[i],
-                        &local_permutation_traces[i],
-                        &global_permutation_challenges,
-                        &local_permutation_challenges,
+                        &permutation_traces[i],
+                        &permutation_challenges,
                         shard.public_values(),
+                        &cumulative_sums[i],
                     );
                 }
             });
         }
 
         // If the cumulative sum is not zero, debug the interactions.
-        if !global_cumulative_sum.is_zero() || !local_cumulative_sum_is_zero {
+        if !global_cumulative_sum.is_zero() {
             debug_interactions_with_all_chips::<SC, A>(
                 self,
                 pk,
                 &records,
                 InteractionKind::all_kinds(),
             );
-            panic!("Cumulative sum is not zero");
+            panic!("Global cumulative sum is not zero");
         }
     }
 }

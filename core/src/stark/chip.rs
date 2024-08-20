@@ -1,6 +1,5 @@
 use std::hash::Hash;
 
-use itertools::Itertools;
 use p3_air::{Air, BaseAir, PairBuilder};
 use p3_field::{ExtensionField, Field, PrimeField, PrimeField32};
 use p3_matrix::dense::RowMajorMatrix;
@@ -8,13 +7,12 @@ use p3_uni_stark::{get_max_constraint_degree, SymbolicAirBuilder};
 use p3_util::log2_ceil_usize;
 
 use crate::{
-    air::{InteractionScope, MachineAir, MultiTableAirBuilder, SP1AirBuilder},
+    air::{MachineAir, MultiTableAirBuilder, SP1AirBuilder},
     lookup::{Interaction, InteractionBuilder, InteractionKind},
 };
 
 use super::{
-    eval_permutation_constraints, generate_permutation_trace, permutation_trace_width,
-    PROOF_MAX_NUM_PVS,
+    eval_permutation_constraints, generate_permutation_trace, get_grouped_maps, PROOF_MAX_NUM_PVS,
 };
 
 /// An Air that encodes lookups based on interactions.
@@ -119,11 +117,11 @@ where
         &self,
         preprocessed: Option<&RowMajorMatrix<F>>,
         main: &RowMajorMatrix<F>,
-        global_random_elements: &[EF],
-        local_random_elements: &[EF],
-    ) -> (RowMajorMatrix<EF>, RowMajorMatrix<EF>)
+        random_elements: &[EF],
+    ) -> (RowMajorMatrix<EF>, EF, EF)
     where
         F: PrimeField,
+        A: MachineAir<F>,
     {
         let batch_size = self.logup_batch_size();
         generate_permutation_trace(
@@ -131,26 +129,17 @@ where
             &self.receives,
             preprocessed,
             main,
-            global_random_elements,
-            local_random_elements,
+            random_elements,
             batch_size,
         )
     }
 
     #[inline]
-    pub fn permutation_width(&self, scope: InteractionScope) -> usize {
-        let sends = self
-            .sends()
-            .iter()
-            .filter(|x| x.scope == scope)
-            .collect_vec();
-        let receives = self
-            .receives()
-            .iter()
-            .filter(|x| x.scope == scope)
-            .collect_vec();
+    pub fn permutation_width(&self) -> usize {
+        let (_, _, grouped_widths) =
+            get_grouped_maps(self.sends(), self.receives(), self.logup_batch_size());
 
-        permutation_trace_width(sends.len() + receives.len(), self.logup_batch_size())
+        grouped_widths.values().sum()
     }
 
     #[inline]
@@ -217,11 +206,11 @@ where
 }
 
 // Implement AIR directly on Chip, evaluating both execution and permutation constraints.
-impl<F, A, AB> Air<AB> for Chip<F, A>
+impl<'a, F, A, AB> Air<AB> for Chip<F, A>
 where
     F: Field,
     A: Air<AB>,
-    AB: SP1AirBuilder<F = F> + MultiTableAirBuilder + PairBuilder,
+    AB: SP1AirBuilder<F = F> + MultiTableAirBuilder<'a> + PairBuilder + 'a,
 {
     fn eval(&self, builder: &mut AB) {
         // Evaluate the execution trace constraints.

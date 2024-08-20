@@ -2,12 +2,12 @@ use std::array;
 use std::iter::once;
 
 use itertools::Itertools;
-use p3_air::{AirBuilder, FilteredAirBuilder, PermutationError};
+use p3_air::{AirBuilder, FilteredAirBuilder};
 use p3_air::{AirBuilderWithPublicValues, PermutationAirBuilder};
 use p3_field::{AbstractField, Field};
 use p3_uni_stark::StarkGenericConfig;
 use p3_uni_stark::{ProverConstraintFolder, SymbolicAirBuilder, VerifierConstraintFolder};
-use strum_macros::Display;
+use strum_macros::{Display, EnumIter};
 
 use super::interaction::AirInteraction;
 use super::word::Word;
@@ -19,7 +19,7 @@ use crate::memory::MemoryAccessCols;
 use crate::{bytes::ByteOpcode, memory::MemoryCols};
 
 /// The scope of an interaction.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Display)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Display, EnumIter, PartialOrd, Ord)]
 pub enum InteractionScope {
     Global = 0,
     Local,
@@ -704,10 +704,10 @@ pub trait ExtensionAirBuilder: BaseAirBuilder {
     }
 }
 
-pub trait MultiTableAirBuilder: PermutationAirBuilder<InteractionScope> {
+pub trait MultiTableAirBuilder<'a>: PermutationAirBuilder {
     type Sum: Into<Self::ExprEF> + Copy;
 
-    fn cumulative_sum(&self, perm_type: InteractionScope) -> Result<Self::Sum, PermutationError>;
+    fn cumulative_sums(&self) -> &'a [Self::Sum];
 }
 
 /// A trait that contains the common helper methods for building `SP1 recursion` and SP1 machine AIRs.

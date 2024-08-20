@@ -309,8 +309,7 @@ impl Hintable<C> for ChipOpenedValues<InnerChallenge> {
         let mut stream = Vec::new();
         stream.extend(self.preprocessed.write());
         stream.extend(self.main.write());
-        stream.extend(self.global_permutation.write());
-        stream.extend(self.local_permutation.write());
+        stream.extend(self.permutation.write());
         stream.extend(self.quotient.write());
         stream.extend(self.global_cumulative_sum.write());
         stream.extend(self.local_cumulative_sum.write());
@@ -380,9 +379,7 @@ impl Hintable<C> for ShardCommitment<InnerDigestHash> {
         let mut stream = Vec::new();
         let h: InnerDigest = self.main_commit.into();
         stream.extend(h.write());
-        let h: InnerDigest = self.global_permutation_commit.into();
-        stream.extend(h.write());
-        let h: InnerDigest = self.local_permutation_commit.into();
+        let h: InnerDigest = self.permutation_commit.into();
         stream.extend(h.write());
         let h: InnerDigest = self.quotient_commit.into();
         stream.extend(h.write());

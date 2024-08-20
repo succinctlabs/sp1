@@ -7,6 +7,7 @@ use p3_field::Field;
 use crate::air::InteractionScope;
 
 /// An interaction for a lookup or a permutation argument.
+#[derive(Clone)]
 pub struct Interaction<F: Field> {
     pub values: Vec<VirtualPairCol<F>>,
     pub multiplicity: VirtualPairCol<F>,
@@ -83,6 +84,7 @@ impl<F: Field> Debug for Interaction<F> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Interaction")
             .field("kind", &self.kind)
+            .field("scope", &self.scope)
             .finish()
     }
 }

@@ -1,7 +1,7 @@
 use p3_air::BaseAir;
 use p3_field::{AbstractExtensionField, AbstractField};
 use sp1_core::{
-    air::{InteractionScope, MachineAir, Word, PV_DIGEST_NUM_WORDS, WORD_SIZE},
+    air::{MachineAir, Word, PV_DIGEST_NUM_WORDS, WORD_SIZE},
     stark::{AirOpenedValues, Chip, ChipOpenedValues},
 };
 use sp1_recursion_compiler::prelude::*;
@@ -155,7 +155,7 @@ impl<C: Config> ChipOpening<C> {
             local: vec![],
             next: vec![],
         };
-        let permutation_width = C::EF::D * chip.permutation_width(InteractionScope::Global);
+        let permutation_width = C::EF::D * chip.permutation_width();
         // Assert that the length of the dynamic arrays match the expected length of the vectors.
         builder.assert_usize_eq(permutation_width, opening.permutation.local.len());
         builder.assert_usize_eq(permutation_width, opening.permutation.next.len());
@@ -216,8 +216,9 @@ impl<C: Config> FromConstant<C> for ChipOpenedValuesVariable<C> {
         ChipOpenedValuesVariable {
             preprocessed: builder.constant(value.preprocessed),
             main: builder.constant(value.main),
-            permutation: builder.constant(value.global_permutation),
+            permutation: builder.constant(value.permutation),
             quotient: builder.constant(value.quotient),
+            // TODO: Need to add field for local cumulative sum.
             cumulative_sum: builder.eval(value.global_cumulative_sum.cons()),
             log_degree: builder.eval(C::N::from_canonical_usize(value.log_degree)),
         }
