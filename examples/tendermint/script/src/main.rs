@@ -13,8 +13,6 @@ const TENDERMINT_ELF: &[u8] = include_bytes!("../../program/elf/riscv32im-succin
 
 mod util;
 
-// Loads light blocks from the `files` subdirectory
-
 fn get_light_blocks() -> (LightBlock, LightBlock) {
     let light_block_1 = load_light_block(2279100).expect("Failed to generate light block 1");
     let light_block_2 = load_light_block(2279130).expect("Failed to generate light block 2");
