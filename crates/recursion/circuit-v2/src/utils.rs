@@ -1,4 +1,4 @@
-use std::{array, borrow::BorrowMut};
+use std::{array, borrow::BorrowMut, mem::MaybeUninit};
 
 use sp1_recursion_compiler::{
     circuit::CircuitV2Builder,
@@ -11,33 +11,27 @@ use sp1_recursion_core_v2::air::{
 /// Register and commits the recursion public values.
 pub fn commit_recursion_public_values<C: Config>(
     builder: &mut Builder<C>,
-    public_values: &RecursionPublicValues<Felt<C::F>>,
+    public_values: RecursionPublicValues<Felt<C::F>>,
 ) {
-    let mut pv_elements: [Felt<_>; RECURSIVE_PROOF_NUM_PV_ELTS] =
-        core::array::from_fn(|_| builder.uninit());
-    *pv_elements.as_mut_slice().borrow_mut() = *public_values;
-    let pv_elms_no_digest = &pv_elements[0..NUM_PV_ELMS_TO_HASH];
+    builder.commit_public_values_v2(public_values);
+    // let mut pv_elements: [Felt<_>; RECURSIVE_PROOF_NUM_PV_ELTS] =
+    //     core::array::from_fn(|_| builder.uninit());
+    // *pv_elements.as_mut_slice().borrow_mut() = *public_values;
+    // let pv_elms_no_digest = &pv_elements[0..NUM_PV_ELMS_TO_HASH];
 
-    for value in pv_elms_no_digest.iter() {
-        builder.register_public_value(*value);
-    }
+    // for value in pv_elms_no_digest.iter() {
+    //     builder.register_public_value(*value);
+    // }
 
-    // Hash the public values.
-    let pv_digest = builder.poseidon2_hash_v2(&pv_elements[0..NUM_PV_ELMS_TO_HASH]);
-    for element in pv_digest {
-        builder.commit_public_value(element);
-    }
+    // // Hash the public values.
+    // let pv_digest = builder.poseidon2_hash_v2(&pv_elements[0..NUM_PV_ELMS_TO_HASH]);
+    // for element in pv_digest {}
 }
 
-pub fn uninit_challenger_pv<C: Config>(
+pub(crate) unsafe fn uninit_challenger_pv<C: Config>(
     builder: &mut Builder<C>,
 ) -> ChallengerPublicValues<Felt<C::F>> {
-    let sponge_state = array::from_fn(|_| builder.uninit());
-    let num_inputs = builder.uninit();
-    let input_buffer = array::from_fn(|_| builder.uninit());
-    let num_outputs = builder.uninit();
-    let output_buffer = array::from_fn(|_| builder.uninit());
-    ChallengerPublicValues { sponge_state, num_inputs, input_buffer, num_outputs, output_buffer }
+    unsafe { MaybeUninit::zeroed().assume_init() }
 }
 
 #[cfg(any(test, feature = "export-tests"))]

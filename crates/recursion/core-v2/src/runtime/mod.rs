@@ -229,7 +229,7 @@ where
 
     fn nearest_pc_backtrace(&mut self) -> Option<(usize, Trace)> {
         let trap_pc = self.pc.as_canonical_u32() as usize;
-        let trace = self.program.traces[trap_pc].clone();
+        let trace = self.program.traces.get(trap_pc).cloned()?;
         if let Some(mut trace) = trace {
             trace.resolve();
             Some((trap_pc, trace))

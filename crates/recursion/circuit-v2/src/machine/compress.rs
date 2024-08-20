@@ -2,6 +2,7 @@ use std::{
     array,
     borrow::{Borrow, BorrowMut},
     marker::PhantomData,
+    mem::MaybeUninit,
 };
 
 use itertools::{izip, Itertools};
@@ -88,8 +89,9 @@ where
 
         // Initialize the values for the aggregated public output.
 
-        let mut reduce_public_values_stream: Vec<Felt<_>> =
-            (0..RECURSIVE_PROOF_NUM_PV_ELTS).map(|_| builder.uninit()).collect();
+        let mut reduce_public_values_stream: Vec<Felt<_>> = (0..RECURSIVE_PROOF_NUM_PV_ELTS)
+            .map(|_| unsafe { MaybeUninit::zeroed().assume_init() })
+            .collect();
         let compress_public_values: &mut RecursionPublicValues<_> =
             reduce_public_values_stream.as_mut_slice().borrow_mut();
 
@@ -99,25 +101,30 @@ where
         assert!(!vks_and_proofs.is_empty());
 
         // Initialize the consistency check variables.
-        let mut sp1_vk_digest: [Felt<_>; DIGEST_SIZE] = array::from_fn(|_| builder.uninit());
-        let mut pc: Felt<_> = builder.uninit();
-        let mut shard: Felt<_> = builder.uninit();
-        let mut execution_shard: Felt<_> = builder.uninit();
+        let mut sp1_vk_digest: [Felt<_>; DIGEST_SIZE] =
+            array::from_fn(|_| unsafe { MaybeUninit::zeroed().assume_init() });
+        let mut pc: Felt<_> = unsafe { MaybeUninit::zeroed().assume_init() };
+        let mut shard: Felt<_> = unsafe { MaybeUninit::zeroed().assume_init() };
+        let mut execution_shard: Felt<_> = unsafe { MaybeUninit::zeroed().assume_init() };
         let mut initial_reconstruct_challenger_values: ChallengerPublicValues<Felt<C::F>> =
-            uninit_challenger_pv(builder);
+            unsafe { uninit_challenger_pv(builder) };
         let mut reconstruct_challenger_values: ChallengerPublicValues<Felt<C::F>> =
-            uninit_challenger_pv(builder);
+            unsafe { uninit_challenger_pv(builder) };
         let mut leaf_challenger_values: ChallengerPublicValues<Felt<C::F>> =
-            uninit_challenger_pv(builder);
+            unsafe { uninit_challenger_pv(builder) };
         let mut committed_value_digest: [Word<Felt<_>>; PV_DIGEST_NUM_WORDS] =
-            array::from_fn(|_| Word(array::from_fn(|_| builder.uninit())));
+            array::from_fn(|_| {
+                Word(array::from_fn(|_| unsafe { MaybeUninit::zeroed().assume_init() }))
+            });
         let mut deferred_proofs_digest: [Felt<_>; POSEIDON_NUM_WORDS] =
-            array::from_fn(|_| builder.uninit());
+            array::from_fn(|_| unsafe { MaybeUninit::zeroed().assume_init() });
         let mut reconstruct_deferred_digest: [Felt<_>; POSEIDON_NUM_WORDS] =
-            core::array::from_fn(|_| builder.uninit());
+            core::array::from_fn(|_| unsafe { MaybeUninit::zeroed().assume_init() });
         let mut cumulative_sum: [Felt<_>; D] = core::array::from_fn(|_| builder.eval(C::F::zero()));
-        let mut init_addr_bits: [Felt<_>; 32] = core::array::from_fn(|_| builder.uninit());
-        let mut finalize_addr_bits: [Felt<_>; 32] = core::array::from_fn(|_| builder.uninit());
+        let mut init_addr_bits: [Felt<_>; 32] =
+            core::array::from_fn(|_| unsafe { MaybeUninit::zeroed().assume_init() });
+        let mut finalize_addr_bits: [Felt<_>; 32] =
+            core::array::from_fn(|_| unsafe { MaybeUninit::zeroed().assume_init() });
 
         // Verify proofs, check consistency, and aggregate public values.
         for (i, (vk, shard_proof)) in vks_and_proofs.into_iter().enumerate() {
@@ -163,20 +170,17 @@ where
                 }
 
                 // Initiallize start pc.
-                builder.assign(compress_public_values.start_pc, current_public_values.start_pc);
-                builder.assign(pc, current_public_values.start_pc);
+                compress_public_values.start_pc = current_public_values.start_pc;
+                pc = current_public_values.start_pc;
 
                 // Initialize start shard.
-                builder.assign(shard, current_public_values.start_shard);
-                builder
-                    .assign(compress_public_values.start_shard, current_public_values.start_shard);
+                shard = current_public_values.start_shard;
+                compress_public_values.start_shard = current_public_values.start_shard;
 
                 // Initialize start execution shard.
-                builder.assign(execution_shard, current_public_values.start_execution_shard);
-                builder.assign(
-                    compress_public_values.start_execution_shard,
-                    current_public_values.start_execution_shard,
-                );
+                execution_shard = current_public_values.start_execution_shard;
+                compress_public_values.start_execution_shard =
+                    current_public_values.start_execution_shard;
 
                 // Initialize the MemoryInitialize address bits.
                 for (bit, (first_bit, current_bit)) in init_addr_bits.iter_mut().zip(
@@ -210,19 +214,19 @@ where
 
                 // Assign the commited values and deferred proof digests.
                 for (word, current_word) in committed_value_digest
-                    .iter()
+                    .iter_mut()
                     .zip_eq(current_public_values.committed_value_digest.iter())
                 {
-                    for (byte, current_byte) in word.0.iter().zip_eq(current_word.0.iter()) {
-                        builder.assign(*byte, *current_byte);
+                    for (byte, current_byte) in word.0.iter_mut().zip_eq(current_word.0.iter()) {
+                        *byte = *current_byte;
                     }
                 }
 
                 for (digest, current_digest) in deferred_proofs_digest
-                    .iter()
+                    .iter_mut()
                     .zip_eq(current_public_values.deferred_proofs_digest.iter())
                 {
-                    builder.assign(*digest, *current_digest);
+                    *digest = *current_digest;
                 }
             }
 
@@ -458,6 +462,6 @@ where
         //     },
         // );
 
-        commit_recursion_public_values(builder, compress_public_values);
+        commit_recursion_public_values(builder, *compress_public_values);
     }
 }

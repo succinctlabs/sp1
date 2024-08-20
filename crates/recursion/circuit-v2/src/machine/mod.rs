@@ -1,10 +1,12 @@
 mod compress;
 mod core;
+mod deferred;
 mod witness;
 
 #[allow(unused_imports)]
 pub use compress::*;
 pub use core::*;
+pub use deferred::*;
 
 #[allow(unused_imports)]
 pub use witness::*;

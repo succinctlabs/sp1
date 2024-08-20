@@ -2,6 +2,7 @@ use std::{
     array,
     borrow::{Borrow, BorrowMut},
     marker::PhantomData,
+    mem::MaybeUninit,
 };
 
 use itertools::Itertools;
@@ -112,27 +113,29 @@ where
         } = input;
 
         // Initialize shard variables.
-        let mut initial_shard: Felt<_> = builder.uninit();
-        let mut current_shard: Felt<_> = builder.uninit();
+        let mut initial_shard: Felt<_> = unsafe { MaybeUninit::zeroed().assume_init() };
+        let mut current_shard: Felt<_> = unsafe { MaybeUninit::zeroed().assume_init() };
 
         // Initialize execution shard variables.
-        let mut initial_execution_shard: Felt<_> = builder.uninit();
-        let mut current_execution_shard: Felt<_> = builder.uninit();
+        let mut initial_execution_shard: Felt<_> = unsafe { MaybeUninit::zeroed().assume_init() };
+        let mut current_execution_shard: Felt<_> = unsafe { MaybeUninit::zeroed().assume_init() };
 
         // Initialize program counter variables.
-        let mut start_pc: Felt<_> = builder.uninit();
-        let mut current_pc: Felt<_> = builder.uninit();
+        let mut start_pc: Felt<_> = unsafe { MaybeUninit::zeroed().assume_init() };
+        let mut current_pc: Felt<_> = unsafe { MaybeUninit::zeroed().assume_init() };
 
         // Initialize memory initialization and finalization variables.
         let mut initial_previous_init_addr_bits: [Felt<_>; 32] =
-            array::from_fn(|_| builder.uninit());
+            unsafe { MaybeUninit::zeroed().assume_init() };
         let mut initial_previous_finalize_addr_bits: [Felt<_>; 32] =
-            array::from_fn(|_| builder.uninit());
-        let mut current_init_addr_bits: [Felt<_>; 32] = array::from_fn(|_| builder.uninit());
-        let mut current_finalize_addr_bits: [Felt<_>; 32] = array::from_fn(|_| builder.uninit());
+            unsafe { MaybeUninit::zeroed().assume_init() };
+        let mut current_init_addr_bits: [Felt<_>; 32] =
+            unsafe { MaybeUninit::zeroed().assume_init() };
+        let mut current_finalize_addr_bits: [Felt<_>; 32] =
+            unsafe { MaybeUninit::zeroed().assume_init() };
 
         // Initialize the exit code variable.
-        let mut exit_code: Felt<_> = builder.uninit();
+        let mut exit_code: Felt<_> = unsafe { MaybeUninit::zeroed().assume_init() };
 
         // Initialize the public values digest.
         let mut committed_value_digest: [Word<Felt<_>>; PV_DIGEST_NUM_WORDS] =
@@ -544,7 +547,7 @@ where
             //     assert_complete(builder, recursion_public_values, &reconstruct_challenger)
             // });
 
-            commit_recursion_public_values(builder, recursion_public_values);
+            commit_recursion_public_values(builder, *recursion_public_values);
         }
     }
 }
