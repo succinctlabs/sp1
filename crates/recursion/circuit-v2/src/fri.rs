@@ -789,9 +789,11 @@ mod tests {
         // Verify proof.
         let mut challenger = InnerChallenger::new(perm.clone());
         challenger.observe(commit);
+        let mut fri_config = inner_fri_config();
+        fri_config.log_arity = 2;
         let _: InnerChallenge = challenger.sample();
         let fri_challenges_gt = verifier::verify_shape_and_sample_challenges(
-            &inner_fri_config(),
+            &fri_config,
             &proof.fri_proof,
             log_degrees.iter().max().unwrap() + log_blowup,
             &mut challenger,
@@ -800,7 +802,8 @@ mod tests {
 
         // Define circuit.
         let mut builder = Builder::<InnerConfig>::default();
-        let config = inner_fri_config();
+        let mut config = inner_fri_config();
+        config.log_arity = 2;
         let fri_proof = const_fri_proof(&mut builder, proof.fri_proof);
 
         let mut challenger = DuplexChallengerVariable::new(&mut builder);
@@ -847,7 +850,8 @@ mod tests {
         let mut rng = StdRng::seed_from_u64(0xDEADBEEF);
         let log_degrees = &[19, 19];
         let perm = inner_perm();
-        let fri_config = inner_fri_config();
+        let mut fri_config = inner_fri_config();
+        fri_config.log_arity = 2;
         let hash = InnerHash::new(perm.clone());
         let compress = InnerCompress::new(perm.clone());
         let val_mmcs = InnerValMmcs::new(hash, compress);
@@ -891,7 +895,8 @@ mod tests {
 
         // Define circuit.
         let mut builder = Builder::<InnerConfig>::default();
-        let config = inner_fri_config();
+        let mut config = inner_fri_config();
+        config.log_arity = 2;
         let proof = const_two_adic_pcs_proof(&mut builder, proof);
         let (commit, rounds) = const_two_adic_pcs_rounds(&mut builder, commit.into(), os);
         let mut challenger = DuplexChallengerVariable::new(&mut builder);

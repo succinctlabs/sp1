@@ -653,6 +653,10 @@ where
     let prover = P::new(machine);
     let mut challenger = prover.config().challenger();
     let prove_span = tracing::debug_span!("prove").entered();
+
+    #[cfg(feature = "debug")]
+    prover.machine().debug_constraints(&pk, records.clone(), &mut challenger.clone());
+
     let proof = prover.prove(&pk, records, &mut challenger, SP1CoreOpts::default()).unwrap();
     prove_span.exit();
     let nb_bytes = bincode::serialize(&proof).unwrap().len();
