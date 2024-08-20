@@ -387,8 +387,6 @@ where
             );
         let p2_records_and_traces_tx = Arc::new(Mutex::new(p2_records_and_traces_tx));
 
-        let total_sp1_gas = Arc::new(Mutex::new(0u64));
-        let total_sp1_cycles = Arc::new(Mutex::new(0u64));
         let report_aggregate = Arc::new(Mutex::new(ExecutionReport::default()));
         let state = Arc::new(Mutex::new(PublicValues::<u32, u32>::default().reset()));
         let deferred = Arc::new(Mutex::new(ExecutionRecord::new(program.clone().into())));
@@ -399,8 +397,6 @@ where
             let records_and_traces_tx = Arc::clone(&p2_records_and_traces_tx);
 
             let report_aggregate = Arc::clone(&report_aggregate);
-            let total_sp1_gas = Arc::clone(&total_sp1_gas);
-            let total_sp1_cycles = Arc::clone(&total_sp1_cycles);
             let checkpoints = Arc::clone(&checkpoints);
             let state = Arc::clone(&state);
             let deferred = Arc::clone(&deferred);
@@ -424,12 +420,6 @@ where
                             tracing::debug_span!("generate dependencies").in_scope(|| {
                                 prover.machine().generate_dependencies(&mut records, &opts)
                             });
-
-                            // Update the metrics.
-                            for record in records.iter() {
-                                *total_sp1_gas.lock().unwrap() += record.estimate_gas();
-                                *total_sp1_cycles.lock().unwrap() += record.estimate_cycles();
-                            }
 
                             // Wait for our turn to update the state.
                             record_gen_sync.wait_for_turn(index);
@@ -546,11 +536,9 @@ where
         // Log some of the `ExecutionReport` information.
         let report_aggregate = report_aggregate.lock().unwrap();
         tracing::info!(
-            "execution report (totals): total_cycles={}, total_syscall_cycles={}, total_sp1_gas={}, total_sp1_cycles={}",
+            "execution report (totals): total_cycles={}, total_syscall_cycles={}",
             report_aggregate.total_instruction_count(),
             report_aggregate.total_syscall_count(),
-            total_sp1_gas.lock().unwrap(),
-            total_sp1_cycles.lock().unwrap()
         );
 
         // Print the opcode and syscall count tables like `du`: sorted by count (descending) and
@@ -570,9 +558,9 @@ where
         // Print the summary.
         let proving_time = proving_start.elapsed().as_secs_f64();
         tracing::info!(
-            "summary: riscv-cycles={}, sp1-cycles={}, e2e={}s, khz={:.2}, proofSize={}",
+            "summary: cycles={}, gas={}, e2e={}s, khz={:.2}, proofSize={}",
             cycles,
-            total_sp1_cycles.lock().unwrap(),
+            report_aggregate.estimate_gas(),
             proving_time,
             (cycles as f64 / (proving_time * 1000.0) as f64),
             bincode::serialize(&proof).unwrap().len(),
