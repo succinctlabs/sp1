@@ -8,6 +8,7 @@ use std::{
 };
 use web_time::Instant;
 
+use crate::riscv::RiscvAir;
 use p3_challenger::CanObserve;
 use p3_maybe_rayon::prelude::*;
 use serde::{de::DeserializeOwned, Serialize};
@@ -21,9 +22,10 @@ use p3_field::PrimeField32;
 
 use crate::{
     io::{SP1PublicValues, SP1Stdin},
-    riscv::RiscvAir,
     utils::{chunk_vec, concurrency::TurnBasedSync},
 };
+use sp1_core_executor::events::sorted_table_lines;
+
 use sp1_core_executor::{
     subproof::NoOpSubproofVerifier, ExecutionError, ExecutionRecord, ExecutionReport, Executor,
     Program, SP1Context,
@@ -129,6 +131,9 @@ where
         runtime.write_proof(proof.0.clone(), proof.1.clone());
     }
 
+    #[cfg(feature = "debug")]
+    let (all_records_tx, all_records_rx) = std::sync::mpsc::channel::<Vec<ExecutionRecord>>();
+
     // Record the start of the process.
     let proving_start = Instant::now();
     let span = tracing::Span::current().clone();
@@ -200,12 +205,17 @@ where
             let program = program.clone();
 
             let span = tracing::Span::current().clone();
+
+            #[cfg(feature = "debug")]
+            let all_records_tx = all_records_tx.clone();
+
             let handle = s.spawn(move || {
                 let _span = span.enter();
                 tracing::debug_span!("phase 1 trace generation").in_scope(|| {
                     loop {
                         // Receive the latest checkpoint.
                         let received = { checkpoints_rx.lock().unwrap().recv() };
+
                         if let Ok((index, mut checkpoint, done)) = received {
                             // Trace the checkpoint and reconstruct the execution records.
                             let (mut records, _) = tracing::debug_span!("trace checkpoint")
@@ -271,6 +281,9 @@ where
                             // Let another worker update the state.
                             record_gen_sync.advance_turn();
 
+                            #[cfg(feature = "debug")]
+                            all_records_tx.send(records.clone()).unwrap();
+
                             // Generate the traces.
                             let traces = records
                                 .par_iter()
@@ -303,6 +316,8 @@ where
             p1_record_and_trace_gen_handles.push(handle);
         }
         drop(p1_records_and_traces_tx);
+        #[cfg(feature = "debug")]
+        drop(all_records_tx);
 
         // Create the challenger and observe the verifying key.
         let mut challenger = prover.config().challenger();
@@ -528,11 +543,11 @@ where
         // Print the opcode and syscall count tables like `du`: sorted by count (descending) and
         // with the count in the first column.
         tracing::info!("execution report (opcode counts):");
-        for line in ExecutionReport::sorted_table_lines(&report_aggregate.opcode_counts) {
+        for line in sorted_table_lines(&report_aggregate.opcode_counts) {
             tracing::info!("  {line}");
         }
         tracing::info!("execution report (syscall counts):");
-        for line in ExecutionReport::sorted_table_lines(&report_aggregate.syscall_counts) {
+        for line in sorted_table_lines(&report_aggregate.syscall_counts) {
             tracing::info!("  {line}");
         }
 
@@ -548,6 +563,13 @@ where
             (cycles as f64 / (proving_time * 1000.0) as f64),
             bincode::serialize(&proof).unwrap().len(),
         );
+
+        #[cfg(feature = "debug")]
+        {
+            let all_records = all_records_rx.iter().flatten().collect::<Vec<_>>();
+            let mut challenger = prover.machine().config().challenger();
+            prover.machine().debug_constraints(pk, all_records, &mut challenger);
+        }
 
         Ok((proof, public_values_stream, cycles))
     })
@@ -609,6 +631,39 @@ pub fn run_test_core<P: MachineProver<BabyBearPoseidon2, RiscvAir<BabyBear>>>(
 }
 
 #[allow(unused_variables)]
+pub fn run_test_machine_with_prover<SC, A, P: MachineProver<SC, A>>(
+    records: Vec<A::Record>,
+    machine: StarkMachine<SC, A>,
+    pk: StarkProvingKey<SC>,
+    vk: StarkVerifyingKey<SC>,
+) -> Result<MachineProof<SC>, MachineVerificationError<SC>>
+where
+    A: MachineAir<SC::Val>
+        + Air<InteractionBuilder<Val<SC>>>
+        + for<'a> Air<VerifierConstraintFolder<'a, SC>>
+        + for<'a> Air<DebugConstraintBuilder<'a, Val<SC>, SC::Challenge>>,
+    A::Record: MachineRecord<Config = SP1CoreOpts>,
+    SC: StarkGenericConfig,
+    SC::Val: p3_field::PrimeField32,
+    SC::Challenger: Clone,
+    Com<SC>: Send + Sync,
+    PcsProverData<SC>: Send + Sync + Serialize + DeserializeOwned,
+    OpeningProof<SC>: Send + Sync,
+{
+    let prover = P::new(machine);
+    let mut challenger = prover.config().challenger();
+    let prove_span = tracing::debug_span!("prove").entered();
+    let proof = prover.prove(&pk, records, &mut challenger, SP1CoreOpts::default()).unwrap();
+    prove_span.exit();
+    let nb_bytes = bincode::serialize(&proof).unwrap().len();
+
+    let mut challenger = prover.config().challenger();
+    prover.machine().verify(&vk, &proof, &mut challenger)?;
+
+    Ok(proof)
+}
+
+#[allow(unused_variables)]
 pub fn run_test_machine<SC, A>(
     records: Vec<A::Record>,
     machine: StarkMachine<SC, A>,
@@ -629,17 +684,7 @@ where
     PcsProverData<SC>: Send + Sync + Serialize + DeserializeOwned,
     OpeningProof<SC>: Send + Sync,
 {
-    let start = Instant::now();
-    let prover = CpuProver::new(machine);
-    let mut challenger = prover.config().challenger();
-    let proof = prover.prove(&pk, records, &mut challenger, SP1CoreOpts::default()).unwrap();
-    let time = start.elapsed().as_millis();
-    let nb_bytes = bincode::serialize(&proof).unwrap().len();
-
-    let mut challenger = prover.config().challenger();
-    prover.machine().verify(&vk, &proof, &mut challenger)?;
-
-    Ok(proof)
+    run_test_machine_with_prover::<SC, A, CpuProver<_, _>>(records, machine, pk, vk)
 }
 
 fn trace_checkpoint(

@@ -6,14 +6,14 @@ use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 
+use super::{program::Program, Opcode};
 use crate::events::{
     add_sharded_byte_lookup_events, AluEvent, ByteLookupEvent, ByteRecord, CpuEvent,
     EdDecompressEvent, EllipticCurveAddEvent, EllipticCurveDecompressEvent,
-    EllipticCurveDoubleEvent, KeccakPermuteEvent, MemoryInitializeFinalizeEvent, MemoryRecordEnum,
-    ShaCompressEvent, ShaExtendEvent, Uint256MulEvent,
+    EllipticCurveDoubleEvent, Fp2AddSubEvent, Fp2MulEvent, FpOpEvent, KeccakPermuteEvent,
+    MemoryInitializeFinalizeEvent, MemoryRecordEnum, ShaCompressEvent, ShaExtendEvent,
+    Uint256MulEvent,
 };
-
-use super::{Opcode, Program};
 
 /// A record of the execution of a program.
 ///
@@ -74,6 +74,18 @@ pub struct ExecutionRecord {
     pub memory_finalize_events: Vec<MemoryInitializeFinalizeEvent>,
     /// A trace of the bls12381 decompress events.
     pub bls12381_decompress_events: Vec<EllipticCurveDecompressEvent>,
+    /// A trace of the bls12381 fp events.
+    pub bls12381_fp_events: Vec<FpOpEvent>,
+    /// A trace of the bls12381 fp2 add/sub events.
+    pub bls12381_fp2_addsub_events: Vec<Fp2AddSubEvent>,
+    /// A trace of the bls12381 fp2 mul events.
+    pub bls12381_fp2_mul_events: Vec<Fp2MulEvent>,
+    /// A trace of the bn254 fp events.
+    pub bn254_fp_events: Vec<FpOpEvent>,
+    /// A trace of the bn254 fp2 add/sub events.
+    pub bn254_fp2_addsub_events: Vec<Fp2AddSubEvent>,
+    /// A trace of the bn254 fp2 mul events.
+    pub bn254_fp2_mul_events: Vec<Fp2MulEvent>,
     /// The public values.
     pub public_values: PublicValues<u32, u32>,
     /// The nonce lookup.
@@ -139,6 +151,9 @@ impl ExecutionRecord {
             keccak_permute_events: std::mem::take(&mut self.keccak_permute_events),
             secp256k1_add_events: std::mem::take(&mut self.secp256k1_add_events),
             secp256k1_double_events: std::mem::take(&mut self.secp256k1_double_events),
+            bn254_fp_events: std::mem::take(&mut self.bn254_fp_events),
+            bn254_fp2_addsub_events: std::mem::take(&mut self.bn254_fp2_addsub_events),
+            bn254_fp2_mul_events: std::mem::take(&mut self.bn254_fp2_mul_events),
             bn254_add_events: std::mem::take(&mut self.bn254_add_events),
             bn254_double_events: std::mem::take(&mut self.bn254_double_events),
             bls12381_add_events: std::mem::take(&mut self.bls12381_add_events),
@@ -149,6 +164,9 @@ impl ExecutionRecord {
             ed_decompress_events: std::mem::take(&mut self.ed_decompress_events),
             k256_decompress_events: std::mem::take(&mut self.k256_decompress_events),
             uint256_mul_events: std::mem::take(&mut self.uint256_mul_events),
+            bls12381_fp_events: std::mem::take(&mut self.bls12381_fp_events),
+            bls12381_fp2_addsub_events: std::mem::take(&mut self.bls12381_fp2_addsub_events),
+            bls12381_fp2_mul_events: std::mem::take(&mut self.bls12381_fp2_mul_events),
             bls12381_decompress_events: std::mem::take(&mut self.bls12381_decompress_events),
             memory_initialize_events: std::mem::take(&mut self.memory_initialize_events),
             memory_finalize_events: std::mem::take(&mut self.memory_finalize_events),
@@ -202,6 +220,12 @@ impl ExecutionRecord {
         split_events!(self, k256_decompress_events, shards, opts.deferred, last);
         split_events!(self, uint256_mul_events, shards, opts.deferred, last);
         split_events!(self, bls12381_decompress_events, shards, opts.deferred, last);
+        split_events!(self, bls12381_fp_events, shards, opts.deferred, last);
+        split_events!(self, bls12381_fp2_addsub_events, shards, opts.deferred, last);
+        split_events!(self, bls12381_fp2_mul_events, shards, opts.deferred, last);
+        split_events!(self, bn254_fp_events, shards, opts.deferred, last);
+        split_events!(self, bn254_fp2_addsub_events, shards, opts.deferred, last);
+        split_events!(self, bn254_fp2_mul_events, shards, opts.deferred, last);
         // _ = last_pct;
 
         if last {
@@ -291,6 +315,15 @@ impl MachineRecord for ExecutionRecord {
         stats.insert("bls12381_add_events".to_string(), self.bls12381_add_events.len());
         stats.insert("bls12381_double_events".to_string(), self.bls12381_double_events.len());
         stats.insert("uint256_mul_events".to_string(), self.uint256_mul_events.len());
+        stats.insert("bls12381_fp_event".to_string(), self.bls12381_fp_events.len());
+        stats.insert(
+            "bls12381_fp2_addsub_events".to_string(),
+            self.bls12381_fp2_addsub_events.len(),
+        );
+        stats.insert("bls12381_fp2_mul_events".to_string(), self.bls12381_fp2_mul_events.len());
+        stats.insert("bn254_fp_events".to_string(), self.bn254_fp_events.len());
+        stats.insert("bn254_fp2_addsub_events".to_string(), self.bn254_fp2_addsub_events.len());
+        stats.insert("bn254_fp2_mul_events".to_string(), self.bn254_fp2_mul_events.len());
         stats.insert(
             "bls12381_decompress_events".to_string(),
             self.bls12381_decompress_events.len(),
@@ -332,6 +365,14 @@ impl MachineRecord for ExecutionRecord {
         self.bls12381_add_events.append(&mut other.bls12381_add_events);
         self.bls12381_double_events.append(&mut other.bls12381_double_events);
         self.uint256_mul_events.append(&mut other.uint256_mul_events);
+        self.bls12381_fp_events.append(&mut other.bls12381_fp_events);
+        self.bls12381_fp2_addsub_events.append(&mut other.bls12381_fp2_addsub_events);
+        self.bls12381_fp2_mul_events.append(&mut other.bls12381_fp2_mul_events);
+        self.bn254_fp_events.append(&mut other.bn254_fp_events);
+        self.bn254_fp2_addsub_events.append(&mut other.bn254_fp2_addsub_events);
+        self.bn254_fp2_mul_events.append(&mut other.bn254_fp2_mul_events);
+        self.bls12381_decompress_events.append(&mut other.bls12381_decompress_events);
+
         self.bls12381_decompress_events.append(&mut other.bls12381_decompress_events);
 
         if self.byte_lookups.is_empty() {

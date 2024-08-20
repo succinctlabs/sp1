@@ -58,7 +58,7 @@ pub struct ExecutionState {
     /// A ptr to the current position in the input stream incremented by HINT_READ opcode.
     pub input_stream_ptr: usize,
 
-    // /// A stream of proofs inputted to the program.
+    /// A stream of proofs inputted to the program.
     pub proof_stream: Vec<(ShardProof<BabyBearPoseidon2>, StarkVerifyingKey<BabyBearPoseidon2>)>,
 
     /// A ptr to the current position in the proof stream, incremented after verifying a proof.
@@ -76,6 +76,8 @@ pub struct ExecutionState {
 }
 
 impl ExecutionState {
+    #[must_use]
+    /// Create a new [`ExecutionState`].
     pub fn new(pc_start: u32) -> Self {
         Self {
             global_clk: 0,
@@ -101,16 +103,24 @@ impl ExecutionState {
 #[derive(Debug, Clone, Default)]
 #[allow(dead_code)]
 pub struct ForkState {
+    /// The `global_clk` value at the fork point.
     pub global_clk: u64,
+    /// The original `clk` value at the fork point.
     pub clk: u32,
+    /// The original `pc` value at the fork point.
     pub pc: u32,
+    /// All memory changes since the fork point.
     pub memory_diff: HashMap<u32, Option<MemoryRecord>, BuildNoHashHasher<u32>>,
+    /// The original memory access record at the fork point.
     pub op_record: MemoryAccessRecord,
+    /// The original execution record at the fork point.
     pub record: ExecutionRecord,
+    /// Whether `emit_events` was enabled at the fork point.
     pub emit_events: bool,
 }
 
 impl ExecutionState {
+    /// Save the execution state to a file.
     pub fn save(&self, file: &mut File) -> std::io::Result<()> {
         let mut writer = std::io::BufWriter::new(file);
         bincode::serialize_into(&mut writer, self).unwrap();

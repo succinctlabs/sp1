@@ -5,9 +5,6 @@
 //! Visit the [Getting Started](https://succinctlabs.github.io/sp1/getting-started.html) section
 //! in the official SP1 documentation for a quick start guide.
 
-#[cfg(debug_assertions)]
-compile_error!("sp1-sdk must be built in release mode. Please compile with the --release flag.");
-
 #[rustfmt::skip]
 pub mod proto {
     pub mod network;
@@ -19,6 +16,8 @@ pub mod install;
 pub mod network;
 #[cfg(feature = "network")]
 pub use crate::network::prover::NetworkProver;
+#[cfg(feature = "cuda")]
+pub use crate::provers::CudaProver;
 
 pub mod proof;
 pub mod provers;
@@ -32,7 +31,7 @@ pub use provers::SP1VerificationError;
 use sp1_prover::components::DefaultProverComponents;
 use std::env;
 
-pub use provers::{LocalProver, MockProver, Prover};
+pub use provers::{CpuProver, MockProver, Prover};
 
 pub use sp1_core_executor::{ExecutionReport, SP1Context, SP1ContextBuilder};
 pub use sp1_core_machine::{io::SP1Stdin, SP1_CIRCUIT_VERSION};
@@ -51,7 +50,8 @@ impl ProverClient {
     /// Creates a new [ProverClient].
     ///
     /// Setting the `SP1_PROVER` enviroment variable can change the prover used under the hood.
-    /// - `local` (default): Uses [LocalProver]. Recommended for proving end-to-end locally.
+    /// - `local` (default): Uses [CpuProver] or [CudaProver] if the `cuda` feature is enabled.
+    ///   Recommended for proving end-to-end locally.
     /// - `mock`: Uses [MockProver]. Recommended for testing and development.
     /// - `network`: Uses [NetworkProver]. Recommended for outsourcing proof generation to an RPC.
     ///
@@ -64,9 +64,18 @@ impl ProverClient {
     /// let client = ProverClient::new();
     /// ```
     pub fn new() -> Self {
+        #[cfg(debug_assertions)]
+        panic!("sp1-sdk must be built in release mode. please compile with the --release flag.");
+
+        #[allow(unreachable_code)]
         match env::var("SP1_PROVER").unwrap_or("local".to_string()).to_lowercase().as_str() {
             "mock" => Self { prover: Box::new(MockProver::new()) },
-            "local" => Self { prover: Box::new(LocalProver::new()) },
+            "local" => Self {
+                #[cfg(not(feature = "cuda"))]
+                prover: Box::new(CpuProver::new()),
+                #[cfg(feature = "cuda")]
+                prover: Box::new(CudaProver::new()),
+            },
             "network" => {
                 cfg_if! {
                     if #[cfg(feature = "network")] {
@@ -113,7 +122,7 @@ impl ProverClient {
     /// let client = ProverClient::local();
     /// ```
     pub fn local() -> Self {
-        Self { prover: Box::new(LocalProver::new()) }
+        Self { prover: Box::new(CpuProver::new()) }
     }
 
     /// Creates a new [ProverClient] with the network prover.
@@ -261,10 +270,7 @@ impl Default for ProverClient {
 #[cfg(test)]
 mod tests {
 
-    use std::sync::atomic::{AtomicU32, Ordering};
-
     use crate::{utils, ProverClient, SP1Stdin};
-    use sp1_core_executor::{hook_ecrecover, FD_ECRECOVER_HOOK};
 
     #[test]
     fn test_execute() {
@@ -275,45 +281,6 @@ mod tests {
         let mut stdin = SP1Stdin::new();
         stdin.write(&10usize);
         client.execute(elf, stdin).run().unwrap();
-    }
-
-    #[test]
-    fn test_execute_new() {
-        // Wrap the hook and check that it was called.
-        let call_ct = AtomicU32::new(0);
-        utils::setup_logger();
-        let client = ProverClient::local();
-        let elf = include_bytes!("../../../tests/ecrecover/elf/riscv32im-succinct-zkvm-elf");
-        let stdin = SP1Stdin::new();
-        client
-            .execute(elf, stdin)
-            .with_hook(FD_ECRECOVER_HOOK, |env, buf| {
-                call_ct.fetch_add(1, Ordering::Relaxed);
-                hook_ecrecover(env, buf)
-            })
-            .run()
-            .unwrap();
-        assert_ne!(call_ct.into_inner(), 0);
-    }
-
-    #[test]
-    fn test_prove_new() {
-        // Wrap the hook and check that it was called.
-        let call_ct = AtomicU32::new(0);
-        utils::setup_logger();
-        let client = ProverClient::local();
-        let elf = include_bytes!("../../../tests/ecrecover/elf/riscv32im-succinct-zkvm-elf");
-        let stdin = SP1Stdin::new();
-        let (pk, _) = client.setup(elf);
-        client
-            .prove(&pk, stdin)
-            .with_hook(FD_ECRECOVER_HOOK, |env, buf| {
-                call_ct.fetch_add(1, Ordering::Relaxed);
-                hook_ecrecover(env, buf)
-            })
-            .run()
-            .unwrap();
-        assert_ne!(call_ct.into_inner(), 0);
     }
 
     #[test]

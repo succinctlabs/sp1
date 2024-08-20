@@ -7,7 +7,7 @@ use sp1_curves::params::{limbs_from_vec, FieldParameters, Limbs};
 use sp1_derive::AlignedBorrow;
 
 use sp1_core_executor::{
-    events::{ByteLookupEvent, ByteRecord},
+    events::{ByteLookupEvent, ByteRecord, FieldOperation},
     ByteOpcode,
 };
 use sp1_stark::air::SP1AirBuilder;
@@ -52,14 +52,8 @@ impl<F: PrimeField32, P: FieldParameters> FieldSqrtCols<F, P> {
         let sqrt = sqrt_fn(a);
 
         // Use FieldOpCols to compute result * result.
-        let sqrt_squared = self.multiplication.populate(
-            record,
-            shard,
-            channel,
-            &sqrt,
-            &sqrt,
-            super::field_op::FieldOperation::Mul,
-        );
+        let sqrt_squared =
+            self.multiplication.populate(record, shard, channel, &sqrt, &sqrt, FieldOperation::Mul);
 
         // If the result is indeed the square root of a, then result * result = a.
         assert_eq!(sqrt_squared, a.clone());
@@ -131,7 +125,7 @@ where
             builder,
             &sqrt,
             &sqrt,
-            super::field_op::FieldOperation::Mul,
+            FieldOperation::Mul,
             shard.clone(),
             channel.clone(),
             is_real.clone(),

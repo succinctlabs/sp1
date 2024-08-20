@@ -1,4 +1,4 @@
-use std::{borrow::Borrow, marker::PhantomData};
+use std::{borrow::Borrow, fmt::Debug, marker::PhantomData};
 
 use crate::{
     fri::verify_two_adic_pcs,
@@ -12,17 +12,18 @@ use p3_baby_bear::BabyBear;
 use p3_bn254_fr::Bn254Fr;
 use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::{AbstractField, TwoAdicField};
-
+use p3_util::log2_strict_usize;
+use sp1_core_machine::utils::{Span, SpanBuilder, SpanBuilderError};
 use sp1_recursion_compiler::{
     config::OuterConfig,
     constraints::{Constraint, ConstraintCompiler},
-    ir::{Builder, Config, Ext, Felt, Usize, Var, Witness},
+    ir::{Builder, Config, DslIr, Ext, Felt, Usize, Var, Witness},
     prelude::SymbolicVar,
 };
 use sp1_recursion_core::{
     air::{RecursionPublicValues, NUM_PV_ELMS_TO_HASH},
     stark::{
-        config::{outer_fri_config, BabyBearPoseidon2Outer},
+        config::{outer_fri_config_with_blowup, BabyBearPoseidon2Outer},
         utils::sp1_dev_mode,
         RecursionAirWideDeg17,
     },
@@ -31,6 +32,7 @@ use sp1_recursion_program::{
     commit::PolynomialSpaceVariable, stark::RecursiveVerifierConstraintFolder,
     types::QuotientDataValues,
 };
+
 use sp1_stark::{
     air::MachineAir, Com, ShardCommitment, ShardProof, StarkGenericConfig, StarkMachine,
     StarkVerifyingKey, PROOF_MAX_NUM_PVS,
@@ -55,7 +57,7 @@ where
         Domain = TwoAdicMultiplicativeCoset<C::F>,
     >,
 {
-    pub fn verify_shard<A>(
+    pub fn verify_shard<A, const DEGREE: usize>(
         builder: &mut Builder<C>,
         vk: &StarkVerifyingKey<SC>,
         machine: &StarkMachine<SC, A>,
@@ -90,7 +92,6 @@ where
         let mut trace_domains = Vec::new();
         let mut quotient_domains = Vec::new();
 
-        let mut prep_mats: Vec<TwoAdicPcsMatsVariable<_>> = Vec::new();
         let mut main_mats: Vec<TwoAdicPcsMatsVariable<_>> = Vec::new();
         let mut perm_mats: Vec<TwoAdicPcsMatsVariable<_>> = Vec::new();
 
@@ -98,39 +99,41 @@ where
 
         let qc_points = vec![zeta];
 
-        for (name, domain, _) in vk.chip_information.iter() {
-            let chip_idx = machine.chips().iter().rposition(|chip| &chip.name() == name).unwrap();
-            let index = sorted_indices[chip_idx];
-            let opening = &opened_values.chips[index];
+        let prep_mats: Vec<TwoAdicPcsMatsVariable<_>> = vk
+            .chip_information
+            .iter()
+            .map(|(name, domain, _)| {
+                let chip_idx =
+                    machine.chips().iter().rposition(|chip| &chip.name() == name).unwrap();
+                let index = sorted_indices[chip_idx];
+                let opening = &opened_values.chips[index];
 
-            let domain_var: TwoAdicMultiplicativeCosetVariable<_> = builder.constant(*domain);
+                let domain_var: TwoAdicMultiplicativeCosetVariable<_> = builder.constant(*domain);
 
-            let mut trace_points = Vec::new();
-            let zeta_next = domain_var.next_point(builder, zeta);
+                let mut trace_points = Vec::new();
+                let zeta_next = domain_var.next_point(builder, zeta);
 
-            trace_points.push(zeta);
-            trace_points.push(zeta_next);
+                trace_points.push(zeta);
+                trace_points.push(zeta_next);
 
-            let prep_values =
-                vec![opening.preprocessed.local.clone(), opening.preprocessed.next.clone()];
-            let prep_mat = TwoAdicPcsMatsVariable::<C> {
-                domain: *domain,
-                points: trace_points.clone(),
-                values: prep_values,
-            };
-            prep_mats.push(prep_mat);
-        }
+                let prep_values =
+                    vec![opening.preprocessed.local.clone(), opening.preprocessed.next.clone()];
+                TwoAdicPcsMatsVariable::<C> {
+                    domain: *domain,
+                    points: trace_points.clone(),
+                    values: prep_values,
+                }
+            })
+            .collect::<Vec<_>>();
 
-        for i in 0..num_shard_chips {
+        (0..num_shard_chips).for_each(|i| {
             let opening = &opened_values.chips[i];
             let log_quotient_degree = chip_quotient_data[i].log_quotient_degree;
             let domain = new_coset(builder, opening.log_degree);
-            trace_domains.push(domain.clone());
 
             let log_quotient_size = opening.log_degree + log_quotient_degree;
             let quotient_domain =
                 domain.create_disjoint_domain(builder, Usize::Const(log_quotient_size), None);
-            quotient_domains.push(quotient_domain.clone());
 
             let mut trace_points = Vec::new();
             let zeta_next = domain.next_point(builder, zeta);
@@ -143,7 +146,6 @@ where
                 values: main_values,
                 points: trace_points.clone(),
             };
-            main_mats.push(main_mat);
 
             let perm_values =
                 vec![opening.permutation.local.clone(), opening.permutation.next.clone()];
@@ -155,23 +157,26 @@ where
                 values: perm_values,
                 points: trace_points,
             };
-            perm_mats.push(perm_mat);
 
-            let qc_domains = quotient_domain.split_domains_const(builder, log_quotient_degree);
-            for (j, qc_dom) in qc_domains.into_iter().enumerate() {
-                let qc_vals_array = opening.quotient[j].clone();
-                let qc_values = vec![qc_vals_array];
-                let qc_mat = TwoAdicPcsMatsVariable::<C> {
+            let qc_mats = quotient_domain
+                .split_domains_const(builder, log_quotient_degree)
+                .into_iter()
+                .enumerate()
+                .map(|(j, qc_dom)| TwoAdicPcsMatsVariable::<C> {
                     domain: TwoAdicMultiplicativeCoset {
                         log_n: qc_dom.clone().log_n,
                         shift: qc_dom.clone().shift,
                     },
-                    values: qc_values,
+                    values: vec![opening.quotient[j].clone()],
                     points: qc_points.clone(),
-                };
-                quotient_mats.push(qc_mat);
-            }
-        }
+                });
+
+            trace_domains.push(domain.clone());
+            quotient_domains.push(quotient_domain.clone());
+            main_mats.push(main_mat);
+            perm_mats.push(perm_mat);
+            quotient_mats.extend(qc_mats);
+        });
 
         let mut rounds = Vec::new();
         let prep_commit_val: [Bn254Fr; 1] = vk.commit.clone().into();
@@ -186,7 +191,7 @@ where
         rounds.push(main_round);
         rounds.push(perm_round);
         rounds.push(quotient_round);
-        let config = outer_fri_config();
+        let config = outer_fri_config_with_blowup(log2_strict_usize(DEGREE - 1));
         verify_two_adic_pcs(builder, &config, &proof.opening_proof, challenger, rounds);
 
         if !sp1_dev_mode() {
@@ -302,7 +307,7 @@ pub fn build_wrap_circuit(
     );
     challenger.observe_slice(&mut builder, pv_slice);
 
-    StarkVerifierCircuit::<OuterC, OuterSC>::verify_shard(
+    StarkVerifierCircuit::<OuterC, OuterSC>::verify_shard::<_, 17>(
         &mut builder,
         wrap_vk,
         &outer_machine,
@@ -327,20 +332,44 @@ pub fn build_wrap_circuit(
         builder.assert_felt_eq(*expected_elm, *calculated_elm);
     }
 
+    // Print out cycle tracking info.
+    for line in cycle_tracker(&builder.operations.vec).unwrap().lines() {
+        println!("{}", line);
+    }
+
     let mut backend = ConstraintCompiler::<OuterConfig>::default();
     backend.emit(builder.operations)
+}
+
+pub fn cycle_tracker<'a, C: Config + Debug + 'a>(
+    operations: impl IntoIterator<Item = &'a DslIr<C>>,
+) -> Result<Span<String, String>, SpanBuilderError> {
+    let mut span_builder = SpanBuilder::new("cycle_tracker".to_string());
+    for op in operations.into_iter() {
+        if let DslIr::CycleTracker(name) = op {
+            if span_builder.current_span.name != *name {
+                span_builder.enter(name.to_owned());
+            } else {
+                span_builder.exit().map_err(SpanBuilderError::from)?;
+            }
+        } else {
+            let op_dbg_str = format!("{op:?}");
+            let op_name = op_dbg_str
+                [..op_dbg_str.chars().take_while(|x| x.is_alphanumeric()).count()]
+                .to_owned();
+            span_builder.item(op_name);
+        }
+    }
+    span_builder.finish().map_err(SpanBuilderError::from)
 }
 
 #[cfg(test)]
 pub(crate) mod tests {
 
-    use p3_field::PrimeField32;
-    use sp1_recursion_core::{
-        cpu::Instruction,
-        runtime::{Opcode, RecursionProgram},
-    };
+    use sp1_recursion_core::{cpu::Instruction, runtime::Opcode};
 
-    pub fn basic_program<F: PrimeField32>() -> RecursionProgram<F> {
+    pub fn basic_program<F: p3_field::PrimeField32>(
+    ) -> sp1_recursion_core::runtime::RecursionProgram<F> {
         let zero = [F::zero(); 4];
         let one = [F::one(), F::zero(), F::zero(), F::zero()];
         let mut instructions = vec![Instruction::new(
@@ -379,6 +408,6 @@ pub(crate) mod tests {
             true,
             "".to_string(),
         ));
-        RecursionProgram::<F> { instructions, traces: vec![None] }
+        sp1_recursion_core::runtime::RecursionProgram::<F> { instructions, traces: vec![None] }
     }
 }

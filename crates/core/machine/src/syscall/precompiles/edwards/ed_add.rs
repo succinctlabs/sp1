@@ -14,7 +14,7 @@ use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use p3_maybe_rayon::prelude::{IntoParallelRefIterator, ParallelIterator, ParallelSlice};
 use sp1_core_executor::{
-    events::{ByteLookupEvent, ByteRecord, EllipticCurveAddEvent},
+    events::{ByteLookupEvent, ByteRecord, EllipticCurveAddEvent, FieldOperation},
     syscalls::SyscallCode,
     ExecutionRecord, Program,
 };
@@ -29,9 +29,7 @@ use sp1_stark::air::{BaseAirBuilder, MachineAir, SP1AirBuilder};
 use crate::{
     memory::{value_as_limbs, MemoryReadCols, MemoryWriteCols},
     operations::field::{
-        field_den::FieldDenCols,
-        field_inner_product::FieldInnerProductCols,
-        field_op::{FieldOpCols, FieldOperation},
+        field_den::FieldDenCols, field_inner_product::FieldInnerProductCols, field_op::FieldOpCols,
     },
     utils::{limbs_from_prev_access, pad_rows},
 };

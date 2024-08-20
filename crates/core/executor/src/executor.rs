@@ -4,7 +4,7 @@ use std::{
     sync::Arc,
 };
 
-use hashbrown::{hash_map::Entry, HashMap, HashSet};
+use hashbrown::{hash_map::Entry, HashMap};
 use nohash_hasher::BuildNoHashHasher;
 use serde::{Deserialize, Serialize};
 use sp1_stark::SP1CoreOpts;
@@ -99,7 +99,7 @@ pub struct Executor<'a> {
 
     /// Memory addresses that were touched in this batch of shards. Used to minimize the size of
     /// checkpoints.
-    pub touched_memory: HashSet<u32, BuildNoHashHasher<u32>>,
+    pub memory_checkpoint: HashMap<u32, Option<MemoryRecord>, BuildNoHashHasher<u32>>,
 }
 
 /// Errors that the [``Executor``] can throw.
@@ -124,6 +124,10 @@ pub enum ExecutionError {
     /// The execution failed with an exceeded cycle limit.
     #[error("exceeded cycle limit of {0}")]
     ExceededCycleLimit(u64),
+
+    /// The execution failed because the syscall was called in unconstrained mode.
+    #[error("syscall called in unconstrained mode")]
+    InvalidSyscallUsage(u64),
 
     /// The execution failed with an unimplemented feature.
     #[error("got unimplemented as opcode")]
@@ -196,7 +200,7 @@ impl<'a> Executor<'a> {
             hook_registry,
             opts,
             max_cycles: context.max_cycles,
-            touched_memory: HashSet::default(),
+            memory_checkpoint: HashMap::default(),
         }
     }
 
@@ -229,16 +233,22 @@ impl<'a> Executor<'a> {
     }
 
     /// Get the current values of the registers.
+    #[allow(clippy::single_match_else)]
     #[must_use]
     pub fn registers(&mut self) -> [u32; 32] {
         let mut registers = [0; 32];
         for i in 0..32 {
             let addr = Register::from_u32(i as u32) as u32;
             registers[i] = match self.state.memory.get(&addr) {
-                Some(record) => record.value,
-                None => 0,
+                Some(record) => {
+                    self.memory_checkpoint.entry(addr).or_insert(Some(*record));
+                    record.value
+                }
+                None => {
+                    self.memory_checkpoint.entry(addr).or_insert(None);
+                    0
+                }
             };
-            self.touched_memory.insert(addr);
         }
         registers
     }
@@ -247,20 +257,32 @@ impl<'a> Executor<'a> {
     #[must_use]
     pub fn register(&mut self, register: Register) -> u32 {
         let addr = register as u32;
-        self.touched_memory.insert(addr);
+        #[allow(clippy::single_match_else)]
         match self.state.memory.get(&addr) {
-            Some(record) => record.value,
-            None => 0,
+            Some(record) => {
+                self.memory_checkpoint.entry(addr).or_insert(Some(*record));
+                record.value
+            }
+            None => {
+                self.memory_checkpoint.entry(addr).or_insert(None);
+                0
+            }
         }
     }
 
     /// Get the current value of a word.
     #[must_use]
     pub fn word(&mut self, addr: u32) -> u32 {
-        self.touched_memory.insert(addr);
+        #[allow(clippy::single_match_else)]
         match self.state.memory.get(&addr) {
-            Some(record) => record.value,
-            None => 0,
+            Some(record) => {
+                self.memory_checkpoint.entry(addr).or_insert(Some(*record));
+                record.value
+            }
+            None => {
+                self.memory_checkpoint.entry(addr).or_insert(None);
+                0
+            }
         }
     }
 
@@ -294,8 +316,16 @@ impl<'a> Executor<'a> {
     /// Read a word from memory and create an access record.
     pub fn mr(&mut self, addr: u32, shard: u32, timestamp: u32) -> MemoryReadRecord {
         // Get the memory record entry.
-        self.touched_memory.insert(addr);
         let entry = self.state.memory.entry(addr);
+        match entry {
+            Entry::Occupied(ref entry) => {
+                let record = entry.get();
+                self.memory_checkpoint.entry(addr).or_insert(Some(*record));
+            }
+            Entry::Vacant(_) => {
+                self.memory_checkpoint.entry(addr).or_insert(None);
+            }
+        }
 
         // If we're in unconstrained mode, we don't want to modify state, so we'll save the
         // original state if it's the first time modifying it.
@@ -329,8 +359,16 @@ impl<'a> Executor<'a> {
     /// Write a word to memory and create an access record.
     pub fn mw(&mut self, addr: u32, value: u32, shard: u32, timestamp: u32) -> MemoryWriteRecord {
         // Get the memory record entry.
-        self.touched_memory.insert(addr);
         let entry = self.state.memory.entry(addr);
+        match entry {
+            Entry::Occupied(ref entry) => {
+                let record = entry.get();
+                self.memory_checkpoint.entry(addr).or_insert(Some(*record));
+            }
+            Entry::Vacant(_) => {
+                self.memory_checkpoint.entry(addr).or_insert(None);
+            }
+        }
 
         // If we're in unconstrained mode, we don't want to modify state, so we'll save the
         // original state if it's the first time modifying it.
@@ -842,6 +880,18 @@ impl<'a> Executor<'a> {
                     self.report.syscall_counts.entry(syscall).and_modify(|c| *c += 1).or_insert(1);
                 }
 
+                // `hint_slice` is allowed in unconstrained mode since it is used to write the hint.
+                // Other syscalls are not allowed because they can lead to non-deterministic
+                // behavior, especially since many syscalls modify memory in place,
+                // which is not permitted in unconstrained mode. This will result in
+                // non-zero memory interactions when generating a proof.
+
+                if self.unconstrained
+                    && (syscall != SyscallCode::EXIT_UNCONSTRAINED && syscall != SyscallCode::WRITE)
+                {
+                    return Err(ExecutionError::InvalidSyscallUsage(syscall_id as u64));
+                }
+
                 let syscall_impl = self.get_syscall(syscall).cloned();
                 let mut precompile_rt = SyscallContext::new(self);
                 precompile_rt.syscall_lookup_id = syscall_lookup_id;
@@ -883,8 +933,9 @@ impl<'a> Executor<'a> {
                 exit_code = returned_exit_code;
 
                 // Update the syscall counts.
-                let syscall_count = self.state.syscall_counts.entry(syscall).or_insert(0);
-                let (threshold, multiplier) = match syscall {
+                let syscall_for_count = syscall.count_map();
+                let syscall_count = self.state.syscall_counts.entry(syscall_for_count).or_insert(0);
+                let (threshold, multiplier) = match syscall_for_count {
                     SyscallCode::KECCAK_PERMUTE => (self.opts.split_opts.keccak, 24),
                     SyscallCode::SHA_EXTEND => (self.opts.split_opts.sha_extend, 48),
                     SyscallCode::SHA_COMPRESS => (self.opts.split_opts.sha_compress, 80),
@@ -1062,28 +1113,39 @@ impl<'a> Executor<'a> {
     ///
     /// This function will return an error if the program execution fails.
     pub fn execute_state(&mut self) -> Result<(ExecutionState, bool), ExecutionError> {
-        self.touched_memory.clear();
+        self.memory_checkpoint.clear();
         self.emit_events = false;
-        self.print_report = false;
-        let mut state = self.state.clone();
-        let done = self.execute()?;
-        // Remove the untouched addresses from the checkpoint. Skip if `done` since we need all of
-        // `state.memory` for MemoryFinalize
-        let touched_memory = std::mem::take(&mut self.touched_memory);
-        if !done {
-            state.memory = touched_memory
-                .iter()
-                .filter_map(|addr| state.memory.get(addr).map(|record| (*addr, *record)))
-                .collect();
+        self.print_report = true;
 
-            state.uninitialized_memory = touched_memory
-                .into_iter()
-                .filter_map(|addr| {
-                    state.uninitialized_memory.get(&addr).map(|record| (addr, *record))
-                })
-                .collect();
-        }
-        Ok((state, done))
+        // Take memory out and then clone so that memory is not cloned.
+        let memory = std::mem::take(&mut self.state.memory);
+        let mut checkpoint = tracing::info_span!("clone").in_scope(|| self.state.clone());
+        self.state.memory = memory;
+
+        let done = tracing::info_span!("execute").in_scope(|| self.execute())?;
+        // Create a checkpoint using `memory_checkpoint`. Just include all memory if `done` since we
+        // need it all for MemoryFinalize.
+        tracing::info_span!("create memory checkpoint").in_scope(|| {
+            let memory_checkpoint = std::mem::take(&mut self.memory_checkpoint);
+            if done {
+                // If we're done, we need to include all memory. But we need to reset any modified
+                // memory to as it was before the execution.
+                checkpoint.memory.clone_from(&self.state.memory);
+                memory_checkpoint.into_iter().for_each(|(addr, record)| {
+                    if let Some(record) = record {
+                        checkpoint.memory.insert(addr, record);
+                    } else {
+                        checkpoint.memory.remove(&addr);
+                    }
+                });
+            } else {
+                checkpoint.memory = memory_checkpoint
+                    .into_iter()
+                    .filter_map(|(addr, record)| record.map(|record| (addr, record)))
+                    .collect();
+            }
+        });
+        Ok((checkpoint, done))
     }
 
     fn initialize(&mut self) {

@@ -4,6 +4,7 @@
 extern crate alloc;
 
 pub mod asm;
+pub mod circuit;
 pub mod config;
 pub mod constraints;
 pub mod ir;

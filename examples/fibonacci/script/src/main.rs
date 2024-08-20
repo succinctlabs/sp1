@@ -19,22 +19,22 @@ fn main() {
     let client = ProverClient::new();
 
     // Execute the program using the `ProverClient.execute` method, without generating a proof.
-    let (_public_values, report) = client.execute(ELF, stdin.clone()).run().unwrap();
+    let (_, report) = client.execute(ELF, stdin.clone()).run().unwrap();
     println!(
-        "Executed program with {} cycles",
+        "executed program with {} cycles",
         report.total_instruction_count()
     );
 
     // Generate the proof for the given program and input.
-    let client = ProverClient::new();
     let (pk, vk) = client.setup(ELF);
     let mut proof = client.prove(&pk, stdin).run().unwrap();
 
     println!("generated proof");
 
     // Read and verify the output.
-    // Note that this output is read from values commited to in the program
-    // using `sp1_zkvm::io::commit`.
+    //
+    // Note that this output is read from values commited to in the program using
+    // `sp1_zkvm::io::commit`.
     let _ = proof.public_values.read::<u32>();
     let a = proof.public_values.read::<u32>();
     let b = proof.public_values.read::<u32>();

@@ -251,37 +251,39 @@ where
             .collect::<Vec<_>>();
 
         // Generate the permutation traces.
-        let mut permutation_traces = Vec::with_capacity(chips.len());
-        let mut cumulative_sums = Vec::with_capacity(chips.len());
-        tracing::debug_span!("generate permutation traces").in_scope(|| {
-            chips
-                .par_iter()
-                .zip(traces.par_iter_mut())
-                .map(|(chip, main_trace)| {
-                    let preprocessed_trace =
-                        pk.chip_ordering.get(&chip.name()).map(|&index| &pk.traces[index]);
-                    let perm_trace = chip.generate_permutation_trace(
-                        preprocessed_trace,
-                        main_trace,
-                        &permutation_challenges,
-                    );
-                    let cumulative_sum =
-                        perm_trace.row_slice(main_trace.height() - 1).last().copied().unwrap();
-                    (perm_trace, cumulative_sum)
-                })
-                .unzip_into_vecs(&mut permutation_traces, &mut cumulative_sums);
-        });
+        let ((permutation_traces, prep_traces), cumulative_sums): ((Vec<_>, Vec<_>), Vec<_>) =
+            tracing::debug_span!("generate permutation traces").in_scope(|| {
+                chips
+                    .par_iter()
+                    .zip(traces.par_iter_mut())
+                    .map(|(chip, main_trace): (&&MachineChip<SC, A>, _)| {
+                        let preprocessed_trace =
+                            pk.chip_ordering.get(&chip.name()).map(|&index| &pk.traces[index]);
+                        let perm_trace = chip.generate_permutation_trace(
+                            preprocessed_trace,
+                            main_trace,
+                            &permutation_challenges,
+                        );
+                        let cumulative_sum =
+                            perm_trace.row_slice(main_trace.height() - 1).last().copied().unwrap();
+                        ((perm_trace, preprocessed_trace), cumulative_sum)
+                    })
+                    .unzip()
+            });
 
         // Compute some statistics.
         for i in 0..chips.len() {
             let trace_width = traces[i].width();
+            let prep_width = prep_traces[i].map_or(0, |x| x.width());
             let permutation_width = permutation_traces[i].width();
             let total_width = trace_width
+                + prep_width
                 + permutation_width * <SC::Challenge as AbstractExtensionField<SC::Val>>::D;
             tracing::debug!(
-                "{:<15} | Main Cols = {:<5} | Perm Cols = {:<5} | Rows = {:<5} | Cells = {:<10}",
+                "{:<15} | Main Cols = {:<5} | Pre Cols = {:<5}  | Perm Cols = {:<5} | Rows = {:<5} | Cells = {:<10}",
                 chips[i].name(),
                 trace_width,
+                prep_width,
                 permutation_width * <SC::Challenge as AbstractExtensionField<SC::Val>>::D,
                 traces[i].height(),
                 total_width * traces[i].height(),

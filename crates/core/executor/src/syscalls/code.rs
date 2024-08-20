@@ -91,6 +91,42 @@ pub enum SyscallCode {
 
     /// Executes the `BLS12381_DOUBLE` precompile.
     BLS12381_DOUBLE = 0x00_00_01_1F,
+
+    /// Executes the `BLS12381_FP_ADD` precompile.
+    BLS12381_FP_ADD = 0x00_01_01_20,
+
+    /// Executes the `BLS12381_FP_SUB` precompile.
+    BLS12381_FP_SUB = 0x00_01_01_21,
+
+    /// Executes the `BLS12381_FP_MUL` precompile.
+    BLS12381_FP_MUL = 0x00_01_01_22,
+
+    /// Executes the `BLS12381_FP2_ADD` precompile.
+    BLS12381_FP2_ADD = 0x00_01_01_23,
+
+    /// Executes the `BLS12381_FP2_SUB` precompile.
+    BLS12381_FP2_SUB = 0x00_01_01_24,
+
+    /// Executes the `BLS12381_FP2_MUL` precompile.
+    BLS12381_FP2_MUL = 0x00_01_01_25,
+
+    /// Executes the `BN254_FP_ADD` precompile.
+    BN254_FP_ADD = 0x00_01_01_26,
+
+    /// Executes the `BN254_FP_SUB` precompile.
+    BN254_FP_SUB = 0x00_01_01_27,
+
+    /// Executes the `BN254_FP_MUL` precompile.
+    BN254_FP_MUL = 0x00_01_01_28,
+
+    /// Executes the `BN254_FP2_ADD` precompile.
+    BN254_FP2_ADD = 0x00_01_01_29,
+
+    /// Executes the `BN254_FP2_SUB` precompile.
+    BN254_FP2_SUB = 0x00_01_01_2A,
+
+    /// Executes the `BN254_FP2_MUL` precompile.
+    BN254_FP2_MUL = 0x00_01_01_2B,
 }
 
 impl SyscallCode {
@@ -120,6 +156,18 @@ impl SyscallCode {
             0x00_00_00_F0 => SyscallCode::HINT_LEN,
             0x00_00_00_F1 => SyscallCode::HINT_READ,
             0x00_01_01_1D => SyscallCode::UINT256_MUL,
+            0x00_01_01_20 => SyscallCode::BLS12381_FP_ADD,
+            0x00_01_01_21 => SyscallCode::BLS12381_FP_SUB,
+            0x00_01_01_22 => SyscallCode::BLS12381_FP_MUL,
+            0x00_01_01_23 => SyscallCode::BLS12381_FP2_ADD,
+            0x00_01_01_24 => SyscallCode::BLS12381_FP2_SUB,
+            0x00_01_01_25 => SyscallCode::BLS12381_FP2_MUL,
+            0x00_01_01_26 => SyscallCode::BN254_FP_ADD,
+            0x00_01_01_27 => SyscallCode::BN254_FP_SUB,
+            0x00_01_01_28 => SyscallCode::BN254_FP_MUL,
+            0x00_01_01_29 => SyscallCode::BN254_FP2_ADD,
+            0x00_01_01_2A => SyscallCode::BN254_FP2_SUB,
+            0x00_01_01_2B => SyscallCode::BN254_FP2_MUL,
             0x00_00_01_1C => SyscallCode::BLS12381_DECOMPRESS,
             _ => panic!("invalid syscall number: {value}"),
         }
@@ -141,6 +189,21 @@ impl SyscallCode {
     #[must_use]
     pub fn num_cycles(self) -> u32 {
         (self as u32).to_le_bytes()[2].into()
+    }
+
+    /// Map a syscall to another one in order to coalesce their counts.
+    #[must_use]
+    #[allow(clippy::match_same_arms)]
+    pub fn count_map(&self) -> Self {
+        match self {
+            SyscallCode::BN254_FP_SUB => SyscallCode::BN254_FP_ADD,
+            SyscallCode::BN254_FP_MUL => SyscallCode::BN254_FP_ADD,
+            SyscallCode::BN254_FP2_SUB => SyscallCode::BN254_FP2_ADD,
+            SyscallCode::BLS12381_FP_SUB => SyscallCode::BLS12381_FP_ADD,
+            SyscallCode::BLS12381_FP_MUL => SyscallCode::BLS12381_FP_ADD,
+            SyscallCode::BLS12381_FP2_SUB => SyscallCode::BLS12381_FP2_ADD,
+            _ => *self,
+        }
     }
 }
 

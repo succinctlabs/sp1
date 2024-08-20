@@ -32,8 +32,8 @@ use p3_challenger::CanObserve;
 use p3_field::{AbstractField, PrimeField};
 use p3_matrix::dense::RowMajorMatrix;
 use sp1_core_executor::{ExecutionError, ExecutionReport, Executor, Program, SP1Context};
+pub use sp1_core_machine::io::SP1Stdin;
 use sp1_core_machine::{
-    io::SP1Stdin,
     riscv::RiscvAir,
     utils::{concurrency::TurnBasedSync, SP1CoreProverError},
 };
@@ -45,10 +45,8 @@ use sp1_recursion_core::{
     runtime::{ExecutionRecord, RecursionProgram, Runtime as RecursionRuntime},
     stark::{config::BabyBearPoseidon2Outer, RecursionAir},
 };
-use sp1_recursion_gnark_ffi::groth16_bn254::Groth16Bn254Prover;
-use sp1_recursion_gnark_ffi::plonk_bn254::PlonkBn254Prover;
-pub use sp1_recursion_gnark_ffi::proof::Groth16Bn254Proof;
-pub use sp1_recursion_gnark_ffi::proof::PlonkBn254Proof;
+pub use sp1_recursion_gnark_ffi::proof::{Groth16Bn254Proof, PlonkBn254Proof};
+use sp1_recursion_gnark_ffi::{groth16_bn254::Groth16Bn254Prover, plonk_bn254::PlonkBn254Prover};
 use sp1_recursion_program::hints::Hintable;
 pub use sp1_recursion_program::machine::{
     ReduceProgramType, SP1CompressMemoryLayout, SP1DeferredMemoryLayout, SP1RecursionMemoryLayout,
@@ -929,8 +927,7 @@ pub mod tests {
     use super::*;
 
     use anyhow::Result;
-    use build::try_build_groth16_bn254_artifacts_dev;
-    use build::try_build_plonk_bn254_artifacts_dev;
+    use build::{try_build_groth16_bn254_artifacts_dev, try_build_plonk_bn254_artifacts_dev};
     use p3_field::PrimeField32;
     use sp1_core_machine::io::SP1Stdin;
 
@@ -1135,7 +1132,8 @@ pub mod tests {
         setup_logger();
         let opts = SP1ProverOpts::default();
         // TODO(mattstam): We should Test::Plonk here, but this uses the existing
-        // docker image which has a different API than the current. So we need to wait until the next release (v1.2.0+), and then switch it back.
+        // docker image which has a different API than the current. So we need to wait until the
+        // next release (v1.2.0+), and then switch it back.
         test_e2e_prover::<DefaultProverComponents>(elf, opts, Test::Wrap)
     }
 

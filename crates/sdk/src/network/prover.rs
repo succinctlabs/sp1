@@ -4,7 +4,6 @@ use std::{
 };
 
 use crate::{
-    install::block_on,
     network::client::{NetworkClient, DEFAULT_PROVER_NETWORK_RPC},
     proto::network::{ProofMode, ProofStatus},
     Prover, SP1Context, SP1ProofKind, SP1ProofWithPublicValues, SP1ProvingKey, SP1VerifyingKey,
@@ -12,16 +11,17 @@ use crate::{
 use anyhow::Result;
 use serde::de::DeserializeOwned;
 use sp1_core_machine::io::SP1Stdin;
+use sp1_cuda::block_on;
 use sp1_prover::{components::DefaultProverComponents, SP1Prover, SP1_CIRCUIT_VERSION};
 use sp1_stark::SP1ProverOpts;
 use tokio::time::sleep;
 
-use crate::provers::{LocalProver, ProofOpts, ProverType};
+use crate::provers::{CpuProver, ProofOpts, ProverType};
 
 /// An implementation of [crate::ProverClient] that can generate proofs on a remote RPC server.
 pub struct NetworkProver {
     client: NetworkClient,
-    local_prover: LocalProver<DefaultProverComponents>,
+    local_prover: CpuProver,
 }
 
 impl NetworkProver {
@@ -37,7 +37,7 @@ impl NetworkProver {
         let version = SP1_CIRCUIT_VERSION;
         log::info!("Client circuit version: {}", version);
 
-        let local_prover = LocalProver::new();
+        let local_prover = CpuProver::new();
         Self { client: NetworkClient::new(private_key), local_prover }
     }
 

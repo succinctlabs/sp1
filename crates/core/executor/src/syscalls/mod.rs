@@ -23,6 +23,7 @@ pub use context::*;
 use hint::{HintLenSyscall, HintReadSyscall};
 use precompiles::{
     edwards::{add::EdwardsAddAssignSyscall, decompress::EdwardsDecompressSyscall},
+    fptower::{Fp2AddSubSyscall, Fp2MulSyscall, FpOpSyscall},
     keccak256::permute::Keccak256PermuteSyscall,
     sha256::{compress::Sha256CompressSyscall, extend::Sha256ExtendSyscall},
     uint256::Uint256MulSyscall,
@@ -34,11 +35,17 @@ use precompiles::{
 
 use sp1_curves::{
     edwards::ed25519::{Ed25519, Ed25519Parameters},
-    weierstrass::{bls12_381::Bls12381, bn254::Bn254, secp256k1::Secp256k1},
+    weierstrass::{
+        bls12_381::{Bls12381, Bls12381BaseField},
+        bn254::{Bn254, Bn254BaseField},
+        secp256k1::Secp256k1,
+    },
 };
 use unconstrained::{EnterUnconstrainedSyscall, ExitUnconstrainedSyscall};
 use verify::VerifySyscall;
 use write::WriteSyscall;
+
+use crate::events::FieldOperation;
 
 /// A system call in the SP1 RISC-V zkVM.
 ///
@@ -114,6 +121,62 @@ pub fn default_syscall_map() -> HashMap<SyscallCode, Arc<dyn Syscall>> {
     );
 
     syscall_map.insert(SyscallCode::UINT256_MUL, Arc::new(Uint256MulSyscall));
+
+    syscall_map.insert(
+        SyscallCode::BLS12381_FP_ADD,
+        Arc::new(FpOpSyscall::<Bls12381BaseField>::new(FieldOperation::Add)),
+    );
+
+    syscall_map.insert(
+        SyscallCode::BLS12381_FP_SUB,
+        Arc::new(FpOpSyscall::<Bls12381BaseField>::new(FieldOperation::Sub)),
+    );
+
+    syscall_map.insert(
+        SyscallCode::BLS12381_FP_MUL,
+        Arc::new(FpOpSyscall::<Bls12381BaseField>::new(FieldOperation::Mul)),
+    );
+
+    syscall_map.insert(
+        SyscallCode::BLS12381_FP2_ADD,
+        Arc::new(Fp2AddSubSyscall::<Bls12381BaseField>::new(FieldOperation::Add)),
+    );
+
+    syscall_map.insert(
+        SyscallCode::BLS12381_FP2_SUB,
+        Arc::new(Fp2AddSubSyscall::<Bls12381BaseField>::new(FieldOperation::Sub)),
+    );
+
+    syscall_map
+        .insert(SyscallCode::BLS12381_FP2_MUL, Arc::new(Fp2MulSyscall::<Bls12381BaseField>::new()));
+
+    syscall_map.insert(
+        SyscallCode::BN254_FP_ADD,
+        Arc::new(FpOpSyscall::<Bn254BaseField>::new(FieldOperation::Add)),
+    );
+
+    syscall_map.insert(
+        SyscallCode::BN254_FP_SUB,
+        Arc::new(FpOpSyscall::<Bn254BaseField>::new(FieldOperation::Sub)),
+    );
+
+    syscall_map.insert(
+        SyscallCode::BN254_FP_MUL,
+        Arc::new(FpOpSyscall::<Bn254BaseField>::new(FieldOperation::Mul)),
+    );
+
+    syscall_map.insert(
+        SyscallCode::BN254_FP2_ADD,
+        Arc::new(Fp2AddSubSyscall::<Bn254BaseField>::new(FieldOperation::Add)),
+    );
+
+    syscall_map.insert(
+        SyscallCode::BN254_FP2_SUB,
+        Arc::new(Fp2AddSubSyscall::<Bn254BaseField>::new(FieldOperation::Sub)),
+    );
+
+    syscall_map
+        .insert(SyscallCode::BN254_FP2_MUL, Arc::new(Fp2MulSyscall::<Bn254BaseField>::new()));
 
     syscall_map.insert(SyscallCode::ENTER_UNCONSTRAINED, Arc::new(EnterUnconstrainedSyscall));
 

@@ -6,7 +6,7 @@ use p3_field::{AbstractExtensionField, AbstractField, TwoAdicField};
 use sp1_core_machine::riscv::RiscvAir;
 use sp1_recursion_compiler::{
     config::InnerConfig,
-    ir::{Array, Builder, Config, Ext, Felt, MemVariable, Var},
+    ir::{Array, Builder, Config, Ext, Felt, MemVariable, Var, Variable},
 };
 use sp1_recursion_core::{air::Block, runtime::PERMUTATION_WIDTH};
 use sp1_stark::{
@@ -31,7 +31,7 @@ use crate::{
 };
 
 pub trait Hintable<C: Config> {
-    type HintVariable: MemVariable<C>;
+    type HintVariable: Variable<C>;
 
     fn read(builder: &mut Builder<C>) -> Self::HintVariable;
 
@@ -159,7 +159,10 @@ impl<H: Hintable<C>> Hintable<C> for &H {
     }
 }
 
-impl<I: VecAutoHintable<C>> Hintable<C> for Vec<I> {
+impl<I: VecAutoHintable<C>> Hintable<C> for Vec<I>
+where
+    <I as Hintable<C>>::HintVariable: MemVariable<C>,
+{
     type HintVariable = Array<C, I::HintVariable>;
 
     fn read(builder: &mut Builder<C>) -> Self::HintVariable {
@@ -467,15 +470,15 @@ where
         let quotient_data = get_chip_quotient_data(self.machine, self.proof);
         let sorted_indices = get_sorted_indices(self.machine, self.proof);
 
-        let mut stream = Vec::new();
-        stream.extend(self.proof.commitment.write());
-        stream.extend(self.proof.opened_values.write());
-        stream.extend(self.proof.opening_proof.write());
-        stream.extend(self.proof.public_values.write());
-        stream.extend(quotient_data.write());
-        stream.extend(sorted_indices.write());
-
-        stream
+        [
+            self.proof.commitment.write(),
+            self.proof.opened_values.write(),
+            self.proof.opening_proof.write(),
+            self.proof.public_values.write(),
+            quotient_data.write(),
+            sorted_indices.write(),
+        ]
+        .concat()
     }
 }
 

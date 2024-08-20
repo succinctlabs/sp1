@@ -143,7 +143,6 @@ pub fn hook_ecrecover(_: HookEnv, buf: &[u8]) -> Vec<Vec<u8>> {
 
 #[cfg(test)]
 pub mod tests {
-
     use super::*;
 
     #[test]

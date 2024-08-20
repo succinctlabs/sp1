@@ -154,6 +154,12 @@ fn create_local_command(
         }
     }
 
+    // If CFLAGS_riscv32im_succinct_zkvm_elf is not set, set the default CFLAGS.
+    if env::var("CFLAGS_riscv32im_succinct_zkvm_elf").is_err() {
+        let c_flags = "-march=rv32im -mstrict-align -falign-functions=2";
+        command.env("CFLAGS_riscv32im_succinct_zkvm_elf", c_flags);
+    }
+
     // When executing the local command:
     // 1. Set the target directory to a subdirectory of the program's target directory to avoid
     //    build

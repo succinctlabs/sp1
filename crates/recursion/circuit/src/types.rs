@@ -1,6 +1,7 @@
 use p3_air::BaseAir;
 use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::AbstractExtensionField;
+use p3_matrix::{dense::RowMajorMatrixView, stack::VerticalPair};
 use sp1_recursion_compiler::ir::{Array, Builder, Config, Ext, ExtConst, Felt, FromConstant, Var};
 use sp1_stark::{air::MachineAir, AirOpenedValues, Chip, ChipOpenedValues, ShardCommitment};
 
@@ -99,6 +100,19 @@ impl<C: Config> FromConstant<C> for AirOpenedValuesVariable<C> {
             local: value.local.iter().map(|x| builder.constant(*x)).collect(),
             next: value.next.iter().map(|x| builder.constant(*x)).collect(),
         }
+    }
+}
+
+impl<C: Config> AirOpenedValuesVariable<C> {
+    pub fn view(
+        &self,
+    ) -> VerticalPair<
+        RowMajorMatrixView<'_, Ext<C::F, C::EF>>,
+        RowMajorMatrixView<'_, Ext<C::F, C::EF>>,
+    > {
+        let a = RowMajorMatrixView::new_row(&self.local);
+        let b = RowMajorMatrixView::new_row(&self.next);
+        VerticalPair::new(a, b)
     }
 }
 
