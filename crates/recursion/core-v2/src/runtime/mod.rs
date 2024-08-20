@@ -30,7 +30,7 @@ use p3_symmetric::{CryptographicPermutation, Permutation};
 use p3_util::reverse_bits_len;
 use thiserror::Error;
 
-use vec_map::VecMap;
+use vec_map::{Entry, VecMap};
 
 use sp1_recursion_core::air::{Block, RECURSIVE_PROOF_NUM_PV_ELTS};
 
@@ -571,7 +571,6 @@ impl<F: PrimeField64> Memory<F> for MemVecMap<F> {
     }
 
     fn mr_mult(&mut self, addr: Address<F>, mult: F) -> &mut MemoryEntry<F> {
-        use vec_map::Entry;
         match self.0.entry(addr.as_usize()) {
             Entry::Occupied(mut entry) => {
                 let entry_mult = &mut entry.get_mut().mult;
@@ -583,7 +582,6 @@ impl<F: PrimeField64> Memory<F> for MemVecMap<F> {
     }
 
     fn mw(&mut self, addr: Address<F>, val: Block<F>, mult: F) -> &mut MemoryEntry<F> {
-        use vec_map::Entry;
         let index = addr.as_usize();
         match self.0.entry(index) {
             Entry::Occupied(entry) => {
@@ -632,43 +630,6 @@ impl<F: PrimeField32> Memory<F> for MemVec<F> {
                 backtrace::Backtrace::new()
             ),
             entry @ None => entry.insert(MemoryEntry { val, mult }),
-        }
-    }
-}
-
-#[derive(Clone, Debug, Default)]
-pub struct MemHashMap<F>(pub HashMap<Address<F>, MemoryEntry<F>>);
-
-impl<F: PrimeField32> Memory<F> for MemHashMap<F> {
-    fn new() -> Self {
-        Default::default()
-    }
-
-    fn with_capacity(capacity: usize) -> Self {
-        Self(HashMap::with_capacity(capacity))
-    }
-
-    fn mr(&mut self, addr: Address<F>) -> &mut MemoryEntry<F> {
-        self.mr_mult(addr, F::one())
-    }
-
-    fn mr_mult(&mut self, addr: Address<F>, mult: F) -> &mut MemoryEntry<F> {
-        use hashbrown::hash_map::Entry;
-        match self.0.entry(addr) {
-            Entry::Occupied(mut entry) => {
-                let entry_mult = &mut entry.get_mut().mult;
-                *entry_mult -= mult;
-                entry.into_mut()
-            }
-            Entry::Vacant(_) => panic!("tried to read from unassigned address: {addr:?}",),
-        }
-    }
-
-    fn mw(&mut self, addr: Address<F>, val: Block<F>, mult: F) -> &mut MemoryEntry<F> {
-        use hashbrown::hash_map::Entry;
-        match self.0.entry(addr) {
-            Entry::Occupied(entry) => panic!("tried to write to assigned address: {entry:?}"),
-            Entry::Vacant(entry) => entry.insert(MemoryEntry { val, mult }),
         }
     }
 }
