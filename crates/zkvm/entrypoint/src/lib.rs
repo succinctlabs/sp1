@@ -24,6 +24,8 @@ pub const POSEIDON_NUM_WORDS: usize = 8;
 
 #[cfg(target_os = "zkvm")]
 mod zkvm {
+    use cfg_if::cfg_if;
+
     use crate::syscalls::syscall_halt;
 
     use sha2::{Digest, Sha256};
@@ -93,22 +95,25 @@ mod zkvm {
 #[macro_export]
 macro_rules! entrypoint {
     ($path:path) => {
-        cfg_if::cfg_if! {
-            if #[cfg(all(target_os = "zkvm", target_vendor = "succinct"))] {
-                const ZKVM_ENTRY: fn() = $path;
+        #[cfg(target_os = "zkvm")]
+        mod zkvm_impl {
+            use $crate::heap::SimpleAlloc;
 
-                use $crate::heap::SimpleAlloc;
+            pub const ZKVM_ENTRY: fn() = $path;
 
-                #[global_allocator]
-                static HEAP: SimpleAlloc = SimpleAlloc;
+            #[global_allocator]
+            static HEAP: SimpleAlloc = SimpleAlloc;
 
-                mod zkvm_generated_main {
-                    #[no_mangle]
-                    fn main() {
-                        super::ZKVM_ENTRY()
-                    }
-                }
+            #[no_mangle]
+            pub fn main() {
+                ZKVM_ENTRY()
             }
+        }
+
+        #[cfg(not(target_os = "zkvm"))]
+        #[no_mangle]
+        fn main() {
+            $path()
         }
     };
 }
