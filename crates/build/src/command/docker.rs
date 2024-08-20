@@ -3,7 +3,9 @@ use std::process::{exit, Command, Stdio};
 use anyhow::{Context, Result};
 use cargo_metadata::camino::Utf8PathBuf;
 
-use crate::{get_program_build_args, get_rust_compiler_flags, BuildArgs};
+use crate::BuildArgs;
+
+use super::utils::{get_program_build_args, get_rust_compiler_flags};
 
 /// Uses SP1_DOCKER_IMAGE environment variable if set, otherwise constructs the image to use based
 /// on the provided tag.
@@ -15,7 +17,7 @@ fn get_docker_image(tag: &str) -> String {
 }
 
 /// Creates a Docker command to build the program.
-pub fn create_docker_command(
+pub(crate) fn create_docker_command(
     args: &BuildArgs,
     program_dir: &Utf8PathBuf,
     program_metadata: &cargo_metadata::Metadata,
