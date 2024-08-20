@@ -24,11 +24,13 @@ use std::{
 
 use hashbrown::HashMap;
 use itertools::Itertools;
-use p3_field::{AbstractField, ExtensionField, PrimeField32};
+use p3_field::{AbstractField, ExtensionField, PrimeField32, PrimeField64};
 use p3_poseidon2::{Poseidon2, Poseidon2ExternalMatrixGeneral};
 use p3_symmetric::{CryptographicPermutation, Permutation};
 use p3_util::reverse_bits_len;
 use thiserror::Error;
+
+use vec_map::VecMap;
 
 use sp1_recursion_core::air::{Block, RECURSIVE_PROOF_NUM_PV_ELTS};
 
@@ -106,7 +108,7 @@ pub struct Runtime<'a, F: PrimeField32, EF: ExtensionField<F>, Diffusion> {
     pub program: Arc<RecursionProgram<F>>,
 
     /// Memory. From canonical usize of an Address to a MemoryEntry.
-    pub memory: Memory<F>,
+    pub memory: MemVecMap<F>,
 
     /// The execution record.
     pub record: ExecutionRecord<F>,
@@ -185,7 +187,7 @@ where
         >,
     ) -> Self {
         let record = ExecutionRecord::<F> { program: program.clone(), ..Default::default() };
-        let memory = Memory { inner: Vec::with_capacity(program.total_memory) };
+        let memory = Memory::with_capacity(program.total_memory);
         Self {
             timestamp: 0,
             nb_poseidons: 0,
@@ -342,10 +344,7 @@ where
                     self.record.mem_const_count += 1;
                 }
                 Instruction::Poseidon2(instr) => {
-                    let Poseidon2Instr {
-                        addrs: Poseidon2Io { input, output },
-                        mults,
-                    } = *instr;
+                    let Poseidon2Instr { addrs: Poseidon2Io { input, output }, mults } = *instr;
                     self.nb_poseidons += 1;
                     let in_vals = std::array::from_fn(|i| self.memory.mr(input[i]).val[0]);
                     let perm_output = self.perm.as_ref().unwrap().permute(in_vals);
@@ -529,26 +528,90 @@ where
     }
 }
 
-#[derive(Clone, Debug, Default)]
-pub struct Memory<F> {
-    pub inner: Vec<Option<MemoryEntry<F>>>,
-}
+pub trait Memory<F> {
+    /// Creates an empty memory space.
+    fn new() -> Self;
 
-impl<F: PrimeField32> Memory<F> {
+    /// Allocates memory with at least the given capacity.
+    fn with_capacity(capacity: usize) -> Self;
+
     /// Read from a memory address. Decrements the memory entry's mult count.
     ///
     /// # Panics
     /// Panics if the address is unassigned.
-    pub fn mr(&mut self, addr: Address<F>) -> &MemoryEntry<F> {
-        self.mr_mult(addr, F::one())
-    }
+    fn mr(&mut self, addr: Address<F>) -> &mut MemoryEntry<F>;
 
     /// Read from a memory address. Reduces the memory entry's mult count by the given amount.
     ///
     /// # Panics
     /// Panics if the address is unassigned.
-    pub fn mr_mult(&mut self, addr: Address<F>, mult: F) -> &MemoryEntry<F> {
-        match self.inner.get_mut(addr.0.as_canonical_u32() as usize) {
+    fn mr_mult(&mut self, addr: Address<F>, mult: F) -> &mut MemoryEntry<F>;
+
+    /// Write to a memory address, setting the given value and mult.
+    ///
+    /// # Panics
+    /// Panics if the address is already assigned.
+    fn mw(&mut self, addr: Address<F>, val: Block<F>, mult: F) -> &mut MemoryEntry<F>;
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct MemVecMap<F>(pub VecMap<MemoryEntry<F>>);
+
+impl<F: PrimeField64> Memory<F> for MemVecMap<F> {
+    fn new() -> Self {
+        Default::default()
+    }
+
+    fn with_capacity(capacity: usize) -> Self {
+        Self(VecMap::with_capacity(capacity))
+    }
+
+    fn mr(&mut self, addr: Address<F>) -> &mut MemoryEntry<F> {
+        self.mr_mult(addr, F::one())
+    }
+
+    fn mr_mult(&mut self, addr: Address<F>, mult: F) -> &mut MemoryEntry<F> {
+        use vec_map::Entry;
+        match self.0.entry(addr.as_usize()) {
+            Entry::Occupied(mut entry) => {
+                let entry_mult = &mut entry.get_mut().mult;
+                *entry_mult -= mult;
+                entry.into_mut()
+            }
+            Entry::Vacant(_) => panic!("tried to read from unassigned address: {addr:?}",),
+        }
+    }
+
+    fn mw(&mut self, addr: Address<F>, val: Block<F>, mult: F) -> &mut MemoryEntry<F> {
+        use vec_map::Entry;
+        let index = addr.as_usize();
+        match self.0.entry(index) {
+            Entry::Occupied(entry) => {
+                panic!("tried to write to assigned address {}: {:?}", index, entry.get())
+            }
+            Entry::Vacant(entry) => entry.insert(MemoryEntry { val, mult }),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct MemVec<F>(pub Vec<Option<MemoryEntry<F>>>);
+
+impl<F: PrimeField32> Memory<F> for MemVec<F> {
+    fn new() -> Self {
+        Default::default()
+    }
+
+    fn with_capacity(capacity: usize) -> Self {
+        Self(Vec::with_capacity(capacity))
+    }
+
+    fn mr(&mut self, addr: Address<F>) -> &mut MemoryEntry<F> {
+        self.mr_mult(addr, F::one())
+    }
+
+    fn mr_mult(&mut self, addr: Address<F>, mult: F) -> &mut MemoryEntry<F> {
+        match self.0.get_mut(addr.as_usize()) {
             Some(Some(entry)) => {
                 entry.mult -= mult;
                 entry
@@ -560,19 +623,52 @@ impl<F: PrimeField32> Memory<F> {
         }
     }
 
-    /// Write to a memory address, setting the given value and mult.
-    ///
-    /// # Panics
-    /// Panics if the address is already assigned.
-    pub fn mw(&mut self, addr: Address<F>, val: Block<F>, mult: F) -> &MemoryEntry<F> {
-        let addr_usize = addr.0.as_canonical_u32() as usize;
-        self.inner.extend(repeat(None).take((addr_usize + 1).saturating_sub(self.inner.len())));
-        match &mut self.inner[addr_usize] {
+    fn mw(&mut self, addr: Address<F>, val: Block<F>, mult: F) -> &mut MemoryEntry<F> {
+        let addr_usize = addr.as_usize();
+        self.0.extend(repeat(None).take((addr_usize + 1).saturating_sub(self.0.len())));
+        match &mut self.0[addr_usize] {
             Some(entry) => panic!(
                 "tried to write to assigned address: {entry:?}\nbacktrace: {:?}",
                 backtrace::Backtrace::new()
             ),
             entry @ None => entry.insert(MemoryEntry { val, mult }),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct MemHashMap<F>(pub HashMap<Address<F>, MemoryEntry<F>>);
+
+impl<F: PrimeField32> Memory<F> for MemHashMap<F> {
+    fn new() -> Self {
+        Default::default()
+    }
+
+    fn with_capacity(capacity: usize) -> Self {
+        Self(HashMap::with_capacity(capacity))
+    }
+
+    fn mr(&mut self, addr: Address<F>) -> &mut MemoryEntry<F> {
+        self.mr_mult(addr, F::one())
+    }
+
+    fn mr_mult(&mut self, addr: Address<F>, mult: F) -> &mut MemoryEntry<F> {
+        use hashbrown::hash_map::Entry;
+        match self.0.entry(addr) {
+            Entry::Occupied(mut entry) => {
+                let entry_mult = &mut entry.get_mut().mult;
+                *entry_mult -= mult;
+                entry.into_mut()
+            }
+            Entry::Vacant(_) => panic!("tried to read from unassigned address: {addr:?}",),
+        }
+    }
+
+    fn mw(&mut self, addr: Address<F>, val: Block<F>, mult: F) -> &mut MemoryEntry<F> {
+        use hashbrown::hash_map::Entry;
+        match self.0.entry(addr) {
+            Entry::Occupied(entry) => panic!("tried to write to assigned address: {entry:?}"),
+            Entry::Vacant(entry) => entry.insert(MemoryEntry { val, mult }),
         }
     }
 }

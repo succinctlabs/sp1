@@ -1,5 +1,6 @@
 use std::iter::once;
 
+use p3_field::PrimeField64;
 use serde::{Deserialize, Serialize};
 use sp1_derive::AlignedBorrow;
 use sp1_recursion_core::air::{Block, RecursionPublicValues};
@@ -22,6 +23,12 @@ use crate::chips::poseidon2_skinny::WIDTH;
 )]
 #[repr(C)]
 pub struct Address<F>(pub F);
+
+impl<F: PrimeField64> Address<F> {
+    pub fn as_usize(&self) -> usize {
+        self.0.as_canonical_u64() as usize
+    }
+}
 
 // -------------------------------------------------------------------------------------------------
 
