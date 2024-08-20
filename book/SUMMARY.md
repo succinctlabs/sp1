@@ -46,6 +46,7 @@
 - [Recommended Workflow](./generating-proofs/recommended-workflow.md)
 
 - [Prover Network Beta](./generating-proofs/prover-network.md)
+    - [Key Setup](./generating-proofs/prover-network/key-setup.md)
     - [Usage](./generating-proofs/prover-network/usage.md)
     - [Supported Versions](./generating-proofs/prover-network/versions.md)
 

@@ -29,7 +29,7 @@ client.prove(&pk, stdin).compressed().run().unwrap();
 ## PLONK
 
 <div class="warning">
-WARNING: The PLONK prover requires around 128GB of RAM and is only guaranteed to work on official releases of SP1. We recommend using the prover network to generate PLONK proofs.
+WARNING: The PLONK prover requires around 64GB of RAM and is only guaranteed to work on official releases of SP1. We recommend using the prover network to generate PLONK proofs.
 </div>
 
 
