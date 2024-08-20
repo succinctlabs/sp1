@@ -16,7 +16,6 @@ pub mod lib {
 #[cfg(all(target_os = "zkvm", feature = "libm"))]
 mod libm;
 
-#[cfg(target_os = "zkvm")]
 use cfg_if::cfg_if;
 
 /// The number of 32 bit words that the public values digest is composed of.
