@@ -54,7 +54,7 @@ name = "aggregation-script"
 version = "1.1.0"
 dependencies = [
  "hex",
- "sp1-helper",
+ "sp1-build",
  "sp1-sdk",
  "tracing",
 ]
@@ -791,7 +791,7 @@ checksum = "613afe47fcd5fac7ccf1db93babcb082c5994d996f20b8b159f2ad1658eb5724"
 name = "chess-script"
 version = "1.1.0"
 dependencies = [
- "sp1-helper",
+ "sp1-build",
  "sp1-sdk",
 ]
 
@@ -1133,7 +1133,7 @@ dependencies = [
 name = "cycle-tracking-script"
 version = "1.1.0"
 dependencies = [
- "sp1-helper",
+ "sp1-build",
  "sp1-sdk",
 ]
 
@@ -1753,7 +1753,7 @@ version = "1.1.0"
 dependencies = [
  "itertools 0.12.1",
  "sha2 0.10.8",
- "sp1-helper",
+ "sp1-build",
  "sp1-sdk",
 ]
 
@@ -2486,7 +2486,7 @@ name = "io-script"
 version = "1.1.0"
 dependencies = [
  "serde",
- "sp1-helper",
+ "sp1-build",
  "sp1-sdk",
 ]
 
@@ -2567,7 +2567,7 @@ dependencies = [
  "lib",
  "serde",
  "serde_json",
- "sp1-helper",
+ "sp1-build",
  "sp1-sdk",
 ]
 
@@ -3519,9 +3519,9 @@ checksum = "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a"
 name = "patch-testing-script"
 version = "1.1.0"
 dependencies = [
+ "sp1-build",
  "sp1-core-executor",
  "sp1-core-machine",
- "sp1-helper",
  "sp1-sdk",
 ]
 
@@ -4022,7 +4022,7 @@ dependencies = [
 name = "regex-script"
 version = "1.1.0"
 dependencies = [
- "sp1-helper",
+ "sp1-build",
  "sp1-sdk",
 ]
 
@@ -4250,7 +4250,7 @@ name = "rsa-script"
 version = "1.1.0"
 dependencies = [
  "rsa",
- "sp1-helper",
+ "sp1-build",
  "sp1-sdk",
 ]
 
@@ -4858,6 +4858,7 @@ version = "1.1.1"
 dependencies = [
  "anyhow",
  "cargo_metadata",
+ "chrono",
  "clap",
  "dirs",
 ]
@@ -5003,15 +5004,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 1.0.109",
-]
-
-[[package]]
-name = "sp1-helper"
-version = "1.1.1"
-dependencies = [
- "cargo_metadata",
- "chrono",
- "sp1-build",
 ]
 
 [[package]]
@@ -5361,7 +5353,7 @@ dependencies = [
 name = "ssz-withdrawals-script"
 version = "1.1.0"
 dependencies = [
- "sp1-helper",
+ "sp1-build",
  "sp1-sdk",
 ]
 
@@ -5629,8 +5621,8 @@ dependencies = [
  "serde_cbor",
  "serde_json",
  "sha2 0.10.8",
+ "sp1-build",
  "sp1-core-machine",
- "sp1-helper",
  "sp1-sdk",
  "tendermint",
  "tendermint-light-client-verifier",

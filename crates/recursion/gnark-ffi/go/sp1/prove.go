@@ -91,6 +91,7 @@ func ProveGroth16(dataDir string, witnessPath string) Proof {
 		panic("dataDirStr is required")
 	}
 	os.Setenv("CONSTRAINTS_JSON", dataDir+"/"+constraintsJsonFile)
+	os.Setenv("GROTH16", "1")
 
 	// Read the R1CS.
 	r1csFile, err := os.Open(dataDir + "/" + groth16CircuitPath)

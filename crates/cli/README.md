@@ -11,6 +11,7 @@ cargo run --bin cargo-prove -- --help
 ```
 
 To test a particular subcommand, you can pass in `prove` and the subcommand you want to test along with the arguments you want to pass to it. For example, to test the `trace` subcommand, you can run the following command:
+
 ```bash
 cargo run --bin cargo-prove -- prove trace --elf <...> --trace <...>
 ```

@@ -3,7 +3,7 @@ use crate::{syscall_bn254_add, syscall_bn254_double, utils::AffinePoint};
 /// The number of limbs in [Bn254AffinePoint].
 pub const N: usize = 16;
 
-/// An affine point on the BLS12-381 curve.
+/// An affine point on the Bn254 curve.
 #[derive(Copy, Clone)]
 #[repr(align(4))]
 pub struct Bn254AffinePoint(pub [u32; N]);
