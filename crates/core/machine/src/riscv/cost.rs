@@ -5,7 +5,7 @@ use crate::riscv::RiscvAirDiscriminants;
 
 use super::RiscvAir;
 
-pub trait MachineCostEstimator {
+pub trait CostEstimator {
     /// Estimates the trace area of the execution.
     fn estimate_area(&self) -> u64;
 
@@ -23,7 +23,7 @@ pub trait MachineCostEstimator {
     }
 }
 
-impl MachineCostEstimator for ExecutionReport {
+impl CostEstimator for ExecutionReport {
     fn estimate_area(&self) -> u64 {
         let mut total_area = 0;
         let mut total_chips = 5;

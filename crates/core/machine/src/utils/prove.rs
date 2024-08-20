@@ -20,7 +20,7 @@ use thiserror::Error;
 use p3_baby_bear::BabyBear;
 use p3_field::PrimeField32;
 
-use crate::riscv::cost::MachineCostEstimator;
+use crate::riscv::cost::CostEstimator;
 use crate::{
     io::{SP1PublicValues, SP1Stdin},
     utils::{chunk_vec, concurrency::TurnBasedSync},

@@ -34,7 +34,7 @@ use std::env;
 pub use provers::{CpuProver, MockProver, Prover};
 
 pub use sp1_core_executor::{ExecutionReport, SP1Context, SP1ContextBuilder};
-pub use sp1_core_machine::{io::SP1Stdin, SP1_CIRCUIT_VERSION};
+pub use sp1_core_machine::{io::SP1Stdin, riscv::cost::CostEstimator, SP1_CIRCUIT_VERSION};
 pub use sp1_prover::{
     CoreSC, HashableKey, InnerSC, OuterSC, PlonkBn254Proof, SP1Prover, SP1ProvingKey,
     SP1VerifyingKey,
@@ -270,7 +270,7 @@ impl Default for ProverClient {
 #[cfg(test)]
 mod tests {
 
-    use crate::{utils, ProverClient, SP1Stdin};
+    use crate::{utils, CostEstimator, ProverClient, SP1Stdin};
 
     #[test]
     fn test_execute() {
@@ -280,7 +280,8 @@ mod tests {
             include_bytes!("../../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
         let mut stdin = SP1Stdin::new();
         stdin.write(&10usize);
-        client.execute(elf, stdin).run().unwrap();
+        let (_, report) = client.execute(elf, stdin).run().unwrap();
+        tracing::info!("gas = {}", report.estimate_gas());
     }
 
     #[test]
