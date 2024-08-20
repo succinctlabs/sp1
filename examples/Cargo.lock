@@ -781,6 +781,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
+name = "cfg_aliases"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fd16c4719339c4530435d38e511904438d07cce7950afa3718a84ac36c10e89e"
+
+[[package]]
 name = "chess-script"
 version = "1.1.0"
 dependencies = [
@@ -1071,6 +1077,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0369ee1ad671834580515889b80f2ea915f23b8be8d0daa4bbaf2ac5c7590835"
 dependencies = [
  "cipher",
+]
+
+[[package]]
+name = "ctrlc"
+version = "3.4.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "672465ae37dc1bc6380a6547a8883d5dd397b0f1faaad4f265726cc7042a5345"
+dependencies = [
+ "nix",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -2787,6 +2803,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "nix"
+version = "0.28.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ab2156c4fce2f8df6c499cc1c763e4394b7482525bf2a9701c9d79d215f519e4"
+dependencies = [
+ "bitflags 2.6.0",
+ "cfg-if",
+ "cfg_aliases",
+ "libc",
+]
+
+[[package]]
 name = "nohash-hasher"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3484,7 +3512,8 @@ checksum = "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a"
 name = "patch-testing-script"
 version = "1.1.0"
 dependencies = [
- "sp1-core",
+ "sp1-core-executor",
+ "sp1-core-machine",
  "sp1-helper",
  "sp1-sdk",
 ]
@@ -4530,9 +4559,9 @@ checksum = "cd0b0ec5f1c1ca621c432a25813d8d60c88abe6d3e08a3eb9cf37d97a0fe3d73"
 
 [[package]]
 name = "serde"
-version = "1.0.204"
+version = "1.0.207"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bc76f558e0cbb2a839d37354c575f1dc3fdc6546b5be373ba43d95f231bf7c12"
+checksum = "5665e14a49a4ea1b91029ba7d3bca9f299e1f7cfa194388ccc20f14743e784f2"
 dependencies = [
  "serde_derive",
 ]
@@ -4558,9 +4587,9 @@ dependencies = [
 
 [[package]]
 name = "serde_derive"
-version = "1.0.204"
+version = "1.0.207"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e0cd7e117be63d3c3678776753929474f3b04a43a080c744d6b0ae2a8c28e222"
+checksum = "6aea2634c86b0e8ef2cfdc0c340baede54ec27b1e46febd7f80dffb2aa44a00e"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4809,7 +4838,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-build"
-version = "1.1.0"
+version = "1.1.1"
 dependencies = [
  "anyhow",
  "cargo_metadata",
@@ -4818,8 +4847,45 @@ dependencies = [
 ]
 
 [[package]]
+<<<<<<< HEAD
+name = "sp1-core-executor"
+version = "1.1.1"
+dependencies = [
+ "bincode",
+ "bytemuck",
+ "elf",
+ "eyre",
+ "generic-array 1.1.0",
+ "hashbrown 0.14.5",
+ "hex",
+ "itertools 0.13.0",
+ "log",
+ "nohash-hasher",
+ "num",
+ "p3-field",
+ "p3-keccak-air",
+ "p3-maybe-rayon",
+ "rand",
+ "rrs-succinct",
+ "serde",
+ "serde_with",
+ "sp1-curves",
+ "sp1-derive",
+ "sp1-primitives",
+ "sp1-stark",
+ "strum",
+ "strum_macros",
+ "thiserror",
+ "tracing",
+ "typenum",
+]
+
+[[package]]
+name = "sp1-core-machine"
+=======
 name = "sp1-core"
-version = "1.1.0"
+>>>>>>> experimental
+version = "1.1.1"
 dependencies = [
  "anyhow",
  "arrayref",
@@ -4864,8 +4930,11 @@ dependencies = [
  "serde_with",
  "size",
  "snowbridge-amcl",
+ "sp1-core-executor",
+ "sp1-curves",
  "sp1-derive",
  "sp1-primitives",
+ "sp1-stark",
  "static_assertions",
  "strum",
  "strum_macros",
@@ -4879,8 +4948,44 @@ dependencies = [
 ]
 
 [[package]]
+<<<<<<< HEAD
+name = "sp1-curves"
+version = "1.1.1"
+dependencies = [
+ "curve25519-dalek",
+ "elliptic-curve",
+ "generic-array 1.1.0",
+ "itertools 0.13.0",
+ "k256",
+ "num",
+ "p3-field",
+ "serde",
+ "snowbridge-amcl",
+ "sp1-primitives",
+ "sp1-stark",
+ "typenum",
+=======
+name = "sp1-cuda"
+version = "1.1.1"
+dependencies = [
+ "bincode",
+ "ctrlc",
+ "prost",
+ "prost-types",
+ "serde",
+ "serde_json",
+ "sp1-core",
+ "sp1-prover",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "twirp-rs",
+>>>>>>> experimental
+]
+
+[[package]]
 name = "sp1-derive"
-version = "1.1.0"
+version = "1.1.1"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4889,7 +4994,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-helper"
-version = "1.1.0"
+version = "1.1.1"
 dependencies = [
  "cargo_metadata",
  "chrono",
@@ -4898,7 +5003,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-primitives"
-version = "1.1.0"
+version = "1.1.1"
 dependencies = [
  "itertools 0.13.0",
  "lazy_static",
@@ -4910,7 +5015,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-prover"
-version = "1.1.0"
+version = "1.1.1"
 dependencies = [
  "anyhow",
  "bincode",
@@ -4930,13 +5035,15 @@ dependencies = [
  "serde",
  "serde_json",
  "serial_test",
- "sp1-core",
+ "sp1-core-executor",
+ "sp1-core-machine",
  "sp1-primitives",
  "sp1-recursion-circuit",
  "sp1-recursion-compiler",
  "sp1-recursion-core",
  "sp1-recursion-gnark-ffi",
  "sp1-recursion-program",
+ "sp1-stark",
  "subtle-encoding",
  "tempfile",
  "thiserror",
@@ -4946,7 +5053,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-circuit"
-version = "1.1.0"
+version = "1.1.1"
 dependencies = [
  "bincode",
  "itertools 0.13.0",
@@ -4959,16 +5066,17 @@ dependencies = [
  "p3-matrix",
  "p3-util",
  "serde",
- "sp1-core",
+ "sp1-core-machine",
  "sp1-recursion-compiler",
  "sp1-recursion-core",
  "sp1-recursion-derive",
  "sp1-recursion-program",
+ "sp1-stark",
 ]
 
 [[package]]
 name = "sp1-recursion-compiler"
-version = "1.1.0"
+version = "1.1.1"
 dependencies = [
  "backtrace",
  "itertools 0.13.0",
@@ -4983,16 +5091,17 @@ dependencies = [
  "p3-symmetric",
  "p3-util",
  "serde",
- "sp1-core",
+ "sp1-core-machine",
  "sp1-primitives",
  "sp1-recursion-core",
  "sp1-recursion-derive",
+ "sp1-stark",
  "tracing",
 ]
 
 [[package]]
 name = "sp1-recursion-core"
-version = "1.1.0"
+version = "1.1.1"
 dependencies = [
  "arrayref",
  "backtrace",
@@ -5016,9 +5125,11 @@ dependencies = [
  "p3-util",
  "serde",
  "serde_with",
- "sp1-core",
+ "sp1-core-executor",
+ "sp1-core-machine",
  "sp1-derive",
  "sp1-primitives",
+ "sp1-stark",
  "static_assertions",
  "tracing",
  "zkhash",
@@ -5026,7 +5137,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-derive"
-version = "1.1.0"
+version = "1.1.1"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -5035,7 +5146,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-gnark-ffi"
-version = "1.1.0"
+version = "1.1.1"
 dependencies = [
  "anyhow",
  "bincode",
@@ -5052,14 +5163,15 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.10.8",
- "sp1-core",
+ "sp1-core-machine",
  "sp1-recursion-compiler",
+ "sp1-stark",
  "tempfile",
 ]
 
 [[package]]
 name = "sp1-recursion-program"
-version = "1.1.0"
+version = "1.1.1"
 dependencies = [
  "itertools 0.13.0",
  "p3-air",
@@ -5077,17 +5189,19 @@ dependencies = [
  "p3-util",
  "rand",
  "serde",
- "sp1-core",
+ "sp1-core-executor",
+ "sp1-core-machine",
  "sp1-primitives",
  "sp1-recursion-compiler",
  "sp1-recursion-core",
+ "sp1-stark",
  "stacker",
  "tracing",
 ]
 
 [[package]]
 name = "sp1-sdk"
-version = "1.1.0"
+version = "1.1.1"
 dependencies = [
  "alloy-sol-types",
  "anyhow",
@@ -5114,8 +5228,15 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.10.8",
+<<<<<<< HEAD
+ "sp1-core-executor",
+ "sp1-core-machine",
+=======
  "sp1-core",
+ "sp1-cuda",
+>>>>>>> experimental
  "sp1-prover",
+ "sp1-stark",
  "strum",
  "strum_macros",
  "sysinfo",
@@ -5125,6 +5246,34 @@ dependencies = [
  "tracing",
  "twirp-rs",
  "vergen",
+]
+
+[[package]]
+name = "sp1-stark"
+version = "1.1.1"
+dependencies = [
+ "arrayref",
+ "hashbrown 0.14.5",
+ "itertools 0.13.0",
+ "p3-air",
+ "p3-baby-bear",
+ "p3-challenger",
+ "p3-commit",
+ "p3-dft",
+ "p3-field",
+ "p3-fri",
+ "p3-matrix",
+ "p3-maybe-rayon",
+ "p3-merkle-tree",
+ "p3-poseidon2",
+ "p3-symmetric",
+ "p3-uni-stark",
+ "p3-util",
+ "rayon-scan",
+ "serde",
+ "sp1-derive",
+ "sp1-primitives",
+ "tracing",
 ]
 
 [[package]]
@@ -5407,7 +5556,7 @@ dependencies = [
  "serde_cbor",
  "serde_json",
  "sha2 0.10.8",
- "sp1-core",
+ "sp1-core-machine",
  "sp1-helper",
  "sp1-sdk",
  "tendermint",

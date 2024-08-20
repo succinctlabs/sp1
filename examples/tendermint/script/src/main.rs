@@ -23,16 +23,16 @@ async fn get_light_blocks() -> (LightBlock, LightBlock) {
         0x72, 0x6b, 0xc8, 0xd2, 0x60, 0x38, 0x7c, 0xf5, 0x6e, 0xcf, 0xad, 0x3a, 0x6b, 0xf6, 0xfe,
         0xcd, 0x90, 0x3e, 0x18, 0xa2,
     ];
-    const BASE_URL: &str = "https://celestia-mocha-rpc.publicnode.com:443";
+    const BASE_URL: &str = "https://public-celestia-rpc.numia.xyz/";
     let client = Client::new();
     let url = format!("{}/commit", BASE_URL);
     let latest_commit = fetch_latest_commit(&client, &url).await.unwrap();
     let block: u64 = latest_commit.result.signed_header.header.height.into();
     println!("Latest block: {}", block);
-    let light_block_1 = fetch_light_block(2279100, peer_id, BASE_URL)
+    let light_block_1 = fetch_light_block(2095390, peer_id, BASE_URL)
         .await
         .expect("Failed to generate light block 1");
-    let light_block_2 = fetch_light_block(2279130, peer_id, BASE_URL)
+    let light_block_2 = fetch_light_block(2095392, peer_id, BASE_URL)
         .await
         .expect("Failed to generate light block 2");
     (light_block_1, light_block_2)
@@ -63,6 +63,9 @@ fn main() {
 
     let client = ProverClient::new();
     let (pk, vk) = client.setup(TENDERMINT_ELF);
+
+    let execute = client.execute(TENDERMINT_ELF, stdin.clone()).run().expect("proving failed");
+
     let proof = client.prove(&pk, stdin).compressed().run().expect("proving failed");
 
     // Verify proof.

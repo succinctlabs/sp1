@@ -8,7 +8,7 @@ publish = false
 [dependencies]
 hex = "0.4.3"
 sha2 = "0.10.8"
-sp1-zkvm = { path = "../../../zkvm/entrypoint", features = ["verify"] }
+sp1-zkvm = { path = "../../../crates/zkvm/entrypoint", features = ["verify"] }
 
 [patch.crates-io]
 sha2-v0-10-8 = { git = "https://github.com/sp1-patches/RustCrypto-hashes.git", package = "sha2", branch = "patch-v0.10.8" }
