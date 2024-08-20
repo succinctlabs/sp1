@@ -530,6 +530,13 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                                     pk.observe_into(&mut challenger);
                                 });
 
+                                #[cfg(feature = "debug")]
+                                self.compress_prover.debug_constraints(
+                                    &pk,
+                                    vec![record.clone()],
+                                    &mut challenger.clone(),
+                                );
+
                                 // Commit to the record and traces.
                                 let data = tracing::debug_span!("commit")
                                     .in_scope(|| self.compress_prover.commit(record, traces));
