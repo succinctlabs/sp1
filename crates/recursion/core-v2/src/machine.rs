@@ -247,7 +247,7 @@ pub mod tests {
     }
 
     fn test_instructions(instructions: Vec<Instruction<F>>) {
-        let program = RecursionProgram { instructions, traces: Default::default() };
+        let program = RecursionProgram { instructions, ..Default::default() };
         run_recursion_test_machines(program);
     }
 

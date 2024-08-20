@@ -378,7 +378,7 @@ mod tests {
             })
             .collect::<Vec<Instruction<F>>>();
 
-        let program = RecursionProgram { instructions, traces: Default::default() };
+        let program = RecursionProgram { instructions, ..Default::default() };
 
         run_recursion_test_machines(program);
     }

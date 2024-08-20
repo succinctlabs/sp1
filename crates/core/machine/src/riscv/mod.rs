@@ -1,7 +1,10 @@
+pub mod cost;
+
 use crate::{
     memory::{MemoryChipType, MemoryProgramChip},
     syscall::precompiles::fptower::{Fp2AddSubAssignChip, Fp2MulAssignChip, FpOpChip},
 };
+use hashbrown::HashMap;
 use p3_field::PrimeField32;
 pub use riscv_chips::*;
 use sp1_curves::weierstrass::{bls12_381::Bls12381BaseField, bn254::Bn254BaseField};
@@ -9,6 +12,7 @@ use sp1_stark::{
     air::{MachineAir, SP1_PROOF_NUM_PV_ELTS},
     Chip, StarkGenericConfig, StarkMachine,
 };
+use strum_macros::{EnumDiscriminants, EnumIter};
 use tracing::instrument;
 
 /// A module for importing all the different RISC-V chips.
@@ -43,7 +47,8 @@ pub(crate) mod riscv_chips {
 /// This enum contains all the different AIRs that are used in the Sp1 RISC-V IOP. Each variant is
 /// a different AIR that is used to encode a different part of the RISC-V execution, and the
 /// different AIR variants have a joint lookup argument.
-#[derive(sp1_derive::MachineAir)]
+#[derive(sp1_derive::MachineAir, EnumDiscriminants)]
+#[strum_discriminants(derive(Hash, EnumIter))]
 pub enum RiscvAir<F: PrimeField32> {
     /// An AIR that containts a preprocessed program table and a lookup for the instructions.
     Program(ProgramChip),
@@ -116,86 +121,188 @@ pub enum RiscvAir<F: PrimeField32> {
 impl<F: PrimeField32> RiscvAir<F> {
     #[instrument("construct RiscvAir machine", level = "debug", skip_all)]
     pub fn machine<SC: StarkGenericConfig<Val = F>>(config: SC) -> StarkMachine<SC, Self> {
-        let chips = Self::get_all().into_iter().map(Chip::new).collect::<Vec<_>>();
+        let chips = Self::chips();
         StarkMachine::new(config, chips, SP1_PROOF_NUM_PV_ELTS)
     }
 
     /// Get all the different RISC-V AIRs.
-    pub fn get_all() -> Vec<Self> {
-        // The order of the chips is important, as it is used to determine the order of trace
-        // generation. In the future, we will detect that order automatically.
-        let mut chips = vec![];
-        let cpu = CpuChip::default();
-        chips.push(RiscvAir::Cpu(cpu));
-        let program = ProgramChip::default();
-        chips.push(RiscvAir::Program(program));
-        let sha_extend = ShaExtendChip::default();
-        chips.push(RiscvAir::Sha256Extend(sha_extend));
-        let sha_compress = ShaCompressChip::default();
-        chips.push(RiscvAir::Sha256Compress(sha_compress));
-        let ed_add_assign = EdAddAssignChip::<EdwardsCurve<Ed25519Parameters>>::new();
-        chips.push(RiscvAir::Ed25519Add(ed_add_assign));
-        let ed_decompress = EdDecompressChip::<Ed25519Parameters>::default();
-        chips.push(RiscvAir::Ed25519Decompress(ed_decompress));
-        let k256_decompress =
-            WeierstrassDecompressChip::<SwCurve<Secp256k1Parameters>>::with_lsb_rule();
-        chips.push(RiscvAir::K256Decompress(k256_decompress));
-        let secp256k1_add_assign = WeierstrassAddAssignChip::<SwCurve<Secp256k1Parameters>>::new();
-        chips.push(RiscvAir::Secp256k1Add(secp256k1_add_assign));
-        let secp256k1_double_assign =
-            WeierstrassDoubleAssignChip::<SwCurve<Secp256k1Parameters>>::new();
-        chips.push(RiscvAir::Secp256k1Double(secp256k1_double_assign));
-        let keccak_permute = KeccakPermuteChip::new();
-        chips.push(RiscvAir::KeccakP(keccak_permute));
-        let bn254_add_assign = WeierstrassAddAssignChip::<SwCurve<Bn254Parameters>>::new();
-        chips.push(RiscvAir::Bn254Add(bn254_add_assign));
-        let bn254_double_assign = WeierstrassDoubleAssignChip::<SwCurve<Bn254Parameters>>::new();
-        chips.push(RiscvAir::Bn254Double(bn254_double_assign));
-        let bls12381_add = WeierstrassAddAssignChip::<SwCurve<Bls12381Parameters>>::new();
-        chips.push(RiscvAir::Bls12381Add(bls12381_add));
-        let bls12381_double = WeierstrassDoubleAssignChip::<SwCurve<Bls12381Parameters>>::new();
-        chips.push(RiscvAir::Bls12381Double(bls12381_double));
-        let uint256_mul = Uint256MulChip::default();
-        chips.push(RiscvAir::Uint256Mul(uint256_mul));
-        let bls12381_fp = FpOpChip::<Bls12381BaseField>::new();
-        chips.push(RiscvAir::Bls12381Fp(bls12381_fp));
-        let bls12381_fp2_addsub = Fp2AddSubAssignChip::<Bls12381BaseField>::new();
-        chips.push(RiscvAir::Bls12381Fp2AddSub(bls12381_fp2_addsub));
-        let bls12381_fp2_mul = Fp2MulAssignChip::<Bls12381BaseField>::new();
-        chips.push(RiscvAir::Bls12381Fp2Mul(bls12381_fp2_mul));
-        let bn254_fp = FpOpChip::<Bn254BaseField>::new();
-        chips.push(RiscvAir::Bn254Fp(bn254_fp));
-        let bn254_fp2_addsub = Fp2AddSubAssignChip::<Bn254BaseField>::new();
-        chips.push(RiscvAir::Bn254Fp2AddSub(bn254_fp2_addsub));
-        let bn254_fp2_mul = Fp2MulAssignChip::<Bn254BaseField>::new();
-        chips.push(RiscvAir::Bn254Fp2Mul(bn254_fp2_mul));
-        let bls12381_decompress =
-            WeierstrassDecompressChip::<SwCurve<Bls12381Parameters>>::with_lexicographic_rule();
-        chips.push(RiscvAir::Bls12381Decompress(bls12381_decompress));
-        let div_rem = DivRemChip::default();
-        chips.push(RiscvAir::DivRem(div_rem));
-        let add = AddSubChip::default();
-        chips.push(RiscvAir::Add(add));
-        let bitwise = BitwiseChip::default();
-        chips.push(RiscvAir::Bitwise(bitwise));
-        let mul = MulChip::default();
-        chips.push(RiscvAir::Mul(mul));
-        let shift_right = ShiftRightChip::default();
-        chips.push(RiscvAir::ShiftRight(shift_right));
-        let shift_left = ShiftLeft::default();
-        chips.push(RiscvAir::ShiftLeft(shift_left));
-        let lt = LtChip::default();
-        chips.push(RiscvAir::Lt(lt));
-        let memory_init = MemoryChip::new(MemoryChipType::Initialize);
-        chips.push(RiscvAir::MemoryInit(memory_init));
-        let memory_finalize = MemoryChip::new(MemoryChipType::Finalize);
-        chips.push(RiscvAir::MemoryFinal(memory_finalize));
-        let program_memory_init = MemoryProgramChip::new();
-        chips.push(RiscvAir::ProgramMemory(program_memory_init));
-        let byte = ByteChip::default();
-        chips.push(RiscvAir::ByteLookup(byte));
-
+    pub fn chips() -> Vec<Chip<F, Self>> {
+        let (chips, _) = Self::get_chips_and_costs();
         chips
+    }
+
+    /// Get all the costs of the different RISC-V AIRs.
+    pub fn costs() -> HashMap<RiscvAirDiscriminants, u64> {
+        let (_, costs) = Self::get_chips_and_costs();
+        costs
+    }
+
+    /// Get all the different RISC-V AIRs.
+    pub fn get_chips_and_costs() -> (Vec<Chip<F, Self>>, HashMap<RiscvAirDiscriminants, u64>) {
+        let mut costs: HashMap<RiscvAirDiscriminants, u64> = HashMap::new();
+
+        // The order of the chips is used to determine the order of trace generation.
+        let mut chips = vec![];
+        let cpu = Chip::new(RiscvAir::Cpu(CpuChip::default()));
+        costs.insert(RiscvAirDiscriminants::Cpu, cpu.cost());
+        chips.push(cpu);
+
+        let program = Chip::new(RiscvAir::Program(ProgramChip::default()));
+        chips.push(program);
+
+        let sha_extend = Chip::new(RiscvAir::Sha256Extend(ShaExtendChip::default()));
+        costs.insert(RiscvAirDiscriminants::Sha256Extend, 48 * sha_extend.cost());
+        chips.push(sha_extend);
+
+        let sha_compress = Chip::new(RiscvAir::Sha256Compress(ShaCompressChip::default()));
+        costs.insert(RiscvAirDiscriminants::Sha256Compress, 80 * sha_compress.cost());
+        chips.push(sha_compress);
+
+        let ed_add_assign = Chip::new(RiscvAir::Ed25519Add(EdAddAssignChip::<
+            EdwardsCurve<Ed25519Parameters>,
+        >::new()));
+        costs.insert(RiscvAirDiscriminants::Ed25519Add, ed_add_assign.cost());
+        chips.push(ed_add_assign);
+
+        let ed_decompress = Chip::new(RiscvAir::Ed25519Decompress(EdDecompressChip::<
+            Ed25519Parameters,
+        >::default()));
+        costs.insert(RiscvAirDiscriminants::Ed25519Decompress, ed_decompress.cost());
+        chips.push(ed_decompress);
+
+        let k256_decompress = Chip::new(RiscvAir::K256Decompress(WeierstrassDecompressChip::<
+            SwCurve<Secp256k1Parameters>,
+        >::with_lsb_rule()));
+        costs.insert(RiscvAirDiscriminants::K256Decompress, k256_decompress.cost());
+        chips.push(k256_decompress);
+
+        let secp256k1_add_assign = Chip::new(RiscvAir::Secp256k1Add(WeierstrassAddAssignChip::<
+            SwCurve<Secp256k1Parameters>,
+        >::new()));
+        costs.insert(RiscvAirDiscriminants::Secp256k1Add, secp256k1_add_assign.cost());
+        chips.push(secp256k1_add_assign);
+
+        let secp256k1_double_assign =
+            Chip::new(RiscvAir::Secp256k1Double(WeierstrassDoubleAssignChip::<
+                SwCurve<Secp256k1Parameters>,
+            >::new()));
+        costs.insert(RiscvAirDiscriminants::Secp256k1Double, secp256k1_double_assign.cost());
+        chips.push(secp256k1_double_assign);
+
+        let keccak_permute = Chip::new(RiscvAir::KeccakP(KeccakPermuteChip::new()));
+        costs.insert(RiscvAirDiscriminants::KeccakP, 24 * keccak_permute.cost());
+        chips.push(keccak_permute);
+
+        let bn254_add_assign = Chip::new(RiscvAir::Bn254Add(WeierstrassAddAssignChip::<
+            SwCurve<Bn254Parameters>,
+        >::new()));
+        costs.insert(RiscvAirDiscriminants::Bn254Add, bn254_add_assign.cost());
+        chips.push(bn254_add_assign);
+
+        let bn254_double_assign = Chip::new(RiscvAir::Bn254Double(WeierstrassDoubleAssignChip::<
+            SwCurve<Bn254Parameters>,
+        >::new()));
+        costs.insert(RiscvAirDiscriminants::Bn254Double, bn254_double_assign.cost());
+        chips.push(bn254_double_assign);
+
+        let bls12381_add = Chip::new(RiscvAir::Bls12381Add(WeierstrassAddAssignChip::<
+            SwCurve<Bls12381Parameters>,
+        >::new()));
+        costs.insert(RiscvAirDiscriminants::Bls12381Add, bls12381_add.cost());
+        chips.push(bls12381_add);
+
+        let bls12381_double = Chip::new(RiscvAir::Bls12381Double(WeierstrassDoubleAssignChip::<
+            SwCurve<Bls12381Parameters>,
+        >::new()));
+        costs.insert(RiscvAirDiscriminants::Bls12381Double, bls12381_double.cost());
+        chips.push(bls12381_double);
+
+        let uint256_mul = Chip::new(RiscvAir::Uint256Mul(Uint256MulChip::default()));
+        costs.insert(RiscvAirDiscriminants::Uint256Mul, uint256_mul.cost());
+        chips.push(uint256_mul);
+
+        let bls12381_fp = Chip::new(RiscvAir::Bls12381Fp(FpOpChip::<Bls12381BaseField>::new()));
+        costs.insert(RiscvAirDiscriminants::Bls12381Fp, bls12381_fp.cost());
+        chips.push(bls12381_fp);
+
+        let bls12381_fp2_addsub =
+            Chip::new(RiscvAir::Bls12381Fp2AddSub(Fp2AddSubAssignChip::<Bls12381BaseField>::new()));
+        costs.insert(RiscvAirDiscriminants::Bls12381Fp2AddSub, bls12381_fp2_addsub.cost());
+        chips.push(bls12381_fp2_addsub);
+
+        let bls12381_fp2_mul =
+            Chip::new(RiscvAir::Bls12381Fp2Mul(Fp2MulAssignChip::<Bls12381BaseField>::new()));
+        costs.insert(RiscvAirDiscriminants::Bls12381Fp2Mul, bls12381_fp2_mul.cost());
+        chips.push(bls12381_fp2_mul);
+
+        let bn254_fp = Chip::new(RiscvAir::Bn254Fp(FpOpChip::<Bn254BaseField>::new()));
+        costs.insert(RiscvAirDiscriminants::Bn254Fp, bn254_fp.cost());
+        chips.push(bn254_fp);
+
+        let bn254_fp2_addsub =
+            Chip::new(RiscvAir::Bn254Fp2AddSub(Fp2AddSubAssignChip::<Bn254BaseField>::new()));
+        costs.insert(RiscvAirDiscriminants::Bn254Fp2AddSub, bn254_fp2_addsub.cost());
+        chips.push(bn254_fp2_addsub);
+
+        let bn254_fp2_mul =
+            Chip::new(RiscvAir::Bn254Fp2Mul(Fp2MulAssignChip::<Bn254BaseField>::new()));
+        costs.insert(RiscvAirDiscriminants::Bn254Fp2Mul, bn254_fp2_mul.cost());
+        chips.push(bn254_fp2_mul);
+
+        let bls12381_decompress =
+            Chip::new(RiscvAir::Bls12381Decompress(WeierstrassDecompressChip::<
+                SwCurve<Bls12381Parameters>,
+            >::with_lexicographic_rule()));
+        costs.insert(RiscvAirDiscriminants::Bls12381Decompress, bls12381_decompress.cost());
+        chips.push(bls12381_decompress);
+
+        let div_rem = Chip::new(RiscvAir::DivRem(DivRemChip::default()));
+        costs.insert(RiscvAirDiscriminants::DivRem, div_rem.cost());
+        chips.push(div_rem);
+
+        let add_sub = Chip::new(RiscvAir::Add(AddSubChip::default()));
+        costs.insert(RiscvAirDiscriminants::Add, add_sub.cost());
+        chips.push(add_sub);
+
+        let bitwise = Chip::new(RiscvAir::Bitwise(BitwiseChip::default()));
+        costs.insert(RiscvAirDiscriminants::Bitwise, bitwise.cost());
+        chips.push(bitwise);
+
+        let mul = Chip::new(RiscvAir::Mul(MulChip::default()));
+        costs.insert(RiscvAirDiscriminants::Mul, mul.cost());
+        chips.push(mul);
+
+        let shift_right = Chip::new(RiscvAir::ShiftRight(ShiftRightChip::default()));
+        costs.insert(RiscvAirDiscriminants::ShiftRight, shift_right.cost());
+        chips.push(shift_right);
+
+        let shift_left = Chip::new(RiscvAir::ShiftLeft(ShiftLeft::default()));
+        costs.insert(RiscvAirDiscriminants::ShiftLeft, shift_left.cost());
+        chips.push(shift_left);
+
+        let lt = Chip::new(RiscvAir::Lt(LtChip::default()));
+        costs.insert(RiscvAirDiscriminants::Lt, lt.cost());
+        chips.push(lt);
+
+        let memory_init =
+            Chip::new(RiscvAir::MemoryInit(MemoryChip::new(MemoryChipType::Initialize)));
+        costs.insert(RiscvAirDiscriminants::MemoryInit, memory_init.cost());
+        chips.push(memory_init);
+
+        let memory_finalize =
+            Chip::new(RiscvAir::MemoryFinal(MemoryChip::new(MemoryChipType::Finalize)));
+        costs.insert(RiscvAirDiscriminants::MemoryFinal, memory_finalize.cost());
+        chips.push(memory_finalize);
+
+        let memory_program = Chip::new(RiscvAir::ProgramMemory(MemoryProgramChip::default()));
+        costs.insert(RiscvAirDiscriminants::ProgramMemory, memory_program.cost());
+        chips.push(memory_program);
+
+        let byte = Chip::new(RiscvAir::ByteLookup(ByteChip::default()));
+        costs.insert(RiscvAirDiscriminants::ByteLookup, byte.cost());
+        chips.push(byte);
+
+        (chips, costs)
     }
 }
 

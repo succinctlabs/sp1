@@ -20,6 +20,7 @@ use thiserror::Error;
 use p3_baby_bear::BabyBear;
 use p3_field::PrimeField32;
 
+use crate::riscv::cost::CostEstimator;
 use crate::{
     io::{SP1PublicValues, SP1Stdin},
     utils::{chunk_vec, concurrency::TurnBasedSync},
@@ -535,9 +536,10 @@ where
         // Log some of the `ExecutionReport` information.
         let report_aggregate = report_aggregate.lock().unwrap();
         tracing::info!(
-            "execution report (totals): total_cycles={}, total_syscall_cycles={}",
+            "execution report (totals): total_cycles={}, total_syscall_cycles={}, touched_memory_addresses={}",
             report_aggregate.total_instruction_count(),
-            report_aggregate.total_syscall_count()
+            report_aggregate.total_syscall_count(),
+            report_aggregate.touched_memory_addresses,
         );
 
         // Print the opcode and syscall count tables like `du`: sorted by count (descending) and
@@ -557,8 +559,9 @@ where
         // Print the summary.
         let proving_time = proving_start.elapsed().as_secs_f64();
         tracing::info!(
-            "summary: cycles={}, e2e={}s, khz={:.2}, proofSize={}",
+            "summary: cycles={}, gas={}, e2e={}s, khz={:.2}, proofSize={}",
             cycles,
+            report_aggregate.estimate_gas(),
             proving_time,
             (cycles as f64 / (proving_time * 1000.0) as f64),
             bincode::serialize(&proof).unwrap().len(),

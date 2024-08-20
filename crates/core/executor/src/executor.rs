@@ -1316,6 +1316,7 @@ impl<'a> Executor<'a> {
             MemoryInitializeFinalizeEvent::initialize(0, 0, addr_0_record.is_some());
         memory_initialize_events.push(addr_0_initialize_event);
 
+        self.report.touched_memory_addresses = self.state.memory.len() as u64;
         for addr in self.state.memory.keys() {
             if addr == &0 {
                 // Handled above.
