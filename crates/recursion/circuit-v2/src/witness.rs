@@ -2,34 +2,24 @@ use std::borrow::Borrow;
 
 use p3_baby_bear::BabyBear;
 use p3_field::AbstractExtensionField;
-<<<<<<< HEAD:crates/recursion/circuit-v2/src/witness.rs
-use p3_fri::{CommitPhaseProofStep, QueryProof};
-
-=======
 
 use p3_fri::{CommitPhaseProofStep, NormalizeQueryProof, QueryProof};
-use sp1_core::{
-    stark::{AirOpenedValues, ChipOpenedValues, ShardCommitment, ShardOpenedValues, ShardProof},
-    utils::{
-        BabyBearPoseidon2, InnerBatchOpening, InnerChallenge, InnerChallengeMmcs, InnerDigest,
-        InnerFriProof, InnerPcsProof, InnerVal,
-    },
+
+use sp1_stark::baby_bear_poseidon2::BabyBearPoseidon2;
+use sp1_stark::{
+    AirOpenedValues, ChipOpenedValues, ShardCommitment, ShardOpenedValues, ShardProof,
 };
->>>>>>> e8fe2e9cd (wip):recursion/circuit-v2/src/witness.rs
+use sp1_stark::{
+    InnerBatchOpening, InnerChallenge, InnerChallengeMmcs, InnerDigest, InnerFriProof,
+    InnerPcsProof, InnerVal,
+};
+
 use sp1_recursion_compiler::{
     circuit::CircuitV2Builder,
     ir::{Builder, Config, Ext, Felt},
 };
 use sp1_recursion_core_v2::air::Block;
-<<<<<<< HEAD:crates/recursion/circuit-v2/src/witness.rs
-use sp1_stark::{
-    baby_bear_poseidon2::BabyBearPoseidon2, AirOpenedValues, ChipOpenedValues, InnerBatchOpening,
-    InnerChallenge, InnerChallengeMmcs, InnerDigest, InnerFriProof, InnerPcsProof, InnerVal,
-    ShardCommitment, ShardOpenedValues, ShardProof,
-};
-=======
 use sp1_recursion_program::commit;
->>>>>>> e8fe2e9cd (wip):recursion/circuit-v2/src/witness.rs
 
 use crate::{
     stark::ShardProofVariable, BatchOpeningVariable, CircuitConfig,
@@ -302,9 +292,6 @@ impl<C: CircuitConfig<F = InnerVal, EF = InnerChallenge, Bit = Felt<BabyBear>>> 
         let normalize_query_proofs = self.normalize_query_proofs.read(builder);
         let final_poly = self.final_poly.read(builder);
         let pow_witness = self.pow_witness.read(builder);
-<<<<<<< HEAD:crates/recursion/circuit-v2/src/witness.rs
-        Self::WitnessVariable { commit_phase_commits, query_proofs, final_poly, pow_witness }
-=======
         Self::WitnessVariable {
             commit_phase_commits,
             normalize_phase_commits,
@@ -313,7 +300,6 @@ impl<C: CircuitConfig<F = InnerVal, EF = InnerChallenge, Bit = Felt<BabyBear>>> 
             final_poly,
             pow_witness,
         }
->>>>>>> e8fe2e9cd (wip):recursion/circuit-v2/src/witness.rs
     }
 
     fn write(&self) -> Vec<Witness<C>> {
@@ -355,9 +341,7 @@ impl<C: CircuitConfig<F = InnerVal, EF = InnerChallenge, Bit = Felt<BabyBear>>> 
 
     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
         let normalize_phase_openings = self.normalize_phase_openings.read(builder);
-        Self::WitnessVariable {
-            normalize_phase_openings,
-        }
+        Self::WitnessVariable { normalize_phase_openings }
     }
 
     fn write(&self) -> Vec<Witness<C>> {
@@ -373,26 +357,11 @@ impl<C: CircuitConfig<F = InnerVal, EF = InnerChallenge, Bit = Felt<BabyBear>>> 
     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
         let siblings = self.siblings.read(builder);
         let opening_proof = self.opening_proof.read(builder);
-<<<<<<< HEAD:crates/recursion/circuit-v2/src/witness.rs
-        Self::WitnessVariable { sibling_value, opening_proof }
+        Self::WitnessVariable { siblings, opening_proof }
     }
 
     fn write(&self) -> Vec<Witness<C>> {
-        [Witnessable::<C>::write(&self.sibling_value), Witnessable::<C>::write(&self.opening_proof)]
+        [Witnessable::<C>::write(&self.siblings), Witnessable::<C>::write(&self.opening_proof)]
             .concat()
-=======
-        Self::WitnessVariable {
-            siblings,
-            opening_proof,
-        }
-    }
-
-    fn write(&self) -> Vec<Witness<C>> {
-        [
-            Witnessable::<C>::write(&self.siblings),
-            Witnessable::<C>::write(&self.opening_proof),
-        ]
-        .concat()
->>>>>>> e8fe2e9cd (wip):recursion/circuit-v2/src/witness.rs
     }
 }

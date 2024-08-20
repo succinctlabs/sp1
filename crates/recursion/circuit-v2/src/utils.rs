@@ -2,7 +2,7 @@ use std::{borrow::BorrowMut, iter::once};
 
 use p3_field::AbstractField;
 
-use sp1_core::utils::log2_strict_usize;
+use sp1_core_machine::utils::log2_strict_usize;
 use sp1_recursion_compiler::{
     circuit::CircuitV2Builder,
     ir::{Builder, Config, Ext, Felt},
@@ -42,7 +42,6 @@ pub fn access_index_with_var_e<C: CircuitConfig>(
     let mut index_bits = index_bits.clone();
     let mut result = vec.to_vec();
     if log2_strict_usize(vec.len()) > index_bits.len() {
-        println!("We're padding the index bits");
         for _ in index_bits.len()..log2_strict_usize(vec.len()) {
             index_bits.push(builder.eval(C::BitExpression::zero()));
         }
@@ -50,7 +49,7 @@ pub fn access_index_with_var_e<C: CircuitConfig>(
     for &bit in index_bits[..log2_strict_usize(vec.len())].iter() {
         result = (0..result.len() / 2)
             .map(|i| {
-                C::select_chain_ef(builder, bit, once(result[2 * i + 1]), once(result[2 * i]))[0]
+                C::select_chain_ef(builder, bit, once(result[2 * i]), once(result[2 * i + 1]))[0]
             })
             .collect();
     }

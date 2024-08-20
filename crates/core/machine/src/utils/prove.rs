@@ -789,7 +789,7 @@ pub mod baby_bear_poseidon2 {
     use serde::{Deserialize, Serialize};
     use sp1_primitives::RC_16_30;
 
-    use crate::stark::StarkGenericConfig;
+    use sp1_stark::StarkGenericConfig;
 
     pub type Val = BabyBear;
     pub type Challenge = BinomialExtensionField<Val, 4>;
@@ -841,7 +841,7 @@ pub mod baby_bear_poseidon2 {
         };
         FriConfig {
             log_blowup: 1,
-            log_arity: 2,
+            log_arity: 1,
             num_queries,
             proof_of_work_bits: 16,
             mmcs: challenge_mmcs,
@@ -964,10 +964,9 @@ pub(super) mod baby_bear_keccak {
     use p3_symmetric::{CompressionFunctionFromHasher, SerializingHasher32};
     use serde::{Deserialize, Serialize};
 
-    use crate::stark::StarkGenericConfig;
+    use sp1_stark::StarkGenericConfig;
 
-    use super::LOG_DEGREE_BOUND;
-
+    use crate::cpu::MAX_CPU_LOG_DEGREE;
     pub type Val = BabyBear;
 
     pub type Challenge = BinomialExtensionField<Val, 4>;
@@ -1028,7 +1027,7 @@ pub(super) mod baby_bear_keccak {
                 proof_of_work_bits: 16,
                 mmcs: challenge_mmcs,
             };
-            let pcs = Pcs::new(LOG_DEGREE_BOUND, dft, val_mmcs, fri_config);
+            let pcs = Pcs::new(MAX_CPU_LOG_DEGREE, dft, val_mmcs, fri_config);
 
             Self { pcs }
         }
@@ -1079,9 +1078,9 @@ pub(super) mod baby_bear_blake3 {
     use p3_symmetric::{CompressionFunctionFromHasher, SerializingHasher32};
     use serde::{Deserialize, Serialize};
 
-    use crate::stark::StarkGenericConfig;
+    use sp1_stark::StarkGenericConfig;
 
-    use super::LOG_DEGREE_BOUND;
+    use crate::cpu::MAX_CPU_LOG_DEGREE;
 
     pub type Val = BabyBear;
 
@@ -1153,7 +1152,7 @@ pub(super) mod baby_bear_blake3 {
                 proof_of_work_bits: 16,
                 mmcs: challenge_mmcs,
             };
-            let pcs = Pcs::new(LOG_DEGREE_BOUND, dft, val_mmcs, fri_config);
+            let pcs = Pcs::new(MAX_CPU_LOG_DEGREE, dft, val_mmcs, fri_config);
 
             Self { pcs }
         }

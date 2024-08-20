@@ -131,11 +131,7 @@ pub trait CircuitConfig: Config {
         bits: impl IntoIterator<Item = Self::Bit>,
     ) -> Felt<<Self as Config>::F>;
 
-    fn reverse_bits_len(
-        builder: &mut Builder<Self>,
-        input: &[Self::Bit],
-        bit_len: usize,
-    ) -> Vec<Self::Bit> {
+    fn reverse_bits_len(input: &[Self::Bit], bit_len: usize) -> Vec<Self::Bit> {
         assert!(bit_len <= NUM_BITS);
         let mut result_bits = Vec::new();
         for i in 0..bit_len {

@@ -5,21 +5,20 @@ use p3_field::{AbstractField, TwoAdicField};
 use p3_fri::FriConfig;
 use p3_matrix::Dimensions;
 use p3_util::log2_strict_usize;
-use sp1_recursion_compiler::ir::{Builder, Config, Felt, SymbolicExt, SymbolicFelt, Variable};
+use sp1_recursion_compiler::ir::{Builder, Config, Felt, SymbolicExt, SymbolicFelt};
 use std::{
     cmp::Reverse,
-    iter::{once, repeat_with, zip},
+    iter::{repeat_with, zip},
 };
 
 use crate::{
-    challenger::CanSampleBitsVariable, select_chain, utils::access_index_with_var_e,
-    FriCommitPhaseProofStepVariable, NormalizeQueryProofVariable,
-};
-use crate::{challenger::FieldChallengerVariable, BabyBearFriConfigVariable};
-use crate::{
     challenger::{CanSampleBitsVariable, FieldChallengerVariable},
-    BabyBearFriConfigVariable, CanObserveVariable, CircuitConfig, Ext, FriChallenges, FriMmcs,
-    FriProofVariable, FriQueryProofVariable, TwoAdicPcsProofVariable, TwoAdicPcsRoundVariable,
+    utils::access_index_with_var_e,
+    BabyBearFriConfigVariable, FriCommitPhaseProofStepVariable, NormalizeQueryProofVariable,
+};
+use crate::{
+    CanObserveVariable, CircuitConfig, Ext, FriChallenges, FriMmcs, FriProofVariable,
+    FriQueryProofVariable, TwoAdicPcsProofVariable, TwoAdicPcsRoundVariable,
 };
 
 pub fn verify_shape_and_sample_challenges<
@@ -150,7 +149,7 @@ pub fn verify_two_adic_pcs<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigV
                     // Should have length `log_height`, but we enforce this anyway.
                     let reduced_index_bits =
                         index[bits_reduced..(bits_reduced + log_height)].to_vec();
-
+                    debug_assert!(reduced_index_bits.len() == log_height);
                     let g = builder.generator();
 
                     let two_adic_generator: Felt<_> =
@@ -314,8 +313,6 @@ fn verify_normalization_phase<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConf
         new_openings[log_folded_height] = builder.eval(new_openings[log_folded_height] + fold_add);
     }
 
-    println!("Normalize phase done");
-
     new_openings
 }
 
@@ -323,7 +320,7 @@ pub fn verify_query<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVariable
     builder: &mut Builder<C>,
     config: &FriConfig<FriMmcs<SC>>,
     commit_phase_commits: Vec<SC::Digest>,
-    mut index_bits: Vec<C::Bit>,
+    index_bits: Vec<C::Bit>,
     proof: FriQueryProofVariable<C, SC>,
     betas: Vec<Ext<C::F, C::EF>>,
     reduced_openings: [Ext<C::F, C::EF>; 32],
@@ -344,6 +341,7 @@ pub fn verify_query<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVariable
         builder.eval(SymbolicFelt::from_f(C::F::two_adic_generator(log_max_normalized_height)));
 
     // index_bits should have length `log_max_normalized_height`.
+    debug_assert!(index_bits.len() == log_max_normalized_height);
     let mut x = C::exp_reverse_bits(builder, two_adic_generator, index_bits.to_vec());
 
     println!("Log max normalized height: {}", log_max_normalized_height);
@@ -424,53 +422,6 @@ fn verify_fold_step<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVariable
     interpolate_fft_and_evaluate(builder, &xs, &ord_evals, beta)
 }
 
-<<<<<<< HEAD:crates/recursion/circuit-v2/src/fri.rs
-fn next_index_in_coset<C: CircuitConfig>(
-    builder: &mut Builder<C>,
-    index: Vec<C::Bit>,
-) -> Vec<C::Bit> {
-    // TODO better names.
-    let len = index.len();
-    let rev_bits = C::reverse_bits_len(builder, &index, len);
-    let index = C::bits2num(builder, rev_bits);
-    let index_plus_one = builder.eval(index + C::F::one());
-    let index_plus_one_bits = C::num2bits(builder, index_plus_one, len);
-    C::reverse_bits_len(builder, &index_plus_one_bits, len)
-}
-
-// Inefficient algorithm for interpolation and evaluation of a polynomial at a point.
-fn interpolate_fft_and_evaluate<C: CircuitConfig>(
-    builder: &mut Builder<C>,
-    coset: &[Felt<C::F>],
-    ys: &[Ext<C::F, C::EF>],
-    beta: Ext<C::F, C::EF>,
-) -> Ext<C::F, C::EF> {
-    assert_eq!(coset.len(), ys.len());
-    if ys.len() == 1 {
-        return ys[0];
-    }
-    let beta_sq = builder.eval(beta * beta);
-    let next_coset =
-        coset.iter().take(coset.len() / 2).copied().map(|x| builder.eval(x * x)).collect_vec();
-    let even_ys = izip!(ys.iter().take(ys.len() / 2), ys.iter().skip(ys.len() / 2))
-        .map(|(&a, &b)| builder.eval((a + b) / C::F::two()))
-        .collect_vec();
-    let odd_ys = izip!(
-        ys.iter().take(ys.len() / 2),
-        ys.iter().skip(ys.len() / 2),
-        coset.iter().take(ys.len() / 2)
-    )
-    .map(|(&a, &b, &x)| builder.eval((a - b) / (x * C::F::two())))
-    .collect_vec();
-    let even_result = interpolate_fft_and_evaluate(builder, &next_coset, &even_ys, beta_sq);
-    let odd_result = interpolate_fft_and_evaluate(builder, &next_coset, &odd_ys, beta_sq);
-    // builder.reduce_e(odd_result);
-    // builder.reduce_e(even_result);
-    builder.eval(even_result + beta * odd_result)
-}
-
-=======
->>>>>>> a0e04e8a5 (wip):recursion/circuit-v2/src/fri.rs
 pub fn verify_batch<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVariable<C>>(
     builder: &mut Builder<C>,
     commit: SC::Digest,
@@ -528,12 +479,12 @@ fn next_index_in_coset<C: CircuitConfig>(
 ) -> Vec<C::Bit> {
     // TODO better names.
     let len = index.len();
-    let rev_bits = C::reverse_bits_len(builder, &index, len);
+    let rev_bits = C::reverse_bits_len(&index, len);
     let index_num = C::bits2num(builder, rev_bits);
     let index_num_plus_one = builder.eval(index_num + C::F::one());
     let unrev_result_bits = C::num2bits(builder, index_num_plus_one, len + 1);
 
-    C::reverse_bits_len(builder, &unrev_result_bits, len)
+    C::reverse_bits_len(&unrev_result_bits, len)
 }
 
 /// Radix-2 FFT-style algorithm for interpolation and evaluation of a polynomial at a point.
@@ -548,12 +499,8 @@ fn interpolate_fft_and_evaluate<C: CircuitConfig>(
         return ys[0];
     }
     let beta_sq = builder.eval(beta * beta);
-    let next_coset = coset
-        .iter()
-        .take(coset.len() / 2)
-        .copied()
-        .map(|x| builder.eval(x * x))
-        .collect_vec();
+    let next_coset =
+        coset.iter().take(coset.len() / 2).copied().map(|x| builder.eval(x * x)).collect_vec();
     let even_ys = izip!(ys.iter().take(ys.len() / 2), ys.iter().skip(ys.len() / 2))
         .map(|(&a, &b)| builder.eval((a + b) / C::F::two()))
         .collect_vec();
@@ -876,6 +823,13 @@ mod tests {
             );
         }
 
+        for i in 0..fri_challenges_gt.normalize_betas.len() {
+            builder.assert_ext_eq(
+                SymbolicExt::from_f(fri_challenges_gt.normalize_betas[i]),
+                fri_challenges.normalize_betas[i],
+            );
+        }
+
         for i in 0..fri_challenges_gt.query_indices.len() {
             let query_indices =
                 C::bits2num(&mut builder, fri_challenges.query_indices[i].iter().cloned());
@@ -970,40 +924,33 @@ mod tests {
             let next_index_bits = super::next_index_in_coset(&mut builder, index_bits);
             let next_index =
                 <InnerConfig as CircuitConfig>::bits2num(&mut builder, next_index_bits);
-            let expected_next_index = builder.eval(SymbolicFelt::from_f(
-                BabyBear::from_canonical_usize(expected_next_index),
-            ));
-            builder.print_f(next_index);
-            builder.print_f(expected_next_index);
+            let expected_next_index: Felt<_> = builder
+                .eval(SymbolicFelt::from_f(BabyBear::from_canonical_usize(expected_next_index)));
             builder.assert_felt_eq(expected_next_index, next_index);
         }
 
         run_test_recursion(builder.operations, std::iter::empty());
     }
 
-    // #[test]
-    // fn test_access_index_with_var_e() {
-    //     let mut builder = Builder::<InnerConfig>::default();
-    //     type EF = <OuterConfig as Config>::EF;
+    #[test]
+    fn test_access_index_with_var_e() {
+        let mut builder = Builder::<InnerConfig>::default();
+        type EF = <InnerConfig as Config>::EF;
+        type F = <InnerConfig as Config>::F;
 
-    //     let vec: Vec<Ext<_, _>> = (0..8)
-    //         .map(|i| builder.eval(SymbolicExt::from_f(EF::from_canonical_u32(i))))
-    //         .collect::<Vec<_>>();
+        let vec: Vec<Ext<_, _>> = (0..8)
+            .map(|i| builder.eval(SymbolicExt::from_f(EF::from_canonical_u32(i))))
+            .collect::<Vec<_>>();
 
-    //     for i in 0..8 {
-    //         let index_var: Ext<_, _> = builder.eval(EF::from_canonical_u32(i).cons());
-    //         let index: Vec<_> = InnerConfig::num2bits(&mut builder, index_var, 3);
+        for i in 0..8 {
+            let index_var: Felt<_> = builder.eval(SymbolicFelt::from_f(F::from_canonical_usize(i)));
+            let index: Vec<_> = InnerConfig::num2bits(&mut builder, index_var, 3);
 
-    //         let result = access_index_with_var_e(&mut builder, &vec, index);
+            let result = access_index_with_var_e(&mut builder, &vec, index);
 
-    //         builder.assert_ext_eq(vec[i], result);
-    //     }
+            builder.assert_ext_eq(vec[i], result);
+        }
 
-    //     let mut backend = ConstraintCompiler::<OuterConfig>::default();
-    //     let constraints = backend.emit(builder.operations);
-
-    //     let witness = Witness::default();
-
-    //     PlonkBn254Prover::test::<OuterConfig>(constraints.clone(), witness);
-    // }
+        run_test_recursion(builder.operations, std::iter::empty());
+    }
 }

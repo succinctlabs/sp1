@@ -1,10 +1,6 @@
-use std::result;
-
 use p3_field::AbstractField;
 use p3_util::log2_strict_usize;
-use sp1_core::air::Word;
-use sp1_recursion_compiler::ir::{Builder, Config, Ext, Felt, SymbolicVar, Var};
-use sp1_recursion_compiler::ir::{Builder, Config, Felt, Var};
+use sp1_recursion_compiler::ir::{Builder, Config, Ext, Felt, Var};
 use sp1_recursion_core::runtime::DIGEST_SIZE;
 use sp1_stark::Word;
 
