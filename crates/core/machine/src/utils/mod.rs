@@ -199,10 +199,10 @@ where
     );
 }
 
-/// Returns whether the `SP1_DEV` environment variable is enabled or disabled.
+/// Returns whether the `SP1_DEBUG` environment variable is enabled or disabled.
 ///
-/// This variable controls whether a smaller version of the circuit will be used for generating the
-/// PLONK proofs. This is useful for development and testing purposes.
+/// This variable controls whether backtraces are attached to compiled circuit programs, as well
+/// as whether cycle tracking is performed for circuit programs.
 ///
 /// By default, the variable is disabled.
 pub fn sp1_debug_mode() -> bool {
