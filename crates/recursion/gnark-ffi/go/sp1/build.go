@@ -197,7 +197,11 @@ func BuildPlonk(dataDir string) {
 
 func BuildGroth16(dataDir string) {
 	// Set the environment variable for the constraints file.
+	//
+	// TODO: There might be some non-determinism if a single process is running this command
+	// multiple times.
 	os.Setenv("CONSTRAINTS_JSON", dataDir+"/"+constraintsJsonFile)
+	os.Setenv("GROTH16", "1")
 
 	// Read the file.
 	witnessInputPath := dataDir + "/" + groth16WitnessPath

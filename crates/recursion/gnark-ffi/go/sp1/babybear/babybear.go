@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"math"
 	"math/big"
+	"os"
 
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
@@ -310,51 +311,68 @@ func (p *Chip) ReduceSlow(x Variable) Variable {
 }
 
 func (p *Chip) reduceWithMaxBits(x frontend.Variable, maxNbBits uint64) frontend.Variable {
+	if maxNbBits <= 31 {
+		return x
+	}
 	result, err := p.api.Compiler().NewHint(ReduceHint, 2, x)
 	if err != nil {
 		panic(err)
 	}
 
 	quotient := result[0]
-	p.rangeChecker.Check(quotient, int(maxNbBits-31))
-
 	remainder := result[1]
 
-	// Check that the remainder has size less than the BabyBear modulus, by decomposing it into a 27
-	// bit limb and a 4 bit limb.
-	new_result, new_err := p.api.Compiler().NewHint(SplitLimbsHint, 2, remainder)
-	if new_err != nil {
-		panic(new_err)
+	if os.Getenv("GROTH16") != "1" {
+		p.rangeChecker.Check(quotient, int(maxNbBits-31))
+		// Check that the remainder has size less than the BabyBear modulus, by decomposing it into a 27
+		// bit limb and a 4 bit limb.
+		new_result, new_err := p.api.Compiler().NewHint(SplitLimbsHint, 2, remainder)
+		if new_err != nil {
+			panic(new_err)
+		}
+
+		lowLimb := new_result[0]
+		highLimb := new_result[1]
+
+		// Check that the hint is correct.
+		p.api.AssertIsEqual(
+			p.api.Add(
+				p.api.Mul(highLimb, frontend.Variable(uint64(math.Pow(2, 27)))),
+				lowLimb,
+			),
+			remainder,
+		)
+		p.rangeChecker.Check(highLimb, 4)
+		p.rangeChecker.Check(lowLimb, 27)
+
+		// If the most significant bits are all 1, then we need to check that the least significant bits
+		// are all zero in order for element to be less than the BabyBear modulus. Otherwise, we don't
+		// need to do any checks, since we already know that the element is less than the BabyBear modulus.
+		shouldCheck := p.api.IsZero(p.api.Sub(highLimb, uint64(math.Pow(2, 4))-1))
+		p.api.AssertIsEqual(
+			p.api.Select(
+				shouldCheck,
+				lowLimb,
+				frontend.Variable(0),
+			),
+			frontend.Variable(0),
+		)
+	} else {
+		bits := p.api.ToBinary(remainder, 31)
+		p.api.ToBinary(quotient, int(maxNbBits-31))
+		lowBits := frontend.Variable(0)
+		highBits := frontend.Variable(0)
+		for i := 0; i < 27; i++ {
+			lowBits = p.api.Add(lowBits, bits[i])
+		}
+		for i := 27; i < 31; i++ {
+			highBits = p.api.Add(highBits, bits[i])
+		}
+		highBitsIsFour := p.api.IsZero(p.api.Sub(highBits, 4))
+		p.api.AssertIsEqual(p.api.Select(highBitsIsFour, lowBits, frontend.Variable(0)), frontend.Variable(0))
 	}
 
-	lowLimb := new_result[0]
-	highLimb := new_result[1]
-
-	// Check that the hint is correct.
-	p.api.AssertIsEqual(
-		p.api.Add(
-			p.api.Mul(highLimb, frontend.Variable(uint64(math.Pow(2, 27)))),
-			lowLimb,
-		),
-		remainder,
-	)
-	p.rangeChecker.Check(highLimb, 4)
-	p.rangeChecker.Check(lowLimb, 27)
-
-	// If the most significant bits are all 1, then we need to check that the least significant bits
-	// are all zero in order for element to be less than the BabyBear modulus. Otherwise, we don't
-	// need to do any checks, since we already know that the element is less than the BabyBear modulus.
-	shouldCheck := p.api.IsZero(p.api.Sub(highLimb, uint64(math.Pow(2, 4))-1))
-	p.api.AssertIsEqual(
-		p.api.Select(
-			shouldCheck,
-			lowLimb,
-			frontend.Variable(0),
-		),
-		frontend.Variable(0),
-	)
-
-	p.api.AssertIsEqual(x, p.api.Add(p.api.Mul(quotient, modulus), result[1]))
+	p.api.AssertIsEqual(x, p.api.Add(p.api.Mul(quotient, modulus), remainder))
 
 	return remainder
 }
