@@ -2,10 +2,13 @@ use anstyle::*;
 use anyhow::Result;
 use clap::Parser;
 use sp1_build::{build_program, BuildArgs};
+use sp1_build::{execute_build_program, BuildArgs};
+use sp1_core::utils::{setup_logger, setup_tracer};
 use sp1_core_machine::{
     io::SP1Stdin,
     utils::{setup_logger, setup_tracer},
 };
+use sp1_prover::SP1Stdin;
 use sp1_sdk::ProverClient;
 use std::{env, fs::File, io::Read, path::PathBuf, str::FromStr, time::Instant};
 
@@ -70,7 +73,7 @@ pub struct ProveCmd {
 
 impl ProveCmd {
     pub fn run(&self) -> Result<()> {
-        let elf_path = build_program(&self.build_args, None)?;
+        let elf_path = execute_build_program(&self.build_args, None)?;
 
         if !self.profile {
             match env::var("RUST_LOG") {

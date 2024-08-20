@@ -4895,6 +4895,7 @@ version = "1.1.1"
 dependencies = [
  "anyhow",
  "cargo_metadata",
+ "chrono",
  "clap",
  "dirs",
 ]
@@ -5088,8 +5089,6 @@ dependencies = [
 name = "sp1-helper"
 version = "1.1.1"
 dependencies = [
- "cargo_metadata",
- "chrono",
  "sp1-build",
 ]
 
