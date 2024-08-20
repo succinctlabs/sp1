@@ -61,8 +61,8 @@ pub fn build_plonk_bn254_artifacts(
     PlonkBn254Prover::build(constraints, witness, build_dir);
 }
 
-/// Build the groth16 bn254 artifacts to the given directory for the given verification key and template
-/// proof.
+/// Build the groth16 bn254 artifacts to the given directory for the given verification key and
+/// template proof.
 pub fn build_groth16_bn254_artifacts(
     template_vk: &StarkVerifyingKey<OuterSC>,
     template_proof: &ShardProof<OuterSC>,
