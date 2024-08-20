@@ -21,7 +21,7 @@ serde_cbor = "0.11.2"
 sha2 = "0.10.8"
 
 [build-dependencies]
-sp1-helper = { workspace = true }
+sp1-build = { workspace = true }
 
 [features]
 cuda = ["sp1-sdk/cuda"]
