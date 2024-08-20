@@ -143,12 +143,12 @@ where
             array::from_fn(|_| builder.uninit());
 
         // Initialize the challenger variables.
-        let mut leaf_challenger_public_values = leaf_challenger.public_values(builder);
+        let leaf_challenger_public_values = leaf_challenger.public_values(builder);
         let mut reconstruct_challenger: DuplexChallengerVariable<_> =
             initial_reconstruct_challenger.copy(builder);
 
         // Initialize the cumulative sum.
-        let cumulative_sum: Ext<_, _> = builder.eval(C::EF::zero().cons());
+        let mut cumulative_sum: Ext<_, _> = builder.eval(C::EF::zero().cons());
 
         // Assert that the number of proofs is not zero.
         assert!(!shard_proofs.is_empty());
@@ -271,7 +271,7 @@ where
                 builder.assert_felt_eq(current_shard, public_values.shard);
 
                 // Increment the current shard by one.
-                builder.assign(current_shard, current_shard + C::F::one());
+                current_shard = builder.eval(current_shard + C::F::one());
             }
 
             // Execution shard constraints.
@@ -433,10 +433,7 @@ where
                 #[allow(clippy::needless_range_loop)]
                 for i in 0..committed_value_digest.len() {
                     for j in 0..WORD_SIZE {
-                        builder.assign(
-                            committed_value_digest[i][j],
-                            public_values.committed_value_digest[i][j],
-                        );
+                        committed_value_digest[i][j] = public_values.committed_value_digest[i][j];
                     }
                 }
 
@@ -472,11 +469,7 @@ where
                 // });
 
                 // Update the deferred proofs digest.
-                #[allow(clippy::needless_range_loop)]
-                for i in 0..deferred_proofs_digest.len() {
-                    builder
-                        .assign(deferred_proofs_digest[i], public_values.deferred_proofs_digest[i]);
-                }
+                deferred_proofs_digest.copy_from_slice(&public_values.deferred_proofs_digest);
             }
 
             // // Verify that the number of shards is not too large.
@@ -490,7 +483,7 @@ where
 
             // Cumulative sum is updated by sums of all chips.
             for values in shard_proof.opened_values.chips.iter() {
-                builder.assign(cumulative_sum, cumulative_sum + values.cumulative_sum);
+                cumulative_sum = builder.eval(cumulative_sum + values.cumulative_sum);
             }
         }
 

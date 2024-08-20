@@ -99,25 +99,25 @@ where
         assert!(!vks_and_proofs.is_empty());
 
         // Initialize the consistency check variables.
-        let sp1_vk_digest: [Felt<_>; DIGEST_SIZE] = array::from_fn(|_| builder.uninit());
-        let pc: Felt<_> = builder.uninit();
-        let shard: Felt<_> = builder.uninit();
-        let execution_shard: Felt<_> = builder.uninit();
+        let mut sp1_vk_digest: [Felt<_>; DIGEST_SIZE] = array::from_fn(|_| builder.uninit());
+        let mut pc: Felt<_> = builder.uninit();
+        let mut shard: Felt<_> = builder.uninit();
+        let mut execution_shard: Felt<_> = builder.uninit();
         let mut initial_reconstruct_challenger_values: ChallengerPublicValues<Felt<C::F>> =
             uninit_challenger_pv(builder);
         let mut reconstruct_challenger_values: ChallengerPublicValues<Felt<C::F>> =
             uninit_challenger_pv(builder);
         let mut leaf_challenger_values: ChallengerPublicValues<Felt<C::F>> =
             uninit_challenger_pv(builder);
-        let committed_value_digest: [Word<Felt<_>>; PV_DIGEST_NUM_WORDS] =
+        let mut committed_value_digest: [Word<Felt<_>>; PV_DIGEST_NUM_WORDS] =
             array::from_fn(|_| Word(array::from_fn(|_| builder.uninit())));
-        let deferred_proofs_digest: [Felt<_>; POSEIDON_NUM_WORDS] =
+        let mut deferred_proofs_digest: [Felt<_>; POSEIDON_NUM_WORDS] =
             array::from_fn(|_| builder.uninit());
-        let reconstruct_deferred_digest: [Felt<_>; POSEIDON_NUM_WORDS] =
+        let mut reconstruct_deferred_digest: [Felt<_>; POSEIDON_NUM_WORDS] =
             core::array::from_fn(|_| builder.uninit());
-        let cumulative_sum: [Felt<_>; D] = core::array::from_fn(|_| builder.eval(C::F::zero()));
-        let init_addr_bits: [Felt<_>; 32] = core::array::from_fn(|_| builder.uninit());
-        let finalize_addr_bits: [Felt<_>; 32] = core::array::from_fn(|_| builder.uninit());
+        let mut cumulative_sum: [Felt<_>; D] = core::array::from_fn(|_| builder.eval(C::F::zero()));
+        let mut init_addr_bits: [Felt<_>; 32] = core::array::from_fn(|_| builder.uninit());
+        let mut finalize_addr_bits: [Felt<_>; 32] = core::array::from_fn(|_| builder.uninit());
 
         // Verify proofs, check consistency, and aggregate public values.
         for (i, (vk, shard_proof)) in vks_and_proofs.into_iter().enumerate() {
@@ -147,19 +147,19 @@ where
 
                 // Initialize the start of deferred digests.
                 for (digest, current_digest, global_digest) in izip!(
-                    reconstruct_deferred_digest.iter(),
+                    reconstruct_deferred_digest.iter_mut(),
                     current_public_values.start_reconstruct_deferred_digest.iter(),
-                    compress_public_values.start_reconstruct_deferred_digest.iter()
+                    compress_public_values.start_reconstruct_deferred_digest.iter_mut()
                 ) {
-                    builder.assign(*digest, *current_digest);
-                    builder.assign(*global_digest, *current_digest);
+                    *digest = *current_digest;
+                    *global_digest = *current_digest;
                 }
 
                 // Initialize the sp1_vk digest
                 for (digest, first_digest) in
-                    sp1_vk_digest.iter().zip(current_public_values.sp1_vk_digest)
+                    sp1_vk_digest.iter_mut().zip(current_public_values.sp1_vk_digest)
                 {
-                    builder.assign(*digest, first_digest);
+                    *digest = first_digest;
                 }
 
                 // Initiallize start pc.
@@ -179,25 +179,25 @@ where
                 );
 
                 // Initialize the MemoryInitialize address bits.
-                for (bit, (first_bit, current_bit)) in init_addr_bits.iter().zip(
+                for (bit, (first_bit, current_bit)) in init_addr_bits.iter_mut().zip(
                     compress_public_values
                         .previous_init_addr_bits
-                        .iter()
+                        .iter_mut()
                         .zip(current_public_values.previous_init_addr_bits.iter()),
                 ) {
-                    builder.assign(*bit, *current_bit);
-                    builder.assign(*first_bit, *current_bit);
+                    *bit = *current_bit;
+                    *first_bit = *current_bit;
                 }
 
                 // Initialize the MemoryFinalize address bits.
-                for (bit, (first_bit, current_bit)) in finalize_addr_bits.iter().zip(
+                for (bit, (first_bit, current_bit)) in finalize_addr_bits.iter_mut().zip(
                     compress_public_values
                         .previous_finalize_addr_bits
-                        .iter()
+                        .iter_mut()
                         .zip(current_public_values.previous_finalize_addr_bits.iter()),
                 ) {
-                    builder.assign(*bit, *current_bit);
-                    builder.assign(*first_bit, *current_bit);
+                    *bit = *current_bit;
+                    *first_bit = *current_bit;
                 }
 
                 // Initialize the leaf challenger public values.
@@ -316,11 +316,11 @@ where
 
                 // Update the committed value digest.
                 for (word, current_word) in committed_value_digest
-                    .iter()
+                    .iter_mut()
                     .zip_eq(current_public_values.committed_value_digest.iter())
                 {
-                    for (byte, current_byte) in word.0.iter().zip_eq(current_word.0.iter()) {
-                        builder.assign(*byte, *current_byte);
+                    for (byte, current_byte) in word.0.iter_mut().zip_eq(current_word.0.iter()) {
+                        *byte = *current_byte;
                     }
                 }
                 // Less nice version of above but simialr to original code:
@@ -355,10 +355,10 @@ where
 
                 // Update the deferred proofs digest.
                 for (digest, current_digest) in deferred_proofs_digest
-                    .iter()
+                    .iter_mut()
                     .zip_eq(current_public_values.deferred_proofs_digest.iter())
                 {
-                    builder.assign(*digest, *current_digest);
+                    *digest = *current_digest;
                 }
 
                 // Less nice version of above but simialr to original code:
@@ -373,34 +373,35 @@ where
 
             // Update the deferred proof digest.
             for (digest, current_digest) in reconstruct_deferred_digest
-                .iter()
+                .iter_mut()
                 .zip_eq(current_public_values.end_reconstruct_deferred_digest.iter())
             {
-                builder.assign(*digest, *current_digest);
+                *digest = *current_digest;
             }
 
             // Update the accumulated values.
             // Update pc to be the next pc.
-            builder.assign(pc, current_public_values.next_pc);
+            pc = current_public_values.next_pc;
 
             // Update the shard to be the next shard.
-            builder.assign(shard, current_public_values.next_shard);
+            shard = current_public_values.next_shard;
 
             // Update the execution shard to be the next execution shard.
-            builder.assign(execution_shard, current_public_values.next_execution_shard);
+            execution_shard = current_public_values.next_execution_shard;
 
             // Update the MemoryInitialize address bits.
             for (bit, next_bit) in
-                init_addr_bits.iter().zip(current_public_values.last_init_addr_bits.iter())
+                init_addr_bits.iter_mut().zip(current_public_values.last_init_addr_bits.iter())
             {
-                builder.assign(*bit, *next_bit);
+                *bit = *next_bit;
             }
 
             // Update the MemoryFinalize address bits.
-            for (bit, next_bit) in
-                finalize_addr_bits.iter().zip(current_public_values.last_finalize_addr_bits.iter())
+            for (bit, next_bit) in finalize_addr_bits
+                .iter_mut()
+                .zip(current_public_values.last_finalize_addr_bits.iter())
             {
-                builder.assign(*bit, *next_bit);
+                *bit = *next_bit;
             }
 
             // Update the reconstruct challenger.
@@ -408,9 +409,9 @@ where
 
             // Update the cumulative sum.
             for (sum_element, current_sum_element) in
-                cumulative_sum.iter().zip_eq(current_public_values.cumulative_sum.iter())
+                cumulative_sum.iter_mut().zip_eq(current_public_values.cumulative_sum.iter())
             {
-                builder.assign(*sum_element, *sum_element + *current_sum_element);
+                *sum_element = builder.eval(*sum_element + *current_sum_element);
             }
         }
 
