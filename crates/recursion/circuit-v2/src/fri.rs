@@ -6,6 +6,7 @@ use p3_fri::FriConfig;
 use p3_matrix::Dimensions;
 use p3_util::log2_strict_usize;
 use sp1_recursion_compiler::ir::{Builder, Felt, SymbolicExt, SymbolicFelt};
+use sp1_recursion_core_v2::chips::exp_reverse_bits;
 use std::{
     cmp::Reverse,
     iter::{once, repeat_with, zip},
@@ -88,7 +89,7 @@ pub fn verify_two_adic_pcs<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigV
                 let log_batch_max_height = log2_strict_usize(*batch_max_height);
                 let bits_reduced = log_global_max_height - log_batch_max_height;
 
-                let reduced_index_bits = index_bits[bits_reduced..].to_vec();
+                let reduced_index_bits = &index_bits[bits_reduced..];
 
                 verify_batch::<C, SC>(
                     builder,
@@ -192,13 +193,12 @@ pub fn verify_query<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVariable
     ) {
         folded_eval = builder.eval(folded_eval + reduced_openings[log_folded_height + 1]);
 
-        let index_sibling_complement: C::Bit = index_bits[offset].clone();
-        // let index_sibling_complement: Felt<_> = builder.constant(C::F::one());
+        let index_sibling_complement: C::Bit = index_bits[offset];
         let index_pair = &index_bits[(offset + 1)..];
 
         let evals_ext = C::select_chain_ef(
             builder,
-            index_sibling_complement.clone(),
+            index_sibling_complement,
             once(folded_eval),
             once(step.sibling_value),
         );
@@ -212,7 +212,7 @@ pub fn verify_query<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVariable
             builder,
             commit,
             heights,
-            index_pair.to_vec(),
+            index_pair,
             [evals_felt].to_vec(),
             step.opening_proof.clone(),
         );
@@ -231,7 +231,7 @@ pub fn verify_batch<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVariable
     builder: &mut Builder<C>,
     commit: SC::Digest,
     heights: &[usize],
-    index_bits: Vec<C::Bit>,
+    index_bits: &[C::Bit],
     opened_values: Vec<Vec<Vec<Felt<C::F>>>>,
     proof: Vec<SC::Digest>,
 ) {
@@ -245,11 +245,10 @@ pub fn verify_batch<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVariable
         .flat_map(|(i, _)| opened_values[i].as_slice())
         .cloned()
         .collect::<Vec<_>>();
-    let felt_slice: Vec<Felt<C::F>> =
-        ext_slice.iter().flat_map(|ext| ext.as_slice()).cloned().collect::<Vec<_>>();
+    let felt_slice: Vec<Felt<C::F>> = ext_slice.into_iter().flatten().collect::<Vec<_>>();
     let mut root: SC::Digest = SC::hash(builder, &felt_slice[..]);
 
-    zip(index_bits, proof).for_each(|(bit, sibling): (C::Bit, SC::Digest)| {
+    zip(index_bits.iter(), proof).for_each(|(&bit, sibling): (&C::Bit, SC::Digest)| {
         let compress_args = SC::select_chain_digest(builder, bit, [root, sibling]);
 
         root = SC::compress(builder, compress_args);

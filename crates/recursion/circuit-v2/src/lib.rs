@@ -93,7 +93,7 @@ pub trait BabyBearFriConfigVariable<C: CircuitConfig<F = BabyBear>>:
 }
 
 pub trait CircuitConfig: Config {
-    type Bit: Clone + Variable<Self, Expression = Self::BitExpression>;
+    type Bit: Clone + Copy + Variable<Self, Expression = Self::BitExpression>;
     type BitExpression: AbstractField
         + Mul<
             <Felt<Self::F> as Variable<Self>>::Expression,
