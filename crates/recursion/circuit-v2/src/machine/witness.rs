@@ -1,14 +1,12 @@
 use std::borrow::Borrow;
 
-use p3_baby_bear::BabyBear;
 use p3_challenger::DuplexChallenger;
 use p3_symmetric::Hash;
 
 use p3_field::AbstractField;
 use sp1_recursion_compiler::ir::{Builder, Config};
 use sp1_stark::{
-    air::MachineAir, baby_bear_poseidon2::BabyBearPoseidon2, InnerChallenge, InnerPerm, InnerVal,
-    StarkVerifyingKey,
+    baby_bear_poseidon2::BabyBearPoseidon2, InnerChallenge, InnerPerm, InnerVal, StarkVerifyingKey,
 };
 
 use sp1_recursion_compiler::ir::Felt;
@@ -17,7 +15,10 @@ use crate::{
     challenger::DuplexChallengerVariable, witness::Witnessable, CircuitConfig, VerifyingKeyVariable,
 };
 
-use super::{SP1RecursionMemoryLayout, SP1RecursionWitnessVariable};
+use super::{
+    SP1CompressWitnessValues, SP1CompressWitnessVariable, SP1RecursionWitnessValues,
+    SP1RecursionWitnessVariable,
+};
 
 impl<C> Witnessable<C> for DuplexChallenger<InnerVal, InnerPerm, 16, 8>
 where
@@ -79,10 +80,9 @@ where
     }
 }
 
-impl<'a, C, A> Witnessable<C> for SP1RecursionMemoryLayout<'a, BabyBearPoseidon2, A>
+impl<C> Witnessable<C> for SP1RecursionWitnessValues<BabyBearPoseidon2>
 where
     C: CircuitConfig<F = InnerVal, EF = InnerChallenge, Bit = Felt<InnerVal>>,
-    A: MachineAir<BabyBear>,
 {
     type WitnessVariable = SP1RecursionWitnessVariable<C, BabyBearPoseidon2>;
 
@@ -107,6 +107,28 @@ where
             Witnessable::<C>::write(&self.shard_proofs),
             Witnessable::<C>::write(&self.leaf_challenger),
             Witnessable::<C>::write(&self.initial_reconstruct_challenger),
+            Witnessable::<C>::write(&InnerVal::from_bool(self.is_complete)),
+        ]
+        .concat()
+    }
+}
+
+impl<C> Witnessable<C> for SP1CompressWitnessValues<BabyBearPoseidon2>
+where
+    C: CircuitConfig<F = InnerVal, EF = InnerChallenge, Bit = Felt<InnerVal>>,
+{
+    type WitnessVariable = SP1CompressWitnessVariable<C, BabyBearPoseidon2>;
+
+    fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
+        let vks_and_proofs = self.vks_and_proofs.read(builder);
+        let is_complete = InnerVal::from_bool(self.is_complete).read(builder);
+
+        SP1CompressWitnessVariable { vks_and_proofs, is_complete }
+    }
+
+    fn write(&self) -> Vec<crate::witness::Witness<C>> {
+        [
+            Witnessable::<C>::write(&self.vks_and_proofs),
             Witnessable::<C>::write(&InnerVal::from_bool(self.is_complete)),
         ]
         .concat()

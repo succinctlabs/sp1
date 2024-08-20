@@ -1,11 +1,11 @@
-use std::borrow::BorrowMut;
+use std::{array, borrow::BorrowMut};
 
 use sp1_recursion_compiler::{
     circuit::CircuitV2Builder,
     ir::{Builder, Config, Felt},
 };
 use sp1_recursion_core_v2::air::{
-    RecursionPublicValues, NUM_PV_ELMS_TO_HASH, RECURSIVE_PROOF_NUM_PV_ELTS,
+    ChallengerPublicValues, RecursionPublicValues, NUM_PV_ELMS_TO_HASH, RECURSIVE_PROOF_NUM_PV_ELTS,
 };
 
 /// Register and commits the recursion public values.
@@ -27,6 +27,17 @@ pub fn commit_recursion_public_values<C: Config>(
     for element in pv_digest {
         builder.commit_public_value(element);
     }
+}
+
+pub fn uninit_challenger_pv<C: Config>(
+    builder: &mut Builder<C>,
+) -> ChallengerPublicValues<Felt<C::F>> {
+    let sponge_state = array::from_fn(|_| builder.uninit());
+    let num_inputs = builder.uninit();
+    let input_buffer = array::from_fn(|_| builder.uninit());
+    let num_outputs = builder.uninit();
+    let output_buffer = array::from_fn(|_| builder.uninit());
+    ChallengerPublicValues { sponge_state, num_inputs, input_buffer, num_outputs, output_buffer }
 }
 
 #[cfg(any(test, feature = "export-tests"))]
