@@ -41,10 +41,12 @@ Adjust these fields according to your chip.
 > **Important Note:** For each field operation in your chip, there must be a corresponding column in your data structure. This ensures that the operations are properly represented in the AIR (Algebraic Intermediate Representation) framework and can be evaluated correctly.
 
 ### Implement the Chip Logic
-The Syscall trait is where the core execution logic of your chip will reside. This involves defining how the chip interacts with the SP1 runtime during execution time.
+The Syscall trait is where the core execution logic of your chip will reside. This involves defining how the chip interacts with the SP1 runtime during execution time. Add this to `crates/core/executor/src/syscalls/precompiles`.
 
 ```rust
-impl Syscall for Uint256MulChip {
+pub struct MyCustomOpSyscall;
+
+impl Syscall for MyCustomOpSyscall {
     fn num_extra_cycles(&self) -> u32 {
         1
     }
@@ -202,7 +204,7 @@ impl SyscallCode {
         match value {
             // Existing syscalls...
 
-            0x00_01_01_2C => SyscallCode::CUSTOM_OP,
+            0x00_01_01_2C => SyscallCode::MY_CUSTOM_OP,
             _ => panic!("invalid syscall number: {}", value),
         }
     }
@@ -219,8 +221,8 @@ pub fn default_syscall_map() -> HashMap<SyscallCode, Arc<dyn Syscall>> {
 
     // Other syscall maps...
     syscall_map.insert(
-        SyscallCode::CUSTOM_OP,
-        Arch::new(MyCustomOpChip::new())
+        SyscallCode::MY_CUSTOM_OP,
+        Arch::new(MyCustomOpSyscall)
     )
 }
 ```
