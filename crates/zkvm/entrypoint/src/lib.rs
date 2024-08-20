@@ -16,6 +16,9 @@ pub mod lib {
 #[cfg(all(target_os = "zkvm", feature = "libm"))]
 mod libm;
 
+#[cfg(target_os = "zkvm")]
+use cfg_if::cfg_if;
+
 /// The number of 32 bit words that the public values digest is composed of.
 pub const PV_DIGEST_NUM_WORDS: usize = 8;
 pub const POSEIDON_NUM_WORDS: usize = 8;
@@ -24,7 +27,6 @@ pub const POSEIDON_NUM_WORDS: usize = 8;
 mod zkvm {
     use crate::syscalls::syscall_halt;
 
-    use cfg_if::cfg_if;
     use sha2::{Digest, Sha256};
 
     cfg_if! {
@@ -92,18 +94,21 @@ mod zkvm {
 #[macro_export]
 macro_rules! entrypoint {
     ($path:path) => {
-        const ZKVM_ENTRY: fn() = $path;
+        cfg_if::cfg_if! {
+            if #[cfg(all(target_os = "zkvm", target_vendor = "succinct"))] {
+                const ZKVM_ENTRY: fn() = $path;
 
-        use $crate::heap::SimpleAlloc;
+                use $crate::heap::SimpleAlloc;
 
-        #[global_allocator]
-        static HEAP: SimpleAlloc = SimpleAlloc;
+                #[global_allocator]
+                static HEAP: SimpleAlloc = SimpleAlloc;
 
-        mod zkvm_generated_main {
-
-            #[no_mangle]
-            fn main() {
-                super::ZKVM_ENTRY()
+                mod zkvm_generated_main {
+                    #[no_mangle]
+                    fn main() {
+                        super::ZKVM_ENTRY()
+                    }
+                }
             }
         }
     };
