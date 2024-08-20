@@ -204,6 +204,10 @@ pub fn verify_query<C: Config>(
         let index_sibling: Var<_> = builder.eval(one - index_bits.clone()[offset]);
         let index_pair = &index_bits[(offset + 1)..];
 
+        // Reduce folded_eval (mod the BabyBear prime) since it gets used multiple times below and
+        // the reductions will be repeated.
+        builder.reduce_e(folded_eval);
+
         let evals_ext = [
             builder.select_ef(index_sibling, folded_eval, step.sibling_value),
             builder.select_ef(index_sibling, step.sibling_value, folded_eval),
