@@ -133,7 +133,7 @@ where
     /// Returns the cost of a row in the chip.
     #[inline]
     pub fn cost(&self) -> u64 {
-        (self.width() * 4 * self.permutation_width()) as u64
+        (self.width() + 4 * self.permutation_width()) as u64
     }
 
     /// Returns the width of the quotient polynomial.
