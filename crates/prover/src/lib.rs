@@ -556,7 +556,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 
                                 // Verify the proof.
 
-                                #[cfg(feature = "debug")]
+                                // #[cfg(feature = "debug")]
                                 self.compress_prover
                                     .machine()
                                     .verify(
