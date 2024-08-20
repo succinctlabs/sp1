@@ -142,6 +142,12 @@ impl<'a> Prove<'a> {
         self
     }
 
+    /// Set the proof mode to the groth16 bn254 mode.
+    pub fn groth16(mut self) -> Self {
+        self.kind = SP1ProofKind::Groth16;
+        self
+    }
+
     /// Add a runtime [Hook](super::Hook) into the context.
     ///
     /// Hooks may be invoked from within SP1 by writing to the specified file descriptor `fd`
