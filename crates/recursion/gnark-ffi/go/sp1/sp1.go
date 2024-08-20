@@ -100,6 +100,8 @@ func (circuit *Circuit) Define(api frontend.API) error {
 			vars[cs.Args[0][0]] = api.Sub(vars[cs.Args[1][0]], vars[cs.Args[2][0]])
 		case "SubF":
 			felts[cs.Args[0][0]] = fieldAPI.SubF(felts[cs.Args[1][0]], felts[cs.Args[2][0]])
+		case "DivF":
+			felts[cs.Args[0][0]] = fieldAPI.DivF(felts[cs.Args[1][0]], felts[cs.Args[2][0]])
 		case "SubE":
 			exts[cs.Args[0][0]] = fieldAPI.SubE(exts[cs.Args[1][0]], exts[cs.Args[2][0]])
 		case "SubEF":
@@ -201,6 +203,8 @@ func (circuit *Circuit) Define(api frontend.API) error {
 			api.AssertIsEqual(circuit.CommitedValuesDigest, element)
 		case "CircuitFelts2Ext":
 			exts[cs.Args[0][0]] = babybear.Felts2Ext(felts[cs.Args[1][0]], felts[cs.Args[2][0]], felts[cs.Args[3][0]], felts[cs.Args[4][0]])
+		case "CircuitFelt2Var":
+			vars[cs.Args[0][0]] = fieldAPI.ReduceSlow(felts[cs.Args[1][0]]).Value
 		case "ReduceE":
 			exts[cs.Args[0][0]] = fieldAPI.ReduceE(exts[cs.Args[0][0]])
 		default:

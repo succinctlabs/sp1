@@ -23,6 +23,15 @@ impl<C: Config> TwoAdicMultiplicativeCosetVariable<C> {
     pub fn first_point(&self, builder: &mut Builder<C>) -> Felt<C::F> {
         builder.eval(self.shift)
     }
+    pub fn zp_at_point_f(
+        &self,
+        builder: &mut Builder<C>,
+        point: Felt<<C as Config>::F>,
+    ) -> Felt<<C as Config>::F> {
+        let unshifted_power = builder
+            .exp_power_of_2_v::<Felt<_>>(point * self.shift.inverse(), Usize::Const(self.log_n));
+        builder.eval(unshifted_power - C::F::one())
+    }
 }
 
 impl<C: Config> FromConstant<C> for TwoAdicMultiplicativeCosetVariable<C>

@@ -115,8 +115,7 @@ pub fn reduce_32<C: Config>(builder: &mut Builder<C>, vals: &[Felt<C::F>]) -> Va
     let mut power = C::N::one();
     let result: Var<C::N> = builder.eval(C::N::zero());
     for val in vals.iter() {
-        let bits = builder.num2bits_f_circuit(*val);
-        let val = builder.bits2num_v_circuit(&bits);
+        let val = builder.felt2var_circuit(*val);
         builder.assign(result, result + val * power);
         power *= C::N::from_canonical_u64(1u64 << 32);
     }
