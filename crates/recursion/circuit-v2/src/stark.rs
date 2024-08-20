@@ -254,10 +254,10 @@ pub mod tests {
 
     use sp1_core_executor::{programs::tests::FIBONACCI_ELF, Program};
     use sp1_core_machine::{
+        io::SP1Stdin,
         riscv::RiscvAir,
         utils::{prove, setup_logger},
     };
-    use sp1_prover::SP1Stdin;
     use sp1_recursion_compiler::{config::InnerConfig, ir::Builder};
 
     use sp1_recursion_core_v2::machine::RecursionAir;
