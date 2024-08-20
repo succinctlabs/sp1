@@ -137,6 +137,11 @@ func (c *Chip) invF(in Variable) Variable {
 	return xinv
 }
 
+func (c *Chip) DivF(a, b Variable) Variable {
+	bInv := c.invF(b)
+	return c.MulF(a, bInv)
+}
+
 func (c *Chip) AssertIsEqualF(a, b Variable) {
 	a2 := c.ReduceSlow(a)
 	b2 := c.ReduceSlow(b)

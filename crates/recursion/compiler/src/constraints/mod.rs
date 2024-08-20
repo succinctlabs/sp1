@@ -214,7 +214,7 @@ impl<C: Config + Debug> ConstraintCompiler<C> {
                 DslIr::DivFIN(a, b, c) => {
                     let tmp = self.alloc_f(&mut constraints, b.inverse());
                     constraints.push(Constraint {
-                        opcode: ConstraintOpcode::MulF,
+                        opcode: ConstraintOpcode::DivF,
                         args: vec![vec![a.id()], vec![tmp], vec![c.id()]],
                     });
                 }

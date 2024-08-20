@@ -75,7 +75,6 @@ pub fn verify_two_adic_pcs<C: Config>(
 ) {
     builder.cycle_tracker("2adic");
     let alpha = challenger.sample_ext(builder);
-    builder.print_e(alpha);
     let log_global_max_height = log2_strict_usize(
         rounds
             .iter()
@@ -93,18 +92,6 @@ pub fn verify_two_adic_pcs<C: Config>(
         log_global_max_height,
         challenger,
     );
-
-    for index in &fri_challenges.query_indices {
-        builder.print_v(*index);
-    }
-
-    for beta in &fri_challenges.betas {
-        builder.print_e(*beta);
-    }
-
-    for beta in &fri_challenges.normalize_betas {
-        builder.print_e(*beta);
-    }
 
     // The powers of alpha, where the ith element is alpha^i.
     let mut alpha_pows: Vec<Ext<C::F, C::EF>> =
@@ -191,14 +178,6 @@ pub fn verify_two_adic_pcs<C: Config>(
         .collect::<Vec<_>>();
     builder.cycle_tracker("2adic");
 
-    for ro in reduced_openings.iter() {
-        for &r in ro.iter() {
-            if let Some(r) = r {
-                builder.print_e(r);
-            }
-        }
-    }
-
     builder.cycle_tracker("challenges");
     verify_challenges(builder, config, &proof.fri_proof, &fri_challenges, reduced_openings);
     builder.cycle_tracker("challenges");
@@ -216,9 +195,6 @@ pub fn verify_challenges<C: Config>(
 
     let log_max_height =
         reduced_openings[0].iter().enumerate().filter_map(|(i, v)| v.map(|_| i)).max().unwrap();
-
-    println!("circuit log max normalized height: {}", log_max_normalized_height);
-    println!("circuit log max height: {}", log_max_height);
 
     for (&index, query_proof, normalize_query_proof, ro) in izip!(
         &challenges.query_indices,
@@ -344,7 +320,7 @@ fn verify_fold_step<C: Config>(
 
     let evals: Vec<Ext<C::F, C::EF>> = step.siblings.clone();
     let expected_eval = access_index_with_var_e(builder, &evals, index_self_in_siblings.clone());
-    // builder.assert_ext_eq(expected_eval, folded_eval);
+    builder.assert_ext_eq(expected_eval, folded_eval);
 
     let evals_felt: Vec<Vec<Felt<<C as Config>::F>>> =
         evals.iter().map(|eval| builder.ext2felt_circuit(*eval).to_vec()).collect();
@@ -364,16 +340,17 @@ fn verify_fold_step<C: Config>(
 
     let xs = g_powers.iter().map(|y| builder.eval(x * *y)).collect::<Vec<Felt<_>>>();
 
-    let mut ord_idx = index_self_in_siblings;
+    let mut ord_idx_bits = index_self_in_siblings;
     let mut ord_evals: Vec<Ext<_, _>> = vec![];
 
     for _ in 0..(1 << num_folds) {
-        // ord_evals.push(builder.eval(SymbolicExt::from_f(C::EF::zero())));
-        ord_evals.push(access_index_with_var_e(builder, &evals, ord_idx.clone()));
-        ord_idx = next_index_in_coset(builder, ord_idx.clone(), num_folds);
+        let new_eval = access_index_with_var_e(builder, &evals, ord_idx_bits.clone());
+        ord_evals.push(new_eval);
+        ord_idx_bits = next_index_in_coset(builder, ord_idx_bits);
     }
 
-    interpolate_lagrange_and_evaluate(builder, &xs, &ord_evals, beta)
+    let result = interpolate_lagrange_and_evaluate(builder, &xs, &ord_evals, beta);
+    result
 }
 
 pub fn verify_query<C: Config>(
@@ -398,8 +375,6 @@ pub fn verify_query<C: Config>(
     let mut folded_eval: Ext<C::F, C::EF> = reduced_openings[log_max_normalized_height];
     let two_adic_generator =
         builder.eval(SymbolicFelt::from_f(C::F::two_adic_generator(log_max_normalized_height)));
-    println!("log_max_normalized_height: {}", log_max_normalized_height);
-    println!("config.log_arity: {}", config.log_arity);
     let index_bits = builder.num2bits_v_circuit(index, 32);
     let rev_reduced_index =
         builder.reverse_bits_len_circuit(index_bits.clone(), log_max_normalized_height);
@@ -439,16 +414,15 @@ pub fn verify_query<C: Config>(
 fn next_index_in_coset<C: Config>(
     builder: &mut Builder<C>,
     index: Vec<Var<C::N>>,
-    log_arity: usize,
 ) -> Vec<Var<C::N>> {
     // TODO better names.
-
-    let result = builder.reverse_bits_len_circuit(index, log_arity);
+    let len = index.len();
+    let result = builder.reverse_bits_len_circuit(index, len);
     let mut result = builder.bits2num_v_circuit(&result);
     result = builder.eval(result + C::N::one());
-    let result_bits = builder.num2bits_v_circuit(result, log_arity + 1)[..log_arity + 1].to_vec();
+    let result_bits = builder.num2bits_v_circuit(result, len + 1)[..len + 1].to_vec();
 
-    builder.reverse_bits_len_circuit(result_bits, log_arity)
+    builder.reverse_bits_len_circuit(result_bits, len)
 }
 
 // Inefficient algorithm for interpolation and evaluation of a polynomial at a point.
@@ -459,6 +433,10 @@ fn interpolate_lagrange_and_evaluate<C: Config>(
     beta: Ext<C::F, C::EF>,
 ) -> Ext<C::F, C::EF> {
     assert_eq!(xs.len(), ys.len());
+
+    if xs.len() == 2 {
+        return builder.eval(ys[0] + (beta - xs[0]) * (ys[1] - ys[0]) / (xs[1] - xs[0]));
+    }
 
     let result: Ext<_, _> = builder.eval(SymbolicExt::from_f(C::EF::zero()));
 
@@ -473,7 +451,6 @@ fn interpolate_lagrange_and_evaluate<C: Config>(
                 builder.assign(normalizing_factor, normalizing_factor * diff);
             }
         }
-
         let normalizing_factor_inverse = normalizing_factor.inverse();
 
         let normalizing_factor_inverse_felt: Felt<_> = builder.eval(normalizing_factor_inverse);
@@ -507,7 +484,10 @@ pub mod tests {
     use p3_field::{
         extension::BinomialExtensionField, AbstractExtensionField, AbstractField, ExtensionField,
     };
-    use p3_fri::{verifier, TwoAdicFriPcsProof};
+    use p3_fri::{
+        verifier::{self},
+        TwoAdicFriPcsProof,
+    };
     use p3_matrix::dense::RowMajorMatrix;
     use p3_util::reverse_slice_index_bits;
     use rand::{
@@ -539,6 +519,8 @@ pub mod tests {
         },
         DIGEST_SIZE,
     };
+
+    pub const TEST_LOG_ARITY: usize = 1;
 
     pub fn const_fri_proof(
         builder: &mut Builder<OuterConfig>,
@@ -702,8 +684,9 @@ pub mod tests {
         };
         let log_degrees = &[16, 9, 7, 4, 2];
         let perm = outer_perm();
-        let fri_config = test_fri_config();
+        let mut fri_config = test_fri_config();
         let log_blowup = fri_config.log_blowup;
+        fri_config.log_arity = TEST_LOG_ARITY;
         let hash = OuterHash::new(perm.clone()).unwrap();
         let compress = OuterCompress::new(perm.clone());
         let val_mmcs = OuterValMmcs::new(hash, compress);
@@ -748,7 +731,8 @@ pub mod tests {
 
         // Define circuit.
         let mut builder = Builder::<OuterConfig>::default();
-        let config = test_fri_config();
+        let mut config = test_fri_config();
+        config.log_arity = TEST_LOG_ARITY;
         let fri_proof = const_fri_proof(&mut builder, proof.fri_proof);
 
         let mut challenger = MultiField32ChallengerVariable::new(&mut builder);
@@ -796,9 +780,10 @@ pub mod tests {
             Ok(_) => StdRng::seed_from_u64(0xDEADBEEF),
             Err(_) => StdRng::from_rng(OsRng).unwrap(),
         };
-        let log_degrees = &[19, 19];
+        let log_degrees = &[19, 16];
         let perm = outer_perm();
-        let fri_config = test_fri_config();
+        let mut fri_config = test_fri_config();
+        fri_config.log_arity = TEST_LOG_ARITY;
         let hash = OuterHash::new(perm.clone()).unwrap();
         let compress = OuterCompress::new(perm.clone());
         let val_mmcs = OuterValMmcs::new(hash, compress);
@@ -845,7 +830,8 @@ pub mod tests {
 
         // Define circuit.
         let mut builder = Builder::<OuterConfig>::default();
-        let config = test_fri_config();
+        let mut config = test_fri_config();
+        config.log_arity = TEST_LOG_ARITY;
         let proof = const_two_adic_pcs_proof(&mut builder, proof);
         let (commit, rounds) = const_two_adic_pcs_rounds(&mut builder, commit.into(), os);
         let mut challenger = MultiField32ChallengerVariable::new(&mut builder);
@@ -887,23 +873,50 @@ pub mod tests {
     }
 
     #[test]
-    fn test_next_index_in_coset() {
-        let mut indices = (0..8).map(Bn254Fr::from_canonical_usize).collect::<Vec<_>>();
-        reverse_slice_index_bits(&mut indices);
-
+    fn test_lagrange_interpolate_2() {
+        // Define circuit.
         let mut builder = Builder::<OuterConfig>::default();
-        let indices_var: Vec<Var<_>> = indices.iter().map(|i| builder.eval(*i)).collect();
-        let index_bits: Vec<Vec<Var<_>>> =
-            indices_var.iter().map(|i| builder.num2bits_v_circuit(*i, 3)).collect();
 
-        for (index, next_index) in
-            index_bits.clone().into_iter().zip(index_bits.into_iter().cycle().skip(1))
-        {
-            let expected_next_index = next_index_in_coset(&mut builder, index, 3);
-            assert_eq!(next_index.len(), expected_next_index.len());
-            for (bit, expected_bit) in next_index.iter().zip(expected_next_index.iter()) {
-                builder.assert_var_eq(*expected_bit, *bit);
-            }
+        let xs: Vec<Felt<_>> = [5, 1]
+            .iter()
+            .map(|x| builder.eval(SymbolicFelt::from_f(BabyBear::from_canonical_usize(*x))))
+            .collect();
+
+        let ys: Vec<Ext<_,_>> = [1, 2].iter().map(|y| {
+            builder.eval(SymbolicExt::from_f(<sp1_recursion_compiler::config::OuterConfig as sp1_recursion_compiler::ir::Config>::EF::from_canonical_usize(
+                *y,
+            )))
+        }).collect();
+
+        for (x, y) in xs.iter().zip(ys.iter()) {
+            let zero: Felt<_> = builder.eval(SymbolicFelt::from_f(BabyBear::zero()));
+            let x_ext: Ext<_, _> = builder.felts2ext(&[*x, zero, zero, zero]);
+            let expected_y = interpolate_lagrange_and_evaluate(&mut builder, &xs, &ys, x_ext);
+            builder.assert_ext_eq(expected_y, *y);
+        }
+
+        let mut backend = ConstraintCompiler::<OuterConfig>::default();
+        let constraints = backend.emit(builder.operations);
+        PlonkBn254Prover::test::<OuterConfig>(constraints.clone(), Witness::default());
+    }
+
+    #[test]
+    fn test_next_index_in_coset() {
+        let expected_indices = (0..8).map(|index| p3_fri::verifier::next_index_in_coset(index, 3));
+        let mut builder = Builder::<OuterConfig>::default();
+
+        let indices = (0..8)
+            .map(|x| builder.eval(SymbolicVar::from_f(Bn254Fr::from_canonical_usize(x))))
+            .collect::<Vec<_>>();
+
+        for (index, expected_next_index) in indices.iter().zip(expected_indices) {
+            let index_bits = builder.num2bits_v_circuit(*index, 3);
+            let next_index_bits = super::next_index_in_coset(&mut builder, index_bits);
+            let next_index = builder.bits2num_v_circuit(&next_index_bits);
+            builder.assert_var_eq(
+                SymbolicVar::from_f(Bn254Fr::from_canonical_usize(expected_next_index)),
+                next_index,
+            );
         }
     }
 }
