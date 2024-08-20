@@ -152,6 +152,13 @@ impl<C: Config + Debug> ConstraintCompiler<C> {
                     opcode: ConstraintOpcode::SubF,
                     args: vec![vec![a.id()], vec![b.id()], vec![c.id()]],
                 }),
+                DslIr::SubFI(a, b, c) => {
+                    let tmp = self.alloc_f(&mut constraints, c);
+                    constraints.push(Constraint {
+                        opcode: ConstraintOpcode::SubF,
+                        args: vec![vec![a.id()], vec![b.id()], vec![tmp]],
+                    });
+                }
                 DslIr::SubE(a, b, c) => constraints.push(Constraint {
                     opcode: ConstraintOpcode::SubE,
                     args: vec![vec![a.id()], vec![b.id()], vec![c.id()]],
@@ -189,6 +196,13 @@ impl<C: Config + Debug> ConstraintCompiler<C> {
                     opcode: ConstraintOpcode::MulF,
                     args: vec![vec![a.id()], vec![b.id()], vec![c.id()]],
                 }),
+                DslIr::MulFI(a, b, c) => {
+                    let tmp = self.alloc_f(&mut constraints, c);
+                    constraints.push(Constraint {
+                        opcode: ConstraintOpcode::MulF,
+                        args: vec![vec![a.id()], vec![b.id()], vec![tmp]],
+                    });
+                }
                 DslIr::MulE(a, b, c) => constraints.push(Constraint {
                     opcode: ConstraintOpcode::MulE,
                     args: vec![vec![a.id()], vec![b.id()], vec![c.id()]],
@@ -207,7 +221,7 @@ impl<C: Config + Debug> ConstraintCompiler<C> {
                 DslIr::DivFIN(a, b, c) => {
                     let tmp = self.alloc_f(&mut constraints, b.inverse());
                     constraints.push(Constraint {
-                        opcode: ConstraintOpcode::MulF,
+                        opcode: ConstraintOpcode::DivF,
                         args: vec![vec![a.id()], vec![tmp], vec![c.id()]],
                     });
                 }

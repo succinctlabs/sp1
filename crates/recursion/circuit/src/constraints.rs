@@ -2,7 +2,7 @@ use p3_air::Air;
 use p3_commit::LagrangeSelectors;
 use p3_field::{AbstractExtensionField, AbstractField, TwoAdicField};
 use sp1_recursion_compiler::{
-    ir::{Array, Builder, Config, Ext, ExtensionOperand, Felt},
+    ir::{Array, Builder, Config, Ext, ExtensionOperand, Felt, SymbolicFelt},
     prelude::SymbolicExt,
 };
 use sp1_recursion_program::commit::PolynomialSpaceVariable;
@@ -89,7 +89,7 @@ where
             .iter()
             .enumerate()
             .map(|(i, domain)| {
-                qc_domains
+                let (zs, zinvs) = qc_domains
                     .iter()
                     .enumerate()
                     .filter(|(j, _)| *j != i)
@@ -97,12 +97,15 @@ where
                         // Calculate: other_domain.zp_at_point(zeta)
                         //     * other_domain.zp_at_point(domain.first_point()).inverse()
                         let first_point = domain.first_point(builder);
-                        let first_point_ext = first_point.to_operand().symbolic();
-                        let first_point: Ext<_, _> = builder.eval(first_point_ext);
-                        let z = other_domain.zp_at_point(builder, first_point);
-                        other_domain.zp_at_point(builder, zeta) * z.inverse()
+                        let z = other_domain.zp_at_point_f(builder, first_point);
+                        (
+                            other_domain.zp_at_point(builder, zeta).to_operand().symbolic(),
+                            z.inverse(),
+                        )
                     })
-                    .product::<SymbolicExt<_, _>>()
+                    .unzip::<_, _, Vec<_>, Vec<_>>();
+                zs.into_iter().product::<SymbolicExt<_, _>>()
+                    * zinvs.into_iter().product::<SymbolicFelt<_>>()
             })
             .collect::<Vec<SymbolicExt<_, _>>>()
             .into_iter()
