@@ -133,7 +133,7 @@ pub(crate) mod tests {
                 }))
                 .collect::<Vec<_>>();
 
-        let program = Arc::new(RecursionProgram { instructions, traces: Default::default() });
+        let program = Arc::new(RecursionProgram { instructions, ..Default::default() });
         let mut runtime = Runtime::<F, EF, DiffusionMatrixBabyBear>::new(
             program.clone(),
             BabyBearPoseidon2::new().perm,

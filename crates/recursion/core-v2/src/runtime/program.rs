@@ -8,6 +8,7 @@ use crate::*;
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct RecursionProgram<F> {
     pub instructions: Vec<Instruction<F>>,
+    pub total_memory: usize,
     #[serde(skip)]
     pub traces: Vec<Option<Backtrace>>,
 }

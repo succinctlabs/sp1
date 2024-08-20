@@ -1,4 +1,5 @@
 pub mod instruction;
+mod memory;
 mod opcode;
 mod program;
 mod record;
@@ -7,6 +8,7 @@ mod record;
 use backtrace::Backtrace as Trace;
 pub use instruction::Instruction;
 use instruction::{FieldEltType, HintBitsInstr, HintExt2FeltsInstr, HintInstr, PrintInstr};
+use memory::*;
 pub use opcode::*;
 pub use program::*;
 pub use record::*;
@@ -17,7 +19,7 @@ use std::{
     collections::VecDeque,
     fmt::Debug,
     io::{stdout, Write},
-    iter::{repeat, zip},
+    iter::zip,
     marker::PhantomData,
     sync::Arc,
 };
@@ -54,12 +56,6 @@ pub const DIGEST_SIZE: usize = 8;
 pub const NUM_BITS: usize = 31;
 
 pub const D: usize = 4;
-
-#[derive(Debug, Clone, Default)]
-pub struct MemoryEntry<F> {
-    pub val: Block<F>,
-    pub mult: F,
-}
 
 #[derive(Debug, Clone, Default)]
 pub struct CycleTrackerEntry {
@@ -106,7 +102,7 @@ pub struct Runtime<'a, F: PrimeField32, EF: ExtensionField<F>, Diffusion> {
     pub program: Arc<RecursionProgram<F>>,
 
     /// Memory. From canonical usize of an Address to a MemoryEntry.
-    pub memory: Memory<F>,
+    pub memory: MemVecMap<F>,
 
     /// The execution record.
     pub record: ExecutionRecord<F>,
@@ -185,6 +181,7 @@ where
         >,
     ) -> Self {
         let record = ExecutionRecord::<F> { program: program.clone(), ..Default::default() };
+        let memory = Memory::with_capacity(program.total_memory);
         Self {
             timestamp: 0,
             nb_poseidons: 0,
@@ -201,7 +198,7 @@ where
             clk: F::zero(),
             program,
             pc: F::zero(),
-            memory: Default::default(),
+            memory,
             record,
             witness_stream: VecDeque::new(),
             cycle_tracker: HashMap::new(),
@@ -340,10 +337,8 @@ where
                     }
                     self.record.mem_const_count += 1;
                 }
-                Instruction::Poseidon2(Poseidon2Instr {
-                    addrs: Poseidon2Io { input, output },
-                    mults,
-                }) => {
+                Instruction::Poseidon2(instr) => {
+                    let Poseidon2Instr { addrs: Poseidon2Io { input, output }, mults } = *instr;
                     self.nb_poseidons += 1;
                     let in_vals = std::array::from_fn(|i| self.memory.mr(input[i]).val[0]);
                     let perm_output = self.perm.as_ref().unwrap().permute(in_vals);
@@ -390,13 +385,14 @@ where
                     }
                 }
 
-                Instruction::FriFold(FriFoldInstr {
-                    base_single_addrs,
-                    ext_single_addrs,
-                    ext_vec_addrs,
-                    alpha_pow_mults,
-                    ro_mults,
-                }) => {
+                Instruction::FriFold(instr) => {
+                    let FriFoldInstr {
+                        base_single_addrs,
+                        ext_single_addrs,
+                        ext_vec_addrs,
+                        alpha_pow_mults,
+                        ro_mults,
+                    } = *instr;
                     self.nb_fri_fold += 1;
                     let x = self.memory.mr(base_single_addrs.x).val[0];
                     let z = self.memory.mr(ext_single_addrs.z).val;
@@ -464,10 +460,8 @@ where
                     }
                 }
 
-                Instruction::CommitPublicValues(CommitPublicValuesInstr {
-                    pv_addrs: public_values_addrs,
-                }) => {
-                    let pv_addrs = public_values_addrs.to_vec();
+                Instruction::CommitPublicValues(instr) => {
+                    let pv_addrs = instr.pv_addrs.to_vec();
                     let pv_values: [F; RECURSIVE_PROOF_NUM_PV_ELTS] =
                         array::from_fn(|i| self.memory.mr(pv_addrs[i]).val[0]);
                     self.record.public_values = *pv_values.as_slice().borrow();
@@ -525,53 +519,5 @@ where
             }
         }
         Ok(())
-    }
-}
-
-#[derive(Clone, Debug, Default)]
-pub struct Memory<F> {
-    pub inner: Vec<Option<MemoryEntry<F>>>,
-}
-
-impl<F: PrimeField32> Memory<F> {
-    /// Read from a memory address. Decrements the memory entry's mult count.
-    ///
-    /// # Panics
-    /// Panics if the address is unassigned.
-    pub fn mr(&mut self, addr: Address<F>) -> &MemoryEntry<F> {
-        self.mr_mult(addr, F::one())
-    }
-
-    /// Read from a memory address. Reduces the memory entry's mult count by the given amount.
-    ///
-    /// # Panics
-    /// Panics if the address is unassigned.
-    pub fn mr_mult(&mut self, addr: Address<F>, mult: F) -> &MemoryEntry<F> {
-        match self.inner.get_mut(addr.0.as_canonical_u32() as usize) {
-            Some(Some(entry)) => {
-                entry.mult -= mult;
-                entry
-            }
-            _ => panic!(
-                "tried to read from unassigned address: {addr:?}\nbacktrace: {:?}",
-                backtrace::Backtrace::new()
-            ),
-        }
-    }
-
-    /// Write to a memory address, setting the given value and mult.
-    ///
-    /// # Panics
-    /// Panics if the address is already assigned.
-    pub fn mw(&mut self, addr: Address<F>, val: Block<F>, mult: F) -> &MemoryEntry<F> {
-        let addr_usize = addr.0.as_canonical_u32() as usize;
-        self.inner.extend(repeat(None).take((addr_usize + 1).saturating_sub(self.inner.len())));
-        match &mut self.inner[addr_usize] {
-            Some(entry) => panic!(
-                "tried to write to assigned address: {entry:?}\nbacktrace: {:?}",
-                backtrace::Backtrace::new()
-            ),
-            entry @ None => entry.insert(MemoryEntry { val, mult }),
-        }
     }
 }

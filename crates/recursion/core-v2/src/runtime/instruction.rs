@@ -10,13 +10,13 @@ pub enum Instruction<F> {
     BaseAlu(BaseAluInstr<F>),
     ExtAlu(ExtAluInstr<F>),
     Mem(MemInstr<F>),
-    Poseidon2(Poseidon2Instr<F>),
+    Poseidon2(Box<Poseidon2Instr<F>>),
     ExpReverseBitsLen(ExpReverseBitsInstr<F>),
     HintBits(HintBitsInstr<F>),
-    FriFold(FriFoldInstr<F>),
+    FriFold(Box<FriFoldInstr<F>>),
     Print(PrintInstr<F>),
     HintExt2Felts(HintExt2FeltsInstr<F>),
-    CommitPublicValues(CommitPublicValuesInstr<F>),
+    CommitPublicValues(Box<CommitPublicValuesInstr<F>>),
     Hint(HintInstr<F>),
 }
 
@@ -136,13 +136,13 @@ pub fn poseidon2<F: AbstractField>(
     output: [u32; WIDTH],
     input: [u32; WIDTH],
 ) -> Instruction<F> {
-    Instruction::Poseidon2(Poseidon2Instr {
+    Instruction::Poseidon2(Box::new(Poseidon2Instr {
         mults: mults.map(F::from_canonical_u32),
         addrs: Poseidon2Io {
             output: output.map(F::from_canonical_u32).map(Address),
             input: input.map(F::from_canonical_u32).map(Address),
         },
-    })
+    }))
 }
 
 pub fn exp_reverse_bits_len<F: AbstractField>(
@@ -175,7 +175,7 @@ pub fn fri_fold<F: AbstractField>(
     alpha_mults: Vec<u32>,
     ro_mults: Vec<u32>,
 ) -> Instruction<F> {
-    Instruction::FriFold(FriFoldInstr {
+    Instruction::FriFold(Box::new(FriFoldInstr {
         base_single_addrs: FriFoldBaseIo { x: Address(F::from_canonical_u32(x)) },
         ext_single_addrs: FriFoldExtSingleIo {
             z: Address(F::from_canonical_u32(z)),
@@ -200,7 +200,7 @@ pub fn fri_fold<F: AbstractField>(
         },
         alpha_pow_mults: alpha_mults.iter().map(|mult| F::from_canonical_u32(*mult)).collect(),
         ro_mults: ro_mults.iter().map(|mult| F::from_canonical_u32(*mult)).collect(),
-    })
+    }))
 }
 
 pub fn commit_public_values<F: AbstractField>(
@@ -209,7 +209,7 @@ pub fn commit_public_values<F: AbstractField>(
     let pv_a = public_values_a.to_vec().map(|pv| Address(F::from_canonical_u32(pv)));
     let pv_address: &RecursionPublicValues<Address<F>> = pv_a.as_slice().borrow();
 
-    Instruction::CommitPublicValues(CommitPublicValuesInstr {
-        pv_addrs: Box::new(pv_address.clone()),
-    })
+    Instruction::CommitPublicValues(Box::new(CommitPublicValuesInstr {
+        pv_addrs: pv_address.clone(),
+    }))
 }
