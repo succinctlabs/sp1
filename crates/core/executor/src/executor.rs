@@ -100,6 +100,8 @@ pub struct Executor<'a> {
     /// Memory addresses that were touched in this batch of shards. Used to minimize the size of
     /// checkpoints.
     pub memory_checkpoint: HashMap<u32, Option<MemoryRecord>, BuildNoHashHasher<u32>>,
+
+    pub memcpys: HashMap<u32, u32>,
 }
 
 /// Errors that the [``Executor``] can throw.
@@ -201,6 +203,7 @@ impl<'a> Executor<'a> {
             opts,
             max_cycles: context.max_cycles,
             memory_checkpoint: HashMap::default(),
+            memcpys: HashMap::default(),
         }
     }
 
@@ -876,6 +879,11 @@ impl<'a> Executor<'a> {
                 b = self.rr(Register::X10, MemoryAccessPosition::B);
                 let syscall = SyscallCode::from_u32(syscall_id);
 
+                if syscall == SyscallCode::MEMCPY_64 {
+                    self.memcpys.insert(b, self.memcpys.get(&b).unwrap_or(&0) + 1);
+                    // println!("b: {}, memcpys: {:?}", b, self.memcpys);
+                }
+
                 if self.print_report && !self.unconstrained {
                     self.report.syscall_counts.entry(syscall).and_modify(|c| *c += 1).or_insert(1);
                 }
@@ -1173,6 +1181,7 @@ impl<'a> Executor<'a> {
         self.emit_events = false;
         self.print_report = true;
         while !self.execute()? {}
+        // println!("{:?}", self.memcpys);
         Ok(())
     }
 
