@@ -497,52 +497,52 @@ mod tests {
         (commit, vec![TwoAdicPcsRoundVariable { batch_commit: commit, domains_points_and_opens }])
     }
 
-    // /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/merkle-tree/src/mmcs.rs#L421
-    // #[test]
-    // fn size_gaps() {
-    //     use p3_commit::Mmcs;
-    //     let perm = inner_perm();
-    //     let hash = InnerHash::new(perm.clone());
-    //     let compress = InnerCompress::new(perm);
-    //     let mmcs = InnerValMmcs::new(hash, compress);
+    /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/merkle-tree/src/mmcs.rs#L421
+    #[test]
+    fn size_gaps() {
+        use p3_commit::Mmcs;
+        let perm = inner_perm();
+        let hash = InnerHash::new(perm.clone());
+        let compress = InnerCompress::new(perm);
+        let mmcs = InnerValMmcs::new(hash, compress);
 
-    //     let mut builder = Builder::<InnerConfig>::default();
+        let mut builder = Builder::<InnerConfig>::default();
 
-    //     // 4 mats with 1000 rows, 8 columns
-    //     let large_mats = (0..4).map(|_| RowMajorMatrix::<F>::rand(&mut OsRng, 1000, 8));
-    //     let large_mat_dims = (0..4).map(|_| Dimensions { height: 1000, width: 8 });
+        // 4 mats with 1000 rows, 8 columns
+        let large_mats = (0..4).map(|_| RowMajorMatrix::<F>::rand(&mut OsRng, 1000, 8));
+        let large_mat_heights = (0..4).map(|_| 1000);
 
-    //     // 5 mats with 70 rows, 8 columns
-    //     let medium_mats = (0..5).map(|_| RowMajorMatrix::<F>::rand(&mut OsRng, 70, 8));
-    //     let medium_mat_dims = (0..5).map(|_| Dimensions { height: 70, width: 8 });
+        // 5 mats with 70 rows, 8 columns
+        let medium_mats = (0..5).map(|_| RowMajorMatrix::<F>::rand(&mut OsRng, 70, 8));
+        let medium_mat_heights = (0..5).map(|_| 70);
 
-    //     // 6 mats with 8 rows, 8 columns
-    //     let small_mats = (0..6).map(|_| RowMajorMatrix::<F>::rand(&mut OsRng, 8, 8));
-    //     let small_mat_dims = (0..6).map(|_| Dimensions { height: 8, width: 8 });
+        // 6 mats with 8 rows, 8 columns
+        let small_mats = (0..6).map(|_| RowMajorMatrix::<F>::rand(&mut OsRng, 8, 8));
+        let small_mat_heights = (0..6).map(|_| 8);
 
-    //     let (commit, prover_data) =
-    //         mmcs.commit(large_mats.chain(medium_mats).chain(small_mats).collect_vec());
+        let (commit, prover_data) =
+            mmcs.commit(large_mats.chain(medium_mats).chain(small_mats).collect_vec());
 
-    //     let commit: [_; DIGEST_SIZE] = commit.into();
-    //     let commit = commit.map(|x| builder.eval(x));
-    //     // open the 6th row of each matrix and verify
-    //     let (opened_values, proof) = mmcs.open_batch(6, &prover_data);
-    //     let opened_values = opened_values
-    //         .into_iter()
-    //         .map(|x| x.into_iter().map(|y| vec![builder.eval::<Felt<_>, _>(y)]).collect())
-    //         .collect();
-    //     let index = builder.eval(F::from_canonical_u32(6));
-    //     let index_bits = C::num2bits(&mut builder, index, 32);
-    //     let proof = proof.into_iter().map(|p| p.map(|x| builder.eval(x))).collect();
-    //     verify_batch::<_, SC>(
-    //         &mut builder,
-    //         commit,
-    //         large_mat_dims.chain(medium_mat_dims).chain(small_mat_dims).collect_vec(),
-    //         index_bits,
-    //         opened_values,
-    //         proof,
-    //     );
-    // }
+        let commit: [_; DIGEST_SIZE] = commit.into();
+        let commit = commit.map(|x| builder.eval(x));
+        // open the 6th row of each matrix and verify
+        let (opened_values, proof) = mmcs.open_batch(6, &prover_data);
+        let opened_values = opened_values
+            .into_iter()
+            .map(|x| x.into_iter().map(|y| vec![builder.eval::<Felt<_>, _>(y)]).collect())
+            .collect();
+        let index = builder.eval(F::from_canonical_u32(6));
+        let index_bits = C::num2bits(&mut builder, index, 32);
+        let proof = proof.into_iter().map(|p| p.map(|x| builder.eval(x))).collect();
+        verify_batch::<_, SC>(
+            &mut builder,
+            commit,
+            &large_mat_heights.chain(medium_mat_heights).chain(small_mat_heights).collect_vec(),
+            &index_bits,
+            opened_values,
+            proof,
+        );
+    }
 
     #[test]
     fn test_fri_verify_shape_and_sample_challenges() {
