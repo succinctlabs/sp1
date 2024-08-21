@@ -25,6 +25,7 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
         &self,
         input: &ExecutionRecord,
         output: &mut ExecutionRecord,
+        fixed_log2_rows: Option<usize>,
     ) -> RowMajorMatrix<F> {
         let num_events = input.keccak_permute_events.len();
         let chunk_size = std::cmp::max(num_events / num_cpus::get(), 1);
@@ -168,5 +169,9 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
 
     fn included(&self, shard: &Self::Record) -> bool {
         !shard.keccak_permute_events.is_empty()
+    }
+
+    fn min_rows(&self, shard: &Self::Record) -> usize {
+        shard.keccak_permute_events.len()
     }
 }

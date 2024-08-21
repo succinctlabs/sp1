@@ -131,6 +131,10 @@ impl<F: PrimeField32> MachineAir<F> for ProgramChip {
     fn included(&self, _: &Self::Record) -> bool {
         true
     }
+
+    fn min_rows(&self, shard: &Self::Record) -> usize {
+        shard.program.instructions.len()
+    }
 }
 
 impl<F> BaseAir<F> for ProgramChip {

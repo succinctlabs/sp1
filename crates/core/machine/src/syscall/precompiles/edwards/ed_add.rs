@@ -124,6 +124,7 @@ impl<F: PrimeField32, E: EllipticCurve + EdwardsParameters> MachineAir<F> for Ed
         &self,
         input: &ExecutionRecord,
         _: &mut ExecutionRecord,
+        fixed_log2_rows: Option<usize>,
     ) -> RowMajorMatrix<F> {
         let mut rows = input
             .ed_add_events
@@ -190,6 +191,10 @@ impl<F: PrimeField32, E: EllipticCurve + EdwardsParameters> MachineAir<F> for Ed
 
     fn included(&self, shard: &Self::Record) -> bool {
         !shard.ed_add_events.is_empty()
+    }
+
+    fn min_rows(&self, shard: &Self::Record) -> usize {
+        shard.ed_add_events.len()
     }
 }
 

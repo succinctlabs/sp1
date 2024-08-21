@@ -135,6 +135,7 @@ impl<F: PrimeField> MachineAir<F> for MulChip {
         &self,
         input: &ExecutionRecord,
         output: &mut ExecutionRecord,
+        fixed_log2_rows: Option<usize>,
     ) -> RowMajorMatrix<F> {
         let mul_events = input.mul_events.clone();
         // Compute the chunk size based on the number of events and the number of CPUs.
@@ -286,6 +287,10 @@ impl<F: PrimeField> MachineAir<F> for MulChip {
 
     fn included(&self, shard: &Self::Record) -> bool {
         !shard.mul_events.is_empty()
+    }
+
+    fn min_rows(&self, shard: &Self::Record) -> usize {
+        shard.mul_events.len()
     }
 }
 

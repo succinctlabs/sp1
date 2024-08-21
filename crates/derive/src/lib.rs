@@ -166,7 +166,7 @@ pub fn machine_air_derive(input: TokenStream) -> TokenStream {
             let generate_trace_arms = variants.iter().map(|(variant_name, field)| {
                 let field_ty = &field.ty;
                 quote! {
-                    #name::#variant_name(x) => <#field_ty as sp1_stark::air::MachineAir<F>>::generate_trace(x, input, output)
+                    #name::#variant_name(x) => <#field_ty as sp1_stark::air::MachineAir<F>>::generate_trace(x, input, output, fixed_log2_rows)
                 }
             });
 
@@ -181,6 +181,13 @@ pub fn machine_air_derive(input: TokenStream) -> TokenStream {
                 let field_ty = &field.ty;
                 quote! {
                     #name::#variant_name(x) => <#field_ty as sp1_stark::air::MachineAir<F>>::included(x, shard)
+                }
+            });
+
+            let min_rows_arms = variants.iter().map(|(variant_name, field)| {
+                let field_ty = &field.ty;
+                quote! {
+                    #name::#variant_name(x) => <#field_ty as sp1_stark::air::MachineAir<F>>::min_rows(x, shard)
                 }
             });
 
@@ -215,6 +222,7 @@ pub fn machine_air_derive(input: TokenStream) -> TokenStream {
                         &self,
                         input: &#execution_record_path,
                         output: &mut #execution_record_path,
+                        fixed_log2_rows: Option<usize>,
                     ) -> p3_matrix::dense::RowMajorMatrix<F> {
                         match self {
                             #(#generate_trace_arms,)*
@@ -234,6 +242,12 @@ pub fn machine_air_derive(input: TokenStream) -> TokenStream {
                     fn included(&self, shard: &Self::Record) -> bool {
                         match self {
                             #(#included_arms,)*
+                        }
+                    }
+
+                    fn min_rows(&self, shard: &Self::Record) -> usize {
+                        match self {
+                            #(#min_rows_arms,)*
                         }
                     }
                 }

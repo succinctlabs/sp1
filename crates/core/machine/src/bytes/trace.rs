@@ -39,6 +39,7 @@ impl<F: Field> MachineAir<F> for ByteChip<F> {
         &self,
         input: &ExecutionRecord,
         _output: &mut ExecutionRecord,
+        fixed_log2_rows: Option<usize>,
     ) -> RowMajorMatrix<F> {
         let mut trace =
             RowMajorMatrix::new(vec![F::zero(); NUM_BYTE_MULT_COLS * NUM_ROWS], NUM_BYTE_MULT_COLS);
@@ -63,5 +64,9 @@ impl<F: Field> MachineAir<F> for ByteChip<F> {
 
     fn included(&self, _shard: &Self::Record) -> bool {
         true
+    }
+
+    fn min_rows(&self, shard: &Self::Record) -> usize {
+        NUM_ROWS
     }
 }

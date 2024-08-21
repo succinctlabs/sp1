@@ -25,6 +25,7 @@ impl<F: PrimeField32> MachineAir<F> for ShaExtendChip {
         &self,
         input: &ExecutionRecord,
         _: &mut ExecutionRecord,
+        fixed_log2_rows: Option<usize>,
     ) -> RowMajorMatrix<F> {
         let rows = Vec::new();
 
@@ -87,6 +88,10 @@ impl<F: PrimeField32> MachineAir<F> for ShaExtendChip {
 
     fn included(&self, shard: &Self::Record) -> bool {
         !shard.sha_extend_events.is_empty()
+    }
+
+    fn min_rows(&self, shard: &Self::Record) -> usize {
+        shard.sha_extend_events.len()
     }
 }
 

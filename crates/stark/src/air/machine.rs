@@ -20,29 +20,26 @@ pub trait MachineAir<F: Field>: BaseAir<F> + 'static + Send + Sync {
     /// Generate the trace for a given execution record. If a fixed log2 rows is provided, the
     /// trace should be padded to that size. Otherwise, it should just be padded to nearest power
     /// of two.
-    fn generate_fixed_trace(
-        &self,
-        input: &A::Record,
-        output: &mut A::Record,
-        fixed_log2_rows: Option<usize>,
-    ) -> RowMajorMatrix<F>;
-
-    /// Generate the trace for a given execution record.
     ///
     /// - `input` is the execution record containing the events to be written to the trace.
     /// - `output` is the execution record containing events that the `MachineAir` can add to
     ///    the record such as byte lookup requests.
-    fn generate_trace(&self, input: &Self::Record, output: &mut Self::Record) -> RowMajorMatrix<F> {
-        self.generate_fixed_trace(input, output, None)
-    }
+    fn generate_trace(
+        &self,
+        input: &Self::Record,
+        output: &mut Self::Record,
+        fixed_log2_rows: Option<usize>,
+    ) -> RowMajorMatrix<F>;
 
     /// Generate the dependencies for a given execution record.
     fn generate_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
-        self.generate_trace(input, output);
+        self.generate_trace(input, output, None);
     }
 
     /// Whether this execution record contains events for this air.
-    fn included(&self, shard: &Self::Record) -> bool;
+    fn included(&self, shard: &Self::Record) -> bool {
+        self.min_rows(shard) > 0
+    }
 
     /// The minimum number of rows required for this record.
     fn min_rows(&self, shard: &Self::Record) -> usize;

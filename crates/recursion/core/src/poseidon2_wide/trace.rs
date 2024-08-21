@@ -104,6 +104,10 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
     fn included(&self, record: &Self::Record) -> bool {
         !record.poseidon2_compress_events.is_empty()
     }
+
+    fn min_rows(&self, shard: &Self::Record) -> usize {
+        shard.poseidon2_compress_events.len()
+    }
 }
 
 impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {

@@ -67,6 +67,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryChip {
         &self,
         input: &ExecutionRecord,
         _output: &mut ExecutionRecord,
+        fixed_log2_rows: Option<usize>,
     ) -> RowMajorMatrix<F> {
         let mut memory_events = match self.kind {
             MemoryChipType::Initialize => input.memory_initialize_events.clone(),
@@ -141,6 +142,13 @@ impl<F: PrimeField32> MachineAir<F> for MemoryChip {
         match self.kind {
             MemoryChipType::Initialize => !shard.memory_initialize_events.is_empty(),
             MemoryChipType::Finalize => !shard.memory_finalize_events.is_empty(),
+        }
+    }
+
+    fn min_rows(&self, shard: &Self::Record) -> usize {
+        match self.kind {
+            MemoryChipType::Initialize => shard.memory_initialize_events.len(),
+            MemoryChipType::Finalize => shard.memory_finalize_events.len(),
         }
     }
 }

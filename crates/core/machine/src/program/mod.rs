@@ -102,6 +102,7 @@ impl<F: PrimeField> MachineAir<F> for ProgramChip {
         &self,
         input: &ExecutionRecord,
         _output: &mut ExecutionRecord,
+        fixed_log2_rows: Option<usize>,
     ) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
 
@@ -144,6 +145,10 @@ impl<F: PrimeField> MachineAir<F> for ProgramChip {
 
     fn included(&self, _: &Self::Record) -> bool {
         true
+    }
+
+    fn min_rows(&self, shard: &Self::Record) -> usize {
+        shard.program.instructions.len()
     }
 }
 
@@ -212,7 +217,7 @@ mod tests {
         };
         let chip = ProgramChip::new();
         let trace: RowMajorMatrix<BabyBear> =
-            chip.generate_trace(&shard, &mut ExecutionRecord::default());
+            chip.generate_trace(&shard, &mut ExecutionRecord::default(), None);
         println!("{:?}", trace.values)
     }
 }

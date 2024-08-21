@@ -64,7 +64,7 @@ pub trait MachineProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>>:
                    .map(|chip| {
                        let chip_name = chip.name();
                        let trace = tracing::debug_span!(parent: &parent_span, "generate trace for chip", %chip_name)
-                                   .in_scope(|| chip.generate_trace(record, &mut A::Record::default()));
+                                   .in_scope(|| chip.generate_trace(record, &mut A::Record::default(), None));
                        (chip_name, trace)
                        })
                        .collect::<Vec<_>>()
@@ -78,7 +78,6 @@ pub trait MachineProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>>:
     ) -> Vec<RowMajorMatrix<Val<SC>>> {
         let mut total_rows = u64::MAX;
         let mut best_shape_index = None;
-        let mut traces = Vec::new();
         let shard_chips = self.shard_chips(record).collect::<Vec<_>>();
         let min_rows_map = shard_chips
             .iter()
@@ -108,21 +107,20 @@ pub trait MachineProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>>:
                 }
             }
             if fits && shape_total_rows < total_rows {
-                shape_index = Some(shape_index);
+                best_shape_index = Some(shape_index);
                 total_rows = shape_total_rows;
             }
         }
-        let shape_index = shape_index.expect("no shapes fit");
+        let shape_index = best_shape_index.expect("no shapes fit");
         let shape = shapes.swap_remove(shape_index);
 
+        let parent_span = tracing::debug_span!("generate traces for shard");
         parent_span.in_scope(|| {
             shard_chips
                 .par_iter()
                 .map(|chip| {
                     let chip_name = chip.name();
-                    let trace = tracing::debug_span!(parent: &parent_span, "generate trace for chip", %chip_name)
-                                .in_scope(|| chip.generate_fixed_trace(record, &mut A::Record::default(), Some(shape[&chip_name])));
-                    (chip_name, trace)
+                    tracing::debug_span!(parent: &parent_span, "generate trace for chip", %chip_name).in_scope(|| chip.generate_trace(record, &mut A::Record::default(), Some(shape[&chip_name])))
                     })
                     .collect::<Vec<_>>()
                  })

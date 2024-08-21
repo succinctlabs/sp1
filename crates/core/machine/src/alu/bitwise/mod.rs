@@ -73,6 +73,7 @@ impl<F: PrimeField> MachineAir<F> for BitwiseChip {
         &self,
         input: &ExecutionRecord,
         _: &mut ExecutionRecord,
+        fixed_log2_rows: Option<usize>,
     ) -> RowMajorMatrix<F> {
         let rows = input
             .bitwise_events
@@ -124,6 +125,10 @@ impl<F: PrimeField> MachineAir<F> for BitwiseChip {
 
     fn included(&self, shard: &Self::Record) -> bool {
         !shard.bitwise_events.is_empty()
+    }
+
+    fn min_rows(&self, shard: &Self::Record) -> usize {
+        shard.bitwise_events.len()
     }
 }
 
