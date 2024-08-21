@@ -368,6 +368,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
     }
 
     /// Reduce shards proofs to a single shard proof using the recursion prover.
+    #[instrument(name = "compress", level = "info", skip_all)]
     pub fn compress(
         &self,
         vk: &SP1VerifyingKey,
