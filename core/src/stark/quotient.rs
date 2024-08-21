@@ -125,7 +125,7 @@ where
 
             let accumulator = PackedChallenge::<SC>::zero();
 
-            let packaged_cumulative_sums = cumulative_sums
+            let packed_cumulative_sums = cumulative_sums
                 .iter()
                 .map(|c| PackedChallenge::<SC>::from_f(*c))
                 .collect::<Vec<_>>();
@@ -144,7 +144,7 @@ where
                     RowMajorMatrixView::new_row(&perm_next),
                 ),
                 perm_challenges,
-                cumulative_sums: &packaged_cumulative_sums,
+                cumulative_sums: &packed_cumulative_sums,
                 is_first_row,
                 is_last_row,
                 is_transition,
