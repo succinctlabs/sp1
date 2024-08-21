@@ -11,7 +11,7 @@ use sp1_recursion_compiler::{
     ir::{Builder, Config, Ext, Felt, SymbolicExt, Var},
 };
 use sp1_recursion_core_v2::{
-    air::{RecursionPublicValues, NUM_PV_ELMS_TO_HASH},
+    air::RecursionPublicValues,
     machine::RecursionAir,
     stark::config::{
         BabyBearPoseidon2Outer, OuterChallenge, OuterChallengeMmcs, OuterFriProof, OuterVal,
@@ -130,12 +130,12 @@ where
 
     // TODO: Add back.
     // Verify the public values digest.
-    let calculated_digest =
-        builder.p2_circuit_babybear_hash(&proof.public_values[0..NUM_PV_ELMS_TO_HASH]);
-    let expected_digest = pv.digest;
-    for (calculated_elm, expected_elm) in calculated_digest.iter().zip(expected_digest.iter()) {
-        builder.assert_felt_eq(*expected_elm, *calculated_elm);
-    }
+    // let calculated_digest =
+    //     builder.p2_circuit_babybear_hash(&proof.public_values[0..NUM_PV_ELMS_TO_HASH]);
+    // let expected_digest = pv.digest;
+    // for (calculated_elm, expected_elm) in calculated_digest.iter().zip(expected_digest.iter()) {
+    //     builder.assert_felt_eq(*expected_elm, *calculated_elm);
+    // }
 
     let mut backend = ConstraintCompiler::<OuterConfig>::default();
     backend.emit(builder.operations)

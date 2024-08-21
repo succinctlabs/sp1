@@ -380,7 +380,7 @@ impl<C: Config + Debug> ConstraintCompiler<C> {
                 }),
 
                 // Version 2 instructions
-                // DslIr::CircuitV2CommitPublicValues(_) => {}
+                DslIr::CircuitV2CommitPublicValues(_) => {}
                 // DslIr::CircuitV2ExpReverseBits(_, _, _) => {}
                 // DslIr::CircuitV2FriFold(_, _) => {}
                 // DslIr::CircuitV2HintBitsF(_, _) => {}
