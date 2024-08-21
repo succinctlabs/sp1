@@ -129,6 +129,8 @@ substrate-bn = { git = "https://github.com/sp1-patches/bn", branch = "patch-v0.6
 | run-mul   | 1,862,130                      | 245,124                       | 7.61         |
 | run-pair  | 419,342,875                    | 20,541,565                    | 20.39        |
 
+Note: The operations `run-add`, `run-mul`, and `run-pair` are from the `revm` crate, specifically from the file `crates/precompile/src/bn128.rs` on GitHub. In the patched version of the `substrate-bn` crate, these functions utilize SP1's BN254 Fp precompiles.
+
 To accelerate [revm](https://github.com/bluealloy/revm) in SP1 using the BN254 patched crate, replace the `substrate-bn` crate with the patched crate by adding the following to `crates/precompile/Cargo.toml`:   
 ```rust
 bn = { git = "https://github.com/sp1-patches/bn", package = "substrate-bn", branch = "patch-v0.6.0" }
