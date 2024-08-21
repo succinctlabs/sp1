@@ -131,11 +131,11 @@ substrate-bn = { git = "https://github.com/sp1-patches/bn", branch = "patch-v0.6
 
 To accelerate [revm](https://github.com/bluealloy/revm) in SP1 using the BN254 patched crate, replace the `substrate-bn` crate with the patched crate by adding the following to `crates/precompile/Cargo.toml`:   
 ```rust
-bn = { git = "https://github.com/sp1-patches/bn", package = "substrate-bn", branch = "patch-v0.6.0", default-features = false }
+bn = { git = "https://github.com/sp1-patches/bn", package = "substrate-bn", branch = "patch-v0.6.0" }
 ```
 
 ## BLS12-381 Acceleration
-To accelerate BLS12-381 operations, you'll need to patch the `blst` crate. Apply the following patch by adding the following to your list of dependencies:
+To accelerate BLS12-381 operations, you'll need to patch the `bls12_381` crate. Apply the following patch by adding the following to your list of dependencies:
 ```toml
 blst = { git = "https://github.com/sp1-patches/bls12_381", branch = "patch-v0.8.0" }
 ```
