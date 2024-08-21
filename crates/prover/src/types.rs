@@ -11,7 +11,9 @@ use sp1_primitives::poseidon2_hash;
 
 use sp1_recursion_core_v2::{air::RecursionPublicValues, stark::config::BabyBearPoseidon2Outer};
 
-use sp1_recursion_circuit_v2::machine::{SP1CompressWitnessValues, SP1RecursionWitnessValues};
+use sp1_recursion_circuit_v2::machine::{
+    SP1CompressWitnessValues, SP1DeferredWitnessValues, SP1RecursionWitnessValues,
+};
 
 use sp1_recursion_gnark_ffi::proof::{Groth16Bn254Proof, PlonkBn254Proof};
 
@@ -245,6 +247,6 @@ pub enum SP1RecursionProverError {
 #[allow(clippy::large_enum_variant)]
 pub enum SP1CircuitWitness {
     Core(SP1RecursionWitnessValues<CoreSC>),
-    // Deferred(SP1DeferredMemoryLayout<InnerSC, CompressAir<BabyBear>>),
+    // Deferred(SP1DeferredWitnessValues<InnerSC>),
     Compress(SP1CompressWitnessValues<InnerSC>),
 }

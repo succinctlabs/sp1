@@ -16,8 +16,8 @@ use crate::{
 };
 
 use super::{
-    SP1CompressWitnessValues, SP1CompressWitnessVariable, SP1RecursionWitnessValues,
-    SP1RecursionWitnessVariable,
+    SP1CompressWitnessValues, SP1CompressWitnessVariable, SP1DeferredWitnessValues,
+    SP1DeferredWitnessVariable, SP1RecursionWitnessValues, SP1RecursionWitnessVariable,
 };
 
 impl<C> Witnessable<C> for DuplexChallenger<InnerVal, InnerPerm, 16, 8>
@@ -129,6 +129,62 @@ where
     fn write(&self) -> Vec<crate::witness::Witness<C>> {
         [
             Witnessable::<C>::write(&self.vks_and_proofs),
+            Witnessable::<C>::write(&InnerVal::from_bool(self.is_complete)),
+        ]
+        .concat()
+    }
+}
+
+impl<C> Witnessable<C> for SP1DeferredWitnessValues<BabyBearPoseidon2>
+where
+    C: CircuitConfig<F = InnerVal, EF = InnerChallenge, Bit = Felt<InnerVal>>,
+{
+    type WitnessVariable = SP1DeferredWitnessVariable<C, BabyBearPoseidon2>;
+
+    fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
+        let vks_and_proofs = self.vks_and_proofs.read(builder);
+        let start_reconstruct_deferred_digest =
+            self.start_reconstruct_deferred_digest.read(builder);
+        let sp1_vk = self.sp1_vk.read(builder);
+        let leaf_challenger = self.leaf_challenger.read(builder);
+        let committed_value_digest = self.committed_value_digest.read(builder);
+        let deferred_proofs_digest = self.deferred_proofs_digest.read(builder);
+        let end_pc = self.end_pc.read(builder);
+        let end_shard = self.end_shard.read(builder);
+        let end_execution_shard = self.end_execution_shard.read(builder);
+        let init_addr_bits = self.init_addr_bits.read(builder);
+        let finalize_addr_bits = self.finalize_addr_bits.read(builder);
+        let is_complete = InnerVal::from_bool(self.is_complete).read(builder);
+
+        SP1DeferredWitnessVariable {
+            vks_and_proofs,
+            start_reconstruct_deferred_digest,
+            sp1_vk,
+            leaf_challenger,
+            committed_value_digest,
+            deferred_proofs_digest,
+            end_pc,
+            end_shard,
+            end_execution_shard,
+            init_addr_bits,
+            finalize_addr_bits,
+            is_complete,
+        }
+    }
+
+    fn write(&self) -> Vec<crate::witness::Witness<C>> {
+        [
+            Witnessable::<C>::write(&self.vks_and_proofs),
+            Witnessable::<C>::write(&self.start_reconstruct_deferred_digest),
+            Witnessable::<C>::write(&self.sp1_vk),
+            Witnessable::<C>::write(&self.leaf_challenger),
+            Witnessable::<C>::write(&self.committed_value_digest),
+            Witnessable::<C>::write(&self.deferred_proofs_digest),
+            Witnessable::<C>::write(&self.end_pc),
+            Witnessable::<C>::write(&self.end_shard),
+            Witnessable::<C>::write(&self.end_execution_shard),
+            Witnessable::<C>::write(&self.init_addr_bits),
+            Witnessable::<C>::write(&self.finalize_addr_bits),
             Witnessable::<C>::write(&InnerVal::from_bool(self.is_complete)),
         ]
         .concat()

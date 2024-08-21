@@ -252,6 +252,32 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         })
     }
 
+    // pub fn defered_program(
+    //     &self,
+    //     input: &SP1DeferredWitnessValues<InnerSC>,
+    // ) -> Arc<RecursionProgram<BabyBear>> {
+    //     // Compile the program.
+
+    //     // Get the operations.
+    //     let operations_span =
+    //         tracing::debug_span!("Get operations for the deferred program").entered();
+    //     let mut builder = Builder::<InnerConfig>::default();
+    //     let input_read_span = tracing::debug_span!("Read input values").entered();
+    //     let input = input.read(&mut builder);
+    //     input_read_span.exit();
+    //     let verify_span = tracing::debug_span!("Verify deferred program").entered();
+    //     SP1CompressVerifier::verify(&mut builder, self.compress_prover.machine(), input);
+    //     verify_span.exit();
+    //     let operations = builder.operations;
+    //     operations_span.exit();
+
+    //     // Compile the program.
+    //     tracing::debug_span!("Compile compress program").in_scope(|| {
+    //         let mut compiler = AsmCompiler::<InnerConfig>::default();
+    //         Arc::new(compiler.compile(operations))
+    //     })
+    // }
+
     pub fn get_recursion_core_inputs(
         &self,
         vk: &StarkVerifyingKey<CoreSC>,
@@ -290,44 +316,41 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         core_inputs
     }
 
-    pub fn get_recursion_deferred_inputs<'a>(
-        &'a self,
-        vk: &'a StarkVerifyingKey<CoreSC>,
-        leaf_challenger: &'a Challenger<InnerSC>,
-        last_proof_pv: &PublicValues<Word<BabyBear>, BabyBear>,
-        deferred_proofs: &[ShardProof<InnerSC>],
-        batch_size: usize,
-    ) -> Vec<SP1DeferredWitnessValues<InnerSC>> {
-        todo!()
-        // // Prepare the inputs for the deferred proofs recursive verification.
-        // let mut deferred_digest = [Val::<InnerSC>::zero(); DIGEST_SIZE];
-        // let mut deferred_inputs = Vec::new();
+    // pub fn get_recursion_deferred_inputs<'a>(
+    //     &'a self,
+    //     vk: &'a StarkVerifyingKey<CoreSC>,
+    //     leaf_challenger: &'a Challenger<InnerSC>,
+    //     last_proof_pv: &PublicValues<Word<BabyBear>, BabyBear>,
+    //     deferred_proofs: &[ShardProof<InnerSC>],
+    //     batch_size: usize,
+    // ) -> Vec<SP1DeferredWitnessValues<InnerSC>> {
+    //     // Prepare the inputs for the deferred proofs recursive verification.
+    //     let mut deferred_digest = [Val::<InnerSC>::zero(); DIGEST_SIZE];
+    //     let mut deferred_inputs = Vec::new();
 
-        // for batch in deferred_proofs.chunks(batch_size) {
-        //     let proofs = batch.to_vec();
+    //     for batch in deferred_proofs.chunks(batch_size) {
+    //         let proofs = batch.to_vec();
 
-        //     deferred_inputs.push(SP1DeferredMemoryLayout {
-        //         compress_vk: self.compress_vk(),
-        //         machine: self.compress_prover.machine(),
-        //         proofs,
-        //         start_reconstruct_deferred_digest: deferred_digest.to_vec(),
-        //         is_complete: false,
-        //         sp1_vk: vk,
-        //         sp1_machine: self.core_prover.machine(),
-        //         end_pc: Val::<InnerSC>::zero(),
-        //         end_shard: last_proof_pv.shard + BabyBear::one(),
-        //         end_execution_shard: last_proof_pv.execution_shard,
-        //         init_addr_bits: last_proof_pv.last_init_addr_bits,
-        //         finalize_addr_bits: last_proof_pv.last_finalize_addr_bits,
-        //         leaf_challenger: leaf_challenger.clone(),
-        //         committed_value_digest: last_proof_pv.committed_value_digest.to_vec(),
-        //         deferred_proofs_digest: last_proof_pv.deferred_proofs_digest.to_vec(),
-        //     });
+    //         deferred_inputs.push(SP1DeferredMemoryLayout {
+    //             proofs,
+    //             start_reconstruct_deferred_digest: deferred_digest.to_vec(),
+    //             is_complete: false,
+    //             sp1_vk: vk,
+    //             sp1_machine: self.core_prover.machine(),
+    //             end_pc: Val::<InnerSC>::zero(),
+    //             end_shard: last_proof_pv.shard + BabyBear::one(),
+    //             end_execution_shard: last_proof_pv.execution_shard,
+    //             init_addr_bits: last_proof_pv.last_init_addr_bits,
+    //             finalize_addr_bits: last_proof_pv.last_finalize_addr_bits,
+    //             leaf_challenger: leaf_challenger.clone(),
+    //             committed_value_digest: last_proof_pv.committed_value_digest.to_vec(),
+    //             deferred_proofs_digest: last_proof_pv.deferred_proofs_digest.to_vec(),
+    //         });
 
-        //     deferred_digest = Self::hash_deferred_proofs(deferred_digest, batch);
-        // }
-        // deferred_inputs
-    }
+    //         deferred_digest = Self::hash_deferred_proofs(deferred_digest, batch);
+    //     }
+    //     deferred_inputs
+    // }
 
     /// Generate the inputs for the first layer of recursive proofs.
     #[allow(clippy::type_complexity)]

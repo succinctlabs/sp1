@@ -12,7 +12,7 @@ use sp1_recursion_core_v2::air::Block;
 use sp1_stark::{
     baby_bear_poseidon2::BabyBearPoseidon2, AirOpenedValues, ChipOpenedValues, InnerBatchOpening,
     InnerChallenge, InnerChallengeMmcs, InnerDigest, InnerFriProof, InnerPcsProof, InnerVal,
-    ShardCommitment, ShardOpenedValues, ShardProof,
+    ShardCommitment, ShardOpenedValues, ShardProof, Word,
 };
 
 use crate::{
@@ -41,6 +41,18 @@ impl<'a, C: Config, T: Witnessable<C>> Witnessable<C> for &'a T {
 
     fn write(&self) -> Vec<Witness<C>> {
         (*self).write()
+    }
+}
+
+impl<C: Config, T: Witnessable<C>> Witnessable<C> for Word<T> {
+    type WitnessVariable = Word<T::WitnessVariable>;
+
+    fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
+        Word(self.0.read(builder))
+    }
+
+    fn write(&self) -> Vec<Witness<C>> {
+        self.0.write()
     }
 }
 
