@@ -6,7 +6,7 @@ use p3_matrix::dense::RowMajorMatrix;
 use p3_air::Air;
 use p3_baby_bear::BabyBear;
 use p3_commit::{Pcs, TwoAdicMultiplicativeCoset};
-use p3_field::{AbstractField, TwoAdicField};
+use p3_field::TwoAdicField;
 use sp1_stark::{ShardCommitment, ShardOpenedValues, Val};
 
 use p3_commit::PolynomialSpace;

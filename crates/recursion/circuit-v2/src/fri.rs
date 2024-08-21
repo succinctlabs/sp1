@@ -3,12 +3,8 @@ use p3_baby_bear::BabyBear;
 use p3_commit::PolynomialSpace;
 use p3_field::{AbstractField, TwoAdicField};
 use p3_fri::FriConfig;
-use p3_matrix::Dimensions;
 use p3_util::log2_strict_usize;
-use sp1_recursion_compiler::ir::{
-    Builder, CircuitV2FriFoldInput, DslIr, Felt, SymbolicExt, SymbolicFelt,
-};
-use sp1_recursion_core_v2::chips::exp_reverse_bits;
+use sp1_recursion_compiler::ir::{Builder, DslIr, Felt, SymbolicExt, SymbolicFelt};
 use std::{
     cmp::Reverse,
     iter::{once, repeat_with, zip},
@@ -185,7 +181,7 @@ pub fn verify_two_adic_pcs<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigV
     verify_challenges::<C, SC>(
         builder,
         config,
-        &proof.fri_proof,
+        proof.fri_proof.clone(),
         &fri_challenges,
         reduced_openings,
     );
@@ -195,19 +191,19 @@ pub fn verify_two_adic_pcs<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigV
 pub fn verify_challenges<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVariable<C>>(
     builder: &mut Builder<C>,
     config: &FriConfig<FriMmcs<SC>>,
-    proof: &FriProofVariable<C, SC>,
+    proof: FriProofVariable<C, SC>,
     challenges: &FriChallenges<C>,
     reduced_openings: Vec<[Ext<C::F, C::EF>; 32]>,
 ) {
     let log_max_height = proof.commit_phase_commits.len() + config.log_blowup;
     for ((index_bits, query_proof), ro) in
-        challenges.query_indices.iter().zip(&proof.query_proofs).zip(reduced_openings)
+        challenges.query_indices.iter().zip(proof.query_proofs).zip(reduced_openings)
     {
         let folded_eval = verify_query::<C, SC>(
             builder,
             &proof.commit_phase_commits,
             index_bits,
-            query_proof.clone(),
+            query_proof,
             &challenges.betas,
             ro,
             log_max_height,
@@ -345,11 +341,9 @@ pub fn verify_batch<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVariable
         if let Some(next_height) = next_height {
             let ext_slice: Vec<Vec<Felt<C::F>>> = heights_tallest_first
                 .peeking_take_while(|(_, height)| *height == next_height)
-                .flat_map(|(i, _)| opened_values[i].as_slice())
-                .cloned()
+                .flat_map(|(i, _)| opened_values[i].clone())
                 .collect::<Vec<_>>();
-            let felt_slice: Vec<Felt<C::F>> =
-                ext_slice.iter().flat_map(|ext| ext.as_slice()).cloned().collect::<Vec<_>>();
+            let felt_slice: Vec<Felt<C::F>> = ext_slice.into_iter().flatten().collect::<Vec<_>>();
             let next_height_openings_digest = SC::hash(builder, &felt_slice);
             root = SC::compress(builder, [root, next_height_openings_digest]);
         }
