@@ -563,7 +563,8 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                         if let Ok((index, height, program, record, traces)) = received {
                             tracing::debug_span!("batch").in_scope(|| {
                                 // Get the keys.
-                                let (pk, vk) = self.compress_prover.setup(&program);
+                                let (pk, vk) = tracing::debug_span!("Setup compress program")
+                                    .in_scope(|| self.compress_prover.setup(&program));
 
                                 // Observe the proving key.
                                 let mut challenger = self.compress_prover.config().challenger();
