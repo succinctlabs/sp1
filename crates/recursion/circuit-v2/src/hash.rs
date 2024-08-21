@@ -106,19 +106,18 @@ impl<C: CircuitConfig<F = BabyBear, N = Bn254Fr, Bit = Var<Bn254Fr>>> FieldHashe
         should_swap: <C as CircuitConfig>::Bit,
         input: [Self::Digest; 2],
     ) -> [Self::Digest; 2] {
-        let selected = core::array::from_fn(|i| {
-            core::array::from_fn(|j| {
-                let result = builder.uninit();
-                builder.push(DslIr::CircuitSelectV(
-                    should_swap,
-                    input[1 - i][j],
-                    input[i][j],
-                    result,
-                ));
-                result
-            })
+        let result0: [Var<_>; 1] = core::array::from_fn(|j| {
+            let result = builder.uninit();
+            builder.push(DslIr::CircuitSelectV(should_swap, input[1][j], input[0][j], result));
+            result
         });
-        selected
+        let result1: [Var<_>; 1] = core::array::from_fn(|j| {
+            let result = builder.uninit();
+            builder.push(DslIr::CircuitSelectV(should_swap, input[0][j], input[1][j], result));
+            result
+        });
+
+        [result0, result1]
     }
 }
 

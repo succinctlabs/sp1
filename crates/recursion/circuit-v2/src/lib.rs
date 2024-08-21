@@ -246,12 +246,7 @@ impl CircuitConfig for OuterConfig {
         zip(id_branch, swap_branch)
             .map(|(id_v, sw_v): (Ext<_, _>, Ext<_, _>)| -> Ext<_, _> {
                 let result: Ext<_, _> = builder.uninit();
-                builder.operations.push(DslIr::CircuitSelectE(
-                    should_swap.clone(),
-                    id_v,
-                    sw_v,
-                    result,
-                ));
+                builder.operations.push(DslIr::CircuitSelectE(should_swap, sw_v, id_v, result));
                 result
             })
             .collect()

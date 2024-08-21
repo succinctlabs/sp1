@@ -13,8 +13,9 @@ use std::{
 
 use crate::{
     challenger::{CanSampleBitsVariable, FieldChallengerVariable},
-    BabyBearFriConfigVariable, CanObserveVariable, CircuitConfig, Ext, FriChallenges, FriMmcs,
-    FriProofVariable, FriQueryProofVariable, TwoAdicPcsProofVariable, TwoAdicPcsRoundVariable,
+    BabyBearFriConfig, BabyBearFriConfigVariable, CanObserveVariable, CircuitConfig, Ext,
+    FriChallenges, FriMmcs, FriProofVariable, FriQueryProofVariable, TwoAdicPcsProofVariable,
+    TwoAdicPcsRoundVariable,
 };
 
 pub fn verify_shape_and_sample_challenges<
@@ -67,13 +68,17 @@ pub fn verify_two_adic_pcs<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigV
 
     let log_global_max_height = proof.fri_proof.commit_phase_commits.len() + config.log_blowup;
 
+    // The powers of alpha, where the ith element is alpha^i.
+    let mut alpha_pows: Vec<Ext<C::F, C::EF>> =
+        vec![builder.eval(SymbolicExt::from_f(C::EF::one()))];
+
     let reduced_openings = proof
         .query_openings
         .iter()
         .zip(&fri_challenges.query_indices)
         .map(|(query_opening, index_bits)| {
             // The powers of alpha, where the ith element is alpha^i.
-            let mut alpha_pows: [Ext<C::F, C::EF>; 32] = [builder.constant(C::EF::one()); 32];
+            let mut log_height_pow = [0usize; 32];
             let mut ro: [Ext<C::F, C::EF>; 32] =
                 [builder.eval(SymbolicExt::from_f(C::EF::zero())); 32];
 
@@ -554,7 +559,7 @@ mod tests {
     }
 
     #[test]
-    fn test_verify_two_adic_pcs() {
+    fn test_verify_two_adic_pcs_inner() {
         let mut rng = StdRng::seed_from_u64(0xDEADBEEF);
         let log_degrees = &[19, 19];
         let perm = inner_perm();

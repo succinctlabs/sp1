@@ -302,8 +302,8 @@ impl<C: Config> MultiField32ChallengerVariable<C> {
         builder: &mut Builder<C>,
         value: [Var<C::N>; DIGEST_SIZE],
     ) {
-        for i in 0..DIGEST_SIZE {
-            let f_vals: Vec<Felt<C::F>> = split_32(builder, value[i], self.num_f_elms);
+        for val in value {
+            let f_vals: Vec<Felt<C::F>> = split_32(builder, val, self.num_f_elms);
             for f_val in f_vals {
                 self.observe(builder, f_val);
             }

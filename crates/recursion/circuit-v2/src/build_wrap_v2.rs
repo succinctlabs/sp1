@@ -82,7 +82,7 @@ use sp1_recursion_core_v2::{
     },
     BaseAluOpcode, MemAccessKind, RecursionProgram, Runtime,
 };
-use sp1_recursion_gnark_ffi::PlonkBn254Prover;
+use sp1_recursion_gnark_ffi::{Groth16Bn254Prover, PlonkBn254Prover};
 use sp1_recursion_program::types::QuotientDataValues;
 use sp1_stark::{
     air::MachineAir, AirOpenedValues, BabyBearPoseidon2Inner, ChipOpenedValues, ShardCommitment,
@@ -420,7 +420,8 @@ where
     witness.write_commited_values_digest(committed_values_digest);
     witness.write_vkey_hash(vkey_hash);
 
-    PlonkBn254Prover::test::<OuterConfig>(constraints, witness);
+    PlonkBn254Prover::test::<OuterConfig>(constraints.clone(), witness.clone());
+    Groth16Bn254Prover::test::<OuterConfig>(constraints, witness);
 }
 
 pub fn machine_with_all_chips<const DEGREE: usize>(
@@ -439,16 +440,21 @@ pub fn machine_with_all_chips<const DEGREE: usize>(
 #[cfg(test)]
 pub mod tests {
 
-    use p3_challenger::{CanObserve, FieldChallenger};
+    use std::iter::zip;
+
+    use p3_baby_bear::BabyBear;
+    use p3_bn254_fr::Bn254Fr;
+    use p3_challenger::{CanObserve, CanSample, CanSampleBits, FieldChallenger};
     use p3_commit::{Pcs, TwoAdicMultiplicativeCoset};
     use p3_field::AbstractField;
     use p3_matrix::dense::RowMajorMatrix;
+    use p3_symmetric::{CryptographicHasher, Hash, PseudoCompressionFunction};
     use rand::{rngs::StdRng, SeedableRng};
     use sp1_prover::build::Witness;
     use sp1_recursion_compiler::{
         config::OuterConfig,
         constraints::ConstraintCompiler,
-        ir::{Builder, Config, Ext, SymbolicExt},
+        ir::{Builder, Config, Ext, ExtConst, Felt, SymbolicExt, Var},
     };
     use sp1_recursion_core_v2::stark::config::{
         outer_fri_config, outer_perm, BabyBearPoseidon2Outer, OuterChallenge, OuterChallenger,
@@ -458,14 +464,16 @@ pub mod tests {
     use sp1_stark::{InnerValMmcs, StarkGenericConfig};
 
     use crate::{
-        challenger::{CanObserveVariable, MultiField32ChallengerVariable},
+        challenger::{CanCopyChallenger, CanObserveVariable, MultiField32ChallengerVariable},
         fri::verify_two_adic_pcs,
-        hash::BN254_DIGEST_SIZE,
+        hash::{FieldHasherVariable, BN254_DIGEST_SIZE},
         utils::tests::run_test_recursion,
         Digest, TwoAdicPcsMatsVariable, TwoAdicPcsRoundVariable,
     };
 
-    use super::{const_two_adic_pcs_proof, machine_with_all_chips, test_machine};
+    use super::{
+        const_two_adic_pcs_proof, machine_with_all_chips, test_machine, OuterDigestVariable,
+    };
 
     #[test]
     fn test_build_wrap() {
@@ -474,8 +482,6 @@ pub mod tests {
     }
     type C = OuterConfig;
     type SC = BabyBearPoseidon2Outer;
-    type F = <SC as StarkGenericConfig>::Val;
-    type EF = <SC as StarkGenericConfig>::Challenge;
 
     #[allow(clippy::type_complexity)]
     pub fn const_two_adic_pcs_rounds(
@@ -510,7 +516,10 @@ pub mod tests {
         let mut rng = StdRng::seed_from_u64(0xDEADBEEF);
         let log_degrees = &[19, 19];
         let perm = outer_perm();
-        let fri_config = outer_fri_config();
+        let mut fri_config = outer_fri_config();
+
+        // Lower blowup factor for testing.
+        fri_config.log_blowup = 2;
         let hash = OuterHash::new(perm.clone()).unwrap();
         let compress = OuterCompress::new(perm.clone());
         let val_mmcs = OuterValMmcs::new(hash, compress);
@@ -554,7 +563,10 @@ pub mod tests {
 
         // Define circuit.
         let mut builder = Builder::<OuterConfig>::default();
-        let config = outer_fri_config();
+        let mut config = outer_fri_config();
+
+        // Lower blowup factor for testing.
+        config.log_blowup = 2;
         let proof = const_two_adic_pcs_proof(&mut builder, proof);
         let (commit, rounds) = const_two_adic_pcs_rounds(&mut builder, commit.into(), os);
         let mut challenger = crate::challenger::MultiField32ChallengerVariable::new(&mut builder);
@@ -573,5 +585,159 @@ pub mod tests {
         let constraints = backend.emit(builder.operations);
         let witness = Witness::default();
         PlonkBn254Prover::test::<OuterConfig>(constraints, witness);
+    }
+
+    #[test]
+    fn test_challenger_outer() {
+        type F = <SC as StarkGenericConfig>::Val;
+        type EF = <SC as StarkGenericConfig>::Challenge;
+        type N = <C as Config>::N;
+
+        let config = SC::default();
+        let mut challenger = config.challenger();
+        challenger.observe(F::one());
+        challenger.observe(F::two());
+        challenger.observe(F::two());
+        challenger.observe(F::two());
+        let commit = Hash::from([N::two()]);
+        challenger.observe(commit);
+        let result: F = challenger.sample();
+        println!("expected result: {}", result);
+        let result_ef: EF = challenger.sample_ext_element();
+        println!("expected result_ef: {}", result_ef);
+        let mut bits = challenger.sample_bits(31);
+        let mut bits_vec = vec![];
+        for _ in 0..32 {
+            bits_vec.push(bits % 2);
+            bits >>= 1;
+        }
+        println!("expected bits: {:?}", bits_vec);
+
+        let mut builder = Builder::<OuterConfig>::default();
+
+        // let width: Var<_> = builder.eval(F::from_canonical_usize(PERMUTATION_WIDTH));
+        let mut challenger = MultiField32ChallengerVariable::<OuterConfig>::new(&mut builder);
+        let one: Felt<_> = builder.eval(F::one());
+        let two: Felt<_> = builder.eval(F::two());
+        let two_var: Var<_> = builder.eval(N::two());
+        // builder.halt();
+        challenger.observe(&mut builder, one);
+        challenger.observe(&mut builder, two);
+        challenger.observe(&mut builder, two);
+        challenger.observe(&mut builder, two);
+        challenger.observe_commitment(&mut builder, [two_var]);
+
+        // Check to make sure the copying works.
+        challenger = challenger.copy(&mut builder);
+        let element = challenger.sample(&mut builder);
+        let element_ef = challenger.sample_ext(&mut builder);
+        let bits = challenger.sample_bits(&mut builder, 31);
+
+        let expected_result: Felt<_> = builder.eval(result);
+        let expected_result_ef: Ext<_, _> = builder.eval(result_ef.cons());
+        builder.print_f(element);
+        builder.assert_felt_eq(expected_result, element);
+        builder.print_e(element_ef);
+        builder.assert_ext_eq(expected_result_ef, element_ef);
+        for (expected_bit, bit) in zip(bits_vec.iter(), bits.iter()) {
+            let expected_bit: Var<_> = builder.eval(N::from_canonical_usize(*expected_bit));
+            builder.print_v(*bit);
+            builder.assert_var_eq(expected_bit, *bit);
+        }
+
+        let mut backend = ConstraintCompiler::<OuterConfig>::default();
+        let constraints = backend.emit(builder.operations);
+        let witness = Witness::default();
+        PlonkBn254Prover::test::<OuterConfig>(constraints, witness);
+    }
+
+    #[test]
+    fn test_select_chain_digest() {
+        type F = <SC as StarkGenericConfig>::Val;
+        type EF = <SC as StarkGenericConfig>::Challenge;
+        type N = <C as Config>::N;
+
+        let mut builder = Builder::<OuterConfig>::default();
+
+        // let width: Var<_> = builder.eval(F::from_canonical_usize(PERMUTATION_WIDTH));
+        // let mut challenger = MultiField32ChallengerVariable::<OuterConfig>::new(&mut builder);
+        let one: Var<_> = builder.eval(N::one());
+        let two: Var<_> = builder.eval(N::two());
+        // let two_var: Var<_> = builder.eval(N::two());
+        // builder.halt();
+        // challenger.observe(&mut builder, one);
+        // challenger.observe(&mut builder, two);
+        // challenger.observe(&mut builder, two);
+        // challenger.observe(&mut builder, two);
+        // challenger.observe_commitment(&mut builder, [two_var]);
+
+        // Check to make sure the copying works.
+        // challenger = challenger.copy(&mut builder);
+        // let element = challenger.sample(&mut builder);
+        // let element_ef = challenger.sample_ext(&mut builder);
+        // let bits = challenger.sample_bits(&mut builder, 31);
+        let to_swap = [[one], [two]];
+        let result = SC::select_chain_digest(&mut builder, one, to_swap);
+
+        builder.assert_var_eq(result[0][0], two);
+        builder.assert_var_eq(result[1][0], one);
+
+        let mut backend = ConstraintCompiler::<OuterConfig>::default();
+        let constraints = backend.emit(builder.operations);
+        let witness = Witness::default();
+        PlonkBn254Prover::test::<OuterConfig>(constraints, witness);
+    }
+
+    #[test]
+    fn test_p2_hash() {
+        let perm = outer_perm();
+        let hasher = OuterHash::new(perm.clone()).unwrap();
+
+        let input: [BabyBear; 7] = [
+            BabyBear::from_canonical_u32(0),
+            BabyBear::from_canonical_u32(1),
+            BabyBear::from_canonical_u32(2),
+            BabyBear::from_canonical_u32(2),
+            BabyBear::from_canonical_u32(2),
+            BabyBear::from_canonical_u32(2),
+            BabyBear::from_canonical_u32(2),
+        ];
+        let output = hasher.hash_iter(input);
+
+        let mut builder = Builder::<OuterConfig>::default();
+        let a: Felt<_> = builder.eval(input[0]);
+        let b: Felt<_> = builder.eval(input[1]);
+        let c: Felt<_> = builder.eval(input[2]);
+        let d: Felt<_> = builder.eval(input[3]);
+        let e: Felt<_> = builder.eval(input[4]);
+        let f: Felt<_> = builder.eval(input[5]);
+        let g: Felt<_> = builder.eval(input[6]);
+        let result = BabyBearPoseidon2Outer::hash(&mut builder, &[a, b, c, d, e, f, g]);
+
+        builder.assert_var_eq(result[0], output[0]);
+
+        let mut backend = ConstraintCompiler::<OuterConfig>::default();
+        let constraints = backend.emit(builder.operations);
+        PlonkBn254Prover::test::<OuterConfig>(constraints.clone(), Witness::default());
+    }
+
+    #[test]
+    fn test_p2_compress() {
+        let perm = outer_perm();
+        let compressor = OuterCompress::new(perm.clone());
+
+        let a: [Bn254Fr; 1] = [Bn254Fr::two()];
+        let b: [Bn254Fr; 1] = [Bn254Fr::two()];
+        let gt = compressor.compress([a, b]);
+
+        let mut builder = Builder::<OuterConfig>::default();
+        let a: OuterDigestVariable = [builder.eval(a[0])];
+        let b: OuterDigestVariable = [builder.eval(b[0])];
+        let result = BabyBearPoseidon2Outer::compress(&mut builder, [a, b]);
+        builder.assert_var_eq(result[0], gt[0]);
+
+        let mut backend = ConstraintCompiler::<OuterConfig>::default();
+        let constraints = backend.emit(builder.operations);
+        PlonkBn254Prover::test::<OuterConfig>(constraints.clone(), Witness::default());
     }
 }
