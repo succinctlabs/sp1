@@ -15,19 +15,21 @@ use p3_field::{AbstractField, ExtensionField, Field, FieldArray};
 
 use super::{Ext, Felt, Usize, Var};
 
-const NUM_RANDOM_ELEMENTS: usize = 4;
+const NUM_RANDOM_ELEMENTS: usize = 1;
 
 pub type Digest<T> = FieldArray<T, NUM_RANDOM_ELEMENTS>;
 
 pub fn elements<F: Field>() -> Digest<F> {
-    let powers = [1671541671, 1254988180, 442438744, 1716490559];
+    // let powers = [1671541671, 1254988180, 442438744, 1716490559];
+    let powers = [1671541671];
     let generator = F::generator();
 
     Digest::from(powers.map(|p| generator.exp_u64(p)))
 }
 
 pub fn ext_elements<F: Field, EF: ExtensionField<F>>() -> Digest<EF> {
-    let powers = [1021539871, 1430550064, 447478069, 1248903325];
+    let powers = [1021539871];
+    // let powers = [1021539871, 1430550064, 447478069, 1248903325];
     let generator = EF::generator();
 
     Digest::from(powers.map(|p| generator.exp_u64(p)))
