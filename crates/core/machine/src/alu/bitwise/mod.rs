@@ -243,7 +243,7 @@ mod tests {
         shard.bitwise_events = vec![AluEvent::new(0, 0, 0, Opcode::XOR, 25, 10, 19)];
         let chip = BitwiseChip::default();
         let trace: RowMajorMatrix<BabyBear> =
-            chip.generate_trace(&shard, &mut ExecutionRecord::default());
+            chip.generate_trace(&shard, &mut ExecutionRecord::default(), None);
         println!("{:?}", trace.values)
     }
 
@@ -261,8 +261,13 @@ mod tests {
         .repeat(1000);
         let chip = BitwiseChip::default();
         let trace: RowMajorMatrix<BabyBear> =
+<<<<<<< HEAD:crates/core/machine/src/alu/bitwise/mod.rs
             chip.generate_trace(&shard, &mut ExecutionRecord::default());
         let proof = uni_stark_prove::<BabyBearPoseidon2, _>(&config, &chip, &mut challenger, trace);
+=======
+            chip.generate_trace(&shard, &mut ExecutionRecord::default(), None);
+        let proof = prove::<BabyBearPoseidon2, _>(&config, &chip, &mut challenger, trace);
+>>>>>>> b2367742 (working poc):core/src/alu/bitwise/mod.rs
 
         let mut challenger = config.challenger();
         uni_stark_verify(&config, &chip, &mut challenger, &proof).unwrap();

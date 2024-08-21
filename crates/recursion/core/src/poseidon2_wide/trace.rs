@@ -37,6 +37,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
         &self,
         input: &ExecutionRecord<F>,
         output: &mut ExecutionRecord<F>,
+        _fixed_log2_rows: Option<usize>,
     ) -> RowMajorMatrix<F> {
         // Calculate the number of rows in the trace.
         let mut nb_rows = 0;

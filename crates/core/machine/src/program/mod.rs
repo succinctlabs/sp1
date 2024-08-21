@@ -91,7 +91,7 @@ impl<F: PrimeField> MachineAir<F> for ProgramChip {
         );
 
         // Pad the trace to a power of two.
-        pad_to_power_of_two::<NUM_PROGRAM_PREPROCESSED_COLS, F>(&mut trace.values);
+        pad_to_power_of_two_fixed::<NUM_PROGRAM_PREPROCESSED_COLS, F>(&mut trace.values, Some(22));
 
         Some(trace)
     }

@@ -498,7 +498,7 @@ mod tests {
         shard.mul_events = mul_events;
         let chip = MulChip::default();
         let _trace: RowMajorMatrix<BabyBear> =
-            chip.generate_trace(&shard, &mut ExecutionRecord::default());
+            chip.generate_trace(&shard, &mut ExecutionRecord::default(), None);
     }
 
     #[test]
@@ -573,7 +573,7 @@ mod tests {
         shard.mul_events = mul_events;
         let chip = MulChip::default();
         let trace: RowMajorMatrix<BabyBear> =
-            chip.generate_trace(&shard, &mut ExecutionRecord::default());
+            chip.generate_trace(&shard, &mut ExecutionRecord::default(), None);
         let proof = prove::<BabyBearPoseidon2, _>(&config, &chip, &mut challenger, trace);
 
         let mut challenger = config.challenger();

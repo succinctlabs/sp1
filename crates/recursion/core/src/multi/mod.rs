@@ -80,6 +80,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for MultiChip<DEGREE> {
         &self,
         input: &ExecutionRecord<F>,
         output: &mut ExecutionRecord<F>,
+        _fixed_log2_rows: Option<usize>,
     ) -> RowMajorMatrix<F> {
         let fri_fold_chip = FriFoldChip::<DEGREE> { fixed_log2_rows: None, pad: false };
         let poseidon2 = Poseidon2WideChip::<DEGREE> { fixed_log2_rows: None, pad: false };
@@ -147,6 +148,10 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for MultiChip<DEGREE> {
 
     fn included(&self, _: &Self::Record) -> bool {
         true
+    }
+
+    fn min_rows(&self, shard: &Self::Record) -> usize {
+        todo!()
     }
 }
 

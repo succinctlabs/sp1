@@ -217,6 +217,7 @@ mod tests {
             &self,
             _: &ExecutionRecord,
             output: &mut ExecutionRecord,
+            _fixed_log2_rows: Option<usize>,
         ) -> RowMajorMatrix<F> {
             let mut rng = thread_rng();
             let num_rows = 1 << 8;

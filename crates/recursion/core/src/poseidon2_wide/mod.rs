@@ -141,8 +141,11 @@ pub(crate) mod tests {
     ) {
         let chip = Poseidon2WideChip::<DEGREE> { fixed_log2_rows: None, pad: true };
 
-        let trace: RowMajorMatrix<BabyBear> =
-            chip.generate_trace(&input_exec, &mut ExecutionRecord::<BabyBear>::default());
+        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(
+            &input_exec,
+            &mut ExecutionRecord::<BabyBear>::default(),
+            None,
+        );
 
         let config = BabyBearPoseidon2::compressed();
         let mut challenger = config.challenger();

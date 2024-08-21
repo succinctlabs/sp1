@@ -43,6 +43,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryGlobalChip {
         &self,
         input: &Self::Record,
         _output: &mut Self::Record,
+        _fixed_log2_rows: Option<usize>,
     ) -> RowMajorMatrix<F> {
         let nb_events = input.first_memory_record.len() + input.last_memory_record.len();
         let nb_rows = next_power_of_two(nb_events, self.fixed_log2_rows);

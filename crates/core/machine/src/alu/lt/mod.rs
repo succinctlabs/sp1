@@ -488,8 +488,13 @@ mod tests {
         let mut shard = ExecutionRecord::default();
         shard.lt_events = vec![AluEvent::new(0, 1, 0, Opcode::SLT, 0, 3, 2)];
         let chip = LtChip::default();
+<<<<<<< HEAD:crates/core/machine/src/alu/lt/mod.rs
         let generate_trace = chip.generate_trace(&shard, &mut ExecutionRecord::default());
         let trace: RowMajorMatrix<BabyBear> = generate_trace;
+=======
+        let trace: RowMajorMatrix<BabyBear> =
+            chip.generate_trace(&shard, &mut ExecutionRecord::default(), None);
+>>>>>>> b2367742 (working poc):core/src/alu/lt/mod.rs
         println!("{:?}", trace.values)
     }
 
@@ -499,7 +504,7 @@ mod tests {
 
         let chip = LtChip::default();
         let trace: RowMajorMatrix<BabyBear> =
-            chip.generate_trace(shard, &mut ExecutionRecord::default());
+            chip.generate_trace(shard, &mut ExecutionRecord::default(), None);
         let proof = prove::<BabyBearPoseidon2, _>(&config, &chip, &mut challenger, trace);
 
         let mut challenger = config.challenger();

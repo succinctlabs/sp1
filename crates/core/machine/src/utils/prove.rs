@@ -288,7 +288,9 @@ where
                             // Generate the traces.
                             let traces = records
                                 .par_iter()
-                                .map(|record| prover.generate_traces(record))
+                                .map(|record| {
+                                    prover.generate_fixed_traces(record, &SP1_CORE_PROOF_SHAPES)
+                                })
                                 .collect::<Vec<_>>();
 
                             // Wait for our turn.
@@ -474,7 +476,9 @@ where
                             // Generate the traces.
                             let traces = records
                                 .par_iter()
-                                .map(|record| prover.generate_traces(record))
+                                .map(|record| {
+                                    prover.generate_fixed_traces(record, &SP1_CORE_PROOF_SHAPES)
+                                })
                                 .collect::<Vec<_>>();
 
                             trace_gen_sync.wait_for_turn(index);

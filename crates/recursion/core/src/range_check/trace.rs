@@ -38,6 +38,7 @@ impl<F: PrimeField32> MachineAir<F> for RangeCheckChip<F> {
         &self,
         input: &ExecutionRecord<F>,
         _output: &mut ExecutionRecord<F>,
+        _fixed_log2_rows: Option<usize>,
     ) -> RowMajorMatrix<F> {
         let (_, event_map) = Self::trace_and_map();
 
