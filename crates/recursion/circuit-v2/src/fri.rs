@@ -205,10 +205,10 @@ pub fn verify_challenges<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVar
     {
         let folded_eval = verify_query::<C, SC>(
             builder,
-            proof.commit_phase_commits.clone(),
+            &proof.commit_phase_commits,
             index_bits,
             query_proof.clone(),
-            challenges.betas.clone(),
+            &challenges.betas,
             ro,
             log_max_height,
         );
@@ -219,10 +219,10 @@ pub fn verify_challenges<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVar
 
 pub fn verify_query<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVariable<C>>(
     builder: &mut Builder<C>,
-    commit_phase_commits: Vec<SC::Digest>,
+    commit_phase_commits: &[SC::Digest],
     index_bits: &[C::Bit],
     proof: FriQueryProofVariable<C, SC>,
-    betas: Vec<Ext<C::F, C::EF>>,
+    betas: &[Ext<C::F, C::EF>],
     reduced_openings: [Ext<C::F, C::EF>; 32],
     log_max_height: usize,
 ) -> Ext<C::F, C::EF> {
@@ -259,7 +259,7 @@ pub fn verify_query<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVariable
         let heights = &[1 << log_folded_height];
         verify_batch::<C, SC>(
             builder,
-            commit,
+            *commit,
             heights,
             index_pair,
             [evals_felt].to_vec(),
@@ -268,9 +268,43 @@ pub fn verify_query<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVariable
 
         let xs_new: Ext<_, _> = builder.eval(x * C::EF::two_adic_generator(1));
         let xs = C::select_chain_ef(builder, index_sibling_complement, once(x), once(xs_new));
-        folded_eval = builder
-            .eval(evals_ext[0] + (beta - xs[0]) * (evals_ext[1] - evals_ext[0]) / (xs[1] - xs[0]));
-        x = builder.eval(x * x);
+
+        // Unroll the `folded_eval` calculation to avoid symbolic expression overhead.
+        // folded_eval = builder
+        //     .eval(evals_ext[0] + (beta - xs[0]) * (evals_ext[1] - evals_ext[0]) / (xs[1] - xs[0]));
+        // x = builder.eval(x * x);
+
+        // let temp_1 = xs[1] - xs[0];
+        let temp_1: Ext<_, _> = builder.uninit();
+        builder.operations.push(DslIr::SubE(temp_1, xs[1], xs[0]));
+
+        // let temp_2 = evals_ext[1] - evals_ext[0];
+        let temp_2: Ext<_, _> = builder.uninit();
+        builder.operations.push(DslIr::SubE(temp_2, evals_ext[1], evals_ext[0]));
+
+        // let temp_3 = temp_2 / temp_1;
+        let temp_3: Ext<_, _> = builder.uninit();
+        builder.operations.push(DslIr::DivE(temp_3, temp_2, temp_1));
+
+        // let temp_4 = beta - xs[0];
+        let temp_4: Ext<_, _> = builder.uninit();
+        builder.operations.push(DslIr::SubE(temp_4, *beta, xs[0]));
+
+        // let temp_5 = temp_4 * temp_3;
+        let temp_5: Ext<_, _> = builder.uninit();
+        builder.operations.push(DslIr::MulE(temp_5, temp_4, temp_3));
+
+        // let temp65 = evals_ext[0] + temp_5;
+        let temp_6: Ext<_, _> = builder.uninit();
+        builder.operations.push(DslIr::AddE(temp_6, evals_ext[0], temp_5));
+        // folded_eval = temp_6;
+        folded_eval = temp_6;
+
+        // let temp_7 = x * x;
+        let temp_7: Ext<_, _> = builder.uninit();
+        builder.operations.push(DslIr::MulE(temp_7, x, x));
+        // x = temp_7;
+        x = temp_7;
     }
 
     folded_eval
