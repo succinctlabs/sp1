@@ -25,6 +25,7 @@ use precompiles::{
     edwards::{add::EdwardsAddAssignSyscall, decompress::EdwardsDecompressSyscall},
     fptower::{Fp2AddSubSyscall, Fp2MulSyscall, FpOpSyscall},
     keccak256::permute::Keccak256PermuteSyscall,
+    memcpy::MemCopySyscall,
     sha256::{compress::Sha256CompressSyscall, extend::Sha256ExtendSyscall},
     uint256::Uint256MulSyscall,
     weierstrass::{
@@ -41,6 +42,7 @@ use sp1_curves::{
         secp256k1::Secp256k1,
     },
 };
+use typenum::{U16, U32, U64, U8};
 use unconstrained::{EnterUnconstrainedSyscall, ExitUnconstrainedSyscall};
 use verify::VerifySyscall;
 use write::WriteSyscall;
@@ -198,6 +200,9 @@ pub fn default_syscall_map() -> HashMap<SyscallCode, Arc<dyn Syscall>> {
         SyscallCode::BLS12381_DECOMPRESS,
         Arc::new(WeierstrassDecompressSyscall::<Bls12381>::new()),
     );
+
+    syscall_map.insert(SyscallCode::MEMCPY_32, Arc::new(MemCopySyscall::<U8, U32>::new()));
+    syscall_map.insert(SyscallCode::MEMCPY_64, Arc::new(MemCopySyscall::<U16, U64>::new()));
 
     syscall_map
 }

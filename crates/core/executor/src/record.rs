@@ -11,8 +11,8 @@ use crate::events::{
     add_sharded_byte_lookup_events, AluEvent, ByteLookupEvent, ByteRecord, CpuEvent,
     EdDecompressEvent, EllipticCurveAddEvent, EllipticCurveDecompressEvent,
     EllipticCurveDoubleEvent, Fp2AddSubEvent, Fp2MulEvent, FpOpEvent, KeccakPermuteEvent,
-    MemoryInitializeFinalizeEvent, MemoryRecordEnum, ShaCompressEvent, ShaExtendEvent,
-    Uint256MulEvent,
+    MemCopyEvent, MemoryInitializeFinalizeEvent, MemoryRecordEnum, ShaCompressEvent,
+    ShaExtendEvent, Uint256MulEvent,
 };
 
 /// A record of the execution of a program.
@@ -86,6 +86,11 @@ pub struct ExecutionRecord {
     pub bn254_fp2_addsub_events: Vec<Fp2AddSubEvent>,
     /// A trace of the bn254 fp2 mul events.
     pub bn254_fp2_mul_events: Vec<Fp2MulEvent>,
+    /// A trace of the memcpy32 events.
+    pub memcpy32_events: Vec<MemCopyEvent>,
+    /// A trace of the memcpy64 events.
+    pub memcpy64_events: Vec<MemCopyEvent>,
+
     /// The public values.
     pub public_values: PublicValues<u32, u32>,
     /// The nonce lookup.
@@ -170,6 +175,8 @@ impl ExecutionRecord {
             bls12381_decompress_events: std::mem::take(&mut self.bls12381_decompress_events),
             memory_initialize_events: std::mem::take(&mut self.memory_initialize_events),
             memory_finalize_events: std::mem::take(&mut self.memory_finalize_events),
+            memcpy32_events: std::mem::take(&mut self.memcpy32_events),
+            memcpy64_events: std::mem::take(&mut self.memcpy64_events),
             ..Default::default()
         }
     }
@@ -219,6 +226,8 @@ impl ExecutionRecord {
         split_events!(self, ed_decompress_events, shards, opts.deferred, last);
         split_events!(self, k256_decompress_events, shards, opts.deferred, last);
         split_events!(self, uint256_mul_events, shards, opts.deferred, last);
+        split_events!(self, memcpy32_events, shards, opts.deferred, last);
+        split_events!(self, memcpy64_events, shards, opts.deferred, last);
         split_events!(self, bls12381_decompress_events, shards, opts.deferred, last);
         split_events!(self, bls12381_fp_events, shards, opts.deferred, last);
         split_events!(self, bls12381_fp2_addsub_events, shards, opts.deferred, last);
@@ -328,6 +337,8 @@ impl MachineRecord for ExecutionRecord {
             "bls12381_decompress_events".to_string(),
             self.bls12381_decompress_events.len(),
         );
+        stats.insert("memcpy32_events".to_string(), self.memcpy32_events.len());
+        stats.insert("memcpy64_events".to_string(), self.memcpy64_events.len());
         stats.insert("memory_initialize_events".to_string(), self.memory_initialize_events.len());
         stats.insert("memory_finalize_events".to_string(), self.memory_finalize_events.len());
         if !self.cpu_events.is_empty() {
@@ -371,6 +382,8 @@ impl MachineRecord for ExecutionRecord {
         self.bn254_fp_events.append(&mut other.bn254_fp_events);
         self.bn254_fp2_addsub_events.append(&mut other.bn254_fp2_addsub_events);
         self.bn254_fp2_mul_events.append(&mut other.bn254_fp2_mul_events);
+        self.memcpy32_events.append(&mut other.memcpy32_events);
+        self.memcpy64_events.append(&mut other.memcpy64_events);
         self.bls12381_decompress_events.append(&mut other.bls12381_decompress_events);
 
         self.bls12381_decompress_events.append(&mut other.bls12381_decompress_events);
@@ -397,6 +410,14 @@ impl MachineRecord for ExecutionRecord {
         self.mul_events.iter().enumerate().for_each(|(i, event)| {
             self.nonce_lookup.insert(event.lookup_id, i as u32);
         });
+
+        // self.memcpy32_events.iter().enumerate().for_each(|(i, event)| {
+        //     self.nonce_lookup.insert(event.lookup_id, i as u32);
+        // });
+
+        // self.memcpy64_events.iter().enumerate().for_each(|(i, event)| {
+        //     self.nonce_lookup.insert(event.lookup_id, i as u32);
+        // });
 
         self.bitwise_events.iter().enumerate().for_each(|(i, event)| {
             self.nonce_lookup.insert(event.lookup_id, i as u32);

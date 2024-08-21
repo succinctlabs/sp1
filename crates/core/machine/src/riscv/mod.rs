@@ -111,6 +111,10 @@ pub enum RiscvAir<F: PrimeField32> {
     Bn254Fp2Mul(Fp2MulAssignChip<Bn254BaseField>),
     /// A precompile for BN-254 fp2 addition/subtraction.
     Bn254Fp2AddSub(Fp2AddSubAssignChip<Bn254BaseField>),
+    // /// A precompile for the memory copy instruction, copying 32 bytes at a time.
+    // MemCpy32(MemCopyChip<U8, U32>),
+    // /// A precompile for the memory copy instruction, copying 64 bytes at a time.
+    // MemCpy64(MemCopyChip<U16, U64>),
 }
 
 impl<F: PrimeField32> RiscvAir<F> {
@@ -194,6 +198,8 @@ impl<F: PrimeField32> RiscvAir<F> {
         chips.push(RiscvAir::ProgramMemory(program_memory_init));
         let byte = ByteChip::default();
         chips.push(RiscvAir::ByteLookup(byte));
+        // chips.push(RiscvAir::MemCpy32(MemCopyChip::new()));
+        // chips.push(RiscvAir::MemCpy64(MemCopyChip::new()));
 
         chips
     }

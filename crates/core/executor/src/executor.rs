@@ -942,7 +942,13 @@ impl<'a> Executor<'a> {
                     _ => (self.opts.split_opts.deferred, 1),
                 };
                 let nonce = (((*syscall_count as usize) % threshold) * multiplier) as u32;
-                self.record.nonce_lookup.insert(syscall_lookup_id, nonce);
+                // FIXME
+                match syscall {
+                    SyscallCode::MEMCPY_32 | SyscallCode::MEMCPY_64 => {}
+                    _ => {
+                        self.record.nonce_lookup.insert(syscall_lookup_id, nonce);
+                    }
+                }
                 *syscall_count += 1;
             }
             Opcode::EBREAK => {
