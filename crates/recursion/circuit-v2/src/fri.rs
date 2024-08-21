@@ -5,7 +5,9 @@ use p3_field::{AbstractField, TwoAdicField};
 use p3_fri::FriConfig;
 use p3_matrix::Dimensions;
 use p3_util::log2_strict_usize;
-use sp1_recursion_compiler::ir::{Builder, CircuitV2FriFoldInput, Felt, SymbolicExt, SymbolicFelt};
+use sp1_recursion_compiler::ir::{
+    Builder, CircuitV2FriFoldInput, DslIr, Felt, SymbolicExt, SymbolicFelt,
+};
 use sp1_recursion_core_v2::chips::exp_reverse_bits;
 use std::{
     cmp::Reverse,
@@ -117,17 +119,60 @@ pub fn verify_two_adic_pcs<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigV
 
                     for (z, ps_at_z) in izip!(mat.points.iter(), mat.values.iter()) {
                         // Unrolling the following code to avoid symbolic expression calculations.
-                        let mut acc: Ext<C::F, C::EF> =
-                            builder.eval(SymbolicExt::from_f(C::EF::zero()));
-                        for (p_at_x, &p_at_z) in mat_opening.iter().zip(ps_at_z) {
-                            acc =
-                                builder.eval(acc + (alpha_pows[log_height] * (p_at_z - p_at_x[0])));
-                            alpha_pows[log_height] = builder.eval(alpha_pows[log_height] * alpha);
-                        }
-                        ro[log_height] = builder.eval(ro[log_height] + acc / (*z - x));
+                        // let mut acc: Ext<C::F, C::EF> =
+                        //     builder.eval(SymbolicExt::from_f(C::EF::zero()));
+                        // for (p_at_x, &p_at_z) in mat_opening.iter().zip(ps_at_z) {
+                        //     acc =
+                        //         builder.eval(acc + (alpha_pows[log_height] * (p_at_z - p_at_x[0])));
+                        //     alpha_pows[log_height] = builder.eval(alpha_pows[log_height] * alpha);
+                        // }
+                        // ro[log_height] = builder.eval(ro[log_height] + acc / (*z - x));
 
-                        // First, initialize a zero accumulator.
-                        // let mut acc: Ext<C::F, C::EF> = builder.uninit();
+                        // let acc = C::EF::zero();
+                        let mut acc: Ext<C::F, C::EF> = builder.uninit();
+                        builder.operations.push(DslIr::ImmE(acc, C::EF::zero()));
+
+                        for (p_at_x, &p_at_z) in mat_opening.iter().zip(ps_at_z) {
+                            // let temp_1 = p_at_z - p_at_x[0];
+                            let temp_1: Ext<C::F, C::EF> = builder.uninit();
+                            builder.operations.push(DslIr::SubEF(temp_1, p_at_z, p_at_x[0]));
+
+                            // let temp_2 = alpha_pows[log_height] * temp_1;
+                            let temp_2: Ext<C::F, C::EF> = builder.uninit();
+                            builder.operations.push(DslIr::MulE(
+                                temp_2,
+                                alpha_pows[log_height],
+                                temp_1,
+                            ));
+
+                            // temp_3 = acc + temp_2;
+                            let temp_3: Ext<C::F, C::EF> = builder.uninit();
+                            builder.operations.push(DslIr::AddE(temp_3, acc, temp_2));
+                            // acc = temp_3;
+                            acc = temp_3;
+
+                            // let temp_4 = alpha_pows[log_height] * alpha;
+                            let temp_4: Ext<C::F, C::EF> = builder.uninit();
+                            builder.operations.push(DslIr::MulE(
+                                temp_4,
+                                alpha_pows[log_height],
+                                alpha,
+                            ));
+                            // alpha_pows[log_height] = temp_4;
+                            alpha_pows[log_height] = temp_4;
+                        }
+
+                        // let temp_1 = z - x;
+                        let temp_1: Ext<C::F, C::EF> = builder.uninit();
+                        builder.operations.push(DslIr::SubEF(temp_1, *z, x));
+                        // let temp_2 = acc / temp_1;
+                        let temp_2: Ext<C::F, C::EF> = builder.uninit();
+                        builder.operations.push(DslIr::DivE(temp_2, acc, temp_1));
+                        // let temp_3 = ro[log_height] + temp_2;
+                        let temp_3: Ext<C::F, C::EF> = builder.uninit();
+                        builder.operations.push(DslIr::AddE(temp_3, ro[log_height], temp_2));
+                        // ro[log_height] = temp_3;
+                        ro[log_height] = temp_3;
                     }
                 }
             }
