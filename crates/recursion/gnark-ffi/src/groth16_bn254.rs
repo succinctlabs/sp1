@@ -74,7 +74,7 @@ impl Groth16Bn254Prover {
         build_groth16_bn254(build_dir.to_str().unwrap());
 
         // Write the corresponding asset files to the build dir.
-        let sp1_verifier_path = build_dir.join("Groth16SP1Verifier.sol");
+        let sp1_verifier_path = build_dir.join("SP1VerifierGroth16.sol");
         let vkey_hash = Self::get_vkey_hash(&build_dir);
         let sp1_verifier_str = include_str!("../assets/SP1Verifier.txt")
             .replace("{SP1_CIRCUIT_VERSION}", SP1_CIRCUIT_VERSION)
@@ -108,7 +108,9 @@ impl Groth16Bn254Prover {
         build_dir: &Path,
     ) {
         if proof.groth16_vkey_hash != Self::get_vkey_hash(build_dir) {
-            panic!("Proof vkey hash does not match circuit vkey hash, it was generated with a different circuit.");
+            panic!(
+                "Proof vkey hash does not match circuit vkey hash, it was generated with a different circuit."
+            );
         }
         verify_groth16_bn254(
             build_dir.to_str().unwrap(),
