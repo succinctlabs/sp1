@@ -66,7 +66,6 @@ pub fn verify_two_adic_pcs<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigV
 
     let log_global_max_height = proof.fri_proof.commit_phase_commits.len() + config.log_blowup;
 
-    let reduced_openings_span = tracing::debug_span!("Compute reduced openings").entered();
     let reduced_openings = proof
         .query_openings
         .iter()
@@ -175,9 +174,7 @@ pub fn verify_two_adic_pcs<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigV
             ro
         })
         .collect::<Vec<_>>();
-    reduced_openings_span.exit();
 
-    let verify_challenges_span = tracing::debug_span!("Verify challenges").entered();
     verify_challenges::<C, SC>(
         builder,
         config,
@@ -185,7 +182,6 @@ pub fn verify_two_adic_pcs<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigV
         &fri_challenges,
         reduced_openings,
     );
-    verify_challenges_span.exit();
 }
 
 pub fn verify_challenges<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVariable<C>>(

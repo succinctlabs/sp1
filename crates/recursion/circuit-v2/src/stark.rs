@@ -201,9 +201,7 @@ where
         // Verify the pcs proof
         builder.cycle_tracker_v2_enter("stage-d-verify-pcs".to_string());
         let config = machine.config().fri_config();
-        let verify_pcs_span = tracing::debug_span!("Verify PCS proof, operations").entered();
         verify_two_adic_pcs::<C, SC>(builder, config, opening_proof, challenger, rounds);
-        verify_pcs_span.exit();
         builder.cycle_tracker_v2_exit();
 
         // Verify the constrtaint evaluations.
