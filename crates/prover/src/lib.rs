@@ -654,12 +654,6 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                                 .into_iter()
                                 .map(|(_, _, vk, proof)| (vk, proof))
                                 .collect::<Vec<_>>();
-                            // let shard_proofs =
-                            //     inputs.iter().map(|(_, _, proof, _)| proof.clone()).collect();
-                            // let kinds = inputs
-                            //     .iter()
-                            //     .map(|(_, _, _, program_type)| *program_type)
-                            //     .collect();
                             let input = SP1CircuitWitness::Compress(SP1CompressWitnessValues {
                                 vks_and_proofs,
                                 is_complete,
