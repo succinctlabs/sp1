@@ -87,6 +87,22 @@ impl<'a, 'b> SyscallContext<'a, 'b> {
         records
     }
 
+    /// Write a byte to memory (inefficient af).
+    pub fn mw_byte(&mut self, addr: u32, value: u8) -> MemoryWriteRecord {
+        let mr = self.rt.word(addr - addr % 4);
+        let mut bytes = mr.to_le_bytes();
+        bytes[addr as usize % 4] = value;
+        let word = u32::from_le_bytes(bytes);
+        self.rt.mw(addr - addr % 4, word, self.current_shard, self.clk)
+    }
+
+    /// read a byte from memory (inefficient af).
+    pub fn mr_byte(&mut self, addr: u32) -> (MemoryReadRecord, u8) {
+        let mr = self.rt.mr(addr - addr % 4, self.current_shard, self.clk);
+        let bytes = mr.value.to_le_bytes();
+        (mr, bytes[addr as usize % 4])
+    }
+
     /// Get the current value of a register, but doesn't use a memory record.
     /// This is generally unconstrained, so you must be careful using it.
     #[must_use]

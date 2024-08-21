@@ -18,22 +18,11 @@ void *memcpy(void *restrict dest, const void *restrict src, size_t n)
 	typedef uint32_t __attribute__((__may_alias__)) u32;
 	uint32_t w, x;
 
-    // asm volatile(
-    //     "mv t0, %0\n"
-    //     "mv a0, %1\n"
-    //     "mv a1, %2\n"
-    //     "mv a2, %3\n"
-    //     "ecall"
-    //     : // No output operands
-    //     : "r"(MEMCPY_64), "r"(s), "r"(d), "r"(n)
-    //     : "t0", "a0", "a1", "a2" // Clobbered registers
-    // );
-    // return dest;
 
 	for (; (uintptr_t)s % 4 && n; n--) *d++ = *s++;
 
 	if ((uintptr_t)d % 4 == 0) {
-        if (n % 4 == 0) {
+        if (n <= 32 && n % 4 == 0) {
             asm volatile(
             "mv t0, %0\n"
             "mv a0, %1\n"
@@ -45,11 +34,6 @@ void *memcpy(void *restrict dest, const void *restrict src, size_t n)
             : "t0", "a0", "a1", "a2" // Clobbered registers
             );
             return dest;
-            // volatile int aa = 4;
-            // volatile int ab = 5;
-            // volatile int ac = 6;
-            // volatile int ad = 7;
-            // volatile int ae = 8;
         }
 	    // for (; n>=64; s+=64, d+=64, n-=64) {
         //     asm volatile(
