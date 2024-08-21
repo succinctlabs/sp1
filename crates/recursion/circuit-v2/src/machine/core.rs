@@ -337,21 +337,21 @@ where
                 //     }
                 // });
 
-                // // Assert that the MemoryInitialize address bits match the current loop variable.
-                // for (bit, current_bit) in current_init_addr_bits
-                //     .iter()
-                //     .zip_eq(public_values.previous_init_addr_bits.iter())
-                // {
-                //     builder.assert_felt_eq(*bit, *current_bit);
-                // }
+                // Assert that the MemoryInitialize address bits match the current loop variable.
+                for (bit, current_bit) in current_init_addr_bits
+                    .iter()
+                    .zip_eq(public_values.previous_init_addr_bits.iter())
+                {
+                    builder.assert_felt_eq(*bit, *current_bit);
+                }
 
-                // // Assert that the MemoryFinalize address bits match the current loop variable.
-                // for (bit, current_bit) in current_finalize_addr_bits
-                //     .iter()
-                //     .zip_eq(public_values.previous_finalize_addr_bits.iter())
-                // {
-                //     builder.assert_felt_eq(*bit, *current_bit);
-                // }
+                // Assert that the MemoryFinalize address bits match the current loop variable.
+                for (bit, current_bit) in current_finalize_addr_bits
+                    .iter()
+                    .zip_eq(public_values.previous_finalize_addr_bits.iter())
+                {
+                    builder.assert_felt_eq(*bit, *current_bit);
+                }
 
                 // // Assert that if MemoryInit is not present, then the address bits are the same.
                 // builder
