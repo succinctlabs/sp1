@@ -502,7 +502,7 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
             RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_DIVREM_COLS);
 
         // Pad the trace to a power of two.
-        pad_to_power_of_two::<NUM_DIVREM_COLS, F>(&mut trace.values);
+        pad_to_power_of_two_fixed::<NUM_DIVREM_COLS, F>(&mut trace.values, fixed_log2_rows);
 
         // Create the template for the padded rows. These are fake rows that don't fail on some
         // sanity checks.

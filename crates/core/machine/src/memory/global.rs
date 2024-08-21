@@ -133,7 +133,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryChip {
             NUM_MEMORY_INIT_COLS,
         );
 
-        pad_to_power_of_two::<NUM_MEMORY_INIT_COLS, F>(&mut trace.values);
+        pad_to_power_of_two_fixed::<NUM_MEMORY_INIT_COLS, F>(&mut trace.values, fixed_log2_rows);
 
         trace
     }

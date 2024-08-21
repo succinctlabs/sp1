@@ -200,16 +200,27 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
             output.append(&mut record);
         }
 
-        pad_rows(&mut rows, || {
-            let mut row: [F; NUM_COLS] = [F::zero(); NUM_COLS];
-            let cols: &mut Uint256MulCols<F> = row.as_mut_slice().borrow_mut();
+        pad_rows_fixed(
+            &mut rows,
+            || {
+                let mut row: [F; NUM_COLS] = [F::zero(); NUM_COLS];
+                let cols: &mut Uint256MulCols<F> = row.as_mut_slice().borrow_mut();
 
+<<<<<<< HEAD:crates/core/machine/src/syscall/precompiles/uint256/air.rs
             let x = BigUint::zero();
             let y = BigUint::zero();
             cols.output.populate(&mut vec![], 0, 0, &x, &y, FieldOperation::Mul);
+=======
+                let x = BigUint::zero();
+                let y = BigUint::zero();
+                cols.output
+                    .populate(&mut vec![], 0, 0, &x, &y, FieldOperation::Mul);
+>>>>>>> 906447fd (implement pads):core/src/syscall/precompiles/uint256/air.rs
 
-            row
-        });
+                row
+            },
+            fixed_log2_rows,
+        );
 
         // Convert the trace to a row major matrix.
         let mut trace =

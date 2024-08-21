@@ -41,10 +41,15 @@ impl<F: PrimeField32> MachineAir<F> for ShaExtendChip {
 
         let mut rows = wrapped_rows.unwrap();
         let nb_rows = rows.len();
-        let mut padded_nb_rows = nb_rows.next_power_of_two();
-        if padded_nb_rows == 2 || padded_nb_rows == 1 {
-            padded_nb_rows = 4;
-        }
+        let padded_nb_rows = if let Some(fixed_log2_rows) = fixed_log2_rows {
+            1 << fixed_log2_rows
+        } else {
+            let mut padded_nb_rows = nb_rows.next_power_of_two();
+            if padded_nb_rows == 2 || padded_nb_rows == 1 {
+                padded_nb_rows = 4;
+            }
+            padded_nb_rows
+        };
         for i in nb_rows..padded_nb_rows {
             let mut row = [F::zero(); NUM_SHA_EXTEND_COLS];
             let cols: &mut ShaExtendCols<F> = row.as_mut_slice().borrow_mut();
