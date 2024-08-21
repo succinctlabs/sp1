@@ -325,15 +325,6 @@ where
                         *byte = *current_byte;
                     }
                 }
-                // Less nice version of above but simialr to original code:
-                // for i in 0..committed_value_digest.len() {
-                //     for j in 0..WORD_SIZE {
-                //         builder.assign(
-                //             committed_value_digest[i][j],
-                //             current_public_values.committed_value_digest[i][j],
-                //         );
-                //     }
-                // }
 
                 // // If `deferred_proofs_digest` is not zero, then `public_values.deferred_proofs_digest
                 // // should be the current value.
