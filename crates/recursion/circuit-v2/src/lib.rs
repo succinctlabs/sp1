@@ -16,7 +16,7 @@ use p3_matrix::dense::RowMajorMatrix;
 use sp1_recursion_compiler::{
     circuit::CircuitV2Builder,
     config::{InnerConfig, OuterConfig},
-    ir::{Builder, Config, DslIr, Ext, Felt, SymbolicFelt, SymbolicVar, Var, Variable},
+    ir::{Builder, Config, DslIr, Ext, Felt, Var, Variable},
 };
 
 mod types;
@@ -173,7 +173,7 @@ impl CircuitConfig for InnerConfig {
         second: impl IntoIterator<Item = Ext<<Self as Config>::F, <Self as Config>::EF>> + Clone,
     ) -> Vec<Ext<<Self as Config>::F, <Self as Config>::EF>> {
         let one: Felt<_> = builder.constant(Self::F::one());
-        let shouldnt_swap: Felt<_> = builder.eval(one - should_swap.clone());
+        let shouldnt_swap: Felt<_> = builder.eval(one - should_swap);
 
         let id_branch = first.clone().into_iter().chain(second.clone());
         let swap_branch = second.into_iter().chain(first);

@@ -275,9 +275,7 @@ pub mod tests {
     use super::*;
     use crate::witness::*;
 
-    type SC = BabyBearPoseidon2;
     type F = InnerVal;
-    type C = InnerConfig;
     type A = RiscvAir<F>;
 
     pub fn build_verify_shard_with_provers<
@@ -360,17 +358,4 @@ pub mod tests {
             >(BabyBearPoseidon2::new(), FIBONACCI_ELF, SP1CoreOpts::default(), Some(2));
         run_test_recursion_with_prover::<CpuProver<_, _>>(operations, stream);
     }
-
-    // #[test]
-    // fn test_verify_shard_outer() {
-    //     let (operations, stream) =
-    //         build_verify_shard_with_provers::<
-    //             OuterConfig,
-    //             BabyBearPoseidon2Outer,
-    //             CpuProver<_, _>,
-    //             CpuProver<_, _>,
-    //         >(
-    //             BabyBearPoseidon2Outer::new(), FIBONACCI_ELF, SP1CoreOpts::default(), Some(2)
-    //         );
-    // }
 }

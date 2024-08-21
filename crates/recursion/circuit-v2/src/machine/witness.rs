@@ -1,13 +1,11 @@
 use std::borrow::Borrow;
 
 use p3_baby_bear::BabyBear;
-use p3_bn254_fr::Bn254Fr;
 use p3_challenger::DuplexChallenger;
 use p3_symmetric::Hash;
 
 use p3_field::AbstractField;
-use sp1_recursion_compiler::ir::{Builder, Config, Var};
-use sp1_recursion_core_v2::stark::config::BabyBearPoseidon2Outer;
+use sp1_recursion_compiler::ir::{Builder, Config};
 use sp1_stark::{
     air::MachineAir, baby_bear_poseidon2::BabyBearPoseidon2, InnerChallenge, InnerPerm, InnerVal,
     StarkVerifyingKey,
@@ -16,8 +14,7 @@ use sp1_stark::{
 use sp1_recursion_compiler::ir::Felt;
 
 use crate::{
-    challenger::DuplexChallengerVariable, witness::Witnessable, BabyBearFriConfig,
-    BabyBearFriConfigVariable, CircuitConfig, VerifyingKeyVariable,
+    challenger::DuplexChallengerVariable, witness::Witnessable, CircuitConfig, VerifyingKeyVariable,
 };
 
 use super::{SP1RecursionMemoryLayout, SP1RecursionWitnessVariable};

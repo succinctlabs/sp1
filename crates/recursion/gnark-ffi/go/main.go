@@ -24,9 +24,11 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend/groth16"
+	"github.com/consensys/gnark/backend/plonk"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/frontend/cs/scs"
+	"github.com/consensys/gnark/test/unsafekzg"
 	"github.com/succinctlabs/sp1-recursion-gnark/sp1"
 	"github.com/succinctlabs/sp1-recursion-gnark/sp1/babybear"
 	"github.com/succinctlabs/sp1-recursion-gnark/sp1/poseidon2"
@@ -144,6 +146,7 @@ func TestGroth16Bn254(witnessJson *C.char, constraintsJson *C.char) *C.char {
 	constraintsJsonString := C.GoString(constraintsJson)
 	os.Setenv("WITNESS_JSON", witnessPathString)
 	os.Setenv("CONSTRAINTS_JSON", constraintsJsonString)
+	os.Setenv("GROTH16", "1")
 	err := TestMain()
 	testMutex.Unlock()
 	if err != nil {
@@ -182,28 +185,28 @@ func TestMain() error {
 	fmt.Println("[sp1] gnark verifier constraints:", scs.GetNbConstraints())
 
 	// Run the dummy setup.
-	// srs, srsLagrange, err := unsafekzg.NewSRS(scs)
-	// if err != nil {
-	// 	return err
-	// }
-	// var pk plonk.ProvingKey
-	// pk, _, err = plonk.Setup(scs, srs, srsLagrange)
-	// if err != nil {
-	// 	return err
-	// }
+	srs, srsLagrange, err := unsafekzg.NewSRS(scs)
+	if err != nil {
+		return err
+	}
+	var pk plonk.ProvingKey
+	pk, _, err = plonk.Setup(scs, srs, srsLagrange)
+	if err != nil {
+		return err
+	}
 
-	// // Generate witness.
-	// assignment := sp1.NewCircuit(inputs)
-	// witness, err := frontend.NewWitness(&assignment, ecc.BN254.ScalarField())
-	// if err != nil {
-	// 	return err
-	// }
+	// Generate witness.
+	assignment := sp1.NewCircuit(inputs)
+	witness, err := frontend.NewWitness(&assignment, ecc.BN254.ScalarField())
+	if err != nil {
+		return err
+	}
 
-	// // Generate the proof.
-	// _, err = plonk.Prove(scs, pk, witness)
-	// if err != nil {
-	// 	return err
-	// }
+	// Generate the proof.
+	_, err = plonk.Prove(scs, pk, witness)
+	if err != nil {
+		return err
+	}
 
 	return nil
 }

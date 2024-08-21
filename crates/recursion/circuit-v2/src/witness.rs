@@ -1,13 +1,12 @@
 use std::borrow::Borrow;
 
 use p3_baby_bear::BabyBear;
-use p3_bn254_fr::Bn254Fr;
 use p3_field::AbstractExtensionField;
 use p3_fri::{CommitPhaseProofStep, QueryProof};
 
 use sp1_recursion_compiler::{
     circuit::CircuitV2Builder,
-    ir::{Builder, Config, Ext, Felt, Var},
+    ir::{Builder, Config, Ext, Felt},
 };
 use sp1_recursion_core_v2::air::Block;
 use sp1_stark::{
