@@ -141,7 +141,7 @@ blst = { git = "https://github.com/sp1-patches/bls12_381", branch = "patch-v0.8.
 ```
 This patch significantly improves the performance of BLS12-381 operations, making it essential for applications that rely heavily on these cryptographic primitives.
 
-### Performance Benchmarks for Patched `bls12_381` in `kzg-rs`
+### Performance Benchmarks for Patched `bls12_381` in [`kzg-rs`](https://github.com/succinctlabs/kzg-rs)
 | Test                                   | Unpatched Cycles | Patched Cycles | Improvement (x faster) |
 | -------------------------------------- | ---------------- | -------------- | ---------------------- |
 | Verify blob KZG proof                  | 265,322,934      | 27,166,173     | 9.77x                  |
