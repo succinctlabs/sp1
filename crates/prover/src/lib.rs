@@ -947,7 +947,9 @@ pub mod tests {
         }
 
         tracing::info!("compress");
+        let compress_span = tracing::debug_span!("compress").entered();
         let compressed_proof = prover.compress(&vk, core_proof, vec![], opts)?;
+        compress_span.exit();
 
         tracing::info!("verify compressed");
         prover.verify_compressed(&compressed_proof, &vk)?;
