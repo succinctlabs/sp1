@@ -1,21 +1,26 @@
 use itertools::{izip, Itertools};
+use p3_bn254_fr::Bn254Fr;
 use p3_commit::PolynomialSpace;
 use p3_field::{AbstractField, TwoAdicField};
-use p3_fri::FriConfig;
+use p3_fri::{FriConfig, TwoAdicFriPcsProof};
 use p3_matrix::Dimensions;
 use p3_util::log2_strict_usize;
 use sp1_recursion_compiler::{
+    config::OuterConfig,
     ir::{Builder, Config, Felt},
     prelude::*,
 };
-use sp1_recursion_core::stark::config::OuterChallengeMmcs;
+use sp1_recursion_core::stark::config::{
+    OuterChallenge, OuterChallengeMmcs, OuterFriProof, OuterVal, OuterValMmcs,
+};
 
 use crate::{
     challenger::MultiField32ChallengerVariable,
     mmcs::verify_batch,
     types::{
-        FriChallenges, FriProofVariable, FriQueryProofVariable, OuterDigestVariable,
-        TwoAdicPcsProofVariable, TwoAdicPcsRoundVariable,
+        BatchOpeningVariable, FriChallenges, FriCommitPhaseProofStepVariable, FriProofVariable,
+        FriQueryProofVariable, OuterDigestVariable, TwoAdicPcsProofVariable,
+        TwoAdicPcsRoundVariable,
     },
     DIGEST_SIZE,
 };
@@ -241,7 +246,89 @@ pub fn verify_query<C: Config>(
 
     folded_eval
 }
+pub fn const_fri_proof(
+    builder: &mut Builder<OuterConfig>,
+    fri_proof: OuterFriProof,
+) -> FriProofVariable<OuterConfig> {
+    // Set the commit phase commits.
+    let commit_phase_commits = fri_proof
+        .commit_phase_commits
+        .iter()
+        .map(|commit| {
+            let commit: [Bn254Fr; DIGEST_SIZE] = (*commit).into();
+            let commit: Var<_> = builder.eval(commit[0]);
+            [commit; DIGEST_SIZE]
+        })
+        .collect::<Vec<_>>();
 
+    // Set the query proofs.
+    let query_proofs = fri_proof
+        .query_proofs
+        .iter()
+        .map(|query_proof| {
+            let commit_phase_openings = query_proof
+                .commit_phase_openings
+                .iter()
+                .map(|commit_phase_opening| {
+                    let sibling_value =
+                        builder.eval(SymbolicExt::from_f(commit_phase_opening.sibling_value));
+                    let opening_proof = commit_phase_opening
+                        .opening_proof
+                        .iter()
+                        .map(|sibling| {
+                            let commit: Var<_> = builder.eval(sibling[0]);
+                            [commit; DIGEST_SIZE]
+                        })
+                        .collect::<Vec<_>>();
+                    FriCommitPhaseProofStepVariable { sibling_value, opening_proof }
+                })
+                .collect::<Vec<_>>();
+            FriQueryProofVariable { commit_phase_openings }
+        })
+        .collect::<Vec<_>>();
+
+    // Initialize the FRI proof variable.
+    FriProofVariable {
+        commit_phase_commits,
+        query_proofs,
+        final_poly: builder.eval(SymbolicExt::from_f(fri_proof.final_poly)),
+        pow_witness: builder.eval(fri_proof.pow_witness),
+    }
+}
+
+pub fn const_two_adic_pcs_proof(
+    builder: &mut Builder<OuterConfig>,
+    proof: TwoAdicFriPcsProof<OuterVal, OuterChallenge, OuterValMmcs, OuterChallengeMmcs>,
+) -> TwoAdicPcsProofVariable<OuterConfig> {
+    let fri_proof = const_fri_proof(builder, proof.fri_proof);
+    let query_openings = proof
+        .query_openings
+        .iter()
+        .map(|query_opening| {
+            query_opening
+                .iter()
+                .map(|opening| BatchOpeningVariable {
+                    opened_values: opening
+                        .opened_values
+                        .iter()
+                        .map(|opened_value| {
+                            opened_value
+                                .iter()
+                                .map(|value| vec![builder.eval::<Felt<OuterVal>, _>(*value)])
+                                .collect::<Vec<_>>()
+                        })
+                        .collect::<Vec<_>>(),
+                    opening_proof: opening
+                        .opening_proof
+                        .iter()
+                        .map(|opening_proof| [builder.eval(opening_proof[0])])
+                        .collect::<Vec<_>>(),
+                })
+                .collect::<Vec<_>>()
+        })
+        .collect::<Vec<_>>();
+    TwoAdicPcsProofVariable { fri_proof, query_openings }
+}
 #[cfg(test)]
 pub mod tests {
 
@@ -273,90 +360,6 @@ pub mod tests {
         },
         DIGEST_SIZE,
     };
-
-    pub fn const_fri_proof(
-        builder: &mut Builder<OuterConfig>,
-        fri_proof: OuterFriProof,
-    ) -> FriProofVariable<OuterConfig> {
-        // Set the commit phase commits.
-        let commit_phase_commits = fri_proof
-            .commit_phase_commits
-            .iter()
-            .map(|commit| {
-                let commit: [Bn254Fr; DIGEST_SIZE] = (*commit).into();
-                let commit: Var<_> = builder.eval(commit[0]);
-                [commit; DIGEST_SIZE]
-            })
-            .collect::<Vec<_>>();
-
-        // Set the query proofs.
-        let query_proofs = fri_proof
-            .query_proofs
-            .iter()
-            .map(|query_proof| {
-                let commit_phase_openings = query_proof
-                    .commit_phase_openings
-                    .iter()
-                    .map(|commit_phase_opening| {
-                        let sibling_value =
-                            builder.eval(SymbolicExt::from_f(commit_phase_opening.sibling_value));
-                        let opening_proof = commit_phase_opening
-                            .opening_proof
-                            .iter()
-                            .map(|sibling| {
-                                let commit: Var<_> = builder.eval(sibling[0]);
-                                [commit; DIGEST_SIZE]
-                            })
-                            .collect::<Vec<_>>();
-                        FriCommitPhaseProofStepVariable { sibling_value, opening_proof }
-                    })
-                    .collect::<Vec<_>>();
-                FriQueryProofVariable { commit_phase_openings }
-            })
-            .collect::<Vec<_>>();
-
-        // Initialize the FRI proof variable.
-        FriProofVariable {
-            commit_phase_commits,
-            query_proofs,
-            final_poly: builder.eval(SymbolicExt::from_f(fri_proof.final_poly)),
-            pow_witness: builder.eval(fri_proof.pow_witness),
-        }
-    }
-
-    pub fn const_two_adic_pcs_proof(
-        builder: &mut Builder<OuterConfig>,
-        proof: TwoAdicFriPcsProof<OuterVal, OuterChallenge, OuterValMmcs, OuterChallengeMmcs>,
-    ) -> TwoAdicPcsProofVariable<OuterConfig> {
-        let fri_proof = const_fri_proof(builder, proof.fri_proof);
-        let query_openings = proof
-            .query_openings
-            .iter()
-            .map(|query_opening| {
-                query_opening
-                    .iter()
-                    .map(|opening| BatchOpeningVariable {
-                        opened_values: opening
-                            .opened_values
-                            .iter()
-                            .map(|opened_value| {
-                                opened_value
-                                    .iter()
-                                    .map(|value| vec![builder.eval::<Felt<OuterVal>, _>(*value)])
-                                    .collect::<Vec<_>>()
-                            })
-                            .collect::<Vec<_>>(),
-                        opening_proof: opening
-                            .opening_proof
-                            .iter()
-                            .map(|opening_proof| [builder.eval(opening_proof[0])])
-                            .collect::<Vec<_>>(),
-                    })
-                    .collect::<Vec<_>>()
-            })
-            .collect::<Vec<_>>();
-        TwoAdicPcsProofVariable { fri_proof, query_openings }
-    }
 
     pub fn const_two_adic_pcs_rounds(
         builder: &mut Builder<OuterConfig>,
@@ -435,7 +438,7 @@ pub mod tests {
         // Define circuit.
         let mut builder = Builder::<OuterConfig>::default();
         let config = test_fri_config();
-        let fri_proof = const_fri_proof(&mut builder, proof.fri_proof);
+        let fri_proof = super::const_fri_proof(&mut builder, proof.fri_proof);
 
         let mut challenger = MultiField32ChallengerVariable::new(&mut builder);
         let commit: [Bn254Fr; DIGEST_SIZE] = commit.into();
@@ -517,7 +520,7 @@ pub mod tests {
         // Define circuit.
         let mut builder = Builder::<OuterConfig>::default();
         let config = test_fri_config();
-        let proof = const_two_adic_pcs_proof(&mut builder, proof);
+        let proof = super::const_two_adic_pcs_proof(&mut builder, proof);
         let (commit, rounds) = const_two_adic_pcs_rounds(&mut builder, commit.into(), os);
         let mut challenger = MultiField32ChallengerVariable::new(&mut builder);
         challenger.observe_commitment(&mut builder, commit);

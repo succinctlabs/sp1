@@ -28,6 +28,7 @@ fn main() {
                     "-o",
                     dest.to_str().unwrap(),
                     "-buildmode=c-archive",
+                    "-tags=debug",
                     ".",
                 ])
                 .status()

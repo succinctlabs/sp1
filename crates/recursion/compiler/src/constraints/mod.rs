@@ -368,6 +368,8 @@ impl<C: Config + Debug> ConstraintCompiler<C> {
                 // Ignore cycle tracker instruction.
                 // It currently serves as a marker for calculation at compile time.
                 DslIr::CycleTracker(_) => (),
+                DslIr::CycleTrackerV2Enter(_) => (),
+                DslIr::CycleTrackerV2Exit => (),
                 DslIr::ReduceE(a) => constraints.push(Constraint {
                     opcode: ConstraintOpcode::ReduceE,
                     args: vec![vec![a.id()]],
@@ -376,6 +378,15 @@ impl<C: Config + Debug> ConstraintCompiler<C> {
                     opcode: ConstraintOpcode::CircuitFelt2Var,
                     args: vec![vec![b.id()], vec![a.id()]],
                 }),
+
+                // Version 2 instructions
+                // DslIr::CircuitV2CommitPublicValues(_) => {}
+                // DslIr::CircuitV2ExpReverseBits(_, _, _) => {}
+                // DslIr::CircuitV2FriFold(_, _) => {}
+                // DslIr::CircuitV2HintBitsF(_, _) => {}
+                // DslIr::CircuitV2HintExts(_) => {}
+                // DslIr::CircuitV2HintFelts(_) => {}
+                // DslIr::CircuitV2Poseidon2PermuteBabyBear(_, _) => {}
                 _ => panic!("unsupported {:?}", instruction),
             };
         }

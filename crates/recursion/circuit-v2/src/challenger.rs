@@ -1,3 +1,4 @@
+use p3_challenger::CanObserve;
 use p3_field::{AbstractField, Field};
 use sp1_recursion_compiler::{
     circuit::CircuitV2Builder,
@@ -17,6 +18,9 @@ pub const RATE: usize = 16;
 
 // use crate::{DigestVariable, VerifyingKeyVariable};
 
+pub trait CanCopyChallenger<C: Config> {
+    fn copy(&self, builder: &mut Builder<C>) -> Self;
+}
 /// Reference: [p3_challenger::CanObserve].
 pub trait CanObserveVariable<C: Config, V> {
     fn observe(&mut self, builder: &mut Builder<C>, value: V);
@@ -160,6 +164,12 @@ impl<C: Config> DuplexChallengerVariable<C> {
             num_outputs,
             output_buffer,
         }
+    }
+}
+
+impl<C: Config> CanCopyChallenger<C> for DuplexChallengerVariable<C> {
+    fn copy(&self, builder: &mut Builder<C>) -> Self {
+        DuplexChallengerVariable::copy(self, builder)
     }
 }
 
@@ -318,12 +328,7 @@ impl<C: Config> MultiField32ChallengerVariable<C> {
 
     pub fn sample_bits(&mut self, builder: &mut Builder<C>, bits: usize) -> Vec<Var<C::N>> {
         let rand_f = self.sample(builder);
-        let rand_f_bits = builder.num2bits_v2_f(rand_f, NUM_BITS);
-        let mut result = vec![];
-        for bit in &rand_f_bits[0..bits] {
-            result.push(builder.felt2var_circuit(*bit));
-        }
-        result
+        builder.num2bits_f_circuit(rand_f)[0..bits].to_vec()
     }
 
     pub fn check_witness(&mut self, builder: &mut Builder<C>, bits: usize, witness: Felt<C::F>) {
@@ -335,9 +340,43 @@ impl<C: Config> MultiField32ChallengerVariable<C> {
     }
 }
 
+impl<C: Config> CanCopyChallenger<C> for MultiField32ChallengerVariable<C> {
+    /// Creates a new challenger with the same state as an existing challenger.
+    fn copy(&self, builder: &mut Builder<C>) -> Self {
+        let MultiField32ChallengerVariable {
+            sponge_state,
+            input_buffer,
+            output_buffer,
+            num_f_elms,
+        } = self;
+        let sponge_state = sponge_state.map(|x| builder.eval(x));
+        let mut copy_vec = |v: &Vec<Felt<C::F>>| v.iter().map(|x| builder.eval(*x)).collect();
+        MultiField32ChallengerVariable::<C> {
+            sponge_state,
+            num_f_elms: *num_f_elms,
+            input_buffer: copy_vec(input_buffer),
+            output_buffer: copy_vec(output_buffer),
+        }
+    }
+}
+
 impl<C: Config> CanObserveVariable<C, Felt<C::F>> for MultiField32ChallengerVariable<C> {
     fn observe(&mut self, builder: &mut Builder<C>, value: Felt<C::F>) {
         MultiField32ChallengerVariable::observe(self, builder, value);
+    }
+}
+
+impl<C: Config> CanObserveVariable<C, [Var<C::N>; DIGEST_SIZE]>
+    for MultiField32ChallengerVariable<C>
+{
+    fn observe(&mut self, builder: &mut Builder<C>, value: [Var<C::N>; DIGEST_SIZE]) {
+        self.observe_commitment(builder, value)
+    }
+}
+
+impl<C: Config> CanObserveVariable<C, Var<C::N>> for MultiField32ChallengerVariable<C> {
+    fn observe(&mut self, builder: &mut Builder<C>, value: Var<C::N>) {
+        self.observe_commitment(builder, [value])
     }
 }
 

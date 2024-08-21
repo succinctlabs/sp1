@@ -1,11 +1,13 @@
 use std::borrow::Borrow;
 
 use p3_baby_bear::BabyBear;
+use p3_bn254_fr::Bn254Fr;
 use p3_challenger::DuplexChallenger;
 use p3_symmetric::Hash;
 
 use p3_field::AbstractField;
-use sp1_recursion_compiler::ir::{Builder, Config};
+use sp1_recursion_compiler::ir::{Builder, Config, Var};
+use sp1_recursion_core_v2::stark::config::BabyBearPoseidon2Outer;
 use sp1_stark::{
     air::MachineAir, baby_bear_poseidon2::BabyBearPoseidon2, InnerChallenge, InnerPerm, InnerVal,
     StarkVerifyingKey,
@@ -14,7 +16,8 @@ use sp1_stark::{
 use sp1_recursion_compiler::ir::Felt;
 
 use crate::{
-    challenger::DuplexChallengerVariable, witness::Witnessable, CircuitConfig, VerifyingKeyVariable,
+    challenger::DuplexChallengerVariable, witness::Witnessable, BabyBearFriConfig,
+    BabyBearFriConfigVariable, CircuitConfig, VerifyingKeyVariable,
 };
 
 use super::{SP1RecursionMemoryLayout, SP1RecursionWitnessVariable};
@@ -78,6 +81,25 @@ where
         [Witnessable::<C>::write(&self.commit), Witnessable::<C>::write(&self.pc_start)].concat()
     }
 }
+
+// impl<C> Witnessable<C> for StarkVerifyingKey<BabyBearPoseidon2Outer>
+// where
+//     C: CircuitConfig<F = InnerVal, EF = InnerChallenge, Bit = Var<Bn254Fr>, N = Bn254Fr>,
+// {
+//     type WitnessVariable = VerifyingKeyVariable<C, BabyBearPoseidon2Outer>;
+
+//     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
+//         let commitment = self.commit.read(builder);
+//         let pc_start = self.pc_start.read(builder);
+//         let chip_information = self.chip_information.clone();
+//         let chip_ordering = self.chip_ordering.clone();
+//         VerifyingKeyVariable { commitment, pc_start, chip_information, chip_ordering }
+//     }
+
+//     fn write(&self) -> Vec<crate::witness::Witness<C>> {
+//         [Witnessable::<C>::write(&self.commit), Witnessable::<C>::write(&self.pc_start)].concat()
+//     }
+// }
 
 impl<'a, C, A> Witnessable<C> for SP1RecursionMemoryLayout<'a, BabyBearPoseidon2, A>
 where

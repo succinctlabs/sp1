@@ -1,12 +1,13 @@
 use std::borrow::Borrow;
 
 use p3_baby_bear::BabyBear;
+use p3_bn254_fr::Bn254Fr;
 use p3_field::AbstractExtensionField;
 use p3_fri::{CommitPhaseProofStep, QueryProof};
 
 use sp1_recursion_compiler::{
     circuit::CircuitV2Builder,
-    ir::{Builder, Config, Ext, Felt},
+    ir::{Builder, Config, Ext, Felt, Var},
 };
 use sp1_recursion_core_v2::air::Block;
 use sp1_stark::{
@@ -69,6 +70,18 @@ impl<C: Config<F = InnerVal, EF = InnerChallenge>> Witnessable<C> for InnerChall
         vec![Block::from(self.as_base_slice())]
     }
 }
+
+// impl<C: Config<N = Bn254Fr>> Witnessable<C> for Bn254Fr {
+//     type WitnessVariable = Var<Bn254Fr>;
+
+//     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
+//         builder.hint_var()
+//     }
+
+//     fn write(&self) -> Vec<Witness<C>> {
+//         vec![Block::from(*self)]
+//     }
+// }
 
 impl<C: Config, T: Witnessable<C>, const N: usize> Witnessable<C> for [T; N] {
     type WitnessVariable = [T::WitnessVariable; N];
