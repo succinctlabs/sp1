@@ -207,14 +207,19 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         // Compile the program.
 
         // Get the operations.
+        let builder_span = tracing::debug_span!("build recursion program").entered();
         let mut builder = Builder::<InnerConfig>::default();
         let input = input.read(&mut builder);
         SP1RecursiveVerifier::verify(&mut builder, self.core_prover.machine(), input);
         let operations = builder.operations;
+        builder_span.exit();
 
         // Compile the program.
+        let compiler_span = tracing::debug_span!("compile recursion program").entered();
         let mut compiler = AsmCompiler::<InnerConfig>::default();
-        Arc::new(compiler.compile(operations))
+        let program = Arc::new(compiler.compile(operations));
+        compiler_span.exit();
+        program
     }
 
     pub fn compress_program(
@@ -224,14 +229,19 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         // Compile the program.
 
         // Get the operations.
+        let builder_span = tracing::debug_span!("build compress program").entered();
         let mut builder = Builder::<InnerConfig>::default();
         let input = input.read(&mut builder);
         SP1CompressVerifier::verify(&mut builder, self.compress_prover.machine(), input);
         let operations = builder.operations;
+        builder_span.exit();
 
         // Compile the program.
+        let compiler_span = tracing::debug_span!("compile compress program").entered();
         let mut compiler = AsmCompiler::<InnerConfig>::default();
-        Arc::new(compiler.compile(operations))
+        let program = Arc::new(compiler.compile(operations));
+        compiler_span.exit();
+        program
     }
 
     // pub fn defered_program(
