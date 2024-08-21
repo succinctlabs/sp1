@@ -525,9 +525,9 @@ pub(crate) mod tests {
         println!("expected result: {}", result);
         let result_ef: EF = challenger.sample_ext_element();
         println!("expected result_ef: {}", result_ef);
-        let mut bits = challenger.sample_bits(31);
+        let mut bits = challenger.sample_bits(30);
         let mut bits_vec = vec![];
-        for _ in 0..32 {
+        for _ in 0..30 {
             bits_vec.push(bits % 2);
             bits >>= 1;
         }
