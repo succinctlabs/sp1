@@ -70,18 +70,6 @@ impl<C: Config<F = InnerVal, EF = InnerChallenge>> Witnessable<C> for InnerChall
     }
 }
 
-// impl<C: Config<N = Bn254Fr>> Witnessable<C> for Bn254Fr {
-//     type WitnessVariable = Var<Bn254Fr>;
-
-//     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
-//         builder.hint_var()
-//     }
-
-//     fn write(&self) -> Vec<Witness<C>> {
-//         vec![Block::from(*self)]
-//     }
-// }
-
 impl<C: Config, T: Witnessable<C>, const N: usize> Witnessable<C> for [T; N] {
     type WitnessVariable = [T::WitnessVariable; N];
 

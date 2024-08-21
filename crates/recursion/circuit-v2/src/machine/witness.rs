@@ -79,25 +79,6 @@ where
     }
 }
 
-// impl<C> Witnessable<C> for StarkVerifyingKey<BabyBearPoseidon2Outer>
-// where
-//     C: CircuitConfig<F = InnerVal, EF = InnerChallenge, Bit = Var<Bn254Fr>, N = Bn254Fr>,
-// {
-//     type WitnessVariable = VerifyingKeyVariable<C, BabyBearPoseidon2Outer>;
-
-//     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
-//         let commitment = self.commit.read(builder);
-//         let pc_start = self.pc_start.read(builder);
-//         let chip_information = self.chip_information.clone();
-//         let chip_ordering = self.chip_ordering.clone();
-//         VerifyingKeyVariable { commitment, pc_start, chip_information, chip_ordering }
-//     }
-
-//     fn write(&self) -> Vec<crate::witness::Witness<C>> {
-//         [Witnessable::<C>::write(&self.commit), Witnessable::<C>::write(&self.pc_start)].concat()
-//     }
-// }
-
 impl<'a, C, A> Witnessable<C> for SP1RecursionMemoryLayout<'a, BabyBearPoseidon2, A>
 where
     C: CircuitConfig<F = InnerVal, EF = InnerChallenge, Bit = Felt<InnerVal>>,
