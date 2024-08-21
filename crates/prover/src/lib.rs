@@ -454,7 +454,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                         if let Ok((index, height, input)) = received {
                             // Get the program and witness stream.
                             let (program, witness_stream) = tracing::debug_span!(
-                                "write witness stream"
+                                "Get program and witness stream"
                             )
                             .in_scope(|| match input {
                                 SP1CircuitWitness::Core(input) => {
