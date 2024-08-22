@@ -11,12 +11,10 @@ use rand::thread_rng;
 sp1_zkvm::entrypoint!(main);
 
 pub fn main() {
-    let mut rng = thread_rng();
-
     // Fp operations
     {
-        let lhs = Fp::random(&mut rng);
-        let rhs = Fp::random(&mut rng);
+        let lhs = Fp::random(&mut rand::thread_rng());
+        let rhs = Fp::random(&mut rand::thread_rng());
         let lhs = Fp::one();
         let rhs = Fp::one();
 
@@ -33,8 +31,8 @@ pub fn main() {
 
     // Scalar operations
     {
-        let lhs = Scalar::random(&mut rng);
-        let rhs = Scalar::random(&mut rng);
+        let lhs = Scalar::random(&mut rand::thread_rng());
+        let rhs = Scalar::random(&mut rand::thread_rng());
         println!("cycle-tracker-start: bls12_381-add-scalar");
         let _ = lhs + rhs;
         println!("cycle-tracker-end: bls12_381-add-scalar");
@@ -48,8 +46,8 @@ pub fn main() {
 
     // Fp2 operations
     {
-        let lhs = Fp2::random(&mut rng);
-        let rhs = Fp2::random(&mut rng);
+        let lhs = Fp2::random(&mut rand::thread_rng());
+        let rhs = Fp2::random(&mut rand::thread_rng());
         println!("cycle-tracker-start: bls12_381-add-fp2");
         let _ = lhs + rhs;
         println!("cycle-tracker-end: bls12_381-add-fp2");
@@ -63,32 +61,32 @@ pub fn main() {
 
     // G1 operations
     {
-        let lhs = G1Projective::random(&mut rng);
-        let rhs = G1Projective::random(&mut rng);
+        let lhs = G1Projective::random(&mut rand::thread_rng());
+        let rhs = G1Projective::random(&mut rand::thread_rng());
         println!("cycle-tracker-start: bls12_381-add-g1");
         let _ = lhs + rhs;
         println!("cycle-tracker-end: bls12_381-add-g1");
         println!("cycle-tracker-start: bls12_381-mul-g1");
-        let _ = lhs * Scalar::random(&mut rng);
+        let _ = lhs * Scalar::random(&mut rand::thread_rng());
         println!("cycle-tracker-end: bls12_381-mul-g1");
     }
 
     // G2 operations
     {
-        let lhs = G2Projective::random(&mut rng);
-        let rhs = G2Projective::random(&mut rng);
+        let lhs = G2Projective::random(&mut rand::thread_rng());
+        let rhs = G2Projective::random(&mut rand::thread_rng());
         println!("cycle-tracker-start: bls12_381-add-g2");
         let _ = lhs + rhs;
         println!("cycle-tracker-end: bls12_381-add-g2");
         println!("cycle-tracker-start: bls12_381-mul-g2");
-        let _ = lhs * Scalar::random(&mut rng);
+        let _ = lhs * Scalar::random(&mut rand::thread_rng());
         println!("cycle-tracker-end: bls12_381-mul-g2");
     }
 
     // Pairing
     {
-        let p1 = G1Affine::from(G1Projective::random(&mut rng));
-        let p2 = G2Affine::from(G2Projective::random(&mut rng));
+        let p1 = G1Affine::from(G1Projective::random(&mut rand::thread_rng()));
+        let p2 = G2Affine::from(G2Projective::random(&mut rand::thread_rng()));
         println!("cycle-tracker-start: bls12_381-pairing");
         let _ = pairing(&p1, &p2);
         println!("cycle-tracker-end: bls12_381-pairing");
@@ -96,10 +94,10 @@ pub fn main() {
 
     // Pairing Check
     {
-        let p1 = G1Affine::from(G1Projective::random(&mut rng));
-        let q1 = G2Affine::from(G2Projective::random(&mut rng));
-        let p2 = G1Affine::from(G1Projective::random(&mut rng));
-        let q2 = G2Affine::from(G2Projective::random(&mut rng));
+        let p1 = G1Affine::from(G1Projective::random(&mut rand::thread_rng()));
+        let q1 = G2Affine::from(G2Projective::random(&mut rand::thread_rng()));
+        let p2 = G1Affine::from(G1Projective::random(&mut rand::thread_rng()));
+        let q2 = G2Affine::from(G2Projective::random(&mut rand::thread_rng()));
         println!("cycle-tracker-start: bls12_381-pairing-check");
         multi_miller_loop(&[(&p1, &G2Prepared::from(q1)), (&p2, &G2Prepared::from(q2))])
             .final_exponentiation();
