@@ -670,10 +670,15 @@ impl<'a> Executor<'a> {
         let (a, b, c): (u32, u32, u32);
         let (addr, memory_read_value): (u32, u32);
         let mut memory_store_value: Option<u32> = None;
-        self.memory_accesses = MemoryAccessRecord::default();
 
-        let lookup_id = create_alu_lookup_id();
-        let syscall_lookup_id = create_alu_lookup_id();
+        if self.executor_mode != ExecutorMode::Fast {
+            self.memory_accesses = MemoryAccessRecord::default();
+        }
+
+        let lookup_id =
+            if self.executor_mode != ExecutorMode::Fast { create_alu_lookup_id() } else { 0 };
+        let syscall_lookup_id =
+            if self.executor_mode != ExecutorMode::Fast { create_alu_lookup_id() } else { 0 };
 
         if self.print_report && !self.unconstrained {
             self.report
