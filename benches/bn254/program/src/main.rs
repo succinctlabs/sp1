@@ -103,6 +103,6 @@ pub fn main() {
 
         println!("cycle-tracker-start: bn254-pairing-check");
         pairing_batch(&[(p1, q1), (p2, q2)]).final_exponentiation();
-        println!("cycle-tracker-start: bn254-pairing-check");
+        println!("cycle-tracker-end: bn254-pairing-check");
     }
 }
