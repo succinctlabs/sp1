@@ -129,10 +129,10 @@ pub enum SyscallCode {
     BN254_FP2_MUL = 0x00_01_01_2B,
 
     /// Execute the `MEMCPY_32` precompile.
-    MEMCPY_32 = 0x00_00_01_30,
+    MEMCPY_32 = 0x00_01_01_30,
 
     /// Execute the `MEMCPY_64` precompile.
-    MEMCPY_64 = 0x00_00_01_31,
+    MEMCPY_64 = 0x00_01_01_31,
 }
 
 impl SyscallCode {
@@ -175,8 +175,8 @@ impl SyscallCode {
             0x00_01_01_2A => SyscallCode::BN254_FP2_SUB,
             0x00_01_01_2B => SyscallCode::BN254_FP2_MUL,
             0x00_00_01_1C => SyscallCode::BLS12381_DECOMPRESS,
-            0x00_00_01_30 => SyscallCode::MEMCPY_32,
-            0x00_00_01_31 => SyscallCode::MEMCPY_64,
+            0x00_01_01_30 => SyscallCode::MEMCPY_32,
+            0x00_01_01_31 => SyscallCode::MEMCPY_64,
             _ => panic!("invalid syscall number: {value}"),
         }
     }
