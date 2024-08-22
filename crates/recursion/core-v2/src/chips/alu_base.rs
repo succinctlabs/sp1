@@ -165,23 +165,25 @@ where
         let prep_local = prep.row_slice(0);
         let prep_local: &BaseAluPreprocessedCols<AB::Var> = (*prep_local).borrow();
 
-        for (value, access) in zip(local.values, prep_local.accesses) {
-            let BaseAluValueCols { vals: BaseAluIo { out, in1, in2 } } = value;
-
+        for (
+            BaseAluValueCols { vals: BaseAluIo { out, in1, in2 } },
+            BaseAluAccessCols { addrs, is_add, is_sub, is_mul, is_div, mult },
+        ) in zip(local.values, prep_local.accesses)
+        {
             // Check exactly one flag is enabled.
-            let is_real = access.is_add + access.is_sub + access.is_mul + access.is_div;
+            let is_real = is_add + is_sub + is_mul + is_div;
             builder.assert_bool(is_real.clone());
 
-            builder.when(access.is_add).assert_eq(in1 + in2, out);
-            builder.when(access.is_sub).assert_eq(in1, in2 + out);
-            builder.when(access.is_mul).assert_eq(in1 * in2, out);
-            builder.when(access.is_div).assert_eq(in1, in2 * out);
+            builder.when(is_add).assert_eq(in1 + in2, out);
+            builder.when(is_sub).assert_eq(in1, in2 + out);
+            builder.when(is_mul).assert_eq(in1 * in2, out);
+            builder.when(is_div).assert_eq(in1, in2 * out);
 
-            builder.receive_single(access.addrs.in1, in1, is_real.clone());
+            builder.receive_single(addrs.in1, in1, is_real.clone());
 
-            builder.receive_single(access.addrs.in2, in2, is_real);
+            builder.receive_single(addrs.in2, in2, is_real);
 
-            builder.send_single(access.addrs.out, out, access.mult);
+            builder.send_single(addrs.out, out, mult);
         }
     }
 }

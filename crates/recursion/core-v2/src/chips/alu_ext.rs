@@ -1,13 +1,16 @@
 use core::borrow::Borrow;
+use itertools::Itertools;
 use p3_air::{Air, BaseAir, PairBuilder};
 use p3_field::{extension::BinomiallyExtendable, Field, PrimeField32};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use sp1_core_machine::utils::pad_to_power_of_two;
 use sp1_derive::AlignedBorrow;
 use sp1_stark::air::{ExtensionAirBuilder, MachineAir};
-use std::borrow::BorrowMut;
+use std::{borrow::BorrowMut, iter::zip};
 
 use crate::{builder::SP1RecursionAirBuilder, *};
+
+pub const NUM_EXT_ALU_ENTRIES_PER_ROW: usize = 4;
 
 #[derive(Default)]
 pub struct ExtAluChip {}
@@ -17,6 +20,12 @@ pub const NUM_EXT_ALU_COLS: usize = core::mem::size_of::<ExtAluCols<u8>>();
 #[derive(AlignedBorrow, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct ExtAluCols<F: Copy> {
+    pub values: [ExtAluValueCols<F>; NUM_EXT_ALU_ENTRIES_PER_ROW],
+}
+
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct ExtAluValueCols<F: Copy> {
     pub vals: ExtAluIo<Block<F>>,
 }
 
@@ -25,6 +34,12 @@ pub const NUM_EXT_ALU_PREPROCESSED_COLS: usize = core::mem::size_of::<ExtAluPrep
 #[derive(AlignedBorrow, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct ExtAluPreprocessedCols<F: Copy> {
+    pub accesses: [ExtAluAccessCols<F>; NUM_EXT_ALU_ENTRIES_PER_ROW],
+}
+
+#[derive(AlignedBorrow, Debug, Clone, Copy)]
+#[repr(C)]
+pub struct ExtAluAccessCols<F: Copy> {
     pub addrs: ExtAluIo<Address<F>>,
     pub is_add: F,
     pub is_sub: F,
@@ -60,9 +75,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for ExtAluChip {
                 let Instruction::ExtAlu(ExtAluInstr { opcode, mult, addrs }) = instruction else {
                     return None;
                 };
-                let mut row = [F::zero(); NUM_EXT_ALU_PREPROCESSED_COLS];
-                let cols: &mut ExtAluPreprocessedCols<F> = row.as_mut_slice().borrow_mut();
-                *cols = ExtAluPreprocessedCols {
+                let mut access = ExtAluAccessCols {
                     addrs: addrs.to_owned(),
                     is_add: F::from_bool(false),
                     is_sub: F::from_bool(false),
@@ -71,14 +84,24 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for ExtAluChip {
                     mult: mult.to_owned(),
                 };
                 let target_flag = match opcode {
-                    ExtAluOpcode::AddE => &mut cols.is_add,
-                    ExtAluOpcode::SubE => &mut cols.is_sub,
-                    ExtAluOpcode::MulE => &mut cols.is_mul,
-                    ExtAluOpcode::DivE => &mut cols.is_div,
+                    ExtAluOpcode::AddE => &mut access.is_add,
+                    ExtAluOpcode::SubE => &mut access.is_sub,
+                    ExtAluOpcode::MulE => &mut access.is_mul,
+                    ExtAluOpcode::DivE => &mut access.is_div,
                 };
                 *target_flag = F::from_bool(true);
 
-                Some(row)
+                Some(access)
+            })
+            .chunks(NUM_EXT_ALU_ENTRIES_PER_ROW)
+            .into_iter()
+            .map(|row_accesses| {
+                let mut row = [F::zero(); NUM_EXT_ALU_PREPROCESSED_COLS];
+                let cols: &mut ExtAluPreprocessedCols<_> = row.as_mut_slice().borrow_mut();
+                for (cell, access) in zip(&mut cols.accesses, row_accesses) {
+                    *cell = access;
+                }
+                row
             })
             .collect::<Vec<_>>();
 
@@ -99,14 +122,17 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for ExtAluChip {
     }
 
     fn generate_trace(&self, input: &Self::Record, _: &mut Self::Record) -> RowMajorMatrix<F> {
-        let ext_alu_events = input.ext_alu_events.clone();
-
         // Generate the trace rows & corresponding records for each chunk of events in parallel.
-        let rows = ext_alu_events
-            .into_iter()
-            .map(|vals| {
+        let rows = input
+            .ext_alu_events
+            .chunks(NUM_EXT_ALU_ENTRIES_PER_ROW)
+            .map(|row_events| {
                 let mut row = [F::zero(); NUM_EXT_ALU_COLS];
-                *row.as_mut_slice().borrow_mut() = ExtAluCols { vals };
+                let cols: &mut ExtAluCols<_> = row.as_mut_slice().borrow_mut();
+                for (cell, &vals) in zip(&mut cols.values, row_events) {
+                    *cell = ExtAluValueCols { vals };
+                }
+
                 row
             })
             .collect::<Vec<_>>();
@@ -138,26 +164,32 @@ where
         let prep_local = prep.row_slice(0);
         let prep_local: &ExtAluPreprocessedCols<AB::Var> = (*prep_local).borrow();
 
-        // Check exactly one flag is enabled.
-        let is_real = prep_local.is_add + prep_local.is_sub + prep_local.is_mul + prep_local.is_div;
-        builder.assert_bool(is_real.clone());
+        for (
+            ExtAluValueCols { vals },
+            ExtAluAccessCols { addrs, is_add, is_sub, is_mul, is_div, mult },
+        ) in zip(local.values, prep_local.accesses)
+        {
+            let in1 = vals.in1.as_extension::<AB>();
+            let in2 = vals.in2.as_extension::<AB>();
+            let out = vals.out.as_extension::<AB>();
 
-        let in1 = local.vals.in1.as_extension::<AB>();
-        let in2 = local.vals.in2.as_extension::<AB>();
-        let out = local.vals.out.as_extension::<AB>();
+            // Check exactly one flag is enabled.
+            let is_real = is_add + is_sub + is_mul + is_div;
+            builder.assert_bool(is_real.clone());
 
-        builder.when(prep_local.is_add).assert_ext_eq(in1.clone() + in2.clone(), out.clone());
-        builder.when(prep_local.is_sub).assert_ext_eq(in1.clone(), in2.clone() + out.clone());
-        builder.when(prep_local.is_mul).assert_ext_eq(in1.clone() * in2.clone(), out.clone());
-        builder.when(prep_local.is_div).assert_ext_eq(in1, in2 * out);
+            builder.when(is_add).assert_ext_eq(in1.clone() + in2.clone(), out.clone());
+            builder.when(is_sub).assert_ext_eq(in1.clone(), in2.clone() + out.clone());
+            builder.when(is_mul).assert_ext_eq(in1.clone() * in2.clone(), out.clone());
+            builder.when(is_div).assert_ext_eq(in1, in2 * out);
 
-        // Read the inputs from memory.
-        builder.receive_block(prep_local.addrs.in1, local.vals.in1, is_real.clone());
+            // Read the inputs from memory.
+            builder.receive_block(addrs.in1, vals.in1, is_real.clone());
 
-        builder.receive_block(prep_local.addrs.in2, local.vals.in2, is_real);
+            builder.receive_block(addrs.in2, vals.in2, is_real);
 
-        // Write the output to memory.
-        builder.send_block(prep_local.addrs.out, local.vals.out, prep_local.mult);
+            // Write the output to memory.
+            builder.send_block(addrs.out, vals.out, mult);
+        }
     }
 }
 
