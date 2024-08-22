@@ -123,19 +123,19 @@ pub enum DslIr<C: Config> {
     // Control flow.
     /// Executes a for loop with the parameters (start step value, end step value, step size, step
     /// variable, body).
-    For(Usize<C::N>, Usize<C::N>, C::N, Var<C::N>, TracedVec<DslIr<C>>),
+    For(Box<(Usize<C::N>, Usize<C::N>, C::N, Var<C::N>, TracedVec<DslIr<C>>)>),
     /// Executes an equal conditional branch with the parameters (lhs var, rhs var, then body, else
     /// body).
-    IfEq(Var<C::N>, Var<C::N>, TracedVec<DslIr<C>>, TracedVec<DslIr<C>>),
+    IfEq(Box<(Var<C::N>, Var<C::N>, TracedVec<DslIr<C>>, TracedVec<DslIr<C>>)>),
     /// Executes a not equal conditional branch with the parameters (lhs var, rhs var, then body,
     /// else body).
-    IfNe(Var<C::N>, Var<C::N>, TracedVec<DslIr<C>>, TracedVec<DslIr<C>>),
+    IfNe(Box<(Var<C::N>, Var<C::N>, TracedVec<DslIr<C>>, TracedVec<DslIr<C>>)>),
     /// Executes an equal conditional branch with the parameters (lhs var, rhs imm, then body, else
     /// body).
-    IfEqI(Var<C::N>, C::N, TracedVec<DslIr<C>>, TracedVec<DslIr<C>>),
+    IfEqI(Box<(Var<C::N>, C::N, TracedVec<DslIr<C>>, TracedVec<DslIr<C>>)>),
     /// Executes a not equal conditional branch with the parameters (lhs var, rhs imm, then body,
     /// else body).
-    IfNeI(Var<C::N>, C::N, TracedVec<DslIr<C>>, TracedVec<DslIr<C>>),
+    IfNeI(Box<(Var<C::N>, C::N, TracedVec<DslIr<C>>, TracedVec<DslIr<C>>)>),
     /// Break out of a for loop.
     Break,
 
@@ -198,10 +198,12 @@ pub enum DslIr<C: Config> {
 
     // Hashing.
     /// Permutes an array of baby bear elements using Poseidon2 (output = p2_permute(array)).
-    Poseidon2PermuteBabyBear(Array<C, Felt<C::F>>, Array<C, Felt<C::F>>),
+    Poseidon2PermuteBabyBear(Box<(Array<C, Felt<C::F>>, Array<C, Felt<C::F>>)>),
     /// Compresses two baby bear element arrays using Poseidon2 (output = p2_compress(array1,
     /// array2)).
-    Poseidon2CompressBabyBear(Array<C, Felt<C::F>>, Array<C, Felt<C::F>>, Array<C, Felt<C::F>>),
+    Poseidon2CompressBabyBear(
+        Box<(Array<C, Felt<C::F>>, Array<C, Felt<C::F>>, Array<C, Felt<C::F>>)>,
+    ),
     /// Absorb an array of baby bear elements for a specified hash instance.
     Poseidon2AbsorbBabyBear(Var<C::N>, Array<C, Felt<C::F>>),
     /// Finalize and return the hash digest of a specified hash instance.
@@ -210,9 +212,9 @@ pub enum DslIr<C: Config> {
     /// only be used when target is a gnark circuit.
     CircuitPoseidon2Permute([Var<C::N>; 3]),
     /// Permutates an array of BabyBear elements in the circuit.
-    CircuitPoseidon2PermuteBabyBear([Felt<C::F>; 16]),
+    CircuitPoseidon2PermuteBabyBear(Box<[Felt<C::F>; 16]>),
     /// Permutates an array of BabyBear elements in the circuit using the skinny precompile.
-    CircuitV2Poseidon2PermuteBabyBear([Felt<C::F>; 16], [Felt<C::F>; 16]),
+    CircuitV2Poseidon2PermuteBabyBear(Box<([Felt<C::F>; 16], [Felt<C::F>; 16])>),
     /// Commits the public values.
     CircuitV2CommitPublicValues(Box<RecursionPublicValues<Felt<C::F>>>),
 
@@ -276,7 +278,7 @@ pub enum DslIr<C: Config> {
     // FRI specific instructions.
     /// Executes a FRI fold operation. Input is the fri fold input array.  See [`FriFoldInput`] for
     /// more details.
-    CircuitV2FriFold(CircuitV2FriFoldOutput<C>, CircuitV2FriFoldInput<C>),
+    CircuitV2FriFold(Box<(CircuitV2FriFoldOutput<C>, CircuitV2FriFoldInput<C>)>),
     /// Select's a variable based on a condition. (select(cond, true_val, false_val) => output).
     /// Should only be used when target is a gnark circuit.
     CircuitSelectV(Var<C::N>, Var<C::N>, Var<C::N>, Var<C::N>),

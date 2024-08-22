@@ -469,8 +469,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                             .in_scope(|| match input {
                                 SP1CircuitWitness::Core(input) => {
                                     let mut witness_stream = Vec::new();
-                                    witness_stream
-                                        .extend(Witnessable::<InnerConfig>::write(&input));
+                                    Witnessable::<InnerConfig>::write(&input, &mut witness_stream);
                                     (self.recursion_program(&input), witness_stream)
                                 }
                                 // SP1CircuitWitness::Deferred(input) => {
@@ -480,8 +479,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                                 // }
                                 SP1CircuitWitness::Compress(input) => {
                                     let mut witness_stream = Vec::new();
-                                    witness_stream
-                                        .extend(Witnessable::<InnerConfig>::write(&input));
+                                    Witnessable::<InnerConfig>::write(&input, &mut witness_stream);
                                     (self.compress_program(&input), witness_stream)
                                 }
                             });

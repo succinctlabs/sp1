@@ -21,6 +21,12 @@ pub trait PolynomialSpaceVariable<C: Config>: Sized + PolynomialSpace<Val = C::F
         builder: &mut Builder<C>,
         point: Ext<<C as Config>::F, <C as Config>::EF>,
     ) -> Ext<<C as Config>::F, <C as Config>::EF>;
+
+    fn zp_at_point_f(
+        &self,
+        builder: &mut Builder<C>,
+        point: Felt<<C as Config>::F>,
+    ) -> Felt<<C as Config>::F>;
 }
 
 impl<C: Config> PolynomialSpaceVariable<C> for TwoAdicMultiplicativeCoset<C::F>
@@ -70,5 +76,14 @@ where
             Usize::Const(self.log_n),
         );
         builder.eval(unshifted_power - C::EF::one())
+    }
+    fn zp_at_point_f(
+        &self,
+        builder: &mut Builder<C>,
+        point: Felt<<C as Config>::F>,
+    ) -> Felt<<C as Config>::F> {
+        let unshifted_power = builder
+            .exp_power_of_2_v::<Felt<_>>(point * self.shift.inverse(), Usize::Const(self.log_n));
+        builder.eval(unshifted_power - C::F::one())
     }
 }

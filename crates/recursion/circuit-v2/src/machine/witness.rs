@@ -4,15 +4,18 @@ use p3_challenger::DuplexChallenger;
 use p3_symmetric::Hash;
 
 use p3_field::AbstractField;
-use sp1_recursion_compiler::ir::{Builder, Config};
+use sp1_recursion_compiler::ir::Builder;
 use sp1_stark::{
     baby_bear_poseidon2::BabyBearPoseidon2, InnerChallenge, InnerPerm, InnerVal, StarkVerifyingKey,
+    Word,
 };
 
 use sp1_recursion_compiler::ir::Felt;
 
 use crate::{
-    challenger::DuplexChallengerVariable, witness::Witnessable, CircuitConfig, VerifyingKeyVariable,
+    challenger::DuplexChallengerVariable,
+    witness::{WitnessWriter, Witnessable},
+    CircuitConfig, VerifyingKeyVariable,
 };
 
 use super::{
@@ -20,9 +23,21 @@ use super::{
     SP1DeferredWitnessVariable, SP1RecursionWitnessValues, SP1RecursionWitnessVariable,
 };
 
+impl<C: CircuitConfig, T: Witnessable<C>> Witnessable<C> for Word<T> {
+    type WitnessVariable = Word<T::WitnessVariable>;
+
+    fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
+        Word(self.0.read(builder))
+    }
+
+    fn write(&self, witness: &mut impl WitnessWriter<C>) {
+        self.0.write(witness);
+    }
+}
+
 impl<C> Witnessable<C> for DuplexChallenger<InnerVal, InnerPerm, 16, 8>
 where
-    C: Config<F = InnerVal, EF = InnerChallenge>,
+    C: CircuitConfig<F = InnerVal, EF = InnerChallenge>,
 {
     type WitnessVariable = DuplexChallengerVariable<C>;
 
@@ -33,19 +48,16 @@ where
         DuplexChallengerVariable { sponge_state, input_buffer, output_buffer }
     }
 
-    fn write(&self) -> Vec<crate::witness::Witness<C>> {
-        [
-            Witnessable::<C>::write(&self.sponge_state),
-            Witnessable::<C>::write(&self.input_buffer),
-            Witnessable::<C>::write(&self.output_buffer),
-        ]
-        .concat()
+    fn write(&self, witness: &mut impl WitnessWriter<C>) {
+        self.sponge_state.write(witness);
+        self.input_buffer.write(witness);
+        self.output_buffer.write(witness);
     }
 }
 
 impl<C, F, W, const DIGEST_ELEMENTS: usize> Witnessable<C> for Hash<F, W, DIGEST_ELEMENTS>
 where
-    C: Config<F = InnerVal, EF = InnerChallenge>,
+    C: CircuitConfig<F = InnerVal, EF = InnerChallenge>,
     W: Witnessable<C>,
 {
     type WitnessVariable = [W::WitnessVariable; DIGEST_ELEMENTS];
@@ -55,9 +67,9 @@ where
         array.read(builder)
     }
 
-    fn write(&self) -> Vec<crate::witness::Witness<C>> {
+    fn write(&self, witness: &mut impl WitnessWriter<C>) {
         let array: &[W; DIGEST_ELEMENTS] = self.borrow();
-        array.write()
+        array.write(witness);
     }
 }
 
@@ -75,8 +87,9 @@ where
         VerifyingKeyVariable { commitment, pc_start, chip_information, chip_ordering }
     }
 
-    fn write(&self) -> Vec<crate::witness::Witness<C>> {
-        [Witnessable::<C>::write(&self.commit), Witnessable::<C>::write(&self.pc_start)].concat()
+    fn write(&self, witness: &mut impl WitnessWriter<C>) {
+        self.commit.write(witness);
+        self.pc_start.write(witness);
     }
 }
 
@@ -101,15 +114,12 @@ where
         }
     }
 
-    fn write(&self) -> Vec<crate::witness::Witness<C>> {
-        [
-            Witnessable::<C>::write(&self.vk),
-            Witnessable::<C>::write(&self.shard_proofs),
-            Witnessable::<C>::write(&self.leaf_challenger),
-            Witnessable::<C>::write(&self.initial_reconstruct_challenger),
-            Witnessable::<C>::write(&InnerVal::from_bool(self.is_complete)),
-        ]
-        .concat()
+    fn write(&self, witness: &mut impl WitnessWriter<C>) {
+        self.vk.write(witness);
+        self.shard_proofs.write(witness);
+        self.leaf_challenger.write(witness);
+        self.initial_reconstruct_challenger.write(witness);
+        self.is_complete.write(witness);
     }
 }
 
@@ -126,12 +136,9 @@ where
         SP1CompressWitnessVariable { vks_and_proofs, is_complete }
     }
 
-    fn write(&self) -> Vec<crate::witness::Witness<C>> {
-        [
-            Witnessable::<C>::write(&self.vks_and_proofs),
-            Witnessable::<C>::write(&InnerVal::from_bool(self.is_complete)),
-        ]
-        .concat()
+    fn write(&self, witness: &mut impl WitnessWriter<C>) {
+        self.vks_and_proofs.write(witness);
+        self.is_complete.write(witness);
     }
 }
 
@@ -172,21 +179,18 @@ where
         }
     }
 
-    fn write(&self) -> Vec<crate::witness::Witness<C>> {
-        [
-            Witnessable::<C>::write(&self.vks_and_proofs),
-            Witnessable::<C>::write(&self.start_reconstruct_deferred_digest),
-            Witnessable::<C>::write(&self.sp1_vk),
-            Witnessable::<C>::write(&self.leaf_challenger),
-            Witnessable::<C>::write(&self.committed_value_digest),
-            Witnessable::<C>::write(&self.deferred_proofs_digest),
-            Witnessable::<C>::write(&self.end_pc),
-            Witnessable::<C>::write(&self.end_shard),
-            Witnessable::<C>::write(&self.end_execution_shard),
-            Witnessable::<C>::write(&self.init_addr_bits),
-            Witnessable::<C>::write(&self.finalize_addr_bits),
-            Witnessable::<C>::write(&InnerVal::from_bool(self.is_complete)),
-        ]
-        .concat()
+    fn write(&self, witness: &mut impl WitnessWriter<C>) {
+        self.vks_and_proofs.write(witness);
+        self.start_reconstruct_deferred_digest.write(witness);
+        self.sp1_vk.write(witness);
+        self.leaf_challenger.write(witness);
+        self.committed_value_digest.write(witness);
+        self.deferred_proofs_digest.write(witness);
+        self.end_pc.write(witness);
+        self.end_shard.write(witness);
+        self.end_execution_shard.write(witness);
+        self.init_addr_bits.write(witness);
+        self.finalize_addr_bits.write(witness);
+        self.is_complete.write(witness);
     }
 }

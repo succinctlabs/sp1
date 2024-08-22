@@ -5,14 +5,18 @@ use std::{
     ops::{Add, Mul},
 };
 
-use challenger::{CanObserveVariable, DuplexChallengerVariable, FieldChallengerVariable};
+use challenger::{
+    CanCopyChallenger, CanObserveVariable, DuplexChallengerVariable, FieldChallengerVariable,
+    MultiField32ChallengerVariable,
+};
 use hash::FieldHasherVariable;
+use p3_bn254_fr::Bn254Fr;
 use p3_field::AbstractField;
 use p3_matrix::dense::RowMajorMatrix;
 use sp1_recursion_compiler::{
     circuit::CircuitV2Builder,
-    config::InnerConfig,
-    ir::{Builder, Config, Ext, Felt, SymbolicFelt, Variable},
+    config::{InnerConfig, OuterConfig},
+    ir::{Builder, Config, DslIr, Ext, Felt, Var, Variable},
 };
 
 mod types;
@@ -72,8 +76,10 @@ pub trait BabyBearFriConfig:
     >,
 >
 {
-    type ValMmcs: Mmcs<BabyBear, ProverData<RowMajorMatrix<BabyBear>> = Self::RowMajorProverData>;
-    type RowMajorProverData: Clone;
+    type ValMmcs: Mmcs<BabyBear, ProverData<RowMajorMatrix<BabyBear>> = Self::RowMajorProverData>
+        + Send
+        + Sync;
+    type RowMajorProverData: Clone + Send + Sync;
     type FriChallenger: CanObserve<<Self::ValMmcs as Mmcs<BabyBear>>::Commitment>
         + CanSample<EF>
         + GrindingChallenger<Witness = BabyBear>
@@ -86,22 +92,21 @@ pub trait BabyBearFriConfigVariable<C: CircuitConfig<F = BabyBear>>:
     BabyBearFriConfig + FieldHasherVariable<C>
 {
     type FriChallengerVariable: FieldChallengerVariable<C, <C as CircuitConfig>::Bit>
-        + CanObserveVariable<C, <Self as FieldHasherVariable<C>>::Digest>;
+        + CanObserveVariable<C, <Self as FieldHasherVariable<C>>::Digest>
+        + CanCopyChallenger<C>;
 
     /// Get a new challenger corresponding to the given config.
     fn challenger_variable(&self, builder: &mut Builder<C>) -> Self::FriChallengerVariable;
 }
 
 pub trait CircuitConfig: Config {
-    type Bit: Clone + Copy + Variable<Self, Expression = Self::BitExpression>;
-    type BitExpression: AbstractField
-        + Mul<
-            <Felt<Self::F> as Variable<Self>>::Expression,
-            Output = <Felt<Self::F> as Variable<Self>>::Expression,
-        > + Mul<
-            <Ext<Self::F, Self::EF> as Variable<Self>>::Expression,
-            Output = <Ext<Self::F, Self::EF> as Variable<Self>>::Expression,
-        >;
+    type Bit: Copy + Variable<Self>;
+
+    fn read_bit(builder: &mut Builder<Self>) -> Self::Bit;
+
+    fn read_felt(builder: &mut Builder<Self>) -> Felt<Self::F>;
+
+    fn read_ext(builder: &mut Builder<Self>) -> Ext<Self::F, Self::EF>;
 
     fn ext2felt(
         builder: &mut Builder<Self>,
@@ -131,14 +136,23 @@ pub trait CircuitConfig: Config {
         should_swap: Self::Bit,
         first: impl IntoIterator<Item = Ext<<Self as Config>::F, <Self as Config>::EF>> + Clone,
         second: impl IntoIterator<Item = Ext<<Self as Config>::F, <Self as Config>::EF>> + Clone,
-    ) -> Vec<Ext<<Self as Config>::F, <Self as Config>::EF>> {
-        select_chain(builder, should_swap, first, second).collect::<Vec<_>>()
-    }
+    ) -> Vec<Ext<<Self as Config>::F, <Self as Config>::EF>>;
 }
 
 impl CircuitConfig for InnerConfig {
     type Bit = Felt<<Self as Config>::F>;
-    type BitExpression = SymbolicFelt<<Self as Config>::F>;
+
+    fn read_bit(builder: &mut Builder<Self>) -> Self::Bit {
+        builder.hint_felt_v2()
+    }
+
+    fn read_felt(builder: &mut Builder<Self>) -> Felt<Self::F> {
+        builder.hint_felt_v2()
+    }
+
+    fn read_ext(builder: &mut Builder<Self>) -> Ext<Self::F, Self::EF> {
+        builder.hint_ext_v2()
+    }
 
     fn ext2felt(
         builder: &mut Builder<Self>,
@@ -169,6 +183,116 @@ impl CircuitConfig for InnerConfig {
     ) -> Felt<<Self as Config>::F> {
         builder.bits2num_v2_f(bits)
     }
+
+    fn select_chain_ef(
+        builder: &mut Builder<Self>,
+        should_swap: Self::Bit,
+        first: impl IntoIterator<Item = Ext<<Self as Config>::F, <Self as Config>::EF>> + Clone,
+        second: impl IntoIterator<Item = Ext<<Self as Config>::F, <Self as Config>::EF>> + Clone,
+    ) -> Vec<Ext<<Self as Config>::F, <Self as Config>::EF>> {
+        let one: Felt<_> = builder.constant(Self::F::one());
+        let shouldnt_swap: Felt<_> = builder.eval(one - should_swap);
+
+        let id_branch = first.clone().into_iter().chain(second.clone());
+        let swap_branch = second.into_iter().chain(first);
+        zip(zip(id_branch, swap_branch), zip(repeat(shouldnt_swap), repeat(should_swap)))
+            .map(|((id_v, sw_v), (id_c, sw_c))| builder.eval(id_v * id_c + sw_v * sw_c))
+            .collect()
+    }
+}
+
+impl CircuitConfig for OuterConfig {
+    type Bit = Var<<Self as Config>::N>;
+
+    fn read_bit(builder: &mut Builder<Self>) -> Self::Bit {
+        builder.witness_var()
+    }
+
+    fn read_felt(builder: &mut Builder<Self>) -> Felt<Self::F> {
+        builder.witness_felt()
+    }
+
+    fn read_ext(builder: &mut Builder<Self>) -> Ext<Self::F, Self::EF> {
+        builder.witness_ext()
+    }
+
+    fn ext2felt(
+        builder: &mut Builder<Self>,
+        ext: Ext<<Self as Config>::F, <Self as Config>::EF>,
+    ) -> [Felt<<Self as Config>::F>; D] {
+        let felts = core::array::from_fn(|_| builder.uninit());
+        builder.operations.push(DslIr::CircuitExt2Felt(felts, ext));
+        felts
+    }
+
+    fn exp_reverse_bits(
+        builder: &mut Builder<Self>,
+        input: Felt<<Self as Config>::F>,
+        power_bits: Vec<Var<<Self as Config>::N>>,
+    ) -> Felt<<Self as Config>::F> {
+        let mut result = builder.constant(Self::F::one());
+        let power_f = input;
+        let bit_len = power_bits.len();
+
+        for i in 1..=bit_len {
+            let index = bit_len - i;
+            let bit = power_bits[index];
+            let prod = builder.eval(result * power_f);
+            result = builder.select_f(bit, prod, result);
+            builder.assign(power_f, power_f * power_f);
+        }
+        result
+    }
+
+    fn num2bits(
+        builder: &mut Builder<Self>,
+        num: Felt<<Self as Config>::F>,
+        num_bits: usize,
+    ) -> Vec<Var<<Self as Config>::N>> {
+        builder.num2bits_f_circuit(num)[..num_bits].to_vec()
+    }
+
+    fn bits2num(
+        builder: &mut Builder<Self>,
+        bits: impl IntoIterator<Item = Var<<Self as Config>::N>>,
+    ) -> Felt<<Self as Config>::F> {
+        let result = builder.eval(Self::F::zero());
+        for (i, bit) in bits.into_iter().enumerate() {
+            let to_add: Felt<_> = builder.uninit();
+            let pow2 = builder.constant(Self::F::from_canonical_u32(1 << i));
+            let zero = builder.constant(Self::F::zero());
+            builder.operations.push(DslIr::CircuitSelectF(bit, pow2, zero, to_add));
+            builder.assign(result, result + to_add);
+        }
+        result
+    }
+
+    fn select_chain_ef(
+        builder: &mut Builder<Self>,
+        should_swap: Self::Bit,
+        first: impl IntoIterator<Item = Ext<<Self as Config>::F, <Self as Config>::EF>> + Clone,
+        second: impl IntoIterator<Item = Ext<<Self as Config>::F, <Self as Config>::EF>> + Clone,
+    ) -> Vec<Ext<<Self as Config>::F, <Self as Config>::EF>> {
+        let id_branch = first.clone().into_iter().chain(second.clone());
+        let swap_branch = second.into_iter().chain(first);
+        zip(id_branch, swap_branch)
+            .map(|(id_v, sw_v): (Ext<_, _>, Ext<_, _>)| -> Ext<_, _> {
+                let result: Ext<_, _> = builder.uninit();
+                builder.operations.push(DslIr::CircuitSelectE(should_swap, sw_v, id_v, result));
+                result
+            })
+            .collect()
+    }
+}
+
+impl BabyBearFriConfig for BabyBearPoseidon2 {
+    type ValMmcs = ValMmcs;
+    type FriChallenger = <Self as StarkGenericConfig>::Challenger;
+    type RowMajorProverData = <ValMmcs as Mmcs<BabyBear>>::ProverData<RowMajorMatrix<BabyBear>>;
+
+    fn fri_config(&self) -> &FriConfig<FriMmcs<Self>> {
+        self.pcs().fri_config()
+    }
 }
 
 impl BabyBearFriConfig for BabyBearPoseidon2Outer {
@@ -183,16 +307,6 @@ impl BabyBearFriConfig for BabyBearPoseidon2Outer {
     }
 }
 
-impl BabyBearFriConfig for BabyBearPoseidon2 {
-    type ValMmcs = ValMmcs;
-    type FriChallenger = <Self as StarkGenericConfig>::Challenger;
-    type RowMajorProverData = <ValMmcs as Mmcs<BabyBear>>::ProverData<RowMajorMatrix<BabyBear>>;
-
-    fn fri_config(&self) -> &FriConfig<FriMmcs<Self>> {
-        self.pcs().fri_config()
-    }
-}
-
 impl<C: CircuitConfig<F = BabyBear, Bit = Felt<BabyBear>>> BabyBearFriConfigVariable<C>
     for BabyBearPoseidon2
 {
@@ -200,6 +314,16 @@ impl<C: CircuitConfig<F = BabyBear, Bit = Felt<BabyBear>>> BabyBearFriConfigVari
 
     fn challenger_variable(&self, builder: &mut Builder<C>) -> Self::FriChallengerVariable {
         DuplexChallengerVariable::new(builder)
+    }
+}
+
+impl<C: CircuitConfig<F = BabyBear, N = Bn254Fr, Bit = Var<Bn254Fr>>> BabyBearFriConfigVariable<C>
+    for BabyBearPoseidon2Outer
+{
+    type FriChallengerVariable = MultiField32ChallengerVariable<C>;
+
+    fn challenger_variable(&self, builder: &mut Builder<C>) -> Self::FriChallengerVariable {
+        MultiField32ChallengerVariable::new(builder)
     }
 }
 
