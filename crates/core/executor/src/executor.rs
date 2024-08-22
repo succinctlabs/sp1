@@ -334,13 +334,15 @@ impl<'a> Executor<'a> {
     pub fn mr(&mut self, addr: u32, shard: u32, timestamp: u32) -> MemoryReadRecord {
         // Get the memory record entry.
         let entry = self.state.memory.entry(addr);
-        match entry {
-            Entry::Occupied(ref entry) => {
-                let record = entry.get();
-                self.memory_checkpoint.entry(addr).or_insert_with(|| Some(*record));
-            }
-            Entry::Vacant(_) => {
-                self.memory_checkpoint.entry(addr).or_insert(None);
+        if self.executor_mode != ExecutorMode::Fast {
+            match entry {
+                Entry::Occupied(ref entry) => {
+                    let record = entry.get();
+                    self.memory_checkpoint.entry(addr).or_insert_with(|| Some(*record));
+                }
+                Entry::Vacant(_) => {
+                    self.memory_checkpoint.entry(addr).or_insert(None);
+                }
             }
         }
 
@@ -377,13 +379,15 @@ impl<'a> Executor<'a> {
     pub fn mw(&mut self, addr: u32, value: u32, shard: u32, timestamp: u32) -> MemoryWriteRecord {
         // Get the memory record entry.
         let entry = self.state.memory.entry(addr);
-        match entry {
-            Entry::Occupied(ref entry) => {
-                let record = entry.get();
-                self.memory_checkpoint.entry(addr).or_insert_with(|| Some(*record));
-            }
-            Entry::Vacant(_) => {
-                self.memory_checkpoint.entry(addr).or_insert(None);
+        if self.executor_mode != ExecutorMode::Fast {
+            match entry {
+                Entry::Occupied(ref entry) => {
+                    let record = entry.get();
+                    self.memory_checkpoint.entry(addr).or_insert_with(|| Some(*record));
+                }
+                Entry::Vacant(_) => {
+                    self.memory_checkpoint.entry(addr).or_insert(None);
+                }
             }
         }
 
