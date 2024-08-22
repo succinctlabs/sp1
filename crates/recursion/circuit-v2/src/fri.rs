@@ -135,7 +135,6 @@ pub fn verify_two_adic_pcs<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigV
                             // Fill in any missing powers of alpha.
                             for _ in alpha_pows.len()..pow + 1 {
                                 // let new_alpha = builder.eval(*alpha_pows.last().unwrap() * alpha);
-                                // builder.reduce_e(new_alpha);
                                 // alpha_pows.push(new_alpha);
                                 let new_alpha: Ext<_, _> = builder.uninit();
                                 builder.operations.push(DslIr::MulE(
@@ -143,6 +142,7 @@ pub fn verify_two_adic_pcs<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigV
                                     *alpha_pows.last().unwrap(),
                                     alpha,
                                 ));
+                                builder.reduce_e(new_alpha);
                                 alpha_pows.push(new_alpha);
                             }
                             // Unroll:
