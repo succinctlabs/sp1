@@ -23,7 +23,7 @@ pub const NUM_PUBLIC_VALUES_PREPROCESSED_COLS: usize =
     core::mem::size_of::<PublicValuesPreprocessedCols<u8>>();
 
 #[derive(Default)]
-pub struct PublicValuesChip {}
+pub struct PublicValuesChip;
 
 /// The preprocessed columns for the CommitPVHash instruction.
 #[derive(AlignedBorrow, Debug, Clone, Copy)]

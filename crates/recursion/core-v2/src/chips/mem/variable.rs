@@ -4,7 +4,7 @@ use itertools::Itertools;
 use p3_air::{Air, BaseAir, PairBuilder};
 use p3_field::PrimeField32;
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
-use sp1_core_machine::utils::pad_to_power_of_two;
+use sp1_core_machine::utils::{pad_rows_fixed, pad_to_power_of_two};
 use sp1_derive::AlignedBorrow;
 use sp1_stark::air::MachineAir;
 use std::{borrow::BorrowMut, iter::zip, marker::PhantomData};
@@ -17,7 +17,9 @@ pub const NUM_MEM_ENTRIES_PER_ROW: usize = 16;
 
 #[derive(Default)]
 pub struct MemoryChip<F> {
-    _data: PhantomData<F>,
+    pub fixed_log2_rows: Option<usize>,
+    pub pad: bool,
+    pub _data: PhantomData<F>,
 }
 
 pub const NUM_MEM_INIT_COLS: usize = core::mem::size_of::<MemoryCols<u8>>();
@@ -56,7 +58,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryChip<F> {
     }
 
     fn generate_preprocessed_trace(&self, program: &Self::Program) -> Option<RowMajorMatrix<F>> {
-        let rows = program
+        let mut rows = program
             .instructions
             .iter()
             .flat_map(|instruction| match instruction {
@@ -89,15 +91,19 @@ impl<F: PrimeField32> MachineAir<F> for MemoryChip<F> {
                 row
             })
             .collect::<Vec<_>>();
+        println!("memory var rows: {:?}", rows.len());
+
+        pad_rows_fixed(
+            &mut rows,
+            || [F::zero(); NUM_MEM_PREPROCESSED_INIT_COLS],
+            self.fixed_log2_rows,
+        );
 
         // Convert the trace to a row major matrix.
         let mut trace = RowMajorMatrix::new(
             rows.into_iter().flatten().collect::<Vec<_>>(),
             NUM_MEM_PREPROCESSED_INIT_COLS,
         );
-
-        // Pad the trace to a power of two.
-        pad_to_power_of_two::<NUM_MEM_PREPROCESSED_INIT_COLS, F>(&mut trace.values);
 
         Some(trace)
     }
@@ -113,7 +119,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryChip<F> {
         _: Option<usize>,
     ) -> RowMajorMatrix<F> {
         // Generate the trace rows & corresponding records for each chunk of events in parallel.
-        let rows = input
+        let mut rows = input
             .mem_var_events
             .chunks(NUM_MEM_ENTRIES_PER_ROW)
             .map(|row_events| {
@@ -126,14 +132,10 @@ impl<F: PrimeField32> MachineAir<F> for MemoryChip<F> {
             })
             .collect::<Vec<_>>();
 
+        pad_rows_fixed(&mut rows, || [F::zero(); NUM_MEM_INIT_COLS], self.fixed_log2_rows);
+
         // Convert the trace to a row major matrix.
-        let mut trace =
-            RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_MEM_INIT_COLS);
-
-        // Pad the trace to a power of two.
-        pad_to_power_of_two::<NUM_MEM_INIT_COLS, F>(&mut trace.values);
-
-        trace
+        RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_MEM_INIT_COLS)
     }
 
     fn included(&self, _record: &Self::Record) -> bool {

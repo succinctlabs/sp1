@@ -2,7 +2,7 @@ use core::borrow::Borrow;
 use p3_air::{Air, BaseAir, PairBuilder};
 use p3_field::{extension::BinomiallyExtendable, Field, PrimeField32};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
-use sp1_core_machine::utils::pad_to_power_of_two;
+use sp1_core_machine::utils::{pad_rows_fixed, pad_to_power_of_two};
 use sp1_derive::AlignedBorrow;
 use sp1_stark::air::{ExtensionAirBuilder, MachineAir};
 use std::borrow::BorrowMut;
@@ -10,7 +10,10 @@ use std::borrow::BorrowMut;
 use crate::{builder::SP1RecursionAirBuilder, *};
 
 #[derive(Default)]
-pub struct ExtAluChip {}
+pub struct ExtAluChip {
+    pub fixed_log2_rows: Option<usize>,
+    pub pad: bool,
+}
 
 pub const NUM_EXT_ALU_COLS: usize = core::mem::size_of::<ExtAluCols<u8>>();
 
@@ -53,7 +56,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for ExtAluChip {
     }
 
     fn generate_preprocessed_trace(&self, program: &Self::Program) -> Option<RowMajorMatrix<F>> {
-        let rows = program
+        let mut rows = program
             .instructions
             .iter()
             .filter_map(|instruction| {
@@ -81,15 +84,19 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for ExtAluChip {
                 Some(row)
             })
             .collect::<Vec<_>>();
+        println!("ext alu rows: {:?}", rows.len());
+
+        pad_rows_fixed(
+            &mut rows,
+            || [F::zero(); NUM_EXT_ALU_PREPROCESSED_COLS],
+            self.fixed_log2_rows,
+        );
 
         // Convert the trace to a row major matrix.
         let mut trace = RowMajorMatrix::new(
             rows.into_iter().flatten().collect::<Vec<_>>(),
             NUM_EXT_ALU_PREPROCESSED_COLS,
         );
-
-        // Pad the trace to a power of two.
-        pad_to_power_of_two::<NUM_EXT_ALU_PREPROCESSED_COLS, F>(&mut trace.values);
 
         Some(trace)
     }
@@ -107,7 +114,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for ExtAluChip {
         let ext_alu_events = input.ext_alu_events.clone();
 
         // Generate the trace rows & corresponding records for each chunk of events in parallel.
-        let rows = ext_alu_events
+        let mut rows = ext_alu_events
             .into_iter()
             .map(|vals| {
                 let mut row = [F::zero(); NUM_EXT_ALU_COLS];
@@ -116,12 +123,11 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for ExtAluChip {
             })
             .collect::<Vec<_>>();
 
+        pad_rows_fixed(&mut rows, || [F::zero(); NUM_EXT_ALU_COLS], self.fixed_log2_rows);
+
         // Convert the trace to a row major matrix.
         let mut trace =
             RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_EXT_ALU_COLS);
-
-        // Pad the trace to a power of two.
-        pad_to_power_of_two::<NUM_EXT_ALU_COLS, F>(&mut trace.values);
 
         trace
     }

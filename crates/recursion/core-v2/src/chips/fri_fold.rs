@@ -158,6 +158,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for FriFoldChip<DEGREE>
                 });
                 rows.extend(row_add);
             });
+        println!("fri fold rows: {:?}", rows.len());
 
         // Pad the trace to a power of two.
         if self.pad {

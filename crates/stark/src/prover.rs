@@ -92,6 +92,7 @@ pub trait MachineProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>>:
             .filter(|chip| chip.preprocessed_width() == 0)
             .map(|chip| (chip.name(), chip.min_rows(record)))
             .collect::<HashMap<_, _>>();
+        println!("min rows map: {:?}", min_rows_map);
 
         // Find the shape that fits with the smallest total rows.
         for (shape_index, shape) in shapes.iter().enumerate() {

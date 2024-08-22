@@ -110,6 +110,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
                 }
             });
         });
+        println!("poseidon2 wide rows: {:?}", rows.len());
         if self.pad {
             // Pad the trace to a power of two.
             // This may need to be adjusted when the AIR constraints are implemented.

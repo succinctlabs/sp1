@@ -107,6 +107,12 @@ pub struct SP1Prover<C: SP1ProverComponents = DefaultProverComponents> {
 
     /// The machine used for proving the wrapping step.
     pub wrap_prover: C::WrapProver,
+
+    /// The core recursion program cache.
+    pub core_programs: Arc<Mutex<HashMap<usize, Arc<RecursionProgram<BabyBear>>>>>,
+
+    /// The compress recursion program cache.
+    pub compress_programs: Arc<Mutex<HashMap<usize, Arc<RecursionProgram<BabyBear>>>>>,
 }
 
 impl<C: SP1ProverComponents> SP1Prover<C> {
@@ -134,7 +140,17 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         let wrap_machine = WrapAir::machine(OuterSC::default());
         let wrap_prover = C::WrapProver::new(wrap_machine);
 
-        Self { core_prover, compress_prover, shrink_prover, wrap_prover }
+        let core_programs = Arc::new(Mutex::new(HashMap::new()));
+        let compress_programs = Arc::new(Mutex::new(HashMap::new()));
+
+        Self {
+            core_prover,
+            compress_prover,
+            shrink_prover,
+            wrap_prover,
+            core_programs,
+            compress_programs,
+        }
     }
 
     /// Fully initializes the programs, proving keys, and verifying keys that are normally
@@ -420,7 +436,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             batch_size,
         );
 
-        let program_cache = Arc::new(Mutex::new(HashMap::new()));
+        // let program_cache = Arc::new(Mutex::new(HashMap::new()));
 
         // Calculate the expected height of the tree.
         let mut expected_height = 1;
@@ -468,7 +484,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             let record_and_trace_rx = Arc::new(Mutex::new(record_and_trace_rx));
             let input_rx = Arc::new(Mutex::new(input_rx));
             for _ in 0..opts.recursion_opts.trace_gen_workers {
-                let program_cache = Arc::clone(&program_cache);
+                // let program_cache = Arc::clone(&program_cache);
                 let record_and_trace_sync = Arc::clone(&record_and_trace_sync);
                 let record_and_trace_tx = Arc::clone(&record_and_trace_tx);
                 let input_rx = Arc::clone(&input_rx);
@@ -484,7 +500,8 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                             )
                             .in_scope(|| match input {
                                 SP1CircuitWitness::Core((input, shape)) => {
-                                    let program: Arc<RecursionProgram<BabyBear>> = program_cache
+                                    let program: Arc<RecursionProgram<BabyBear>> = self
+                                        .core_programs
                                         .lock()
                                         .unwrap()
                                         .entry(shape.id)
@@ -505,10 +522,21 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                                 //     (self.deferred_program(), witness_stream)
                                 // }
                                 SP1CircuitWitness::Compress(input) => {
+                                    let program: Arc<RecursionProgram<BabyBear>> = self
+                                        .compress_programs
+                                        .lock()
+                                        .unwrap()
+                                        .entry(input.vks_and_proofs.len())
+                                        .or_insert_with(|| {
+                                            tracing::debug_span!("get compress program")
+                                                .in_scope(|| self.compress_program(&input))
+                                        })
+                                        .clone();
                                     let mut witness_stream = Vec::new();
                                     witness_stream
                                         .extend(Witnessable::<InnerConfig>::write(&input));
-                                    (self.compress_program(&input), witness_stream)
+                                    println!("compress witness stream: {:?}", witness_stream.len());
+                                    (program, witness_stream)
                                 }
                             });
 

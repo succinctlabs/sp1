@@ -1,3 +1,5 @@
+use std::marker::PhantomData;
+
 use p3_field::{extension::BinomiallyExtendable, PrimeField32};
 use sp1_recursion_core::runtime::D;
 use sp1_stark::{Chip, StarkGenericConfig, StarkMachine, PROOF_MAX_NUM_PVS};
@@ -112,15 +114,27 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize, const COL_P
 
     pub fn get_all_wide() -> Vec<Self> {
         vec![
-            // RecursionAir::Program(ProgramChip::default()),
-            RecursionAir::MemoryConst(MemoryConstChip::default()),
-            RecursionAir::MemoryVar(MemoryVarChip::default()),
-            RecursionAir::BaseAlu(BaseAluChip::default()),
-            RecursionAir::ExtAlu(ExtAluChip::default()),
-            // RecursionAir::Poseidon2Skinny(Poseidon2SkinnyChip::<DEGREE>::default()),
-            RecursionAir::Poseidon2Wide(Poseidon2WideChip::<DEGREE>::default()),
-            RecursionAir::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE>::default()),
-            RecursionAir::FriFold(FriFoldChip::<DEGREE>::default()),
+            RecursionAir::MemoryConst(MemoryConstChip {
+                fixed_log2_rows: Some(16),
+                pad: true,
+                _data: PhantomData,
+            }),
+            RecursionAir::MemoryVar(MemoryVarChip {
+                fixed_log2_rows: Some(16),
+                pad: true,
+                _data: PhantomData,
+            }),
+            RecursionAir::BaseAlu(BaseAluChip { fixed_log2_rows: Some(20), pad: true }),
+            RecursionAir::ExtAlu(ExtAluChip { fixed_log2_rows: Some(21), pad: true }),
+            RecursionAir::Poseidon2Wide(Poseidon2WideChip::<DEGREE> {
+                fixed_log2_rows: Some(17),
+                pad: true,
+            }),
+            RecursionAir::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE> {
+                fixed_log2_rows: Some(17),
+                pad: true,
+            }),
+            // RecursionAir::FriFold(FriFoldChip::<DEGREE> { fixed_log2_rows: Some(4), pad: true }),
             RecursionAir::PublicValues(PublicValuesChip::default()),
         ]
     }
