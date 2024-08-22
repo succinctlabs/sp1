@@ -212,7 +212,7 @@ pub enum DslIr<C: Config> {
     /// Permutates an array of BabyBear elements in the circuit.
     CircuitPoseidon2PermuteBabyBear([Felt<C::F>; 16]),
     /// Permutates an array of BabyBear elements in the circuit using the skinny precompile.
-    CircuitV2Poseidon2PermuteBabyBear([Felt<C::F>; 16], [Felt<C::F>; 16]),
+    CircuitV2Poseidon2PermuteBabyBear(Box<([Felt<C::F>; 16], [Felt<C::F>; 16])>),
     /// Commits the public values.
     CircuitV2CommitPublicValues(Box<RecursionPublicValues<Felt<C::F>>>),
 
@@ -276,7 +276,7 @@ pub enum DslIr<C: Config> {
     // FRI specific instructions.
     /// Executes a FRI fold operation. Input is the fri fold input array.  See [`FriFoldInput`] for
     /// more details.
-    CircuitV2FriFold(CircuitV2FriFoldOutput<C>, CircuitV2FriFoldInput<C>),
+    CircuitV2FriFold(Box<(CircuitV2FriFoldOutput<C>, CircuitV2FriFoldInput<C>)>),
     /// Select's a variable based on a condition. (select(cond, true_val, false_val) => output).
     /// Should only be used when target is a gnark circuit.
     CircuitSelectV(Var<C::N>, Var<C::N>, Var<C::N>, Var<C::N>),

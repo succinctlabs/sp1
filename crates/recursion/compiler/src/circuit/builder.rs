@@ -79,7 +79,7 @@ impl<C: Config> CircuitV2Builder<C> for Builder<C> {
     /// Applies the Poseidon2 permutation to the given array.
     fn poseidon2_permute_v2(&mut self, array: [Felt<C::F>; WIDTH]) -> [Felt<C::F>; WIDTH] {
         let output: [Felt<C::F>; WIDTH] = core::array::from_fn(|_| self.uninit());
-        self.operations.push(DslIr::CircuitV2Poseidon2PermuteBabyBear(output, array));
+        self.operations.push(DslIr::CircuitV2Poseidon2PermuteBabyBear(Box::new((output, array))));
         output
     }
 
@@ -119,7 +119,7 @@ impl<C: Config> CircuitV2Builder<C> for Builder<C> {
             alpha_pow_output: uninit_vec(input.alpha_pow_input.len()),
             ro_output: uninit_vec(input.ro_input.len()),
         };
-        self.operations.push(DslIr::CircuitV2FriFold(output.clone(), input));
+        self.operations.push(DslIr::CircuitV2FriFold(Box::new((output.clone(), input))));
         output
     }
 
