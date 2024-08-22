@@ -27,6 +27,7 @@ use crate::{
     challenger::{CanObserveVariable, MultiField32ChallengerVariable},
     stark::{ShardProofVariable, StarkVerifier},
     utils::{felt_bytes_to_bn254_var, felts_to_bn254_var, words_to_bytes},
+    witness::{OuterWitness, Witnessable},
     BatchOpeningVariable, FriCommitPhaseProofStepVariable, FriProofVariable, FriQueryProofVariable,
     TwoAdicPcsProofVariable, VerifyingKeyVariable,
 };
@@ -56,9 +57,11 @@ where
     let pc_start = builder.eval(wrap_vk.pc_start);
     challenger.observe(&mut builder, pc_start);
 
-    // let mut witness = Witness::default();
+    // let mut witness = OuterWitness::default();
     // template_proof.write(&mut witness);
-    let proof = const_shard_proof(&mut builder, &template_proof);
+
+    let proof = template_proof.read(&mut builder);
+    // let proof = const_shard_proof(&mut builder, &template_proof);
 
     let commited_values_digest = builder.constant(<C as Config>::N::zero());
     builder.commit_commited_values_digest_circuit(commited_values_digest);
@@ -333,7 +336,7 @@ pub mod tests {
         fri::verify_two_adic_pcs,
         hash::BN254_DIGEST_SIZE,
         utils::{babybear_bytes_to_bn254, babybears_to_bn254, words_to_bytes},
-        witness::OuterWitness,
+        witness::{OuterWitness, Witnessable},
         Digest, TwoAdicPcsMatsVariable, TwoAdicPcsRoundVariable,
     };
 
@@ -378,7 +381,7 @@ pub mod tests {
 
         // Build the witness.
         let mut witness = OuterWitness::default();
-        // result.shard_proofs[0].write(&mut witness);
+        result.shard_proofs[0].write(&mut witness);
         witness.write_commited_values_digest(committed_values_digest);
         witness.write_vkey_hash(vkey_hash);
 

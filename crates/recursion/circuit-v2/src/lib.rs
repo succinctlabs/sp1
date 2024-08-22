@@ -205,15 +205,15 @@ impl CircuitConfig for OuterConfig {
     type Bit = Var<<Self as Config>::N>;
 
     fn read_bit(builder: &mut Builder<Self>) -> Self::Bit {
-        builder.hint_var()
+        builder.witness_var()
     }
 
     fn read_felt(builder: &mut Builder<Self>) -> Felt<Self::F> {
-        builder.hint_felt()
+        builder.witness_felt()
     }
 
     fn read_ext(builder: &mut Builder<Self>) -> Ext<Self::F, Self::EF> {
-        builder.hint_ext()
+        builder.witness_ext()
     }
 
     fn ext2felt(
