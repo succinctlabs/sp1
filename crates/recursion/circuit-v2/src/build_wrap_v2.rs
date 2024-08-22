@@ -27,7 +27,7 @@ use crate::{
     challenger::{CanObserveVariable, MultiField32ChallengerVariable},
     stark::{ShardProofVariable, StarkVerifier},
     utils::{felt_bytes_to_bn254_var, felts_to_bn254_var, words_to_bytes},
-    witness::{OuterWitness, Witnessable},
+    witness::Witnessable,
     BatchOpeningVariable, FriCommitPhaseProofStepVariable, FriProofVariable, FriQueryProofVariable,
     TwoAdicPcsProofVariable, VerifyingKeyVariable,
 };
@@ -146,7 +146,7 @@ where
 
 /// A utility function to convert a `ShardProof` into a `ShardProofVariable`. Should be replaced by
 /// more refined witness generation.
-fn const_shard_proof(
+pub fn const_shard_proof(
     builder: &mut Builder<OuterConfig>,
     proof: &ShardProof<OuterSC>,
 ) -> ShardProofVariable<OuterConfig, BabyBearPoseidon2Outer> {
@@ -268,7 +268,7 @@ fn const_fri_proof(
     }
 }
 
-fn const_two_adic_pcs_proof(
+pub fn const_two_adic_pcs_proof(
     builder: &mut Builder<OuterConfig>,
     proof: TwoAdicFriPcsProof<OuterVal, OuterChallenge, OuterValMmcs, OuterChallengeMmcs>,
 ) -> TwoAdicPcsProofVariable<OuterConfig, SC> {
