@@ -5308,7 +5308,6 @@ dependencies = [
  "sp1-core-executor",
  "sp1-core-machine",
  "sp1-primitives",
- "sp1-prover",
  "sp1-recursion-circuit",
  "sp1-recursion-compiler",
  "sp1-recursion-core-v2",

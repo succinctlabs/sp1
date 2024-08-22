@@ -255,10 +255,10 @@ pub mod tests {
 
     use sp1_core_executor::{programs::tests::FIBONACCI_ELF, Program};
     use sp1_core_machine::{
+        io::SP1Stdin,
         riscv::RiscvAir,
         utils::{prove, setup_logger},
     };
-    use sp1_prover::{SP1Stdin, SP1VerifyingKey};
     use sp1_recursion_compiler::{
         config::{InnerConfig, OuterConfig},
         ir::{Builder, DslIr, TracedVec},
@@ -314,7 +314,7 @@ pub mod tests {
         // Observe all the commitments.
         let mut builder = Builder::<C>::default();
 
-        let mut witness_stream = VecDeque::<Witness<C>>::new();
+        let mut witness_stream = VecDeque::<WitnessBlock<C>>::new();
 
         // Add a hash invocation, since the poseidon2 table expects that it's in the first row.
         let mut challenger = config.challenger_variable(&mut builder);

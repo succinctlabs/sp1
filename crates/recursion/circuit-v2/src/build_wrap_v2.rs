@@ -26,7 +26,7 @@ use sp1_stark::{
 use crate::{
     challenger::{CanObserveVariable, MultiField32ChallengerVariable},
     stark::{ShardProofVariable, StarkVerifier},
-    utils::{babybear_bytes_to_bn254, babybears_to_bn254, words_to_bytes},
+    utils::{felt_bytes_to_bn254_var, felts_to_bn254_var, words_to_bytes},
     BatchOpeningVariable, FriCommitPhaseProofStepVariable, FriProofVariable, FriQueryProofVariable,
     TwoAdicPcsProofVariable, VerifyingKeyVariable,
 };
@@ -81,7 +81,7 @@ where
     // builder.assert_felt_eq(pv.is_complete, one_felt);
 
     // Convert pv.sp1_vk_digest into Bn254
-    let pv_vkey_hash = babybears_to_bn254(&mut builder, &pv.sp1_vk_digest);
+    let pv_vkey_hash = felts_to_bn254_var(&mut builder, &pv.sp1_vk_digest);
     // Vkey hash must match the witnessed commited_values_digest that we are committing to.
     builder.assert_var_eq(pv_vkey_hash, vkey_hash);
 
@@ -89,7 +89,7 @@ where
     let pv_committed_values_digest_bytes: [Felt<_>; 32] =
         words_to_bytes(&pv.committed_value_digest).try_into().unwrap();
     let pv_committed_values_digest: Var<_> =
-        babybear_bytes_to_bn254(&mut builder, &pv_committed_values_digest_bytes);
+        felt_bytes_to_bn254_var(&mut builder, &pv_committed_values_digest_bytes);
 
     // // Committed values digest must match the witnessed one that we are committing to.
     builder.assert_var_eq(pv_committed_values_digest, commited_values_digest);
@@ -310,7 +310,6 @@ pub mod tests {
     use p3_matrix::dense::RowMajorMatrix;
     use rand::{rngs::StdRng, SeedableRng};
     use sp1_core_machine::utils::{log2_strict_usize, run_test_machine, setup_logger};
-    use sp1_prover::build::{Witness, Witnessable};
     use sp1_recursion_compiler::{
         config::OuterConfig,
         constraints::ConstraintCompiler,
@@ -330,8 +329,12 @@ pub mod tests {
     use sp1_stark::{BabyBearPoseidon2Inner, StarkMachine};
 
     use crate::{
-        challenger::CanObserveVariable, fri::verify_two_adic_pcs, hash::BN254_DIGEST_SIZE, Digest,
-        TwoAdicPcsMatsVariable, TwoAdicPcsRoundVariable,
+        challenger::CanObserveVariable,
+        fri::verify_two_adic_pcs,
+        hash::BN254_DIGEST_SIZE,
+        utils::{babybear_bytes_to_bn254, babybears_to_bn254, words_to_bytes},
+        witness::OuterWitness,
+        Digest, TwoAdicPcsMatsVariable, TwoAdicPcsRoundVariable,
     };
 
     use super::{build_wrap_circuit_v2, const_two_adic_pcs_proof};
@@ -368,15 +371,14 @@ pub mod tests {
 
         let pv: &RecursionPublicValues<_> =
             result.shard_proofs[0].public_values.as_slice().borrow();
-        let vkey_hash = sp1_prover::utils::babybears_to_bn254(&pv.sp1_vk_digest);
+        let vkey_hash = babybears_to_bn254(&pv.sp1_vk_digest);
         let committed_values_digest_bytes: [BabyBear; 32] =
-            sp1_prover::utils::words_to_bytes(&pv.committed_value_digest).try_into().unwrap();
-        let committed_values_digest =
-            sp1_prover::utils::babybear_bytes_to_bn254(&committed_values_digest_bytes);
+            words_to_bytes(&pv.committed_value_digest).try_into().unwrap();
+        let committed_values_digest = babybear_bytes_to_bn254(&committed_values_digest_bytes);
 
         // Build the witness.
-        let mut witness = Witness::default();
-        result.shard_proofs[0].write(&mut witness);
+        let mut witness = OuterWitness::default();
+        // result.shard_proofs[0].write(&mut witness);
         witness.write_commited_values_digest(committed_values_digest);
         witness.write_vkey_hash(vkey_hash);
 
@@ -506,7 +508,7 @@ pub mod tests {
         );
         let mut backend = ConstraintCompiler::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);
-        let witness = Witness::default();
+        let witness = OuterWitness::default();
         PlonkBn254Prover::test::<OuterConfig>(constraints, witness);
     }
 }

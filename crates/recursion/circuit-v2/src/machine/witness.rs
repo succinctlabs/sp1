@@ -32,7 +32,7 @@ where
         DuplexChallengerVariable { sponge_state, input_buffer, output_buffer }
     }
 
-    fn write(&self) -> Vec<crate::witness::Witness<C>> {
+    fn write(&self) -> Vec<crate::witness::WitnessBlock<C>> {
         [
             Witnessable::<C>::write(&self.sponge_state),
             Witnessable::<C>::write(&self.input_buffer),
@@ -54,7 +54,7 @@ where
         array.read(builder)
     }
 
-    fn write(&self) -> Vec<crate::witness::Witness<C>> {
+    fn write(&self) -> Vec<crate::witness::WitnessBlock<C>> {
         let array: &[W; DIGEST_ELEMENTS] = self.borrow();
         array.write()
     }
@@ -74,7 +74,7 @@ where
         VerifyingKeyVariable { commitment, pc_start, chip_information, chip_ordering }
     }
 
-    fn write(&self) -> Vec<crate::witness::Witness<C>> {
+    fn write(&self) -> Vec<crate::witness::WitnessBlock<C>> {
         [Witnessable::<C>::write(&self.commit), Witnessable::<C>::write(&self.pc_start)].concat()
     }
 }
@@ -101,7 +101,7 @@ where
         }
     }
 
-    fn write(&self) -> Vec<crate::witness::Witness<C>> {
+    fn write(&self) -> Vec<crate::witness::WitnessBlock<C>> {
         [
             Witnessable::<C>::write(&self.vk),
             Witnessable::<C>::write(&self.shard_proofs),
