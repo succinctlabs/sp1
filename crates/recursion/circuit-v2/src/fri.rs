@@ -116,25 +116,54 @@ pub fn verify_two_adic_pcs<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigV
                         builder.eval(C::F::two_adic_generator(log_height));
                     let two_adic_generator_exp =
                         C::exp_reverse_bits(builder, two_adic_generator, reduced_index_bits_trunc);
-                    let x: Felt<_> = builder.eval(g * two_adic_generator_exp);
+
+                    // Unroll the following to avoid symbolic expression overhead
+                    // let x: Felt<_> = builder.eval(g * two_adic_generator_exp);
+                    let x: Felt<_> = builder.uninit();
+                    builder.operations.push(DslIr::MulF(x, g, two_adic_generator_exp));
 
                     for (z, ps_at_z) in izip!(mat_points, mat_values) {
-                        // builder.cycle_tracker("2adic-hotloop");
-                        let mut acc: Ext<C::F, C::EF> =
-                            builder.eval(SymbolicExt::from_f(C::EF::zero()));
+                        // Unroll the loop calculation to avoid symbolic expression overhead
+
+                        // let mut acc: Ext<C::F, C::EF> =
+                        //     builder.eval(SymbolicExt::from_f(C::EF::zero()));
+                        let mut acc: Ext<_, _> = builder.uninit();
+
+                        builder.operations.push(DslIr::ImmE(acc, C::EF::zero()));
                         for (p_at_x, p_at_z) in izip!(mat_opening.clone(), ps_at_z) {
                             let pow = log_height_pow[log_height];
                             // Fill in any missing powers of alpha.
-                            (alpha_pows.len()..pow + 1).for_each(|_| {
-                                let new_alpha = builder.eval(*alpha_pows.last().unwrap() * alpha);
-                                builder.reduce_e(new_alpha);
+                            for _ in alpha_pows.len()..pow + 1 {
+                                // let new_alpha = builder.eval(*alpha_pows.last().unwrap() * alpha);
+                                // builder.reduce_e(new_alpha);
+                                // alpha_pows.push(new_alpha);
+                                let new_alpha: Ext<_, _> = builder.uninit();
+                                builder.operations.push(DslIr::MulE(
+                                    new_alpha,
+                                    *alpha_pows.last().unwrap(),
+                                    alpha,
+                                ));
                                 alpha_pows.push(new_alpha);
-                            });
-                            acc = builder.eval(acc + (alpha_pows[pow] * (p_at_z - p_at_x[0])));
+                            }
+                            // Unroll:
+                            //
+                            // acc = builder.eval(acc + (alpha_pows[pow] * (p_at_z - p_at_x[0])));
+
+                            // let temp_1 = p_at_z - p_at_x[0];
+                            let temp_1: Ext<_, _> = builder.uninit();
+                            builder.operations.push(DslIr::SubEF(temp_1, p_at_z, p_at_x[0]));
+                            // let temp_2 = alpha_pows[pow] * temp_1;
+                            let temp_2: Ext<_, _> = builder.uninit();
+                            builder.operations.push(DslIr::MulE(temp_2, alpha_pows[pow], temp_1));
+                            // let temp_3 = acc + temp_2;
+                            let temp_3: Ext<_, _> = builder.uninit();
+                            builder.operations.push(DslIr::AddE(temp_3, acc, temp_2));
+                            // acc = temp_3;
+                            acc = temp_3;
+
                             log_height_pow[log_height] += 1;
                         }
                         ro[log_height] = builder.eval(ro[log_height] + acc / (z - x));
-                        // builder.cycle_tracker("2adic-hotloop");
                     }
                 }
             }
