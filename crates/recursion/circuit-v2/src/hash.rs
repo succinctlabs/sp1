@@ -81,7 +81,7 @@ impl<C: CircuitConfig<F = BabyBear, N = Bn254Fr, Bit = Var<Bn254Fr>>> FieldHashe
             [builder.eval(C::N::zero()), builder.eval(C::N::zero()), builder.eval(C::N::zero())];
         for block_chunk in &input.iter().chunks(RATE) {
             for (chunk_id, chunk) in (&block_chunk.chunks(num_f_elms)).into_iter().enumerate() {
-                let chunk = chunk.collect_vec().into_iter().copied().collect::<Vec<_>>();
+                let chunk = chunk.copied().collect::<Vec<_>>();
                 state[chunk_id] = reduce_32(builder, chunk.as_slice());
             }
             builder.push(DslIr::CircuitPoseidon2Permute(state))

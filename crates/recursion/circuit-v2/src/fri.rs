@@ -162,7 +162,23 @@ pub fn verify_two_adic_pcs<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigV
 
                             log_height_pow[log_height] += 1;
                         }
-                        ro[log_height] = builder.eval(ro[log_height] + acc / (z - x));
+                        // Unroll this calculation to avoid symbolic expression overhead
+                        // ro[log_height] = builder.eval(ro[log_height] + acc / (z - x));
+
+                        // let temp_1 = z - x;
+                        let temp_1: Ext<_, _> = builder.uninit();
+                        builder.operations.push(DslIr::SubEF(temp_1, z, x));
+
+                        // let temp_2 = acc / (temp_1);
+                        let temp_2: Ext<_, _> = builder.uninit();
+                        builder.operations.push(DslIr::DivE(temp_2, acc, temp_1));
+
+                        // let temp_3 = rp[log_height] + temp_2;
+                        let temp_3: Ext<_, _> = builder.uninit();
+                        builder.operations.push(DslIr::AddE(temp_3, ro[log_height], temp_2));
+
+                        // ro[log_height] = temp_3;
+                        ro[log_height] = temp_3;
                     }
                 }
             }
