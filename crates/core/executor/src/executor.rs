@@ -452,7 +452,7 @@ impl<'a> Executor<'a> {
         let record = self.mw(addr, value, self.shard(), self.timestamp(&position));
 
         // If we're not in unconstrained mode, record the access for the current cycle.
-        if !self.unconstrained {
+        if !self.unconstrained && self.executor_mode != ExecutorMode::Fast {
             match position {
                 MemoryAccessPosition::A => {
                     assert!(self.memory_accesses.a.is_none());
