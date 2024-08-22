@@ -444,8 +444,8 @@ where
             DslIr::AssertNeFI(lhs, rhs) => self.base_assert_ne(lhs, Imm::F(rhs), f),
             DslIr::AssertNeEI(lhs, rhs) => self.ext_assert_ne(lhs, Imm::EF(rhs), f),
 
-            DslIr::CircuitV2Poseidon2PermuteBabyBear(dst, src) => {
-                f(self.poseidon2_permute(dst, src))
+            DslIr::CircuitV2Poseidon2PermuteBabyBear(data) => {
+                f(self.poseidon2_permute(data.0, data.1))
             }
             DslIr::CircuitV2ExpReverseBits(dst, base, exp) => {
                 f(self.exp_reverse_bits(dst, base, exp))
@@ -453,7 +453,7 @@ where
             DslIr::CircuitV2HintBitsF(output, value) => {
                 f(self.hint_bit_decomposition(value, output))
             }
-            DslIr::CircuitV2FriFold(output, input) => f(self.fri_fold(output, input)),
+            DslIr::CircuitV2FriFold(data) => f(self.fri_fold(data.0, data.1)),
             DslIr::CircuitV2CommitPublicValues(public_values) => {
                 f(self.commit_public_values(&public_values))
             }

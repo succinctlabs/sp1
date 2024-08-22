@@ -235,7 +235,8 @@ impl<F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> AsmCo
                 DslIr::MulEFI(dst, lhs, rhs) => {
                     self.push(AsmInstruction::MulEI(dst.fp(), lhs.fp(), EF::from_base(rhs)), trace);
                 }
-                DslIr::IfEq(lhs, rhs, then_block, else_block) => {
+                DslIr::IfEq(data) => {
+                    let (lhs, rhs, then_block, else_block) = *data;
                     let if_compiler = IfCompiler {
                         compiler: self,
                         lhs: lhs.fp(),
@@ -251,7 +252,8 @@ impl<F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> AsmCo
                         );
                     }
                 }
-                DslIr::IfNe(lhs, rhs, then_block, else_block) => {
+                DslIr::IfNe(data) => {
+                    let (lhs, rhs, then_block, else_block) = *data;
                     let if_compiler = IfCompiler {
                         compiler: self,
                         lhs: lhs.fp(),
@@ -267,7 +269,8 @@ impl<F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> AsmCo
                         );
                     }
                 }
-                DslIr::IfEqI(lhs, rhs, then_block, else_block) => {
+                DslIr::IfEqI(data) => {
+                    let (lhs, rhs, then_block, else_block) = *data;
                     let if_compiler = IfCompiler {
                         compiler: self,
                         lhs: lhs.fp(),
@@ -283,7 +286,8 @@ impl<F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> AsmCo
                         );
                     }
                 }
-                DslIr::IfNeI(lhs, rhs, then_block, else_block) => {
+                DslIr::IfNeI(data) => {
+                    let (lhs, rhs, then_block, else_block) = *data;
                     let if_compiler = IfCompiler {
                         compiler: self,
                         lhs: lhs.fp(),
@@ -305,7 +309,8 @@ impl<F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> AsmCo
                     self.contains_break.insert(current_block);
                     self.push(AsmInstruction::Break(label), trace);
                 }
-                DslIr::For(start, end, step_size, loop_var, block) => {
+                DslIr::For(data) => {
+                    let (start, end, step_size, loop_var, block) = *data;
                     let for_compiler =
                         ForCompiler { compiler: self, start, end, step_size, loop_var };
                     for_compiler.for_each(move |_, builder| builder.build(block));
@@ -440,7 +445,7 @@ impl<F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> AsmCo
                     }
                     _ => unimplemented!(),
                 },
-                DslIr::Poseidon2PermuteBabyBear(dst, src) => match (dst, src) {
+                DslIr::Poseidon2PermuteBabyBear(data) => match *data {
                     (Array::Dyn(dst, _), Array::Dyn(src, _)) => {
                         self.push(AsmInstruction::Poseidon2Permute(dst.fp(), src.fp()), trace)
                     }
@@ -476,20 +481,14 @@ impl<F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> AsmCo
                         unimplemented!();
                     }
                 }
-                DslIr::Poseidon2CompressBabyBear(result, left, right) => {
-                    match (result, left, right) {
-                        (Array::Dyn(result, _), Array::Dyn(left, _), Array::Dyn(right, _)) => self
-                            .push(
-                                AsmInstruction::Poseidon2Compress(
-                                    result.fp(),
-                                    left.fp(),
-                                    right.fp(),
-                                ),
-                                trace,
-                            ),
-                        _ => unimplemented!(),
-                    }
-                }
+                DslIr::Poseidon2CompressBabyBear(data) => match *data {
+                    (Array::Dyn(result, _), Array::Dyn(left, _), Array::Dyn(right, _)) => self
+                        .push(
+                            AsmInstruction::Poseidon2Compress(result.fp(), left.fp(), right.fp()),
+                            trace,
+                        ),
+                    _ => unimplemented!(),
+                },
                 DslIr::Poseidon2AbsorbBabyBear(p2_hash_and_absorb_num, input) => match input {
                     Array::Dyn(input, input_size) => {
                         if let Usize::Var(input_size) = input_size {

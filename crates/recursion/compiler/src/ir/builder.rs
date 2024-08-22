@@ -540,19 +540,19 @@ impl<'a, C: Config> IfBuilder<'a, C> {
                 }
             }
             IfCondition::Eq(lhs, rhs) => {
-                let op = DslIr::IfEq(lhs, rhs, then_instructions, Default::default());
+                let op = DslIr::IfEq(Box::new((lhs, rhs, then_instructions, Default::default())));
                 self.builder.operations.push(op);
             }
             IfCondition::EqI(lhs, rhs) => {
-                let op = DslIr::IfEqI(lhs, rhs, then_instructions, Default::default());
+                let op = DslIr::IfEqI(Box::new((lhs, rhs, then_instructions, Default::default())));
                 self.builder.operations.push(op);
             }
             IfCondition::Ne(lhs, rhs) => {
-                let op = DslIr::IfNe(lhs, rhs, then_instructions, Default::default());
+                let op = DslIr::IfNe(Box::new((lhs, rhs, then_instructions, Default::default())));
                 self.builder.operations.push(op);
             }
             IfCondition::NeI(lhs, rhs) => {
-                let op = DslIr::IfNeI(lhs, rhs, then_instructions, Default::default());
+                let op = DslIr::IfNeI(Box::new((lhs, rhs, then_instructions, Default::default())));
                 self.builder.operations.push(op);
             }
         }
@@ -612,19 +612,19 @@ impl<'a, C: Config> IfBuilder<'a, C> {
                 }
             }
             IfCondition::Eq(lhs, rhs) => {
-                let op = DslIr::IfEq(lhs, rhs, then_instructions, else_instructions);
+                let op = DslIr::IfEq(Box::new((lhs, rhs, then_instructions, else_instructions)));
                 self.builder.operations.push(op);
             }
             IfCondition::EqI(lhs, rhs) => {
-                let op = DslIr::IfEqI(lhs, rhs, then_instructions, else_instructions);
+                let op = DslIr::IfEqI(Box::new((lhs, rhs, then_instructions, else_instructions)));
                 self.builder.operations.push(op);
             }
             IfCondition::Ne(lhs, rhs) => {
-                let op = DslIr::IfNe(lhs, rhs, then_instructions, else_instructions);
+                let op = DslIr::IfNe(Box::new((lhs, rhs, then_instructions, else_instructions)));
                 self.builder.operations.push(op);
             }
             IfCondition::NeI(lhs, rhs) => {
-                let op = DslIr::IfNeI(lhs, rhs, then_instructions, else_instructions);
+                let op = DslIr::IfNeI(Box::new((lhs, rhs, then_instructions, else_instructions)));
                 self.builder.operations.push(op);
             }
         }
@@ -734,7 +734,13 @@ impl<'a, C: Config> RangeBuilder<'a, C> {
 
         let loop_instructions = loop_body_builder.operations;
 
-        let op = DslIr::For(self.start, self.end, step_size, loop_variable, loop_instructions);
+        let op = DslIr::For(Box::new((
+            self.start,
+            self.end,
+            step_size,
+            loop_variable,
+            loop_instructions,
+        )));
         self.builder.operations.push(op);
     }
 }
