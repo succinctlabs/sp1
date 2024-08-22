@@ -1,7 +1,6 @@
 use std::{iter::Zip, vec::IntoIter};
 
 use backtrace::Backtrace;
-use itertools::Itertools;
 use p3_field::AbstractField;
 use sp1_core_machine::utils::sp1_debug_mode;
 use sp1_primitives::types::RecursionProgramType;
@@ -434,17 +433,6 @@ impl<C: Config> Builder<C> {
             Usize::Const(num) => self.eval(C::N::from_canonical_usize(num)),
             Usize::Var(num) => num,
         }
-    }
-
-    /// An implementation of the Poseidon2 hash function for slices of BabyBear elements.
-    pub fn p2_circuit_babybear_hash(&mut self, input: &[Felt<C::F>]) -> [Felt<C::F>; 8] {
-        let mut state: [Felt<C::F>; 16] = core::array::from_fn(|_| self.eval(C::F::zero()));
-
-        for block_chunk in &input.iter().chunks(8) {
-            state.iter_mut().zip(block_chunk).for_each(|(s, i)| *s = self.eval(*i));
-            self.push(DslIr::CircuitPoseidon2PermuteBabyBear(state));
-        }
-        core::array::from_fn(|i| state[i])
     }
 
     /// Register a felt as public value.  This is append to the proof's public values buffer.

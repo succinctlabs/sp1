@@ -381,12 +381,6 @@ impl<C: Config + Debug> ConstraintCompiler<C> {
 
                 // Version 2 instructions
                 DslIr::CircuitV2CommitPublicValues(_) => {}
-                // DslIr::CircuitV2ExpReverseBits(_, _, _) => {}
-                // DslIr::CircuitV2FriFold(_, _) => {}
-                // DslIr::CircuitV2HintBitsF(_, _) => {}
-                // DslIr::CircuitV2HintExts(_) => {}
-                // DslIr::CircuitV2HintFelts(_) => {}
-                // DslIr::CircuitV2Poseidon2PermuteBabyBear(_, _) => {}
                 _ => panic!("unsupported {:?}", instruction),
             };
         }
