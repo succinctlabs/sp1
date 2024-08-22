@@ -123,19 +123,19 @@ pub enum DslIr<C: Config> {
     // Control flow.
     /// Executes a for loop with the parameters (start step value, end step value, step size, step
     /// variable, body).
-    For(Usize<C::N>, Usize<C::N>, C::N, Var<C::N>, TracedVec<DslIr<C>>),
+    For(Box<(Usize<C::N>, Usize<C::N>, C::N, Var<C::N>, TracedVec<DslIr<C>>)>),
     /// Executes an equal conditional branch with the parameters (lhs var, rhs var, then body, else
     /// body).
-    IfEq(Var<C::N>, Var<C::N>, TracedVec<DslIr<C>>, TracedVec<DslIr<C>>),
+    IfEq(Box<(Var<C::N>, Var<C::N>, TracedVec<DslIr<C>>, TracedVec<DslIr<C>>)>),
     /// Executes a not equal conditional branch with the parameters (lhs var, rhs var, then body,
     /// else body).
-    IfNe(Var<C::N>, Var<C::N>, TracedVec<DslIr<C>>, TracedVec<DslIr<C>>),
+    IfNe(Box<(Var<C::N>, Var<C::N>, TracedVec<DslIr<C>>, TracedVec<DslIr<C>>)>),
     /// Executes an equal conditional branch with the parameters (lhs var, rhs imm, then body, else
     /// body).
-    IfEqI(Var<C::N>, C::N, TracedVec<DslIr<C>>, TracedVec<DslIr<C>>),
+    IfEqI(Box<(Var<C::N>, C::N, TracedVec<DslIr<C>>, TracedVec<DslIr<C>>)>),
     /// Executes a not equal conditional branch with the parameters (lhs var, rhs imm, then body,
     /// else body).
-    IfNeI(Var<C::N>, C::N, TracedVec<DslIr<C>>, TracedVec<DslIr<C>>),
+    IfNeI(Box<(Var<C::N>, C::N, TracedVec<DslIr<C>>, TracedVec<DslIr<C>>)>),
     /// Break out of a for loop.
     Break,
 
@@ -201,7 +201,9 @@ pub enum DslIr<C: Config> {
     Poseidon2PermuteBabyBear(Array<C, Felt<C::F>>, Array<C, Felt<C::F>>),
     /// Compresses two baby bear element arrays using Poseidon2 (output = p2_compress(array1,
     /// array2)).
-    Poseidon2CompressBabyBear(Array<C, Felt<C::F>>, Array<C, Felt<C::F>>, Array<C, Felt<C::F>>),
+    Poseidon2CompressBabyBear(
+        Box<(Array<C, Felt<C::F>>, Array<C, Felt<C::F>>, Array<C, Felt<C::F>>)>,
+    ),
     /// Absorb an array of baby bear elements for a specified hash instance.
     Poseidon2AbsorbBabyBear(Var<C::N>, Array<C, Felt<C::F>>),
     /// Finalize and return the hash digest of a specified hash instance.

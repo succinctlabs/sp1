@@ -76,11 +76,11 @@ impl<C: Config> Builder<C> {
         left: &Array<C, Felt<C::F>>,
         right: &Array<C, Felt<C::F>>,
     ) {
-        self.operations.push(DslIr::Poseidon2CompressBabyBear(
+        self.operations.push(DslIr::Poseidon2CompressBabyBear(Box::new((
             result.clone(),
             left.clone(),
             right.clone(),
-        ));
+        ))));
     }
 
     /// Applies the Poseidon2 permutation to the given array.
