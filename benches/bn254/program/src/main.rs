@@ -9,17 +9,17 @@ pub fn main() {
         let lhs = Fq::random(&mut rand::thread_rng());
         let rhs = Fq::random(&mut rand::thread_rng());
 
-        println!("cycle-tracker-start: bn254-add");
+        println!("cycle-tracker-start: bn254-add-fp");
         let _ = lhs + rhs;
-        println!("cycle-tracker-end: bn254-add");
+        println!("cycle-tracker-end: bn254-add-fp");
 
-        println!("cycle-tracker-start: bn254-sub");
+        println!("cycle-tracker-start: bn254-sub-fp");
         let _ = lhs - rhs;
-        println!("cycle-tracker-end: bn254-sub");
+        println!("cycle-tracker-end: bn254-sub-fp");
 
-        println!("cycle-tracker-start: bn254-mul");
+        println!("cycle-tracker-start: bn254-mul-fp");
         let _ = lhs * rhs;
-        println!("cycle-tracker-end: bn254-mul");
+        println!("cycle-tracker-end: bn254-mul-fp");
     }
 
     {

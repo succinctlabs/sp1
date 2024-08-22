@@ -97,11 +97,12 @@ pub fn main() {
     // Pairing Check
     {
         let p1 = G1Affine::from(G1Projective::random(&mut rng));
-        let q1 = G2Prepared::from(G2Affine::from(G2Projective::random(&mut rng)));
+        let q1 = G2Affine::from(G2Projective::random(&mut rng));
         let p2 = G1Affine::from(G1Projective::random(&mut rng));
-        let q2 = G2Prepared::from(G2Affine::from(G2Projective::random(&mut rng)));
+        let q2 = G2Affine::from(G2Projective::random(&mut rng));
         println!("cycle-tracker-start: bls12_381-pairing-check");
-        multi_miller_loop(&[(&p1, &q1), (&p2, &q2)]).final_exponentiation();
+        multi_miller_loop(&[(&p1, &G2Prepared::from(q1)), (&p2, &G2Prepared::from(q2))])
+            .final_exponentiation();
         println!("cycle-tracker-end: bls12_381-pairing-check");
     }
 }
