@@ -5,7 +5,8 @@ use sp1_recursion_compiler::ir::{Builder, Ext, Felt};
 
 pub use outer::*;
 use sp1_stark::{
-    Com, InnerChallenge, InnerVal, OpeningProof, ShardCommitment, ShardOpenedValues, ShardProof,
+    ChipOpenedValues, Com, InnerChallenge, InnerVal, OpeningProof, ShardCommitment,
+    ShardOpenedValues, ShardProof,
 };
 pub use stark::*;
 
@@ -176,5 +177,36 @@ impl<C: CircuitConfig<F = InnerVal, EF = InnerChallenge>> Witnessable<C>
 
     fn write(&self, witness: &mut impl WitnessWriter<C>) {
         self.chips.write(witness);
+    }
+}
+
+impl<C: CircuitConfig<F = InnerVal, EF = InnerChallenge>> Witnessable<C>
+    for ChipOpenedValues<InnerChallenge>
+{
+    type WitnessVariable = ChipOpenedValues<Ext<C::F, C::EF>>;
+
+    fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
+        let preprocessed = self.preprocessed.read(builder);
+        let main = self.main.read(builder);
+        let permutation = self.permutation.read(builder);
+        let quotient = self.quotient.read(builder);
+        let cumulative_sum = self.cumulative_sum.read(builder);
+        let log_degree = self.log_degree;
+        Self::WitnessVariable {
+            preprocessed,
+            main,
+            permutation,
+            quotient,
+            cumulative_sum,
+            log_degree,
+        }
+    }
+
+    fn write(&self, witness: &mut impl WitnessWriter<C>) {
+        self.preprocessed.write(witness);
+        self.main.write(witness);
+        self.permutation.write(witness);
+        self.quotient.write(witness);
+        self.cumulative_sum.write(witness);
     }
 }

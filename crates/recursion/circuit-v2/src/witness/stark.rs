@@ -7,8 +7,8 @@ use p3_fri::{CommitPhaseProofStep, QueryProof};
 use sp1_recursion_compiler::ir::{Builder, Config, Ext, Felt};
 use sp1_recursion_core_v2::air::Block;
 use sp1_stark::{
-    baby_bear_poseidon2::BabyBearPoseidon2, AirOpenedValues, ChipOpenedValues, InnerBatchOpening,
-    InnerChallenge, InnerChallengeMmcs, InnerDigest, InnerFriProof, InnerPcsProof, InnerVal,
+    baby_bear_poseidon2::BabyBearPoseidon2, AirOpenedValues, InnerBatchOpening, InnerChallenge,
+    InnerChallengeMmcs, InnerDigest, InnerFriProof, InnerPcsProof, InnerVal,
 };
 
 use crate::{
@@ -37,37 +37,6 @@ impl<C: CircuitConfig<F = BabyBear, Bit = Felt<BabyBear>>> WitnessWriter<C>
 
     fn write_ext(&mut self, value: <C>::EF) {
         self.push(Block::from(value.as_base_slice()))
-    }
-}
-
-impl<C: CircuitConfig<F = InnerVal, EF = InnerChallenge>> Witnessable<C>
-    for ChipOpenedValues<InnerChallenge>
-{
-    type WitnessVariable = ChipOpenedValues<Ext<C::F, C::EF>>;
-
-    fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
-        let preprocessed = self.preprocessed.read(builder);
-        let main = self.main.read(builder);
-        let permutation = self.permutation.read(builder);
-        let quotient = self.quotient.read(builder);
-        let cumulative_sum = self.cumulative_sum.read(builder);
-        let log_degree = self.log_degree;
-        Self::WitnessVariable {
-            preprocessed,
-            main,
-            permutation,
-            quotient,
-            cumulative_sum,
-            log_degree,
-        }
-    }
-
-    fn write(&self, witness: &mut impl WitnessWriter<C>) {
-        self.preprocessed.write(witness);
-        self.main.write(witness);
-        self.permutation.write(witness);
-        self.quotient.write(witness);
-        self.cumulative_sum.write(witness);
     }
 }
 
