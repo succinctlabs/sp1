@@ -125,9 +125,9 @@ substrate-bn = { git = "https://github.com/sp1-patches/bn", branch = "patch-v0.6
 
 | Operation | Standard `substrate-bn` Cycles | Patched `substrate-bn` Cycles | Times Faster |
 | --------- | ------------------------------ | ----------------------------- | ------------ |
-| run-add   | 168,783                        | 113,476                       | 1.49         |
-| run-mul   | 1,862,130                      | 245,124                       | 7.61         |
-| run-pair  | 419,342,875                    | 20,541,565                    | 20.39        |
+| run-add   | 170,298                        | 111,615                       | 1.52         |
+| run-mul   | 1,860,836                      | 243,830                       | 7.64         |
+| run-pair  | 255,627,625                    | 11,528,503                    | 22.15        |
 
 Note: The operations `run-add`, `run-mul`, and `run-pair` are from the `revm` crate, specifically from the file `crates/precompile/src/bn128.rs` on GitHub. In the patched version of the `substrate-bn` crate, these functions utilize SP1's BN254 Fp precompiles.
 
