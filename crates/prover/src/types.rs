@@ -18,7 +18,7 @@ use sp1_recursion_circuit_v2::machine::{
 use sp1_recursion_gnark_ffi::proof::{Groth16Bn254Proof, PlonkBn254Proof};
 
 use sp1_stark::{
-    Dom, ShardProof, StarkGenericConfig, StarkProvingKey, StarkVerifyingKey, DIGEST_SIZE,
+    Dom, Shape, ShardProof, StarkGenericConfig, StarkProvingKey, StarkVerifyingKey, DIGEST_SIZE,
 };
 use thiserror::Error;
 
@@ -246,7 +246,7 @@ pub enum SP1RecursionProverError {
 
 #[allow(clippy::large_enum_variant)]
 pub enum SP1CircuitWitness {
-    Core(SP1RecursionWitnessValues<CoreSC>),
+    Core((SP1RecursionWitnessValues<CoreSC>, Shape)),
     // Deferred(SP1DeferredWitnessValues<InnerSC>),
     Compress(SP1CompressWitnessValues<InnerSC>),
 }

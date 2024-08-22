@@ -1,7 +1,7 @@
 use core::fmt::Display;
 use hashbrown::HashMap;
 use serde::de::DeserializeOwned;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::cmp::Reverse;
 use std::error::Error;
 
@@ -25,6 +25,12 @@ use crate::{
     DebugConstraintBuilder, MachineChip, MachineProof, PackedChallenge, PcsProverData,
     ProverConstraintFolder, ShardCommitment, ShardMainData, ShardProof, StarkVerifyingKey,
 };
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Shape {
+    pub id: usize,
+    pub shape: HashMap<String, usize>,
+}
 
 /// An algorithmic & hardware independent prover implementation for any [`MachineAir`].
 pub trait MachineProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>>:
@@ -70,11 +76,12 @@ pub trait MachineProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>>:
                     })
     }
 
+    /// Generates a set of traces based on one of the given shapes.
     fn generate_fixed_traces(
         &self,
         record: &A::Record,
-        shapes: &[HashMap<String, usize>],
-    ) -> Vec<(String, RowMajorMatrix<Val<SC>>)> {
+        shapes: &[Shape],
+    ) -> (Vec<(String, RowMajorMatrix<Val<SC>>)>, Shape) {
         let mut total_rows = u64::MAX;
         let mut best_shape_index = None;
         let shard_chips = self.shard_chips(record).collect::<Vec<_>>();
@@ -85,27 +92,26 @@ pub trait MachineProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>>:
             .filter(|chip| chip.preprocessed_width() == 0)
             .map(|chip| (chip.name(), chip.min_rows(record)))
             .collect::<HashMap<_, _>>();
-        let preprocessed_chips =
-            shard_chips.iter().filter(|chip| chip.preprocessed_width() > 0).collect::<Vec<_>>();
+
         // Find the shape that fits with the smallest total rows.
-        println!("rows_map: {:?}", min_rows_map);
         for (shape_index, shape) in shapes.iter().enumerate() {
-            println!("shape {}: {:?}", shape_index, shape);
             let mut fits = true;
             let mut shape_total_rows = 0;
+
             // Check that all chips in the record are in the shape.
             for (chip_name, _) in min_rows_map.iter() {
-                if !shape.contains_key(chip_name) {
-                    println!("shape {} doesn't have chip {}", shape_index, chip_name);
+                if !shape.shape.contains_key(chip_name) {
                     fits = false;
                     break;
                 }
             }
+
             if !fits {
                 continue;
             }
+
             // Check that the shape has enough rows for each chip and calculate the total rows.
-            for (chip_name, fixed_log2_rows) in shape {
+            for (chip_name, fixed_log2_rows) in shape.shape.iter() {
                 let fixed_rows = 1 << fixed_log2_rows;
                 shape_total_rows += fixed_rows as u64;
                 if !min_rows_map.contains_key(chip_name) {
@@ -129,7 +135,7 @@ pub trait MachineProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>>:
         let shape = shapes[shape_index].clone();
 
         let parent_span = tracing::debug_span!("generate traces for shard");
-        parent_span.in_scope(|| {
+        (parent_span.in_scope(|| {
             shard_chips
                 .par_iter()
                 .map(|chip| {
@@ -142,13 +148,13 @@ pub trait MachineProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>>:
                             22
                         }
                     } else {
-                        shape[&chip_name]
+                        shape.shape[&chip_name]
                     };
                     let trace = tracing::debug_span!(parent: &parent_span, "generate trace for chip", %chip_name).in_scope(|| chip.generate_trace(record, &mut A::Record::default(), Some(fixed_log2_rows)));
                     (chip_name, trace)
                 })
                 .collect::<Vec<_>>()
-        })
+        }), shape)
     }
 
     /// Commit to the main traces.
@@ -580,6 +586,7 @@ where
             opening_proof,
             chip_ordering: data.chip_ordering,
             public_values: data.public_values,
+            shape: None,
         })
     }
 

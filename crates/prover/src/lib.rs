@@ -25,6 +25,7 @@ use std::{
     thread,
 };
 
+use std::collections::HashMap;
 use tracing::instrument;
 
 use p3_baby_bear::BabyBear;
@@ -32,6 +33,7 @@ use p3_challenger::CanObserve;
 use p3_field::{AbstractField, PrimeField};
 use p3_matrix::dense::RowMajorMatrix;
 use sp1_core_executor::{ExecutionError, ExecutionReport, Executor, Program, SP1Context};
+use sp1_stark::Shape;
 
 use sp1_core_machine::{
     io::{SP1PublicValues, SP1Stdin},
@@ -277,14 +279,20 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         shard_proofs: &[ShardProof<CoreSC>],
         batch_size: usize,
         is_complete: bool,
-    ) -> Vec<SP1RecursionWitnessValues<CoreSC>> {
+    ) -> (Vec<SP1RecursionWitnessValues<CoreSC>>, Vec<Shape>) {
         let mut core_inputs = Vec::new();
+        let mut core_shapes = Vec::new();
         let mut reconstruct_challenger = self.core_prover.config().challenger();
         vk.observe_into(&mut reconstruct_challenger);
 
         // Prepare the inputs for the recursion programs.
         for batch in shard_proofs.chunks(batch_size) {
             let proofs = batch.to_vec();
+
+            for proof in proofs.iter() {
+                println!("shape: {:?}", proof.shape);
+                core_shapes.push(proof.shape.clone().unwrap());
+            }
 
             core_inputs.push(SP1RecursionWitnessValues {
                 vk: vk.clone(),
@@ -305,7 +313,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         assert_eq!(reconstruct_challenger.sponge_state, leaf_challenger.sponge_state);
         assert_eq!(reconstruct_challenger.input_buffer, leaf_challenger.input_buffer);
         assert_eq!(reconstruct_challenger.output_buffer, leaf_challenger.output_buffer);
-        core_inputs
+        (core_inputs, core_shapes)
     }
 
     // pub fn get_recursion_deferred_inputs<'a>(
@@ -355,7 +363,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         batch_size: usize,
     ) -> Vec<SP1CircuitWitness> {
         let is_complete = shard_proofs.len() == 1 && deferred_proofs.is_empty();
-        let core_inputs = self.get_recursion_core_inputs(
+        let (core_inputs, core_shapes) = self.get_recursion_core_inputs(
             &vk.vk,
             leaf_challenger,
             shard_proofs,
@@ -372,7 +380,12 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         // );
 
         let mut inputs = Vec::new();
-        inputs.extend(core_inputs.into_iter().map(SP1CircuitWitness::Core));
+        inputs.extend(
+            core_inputs
+                .into_iter()
+                .zip(core_shapes.into_iter())
+                .map(|(input, shape)| SP1CircuitWitness::Core((input, shape))),
+        );
         // inputs.extend(deferred_inputs.into_iter().map(SP1CircuitWitness::Deferred));
         inputs
     }
@@ -406,6 +419,8 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             &deferred_proofs,
             batch_size,
         );
+
+        let program_cache = Arc::new(Mutex::new(HashMap::new()));
 
         // Calculate the expected height of the tree.
         let mut expected_height = 1;
@@ -453,6 +468,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             let record_and_trace_rx = Arc::new(Mutex::new(record_and_trace_rx));
             let input_rx = Arc::new(Mutex::new(input_rx));
             for _ in 0..opts.recursion_opts.trace_gen_workers {
+                let program_cache = Arc::clone(&program_cache);
                 let record_and_trace_sync = Arc::clone(&record_and_trace_sync);
                 let record_and_trace_tx = Arc::clone(&record_and_trace_tx);
                 let input_rx = Arc::clone(&input_rx);
@@ -467,11 +483,21 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                                 "Get program and witness stream"
                             )
                             .in_scope(|| match input {
-                                SP1CircuitWitness::Core(input) => {
+                                SP1CircuitWitness::Core((input, shape)) => {
+                                    let program: Arc<RecursionProgram<BabyBear>> = program_cache
+                                        .lock()
+                                        .unwrap()
+                                        .entry(shape.id)
+                                        .or_insert_with(|| {
+                                            tracing::debug_span!("get program", id = shape.id)
+                                                .in_scope(|| self.recursion_program(&input))
+                                        })
+                                        .clone();
+
                                     let mut witness_stream = Vec::new();
                                     witness_stream
                                         .extend(Witnessable::<InnerConfig>::write(&input));
-                                    (self.recursion_program(&input), witness_stream)
+                                    (program, witness_stream)
                                 }
                                 // SP1CircuitWitness::Deferred(input) => {
                                 //     let mut witness_stream = Vec::new();

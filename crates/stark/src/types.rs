@@ -6,6 +6,8 @@ use hashbrown::HashMap;
 use p3_matrix::{dense::RowMajorMatrixView, stack::VerticalPair};
 use serde::{Deserialize, Serialize};
 
+use crate::Shape;
+
 use super::{Challenge, Com, OpeningProof, StarkGenericConfig, Val};
 
 pub type QuotientOpenedValues<T> = Vec<T>;
@@ -71,6 +73,7 @@ pub struct ShardProof<SC: StarkGenericConfig> {
     pub opening_proof: OpeningProof<SC>,
     pub chip_ordering: HashMap<String, usize>,
     pub public_values: Vec<Val<SC>>,
+    pub shape: Option<Shape>,
 }
 
 impl<SC: StarkGenericConfig> Debug for ShardProof<SC> {

@@ -1,7 +1,7 @@
 use hashbrown::HashMap;
 use itertools::{EitherOrBoth, Itertools};
 use p3_field::AbstractField;
-use sp1_stark::{air::PublicValues, MachineRecord, SP1CoreOpts, SplitOpts};
+use sp1_stark::{air::PublicValues, MachineRecord, SP1CoreOpts, Shape, SplitOpts};
 use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
@@ -90,6 +90,8 @@ pub struct ExecutionRecord {
     pub public_values: PublicValues<u32, u32>,
     /// The nonce lookup.
     pub nonce_lookup: HashMap<u128, u32>,
+    /// The shape.
+    pub shape: Option<Shape>,
 }
 
 impl ExecutionRecord {

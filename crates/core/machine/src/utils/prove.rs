@@ -286,12 +286,17 @@ where
                             all_records_tx.send(records.clone()).unwrap();
 
                             // Generate the traces.
-                            let traces = records
+                            let (traces, shapes) = records
                                 .par_iter()
                                 .map(|record| {
                                     prover.generate_fixed_traces(record, &SP1_CORE_PROOF_SHAPES)
                                 })
-                                .collect::<Vec<_>>();
+                                .unzip::<_, _, Vec<_>, Vec<_>>();
+
+                            // Set the shapes.
+                            records.iter_mut().zip(shapes.iter()).for_each(|(record, shape)| {
+                                record.shape = Some(shape.clone());
+                            });
 
                             // Wait for our turn.
                             trace_gen_sync.wait_for_turn(index);
@@ -474,14 +479,19 @@ where
                             record_gen_sync.advance_turn();
 
                             // Generate the traces.
-                            let traces = records
+                            let (traces, shapes) = records
                                 .par_iter()
                                 .map(|record| {
                                     prover.generate_fixed_traces(record, &SP1_CORE_PROOF_SHAPES)
                                 })
-                                .collect::<Vec<_>>();
+                                .unzip::<_, _, Vec<_>, Vec<_>>();
 
                             trace_gen_sync.wait_for_turn(index);
+
+                            // Set the shapes.
+                            records.iter_mut().zip(shapes.iter()).for_each(|(record, shape)| {
+                                record.shape = Some(shape.clone());
+                            });
 
                             // Send the records to the phase 1 prover.
                             let chunked_records = chunk_vec(records, opts.shard_batch_size);
@@ -520,8 +530,13 @@ where
                             records.into_par_iter().zip(traces.into_par_iter()).map(
                                 |(record, traces)| {
                                     let _span = span.enter();
+                                    let shape = record.shape.clone();
                                     let data = prover.commit(record, traces);
-                                    prover.open(pk, data, &mut challenger.clone()).unwrap()
+                                    let mut proof =
+                                        prover.open(pk, data, &mut challenger.clone()).unwrap();
+                                    proof.shape = shape;
+
+                                    proof
                                 },
                             ),
                         );

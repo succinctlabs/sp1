@@ -2,7 +2,7 @@ use hashbrown::HashMap;
 use p3_baby_bear::BabyBear;
 use p3_field::PrimeField32;
 use sp1_curves::weierstrass::{bls12_381::Bls12381BaseField, bn254::Bn254BaseField};
-use sp1_stark::{air::MachineAir, Chip};
+use sp1_stark::{air::MachineAir, Chip, Shape};
 
 use super::riscv_chips::*;
 use crate::{
@@ -11,10 +11,10 @@ use crate::{
 };
 
 lazy_static::lazy_static! {
-    pub static ref SP1_CORE_PROOF_SHAPES: Vec<HashMap<String, usize>> = core_proof_shapes::<BabyBear>();
+    pub static ref SP1_CORE_PROOF_SHAPES: Vec<Shape> = core_proof_shapes::<BabyBear>();
 }
 
-fn core_proof_shapes<F: PrimeField32>() -> Vec<HashMap<String, usize>> {
+fn core_proof_shapes<F: PrimeField32>() -> Vec<Shape> {
     // The order of the chips is used to determine the order of trace generation.
     let mut chips: Vec<Chip<F, RiscvAir<F>>> = vec![];
     let cpu = Chip::new(RiscvAir::<F>::Cpu(CpuChip::default()));
@@ -80,16 +80,22 @@ fn core_proof_shapes<F: PrimeField32>() -> Vec<HashMap<String, usize>> {
     let memory_program = Chip::new(RiscvAir::<F>::ProgramMemory(MemoryProgramChip::default()));
     let byte = Chip::new(RiscvAir::<F>::ByteLookup(ByteChip::default()));
     vec![
-        HashMap::from([
-            (cpu.name(), 22),
-            (add_sub.name(), 20),
-            (mul.name(), 20),
-            (lt.name(), 20),
-            (div_rem.name(), 20),
-            (shift_left.name(), 20),
-            (shift_right.name(), 20),
-            (bitwise.name(), 20),
-        ]),
-        HashMap::from([(memory_init.name(), 22), (memory_finalize.name(), 22)]),
+        Shape {
+            id: 0,
+            shape: HashMap::from([
+                (cpu.name(), 22),
+                (add_sub.name(), 20),
+                (mul.name(), 20),
+                (lt.name(), 20),
+                (div_rem.name(), 20),
+                (shift_left.name(), 20),
+                (shift_right.name(), 20),
+                (bitwise.name(), 20),
+            ]),
+        },
+        Shape {
+            id: 1,
+            shape: HashMap::from([(memory_init.name(), 22), (memory_finalize.name(), 22)]),
+        },
     ]
 }
