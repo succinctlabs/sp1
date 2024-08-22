@@ -3,7 +3,7 @@ use itertools::Itertools;
 use p3_air::{Air, BaseAir, PairBuilder};
 use p3_field::{extension::BinomiallyExtendable, Field, PrimeField32};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
-use sp1_core_machine::utils::pad_to_power_of_two;
+use sp1_core_machine::utils::{next_power_of_two, pad_to_power_of_two, par_for_each_row};
 use sp1_derive::AlignedBorrow;
 use sp1_stark::air::{ExtensionAirBuilder, MachineAir};
 use std::{borrow::BorrowMut, iter::zip};
@@ -22,8 +22,9 @@ pub const NUM_EXT_ALU_COLS: usize = core::mem::size_of::<ExtAluCols<u8>>();
 pub struct ExtAluCols<F: Copy> {
     pub values: [ExtAluValueCols<F>; NUM_EXT_ALU_ENTRIES_PER_ROW],
 }
+const NUM_EXT_ALU_VALUE_COLS: usize = core::mem::size_of::<ExtAluValueCols<u8>>();
 
-#[derive(Debug, Clone, Copy)]
+#[derive(AlignedBorrow, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct ExtAluValueCols<F: Copy> {
     pub vals: ExtAluIo<Block<F>>,
@@ -122,28 +123,22 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for ExtAluChip {
     }
 
     fn generate_trace(&self, input: &Self::Record, _: &mut Self::Record) -> RowMajorMatrix<F> {
+        let nb_events = input.ext_alu_events.len();
+        let nb_rows = nb_events.div_ceil(NUM_EXT_ALU_ENTRIES_PER_ROW);
+        let padded_nb_rows = next_power_of_two(nb_rows, None);
+        let mut values = vec![F::zero(); padded_nb_rows * NUM_EXT_ALU_COLS];
         // Generate the trace rows & corresponding records for each chunk of events in parallel.
-        let rows = input
-            .ext_alu_events
-            .chunks(NUM_EXT_ALU_ENTRIES_PER_ROW)
-            .flat_map(|row_events| {
-                let mut row = [F::zero(); NUM_EXT_ALU_COLS];
-                let cols: &mut ExtAluCols<_> = row.as_mut_slice().borrow_mut();
-                for (cell, &vals) in zip(&mut cols.values, row_events) {
-                    *cell = ExtAluValueCols { vals };
-                }
-
-                row
-            })
-            .collect::<Vec<_>>();
+        par_for_each_row(
+            &mut values[..nb_events * NUM_EXT_ALU_VALUE_COLS],
+            NUM_EXT_ALU_VALUE_COLS,
+            |i, row| {
+                let cols: &mut ExtAluValueCols<_> = row.borrow_mut();
+                *cols = ExtAluValueCols { vals: input.ext_alu_events[i] };
+            },
+        );
 
         // Convert the trace to a row major matrix.
-        let mut trace = RowMajorMatrix::new(rows, NUM_EXT_ALU_COLS);
-
-        // Pad the trace to a power of two.
-        pad_to_power_of_two::<NUM_EXT_ALU_COLS, F>(&mut trace.values);
-
-        trace
+        RowMajorMatrix::new(values, NUM_EXT_ALU_COLS)
     }
 
     fn included(&self, _record: &Self::Record) -> bool {

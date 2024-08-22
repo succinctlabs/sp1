@@ -4,7 +4,6 @@ use itertools::Itertools;
 use p3_air::BaseAir;
 use p3_field::PrimeField32;
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
-use p3_maybe_rayon::prelude::{ParallelIterator, ParallelSlice};
 use sp1_core_machine::utils::{next_power_of_two, pad_rows_fixed, par_for_each_row};
 use sp1_primitives::RC_16_30_U32;
 use sp1_stark::air::MachineAir;
@@ -46,7 +45,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
     ) -> RowMajorMatrix<F> {
         let nb_events = input.poseidon2_events.len();
         let padded_nb_rows = next_power_of_two(nb_events, self.fixed_log2_rows);
-        let num_columns = <Poseidon2WideChip<DEGREE> as BaseAir<F>>::width(self);
+        let num_columns = <Self as BaseAir<F>>::width(self);
         let mut values = vec![F::zero(); padded_nb_rows * num_columns];
 
         let mut dummy_row = vec![F::zero(); num_columns];
