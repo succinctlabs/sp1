@@ -15,7 +15,8 @@ impl<C: Config> Builder<C> {
             }
             Array::Dyn(_, len) => self.array::<Felt<C::F>>(*len),
         };
-        self.operations.push(DslIr::Poseidon2PermuteBabyBear(output.clone(), array.clone()));
+        self.operations
+            .push(DslIr::Poseidon2PermuteBabyBear(Box::new((output.clone(), array.clone()))));
         output
     }
 
@@ -23,7 +24,8 @@ impl<C: Config> Builder<C> {
     ///
     /// Reference: [p3_poseidon2::Poseidon2]
     pub fn poseidon2_permute_mut(&mut self, array: &Array<C, Felt<C::F>>) {
-        self.operations.push(DslIr::Poseidon2PermuteBabyBear(array.clone(), array.clone()));
+        self.operations
+            .push(DslIr::Poseidon2PermuteBabyBear(Box::new((array.clone(), array.clone()))));
     }
 
     /// Applies the Poseidon2 absorb function to the given array.

@@ -198,7 +198,7 @@ pub enum DslIr<C: Config> {
 
     // Hashing.
     /// Permutes an array of baby bear elements using Poseidon2 (output = p2_permute(array)).
-    Poseidon2PermuteBabyBear(Array<C, Felt<C::F>>, Array<C, Felt<C::F>>),
+    Poseidon2PermuteBabyBear(Box<(Array<C, Felt<C::F>>, Array<C, Felt<C::F>>)>),
     /// Compresses two baby bear element arrays using Poseidon2 (output = p2_compress(array1,
     /// array2)).
     Poseidon2CompressBabyBear(
@@ -212,7 +212,7 @@ pub enum DslIr<C: Config> {
     /// only be used when target is a gnark circuit.
     CircuitPoseidon2Permute([Var<C::N>; 3]),
     /// Permutates an array of BabyBear elements in the circuit.
-    CircuitPoseidon2PermuteBabyBear([Felt<C::F>; 16]),
+    CircuitPoseidon2PermuteBabyBear(Box<[Felt<C::F>; 16]>),
     /// Permutates an array of BabyBear elements in the circuit using the skinny precompile.
     CircuitV2Poseidon2PermuteBabyBear(Box<([Felt<C::F>; 16], [Felt<C::F>; 16])>),
     /// Commits the public values.

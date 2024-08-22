@@ -445,7 +445,7 @@ impl<F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> AsmCo
                     }
                     _ => unimplemented!(),
                 },
-                DslIr::Poseidon2PermuteBabyBear(dst, src) => match (dst, src) {
+                DslIr::Poseidon2PermuteBabyBear(data) => match *data {
                     (Array::Dyn(dst, _), Array::Dyn(src, _)) => {
                         self.push(AsmInstruction::Poseidon2Permute(dst.fp(), src.fp()), trace)
                     }

@@ -46,7 +46,7 @@ impl<C: Config> Poseidon2CircuitBuilder<C> for Builder<C> {
     }
 
     fn p2_babybear_permute_mut(&mut self, state: [Felt<C::F>; 16]) {
-        self.push(DslIr::CircuitPoseidon2PermuteBabyBear(state));
+        self.push(DslIr::CircuitPoseidon2PermuteBabyBear(Box::new(state)));
     }
 
     fn p2_babybear_hash(&mut self, input: &[Felt<C::F>]) -> [Felt<C::F>; 8] {
