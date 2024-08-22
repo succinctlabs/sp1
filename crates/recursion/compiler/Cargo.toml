@@ -40,3 +40,8 @@ p3-challenger = { workspace = true }
 p3-dft = { workspace = true }
 p3-merkle-tree = { workspace = true }
 rand = "0.8.5"
+criterion = { version = "0.5.1", features = ["html_reports"] }
+
+[[bench]]
+name = "circuit"
+harness = false

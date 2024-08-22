@@ -151,14 +151,13 @@ where
         self.consts.entry(imm).or_insert_with(|| (Self::alloc(&mut self.next_addr), C::F::zero())).0
     }
 
-    fn mem_write_const(&mut self, dst: impl Reg<C>, src: Imm<C::F, C::EF>) -> CompileOneItem<C::F> {
+    fn mem_write_const(&mut self, dst: impl Reg<C>, src: Imm<C::F, C::EF>) -> Instruction<C::F> {
         Instruction::Mem(MemInstr {
             addrs: MemIo { inner: dst.write(self) },
             vals: MemIo { inner: src.as_block() },
             mult: C::F::zero(),
             kind: MemAccessKind::Write,
         })
-        .into()
     }
 
     fn base_alu(
@@ -167,13 +166,12 @@ where
         dst: impl Reg<C>,
         lhs: impl Reg<C>,
         rhs: impl Reg<C>,
-    ) -> CompileOneItem<C::F> {
+    ) -> Instruction<C::F> {
         Instruction::BaseAlu(BaseAluInstr {
             opcode,
             mult: C::F::zero(),
             addrs: BaseAluIo { out: dst.write(self), in1: lhs.read(self), in2: rhs.read(self) },
         })
-        .into()
     }
 
     fn ext_alu(
@@ -182,20 +180,19 @@ where
         dst: impl Reg<C>,
         lhs: impl Reg<C>,
         rhs: impl Reg<C>,
-    ) -> CompileOneItem<C::F> {
+    ) -> Instruction<C::F> {
         Instruction::ExtAlu(ExtAluInstr {
             opcode,
             mult: C::F::zero(),
             addrs: ExtAluIo { out: dst.write(self), in1: lhs.read(self), in2: rhs.read(self) },
         })
-        .into()
     }
 
     fn base_assert_eq(
         &mut self,
         lhs: impl Reg<C>,
         rhs: impl Reg<C>,
-        mut f: impl FnMut(CompileOneItem<C::F>),
+        mut f: impl FnMut(Instruction<C::F>),
     ) {
         use BaseAluOpcode::*;
         let [diff, out] = core::array::from_fn(|_| Self::alloc(&mut self.next_addr));
@@ -207,7 +204,7 @@ where
         &mut self,
         lhs: impl Reg<C>,
         rhs: impl Reg<C>,
-        mut f: impl FnMut(CompileOneItem<C::F>),
+        mut f: impl FnMut(Instruction<C::F>),
     ) {
         use BaseAluOpcode::*;
         let [diff, out] = core::array::from_fn(|_| Self::alloc(&mut self.next_addr));
@@ -220,7 +217,7 @@ where
         &mut self,
         lhs: impl Reg<C>,
         rhs: impl Reg<C>,
-        mut f: impl FnMut(CompileOneItem<C::F>),
+        mut f: impl FnMut(Instruction<C::F>),
     ) {
         use ExtAluOpcode::*;
         let [diff, out] = core::array::from_fn(|_| Self::alloc(&mut self.next_addr));
@@ -233,7 +230,7 @@ where
         &mut self,
         lhs: impl Reg<C>,
         rhs: impl Reg<C>,
-        mut f: impl FnMut(CompileOneItem<C::F>),
+        mut f: impl FnMut(Instruction<C::F>),
     ) {
         use ExtAluOpcode::*;
         let [diff, out] = core::array::from_fn(|_| Self::alloc(&mut self.next_addr));
@@ -246,7 +243,7 @@ where
         &mut self,
         dst: [impl Reg<C>; WIDTH],
         src: [impl Reg<C>; WIDTH],
-    ) -> CompileOneItem<C::F> {
+    ) -> Instruction<C::F> {
         Instruction::Poseidon2(Box::new(Poseidon2Instr {
             addrs: Poseidon2Io {
                 input: src.map(|r| r.read(self)),
@@ -254,7 +251,6 @@ where
             },
             mults: [C::F::zero(); WIDTH],
         }))
-        .into()
     }
 
     fn exp_reverse_bits(
@@ -262,7 +258,7 @@ where
         dst: impl Reg<C>,
         base: impl Reg<C>,
         exp: impl IntoIterator<Item = impl Reg<C>>,
-    ) -> CompileOneItem<C::F> {
+    ) -> Instruction<C::F> {
         Instruction::ExpReverseBitsLen(ExpReverseBitsInstr {
             addrs: ExpReverseBitsIo {
                 result: dst.write(self),
@@ -271,19 +267,17 @@ where
             },
             mult: C::F::zero(),
         })
-        .into()
     }
 
     fn hint_bit_decomposition(
         &mut self,
         value: impl Reg<C>,
         output: impl IntoIterator<Item = impl Reg<C>>,
-    ) -> CompileOneItem<C::F> {
+    ) -> Instruction<C::F> {
         Instruction::HintBits(HintBitsInstr {
             output_addrs_mults: output.into_iter().map(|r| (r.write(self), C::F::zero())).collect(),
             input_addr: value.read_ghost(self),
         })
-        .into()
     }
 
     fn fri_fold(
@@ -298,7 +292,7 @@ where
             alpha_pow_input,
             ro_input,
         }: CircuitV2FriFoldInput<C>,
-    ) -> CompileOneItem<C::F> {
+    ) -> Instruction<C::F> {
         Instruction::FriFold(Box::new(FriFoldInstr {
             // Calculate before moving the vecs.
             alpha_pow_mults: vec![C::F::zero(); alpha_pow_output.len()],
@@ -315,13 +309,12 @@ where
                 ro_output: ro_output.into_iter().map(|e| e.write(self)).collect(),
             },
         }))
-        .into()
     }
 
     fn commit_public_values(
         &mut self,
         public_values: &RecursionPublicValues<Felt<C::F>>,
-    ) -> CompileOneItem<C::F> {
+    ) -> Instruction<C::F> {
         public_values.digest.iter().for_each(|x| {
             let _ = x.read(self);
         });
@@ -338,38 +331,33 @@ where
         Instruction::CommitPublicValues(Box::new(CommitPublicValuesInstr {
             pv_addrs: *public_values_a,
         }))
-        .into()
     }
 
-    fn print_f(&mut self, addr: impl Reg<C>) -> CompileOneItem<C::F> {
+    fn print_f(&mut self, addr: impl Reg<C>) -> Instruction<C::F> {
         Instruction::Print(PrintInstr {
             field_elt_type: FieldEltType::Base,
             addr: addr.read_ghost(self),
         })
-        .into()
     }
 
-    fn print_e(&mut self, addr: impl Reg<C>) -> CompileOneItem<C::F> {
+    fn print_e(&mut self, addr: impl Reg<C>) -> Instruction<C::F> {
         Instruction::Print(PrintInstr {
             field_elt_type: FieldEltType::Extension,
             addr: addr.read_ghost(self),
         })
-        .into()
     }
 
-    fn ext2felts(&mut self, felts: [impl Reg<C>; D], ext: impl Reg<C>) -> CompileOneItem<C::F> {
+    fn ext2felts(&mut self, felts: [impl Reg<C>; D], ext: impl Reg<C>) -> Instruction<C::F> {
         Instruction::HintExt2Felts(HintExt2FeltsInstr {
             output_addrs_mults: felts.map(|r| (r.write(self), C::F::zero())),
             input_addr: ext.read_ghost(self),
         })
-        .into()
     }
 
-    fn hint(&mut self, output: &[impl Reg<C>]) -> CompileOneItem<C::F> {
+    fn hint(&mut self, output: &[impl Reg<C>]) -> Instruction<C::F> {
         Instruction::Hint(HintInstr {
             output_addrs_mults: output.iter().map(|r| (r.write(self), C::F::zero())).collect(),
         })
-        .into()
     }
 
     /// Compiles one instruction, passing one or more instructions to `consumer`.
@@ -379,7 +367,7 @@ where
     pub fn compile_one<F>(
         &mut self,
         ir_instr: DslIr<C>,
-        mut consumer: impl FnMut(Result<CompileOneItem<C::F>, DslIr<C>>),
+        mut consumer: impl FnMut(Result<Instruction<C::F>, CompileOneErr<C>>),
     ) where
         F: PrimeField + TwoAdicField,
         C: Config<N = F, F = F> + Debug,
@@ -476,9 +464,11 @@ where
             DslIr::CircuitV2HintFelts(output) => f(self.hint(&output)),
             DslIr::CircuitV2HintExts(output) => f(self.hint(&output)),
             DslIr::CircuitExt2Felt(felts, ext) => f(self.ext2felts(felts, ext)),
-            DslIr::CycleTrackerV2Enter(name) => f(CompileOneItem::CycleTrackerEnter(name)),
-            DslIr::CycleTrackerV2Exit => f(CompileOneItem::CycleTrackerExit),
-            instr => consumer(Err(instr)),
+            DslIr::CycleTrackerV2Enter(name) => {
+                consumer(Err(CompileOneErr::CycleTrackerEnter(name)))
+            }
+            DslIr::CycleTrackerV2Exit => consumer(Err(CompileOneErr::CycleTrackerExit)),
+            instr => consumer(Err(CompileOneErr::Unsupported(instr))),
         }
     }
 
@@ -494,25 +484,25 @@ where
         // Compile each IR instruction into a list of ASM instructions, then combine them.
         // This step also counts the number of times each address is read from.
         let (mut instrs, traces) = tracing::debug_span!("compile_one loop").in_scope(|| {
-            let mut instrs = vec![];
+            let mut instrs = Vec::with_capacity(operations.vec.len());
             let mut traces = vec![];
             if debug_mode {
                 let mut span_builder =
                     SpanBuilder::<_, &'static str>::new("cycle_tracker".to_string());
                 for (ir_instr, trace) in operations {
-                    self.compile_one(ir_instr, |item| match item {
-                        Ok(CompileOneItem::Instr(instr)) => {
+                    self.compile_one(ir_instr, &mut |item| match item {
+                        Ok(instr) => {
                             span_builder.item(instr_name(&instr));
                             instrs.push(instr);
                             traces.push(trace.clone());
                         }
-                        Ok(CompileOneItem::CycleTrackerEnter(name)) => {
+                        Err(CompileOneErr::CycleTrackerEnter(name)) => {
                             span_builder.enter(name);
                         }
-                        Ok(CompileOneItem::CycleTrackerExit) => {
+                        Err(CompileOneErr::CycleTrackerExit) => {
                             span_builder.exit().unwrap();
                         }
-                        Err(instr) => {
+                        Err(CompileOneErr::Unsupported(instr)) => {
                             panic!("unsupported instruction: {instr:?}\nbacktrace: {:?}", trace)
                         }
                     });
@@ -523,10 +513,12 @@ where
                 }
             } else {
                 for (ir_instr, trace) in operations {
-                    self.compile_one(ir_instr, |item| match item {
-                        Ok(CompileOneItem::Instr(instr)) => instrs.push(instr),
-                        Ok(_) => (),
-                        Err(instr) => {
+                    self.compile_one(ir_instr, &mut |item| match item {
+                        Ok(instr) => instrs.push(instr),
+                        Err(
+                            CompileOneErr::CycleTrackerEnter(_) | CompileOneErr::CycleTrackerExit,
+                        ) => (),
+                        Err(CompileOneErr::Unsupported(instr)) => {
                             panic!("unsupported instruction: {instr:?}\nbacktrace: {:?}", trace)
                         }
                     });
@@ -649,18 +641,11 @@ const fn instr_name<F>(instr: &Instruction<F>) -> &'static str {
     }
 }
 
-/// Instruction or annotation. Result of compiling one `DslIr` item.
 #[derive(Debug, Clone)]
-pub enum CompileOneItem<F> {
-    Instr(Instruction<F>),
+pub enum CompileOneErr<C: Config> {
+    Unsupported(DslIr<C>),
     CycleTrackerEnter(String),
     CycleTrackerExit,
-}
-
-impl<F> From<Instruction<F>> for CompileOneItem<F> {
-    fn from(value: Instruction<F>) -> Self {
-        CompileOneItem::Instr(value)
-    }
 }
 
 /// Immediate (i.e. constant) field element.
