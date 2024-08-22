@@ -126,7 +126,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for ExtAluChip {
         let rows = input
             .ext_alu_events
             .chunks(NUM_EXT_ALU_ENTRIES_PER_ROW)
-            .map(|row_events| {
+            .flat_map(|row_events| {
                 let mut row = [F::zero(); NUM_EXT_ALU_COLS];
                 let cols: &mut ExtAluCols<_> = row.as_mut_slice().borrow_mut();
                 for (cell, &vals) in zip(&mut cols.values, row_events) {
@@ -138,8 +138,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for ExtAluChip {
             .collect::<Vec<_>>();
 
         // Convert the trace to a row major matrix.
-        let mut trace =
-            RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_EXT_ALU_COLS);
+        let mut trace = RowMajorMatrix::new(rows, NUM_EXT_ALU_COLS);
 
         // Pad the trace to a power of two.
         pad_to_power_of_two::<NUM_EXT_ALU_COLS, F>(&mut trace.values);

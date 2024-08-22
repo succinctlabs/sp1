@@ -127,7 +127,7 @@ impl<F: PrimeField32> MachineAir<F> for BaseAluChip {
         let rows = input
             .base_alu_events
             .chunks(NUM_BASE_ALU_ENTRIES_PER_ROW)
-            .map(|row_events| {
+            .flat_map(|row_events| {
                 let mut row = [F::zero(); NUM_BASE_ALU_COLS];
                 let cols: &mut BaseAluCols<_> = row.as_mut_slice().borrow_mut();
                 for (cell, &vals) in zip(&mut cols.values, row_events) {
@@ -139,8 +139,7 @@ impl<F: PrimeField32> MachineAir<F> for BaseAluChip {
             .collect::<Vec<_>>();
 
         // Convert the trace to a row major matrix.
-        let mut trace =
-            RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_BASE_ALU_COLS);
+        let mut trace = RowMajorMatrix::new(rows, NUM_BASE_ALU_COLS);
 
         // Pad the trace to a power of two.
         pad_to_power_of_two::<NUM_BASE_ALU_COLS, F>(&mut trace.values);
