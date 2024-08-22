@@ -52,6 +52,7 @@ pub fn babybears_to_bn254(digest: &[BabyBear; 8]) -> Bn254Fr {
 
 /// Convert 32 BabyBear bytes into a Bn254Fr field element. The first byte's most significant 3 bits
 /// (which would become the 3 most significant bits) are truncated.
+#[allow(dead_code)]
 pub fn babybear_bytes_to_bn254(bytes: &[BabyBear; 32]) -> Bn254Fr {
     let mut result = Bn254Fr::zero();
     for (i, byte) in bytes.iter().enumerate() {

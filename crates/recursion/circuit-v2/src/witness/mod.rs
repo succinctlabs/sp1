@@ -4,13 +4,20 @@ mod stark;
 use sp1_recursion_compiler::ir::{Builder, Ext, Felt};
 
 pub use outer::*;
-use sp1_stark::{InnerChallenge, InnerVal};
+use sp1_stark::{
+    Com, InnerChallenge, InnerVal, OpeningProof, ShardCommitment, ShardOpenedValues, ShardProof,
+};
 pub use stark::*;
 
-use crate::CircuitConfig;
+use crate::{
+    hash::FieldHasherVariable, stark::ShardProofVariable, BabyBearFriConfigVariable, CircuitConfig,
+    TwoAdicPcsProofVariable,
+};
 
 pub trait WitnessWriter<C: CircuitConfig>: Sized {
     fn write_bit(&mut self, value: bool);
+
+    fn write_var(&mut self, value: C::N);
 
     fn write_felt(&mut self, value: C::F);
 
@@ -105,5 +112,69 @@ impl<C: CircuitConfig, T: Witnessable<C>> Witnessable<C> for Vec<T> {
         for x in self.iter() {
             x.write(witness);
         }
+    }
+}
+
+impl<C: CircuitConfig<F = InnerVal, EF = InnerChallenge>, SC: BabyBearFriConfigVariable<C>>
+    Witnessable<C> for ShardProof<SC>
+where
+    Com<SC>: Witnessable<C, WitnessVariable = <SC as FieldHasherVariable<C>>::Digest>,
+    OpeningProof<SC>: Witnessable<C, WitnessVariable = TwoAdicPcsProofVariable<C, SC>>,
+{
+    type WitnessVariable = ShardProofVariable<C, SC>;
+
+    fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
+        let commitment = self.commitment.read(builder);
+        let opened_values = self.opened_values.read(builder);
+        let opening_proof = self.opening_proof.read(builder);
+        let public_values = self.public_values.read(builder);
+        let chip_ordering = self.chip_ordering.clone();
+
+        ShardProofVariable {
+            commitment,
+            opened_values,
+            opening_proof,
+            public_values,
+            chip_ordering,
+        }
+    }
+
+    fn write(&self, witness: &mut impl WitnessWriter<C>) {
+        self.commitment.write(witness);
+        self.opened_values.write(witness);
+        self.opening_proof.write(witness);
+        self.public_values.write(witness);
+    }
+}
+
+impl<C: CircuitConfig, T: Witnessable<C>> Witnessable<C> for ShardCommitment<T> {
+    type WitnessVariable = ShardCommitment<T::WitnessVariable>;
+
+    fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
+        let main_commit = self.main_commit.read(builder);
+        let permutation_commit = self.permutation_commit.read(builder);
+        let quotient_commit = self.quotient_commit.read(builder);
+        Self::WitnessVariable { main_commit, permutation_commit, quotient_commit }
+    }
+
+    fn write(&self, witness: &mut impl WitnessWriter<C>) {
+        self.main_commit.write(witness);
+        self.permutation_commit.write(witness);
+        self.quotient_commit.write(witness);
+    }
+}
+
+impl<C: CircuitConfig<F = InnerVal, EF = InnerChallenge>> Witnessable<C>
+    for ShardOpenedValues<InnerChallenge>
+{
+    type WitnessVariable = ShardOpenedValues<Ext<C::F, C::EF>>;
+
+    fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
+        let chips = self.chips.read(builder);
+        Self::WitnessVariable { chips }
+    }
+
+    fn write(&self, witness: &mut impl WitnessWriter<C>) {
+        self.chips.write(witness);
     }
 }

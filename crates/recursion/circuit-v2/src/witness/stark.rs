@@ -9,13 +9,11 @@ use sp1_recursion_core_v2::air::Block;
 use sp1_stark::{
     baby_bear_poseidon2::BabyBearPoseidon2, AirOpenedValues, ChipOpenedValues, InnerBatchOpening,
     InnerChallenge, InnerChallengeMmcs, InnerDigest, InnerFriProof, InnerPcsProof, InnerVal,
-    ShardCommitment, ShardOpenedValues, ShardProof,
 };
 
 use crate::{
-    stark::ShardProofVariable, BatchOpeningVariable, CircuitConfig,
-    FriCommitPhaseProofStepVariable, FriProofVariable, FriQueryProofVariable,
-    TwoAdicPcsProofVariable,
+    BatchOpeningVariable, CircuitConfig, FriCommitPhaseProofStepVariable, FriProofVariable,
+    FriQueryProofVariable, TwoAdicPcsProofVariable,
 };
 
 use super::{WitnessWriter, Witnessable};
@@ -29,75 +27,16 @@ impl<C: CircuitConfig<F = BabyBear, Bit = Felt<BabyBear>>> WitnessWriter<C>
         self.push(Block::from(C::F::from_bool(value)))
     }
 
+    fn write_var(&mut self, _value: <C>::N) {
+        unimplemented!("Cannot write Var<N> in this configuration")
+    }
+
     fn write_felt(&mut self, value: <C>::F) {
         self.push(Block::from(value))
     }
 
     fn write_ext(&mut self, value: <C>::EF) {
         self.push(Block::from(value.as_base_slice()))
-    }
-}
-
-// TODO Bn254Fr
-
-impl<C: CircuitConfig<F = InnerVal, EF = InnerChallenge, Bit = Felt<BabyBear>>> Witnessable<C>
-    for ShardProof<BabyBearPoseidon2>
-{
-    type WitnessVariable = ShardProofVariable<C, BabyBearPoseidon2>;
-
-    fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
-        let commitment = self.commitment.read(builder);
-        let opened_values = self.opened_values.read(builder);
-        let opening_proof = self.opening_proof.read(builder);
-        let public_values = self.public_values.read(builder);
-        let chip_ordering = self.chip_ordering.clone();
-
-        ShardProofVariable {
-            commitment,
-            opened_values,
-            opening_proof,
-            public_values,
-            chip_ordering,
-        }
-    }
-
-    fn write(&self, witness: &mut impl WitnessWriter<C>) {
-        self.commitment.write(witness);
-        self.opened_values.write(witness);
-        self.opening_proof.write(witness);
-        self.public_values.write(witness);
-    }
-}
-
-impl<C: CircuitConfig, T: Witnessable<C>> Witnessable<C> for ShardCommitment<T> {
-    type WitnessVariable = ShardCommitment<T::WitnessVariable>;
-
-    fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
-        let main_commit = self.main_commit.read(builder);
-        let permutation_commit = self.permutation_commit.read(builder);
-        let quotient_commit = self.quotient_commit.read(builder);
-        Self::WitnessVariable { main_commit, permutation_commit, quotient_commit }
-    }
-
-    fn write(&self, witness: &mut impl WitnessWriter<C>) {
-        self.main_commit.write(witness);
-        self.permutation_commit.write(witness);
-        self.quotient_commit.write(witness);
-    }
-}
-
-impl<C: CircuitConfig<F = InnerVal, EF = InnerChallenge>> Witnessable<C>
-    for ShardOpenedValues<InnerChallenge>
-{
-    type WitnessVariable = ShardOpenedValues<Ext<C::F, C::EF>>;
-
-    fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
-        let chips = self.chips.read(builder);
-        Self::WitnessVariable { chips }
-    }
-
-    fn write(&self, witness: &mut impl WitnessWriter<C>) {
-        self.chips.write(witness);
     }
 }
 
@@ -166,8 +105,9 @@ impl<C: CircuitConfig<F = InnerVal, EF = InnerChallenge, Bit = Felt<BabyBear>>> 
     }
 }
 
-impl<C: CircuitConfig<F = InnerVal, EF = InnerChallenge, Bit = Felt<BabyBear>>> Witnessable<C>
-    for InnerBatchOpening
+impl<C> Witnessable<C> for InnerBatchOpening
+where
+    C: CircuitConfig<F = InnerVal, EF = InnerChallenge, Bit = Felt<BabyBear>>,
 {
     type WitnessVariable = BatchOpeningVariable<C, BabyBearPoseidon2>;
 
