@@ -446,7 +446,6 @@ pub(crate) mod tests {
     use p3_challenger::{CanObserve, CanSample, CanSampleBits, FieldChallenger};
     use p3_field::AbstractField;
     use p3_symmetric::{CryptographicHasher, Hash, PseudoCompressionFunction};
-    use sp1_prover::build::Witness;
     use sp1_recursion_compiler::{
         asm::{AsmBuilder, AsmConfig},
         config::OuterConfig,
@@ -459,7 +458,10 @@ pub(crate) mod tests {
     use sp1_recursion_gnark_ffi::PlonkBn254Prover;
     use sp1_stark::{baby_bear_poseidon2::BabyBearPoseidon2, StarkGenericConfig};
 
-    use crate::challenger::{DuplexChallengerVariable, FieldChallengerVariable};
+    use crate::{
+        challenger::{DuplexChallengerVariable, FieldChallengerVariable},
+        witness::OuterWitness,
+    };
 
     type SC = BabyBearPoseidon2;
     type C = OuterConfig;
@@ -567,7 +569,7 @@ pub(crate) mod tests {
 
         let mut backend = ConstraintCompiler::<C>::default();
         let constraints = backend.emit(builder.operations);
-        let witness = Witness::default();
+        let witness = OuterWitness::default();
         PlonkBn254Prover::test::<C>(constraints, witness);
     }
 
@@ -588,7 +590,7 @@ pub(crate) mod tests {
 
         let mut backend = ConstraintCompiler::<C>::default();
         let constraints = backend.emit(builder.operations);
-        let witness = Witness::default();
+        let witness = OuterWitness::default();
         PlonkBn254Prover::test::<C>(constraints, witness);
     }
 
@@ -622,7 +624,7 @@ pub(crate) mod tests {
 
         let mut backend = ConstraintCompiler::<C>::default();
         let constraints = backend.emit(builder.operations);
-        PlonkBn254Prover::test::<C>(constraints.clone(), Witness::default());
+        PlonkBn254Prover::test::<C>(constraints.clone(), OuterWitness::default());
     }
 
     #[test]
@@ -643,6 +645,6 @@ pub(crate) mod tests {
 
         let mut backend = ConstraintCompiler::<C>::default();
         let constraints = backend.emit(builder.operations);
-        PlonkBn254Prover::test::<C>(constraints.clone(), Witness::default());
+        PlonkBn254Prover::test::<C>(constraints.clone(), OuterWitness::default());
     }
 }

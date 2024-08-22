@@ -102,6 +102,12 @@ pub trait BabyBearFriConfigVariable<C: CircuitConfig<F = BabyBear>>:
 pub trait CircuitConfig: Config {
     type Bit: Clone + Variable<Self>;
 
+    fn read_bit(builder: &mut Builder<Self>) -> Self::Bit;
+
+    fn read_felt(builder: &mut Builder<Self>) -> Felt<Self::F>;
+
+    fn read_ext(builder: &mut Builder<Self>) -> Ext<Self::F, Self::EF>;
+
     fn ext2felt(
         builder: &mut Builder<Self>,
         ext: Ext<<Self as Config>::F, <Self as Config>::EF>,
@@ -135,6 +141,18 @@ pub trait CircuitConfig: Config {
 
 impl CircuitConfig for InnerConfig {
     type Bit = Felt<<Self as Config>::F>;
+
+    fn read_bit(builder: &mut Builder<Self>) -> Self::Bit {
+        builder.hint_felt_v2()
+    }
+
+    fn read_felt(builder: &mut Builder<Self>) -> Felt<Self::F> {
+        builder.hint_felt_v2()
+    }
+
+    fn read_ext(builder: &mut Builder<Self>) -> Ext<Self::F, Self::EF> {
+        builder.hint_ext_v2()
+    }
 
     fn ext2felt(
         builder: &mut Builder<Self>,
@@ -186,11 +204,25 @@ impl CircuitConfig for InnerConfig {
 impl CircuitConfig for OuterConfig {
     type Bit = Var<<Self as Config>::N>;
 
+    fn read_bit(builder: &mut Builder<Self>) -> Self::Bit {
+        builder.witness_var()
+    }
+
+    fn read_felt(builder: &mut Builder<Self>) -> Felt<Self::F> {
+        builder.witness_felt()
+    }
+
+    fn read_ext(builder: &mut Builder<Self>) -> Ext<Self::F, Self::EF> {
+        builder.witness_ext()
+    }
+
     fn ext2felt(
         builder: &mut Builder<Self>,
         ext: Ext<<Self as Config>::F, <Self as Config>::EF>,
     ) -> [Felt<<Self as Config>::F>; D] {
-        builder.ext2felt_v2(ext)
+        let felts = core::array::from_fn(|_| builder.uninit());
+        builder.operations.push(DslIr::CircuitExt2Felt(felts, ext));
+        felts
     }
 
     fn exp_reverse_bits(

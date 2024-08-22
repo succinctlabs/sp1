@@ -255,10 +255,10 @@ pub mod tests {
 
     use sp1_core_executor::{programs::tests::FIBONACCI_ELF, Program};
     use sp1_core_machine::{
+        io::SP1Stdin,
         riscv::RiscvAir,
         utils::{prove, setup_logger},
     };
-    use sp1_prover::{SP1Stdin, SP1VerifyingKey};
     use sp1_recursion_compiler::{
         config::{InnerConfig, OuterConfig},
         ir::{Builder, DslIr, TracedVec},
@@ -279,7 +279,7 @@ pub mod tests {
     type A = RiscvAir<F>;
 
     pub fn build_verify_shard_with_provers<
-        C: CircuitConfig<F = InnerVal>,
+        C: CircuitConfig<F = InnerVal, Bit = Felt<InnerVal>>,
         SC: BabyBearFriConfigVariable<C> + Default + Sync + Send,
         CoreP: MachineProver<SC, A>,
         RecP: MachineProver<SC, RecursionAir<F, 3, 0>>,
@@ -288,7 +288,7 @@ pub mod tests {
         elf: &[u8],
         opts: SP1CoreOpts,
         num_shards_in_batch: Option<usize>,
-    ) -> (TracedVec<DslIr<C>>, VecDeque<Block<BabyBear>>)
+    ) -> (TracedVec<DslIr<C>>, Vec<Block<BabyBear>>)
     where
         SC::Challenger: Send,
         <<SC as BabyBearFriConfig>::ValMmcs as Mmcs<BabyBear>>::ProverData<
@@ -314,12 +314,12 @@ pub mod tests {
         // Observe all the commitments.
         let mut builder = Builder::<C>::default();
 
-        let mut witness_stream = VecDeque::<Witness<C>>::new();
+        let mut witness_stream = Vec::<WitnessBlock<C>>::new();
 
         // Add a hash invocation, since the poseidon2 table expects that it's in the first row.
         let mut challenger = config.challenger_variable(&mut builder);
         // let vk = VerifyingKeyVariable::from_constant_key_babybear(&mut builder, &vk);
-        witness_stream.extend(Witnessable::<C>::write(&vk));
+        vk.write(&mut witness_stream);
         let vk: VerifyingKeyVariable<_, _> = vk.read(&mut builder);
         vk.observe_into(&mut builder, &mut challenger);
 
@@ -327,7 +327,7 @@ pub mod tests {
             .shard_proofs
             .into_iter()
             .map(|proof| {
-                witness_stream.extend(Witnessable::<C>::write(&proof));
+                proof.write(&mut witness_stream);
                 proof.read(&mut builder)
             })
             .collect::<Vec<_>>();
