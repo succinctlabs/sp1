@@ -38,8 +38,6 @@ pub struct CustomOpCols<T> {
 ```
 Adjust these fields according to your chip.
 
-> **Important Note:** For each field operation in your chip, there must be a corresponding column in your data structure. This ensures that the operations are properly represented in the AIR (Algebraic Intermediate Representation) framework and can be evaluated correctly.
-
 ### Implement the Chip Logic
 The Syscall trait is where the core execution logic of your chip will reside. This involves defining how the chip interacts with the SP1 runtime during execution time.
 
