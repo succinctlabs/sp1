@@ -67,13 +67,17 @@ pub fn verify_two_adic_pcs<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigV
 
     let log_global_max_height = proof.fri_proof.commit_phase_commits.len() + config.log_blowup;
 
+    // The powers of alpha, where the ith element is alpha^i.
+    let mut alpha_pows: Vec<Ext<C::F, C::EF>> =
+        vec![builder.eval(SymbolicExt::from_f(C::EF::one()))];
+
     let reduced_openings = proof
         .query_openings
         .iter()
         .zip(&fri_challenges.query_indices)
         .map(|(query_opening, index_bits)| {
             // The powers of alpha, where the ith element is alpha^i.
-            let mut alpha_pows: [Ext<C::F, C::EF>; 32] = [builder.constant(C::EF::one()); 32];
+            let mut log_height_pow = [0usize; 32];
             let mut ro: [Ext<C::F, C::EF>; 32] =
                 [builder.eval(SymbolicExt::from_f(C::EF::zero())); 32];
 
@@ -119,15 +123,23 @@ pub fn verify_two_adic_pcs<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigV
                         C::exp_reverse_bits(builder, two_adic_generator, reduced_index_bits_trunc);
                     let x: Felt<_> = builder.eval(g * two_adic_generator_exp);
 
-                    for (z, ps_at_z) in izip!(&mat_points, mat_values) {
+                    for (z, ps_at_z) in izip!(mat_points, mat_values) {
+                        // builder.cycle_tracker("2adic-hotloop");
                         let mut acc: Ext<C::F, C::EF> =
                             builder.eval(SymbolicExt::from_f(C::EF::zero()));
-                        for (p_at_x, &p_at_z) in mat_opening.clone().into_iter().zip(&ps_at_z) {
-                            acc =
-                                builder.eval(acc + (alpha_pows[log_height] * (p_at_z - p_at_x[0])));
-                            alpha_pows[log_height] = builder.eval(alpha_pows[log_height] * alpha);
+                        for (p_at_x, p_at_z) in izip!(mat_opening.clone(), ps_at_z) {
+                            let pow = log_height_pow[log_height];
+                            // Fill in any missing powers of alpha.
+                            (alpha_pows.len()..pow + 1).for_each(|_| {
+                                let new_alpha = builder.eval(*alpha_pows.last().unwrap() * alpha);
+                                builder.reduce_e(new_alpha);
+                                alpha_pows.push(new_alpha);
+                            });
+                            acc = builder.eval(acc + (alpha_pows[pow] * (p_at_z - p_at_x[0])));
+                            log_height_pow[log_height] += 1;
                         }
-                        ro[log_height] = builder.eval(ro[log_height] + acc / (*z - x));
+                        ro[log_height] = builder.eval(ro[log_height] + acc / (z - x));
+                        // builder.cycle_tracker("2adic-hotloop");
                     }
                 }
             }
@@ -197,6 +209,8 @@ pub fn verify_query<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVariable
         let index_sibling_complement: C::Bit = index_bits[offset].clone();
         // let index_sibling_complement: Felt<_> = builder.constant(C::F::one());
         let index_pair = &index_bits[(offset + 1)..];
+
+        builder.reduce_e(folded_eval);
 
         let evals_ext = C::select_chain_ef(
             builder,
@@ -554,7 +568,7 @@ mod tests {
     }
 
     #[test]
-    fn test_verify_two_adic_pcs() {
+    fn test_verify_two_adic_pcs_inner() {
         let mut rng = StdRng::seed_from_u64(0xDEADBEEF);
         let log_degrees = &[19, 19];
         let perm = inner_perm();

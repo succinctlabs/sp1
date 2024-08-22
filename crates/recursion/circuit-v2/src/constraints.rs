@@ -4,7 +4,9 @@ use p3_commit::{LagrangeSelectors, Mmcs, PolynomialSpace, TwoAdicMultiplicativeC
 use p3_field::{AbstractExtensionField, AbstractField, TwoAdicField};
 use p3_matrix::dense::RowMajorMatrix;
 
-use sp1_recursion_compiler::ir::{Builder, Config, Ext, Felt, SymbolicExt};
+use sp1_recursion_compiler::ir::{
+    Builder, Config, Ext, ExtensionOperand, Felt, SymbolicExt, SymbolicFelt,
+};
 use sp1_stark::{
     air::MachineAir, AirOpenedValues, ChipOpenedValues, GenericVerifierConstraintFolder,
     MachineChip, OpeningShapeError,
@@ -123,16 +125,23 @@ where
             .iter()
             .enumerate()
             .map(|(i, domain)| {
-                qc_domains
+                let (zs, zinvs) = qc_domains
                     .iter()
                     .enumerate()
                     .filter(|(j, _)| *j != i)
                     .map(|(_, other_domain)| {
                         let first_point = builder.eval(domain.first_point());
-                        other_domain.zp_at_point_variable(builder, zeta)
-                            * other_domain.zp_at_point_variable(builder, first_point).inverse()
+                        (
+                            other_domain
+                                .zp_at_point_variable(builder, zeta)
+                                .to_operand()
+                                .symbolic(),
+                            other_domain.zp_at_point_f(builder, first_point).inverse(),
+                        )
                     })
-                    .product::<SymbolicExt<_, _>>()
+                    .unzip::<_, _, Vec<_>, Vec<_>>();
+                zs.into_iter().product::<SymbolicExt<_, _>>()
+                    * zinvs.into_iter().product::<SymbolicFelt<_>>()
             })
             .collect::<Vec<SymbolicExt<_, _>>>()
             .into_iter()

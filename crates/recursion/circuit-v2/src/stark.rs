@@ -248,8 +248,9 @@ pub mod tests {
     use std::collections::VecDeque;
 
     use crate::{
-        challenger::{CanObserveVariable, DuplexChallengerVariable},
+        challenger::{CanCopyChallenger, CanObserveVariable, DuplexChallengerVariable},
         utils::tests::run_test_recursion_with_prover,
+        BabyBearFriConfig,
     };
 
     use sp1_core_executor::{programs::tests::FIBONACCI_ELF, Program};
@@ -257,34 +258,51 @@ pub mod tests {
         riscv::RiscvAir,
         utils::{prove, setup_logger},
     };
-    use sp1_prover::SP1Stdin;
-    use sp1_recursion_compiler::{config::InnerConfig, ir::Builder};
+    use sp1_prover::{SP1Stdin, SP1VerifyingKey};
+    use sp1_recursion_compiler::{
+        config::{InnerConfig, OuterConfig},
+        ir::{Builder, DslIr, TracedVec},
+    };
 
-    use sp1_recursion_core_v2::machine::RecursionAir;
+    use sp1_recursion_core_v2::{
+        air::Block, machine::RecursionAir, stark::config::BabyBearPoseidon2Outer,
+    };
     use sp1_stark::{
         baby_bear_poseidon2::BabyBearPoseidon2, CpuProver, InnerVal, MachineProver, SP1CoreOpts,
+        ShardProof,
     };
 
     use super::*;
     use crate::witness::*;
 
-    type SC = BabyBearPoseidon2;
     type F = InnerVal;
-    type C = InnerConfig;
     type A = RiscvAir<F>;
 
-    pub fn test_verify_shard_with_provers<
+    pub fn build_verify_shard_with_provers<
+        C: CircuitConfig<F = InnerVal>,
+        SC: BabyBearFriConfigVariable<C> + Default + Sync + Send,
         CoreP: MachineProver<SC, A>,
         RecP: MachineProver<SC, RecursionAir<F, 3, 0>>,
     >(
+        config: SC,
         elf: &[u8],
         opts: SP1CoreOpts,
         num_shards_in_batch: Option<usize>,
-    ) {
+    ) -> (TracedVec<DslIr<C>>, VecDeque<Block<BabyBear>>)
+    where
+        SC::Challenger: Send,
+        <<SC as BabyBearFriConfig>::ValMmcs as Mmcs<BabyBear>>::ProverData<
+            RowMajorMatrix<BabyBear>,
+        >: Send + Sync,
+        <<SC as BabyBearFriConfig>::ValMmcs as Mmcs<BabyBear>>::Commitment: Send + Sync,
+        <<SC as BabyBearFriConfig>::ValMmcs as Mmcs<BabyBear>>::Proof: Send,
+        StarkVerifyingKey<SC>: Witnessable<C, WitnessVariable = VerifyingKeyVariable<C, SC>>,
+        ShardProof<SC>: Witnessable<C, WitnessVariable = ShardProofVariable<C, SC>>,
+    {
         // Generate a dummy proof.
         setup_logger();
 
-        let machine = A::machine(SC::default());
+        let machine = RiscvAir::<C::F>::machine(SC::default());
         let (_, vk) = machine.setup(&Program::from(elf).unwrap());
         let (proof, _, _) =
             prove::<_, CoreP>(Program::from(elf).unwrap(), &SP1Stdin::new(), SC::default(), opts)
@@ -294,15 +312,15 @@ pub mod tests {
         println!("Proof generated successfully");
 
         // Observe all the commitments.
-        let mut builder = Builder::<InnerConfig>::default();
+        let mut builder = Builder::<C>::default();
 
         let mut witness_stream = VecDeque::<Witness<C>>::new();
 
         // Add a hash invocation, since the poseidon2 table expects that it's in the first row.
-        let mut challenger = DuplexChallengerVariable::new(&mut builder);
+        let mut challenger = config.challenger_variable(&mut builder);
         // let vk = VerifyingKeyVariable::from_constant_key_babybear(&mut builder, &vk);
         witness_stream.extend(Witnessable::<C>::write(&vk));
-        let vk = vk.read(&mut builder);
+        let vk: VerifyingKeyVariable<_, _> = vk.read(&mut builder);
         vk.observe_into(&mut builder, &mut challenger);
 
         let proofs = proof
@@ -326,16 +344,18 @@ pub mod tests {
             let mut challenger = challenger.copy(&mut builder);
             StarkVerifier::verify_shard(&mut builder, &vk, &machine, &mut challenger, &proof);
         }
-
-        run_test_recursion_with_prover::<RecP>(builder.operations, witness_stream);
+        (builder.operations, witness_stream)
     }
 
     #[test]
-    fn test_verify_shard() {
-        test_verify_shard_with_provers::<CpuProver<_, _>, CpuProver<_, _>>(
-            FIBONACCI_ELF,
-            SP1CoreOpts::default(),
-            Some(2),
-        );
+    fn test_verify_shard_inner() {
+        let (operations, stream) =
+            build_verify_shard_with_provers::<
+                InnerConfig,
+                BabyBearPoseidon2,
+                CpuProver<_, _>,
+                CpuProver<_, _>,
+            >(BabyBearPoseidon2::new(), FIBONACCI_ELF, SP1CoreOpts::default(), Some(2));
+        run_test_recursion_with_prover::<CpuProver<_, _>>(operations, stream);
     }
 }

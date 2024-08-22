@@ -146,6 +146,7 @@ func TestGroth16Bn254(witnessJson *C.char, constraintsJson *C.char) *C.char {
 	constraintsJsonString := C.GoString(constraintsJson)
 	os.Setenv("WITNESS_JSON", witnessPathString)
 	os.Setenv("CONSTRAINTS_JSON", constraintsJsonString)
+	os.Setenv("GROTH16", "1")
 	err := TestMain()
 	testMutex.Unlock()
 	if err != nil {
