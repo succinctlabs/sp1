@@ -95,6 +95,32 @@ fn core_proof_shapes<F: PrimeField32>() -> Vec<Shape> {
         },
         Shape {
             id: 1,
+            shape: HashMap::from([
+                (cpu.name(), 21),
+                (add_sub.name(), 19),
+                (mul.name(), 19),
+                (lt.name(), 19),
+                (div_rem.name(), 19),
+                (shift_left.name(), 19),
+                (shift_right.name(), 19),
+                (bitwise.name(), 19),
+            ]),
+        },
+        Shape {
+            id: 2,
+            shape: HashMap::from([
+                (cpu.name(), 20),
+                (add_sub.name(), 18),
+                (mul.name(), 18),
+                (lt.name(), 18),
+                (div_rem.name(), 18),
+                (shift_left.name(), 18),
+                (shift_right.name(), 18),
+                (bitwise.name(), 18),
+            ]),
+        },
+        Shape {
+            id: 3,
             shape: HashMap::from([(memory_init.name(), 22), (memory_finalize.name(), 22)]),
         },
     ]

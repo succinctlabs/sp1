@@ -109,7 +109,7 @@ pub struct SP1Prover<C: SP1ProverComponents = DefaultProverComponents> {
     pub wrap_prover: C::WrapProver,
 
     /// The core recursion program cache.
-    pub core_programs: Arc<Mutex<HashMap<usize, Arc<RecursionProgram<BabyBear>>>>>,
+    pub core_programs: Arc<Mutex<HashMap<(usize, usize), Arc<RecursionProgram<BabyBear>>>>>,
 
     /// The compress recursion program cache.
     pub compress_programs: Arc<Mutex<HashMap<usize, Arc<RecursionProgram<BabyBear>>>>>,
@@ -504,7 +504,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                                         .core_programs
                                         .lock()
                                         .unwrap()
-                                        .entry(shape.id)
+                                        .entry((shape.id, input.shard_proofs.len()))
                                         .or_insert_with(|| {
                                             tracing::debug_span!("get program", id = shape.id)
                                                 .in_scope(|| self.recursion_program(&input))
@@ -514,6 +514,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                                     let mut witness_stream = Vec::new();
                                     witness_stream
                                         .extend(Witnessable::<InnerConfig>::write(&input));
+                                    println!("core witness stream: {:?}", witness_stream.len());
                                     (program, witness_stream)
                                 }
                                 // SP1CircuitWitness::Deferred(input) => {
