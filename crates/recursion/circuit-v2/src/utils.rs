@@ -38,6 +38,7 @@ pub fn commit_recursion_public_values<C: Config>(
 
 /// Convert 8 BabyBear words into a Bn254Fr field element by shifting by 31 bits each time. The last
 /// word becomes the least significant bits.
+#[allow(dead_code)]
 pub fn babybears_to_bn254(digest: &[BabyBear; 8]) -> Bn254Fr {
     let mut result = Bn254Fr::zero();
     for word in digest.iter() {

@@ -1,13 +1,10 @@
 use std::borrow::Borrow;
 
 use p3_baby_bear::BabyBear;
-use p3_field::AbstractExtensionField;
+use p3_field::{AbstractExtensionField, AbstractField};
 use p3_fri::{CommitPhaseProofStep, QueryProof};
 
-use sp1_recursion_compiler::{
-    circuit::CircuitV2Builder,
-    ir::{Builder, Config, Ext, Felt},
-};
+use sp1_recursion_compiler::ir::{Builder, Config, Ext, Felt};
 use sp1_recursion_core_v2::air::Block;
 use sp1_stark::{
     baby_bear_poseidon2::BabyBearPoseidon2, AirOpenedValues, ChipOpenedValues, InnerBatchOpening,
@@ -21,76 +18,27 @@ use crate::{
     TwoAdicPcsProofVariable,
 };
 
-use super::Witnessable;
+use super::{WitnessWriter, Witnessable};
 
 pub type WitnessBlock<C> = Block<<C as Config>::F>;
 
-impl<'a, C: Config, T: Witnessable<C>> Witnessable<C> for &'a T {
-    type WitnessVariable = T::WitnessVariable;
-
-    fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
-        (*self).read(builder)
+impl<C: CircuitConfig<F = BabyBear, Bit = Felt<BabyBear>>> WitnessWriter<C>
+    for Vec<WitnessBlock<C>>
+{
+    fn write_bit(&mut self, value: bool) {
+        self.push(Block::from(C::F::from_bool(value)))
     }
 
-    fn write(&self) -> Vec<WitnessBlock<C>> {
-        (*self).write()
+    fn write_felt(&mut self, value: <C>::F) {
+        self.push(Block::from(value))
+    }
+
+    fn write_ext(&mut self, value: <C>::EF) {
+        self.push(Block::from(value.as_base_slice()))
     }
 }
 
 // TODO Bn254Fr
-
-impl<C: Config<F = InnerVal>> Witnessable<C> for InnerVal {
-    type WitnessVariable = Felt<InnerVal>;
-
-    fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
-        builder.hint_felt_v2()
-    }
-
-    fn write(&self) -> Vec<WitnessBlock<C>> {
-        vec![Block::from(*self)]
-    }
-}
-
-impl<C: Config<F = InnerVal, EF = InnerChallenge>> Witnessable<C> for InnerChallenge {
-    type WitnessVariable = Ext<InnerVal, InnerChallenge>;
-
-    fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
-        builder.hint_ext_v2()
-    }
-
-    fn write(&self) -> Vec<WitnessBlock<C>> {
-        vec![Block::from(self.as_base_slice())]
-    }
-}
-
-impl<C: Config, T: Witnessable<C>, const N: usize> Witnessable<C> for [T; N] {
-    type WitnessVariable = [T::WitnessVariable; N];
-
-    fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
-        self.iter().map(|x| x.read(builder)).collect::<Vec<_>>().try_into().unwrap_or_else(
-            |x: Vec<_>| {
-                // Cannot just `.unwrap()` without requiring Debug bounds.
-                panic!("could not coerce vec of len {} into array of len {N}", x.len())
-            },
-        )
-    }
-
-    fn write(&self) -> Vec<WitnessBlock<C>> {
-        self.iter().flat_map(|x| x.write()).collect()
-    }
-}
-
-impl<C: Config, T: Witnessable<C>> Witnessable<C> for Vec<T> {
-    type WitnessVariable = Vec<T::WitnessVariable>;
-
-    fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
-        self.iter().map(|x| x.read(builder)).collect()
-    }
-
-    fn write(&self) -> Vec<WitnessBlock<C>> {
-        self.iter().flat_map(|x| x.write()).collect()
-    }
-}
 
 impl<C: CircuitConfig<F = InnerVal, EF = InnerChallenge, Bit = Felt<BabyBear>>> Witnessable<C>
     for ShardProof<BabyBearPoseidon2>
@@ -113,18 +61,15 @@ impl<C: CircuitConfig<F = InnerVal, EF = InnerChallenge, Bit = Felt<BabyBear>>> 
         }
     }
 
-    fn write(&self) -> Vec<WitnessBlock<C>> {
-        [
-            Witnessable::<C>::write(&self.commitment),
-            Witnessable::<C>::write(&self.opened_values),
-            Witnessable::<C>::write(&self.opening_proof),
-            Witnessable::<C>::write(&self.public_values),
-        ]
-        .concat()
+    fn write(&self, witness: &mut impl WitnessWriter<C>) {
+        self.commitment.write(witness);
+        self.opened_values.write(witness);
+        self.opening_proof.write(witness);
+        self.public_values.write(witness);
     }
 }
 
-impl<C: Config, T: Witnessable<C>> Witnessable<C> for ShardCommitment<T> {
+impl<C: CircuitConfig, T: Witnessable<C>> Witnessable<C> for ShardCommitment<T> {
     type WitnessVariable = ShardCommitment<T::WitnessVariable>;
 
     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
@@ -134,17 +79,14 @@ impl<C: Config, T: Witnessable<C>> Witnessable<C> for ShardCommitment<T> {
         Self::WitnessVariable { main_commit, permutation_commit, quotient_commit }
     }
 
-    fn write(&self) -> Vec<WitnessBlock<C>> {
-        [
-            Witnessable::<C>::write(&self.main_commit),
-            Witnessable::<C>::write(&self.permutation_commit),
-            Witnessable::<C>::write(&self.quotient_commit),
-        ]
-        .concat()
+    fn write(&self, witness: &mut impl WitnessWriter<C>) {
+        self.main_commit.write(witness);
+        self.permutation_commit.write(witness);
+        self.quotient_commit.write(witness);
     }
 }
 
-impl<C: Config<F = InnerVal, EF = InnerChallenge>> Witnessable<C>
+impl<C: CircuitConfig<F = InnerVal, EF = InnerChallenge>> Witnessable<C>
     for ShardOpenedValues<InnerChallenge>
 {
     type WitnessVariable = ShardOpenedValues<Ext<C::F, C::EF>>;
@@ -154,12 +96,12 @@ impl<C: Config<F = InnerVal, EF = InnerChallenge>> Witnessable<C>
         Self::WitnessVariable { chips }
     }
 
-    fn write(&self) -> Vec<WitnessBlock<C>> {
-        Witnessable::<C>::write(&self.chips)
+    fn write(&self, witness: &mut impl WitnessWriter<C>) {
+        self.chips.write(witness);
     }
 }
 
-impl<C: Config<F = InnerVal, EF = InnerChallenge>> Witnessable<C>
+impl<C: CircuitConfig<F = InnerVal, EF = InnerChallenge>> Witnessable<C>
     for ChipOpenedValues<InnerChallenge>
 {
     type WitnessVariable = ChipOpenedValues<Ext<C::F, C::EF>>;
@@ -181,19 +123,16 @@ impl<C: Config<F = InnerVal, EF = InnerChallenge>> Witnessable<C>
         }
     }
 
-    fn write(&self) -> Vec<WitnessBlock<C>> {
-        [
-            Witnessable::<C>::write(&self.preprocessed),
-            Witnessable::<C>::write(&self.main),
-            Witnessable::<C>::write(&self.permutation),
-            Witnessable::<C>::write(&self.quotient),
-            Witnessable::<C>::write(&self.cumulative_sum),
-        ]
-        .concat()
+    fn write(&self, witness: &mut impl WitnessWriter<C>) {
+        self.preprocessed.write(witness);
+        self.main.write(witness);
+        self.permutation.write(witness);
+        self.quotient.write(witness);
+        self.cumulative_sum.write(witness);
     }
 }
 
-impl<C: Config<F = InnerVal, EF = InnerChallenge>> Witnessable<C>
+impl<C: CircuitConfig<F = InnerVal, EF = InnerChallenge>> Witnessable<C>
     for AirOpenedValues<InnerChallenge>
 {
     type WitnessVariable = AirOpenedValues<Ext<C::F, C::EF>>;
@@ -204,11 +143,9 @@ impl<C: Config<F = InnerVal, EF = InnerChallenge>> Witnessable<C>
         Self::WitnessVariable { local, next }
     }
 
-    fn write(&self) -> Vec<WitnessBlock<C>> {
-        let mut stream = Vec::new();
-        stream.extend(Witnessable::<C>::write(&self.local));
-        stream.extend(Witnessable::<C>::write(&self.next));
-        stream
+    fn write(&self, witness: &mut impl WitnessWriter<C>) {
+        self.local.write(witness);
+        self.next.write(witness);
     }
 }
 
@@ -223,9 +160,9 @@ impl<C: CircuitConfig<F = InnerVal, EF = InnerChallenge, Bit = Felt<BabyBear>>> 
         Self::WitnessVariable { fri_proof, query_openings }
     }
 
-    fn write(&self) -> Vec<WitnessBlock<C>> {
-        [Witnessable::<C>::write(&self.fri_proof), Witnessable::<C>::write(&self.query_openings)]
-            .concat()
+    fn write(&self, witness: &mut impl WitnessWriter<C>) {
+        self.fri_proof.write(witness);
+        self.query_openings.write(witness);
     }
 }
 
@@ -245,9 +182,9 @@ impl<C: CircuitConfig<F = InnerVal, EF = InnerChallenge, Bit = Felt<BabyBear>>> 
         Self::WitnessVariable { opened_values, opening_proof }
     }
 
-    fn write(&self) -> Vec<WitnessBlock<C>> {
-        [Witnessable::<C>::write(&self.opened_values), Witnessable::<C>::write(&self.opening_proof)]
-            .concat()
+    fn write(&self, witness: &mut impl WitnessWriter<C>) {
+        self.opened_values.write(witness);
+        self.opening_proof.write(witness);
     }
 }
 
@@ -271,20 +208,14 @@ impl<C: CircuitConfig<F = InnerVal, EF = InnerChallenge, Bit = Felt<BabyBear>>> 
         Self::WitnessVariable { commit_phase_commits, query_proofs, final_poly, pow_witness }
     }
 
-    fn write(&self) -> Vec<WitnessBlock<C>> {
-        [
-            self.commit_phase_commits
-                .iter()
-                .flat_map(|commit| {
-                    let commit = Borrow::<InnerDigest>::borrow(commit);
-                    Witnessable::<C>::write(commit)
-                })
-                .collect(),
-            Witnessable::<C>::write(&self.query_proofs),
-            Witnessable::<C>::write(&self.final_poly),
-            Witnessable::<C>::write(&self.pow_witness),
-        ]
-        .concat()
+    fn write(&self, witness: &mut impl WitnessWriter<C>) {
+        self.commit_phase_commits.iter().for_each(|commit| {
+            let commit = Borrow::<InnerDigest>::borrow(commit);
+            commit.write(witness);
+        });
+        self.query_proofs.write(witness);
+        self.final_poly.write(witness);
+        self.pow_witness.write(witness);
     }
 }
 
@@ -298,8 +229,8 @@ impl<C: CircuitConfig<F = InnerVal, EF = InnerChallenge, Bit = Felt<BabyBear>>> 
         Self::WitnessVariable { commit_phase_openings }
     }
 
-    fn write(&self) -> Vec<WitnessBlock<C>> {
-        Witnessable::<C>::write(&self.commit_phase_openings)
+    fn write(&self, witness: &mut impl WitnessWriter<C>) {
+        self.commit_phase_openings.write(witness);
     }
 }
 
@@ -314,8 +245,8 @@ impl<C: CircuitConfig<F = InnerVal, EF = InnerChallenge, Bit = Felt<BabyBear>>> 
         Self::WitnessVariable { sibling_value, opening_proof }
     }
 
-    fn write(&self) -> Vec<WitnessBlock<C>> {
-        [Witnessable::<C>::write(&self.sibling_value), Witnessable::<C>::write(&self.opening_proof)]
-            .concat()
+    fn write(&self, witness: &mut impl WitnessWriter<C>) {
+        self.sibling_value.write(witness);
+        self.opening_proof.write(witness);
     }
 }
