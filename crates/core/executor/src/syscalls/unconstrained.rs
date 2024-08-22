@@ -21,7 +21,7 @@ impl Syscall for EnterUnconstrainedSyscall {
             op_record: std::mem::take(&mut ctx.rt.memory_accesses),
             executor_mode: ctx.rt.executor_mode,
         };
-        ctx.rt.executor_mode = ExecutorMode::Fast;
+        ctx.rt.executor_mode = ExecutorMode::Simple;
         Some(1)
     }
 }

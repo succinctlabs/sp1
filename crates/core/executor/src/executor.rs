@@ -106,17 +106,11 @@ pub struct Executor<'a> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ExecutorMode {
     /// Run the execution with no tracing or checkpointing.
-    Fast,
+    Simple,
     /// Run the execution with checkpoints for memory.
     Checkpoint,
-    /// Run the execution with full tracing.
+    /// Run the execution with full tracing of events.
     Trace,
-}
-
-impl Default for ExecutorMode {
-    fn default() -> Self {
-        Self::Fast
-    }
 }
 
 /// Errors that the [``Executor``] can throw.
@@ -256,15 +250,22 @@ impl<'a> Executor<'a> {
         let mut registers = [0; 32];
         for i in 0..32 {
             let addr = Register::from_u32(i as u32) as u32;
-            registers[i] = match self.state.memory.get(&addr) {
-                Some(record) => {
-                    self.memory_checkpoint.entry(addr).or_insert_with(|| Some(*record));
-                    record.value
+            let record = self.state.memory.get(&addr);
+
+            if self.executor_mode != ExecutorMode::Simple {
+                match record {
+                    Some(record) => {
+                        self.memory_checkpoint.entry(addr).or_insert_with(|| Some(*record));
+                    }
+                    None => {
+                        self.memory_checkpoint.entry(addr).or_insert(None);
+                    }
                 }
-                None => {
-                    self.memory_checkpoint.entry(addr).or_insert(None);
-                    0
-                }
+            }
+
+            registers[i] = match record {
+                Some(record) => record.value,
+                None => 0,
             };
         }
         registers
@@ -274,16 +275,22 @@ impl<'a> Executor<'a> {
     #[must_use]
     pub fn register(&mut self, register: Register) -> u32 {
         let addr = register as u32;
-        #[allow(clippy::single_match_else)]
-        match self.state.memory.get(&addr) {
-            Some(record) => {
-                self.memory_checkpoint.entry(addr).or_insert_with(|| Some(*record));
-                record.value
+        let record = self.state.memory.get(&addr);
+
+        if self.executor_mode != ExecutorMode::Simple {
+            match record {
+                Some(record) => {
+                    self.memory_checkpoint.entry(addr).or_insert_with(|| Some(*record));
+                }
+                None => {
+                    self.memory_checkpoint.entry(addr).or_insert(None);
+                }
             }
-            None => {
-                self.memory_checkpoint.entry(addr).or_insert(None);
-                0
-            }
+        }
+
+        match record {
+            Some(record) => record.value,
+            None => 0,
         }
     }
 
@@ -291,15 +298,22 @@ impl<'a> Executor<'a> {
     #[must_use]
     pub fn word(&mut self, addr: u32) -> u32 {
         #[allow(clippy::single_match_else)]
-        match self.state.memory.get(&addr) {
-            Some(record) => {
-                self.memory_checkpoint.entry(addr).or_insert_with(|| Some(*record));
-                record.value
+        let record = self.state.memory.get(&addr);
+
+        if self.executor_mode != ExecutorMode::Simple {
+            match record {
+                Some(record) => {
+                    self.memory_checkpoint.entry(addr).or_insert_with(|| Some(*record));
+                }
+                None => {
+                    self.memory_checkpoint.entry(addr).or_insert(None);
+                }
             }
-            None => {
-                self.memory_checkpoint.entry(addr).or_insert(None);
-                0
-            }
+        }
+
+        match record {
+            Some(record) => record.value,
+            None => 0,
         }
     }
 
@@ -334,7 +348,7 @@ impl<'a> Executor<'a> {
     pub fn mr(&mut self, addr: u32, shard: u32, timestamp: u32) -> MemoryReadRecord {
         // Get the memory record entry.
         let entry = self.state.memory.entry(addr);
-        if self.executor_mode != ExecutorMode::Fast {
+        if self.executor_mode != ExecutorMode::Simple {
             match entry {
                 Entry::Occupied(ref entry) => {
                     let record = entry.get();
@@ -379,7 +393,7 @@ impl<'a> Executor<'a> {
     pub fn mw(&mut self, addr: u32, value: u32, shard: u32, timestamp: u32) -> MemoryWriteRecord {
         // Get the memory record entry.
         let entry = self.state.memory.entry(addr);
-        if self.executor_mode != ExecutorMode::Fast {
+        if self.executor_mode != ExecutorMode::Simple {
             match entry {
                 Entry::Occupied(ref entry) => {
                     let record = entry.get();
@@ -456,7 +470,7 @@ impl<'a> Executor<'a> {
         let record = self.mw(addr, value, self.shard(), self.timestamp(&position));
 
         // If we're not in unconstrained mode, record the access for the current cycle.
-        if !self.unconstrained && self.executor_mode != ExecutorMode::Fast {
+        if !self.unconstrained && self.executor_mode == ExecutorMode::Trace {
             match position {
                 MemoryAccessPosition::A => {
                     assert!(self.memory_accesses.a.is_none());
@@ -671,14 +685,13 @@ impl<'a> Executor<'a> {
         let (addr, memory_read_value): (u32, u32);
         let mut memory_store_value: Option<u32> = None;
 
-        if self.executor_mode != ExecutorMode::Fast {
+        if self.executor_mode != ExecutorMode::Simple {
             self.memory_accesses = MemoryAccessRecord::default();
         }
-
         let lookup_id =
-            if self.executor_mode != ExecutorMode::Fast { create_alu_lookup_id() } else { 0 };
+            if self.executor_mode == ExecutorMode::Simple { 0 } else { create_alu_lookup_id() };
         let syscall_lookup_id =
-            if self.executor_mode != ExecutorMode::Fast { create_alu_lookup_id() } else { 0 };
+            if self.executor_mode == ExecutorMode::Simple { 0 } else { create_alu_lookup_id() };
 
         if self.print_report && !self.unconstrained {
             self.report
@@ -1190,7 +1203,7 @@ impl<'a> Executor<'a> {
     ///
     /// This function will return an error if the program execution fails.
     pub fn run_fast(&mut self) -> Result<(), ExecutionError> {
-        self.executor_mode = ExecutorMode::Fast;
+        self.executor_mode = ExecutorMode::Simple;
         self.print_report = true;
         while !self.execute()? {}
         Ok(())
@@ -1372,6 +1385,12 @@ impl<'a> Executor<'a> {
         if !self.unconstrained && self.state.global_clk % 10_000_000 == 0 {
             log::info!("clk = {} pc = 0x{:x?}", self.state.global_clk, self.state.pc);
         }
+    }
+}
+
+impl Default for ExecutorMode {
+    fn default() -> Self {
+        Self::Simple
     }
 }
 
