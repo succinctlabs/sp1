@@ -107,6 +107,7 @@ impl<F: PrimeField32> MachineAir<F> for PublicValuesChip {
         &self,
         input: &ExecutionRecord<F>,
         _: &mut ExecutionRecord<F>,
+        _: Option<usize>,
     ) -> RowMajorMatrix<F> {
         if input.commit_pv_hash_events.len() != 1 {
             tracing::warn!("Expected exactly one CommitPVHash event.");
@@ -135,6 +136,10 @@ impl<F: PrimeField32> MachineAir<F> for PublicValuesChip {
 
     fn included(&self, _record: &Self::Record) -> bool {
         true
+    }
+
+    fn min_rows(&self, _: &Self::Record) -> usize {
+        todo!()
     }
 }
 
@@ -236,7 +241,8 @@ mod tests {
             ..Default::default()
         };
         let chip = PublicValuesChip::default();
-        let trace: RowMajorMatrix<F> = chip.generate_trace(&shard, &mut ExecutionRecord::default());
+        let trace: RowMajorMatrix<F> =
+            chip.generate_trace(&shard, &mut ExecutionRecord::default(), None);
         println!("{:?}", trace.values)
     }
 }

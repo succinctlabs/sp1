@@ -13,7 +13,7 @@ use sp1_stark::{
     InteractionKind, Word,
 };
 
-use crate::{operations::IsZeroOperation, utils::pad_to_power_of_two};
+use crate::{operations::IsZeroOperation, utils::pad_to_power_of_two_fixed};
 
 pub const NUM_MEMORY_PROGRAM_PREPROCESSED_COLS: usize =
     size_of::<MemoryProgramPreprocessedCols<u8>>();

@@ -19,7 +19,7 @@ use sp1_stark::{
     Word,
 };
 
-use crate::{operations::AddOperation, utils::pad_to_power_of_two};
+use crate::{operations::AddOperation, utils::pad_to_power_of_two_fixed};
 
 /// The number of main trace columns for `AddSubChip`.
 pub const NUM_ADD_SUB_COLS: usize = size_of::<AddSubCols<u8>>();

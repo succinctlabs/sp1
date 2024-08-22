@@ -266,7 +266,7 @@ mod tests {
             true
         }
 
-        fn min_rows(&self, shard: &Self::Record) -> usize {
+        fn min_rows(&self, _: &Self::Record) -> usize {
             1 << 8
         }
     }

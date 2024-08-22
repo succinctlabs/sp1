@@ -49,7 +49,7 @@ use sp1_derive::AlignedBorrow;
 use sp1_primitives::consts::WORD_SIZE;
 use sp1_stark::{air::MachineAir, Word};
 
-use crate::{air::SP1CoreAirBuilder, utils::pad_to_power_of_two};
+use crate::{air::SP1CoreAirBuilder, utils::pad_to_power_of_two_fixed};
 
 /// The number of main trace columns for `ShiftLeft`.
 pub const NUM_SHIFT_LEFT_COLS: usize = size_of::<ShiftLeftCols<u8>>();

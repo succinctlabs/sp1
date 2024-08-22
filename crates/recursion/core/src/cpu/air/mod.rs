@@ -274,7 +274,7 @@ mod tests {
 
         println!("input exec: {:?}", input_exec.last_memory_record.len());
         let trace: RowMajorMatrix<BabyBear> =
-            chip.generate_trace(&input_exec, &mut ExecutionRecord::<BabyBear>::default());
+            chip.generate_trace(&input_exec, &mut ExecutionRecord::<BabyBear>::default(), None);
         println!("trace dims is width: {:?}, height: {:?}", trace.width(), trace.height());
 
         let start = Instant::now();

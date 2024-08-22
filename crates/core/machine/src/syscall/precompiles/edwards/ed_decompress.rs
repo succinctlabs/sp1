@@ -4,7 +4,7 @@ use core::{
 };
 use std::marker::PhantomData;
 
-use crate::air::MemoryAirBuilder;
+use crate::{air::MemoryAirBuilder, utils::pad_rows_fixed};
 use generic_array::GenericArray;
 use num::{BigUint, One, Zero};
 use p3_air::{Air, AirBuilder, BaseAir};
@@ -29,7 +29,7 @@ use typenum::U32;
 use crate::{
     memory::{MemoryReadCols, MemoryWriteCols},
     operations::field::{field_op::FieldOpCols, field_sqrt::FieldSqrtCols, range::FieldLtCols},
-    utils::{limbs_from_access, limbs_from_prev_access, pad_rows},
+    utils::{limbs_from_access, limbs_from_prev_access},
 };
 
 pub const NUM_ED_DECOMPRESS_COLS: usize = size_of::<EdDecompressCols<u8>>();

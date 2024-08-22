@@ -147,6 +147,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for ExpReverseBitsLenCh
         &self,
         input: &ExecutionRecord<F>,
         _: &mut ExecutionRecord<F>,
+        _: Option<usize>,
     ) -> RowMajorMatrix<F> {
         let mut overall_rows = Vec::new();
         input.exp_reverse_bits_len_events.iter().for_each(|event| {
@@ -205,6 +206,10 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for ExpReverseBitsLenCh
 
     fn included(&self, _record: &Self::Record) -> bool {
         true
+    }
+
+    fn min_rows(&self, _: &Self::Record) -> usize {
+        todo!()
     }
 }
 
@@ -396,7 +401,8 @@ mod tests {
             ..Default::default()
         };
         let chip = ExpReverseBitsLenChip::<3>::default();
-        let trace: RowMajorMatrix<F> = chip.generate_trace(&shard, &mut ExecutionRecord::default());
+        let trace: RowMajorMatrix<F> =
+            chip.generate_trace(&shard, &mut ExecutionRecord::default(), None);
         println!("{:?}", trace.values)
     }
 }

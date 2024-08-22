@@ -8,7 +8,7 @@ use hashbrown::HashMap;
 use itertools::Itertools;
 use num::{BigUint, Zero};
 
-use crate::air::MemoryAirBuilder;
+use crate::{air::MemoryAirBuilder, utils::pad_rows_fixed};
 use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
@@ -31,7 +31,7 @@ use crate::{
     operations::field::{
         field_den::FieldDenCols, field_inner_product::FieldInnerProductCols, field_op::FieldOpCols,
     },
-    utils::{limbs_from_prev_access, pad_rows},
+    utils::limbs_from_prev_access,
 };
 
 pub const NUM_ED_ADD_COLS: usize = size_of::<EdAddAssignCols<u8>>();

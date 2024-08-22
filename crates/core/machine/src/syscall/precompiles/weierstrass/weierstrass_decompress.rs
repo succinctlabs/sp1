@@ -4,7 +4,7 @@ use core::{
 };
 use std::fmt::Debug;
 
-use crate::air::MemoryAirBuilder;
+use crate::{air::MemoryAirBuilder, utils::pad_rows_fixed};
 use generic_array::GenericArray;
 use num::{BigUint, Zero};
 use p3_air::{Air, AirBuilder, BaseAir};
@@ -28,7 +28,7 @@ use typenum::Unsigned;
 use crate::{
     memory::{MemoryReadCols, MemoryReadWriteCols},
     operations::field::{field_op::FieldOpCols, field_sqrt::FieldSqrtCols, range::FieldLtCols},
-    utils::{bytes_to_words_le_vec, limbs_from_access, limbs_from_prev_access, pad_rows},
+    utils::{bytes_to_words_le_vec, limbs_from_access, limbs_from_prev_access},
 };
 
 pub const fn num_weierstrass_decompress_cols<P: FieldParameters + NumWords>() -> usize {

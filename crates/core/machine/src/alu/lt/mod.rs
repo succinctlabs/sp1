@@ -19,7 +19,7 @@ use sp1_stark::{
     Word,
 };
 
-use crate::utils::pad_to_power_of_two;
+use crate::utils::pad_to_power_of_two_fixed;
 
 /// The number of main trace columns for `LtChip`.
 pub const NUM_LT_COLS: usize = size_of::<LtCols<u8>>();
@@ -488,7 +488,7 @@ mod tests {
         let mut shard = ExecutionRecord::default();
         shard.lt_events = vec![AluEvent::new(0, 1, 0, Opcode::SLT, 0, 3, 2)];
         let chip = LtChip::default();
-        let generate_trace = chip.generate_trace(&shard, &mut ExecutionRecord::default());
+        let generate_trace = chip.generate_trace(&shard, &mut ExecutionRecord::default(), None);
         let trace: RowMajorMatrix<BabyBear> = generate_trace;
         println!("{:?}", trace.values)
     }

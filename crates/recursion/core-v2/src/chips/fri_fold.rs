@@ -106,11 +106,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for FriFoldChip<DEGREE>
             .instructions
             .iter()
             .filter_map(|instruction| {
-                if let Instruction::FriFold(instr) = instruction {
-                    Some(instr)
-                } else {
-                    None
-                }
+                if let Instruction::FriFold(instr) = instruction { Some(instr) } else { None }
             })
             .for_each(|instruction| {
                 let FriFoldInstr {
@@ -184,6 +180,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for FriFoldChip<DEGREE>
         &self,
         input: &ExecutionRecord<F>,
         _: &mut ExecutionRecord<F>,
+        _: Option<usize>,
     ) -> RowMajorMatrix<F> {
         let mut rows = input
             .fri_fold_events
@@ -225,6 +222,10 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for FriFoldChip<DEGREE>
 
     fn included(&self, _record: &Self::Record) -> bool {
         true
+    }
+
+    fn min_rows(&self, _: &Self::Record) -> usize {
+        todo!()
     }
 }
 
@@ -541,7 +542,8 @@ mod tests {
             ..Default::default()
         };
         let chip = FriFoldChip::<3>::default();
-        let trace: RowMajorMatrix<F> = chip.generate_trace(&shard, &mut ExecutionRecord::default());
+        let trace: RowMajorMatrix<F> =
+            chip.generate_trace(&shard, &mut ExecutionRecord::default(), None);
         println!("{:?}", trace.values)
     }
 }

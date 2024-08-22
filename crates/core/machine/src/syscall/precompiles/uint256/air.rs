@@ -1,15 +1,13 @@
 use crate::{
     memory::{value_as_limbs, MemoryReadCols, MemoryWriteCols},
     operations::field::field_op::FieldOpCols,
+    utils::pad_rows_fixed,
 };
 
 use crate::{
     air::MemoryAirBuilder,
     operations::{field::range::FieldLtCols, IsZeroOperation},
-    utils::{
-        limbs_from_access, limbs_from_prev_access, pad_rows, words_to_bytes_le,
-        words_to_bytes_le_vec,
-    },
+    utils::{limbs_from_access, limbs_from_prev_access, words_to_bytes_le, words_to_bytes_le_vec},
 };
 
 use generic_array::GenericArray;

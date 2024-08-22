@@ -19,7 +19,7 @@ use sp1_stark::{
     Word,
 };
 
-use crate::utils::pad_to_power_of_two;
+use crate::utils::pad_to_power_of_two_fixed;
 
 /// The number of main trace columns for `BitwiseChip`.
 pub const NUM_BITWISE_COLS: usize = size_of::<BitwiseCols<u8>>();
@@ -261,7 +261,7 @@ mod tests {
         .repeat(1000);
         let chip = BitwiseChip::default();
         let trace: RowMajorMatrix<BabyBear> =
-            chip.generate_trace(&shard, &mut ExecutionRecord::default());
+            chip.generate_trace(&shard, &mut ExecutionRecord::default(), None);
         let proof = uni_stark_prove::<BabyBearPoseidon2, _>(&config, &chip, &mut challenger, trace);
 
         let mut challenger = config.challenger();

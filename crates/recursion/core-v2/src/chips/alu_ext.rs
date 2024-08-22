@@ -98,7 +98,12 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for ExtAluChip {
         // This is a no-op.
     }
 
-    fn generate_trace(&self, input: &Self::Record, _: &mut Self::Record) -> RowMajorMatrix<F> {
+    fn generate_trace(
+        &self,
+        input: &Self::Record,
+        _: &mut Self::Record,
+        _: Option<usize>,
+    ) -> RowMajorMatrix<F> {
         let ext_alu_events = input.ext_alu_events.clone();
 
         // Generate the trace rows & corresponding records for each chunk of events in parallel.
@@ -123,6 +128,10 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for ExtAluChip {
 
     fn included(&self, _record: &Self::Record) -> bool {
         true
+    }
+
+    fn min_rows(&self, _: &Self::Record) -> usize {
+        todo!()
     }
 }
 
@@ -189,7 +198,8 @@ mod tests {
             ..Default::default()
         };
         let chip = ExtAluChip::default();
-        let trace: RowMajorMatrix<F> = chip.generate_trace(&shard, &mut ExecutionRecord::default());
+        let trace: RowMajorMatrix<F> =
+            chip.generate_trace(&shard, &mut ExecutionRecord::default(), None);
         println!("{:?}", trace.values)
     }
 

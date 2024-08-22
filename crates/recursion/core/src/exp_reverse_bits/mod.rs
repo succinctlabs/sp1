@@ -185,6 +185,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for ExpReverseBitsLenCh
         &self,
         input: &ExecutionRecord<F>,
         _: &mut ExecutionRecord<F>,
+        _: Option<usize>,
     ) -> RowMajorMatrix<F> {
         let nb_events = input.exp_reverse_bits_len_events.len();
         let nb_rows =
@@ -491,7 +492,7 @@ mod tests {
         }
         println!("input exec: {:?}", input_exec.exp_reverse_bits_len_events.len());
         let trace: RowMajorMatrix<BabyBear> =
-            chip.generate_trace(&input_exec, &mut ExecutionRecord::<BabyBear>::default());
+            chip.generate_trace(&input_exec, &mut ExecutionRecord::<BabyBear>::default(), None);
         println!("trace dims is width: {:?}, height: {:?}", trace.width(), trace.height());
 
         let start = Instant::now();

@@ -106,7 +106,12 @@ impl<F: PrimeField32> MachineAir<F> for MemoryChip<F> {
         // This is a no-op.
     }
 
-    fn generate_trace(&self, input: &Self::Record, _: &mut Self::Record) -> RowMajorMatrix<F> {
+    fn generate_trace(
+        &self,
+        input: &Self::Record,
+        _: &mut Self::Record,
+        _: Option<usize>,
+    ) -> RowMajorMatrix<F> {
         // Generate the trace rows & corresponding records for each chunk of events in parallel.
         let rows = input
             .mem_var_events
@@ -133,6 +138,10 @@ impl<F: PrimeField32> MachineAir<F> for MemoryChip<F> {
 
     fn included(&self, _record: &Self::Record) -> bool {
         true
+    }
+
+    fn min_rows(&self, _: &Self::Record) -> usize {
+        todo!()
     }
 }
 
@@ -176,7 +185,7 @@ mod tests {
         };
         let chip = MemoryChip::default();
         let trace: RowMajorMatrix<BabyBear> =
-            chip.generate_trace(&shard, &mut ExecutionRecord::default());
+            chip.generate_trace(&shard, &mut ExecutionRecord::default(), None);
         println!("{:?}", trace.values)
     }
 

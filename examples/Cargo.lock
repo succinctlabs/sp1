@@ -5008,6 +5008,7 @@ dependencies = [
  "hex",
  "itertools 0.13.0",
  "k256",
+ "lazy_static",
  "log",
  "nohash-hasher",
  "num",
@@ -5138,11 +5139,10 @@ dependencies = [
  "sp1-core-executor",
  "sp1-core-machine",
  "sp1-primitives",
- "sp1-recursion-circuit",
+ "sp1-recursion-circuit-v2",
  "sp1-recursion-compiler",
- "sp1-recursion-core",
+ "sp1-recursion-core-v2",
  "sp1-recursion-gnark-ffi",
- "sp1-recursion-program",
  "sp1-stark",
  "subtle-encoding",
  "tempfile",
@@ -5175,6 +5175,43 @@ dependencies = [
 ]
 
 [[package]]
+name = "sp1-recursion-circuit-v2"
+version = "1.1.1"
+dependencies = [
+ "bincode",
+ "hashbrown 0.14.5",
+ "itertools 0.13.0",
+ "p3-air",
+ "p3-baby-bear",
+ "p3-bn254-fr",
+ "p3-challenger",
+ "p3-commit",
+ "p3-dft",
+ "p3-field",
+ "p3-fri",
+ "p3-matrix",
+ "p3-maybe-rayon",
+ "p3-merkle-tree",
+ "p3-poseidon2",
+ "p3-symmetric",
+ "p3-util",
+ "rand",
+ "serde",
+ "sp1-core-executor",
+ "sp1-core-machine",
+ "sp1-primitives",
+ "sp1-recursion-circuit",
+ "sp1-recursion-compiler",
+ "sp1-recursion-core-v2",
+ "sp1-recursion-derive",
+ "sp1-recursion-gnark-ffi",
+ "sp1-recursion-program",
+ "sp1-stark",
+ "stacker",
+ "tracing",
+]
+
+[[package]]
 name = "sp1-recursion-compiler"
 version = "1.1.1"
 dependencies = [
@@ -5199,6 +5236,7 @@ dependencies = [
  "sp1-recursion-derive",
  "sp1-stark",
  "tracing",
+ "vec_map",
 ]
 
 [[package]]
@@ -5272,6 +5310,7 @@ dependencies = [
  "static_assertions",
  "thiserror",
  "tracing",
+ "vec_map",
  "zkhash",
 ]
 
@@ -6185,6 +6224,12 @@ name = "vcpkg"
 version = "0.2.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "accd4ea62f7bb7a82fe23066fb0957d48ef677f6eeb8215f372f52e48bb32426"
+
+[[package]]
+name = "vec_map"
+version = "0.8.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f1bddf1187be692e79c5ffeab891132dfb0f236ed36a43c7ed39f1165ee20191"
 
 [[package]]
 name = "vergen"

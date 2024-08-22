@@ -108,6 +108,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for FriFoldChip<DEGREE>
         &self,
         input: &ExecutionRecord<F>,
         _: &mut ExecutionRecord<F>,
+        _: Option<usize>,
     ) -> RowMajorMatrix<F> {
         let nb_events = input.fri_fold_events.len();
         let nb_rows =

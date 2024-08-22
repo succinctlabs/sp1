@@ -4,7 +4,6 @@ use itertools::Itertools;
 use p3_air::BaseAir;
 use p3_field::PrimeField32;
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
-use p3_maybe_rayon::prelude::{ParallelIterator, ParallelSlice};
 use sp1_core_machine::utils::{next_power_of_two, pad_rows_fixed, par_for_each_row};
 use sp1_primitives::RC_16_30_U32;
 use sp1_stark::air::MachineAir;
@@ -43,6 +42,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
         &self,
         input: &ExecutionRecord<F>,
         _output: &mut ExecutionRecord<F>,
+        _: Option<usize>,
     ) -> RowMajorMatrix<F> {
         let nb_events = input.poseidon2_events.len();
         let padded_nb_rows = next_power_of_two(nb_events, self.fixed_log2_rows);
@@ -121,6 +121,10 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
         }
         let trace_rows = rows.into_iter().flatten().collect::<Vec<_>>();
         Some(RowMajorMatrix::new(trace_rows, PREPROCESSED_POSEIDON2_WIDTH))
+    }
+
+    fn min_rows(&self, _: &Self::Record) -> usize {
+        todo!()
     }
 }
 
@@ -307,7 +311,8 @@ mod tests {
             ..Default::default()
         };
         let chip_3 = Poseidon2WideChip::<3>::default();
-        let _: RowMajorMatrix<F> = chip_3.generate_trace(&shard, &mut ExecutionRecord::default());
+        let _: RowMajorMatrix<F> =
+            chip_3.generate_trace(&shard, &mut ExecutionRecord::default(), None);
     }
 
     #[test]
@@ -329,6 +334,7 @@ mod tests {
             ..Default::default()
         };
         let chip_9 = Poseidon2WideChip::<9>::default();
-        let _: RowMajorMatrix<F> = chip_9.generate_trace(&shard, &mut ExecutionRecord::default());
+        let _: RowMajorMatrix<F> =
+            chip_9.generate_trace(&shard, &mut ExecutionRecord::default(), None);
     }
 }

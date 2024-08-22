@@ -4,7 +4,7 @@ use core::{
 };
 use std::{fmt::Debug, marker::PhantomData};
 
-use crate::air::MemoryAirBuilder;
+use crate::{air::MemoryAirBuilder, utils::pad_rows_fixed};
 use generic_array::GenericArray;
 use num::{BigUint, Zero};
 use p3_air::{Air, AirBuilder, BaseAir};
@@ -30,7 +30,7 @@ use sp1_stark::{
 use crate::{
     memory::{MemoryCols, MemoryWriteCols},
     operations::field::field_op::FieldOpCols,
-    utils::{limbs_from_prev_access, pad_rows},
+    utils::limbs_from_prev_access,
 };
 
 pub const fn num_weierstrass_double_cols<P: FieldParameters + NumWords>() -> usize {

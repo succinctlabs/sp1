@@ -34,6 +34,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const L: usize> MachineAir<F> fo
         &self,
         input: &ExecutionRecord<F>,
         _: &mut ExecutionRecord<F>,
+        _: Option<usize>,
     ) -> RowMajorMatrix<F> {
         let nb_events = input.cpu_events.len();
         let padded_nb_rows = next_power_of_two(nb_events, self.fixed_log2_rows);

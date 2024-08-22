@@ -4,7 +4,6 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::cmp::Reverse;
 use std::error::Error;
-use std::usize;
 
 use itertools::Itertools;
 
@@ -86,10 +85,8 @@ pub trait MachineProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>>:
             .filter(|chip| chip.preprocessed_width() == 0)
             .map(|chip| (chip.name(), chip.min_rows(record)))
             .collect::<HashMap<_, _>>();
-        let preprocessed_chips = shard_chips
-            .iter()
-            .filter(|chip| chip.preprocessed_width() > 0)
-            .collect::<Vec<_>>();
+        let preprocessed_chips =
+            shard_chips.iter().filter(|chip| chip.preprocessed_width() > 0).collect::<Vec<_>>();
         // Find the shape that fits with the smallest total rows.
         println!("rows_map: {:?}", min_rows_map);
         for (shape_index, shape) in shapes.iter().enumerate() {
@@ -147,7 +144,6 @@ pub trait MachineProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>>:
                     } else {
                         shape[&chip_name]
                     };
-                    println!("chip {}, fixed_log2_rows {}", chip_name, fixed_log2_rows);
                     let trace = tracing::debug_span!(parent: &parent_span, "generate trace for chip", %chip_name).in_scope(|| chip.generate_trace(record, &mut A::Record::default(), Some(fixed_log2_rows)));
                     (chip_name, trace)
                 })

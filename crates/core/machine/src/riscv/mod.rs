@@ -1,9 +1,7 @@
 pub mod cost;
+pub mod shape;
 
-use crate::{
-    memory::{MemoryChipType, MemoryProgramChip},
-    syscall::precompiles::fptower::{Fp2AddSubAssignChip, Fp2MulAssignChip, FpOpChip},
-};
+use crate::memory::{MemoryChipType, MemoryProgramChip};
 use hashbrown::HashMap;
 use p3_field::PrimeField32;
 pub use riscv_chips::*;
@@ -25,6 +23,7 @@ pub(crate) mod riscv_chips {
         program::ProgramChip,
         syscall::precompiles::{
             edwards::{EdAddAssignChip, EdDecompressChip},
+            fptower::{Fp2AddSubAssignChip, Fp2MulAssignChip, FpOpChip},
             keccak256::KeccakPermuteChip,
             sha256::{ShaCompressChip, ShaExtendChip},
             uint256::Uint256MulChip,

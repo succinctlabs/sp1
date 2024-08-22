@@ -49,7 +49,12 @@ impl<F: PrimeField32, const COL_PADDING: usize> MachineAir<F> for DummyChip<COL_
         // This is a no-op.
     }
 
-    fn generate_trace(&self, _: &Self::Record, _: &mut Self::Record) -> RowMajorMatrix<F> {
+    fn generate_trace(
+        &self,
+        _: &Self::Record,
+        _: &mut Self::Record,
+        _: Option<usize>,
+    ) -> RowMajorMatrix<F> {
         RowMajorMatrix::new(vec![F::zero(); COL_PADDING * (1 << self.log_height)], COL_PADDING)
     }
 
@@ -63,6 +68,10 @@ impl<F: PrimeField32, const COL_PADDING: usize> MachineAir<F> for DummyChip<COL_
 
     fn included(&self, _record: &Self::Record) -> bool {
         COL_PADDING != 0
+    }
+
+    fn min_rows(&self, _: &Self::Record) -> usize {
+        todo!()
     }
 }
 

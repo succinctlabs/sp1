@@ -19,7 +19,7 @@ use sp1_stark::{
 
 use crate::{
     operations::{AssertLtColsBits, BabyBearBitDecomposition, IsZeroOperation},
-    utils::pad_to_power_of_two,
+    utils::pad_to_power_of_two_fixed,
 };
 
 /// The type of memory chip that is being initialized.

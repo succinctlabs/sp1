@@ -47,7 +47,7 @@ use sp1_derive::AlignedBorrow;
 use sp1_primitives::consts::WORD_SIZE;
 use sp1_stark::{air::MachineAir, MachineRecord, Word};
 
-use crate::{air::SP1CoreAirBuilder, alu::mul::utils::get_msb, utils::pad_to_power_of_two};
+use crate::{air::SP1CoreAirBuilder, alu::mul::utils::get_msb, utils::pad_to_power_of_two_fixed};
 
 /// The number of main trace columns for `MulChip`.
 pub const NUM_MUL_COLS: usize = size_of::<MulCols<u8>>();

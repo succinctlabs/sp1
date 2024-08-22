@@ -46,6 +46,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2SkinnyChip
         &self,
         input: &ExecutionRecord<F>,
         _output: &mut ExecutionRecord<F>,
+        _: Option<usize>,
     ) -> RowMajorMatrix<F> {
         let mut rows = Vec::new();
 
@@ -202,6 +203,10 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2SkinnyChip
         let trace_rows = rows.into_iter().flatten().collect::<Vec<_>>();
         Some(RowMajorMatrix::new(trace_rows, PREPROCESSED_POSEIDON2_WIDTH))
     }
+
+    fn min_rows(&self, _: &Self::Record) -> usize {
+        todo!()
+    }
 }
 
 impl<const DEGREE: usize> Poseidon2SkinnyChip<DEGREE> {
@@ -306,6 +311,7 @@ mod tests {
             ..Default::default()
         };
         let chip_9 = Poseidon2SkinnyChip::<9>::default();
-        let _: RowMajorMatrix<F> = chip_9.generate_trace(&shard, &mut ExecutionRecord::default());
+        let _: RowMajorMatrix<F> =
+            chip_9.generate_trace(&shard, &mut ExecutionRecord::default(), None);
     }
 }

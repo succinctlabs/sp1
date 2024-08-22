@@ -8,7 +8,7 @@ use std::{
 };
 use web_time::Instant;
 
-use crate::riscv::RiscvAir;
+use crate::riscv::{shape::SP1_CORE_PROOF_SHAPES, RiscvAir};
 use p3_challenger::CanObserve;
 use p3_maybe_rayon::prelude::*;
 use serde::{de::DeserializeOwned, Serialize};

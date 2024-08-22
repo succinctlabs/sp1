@@ -83,7 +83,7 @@ use crate::{
     air::SP1CoreAirBuilder,
     alu::divrem::utils::{get_msb, get_quotient_and_remainder, is_signed_operation},
     operations::{IsEqualWordOperation, IsZeroWordOperation},
-    utils::pad_to_power_of_two,
+    utils::pad_to_power_of_two_fixed,
 };
 
 /// The number of main trace columns for `DivRemChip`.
@@ -1031,7 +1031,7 @@ mod tests {
         shard.divrem_events = divrem_events;
         let chip = DivRemChip::default();
         let trace: RowMajorMatrix<BabyBear> =
-            chip.generate_trace(&shard, &mut ExecutionRecord::default());
+            chip.generate_trace(&shard, &mut ExecutionRecord::default(), None);
         let proof = uni_stark_prove::<BabyBearPoseidon2, _>(&config, &chip, &mut challenger, trace);
 
         let mut challenger = config.challenger();
