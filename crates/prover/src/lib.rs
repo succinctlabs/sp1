@@ -218,7 +218,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         for (proof, vkey) in stdin.proofs.iter() {
             runtime.write_proof(proof.clone(), vkey.clone());
         }
-        runtime.run_untraced()?;
+        runtime.run_fast()?;
         Ok((SP1PublicValues::from(&runtime.state.public_values_stream), runtime.report))
     }
 

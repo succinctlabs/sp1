@@ -76,8 +76,8 @@ pub struct Executor<'a> {
     /// The maximum number of cycles for a syscall.
     pub max_syscall_cycles: u32,
 
-    /// Whether to emit events during execution.
-    pub emit_events: bool,
+    /// The mode the executor is running in.
+    pub executor_mode: ExecutorMode,
 
     /// Report of the program execution.
     pub report: ExecutionReport,
@@ -100,6 +100,23 @@ pub struct Executor<'a> {
     /// Memory addresses that were touched in this batch of shards. Used to minimize the size of
     /// checkpoints.
     pub memory_checkpoint: HashMap<u32, Option<MemoryRecord>, BuildNoHashHasher<u32>>,
+}
+
+/// The different modes the executor can run in.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ExecutorMode {
+    /// Run the execution with no tracing or checkpointing.
+    Fast,
+    /// Run the execution with checkpoints for memory.
+    Checkpoint,
+    /// Run the execution with full tracing.
+    Trace,
+}
+
+impl Default for ExecutorMode {
+    fn default() -> Self {
+        Self::Fast
+    }
 }
 
 /// Errors that the [``Executor``] can throw.
@@ -192,7 +209,7 @@ impl<'a> Executor<'a> {
             unconstrained: false,
             unconstrained_state: ForkState::default(),
             syscall_map,
-            emit_events: true,
+            executor_mode: ExecutorMode::Trace,
             max_syscall_cycles,
             report: ExecutionReport::default(),
             print_report: false,
@@ -241,7 +258,7 @@ impl<'a> Executor<'a> {
             let addr = Register::from_u32(i as u32) as u32;
             registers[i] = match self.state.memory.get(&addr) {
                 Some(record) => {
-                    self.memory_checkpoint.entry(addr).or_insert(Some(*record));
+                    self.memory_checkpoint.entry(addr).or_insert_with(|| Some(*record));
                     record.value
                 }
                 None => {
@@ -260,7 +277,7 @@ impl<'a> Executor<'a> {
         #[allow(clippy::single_match_else)]
         match self.state.memory.get(&addr) {
             Some(record) => {
-                self.memory_checkpoint.entry(addr).or_insert(Some(*record));
+                self.memory_checkpoint.entry(addr).or_insert_with(|| Some(*record));
                 record.value
             }
             None => {
@@ -276,7 +293,7 @@ impl<'a> Executor<'a> {
         #[allow(clippy::single_match_else)]
         match self.state.memory.get(&addr) {
             Some(record) => {
-                self.memory_checkpoint.entry(addr).or_insert(Some(*record));
+                self.memory_checkpoint.entry(addr).or_insert_with(|| Some(*record));
                 record.value
             }
             None => {
@@ -320,7 +337,7 @@ impl<'a> Executor<'a> {
         match entry {
             Entry::Occupied(ref entry) => {
                 let record = entry.get();
-                self.memory_checkpoint.entry(addr).or_insert(Some(*record));
+                self.memory_checkpoint.entry(addr).or_insert_with(|| Some(*record));
             }
             Entry::Vacant(_) => {
                 self.memory_checkpoint.entry(addr).or_insert(None);
@@ -363,7 +380,7 @@ impl<'a> Executor<'a> {
         match entry {
             Entry::Occupied(ref entry) => {
                 let record = entry.get();
-                self.memory_checkpoint.entry(addr).or_insert(Some(*record));
+                self.memory_checkpoint.entry(addr).or_insert_with(|| Some(*record));
             }
             Entry::Vacant(_) => {
                 self.memory_checkpoint.entry(addr).or_insert(None);
@@ -410,7 +427,7 @@ impl<'a> Executor<'a> {
         let record = self.mr(addr, self.shard(), self.timestamp(&position));
 
         // If we're not in unconstrained mode, record the access for the current cycle.
-        if !self.unconstrained && self.emit_events {
+        if !self.unconstrained && self.executor_mode == ExecutorMode::Trace {
             match position {
                 MemoryAccessPosition::A => self.memory_accesses.a = Some(record.into()),
                 MemoryAccessPosition::B => self.memory_accesses.b = Some(record.into()),
@@ -596,7 +613,7 @@ impl<'a> Executor<'a> {
         lookup_id: u128,
     ) {
         self.rw(rd, a);
-        if self.emit_events {
+        if self.executor_mode == ExecutorMode::Trace {
             self.emit_alu(self.state.clk, instruction.opcode, a, b, c, lookup_id);
         }
     }
@@ -1027,7 +1044,7 @@ impl<'a> Executor<'a> {
         }
 
         // Emit the CPU event for this cycle.
-        if self.emit_events {
+        if self.executor_mode == ExecutorMode::Trace {
             self.emit_cpu(
                 self.shard(),
                 channel,
@@ -1100,7 +1117,7 @@ impl<'a> Executor<'a> {
     ///
     /// This function will return an error if the program execution fails.
     pub fn execute_record(&mut self) -> Result<(Vec<ExecutionRecord>, bool), ExecutionError> {
-        self.emit_events = true;
+        self.executor_mode = ExecutorMode::Trace;
         self.print_report = true;
         let done = self.execute()?;
         Ok((std::mem::take(&mut self.records), done))
@@ -1114,7 +1131,7 @@ impl<'a> Executor<'a> {
     /// This function will return an error if the program execution fails.
     pub fn execute_state(&mut self) -> Result<(ExecutionState, bool), ExecutionError> {
         self.memory_checkpoint.clear();
-        self.emit_events = false;
+        self.executor_mode = ExecutorMode::Checkpoint;
         self.print_report = true;
 
         // Take memory out and then clone so that memory is not cloned.
@@ -1163,8 +1180,8 @@ impl<'a> Executor<'a> {
     /// # Errors
     ///
     /// This function will return an error if the program execution fails.
-    pub fn run_untraced(&mut self) -> Result<(), ExecutionError> {
-        self.emit_events = false;
+    pub fn run_fast(&mut self) -> Result<(), ExecutionError> {
+        self.executor_mode = ExecutorMode::Fast;
         self.print_report = true;
         while !self.execute()? {}
         Ok(())
@@ -1176,20 +1193,10 @@ impl<'a> Executor<'a> {
     ///
     /// This function will return an error if the program execution fails.
     pub fn run(&mut self) -> Result<(), ExecutionError> {
-        self.emit_events = true;
+        self.executor_mode = ExecutorMode::Trace;
         self.print_report = true;
         while !self.execute()? {}
         Ok(())
-    }
-
-    /// Executes the program without emitting events.
-    ///
-    /// # Panics
-    ///
-    /// This function will panic if the program execution fails.
-    pub fn dry_run(&mut self) {
-        self.emit_events = false;
-        while !self.execute().unwrap() {}
     }
 
     /// Executes up to `self.shard_batch_size` cycles of the program, returning whether the program
