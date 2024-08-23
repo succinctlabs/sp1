@@ -23,7 +23,7 @@ use sp1_recursion_core_v2::{
 
 use sp1_stark::{
     air::{MachineAir, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS},
-    ShardProof, StarkGenericConfig, StarkMachine, StarkVerifyingKey, Word, DIGEST_SIZE,
+    ProofShape, ShardProof, StarkGenericConfig, StarkMachine, StarkVerifyingKey, Word, DIGEST_SIZE,
 };
 
 use crate::{
@@ -31,7 +31,7 @@ use crate::{
     constraints::RecursiveVerifierConstraintFolder,
     stark::{ShardProofVariable, StarkVerifier},
     utils::{commit_recursion_public_values, uninit_challenger_pv},
-    BabyBearFriConfigVariable, CircuitConfig, VerifyingKeyVariable,
+    BabyBearFriConfig, BabyBearFriConfigVariable, CircuitConfig, VerifyingKeyVariable,
 };
 
 /// A program to verify a batch of recursive proofs and aggregate their public values.
@@ -53,6 +53,12 @@ pub struct SP1CompressWitnessVariable<
 /// An input layout for the reduce verifier.
 pub struct SP1CompressWitnessValues<SC: StarkGenericConfig> {
     pub vks_and_proofs: Vec<(StarkVerifyingKey<SC>, ShardProof<SC>)>,
+    pub is_complete: bool,
+}
+
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct SP1CompressShape {
+    pub proof_shapes: Vec<ProofShape>,
     pub is_complete: bool,
 }
 
@@ -452,5 +458,12 @@ where
         // );
 
         commit_recursion_public_values(builder, *compress_public_values);
+    }
+}
+
+impl<SC: BabyBearFriConfig> SP1CompressWitnessValues<SC> {
+    pub fn shape(&self) -> SP1CompressShape {
+        let proof_shapes = self.vks_and_proofs.iter().map(|(_, proof)| proof.shape()).collect();
+        SP1CompressShape { proof_shapes, is_complete: self.is_complete }
     }
 }

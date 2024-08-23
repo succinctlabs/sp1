@@ -15,7 +15,7 @@ use sp1_primitives::consts::WORD_SIZE;
 use sp1_recursion_core_v2::air::PV_DIGEST_NUM_WORDS;
 use sp1_stark::{
     air::{PublicValues, POSEIDON_NUM_WORDS},
-    StarkMachine, Word,
+    ProofShape, StarkMachine, Word,
 };
 
 use sp1_stark::{ShardProof, StarkGenericConfig, StarkVerifyingKey};
@@ -31,7 +31,7 @@ use sp1_recursion_core_v2::{
 };
 
 use crate::{
-    challenger::{CanObserveVariable, DuplexChallengerVariable},
+    challenger::{CanObserveVariable, DuplexChallengerVariable, SpongeChallengerShape},
     stark::{ShardProofVariable, StarkVerifier},
     utils::commit_recursion_public_values,
     BabyBearFriConfig, BabyBearFriConfigVariable, CircuitConfig, VerifyingKeyVariable,
@@ -53,6 +53,13 @@ pub struct SP1RecursionWitnessValues<SC: StarkGenericConfig> {
     pub shard_proofs: Vec<ShardProof<SC>>,
     pub leaf_challenger: SC::Challenger,
     pub initial_reconstruct_challenger: SC::Challenger,
+    pub is_complete: bool,
+}
+
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct SP1RecursionShape {
+    pub proof_shapes: Vec<ProofShape>,
+    pub challenger_shapes: Vec<SpongeChallengerShape>,
     pub is_complete: bool,
 }
 
@@ -551,5 +558,16 @@ where
 
             commit_recursion_public_values(builder, *recursion_public_values);
         }
+    }
+}
+
+impl<SC: BabyBearFriConfig> SP1RecursionWitnessValues<SC> {
+    pub fn shape(&self) -> SP1RecursionShape {
+        let proof_shapes = self.shard_proofs.iter().map(|proof| proof.shape()).collect();
+        let challenger_shapes = vec![
+            SC::challenger_shape(&self.leaf_challenger),
+            SC::challenger_shape(&self.initial_reconstruct_challenger),
+        ];
+        SP1RecursionShape { proof_shapes, challenger_shapes, is_complete: self.is_complete }
     }
 }

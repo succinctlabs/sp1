@@ -67,8 +67,8 @@ use sp1_recursion_core_v2::{
 
 use sp1_recursion_circuit_v2::{
     machine::{
-        SP1CompressVerifier, SP1CompressWitnessValues, SP1DeferredWitnessValues,
-        SP1RecursionWitnessValues, SP1RecursiveVerifier,
+        SP1CompressShape, SP1CompressVerifier, SP1CompressWitnessValues, SP1DeferredWitnessValues,
+        SP1RecursionShape, SP1RecursionWitnessValues, SP1RecursiveVerifier,
     },
     witness::Witnessable,
 };
@@ -114,9 +114,9 @@ pub struct SP1Prover<C: SP1ProverComponents = DefaultProverComponents> {
     /// The machine used for proving the wrapping step.
     pub wrap_prover: C::WrapProver,
 
-    pub recursion_programs: Mutex<LruCache<Vec<ProofShape>, Arc<RecursionProgram<BabyBear>>>>,
+    pub recursion_programs: Mutex<LruCache<SP1RecursionShape, Arc<RecursionProgram<BabyBear>>>>,
 
-    pub compress_programs: Mutex<LruCache<Vec<ProofShape>, Arc<RecursionProgram<BabyBear>>>>,
+    pub compress_programs: Mutex<LruCache<SP1CompressShape, Arc<RecursionProgram<BabyBear>>>>,
 }
 
 impl<C: SP1ProverComponents> SP1Prover<C> {
@@ -239,10 +239,9 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         &self,
         input: &SP1RecursionWitnessValues<CoreSC>,
     ) -> Arc<RecursionProgram<BabyBear>> {
-        let shapes = input.shard_proofs.iter().map(|proof| proof.shape()).collect::<Vec<_>>();
         let mut cache = self.recursion_programs.lock().unwrap();
         cache
-            .get_or_insert(shapes, || {
+            .get_or_insert(input.shape(), || {
                 // Get the operations.
                 let builder_span = tracing::debug_span!("build recursion program").entered();
                 let mut builder = Builder::<InnerConfig>::default();
@@ -265,13 +264,9 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         &self,
         input: &SP1CompressWitnessValues<CoreSC>,
     ) -> Arc<RecursionProgram<BabyBear>> {
-        let shapes =
-            input.vks_and_proofs.iter().map(|(_, proof)| proof.shape()).collect::<Vec<_>>();
-        let mut cache = self.recursion_programs.lock().unwrap();
-        // Compile the program.
-
+        let mut cache = self.compress_programs.lock().unwrap();
         cache
-            .get_or_insert(shapes, || {
+            .get_or_insert(input.shape(), || {
                 // Get the operations.
                 let builder_span = tracing::debug_span!("build compress program").entered();
                 let mut builder = Builder::<InnerConfig>::default();

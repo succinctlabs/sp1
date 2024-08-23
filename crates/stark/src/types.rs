@@ -74,7 +74,7 @@ pub struct ShardProof<SC: StarkGenericConfig> {
     pub public_values: Vec<Val<SC>>,
 }
 
-#[derive(Clone, Serialize, Deserialize, PartialEq, PartialOrd, Ord, Eq, Hash)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, PartialOrd, Ord, Eq, Hash)]
 pub struct ProofShape {
     pub chip_information: Vec<(String, usize, usize)>,
 }

@@ -7,7 +7,7 @@ use std::{
 
 use challenger::{
     CanCopyChallenger, CanObserveVariable, DuplexChallengerVariable, FieldChallengerVariable,
-    MultiField32ChallengerVariable,
+    MultiField32ChallengerVariable, SpongeChallengerShape,
 };
 use hash::FieldHasherVariable;
 use p3_bn254_fr::Bn254Fr;
@@ -86,6 +86,8 @@ pub trait BabyBearFriConfig:
         + FieldChallenger<BabyBear>;
 
     fn fri_config(&self) -> &FriConfig<FriMmcs<Self>>;
+
+    fn challenger_shape(challenger: &Self::FriChallenger) -> SpongeChallengerShape;
 }
 
 pub trait BabyBearFriConfigVariable<C: CircuitConfig<F = BabyBear>>:
@@ -334,6 +336,13 @@ impl BabyBearFriConfig for BabyBearPoseidon2 {
     fn fri_config(&self) -> &FriConfig<FriMmcs<Self>> {
         self.pcs().fri_config()
     }
+
+    fn challenger_shape(challenger: &Self::FriChallenger) -> SpongeChallengerShape {
+        SpongeChallengerShape {
+            input_buffer_len: challenger.input_buffer.len(),
+            output_buffer_len: challenger.output_buffer.len(),
+        }
+    }
 }
 
 impl BabyBearFriConfig for BabyBearPoseidon2Outer {
@@ -345,6 +354,14 @@ impl BabyBearFriConfig for BabyBearPoseidon2Outer {
 
     fn fri_config(&self) -> &FriConfig<FriMmcs<Self>> {
         self.pcs().fri_config()
+    }
+
+    fn challenger_shape(challenger: &Self::FriChallenger) -> SpongeChallengerShape {
+        unimplemented!("Shape not supported for outer fri challenger");
+        // SpongeChallengerShape {
+        //     input_buffer_len: challenger.input_buffer.len(),
+        //     output_buffer_len: challenger.output_buffer.len(),
+        // }
     }
 }
 
