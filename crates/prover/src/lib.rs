@@ -239,52 +239,52 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         &self,
         input: &SP1RecursionWitnessValues<CoreSC>,
     ) -> Arc<RecursionProgram<BabyBear>> {
-        let mut cache = self.recursion_programs.lock().unwrap();
-        cache
-            .get_or_insert(input.shape(), || {
-                tracing::debug!("Core cache miss");
-                // Get the operations.
-                let builder_span = tracing::debug_span!("build recursion program").entered();
-                let mut builder = Builder::<InnerConfig>::default();
-                let input = input.read(&mut builder);
-                SP1RecursiveVerifier::verify(&mut builder, self.core_prover.machine(), input);
-                let operations = builder.operations;
-                builder_span.exit();
+        // let mut cache = self.recursion_programs.lock().unwrap();
+        // cache
+        // .get_or_insert(input.shape(), || {
+        tracing::debug!("Core cache miss");
+        // Get the operations.
+        let builder_span = tracing::debug_span!("build recursion program").entered();
+        let mut builder = Builder::<InnerConfig>::default();
+        let input = input.read(&mut builder);
+        SP1RecursiveVerifier::verify(&mut builder, self.core_prover.machine(), input);
+        let operations = builder.operations;
+        builder_span.exit();
 
-                // Compile the program.
-                let compiler_span = tracing::debug_span!("compile recursion program").entered();
-                let mut compiler = AsmCompiler::<InnerConfig>::default();
-                let program = Arc::new(compiler.compile(operations));
-                compiler_span.exit();
-                program
-            })
-            .clone()
+        // Compile the program.
+        let compiler_span = tracing::debug_span!("compile recursion program").entered();
+        let mut compiler = AsmCompiler::<InnerConfig>::default();
+        let program = Arc::new(compiler.compile(operations));
+        compiler_span.exit();
+        program
+        // })
+        // .clone()
     }
 
     pub fn compress_program(
         &self,
         input: &SP1CompressWitnessValues<CoreSC>,
     ) -> Arc<RecursionProgram<BabyBear>> {
-        let mut cache = self.compress_programs.lock().unwrap();
-        cache
-            .get_or_insert(input.shape(), || {
-                tracing::debug!("Compress cache miss");
-                // Get the operations.
-                let builder_span = tracing::debug_span!("build compress program").entered();
-                let mut builder = Builder::<InnerConfig>::default();
-                let input = input.read(&mut builder);
-                SP1CompressVerifier::verify(&mut builder, self.compress_prover.machine(), input);
-                let operations = builder.operations;
-                builder_span.exit();
+        // let mut cache = self.compress_programs.lock().unwrap();
+        // cache
+        // .get_or_insert(input.shape(), || {
+        tracing::debug!("Compress cache miss");
+        // Get the operations.
+        let builder_span = tracing::debug_span!("build compress program").entered();
+        let mut builder = Builder::<InnerConfig>::default();
+        let input = input.read(&mut builder);
+        SP1CompressVerifier::verify(&mut builder, self.compress_prover.machine(), input);
+        let operations = builder.operations;
+        builder_span.exit();
 
-                // Compile the program.
-                let compiler_span = tracing::debug_span!("compile compress program").entered();
-                let mut compiler = AsmCompiler::<InnerConfig>::default();
-                let program = Arc::new(compiler.compile(operations));
-                compiler_span.exit();
-                program
-            })
-            .clone()
+        // Compile the program.
+        let compiler_span = tracing::debug_span!("compile compress program").entered();
+        let mut compiler = AsmCompiler::<InnerConfig>::default();
+        let program = Arc::new(compiler.compile(operations));
+        compiler_span.exit();
+        program
+        // })
+        // .clone()
     }
 
     // pub fn defered_program(
