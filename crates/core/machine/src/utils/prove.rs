@@ -13,6 +13,7 @@ use p3_challenger::CanObserve;
 use p3_maybe_rayon::prelude::*;
 use serde::{de::DeserializeOwned, Serialize};
 use size::Size;
+use sp1_stark::MachineProvingKey;
 use sp1_stark::{baby_bear_poseidon2::BabyBearPoseidon2, MachineVerificationError};
 use std::thread::ScopedJoinHandle;
 use thiserror::Error;
@@ -112,7 +113,7 @@ where
 
 pub fn prove_with_context<SC: StarkGenericConfig, P: MachineProver<SC, RiscvAir<SC::Val>>>(
     prover: &P,
-    pk: &StarkProvingKey<SC>,
+    pk: &P::DeviceProvingKey,
     program: Program,
     stdin: &SP1Stdin,
     opts: SP1CoreOpts,
@@ -322,8 +323,8 @@ where
 
         // Create the challenger and observe the verifying key.
         let mut challenger = prover.config().challenger();
-        challenger.observe(pk.commit.clone());
-        challenger.observe(pk.pc_start);
+        challenger.observe(pk.commit());
+        challenger.observe(pk.pc_start());
 
         // Spawn the phase 1 prover thread.
         let phase_1_prover_span = tracing::Span::current().clone();
@@ -571,7 +572,7 @@ where
         {
             let all_records = all_records_rx.iter().flatten().collect::<Vec<_>>();
             let mut challenger = prover.machine().config().challenger();
-            prover.machine().debug_constraints(pk, all_records, &mut challenger);
+            prover.machine().debug_constraints(&pk.host(), all_records, &mut challenger);
         }
 
         Ok((proof, public_values_stream, cycles))
@@ -637,7 +638,7 @@ pub fn run_test_core<P: MachineProver<BabyBearPoseidon2, RiscvAir<BabyBear>>>(
 pub fn run_test_machine_with_prover<SC, A, P: MachineProver<SC, A>>(
     records: Vec<A::Record>,
     machine: StarkMachine<SC, A>,
-    pk: StarkProvingKey<SC>,
+    pk: P::DeviceProvingKey,
     vk: StarkVerifyingKey<SC>,
 ) -> Result<MachineProof<SC>, MachineVerificationError<SC>>
 where
@@ -658,7 +659,7 @@ where
     let prove_span = tracing::debug_span!("prove").entered();
 
     #[cfg(feature = "debug")]
-    prover.machine().debug_constraints(&pk, records.clone(), &mut challenger.clone());
+    prover.machine().debug_constraints(&pk.host(), records.clone(), &mut challenger.clone());
 
     let proof = prover.prove(&pk, records, &mut challenger, SP1CoreOpts::default()).unwrap();
     prove_span.exit();

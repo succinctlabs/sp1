@@ -32,6 +32,9 @@ pub trait MachineProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>>:
     /// The type used to store the polynomial commitment schemes data.
     type DeviceProverData;
 
+    /// The type used to store the proving key.
+    type DeviceProvingKey: MachineProvingKey<SC>;
+
     /// The type used for error handling.
     type Error: Error + Send + Sync;
 
@@ -42,9 +45,7 @@ pub trait MachineProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>>:
     fn machine(&self) -> &StarkMachine<SC, A>;
 
     /// Setup the preprocessed data into a proving and verifying key.
-    fn setup(&self, program: &A::Program) -> (StarkProvingKey<SC>, StarkVerifyingKey<SC>) {
-        self.machine().setup(program)
-    }
+    fn setup(&self, program: &A::Program) -> (Self::DeviceProvingKey, StarkVerifyingKey<SC>);
 
     /// Generate the main traces.
     fn generate_traces(&self, record: &A::Record) -> Vec<(String, RowMajorMatrix<Val<SC>>)> {
@@ -90,7 +91,7 @@ pub trait MachineProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>>:
     /// Compute the openings of the traces.
     fn open(
         &self,
-        pk: &StarkProvingKey<SC>,
+        pk: &Self::DeviceProvingKey,
         data: ShardMainData<SC, Self::DeviceMatrix, Self::DeviceProverData>,
         challenger: &mut SC::Challenger,
     ) -> Result<ShardProof<SC>, Self::Error>;
@@ -98,7 +99,7 @@ pub trait MachineProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>>:
     /// Generate a proof for the given records.
     fn prove(
         &self,
-        pk: &StarkProvingKey<SC>,
+        pk: &Self::DeviceProvingKey,
         records: Vec<A::Record>,
         challenger: &mut SC::Challenger,
         opts: <A::Record as MachineRecord>::Config,
@@ -142,6 +143,18 @@ pub trait MachineProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>>:
     }
 }
 
+/// A proving key for any [`MachineAir`] that is agnostic to hardware.
+pub trait MachineProvingKey<SC: StarkGenericConfig>: Send + Sync {
+    /// The main commitment.
+    fn commit(&self) -> Com<SC>;
+
+    /// The start pc.
+    fn pc_start(&self) -> Val<SC>;
+
+    /// The proving key on the host.
+    fn host(&self) -> StarkProvingKey<SC>;
+}
+
 /// A prover implementation based on x86 and ARM CPUs.
 pub struct CpuProver<SC: StarkGenericConfig, A> {
     machine: StarkMachine<SC, A>,
@@ -167,6 +180,7 @@ where
 {
     type DeviceMatrix = RowMajorMatrix<Val<SC>>;
     type DeviceProverData = PcsProverData<SC>;
+    type DeviceProvingKey = StarkProvingKey<SC>;
     type Error = CpuProverError;
 
     fn new(machine: StarkMachine<SC, A>) -> Self {
@@ -175,6 +189,10 @@ where
 
     fn machine(&self) -> &StarkMachine<SC, A> {
         &self.machine
+    }
+
+    fn setup(&self, program: &A::Program) -> (Self::DeviceProvingKey, StarkVerifyingKey<SC>) {
+        self.machine().setup(program)
     }
 
     fn commit(
@@ -544,6 +562,25 @@ where
         })?;
 
         Ok(MachineProof { shard_proofs })
+    }
+}
+
+impl<SC> MachineProvingKey<SC> for StarkProvingKey<SC>
+where
+    SC: 'static + StarkGenericConfig + Send + Sync,
+    PcsProverData<SC>: Send + Sync + Serialize + DeserializeOwned,
+    Com<SC>: Send + Sync,
+{
+    fn commit(&self) -> Com<SC> {
+        self.commit.clone()
+    }
+
+    fn pc_start(&self) -> Val<SC> {
+        self.pc_start
+    }
+
+    fn host(&self) -> StarkProvingKey<SC> {
+        self.clone()
     }
 }
 
