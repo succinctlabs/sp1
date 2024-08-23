@@ -13,7 +13,7 @@ use sp1_core_executor::SP1Context;
 use sp1_core_machine::{io::SP1Stdin, SP1_CIRCUIT_VERSION};
 use sp1_prover::{
     components::SP1ProverComponents, CoreSC, InnerSC, SP1CoreProofData, SP1Prover, SP1ProvingKey,
-    SP1ReduceProof, SP1VerifyingKey,
+    SP1VerifyingKey,
 };
 use sp1_stark::{MachineVerificationError, SP1ProverOpts};
 use std::time::Duration;

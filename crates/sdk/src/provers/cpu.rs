@@ -1,6 +1,7 @@
 use anyhow::Result;
 use sp1_core_executor::SP1Context;
-use sp1_prover::{components::DefaultProverComponents, SP1Prover, SP1Stdin};
+use sp1_core_machine::io::SP1Stdin;
+use sp1_prover::{components::DefaultProverComponents, SP1Prover, SP1ReduceProof};
 
 use crate::{
     install::try_install_circuit_artifacts, provers::ProofOpts, Prover, SP1Proof, SP1ProofKind,
@@ -59,7 +60,14 @@ impl Prover<DefaultProverComponents> for CpuProver {
             });
         }
 
-        let deferred_proofs = stdin.proofs.iter().map(|p| p.0.clone()).collect();
+        let deferred_proofs = stdin
+            .proofs
+            .iter()
+            .map(|(reduce_vk, reduce_proof, _)| SP1ReduceProof {
+                vk: reduce_vk.clone(),
+                proof: reduce_proof.clone(),
+            })
+            .collect();
         let public_values = proof.public_values.clone();
 
         // Generate the compressed proof.
@@ -83,7 +91,7 @@ impl Prover<DefaultProverComponents> for CpuProver {
         if kind == SP1ProofKind::Plonk {
             let plonk_bn254_aritfacts = if sp1_prover::build::sp1_dev_mode() {
                 sp1_prover::build::try_build_plonk_bn254_artifacts_dev(
-                    self.prover.wrap_vk(),
+                    &outer_proof.vk,
                     &outer_proof.proof,
                 )
             } else {
@@ -100,7 +108,7 @@ impl Prover<DefaultProverComponents> for CpuProver {
         } else if kind == SP1ProofKind::Groth16 {
             let groth16_bn254_artifacts = if sp1_prover::build::sp1_dev_mode() {
                 sp1_prover::build::try_build_groth16_bn254_artifacts_dev(
-                    self.prover.wrap_vk(),
+                    &outer_proof.vk,
                     &outer_proof.proof,
                 )
             } else {

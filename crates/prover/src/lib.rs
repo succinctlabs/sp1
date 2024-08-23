@@ -26,7 +26,7 @@ use std::{
     sync::{
         atomic::{AtomicUsize, Ordering},
         mpsc::sync_channel,
-        Arc, Mutex, OnceLock,
+        Arc, Mutex,
     },
     thread,
 };
@@ -60,8 +60,8 @@ use sp1_recursion_gnark_ffi::{groth16_bn254::Groth16Bn254Prover, plonk_bn254::Pl
 
 use sp1_stark::{
     air::PublicValues, baby_bear_poseidon2::BabyBearPoseidon2, Challenge, Challenger,
-    MachineProver, MachineVerificationError, ProofShape, SP1CoreOpts, SP1ProverOpts, ShardProof,
-    StarkGenericConfig, StarkProvingKey, StarkVerifyingKey, Val, Word, DIGEST_SIZE,
+    MachineProver, MachineVerificationError, SP1CoreOpts, SP1ProverOpts, ShardProof,
+    StarkGenericConfig, StarkVerifyingKey, Val, Word, DIGEST_SIZE,
 };
 
 use sp1_recursion_core_v2::{
@@ -1079,30 +1079,34 @@ pub mod tests {
             return Ok(());
         }
 
-        // tracing::info!("checking vkey hash babybear");
-        // let vk_digest_babybear = wrapped_bn254_proof.sp1_vkey_digest_babybear();
-        // assert_eq!(vk_digest_babybear, vk.hash_babybear());
+        tracing::info!("checking vkey hash babybear");
+        let vk_digest_babybear = wrapped_bn254_proof.sp1_vkey_digest_babybear();
+        assert_eq!(vk_digest_babybear, vk.hash_babybear());
 
-        // tracing::info!("checking vkey hash bn254");
-        // let vk_digest_bn254 = wrapped_bn254_proof.sp1_vkey_digest_bn254();
-        // assert_eq!(vk_digest_bn254, vk.hash_bn254());
+        tracing::info!("checking vkey hash bn254");
+        let vk_digest_bn254 = wrapped_bn254_proof.sp1_vkey_digest_bn254();
+        assert_eq!(vk_digest_bn254, vk.hash_bn254());
 
-        // tracing::info!("generate plonk bn254 proof");
-        // let artifacts_dir =
-        //     try_build_plonk_bn254_artifacts_dev(prover.wrap_vk(), &wrapped_bn254_proof.proof);
-        // let plonk_bn254_proof =
-        //     prover.wrap_plonk_bn254(wrapped_bn254_proof.clone(), &artifacts_dir);
-        // println!("{:?}", plonk_bn254_proof);
+        tracing::info!("generate plonk bn254 proof");
+        let artifacts_dir = try_build_plonk_bn254_artifacts_dev(
+            &wrapped_bn254_proof.vk,
+            &wrapped_bn254_proof.proof,
+        );
+        let plonk_bn254_proof =
+            prover.wrap_plonk_bn254(wrapped_bn254_proof.clone(), &artifacts_dir);
+        println!("{:?}", plonk_bn254_proof);
 
-        // prover.verify_plonk_bn254(&plonk_bn254_proof, &vk, &public_values, &artifacts_dir)?;
+        prover.verify_plonk_bn254(&plonk_bn254_proof, &vk, &public_values, &artifacts_dir)?;
 
-        // tracing::info!("generate groth16 bn254 proof");
-        // let artifacts_dir =
-        //     try_build_groth16_bn254_artifacts_dev(prover.wrap_vk(), &wrapped_bn254_proof.proof);
-        // let groth16_bn254_proof = prover.wrap_groth16_bn254(wrapped_bn254_proof, &artifacts_dir);
-        // println!("{:?}", groth16_bn254_proof);
+        tracing::info!("generate groth16 bn254 proof");
+        let artifacts_dir = try_build_groth16_bn254_artifacts_dev(
+            &wrapped_bn254_proof.vk,
+            &wrapped_bn254_proof.proof,
+        );
+        let groth16_bn254_proof = prover.wrap_groth16_bn254(wrapped_bn254_proof, &artifacts_dir);
+        println!("{:?}", groth16_bn254_proof);
 
-        // prover.verify_groth16_bn254(&groth16_bn254_proof, &vk, &public_values, &artifacts_dir)?;
+        prover.verify_groth16_bn254(&groth16_bn254_proof, &vk, &public_values, &artifacts_dir)?;
 
         Ok(())
     }
@@ -1214,7 +1218,7 @@ pub mod tests {
         // TODO(mattstam): We should Test::Plonk here, but this uses the existing
         // docker image which has a different API than the current. So we need to wait until the
         // next release (v1.2.0+), and then switch it back.
-        test_e2e_prover::<DefaultProverComponents>(elf, opts, Test::Wrap)
+        test_e2e_prover::<DefaultProverComponents>(elf, opts, Test::Plonk)
     }
 
     /// Tests an end-to-end workflow of proving a program across the entire proof generation

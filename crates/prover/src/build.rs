@@ -1,6 +1,5 @@
-use std::{borrow::Borrow, path::PathBuf};
+use std::path::PathBuf;
 
-use p3_baby_bear::BabyBear;
 use sp1_core_executor::SP1Context;
 use sp1_core_machine::io::SP1Stdin;
 use sp1_recursion_compiler::{config::OuterConfig, constraints::Constraint};
@@ -12,15 +11,10 @@ pub use sp1_recursion_circuit_v2::{
     witness::{OuterWitness, Witnessable},
 };
 
-use sp1_recursion_core_v2::air::RecursionPublicValues;
-
 use sp1_recursion_gnark_ffi::{Groth16Bn254Prover, PlonkBn254Prover};
 use sp1_stark::{InnerVal, SP1ProverOpts, ShardProof, StarkVerifyingKey};
 
-use crate::{
-    utils::{babybear_bytes_to_bn254, babybears_to_bn254, words_to_bytes},
-    OuterSC, SP1Prover, WrapAir, WRAP_DEGREE,
-};
+use crate::{OuterSC, SP1Prover, WrapAir, WRAP_DEGREE};
 
 /// Tries to build the PLONK artifacts inside the development directory.
 pub fn try_build_plonk_bn254_artifacts_dev(
