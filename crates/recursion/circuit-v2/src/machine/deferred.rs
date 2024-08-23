@@ -26,7 +26,6 @@ use crate::{
     challenger::{CanObserveVariable, DuplexChallengerVariable},
     constraints::RecursiveVerifierConstraintFolder,
     stark::{ShardProofVariable, StarkVerifier},
-    utils::commit_recursion_public_values,
     BabyBearFriConfigVariable, CircuitConfig, VerifyingKeyVariable,
 };
 
@@ -205,6 +204,6 @@ where
         // Set the cumulative sum to zero.
         deferred_public_values.cumulative_sum = array::from_fn(|_| builder.eval(C::F::zero()));
 
-        commit_recursion_public_values(builder, *deferred_public_values);
+        SC::commit_recursion_public_values(builder, *deferred_public_values);
     }
 }

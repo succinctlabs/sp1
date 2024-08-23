@@ -5,23 +5,9 @@ use p3_bn254_fr::Bn254Fr;
 use p3_field::AbstractField;
 use p3_field::PrimeField32;
 
-use sp1_recursion_compiler::{
-    circuit::CircuitV2Builder,
-    ir::{Builder, Config, Felt, Var},
-};
-use sp1_recursion_core_v2::{
-    air::{ChallengerPublicValues, RecursionPublicValues},
-    DIGEST_SIZE,
-};
+use sp1_recursion_compiler::ir::{Builder, Config, Felt, Var};
+use sp1_recursion_core_v2::{air::ChallengerPublicValues, DIGEST_SIZE};
 use sp1_stark::Word;
-
-/// Register and commits the recursion public values.
-pub fn commit_recursion_public_values<C: Config>(
-    builder: &mut Builder<C>,
-    public_values: RecursionPublicValues<Felt<C::F>>,
-) {
-    builder.commit_public_values_v2(public_values);
-}
 
 pub(crate) unsafe fn uninit_challenger_pv<C: Config>(
     _builder: &mut Builder<C>,

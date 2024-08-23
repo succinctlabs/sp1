@@ -33,7 +33,6 @@ use sp1_recursion_core_v2::{
 use crate::{
     challenger::{CanObserveVariable, DuplexChallengerVariable, SpongeChallengerShape},
     stark::{ShardProofVariable, StarkVerifier},
-    utils::commit_recursion_public_values,
     BabyBearFriConfig, BabyBearFriConfigVariable, CircuitConfig, VerifyingKeyVariable,
 };
 
@@ -560,7 +559,7 @@ where
             //     assert_complete(builder, recursion_public_values, &reconstruct_challenger)
             // });
 
-            commit_recursion_public_values(builder, *recursion_public_values);
+            SC::commit_recursion_public_values(builder, *recursion_public_values);
         }
     }
 }
