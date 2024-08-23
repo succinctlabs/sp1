@@ -28,6 +28,7 @@ fn ceil_align(x: u32) -> u32 {
 impl<NumWords: ArrayLength + Send + Sync, NumBytes: ArrayLength + Send + Sync> Syscall
     for MemCopySyscall<NumWords, NumBytes>
 {
+    // TODO check if im in unconstrained mode. if so, fix up memory access records.
     fn execute(&self, ctx: &mut SyscallContext, src: u32, dst: u32) -> Option<u32> {
         let a2 = Register::X12;
         let nbytes = ctx.rt.register(a2);
@@ -116,12 +117,6 @@ impl<NumWords: ArrayLength + Send + Sync, NumBytes: ArrayLength + Send + Sync> S
             write_records: writes,
         };
 
-        (match NumWords::USIZE {
-            8 => &mut ctx.record_mut().memcpy32_events,
-            16 => &mut ctx.record_mut().memcpy64_events,
-            _ => panic!("invalid usize {}", NumWords::USIZE),
-        })
-        .push(event);
         None
     }
 

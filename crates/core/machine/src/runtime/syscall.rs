@@ -142,9 +142,6 @@ pub enum SyscallCode {
     /// Executes the `BN254_FP2_MUL` precompile.
     BN254_FP2_MUL = 0x00_01_01_2B,
 
-    /// Execute the `MEMCPY_32` precompile.
-    MEMCPY_32 = 0x00_01_01_30,
-
     /// Execute the `MEMCPY_64` precompile.
     MEMCPY_64 = 0x00_01_01_31,
 }

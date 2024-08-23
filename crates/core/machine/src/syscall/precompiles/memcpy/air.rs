@@ -43,11 +43,7 @@ impl<NumWords: ArrayLength, NumBytes: ArrayLength> MemCopyChip<NumWords, NumByte
     }
 
     pub fn syscall_id() -> u32 {
-        match NumBytes::USIZE {
-            32 => SyscallCode::MEMCPY_32.syscall_id(),
-            64 => SyscallCode::MEMCPY_64.syscall_id(),
-            _ => unreachable!(),
-        }
+        SyscallCode::MEMCPY_64.syscall_id()
     }
 }
 
@@ -65,11 +61,7 @@ impl<F: PrimeField32, NumWords: ArrayLength + Send + Sync, NumBytes: ArrayLength
     fn generate_trace(&self, input: &Self::Record, output: &mut Self::Record) -> RowMajorMatrix<F> {
         let mut rows = vec![];
         let mut new_byte_lookup_events = vec![];
-        let events = match NumWords::USIZE {
-            8 => &input.memcpy32_events,
-            16 => &input.memcpy64_events,
-            _ => unreachable!(),
-        };
+        let events = input.memcpy64_events.clone();
 
         for event in events {
             let mut row = Vec::with_capacity(Self::NUM_COLS);
@@ -126,12 +118,7 @@ impl<F: PrimeField32, NumWords: ArrayLength + Send + Sync, NumBytes: ArrayLength
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
-        !(match NumWords::USIZE {
-            8 => &shard.memcpy32_events,
-            16 => &shard.memcpy64_events,
-            _ => unreachable!(),
-        })
-        .is_empty()
+        !shard.memcpy64_events.is_empty()
     }
 }
 

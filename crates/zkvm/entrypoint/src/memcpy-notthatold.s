@@ -2,7 +2,6 @@
 #include <stdint.h>
 #include <stdio.h>
 
-#define MEMCPY_32 0x00000130
 #define MEMCPY_64 0x00000131
 #define DUMMY_SIZE 1024
 
@@ -35,28 +34,7 @@ void *memcpy(void *restrict dest, const void *restrict src, size_t n)
             );
             return dest;
         }
-	    // for (; n>=64; s+=64, d+=64, n-=64) {
-        //     asm volatile(
-        //         "mv t0, %0\n"
-        //         "mv a0, %1\n"
-        //         "mv a1, %2\n"
-        //         "ecall"
-        //         : // No output operands
-        //         : "r"(MEMCPY_64), "r"(s), "r"(d)
-        //         : "t0", "a0", "a1" // Clobbered registers
-        //     );
-        // }
-		// for (; n>=32; s+=32, d+=32, n-=32) {
-		// 	asm volatile(
-		// 		"mv t0, %0\n"
-		// 		"mv a0, %1\n"
-		// 		"mv a1, %2\n"
-		// 		"ecall"
-		// 		: // No output operands
-		// 		: "r"(MEMCPY_32), "r"(s), "r"(d)
-		// 		: "t0", "a0", "a1" // Clobbered registers
-		// 	);
-		// }
+
 		for (; n>=16; s+=16, d+=16, n-=16) {
 			*(u32 *)(d+0) = *(u32 *)(s+0);
             *(u32 *)(d+4) = *(u32 *)(s+4);

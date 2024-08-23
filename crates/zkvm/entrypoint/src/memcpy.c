@@ -2,7 +2,6 @@
 #include <stdint.h>
 #include <stdio.h>
 
-#define MEMCPY_32 0x00010130
 #define MEMCPY_64 0x00010131
 #define DUMMY_SIZE 1024
 

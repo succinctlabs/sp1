@@ -895,7 +895,9 @@ impl<'a> Executor<'a> {
                 // non-zero memory interactions when generating a proof.
 
                 if self.unconstrained
-                    && (syscall != SyscallCode::EXIT_UNCONSTRAINED && syscall != SyscallCode::WRITE)
+                    && (syscall != SyscallCode::EXIT_UNCONSTRAINED
+                        && syscall != SyscallCode::WRITE
+                        && syscall != SyscallCode::MEMCPY_64)
                 {
                     return Err(ExecutionError::InvalidSyscallUsage(syscall_id as u64));
                 }
@@ -952,7 +954,7 @@ impl<'a> Executor<'a> {
                 let nonce = (((*syscall_count as usize) % threshold) * multiplier) as u32;
                 // FIXME
                 match syscall {
-                    SyscallCode::MEMCPY_32 | SyscallCode::MEMCPY_64 => {}
+                    SyscallCode::MEMCPY_64 => {}
                     _ => {
                         self.record.nonce_lookup.insert(syscall_lookup_id, nonce);
                     }
@@ -1367,12 +1369,7 @@ impl<'a> Executor<'a> {
         }
 
         if !self.unconstrained && self.state.global_clk % 10_000_000 == 0 {
-            log::info!(
-                "clk = {} pc = 0x{:x?} instruction {:?}",
-                self.state.global_clk,
-                self.state.pc,
-                self.fetch()
-            );
+            log::info!("clk = {} pc = 0x{:x?}", self.state.global_clk, self.state.pc,);
         }
     }
 }
