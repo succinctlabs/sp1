@@ -13,7 +13,7 @@ use sp1_stark::{
 
 use crate::{
     BatchOpeningVariable, CircuitConfig, FriCommitPhaseProofStepVariable, FriProofVariable,
-    FriQueryProofVariable, TwoAdicPcsProofVariable,
+    FriQueryProofVariable, NormalizeQueryProofVariable, TwoAdicPcsProofVariable,
 };
 
 use super::{WitnessWriter, Witnessable};
@@ -138,7 +138,7 @@ impl<C: CircuitConfig<F = InnerVal, EF = InnerChallenge, Bit = Felt<BabyBear>>> 
             let commit = Borrow::<InnerDigest>::borrow(commit);
             commit.write(witness);
         });
-        selt.normalize_phase_commits.iter().for_each(|commit| {
+        self.normalize_phase_commits.iter().for_each(|commit| {
             let commit = Borrow::<InnerDigest>::borrow(commit);
             commit.write(witness);
         });

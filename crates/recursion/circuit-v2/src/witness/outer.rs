@@ -145,7 +145,7 @@ impl Witnessable<OuterConfig> for CommitPhaseProofStep<OuterChallenge, OuterChal
     }
 
     fn write(&self, witness: &mut impl WitnessWriter<OuterConfig>) {
-        self.sibling_value.write(witness);
+        self.siblings.write(witness);
         self.opening_proof.write(witness);
     }
 }

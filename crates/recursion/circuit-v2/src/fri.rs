@@ -227,7 +227,7 @@ pub fn verify_challenges<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVar
     challenges: &FriChallenges<C>,
     reduced_openings: Vec<[Option<Ext<C::F, C::EF>>; 32]>,
 ) {
-    for (&index, query_proof, normalize_query_proof, ro) in izip!(
+    for (index, query_proof, normalize_query_proof, ro) in izip!(
         &challenges.query_indices,
         proof.query_proofs.clone(),
         proof.normalize_query_proofs.clone(),
@@ -236,13 +236,12 @@ pub fn verify_challenges<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVar
         let log_max_normalized_height =
             config.log_arity * proof.commit_phase_commits.len() + config.log_blowup;
 
-        let log_max_height =
-            reduced_openings[0].iter().enumerate().filter_map(|(i, v)| v.map(|_| i)).max().unwrap();
+        let log_max_height = ro.iter().enumerate().filter_map(|(i, v)| v.map(|_| i)).max().unwrap();
         let normalized_openings = verify_normalization_phase(
             builder,
             config,
             &proof.normalize_phase_commits,
-            &index,
+            index,
             normalize_query_proof,
             &challenges.normalize_betas,
             &ro,
@@ -257,7 +256,7 @@ pub fn verify_challenges<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVar
             &proof.commit_phase_commits,
             &new_index,
             query_proof.clone(),
-            challenges.betas.clone(),
+            &challenges.betas.clone(),
             normalized_openings,
         );
 
@@ -341,13 +340,62 @@ fn verify_normalization_phase<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConf
 
 pub fn verify_query<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVariable<C>>(
     builder: &mut Builder<C>,
+    config: &FriConfig<FriMmcs<SC>>,
     commit_phase_commits: &[SC::Digest],
-    index_bits: &[C::Bit],
+    mut index_bits: &[C::Bit],
     proof: FriQueryProofVariable<C, SC>,
     betas: &[Ext<C::F, C::EF>],
     reduced_openings: [Ext<C::F, C::EF>; 32],
-    log_max_height: usize,
+    // log_max_height: usize,
 ) -> Ext<C::F, C::EF> {
+    let log_max_normalized_height =
+        config.log_arity * commit_phase_commits.len() + config.log_blowup;
+
+    for (_, ro) in reduced_openings.iter().enumerate().filter(|(i, _)| {
+        (i >= &config.log_blowup) && (i - config.log_blowup) % config.log_arity != 0
+    }) {
+        builder.assert_ext_eq(*ro, SymbolicExt::from_f(C::EF::zero()));
+    }
+    let g = C::F::two_adic_generator(config.log_arity);
+    let g_powers = g.powers().take(1 << config.log_arity).collect::<Vec<_>>();
+
+    let mut folded_eval: Ext<C::F, C::EF> = reduced_openings[log_max_normalized_height];
+    let two_adic_generator = builder.constant(C::F::two_adic_generator(log_max_normalized_height));
+    let mut x = C::exp_reverse_bits(
+        builder,
+        two_adic_generator,
+        index_bits[..log_max_normalized_height].to_vec(),
+    );
+    // builder.reduce_f(x);
+
+    for (i, (log_folded_height, commit, step, beta)) in izip!(
+        (config.log_blowup..log_max_normalized_height + 1 - config.log_arity)
+            .rev()
+            .step_by(config.log_arity),
+        commit_phase_commits.into_iter(),
+        proof.commit_phase_openings,
+        betas,
+    )
+    .enumerate()
+    {
+        let xs = g_powers.iter().map(|y| builder.eval(x * *y)).collect();
+        folded_eval = verify_fold_step(
+            builder,
+            folded_eval,
+            *beta,
+            config.log_arity,
+            step,
+            *commit,
+            index_bits,
+            log_folded_height,
+            xs,
+        );
+        index_bits = &index_bits[(i + 1) * config.log_arity..];
+        x = builder.exp_power_of_2(x, config.log_arity);
+
+        folded_eval = builder.eval(folded_eval + reduced_openings[log_folded_height]);
+    }
+
     folded_eval
 }
 
@@ -451,7 +499,8 @@ fn next_index_in_coset<C: CircuitConfig>(
 ) -> Vec<C::Bit> {
     // TODO better names.
     let len = index.len();
-    let mut result = C::bits2num(builder, index.iter().rev());
+    let rev_index = index.iter().rev().copied().collect_vec();
+    let mut result = C::bits2num(builder, rev_index);
     result = builder.eval(result + C::F::one());
     let mut result_bits = C::num2bits(builder, result, len + 1)[..len + 1].to_vec();
     result_bits.reverse();
