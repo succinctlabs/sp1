@@ -120,14 +120,15 @@ impl Witnessable<OuterConfig> for OuterFriProof {
     }
 
     fn write(&self, witness: &mut impl WitnessWriter<OuterConfig>) {
-        self.commit_phase_commits.iter().for_each(|commit| {
-            let commit = Borrow::<OuterDigest>::borrow(commit);
-            commit.write(witness);
-        });
         self.normalize_phase_commits.iter().for_each(|commit| {
             let commit = Borrow::<OuterDigest>::borrow(commit);
             commit.write(witness);
         });
+        self.commit_phase_commits.iter().for_each(|commit| {
+            let commit = Borrow::<OuterDigest>::borrow(commit);
+            commit.write(witness);
+        });
+
         self.normalize_query_proofs.write(witness);
         self.query_proofs.write(witness);
         self.final_poly.write(witness);
