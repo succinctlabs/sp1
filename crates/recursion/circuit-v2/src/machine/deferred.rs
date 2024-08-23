@@ -1,7 +1,6 @@
 use std::{
     array,
     borrow::{Borrow, BorrowMut},
-    mem::MaybeUninit,
 };
 
 use p3_air::Air;
@@ -108,9 +107,8 @@ where
             is_complete,
         } = input;
 
-        let mut deferred_public_values_stream: Vec<Felt<C::F>> = (0..RECURSIVE_PROOF_NUM_PV_ELTS)
-            .map(|_| unsafe { MaybeUninit::zeroed().assume_init() })
-            .collect();
+        let mut deferred_public_values_stream: Vec<Felt<C::F>> =
+            (0..RECURSIVE_PROOF_NUM_PV_ELTS).map(|_| builder.uninit()).collect();
         let deferred_public_values: &mut RecursionPublicValues<_> =
             deferred_public_values_stream.as_mut_slice().borrow_mut();
 
@@ -120,9 +118,9 @@ where
 
         // Initialize the consistency check variable.
         let mut reconstruct_deferred_digest: [Felt<C::F>; POSEIDON_NUM_WORDS] =
-            { unsafe { MaybeUninit::zeroed().assume_init() } };
+            start_reconstruct_deferred_digest;
 
-        for (i, (vk, shard_proof)) in vks_and_proofs.into_iter().enumerate() {
+        for (vk, shard_proof) in vks_and_proofs {
             // Initialize a challenger.
             let mut challenger = machine.config().challenger_variable(builder);
             // Observe the vk and start pc.
@@ -200,6 +198,12 @@ where
 
         // Set the is_complete flag.
         deferred_public_values.is_complete = is_complete;
+
+        // TODO: set the digest according to the previous values.
+        deferred_public_values.digest = array::from_fn(|_| builder.eval(C::F::zero()));
+
+        // Set the cumulative sum to zero.
+        deferred_public_values.cumulative_sum = array::from_fn(|_| builder.eval(C::F::zero()));
 
         commit_recursion_public_values(builder, *deferred_public_values);
     }

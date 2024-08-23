@@ -472,31 +472,32 @@ pub fn verify_groth16_bn254_public_inputs(
 impl<C: SP1ProverComponents> SubproofVerifier for &SP1Prover<C> {
     fn verify_deferred_proof(
         &self,
+        reduce_vk: &sp1_stark::StarkVerifyingKey<BabyBearPoseidon2>,
         proof: &sp1_stark::ShardProof<BabyBearPoseidon2>,
         vk: &sp1_stark::StarkVerifyingKey<BabyBearPoseidon2>,
         vk_hash: [u32; 8],
         committed_value_digest: [u32; 8],
     ) -> Result<(), MachineVerificationError<BabyBearPoseidon2>> {
-        // // Check that the vk hash matches the vk hash from the input.
-        // if vk.hash_u32() != vk_hash {
-        //     return Err(MachineVerificationError::InvalidPublicValues(
-        //         "vk hash from syscall does not match vkey from input",
-        //     ));
-        // }
-        // // Check that proof is valid.
-        // self.verify_compressed(
-        //     &SP1ReduceProof { proof: proof.clone() },
-        //     &SP1VerifyingKey { vk: vk.clone() },
-        // )?;
-        // // Check that the committed value digest matches the one from syscall
-        // let public_values: &RecursionPublicValues<_> = proof.public_values.as_slice().borrow();
-        // for (i, word) in public_values.committed_value_digest.iter().enumerate() {
-        //     if *word != committed_value_digest[i].into() {
-        //         return Err(MachineVerificationError::InvalidPublicValues(
-        //             "committed_value_digest does not match",
-        //         ));
-        //     }
-        // }
+        // Check that the vk hash matches the vk hash from the input.
+        if vk.hash_u32() != vk_hash {
+            return Err(MachineVerificationError::InvalidPublicValues(
+                "vk hash from syscall does not match vkey from input",
+            ));
+        }
+        // Check that proof is valid.
+        self.verify_compressed(
+            &SP1ReduceProof { vk: reduce_vk.clone(), proof: proof.clone() },
+            &SP1VerifyingKey { vk: vk.clone() },
+        )?;
+        // Check that the committed value digest matches the one from syscall
+        let public_values: &RecursionPublicValues<_> = proof.public_values.as_slice().borrow();
+        for (i, word) in public_values.committed_value_digest.iter().enumerate() {
+            if *word != committed_value_digest[i].into() {
+                return Err(MachineVerificationError::InvalidPublicValues(
+                    "committed_value_digest does not match",
+                ));
+            }
+        }
         Ok(())
     }
 }

@@ -5,7 +5,7 @@ use sp1_core_executor::SP1Context;
 use sp1_core_machine::io::SP1Stdin;
 use sp1_recursion_compiler::{config::OuterConfig, constraints::Constraint};
 
-// pub use sp1_recursion_core::stark::utils::sp1_dev_mode;
+pub use sp1_recursion_core_v2::stark::utils::sp1_dev_mode;
 
 pub use sp1_recursion_circuit_v2::{
     build_wrap_v2::build_wrap_circuit_v2_with as build_wrap_circuit_with,

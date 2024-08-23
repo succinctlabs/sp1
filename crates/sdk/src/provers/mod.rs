@@ -96,7 +96,7 @@ pub trait Prover<C: SP1ProverComponents>: Send + Sync {
                 .map_err(SP1VerificationError::Core),
             SP1Proof::Compressed(proof) => self
                 .sp1_prover()
-                .verify_compressed(&SP1ReduceProof { proof: proof.clone() }, vkey)
+                .verify_compressed(proof, vkey)
                 .map_err(SP1VerificationError::Recursion),
             SP1Proof::Plonk(proof) => self
                 .sp1_prover()

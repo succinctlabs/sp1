@@ -58,8 +58,12 @@ pub struct ExecutionState {
     /// A ptr to the current position in the input stream incremented by HINT_READ opcode.
     pub input_stream_ptr: usize,
 
-    /// A stream of proofs inputted to the program.
-    pub proof_stream: Vec<(ShardProof<BabyBearPoseidon2>, StarkVerifyingKey<BabyBearPoseidon2>)>,
+    /// A stream of proofs (reduce vk, proof, verifying key) inputted to the program.
+    pub proof_stream: Vec<(
+        StarkVerifyingKey<BabyBearPoseidon2>,
+        ShardProof<BabyBearPoseidon2>,
+        StarkVerifyingKey<BabyBearPoseidon2>,
+    )>,
 
     /// A ptr to the current position in the proof stream, incremented after verifying a proof.
     pub proof_stream_ptr: usize,
