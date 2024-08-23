@@ -242,6 +242,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         let mut cache = self.recursion_programs.lock().unwrap();
         cache
             .get_or_insert(input.shape(), || {
+                tracing::debug!("Core cache miss");
                 // Get the operations.
                 let builder_span = tracing::debug_span!("build recursion program").entered();
                 let mut builder = Builder::<InnerConfig>::default();
@@ -267,6 +268,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         let mut cache = self.compress_programs.lock().unwrap();
         cache
             .get_or_insert(input.shape(), || {
+                tracing::debug!("Compress cache miss");
                 // Get the operations.
                 let builder_span = tracing::debug_span!("build compress program").entered();
                 let mut builder = Builder::<InnerConfig>::default();
