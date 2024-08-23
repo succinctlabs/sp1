@@ -412,9 +412,24 @@ where
 
 #[cfg(test)]
 mod tests {
+    use p3_baby_bear::BabyBear;
+    use p3_bn254_fr::Bn254Fr;
+    use p3_field::AbstractField;
+    use sp1_recursion_compiler::{
+        config::{InnerConfig, OuterConfig},
+        constraints::ConstraintCompiler,
+        ir::{Builder, Config, Ext, Felt, SymbolicExt, SymbolicFelt, SymbolicVar, Var, Witness},
+    };
+    use sp1_recursion_gnark_ffi::PlonkBn254Prover;
+
+    use crate::{
+        fri::next_index_in_coset,
+        utils::{access_index_with_var_e, tests::run_test_recursion},
+        BabyBearFriConfigVariable, CircuitConfig,
+    };
 
     #[test]
-    fn test_access_index_with_var_e() {
+    fn test_access_index_with_var_e_outer() {
         let mut builder = Builder::<OuterConfig>::default();
         type EF = <OuterConfig as Config>::EF;
 
@@ -441,5 +456,53 @@ mod tests {
         let witness = Witness::default();
 
         PlonkBn254Prover::test::<OuterConfig>(constraints.clone(), witness);
+    }
+
+    #[test]
+    fn test_access_index_with_var_e_inner() {
+        let mut builder = Builder::<InnerConfig>::default();
+        type EF = <InnerConfig as Config>::EF;
+
+        let vec: Vec<Ext<_, _>> = (0..8)
+            .map(|i| builder.eval(SymbolicExt::from_f(EF::from_canonical_u32(i))))
+            .collect::<Vec<_>>();
+
+        for elem in vec.iter() {
+            builder.print_e(*elem);
+        }
+
+        for i in 0..8 {
+            let index: Felt<_> = builder.constant(BabyBear::from_canonical_usize(i));
+            let index_bits: Vec<<InnerConfig as CircuitConfig>::Bit> =
+                <InnerConfig as CircuitConfig>::num2bits(&mut builder, index, 3);
+
+            let result = access_index_with_var_e(&mut builder, &vec, index_bits);
+
+            builder.assert_ext_eq(vec[i], result);
+        }
+
+        run_test_recursion(builder.operations, None);
+    }
+
+    #[test]
+    fn test_next_index_in_coset() {
+        let expected_indices = (0..8).map(|index| p3_fri::verifier::next_index_in_coset(index, 3));
+        let mut builder = Builder::<InnerConfig>::default();
+
+        let indices = (0..8)
+            .map(|x| builder.eval(SymbolicFelt::from_f(BabyBear::from_canonical_usize(x))))
+            .collect::<Vec<_>>();
+
+        for (index, expected_next_index) in indices.iter().zip(expected_indices) {
+            let index_bits = <InnerConfig as CircuitConfig>::num2bits(&mut builder, *index, 3);
+            let next_index_bits = next_index_in_coset(&mut builder, &index_bits);
+            let next_index =
+                <InnerConfig as CircuitConfig>::bits2num(&mut builder, next_index_bits);
+            let expected_next_index: Felt<_> = builder
+                .eval(SymbolicFelt::from_f(BabyBear::from_canonical_usize(expected_next_index)));
+            builder.assert_felt_eq(expected_next_index, next_index);
+        }
+
+        run_test_recursion(builder.operations, std::iter::empty());
     }
 }

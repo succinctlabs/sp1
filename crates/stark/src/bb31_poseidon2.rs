@@ -64,7 +64,7 @@ pub fn sp1_fri_config() -> FriConfig<InnerChallengeMmcs> {
     };
     FriConfig {
         log_blowup: 1,
-        log_arity: 1,
+        log_arity: 2,
         num_queries,
         proof_of_work_bits: 16,
         mmcs: challenge_mmcs,
@@ -84,7 +84,7 @@ pub fn inner_fri_config() -> FriConfig<InnerChallengeMmcs> {
     };
     FriConfig {
         log_blowup: 1,
-        log_arity: 1,
+        log_arity: 2,
         num_queries,
         proof_of_work_bits: 16,
         mmcs: challenge_mmcs,
@@ -224,7 +224,7 @@ pub mod baby_bear_poseidon2 {
         };
         FriConfig {
             log_blowup: 1,
-            log_arity: 1,
+            log_arity: 2,
             num_queries,
             proof_of_work_bits: 16,
             mmcs: challenge_mmcs,
@@ -243,7 +243,7 @@ pub mod baby_bear_poseidon2 {
         };
         FriConfig {
             log_blowup: 3,
-            log_arity: 1,
+            log_arity: 2,
             num_queries,
             proof_of_work_bits: 16,
             mmcs: challenge_mmcs,

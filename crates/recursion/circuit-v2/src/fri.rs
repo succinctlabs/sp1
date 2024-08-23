@@ -56,6 +56,8 @@ pub fn verify_shape_and_sample_challenges<
     assert_eq!(proof.normalize_query_proofs.len(), config.num_queries);
     challenger.check_witness(builder, config.proof_of_work_bits, proof.pow_witness);
 
+    println!("Sampling {} bits", log_max_height);
+
     let query_indices: Vec<Vec<C::Bit>> =
         repeat_with(|| challenger.sample_bits(builder, log_max_height))
             .take(config.num_queries)
@@ -73,13 +75,20 @@ pub fn verify_two_adic_pcs<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigV
 ) {
     let alpha = challenger.sample_ext(builder);
 
-    let log_global_max_height = rounds
-        .iter()
-        .map(|round: &TwoAdicPcsRoundVariable<_, _>| {
-            round.domains_points_and_opens.iter().map(|mat| mat.domain.size()).sum()
-        })
-        .max()
-        .unwrap();
+    let log_global_max_height = log2_strict_usize(
+        rounds
+            .iter()
+            .map(|round: &TwoAdicPcsRoundVariable<_, _>| {
+                round
+                    .domains_points_and_opens
+                    .iter()
+                    .map(|dpo| dpo.domain.size() << config.log_blowup)
+                    .max()
+                    .unwrap()
+            })
+            .max()
+            .unwrap(),
+    );
     let fri_challenges = verify_shape_and_sample_challenges::<C, SC>(
         builder,
         config,
@@ -235,8 +244,8 @@ pub fn verify_challenges<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVar
     ) {
         let log_max_normalized_height =
             config.log_arity * proof.commit_phase_commits.len() + config.log_blowup;
-
         let log_max_height = ro.iter().enumerate().filter_map(|(i, v)| v.map(|_| i)).max().unwrap();
+        assert_eq!(index.len(), log_max_height);
         let normalized_openings = verify_normalization_phase(
             builder,
             config,
@@ -327,7 +336,7 @@ fn verify_normalization_phase<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConf
             *beta,
             num_folds,
             step,
-            commit.clone(),
+            *commit,
             new_index_bits,
             log_height - num_folds,
             xs,
@@ -372,7 +381,7 @@ pub fn verify_query<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVariable
         (config.log_blowup..log_max_normalized_height + 1 - config.log_arity)
             .rev()
             .step_by(config.log_arity),
-        commit_phase_commits.into_iter(),
+        commit_phase_commits.iter(),
         proof.commit_phase_openings,
         betas,
     )
@@ -390,7 +399,7 @@ pub fn verify_query<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVariable
             log_folded_height,
             xs,
         );
-        index_bits = &index_bits[(i + 1) * config.log_arity..];
+        index_bits = &index_bits[config.log_arity..];
         x = builder.exp_power_of_2(x, config.log_arity);
 
         folded_eval = builder.eval(folded_eval + reduced_openings[log_folded_height]);
@@ -493,16 +502,19 @@ pub fn verify_batch<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVariable
     SC::assert_digest_eq(builder, root, commit);
 }
 
-fn next_index_in_coset<C: CircuitConfig>(
+pub(crate) fn next_index_in_coset<C: CircuitConfig>(
     builder: &mut Builder<C>,
     index: &[C::Bit],
 ) -> Vec<C::Bit> {
     // TODO better names.
     let len = index.len();
+    println!("len: {}", len);
     let rev_index = index.iter().rev().copied().collect_vec();
     let mut result = C::bits2num(builder, rev_index);
     result = builder.eval(result + C::F::one());
-    let mut result_bits = C::num2bits(builder, result, len + 1)[..len + 1].to_vec();
+    let bits = C::num2bits(builder, result, len + 1);
+    println!("New len: {}", bits.len());
+    let mut result_bits = bits[..len].to_vec();
     result_bits.reverse();
     result_bits
 }
@@ -589,10 +601,14 @@ mod tests {
             })
             .collect::<Vec<_>>();
 
-        let normalize_phase_commits = fri_proof.normalize_phase_commits.iter().map(|commit| {
-            let commit: [F; DIGEST_SIZE] = (*commit).into();
-            commit.map(|x| builder.eval(x))
-        });
+        let normalize_phase_commits = fri_proof
+            .normalize_phase_commits
+            .iter()
+            .map(|commit| {
+                let commit: [F; DIGEST_SIZE] = (*commit).into();
+                commit.map(|x| builder.eval(x))
+            })
+            .collect();
 
         // Set the query proofs.
         let query_proofs = fri_proof
@@ -606,7 +622,7 @@ mod tests {
                         let siblings = commit_phase_opening
                             .siblings
                             .iter()
-                            .map(|sibling| builder.eval(SymbolicExt::from_f(sibling)))
+                            .map(|sibling| builder.constant(*sibling))
                             .collect();
                         let opening_proof = commit_phase_opening
                             .opening_proof
@@ -624,14 +640,14 @@ mod tests {
             .normalize_query_proofs
             .iter()
             .map(|query_proof| {
-                let normalize_phase_openigns = query_proof
+                let normalize_phase_openings = query_proof
                     .normalize_phase_openings
                     .iter()
                     .map(|normalize_phase_opening| {
                         let siblings = normalize_phase_opening
                             .siblings
                             .iter()
-                            .map(|sibling| builder.eval(SymbolicExt::from_f(sibling)))
+                            .map(|sibling| builder.constant(*sibling))
                             .collect();
                         let opening_proof = normalize_phase_opening
                             .opening_proof
@@ -641,7 +657,7 @@ mod tests {
                         FriCommitPhaseProofStepVariable { siblings, opening_proof }
                     })
                     .collect::<Vec<_>>();
-                FriQueryProofVariable { commit_phase_openings }
+                NormalizeQueryProofVariable { normalize_phase_openings }
             })
             .collect::<Vec<_>>();
 
@@ -827,8 +843,8 @@ mod tests {
             &mut builder,
             &config,
             &fri_proof,
-            log_degrees.iter().max().unwrap(),
             &mut challenger,
+            *log_degrees.iter().max().unwrap(),
         );
 
         for i in 0..fri_challenges_gt.betas.len() {
