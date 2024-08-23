@@ -23,7 +23,6 @@ use sp1_prover::{
     types::SP1ProvingKey, InnerSC, OuterSC, SP1CoreProof, SP1RecursionProverError, SP1ReduceProof,
     SP1VerifyingKey,
 };
-use sp1_stark::ShardProof;
 use tokio::task::block_in_place;
 use twirp::{url::Url, Client};
 
@@ -62,7 +61,7 @@ pub struct CompressRequestPayload {
     /// The core proof.
     pub proof: SP1CoreProof,
     /// The deferred proofs.
-    pub deferred_proofs: Vec<ShardProof<InnerSC>>,
+    pub deferred_proofs: Vec<SP1ReduceProof<InnerSC>>,
 }
 
 /// The payload for the [sp1_prover::SP1Prover::shrink] method.
@@ -208,7 +207,7 @@ impl SP1CudaProver {
         &self,
         vk: &SP1VerifyingKey,
         proof: SP1CoreProof,
-        deferred_proofs: Vec<ShardProof<InnerSC>>,
+        deferred_proofs: Vec<SP1ReduceProof<InnerSC>>,
     ) -> Result<SP1ReduceProof<InnerSC>, SP1RecursionProverError> {
         let payload = CompressRequestPayload { vk: vk.clone(), proof, deferred_proofs };
         let request =

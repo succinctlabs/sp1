@@ -73,7 +73,7 @@ impl Prover<DefaultProverComponents> for CudaProver {
         let reduce_proof = self.cuda_prover.compress(&pk.vk, proof, deferred_proofs)?;
         if kind == SP1ProofKind::Compressed {
             return Ok(SP1ProofWithPublicValues {
-                proof: SP1Proof::Compressed(reduce_proof),
+                proof: SP1Proof::Compressed(Box::new(reduce_proof)),
                 stdin,
                 public_values,
                 sp1_version: self.version().to_string(),
