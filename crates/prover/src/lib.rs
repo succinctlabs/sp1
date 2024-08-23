@@ -902,13 +902,15 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         proof: SP1ReduceProof<OuterSC>,
         build_dir: &Path,
     ) -> PlonkBn254Proof {
+        let input = SP1CompressWitnessValues {
+            vks_and_proofs: vec![(proof.vk.clone(), proof.proof.clone())],
+            is_complete: true,
+        };
         let vkey_digest = proof.sp1_vkey_digest_bn254();
         let commited_values_digest = proof.sp1_commited_values_digest_bn254();
 
         let mut witness = Witness::default();
-        proof.proof.write(&mut witness);
-        // witness.write_commited_values_digest(commited_values_digest);
-        // witness.write_vkey_hash(vkey_digest);
+        input.write(&mut witness);
 
         let prover = PlonkBn254Prover::new();
         let proof = prover.prove(witness, build_dir.to_path_buf());
