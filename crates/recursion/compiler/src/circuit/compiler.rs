@@ -730,7 +730,7 @@ macro_rules! impl_reg_vaddr {
     };
 }
 
-// These three types have `.fp()` but they don't share a trait.
+// These three types wrap a `u32` but they don't share a trait.
 impl_reg_vaddr!(Var<C::F>);
 impl_reg_vaddr!(Felt<C::F>);
 impl_reg_vaddr!(Ext<C::F, C::EF>);
