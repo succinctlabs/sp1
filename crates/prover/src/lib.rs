@@ -1122,7 +1122,7 @@ pub mod tests {
             include_bytes!("../../../tests/verify-proof/elf/riscv32im-succinct-zkvm-elf");
 
         tracing::info!("initializing prover");
-        let prover: SP1Prover = SP1Prover::new();
+        let prover = SP1Prover::<C>::new();
 
         tracing::info!("setup keccak elf");
         let (keccak_pk, keccak_vk) = prover.setup(keccak_elf);
