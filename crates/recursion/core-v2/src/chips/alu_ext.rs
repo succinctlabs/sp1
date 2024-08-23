@@ -81,12 +81,11 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for ExtAluChip {
             })
             .collect::<Vec<_>>();
 
-        let nb_events = instrs.len();
-        let nb_rows = nb_events.div_ceil(NUM_EXT_ALU_ENTRIES_PER_ROW);
+        let nb_rows = instrs.len().div_ceil(NUM_EXT_ALU_ENTRIES_PER_ROW);
         let padded_nb_rows = next_power_of_two(nb_rows, None);
         let mut values = vec![F::zero(); padded_nb_rows * NUM_EXT_ALU_PREPROCESSED_COLS];
         // Generate the trace rows & corresponding records for each chunk of events in parallel.
-        let populate_len = nb_events * NUM_EXT_ALU_ACCESS_COLS;
+        let populate_len = instrs.len() * NUM_EXT_ALU_ACCESS_COLS;
         values[..populate_len].par_chunks_mut(NUM_EXT_ALU_ACCESS_COLS).zip_eq(instrs).for_each(
             |(row, instr)| {
                 let ExtAluInstr { opcode, mult, addrs } = instr;
@@ -123,15 +122,15 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for ExtAluChip {
     }
 
     fn generate_trace(&self, input: &Self::Record, _: &mut Self::Record) -> RowMajorMatrix<F> {
-        let nb_events = input.ext_alu_events.len();
-        let nb_rows = nb_events.div_ceil(NUM_EXT_ALU_ENTRIES_PER_ROW);
+        let events = &input.ext_alu_events;
+        let nb_rows = events.len().div_ceil(NUM_EXT_ALU_ENTRIES_PER_ROW);
         let padded_nb_rows = next_power_of_two(nb_rows, None);
         let mut values = vec![F::zero(); padded_nb_rows * NUM_EXT_ALU_COLS];
         // Generate the trace rows & corresponding records for each chunk of events in parallel.
-        let populate_len = nb_events * NUM_EXT_ALU_VALUE_COLS;
+        let populate_len = events.len() * NUM_EXT_ALU_VALUE_COLS;
         values[..populate_len]
             .par_chunks_mut(NUM_EXT_ALU_VALUE_COLS)
-            .zip_eq(&input.ext_alu_events)
+            .zip_eq(events)
             .by_uniform_blocks(populate_len.div_ceil(num_cpus::get()))
             .for_each(|(row, &vals)| {
                 let cols: &mut ExtAluValueCols<_> = row.borrow_mut();
