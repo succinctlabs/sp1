@@ -295,7 +295,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         shard_proofs: &[ShardProof<CoreSC>],
         batch_size: usize,
         is_complete: bool,
-    ) -> (Vec<SP1RecursionWitnessValues<CoreSC>>, Vec<Shape>) {
+    ) -> (Vec<SP1RecursionWitnessValues<CoreSC>>, Vec<Vec<Shape>>) {
         let mut core_inputs = Vec::new();
         let mut core_shapes = Vec::new();
         let mut reconstruct_challenger = self.core_prover.config().challenger();
@@ -304,17 +304,13 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         // Prepare the inputs for the recursion programs.
         for batch in shard_proofs.chunks(batch_size) {
             let proofs = batch.to_vec();
-
-            for proof in proofs.iter() {
-                println!("shape: {:?}", proof.shape);
-                core_shapes.push(proof.shape.clone().unwrap());
-            }
+            core_shapes.push(proofs.iter().map(|proof| proof.shape.clone().unwrap()).collect());
 
             core_inputs.push(SP1RecursionWitnessValues {
                 vk: vk.clone(),
                 shard_proofs: proofs.clone(),
                 leaf_challenger: leaf_challenger.clone(),
-                initial_reconstruct_challenger: reconstruct_challenger.clone(),
+                // initial_reconstruct_challenger: reconstruct_challenger.clone(),
                 is_complete,
             });
 
@@ -500,21 +496,25 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                             )
                             .in_scope(|| match input {
                                 SP1CircuitWitness::Core((input, shape)) => {
+                                    let a = shape[0].id;
+                                    let b = if shape.len() > 1 { shape[1].id } else { usize::MAX };
                                     let program: Arc<RecursionProgram<BabyBear>> = self
                                         .core_programs
                                         .lock()
                                         .unwrap()
-                                        .entry((shape.id, input.shard_proofs.len()))
-                                        .or_insert_with(|| {
-                                            tracing::debug_span!("get program", id = shape.id)
-                                                .in_scope(|| self.recursion_program(&input))
-                                        })
+                                        .entry((a, b))
+                                        .or_insert_with(|| self.recursion_program(&input))
                                         .clone();
 
                                     let mut witness_stream = Vec::new();
                                     witness_stream
                                         .extend(Witnessable::<InnerConfig>::write(&input));
-                                    println!("core witness stream: {:?}", witness_stream.len());
+                                    println!(
+                                        "a: {}, b: {}, core witness stream: {:?}",
+                                        a,
+                                        b,
+                                        witness_stream.len()
+                                    );
                                     (program, witness_stream)
                                 }
                                 // SP1CircuitWitness::Deferred(input) => {
@@ -555,6 +555,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                                         SP1RecursionProverError::RuntimeError(e.to_string())
                                     })
                                     .unwrap();
+                                assert_eq!(runtime.witness_stream.len(), 0);
                                 runtime.record
                             });
 
@@ -995,6 +996,12 @@ pub mod tests {
 
         tracing::info!("prove core");
         let stdin = SP1Stdin::new();
+        let core_proof = prover.prove_core(&pk, &stdin, opts, context)?;
+        let public_values = core_proof.public_values.clone();
+
+        tracing::info!("prove core");
+        let stdin = SP1Stdin::new();
+        let context = SP1Context::default();
         let core_proof = prover.prove_core(&pk, &stdin, opts, context)?;
         let public_values = core_proof.public_values.clone();
 

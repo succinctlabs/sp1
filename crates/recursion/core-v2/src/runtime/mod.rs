@@ -270,6 +270,7 @@ where
                                 if in1.is_zero() {
                                     AbstractField::one()
                                 } else {
+                                    eprintln!("{:?}", self.nearest_pc_backtrace());
                                     return Err(RuntimeError::DivFOutOfDomain {
                                         in1,
                                         in2,

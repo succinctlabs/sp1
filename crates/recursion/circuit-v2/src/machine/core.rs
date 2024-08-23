@@ -44,7 +44,7 @@ pub struct SP1RecursionWitnessVariable<
     pub vk: VerifyingKeyVariable<C, SC>,
     pub shard_proofs: Vec<ShardProofVariable<C, SC>>,
     pub leaf_challenger: SC::FriChallengerVariable,
-    pub initial_reconstruct_challenger: DuplexChallengerVariable<C>,
+    // pub initial_reconstruct_challenger: DuplexChallengerVariable<C>,
     pub is_complete: Felt<C::F>,
 }
 
@@ -52,7 +52,7 @@ pub struct SP1RecursionWitnessValues<SC: StarkGenericConfig> {
     pub vk: StarkVerifyingKey<SC>,
     pub shard_proofs: Vec<ShardProof<SC>>,
     pub leaf_challenger: SC::Challenger,
-    pub initial_reconstruct_challenger: SC::Challenger,
+    // pub initial_reconstruct_challenger: SC::Challenger,
     pub is_complete: bool,
 }
 
@@ -65,10 +65,10 @@ pub struct SP1RecursiveVerifier<C: Config, SC: BabyBearFriConfig> {
 impl<C, SC> SP1RecursiveVerifier<C, SC>
 where
     SC: BabyBearFriConfigVariable<
-        C,
-        FriChallengerVariable = DuplexChallengerVariable<C>,
-        Digest = [Felt<BabyBear>; DIGEST_SIZE],
-    >,
+            C,
+            FriChallengerVariable = DuplexChallengerVariable<C>,
+            Digest = [Felt<BabyBear>; DIGEST_SIZE],
+        >,
     C: CircuitConfig<F = SC::Val, EF = SC::Challenge, Bit = Felt<BabyBear>>,
     <SC::ValMmcs as Mmcs<BabyBear>>::ProverData<RowMajorMatrix<BabyBear>>: Clone,
 {
@@ -108,7 +108,7 @@ where
             vk,
             shard_proofs,
             leaf_challenger,
-            initial_reconstruct_challenger,
+            // initial_reconstruct_challenger,
             is_complete,
         } = input;
 
@@ -147,8 +147,8 @@ where
 
         // Initialize the challenger variables.
         let leaf_challenger_public_values = leaf_challenger.public_values(builder);
-        let mut reconstruct_challenger: DuplexChallengerVariable<_> =
-            initial_reconstruct_challenger.copy(builder);
+        // let mut reconstruct_challenger: DuplexChallengerVariable<_> =
+        //     initial_reconstruct_challenger.copy(builder);
 
         // Initialize the cumulative sum.
         let mut cumulative_sum: Ext<_, _> = builder.eval(C::EF::zero().cons());
@@ -479,10 +479,10 @@ where
             // builder.range_check_f(public_values.shard, 16);
 
             // Update the reconstruct challenger.
-            reconstruct_challenger.observe(builder, shard_proof.commitment.main_commit);
-            for element in shard_proof.public_values.iter() {
-                reconstruct_challenger.observe(builder, *element);
-            }
+            // reconstruct_challenger.observe(builder, shard_proof.commitment.main_commit);
+            // for element in shard_proof.public_values.iter() {
+            //     reconstruct_challenger.observe(builder, *element);
+            // }
 
             // Cumulative sum is updated by sums of all chips.
             for values in shard_proof.opened_values.chips.iter() {
@@ -496,9 +496,9 @@ where
             let vk_digest = vk.hash(builder);
 
             // Collect the public values for challengers.
-            let initial_challenger_public_values =
-                initial_reconstruct_challenger.public_values(builder);
-            let final_challenger_public_values = reconstruct_challenger.public_values(builder);
+            // let initial_challenger_public_values =
+            //     initial_reconstruct_challenger.public_values(builder);
+            // let final_challenger_public_values = reconstruct_challenger.public_values(builder);
 
             // Collect the cumulative sum.
             let cumulative_sum_array = builder.ext2felt_v2(cumulative_sum);
@@ -530,8 +530,8 @@ where
             recursion_public_values.last_finalize_addr_bits = current_finalize_addr_bits;
             recursion_public_values.sp1_vk_digest = vk_digest;
             recursion_public_values.leaf_challenger = leaf_challenger_public_values;
-            recursion_public_values.start_reconstruct_challenger = initial_challenger_public_values;
-            recursion_public_values.end_reconstruct_challenger = final_challenger_public_values;
+            // recursion_public_values.start_reconstruct_challenger = initial_challenger_public_values;
+            // recursion_public_values.end_reconstruct_challenger = final_challenger_public_values;
             recursion_public_values.cumulative_sum = cumulative_sum_array;
             recursion_public_values.start_reconstruct_deferred_digest = start_deferred_digest;
             recursion_public_values.end_reconstruct_deferred_digest = end_deferred_digest;

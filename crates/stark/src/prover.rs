@@ -84,7 +84,7 @@ pub trait MachineProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>>:
     ) -> (Vec<(String, RowMajorMatrix<Val<SC>>)>, Shape) {
         let mut total_rows = u64::MAX;
         let mut best_shape_index = None;
-        let shard_chips = self.shard_chips(record).collect::<Vec<_>>();
+        let mut shard_chips = self.shard_chips(record).collect::<Vec<_>>();
         // For now, preprocessed traces are not included in the min_rows calculation. Those chips
         // will just have hardcoded 2^22 rows for now.
         let min_rows_map = shard_chips
@@ -134,6 +134,15 @@ pub trait MachineProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>>:
         }
         let shape_index = best_shape_index.expect("no shapes fit");
         let shape = shapes[shape_index].clone();
+
+        for s in shape.shape.iter() {
+            let f = shard_chips.iter().find(|c| c.name() == s.0.clone());
+            if f.is_none() {
+                let chips = self.machine().chips();
+                let c = chips.iter().find(|c| c.name() == s.0.clone());
+                shard_chips.push(c.unwrap());
+            }
+        }
 
         let parent_span = tracing::debug_span!("generate traces for shard");
         (parent_span.in_scope(|| {

@@ -125,13 +125,13 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize, const COL_P
                 _data: PhantomData,
             }),
             RecursionAir::BaseAlu(BaseAluChip { fixed_log2_rows: Some(20), pad: true }),
-            RecursionAir::ExtAlu(ExtAluChip { fixed_log2_rows: Some(21), pad: true }),
+            RecursionAir::ExtAlu(ExtAluChip { fixed_log2_rows: Some(22), pad: true }),
             RecursionAir::Poseidon2Wide(Poseidon2WideChip::<DEGREE> {
                 fixed_log2_rows: Some(17),
                 pad: true,
             }),
             RecursionAir::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE> {
-                fixed_log2_rows: Some(17),
+                fixed_log2_rows: Some(18),
                 pad: true,
             }),
             // RecursionAir::FriFold(FriFoldChip::<DEGREE> { fixed_log2_rows: Some(4), pad: true }),

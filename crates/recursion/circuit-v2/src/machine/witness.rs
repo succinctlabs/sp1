@@ -90,13 +90,13 @@ where
         let vk = self.vk.read(builder);
         let shard_proofs = self.shard_proofs.read(builder);
         let leaf_challenger = self.leaf_challenger.read(builder);
-        let initial_reconstruct_challenger = self.initial_reconstruct_challenger.read(builder);
+        // let initial_reconstruct_challenger = self.initial_reconstruct_challenger.read(builder);
         let is_complete = InnerVal::from_bool(self.is_complete).read(builder);
         SP1RecursionWitnessVariable {
             vk,
             shard_proofs,
             leaf_challenger,
-            initial_reconstruct_challenger,
+            // initial_reconstruct_challenger,
             is_complete,
         }
     }
@@ -106,7 +106,7 @@ where
             Witnessable::<C>::write(&self.vk),
             Witnessable::<C>::write(&self.shard_proofs),
             Witnessable::<C>::write(&self.leaf_challenger),
-            Witnessable::<C>::write(&self.initial_reconstruct_challenger),
+            // Witnessable::<C>::write(&self.initial_reconstruct_challenger),
             Witnessable::<C>::write(&InnerVal::from_bool(self.is_complete)),
         ]
         .concat()
