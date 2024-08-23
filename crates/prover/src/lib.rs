@@ -23,7 +23,11 @@ use std::{
     env,
     num::NonZeroUsize,
     path::Path,
-    sync::{mpsc::sync_channel, Arc, Mutex, OnceLock},
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        mpsc::sync_channel,
+        Arc, Mutex, OnceLock,
+    },
     thread,
 };
 
@@ -116,7 +120,11 @@ pub struct SP1Prover<C: SP1ProverComponents = DefaultProverComponents> {
 
     pub recursion_programs: Mutex<LruCache<SP1RecursionShape, Arc<RecursionProgram<BabyBear>>>>,
 
+    pub recursion_cache_misses: AtomicUsize,
+
     pub compress_programs: Mutex<LruCache<SP1CompressShape, Arc<RecursionProgram<BabyBear>>>>,
+
+    pub compress_cache_misses: AtomicUsize,
 }
 
 impl<C: SP1ProverComponents> SP1Prover<C> {
@@ -166,7 +174,9 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             shrink_prover,
             wrap_prover,
             recursion_programs: Mutex::new(LruCache::new(core_cache_size)),
+            recursion_cache_misses: AtomicUsize::new(0),
             compress_programs: Mutex::new(LruCache::new(compress_cache_size)),
+            compress_cache_misses: AtomicUsize::new(0),
         }
     }
 
@@ -242,7 +252,8 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         let mut cache = self.recursion_programs.lock().unwrap();
         cache
             .get_or_insert(input.shape(), || {
-                tracing::debug!("Core cache miss");
+                let misses = self.recursion_cache_misses.fetch_add(1, Ordering::Relaxed);
+                tracing::debug!("Core cache miss, misses: {}", misses);
                 // Get the operations.
                 let builder_span = tracing::debug_span!("build recursion program").entered();
                 let mut builder = Builder::<InnerConfig>::default();
@@ -268,7 +279,8 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         let mut cache = self.compress_programs.lock().unwrap();
         cache
             .get_or_insert(input.shape(), || {
-                tracing::debug!("Compress cache miss");
+                let misses = self.compress_cache_misses.fetch_add(1, Ordering::Relaxed);
+                tracing::debug!("Compress cache miss, misses: {}", misses);
                 // Get the operations.
                 let builder_span = tracing::debug_span!("build compress program").entered();
                 let mut builder = Builder::<InnerConfig>::default();
