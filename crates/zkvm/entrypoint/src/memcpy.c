@@ -2,7 +2,7 @@
 #include <stdint.h>
 #include <stdio.h>
 
-#define MEMCPY_64 0x00010131
+#define MEMCPY_32 0x00010131
 #define DUMMY_SIZE 1024
 
 void *memcpy(void *restrict dest, const void *restrict src, size_t n)
@@ -24,7 +24,7 @@ void *memcpy(void *restrict dest, const void *restrict src, size_t n)
         "li a2, 32\n"
         "ecall"
         : // No output operands
-        : "r"(MEMCPY_64), "r"(s), "r"(d)
+        : "r"(MEMCPY_32), "r"(s), "r"(d)
         : "t0", "a0", "a1", "a2" // Clobbered registers
         );
     }
@@ -36,7 +36,7 @@ void *memcpy(void *restrict dest, const void *restrict src, size_t n)
         "mv a2, %3\n"
         "ecall"
         : // No output operands
-        : "r"(MEMCPY_64), "r"(s), "r"(d), "r"(n)
+        : "r"(MEMCPY_32), "r"(s), "r"(d), "r"(n)
         : "t0", "a0", "a1", "a2" // Clobbered registers
     );
 

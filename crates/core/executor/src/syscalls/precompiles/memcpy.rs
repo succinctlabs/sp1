@@ -113,6 +113,7 @@ impl<NumWords: ArrayLength + Send + Sync, NumBytes: ArrayLength + Send + Sync> S
             clk: ctx.clk,
             src_ptr: src,
             dst_ptr: dst,
+            nbytes: nbytes as u8,
             read_records: reads,
             write_records: writes,
         };

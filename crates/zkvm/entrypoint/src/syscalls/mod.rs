@@ -142,4 +142,4 @@ pub const BN254_FP2_SUB: u32 = 0x00_01_01_2A;
 /// Executes the `BN254_FP2_MUL` precompile.
 pub const BN254_FP2_MUL: u32 = 0x00_01_01_2B;
 
-pub const MEMCPY_64: u32 = 0x00_01_01_31;
+pub const MEMCPY_32: u32 = 0x00_01_01_31;

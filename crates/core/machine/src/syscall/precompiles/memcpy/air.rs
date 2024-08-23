@@ -17,7 +17,7 @@ use std::{
 
 #[derive(Debug, Clone, AlignedBorrow)]
 #[repr(C)]
-pub struct MemCopyCols<T, NumWords: ArrayLength> {
+pub struct MemCopyCols<T, NumWords: ArrayLength, NumBytes: ArrayLength> {
     is_real: T,
     shard: T,
     channel: T,
@@ -27,6 +27,7 @@ pub struct MemCopyCols<T, NumWords: ArrayLength> {
     dst_ptr: T,
     src_access: GenericArray<MemoryReadCols<T>, NumWords>,
     dst_access: GenericArray<MemoryWriteCols<T>, NumWords>,
+    nbytes: GenericArray<T, NumBytes>,
 }
 
 pub struct MemCopyChip<NumWords: ArrayLength, NumBytes: ArrayLength> {
@@ -34,16 +35,16 @@ pub struct MemCopyChip<NumWords: ArrayLength, NumBytes: ArrayLength> {
 }
 
 impl<NumWords: ArrayLength, NumBytes: ArrayLength> MemCopyChip<NumWords, NumBytes> {
-    const NUM_COLS: usize = core::mem::size_of::<MemCopyCols<u8, NumWords>>();
+    const NUM_COLS: usize = core::mem::size_of::<MemCopyCols<u8, NumWords, NumBytes>>();
 
     pub fn new() -> Self {
-        println!("MemCopyChip<{}> NUM_COLS = {}", NumWords::USIZE, Self::NUM_COLS);
+        println!("MemCopyChip<{}> NUM_COLS = {}", NumBytes::USIZE, Self::NUM_COLS);
         assert_eq!(NumWords::USIZE * 4, NumBytes::USIZE);
         Self { _marker: PhantomData }
     }
 
     pub fn syscall_id() -> u32 {
-        SyscallCode::MEMCPY_64.syscall_id()
+        SyscallCode::MEMCPY_32.syscall_id()
     }
 }
 
@@ -61,12 +62,12 @@ impl<F: PrimeField32, NumWords: ArrayLength + Send + Sync, NumBytes: ArrayLength
     fn generate_trace(&self, input: &Self::Record, output: &mut Self::Record) -> RowMajorMatrix<F> {
         let mut rows = vec![];
         let mut new_byte_lookup_events = vec![];
-        let events = input.memcpy64_events.clone();
+        let events = input.memcpy32_events.clone();
 
         for event in events {
             let mut row = Vec::with_capacity(Self::NUM_COLS);
             row.resize(Self::NUM_COLS, F::zero());
-            let cols: &mut MemCopyCols<F, NumWords> = row.as_mut_slice().borrow_mut();
+            let cols: &mut MemCopyCols<F, NumWords, NumBytes> = row.as_mut_slice().borrow_mut();
 
             cols.is_real = F::one();
             cols.shard = F::from_canonical_u32(event.shard);
@@ -74,6 +75,14 @@ impl<F: PrimeField32, NumWords: ArrayLength + Send + Sync, NumBytes: ArrayLength
             cols.clk = F::from_canonical_u32(event.clk);
             cols.src_ptr = F::from_canonical_u32(event.src_ptr);
             cols.dst_ptr = F::from_canonical_u32(event.dst_ptr);
+
+            for i in 0..NumBytes::USIZE {
+                if event.nbytes == i as u8 {
+                    cols.nbytes[i] = F::one();
+                } else {
+                    cols.nbytes[i] = F::zero();
+                }
+            }
 
             /*
                 cols.nonce = F::from_canonical_u32(
@@ -110,7 +119,7 @@ impl<F: PrimeField32, NumWords: ArrayLength + Send + Sync, NumBytes: ArrayLength
             RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), Self::NUM_COLS);
         // Write the nonces to the trace.
         for i in 0..trace.height() {
-            let cols: &mut MemCopyCols<F, NumWords> =
+            let cols: &mut MemCopyCols<F, NumWords, NumBytes> =
                 trace.values[i * Self::NUM_COLS..(i + 1) * Self::NUM_COLS].borrow_mut();
             //cols.nonce = F::from_canonical_usize(i);
         }
@@ -118,7 +127,7 @@ impl<F: PrimeField32, NumWords: ArrayLength + Send + Sync, NumBytes: ArrayLength
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
-        !shard.memcpy64_events.is_empty()
+        !shard.memcpy32_events.is_empty()
     }
 }
 
@@ -136,10 +145,26 @@ impl<AB: SP1AirBuilder, NumWords: ArrayLength + Sync, NumBytes: ArrayLength + Sy
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
         let row = main.row_slice(0);
-        let row: &MemCopyCols<AB::Var, NumWords> = (*row).borrow();
+        let row: &MemCopyCols<AB::Var, NumWords, NumBytes> = (*row).borrow();
 
-        let src: Limbs<<AB as AirBuilder>::Var, NumBytes> = limbs_from_prev_access(&row.src_access);
-        let dst: Limbs<<AB as AirBuilder>::Var, NumBytes> = limbs_from_access(&row.dst_access);
+        // let src: Limbs<<AB as AirBuilder>::Var, NumBytes> = limbs_from_prev_access(&row.src_access);
+        // let dst: Limbs<<AB as AirBuilder>::Var, NumBytes> = limbs_from_access(&row.dst_access);
+
+        // First, assert that nbytes is less than 32.
+        // Do this by checking that each element in nbytes is binary, then that their sum is
+        // also binary (all 0 is allowed, in the case of nbytes being 0).
+        // for i in 0..NumBytes::USIZE {
+        //     builder.assert_bool(row.nbytes[i]);
+        // }
+
+        // let mut sum = row.nbytes[0].into();
+        // for i in 1..NumBytes::USIZE {
+        //     sum = sum + row.nbytes[i];
+        // }
+
+        // builder.assert_bool(sum);
+
+        // TODO constrain the memory accesses ...
 
         // TODO assert eq
 

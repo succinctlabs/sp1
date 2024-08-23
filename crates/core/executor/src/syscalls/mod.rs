@@ -201,7 +201,7 @@ pub fn default_syscall_map() -> HashMap<SyscallCode, Arc<dyn Syscall>> {
         Arc::new(WeierstrassDecompressSyscall::<Bls12381>::new()),
     );
 
-    syscall_map.insert(SyscallCode::MEMCPY_64, Arc::new(MemCopySyscall::<U16, U64>::new()));
+    syscall_map.insert(SyscallCode::MEMCPY_32, Arc::new(MemCopySyscall::<U8, U32>::new()));
 
     syscall_map
 }
