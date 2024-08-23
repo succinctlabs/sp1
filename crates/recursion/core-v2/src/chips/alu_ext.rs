@@ -3,7 +3,7 @@ use p3_air::{Air, BaseAir, PairBuilder};
 use p3_field::{extension::BinomiallyExtendable, Field, PrimeField32};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use p3_maybe_rayon::prelude::*;
-use sp1_core_machine::utils::{next_power_of_two, pad_to_power_of_two};
+use sp1_core_machine::utils::next_power_of_two;
 use sp1_derive::AlignedBorrow;
 use sp1_stark::air::{ExtensionAirBuilder, MachineAir};
 use std::{borrow::BorrowMut, iter::zip};
@@ -109,12 +109,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for ExtAluChip {
         );
 
         // Convert the trace to a row major matrix.
-        let mut trace = RowMajorMatrix::new(values, NUM_EXT_ALU_PREPROCESSED_COLS);
-
-        // Pad the trace to a power of two.
-        pad_to_power_of_two::<NUM_EXT_ALU_PREPROCESSED_COLS, F>(&mut trace.values);
-
-        Some(trace)
+        Some(RowMajorMatrix::new(values, NUM_EXT_ALU_PREPROCESSED_COLS))
     }
 
     fn generate_dependencies(&self, _: &Self::Record, _: &mut Self::Record) {
