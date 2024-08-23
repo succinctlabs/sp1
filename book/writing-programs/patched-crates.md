@@ -147,7 +147,7 @@ This patch significantly improves the performance of BLS12-381 operations, makin
 | Test                                   | Unpatched Cycles | Patched Cycles | Improvement (x faster) |
 | -------------------------------------- | ---------------- | -------------- | ---------------------- |
 | Verify blob KZG proof                  | 265,322,934      | 27,166,173     | 9.77x                  |
-| Verify blob KZG proof batch            | 265,520,001      | 27,363,240     | 9.70x                  |
+| Verify blob KZG proof batch (10 blobs) | 1,228,277,089    | 196,571,578    | 6.25x                  |
 | Evaluate polynomial in evaluation form | 90,717,711       | 59,370,556     | 1.53x                  |
 | Compute challenge                      | 63,400,511       | 57,341,532     | 1.11x                  |
 | Verify KZG proof                       | 212,708,597      | 9,390,640      | 22.65x                 |
