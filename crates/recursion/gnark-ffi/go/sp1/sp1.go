@@ -116,6 +116,8 @@ func (circuit *Circuit) Define(api frontend.API) error {
 			exts[cs.Args[0][0]] = fieldAPI.MulEF(exts[cs.Args[1][0]], felts[cs.Args[2][0]])
 		case "DivE":
 			exts[cs.Args[0][0]] = fieldAPI.DivE(exts[cs.Args[1][0]], exts[cs.Args[2][0]])
+		case "DivEF":
+			exts[cs.Args[0][0]] = fieldAPI.DivEF(exts[cs.Args[1][0]], felts[cs.Args[2][0]])
 		case "NegE":
 			exts[cs.Args[0][0]] = fieldAPI.NegE(exts[cs.Args[1][0]])
 		case "InvE":

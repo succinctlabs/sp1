@@ -278,6 +278,11 @@ func (c *Chip) DivE(a, b ExtensionVariable) ExtensionVariable {
 	return c.MulE(a, bInv)
 }
 
+func (c *Chip) DivEF(a ExtensionVariable, b Variable) ExtensionVariable {
+	bInv := c.invF(b)
+	return c.MulEF(a, bInv)
+}
+
 func (c *Chip) NegE(a ExtensionVariable) ExtensionVariable {
 	v1 := c.negF(a.Value[0])
 	v2 := c.negF(a.Value[1])

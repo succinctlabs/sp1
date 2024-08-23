@@ -105,7 +105,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize, const COL_P
             RecursionAir::Poseidon2Skinny(Poseidon2SkinnyChip::<DEGREE>::default()),
             // RecursionAir::Poseidon2Wide(Poseidon2WideChip::<DEGREE>::default()),
             RecursionAir::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE>::default()),
-            RecursionAir::FriFold(FriFoldChip::<DEGREE>::default()),
+            // RecursionAir::FriFold(FriFoldChip::<DEGREE>::default()),
             RecursionAir::PublicValues(PublicValuesChip::default()),
         ]
     }
@@ -120,7 +120,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize, const COL_P
             // RecursionAir::Poseidon2Skinny(Poseidon2SkinnyChip::<DEGREE>::default()),
             RecursionAir::Poseidon2Wide(Poseidon2WideChip::<DEGREE>::default()),
             RecursionAir::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE>::default()),
-            RecursionAir::FriFold(FriFoldChip::<DEGREE>::default()),
+            // RecursionAir::FriFold(FriFoldChip::<DEGREE>::default()),
             RecursionAir::PublicValues(PublicValuesChip::default()),
         ]
     }
@@ -145,10 +145,10 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize, const COL_P
                 fixed_log2_rows: Some(erbl_padding),
                 pad: true,
             }),
-            RecursionAir::FriFold(FriFoldChip::<DEGREE> {
-                fixed_log2_rows: Some(fri_fold_padding),
-                pad: true,
-            }),
+            // RecursionAir::FriFold(FriFoldChip::<DEGREE> {
+            //     fixed_log2_rows: Some(fri_fold_padding),
+            //     pad: true,
+            // }),
             RecursionAir::PublicValues(PublicValuesChip::default()),
         ]
     }

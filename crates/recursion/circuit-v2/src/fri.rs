@@ -4,7 +4,7 @@ use p3_commit::PolynomialSpace;
 use p3_field::{AbstractField, TwoAdicField};
 use p3_fri::FriConfig;
 use p3_util::log2_strict_usize;
-use sp1_recursion_compiler::ir::{Builder, DslIr, Felt, SymbolicExt, SymbolicFelt};
+use sp1_recursion_compiler::ir::{Builder, DslIr, Felt, SymbolicExt};
 use std::{
     cmp::Reverse,
     iter::{once, repeat_with, zip},
@@ -232,9 +232,14 @@ pub fn verify_query<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVariable
     let mut folded_eval: Ext<_, _> = builder.constant(C::EF::zero());
     let two_adic_generator: Felt<_> = builder.constant(C::F::two_adic_generator(log_max_height));
 
-    let x_felt =
+    // TODO: fix expreversebits address bug to avoid needing to allocate a new variable.
+    let x_f =
         C::exp_reverse_bits(builder, two_adic_generator, index_bits[..log_max_height].to_vec());
-    let mut x: Ext<_, _> = builder.eval(SymbolicExt::one() * SymbolicFelt::from(x_felt));
+    let mut x = builder.uninit();
+    builder.operations.push(DslIr::AddFI(x, x_f, C::F::zero()));
+
+    // let mut x = builder.eval(x + C::F::zero());
+    // let mut x: Ext<_, _> = builder.eval(SymbolicExt::one() * SymbolicFelt::from(x_felt));
 
     for (offset, log_folded_height, commit, step, beta) in izip!(
         0..,
@@ -271,8 +276,8 @@ pub fn verify_query<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVariable
             step.opening_proof.clone(),
         );
 
-        let xs_new: Ext<_, _> = builder.eval(x * C::EF::two_adic_generator(1));
-        let xs = C::select_chain_ef(builder, index_sibling_complement, once(x), once(xs_new));
+        let xs_new: Felt<_> = builder.eval(x * C::F::two_adic_generator(1));
+        let xs = C::select_chain_f(builder, index_sibling_complement, once(x), once(xs_new));
 
         // Unroll the `folded_eval` calculation to avoid symbolic expression overhead.
         // folded_eval = builder
@@ -280,8 +285,8 @@ pub fn verify_query<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVariable
         // x = builder.eval(x * x);
 
         // let temp_1 = xs[1] - xs[0];
-        let temp_1: Ext<_, _> = builder.uninit();
-        builder.operations.push(DslIr::SubE(temp_1, xs[1], xs[0]));
+        let temp_1: Felt<_> = builder.uninit();
+        builder.operations.push(DslIr::SubF(temp_1, xs[1], xs[0]));
 
         // let temp_2 = evals_ext[1] - evals_ext[0];
         let temp_2: Ext<_, _> = builder.uninit();
@@ -289,11 +294,11 @@ pub fn verify_query<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVariable
 
         // let temp_3 = temp_2 / temp_1;
         let temp_3: Ext<_, _> = builder.uninit();
-        builder.operations.push(DslIr::DivE(temp_3, temp_2, temp_1));
+        builder.operations.push(DslIr::DivEF(temp_3, temp_2, temp_1));
 
         // let temp_4 = beta - xs[0];
         let temp_4: Ext<_, _> = builder.uninit();
-        builder.operations.push(DslIr::SubE(temp_4, *beta, xs[0]));
+        builder.operations.push(DslIr::SubEF(temp_4, *beta, xs[0]));
 
         // let temp_5 = temp_4 * temp_3;
         let temp_5: Ext<_, _> = builder.uninit();
@@ -306,8 +311,8 @@ pub fn verify_query<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVariable
         folded_eval = temp_6;
 
         // let temp_7 = x * x;
-        let temp_7: Ext<_, _> = builder.uninit();
-        builder.operations.push(DslIr::MulE(temp_7, x, x));
+        let temp_7: Felt<_> = builder.uninit();
+        builder.operations.push(DslIr::MulF(temp_7, x, x));
         // x = temp_7;
         x = temp_7;
     }

@@ -131,6 +131,14 @@ pub trait CircuitConfig: Config {
     ) -> Felt<<Self as Config>::F>;
 
     #[allow(clippy::type_complexity)]
+    fn select_chain_f(
+        builder: &mut Builder<Self>,
+        should_swap: Self::Bit,
+        first: impl IntoIterator<Item = Felt<<Self as Config>::F>> + Clone,
+        second: impl IntoIterator<Item = Felt<<Self as Config>::F>> + Clone,
+    ) -> Vec<Felt<<Self as Config>::F>>;
+
+    #[allow(clippy::type_complexity)]
     fn select_chain_ef(
         builder: &mut Builder<Self>,
         should_swap: Self::Bit,
@@ -182,6 +190,22 @@ impl CircuitConfig for InnerConfig {
         bits: impl IntoIterator<Item = Felt<<Self as Config>::F>>,
     ) -> Felt<<Self as Config>::F> {
         builder.bits2num_v2_f(bits)
+    }
+
+    fn select_chain_f(
+        builder: &mut Builder<Self>,
+        should_swap: Self::Bit,
+        first: impl IntoIterator<Item = Felt<<Self as Config>::F>> + Clone,
+        second: impl IntoIterator<Item = Felt<<Self as Config>::F>> + Clone,
+    ) -> Vec<Felt<<Self as Config>::F>> {
+        let one: Felt<_> = builder.constant(Self::F::one());
+        let shouldnt_swap: Felt<_> = builder.eval(one - should_swap);
+
+        let id_branch = first.clone().into_iter().chain(second.clone());
+        let swap_branch = second.into_iter().chain(first);
+        zip(zip(id_branch, swap_branch), zip(repeat(shouldnt_swap), repeat(should_swap)))
+            .map(|((id_v, sw_v), (id_c, sw_c))| builder.eval(id_v * id_c + sw_v * sw_c))
+            .collect()
     }
 
     fn select_chain_ef(
@@ -265,6 +289,23 @@ impl CircuitConfig for OuterConfig {
             builder.assign(result, result + to_add);
         }
         result
+    }
+
+    fn select_chain_f(
+        builder: &mut Builder<Self>,
+        should_swap: Self::Bit,
+        first: impl IntoIterator<Item = Felt<<Self as Config>::F>> + Clone,
+        second: impl IntoIterator<Item = Felt<<Self as Config>::F>> + Clone,
+    ) -> Vec<Felt<<Self as Config>::F>> {
+        let id_branch = first.clone().into_iter().chain(second.clone());
+        let swap_branch = second.into_iter().chain(first);
+        zip(id_branch, swap_branch)
+            .map(|(id_v, sw_v): (Felt<_>, Felt<_>)| -> Felt<_> {
+                let result: Felt<_> = builder.uninit();
+                builder.operations.push(DslIr::CircuitSelectF(should_swap, sw_v, id_v, result));
+                result
+            })
+            .collect()
     }
 
     fn select_chain_ef(

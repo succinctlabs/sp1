@@ -225,6 +225,10 @@ impl<C: Config + Debug> ConstraintCompiler<C> {
                         args: vec![vec![a.id()], vec![tmp], vec![c.id()]],
                     });
                 }
+                DslIr::DivEF(a, b, c) => constraints.push(Constraint {
+                    opcode: ConstraintOpcode::DivEF,
+                    args: vec![vec![a.id()], vec![b.id()], vec![c.id()]],
+                }),
                 DslIr::DivE(a, b, c) => constraints.push(Constraint {
                     opcode: ConstraintOpcode::DivE,
                     args: vec![vec![a.id()], vec![b.id()], vec![c.id()]],
