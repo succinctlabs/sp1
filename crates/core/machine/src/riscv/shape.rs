@@ -138,7 +138,7 @@ fn core_proof_shapes<F: PrimeField32>() -> Vec<Shape> {
             shape: HashMap::from([
                 (cpu.name(), 21),
                 (add_sub.name(), 21),
-                (mul.name(), 19),
+                (mul.name(), 20),
                 (lt.name(), 19),
                 (div_rem.name(), 18),
                 (shift_left.name(), 18),
