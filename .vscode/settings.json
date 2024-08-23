@@ -15,7 +15,6 @@
         "--message-format=json",
         "--all-features",
         "--all-targets",
-        // "-p sp1-recursion-circuit-v2",
         "--",
         "-A",
         "incomplete-features"
