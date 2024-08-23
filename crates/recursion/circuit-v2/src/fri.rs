@@ -508,12 +508,10 @@ pub(crate) fn next_index_in_coset<C: CircuitConfig>(
 ) -> Vec<C::Bit> {
     // TODO better names.
     let len = index.len();
-    println!("len: {}", len);
     let rev_index = index.iter().rev().copied().collect_vec();
     let mut result = C::bits2num(builder, rev_index);
     result = builder.eval(result + C::F::one());
     let bits = C::num2bits(builder, result, len + 1);
-    println!("New len: {}", bits.len());
     let mut result_bits = bits[..len].to_vec();
     result_bits.reverse();
     result_bits
@@ -869,7 +867,7 @@ mod tests {
     #[test]
     fn test_verify_two_adic_pcs_inner() {
         let mut rng = StdRng::seed_from_u64(0xDEADBEEF);
-        let log_degrees = &[19, 19];
+        let log_degrees = &[19, 18, 17];
         let perm = inner_perm();
         let fri_config = inner_fri_config();
         let hash = InnerHash::new(perm.clone());
