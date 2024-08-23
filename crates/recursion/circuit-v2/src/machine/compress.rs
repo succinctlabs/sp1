@@ -65,7 +65,7 @@ pub struct SP1CompressShape {
 impl<C, SC, A> SP1CompressVerifier<C, SC, A>
 where
     SC: BabyBearFriConfigVariable<C>,
-    C: CircuitConfig<F = SC::Val, EF = SC::Challenge, Bit = Felt<BabyBear>>,
+    C: CircuitConfig<F = SC::Val, EF = SC::Challenge>,
     <SC::ValMmcs as Mmcs<BabyBear>>::ProverData<RowMajorMatrix<BabyBear>>: Clone,
     A: MachineAir<SC::Val> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, C>>,
 {
