@@ -1,6 +1,7 @@
 use anyhow::Result;
+use sp1_core_machine::io::SP1Stdin;
 use sp1_cuda::SP1CudaProver;
-use sp1_prover::{components::DefaultProverComponents, SP1Prover, SP1Stdin};
+use sp1_prover::{components::DefaultProverComponents, SP1Prover, SP1ReduceProof};
 
 use super::ProverType;
 use crate::{
@@ -58,14 +59,21 @@ impl Prover<DefaultProverComponents> for CudaProver {
             });
         }
 
-        let deferred_proofs = stdin.proofs.iter().map(|p| p.0.clone()).collect();
+        let deferred_proofs = stdin
+            .proofs
+            .iter()
+            .map(|(reduce_vk, reduce_proof, _)| SP1ReduceProof {
+                vk: reduce_vk.clone(),
+                proof: reduce_proof.clone(),
+            })
+            .collect();
         let public_values = proof.public_values.clone();
 
         // Generate the compressed proof.
         let reduce_proof = self.cuda_prover.compress(&pk.vk, proof, deferred_proofs)?;
         if kind == SP1ProofKind::Compressed {
             return Ok(SP1ProofWithPublicValues {
-                proof: SP1Proof::Compressed(reduce_proof.proof),
+                proof: SP1Proof::Compressed(reduce_proof),
                 stdin,
                 public_values,
                 sp1_version: self.version().to_string(),
@@ -80,7 +88,7 @@ impl Prover<DefaultProverComponents> for CudaProver {
 
         let plonk_bn254_aritfacts = if sp1_prover::build::sp1_dev_mode() {
             sp1_prover::build::try_build_plonk_bn254_artifacts_dev(
-                self.prover.wrap_vk(),
+                &outer_proof.vk,
                 &outer_proof.proof,
             )
         } else {

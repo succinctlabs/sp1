@@ -25,18 +25,13 @@ pub enum RecursionAir<
     const DEGREE: usize,
     const COL_PADDING: usize,
 > {
-    // Program(ProgramChip<F>),
     MemoryConst(MemoryConstChip<F>),
     MemoryVar(MemoryVarChip<F>),
     BaseAlu(BaseAluChip),
     ExtAlu(ExtAluChip),
-    // Cpu(CpuChip<F, DEGREE>),
-    // MemoryGlobal(MemoryGlobalChip),
     Poseidon2Skinny(Poseidon2SkinnyChip<DEGREE>),
     Poseidon2Wide(Poseidon2WideChip<DEGREE>),
     FriFold(FriFoldChip<DEGREE>),
-    // RangeCheck(RangeCheckChip<F>),
-    // Multi(MultiChip<DEGREE>),
     ExpReverseBitsLen(ExpReverseBitsLenChip<DEGREE>),
     PublicValues(PublicValuesChip),
     DummyWide(DummyChip<COL_PADDING>),
@@ -103,9 +98,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize, const COL_P
             RecursionAir::BaseAlu(BaseAluChip::default()),
             RecursionAir::ExtAlu(ExtAluChip::default()),
             RecursionAir::Poseidon2Skinny(Poseidon2SkinnyChip::<DEGREE>::default()),
-            // RecursionAir::Poseidon2Wide(Poseidon2WideChip::<DEGREE>::default()),
             RecursionAir::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE>::default()),
-            // RecursionAir::FriFold(FriFoldChip::<DEGREE>::default()),
             RecursionAir::PublicValues(PublicValuesChip::default()),
         ]
     }
@@ -117,16 +110,14 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize, const COL_P
             RecursionAir::MemoryVar(MemoryVarChip::default()),
             RecursionAir::BaseAlu(BaseAluChip::default()),
             RecursionAir::ExtAlu(ExtAluChip::default()),
-            // RecursionAir::Poseidon2Skinny(Poseidon2SkinnyChip::<DEGREE>::default()),
             RecursionAir::Poseidon2Wide(Poseidon2WideChip::<DEGREE>::default()),
             RecursionAir::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE>::default()),
-            // RecursionAir::FriFold(FriFoldChip::<DEGREE>::default()),
             RecursionAir::PublicValues(PublicValuesChip::default()),
         ]
     }
 
     pub fn get_all_with_padding(
-        fri_fold_padding: usize,
+        _fri_fold_padding: usize,
         poseidon2_padding: usize,
         erbl_padding: usize,
     ) -> Vec<Self> {

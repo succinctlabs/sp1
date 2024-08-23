@@ -41,7 +41,7 @@ type OuterDigestVariable = [Var<<OuterC as Config>::N>; DIGEST_SIZE];
 /// A function to build the circuit for the final wrap layer using the architecture of core-v2.
 ///
 /// For now, the witnessing logic is not implemented and we just witness via constant proof variables.
-pub fn build_wrap_circuit_v2<F, const DEGREE: usize>(
+pub fn build_wrap_circuit_v2_with<F, const DEGREE: usize>(
     wrap_vk: &StarkVerifyingKey<OuterSC>,
     template_proof: ShardProof<OuterSC>,
     outer_machine: StarkMachine<BabyBearPoseidon2Outer, RecursionAir<BabyBear, DEGREE, 0>>,
@@ -379,7 +379,7 @@ pub mod tests {
         Digest, TwoAdicPcsMatsVariable, TwoAdicPcsRoundVariable,
     };
 
-    use super::{build_wrap_circuit_v2, const_two_adic_pcs_proof};
+    use super::{build_wrap_circuit_v2_with, const_two_adic_pcs_proof};
 
     fn test_machine<F, const DEGREE: usize>(machine_maker: F)
     where
@@ -408,8 +408,11 @@ pub mod tests {
         let result = run_test_machine(vec![runtime.record], machine, pk, vk.clone()).unwrap();
 
         let machine = machine_maker();
-        let constraints =
-            build_wrap_circuit_v2::<BabyBear, DEGREE>(&vk, result.shard_proofs[0].clone(), machine);
+        let constraints = build_wrap_circuit_v2_with::<BabyBear, DEGREE>(
+            &vk,
+            result.shard_proofs[0].clone(),
+            machine,
+        );
 
         let pv: &RecursionPublicValues<_> =
             result.shard_proofs[0].public_values.as_slice().borrow();

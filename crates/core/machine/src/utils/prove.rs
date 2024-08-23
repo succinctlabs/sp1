@@ -129,7 +129,7 @@ where
     let mut runtime = Executor::with_context(program.clone(), opts, context);
     runtime.write_vecs(&stdin.buffer);
     for proof in stdin.proofs.iter() {
-        runtime.write_proof(proof.0.clone(), proof.1.clone());
+        runtime.write_proof(proof.0.clone(), proof.1.clone(), proof.2.clone());
     }
 
     #[cfg(feature = "debug")]

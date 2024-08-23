@@ -111,6 +111,12 @@ where
             array::from_fn(|_| unsafe { MaybeUninit::zeroed().assume_init() });
         let mut pc: Felt<_> = unsafe { MaybeUninit::zeroed().assume_init() };
         let mut shard: Felt<_> = unsafe { MaybeUninit::zeroed().assume_init() };
+
+        let compress_vk_digest: [Felt<_>; DIGEST_SIZE] =
+            array::from_fn(|_| builder.eval(C::F::zero()));
+
+        let mut exit_code: Felt<_> = builder.uninit();
+
         let mut execution_shard: Felt<_> = unsafe { MaybeUninit::zeroed().assume_init() };
         let mut initial_reconstruct_challenger_values: ChallengerPublicValues<Felt<C::F>> =
             unsafe { uninit_challenger_pv(builder) };
@@ -154,6 +160,9 @@ where
             // Get the current public values.
             let current_public_values: &RecursionPublicValues<Felt<C::F>> =
                 shard_proof.public_values.as_slice().borrow();
+
+            // Set the exit code, it is already constrained to be zero in the previous proof.
+            exit_code = current_public_values.exit_code;
 
             if i == 0 {
                 // Initialize global and accumulated values.
@@ -213,7 +222,7 @@ where
                 // Initialize the leaf challenger public values.
                 leaf_challenger_values = current_public_values.leaf_challenger;
                 // Initialize the reconstruct challenger public values.
-                reconstruct_challenger_values = current_public_values.start_reconstruct_challenger;
+
                 // Initialize the initial reconstruct challenger public values.
                 initial_reconstruct_challenger_values =
                     current_public_values.start_reconstruct_challenger;
@@ -441,8 +450,12 @@ where
         compress_public_values.cumulative_sum = cumulative_sum;
         // Assign the `is_complete` flag.
         compress_public_values.is_complete = is_complete;
+        // Set the compress vk digest.
+        compress_public_values.compress_vk_digest = compress_vk_digest;
         // TODO: set the digest according to the previous values.
         compress_public_values.digest = array::from_fn(|_| builder.eval(C::F::zero()));
+        // Set the exit code.
+        compress_public_values.exit_code = exit_code;
 
         // // If the proof is complete, make completeness assertions and set the flag. Otherwise, check
         // // the flag is zero and set the public value to zero.

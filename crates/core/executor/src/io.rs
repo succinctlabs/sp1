@@ -35,10 +35,11 @@ impl<'a> Executor<'a> {
     /// Write a proof and verifying key to the proof stream.
     pub fn write_proof(
         &mut self,
+        reduce_vk: StarkVerifyingKey<BabyBearPoseidon2>,
         proof: ShardProof<BabyBearPoseidon2>,
         vk: StarkVerifyingKey<BabyBearPoseidon2>,
     ) {
-        self.state.proof_stream.push((proof, vk));
+        self.state.proof_stream.push((reduce_vk, proof, vk));
     }
 
     /// Read a serializable public values from the public values stream.

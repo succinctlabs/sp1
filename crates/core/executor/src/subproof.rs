@@ -16,6 +16,7 @@ pub trait SubproofVerifier: Sync + Send {
     /// Verify a deferred proof.
     fn verify_deferred_proof(
         &self,
+        reduce_vk: &StarkVerifyingKey<BabyBearPoseidon2>,
         proof: &ShardProof<BabyBearPoseidon2>,
         vk: &StarkVerifyingKey<BabyBearPoseidon2>,
         vk_hash: [u32; 8],
@@ -40,6 +41,7 @@ impl DefaultSubproofVerifier {
 impl SubproofVerifier for DefaultSubproofVerifier {
     fn verify_deferred_proof(
         &self,
+        _reduce_vk: &StarkVerifyingKey<BabyBearPoseidon2>,
         _proof: &ShardProof<BabyBearPoseidon2>,
         _vk: &StarkVerifyingKey<BabyBearPoseidon2>,
         _vk_hash: [u32; 8],
@@ -59,6 +61,7 @@ pub struct NoOpSubproofVerifier;
 impl SubproofVerifier for NoOpSubproofVerifier {
     fn verify_deferred_proof(
         &self,
+        _reduce_vk: &StarkVerifyingKey<BabyBearPoseidon2>,
         _proof: &ShardProof<BabyBearPoseidon2>,
         _vk: &StarkVerifyingKey<BabyBearPoseidon2>,
         _vk_hash: [u32; 8],

@@ -356,7 +356,7 @@ impl BabyBearFriConfig for BabyBearPoseidon2Outer {
         self.pcs().fri_config()
     }
 
-    fn challenger_shape(challenger: &Self::FriChallenger) -> SpongeChallengerShape {
+    fn challenger_shape(_challenger: &Self::FriChallenger) -> SpongeChallengerShape {
         unimplemented!("Shape not supported for outer fri challenger");
         // SpongeChallengerShape {
         //     input_buffer_len: challenger.input_buffer.len(),

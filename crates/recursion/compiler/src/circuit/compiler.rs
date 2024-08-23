@@ -715,25 +715,25 @@ impl_reg_borrowed!(&mut T);
 impl_reg_borrowed!(Box<T>);
 
 macro_rules! impl_reg_vaddr {
-    ($a:ty, $offset:expr) => {
+    ($a:ty) => {
         impl<C: Config<F: PrimeField64>> Reg<C> for $a {
             fn read(&self, compiler: &mut AsmCompiler<C>) -> Address<C::F> {
-                compiler.read_vaddr(self.0 as usize * 3 + $offset)
+                compiler.read_vaddr(self.0 as usize)
             }
             fn read_ghost(&self, compiler: &mut AsmCompiler<C>) -> Address<C::F> {
-                compiler.read_ghost_vaddr(self.0 as usize * 3 + $offset)
+                compiler.read_ghost_vaddr(self.0 as usize)
             }
             fn write(&self, compiler: &mut AsmCompiler<C>) -> Address<C::F> {
-                compiler.write_fp(self.0 as usize * 3 + $offset)
+                compiler.write_fp(self.0 as usize)
             }
         }
     };
 }
 
-// These three types have `.fp()` but they don't share a trait.
-impl_reg_vaddr!(Var<C::F>, 1);
-impl_reg_vaddr!(Felt<C::F>, 2);
-impl_reg_vaddr!(Ext<C::F, C::EF>, 0);
+// These three types wrap a `u32` but they don't share a trait.
+impl_reg_vaddr!(Var<C::F>);
+impl_reg_vaddr!(Felt<C::F>);
+impl_reg_vaddr!(Ext<C::F, C::EF>);
 
 impl<C: Config<F: PrimeField64>> Reg<C> for Imm<C::F, C::EF> {
     fn read(&self, compiler: &mut AsmCompiler<C>) -> Address<C::F> {
