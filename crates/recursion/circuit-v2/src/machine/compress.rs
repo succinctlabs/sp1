@@ -58,8 +58,7 @@ pub struct SP1CompressWitnessValues<SC: StarkGenericConfig> {
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SP1CompressShape {
-    pub proof_shapes: Vec<ProofShape>,
-    // pub is_complete: bool,
+    proof_shapes: Vec<ProofShape>,
 }
 
 impl<C, SC, A> SP1CompressVerifier<C, SC, A>
