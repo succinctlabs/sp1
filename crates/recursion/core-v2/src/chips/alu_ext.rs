@@ -71,15 +71,27 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for ExtAluChip {
     }
 
     fn generate_preprocessed_trace(&self, program: &Self::Program) -> Option<RowMajorMatrix<F>> {
-        let rows = program
+        // Allocating an intermediate `Vec` is faster.
+        let instrs = program
             .instructions
-            .par_iter()
-            .by_uniform_blocks(program.instructions.len().div_ceil(num_cpus::get()))
-            .filter_map(|instruction| {
-                let Instruction::ExtAlu(ExtAluInstr { opcode, mult, addrs }) = instruction else {
-                    return None;
-                };
-                let mut access = ExtAluAccessCols {
+            .iter() // Faster than using `rayon` for some reason. Maybe vectorization?
+            .filter_map(|instruction| match instruction {
+                Instruction::ExtAlu(x) => Some(x),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+
+        let nb_events = instrs.len();
+        let nb_rows = nb_events.div_ceil(NUM_EXT_ALU_ENTRIES_PER_ROW);
+        let padded_nb_rows = next_power_of_two(nb_rows, None);
+        let mut values = vec![F::zero(); padded_nb_rows * NUM_EXT_ALU_PREPROCESSED_COLS];
+        // Generate the trace rows & corresponding records for each chunk of events in parallel.
+        let populate_len = nb_events * NUM_EXT_ALU_ACCESS_COLS;
+        values[..populate_len].par_chunks_mut(NUM_EXT_ALU_ACCESS_COLS).zip_eq(instrs).for_each(
+            |(row, instr)| {
+                let ExtAluInstr { opcode, mult, addrs } = instr;
+                let access: &mut ExtAluAccessCols<_> = row.borrow_mut();
+                *access = ExtAluAccessCols {
                     addrs: addrs.to_owned(),
                     is_add: F::from_bool(false),
                     is_sub: F::from_bool(false),
@@ -94,18 +106,11 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for ExtAluChip {
                     ExtAluOpcode::DivE => &mut access.is_div,
                 };
                 *target_flag = F::from_bool(true);
-
-                Some({
-                    let mut row = [F::zero(); NUM_EXT_ALU_ACCESS_COLS];
-                    *row.as_mut_slice().borrow_mut() = access;
-                    row
-                })
-            })
-            .flatten_iter()
-            .collect::<Vec<_>>();
+            },
+        );
 
         // Convert the trace to a row major matrix.
-        let mut trace = RowMajorMatrix::new(rows, NUM_EXT_ALU_PREPROCESSED_COLS);
+        let mut trace = RowMajorMatrix::new(values, NUM_EXT_ALU_PREPROCESSED_COLS);
 
         // Pad the trace to a power of two.
         pad_to_power_of_two::<NUM_EXT_ALU_PREPROCESSED_COLS, F>(&mut trace.values);
