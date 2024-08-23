@@ -299,6 +299,26 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             .clone()
     }
 
+    pub fn shrink_program(
+        &self,
+        input: &SP1CompressWitnessValues<CoreSC>,
+    ) -> Arc<RecursionProgram<BabyBear>> {
+        // Get the operations.
+        let builder_span = tracing::debug_span!("build compress program").entered();
+        let mut builder = Builder::<InnerConfig>::default();
+        let input = input.read(&mut builder);
+        SP1CompressVerifier::verify(&mut builder, self.shrink_prover.machine(), input);
+        let operations = builder.operations;
+        builder_span.exit();
+
+        // Compile the program.
+        let compiler_span = tracing::debug_span!("compile compress program").entered();
+        let mut compiler = AsmCompiler::<InnerConfig>::default();
+        let program = Arc::new(compiler.compile(operations));
+        compiler_span.exit();
+        program
+    }
+
     // pub fn defered_program(
     //     &self,
     //     input: &SP1DeferredWitnessValues<InnerSC>,
@@ -766,50 +786,50 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         Ok(SP1ReduceProof { vk, proof })
     }
 
-    // /// Wrap a reduce proof into a STARK proven over a SNARK-friendly field.
-    // #[instrument(name = "shrink", level = "info", skip_all)]
-    // pub fn shrink(
-    //     &self,
-    //     reduced_proof: SP1ReduceProof<InnerSC>,
-    //     opts: SP1ProverOpts,
-    // ) -> Result<SP1ReduceProof<InnerSC>, SP1RecursionProverError> {
-    //     // Make the compress proof.
-    //     let input = SP1RootMemoryLayout {
-    //         machine: self.compress_prover.machine(),
-    //         proof: reduced_proof.proof,
-    //         is_reduce: true,
-    //     };
+    /// Wrap a reduce proof into a STARK proven over a SNARK-friendly field.
+    #[instrument(name = "shrink", level = "info", skip_all)]
+    pub fn shrink(
+        &self,
+        reduced_proof: SP1ReduceProof<InnerSC>,
+        opts: SP1ProverOpts,
+    ) -> Result<SP1ReduceProof<InnerSC>, SP1RecursionProverError> {
+        // Make the compress proof.
+        let SP1ReduceProof { vk: compressed_vk, proof: compressed_proof } = reduced_proof;
+        let input = SP1CompressWitnessValues {
+            vks_and_proofs: vec![(compressed_vk, compressed_proof)],
+            is_complete: true,
+        };
 
-    //     // Run the compress program.
-    //     let mut runtime = RecursionRuntime::<Val<InnerSC>, Challenge<InnerSC>, _>::new(
-    //         self.shrink_program(),
-    //         self.shrink_prover.config().perm.clone(),
-    //     );
+        let program = self.compress_program(&input);
 
-    //     let mut witness_stream = Vec::new();
-    //     witness_stream.extend(input.write());
+        // Run the compress program.
+        let mut runtime = RecursionRuntime::<Val<InnerSC>, Challenge<InnerSC>, _>::new(
+            program.clone(),
+            self.shrink_prover.config().perm.clone(),
+        );
 
-    //     runtime.witness_stream = witness_stream.into();
+        let mut witness_stream = Vec::new();
+        Witnessable::<InnerConfig>::write(&input, &mut witness_stream);
 
-    //     runtime.run().map_err(|e| SP1RecursionProverError::RuntimeError(e.to_string()))?;
+        runtime.witness_stream = witness_stream.into();
 
-    //     runtime.print_stats();
-    //     tracing::debug!("Compress program executed successfully");
+        runtime.run().map_err(|e| SP1RecursionProverError::RuntimeError(e.to_string()))?;
 
-    //     // Prove the compress program.
-    //     let mut compress_challenger = self.shrink_prover.config().challenger();
-    //     let mut compress_proof = self
-    //         .shrink_prover
-    //         .prove(
-    //             self.shrink_pk(),
-    //             vec![runtime.record],
-    //             &mut compress_challenger,
-    //             opts.recursion_opts,
-    //         )
-    //         .unwrap();
+        runtime.print_stats();
+        tracing::debug!("Shrink program executed successfully");
 
-    //     Ok(SP1ReduceProof { proof: compress_proof.shard_proofs.pop().unwrap() })
-    // }
+        let (shrink_pk, shrink_vk) =
+            tracing::debug_span!("setup shrink").in_scope(|| self.shrink_prover.setup(&program));
+
+        // Prove the compress program.
+        let mut compress_challenger = self.shrink_prover.config().challenger();
+        let mut compress_proof = self
+            .shrink_prover
+            .prove(&shrink_pk, vec![runtime.record], &mut compress_challenger, opts.recursion_opts)
+            .unwrap();
+
+        Ok(SP1ReduceProof { vk: shrink_vk, proof: compress_proof.shard_proofs.pop().unwrap() })
+    }
 
     /// Wrap a reduce proof into a STARK proven over a SNARK-friendly field.
     #[instrument(name = "wrap_bn254", level = "info", skip_all)]
@@ -824,7 +844,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             is_complete: true,
         };
 
-        let program = self.compress_program(&input);
+        let program = self.shrink_program(&input);
 
         // Run the compress program.
         let mut runtime = RecursionRuntime::<Val<InnerSC>, Challenge<InnerSC>, _>::new(
@@ -869,34 +889,34 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         Ok(SP1ReduceProof { vk: wrap_vk, proof: wrap_proof.shard_proofs.pop().unwrap() })
     }
 
-    // /// Wrap the STARK proven over a SNARK-friendly field into a PLONK proof.
-    // #[instrument(name = "wrap_plonk_bn254", level = "info", skip_all)]
-    // pub fn wrap_plonk_bn254(
-    //     &self,
-    //     proof: SP1ReduceProof<OuterSC>,
-    //     build_dir: &Path,
-    // ) -> PlonkBn254Proof {
-    //     let vkey_digest = proof.sp1_vkey_digest_bn254();
-    //     let commited_values_digest = proof.sp1_commited_values_digest_bn254();
+    /// Wrap the STARK proven over a SNARK-friendly field into a PLONK proof.
+    #[instrument(name = "wrap_plonk_bn254", level = "info", skip_all)]
+    pub fn wrap_plonk_bn254(
+        &self,
+        proof: SP1ReduceProof<OuterSC>,
+        build_dir: &Path,
+    ) -> PlonkBn254Proof {
+        let vkey_digest = proof.sp1_vkey_digest_bn254();
+        let commited_values_digest = proof.sp1_commited_values_digest_bn254();
 
-    //     let mut witness = Witness::default();
-    //     proof.proof.write(&mut witness);
-    //     witness.write_commited_values_digest(commited_values_digest);
-    //     witness.write_vkey_hash(vkey_digest);
+        let mut witness = Witness::default();
+        proof.proof.write(&mut witness);
+        witness.write_commited_values_digest(commited_values_digest);
+        witness.write_vkey_hash(vkey_digest);
 
-    //     let prover = PlonkBn254Prover::new();
-    //     let proof = prover.prove(witness, build_dir.to_path_buf());
+        let prover = PlonkBn254Prover::new();
+        let proof = prover.prove(witness, build_dir.to_path_buf());
 
-    //     // Verify the proof.
-    //     prover.verify(
-    //         &proof,
-    //         &vkey_digest.as_canonical_biguint(),
-    //         &commited_values_digest.as_canonical_biguint(),
-    //         build_dir,
-    //     );
+        // Verify the proof.
+        prover.verify(
+            &proof,
+            &vkey_digest.as_canonical_biguint(),
+            &commited_values_digest.as_canonical_biguint(),
+            build_dir,
+        );
 
-    //     proof
-    // }
+        proof
+    }
 
     // /// Wrap the STARK proven over a SNARK-friendly field into a Groth16 proof.
     // #[instrument(name = "wrap_groth16_bn254", level = "info", skip_all)]
@@ -1020,10 +1040,8 @@ pub mod tests {
             return Ok(());
         }
 
-        // tracing::info!("shrink");
-        // let shrink_proof = prover.shrink(compressed_proof, opts)?;
-
-        let shrink_proof = compressed_proof;
+        tracing::info!("shrink");
+        let shrink_proof = prover.shrink(compressed_proof, opts)?;
 
         tracing::info!("verify shrink");
         prover.verify_shrink(&shrink_proof, &vk)?;
