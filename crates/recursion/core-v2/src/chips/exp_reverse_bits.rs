@@ -115,8 +115,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for ExpReverseBitsLenCh
                     row.is_first = F::from_bool(i == 0);
                     row.is_last = F::from_bool(i == addrs.exp.len() - 1);
                     row.is_real = F::one();
-                    row.x_mem =
-                        MemoryAccessCols { addr: addrs.base, mult: -F::from_bool(i == 0) * *mult };
+                    row.x_mem = MemoryAccessCols { addr: addrs.base, mult: -F::from_bool(i == 0) };
                     row.exponent_mem = MemoryAccessCols { addr: addrs.exp[i], mult: F::neg_one() };
                     row.result_mem = MemoryAccessCols {
                         addr: addrs.result,
