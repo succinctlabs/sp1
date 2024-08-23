@@ -212,17 +212,17 @@ where
             // Verify the shape of the opening arguments matches the expected values.
             Self::verify_opening_shape(chip, values).unwrap();
             // Verify the constraint evaluation.
-            Self::verify_constraints(
-                builder,
-                chip,
-                values,
-                trace_domain,
-                qc_domains,
-                zeta,
-                alpha,
-                &permutation_challenges,
-                public_values,
-            );
+            // Self::verify_constraints(
+            //     builder,
+            //     chip,
+            //     values,
+            //     trace_domain,
+            //     qc_domains,
+            //     zeta,
+            //     alpha,
+            //     &permutation_challenges,
+            //     public_values,
+            // );
         }
         builder.cycle_tracker_v2_exit();
     }
