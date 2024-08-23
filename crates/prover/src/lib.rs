@@ -93,8 +93,8 @@ const COMPRESS_DEGREE: usize = 3;
 const SHRINK_DEGREE: usize = 9;
 const WRAP_DEGREE: usize = 17;
 
-const CORE_CACHE_SIZE: usize = 100;
-const COMPRESS_CACHE_SIZE: usize = 10;
+const CORE_CACHE_SIZE: usize = 10;
+const COMPRESS_CACHE_SIZE: usize = 5;
 
 pub type CompressAir<F> = RecursionAir<F, COMPRESS_DEGREE, 0>;
 pub type ShrinkAir<F> = RecursionAir<F, SHRINK_DEGREE, 0>;
@@ -799,58 +799,63 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
     //     Ok(SP1ReduceProof { proof: compress_proof.shard_proofs.pop().unwrap() })
     // }
 
-    // /// Wrap a reduce proof into a STARK proven over a SNARK-friendly field.
-    // #[instrument(name = "wrap_bn254", level = "info", skip_all)]
-    // pub fn wrap_bn254(
-    //     &self,
-    //     compressed_proof: SP1ReduceProof<InnerSC>,
-    //     opts: SP1ProverOpts,
-    // ) -> Result<SP1ReduceProof<OuterSC>, SP1RecursionProverError> {
-    //     let input = SP1RootMemoryLayout {
-    //         machine: self.shrink_prover.machine(),
-    //         proof: compressed_proof.proof,
-    //         is_reduce: false,
-    //     };
+    /// Wrap a reduce proof into a STARK proven over a SNARK-friendly field.
+    #[instrument(name = "wrap_bn254", level = "info", skip_all)]
+    pub fn wrap_bn254(
+        &self,
+        compressed_proof: SP1ReduceProof<InnerSC>,
+        opts: SP1ProverOpts,
+    ) -> Result<SP1ReduceProof<OuterSC>, SP1RecursionProverError> {
+        let SP1ReduceProof { vk: compressed_vk, proof: compressed_proof } = compressed_proof;
+        let input = SP1CompressWitnessValues {
+            vks_and_proofs: vec![(compressed_vk, compressed_proof)],
+            is_complete: true,
+        };
 
-    //     // Run the compress program.
-    //     let mut runtime = RecursionRuntime::<Val<InnerSC>, Challenge<InnerSC>, _>::new(
-    //         self.wrap_program(),
-    //         self.shrink_prover.config().perm.clone(),
-    //     );
+        let program = self.compress_program(&input);
 
-    //     let mut witness_stream = Vec::new();
-    //     witness_stream.extend(input.write());
+        // Run the compress program.
+        let mut runtime = RecursionRuntime::<Val<InnerSC>, Challenge<InnerSC>, _>::new(
+            program.clone(),
+            self.shrink_prover.config().perm.clone(),
+        );
 
-    //     runtime.witness_stream = witness_stream.into();
+        let mut witness_stream = Vec::new();
+        Witnessable::<InnerConfig>::write(&input, &mut witness_stream);
 
-    //     runtime.run().map_err(|e| SP1RecursionProverError::RuntimeError(e.to_string()))?;
+        runtime.witness_stream = witness_stream.into();
 
-    //     runtime.print_stats();
-    //     tracing::debug!("Wrap program executed successfully");
+        runtime.run().map_err(|e| SP1RecursionProverError::RuntimeError(e.to_string()))?;
 
-    //     // Prove the wrap program.
-    //     let mut wrap_challenger = self.wrap_prover.config().challenger();
-    //     let time = std::time::Instant::now();
-    //     let mut wrap_proof = self
-    //         .wrap_prover
-    //         .prove(self.wrap_pk(), vec![runtime.record], &mut wrap_challenger, opts.recursion_opts)
-    //         .unwrap();
-    //     let elapsed = time.elapsed();
-    //     tracing::debug!("Wrap proving time: {:?}", elapsed);
-    //     let mut wrap_challenger = self.wrap_prover.config().challenger();
-    //     let result =
-    //         self.wrap_prover.machine().verify(self.wrap_vk(), &wrap_proof, &mut wrap_challenger);
-    //     match result {
-    //         Ok(_) => tracing::info!("Proof verified successfully"),
-    //         Err(MachineVerificationError::NonZeroCumulativeSum) => {
-    //             tracing::info!("Proof verification failed: NonZeroCumulativeSum")
-    //         }
-    //         e => panic!("Proof verification failed: {:?}", e),
-    //     }
-    //     tracing::info!("Wrapping successful");
+        runtime.print_stats();
+        tracing::debug!("Wrap program executed successfully");
 
-    //     Ok(SP1ReduceProof { proof: wrap_proof.shard_proofs.pop().unwrap() })
-    // }
+        // Setup the wrap program.
+        let (wrap_pk, wrap_vk) =
+            tracing::debug_span!("Setup wrap").in_scope(|| self.wrap_prover.setup(&program));
+
+        // Prove the wrap program.
+        let mut wrap_challenger = self.wrap_prover.config().challenger();
+        let time = std::time::Instant::now();
+        let mut wrap_proof = self
+            .wrap_prover
+            .prove(&wrap_pk, vec![runtime.record], &mut wrap_challenger, opts.recursion_opts)
+            .unwrap();
+        let elapsed = time.elapsed();
+        tracing::debug!("Wrap proving time: {:?}", elapsed);
+        let mut wrap_challenger = self.wrap_prover.config().challenger();
+        let result = self.wrap_prover.machine().verify(&wrap_vk, &wrap_proof, &mut wrap_challenger);
+        match result {
+            Ok(_) => tracing::info!("Proof verified successfully"),
+            Err(MachineVerificationError::NonZeroCumulativeSum) => {
+                tracing::info!("Proof verification failed: NonZeroCumulativeSum")
+            }
+            e => panic!("Proof verification failed: {:?}", e),
+        }
+        tracing::info!("Wrapping successful");
+
+        Ok(SP1ReduceProof { vk: wrap_vk, proof: wrap_proof.shard_proofs.pop().unwrap() })
+    }
 
     // /// Wrap the STARK proven over a SNARK-friendly field into a PLONK proof.
     // #[instrument(name = "wrap_plonk_bn254", level = "info", skip_all)]
@@ -1006,34 +1011,36 @@ pub mod tests {
         // tracing::info!("shrink");
         // let shrink_proof = prover.shrink(compressed_proof, opts)?;
 
-        // tracing::info!("verify shrink");
-        // prover.verify_shrink(&shrink_proof, &vk)?;
+        let shrink_proof = compressed_proof;
 
-        // if test_kind == Test::Shrink {
-        //     return Ok(());
-        // }
+        tracing::info!("verify shrink");
+        prover.verify_shrink(&shrink_proof, &vk)?;
 
-        // tracing::info!("wrap bn254");
-        // let wrapped_bn254_proof = prover.wrap_bn254(shrink_proof, opts)?;
-        // let bytes = bincode::serialize(&wrapped_bn254_proof).unwrap();
+        if test_kind == Test::Shrink {
+            return Ok(());
+        }
 
-        // // Save the proof.
-        // let mut file = File::create("proof-with-pis.bin").unwrap();
-        // file.write_all(bytes.as_slice()).unwrap();
+        tracing::info!("wrap bn254");
+        let wrapped_bn254_proof = prover.wrap_bn254(shrink_proof, opts)?;
+        let bytes = bincode::serialize(&wrapped_bn254_proof).unwrap();
 
-        // // Load the proof.
-        // let mut file = File::open("proof-with-pis.bin").unwrap();
-        // let mut bytes = Vec::new();
-        // file.read_to_end(&mut bytes).unwrap();
+        // Save the proof.
+        let mut file = File::create("proof-with-pis.bin").unwrap();
+        file.write_all(bytes.as_slice()).unwrap();
 
-        // let wrapped_bn254_proof = bincode::deserialize(&bytes).unwrap();
+        // Load the proof.
+        let mut file = File::open("proof-with-pis.bin").unwrap();
+        let mut bytes = Vec::new();
+        file.read_to_end(&mut bytes).unwrap();
 
-        // tracing::info!("verify wrap bn254");
-        // prover.verify_wrap_bn254(&wrapped_bn254_proof, &vk).unwrap();
+        let wrapped_bn254_proof = bincode::deserialize(&bytes).unwrap();
 
-        // if test_kind == Test::Wrap {
-        //     return Ok(());
-        // }
+        tracing::info!("verify wrap bn254");
+        prover.verify_wrap_bn254(&wrapped_bn254_proof, &vk).unwrap();
+
+        if test_kind == Test::Wrap {
+            return Ok(());
+        }
 
         // tracing::info!("checking vkey hash babybear");
         // let vk_digest_babybear = wrapped_bn254_proof.sp1_vkey_digest_babybear();
