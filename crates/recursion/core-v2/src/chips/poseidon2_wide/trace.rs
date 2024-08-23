@@ -4,7 +4,6 @@ use itertools::Itertools;
 use p3_air::BaseAir;
 use p3_field::PrimeField32;
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
-use p3_maybe_rayon::prelude::{ParallelIterator, ParallelSlice};
 use sp1_core_machine::utils::{next_power_of_two, pad_rows_fixed, par_for_each_row};
 use sp1_primitives::RC_16_30_U32;
 use sp1_stark::air::MachineAir;

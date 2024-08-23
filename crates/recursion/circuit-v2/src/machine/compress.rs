@@ -222,7 +222,7 @@ where
                 // Initialize the leaf challenger public values.
                 leaf_challenger_values = current_public_values.leaf_challenger;
                 // Initialize the reconstruct challenger public values.
-                reconstruct_challenger_values = current_public_values.start_reconstruct_challenger;
+
                 // Initialize the initial reconstruct challenger public values.
                 initial_reconstruct_challenger_values =
                     current_public_values.start_reconstruct_challenger;

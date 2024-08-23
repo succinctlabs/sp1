@@ -250,3 +250,12 @@ pub enum SP1CircuitWitness {
     Deferred(SP1DeferredWitnessValues<InnerSC>),
     Compress(SP1CompressWitnessValues<InnerSC>),
 }
+
+impl<SC: StarkGenericConfig> std::fmt::Debug for SP1ReduceProof<SC> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut debug_struct = f.debug_struct("SP1ReduceProof");
+        debug_struct.field("vk", &self.vk);
+        debug_struct.field("proof", &self.proof);
+        debug_struct.finish()
+    }
+}

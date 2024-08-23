@@ -191,7 +191,6 @@ where
 
                 // Program counter.
                 start_pc = public_values.start_pc;
-                current_pc = public_values.start_pc;
 
                 // Memory initialization & finalization.
                 for ((bit, pub_bit), first_bit) in current_init_addr_bits
