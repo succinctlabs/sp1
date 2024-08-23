@@ -808,7 +808,7 @@ mod tests {
         let fri_challenges_gt = verifier::verify_shape_and_sample_challenges(
             &inner_fri_config(),
             &proof.fri_proof,
-            log_degrees.iter().max().unwrap(),
+            *log_degrees.iter().max().unwrap(),
             &mut challenger,
         )
         .unwrap();
