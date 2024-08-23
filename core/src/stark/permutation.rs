@@ -145,6 +145,10 @@ pub fn generate_permutation_trace<F: PrimeField, EF: ExtensionField<F>>(
         let sends = grouped_sends.get(&scope).unwrap_or(&empty_vec);
         let receives = grouped_receives.get(&scope).unwrap_or(&empty_vec);
 
+        if sends.is_empty() && receives.is_empty() {
+            continue;
+        }
+
         let random_elements = match scope {
             InteractionScope::Global => &random_elements[0..2],
             InteractionScope::Local => &random_elements[2..4],
@@ -324,6 +328,10 @@ pub fn eval_permutation_constraints<'a, F, AB>(
         let empty_vec = vec![];
         let sends = grouped_sends.get(&scope).unwrap_or(&empty_vec);
         let receives = grouped_receives.get(&scope).unwrap_or(&empty_vec);
+
+        if sends.is_empty() && receives.is_empty() {
+            continue;
+        }
 
         // Ensure that each batch sum m_i/f_i is computed correctly.
         let interaction_chunks = &sends
