@@ -112,7 +112,7 @@ where
     /// ## The leaf challenger.
     /// A key difference between the recursive tree verification and the complete one in
     /// [SP1Prover::verify] is that the recursive verifier has no way of reconstructing the
-    /// chanllenger only from a part of the shard proof. Therefore, the value of the leaf challenger
+    /// challenger only from a part of the shard proof. Therefore, the value of the leaf challenger
     /// is witnessed in the program and the verifier asserts correctness given this challenger.
     /// In the course of the recursive verification, the challenger is reconstructed by observing
     /// the commitments one by one, and in the final step, the challenger is asserted to be the same
