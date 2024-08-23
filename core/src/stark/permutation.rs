@@ -63,7 +63,11 @@ pub fn populate_permutation_row<F: PrimeField, EF: ExtensionField<F>>(
 
 #[inline]
 pub const fn permutation_trace_width(num_interactions: usize, batch_size: usize) -> usize {
-    num_interactions.div_ceil(batch_size) + 1
+    if num_interactions == 0 {
+        return 0;
+    } else {
+        num_interactions.div_ceil(batch_size) + 1
+    }
 }
 
 pub fn get_grouped_maps<F: Field>(
