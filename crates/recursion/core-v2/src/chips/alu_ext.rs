@@ -128,14 +128,12 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for ExtAluChip {
         let mut values = vec![F::zero(); padded_nb_rows * NUM_EXT_ALU_COLS];
         // Generate the trace rows & corresponding records for each chunk of events in parallel.
         let populate_len = events.len() * NUM_EXT_ALU_VALUE_COLS;
-        values[..populate_len]
-            .par_chunks_mut(NUM_EXT_ALU_VALUE_COLS)
-            .zip_eq(events)
-            .by_uniform_blocks(populate_len.div_ceil(num_cpus::get()))
-            .for_each(|(row, &vals)| {
+        values[..populate_len].par_chunks_mut(NUM_EXT_ALU_VALUE_COLS).zip_eq(events).for_each(
+            |(row, &vals)| {
                 let cols: &mut ExtAluValueCols<_> = row.borrow_mut();
                 *cols = ExtAluValueCols { vals };
-            });
+            },
+        );
 
         // Convert the trace to a row major matrix.
         RowMajorMatrix::new(values, NUM_EXT_ALU_COLS)
