@@ -3,6 +3,7 @@
 use std::fmt::Debug;
 
 use hashbrown::HashMap;
+use itertools::Itertools;
 use p3_matrix::{dense::RowMajorMatrixView, stack::VerticalPair};
 use serde::{Deserialize, Serialize};
 
@@ -71,6 +72,11 @@ pub struct ShardProof<SC: StarkGenericConfig> {
     pub opening_proof: OpeningProof<SC>,
     pub chip_ordering: HashMap<String, usize>,
     pub public_values: Vec<Val<SC>>,
+}
+
+#[derive(Clone, Serialize, Deserialize, PartialEq, PartialOrd, Ord, Eq, Hash)]
+pub struct ProofShape {
+    pub chip_information: Vec<(String, usize, usize)>,
 }
 
 impl<SC: StarkGenericConfig> Debug for ShardProof<SC> {
@@ -146,5 +152,19 @@ impl From<[u32; 8]> for DeferredDigest {
             bytes[i * 4..(i + 1) * 4].copy_from_slice(&word.to_le_bytes());
         }
         DeferredDigest(bytes)
+    }
+}
+
+impl<SC: StarkGenericConfig> ShardProof<SC> {
+    pub fn shape(&self) -> ProofShape {
+        ProofShape {
+            chip_information: self
+                .chip_ordering
+                .iter()
+                .sorted_by_key(|(_, idx)| *idx)
+                .zip(self.opened_values.chips.iter())
+                .map(|((name, idx), values)| (name.to_owned(), *idx, values.log_degree))
+                .collect(),
+        }
     }
 }
