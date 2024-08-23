@@ -7,6 +7,7 @@ use std::{
 use p3_air::Air;
 use p3_baby_bear::BabyBear;
 use p3_commit::Mmcs;
+use p3_field::AbstractField;
 use p3_matrix::dense::RowMajorMatrix;
 
 use sp1_primitives::consts::WORD_SIZE;
@@ -107,11 +108,11 @@ where
             is_complete,
         } = input;
 
-        let mut deferred__public_values_stream: Vec<Felt<C::F>> = (0..RECURSIVE_PROOF_NUM_PV_ELTS)
+        let mut deferred_public_values_stream: Vec<Felt<C::F>> = (0..RECURSIVE_PROOF_NUM_PV_ELTS)
             .map(|_| unsafe { MaybeUninit::zeroed().assume_init() })
             .collect();
         let deferred_public_values: &mut RecursionPublicValues<_> =
-            deferred__public_values_stream.as_mut_slice().borrow_mut();
+            deferred_public_values_stream.as_mut_slice().borrow_mut();
 
         // Initialize the start of deferred digests.
         deferred_public_values.start_reconstruct_deferred_digest =
@@ -189,6 +190,10 @@ where
         deferred_public_values.leaf_challenger = values;
         deferred_public_values.start_reconstruct_challenger = values;
         deferred_public_values.end_reconstruct_challenger = values;
+        // Set the exit code to be zero for now.
+        deferred_public_values.exit_code = builder.eval(C::F::zero());
+        // Set the compress vk digest to be zero for now.
+        deferred_public_values.compress_vk_digest = array::from_fn(|_| builder.eval(C::F::zero()));
 
         // Assign the deffered proof digests.
         deferred_public_values.end_reconstruct_deferred_digest = reconstruct_deferred_digest;
