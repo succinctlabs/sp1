@@ -64,7 +64,7 @@ pub fn populate_permutation_row<F: PrimeField, EF: ExtensionField<F>>(
 #[inline]
 pub const fn permutation_trace_width(num_interactions: usize, batch_size: usize) -> usize {
     if num_interactions == 0 {
-        return 0;
+        0
     } else {
         num_interactions.div_ceil(batch_size) + 1
     }
@@ -395,40 +395,40 @@ pub fn eval_permutation_constraints<'a, F, AB>(
             // Finally, assert that the entry is equal to the numerator divided by the product.
             let entry: AB::ExprEF = (*entry).into();
             builder.assert_eq_ext(product.clone() * entry.clone(), numerator);
-
-            // Compute the running local and next permutation sums.
-            let perm_width = grouped_widths.get(&scope).unwrap();
-            let sum_local = perm_local[..perm_width - 1]
-                .iter()
-                .map(|x| (*x).into())
-                .sum::<AB::ExprEF>();
-            let sum_next = perm_next[..perm_width - 1]
-                .iter()
-                .map(|x| (*x).into())
-                .sum::<AB::ExprEF>();
-            let phi_local: AB::ExprEF = (*perm_local.last().unwrap()).into();
-            let phi_next: AB::ExprEF = (*perm_next.last().unwrap()).into();
-
-            // Assert that cumulative sum is initialized to `phi_local` on the first row.
-            builder
-                .when_first_row()
-                .assert_eq_ext(phi_local.clone(), sum_local);
-
-            // Assert that the cumulative sum is constrained to `phi_next - phi_local` on the transition
-            // rows.
-            builder
-                .when_transition()
-                .assert_eq_ext(phi_next - phi_local.clone(), sum_next);
-
-            // Assert that the cumulative sum is constrained to `phi_local` on the last row.
-            let cumulative_sum = match scope {
-                InteractionScope::Global => &cumulative_sums[0],
-                InteractionScope::Local => &cumulative_sums[1],
-            };
-
-            builder
-                .when_last_row()
-                .assert_eq_ext(*perm_local.last().unwrap(), cumulative_sum.clone());
         }
+
+        // Compute the running local and next permutation sums.
+        let perm_width = grouped_widths.get(&scope).unwrap();
+        let sum_local = perm_local[..perm_width - 1]
+            .iter()
+            .map(|x| (*x).into())
+            .sum::<AB::ExprEF>();
+        let sum_next = perm_next[..perm_width - 1]
+            .iter()
+            .map(|x| (*x).into())
+            .sum::<AB::ExprEF>();
+        let phi_local: AB::ExprEF = (*perm_local.last().unwrap()).into();
+        let phi_next: AB::ExprEF = (*perm_next.last().unwrap()).into();
+
+        // Assert that cumulative sum is initialized to `phi_local` on the first row.
+        builder
+            .when_first_row()
+            .assert_eq_ext(phi_local.clone(), sum_local);
+
+        // Assert that the cumulative sum is constrained to `phi_next - phi_local` on the transition
+        // rows.
+        builder
+            .when_transition()
+            .assert_eq_ext(phi_next - phi_local.clone(), sum_next);
+
+        // Assert that the cumulative sum is constrained to `phi_local` on the last row.
+        let cumulative_sum = match scope {
+            InteractionScope::Global => &cumulative_sums[0],
+            InteractionScope::Local => &cumulative_sums[1],
+        };
+
+        builder
+            .when_last_row()
+            .assert_eq_ext(*perm_local.last().unwrap(), cumulative_sum.clone());
     }
 }
