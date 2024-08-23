@@ -134,7 +134,11 @@ EOF
     done
 
     say "installing rust toolchain"
-    ensure "$bin_path" prove install-toolchain
+    if [ -n "$GITHUB_TOKEN" ]; then
+      ensure "$bin_path" prove install-toolchain --token "$GITHUB_TOKEN"
+    else
+      ensure "$bin_path" prove install-toolchain
+    fi
     say "installed rust toolchain"
   else
     # Install by cloning the repo with the provided branch/tag
