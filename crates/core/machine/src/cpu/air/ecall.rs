@@ -2,7 +2,10 @@ use p3_air::AirBuilder;
 use p3_field::AbstractField;
 use sp1_core_executor::syscalls::SyscallCode;
 use sp1_stark::{
-    air::{BaseAirBuilder, PublicValues, SP1AirBuilder, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS},
+    air::{
+        AluAirBuilder, BaseAirBuilder, PublicValues, SP1AirBuilder, POSEIDON_NUM_WORDS,
+        PV_DIGEST_NUM_WORDS,
+    },
     Word,
 };
 

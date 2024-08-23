@@ -249,6 +249,38 @@ pub trait AluAirBuilder: BaseAirBuilder {
         ));
     }
 
+    /// Sends a memcpy operation to be processed.
+    #[allow(clippy::too_many_arguments)]
+    fn send_memcpy(
+        &mut self,
+        shard: impl Into<Self::Expr> + Clone,
+        channel: impl Into<Self::Expr> + Clone,
+        clk: impl Into<Self::Expr> + Clone,
+        nonce: impl Into<Self::Expr> + Clone,
+        syscall_id: impl Into<Self::Expr> + Clone,
+        arg1: impl Into<Self::Expr> + Clone,
+        arg2: impl Into<Self::Expr> + Clone,
+        arg3: impl Into<Self::Expr> + Clone,
+        arg4: impl Into<Self::Expr> + Clone,
+        multiplicity: impl Into<Self::Expr>,
+    ) {
+        self.send(AirInteraction::new(
+            vec![
+                shard.clone().into(),
+                channel.clone().into(),
+                clk.clone().into(),
+                nonce.clone().into(),
+                syscall_id.clone().into(),
+                arg1.clone().into(),
+                arg2.clone().into(),
+                arg3.clone().into(),
+                arg4.clone().into(),
+            ],
+            multiplicity.into(),
+            InteractionKind::Syscall,
+        ));
+    }
+
     /// Receives a syscall operation to be processed.
     #[allow(clippy::too_many_arguments)]
     fn receive_syscall(
@@ -271,6 +303,38 @@ pub trait AluAirBuilder: BaseAirBuilder {
                 syscall_id.clone().into(),
                 arg1.clone().into(),
                 arg2.clone().into(),
+            ],
+            multiplicity.into(),
+            InteractionKind::Syscall,
+        ));
+    }
+
+    /// Receives a syscall operation to be processed.
+    #[allow(clippy::too_many_arguments)]
+    fn receive_memcpy(
+        &mut self,
+        shard: impl Into<Self::Expr> + Clone,
+        channel: impl Into<Self::Expr> + Clone,
+        clk: impl Into<Self::Expr> + Clone,
+        nonce: impl Into<Self::Expr> + Clone,
+        syscall_id: impl Into<Self::Expr> + Clone,
+        arg1: impl Into<Self::Expr> + Clone,
+        arg2: impl Into<Self::Expr> + Clone,
+        arg3: impl Into<Self::Expr> + Clone,
+        arg4: impl Into<Self::Expr> + Clone,
+        multiplicity: impl Into<Self::Expr>,
+    ) {
+        self.receive(AirInteraction::new(
+            vec![
+                shard.clone().into(),
+                channel.clone().into(),
+                clk.clone().into(),
+                nonce.clone().into(),
+                syscall_id.clone().into(),
+                arg1.clone().into(),
+                arg2.clone().into(),
+                arg3.clone().into(),
+                arg4.clone().into(),
             ],
             multiplicity.into(),
             InteractionKind::Syscall,

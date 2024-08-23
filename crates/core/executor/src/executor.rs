@@ -879,7 +879,7 @@ impl<'a> Executor<'a> {
                 b = self.rr(Register::X10, MemoryAccessPosition::B);
                 let syscall = SyscallCode::from_u32(syscall_id);
 
-                if syscall == SyscallCode::MEMCPY_64 {
+                if syscall == SyscallCode::MEMCPY_32 {
                     let a2 = self.register(Register::X12);
                     self.memcpys.push((b, c, a2));
                 }
@@ -894,10 +894,14 @@ impl<'a> Executor<'a> {
                 // which is not permitted in unconstrained mode. This will result in
                 // non-zero memory interactions when generating a proof.
 
+                // `memcpy_32` is allowed in unconstrained mode since a lot of unconstrained code
+                // uses it, and it's fairly simple to reset the memory interactions after calling
+                // it.
+
                 if self.unconstrained
                     && (syscall != SyscallCode::EXIT_UNCONSTRAINED
                         && syscall != SyscallCode::WRITE
-                        && syscall != SyscallCode::MEMCPY_64)
+                        && syscall != SyscallCode::MEMCPY_32)
                 {
                     return Err(ExecutionError::InvalidSyscallUsage(syscall_id as u64));
                 }
@@ -954,7 +958,7 @@ impl<'a> Executor<'a> {
                 let nonce = (((*syscall_count as usize) % threshold) * multiplier) as u32;
                 // FIXME
                 match syscall {
-                    SyscallCode::MEMCPY_64 => {}
+                    SyscallCode::MEMCPY_32 => {}
                     _ => {
                         self.record.nonce_lookup.insert(syscall_lookup_id, nonce);
                     }
