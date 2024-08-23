@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0-rc](https://github.com/succinctlabs/sp1/releases/tag/sp1-core-machine-v1.2.0-rc) - 2024-08-23
+
+### Added
+- gas ([#1354](https://github.com/succinctlabs/sp1/pull/1354))
+
+### Fixed
+- remove field op comment
+- fix fptower tests
+- fix imports
+- cargo check on tests
+
+### Other
+- precompile guide
+- use crate `vec_map`, box large `Instruction` variants ([#1360](https://github.com/succinctlabs/sp1/pull/1360))
+- update version
+- merge dev into experimental pt 2 ([#1341](https://github.com/succinctlabs/sp1/pull/1341))
+- resolve merge conflicts between dev and experimental
+- refactor + cleanup core crates
+
 ## [1.1.0](https://github.com/succinctlabs/sp1/compare/sp1-core-v1.0.1...sp1-core-v1.1.0) - 2024-08-02
 
 ### Added

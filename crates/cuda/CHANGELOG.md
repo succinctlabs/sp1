@@ -6,6 +6,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0-rc](https://github.com/succinctlabs/sp1/releases/tag/sp1-cuda-v1.2.0-rc) - 2024-08-23
+
+### Added
+- 1.2.0-rc1 cuda prover ([#1353](https://github.com/succinctlabs/sp1/pull/1353))
+
+### Fixed
+- tokio block on ([#1346](https://github.com/succinctlabs/sp1/pull/1346))
+
+### Other
+- merge dev into experimental pt 2 ([#1341](https://github.com/succinctlabs/sp1/pull/1341))
+
 ## [1.1.0](https://github.com/succinctlabs/sp1/releases/tag/sp1-server-v1.1.0) - 2024-08-02
 
 ### Added
