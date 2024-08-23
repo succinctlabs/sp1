@@ -5,7 +5,7 @@ use p3_field::{AbstractExtensionField, AbstractField, TwoAdicField};
 use p3_matrix::dense::RowMajorMatrix;
 
 use sp1_recursion_compiler::ir::{
-    Builder, Config, Ext, ExtensionOperand, Felt, SymbolicExt, SymbolicFelt,
+    Builder, Config, Ext, ExtConst, ExtensionOperand, Felt, SymbolicExt, SymbolicFelt,
 };
 use sp1_stark::{
     air::MachineAir, AirOpenedValues, ChipOpenedValues, GenericVerifierConstraintFolder,
@@ -121,6 +121,7 @@ where
         qc_domains: &[TwoAdicMultiplicativeCoset<C::F>],
         zeta: Ext<C::F, C::EF>,
     ) -> Ext<C::F, C::EF> {
+        builder.reduce_e(zeta);
         let zps = qc_domains
             .iter()
             .enumerate()
@@ -136,18 +137,20 @@ where
                                 .zp_at_point_variable(builder, zeta)
                                 .to_operand()
                                 .symbolic(),
-                            other_domain.zp_at_point_f(builder, first_point).inverse(),
+                            other_domain.zp_at_point_f(builder, first_point),
                         )
                     })
-                    .unzip::<_, _, Vec<_>, Vec<_>>();
-                zs.into_iter().product::<SymbolicExt<_, _>>()
-                    * zinvs.into_iter().product::<SymbolicFelt<_>>()
+                    .unzip::<_, _, Vec<SymbolicExt<_, _>>, Vec<Felt<_>>>();
+                let symbolic_prod: SymbolicFelt<_> =
+                    zinvs.into_iter().map(|x| x.into()).product::<SymbolicFelt<_>>();
+                println!("zslen: {}", zs.len());
+                (zs.into_iter().product::<SymbolicExt<_, _>>(), symbolic_prod)
             })
-            .collect::<Vec<SymbolicExt<_, _>>>()
+            .collect::<Vec<(SymbolicExt<_, _>, SymbolicFelt<_>)>>()
             .into_iter()
-            .map(|x| builder.eval(x))
+            .map(|(x, y)| builder.eval(x / y))
             .collect::<Vec<Ext<_, _>>>();
-
+        zps.iter().for_each(|zp| builder.reduce_e(*zp));
         builder.eval(
             opening
                 .quotient
@@ -155,10 +158,11 @@ where
                 .enumerate()
                 .map(|(ch_i, ch)| {
                     assert_eq!(ch.len(), C::EF::D);
-                    ch.iter()
-                        .enumerate()
-                        .map(|(e_i, &c)| zps[ch_i] * C::EF::monomial(e_i) * c)
-                        .sum::<SymbolicExt<_, _>>()
+                    zps[ch_i].to_operand().symbolic()
+                        * ch.iter()
+                            .enumerate()
+                            .map(|(e_i, &c)| C::EF::monomial(e_i).cons() * SymbolicExt::from(c))
+                            .sum::<SymbolicExt<_, _>>()
                 })
                 .sum::<SymbolicExt<_, _>>(),
         )
