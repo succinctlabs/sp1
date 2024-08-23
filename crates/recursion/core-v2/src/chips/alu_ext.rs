@@ -1,9 +1,9 @@
 use core::borrow::Borrow;
-use itertools::Itertools;
 use p3_air::{Air, BaseAir, PairBuilder};
 use p3_field::{extension::BinomiallyExtendable, Field, PrimeField32};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
-use sp1_core_machine::utils::{next_power_of_two, pad_to_power_of_two, par_for_each_row};
+use p3_maybe_rayon::prelude::*;
+use sp1_core_machine::utils::{next_power_of_two, pad_to_power_of_two};
 use sp1_derive::AlignedBorrow;
 use sp1_stark::air::{ExtensionAirBuilder, MachineAir};
 use std::{borrow::BorrowMut, iter::zip};
@@ -38,6 +38,8 @@ pub struct ExtAluPreprocessedCols<F: Copy> {
     pub accesses: [ExtAluAccessCols<F>; NUM_EXT_ALU_ENTRIES_PER_ROW],
 }
 
+pub const NUM_EXT_ALU_ACCESS_COLS: usize = core::mem::size_of::<ExtAluAccessCols<u8>>();
+
 #[derive(AlignedBorrow, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct ExtAluAccessCols<F: Copy> {
@@ -71,7 +73,8 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for ExtAluChip {
     fn generate_preprocessed_trace(&self, program: &Self::Program) -> Option<RowMajorMatrix<F>> {
         let rows = program
             .instructions
-            .iter()
+            .par_iter()
+            .by_uniform_blocks(program.instructions.len().div_ceil(num_cpus::get()))
             .filter_map(|instruction| {
                 let Instruction::ExtAlu(ExtAluInstr { opcode, mult, addrs }) = instruction else {
                     return None;
@@ -92,18 +95,13 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for ExtAluChip {
                 };
                 *target_flag = F::from_bool(true);
 
-                Some(access)
+                Some({
+                    let mut row = [F::zero(); NUM_EXT_ALU_ACCESS_COLS];
+                    *row.as_mut_slice().borrow_mut() = access;
+                    row
+                })
             })
-            .chunks(NUM_EXT_ALU_ENTRIES_PER_ROW)
-            .into_iter()
-            .flat_map(|row_accesses| {
-                let mut row = [F::zero(); NUM_EXT_ALU_PREPROCESSED_COLS];
-                let cols: &mut ExtAluPreprocessedCols<_> = row.as_mut_slice().borrow_mut();
-                for (cell, access) in zip(&mut cols.accesses, row_accesses) {
-                    *cell = access;
-                }
-                row
-            })
+            .flatten_iter()
             .collect::<Vec<_>>();
 
         // Convert the trace to a row major matrix.
@@ -125,14 +123,15 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for ExtAluChip {
         let padded_nb_rows = next_power_of_two(nb_rows, None);
         let mut values = vec![F::zero(); padded_nb_rows * NUM_EXT_ALU_COLS];
         // Generate the trace rows & corresponding records for each chunk of events in parallel.
-        par_for_each_row(
-            &mut values[..nb_events * NUM_EXT_ALU_VALUE_COLS],
-            NUM_EXT_ALU_VALUE_COLS,
-            |i, row| {
+        let populate_len = nb_events * NUM_EXT_ALU_VALUE_COLS;
+        values[..populate_len]
+            .par_chunks_mut(NUM_EXT_ALU_VALUE_COLS)
+            .zip_eq(&input.ext_alu_events)
+            .by_uniform_blocks(populate_len.div_ceil(num_cpus::get()))
+            .for_each(|(row, &vals)| {
                 let cols: &mut ExtAluValueCols<_> = row.borrow_mut();
-                *cols = ExtAluValueCols { vals: input.ext_alu_events[i] };
-            },
-        );
+                *cols = ExtAluValueCols { vals };
+            });
 
         // Convert the trace to a row major matrix.
         RowMajorMatrix::new(values, NUM_EXT_ALU_COLS)

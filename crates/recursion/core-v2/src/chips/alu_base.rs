@@ -1,9 +1,9 @@
 use core::borrow::Borrow;
-use itertools::Itertools;
 use p3_air::{Air, AirBuilder, BaseAir, PairBuilder};
 use p3_field::{Field, PrimeField32};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
-use sp1_core_machine::utils::{next_power_of_two, pad_to_power_of_two, par_for_each_row};
+use p3_maybe_rayon::prelude::*;
+use sp1_core_machine::utils::{next_power_of_two, pad_to_power_of_two};
 use sp1_derive::AlignedBorrow;
 use sp1_stark::air::MachineAir;
 use std::{borrow::BorrowMut, iter::zip};
@@ -40,6 +40,8 @@ pub struct BaseAluPreprocessedCols<F: Copy> {
     pub accesses: [BaseAluAccessCols<F>; NUM_BASE_ALU_ENTRIES_PER_ROW],
 }
 
+pub const NUM_BASE_ALU_ACCESS_COLS: usize = core::mem::size_of::<BaseAluAccessCols<u8>>();
+
 #[derive(AlignedBorrow, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct BaseAluAccessCols<F: Copy> {
@@ -73,7 +75,8 @@ impl<F: PrimeField32> MachineAir<F> for BaseAluChip {
     fn generate_preprocessed_trace(&self, program: &Self::Program) -> Option<RowMajorMatrix<F>> {
         let rows = program
             .instructions
-            .iter()
+            .par_iter()
+            .by_uniform_blocks(program.instructions.len().div_ceil(num_cpus::get()))
             .filter_map(|instruction| {
                 let Instruction::BaseAlu(BaseAluInstr { opcode, mult, addrs }) = instruction else {
                     return None;
@@ -94,18 +97,13 @@ impl<F: PrimeField32> MachineAir<F> for BaseAluChip {
                 };
                 *target_flag = F::from_bool(true);
 
-                Some(access)
+                Some({
+                    let mut row = [F::zero(); NUM_BASE_ALU_ACCESS_COLS];
+                    *row.as_mut_slice().borrow_mut() = access;
+                    row
+                })
             })
-            .chunks(NUM_BASE_ALU_ENTRIES_PER_ROW)
-            .into_iter()
-            .flat_map(|row_accesses| {
-                let mut row = [F::zero(); NUM_BASE_ALU_PREPROCESSED_COLS];
-                let cols: &mut BaseAluPreprocessedCols<_> = row.as_mut_slice().borrow_mut();
-                for (cell, access) in zip(&mut cols.accesses, row_accesses) {
-                    *cell = access;
-                }
-                row
-            })
+            .flatten_iter()
             .collect::<Vec<_>>();
 
         // Convert the trace to a row major matrix.
@@ -127,14 +125,15 @@ impl<F: PrimeField32> MachineAir<F> for BaseAluChip {
         let padded_nb_rows = next_power_of_two(nb_rows, None);
         let mut values = vec![F::zero(); padded_nb_rows * NUM_BASE_ALU_COLS];
         // Generate the trace rows & corresponding records for each chunk of events in parallel.
-        par_for_each_row(
-            &mut values[..nb_events * NUM_BASE_ALU_VALUE_COLS],
-            NUM_BASE_ALU_VALUE_COLS,
-            |i, row| {
+        let populate_len = nb_events * NUM_BASE_ALU_VALUE_COLS;
+        values[..populate_len]
+            .par_chunks_mut(NUM_BASE_ALU_VALUE_COLS)
+            .zip_eq(&input.base_alu_events)
+            .by_uniform_blocks(populate_len.div_ceil(num_cpus::get()))
+            .for_each(|(row, &vals)| {
                 let cols: &mut BaseAluValueCols<_> = row.borrow_mut();
-                *cols = BaseAluValueCols { vals: input.base_alu_events[i] };
-            },
-        );
+                *cols = BaseAluValueCols { vals };
+            });
 
         // Convert the trace to a row major matrix.
         RowMajorMatrix::new(values, NUM_BASE_ALU_COLS)
