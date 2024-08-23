@@ -20,10 +20,14 @@ pub mod verify;
 
 use std::{
     borrow::Borrow,
+    env,
+    num::NonZeroUsize,
     path::Path,
     sync::{mpsc::sync_channel, Arc, Mutex, OnceLock},
     thread,
 };
+
+use lru::LruCache;
 
 use tracing::instrument;
 
@@ -38,6 +42,7 @@ use sp1_core_machine::{
     riscv::RiscvAir,
     utils::{concurrency::TurnBasedSync, SP1CoreProverError},
 };
+
 use sp1_primitives::hash_deferred_proof;
 
 use sp1_recursion_compiler::{
@@ -51,7 +56,7 @@ use sp1_recursion_gnark_ffi::{groth16_bn254::Groth16Bn254Prover, plonk_bn254::Pl
 
 use sp1_stark::{
     air::PublicValues, baby_bear_poseidon2::BabyBearPoseidon2, Challenge, Challenger,
-    MachineProver, MachineVerificationError, SP1CoreOpts, SP1ProverOpts, ShardProof,
+    MachineProver, MachineVerificationError, ProofShape, SP1CoreOpts, SP1ProverOpts, ShardProof,
     StarkGenericConfig, StarkProvingKey, StarkVerifyingKey, Val, Word, DIGEST_SIZE,
 };
 
@@ -88,6 +93,9 @@ const COMPRESS_DEGREE: usize = 3;
 const SHRINK_DEGREE: usize = 9;
 const WRAP_DEGREE: usize = 17;
 
+const CORE_CACHE_SIZE: usize = 100;
+const COMPRESS_CACHE_SIZE: usize = 10;
+
 pub type CompressAir<F> = RecursionAir<F, COMPRESS_DEGREE, 0>;
 pub type ShrinkAir<F> = RecursionAir<F, SHRINK_DEGREE, 0>;
 pub type WrapAir<F> = RecursionAir<F, WRAP_DEGREE, 0>;
@@ -105,6 +113,10 @@ pub struct SP1Prover<C: SP1ProverComponents = DefaultProverComponents> {
 
     /// The machine used for proving the wrapping step.
     pub wrap_prover: C::WrapProver,
+
+    pub recursion_programs: Mutex<LruCache<Vec<ProofShape>, Arc<RecursionProgram<BabyBear>>>>,
+
+    pub compress_programs: Mutex<LruCache<Vec<ProofShape>, Arc<RecursionProgram<BabyBear>>>>,
 }
 
 impl<C: SP1ProverComponents> SP1Prover<C> {
@@ -132,7 +144,30 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         let wrap_machine = WrapAir::machine(OuterSC::default());
         let wrap_prover = C::WrapProver::new(wrap_machine);
 
-        Self { core_prover, compress_prover, shrink_prover, wrap_prover }
+        let core_cache_size = NonZeroUsize::new(
+            env::var("PROVER_CORE_CACHE_SIZE")
+                .unwrap_or_else(|_| CORE_CACHE_SIZE.to_string())
+                .parse()
+                .unwrap_or(CORE_CACHE_SIZE),
+        )
+        .expect("PROVER_CORE_CACHE_SIZE must be a non-zero usize");
+
+        let compress_cache_size = NonZeroUsize::new(
+            env::var("PROVER_COMPRESS_CACHE_SIZE")
+                .unwrap_or_else(|_| CORE_CACHE_SIZE.to_string())
+                .parse()
+                .unwrap_or(COMPRESS_CACHE_SIZE),
+        )
+        .expect("PROVER_COMPRESS_CACHE_SIZE must be a non-zero usize");
+
+        Self {
+            core_prover,
+            compress_prover,
+            shrink_prover,
+            wrap_prover,
+            recursion_programs: Mutex::new(LruCache::new(core_cache_size)),
+            compress_programs: Mutex::new(LruCache::new(compress_cache_size)),
+        }
     }
 
     /// Fully initializes the programs, proving keys, and verifying keys that are normally
@@ -204,44 +239,55 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         &self,
         input: &SP1RecursionWitnessValues<CoreSC>,
     ) -> Arc<RecursionProgram<BabyBear>> {
-        // Compile the program.
+        let shapes = input.shard_proofs.iter().map(|proof| proof.shape()).collect::<Vec<_>>();
+        let mut cache = self.recursion_programs.lock().unwrap();
+        cache
+            .get_or_insert(shapes, || {
+                // Get the operations.
+                let builder_span = tracing::debug_span!("build recursion program").entered();
+                let mut builder = Builder::<InnerConfig>::default();
+                let input = input.read(&mut builder);
+                SP1RecursiveVerifier::verify(&mut builder, self.core_prover.machine(), input);
+                let operations = builder.operations;
+                builder_span.exit();
 
-        // Get the operations.
-        let builder_span = tracing::debug_span!("build recursion program").entered();
-        let mut builder = Builder::<InnerConfig>::default();
-        let input = input.read(&mut builder);
-        SP1RecursiveVerifier::verify(&mut builder, self.core_prover.machine(), input);
-        let operations = builder.operations;
-        builder_span.exit();
-
-        // Compile the program.
-        let compiler_span = tracing::debug_span!("compile recursion program").entered();
-        let mut compiler = AsmCompiler::<InnerConfig>::default();
-        let program = Arc::new(compiler.compile(operations));
-        compiler_span.exit();
-        program
+                // Compile the program.
+                let compiler_span = tracing::debug_span!("compile recursion program").entered();
+                let mut compiler = AsmCompiler::<InnerConfig>::default();
+                let program = Arc::new(compiler.compile(operations));
+                compiler_span.exit();
+                program
+            })
+            .clone()
     }
 
     pub fn compress_program(
         &self,
         input: &SP1CompressWitnessValues<CoreSC>,
     ) -> Arc<RecursionProgram<BabyBear>> {
+        let shapes =
+            input.vks_and_proofs.iter().map(|(_, proof)| proof.shape()).collect::<Vec<_>>();
+        let mut cache = self.recursion_programs.lock().unwrap();
         // Compile the program.
 
-        // Get the operations.
-        let builder_span = tracing::debug_span!("build compress program").entered();
-        let mut builder = Builder::<InnerConfig>::default();
-        let input = input.read(&mut builder);
-        SP1CompressVerifier::verify(&mut builder, self.compress_prover.machine(), input);
-        let operations = builder.operations;
-        builder_span.exit();
+        cache
+            .get_or_insert(shapes, || {
+                // Get the operations.
+                let builder_span = tracing::debug_span!("build compress program").entered();
+                let mut builder = Builder::<InnerConfig>::default();
+                let input = input.read(&mut builder);
+                SP1CompressVerifier::verify(&mut builder, self.compress_prover.machine(), input);
+                let operations = builder.operations;
+                builder_span.exit();
 
-        // Compile the program.
-        let compiler_span = tracing::debug_span!("compile compress program").entered();
-        let mut compiler = AsmCompiler::<InnerConfig>::default();
-        let program = Arc::new(compiler.compile(operations));
-        compiler_span.exit();
-        program
+                // Compile the program.
+                let compiler_span = tracing::debug_span!("compile compress program").entered();
+                let mut compiler = AsmCompiler::<InnerConfig>::default();
+                let program = Arc::new(compiler.compile(operations));
+                compiler_span.exit();
+                program
+            })
+            .clone()
     }
 
     // pub fn defered_program(

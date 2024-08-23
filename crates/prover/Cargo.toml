@@ -45,6 +45,8 @@ num-bigint = "0.4.6"
 thiserror = "1.0.63"
 oneshot = "0.1.8"
 
+lru = "0.12.4"
+
 [[bin]]
 name = "build_plonk_bn254"
 path = "scripts/build_plonk_bn254.rs"
