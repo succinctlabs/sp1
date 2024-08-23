@@ -58,14 +58,13 @@ pub struct SP1CompressWitnessValues<SC: StarkGenericConfig> {
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SP1CompressShape {
-    pub proof_shapes: Vec<ProofShape>,
-    pub is_complete: bool,
+    proof_shapes: Vec<ProofShape>,
 }
 
 impl<C, SC, A> SP1CompressVerifier<C, SC, A>
 where
     SC: BabyBearFriConfigVariable<C>,
-    C: CircuitConfig<F = SC::Val, EF = SC::Challenge, Bit = Felt<BabyBear>>,
+    C: CircuitConfig<F = SC::Val, EF = SC::Challenge>,
     <SC::ValMmcs as Mmcs<BabyBear>>::ProverData<RowMajorMatrix<BabyBear>>: Clone,
     A: MachineAir<SC::Val> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, C>>,
 {
@@ -477,6 +476,6 @@ where
 impl<SC: BabyBearFriConfig> SP1CompressWitnessValues<SC> {
     pub fn shape(&self) -> SP1CompressShape {
         let proof_shapes = self.vks_and_proofs.iter().map(|(_, proof)| proof.shape()).collect();
-        SP1CompressShape { proof_shapes, is_complete: self.is_complete }
+        SP1CompressShape { proof_shapes }
     }
 }

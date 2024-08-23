@@ -68,20 +68,7 @@ where
     let vkey_hash = builder.constant(<C as Config>::N::zero());
     builder.commit_vkey_hash_circuit(vkey_hash);
 
-    // Validate public values
-    // let mut pv_elements = Vec::new();
-    // for i in 0..PROOF_MAX_NUM_PVS {
-    //     let element = builder.get(&proof.public_values, i);
-    //     pv_elements.push(element);
-    // }
-
     let pv: &RecursionPublicValues<_> = proof.public_values.as_slice().borrow();
-
-    // TODO: Add back.
-    // let one_felt: Felt<_> = builder.constant(BabyBear::one());
-    // // Proof must be complete. In the reduce program, this will ensure that the SP1 proof has
-    // // been fully accumulated.
-    // builder.assert_felt_eq(pv.is_complete, one_felt);
 
     // Convert pv.sp1_vk_digest into Bn254
     let pv_vkey_hash = felts_to_bn254_var(&mut builder, &pv.sp1_vk_digest);
@@ -130,15 +117,6 @@ where
         builder.assign(cumulative_sum, cumulative_sum + chip.cumulative_sum);
     }
     builder.assert_ext_eq(cumulative_sum, zero_ext);
-
-    // TODO: Add back.
-    // Verify the public values digest.
-    // let calculated_digest =
-    //     builder.p2_circuit_babybear_hash(&proof.public_values[0..NUM_PV_ELMS_TO_HASH]);
-    // let expected_digest = pv.digest;
-    // for (calculated_elm, expected_elm) in calculated_digest.iter().zip(expected_digest.iter()) {
-    //     builder.assert_felt_eq(*expected_elm, *calculated_elm);
-    // }
 
     let mut backend = ConstraintCompiler::<OuterConfig>::default();
     backend.emit(builder.operations)

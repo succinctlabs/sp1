@@ -75,7 +75,7 @@ impl Prover<DefaultProverComponents> for CpuProver {
             self.prover.compress(&pk.vk, proof, deferred_proofs, opts.sp1_prover_opts)?;
         if kind == SP1ProofKind::Compressed {
             return Ok(SP1ProofWithPublicValues {
-                proof: SP1Proof::Compressed(reduce_proof),
+                proof: SP1Proof::Compressed(Box::new(reduce_proof)),
                 stdin,
                 public_values,
                 sp1_version: self.version().to_string(),
