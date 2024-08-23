@@ -233,10 +233,10 @@ pub fn verify_query<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVariable
     let two_adic_generator: Felt<_> = builder.constant(C::F::two_adic_generator(log_max_height));
 
     // TODO: fix expreversebits address bug to avoid needing to allocate a new variable.
-    let x_f =
+    let mut x =
         C::exp_reverse_bits(builder, two_adic_generator, index_bits[..log_max_height].to_vec());
-    let mut x = builder.uninit();
-    builder.operations.push(DslIr::AddFI(x, x_f, C::F::zero()));
+    // let mut x = builder.uninit();
+    // builder.operations.push(DslIr::AddFI(x, x_f, C::F::zero()));
 
     // let mut x = builder.eval(x + C::F::zero());
     // let mut x: Ext<_, _> = builder.eval(SymbolicExt::one() * SymbolicFelt::from(x_felt));
