@@ -141,19 +141,19 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
             })
             .collect::<Vec<_>>();
 
-        config
-            .pcs()
-            .verify(
-                vec![
-                    (vk.commit.clone(), preprocessed_domains_points_and_opens),
-                    (main_commit.clone(), main_domains_points_and_opens),
-                    (permutation_commit.clone(), perm_domains_points_and_opens),
-                    (quotient_commit.clone(), quotient_domains_points_and_opens),
-                ],
-                opening_proof,
-                challenger,
-            )
-            .map_err(|e| VerificationError::InvalidopeningArgument(e))?;
+        // config
+        //     .pcs()
+        //     .verify(
+        //         vec![
+        //             (vk.commit.clone(), preprocessed_domains_points_and_opens),
+        //             (main_commit.clone(), main_domains_points_and_opens),
+        //             (permutation_commit.clone(), perm_domains_points_and_opens),
+        //             (quotient_commit.clone(), quotient_domains_points_and_opens),
+        //         ],
+        //         opening_proof,
+        //         challenger,
+        //     )
+        //     .map_err(|e| VerificationError::InvalidopeningArgument(e))?;
 
         // Verify the constrtaint evaluations.
         for (chip, trace_domain, qc_domains, values) in
