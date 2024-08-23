@@ -1111,7 +1111,9 @@ pub mod tests {
         Ok(())
     }
 
-    pub fn test_e2e_with_deferred_proofs_prover<C: SP1ProverComponents>() -> Result<()> {
+    pub fn test_e2e_with_deferred_proofs_prover<C: SP1ProverComponents>(
+        opts: SP1ProverOpts,
+    ) -> Result<()> {
         // Test program which proves the Keccak-256 hash of various inputs.
         let keccak_elf = include_bytes!("../../../tests/keccak256/elf/riscv32im-succinct-zkvm-elf");
 
@@ -1121,7 +1123,6 @@ pub mod tests {
 
         tracing::info!("initializing prover");
         let prover: SP1Prover = SP1Prover::new();
-        let opts = SP1ProverOpts::default();
 
         tracing::info!("setup keccak elf");
         let (keccak_pk, keccak_vk) = prover.setup(keccak_elf);
@@ -1227,6 +1228,6 @@ pub mod tests {
     #[serial]
     fn test_e2e_with_deferred_proofs() -> Result<()> {
         setup_logger();
-        test_e2e_with_deferred_proofs_prover::<DefaultProverComponents>()
+        test_e2e_with_deferred_proofs_prover::<DefaultProverComponents>(SP1ProverOpts::default())
     }
 }
