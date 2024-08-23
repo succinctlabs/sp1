@@ -71,7 +71,13 @@ pub fn outer_fri_config() -> FriConfig<OuterChallengeMmcs> {
             Err(_) => 25,
         }
     };
-    FriConfig { log_blowup: 4, num_queries, proof_of_work_bits: 16, mmcs: challenge_mmcs }
+    FriConfig {
+        log_blowup: 4,
+        log_arity: 1,
+        num_queries,
+        proof_of_work_bits: 16,
+        mmcs: challenge_mmcs,
+    }
 }
 
 /// The FRI config for outer recursion.
@@ -88,7 +94,13 @@ pub fn outer_fri_config_with_blowup(log_blowup: usize) -> FriConfig<OuterChallen
             Err(_) => 100 / log_blowup,
         }
     };
-    FriConfig { log_blowup, num_queries, proof_of_work_bits: 16, mmcs: challenge_mmcs }
+    FriConfig {
+        log_blowup,
+        log_arity: 1,
+        num_queries,
+        proof_of_work_bits: 16,
+        mmcs: challenge_mmcs,
+    }
 }
 
 #[derive(Deserialize)]
@@ -170,5 +182,11 @@ pub fn test_fri_config() -> FriConfig<OuterChallengeMmcs> {
     let hash = OuterHash::new(perm.clone()).unwrap();
     let compress = OuterCompress::new(perm.clone());
     let challenge_mmcs = OuterChallengeMmcs::new(OuterValMmcs::new(hash, compress));
-    FriConfig { log_blowup: 1, num_queries: 1, proof_of_work_bits: 1, mmcs: challenge_mmcs }
+    FriConfig {
+        log_blowup: 1,
+        log_arity: 1,
+        num_queries: 1,
+        proof_of_work_bits: 1,
+        mmcs: challenge_mmcs,
+    }
 }

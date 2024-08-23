@@ -29,7 +29,7 @@ use crate::{
     utils::{felt_bytes_to_bn254_var, felts_to_bn254_var, words_to_bytes},
     witness::Witnessable,
     BatchOpeningVariable, FriCommitPhaseProofStepVariable, FriProofVariable, FriQueryProofVariable,
-    TwoAdicPcsProofVariable, VerifyingKeyVariable,
+    NormalizeQueryProofVariable, TwoAdicPcsProofVariable, VerifyingKeyVariable,
 };
 
 pub const DIGEST_SIZE: usize = 1;
@@ -236,6 +236,15 @@ fn const_fri_proof(
         })
         .collect::<Vec<_>>();
 
+    let normalize_phase_commits = fri_proof
+        .normalize_phase_commits
+        .iter()
+        .map(|commit| {
+            let commit: [N; DIGEST_SIZE] = (*commit).into();
+            commit.map(|x| builder.eval(x))
+        })
+        .collect::<Vec<_>>();
+
     // Set the query proofs.
     let query_proofs = fri_proof
         .query_proofs
@@ -245,23 +254,53 @@ fn const_fri_proof(
                 .commit_phase_openings
                 .iter()
                 .map(|commit_phase_opening| {
-                    let sibling_value =
-                        builder.eval(SymbolicExt::from_f(commit_phase_opening.sibling_value));
+                    let siblings = commit_phase_opening
+                        .siblings
+                        .iter()
+                        .map(|sibling| builder.constant(*sibling))
+                        .collect();
                     let opening_proof = commit_phase_opening
                         .opening_proof
                         .iter()
-                        .map(|sibling| sibling.map(|x| builder.eval(x)))
+                        .map(|proof| proof.map(|x| builder.eval(x)))
                         .collect::<Vec<_>>();
-                    FriCommitPhaseProofStepVariable { sibling_value, opening_proof }
+                    FriCommitPhaseProofStepVariable { siblings, opening_proof }
                 })
                 .collect::<Vec<_>>();
             FriQueryProofVariable { commit_phase_openings }
         })
         .collect::<Vec<_>>();
 
+    let normalize_query_proofs = fri_proof
+        .normalize_query_proofs
+        .iter()
+        .map(|normalize_query_proof| {
+            let normalize_phase_openings = normalize_query_proof
+                .normalize_phase_openings
+                .iter()
+                .map(|normalize_phase_opening| {
+                    let siblings = normalize_phase_opening
+                        .siblings
+                        .iter()
+                        .map(|sibling| builder.constant(*sibling))
+                        .collect();
+                    let opening_proof = normalize_phase_opening
+                        .opening_proof
+                        .iter()
+                        .map(|proof| proof.map(|x| builder.eval(x)))
+                        .collect::<Vec<_>>();
+                    FriCommitPhaseProofStepVariable { siblings, opening_proof }
+                })
+                .collect::<Vec<_>>();
+            NormalizeQueryProofVariable { normalize_phase_openings }
+        })
+        .collect::<Vec<_>>();
+
     // Initialize the FRI proof variable.
     FriProofVariable {
         commit_phase_commits,
+        normalize_phase_commits,
+        normalize_query_proofs,
         query_proofs,
         final_poly: builder.eval(SymbolicExt::from_f(fri_proof.final_poly)),
         pow_witness: builder.eval(fri_proof.pow_witness),

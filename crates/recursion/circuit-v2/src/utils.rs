@@ -1,3 +1,4 @@
+use std::iter::once;
 use std::mem::MaybeUninit;
 
 use p3_baby_bear::BabyBear;
@@ -5,6 +6,8 @@ use p3_bn254_fr::Bn254Fr;
 use p3_field::AbstractField;
 use p3_field::PrimeField32;
 
+use sp1_core_machine::utils::log2_strict_usize;
+use sp1_recursion_compiler::ir::Ext;
 use sp1_recursion_compiler::{
     circuit::CircuitV2Builder,
     ir::{Builder, Config, Felt, Var},
@@ -14,6 +17,8 @@ use sp1_recursion_core_v2::{
     DIGEST_SIZE,
 };
 use sp1_stark::Word;
+
+use crate::CircuitConfig;
 
 /// Register and commits the recursion public values.
 pub fn commit_recursion_public_values<C: Config>(
@@ -102,6 +107,23 @@ pub fn felt_bytes_to_bn254_var<C: Config>(
         }
     }
     result
+}
+
+pub fn access_index_with_var_e<C: CircuitConfig>(
+    builder: &mut Builder<C>,
+    vec: &[Ext<C::F, C::EF>],
+    index_bits: Vec<C::Bit>,
+) -> Ext<C::F, C::EF> {
+    let mut index_bits = index_bits.clone();
+    let mut result = vec.to_vec();
+    for &bit in index_bits[..log2_strict_usize(vec.len())].iter() {
+        result = (0..result.len() / 2)
+            .map(|i| {
+                C::select_chain_ef(builder, bit, once(result[2 * i]), once(result[2 * i + 1]))[0]
+            })
+            .collect();
+    }
+    result[0]
 }
 
 pub fn words_to_bytes<T: Copy>(words: &[Word<T>]) -> Vec<T> {

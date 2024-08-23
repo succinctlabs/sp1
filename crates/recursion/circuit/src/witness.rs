@@ -197,13 +197,11 @@ impl Witnessable<C> for OuterCommitPhaseStep {
     type WitnessVariable = FriCommitPhaseProofStepVariable<C>;
 
     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
-        let sibling_value = self.sibling_value.read(builder);
-        let opening_proof = self.opening_proof.read(builder);
-        FriCommitPhaseProofStepVariable { sibling_value, opening_proof }
+        todo!()
     }
 
     fn write(&self, witness: &mut Witness<C>) {
-        self.sibling_value.write(witness);
+        self.siblings.write(witness);
         self.opening_proof.write(witness);
     }
 }

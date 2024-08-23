@@ -409,3 +409,37 @@ where
     zip(zip(id_branch, swap_branch), zip(repeat(shouldnt_swap), repeat(should_swap)))
         .map(|((id_v, sw_v), (id_c, sw_c))| builder.eval(id_c * id_v + sw_c * sw_v))
 }
+
+#[cfg(test)]
+mod tests {
+
+    #[test]
+    fn test_access_index_with_var_e() {
+        let mut builder = Builder::<OuterConfig>::default();
+        type EF = <OuterConfig as Config>::EF;
+
+        let vec: Vec<Ext<_, _>> = (0..8)
+            .map(|i| builder.eval(SymbolicExt::from_f(EF::from_canonical_u32(i))))
+            .collect::<Vec<_>>();
+
+        for elem in vec.iter() {
+            builder.print_e(*elem);
+        }
+
+        for i in 0..8 {
+            let index: Var<_> = builder.eval(SymbolicVar::from_f(Bn254Fr::from_canonical_usize(i)));
+            let index_bits: Vec<Var<_>> = builder.num2bits_v_circuit(index, 3);
+
+            let result = access_index_with_var_e(&mut builder, &vec, index_bits);
+
+            builder.assert_ext_eq(vec[i], result);
+        }
+
+        let mut backend = ConstraintCompiler::<OuterConfig>::default();
+        let constraints = backend.emit(builder.operations);
+
+        let witness = Witness::default();
+
+        PlonkBn254Prover::test::<OuterConfig>(constraints.clone(), witness);
+    }
+}

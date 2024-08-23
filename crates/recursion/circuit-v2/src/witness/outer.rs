@@ -3,7 +3,7 @@ use std::borrow::Borrow;
 use p3_bn254_fr::Bn254Fr;
 use p3_field::AbstractField;
 
-use p3_fri::{CommitPhaseProofStep, QueryProof};
+use p3_fri::{CommitPhaseProofStep, NormalizeQueryProof, QueryProof};
 pub use sp1_recursion_compiler::ir::Witness as OuterWitness;
 use sp1_recursion_compiler::{
     config::OuterConfig,
@@ -16,7 +16,7 @@ use sp1_recursion_core_v2::stark::config::{
 
 use crate::{
     BatchOpeningVariable, FriCommitPhaseProofStepVariable, FriProofVariable, FriQueryProofVariable,
-    TwoAdicPcsProofVariable,
+    NormalizeQueryProofVariable, TwoAdicPcsProofVariable,
 };
 
 use super::{WitnessWriter, Witnessable};
@@ -89,6 +89,14 @@ impl Witnessable<OuterConfig> for OuterFriProof {
     type WitnessVariable = FriProofVariable<OuterConfig, BabyBearPoseidon2Outer>;
 
     fn read(&self, builder: &mut Builder<OuterConfig>) -> Self::WitnessVariable {
+        let normalize_phase_commits = self
+            .normalize_phase_commits
+            .iter()
+            .map(|commit| {
+                let commit: &OuterDigest = commit.borrow();
+                commit.read(builder)
+            })
+            .collect();
         let commit_phase_commits = self
             .commit_phase_commits
             .iter()
@@ -98,9 +106,17 @@ impl Witnessable<OuterConfig> for OuterFriProof {
             })
             .collect();
         let query_proofs = self.query_proofs.read(builder);
+        let normalize_query_proofs = self.normalize_query_proofs.read(builder);
         let final_poly = self.final_poly.read(builder);
         let pow_witness = self.pow_witness.read(builder);
-        Self::WitnessVariable { commit_phase_commits, query_proofs, final_poly, pow_witness }
+        Self::WitnessVariable {
+            commit_phase_commits,
+            query_proofs,
+            normalize_phase_commits,
+            normalize_query_proofs,
+            final_poly,
+            pow_witness,
+        }
     }
 
     fn write(&self, witness: &mut impl WitnessWriter<OuterConfig>) {
@@ -108,6 +124,11 @@ impl Witnessable<OuterConfig> for OuterFriProof {
             let commit = Borrow::<OuterDigest>::borrow(commit);
             commit.write(witness);
         });
+        self.normalize_phase_commits.iter().for_each(|commit| {
+            let commit = Borrow::<OuterDigest>::borrow(commit);
+            commit.write(witness);
+        });
+        self.normalize_query_proofs.write(witness);
         self.query_proofs.write(witness);
         self.final_poly.write(witness);
         self.pow_witness.write(witness);
@@ -118,9 +139,9 @@ impl Witnessable<OuterConfig> for CommitPhaseProofStep<OuterChallenge, OuterChal
     type WitnessVariable = FriCommitPhaseProofStepVariable<OuterConfig, BabyBearPoseidon2Outer>;
 
     fn read(&self, builder: &mut Builder<OuterConfig>) -> Self::WitnessVariable {
-        let sibling_value = self.sibling_value.read(builder);
+        let siblings = self.siblings.read(builder);
         let opening_proof = self.opening_proof.read(builder);
-        Self::WitnessVariable { sibling_value, opening_proof }
+        Self::WitnessVariable { siblings, opening_proof }
     }
 
     fn write(&self, witness: &mut impl WitnessWriter<OuterConfig>) {
@@ -139,5 +160,18 @@ impl Witnessable<OuterConfig> for QueryProof<OuterChallenge, OuterChallengeMmcs>
 
     fn write(&self, witness: &mut impl WitnessWriter<OuterConfig>) {
         self.commit_phase_openings.write(witness);
+    }
+}
+
+impl Witnessable<OuterConfig> for NormalizeQueryProof<OuterChallenge, OuterChallengeMmcs> {
+    type WitnessVariable = NormalizeQueryProofVariable<OuterConfig, BabyBearPoseidon2Outer>;
+
+    fn read(&self, builder: &mut Builder<OuterConfig>) -> Self::WitnessVariable {
+        let normalize_phase_openings = self.normalize_phase_openings.read(builder);
+        Self::WitnessVariable { normalize_phase_openings }
+    }
+
+    fn write(&self, witness: &mut impl WitnessWriter<OuterConfig>) {
+        self.normalize_phase_openings.write(witness);
     }
 }

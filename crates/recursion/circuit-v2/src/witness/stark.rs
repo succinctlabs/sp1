@@ -2,7 +2,7 @@ use std::borrow::Borrow;
 
 use p3_baby_bear::BabyBear;
 use p3_field::{AbstractExtensionField, AbstractField};
-use p3_fri::{CommitPhaseProofStep, QueryProof};
+use p3_fri::{CommitPhaseProofStep, NormalizeQueryProof, QueryProof};
 
 use sp1_recursion_compiler::ir::{Builder, Config, Ext, Felt};
 use sp1_recursion_core_v2::air::Block;
@@ -103,6 +103,14 @@ impl<C: CircuitConfig<F = InnerVal, EF = InnerChallenge, Bit = Felt<BabyBear>>> 
     type WitnessVariable = FriProofVariable<C, BabyBearPoseidon2>;
 
     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
+        let normalize_phase_commits = self
+            .normalize_phase_commits
+            .iter()
+            .map(|commit| {
+                let commit: &InnerDigest = commit.borrow();
+                commit.read(builder)
+            })
+            .collect();
         let commit_phase_commits = self
             .commit_phase_commits
             .iter()
@@ -111,10 +119,18 @@ impl<C: CircuitConfig<F = InnerVal, EF = InnerChallenge, Bit = Felt<BabyBear>>> 
                 commit.read(builder)
             })
             .collect();
+        let normalize_query_proofs = self.normalize_query_proofs.read(builder);
         let query_proofs = self.query_proofs.read(builder);
         let final_poly = self.final_poly.read(builder);
         let pow_witness = self.pow_witness.read(builder);
-        Self::WitnessVariable { commit_phase_commits, query_proofs, final_poly, pow_witness }
+        Self::WitnessVariable {
+            commit_phase_commits,
+            query_proofs,
+            normalize_phase_commits,
+            normalize_query_proofs,
+            final_poly,
+            pow_witness,
+        }
     }
 
     fn write(&self, witness: &mut impl WitnessWriter<C>) {
@@ -122,6 +138,11 @@ impl<C: CircuitConfig<F = InnerVal, EF = InnerChallenge, Bit = Felt<BabyBear>>> 
             let commit = Borrow::<InnerDigest>::borrow(commit);
             commit.write(witness);
         });
+        selt.normalize_phase_commits.iter().for_each(|commit| {
+            let commit = Borrow::<InnerDigest>::borrow(commit);
+            commit.write(witness);
+        });
+        self.normalize_query_proofs.write(witness);
         self.query_proofs.write(witness);
         self.final_poly.write(witness);
         self.pow_witness.write(witness);
@@ -144,18 +165,33 @@ impl<C: CircuitConfig<F = InnerVal, EF = InnerChallenge, Bit = Felt<BabyBear>>> 
 }
 
 impl<C: CircuitConfig<F = InnerVal, EF = InnerChallenge, Bit = Felt<BabyBear>>> Witnessable<C>
+    for NormalizeQueryProof<InnerChallenge, InnerChallengeMmcs>
+{
+    type WitnessVariable = NormalizeQueryProofVariable<C, BabyBearPoseidon2>;
+
+    fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
+        let normalize_phase_openings = self.normalize_phase_openings.read(builder);
+        Self::WitnessVariable { normalize_phase_openings }
+    }
+
+    fn write(&self, witness: &mut impl WitnessWriter<C>) {
+        self.normalize_phase_openings.write(witness);
+    }
+}
+
+impl<C: CircuitConfig<F = InnerVal, EF = InnerChallenge, Bit = Felt<BabyBear>>> Witnessable<C>
     for CommitPhaseProofStep<InnerChallenge, InnerChallengeMmcs>
 {
     type WitnessVariable = FriCommitPhaseProofStepVariable<C, BabyBearPoseidon2>;
 
     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
-        let sibling_value = self.sibling_value.read(builder);
+        let siblings = self.siblings.read(builder);
         let opening_proof = self.opening_proof.read(builder);
-        Self::WitnessVariable { sibling_value, opening_proof }
+        Self::WitnessVariable { siblings, opening_proof }
     }
 
     fn write(&self, witness: &mut impl WitnessWriter<C>) {
-        self.sibling_value.write(witness);
+        self.siblings.write(witness);
         self.opening_proof.write(witness);
     }
 }

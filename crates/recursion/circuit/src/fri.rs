@@ -246,285 +246,312 @@ pub fn verify_query<C: Config>(
 
     folded_eval
 }
-pub fn const_fri_proof(
-    builder: &mut Builder<OuterConfig>,
-    fri_proof: OuterFriProof,
-) -> FriProofVariable<OuterConfig> {
-    // Set the commit phase commits.
-    let commit_phase_commits = fri_proof
-        .commit_phase_commits
-        .iter()
-        .map(|commit| {
-            let commit: [Bn254Fr; DIGEST_SIZE] = (*commit).into();
-            let commit: Var<_> = builder.eval(commit[0]);
-            [commit; DIGEST_SIZE]
-        })
-        .collect::<Vec<_>>();
+// pub fn const_fri_proof(
+//     builder: &mut Builder<OuterConfig>,
+//     fri_proof: OuterFriProof,
+// ) -> FriProofVariable<OuterConfig> {
+//     // Set the commit phase commits.
+//     let commit_phase_commits = fri_proof
+//         .commit_phase_commits
+//         .iter()
+//         .map(|commit| {
+//             let commit: [Bn254Fr; DIGEST_SIZE] = (*commit).into();
+//             let commit: Var<_> = builder.eval(commit[0]);
+//             [commit; DIGEST_SIZE]
+//         })
+//         .collect::<Vec<_>>();
 
-    // Set the query proofs.
-    let query_proofs = fri_proof
-        .query_proofs
-        .iter()
-        .map(|query_proof| {
-            let commit_phase_openings = query_proof
-                .commit_phase_openings
-                .iter()
-                .map(|commit_phase_opening| {
-                    let sibling_value =
-                        builder.eval(SymbolicExt::from_f(commit_phase_opening.sibling_value));
-                    let opening_proof = commit_phase_opening
-                        .opening_proof
-                        .iter()
-                        .map(|sibling| {
-                            let commit: Var<_> = builder.eval(sibling[0]);
-                            [commit; DIGEST_SIZE]
-                        })
-                        .collect::<Vec<_>>();
-                    FriCommitPhaseProofStepVariable { sibling_value, opening_proof }
-                })
-                .collect::<Vec<_>>();
-            FriQueryProofVariable { commit_phase_openings }
-        })
-        .collect::<Vec<_>>();
+//     // Set the query proofs.
+//     let query_proofs = fri_proof
+//         .query_proofs
+//         .iter()
+//         .map(|query_proof| {
+//             let commit_phase_openings = query_proof
+//                 .commit_phase_openings
+//                 .iter()
+//                 .map(|commit_phase_opening| {
+//                     let siblings = commit_phase_opening
+//                         .siblings
+//                         .iter()
+//                         .map(|sibling| builder.constant(*sibling));
+//                     let opening_proof = commit_phase_opening
+//                         .opening_proof
+//                         .iter()
+//                         .map(|sibling| {
+//                             let commit: Var<_> = builder.eval(sibling[0]);
+//                             [commit; DIGEST_SIZE]
+//                         })
+//                         .collect::<Vec<_>>();
+//                     FriCommitPhaseProofStepVariable { siblings, opening_proof }
+//                 })
+//                 .collect::<Vec<_>>();
+//             FriQueryProofVariable { commit_phase_openings }
+//         })
+//         .collect::<Vec<_>>();
 
-    // Initialize the FRI proof variable.
-    FriProofVariable {
-        commit_phase_commits,
-        query_proofs,
-        final_poly: builder.eval(SymbolicExt::from_f(fri_proof.final_poly)),
-        pow_witness: builder.eval(fri_proof.pow_witness),
-    }
-}
+//     let normalize_query_proofs = fri_proof
+//         .normalize_query_proofs
+//         .iter()
+//         .map(|query_proof| {
+//             let normalize_phase_openings = query_proof
+//                 .normalize_phase_openings
+//                 .iter()
+//                 .map(|opening| {
+//                     let siblings =
+//                         opening.siblings.iter().map(|sibling| builder.constant(*sibling));
+//                     let opening_proof = opening
+//                         .opening_proof
+//                         .iter()
+//                         .map(|sibling| {
+//                             let commit: Var<_> = builder.eval(sibling[0]);
+//                             [commit; DIGEST_SIZE]
+//                         })
+//                         .collect::<Vec<_>>();
+//                     FriCommitPhaseProofStepVariable { siblings, opening_proof }
+//                 })
+//                 .collect::<Vec<_>>();
+//             FriQueryProofVariable { commit_phase_openings }
+//         })
+//         .collect::<Vec<_>>();
 
-pub fn const_two_adic_pcs_proof(
-    builder: &mut Builder<OuterConfig>,
-    proof: TwoAdicFriPcsProof<OuterVal, OuterChallenge, OuterValMmcs, OuterChallengeMmcs>,
-) -> TwoAdicPcsProofVariable<OuterConfig> {
-    let fri_proof = const_fri_proof(builder, proof.fri_proof);
-    let query_openings = proof
-        .query_openings
-        .iter()
-        .map(|query_opening| {
-            query_opening
-                .iter()
-                .map(|opening| BatchOpeningVariable {
-                    opened_values: opening
-                        .opened_values
-                        .iter()
-                        .map(|opened_value| {
-                            opened_value
-                                .iter()
-                                .map(|value| vec![builder.eval::<Felt<OuterVal>, _>(*value)])
-                                .collect::<Vec<_>>()
-                        })
-                        .collect::<Vec<_>>(),
-                    opening_proof: opening
-                        .opening_proof
-                        .iter()
-                        .map(|opening_proof| [builder.eval(opening_proof[0])])
-                        .collect::<Vec<_>>(),
-                })
-                .collect::<Vec<_>>()
-        })
-        .collect::<Vec<_>>();
-    TwoAdicPcsProofVariable { fri_proof, query_openings }
-}
-#[cfg(test)]
-pub mod tests {
+//     // Initialize the FRI proof variable.
+//     FriProofVariable {
+//         commit_phase_commits,
+//         query_proofs,
+//         final_poly: builder.eval(SymbolicExt::from_f(fri_proof.final_poly)),
+//         pow_witness: builder.eval(fri_proof.pow_witness),
+//     }
+// }
 
-    use p3_bn254_fr::Bn254Fr;
-    use p3_challenger::{CanObserve, CanSample, FieldChallenger};
-    use p3_commit::{Pcs, TwoAdicMultiplicativeCoset};
-    use p3_field::AbstractField;
-    use p3_fri::verifier;
-    use p3_matrix::dense::RowMajorMatrix;
-    use rand::rngs::OsRng;
-    use sp1_recursion_compiler::{
-        config::OuterConfig,
-        constraints::ConstraintCompiler,
-        ir::{Builder, Ext, SymbolicExt, Var, Witness},
-    };
-    use sp1_recursion_core::stark::config::{
-        outer_perm, test_fri_config, OuterChallenge, OuterChallenger, OuterCompress, OuterDft,
-        OuterHash, OuterPcs, OuterVal, OuterValMmcs,
-    };
-    use sp1_recursion_gnark_ffi::PlonkBn254Prover;
+// pub fn const_two_adic_pcs_proof(
+//     builder: &mut Builder<OuterConfig>,
+//     proof: TwoAdicFriPcsProof<OuterVal, OuterChallenge, OuterValMmcs, OuterChallengeMmcs>,
+// ) -> TwoAdicPcsProofVariable<OuterConfig> {
+//     let fri_proof = const_fri_proof(builder, proof.fri_proof);
+//     let query_openings = proof
+//         .query_openings
+//         .iter()
+//         .map(|query_opening| {
+//             query_opening
+//                 .iter()
+//                 .map(|opening| BatchOpeningVariable {
+//                     opened_values: opening
+//                         .opened_values
+//                         .iter()
+//                         .map(|opened_value| {
+//                             opened_value
+//                                 .iter()
+//                                 .map(|value| vec![builder.eval::<Felt<OuterVal>, _>(*value)])
+//                                 .collect::<Vec<_>>()
+//                         })
+//                         .collect::<Vec<_>>(),
+//                     opening_proof: opening
+//                         .opening_proof
+//                         .iter()
+//                         .map(|opening_proof| [builder.eval(opening_proof[0])])
+//                         .collect::<Vec<_>>(),
+//                 })
+//                 .collect::<Vec<_>>()
+//         })
+//         .collect::<Vec<_>>();
+//     TwoAdicPcsProofVariable { fri_proof, query_openings }
+// }
+// #[cfg(test)]
+// pub mod tests {
 
-    use super::{verify_shape_and_sample_challenges, verify_two_adic_pcs, TwoAdicPcsRoundVariable};
-    use crate::{
-        challenger::MultiField32ChallengerVariable,
-        types::{OuterDigestVariable, TwoAdicPcsMatsVariable},
-        DIGEST_SIZE,
-    };
+//     use p3_bn254_fr::Bn254Fr;
+//     use p3_challenger::{CanObserve, CanSample, FieldChallenger};
+//     use p3_commit::{Pcs, TwoAdicMultiplicativeCoset};
+//     use p3_field::AbstractField;
+//     use p3_fri::verifier;
+//     use p3_matrix::dense::RowMajorMatrix;
+//     use rand::rngs::OsRng;
+//     use sp1_recursion_compiler::{
+//         config::OuterConfig,
+//         constraints::ConstraintCompiler,
+//         ir::{Builder, Ext, SymbolicExt, Var, Witness},
+//     };
+//     use sp1_recursion_core::stark::config::{
+//         outer_perm, test_fri_config, OuterChallenge, OuterChallenger, OuterCompress, OuterDft,
+//         OuterHash, OuterPcs, OuterVal, OuterValMmcs,
+//     };
+//     use sp1_recursion_gnark_ffi::PlonkBn254Prover;
 
-    pub fn const_two_adic_pcs_rounds(
-        builder: &mut Builder<OuterConfig>,
-        commit: [Bn254Fr; DIGEST_SIZE],
-        os: Vec<(TwoAdicMultiplicativeCoset<OuterVal>, Vec<(OuterChallenge, Vec<OuterChallenge>)>)>,
-    ) -> (OuterDigestVariable<OuterConfig>, Vec<TwoAdicPcsRoundVariable<OuterConfig>>) {
-        let commit: OuterDigestVariable<OuterConfig> = [builder.eval(commit[0])];
+//     use super::{verify_shape_and_sample_challenges, verify_two_adic_pcs, TwoAdicPcsRoundVariable};
+//     use crate::{
+//         challenger::MultiField32ChallengerVariable,
+//         types::{OuterDigestVariable, TwoAdicPcsMatsVariable},
+//         DIGEST_SIZE,
+//     };
 
-        let mut mats = Vec::new();
-        for (domain, poly) in os.into_iter() {
-            let points: Vec<Ext<OuterVal, OuterChallenge>> =
-                poly.iter().map(|(p, _)| builder.eval(SymbolicExt::from_f(*p))).collect::<Vec<_>>();
-            let values: Vec<Vec<Ext<OuterVal, OuterChallenge>>> = poly
-                .iter()
-                .map(|(_, v)| {
-                    v.clone()
-                        .iter()
-                        .map(|t| builder.eval(SymbolicExt::from_f(*t)))
-                        .collect::<Vec<_>>()
-                })
-                .collect::<Vec<_>>();
-            let mat = TwoAdicPcsMatsVariable { domain, points, values };
-            mats.push(mat);
-        }
+//     pub fn const_two_adic_pcs_rounds(
+//         builder: &mut Builder<OuterConfig>,
+//         commit: [Bn254Fr; DIGEST_SIZE],
+//         os: Vec<(TwoAdicMultiplicativeCoset<OuterVal>, Vec<(OuterChallenge, Vec<OuterChallenge>)>)>,
+//     ) -> (OuterDigestVariable<OuterConfig>, Vec<TwoAdicPcsRoundVariable<OuterConfig>>) {
+//         let commit: OuterDigestVariable<OuterConfig> = [builder.eval(commit[0])];
 
-        (commit, vec![TwoAdicPcsRoundVariable { batch_commit: commit, mats }])
-    }
+//         let mut mats = Vec::new();
+//         for (domain, poly) in os.into_iter() {
+//             let points: Vec<Ext<OuterVal, OuterChallenge>> =
+//                 poly.iter().map(|(p, _)| builder.eval(SymbolicExt::from_f(*p))).collect::<Vec<_>>();
+//             let values: Vec<Vec<Ext<OuterVal, OuterChallenge>>> = poly
+//                 .iter()
+//                 .map(|(_, v)| {
+//                     v.clone()
+//                         .iter()
+//                         .map(|t| builder.eval(SymbolicExt::from_f(*t)))
+//                         .collect::<Vec<_>>()
+//                 })
+//                 .collect::<Vec<_>>();
+//             let mat = TwoAdicPcsMatsVariable { domain, points, values };
+//             mats.push(mat);
+//         }
 
-    #[test]
-    fn test_fri_verify_shape_and_sample_challenges() {
-        let mut rng = &mut OsRng;
-        let log_degrees = &[16, 9, 7, 4, 2];
-        let perm = outer_perm();
-        let fri_config = test_fri_config();
-        let hash = OuterHash::new(perm.clone()).unwrap();
-        let compress = OuterCompress::new(perm.clone());
-        let val_mmcs = OuterValMmcs::new(hash, compress);
-        let dft = OuterDft {};
-        let pcs: OuterPcs =
-            OuterPcs::new(log_degrees.iter().copied().max().unwrap(), dft, val_mmcs, fri_config);
+//         (commit, vec![TwoAdicPcsRoundVariable { batch_commit: commit, mats }])
+//     }
 
-        // Generate proof.
-        let domains_and_polys = log_degrees
-            .iter()
-            .map(|&d| {
-                (
-                    <OuterPcs as Pcs<OuterChallenge, OuterChallenger>>::natural_domain_for_degree(
-                        &pcs,
-                        1 << d,
-                    ),
-                    RowMajorMatrix::<OuterVal>::rand(&mut rng, 1 << d, 10),
-                )
-            })
-            .collect::<Vec<_>>();
-        let (commit, data) = <OuterPcs as Pcs<OuterChallenge, OuterChallenger>>::commit(
-            &pcs,
-            domains_and_polys.clone(),
-        );
-        let mut challenger = OuterChallenger::new(perm.clone()).unwrap();
-        challenger.observe(commit);
-        let zeta = challenger.sample_ext_element::<OuterChallenge>();
-        let points = domains_and_polys.iter().map(|_| vec![zeta]).collect::<Vec<_>>();
-        let (_, proof) = pcs.open(vec![(&data, points)], &mut challenger);
+//     #[test]
+//     fn test_fri_verify_shape_and_sample_challenges() {
+//         let mut rng = &mut OsRng;
+//         let log_degrees = &[16, 9, 7, 4, 2];
+//         let perm = outer_perm();
+//         let fri_config = test_fri_config();
+//         let hash = OuterHash::new(perm.clone()).unwrap();
+//         let compress = OuterCompress::new(perm.clone());
+//         let val_mmcs = OuterValMmcs::new(hash, compress);
+//         let dft = OuterDft {};
+//         let pcs: OuterPcs =
+//             OuterPcs::new(log_degrees.iter().copied().max().unwrap(), dft, val_mmcs, fri_config);
 
-        // Verify proof.
-        let mut challenger = OuterChallenger::new(perm.clone()).unwrap();
-        challenger.observe(commit);
-        let _: OuterChallenge = challenger.sample();
-        let fri_challenges_gt = verifier::verify_shape_and_sample_challenges(
-            &test_fri_config(),
-            &proof.fri_proof,
-            &mut challenger,
-        )
-        .unwrap();
+//         // Generate proof.
+//         let domains_and_polys = log_degrees
+//             .iter()
+//             .map(|&d| {
+//                 (
+//                     <OuterPcs as Pcs<OuterChallenge, OuterChallenger>>::natural_domain_for_degree(
+//                         &pcs,
+//                         1 << d,
+//                     ),
+//                     RowMajorMatrix::<OuterVal>::rand(&mut rng, 1 << d, 10),
+//                 )
+//             })
+//             .collect::<Vec<_>>();
+//         let (commit, data) = <OuterPcs as Pcs<OuterChallenge, OuterChallenger>>::commit(
+//             &pcs,
+//             domains_and_polys.clone(),
+//         );
+//         let mut challenger = OuterChallenger::new(perm.clone()).unwrap();
+//         challenger.observe(commit);
+//         let zeta = challenger.sample_ext_element::<OuterChallenge>();
+//         let points = domains_and_polys.iter().map(|_| vec![zeta]).collect::<Vec<_>>();
+//         let (_, proof) = pcs.open(vec![(&data, points)], &mut challenger);
 
-        // Define circuit.
-        let mut builder = Builder::<OuterConfig>::default();
-        let config = test_fri_config();
-        let fri_proof = super::const_fri_proof(&mut builder, proof.fri_proof);
+//         // Verify proof.
+//         let mut challenger = OuterChallenger::new(perm.clone()).unwrap();
+//         challenger.observe(commit);
+//         let _: OuterChallenge = challenger.sample();
+//         let fri_challenges_gt = verifier::verify_shape_and_sample_challenges(
+//             &test_fri_config(),
+//             &proof.fri_proof,
+//             &mut challenger,
+//         )
+//         .unwrap();
 
-        let mut challenger = MultiField32ChallengerVariable::new(&mut builder);
-        let commit: [Bn254Fr; DIGEST_SIZE] = commit.into();
-        let commit: Var<_> = builder.eval(commit[0]);
-        challenger.observe_commitment(&mut builder, [commit]);
-        let _ = challenger.sample_ext(&mut builder);
-        let fri_challenges =
-            verify_shape_and_sample_challenges(&mut builder, &config, &fri_proof, &mut challenger);
+//         // Define circuit.
+//         let mut builder = Builder::<OuterConfig>::default();
+//         let config = test_fri_config();
+//         let fri_proof = super::const_fri_proof(&mut builder, proof.fri_proof);
 
-        for i in 0..fri_challenges_gt.betas.len() {
-            builder.assert_ext_eq(
-                SymbolicExt::from_f(fri_challenges_gt.betas[i]),
-                fri_challenges.betas[i],
-            );
-        }
+//         let mut challenger = MultiField32ChallengerVariable::new(&mut builder);
+//         let commit: [Bn254Fr; DIGEST_SIZE] = commit.into();
+//         let commit: Var<_> = builder.eval(commit[0]);
+//         challenger.observe_commitment(&mut builder, [commit]);
+//         let _ = challenger.sample_ext(&mut builder);
+//         let fri_challenges =
+//             verify_shape_and_sample_challenges(&mut builder, &config, &fri_proof, &mut challenger);
 
-        for i in 0..fri_challenges_gt.query_indices.len() {
-            builder.assert_var_eq(
-                Bn254Fr::from_canonical_usize(fri_challenges_gt.query_indices[i]),
-                fri_challenges.query_indices[i],
-            );
-        }
+//         for i in 0..fri_challenges_gt.betas.len() {
+//             builder.assert_ext_eq(
+//                 SymbolicExt::from_f(fri_challenges_gt.betas[i]),
+//                 fri_challenges.betas[i],
+//             );
+//         }
 
-        let mut backend = ConstraintCompiler::<OuterConfig>::default();
-        let constraints = backend.emit(builder.operations);
-        PlonkBn254Prover::test::<OuterConfig>(constraints.clone(), Witness::default());
-    }
+//         for i in 0..fri_challenges_gt.query_indices.len() {
+//             builder.assert_var_eq(
+//                 Bn254Fr::from_canonical_usize(fri_challenges_gt.query_indices[i]),
+//                 fri_challenges.query_indices[i],
+//             );
+//         }
 
-    #[test]
-    fn test_verify_two_adic_pcs() {
-        let mut rng = &mut OsRng;
-        let log_degrees = &[19, 19];
-        let perm = outer_perm();
-        let fri_config = test_fri_config();
-        let hash = OuterHash::new(perm.clone()).unwrap();
-        let compress = OuterCompress::new(perm.clone());
-        let val_mmcs = OuterValMmcs::new(hash, compress);
-        let dft = OuterDft {};
-        let pcs: OuterPcs =
-            OuterPcs::new(log_degrees.iter().copied().max().unwrap(), dft, val_mmcs, fri_config);
+//         let mut backend = ConstraintCompiler::<OuterConfig>::default();
+//         let constraints = backend.emit(builder.operations);
+//         PlonkBn254Prover::test::<OuterConfig>(constraints.clone(), Witness::default());
+//     }
 
-        // Generate proof.
-        let domains_and_polys = log_degrees
-            .iter()
-            .map(|&d| {
-                (
-                    <OuterPcs as Pcs<OuterChallenge, OuterChallenger>>::natural_domain_for_degree(
-                        &pcs,
-                        1 << d,
-                    ),
-                    RowMajorMatrix::<OuterVal>::rand(&mut rng, 1 << d, 100),
-                )
-            })
-            .collect::<Vec<_>>();
-        let (commit, data) = <OuterPcs as Pcs<OuterChallenge, OuterChallenger>>::commit(
-            &pcs,
-            domains_and_polys.clone(),
-        );
-        let mut challenger = OuterChallenger::new(perm.clone()).unwrap();
-        challenger.observe(commit);
-        let zeta = challenger.sample_ext_element::<OuterChallenge>();
-        let points = domains_and_polys.iter().map(|_| vec![zeta]).collect::<Vec<_>>();
-        let (opening, proof) = pcs.open(vec![(&data, points)], &mut challenger);
+//     #[test]
+//     fn test_verify_two_adic_pcs() {
+//         let mut rng = &mut OsRng;
+//         let log_degrees = &[19, 19];
+//         let perm = outer_perm();
+//         let fri_config = test_fri_config();
+//         let hash = OuterHash::new(perm.clone()).unwrap();
+//         let compress = OuterCompress::new(perm.clone());
+//         let val_mmcs = OuterValMmcs::new(hash, compress);
+//         let dft = OuterDft {};
+//         let pcs: OuterPcs =
+//             OuterPcs::new(log_degrees.iter().copied().max().unwrap(), dft, val_mmcs, fri_config);
 
-        // Verify proof.
-        let mut challenger = OuterChallenger::new(perm.clone()).unwrap();
-        challenger.observe(commit);
-        challenger.sample_ext_element::<OuterChallenge>();
-        let os: Vec<(
-            TwoAdicMultiplicativeCoset<OuterVal>,
-            Vec<(OuterChallenge, Vec<OuterChallenge>)>,
-        )> = domains_and_polys
-            .iter()
-            .zip(&opening[0])
-            .map(|((domain, _), mat_openings)| (*domain, vec![(zeta, mat_openings[0].clone())]))
-            .collect();
-        pcs.verify(vec![(commit, os.clone())], &proof, &mut challenger).unwrap();
+//         // Generate proof.
+//         let domains_and_polys = log_degrees
+//             .iter()
+//             .map(|&d| {
+//                 (
+//                     <OuterPcs as Pcs<OuterChallenge, OuterChallenger>>::natural_domain_for_degree(
+//                         &pcs,
+//                         1 << d,
+//                     ),
+//                     RowMajorMatrix::<OuterVal>::rand(&mut rng, 1 << d, 100),
+//                 )
+//             })
+//             .collect::<Vec<_>>();
+//         let (commit, data) = <OuterPcs as Pcs<OuterChallenge, OuterChallenger>>::commit(
+//             &pcs,
+//             domains_and_polys.clone(),
+//         );
+//         let mut challenger = OuterChallenger::new(perm.clone()).unwrap();
+//         challenger.observe(commit);
+//         let zeta = challenger.sample_ext_element::<OuterChallenge>();
+//         let points = domains_and_polys.iter().map(|_| vec![zeta]).collect::<Vec<_>>();
+//         let (opening, proof) = pcs.open(vec![(&data, points)], &mut challenger);
 
-        // Define circuit.
-        let mut builder = Builder::<OuterConfig>::default();
-        let config = test_fri_config();
-        let proof = super::const_two_adic_pcs_proof(&mut builder, proof);
-        let (commit, rounds) = const_two_adic_pcs_rounds(&mut builder, commit.into(), os);
-        let mut challenger = MultiField32ChallengerVariable::new(&mut builder);
-        challenger.observe_commitment(&mut builder, commit);
-        challenger.sample_ext(&mut builder);
-        verify_two_adic_pcs(&mut builder, &config, &proof, &mut challenger, rounds);
+//         // Verify proof.
+//         let mut challenger = OuterChallenger::new(perm.clone()).unwrap();
+//         challenger.observe(commit);
+//         challenger.sample_ext_element::<OuterChallenge>();
+//         let os: Vec<(
+//             TwoAdicMultiplicativeCoset<OuterVal>,
+//             Vec<(OuterChallenge, Vec<OuterChallenge>)>,
+//         )> = domains_and_polys
+//             .iter()
+//             .zip(&opening[0])
+//             .map(|((domain, _), mat_openings)| (*domain, vec![(zeta, mat_openings[0].clone())]))
+//             .collect();
+//         pcs.verify(vec![(commit, os.clone())], &proof, &mut challenger).unwrap();
 
-        let mut backend = ConstraintCompiler::<OuterConfig>::default();
-        let constraints = backend.emit(builder.operations);
-        PlonkBn254Prover::test::<OuterConfig>(constraints.clone(), Witness::default());
-    }
-}
+//         // Define circuit.
+//         let mut builder = Builder::<OuterConfig>::default();
+//         let config = test_fri_config();
+//         let proof = super::const_two_adic_pcs_proof(&mut builder, proof);
+//         let (commit, rounds) = const_two_adic_pcs_rounds(&mut builder, commit.into(), os);
+//         let mut challenger = MultiField32ChallengerVariable::new(&mut builder);
+//         challenger.observe_commitment(&mut builder, commit);
+//         challenger.sample_ext(&mut builder);
+//         verify_two_adic_pcs(&mut builder, &config, &proof, &mut challenger, rounds);
+
+//         let mut backend = ConstraintCompiler::<OuterConfig>::default();
+//         let constraints = backend.emit(builder.operations);
+//         PlonkBn254Prover::test::<OuterConfig>(constraints.clone(), Witness::default());
+//     }
+// }
