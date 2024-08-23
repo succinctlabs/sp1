@@ -1,3 +1,4 @@
+use core::fmt::Debug;
 use std::iter::zip;
 
 use itertools::Itertools;
@@ -32,6 +33,8 @@ pub trait FieldHasherVariable<C: CircuitConfig> {
         should_swap: C::Bit,
         input: [Self::Digest; 2],
     ) -> [Self::Digest; 2];
+
+    fn print_commitment(builder: &mut Builder<C>, digest: Self::Digest);
 }
 
 impl<C: CircuitConfig<F = BabyBear, Bit = Felt<BabyBear>>> FieldHasherVariable<C>
@@ -64,6 +67,10 @@ impl<C: CircuitConfig<F = BabyBear, Bit = Felt<BabyBear>>> FieldHasherVariable<C
         ];
         assert_eq!(selected.next(), None, "{}", err_msg);
         ret
+    }
+
+    fn print_commitment(builder: &mut Builder<C>, digest: Self::Digest) {
+        digest.iter().for_each(|e| builder.print_f(*e));
     }
 }
 
@@ -118,6 +125,10 @@ impl<C: CircuitConfig<F = BabyBear, N = Bn254Fr, Bit = Var<Bn254Fr>>> FieldHashe
         });
 
         [result0, result1]
+    }
+
+    fn print_commitment(builder: &mut Builder<C>, digest: Self::Digest) {
+        digest.iter().for_each(|e| builder.print_v(*e));
     }
 }
 

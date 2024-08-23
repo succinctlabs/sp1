@@ -332,6 +332,7 @@ pub mod tests {
             .shard_proofs
             .into_iter()
             .map(|proof| {
+                println!("{:?}", proof.opening_proof.fri_proof.normalize_phase_commits);
                 proof.write(&mut witness_stream);
                 proof.read(&mut builder)
             })

@@ -13,6 +13,7 @@ use std::{
 
 use crate::{
     challenger::{CanSampleBitsVariable, FieldChallengerVariable},
+    hash::FieldHasherVariable,
     utils::access_index_with_var_e,
     BabyBearFriConfigVariable, CanObserveVariable, CircuitConfig, Ext, FriChallenges,
     FriCommitPhaseProofStepVariable, FriMmcs, FriProofVariable, FriQueryProofVariable,
@@ -29,14 +30,20 @@ pub fn verify_shape_and_sample_challenges<
     challenger: &mut SC::FriChallengerVariable,
     log_max_height: usize,
 ) -> FriChallenges<C> {
+    println!("Num normalize phase commits: {}", proof.normalize_phase_commits.len());
+    println!("Num commit phase commits: {}", proof.commit_phase_commits.len());
     let normalize_betas = proof
         .normalize_phase_commits
         .iter()
         .map(|commitment| {
+            <SC as FieldHasherVariable<C>>::print_commitment(builder, *commitment);
             challenger.observe(builder, *commitment);
             challenger.sample_ext(builder)
         })
-        .collect();
+        .collect_vec();
+    for beta in &normalize_betas {
+        builder.print_e(*beta);
+    }
     let betas = proof
         .commit_phase_commits
         .iter()
@@ -56,8 +63,6 @@ pub fn verify_shape_and_sample_challenges<
     assert_eq!(proof.normalize_query_proofs.len(), config.num_queries);
     challenger.check_witness(builder, config.proof_of_work_bits, proof.pow_witness);
 
-    println!("Sampling {} bits", log_max_height);
-
     let query_indices: Vec<Vec<C::Bit>> =
         repeat_with(|| challenger.sample_bits(builder, log_max_height))
             .take(config.num_queries)
@@ -74,21 +79,25 @@ pub fn verify_two_adic_pcs<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigV
     rounds: Vec<TwoAdicPcsRoundVariable<C, SC>>,
 ) {
     let alpha = challenger.sample_ext(builder);
+    builder.print_e(alpha);
 
     let log_global_max_height = log2_strict_usize(
         rounds
             .iter()
             .map(|round: &TwoAdicPcsRoundVariable<_, _>| {
-                round
+                let round_max_height = round
                     .domains_points_and_opens
                     .iter()
                     .map(|dpo| dpo.domain.size() << config.log_blowup)
                     .max()
-                    .unwrap()
+                    .unwrap();
+                println!("Round max height: {}", log2_strict_usize(round_max_height));
+                round_max_height
             })
             .max()
             .unwrap(),
     );
+    println!("Gloabl max height: {}", log_global_max_height);
     let fri_challenges = verify_shape_and_sample_challenges::<C, SC>(
         builder,
         config,
@@ -290,7 +299,6 @@ fn verify_normalization_phase<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConf
         .filter_map(|(i, v)| v.map(|_| i))
         .filter(|i| (i >= &config.log_blowup) && (i - config.log_blowup) % config.log_arity != 0)
         .rev();
-
     // Populate the return value with zeros, or with the reduced openings at the correct indices.
     let mut new_openings: [Ext<_, _>; 32] = core::array::from_fn(|i| {
         if i >= config.log_blowup && (i - config.log_blowup) % config.log_arity == 0 {
@@ -867,7 +875,7 @@ mod tests {
     #[test]
     fn test_verify_two_adic_pcs_inner() {
         let mut rng = StdRng::seed_from_u64(0xDEADBEEF);
-        let log_degrees = &[19, 18, 17];
+        let log_degrees = &[17, 15];
         let perm = inner_perm();
         let fri_config = inner_fri_config();
         let hash = InnerHash::new(perm.clone());

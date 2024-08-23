@@ -134,11 +134,11 @@ impl<C: CircuitConfig<F = InnerVal, EF = InnerChallenge, Bit = Felt<BabyBear>>> 
     }
 
     fn write(&self, witness: &mut impl WitnessWriter<C>) {
-        self.commit_phase_commits.iter().for_each(|commit| {
+        self.normalize_phase_commits.iter().for_each(|commit| {
             let commit = Borrow::<InnerDigest>::borrow(commit);
             commit.write(witness);
         });
-        self.normalize_phase_commits.iter().for_each(|commit| {
+        self.commit_phase_commits.iter().for_each(|commit| {
             let commit = Borrow::<InnerDigest>::borrow(commit);
             commit.write(witness);
         });
