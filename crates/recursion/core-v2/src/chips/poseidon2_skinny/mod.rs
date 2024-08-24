@@ -141,7 +141,7 @@ pub(crate) mod tests {
         runtime.run().unwrap();
 
         let config = SC::new();
-        let machine_deg_9 = B::machine(config);
+        let machine_deg_9 = B::wrap_machine(config);
         let (pk_9, vk_9) = machine_deg_9.setup(&program);
         let result_deg_9 = run_test_machine(vec![runtime.record], machine_deg_9, pk_9, vk_9);
         if let Err(e) = result_deg_9 {

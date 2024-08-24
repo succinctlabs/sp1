@@ -172,7 +172,7 @@ pub(crate) mod tests {
         runtime.run().unwrap();
 
         let config = SC::new();
-        let machine_deg_3 = A::machine_wide(config);
+        let machine_deg_3 = A::compress_machine(config);
         let (pk_3, vk_3) = machine_deg_3.setup(&program);
         let result_deg_3 =
             run_test_machine(vec![runtime.record.clone()], machine_deg_3, pk_3, vk_3);
@@ -181,7 +181,7 @@ pub(crate) mod tests {
         }
 
         let config = SC::new();
-        let machine_deg_9 = B::machine_wide(config);
+        let machine_deg_9 = B::compress_machine(config);
         let (pk_9, vk_9) = machine_deg_9.setup(&program);
         let result_deg_9 = run_test_machine(vec![runtime.record], machine_deg_9, pk_9, vk_9);
         if let Err(e) = result_deg_9 {
