@@ -100,7 +100,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
             })
             .collect::<Vec<_>>();
 
-        let padded_nb_rows = next_power_of_two(instrs.len(), None);
+        let padded_nb_rows = next_power_of_two(instrs.len(), self.fixed_log2_rows);
         let mut values = vec![F::zero(); padded_nb_rows * PREPROCESSED_POSEIDON2_WIDTH];
 
         let populate_len = instrs.len() * PREPROCESSED_POSEIDON2_WIDTH;
