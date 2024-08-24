@@ -1,11 +1,11 @@
 use p3_air::{Air, BaseAir};
 use p3_baby_bear::BabyBear;
 use p3_commit::{LagrangeSelectors, Mmcs, PolynomialSpace, TwoAdicMultiplicativeCoset};
-use p3_field::{AbstractExtensionField, AbstractField, TwoAdicField};
+use p3_field::{AbstractExtensionField, AbstractField, Field, TwoAdicField};
 use p3_matrix::dense::RowMajorMatrix;
 
 use sp1_recursion_compiler::ir::{
-    Builder, Config, Ext, ExtConst, ExtensionOperand, Felt, SymbolicExt, SymbolicFelt,
+    Builder, Config, Ext, ExtConst, ExtensionOperand, Felt, SymbolicExt, SymbolicFelt, Usize,
 };
 use sp1_stark::{
     air::MachineAir, AirOpenedValues, ChipOpenedValues, GenericVerifierConstraintFolder,
@@ -121,7 +121,14 @@ where
         qc_domains: &[TwoAdicMultiplicativeCoset<C::F>],
         zeta: Ext<C::F, C::EF>,
     ) -> Ext<C::F, C::EF> {
-        builder.reduce_e(zeta);
+        let max_domain_log_n = qc_domains.iter().map(|d| d.log_n).max().unwrap();
+        let mut zetas: Vec<Ext<_, _>> = vec![zeta];
+        for _ in 1..max_domain_log_n + 1 {
+            let last_zeta = zetas.last().unwrap();
+            let new_zeta = builder.eval(*last_zeta * *last_zeta);
+            builder.reduce_e(new_zeta);
+            zetas.push(new_zeta);
+        }
         let zps = qc_domains
             .iter()
             .enumerate()
@@ -133,14 +140,19 @@ where
                     .map(|(_, other_domain)| {
                         let first_point = builder.eval(domain.first_point());
                         (
-                            other_domain
-                                .zp_at_point_variable(builder, zeta)
-                                .to_operand()
-                                .symbolic(),
+                            {
+                                let shift_power =
+                                    other_domain.shift.exp_power_of_2(other_domain.log_n).inverse();
+                                let z: Ext<_, _> = builder.eval(
+                                    zetas[other_domain.log_n] * SymbolicFelt::from_f(shift_power)
+                                        - SymbolicExt::from_f(C::EF::one()),
+                                );
+                                z.to_operand().symbolic()
+                            },
                             other_domain.zp_at_point_f(builder, first_point),
                         )
                     })
-                    .unzip::<_, _, Vec<SymbolicExt<_, _>>, Vec<Felt<_>>>();
+                    .unzip::<_, _, Vec<SymbolicExt<C::F, C::EF>>, Vec<Felt<_>>>();
                 let symbolic_prod: SymbolicFelt<_> =
                     zinvs.into_iter().map(|x| x.into()).product::<SymbolicFelt<_>>();
                 println!("zslen: {}", zs.len());
