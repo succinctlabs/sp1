@@ -138,18 +138,21 @@ where
                     .enumerate()
                     .filter(|(j, _)| *j != i)
                     .map(|(_, other_domain)| {
-                        let first_point = builder.eval(domain.first_point());
+                        // let first_point = builder.eval(domain.first_point());
+                        let shift_power =
+                            other_domain.shift.exp_power_of_2(other_domain.log_n).inverse();
+                        let z_f = domain.first_point().exp_power_of_2(other_domain.log_n)
+                            * shift_power
+                            - C::F::one();
                         (
                             {
-                                let shift_power =
-                                    other_domain.shift.exp_power_of_2(other_domain.log_n).inverse();
                                 let z: Ext<_, _> = builder.eval(
                                     zetas[other_domain.log_n] * SymbolicFelt::from_f(shift_power)
                                         - SymbolicExt::from_f(C::EF::one()),
                                 );
                                 z.to_operand().symbolic()
                             },
-                            other_domain.zp_at_point_f(builder, first_point),
+                            builder.constant::<Felt<_>>(z_f),
                         )
                     })
                     .unzip::<_, _, Vec<SymbolicExt<C::F, C::EF>>, Vec<Felt<_>>>();
