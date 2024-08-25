@@ -474,8 +474,9 @@ where
                             record_gen_sync.advance_turn();
 
                             // Generate the traces.
+                            let mut traces = vec![];
                             tracing::debug_span!("generate traces", index).in_scope(|| {
-                                let traces = records
+                                traces = records
                                     .par_iter()
                                     .map(|record| prover.generate_traces(record))
                                     .collect::<Vec<_>>();
