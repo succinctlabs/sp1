@@ -474,10 +474,12 @@ where
                             record_gen_sync.advance_turn();
 
                             // Generate the traces.
-                            let traces = records
-                                .par_iter()
-                                .map(|record| prover.generate_traces(record))
-                                .collect::<Vec<_>>();
+                            tracing::debug_span!("generate traces", index).in_scope(|| {
+                                let traces = records
+                                    .par_iter()
+                                    .map(|record| prover.generate_traces(record))
+                                    .collect::<Vec<_>>();
+                            });
 
                             trace_gen_sync.wait_for_turn(index);
 
