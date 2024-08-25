@@ -169,7 +169,7 @@ mod tests {
         runtime.run().unwrap();
 
         let config = SC::new();
-        let machine = A::machine_wide(config);
+        let machine = A::compress_machine(config);
         let (pk, vk) = machine.setup(&program);
         let result = run_test_machine(vec![runtime.record], machine, pk, vk);
         if let Err(e) = result {

@@ -21,7 +21,6 @@ use sp1_recursion_compiler::{
 
 mod types;
 
-pub mod build_wrap_v2;
 pub mod challenger;
 pub mod constraints;
 pub mod domain;

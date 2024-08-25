@@ -7,7 +7,7 @@ use p3_field::{AbstractExtensionField, AbstractField, Field, PrimeField32};
 use p3_matrix::{dense::RowMajorMatrix, Dimensions, Matrix};
 use p3_maybe_rayon::prelude::*;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use std::{cmp::Reverse, fmt::Debug};
+use std::{cmp::Reverse, fmt::Debug, time::Instant};
 use tracing::instrument;
 
 use super::{debug_constraints, Dom};
@@ -156,30 +156,31 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
     #[allow(clippy::map_unwrap_or)]
     #[allow(clippy::redundant_closure_for_method_calls)]
     pub fn setup(&self, program: &A::Program) -> (StarkProvingKey<SC>, StarkVerifyingKey<SC>) {
-        let mut named_preprocessed_traces = tracing::debug_span!("generate preprocessed traces")
-            .in_scope(|| {
-                self.chips()
-                    .iter()
-                    .map(|chip| {
-                        let prep_trace = chip.generate_preprocessed_trace(program);
-                        // Assert that the chip width data is correct.
-                        let expected_width = prep_trace.as_ref().map(|t| t.width()).unwrap_or(0);
-                        assert_eq!(
-                            expected_width,
-                            chip.preprocessed_width(),
-                            "Incorrect number of preprocessed columns for chip {}",
-                            chip.name()
-                        );
-
-                        (chip.name(), prep_trace)
-                    })
-                    .filter(|(_, prep_trace)| prep_trace.is_some())
-                    .map(|(name, prep_trace)| {
-                        let prep_trace = prep_trace.unwrap();
-                        (name, prep_trace)
-                    })
-                    .collect::<Vec<_>>()
-            });
+        let parent_span = tracing::debug_span!("generate preprocessed traces");
+        let mut named_preprocessed_traces = parent_span.in_scope(|| {
+            self.chips()
+                .par_iter()
+                .filter_map(|chip| {
+                    let chip_name = chip.name();
+                    let begin = Instant::now();
+                    let prep_trace = chip.generate_preprocessed_trace(program);
+                    tracing::debug!(
+                        parent: &parent_span,
+                        "generated preprocessed trace for chip {} in {:?}",
+                        chip_name,
+                        begin.elapsed()
+                    );
+                    // Assert that the chip width data is correct.
+                    let expected_width = prep_trace.as_ref().map(|t| t.width()).unwrap_or(0);
+                    assert_eq!(
+                        expected_width,
+                        chip.preprocessed_width(),
+                        "Incorrect number of preprocessed columns for chip {chip_name}"
+                    );
+                    prep_trace.map(move |t| (chip_name, t))
+                })
+                .collect::<Vec<_>>()
+        });
 
         // Order the chips and traces by trace size (biggest first), and get the ordering map.
         named_preprocessed_traces.sort_by_key(|(_, trace)| Reverse(trace.height()));

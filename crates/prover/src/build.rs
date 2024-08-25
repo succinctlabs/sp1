@@ -158,7 +158,7 @@ pub fn dummy_proof() -> (StarkVerifyingKey<OuterSC>, ShardProof<OuterSC>) {
 }
 
 fn build_outer_circuit(template_input: &SP1CompressWitnessValues<OuterSC>) -> Vec<Constraint> {
-    let wrap_machine = WrapAir::machine(OuterSC::default());
+    let wrap_machine = WrapAir::wrap_machine(OuterSC::default());
 
     let wrap_span = tracing::debug_span!("build wrap circuit").entered();
     let mut builder = Builder::<OuterConfig>::default();

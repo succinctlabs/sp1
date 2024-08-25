@@ -8,6 +8,8 @@ use sp1_derive::AlignedBorrow;
 
 use crate::Address;
 
+pub const NUM_MEM_ACCESS_COLS: usize = core::mem::size_of::<MemoryAccessCols<u8>>();
+
 /// Data describing in what manner to access a particular memory block.
 #[derive(AlignedBorrow, Debug, Clone, Copy)]
 #[repr(C)]

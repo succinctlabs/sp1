@@ -21,7 +21,7 @@ use crate::chips::poseidon2_skinny::WIDTH;
 #[derive(
     AlignedBorrow, Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize, Default,
 )]
-#[repr(C)]
+#[repr(transparent)]
 pub struct Address<F>(pub F);
 
 impl<F: PrimeField64> Address<F> {
@@ -35,6 +35,7 @@ impl<F: PrimeField64> Address<F> {
 
 /// The inputs and outputs to an operation of the base field ALU.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[repr(C)]
 pub struct BaseAluIo<V> {
     pub out: V,
     pub in1: V,
@@ -55,6 +56,7 @@ pub struct BaseAluInstr<F> {
 
 /// The inputs and outputs to an operation of the extension field ALU.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[repr(C)]
 pub struct ExtAluIo<V> {
     pub out: V,
     pub in1: V,
