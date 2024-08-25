@@ -1,7 +1,7 @@
 use core::fmt::Display;
 use itertools::Itertools;
 use serde::{de::DeserializeOwned, Serialize};
-use std::{cmp::Reverse, error::Error};
+use std::{cmp::Reverse, error::Error, time::Instant};
 
 use crate::{AirOpenedValues, ChipOpenedValues, ShardOpenedValues};
 use p3_air::Air;
@@ -54,16 +54,22 @@ pub trait MachineProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>>:
         // For each chip, generate the trace.
         let parent_span = tracing::debug_span!("generate traces for shard");
         parent_span.in_scope(|| {
-               shard_chips
-                   .par_iter()
-                   .map(|chip| {
-                       let chip_name = chip.name();
-                       let trace = tracing::debug_span!(parent: &parent_span, "generate trace for chip", %chip_name)
-                                   .in_scope(|| chip.generate_trace(record, &mut A::Record::default()));
-                       (chip_name, trace)
-                       })
-                       .collect::<Vec<_>>()
-                    })
+            shard_chips
+                .par_iter()
+                .map(|chip| {
+                    let chip_name = chip.name();
+                    let begin = Instant::now();
+                    let trace = chip.generate_trace(record, &mut A::Record::default());
+                    tracing::debug!(
+                        parent: &parent_span,
+                        "generated trace for chip {} in {:?}",
+                        chip_name,
+                        begin.elapsed()
+                    );
+                    (chip_name, trace)
+                })
+                .collect::<Vec<_>>()
+        })
     }
 
     /// Commit to the main traces.

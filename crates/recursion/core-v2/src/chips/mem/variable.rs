@@ -1,17 +1,17 @@
 use core::borrow::Borrow;
 use instruction::{HintBitsInstr, HintExt2FeltsInstr, HintInstr};
-use itertools::Itertools;
 use p3_air::{Air, BaseAir, PairBuilder};
 use p3_field::PrimeField32;
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
-use sp1_core_machine::utils::pad_to_power_of_two;
+use p3_maybe_rayon::prelude::*;
+use sp1_core_machine::utils::{next_power_of_two, pad_to_power_of_two};
 use sp1_derive::AlignedBorrow;
 use sp1_stark::air::MachineAir;
 use std::{borrow::BorrowMut, iter::zip, marker::PhantomData};
 
 use crate::{builder::SP1RecursionAirBuilder, *};
 
-use super::MemoryAccessCols;
+use super::{MemoryAccessCols, NUM_MEM_ACCESS_COLS};
 
 pub const NUM_MEM_ENTRIES_PER_ROW: usize = 2;
 
@@ -56,50 +56,35 @@ impl<F: PrimeField32> MachineAir<F> for MemoryChip<F> {
     }
 
     fn generate_preprocessed_trace(&self, program: &Self::Program) -> Option<RowMajorMatrix<F>> {
-        let rows = program
+        // Allocating an intermediate `Vec` is faster.
+        let accesses = program
             .instructions
-            .iter()
-            .flat_map(|instruction| match instruction {
+            .par_iter() // Using `rayon` here provides a big speedup.
+            .flat_map_iter(|instruction| match instruction {
                 Instruction::Hint(HintInstr { output_addrs_mults })
                 | Instruction::HintBits(HintBitsInstr {
                     output_addrs_mults,
                     input_addr: _, // No receive interaction for the hint operation
-                }) => output_addrs_mults
-                    .iter()
-                    .map(|&(addr, mult)| MemoryAccessCols { addr, mult })
-                    .collect(),
+                }) => output_addrs_mults.iter().collect(),
                 Instruction::HintExt2Felts(HintExt2FeltsInstr {
                     output_addrs_mults,
                     input_addr: _, // No receive interaction for the hint operation
-                }) => output_addrs_mults
-                    .iter()
-                    .map(|&(addr, mult)| MemoryAccessCols { addr, mult })
-                    .collect(),
-
+                }) => output_addrs_mults.iter().collect(),
                 _ => vec![],
-            })
-            .chunks(NUM_MEM_ENTRIES_PER_ROW)
-            .into_iter()
-            .map(|row_accesses| {
-                let mut row = [F::zero(); NUM_MEM_PREPROCESSED_INIT_COLS];
-                let cols: &mut MemoryPreprocessedCols<_> = row.as_mut_slice().borrow_mut();
-                for (cell, access) in zip(&mut cols.accesses, row_accesses) {
-                    *cell = access;
-                }
-                row
             })
             .collect::<Vec<_>>();
 
-        // Convert the trace to a row major matrix.
-        let mut trace = RowMajorMatrix::new(
-            rows.into_iter().flatten().collect::<Vec<_>>(),
-            NUM_MEM_PREPROCESSED_INIT_COLS,
-        );
+        let nb_rows = accesses.len().div_ceil(NUM_MEM_ENTRIES_PER_ROW);
+        let padded_nb_rows = next_power_of_two(nb_rows, None);
+        let mut values = vec![F::zero(); padded_nb_rows * NUM_MEM_PREPROCESSED_INIT_COLS];
+        // Generate the trace rows & corresponding records for each chunk of events in parallel.
+        let populate_len = accesses.len() * NUM_MEM_ACCESS_COLS;
+        values[..populate_len]
+            .par_chunks_mut(NUM_MEM_ACCESS_COLS)
+            .zip_eq(accesses)
+            .for_each(|(row, &(addr, mult))| *row.borrow_mut() = MemoryAccessCols { addr, mult });
 
-        // Pad the trace to a power of two.
-        pad_to_power_of_two::<NUM_MEM_PREPROCESSED_INIT_COLS, F>(&mut trace.values);
-
-        Some(trace)
+        Some(RowMajorMatrix::new(values, NUM_MEM_PREPROCESSED_INIT_COLS))
     }
 
     fn generate_dependencies(&self, _: &Self::Record, _: &mut Self::Record) {
