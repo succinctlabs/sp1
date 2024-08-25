@@ -552,18 +552,13 @@ where
             let mut shard_proofs = Vec::new();
             tracing::debug_span!("phase 2 prover").in_scope(|| {
                 for (records, traces) in p2_records_and_traces_rx.into_iter() {
-                    tracing::debug_span!("batch").in_scope(|| {
+                    let shard = records[0].public_values.shard;
+                    tracing::debug_span!("batch for shard {}", shard).in_scope(|| {
                         let span = tracing::Span::current().clone();
                         shard_proofs.par_extend(
                             records.into_par_iter().zip(traces.into_par_iter()).map(
                                 |(record, traces)| {
                                     let _span = span.enter();
-
-                                    for trace in traces.clone() {
-                                        println!(
-                                            "shard {} has chip {}", record.public_values.shard, trace.0
-                                        );
-                                    }
 
                                     let data = prover.commit(&record, traces);
                                     prover

@@ -306,12 +306,12 @@ where
                         .chip_ordering
                         .get(&chip.name())
                         .map(|&index| &pk.traces[index]);
-                    let (perm_trace, global_sums, local_sums) = chip.generate_permutation_trace(
+                    let (perm_trace, global_sum, local_sum) = chip.generate_permutation_trace(
                         preprocessed_trace,
                         main_trace,
                         &permutation_challenges,
                     );
-                    (perm_trace, [global_sums, local_sums])
+                    (perm_trace, [global_sum, local_sum])
                 })
                 .unzip_into_vecs(&mut permutation_traces, &mut cumulative_sums);
         });
