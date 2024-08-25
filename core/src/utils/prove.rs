@@ -453,13 +453,13 @@ where
                         let received = { checkpoints.lock().unwrap().pop_front() };
                         if let Some((index, mut checkpoint, done)) = received {
                             // Trace the checkpoint and reconstruct the execution records.
-                            let (mut records, report) = tracing::debug_span!("trace checkpoint")
+                            let (mut records, report) = tracing::debug_span!("trace checkpoint", index)
                                 .in_scope(|| trace_checkpoint(program.clone(), &checkpoint, opts));
                             *report_aggregate.lock().unwrap() += report;
                             reset_seek(&mut checkpoint);
 
                             // Generate the dependencies.
-                            tracing::debug_span!("generate dependencies").in_scope(|| {
+                            tracing::debug_span!("generate dependencies", index).in_scope(|| {
                                 prover.machine().generate_dependencies(&mut records, &opts)
                             });
 
@@ -514,10 +514,13 @@ where
                             record_gen_sync.advance_turn();
 
                             // Generate the traces.
-                            let traces = records
-                                .par_iter()
-                                .map(|record| prover.generate_traces(record, ProvePhase::Phase2))
-                                .collect::<Vec<_>>();
+                            let mut traces = Vec::new();
+                            tracing::debug_span!("generate traces", index).in_scope(|| {
+                                traces = records
+                                    .par_iter()
+                                    .map(|record| prover.generate_traces(record, ProvePhase::Phase2))
+                                    .collect::<Vec<_>>();
+                            });
 
                             trace_gen_sync.wait_for_turn(index);
 
@@ -553,7 +556,7 @@ where
             tracing::debug_span!("phase 2 prover").in_scope(|| {
                 for (records, traces) in p2_records_and_traces_rx.into_iter() {
                     let shard = records[0].public_values.shard;
-                    tracing::debug_span!("batch for shard {}", shard).in_scope(|| {
+                    tracing::debug_span!("batch", shard).in_scope(|| {
                         let span = tracing::Span::current().clone();
                         shard_proofs.par_extend(
                             records.into_par_iter().zip(traces.into_par_iter()).map(
