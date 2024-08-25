@@ -13,7 +13,9 @@ use crate::{builder::SP1RecursionAirBuilder, *};
 pub const NUM_BASE_ALU_ENTRIES_PER_ROW: usize = 4;
 
 #[derive(Default)]
-pub struct BaseAluChip {}
+pub struct BaseAluChip {
+    pub fixed_log2_rows: Option<usize>,
+}
 
 pub const NUM_BASE_ALU_COLS: usize = core::mem::size_of::<BaseAluCols<u8>>();
 
