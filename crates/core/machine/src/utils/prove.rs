@@ -411,13 +411,15 @@ where
                         let received = { checkpoints.lock().unwrap().pop_front() };
                         if let Some((index, mut checkpoint, done)) = received {
                             // Trace the checkpoint and reconstruct the execution records.
-                            let (mut records, report) = tracing::debug_span!("trace checkpoint")
-                                .in_scope(|| trace_checkpoint(program.clone(), &checkpoint, opts));
+                            let (mut records, report) =
+                                tracing::debug_span!("trace checkpoint", index).in_scope(|| {
+                                    trace_checkpoint(program.clone(), &checkpoint, opts)
+                                });
                             *report_aggregate.lock().unwrap() += report;
                             reset_seek(&mut checkpoint);
 
                             // Generate the dependencies.
-                            tracing::debug_span!("generate dependencies").in_scope(|| {
+                            tracing::debug_span!("generate dependencies", index).in_scope(|| {
                                 prover.machine().generate_dependencies(&mut records, &opts)
                             });
 
