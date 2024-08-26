@@ -996,7 +996,7 @@ pub mod tests {
     use super::*;
 
     use anyhow::Result;
-    use build::{try_build_groth16_bn254_artifacts_dev, try_build_plonk_bn254_artifacts_dev};
+    use build::try_build_groth16_bn254_artifacts_dev;
     use p3_field::PrimeField32;
 
     use sp1_recursion_core_v2::air::RecursionPublicValues;
@@ -1017,6 +1017,7 @@ pub mod tests {
 
     pub fn test_e2e_prover<C: SP1ProverComponents>(
         elf: &[u8],
+        stdin: SP1Stdin,
         opts: SP1ProverOpts,
         test_kind: Test,
     ) -> Result<()> {
@@ -1028,7 +1029,6 @@ pub mod tests {
         let (pk, vk) = prover.setup(elf);
 
         tracing::info!("prove core");
-        let stdin = SP1Stdin::new();
         let core_proof = prover.prove_core(&pk, &stdin, opts, context)?;
         let public_values = core_proof.public_values.clone();
 

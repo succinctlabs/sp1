@@ -10,7 +10,7 @@ use std::{borrow::BorrowMut, iter::zip};
 
 use crate::{builder::SP1RecursionAirBuilder, *};
 
-pub const NUM_BASE_ALU_ENTRIES_PER_ROW: usize = 8;
+pub const NUM_BASE_ALU_ENTRIES_PER_ROW: usize = 2;
 
 #[derive(Default)]
 pub struct BaseAluChip {}
