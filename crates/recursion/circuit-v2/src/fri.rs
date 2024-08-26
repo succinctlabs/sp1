@@ -66,6 +66,13 @@ pub fn verify_two_adic_pcs<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigV
 
     let log_global_max_height = proof.fri_proof.commit_phase_commits.len() + config.log_blowup;
 
+    let mut curr: Felt<_> = builder.constant(C::F::two_adic_generator(log_global_max_height));
+    let mut generator_powers: Vec<Felt<_>> = vec![curr];
+    for _ in 1..log_global_max_height + 1 {
+        curr = builder.eval(curr * curr);
+        generator_powers.push(curr);
+    }
+
     // The powers of alpha, where the ith element is alpha^i.
     let mut alpha_pows: Vec<Ext<C::F, C::EF>> =
         vec![builder.eval(SymbolicExt::from_f(C::EF::one()))];
@@ -125,8 +132,6 @@ pub fn verify_two_adic_pcs<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigV
                     for (z, ps_at_z) in izip!(mat_points, mat_values) {
                         // Unroll the loop calculation to avoid symbolic expression overhead
 
-                        // let mut acc: Ext<C::F, C::EF> =
-                        //     builder.eval(SymbolicExt::from_f(C::EF::zero()));
                         let mut acc: Ext<_, _> = builder.uninit();
 
                         builder.operations.push(DslIr::ImmE(acc, C::EF::zero()));
