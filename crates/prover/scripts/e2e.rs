@@ -113,7 +113,7 @@
 //         &build_dir,
 //     );
 
-//     println!("groth16 proof: {:?}", String::from_utf8(hex::encode(proof.encoded_proof)).unwrap());
-// }
+//     println!("groth16 proof: {:?}",
+// String::from_utf8(hex::encode(proof.encoded_proof)).unwrap()); }
 
 pub fn main() {}
