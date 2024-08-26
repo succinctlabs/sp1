@@ -66,11 +66,12 @@ pub fn verify_two_adic_pcs<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigV
 
     let log_global_max_height = proof.fri_proof.commit_phase_commits.len() + config.log_blowup;
 
-    let mut curr: Felt<_> = builder.constant(C::F::two_adic_generator(log_global_max_height));
-    let mut precomputed_generator_powers: Vec<Felt<_>> = vec![curr];
-    for _ in 1..log_global_max_height + 1 {
-        curr = builder.eval(curr * curr);
-        precomputed_generator_powers.push(curr);
+    // Precompute the two-adic powers of the two-adic generator. They can be loaded in as constants.
+    // The ith element has order 2^(log_global_max_height - i).
+    let mut precomputed_generator_powers: Vec<Felt<_>> = vec![];
+    for i in 0..log_global_max_height + 1 {
+        precomputed_generator_powers
+            .push(builder.constant(C::F::two_adic_generator(log_global_max_height - i)));
     }
 
     // The powers of alpha, where the ith element is alpha^i.
