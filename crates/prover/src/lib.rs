@@ -1078,8 +1078,7 @@ pub mod tests {
         let mut bytes = Vec::new();
         file.read_to_end(&mut bytes).unwrap();
 
-        let wrapped_bn254_proof: SP1ReduceProof<BabyBearPoseidon2Outer> =
-            bincode::deserialize(&bytes).unwrap();
+        let wrapped_bn254_proof = bincode::deserialize(&bytes).unwrap();
 
         tracing::info!("verify wrap bn254");
         prover.verify_wrap_bn254(&wrapped_bn254_proof, &vk).unwrap();
