@@ -121,7 +121,10 @@ where
         qc_domains: &[TwoAdicMultiplicativeCoset<C::F>],
         zeta: Ext<C::F, C::EF>,
     ) -> Ext<C::F, C::EF> {
+        // Compute the maximum power of zeta we will need.
         let max_domain_log_n = qc_domains.iter().map(|d| d.log_n).max().unwrap();
+
+        // Compute all powers of zeta of the form zeta^(2^i) up to `zeta^(2^max_domain_log_n)`.
         let mut zetas: Vec<Ext<_, _>> = vec![zeta];
         for _ in 1..max_domain_log_n + 1 {
             let last_zeta = zetas.last().unwrap();
@@ -138,14 +141,18 @@ where
                     .enumerate()
                     .filter(|(j, _)| *j != i)
                     .map(|(_, other_domain)| {
-                        // let first_point = builder.eval(domain.first_point());
+                        // `shift_power` is used in the computation of
                         let shift_power =
                             other_domain.shift.exp_power_of_2(other_domain.log_n).inverse();
+                        // This is `other_domain.zp_at_point_f(builder, domain.first_point())`.
+                        // We compute it as a constant here.
                         let z_f = domain.first_point().exp_power_of_2(other_domain.log_n)
                             * shift_power
                             - C::F::one();
                         (
                             {
+                                // We use the precomputed powers of zeta to compute the value of
+                                // `other_domain.zp_at_point_variable(builder, zeta)`.
                                 let z: Ext<_, _> = builder.eval(
                                     zetas[other_domain.log_n] * SymbolicFelt::from_f(shift_power)
                                         - SymbolicExt::from_f(C::EF::one()),
