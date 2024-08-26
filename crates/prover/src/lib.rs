@@ -94,7 +94,7 @@ pub type InnerSC = BabyBearPoseidon2;
 pub type OuterSC = BabyBearPoseidon2Outer;
 
 const COMPRESS_DEGREE: usize = 3;
-const SHRINK_DEGREE: usize = 9;
+const SHRINK_DEGREE: usize = 3;
 const WRAP_DEGREE: usize = 17;
 
 const CORE_CACHE_SIZE: usize = 100;
@@ -491,7 +491,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         );
 
         // Calculate the expected height of the tree.
-        let mut expected_height = 1;
+        let mut expected_height = if first_layer_inputs.len() == 1 { 0 } else { 1 };
         let num_first_layer_inputs = first_layer_inputs.len();
         let mut num_layer_inputs = num_first_layer_inputs;
         while num_layer_inputs > batch_size {
@@ -671,7 +671,6 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                                 });
 
                                 // Verify the proof.
-
                                 #[cfg(feature = "debug")]
                                 self.compress_prover
                                     .machine()

@@ -44,7 +44,10 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
         _output: &mut ExecutionRecord<F>,
     ) -> RowMajorMatrix<F> {
         let events = &input.poseidon2_events;
-        let padded_nb_rows = next_power_of_two(events.len(), self.fixed_log2_rows);
+        let padded_nb_rows = match self.fixed_log2_rows {
+            Some(log2_rows) => 1 << log2_rows,
+            None => next_power_of_two(events.len(), self.fixed_log2_rows),
+        };
         let num_columns = <Self as BaseAir<F>>::width(self);
         let mut values = vec![F::zero(); padded_nb_rows * num_columns];
 
@@ -100,7 +103,10 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
             })
             .collect::<Vec<_>>();
 
-        let padded_nb_rows = next_power_of_two(instrs.len(), self.fixed_log2_rows);
+        let padded_nb_rows = match self.fixed_log2_rows {
+            Some(log2_rows) => 1 << log2_rows,
+            None => next_power_of_two(instrs.len(), self.fixed_log2_rows),
+        };
         let mut values = vec![F::zero(); padded_nb_rows * PREPROCESSED_POSEIDON2_WIDTH];
 
         let populate_len = instrs.len() * PREPROCESSED_POSEIDON2_WIDTH;
