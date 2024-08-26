@@ -120,11 +120,11 @@ jobs:
       - name: Run script
         run: |
           cd examples/ssz-withdrawals/program
-          cargo add sp1-zkvm --path $GITHUB_WORKSPACE/zkvm/entrypoint
+          cargo add sp1-zkvm --path $GITHUB_WORKSPACE/crates/zkvm/entrypoint
           cargo prove build
           cd ../script
           cargo remove sp1-sdk
-          cargo add sp1-sdk --path $GITHUB_WORKSPACE/sdk
+          cargo add sp1-sdk --path $GITHUB_WORKSPACE/crates/sdk
           SP1_DEV=1 RUST_LOG=info cargo run --release
 
   tendermint:
@@ -160,9 +160,9 @@ jobs:
       - name: Run script
         run: |
           cd examples/tendermint/program
-          cargo add sp1-zkvm --path $GITHUB_WORKSPACE/zkvm/entrypoint
+          cargo add sp1-zkvm --path $GITHUB_WORKSPACE/crates/zkvm/entrypoint
           cargo prove build
           cd ../script
           cargo remove sp1-sdk
-          cargo add sp1-sdk --path $GITHUB_WORKSPACE/sdk
+          cargo add sp1-sdk --path $GITHUB_WORKSPACE/crates/sdk
           SP1_DEV=1 RUST_LOG=info cargo run --release
