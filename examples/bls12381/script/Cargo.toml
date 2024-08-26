@@ -1,7 +1,7 @@
 [workspace]
 [package]
 version = "0.1.0"
-name = "sp1-revm-kzg-profile"
+name = "bls12381-script"
 edition = "2021"
 
 [dependencies]
