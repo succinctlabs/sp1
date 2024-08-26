@@ -41,7 +41,7 @@ strum_macros = "0.26.4"
 strum = "0.26.3"
 log = "0.4.22"
 hex = "0.4.3"
-bytemuck = "1.16.3"
+bytemuck = "1.17.0"
 tiny-keccak = { version = "2.0.2", features = ["keccak"] }
 
 [dev-dependencies]
