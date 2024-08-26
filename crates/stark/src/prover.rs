@@ -16,6 +16,7 @@ use super::{
     quotient_values, Com, OpeningProof, StarkGenericConfig, StarkMachine, StarkProvingKey, Val,
     VerifierConstraintFolder,
 };
+use crate::Challenger;
 use crate::{
     air::MachineAir, lookup::InteractionBuilder, opts::SP1CoreOpts, record::MachineRecord,
     DebugConstraintBuilder, MachineChip, MachineProof, PackedChallenge, PcsProverData,
@@ -162,6 +163,9 @@ pub trait MachineProvingKey<SC: StarkGenericConfig>: Send + Sync {
 
     /// The proving key on the device.
     fn from_host(host: StarkProvingKey<SC>) -> Self;
+
+    /// Observe itself in the challenger.
+    fn observe_into(&self, challenger: &mut Challenger<SC>);
 }
 
 /// A prover implementation based on x86 and ARM CPUs.
@@ -594,6 +598,15 @@ where
 
     fn from_host(host: StarkProvingKey<SC>) -> Self {
         host
+    }
+
+    fn observe_into(&self, challenger: &mut Challenger<SC>) {
+        challenger.observe(self.commit.clone());
+        challenger.observe(self.pc_start);
+        let zero = Val::<SC>::zero();
+        for _ in 0..7 {
+            challenger.observe(zero);
+        }
     }
 }
 
