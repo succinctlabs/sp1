@@ -2811,6 +2811,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a7a70ba024b9dc04c27ea2f0c0548feb474ec5c54bba33a7f72f873a39d07b24"
 
 [[package]]
+name = "lru"
+version = "0.12.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "37ee39891760e7d94734f6f63fedc29a2e4a152f836120753a72503f09fcf904"
+dependencies = [
+ "hashbrown 0.14.5",
+]
+
+[[package]]
 name = "matchers"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4947,7 +4956,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-build"
-version = "1.1.1"
+version = "1.2.0-rc1"
 dependencies = [
  "anyhow",
  "cargo_metadata",
@@ -4958,7 +4967,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-core-executor"
-version = "1.1.1"
+version = "1.2.0-rc1"
 dependencies = [
  "bincode",
  "bytemuck",
@@ -4992,7 +5001,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-core-machine"
-version = "1.1.1"
+version = "1.2.0-rc1"
 dependencies = [
  "anyhow",
  "arrayref",
@@ -5056,7 +5065,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-cuda"
-version = "1.1.1"
+version = "1.2.0-rc1"
 dependencies = [
  "bincode",
  "ctrlc",
@@ -5075,7 +5084,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-curves"
-version = "1.1.1"
+version = "1.2.0-rc1"
 dependencies = [
  "curve25519-dalek",
  "dashu",
@@ -5094,7 +5103,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-derive"
-version = "1.1.1"
+version = "1.2.0-rc1"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -5103,7 +5112,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-primitives"
-version = "1.1.1"
+version = "1.2.0-rc1"
 dependencies = [
  "itertools 0.13.0",
  "lazy_static",
@@ -5115,7 +5124,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-prover"
-version = "1.1.1"
+version = "1.2.0-rc1"
 dependencies = [
  "anyhow",
  "bincode",
@@ -5123,6 +5132,7 @@ dependencies = [
  "dirs",
  "hex",
  "itertools 0.13.0",
+ "lru",
  "num-bigint 0.4.6",
  "oneshot",
  "p3-baby-bear",
@@ -5138,11 +5148,10 @@ dependencies = [
  "sp1-core-executor",
  "sp1-core-machine",
  "sp1-primitives",
- "sp1-recursion-circuit",
+ "sp1-recursion-circuit-v2",
  "sp1-recursion-compiler",
- "sp1-recursion-core",
+ "sp1-recursion-core-v2",
  "sp1-recursion-gnark-ffi",
- "sp1-recursion-program",
  "sp1-stark",
  "subtle-encoding",
  "tempfile",
@@ -5153,7 +5162,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-circuit"
-version = "1.1.1"
+version = "1.2.0-rc1"
 dependencies = [
  "bincode",
  "itertools 0.13.0",
@@ -5175,8 +5184,45 @@ dependencies = [
 ]
 
 [[package]]
+name = "sp1-recursion-circuit-v2"
+version = "1.2.0-rc1"
+dependencies = [
+ "bincode",
+ "hashbrown 0.14.5",
+ "itertools 0.13.0",
+ "p3-air",
+ "p3-baby-bear",
+ "p3-bn254-fr",
+ "p3-challenger",
+ "p3-commit",
+ "p3-dft",
+ "p3-field",
+ "p3-fri",
+ "p3-matrix",
+ "p3-maybe-rayon",
+ "p3-merkle-tree",
+ "p3-poseidon2",
+ "p3-symmetric",
+ "p3-util",
+ "rand",
+ "serde",
+ "sp1-core-executor",
+ "sp1-core-machine",
+ "sp1-primitives",
+ "sp1-recursion-circuit",
+ "sp1-recursion-compiler",
+ "sp1-recursion-core-v2",
+ "sp1-recursion-derive",
+ "sp1-recursion-gnark-ffi",
+ "sp1-recursion-program",
+ "sp1-stark",
+ "stacker",
+ "tracing",
+]
+
+[[package]]
 name = "sp1-recursion-compiler"
-version = "1.1.1"
+version = "1.2.0-rc1"
 dependencies = [
  "backtrace",
  "itertools 0.13.0",
@@ -5204,7 +5250,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-core"
-version = "1.1.1"
+version = "1.2.0-rc1"
 dependencies = [
  "arrayref",
  "backtrace",
@@ -5240,7 +5286,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-core-v2"
-version = "1.1.1"
+version = "1.2.0-rc1"
 dependencies = [
  "arrayref",
  "backtrace",
@@ -5279,7 +5325,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-derive"
-version = "1.1.1"
+version = "1.2.0-rc1"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -5288,7 +5334,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-gnark-ffi"
-version = "1.1.1"
+version = "1.2.0-rc1"
 dependencies = [
  "anyhow",
  "bincode",
@@ -5313,7 +5359,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-program"
-version = "1.1.1"
+version = "1.2.0-rc1"
 dependencies = [
  "itertools 0.13.0",
  "p3-air",
@@ -5343,7 +5389,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-sdk"
-version = "1.1.1"
+version = "1.2.0-rc1"
 dependencies = [
  "alloy-sol-types",
  "anyhow",
@@ -5388,7 +5434,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-stark"
-version = "1.1.1"
+version = "1.2.0-rc1"
 dependencies = [
  "arrayref",
  "hashbrown 0.14.5",
