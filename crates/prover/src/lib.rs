@@ -1213,7 +1213,7 @@ pub mod tests {
         println!("complete: {:?}", reduce_pv.is_complete);
 
         tracing::info!("verify verify program");
-        // prover.verify_compressed(&verify_reduce, &verify_vk)?;
+        prover.verify_compressed(&verify_reduce, &verify_vk)?;
 
         Ok(())
     }
