@@ -300,9 +300,9 @@ where
             let trace_width = traces[i].width();
             let prep_width = prep_traces[i].map_or(0, |x| x.width());
             let permutation_width = permutation_traces[i].width();
-            let total_width = trace_width +
-                prep_width +
-                permutation_width * <SC::Challenge as AbstractExtensionField<SC::Val>>::D;
+            let total_width = trace_width
+                + prep_width
+                + permutation_width * <SC::Challenge as AbstractExtensionField<SC::Val>>::D;
             tracing::debug!(
                 "{:<15} | Main Cols = {:<5} | Pre Cols = {:<5}  | Perm Cols = {:<5} | Rows = {:<5} | Cells = {:<10}",
                 chips[i].name(),

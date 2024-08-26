@@ -130,7 +130,7 @@ where
     /// verifier:
     /// - Asserts that each of these proofs is valid as a `compress` proof.
     /// - Asserts that each of these proofs is complete by checking the `is_complete` flag in the
-    ///  proof's public values.
+    ///   proof's public values.
     /// - Aggregates the proof information into the accumulated deferred digest.
     pub fn verify(
         builder: &mut Builder<C>,

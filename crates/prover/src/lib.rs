@@ -643,7 +643,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                                 // Observe the proving key.
                                 let mut challenger = self.compress_prover.config().challenger();
                                 tracing::debug_span!("observe proving key").in_scope(|| {
-                                    pk.observe_into(&mut challenger);
+                                    vk.observe_into(&mut challenger);
                                 });
 
                                 #[cfg(feature = "debug")]
