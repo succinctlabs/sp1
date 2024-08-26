@@ -67,10 +67,10 @@ pub fn verify_two_adic_pcs<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigV
     let log_global_max_height = proof.fri_proof.commit_phase_commits.len() + config.log_blowup;
 
     let mut curr: Felt<_> = builder.constant(C::F::two_adic_generator(log_global_max_height));
-    let mut generator_powers: Vec<Felt<_>> = vec![curr];
+    let mut precomputed_generator_powers: Vec<Felt<_>> = vec![curr];
     for _ in 1..log_global_max_height + 1 {
         curr = builder.eval(curr * curr);
-        generator_powers.push(curr);
+        precomputed_generator_powers.push(curr);
     }
 
     // The powers of alpha, where the ith element is alpha^i.
@@ -119,10 +119,11 @@ pub fn verify_two_adic_pcs<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigV
                         index_bits[bits_reduced..(bits_reduced + log_height)].to_vec();
 
                     let g = builder.generator();
-                    let two_adic_generator: Felt<_> =
-                        builder.eval(C::F::two_adic_generator(log_height));
-                    let two_adic_generator_exp =
-                        C::exp_reverse_bits(builder, two_adic_generator, reduced_index_bits_trunc);
+                    let two_adic_generator_exp = C::exp_f_bits_precomputed(
+                        builder,
+                        &reduced_index_bits_trunc.into_iter().rev().collect_vec(),
+                        &precomputed_generator_powers[log_global_max_height - log_height..],
+                    );
 
                     // Unroll the following to avoid symbolic expression overhead
                     // let x: Felt<_> = builder.eval(g * two_adic_generator_exp);
