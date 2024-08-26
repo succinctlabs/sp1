@@ -65,6 +65,9 @@ impl<SC: StarkGenericConfig> StarkProvingKey<SC> {
     pub fn observe_into(&self, challenger: &mut SC::Challenger) {
         challenger.observe(self.commit.clone());
         challenger.observe(self.pc_start);
+        for _ in 0..7 {
+            challenger.observe(Val::<SC>::zero());
+        }
     }
 }
 
@@ -88,6 +91,9 @@ impl<SC: StarkGenericConfig> StarkVerifyingKey<SC> {
     pub fn observe_into(&self, challenger: &mut SC::Challenger) {
         challenger.observe(self.commit.clone());
         challenger.observe(self.pc_start);
+        for _ in 0..7 {
+            challenger.observe(Val::<SC>::zero());
+        }
     }
 }
 

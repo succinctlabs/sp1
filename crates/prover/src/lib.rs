@@ -374,6 +374,9 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                 initial_reconstruct_challenger: reconstruct_challenger.clone(),
                 is_complete,
             });
+            assert_eq!(reconstruct_challenger.input_buffer.len(), 0);
+            assert_eq!(reconstruct_challenger.sponge_state.len(), 16);
+            assert_eq!(reconstruct_challenger.output_buffer.len(), 16);
 
             for proof in batch.iter() {
                 reconstruct_challenger.observe(proof.commitment.main_commit);

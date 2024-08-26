@@ -147,6 +147,10 @@ where
             // Observe the vk and start pc.
             challenger.observe(builder, vk.commitment);
             challenger.observe(builder, vk.pc_start);
+            let zero: Felt<_> = builder.eval(C::F::zero());
+            for _ in 0..7 {
+                challenger.observe(builder, zero);
+            }
 
             // Observe the main commitment and public values.
             challenger.observe(builder, shard_proof.commitment.main_commit);
