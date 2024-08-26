@@ -160,7 +160,7 @@ where
                     inputs[j * WORD_SIZE + k + 16] = element;
                 }
             }
-            reconstruct_deferred_digest = SC::constant_hash(builder, &inputs);
+            reconstruct_deferred_digest = SC::hash(builder, &inputs);
         }
 
         // Set the public values.

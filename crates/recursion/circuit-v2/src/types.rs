@@ -111,6 +111,6 @@ impl<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVariable<C>> VerifyingK
             inputs.push(builder.eval(g));
         }
 
-        SC::constant_hash(builder, &inputs)
+        SC::hash(builder, &inputs)
     }
 }
