@@ -122,7 +122,7 @@ pub fn verify_two_adic_pcs<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigV
                     let two_adic_generator_exp = C::exp_f_bits_precomputed(
                         builder,
                         &reduced_index_bits_trunc.into_iter().rev().collect_vec(),
-                        &precomputed_generator_powers[log_global_max_height - log_height..],
+                        &precomputed_generator_powers[bits_reduced..],
                     );
 
                     // Unroll the following to avoid symbolic expression overhead
