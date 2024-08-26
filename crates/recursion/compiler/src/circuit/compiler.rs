@@ -564,8 +564,8 @@ where
                         addrs: ExpReverseBitsIo { result: ref addr, .. },
                         mult,
                     }) => backfill((mult, addr)),
-                    Instruction::HintBits(HintBitsInstr { output_addrs_mults, .. })
-                    | Instruction::Hint(HintInstr { output_addrs_mults, .. }) => {
+                    Instruction::HintBits(HintBitsInstr { output_addrs_mults, .. }) |
+                    Instruction::Hint(HintInstr { output_addrs_mults, .. }) => {
                         output_addrs_mults
                             .iter_mut()
                             .for_each(|(addr, mult)| backfill((mult, addr)));
@@ -590,9 +590,9 @@ where
                             .for_each(|(addr, mult)| backfill((mult, addr)));
                     }
                     // Instructions that do not write to memory.
-                    Instruction::Mem(MemInstr { kind: MemAccessKind::Read, .. })
-                    | Instruction::CommitPublicValues(_)
-                    | Instruction::Print(_) => (),
+                    Instruction::Mem(MemInstr { kind: MemAccessKind::Read, .. }) |
+                    Instruction::CommitPublicValues(_) |
+                    Instruction::Print(_) => (),
                 }
             }
         });

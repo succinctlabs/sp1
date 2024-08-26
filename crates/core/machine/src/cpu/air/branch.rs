@@ -22,12 +22,12 @@ impl CpuChip {
         &self,
         opcode_selectors: &OpcodeSelectorCols<AB::Var>,
     ) -> AB::Expr {
-        opcode_selectors.is_beq
-            + opcode_selectors.is_bne
-            + opcode_selectors.is_blt
-            + opcode_selectors.is_bge
-            + opcode_selectors.is_bltu
-            + opcode_selectors.is_bgeu
+        opcode_selectors.is_beq +
+            opcode_selectors.is_bne +
+            opcode_selectors.is_blt +
+            opcode_selectors.is_bge +
+            opcode_selectors.is_bltu +
+            opcode_selectors.is_bgeu
     }
 
     /// Verifies all the branching related columns.
@@ -179,9 +179,9 @@ impl CpuChip {
         // Calculate a_lt_b <==> a < b (using appropriate signedness).
         let use_signed_comparison = local.selectors.is_blt + local.selectors.is_bge;
         builder.send_alu(
-            use_signed_comparison.clone() * Opcode::SLT.as_field::<AB::F>()
-                + (AB::Expr::one() - use_signed_comparison.clone())
-                    * Opcode::SLTU.as_field::<AB::F>(),
+            use_signed_comparison.clone() * Opcode::SLT.as_field::<AB::F>() +
+                (AB::Expr::one() - use_signed_comparison.clone()) *
+                    Opcode::SLTU.as_field::<AB::F>(),
             Word::extend_var::<AB>(branch_cols.a_lt_b),
             local.op_a_val(),
             local.op_b_val(),
@@ -193,8 +193,8 @@ impl CpuChip {
 
         // Calculate a_gt_b <==> a > b (using appropriate signedness).
         builder.send_alu(
-            use_signed_comparison.clone() * Opcode::SLT.as_field::<AB::F>()
-                + (AB::Expr::one() - use_signed_comparison) * Opcode::SLTU.as_field::<AB::F>(),
+            use_signed_comparison.clone() * Opcode::SLT.as_field::<AB::F>() +
+                (AB::Expr::one() - use_signed_comparison) * Opcode::SLTU.as_field::<AB::F>(),
             Word::extend_var::<AB>(branch_cols.a_gt_b),
             local.op_b_val(),
             local.op_a_val(),

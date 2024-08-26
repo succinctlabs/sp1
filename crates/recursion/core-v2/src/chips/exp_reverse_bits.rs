@@ -154,9 +154,9 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for ExpReverseBitsLenCh
                 let cols: &mut ExpReverseBitsLenCols<F> = row.as_mut_slice().borrow_mut();
 
                 let prev_accum = accum;
-                accum = prev_accum
-                    * prev_accum
-                    * if event.exp[i] == F::one() { event.base } else { F::one() };
+                accum = prev_accum *
+                    prev_accum *
+                    if event.exp[i] == F::one() { event.base } else { F::one() };
 
                 cols.x = event.base;
                 cols.current_bit = event.exp[i];

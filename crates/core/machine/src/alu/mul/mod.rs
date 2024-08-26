@@ -150,10 +150,10 @@ impl<F: PrimeField> MachineAir<F> for MulChip {
                     .map(|event| {
                         // Ensure that the opcode is MUL, MULHU, MULH, or MULHSU.
                         assert!(
-                            event.opcode == Opcode::MUL
-                                || event.opcode == Opcode::MULHU
-                                || event.opcode == Opcode::MULH
-                                || event.opcode == Opcode::MULHSU
+                            event.opcode == Opcode::MUL ||
+                                event.opcode == Opcode::MULHU ||
+                                event.opcode == Opcode::MULH ||
+                                event.opcode == Opcode::MULHSU
                         );
                         let mut row = [F::zero(); NUM_MUL_COLS];
                         let cols: &mut MulCols<F> = row.as_mut_slice().borrow_mut();
@@ -173,8 +173,8 @@ impl<F: PrimeField> MachineAir<F> for MulChip {
                             cols.c_msb = F::from_canonical_u8(c_msb);
 
                             // If b is signed and it is negative, sign extend b.
-                            if (event.opcode == Opcode::MULH || event.opcode == Opcode::MULHSU)
-                                && b_msb == 1
+                            if (event.opcode == Opcode::MULH || event.opcode == Opcode::MULHSU) &&
+                                b_msb == 1
                             {
                                 cols.b_sign_extend = F::one();
                                 b.resize(PRODUCT_SIZE, BYTE_MASK);
@@ -432,10 +432,10 @@ where
             let mulh: AB::Expr = AB::F::from_canonical_u32(Opcode::MULH as u32).into();
             let mulhu: AB::Expr = AB::F::from_canonical_u32(Opcode::MULHU as u32).into();
             let mulhsu: AB::Expr = AB::F::from_canonical_u32(Opcode::MULHSU as u32).into();
-            local.is_mul * mul
-                + local.is_mulh * mulh
-                + local.is_mulhu * mulhu
-                + local.is_mulhsu * mulhsu
+            local.is_mul * mul +
+                local.is_mulh * mulh +
+                local.is_mulhu * mulhu +
+                local.is_mulhsu * mulhsu
         };
 
         // Range check.

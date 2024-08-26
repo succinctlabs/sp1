@@ -107,22 +107,23 @@ impl<T: Copy> AbsorbWorkspace<T> {
     where
         T: Into<AB::Expr>,
     {
-        self.is_syscall_not_last_row.into()
-            + self.not_syscall_not_last_row.into()
-            + self.is_last_row_ending_cursor_is_seven.into()
+        self.is_syscall_not_last_row.into() +
+            self.not_syscall_not_last_row.into() +
+            self.is_last_row_ending_cursor_is_seven.into()
     }
 
     pub(crate) fn num_consumed<AB: SP1RecursionAirBuilder>(&self) -> AB::Expr
     where
         T: Into<AB::Expr>,
     {
-        self.is_syscall_not_last_row.into()
-            * (AB::Expr::from_canonical_usize(RATE) - self.state_cursor.into())
-            + self.is_syscall_is_last_row.into()
-                * (self.last_row_ending_cursor.into() - self.state_cursor.into() + AB::Expr::one())
-            + self.not_syscall_not_last_row.into() * AB::Expr::from_canonical_usize(RATE)
-            + self.not_syscall_is_last_row.into()
-                * (self.last_row_ending_cursor.into() + AB::Expr::one())
+        self.is_syscall_not_last_row.into() *
+            (AB::Expr::from_canonical_usize(RATE) - self.state_cursor.into()) +
+            self.is_syscall_is_last_row.into() *
+                (self.last_row_ending_cursor.into() - self.state_cursor.into() +
+                    AB::Expr::one()) +
+            self.not_syscall_not_last_row.into() * AB::Expr::from_canonical_usize(RATE) +
+            self.not_syscall_is_last_row.into() *
+                (self.last_row_ending_cursor.into() + AB::Expr::one())
     }
 }
 

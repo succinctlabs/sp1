@@ -378,8 +378,8 @@ impl<const DEGREE: usize> ExpReverseBitsLenChip<DEGREE> {
         // Constrain that the x_mem_access_flag is true when `is_first` or `is_last`.
         builder.when(local.is_real).assert_eq(
             local.x_mem_access_flag,
-            local.is_first.result + local.is_last.result
-                - local.is_first.result * local.is_last.result,
+            local.is_first.result + local.is_last.result -
+                local.is_first.result * local.is_last.result,
         );
 
         // Make sure that x is only accessed when `is_real` is 1.

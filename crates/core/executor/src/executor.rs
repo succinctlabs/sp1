@@ -886,8 +886,8 @@ impl<'a> Executor<'a> {
                 // which is not permitted in unconstrained mode. This will result in
                 // non-zero memory interactions when generating a proof.
 
-                if self.unconstrained
-                    && (syscall != SyscallCode::EXIT_UNCONSTRAINED && syscall != SyscallCode::WRITE)
+                if self.unconstrained &&
+                    (syscall != SyscallCode::EXIT_UNCONSTRAINED && syscall != SyscallCode::WRITE)
                 {
                     return Err(ExecutionError::InvalidSyscallUsage(syscall_id as u64));
                 }
@@ -1080,8 +1080,8 @@ impl<'a> Executor<'a> {
             }
         }
 
-        Ok(self.state.pc.wrapping_sub(self.program.pc_base)
-            >= (self.program.instructions.len() * 4) as u32)
+        Ok(self.state.pc.wrapping_sub(self.program.pc_base) >=
+            (self.program.instructions.len() * 4) as u32)
     }
 
     /// Bump the record.

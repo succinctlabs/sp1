@@ -268,9 +268,9 @@ where
                 AB::F::from_canonical_u32(SyscallCode::BLS12381_FP_MUL.syscall_id()),
             ),
         };
-        let syscall_id_felt = local.is_add * add_syscall_id
-            + local.is_sub * sub_syscall_id
-            + local.is_mul * mul_syscall_id;
+        let syscall_id_felt = local.is_add * add_syscall_id +
+            local.is_sub * sub_syscall_id +
+            local.is_mul * mul_syscall_id;
 
         builder.receive_syscall(
             local.shard,

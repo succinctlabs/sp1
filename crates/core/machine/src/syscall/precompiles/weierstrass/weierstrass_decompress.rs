@@ -299,8 +299,8 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
 
 impl<F, E: EllipticCurve> BaseAir<F> for WeierstrassDecompressChip<E> {
     fn width(&self) -> usize {
-        num_weierstrass_decompress_cols::<E::BaseField>()
-            + match self.sign_rule {
+        num_weierstrass_decompress_cols::<E::BaseField>() +
+            match self.sign_rule {
                 SignChoiceRule::LeastSignificantBit => 0,
                 SignChoiceRule::Lexicographic => {
                     size_of::<LexicographicChoiceCols<u8, E::BaseField>>()
@@ -423,9 +423,8 @@ where
 
                 // Get the choice columns from the row slice
                 let choice_cols: &LexicographicChoiceCols<AB::Var, E::BaseField> = (*local_slice)
-                    [weierstrass_cols
-                        ..weierstrass_cols
-                            + size_of::<LexicographicChoiceCols<u8, E::BaseField>>()]
+                    [weierstrass_cols..
+                        weierstrass_cols + size_of::<LexicographicChoiceCols<u8, E::BaseField>>()]
                     .borrow();
 
                 // Range check the neg_y value since we are now using a lexicographic comparison.

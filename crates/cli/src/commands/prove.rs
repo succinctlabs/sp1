@@ -22,8 +22,8 @@ fn is_valid_hex_string(s: &str) -> bool {
         return false;
     }
     // All hex digits with optional 0x prefix
-    s.starts_with("0x") && s[2..].chars().all(|c| c.is_ascii_hexdigit())
-        || s.chars().all(|c| c.is_ascii_hexdigit())
+    s.starts_with("0x") && s[2..].chars().all(|c| c.is_ascii_hexdigit()) ||
+        s.chars().all(|c| c.is_ascii_hexdigit())
 }
 
 impl FromStr for Input {

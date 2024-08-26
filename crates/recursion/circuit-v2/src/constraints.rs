@@ -140,8 +140,8 @@ where
                         )
                     })
                     .unzip::<_, _, Vec<_>, Vec<_>>();
-                zs.into_iter().product::<SymbolicExt<_, _>>()
-                    * zinvs.into_iter().product::<SymbolicFelt<_>>()
+                zs.into_iter().product::<SymbolicExt<_, _>>() *
+                    zinvs.into_iter().product::<SymbolicFelt<_>>()
             })
             .collect::<Vec<SymbolicExt<_, _>>>()
             .into_iter()
@@ -190,23 +190,20 @@ where
             ));
         }
         if opening.main.next.len() != chip.width() {
-            return Err(OpeningShapeError::MainWidthMismatch(
-                chip.width(),
-                opening.main.next.len(),
-            ));
+            return Err(OpeningShapeError::MainWidthMismatch(chip.width(), opening.main.next.len()));
         }
 
         // Verify that the permutation width matches the expected value for the chip.
-        if opening.permutation.local.len()
-            != chip.permutation_width() * <SC::Challenge as AbstractExtensionField<C::F>>::D
+        if opening.permutation.local.len() !=
+            chip.permutation_width() * <SC::Challenge as AbstractExtensionField<C::F>>::D
         {
             return Err(OpeningShapeError::PermutationWidthMismatch(
                 chip.permutation_width(),
                 opening.permutation.local.len(),
             ));
         }
-        if opening.permutation.next.len()
-            != chip.permutation_width() * <SC::Challenge as AbstractExtensionField<C::F>>::D
+        if opening.permutation.next.len() !=
+            chip.permutation_width() * <SC::Challenge as AbstractExtensionField<C::F>>::D
         {
             return Err(OpeningShapeError::PermutationWidthMismatch(
                 chip.permutation_width(),

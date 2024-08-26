@@ -300,9 +300,9 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
 
         // Write the nonces to the trace.
         for i in 0..trace.height() {
-            let cols: &mut WeierstrassDoubleAssignCols<F, E::BaseField> = trace.values[i
-                * num_weierstrass_double_cols::<E::BaseField>()
-                ..(i + 1) * num_weierstrass_double_cols::<E::BaseField>()]
+            let cols: &mut WeierstrassDoubleAssignCols<F, E::BaseField> = trace.values[i *
+                num_weierstrass_double_cols::<E::BaseField>()..
+                (i + 1) * num_weierstrass_double_cols::<E::BaseField>()]
                 .borrow_mut();
             cols.nonce = F::from_canonical_usize(i);
         }
