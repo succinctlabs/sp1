@@ -39,12 +39,12 @@ use p3_challenger::CanObserve;
 use p3_field::{AbstractField, PrimeField};
 use p3_matrix::dense::RowMajorMatrix;
 use sp1_core_executor::{ExecutionError, ExecutionReport, Executor, Program, SP1Context};
-
 use sp1_core_machine::{
     io::{SP1PublicValues, SP1Stdin},
     riscv::RiscvAir,
     utils::{concurrency::TurnBasedSync, SP1CoreProverError},
 };
+use sp1_stark::MachineProvingKey;
 
 use sp1_primitives::hash_deferred_proof;
 
@@ -188,7 +188,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         let program = Program::from(elf).unwrap();
         let (pk, vk) = self.core_prover.setup(&program);
         let vk = SP1VerifyingKey { vk };
-        let pk = SP1ProvingKey { pk, elf: elf.to_vec(), vk: vk.clone() };
+        let pk = SP1ProvingKey { pk: pk.to_host(), elf: elf.to_vec(), vk: vk.clone() };
         (pk, vk)
     }
 
@@ -224,15 +224,19 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
     ) -> Result<SP1CoreProof, SP1CoreProverError> {
         context.subproof_verifier.replace(Arc::new(self));
         let program = Program::from(&pk.elf).unwrap();
-        let (proof, public_values_stream, cycles) =
-            sp1_core_machine::utils::prove_with_context::<_, C::CoreProver>(
-                &self.core_prover,
-                &pk.pk,
-                program,
-                stdin,
-                opts.core_opts,
-                context,
-            )?;
+        let (proof, public_values_stream, cycles) = sp1_core_machine::utils::prove_with_context::<
+            _,
+            C::CoreProver,
+        >(
+            &self.core_prover,
+            &<C::CoreProver as MachineProver<BabyBearPoseidon2, RiscvAir<BabyBear>>>::DeviceProvingKey::from_host(
+                pk.pk.clone(),
+            ),
+            program,
+            stdin,
+            opts.core_opts,
+            context,
+        )?;
         Self::check_for_high_cycles(cycles);
         let public_values = SP1PublicValues::from(&public_values_stream);
         Ok(SP1CoreProof {
@@ -643,7 +647,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                                 // Observe the proving key.
                                 let mut challenger = self.compress_prover.config().challenger();
                                 tracing::debug_span!("observe proving key").in_scope(|| {
-                                    pk.observe_into(&mut challenger);
+                                    pk.to_host().observe_into(&mut challenger);
                                 });
 
                                 #[cfg(feature = "debug")]

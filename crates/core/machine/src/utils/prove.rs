@@ -361,7 +361,7 @@ where
                             })
                             .collect::<Vec<_>>();
 
-                        // Observe the commitments.
+                        //  the commitments.
                         for (commit, public_values) in
                             commitments.into_iter().zip(public_values.into_iter())
                         {
@@ -576,7 +576,7 @@ where
         {
             let all_records = all_records_rx.iter().flatten().collect::<Vec<_>>();
             let mut challenger = prover.machine().config().challenger();
-            prover.machine().debug_constraints(&pk.host(), all_records, &mut challenger);
+            prover.machine().debug_constraints(&pk.to_host(), all_records, &mut challenger);
         }
 
         Ok((proof, public_values_stream, cycles))
@@ -663,7 +663,7 @@ where
     let prove_span = tracing::debug_span!("prove").entered();
 
     #[cfg(feature = "debug")]
-    prover.machine().debug_constraints(&pk.host(), records.clone(), &mut challenger.clone());
+    prover.machine().debug_constraints(&pk.to_host(), records.clone(), &mut challenger.clone());
 
     let proof = prover.prove(&pk, records, &mut challenger, SP1CoreOpts::default()).unwrap();
     prove_span.exit();
