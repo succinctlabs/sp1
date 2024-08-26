@@ -5,7 +5,7 @@ use p3_field::{AbstractExtensionField, AbstractField, Field, TwoAdicField};
 use p3_matrix::dense::RowMajorMatrix;
 
 use sp1_recursion_compiler::ir::{
-    Builder, Config, Ext, ExtConst, ExtensionOperand, Felt, SymbolicExt, SymbolicFelt, Usize,
+    Builder, Config, Ext, ExtConst, ExtensionOperand, Felt, SymbolicExt, SymbolicFelt,
 };
 use sp1_stark::{
     air::MachineAir, AirOpenedValues, ChipOpenedValues, GenericVerifierConstraintFolder,
@@ -158,7 +158,6 @@ where
                     .unzip::<_, _, Vec<SymbolicExt<C::F, C::EF>>, Vec<Felt<_>>>();
                 let symbolic_prod: SymbolicFelt<_> =
                     zinvs.into_iter().map(|x| x.into()).product::<SymbolicFelt<_>>();
-                println!("zslen: {}", zs.len());
                 (zs.into_iter().product::<SymbolicExt<_, _>>(), symbolic_prod)
             })
             .collect::<Vec<(SymbolicExt<_, _>, SymbolicFelt<_>)>>()
