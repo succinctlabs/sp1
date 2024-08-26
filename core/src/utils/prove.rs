@@ -294,12 +294,15 @@ where
                             record_gen_sync.advance_turn();
 
                             // Generate the traces.
-                            let traces = records
-                                .par_iter()
-                                .map(|record| {
-                                    prover.generate_traces(record, ProvePhase::Phase1)
-                                })
-                                .collect::<Vec<_>>();
+                            let mut traces = vec![];
+                            tracing::debug_span!("generate traces", index).in_scope(|| {
+                                traces = records
+                                    .par_iter()
+                                    .map(|record| {
+                                        prover.generate_traces(record, ProvePhase::Phase1)
+                                    })
+                                    .collect::<Vec<_>>();
+                            });
 
                             // Wait for our turn.
                             trace_gen_sync.wait_for_turn(index);
