@@ -14,8 +14,9 @@ use p3_field::AbstractField;
 use p3_maybe_rayon::prelude::*;
 use serde::{de::DeserializeOwned, Serialize};
 use size::Size;
-use sp1_stark::MachineProvingKey;
-use sp1_stark::{baby_bear_poseidon2::BabyBearPoseidon2, MachineVerificationError};
+use sp1_stark::{
+    baby_bear_poseidon2::BabyBearPoseidon2, MachineProvingKey, MachineVerificationError,
+};
 use std::thread::ScopedJoinHandle;
 use thiserror::Error;
 
