@@ -21,7 +21,6 @@ use sp1_recursion_compiler::{
 
 mod types;
 
-pub mod build_wrap_v2;
 pub mod challenger;
 pub mod constraints;
 pub mod domain;
@@ -43,11 +42,13 @@ use p3_commit::{ExtensionMmcs, Mmcs};
 use p3_dft::Radix2DitParallel;
 use p3_fri::{FriConfig, TwoAdicFriPcs};
 use sp1_recursion_core_v2::{
+    air::RecursionPublicValues,
     stark::config::{BabyBearPoseidon2Outer, OuterValMmcs},
     D,
 };
 
 use p3_baby_bear::BabyBear;
+use utils::{felt_bytes_to_bn254_var, felts_to_bn254_var, words_to_bytes};
 
 type EF = <BabyBearPoseidon2 as StarkGenericConfig>::Challenge;
 
@@ -99,6 +100,11 @@ pub trait BabyBearFriConfigVariable<C: CircuitConfig<F = BabyBear>>:
 
     /// Get a new challenger corresponding to the given config.
     fn challenger_variable(&self, builder: &mut Builder<C>) -> Self::FriChallengerVariable;
+
+    fn commit_recursion_public_values(
+        builder: &mut Builder<C>,
+        public_values: RecursionPublicValues<Felt<C::F>>,
+    );
 }
 
 pub trait CircuitConfig: Config {
@@ -358,10 +364,6 @@ impl BabyBearFriConfig for BabyBearPoseidon2Outer {
 
     fn challenger_shape(_challenger: &Self::FriChallenger) -> SpongeChallengerShape {
         unimplemented!("Shape not supported for outer fri challenger");
-        // SpongeChallengerShape {
-        //     input_buffer_len: challenger.input_buffer.len(),
-        //     output_buffer_len: challenger.output_buffer.len(),
-        // }
     }
 }
 
@@ -373,6 +375,13 @@ impl<C: CircuitConfig<F = BabyBear, Bit = Felt<BabyBear>>> BabyBearFriConfigVari
     fn challenger_variable(&self, builder: &mut Builder<C>) -> Self::FriChallengerVariable {
         DuplexChallengerVariable::new(builder)
     }
+
+    fn commit_recursion_public_values(
+        builder: &mut Builder<C>,
+        public_values: RecursionPublicValues<Felt<<C>::F>>,
+    ) {
+        builder.commit_public_values_v2(public_values);
+    }
 }
 
 impl<C: CircuitConfig<F = BabyBear, N = Bn254Fr, Bit = Var<Bn254Fr>>> BabyBearFriConfigVariable<C>
@@ -382,6 +391,20 @@ impl<C: CircuitConfig<F = BabyBear, N = Bn254Fr, Bit = Var<Bn254Fr>>> BabyBearFr
 
     fn challenger_variable(&self, builder: &mut Builder<C>) -> Self::FriChallengerVariable {
         MultiField32ChallengerVariable::new(builder)
+    }
+
+    fn commit_recursion_public_values(
+        builder: &mut Builder<C>,
+        public_values: RecursionPublicValues<Felt<<C>::F>>,
+    ) {
+        let committed_values_digest_bytes_felts: [Felt<_>; 32] =
+            words_to_bytes(&public_values.committed_value_digest).try_into().unwrap();
+        let committed_values_digest_bytes: Var<_> =
+            felt_bytes_to_bn254_var(builder, &committed_values_digest_bytes_felts);
+        builder.commit_commited_values_digest_circuit(committed_values_digest_bytes);
+
+        let vkey_hash = felts_to_bn254_var(builder, &public_values.sp1_vk_digest);
+        builder.commit_vkey_hash_circuit(vkey_hash);
     }
 }
 

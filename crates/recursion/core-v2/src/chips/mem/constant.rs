@@ -12,7 +12,7 @@ use crate::{builder::SP1RecursionAirBuilder, *};
 
 use super::MemoryAccessCols;
 
-pub const NUM_MEM_ENTRIES_PER_ROW: usize = 4;
+pub const NUM_MEM_ENTRIES_PER_ROW: usize = 2;
 
 #[derive(Default)]
 pub struct MemoryChip<F> {
@@ -169,7 +169,7 @@ mod tests {
         runtime.run().unwrap();
 
         let config = SC::new();
-        let machine = A::machine_wide(config);
+        let machine = A::compress_machine(config);
         let (pk, vk) = machine.setup(&program);
         let result = run_test_machine(vec![runtime.record], machine, pk, vk);
         if let Err(e) = result {

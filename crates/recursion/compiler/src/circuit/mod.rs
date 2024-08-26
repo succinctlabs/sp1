@@ -163,7 +163,7 @@ mod tests {
         .into();
         runtime.run().unwrap();
 
-        let machine = A::machine_wide(SC::new());
+        let machine = A::compress_machine(SC::new());
 
         let (pk, vk) = machine.setup(&program);
         let result =

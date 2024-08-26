@@ -1,19 +1,21 @@
 use core::borrow::Borrow;
-use itertools::Itertools;
 use p3_air::{Air, AirBuilder, BaseAir, PairBuilder};
 use p3_field::{Field, PrimeField32};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
-use sp1_core_machine::utils::pad_to_power_of_two;
+use p3_maybe_rayon::prelude::*;
+use sp1_core_machine::utils::next_power_of_two;
 use sp1_derive::AlignedBorrow;
 use sp1_stark::air::MachineAir;
 use std::{borrow::BorrowMut, iter::zip};
 
 use crate::{builder::SP1RecursionAirBuilder, *};
 
-pub const NUM_BASE_ALU_ENTRIES_PER_ROW: usize = 2;
+pub const NUM_BASE_ALU_ENTRIES_PER_ROW: usize = 4;
 
 #[derive(Default)]
-pub struct BaseAluChip {}
+pub struct BaseAluChip {
+    pub fixed_log2_rows: Option<usize>,
+}
 
 pub const NUM_BASE_ALU_COLS: usize = core::mem::size_of::<BaseAluCols<u8>>();
 
@@ -22,6 +24,8 @@ pub const NUM_BASE_ALU_COLS: usize = core::mem::size_of::<BaseAluCols<u8>>();
 pub struct BaseAluCols<F: Copy> {
     pub values: [BaseAluValueCols<F>; NUM_BASE_ALU_ENTRIES_PER_ROW],
 }
+
+pub const NUM_BASE_ALU_VALUE_COLS: usize = core::mem::size_of::<BaseAluValueCols<u8>>();
 
 #[derive(AlignedBorrow, Debug, Clone, Copy)]
 #[repr(C)]
@@ -37,6 +41,8 @@ pub const NUM_BASE_ALU_PREPROCESSED_COLS: usize =
 pub struct BaseAluPreprocessedCols<F: Copy> {
     pub accesses: [BaseAluAccessCols<F>; NUM_BASE_ALU_ENTRIES_PER_ROW],
 }
+
+pub const NUM_BASE_ALU_ACCESS_COLS: usize = core::mem::size_of::<BaseAluAccessCols<u8>>();
 
 #[derive(AlignedBorrow, Debug, Clone, Copy)]
 #[repr(C)]
@@ -69,14 +75,26 @@ impl<F: PrimeField32> MachineAir<F> for BaseAluChip {
     }
 
     fn generate_preprocessed_trace(&self, program: &Self::Program) -> Option<RowMajorMatrix<F>> {
-        let rows = program
+        // Allocating an intermediate `Vec` is faster.
+        let instrs = program
             .instructions
-            .iter()
-            .filter_map(|instruction| {
-                let Instruction::BaseAlu(BaseAluInstr { opcode, mult, addrs }) = instruction else {
-                    return None;
-                };
-                let mut access = BaseAluAccessCols {
+            .iter() // Faster than using `rayon` for some reason. Maybe vectorization?
+            .filter_map(|instruction| match instruction {
+                Instruction::BaseAlu(x) => Some(x),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+
+        let nb_rows = instrs.len().div_ceil(NUM_BASE_ALU_ENTRIES_PER_ROW);
+        let padded_nb_rows = next_power_of_two(nb_rows, None);
+        let mut values = vec![F::zero(); padded_nb_rows * NUM_BASE_ALU_PREPROCESSED_COLS];
+        // Generate the trace rows & corresponding records for each chunk of events in parallel.
+        let populate_len = instrs.len() * NUM_BASE_ALU_ACCESS_COLS;
+        values[..populate_len].par_chunks_mut(NUM_BASE_ALU_ACCESS_COLS).zip_eq(instrs).for_each(
+            |(row, instr)| {
+                let BaseAluInstr { opcode, mult, addrs } = instr;
+                let access: &mut BaseAluAccessCols<_> = row.borrow_mut();
+                *access = BaseAluAccessCols {
                     addrs: addrs.to_owned(),
                     is_add: F::from_bool(false),
                     is_sub: F::from_bool(false),
@@ -91,31 +109,11 @@ impl<F: PrimeField32> MachineAir<F> for BaseAluChip {
                     BaseAluOpcode::DivF => &mut access.is_div,
                 };
                 *target_flag = F::from_bool(true);
-
-                Some(access)
-            })
-            .chunks(NUM_BASE_ALU_ENTRIES_PER_ROW)
-            .into_iter()
-            .map(|row_accesses| {
-                let mut row = [F::zero(); NUM_BASE_ALU_PREPROCESSED_COLS];
-                let cols: &mut BaseAluPreprocessedCols<_> = row.as_mut_slice().borrow_mut();
-                for (cell, access) in zip(&mut cols.accesses, row_accesses) {
-                    *cell = access;
-                }
-                row
-            })
-            .collect::<Vec<_>>();
-
-        // Convert the trace to a row major matrix.
-        let mut trace = RowMajorMatrix::new(
-            rows.into_iter().flatten().collect::<Vec<_>>(),
-            NUM_BASE_ALU_PREPROCESSED_COLS,
+            },
         );
 
-        // Pad the trace to a power of two.
-        pad_to_power_of_two::<NUM_BASE_ALU_PREPROCESSED_COLS, F>(&mut trace.values);
-
-        Some(trace)
+        // Convert the trace to a row major matrix.
+        Some(RowMajorMatrix::new(values, NUM_BASE_ALU_PREPROCESSED_COLS))
     }
 
     fn generate_dependencies(&self, _: &Self::Record, _: &mut Self::Record) {
@@ -123,29 +121,21 @@ impl<F: PrimeField32> MachineAir<F> for BaseAluChip {
     }
 
     fn generate_trace(&self, input: &Self::Record, _: &mut Self::Record) -> RowMajorMatrix<F> {
+        let events = &input.base_alu_events;
+        let nb_rows = events.len().div_ceil(NUM_BASE_ALU_ENTRIES_PER_ROW);
+        let padded_nb_rows = next_power_of_two(nb_rows, None);
+        let mut values = vec![F::zero(); padded_nb_rows * NUM_BASE_ALU_COLS];
         // Generate the trace rows & corresponding records for each chunk of events in parallel.
-        let rows = input
-            .base_alu_events
-            .chunks(NUM_BASE_ALU_ENTRIES_PER_ROW)
-            .map(|row_events| {
-                let mut row = [F::zero(); NUM_BASE_ALU_COLS];
-                let cols: &mut BaseAluCols<_> = row.as_mut_slice().borrow_mut();
-                for (cell, &vals) in zip(&mut cols.values, row_events) {
-                    *cell = BaseAluValueCols { vals };
-                }
-
-                row
-            })
-            .collect::<Vec<_>>();
+        let populate_len = events.len() * NUM_BASE_ALU_VALUE_COLS;
+        values[..populate_len].par_chunks_mut(NUM_BASE_ALU_VALUE_COLS).zip_eq(events).for_each(
+            |(row, &vals)| {
+                let cols: &mut BaseAluValueCols<_> = row.borrow_mut();
+                *cols = BaseAluValueCols { vals };
+            },
+        );
 
         // Convert the trace to a row major matrix.
-        let mut trace =
-            RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_BASE_ALU_COLS);
-
-        // Pad the trace to a power of two.
-        pad_to_power_of_two::<NUM_BASE_ALU_COLS, F>(&mut trace.values);
-
-        trace
+        RowMajorMatrix::new(values, NUM_BASE_ALU_COLS)
     }
 
     fn included(&self, _record: &Self::Record) -> bool {
@@ -165,23 +155,25 @@ where
         let prep_local = prep.row_slice(0);
         let prep_local: &BaseAluPreprocessedCols<AB::Var> = (*prep_local).borrow();
 
-        for (value, access) in zip(local.values, prep_local.accesses) {
-            let BaseAluValueCols { vals: BaseAluIo { out, in1, in2 } } = value;
-
+        for (
+            BaseAluValueCols { vals: BaseAluIo { out, in1, in2 } },
+            BaseAluAccessCols { addrs, is_add, is_sub, is_mul, is_div, mult },
+        ) in zip(local.values, prep_local.accesses)
+        {
             // Check exactly one flag is enabled.
-            let is_real = access.is_add + access.is_sub + access.is_mul + access.is_div;
+            let is_real = is_add + is_sub + is_mul + is_div;
             builder.assert_bool(is_real.clone());
 
-            builder.when(access.is_add).assert_eq(in1 + in2, out);
-            builder.when(access.is_sub).assert_eq(in1, in2 + out);
-            builder.when(access.is_div).assert_eq(in1, in2 * out);
-            builder.when(access.is_mul).assert_eq(out, in1 * in2);
+            builder.when(is_add).assert_eq(in1 + in2, out);
+            builder.when(is_sub).assert_eq(in1, in2 + out);
+            builder.when(is_mul).assert_eq(out, in1 * in2);
+            builder.when(is_div).assert_eq(in2 * out, in1);
 
-            builder.receive_single(access.addrs.in1, in1, is_real.clone());
+            builder.receive_single(addrs.in1, in1, is_real.clone());
 
-            builder.receive_single(access.addrs.in2, in2, is_real);
+            builder.receive_single(addrs.in2, in2, is_real);
 
-            builder.send_single(access.addrs.out, out, access.mult);
+            builder.send_single(addrs.out, out, mult);
         }
     }
 }

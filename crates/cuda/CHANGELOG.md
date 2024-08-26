@@ -1,4 +1,5 @@
 # Changelog
+
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
@@ -6,9 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0-rc1](https://github.com/succinctlabs/sp1/releases/tag/sp1-cuda-v1.2.0-rc1) - 2024-08-23
+
+### Added
+
+- 1.2.0-rc1 cuda prover ([#1353](https://github.com/succinctlabs/sp1/pull/1353))
+
+### Fixed
+
+- tokio block on ([#1346](https://github.com/succinctlabs/sp1/pull/1346))
+
+### Other
+
+- merge dev into experimental pt 2 ([#1341](https://github.com/succinctlabs/sp1/pull/1341))
+
 ## [1.1.0](https://github.com/succinctlabs/sp1/releases/tag/sp1-server-v1.1.0) - 2024-08-02
 
 ### Added
+
 - experimental gpu support ([#1219](https://github.com/succinctlabs/sp1/pull/1219))
 - update tg ([#1214](https://github.com/succinctlabs/sp1/pull/1214))
 - v1.0.1 ([#1165](https://github.com/succinctlabs/sp1/pull/1165))
@@ -23,9 +39,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - tracing, profiling, benchmarking ([#99](https://github.com/succinctlabs/sp1/pull/99))
 
 ### Fixed
+
 - wait longer for server to start ([#1231](https://github.com/succinctlabs/sp1/pull/1231))
 
 ### Other
+
 - final touches for public release ([#239](https://github.com/succinctlabs/sp1/pull/239))
 - update docs with slight nits ([#224](https://github.com/succinctlabs/sp1/pull/224))
 - sp1 rename ([#212](https://github.com/succinctlabs/sp1/pull/212))

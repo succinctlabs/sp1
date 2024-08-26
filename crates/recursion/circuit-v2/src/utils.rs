@@ -5,23 +5,9 @@ use p3_bn254_fr::Bn254Fr;
 use p3_field::AbstractField;
 use p3_field::PrimeField32;
 
-use sp1_recursion_compiler::{
-    circuit::CircuitV2Builder,
-    ir::{Builder, Config, Felt, Var},
-};
-use sp1_recursion_core_v2::{
-    air::{ChallengerPublicValues, RecursionPublicValues},
-    DIGEST_SIZE,
-};
+use sp1_recursion_compiler::ir::{Builder, Config, Felt, Var};
+use sp1_recursion_core_v2::{air::ChallengerPublicValues, DIGEST_SIZE};
 use sp1_stark::Word;
-
-/// Register and commits the recursion public values.
-pub fn commit_recursion_public_values<C: Config>(
-    builder: &mut Builder<C>,
-    public_values: RecursionPublicValues<Felt<C::F>>,
-) {
-    builder.commit_public_values_v2(public_values);
-}
 
 pub(crate) unsafe fn uninit_challenger_pv<C: Config>(
     _builder: &mut Builder<C>,
@@ -154,7 +140,7 @@ pub(crate) mod tests {
 
         // Run with the poseidon2 wide chip.
         let proof_wide_span = tracing::debug_span!("Run test with wide machine").entered();
-        let wide_machine = RecursionAir::<_, 3, 0>::machine_wide(SC::default());
+        let wide_machine = RecursionAir::<_, 3, 0>::compress_machine(SC::default());
         let (pk, vk) = wide_machine.setup(&program);
         let result = run_test_machine_with_prover::<_, _, P>(records.clone(), wide_machine, pk, vk);
         proof_wide_span.exit();

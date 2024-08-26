@@ -30,7 +30,7 @@ use crate::{
     challenger::CanObserveVariable,
     constraints::RecursiveVerifierConstraintFolder,
     stark::{ShardProofVariable, StarkVerifier},
-    utils::{commit_recursion_public_values, uninit_challenger_pv},
+    utils::uninit_challenger_pv,
     BabyBearFriConfig, BabyBearFriConfigVariable, CircuitConfig, VerifyingKeyVariable,
 };
 
@@ -469,7 +469,7 @@ where
         //     },
         // );
 
-        commit_recursion_public_values(builder, *compress_public_values);
+        SC::commit_recursion_public_values(builder, *compress_public_values);
     }
 }
 

@@ -1,10 +1,10 @@
 use std::{borrow::BorrowMut, mem::size_of};
 
-use itertools::Itertools;
 use p3_air::BaseAir;
 use p3_field::PrimeField32;
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
-use sp1_core_machine::utils::{next_power_of_two, pad_rows_fixed, par_for_each_row};
+use p3_maybe_rayon::prelude::*;
+use sp1_core_machine::utils::next_power_of_two;
 use sp1_primitives::RC_16_30_U32;
 use sp1_stark::air::MachineAir;
 use tracing::instrument;
@@ -43,22 +43,30 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
         input: &ExecutionRecord<F>,
         _output: &mut ExecutionRecord<F>,
     ) -> RowMajorMatrix<F> {
-        let nb_events = input.poseidon2_events.len();
-        let padded_nb_rows = next_power_of_two(nb_events, self.fixed_log2_rows);
-        let num_columns = <Poseidon2WideChip<DEGREE> as BaseAir<F>>::width(self);
+        let events = &input.poseidon2_events;
+        let padded_nb_rows = next_power_of_two(events.len(), self.fixed_log2_rows);
+        let num_columns = <Self as BaseAir<F>>::width(self);
         let mut values = vec![F::zero(); padded_nb_rows * num_columns];
 
         let mut dummy_row = vec![F::zero(); num_columns];
         self.populate_perm([F::zero(); WIDTH], None, &mut dummy_row);
 
-        par_for_each_row(&mut values, num_columns, |i, row| {
-            if i >= nb_events {
-                row.copy_from_slice(&dummy_row);
-                return;
-            }
-            let event = &input.poseidon2_events[i];
-            self.populate_perm(event.input, Some(event.output), row);
-        });
+        let populate_len = events.len() * num_columns;
+        let (values_pop, values_dummy) = values.split_at_mut(populate_len);
+        join(
+            || {
+                values_pop.par_chunks_mut(num_columns).zip_eq(&input.poseidon2_events).for_each(
+                    |(row, &event)| {
+                        self.populate_perm(event.input, Some(event.output), row);
+                    },
+                )
+            },
+            || {
+                values_dummy
+                    .par_chunks_mut(num_columns)
+                    .for_each(|row| row.copy_from_slice(&dummy_row))
+            },
+        );
 
         // Convert the trace to a row major matrix.
         let trace = RowMajorMatrix::new(values, num_columns);
@@ -82,44 +90,40 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
     }
 
     fn generate_preprocessed_trace(&self, program: &Self::Program) -> Option<RowMajorMatrix<F>> {
-        let instructions =
-            program.instructions.iter().filter_map(|instruction| match instruction {
-                Poseidon2(instr) => Some(instr),
+        // Allocating an intermediate `Vec` is faster.
+        let instrs = program
+            .instructions
+            .iter() // Faster than using `rayon` for some reason. Maybe vectorization?
+            .filter_map(|instruction| match instruction {
+                Poseidon2(instr) => Some(instr.as_ref()),
                 _ => None,
-            });
+            })
+            .collect::<Vec<_>>();
 
-        let num_instructions = instructions.clone().count();
+        let padded_nb_rows = next_power_of_two(instrs.len(), self.fixed_log2_rows);
+        let mut values = vec![F::zero(); padded_nb_rows * PREPROCESSED_POSEIDON2_WIDTH];
 
-        let mut rows = vec![[F::zero(); PREPROCESSED_POSEIDON2_WIDTH]; num_instructions];
+        let populate_len = instrs.len() * PREPROCESSED_POSEIDON2_WIDTH;
+        values[..populate_len]
+            .par_chunks_mut(PREPROCESSED_POSEIDON2_WIDTH)
+            .zip_eq(instrs)
+            .for_each(|(row, instr)| {
+                let cols: &mut Poseidon2PreprocessedCols<_> = row.borrow_mut();
 
-        // Iterate over the instructions and take NUM_EXTERNAL_ROUNDS + 2 rows for each instruction.
-        instructions.zip_eq(rows.iter_mut()).for_each(|(instruction, row)| {
-            let cols: &mut Poseidon2PreprocessedCols<_> = (*row).as_mut_slice().borrow_mut();
-
-            // Set the memory columns. We read once, at the first iteration,
-            // and write once, at the last iteration.
-            cols.memory_preprocessed = std::array::from_fn(|j| {
-                if j < WIDTH {
-                    MemoryAccessCols { addr: instruction.addrs.input[j], mult: F::neg_one() }
-                } else {
-                    MemoryAccessCols {
-                        addr: instruction.addrs.output[j - WIDTH],
-                        mult: instruction.mults[j - WIDTH],
+                // Set the memory columns. We read once, at the first iteration,
+                // and write once, at the last iteration.
+                cols.memory_preprocessed = std::array::from_fn(|j| {
+                    if j < WIDTH {
+                        MemoryAccessCols { addr: instr.addrs.input[j], mult: F::neg_one() }
+                    } else {
+                        MemoryAccessCols {
+                            addr: instr.addrs.output[j - WIDTH],
+                            mult: instr.mults[j - WIDTH],
+                        }
                     }
-                }
+                });
             });
-        });
-        if self.pad {
-            // Pad the trace to a power of two.
-            // This may need to be adjusted when the AIR constraints are implemented.
-            pad_rows_fixed(
-                &mut rows,
-                || [F::zero(); PREPROCESSED_POSEIDON2_WIDTH],
-                self.fixed_log2_rows,
-            );
-        }
-        let trace_rows = rows.into_iter().flatten().collect::<Vec<_>>();
-        Some(RowMajorMatrix::new(trace_rows, PREPROCESSED_POSEIDON2_WIDTH))
+        Some(RowMajorMatrix::new(values, PREPROCESSED_POSEIDON2_WIDTH))
     }
 }
 

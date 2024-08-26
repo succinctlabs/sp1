@@ -141,14 +141,14 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         let core_machine = RiscvAir::machine(CoreSC::default());
         let core_prover = C::CoreProver::new(core_machine);
 
-        let compress_machine = CompressAir::machine_wide(InnerSC::default());
+        let compress_machine = CompressAir::compress_machine(InnerSC::default());
         let compress_prover = C::CompressProver::new(compress_machine);
 
         // TODO: Put the correct shrink and wrap machines here.
-        let shrink_machine = ShrinkAir::machine(InnerSC::compressed());
+        let shrink_machine = ShrinkAir::shrink_machine(InnerSC::compressed());
         let shrink_prover = C::ShrinkProver::new(shrink_machine);
 
-        let wrap_machine = WrapAir::machine(OuterSC::default());
+        let wrap_machine = WrapAir::wrap_machine(OuterSC::default());
         let wrap_prover = C::WrapProver::new(wrap_machine);
 
         let core_cache_size = NonZeroUsize::new(
@@ -906,11 +906,13 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             vks_and_proofs: vec![(proof.vk.clone(), proof.proof.clone())],
             is_complete: true,
         };
-        let vkey_digest = proof.sp1_vkey_digest_bn254();
-        let commited_values_digest = proof.sp1_commited_values_digest_bn254();
+        let vkey_hash = proof.sp1_vkey_digest_bn254();
+        let committed_values_digest = proof.sp1_commited_values_digest_bn254();
 
         let mut witness = Witness::default();
         input.write(&mut witness);
+        witness.write_commited_values_digest(committed_values_digest);
+        witness.write_vkey_hash(vkey_hash);
 
         let prover = PlonkBn254Prover::new();
         let proof = prover.prove(witness, build_dir.to_path_buf());
@@ -918,8 +920,8 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         // Verify the proof.
         prover.verify(
             &proof,
-            &vkey_digest.as_canonical_biguint(),
-            &commited_values_digest.as_canonical_biguint(),
+            &vkey_hash.as_canonical_biguint(),
+            &committed_values_digest.as_canonical_biguint(),
             build_dir,
         );
 
@@ -937,11 +939,13 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             vks_and_proofs: vec![(proof.vk.clone(), proof.proof.clone())],
             is_complete: true,
         };
-        let vkey_digest = proof.sp1_vkey_digest_bn254();
-        let commited_values_digest = proof.sp1_commited_values_digest_bn254();
+        let vkey_hash = proof.sp1_vkey_digest_bn254();
+        let committed_values_digest = proof.sp1_commited_values_digest_bn254();
 
         let mut witness = Witness::default();
         input.write(&mut witness);
+        witness.write_commited_values_digest(committed_values_digest);
+        witness.write_vkey_hash(vkey_hash);
 
         let prover = Groth16Bn254Prover::new();
         let proof = prover.prove(witness, build_dir.to_path_buf());
@@ -949,8 +953,8 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         // Verify the proof.
         prover.verify(
             &proof,
-            &vkey_digest.as_canonical_biguint(),
-            &commited_values_digest.as_canonical_biguint(),
+            &vkey_hash.as_canonical_biguint(),
+            &committed_values_digest.as_canonical_biguint(),
             build_dir,
         );
 
