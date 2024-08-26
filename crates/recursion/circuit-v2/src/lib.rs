@@ -245,13 +245,11 @@ impl CircuitConfig for InnerConfig {
         power_bits: &[Self::Bit],
         two_adic_powers_of_x: &[Felt<Self::F>],
     ) -> Felt<Self::F> {
-        let mut result: Felt<_> = builder.eval(Self::F::one());
-        for i in 0..power_bits.len() {
-            let bit = power_bits[i];
-            let tmp = builder.eval(result * two_adic_powers_of_x[i]);
-            result = Self::select_chain_f(builder, bit, once(result), once(tmp))[0];
-        }
-        result
+        Self::exp_reverse_bits(
+            builder,
+            two_adic_powers_of_x[0],
+            power_bits.iter().rev().copied().collect(),
+        )
     }
 }
 
