@@ -41,6 +41,12 @@ mod zkvm {
     #[cfg(not(feature = "interface"))]
     #[no_mangle]
     unsafe extern "C" fn __start() {
+        // extern "C" {
+        //     static _end: u8;
+        // }
+        // let heap_pos: usize = unsafe { (&_end) as *const u8 as usize };
+        // let heap_size: usize = crate::syscalls::MAX_MEMORY - heap_pos;
+        // unsafe { crate::heap::EMBEDDED_ALLOC_HEAP.init(heap_pos, heap_size) }
         {
             PUBLIC_VALUES_HASHER = Some(Sha256::new());
             #[cfg(feature = "verify")]
@@ -95,12 +101,15 @@ macro_rules! entrypoint {
         const ZKVM_ENTRY: fn() = $path;
 
         use $crate::heap::ArenaAlloc;
-        use $crate::heap::SimpleAlloc;
+        // use $crate::heap::SimpleAlloc;
+        // use $crate::heap::EMBEDDED_ALLOC_HEAP;
 
-        // #[global_allocator]
-        // static HEAP: ArenaAlloc = ArenaAlloc::new();
         #[global_allocator]
-        static HEAP: SimpleAlloc = SimpleAlloc;
+        static HEAP: ArenaAlloc = ArenaAlloc::new();
+        // #[global_allocator]
+        // static HEAP: SimpleAlloc = SimpleAlloc;
+        // #[global_allocator]
+        // EMBEDDED_ALLOC_HEAP
 
         mod zkvm_generated_main {
 

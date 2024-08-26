@@ -5,17 +5,21 @@ use crate::syscalls::{sys_alloc_aligned, HEAP_POS};
 use std::cell::UnsafeCell;
 use std::ptr::null_mut;
 use std::sync::atomic::{AtomicUsize, Ordering, Ordering::Relaxed};
+use std::mem::MaybeUninit;
 
 pub const ARENA_SIZE: usize = 2 * 1024 * 1024 * 512;
 /// An Arena allocator for better memory reuse.
 pub struct ArenaAlloc {
-    arena: UnsafeCell<[u8; ARENA_SIZE]>,
+    arena: UnsafeCell<MaybeUninit<[u8; ARENA_SIZE]>>,
     current: AtomicUsize,
 }
 
 impl ArenaAlloc {
     pub const fn new() -> Self {
-        Self { arena: UnsafeCell::new([0; ARENA_SIZE]), current: AtomicUsize::new(0) }
+        Self {
+            arena: UnsafeCell::new(MaybeUninit::uninit()),
+            current: AtomicUsize::new(0)
+        }
     }
 
     pub fn reset(&self) {
@@ -62,6 +66,21 @@ unsafe impl GlobalAlloc for ArenaAlloc {
     }
 }
 
+// use critical_section::RawRestoreState;
+// use embedded_alloc::Heap;
+
+// struct MyCriticalSection;
+
+// critical_section::set_impl!(MyCriticalSection);
+
+// unsafe impl critical_section::Impl for MyCriticalSection {
+//     unsafe fn acquire() -> RawRestoreState {}
+
+//     unsafe fn release(_state: RawRestoreState) {}
+// }
+
+// pub static EMBEDDED_ALLOC_HEAP: Heap = Heap::empty();
+
 /// A simple heap allocator.
 ///
 /// Allocates memory from left to right, without any deallocation.
@@ -74,12 +93,10 @@ unsafe impl GlobalAlloc for SimpleAlloc {
     unsafe fn dealloc(&self, _: *mut u8, _: Layout) {}
 }
 
-impl SimpleAlloc {
-    pub fn get_heap_pointer() -> *mut u8 {
-        unsafe { HEAP_POS as *mut u8 }
-    }
+pub fn get_heap_pointer() -> *mut u8 {
+    unsafe { HEAP_POS as *mut u8 }
+}
 
-    pub fn set_heap_pointer(ptr: *mut u8) {
-        unsafe { HEAP_POS = ptr as usize };
-    }
+pub fn set_heap_pointer(ptr: *mut u8) {
+    unsafe { HEAP_POS = ptr as usize };
 }

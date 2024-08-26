@@ -1073,6 +1073,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "critical-section"
+version = "1.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f64009896348fc5af4222e9cf7d7d82a95a256c634ebcf61c53e4ea461422242"
+
+[[package]]
 name = "crossbeam-deque"
 version = "0.8.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1479,6 +1485,16 @@ dependencies = [
  "sec1",
  "subtle",
  "zeroize",
+]
+
+[[package]]
+name = "embedded-alloc"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ddae17915accbac2cfbc64ea0ae6e3b330e6ea124ba108dada63646fd3c6f815"
+dependencies = [
+ "critical-section",
+ "linked_list_allocator",
 ]
 
 [[package]]
@@ -2827,6 +2843,12 @@ dependencies = [
  "pkg-config",
  "vcpkg",
 ]
+
+[[package]]
+name = "linked_list_allocator"
+version = "0.10.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9afa463f5405ee81cdb9cc2baf37e08ec7e4c8209442b5d72c04cfb2cd6e6286"
 
 [[package]]
 name = "linux-raw-sys"
@@ -5584,6 +5606,8 @@ version = "1.1.1"
 dependencies = [
  "bincode",
  "cfg-if",
+ "critical-section",
+ "embedded-alloc",
  "getrandom",
  "lazy_static",
  "libm",

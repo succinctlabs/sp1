@@ -13,7 +13,7 @@
 // limitations under the License.
 
 // Memory addresses must be lower than BabyBear prime.
-const MAX_MEMORY: usize = 0x78000000;
+pub const MAX_MEMORY: usize = 0x78000000;
 
 // Pointer to next heap address to use, or 0 if the heap has not yet been
 // initialized.
