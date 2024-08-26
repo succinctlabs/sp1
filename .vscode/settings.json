@@ -61,6 +61,7 @@
         // "eval/Cargo.toml"
     ],
     "rust-analyzer.showUnlinkedFileNotification": false,
+    "C_Cpp.errorSquiggles": "disabled",
     // "rust-analyzer.showUnlinkedFileNotification": false,
     // "rust-analyzer.check.workspace": false,
     // "rust-analyzer.check.invocationStrategy": "once",

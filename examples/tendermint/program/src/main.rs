@@ -26,14 +26,8 @@ fn main() {
     println!("cycle-tracker-end: serde");
     println!("cycle-tracker-end: io");
 
-    println!(
-        "LightBlock1 number of validators: {}",
-        light_block_1.validators.validators().len()
-    );
-    println!(
-        "LightBlock2 number of validators: {}",
-        light_block_2.validators.validators().len()
-    );
+    println!("LightBlock1 number of validators: {}", light_block_1.validators.validators().len());
+    println!("LightBlock2 number of validators: {}", light_block_2.validators.validators().len());
 
     println!("cycle-tracker-start: header hash");
     let header_hash_1 = light_block_1.signed_header.header.hash();

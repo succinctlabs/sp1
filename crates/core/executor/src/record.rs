@@ -289,6 +289,8 @@ pub struct MemoryAccessRecord {
     pub b: Option<MemoryRecordEnum>,
     /// The memory access of the `c` register.
     pub c: Option<MemoryRecordEnum>,
+    /// The special memory accesses for the memcpy syscall.
+    pub memcpy: Option<(MemoryRecordEnum, MemoryRecordEnum)>,
     /// The memory access of the `memory` register.
     pub memory: Option<MemoryRecordEnum>,
 }

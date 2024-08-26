@@ -894,6 +894,10 @@ impl<'a> Executor<'a> {
                 // which is not permitted in unconstrained mode. This will result in
                 // non-zero memory interactions when generating a proof.
 
+                // `memcpy_32` is allowed in unconstrained mode since a lot of unconstrained code
+                // uses it, and it's fairly simple to reset the memory interactions after calling
+                // it.
+
                 if self.unconstrained
                     && (syscall != SyscallCode::EXIT_UNCONSTRAINED
                         && syscall != SyscallCode::WRITE

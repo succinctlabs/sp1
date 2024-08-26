@@ -42,7 +42,7 @@ use sp1_curves::{
         secp256k1::Secp256k1,
     },
 };
-use typenum::{U16, U32, U64, U8};
+use typenum::{U32, U8};
 use unconstrained::{EnterUnconstrainedSyscall, ExitUnconstrainedSyscall};
 use verify::VerifySyscall;
 use write::WriteSyscall;
