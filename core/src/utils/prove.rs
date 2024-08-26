@@ -233,15 +233,11 @@ where
                         // Receive the latest checkpoint.
                         let received = { checkpoints_rx.lock().unwrap().recv() };
                         if let Ok((index, mut checkpoint, done)) = received {
-                            // Trace the checkpoint and reconstruct the execution records.
+                            // Trace the checkpoint and reconstruct the execution records.  Note that there is no need to 
+                            // run generate_dependencies for phase 1.
                             let (mut records, _) = tracing::debug_span!("trace checkpoint")
                                 .in_scope(|| trace_checkpoint(program.clone(), &checkpoint, opts));
                             reset_seek(&mut checkpoint);
-
-                            // Generate the dependencies.
-                            tracing::debug_span!("generate dependencies").in_scope(|| {
-                                prover.machine().generate_dependencies(&mut records, &opts)
-                            });
 
                             // Wait for our turn to update the state.
                             record_gen_sync.wait_for_turn(index);
