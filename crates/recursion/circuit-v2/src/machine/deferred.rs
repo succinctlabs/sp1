@@ -69,10 +69,10 @@ pub struct SP1DeferredWitnessVariable<
 impl<C, SC, A> SP1DeferredVerifier<C, SC, A>
 where
     SC: BabyBearFriConfigVariable<
-        C,
-        FriChallengerVariable = DuplexChallengerVariable<C>,
-        Digest = [Felt<BabyBear>; DIGEST_SIZE],
-    >,
+            C,
+            FriChallengerVariable = DuplexChallengerVariable<C>,
+            Digest = [Felt<BabyBear>; DIGEST_SIZE],
+        >,
     C: CircuitConfig<F = SC::Val, EF = SC::Challenge, Bit = Felt<BabyBear>>,
     <SC::ValMmcs as Mmcs<BabyBear>>::ProverData<RowMajorMatrix<BabyBear>>: Clone,
     A: MachineAir<SC::Val> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, C>>,
@@ -125,6 +125,10 @@ where
             // Observe the vk and start pc.
             challenger.observe(builder, vk.commitment);
             challenger.observe(builder, vk.pc_start);
+            let zero: Felt<_> = builder.eval(C::F::zero());
+            for _ in 0..7 {
+                challenger.observe(builder, zero);
+            }
 
             // Observe the main commitment and public values.
             challenger.observe(builder, shard_proof.commitment.main_commit);
