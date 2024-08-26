@@ -250,7 +250,7 @@ impl CircuitConfig for InnerConfig {
         for i in 0..power_bits.len() {
             let bit = power_bits[i];
             let tmp = builder.eval(result * two_adic_powers_of_x[i]);
-            result = Self::select_chain_f(builder, bit, once(tmp), once(result))[0];
+            result = Self::select_chain_f(builder, bit, once(result), once(tmp))[0];
         }
         result
     }
