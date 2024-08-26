@@ -167,8 +167,8 @@ impl CpuChip {
                 * (AB::Expr::one() - local.instruction.op_a_0),
         );
 
-        // When the memory value is negative, use the SUB opcode to compute the signed value of
-        // the memory value and verify that the op_a value is correct.
+        // When the memory value is negative and not writing to x0, use the SUB opcode to compute
+        // the signed value of the memory value and verify that the op_a value is correct.
         let signed_value = Word([
             AB::Expr::zero(),
             AB::Expr::one() * local.selectors.is_lb,
@@ -197,8 +197,8 @@ impl CpuChip {
             mem_value_is_pos * (AB::Expr::one() - local.instruction.op_a_0),
         );
 
-        // When the memory value is not negative, assert that op_a value is equal to the unsigned
-        // memory value.
+        // When the memory value is not positive and not writing to x0, assert that op_a value is
+        // equal to the unsigned memory value.
         builder
             .when(local.mem_value_is_pos_not_x0)
             .assert_word_eq(local.unsigned_mem_val, local.op_a_val());
