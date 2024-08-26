@@ -13,7 +13,9 @@ use crate::{builder::SP1RecursionAirBuilder, *};
 pub const NUM_EXT_ALU_ENTRIES_PER_ROW: usize = 4;
 
 #[derive(Default)]
-pub struct ExtAluChip {}
+pub struct ExtAluChip {
+    pub fixed_log2_rows: Option<usize>,
+}
 
 pub const NUM_EXT_ALU_COLS: usize = core::mem::size_of::<ExtAluCols<u8>>();
 
@@ -82,8 +84,12 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for ExtAluChip {
             .collect::<Vec<_>>();
 
         let nb_rows = instrs.len().div_ceil(NUM_EXT_ALU_ENTRIES_PER_ROW);
-        let padded_nb_rows = next_power_of_two(nb_rows, None);
+        let padded_nb_rows = match self.fixed_log2_rows {
+            Some(log2_rows) => 1 << log2_rows,
+            None => next_power_of_two(nb_rows, None),
+        };
         let mut values = vec![F::zero(); padded_nb_rows * NUM_EXT_ALU_PREPROCESSED_COLS];
+
         // Generate the trace rows & corresponding records for each chunk of events in parallel.
         let populate_len = instrs.len() * NUM_EXT_ALU_ACCESS_COLS;
         values[..populate_len].par_chunks_mut(NUM_EXT_ALU_ACCESS_COLS).zip_eq(instrs).for_each(
@@ -119,8 +125,12 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for ExtAluChip {
     fn generate_trace(&self, input: &Self::Record, _: &mut Self::Record) -> RowMajorMatrix<F> {
         let events = &input.ext_alu_events;
         let nb_rows = events.len().div_ceil(NUM_EXT_ALU_ENTRIES_PER_ROW);
-        let padded_nb_rows = next_power_of_two(nb_rows, None);
+        let padded_nb_rows = match self.fixed_log2_rows {
+            Some(log2_rows) => 1 << log2_rows,
+            None => next_power_of_two(nb_rows, None),
+        };
         let mut values = vec![F::zero(); padded_nb_rows * NUM_EXT_ALU_COLS];
+
         // Generate the trace rows & corresponding records for each chunk of events in parallel.
         let populate_len = events.len() * NUM_EXT_ALU_VALUE_COLS;
         values[..populate_len].par_chunks_mut(NUM_EXT_ALU_VALUE_COLS).zip_eq(events).for_each(
