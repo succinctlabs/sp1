@@ -9,20 +9,20 @@ use std::sync::atomic::{AtomicUsize, Ordering::Relaxed};
 const ARENA_SIZE: usize = 128 * 1024;
 const MAX_SUPPORTED_ALIGN: usize = 4096;
 #[repr(C, align(4096))] // 4096 == MAX_SUPPORTED_ALIGN
-struct SimpleAllocator {
+struct SimpleAlloc {
     arena: UnsafeCell<[u8; ARENA_SIZE]>,
     remaining: AtomicUsize, // we allocate from the top, counting down
 }
 
 #[global_allocator]
-static ALLOCATOR: SimpleAllocator = SimpleAllocator {
+static ALLOCATOR: SimpleAlloc = SimpleAlloc {
     arena: UnsafeCell::new([0x55; ARENA_SIZE]),
     remaining: AtomicUsize::new(ARENA_SIZE),
 };
 
-unsafe impl Sync for SimpleAllocator {}
+unsafe impl Sync for SimpleAlloc {}
 
-unsafe impl GlobalAlloc for SimpleAllocator {
+unsafe impl GlobalAlloc for SimpleAlloc {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
         let size = layout.size();
         let align = layout.align();
@@ -60,7 +60,7 @@ unsafe impl GlobalAlloc for SimpleAllocator {
     }
 }
 
-impl SimpleAllocator {
+impl SimpleAlloc {
     pub fn get_heap_pointer(&self) -> *mut u8 {
         unsafe { HEAP_POS as *mut u8 }
     }
