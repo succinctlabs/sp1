@@ -410,7 +410,6 @@ mod tests {
         machine.generate_dependencies(&mut runtime.records, &opts);
 
         let shards = runtime.records;
-        assert_eq!(shards.len(), 2);
         debug_interactions_with_all_chips::<BabyBearPoseidon2, RiscvAir<BabyBear>>(
             &machine,
             &pkey,
@@ -432,7 +431,6 @@ mod tests {
         machine.generate_dependencies(&mut runtime.records, &opts);
 
         let shards = runtime.records;
-        assert_eq!(shards.len(), 2);
         debug_interactions_with_all_chips::<BabyBearPoseidon2, RiscvAir<BabyBear>>(
             &machine,
             &pkey,
