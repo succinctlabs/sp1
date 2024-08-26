@@ -158,7 +158,10 @@ pub trait MachineProvingKey<SC: StarkGenericConfig>: Send + Sync {
     fn pc_start(&self) -> Val<SC>;
 
     /// The proving key on the host.
-    fn host(&self) -> StarkProvingKey<SC>;
+    fn to_host(&self) -> StarkProvingKey<SC>;
+
+    /// The proving key on the device.
+    fn from_host(host: StarkProvingKey<SC>) -> Self;
 }
 
 /// A prover implementation based on x86 and ARM CPUs.
@@ -585,8 +588,12 @@ where
         self.pc_start
     }
 
-    fn host(&self) -> StarkProvingKey<SC> {
+    fn to_host(&self) -> StarkProvingKey<SC> {
         self.clone()
+    }
+
+    fn from_host(host: StarkProvingKey<SC>) -> Self {
+        host
     }
 }
 
