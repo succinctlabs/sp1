@@ -235,7 +235,6 @@ where
                             // "cpu events".
                             let mut state = state.lock().unwrap();
                             for record in records.iter_mut() {
-                                println!("record: {:?}", record.stats());
                                 state.shard += 1;
                                 state.execution_shard = record.public_values.execution_shard;
                                 state.start_pc = record.public_values.start_pc;
