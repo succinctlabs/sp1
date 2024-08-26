@@ -229,7 +229,7 @@ pub fn verify_challenges<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVar
 
 pub fn verify_query<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVariable<C>>(
     builder: &mut Builder<C>,
-    commit_phase_commits: &[SC::Digest],
+    commit_phase_commits: &[SC::DigestVariable],
     index_bits: &[C::Bit],
     proof: FriQueryProofVariable<C, SC>,
     betas: &[Ext<C::F, C::EF>],
@@ -329,11 +329,11 @@ pub fn verify_query<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVariable
 
 pub fn verify_batch<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVariable<C>>(
     builder: &mut Builder<C>,
-    commit: SC::Digest,
+    commit: SC::DigestVariable,
     heights: &[usize],
     index_bits: &[C::Bit],
     opened_values: Vec<Vec<Vec<Felt<C::F>>>>,
-    proof: Vec<SC::Digest>,
+    proof: Vec<SC::DigestVariable>,
 ) {
     let mut heights_tallest_first =
         heights.iter().enumerate().sorted_by_key(|(_, height)| Reverse(*height)).peekable();
@@ -346,9 +346,9 @@ pub fn verify_batch<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVariable
         .cloned()
         .collect::<Vec<_>>();
     let felt_slice: Vec<Felt<C::F>> = ext_slice.into_iter().flatten().collect::<Vec<_>>();
-    let mut root: SC::Digest = SC::hash(builder, &felt_slice[..]);
+    let mut root: SC::DigestVariable = SC::constant_hash(builder, &felt_slice[..]);
 
-    zip(index_bits.iter(), proof).for_each(|(&bit, sibling): (&C::Bit, SC::Digest)| {
+    zip(index_bits.iter(), proof).for_each(|(&bit, sibling): (&C::Bit, SC::DigestVariable)| {
         let compress_args = SC::select_chain_digest(builder, bit, [root, sibling]);
 
         root = SC::compress(builder, compress_args);
@@ -365,7 +365,7 @@ pub fn verify_batch<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVariable
                 .flat_map(|(i, _)| opened_values[i].clone())
                 .collect::<Vec<_>>();
             let felt_slice: Vec<Felt<C::F>> = ext_slice.into_iter().flatten().collect::<Vec<_>>();
-            let next_height_openings_digest = SC::hash(builder, &felt_slice);
+            let next_height_openings_digest = SC::constant_hash(builder, &felt_slice);
             root = SC::compress(builder, [root, next_height_openings_digest]);
         }
     });

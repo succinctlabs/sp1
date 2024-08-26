@@ -1231,7 +1231,13 @@ pub mod tests {
         // docker image which has a different API than the current. So we need to wait until the
         // next release (v1.2.0+), and then switch it back.
         let prover = SP1Prover::<DefaultProverComponents>::new();
-        test_e2e_prover::<DefaultProverComponents>(&prover, elf, opts, Test::Plonk)
+        test_e2e_prover::<DefaultProverComponents>(
+            &prover,
+            elf,
+            SP1Stdin::default(),
+            opts,
+            Test::Plonk,
+        )
     }
 
     /// Tests an end-to-end workflow of proving a program across the entire proof generation
