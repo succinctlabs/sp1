@@ -94,7 +94,8 @@ impl<F: PrimeField32> MachineAir<F> for PublicValuesChip {
         }
 
         // Pad the preprocessed rows to 8 rows.
-        pad_rows_fixed(&mut rows, || [F::zero(); NUM_PUBLIC_VALUES_PREPROCESSED_COLS], Some(3));
+        // gpu code breaks for small traces
+        pad_rows_fixed(&mut rows, || [F::zero(); NUM_PUBLIC_VALUES_PREPROCESSED_COLS], Some(4));
 
         let trace = RowMajorMatrix::new(
             rows.into_iter().flatten().collect(),
@@ -127,7 +128,7 @@ impl<F: PrimeField32> MachineAir<F> for PublicValuesChip {
         }
 
         // Pad the trace to 8 rows.
-        pad_rows_fixed(&mut rows, || [F::zero(); NUM_PUBLIC_VALUES_COLS], Some(3));
+        pad_rows_fixed(&mut rows, || [F::zero(); NUM_PUBLIC_VALUES_COLS], Some(4));
 
         // Convert the trace to a row major matrix.
         RowMajorMatrix::new(rows.into_iter().flatten().collect(), NUM_PUBLIC_VALUES_COLS)

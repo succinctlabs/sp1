@@ -96,11 +96,9 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2SkinnyChip
             rows.extend(row_add.into_iter());
         }
 
-        if self.pad {
-            // Pad the trace to a power of two.
-            // This will need to be adjusted when the AIR constraints are implemented.
-            pad_rows_fixed(&mut rows, || [F::zero(); NUM_POSEIDON2_COLS], self.fixed_log2_rows);
-        }
+        // Pad the trace to a power of two.
+        // This will need to be adjusted when the AIR constraints are implemented.
+        pad_rows_fixed(&mut rows, || [F::zero(); NUM_POSEIDON2_COLS], self.fixed_log2_rows);
 
         // Convert the trace to a row major matrix.
         let trace =
@@ -190,15 +188,14 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2SkinnyChip
                 });
             },
         );
-        if self.pad {
-            // Pad the trace to a power of two.
-            // This may need to be adjusted when the AIR constraints are implemented.
-            pad_rows_fixed(
-                &mut rows,
-                || [F::zero(); PREPROCESSED_POSEIDON2_WIDTH],
-                self.fixed_log2_rows,
-            );
-        }
+
+        // Pad the trace to a power of two.
+        // This may need to be adjusted when the AIR constraints are implemented.
+        pad_rows_fixed(
+            &mut rows,
+            || [F::zero(); PREPROCESSED_POSEIDON2_WIDTH],
+            self.fixed_log2_rows,
+        );
         let trace_rows = rows.into_iter().flatten().collect::<Vec<_>>();
         Some(RowMajorMatrix::new(trace_rows, PREPROCESSED_POSEIDON2_WIDTH))
     }

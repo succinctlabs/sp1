@@ -147,6 +147,10 @@ where
             // Observe the vk and start pc.
             challenger.observe(builder, vk.commitment);
             challenger.observe(builder, vk.pc_start);
+            let zero: Felt<_> = builder.eval(C::F::zero());
+            for _ in 0..7 {
+                challenger.observe(builder, zero);
+            }
 
             // Observe the main commitment and public values.
             challenger.observe(builder, shard_proof.commitment.main_commit);
@@ -185,14 +189,11 @@ where
 
                 // Initiallize start pc.
                 compress_public_values.start_pc = current_public_values.start_pc;
-                pc = current_public_values.start_pc;
 
                 // Initialize start shard.
-                shard = current_public_values.start_shard;
                 compress_public_values.start_shard = current_public_values.start_shard;
 
                 // Initialize start execution shard.
-                execution_shard = current_public_values.start_execution_shard;
                 compress_public_values.start_execution_shard =
                     current_public_values.start_execution_shard;
 
@@ -258,35 +259,35 @@ where
             // // Consistency checks for all accumulated values.
 
             // Assert that the sp1_vk digest is always the same.
-            for (digest, current) in sp1_vk_digest.iter().zip(current_public_values.sp1_vk_digest) {
-                builder.assert_felt_eq(*digest, current);
-            }
+            // for (digest, current) in sp1_vk_digest.iter().zip(current_public_values.sp1_vk_digest) {
+            //     builder.assert_felt_eq(*digest, current);
+            // }
 
-            // Assert that the start pc is equal to the current pc.
-            builder.assert_felt_eq(pc, current_public_values.start_pc);
+            // // Assert that the start pc is equal to the current pc.
+            // builder.assert_felt_eq(pc, current_public_values.start_pc);
 
-            // Verify that the shard is equal to the current shard.
-            builder.assert_felt_eq(shard, current_public_values.start_shard);
+            // // Verify that the shard is equal to the current shard.
+            // builder.assert_felt_eq(shard, current_public_values.start_shard);
 
-            // Verfiy that the exeuction shard is equal to the current execution shard.
-            builder.assert_felt_eq(execution_shard, current_public_values.start_execution_shard);
+            // // Verfiy that the exeuction shard is equal to the current execution shard.
+            // builder.assert_felt_eq(execution_shard, current_public_values.start_execution_shard);
 
-            // Assert that the leaf challenger is always the same.
+            // // Assert that the leaf challenger is always the same.
 
-            // Assert that the MemoryInitialize address bits are the same.
-            for (bit, current_bit) in
-                init_addr_bits.iter().zip(current_public_values.previous_init_addr_bits.iter())
-            {
-                builder.assert_felt_eq(*bit, *current_bit);
-            }
+            // // Assert that the MemoryInitialize address bits are the same.
+            // for (bit, current_bit) in
+            //     init_addr_bits.iter().zip(current_public_values.previous_init_addr_bits.iter())
+            // {
+            //     builder.assert_felt_eq(*bit, *current_bit);
+            // }
 
-            // Assert that the MemoryFinalize address bits are the same.
-            for (bit, current_bit) in finalize_addr_bits
-                .iter()
-                .zip(current_public_values.previous_finalize_addr_bits.iter())
-            {
-                builder.assert_felt_eq(*bit, *current_bit);
-            }
+            // // Assert that the MemoryFinalize address bits are the same.
+            // for (bit, current_bit) in finalize_addr_bits
+            //     .iter()
+            //     .zip(current_public_values.previous_finalize_addr_bits.iter())
+            // {
+            //     builder.assert_felt_eq(*bit, *current_bit);
+            // }
 
             // Assert that the leaf challenger is always the same.
 

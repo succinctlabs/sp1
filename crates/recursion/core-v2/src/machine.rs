@@ -1,3 +1,5 @@
+use std::marker::PhantomData;
+
 use p3_field::{extension::BinomiallyExtendable, PrimeField32};
 use sp1_recursion_core::runtime::D;
 use sp1_stark::{Chip, StarkGenericConfig, StarkMachine, PROOF_MAX_NUM_PVS};
@@ -100,12 +102,22 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize, const COL_P
     /// A machine with fixed chip sizes to standartize the verification key.
     pub fn shrink_machine<SC: StarkGenericConfig<Val = F>>(config: SC) -> StarkMachine<SC, Self> {
         let chips = [
-            RecursionAir::MemoryConst(MemoryConstChip::default()),
-            RecursionAir::MemoryVar(MemoryVarChip::default()),
-            RecursionAir::BaseAlu(BaseAluChip::default()),
-            RecursionAir::ExtAlu(ExtAluChip::default()),
-            RecursionAir::Poseidon2Skinny(Poseidon2SkinnyChip::<DEGREE>::default()),
-            RecursionAir::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE>::default()),
+            RecursionAir::MemoryConst(MemoryConstChip {
+                fixed_log2_rows: Some(16),
+                _data: PhantomData,
+            }),
+            RecursionAir::MemoryVar(MemoryVarChip {
+                fixed_log2_rows: Some(20),
+                _data: PhantomData,
+            }),
+            RecursionAir::BaseAlu(BaseAluChip { fixed_log2_rows: Some(20) }),
+            RecursionAir::ExtAlu(ExtAluChip { fixed_log2_rows: Some(22) }),
+            RecursionAir::Poseidon2Skinny(Poseidon2SkinnyChip::<DEGREE> {
+                fixed_log2_rows: Some(19),
+            }),
+            RecursionAir::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE> {
+                fixed_log2_rows: Some(16),
+            }),
             RecursionAir::PublicValues(PublicValuesChip::default()),
         ]
         .map(Chip::new)

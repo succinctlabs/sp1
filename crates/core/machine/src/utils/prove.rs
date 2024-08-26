@@ -10,6 +10,7 @@ use web_time::Instant;
 
 use crate::riscv::RiscvAir;
 use p3_challenger::CanObserve;
+use p3_field::AbstractField;
 use p3_maybe_rayon::prelude::*;
 use serde::{de::DeserializeOwned, Serialize};
 use size::Size;
@@ -324,6 +325,9 @@ where
         let mut challenger = prover.config().challenger();
         challenger.observe(pk.commit.clone());
         challenger.observe(pk.pc_start);
+        for _ in 0..7 {
+            challenger.observe(Val::<SC>::zero());
+        }
 
         // Spawn the phase 1 prover thread.
         let phase_1_prover_span = tracing::Span::current().clone();

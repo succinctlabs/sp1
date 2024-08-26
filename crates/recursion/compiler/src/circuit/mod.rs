@@ -108,7 +108,6 @@ mod tests {
             }),
             A::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE> {
                 fixed_log2_rows: Some(((EXP_REVERSE_BITS_LEN_OPERATIONS - 1).ilog2() + 1) as usize),
-                pad: true,
             }),
             A::FriFold(FriFoldChip::<DEGREE> {
                 fixed_log2_rows: Some(((FRI_FOLD_OPERATIONS - 1).ilog2() + 1) as usize),
