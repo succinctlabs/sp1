@@ -1,9 +1,6 @@
 use p3_air::AirBuilder;
 use p3_field::AbstractField;
-use sp1_stark::{
-    air::{BaseAirBuilder, SP1AirBuilder},
-    Word,
-};
+use sp1_stark::{air::SP1AirBuilder, Word};
 
 use crate::{
     air::{SP1CoreAirBuilder, WordAirBuilder},
@@ -155,9 +152,6 @@ impl CpuChip {
         // Get the memory specific columns.
         let memory_columns = local.opcode_specific_columns.memory();
 
-        // Compute whether this is a load instruction.
-        let is_load = self.is_load_instruction::<AB>(&local.selectors);
-
         // Verify the unsigned_mem_value column.
         self.eval_unsigned_mem_value(builder, memory_columns, local);
 
@@ -165,12 +159,12 @@ impl CpuChip {
         // of the most significant byte to get it's sign.
         self.eval_most_sig_byte_bit_decomp(builder, memory_columns, local, &local.unsigned_mem_val);
 
-        // Assert that if `is_lb` and `is_lh` are both true, then the most significant byte
-        // matches the value of `local.mem_value_is_neg`.
+        // Assert that correct value of `mem_value_is_neg_not_x0`.
         builder.assert_eq(
-            local.mem_value_is_neg,
+            local.mem_value_is_neg_not_x0,
             (local.selectors.is_lb + local.selectors.is_lh)
-                * memory_columns.most_sig_byte_decomp[7],
+                * memory_columns.most_sig_byte_decomp[7]
+                * (AB::Expr::one() - local.instruction.op_a_0),
         );
 
         // When the memory value is negative, use the SUB opcode to compute the signed value of
@@ -189,14 +183,24 @@ impl CpuChip {
             local.shard,
             local.channel,
             local.unsigned_mem_val_nonce,
-            local.mem_value_is_neg,
+            local.mem_value_is_neg_not_x0,
         );
 
-        // When the memory value is not negaitve, assert that op_a value is equal to the unsigned
+        // Assert that correct value of `mem_value_is_pos_not_x0`.
+        let mem_value_is_pos = (local.selectors.is_lb + local.selectors.is_lh)
+            * (AB::Expr::one() - memory_columns.most_sig_byte_decomp[7])
+            + local.selectors.is_lbu
+            + local.selectors.is_lhu
+            + local.selectors.is_lw;
+        builder.assert_eq(
+            local.mem_value_is_pos_not_x0,
+            mem_value_is_pos * (AB::Expr::one() - local.instruction.op_a_0),
+        );
+
+        // When the memory value is not negative, assert that op_a value is equal to the unsigned
         // memory value.
         builder
-            .when(is_load)
-            .when_not(local.mem_value_is_neg)
+            .when(local.mem_value_is_pos_not_x0)
             .assert_word_eq(local.unsigned_mem_val, local.op_a_val());
     }
 
