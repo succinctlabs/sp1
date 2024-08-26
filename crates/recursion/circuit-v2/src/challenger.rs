@@ -625,7 +625,7 @@ pub(crate) mod tests {
         let e: Felt<_> = builder.eval(input[4]);
         let f: Felt<_> = builder.eval(input[5]);
         let g: Felt<_> = builder.eval(input[6]);
-        let result = BabyBearPoseidon2Outer::hash(&mut builder, &[a, b, c, d, e, f, g]);
+        let result = BabyBearPoseidon2Outer::constant_hash(&mut builder, &[a, b, c, d, e, f, g]);
 
         builder.assert_var_eq(result[0], output[0]);
 

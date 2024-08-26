@@ -24,7 +24,6 @@ pub mod provers;
 pub mod utils {
     pub use sp1_core_machine::utils::setup_logger;
 }
-
 use cfg_if::cfg_if;
 pub use proof::*;
 pub use provers::SP1VerificationError;

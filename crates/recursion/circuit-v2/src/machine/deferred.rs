@@ -71,7 +71,7 @@ where
     SC: BabyBearFriConfigVariable<
         C,
         FriChallengerVariable = DuplexChallengerVariable<C>,
-        Digest = [Felt<BabyBear>; DIGEST_SIZE],
+        DigestVariable = [Felt<BabyBear>; DIGEST_SIZE],
     >,
     C: CircuitConfig<F = SC::Val, EF = SC::Challenge, Bit = Felt<BabyBear>>,
     <SC::ValMmcs as Mmcs<BabyBear>>::ProverData<RowMajorMatrix<BabyBear>>: Clone,
@@ -160,7 +160,7 @@ where
                     inputs[j * WORD_SIZE + k + 16] = element;
                 }
             }
-            reconstruct_deferred_digest = SC::hash(builder, &inputs);
+            reconstruct_deferred_digest = SC::constant_hash(builder, &inputs);
         }
 
         // Set the public values.
