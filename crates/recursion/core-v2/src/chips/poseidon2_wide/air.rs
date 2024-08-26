@@ -55,17 +55,17 @@ where
         // For now, include only memory constraints.
         (0..WIDTH).for_each(|i| {
             builder.send_single(
-                prep_local.memory_preprocessed[i].addr,
+                prep_local.input[i],
                 local_row.external_rounds_state()[0][i],
-                prep_local.memory_preprocessed[i].mult,
+                prep_local.is_real_neg,
             )
         });
 
         (0..WIDTH).for_each(|i| {
             builder.send_single(
-                prep_local.memory_preprocessed[i + WIDTH].addr,
+                prep_local.output[i].addr,
                 local_row.perm_output()[i],
-                prep_local.memory_preprocessed[i + WIDTH].mult,
+                prep_local.output[i].mult,
             )
         });
 

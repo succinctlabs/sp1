@@ -51,9 +51,6 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
         let num_columns = <Self as BaseAir<F>>::width(self);
         let mut values = vec![F::zero(); padded_nb_rows * num_columns];
 
-        let mut dummy_row = vec![F::zero(); num_columns];
-        self.populate_perm([F::zero(); WIDTH], None, &mut dummy_row);
-
         let populate_len = events.len() * num_columns;
         let (values_pop, values_dummy) = values.split_at_mut(populate_len);
         join(
@@ -65,6 +62,8 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
                 )
             },
             || {
+                let mut dummy_row = vec![F::zero(); num_columns];
+                self.populate_perm([F::zero(); WIDTH], None, &mut dummy_row);
                 values_dummy
                     .par_chunks_mut(num_columns)
                     .for_each(|row| row.copy_from_slice(&dummy_row))
@@ -114,20 +113,16 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
             .par_chunks_mut(PREPROCESSED_POSEIDON2_WIDTH)
             .zip_eq(instrs)
             .for_each(|(row, instr)| {
-                let cols: &mut Poseidon2PreprocessedCols<_> = row.borrow_mut();
-
                 // Set the memory columns. We read once, at the first iteration,
                 // and write once, at the last iteration.
-                cols.memory_preprocessed = std::array::from_fn(|j| {
-                    if j < WIDTH {
-                        MemoryAccessCols { addr: instr.addrs.input[j], mult: F::neg_one() }
-                    } else {
-                        MemoryAccessCols {
-                            addr: instr.addrs.output[j - WIDTH],
-                            mult: instr.mults[j - WIDTH],
-                        }
-                    }
-                });
+                *row.borrow_mut() = Poseidon2PreprocessedCols {
+                    input: instr.addrs.input,
+                    output: std::array::from_fn(|j| MemoryAccessCols {
+                        addr: instr.addrs.output[j],
+                        mult: instr.mults[j],
+                    }),
+                    is_real_neg: F::neg_one(),
+                }
             });
         Some(RowMajorMatrix::new(values, PREPROCESSED_POSEIDON2_WIDTH))
     }

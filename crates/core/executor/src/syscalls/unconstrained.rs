@@ -1,6 +1,6 @@
 use hashbrown::HashMap;
 
-use crate::state::ForkState;
+use crate::{state::ForkState, ExecutorMode};
 
 use super::{Syscall, SyscallContext};
 
@@ -19,9 +19,9 @@ impl Syscall for EnterUnconstrainedSyscall {
             memory_diff: HashMap::default(),
             record: std::mem::take(&mut ctx.rt.record),
             op_record: std::mem::take(&mut ctx.rt.memory_accesses),
-            emit_events: ctx.rt.emit_events,
+            executor_mode: ctx.rt.executor_mode,
         };
-        ctx.rt.emit_events = false;
+        ctx.rt.executor_mode = ExecutorMode::Simple;
         Some(1)
     }
 }
@@ -48,7 +48,7 @@ impl Syscall for ExitUnconstrainedSyscall {
             }
             ctx.rt.record = std::mem::take(&mut ctx.rt.unconstrained_state.record);
             ctx.rt.memory_accesses = std::mem::take(&mut ctx.rt.unconstrained_state.op_record);
-            ctx.rt.emit_events = ctx.rt.unconstrained_state.emit_events;
+            ctx.rt.executor_mode = ctx.rt.unconstrained_state.executor_mode;
             ctx.rt.unconstrained = false;
         }
         ctx.rt.unconstrained_state = ForkState::default();
