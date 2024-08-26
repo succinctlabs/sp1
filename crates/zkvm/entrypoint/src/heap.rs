@@ -4,60 +4,74 @@ use crate::syscalls::{sys_alloc_aligned, HEAP_POS};
 
 use std::cell::UnsafeCell;
 use std::ptr::null_mut;
-use std::sync::atomic::{AtomicUsize, Ordering::Relaxed};
+use std::sync::atomic::{AtomicUsize, Ordering, Ordering::Relaxed};
 
-const ARENA_SIZE: usize = 128 * 1024;
-const MAX_SUPPORTED_ALIGN: usize = 4096;
-#[repr(C, align(4096))] // 4096 == MAX_SUPPORTED_ALIGN
-pub struct SimpleAlloc {
+pub const ARENA_SIZE: usize = 2 * 1024 * 1024 * 512;
+/// An Arena allocator for better memory reuse.
+pub struct ArenaAlloc {
     arena: UnsafeCell<[u8; ARENA_SIZE]>,
-    remaining: AtomicUsize, // we allocate from the top, counting down
+    current: AtomicUsize,
 }
 
-#[global_allocator]
-static ALLOCATOR: SimpleAlloc = SimpleAlloc {
-    arena: UnsafeCell::new([0x55; ARENA_SIZE]),
-    remaining: AtomicUsize::new(ARENA_SIZE),
-};
+impl ArenaAlloc {
+    pub const fn new() -> Self {
+        Self { arena: UnsafeCell::new([0; ARENA_SIZE]), current: AtomicUsize::new(0) }
+    }
 
-unsafe impl Sync for SimpleAlloc {}
+    pub fn reset(&self) {
+        self.current.store(0, Ordering::Relaxed);
+    }
 
-unsafe impl GlobalAlloc for SimpleAlloc {
+    pub fn get_heap_pointer() -> *mut u8 {
+        unsafe { HEAP_POS as *mut u8 }
+    }
+
+    pub fn set_heap_pointer(ptr: *mut u8) {
+        unsafe { HEAP_POS = ptr as usize };
+    }
+}
+
+unsafe impl Sync for ArenaAlloc {}
+
+unsafe impl GlobalAlloc for ArenaAlloc {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
         let size = layout.size();
         let align = layout.align();
 
-        // `Layout` contract forbids making a `Layout` with align=0, or align not power of 2.
-        // So we can safely use a mask to ensure alignment without worrying about UB.
-        let align_mask_to_round_down = !(align - 1);
+        let current = self.current.load(Ordering::Relaxed);
+        let aligned_current = (current + align - 1) & !(align - 1);
+        let new_current = aligned_current + size;
 
-        if align > MAX_SUPPORTED_ALIGN {
-            return null_mut();
+        if new_current > ARENA_SIZE {
+            null_mut()
+        } else {
+            if self
+                .current
+                .compare_exchange(current, new_current, Ordering::Relaxed, Ordering::Relaxed)
+                .is_ok()
+            {
+                sys_alloc_aligned(size, align)
+            } else {
+                null_mut()
+            }
         }
-
-        let arena = self.arena.get();
-        let offset = self.remaining.load(Relaxed);
-
-        if offset < size {
-            return null_mut();
-        }
-
-        let aligned_offset = offset & align_mask_to_round_down;
-        if aligned_offset < size {
-            return null_mut();
-        }
-
-        let new_offset = aligned_offset - size;
-        if self.remaining.compare_exchange(offset, new_offset, Relaxed, Relaxed).is_err() {
-            return null_mut();
-        }
-
-        arena.add(new_offset) as *mut u8
     }
 
     unsafe fn dealloc(&self, _ptr: *mut u8, _layout: Layout) {
         // Memory is not deallocated in an arena allocator
     }
+}
+
+/// A simple heap allocator.
+///
+/// Allocates memory from left to right, without any deallocation.
+pub struct SimpleAlloc;
+unsafe impl GlobalAlloc for SimpleAlloc {
+    unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
+        sys_alloc_aligned(layout.size(), layout.align())
+    }
+
+    unsafe fn dealloc(&self, _: *mut u8, _: Layout) {}
 }
 
 impl SimpleAlloc {

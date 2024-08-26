@@ -94,8 +94,11 @@ macro_rules! entrypoint {
     ($path:path) => {
         const ZKVM_ENTRY: fn() = $path;
 
+        use $crate::heap::ArenaAlloc;
         use $crate::heap::SimpleAlloc;
 
+        // #[global_allocator]
+        // static HEAP: ArenaAlloc = ArenaAlloc::new();
         #[global_allocator]
         static HEAP: SimpleAlloc = SimpleAlloc;
 
