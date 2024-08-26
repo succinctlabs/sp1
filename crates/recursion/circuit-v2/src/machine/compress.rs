@@ -189,14 +189,11 @@ where
 
                 // Initiallize start pc.
                 compress_public_values.start_pc = current_public_values.start_pc;
-                pc = current_public_values.start_pc;
 
                 // Initialize start shard.
-                shard = current_public_values.start_shard;
                 compress_public_values.start_shard = current_public_values.start_shard;
 
                 // Initialize start execution shard.
-                execution_shard = current_public_values.start_execution_shard;
                 compress_public_values.start_execution_shard =
                     current_public_values.start_execution_shard;
 
