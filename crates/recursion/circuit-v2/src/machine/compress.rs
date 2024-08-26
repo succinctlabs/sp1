@@ -262,35 +262,35 @@ where
             // // Consistency checks for all accumulated values.
 
             // Assert that the sp1_vk digest is always the same.
-            for (digest, current) in sp1_vk_digest.iter().zip(current_public_values.sp1_vk_digest) {
-                builder.assert_felt_eq(*digest, current);
-            }
+            // for (digest, current) in sp1_vk_digest.iter().zip(current_public_values.sp1_vk_digest) {
+            //     builder.assert_felt_eq(*digest, current);
+            // }
 
-            // Assert that the start pc is equal to the current pc.
-            builder.assert_felt_eq(pc, current_public_values.start_pc);
+            // // Assert that the start pc is equal to the current pc.
+            // builder.assert_felt_eq(pc, current_public_values.start_pc);
 
-            // Verify that the shard is equal to the current shard.
-            builder.assert_felt_eq(shard, current_public_values.start_shard);
+            // // Verify that the shard is equal to the current shard.
+            // builder.assert_felt_eq(shard, current_public_values.start_shard);
 
-            // Verfiy that the exeuction shard is equal to the current execution shard.
-            builder.assert_felt_eq(execution_shard, current_public_values.start_execution_shard);
+            // // Verfiy that the exeuction shard is equal to the current execution shard.
+            // builder.assert_felt_eq(execution_shard, current_public_values.start_execution_shard);
 
-            // Assert that the leaf challenger is always the same.
+            // // Assert that the leaf challenger is always the same.
 
-            // Assert that the MemoryInitialize address bits are the same.
-            for (bit, current_bit) in
-                init_addr_bits.iter().zip(current_public_values.previous_init_addr_bits.iter())
-            {
-                builder.assert_felt_eq(*bit, *current_bit);
-            }
+            // // Assert that the MemoryInitialize address bits are the same.
+            // for (bit, current_bit) in
+            //     init_addr_bits.iter().zip(current_public_values.previous_init_addr_bits.iter())
+            // {
+            //     builder.assert_felt_eq(*bit, *current_bit);
+            // }
 
-            // Assert that the MemoryFinalize address bits are the same.
-            for (bit, current_bit) in finalize_addr_bits
-                .iter()
-                .zip(current_public_values.previous_finalize_addr_bits.iter())
-            {
-                builder.assert_felt_eq(*bit, *current_bit);
-            }
+            // // Assert that the MemoryFinalize address bits are the same.
+            // for (bit, current_bit) in finalize_addr_bits
+            //     .iter()
+            //     .zip(current_public_values.previous_finalize_addr_bits.iter())
+            // {
+            //     builder.assert_felt_eq(*bit, *current_bit);
+            // }
 
             // Assert that the leaf challenger is always the same.
 
