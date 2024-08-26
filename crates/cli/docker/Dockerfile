@@ -1,4 +1,4 @@
-FROM ubuntu:24.04@sha256:e3f92abc0967a6c19d0dfa2d55838833e947b9d74edbcb0113e48535ad4be12a
+FROM ubuntu:24.04@sha256:8a37d68f4f73ebf3d4efafbcf66379bf3728902a8038616808f04e34a9ab63ee
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates clang curl libssl-dev pkg-config git dialog xz-utils \
