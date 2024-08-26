@@ -1,7 +1,7 @@
 //! Copied from [`sp1_recursion_program`].
 
 use std::{
-    iter::{repeat, zip},
+    iter::{once, repeat, zip},
     ops::{Add, Mul},
 };
 
@@ -127,6 +127,14 @@ pub trait CircuitConfig: Config {
         power_bits: Vec<Self::Bit>,
     ) -> Felt<<Self as Config>::F>;
 
+    /// Exponentiates a felt x to a list of bits in little endian. Uses precomputed powers
+    /// of x.
+    fn exp_f_bits_precomputed(
+        builder: &mut Builder<Self>,
+        power_bits: &[Self::Bit],
+        two_adic_powers_of_x: &[Felt<Self::F>],
+    ) -> Felt<Self::F>;
+
     fn num2bits(
         builder: &mut Builder<Self>,
         num: Felt<<Self as Config>::F>,
@@ -231,6 +239,20 @@ impl CircuitConfig for InnerConfig {
             .map(|((id_v, sw_v), (id_c, sw_c))| builder.eval(id_v * id_c + sw_v * sw_c))
             .collect()
     }
+
+    fn exp_f_bits_precomputed(
+        builder: &mut Builder<Self>,
+        power_bits: &[Self::Bit],
+        two_adic_powers_of_x: &[Felt<Self::F>],
+    ) -> Felt<Self::F> {
+        let mut result: Felt<_> = builder.eval(Self::F::one());
+        for i in 0..power_bits.len() {
+            let bit = power_bits[i];
+            let tmp = builder.eval(result * two_adic_powers_of_x[i]);
+            result = Self::select_chain_f(builder, bit, once(tmp), once(result))[0];
+        }
+        result
+    }
 }
 
 impl CircuitConfig for OuterConfig {
@@ -331,6 +353,20 @@ impl CircuitConfig for OuterConfig {
                 result
             })
             .collect()
+    }
+
+    fn exp_f_bits_precomputed(
+        builder: &mut Builder<Self>,
+        power_bits: &[Self::Bit],
+        two_adic_powers_of_x: &[Felt<Self::F>],
+    ) -> Felt<Self::F> {
+        let mut result: Felt<_> = builder.eval(Self::F::one());
+        for i in 0..power_bits.len() {
+            let bit = power_bits[i];
+            let tmp = builder.eval(result * two_adic_powers_of_x[i]);
+            result = builder.select_f(bit, tmp, result);
+        }
+        result
     }
 }
 
