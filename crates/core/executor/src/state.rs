@@ -13,6 +13,7 @@ use crate::{
     events::MemoryRecord,
     record::{ExecutionRecord, MemoryAccessRecord},
     syscalls::SyscallCode,
+    ExecutorMode,
 };
 
 /// Holds data describing the current state of a program's execution.
@@ -120,7 +121,7 @@ pub struct ForkState {
     /// The original execution record at the fork point.
     pub record: ExecutionRecord,
     /// Whether `emit_events` was enabled at the fork point.
-    pub emit_events: bool,
+    pub executor_mode: ExecutorMode,
 }
 
 impl ExecutionState {
