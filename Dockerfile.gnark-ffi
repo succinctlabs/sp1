@@ -3,7 +3,7 @@ FROM golang:1.22 AS go-builder
 FROM rustlang/rust:nightly-bullseye-slim AS rust-builder
 
 # Dependencies
-RUN apt update && apt install -y clang pkg-config libssl-dev
+RUN apt update && apt install -y clang
 
 # Install Go 1.22
 COPY --from=go-builder /usr/local/go /usr/local/go
@@ -19,7 +19,7 @@ RUN rustup show
 COPY . /sp1
 
 # Build the gnark-ffi CLI
-WORKDIR /sp1/recursion/gnark-cli
+WORKDIR /sp1/crates/recursion/gnark-cli
 
 RUN \
   --mount=type=cache,target=target \
