@@ -25,7 +25,7 @@ pub fn get_cycles(elf: &[u8], stdin: &SP1Stdin) -> u64 {
     let program = Program::from(elf).unwrap();
     let mut runtime = Executor::new(program, SP1CoreOpts::default());
     runtime.write_vecs(&stdin.buffer);
-    runtime.dry_run();
+    runtime.run_fast().unwrap();
     runtime.state.global_clk
 }
 

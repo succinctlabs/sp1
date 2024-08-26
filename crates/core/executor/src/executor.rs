@@ -76,8 +76,8 @@ pub struct Executor<'a> {
     /// The maximum number of cycles for a syscall.
     pub max_syscall_cycles: u32,
 
-    /// Whether to emit events during execution.
-    pub emit_events: bool,
+    /// The mode the executor is running in.
+    pub executor_mode: ExecutorMode,
 
     /// Report of the program execution.
     pub report: ExecutionReport,
@@ -100,6 +100,17 @@ pub struct Executor<'a> {
     /// Memory addresses that were touched in this batch of shards. Used to minimize the size of
     /// checkpoints.
     pub memory_checkpoint: HashMap<u32, Option<MemoryRecord>, BuildNoHashHasher<u32>>,
+}
+
+/// The different modes the executor can run in.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ExecutorMode {
+    /// Run the execution with no tracing or checkpointing.
+    Simple,
+    /// Run the execution with checkpoints for memory.
+    Checkpoint,
+    /// Run the execution with full tracing of events.
+    Trace,
 }
 
 /// Errors that the [``Executor``] can throw.
@@ -192,7 +203,7 @@ impl<'a> Executor<'a> {
             unconstrained: false,
             unconstrained_state: ForkState::default(),
             syscall_map,
-            emit_events: true,
+            executor_mode: ExecutorMode::Trace,
             max_syscall_cycles,
             report: ExecutionReport::default(),
             print_report: false,
@@ -239,15 +250,22 @@ impl<'a> Executor<'a> {
         let mut registers = [0; 32];
         for i in 0..32 {
             let addr = Register::from_u32(i as u32) as u32;
-            registers[i] = match self.state.memory.get(&addr) {
-                Some(record) => {
-                    self.memory_checkpoint.entry(addr).or_insert(Some(*record));
-                    record.value
+            let record = self.state.memory.get(&addr);
+
+            if self.executor_mode != ExecutorMode::Simple {
+                match record {
+                    Some(record) => {
+                        self.memory_checkpoint.entry(addr).or_insert_with(|| Some(*record));
+                    }
+                    None => {
+                        self.memory_checkpoint.entry(addr).or_insert(None);
+                    }
                 }
-                None => {
-                    self.memory_checkpoint.entry(addr).or_insert(None);
-                    0
-                }
+            }
+
+            registers[i] = match record {
+                Some(record) => record.value,
+                None => 0,
             };
         }
         registers
@@ -257,16 +275,22 @@ impl<'a> Executor<'a> {
     #[must_use]
     pub fn register(&mut self, register: Register) -> u32 {
         let addr = register as u32;
-        #[allow(clippy::single_match_else)]
-        match self.state.memory.get(&addr) {
-            Some(record) => {
-                self.memory_checkpoint.entry(addr).or_insert(Some(*record));
-                record.value
+        let record = self.state.memory.get(&addr);
+
+        if self.executor_mode != ExecutorMode::Simple {
+            match record {
+                Some(record) => {
+                    self.memory_checkpoint.entry(addr).or_insert_with(|| Some(*record));
+                }
+                None => {
+                    self.memory_checkpoint.entry(addr).or_insert(None);
+                }
             }
-            None => {
-                self.memory_checkpoint.entry(addr).or_insert(None);
-                0
-            }
+        }
+
+        match record {
+            Some(record) => record.value,
+            None => 0,
         }
     }
 
@@ -274,15 +298,22 @@ impl<'a> Executor<'a> {
     #[must_use]
     pub fn word(&mut self, addr: u32) -> u32 {
         #[allow(clippy::single_match_else)]
-        match self.state.memory.get(&addr) {
-            Some(record) => {
-                self.memory_checkpoint.entry(addr).or_insert(Some(*record));
-                record.value
+        let record = self.state.memory.get(&addr);
+
+        if self.executor_mode != ExecutorMode::Simple {
+            match record {
+                Some(record) => {
+                    self.memory_checkpoint.entry(addr).or_insert_with(|| Some(*record));
+                }
+                None => {
+                    self.memory_checkpoint.entry(addr).or_insert(None);
+                }
             }
-            None => {
-                self.memory_checkpoint.entry(addr).or_insert(None);
-                0
-            }
+        }
+
+        match record {
+            Some(record) => record.value,
+            None => 0,
         }
     }
 
@@ -317,13 +348,15 @@ impl<'a> Executor<'a> {
     pub fn mr(&mut self, addr: u32, shard: u32, timestamp: u32) -> MemoryReadRecord {
         // Get the memory record entry.
         let entry = self.state.memory.entry(addr);
-        match entry {
-            Entry::Occupied(ref entry) => {
-                let record = entry.get();
-                self.memory_checkpoint.entry(addr).or_insert(Some(*record));
-            }
-            Entry::Vacant(_) => {
-                self.memory_checkpoint.entry(addr).or_insert(None);
+        if self.executor_mode != ExecutorMode::Simple {
+            match entry {
+                Entry::Occupied(ref entry) => {
+                    let record = entry.get();
+                    self.memory_checkpoint.entry(addr).or_insert_with(|| Some(*record));
+                }
+                Entry::Vacant(_) => {
+                    self.memory_checkpoint.entry(addr).or_insert(None);
+                }
             }
         }
 
@@ -360,13 +393,15 @@ impl<'a> Executor<'a> {
     pub fn mw(&mut self, addr: u32, value: u32, shard: u32, timestamp: u32) -> MemoryWriteRecord {
         // Get the memory record entry.
         let entry = self.state.memory.entry(addr);
-        match entry {
-            Entry::Occupied(ref entry) => {
-                let record = entry.get();
-                self.memory_checkpoint.entry(addr).or_insert(Some(*record));
-            }
-            Entry::Vacant(_) => {
-                self.memory_checkpoint.entry(addr).or_insert(None);
+        if self.executor_mode != ExecutorMode::Simple {
+            match entry {
+                Entry::Occupied(ref entry) => {
+                    let record = entry.get();
+                    self.memory_checkpoint.entry(addr).or_insert_with(|| Some(*record));
+                }
+                Entry::Vacant(_) => {
+                    self.memory_checkpoint.entry(addr).or_insert(None);
+                }
             }
         }
 
@@ -410,7 +445,7 @@ impl<'a> Executor<'a> {
         let record = self.mr(addr, self.shard(), self.timestamp(&position));
 
         // If we're not in unconstrained mode, record the access for the current cycle.
-        if !self.unconstrained && self.emit_events {
+        if !self.unconstrained && self.executor_mode == ExecutorMode::Trace {
             match position {
                 MemoryAccessPosition::A => self.memory_accesses.a = Some(record.into()),
                 MemoryAccessPosition::B => self.memory_accesses.b = Some(record.into()),
@@ -435,7 +470,7 @@ impl<'a> Executor<'a> {
         let record = self.mw(addr, value, self.shard(), self.timestamp(&position));
 
         // If we're not in unconstrained mode, record the access for the current cycle.
-        if !self.unconstrained {
+        if !self.unconstrained && self.executor_mode == ExecutorMode::Trace {
             match position {
                 MemoryAccessPosition::A => {
                     assert!(self.memory_accesses.a.is_none());
@@ -596,7 +631,7 @@ impl<'a> Executor<'a> {
         lookup_id: u128,
     ) {
         self.rw(rd, a);
-        if self.emit_events {
+        if self.executor_mode == ExecutorMode::Trace {
             self.emit_alu(self.state.clk, instruction.opcode, a, b, c, lookup_id);
         }
     }
@@ -649,10 +684,14 @@ impl<'a> Executor<'a> {
         let (a, b, c): (u32, u32, u32);
         let (addr, memory_read_value): (u32, u32);
         let mut memory_store_value: Option<u32> = None;
-        self.memory_accesses = MemoryAccessRecord::default();
 
-        let lookup_id = create_alu_lookup_id();
-        let syscall_lookup_id = create_alu_lookup_id();
+        if self.executor_mode != ExecutorMode::Simple {
+            self.memory_accesses = MemoryAccessRecord::default();
+        }
+        let lookup_id =
+            if self.executor_mode == ExecutorMode::Simple { 0 } else { create_alu_lookup_id() };
+        let syscall_lookup_id =
+            if self.executor_mode == ExecutorMode::Simple { 0 } else { create_alu_lookup_id() };
 
         if self.print_report && !self.unconstrained {
             self.report
@@ -1027,7 +1066,7 @@ impl<'a> Executor<'a> {
         }
 
         // Emit the CPU event for this cycle.
-        if self.emit_events {
+        if self.executor_mode == ExecutorMode::Trace {
             self.emit_cpu(
                 self.shard(),
                 channel,
@@ -1100,7 +1139,7 @@ impl<'a> Executor<'a> {
     ///
     /// This function will return an error if the program execution fails.
     pub fn execute_record(&mut self) -> Result<(Vec<ExecutionRecord>, bool), ExecutionError> {
-        self.emit_events = true;
+        self.executor_mode = ExecutorMode::Trace;
         self.print_report = true;
         let done = self.execute()?;
         Ok((std::mem::take(&mut self.records), done))
@@ -1114,7 +1153,7 @@ impl<'a> Executor<'a> {
     /// This function will return an error if the program execution fails.
     pub fn execute_state(&mut self) -> Result<(ExecutionState, bool), ExecutionError> {
         self.memory_checkpoint.clear();
-        self.emit_events = false;
+        self.executor_mode = ExecutorMode::Checkpoint;
         self.print_report = true;
 
         // Take memory out and then clone so that memory is not cloned.
@@ -1163,8 +1202,8 @@ impl<'a> Executor<'a> {
     /// # Errors
     ///
     /// This function will return an error if the program execution fails.
-    pub fn run_untraced(&mut self) -> Result<(), ExecutionError> {
-        self.emit_events = false;
+    pub fn run_fast(&mut self) -> Result<(), ExecutionError> {
+        self.executor_mode = ExecutorMode::Simple;
         self.print_report = true;
         while !self.execute()? {}
         Ok(())
@@ -1176,20 +1215,10 @@ impl<'a> Executor<'a> {
     ///
     /// This function will return an error if the program execution fails.
     pub fn run(&mut self) -> Result<(), ExecutionError> {
-        self.emit_events = true;
+        self.executor_mode = ExecutorMode::Trace;
         self.print_report = true;
         while !self.execute()? {}
         Ok(())
-    }
-
-    /// Executes the program without emitting events.
-    ///
-    /// # Panics
-    ///
-    /// This function will panic if the program execution fails.
-    pub fn dry_run(&mut self) {
-        self.emit_events = false;
-        while !self.execute().unwrap() {}
     }
 
     /// Executes up to `self.shard_batch_size` cycles of the program, returning whether the program
@@ -1356,6 +1385,12 @@ impl<'a> Executor<'a> {
         if !self.unconstrained && self.state.global_clk % 10_000_000 == 0 {
             log::info!("clk = {} pc = 0x{:x?}", self.state.global_clk, self.state.pc);
         }
+    }
+}
+
+impl Default for ExecutorMode {
+    fn default() -> Self {
+        Self::Simple
     }
 }
 
