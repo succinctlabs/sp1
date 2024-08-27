@@ -363,7 +363,7 @@ dependencies = [
  "digest 0.10.7",
  "fiat-crypto",
  "rustc_version 0.4.0",
- "sp1-lib 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sp1-lib 1.1.0",
  "subtle",
  "zeroize",
 ]
@@ -388,7 +388,7 @@ dependencies = [
  "cfg-if",
  "digest 0.9.0",
  "rand_core",
- "sp1-lib 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sp1-lib 1.1.0",
  "subtle-ng",
  "zeroize",
 ]
@@ -461,7 +461,7 @@ dependencies = [
  "hex-literal",
  "rfc6979",
  "signature",
- "sp1-lib 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sp1-lib 1.1.0",
  "spki",
 ]
 
@@ -1094,6 +1094,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "scale-info"
+version = "2.11.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "eca070c12893629e2cc820a9761bedf6ce1dcddc9852984d1dc734b8bd9bd024"
+dependencies = [
+ "cfg-if",
+ "derive_more",
+ "parity-scale-codec",
+ "scale-info-derive",
+]
+
+[[package]]
+name = "scale-info-derive"
+version = "2.11.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2d35494501194174bda522a32605929eefc9ecf7e0a326c26db1fdd85881eb62"
+dependencies = [
+ "proc-macro-crate",
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
+]
+
+[[package]]
 name = "sec1"
 version = "0.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1215,13 +1239,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "sp1-lib"
-version = "1.1.0"
+name = "snowbridge-amcl"
+version = "1.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "460a9ed63cdf03c1b9847e8a12a5f5ba19c4efd5869e4a737e05be25d7c427e5"
 dependencies = [
- "anyhow",
- "bincode",
- "cfg-if",
- "serde",
+ "parity-scale-codec",
+ "scale-info",
 ]
 
 [[package]]
@@ -1237,8 +1261,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "sp1-lib"
+version = "1.1.1"
+dependencies = [
+ "anyhow",
+ "bincode",
+ "cfg-if",
+ "hex",
+ "serde",
+ "snowbridge-amcl",
+]
+
+[[package]]
 name = "sp1-zkvm"
-version = "1.1.0"
+version = "1.1.1"
 dependencies = [
  "bincode",
  "cfg-if",
@@ -1249,7 +1285,7 @@ dependencies = [
  "rand",
  "serde",
  "sha2 0.10.8",
- "sp1-lib 1.1.0",
+ "sp1-lib 1.1.1",
 ]
 
 [[package]]

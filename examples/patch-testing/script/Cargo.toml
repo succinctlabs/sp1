@@ -5,8 +5,9 @@ edition = { workspace = true }
 publish = false
 
 [dependencies]
-sp1-core = { workspace = true, features = ["neon"] }
+sp1-core-machine = { workspace = true, features = ["neon"] }
+sp1-core-executor = { workspace = true }
 sp1-sdk = { workspace = true }
 
 [build-dependencies]
-sp1-helper = { workspace = true }
+sp1-build = { workspace = true }

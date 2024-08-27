@@ -24,6 +24,8 @@
         // // Examples.
         // "examples/chess/program/Cargo.toml",
         // "examples/chess/script/Cargo.toml",
+        // "examples/cycle-tracking/program/Cargo.toml",
+        // "examples/cycle-tracking/script/Cargo.toml",
         // "examples/fibonacci/program/Cargo.toml",
         // "examples/fibonacci/script/Cargo.toml",
         // "examples/io/program/Cargo.toml",

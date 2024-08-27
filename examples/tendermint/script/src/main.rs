@@ -1,40 +1,21 @@
 use sp1_sdk::SP1ProofWithPublicValues;
 use std::time::Duration;
-use tokio::runtime::Runtime;
 
-use reqwest::Client;
 use sp1_sdk::{utils, ProverClient, SP1Stdin};
 
-use tendermint_light_client_verifier::options::Options;
-use tendermint_light_client_verifier::types::LightBlock;
-use tendermint_light_client_verifier::ProdVerifier;
-use tendermint_light_client_verifier::Verdict;
-use tendermint_light_client_verifier::Verifier;
+use tendermint_light_client_verifier::{
+    options::Options, types::LightBlock, ProdVerifier, Verdict, Verifier,
+};
 
-use crate::util::fetch_latest_commit;
-use crate::util::fetch_light_block;
+use crate::util::load_light_block;
 
 const TENDERMINT_ELF: &[u8] = include_bytes!("../../program/elf/riscv32im-succinct-zkvm-elf");
+
 mod util;
 
-async fn get_light_blocks() -> (LightBlock, LightBlock) {
-    // Uniquely identify a peer in the network.
-    let peer_id: [u8; 20] = [
-        0x72, 0x6b, 0xc8, 0xd2, 0x60, 0x38, 0x7c, 0xf5, 0x6e, 0xcf, 0xad, 0x3a, 0x6b, 0xf6, 0xfe,
-        0xcd, 0x90, 0x3e, 0x18, 0xa2,
-    ];
-    const BASE_URL: &str = "https://celestia-mocha-rpc.publicnode.com:443";
-    let client = Client::new();
-    let url = format!("{}/commit", BASE_URL);
-    let latest_commit = fetch_latest_commit(&client, &url).await.unwrap();
-    let block: u64 = latest_commit.result.signed_header.header.height.into();
-    println!("Latest block: {}", block);
-    let light_block_1 = fetch_light_block(2279100, peer_id, BASE_URL)
-        .await
-        .expect("Failed to generate light block 1");
-    let light_block_2 = fetch_light_block(2279130, peer_id, BASE_URL)
-        .await
-        .expect("Failed to generate light block 2");
+fn get_light_blocks() -> (LightBlock, LightBlock) {
+    let light_block_1 = load_light_block(2279100).expect("Failed to generate light block 1");
+    let light_block_2 = load_light_block(2279130).expect("Failed to generate light block 2");
     (light_block_1, light_block_2)
 }
 
@@ -42,9 +23,8 @@ fn main() {
     // Generate proof.
     utils::setup_logger();
 
-    // Use tokio runtime to get the light blocks.
-    let rt = Runtime::new().unwrap();
-    let (light_block_1, light_block_2) = rt.block_on(async { get_light_blocks().await });
+    // Load light blocks from the `files` subdirectory
+    let (light_block_1, light_block_2) = get_light_blocks();
 
     let expected_verdict = verify_blocks(light_block_1.clone(), light_block_2.clone());
 
@@ -63,6 +43,9 @@ fn main() {
 
     let client = ProverClient::new();
     let (pk, vk) = client.setup(TENDERMINT_ELF);
+
+    let execute = client.execute(TENDERMINT_ELF, stdin.clone()).run().expect("proving failed");
+
     let proof = client.prove(&pk, stdin).compressed().run().expect("proving failed");
 
     // Verify proof.
@@ -77,15 +60,12 @@ fn main() {
     assert_eq!(proof.public_values.as_ref(), expected_public_values);
 
     // Test a round trip of proof serialization and deserialization.
-    proof
-        .save("proof-with-pis.bin")
-        .expect("saving proof failed");
-    let deserialized_proof = SP1ProofWithPublicValues::load("proof-with-pis.bin").expect("loading proof failed");
+    proof.save("proof-with-pis.bin").expect("saving proof failed");
+    let deserialized_proof =
+        SP1ProofWithPublicValues::load("proof-with-pis.bin").expect("loading proof failed");
 
     // Verify the deserialized proof.
-    client
-        .verify(&deserialized_proof, &vk)
-        .expect("verification failed");
+    client.verify(&deserialized_proof, &vk).expect("verification failed");
 
     println!("successfully generated and verified proof for the program!")
 }
