@@ -61,7 +61,6 @@ impl CpuChip {
         // an invalid word and write it to memory.
         builder.slice_range_check_u8(
             &local.op_a_access.access.value.0,
-            local.shard,
             local.channel,
             local.is_real,
         );

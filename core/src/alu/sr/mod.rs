@@ -368,7 +368,6 @@ where
                 msb,
                 byte,
                 zero.clone(),
-                local.shard,
                 local.channel,
                 local.is_real,
             );
@@ -478,7 +477,6 @@ where
                     local.shr_carry_output_carry[i],
                     local.byte_shift_result[i],
                     num_bits_to_shift.clone(),
-                    local.shard,
                     local.channel,
                     local.is_real,
                 );
@@ -529,7 +527,7 @@ where
             ];
 
             for long_word in long_words.iter() {
-                builder.slice_range_check_u8(long_word, local.shard, local.channel, local.is_real);
+                builder.slice_range_check_u8(long_word, local.channel, local.is_real);
             }
         }
 

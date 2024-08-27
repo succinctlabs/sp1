@@ -376,7 +376,6 @@ where
             &y_limbs,
             &p_modulus,
             FieldOperation::Mul,
-            local.shard,
             local.channel,
             local.is_real,
         );
@@ -387,7 +386,6 @@ where
             builder,
             &local.output.result,
             &modulus_limbs,
-            local.shard,
             local.channel,
             local.modulus_is_not_zero,
         );

@@ -369,7 +369,6 @@ where
                 &q_y,
                 &p_y,
                 FieldOperation::Sub,
-                local.shard,
                 local.channel,
                 local.is_real,
             );
@@ -379,7 +378,6 @@ where
                 &q_x,
                 &p_x,
                 FieldOperation::Sub,
-                local.shard,
                 local.channel,
                 local.is_real,
             );
@@ -389,7 +387,6 @@ where
                 &local.slope_numerator.result,
                 &local.slope_denominator.result,
                 FieldOperation::Div,
-                local.shard,
                 local.channel,
                 local.is_real,
             );
@@ -404,7 +401,6 @@ where
                 slope,
                 slope,
                 FieldOperation::Mul,
-                local.shard,
                 local.channel,
                 local.is_real,
             );
@@ -414,7 +410,6 @@ where
                 &p_x,
                 &q_x,
                 FieldOperation::Add,
-                local.shard,
                 local.channel,
                 local.is_real,
             );
@@ -424,7 +419,6 @@ where
                 &local.slope_squared.result,
                 &local.p_x_plus_q_x.result,
                 FieldOperation::Sub,
-                local.shard,
                 local.channel,
                 local.is_real,
             );
@@ -439,7 +433,6 @@ where
                 &p_x,
                 x,
                 FieldOperation::Sub,
-                local.shard,
                 local.channel,
                 local.is_real,
             );
@@ -449,7 +442,6 @@ where
                 slope,
                 &local.p_x_minus_x.result,
                 FieldOperation::Mul,
-                local.shard,
                 local.channel,
                 local.is_real,
             );
@@ -459,7 +451,6 @@ where
                 &local.slope_times_p_x_minus_x.result,
                 &p_y,
                 FieldOperation::Sub,
-                local.shard,
                 local.channel,
                 local.is_real,
             );

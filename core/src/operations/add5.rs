@@ -95,7 +95,6 @@ impl<F: Field> Add5Operation<F> {
     pub fn eval<AB: SP1AirBuilder>(
         builder: &mut AB,
         words: &[Word<AB::Var>; 5],
-        shard: AB::Var,
         channel: impl Into<AB::Expr> + Copy,
         is_real: AB::Var,
         cols: Add5Operation<AB::Var>,
@@ -105,8 +104,8 @@ impl<F: Field> Add5Operation<F> {
         {
             words
                 .iter()
-                .for_each(|word| builder.slice_range_check_u8(&word.0, shard, channel, is_real));
-            builder.slice_range_check_u8(&cols.value.0, shard, channel, is_real);
+                .for_each(|word| builder.slice_range_check_u8(&word.0, channel, is_real));
+            builder.slice_range_check_u8(&cols.value.0, channel, is_real);
         }
         let mut builder_is_real = builder.when(is_real);
 

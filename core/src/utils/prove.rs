@@ -226,6 +226,7 @@ where
             let program = program.clone();
 
             let span = tracing::Span::current().clone();
+
             let handle = s.spawn(move || {
                 let _span = span.enter();
                 tracing::debug_span!("phase 1 trace generation").in_scope(|| {

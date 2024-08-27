@@ -214,7 +214,6 @@ where
             local.operand_1,
             local.operand_2,
             local.add_operation,
-            local.shard,
             local.channel,
             local.is_add + local.is_sub,
         );

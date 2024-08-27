@@ -86,7 +86,6 @@ impl<V: Copy, P: FieldParameters> FieldLtCols<V, P> {
         builder: &mut AB,
         lhs: &E1,
         rhs: &E2,
-        shard: impl Into<AB::Expr> + Clone,
         channel: impl Into<AB::Expr> + Clone,
         is_real: impl Into<AB::Expr> + Clone,
     ) where
@@ -156,7 +155,6 @@ impl<V: Copy, P: FieldParameters> FieldLtCols<V, P> {
             AB::F::one(),
             self.lhs_comparison_byte,
             self.rhs_comparison_byte,
-            shard,
             channel,
             is_real,
         )

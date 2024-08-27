@@ -104,20 +104,10 @@ pub trait ByteAirBuilder: BaseAirBuilder {
         a: impl Into<Self::Expr>,
         b: impl Into<Self::Expr>,
         c: impl Into<Self::Expr>,
-        shard: impl Into<Self::Expr>,
         channel: impl Into<Self::Expr>,
         multiplicity: impl Into<Self::Expr>,
     ) {
-        self.send_byte_pair(
-            opcode,
-            a,
-            Self::Expr::zero(),
-            b,
-            c,
-            shard,
-            channel,
-            multiplicity,
-        )
+        self.send_byte_pair(opcode, a, Self::Expr::zero(), b, c, channel, multiplicity)
     }
 
     /// Sends a byte operation with two outputs to be processed.
@@ -129,7 +119,6 @@ pub trait ByteAirBuilder: BaseAirBuilder {
         a2: impl Into<Self::Expr>,
         b: impl Into<Self::Expr>,
         c: impl Into<Self::Expr>,
-        shard: impl Into<Self::Expr>,
         channel: impl Into<Self::Expr>,
         multiplicity: impl Into<Self::Expr>,
     ) {
@@ -141,7 +130,6 @@ pub trait ByteAirBuilder: BaseAirBuilder {
                     a2.into(),
                     b.into(),
                     c.into(),
-                    shard.into(),
                     channel.into(),
                 ],
                 multiplicity.into(),
@@ -159,20 +147,10 @@ pub trait ByteAirBuilder: BaseAirBuilder {
         a: impl Into<Self::Expr>,
         b: impl Into<Self::Expr>,
         c: impl Into<Self::Expr>,
-        shard: impl Into<Self::Expr>,
         channel: impl Into<Self::Expr>,
         multiplicity: impl Into<Self::Expr>,
     ) {
-        self.receive_byte_pair(
-            opcode,
-            a,
-            Self::Expr::zero(),
-            b,
-            c,
-            shard,
-            channel,
-            multiplicity,
-        )
+        self.receive_byte_pair(opcode, a, Self::Expr::zero(), b, c, channel, multiplicity)
     }
 
     /// Receives a byte operation with two outputs to be processed.
@@ -184,7 +162,6 @@ pub trait ByteAirBuilder: BaseAirBuilder {
         a2: impl Into<Self::Expr>,
         b: impl Into<Self::Expr>,
         c: impl Into<Self::Expr>,
-        shard: impl Into<Self::Expr>,
         channel: impl Into<Self::Expr>,
         multiplicity: impl Into<Self::Expr>,
     ) {
@@ -196,7 +173,6 @@ pub trait ByteAirBuilder: BaseAirBuilder {
                     a2.into(),
                     b.into(),
                     c.into(),
-                    shard.into(),
                     channel.into(),
                 ],
                 multiplicity.into(),
@@ -263,7 +239,6 @@ pub trait WordAirBuilder: ByteAirBuilder {
     fn slice_range_check_u8(
         &mut self,
         input: &[impl Into<Self::Expr> + Clone],
-        shard: impl Into<Self::Expr> + Clone,
         channel: impl Into<Self::Expr> + Clone,
         mult: impl Into<Self::Expr> + Clone,
     ) {
@@ -274,7 +249,6 @@ pub trait WordAirBuilder: ByteAirBuilder {
                 Self::Expr::zero(),
                 input[index].clone(),
                 input[index + 1].clone(),
-                shard.clone(),
                 channel.clone(),
                 mult.clone(),
             );
@@ -286,7 +260,6 @@ pub trait WordAirBuilder: ByteAirBuilder {
                 Self::Expr::zero(),
                 input[index].clone(),
                 Self::Expr::zero(),
-                shard.clone(),
                 channel.clone(),
                 mult.clone(),
             );
@@ -297,7 +270,6 @@ pub trait WordAirBuilder: ByteAirBuilder {
     fn slice_range_check_u16(
         &mut self,
         input: &[impl Into<Self::Expr> + Copy],
-        shard: impl Into<Self::Expr> + Clone,
         channel: impl Into<Self::Expr> + Clone,
         mult: impl Into<Self::Expr> + Clone,
     ) {
@@ -307,7 +279,6 @@ pub trait WordAirBuilder: ByteAirBuilder {
                 *limb,
                 Self::Expr::zero(),
                 Self::Expr::zero(),
-                shard.clone(),
                 channel.clone(),
                 mult.clone(),
             );
@@ -569,7 +540,6 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
             diff_minus_one,
             mem_access.diff_16bit_limb.clone(),
             mem_access.diff_8bit_limb.clone(),
-            shard.clone(),
             channel.clone(),
             do_check,
         );
@@ -586,7 +556,6 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
         value: impl Into<Self::Expr>,
         limb_16: impl Into<Self::Expr> + Clone,
         limb_8: impl Into<Self::Expr> + Clone,
-        shard: impl Into<Self::Expr> + Clone,
         channel: impl Into<Self::Expr> + Clone,
         do_check: impl Into<Self::Expr> + Clone,
     ) {
@@ -603,7 +572,6 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
             limb_16,
             Self::Expr::zero(),
             Self::Expr::zero(),
-            shard.clone(),
             channel.clone(),
             do_check.clone(),
         );
@@ -613,7 +581,6 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
             Self::Expr::zero(),
             Self::Expr::zero(),
             limb_8,
-            shard.clone(),
             channel.clone(),
             do_check,
         )

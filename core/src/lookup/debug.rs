@@ -6,7 +6,7 @@ use p3_field::{Field, PrimeField64};
 use p3_matrix::Matrix;
 
 use super::InteractionKind;
-use crate::air::MachineAir;
+use crate::air::{InteractionScope, MachineAir};
 use crate::stark::{MachineChip, StarkGenericConfig, StarkMachine, StarkProvingKey, Val};
 
 #[derive(Debug)]
@@ -50,6 +50,7 @@ pub fn debug_interactions<SC: StarkGenericConfig, A: MachineAir<Val<SC>>>(
     pkey: &StarkProvingKey<SC>,
     record: &A::Record,
     interaction_kinds: Vec<InteractionKind>,
+    scope: InteractionScope,
 ) -> (
     BTreeMap<String, Vec<InteractionData<Val<SC>>>>,
     BTreeMap<String, Val<SC>>,
@@ -66,14 +67,20 @@ pub fn debug_interactions<SC: StarkGenericConfig, A: MachineAir<Val<SC>>>(
     let mut main = trace.clone();
     let height = trace.clone().height();
 
-    let nb_send_interactions = chip.sends().len();
+    let sends = chip
+        .sends()
+        .iter()
+        .filter(|s| s.scope == scope)
+        .collect::<Vec<_>>();
+    let receives = chip
+        .receives()
+        .iter()
+        .filter(|r| r.scope == scope)
+        .collect::<Vec<_>>();
+
+    let nb_send_interactions = sends.len();
     for row in 0..height {
-        for (m, interaction) in chip
-            .sends()
-            .iter()
-            .chain(chip.receives().iter())
-            .enumerate()
-        {
+        for (m, interaction) in sends.iter().chain(receives.iter()).enumerate() {
             if !interaction_kinds.contains(&interaction.kind) {
                 continue;
             }
@@ -131,12 +138,17 @@ pub fn debug_interactions_with_all_chips<SC, A>(
     pkey: &StarkProvingKey<SC>,
     shards: &[A::Record],
     interaction_kinds: Vec<InteractionKind>,
+    scope: InteractionScope,
 ) -> bool
 where
     SC: StarkGenericConfig,
     SC::Val: PrimeField32,
     A: MachineAir<SC::Val>,
 {
+    if scope == InteractionScope::Local {
+        assert!(shards.len() == 1)
+    }
+
     let mut final_map = BTreeMap::new();
     let mut total = SC::Val::zero();
 
@@ -145,7 +157,7 @@ where
         let mut total_events = 0;
         for shard in shards {
             let (_, count) =
-                debug_interactions::<SC, A>(chip, pkey, shard, interaction_kinds.clone());
+                debug_interactions::<SC, A>(chip, pkey, shard, interaction_kinds.clone(), scope);
             total_events += count.len();
             for (key, value) in count.iter() {
                 let entry = final_map
@@ -209,6 +221,7 @@ where
 mod test {
 
     use crate::{
+        air::InteractionScope,
         lookup::InteractionKind,
         runtime::{Program, Runtime},
         stark::RiscvAir,
@@ -233,8 +246,24 @@ mod test {
         shards.iter_mut().enumerate().for_each(|(i, shard)| {
             shard.public_values.shard = (i + 1) as u32;
         });
-        let ok =
-            debug_interactions_with_all_chips(&machine, &pk, &shards, InteractionKind::all_kinds());
-        assert!(ok);
+        let mut local_ok = true;
+        for shard in shards.clone() {
+            local_ok = local_ok
+                && debug_interactions_with_all_chips(
+                    &machine,
+                    &pk,
+                    &[shard],
+                    InteractionKind::all_kinds(),
+                    InteractionScope::Local,
+                );
+        }
+        let global_ok = debug_interactions_with_all_chips(
+            &machine,
+            &pk,
+            &shards,
+            InteractionKind::all_kinds(),
+            InteractionScope::Global,
+        );
+        assert!(global_ok && local_ok);
     }
 }

@@ -66,7 +66,6 @@ impl<F: Field> AddOperation<F> {
         a: Word<AB::Var>,
         b: Word<AB::Var>,
         cols: AddOperation<AB::Var>,
-        shard: AB::Var,
         channel: impl Into<AB::Expr> + Clone,
         is_real: AB::Expr,
     ) {
@@ -104,9 +103,9 @@ impl<F: Field> AddOperation<F> {
 
         // Range check each byte.
         {
-            builder.slice_range_check_u8(&a.0, shard, channel.clone(), is_real.clone());
-            builder.slice_range_check_u8(&b.0, shard, channel.clone(), is_real.clone());
-            builder.slice_range_check_u8(&cols.value.0, shard, channel.clone(), is_real);
+            builder.slice_range_check_u8(&a.0, channel.clone(), is_real.clone());
+            builder.slice_range_check_u8(&b.0, channel.clone(), is_real.clone());
+            builder.slice_range_check_u8(&cols.value.0, channel.clone(), is_real);
         }
     }
 }

@@ -293,11 +293,21 @@ mod tests {
 
         let shards = runtime.records;
         assert_eq!(shards.len(), 2);
+        for shard in shards.clone() {
+            debug_interactions_with_all_chips::<BabyBearPoseidon2, RiscvAir<BabyBear>>(
+                &machine,
+                &pkey,
+                &[shard],
+                vec![InteractionKind::Memory],
+                InteractionScope::Local,
+            );
+        }
         debug_interactions_with_all_chips::<BabyBearPoseidon2, RiscvAir<BabyBear>>(
             &machine,
             &pkey,
             &shards,
             vec![InteractionKind::Memory],
+            InteractionScope::Global,
         );
     }
 
@@ -315,11 +325,21 @@ mod tests {
 
         let shards = runtime.records;
         assert_eq!(shards.len(), 2);
+        for shard in shards.clone() {
+            debug_interactions_with_all_chips::<BabyBearPoseidon2, RiscvAir<BabyBear>>(
+                &machine,
+                &pkey,
+                &[shard],
+                vec![InteractionKind::Memory],
+                InteractionScope::Local,
+            );
+        }
         debug_interactions_with_all_chips::<BabyBearPoseidon2, RiscvAir<BabyBear>>(
             &machine,
             &pkey,
             &shards,
             vec![InteractionKind::Byte],
+            InteractionScope::Global,
         );
     }
 }

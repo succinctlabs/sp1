@@ -192,7 +192,6 @@ impl<V: Copy, P: FieldParameters> FieldOpCols<V, P> {
         b: &(impl Into<Polynomial<AB::Expr>> + Clone),
         modulus: &(impl Into<Polynomial<AB::Expr>> + Clone),
         op: FieldOperation,
-        shard: impl Into<AB::Expr> + Clone,
         channel: impl Into<AB::Expr> + Clone,
         is_real: impl Into<AB::Expr> + Clone,
     ) where
@@ -219,30 +218,14 @@ impl<V: Copy, P: FieldParameters> FieldOpCols<V, P> {
         eval_field_operation::<AB, P>(builder, &p_vanishing, &p_witness_low, &p_witness_high);
 
         // Range checks for the result, carry, and witness columns.
-        builder.slice_range_check_u8(
-            &self.result.0,
-            shard.clone(),
-            channel.clone(),
-            is_real.clone(),
-        );
-        builder.slice_range_check_u8(
-            &self.carry.0,
-            shard.clone(),
-            channel.clone(),
-            is_real.clone(),
-        );
+        builder.slice_range_check_u8(&self.result.0, channel.clone(), is_real.clone());
+        builder.slice_range_check_u8(&self.carry.0, channel.clone(), is_real.clone());
         builder.slice_range_check_u8(
             p_witness_low.coefficients(),
-            shard.clone(),
             channel.clone(),
             is_real.clone(),
         );
-        builder.slice_range_check_u8(
-            p_witness_high.coefficients(),
-            shard.clone(),
-            channel.clone(),
-            is_real,
-        );
+        builder.slice_range_check_u8(p_witness_high.coefficients(), channel.clone(), is_real);
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -252,7 +235,6 @@ impl<V: Copy, P: FieldParameters> FieldOpCols<V, P> {
         a: &(impl Into<Polynomial<AB::Expr>> + Clone),
         b: &(impl Into<Polynomial<AB::Expr>> + Clone),
         op: FieldOperation,
-        shard: impl Into<AB::Expr> + Clone,
         channel: impl Into<AB::Expr> + Clone,
         is_real: impl Into<AB::Expr> + Clone,
     ) where
@@ -260,7 +242,7 @@ impl<V: Copy, P: FieldParameters> FieldOpCols<V, P> {
         Limbs<V, P::Limbs>: Copy,
     {
         let p_limbs = Polynomial::from_iter(P::modulus_field_iter::<AB::F>().map(AB::Expr::from));
-        self.eval_with_modulus::<AB>(builder, a, b, &p_limbs, op, shard, channel, is_real);
+        self.eval_with_modulus::<AB>(builder, a, b, &p_limbs, op, channel, is_real);
     }
 }
 
@@ -404,7 +386,6 @@ mod tests {
                 &local.a,
                 &local.b,
                 self.operation,
-                AB::F::one(),
                 AB::F::zero(),
                 AB::F::one(),
             );

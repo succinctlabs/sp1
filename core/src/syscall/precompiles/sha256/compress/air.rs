@@ -309,7 +309,6 @@ impl ShaCompressChip {
             local.e,
             6,
             local.e_rr_6,
-            local.shard,
             local.channel,
             local.is_compression,
         );
@@ -319,7 +318,6 @@ impl ShaCompressChip {
             local.e,
             11,
             local.e_rr_11,
-            local.shard,
             local.channel,
             local.is_compression,
         );
@@ -329,7 +327,6 @@ impl ShaCompressChip {
             local.e,
             25,
             local.e_rr_25,
-            local.shard,
             local.channel,
             local.is_compression,
         );
@@ -339,7 +336,6 @@ impl ShaCompressChip {
             local.e_rr_6.value,
             local.e_rr_11.value,
             local.s1_intermediate,
-            local.shard,
             local.channel,
             local.is_compression,
         );
@@ -349,7 +345,6 @@ impl ShaCompressChip {
             local.s1_intermediate.value,
             local.e_rr_25.value,
             local.s1,
-            local.shard,
             local.channel,
             local.is_compression,
         );
@@ -361,7 +356,6 @@ impl ShaCompressChip {
             local.e,
             local.f,
             local.e_and_f,
-            local.shard,
             local.channel,
             local.is_compression,
         );
@@ -370,7 +364,6 @@ impl ShaCompressChip {
             builder,
             local.e,
             local.e_not,
-            local.shard,
             local.channel,
             local.is_compression,
         );
@@ -380,7 +373,6 @@ impl ShaCompressChip {
             local.e_not.value,
             local.g,
             local.e_not_and_g,
-            local.shard,
             local.channel,
             local.is_compression,
         );
@@ -390,7 +382,6 @@ impl ShaCompressChip {
             local.e_and_f.value,
             local.e_not_and_g.value,
             local.ch,
-            local.shard,
             local.channel,
             local.is_compression,
         );
@@ -405,7 +396,6 @@ impl ShaCompressChip {
                 local.k,
                 local.mem.access.value,
             ],
-            local.shard,
             local.channel,
             local.is_compression,
             local.temp1,
@@ -418,7 +408,6 @@ impl ShaCompressChip {
             local.a,
             2,
             local.a_rr_2,
-            local.shard,
             local.channel,
             local.is_compression,
         );
@@ -428,7 +417,6 @@ impl ShaCompressChip {
             local.a,
             13,
             local.a_rr_13,
-            local.shard,
             local.channel,
             local.is_compression,
         );
@@ -438,7 +426,6 @@ impl ShaCompressChip {
             local.a,
             22,
             local.a_rr_22,
-            local.shard,
             local.channel,
             local.is_compression,
         );
@@ -448,7 +435,6 @@ impl ShaCompressChip {
             local.a_rr_2.value,
             local.a_rr_13.value,
             local.s0_intermediate,
-            local.shard,
             local.channel,
             local.is_compression,
         );
@@ -458,7 +444,6 @@ impl ShaCompressChip {
             local.s0_intermediate.value,
             local.a_rr_22.value,
             local.s0,
-            local.shard,
             local.channel,
             local.is_compression,
         );
@@ -470,7 +455,6 @@ impl ShaCompressChip {
             local.a,
             local.b,
             local.a_and_b,
-            local.shard,
             local.channel,
             local.is_compression,
         );
@@ -480,7 +464,6 @@ impl ShaCompressChip {
             local.a,
             local.c,
             local.a_and_c,
-            local.shard,
             local.channel,
             local.is_compression,
         );
@@ -490,7 +473,6 @@ impl ShaCompressChip {
             local.b,
             local.c,
             local.b_and_c,
-            local.shard,
             local.channel,
             local.is_compression,
         );
@@ -500,7 +482,6 @@ impl ShaCompressChip {
             local.a_and_b.value,
             local.a_and_c.value,
             local.maj_intermediate,
-            local.shard,
             local.channel,
             local.is_compression,
         );
@@ -510,7 +491,6 @@ impl ShaCompressChip {
             local.maj_intermediate.value,
             local.b_and_c.value,
             local.maj,
-            local.shard,
             local.channel,
             local.is_compression,
         );
@@ -521,7 +501,6 @@ impl ShaCompressChip {
             local.s0.value,
             local.maj.value,
             local.temp2,
-            local.shard,
             local.channel,
             local.is_compression.into(),
         );
@@ -532,7 +511,6 @@ impl ShaCompressChip {
             local.d,
             local.temp1.value,
             local.d_add_temp1,
-            local.shard,
             local.channel,
             local.is_compression.into(),
         );
@@ -543,7 +521,6 @@ impl ShaCompressChip {
             local.temp1.value,
             local.temp2.value,
             local.temp1_add_temp2,
-            local.shard,
             local.channel,
             local.is_compression.into(),
         );
@@ -620,7 +597,6 @@ impl ShaCompressChip {
             local.mem.prev_value,
             local.finalized_operand,
             local.finalize_add,
-            local.shard,
             local.channel,
             local.is_finalize.into(),
         );

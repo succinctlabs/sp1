@@ -71,7 +71,6 @@ impl<V: Copy, const N: usize> AssertLtColsBytes<V, N> {
         builder: &mut AB,
         a: &[Ea],
         b: &[Eb],
-        shard: impl Into<AB::Expr> + Clone,
         channel: impl Into<AB::Expr> + Clone,
         is_real: impl Into<AB::Expr> + Clone,
     ) where
@@ -140,7 +139,6 @@ impl<V: Copy, const N: usize> AssertLtColsBytes<V, N> {
             AB::F::one(),
             self.a_comparison_byte,
             self.b_comparison_byte,
-            shard,
             channel,
             is_real,
         )

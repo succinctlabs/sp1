@@ -53,7 +53,6 @@ impl<F: Field> AndOperation<F> {
         a: Word<AB::Var>,
         b: Word<AB::Var>,
         cols: AndOperation<AB::Var>,
-        shard: AB::Var,
         channel: impl Into<AB::Expr> + Copy,
         is_real: AB::Var,
     ) {
@@ -63,7 +62,6 @@ impl<F: Field> AndOperation<F> {
                 cols.value[i],
                 a[i],
                 b[i],
-                shard,
                 channel,
                 is_real,
             );

@@ -388,7 +388,6 @@ where
             builder,
             &x,
             &limbs_from_vec::<AB::Expr, <E::BaseField as NumLimbs>::Limbs, AB::F>(max_num_limbs),
-            local.shard,
             local.channel,
             local.is_real,
         );
@@ -397,7 +396,6 @@ where
             &x,
             &x,
             FieldOperation::Mul,
-            local.shard,
             local.channel,
             local.is_real,
         );
@@ -406,7 +404,6 @@ where
             &local.x_2.result,
             &x,
             FieldOperation::Mul,
-            local.shard,
             local.channel,
             local.is_real,
         );
@@ -417,7 +414,6 @@ where
             &local.x_3.result,
             &b_const,
             FieldOperation::Add,
-            local.shard,
             local.channel,
             local.is_real,
         );
@@ -427,7 +423,6 @@ where
             &[AB::Expr::zero()].iter(),
             &local.y.multiplication.result,
             FieldOperation::Sub,
-            local.shard,
             local.channel,
             local.is_real,
         );
@@ -436,7 +431,6 @@ where
             builder,
             &local.x_3_plus_b.result,
             local.y.lsb,
-            local.shard,
             local.channel,
             local.is_real,
         );
@@ -485,7 +479,6 @@ where
                     builder,
                     &local.neg_y.result,
                     &modulus_limbs,
-                    local.shard,
                     local.channel,
                     local.is_real,
                 );
@@ -548,7 +541,6 @@ where
                     builder,
                     &local.y.multiplication.result,
                     &local.neg_y.result,
-                    local.shard,
                     local.channel,
                     choice_cols.when_sqrt_y_res_is_lt,
                 );
@@ -557,7 +549,6 @@ where
                     builder,
                     &local.neg_y.result,
                     &local.y.multiplication.result,
-                    local.shard,
                     local.channel,
                     choice_cols.when_neg_y_res_is_lt,
                 );

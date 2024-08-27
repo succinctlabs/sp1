@@ -105,7 +105,6 @@ where
         builder: &mut AB,
         a: &[Limbs<AB::Var, P::Limbs>],
         b: &[Limbs<AB::Var, P::Limbs>],
-        shard: impl Into<AB::Expr> + Clone,
         channel: impl Into<AB::Expr> + Clone,
         is_real: impl Into<AB::Expr> + Clone,
     ) where
@@ -136,25 +135,10 @@ where
         eval_field_operation::<AB, P>(builder, &p_vanishing, &p_witness_low, &p_witness_high);
 
         // Range checks for the result, carry, and witness columns.
-        builder.slice_range_check_u8(
-            &self.result.0,
-            shard.clone(),
-            channel.clone(),
-            is_real.clone(),
-        );
-        builder.slice_range_check_u8(
-            &self.carry.0,
-            shard.clone(),
-            channel.clone(),
-            is_real.clone(),
-        );
-        builder.slice_range_check_u8(
-            &self.witness_low.0,
-            shard.clone(),
-            channel.clone(),
-            is_real.clone(),
-        );
-        builder.slice_range_check_u8(&self.witness_high.0, shard, channel.clone(), is_real);
+        builder.slice_range_check_u8(&self.result.0, channel.clone(), is_real.clone());
+        builder.slice_range_check_u8(&self.carry.0, channel.clone(), is_real.clone());
+        builder.slice_range_check_u8(&self.witness_low.0, channel.clone(), is_real.clone());
+        builder.slice_range_check_u8(&self.witness_high.0, channel.clone(), is_real);
     }
 }
 
@@ -280,14 +264,9 @@ mod tests {
             let main = builder.main();
             let local = main.row_slice(0);
             let local: &TestCols<AB::Var, P> = (*local).borrow();
-            local.a_ip_b.eval(
-                builder,
-                &local.a,
-                &local.b,
-                AB::F::one(),
-                AB::F::zero(),
-                AB::F::one(),
-            );
+            local
+                .a_ip_b
+                .eval(builder, &local.a, &local.b, AB::F::zero(), AB::F::one());
         }
     }
 

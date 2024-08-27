@@ -335,7 +335,6 @@ where
                     msb,
                     byte,
                     zero.clone(),
-                    local.shard,
                     local.channel,
                     local.is_real,
                 );
@@ -456,9 +455,9 @@ where
             // Ensure that the carry is at most 2^16. This ensures that
             // product_before_carry_propagation - carry * base + last_carry never overflows or
             // underflows enough to "wrap" around to create a second solution.
-            builder.slice_range_check_u16(&local.carry, local.shard, local.channel, local.is_real);
+            builder.slice_range_check_u16(&local.carry, local.channel, local.is_real);
 
-            builder.slice_range_check_u8(&local.product, local.shard, local.channel, local.is_real);
+            builder.slice_range_check_u8(&local.product, local.channel, local.is_real);
         }
 
         // Receive the arguments.

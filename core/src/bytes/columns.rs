@@ -57,9 +57,6 @@ pub struct MultiplicitiesCols<T> {
 #[derive(Debug, Clone, Copy, AlignedBorrow)]
 #[repr(C)]
 pub struct ByteMultCols<T> {
-    /// Shard number is tracked so that the multiplicities do not overflow.
-    pub shard: T,
-
     /// The multiplicites of each byte operation.
     pub mult_channels: [MultiplicitiesCols<T>; NUM_BYTE_LOOKUP_CHANNELS as usize],
 }

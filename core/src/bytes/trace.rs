@@ -47,7 +47,7 @@ impl<F: Field> MachineAir<F> for ByteChip<F> {
             NUM_BYTE_MULT_COLS,
         );
 
-        for (shard, blu) in input.byte_lookups.iter() {
+        for (_, blu) in input.byte_lookups.iter() {
             for (lookup, mult) in blu.iter() {
                 let row = if lookup.opcode != ByteOpcode::U16Range {
                     (((lookup.b as u16) << 8) + lookup.c as u16) as usize
@@ -59,7 +59,6 @@ impl<F: Field> MachineAir<F> for ByteChip<F> {
 
                 let cols: &mut ByteMultCols<F> = trace.row_mut(row).borrow_mut();
                 cols.mult_channels[channel].multiplicities[index] += F::from_canonical_usize(*mult);
-                cols.shard = F::from_canonical_u32(*shard);
             }
         }
 

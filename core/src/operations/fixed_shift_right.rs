@@ -110,7 +110,6 @@ impl<F: Field> FixedShiftRightOperation<F> {
         input: Word<AB::Var>,
         rotation: usize,
         cols: FixedShiftRightOperation<AB::Var>,
-        shard: impl Into<AB::Expr> + Copy,
         channel: impl Into<AB::Expr> + Copy,
         is_real: AB::Var,
     ) {
@@ -139,7 +138,6 @@ impl<F: Field> FixedShiftRightOperation<F> {
                 cols.carry[i],
                 input_bytes_rotated[i].clone(),
                 AB::F::from_canonical_usize(nb_bits_to_shift),
-                shard,
                 channel,
                 is_real,
             );

@@ -406,6 +406,13 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
                 .map(|sum| sum[1])
                 .sum::<SC::Challenge>();
             if !local_cumulative_sum.is_zero() {
+                debug_interactions_with_all_chips::<SC, A>(
+                    self,
+                    pk,
+                    &[shard.clone()],
+                    InteractionKind::all_kinds(),
+                    InteractionScope::Local,
+                );
                 panic!("Local cumulative sum is not zero");
             }
 
@@ -444,13 +451,14 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
             });
         }
 
-        // If the cumulative sum is not zero, debug the interactions.
+        // If the global cumulative sum is not zero, debug the interactions.
         if !global_cumulative_sum.is_zero() {
             debug_interactions_with_all_chips::<SC, A>(
                 self,
                 pk,
                 &records,
                 InteractionKind::all_kinds(),
+                InteractionScope::Global,
             );
             panic!("Global cumulative sum is not zero");
         }

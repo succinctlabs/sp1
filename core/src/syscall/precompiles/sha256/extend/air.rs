@@ -105,7 +105,6 @@ where
             *local.w_i_minus_15.value(),
             7,
             local.w_i_minus_15_rr_7,
-            local.shard,
             local.channel,
             local.is_real,
         );
@@ -115,7 +114,6 @@ where
             *local.w_i_minus_15.value(),
             18,
             local.w_i_minus_15_rr_18,
-            local.shard,
             local.channel,
             local.is_real,
         );
@@ -125,7 +123,6 @@ where
             *local.w_i_minus_15.value(),
             3,
             local.w_i_minus_15_rs_3,
-            local.shard,
             local.channel,
             local.is_real,
         );
@@ -135,7 +132,6 @@ where
             local.w_i_minus_15_rr_7.value,
             local.w_i_minus_15_rr_18.value,
             local.s0_intermediate,
-            local.shard,
             local.channel,
             local.is_real,
         );
@@ -145,7 +141,6 @@ where
             local.s0_intermediate.value,
             local.w_i_minus_15_rs_3.value,
             local.s0,
-            local.shard,
             local.channel,
             local.is_real,
         );
@@ -157,7 +152,6 @@ where
             *local.w_i_minus_2.value(),
             17,
             local.w_i_minus_2_rr_17,
-            local.shard,
             local.channel,
             local.is_real,
         );
@@ -167,7 +161,6 @@ where
             *local.w_i_minus_2.value(),
             19,
             local.w_i_minus_2_rr_19,
-            local.shard,
             local.channel,
             local.is_real,
         );
@@ -177,7 +170,6 @@ where
             *local.w_i_minus_2.value(),
             10,
             local.w_i_minus_2_rs_10,
-            local.shard,
             local.channel,
             local.is_real,
         );
@@ -187,7 +179,6 @@ where
             local.w_i_minus_2_rr_17.value,
             local.w_i_minus_2_rr_19.value,
             local.s1_intermediate,
-            local.shard,
             local.channel,
             local.is_real,
         );
@@ -197,7 +188,6 @@ where
             local.s1_intermediate.value,
             local.w_i_minus_2_rs_10.value,
             local.s1,
-            local.shard,
             local.channel,
             local.is_real,
         );
@@ -209,7 +199,6 @@ where
             local.s0.value,
             *local.w_i_minus_7.value(),
             local.s1.value,
-            local.shard,
             local.channel,
             local.is_real,
             local.s2,

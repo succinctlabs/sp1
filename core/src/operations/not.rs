@@ -39,7 +39,6 @@ impl<F: Field> NotOperation<F> {
         builder: &mut AB,
         a: Word<AB::Var>,
         cols: NotOperation<AB::Var>,
-        shard: impl Into<AB::Expr> + Copy,
         channel: impl Into<AB::Expr> + Copy,
         is_real: impl Into<AB::Expr> + Copy,
     ) {
@@ -50,7 +49,6 @@ impl<F: Field> NotOperation<F> {
                 AB::F::zero(),
                 a[i],
                 a[i + 1],
-                shard,
                 channel,
                 is_real,
             );

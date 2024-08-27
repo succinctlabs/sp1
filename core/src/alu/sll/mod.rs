@@ -372,15 +372,9 @@ where
 
         // Range check.
         {
-            builder.slice_range_check_u8(
-                &local.bit_shift_result,
-                local.shard,
-                local.channel,
-                local.is_real,
-            );
+            builder.slice_range_check_u8(&local.bit_shift_result, local.channel, local.is_real);
             builder.slice_range_check_u8(
                 &local.bit_shift_result_carry,
-                local.shard,
                 local.channel,
                 local.is_real,
             );

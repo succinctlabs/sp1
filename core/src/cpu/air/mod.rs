@@ -297,7 +297,6 @@ impl CpuChip {
             local.shard,
             AB::Expr::zero(),
             AB::Expr::zero(),
-            local.shard,
             local.channel,
             local.is_real,
         );
@@ -324,7 +323,6 @@ impl CpuChip {
             local.clk,
             local.clk_16bit_limb,
             local.clk_8bit_limb,
-            local.shard,
             local.channel,
             local.is_real,
         );

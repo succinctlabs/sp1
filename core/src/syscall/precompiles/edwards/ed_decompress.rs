@@ -198,7 +198,6 @@ impl<V: Copy> EdDecompressCols<V> {
             builder,
             &y,
             &limbs_from_vec::<AB::Expr, P::Limbs, AB::F>(max_num_limbs),
-            self.shard,
             self.channel,
             self.is_real,
         );
@@ -207,7 +206,6 @@ impl<V: Copy> EdDecompressCols<V> {
             &y,
             &y,
             FieldOperation::Mul,
-            self.shard,
             self.channel,
             self.is_real,
         );
@@ -216,7 +214,6 @@ impl<V: Copy> EdDecompressCols<V> {
             &self.yy.result,
             &[AB::Expr::one()].iter(),
             FieldOperation::Sub,
-            self.shard,
             self.channel,
             self.is_real,
         );
@@ -227,7 +224,6 @@ impl<V: Copy> EdDecompressCols<V> {
             &d_const,
             &self.yy.result,
             FieldOperation::Mul,
-            self.shard,
             self.channel,
             self.is_real,
         );
@@ -236,7 +232,6 @@ impl<V: Copy> EdDecompressCols<V> {
             &[AB::Expr::one()].iter(),
             &self.dyy.result,
             FieldOperation::Add,
-            self.shard,
             self.channel,
             self.is_real,
         );
@@ -245,7 +240,6 @@ impl<V: Copy> EdDecompressCols<V> {
             &self.u.result,
             &self.v.result,
             FieldOperation::Div,
-            self.shard,
             self.channel,
             self.is_real,
         );
@@ -253,7 +247,6 @@ impl<V: Copy> EdDecompressCols<V> {
             builder,
             &self.u_div_v.result,
             AB::F::zero(),
-            self.shard,
             self.channel,
             self.is_real,
         );
@@ -262,7 +255,6 @@ impl<V: Copy> EdDecompressCols<V> {
             &[AB::Expr::zero()].iter(),
             &self.x.multiplication.result,
             FieldOperation::Sub,
-            self.shard,
             self.channel,
             self.is_real,
         );

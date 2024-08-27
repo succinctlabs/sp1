@@ -82,7 +82,6 @@ impl CpuChip {
         // Check that each addr_word element is a byte.
         builder.slice_range_check_u8(
             &memory_columns.addr_word.0,
-            local.shard,
             local.channel,
             is_memory_instruction.clone(),
         );

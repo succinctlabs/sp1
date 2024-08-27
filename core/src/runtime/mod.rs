@@ -1333,7 +1333,7 @@ pub mod tests {
     use crate::{
         runtime::Register,
         utils::{
-            tests::{FIBONACCI_ELF, KECCAK_PERMUTE_ELF, PANIC_ELF},
+            tests::{FIBONACCI_ELF, KECCAK_PERMUTE_ELF, PANIC_ELF, TENDERMINT_ELF},
             SP1CoreOpts,
         },
     };
@@ -1350,7 +1350,7 @@ pub mod tests {
     }
 
     pub fn fibonacci_program() -> Program {
-        Program::from(FIBONACCI_ELF)
+        Program::from(TENDERMINT_ELF)
     }
 
     pub fn ssz_withdrawals_program() -> Program {

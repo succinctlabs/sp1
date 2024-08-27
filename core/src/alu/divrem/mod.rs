@@ -879,7 +879,6 @@ where
                     msb,
                     byte,
                     zero.clone(),
-                    local.shard,
                     local.channel,
                     local.is_real,
                 );
@@ -888,29 +887,14 @@ where
 
         // Range check all the bytes.
         {
-            builder.slice_range_check_u8(
-                &local.quotient.0,
-                local.shard,
-                local.channel,
-                local.is_real,
-            );
-            builder.slice_range_check_u8(
-                &local.remainder.0,
-                local.shard,
-                local.channel,
-                local.is_real,
-            );
+            builder.slice_range_check_u8(&local.quotient.0, local.channel, local.is_real);
+            builder.slice_range_check_u8(&local.remainder.0, local.channel, local.is_real);
 
             local.carry.iter().for_each(|carry| {
                 builder.assert_bool(*carry);
             });
 
-            builder.slice_range_check_u8(
-                &local.c_times_quotient,
-                local.shard,
-                local.channel,
-                local.is_real,
-            );
+            builder.slice_range_check_u8(&local.c_times_quotient, local.channel, local.is_real);
         }
 
         // Check that the flags are boolean.

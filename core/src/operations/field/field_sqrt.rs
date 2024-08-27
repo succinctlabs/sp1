@@ -111,7 +111,6 @@ where
         builder: &mut AB,
         a: &Limbs<AB::Var, P::Limbs>,
         is_odd: impl Into<AB::Expr>,
-        shard: impl Into<AB::Expr> + Clone,
         channel: impl Into<AB::Expr> + Clone,
         is_real: impl Into<AB::Expr> + Clone,
     ) where
@@ -130,7 +129,6 @@ where
             &sqrt,
             &sqrt,
             super::field_op::FieldOperation::Mul,
-            shard.clone(),
             channel.clone(),
             is_real.clone(),
         );
@@ -140,18 +138,12 @@ where
             builder,
             &sqrt,
             &limbs_from_vec::<AB::Expr, P::Limbs, AB::F>(modulus_limbs),
-            shard.clone(),
             channel.clone(),
             is_real.clone(),
         );
 
         // Range check that `sqrt` limbs are bytes.
-        builder.slice_range_check_u8(
-            sqrt.0.as_slice(),
-            shard.clone(),
-            channel.clone(),
-            is_real.clone(),
-        );
+        builder.slice_range_check_u8(sqrt.0.as_slice(), channel.clone(), is_real.clone());
 
         // Assert that the square root is the positive one, i.e., with least significant bit 0.
         // This is done by computing LSB = least_significant_byte & 1.
@@ -162,7 +154,6 @@ where
             self.lsb,
             sqrt[0],
             AB::F::one(),
-            shard,
             channel,
             is_real,
         );
@@ -297,7 +288,6 @@ mod tests {
                 builder,
                 &local.a,
                 AB::F::zero(),
-                AB::F::one(),
                 AB::F::zero(),
                 AB::F::one(),
             );

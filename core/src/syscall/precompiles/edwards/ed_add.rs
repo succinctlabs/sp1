@@ -303,24 +303,14 @@ where
         let y2 = limbs_from_prev_access(&local.q_access[8..16]);
 
         // x3_numerator = x1 * y2 + x2 * y1.
-        local.x3_numerator.eval(
-            builder,
-            &[x1, x2],
-            &[y2, y1],
-            local.shard,
-            local.channel,
-            local.is_real,
-        );
+        local
+            .x3_numerator
+            .eval(builder, &[x1, x2], &[y2, y1], local.channel, local.is_real);
 
         // y3_numerator = y1 * y2 + x1 * x2.
-        local.y3_numerator.eval(
-            builder,
-            &[y1, x1],
-            &[y2, x2],
-            local.shard,
-            local.channel,
-            local.is_real,
-        );
+        local
+            .y3_numerator
+            .eval(builder, &[y1, x1], &[y2, x2], local.channel, local.is_real);
 
         // f = x1 * x2 * y1 * y2.
         local.x1_mul_y1.eval(
@@ -328,7 +318,6 @@ where
             &x1,
             &y1,
             FieldOperation::Mul,
-            local.shard,
             local.channel,
             local.is_real,
         );
@@ -337,7 +326,6 @@ where
             &x2,
             &y2,
             FieldOperation::Mul,
-            local.shard,
             local.channel,
             local.is_real,
         );
@@ -349,7 +337,6 @@ where
             &x1_mul_y1,
             &x2_mul_y2,
             FieldOperation::Mul,
-            local.shard,
             local.channel,
             local.is_real,
         );
@@ -363,7 +350,6 @@ where
             &f,
             &d_const,
             FieldOperation::Mul,
-            local.shard,
             local.channel,
             local.is_real,
         );
@@ -376,7 +362,6 @@ where
             &local.x3_numerator.result,
             &d_mul_f,
             true,
-            local.shard,
             local.channel,
             local.is_real,
         );
@@ -387,7 +372,6 @@ where
             &local.y3_numerator.result,
             &d_mul_f,
             false,
-            local.shard,
             local.channel,
             local.is_real,
         );

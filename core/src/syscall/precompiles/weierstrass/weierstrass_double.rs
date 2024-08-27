@@ -385,7 +385,6 @@ where
                     &p_x,
                     &p_x,
                     FieldOperation::Mul,
-                    local.shard,
                     local.channel,
                     local.is_real,
                 );
@@ -395,7 +394,6 @@ where
                     &local.p_x_squared.result,
                     &E::BaseField::to_limbs_field::<AB::Expr, _>(&BigUint::from(3u32)),
                     FieldOperation::Mul,
-                    local.shard,
                     local.channel,
                     local.is_real,
                 );
@@ -405,7 +403,6 @@ where
                     &a,
                     &local.p_x_squared_times_3.result,
                     FieldOperation::Add,
-                    local.shard,
                     local.channel,
                     local.is_real,
                 );
@@ -417,7 +414,6 @@ where
                 &E::BaseField::to_limbs_field::<AB::Expr, _>(&BigUint::from(2u32)),
                 &p_y,
                 FieldOperation::Mul,
-                local.shard,
                 local.channel,
                 local.is_real,
             );
@@ -427,7 +423,6 @@ where
                 &local.slope_numerator.result,
                 &local.slope_denominator.result,
                 FieldOperation::Div,
-                local.shard,
                 local.channel,
                 local.is_real,
             );
@@ -442,7 +437,6 @@ where
                 slope,
                 slope,
                 FieldOperation::Mul,
-                local.shard,
                 local.channel,
                 local.is_real,
             );
@@ -451,7 +445,6 @@ where
                 &p_x,
                 &p_x,
                 FieldOperation::Add,
-                local.shard,
                 local.channel,
                 local.is_real,
             );
@@ -460,7 +453,6 @@ where
                 &local.slope_squared.result,
                 &local.p_x_plus_p_x.result,
                 FieldOperation::Sub,
-                local.shard,
                 local.channel,
                 local.is_real,
             );
@@ -474,7 +466,6 @@ where
                 &p_x,
                 x,
                 FieldOperation::Sub,
-                local.shard,
                 local.channel,
                 local.is_real,
             );
@@ -483,7 +474,6 @@ where
                 slope,
                 &local.p_x_minus_x.result,
                 FieldOperation::Mul,
-                local.shard,
                 local.channel,
                 local.is_real,
             );
@@ -492,7 +482,6 @@ where
                 &local.slope_times_p_x_minus_x.result,
                 &p_y,
                 FieldOperation::Sub,
-                local.shard,
                 local.channel,
                 local.is_real,
             );

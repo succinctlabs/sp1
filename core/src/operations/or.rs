@@ -41,7 +41,6 @@ impl<F: Field> OrOperation<F> {
         a: Word<AB::Var>,
         b: Word<AB::Var>,
         cols: OrOperation<AB::Var>,
-        shard: impl Into<AB::Expr> + Copy,
         channel: impl Into<AB::Expr> + Copy,
         is_real: AB::Var,
     ) {
@@ -51,7 +50,6 @@ impl<F: Field> OrOperation<F> {
                 cols.value[i],
                 a[i],
                 b[i],
-                shard,
                 channel,
                 is_real,
             );

@@ -325,7 +325,6 @@ where
             local.b_masked,
             local.b[3],
             AB::F::from_canonical_u8(0x7f),
-            local.shard,
             local.channel,
             is_real.clone(),
         );
@@ -334,7 +333,6 @@ where
             local.c_masked,
             local.c[3],
             AB::F::from_canonical_u8(0x7f),
-            local.shard,
             local.channel,
             is_real.clone(),
         );
@@ -455,7 +453,6 @@ where
             local.sltu,
             b_comp_byte,
             c_comp_byte,
-            local.shard,
             local.channel,
             is_real.clone(),
         );

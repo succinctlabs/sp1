@@ -196,15 +196,7 @@ where
         // Get a multiplicity of `1` only for a true row.
         let mult = local.is_xor + local.is_or + local.is_and;
         for ((a, b), c) in local.a.into_iter().zip(local.b).zip(local.c) {
-            builder.send_byte(
-                opcode.clone(),
-                a,
-                b,
-                c,
-                local.shard,
-                local.channel,
-                mult.clone(),
-            );
+            builder.send_byte(opcode.clone(), a, b, c, local.channel, mult.clone());
         }
 
         // Get the cpu opcode, which corresponds to the opcode being sent in the CPU table.

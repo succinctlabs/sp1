@@ -105,7 +105,6 @@ where
         a: &Limbs<AB::Var, P::Limbs>,
         b: &Limbs<AB::Var, P::Limbs>,
         sign: bool,
-        shard: impl Into<AB::Expr> + Clone,
         channel: impl Into<AB::Expr> + Clone,
         is_real: impl Into<AB::Expr> + Clone,
     ) where
@@ -138,25 +137,10 @@ where
         eval_field_operation::<AB, P>(builder, &p_vanishing, &p_witness_low, &p_witness_high);
 
         // Range checks for the result, carry, and witness columns.
-        builder.slice_range_check_u8(
-            &self.result.0,
-            shard.clone(),
-            channel.clone(),
-            is_real.clone(),
-        );
-        builder.slice_range_check_u8(
-            &self.carry.0,
-            shard.clone(),
-            channel.clone(),
-            is_real.clone(),
-        );
-        builder.slice_range_check_u8(
-            &self.witness_low.0,
-            shard.clone(),
-            channel.clone(),
-            is_real.clone(),
-        );
-        builder.slice_range_check_u8(&self.witness_high.0, shard, channel.clone(), is_real);
+        builder.slice_range_check_u8(&self.result.0, channel.clone(), is_real.clone());
+        builder.slice_range_check_u8(&self.carry.0, channel.clone(), is_real.clone());
+        builder.slice_range_check_u8(&self.witness_low.0, channel.clone(), is_real.clone());
+        builder.slice_range_check_u8(&self.witness_high.0, channel.clone(), is_real);
     }
 }
 
@@ -291,7 +275,6 @@ mod tests {
                 &local.a,
                 &local.b,
                 self.sign,
-                AB::F::one(),
                 AB::F::zero(),
                 AB::F::one(),
             );
