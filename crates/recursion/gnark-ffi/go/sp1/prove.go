@@ -2,7 +2,6 @@ package sp1
 
 import (
 	"bufio"
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -112,13 +111,14 @@ func ProveGroth16(dataDir string, witnessPath string) Proof {
 
 	start = time.Now()
 	// Read the proving key.
-	pk := groth16.NewProvingKey(ecc.BN254)
-	pkBytes, err := os.ReadFile(dataDir + "/" + groth16PkPath)
+	pkFile, err := os.Open(dataDir + "/" + groth16PkPath)
 	if err != nil {
 		panic(err)
 	}
-	pkReader := bytes.NewReader(pkBytes)
-	pk.UnsafeReadFrom(pkReader)
+	pk := groth16.NewProvingKey(ecc.BN254)
+	bufReader := bufio.NewReaderSize(pkFile, 1024*1024)
+	pk.ReadDump(bufReader)
+	defer pkFile.Close()
 	fmt.Printf("Reading proving key took %s\n", time.Since(start))
 
 	start = time.Now()
