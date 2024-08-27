@@ -1,7 +1,7 @@
 //! Copied from [`sp1_recursion_program`].
 
 use std::{
-    iter::{once, repeat, zip},
+    iter::{repeat, zip},
     ops::{Add, Mul},
 };
 
