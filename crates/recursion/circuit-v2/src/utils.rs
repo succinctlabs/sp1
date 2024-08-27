@@ -144,7 +144,8 @@ pub(crate) mod tests {
         let wide_machine = RecursionAir::<_, 3, 0>::compress_machine(SC::default());
         let (pk, vk) = wide_machine.setup(&program);
         let pk = P::DeviceProvingKey::from_host(pk);
-        let result = run_test_machine_with_prover::<_, _, P>(records.clone(), wide_machine, pk, vk);
+        let prover = P::new(wide_machine);
+        let result = run_test_machine_with_prover::<_, _, P>(&prover, records.clone(), pk, vk);
         proof_wide_span.exit();
 
         if let Err(e) = result {

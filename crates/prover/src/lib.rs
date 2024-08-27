@@ -652,7 +652,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 
                                 #[cfg(feature = "debug")]
                                 self.compress_prover.debug_constraints(
-                                    &pk,
+                                    &pk.to_host(),
                                     vec![record.clone()],
                                     &mut challenger.clone(),
                                 );

@@ -641,8 +641,8 @@ pub fn run_test_core<P: MachineProver<BabyBearPoseidon2, RiscvAir<BabyBear>>>(
 
 #[allow(unused_variables)]
 pub fn run_test_machine_with_prover<SC, A, P: MachineProver<SC, A>>(
+    prover: &P,
     records: Vec<A::Record>,
-    machine: StarkMachine<SC, A>,
     pk: P::DeviceProvingKey,
     vk: StarkVerifyingKey<SC>,
 ) -> Result<MachineProof<SC>, MachineVerificationError<SC>>
@@ -659,7 +659,6 @@ where
     PcsProverData<SC>: Send + Sync + Serialize + DeserializeOwned,
     OpeningProof<SC>: Send + Sync,
 {
-    let prover = P::new(machine);
     let mut challenger = prover.config().challenger();
     let prove_span = tracing::debug_span!("prove").entered();
 
@@ -697,7 +696,8 @@ where
     PcsProverData<SC>: Send + Sync + Serialize + DeserializeOwned,
     OpeningProof<SC>: Send + Sync,
 {
-    run_test_machine_with_prover::<SC, A, CpuProver<_, _>>(records, machine, pk, vk)
+    let prover = CpuProver::new(machine);
+    run_test_machine_with_prover::<SC, A, CpuProver<_, _>>(&prover, records, pk, vk)
 }
 
 fn trace_checkpoint(
