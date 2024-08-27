@@ -13,20 +13,20 @@ use tracing::instrument;
 use crate::{
     builder::SP1RecursionAirBuilder,
     runtime::{ExecutionRecord, RecursionProgram},
-    ExpReverseBitsInstr, Instruction,
+    ExpBitsInstr, Instruction,
 };
 
 use super::mem::MemoryAccessCols;
 
-pub const NUM_EXP_REVERSE_BITS_LEN_COLS: usize = core::mem::size_of::<ExpReverseBitsLenCols<u8>>();
-pub const NUM_EXP_REVERSE_BITS_LEN_PREPROCESSED_COLS: usize =
-    core::mem::size_of::<ExpReverseBitsLenPreprocessedCols<u8>>();
+pub const NUM_EXP_BITS_COLS: usize = core::mem::size_of::<ExpBitsCols<u8>>();
+pub const NUM_EXP_BITS_PREPROCESSED_COLS: usize =
+    core::mem::size_of::<ExpBitsPreprocessedCols<u8>>();
 
-pub struct ExpReverseBitsLenChip<const DEGREE: usize> {
+pub struct ExpBitsChip<const DEGREE: usize> {
     pub fixed_log2_rows: Option<usize>,
     pub pad: bool,
 }
-impl<const DEGREE: usize> Default for ExpReverseBitsLenChip<DEGREE> {
+impl<const DEGREE: usize> Default for ExpBitsChip<DEGREE> {
     fn default() -> Self {
         Self { fixed_log2_rows: None, pad: true }
     }
@@ -34,7 +34,7 @@ impl<const DEGREE: usize> Default for ExpReverseBitsLenChip<DEGREE> {
 
 #[derive(AlignedBorrow, Clone, Copy, Debug)]
 #[repr(C)]
-pub struct ExpReverseBitsLenPreprocessedCols<T: Copy> {
+pub struct ExpBitsPreprocessedCols<T: Copy> {
     pub x_mem: MemoryAccessCols<T>,
     pub exponent_mem: MemoryAccessCols<T>,
     pub result_mem: MemoryAccessCols<T>,
@@ -46,7 +46,7 @@ pub struct ExpReverseBitsLenPreprocessedCols<T: Copy> {
 
 #[derive(AlignedBorrow, Debug, Clone, Copy)]
 #[repr(C)]
-pub struct ExpReverseBitsLenCols<T: Copy> {
+pub struct ExpBitsCols<T: Copy> {
     /// The base of the exponentiation.
     pub x: T,
 
@@ -69,19 +69,19 @@ pub struct ExpReverseBitsLenCols<T: Copy> {
     pub multiplier: T,
 }
 
-impl<F, const DEGREE: usize> BaseAir<F> for ExpReverseBitsLenChip<DEGREE> {
+impl<F, const DEGREE: usize> BaseAir<F> for ExpBitsChip<DEGREE> {
     fn width(&self) -> usize {
-        NUM_EXP_REVERSE_BITS_LEN_COLS
+        NUM_EXP_BITS_COLS
     }
 }
 
-impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for ExpReverseBitsLenChip<DEGREE> {
+impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for ExpBitsChip<DEGREE> {
     type Record = ExecutionRecord<F>;
 
     type Program = RecursionProgram<F>;
 
     fn name(&self) -> String {
-        "ExpReverseBitsLen".to_string()
+        "ExpBits".to_string()
     }
 
     fn generate_dependencies(&self, _: &Self::Record, _: &mut Self::Record) {
@@ -89,28 +89,27 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for ExpReverseBitsLenCh
     }
 
     fn preprocessed_width(&self) -> usize {
-        NUM_EXP_REVERSE_BITS_LEN_PREPROCESSED_COLS
+        NUM_EXP_BITS_PREPROCESSED_COLS
     }
 
     fn generate_preprocessed_trace(&self, program: &Self::Program) -> Option<RowMajorMatrix<F>> {
-        let mut rows: Vec<[F; NUM_EXP_REVERSE_BITS_LEN_PREPROCESSED_COLS]> = Vec::new();
+        let mut rows: Vec<[F; NUM_EXP_BITS_PREPROCESSED_COLS]> = Vec::new();
         program
             .instructions
             .iter()
             .filter_map(|instruction| {
-                if let Instruction::ExpReverseBitsLen(instr) = instruction {
+                if let Instruction::ExpBits(instr) = instruction {
                     Some(instr)
                 } else {
                     None
                 }
             })
             .for_each(|instruction| {
-                let ExpReverseBitsInstr { addrs, mult } = instruction;
+                let ExpBitsInstr { addrs, mult } = instruction;
                 let mut row_add =
-                    vec![[F::zero(); NUM_EXP_REVERSE_BITS_LEN_PREPROCESSED_COLS]; addrs.exp.len()];
+                    vec![[F::zero(); NUM_EXP_BITS_PREPROCESSED_COLS]; addrs.exp.len()];
                 row_add.iter_mut().enumerate().for_each(|(i, row)| {
-                    let row: &mut ExpReverseBitsLenPreprocessedCols<F> =
-                        row.as_mut_slice().borrow_mut();
+                    let row: &mut ExpBitsPreprocessedCols<F> = row.as_mut_slice().borrow_mut();
                     row.iteration_num = F::from_canonical_u32(i as u32);
                     row.is_first = F::from_bool(i == 0);
                     row.is_last = F::from_bool(i == addrs.exp.len() - 1);
@@ -129,32 +128,32 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for ExpReverseBitsLenCh
         if self.pad {
             pad_rows_fixed(
                 &mut rows,
-                || [F::zero(); NUM_EXP_REVERSE_BITS_LEN_PREPROCESSED_COLS],
+                || [F::zero(); NUM_EXP_BITS_PREPROCESSED_COLS],
                 self.fixed_log2_rows,
             );
         }
 
         let trace = RowMajorMatrix::new(
             rows.into_iter().flatten().collect(),
-            NUM_EXP_REVERSE_BITS_LEN_PREPROCESSED_COLS,
+            NUM_EXP_BITS_PREPROCESSED_COLS,
         );
         Some(trace)
     }
 
-    #[instrument(name = "generate exp reverse bits len trace", level = "debug", skip_all, fields(rows = input.exp_reverse_bits_len_events.len()))]
+    #[instrument(name = "generate exp reverse bits len trace", level = "debug", skip_all, fields(rows = input.exp_bits_events.len()))]
     fn generate_trace(
         &self,
         input: &ExecutionRecord<F>,
         _: &mut ExecutionRecord<F>,
     ) -> RowMajorMatrix<F> {
         let mut overall_rows = Vec::new();
-        input.exp_reverse_bits_len_events.iter().for_each(|event| {
-            let mut rows = vec![vec![F::zero(); NUM_EXP_REVERSE_BITS_LEN_COLS]; event.exp.len()];
+        input.exp_bits_events.iter().for_each(|event| {
+            let mut rows = vec![vec![F::zero(); NUM_EXP_BITS_COLS]; event.exp.len()];
 
             let mut accum = F::one();
 
             rows.iter_mut().enumerate().for_each(|(i, row)| {
-                let cols: &mut ExpReverseBitsLenCols<F> = row.as_mut_slice().borrow_mut();
+                let cols: &mut ExpBitsCols<F> = row.as_mut_slice().borrow_mut();
 
                 let prev_accum = accum;
                 accum = prev_accum
@@ -181,16 +180,14 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for ExpReverseBitsLenCh
         if self.pad {
             pad_rows_fixed(
                 &mut overall_rows,
-                || [F::zero(); NUM_EXP_REVERSE_BITS_LEN_COLS].to_vec(),
+                || [F::zero(); NUM_EXP_BITS_COLS].to_vec(),
                 self.fixed_log2_rows,
             );
         }
 
         // Convert the trace to a row major matrix.
-        let trace = RowMajorMatrix::new(
-            overall_rows.into_iter().flatten().collect(),
-            NUM_EXP_REVERSE_BITS_LEN_COLS,
-        );
+        let trace =
+            RowMajorMatrix::new(overall_rows.into_iter().flatten().collect(), NUM_EXP_BITS_COLS);
 
         #[cfg(debug_assertions)]
         println!(
@@ -207,16 +204,16 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for ExpReverseBitsLenCh
     }
 }
 
-impl<const DEGREE: usize> ExpReverseBitsLenChip<DEGREE> {
-    pub fn eval_exp_reverse_bits_len<
+impl<const DEGREE: usize> ExpBitsChip<DEGREE> {
+    pub fn eval_exp_bits<
         AB: BaseAirBuilder + ExtensionAirBuilder + SP1RecursionAirBuilder + SP1AirBuilder,
     >(
         &self,
         builder: &mut AB,
-        local: &ExpReverseBitsLenCols<AB::Var>,
-        local_prepr: &ExpReverseBitsLenPreprocessedCols<AB::Var>,
-        next: &ExpReverseBitsLenCols<AB::Var>,
-        next_prepr: &ExpReverseBitsLenPreprocessedCols<AB::Var>,
+        local: &ExpBitsCols<AB::Var>,
+        local_prepr: &ExpBitsPreprocessedCols<AB::Var>,
+        next: &ExpBitsCols<AB::Var>,
+        next_prepr: &ExpBitsPreprocessedCols<AB::Var>,
     ) {
         // Dummy constraints to normalize to DEGREE when DEGREE > 3.
         if DEGREE > 3 {
@@ -281,27 +278,25 @@ impl<const DEGREE: usize> ExpReverseBitsLenChip<DEGREE> {
         builder.send_single(local_prepr.result_mem.addr, local.accum, local_prepr.result_mem.mult);
     }
 
-    pub const fn do_exp_bit_memory_access<T: Copy>(
-        local: &ExpReverseBitsLenPreprocessedCols<T>,
-    ) -> T {
+    pub const fn do_exp_bit_memory_access<T: Copy>(local: &ExpBitsPreprocessedCols<T>) -> T {
         local.is_real
     }
 }
 
-impl<AB, const DEGREE: usize> Air<AB> for ExpReverseBitsLenChip<DEGREE>
+impl<AB, const DEGREE: usize> Air<AB> for ExpBitsChip<DEGREE>
 where
     AB: SP1RecursionAirBuilder + PairBuilder,
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
         let (local, next) = (main.row_slice(0), main.row_slice(1));
-        let local: &ExpReverseBitsLenCols<AB::Var> = (*local).borrow();
-        let next: &ExpReverseBitsLenCols<AB::Var> = (*next).borrow();
+        let local: &ExpBitsCols<AB::Var> = (*local).borrow();
+        let next: &ExpBitsCols<AB::Var> = (*next).borrow();
         let prep = builder.preprocessed();
         let (prep_local, prep_next) = (prep.row_slice(0), prep.row_slice(1));
-        let prep_local: &ExpReverseBitsLenPreprocessedCols<_> = (*prep_local).borrow();
-        let prep_next: &ExpReverseBitsLenPreprocessedCols<_> = (*prep_next).borrow();
-        self.eval_exp_reverse_bits_len::<AB>(builder, local, prep_local, next, prep_next);
+        let prep_local: &ExpBitsPreprocessedCols<_> = (*prep_local).borrow();
+        let prep_next: &ExpBitsPreprocessedCols<_> = (*prep_next).borrow();
+        self.eval_exp_bits::<AB>(builder, local, prep_local, next, prep_next);
     }
 }
 
@@ -320,7 +315,7 @@ mod tests {
     use p3_matrix::dense::RowMajorMatrix;
 
     use crate::{
-        chips::exp_reverse_bits::ExpReverseBitsLenChip,
+        chips::exp_bits::ExpBitsChip,
         machine::tests::run_recursion_test_machines,
         runtime::{instruction as instr, ExecutionRecord},
         ExpReverseBitsEvent, Instruction, MemAccessKind, RecursionProgram,
@@ -364,7 +359,7 @@ mod tests {
                 });
                 once(instr::mem_single(MemAccessKind::Write, 1, x_a as u32, base))
                     .chain(exp_bit_instructions)
-                    .chain(once(instr::exp_reverse_bits_len(
+                    .chain(once(instr::exp_bits(
                         1,
                         F::from_canonical_u32(x_a as u32),
                         exp_a
@@ -387,14 +382,14 @@ mod tests {
         type F = BabyBear;
 
         let shard = ExecutionRecord {
-            exp_reverse_bits_len_events: vec![ExpReverseBitsEvent {
+            exp_bits_events: vec![ExpReverseBitsEvent {
                 base: F::two(),
                 exp: vec![F::zero(), F::one(), F::one()],
                 result: F::two().exp_u64(0b110),
             }],
             ..Default::default()
         };
-        let chip = ExpReverseBitsLenChip::<3>::default();
+        let chip = ExpBitsChip::<3>::default();
         let trace: RowMajorMatrix<F> = chip.generate_trace(&shard, &mut ExecutionRecord::default());
         println!("{:?}", trace.values)
     }

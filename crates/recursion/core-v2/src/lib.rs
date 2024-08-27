@@ -117,7 +117,7 @@ pub type Poseidon2Event<F> = Poseidon2Io<F>;
 
 /// The inputs and outputs to an exp-reverse-bits operation.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ExpReverseBitsIo<V> {
+pub struct ExpBitsIo<V> {
     pub base: V,
     // The bits of the exponent in little-endian order in a vec.
     pub exp: Vec<V>,
@@ -129,8 +129,8 @@ pub type Poseidon2Instr<F> = Poseidon2SkinnyInstr<F>;
 
 /// An instruction invoking the exp-reverse-bits operation.
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct ExpReverseBitsInstr<F> {
-    pub addrs: ExpReverseBitsIo<Address<F>>,
+pub struct ExpBitsInstr<F> {
+    pub addrs: ExpBitsIo<Address<F>>,
     pub mult: F,
 }
 

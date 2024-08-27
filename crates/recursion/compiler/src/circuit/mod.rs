@@ -17,7 +17,7 @@ mod tests {
         chips::{
             alu_base::BaseAluChip,
             alu_ext::ExtAluChip,
-            exp_reverse_bits::ExpReverseBitsLenChip,
+            exp_bits::ExpBitsChip,
             fri_fold::FriFoldChip,
             mem::{MemoryConstChip, MemoryVarChip},
             poseidon2_wide::Poseidon2WideChip,
@@ -106,7 +106,7 @@ mod tests {
                 fixed_log2_rows: Some(((POSEIDON_OPERATIONS - 1).ilog2() + 1) as usize),
                 pad: true,
             }),
-            A::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE> {
+            A::ExpReverseBitsLen(ExpBitsChip::<DEGREE> {
                 fixed_log2_rows: Some(((EXP_REVERSE_BITS_LEN_OPERATIONS - 1).ilog2() + 1) as usize),
                 pad: true,
             }),

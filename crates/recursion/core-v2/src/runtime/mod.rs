@@ -350,8 +350,8 @@ where
                         .poseidon2_events
                         .push(Poseidon2Event { input: in_vals, output: perm_output });
                 }
-                Instruction::ExpReverseBitsLen(ExpReverseBitsInstr {
-                    addrs: ExpReverseBitsIo { base, exp, result },
+                Instruction::ExpBits(ExpBitsInstr {
+                    addrs: ExpBitsIo { base, exp, result },
                     mult,
                 }) => {
                     self.nb_exp_reverse_bits += 1;
@@ -365,7 +365,7 @@ where
                     let out =
                         base_val.exp_u64(reverse_bits_len(exp_val as usize, exp_bits.len()) as u64);
                     self.memory.mw(result, Block::from(out), mult);
-                    self.record.exp_reverse_bits_len_events.push(ExpReverseBitsEvent {
+                    self.record.exp_bits_events.push(ExpReverseBitsEvent {
                         result: out,
                         base: base_val,
                         exp: exp_bits,

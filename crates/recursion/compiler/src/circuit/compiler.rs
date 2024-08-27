@@ -259,8 +259,8 @@ where
         base: impl Reg<C>,
         exp: impl IntoIterator<Item = impl Reg<C>>,
     ) -> Instruction<C::F> {
-        Instruction::ExpReverseBitsLen(ExpReverseBitsInstr {
-            addrs: ExpReverseBitsIo {
+        Instruction::ExpBits(ExpBitsInstr {
+            addrs: ExpBitsIo {
                 result: dst.write(self),
                 base: base.read(self),
                 exp: exp.into_iter().map(|r| r.read(self)).collect(),
@@ -560,8 +560,8 @@ where
                         } = instr.as_mut();
                         mults.iter_mut().zip(addrs).for_each(&mut backfill);
                     }
-                    Instruction::ExpReverseBitsLen(ExpReverseBitsInstr {
-                        addrs: ExpReverseBitsIo { result: ref addr, .. },
+                    Instruction::ExpBits(ExpBitsInstr {
+                        addrs: ExpBitsIo { result: ref addr, .. },
                         mult,
                     }) => backfill((mult, addr)),
                     Instruction::HintBits(HintBitsInstr { output_addrs_mults, .. })
@@ -632,7 +632,7 @@ const fn instr_name<F>(instr: &Instruction<F>) -> &'static str {
         Instruction::ExtAlu(_) => "ExtAlu",
         Instruction::Mem(_) => "Mem",
         Instruction::Poseidon2(_) => "Poseidon2",
-        Instruction::ExpReverseBitsLen(_) => "ExpReverseBitsLen",
+        Instruction::ExpBits(_) => "ExpReverseBitsLen",
         Instruction::HintBits(_) => "HintBits",
         Instruction::FriFold(_) => "FriFold",
         Instruction::Print(_) => "Print",

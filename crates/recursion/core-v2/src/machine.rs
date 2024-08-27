@@ -6,7 +6,7 @@ use crate::chips::{
     alu_base::BaseAluChip,
     alu_ext::ExtAluChip,
     dummy::DummyChip,
-    exp_reverse_bits::ExpReverseBitsLenChip,
+    exp_bits::ExpBitsChip,
     fri_fold::FriFoldChip,
     mem::{MemoryConstChip, MemoryVarChip},
     poseidon2_skinny::Poseidon2SkinnyChip,
@@ -37,7 +37,7 @@ pub enum RecursionAir<
     FriFold(FriFoldChip<DEGREE>),
     // RangeCheck(RangeCheckChip<F>),
     // Multi(MultiChip<DEGREE>),
-    ExpReverseBitsLen(ExpReverseBitsLenChip<DEGREE>),
+    ExpReverseBitsLen(ExpBitsChip<DEGREE>),
     PublicValues(PublicValuesChip),
     DummyWide(DummyChip<COL_PADDING>),
 }
@@ -104,7 +104,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize, const COL_P
             RecursionAir::ExtAlu(ExtAluChip::default()),
             RecursionAir::Poseidon2Skinny(Poseidon2SkinnyChip::<DEGREE>::default()),
             // RecursionAir::Poseidon2Wide(Poseidon2WideChip::<DEGREE>::default()),
-            RecursionAir::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE>::default()),
+            RecursionAir::ExpReverseBitsLen(ExpBitsChip::<DEGREE>::default()),
             RecursionAir::FriFold(FriFoldChip::<DEGREE>::default()),
             RecursionAir::PublicValues(PublicValuesChip::default()),
         ]
@@ -119,7 +119,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize, const COL_P
             RecursionAir::ExtAlu(ExtAluChip::default()),
             // RecursionAir::Poseidon2Skinny(Poseidon2SkinnyChip::<DEGREE>::default()),
             RecursionAir::Poseidon2Wide(Poseidon2WideChip::<DEGREE>::default()),
-            RecursionAir::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE>::default()),
+            RecursionAir::ExpReverseBitsLen(ExpBitsChip::<DEGREE>::default()),
             RecursionAir::FriFold(FriFoldChip::<DEGREE>::default()),
             RecursionAir::PublicValues(PublicValuesChip::default()),
         ]
@@ -141,7 +141,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize, const COL_P
                 fixed_log2_rows: Some(poseidon2_padding),
                 pad: true,
             }),
-            RecursionAir::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE> {
+            RecursionAir::ExpReverseBitsLen(ExpBitsChip::<DEGREE> {
                 fixed_log2_rows: Some(erbl_padding),
                 pad: true,
             }),
@@ -167,7 +167,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize, const COL_P
     //         })))
     //         .chain(once(RecursionAir::RangeCheck(RangeCheckChip::default())))
     //         .chain(once(RecursionAir::ExpReverseBitsLen(
-    //             ExpReverseBitsLenChip::<DEGREE> {
+    //             ExpBitsChip::<DEGREE> {
     //                 fixed_log2_rows: None,
     //                 pad: true,
     //             },
@@ -189,7 +189,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize, const COL_P
     //         })))
     //         .chain(once(RecursionAir::RangeCheck(RangeCheckChip::default())))
     //         .chain(once(RecursionAir::ExpReverseBitsLen(
-    //             ExpReverseBitsLenChip::<DEGREE> {
+    //             ExpBitsChip::<DEGREE> {
     //                 fixed_log2_rows: None,
     //                 pad: true,
     //             },

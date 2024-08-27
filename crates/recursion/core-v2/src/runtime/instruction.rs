@@ -11,7 +11,7 @@ pub enum Instruction<F> {
     ExtAlu(ExtAluInstr<F>),
     Mem(MemInstr<F>),
     Poseidon2(Box<Poseidon2Instr<F>>),
-    ExpReverseBitsLen(ExpReverseBitsInstr<F>),
+    ExpBits(ExpBitsInstr<F>),
     HintBits(HintBitsInstr<F>),
     FriFold(Box<FriFoldInstr<F>>),
     Print(PrintInstr<F>),
@@ -145,15 +145,10 @@ pub fn poseidon2<F: AbstractField>(
     }))
 }
 
-pub fn exp_reverse_bits_len<F: AbstractField>(
-    mult: u32,
-    base: F,
-    exp: Vec<F>,
-    result: F,
-) -> Instruction<F> {
-    Instruction::ExpReverseBitsLen(ExpReverseBitsInstr {
+pub fn exp_bits<F: AbstractField>(mult: u32, base: F, exp: Vec<F>, result: F) -> Instruction<F> {
+    Instruction::ExpBits(ExpBitsInstr {
         mult: F::from_canonical_u32(mult),
-        addrs: ExpReverseBitsIo {
+        addrs: ExpBitsIo {
             base: Address(base),
             exp: exp.into_iter().map(Address).collect(),
             result: Address(result),
