@@ -27,6 +27,7 @@ pub mod domain;
 pub mod fri;
 pub mod hash;
 pub mod machine;
+pub mod merkle_tree;
 pub mod stark;
 pub(crate) mod utils;
 pub mod witness;
@@ -60,7 +61,7 @@ pub type PcsConfig<C> = FriConfig<
     >,
 >;
 
-pub type Digest<C, SC> = <SC as FieldHasherVariable<C>>::Digest;
+pub type Digest<C, SC> = <SC as FieldHasherVariable<C>>::DigestVariable;
 
 pub type FriMmcs<C> = ExtensionMmcs<BabyBear, EF, <C as BabyBearFriConfig>::ValMmcs>;
 
@@ -95,7 +96,7 @@ pub trait BabyBearFriConfigVariable<C: CircuitConfig<F = BabyBear>>:
     BabyBearFriConfig + FieldHasherVariable<C>
 {
     type FriChallengerVariable: FieldChallengerVariable<C, <C as CircuitConfig>::Bit>
-        + CanObserveVariable<C, <Self as FieldHasherVariable<C>>::Digest>
+        + CanObserveVariable<C, <Self as FieldHasherVariable<C>>::DigestVariable>
         + CanCopyChallenger<C>;
 
     /// Get a new challenger corresponding to the given config.
