@@ -12,8 +12,10 @@ use sp1_recursion_compiler::{
     circuit::CircuitV2Builder,
     ir::{Builder, Config, DslIr, Felt, Var},
 };
+use sp1_recursion_core_v2::stark::config::outer_perm;
 use sp1_recursion_core_v2::{stark::config::BabyBearPoseidon2Outer, DIGEST_SIZE, HASH_RATE};
 use sp1_stark::baby_bear_poseidon2::BabyBearPoseidon2;
+use sp1_stark::inner_perm;
 
 use crate::{
     challenger::{reduce_32, RATE, SPONGE_SIZE},
@@ -42,17 +44,17 @@ pub trait FieldHasherVariable<C: CircuitConfig>: FieldHasher<C::F> {
         should_swap: C::Bit,
         input: [Self::DigestVariable; 2],
     ) -> [Self::DigestVariable; 2];
+
+    fn print_digest(builder: &mut Builder<C>, digest: Self::DigestVariable);
 }
+
 impl FieldHasher<BabyBear> for BabyBearPoseidon2 {
     type Digest = [BabyBear; DIGEST_SIZE];
 
     fn constant_compress(input: [Self::Digest; 2]) -> Self::Digest {
         let mut pre_iter = input.into_iter().flatten().chain(repeat(BabyBear::zero()));
         let mut pre = core::array::from_fn(move |_| pre_iter.next().unwrap());
-        <DiffusionMatrixBabyBear as Permutation<[BabyBear; 16]>>::permute_mut(
-            &DiffusionMatrixBabyBear {},
-            &mut pre,
-        );
+        (inner_perm()).permute_mut(&mut pre);
         pre[..DIGEST_SIZE].try_into().unwrap()
     }
 }
@@ -95,6 +97,12 @@ impl<C: CircuitConfig<F = BabyBear, Bit = Felt<BabyBear>>> FieldHasherVariable<C
         assert_eq!(selected.next(), None, "{}", err_msg);
         ret
     }
+
+    fn print_digest(builder: &mut Builder<C>, digest: Self::DigestVariable) {
+        for d in digest.iter() {
+            builder.print_f(*d);
+        }
+    }
 }
 
 pub const BN254_DIGEST_SIZE: usize = 1;
@@ -104,7 +112,7 @@ impl FieldHasher<BabyBear> for BabyBearPoseidon2Outer {
 
     fn constant_compress(input: [Self::Digest; 2]) -> Self::Digest {
         let mut state = [input[0][0], input[1][0], Bn254Fr::zero()];
-        DiffusionMatrixBN254 {}.permute_mut(&mut state);
+        outer_perm().permute_mut(&mut state);
         [state[0]; BN254_DIGEST_SIZE]
     }
 }
@@ -153,18 +161,24 @@ impl<C: CircuitConfig<F = BabyBear, N = Bn254Fr, Bit = Var<Bn254Fr>>> FieldHashe
         should_swap: <C as CircuitConfig>::Bit,
         input: [Self::DigestVariable; 2],
     ) -> [Self::DigestVariable; 2] {
-        let result0: [Var<_>; 1] = core::array::from_fn(|j| {
+        let result0: [Var<_>; BN254_DIGEST_SIZE] = core::array::from_fn(|j| {
             let result = builder.uninit();
             builder.push(DslIr::CircuitSelectV(should_swap, input[1][j], input[0][j], result));
             result
         });
-        let result1: [Var<_>; 1] = core::array::from_fn(|j| {
+        let result1: [Var<_>; BN254_DIGEST_SIZE] = core::array::from_fn(|j| {
             let result = builder.uninit();
             builder.push(DslIr::CircuitSelectV(should_swap, input[0][j], input[1][j], result));
             result
         });
 
         [result0, result1]
+    }
+
+    fn print_digest(builder: &mut Builder<C>, digest: Self::DigestVariable) {
+        for d in digest.iter() {
+            builder.print_v(*d);
+        }
     }
 }
 
