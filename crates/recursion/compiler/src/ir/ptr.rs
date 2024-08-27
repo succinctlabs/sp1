@@ -18,7 +18,7 @@ impl<C: Config> Builder<C> {
     /// Allocates an array on the heap.
     pub(crate) fn alloc(&mut self, len: Usize<C::N>, size: usize) -> Ptr<C::N> {
         let ptr = Ptr::uninit(self);
-        self.push(DslIr::Alloc(ptr, len, size));
+        self.push_op(DslIr::Alloc(ptr, len, size));
         ptr
     }
 

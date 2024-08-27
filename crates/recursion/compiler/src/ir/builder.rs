@@ -1,4 +1,4 @@
-use std::{iter::Zip, vec::IntoIter};
+use std::{cell::RefCell, iter::Zip, rc::Rc, vec::IntoIter};
 
 use backtrace::Backtrace;
 use p3_field::AbstractField;
@@ -76,13 +76,18 @@ impl<T> IntoIterator for TracedVec<T> {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct InnerBuilder<C: Config> {
+    pub(crate) variable_count: u32,
+    pub operations: TracedVec<DslIr<C>>,
+}
+
 /// A builder for the DSL.
 ///
 /// Can compile to both assembly and a set of constraints.
 #[derive(Debug, Clone)]
 pub struct Builder<C: Config> {
-    pub(crate) variable_count: u32,
-    pub operations: TracedVec<DslIr<C>>,
+    pub(crate) inner: Rc<RefCell<InnerBuilder<C>>>,
     pub(crate) nb_public_values: Option<Var<C::N>>,
     pub(crate) witness_var_count: u32,
     pub(crate) witness_felt_count: u32,
@@ -104,12 +109,13 @@ impl<C: Config> Builder<C> {
         // We need to create a temporary placeholder for the p2_hash_num variable.
         let placeholder_p2_hash_num = Var::new(0);
 
+        let inner = InnerBuilder { variable_count: 0, operations: Default::default() };
+
         let mut new_builder = Self {
-            variable_count: 0,
+            inner: Rc::new(RefCell::new(inner)),
             witness_var_count: 0,
             witness_felt_count: 0,
             witness_ext_count: 0,
-            operations: Default::default(),
             nb_public_values: None,
             p2_hash_num: placeholder_p2_hash_num,
             debug: false,
@@ -129,15 +135,15 @@ impl<C: Config> Builder<C> {
         debug: bool,
         program_type: RecursionProgramType,
     ) -> Self {
+        let inner = InnerBuilder { variable_count, operations: Default::default() };
         Self {
-            variable_count,
+            inner: Rc::new(RefCell::new(inner)),
             // Witness counts are only used when the target is a gnark circuit.  And sub-builders
             // are not used when the target is a gnark circuit, so it's fine to set the
             // witness counts to 0.
             witness_var_count: 0,
             witness_felt_count: 0,
             witness_ext_count: 0,
-            operations: Default::default(),
             nb_public_values,
             p2_hash_num,
             debug,
@@ -147,13 +153,17 @@ impl<C: Config> Builder<C> {
     }
 
     /// Pushes an operation to the builder.
-    pub fn push(&mut self, op: DslIr<C>) {
-        self.operations.push(op);
+    pub fn push_op(&mut self, op: DslIr<C>) {
+        self.inner.borrow_mut().operations.push(op);
     }
 
     /// Pushes an operation to the builder and records a trace if SP1_DEBUG.
     pub fn trace_push(&mut self, op: DslIr<C>) {
-        self.operations.trace_push(op);
+        self.inner.borrow_mut().operations.trace_push(op);
+    }
+
+    pub fn as_operations(self) -> TracedVec<DslIr<C>> {
+        Rc::into_inner(self.inner).expect("Builder has no unique reference").into_inner().operations
     }
 
     /// Creates an uninitialized variable.
@@ -279,7 +289,7 @@ impl<C: Config> Builder<C> {
 
     pub fn lt(&mut self, lhs: Var<C::N>, rhs: Var<C::N>) -> Var<C::N> {
         let result = self.uninit();
-        self.operations.push(DslIr::LessThan(result, lhs, rhs));
+        self.push_op(DslIr::LessThan(result, lhs, rhs));
         result
     }
 
@@ -312,7 +322,7 @@ impl<C: Config> Builder<C> {
 
     /// Break out of a loop.
     pub fn break_loop(&mut self) {
-        self.operations.push(DslIr::Break);
+        self.push_op(DslIr::Break);
     }
 
     pub fn print_debug(&mut self, val: usize) {
@@ -322,23 +332,23 @@ impl<C: Config> Builder<C> {
 
     /// Print a variable.
     pub fn print_v(&mut self, dst: Var<C::N>) {
-        self.operations.push(DslIr::PrintV(dst));
+        self.push_op(DslIr::PrintV(dst));
     }
 
     /// Print a felt.
     pub fn print_f(&mut self, dst: Felt<C::F>) {
-        self.operations.push(DslIr::PrintF(dst));
+        self.push_op(DslIr::PrintF(dst));
     }
 
     /// Print an ext.
     pub fn print_e(&mut self, dst: Ext<C::F, C::EF>) {
-        self.operations.push(DslIr::PrintE(dst));
+        self.push_op(DslIr::PrintE(dst));
     }
 
     /// Hint the length of the next vector of variables.
     pub fn hint_len(&mut self) -> Var<C::N> {
         let len = self.uninit();
-        self.operations.push(DslIr::HintLen(len));
+        self.push_op(DslIr::HintLen(len));
         len
     }
 
@@ -346,7 +356,7 @@ impl<C: Config> Builder<C> {
     pub fn hint_var(&mut self) -> Var<C::N> {
         let len = self.hint_len();
         let arr = self.dyn_array(len);
-        self.operations.push(DslIr::HintVars(arr.clone()));
+        self.push_op(DslIr::HintVars(arr.clone()));
         self.get(&arr, 0)
     }
 
@@ -354,7 +364,7 @@ impl<C: Config> Builder<C> {
     pub fn hint_felt(&mut self) -> Felt<C::F> {
         let len = self.hint_len();
         let arr = self.dyn_array(len);
-        self.operations.push(DslIr::HintFelts(arr.clone()));
+        self.push_op(DslIr::HintFelts(arr.clone()));
         self.get(&arr, 0)
     }
 
@@ -362,7 +372,7 @@ impl<C: Config> Builder<C> {
     pub fn hint_ext(&mut self) -> Ext<C::F, C::EF> {
         let len = self.hint_len();
         let arr = self.dyn_array(len);
-        self.operations.push(DslIr::HintExts(arr.clone()));
+        self.push_op(DslIr::HintExts(arr.clone()));
         self.get(&arr, 0)
     }
 
@@ -370,7 +380,7 @@ impl<C: Config> Builder<C> {
     pub fn hint_vars(&mut self) -> Array<C, Var<C::N>> {
         let len = self.hint_len();
         let arr = self.dyn_array(len);
-        self.operations.push(DslIr::HintVars(arr.clone()));
+        self.push_op(DslIr::HintVars(arr.clone()));
         arr
     }
 
@@ -378,7 +388,7 @@ impl<C: Config> Builder<C> {
     pub fn hint_felts(&mut self) -> Array<C, Felt<C::F>> {
         let len = self.hint_len();
         let arr = self.dyn_array(len);
-        self.operations.push(DslIr::HintFelts(arr.clone()));
+        self.push_op(DslIr::HintFelts(arr.clone()));
         arr
     }
 
@@ -386,14 +396,14 @@ impl<C: Config> Builder<C> {
     pub fn hint_exts(&mut self) -> Array<C, Ext<C::F, C::EF>> {
         let len = self.hint_len();
         let arr = self.dyn_array(len);
-        self.operations.push(DslIr::HintExts(arr.clone()));
+        self.push_op(DslIr::HintExts(arr.clone()));
         arr
     }
 
     pub fn witness_var(&mut self) -> Var<C::N> {
         assert!(!self.is_sub_builder, "Cannot create a witness var with a sub builder");
         let witness = self.uninit();
-        self.operations.push(DslIr::WitnessVar(witness, self.witness_var_count));
+        self.push_op(DslIr::WitnessVar(witness, self.witness_var_count));
         self.witness_var_count += 1;
         witness
     }
@@ -401,7 +411,7 @@ impl<C: Config> Builder<C> {
     pub fn witness_felt(&mut self) -> Felt<C::F> {
         assert!(!self.is_sub_builder, "Cannot create a witness felt with a sub builder");
         let witness = self.uninit();
-        self.operations.push(DslIr::WitnessFelt(witness, self.witness_felt_count));
+        self.push_op(DslIr::WitnessFelt(witness, self.witness_felt_count));
         self.witness_felt_count += 1;
         witness
     }
@@ -409,14 +419,14 @@ impl<C: Config> Builder<C> {
     pub fn witness_ext(&mut self) -> Ext<C::F, C::EF> {
         assert!(!self.is_sub_builder, "Cannot create a witness ext with a sub builder");
         let witness = self.uninit();
-        self.operations.push(DslIr::WitnessExt(witness, self.witness_ext_count));
+        self.push_op(DslIr::WitnessExt(witness, self.witness_ext_count));
         self.witness_ext_count += 1;
         witness
     }
 
     /// Throws an error.
     pub fn error(&mut self) {
-        self.operations.trace_push(DslIr::Error());
+        self.trace_push(DslIr::Error());
     }
 
     /// Materializes a usize into a variable.
@@ -429,7 +439,7 @@ impl<C: Config> Builder<C> {
 
     /// Register a felt as public value.  This is append to the proof's public values buffer.
     pub fn register_public_value(&mut self, val: Felt<C::F>) {
-        self.operations.push(DslIr::RegisterPublicValue(val));
+        self.push_op(DslIr::RegisterPublicValue(val));
     }
 
     /// Register and commits a felt as public value.  This value will be constrained when verified.
@@ -440,7 +450,7 @@ impl<C: Config> Builder<C> {
         }
         let nb_public_values = *self.nb_public_values.as_ref().unwrap();
 
-        self.operations.push(DslIr::Commit(val, nb_public_values));
+        self.push_op(DslIr::Commit(val, nb_public_values));
         self.assign(nb_public_values, nb_public_values + C::N::one());
     }
 
@@ -455,29 +465,29 @@ impl<C: Config> Builder<C> {
     }
 
     pub fn commit_vkey_hash_circuit(&mut self, var: Var<C::N>) {
-        self.operations.push(DslIr::CircuitCommitVkeyHash(var));
+        self.push_op(DslIr::CircuitCommitVkeyHash(var));
     }
 
     pub fn commit_commited_values_digest_circuit(&mut self, var: Var<C::N>) {
-        self.operations.push(DslIr::CircuitCommitCommitedValuesDigest(var));
+        self.push_op(DslIr::CircuitCommitCommitedValuesDigest(var));
     }
 
     pub fn reduce_e(&mut self, ext: Ext<C::F, C::EF>) {
-        self.operations.push(DslIr::ReduceE(ext));
+        self.push_op(DslIr::ReduceE(ext));
     }
 
     pub fn felt2var_circuit(&mut self, felt: Felt<C::F>) -> Var<C::N> {
         let var = self.uninit();
-        self.operations.push(DslIr::CircuitFelt2Var(felt, var));
+        self.push_op(DslIr::CircuitFelt2Var(felt, var));
         var
     }
 
     pub fn cycle_tracker(&mut self, name: &str) {
-        self.operations.push(DslIr::CycleTracker(name.to_string()));
+        self.push_op(DslIr::CycleTracker(name.to_string()));
     }
 
     pub fn halt(&mut self) {
-        self.operations.push(DslIr::Halt);
+        self.push_op(DslIr::Halt);
     }
 }
 
@@ -515,7 +525,7 @@ impl<'a, C: Config> IfBuilder<'a, C> {
         f(&mut f_builder);
         self.builder.p2_hash_num = f_builder.p2_hash_num;
 
-        let then_instructions = f_builder.operations;
+        let then_instructions = f_builder.as_operations();
 
         // Dispatch instructions to the correct conditional block.
         match condition {
@@ -531,19 +541,19 @@ impl<'a, C: Config> IfBuilder<'a, C> {
             }
             IfCondition::Eq(lhs, rhs) => {
                 let op = DslIr::IfEq(Box::new((lhs, rhs, then_instructions, Default::default())));
-                self.builder.operations.push(op);
+                self.builder.push_op(op);
             }
             IfCondition::EqI(lhs, rhs) => {
                 let op = DslIr::IfEqI(Box::new((lhs, rhs, then_instructions, Default::default())));
-                self.builder.operations.push(op);
+                self.builder.push_op(op);
             }
             IfCondition::Ne(lhs, rhs) => {
                 let op = DslIr::IfNe(Box::new((lhs, rhs, then_instructions, Default::default())));
-                self.builder.operations.push(op);
+                self.builder.push_op(op);
             }
             IfCondition::NeI(lhs, rhs) => {
                 let op = DslIr::IfNeI(Box::new((lhs, rhs, then_instructions, Default::default())));
-                self.builder.operations.push(op);
+                self.builder.push_op(op);
             }
         }
     }
@@ -579,7 +589,7 @@ impl<'a, C: Config> IfBuilder<'a, C> {
         else_f(&mut else_builder);
         self.builder.p2_hash_num = else_builder.p2_hash_num;
 
-        let else_instructions = else_builder.operations;
+        let else_instructions = else_builder.as_operations();
 
         // Dispatch instructions to the correct conditional block.
         match condition {

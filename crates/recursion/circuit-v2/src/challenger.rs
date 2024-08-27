@@ -283,7 +283,7 @@ impl<C: Config> MultiField32ChallengerVariable<C> {
         self.input_buffer.clear();
 
         // TODO make this a method for the builder.
-        builder.push(DslIr::CircuitPoseidon2Permute(self.sponge_state));
+        builder.push_op(DslIr::CircuitPoseidon2Permute(self.sponge_state));
 
         self.output_buffer.clear();
         for &pf_val in self.sponge_state.iter() {

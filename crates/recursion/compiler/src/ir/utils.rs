@@ -14,14 +14,14 @@ impl<C: Config> Builder<C> {
     /// Select a variable based on a condition.
     pub fn select_v(&mut self, cond: Var<C::N>, a: Var<C::N>, b: Var<C::N>) -> Var<C::N> {
         let c = self.uninit();
-        self.operations.push(DslIr::CircuitSelectV(cond, a, b, c));
+        self.push_op(DslIr::CircuitSelectV(cond, a, b, c));
         c
     }
 
     /// Select a felt based on a condition.
     pub fn select_f(&mut self, cond: Var<C::N>, a: Felt<C::F>, b: Felt<C::F>) -> Felt<C::F> {
         let c = self.uninit();
-        self.operations.push(DslIr::CircuitSelectF(cond, a, b, c));
+        self.push_op(DslIr::CircuitSelectF(cond, a, b, c));
         c
     }
 
@@ -33,7 +33,7 @@ impl<C: Config> Builder<C> {
         b: Ext<C::F, C::EF>,
     ) -> Ext<C::F, C::EF> {
         let c = self.uninit();
-        self.operations.push(DslIr::CircuitSelectE(cond, a, b, c));
+        self.push_op(DslIr::CircuitSelectE(cond, a, b, c));
         c
     }
 
@@ -157,7 +157,7 @@ impl<C: Config> Builder<C> {
 
         // Call the DslIR instruction ExpReverseBitsLen, which modifies the memory pointed to by
         // `x_copy_arr_ptr`.
-        self.push(DslIr::ExpReverseBitsLen(x_copy_arr_ptr, ptr.address, bit_len_var));
+        self.push_op(DslIr::ExpReverseBitsLen(x_copy_arr_ptr, ptr.address, bit_len_var));
 
         // Return the value stored at the address pointed to by `x_copy_arr_ptr`.
         self.get(&x_copy_arr, 0)
@@ -227,14 +227,14 @@ impl<C: Config> Builder<C> {
     pub fn felts2ext(&mut self, felts: &[Felt<C::F>]) -> Ext<C::F, C::EF> {
         assert_eq!(felts.len(), 4);
         let out: Ext<C::F, C::EF> = self.uninit();
-        self.push(DslIr::CircuitFelts2Ext(felts.try_into().unwrap(), out));
+        self.push_op(DslIr::CircuitFelts2Ext(felts.try_into().unwrap(), out));
         out
     }
 
     /// Converts an ext to a slice of felts.
     pub fn ext2felt(&mut self, value: Ext<C::F, C::EF>) -> Array<C, Felt<C::F>> {
         let result = self.dyn_array(4);
-        self.operations.push(DslIr::HintExt2Felt(result.clone(), value));
+        self.push_op(DslIr::HintExt2Felt(result.clone(), value));
 
         // Verify that the decomposed extension element is correct.
         let mut reconstructed_ext: Ext<C::F, C::EF> = self.constant(C::EF::zero());
@@ -255,7 +255,7 @@ impl<C: Config> Builder<C> {
         let b = self.uninit();
         let c = self.uninit();
         let d = self.uninit();
-        self.operations.push(DslIr::CircuitExt2Felt([a, b, c, d], value));
+        self.push_op(DslIr::CircuitExt2Felt([a, b, c, d], value));
         [a, b, c, d]
     }
 }
