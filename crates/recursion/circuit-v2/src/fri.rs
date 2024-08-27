@@ -639,7 +639,7 @@ mod tests {
             );
         }
 
-        run_test_recursion(builder.operations, None);
+        run_test_recursion(builder.as_operations(), None);
     }
 
     #[test]
@@ -707,6 +707,6 @@ mod tests {
             rounds,
         );
 
-        run_test_recursion(builder.operations, std::iter::empty());
+        run_test_recursion(builder.as_operations(), std::iter::empty());
     }
 }

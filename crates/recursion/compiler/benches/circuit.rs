@@ -33,7 +33,7 @@ fn poseidon_program() -> TracedVec<DslIr<C>> {
             builder.assert_felt_eq(lhs, rhs);
         }
     }
-    builder.operations
+    builder.as_operations()
 }
 
 #[allow(dead_code)]

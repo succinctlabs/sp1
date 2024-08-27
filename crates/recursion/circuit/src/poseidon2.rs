@@ -101,7 +101,7 @@ pub mod tests {
         builder.assert_var_eq(c, output[2]);
 
         let mut backend = ConstraintCompiler::<OuterConfig>::default();
-        let constraints = backend.emit(builder.operations);
+        let constraints = backend.emit(builder.as_operations());
         PlonkBn254Prover::test::<OuterConfig>(constraints.clone(), Witness::default());
     }
 
@@ -120,7 +120,7 @@ pub mod tests {
         }
 
         let mut backend = ConstraintCompiler::<OuterConfig>::default();
-        let constraints = backend.emit(builder.operations);
+        let constraints = backend.emit(builder.as_operations());
         PlonkBn254Prover::test::<OuterConfig>(constraints.clone(), Witness::default());
     }
 
@@ -153,7 +153,7 @@ pub mod tests {
         builder.assert_var_eq(result[0], output[0]);
 
         let mut backend = ConstraintCompiler::<OuterConfig>::default();
-        let constraints = backend.emit(builder.operations);
+        let constraints = backend.emit(builder.as_operations());
         PlonkBn254Prover::test::<OuterConfig>(constraints.clone(), Witness::default());
     }
 
@@ -173,7 +173,7 @@ pub mod tests {
         builder.assert_var_eq(result[0], gt[0]);
 
         let mut backend = ConstraintCompiler::<OuterConfig>::default();
-        let constraints = backend.emit(builder.operations);
+        let constraints = backend.emit(builder.as_operations());
         PlonkBn254Prover::test::<OuterConfig>(constraints.clone(), Witness::default());
     }
 
@@ -222,7 +222,7 @@ pub mod tests {
         }
 
         let mut backend = ConstraintCompiler::<OuterConfig>::default();
-        let constraints = backend.emit(builder.operations);
+        let constraints = backend.emit(builder.as_operations());
         PlonkBn254Prover::test::<OuterConfig>(constraints.clone(), Witness::default());
     }
 }

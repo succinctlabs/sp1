@@ -157,9 +157,17 @@ impl<C: Config> Builder<C> {
         self.inner.borrow_mut().operations.push(op);
     }
 
+    pub fn extend_ops(&mut self, ops: impl IntoIterator<Item = (DslIr<C>, Option<Backtrace>)>) {
+        self.inner.borrow_mut().operations.extend(ops);
+    }
+
     /// Pushes an operation to the builder and records a trace if SP1_DEBUG.
     pub fn trace_push(&mut self, op: DslIr<C>) {
         self.inner.borrow_mut().operations.trace_push(op);
+    }
+
+    pub fn variable_count(&self) -> u32 {
+        self.inner.borrow().variable_count
     }
 
     pub fn as_operations(self) -> TracedVec<DslIr<C>> {
@@ -516,7 +524,7 @@ impl<'a, C: Config> IfBuilder<'a, C> {
 
         // Execute the `then` block and collect the instructions.
         let mut f_builder = Builder::<C>::new_sub_builder(
-            self.builder.variable_count,
+            self.builder.variable_count(),
             self.builder.nb_public_values,
             self.builder.p2_hash_num,
             self.builder.debug,
@@ -531,12 +539,12 @@ impl<'a, C: Config> IfBuilder<'a, C> {
         match condition {
             IfCondition::EqConst(lhs, rhs) => {
                 if lhs == rhs {
-                    self.builder.operations.extend(then_instructions);
+                    self.builder.extend_ops(then_instructions);
                 }
             }
             IfCondition::NeConst(lhs, rhs) => {
                 if lhs != rhs {
-                    self.builder.operations.extend(then_instructions);
+                    self.builder.extend_ops(then_instructions);
                 }
             }
             IfCondition::Eq(lhs, rhs) => {
@@ -566,7 +574,7 @@ impl<'a, C: Config> IfBuilder<'a, C> {
         // Get the condition reduced from the expressions for lhs and rhs.
         let condition = self.condition();
         let mut then_builder = Builder::<C>::new_sub_builder(
-            self.builder.variable_count,
+            self.builder.variable_count(),
             self.builder.nb_public_values,
             self.builder.p2_hash_num,
             self.builder.debug,
@@ -577,10 +585,10 @@ impl<'a, C: Config> IfBuilder<'a, C> {
         then_f(&mut then_builder);
         self.builder.p2_hash_num = then_builder.p2_hash_num;
 
-        let then_instructions = then_builder.operations;
+        let then_instructions = then_builder.as_operations();
 
         let mut else_builder = Builder::<C>::new_sub_builder(
-            self.builder.variable_count,
+            self.builder.variable_count(),
             self.builder.nb_public_values,
             self.builder.p2_hash_num,
             self.builder.debug,
@@ -595,33 +603,33 @@ impl<'a, C: Config> IfBuilder<'a, C> {
         match condition {
             IfCondition::EqConst(lhs, rhs) => {
                 if lhs == rhs {
-                    self.builder.operations.extend(then_instructions);
+                    self.builder.extend_ops(then_instructions);
                 } else {
-                    self.builder.operations.extend(else_instructions);
+                    self.builder.extend_ops(else_instructions);
                 }
             }
             IfCondition::NeConst(lhs, rhs) => {
                 if lhs != rhs {
-                    self.builder.operations.extend(then_instructions);
+                    self.builder.extend_ops(then_instructions);
                 } else {
-                    self.builder.operations.extend(else_instructions);
+                    self.builder.extend_ops(else_instructions);
                 }
             }
             IfCondition::Eq(lhs, rhs) => {
                 let op = DslIr::IfEq(Box::new((lhs, rhs, then_instructions, else_instructions)));
-                self.builder.operations.push(op);
+                self.builder.push_op(op);
             }
             IfCondition::EqI(lhs, rhs) => {
                 let op = DslIr::IfEqI(Box::new((lhs, rhs, then_instructions, else_instructions)));
-                self.builder.operations.push(op);
+                self.builder.push_op(op);
             }
             IfCondition::Ne(lhs, rhs) => {
                 let op = DslIr::IfNe(Box::new((lhs, rhs, then_instructions, else_instructions)));
-                self.builder.operations.push(op);
+                self.builder.push_op(op);
             }
             IfCondition::NeI(lhs, rhs) => {
                 let op = DslIr::IfNeI(Box::new((lhs, rhs, then_instructions, else_instructions)));
-                self.builder.operations.push(op);
+                self.builder.push_op(op);
             }
         }
     }
@@ -716,7 +724,7 @@ impl<'a, C: Config> RangeBuilder<'a, C> {
         let step_size = C::N::from_canonical_usize(self.step_size);
         let loop_variable: Var<C::N> = self.builder.uninit();
         let mut loop_body_builder = Builder::<C>::new_sub_builder(
-            self.builder.variable_count,
+            self.builder.variable_count(),
             self.builder.nb_public_values,
             self.builder.p2_hash_num,
             self.builder.debug,
@@ -726,7 +734,7 @@ impl<'a, C: Config> RangeBuilder<'a, C> {
         f(loop_variable, &mut loop_body_builder);
         self.builder.p2_hash_num = loop_body_builder.p2_hash_num;
 
-        let loop_instructions = loop_body_builder.operations;
+        let loop_instructions = loop_body_builder.as_operations();
 
         let op = DslIr::For(Box::new((
             self.start,
@@ -735,6 +743,6 @@ impl<'a, C: Config> RangeBuilder<'a, C> {
             loop_variable,
             loop_instructions,
         )));
-        self.builder.operations.push(op);
+        self.builder.push_op(op);
     }
 }

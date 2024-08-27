@@ -512,7 +512,7 @@ pub(crate) mod tests {
         builder.print_e(element_ef);
         builder.assert_ext_eq(expected_result_ef, element_ef);
 
-        run_test_recursion(builder.operations, None);
+        run_test_recursion(builder.as_operations(), None);
     }
 
     #[test]
@@ -575,7 +575,7 @@ pub(crate) mod tests {
         }
 
         let mut backend = ConstraintCompiler::<C>::default();
-        let constraints = backend.emit(builder.operations);
+        let constraints = backend.emit(builder.as_operations());
         let witness = OuterWitness::default();
         PlonkBn254Prover::test::<C>(constraints, witness);
     }
@@ -596,7 +596,7 @@ pub(crate) mod tests {
         builder.assert_var_eq(result[1][0], one);
 
         let mut backend = ConstraintCompiler::<C>::default();
-        let constraints = backend.emit(builder.operations);
+        let constraints = backend.emit(builder.as_operations());
         let witness = OuterWitness::default();
         PlonkBn254Prover::test::<C>(constraints, witness);
     }
@@ -630,7 +630,7 @@ pub(crate) mod tests {
         builder.assert_var_eq(result[0], output[0]);
 
         let mut backend = ConstraintCompiler::<C>::default();
-        let constraints = backend.emit(builder.operations);
+        let constraints = backend.emit(builder.as_operations());
         PlonkBn254Prover::test::<C>(constraints.clone(), OuterWitness::default());
     }
 
@@ -651,7 +651,7 @@ pub(crate) mod tests {
         builder.assert_var_eq(result[0], gt[0]);
 
         let mut backend = ConstraintCompiler::<C>::default();
-        let constraints = backend.emit(builder.operations);
+        let constraints = backend.emit(builder.as_operations());
         PlonkBn254Prover::test::<C>(constraints.clone(), OuterWitness::default());
     }
 }
