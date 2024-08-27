@@ -361,9 +361,9 @@ where
                     let exp_val = exp_bits
                         .iter()
                         .enumerate()
-                        .fold(0, |acc, (i, &val)| acc + val.as_canonical_u32() * (1 << i));
-                    let out =
-                        base_val.exp_u64(reverse_bits_len(exp_val as usize, exp_bits.len()) as u64);
+                        .map(|(i, &val)| val.as_canonical_u32() * (1 << i))
+                        .sum::<u32>();
+                    let out = base_val.exp_u64(exp_val as u64);
                     self.memory.mw(result, Block::from(out), mult);
                     self.record.exp_bits_events.push(ExpReverseBitsEvent {
                         result: out,

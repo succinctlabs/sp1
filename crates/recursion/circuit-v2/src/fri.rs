@@ -113,14 +113,13 @@ pub fn verify_two_adic_pcs<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigV
                     let log_height = log2_strict_usize(mat_domain.size()) + config.log_blowup;
 
                     let bits_reduced = log_global_max_height - log_height;
-                    let reduced_index_bits_trunc =
-                        index_bits[bits_reduced..(bits_reduced + log_height)].to_vec();
+                    let reduced_index_bits_trunc = &index_bits[bits_reduced..log_global_max_height];
 
                     let g = builder.generator();
                     let two_adic_generator: Felt<_> =
                         builder.eval(C::F::two_adic_generator(log_height));
                     let two_adic_generator_exp =
-                        C::exp_bits(builder, two_adic_generator, reduced_index_bits_trunc);
+                        C::exp_reverse_bits(builder, two_adic_generator, reduced_index_bits_trunc);
                     let x: Felt<_> = builder.eval(g * two_adic_generator_exp);
 
                     for (z, ps_at_z) in izip!(mat_points, mat_values) {
@@ -193,7 +192,7 @@ pub fn verify_query<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVariable
     let mut folded_eval: Ext<_, _> = builder.constant(C::EF::zero());
     let two_adic_generator: Felt<_> = builder.constant(C::F::two_adic_generator(log_max_height));
 
-    let x_felt = C::exp_bits(builder, two_adic_generator, index_bits[..log_max_height].to_vec());
+    let x_felt = C::exp_reverse_bits(builder, two_adic_generator, &index_bits[..log_max_height]);
     let mut x: Ext<_, _> = builder.eval(SymbolicExt::one() * SymbolicFelt::from(x_felt));
 
     for (offset, log_folded_height, commit, step, beta) in izip!(

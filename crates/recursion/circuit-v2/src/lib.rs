@@ -113,10 +113,10 @@ pub trait CircuitConfig: Config {
         ext: Ext<<Self as Config>::F, <Self as Config>::EF>,
     ) -> [Felt<<Self as Config>::F>; D];
 
-    fn exp_bits(
+    fn exp_reverse_bits(
         builder: &mut Builder<Self>,
         input: Felt<<Self as Config>::F>,
-        power_bits: Vec<Self::Bit>,
+        power_bits: &[Self::Bit],
     ) -> Felt<<Self as Config>::F>;
 
     fn num2bits(
@@ -161,12 +161,12 @@ impl CircuitConfig for InnerConfig {
         builder.ext2felt_v2(ext)
     }
 
-    fn exp_bits(
+    fn exp_reverse_bits(
         builder: &mut Builder<Self>,
         input: Felt<<Self as Config>::F>,
-        power_bits: Vec<Felt<<Self as Config>::F>>,
+        power_bits: &[Felt<<Self as Config>::F>],
     ) -> Felt<<Self as Config>::F> {
-        builder.exp_bits_v2(input, power_bits)
+        builder.exp_bits_v2(input, power_bits.iter().rev().cloned().collect())
     }
 
     fn num2bits(
@@ -225,18 +225,15 @@ impl CircuitConfig for OuterConfig {
         felts
     }
 
-    fn exp_bits(
+    fn exp_reverse_bits(
         builder: &mut Builder<Self>,
         input: Felt<<Self as Config>::F>,
-        power_bits: Vec<Var<<Self as Config>::N>>,
+        power_bits: &[Var<<Self as Config>::N>],
     ) -> Felt<<Self as Config>::F> {
         let mut result = builder.constant(Self::F::one());
         let power_f = input;
-        let bit_len = power_bits.len();
 
-        for i in 1..=bit_len {
-            let index = bit_len - i;
-            let bit = power_bits[index];
+        for &bit in power_bits.iter().rev() {
             let prod = builder.eval(result * power_f);
             result = builder.select_f(bit, prod, result);
             builder.assign(power_f, power_f * power_f);
