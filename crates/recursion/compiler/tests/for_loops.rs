@@ -207,10 +207,6 @@ fn test_compiler_bneinc() {
         builder.assign(i_counter, i_counter + F::one());
     });
 
-    let code = builder.clone().compile_asm();
-
-    println!("{}", code);
-
     let program = builder.compile_program();
 
     let config = SC::default();
