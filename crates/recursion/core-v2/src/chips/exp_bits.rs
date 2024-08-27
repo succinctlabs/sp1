@@ -140,7 +140,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for ExpBitsChip<DEGREE>
         Some(trace)
     }
 
-    #[instrument(name = "generate exp reverse bits len trace", level = "debug", skip_all, fields(rows = input.exp_bits_events.len()))]
+    #[instrument(name = "generate exp bits trace", level = "debug", skip_all, fields(rows = input.exp_bits_events.len()))]
     fn generate_trace(
         &self,
         input: &ExecutionRecord<F>,
@@ -190,11 +190,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for ExpBitsChip<DEGREE>
             RowMajorMatrix::new(overall_rows.into_iter().flatten().collect(), NUM_EXP_BITS_COLS);
 
         #[cfg(debug_assertions)]
-        println!(
-            "exp reverse bits len trace dims is width: {:?}, height: {:?}",
-            trace.width(),
-            trace.height()
-        );
+        println!("exp bits trace dims is width: {:?}, height: {:?}", trace.width(), trace.height());
 
         trace
     }
@@ -318,7 +314,7 @@ mod tests {
         chips::exp_bits::ExpBitsChip,
         machine::tests::run_recursion_test_machines,
         runtime::{instruction as instr, ExecutionRecord},
-        ExpReverseBitsEvent, Instruction, MemAccessKind, RecursionProgram,
+        ExpBitsEvent, Instruction, MemAccessKind, RecursionProgram,
     };
 
     #[test]
@@ -382,7 +378,7 @@ mod tests {
         type F = BabyBear;
 
         let shard = ExecutionRecord {
-            exp_bits_events: vec![ExpReverseBitsEvent {
+            exp_bits_events: vec![ExpBitsEvent {
                 base: F::two(),
                 exp: vec![F::zero(), F::one(), F::one()],
                 result: F::two().exp_u64(0b110),

@@ -137,7 +137,7 @@ pub struct ExpBitsInstr<F> {
 /// The event encoding the inputs and outputs of an exp-reverse-bits operation. The `len` operand is
 /// now stored as the length of the `exp` field.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ExpReverseBitsEvent<F> {
+pub struct ExpBitsEvent<F> {
     pub base: F,
     pub exp: Vec<F>,
     pub result: F,

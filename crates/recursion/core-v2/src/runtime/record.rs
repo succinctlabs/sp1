@@ -21,7 +21,7 @@ pub struct ExecutionRecord<F> {
     pub public_values: RecursionPublicValues<F>,
 
     pub poseidon2_events: Vec<Poseidon2Event<F>>,
-    pub exp_bits_events: Vec<ExpReverseBitsEvent<F>>,
+    pub exp_bits_events: Vec<ExpBitsEvent<F>>,
     pub fri_fold_events: Vec<FriFoldEvent<F>>,
     pub commit_pv_hash_events: Vec<CommitPublicValuesEvent<F>>,
 }

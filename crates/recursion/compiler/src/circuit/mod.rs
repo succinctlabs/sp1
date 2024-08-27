@@ -106,7 +106,7 @@ mod tests {
                 fixed_log2_rows: Some(((POSEIDON_OPERATIONS - 1).ilog2() + 1) as usize),
                 pad: true,
             }),
-            A::ExpReverseBitsLen(ExpBitsChip::<DEGREE> {
+            A::ExpBits(ExpBitsChip::<DEGREE> {
                 fixed_log2_rows: Some(((EXP_REVERSE_BITS_LEN_OPERATIONS - 1).ilog2() + 1) as usize),
                 pad: true,
             }),

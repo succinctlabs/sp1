@@ -29,7 +29,6 @@ use itertools::Itertools;
 use p3_field::{AbstractField, ExtensionField, PrimeField32};
 use p3_poseidon2::{Poseidon2, Poseidon2ExternalMatrixGeneral};
 use p3_symmetric::{CryptographicPermutation, Permutation};
-use p3_util::reverse_bits_len;
 use thiserror::Error;
 
 use sp1_recursion_core::air::{Block, RECURSIVE_PROOF_NUM_PV_ELTS};
@@ -213,7 +212,7 @@ where
         tracing::debug!("Total Cycles: {}", self.timestamp);
         tracing::debug!("Poseidon Skinny Operations: {}", self.nb_poseidons);
         tracing::debug!("Poseidon Wide Operations: {}", self.nb_wide_poseidons);
-        tracing::debug!("Exp Reverse Bits Operations: {}", self.nb_exp_bits);
+        tracing::debug!("Exp Bits Operations: {}", self.nb_exp_bits);
         tracing::debug!("FriFold Operations: {}", self.nb_fri_fold);
         tracing::debug!("Field Operations: {}", self.nb_base_ops);
         tracing::debug!("Extension Operations: {}", self.nb_ext_ops);
@@ -365,7 +364,7 @@ where
                         .sum::<u32>();
                     let out = base_val.exp_u64(exp_val as u64);
                     self.memory.mw(result, Block::from(out), mult);
-                    self.record.exp_bits_events.push(ExpReverseBitsEvent {
+                    self.record.exp_bits_events.push(ExpBitsEvent {
                         result: out,
                         base: base_val,
                         exp: exp_bits,
