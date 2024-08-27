@@ -69,10 +69,10 @@ pub struct SP1DeferredWitnessVariable<
 impl<C, SC, A> SP1DeferredVerifier<C, SC, A>
 where
     SC: BabyBearFriConfigVariable<
-            C,
-            FriChallengerVariable = DuplexChallengerVariable<C>,
-            Digest = [Felt<BabyBear>; DIGEST_SIZE],
-        >,
+        C,
+        FriChallengerVariable = DuplexChallengerVariable<C>,
+        Digest = [Felt<BabyBear>; DIGEST_SIZE],
+    >,
     C: CircuitConfig<F = SC::Val, EF = SC::Challenge, Bit = Felt<BabyBear>>,
     <SC::ValMmcs as Mmcs<BabyBear>>::ProverData<RowMajorMatrix<BabyBear>>: Clone,
     A: MachineAir<SC::Val> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, C>>,

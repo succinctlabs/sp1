@@ -14,17 +14,18 @@ use p3_field::AbstractField;
 use p3_maybe_rayon::prelude::*;
 use serde::{de::DeserializeOwned, Serialize};
 use size::Size;
-use sp1_stark::MachineProvingKey;
-use sp1_stark::{baby_bear_poseidon2::BabyBearPoseidon2, MachineVerificationError};
+use sp1_stark::{
+    baby_bear_poseidon2::BabyBearPoseidon2, MachineProvingKey, MachineVerificationError,
+};
 use std::thread::ScopedJoinHandle;
 use thiserror::Error;
 
 use p3_baby_bear::BabyBear;
 use p3_field::PrimeField32;
 
-use crate::riscv::cost::CostEstimator;
 use crate::{
     io::{SP1PublicValues, SP1Stdin},
+    riscv::cost::CostEstimator,
     utils::{chunk_vec, concurrency::TurnBasedSync},
 };
 use sp1_core_executor::events::sorted_table_lines;

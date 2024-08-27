@@ -2,8 +2,7 @@ use std::fs::File;
 
 use anyhow::Result;
 use clap::Parser;
-use sp1_sdk::HashableKey;
-use sp1_sdk::ProverClient;
+use sp1_sdk::{HashableKey, ProverClient};
 use std::io::Read;
 
 #[derive(Parser)]

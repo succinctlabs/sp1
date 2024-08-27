@@ -2,11 +2,11 @@ use std::mem::MaybeUninit;
 
 use p3_baby_bear::BabyBear;
 use p3_bn254_fr::Bn254Fr;
-use p3_field::AbstractField;
-use p3_field::PrimeField32;
+use p3_field::{AbstractField, PrimeField32};
 
 use sp1_recursion_compiler::ir::{Builder, Config, Felt, Var};
 use sp1_recursion_core_v2::{air::ChallengerPublicValues, DIGEST_SIZE};
+
 use sp1_stark::Word;
 
 pub(crate) unsafe fn uninit_challenger_pv<C: Config>(
@@ -105,6 +105,7 @@ pub(crate) mod tests {
     use sp1_recursion_core_v2::{machine::RecursionAir, Runtime};
     use sp1_stark::{
         baby_bear_poseidon2::BabyBearPoseidon2, CpuProver, InnerChallenge, InnerVal, MachineProver,
+        MachineProvingKey,
     };
 
     use crate::witness::WitnessBlock;
@@ -142,6 +143,7 @@ pub(crate) mod tests {
         let proof_wide_span = tracing::debug_span!("Run test with wide machine").entered();
         let wide_machine = RecursionAir::<_, 3, 0>::compress_machine(SC::default());
         let (pk, vk) = wide_machine.setup(&program);
+        let pk = P::DeviceProvingKey::from_host(pk);
         let result = run_test_machine_with_prover::<_, _, P>(records.clone(), wide_machine, pk, vk);
         proof_wide_span.exit();
 

@@ -134,7 +134,8 @@ pub fn verify_two_adic_pcs<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigV
                             let pow = log_height_pow[log_height];
                             // Fill in any missing powers of alpha.
                             for _ in alpha_pows.len()..pow + 1 {
-                                // let new_alpha = builder.eval(*alpha_pows.last().unwrap() * alpha);
+                                // let new_alpha = builder.eval(*alpha_pows.last().unwrap() *
+                                // alpha);
                                 let new_alpha: Ext<_, _> = builder.uninit();
                                 builder.operations.push(DslIr::MulE(
                                     new_alpha,
@@ -281,8 +282,8 @@ pub fn verify_query<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVariable
 
         // Unroll the `folded_eval` calculation to avoid symbolic expression overhead.
         // folded_eval = builder
-        //     .eval(evals_ext[0] + (beta - xs[0]) * (evals_ext[1] - evals_ext[0]) / (xs[1] - xs[0]));
-        // x = builder.eval(x * x);
+        //     .eval(evals_ext[0] + (beta - xs[0]) * (evals_ext[1] - evals_ext[0]) / (xs[1] -
+        // xs[0])); x = builder.eval(x * x);
 
         // let temp_1 = xs[1] - xs[0];
         let temp_1: Felt<_> = builder.uninit();

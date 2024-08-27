@@ -75,11 +75,11 @@ where
     ///   implementation in this function assumes a fixed recursive verifier speicified by
     ///   `recursive_vk`.
     /// - Deferred proofs: proofs which are recursive proof of a batch of deferred proofs. The
-    ///   implementation in this function assumes a fixed deferred verification program specified
-    ///   by `deferred_vk`.
-    /// - Compress proofs: these are proofs which refer to a prove of this program. The key for
-    ///   it is part of public values will be propagated accross all levels of recursion and will
-    ///   be checked against itself as in [sp1_prover::Prover] or as in [super::SP1RootVerifier].
+    ///   implementation in this function assumes a fixed deferred verification program specified by
+    ///   `deferred_vk`.
+    /// - Compress proofs: these are proofs which refer to a prove of this program. The key for it
+    ///   is part of public values will be propagated accross all levels of recursion and will be
+    ///   checked against itself as in [sp1_prover::Prover] or as in [super::SP1RootVerifier].
     pub fn verify(
         builder: &mut Builder<C>,
         machine: &StarkMachine<SC, A>,
@@ -259,7 +259,8 @@ where
             // // Consistency checks for all accumulated values.
 
             // Assert that the sp1_vk digest is always the same.
-            // for (digest, current) in sp1_vk_digest.iter().zip(current_public_values.sp1_vk_digest) {
+            // for (digest, current) in
+            // sp1_vk_digest.iter().zip(current_public_values.sp1_vk_digest) {
             //     builder.assert_felt_eq(*digest, current);
             // }
 
@@ -305,9 +306,9 @@ where
 
             // Digest constraints.
             {
-                // // If `commited_value_digest` is not zero, then `public_values.commited_value_digest
-                // // should be the current value.
-                // let is_zero: Var<_> = builder.eval(C::N::one());
+                // // If `commited_value_digest` is not zero, then
+                // `public_values.commited_value_digest // should be the current
+                // value. let is_zero: Var<_> = builder.eval(C::N::one());
                 // #[allow(clippy::needless_range_loop)]
                 // for i in 0..committed_value_digest.len() {
                 //     for j in 0..WORD_SIZE {
@@ -339,9 +340,9 @@ where
                     }
                 }
 
-                // // If `deferred_proofs_digest` is not zero, then `public_values.deferred_proofs_digest
-                // // should be the current value.
-                // let is_zero: Var<_> = builder.eval(C::N::one());
+                // // If `deferred_proofs_digest` is not zero, then
+                // `public_values.deferred_proofs_digest // should be the current
+                // value. let is_zero: Var<_> = builder.eval(C::N::one());
                 // #[allow(clippy::needless_range_loop)]
                 // for i in 0..deferred_proofs_digest.len() {
                 //     let d = felt2var(builder, deferred_proofs_digest[i]);
@@ -457,8 +458,8 @@ where
         // Set the exit code.
         compress_public_values.exit_code = exit_code;
 
-        // // If the proof is complete, make completeness assertions and set the flag. Otherwise, check
-        // // the flag is zero and set the public value to zero.
+        // // If the proof is complete, make completeness assertions and set the flag. Otherwise,
+        // check // the flag is zero and set the public value to zero.
         // builder.if_eq(is_complete, C::N::one()).then_or_else(
         //     |builder| {
         //         builder.assign(compress_public_values.is_complete, C::F::one());

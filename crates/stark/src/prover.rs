@@ -16,10 +16,9 @@ use super::{
     quotient_values, Com, OpeningProof, StarkGenericConfig, StarkMachine, StarkProvingKey, Val,
     VerifierConstraintFolder,
 };
-use crate::Challenger;
 use crate::{
     air::MachineAir, lookup::InteractionBuilder, opts::SP1CoreOpts, record::MachineRecord,
-    DebugConstraintBuilder, MachineChip, MachineProof, PackedChallenge, PcsProverData,
+    Challenger, DebugConstraintBuilder, MachineChip, MachineProof, PackedChallenge, PcsProverData,
     ProverConstraintFolder, ShardCommitment, ShardMainData, ShardProof, StarkVerifyingKey,
 };
 
