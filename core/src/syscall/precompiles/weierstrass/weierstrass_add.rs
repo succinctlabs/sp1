@@ -282,7 +282,12 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
 
             rows.push(row);
         }
-        output.add_byte_lookup_events(new_byte_lookup_events);
+        let syscall_blu = output
+            .syscall_byte_lookups
+            .entry(SyscallCode::ED_DECOMPRESS)
+            .or_default();
+
+        syscall_blu.add_byte_lookup_events(new_byte_lookup_events);
 
         pad_rows(&mut rows, || {
             let mut row = vec![F::zero(); num_weierstrass_add_cols::<E::BaseField>()];

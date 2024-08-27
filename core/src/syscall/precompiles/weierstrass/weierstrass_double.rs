@@ -30,7 +30,6 @@ use crate::runtime::ExecutionRecord;
 use crate::runtime::Program;
 use crate::runtime::Syscall;
 use crate::runtime::SyscallCode;
-use crate::stark::MachineRecord;
 use crate::syscall::precompiles::create_ec_double_event;
 use crate::syscall::precompiles::SyscallContext;
 use crate::utils::ec::weierstrass::WeierstrassParameters;
@@ -250,10 +249,9 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
         let chunk_size = std::cmp::max(events.len() / num_cpus::get(), 1);
 
         // Generate the trace rows & corresponding records for each chunk of events in parallel.
-        let rows_and_records = events
+        let rows_and_blus = events
             .par_chunks(chunk_size)
             .map(|events| {
-                let mut record = ExecutionRecord::default();
                 let mut new_byte_lookup_events = Vec::new();
 
                 let rows = events
@@ -296,16 +294,21 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
                         row
                     })
                     .collect::<Vec<_>>();
-                record.add_byte_lookup_events(new_byte_lookup_events);
-                (rows, record)
+                (rows, new_byte_lookup_events)
             })
             .collect::<Vec<_>>();
 
         // Generate the trace rows for each event.
         let mut rows = Vec::new();
-        for mut row_and_record in rows_and_records {
-            rows.extend(row_and_record.0);
-            output.append(&mut row_and_record.1);
+        for (chunk_rows, chunk_blus) in rows_and_blus {
+            rows.extend(chunk_rows);
+
+            let syscall_blu = output
+                .syscall_byte_lookups
+                .entry(SyscallCode::ED_DECOMPRESS)
+                .or_default();
+
+            syscall_blu.add_byte_lookup_events(chunk_blus);
         }
 
         pad_rows(&mut rows, || {
