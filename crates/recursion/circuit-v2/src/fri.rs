@@ -7,7 +7,7 @@ use p3_util::log2_strict_usize;
 use sp1_recursion_compiler::ir::{Builder, DslIr, Felt, SymbolicExt};
 use std::{
     cmp::Reverse,
-    iter::{once, repeat, repeat_with, zip},
+    iter::{once, repeat_with, zip},
 };
 
 use crate::{
@@ -93,12 +93,6 @@ pub fn verify_two_adic_pcs<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigV
                 let mats = round.domains_points_and_opens;
                 let batch_heights =
                     mats.iter().map(|mat| mat.domain.size() << config.log_blowup).collect_vec();
-
-                let batch_heights_and_cached_powers: Vec<(usize, Option<Felt<_>>)> = batch_heights
-                    .iter()
-                    .copied()
-                    .map(|height| (height, Option::<Felt<C::F>>::None))
-                    .collect_vec();
 
                 let batch_max_height = batch_heights.iter().max().expect("Empty batch?");
                 let log_batch_max_height = log2_strict_usize(*batch_max_height);
