@@ -93,6 +93,8 @@ impl<F: PrimeField> MachineAir<F> for AddSubChip {
                         let cols: &mut AddSubCols<F> = row.as_mut_slice().borrow_mut();
                         let mut blu = Vec::new();
                         self.event_to_row(event, cols, &mut blu);
+                        //self.event_to_row_alt(event, cols, &mut blu);
+                        //self.event_to_row2(event, cols, &mut blu);
                         row
                     })
                     .collect::<Vec<_>>();
@@ -150,6 +152,28 @@ impl<F: PrimeField> MachineAir<F> for AddSubChip {
     }
 }
 
+#[repr(C)]
+pub struct AddSubColsC {
+    shard: u32,
+    channel: u8,
+    is_add: bool,
+    is_sub: bool,
+    operand_1: u32,
+    operand_2: u32,
+}
+
+extern "C" {
+    fn event_to_row_alt_c(
+        shard: u32,
+        channel: u8,
+        is_add: bool,
+        a: u32,
+        b: u32,
+        c: u32,
+        cols: *mut AddSubColsC,
+    );
+}
+
 impl AddSubChip {
     /// Create a row from an event.
     fn event_to_row<F: PrimeField>(
@@ -167,9 +191,74 @@ impl AddSubChip {
         let operand_1 = if is_add { event.b } else { event.a };
         let operand_2 = event.c;
 
-        cols.add_operation.populate(blu, event.shard, event.channel, operand_1, operand_2);
+        //cols.add_operation.populate(blu, event.shard, event.channel, operand_1, operand_2);
+        cols.add_operation.populate_alt(blu, event.shard, event.channel, operand_1, operand_2);
         cols.operand_1 = Word::from(operand_1);
         cols.operand_2 = Word::from(operand_2);
+    }
+
+    // fn event_to_row2<F: PrimeField>(
+    //     &self,
+    //     event: &AluEvent,
+    //     cols: &mut AddSubCols<F>,
+    //     blu: &mut impl ByteRecord,
+    // ) {
+    //     let is_add = event.opcode == Opcode::ADD;
+    //     cols.shard = F::from_canonical_u32(event.shard);
+    //     cols.channel = F::from_canonical_u8(event.channel);
+    //     cols.is_add = F::from_bool(is_add);
+    //     cols.is_sub = F::from_bool(!is_add);
+
+    //     let operand_1 = if is_add { event.b } else { event.a };
+    //     let operand_2 = event.c;
+
+    //     cols.add_operation.populate(blu, event.shard, event.channel, operand_1, operand_2);
+    //     cols.operand_1 = Word::from(operand_1);
+    //     cols.operand_2 = Word::from(operand_2);
+    // }
+
+    fn event_to_row_alt<F: PrimeField>(
+        &self,
+        event: &AluEvent,
+        cols: &mut AddSubCols<F>,
+        blu: &mut impl ByteRecord,
+    ) {
+        let is_add = event.opcode == Opcode::ADD;
+        let mut cols_c = AddSubColsC {
+            shard: 0,
+            channel: 0,
+            is_add: false,
+            is_sub: false,
+            operand_1: 0,
+            operand_2: 0,
+        };
+
+        unsafe {
+            event_to_row_alt_c(
+                event.shard,
+                event.channel,
+                is_add,
+                event.a,
+                event.b,
+                event.c,
+                &mut cols_c,
+            );
+        }
+
+        cols.shard = F::from_canonical_u32(cols_c.shard);
+        cols.channel = F::from_canonical_u8(cols_c.channel);
+        cols.is_add = F::from_bool(cols_c.is_add);
+        cols.is_sub = F::from_bool(cols_c.is_sub);
+        cols.operand_1 = Word::from(cols_c.operand_1);
+        cols.operand_2 = Word::from(cols_c.operand_2);
+
+        cols.add_operation.populate_alt(
+            blu,
+            cols_c.shard,
+            cols_c.channel,
+            cols_c.operand_1,
+            cols_c.operand_2,
+        );
     }
 }
 

@@ -88,3 +88,6 @@ debug = []
 
 [lib]
 bench = false
+
+[build-dependencies]
+cc = "1.0"

@@ -18,6 +18,10 @@ pub struct AddOperation<T> {
     pub carry: [T; 3],
 }
 
+extern "C" {
+    fn populate_c(a_u32: u32, b_u32: u32, carry_out: *mut u8, overflow_out: *mut u8) -> u32;
+}
+
 impl<F: Field> AddOperation<F> {
     pub fn populate(
         &mut self,
@@ -56,6 +60,41 @@ impl<F: Field> AddOperation<F> {
             record.add_u8_range_checks(shard, channel, &b);
             record.add_u8_range_checks(shard, channel, &expected.to_le_bytes());
         }
+        expected
+    }
+
+    pub fn populate_alt(
+        &mut self,
+        record: &mut impl ByteRecord,
+        shard: u32,
+        channel: u8,
+        a_u32: u32,
+        b_u32: u32,
+    ) -> u32 {
+        let mut carry = [0u8, 0u8, 0u8];
+        let mut overflow = 0u8;
+
+        let expected = unsafe { populate_c(a_u32, b_u32, carry.as_mut_ptr(), &mut overflow) };
+
+        self.value = Word::from(expected);
+
+        for i in 0..3 {
+            if carry[i] == 1 {
+                self.carry[i] = F::one();
+            }
+        }
+
+        debug_assert_eq!((overflow as u32).wrapping_mul((overflow as u32).wrapping_sub(256)), 0);
+
+        // Range check
+        {
+            let a = a_u32.to_le_bytes();
+            let b = b_u32.to_le_bytes();
+            record.add_u8_range_checks(shard, channel, &a);
+            record.add_u8_range_checks(shard, channel, &b);
+            record.add_u8_range_checks(shard, channel, &expected.to_le_bytes());
+        }
+
         expected
     }
 
