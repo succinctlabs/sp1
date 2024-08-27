@@ -234,10 +234,10 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
         let divrem_events = input.divrem_events.clone();
         for event in divrem_events.iter() {
             assert!(
-                event.opcode == Opcode::DIVU ||
-                    event.opcode == Opcode::REMU ||
-                    event.opcode == Opcode::REM ||
-                    event.opcode == Opcode::DIV
+                event.opcode == Opcode::DIVU
+                    || event.opcode == Opcode::REMU
+                    || event.opcode == Opcode::REM
+                    || event.opcode == Opcode::DIV
             );
             let mut row = [F::zero(); NUM_DIVREM_COLS];
             let cols: &mut DivRemCols<F> = row.as_mut_slice().borrow_mut();
@@ -649,9 +649,9 @@ where
 
             builder.assert_eq(
                 local.is_overflow,
-                local.is_overflow_b.is_diff_zero.result *
-                    local.is_overflow_c.is_diff_zero.result *
-                    is_signed,
+                local.is_overflow_b.is_diff_zero.result
+                    * local.is_overflow_c.is_diff_zero.result
+                    * is_signed,
             );
         }
 
@@ -796,8 +796,8 @@ where
                 let mut v = vec![zero.clone(); WORD_SIZE];
 
                 // Set the least significant byte to 1 if is_c_0 is true.
-                v[0] = local.is_c_0.result * one.clone() +
-                    (one.clone() - local.is_c_0.result) * local.abs_c[0];
+                v[0] = local.is_c_0.result * one.clone()
+                    + (one.clone() - local.is_c_0.result) * local.abs_c[0];
 
                 // Set the remaining bytes to 0 if is_c_0 is true.
                 for i in 1..WORD_SIZE {
@@ -927,10 +927,10 @@ where
                 let div: AB::Expr = AB::F::from_canonical_u32(Opcode::DIV as u32).into();
                 let rem: AB::Expr = AB::F::from_canonical_u32(Opcode::REM as u32).into();
 
-                local.is_divu * divu +
-                    local.is_remu * remu +
-                    local.is_div * div +
-                    local.is_rem * rem
+                local.is_divu * divu
+                    + local.is_remu * remu
+                    + local.is_div * div
+                    + local.is_rem * rem
             };
 
             builder.receive_alu(

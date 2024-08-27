@@ -454,8 +454,8 @@ where
 
         // Receive the arguments.
         builder.receive_alu(
-            local.is_slt * AB::F::from_canonical_u32(Opcode::SLT as u32) +
-                local.is_sltu * AB::F::from_canonical_u32(Opcode::SLTU as u32),
+            local.is_slt * AB::F::from_canonical_u32(Opcode::SLT as u32)
+                + local.is_sltu * AB::F::from_canonical_u32(Opcode::SLTU as u32),
             local.a,
             local.b,
             local.c,

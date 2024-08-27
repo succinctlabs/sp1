@@ -99,15 +99,15 @@ impl CostEstimator for ExecutionReport {
         total_chips += 1;
 
         let bls12381_fp_events =
-            *self.syscall_counts.get(&SyscallCode::BLS12381_FP_ADD).unwrap_or(&0) +
-                *self.syscall_counts.get(&SyscallCode::BLS12381_FP_SUB).unwrap_or(&0) +
-                *self.syscall_counts.get(&SyscallCode::BLS12381_FP_MUL).unwrap_or(&0);
+            *self.syscall_counts.get(&SyscallCode::BLS12381_FP_ADD).unwrap_or(&0)
+                + *self.syscall_counts.get(&SyscallCode::BLS12381_FP_SUB).unwrap_or(&0)
+                + *self.syscall_counts.get(&SyscallCode::BLS12381_FP_MUL).unwrap_or(&0);
         total_area += (bls12381_fp_events as u64) * costs[&RiscvAirDiscriminants::Bls12381Fp];
         total_chips += 1;
 
         let bls12381_fp2_addsub_events =
-            *self.syscall_counts.get(&SyscallCode::BLS12381_FP2_ADD).unwrap_or(&0) +
-                *self.syscall_counts.get(&SyscallCode::BLS12381_FP2_SUB).unwrap_or(&0);
+            *self.syscall_counts.get(&SyscallCode::BLS12381_FP2_ADD).unwrap_or(&0)
+                + *self.syscall_counts.get(&SyscallCode::BLS12381_FP2_SUB).unwrap_or(&0);
         total_area +=
             (bls12381_fp2_addsub_events as u64) * costs[&RiscvAirDiscriminants::Bls12381Fp2AddSub];
         total_chips += 1;
@@ -118,15 +118,15 @@ impl CostEstimator for ExecutionReport {
             (bls12381_fp2_mul_events as u64) * costs[&RiscvAirDiscriminants::Bls12381Fp2Mul];
         total_chips += 1;
 
-        let bn254_fp_events = *self.syscall_counts.get(&SyscallCode::BN254_FP_ADD).unwrap_or(&0) +
-            *self.syscall_counts.get(&SyscallCode::BN254_FP_SUB).unwrap_or(&0) +
-            *self.syscall_counts.get(&SyscallCode::BN254_FP_MUL).unwrap_or(&0);
+        let bn254_fp_events = *self.syscall_counts.get(&SyscallCode::BN254_FP_ADD).unwrap_or(&0)
+            + *self.syscall_counts.get(&SyscallCode::BN254_FP_SUB).unwrap_or(&0)
+            + *self.syscall_counts.get(&SyscallCode::BN254_FP_MUL).unwrap_or(&0);
         total_area += (bn254_fp_events as u64) * costs[&RiscvAirDiscriminants::Bn254Fp];
         total_chips += 1;
 
         let bn254_fp2_addsub_events =
-            *self.syscall_counts.get(&SyscallCode::BN254_FP2_ADD).unwrap_or(&0) +
-                *self.syscall_counts.get(&SyscallCode::BN254_FP2_SUB).unwrap_or(&0);
+            *self.syscall_counts.get(&SyscallCode::BN254_FP2_ADD).unwrap_or(&0)
+                + *self.syscall_counts.get(&SyscallCode::BN254_FP2_SUB).unwrap_or(&0);
         total_area +=
             (bn254_fp2_addsub_events as u64) * costs[&RiscvAirDiscriminants::Bn254Fp2AddSub];
         total_chips += 1;
@@ -142,33 +142,33 @@ impl CostEstimator for ExecutionReport {
             (bls12381_decompress_events as u64) * costs[&RiscvAirDiscriminants::Bls12381Decompress];
         total_chips += 1;
 
-        let divrem_events = *self.opcode_counts.get(&Opcode::DIV).unwrap_or(&0) +
-            *self.opcode_counts.get(&Opcode::REM).unwrap_or(&0) +
-            *self.opcode_counts.get(&Opcode::DIVU).unwrap_or(&0) +
-            *self.opcode_counts.get(&Opcode::REMU).unwrap_or(&0);
+        let divrem_events = *self.opcode_counts.get(&Opcode::DIV).unwrap_or(&0)
+            + *self.opcode_counts.get(&Opcode::REM).unwrap_or(&0)
+            + *self.opcode_counts.get(&Opcode::DIVU).unwrap_or(&0)
+            + *self.opcode_counts.get(&Opcode::REMU).unwrap_or(&0);
         total_area += (divrem_events as u64) * costs[&RiscvAirDiscriminants::DivRem];
         total_chips += 1;
 
-        let addsub_events = *self.opcode_counts.get(&Opcode::ADD).unwrap_or(&0) +
-            *self.opcode_counts.get(&Opcode::SUB).unwrap_or(&0);
+        let addsub_events = *self.opcode_counts.get(&Opcode::ADD).unwrap_or(&0)
+            + *self.opcode_counts.get(&Opcode::SUB).unwrap_or(&0);
         total_area += (addsub_events as u64) * costs[&RiscvAirDiscriminants::Add];
         total_chips += 1;
 
-        let bitwise_events = *self.opcode_counts.get(&Opcode::AND).unwrap_or(&0) +
-            *self.opcode_counts.get(&Opcode::OR).unwrap_or(&0) +
-            *self.opcode_counts.get(&Opcode::XOR).unwrap_or(&0);
+        let bitwise_events = *self.opcode_counts.get(&Opcode::AND).unwrap_or(&0)
+            + *self.opcode_counts.get(&Opcode::OR).unwrap_or(&0)
+            + *self.opcode_counts.get(&Opcode::XOR).unwrap_or(&0);
         total_area += (bitwise_events as u64) * costs[&RiscvAirDiscriminants::Bitwise];
         total_chips += 1;
 
-        let mul_events = *self.opcode_counts.get(&Opcode::MUL).unwrap_or(&0) +
-            *self.opcode_counts.get(&Opcode::MULH).unwrap_or(&0) +
-            *self.opcode_counts.get(&Opcode::MULHU).unwrap_or(&0) +
-            *self.opcode_counts.get(&Opcode::MULHSU).unwrap_or(&0);
+        let mul_events = *self.opcode_counts.get(&Opcode::MUL).unwrap_or(&0)
+            + *self.opcode_counts.get(&Opcode::MULH).unwrap_or(&0)
+            + *self.opcode_counts.get(&Opcode::MULHU).unwrap_or(&0)
+            + *self.opcode_counts.get(&Opcode::MULHSU).unwrap_or(&0);
         total_area += (mul_events as u64) * costs[&RiscvAirDiscriminants::Mul];
         total_chips += 1;
 
-        let shift_right_events = *self.opcode_counts.get(&Opcode::SRL).unwrap_or(&0) +
-            *self.opcode_counts.get(&Opcode::SRA).unwrap_or(&0);
+        let shift_right_events = *self.opcode_counts.get(&Opcode::SRL).unwrap_or(&0)
+            + *self.opcode_counts.get(&Opcode::SRA).unwrap_or(&0);
         total_area += (shift_right_events as u64) * costs[&RiscvAirDiscriminants::ShiftRight];
         total_chips += 1;
 
@@ -176,8 +176,8 @@ impl CostEstimator for ExecutionReport {
         total_area += (shift_left_events as u64) * costs[&RiscvAirDiscriminants::ShiftLeft];
         total_chips += 1;
 
-        let lt_events = *self.opcode_counts.get(&Opcode::SLT).unwrap_or(&0) +
-            *self.opcode_counts.get(&Opcode::SLTU).unwrap_or(&0);
+        let lt_events = *self.opcode_counts.get(&Opcode::SLT).unwrap_or(&0)
+            + *self.opcode_counts.get(&Opcode::SLTU).unwrap_or(&0);
         total_area += (lt_events as u64) * costs[&RiscvAirDiscriminants::Lt];
         total_chips += 1;
 

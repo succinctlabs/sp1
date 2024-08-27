@@ -67,8 +67,8 @@ where
     ) -> LagrangeSelectors<Ext<<C as Config>::F, <C as Config>::EF>> {
         let unshifted_point: Ext<_, _> = builder.eval(point * self.shift.inverse());
         let z_h_expr = builder
-            .exp_power_of_2_v::<Ext<_, _>>(unshifted_point, Usize::Var(self.log_n)) -
-            C::EF::one();
+            .exp_power_of_2_v::<Ext<_, _>>(unshifted_point, Usize::Var(self.log_n))
+            - C::EF::one();
         let z_h: Ext<_, _> = builder.eval(z_h_expr);
 
         LagrangeSelectors {

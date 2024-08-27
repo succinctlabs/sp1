@@ -77,18 +77,18 @@ where
             self.eval_jump(builder, local, next, &mut next_pc);
 
             // If the instruction is not a jump or branch instruction, then next pc = pc + 1.
-            let not_branch_or_jump = one.clone() -
-                self.is_branch_instruction::<AB>(local) -
-                self.is_jump_instruction::<AB>(local);
+            let not_branch_or_jump = one.clone()
+                - self.is_branch_instruction::<AB>(local)
+                - self.is_jump_instruction::<AB>(local);
             next_pc += not_branch_or_jump.clone() * (local.pc + one);
 
             builder.when_transition().when(next.is_real).assert_eq(next_pc, next.pc);
         }
 
         // Constrain the syscalls.
-        let send_syscall = local.selectors.is_poseidon +
-            local.selectors.is_fri_fold +
-            local.selectors.is_exp_reverse_bits_len;
+        let send_syscall = local.selectors.is_poseidon
+            + local.selectors.is_fri_fold
+            + local.selectors.is_exp_reverse_bits_len;
 
         let operands = [
             local.clk.into(),
@@ -174,10 +174,10 @@ impl<F: Field, const L: usize> CpuChip<F, L> {
     where
         AB: SP1RecursionAirBuilder<F = F>,
     {
-        local.selectors.is_add +
-            local.selectors.is_sub +
-            local.selectors.is_mul +
-            local.selectors.is_div
+        local.selectors.is_add
+            + local.selectors.is_sub
+            + local.selectors.is_mul
+            + local.selectors.is_div
     }
 
     /// Expr to check for branch instructions.
@@ -209,17 +209,17 @@ impl<F: Field, const L: usize> CpuChip<F, L> {
     where
         AB: SP1RecursionAirBuilder<F = F>,
     {
-        local.selectors.is_beq +
-            local.selectors.is_bne +
-            local.selectors.is_fri_fold +
-            local.selectors.is_poseidon +
-            local.selectors.is_store +
-            local.selectors.is_noop +
-            local.selectors.is_ext_to_felt +
-            local.selectors.is_commit +
-            local.selectors.is_trap +
-            local.selectors.is_halt +
-            local.selectors.is_exp_reverse_bits_len
+        local.selectors.is_beq
+            + local.selectors.is_bne
+            + local.selectors.is_fri_fold
+            + local.selectors.is_poseidon
+            + local.selectors.is_store
+            + local.selectors.is_noop
+            + local.selectors.is_ext_to_felt
+            + local.selectors.is_commit
+            + local.selectors.is_trap
+            + local.selectors.is_halt
+            + local.selectors.is_exp_reverse_bits_len
     }
 
     /// Expr to check for instructions that are commit instructions.

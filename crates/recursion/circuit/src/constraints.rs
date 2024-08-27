@@ -104,8 +104,8 @@ where
                         )
                     })
                     .unzip::<_, _, Vec<_>, Vec<_>>();
-                zs.into_iter().product::<SymbolicExt<_, _>>() *
-                    zinvs.into_iter().product::<SymbolicFelt<_>>()
+                zs.into_iter().product::<SymbolicExt<_, _>>()
+                    * zinvs.into_iter().product::<SymbolicFelt<_>>()
             })
             .collect::<Vec<SymbolicExt<_, _>>>()
             .into_iter()

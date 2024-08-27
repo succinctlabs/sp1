@@ -233,13 +233,13 @@ where
         let next_fri_fold_cols = Self::fri_fold(&next);
 
         sub_builder.assert_eq(
-            local_multi_cols.is_fri_fold *
-                FriFoldChip::<DEGREE>::do_memory_access::<AB::Var>(&local_fri_fold_cols),
+            local_multi_cols.is_fri_fold
+                * FriFoldChip::<DEGREE>::do_memory_access::<AB::Var>(&local_fri_fold_cols),
             local_multi_cols.fri_fold_memory_access,
         );
         sub_builder.assert_eq(
-            local_multi_cols.is_fri_fold *
-                FriFoldChip::<DEGREE>::do_receive_table::<AB::Var>(&local_fri_fold_cols),
+            local_multi_cols.is_fri_fold
+                * FriFoldChip::<DEGREE>::do_receive_table::<AB::Var>(&local_fri_fold_cols),
             local_multi_cols.fri_fold_receive_table,
         );
 

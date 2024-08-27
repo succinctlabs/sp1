@@ -211,8 +211,8 @@ pub fn eval_permutation_constraints<F, AB>(
             let mut rlc = alpha.clone();
             let mut betas = beta.powers();
 
-            rlc += betas.next().unwrap() *
-                AB::ExprEF::from_canonical_usize(interaction.argument_index());
+            rlc += betas.next().unwrap()
+                * AB::ExprEF::from_canonical_usize(interaction.argument_index());
             for (field, beta) in interaction.values.iter().zip(betas.clone()) {
                 let elem = field.apply::<AB::Expr, AB::Var>(&preprocessed_local, main_local);
                 rlc += beta * elem;
@@ -223,8 +223,8 @@ pub fn eval_permutation_constraints<F, AB>(
             multiplicities.push(
                 interaction
                     .multiplicity
-                    .apply::<AB::Expr, AB::Var>(&preprocessed_local, main_local) *
-                    send_factor,
+                    .apply::<AB::Expr, AB::Var>(&preprocessed_local, main_local)
+                    * send_factor,
             );
         }
 
