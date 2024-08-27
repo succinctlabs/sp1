@@ -1,6 +1,7 @@
 use chips::poseidon2_skinny::WIDTH;
 use core::fmt::Debug;
 use instruction::{FieldEltType, HintBitsInstr, HintExt2FeltsInstr, HintInstr, PrintInstr};
+use itertools::Itertools;
 use p3_field::{
     AbstractExtensionField, AbstractField, Field, PrimeField, PrimeField64, TwoAdicField,
 };
@@ -599,14 +600,15 @@ where
         debug_assert!(self.addr_to_mult.is_empty());
         // Initialize constants.
         let total_consts = self.consts.len();
-        let instrs_consts = self.consts.drain().map(|(imm, (addr, mult))| {
-            Instruction::Mem(MemInstr {
-                addrs: MemIo { inner: addr },
-                vals: MemIo { inner: imm.as_block() },
-                mult,
-                kind: MemAccessKind::Write,
-            })
-        });
+        let instrs_consts =
+            self.consts.drain().sorted_by_key(|x| x.1.0.0).map(|(imm, (addr, mult))| {
+                Instruction::Mem(MemInstr {
+                    addrs: MemIo { inner: addr },
+                    vals: MemIo { inner: imm.as_block() },
+                    mult,
+                    kind: MemAccessKind::Write,
+                })
+            });
         tracing::debug!("number of consts to initialize: {}", instrs_consts.len());
         // Reset the other fields.
         self.next_addr = Default::default();

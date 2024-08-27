@@ -1072,7 +1072,6 @@ pub mod tests {
 
         tracing::info!("wrap bn254");
         let wrapped_bn254_proof = prover.wrap_bn254(shrink_proof, opts)?;
-        println!("vk wrap bn254: {:?}", wrapped_bn254_proof.vk);
         let bytes = bincode::serialize(&wrapped_bn254_proof).unwrap();
 
         // Save the proof.
@@ -1216,16 +1215,17 @@ pub mod tests {
         tracing::info!("verify verify program");
         prover.verify_compressed(&verify_reduce, &verify_vk)?;
 
-        // let shrink_proof = prover.shrink(verify_reduce, opts)?;
+        let shrink_proof = prover.shrink(verify_reduce, opts)?;
 
-        // tracing::info!("verify shrink");
-        // prover.verify_shrink(&shrink_proof, &verify_vk)?;
+        tracing::info!("verify shrink");
+        prover.verify_shrink(&shrink_proof, &verify_vk)?;
 
-        // tracing::info!("wrap bn254");
-        // let wrapped_bn254_proof = prover.wrap_bn254(shrink_proof, opts)?;
+        tracing::info!("wrap bn254");
+        let wrapped_bn254_proof = prover.wrap_bn254(shrink_proof, opts)?;
 
-        // tracing::info!("verify wrap bn254");
-        // prover.verify_wrap_bn254(&wrapped_bn254_proof, &verify_vk).unwrap();
+        tracing::info!("verify wrap bn254");
+        println!("verify wrap bn254 {:#?}", wrapped_bn254_proof.vk.commit);
+        prover.verify_wrap_bn254(&wrapped_bn254_proof, &verify_vk).unwrap();
 
         // tracing::info!("checking vkey hash babybear");
         // let vk_digest_babybear = wrapped_bn254_proof.sp1_vkey_digest_babybear();
