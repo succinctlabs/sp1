@@ -1027,7 +1027,6 @@ pub mod tests {
     pub fn test_e2e_prover<C: SP1ProverComponents>(
         prover: &SP1Prover<C>,
         elf: &[u8],
-        stdin: SP1Stdin,
         opts: SP1ProverOpts,
         test_kind: Test,
     ) -> Result<()> {
@@ -1235,13 +1234,7 @@ pub mod tests {
         // docker image which has a different API than the current. So we need to wait until the
         // next release (v1.2.0+), and then switch it back.
         let prover = SP1Prover::<DefaultProverComponents>::new();
-        test_e2e_prover::<DefaultProverComponents>(
-            &prover,
-            elf,
-            SP1Stdin::default(),
-            opts,
-            Test::Plonk,
-        )
+        test_e2e_prover::<DefaultProverComponents>(&prover, elf, opts, Test::Plonk)
     }
 
     /// Tests an end-to-end workflow of proving a program across the entire proof generation
