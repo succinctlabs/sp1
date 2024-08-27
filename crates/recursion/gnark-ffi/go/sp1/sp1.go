@@ -209,6 +209,8 @@ func (circuit *Circuit) Define(api frontend.API) error {
 			vars[cs.Args[0][0]] = fieldAPI.ReduceSlow(felts[cs.Args[1][0]]).Value
 		case "ReduceE":
 			exts[cs.Args[0][0]] = fieldAPI.ReduceE(exts[cs.Args[0][0]])
+		case "ReduceF":
+			felts[cs.Args[0][0]] = fieldAPI.ReduceSlow(felts[cs.Args[0][0]])
 		default:
 			return fmt.Errorf("unhandled opcode: %s", cs.Opcode)
 		}

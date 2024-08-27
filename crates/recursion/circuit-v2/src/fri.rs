@@ -125,6 +125,7 @@ pub fn verify_two_adic_pcs<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigV
                         &reduced_index_bits_trunc.into_iter().rev().collect_vec(),
                         &precomputed_generator_powers[bits_reduced..],
                     );
+                    // builder.reduce_f(two_adic_generator_exp);
 
                     // Unroll the following to avoid symbolic expression overhead
                     // let x: Felt<_> = builder.eval(g * two_adic_generator_exp);
@@ -241,8 +242,8 @@ pub fn verify_query<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVariable
     let two_adic_generator: Felt<_> = builder.constant(C::F::two_adic_generator(log_max_height));
 
     // TODO: fix expreversebits address bug to avoid needing to allocate a new variable.
-    let mut x =
-        C::exp_reverse_bits(builder, two_adic_generator, index_bits[..log_max_height].to_vec());
+    let mut x = builder.constant(C::F::zero());
+    // C::exp_reverse_bits(builder, two_adic_generator, index_bits[..log_max_height].to_vec());
     // let mut x = builder.uninit();
     // builder.operations.push(DslIr::AddFI(x, x_f, C::F::zero()));
 

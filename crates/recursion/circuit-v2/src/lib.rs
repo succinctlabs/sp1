@@ -360,10 +360,10 @@ impl CircuitConfig for OuterConfig {
         two_adic_powers_of_x: &[Felt<Self::F>],
     ) -> Felt<Self::F> {
         let mut result: Felt<_> = builder.eval(Self::F::one());
-        for i in 0..power_bits.len() {
-            let bit = power_bits[i];
-            let tmp = builder.eval(result * two_adic_powers_of_x[i]);
-            result = builder.select_f(bit, tmp, result);
+        let one = builder.constant(Self::F::one());
+        for (&bit, &power) in power_bits.iter().zip(two_adic_powers_of_x) {
+            let multiplier = builder.select_f(bit, power, one);
+            result = builder.eval(multiplier * result);
         }
         result
     }
