@@ -1,3 +1,4 @@
+use crate::ProofBn254;
 use crate::{Groth16Bn254Proof, PlonkBn254Proof};
 use anyhow::{anyhow, Result};
 use sp1_core_machine::SP1_CIRCUIT_VERSION;
@@ -71,13 +72,23 @@ fn prove(system: ProofSystem, data_dir: &str, witness_path: &str) -> Result<Vec<
 pub fn prove_plonk_bn254(data_dir: &str, witness_path: &str) -> PlonkBn254Proof {
     let result =
         prove(ProofSystem::Plonk, data_dir, witness_path).expect("failed to prove with docker");
-    bincode::deserialize(&result).expect("failed to deserialize result")
+    let deserialized: ProofBn254 =
+        bincode::deserialize(&result).expect("failed to deserialize result");
+    match deserialized {
+        ProofBn254::Plonk(proof) => proof,
+        _ => panic!("unexpected proof type"),
+    }
 }
 
 pub fn prove_groth16_bn254(data_dir: &str, witness_path: &str) -> Groth16Bn254Proof {
     let result =
         prove(ProofSystem::Groth16, data_dir, witness_path).expect("failed to prove with docker");
-    bincode::deserialize(&result).expect("failed to deserialize result")
+    let deserialized: ProofBn254 =
+        bincode::deserialize(&result).expect("failed to deserialize result");
+    match deserialized {
+        ProofBn254::Groth16(proof) => proof,
+        _ => panic!("unexpected proof type"),
+    }
 }
 
 fn build(system: ProofSystem, data_dir: &str) -> Result<()> {

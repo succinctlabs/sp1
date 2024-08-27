@@ -2,12 +2,15 @@ use std::{borrow::BorrowMut, mem::size_of};
 
 use p3_air::BaseAir;
 use p3_field::PrimeField32;
-use p3_matrix::{dense::RowMajorMatrix, Matrix};
+use p3_matrix::dense::RowMajorMatrix;
 use p3_maybe_rayon::prelude::*;
 use sp1_core_machine::utils::next_power_of_two;
 use sp1_primitives::RC_16_30_U32;
 use sp1_stark::air::MachineAir;
 use tracing::instrument;
+
+#[cfg(debug_assertions)]
+use p3_matrix::Matrix;
 
 use crate::{
     chips::{
