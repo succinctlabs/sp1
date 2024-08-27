@@ -48,7 +48,7 @@ jobs:
         with:
           command: test
           toolchain: 1.79.0
-          args: --release --features native-gnark --workspace --exclude sp1-recursion-core
+          args: --release --features native-gnark --workspace --exclude sp1-recursion-core --exclude sp1-recursion-program --exclude sp1-recursion-circuit
         env:
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
           RUST_BACKTRACE: 1
@@ -85,7 +85,7 @@ jobs:
         with:
           command: test
           toolchain: 1.79.0
-          args: --release --features native-gnark --workspace --exclude sp1-recursion-core sp1-recursion-program sp1-recursion-circuit
+          args: --release --features native-gnark --workspace --exclude sp1-recursion-core --exclude sp1-recursion-program --exclude sp1-recursion-circuit
         env:
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
           RUST_BACKTRACE: 1
