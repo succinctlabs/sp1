@@ -14,8 +14,8 @@ typedef struct {
     uint8_t channel;
     bool is_add;
     bool is_sub;
-    uint64_t operand_1;
-    uint64_t operand_2;
+    uint32_t operand_1;
+    uint32_t operand_2;
     uint8_t carry_out[3];
     uint8_t overflow_out;
     uint32_t result;
@@ -25,9 +25,9 @@ void event_to_row_alt_c(
     uint32_t shard,
     uint8_t channel,
     bool is_add,
-    uint64_t a,
-    uint64_t b,
-    uint64_t c,
+    uint32_t a,
+    uint32_t b,
+    uint32_t c,
     AddSubColsC* cols
 ) {
     cols->shard = shard;
@@ -35,8 +35,8 @@ void event_to_row_alt_c(
     cols->is_add = is_add;
     cols->is_sub = !is_add;
 
-    uint64_t operand_1 = is_add ? b : a;
-    uint64_t operand_2 = c;
+    uint32_t operand_1 = is_add ? b : a;
+    uint32_t operand_2 = c;
 
     cols->operand_1 = operand_1;
     cols->operand_2 = operand_2;

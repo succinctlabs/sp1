@@ -92,8 +92,8 @@ impl<F: PrimeField> MachineAir<F> for AddSubChip {
                         let mut row = [F::zero(); NUM_ADD_SUB_COLS];
                         let cols: &mut AddSubCols<F> = row.as_mut_slice().borrow_mut();
                         let mut blu = Vec::new();
-                        self.event_to_row(event, cols, &mut blu);
-                        //self.event_to_row_alt(event, cols, &mut blu);
+                        //self.event_to_row(event, cols, &mut blu);
+                        self.event_to_row_alt(event, cols, &mut blu);
                         //self.event_to_row2(event, cols, &mut blu);
                         row
                     })
@@ -249,9 +249,6 @@ impl AddSubChip {
         cols.channel = F::from_canonical_u8(cols_c.channel);
         cols.is_add = F::from_bool(cols_c.is_add);
         cols.is_sub = F::from_bool(cols_c.is_sub);
-        cols.operand_1 = Word::from(cols_c.operand_1);
-        cols.operand_2 = Word::from(cols_c.operand_2);
-
         cols.add_operation.populate_alt(
             blu,
             cols_c.shard,
@@ -259,6 +256,8 @@ impl AddSubChip {
             cols_c.operand_1,
             cols_c.operand_2,
         );
+        cols.operand_1 = Word::from(cols_c.operand_1);
+        cols.operand_2 = Word::from(cols_c.operand_2);
     }
 }
 
