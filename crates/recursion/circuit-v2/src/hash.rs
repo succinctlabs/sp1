@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use std::iter::{repeat, zip};
 
 use itertools::Itertools;
@@ -20,13 +21,9 @@ use crate::{
 };
 
 pub trait FieldHasher<F: Field> {
-    type Digest: Clone + Copy;
-
-    fn constant_hash(input: &[F]) -> Self::Digest;
+    type Digest: Clone + Copy + Default + PartialEq + Eq + Copy + Debug;
 
     fn constant_compress(input: [Self::Digest; 2]) -> Self::Digest;
-
-    fn constant_assert_digest_eq(a: Self::Digest, b: Self::Digest);
 }
 
 pub trait FieldHasherVariable<C: CircuitConfig>: FieldHasher<C::F> {
@@ -49,20 +46,6 @@ pub trait FieldHasherVariable<C: CircuitConfig>: FieldHasher<C::F> {
 impl FieldHasher<BabyBear> for BabyBearPoseidon2 {
     type Digest = [BabyBear; DIGEST_SIZE];
 
-    fn constant_hash(input: &[BabyBear]) -> Self::Digest {
-        let mut state = core::array::from_fn(|_| BabyBear::zero());
-        for input_chunk in input.chunks(HASH_RATE) {
-            state[..input_chunk.len()].copy_from_slice(input_chunk);
-            let diffusion_matrix = DiffusionMatrixBabyBear {};
-            <DiffusionMatrixBabyBear as Permutation<[BabyBear; 16]>>::permute_mut(
-                &diffusion_matrix,
-                &mut state,
-            );
-        }
-        let state: [BabyBear; DIGEST_SIZE] = state[..DIGEST_SIZE].try_into().unwrap();
-        state
-    }
-
     fn constant_compress(input: [Self::Digest; 2]) -> Self::Digest {
         let mut pre_iter = input.into_iter().flatten().chain(repeat(BabyBear::zero()));
         let mut pre = core::array::from_fn(move |_| pre_iter.next().unwrap());
@@ -71,10 +54,6 @@ impl FieldHasher<BabyBear> for BabyBearPoseidon2 {
             &mut pre,
         );
         pre[..DIGEST_SIZE].try_into().unwrap()
-    }
-
-    fn constant_assert_digest_eq(a: Self::Digest, b: Self::Digest) {
-        a.iter().zip(b.iter()).for_each(|(x, y)| assert_eq!(x, y))
     }
 }
 
@@ -123,28 +102,10 @@ pub const BN254_DIGEST_SIZE: usize = 1;
 impl FieldHasher<BabyBear> for BabyBearPoseidon2Outer {
     type Digest = [Bn254Fr; BN254_DIGEST_SIZE];
 
-    fn constant_hash(input: &[BabyBear]) -> Self::Digest {
-        let num_f_elms = Bn254Fr::bits() / BabyBear::bits();
-        let mut state: [Bn254Fr; SPONGE_SIZE] = [Bn254Fr::zero(); 3];
-        for block_chunk in &input.iter().chunks(RATE) {
-            for (chunk_id, chunk) in (&block_chunk.chunks(num_f_elms)).into_iter().enumerate() {
-                let chunk = chunk.copied().collect::<Vec<_>>();
-                state[chunk_id] = p3_field::reduce_32(chunk.as_slice());
-            }
-            DiffusionMatrixBN254 {}.permute_mut(&mut state);
-        }
-
-        [state[0]; BN254_DIGEST_SIZE]
-    }
-
     fn constant_compress(input: [Self::Digest; 2]) -> Self::Digest {
         let mut state = [input[0][0], input[1][0], Bn254Fr::zero()];
         DiffusionMatrixBN254 {}.permute_mut(&mut state);
         [state[0]; BN254_DIGEST_SIZE]
-    }
-
-    fn constant_assert_digest_eq(a: Self::Digest, b: Self::Digest) {
-        zip(a, b).for_each(|(x, y)| assert_eq!(x, y))
     }
 }
 impl<C: CircuitConfig<F = BabyBear, N = Bn254Fr, Bit = Var<Bn254Fr>>> FieldHasherVariable<C>
