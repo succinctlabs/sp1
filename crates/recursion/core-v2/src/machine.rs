@@ -185,7 +185,8 @@ pub mod tests {
         }
 
         // Run with the poseidon2 skinny chip.
-        let skinny_machine = B::machine_skinny_with_all_chips(BabyBearPoseidon2::compressed());
+        let skinny_machine =
+            B::machine_skinny_with_all_chips(BabyBearPoseidon2::ultra_compressed());
         let (pk, vk) = skinny_machine.setup(&program);
         let result = run_test_machine(vec![runtime.record], skinny_machine, pk, vk);
         if let Err(e) = result {
