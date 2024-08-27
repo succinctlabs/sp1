@@ -166,7 +166,7 @@ fn build_outer_circuit(template_input: &SP1CompressWitnessValues<OuterSC>) -> Ve
     SP1CompressVerifier::verify(&mut builder, &wrap_machine, input);
 
     let mut backend = ConstraintCompiler::<OuterConfig>::default();
-    let operations = backend.emit(builder.as_operations());
+    let operations = backend.emit(builder.into_operations());
     wrap_span.exit();
 
     operations

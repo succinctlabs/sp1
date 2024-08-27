@@ -170,7 +170,7 @@ impl<C: Config> Builder<C> {
         self.inner.borrow().variable_count
     }
 
-    pub fn as_operations(self) -> TracedVec<DslIr<C>> {
+    pub fn into_operations(self) -> TracedVec<DslIr<C>> {
         Rc::into_inner(self.inner).expect("Builder has no unique reference").into_inner().operations
     }
 
@@ -533,7 +533,7 @@ impl<'a, C: Config> IfBuilder<'a, C> {
         f(&mut f_builder);
         self.builder.p2_hash_num = f_builder.p2_hash_num;
 
-        let then_instructions = f_builder.as_operations();
+        let then_instructions = f_builder.into_operations();
 
         // Dispatch instructions to the correct conditional block.
         match condition {
@@ -585,7 +585,7 @@ impl<'a, C: Config> IfBuilder<'a, C> {
         then_f(&mut then_builder);
         self.builder.p2_hash_num = then_builder.p2_hash_num;
 
-        let then_instructions = then_builder.as_operations();
+        let then_instructions = then_builder.into_operations();
 
         let mut else_builder = Builder::<C>::new_sub_builder(
             self.builder.variable_count(),
@@ -597,7 +597,7 @@ impl<'a, C: Config> IfBuilder<'a, C> {
         else_f(&mut else_builder);
         self.builder.p2_hash_num = else_builder.p2_hash_num;
 
-        let else_instructions = else_builder.as_operations();
+        let else_instructions = else_builder.into_operations();
 
         // Dispatch instructions to the correct conditional block.
         match condition {
@@ -734,7 +734,7 @@ impl<'a, C: Config> RangeBuilder<'a, C> {
         f(loop_variable, &mut loop_body_builder);
         self.builder.p2_hash_num = loop_body_builder.p2_hash_num;
 
-        let loop_instructions = loop_body_builder.as_operations();
+        let loop_instructions = loop_body_builder.into_operations();
 
         let op = DslIr::For(Box::new((
             self.start,

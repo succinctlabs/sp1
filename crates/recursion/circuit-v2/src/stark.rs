@@ -349,7 +349,7 @@ pub mod tests {
             let mut challenger = challenger.copy(&mut builder);
             StarkVerifier::verify_shard(&mut builder, &vk, &machine, &mut challenger, &proof);
         }
-        (builder.as_operations(), witness_stream)
+        (builder.into_operations(), witness_stream)
     }
 
     #[test]

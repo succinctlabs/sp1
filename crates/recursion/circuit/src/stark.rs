@@ -333,7 +333,7 @@ pub fn build_wrap_circuit(
     }
 
     let mut backend = ConstraintCompiler::<OuterConfig>::default();
-    backend.emit(builder.as_operations())
+    backend.emit(builder.into_operations())
 }
 
 pub fn cycle_tracker<'a, C: Config + Debug + 'a>(
