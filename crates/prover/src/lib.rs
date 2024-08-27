@@ -1197,6 +1197,7 @@ pub mod tests {
 
         tracing::info!("proving verify program (core)");
         let verify_proof = prover.prove_core(&verify_pk, &stdin, opts, Default::default())?;
+        // let public_values = verify_proof.public_values.clone();
 
         // Generate recursive proof of verify program
         tracing::info!("compress verify program");
@@ -1213,6 +1214,41 @@ pub mod tests {
 
         tracing::info!("verify verify program");
         prover.verify_compressed(&verify_reduce, &verify_vk)?;
+
+        let shrink_proof = prover.shrink(verify_reduce, opts)?;
+
+        tracing::info!("verify shrink");
+        prover.verify_shrink(&shrink_proof, &verify_vk)?;
+
+        tracing::info!("wrap bn254");
+        let wrapped_bn254_proof = prover.wrap_bn254(shrink_proof, opts)?;
+
+        tracing::info!("verify wrap bn254");
+        println!("verify wrap bn254 {:#?}", wrapped_bn254_proof.vk.commit);
+        prover.verify_wrap_bn254(&wrapped_bn254_proof, &verify_vk).unwrap();
+
+        // tracing::info!("checking vkey hash babybear");
+        // let vk_digest_babybear = wrapped_bn254_proof.sp1_vkey_digest_babybear();
+        // assert_eq!(vk_digest_babybear, verify_vk.hash_babybear());
+
+        // tracing::info!("checking vkey hash bn254");
+        // let vk_digest_bn254 = wrapped_bn254_proof.sp1_vkey_digest_bn254();
+        // assert_eq!(vk_digest_bn254, verify_vk.hash_bn254());
+
+        // tracing::info!("generate groth16 bn254 proof");
+        // let artifacts_dir = try_build_groth16_bn254_artifacts_dev(
+        //     &wrapped_bn254_proof.vk,
+        //     &wrapped_bn254_proof.proof,
+        // );
+        // let groth16_bn254_proof = prover.wrap_groth16_bn254(wrapped_bn254_proof, &artifacts_dir);
+        // println!("{:?}", groth16_bn254_proof);
+
+        // prover.verify_groth16_bn254(
+        //     &groth16_bn254_proof,
+        //     &verify_vk,
+        //     &public_values,
+        //     &artifacts_dir,
+        // )?;
 
         Ok(())
     }

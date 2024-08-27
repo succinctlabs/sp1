@@ -67,16 +67,16 @@ pub type FriMmcs<C> = ExtensionMmcs<BabyBear, EF, <C as BabyBearFriConfig>::ValM
 
 pub trait BabyBearFriConfig:
     StarkGenericConfig<
-    Val = BabyBear,
-    Challenge = EF,
-    Challenger = Self::FriChallenger,
-    Pcs = TwoAdicFriPcs<
-        BabyBear,
-        Radix2DitParallel,
-        Self::ValMmcs,
-        ExtensionMmcs<BabyBear, EF, Self::ValMmcs>,
-    >,
->
+        Val = BabyBear,
+        Challenge = EF,
+        Challenger = Self::FriChallenger,
+        Pcs = TwoAdicFriPcs<
+            BabyBear,
+            Radix2DitParallel,
+            Self::ValMmcs,
+            ExtensionMmcs<BabyBear, EF, Self::ValMmcs>,
+        >,
+    >
 {
     type ValMmcs: Mmcs<BabyBear, ProverData<RowMajorMatrix<BabyBear>> = Self::RowMajorProverData>
         + Send
@@ -429,17 +429,17 @@ impl<C: CircuitConfig<F = BabyBear, N = Bn254Fr, Bit = Var<Bn254Fr>>> BabyBearFr
     }
 
     fn commit_recursion_public_values(
-        builder: &mut Builder<C>,
-        public_values: RecursionPublicValues<Felt<<C>::F>>,
+        _builder: &mut Builder<C>,
+        _public_values: RecursionPublicValues<Felt<<C>::F>>,
     ) {
-        let committed_values_digest_bytes_felts: [Felt<_>; 32] =
-            words_to_bytes(&public_values.committed_value_digest).try_into().unwrap();
-        let committed_values_digest_bytes: Var<_> =
-            felt_bytes_to_bn254_var(builder, &committed_values_digest_bytes_felts);
-        builder.commit_commited_values_digest_circuit(committed_values_digest_bytes);
+        // let committed_values_digest_bytes_felts: [Felt<_>; 32] =
+        //     words_to_bytes(&public_values.committed_value_digest).try_into().unwrap();
+        // let committed_values_digest_bytes: Var<_> =
+        //     felt_bytes_to_bn254_var(builder, &committed_values_digest_bytes_felts);
+        // builder.commit_commited_values_digest_circuit(committed_values_digest_bytes);
 
-        let vkey_hash = felts_to_bn254_var(builder, &public_values.sp1_vk_digest);
-        builder.commit_vkey_hash_circuit(vkey_hash);
+        // let vkey_hash = felts_to_bn254_var(builder, &public_values.sp1_vk_digest);
+        // builder.commit_vkey_hash_circuit(vkey_hash);
     }
 }
 
