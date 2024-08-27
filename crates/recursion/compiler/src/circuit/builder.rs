@@ -14,8 +14,7 @@ pub trait CircuitV2Builder<C: Config> {
         bits: impl IntoIterator<Item = Felt<<C as Config>::F>>,
     ) -> Felt<C::F>;
     fn num2bits_v2_f(&mut self, num: Felt<C::F>, num_bits: usize) -> Vec<Felt<C::F>>;
-    fn exp_reverse_bits_v2(&mut self, input: Felt<C::F>, power_bits: Vec<Felt<C::F>>)
-        -> Felt<C::F>;
+    fn exp_bits_v2(&mut self, input: Felt<C::F>, power_bits: Vec<Felt<C::F>>) -> Felt<C::F>;
     fn poseidon2_permute_v2(&mut self, state: [Felt<C::F>; WIDTH]) -> [Felt<C::F>; WIDTH];
     fn poseidon2_hash_v2(&mut self, array: &[Felt<C::F>]) -> [Felt<C::F>; DIGEST_SIZE];
     fn poseidon2_compress_v2(
@@ -66,13 +65,9 @@ impl<C: Config> CircuitV2Builder<C> for Builder<C> {
     }
 
     /// A version of `exp_reverse_bits_len` that uses the ExpReverseBitsLen precompile.
-    fn exp_reverse_bits_v2(
-        &mut self,
-        input: Felt<C::F>,
-        power_bits: Vec<Felt<C::F>>,
-    ) -> Felt<C::F> {
+    fn exp_bits_v2(&mut self, input: Felt<C::F>, power_bits: Vec<Felt<C::F>>) -> Felt<C::F> {
         let output: Felt<_> = self.uninit();
-        self.operations.push(DslIr::CircuitV2ExpReverseBits(output, input, power_bits));
+        self.operations.push(DslIr::CircuitV2ExpBits(output, input, power_bits));
         output
     }
 

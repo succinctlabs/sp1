@@ -253,7 +253,7 @@ where
         }))
     }
 
-    fn exp_reverse_bits(
+    fn exp_bits(
         &mut self,
         dst: impl Reg<C>,
         base: impl Reg<C>,
@@ -447,9 +447,7 @@ where
             DslIr::CircuitV2Poseidon2PermuteBabyBear(data) => {
                 f(self.poseidon2_permute(data.0, data.1))
             }
-            DslIr::CircuitV2ExpReverseBits(dst, base, exp) => {
-                f(self.exp_reverse_bits(dst, base, exp))
-            }
+            DslIr::CircuitV2ExpBits(dst, base, exp) => f(self.exp_bits(dst, base, exp)),
             DslIr::CircuitV2HintBitsF(output, value) => {
                 f(self.hint_bit_decomposition(value, output))
             }
@@ -632,7 +630,7 @@ const fn instr_name<F>(instr: &Instruction<F>) -> &'static str {
         Instruction::ExtAlu(_) => "ExtAlu",
         Instruction::Mem(_) => "Mem",
         Instruction::Poseidon2(_) => "Poseidon2",
-        Instruction::ExpBits(_) => "ExpReverseBitsLen",
+        Instruction::ExpBits(_) => "ExpBitsLen",
         Instruction::HintBits(_) => "HintBits",
         Instruction::FriFold(_) => "FriFold",
         Instruction::Print(_) => "Print",
@@ -912,7 +910,7 @@ mod tests {
 
             let base = rng.next().unwrap();
             let base_felt = builder.eval(base);
-            let result_felt = builder.exp_reverse_bits_v2(base_felt, power_bits_felt);
+            let result_felt = builder.exp_bits_v2(base_felt, power_bits_felt);
 
             let expected = power_bits
                 .into_iter()

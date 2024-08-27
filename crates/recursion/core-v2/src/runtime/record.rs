@@ -44,7 +44,7 @@ impl<F: PrimeField32> MachineRecord for ExecutionRecord<F> {
             mem_var_events,
             public_values: _,
             poseidon2_events,
-            exp_bits_events: exp_reverse_bits_len_events,
+            exp_bits_events,
             fri_fold_events,
             commit_pv_hash_events,
         } = self;
@@ -53,7 +53,7 @@ impl<F: PrimeField32> MachineRecord for ExecutionRecord<F> {
         *mem_const_count += other.mem_const_count;
         mem_var_events.append(&mut other.mem_var_events);
         poseidon2_events.append(&mut other.poseidon2_events);
-        exp_reverse_bits_len_events.append(&mut other.exp_bits_events);
+        exp_bits_events.append(&mut other.exp_bits_events);
         fri_fold_events.append(&mut other.fri_fold_events);
         commit_pv_hash_events.append(&mut other.commit_pv_hash_events);
     }

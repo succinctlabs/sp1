@@ -84,7 +84,7 @@ pub struct Runtime<'a, F: PrimeField32, EF: ExtensionField<F>, Diffusion> {
 
     pub nb_branch_ops: usize,
 
-    pub nb_exp_reverse_bits: usize,
+    pub nb_exp_bits: usize,
 
     pub nb_fri_fold: usize,
 
@@ -187,7 +187,7 @@ where
             nb_poseidons: 0,
             nb_wide_poseidons: 0,
             nb_bit_decompositions: 0,
-            nb_exp_reverse_bits: 0,
+            nb_exp_bits: 0,
             nb_ext_ops: 0,
             nb_base_ops: 0,
             nb_memory_ops: 0,
@@ -213,7 +213,7 @@ where
         tracing::debug!("Total Cycles: {}", self.timestamp);
         tracing::debug!("Poseidon Skinny Operations: {}", self.nb_poseidons);
         tracing::debug!("Poseidon Wide Operations: {}", self.nb_wide_poseidons);
-        tracing::debug!("Exp Reverse Bits Operations: {}", self.nb_exp_reverse_bits);
+        tracing::debug!("Exp Reverse Bits Operations: {}", self.nb_exp_bits);
         tracing::debug!("FriFold Operations: {}", self.nb_fri_fold);
         tracing::debug!("Field Operations: {}", self.nb_base_ops);
         tracing::debug!("Extension Operations: {}", self.nb_ext_ops);
@@ -354,7 +354,7 @@ where
                     addrs: ExpBitsIo { base, exp, result },
                     mult,
                 }) => {
-                    self.nb_exp_reverse_bits += 1;
+                    self.nb_exp_bits += 1;
                     let base_val = self.memory.mr(base).val[0];
                     let exp_bits: Vec<_> =
                         exp.iter().map(|bit| self.memory.mr(*bit).val[0]).collect();

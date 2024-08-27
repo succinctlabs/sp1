@@ -306,5 +306,5 @@ pub enum DslIr<C: Config> {
     // Reverse bits exponentiation.
     ExpReverseBitsLen(Ptr<C::N>, Var<C::N>, Var<C::N>),
     /// Reverse bits exponentiation. Output, base, exponent bits.
-    CircuitV2ExpReverseBits(Felt<C::F>, Felt<C::F>, Vec<Felt<C::F>>),
+    CircuitV2ExpBits(Felt<C::F>, Felt<C::F>, Vec<Felt<C::F>>),
 }

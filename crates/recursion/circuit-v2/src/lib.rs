@@ -113,7 +113,7 @@ pub trait CircuitConfig: Config {
         ext: Ext<<Self as Config>::F, <Self as Config>::EF>,
     ) -> [Felt<<Self as Config>::F>; D];
 
-    fn exp_reverse_bits(
+    fn exp_bits(
         builder: &mut Builder<Self>,
         input: Felt<<Self as Config>::F>,
         power_bits: Vec<Self::Bit>,
@@ -161,12 +161,12 @@ impl CircuitConfig for InnerConfig {
         builder.ext2felt_v2(ext)
     }
 
-    fn exp_reverse_bits(
+    fn exp_bits(
         builder: &mut Builder<Self>,
         input: Felt<<Self as Config>::F>,
         power_bits: Vec<Felt<<Self as Config>::F>>,
     ) -> Felt<<Self as Config>::F> {
-        builder.exp_reverse_bits_v2(input, power_bits)
+        builder.exp_bits_v2(input, power_bits)
     }
 
     fn num2bits(
@@ -225,7 +225,7 @@ impl CircuitConfig for OuterConfig {
         felts
     }
 
-    fn exp_reverse_bits(
+    fn exp_bits(
         builder: &mut Builder<Self>,
         input: Felt<<Self as Config>::F>,
         power_bits: Vec<Var<<Self as Config>::N>>,
