@@ -27,7 +27,7 @@ pub struct AsmCompiler<C: Config> {
     /// Map the frame pointers of the variables to the "physical" addresses.
     pub virtual_to_physical: VecMap<Address<C::F>>,
     /// Map base or extension field constants to "physical" addresses and mults.
-    pub consts: BTreeMap<Imm<C::F, C::EF>, (Address<C::F>, C::F)>,
+    pub consts: BTreeMap<Imm<C::F, C::EF>, Address<C::F>>,
     /// Map each "physical" address to its read count.
     pub addr_to_mult: VecMap<C::F>,
 }
@@ -38,12 +38,11 @@ where
 {
     /// Allocate a fresh address. Checks that the address space is not full.
     pub fn alloc(next_addr: &mut C::F) -> Address<C::F> {
-        let id = Address(*next_addr);
         *next_addr += C::F::one();
         if next_addr.is_zero() {
             panic!("out of address space");
         }
-        id
+        Address(*next_addr)
     }
 
     /// Map `fp` to its existing address without changing its mult.
@@ -143,18 +142,20 @@ where
     ///
     /// Increments the mult, first creating an entry if it does not yet exist.
     pub fn read_const(&mut self, imm: Imm<C::F, C::EF>) -> Address<C::F> {
-        self.consts
-            .entry(imm)
-            .and_modify(|(_, x)| *x += C::F::one())
-            .or_insert_with(|| (Self::alloc(&mut self.next_addr), C::F::one()))
-            .0
+        use vec_map::Entry;
+        let addr = self.read_ghost_const(imm);
+        match self.addr_to_mult.entry(addr.as_usize()) {
+            Entry::Vacant(entry) => drop(entry.insert(C::F::one())),
+            Entry::Occupied(mut entry) => *entry.get_mut() += C::F::one(),
+        }
+        addr
     }
 
     /// Read a constant (a.k.a. immediate).
     ///    
     /// Does not increment the mult. Creates an entry if it does not yet exist.
     pub fn read_ghost_const(&mut self, imm: Imm<C::F, C::EF>) -> Address<C::F> {
-        self.consts.entry(imm).or_insert_with(|| (Self::alloc(&mut self.next_addr), C::F::zero())).0
+        *self.consts.entry(imm).or_insert_with(|| Self::alloc(&mut self.next_addr))
     }
 
     fn mem_write_const(&mut self, dst: impl Reg<C>, src: Imm<C::F, C::EF>) -> Instruction<C::F> {
@@ -536,7 +537,7 @@ where
 
         // Replace the mults using the address count data gathered in this previous.
         // Exhaustive match for refactoring purposes.
-        let total_memory = self.addr_to_mult.len() + self.consts.len();
+        let total_memory = self.addr_to_mult.len();
         let mut backfill = |(mult, addr): (&mut F, &Address<F>)| {
             *mult = self.addr_to_mult.remove(addr.as_usize()).unwrap()
         };
@@ -602,14 +603,13 @@ where
                 }
             }
         });
-        debug_assert!(self.addr_to_mult.is_empty());
         // Initialize constants.
         let total_consts = self.consts.len();
-        let instrs_consts = take(&mut self.consts).into_iter().map(|(imm, (addr, mult))| {
+        let instrs_consts = take(&mut self.consts).into_iter().map(|(imm, addr)| {
             Instruction::Mem(MemInstr {
                 addrs: MemIo { inner: addr },
                 vals: MemIo { inner: imm.as_block() },
-                mult,
+                mult: self.addr_to_mult.remove(addr.as_usize()).unwrap(),
                 kind: MemAccessKind::Write,
             })
         });
@@ -627,6 +627,7 @@ where
                 (instrs_consts.chain(instrs).collect(), traces)
             }
         });
+        debug_assert!(self.addr_to_mult.is_empty());
         RecursionProgram { instructions, total_memory, traces }
     }
 }
