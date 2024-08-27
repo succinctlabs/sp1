@@ -2,18 +2,17 @@ use std::fmt::Debug;
 use std::iter::{repeat, zip};
 
 use itertools::Itertools;
-use p3_baby_bear::{BabyBear, DiffusionMatrixBabyBear};
+use p3_baby_bear::BabyBear;
 use p3_field::{AbstractField, Field};
 
-use p3_bn254_fr::{Bn254Fr, DiffusionMatrixBN254};
-use p3_poseidon2::Poseidon2;
+use p3_bn254_fr::Bn254Fr;
 use p3_symmetric::Permutation;
 use sp1_recursion_compiler::{
     circuit::CircuitV2Builder,
     ir::{Builder, Config, DslIr, Felt, Var},
 };
 use sp1_recursion_core_v2::stark::config::outer_perm;
-use sp1_recursion_core_v2::{stark::config::BabyBearPoseidon2Outer, DIGEST_SIZE, HASH_RATE};
+use sp1_recursion_core_v2::{stark::config::BabyBearPoseidon2Outer, DIGEST_SIZE};
 use sp1_stark::baby_bear_poseidon2::BabyBearPoseidon2;
 use sp1_stark::inner_perm;
 
