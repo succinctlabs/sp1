@@ -7,7 +7,7 @@ use p3_util::log2_strict_usize;
 use sp1_recursion_compiler::ir::{Builder, DslIr, Felt, SymbolicExt};
 use std::{
     cmp::Reverse,
-    iter::{once, repeat_with, zip},
+    iter::{once, repeat, repeat_with, zip},
 };
 
 use crate::{
@@ -93,6 +93,12 @@ pub fn verify_two_adic_pcs<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigV
                 let mats = round.domains_points_and_opens;
                 let batch_heights =
                     mats.iter().map(|mat| mat.domain.size() << config.log_blowup).collect_vec();
+
+                let batch_heights_and_cached_powers: Vec<(usize, Option<Felt<_>>)> = batch_heights
+                    .iter()
+                    .copied()
+                    .map(|height| (height, Option::<Felt<C::F>>::None))
+                    .collect_vec();
 
                 let batch_max_height = batch_heights.iter().max().expect("Empty batch?");
                 let log_batch_max_height = log2_strict_usize(*batch_max_height);
@@ -242,8 +248,8 @@ pub fn verify_query<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVariable
     let two_adic_generator: Felt<_> = builder.constant(C::F::two_adic_generator(log_max_height));
 
     // TODO: fix expreversebits address bug to avoid needing to allocate a new variable.
-    let mut x = builder.constant(C::F::zero());
-    // C::exp_reverse_bits(builder, two_adic_generator, index_bits[..log_max_height].to_vec());
+    let mut x =
+        C::exp_reverse_bits(builder, two_adic_generator, index_bits[..log_max_height].to_vec());
     // let mut x = builder.uninit();
     // builder.operations.push(DslIr::AddFI(x, x_f, C::F::zero()));
 
