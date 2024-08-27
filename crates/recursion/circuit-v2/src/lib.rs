@@ -27,6 +27,7 @@ pub mod domain;
 pub mod fri;
 pub mod hash;
 pub mod machine;
+pub mod merkle_tree;
 pub mod stark;
 pub(crate) mod utils;
 pub mod witness;

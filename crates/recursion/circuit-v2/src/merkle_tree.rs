@@ -39,8 +39,9 @@ impl<F: Field, HV: FieldHasher<F>> MerkleTree<F, HV> {
         let mut digest_layers = Vec::with_capacity(2 * new_len - 2);
 
         // If `leaves.len()` is not a power of 2, we pad the leaves with default values.
-        let mut last_layer = leaves.clone();
-        for _ in leaves.len()..new_len {
+        let mut last_layer = leaves;
+        let old_len = last_layer.len();
+        for _ in old_len..new_len {
             last_layer.push(HV::Digest::default());
         }
 
@@ -138,7 +139,10 @@ mod tests {
     use itertools::Itertools;
     use p3_baby_bear::BabyBear;
     use p3_field::AbstractField;
-    use rand::{rngs::StdRng, SeedableRng};
+    use rand::{
+        rngs::{OsRng, StdRng},
+        SeedableRng,
+    };
     use sp1_recursion_compiler::{
         config::InnerConfig,
         ir::{Builder, Felt},
@@ -158,32 +162,37 @@ mod tests {
 
     #[test]
     fn test_merkle_tree_inner() {
-        let mut rng = StdRng::seed_from_u64(0xCAFEBABE);
-        let leaves: Vec<[F; DIGEST_SIZE]> =
-            (0..17).map(|_| std::array::from_fn(|_| F::rand(&mut rng))).collect();
-        let (root, tree) = MerkleTree::<F, HV>::commit(leaves.to_vec());
+        let mut rng = OsRng;
         let mut builder = Builder::<InnerConfig>::default();
-        for (i, leaf) in leaves.iter().enumerate() {
-            let (value, proof) = MerkleTree::<F, HV>::open(&tree, i);
-            assert!(value == *leaf);
-            MerkleTree::<F, HV>::verify(i, value, &proof, root).unwrap();
-            let (value_variable, proof_variable): ([Felt<_>; 8], Vec<[Felt<_>; 8]>) = (
-                std::array::from_fn(|i| builder.constant(value[i])),
-                proof.iter().map(|x| std::array::from_fn(|i| builder.constant(x[i]))).collect_vec(),
-            );
+        for _ in 0..20 {
+            let leaves: Vec<[F; DIGEST_SIZE]> =
+                (0..17).map(|_| std::array::from_fn(|_| F::rand(&mut rng))).collect();
+            let (root, tree) = MerkleTree::<F, HV>::commit(leaves.to_vec());
+            for (i, leaf) in leaves.iter().enumerate() {
+                let (value, proof) = MerkleTree::<F, HV>::open(&tree, i);
+                assert!(value == *leaf);
+                MerkleTree::<F, HV>::verify(i, value, &proof, root).unwrap();
+                let (value_variable, proof_variable): ([Felt<_>; 8], Vec<[Felt<_>; 8]>) = (
+                    std::array::from_fn(|i| builder.constant(value[i])),
+                    proof
+                        .iter()
+                        .map(|x| std::array::from_fn(|i| builder.constant(x[i])))
+                        .collect_vec(),
+                );
 
-            let index_var = builder.constant(BabyBear::from_canonical_usize(i));
-            let index_bits = C::num2bits(&mut builder, index_var, 5);
-            let root_variable: [Felt<_>; 8] =
-                root.iter().map(|x| builder.constant(*x)).collect_vec().try_into().unwrap();
+                let index_var = builder.constant(BabyBear::from_canonical_usize(i));
+                let index_bits = C::num2bits(&mut builder, index_var, 5);
+                let root_variable: [Felt<_>; 8] =
+                    root.iter().map(|x| builder.constant(*x)).collect_vec().try_into().unwrap();
 
-            verify::<InnerConfig, BabyBearPoseidon2>(
-                &mut builder,
-                index_bits,
-                value_variable,
-                &proof_variable,
-                root_variable,
-            );
+                verify::<InnerConfig, BabyBearPoseidon2>(
+                    &mut builder,
+                    index_bits,
+                    value_variable,
+                    &proof_variable,
+                    root_variable,
+                );
+            }
         }
 
         run_test_recursion(builder.operations, std::iter::empty());
