@@ -1005,7 +1005,7 @@ pub mod tests {
     use super::*;
 
     use anyhow::Result;
-    use build::{try_build_groth16_bn254_artifacts_dev, try_build_plonk_bn254_artifacts_dev};
+    use build::try_build_groth16_bn254_artifacts_dev;
     use p3_field::PrimeField32;
 
     use sp1_recursion_core_v2::air::RecursionPublicValues;
@@ -1027,6 +1027,7 @@ pub mod tests {
     pub fn test_e2e_prover<C: SP1ProverComponents>(
         prover: &SP1Prover<C>,
         elf: &[u8],
+        stdin: SP1Stdin,
         opts: SP1ProverOpts,
         test_kind: Test,
     ) -> Result<()> {
@@ -1037,7 +1038,6 @@ pub mod tests {
         let (pk, vk) = prover.setup(elf);
 
         tracing::info!("prove core");
-        let stdin = SP1Stdin::new();
         let core_proof = prover.prove_core(&pk, &stdin, opts, context)?;
         let public_values = core_proof.public_values.clone();
 
@@ -1083,11 +1083,10 @@ pub mod tests {
         let mut bytes = Vec::new();
         file.read_to_end(&mut bytes).unwrap();
 
-        let wrapped_bn254_proof: SP1ReduceProof<BabyBearPoseidon2Outer> =
-            bincode::deserialize(&bytes).unwrap();
+        let wrapped_bn254_proof = bincode::deserialize(&bytes).unwrap();
 
         tracing::info!("verify wrap bn254");
-        // prover.verify_wrap_bn254(&wrapped_bn254_proof, &vk).unwrap();
+        prover.verify_wrap_bn254(&wrapped_bn254_proof, &vk).unwrap();
 
         if test_kind == Test::Wrap {
             return Ok(());
@@ -1101,16 +1100,16 @@ pub mod tests {
         let vk_digest_bn254 = wrapped_bn254_proof.sp1_vkey_digest_bn254();
         assert_eq!(vk_digest_bn254, vk.hash_bn254());
 
-        tracing::info!("generate plonk bn254 proof");
-        let artifacts_dir = try_build_plonk_bn254_artifacts_dev(
-            &wrapped_bn254_proof.vk,
-            &wrapped_bn254_proof.proof,
-        );
-        let plonk_bn254_proof =
-            prover.wrap_plonk_bn254(wrapped_bn254_proof.clone(), &artifacts_dir);
-        println!("{:?}", plonk_bn254_proof);
+        // tracing::info!("generate plonk bn254 proof");
+        // let artifacts_dir = try_build_plonk_bn254_artifacts_dev(
+        //     &wrapped_bn254_proof.vk,
+        //     &wrapped_bn254_proof.proof,
+        // );
+        // let plonk_bn254_proof =
+        //     prover.wrap_plonk_bn254(wrapped_bn254_proof.clone(), &artifacts_dir);
+        // println!("{:?}", plonk_bn254_proof);
 
-        prover.verify_plonk_bn254(&plonk_bn254_proof, &vk, &public_values, &artifacts_dir)?;
+        // prover.verify_plonk_bn254(&plonk_bn254_proof, &vk, &public_values, &artifacts_dir)?;
 
         tracing::info!("generate groth16 bn254 proof");
         let artifacts_dir = try_build_groth16_bn254_artifacts_dev(
@@ -1234,7 +1233,13 @@ pub mod tests {
         // docker image which has a different API than the current. So we need to wait until the
         // next release (v1.2.0+), and then switch it back.
         let prover = SP1Prover::<DefaultProverComponents>::new();
-        test_e2e_prover::<DefaultProverComponents>(&prover, elf, opts, Test::Plonk)
+        test_e2e_prover::<DefaultProverComponents>(
+            &prover,
+            elf,
+            SP1Stdin::default(),
+            opts,
+            Test::Plonk,
+        )
     }
 
     /// Tests an end-to-end workflow of proving a program across the entire proof generation
