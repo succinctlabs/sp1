@@ -468,7 +468,7 @@ where
                 consumer(Err(CompileOneErr::CycleTrackerEnter(name)))
             }
             DslIr::CycleTrackerV2Exit => consumer(Err(CompileOneErr::CycleTrackerExit)),
-            DslIr::ReduceE(_) | DslIr::ReduceF(_) => {}
+            DslIr::ReduceE(_) => {}
             instr => consumer(Err(CompileOneErr::Unsupported(instr))),
         }
     }

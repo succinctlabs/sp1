@@ -382,10 +382,6 @@ impl<C: Config + Debug> ConstraintCompiler<C> {
                     opcode: ConstraintOpcode::ReduceE,
                     args: vec![vec![a.id()]],
                 }),
-                DslIr::ReduceF(a) => constraints.push(Constraint {
-                    opcode: ConstraintOpcode::ReduceF,
-                    args: vec![vec![a.id()]],
-                }),
                 DslIr::CircuitFelt2Var(a, b) => constraints.push(Constraint {
                     opcode: ConstraintOpcode::CircuitFelt2Var,
                     args: vec![vec![b.id()], vec![a.id()]],

@@ -131,7 +131,6 @@ pub fn verify_two_adic_pcs<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigV
                         &reduced_index_bits_trunc.into_iter().rev().collect_vec(),
                         &precomputed_generator_powers[bits_reduced..],
                     );
-                    // builder.reduce_f(two_adic_generator_exp);
 
                     // Unroll the following to avoid symbolic expression overhead
                     // let x: Felt<_> = builder.eval(g * two_adic_generator_exp);
@@ -141,6 +140,7 @@ pub fn verify_two_adic_pcs<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigV
                     for (z, ps_at_z) in izip!(mat_points, mat_values) {
                         // Unroll the loop calculation to avoid symbolic expression overhead
 
+                        // let mut acc: Ext<C::F, C::EF> = builder.constant(C::EF::zero());
                         let mut acc: Ext<_, _> = builder.uninit();
 
                         builder.operations.push(DslIr::ImmE(acc, C::EF::zero()));

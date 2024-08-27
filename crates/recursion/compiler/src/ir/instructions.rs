@@ -185,7 +185,6 @@ pub enum DslIr<C: Config> {
 
     /// Force reduction of field elements in circuit.
     ReduceE(Ext<C::F, C::EF>),
-    ReduceF(Felt<C::F>),
 
     // Bits.
     /// Decompose a variable into size bits (bits = num2bits(var, size)). Should only be used when
