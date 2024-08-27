@@ -1,7 +1,6 @@
 use chips::poseidon2_skinny::WIDTH;
 use core::fmt::Debug;
 use instruction::{FieldEltType, HintBitsInstr, HintExt2FeltsInstr, HintInstr, PrintInstr};
-use itertools::Itertools;
 use p3_field::{
     AbstractExtensionField, AbstractField, Field, PrimeField, PrimeField64, TwoAdicField,
 };
