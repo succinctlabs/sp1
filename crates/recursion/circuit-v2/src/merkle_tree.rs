@@ -139,10 +139,7 @@ mod tests {
     use itertools::Itertools;
     use p3_baby_bear::BabyBear;
     use p3_field::AbstractField;
-    use rand::{
-        rngs::{OsRng, StdRng},
-        SeedableRng,
-    };
+    use rand::rngs::OsRng;
     use sp1_recursion_compiler::{
         config::InnerConfig,
         ir::{Builder, Felt},
