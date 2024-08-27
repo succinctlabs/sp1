@@ -1005,7 +1005,7 @@ pub mod tests {
     use super::*;
 
     use anyhow::Result;
-    use build::try_build_groth16_bn254_artifacts_dev;
+    use build::{try_build_groth16_bn254_artifacts_dev, try_build_plonk_bn254_artifacts_dev};
     use p3_field::PrimeField32;
 
     use sp1_recursion_core_v2::air::RecursionPublicValues;
