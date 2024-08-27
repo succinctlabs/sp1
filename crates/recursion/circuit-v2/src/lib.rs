@@ -128,6 +128,14 @@ pub trait CircuitConfig: Config {
         power_bits: Vec<Self::Bit>,
     ) -> Felt<<Self as Config>::F>;
 
+    /// Exponentiates a felt x to a list of bits in little endian. Uses precomputed powers
+    /// of x.
+    fn exp_f_bits_precomputed(
+        builder: &mut Builder<Self>,
+        power_bits: &[Self::Bit],
+        two_adic_powers_of_x: &[Felt<Self::F>],
+    ) -> Felt<Self::F>;
+
     fn num2bits(
         builder: &mut Builder<Self>,
         num: Felt<<Self as Config>::F>,
@@ -232,6 +240,18 @@ impl CircuitConfig for InnerConfig {
             .map(|((id_v, sw_v), (id_c, sw_c))| builder.eval(id_v * id_c + sw_v * sw_c))
             .collect()
     }
+
+    fn exp_f_bits_precomputed(
+        builder: &mut Builder<Self>,
+        power_bits: &[Self::Bit],
+        two_adic_powers_of_x: &[Felt<Self::F>],
+    ) -> Felt<Self::F> {
+        Self::exp_reverse_bits(
+            builder,
+            two_adic_powers_of_x[0],
+            power_bits.iter().rev().copied().collect(),
+        )
+    }
 }
 
 impl CircuitConfig for OuterConfig {
@@ -332,6 +352,20 @@ impl CircuitConfig for OuterConfig {
                 result
             })
             .collect()
+    }
+
+    fn exp_f_bits_precomputed(
+        builder: &mut Builder<Self>,
+        power_bits: &[Self::Bit],
+        two_adic_powers_of_x: &[Felt<Self::F>],
+    ) -> Felt<Self::F> {
+        let mut result: Felt<_> = builder.eval(Self::F::one());
+        let one = builder.constant(Self::F::one());
+        for (&bit, &power) in power_bits.iter().zip(two_adic_powers_of_x) {
+            let multiplier = builder.select_f(bit, power, one);
+            result = builder.eval(multiplier * result);
+        }
+        result
     }
 }
 
