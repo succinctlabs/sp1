@@ -143,7 +143,7 @@ where
     /// Increments the mult, first creating an entry if it does not yet exist.
     pub fn read_const(&mut self, imm: Imm<C::F, C::EF>) -> Address<C::F> {
         use vec_map::Entry;
-        let addr = self.read_ghost_const(imm);
+        let addr = *self.consts.entry(imm).or_insert_with(|| Self::alloc(&mut self.next_addr));
         match self.addr_to_mult.entry(addr.as_usize()) {
             Entry::Vacant(entry) => drop(entry.insert(C::F::one())),
             Entry::Occupied(mut entry) => *entry.get_mut() += C::F::one(),
