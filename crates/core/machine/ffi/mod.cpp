@@ -1,6 +1,10 @@
-#include <stdint.h>
-#include <stdbool.h>
+#include <cstdint>
+#include <cstdbool>
+// make the function available to Rust
 
+extern void add_one(unsigned int *x) {
+    *x += 1;
+}
 // Assuming populate_c is already defined as you provided it
 extern uint32_t populate_c(
     uint32_t a_u32,
@@ -73,15 +77,4 @@ uint32_t populate_c(
     return expected;
 }
 
-        // let is_add = event.opcode == Opcode::ADD;
-        // cols.shard = F::from_canonical_u32(event.shard);
-        // cols.channel = F::from_canonical_u8(event.channel);
-        // cols.is_add = F::from_bool(is_add);
-        // cols.is_sub = F::from_bool(!is_add);
 
-        // let operand_1 = if is_add { event.b } else { event.a };
-        // let operand_2 = event.c;
-
-        // cols.add_operation.populate(blu, event.shard, event.channel, operand_1, operand_2);
-        // cols.operand_1 = Word::from(operand_1);
-        // cols.operand_2 = Word::from(operand_2);
