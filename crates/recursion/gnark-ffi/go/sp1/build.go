@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/kzg"
@@ -60,7 +61,7 @@ func BuildPlonk(dataDir string) {
 	}
 	defer srsLagrangeFile.Close()
 
-	if false {
+	if !strings.Contains(dataDir, "dev") {
 		if _, err := os.Stat(srsFileName); os.IsNotExist(err) {
 			fmt.Println("downloading aztec ignition srs")
 			trusted_setup.DownloadAndSaveAztecIgnitionSrs(174, srsFileName)
