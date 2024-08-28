@@ -1,10 +1,4 @@
-// pub(crate) struct VarHandle<N> {}
-
-use std::marker::PhantomData;
-
 use super::{Ext, Felt, Var};
-
-pub(crate) const EMPTY_OPS: EmptyOperations = EmptyOperations {};
 
 #[derive(Debug)]
 pub struct VarHandle<N> {
@@ -119,53 +113,53 @@ impl<F> FeltOperations<F> for EmptyOperations {
         unimplemented!()
     }
 
-    fn add_const_felt(ptr: *mut (), lhs: Felt<F>, rhs: F) -> Felt<F> {
+    fn add_const_felt(ptr: *mut (), _lhs: Felt<F>, _rhs: F) -> Felt<F> {
         unimplemented!()
     }
 
-    fn mul_const_felt(ptr: *mut (), lhs: Felt<F>, rhs: F) -> Felt<F> {
+    fn mul_const_felt(ptr: *mut (), _lhs: Felt<F>, _rhs: F) -> Felt<F> {
         unimplemented!()
     }
 
-    fn sub_const_felt(ptr: *mut (), lhs: Felt<F>, rhs: F) -> Felt<F> {
+    fn sub_const_felt(ptr: *mut (), _lhs: Felt<F>, _rhs: F) -> Felt<F> {
         unimplemented!()
     }
 }
 
 impl<F, EF> ExtOperations<F, EF> for EmptyOperations {
-    fn add_ext(ptr: *mut (), lhs: Ext<F, EF>, rhs: Ext<F, EF>) -> Ext<F, EF> {
+    fn add_ext(_ptr: *mut (), _lhs: Ext<F, EF>, _rhs: Ext<F, EF>) -> Ext<F, EF> {
         unimplemented!()
     }
 
-    fn add_base(ptr: *mut (), lhs: Ext<F, EF>, rhs: Felt<F>) -> Ext<F, EF> {
+    fn add_base(_ptr: *mut (), _lhs: Ext<F, EF>, _rhs: Felt<F>) -> Ext<F, EF> {
         unimplemented!()
     }
 
-    fn mul_base(ptr: *mut (), lhs: Ext<F, EF>, rhs: Felt<F>) -> Ext<F, EF> {
+    fn mul_base(_ptr: *mut (), _lhs: Ext<F, EF>, _rhs: Felt<F>) -> Ext<F, EF> {
         unimplemented!()
     }
 
-    fn mul_ext(ptr: *mut (), lhs: Ext<F, EF>, rhs: Ext<F, EF>) -> Ext<F, EF> {
+    fn mul_ext(_ptr: *mut (), _lhs: Ext<F, EF>, _rhs: Ext<F, EF>) -> Ext<F, EF> {
         unimplemented!()
     }
 
-    fn sub_ext(ptr: *mut (), lhs: Ext<F, EF>, rhs: Ext<F, EF>) -> Ext<F, EF> {
+    fn sub_ext(_ptr: *mut (), _lhs: Ext<F, EF>, _rhs: Ext<F, EF>) -> Ext<F, EF> {
         unimplemented!()
     }
 
-    fn sub_base(ptr: *mut (), lhs: Ext<F, EF>, rhs: Felt<F>) -> Ext<F, EF> {
+    fn sub_base(_ptr: *mut (), _lhs: Ext<F, EF>, _rhs: Felt<F>) -> Ext<F, EF> {
         unimplemented!()
     }
 
-    fn sub_ext_from_base(ptr: *mut (), lhs: Felt<F>, rhs: Ext<F, EF>) -> Ext<F, EF> {
+    fn sub_ext_from_base(_ptr: *mut (), _lhs: Felt<F>, _rhs: Ext<F, EF>) -> Ext<F, EF> {
         unimplemented!()
     }
 
-    fn add_const_base(ptr: *mut (), lhs: Ext<F, EF>, rhs: F) -> Ext<F, EF> {
+    fn add_const_base(_ptr: *mut (), _lhs: Ext<F, EF>, _rhs: F) -> Ext<F, EF> {
         unimplemented!()
     }
 
-    fn add_const_ext(ptr: *mut (), lhs: Ext<F, EF>, rhs: EF) -> Ext<F, EF> {
+    fn add_const_ext(_ptr: *mut (), _lhs: Ext<F, EF>, _rhs: EF) -> Ext<F, EF> {
         unimplemented!()
     }
 }

@@ -1,10 +1,4 @@
-use std::{
-    cell::RefCell,
-    iter::Zip,
-    ptr::{self, NonNull},
-    rc::Rc,
-    vec::IntoIter,
-};
+use std::{borrow::Borrow, cell::UnsafeCell, iter::Zip, ptr, vec::IntoIter};
 
 use backtrace::Backtrace;
 use p3_field::AbstractField;
@@ -14,7 +8,6 @@ use sp1_primitives::types::RecursionProgramType;
 use super::{
     Array, Config, DslIr, EmptyOperations, Ext, ExtHandle, Felt, FeltHandle, FromConstant,
     SymbolicExt, SymbolicFelt, SymbolicUsize, SymbolicVar, Usize, Var, VarHandle, Variable,
-    EMPTY_OPS,
 };
 
 /// TracedVec is a Vec wrapper that records a trace whenever an element is pushed. When extending
@@ -94,7 +87,7 @@ pub struct InnerBuilder<C: Config> {
 /// Can compile to both assembly and a set of constraints.
 #[derive(Debug)]
 pub struct Builder<C: Config> {
-    pub(crate) inner: Rc<RefCell<InnerBuilder<C>>>,
+    pub(crate) inner: UnsafeCell<InnerBuilder<C>>,
     pub(crate) nb_public_values: Option<Var<C::N>>,
     pub(crate) witness_var_count: u32,
     pub(crate) witness_felt_count: u32,
@@ -122,7 +115,7 @@ impl<C: Config> Builder<C> {
         let inner = InnerBuilder { variable_count: 0, operations: Default::default() };
 
         let mut new_builder = Self {
-            inner: Rc::new(RefCell::new(inner)),
+            inner: UnsafeCell::new(inner),
             witness_var_count: 0,
             witness_felt_count: 0,
             witness_ext_count: 0,
@@ -150,7 +143,7 @@ impl<C: Config> Builder<C> {
     ) -> Self {
         let inner = InnerBuilder { variable_count, operations: Default::default() };
         Self {
-            inner: Rc::new(RefCell::new(inner)),
+            inner: UnsafeCell::new(inner),
             // Witness counts are only used when the target is a gnark circuit.  And sub-builders
             // are not used when the target is a gnark circuit, so it's fine to set the
             // witness counts to 0.
@@ -170,29 +163,24 @@ impl<C: Config> Builder<C> {
 
     /// Pushes an operation to the builder.
     pub fn push_op(&mut self, op: DslIr<C>) {
-        self.inner.borrow_mut().operations.push(op);
+        self.inner.get_mut().operations.push(op);
     }
 
     pub fn extend_ops(&mut self, ops: impl IntoIterator<Item = (DslIr<C>, Option<Backtrace>)>) {
-        self.inner.borrow_mut().operations.extend(ops);
+        self.inner.get_mut().operations.extend(ops);
     }
 
     /// Pushes an operation to the builder and records a trace if SP1_DEBUG.
     pub fn trace_push(&mut self, op: DslIr<C>) {
-        self.inner.borrow_mut().operations.trace_push(op);
+        self.inner.get_mut().operations.trace_push(op);
     }
 
     pub fn variable_count(&self) -> u32 {
-        self.inner.borrow().variable_count
+        unsafe { (&*self.inner.get()).variable_count }
     }
 
     pub fn into_operations(self) -> TracedVec<DslIr<C>> {
-        let inner = Rc::into_inner(self.inner);
-        if inner.is_none() {
-            tracing::warn!("Builder has no unique reference");
-        }
-        tracing::info!("Builder has unique reference");
-        inner.unwrap().into_inner().operations
+        self.inner.into_inner().operations
     }
 
     /// Creates an uninitialized variable.

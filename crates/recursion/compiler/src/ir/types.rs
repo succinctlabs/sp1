@@ -1,14 +1,12 @@
 use alloc::format;
-use core::marker::PhantomData;
 use std::{collections::HashMap, hash::Hash};
 
 use p3_field::{AbstractField, ExtensionField, Field};
 use serde::{Deserialize, Serialize};
 
 use super::{
-    Builder, Config, DslIr, EmptyOperations, ExtConst, ExtHandle, FeltHandle, FromConstant,
-    MemIndex, MemVariable, Ptr, SymbolicExt, SymbolicFelt, SymbolicUsize, SymbolicVar, VarHandle,
-    Variable,
+    Builder, Config, DslIr, ExtConst, ExtHandle, FeltHandle, FromConstant, MemIndex, MemVariable,
+    Ptr, SymbolicExt, SymbolicFelt, SymbolicUsize, SymbolicVar, VarHandle, Variable,
 };
 
 /// A variable that represents a native field element.
@@ -416,7 +414,7 @@ impl<C: Config> Variable<C> for Var<C::N> {
     fn uninit(builder: &mut Builder<C>) -> Self {
         let id = builder.variable_count();
         let var = Var::new(id, &mut builder.var_handle);
-        builder.inner.borrow_mut().variable_count += 1;
+        builder.inner.get_mut().variable_count += 1;
         var
     }
 
@@ -756,7 +754,7 @@ impl<C: Config> Variable<C> for Felt<C::F> {
     fn uninit(builder: &mut Builder<C>) -> Self {
         let idx = builder.variable_count();
         let felt = Felt::<C::F>::new(idx, &mut builder.felt_handle);
-        builder.inner.borrow_mut().variable_count += 1;
+        builder.inner.get_mut().variable_count += 1;
         felt
     }
 
@@ -1141,7 +1139,7 @@ impl<C: Config> Variable<C> for Ext<C::F, C::EF> {
     fn uninit(builder: &mut Builder<C>) -> Self {
         let idx = builder.variable_count();
         let ext = Ext::<C::F, C::EF>::new(idx, &mut builder.ext_handle);
-        builder.inner.borrow_mut().variable_count += 1;
+        builder.inner.get_mut().variable_count += 1;
         ext
     }
 
