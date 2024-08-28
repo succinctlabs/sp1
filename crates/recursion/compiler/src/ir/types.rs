@@ -1,6 +1,6 @@
 use alloc::format;
 
-use p3_field::{AbstractField, ExtensionField, Field};
+use p3_field::{AbstractExtensionField, AbstractField, ExtensionField, Field};
 use serde::{Deserialize, Serialize};
 
 use super::{
@@ -325,7 +325,14 @@ impl<C: Config> Variable<C> for Felt<C::F> {
     }
 
     fn assign(&self, src: Self::Expression, builder: &mut Builder<C>) {
-        todo!()
+        match src {
+            SymbolicFelt::Const(src) => {
+                builder.push_op(DslIr::ImmF(*self, src));
+            }
+            SymbolicFelt::Val(src) => {
+                builder.push_op(DslIr::AddFI(*self, src, C::F::zero()));
+            }
+        }
     }
 
     fn assert_eq(
@@ -367,28 +374,11 @@ impl<C: Config> Variable<C> for Felt<C::F> {
             (SymbolicFelt::Const(lhs), SymbolicFelt::Val(rhs)) => {
                 builder.trace_push(DslIr::AssertNeFI(rhs, lhs));
             }
-            (SymbolicFelt::Const(lhs), rhs) => {
-                let rhs_value = Self::uninit(builder);
-                rhs_value.assign(rhs, builder);
-                builder.trace_push(DslIr::AssertNeFI(rhs_value, lhs));
-            }
             (SymbolicFelt::Val(lhs), SymbolicFelt::Const(rhs)) => {
                 builder.trace_push(DslIr::AssertNeFI(lhs, rhs));
             }
             (SymbolicFelt::Val(lhs), SymbolicFelt::Val(rhs)) => {
                 builder.trace_push(DslIr::AssertNeF(lhs, rhs));
-            }
-            (SymbolicFelt::Val(lhs), rhs) => {
-                let rhs_value = Self::uninit(builder);
-                rhs_value.assign(rhs, builder);
-                builder.trace_push(DslIr::AssertNeF(lhs, rhs_value));
-            }
-            (lhs, rhs) => {
-                let lhs_value = Self::uninit(builder);
-                lhs_value.assign(lhs, builder);
-                let rhs_value = Self::uninit(builder);
-                rhs_value.assign(rhs, builder);
-                builder.trace_push(DslIr::AssertNeF(lhs_value, rhs_value));
             }
         }
     }
@@ -419,8 +409,22 @@ impl<C: Config> Variable<C> for Ext<C::F, C::EF> {
     }
 
     fn assign(&self, src: Self::Expression, builder: &mut Builder<C>) {
-        todo!()
-        // self.assign_with_caches(src, builder, &mut HashMap::new(), &mut HashMap::new());
+        match src {
+            SymbolicExt::Const(src) => {
+                builder.push_op(DslIr::ImmE(*self, src));
+            }
+            SymbolicExt::Base(src) => match src {
+                SymbolicFelt::Const(src) => {
+                    builder.push_op(DslIr::ImmE(*self, C::EF::from_base(src)));
+                }
+                SymbolicFelt::Val(src) => {
+                    builder.push_op(DslIr::AddEFFI(*self, src, C::EF::zero()));
+                }
+            },
+            SymbolicExt::Val(src) => {
+                builder.push_op(DslIr::AddEI(*self, src, C::EF::zero()));
+            }
+        }
     }
 
     fn assert_eq(
