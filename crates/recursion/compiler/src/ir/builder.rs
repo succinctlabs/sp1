@@ -171,7 +171,12 @@ impl<C: Config> Builder<C> {
     }
 
     pub fn into_operations(self) -> TracedVec<DslIr<C>> {
-        Rc::into_inner(self.inner).expect("Builder has no unique reference").into_inner().operations
+        let inner = Rc::into_inner(self.inner);
+        if inner.is_none() {
+            tracing::warn!("Builder has no unique reference");
+        }
+        tracing::info!("Builder has unique reference");
+        inner.unwrap().into_inner().operations
     }
 
     /// Creates an uninitialized variable.
