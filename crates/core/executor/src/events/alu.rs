@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::Opcode;
 
-use super::create_alu_lookups;
+use super::{create_alu_lookups, LookupId};
 
 /// Arithmetic Logic Unit (ALU) Event.
 ///
@@ -11,7 +11,7 @@ use super::create_alu_lookups;
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct AluEvent {
     /// The lookup identifer.
-    pub lookup_id: u128,
+    pub lookup_id: LookupId,
     /// The shard number.
     pub shard: u32,
     /// The channel number.
@@ -27,15 +27,16 @@ pub struct AluEvent {
     /// The third operand.
     pub c: u32,
     /// The result of the operation.
-    pub sub_lookups: [u128; 6],
+    /// make in the format of [LookupId; 6]
+    pub sub_lookups: [LookupId; 6],
 }
-
+//use crate::events::create_alu_lookup_id;
 impl AluEvent {
     /// Create a new [`AluEvent`].
     #[must_use]
     pub fn new(shard: u32, channel: u8, clk: u32, opcode: Opcode, a: u32, b: u32, c: u32) -> Self {
         Self {
-            lookup_id: 0,
+            lookup_id: LookupId::default(),
             shard,
             channel,
             clk,
