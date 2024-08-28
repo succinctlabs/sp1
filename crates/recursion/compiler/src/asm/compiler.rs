@@ -36,21 +36,21 @@ pub struct AsmCompiler<F, EF> {
 impl<F> Var<F> {
     /// Gets the frame pointer for a var.
     pub const fn fp(&self) -> i32 {
-        -((self.0 as i32) * 3 + 1 + STACK_START_OFFSET)
+        -((self.idx as i32) * 3 + 1 + STACK_START_OFFSET)
     }
 }
 
 impl<F> Felt<F> {
     /// Gets the frame pointer for a felt.
     pub const fn fp(&self) -> i32 {
-        -((self.0 as i32) * 3 + 2 + STACK_START_OFFSET)
+        -((self.idx as i32) * 3 + 2 + STACK_START_OFFSET)
     }
 }
 
 impl<F, EF> Ext<F, EF> {
     /// Gets the frame pointer for an extension element
     pub const fn fp(&self) -> i32 {
-        -((self.0 as i32) * 3 + STACK_START_OFFSET)
+        -((self.idx as i32) * 3 + STACK_START_OFFSET)
     }
 }
 

@@ -198,7 +198,7 @@ impl<F: Field, EF: ExtensionField<F>> ExtOperand<F, EF> {
             ExtOperand::Base(f) => SymbolicFelt::from(*f).digest().0.map(EF::from_base).into(),
             ExtOperand::Const(ef) => (*ef).into(),
             ExtOperand::Felt(f) => SymbolicFelt::from(*f).digest().0.map(EF::from_base).into(),
-            ExtOperand::Ext(e) => digest_id_ext::<F, EF>(e.0),
+            ExtOperand::Ext(e) => digest_id_ext::<F, EF>(e.idx),
             ExtOperand::SymFelt(f) => f.digest().0.map(EF::from_base).into(),
             ExtOperand::Sym(e) => e.digest(),
         }
@@ -417,13 +417,13 @@ impl<F: Field, EF: ExtensionField<F>> From<F> for SymbolicExt<F, EF> {
 
 impl<N: Field> From<Var<N>> for SymbolicVar<N> {
     fn from(v: Var<N>) -> Self {
-        SymbolicVar::Val(v, digest_id(v.0))
+        SymbolicVar::Val(v, digest_id(v.idx))
     }
 }
 
 impl<F: Field> From<Felt<F>> for SymbolicFelt<F> {
     fn from(f: Felt<F>) -> Self {
-        SymbolicFelt::Val(f, digest_id(f.0))
+        SymbolicFelt::Val(f, digest_id(f.idx))
     }
 }
 

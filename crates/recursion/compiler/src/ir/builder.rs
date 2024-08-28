@@ -1,4 +1,4 @@
-use std::{cell::RefCell, iter::Zip, rc::Rc, vec::IntoIter};
+use std::{cell::RefCell, iter::Zip, ptr::NonNull, rc::Rc, vec::IntoIter};
 
 use backtrace::Backtrace;
 use p3_field::AbstractField;
@@ -107,7 +107,7 @@ impl<C: Config> Default for Builder<C> {
 impl<C: Config> Builder<C> {
     pub fn new(program_type: RecursionProgramType) -> Self {
         // We need to create a temporary placeholder for the p2_hash_num variable.
-        let placeholder_p2_hash_num = Var::new(0);
+        let placeholder_p2_hash_num = Var::new(0, NonNull::dangling());
 
         let inner = InnerBuilder { variable_count: 0, operations: Default::default() };
 

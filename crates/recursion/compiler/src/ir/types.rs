@@ -1,32 +1,50 @@
 use alloc::format;
 use core::marker::PhantomData;
-use std::{collections::HashMap, hash::Hash};
+use std::{collections::HashMap, hash::Hash, ptr::NonNull};
 
 use p3_field::{AbstractField, ExtensionField, Field};
 use serde::{Deserialize, Serialize};
 
 use super::{
-    Builder, Config, DslIr, ExtConst, FromConstant, MemIndex, MemVariable, Ptr, SymbolicExt,
-    SymbolicFelt, SymbolicUsize, SymbolicVar, Variable,
+    Builder, Config, DslIr, EmptyOperations, ExtConst, ExtHandle, FeltHandle, FromConstant,
+    MemIndex, MemVariable, Ptr, SymbolicExt, SymbolicFelt, SymbolicUsize, SymbolicVar, VarHandle,
+    Variable,
 };
 
 /// A variable that represents a native field element.
 ///
 /// Used for counters, simple loops, etc.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct Var<N>(pub u32, pub PhantomData<N>);
+pub struct Var<N> {
+    pub idx: u32,
+    handle: NonNull<VarHandle<N>>,
+}
 
 /// A variable that represents an emulated field element.
 ///
 /// Used to do field arithmetic for recursive verification.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct Felt<F>(pub u32, pub PhantomData<F>);
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct Felt<F> {
+    pub idx: u32,
+    handle: NonNull<FeltHandle<F>>,
+}
 
 /// A variable that represents an emulated extension field element.
 ///
 /// Used to do extension field arithmetic for recursive verification.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct Ext<F, EF>(pub u32, pub PhantomData<(F, EF)>);
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct Ext<F, EF> {
+    pub idx: u32,
+    handle: NonNull<ExtHandle<F, EF>>,
+}
+
+unsafe impl<N> Send for Var<N> {}
+unsafe impl<F, EF> Send for Ext<F, EF> {}
+unsafe impl<F> Send for Felt<F> {}
+
+unsafe impl<N> Sync for Var<N> {}
+unsafe impl<F, EF> Sync for Ext<F, EF> {}
+unsafe impl<F> Sync for Felt<F> {}
 
 /// A variable that represents either a constant or variable counter.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -89,30 +107,30 @@ impl<N> From<usize> for Usize<N> {
 }
 
 impl<N> Var<N> {
-    pub const fn new(id: u32) -> Self {
-        Self(id, PhantomData)
+    pub const fn new(idx: u32, hanlde: NonNull<VarHandle<N>>) -> Self {
+        Self { idx, handle: hanlde }
     }
 
     pub fn id(&self) -> String {
-        format!("var{}", self.0)
+        format!("var{}", self.idx)
     }
 
     pub fn loc(&self) -> String {
-        self.0.to_string()
+        self.idx.to_string()
     }
 }
 
 impl<F> Felt<F> {
-    pub const fn new(id: u32) -> Self {
-        Self(id, PhantomData)
+    pub const fn new(id: u32, hanlde: NonNull<FeltHandle<F>>) -> Self {
+        Self { idx: id, handle: hanlde }
     }
 
     pub fn id(&self) -> String {
-        format!("felt{}", self.0)
+        format!("felt{}", self.idx)
     }
 
     pub fn loc(&self) -> String {
-        self.0.to_string()
+        self.idx.to_string()
     }
 
     pub fn inverse(&self) -> SymbolicFelt<F>
@@ -124,16 +142,16 @@ impl<F> Felt<F> {
 }
 
 impl<F, EF> Ext<F, EF> {
-    pub const fn new(id: u32) -> Self {
-        Self(id, PhantomData)
+    pub const fn new(id: u32, hanlde: NonNull<ExtHandle<F, EF>>) -> Self {
+        Self { idx: id, handle: hanlde }
     }
 
     pub fn id(&self) -> String {
-        format!("ext{}", self.0)
+        format!("ext{}", self.idx)
     }
 
     pub fn loc(&self) -> String {
-        self.0.to_string()
+        self.idx.to_string()
     }
 
     pub fn inverse(&self) -> SymbolicExt<F, EF>
@@ -396,7 +414,9 @@ impl<C: Config> Variable<C> for Var<C::N> {
     type Expression = SymbolicVar<C::N>;
 
     fn uninit(builder: &mut Builder<C>) -> Self {
-        let var = Var(builder.variable_count(), PhantomData);
+        let handle = EmptyOperations::var_handle();
+        let id = builder.variable_count();
+        let var = Var::new(id, NonNull::from(&handle));
         builder.inner.borrow_mut().variable_count += 1;
         var
     }
@@ -735,7 +755,8 @@ impl<C: Config> Variable<C> for Felt<C::F> {
     type Expression = SymbolicFelt<C::F>;
 
     fn uninit(builder: &mut Builder<C>) -> Self {
-        let felt = Felt(builder.variable_count(), PhantomData);
+        let idx = builder.variable_count();
+        let felt = Felt::new(idx, NonNull::dangling());
         builder.inner.borrow_mut().variable_count += 1;
         felt
     }
@@ -1119,7 +1140,8 @@ impl<C: Config> Variable<C> for Ext<C::F, C::EF> {
     type Expression = SymbolicExt<C::F, C::EF>;
 
     fn uninit(builder: &mut Builder<C>) -> Self {
-        let ext = Ext(builder.variable_count(), PhantomData);
+        let idx = builder.variable_count();
+        let ext = Ext::<C::F, C::EF>::new(idx, NonNull::dangling());
         builder.inner.borrow_mut().variable_count += 1;
         ext
     }

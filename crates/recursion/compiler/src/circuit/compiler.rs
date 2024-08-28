@@ -754,13 +754,13 @@ macro_rules! impl_reg_vaddr {
     ($a:ty) => {
         impl<C: Config<F: PrimeField64>> Reg<C> for $a {
             fn read(&self, compiler: &mut AsmCompiler<C>) -> Address<C::F> {
-                compiler.read_vaddr(self.0 as usize)
+                compiler.read_vaddr(self.idx as usize)
             }
             fn read_ghost(&self, compiler: &mut AsmCompiler<C>) -> Address<C::F> {
-                compiler.read_ghost_vaddr(self.0 as usize)
+                compiler.read_ghost_vaddr(self.idx as usize)
             }
             fn write(&self, compiler: &mut AsmCompiler<C>) -> Address<C::F> {
-                compiler.write_fp(self.0 as usize)
+                compiler.write_fp(self.idx as usize)
             }
         }
     };
