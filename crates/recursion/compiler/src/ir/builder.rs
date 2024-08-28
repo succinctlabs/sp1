@@ -1,4 +1,4 @@
-use std::{borrow::Borrow, cell::UnsafeCell, iter::Zip, ptr, vec::IntoIter};
+use std::{cell::UnsafeCell, iter::Zip, ptr, vec::IntoIter};
 
 use backtrace::Backtrace;
 use p3_field::AbstractField;
@@ -176,7 +176,7 @@ impl<C: Config> Builder<C> {
     }
 
     pub fn variable_count(&self) -> u32 {
-        unsafe { (&*self.inner.get()).variable_count }
+        unsafe { (*self.inner.get()).variable_count }
     }
 
     pub fn into_operations(self) -> TracedVec<DslIr<C>> {
