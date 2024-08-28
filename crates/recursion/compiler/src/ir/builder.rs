@@ -6,8 +6,9 @@ use sp1_core_machine::utils::sp1_debug_mode;
 use sp1_primitives::types::RecursionProgramType;
 
 use super::{
-    Array, Config, DslIr, EmptyOperations, Ext, ExtHandle, Felt, FeltHandle, FromConstant,
-    SymbolicExt, SymbolicFelt, SymbolicUsize, SymbolicVar, Usize, Var, VarHandle, Variable,
+    Array, Config, DslIr, Ext, ExtHandle, ExtOperations, Felt, FeltHandle, FeltOperations,
+    FromConstant, SymbolicExt, SymbolicFelt, SymbolicUsize, SymbolicVar, Usize, Var, VarHandle,
+    VarOperations, Variable,
 };
 
 /// TracedVec is a Vec wrapper that records a trace whenever an element is pushed. When extending
@@ -112,17 +113,22 @@ impl<C: Config> Builder<C> {
         // We need to create a temporary placeholder for the p2_hash_num variable.
         let placeholder_p2_hash_num = Var::new(0, ptr::null_mut());
 
-        let inner = InnerBuilder { variable_count: 0, operations: Default::default() };
+        let inner =
+            UnsafeCell::new(InnerBuilder { variable_count: 0, operations: Default::default() });
+
+        let var_handle = inner.var_handle();
+        let felt_handle = inner.felt_handle();
+        let ext_handle = inner.ext_handle();
 
         let mut new_builder = Self {
-            inner: UnsafeCell::new(inner),
+            inner,
             witness_var_count: 0,
             witness_felt_count: 0,
             witness_ext_count: 0,
             nb_public_values: None,
-            var_handle: EmptyOperations::var_handle(),
-            felt_handle: EmptyOperations::felt_handle(),
-            ext_handle: EmptyOperations::ext_handle(),
+            var_handle,
+            felt_handle,
+            ext_handle,
             p2_hash_num: placeholder_p2_hash_num,
             debug: false,
             is_sub_builder: false,
@@ -141,24 +147,13 @@ impl<C: Config> Builder<C> {
         debug: bool,
         program_type: RecursionProgramType,
     ) -> Self {
-        let inner = InnerBuilder { variable_count, operations: Default::default() };
-        Self {
-            inner: UnsafeCell::new(inner),
-            // Witness counts are only used when the target is a gnark circuit.  And sub-builders
-            // are not used when the target is a gnark circuit, so it's fine to set the
-            // witness counts to 0.
-            witness_var_count: 0,
-            witness_felt_count: 0,
-            witness_ext_count: 0,
-            var_handle: EmptyOperations::var_handle(),
-            felt_handle: EmptyOperations::felt_handle(),
-            ext_handle: EmptyOperations::ext_handle(),
-            nb_public_values,
-            p2_hash_num,
-            debug,
-            is_sub_builder: true,
-            program_type,
-        }
+        let mut builder = Self::new(program_type);
+        builder.inner.get_mut().variable_count = variable_count;
+        builder.nb_public_values = nb_public_values;
+        builder.p2_hash_num = p2_hash_num;
+        builder.debug = debug;
+
+        builder
     }
 
     /// Pushes an operation to the builder.

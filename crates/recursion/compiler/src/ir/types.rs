@@ -15,7 +15,7 @@ use super::{
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Var<N> {
     pub idx: u32,
-    handle: *mut VarHandle<N>,
+    pub(crate) handle: *mut VarHandle<N>,
 }
 
 /// A variable that represents an emulated field element.
@@ -24,7 +24,7 @@ pub struct Var<N> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Felt<F> {
     pub idx: u32,
-    handle: *mut FeltHandle<F>,
+    pub(crate) handle: *mut FeltHandle<F>,
 }
 
 /// A variable that represents an emulated extension field element.
@@ -33,7 +33,7 @@ pub struct Felt<F> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Ext<F, EF> {
     pub idx: u32,
-    handle: *mut ExtHandle<F, EF>,
+    pub(crate) handle: *mut ExtHandle<F, EF>,
 }
 
 unsafe impl<N> Send for Var<N> {}
