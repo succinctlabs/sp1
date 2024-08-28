@@ -1,6 +1,6 @@
 use alloc::format;
 use core::marker::PhantomData;
-use std::{collections::HashMap, hash::Hash, ptr::NonNull};
+use std::{collections::HashMap, hash::Hash};
 
 use p3_field::{AbstractField, ExtensionField, Field};
 use serde::{Deserialize, Serialize};
@@ -17,7 +17,7 @@ use super::{
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Var<N> {
     pub idx: u32,
-    handle: NonNull<VarHandle<N>>,
+    handle: *mut VarHandle<N>,
 }
 
 /// A variable that represents an emulated field element.
@@ -26,7 +26,7 @@ pub struct Var<N> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Felt<F> {
     pub idx: u32,
-    handle: NonNull<FeltHandle<F>>,
+    handle: *mut FeltHandle<F>,
 }
 
 /// A variable that represents an emulated extension field element.
@@ -35,7 +35,7 @@ pub struct Felt<F> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Ext<F, EF> {
     pub idx: u32,
-    handle: NonNull<ExtHandle<F, EF>>,
+    handle: *mut ExtHandle<F, EF>,
 }
 
 unsafe impl<N> Send for Var<N> {}
@@ -107,8 +107,8 @@ impl<N> From<usize> for Usize<N> {
 }
 
 impl<N> Var<N> {
-    pub const fn new(idx: u32, hanlde: NonNull<VarHandle<N>>) -> Self {
-        Self { idx, handle: hanlde }
+    pub const fn new(idx: u32, handle: *mut VarHandle<N>) -> Self {
+        Self { idx, handle }
     }
 
     pub fn id(&self) -> String {
@@ -121,8 +121,8 @@ impl<N> Var<N> {
 }
 
 impl<F> Felt<F> {
-    pub const fn new(id: u32, hanlde: NonNull<FeltHandle<F>>) -> Self {
-        Self { idx: id, handle: hanlde }
+    pub const fn new(id: u32, handle: *mut FeltHandle<F>) -> Self {
+        Self { idx: id, handle }
     }
 
     pub fn id(&self) -> String {
@@ -142,8 +142,8 @@ impl<F> Felt<F> {
 }
 
 impl<F, EF> Ext<F, EF> {
-    pub const fn new(id: u32, hanlde: NonNull<ExtHandle<F, EF>>) -> Self {
-        Self { idx: id, handle: hanlde }
+    pub const fn new(id: u32, handle: *mut ExtHandle<F, EF>) -> Self {
+        Self { idx: id, handle }
     }
 
     pub fn id(&self) -> String {
@@ -414,9 +414,8 @@ impl<C: Config> Variable<C> for Var<C::N> {
     type Expression = SymbolicVar<C::N>;
 
     fn uninit(builder: &mut Builder<C>) -> Self {
-        let handle = EmptyOperations::var_handle();
         let id = builder.variable_count();
-        let var = Var::new(id, NonNull::from(&handle));
+        let var = Var::new(id, &mut builder.var_handle);
         builder.inner.borrow_mut().variable_count += 1;
         var
     }
@@ -756,7 +755,7 @@ impl<C: Config> Variable<C> for Felt<C::F> {
 
     fn uninit(builder: &mut Builder<C>) -> Self {
         let idx = builder.variable_count();
-        let felt = Felt::new(idx, NonNull::dangling());
+        let felt = Felt::<C::F>::new(idx, &mut builder.felt_handle);
         builder.inner.borrow_mut().variable_count += 1;
         felt
     }
@@ -911,7 +910,7 @@ impl<F: Field, EF: ExtensionField<F>> Ext<F, EF> {
                         builder.push_op(DslIr::AddEFFI(*self, *rhs, *lhs));
                     }
                     rhs => {
-                        let rhs_value: Felt<_> = Felt::uninit(builder);
+                        let rhs_value: Felt<C::F> = Felt::uninit(builder);
                         rhs_value.assign_with_cache(rhs.clone(), builder, base_cache);
                         base_cache.insert(rhs.clone(), rhs_value);
                         builder.push_op(DslIr::AddEFFI(*self, rhs_value, *lhs));
@@ -1141,7 +1140,7 @@ impl<C: Config> Variable<C> for Ext<C::F, C::EF> {
 
     fn uninit(builder: &mut Builder<C>) -> Self {
         let idx = builder.variable_count();
-        let ext = Ext::<C::F, C::EF>::new(idx, NonNull::dangling());
+        let ext = Ext::<C::F, C::EF>::new(idx, &mut builder.ext_handle);
         builder.inner.borrow_mut().variable_count += 1;
         ext
     }
