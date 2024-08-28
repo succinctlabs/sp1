@@ -191,73 +191,10 @@ impl AddSubChip {
         let operand_1 = if is_add { event.b } else { event.a };
         let operand_2 = event.c;
 
-        //cols.add_operation.populate(blu, event.shard, event.channel, operand_1, operand_2);
-        cols.add_operation.populate_alt(blu, event.shard, event.channel, operand_1, operand_2);
+        cols.add_operation.populate(blu, event.shard, event.channel, operand_1, operand_2);
+        //cols.add_operation.populate_alt(blu, event.shard, event.channel, operand_1, operand_2);
         cols.operand_1 = Word::from(operand_1);
         cols.operand_2 = Word::from(operand_2);
-    }
-
-    // fn event_to_row2<F: PrimeField>(
-    //     &self,
-    //     event: &AluEvent,
-    //     cols: &mut AddSubCols<F>,
-    //     blu: &mut impl ByteRecord,
-    // ) {
-    //     let is_add = event.opcode == Opcode::ADD;
-    //     cols.shard = F::from_canonical_u32(event.shard);
-    //     cols.channel = F::from_canonical_u8(event.channel);
-    //     cols.is_add = F::from_bool(is_add);
-    //     cols.is_sub = F::from_bool(!is_add);
-
-    //     let operand_1 = if is_add { event.b } else { event.a };
-    //     let operand_2 = event.c;
-
-    //     cols.add_operation.populate(blu, event.shard, event.channel, operand_1, operand_2);
-    //     cols.operand_1 = Word::from(operand_1);
-    //     cols.operand_2 = Word::from(operand_2);
-    // }
-
-    fn event_to_row_alt<F: PrimeField>(
-        &self,
-        event: &AluEvent,
-        cols: &mut AddSubCols<F>,
-        blu: &mut impl ByteRecord,
-    ) {
-        let is_add = event.opcode == Opcode::ADD;
-        let mut cols_c = AddSubColsC {
-            shard: 0,
-            channel: 0,
-            is_add: false,
-            is_sub: false,
-            operand_1: 0,
-            operand_2: 0,
-        };
-
-        unsafe {
-            event_to_row_alt_c(
-                event.shard,
-                event.channel,
-                is_add,
-                event.a,
-                event.b,
-                event.c,
-                &mut cols_c,
-            );
-        }
-
-        cols.shard = F::from_canonical_u32(cols_c.shard);
-        cols.channel = F::from_canonical_u8(cols_c.channel);
-        cols.is_add = F::from_bool(cols_c.is_add);
-        cols.is_sub = F::from_bool(cols_c.is_sub);
-        cols.add_operation.populate_alt(
-            blu,
-            cols_c.shard,
-            cols_c.channel,
-            cols_c.operand_1,
-            cols_c.operand_2,
-        );
-        cols.operand_1 = Word::from(cols_c.operand_1);
-        cols.operand_2 = Word::from(cols_c.operand_2);
     }
 }
 
