@@ -176,11 +176,10 @@ mod tests {
                     (0..j).map(|_| std::array::from_fn(|_| F::rand(&mut rng))).collect();
                 let (root, tree) = MerkleTree::<BabyBear, HV>::commit(leaves.to_vec());
                 for (i, leaf) in leaves.iter().enumerate() {
-                    let proof = MerkleTree::<BabyBear, HV>::open(&tree, i);
-                    assert!(proof.value == *leaf);
-                    MerkleTree::<BabyBear, HV>::verify(proof.clone(), root).unwrap();
+                    let (_, proof) = MerkleTree::<BabyBear, HV>::open(&tree, i);
+                    MerkleTree::<BabyBear, HV>::verify(proof.clone(), *leaf, root).unwrap();
                     let (value_variable, path_variable): ([Felt<_>; 8], Vec<[Felt<_>; 8]>) = (
-                        std::array::from_fn(|i| builder.constant(proof.value[i])),
+                        std::array::from_fn(|i| builder.constant(leaf[i])),
                         proof
                             .path
                             .iter()
@@ -195,13 +194,13 @@ mod tests {
 
                     let proof_variable = MerkleProofVariable::<InnerConfig, BabyBearPoseidon2> {
                         index: index_bits,
-                        value: value_variable,
                         path: path_variable,
                     };
 
                     verify::<InnerConfig, BabyBearPoseidon2>(
                         &mut builder,
                         proof_variable,
+                        value_variable,
                         root_variable,
                     );
                 }

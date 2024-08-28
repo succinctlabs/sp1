@@ -32,12 +32,14 @@ pub struct SP1MerkleProofWitnessVariable<
     SC: FieldHasherVariable<C> + BabyBearFriConfigVariable<C>,
 > {
     /// The shard proofs to verify.
-    pub vk_digests_and_merkle_proofs: Vec<(SC::DigestVariable, MerkleProofVariable<C, SC>)>,
+    pub vk_merkle_proofs: Vec<MerkleProofVariable<C, SC>>,
+    pub root: SC::DigestVariable,
 }
 
 /// An input layout for the reduce verifier.
 pub struct SP1MerkleProofWitnessValues<SC: FieldHasher<BabyBear>> {
-    pub vk_digests_and_merkle_proofs: Vec<MerkleProof<BabyBear, SC>>,
+    pub vk_merkle_proofs: Vec<MerkleProof<BabyBear, SC>>,
+    pub root: SC::Digest,
 }
 
 impl<C, SC> SP1MerkleProofVerifier<C, SC>
@@ -66,9 +68,9 @@ where
         // Inclusion proof for the compressed vk.
         // vk_inclusion_proof: SP1MerkleProofWitnessVariable<C, SC>,
     ) {
-        for ((root, proof), value) in input.vk_digests_and_merkle_proofs.into_iter().zip(digests) {
+        for (proof, value) in input.vk_merkle_proofs.into_iter().zip(digests) {
             // SC::assert_digest_eq(builder, *root, SC::hash(builder, &proof.root));
-            verify(builder, proof, value, root);
+            verify(builder, proof, value, input.root);
         }
     }
 }

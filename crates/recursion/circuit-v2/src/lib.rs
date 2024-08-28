@@ -49,7 +49,6 @@ use sp1_recursion_core_v2::{
 };
 
 use p3_baby_bear::BabyBear;
-use utils::{felt_bytes_to_bn254_var, felts_to_bn254_var, words_to_bytes};
 
 type EF = <BabyBearPoseidon2 as StarkGenericConfig>::Challenge;
 
@@ -67,16 +66,16 @@ pub type FriMmcs<C> = ExtensionMmcs<BabyBear, EF, <C as BabyBearFriConfig>::ValM
 
 pub trait BabyBearFriConfig:
     StarkGenericConfig<
-        Val = BabyBear,
-        Challenge = EF,
-        Challenger = Self::FriChallenger,
-        Pcs = TwoAdicFriPcs<
-            BabyBear,
-            Radix2DitParallel,
-            Self::ValMmcs,
-            ExtensionMmcs<BabyBear, EF, Self::ValMmcs>,
-        >,
-    >
+    Val = BabyBear,
+    Challenge = EF,
+    Challenger = Self::FriChallenger,
+    Pcs = TwoAdicFriPcs<
+        BabyBear,
+        Radix2DitParallel,
+        Self::ValMmcs,
+        ExtensionMmcs<BabyBear, EF, Self::ValMmcs>,
+    >,
+>
 {
     type ValMmcs: Mmcs<BabyBear, ProverData<RowMajorMatrix<BabyBear>> = Self::RowMajorProverData>
         + Send

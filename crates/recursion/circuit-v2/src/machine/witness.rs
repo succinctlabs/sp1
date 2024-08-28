@@ -238,9 +238,8 @@ where
         }
         let index_bits = bits.read(builder);
         let path = self.path.read(builder);
-        let value = self.value.read(builder);
 
-        MerkleProofVariable { index: index_bits, path, value }
+        MerkleProofVariable { index: index_bits, path }
     }
 
     fn write(&self, witness: &mut impl WitnessWriter<C>) {
@@ -250,7 +249,6 @@ where
             index >>= 1;
         }
         self.path.write(witness);
-        self.value.write(witness);
     }
 }
 
@@ -265,11 +263,13 @@ where
 
     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
         SP1MerkleProofWitnessVariable {
-            vk_digests_and_merkle_proofs: self.vk_digests_and_merkle_proofs.read(builder),
+            vk_merkle_proofs: self.vk_merkle_proofs.read(builder),
+            root: self.root.read(builder),
         }
     }
 
     fn write(&self, witness: &mut impl WitnessWriter<C>) {
-        self.vk_digests_and_merkle_proofs.write(witness)
+        self.vk_merkle_proofs.write(witness);
+        self.root.write(witness);
     }
 }
