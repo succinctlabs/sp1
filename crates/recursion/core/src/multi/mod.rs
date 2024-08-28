@@ -344,7 +344,6 @@ mod tests {
     };
 
     #[test]
-    #[ignore]
     fn prove_babybear() {
         let config = BabyBearPoseidon2::compressed();
         let mut challenger = config.challenger();

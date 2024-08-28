@@ -132,7 +132,7 @@ impl<C: CircuitConfig, T: Witnessable<C>> Witnessable<C> for Vec<T> {
 impl<C: CircuitConfig<F = InnerVal, EF = InnerChallenge>, SC: BabyBearFriConfigVariable<C>>
     Witnessable<C> for ShardProof<SC>
 where
-    Com<SC>: Witnessable<C, WitnessVariable = <SC as FieldHasherVariable<C>>::DigestVariable>,
+    Com<SC>: Witnessable<C, WitnessVariable = <SC as FieldHasherVariable<C>>::Digest>,
     OpeningProof<SC>: Witnessable<C, WitnessVariable = TwoAdicPcsProofVariable<C, SC>>,
 {
     type WitnessVariable = ShardProofVariable<C, SC>;
