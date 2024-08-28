@@ -339,12 +339,28 @@ impl<F: Field, EF: ExtensionField<F>, E: ExtensionOperand<F, EF>> Add<E> for Sym
                 let res = unsafe { (*rhs.handle).add_const_e(rhs, lhs) };
                 Self::Val(res)
             }
+            (Self::Const(lhs), Self::Base(rhs)) => {
+                todo!()
+            }
+            (Self::Base(lhs), Self::Const(rhs)) => {
+                todo!()
+            }
+
             (Self::Val(lhs), Self::Val(rhs)) => {
                 let res = unsafe { (*lhs.handle).add_e(lhs, rhs) };
                 Self::Val(res)
             }
             (Self::Base(lhs), Self::Base(rhs)) => Self::Base(lhs + rhs),
-            _ => unimplemented!(),
+            (Self::Base(lhs), Self::Val(rhs)) => {
+                todo!()
+                // let res = unsafe { (*rhs.handle).add_e_f(rhs, lhs) };
+                // Self::Val(res)
+            }
+            (Self::Val(lhs), Self::Base(rhs)) => {
+                todo!()
+                // let res = unsafe { (*lhs.handle).add_f_e(lhs, rhs) };
+                // Self::Val(res)
+            }
         }
     }
 }
@@ -495,17 +511,25 @@ impl<F: Field, EF: ExtensionField<F>, E: Any> Div<E> for SymbolicExt<F, EF> {
     type Output = Self;
 
     fn div(self, rhs: E) -> Self::Output {
-        let rhs: ExtOperand<F, EF> = rhs.to_operand();
-        match rhs {
-            ExtOperand::Base(f) => todo!(),
-            ExtOperand::Const(ef) => todo!(),
-
-            ExtOperand::Felt(f) => todo!(),
-            ExtOperand::Ext(e) => todo!(),
-
-            ExtOperand::SymFelt(f) => todo!(),
-            ExtOperand::Sym(e) => todo!(),
-        }
+        // let rhs = rhs.to_operand().symbolic();
+        todo!()
+        // match (self, rhs) {
+        //     (Self::Const(lhs), Self::Const(rhs)) => Self::Const(lhs * rhs),
+        //     (Self::Val(lhs), Self::Const(rhs)) => {
+        //         let res = unsafe { (*lhs.handle).mul_const_e(lhs, rhs) };
+        //         Self::Val(res)
+        //     }
+        //     (Self::Const(lhs), Self::Val(rhs)) => {
+        //         let res = unsafe { (*rhs.handle).mul_const_e(rhs, lhs) };
+        //         Self::Val(res)
+        //     }
+        //     (Self::Val(lhs), Self::Val(rhs)) => {
+        //         let res = unsafe { (*lhs.handle).mul_e(lhs, rhs) };
+        //         Self::Val(res)
+        //     }
+        //     (Self::Base(lhs), Self::Base(rhs)) => Self::Base(lhs * rhs),
+        //     _ => unimplemented!(),
+        // }
     }
 }
 
@@ -521,7 +545,13 @@ impl<F: Field> Neg for SymbolicFelt<F> {
     type Output = Self;
 
     fn neg(self) -> Self::Output {
-        todo!()
+        match self {
+            SymbolicFelt::Const(f) => SymbolicFelt::Const(-f),
+            SymbolicFelt::Val(f) => {
+                let res = unsafe { (*f.handle).neg_f(f) };
+                SymbolicFelt::Val(res)
+            }
+        }
     }
 }
 
@@ -529,7 +559,14 @@ impl<F: Field, EF: ExtensionField<F>> Neg for SymbolicExt<F, EF> {
     type Output = Self;
 
     fn neg(self) -> Self::Output {
-        todo!()
+        match self {
+            SymbolicExt::Const(ef) => SymbolicExt::Const(-ef),
+            SymbolicExt::Base(f) => SymbolicExt::Base(-f),
+            SymbolicExt::Val(ef) => {
+                let res = unsafe { (*ef.handle).neg_e(ef) };
+                SymbolicExt::Val(res)
+            }
+        }
     }
 }
 
