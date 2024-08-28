@@ -1,7 +1,5 @@
 use std::cell::UnsafeCell;
 
-use p3_field::AbstractExtensionField;
-
 use crate::ir::DslIr;
 
 use super::{Config, Ext, Felt, InnerBuilder, Var};
@@ -24,9 +22,9 @@ pub struct VarHandle<N> {
 pub struct FeltHandle<F> {
     ptr: *mut (),
     add_felt: fn(*mut (), Felt<F>, Felt<F>) -> Felt<F>,
+    add_const_felt: fn(*mut (), Felt<F>, F) -> Felt<F>,
     sub_felt: fn(*mut (), Felt<F>, Felt<F>) -> Felt<F>,
     mul_felt: fn(*mut (), Felt<F>, Felt<F>) -> Felt<F>,
-    add_const: fn(*mut (), Felt<F>, F) -> Felt<F>,
 }
 
 #[derive(Debug)]
@@ -82,7 +80,7 @@ pub(crate) trait FeltOperations<F> {
             add_felt: Self::add_felt,
             sub_felt: Self::sub_felt,
             mul_felt: Self::mul_felt,
-            add_const: Self::add_const_felt,
+            add_const_felt: Self::add_const_felt,
         }
     }
 }
@@ -432,5 +430,63 @@ impl<F, EF> ExtOperations<F, EF> for EmptyOperations {
 
     fn add_const_ext(_ptr: *mut (), _lhs: Ext<F, EF>, _rhs: EF) -> Ext<F, EF> {
         unimplemented!()
+    }
+}
+
+impl<N> VarHandle<N> {
+    pub fn add_v(&self, lhs: Var<N>, rhs: Var<N>) -> Var<N> {
+        (self.add_var)(self.ptr, lhs, rhs)
+    }
+
+    pub fn sub_v(&self, lhs: Var<N>, rhs: Var<N>) -> Var<N> {
+        (self.sub_var)(self.ptr, lhs, rhs)
+    }
+
+    pub fn mul_v(&self, lhs: Var<N>, rhs: Var<N>) -> Var<N> {
+        (self.mul_var)(self.ptr, lhs, rhs)
+    }
+
+    pub fn add_const_v(&self, lhs: Var<N>, rhs: N) -> Var<N> {
+        (self.add_const)(self.ptr, lhs, rhs)
+    }
+}
+
+impl<F> FeltHandle<F> {
+    pub fn add_f(&self, lhs: Felt<F>, rhs: Felt<F>) -> Felt<F> {
+        (self.add_felt)(self.ptr, lhs, rhs)
+    }
+
+    pub fn add_const_f(&self, lhs: Felt<F>, rhs: F) -> Felt<F> {
+        (self.add_const_felt)(self.ptr, lhs, rhs)
+    }
+
+    pub fn sub_f(&self, lhs: Felt<F>, rhs: Felt<F>) -> Felt<F> {
+        (self.sub_felt)(self.ptr, lhs, rhs)
+    }
+
+    pub fn mul_f(&self, lhs: Felt<F>, rhs: Felt<F>) -> Felt<F> {
+        (self.mul_felt)(self.ptr, lhs, rhs)
+    }
+}
+
+impl<F, EF> ExtHandle<F, EF> {
+    pub fn add_e(&self, lhs: Ext<F, EF>, rhs: Ext<F, EF>) -> Ext<F, EF> {
+        (self.add_ext)(self.ptr, lhs, rhs)
+    }
+
+    pub fn sub_e(&self, lhs: Ext<F, EF>, rhs: Ext<F, EF>) -> Ext<F, EF> {
+        (self.sub_ext)(self.ptr, lhs, rhs)
+    }
+
+    pub fn mul_e(&self, lhs: Ext<F, EF>, rhs: Ext<F, EF>) -> Ext<F, EF> {
+        (self.mul_ext)(self.ptr, lhs, rhs)
+    }
+
+    pub fn add_const_e(&self, lhs: Ext<F, EF>, rhs: EF) -> Ext<F, EF> {
+        (self.add_const_ext)(self.ptr, lhs, rhs)
+    }
+
+    pub fn add_e_const_base(&self, lhs: Ext<F, EF>, rhs: F) -> Ext<F, EF> {
+        (self.add_const_base)(self.ptr, lhs, rhs)
     }
 }

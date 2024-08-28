@@ -639,74 +639,75 @@ impl<'a, C: Config> IfBuilder<'a, C> {
     }
 
     fn condition(&mut self) -> IfCondition<C::N> {
-        match (self.lhs.clone(), self.rhs.clone(), self.is_eq) {
-            (SymbolicVar::Const(lhs, _), SymbolicVar::Const(rhs, _), true) => {
-                IfCondition::EqConst(lhs, rhs)
-            }
-            (SymbolicVar::Const(lhs, _), SymbolicVar::Const(rhs, _), false) => {
-                IfCondition::NeConst(lhs, rhs)
-            }
-            (SymbolicVar::Const(lhs, _), SymbolicVar::Val(rhs, _), true) => {
-                IfCondition::EqI(rhs, lhs)
-            }
-            (SymbolicVar::Const(lhs, _), SymbolicVar::Val(rhs, _), false) => {
-                IfCondition::NeI(rhs, lhs)
-            }
-            (SymbolicVar::Const(lhs, _), rhs, true) => {
-                let rhs: Var<C::N> = self.builder.eval(rhs);
-                IfCondition::EqI(rhs, lhs)
-            }
-            (SymbolicVar::Const(lhs, _), rhs, false) => {
-                let rhs: Var<C::N> = self.builder.eval(rhs);
-                IfCondition::NeI(rhs, lhs)
-            }
-            (SymbolicVar::Val(lhs, _), SymbolicVar::Const(rhs, _), true) => {
-                let lhs: Var<C::N> = self.builder.eval(lhs);
-                IfCondition::EqI(lhs, rhs)
-            }
-            (SymbolicVar::Val(lhs, _), SymbolicVar::Const(rhs, _), false) => {
-                let lhs: Var<C::N> = self.builder.eval(lhs);
-                IfCondition::NeI(lhs, rhs)
-            }
-            (lhs, SymbolicVar::Const(rhs, _), true) => {
-                let lhs: Var<C::N> = self.builder.eval(lhs);
-                IfCondition::EqI(lhs, rhs)
-            }
-            (lhs, SymbolicVar::Const(rhs, _), false) => {
-                let lhs: Var<C::N> = self.builder.eval(lhs);
-                IfCondition::NeI(lhs, rhs)
-            }
-            (SymbolicVar::Val(lhs, _), SymbolicVar::Val(rhs, _), true) => IfCondition::Eq(lhs, rhs),
-            (SymbolicVar::Val(lhs, _), SymbolicVar::Val(rhs, _), false) => {
-                IfCondition::Ne(lhs, rhs)
-            }
-            (SymbolicVar::Val(lhs, _), rhs, true) => {
-                let rhs: Var<C::N> = self.builder.eval(rhs);
-                IfCondition::Eq(lhs, rhs)
-            }
-            (SymbolicVar::Val(lhs, _), rhs, false) => {
-                let rhs: Var<C::N> = self.builder.eval(rhs);
-                IfCondition::Ne(lhs, rhs)
-            }
-            (lhs, SymbolicVar::Val(rhs, _), true) => {
-                let lhs: Var<C::N> = self.builder.eval(lhs);
-                IfCondition::Eq(lhs, rhs)
-            }
-            (lhs, SymbolicVar::Val(rhs, _), false) => {
-                let lhs: Var<C::N> = self.builder.eval(lhs);
-                IfCondition::Ne(lhs, rhs)
-            }
-            (lhs, rhs, true) => {
-                let lhs: Var<C::N> = self.builder.eval(lhs);
-                let rhs: Var<C::N> = self.builder.eval(rhs);
-                IfCondition::Eq(lhs, rhs)
-            }
-            (lhs, rhs, false) => {
-                let lhs: Var<C::N> = self.builder.eval(lhs);
-                let rhs: Var<C::N> = self.builder.eval(rhs);
-                IfCondition::Ne(lhs, rhs)
-            }
-        }
+        unimplemented!("Deprecated")
+        // match (self.lhs.clone(), self.rhs.clone(), self.is_eq) {
+        //     (SymbolicVar::Const(lhs, _), SymbolicVar::Const(rhs, _), true) => {
+        //         IfCondition::EqConst(lhs, rhs)
+        //     }
+        //     (SymbolicVar::Const(lhs, _), SymbolicVar::Const(rhs, _), false) => {
+        //         IfCondition::NeConst(lhs, rhs)
+        //     }
+        //     (SymbolicVar::Const(lhs, _), SymbolicVar::Val(rhs, _), true) => {
+        //         IfCondition::EqI(rhs, lhs)
+        //     }
+        //     (SymbolicVar::Const(lhs, _), SymbolicVar::Val(rhs, _), false) => {
+        //         IfCondition::NeI(rhs, lhs)
+        //     }
+        //     (SymbolicVar::Const(lhs, _), rhs, true) => {
+        //         let rhs: Var<C::N> = self.builder.eval(rhs);
+        //         IfCondition::EqI(rhs, lhs)
+        //     }
+        //     (SymbolicVar::Const(lhs, _), rhs, false) => {
+        //         let rhs: Var<C::N> = self.builder.eval(rhs);
+        //         IfCondition::NeI(rhs, lhs)
+        //     }
+        //     (SymbolicVar::Val(lhs, _), SymbolicVar::Const(rhs, _), true) => {
+        //         let lhs: Var<C::N> = self.builder.eval(lhs);
+        //         IfCondition::EqI(lhs, rhs)
+        //     }
+        //     (SymbolicVar::Val(lhs, _), SymbolicVar::Const(rhs, _), false) => {
+        //         let lhs: Var<C::N> = self.builder.eval(lhs);
+        //         IfCondition::NeI(lhs, rhs)
+        //     }
+        //     (lhs, SymbolicVar::Const(rhs, _), true) => {
+        //         let lhs: Var<C::N> = self.builder.eval(lhs);
+        //         IfCondition::EqI(lhs, rhs)
+        //     }
+        //     (lhs, SymbolicVar::Const(rhs, _), false) => {
+        //         let lhs: Var<C::N> = self.builder.eval(lhs);
+        //         IfCondition::NeI(lhs, rhs)
+        //     }
+        //     (SymbolicVar::Val(lhs, _), SymbolicVar::Val(rhs, _), true) => IfCondition::Eq(lhs, rhs),
+        //     (SymbolicVar::Val(lhs, _), SymbolicVar::Val(rhs, _), false) => {
+        //         IfCondition::Ne(lhs, rhs)
+        //     }
+        //     (SymbolicVar::Val(lhs, _), rhs, true) => {
+        //         let rhs: Var<C::N> = self.builder.eval(rhs);
+        //         IfCondition::Eq(lhs, rhs)
+        //     }
+        //     (SymbolicVar::Val(lhs, _), rhs, false) => {
+        //         let rhs: Var<C::N> = self.builder.eval(rhs);
+        //         IfCondition::Ne(lhs, rhs)
+        //     }
+        //     (lhs, SymbolicVar::Val(rhs, _), true) => {
+        //         let lhs: Var<C::N> = self.builder.eval(lhs);
+        //         IfCondition::Eq(lhs, rhs)
+        //     }
+        //     (lhs, SymbolicVar::Val(rhs, _), false) => {
+        //         let lhs: Var<C::N> = self.builder.eval(lhs);
+        //         IfCondition::Ne(lhs, rhs)
+        //     }
+        //     (lhs, rhs, true) => {
+        //         let lhs: Var<C::N> = self.builder.eval(lhs);
+        //         let rhs: Var<C::N> = self.builder.eval(rhs);
+        //         IfCondition::Eq(lhs, rhs)
+        //     }
+        //     (lhs, rhs, false) => {
+        //         let lhs: Var<C::N> = self.builder.eval(lhs);
+        //         let rhs: Var<C::N> = self.builder.eval(rhs);
+        //         IfCondition::Ne(lhs, rhs)
+        //     }
+        // }
     }
 }
 
