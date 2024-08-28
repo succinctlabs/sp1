@@ -83,7 +83,7 @@ where
         } = commitment;
 
         let permutation_challenges =
-            (0..2).map(|_| challenger.sample_ext(builder)).collect::<Vec<_>>();
+            (0..4).map(|_| challenger.sample_ext(builder)).collect::<Vec<_>>();
 
         challenger.observe_commitment(builder, *permutation_commit);
 

@@ -181,14 +181,24 @@ impl CostEstimator for ExecutionReport {
         total_area += (lt_events as u64) * costs[&RiscvAirDiscriminants::Lt];
         total_chips += 1;
 
-        let memory_initialize_events = self.touched_memory_addresses;
-        total_area +=
-            (memory_initialize_events as u64) * costs[&RiscvAirDiscriminants::MemoryGlobalFinal];
+        let memory_global_initialize_events = self.touched_memory_addresses;
+        total_area += (memory_global_initialize_events as u64)
+            * costs[&RiscvAirDiscriminants::MemoryGlobalFinal];
         total_chips += 1;
 
-        let memory_finalize_events = self.touched_memory_addresses;
+        let memory_global_finalize_events = self.touched_memory_addresses;
+        total_area += (memory_global_finalize_events as u64)
+            * costs[&RiscvAirDiscriminants::MemoryGlobalFinal];
+        total_chips += 1;
+
+        let memory_local_initialize_events = self.touched_memory_addresses;
+        total_area += (memory_local_initialize_events as u64)
+            * costs[&RiscvAirDiscriminants::MemoryLocalFinal];
+        total_chips += 1;
+
+        let memory_local_finalize_events = self.touched_memory_addresses;
         total_area +=
-            (memory_finalize_events as u64) * costs[&RiscvAirDiscriminants::MemoryGlobalFinal];
+            (memory_local_finalize_events as u64) * costs[&RiscvAirDiscriminants::MemoryLocalFinal];
         total_chips += 1;
 
         assert_eq!(total_chips, chips.len(), "chip count mismatch");
