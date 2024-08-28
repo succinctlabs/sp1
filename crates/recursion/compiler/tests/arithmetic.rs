@@ -67,7 +67,7 @@ fn test_compiler_arithmetic() {
         for _ in 0..10 {
             a_expr += b_ext * a_val + EF::one();
             a_val += b_ext_val * a_val + EF::one();
-            builder.assert_ext_eq(a_expr.clone(), a_val.cons())
+            builder.assert_ext_eq(a_expr, a_val.cons())
         }
         builder.assert_ext_eq(a_ext * b_ext, (a_ext_val * b_ext_val).cons());
         builder.assert_ext_eq(a_ext - b_ext, (a_ext_val - b_ext_val).cons());

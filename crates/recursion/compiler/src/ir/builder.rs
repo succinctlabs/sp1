@@ -504,6 +504,7 @@ impl<C: Config> Builder<C> {
 }
 
 /// A builder for the DSL that handles if statements.
+#[allow(dead_code)]
 pub struct IfBuilder<'a, C: Config> {
     lhs: SymbolicVar<C::N>,
     rhs: SymbolicVar<C::N>,
@@ -512,6 +513,7 @@ pub struct IfBuilder<'a, C: Config> {
 }
 
 /// A set of conditions that if statements can be based on.
+#[allow(dead_code)]
 enum IfCondition<N> {
     EqConst(N, N),
     NeConst(N, N),
