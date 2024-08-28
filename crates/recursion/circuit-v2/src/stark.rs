@@ -42,7 +42,6 @@ pub struct ShardProofVariable<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConf
 #[derive(Clone)]
 pub struct MerkleProofVariable<C: CircuitConfig, HV: FieldHasherVariable<C>> {
     pub index: Vec<C::Bit>,
-    pub value: HV::DigestVariable,
     pub path: Vec<HV::DigestVariable>,
 }
 

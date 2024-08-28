@@ -27,7 +27,6 @@ pub struct VcsError;
 #[derive(Debug, Clone)]
 pub struct MerkleProof<F: Field, HV: FieldHasher<F>> {
     pub index: usize,
-    pub value: HV::Digest,
     pub path: Vec<HV::Digest>,
 }
 
@@ -75,7 +74,7 @@ impl<F: Field, HV: FieldHasher<F>> MerkleTree<F, HV> {
         (root, Self { height, digest_layers })
     }
 
-    pub fn open(&self, index: usize) -> MerkleProof<F, HV> {
+    pub fn open(&self, index: usize) -> (HV::Digest, MerkleProof<F, HV>) {
         let mut path = Vec::with_capacity(self.height);
         let mut bit_rev_index = reverse_bits_len(index, self.height);
         let value = self.digest_layers[bit_rev_index];
@@ -95,11 +94,15 @@ impl<F: Field, HV: FieldHasher<F>> MerkleTree<F, HV> {
             offset += 1 << (self.height - i);
         }
         debug_assert_eq!(path.len(), self.height);
-        MerkleProof { index, value, path }
+        (value, MerkleProof { index, path })
     }
 
-    pub fn verify(proof: MerkleProof<F, HV>, commitment: HV::Digest) -> Result<(), VcsError> {
-        let MerkleProof { index, value, path } = proof;
+    pub fn verify(
+        proof: MerkleProof<F, HV>,
+        value: HV::Digest,
+        commitment: HV::Digest,
+    ) -> Result<(), VcsError> {
+        let MerkleProof { index, path } = proof;
 
         let mut value = value;
 
@@ -122,9 +125,10 @@ impl<F: Field, HV: FieldHasher<F>> MerkleTree<F, HV> {
 pub fn verify<C: CircuitConfig, HV: FieldHasherVariable<C>>(
     builder: &mut Builder<C>,
     proof: MerkleProofVariable<C, HV>,
+    value: HV::DigestVariable,
     commitment: HV::DigestVariable,
 ) {
-    let mut value = proof.value;
+    let mut value = value;
     for (sibling, bit) in proof.path.iter().zip(proof.index.iter().rev()) {
         let sibling = *sibling;
 
