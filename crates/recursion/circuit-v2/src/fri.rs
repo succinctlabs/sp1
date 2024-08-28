@@ -66,6 +66,14 @@ pub fn verify_two_adic_pcs<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigV
 
     let log_global_max_height = proof.fri_proof.commit_phase_commits.len() + config.log_blowup;
 
+    // Precompute the two-adic powers of the two-adic generator. They can be loaded in as constants.
+    // The ith element has order 2^(log_global_max_height - i).
+    let mut precomputed_generator_powers: Vec<Felt<_>> = vec![];
+    for i in 0..log_global_max_height + 1 {
+        precomputed_generator_powers
+            .push(builder.constant(C::F::two_adic_generator(log_global_max_height - i)));
+    }
+
     // The powers of alpha, where the ith element is alpha^i.
     let mut alpha_pows: Vec<Ext<C::F, C::EF>> =
         vec![builder.eval(SymbolicExt::from_f(C::EF::one()))];
@@ -112,10 +120,11 @@ pub fn verify_two_adic_pcs<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigV
                         index_bits[bits_reduced..(bits_reduced + log_height)].to_vec();
 
                     let g = builder.generator();
-                    let two_adic_generator: Felt<_> =
-                        builder.eval(C::F::two_adic_generator(log_height));
-                    let two_adic_generator_exp =
-                        C::exp_reverse_bits(builder, two_adic_generator, reduced_index_bits_trunc);
+                    let two_adic_generator_exp = C::exp_f_bits_precomputed(
+                        builder,
+                        &reduced_index_bits_trunc.into_iter().rev().collect_vec(),
+                        &precomputed_generator_powers[bits_reduced..],
+                    );
 
                     // Unroll the following to avoid symbolic expression overhead
                     // let x: Felt<_> = builder.eval(g * two_adic_generator_exp);
@@ -125,8 +134,7 @@ pub fn verify_two_adic_pcs<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigV
                     for (z, ps_at_z) in izip!(mat_points, mat_values) {
                         // Unroll the loop calculation to avoid symbolic expression overhead
 
-                        // let mut acc: Ext<C::F, C::EF> =
-                        //     builder.eval(SymbolicExt::from_f(C::EF::zero()));
+                        // let mut acc: Ext<C::F, C::EF> = builder.constant(C::EF::zero());
                         let mut acc: Ext<_, _> = builder.uninit();
 
                         builder.operations.push(DslIr::ImmE(acc, C::EF::zero()));
@@ -223,7 +231,7 @@ pub fn verify_challenges<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVar
 
 pub fn verify_query<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVariable<C>>(
     builder: &mut Builder<C>,
-    commit_phase_commits: &[SC::Digest],
+    commit_phase_commits: &[SC::DigestVariable],
     index_bits: &[C::Bit],
     proof: FriQueryProofVariable<C, SC>,
     betas: &[Ext<C::F, C::EF>],
@@ -323,11 +331,11 @@ pub fn verify_query<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVariable
 
 pub fn verify_batch<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVariable<C>>(
     builder: &mut Builder<C>,
-    commit: SC::Digest,
+    commit: SC::DigestVariable,
     heights: &[usize],
     index_bits: &[C::Bit],
     opened_values: Vec<Vec<Vec<Felt<C::F>>>>,
-    proof: Vec<SC::Digest>,
+    proof: Vec<SC::DigestVariable>,
 ) {
     let mut heights_tallest_first =
         heights.iter().enumerate().sorted_by_key(|(_, height)| Reverse(*height)).peekable();
@@ -340,9 +348,9 @@ pub fn verify_batch<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVariable
         .cloned()
         .collect::<Vec<_>>();
     let felt_slice: Vec<Felt<C::F>> = ext_slice.into_iter().flatten().collect::<Vec<_>>();
-    let mut root: SC::Digest = SC::hash(builder, &felt_slice[..]);
+    let mut root: SC::DigestVariable = SC::hash(builder, &felt_slice[..]);
 
-    zip(index_bits.iter(), proof).for_each(|(&bit, sibling): (&C::Bit, SC::Digest)| {
+    zip(index_bits.iter(), proof).for_each(|(&bit, sibling): (&C::Bit, SC::DigestVariable)| {
         let compress_args = SC::select_chain_digest(builder, bit, [root, sibling]);
 
         root = SC::compress(builder, compress_args);

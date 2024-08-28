@@ -1,11 +1,11 @@
 use p3_air::{Air, BaseAir};
 use p3_baby_bear::BabyBear;
 use p3_commit::{LagrangeSelectors, Mmcs, PolynomialSpace, TwoAdicMultiplicativeCoset};
-use p3_field::{AbstractExtensionField, AbstractField, TwoAdicField};
+use p3_field::{AbstractExtensionField, AbstractField, Field, TwoAdicField};
 use p3_matrix::dense::RowMajorMatrix;
 
 use sp1_recursion_compiler::ir::{
-    Builder, Config, Ext, ExtensionOperand, Felt, SymbolicExt, SymbolicFelt,
+    Builder, Config, Ext, ExtConst, ExtensionOperand, Felt, SymbolicExt, SymbolicFelt,
 };
 use sp1_stark::{
     air::MachineAir, AirOpenedValues, ChipOpenedValues, GenericVerifierConstraintFolder,
@@ -121,6 +121,17 @@ where
         qc_domains: &[TwoAdicMultiplicativeCoset<C::F>],
         zeta: Ext<C::F, C::EF>,
     ) -> Ext<C::F, C::EF> {
+        // Compute the maximum power of zeta we will need.
+        let max_domain_log_n = qc_domains.iter().map(|d| d.log_n).max().unwrap();
+
+        // Compute all powers of zeta of the form zeta^(2^i) up to `zeta^(2^max_domain_log_n)`.
+        let mut zetas: Vec<Ext<_, _>> = vec![zeta];
+        for _ in 1..max_domain_log_n + 1 {
+            let last_zeta = zetas.last().unwrap();
+            let new_zeta = builder.eval(*last_zeta * *last_zeta);
+            builder.reduce_e(new_zeta);
+            zetas.push(new_zeta);
+        }
         let zps = qc_domains
             .iter()
             .enumerate()
@@ -130,24 +141,37 @@ where
                     .enumerate()
                     .filter(|(j, _)| *j != i)
                     .map(|(_, other_domain)| {
-                        let first_point = builder.eval(domain.first_point());
+                        // `shift_power` is used in the computation of
+                        let shift_power =
+                            other_domain.shift.exp_power_of_2(other_domain.log_n).inverse();
+                        // This is `other_domain.zp_at_point_f(builder, domain.first_point())`.
+                        // We compute it as a constant here.
+                        let z_f = domain.first_point().exp_power_of_2(other_domain.log_n)
+                            * shift_power
+                            - C::F::one();
                         (
-                            other_domain
-                                .zp_at_point_variable(builder, zeta)
-                                .to_operand()
-                                .symbolic(),
-                            other_domain.zp_at_point_f(builder, first_point).inverse(),
+                            {
+                                // We use the precomputed powers of zeta to compute (inline) the value of
+                                // `other_domain.zp_at_point_variable(builder, zeta)`.
+                                let z: Ext<_, _> = builder.eval(
+                                    zetas[other_domain.log_n] * SymbolicFelt::from_f(shift_power)
+                                        - SymbolicExt::from_f(C::EF::one()),
+                                );
+                                z.to_operand().symbolic()
+                            },
+                            builder.constant::<Felt<_>>(z_f),
                         )
                     })
-                    .unzip::<_, _, Vec<_>, Vec<_>>();
-                zs.into_iter().product::<SymbolicExt<_, _>>()
-                    * zinvs.into_iter().product::<SymbolicFelt<_>>()
+                    .unzip::<_, _, Vec<SymbolicExt<C::F, C::EF>>, Vec<Felt<_>>>();
+                let symbolic_prod: SymbolicFelt<_> =
+                    zinvs.into_iter().map(|x| x.into()).product::<SymbolicFelt<_>>();
+                (zs.into_iter().product::<SymbolicExt<_, _>>(), symbolic_prod)
             })
-            .collect::<Vec<SymbolicExt<_, _>>>()
+            .collect::<Vec<(SymbolicExt<_, _>, SymbolicFelt<_>)>>()
             .into_iter()
-            .map(|x| builder.eval(x))
+            .map(|(x, y)| builder.eval(x / y))
             .collect::<Vec<Ext<_, _>>>();
-
+        zps.iter().for_each(|zp| builder.reduce_e(*zp));
         builder.eval(
             opening
                 .quotient
@@ -155,10 +179,11 @@ where
                 .enumerate()
                 .map(|(ch_i, ch)| {
                     assert_eq!(ch.len(), C::EF::D);
-                    ch.iter()
-                        .enumerate()
-                        .map(|(e_i, &c)| zps[ch_i] * C::EF::monomial(e_i) * c)
-                        .sum::<SymbolicExt<_, _>>()
+                    zps[ch_i].to_operand().symbolic()
+                        * ch.iter()
+                            .enumerate()
+                            .map(|(e_i, &c)| C::EF::monomial(e_i).cons() * SymbolicExt::from(c))
+                            .sum::<SymbolicExt<_, _>>()
                 })
                 .sum::<SymbolicExt<_, _>>(),
         )

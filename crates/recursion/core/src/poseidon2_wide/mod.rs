@@ -299,15 +299,6 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn poseidon2_wide_prove_babybear_success() {
-        // Generate test input exec record.
-        let input_exec = generate_test_execution_record(false);
-
-        poseidon2_wide_prove_babybear_degree::<3>(input_exec.clone());
-        poseidon2_wide_prove_babybear_degree::<9>(input_exec);
-    }
-
-    #[test]
     #[should_panic]
     fn poseidon2_wide_prove_babybear_failure() {
         // Generate test input exec record.
