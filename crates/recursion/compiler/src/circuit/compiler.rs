@@ -670,6 +670,24 @@ pub enum Imm<F, EF> {
     EF(EF),
 }
 
+impl<F, EF> Imm<F, EF>
+where
+    F: Field,
+    EF: AbstractExtensionField<F>,
+{
+    pub fn f(f: F) -> Self {
+        Self::F(f)
+    }
+
+    pub fn ef(ef: EF) -> Self {
+        if ef.as_base_slice()[1..].iter().all(Field::is_zero) {
+            Self::F(ef.as_base_slice()[0])
+        } else {
+            Self::EF(ef)
+        }
+    }
+}
+
 impl<F, EF> PartialOrd for Imm<F, EF>
 where
     F: PartialEq + AbstractField + PartialOrd,
