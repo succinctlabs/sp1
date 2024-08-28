@@ -16,6 +16,7 @@ use sp1_recursion_core_v2::{stark::config::BabyBearPoseidon2Outer, DIGEST_SIZE};
 use sp1_stark::baby_bear_poseidon2::BabyBearPoseidon2;
 use sp1_stark::inner_perm;
 
+use crate::witness::Witnessable;
 use crate::{
     challenger::{reduce_32, RATE, SPONGE_SIZE},
     select_chain, CircuitConfig,
@@ -115,6 +116,7 @@ impl FieldHasher<BabyBear> for BabyBearPoseidon2Outer {
         [state[0]; BN254_DIGEST_SIZE]
     }
 }
+
 impl<C: CircuitConfig<F = BabyBear, N = Bn254Fr, Bit = Var<Bn254Fr>>> FieldHasherVariable<C>
     for BabyBearPoseidon2Outer
 {

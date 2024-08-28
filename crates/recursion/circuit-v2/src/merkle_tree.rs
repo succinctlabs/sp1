@@ -8,6 +8,7 @@ use sp1_recursion_compiler::ir::Builder;
 
 use crate::{
     hash::{FieldHasher, FieldHasherVariable},
+    stark::MerkleProofVariable,
     CircuitConfig,
 };
 
@@ -22,6 +23,13 @@ pub struct MerkleTree<F: Field, HV: FieldHasher<F>> {
     pub digest_layers: Vec<HV::Digest>,
 }
 pub struct VcsError;
+
+#[derive(Debug, Clone)]
+pub struct MerkleProof<F: Field, HV: FieldHasher<F>> {
+    pub index: usize,
+    pub value: HV::Digest,
+    pub path: Vec<HV::Digest>,
+}
 
 impl Debug for VcsError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -67,7 +75,7 @@ impl<F: Field, HV: FieldHasher<F>> MerkleTree<F, HV> {
         (root, Self { height, digest_layers })
     }
 
-    pub fn open(&self, index: usize) -> (HV::Digest, Vec<HV::Digest>) {
+    pub fn open(&self, index: usize) -> MerkleProof<F, HV> {
         let mut path = Vec::with_capacity(self.height);
         let mut bit_rev_index = reverse_bits_len(index, self.height);
         let value = self.digest_layers[bit_rev_index];
@@ -87,22 +95,17 @@ impl<F: Field, HV: FieldHasher<F>> MerkleTree<F, HV> {
             offset += 1 << (self.height - i);
         }
         debug_assert_eq!(path.len(), self.height);
-        (value, path)
+        MerkleProof { index, value, path }
     }
 
-    pub fn verify(
-        index: usize,
-        value: HV::Digest,
-        path: &[HV::Digest],
-        commitment: HV::Digest,
-    ) -> Result<(), VcsError> {
+    pub fn verify(proof: MerkleProof<F, HV>, commitment: HV::Digest) -> Result<(), VcsError> {
+        let MerkleProof { index, value, path } = proof;
+
         let mut value = value;
 
         let mut index = reverse_bits_len(index, path.len());
 
         for sibling in path {
-            let sibling = *sibling;
-
             // If the index is odd, swap the order of [value, sibling].
             let new_pair = if index % 2 == 0 { [value, sibling] } else { [sibling, value] };
             value = HV::constant_compress(new_pair);
@@ -118,13 +121,11 @@ impl<F: Field, HV: FieldHasher<F>> MerkleTree<F, HV> {
 
 pub fn verify<C: CircuitConfig, HV: FieldHasherVariable<C>>(
     builder: &mut Builder<C>,
-    index: Vec<C::Bit>,
-    value: HV::DigestVariable,
-    path: &[HV::DigestVariable],
+    proof: MerkleProofVariable<C, HV>,
     commitment: HV::DigestVariable,
 ) {
-    let mut value = value;
-    for (sibling, bit) in path.iter().zip(index.iter().rev()) {
+    let mut value = proof.value;
+    for (sibling, bit) in proof.path.iter().zip(proof.index.iter().rev()) {
         let sibling = *sibling;
 
         // If the index is odd, swap the order of [value, sibling].
@@ -139,6 +140,7 @@ mod tests {
     use itertools::Itertools;
     use p3_baby_bear::BabyBear;
     use p3_field::AbstractField;
+    use p3_util::log2_ceil_usize;
     use rand::rngs::OsRng;
     use sp1_recursion_compiler::{
         config::InnerConfig,
@@ -150,6 +152,7 @@ mod tests {
 
     use crate::{
         merkle_tree::{verify, MerkleTree},
+        stark::MerkleProofVariable,
         utils::tests::run_test_recursion,
         CircuitConfig,
     };
@@ -161,34 +164,43 @@ mod tests {
     fn test_merkle_tree_inner() {
         let mut rng = OsRng;
         let mut builder = Builder::<InnerConfig>::default();
-        for _ in 0..20 {
-            let leaves: Vec<[F; DIGEST_SIZE]> =
-                (0..17).map(|_| std::array::from_fn(|_| F::rand(&mut rng))).collect();
-            let (root, tree) = MerkleTree::<F, HV>::commit(leaves.to_vec());
-            for (i, leaf) in leaves.iter().enumerate() {
-                let (value, proof) = MerkleTree::<F, HV>::open(&tree, i);
-                assert!(value == *leaf);
-                MerkleTree::<F, HV>::verify(i, value, &proof, root).unwrap();
-                let (value_variable, proof_variable): ([Felt<_>; 8], Vec<[Felt<_>; 8]>) = (
-                    std::array::from_fn(|i| builder.constant(value[i])),
-                    proof
-                        .iter()
-                        .map(|x| std::array::from_fn(|i| builder.constant(x[i])))
-                        .collect_vec(),
-                );
+        // Run five times with different randomness.
+        for _ in 0..5 {
+            // Test with different number of leaves.
+            for j in 2..20 {
+                let leaves: Vec<[F; DIGEST_SIZE]> =
+                    (0..j).map(|_| std::array::from_fn(|_| F::rand(&mut rng))).collect();
+                let (root, tree) = MerkleTree::<BabyBear, HV>::commit(leaves.to_vec());
+                for (i, leaf) in leaves.iter().enumerate() {
+                    let proof = MerkleTree::<BabyBear, HV>::open(&tree, i);
+                    assert!(proof.value == *leaf);
+                    MerkleTree::<BabyBear, HV>::verify(proof.clone(), root).unwrap();
+                    let (value_variable, path_variable): ([Felt<_>; 8], Vec<[Felt<_>; 8]>) = (
+                        std::array::from_fn(|i| builder.constant(proof.value[i])),
+                        proof
+                            .path
+                            .iter()
+                            .map(|x| std::array::from_fn(|i| builder.constant(x[i])))
+                            .collect_vec(),
+                    );
 
-                let index_var = builder.constant(BabyBear::from_canonical_usize(i));
-                let index_bits = C::num2bits(&mut builder, index_var, 5);
-                let root_variable: [Felt<_>; 8] =
-                    root.iter().map(|x| builder.constant(*x)).collect_vec().try_into().unwrap();
+                    let index_var = builder.constant(BabyBear::from_canonical_usize(i));
+                    let index_bits = C::num2bits(&mut builder, index_var, log2_ceil_usize(j));
+                    let root_variable: [Felt<_>; 8] =
+                        root.iter().map(|x| builder.constant(*x)).collect_vec().try_into().unwrap();
 
-                verify::<InnerConfig, BabyBearPoseidon2>(
-                    &mut builder,
-                    index_bits,
-                    value_variable,
-                    &proof_variable,
-                    root_variable,
-                );
+                    let proof_variable = MerkleProofVariable::<InnerConfig, BabyBearPoseidon2> {
+                        index: index_bits,
+                        value: value_variable,
+                        path: path_variable,
+                    };
+
+                    verify::<InnerConfig, BabyBearPoseidon2>(
+                        &mut builder,
+                        proof_variable,
+                        root_variable,
+                    );
+                }
             }
         }
 

@@ -1,6 +1,7 @@
 mod outer;
 mod stark;
 
+use p3_bn254_fr::Bn254Fr;
 use sp1_recursion_compiler::ir::{Builder, Ext, Felt};
 
 pub use outer::*;
