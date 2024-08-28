@@ -155,16 +155,23 @@ where
     ///    
     /// Does not increment the mult. Creates an entry if it does not yet exist.
     pub fn read_ghost_const(&mut self, imm: Imm<C::F, C::EF>) -> Address<C::F> {
-        *self.consts.entry(imm).or_insert_with(|| Self::alloc(&mut self.next_addr))
+        let addr = *self.consts.entry(imm).or_insert_with(|| Self::alloc(&mut self.next_addr));
+        self.addr_to_mult.entry(addr.as_usize()).or_insert_with(C::F::zero);
+        addr
     }
 
-    fn mem_write_const(&mut self, dst: impl Reg<C>, src: Imm<C::F, C::EF>) -> Instruction<C::F> {
-        Instruction::Mem(MemInstr {
-            addrs: MemIo { inner: dst.write(self) },
-            vals: MemIo { inner: src.as_block() },
-            mult: C::F::zero(),
-            kind: MemAccessKind::Write,
-        })
+    /// Turn `dst` into an alias for the constant `src`.
+    fn mem_write_const(&mut self, dst: impl HasVirtualAddress, src: Imm<C::F, C::EF>) {
+        use vec_map::Entry;
+        let src_addr = src.read_ghost(self);
+        match self.virtual_to_physical.entry(dst.vaddr()) {
+            Entry::Vacant(entry) => drop(entry.insert(src_addr)),
+            Entry::Occupied(entry) => panic!(
+                "unexpected entry: virtual_to_physical[{:?}] = {:?}",
+                dst.vaddr(),
+                entry.get()
+            ),
+        }
     }
 
     fn base_alu(
@@ -385,9 +392,9 @@ where
 
         let mut f = |instr| consumer(Ok(instr));
         match ir_instr {
-            DslIr::ImmV(dst, src) => f(self.mem_write_const(dst, Imm::F(src))),
-            DslIr::ImmF(dst, src) => f(self.mem_write_const(dst, Imm::F(src))),
-            DslIr::ImmE(dst, src) => f(self.mem_write_const(dst, Imm::EF(src))),
+            DslIr::ImmV(dst, src) => self.mem_write_const(dst, Imm::F(src)),
+            DslIr::ImmF(dst, src) => self.mem_write_const(dst, Imm::F(src)),
+            DslIr::ImmE(dst, src) => self.mem_write_const(dst, Imm::EF(src)),
 
             DslIr::AddV(dst, lhs, rhs) => f(self.base_alu(AddF, dst, lhs, rhs)),
             DslIr::AddVI(dst, lhs, rhs) => f(self.base_alu(AddF, dst, lhs, Imm::F(rhs))),
@@ -554,12 +561,6 @@ where
                         addrs: ExtAluIo { out: ref addr, .. },
                         ..
                     }) => backfill((mult, addr)),
-                    Instruction::Mem(MemInstr {
-                        addrs: MemIo { inner: ref addr },
-                        mult,
-                        kind: MemAccessKind::Write,
-                        ..
-                    }) => backfill((mult, addr)),
                     Instruction::Poseidon2(instr) => {
                         let Poseidon2SkinnyInstr {
                             addrs: Poseidon2Io { output: ref addrs, .. },
@@ -596,10 +597,11 @@ where
                             .iter_mut()
                             .for_each(|(addr, mult)| backfill((mult, addr)));
                     }
+                    Instruction::Mem(_) => {
+                        panic!("mem instructions should be produced through the `consts` map")
+                    }
                     // Instructions that do not write to memory.
-                    Instruction::Mem(MemInstr { kind: MemAccessKind::Read, .. })
-                    | Instruction::CommitPublicValues(_)
-                    | Instruction::Print(_) => (),
+                    Instruction::CommitPublicValues(_) | Instruction::Print(_) => (),
                 }
             }
         });
@@ -712,6 +714,25 @@ where
     }
 }
 
+/// Expose the "virtual address" counter of the variable types.
+trait HasVirtualAddress {
+    fn vaddr(&self) -> usize;
+}
+
+macro_rules! impl_has_virtual_address {
+    ($type:ident<$($gen:ident),*>) => {
+        impl<$($gen),*> HasVirtualAddress for $type<$($gen),*> {
+            fn vaddr(&self) -> usize {
+                self.0 as usize
+            }
+        }
+    };
+}
+
+impl_has_virtual_address!(Var<N>);
+impl_has_virtual_address!(Felt<F>);
+impl_has_virtual_address!(Ext<F, EF>);
+
 /// Utility functions for various register types.
 trait Reg<C: Config> {
     /// Mark the register as to be read from, returning the "physical" address.
@@ -724,53 +745,19 @@ trait Reg<C: Config> {
     fn write(&self, compiler: &mut AsmCompiler<C>) -> Address<C::F>;
 }
 
-macro_rules! impl_reg_borrowed {
-    ($a:ty) => {
-        impl<C, T> Reg<C> for $a
-        where
-            C: Config,
-            T: Reg<C> + ?Sized,
-        {
-            fn read(&self, compiler: &mut AsmCompiler<C>) -> Address<C::F> {
-                (**self).read(compiler)
-            }
+impl<C: Config<F: PrimeField64>, T: HasVirtualAddress> Reg<C> for T {
+    fn read(&self, compiler: &mut AsmCompiler<C>) -> Address<C::F> {
+        compiler.read_vaddr(self.vaddr())
+    }
 
-            fn read_ghost(&self, compiler: &mut AsmCompiler<C>) -> Address<C::F> {
-                (**self).read_ghost(compiler)
-            }
+    fn read_ghost(&self, compiler: &mut AsmCompiler<C>) -> Address<C::F> {
+        compiler.read_ghost_vaddr(self.vaddr())
+    }
 
-            fn write(&self, compiler: &mut AsmCompiler<C>) -> Address<C::F> {
-                (**self).write(compiler)
-            }
-        }
-    };
+    fn write(&self, compiler: &mut AsmCompiler<C>) -> Address<C::F> {
+        compiler.write_fp(self.vaddr())
+    }
 }
-
-// Allow for more flexibility in arguments.
-impl_reg_borrowed!(&T);
-impl_reg_borrowed!(&mut T);
-impl_reg_borrowed!(Box<T>);
-
-macro_rules! impl_reg_vaddr {
-    ($a:ty) => {
-        impl<C: Config<F: PrimeField64>> Reg<C> for $a {
-            fn read(&self, compiler: &mut AsmCompiler<C>) -> Address<C::F> {
-                compiler.read_vaddr(self.0 as usize)
-            }
-            fn read_ghost(&self, compiler: &mut AsmCompiler<C>) -> Address<C::F> {
-                compiler.read_ghost_vaddr(self.0 as usize)
-            }
-            fn write(&self, compiler: &mut AsmCompiler<C>) -> Address<C::F> {
-                compiler.write_fp(self.0 as usize)
-            }
-        }
-    };
-}
-
-// These three types have `.fp()` but they don't share a trait.
-impl_reg_vaddr!(Var<C::F>);
-impl_reg_vaddr!(Felt<C::F>);
-impl_reg_vaddr!(Ext<C::F, C::EF>);
 
 impl<C: Config<F: PrimeField64>> Reg<C> for Imm<C::F, C::EF> {
     fn read(&self, compiler: &mut AsmCompiler<C>) -> Address<C::F> {
