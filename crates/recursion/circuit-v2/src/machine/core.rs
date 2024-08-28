@@ -73,7 +73,7 @@ where
     SC: BabyBearFriConfigVariable<
         C,
         FriChallengerVariable = DuplexChallengerVariable<C>,
-        Digest = [Felt<BabyBear>; DIGEST_SIZE],
+        DigestVariable = [Felt<BabyBear>; DIGEST_SIZE],
     >,
     C: CircuitConfig<F = SC::Val, EF = SC::Challenge, Bit = Felt<BabyBear>>,
     <SC::ValMmcs as Mmcs<BabyBear>>::ProverData<RowMajorMatrix<BabyBear>>: Clone,

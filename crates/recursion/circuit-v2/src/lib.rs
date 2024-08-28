@@ -27,6 +27,7 @@ pub mod domain;
 pub mod fri;
 pub mod hash;
 pub mod machine;
+pub mod merkle_tree;
 pub mod stark;
 pub(crate) mod utils;
 pub mod witness;
@@ -60,7 +61,7 @@ pub type PcsConfig<C> = FriConfig<
     >,
 >;
 
-pub type Digest<C, SC> = <SC as FieldHasherVariable<C>>::Digest;
+pub type Digest<C, SC> = <SC as FieldHasherVariable<C>>::DigestVariable;
 
 pub type FriMmcs<C> = ExtensionMmcs<BabyBear, EF, <C as BabyBearFriConfig>::ValMmcs>;
 
@@ -95,7 +96,7 @@ pub trait BabyBearFriConfigVariable<C: CircuitConfig<F = BabyBear>>:
     BabyBearFriConfig + FieldHasherVariable<C>
 {
     type FriChallengerVariable: FieldChallengerVariable<C, <C as CircuitConfig>::Bit>
-        + CanObserveVariable<C, <Self as FieldHasherVariable<C>>::Digest>
+        + CanObserveVariable<C, <Self as FieldHasherVariable<C>>::DigestVariable>
         + CanCopyChallenger<C>;
 
     /// Get a new challenger corresponding to the given config.
@@ -126,6 +127,14 @@ pub trait CircuitConfig: Config {
         input: Felt<<Self as Config>::F>,
         power_bits: Vec<Self::Bit>,
     ) -> Felt<<Self as Config>::F>;
+
+    /// Exponentiates a felt x to a list of bits in little endian. Uses precomputed powers
+    /// of x.
+    fn exp_f_bits_precomputed(
+        builder: &mut Builder<Self>,
+        power_bits: &[Self::Bit],
+        two_adic_powers_of_x: &[Felt<Self::F>],
+    ) -> Felt<Self::F>;
 
     fn num2bits(
         builder: &mut Builder<Self>,
@@ -231,6 +240,18 @@ impl CircuitConfig for InnerConfig {
             .map(|((id_v, sw_v), (id_c, sw_c))| builder.eval(id_v * id_c + sw_v * sw_c))
             .collect()
     }
+
+    fn exp_f_bits_precomputed(
+        builder: &mut Builder<Self>,
+        power_bits: &[Self::Bit],
+        two_adic_powers_of_x: &[Felt<Self::F>],
+    ) -> Felt<Self::F> {
+        Self::exp_reverse_bits(
+            builder,
+            two_adic_powers_of_x[0],
+            power_bits.iter().rev().copied().collect(),
+        )
+    }
 }
 
 impl CircuitConfig for OuterConfig {
@@ -331,6 +352,20 @@ impl CircuitConfig for OuterConfig {
                 result
             })
             .collect()
+    }
+
+    fn exp_f_bits_precomputed(
+        builder: &mut Builder<Self>,
+        power_bits: &[Self::Bit],
+        two_adic_powers_of_x: &[Felt<Self::F>],
+    ) -> Felt<Self::F> {
+        let mut result: Felt<_> = builder.eval(Self::F::one());
+        let one = builder.constant(Self::F::one());
+        for (&bit, &power) in power_bits.iter().zip(two_adic_powers_of_x) {
+            let multiplier = builder.select_f(bit, power, one);
+            result = builder.eval(multiplier * result);
+        }
+        result
     }
 }
 
