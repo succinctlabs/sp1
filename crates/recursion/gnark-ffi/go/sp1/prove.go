@@ -104,8 +104,9 @@ func ProveGroth16(dataDir string, witnessPath string) Proof {
 	if err != nil {
 		panic(err)
 	}
+	r1csReader := bufio.NewReaderSize(r1csFile, 1024*1024)
 	r1cs := groth16.NewCS(ecc.BN254)
-	r1cs.ReadFrom(r1csFile)
+	r1cs.ReadFrom(r1csReader)
 	defer r1csFile.Close()
 	fmt.Printf("Reading R1CS took %s\n", time.Since(start))
 
@@ -116,8 +117,8 @@ func ProveGroth16(dataDir string, witnessPath string) Proof {
 		panic(err)
 	}
 	pk := groth16.NewProvingKey(ecc.BN254)
-	bufReader := bufio.NewReaderSize(pkFile, 1024*1024)
-	pk.UnsafeReadFrom(bufReader)
+	pkReader := bufio.NewReaderSize(pkFile, 1024*1024)
+	pk.ReadDump(pkReader)
 	defer pkFile.Close()
 	fmt.Printf("Reading proving key took %s\n", time.Since(start))
 

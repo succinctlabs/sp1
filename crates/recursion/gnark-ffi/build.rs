@@ -25,6 +25,7 @@ fn main() {
                 .env("CGO_ENABLED", "1")
                 .args([
                     "build",
+                    "-tags=debug",
                     "-o",
                     dest.to_str().unwrap(),
                     "-buildmode=c-archive",

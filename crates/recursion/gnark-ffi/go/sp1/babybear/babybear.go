@@ -50,7 +50,7 @@ func NewChip(api frontend.API) *Chip {
 func Zero() Variable {
 	return Variable{
 		Value:  frontend.Variable("0"),
-		NbBits: 0,
+		NbBits: 1,
 	}
 }
 
@@ -296,7 +296,7 @@ func (c *Chip) ToBinary(in Variable) []frontend.Variable {
 }
 
 func (p *Chip) reduceFast(x Variable) Variable {
-	if x.NbBits >= uint(126) {
+	if x.NbBits >= uint(120) {
 		return Variable{
 			Value:  p.reduceWithMaxBits(x.Value, uint64(x.NbBits)),
 			NbBits: 31,
@@ -328,9 +328,9 @@ func (p *Chip) reduceWithMaxBits(x frontend.Variable, maxNbBits uint64) frontend
 	remainder := result[1]
 
 	if os.Getenv("GROTH16") != "1" {
-		p.rangeChecker.Check(quotient, int(maxNbBits-31))
+		p.rangeChecker.Check(quotient, int(maxNbBits-31+1))
 	} else {
-		p.api.ToBinary(quotient, int(maxNbBits-31))
+		p.api.ToBinary(quotient, int(maxNbBits-31+1))
 	}
 	// Check that the remainder has size less than the BabyBear modulus, by decomposing it into a 27
 	// bit limb and a 4 bit limb.
