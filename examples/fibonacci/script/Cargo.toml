@@ -11,7 +11,7 @@ sp1-sdk = { workspace = true }
 sha2 = "0.10.8"
 
 [build-dependencies]
-sp1-helper = { workspace = true }
+sp1-build = { workspace = true }
 
 [[bin]]
 name = "plonk_bn254"
@@ -28,3 +28,6 @@ path = "bin/execute.rs"
 [[bin]]
 name = "fibonacci-script"
 path = "src/main.rs"
+
+[features]
+cuda = ["sp1-sdk/cuda"]

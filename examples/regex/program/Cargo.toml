@@ -6,5 +6,5 @@ edition = "2021"
 publish = false
 
 [dependencies]
-sp1-zkvm = { path = "../../../zkvm/entrypoint" }
+sp1-zkvm = { path = "../../../crates/zkvm/entrypoint" }
 regex = "1.10.3"

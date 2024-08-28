@@ -46,11 +46,15 @@
 - [Recommended Workflow](./generating-proofs/recommended-workflow.md)
 
 - [Prover Network Beta](./generating-proofs/prover-network.md)
+    - [Key Setup](./generating-proofs/prover-network/key-setup.md)
     - [Usage](./generating-proofs/prover-network/usage.md)
     - [Supported Versions](./generating-proofs/prover-network/versions.md)
 
-- [FAQ](./generating-proofs/sp1-sdk-faq.md)
+- [Hardware Acceleration](./generating-proofs/hardware-acceleration.md)
+    - [AVX](./generating-proofs/hardware-acceleration/avx.md)
+    - [CUDA](./generating-proofs/hardware-acceleration/cuda.md)
 
+- [FAQ](./generating-proofs/sp1-sdk-faq.md)
 
 # Onchain Verification
 
