@@ -241,7 +241,14 @@ impl<C: Config> Variable<C> for Var<C::N> {
     }
 
     fn assign(&self, src: Self::Expression, builder: &mut Builder<C>) {
-        todo!()
+        match src {
+            SymbolicVar::Const(src) => {
+                builder.push_op(DslIr::ImmV(*self, src));
+            }
+            SymbolicVar::Val(src) => {
+                builder.push_op(DslIr::AddVI(*self, src, C::N::zero()));
+            }
+        }
     }
 
     fn assert_eq(
