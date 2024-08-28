@@ -49,7 +49,6 @@ use sp1_recursion_core_v2::{
 };
 
 use p3_baby_bear::BabyBear;
-use utils::{felt_bytes_to_bn254_var, felts_to_bn254_var, words_to_bytes};
 
 type EF = <BabyBearPoseidon2 as StarkGenericConfig>::Challenge;
 
