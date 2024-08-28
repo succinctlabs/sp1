@@ -9,13 +9,16 @@ pub(crate) const EMPTY_OPS: EmptyOperations = EmptyOperations;
 #[derive(Debug)]
 pub struct VarHandle<N> {
     ptr: *mut (),
+
     add_var: fn(*mut (), Var<N>, Var<N>) -> Var<N>,
+    add_var_const: fn(*mut (), Var<N>, N) -> Var<N>,
+
     sub_var: fn(*mut (), Var<N>, Var<N>) -> Var<N>,
-    mul_var: fn(*mut (), Var<N>, Var<N>) -> Var<N>,
-    add_const: fn(*mut (), Var<N>, N) -> Var<N>,
     sub_var_const: fn(*mut (), Var<N>, N) -> Var<N>,
     sub_const_var: fn(*mut (), N, Var<N>) -> Var<N>,
-    mul_const: fn(*mut (), Var<N>, N) -> Var<N>,
+
+    mul_var: fn(*mut (), Var<N>, Var<N>) -> Var<N>,
+    mul_var_const: fn(*mut (), Var<N>, N) -> Var<N>,
 }
 
 #[derive(Debug)]
@@ -23,8 +26,17 @@ pub struct FeltHandle<F> {
     ptr: *mut (),
     add_felt: fn(*mut (), Felt<F>, Felt<F>) -> Felt<F>,
     add_const_felt: fn(*mut (), Felt<F>, F) -> Felt<F>,
+
     sub_felt: fn(*mut (), Felt<F>, Felt<F>) -> Felt<F>,
+    sub_const_felt: fn(*mut (), F, Felt<F>) -> Felt<F>,
+    sub_felt_const: fn(*mut (), Felt<F>, F) -> Felt<F>,
+
     mul_felt: fn(*mut (), Felt<F>, Felt<F>) -> Felt<F>,
+    mul_felt_const: fn(ptr: *mut (), lhs: Felt<F>, rhs: F) -> Felt<F>,
+
+    div_felt: fn(*mut (), Felt<F>, Felt<F>) -> Felt<F>,
+    div_felt_const: fn(*mut (), Felt<F>, F) -> Felt<F>,
+    div_const_felt: fn(*mut (), F, Felt<F>) -> Felt<F>,
 }
 
 #[derive(Debug)]
@@ -58,10 +70,10 @@ pub(crate) trait VarOperations<N> {
             add_var: Self::add_var,
             sub_var: Self::sub_var,
             mul_var: Self::mul_var,
-            add_const: Self::add_const_var,
+            add_var_const: Self::add_const_var,
             sub_var_const: Self::sub_var_const,
             sub_const_var: Self::sub_const_var,
-            mul_const: Self::mul_const_var,
+            mul_var_const: Self::mul_const_var,
         }
     }
 }
@@ -70,9 +82,13 @@ pub(crate) trait FeltOperations<F> {
     fn add_felt(ptr: *mut (), lhs: Felt<F>, rhs: Felt<F>) -> Felt<F>;
     fn sub_felt(ptr: *mut (), lhs: Felt<F>, rhs: Felt<F>) -> Felt<F>;
     fn mul_felt(ptr: *mut (), lhs: Felt<F>, rhs: Felt<F>) -> Felt<F>;
-    fn add_const_felt(ptr: *mut (), lhs: Felt<F>, rhs: F) -> Felt<F>;
-    fn sub_const_felt(ptr: *mut (), lhs: Felt<F>, rhs: F) -> Felt<F>;
+    fn add_felt_const(ptr: *mut (), lhs: Felt<F>, rhs: F) -> Felt<F>;
+    fn sub_felt_const(ptr: *mut (), lhs: Felt<F>, rhs: F) -> Felt<F>;
     fn mul_const_felt(ptr: *mut (), lhs: Felt<F>, rhs: F) -> Felt<F>;
+    fn sub_const_felt(ptr: *mut (), lhs: F, rhs: Felt<F>) -> Felt<F>;
+    fn div_felt(ptr: *mut (), lhs: Felt<F>, rhs: Felt<F>) -> Felt<F>;
+    fn div_felt_const(ptr: *mut (), lhs: Felt<F>, rhs: F) -> Felt<F>;
+    fn div_const_felt(ptr: *mut (), lhs: F, rhs: Felt<F>) -> Felt<F>;
 
     fn felt_handle(&self) -> FeltHandle<F> {
         FeltHandle {
@@ -80,7 +96,13 @@ pub(crate) trait FeltOperations<F> {
             add_felt: Self::add_felt,
             sub_felt: Self::sub_felt,
             mul_felt: Self::mul_felt,
-            add_const_felt: Self::add_const_felt,
+            add_const_felt: Self::add_felt_const,
+            mul_felt_const: Self::mul_const_felt,
+            sub_felt_const: Self::sub_felt_const,
+            sub_const_felt: Self::sub_const_felt,
+            div_felt: Self::div_felt,
+            div_felt_const: Self::div_felt_const,
+            div_const_felt: Self::div_const_felt,
         }
     }
 }
@@ -208,7 +230,7 @@ impl<C: Config> FeltOperations<C::F> for UnsafeCell<InnerBuilder<C>> {
         res
     }
 
-    fn add_const_felt(ptr: *mut (), lhs: Felt<C::F>, rhs: C::F) -> Felt<C::F> {
+    fn add_felt_const(ptr: *mut (), lhs: Felt<C::F>, rhs: C::F) -> Felt<C::F> {
         let inner: &mut Self = unsafe { &mut *(ptr as *mut Self) };
         let inner = inner.get_mut();
         let idx = inner.variable_count;
@@ -220,7 +242,7 @@ impl<C: Config> FeltOperations<C::F> for UnsafeCell<InnerBuilder<C>> {
         res
     }
 
-    fn sub_const_felt(ptr: *mut (), lhs: Felt<C::F>, rhs: C::F) -> Felt<C::F> {
+    fn sub_felt_const(ptr: *mut (), lhs: Felt<C::F>, rhs: C::F) -> Felt<C::F> {
         let inner: &mut Self = unsafe { &mut *(ptr as *mut Self) };
         let inner = inner.get_mut();
         let idx = inner.variable_count;
@@ -228,6 +250,18 @@ impl<C: Config> FeltOperations<C::F> for UnsafeCell<InnerBuilder<C>> {
         inner.variable_count += 1;
 
         inner.operations.push(DslIr::SubFI(res, lhs, rhs));
+
+        res
+    }
+
+    fn sub_const_felt(ptr: *mut (), lhs: C::F, rhs: Felt<C::F>) -> Felt<C::F> {
+        let inner: &mut Self = unsafe { &mut *(ptr as *mut Self) };
+        let inner = inner.get_mut();
+        let idx = inner.variable_count;
+        let res = Felt::new(idx, rhs.handle);
+        inner.variable_count += 1;
+
+        inner.operations.push(DslIr::SubFIN(res, lhs, rhs));
 
         res
     }
@@ -240,6 +274,42 @@ impl<C: Config> FeltOperations<C::F> for UnsafeCell<InnerBuilder<C>> {
         inner.variable_count += 1;
 
         inner.operations.push(DslIr::MulFI(res, lhs, rhs));
+
+        res
+    }
+
+    fn div_felt(ptr: *mut (), lhs: Felt<C::F>, rhs: Felt<C::F>) -> Felt<C::F> {
+        let inner: &mut Self = unsafe { &mut *(ptr as *mut Self) };
+        let inner = inner.get_mut();
+        let idx = inner.variable_count;
+        let res = Felt::new(idx, lhs.handle);
+        inner.variable_count += 1;
+
+        inner.operations.push(DslIr::DivF(res, lhs, rhs));
+
+        res
+    }
+
+    fn div_felt_const(ptr: *mut (), lhs: Felt<C::F>, rhs: C::F) -> Felt<C::F> {
+        let inner: &mut Self = unsafe { &mut *(ptr as *mut Self) };
+        let inner = inner.get_mut();
+        let idx = inner.variable_count;
+        let res = Felt::new(idx, lhs.handle);
+        inner.variable_count += 1;
+
+        inner.operations.push(DslIr::DivFI(res, lhs, rhs));
+
+        res
+    }
+
+    fn div_const_felt(ptr: *mut (), lhs: C::F, rhs: Felt<C::F>) -> Felt<C::F> {
+        let inner: &mut Self = unsafe { &mut *(ptr as *mut Self) };
+        let inner = inner.get_mut();
+        let idx = inner.variable_count;
+        let res = Felt::new(idx, rhs.handle);
+        inner.variable_count += 1;
+
+        inner.operations.push(DslIr::DivFIN(res, lhs, rhs));
 
         res
     }
@@ -386,15 +456,31 @@ impl<F> FeltOperations<F> for EmptyOperations {
         unimplemented!()
     }
 
-    fn add_const_felt(ptr: *mut (), _lhs: Felt<F>, _rhs: F) -> Felt<F> {
+    fn add_felt_const(_ptr: *mut (), _lhs: Felt<F>, _rhs: F) -> Felt<F> {
         unimplemented!()
     }
 
-    fn mul_const_felt(ptr: *mut (), _lhs: Felt<F>, _rhs: F) -> Felt<F> {
+    fn mul_const_felt(_ptr: *mut (), _lhs: Felt<F>, _rhs: F) -> Felt<F> {
         unimplemented!()
     }
 
-    fn sub_const_felt(ptr: *mut (), _lhs: Felt<F>, _rhs: F) -> Felt<F> {
+    fn sub_const_felt(_ptr: *mut (), _lhs: F, _rhs: Felt<F>) -> Felt<F> {
+        unimplemented!()
+    }
+
+    fn sub_felt_const(_ptr: *mut (), _lhs: Felt<F>, _rhs: F) -> Felt<F> {
+        unimplemented!()
+    }
+
+    fn div_const_felt(_ptr: *mut (), _lhs: F, _rhs: Felt<F>) -> Felt<F> {
+        unimplemented!()
+    }
+
+    fn div_felt(_ptr: *mut (), _lhs: Felt<F>, _rhs: Felt<F>) -> Felt<F> {
+        unimplemented!()
+    }
+
+    fn div_felt_const(_ptr: *mut (), _lhs: Felt<F>, _rhs: F) -> Felt<F> {
         unimplemented!()
     }
 }
@@ -447,7 +533,19 @@ impl<N> VarHandle<N> {
     }
 
     pub fn add_const_v(&self, lhs: Var<N>, rhs: N) -> Var<N> {
-        (self.add_const)(self.ptr, lhs, rhs)
+        (self.add_var_const)(self.ptr, lhs, rhs)
+    }
+
+    pub fn mul_const_v(&self, lhs: Var<N>, rhs: N) -> Var<N> {
+        (self.mul_var_const)(self.ptr, lhs, rhs)
+    }
+
+    pub fn sub_const_v(&self, lhs: N, rhs: Var<N>) -> Var<N> {
+        (self.sub_const_var)(self.ptr, lhs, rhs)
+    }
+
+    pub fn sub_v_const(&self, lhs: Var<N>, rhs: N) -> Var<N> {
+        (self.sub_var_const)(self.ptr, lhs, rhs)
     }
 }
 
@@ -464,8 +562,32 @@ impl<F> FeltHandle<F> {
         (self.sub_felt)(self.ptr, lhs, rhs)
     }
 
+    pub fn sub_f_const(&self, lhs: Felt<F>, rhs: F) -> Felt<F> {
+        (self.sub_felt_const)(self.ptr, lhs, rhs)
+    }
+
+    pub fn sub_const_f(&self, lhs: F, rhs: Felt<F>) -> Felt<F> {
+        (self.sub_const_felt)(self.ptr, lhs, rhs)
+    }
+
     pub fn mul_f(&self, lhs: Felt<F>, rhs: Felt<F>) -> Felt<F> {
         (self.mul_felt)(self.ptr, lhs, rhs)
+    }
+
+    pub fn mul_const_f(&self, lhs: Felt<F>, rhs: F) -> Felt<F> {
+        (self.mul_felt_const)(self.ptr, lhs, rhs)
+    }
+
+    pub fn div_f(&self, lhs: Felt<F>, rhs: Felt<F>) -> Felt<F> {
+        (self.div_felt)(self.ptr, lhs, rhs)
+    }
+
+    pub fn div_f_const(&self, lhs: Felt<F>, rhs: F) -> Felt<F> {
+        (self.div_felt_const)(self.ptr, lhs, rhs)
+    }
+
+    pub fn div_const_f(&self, lhs: F, rhs: Felt<F>) -> Felt<F> {
+        (self.div_const_felt)(self.ptr, lhs, rhs)
     }
 }
 

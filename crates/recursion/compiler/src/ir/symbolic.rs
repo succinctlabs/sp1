@@ -1,17 +1,15 @@
-use alloc::rc::Rc;
 use core::{
     any::Any,
     ops::{Add, Div, Mul, Neg, Sub},
 };
 use std::{
     any::TypeId,
-    hash::Hash,
     iter::{Product, Sum},
     mem,
     ops::{AddAssign, DivAssign, MulAssign, SubAssign},
 };
 
-use p3_field::{AbstractField, ExtensionField, Field, FieldArray};
+use p3_field::{AbstractField, ExtensionField, Field};
 
 use super::{Ext, Felt, Usize, Var};
 
@@ -355,7 +353,21 @@ impl<N: Field> Mul for SymbolicVar<N> {
     type Output = Self;
 
     fn mul(self, rhs: Self) -> Self::Output {
-        unimplemented!()
+        match (self, rhs) {
+            (Self::Const(lhs), Self::Const(rhs)) => Self::Const(lhs * rhs),
+            (Self::Val(lhs), Self::Const(rhs)) => {
+                let res = unsafe { (*lhs.handle).mul_const_v(lhs, rhs) };
+                Self::Val(res)
+            }
+            (Self::Const(lhs), Self::Val(rhs)) => {
+                let res = unsafe { (*rhs.handle).mul_const_v(rhs, lhs) };
+                Self::Val(res)
+            }
+            (Self::Val(lhs), Self::Val(rhs)) => {
+                let res = unsafe { (*lhs.handle).mul_v(lhs, rhs) };
+                Self::Val(res)
+            }
+        }
     }
 }
 
@@ -363,7 +375,21 @@ impl<F: Field> Mul for SymbolicFelt<F> {
     type Output = Self;
 
     fn mul(self, rhs: Self) -> Self::Output {
-        unimplemented!()
+        match (self, rhs) {
+            (Self::Const(lhs), Self::Const(rhs)) => Self::Const(lhs * rhs),
+            (Self::Val(lhs), Self::Const(rhs)) => {
+                let res = unsafe { (*lhs.handle).mul_const_f(lhs, rhs) };
+                Self::Val(res)
+            }
+            (Self::Const(lhs), Self::Val(rhs)) => {
+                let res = unsafe { (*rhs.handle).mul_const_f(rhs, lhs) };
+                Self::Val(res)
+            }
+            (Self::Val(lhs), Self::Val(rhs)) => {
+                let res = unsafe { (*lhs.handle).mul_f(lhs, rhs) };
+                Self::Val(res)
+            }
+        }
     }
 }
 
@@ -387,7 +413,21 @@ impl<N: Field> Sub for SymbolicVar<N> {
     type Output = Self;
 
     fn sub(self, rhs: Self) -> Self::Output {
-        unimplemented!()
+        match (self, rhs) {
+            (Self::Const(lhs), Self::Const(rhs)) => Self::Const(lhs - rhs),
+            (Self::Val(lhs), Self::Const(rhs)) => {
+                let res = unsafe { (*lhs.handle).sub_v_const(lhs, rhs) };
+                Self::Val(res)
+            }
+            (Self::Const(lhs), Self::Val(rhs)) => {
+                let res = unsafe { (*rhs.handle).sub_const_v(lhs, rhs) };
+                Self::Val(res)
+            }
+            (Self::Val(lhs), Self::Val(rhs)) => {
+                let res = unsafe { (*lhs.handle).sub_v(lhs, rhs) };
+                Self::Val(res)
+            }
+        }
     }
 }
 
@@ -395,7 +435,21 @@ impl<F: Field> Sub for SymbolicFelt<F> {
     type Output = Self;
 
     fn sub(self, rhs: Self) -> Self::Output {
-        unimplemented!()
+        match (self, rhs) {
+            (Self::Const(lhs), Self::Const(rhs)) => Self::Const(lhs - rhs),
+            (Self::Val(lhs), Self::Const(rhs)) => {
+                let res = unsafe { (*lhs.handle).sub_f_const(lhs, rhs) };
+                Self::Val(res)
+            }
+            (Self::Const(lhs), Self::Val(rhs)) => {
+                let res = unsafe { (*rhs.handle).sub_const_f(lhs, rhs) };
+                Self::Val(res)
+            }
+            (Self::Val(lhs), Self::Val(rhs)) => {
+                let res = unsafe { (*lhs.handle).sub_f(lhs, rhs) };
+                Self::Val(res)
+            }
+        }
     }
 }
 
@@ -419,7 +473,21 @@ impl<F: Field> Div for SymbolicFelt<F> {
     type Output = Self;
 
     fn div(self, rhs: Self) -> Self::Output {
-        todo!()
+        match (self, rhs) {
+            (Self::Const(lhs), Self::Const(rhs)) => Self::Const(lhs / rhs),
+            (Self::Val(lhs), Self::Const(rhs)) => {
+                let res = unsafe { (*lhs.handle).div_f_const(lhs, rhs) };
+                Self::Val(res)
+            }
+            (Self::Const(lhs), Self::Val(rhs)) => {
+                let res = unsafe { (*rhs.handle).div_const_f(lhs, rhs) };
+                Self::Val(res)
+            }
+            (Self::Val(lhs), Self::Val(rhs)) => {
+                let res = unsafe { (*lhs.handle).div_f(lhs, rhs) };
+                Self::Val(res)
+            }
+        }
     }
 }
 
@@ -504,7 +572,7 @@ impl<N: Field> Sub<N> for SymbolicVar<N> {
     type Output = Self;
 
     fn sub(self, rhs: N) -> Self::Output {
-        todo!()
+        self - SymbolicVar::from(rhs)
     }
 }
 
@@ -819,19 +887,19 @@ impl<N: Field> Sum for SymbolicVar<N> {
 
 impl<N: Field> AddAssign for SymbolicVar<N> {
     fn add_assign(&mut self, rhs: Self) {
-        *self = self.clone() + rhs;
+        *self = *self + rhs;
     }
 }
 
 impl<N: Field> SubAssign for SymbolicVar<N> {
     fn sub_assign(&mut self, rhs: Self) {
-        *self = self.clone() - rhs;
+        *self = *self - rhs;
     }
 }
 
 impl<N: Field> MulAssign for SymbolicVar<N> {
     fn mul_assign(&mut self, rhs: Self) {
-        *self = self.clone() * rhs;
+        *self = *self * rhs;
     }
 }
 
@@ -855,19 +923,19 @@ impl<F: Field> Product for SymbolicFelt<F> {
 
 impl<F: Field> AddAssign for SymbolicFelt<F> {
     fn add_assign(&mut self, rhs: Self) {
-        *self = self.clone() + rhs;
+        *self = *self + rhs;
     }
 }
 
 impl<F: Field> SubAssign for SymbolicFelt<F> {
     fn sub_assign(&mut self, rhs: Self) {
-        *self = self.clone() - rhs;
+        *self = *self - rhs;
     }
 }
 
 impl<F: Field> MulAssign for SymbolicFelt<F> {
     fn mul_assign(&mut self, rhs: Self) {
-        *self = self.clone() * rhs;
+        *self = *self * rhs;
     }
 }
 
@@ -897,25 +965,25 @@ impl<F: Field, EF: ExtensionField<F>> Default for SymbolicExt<F, EF> {
 
 impl<F: Field, EF: ExtensionField<F>, E: Any> AddAssign<E> for SymbolicExt<F, EF> {
     fn add_assign(&mut self, rhs: E) {
-        *self = self.clone() + rhs;
+        *self = *self + rhs;
     }
 }
 
 impl<F: Field, EF: ExtensionField<F>, E: Any> SubAssign<E> for SymbolicExt<F, EF> {
     fn sub_assign(&mut self, rhs: E) {
-        *self = self.clone() - rhs;
+        *self = *self - rhs;
     }
 }
 
 impl<F: Field, EF: ExtensionField<F>, E: Any> MulAssign<E> for SymbolicExt<F, EF> {
     fn mul_assign(&mut self, rhs: E) {
-        *self = self.clone() * rhs;
+        *self = *self * rhs;
     }
 }
 
 impl<F: Field, EF: ExtensionField<F>, E: Any> DivAssign<E> for SymbolicExt<F, EF> {
     fn div_assign(&mut self, rhs: E) {
-        *self = self.clone() / rhs;
+        *self = *self / rhs;
     }
 }
 
@@ -958,14 +1026,14 @@ impl<F: Field, EF: ExtensionField<F>, E: Any> ExtensionOperand<F, EF> for E {
                 // *Saftey*: We know that E is a Symbolic Felt<F> and we can transmute it to
                 // SymbolicFelt<F> but we need to clone the pointer.
                 let value_ref = unsafe { mem::transmute::<&E, &SymbolicFelt<F>>(&self) };
-                let value = value_ref.clone();
+                let value = *value_ref;
                 ExtOperand::<F, EF>::SymFelt(value)
             }
             ty if ty == TypeId::of::<SymbolicExt<F, EF>>() => {
                 // *Saftey*: We know that E is a SymbolicExt<F, EF> and we can transmute it to
                 // SymbolicExt<F, EF> but we need to clone the pointer.
                 let value_ref = unsafe { mem::transmute::<&E, &SymbolicExt<F, EF>>(&self) };
-                let value = value_ref.clone();
+                let value = *value_ref;
                 ExtOperand::<F, EF>::Sym(value)
             }
             ty if ty == TypeId::of::<ExtOperand<F, EF>>() => {
@@ -1147,7 +1215,7 @@ impl<N: Field> Sub<Usize<N>> for Usize<N> {
 
 impl<F: Field> MulAssign<Felt<F>> for SymbolicFelt<F> {
     fn mul_assign(&mut self, rhs: Felt<F>) {
-        *self = self.clone() * Self::from(rhs);
+        *self = *self * Self::from(rhs);
     }
 }
 
