@@ -8,7 +8,6 @@ use sp1_core_executor::{
     ByteOpcode,
     ByteOpcode::U16Range,
     ExecutionRecord, Opcode, Program,
-    Register::X0,
 };
 use sp1_primitives::consts::WORD_SIZE;
 use sp1_stark::{air::MachineAir, Word};
@@ -352,8 +351,7 @@ impl CpuChip {
                         F::from_canonical_u8(most_sig_mem_value_byte >> i & 0x01);
                 }
                 if memory_columns.most_sig_byte_decomp[7] == F::one() {
-                    cols.mem_value_is_neg_not_x0 =
-                        F::from_bool(event.instruction.op_a != (X0 as u32));
+                    cols.mem_value_is_neg = F::one();
                     let sub_event = AluEvent {
                         lookup_id: event.memory_sub_lookup_id,
                         channel: event.channel,
@@ -375,14 +373,6 @@ impl CpuChip {
                         .or_insert(vec![sub_event]);
                 }
             }
-
-            // Set the `mem_value_is_pos_not_x0` composite flag.
-            cols.mem_value_is_pos_not_x0 = F::from_bool(
-                ((matches!(event.instruction.opcode, Opcode::LB | Opcode::LH)
-                    && (memory_columns.most_sig_byte_decomp[7] == F::zero()))
-                    || matches!(event.instruction.opcode, Opcode::LBU | Opcode::LHU | Opcode::LW))
-                    && event.instruction.op_a != (X0 as u32),
-            );
         }
 
         // Add event to byte lookup for byte range checking each byte in the memory addr
