@@ -176,7 +176,31 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         )
         .expect("PROVER_COMPRESS_CACHE_SIZE must be a non-zero usize");
 
-        let allowed_vkeys = vec![<InnerSC as FieldHasher<BabyBear>>::Digest::default(); 1 << 16];
+        let fq1_compress_digest: [BabyBear; 8] = [
+            824871053, 1234883102, 1719417780, 1094953486, 1210261393, 380502652, 1519991290,
+            1426492577,
+        ]
+        .map(BabyBear::from_canonical_usize);
+        let fq1_shrink_digest: [BabyBear; 8] = [
+            1316488559, 1370663812, 1185113876, 1578759745, 848121750, 888470422, 177837112,
+            1473628902,
+        ]
+        .map(BabyBear::from_canonical_usize);
+
+        let compress_digest = [
+            956176468, 951798542, 1725257898, 1630282226, 448387093, 1701651289, 1977505602,
+            300815700,
+        ]
+        .map(BabyBear::from_canonical_usize);
+
+        let shrink_digest = [
+            273381656, 1531862783, 811618781, 1590737450, 1111424479, 44359104, 1286493293,
+            364451232,
+        ]
+        .map(BabyBear::from_canonical_usize);
+
+        let mut allowed_vkeys =
+            vec![fq1_compress_digest, fq1_shrink_digest, compress_digest, shrink_digest];
 
         let (root, merkle_tree) = MerkleTree::commit(allowed_vkeys.clone());
 
@@ -304,6 +328,10 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                 let builder_span = tracing::debug_span!("build compress program").entered();
                 let mut builder = Builder::<InnerConfig>::default();
                 let input = input.read(&mut builder);
+                input.compress_var.vks_and_proofs.iter().for_each(|(vk, _)| {
+                    let hash = vk.hash(&mut builder);
+                    hash.iter().for_each(|elem| builder.print_f(*elem));
+                });
                 SP1CompressWithVKeyVerifier::verify(
                     &mut builder,
                     self.compress_prover.machine(),
@@ -1021,8 +1049,20 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         input: SP1CompressWitnessValues<CoreSC>,
     ) -> SP1CompressWithVKeyWitnessValues<CoreSC>
 where {
+        for (vk, _) in &input.vks_and_proofs {
+            tracing::debug!("vk hash: {:?}", vk.hash_babybear());
+        }
         // TODO: make an index based on the key itself.
-        let vk_indices = input.vks_and_proofs.iter().map(|(_, _)| 0).collect_vec();
+        let vk_indices = input
+            .vks_and_proofs
+            .iter()
+            .map(|(vk, _)| {
+                let index =
+                    self.allowed_vkeys.iter().position(|&x| x == vk.hash_babybear()).unwrap();
+                tracing::debug!("index: {:?}", index);
+                index
+            })
+            .collect_vec();
 
         let proofs = vk_indices
             .iter()
