@@ -5,7 +5,7 @@ use core::{
 use std::{
     any::TypeId,
     iter::{Product, Sum},
-    mem::{self, ManuallyDrop, MaybeUninit},
+    mem::{self, ManuallyDrop},
     ops::{AddAssign, DivAssign, MulAssign, SubAssign},
 };
 
@@ -13,7 +13,7 @@ use p3_field::{AbstractField, ExtensionField, Field};
 
 use crate::ir::ExtHandle;
 
-use super::{Ext, ExtOperations, Felt, Usize, Var};
+use super::{Ext, Felt, Usize, Var};
 
 #[derive(Debug, Clone, Copy)]
 pub enum SymbolicVar<N: Field> {
@@ -714,7 +714,13 @@ impl<N: Field> Neg for SymbolicVar<N> {
     type Output = Self;
 
     fn neg(self) -> Self::Output {
-        unimplemented!()
+        match self {
+            SymbolicVar::Const(n) => SymbolicVar::Const(-n),
+            SymbolicVar::Val(n) => {
+                let res = unsafe { (*n.handle).neg_v(n) };
+                SymbolicVar::Val(res)
+            }
+        }
     }
 }
 
