@@ -264,8 +264,8 @@ jobs:
             --author "${{ github.event.pull_request.user.login || github.actor }}"
 
   # Runs on a c7a.2xlarge machine, which only has 16GiB memory. 
-  memory:
-    name: Memory
+  low-memory:
+    name: Low Memory
     runs-on: [runs-on, family=c7a.2xlarge, "run-id=${{ github.run_id }}"]
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
