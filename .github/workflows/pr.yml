@@ -263,14 +263,19 @@ jobs:
             --commit-hash "${{ github.sha }}" \
             --author "${{ github.event.pull_request.user.login || github.actor }}"
 
+  # Runs on a c7a.2xlarge machine, which only has 16GiB memory. 
   memory:
     name: Memory
-    runs-on: [runs-on, runner=8cpu-linux-x64, "run-id=${{ github.run_id }}"]
+    runs-on: [runs-on, family=c7a.2xlarge, "run-id=${{ github.run_id }}"]
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
       - name: Checkout sources
         uses: actions/checkout@v4
+        
+      - name: Check total available memory because I'm curious
+        run: |
+          grep MemTotal /proc/meminfo
 
       - name: Setup CI
         uses: ./.github/actions/setup
@@ -286,16 +291,16 @@ jobs:
           cd crates/cli
           cargo install --force --locked --path .
           cd ~
-      
-      - name: Set memory limit to 16 GB
-        run: | 
-          ulimit -v 16000000
 
-      - name: Run script
+      - name: Check total available memory because I'm curious
+        run: |
+          grep MemTotal /proc/meminfo
+
+      - name: Run tendermint script
         run: |
           cd examples/tendermint/program
           cargo add sp1-zkvm --path $GITHUB_WORKSPACE/crates/zkvm/entrypoint
-          cargo +succinct prove build
+          cargo prove build
           cd ../script
           cargo remove sp1-sdk
           cargo add sp1-sdk --path $GITHUB_WORKSPACE/crates/sdk
