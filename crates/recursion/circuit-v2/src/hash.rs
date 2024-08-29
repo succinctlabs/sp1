@@ -115,6 +115,7 @@ impl FieldHasher<BabyBear> for BabyBearPoseidon2Outer {
         [state[0]; BN254_DIGEST_SIZE]
     }
 }
+
 impl<C: CircuitConfig<F = BabyBear, N = Bn254Fr, Bit = Var<Bn254Fr>>> FieldHasherVariable<C>
     for BabyBearPoseidon2Outer
 {
