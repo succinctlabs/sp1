@@ -496,7 +496,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
     ) -> Result<SP1ReduceProof<InnerSC>, SP1RecursionProverError> {
         // Set the batch size for the reduction tree.
         let batch_size = 2;
-        let first_layer_batch_size = 2;
+        let first_layer_batch_size = 1;
         let shard_proofs = &proof.proof.0;
 
         // Get the leaf challenger.
