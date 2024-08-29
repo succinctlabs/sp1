@@ -14,6 +14,7 @@ members = [
   "crates/core/machine",
   "crates/curves",
   "crates/derive",
+  "crates/eval",
   "crates/helper",
   "crates/primitives",
   "crates/prover",
@@ -48,11 +49,12 @@ debug-assertions = true
 [workspace.dependencies]
 # sp1
 sp1-build = { path = "crates/build", version = "1.2.0-rc1" }
+sp1-cli = { path = "crates/cli", version = "1.2.0-rc1", default-features = false }
 sp1-core-machine = { path = "crates/core/machine", version = "1.2.0-rc1" }
 sp1-core-executor = { path = "crates/core/executor", version = "1.2.0-rc1" }
-sp1-derive = { path = "crates/derive", version = "1.2.0-rc1" }
-sp1-cli = { path = "crates/cli", version = "1.2.0-rc1", default-features = false }
 sp1-curves = { path = "crates/curves", version = "1.2.0-rc1" }
+sp1-derive = { path = "crates/derive", version = "1.2.0-rc1" }
+sp1-eval = { path = "crates/eval", version = "1.2.0-rc1" }
 sp1-helper = { path = "crates/helper", version = "1.2.0-rc1", default-features = false }
 sp1-primitives = { path = "crates/primitives", version = "1.2.0-rc1" }
 sp1-prover = { path = "crates/prover", version = "1.2.0-rc1" }
