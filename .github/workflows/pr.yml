@@ -262,7 +262,7 @@ jobs:
             --branch-name "${{ github.head_ref || github.ref_name }}" \
             --commit-hash "${{ github.sha }}" \
             --author "${{ github.event.pull_request.user.login || github.actor }}"
-              
+
   memory:
     name: Memory
     runs-on: [runs-on, runner=8cpu-linux-x64, "run-id=${{ github.run_id }}"]
@@ -280,6 +280,12 @@ jobs:
           curl -L https://sp1.succinct.xyz | bash
           ~/.sp1/bin/sp1up 
           ~/.sp1/bin/cargo-prove prove --version
+
+      - name: Install SP1 CLI
+        run: |
+          cd crates/cli
+          cargo install --force --locked --path .
+          cd ~
       
       - name: Set memory limit to 16 GB
         run: | 
@@ -289,7 +295,7 @@ jobs:
         run: |
           cd examples/tendermint/program
           cargo add sp1-zkvm --path $GITHUB_WORKSPACE/crates/zkvm/entrypoint
-          cargo prove build
+          cargo +succinct prove build
           cd ../script
           cargo remove sp1-sdk
           cargo add sp1-sdk --path $GITHUB_WORKSPACE/crates/sdk
