@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.2.0-rc.2](https://github.com/succinctlabs/sp1/compare/sp1-cli-v1.2.0-rc.1...sp1-cli-v1.2.0-rc.2) - 2024-08-29
+## [1.2.0-rc.2](https://github.com/succinctlabs/sp1/compare/sp1-cli-v1.2.0-rc1...sp1-cli-v1.2.0-rc.2) - 2024-08-29
 
 ### Other
 - update Cargo.lock dependencies
