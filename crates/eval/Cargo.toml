@@ -1,6 +1,6 @@
 [package]
 name = "sp1-eval"
-description = "A benchmarking tool for SP1 programs."
+description = "A performance evaluation tool for SP1 programs."
 readme = "../../README.md"
 version = { workspace = true }
 edition = { workspace = true }

@@ -17,13 +17,13 @@ use crate::program::{TesterProgram, PROGRAMS};
 mod program;
 
 #[derive(Parser, Clone)]
-#[command(about = "Evaluate the performance of a zkVM on programs.")]
+#[command(about = "Evaluate the performance of SP1 on programs.")]
 struct EvalArgs {
-    /// The programs to evaluate, specified by name.
+    /// The programs to evaluate, specified by name. If not specified, all programs will be evaluated.
     #[arg(long, use_value_delimiter = true, value_delimiter = ',')]
     pub programs: Vec<String>,
 
-    /// Theshard size to use for the prover.
+    /// The shard size to use for the prover.
     #[arg(long)]
     pub shard_size: Option<usize>,
 
