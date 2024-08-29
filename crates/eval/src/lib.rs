@@ -27,45 +27,37 @@ struct EvalArgs {
     #[arg(long)]
     pub shard_size: Option<usize>,
 
-    /// The Slack channel ID to post results to, only required if you want to post to Slack.
+    /// Whether to post results to Slack.
+    #[arg(long)]
+    pub post_to_slack: bool,
+
+    /// The Slack channel ID to post results to. Only used if post_to_slack is true.
     #[arg(long)]
     pub slack_channel_id: Option<String>,
 
-    /// The Slack bot token to post results to, only used if slack_channel_id is set.
+    /// The Slack bot token to post results to. Only used if post_to_slack is true.
     #[arg(long)]
     pub slack_token: Option<String>,
 
-    /// The GitHub token for authentication, only required if you want to post to GitHub.
+    /// Whether to post results to a GitHub PR.
+    #[arg(long)]
+    pub post_to_github: bool,
+
+    /// The GitHub token for authentication. Only used if post_to_github is true.
     #[arg(long)]
     pub github_token: Option<String>,
 
-    /// The GitHub repository owner.
+    /// The GitHub repository owner. Only used if post_to_github is true.
     #[arg(long)]
     pub repo_owner: Option<String>,
 
-    /// The GitHub repository name.
+    /// The GitHub repository name. Only used if post_to_github is true.
     #[arg(long)]
     pub repo_name: Option<String>,
 
-    /// The GitHub PR number.
+    /// The GitHub PR number. Only used if post_to_github is true.
     #[arg(long)]
     pub pr_number: Option<String>,
-
-    /// The name of the pull request.
-    #[arg(long)]
-    pub pr_name: Option<String>,
-
-    /// The name of the branch.
-    #[arg(long)]
-    pub branch_name: Option<String>,
-
-    /// The commit hash.
-    #[arg(long)]
-    pub commit_hash: Option<String>,
-
-    /// The author of the commit.
-    #[arg(long)]
-    pub author: Option<String>,
 }
 
 pub async fn evaluate_performance<C: SP1ProverComponents>() -> Result<(), Box<dyn std::error::Error>>
@@ -105,18 +97,28 @@ pub async fn evaluate_performance<C: SP1ProverComponents>() -> Result<(), Box<dy
     println!("{}", results_text.join("\n"));
 
     // Post to Slack if applicable
-    for message in &results_text {
-        if let (Some(token), Some(channel)) = (&args.slack_token, &args.slack_channel_id) {
-            post_to_slack(token, channel, message).await?;
+    if args.post_to_slack {
+        match (&args.slack_token, &args.slack_channel_id) {
+            (Some(token), Some(channel)) => {
+                for message in &results_text {
+                    post_to_slack(token, channel, message).await?;
+                }
+            }
+            _ => println!(
+                "Warning: post_to_slack is true, but slack_token or slack_channel_id is missing."
+            ),
         }
     }
 
     // Post to GitHub PR if applicable
-    if let (Some(owner), Some(repo), Some(pr_number), Some(token)) =
-        (&args.repo_owner, &args.repo_name, &args.pr_number, &args.github_token)
-    {
-        let message = format_github_message(&results_text);
-        post_to_github_pr(owner, repo, pr_number, token, &message).await?;
+    if args.post_to_github {
+        match (&args.repo_owner, &args.repo_name, &args.pr_number, &args.github_token) {
+            (Some(owner), Some(repo), Some(pr_number), Some(token)) => {
+                let message = format_github_message(&results_text);
+                post_to_github_pr(owner, repo, pr_number, token, &message).await?;
+            }
+            _ => println!("Warning: post_to_github is true, but one or more required GitHub arguments are missing."),
+        }
     }
 
     // Exit with an error if any programs failed.
