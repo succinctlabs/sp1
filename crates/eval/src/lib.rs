@@ -120,9 +120,7 @@ pub async fn evaluate_performance<C: SP1ProverComponents>() -> Result<(), Box<dy
                     post_to_slack(token, channel, message).await?;
                 }
             }
-            _ => println!(
-                "Warning: post_to_slack is true, but slack_token or slack_channel_id is missing."
-            ),
+            _ => println!("Warning: post_to_slack is true, required Slack arguments are missing."),
         }
     }
 
@@ -133,7 +131,9 @@ pub async fn evaluate_performance<C: SP1ProverComponents>() -> Result<(), Box<dy
                 let message = format_github_message(&results_text);
                 post_to_github_pr(owner, repo, pr_number, token, &message).await?;
             }
-            _ => println!("Warning: post_to_github is true, but one or more required GitHub arguments are missing."),
+            _ => {
+                println!("Warning: post_to_github is true, required GitHub arguments are missing.")
+            }
         }
     }
 
