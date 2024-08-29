@@ -31,11 +31,11 @@ struct EvalArgs {
     #[arg(long)]
     pub post_to_slack: bool,
 
-    /// The Slack channel ID to post results to. Only used if post_to_slack is true.
+    /// The Slack channel ID to post results to, only used if post_to_slack is true.
     #[arg(long)]
     pub slack_channel_id: Option<String>,
 
-    /// The Slack bot token to post results to. Only used if post_to_slack is true.
+    /// The Slack bot token to post results to, only used if post_to_slack is true.
     #[arg(long)]
     pub slack_token: Option<String>,
 
@@ -43,21 +43,37 @@ struct EvalArgs {
     #[arg(long)]
     pub post_to_github: bool,
 
-    /// The GitHub token for authentication. Only used if post_to_github is true.
+    /// The GitHub token for authentication, only used if post_to_github is true.
     #[arg(long)]
     pub github_token: Option<String>,
 
-    /// The GitHub repository owner. Only used if post_to_github is true.
+    /// The GitHub repository owner.
     #[arg(long)]
     pub repo_owner: Option<String>,
 
-    /// The GitHub repository name. Only used if post_to_github is true.
+    /// The GitHub repository name.
     #[arg(long)]
     pub repo_name: Option<String>,
 
-    /// The GitHub PR number. Only used if post_to_github is true.
+    /// The GitHub PR number.
     #[arg(long)]
     pub pr_number: Option<String>,
+
+    /// The name of the pull request.
+    #[arg(long)]
+    pub pr_name: Option<String>,
+
+    /// The name of the branch.
+    #[arg(long)]
+    pub branch_name: Option<String>,
+
+    /// The commit hash.
+    #[arg(long)]
+    pub commit_hash: Option<String>,
+
+    /// The author of the commit.
+    #[arg(long)]
+    pub author: Option<String>,
 }
 
 pub async fn evaluate_performance<C: SP1ProverComponents>() -> Result<(), Box<dyn std::error::Error>>
@@ -376,16 +392,18 @@ mod tests {
         let args = EvalArgs {
             programs: vec!["fibonacci".to_string(), "super-program".to_string()],
             shard_size: None,
+            post_to_slack: false,
             slack_channel_id: None,
             slack_token: None,
+            post_to_github: true,
+            github_token: Some("abcdef1234567890".to_string()),
+            repo_owner: Some("succinctlabs".to_string()),
+            repo_name: Some("sp1".to_string()),
+            pr_number: Some("123456".to_string()),
             pr_name: Some("Test PR".to_string()),
             branch_name: Some("feature-branch".to_string()),
             commit_hash: Some("abcdef1234567890".to_string()),
             author: Some("John Doe".to_string()),
-            repo_owner: Some("succinctlabs".to_string()),
-            repo_name: Some("sp1".to_string()),
-            pr_number: Some("123456".to_string()),
-            github_token: Some("abcdef1234567890".to_string()),
         };
 
         let formatted_results = format_results(&args, &dummy_reports);
