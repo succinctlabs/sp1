@@ -129,6 +129,12 @@ pub struct SP1Prover<C: SP1ProverComponents = DefaultProverComponents> {
     pub compress_programs: Mutex<LruCache<SP1CompressShape, Arc<RecursionProgram<BabyBear>>>>,
 
     pub compress_cache_misses: AtomicUsize,
+
+    pub root: <InnerSC as FieldHasher<BabyBear>>::Digest,
+
+    pub allowed_vkeys: Vec<<InnerSC as FieldHasher<BabyBear>>::Digest>,
+
+    pub merkle_tree: MerkleTree<BabyBear, InnerSC>,
 }
 
 impl<C: SP1ProverComponents> SP1Prover<C> {
@@ -170,6 +176,10 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         )
         .expect("PROVER_COMPRESS_CACHE_SIZE must be a non-zero usize");
 
+        let allowed_vkeys = vec![<InnerSC as FieldHasher<BabyBear>>::Digest::default()];
+
+        let (root, merkle_tree) = MerkleTree::commit(allowed_vkeys.clone());
+
         Self {
             core_prover,
             compress_prover,
@@ -179,6 +189,9 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             recursion_cache_misses: AtomicUsize::new(0),
             compress_programs: Mutex::new(LruCache::new(compress_cache_size)),
             compress_cache_misses: AtomicUsize::new(0),
+            root,
+            merkle_tree,
+            allowed_vkeys,
         }
     }
 
@@ -483,7 +496,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
     ) -> Result<SP1ReduceProof<InnerSC>, SP1RecursionProverError> {
         // Set the batch size for the reduction tree.
         let batch_size = 2;
-        let first_layer_batch_size = 1;
+        let first_layer_batch_size = 2;
         let shard_proofs = &proof.proof.0;
 
         // Get the leaf challenger.
@@ -576,14 +589,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                                 SP1CircuitWitness::Compress(input) => {
                                     let mut witness_stream = Vec::new();
 
-                                    // TODO: generate this.
-                                    let allowed_vkeys = vec![<BabyBearPoseidon2 as FieldHasher<
-                                        BabyBear,
-                                    >>::Digest::default(
-                                    )];
-
-                                    let input_with_merkle =
-                                        make_merkle_proofs(input, allowed_vkeys);
+                                    let input_with_merkle = self.make_merkle_proofs(input);
 
                                     Witnessable::<InnerConfig>::write(
                                         &input_with_merkle,
@@ -834,9 +840,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             is_complete: true,
         };
 
-        let allowed_vkeys = vec![<BabyBearPoseidon2 as FieldHasher<BabyBear>>::Digest::default()];
-
-        let input_with_merkle = make_merkle_proofs(input, allowed_vkeys);
+        let input_with_merkle = self.make_merkle_proofs(input);
 
         let program = self.shrink_program(&input_with_merkle);
 
@@ -1012,6 +1016,33 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         digest
     }
 
+    fn make_merkle_proofs(
+        &self,
+        input: SP1CompressWitnessValues<CoreSC>,
+    ) -> SP1CompressWithVKeyWitnessValues<CoreSC>
+where {
+        // TODO: make a index based on the key itself.
+        let vk_indices = input
+            .vks_and_proofs
+            .iter()
+            .map(|(vk, _)| {
+                self.allowed_vkeys.iter().position(|x| *x == vk.hash_babybear()).unwrap_or(0)
+            })
+            .collect_vec();
+
+        let proofs = vk_indices
+            .iter()
+            .map(|index| {
+                let (_, proof) = MerkleTree::open(&self.merkle_tree, *index);
+                proof
+            })
+            .collect();
+
+        let merkle_val = SP1MerkleProofWitnessValues { root: self.root, vk_merkle_proofs: proofs };
+
+        SP1CompressWithVKeyWitnessValues { compress_val: input, merkle_val }
+    }
+
     fn check_for_high_cycles(cycles: u64) {
         if cycles > 100_000_000 {
             tracing::warn!(
@@ -1019,32 +1050,6 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             );
         }
     }
-}
-
-fn make_merkle_proofs(
-    input: SP1CompressWitnessValues<CoreSC>,
-    allowed_vkeys: Vec<<BabyBearPoseidon2 as FieldHasher<BabyBear>>::Digest>,
-) -> SP1CompressWithVKeyWitnessValues<CoreSC>
-where
-{
-    let vk_indices = input
-        .vks_and_proofs
-        .iter()
-        .map(|(vk, _)| allowed_vkeys.iter().position(|x| *x == vk.hash_babybear()).unwrap_or(0))
-        .collect_vec();
-
-    let (root, tree) = MerkleTree::commit(allowed_vkeys);
-    let proofs = vk_indices
-        .iter()
-        .map(|index| {
-            let (_, proof) = MerkleTree::open(&tree, *index);
-            proof
-        })
-        .collect();
-
-    let merkle_val = SP1MerkleProofWitnessValues { root, vk_merkle_proofs: proofs };
-
-    SP1CompressWithVKeyWitnessValues { compress_val: input, merkle_val }
 }
 
 #[cfg(any(test, feature = "export-tests"))]
