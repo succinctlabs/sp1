@@ -272,11 +272,11 @@ impl Default for ProverClient {
     }
 }
 
-#[cfg(feature = "network")]
 /// Utility method for blocking on an async function.
 ///
 /// If we're already in a tokio runtime, we'll block in place. Otherwise, we'll create a new
 /// runtime.
+#[cfg(feature = "network")]
 pub fn block_on<T>(fut: impl Future<Output = T>) -> T {
     // Handle case if we're already in an tokio runtime.
     if let Ok(handle) = tokio::runtime::Handle::try_current() {
