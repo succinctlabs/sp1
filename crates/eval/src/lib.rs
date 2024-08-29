@@ -6,7 +6,7 @@ use serde_json::json;
 use slack_rust::chat::post_message::{post_message, PostMessageRequest};
 use slack_rust::http_client::default_client;
 use sp1_prover::{components::SP1ProverComponents, utils::get_cycles, SP1Prover};
-use sp1_sdk::SP1Context;
+use sp1_sdk::{SP1Context, SP1Stdin};
 use sp1_stark::SP1ProverOpts;
 use std::time::{Duration, Instant};
 
@@ -99,7 +99,8 @@ pub async fn evaluate_performance<C: SP1ProverComponents>() -> Result<(), Box<dy
     let mut reports = Vec::new();
     for program in &programs {
         println!("Evaluating program: {}", program.name);
-        let report = run_evaluation::<C>(program.name, program.elf, program.input);
+        let (elf, stdin) = load_program(program.elf, program.input);
+        let report = run_evaluation::<C>(program.name, &elf, &stdin);
         reports.push(report);
         println!("Program: {} completed", program.name);
     }
@@ -160,10 +161,9 @@ pub struct PerformanceReport {
 
 fn run_evaluation<C: SP1ProverComponents>(
     program_name: &str,
-    elf_path: &str,
-    input_path: &str,
+    elf: &[u8],
+    stdin: &SP1Stdin,
 ) -> PerformanceReport {
-    let (elf, stdin) = load_program(elf_path, input_path);
     let cycles = get_cycles(&elf, &stdin);
 
     let prover = SP1Prover::<C>::new();
