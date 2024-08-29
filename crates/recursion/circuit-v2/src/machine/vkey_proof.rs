@@ -53,18 +53,8 @@ where
     SC: BabyBearFriConfigVariable<C>,
     C: CircuitConfig<F = SC::Val, EF = SC::Challenge>,
 {
-    /// Verify a batch of recursive proofs and aggregate their public values.
-    ///
-    /// The compression verifier can aggregate proofs of different kinds:
-    /// - Core proofs: proofs which are recursive proof of a batch of SP1 shard proofs. The
-    ///   implementation in this function assumes a fixed recursive verifier speicified by
-    ///   `recursive_vk`.
-    /// - Deferred proofs: proofs which are recursive proof of a batch of deferred proofs. The
-    ///   implementation in this function assumes a fixed deferred verification program specified by
-    ///   `deferred_vk`.
-    /// - Compress proofs: these are proofs which refer to a prove of this program. The key for it
-    ///   is part of public values will be propagated accross all levels of recursion and will be
-    ///   checked against itself as in [sp1_prover::Prover] or as in [super::SP1RootVerifier].
+    /// Verify (via Merkle tree) that the vkey digests of a proof belong to a specified set (encoded
+    /// the Merkle tree proofs in input).
     pub fn verify(
         builder: &mut Builder<C>,
         digests: Vec<SC::DigestVariable>,
