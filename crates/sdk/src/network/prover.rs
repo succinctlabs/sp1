@@ -11,10 +11,11 @@ use crate::{
 use anyhow::Result;
 use serde::de::DeserializeOwned;
 use sp1_core_machine::io::SP1Stdin;
-use sp1_cuda::block_on;
 use sp1_prover::{components::DefaultProverComponents, SP1Prover, SP1_CIRCUIT_VERSION};
 use sp1_stark::SP1ProverOpts;
-use tokio::time::sleep;
+
+#[cfg(feature = "network")]
+use {crate::block_on, tokio::time::sleep};
 
 use crate::provers::{CpuProver, ProofOpts, ProverType};
 
