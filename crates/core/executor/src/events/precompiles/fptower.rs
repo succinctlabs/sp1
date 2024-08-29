@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::events::{MemoryReadRecord, MemoryWriteRecord};
+use crate::events::{LookupId, MemoryReadRecord, MemoryWriteRecord};
 
 /// Airthmetic operation for emulating modular arithmetic.
 #[derive(PartialEq, Copy, Clone, Debug, Serialize, Deserialize)]
@@ -21,7 +21,7 @@ pub enum FieldOperation {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FpOpEvent {
     /// The lookup id.
-    pub lookup_id: usize,
+    pub lookup_id: LookupId,
     /// The shard number.
     pub shard: u32,
     /// The channel number.
@@ -50,7 +50,7 @@ pub struct FpOpEvent {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Fp2AddSubEvent {
     /// The lookup id.
-    pub lookup_id: usize,
+    pub lookup_id: LookupId,
     /// The shard number.
     pub shard: u32,
     /// The channel number.
@@ -77,7 +77,7 @@ pub struct Fp2AddSubEvent {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Fp2MulEvent {
     /// The lookup id.
-    pub lookup_id: usize,
+    pub lookup_id: LookupId,
     /// The shard number.
     pub shard: u32,
     /// The channel number.
