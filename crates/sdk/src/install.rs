@@ -1,9 +1,13 @@
 use std::{cmp::min, io::Write, path::PathBuf, process::Command};
 
+#[cfg(feature = "network")]
+use crate::block_on;
+
+use cfg_if::cfg_if;
 use futures::StreamExt;
 use indicatif::{ProgressBar, ProgressStyle};
+#[cfg(feature = "network")]
 use reqwest::Client;
-use sp1_cuda::block_on;
 
 use crate::SP1_CIRCUIT_VERSION;
 
@@ -25,16 +29,21 @@ pub fn try_install_circuit_artifacts() -> PathBuf {
             build_dir.display()
         );
     } else {
-        println!(
-            "[sp1] circuit artifacts for version {} do not exist at {}. downloading...",
-            SP1_CIRCUIT_VERSION,
-            build_dir.display()
-        );
-        install_circuit_artifacts(build_dir.clone());
+        cfg_if! {
+            if #[cfg(feature = "network")] {
+                println!(
+                    "[sp1] circuit artifacts for version {} do not exist at {}. downloading...",
+                    SP1_CIRCUIT_VERSION,
+                    build_dir.display()
+                );
+                install_circuit_artifacts(build_dir.clone());
+            }
+        }
     }
     build_dir
 }
 
+#[cfg(feature = "network")]
 /// Install the latest circuit artifacts.
 ///
 /// This function will download the latest circuit artifacts from the S3 bucket and extract them
@@ -71,6 +80,7 @@ pub fn install_circuit_artifacts_dir() -> PathBuf {
     dirs::home_dir().unwrap().join(".sp1").join("circuits").join(SP1_CIRCUIT_VERSION)
 }
 
+#[cfg(feature = "network")]
 /// Download the file with a progress bar that indicates the progress.
 pub async fn download_file(
     client: &Client,
