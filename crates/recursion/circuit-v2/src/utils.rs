@@ -4,8 +4,10 @@ use p3_baby_bear::BabyBear;
 use p3_bn254_fr::Bn254Fr;
 use p3_field::{AbstractField, PrimeField32};
 
-use sp1_recursion_compiler::ir::{Builder, Config, Felt};
-use sp1_recursion_core_v2::air::ChallengerPublicValues;
+use sp1_recursion_compiler::ir::{Builder, Config, Felt, Var};
+use sp1_recursion_core_v2::{air::ChallengerPublicValues, DIGEST_SIZE};
+
+use sp1_stark::Word;
 
 pub(crate) unsafe fn uninit_challenger_pv<C: Config>(
     _builder: &mut Builder<C>,
