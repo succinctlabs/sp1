@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::events::memory::{MemoryReadRecord, MemoryWriteRecord};
 use crate::events::LookupId;
+
 /// SHA-256 Extend Event.
 ///
 /// This event is emitted when a SHA-256 extend operation is performed.

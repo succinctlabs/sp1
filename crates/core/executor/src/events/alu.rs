@@ -26,11 +26,10 @@ pub struct AluEvent {
     pub b: u32,
     /// The third operand.
     pub c: u32,
-    /// The result of the operation.
-    /// make in the format of [``LookupId``; 6]
+    /// The result of the operation in the format of [``LookupId``; 6]
     pub sub_lookups: [LookupId; 6],
 }
-//use crate::events::create_alu_lookup_id;
+
 impl AluEvent {
     /// Create a new [`AluEvent`].
     #[must_use]

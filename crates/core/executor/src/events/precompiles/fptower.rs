@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::events::{LookupId, MemoryReadRecord, MemoryWriteRecord};
 
-/// Airthmetic operation for emulating modular arithmetic.
+/// This is an arithmetic operation for emulating modular arithmetic.
 #[derive(PartialEq, Copy, Clone, Debug, Serialize, Deserialize)]
 pub enum FieldOperation {
     /// Addition.
