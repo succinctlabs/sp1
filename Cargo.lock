@@ -5043,7 +5043,6 @@ dependencies = [
  "hex",
  "itertools 0.13.0",
  "log",
- "nohash-hasher",
  "num",
  "p3-field",
  "p3-keccak-air",

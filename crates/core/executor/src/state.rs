@@ -4,7 +4,6 @@ use std::{
 };
 
 use hashbrown::HashMap;
-use nohash_hasher::BuildNoHashHasher;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use sp1_stark::{baby_bear_poseidon2::BabyBearPoseidon2, ShardProof, StarkVerifyingKey};
@@ -43,7 +42,7 @@ pub struct ExecutionState {
     //     serialize_with = "serialize_hashmap_as_vec",
     //     deserialize_with = "deserialize_hashmap_as_vec"
     // )]
-    pub memory: HashMap<u32, MemoryRecord, BuildNoHashHasher<u32>>,
+    pub memory: HashMap<u32, MemoryRecord>,
 
     /// Uninitialized memory addresses that have a specific value they should be initialized with.
     /// SyscallHintRead uses this to write hint data into uninitialized memory.
@@ -51,7 +50,7 @@ pub struct ExecutionState {
     //     serialize_with = "serialize_hashmap_as_vec",
     //     deserialize_with = "deserialize_hashmap_as_vec"
     // )]
-    pub uninitialized_memory: HashMap<u32, u32, BuildNoHashHasher<u32>>,
+    pub uninitialized_memory: HashMap<u32, u32>,
 
     /// A stream of input values (global to the entire program).
     pub input_stream: Vec<Vec<u8>>,
@@ -111,7 +110,7 @@ pub struct ForkState {
     /// The original `pc` value at the fork point.
     pub pc: u32,
     /// All memory changes since the fork point.
-    pub memory_diff: HashMap<u32, Option<MemoryRecord>, BuildNoHashHasher<u32>>,
+    pub memory_diff: HashMap<u32, Option<MemoryRecord>>,
     /// The original memory access record at the fork point.
     pub op_record: MemoryAccessRecord,
     /// The original execution record at the fork point.

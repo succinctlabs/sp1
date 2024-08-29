@@ -5,7 +5,6 @@ use std::{
 };
 
 use hashbrown::{hash_map::Entry, HashMap};
-use nohash_hasher::BuildNoHashHasher;
 use serde::{Deserialize, Serialize};
 use sp1_stark::SP1CoreOpts;
 use thiserror::Error;
@@ -99,7 +98,7 @@ pub struct Executor<'a> {
 
     /// Memory addresses that were touched in this batch of shards. Used to minimize the size of
     /// checkpoints.
-    pub memory_checkpoint: HashMap<u32, Option<MemoryRecord>, BuildNoHashHasher<u32>>,
+    pub memory_checkpoint: HashMap<u32, Option<MemoryRecord>>,
 }
 
 /// The different modes the executor can run in.

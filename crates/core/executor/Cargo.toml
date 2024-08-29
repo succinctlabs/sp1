@@ -34,7 +34,6 @@ rand = "0.8.5"
 generic-array = { version = "1.1.0", features = ["alloc", "serde"] }
 num = { version = "0.4.3" }
 typenum = "1.17.0"
-nohash-hasher = "0.2.0"
 thiserror = "1.0.63"
 tracing = "0.1.40"
 strum_macros = "0.26.4"
