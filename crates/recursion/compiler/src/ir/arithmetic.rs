@@ -41,6 +41,9 @@ pub struct FeltHandle<F> {
     div_felt: fn(*mut (), Felt<F>, Felt<F>) -> Felt<F>,
     div_felt_const: fn(*mut (), Felt<F>, F) -> Felt<F>,
     div_const_felt: fn(*mut (), F, Felt<F>) -> Felt<F>,
+
+    // Assign the Ext handle to a given pointer.
+    ext_handle: fn(*mut (), *mut ()),
 }
 
 #[derive(Debug)]
@@ -56,7 +59,10 @@ pub struct ExtHandle<F, EF> {
 
     mul_ext: fn(*mut (), Ext<F, EF>, Ext<F, EF>) -> Ext<F, EF>,
 
+    add_ext_base: fn(*mut (), Ext<F, EF>, Felt<F>) -> Ext<F, EF>,
     add_const_base: fn(*mut (), Ext<F, EF>, F) -> Ext<F, EF>,
+
+    sub_ext_base: fn(*mut (), Ext<F, EF>, Felt<F>) -> Ext<F, EF>,
 }
 
 pub(crate) trait VarOperations<N> {
@@ -100,6 +106,8 @@ pub(crate) trait FeltOperations<F> {
     fn div_const_felt(ptr: *mut (), lhs: F, rhs: Felt<F>) -> Felt<F>;
     fn neg_felt(ptr: *mut (), lhs: Felt<F>) -> Felt<F>;
 
+    fn ext_handle(ptr: *mut (), ext_handle_ref: *mut ());
+
     fn felt_handle(&self) -> FeltHandle<F> {
         FeltHandle {
             ptr: self as *const Self as *mut (),
@@ -114,6 +122,7 @@ pub(crate) trait FeltOperations<F> {
             div_felt_const: Self::div_felt_const,
             div_const_felt: Self::div_const_felt,
             neg_felt: Self::neg_felt,
+            ext_handle: Self::ext_handle,
         }
     }
 }
@@ -121,10 +130,13 @@ pub(crate) trait FeltOperations<F> {
 pub(crate) trait ExtOperations<F, EF> {
     fn add_ext(ptr: *mut (), lhs: Ext<F, EF>, rhs: Ext<F, EF>) -> Ext<F, EF>;
     fn sub_ext(ptr: *mut (), lhs: Ext<F, EF>, rhs: Ext<F, EF>) -> Ext<F, EF>;
-    fn add_base(ptr: *mut (), lhs: Ext<F, EF>, rhs: Felt<F>) -> Ext<F, EF>;
-    fn sub_base(ptr: *mut (), lhs: Ext<F, EF>, rhs: Felt<F>) -> Ext<F, EF>;
+
+    fn add_ext_base(ptr: *mut (), lhs: Ext<F, EF>, rhs: Felt<F>) -> Ext<F, EF>;
+    fn sub_ext_base(ptr: *mut (), lhs: Ext<F, EF>, rhs: Felt<F>) -> Ext<F, EF>;
+
     fn mul_ext(ptr: *mut (), lhs: Ext<F, EF>, rhs: Ext<F, EF>) -> Ext<F, EF>;
     fn mul_base(ptr: *mut (), lhs: Ext<F, EF>, rhs: Felt<F>) -> Ext<F, EF>;
+
     fn add_const_ext(ptr: *mut (), lhs: Ext<F, EF>, rhs: EF) -> Ext<F, EF>;
     fn add_const_base(ptr: *mut (), lhs: Ext<F, EF>, rhs: F) -> Ext<F, EF>;
     fn neg_ext(ptr: *mut (), lhs: Ext<F, EF>) -> Ext<F, EF>;
@@ -138,6 +150,8 @@ pub(crate) trait ExtOperations<F, EF> {
             add_const_base: Self::add_const_base,
             add_const_ext: Self::add_const_ext,
             neg_ext: Self::neg_ext,
+            sub_ext_base: Self::sub_ext_base,
+            add_ext_base: Self::add_ext_base,
         }
     }
 }
@@ -374,6 +388,16 @@ impl<C: Config> FeltOperations<C::F> for UnsafeCell<InnerBuilder<C>> {
 
         res
     }
+
+    fn ext_handle(ptr: *mut (), ext_handle_ref: *mut ()) {
+        let inner: &mut Self = unsafe { &mut *(ptr as *mut Self) };
+        let ext_handle = inner.ext_handle();
+
+        let ext_handle_ref: &mut ExtHandle<C::F, C::EF> =
+            unsafe { &mut *(ext_handle_ref as *mut _) };
+
+        *ext_handle_ref = ext_handle;
+    }
 }
 
 impl<C: Config> ExtOperations<C::F, C::EF> for UnsafeCell<InnerBuilder<C>> {
@@ -413,7 +437,7 @@ impl<C: Config> ExtOperations<C::F, C::EF> for UnsafeCell<InnerBuilder<C>> {
         res
     }
 
-    fn add_base(ptr: *mut (), lhs: Ext<C::F, C::EF>, rhs: Felt<C::F>) -> Ext<C::F, C::EF> {
+    fn add_ext_base(ptr: *mut (), lhs: Ext<C::F, C::EF>, rhs: Felt<C::F>) -> Ext<C::F, C::EF> {
         let inner: &mut Self = unsafe { &mut *(ptr as *mut Self) };
         let inner = inner.get_mut();
         let idx = inner.variable_count;
@@ -449,7 +473,7 @@ impl<C: Config> ExtOperations<C::F, C::EF> for UnsafeCell<InnerBuilder<C>> {
         res
     }
 
-    fn sub_base(ptr: *mut (), lhs: Ext<C::F, C::EF>, rhs: Felt<C::F>) -> Ext<C::F, C::EF> {
+    fn sub_ext_base(ptr: *mut (), lhs: Ext<C::F, C::EF>, rhs: Felt<C::F>) -> Ext<C::F, C::EF> {
         let inner: &mut Self = unsafe { &mut *(ptr as *mut Self) };
         let inner = inner.get_mut();
         let idx = inner.variable_count;
@@ -525,7 +549,7 @@ impl<F> FeltOperations<F> for EmptyOperations {
         unimplemented!()
     }
 
-    fn neg_felt(ptr: *mut (), lhs: Felt<F>) -> Felt<F> {
+    fn neg_felt(_ptr: *mut (), _lhs: Felt<F>) -> Felt<F> {
         unimplemented!()
     }
 
@@ -564,6 +588,10 @@ impl<F> FeltOperations<F> for EmptyOperations {
     fn div_felt_const(_ptr: *mut (), _lhs: Felt<F>, _rhs: F) -> Felt<F> {
         unimplemented!()
     }
+
+    fn ext_handle(_ptr: *mut (), _ext_handle_ref: *mut ()) {
+        unimplemented!()
+    }
 }
 
 impl<F, EF> ExtOperations<F, EF> for EmptyOperations {
@@ -571,7 +599,7 @@ impl<F, EF> ExtOperations<F, EF> for EmptyOperations {
         unimplemented!()
     }
 
-    fn add_base(_ptr: *mut (), _lhs: Ext<F, EF>, _rhs: Felt<F>) -> Ext<F, EF> {
+    fn add_ext_base(_ptr: *mut (), _lhs: Ext<F, EF>, _rhs: Felt<F>) -> Ext<F, EF> {
         unimplemented!()
     }
 
@@ -591,7 +619,7 @@ impl<F, EF> ExtOperations<F, EF> for EmptyOperations {
         unimplemented!()
     }
 
-    fn sub_base(_ptr: *mut (), _lhs: Ext<F, EF>, _rhs: Felt<F>) -> Ext<F, EF> {
+    fn sub_ext_base(_ptr: *mut (), _lhs: Ext<F, EF>, _rhs: Felt<F>) -> Ext<F, EF> {
         unimplemented!()
     }
 
@@ -611,6 +639,10 @@ impl<N> VarHandle<N> {
 
     pub fn sub_v(&self, lhs: Var<N>, rhs: Var<N>) -> Var<N> {
         (self.sub_var)(self.ptr, lhs, rhs)
+    }
+
+    pub fn neg_v(&self, lhs: Var<N>) -> Var<N> {
+        (self.neg_var)(self.ptr, lhs)
     }
 
     pub fn mul_v(&self, lhs: Var<N>, rhs: Var<N>) -> Var<N> {
@@ -678,11 +710,19 @@ impl<F> FeltHandle<F> {
     pub fn div_const_f(&self, lhs: F, rhs: Felt<F>) -> Felt<F> {
         (self.div_const_felt)(self.ptr, lhs, rhs)
     }
+
+    pub fn e_handle(&self, ext_handle_ref: *mut ()) {
+        (self.ext_handle)(self.ptr, ext_handle_ref)
+    }
 }
 
 impl<F, EF> ExtHandle<F, EF> {
     pub fn add_e(&self, lhs: Ext<F, EF>, rhs: Ext<F, EF>) -> Ext<F, EF> {
         (self.add_ext)(self.ptr, lhs, rhs)
+    }
+
+    pub fn add_const_e(&self, lhs: Ext<F, EF>, rhs: EF) -> Ext<F, EF> {
+        (self.add_const_ext)(self.ptr, lhs, rhs)
     }
 
     pub fn sub_e(&self, lhs: Ext<F, EF>, rhs: Ext<F, EF>) -> Ext<F, EF> {
@@ -697,11 +737,11 @@ impl<F, EF> ExtHandle<F, EF> {
         (self.mul_ext)(self.ptr, lhs, rhs)
     }
 
-    pub fn add_const_e(&self, lhs: Ext<F, EF>, rhs: EF) -> Ext<F, EF> {
-        (self.add_const_ext)(self.ptr, lhs, rhs)
+    pub fn add_e_f(&self, lhs: Ext<F, EF>, rhs: Felt<F>) -> Ext<F, EF> {
+        (self.add_ext_base)(self.ptr, lhs, rhs)
     }
 
-    pub fn add_e_const_base(&self, lhs: Ext<F, EF>, rhs: F) -> Ext<F, EF> {
+    pub fn add_e_const_f(&self, lhs: Ext<F, EF>, rhs: F) -> Ext<F, EF> {
         (self.add_const_base)(self.ptr, lhs, rhs)
     }
 }

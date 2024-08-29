@@ -47,6 +47,7 @@ pub fn babybear_bytes_to_bn254(bytes: &[BabyBear; 32]) -> Bn254Fr {
     result
 }
 
+#[allow(dead_code)]
 pub fn felts_to_bn254_var<C: Config>(
     builder: &mut Builder<C>,
     digest: &[Felt<C::F>; DIGEST_SIZE],
@@ -65,6 +66,7 @@ pub fn felts_to_bn254_var<C: Config>(
     result
 }
 
+#[allow(dead_code)]
 pub fn felt_bytes_to_bn254_var<C: Config>(
     builder: &mut Builder<C>,
     bytes: &[Felt<C::F>; 32],
@@ -90,6 +92,7 @@ pub fn felt_bytes_to_bn254_var<C: Config>(
     result
 }
 
+#[allow(dead_code)]
 pub fn words_to_bytes<T: Copy>(words: &[Word<T>]) -> Vec<T> {
     words.iter().flat_map(|w| w.0).collect::<Vec<_>>()
 }

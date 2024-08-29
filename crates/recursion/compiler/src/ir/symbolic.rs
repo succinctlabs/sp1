@@ -11,7 +11,9 @@ use std::{
 
 use p3_field::{AbstractField, ExtensionField, Field};
 
-use super::{Ext, Felt, Usize, Var};
+use crate::ir::ExtHandle;
+
+use super::{Ext, ExtOperations, Felt, Usize, Var, EMPTY_OPS};
 
 #[derive(Debug, Clone, Copy)]
 pub enum SymbolicVar<N: Field> {
@@ -339,9 +341,14 @@ impl<F: Field, EF: ExtensionField<F>, E: ExtensionOperand<F, EF>> Add<E> for Sym
                 let res = unsafe { (*rhs.handle).add_const_e(rhs, lhs) };
                 Self::Val(res)
             }
-            (Self::Const(lhs), Self::Base(rhs)) => {
-                todo!()
-            }
+            (Self::Const(lhs), Self::Base(rhs)) => match rhs {
+                SymbolicFelt::Const(rhs) => Self::Const(lhs + rhs),
+                SymbolicFelt::Val(rhs) => {
+                    let mut ext_handle: ExtHandle<F, EF> = EMPTY_OPS.ext_handle();
+                    unsafe { (*rhs.handle).e_handle(&mut ext_handle as *mut _ as *mut ()) };
+                    unimplemented!()
+                }
+            },
             (Self::Base(lhs), Self::Const(rhs)) => {
                 todo!()
             }

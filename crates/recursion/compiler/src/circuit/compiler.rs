@@ -1,19 +1,14 @@
 use chips::poseidon2_skinny::WIDTH;
 use core::fmt::Debug;
 use instruction::{FieldEltType, HintBitsInstr, HintExt2FeltsInstr, HintInstr, PrintInstr};
+use itertools::Itertools;
 use p3_field::{
     AbstractExtensionField, AbstractField, Field, PrimeField, PrimeField64, TwoAdicField,
 };
 use sp1_core_machine::utils::{sp1_debug_mode, SpanBuilder};
 use sp1_recursion_core::air::{Block, RecursionPublicValues, RECURSIVE_PROOF_NUM_PV_ELTS};
 use sp1_recursion_core_v2::{BaseAluInstr, BaseAluOpcode};
-use std::{
-    borrow::Borrow,
-    cmp::Ordering,
-    collections::BTreeMap,
-    iter::repeat,
-    mem::{take, transmute},
-};
+use std::{borrow::Borrow, collections::HashMap, iter::repeat, mem::transmute};
 use vec_map::VecMap;
 
 use sp1_recursion_core_v2::*;
@@ -27,7 +22,7 @@ pub struct AsmCompiler<C: Config> {
     /// Map the frame pointers of the variables to the "physical" addresses.
     pub virtual_to_physical: VecMap<Address<C::F>>,
     /// Map base or extension field constants to "physical" addresses and mults.
-    pub consts: BTreeMap<Imm<C::F, C::EF>, (Address<C::F>, C::F)>,
+    pub consts: HashMap<Imm<C::F, C::EF>, (Address<C::F>, C::F)>,
     /// Map each "physical" address to its read count.
     pub addr_to_mult: VecMap<C::F>,
 }
@@ -605,14 +600,15 @@ where
         debug_assert!(self.addr_to_mult.is_empty());
         // Initialize constants.
         let total_consts = self.consts.len();
-        let instrs_consts = take(&mut self.consts).into_iter().map(|(imm, (addr, mult))| {
-            Instruction::Mem(MemInstr {
-                addrs: MemIo { inner: addr },
-                vals: MemIo { inner: imm.as_block() },
-                mult,
-                kind: MemAccessKind::Write,
-            })
-        });
+        let instrs_consts =
+            self.consts.drain().sorted_by_key(|x| x.1 .0 .0).map(|(imm, (addr, mult))| {
+                Instruction::Mem(MemInstr {
+                    addrs: MemIo { inner: addr },
+                    vals: MemIo { inner: imm.as_block() },
+                    mult,
+                    kind: MemAccessKind::Write,
+                })
+            });
         tracing::debug!("number of consts to initialize: {}", instrs_consts.len());
         // Reset the other fields.
         self.next_addr = Default::default();
@@ -665,36 +661,6 @@ pub enum Imm<F, EF> {
     F(F),
     /// Element of the extension field `EF`.
     EF(EF),
-}
-
-impl<F, EF> PartialOrd for Imm<F, EF>
-where
-    F: PartialEq + AbstractField + PartialOrd,
-    EF: PartialEq + AbstractExtensionField<F>,
-{
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        match (self, other) {
-            (Imm::F(a), Imm::F(b)) => a.partial_cmp(b),
-            (Imm::F(_), Imm::EF(_)) => Some(Ordering::Less),
-            (Imm::EF(_), Imm::F(_)) => Some(Ordering::Greater),
-            (Imm::EF(a), Imm::EF(b)) => a.as_base_slice().partial_cmp(b.as_base_slice()),
-        }
-    }
-}
-
-impl<F, EF> Ord for Imm<F, EF>
-where
-    F: Eq + AbstractField + Ord,
-    EF: Eq + AbstractExtensionField<F>,
-{
-    fn cmp(&self, other: &Self) -> Ordering {
-        match (self, other) {
-            (Imm::F(a), Imm::F(b)) => a.cmp(b),
-            (Imm::F(_), Imm::EF(_)) => Ordering::Less,
-            (Imm::EF(_), Imm::F(_)) => Ordering::Greater,
-            (Imm::EF(a), Imm::EF(b)) => a.as_base_slice().cmp(b.as_base_slice()),
-        }
-    }
 }
 
 impl<F, EF> Imm<F, EF>
