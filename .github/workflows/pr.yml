@@ -2,7 +2,7 @@ name: PR
 
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
   pull_request:
     branches:
       - "**"
@@ -158,7 +158,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: check
-          args: -p sp1-sdk --target wasm32-unknown-unknown --no-default-features 
+          args: -p sp1-sdk --target wasm32-unknown-unknown --no-default-features
 
   examples:
     name: Examples
@@ -252,8 +252,10 @@ jobs:
           cd crates/eval
           RUSTFLAGS='-C target-cpu=native' cargo run --release -- \
             --programs fibonacci,ssz-withdrawals,tendermint \
-            --slack-channel-id ${{ secrets.SLACK_CHANNEL_ID }} \
-            --slack-token ${{ secrets.SLACK_TOKEN }} \
+            --post-to-slack ${{ github.ref == 'refs/heads/dev' }} \
+            --slack-channel-id "${{ secrets.SLACK_CHANNEL_ID }}" \
+            --slack-token "${{ secrets.SLACK_TOKEN }}" \
+            --post-to-github ${{ github.event_name == 'pull_request' }} \
             --github-token "${{ secrets.GITHUB_TOKEN }}" \
             --repo-owner "${{ github.repository_owner }}" \
             --repo-name "${{ github.event.repository.name }}" \

@@ -27,15 +27,23 @@ struct EvalArgs {
     #[arg(long)]
     pub shard_size: Option<usize>,
 
-    /// The Slack channel ID to post results to, only required if you want to post to Slack.
+    /// Whether to post results to Slack.
+    #[arg(long, default_missing_value="true", num_args=0..=1)]
+    pub post_to_slack: Option<bool>,
+
+    /// The Slack channel ID to post results to, only used if post_to_slack is true.
     #[arg(long)]
     pub slack_channel_id: Option<String>,
 
-    /// The Slack bot token to post results to, only used if slack_channel_id is set.
+    /// The Slack bot token to post results to, only used if post_to_slack is true.
     #[arg(long)]
     pub slack_token: Option<String>,
 
-    /// The GitHub token for authentication, only required if you want to post to GitHub.
+    /// Whether to post results to GitHub PR.
+    #[arg(long, default_missing_value="true", num_args=0..=1)]
+    pub post_to_github: Option<bool>,
+
+    /// The GitHub token for authentication, only used if post_to_github is true.
     #[arg(long)]
     pub github_token: Option<String>,
 
@@ -105,18 +113,28 @@ pub async fn evaluate_performance<C: SP1ProverComponents>() -> Result<(), Box<dy
     println!("{}", results_text.join("\n"));
 
     // Post to Slack if applicable
-    for message in &results_text {
-        if let (Some(token), Some(channel)) = (&args.slack_token, &args.slack_channel_id) {
-            post_to_slack(token, channel, message).await?;
+    if args.post_to_slack.unwrap_or(false) {
+        match (&args.slack_token, &args.slack_channel_id) {
+            (Some(token), Some(channel)) => {
+                for message in &results_text {
+                    post_to_slack(token, channel, message).await?;
+                }
+            }
+            _ => println!("Warning: post_to_slack is true, required Slack arguments are missing."),
         }
     }
 
     // Post to GitHub PR if applicable
-    if let (Some(owner), Some(repo), Some(pr_number), Some(token)) =
-        (&args.repo_owner, &args.repo_name, &args.pr_number, &args.github_token)
-    {
-        let message = format_github_message(&results_text);
-        post_to_github_pr(owner, repo, pr_number, token, &message).await?;
+    if args.post_to_github.unwrap_or(false) {
+        match (&args.repo_owner, &args.repo_name, &args.pr_number, &args.github_token) {
+            (Some(owner), Some(repo), Some(pr_number), Some(token)) => {
+                let message = format_github_message(&results_text);
+                post_to_github_pr(owner, repo, pr_number, token, &message).await?;
+            }
+            _ => {
+                println!("Warning: post_to_github is true, required GitHub arguments are missing.")
+            }
+        }
     }
 
     // Exit with an error if any programs failed.
@@ -374,16 +392,18 @@ mod tests {
         let args = EvalArgs {
             programs: vec!["fibonacci".to_string(), "super-program".to_string()],
             shard_size: None,
+            post_to_slack: Some(false),
             slack_channel_id: None,
             slack_token: None,
+            post_to_github: Some(true),
+            github_token: Some("abcdef1234567890".to_string()),
+            repo_owner: Some("succinctlabs".to_string()),
+            repo_name: Some("sp1".to_string()),
+            pr_number: Some("123456".to_string()),
             pr_name: Some("Test PR".to_string()),
             branch_name: Some("feature-branch".to_string()),
             commit_hash: Some("abcdef1234567890".to_string()),
             author: Some("John Doe".to_string()),
-            repo_owner: Some("succinctlabs".to_string()),
-            repo_name: Some("sp1".to_string()),
-            pr_number: Some("123456".to_string()),
-            github_token: Some("abcdef1234567890".to_string()),
         };
 
         let formatted_results = format_results(&args, &dummy_reports);
