@@ -257,7 +257,7 @@ impl<'a> Executor<'a> {
             let addr = Register::from_u32(i as u32) as u32;
             let record = self.state.memory.get(&addr);
 
-            if self.executor_mode != ExecutorMode::Simple {
+            if self.executor_mode == ExecutorMode::Checkpoint {
                 match record {
                     Some(record) => {
                         self.memory_checkpoint.entry(addr).or_insert_with(|| Some(*record));
@@ -282,7 +282,7 @@ impl<'a> Executor<'a> {
         let addr = register as u32;
         let record = self.state.memory.get(&addr);
 
-        if self.executor_mode != ExecutorMode::Simple {
+        if self.executor_mode == ExecutorMode::Checkpoint {
             match record {
                 Some(record) => {
                     self.memory_checkpoint.entry(addr).or_insert_with(|| Some(*record));
@@ -305,7 +305,7 @@ impl<'a> Executor<'a> {
         #[allow(clippy::single_match_else)]
         let record = self.state.memory.get(&addr);
 
-        if self.executor_mode != ExecutorMode::Simple {
+        if self.executor_mode == ExecutorMode::Checkpoint {
             match record {
                 Some(record) => {
                     self.memory_checkpoint.entry(addr).or_insert_with(|| Some(*record));
@@ -353,7 +353,7 @@ impl<'a> Executor<'a> {
     pub fn mr(&mut self, addr: u32, shard: u32, timestamp: u32) -> MemoryReadRecord {
         // Get the memory record entry.
         let entry = self.state.memory.entry(addr);
-        if self.executor_mode != ExecutorMode::Simple {
+        if self.executor_mode == ExecutorMode::Checkpoint {
             match entry {
                 Entry::Occupied(ref entry) => {
                     let record = entry.get();
@@ -398,7 +398,7 @@ impl<'a> Executor<'a> {
     pub fn mw(&mut self, addr: u32, value: u32, shard: u32, timestamp: u32) -> MemoryWriteRecord {
         // Get the memory record entry.
         let entry = self.state.memory.entry(addr);
-        if self.executor_mode != ExecutorMode::Simple {
+        if self.executor_mode == ExecutorMode::Checkpoint {
             match entry {
                 Entry::Occupied(ref entry) => {
                     let record = entry.get();
@@ -690,7 +690,7 @@ impl<'a> Executor<'a> {
         let (addr, memory_read_value): (u32, u32);
         let mut memory_store_value: Option<u32> = None;
 
-        if self.executor_mode != ExecutorMode::Simple {
+        if self.executor_mode == ExecutorMode::Checkpoint {
             self.memory_accesses = MemoryAccessRecord::default();
         }
         let lookup_id = if self.executor_mode == ExecutorMode::Simple {
@@ -1130,9 +1130,15 @@ impl<'a> Executor<'a> {
             }
         }
 
-        let done = self.state.pc.wrapping_sub(self.program.pc_base) >= (self.program.instructions.len() * 4) as u32;
+        let done = self.state.pc == 0
+            || self.state.pc.wrapping_sub(self.program.pc_base)
+                >= (self.program.instructions.len() * 4) as u32;
         if done && self.unconstrained {
-            log::error!("program ended in unconstrained mode at pc {} clk {}", self.state.pc, self.state.global_clk);
+            log::error!(
+                "program ended in unconstrained mode at pc {} clk {}",
+                self.state.pc,
+                self.state.global_clk
+            );
             return Err(ExecutionError::EndInUnconstrained());
         }
         Ok(done)
@@ -1171,7 +1177,7 @@ impl<'a> Executor<'a> {
         self.executor_mode = ExecutorMode::Checkpoint;
         self.print_report = true;
 
-        // Take memory out and then clone so that memory is not cloned.
+        // Take memory out of state before cloning it so that memory is not cloned.
         let memory = std::mem::take(&mut self.state.memory);
         let mut checkpoint = tracing::info_span!("clone").in_scope(|| self.state.clone());
         self.state.memory = memory;
