@@ -144,6 +144,10 @@ pub enum ExecutionError {
     /// The execution failed with an unimplemented feature.
     #[error("got unimplemented as opcode")]
     Unimplemented(),
+
+    /// The program ended in unconstrained mode.
+    #[error("program ended in unconstrained mode")]
+    EndInUnconstrained(),
 }
 
 macro_rules! assert_valid_memory_access {
@@ -1126,8 +1130,12 @@ impl<'a> Executor<'a> {
             }
         }
 
-        Ok(self.state.pc.wrapping_sub(self.program.pc_base)
-            >= (self.program.instructions.len() * 4) as u32)
+        let done = self.state.pc.wrapping_sub(self.program.pc_base) >= (self.program.instructions.len() * 4) as u32;
+        if done && self.unconstrained {
+            log::error!("program ended in unconstrained mode at pc {} clk {}", self.state.pc, self.state.global_clk);
+            return Err(ExecutionError::EndInUnconstrained());
+        }
+        Ok(done)
     }
 
     /// Bump the record.
@@ -1354,7 +1362,7 @@ impl<'a> Executor<'a> {
 
         self.report.touched_memory_addresses = self.state.memory.len() as u64;
         for addr in self.state.memory.keys() {
-            if addr == &0 {
+            if *addr == 0 {
                 // Handled above.
                 continue;
             }
