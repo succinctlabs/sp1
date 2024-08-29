@@ -5,13 +5,21 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/backend/plonk"
+	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
 )
+
+var globalMutex sync.RWMutex
+var globalR1cs constraint.ConstraintSystem = groth16.NewCS(ecc.BN254)
+var globalR1csInitialized = false
+var globalPk groth16.ProvingKey = groth16.NewProvingKey(ecc.BN254)
+var globalPkInitialized = false
 
 func ProvePlonk(dataDir string, witnessPath string) Proof {
 	// Sanity check the required arguments have been provided.
@@ -98,29 +106,36 @@ func ProveGroth16(dataDir string, witnessPath string) Proof {
 	os.Setenv("GROTH16", "1")
 	fmt.Printf("Setting environment variables took %s\n", time.Since(start))
 
-	start = time.Now()
 	// Read the R1CS.
-	r1csFile, err := os.Open(dataDir + "/" + groth16CircuitPath)
-	if err != nil {
-		panic(err)
+	globalMutex.Lock()
+	if !globalR1csInitialized {
+		start = time.Now()
+		r1csFile, err := os.Open(dataDir + "/" + groth16CircuitPath)
+		if err != nil {
+			panic(err)
+		}
+		r1csReader := bufio.NewReaderSize(r1csFile, 1024*1024)
+		globalR1cs.ReadFrom(r1csReader)
+		defer r1csFile.Close()
+		globalR1csInitialized = true
+		fmt.Printf("Reading R1CS took %s\n", time.Since(start))
 	}
-	r1csReader := bufio.NewReaderSize(r1csFile, 1024*1024)
-	r1cs := groth16.NewCS(ecc.BN254)
-	r1cs.ReadFrom(r1csReader)
-	defer r1csFile.Close()
-	fmt.Printf("Reading R1CS took %s\n", time.Since(start))
+	globalMutex.Unlock()
 
-	start = time.Now()
 	// Read the proving key.
-	pkFile, err := os.Open(dataDir + "/" + groth16PkPath)
-	if err != nil {
-		panic(err)
+	globalMutex.Lock()
+	if !globalPkInitialized {
+		start = time.Now()
+		pkFile, err := os.Open(dataDir + "/" + groth16PkPath)
+		if err != nil {
+			panic(err)
+		}
+		pkReader := bufio.NewReaderSize(pkFile, 1024*1024)
+		globalPk.ReadDump(pkReader)
+		defer pkFile.Close()
+		fmt.Printf("Reading proving key took %s\n", time.Since(start))
 	}
-	pk := groth16.NewProvingKey(ecc.BN254)
-	pkReader := bufio.NewReaderSize(pkFile, 1024*1024)
-	pk.ReadDump(pkReader)
-	defer pkFile.Close()
-	fmt.Printf("Reading proving key took %s\n", time.Since(start))
+	globalMutex.Unlock()
 
 	start = time.Now()
 	// Read the file.
@@ -150,7 +165,7 @@ func ProveGroth16(dataDir string, witnessPath string) Proof {
 
 	start = time.Now()
 	// Generate the proof.
-	proof, err := groth16.Prove(r1cs, pk, witness)
+	proof, err := groth16.Prove(globalR1cs, globalPk, witness)
 	if err != nil {
 		panic(err)
 	}
