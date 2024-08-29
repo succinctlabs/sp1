@@ -288,10 +288,6 @@ jobs:
           cargo install --force --locked --path .
           cd ~
 
-      - name: Check total available memory because I'm curious
-        run: |
-          grep MemTotal /proc/meminfo
-
       - name: Run tendermint script
         run: |
           cd examples/tendermint/program
