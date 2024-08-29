@@ -84,10 +84,6 @@ where
         builder: &mut Builder<C>,
         machine: &StarkMachine<SC, A>,
         input: SP1CompressWitnessVariable<C, SC>,
-        // TODO: add vk correctness check.
-        // vk_root: SC::Digest,
-        // Inclusion proof for the compressed vk.
-        // vk_inclusion_proof: proof,
     ) {
         // Read input.
         let SP1CompressWitnessVariable { vks_and_proofs, is_complete } = input;
@@ -247,14 +243,13 @@ where
 
             // Assert that the current values match the accumulated values.
 
-            // // Assert that the start deferred digest is equal to the current deferred digest.
-            // for (digest, current_digest) in reconstruct_deferred_digest.iter().zip_eq(
-            //     current_public_values
-            //         .start_reconstruct_deferred_digest
-            //         .iter(),
-            // ) {
-            //     builder.assert_felt_eq(*digest, *current_digest);
-            // }
+            // Assert that the start deferred digest is equal to the current deferred digest.
+            for (digest, current_digest) in reconstruct_deferred_digest
+                .iter()
+                .zip_eq(current_public_values.start_reconstruct_deferred_digest.iter())
+            {
+                builder.assert_felt_eq(*digest, *current_digest);
+            }
 
             // // Consistency checks for all accumulated values.
 
@@ -367,15 +362,6 @@ where
                 {
                     *digest = *current_digest;
                 }
-
-                // Less nice version of above but simialr to original code:
-                // #[allow(clippy::needless_range_loop)]
-                // for i in 0..deferred_proofs_digest.len() {
-                //     builder.assign(
-                //         deferred_proofs_digest[i],
-                //         current_public_values.deferred_proofs_digest[i],
-                //     );
-                // }
             }
 
             // Update the deferred proof digest.
