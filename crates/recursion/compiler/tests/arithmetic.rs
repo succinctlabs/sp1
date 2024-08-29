@@ -1,6 +1,6 @@
 use rand::{thread_rng, Rng};
 
-use p3_field::AbstractField;
+use p3_field::{AbstractExtensionField, AbstractField};
 use sp1_recursion_compiler::{
     asm::AsmBuilder,
     ir::{Ext, ExtConst, Felt, SymbolicExt, Var},
@@ -73,6 +73,11 @@ fn test_compiler_arithmetic() {
         builder.assert_ext_eq(a_ext - b_ext, (a_ext_val - b_ext_val).cons());
         builder.assert_ext_eq(a_ext / b_ext, (a_ext_val / b_ext_val).cons());
         builder.assert_ext_eq(-a_ext, (-a_ext_val).cons());
+        let division_value = rng.gen::<EF>();
+        builder.assert_ext_eq(
+            SymbolicExt::from(a) / division_value,
+            (EF::from_base(a_felt_val) / division_value).cons(),
+        );
     }
 
     let program = builder.compile_program();

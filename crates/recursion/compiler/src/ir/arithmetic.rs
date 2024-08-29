@@ -550,15 +550,7 @@ impl<C: Config> ExtOperations<C::F, C::EF> for UnsafeCell<InnerBuilder<C>> {
         rhs: C::EF,
         handle: *mut ExtHandle<C::F, C::EF>,
     ) -> Ext<C::F, C::EF> {
-        let mut inner = unsafe { ManuallyDrop::new(Box::from_raw(ptr as *mut Self)) };
-        let idx = inner.get_mut().variable_count;
-        let res = Ext::new(idx, handle);
-        let inner = inner.get_mut();
-
-        inner.variable_count += 1;
-        inner.operations.push(DslIr::AddEFFI(res, lhs, -rhs));
-
-        res
+        Self::add_felt_const_ext(ptr, lhs, -rhs, handle)
     }
 
     fn neg_ext(ptr: *mut (), lhs: Ext<C::F, C::EF>) -> Ext<C::F, C::EF> {
@@ -645,15 +637,7 @@ impl<C: Config> ExtOperations<C::F, C::EF> for UnsafeCell<InnerBuilder<C>> {
     }
 
     fn div_const_ext(ptr: *mut (), lhs: Ext<C::F, C::EF>, rhs: C::EF) -> Ext<C::F, C::EF> {
-        let mut inner = unsafe { ManuallyDrop::new(Box::from_raw(ptr as *mut Self)) };
-        let inner = inner.get_mut();
-        let idx = inner.variable_count;
-        let res = Ext::new(idx, lhs.handle);
-        inner.variable_count += 1;
-
-        inner.operations.push(DslIr::DivEI(res, lhs, rhs));
-
-        res
+        Self::mul_const_ext(ptr, lhs, rhs.inverse())
     }
 
     fn div_ext_base(ptr: *mut (), lhs: Ext<C::F, C::EF>, rhs: Felt<C::F>) -> Ext<C::F, C::EF> {
