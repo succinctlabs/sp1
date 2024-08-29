@@ -9,7 +9,7 @@ use crate::{
 };
 use core::iter::once;
 use p3_field::{extension::BinomiallyExtendable, PrimeField32};
-use sp1_stark::{Chip, StarkGenericConfig, StarkMachine, PROOF_MAX_NUM_PVS};
+use sp1_stark::{Chip, ProvePhase, StarkGenericConfig, StarkMachine, PROOF_MAX_NUM_PVS};
 use std::marker::PhantomData;
 
 use crate::runtime::D;

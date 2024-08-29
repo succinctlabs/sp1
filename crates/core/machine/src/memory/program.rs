@@ -13,7 +13,7 @@ use sp1_stark::{
         AirInteraction, InteractionScope, MachineAir, PublicValues, SP1AirBuilder,
         SP1_PROOF_NUM_PV_ELTS,
     },
-    InteractionKind, Word,
+    InteractionKind, ProvePhase, Word,
 };
 
 use crate::{operations::IsZeroOperation, utils::pad_to_power_of_two};
@@ -134,12 +134,12 @@ impl<F: PrimeField> MachineAir<F> for MemoryProgramChip {
         trace
     }
 
-    fn included(&self, _: &Self::Record) -> bool {
+    fn included_in_shard(&self, _: &Self::Record) -> bool {
         true
     }
 
-    fn included_phase1(&self) -> bool {
-        true
+    fn included_in_phase(&self, phase: ProvePhase) -> bool {
+        phase == ProvePhase::Phase1
     }
 }
 

@@ -9,7 +9,7 @@ use p3_field::PrimeField32;
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use sp1_core_machine::utils::pad_rows_fixed;
 use sp1_primitives::RC_16_30_U32;
-use sp1_stark::air::MachineAir;
+use sp1_stark::{air::MachineAir, ProvePhase};
 use tracing::instrument;
 
 use crate::{
@@ -116,7 +116,11 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2SkinnyChip
         trace
     }
 
-    fn included(&self, _record: &Self::Record) -> bool {
+    fn included_in_shard(&self, _record: &Self::Record) -> bool {
+        true
+    }
+
+    fn included_in_phase(&self, _: ProvePhase) -> bool {
         true
     }
 

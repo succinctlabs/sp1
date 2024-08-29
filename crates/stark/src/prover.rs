@@ -23,6 +23,7 @@ use crate::{
 };
 
 /// The prover phases.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProvePhase {
     Phase1,
     Phase2,
@@ -57,10 +58,10 @@ pub trait MachineProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>>:
         record: &A::Record,
         phase: ProvePhase,
     ) -> Vec<(String, RowMajorMatrix<Val<SC>>)> {
-        let chips = match phase {
-            ProvePhase::Phase1 => self.phase1_chips(),
-            ProvePhase::Phase2 => self.shard_chips(record).collect::<Vec<_>>(),
-        };
+        let chips = self
+            .shard_chips(record)
+            .filter(|chip| chip.included_in_phase(phase))
+            .collect::<Vec<_>>();
 
         // For each chip, generate the trace.
         let parent_span = tracing::debug_span!("generate traces for shard");
@@ -146,11 +147,6 @@ pub trait MachineProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>>:
         SC: 'b,
     {
         self.machine().shard_chips(record)
-    }
-
-    /// The chips that will be used for the Phase 1 commit.
-    fn phase1_chips(&self) -> Vec<&MachineChip<SC, A>> {
-        self.machine().phase1_chips()
     }
 
     /// Debug the constraints for the given inputs.
@@ -553,7 +549,7 @@ where
         A: for<'a> Air<DebugConstraintBuilder<'a, Val<SC>, SC::Challenge>>,
     {
         // Generate dependencies.
-        self.machine().generate_dependencies(&mut records, &opts);
+        self.machine().generate_dependencies(&mut records, &opts, ProvePhase::Phase1);
 
         // Observe the preprocessed commitment.
         pk.observe_into(challenger);

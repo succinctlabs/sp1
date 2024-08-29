@@ -6,7 +6,7 @@ use p3_matrix::dense::RowMajorMatrix;
 use p3_maybe_rayon::prelude::*;
 use sp1_core_machine::utils::next_power_of_two;
 use sp1_primitives::RC_16_30_U32;
-use sp1_stark::air::MachineAir;
+use sp1_stark::{air::MachineAir, ProvePhase};
 use tracing::instrument;
 
 #[cfg(debug_assertions)]
@@ -83,7 +83,11 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
         trace
     }
 
-    fn included(&self, _record: &Self::Record) -> bool {
+    fn included_in_shard(&self, _record: &Self::Record) -> bool {
+        true
+    }
+
+    fn included_in_phase(&self, _: ProvePhase) -> bool {
         true
     }
 

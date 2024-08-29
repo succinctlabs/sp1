@@ -501,9 +501,11 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                             // Generate the dependencies.
                             let mut records = vec![record];
                             tracing::debug_span!("generate dependencies").in_scope(|| {
-                                self.compress_prover
-                                    .machine()
-                                    .generate_dependencies(&mut records, &opts.recursion_opts)
+                                self.compress_prover.machine().generate_dependencies(
+                                    &mut records,
+                                    &opts.recursion_opts,
+                                    ProvePhase::Phase2,
+                                )
                             });
 
                             // Generate the traces.

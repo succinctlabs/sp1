@@ -177,17 +177,17 @@ pub fn machine_air_derive(input: TokenStream) -> TokenStream {
                 }
             });
 
-            let included_arms = variants.iter().map(|(variant_name, field)| {
+            let included_in_shard_arms = variants.iter().map(|(variant_name, field)| {
                 let field_ty = &field.ty;
                 quote! {
-                    #name::#variant_name(x) => <#field_ty as sp1_stark::air::MachineAir<F>>::included(x, shard)
+                    #name::#variant_name(x) => <#field_ty as sp1_stark::air::MachineAir<F>>::included_in_shard(x, shard)
                 }
             });
 
-            let included_phase1_arms = variants.iter().map(|(variant_name, field)| {
+            let included_in_phase_arms = variants.iter().map(|(variant_name, field)| {
                 let field_ty = &field.ty;
                 quote! {
-                    #name::#variant_name(x) => <#field_ty as sp1_stark::air::MachineAir<F>>::included_phase1(x)
+                    #name::#variant_name(x) => <#field_ty as sp1_stark::air::MachineAir<F>>::included_in_phase(x, phase)
                 }
             });
 
@@ -238,17 +238,18 @@ pub fn machine_air_derive(input: TokenStream) -> TokenStream {
                         }
                     }
 
-                    fn included(&self, shard: &Self::Record) -> bool {
+                    fn included_in_shard(&self, shard: &Self::Record) -> bool {
                         match self {
-                            #(#included_arms,)*
+                            #(#included_in_shard_arms,)*
                         }
                     }
 
-                    fn included_phase1(&self) -> bool {
+                    fn included_in_phase(&self, phase: ProvePhase) -> bool {
                         match self {
-                            #(#included_phase1_arms,)*
+                            #(#included_in_phase_arms,)*
                         }
                     }
+
                 }
             };
 

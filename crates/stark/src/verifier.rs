@@ -62,7 +62,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
             .collect::<Vec<_>>();
 
         let ShardCommitment {
-            phase1_main_commit: _,
+            phase1_main_commit,
             main_commit,
             permutation_commit,
             quotient_commit,

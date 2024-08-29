@@ -22,7 +22,10 @@ use sp1_curves::{
     weierstrass::{FieldType, FpOpField},
 };
 use sp1_derive::AlignedBorrow;
-use sp1_stark::air::{BaseAirBuilder, MachineAir, Polynomial, SP1AirBuilder};
+use sp1_stark::{
+    air::{BaseAirBuilder, MachineAir, Polynomial, SP1AirBuilder},
+    ProvePhase,
+};
 
 use crate::{
     memory::{value_as_limbs, MemoryReadCols, MemoryWriteCols},
@@ -169,11 +172,15 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for FpOpChip<P> {
         trace
     }
 
-    fn included(&self, shard: &Self::Record) -> bool {
+    fn included_in_shard(&self, shard: &Self::Record) -> bool {
         match P::FIELD_TYPE {
             FieldType::Bn254 => !shard.bn254_fp_events.is_empty(),
             FieldType::Bls12381 => !shard.bls12381_fp_events.is_empty(),
         }
+    }
+
+    fn included_in_phase(&self, phase: ProvePhase) -> bool {
+        phase == ProvePhase::Phase2
     }
 }
 

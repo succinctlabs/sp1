@@ -2,7 +2,7 @@ use std::borrow::BorrowMut;
 
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
-use sp1_stark::air::MachineAir;
+use sp1_stark::{air::MachineAir, ProvePhase};
 
 use super::{
     columns::{RangeCheckMultCols, NUM_RANGE_CHECK_MULT_COLS, NUM_RANGE_CHECK_PREPROCESSED_COLS},
@@ -57,7 +57,11 @@ impl<F: PrimeField32> MachineAir<F> for RangeCheckChip<F> {
         trace
     }
 
-    fn included(&self, _shard: &Self::Record) -> bool {
+    fn included_in_shard(&self, _shard: &Self::Record) -> bool {
+        true
+    }
+
+    fn included_in_phase(&self, _: ProvePhase) -> bool {
         true
     }
 }

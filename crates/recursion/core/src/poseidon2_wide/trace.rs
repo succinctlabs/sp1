@@ -6,7 +6,7 @@ use p3_matrix::dense::RowMajorMatrix;
 use p3_maybe_rayon::prelude::{IndexedParallelIterator, ParallelIterator, ParallelSliceMut};
 use sp1_core_machine::utils::{next_power_of_two, par_for_each_row};
 use sp1_primitives::RC_16_30_U32;
-use sp1_stark::air::MachineAir;
+use sp1_stark::{air::MachineAir, ProvePhase};
 use tracing::instrument;
 
 use crate::{
@@ -101,8 +101,12 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
         trace
     }
 
-    fn included(&self, record: &Self::Record) -> bool {
+    fn included_in_shard(&self, record: &Self::Record) -> bool {
         !record.poseidon2_compress_events.is_empty()
+    }
+
+    fn included_in_phase(&self, _: ProvePhase) -> bool {
+        true
     }
 }
 

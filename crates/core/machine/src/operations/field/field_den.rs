@@ -149,7 +149,7 @@ mod tests {
     use sp1_stark::{
         air::{MachineAir, SP1AirBuilder},
         baby_bear_poseidon2::BabyBearPoseidon2,
-        StarkGenericConfig,
+        ProvePhase, StarkGenericConfig,
     };
 
     use super::{FieldDenCols, Limbs};
@@ -240,8 +240,12 @@ mod tests {
             RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_TEST_COLS)
         }
 
-        fn included(&self, _: &Self::Record) -> bool {
+        fn included_in_shard(&self, _: &Self::Record) -> bool {
             true
+        }
+
+        fn included_in_phase(&self, phase: ProvePhase) -> bool {
+            phase == ProvePhase::Phase2
         }
     }
 
@@ -260,14 +264,7 @@ mod tests {
             let main = builder.main();
             let local = main.row_slice(0);
             let local: &TestCols<AB::Var, P> = (*local).borrow();
-            local.a_den_b.eval(
-                builder,
-                &local.a,
-                &local.b,
-                self.sign,
-                AB::F::zero(),
-                AB::F::one(),
-            );
+            local.a_den_b.eval(builder, &local.a, &local.b, self.sign, AB::F::zero(), AB::F::one());
         }
     }
 

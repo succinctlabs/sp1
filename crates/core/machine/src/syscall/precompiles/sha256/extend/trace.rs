@@ -8,7 +8,7 @@ use sp1_core_executor::{
     syscalls::SyscallCode,
     ExecutionRecord, Program,
 };
-use sp1_stark::air::MachineAir;
+use sp1_stark::{air::MachineAir, ProvePhase};
 use std::borrow::BorrowMut;
 
 use super::{ShaExtendChip, ShaExtendCols, NUM_SHA_EXTEND_COLS};
@@ -88,8 +88,12 @@ impl<F: PrimeField32> MachineAir<F> for ShaExtendChip {
         syscall_blu.add_sharded_byte_lookup_events(blu_batches.iter().collect_vec());
     }
 
-    fn included(&self, shard: &Self::Record) -> bool {
+    fn included_in_shard(&self, shard: &Self::Record) -> bool {
         !shard.sha_extend_events.is_empty()
+    }
+
+    fn included_in_phase(&self, phase: ProvePhase) -> bool {
+        phase == ProvePhase::Phase2
     }
 }
 

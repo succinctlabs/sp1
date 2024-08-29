@@ -9,6 +9,7 @@ use p3_util::log2_ceil_usize;
 use crate::{
     air::{MachineAir, MultiTableAirBuilder, SP1AirBuilder},
     lookup::{Interaction, InteractionBuilder, InteractionKind},
+    ProvePhase,
 };
 
 use super::{
@@ -46,12 +47,8 @@ impl<F: Field, A> Chip<F, A> {
 
 impl<F: PrimeField32, A: MachineAir<F>> Chip<F, A> {
     /// Returns whether the given chip is included in the execution record of the shard.
-    pub fn included(&self, shard: &A::Record) -> bool {
-        self.air.included(shard)
-    }
-
-    pub fn included_phase1(&self) -> bool {
-        self.air.included_phase1()
+    pub fn included_in_shard(&self, shard: &A::Record) -> bool {
+        self.air.included_in_shard(shard)
     }
 }
 
@@ -199,12 +196,12 @@ where
         self.air.generate_dependencies(input, output);
     }
 
-    fn included(&self, shard: &Self::Record) -> bool {
-        self.air.included(shard)
+    fn included_in_shard(&self, shard: &Self::Record) -> bool {
+        self.air.included_in_shard(shard)
     }
 
-    fn included_phase1(&self) -> bool {
-        self.air.included_phase1()
+    fn included_in_phase(&self, phase: ProvePhase) -> bool {
+        self.air.included_in_phase(phase)
     }
 }
 

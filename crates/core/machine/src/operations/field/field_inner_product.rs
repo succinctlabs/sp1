@@ -140,7 +140,10 @@ mod tests {
     use p3_field::{Field, PrimeField32};
     use sp1_core_executor::{ExecutionRecord, Program};
     use sp1_curves::params::FieldParameters;
-    use sp1_stark::air::{MachineAir, SP1AirBuilder};
+    use sp1_stark::{
+        air::{MachineAir, SP1AirBuilder},
+        ProvePhase,
+    };
 
     use super::{FieldInnerProductCols, Limbs};
 
@@ -229,8 +232,12 @@ mod tests {
             trace
         }
 
-        fn included(&self, _: &Self::Record) -> bool {
+        fn included_in_shard(&self, _: &Self::Record) -> bool {
             true
+        }
+
+        fn included_in_phase(&self, phase: ProvePhase) -> bool {
+            phase == ProvePhase::Phase2
         }
     }
 
@@ -249,9 +256,7 @@ mod tests {
             let main = builder.main();
             let local = main.row_slice(0);
             let local: &TestCols<AB::Var, P> = (*local).borrow();
-            local
-                .a_ip_b
-                .eval(builder, &local.a, &local.b, AB::F::zero(), AB::F::one());
+            local.a_ip_b.eval(builder, &local.a, &local.b, AB::F::zero(), AB::F::one());
         }
     }
 

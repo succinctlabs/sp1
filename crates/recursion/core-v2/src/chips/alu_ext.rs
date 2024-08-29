@@ -5,7 +5,10 @@ use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use p3_maybe_rayon::prelude::*;
 use sp1_core_machine::utils::next_power_of_two;
 use sp1_derive::AlignedBorrow;
-use sp1_stark::air::{ExtensionAirBuilder, MachineAir};
+use sp1_stark::{
+    air::{ExtensionAirBuilder, MachineAir},
+    ProvePhase,
+};
 use std::{borrow::BorrowMut, iter::zip};
 
 use crate::{builder::SP1RecursionAirBuilder, *};
@@ -134,7 +137,11 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for ExtAluChip {
         RowMajorMatrix::new(values, NUM_EXT_ALU_COLS)
     }
 
-    fn included(&self, _record: &Self::Record) -> bool {
+    fn included_in_shard(&self, _record: &Self::Record) -> bool {
+        true
+    }
+
+    fn included_in_phase(&self, _: ProvePhase) -> bool {
         true
     }
 }

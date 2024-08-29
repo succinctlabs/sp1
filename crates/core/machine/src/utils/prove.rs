@@ -212,9 +212,6 @@ where
 
             let span = tracing::Span::current().clone();
 
-            #[cfg(feature = "debug")]
-            let all_records_tx = all_records_tx.clone();
-
             let handle = s.spawn(move || {
                 let _span = span.enter();
                 tracing::debug_span!("phase 1 trace generation").in_scope(|| {
@@ -223,14 +220,14 @@ where
                         let received = { checkpoints_rx.lock().unwrap().recv() };
 
                         if let Ok((index, mut checkpoint, done)) = received {
-                            // Trace the checkpoint and reconstruct the execution records.  Note that there is no need to 
-                            // run generate_dependencies for phase 1.
+                            // Trace the checkpoint and reconstruct the execution records.
                             let (mut records, _) = tracing::debug_span!("trace checkpoint")
                                 .in_scope(|| trace_checkpoint(program.clone(), &checkpoint, opts));
                             reset_seek(&mut checkpoint);
 
-                            #[cfg(feature = "debug")]
-                            prover.machine().generate_dependencies(&mut records, &opts);
+                            tracing::debug_span!("generate dependencies", index).in_scope(|| {
+                                prover.machine().generate_dependencies(&mut records, &opts, ProvePhase::Phase1);
+                            });
 
                             // Wait for our turn to update the state.
                             record_gen_sync.wait_for_turn(index);
@@ -286,9 +283,6 @@ where
                             // Let another worker update the state.
                             record_gen_sync.advance_turn();
 
-                            #[cfg(feature = "debug")]
-                            all_records_tx.send(records.clone()).unwrap();
-
                             // Generate the traces.
                             let mut traces = vec![];
                             tracing::debug_span!("generate traces", index).in_scope(|| {
@@ -326,8 +320,6 @@ where
             p1_record_and_trace_gen_handles.push(handle);
         }
         drop(p1_records_and_traces_tx);
-        #[cfg(feature = "debug")]
-        drop(all_records_tx);
 
         // Create the challenger and observe the verifying key.
         let mut challenger = prover.config().challenger();
@@ -436,6 +428,10 @@ where
             let program = program.clone();
 
             let span = tracing::Span::current().clone();
+
+            #[cfg(feature = "debug")]
+            let all_records_tx = all_records_tx.clone();
+
             let handle = s.spawn(move || {
                 let _span = span.enter();
                 tracing::debug_span!("phase 2 trace generation").in_scope(|| {
@@ -451,7 +447,7 @@ where
 
                             // Generate the dependencies.
                             tracing::debug_span!("generate dependencies", index).in_scope(|| {
-                                prover.machine().generate_dependencies(&mut records, &opts)
+                                prover.machine().generate_dependencies(&mut records, &opts, ProvePhase::Phase2)
                             });
 
                             // Wait for our turn to update the state.
@@ -504,6 +500,9 @@ where
                             // Let another worker update the state.
                             record_gen_sync.advance_turn();
 
+                            #[cfg(feature = "debug")]
+                            all_records_tx.send(records.clone()).unwrap();
+
                             // Generate the traces.
                             let mut traces = Vec::new();
                             tracing::debug_span!("generate traces", index).in_scope(|| {
@@ -538,6 +537,8 @@ where
             p2_record_and_trace_gen_handles.push(handle);
         }
         drop(p2_records_and_traces_tx);
+        #[cfg(feature = "debug")]
+        drop(all_records_tx);
 
         // Spawn the phase 2 prover thread.
         let p2_prover_span = tracing::Span::current().clone();

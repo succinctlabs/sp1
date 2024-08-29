@@ -21,7 +21,10 @@ use sp1_curves::{
     AffinePoint, CurveType, EllipticCurve,
 };
 use sp1_derive::AlignedBorrow;
-use sp1_stark::air::{MachineAir, SP1AirBuilder};
+use sp1_stark::{
+    air::{MachineAir, SP1AirBuilder},
+    ProvePhase,
+};
 use typenum::Unsigned;
 
 use crate::{
@@ -255,10 +258,8 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
 
             rows.push(row);
         }
-        let syscall_blu = output
-            .syscall_byte_lookups
-            .entry(SyscallCode::ED_DECOMPRESS)
-            .or_default();
+        let syscall_blu =
+            output.syscall_byte_lookups.entry(SyscallCode::ED_DECOMPRESS).or_default();
 
         syscall_blu.add_byte_lookup_events(new_byte_lookup_events);
 
@@ -298,13 +299,17 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
         trace
     }
 
-    fn included(&self, shard: &Self::Record) -> bool {
+    fn included_in_shard(&self, shard: &Self::Record) -> bool {
         match E::CURVE_TYPE {
             CurveType::Secp256k1 => !shard.secp256k1_add_events.is_empty(),
             CurveType::Bn254 => !shard.bn254_add_events.is_empty(),
             CurveType::Bls12381 => !shard.bls12381_add_events.is_empty(),
             _ => panic!("Unsupported curve"),
         }
+    }
+
+    fn included_in_phase(&self, phase: ProvePhase) -> bool {
+        phase == ProvePhase::Phase2
     }
 }
 

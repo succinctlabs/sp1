@@ -12,7 +12,7 @@ use sp1_core_executor::{ExecutionRecord, Program};
 use sp1_derive::AlignedBorrow;
 use sp1_stark::{
     air::{AirInteraction, InteractionScope, MachineAir, SP1AirBuilder},
-    InteractionKind, Word,
+    InteractionKind, ProvePhase, Word,
 };
 
 use super::MemoryChipType;
@@ -64,6 +64,10 @@ impl<F: PrimeField32> MachineAir<F> for MemoryLocalChip {
             MemoryChipType::Initialize => "MemoryLocalInit".to_string(),
             MemoryChipType::Finalize => "MemoryLocalFinalize".to_string(),
         }
+    }
+
+    fn generate_dependencies(&self, _input: &ExecutionRecord, _output: &mut ExecutionRecord) {
+        // Do nothing since this chip has no dependencies.
     }
 
     fn generate_trace(
@@ -124,7 +128,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryLocalChip {
         trace
     }
 
-    fn included(&self, shard: &Self::Record) -> bool {
+    fn included_in_shard(&self, shard: &Self::Record) -> bool {
         let keccak_local_mem_events = shard
             .keccak_permute_events
             .iter()
@@ -184,7 +188,8 @@ impl<F: PrimeField32> MachineAir<F> for MemoryLocalChip {
             || !bls12381_fp2_mul_local_mem_events.is_empty()
     }
 
-    fn included_phase1(&self) -> bool {
+    fn included_in_phase(&self, _: ProvePhase) -> bool {
+        // Should be included in both phase 1 and phase 2.
         true
     }
 }
@@ -237,7 +242,7 @@ mod tests {
     use sp1_stark::{
         air::{InteractionScope, MachineAir},
         baby_bear_poseidon2::BabyBearPoseidon2,
-        debug_interactions_with_all_chips, InteractionKind, SP1CoreOpts, StarkMachine,
+        debug_interactions_with_all_chips, InteractionKind, ProvePhase, SP1CoreOpts, StarkMachine,
     };
 
     use crate::{
@@ -281,7 +286,8 @@ mod tests {
             RiscvAir::machine(BabyBearPoseidon2::new());
         let (pkey, _) = machine.setup(&program_clone);
         let opts = SP1CoreOpts::default();
-        machine.generate_dependencies(&mut runtime.records, &opts);
+        machine.generate_dependencies(&mut runtime.records, &opts, ProvePhase::Phase1);
+        machine.generate_dependencies(&mut runtime.records, &opts, ProvePhase::Phase2);
 
         let shards = runtime.records;
         assert_eq!(shards.len(), 2);
@@ -313,7 +319,8 @@ mod tests {
         let machine = RiscvAir::machine(BabyBearPoseidon2::new());
         let (pkey, _) = machine.setup(&program_clone);
         let opts = SP1CoreOpts::default();
-        machine.generate_dependencies(&mut runtime.records, &opts);
+        machine.generate_dependencies(&mut runtime.records, &opts, ProvePhase::Phase1);
+        machine.generate_dependencies(&mut runtime.records, &opts, ProvePhase::Phase2);
 
         let shards = runtime.records;
         assert_eq!(shards.len(), 2);

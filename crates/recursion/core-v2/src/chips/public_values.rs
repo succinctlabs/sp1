@@ -6,7 +6,7 @@ use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use sp1_core_machine::utils::pad_rows_fixed;
 use sp1_derive::AlignedBorrow;
 use sp1_recursion_core::air::{RecursionPublicValues, RECURSIVE_PROOF_NUM_PV_ELTS};
-use sp1_stark::air::MachineAir;
+use sp1_stark::{air::MachineAir, ProvePhase};
 
 use crate::{
     builder::SP1RecursionAirBuilder,
@@ -133,7 +133,11 @@ impl<F: PrimeField32> MachineAir<F> for PublicValuesChip {
         RowMajorMatrix::new(rows.into_iter().flatten().collect(), NUM_PUBLIC_VALUES_COLS)
     }
 
-    fn included(&self, _record: &Self::Record) -> bool {
+    fn included_in_shard(&self, _record: &Self::Record) -> bool {
+        true
+    }
+
+    fn included_in_phase(&self, _: ProvePhase) -> bool {
         true
     }
 }

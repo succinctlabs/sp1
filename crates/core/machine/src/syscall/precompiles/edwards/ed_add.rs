@@ -24,7 +24,10 @@ use sp1_curves::{
     AffinePoint, EllipticCurve,
 };
 use sp1_derive::AlignedBorrow;
-use sp1_stark::air::{BaseAirBuilder, MachineAir, SP1AirBuilder};
+use sp1_stark::{
+    air::{BaseAirBuilder, MachineAir, SP1AirBuilder},
+    ProvePhase,
+};
 
 use crate::{
     memory::{value_as_limbs, MemoryReadCols, MemoryWriteCols},
@@ -189,8 +192,12 @@ impl<F: PrimeField32, E: EllipticCurve + EdwardsParameters> MachineAir<F> for Ed
         syscall_blu.add_sharded_byte_lookup_events(blu_batches.iter().collect_vec());
     }
 
-    fn included(&self, shard: &Self::Record) -> bool {
+    fn included_in_shard(&self, shard: &Self::Record) -> bool {
         !shard.ed_add_events.is_empty()
+    }
+
+    fn included_in_phase(&self, phase: ProvePhase) -> bool {
+        phase == ProvePhase::Phase2
     }
 }
 

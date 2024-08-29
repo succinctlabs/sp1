@@ -45,7 +45,7 @@ use sp1_core_executor::{
 };
 use sp1_derive::AlignedBorrow;
 use sp1_primitives::consts::WORD_SIZE;
-use sp1_stark::{air::MachineAir, MachineRecord, Word};
+use sp1_stark::{air::MachineAir, MachineRecord, ProvePhase, Word};
 
 use crate::{air::SP1CoreAirBuilder, alu::mul::utils::get_msb, utils::pad_to_power_of_two};
 
@@ -284,8 +284,12 @@ impl<F: PrimeField> MachineAir<F> for MulChip {
         trace
     }
 
-    fn included(&self, shard: &Self::Record) -> bool {
+    fn included_in_shard(&self, shard: &Self::Record) -> bool {
         !shard.mul_events.is_empty()
+    }
+
+    fn included_in_phase(&self, phase: ProvePhase) -> bool {
+        phase == ProvePhase::Phase2
     }
 }
 
@@ -323,14 +327,7 @@ where
             for msb_pair in msb_pairs.iter() {
                 let msb = msb_pair.0;
                 let byte = msb_pair.1;
-                builder.send_byte(
-                    opcode,
-                    msb,
-                    byte,
-                    zero.clone(),
-                    local.channel,
-                    local.is_real,
-                );
+                builder.send_byte(opcode, msb, byte, zero.clone(), local.channel, local.is_real);
             }
             (local.b_msb, local.c_msb)
         };

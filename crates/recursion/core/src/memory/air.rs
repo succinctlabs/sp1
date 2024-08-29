@@ -5,7 +5,7 @@ use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use sp1_core_machine::utils::{next_power_of_two, par_for_each_row};
 use sp1_stark::{
     air::{AirInteraction, InteractionScope, MachineAir},
-    InteractionKind,
+    InteractionKind, ProvePhase,
 };
 use std::borrow::{Borrow, BorrowMut};
 use tracing::instrument;
@@ -91,8 +91,12 @@ impl<F: PrimeField32> MachineAir<F> for MemoryGlobalChip {
         RowMajorMatrix::new(values, NUM_MEMORY_INIT_COLS)
     }
 
-    fn included(&self, shard: &Self::Record) -> bool {
+    fn included_in_shard(&self, shard: &Self::Record) -> bool {
         !shard.first_memory_record.is_empty() || !shard.last_memory_record.is_empty()
+    }
+
+    fn included_in_phase(&self, _: ProvePhase) -> bool {
+        true
     }
 }
 

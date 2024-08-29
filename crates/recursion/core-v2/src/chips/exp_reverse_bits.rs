@@ -6,7 +6,10 @@ use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use sp1_core_machine::utils::pad_rows_fixed;
 use sp1_derive::AlignedBorrow;
-use sp1_stark::air::{BaseAirBuilder, ExtensionAirBuilder, MachineAir, SP1AirBuilder};
+use sp1_stark::{
+    air::{BaseAirBuilder, ExtensionAirBuilder, MachineAir, SP1AirBuilder},
+    ProvePhase,
+};
 use std::borrow::BorrowMut;
 use tracing::instrument;
 
@@ -202,7 +205,11 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for ExpReverseBitsLenCh
         trace
     }
 
-    fn included(&self, _record: &Self::Record) -> bool {
+    fn included_in_shard(&self, _record: &Self::Record) -> bool {
+        true
+    }
+
+    fn included_in_phase(&self, _: ProvePhase) -> bool {
         true
     }
 }

@@ -14,7 +14,7 @@ use sp1_stark::{
         AirInteraction, BaseAirBuilder, InteractionScope, MachineAir, PublicValues, SP1AirBuilder,
         SP1_PROOF_NUM_PV_ELTS,
     },
-    InteractionKind, Word,
+    InteractionKind, ProvePhase, Word,
 };
 
 use crate::{
@@ -144,15 +144,15 @@ impl<F: PrimeField32> MachineAir<F> for MemoryGlobalChip {
         trace
     }
 
-    fn included(&self, shard: &Self::Record) -> bool {
+    fn included_in_shard(&self, shard: &Self::Record) -> bool {
         match self.kind {
             MemoryChipType::Initialize => !shard.global_memory_initialize_events.is_empty(),
             MemoryChipType::Finalize => !shard.global_memory_finalize_events.is_empty(),
         }
     }
 
-    fn included_phase1(&self) -> bool {
-        true
+    fn included_in_phase(&self, phase: ProvePhase) -> bool {
+        phase == ProvePhase::Phase1
     }
 }
 
@@ -416,7 +416,8 @@ mod tests {
             RiscvAir::machine(BabyBearPoseidon2::new());
         let (pkey, _) = machine.setup(&program_clone);
         let opts = SP1CoreOpts::default();
-        machine.generate_dependencies(&mut runtime.records, &opts);
+        machine.generate_dependencies(&mut runtime.records, &opts, ProvePhase::Phase1);
+        machine.generate_dependencies(&mut runtime.records, &opts, ProvePhase::Phase2);
 
         let shards = runtime.records;
         assert_eq!(shards.len(), 2);
@@ -448,7 +449,7 @@ mod tests {
         let machine = RiscvAir::machine(BabyBearPoseidon2::new());
         let (pkey, _) = machine.setup(&program_clone);
         let opts = SP1CoreOpts::default();
-        machine.generate_dependencies(&mut runtime.records, &opts);
+        machine.generate_dependencies(&mut runtime.records, &opts, ProvePhase::Phase1);
 
         let shards = runtime.records;
         assert_eq!(shards.len(), 2);

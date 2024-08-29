@@ -47,7 +47,7 @@ use sp1_core_executor::{
 };
 use sp1_derive::AlignedBorrow;
 use sp1_primitives::consts::WORD_SIZE;
-use sp1_stark::{air::MachineAir, Word};
+use sp1_stark::{air::MachineAir, ProvePhase, Word};
 
 use crate::{air::SP1CoreAirBuilder, utils::pad_to_power_of_two};
 
@@ -182,8 +182,12 @@ impl<F: PrimeField> MachineAir<F> for ShiftLeft {
         output.add_sharded_byte_lookup_events(blu_batches.iter().collect_vec());
     }
 
-    fn included(&self, shard: &Self::Record) -> bool {
+    fn included_in_shard(&self, shard: &Self::Record) -> bool {
         !shard.shift_left_events.is_empty()
+    }
+
+    fn included_in_phase(&self, phase: ProvePhase) -> bool {
+        phase == ProvePhase::Phase2
     }
 }
 

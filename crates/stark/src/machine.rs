@@ -15,7 +15,7 @@ use crate::{
     air::{InteractionScope, MachineAir, MachineProgram},
     lookup::{debug_interactions_with_all_chips, InteractionKind},
     record::MachineRecord,
-    DebugConstraintBuilder, ShardProof, VerifierConstraintFolder,
+    DebugConstraintBuilder, ProvePhase, ShardProof, VerifierConstraintFolder,
 };
 
 use super::{
@@ -103,10 +103,6 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
         &self.chips
     }
 
-    pub fn phase1_chips(&self) -> Vec<&MachineChip<SC, A>> {
-        self.chips.iter().filter(|chip| chip.included_phase1()).collect_vec()
-    }
-
     pub const fn num_pv_elts(&self) -> usize {
         self.num_pv_elts
     }
@@ -121,7 +117,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
             .collect()
     }
 
-    /// Returns an iterator over the chips in the machine that are included in the given shard.
+    /// Returns an iterator over the chips in the machine that are included in the given shard and prove phase.
     pub fn shard_chips<'a, 'b>(
         &'a self,
         shard: &'b A::Record,
@@ -129,7 +125,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
     where
         'a: 'b,
     {
-        self.chips.iter().filter(|chip| chip.included(shard))
+        self.chips.iter().filter(|chip| chip.included_in_shard(shard))
     }
 
     /// Returns an iterator over the chips in the machine that are included in the given shard.
@@ -233,8 +229,10 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
         &self,
         records: &mut [A::Record],
         opts: &<A::Record as MachineRecord>::Config,
+        phase: ProvePhase,
     ) {
-        let chips = self.chips();
+        let chips =
+            self.chips().iter().filter(|chip| chip.included_in_phase(phase)).collect::<Vec<_>>();
         records.iter_mut().for_each(|record| {
             chips.iter().for_each(|chip| {
                 tracing::debug_span!("chip dependencies", chip = chip.name()).in_scope(|| {

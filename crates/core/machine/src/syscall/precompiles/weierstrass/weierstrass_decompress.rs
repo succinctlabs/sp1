@@ -21,7 +21,10 @@ use sp1_curves::{
     CurveType, EllipticCurve,
 };
 use sp1_derive::AlignedBorrow;
-use sp1_stark::air::{BaseAirBuilder, MachineAir, SP1AirBuilder};
+use sp1_stark::{
+    air::{BaseAirBuilder, MachineAir, SP1AirBuilder},
+    ProvePhase,
+};
 use std::marker::PhantomData;
 use typenum::Unsigned;
 
@@ -258,10 +261,8 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
             rows.push(row);
         }
 
-        let syscall_blu = output
-            .syscall_byte_lookups
-            .entry(SyscallCode::ED_DECOMPRESS)
-            .or_default();
+        let syscall_blu =
+            output.syscall_byte_lookups.entry(SyscallCode::ED_DECOMPRESS).or_default();
 
         syscall_blu.add_byte_lookup_events(new_byte_lookup_events);
 
@@ -294,12 +295,16 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
         trace
     }
 
-    fn included(&self, shard: &Self::Record) -> bool {
+    fn included_in_shard(&self, shard: &Self::Record) -> bool {
         match E::CURVE_TYPE {
             CurveType::Secp256k1 => !shard.k256_decompress_events.is_empty(),
             CurveType::Bls12381 => !shard.bls12381_decompress_events.is_empty(),
             _ => panic!("Unsupported curve"),
         }
+    }
+
+    fn included_in_phase(&self, phase: ProvePhase) -> bool {
+        phase == ProvePhase::Phase2
     }
 }
 
@@ -350,14 +355,7 @@ where
             local.channel,
             local.is_real,
         );
-        local.x_2.eval(
-            builder,
-            &x,
-            &x,
-            FieldOperation::Mul,
-            local.channel,
-            local.is_real,
-        );
+        local.x_2.eval(builder, &x, &x, FieldOperation::Mul, local.channel, local.is_real);
         local.x_3.eval(
             builder,
             &local.x_2.result,
@@ -386,13 +384,7 @@ where
             local.is_real,
         );
 
-        local.y.eval(
-            builder,
-            &local.x_3_plus_b.result,
-            local.y.lsb,
-            local.channel,
-            local.is_real,
-        );
+        local.y.eval(builder, &local.x_3_plus_b.result, local.y.lsb, local.channel, local.is_real);
 
         let y_limbs: Limbs<AB::Var, <E::BaseField as NumLimbs>::Limbs> =
             limbs_from_access(&local.y_access);
