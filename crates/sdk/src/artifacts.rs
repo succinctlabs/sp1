@@ -1,9 +1,15 @@
-use std::{cmp::min, fs::File, io::Write, path::PathBuf};
+use std::path::PathBuf;
 
 use anyhow::{Context, Result};
-use futures::StreamExt;
-use indicatif::{ProgressBar, ProgressStyle};
-use reqwest::Client;
+
+#[cfg(feature = "network")]
+use {
+    futures::StreamExt,
+    indicatif::{ProgressBar, ProgressStyle},
+    reqwest::Client,
+    std::{cmp::min, fs::File, io::Write},
+};
+
 pub use sp1_prover::build::build_plonk_bn254_artifacts_with_dummy;
 
 use crate::install::try_install_circuit_artifacts;
@@ -66,6 +72,7 @@ pub fn export_solidity_groth16_bn254_verifier(output_dir: impl Into<PathBuf>) ->
     Ok(())
 }
 
+#[cfg(feature = "network")]
 pub async fn download_file(
     client: &Client,
     url: &str,
