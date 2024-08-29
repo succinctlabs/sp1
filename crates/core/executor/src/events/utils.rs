@@ -6,13 +6,12 @@ use std::{
 };
 
 use rand::{thread_rng, Rng};
+
+/// A unique identifier for lookups.
+///
+/// We use 4 u32s instead of a u128 to make it compatible with C.
 #[derive(Deserialize, Serialize, Debug, Clone, Copy, Default, Eq, Hash, PartialEq)]
-/// A lookup id for the ALU.
-/// This is used to identify the lookup table used by the ALU.
-/// The ALU uses 6 lookup tables, each identified by a unique id.
-/// The id is used to generate the lookup table.
-/// The id is generated randomly and is unique.
-/// We are using 4 u32 to generate the id to make this compatible with a c struct
+
 pub struct LookupId {
     /// First part of the id.
     pub a: u32,
