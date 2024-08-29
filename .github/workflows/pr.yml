@@ -285,7 +285,12 @@ jobs:
         run: | 
           ulimit -v 16000000
 
-      - name: Build program and run script
+      - name: Run script
         run: |
-          cd examples/tendermint/script
-          RUSTFLAGS='-C target-cpu=native' cargo run --release -- --prove
+          cd examples/tendermint/program
+          cargo add sp1-zkvm --path $GITHUB_WORKSPACE/crates/zkvm/entrypoint
+          cargo prove build
+          cd ../script
+          cargo remove sp1-sdk
+          cargo add sp1-sdk --path $GITHUB_WORKSPACE/crates/sdk
+          SP1_DEV=1 RUST_LOG=info cargo run --release
