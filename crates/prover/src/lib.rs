@@ -129,10 +129,6 @@ pub struct SP1Prover<C: SP1ProverComponents = DefaultProverComponents> {
     pub compress_programs: Mutex<LruCache<SP1CompressShape, Arc<RecursionProgram<BabyBear>>>>,
 
     pub compress_cache_misses: AtomicUsize,
-
-    pub compress_vkey_programs: Mutex<LruCache<SP1CompressShape, Arc<RecursionProgram<BabyBear>>>>,
-
-    pub compress_vkey_cache_misses: AtomicUsize,
 }
 
 impl<C: SP1ProverComponents> SP1Prover<C> {
@@ -174,14 +170,6 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         )
         .expect("PROVER_COMPRESS_CACHE_SIZE must be a non-zero usize");
 
-        let compress_with_vkey_cache_size = NonZeroUsize::new(
-            env::var("PROVER_COMPRESS_VKEY_CACHE_SIZE")
-                .unwrap_or_else(|_| CORE_CACHE_SIZE.to_string())
-                .parse()
-                .unwrap_or(COMPRESS_CACHE_SIZE),
-        )
-        .expect("PROVER_COMPRESS_VKEY_CACHE_SIZE must be a non-zero usize");
-
         Self {
             core_prover,
             compress_prover,
@@ -191,8 +179,6 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             recursion_cache_misses: AtomicUsize::new(0),
             compress_programs: Mutex::new(LruCache::new(compress_cache_size)),
             compress_cache_misses: AtomicUsize::new(0),
-            compress_vkey_programs: Mutex::new(LruCache::new(compress_with_vkey_cache_size)),
-            compress_vkey_cache_misses: AtomicUsize::new(0),
         }
     }
 
