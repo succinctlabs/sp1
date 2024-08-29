@@ -1,5 +1,5 @@
 use anyhow::Result;
-use clap::{command, Parser};
+use clap::{command, ArgAction, Parser};
 use reqwest::Client;
 use serde::Serialize;
 use serde_json::json;
@@ -28,7 +28,7 @@ struct EvalArgs {
     pub shard_size: Option<usize>,
 
     /// Whether to post results to Slack.
-    #[arg(long)]
+    #[arg(long, action = ArgAction::SetTrue)]
     pub post_to_slack: bool,
 
     /// The Slack channel ID to post results to, only used if post_to_slack is true.
@@ -40,7 +40,7 @@ struct EvalArgs {
     pub slack_token: Option<String>,
 
     /// Whether to post results to a GitHub PR.
-    #[arg(long)]
+    #[arg(long, action = ArgAction::SetTrue)]
     pub post_to_github: bool,
 
     /// The GitHub token for authentication, only used if post_to_github is true.
