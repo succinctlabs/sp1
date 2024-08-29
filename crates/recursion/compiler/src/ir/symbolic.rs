@@ -292,7 +292,7 @@ impl<N: Field> Add for SymbolicVar<N> {
                 Self::Val(res)
             }
             (Self::Const(lhs), Self::Val(rhs)) => {
-                let res = unsafe { (*rhs.handle).add_const_v(rhs, lhs) };
+                let res = unsafe { (*rhs.handle).add_v_const(lhs, rhs) };
                 Self::Val(res)
             }
             (Self::Val(lhs), Self::Val(rhs)) => {
@@ -314,7 +314,7 @@ impl<F: Field> Add for SymbolicFelt<F> {
                 Self::Val(res)
             }
             (Self::Const(lhs), Self::Val(rhs)) => {
-                let res = unsafe { (*rhs.handle).add_const_f(rhs, lhs) };
+                let res = unsafe { (*rhs.handle).add_f_const(lhs, rhs) };
                 Self::Val(res)
             }
             (Self::Val(lhs), Self::Val(rhs)) => {
@@ -338,7 +338,7 @@ impl<F: Field, EF: ExtensionField<F>, E: ExtensionOperand<F, EF>> Add<E> for Sym
                 Self::Val(res)
             }
             (Self::Const(lhs), Self::Val(rhs)) => {
-                let res = unsafe { (*rhs.handle).add_const_e(rhs, lhs) };
+                let res = unsafe { (*rhs.handle).add_e_const(lhs, rhs) };
                 Self::Val(res)
             }
             (Self::Const(lhs), Self::Base(rhs)) => match rhs {
@@ -348,7 +348,7 @@ impl<F: Field, EF: ExtensionField<F>, E: ExtensionOperand<F, EF>> Add<E> for Sym
                         unsafe { (*rhs.handle).ext_handle_ptr as *mut ExtHandle<F, EF> };
                     let ext_handle: ManuallyDrop<_> =
                         unsafe { ManuallyDrop::new(Box::from_raw(ext_handle_ptr)) };
-                    let res = ext_handle.add_f_const_e(rhs, lhs, ext_handle_ptr);
+                    let res = ext_handle.add_const_e_f(lhs, rhs, ext_handle_ptr);
                     Self::Val(res)
                 }
             },
@@ -371,11 +371,11 @@ impl<F: Field, EF: ExtensionField<F>, E: ExtensionOperand<F, EF>> Add<E> for Sym
             (Self::Base(lhs), Self::Base(rhs)) => Self::Base(lhs + rhs),
             (Self::Base(lhs), Self::Val(rhs)) => match lhs {
                 SymbolicFelt::Const(lhs) => {
-                    let res = unsafe { (*rhs.handle).add_const_e(rhs, EF::from_base(lhs)) };
+                    let res = unsafe { (*rhs.handle).add_e_const(EF::from_base(lhs), rhs) };
                     Self::Val(res)
                 }
                 SymbolicFelt::Val(lhs) => {
-                    let res = unsafe { (*rhs.handle).add_e_f(rhs, lhs) };
+                    let res = unsafe { (*rhs.handle).add_f_e(lhs, rhs) };
                     Self::Val(res)
                 }
             },
@@ -404,7 +404,7 @@ impl<N: Field> Mul for SymbolicVar<N> {
                 Self::Val(res)
             }
             (Self::Const(lhs), Self::Val(rhs)) => {
-                let res = unsafe { (*rhs.handle).mul_const_v(rhs, lhs) };
+                let res = unsafe { (*rhs.handle).mul_v_const(lhs, rhs) };
                 Self::Val(res)
             }
             (Self::Val(lhs), Self::Val(rhs)) => {
@@ -426,7 +426,7 @@ impl<F: Field> Mul for SymbolicFelt<F> {
                 Self::Val(res)
             }
             (Self::Const(lhs), Self::Val(rhs)) => {
-                let res = unsafe { (*rhs.handle).mul_const_f(rhs, lhs) };
+                let res = unsafe { (*rhs.handle).mul_f_const(lhs, rhs) };
                 Self::Val(res)
             }
             (Self::Val(lhs), Self::Val(rhs)) => {
@@ -450,7 +450,7 @@ impl<F: Field, EF: ExtensionField<F>, E: Any> Mul<E> for SymbolicExt<F, EF> {
                 Self::Val(res)
             }
             (Self::Const(lhs), Self::Val(rhs)) => {
-                let res = unsafe { (*rhs.handle).mul_const_e(rhs, lhs) };
+                let res = unsafe { (*rhs.handle).mul_e_const(lhs, rhs) };
                 Self::Val(res)
             }
             (Self::Const(lhs), Self::Base(rhs)) => match rhs {
@@ -460,12 +460,12 @@ impl<F: Field, EF: ExtensionField<F>, E: Any> Mul<E> for SymbolicExt<F, EF> {
                         unsafe { (*rhs.handle).ext_handle_ptr as *mut ExtHandle<F, EF> };
                     let ext_handle: ManuallyDrop<_> =
                         unsafe { ManuallyDrop::new(Box::from_raw(ext_handle_ptr)) };
-                    let res = ext_handle.mul_f_const_e(rhs, lhs, ext_handle_ptr);
+                    let res = ext_handle.mul_const_e_f(lhs, rhs, ext_handle_ptr);
                     Self::Val(res)
                 }
             },
             (Self::Base(lhs), Self::Const(rhs)) => match lhs {
-                SymbolicFelt::Const(lhs) => Self::Const(rhs * lhs),
+                SymbolicFelt::Const(lhs) => Self::Const(EF::from_base(lhs) * rhs),
                 SymbolicFelt::Val(lhs) => {
                     let ext_handle_ptr =
                         unsafe { (*lhs.handle).ext_handle_ptr as *mut ExtHandle<F, EF> };
@@ -483,11 +483,11 @@ impl<F: Field, EF: ExtensionField<F>, E: Any> Mul<E> for SymbolicExt<F, EF> {
             (Self::Base(lhs), Self::Base(rhs)) => Self::Base(lhs * rhs),
             (Self::Base(lhs), Self::Val(rhs)) => match lhs {
                 SymbolicFelt::Const(lhs) => {
-                    let res = unsafe { (*rhs.handle).mul_const_e(rhs, EF::from_base(lhs)) };
+                    let res = unsafe { (*rhs.handle).mul_e_const(EF::from_base(lhs), rhs) };
                     Self::Val(res)
                 }
                 SymbolicFelt::Val(lhs) => {
-                    let res = unsafe { (*rhs.handle).mul_e_f(rhs, lhs) };
+                    let res = unsafe { (*rhs.handle).mul_f_e(lhs, rhs) };
                     Self::Val(res)
                 }
             },
@@ -555,7 +555,6 @@ impl<F: Field, EF: ExtensionField<F>, E: Any> Sub<E> for SymbolicExt<F, EF> {
     fn sub(self, rhs: E) -> Self::Output {
         let rhs = rhs.to_operand().symbolic();
 
-        // TODO
         match (self, rhs) {
             (Self::Const(lhs), Self::Const(rhs)) => Self::Const(lhs - rhs),
             (Self::Val(lhs), Self::Const(rhs)) => {
@@ -563,7 +562,7 @@ impl<F: Field, EF: ExtensionField<F>, E: Any> Sub<E> for SymbolicExt<F, EF> {
                 Self::Val(res)
             }
             (Self::Const(lhs), Self::Val(rhs)) => {
-                let res = unsafe { (*rhs.handle).sub_const_e(rhs, lhs) };
+                let res = unsafe { (*rhs.handle).sub_e_const(lhs, rhs) };
                 Self::Val(res)
             }
             (Self::Const(lhs), Self::Base(rhs)) => match rhs {
@@ -573,12 +572,12 @@ impl<F: Field, EF: ExtensionField<F>, E: Any> Sub<E> for SymbolicExt<F, EF> {
                         unsafe { (*rhs.handle).ext_handle_ptr as *mut ExtHandle<F, EF> };
                     let ext_handle: ManuallyDrop<_> =
                         unsafe { ManuallyDrop::new(Box::from_raw(ext_handle_ptr)) };
-                    let res = ext_handle.sub_f_const_e(rhs, lhs, ext_handle_ptr);
+                    let res = ext_handle.sub_const_e_f(lhs, rhs, ext_handle_ptr);
                     Self::Val(res)
                 }
             },
             (Self::Base(lhs), Self::Const(rhs)) => match lhs {
-                SymbolicFelt::Const(lhs) => Self::Const(rhs - lhs),
+                SymbolicFelt::Const(lhs) => Self::Const(EF::from_base(lhs) - rhs),
                 SymbolicFelt::Val(lhs) => {
                     let ext_handle_ptr =
                         unsafe { (*lhs.handle).ext_handle_ptr as *mut ExtHandle<F, EF> };
@@ -596,11 +595,11 @@ impl<F: Field, EF: ExtensionField<F>, E: Any> Sub<E> for SymbolicExt<F, EF> {
             (Self::Base(lhs), Self::Base(rhs)) => Self::Base(lhs - rhs),
             (Self::Base(lhs), Self::Val(rhs)) => match lhs {
                 SymbolicFelt::Const(lhs) => {
-                    let res = unsafe { (*rhs.handle).sub_const_e(rhs, EF::from_base(lhs)) };
+                    let res = unsafe { (*rhs.handle).sub_e_const(EF::from_base(lhs), rhs) };
                     Self::Val(res)
                 }
                 SymbolicFelt::Val(lhs) => {
-                    let res = unsafe { (*rhs.handle).sub_e_f(rhs, lhs) };
+                    let res = unsafe { (*rhs.handle).sub_f_e(lhs, rhs) };
                     Self::Val(res)
                 }
             },
@@ -646,8 +645,6 @@ impl<F: Field, EF: ExtensionField<F>, E: Any> Div<E> for SymbolicExt<F, EF> {
     fn div(self, rhs: E) -> Self::Output {
         let rhs = rhs.to_operand().symbolic();
 
-        // TODO
-
         match (self, rhs) {
             (Self::Const(lhs), Self::Const(rhs)) => Self::Const(lhs / rhs),
             (Self::Val(lhs), Self::Const(rhs)) => {
@@ -655,7 +652,7 @@ impl<F: Field, EF: ExtensionField<F>, E: Any> Div<E> for SymbolicExt<F, EF> {
                 Self::Val(res)
             }
             (Self::Const(lhs), Self::Val(rhs)) => {
-                let res = unsafe { (*rhs.handle).div_const_e(rhs, lhs) };
+                let res = unsafe { (*rhs.handle).div_e_const(lhs, rhs) };
                 Self::Val(res)
             }
             (Self::Const(lhs), Self::Base(rhs)) => match rhs {
@@ -665,12 +662,17 @@ impl<F: Field, EF: ExtensionField<F>, E: Any> Div<E> for SymbolicExt<F, EF> {
                         unsafe { (*rhs.handle).ext_handle_ptr as *mut ExtHandle<F, EF> };
                     let ext_handle: ManuallyDrop<_> =
                         unsafe { ManuallyDrop::new(Box::from_raw(ext_handle_ptr)) };
-                    let res = ext_handle.div_f_const_e(rhs, lhs, ext_handle_ptr);
-                    Self::Val(res)
+                    let rhs = rhs.inverse();
+                    if let SymbolicFelt::Val(rhs) = rhs {
+                        let res = ext_handle.mul_const_e_f(lhs, rhs, ext_handle_ptr);
+                        Self::Val(res)
+                    } else {
+                        unreachable!()
+                    }
                 }
             },
             (Self::Base(lhs), Self::Const(rhs)) => match lhs {
-                SymbolicFelt::Const(lhs) => Self::Const(rhs / EF::from_base(lhs)),
+                SymbolicFelt::Const(lhs) => Self::Const(EF::from_base(lhs) / rhs),
                 SymbolicFelt::Val(lhs) => {
                     let ext_handle_ptr =
                         unsafe { (*lhs.handle).ext_handle_ptr as *mut ExtHandle<F, EF> };
@@ -688,11 +690,11 @@ impl<F: Field, EF: ExtensionField<F>, E: Any> Div<E> for SymbolicExt<F, EF> {
             (Self::Base(lhs), Self::Base(rhs)) => Self::Base(lhs / rhs),
             (Self::Base(lhs), Self::Val(rhs)) => match lhs {
                 SymbolicFelt::Const(lhs) => {
-                    let res = unsafe { (*rhs.handle).div_const_e(rhs, EF::from_base(lhs)) };
+                    let res = unsafe { (*rhs.handle).div_e_const(EF::from_base(lhs), rhs) };
                     Self::Val(res)
                 }
                 SymbolicFelt::Val(lhs) => {
-                    let res = unsafe { (*rhs.handle).div_e_f(rhs, lhs) };
+                    let res = unsafe { (*rhs.handle).div_f_e(lhs, rhs) };
                     Self::Val(res)
                 }
             },
