@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use hashbrown::HashMap;
 
 use nohash_hasher::BuildNoHashHasher;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
