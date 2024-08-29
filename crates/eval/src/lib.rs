@@ -75,6 +75,8 @@ struct EvalArgs {
 pub async fn evaluate_performance<C: SP1ProverComponents>(
     opts: SP1ProverOpts,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    println!("opts: {:?}", opts);
+
     let args = EvalArgs::parse();
 
     // Set environment variables to configure the prover.
@@ -92,6 +94,8 @@ pub async fn evaluate_performance<C: SP1ProverComponents>(
             .collect()
     };
 
+    sp1_sdk::utils::setup_logger();
+
     // Run the evaluations on each program.
     let mut reports = Vec::new();
     for program in &programs {
@@ -99,7 +103,7 @@ pub async fn evaluate_performance<C: SP1ProverComponents>(
         let (elf, stdin) = load_program(program.elf, program.input);
         let report = run_evaluation::<C>(program.name, &elf, &stdin, opts);
         reports.push(report);
-        println!("Program: {} completed", program.name);
+        println!("Finished Program: {}", program.name);
     }
 
     // Prepare and format the results.
