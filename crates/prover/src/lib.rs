@@ -278,7 +278,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                 let mut builder = Builder::<InnerConfig>::default();
                 let input = input.read(&mut builder);
                 SP1RecursiveVerifier::verify(&mut builder, self.core_prover.machine(), input);
-                let operations = builder.operations;
+                let operations = builder.into_operations();
                 builder_span.exit();
 
                 // Compile the program.
@@ -309,7 +309,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                     self.compress_prover.machine(),
                     input,
                 );
-                let operations = builder.operations;
+                let operations = builder.into_operations();
                 builder_span.exit();
 
                 // Compile the program.
@@ -338,7 +338,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         let mut builder = Builder::<InnerConfig>::default();
         let input = input.read(&mut builder);
         SP1CompressVerifier::verify(&mut builder, self.shrink_prover.machine(), input);
-        let operations = builder.operations;
+        let operations = builder.into_operations();
         builder_span.exit();
 
         // Compile the program.
@@ -365,7 +365,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         let verify_span = tracing::debug_span!("Verify deferred program").entered();
         SP1DeferredVerifier::verify(&mut builder, self.compress_prover.machine(), input);
         verify_span.exit();
-        let operations = builder.operations;
+        let operations = builder.into_operations();
         operations_span.exit();
 
         // Compile the program.

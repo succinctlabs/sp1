@@ -720,13 +720,13 @@ macro_rules! impl_reg_vaddr {
     ($a:ty) => {
         impl<C: Config<F: PrimeField64>> Reg<C> for $a {
             fn read(&self, compiler: &mut AsmCompiler<C>) -> Address<C::F> {
-                compiler.read_vaddr(self.0 as usize)
+                compiler.read_vaddr(self.idx as usize)
             }
             fn read_ghost(&self, compiler: &mut AsmCompiler<C>) -> Address<C::F> {
-                compiler.read_ghost_vaddr(self.0 as usize)
+                compiler.read_ghost_vaddr(self.idx as usize)
             }
             fn write(&self, compiler: &mut AsmCompiler<C>) -> Address<C::F> {
-                compiler.write_fp(self.0 as usize)
+                compiler.write_fp(self.idx as usize)
             }
         }
     };
@@ -852,7 +852,7 @@ mod tests {
             }
         }
 
-        test_operations(builder.operations);
+        test_operations(builder.into_operations());
     }
 
     #[test]
@@ -932,7 +932,7 @@ mod tests {
             let expected_felt: Felt<_> = builder.eval(expected);
             builder.assert_felt_eq(result_felt, expected_felt);
         }
-        test_operations(builder.operations);
+        test_operations(builder.into_operations());
     }
 
     #[test]
@@ -987,7 +987,7 @@ mod tests {
             }
         }
 
-        test_operations(builder.operations);
+        test_operations(builder.into_operations());
     }
 
     #[test]
@@ -1010,7 +1010,7 @@ mod tests {
                 builder.assert_felt_eq(lhs, rhs);
             }
         }
-        test_operations(builder.operations);
+        test_operations(builder.into_operations());
     }
 
     #[test]
@@ -1051,7 +1051,7 @@ mod tests {
         }
         builder.cycle_tracker_v2_exit();
 
-        test_operations_with_runner(builder.operations, |program| {
+        test_operations_with_runner(builder.into_operations(), |program| {
             let mut runtime = Runtime::<F, EF, DiffusionMatrixBabyBear>::new(
                 program,
                 BabyBearPoseidon2Inner::new().perm,
@@ -1090,7 +1090,7 @@ mod tests {
                 builder.assert_felt_eq(lhs, rhs);
             }
         }
-        test_operations(builder.operations);
+        test_operations(builder.into_operations());
     }
 
     macro_rules! test_assert_fixture {
@@ -1100,7 +1100,7 @@ mod tests {
                 let mut builder = AsmBuilder::<F, EF>::default();
                 test_assert_fixture!(builder, identity, F, Felt<_>, 0xDEADBEEF, $assert_felt, $should_offset);
                 test_assert_fixture!(builder, EF::cons, EF, Ext<_, _>, 0xABADCAFE, $assert_ext, $should_offset);
-                test_operations(builder.operations);
+                test_operations(builder.into_operations());
             }
         };
         ($builder:ident, $wrap:path, $t:ty, $u:ty, $seed:expr, $assert:ident, $should_offset:expr) => {

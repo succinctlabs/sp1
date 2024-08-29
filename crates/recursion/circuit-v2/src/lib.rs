@@ -49,6 +49,7 @@ use sp1_recursion_core_v2::{
 };
 
 use p3_baby_bear::BabyBear;
+use utils::{felt_bytes_to_bn254_var, felts_to_bn254_var, words_to_bytes};
 
 type EF = <BabyBearPoseidon2 as StarkGenericConfig>::Challenge;
 
@@ -273,7 +274,7 @@ impl CircuitConfig for OuterConfig {
         ext: Ext<<Self as Config>::F, <Self as Config>::EF>,
     ) -> [Felt<<Self as Config>::F>; D] {
         let felts = core::array::from_fn(|_| builder.uninit());
-        builder.operations.push(DslIr::CircuitExt2Felt(felts, ext));
+        builder.push_op(DslIr::CircuitExt2Felt(felts, ext));
         felts
     }
 
@@ -313,7 +314,7 @@ impl CircuitConfig for OuterConfig {
             let to_add: Felt<_> = builder.uninit();
             let pow2 = builder.constant(Self::F::from_canonical_u32(1 << i));
             let zero = builder.constant(Self::F::zero());
-            builder.operations.push(DslIr::CircuitSelectF(bit, pow2, zero, to_add));
+            builder.push_op(DslIr::CircuitSelectF(bit, pow2, zero, to_add));
             builder.assign(result, result + to_add);
         }
         result
@@ -330,7 +331,7 @@ impl CircuitConfig for OuterConfig {
         zip(id_branch, swap_branch)
             .map(|(id_v, sw_v): (Felt<_>, Felt<_>)| -> Felt<_> {
                 let result: Felt<_> = builder.uninit();
-                builder.operations.push(DslIr::CircuitSelectF(should_swap, sw_v, id_v, result));
+                builder.push_op(DslIr::CircuitSelectF(should_swap, sw_v, id_v, result));
                 result
             })
             .collect()
@@ -347,7 +348,7 @@ impl CircuitConfig for OuterConfig {
         zip(id_branch, swap_branch)
             .map(|(id_v, sw_v): (Ext<_, _>, Ext<_, _>)| -> Ext<_, _> {
                 let result: Ext<_, _> = builder.uninit();
-                builder.operations.push(DslIr::CircuitSelectE(should_swap, sw_v, id_v, result));
+                builder.push_op(DslIr::CircuitSelectE(should_swap, sw_v, id_v, result));
                 result
             })
             .collect()
@@ -428,17 +429,17 @@ impl<C: CircuitConfig<F = BabyBear, N = Bn254Fr, Bit = Var<Bn254Fr>>> BabyBearFr
     }
 
     fn commit_recursion_public_values(
-        _builder: &mut Builder<C>,
-        _public_values: RecursionPublicValues<Felt<<C>::F>>,
+        builder: &mut Builder<C>,
+        public_values: RecursionPublicValues<Felt<<C>::F>>,
     ) {
-        // let committed_values_digest_bytes_felts: [Felt<_>; 32] =
-        //     words_to_bytes(&public_values.committed_value_digest).try_into().unwrap();
-        // let committed_values_digest_bytes: Var<_> =
-        //     felt_bytes_to_bn254_var(builder, &committed_values_digest_bytes_felts);
-        // builder.commit_commited_values_digest_circuit(committed_values_digest_bytes);
+        let committed_values_digest_bytes_felts: [Felt<_>; 32] =
+            words_to_bytes(&public_values.committed_value_digest).try_into().unwrap();
+        let committed_values_digest_bytes: Var<_> =
+            felt_bytes_to_bn254_var(builder, &committed_values_digest_bytes_felts);
+        builder.commit_commited_values_digest_circuit(committed_values_digest_bytes);
 
-        // let vkey_hash = felts_to_bn254_var(builder, &public_values.sp1_vk_digest);
-        // builder.commit_vkey_hash_circuit(vkey_hash);
+        let vkey_hash = felts_to_bn254_var(builder, &public_values.sp1_vk_digest);
+        builder.commit_vkey_hash_circuit(vkey_hash);
     }
 }
 

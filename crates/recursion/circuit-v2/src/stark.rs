@@ -47,9 +47,6 @@ pub struct MerkleProofVariable<C: CircuitConfig, HV: FieldHasherVariable<C>> {
 
 pub const EMPTY: usize = 0x_1111_1111;
 
-const CONSTRAINT_RED_ZONE: usize = 16 * 1024 * 1024;
-const CONSTRAINT_STACK_SIZE: usize = 16 * 1024 * 1024;
-
 #[derive(Debug, Clone, Copy)]
 pub struct StarkVerifier<C: Config, SC: StarkGenericConfig, A> {
     _phantom: std::marker::PhantomData<(C, SC, A)>,
@@ -222,19 +219,17 @@ where
             // Verify the shape of the opening arguments matches the expected values.
             Self::verify_opening_shape(chip, values).unwrap();
             // Verify the constraint evaluation.
-            stacker::maybe_grow(CONSTRAINT_RED_ZONE, CONSTRAINT_STACK_SIZE, || {
-                Self::verify_constraints(
-                    builder,
-                    chip,
-                    values,
-                    trace_domain,
-                    qc_domains,
-                    zeta,
-                    alpha,
-                    &permutation_challenges,
-                    public_values,
-                );
-            });
+            Self::verify_constraints(
+                builder,
+                chip,
+                values,
+                trace_domain,
+                qc_domains,
+                zeta,
+                alpha,
+                &permutation_challenges,
+                public_values,
+            );
         }
         builder.cycle_tracker_v2_exit();
     }
@@ -356,7 +351,7 @@ pub mod tests {
             let mut challenger = challenger.copy(&mut builder);
             StarkVerifier::verify_shard(&mut builder, &vk, &machine, &mut challenger, &proof);
         }
-        (builder.operations, witness_stream)
+        (builder.into_operations(), witness_stream)
     }
 
     #[test]

@@ -132,7 +132,7 @@ impl<C: CircuitConfig<F = BabyBear, N = Bn254Fr, Bit = Var<Bn254Fr>>> FieldHashe
                 let chunk = chunk.copied().collect::<Vec<_>>();
                 state[chunk_id] = reduce_32(builder, chunk.as_slice());
             }
-            builder.push(DslIr::CircuitPoseidon2Permute(state))
+            builder.push_op(DslIr::CircuitPoseidon2Permute(state))
         }
 
         [state[0]; BN254_DIGEST_SIZE]
@@ -144,7 +144,7 @@ impl<C: CircuitConfig<F = BabyBear, N = Bn254Fr, Bit = Var<Bn254Fr>>> FieldHashe
     ) -> Self::DigestVariable {
         let state: [Var<C::N>; SPONGE_SIZE] =
             [builder.eval(input[0][0]), builder.eval(input[1][0]), builder.eval(C::N::zero())];
-        builder.push(DslIr::CircuitPoseidon2Permute(state));
+        builder.push_op(DslIr::CircuitPoseidon2Permute(state));
         [state[0]; BN254_DIGEST_SIZE]
     }
 
@@ -163,12 +163,12 @@ impl<C: CircuitConfig<F = BabyBear, N = Bn254Fr, Bit = Var<Bn254Fr>>> FieldHashe
     ) -> [Self::DigestVariable; 2] {
         let result0: [Var<_>; BN254_DIGEST_SIZE] = core::array::from_fn(|j| {
             let result = builder.uninit();
-            builder.push(DslIr::CircuitSelectV(should_swap, input[1][j], input[0][j], result));
+            builder.push_op(DslIr::CircuitSelectV(should_swap, input[1][j], input[0][j], result));
             result
         });
         let result1: [Var<_>; BN254_DIGEST_SIZE] = core::array::from_fn(|j| {
             let result = builder.uninit();
-            builder.push(DslIr::CircuitSelectV(should_swap, input[0][j], input[1][j], result));
+            builder.push_op(DslIr::CircuitSelectV(should_swap, input[0][j], input[1][j], result));
             result
         });
 

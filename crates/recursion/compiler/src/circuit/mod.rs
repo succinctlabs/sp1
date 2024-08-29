@@ -86,7 +86,7 @@ mod tests {
             let _: Ext<_, _> = builder.eval(a + b);
         }
 
-        let operations = builder.operations;
+        let operations = builder.into_operations();
         let mut compiler = AsmCompiler::default();
         let program = Arc::new(compiler.compile(operations));
         let mut runtime = Runtime::<F, EF, DiffusionMatrixBabyBear>::new(
@@ -146,7 +146,7 @@ mod tests {
         let zero: Felt<_> = builder.constant(F::zero());
         builder.assert_felt_eq(y, zero);
 
-        let operations = builder.operations;
+        let operations = builder.into_operations();
         let mut compiler = AsmCompiler::default();
         let program = Arc::new(compiler.compile(operations));
         let mut runtime =
@@ -184,7 +184,7 @@ mod tests {
         let sum: Ext<_, _> = builder.eval(exts[0] + exts[1]);
         builder.assert_ext_ne(sum, exts[2]);
 
-        let operations = builder.operations;
+        let operations = builder.into_operations();
         let mut compiler = AsmCompiler::default();
         let program = Arc::new(compiler.compile(operations));
         let mut runtime =

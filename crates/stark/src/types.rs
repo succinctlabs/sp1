@@ -39,13 +39,17 @@ pub struct ShardCommitment<C> {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "T: Serialize"))]
+#[serde(bound(deserialize = "T: Deserialize<'de>"))]
 pub struct AirOpenedValues<T> {
     pub local: Vec<T>,
     pub next: Vec<T>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ChipOpenedValues<T: Serialize> {
+#[serde(bound(serialize = "T: Serialize"))]
+#[serde(bound(deserialize = "T: Deserialize<'de>"))]
+pub struct ChipOpenedValues<T> {
     pub preprocessed: AirOpenedValues<T>,
     pub main: AirOpenedValues<T>,
     pub permutation: AirOpenedValues<T>,
@@ -55,7 +59,7 @@ pub struct ChipOpenedValues<T: Serialize> {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ShardOpenedValues<T: Serialize> {
+pub struct ShardOpenedValues<T> {
     pub chips: Vec<ChipOpenedValues<T>>,
 }
 
