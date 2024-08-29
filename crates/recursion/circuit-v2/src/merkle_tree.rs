@@ -102,24 +102,23 @@ impl<F: Field, HV: FieldHasher<F>> MerkleTree<F, HV> {
         value: HV::Digest,
         commitment: HV::Digest,
     ) -> Result<(), VcsError> {
-        // let MerkleProof { index, path } = proof;
+        let MerkleProof { index, path } = proof;
 
-        // let mut value = value;
+        let mut value = value;
 
-        // let mut index = reverse_bits_len(index, path.len());
+        let mut index = reverse_bits_len(index, path.len());
 
-        // for sibling in path {
-        //     // If the index is odd, swap the order of [value, sibling].
-        //     let new_pair = if index % 2 == 0 { [value, sibling] } else { [sibling, value] };
-        //     value = HV::constant_compress(new_pair);
-        //     index >>= 1;
-        // }
-        // if value == commitment {
-        //     Ok(())
-        // } else {
-        //     Err(VcsError)
-        // }
-        Ok(())
+        for sibling in path {
+            // If the index is odd, swap the order of [value, sibling].
+            let new_pair = if index % 2 == 0 { [value, sibling] } else { [sibling, value] };
+            value = HV::constant_compress(new_pair);
+            index >>= 1;
+        }
+        if value == commitment {
+            Ok(())
+        } else {
+            Err(VcsError)
+        }
     }
 }
 
@@ -129,15 +128,15 @@ pub fn verify<C: CircuitConfig, HV: FieldHasherVariable<C>>(
     value: HV::DigestVariable,
     commitment: HV::DigestVariable,
 ) {
-    // let mut value = value;
-    // for (sibling, bit) in proof.path.iter().zip(proof.index.iter().rev()) {
-    //     let sibling = *sibling;
+    let mut value = value;
+    for (sibling, bit) in proof.path.iter().zip(proof.index.iter().rev()) {
+        let sibling = *sibling;
 
-    //     // If the index is odd, swap the order of [value, sibling].
-    //     let new_pair = HV::select_chain_digest(builder, *bit, [value, sibling]);
-    //     value = HV::compress(builder, new_pair);
-    // }
-    // HV::assert_digest_eq(builder, value, commitment);
+        // If the index is odd, swap the order of [value, sibling].
+        let new_pair = HV::select_chain_digest(builder, *bit, [value, sibling]);
+        value = HV::compress(builder, new_pair);
+    }
+    HV::assert_digest_eq(builder, value, commitment);
 }
 
 #[cfg(test)]

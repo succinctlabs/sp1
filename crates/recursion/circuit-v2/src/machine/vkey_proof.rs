@@ -4,6 +4,7 @@ use itertools::Itertools;
 use p3_air::Air;
 use p3_baby_bear::BabyBear;
 use p3_commit::Mmcs;
+use p3_field::AbstractField;
 use p3_matrix::dense::RowMajorMatrix;
 use sp1_recursion_compiler::ir::{Builder, Felt};
 use sp1_recursion_core_v2::DIGEST_SIZE;
@@ -117,8 +118,15 @@ where
         machine: &StarkMachine<SC, A>,
         input: SP1CompressWithVKeyWitnessVariable<C, SC>,
     ) {
-        let values =
-            input.compress_var.vks_and_proofs.iter().map(|(vk, _)| vk.hash(builder)).collect_vec();
+        // These are dummy values.
+        let values = input
+            .compress_var
+            .vks_and_proofs
+            .iter()
+            .map(|(_, _)| [builder.constant(BabyBear::zero()); DIGEST_SIZE])
+            .collect_vec();
+        // TODO: comment back in.
+        //     input.compress_var.vks_and_proofs.iter().map(|(vk, _)| vk.hash(builder)).collect_vec();
         SP1MerkleProofVerifier::verify(builder, values, input.merkle_var);
         SP1CompressVerifier::verify(builder, machine, input.compress_var);
     }

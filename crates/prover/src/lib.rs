@@ -176,7 +176,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         )
         .expect("PROVER_COMPRESS_CACHE_SIZE must be a non-zero usize");
 
-        let allowed_vkeys = vec![<InnerSC as FieldHasher<BabyBear>>::Digest::default()];
+        let allowed_vkeys = vec![<InnerSC as FieldHasher<BabyBear>>::Digest::default(); 1 << 16];
 
         let (root, merkle_tree) = MerkleTree::commit(allowed_vkeys.clone());
 
@@ -1021,14 +1021,8 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         input: SP1CompressWitnessValues<CoreSC>,
     ) -> SP1CompressWithVKeyWitnessValues<CoreSC>
 where {
-        // TODO: make a index based on the key itself.
-        let vk_indices = input
-            .vks_and_proofs
-            .iter()
-            .map(|(vk, _)| {
-                self.allowed_vkeys.iter().position(|x| *x == vk.hash_babybear()).unwrap_or(0)
-            })
-            .collect_vec();
+        // TODO: make an index based on the key itself.
+        let vk_indices = input.vks_and_proofs.iter().map(|(_, _)| 0).collect_vec();
 
         let proofs = vk_indices
             .iter()
