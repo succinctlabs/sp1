@@ -7,10 +7,20 @@ use std::{
 
 use rand::{thread_rng, Rng};
 #[derive(Deserialize, Serialize, Debug, Clone, Copy, Default, Eq, Hash, PartialEq)]
+/// A lookup id for the ALU.
+/// This is used to identify the lookup table used by the ALU.
+/// The ALU uses 6 lookup tables, each identified by a unique id.
+/// The id is used to generate the lookup table.
+/// The id is generated randomly and is unique.
+/// We are using 4 u32 to generate the id to make this compatible with a c struct
 pub struct LookupId {
+    /// First part of the id.
     pub a: u32,
+    /// Second part of the id.
     pub b: u32,
+    /// Third part of the id.
     pub c: u32,
+    /// Fourth part of the id.
     pub d: u32,
 }
 
@@ -21,7 +31,7 @@ pub struct LookupId {
 //     rng.gen()
 // }
 
-/// Creates a new ALU lookup id with LookupId4
+/// Creates a new ALU lookup id with ``LookupId``
 #[must_use]
 pub fn create_alu_lookup_id() -> LookupId {
     let mut rng = thread_rng();
@@ -35,7 +45,7 @@ pub fn create_alu_lookup_id() -> LookupId {
 //     [rng.gen(), rng.gen(), rng.gen(), rng.gen(), rng.gen(), rng.gen()]
 // }
 
-/// Creates a new ALU lookup id with LookupId4
+/// Creates a new ALU lookup id with ``LookupId``
 #[must_use]
 pub fn create_alu_lookups() -> [LookupId; 6] {
     let mut rng = thread_rng();

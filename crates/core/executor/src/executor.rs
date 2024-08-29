@@ -9,12 +9,11 @@ use nohash_hasher::BuildNoHashHasher;
 use serde::{Deserialize, Serialize};
 use sp1_stark::SP1CoreOpts;
 use thiserror::Error;
-use tracing::event;
 
 use crate::{
     context::SP1Context,
     events::{
-        self, create_alu_lookup_id, create_alu_lookups, AluEvent, CpuEvent, LookupId,
+        create_alu_lookup_id, create_alu_lookups, AluEvent, CpuEvent, LookupId,
         MemoryAccessPosition, MemoryInitializeFinalizeEvent, MemoryReadRecord, MemoryRecord,
         MemoryWriteRecord,
     },
