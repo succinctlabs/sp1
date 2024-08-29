@@ -262,3 +262,35 @@ jobs:
             --branch-name "${{ github.head_ref || github.ref_name }}" \
             --commit-hash "${{ github.sha }}" \
             --author "${{ github.event.pull_request.user.login || github.actor }}"
+              
+  memory:
+    name: Memory
+    runs-on: [runs-on, runner=8cpu-linux-x64, "run-id=${{ github.run_id }}"]
+    env:
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+
+      - name: Setup CI
+        uses: ./.github/actions/setup
+
+      - name: Install SP1 toolchain
+        run: |
+          curl -L https://sp1.succinct.xyz | bash
+          ~/.sp1/bin/sp1up 
+          ~/.sp1/bin/cargo-prove prove --version
+      
+      - name: Set memory limit to 16 GB
+        run: | 
+          ulimit -v 16000000
+
+      - name: Run script
+        run: |
+          cd examples/tendermint/program
+          cargo add sp1-zkvm --path $GITHUB_WORKSPACE/crates/zkvm/entrypoint
+          cargo prove build
+          cd ../script
+          cargo remove sp1-sdk
+          cargo add sp1-sdk --path $GITHUB_WORKSPACE/crates/sdk
+          SP1_DEV=1 RUST_LOG=info cargo run --release
