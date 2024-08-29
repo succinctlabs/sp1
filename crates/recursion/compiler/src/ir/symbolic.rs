@@ -346,28 +346,45 @@ impl<F: Field, EF: ExtensionField<F>, E: ExtensionOperand<F, EF>> Add<E> for Sym
                 SymbolicFelt::Val(rhs) => {
                     let mut ext_handle: ExtHandle<F, EF> = EMPTY_OPS.ext_handle();
                     unsafe { (*rhs.handle).e_handle(&mut ext_handle as *mut _ as *mut ()) };
-                    unimplemented!()
+                    let res = ext_handle.add_f_const_e(rhs, lhs);
+                    Self::Val(res)
                 }
             },
-            (Self::Base(lhs), Self::Const(rhs)) => {
-                todo!()
-            }
+            (Self::Base(lhs), Self::Const(rhs)) => match lhs {
+                SymbolicFelt::Const(lhs) => Self::Const(rhs + lhs),
+                SymbolicFelt::Val(lhs) => {
+                    let mut ext_handle: ExtHandle<F, EF> = EMPTY_OPS.ext_handle();
+                    unsafe { (*lhs.handle).e_handle(&mut ext_handle as *mut _ as *mut ()) };
+                    let res = ext_handle.add_f_const_e(lhs, rhs);
+                    Self::Val(res)
+                }
+            },
 
             (Self::Val(lhs), Self::Val(rhs)) => {
                 let res = unsafe { (*lhs.handle).add_e(lhs, rhs) };
                 Self::Val(res)
             }
             (Self::Base(lhs), Self::Base(rhs)) => Self::Base(lhs + rhs),
-            (Self::Base(lhs), Self::Val(rhs)) => {
-                todo!()
-                // let res = unsafe { (*rhs.handle).add_e_f(rhs, lhs) };
-                // Self::Val(res)
-            }
-            (Self::Val(lhs), Self::Base(rhs)) => {
-                todo!()
-                // let res = unsafe { (*lhs.handle).add_f_e(lhs, rhs) };
-                // Self::Val(res)
-            }
+            (Self::Base(lhs), Self::Val(rhs)) => match lhs {
+                SymbolicFelt::Const(lhs) => {
+                    let res = unsafe { (*rhs.handle).add_const_e(rhs, EF::from_base(lhs)) };
+                    Self::Val(res)
+                }
+                SymbolicFelt::Val(lhs) => {
+                    let res = unsafe { (*rhs.handle).add_e_f(rhs, lhs) };
+                    Self::Val(res)
+                }
+            },
+            (Self::Val(lhs), Self::Base(rhs)) => match rhs {
+                SymbolicFelt::Const(rhs) => {
+                    let res = unsafe { (*lhs.handle).add_const_e(lhs, EF::from_base(rhs)) };
+                    Self::Val(res)
+                }
+                SymbolicFelt::Val(rhs) => {
+                    let res = unsafe { (*lhs.handle).add_e_f(lhs, rhs) };
+                    Self::Val(res)
+                }
+            },
         }
     }
 }

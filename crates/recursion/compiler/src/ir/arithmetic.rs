@@ -61,6 +61,7 @@ pub struct ExtHandle<F, EF> {
 
     add_ext_base: fn(*mut (), Ext<F, EF>, Felt<F>) -> Ext<F, EF>,
     add_const_base: fn(*mut (), Ext<F, EF>, F) -> Ext<F, EF>,
+    add_felt_const_ext: fn(*mut (), Felt<F>, EF) -> Ext<F, EF>,
 
     sub_ext_base: fn(*mut (), Ext<F, EF>, Felt<F>) -> Ext<F, EF>,
 }
@@ -141,6 +142,8 @@ pub(crate) trait ExtOperations<F, EF> {
     fn add_const_base(ptr: *mut (), lhs: Ext<F, EF>, rhs: F) -> Ext<F, EF>;
     fn neg_ext(ptr: *mut (), lhs: Ext<F, EF>) -> Ext<F, EF>;
 
+    fn add_felt_const_ext(ptr: *mut (), lhs: Felt<F>, rhs: EF) -> Ext<F, EF>;
+
     fn ext_handle(&self) -> ExtHandle<F, EF> {
         ExtHandle {
             ptr: self as *const Self as *mut (),
@@ -152,6 +155,7 @@ pub(crate) trait ExtOperations<F, EF> {
             neg_ext: Self::neg_ext,
             sub_ext_base: Self::sub_ext_base,
             add_ext_base: Self::add_ext_base,
+            add_felt_const_ext: Self::add_felt_const_ext,
         }
     }
 }
@@ -508,6 +512,20 @@ impl<C: Config> ExtOperations<C::F, C::EF> for UnsafeCell<InnerBuilder<C>> {
 
         res
     }
+
+    fn add_felt_const_ext(ptr: *mut (), lhs: Felt<C::F>, rhs: C::EF) -> Ext<C::F, C::EF> {
+        let inner: &mut Self = unsafe { &mut *(ptr as *mut Self) };
+
+        let idx = inner.get_mut().variable_count;
+        let res = Ext::new(idx, ptr as *mut _);
+
+        let inner = inner.get_mut();
+
+        inner.variable_count += 1;
+        inner.operations.push(DslIr::AddEFFI(res, lhs, rhs));
+
+        res
+    }
 }
 
 impl<N> VarOperations<N> for EmptyOperations {
@@ -630,6 +648,10 @@ impl<F, EF> ExtOperations<F, EF> for EmptyOperations {
     fn add_const_ext(_ptr: *mut (), _lhs: Ext<F, EF>, _rhs: EF) -> Ext<F, EF> {
         unimplemented!()
     }
+
+    fn add_felt_const_ext(_ptr: *mut (), _lhs: Felt<F>, _rhs: EF) -> Ext<F, EF> {
+        unimplemented!()
+    }
 }
 
 impl<N> VarHandle<N> {
@@ -743,5 +765,9 @@ impl<F, EF> ExtHandle<F, EF> {
 
     pub fn add_e_const_f(&self, lhs: Ext<F, EF>, rhs: F) -> Ext<F, EF> {
         (self.add_const_base)(self.ptr, lhs, rhs)
+    }
+
+    pub fn add_f_const_e(&self, lhs: Felt<F>, rhs: EF) -> Ext<F, EF> {
+        (self.add_felt_const_ext)(self.ptr, lhs, rhs)
     }
 }
