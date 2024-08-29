@@ -2,15 +2,13 @@ use cfg_if::cfg_if;
 use std::path::PathBuf;
 
 #[cfg(feature = "network")]
-use crate::block_on;
-#[cfg(feature = "network")]
-use futures::StreamExt;
-#[cfg(feature = "network")]
-use indicatif::{ProgressBar, ProgressStyle};
-#[cfg(feature = "network")]
-use reqwest::Client;
-#[cfg(feature = "network")]
-use std::{cmp::min, io::Write, process::Command};
+use {
+    crate::block_on,
+    futures::StreamExt,
+    indicatif::{ProgressBar, ProgressStyle},
+    reqwest::Client,
+    std::{cmp::min, io::Write, process::Command},
+};
 
 use crate::SP1_CIRCUIT_VERSION;
 

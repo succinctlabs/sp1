@@ -3,13 +3,12 @@ use std::path::PathBuf;
 use anyhow::{Context, Result};
 
 #[cfg(feature = "network")]
-use futures::StreamExt;
-#[cfg(feature = "network")]
-use indicatif::{ProgressBar, ProgressStyle};
-#[cfg(feature = "network")]
-use reqwest::Client;
-#[cfg(feature = "network")]
-use std::{cmp::min, fs::File, io::Write};
+use {
+    futures::StreamExt,
+    indicatif::{ProgressBar, ProgressStyle},
+    reqwest::Client,
+    std::{cmp::min, fs::File, io::Write},
+};
 
 pub use sp1_prover::build::build_plonk_bn254_artifacts_with_dummy;
 

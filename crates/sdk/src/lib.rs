@@ -34,9 +34,7 @@ use sp1_prover::components::DefaultProverComponents;
 use std::env;
 
 #[cfg(feature = "network")]
-use std::future::Future;
-#[cfg(feature = "network")]
-use tokio::task::block_in_place;
+use {std::future::Future, tokio::task::block_in_place};
 
 pub use provers::{CpuProver, MockProver, Prover};
 
