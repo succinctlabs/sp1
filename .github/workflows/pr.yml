@@ -247,7 +247,7 @@ jobs:
           ~/.sp1/bin/sp1up 
           ~/.sp1/bin/cargo-prove prove --version
 
-      - name: Build program and run script
+      - name: Run Evaluation
         run: |
           cd crates/eval
           RUSTFLAGS='-C target-cpu=native' cargo run --release -- \
@@ -260,7 +260,6 @@ jobs:
             --repo-owner "${{ github.repository_owner }}" \
             --repo-name "${{ github.event.repository.name }}" \
             --pr-number "${{ github.event.pull_request.number }}" \
-            --pr-name "${{ github.event.pull_request.title }}" \
             --branch-name "${{ github.head_ref || github.ref_name }}" \
             --commit-hash "${{ github.sha }}" \
             --author "${{ github.event.pull_request.user.login || github.actor }}"
