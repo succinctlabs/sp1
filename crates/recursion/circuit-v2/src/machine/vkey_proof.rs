@@ -7,7 +7,9 @@ use p3_commit::Mmcs;
 use p3_matrix::dense::RowMajorMatrix;
 use sp1_recursion_compiler::ir::{Builder, Felt};
 use sp1_recursion_core_v2::DIGEST_SIZE;
-use sp1_stark::{air::MachineAir, StarkGenericConfig, StarkMachine};
+use sp1_stark::{
+    air::MachineAir, Com, InnerChallenge, OpeningProof, StarkGenericConfig, StarkMachine,
+};
 
 use crate::{
     challenger::DuplexChallengerVariable,
@@ -15,10 +17,13 @@ use crate::{
     hash::{FieldHasher, FieldHasherVariable},
     merkle_tree::{verify, MerkleProof},
     stark::MerkleProofVariable,
-    BabyBearFriConfigVariable, CircuitConfig,
+    witness::{WitnessWriter, Witnessable},
+    BabyBearFriConfig, BabyBearFriConfigVariable, CircuitConfig, TwoAdicPcsProofVariable,
 };
 
-use super::{SP1CompressVerifier, SP1CompressWitnessValues, SP1CompressWitnessVariable};
+use super::{
+    SP1CompressShape, SP1CompressVerifier, SP1CompressWitnessValues, SP1CompressWitnessVariable,
+};
 
 /// A program to verify a batch of recursive proofs and aggregate their public values.
 #[derive(Debug, Clone, Copy)]
@@ -116,5 +121,35 @@ where
             input.compress_var.vks_and_proofs.iter().map(|(vk, _)| vk.hash(builder)).collect_vec();
         SP1MerkleProofVerifier::verify(builder, values, input.merkle_var);
         SP1CompressVerifier::verify(builder, machine, input.compress_var);
+    }
+}
+
+impl<SC: BabyBearFriConfig + FieldHasher<BabyBear>> SP1CompressWithVKeyWitnessValues<SC> {
+    pub fn shape(&self) -> SP1CompressShape {
+        self.compress_val.shape()
+    }
+}
+
+impl<C: CircuitConfig<F = BabyBear, EF = InnerChallenge>, SC: BabyBearFriConfigVariable<C>>
+    Witnessable<C> for SP1CompressWithVKeyWitnessValues<SC>
+where
+    Com<SC>: Witnessable<C, WitnessVariable = <SC as FieldHasherVariable<C>>::DigestVariable>,
+    // As for `SP1MerkleProofWitnessValues`, this is a redundant trait bound.
+    SC: FieldHasher<BabyBear>,
+    <SC as FieldHasher<BabyBear>>::Digest: Witnessable<C, WitnessVariable = SC::DigestVariable>,
+    OpeningProof<SC>: Witnessable<C, WitnessVariable = TwoAdicPcsProofVariable<C, SC>>,
+{
+    type WitnessVariable = SP1CompressWithVKeyWitnessVariable<C, SC>;
+
+    fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
+        SP1CompressWithVKeyWitnessVariable {
+            compress_var: self.compress_val.read(builder),
+            merkle_var: self.merkle_val.read(builder),
+        }
+    }
+
+    fn write(&self, witness: &mut impl WitnessWriter<C>) {
+        self.compress_val.write(witness);
+        self.merkle_val.write(witness);
     }
 }
