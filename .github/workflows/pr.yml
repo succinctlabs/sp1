@@ -152,7 +152,15 @@ jobs:
           args: --all-features --all-targets -- -D warnings -A incomplete-features
         env:
           CARGO_INCREMENTAL: 1
-          
+
+      - name: Add wasm target
+        uses: actions-rs/rustup@v1
+        with:
+          command: target
+          args: add wasm32-unknown-unknown
+        env:
+          CARGO_INCREMENTAL: 1
+
       - name: Check wasm compatibility for sdk
         uses: actions-rs/cargo@v1
         with:
