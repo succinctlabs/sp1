@@ -15,7 +15,7 @@ serde = { version = "1.0.204", features = ["derive"] }
 serde_json = "1.0.121"
 twirp = { package = "twirp-rs", version = "0.3.0-succinct" , optional=true }
 async-trait = "0.1.81"
-reqwest-middleware = {version = "0.3.2", optional = true }
+reqwest-middleware = { version = "0.3.2", optional = true }
 reqwest = { version = "0.12.4", features = [
   "rustls-tls",
   "trust-dns",
@@ -37,7 +37,7 @@ indicatif = "0.17.8"
 tracing = "0.1.40"
 hex = "0.4.3"
 log = "0.4.22"
-axum = {version = "=0.7.4", optional = true }
+axum = { version = "=0.7.4", optional = true }
 alloy-sol-types = { version = "0.7.7", optional = true }
 sha2 = "0.10.8"
 dirs = "5.0.1"

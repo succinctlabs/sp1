@@ -31,7 +31,10 @@ pub use proof::*;
 pub use provers::SP1VerificationError;
 use sp1_prover::components::DefaultProverComponents;
 
-use std::{env, future::Future};
+use std::env;
+
+#[cfg(feature = "network")]
+use std::future::Future;
 #[cfg(feature = "network")]
 use tokio::task::block_in_place;
 
