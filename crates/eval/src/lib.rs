@@ -178,16 +178,16 @@ fn run_evaluation<C: SP1ProverComponents>(
 fn format_results(args: &EvalArgs, results: &[PerformanceReport]) -> Vec<String> {
     let mut detail_text = String::new();
     if let Some(pr_name) = &args.pr_name {
-        detail_text.push_str(&format!("**PR**: {}\n", pr_name));
+        detail_text.push_str(&format!("*PR*: {}\n", pr_name));
     }
     if let Some(branch_name) = &args.branch_name {
-        detail_text.push_str(&format!("**Branch**: {}\n", branch_name));
+        detail_text.push_str(&format!("*Branch*: {}\n", branch_name));
     }
     if let Some(commit_hash) = &args.commit_hash {
-        detail_text.push_str(&format!("**Commit**: {}\n", &commit_hash[..8]));
+        detail_text.push_str(&format!("*Commit*: {}\n", &commit_hash[..8]));
     }
     if let Some(author) = &args.author {
-        detail_text.push_str(&format!("**Author**: {}\n", author));
+        detail_text.push_str(&format!("*Author*: {}\n", author));
     }
 
     let mut table_text = String::new();
@@ -209,7 +209,7 @@ fn format_results(args: &EvalArgs, results: &[PerformanceReport]) -> Vec<String>
     }
     table_text.push_str("\n```");
 
-    vec!["**SP1 Performance Test Results**\n".to_string(), detail_text, table_text]
+    vec!["*SP1 Performance Test Results*\n".to_string(), detail_text, table_text]
 }
 
 pub fn time_operation<T, F: FnOnce() -> T>(operation: F) -> (T, Duration) {
@@ -259,12 +259,14 @@ fn format_github_message(results_text: &[String]) -> String {
     let mut formatted_message = String::new();
 
     if let Some(title) = results_text.first() {
-        formatted_message.push_str(title);
+        // Add an extra asterisk for GitHub bold formatting
+        formatted_message.push_str(&title.replace('*', "**"));
         formatted_message.push('\n');
     }
 
     if let Some(details) = results_text.get(1) {
-        formatted_message.push_str(details);
+        // Add an extra asterisk for GitHub bold formatting
+        formatted_message.push_str(&details.replace('*', "**"));
         formatted_message.push('\n');
     }
 
@@ -392,10 +394,10 @@ mod tests {
 
         assert_eq!(formatted_results.len(), 3);
         assert!(formatted_results[0].contains("SP1 Performance Test Results"));
-        assert!(formatted_results[1].contains("**PR**: Test PR"));
-        assert!(formatted_results[1].contains("**Branch**: feature-branch"));
-        assert!(formatted_results[1].contains("**Commit**: abcdef12"));
-        assert!(formatted_results[1].contains("**Author**: John Doe"));
+        assert!(formatted_results[1].contains("*PR*: Test PR"));
+        assert!(formatted_results[1].contains("*Branch*: feature-branch"));
+        assert!(formatted_results[1].contains("*Commit*: abcdef12"));
+        assert!(formatted_results[1].contains("*Author*: John Doe"));
         assert!(formatted_results[2].contains("fibonacci"));
         assert!(formatted_results[2].contains("super-program"));
     }
