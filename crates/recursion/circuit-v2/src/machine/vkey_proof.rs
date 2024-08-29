@@ -69,13 +69,8 @@ where
         builder: &mut Builder<C>,
         digests: Vec<SC::DigestVariable>,
         input: SP1MerkleProofWitnessVariable<C, SC>,
-        // TODO: add vk correctness check.
-        // vk_root: SC::Digest,
-        // Inclusion proof for the compressed vk.
-        // vk_inclusion_proof: SP1MerkleProofWitnessVariable<C, SC>,
     ) {
         for (proof, value) in input.vk_merkle_proofs.into_iter().zip(digests) {
-            // SC::assert_digest_eq(builder, *root, SC::hash(builder, &proof.root));
             verify(builder, proof, value, input.root);
         }
     }
@@ -142,7 +137,7 @@ impl<C: CircuitConfig<F = BabyBear, EF = InnerChallenge>, SC: BabyBearFriConfigV
     Witnessable<C> for SP1CompressWithVKeyWitnessValues<SC>
 where
     Com<SC>: Witnessable<C, WitnessVariable = <SC as FieldHasherVariable<C>>::DigestVariable>,
-    // As for `SP1MerkleProofWitnessValues`, this is a redundant trait bound.
+    // This trait bound is redundant, but Rust-Analyzer is not able to infer it.
     SC: FieldHasher<BabyBear>,
     <SC as FieldHasher<BabyBear>>::Digest: Witnessable<C, WitnessVariable = SC::DigestVariable>,
     OpeningProof<SC>: Witnessable<C, WitnessVariable = TwoAdicPcsProofVariable<C, SC>>,
