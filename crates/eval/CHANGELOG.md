@@ -6,7 +6,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.2.0-rc.2](https://github.com/succinctlabs/sp1/compare/sp1-eval-v1.2.0-rc1...sp1-eval-v1.2.0-rc.2) - 2024-08-29
+## [1.2.0-rc2](https://github.com/succinctlabs/sp1/compare/sp1-eval-v1.2.0-rc1...sp1-eval-v1.2.0-rc2) - 2024-08-29
 
 ### Added
 - performance test + add to CI ([#1426](https://github.com/succinctlabs/sp1/pull/1426))
