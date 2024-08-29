@@ -55,7 +55,7 @@ impl<P: FpOpField> Syscall for FpOpSyscall<P> {
         rt.clk += 1;
         let x_memory_records = rt.mw_slice(x_ptr, &result);
 
-        let lookup_id = rt.syscall_lookup_id as usize;
+        let lookup_id = rt.syscall_lookup_id;
         let shard = rt.current_shard();
         let channel = rt.current_channel();
         match P::FIELD_TYPE {
