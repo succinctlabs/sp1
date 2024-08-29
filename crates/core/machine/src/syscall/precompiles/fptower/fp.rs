@@ -8,7 +8,7 @@ use crate::air::MemoryAirBuilder;
 use generic_array::GenericArray;
 use itertools::Itertools;
 use num::{BigUint, Zero};
-use p3_air::{Air, BaseAir};
+use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use sp1_core_executor::{
@@ -202,11 +202,18 @@ where
         let main = builder.main();
         let local = main.row_slice(0);
         let local: &FpOpCols<AB::Var, P> = (*local).borrow();
+        let next = main.row_slice(1);
+        let next: &FpOpCols<AB::Var, P> = (*next).borrow();
+
+        // Check that nonce is incremented.
+        builder.when_first_row().assert_zero(local.nonce);
+        builder.when_transition().assert_eq(local.nonce + AB::Expr::one(), next.nonce);
 
         // Check that operations flags are boolean.
         builder.assert_bool(local.is_add);
         builder.assert_bool(local.is_sub);
         builder.assert_bool(local.is_mul);
+
         // Check that only one of them is set.
         builder.assert_eq(local.is_add + local.is_sub + local.is_mul, AB::Expr::one());
 
