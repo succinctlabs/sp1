@@ -15,8 +15,8 @@ use sp1_recursion_core_v2::stark::config::{
 };
 
 use crate::{
-    BatchOpeningVariable, FriCommitPhaseProofStepVariable, FriProofVariable, FriQueryProofVariable,
-    TwoAdicPcsProofVariable,
+    BatchOpeningVariable, CircuitConfig, FriCommitPhaseProofStepVariable, FriProofVariable,
+    FriQueryProofVariable, TwoAdicPcsProofVariable,
 };
 
 use super::{WitnessWriter, Witnessable};
@@ -39,13 +39,13 @@ impl WitnessWriter<OuterConfig> for OuterWitness<OuterConfig> {
     }
 }
 
-impl Witnessable<OuterConfig> for Bn254Fr {
+impl<C: CircuitConfig<N = Bn254Fr>> Witnessable<C> for Bn254Fr {
     type WitnessVariable = Var<Bn254Fr>;
 
-    fn read(&self, builder: &mut Builder<OuterConfig>) -> Self::WitnessVariable {
+    fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
         builder.witness_var()
     }
-    fn write(&self, witness: &mut impl WitnessWriter<OuterConfig>) {
+    fn write(&self, witness: &mut impl WitnessWriter<C>) {
         witness.write_var(*self)
     }
 }

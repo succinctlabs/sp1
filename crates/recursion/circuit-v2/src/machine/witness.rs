@@ -1,5 +1,6 @@
 use std::borrow::Borrow;
 
+use p3_baby_bear::BabyBear;
 use p3_challenger::DuplexChallenger;
 use p3_symmetric::Hash;
 
@@ -14,14 +15,17 @@ use sp1_recursion_compiler::ir::Felt;
 
 use crate::{
     challenger::DuplexChallengerVariable,
-    hash::FieldHasherVariable,
+    hash::{FieldHasher, FieldHasherVariable},
+    merkle_tree::MerkleProof,
+    stark::MerkleProofVariable,
     witness::{WitnessWriter, Witnessable},
     BabyBearFriConfigVariable, CircuitConfig, TwoAdicPcsProofVariable, VerifyingKeyVariable,
 };
 
 use super::{
     SP1CompressWitnessValues, SP1CompressWitnessVariable, SP1DeferredWitnessValues,
-    SP1DeferredWitnessVariable, SP1RecursionWitnessValues, SP1RecursionWitnessVariable,
+    SP1DeferredWitnessVariable, SP1MerkleProofWitnessValues, SP1MerkleProofWitnessVariable,
+    SP1RecursionWitnessValues, SP1RecursionWitnessVariable,
 };
 
 impl<C: CircuitConfig, T: Witnessable<C>> Witnessable<C> for Word<T> {
@@ -216,5 +220,56 @@ where
         self.init_addr_bits.write(witness);
         self.finalize_addr_bits.write(witness);
         self.is_complete.write(witness);
+    }
+}
+
+impl<C: CircuitConfig, HV: FieldHasherVariable<C>> Witnessable<C> for MerkleProof<C::F, HV>
+where
+    HV::Digest: Witnessable<C, WitnessVariable = HV::DigestVariable>,
+{
+    type WitnessVariable = MerkleProofVariable<C, HV>;
+
+    fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
+        let mut bits = vec![];
+        let mut index = self.index;
+        for _ in 0..self.path.len() {
+            bits.push(index % 2 == 1);
+            index >>= 1;
+        }
+        let index_bits = bits.read(builder);
+        let path = self.path.read(builder);
+
+        MerkleProofVariable { index: index_bits, path }
+    }
+
+    fn write(&self, witness: &mut impl WitnessWriter<C>) {
+        let mut index = self.index;
+        for _ in 0..self.path.len() {
+            (index % 2 == 1).write(witness);
+            index >>= 1;
+        }
+        self.path.write(witness);
+    }
+}
+
+impl<C: CircuitConfig<F = BabyBear>, SC: BabyBearFriConfigVariable<C>> Witnessable<C>
+    for SP1MerkleProofWitnessValues<SC>
+where
+    // This trait bound is redundant, but Rust-Analyzer is not able to infer it.
+    SC: FieldHasher<BabyBear>,
+    <SC as FieldHasher<BabyBear>>::Digest: Witnessable<C, WitnessVariable = SC::DigestVariable>,
+{
+    type WitnessVariable = SP1MerkleProofWitnessVariable<C, SC>;
+
+    fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
+        SP1MerkleProofWitnessVariable {
+            vk_merkle_proofs: self.vk_merkle_proofs.read(builder),
+            root: self.root.read(builder),
+        }
+    }
+
+    fn write(&self, witness: &mut impl WitnessWriter<C>) {
+        self.vk_merkle_proofs.write(witness);
+        self.root.write(witness);
     }
 }

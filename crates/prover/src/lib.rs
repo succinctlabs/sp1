@@ -30,6 +30,7 @@ use std::{
     thread,
 };
 
+use itertools::Itertools;
 use lru::LruCache;
 
 use tracing::instrument;
@@ -69,11 +70,14 @@ use sp1_recursion_core_v2::{
 };
 
 use sp1_recursion_circuit_v2::{
+    hash::FieldHasher,
     machine::{
-        SP1CompressShape, SP1CompressVerifier, SP1CompressWitnessValues, SP1DeferredVerifier,
-        SP1DeferredWitnessValues, SP1RecursionShape, SP1RecursionWitnessValues,
-        SP1RecursiveVerifier,
+        SP1CompressShape, SP1CompressVerifier, SP1CompressWithVKeyVerifier,
+        SP1CompressWithVKeyWitnessValues, SP1CompressWitnessValues, SP1DeferredVerifier,
+        SP1DeferredWitnessValues, SP1MerkleProofWitnessValues, SP1RecursionShape,
+        SP1RecursionWitnessValues, SP1RecursiveVerifier,
     },
+    merkle_tree::MerkleTree,
     witness::Witnessable,
 };
 
@@ -125,6 +129,12 @@ pub struct SP1Prover<C: SP1ProverComponents = DefaultProverComponents> {
     pub compress_programs: Mutex<LruCache<SP1CompressShape, Arc<RecursionProgram<BabyBear>>>>,
 
     pub compress_cache_misses: AtomicUsize,
+
+    pub root: <InnerSC as FieldHasher<BabyBear>>::Digest,
+
+    pub allowed_vkeys: Vec<<InnerSC as FieldHasher<BabyBear>>::Digest>,
+
+    pub merkle_tree: MerkleTree<BabyBear, InnerSC>,
 }
 
 impl<C: SP1ProverComponents> SP1Prover<C> {
@@ -166,6 +176,10 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         )
         .expect("PROVER_COMPRESS_CACHE_SIZE must be a non-zero usize");
 
+        let allowed_vkeys = vec![<InnerSC as FieldHasher<BabyBear>>::Digest::default(); 1 << 16];
+
+        let (root, merkle_tree) = MerkleTree::commit(allowed_vkeys.clone());
+
         Self {
             core_prover,
             compress_prover,
@@ -175,6 +189,9 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             recursion_cache_misses: AtomicUsize::new(0),
             compress_programs: Mutex::new(LruCache::new(compress_cache_size)),
             compress_cache_misses: AtomicUsize::new(0),
+            root,
+            merkle_tree,
+            allowed_vkeys,
         }
     }
 
@@ -276,7 +293,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 
     pub fn compress_program(
         &self,
-        input: &SP1CompressWitnessValues<InnerSC>,
+        input: &SP1CompressWithVKeyWitnessValues<InnerSC>,
     ) -> Arc<RecursionProgram<BabyBear>> {
         let mut cache = self.compress_programs.lock().unwrap();
         cache
@@ -287,7 +304,11 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                 let builder_span = tracing::debug_span!("build compress program").entered();
                 let mut builder = Builder::<InnerConfig>::default();
                 let input = input.read(&mut builder);
-                SP1CompressVerifier::verify(&mut builder, self.compress_prover.machine(), input);
+                SP1CompressWithVKeyVerifier::verify(
+                    &mut builder,
+                    self.compress_prover.machine(),
+                    input,
+                );
                 let operations = builder.operations;
                 builder_span.exit();
 
@@ -303,7 +324,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 
     pub fn shrink_program(
         &self,
-        input: &SP1CompressWitnessValues<InnerSC>,
+        input: &SP1CompressWithVKeyWitnessValues<InnerSC>,
     ) -> Arc<RecursionProgram<BabyBear>> {
         self.compress_program(input)
     }
@@ -475,6 +496,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
     ) -> Result<SP1ReduceProof<InnerSC>, SP1RecursionProverError> {
         // Set the batch size for the reduction tree.
         let batch_size = 2;
+        let first_layer_batch_size = 2;
         let shard_proofs = &proof.proof.0;
 
         // Get the leaf challenger.
@@ -491,7 +513,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             &leaf_challenger,
             shard_proofs,
             &deferred_proofs,
-            batch_size,
+            first_layer_batch_size,
         );
 
         // Calculate the expected height of the tree.
@@ -566,8 +588,15 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                                 }
                                 SP1CircuitWitness::Compress(input) => {
                                     let mut witness_stream = Vec::new();
-                                    Witnessable::<InnerConfig>::write(&input, &mut witness_stream);
-                                    (self.compress_program(&input), witness_stream)
+
+                                    let input_with_merkle = self.make_merkle_proofs(input);
+
+                                    Witnessable::<InnerConfig>::write(
+                                        &input_with_merkle,
+                                        &mut witness_stream,
+                                    );
+
+                                    (self.compress_program(&input_with_merkle), witness_stream)
                                 }
                             });
 
@@ -811,7 +840,9 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             is_complete: true,
         };
 
-        let program = self.shrink_program(&input);
+        let input_with_merkle = self.make_merkle_proofs(input);
+
+        let program = self.shrink_program(&input_with_merkle);
 
         // Run the compress program.
         let mut runtime = RecursionRuntime::<Val<InnerSC>, Challenge<InnerSC>, _>::new(
@@ -820,7 +851,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         );
 
         let mut witness_stream = Vec::new();
-        Witnessable::<InnerConfig>::write(&input, &mut witness_stream);
+        Witnessable::<InnerConfig>::write(&input_with_merkle, &mut witness_stream);
 
         runtime.witness_stream = witness_stream.into();
 
@@ -983,6 +1014,27 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             );
         }
         digest
+    }
+
+    fn make_merkle_proofs(
+        &self,
+        input: SP1CompressWitnessValues<CoreSC>,
+    ) -> SP1CompressWithVKeyWitnessValues<CoreSC>
+where {
+        // TODO: make an index based on the key itself.
+        let vk_indices = input.vks_and_proofs.iter().map(|(_, _)| 0).collect_vec();
+
+        let proofs = vk_indices
+            .iter()
+            .map(|index| {
+                let (_, proof) = MerkleTree::open(&self.merkle_tree, *index);
+                proof
+            })
+            .collect();
+
+        let merkle_val = SP1MerkleProofWitnessValues { root: self.root, vk_merkle_proofs: proofs };
+
+        SP1CompressWithVKeyWitnessValues { compress_val: input, merkle_val }
     }
 
     fn check_for_high_cycles(cycles: u64) {

@@ -19,7 +19,8 @@ use sp1_recursion_compiler::{
 use sp1_stark::{air::MachineAir, StarkGenericConfig, StarkMachine, StarkVerifyingKey};
 
 use crate::{
-    challenger::CanObserveVariable, CircuitConfig, TwoAdicPcsMatsVariable, TwoAdicPcsProofVariable,
+    challenger::CanObserveVariable, hash::FieldHasherVariable, CircuitConfig,
+    TwoAdicPcsMatsVariable, TwoAdicPcsProofVariable,
 };
 
 use crate::{
@@ -36,6 +37,12 @@ pub struct ShardProofVariable<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConf
     pub opening_proof: TwoAdicPcsProofVariable<C, SC>,
     pub chip_ordering: HashMap<String, usize>,
     pub public_values: Vec<Felt<C::F>>,
+}
+
+#[derive(Clone)]
+pub struct MerkleProofVariable<C: CircuitConfig, HV: FieldHasherVariable<C>> {
+    pub index: Vec<C::Bit>,
+    pub path: Vec<HV::DigestVariable>,
 }
 
 pub const EMPTY: usize = 0x_1111_1111;
