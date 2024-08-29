@@ -272,10 +272,6 @@ jobs:
     steps:
       - name: Checkout sources
         uses: actions/checkout@v4
-        
-      - name: Check total available memory because I'm curious
-        run: |
-          grep MemTotal /proc/meminfo
 
       - name: Setup CI
         uses: ./.github/actions/setup
