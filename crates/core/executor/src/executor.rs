@@ -257,6 +257,9 @@ impl<'a> Executor<'a> {
             let addr = Register::from_u32(i as u32) as u32;
             let record = self.state.memory.get(&addr);
 
+            // Only add the previous memory state to checkpoint map if we're in checkpoint mode,
+            // or if we're in unconstrained mode. In unconstrained mode, the mode is always
+            // Simple.
             if self.executor_mode == ExecutorMode::Checkpoint || self.unconstrained {
                 match record {
                     Some(record) => {
