@@ -79,7 +79,6 @@ use sp1_recursion_circuit_v2::{
     },
     merkle_tree::MerkleTree,
     witness::Witnessable,
-    BabyBearFriConfig, BabyBearFriConfigVariable,
 };
 
 pub use types::*;
