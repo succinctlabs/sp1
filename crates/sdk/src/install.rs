@@ -15,14 +15,14 @@ use crate::SP1_CIRCUIT_VERSION;
 /// The base URL for the S3 bucket containing the ciruit artifacts.
 pub const CIRCUIT_ARTIFACTS_URL_BASE: &str = "https://sp1-circuits.s3-us-east-2.amazonaws.com";
 
-/// Gets the directory where the circuit artifacts are installed.
-fn circuit_artifacts_dir() -> PathBuf {
+/// The directory where the circuit artifacts will be stored.
+pub fn install_circuit_artifacts_dir() -> PathBuf {
     dirs::home_dir().unwrap().join(".sp1").join("circuits").join(SP1_CIRCUIT_VERSION)
 }
 
 /// Tries to install the circuit artifacts if they are not already installed.
 pub fn try_install_circuit_artifacts() -> PathBuf {
-    let build_dir = circuit_artifacts_dir();
+    let build_dir = install_circuit_artifacts_dir();
 
     if build_dir.exists() {
         println!(
@@ -74,11 +74,6 @@ pub fn install_circuit_artifacts(build_dir: PathBuf) {
     res.wait().unwrap();
 
     println!("[sp1] downloaded {} to {:?}", download_url, build_dir.to_str().unwrap(),);
-}
-
-/// The directory where the circuit artifacts will be stored.
-pub fn install_circuit_artifacts_dir() -> PathBuf {
-    dirs::home_dir().unwrap().join(".sp1").join("circuits").join(SP1_CIRCUIT_VERSION)
 }
 
 /// Download the file with a progress bar that indicates the progress.
