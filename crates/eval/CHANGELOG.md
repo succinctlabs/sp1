@@ -1,5 +1,4 @@
 # Changelog
-
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
@@ -7,22 +6,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.2.0-rc.2](https://github.com/succinctlabs/sp1/compare/sp1-recursion-gnark-cli-v1.2.0-rc.1...sp1-recursion-gnark-cli-v1.2.0-rc.2) - 2024-08-29
-
-### Other
-- update Cargo.lock dependencies
-
-## [1.1.0](https://github.com/succinctlabs/sp1/compare/sp1-recursion-gnark-cli-v1.0.1...sp1-recursion-gnark-cli-v1.1.0) - 2024-08-02
+## [1.2.0-rc.2](https://github.com/succinctlabs/sp1/compare/sp1-eval-v1.2.0-rc.1...sp1-eval-v1.2.0-rc.2) - 2024-08-29
 
 ### Added
+- performance test + add to CI ([#1426](https://github.com/succinctlabs/sp1/pull/1426))
+- restore acknolwedgements
 - update tg ([#1214](https://github.com/succinctlabs/sp1/pull/1214))
-
-## [1.0.0-rc.1](https://github.com/succinctlabs/sp1/compare/sp1-recursion-gnark-cli-v1.0.0-rc.1...sp1-recursion-gnark-cli-v1.0.0-rc.1) - 2024-07-19
-
-### Added
-
-- publish sp1 to crates.io ([#1052](https://github.com/succinctlabs/sp1/pull/1052))
-- use docker by default for gnark ([#890](https://github.com/succinctlabs/sp1/pull/890))
+- v1.0.1 ([#1165](https://github.com/succinctlabs/sp1/pull/1165))
 - new README img ([#226](https://github.com/succinctlabs/sp1/pull/226))
 - readme updates ([#205](https://github.com/succinctlabs/sp1/pull/205))
 - more final touches ([#194](https://github.com/succinctlabs/sp1/pull/194))
@@ -34,11 +24,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - tracing, profiling, benchmarking ([#99](https://github.com/succinctlabs/sp1/pull/99))
 
 ### Other
-
-- _(deps)_ bump clap from 4.5.8 to 4.5.9 ([#1107](https://github.com/succinctlabs/sp1/pull/1107))
-- use global workspace version ([#1102](https://github.com/succinctlabs/sp1/pull/1102))
-- fix release-plz ([#1088](https://github.com/succinctlabs/sp1/pull/1088))
-- add release-plz ([#1086](https://github.com/succinctlabs/sp1/pull/1086))
+- update sp1 banner ([#1260](https://github.com/succinctlabs/sp1/pull/1260))
+- update docs ([#1240](https://github.com/succinctlabs/sp1/pull/1240))
 - final touches for public release ([#239](https://github.com/succinctlabs/sp1/pull/239))
 - update docs with slight nits ([#224](https://github.com/succinctlabs/sp1/pull/224))
 - sp1 rename ([#212](https://github.com/succinctlabs/sp1/pull/212))
