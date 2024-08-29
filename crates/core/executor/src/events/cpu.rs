@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::Instruction;
 
-use super::memory::MemoryRecordEnum;
+use super::{memory::MemoryRecordEnum, LookupId};
 
 /// CPU Event.
 ///
@@ -41,23 +41,23 @@ pub struct CpuEvent {
     /// The exit code.
     pub exit_code: u32,
     /// The ALU lookup id.
-    pub alu_lookup_id: u128,
+    pub alu_lookup_id: LookupId,
     /// The syscall lookup id.
-    pub syscall_lookup_id: u128,
+    pub syscall_lookup_id: LookupId,
     /// The memory add lookup id.
-    pub memory_add_lookup_id: u128,
+    pub memory_add_lookup_id: LookupId,
     /// The memory sub lookup id.
-    pub memory_sub_lookup_id: u128,
+    pub memory_sub_lookup_id: LookupId,
     /// The branch gt lookup id.
-    pub branch_gt_lookup_id: u128,
+    pub branch_gt_lookup_id: LookupId,
     /// The branch lt lookup id.
-    pub branch_lt_lookup_id: u128,
+    pub branch_lt_lookup_id: LookupId,
     /// The branch add lookup id.
-    pub branch_add_lookup_id: u128,
+    pub branch_add_lookup_id: LookupId,
     /// The jump jal lookup id.
-    pub jump_jal_lookup_id: u128,
+    pub jump_jal_lookup_id: LookupId,
     /// The jump jalr lookup id.
-    pub jump_jalr_lookup_id: u128,
+    pub jump_jalr_lookup_id: LookupId,
     /// The auipc lookup id.
-    pub auipc_lookup_id: u128,
+    pub auipc_lookup_id: LookupId,
 }

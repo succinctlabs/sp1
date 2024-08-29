@@ -13,8 +13,9 @@ use thiserror::Error;
 use crate::{
     context::SP1Context,
     events::{
-        create_alu_lookup_id, create_alu_lookups, AluEvent, CpuEvent, MemoryAccessPosition,
-        MemoryInitializeFinalizeEvent, MemoryReadRecord, MemoryRecord, MemoryWriteRecord,
+        create_alu_lookup_id, create_alu_lookups, AluEvent, CpuEvent, LookupId,
+        MemoryAccessPosition, MemoryInitializeFinalizeEvent, MemoryReadRecord, MemoryRecord,
+        MemoryWriteRecord,
     },
     hook::{HookEnv, HookRegistry},
     record::{ExecutionRecord, MemoryAccessRecord},
@@ -525,8 +526,8 @@ impl<'a> Executor<'a> {
         memory_store_value: Option<u32>,
         record: MemoryAccessRecord,
         exit_code: u32,
-        lookup_id: u128,
-        syscall_lookup_id: u128,
+        lookup_id: LookupId,
+        syscall_lookup_id: LookupId,
     ) {
         let cpu_event = CpuEvent {
             shard,
@@ -560,7 +561,7 @@ impl<'a> Executor<'a> {
     }
 
     /// Emit an ALU event.
-    fn emit_alu(&mut self, clk: u32, opcode: Opcode, a: u32, b: u32, c: u32, lookup_id: u128) {
+    fn emit_alu(&mut self, clk: u32, opcode: Opcode, a: u32, b: u32, c: u32, lookup_id: LookupId) {
         let event = AluEvent {
             lookup_id,
             shard: self.shard(),
@@ -628,7 +629,7 @@ impl<'a> Executor<'a> {
         a: u32,
         b: u32,
         c: u32,
-        lookup_id: u128,
+        lookup_id: LookupId,
     ) {
         self.rw(rd, a);
         if self.executor_mode == ExecutorMode::Trace {
@@ -688,10 +689,16 @@ impl<'a> Executor<'a> {
         if self.executor_mode != ExecutorMode::Simple {
             self.memory_accesses = MemoryAccessRecord::default();
         }
-        let lookup_id =
-            if self.executor_mode == ExecutorMode::Simple { 0 } else { create_alu_lookup_id() };
-        let syscall_lookup_id =
-            if self.executor_mode == ExecutorMode::Simple { 0 } else { create_alu_lookup_id() };
+        let lookup_id = if self.executor_mode == ExecutorMode::Simple {
+            LookupId::default()
+        } else {
+            create_alu_lookup_id()
+        };
+        let syscall_lookup_id = if self.executor_mode == ExecutorMode::Simple {
+            LookupId::default()
+        } else {
+            create_alu_lookup_id()
+        };
 
         if self.print_report && !self.unconstrained {
             self.report
