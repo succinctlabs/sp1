@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - "crates/**"
+      - "Cargo.toml"
       - ".github/workflows/**"
 
 concurrency:

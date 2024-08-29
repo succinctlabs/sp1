@@ -1,3 +1,5 @@
+use serde::Deserialize;
+use serde::Serialize;
 use std::{
     fmt::Display,
     iter::{Map, Peekable},
@@ -5,18 +7,41 @@ use std::{
 
 use rand::{thread_rng, Rng};
 
-/// Creates a new ALU lookup id.
-#[must_use]
-pub fn create_alu_lookup_id() -> u128 {
-    let mut rng = thread_rng();
-    rng.gen()
+/// A unique identifier for lookups.
+///
+/// We use 4 u32s instead of a u128 to make it compatible with C.
+#[derive(Deserialize, Serialize, Debug, Clone, Copy, Default, Eq, Hash, PartialEq)]
+
+pub struct LookupId {
+    /// First part of the id.
+    pub a: u32,
+    /// Second part of the id.
+    pub b: u32,
+    /// Third part of the id.
+    pub c: u32,
+    /// Fourth part of the id.
+    pub d: u32,
 }
 
-/// Creates a new ALU lookup ids.
+/// Creates a new ALU lookup id with ``LookupId``
 #[must_use]
-pub fn create_alu_lookups() -> [u128; 6] {
+pub fn create_alu_lookup_id() -> LookupId {
     let mut rng = thread_rng();
-    [rng.gen(), rng.gen(), rng.gen(), rng.gen(), rng.gen(), rng.gen()]
+    LookupId { a: rng.gen(), b: rng.gen(), c: rng.gen(), d: rng.gen() }
+}
+
+/// Creates a new ALU lookup id with ``LookupId``
+#[must_use]
+pub fn create_alu_lookups() -> [LookupId; 6] {
+    let mut rng = thread_rng();
+    [
+        LookupId { a: rng.gen(), b: rng.gen(), c: rng.gen(), d: rng.gen() },
+        LookupId { a: rng.gen(), b: rng.gen(), c: rng.gen(), d: rng.gen() },
+        LookupId { a: rng.gen(), b: rng.gen(), c: rng.gen(), d: rng.gen() },
+        LookupId { a: rng.gen(), b: rng.gen(), c: rng.gen(), d: rng.gen() },
+        LookupId { a: rng.gen(), b: rng.gen(), c: rng.gen(), d: rng.gen() },
+        LookupId { a: rng.gen(), b: rng.gen(), c: rng.gen(), d: rng.gen() },
+    ]
 }
 
 /// Returns sorted and formatted rows of a table of counts (e.g. `opcode_counts`).

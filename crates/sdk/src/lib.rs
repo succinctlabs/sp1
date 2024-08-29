@@ -6,6 +6,7 @@
 //! in the official SP1 documentation for a quick start guide.
 
 #[rustfmt::skip]
+#[cfg(feature = "network")]
 pub mod proto {
     pub mod network;
 }
@@ -29,7 +30,11 @@ use cfg_if::cfg_if;
 pub use proof::*;
 pub use provers::SP1VerificationError;
 use sp1_prover::components::DefaultProverComponents;
+
 use std::env;
+
+#[cfg(feature = "network")]
+use {std::future::Future, tokio::task::block_in_place};
 
 pub use provers::{CpuProver, MockProver, Prover};
 
@@ -264,6 +269,22 @@ impl ProverClient {
 impl Default for ProverClient {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+/// Utility method for blocking on an async function.
+///
+/// If we're already in a tokio runtime, we'll block in place. Otherwise, we'll create a new
+/// runtime.
+#[cfg(feature = "network")]
+pub fn block_on<T>(fut: impl Future<Output = T>) -> T {
+    // Handle case if we're already in an tokio runtime.
+    if let Ok(handle) = tokio::runtime::Handle::try_current() {
+        block_in_place(|| handle.block_on(fut))
+    } else {
+        // Otherwise create a new runtime.
+        let rt = tokio::runtime::Runtime::new().expect("Failed to create a new runtime");
+        rt.block_on(fut)
     }
 }
 

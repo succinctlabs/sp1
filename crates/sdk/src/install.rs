@@ -1,23 +1,28 @@
-use std::{cmp::min, io::Write, path::PathBuf, process::Command};
+use cfg_if::cfg_if;
+use std::path::PathBuf;
 
-use futures::StreamExt;
-use indicatif::{ProgressBar, ProgressStyle};
-use reqwest::Client;
-use sp1_cuda::block_on;
+#[cfg(feature = "network")]
+use {
+    crate::block_on,
+    futures::StreamExt,
+    indicatif::{ProgressBar, ProgressStyle},
+    reqwest::Client,
+    std::{cmp::min, io::Write, process::Command},
+};
 
 use crate::SP1_CIRCUIT_VERSION;
 
 /// The base URL for the S3 bucket containing the ciruit artifacts.
 pub const CIRCUIT_ARTIFACTS_URL_BASE: &str = "https://sp1-circuits.s3-us-east-2.amazonaws.com";
 
-/// Gets the directory where the circuit artifacts are installed.
-fn circuit_artifacts_dir() -> PathBuf {
+/// The directory where the circuit artifacts will be stored.
+pub fn install_circuit_artifacts_dir() -> PathBuf {
     dirs::home_dir().unwrap().join(".sp1").join("circuits").join(SP1_CIRCUIT_VERSION)
 }
 
 /// Tries to install the circuit artifacts if they are not already installed.
 pub fn try_install_circuit_artifacts() -> PathBuf {
-    let build_dir = circuit_artifacts_dir();
+    let build_dir = install_circuit_artifacts_dir();
 
     if build_dir.exists() {
         println!(
@@ -25,12 +30,16 @@ pub fn try_install_circuit_artifacts() -> PathBuf {
             build_dir.display()
         );
     } else {
-        println!(
-            "[sp1] circuit artifacts for version {} do not exist at {}. downloading...",
-            SP1_CIRCUIT_VERSION,
-            build_dir.display()
-        );
-        install_circuit_artifacts(build_dir.clone());
+        cfg_if! {
+            if #[cfg(feature = "network")] {
+                println!(
+                    "[sp1] circuit artifacts for version {} do not exist at {}. downloading...",
+                    SP1_CIRCUIT_VERSION,
+                    build_dir.display()
+                );
+                install_circuit_artifacts(build_dir.clone());
+            }
+        }
     }
     build_dir
 }
@@ -39,6 +48,7 @@ pub fn try_install_circuit_artifacts() -> PathBuf {
 ///
 /// This function will download the latest circuit artifacts from the S3 bucket and extract them
 /// to the directory specified by [plonk_bn254_artifacts_dir()].
+#[cfg(feature = "network")]
 pub fn install_circuit_artifacts(build_dir: PathBuf) {
     // Create the build directory.
     std::fs::create_dir_all(&build_dir).expect("failed to create build directory");
@@ -66,12 +76,8 @@ pub fn install_circuit_artifacts(build_dir: PathBuf) {
     println!("[sp1] downloaded {} to {:?}", download_url, build_dir.to_str().unwrap(),);
 }
 
-/// The directory where the circuit artifacts will be stored.
-pub fn install_circuit_artifacts_dir() -> PathBuf {
-    dirs::home_dir().unwrap().join(".sp1").join("circuits").join(SP1_CIRCUIT_VERSION)
-}
-
 /// Download the file with a progress bar that indicates the progress.
+#[cfg(feature = "network")]
 pub async fn download_file(
     client: &Client,
     url: &str,
