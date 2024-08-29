@@ -59,10 +59,6 @@ struct EvalArgs {
     #[arg(long)]
     pub pr_number: Option<String>,
 
-    /// The name of the pull request.
-    #[arg(long)]
-    pub pr_name: Option<String>,
-
     /// The name of the branch.
     #[arg(long)]
     pub branch_name: Option<String>,
@@ -76,8 +72,9 @@ struct EvalArgs {
     pub author: Option<String>,
 }
 
-pub async fn evaluate_performance<C: SP1ProverComponents>() -> Result<(), Box<dyn std::error::Error>>
-{
+pub async fn evaluate_performance<C: SP1ProverComponents>(
+    opts: SP1ProverOpts,
+) -> Result<(), Box<dyn std::error::Error>> {
     let args = EvalArgs::parse();
 
     // Set environment variables to configure the prover.
@@ -100,7 +97,7 @@ pub async fn evaluate_performance<C: SP1ProverComponents>() -> Result<(), Box<dy
     for program in &programs {
         println!("Evaluating program: {}", program.name);
         let (elf, stdin) = load_program(program.elf, program.input);
-        let report = run_evaluation::<C>(program.name, &elf, &stdin);
+        let report = run_evaluation::<C>(program.name, &elf, &stdin, opts);
         reports.push(report);
         println!("Program: {} completed", program.name);
     }
@@ -163,19 +160,19 @@ fn run_evaluation<C: SP1ProverComponents>(
     program_name: &str,
     elf: &[u8],
     stdin: &SP1Stdin,
+    opts: SP1ProverOpts,
 ) -> PerformanceReport {
-    let cycles = get_cycles(&elf, &stdin);
+    let cycles = get_cycles(elf, stdin);
 
     let prover = SP1Prover::<C>::new();
-    let (pk, vk) = prover.setup(&elf);
+    let (pk, vk) = prover.setup(elf);
 
-    let opts = SP1ProverOpts::default();
     let context = SP1Context::default();
 
-    let (_, exec_duration) = time_operation(|| prover.execute(&elf, &stdin, context.clone()));
+    let (_, exec_duration) = time_operation(|| prover.execute(elf, stdin, context.clone()));
 
     let (core_proof, core_duration) =
-        time_operation(|| prover.prove_core(&pk, &stdin, opts, context).unwrap());
+        time_operation(|| prover.prove_core(&pk, stdin, opts, context).unwrap());
 
     let (_, compress_duration) =
         time_operation(|| prover.compress(&vk, core_proof, vec![], opts).unwrap());
@@ -195,9 +192,6 @@ fn run_evaluation<C: SP1ProverComponents>(
 
 fn format_results(args: &EvalArgs, results: &[PerformanceReport]) -> Vec<String> {
     let mut detail_text = String::new();
-    if let Some(pr_name) = &args.pr_name {
-        detail_text.push_str(&format!("*PR*: {}\n", pr_name));
-    }
     if let Some(branch_name) = &args.branch_name {
         detail_text.push_str(&format!("*Branch*: {}\n", branch_name));
     }
@@ -400,7 +394,6 @@ mod tests {
             repo_owner: Some("succinctlabs".to_string()),
             repo_name: Some("sp1".to_string()),
             pr_number: Some("123456".to_string()),
-            pr_name: Some("Test PR".to_string()),
             branch_name: Some("feature-branch".to_string()),
             commit_hash: Some("abcdef1234567890".to_string()),
             author: Some("John Doe".to_string()),
@@ -414,7 +407,6 @@ mod tests {
 
         assert_eq!(formatted_results.len(), 3);
         assert!(formatted_results[0].contains("SP1 Performance Test Results"));
-        assert!(formatted_results[1].contains("*PR*: Test PR"));
         assert!(formatted_results[1].contains("*Branch*: feature-branch"));
         assert!(formatted_results[1].contains("*Commit*: abcdef12"));
         assert!(formatted_results[1].contains("*Author*: John Doe"));
