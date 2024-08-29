@@ -26,7 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - *(deps)* bump anstyle from 1.0.7 to 1.0.8 ([#1194](https://github.com/succinctlabs/sp1/pull/1194))
 - Merge branch 'main' into dev
 
-## [1.0.0-rc.1](https://github.com/succinctlabs/sp1/compare/sp1-cli-v1.0.0-rc.1...sp1-cli-v1.0.0-rc.1) - 2024-07-19
+## [1.0.0-rc1](https://github.com/succinctlabs/sp1/compare/sp1-cli-v1.0.0-rc1...sp1-cli-v1.0.0-rc1) - 2024-07-19
 
 ### Added
 

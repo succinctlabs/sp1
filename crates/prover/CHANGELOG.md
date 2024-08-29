@@ -30,11 +30,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - *(deps)* bump thiserror from 1.0.61 to 1.0.63 ([#1136](https://github.com/succinctlabs/sp1/pull/1136))
 - add audit reports ([#1142](https://github.com/succinctlabs/sp1/pull/1142))
 
-## [1.0.0-rc.1](https://github.com/succinctlabs/sp1/compare/sp1-prover-v1.0.0-rc.1...sp1-prover-v1.0.0-rc.1) - 2024-07-19
+## [1.0.0-rc1](https://github.com/succinctlabs/sp1/compare/sp1-prover-v1.0.0-rc1...sp1-prover-v1.0.0-rc1) - 2024-07-19
 
 ### Added
 
-- 1.0.0-rc.1 ([#1126](https://github.com/succinctlabs/sp1/pull/1126))
+- 1.0.0-rc1 ([#1126](https://github.com/succinctlabs/sp1/pull/1126))
 - parallel recursion tracegen ([#1095](https://github.com/succinctlabs/sp1/pull/1095))
 - result instead of exit(1) on trap in recursion ([#1089](https://github.com/succinctlabs/sp1/pull/1089))
 - publish sp1 to crates.io ([#1052](https://github.com/succinctlabs/sp1/pull/1052))
