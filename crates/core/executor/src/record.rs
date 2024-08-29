@@ -10,7 +10,7 @@ use super::{program::Program, Opcode};
 use crate::events::{
     add_sharded_byte_lookup_events, AluEvent, ByteLookupEvent, ByteRecord, CpuEvent,
     EdDecompressEvent, EllipticCurveAddEvent, EllipticCurveDecompressEvent,
-    EllipticCurveDoubleEvent, Fp2AddSubEvent, Fp2MulEvent, FpOpEvent, KeccakPermuteEvent,
+    EllipticCurveDoubleEvent, Fp2AddSubEvent, Fp2MulEvent, FpOpEvent, KeccakPermuteEvent, LookupId,
     MemoryInitializeFinalizeEvent, MemoryRecordEnum, ShaCompressEvent, ShaExtendEvent,
     Uint256MulEvent,
 };
@@ -89,7 +89,7 @@ pub struct ExecutionRecord {
     /// The public values.
     pub public_values: PublicValues<u32, u32>,
     /// The nonce lookup.
-    pub nonce_lookup: HashMap<u128, u32>,
+    pub nonce_lookup: HashMap<LookupId, u32>,
 }
 
 impl ExecutionRecord {
