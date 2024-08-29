@@ -5,10 +5,13 @@ use std::{
     ops::{Add, AddAssign},
 };
 
+// TODO remove
+use serde::{Deserialize, Serialize};
+
 use crate::{events::sorted_table_lines, syscalls::SyscallCode, Opcode};
 
 /// An execution report.
-#[derive(Default, Debug, Clone, PartialEq, Eq)]
+#[derive(Default, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ExecutionReport {
     /// The opcode counts.
     pub opcode_counts: HashMap<Opcode, u64>,

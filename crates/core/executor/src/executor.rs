@@ -1,13 +1,16 @@
 use std::{
+    borrow::Cow,
     fs::File,
     io::{BufWriter, Write},
     sync::Arc,
+    time::{Duration, Instant},
 };
 
-use hashbrown::{hash_map::Entry, HashMap};
+use hashbrown::HashMap;
 use serde::{Deserialize, Serialize};
 use sp1_stark::SP1CoreOpts;
 use thiserror::Error;
+use vec_map::Entry;
 
 use crate::{
     context::SP1Context,
@@ -99,6 +102,52 @@ pub struct Executor<'a> {
     /// Memory addresses that were touched in this batch of shards. Used to minimize the size of
     /// checkpoints.
     pub memory_checkpoint: HashMap<u32, Option<MemoryRecord>>,
+
+    debug_writer: DebugWriter,
+}
+
+#[derive(Debug)]
+struct DebugWriter {
+    clk_interval: u64,
+    start_instant: Option<Instant>,
+    out: BufWriter<File>,
+    is_successor: bool,
+}
+
+impl DebugWriter {
+    fn new(clk_interval: u64, start_instant: Option<Instant>, out_file: File) -> Self {
+        let mut out = BufWriter::new(out_file);
+        write!(&mut out, "[").unwrap();
+        Self { clk_interval, start_instant, out, is_successor: false }
+    }
+
+    fn write_row(&mut self, row: &DebugWriterRow) {
+        if self.is_successor {
+            write!(&mut self.out, ",").unwrap();
+        } else {
+            self.is_successor = true;
+        }
+        serde_json::to_writer(&mut self.out, row).unwrap();
+    }
+
+    fn elapsed(&mut self) -> Duration {
+        self.start_instant.get_or_insert_with(Instant::now).elapsed()
+    }
+}
+
+impl Drop for DebugWriter {
+    fn drop(&mut self) {
+        writeln!(&mut self.out, "]").unwrap();
+        self.out.flush().unwrap();
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+struct DebugWriterRow<'a> {
+    since_start: Duration,
+    clk: u64,
+    pc: u32,
+    report: Cow<'a, ExecutionReport>,
 }
 
 /// The different modes the executor can run in.
@@ -149,6 +198,22 @@ macro_rules! assert_valid_memory_access {
         #[cfg(not(debug_assertions))]
         {}
     };
+}
+
+pub(crate) fn addr_compress(addr: u32) -> usize {
+    if addr < 32 {
+        addr as usize
+    } else {
+        addr as usize / 4 + 24
+    }
+}
+
+pub(crate) fn addr_decompress(addr: usize) -> u32 {
+    if addr < 32 {
+        addr as u32
+    } else {
+        (addr as u32 - 24) * 4
+    }
 }
 
 impl<'a> Executor<'a> {
@@ -205,12 +270,21 @@ impl<'a> Executor<'a> {
             executor_mode: ExecutorMode::Trace,
             max_syscall_cycles,
             report: ExecutionReport::default(),
-            print_report: false,
+            print_report: true,
             subproof_verifier,
             hook_registry,
             opts,
             max_cycles: context.max_cycles,
             memory_checkpoint: HashMap::default(),
+            debug_writer: DebugWriter::new(
+                10_000_000,
+                None,
+                File::create(format!(
+                    "tmp/executor_{}.json",
+                    chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ")
+                ))
+                .unwrap(),
+            ),
         }
     }
 
@@ -249,7 +323,7 @@ impl<'a> Executor<'a> {
         let mut registers = [0; 32];
         for i in 0..32 {
             let addr = Register::from_u32(i as u32) as u32;
-            let record = self.state.memory.get(&addr);
+            let record = self.state.memory.get(addr_compress(addr));
 
             if self.executor_mode != ExecutorMode::Simple {
                 match record {
@@ -274,7 +348,7 @@ impl<'a> Executor<'a> {
     #[must_use]
     pub fn register(&mut self, register: Register) -> u32 {
         let addr = register as u32;
-        let record = self.state.memory.get(&addr);
+        let record = self.state.memory.get(addr_compress(addr));
 
         if self.executor_mode != ExecutorMode::Simple {
             match record {
@@ -297,7 +371,7 @@ impl<'a> Executor<'a> {
     #[must_use]
     pub fn word(&mut self, addr: u32) -> u32 {
         #[allow(clippy::single_match_else)]
-        let record = self.state.memory.get(&addr);
+        let record = self.state.memory.get(addr_compress(addr));
 
         if self.executor_mode != ExecutorMode::Simple {
             match record {
@@ -346,7 +420,7 @@ impl<'a> Executor<'a> {
     /// Read a word from memory and create an access record.
     pub fn mr(&mut self, addr: u32, shard: u32, timestamp: u32) -> MemoryReadRecord {
         // Get the memory record entry.
-        let entry = self.state.memory.entry(addr);
+        let entry = self.state.memory.entry(addr_compress(addr));
         if self.executor_mode != ExecutorMode::Simple {
             match entry {
                 Entry::Occupied(ref entry) => {
@@ -391,7 +465,7 @@ impl<'a> Executor<'a> {
     /// Write a word to memory and create an access record.
     pub fn mw(&mut self, addr: u32, value: u32, shard: u32, timestamp: u32) -> MemoryWriteRecord {
         // Get the memory record entry.
-        let entry = self.state.memory.entry(addr);
+        let entry = self.state.memory.entry(addr_compress(addr));
         if self.executor_mode != ExecutorMode::Simple {
             match entry {
                 Entry::Occupied(ref entry) => {
@@ -1171,15 +1245,15 @@ impl<'a> Executor<'a> {
                 checkpoint.memory.clone_from(&self.state.memory);
                 memory_checkpoint.into_iter().for_each(|(addr, record)| {
                     if let Some(record) = record {
-                        checkpoint.memory.insert(addr, record);
+                        checkpoint.memory.insert(addr_compress(addr), record);
                     } else {
-                        checkpoint.memory.remove(&addr);
+                        checkpoint.memory.remove(addr_compress(addr));
                     }
                 });
             } else {
                 checkpoint.memory = memory_checkpoint
                     .into_iter()
-                    .filter_map(|(addr, record)| record.map(|record| (addr, record)))
+                    .filter_map(|(addr, record)| record.map(|record| (addr_compress(addr), record)))
                     .collect();
             }
         });
@@ -1192,7 +1266,10 @@ impl<'a> Executor<'a> {
 
         tracing::debug!("loading memory image");
         for (addr, value) in &self.program.memory_image {
-            self.state.memory.insert(*addr, MemoryRecord { value: *value, shard: 0, timestamp: 0 });
+            self.state.memory.insert(
+                addr_compress(*addr),
+                MemoryRecord { value: *value, shard: 0, timestamp: 0 },
+            );
         }
     }
 
@@ -1222,7 +1299,7 @@ impl<'a> Executor<'a> {
 
     /// Executes up to `self.shard_batch_size` cycles of the program, returning whether the program
     /// has finished.
-    fn execute(&mut self) -> Result<bool, ExecutionError> {
+    pub fn execute(&mut self) -> Result<bool, ExecutionError> {
         // Get the program.
         let program = self.program.clone();
 
@@ -1330,7 +1407,7 @@ impl<'a> Executor<'a> {
 
         // We handle the addr = 0 case separately, as we constrain it to be 0 in the first row
         // of the memory finalize table so it must be first in the array of events.
-        let addr_0_record = self.state.memory.get(&0u32);
+        let addr_0_record = self.state.memory.get(0);
 
         let addr_0_final_record = match addr_0_record {
             Some(record) => record,
@@ -1346,17 +1423,18 @@ impl<'a> Executor<'a> {
 
         self.report.touched_memory_addresses = self.state.memory.len() as u64;
         for addr in self.state.memory.keys() {
-            if addr == &0 {
+            if addr == 0 {
                 // Handled above.
                 continue;
             }
 
+            let addr_u32 = addr_decompress(addr);
             // Program memory is initialized in the MemoryProgram chip and doesn't require any
             // events, so we only send init events for other memory addresses.
-            if !self.record.program.memory_image.contains_key(addr) {
-                let initial_value = self.state.uninitialized_memory.get(addr).unwrap_or(&0);
+            if !self.record.program.memory_image.contains_key(&addr_u32) {
+                let initial_value = self.state.uninitialized_memory.get(&addr_u32).unwrap_or(&0);
                 memory_initialize_events.push(MemoryInitializeFinalizeEvent::initialize(
-                    *addr,
+                    addr_u32,
                     *initial_value,
                     true,
                 ));
@@ -1364,7 +1442,7 @@ impl<'a> Executor<'a> {
 
             let record = *self.state.memory.get(addr).unwrap();
             memory_finalize_events
-                .push(MemoryInitializeFinalizeEvent::finalize_from_record(*addr, &record));
+                .push(MemoryInitializeFinalizeEvent::finalize_from_record(addr_u32, &record));
         }
     }
 
@@ -1381,8 +1459,15 @@ impl<'a> Executor<'a> {
             }
         }
 
-        if !self.unconstrained && self.state.global_clk % 10_000_000 == 0 {
+        if !self.unconstrained && self.state.global_clk % self.debug_writer.clk_interval == 0 {
             log::info!("clk = {} pc = 0x{:x?}", self.state.global_clk, self.state.pc);
+            let debug_writer_row = DebugWriterRow {
+                since_start: self.debug_writer.elapsed(),
+                clk: self.state.global_clk,
+                pc: self.state.pc,
+                report: Cow::Borrowed(&self.report),
+            };
+            self.debug_writer.write_row(&debug_writer_row);
         }
     }
 }

@@ -5036,6 +5036,7 @@ version = "1.2.0-rc1"
 dependencies = [
  "bincode",
  "bytemuck",
+ "chrono",
  "elf",
  "eyre",
  "generic-array 1.1.0",
@@ -5050,6 +5051,7 @@ dependencies = [
  "rand",
  "rrs-succinct",
  "serde",
+ "serde_json",
  "serde_with",
  "sp1-curves",
  "sp1-derive",
@@ -5062,6 +5064,7 @@ dependencies = [
  "tiny-keccak",
  "tracing",
  "typenum",
+ "vec_map",
 ]
 
 [[package]]
@@ -6314,6 +6317,9 @@ name = "vec_map"
 version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f1bddf1187be692e79c5ffeab891132dfb0f236ed36a43c7ed39f1165ee20191"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "vergen"
