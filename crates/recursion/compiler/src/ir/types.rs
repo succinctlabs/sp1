@@ -235,7 +235,7 @@ impl<C: Config> Variable<C> for Var<C::N> {
 
     fn uninit(builder: &mut Builder<C>) -> Self {
         let id = builder.variable_count();
-        let var = Var::new(id, &mut builder.var_handle);
+        let var = Var::new(id, builder.var_handle.as_mut());
         builder.inner.get_mut().variable_count += 1;
         var
     }
@@ -319,7 +319,7 @@ impl<C: Config> Variable<C> for Felt<C::F> {
 
     fn uninit(builder: &mut Builder<C>) -> Self {
         let idx = builder.variable_count();
-        let felt = Felt::<C::F>::new(idx, &mut builder.felt_handle);
+        let felt = Felt::<C::F>::new(idx, builder.felt_handle.as_mut());
         builder.inner.get_mut().variable_count += 1;
         felt
     }
@@ -403,7 +403,7 @@ impl<C: Config> Variable<C> for Ext<C::F, C::EF> {
 
     fn uninit(builder: &mut Builder<C>) -> Self {
         let idx = builder.variable_count();
-        let ext = Ext::<C::F, C::EF>::new(idx, &mut builder.ext_handle);
+        let ext = Ext::<C::F, C::EF>::new(idx, builder.ext_handle.as_mut());
         builder.inner.get_mut().variable_count += 1;
         ext
     }

@@ -88,14 +88,14 @@ pub struct InnerBuilder<C: Config> {
 /// Can compile to both assembly and a set of constraints.
 #[derive(Debug)]
 pub struct Builder<C: Config> {
-    pub(crate) inner: UnsafeCell<InnerBuilder<C>>,
+    pub(crate) inner: Box<UnsafeCell<InnerBuilder<C>>>,
     pub(crate) nb_public_values: Option<Var<C::N>>,
     pub(crate) witness_var_count: u32,
     pub(crate) witness_felt_count: u32,
     pub(crate) witness_ext_count: u32,
-    pub(crate) var_handle: VarHandle<C::N>,
-    pub(crate) felt_handle: FeltHandle<C::F>,
-    pub(crate) ext_handle: ExtHandle<C::F, C::EF>,
+    pub(crate) var_handle: Box<VarHandle<C::N>>,
+    pub(crate) felt_handle: Box<FeltHandle<C::F>>,
+    pub(crate) ext_handle: Box<ExtHandle<C::F, C::EF>>,
     pub(crate) p2_hash_num: Var<C::N>,
     pub(crate) debug: bool,
     pub(crate) is_sub_builder: bool,
@@ -113,12 +113,17 @@ impl<C: Config> Builder<C> {
         // We need to create a temporary placeholder for the p2_hash_num variable.
         let placeholder_p2_hash_num = Var::new(0, ptr::null_mut());
 
-        let inner =
-            UnsafeCell::new(InnerBuilder { variable_count: 0, operations: Default::default() });
+        let mut inner = Box::new(UnsafeCell::new(InnerBuilder {
+            variable_count: 0,
+            operations: Default::default(),
+        }));
 
-        let var_handle = inner.var_handle();
-        let felt_handle = inner.felt_handle();
-        let ext_handle = inner.ext_handle();
+        let var_handle = Box::new(VarOperations::var_handle(&mut inner));
+        let mut ext_handle = Box::new(ExtOperations::ext_handle(&mut inner));
+        let felt_handle = Box::new(FeltOperations::felt_handle(
+            &mut inner,
+            ext_handle.as_mut() as *mut _ as *mut (),
+        ));
 
         let mut new_builder = Self {
             inner,
