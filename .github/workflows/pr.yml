@@ -228,16 +228,10 @@ jobs:
           cargo remove sp1-sdk
           cargo add sp1-sdk --path $GITHUB_WORKSPACE/crates/sdk
           SP1_DEV=1 RUST_LOG=info cargo run --release -- --prove
-<<<<<<< HEAD
-  memory:
-    name: Memory
-    runs-on: [runs-on, runner=8cpu-linux-x64, "run-id=${{ github.run_id }}"]
-=======
 
   performance:
     name: Performance
     runs-on: [runs-on, family=c7a.48xlarge, "run-id=${{ github.run_id }}"]
->>>>>>> 82675e91 (feat: performance test + add to CI (#1426))
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
@@ -252,22 +246,6 @@ jobs:
           curl -L https://sp1.succinct.xyz | bash
           ~/.sp1/bin/sp1up 
           ~/.sp1/bin/cargo-prove prove --version
-<<<<<<< HEAD
-      
-      - name: Set memory limit to 16 GB
-        run: | 
-          ulimit -v 16000000
-
-      - name: Run script
-        run: |
-          cd examples/tendermint/program
-          cargo add sp1-zkvm --path $GITHUB_WORKSPACE/crates/zkvm/entrypoint
-          cargo prove build
-          cd ../script
-          cargo remove sp1-sdk
-          cargo add sp1-sdk --path $GITHUB_WORKSPACE/crates/sdk
-          SP1_DEV=1 RUST_LOG=info cargo run --release
-=======
 
       - name: Build program and run script
         run: |
@@ -284,4 +262,3 @@ jobs:
             --branch-name "${{ github.head_ref || github.ref_name }}" \
             --commit-hash "${{ github.sha }}" \
             --author "${{ github.event.pull_request.user.login || github.actor }}"
->>>>>>> 82675e91 (feat: performance test + add to CI (#1426))
