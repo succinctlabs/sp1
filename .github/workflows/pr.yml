@@ -192,7 +192,6 @@ jobs:
 
       - name: Run cargo check on RSP
         run: |
-          cd examples/rsp/script
           RUSTFLAGS="-Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native" \
           cargo check --manifest-path examples/rsp/script/Cargo.toml --all-targets --all-features
 
