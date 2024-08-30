@@ -28,7 +28,7 @@ use sp1_curves::{
 };
 use sp1_derive::AlignedBorrow;
 use sp1_stark::{
-    air::{BaseAirBuilder, MachineAir, Polynomial, SP1AirBuilder},
+    air::{BaseAirBuilder, InteractionScope, MachineAir, Polynomial, SP1AirBuilder},
     MachineRecord, ProvePhase,
 };
 use std::{
@@ -345,6 +345,7 @@ where
             local.x_ptr,
             local.y_ptr,
             local.is_real,
+            InteractionScope::Global,
         );
 
         // Assert that is_real is a boolean.

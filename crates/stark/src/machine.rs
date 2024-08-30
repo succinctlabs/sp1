@@ -103,6 +103,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
         &self.chips
     }
 
+    /// The number of public value elements.
     pub const fn num_pv_elts(&self) -> usize {
         self.num_pv_elts
     }
@@ -231,8 +232,11 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
         opts: &<A::Record as MachineRecord>::Config,
         phase: ProvePhase,
     ) {
-        let chips =
-            self.chips().iter().filter(|chip| chip.included_in_phase(phase)).collect::<Vec<_>>();
+        let chips = if phase == ProvePhase::Phase1 {
+            self.chips().iter().filter(|chip| chip.included_in_phase(phase)).collect::<Vec<_>>()
+        } else {
+            self.chips().iter().collect::<Vec<_>>()
+        };
         records.iter_mut().for_each(|record| {
             chips.iter().for_each(|chip| {
                 tracing::debug_span!("chip dependencies", chip = chip.name()).in_scope(|| {

@@ -15,7 +15,7 @@ use crate::{
     events::{
         create_alu_lookup_id, create_alu_lookups, AluEvent, CpuEvent, MemoryAccessPosition,
         MemoryInitializeFinalizeEvent, MemoryLocalEvent, MemoryReadRecord, MemoryRecord,
-        MemoryWriteRecord,
+        MemoryWriteRecord, SyscallEvent,
     },
     hook::{HookEnv, HookRegistry},
     record::{ExecutionRecord, MemoryAccessRecord},
@@ -644,6 +644,20 @@ impl<'a> Executor<'a> {
         }
     }
 
+    fn emit_syscall(&mut self, clk: u32, syscall_id: u32, arg1: u32, arg2: u32, lookup_id: u128) {
+        let syscall_event = SyscallEvent {
+            shard: self.shard(),
+            clk,
+            channel: self.channel(),
+            syscall_id,
+            arg1,
+            arg2,
+            lookup_id,
+        };
+
+        self.record.syscall_events.push(syscall_event);
+    }
+
     /// Fetch the destination register and input operand values for an ALU instruction.
     fn alu_rr(&mut self, instruction: &Instruction) -> (Register, u32, u32) {
         if !instruction.imm_c {
@@ -976,6 +990,9 @@ impl<'a> Executor<'a> {
                 }
 
                 let syscall_impl = self.get_syscall(syscall).cloned();
+                if syscall.should_send() != 0 {
+                    self.emit_syscall(clk, syscall.syscall_id(), b, c, syscall_lookup_id);
+                }
                 let mut precompile_rt = SyscallContext::new(self, syscall);
                 precompile_rt.syscall_lookup_id = syscall_lookup_id;
                 let (precompile_next_pc, precompile_cycles, returned_exit_code) =

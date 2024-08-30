@@ -5,7 +5,7 @@ use p3_field::AbstractField;
 use p3_keccak_air::{KeccakAir, NUM_KECCAK_COLS, NUM_ROUNDS, U64_LIMBS};
 use p3_matrix::Matrix;
 use sp1_core_executor::syscalls::SyscallCode;
-use sp1_stark::air::{SP1AirBuilder, SubAirBuilder};
+use sp1_stark::air::{InteractionScope, SP1AirBuilder, SubAirBuilder};
 
 use super::{
     columns::{KeccakMemCols, NUM_KECCAK_MEM_COLS},
@@ -73,6 +73,7 @@ where
             local.state_addr,
             AB::Expr::zero(),
             local.receive_ecall,
+            InteractionScope::Global,
         );
 
         // Constrain that the inputs stay the same throughout the 24 rows of each cycle

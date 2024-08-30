@@ -58,10 +58,13 @@ pub trait MachineProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>>:
         record: &A::Record,
         phase: ProvePhase,
     ) -> Vec<(String, RowMajorMatrix<Val<SC>>)> {
-        let chips = self
-            .shard_chips(record)
-            .filter(|chip| chip.included_in_phase(phase))
-            .collect::<Vec<_>>();
+        let chips = if phase == ProvePhase::Phase1 {
+            self.shard_chips(record)
+                .filter(|chip| chip.included_in_phase(phase))
+                .collect::<Vec<_>>()
+        } else {
+            self.shard_chips(record).collect::<Vec<_>>()
+        };
 
         // For each chip, generate the trace.
         let parent_span = tracing::debug_span!("generate traces for shard");

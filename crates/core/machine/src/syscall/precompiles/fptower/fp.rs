@@ -23,7 +23,7 @@ use sp1_curves::{
 };
 use sp1_derive::AlignedBorrow;
 use sp1_stark::{
-    air::{BaseAirBuilder, MachineAir, Polynomial, SP1AirBuilder},
+    air::{BaseAirBuilder, InteractionScope, MachineAir, Polynomial, SP1AirBuilder},
     ProvePhase,
 };
 
@@ -277,6 +277,7 @@ where
             local.x_ptr,
             local.y_ptr,
             local.is_real,
+            InteractionScope::Global,
         );
     }
 }

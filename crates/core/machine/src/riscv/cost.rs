@@ -142,6 +142,10 @@ impl CostEstimator for ExecutionReport {
             (bls12381_decompress_events as u64) * costs[&RiscvAirDiscriminants::Bls12381Decompress];
         total_chips += 1;
 
+        let syscall_events = self.syscall_counts.values().sum::<u64>();
+        total_area += (syscall_events as u64) * costs[&RiscvAirDiscriminants::Syscall];
+        total_chips += 1;
+
         let divrem_events = *self.opcode_counts.get(&Opcode::DIV).unwrap_or(&0)
             + *self.opcode_counts.get(&Opcode::REM).unwrap_or(&0)
             + *self.opcode_counts.get(&Opcode::DIVU).unwrap_or(&0)

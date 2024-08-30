@@ -24,7 +24,7 @@ use sp1_curves::{
 };
 use sp1_derive::AlignedBorrow;
 use sp1_stark::{
-    air::{BaseAirBuilder, MachineAir, SP1AirBuilder},
+    air::{BaseAirBuilder, InteractionScope, MachineAir, SP1AirBuilder},
     ProvePhase,
 };
 use typenum::U32;
@@ -226,6 +226,7 @@ impl<V: Copy> EdDecompressCols<V> {
             self.ptr,
             self.sign,
             self.is_real,
+            InteractionScope::Global,
         );
     }
 }

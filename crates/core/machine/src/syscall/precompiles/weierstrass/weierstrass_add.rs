@@ -22,7 +22,7 @@ use sp1_curves::{
 };
 use sp1_derive::AlignedBorrow;
 use sp1_stark::{
-    air::{MachineAir, SP1AirBuilder},
+    air::{InteractionScope, MachineAir, SP1AirBuilder},
     ProvePhase,
 };
 use typenum::Unsigned;
@@ -488,6 +488,7 @@ where
             local.p_ptr,
             local.q_ptr,
             local.is_real,
+            InteractionScope::Global,
         );
     }
 }

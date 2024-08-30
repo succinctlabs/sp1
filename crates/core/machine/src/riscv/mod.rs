@@ -23,13 +23,17 @@ pub(crate) mod riscv_chips {
         cpu::CpuChip,
         memory::MemoryGlobalChip,
         program::ProgramChip,
-        syscall::precompiles::{
-            edwards::{EdAddAssignChip, EdDecompressChip},
-            keccak256::KeccakPermuteChip,
-            sha256::{ShaCompressChip, ShaExtendChip},
-            uint256::Uint256MulChip,
-            weierstrass::{
-                WeierstrassAddAssignChip, WeierstrassDecompressChip, WeierstrassDoubleAssignChip,
+        syscall::{
+            chip::SyscallChip,
+            precompiles::{
+                edwards::{EdAddAssignChip, EdDecompressChip},
+                keccak256::KeccakPermuteChip,
+                sha256::{ShaCompressChip, ShaExtendChip},
+                uint256::Uint256MulChip,
+                weierstrass::{
+                    WeierstrassAddAssignChip, WeierstrassDecompressChip,
+                    WeierstrassDoubleAssignChip,
+                },
             },
         },
     };
@@ -80,6 +84,8 @@ pub enum RiscvAir<F: PrimeField32> {
     MemoryLocalFinal(MemoryLocalChip),
     /// A table for initializing the program memory.
     ProgramMemory(MemoryProgramChip),
+    /// A table for the syscal invocations.
+    Syscall(SyscallChip),
     /// A precompile for sha256 extend.
     Sha256Extend(ShaExtendChip),
     /// A precompile for sha256 compress.
@@ -259,6 +265,10 @@ impl<F: PrimeField32> RiscvAir<F> {
             >::with_lexicographic_rule()));
         costs.insert(RiscvAirDiscriminants::Bls12381Decompress, bls12381_decompress.cost());
         chips.push(bls12381_decompress);
+
+        let syscall = Chip::new(RiscvAir::Syscall(SyscallChip::default()));
+        costs.insert(RiscvAirDiscriminants::Syscall, syscall.cost());
+        chips.push(syscall);
 
         let div_rem = Chip::new(RiscvAir::DivRem(DivRemChip::default()));
         costs.insert(RiscvAirDiscriminants::DivRem, div_rem.cost());

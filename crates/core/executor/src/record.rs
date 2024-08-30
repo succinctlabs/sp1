@@ -13,7 +13,7 @@ use crate::{
         EdDecompressEvent, EllipticCurveAddEvent, EllipticCurveDecompressEvent,
         EllipticCurveDoubleEvent, Fp2AddSubEvent, Fp2MulEvent, FpOpEvent, KeccakPermuteEvent,
         MemoryInitializeFinalizeEvent, MemoryLocalEvent, MemoryRecordEnum, ShaCompressEvent,
-        ShaExtendEvent, Uint256MulEvent,
+        ShaExtendEvent, SyscallEvent, Uint256MulEvent,
     },
     syscalls::SyscallCode,
 };
@@ -91,6 +91,8 @@ pub struct ExecutionRecord {
     pub global_memory_finalize_events: Vec<MemoryInitializeFinalizeEvent>,
     /// A trace of the local memory events.
     pub local_memory_access: Vec<MemoryLocalEvent>,
+    /// A trace of all the syscall events.
+    pub syscall_events: Vec<SyscallEvent>,
     /// A trace of the byte lookups per syscall.
     pub syscall_byte_lookups: HashMap<SyscallCode, HashMap<u32, HashMap<ByteLookupEvent, usize>>>,
     /// The public values.
@@ -514,6 +516,7 @@ impl MachineRecord for ExecutionRecord {
         self.shift_right_events.append(&mut other.shift_right_events);
         self.divrem_events.append(&mut other.divrem_events);
         self.lt_events.append(&mut other.lt_events);
+        self.syscall_events.append(&mut other.syscall_events);
         self.sha_extend_events.append(&mut other.sha_extend_events);
         self.sha_compress_events.append(&mut other.sha_compress_events);
         self.keccak_permute_events.append(&mut other.keccak_permute_events);

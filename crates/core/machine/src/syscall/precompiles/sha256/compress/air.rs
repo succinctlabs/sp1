@@ -4,7 +4,10 @@ use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::AbstractField;
 use p3_matrix::Matrix;
 use sp1_core_executor::syscalls::SyscallCode;
-use sp1_stark::{air::SP1AirBuilder, Word};
+use sp1_stark::{
+    air::{InteractionScope, SP1AirBuilder},
+    Word,
+};
 
 use super::{
     columns::{ShaCompressCols, NUM_SHA_COMPRESS_COLS},
@@ -58,6 +61,7 @@ where
             local.w_ptr,
             local.h_ptr,
             local.start,
+            InteractionScope::Global,
         );
     }
 }

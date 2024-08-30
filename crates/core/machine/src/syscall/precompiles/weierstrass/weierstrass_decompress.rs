@@ -22,7 +22,7 @@ use sp1_curves::{
 };
 use sp1_derive::AlignedBorrow;
 use sp1_stark::{
-    air::{BaseAirBuilder, MachineAir, SP1AirBuilder},
+    air::{BaseAirBuilder, InteractionScope, MachineAir, SP1AirBuilder},
     ProvePhase,
 };
 use std::marker::PhantomData;
@@ -539,6 +539,7 @@ where
             local.ptr,
             local.sign_bit,
             local.is_real,
+            InteractionScope::Global,
         );
     }
 }

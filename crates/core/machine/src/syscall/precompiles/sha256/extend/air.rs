@@ -2,7 +2,7 @@ use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::AbstractField;
 use p3_matrix::Matrix;
 use sp1_core_executor::syscalls::SyscallCode;
-use sp1_stark::air::SP1AirBuilder;
+use sp1_stark::air::{InteractionScope, SP1AirBuilder};
 
 use super::{ShaExtendChip, ShaExtendCols, NUM_SHA_EXTEND_COLS};
 use crate::{
@@ -229,6 +229,7 @@ where
             local.w_ptr,
             AB::Expr::zero(),
             local.cycle_48_start,
+            InteractionScope::Global,
         );
 
         // Assert that is_real is a bool.

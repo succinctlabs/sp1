@@ -14,7 +14,9 @@ use crate::{lookup::InteractionKind, Word};
 /// The scope of an interaction.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Display, EnumIter, PartialOrd, Ord)]
 pub enum InteractionScope {
+    /// Global scope.
     Global = 0,
+    /// Local scope.
     Local,
 }
 
@@ -233,6 +235,7 @@ pub trait AluAirBuilder: BaseAirBuilder {
         arg1: impl Into<Self::Expr> + Clone,
         arg2: impl Into<Self::Expr> + Clone,
         multiplicity: impl Into<Self::Expr>,
+        scope: InteractionScope,
     ) {
         self.send(
             AirInteraction::new(
@@ -248,7 +251,7 @@ pub trait AluAirBuilder: BaseAirBuilder {
                 multiplicity.into(),
                 InteractionKind::Syscall,
             ),
-            InteractionScope::Global,
+            scope,
         );
     }
 
@@ -264,6 +267,7 @@ pub trait AluAirBuilder: BaseAirBuilder {
         arg1: impl Into<Self::Expr> + Clone,
         arg2: impl Into<Self::Expr> + Clone,
         multiplicity: impl Into<Self::Expr>,
+        scope: InteractionScope,
     ) {
         self.receive(
             AirInteraction::new(
@@ -279,7 +283,7 @@ pub trait AluAirBuilder: BaseAirBuilder {
                 multiplicity.into(),
                 InteractionKind::Syscall,
             ),
-            InteractionScope::Global,
+            scope,
         );
     }
 }
