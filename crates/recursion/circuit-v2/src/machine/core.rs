@@ -235,9 +235,7 @@ where
             // // fresh challenger observing the verifier key and the initial pc.
             // let shard = felt2var(builder, public_values.shard);
             // builder.if_eq(shard, C::N::one()).then(|builder| {
-            //     let mut first_initial_challenger = DuplexChallengerVariable::new(builder);
-            //     first_initial_challenger.observe(builder, vk.commitment.clone());
-            //     first_initial_challenger.observe(builder, vk.pc_start);
+            //      vk.observe_into(builder, challenger);
             //     initial_reconstruct_challenger.assert_eq(builder, &first_initial_challenger);
             // });
 
