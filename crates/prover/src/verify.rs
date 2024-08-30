@@ -117,9 +117,6 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                     ));
                 }
             }
-            if public_values.execution_shard != current_execution_shard {
-                return Err(MachineVerificationError::InvalidPublicValues("execution shard test for values : {current_execution_shard} != {public_values.execution_shard}"));
-            }
         }
 
         // Program counter constraints.
