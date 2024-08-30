@@ -29,6 +29,7 @@ func init() {
 type Variable struct {
 	Value  frontend.Variable
 	NbBits uint
+	Canonical bool
 }
 
 type ExtensionVariable struct {
@@ -118,10 +119,6 @@ func (c *Chip) MulFConst(a Variable, b int) Variable {
 }
 
 func (c *Chip) negF(a Variable) Variable {
-	if a.NbBits <= 31 {
-		return Variable{Value: c.api.Sub(modulus, a.Value), NbBits: 31}
-	}
-
 	ub := new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(a.NbBits)), big.NewInt(0))
 	divisor := new(big.Int).Div(ub, modulus)
 	divisorPlusOne := new(big.Int).Add(divisor, big.NewInt(1))
@@ -301,19 +298,13 @@ func (p *Chip) reduceFast(x Variable) Variable {
 }
 
 func (p *Chip) ReduceSlow(x Variable) Variable {
-	if x.NbBits <= 31 {
-		return x
-	}
 	return Variable{
 		Value:  p.reduceWithMaxBits(x.Value, uint64(x.NbBits)),
 		NbBits: 31,
 	}
 }
 
-func (p *Chip) reduceWithMaxBits(x frontend.Variable, maxNbBits uint64) frontend.Variable {
-	if maxNbBits <= 31 {
-		return x
-	}
+func (p *Chip) reduceWithMaxBits(x frontend.Variable, maxNbBits uint64) frontend.Variable {	
 	result, err := p.api.Compiler().NewHint(ReduceHint, 2, x)
 	if err != nil {
 		panic(err)
