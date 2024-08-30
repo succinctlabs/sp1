@@ -10,6 +10,7 @@ members = [
   "json/script",
   "regex/script",
   "rsa/script",
+  "rsp/script",
   "ssz-withdrawals/script",
   "tendermint/script",
   "patch-testing/script",

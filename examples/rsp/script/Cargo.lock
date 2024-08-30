@@ -5231,7 +5231,6 @@ dependencies = [
  "csv",
  "dotenv",
  "eyre",
- "reth-primitives",
  "rsp-client-executor",
  "rsp-host-executor",
  "serde",

@@ -5,8 +5,4 @@ fn main() {
         &format!("../{}", "eth-program"),
         BuildArgs { ignore_rust_version: true, ..Default::default() },
     );
-    build_program_with_args(
-        &format!("../{}", "op-program"),
-        BuildArgs { ignore_rust_version: true, ..Default::default() },
-    );
 }

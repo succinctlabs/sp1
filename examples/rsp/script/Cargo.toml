@@ -34,11 +34,7 @@ alloy-provider = { version = "0.2", default-features = false, features = [
     "reqwest-rustls-tls",
 ] }
 
-reth-primitives = { git = "https://github.com/sp1-patches/reth", tag = "rsp-20240827", default-features = false, features = [
-    "alloy-compat",
-    "optimism",
-    "std",
-] }
+# reth-primitives = { git = "https://github.com/paradigmxyz/reth" }
 
 # sp1
 sp1-sdk = { path = "../../../crates/sdk" }
