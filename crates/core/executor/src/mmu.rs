@@ -3,16 +3,17 @@ use serde_with::serde_as;
 
 use crate::events::MemoryRecord;
 
-pub const BLOCK_SIZE: usize = 1 << (12 - std::mem::size_of::<MemoryRecord>().ilog2());
+pub const LOG_BLOCK_SIZE: usize = 12 - std::mem::size_of::<Option<MemoryRecord>>().ilog2() as usize;
+pub const BLOCK_SIZE: usize = 1 << LOG_BLOCK_SIZE;
 pub const BLOCK_MASK: usize = BLOCK_SIZE - 1;
 
 #[serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Page(#[serde_as(as = "[_; BLOCK_SIZE]")] [Option<MemoryRecord>; BLOCK_SIZE]);
+pub struct Page(#[serde_as(as = "Box<[_; BLOCK_SIZE]>")] Box<[Option<MemoryRecord>; BLOCK_SIZE]>);
 
 impl Default for Page {
     fn default() -> Self {
-        Self([None; BLOCK_SIZE])
+        Self(Box::new([None; BLOCK_SIZE]))
     }
 }
 
@@ -27,7 +28,7 @@ pub mod btree_mmu {
 
     use serde::{Deserialize, Serialize};
 
-    use super::{Page, BLOCK_MASK};
+    use super::{Page, BLOCK_MASK, LOG_BLOCK_SIZE};
     use crate::events::MemoryRecord;
 
     #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -94,7 +95,7 @@ pub mod btree_mmu {
 
         #[inline]
         fn split_index(index: usize) -> (usize, usize) {
-            (index & !BLOCK_MASK, index & BLOCK_MASK)
+            (index >> LOG_BLOCK_SIZE, index & BLOCK_MASK)
         }
     }
 
@@ -113,7 +114,7 @@ pub mod btree_mmu {
     impl<'a> VacantEntry<'a> {
         pub fn insert(self, value: MemoryRecord) -> &'a mut MemoryRecord {
             // By construction, the slot in the page is `None`.
-            self.page_table_entry.or_default().0[BTreeMmu::split_index(self.index).1].insert(value)
+            self.page_table_entry.or_default().0[self.index & BLOCK_MASK].insert(value)
         }
 
         pub fn into_key(self) -> usize {
