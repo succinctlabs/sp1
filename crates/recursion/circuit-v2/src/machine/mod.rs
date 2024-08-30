@@ -5,7 +5,7 @@ mod deferred;
 mod vkey_proof;
 mod witness;
 
-pub use complete::*;
+pub(crate) use complete::*;
 pub use compress::*;
 pub use core::*;
 pub use deferred::*;

@@ -143,7 +143,7 @@ where
                 shard_proof.public_values.as_slice().borrow();
 
             // Assert that the proof is complete.
-            // builder.assert_felt_eq(current_public_values.is_complete, C::F::one());
+            builder.assert_felt_eq(current_public_values.is_complete, C::F::one());
 
             // Update deferred proof digest
             // poseidon2( current_digest[..8] || pv.sp1_vk_digest[..8] ||

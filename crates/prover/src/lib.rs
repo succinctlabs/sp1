@@ -336,8 +336,13 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         // Get the operations.
         let builder_span = tracing::debug_span!("build compress program").entered();
         let mut builder = Builder::<InnerConfig>::default();
+
         let input = input.read(&mut builder);
+        // Assert that the proof is complete.
+        builder.assert_felt_eq(input.is_complete, BabyBear::one());
+        // Verify the proof, as a compress proof.
         SP1CompressVerifier::verify(&mut builder, self.shrink_prover.machine(), input);
+
         let operations = builder.into_operations();
         builder_span.exit();
 

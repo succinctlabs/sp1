@@ -29,6 +29,7 @@ use sp1_stark::{
 use crate::{
     challenger::CanObserveVariable,
     constraints::RecursiveVerifierConstraintFolder,
+    machine::assert_complete,
     stark::{ShardProofVariable, StarkVerifier},
     utils::uninit_challenger_pv,
     BabyBearFriConfig, BabyBearFriConfigVariable, CircuitConfig, VerifyingKeyVariable,
@@ -446,18 +447,8 @@ where
         // Set the exit code.
         compress_public_values.exit_code = exit_code;
 
-        // // If the proof is complete, make completeness assertions and set the flag. Otherwise,
-        // check // the flag is zero and set the public value to zero.
-        // builder.if_eq(is_complete, C::N::one()).then_or_else(
-        //     |builder| {
-        //         builder.assign(compress_public_values.is_complete, C::F::one());
-        //         assert_complete(builder, compress_public_values, &reconstruct_challenger)
-        //     },
-        //     |builder| {
-        //         builder.assert_var_eq(is_complete, C::N::zero());
-        //         builder.assign(compress_public_values.is_complete, C::F::zero());
-        //     },
-        // );
+        // If the proof is complete, make completeness assertions.
+        assert_complete(builder, compress_public_values, is_complete);
 
         SC::commit_recursion_public_values(builder, *compress_public_values);
     }
