@@ -116,6 +116,7 @@ impl SP1CudaProver {
                 image_name,
             ])
             .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
             .spawn()
             .expect("failed to start Docker container");
 

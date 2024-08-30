@@ -5848,9 +5848,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "slack-rust"
-version = "0.0.1-alpha"
-source = "git+https://github.com/dselans/slack-rust.git?branch=main#8212d4e8de30ebb3f536da35eab27e7e0820461b"
+name = "slack-rust-rs"
+version = "0.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8b12b682cb9dfa4f3b4a57315c241e676103a79a01de6cb72802489fb2fc9bd8"
 dependencies = [
  "async-std",
  "async-tls",
@@ -6129,7 +6130,7 @@ dependencies = [
  "reqwest 0.12.5",
  "serde",
  "serde_json",
- "slack-rust",
+ "slack-rust-rs",
  "sp1-prover",
  "sp1-sdk",
  "sp1-stark",
