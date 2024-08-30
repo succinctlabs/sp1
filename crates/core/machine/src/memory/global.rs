@@ -7,9 +7,7 @@ use std::array;
 use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
-use sp1_core_executor::{
-    events::MemoryInitializeFinalizeEvent, CoreShape, ExecutionRecord, Program,
-};
+use sp1_core_executor::{events::MemoryInitializeFinalizeEvent, ExecutionRecord, Program};
 use sp1_derive::AlignedBorrow;
 use sp1_stark::{
     air::{
@@ -133,7 +131,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryChip {
         pad_rows_fixed(
             &mut rows,
             || [F::zero(); NUM_MEMORY_INIT_COLS],
-            input.shape.as_ref().map(|s: &CoreShape| s.shape[&MachineAir::<F>::name(self)]),
+            input.fixed_log2_rows::<F, Self>(self),
         );
 
         RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_MEMORY_INIT_COLS)

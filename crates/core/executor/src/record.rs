@@ -1,7 +1,10 @@
 use hashbrown::HashMap;
 use itertools::{EitherOrBoth, Itertools};
-use p3_field::AbstractField;
-use sp1_stark::{air::PublicValues, MachineRecord, SP1CoreOpts, SplitOpts};
+use p3_field::{AbstractField, PrimeField};
+use sp1_stark::{
+    air::{MachineAir, PublicValues},
+    MachineRecord, SP1CoreOpts, SplitOpts,
+};
 use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
@@ -277,6 +280,20 @@ impl ExecutionRecord {
         }
 
         shards
+    }
+
+    /// Return the number of rows needed for a chip, according to the proof shape specified in the
+    /// struct.
+    pub fn fixed_log2_rows<F: PrimeField, A: MachineAir<F>>(&self, air: &A) -> Option<usize> {
+        self.shape
+            .as_ref()
+            .map(|shape| {
+                shape
+                    .shape
+                    .get(&air.name())
+                    .unwrap_or_else(|| panic!("Chip {} not found in specified shape", air.name()))
+            })
+            .copied()
     }
 }
 

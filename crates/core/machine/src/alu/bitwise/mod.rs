@@ -11,7 +11,7 @@ use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use p3_maybe_rayon::prelude::{IntoParallelRefIterator, ParallelIterator, ParallelSlice};
 use sp1_core_executor::{
     events::{AluEvent, ByteLookupEvent, ByteRecord},
-    ByteOpcode, CoreShape, ExecutionRecord, Opcode, Program,
+    ByteOpcode, ExecutionRecord, Opcode, Program,
 };
 use sp1_derive::AlignedBorrow;
 use sp1_stark::{
@@ -90,7 +90,7 @@ impl<F: PrimeField> MachineAir<F> for BitwiseChip {
         pad_rows_fixed(
             &mut rows,
             || [F::zero(); NUM_BITWISE_COLS],
-            input.shape.as_ref().map(|s: &CoreShape| s.shape[&MachineAir::<F>::name(self)]),
+            input.fixed_log2_rows::<F, _>(self),
         );
 
         // Convert the trace to a row major matrix.

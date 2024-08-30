@@ -73,7 +73,7 @@ use p3_field::{AbstractField, PrimeField};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use sp1_core_executor::{
     events::{create_alu_lookups, AluEvent, ByteLookupEvent, ByteRecord},
-    ByteOpcode, CoreShape, ExecutionRecord, Opcode, Program,
+    ByteOpcode, ExecutionRecord, Opcode, Program,
 };
 use sp1_derive::AlignedBorrow;
 use sp1_primitives::consts::WORD_SIZE;
@@ -500,7 +500,7 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
         pad_rows_fixed(
             &mut rows,
             || [F::zero(); NUM_DIVREM_COLS],
-            input.shape.as_ref().map(|s: &CoreShape| s.shape[&MachineAir::<F>::name(self)]),
+            input.fixed_log2_rows::<F, _>(self),
         );
 
         // Convert the trace to a row major matrix.

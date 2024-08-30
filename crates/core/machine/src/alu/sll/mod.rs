@@ -43,7 +43,7 @@ use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use p3_maybe_rayon::prelude::{ParallelIterator, ParallelSlice};
 use sp1_core_executor::{
     events::{AluEvent, ByteLookupEvent, ByteRecord},
-    CoreShape, ExecutionRecord, Opcode, Program,
+    ExecutionRecord, Opcode, Program,
 };
 use sp1_derive::AlignedBorrow;
 use sp1_primitives::consts::WORD_SIZE;
@@ -133,7 +133,7 @@ impl<F: PrimeField> MachineAir<F> for ShiftLeft {
         pad_rows_fixed(
             &mut rows,
             || [F::zero(); NUM_SHIFT_LEFT_COLS],
-            input.shape.as_ref().map(|s: &CoreShape| s.shape[&MachineAir::<F>::name(self)]),
+            input.fixed_log2_rows::<F, _>(self),
         );
 
         // Convert the trace to a row major matrix.

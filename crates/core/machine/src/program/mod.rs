@@ -8,7 +8,7 @@ use crate::{air::ProgramAirBuilder, utils::pad_rows_fixed};
 use p3_air::{Air, BaseAir, PairBuilder};
 use p3_field::PrimeField;
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
-use sp1_core_executor::{CoreShape, ExecutionRecord, Program};
+use sp1_core_executor::{ExecutionRecord, Program};
 use sp1_derive::AlignedBorrow;
 use sp1_stark::air::{MachineAir, SP1AirBuilder};
 
@@ -83,7 +83,7 @@ impl<F: PrimeField> MachineAir<F> for ProgramChip {
         pad_rows_fixed(
             &mut rows,
             || [F::zero(); NUM_PROGRAM_PREPROCESSED_COLS],
-            program.shape.as_ref().map(|s: &CoreShape| s.shape[&MachineAir::<F>::name(self)]),
+            program.fixed_log2_rows::<F, _>(self),
         );
 
         // Convert the trace to a row major matrix.
@@ -135,7 +135,7 @@ impl<F: PrimeField> MachineAir<F> for ProgramChip {
         pad_rows_fixed(
             &mut rows,
             || [F::zero(); NUM_PROGRAM_MULT_COLS],
-            input.shape.as_ref().map(|s: &CoreShape| s.shape[&MachineAir::<F>::name(self)]),
+            input.fixed_log2_rows::<F, _>(self),
         );
 
         RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_PROGRAM_MULT_COLS)
@@ -206,7 +206,7 @@ mod tests {
                 pc_start: 0,
                 pc_base: 0,
                 memory_image: BTreeMap::new(),
-                shape: None,
+                preprocessed_shape: None,
             }),
             ..Default::default()
         };

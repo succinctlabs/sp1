@@ -86,7 +86,7 @@ impl<F: PrimeField> MachineAir<F> for MemoryProgramChip {
         pad_rows_fixed(
             &mut rows,
             || [F::zero(); NUM_MEMORY_PROGRAM_PREPROCESSED_COLS],
-            program.shape.as_ref().map(|s: &CoreShape| s.shape[&MachineAir::<F>::name(self)]),
+            program.fixed_log2_rows::<F, _>(self),
         );
 
         // Convert the trace to a row major matrix.
