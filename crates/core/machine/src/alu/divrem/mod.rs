@@ -73,7 +73,7 @@ use p3_field::{AbstractField, PrimeField};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use sp1_core_executor::{
     events::{create_alu_lookups, AluEvent, ByteLookupEvent, ByteRecord},
-    ByteOpcode, ExecutionRecord, Opcode, Program,
+    ByteOpcode, CoreShape, ExecutionRecord, Opcode, Program,
 };
 use sp1_derive::AlignedBorrow;
 use sp1_primitives::consts::WORD_SIZE;
@@ -83,7 +83,7 @@ use crate::{
     air::SP1CoreAirBuilder,
     alu::divrem::utils::{get_msb, get_quotient_and_remainder, is_signed_operation},
     operations::{IsEqualWordOperation, IsZeroWordOperation},
-    utils::pad_to_power_of_two,
+    utils::pad_rows_fixed,
 };
 
 /// The number of main trace columns for `DivRemChip`.
@@ -496,12 +496,16 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
             rows.push(row);
         }
 
+        // Pad the trace to a power of two depending on the proof shape in `input`.
+        pad_rows_fixed(
+            &mut rows,
+            || [F::zero(); NUM_DIVREM_COLS],
+            input.shape.as_ref().map(|s: &CoreShape| s.shape[&MachineAir::<F>::name(self)]),
+        );
+
         // Convert the trace to a row major matrix.
         let mut trace =
             RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_DIVREM_COLS);
-
-        // Pad the trace to a power of two.
-        pad_to_power_of_two::<NUM_DIVREM_COLS, F>(&mut trace.values);
 
         // Create the template for the padded rows. These are fake rows that don't fail on some
         // sanity checks.

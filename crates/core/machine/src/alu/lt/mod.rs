@@ -11,7 +11,7 @@ use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use p3_maybe_rayon::prelude::*;
 use sp1_core_executor::{
     events::{AluEvent, ByteLookupEvent, ByteRecord},
-    ByteOpcode, ExecutionRecord, Opcode, Program,
+    ByteOpcode, CoreShape, ExecutionRecord, Opcode, Program,
 };
 use sp1_derive::AlignedBorrow;
 use sp1_stark::{
@@ -19,7 +19,7 @@ use sp1_stark::{
     Word,
 };
 
-use crate::utils::pad_to_power_of_two;
+use crate::utils::pad_rows_fixed;
 
 /// The number of main trace columns for `LtChip`.
 pub const NUM_LT_COLS: usize = size_of::<LtCols<u8>>();
@@ -110,7 +110,7 @@ impl<F: PrimeField32> MachineAir<F> for LtChip {
         _: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
-        let rows = input
+        let mut rows = input
             .lt_events
             .par_iter()
             .map(|event| {
@@ -123,12 +123,16 @@ impl<F: PrimeField32> MachineAir<F> for LtChip {
             })
             .collect::<Vec<_>>();
 
+        // Pad the trace to a power of two depending on the proof shape in `input`.
+        pad_rows_fixed(
+            &mut rows,
+            || [F::zero(); NUM_LT_COLS],
+            input.shape.as_ref().map(|s: &CoreShape| s.shape[&MachineAir::<F>::name(self)]),
+        );
+
         // Convert the trace to a row major matrix.
         let mut trace =
             RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_LT_COLS);
-
-        // Pad the trace to a power of two.
-        pad_to_power_of_two::<NUM_LT_COLS, F>(&mut trace.values);
 
         // Write the nonces to the trace.
         for i in 0..trace.height() {

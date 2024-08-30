@@ -7,12 +7,15 @@ use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 
 use super::{program::Program, Opcode};
-use crate::events::{
-    add_sharded_byte_lookup_events, AluEvent, ByteLookupEvent, ByteRecord, CpuEvent,
-    EdDecompressEvent, EllipticCurveAddEvent, EllipticCurveDecompressEvent,
-    EllipticCurveDoubleEvent, Fp2AddSubEvent, Fp2MulEvent, FpOpEvent, KeccakPermuteEvent, LookupId,
-    MemoryInitializeFinalizeEvent, MemoryRecordEnum, ShaCompressEvent, ShaExtendEvent,
-    Uint256MulEvent,
+use crate::{
+    events::{
+        add_sharded_byte_lookup_events, AluEvent, ByteLookupEvent, ByteRecord, CpuEvent,
+        EdDecompressEvent, EllipticCurveAddEvent, EllipticCurveDecompressEvent,
+        EllipticCurveDoubleEvent, Fp2AddSubEvent, Fp2MulEvent, FpOpEvent, KeccakPermuteEvent,
+        LookupId, MemoryInitializeFinalizeEvent, MemoryRecordEnum, ShaCompressEvent,
+        ShaExtendEvent, Uint256MulEvent,
+    },
+    shape::CoreShape,
 };
 
 /// A record of the execution of a program.
@@ -90,6 +93,8 @@ pub struct ExecutionRecord {
     pub public_values: PublicValues<u32, u32>,
     /// The nonce lookup.
     pub nonce_lookup: HashMap<LookupId, u32>,
+    /// The shape of the proof.
+    pub shape: Option<CoreShape>,
 }
 
 impl ExecutionRecord {

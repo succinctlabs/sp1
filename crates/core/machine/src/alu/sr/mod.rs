@@ -55,7 +55,7 @@ use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use p3_maybe_rayon::prelude::{ParallelIterator, ParallelSlice};
 use sp1_core_executor::{
     events::{AluEvent, ByteLookupEvent, ByteRecord},
-    ByteOpcode, ExecutionRecord, Opcode, Program,
+    ByteOpcode, CoreShape, ExecutionRecord, Opcode, Program,
 };
 use sp1_derive::AlignedBorrow;
 use sp1_primitives::consts::WORD_SIZE;
@@ -65,7 +65,7 @@ use crate::{
     air::SP1CoreAirBuilder,
     alu::sr::utils::{nb_bits_to_shift, nb_bytes_to_shift},
     bytes::utils::shr_carry,
-    utils::pad_to_power_of_two,
+    utils::pad_rows_fixed,
 };
 
 /// The number of main trace columns for `ShiftRightChip`.
@@ -163,14 +163,18 @@ impl<F: PrimeField> MachineAir<F> for ShiftRightChip {
             rows.push(row);
         }
 
+        // Pad the trace to a power of two depending on the proof shape in `input`.
+        pad_rows_fixed(
+            &mut rows,
+            || [F::zero(); NUM_SHIFT_RIGHT_COLS],
+            input.shape.as_ref().map(|s: &CoreShape| s.shape[&MachineAir::<F>::name(self)]),
+        );
+
         // Convert the trace to a row major matrix.
         let mut trace = RowMajorMatrix::new(
             rows.into_iter().flatten().collect::<Vec<_>>(),
             NUM_SHIFT_RIGHT_COLS,
         );
-
-        // Pad the trace to a power of two.
-        pad_to_power_of_two::<NUM_SHIFT_RIGHT_COLS, F>(&mut trace.values);
 
         // Create the template for the padded rows. These are fake rows that don't fail on some
         // sanity checks.

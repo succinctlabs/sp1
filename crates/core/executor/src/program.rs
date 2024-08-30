@@ -9,6 +9,7 @@ use sp1_stark::air::MachineProgram;
 use crate::{
     disassembler::{transpile, Elf},
     instruction::Instruction,
+    CoreShape,
 };
 
 /// A program that can be executed by the SP1 zkVM.
@@ -25,13 +26,15 @@ pub struct Program {
     pub pc_base: u32,
     /// The initial memory image, useful for global constants.
     pub memory_image: BTreeMap<u32, u32>,
+    /// The shape for the preprocessed tables.
+    pub shape: Option<CoreShape>,
 }
 
 impl Program {
     /// Create a new [Program].
     #[must_use]
     pub const fn new(instructions: Vec<Instruction>, pc_start: u32, pc_base: u32) -> Self {
-        Self { instructions, pc_start, pc_base, memory_image: BTreeMap::new() }
+        Self { instructions, pc_start, pc_base, memory_image: BTreeMap::new(), shape: None }
     }
 
     /// Disassemble a RV32IM ELF to a program that be executed by the VM.
@@ -52,6 +55,7 @@ impl Program {
             pc_start: elf.pc_start,
             pc_base: elf.pc_base,
             memory_image: elf.memory_image,
+            shape: None,
         })
     }
 
