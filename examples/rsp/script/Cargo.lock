@@ -5664,7 +5664,7 @@ name = "rsp-script"
 version = "0.1.0"
 dependencies = [
  "bincode",
- "eyre",
+ "clap",
  "reth-primitives 1.0.6",
  "rsp-client-executor",
  "rsp-host-executor",
