@@ -2531,6 +2531,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "rsp-eth-program"
+version = "1.1.0"
+dependencies = [
+ "bincode",
+ "rsp-client-executor",
+ "sp1-zkvm",
+]
+
+[[package]]
 name = "rsp-mpt"
 version = "0.1.0"
 source = "git+https://github.com/succinctlabs/rsp/#792efd0de060df17cb27c3a11c4e29c3ad41e699"
@@ -2563,15 +2572,6 @@ dependencies = [
  "serde",
  "serde_json",
  "tracing",
-]
-
-[[package]]
-name = "rsp-program"
-version = "1.1.0"
-dependencies = [
- "bincode",
- "rsp-client-executor",
- "sp1-zkvm",
 ]
 
 [[package]]

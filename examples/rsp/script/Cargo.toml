@@ -1,14 +1,11 @@
+[workspace] # 
+
 [package]
 version = "0.1.0"
 name = "rsp-script"
 edition = "2021"
 
 [dependencies]
-# tokio.workspace = true
-# eyre.workspace = true
-# url.workspace = true
-# serde_json.workspace = true
-# serde.workspace = true
 
 tokio = { version = "1.21", default-features = false, features = [
     "rt",
@@ -25,14 +22,9 @@ clap = { version = "4.5.7", features = ["derive", "env"] }
 bincode = "1.3.3"
 csv = "1.1"
 
-rsp-host-executor = { git = "https://github.com/succinctlabs/rsp/" }
-rsp-client-executor = { git = "https://github.com/succinctlabs/rsp/"}
-
-# # alloy
-# alloy-provider.workspace = true
-
-# # reth 
-# reth-primitives.workspace = true
+# rsp
+rsp-host-executor = { git = "https://github.com/succinctlabs/rsp/", rev = "792efd0" }
+rsp-client-executor = { git = "https://github.com/succinctlabs/rsp/", rev = "792efd0" }
 
 alloy-provider = { version = "0.2", default-features = false, features = [
     "reqwest",
@@ -46,10 +38,10 @@ reth-primitives = { git = "https://github.com/sp1-patches/reth", tag = "rsp-2024
 ] }
 
 # sp1
-sp1-sdk = { workspace = true }
+sp1-sdk = { path = "../../../crates/sdk" }
 
 [build-dependencies]
-sp1-build = { workspace = true }
+sp1-build = { path = "../../../crates/build" }
 
 [features]
 default = []
