@@ -225,6 +225,7 @@ where
                 // Initialize the initial reconstruct challenger public values.
                 initial_reconstruct_challenger_values =
                     current_public_values.start_reconstruct_challenger;
+                reconstruct_challenger_values = current_public_values.start_reconstruct_challenger;
 
                 // Assign the commited values and deferred proof digests.
                 for (word, current_word) in committed_value_digest
@@ -268,7 +269,23 @@ where
             builder.assert_felt_eq(shard, current_public_values.start_shard);
 
             // Verfiy that the exeuction shard is equal to the current execution shard.
+            // TODO: comment back in.
             // builder.assert_felt_eq(execution_shard, current_public_values.start_execution_shard);
+
+            // Assert that the MemoryInitialize address bits are the same.
+            for (bit, current_bit) in
+                init_addr_bits.iter().zip(current_public_values.previous_init_addr_bits.iter())
+            {
+                builder.assert_felt_eq(*bit, *current_bit);
+            }
+
+            // Assert that the MemoryFinalize address bits are the same.
+            for (bit, current_bit) in finalize_addr_bits
+                .iter()
+                .zip(current_public_values.previous_finalize_addr_bits.iter())
+            {
+                builder.assert_felt_eq(*bit, *current_bit);
+            }
 
             // Assert that the leaf challenger is always the same.
             for (current, expected) in
@@ -277,29 +294,13 @@ where
                 builder.assert_felt_eq(current, expected);
             }
 
-            // // Assert that the MemoryInitialize address bits are the same.
-            // for (bit, current_bit) in
-            //     init_addr_bits.iter().zip(current_public_values.previous_init_addr_bits.iter())
-            // {
-            //     builder.assert_felt_eq(*bit, *current_bit);
-            // }
-
-            // // Assert that the MemoryFinalize address bits are the same.
-            // for (bit, current_bit) in finalize_addr_bits
-            //     .iter()
-            //     .zip(current_public_values.previous_finalize_addr_bits.iter())
-            // {
-            //     builder.assert_felt_eq(*bit, *current_bit);
-            // }
-
-            // Assert that the leaf challenger is always the same.
-
-            // // Assert that the current challenger matches the start reconstruct challenger.
-            // assert_challenger_eq_pv(
-            //     builder,
-            //     &reconstruct_challenger,
-            //     current_public_values.start_reconstruct_challenger,
-            // );
+            // Assert that the current challenger matches the start reconstruct challenger.
+            for (current, expected) in reconstruct_challenger_values
+                .into_iter()
+                .zip(current_public_values.start_reconstruct_challenger)
+            {
+                builder.assert_felt_eq(current, expected);
+            }
 
             // Digest constraints.
             {

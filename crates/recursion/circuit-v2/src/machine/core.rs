@@ -487,7 +487,7 @@ where
 
             // Update the reconstruct challenger.
             reconstruct_challenger.observe(builder, shard_proof.commitment.main_commit);
-            for element in shard_proof.public_values.iter() {
+            for element in shard_proof.public_values.iter().take(machine.num_pv_elts()) {
                 reconstruct_challenger.observe(builder, *element);
             }
 
