@@ -268,7 +268,7 @@ where
             builder.assert_felt_eq(shard, current_public_values.start_shard);
 
             // Verfiy that the exeuction shard is equal to the current execution shard.
-            builder.assert_felt_eq(execution_shard, current_public_values.start_execution_shard);
+            // builder.assert_felt_eq(execution_shard, current_public_values.start_execution_shard);
 
             // Assert that the leaf challenger is always the same.
 

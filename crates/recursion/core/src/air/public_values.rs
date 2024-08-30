@@ -11,7 +11,7 @@ use sp1_stark::{air::POSEIDON_NUM_WORDS, Word, PROOF_MAX_NUM_PVS};
 use static_assertions::const_assert_eq;
 use std::{
     borrow::BorrowMut,
-    mem::{size_of, transmute},
+    mem::{size_of, transmute, MaybeUninit},
 };
 
 pub const PV_DIGEST_NUM_WORDS: usize = 8;
@@ -137,12 +137,13 @@ pub struct RecursionPublicValues<T> {
 }
 
 /// Converts the public values to an array of elements.
-impl<F: Default + Copy> RecursionPublicValues<F> {
+impl<F: Copy> RecursionPublicValues<F> {
     pub fn as_array(&self) -> [F; RECURSIVE_PROOF_NUM_PV_ELTS] {
-        let mut ret = [F::default(); RECURSIVE_PROOF_NUM_PV_ELTS];
-        let pv: &mut RecursionPublicValues<F> = ret.as_mut_slice().borrow_mut();
-
-        *pv = *self;
-        ret
+        unsafe {
+            let mut ret = [MaybeUninit::<F>::zeroed().assume_init(); RECURSIVE_PROOF_NUM_PV_ELTS];
+            let pv: &mut RecursionPublicValues<F> = ret.as_mut_slice().borrow_mut();
+            *pv = *self;
+            ret
+        }
     }
 }
