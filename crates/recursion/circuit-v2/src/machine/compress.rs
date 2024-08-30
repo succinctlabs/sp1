@@ -220,7 +220,6 @@ where
 
                 // Initialize the leaf challenger public values.
                 leaf_challenger_values = current_public_values.leaf_challenger;
-                // Initialize the reconstruct challenger public values.
 
                 // Initialize the initial reconstruct challenger public values.
                 initial_reconstruct_challenger_values =
@@ -271,6 +270,11 @@ where
             // builder.assert_felt_eq(execution_shard, current_public_values.start_execution_shard);
 
             // Assert that the leaf challenger is always the same.
+            for (current, expected) in
+                leaf_challenger_values.into_iter().zip(current_public_values.leaf_challenger)
+            {
+                builder.assert_felt_eq(current, expected);
+            }
 
             // // Assert that the MemoryInitialize address bits are the same.
             // for (bit, current_bit) in
