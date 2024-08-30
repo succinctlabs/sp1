@@ -10,8 +10,12 @@ use p3_baby_bear::BabyBear;
 use p3_commit::Mmcs;
 use p3_field::AbstractField;
 use p3_matrix::dense::RowMajorMatrix;
-use sp1_core_machine::riscv::RiscvAir;
-use sp1_primitives::consts::WORD_SIZE;
+
+use sp1_core_machine::{
+    cpu::MAX_CPU_LOG_DEGREE,
+    riscv::{RiscvAir, MAX_LOG_NUMBER_OF_SHARDS},
+};
+
 use sp1_recursion_core_v2::air::PV_DIGEST_NUM_WORDS;
 use sp1_stark::{
     air::{PublicValues, POSEIDON_NUM_WORDS},
@@ -22,7 +26,7 @@ use sp1_stark::{ShardProof, StarkGenericConfig, StarkVerifyingKey};
 
 use sp1_recursion_compiler::{
     circuit::CircuitV2Builder,
-    ir::{Builder, Config, Ext, ExtConst, Felt},
+    ir::{Builder, Config, Ext, ExtConst, Felt, SymbolicFelt},
 };
 
 use sp1_recursion_core_v2::{
@@ -45,6 +49,7 @@ pub struct SP1RecursionWitnessVariable<
     pub leaf_challenger: SC::FriChallengerVariable,
     pub initial_reconstruct_challenger: DuplexChallengerVariable<C>,
     pub is_complete: Felt<C::F>,
+    pub is_first_shard: Felt<C::F>,
 }
 
 pub struct SP1RecursionWitnessValues<SC: StarkGenericConfig> {
@@ -53,6 +58,7 @@ pub struct SP1RecursionWitnessValues<SC: StarkGenericConfig> {
     pub leaf_challenger: SC::Challenger,
     pub initial_reconstruct_challenger: SC::Challenger,
     pub is_complete: bool,
+    pub is_first_shard: bool,
 }
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -116,6 +122,7 @@ where
             leaf_challenger,
             initial_reconstruct_challenger,
             is_complete,
+            is_first_shard,
         } = input;
 
         // Initialize shard variables.
@@ -169,8 +176,8 @@ where
         // Verify proofs.
         for (i, shard_proof) in shard_proofs.into_iter().enumerate() {
             let contains_cpu = shard_proof.contains_cpu();
-            let _contains_memory_init = shard_proof.contains_memory_init();
-            let _contains_memory_finalize = shard_proof.contains_memory_finalize();
+            let contains_memory_init = shard_proof.contains_memory_init();
+            let contains_memory_finalize = shard_proof.contains_memory_finalize();
 
             // Get the public values.
             let public_values: &PublicValues<Word<Felt<_>>, Felt<_>> =
@@ -190,6 +197,7 @@ where
 
                 // Program counter.
                 start_pc = public_values.start_pc;
+                current_pc = public_values.start_pc;
 
                 // Memory initialization & finalization.
                 for ((bit, pub_bit), first_bit) in current_init_addr_bits
@@ -229,17 +237,48 @@ where
                 {
                     *digest = *first_digest;
                 }
-            }
 
-            // // If the shard is the first shard, assert that the initial challenger is equal to a
-            // // fresh challenger observing the verifier key and the initial pc.
-            // let shard = felt2var(builder, public_values.shard);
-            // builder.if_eq(shard, C::N::one()).then(|builder| {
-            //     let mut first_initial_challenger = DuplexChallengerVariable::new(builder);
-            //     first_initial_challenger.observe(builder, vk.commitment.clone());
-            //     first_initial_challenger.observe(builder, vk.pc_start);
-            //     initial_reconstruct_challenger.assert_eq(builder, &first_initial_challenger);
-            // });
+                // First shard constraints. We verify the validity of the `is_first_shard` boolean
+                // flag, and make assertions for that are specific to the first shard using that
+                // flag.
+
+                // Assert that the shard is boolean.
+                builder
+                    .assert_felt_eq(is_first_shard * (is_first_shard - C::F::one()), C::F::zero());
+                // Assert that if the flag is set to `1`, then the shard idex is `1`.
+                builder
+                    .assert_felt_eq(is_first_shard * (initial_shard - C::F::one()), C::F::zero());
+                // Assert that if the flag is set to `0`, then the shard index is not `1`.
+                builder.assert_felt_ne(
+                    (SymbolicFelt::one() - is_first_shard) * initial_shard,
+                    C::F::one(),
+                );
+
+                // If the initial shard is the first shard, we assert that the initial challenger
+                // is the same as a fresh challenger that absorbed the verifying key.
+                let mut first_shard_challenger = machine.config().challenger_variable(builder);
+                vk.observe_into(builder, &mut first_shard_challenger);
+                let first_challenger_public_values = first_shard_challenger.public_values(builder);
+                let initial_challenger_public_values =
+                    initial_reconstruct_challenger.public_values(builder);
+                for (first, initial) in
+                    first_challenger_public_values.into_iter().zip(initial_challenger_public_values)
+                {
+                    builder.assert_felt_eq(is_first_shard * (first - initial), C::F::zero());
+                }
+
+                // If it's the first shard (which is the first execution shard), then the `start_pc`
+                // should be vk.pc_start.
+                builder.assert_felt_eq(is_first_shard * (start_pc - vk.pc_start), C::F::zero());
+
+                // Assert that `init_addr_bits` and `finalize_addr_bits` are zero for the first
+                for bit in current_init_addr_bits.iter() {
+                    builder.assert_felt_eq(is_first_shard * *bit, C::F::zero());
+                }
+                for bit in current_finalize_addr_bits.iter() {
+                    builder.assert_felt_eq(is_first_shard * *bit, C::F::zero());
+                }
+            }
 
             // Verify the shard.
             //
@@ -248,34 +287,17 @@ where
             let mut challenger = leaf_challenger.copy(builder);
             StarkVerifier::verify_shard(builder, &vk, machine, &mut challenger, &shard_proof);
 
-            // // First shard has a "CPU" constraint.
-            // {
-            //     builder.if_eq(shard, C::N::one()).then(|builder| {
-            //         builder.assert_var_eq(contains_cpu, C::N::one());
-            //     });
-            // }
+            // Assert that first shard has a "CPU". Equivalently, assert that if the shard does
+            // not have a "CPU", then the current shard is not 1.
+            if !contains_cpu {
+                builder.assert_felt_ne(current_shard, C::F::one());
+            }
 
-            // // CPU log degree bound check constraints.
-            // {
-            //     for (i, chip) in machine.chips().iter().enumerate() {
-            //         if chip.name() == "CPU" {
-            //             builder.if_eq(contains_cpu, C::N::one()).then(|builder| {
-            //                 let index = builder.get(&proof.sorted_idxs, i);
-            //                 let cpu_log_degree =
-            //                     builder.get(&proof.opened_values.chips, index).log_degree;
-            //                 let cpu_log_degree_lt_max: Var<_> = builder.eval(C::N::zero());
-            //                 builder
-            //                     .range(0, MAX_CPU_LOG_DEGREE + 1)
-            //                     .for_each(|j, builder| {
-            //                         builder.if_eq(j, cpu_log_degree).then(|builder| {
-            //                             builder.assign(cpu_log_degree_lt_max, C::N::one());
-            //                         });
-            //                     });
-            //                 builder.assert_var_eq(cpu_log_degree_lt_max, C::N::one());
-            //             });
-            //         }
-            //     }
-            // }
+            // CPU log degree bound check constraints (this assertion is made in compile time).
+            if shard_proof.contains_cpu() {
+                let log_degree_cpu = shard_proof.log_degree_cpu();
+                assert!(log_degree_cpu <= MAX_CPU_LOG_DEGREE);
+            }
 
             // Shard constraints.
             {
@@ -287,14 +309,11 @@ where
             }
 
             // Execution shard constraints.
-            // let execution_shard = felt2var(builder, public_values.execution_shard);
             {
                 // If the shard has a "CPU" chip, then the execution shard should be incremented by
                 // 1.
                 if contains_cpu {
-                    // Assert that the shard of the proof is equal to the current shard.
-                    // builder.assert_felt_eq(current_execution_shard,
-                    // public_values.execution_shard);
+                    builder.assert_felt_eq(current_execution_shard, public_values.execution_shard);
 
                     current_execution_shard = builder.eval(current_execution_shard + C::F::one());
                 }
@@ -302,24 +321,17 @@ where
 
             // Program counter constraints.
             {
-                // // If it's the first shard (which is the first execution shard), then the
-                // start_pc // should be vk.pc_start.
-                // builder.if_eq(shard, C::N::one()).then(|builder| {
-                //     builder.assert_felt_eq(public_values.start_pc, vk.pc_start);
-                // });
+                // Assert that the start_pc of the proof is equal to the current pc.
+                builder.assert_felt_eq(current_pc, public_values.start_pc);
 
-                // // Assert that the start_pc of the proof is equal to the current pc.
-                // builder.assert_felt_eq(current_pc, public_values.start_pc);
-
-                // // If it's not a shard with "CPU", then assert that the start_pc equals the
-                // next_pc. builder.if_ne(contains_cpu, C::N::one()).then(|builder|
-                // {     builder.assert_felt_eq(public_values.start_pc,
-                // public_values.next_pc); });
-
-                // // If it's a shard with "CPU", then assert that the start_pc is not zero.
-                // builder.if_eq(contains_cpu, C::N::one()).then(|builder| {
-                //     builder.assert_felt_ne(public_values.start_pc, C::F::zero());
-                // });
+                // If it's not a shard with "CPU", then assert that the start_pc equals the
+                // next_pc.
+                if !contains_cpu {
+                    builder.assert_felt_eq(public_values.start_pc, public_values.next_pc);
+                } else {
+                    // If it's a shard with "CPU", then assert that the start_pc is not zero.
+                    builder.assert_felt_ne(public_values.start_pc, C::F::zero());
+                }
 
                 // Update current_pc to be the end_pc of the current proof.
                 current_pc = public_values.next_pc;
@@ -333,19 +345,6 @@ where
 
             // Memory initialization & finalization constraints.
             {
-                // // Assert that `init_addr_bits` and `finalize_addr_bits` are zero for the first
-                // execution shard. builder.if_eq(execution_shard,
-                // C::N::one()).then(|builder| {     // Assert that the
-                // MemoryInitialize address bits are zero.     for bit in
-                // current_init_addr_bits.iter() {         builder.assert_felt_eq(*
-                // bit, C::F::zero());     }
-
-                //     // Assert that the MemoryFinalize address bits are zero.
-                //     for bit in current_finalize_addr_bits.iter() {
-                //         builder.assert_felt_eq(*bit, C::F::zero());
-                //     }
-                // });
-
                 // Assert that the MemoryInitialize address bits match the current loop variable.
                 for (bit, current_bit) in current_init_addr_bits
                     .iter()
@@ -362,31 +361,28 @@ where
                     builder.assert_felt_eq(*bit, *current_bit);
                 }
 
-                // // Assert that if MemoryInit is not present, then the address bits are the same.
-                // builder
-                //     .if_ne(contains_memory_init, C::N::one())
-                //     .then(|builder| {
-                //         for (prev_bit, last_bit) in public_values
-                //             .previous_init_addr_bits
-                //             .iter()
-                //             .zip_eq(public_values.last_init_addr_bits.iter())
-                //         {
-                //             builder.assert_felt_eq(*prev_bit, *last_bit);
-                //         }
-                //     });
+                // Assert that if MemoryInit is not present, then the address bits are the same.
+                if !contains_memory_init {
+                    for (prev_bit, last_bit) in public_values
+                        .previous_init_addr_bits
+                        .iter()
+                        .zip_eq(public_values.last_init_addr_bits.iter())
+                    {
+                        builder.assert_felt_eq(*prev_bit, *last_bit);
+                    }
+                }
 
-                // // Assert that if MemoryFinalize is not present, then the address bits are the
-                // same. builder
-                //     .if_ne(contains_memory_finalize, C::N::one())
-                //     .then(|builder| {
-                //         for (prev_bit, last_bit) in public_values
-                //             .previous_finalize_addr_bits
-                //             .iter()
-                //             .zip_eq(public_values.last_finalize_addr_bits.iter())
-                //         {
-                //             builder.assert_felt_eq(*prev_bit, *last_bit);
-                //         }
-                //     });
+                // Assert that if MemoryFinalize is not present, then the address bits are the
+                // same.
+                if !contains_memory_finalize {
+                    for (prev_bit, last_bit) in public_values
+                        .previous_finalize_addr_bits
+                        .iter()
+                        .zip_eq(public_values.last_finalize_addr_bits.iter())
+                    {
+                        builder.assert_felt_eq(*prev_bit, *last_bit);
+                    }
+                }
 
                 // Update the MemoryInitialize address bits.
                 for (bit, pub_bit) in
@@ -406,92 +402,102 @@ where
 
             // Digest constraints.
             {
-                // // If `commited_value_digest` is not zero, then
-                // `public_values.commited_value_digest // should be the current
-                // value. let is_zero: Var<_> = builder.eval(C::N::one());
-                // #[allow(clippy::needless_range_loop)]
-                // for i in 0..committed_value_digest.len() {
-                //     for j in 0..WORD_SIZE {
-                //         let d = felt2var(builder, committed_value_digest[i][j]);
-                //         builder.if_ne(d, C::N::zero()).then(|builder| {
-                //             builder.assign(is_zero, C::N::zero());
-                //         });
-                //     }
-                // }
-                // builder.if_eq(is_zero, C::N::zero()).then(|builder| {
-                //     #[allow(clippy::needless_range_loop)]
-                //     for i in 0..committed_value_digest.len() {
-                //         for j in 0..WORD_SIZE {
-                //             builder.assert_felt_eq(
-                //                 committed_value_digest[i][j],
-                //                 public_values.committed_value_digest[i][j],
-                //             );
-                //         }
-                //     }
-                // });
+                // // If `commited_value_digest` is not zero, then the current value should be equal
+                // to `public_values.commited_value_digest`.
 
-                // // If it's not a shard with "CPU", then the committed value digest should not
-                // change. builder.if_ne(contains_cpu, C::N::one()).then(|builder| {
-                //     #[allow(clippy::needless_range_loop)]
-                //     for i in 0..committed_value_digest.len() {
-                //         for j in 0..WORD_SIZE {
-                //             builder.assert_felt_eq(
-                //                 committed_value_digest[i][j],
-                //                 public_values.committed_value_digest[i][j],
-                //             );
-                //         }
-                //     }
-                // });
-
-                // Update the committed value digest.
-                #[allow(clippy::needless_range_loop)]
-                for i in 0..committed_value_digest.len() {
-                    for j in 0..WORD_SIZE {
-                        committed_value_digest[i][j] = public_values.committed_value_digest[i][j];
+                // Set flags to indicate whether `commited_value_digest` is non-zero. The flags are
+                // given by the elements of the array, and they will be used as filters to constrain
+                // the equality.
+                let mut is_non_zero_flags = vec![];
+                for word in committed_value_digest {
+                    for byte in word {
+                        is_non_zero_flags.push(byte);
                     }
                 }
 
-                // // If `deferred_proofs_digest` is not zero, then
-                // `public_values.deferred_proofs_digest // should be the current
-                // value. let is_zero: Var<_> = builder.eval(C::N::one());
-                // #[allow(clippy::needless_range_loop)]
-                // for i in 0..deferred_proofs_digest.len() {
-                //     let d = felt2var(builder, deferred_proofs_digest[i]);
-                //     builder.if_ne(d, C::N::zero()).then(|builder| {
-                //         builder.assign(is_zero, C::N::zero());
-                //     });
-                // }
-                // builder.if_eq(is_zero, C::N::zero()).then(|builder| {
-                //     #[allow(clippy::needless_range_loop)]
-                //     for i in 0..deferred_proofs_digest.len() {
-                //         builder.assert_felt_eq(
-                //             deferred_proofs_digest[i],
-                //             public_values.deferred_proofs_digest[i],
-                //         );
-                //     }
-                // });
+                // Using the flags, we can constrain the equality.
+                for is_non_zero in is_non_zero_flags {
+                    for (word_current, word_public) in
+                        committed_value_digest.into_iter().zip(public_values.committed_value_digest)
+                    {
+                        for (byte_current, byte_public) in word_current.into_iter().zip(word_public)
+                        {
+                            builder.assert_felt_eq(
+                                is_non_zero * (byte_current - byte_public),
+                                C::F::zero(),
+                            );
+                        }
+                    }
+                }
 
-                // // If it's not a shard with "CPU", then the deferred proofs digest should not
-                // change. builder.if_ne(contains_cpu, C::N::one()).then(|builder| {
-                //     #[allow(clippy::needless_range_loop)]
-                //     for i in 0..deferred_proofs_digest.len() {
-                //         builder.assert_felt_eq(
-                //             deferred_proofs_digest[i],
-                //             public_values.deferred_proofs_digest[i],
-                //         );
-                //     }
-                // });
+                // If it's not a shard with "CPU", then the committed value digest shouldn't change.
+                if !contains_cpu {
+                    for (word_d, pub_word_d) in committed_value_digest
+                        .iter()
+                        .zip(public_values.committed_value_digest.iter())
+                    {
+                        for (d, pub_d) in word_d.0.iter().zip(pub_word_d.0.iter()) {
+                            builder.assert_felt_eq(*d, *pub_d);
+                        }
+                    }
+                }
+
+                // Update the committed value digest.
+                for (word_d, pub_word_d) in committed_value_digest
+                    .iter_mut()
+                    .zip(public_values.committed_value_digest.iter())
+                {
+                    for (d, pub_d) in word_d.0.iter_mut().zip(pub_word_d.0.iter()) {
+                        *d = *pub_d;
+                    }
+                }
+
+                // If `deferred_proofs_digest` is not zero, then the current value should be equal
+                // to `public_values.deferred_proofs_digest.
+
+                // Set a flag to indicate whether `deferred_proofs_digest` is non-zero. The flags
+                // are given by the elements of the array, and they will be used as filters to
+                // constrain the equality.
+                let mut is_non_zero_flags = vec![];
+                for element in deferred_proofs_digest {
+                    is_non_zero_flags.push(element);
+                }
+
+                // Using the flags, we can constrain the equality.
+                for is_non_zero in is_non_zero_flags {
+                    for (deferred_current, deferred_public) in deferred_proofs_digest
+                        .iter()
+                        .zip(public_values.deferred_proofs_digest.iter())
+                    {
+                        builder.assert_felt_eq(
+                            is_non_zero * (*deferred_current - *deferred_public),
+                            C::F::zero(),
+                        );
+                    }
+                }
+
+                // If it's not a shard with "CPU", then the deferred proofs digest should not
+                // change.
+                if !contains_cpu {
+                    for (d, pub_d) in deferred_proofs_digest
+                        .iter()
+                        .zip(public_values.deferred_proofs_digest.iter())
+                    {
+                        builder.assert_felt_eq(*d, *pub_d);
+                    }
+                }
 
                 // Update the deferred proofs digest.
                 deferred_proofs_digest.copy_from_slice(&public_values.deferred_proofs_digest);
             }
 
-            // // Verify that the number of shards is not too large.
-            // builder.range_check_f(public_values.shard, 16);
+            // Verify that the number of shards is not too large, i.e. that for every shard, we
+            // have shard < 2^{MAX_LOG_NUMBER_OF_SHARDS}.
+            C::range_check_felt(builder, public_values.shard, MAX_LOG_NUMBER_OF_SHARDS);
 
             // Update the reconstruct challenger.
             reconstruct_challenger.observe(builder, shard_proof.commitment.main_commit);
-            for element in shard_proof.public_values.iter() {
+            for element in shard_proof.public_values.iter().take(machine.num_pv_elts()) {
                 reconstruct_challenger.observe(builder, *element);
             }
 
@@ -551,15 +557,6 @@ where
             recursion_public_values.compress_vk_digest = compress_vk_digest;
             // TODO: set the digest according to the previous values.
             recursion_public_values.digest = array::from_fn(|_| builder.eval(C::F::zero()));
-
-            // // If the proof represents a complete proof, make completeness assertions.
-            // //
-            // // *Remark*: In this program, this only happends if there is one shard and the
-            // program has // no deferred proofs to verify. However, the completeness
-            // check is independent of these // facts.
-            // builder.if_eq(is_complete, C::N::one()).then(|builder| {
-            //     assert_complete(builder, recursion_public_values, &reconstruct_challenger)
-            // });
 
             SC::commit_recursion_public_values(builder, *recursion_public_values);
         }

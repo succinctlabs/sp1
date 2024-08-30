@@ -29,6 +29,7 @@ use sp1_stark::{
 use crate::{
     challenger::CanObserveVariable,
     constraints::RecursiveVerifierConstraintFolder,
+    machine::assert_complete,
     stark::{ShardProofVariable, StarkVerifier},
     utils::uninit_challenger_pv,
     BabyBearFriConfig, BabyBearFriConfigVariable, CircuitConfig, VerifyingKeyVariable,
@@ -84,10 +85,6 @@ where
         builder: &mut Builder<C>,
         machine: &StarkMachine<SC, A>,
         input: SP1CompressWitnessVariable<C, SC>,
-        // TODO: add vk correctness check.
-        // vk_root: SC::Digest,
-        // Inclusion proof for the compressed vk.
-        // vk_inclusion_proof: proof,
     ) {
         // Read input.
         let SP1CompressWitnessVariable { vks_and_proofs, is_complete } = input;
@@ -189,13 +186,17 @@ where
 
                 // Initiallize start pc.
                 compress_public_values.start_pc = current_public_values.start_pc;
+                pc = current_public_values.start_pc;
 
                 // Initialize start shard.
                 compress_public_values.start_shard = current_public_values.start_shard;
+                shard = current_public_values.start_shard;
 
                 // Initialize start execution shard.
                 compress_public_values.start_execution_shard =
                     current_public_values.start_execution_shard;
+                // TODO: comment back in.
+                // execution_shard = current_public_values.start_execution_shard;
 
                 // Initialize the MemoryInitialize address bits.
                 for (bit, (first_bit, current_bit)) in init_addr_bits.iter_mut().zip(
@@ -221,11 +222,11 @@ where
 
                 // Initialize the leaf challenger public values.
                 leaf_challenger_values = current_public_values.leaf_challenger;
-                // Initialize the reconstruct challenger public values.
 
                 // Initialize the initial reconstruct challenger public values.
                 initial_reconstruct_challenger_values =
                     current_public_values.start_reconstruct_challenger;
+                reconstruct_challenger_values = current_public_values.start_reconstruct_challenger;
 
                 // Assign the commited values and deferred proof digests.
                 for (word, current_word) in committed_value_digest
@@ -247,88 +248,91 @@ where
 
             // Assert that the current values match the accumulated values.
 
-            // // Assert that the start deferred digest is equal to the current deferred digest.
-            // for (digest, current_digest) in reconstruct_deferred_digest.iter().zip_eq(
-            //     current_public_values
-            //         .start_reconstruct_deferred_digest
-            //         .iter(),
-            // ) {
-            //     builder.assert_felt_eq(*digest, *current_digest);
-            // }
+            // Assert that the start deferred digest is equal to the current deferred digest.
+            for (digest, current_digest) in reconstruct_deferred_digest
+                .iter()
+                .zip_eq(current_public_values.start_reconstruct_deferred_digest.iter())
+            {
+                builder.assert_felt_eq(*digest, *current_digest);
+            }
 
             // // Consistency checks for all accumulated values.
 
             // Assert that the sp1_vk digest is always the same.
-            // for (digest, current) in
-            // sp1_vk_digest.iter().zip(current_public_values.sp1_vk_digest) {
-            //     builder.assert_felt_eq(*digest, current);
-            // }
+            for (digest, current) in sp1_vk_digest.iter().zip(current_public_values.sp1_vk_digest) {
+                builder.assert_felt_eq(*digest, current);
+            }
 
-            // // Assert that the start pc is equal to the current pc.
-            // builder.assert_felt_eq(pc, current_public_values.start_pc);
+            // Assert that the start pc is equal to the current pc.
+            builder.assert_felt_eq(pc, current_public_values.start_pc);
 
-            // // Verify that the shard is equal to the current shard.
-            // builder.assert_felt_eq(shard, current_public_values.start_shard);
+            // Verify that the shard is equal to the current shard.
+            builder.assert_felt_eq(shard, current_public_values.start_shard);
 
-            // // Verfiy that the exeuction shard is equal to the current execution shard.
+            // Verfiy that the exeuction shard is equal to the current execution shard.
+            // TODO: comment back in.
             // builder.assert_felt_eq(execution_shard, current_public_values.start_execution_shard);
 
-            // // Assert that the leaf challenger is always the same.
+            // Assert that the MemoryInitialize address bits are the same.
+            for (bit, current_bit) in
+                init_addr_bits.iter().zip(current_public_values.previous_init_addr_bits.iter())
+            {
+                builder.assert_felt_eq(*bit, *current_bit);
+            }
 
-            // // Assert that the MemoryInitialize address bits are the same.
-            // for (bit, current_bit) in
-            //     init_addr_bits.iter().zip(current_public_values.previous_init_addr_bits.iter())
-            // {
-            //     builder.assert_felt_eq(*bit, *current_bit);
-            // }
-
-            // // Assert that the MemoryFinalize address bits are the same.
-            // for (bit, current_bit) in finalize_addr_bits
-            //     .iter()
-            //     .zip(current_public_values.previous_finalize_addr_bits.iter())
-            // {
-            //     builder.assert_felt_eq(*bit, *current_bit);
-            // }
+            // Assert that the MemoryFinalize address bits are the same.
+            for (bit, current_bit) in finalize_addr_bits
+                .iter()
+                .zip(current_public_values.previous_finalize_addr_bits.iter())
+            {
+                builder.assert_felt_eq(*bit, *current_bit);
+            }
 
             // Assert that the leaf challenger is always the same.
+            for (current, expected) in
+                leaf_challenger_values.into_iter().zip(current_public_values.leaf_challenger)
+            {
+                builder.assert_felt_eq(current, expected);
+            }
 
-            // assert_challenger_eq_pv(
-            //     builder,
-            //     &leaf_challenger,
-            //     current_public_values.leaf_challenger,
-            // );
-            // // Assert that the current challenger matches the start reconstruct challenger.
-            // assert_challenger_eq_pv(
-            //     builder,
-            //     &reconstruct_challenger,
-            //     current_public_values.start_reconstruct_challenger,
-            // );
+            // Assert that the current challenger matches the start reconstruct challenger.
+            for (current, expected) in reconstruct_challenger_values
+                .into_iter()
+                .zip(current_public_values.start_reconstruct_challenger)
+            {
+                builder.assert_felt_eq(current, expected);
+            }
 
             // Digest constraints.
             {
-                // // If `commited_value_digest` is not zero, then
-                // `public_values.commited_value_digest // should be the current
-                // value. let is_zero: Var<_> = builder.eval(C::N::one());
-                // #[allow(clippy::needless_range_loop)]
-                // for i in 0..committed_value_digest.len() {
-                //     for j in 0..WORD_SIZE {
-                //         let d = felt2var(builder, committed_value_digest[i][j]);
-                //         builder.if_ne(d, C::N::zero()).then(|builder| {
-                //             builder.assign(is_zero, C::N::zero());
-                //         });
-                //     }
-                // }
-                // builder.if_eq(is_zero, C::N::zero()).then(|builder| {
-                //     #[allow(clippy::needless_range_loop)]
-                //     for i in 0..committed_value_digest.len() {
-                //         for j in 0..WORD_SIZE {
-                //             builder.assert_felt_eq(
-                //                 committed_value_digest[i][j],
-                //                 current_public_values.committed_value_digest[i][j],
-                //             );
-                //         }
-                //     }
-                // });
+                // If `commited_value_digest` is not zero, then `public_values.commited_value_digest
+                // should be the current.
+
+                // Set a flags to indicate whether `commited_value_digest` is non-zero. The flags
+                // are given by the elements of the array, and they will be used as filters to
+                // constrain the equality.
+                let mut is_non_zero_flags = vec![];
+                for word in committed_value_digest {
+                    for byte in word {
+                        is_non_zero_flags.push(byte);
+                    }
+                }
+
+                // Using the flags, we can constrain the equality.
+                for is_non_zero in is_non_zero_flags {
+                    for (word_current, word_public) in committed_value_digest
+                        .into_iter()
+                        .zip(current_public_values.committed_value_digest)
+                    {
+                        for (byte_current, byte_public) in word_current.into_iter().zip(word_public)
+                        {
+                            builder.assert_felt_eq(
+                                is_non_zero * (byte_current - byte_public),
+                                C::F::zero(),
+                            );
+                        }
+                    }
+                }
 
                 // Update the committed value digest.
                 for (word, current_word) in committed_value_digest
@@ -340,25 +344,24 @@ where
                     }
                 }
 
-                // // If `deferred_proofs_digest` is not zero, then
-                // `public_values.deferred_proofs_digest // should be the current
-                // value. let is_zero: Var<_> = builder.eval(C::N::one());
-                // #[allow(clippy::needless_range_loop)]
-                // for i in 0..deferred_proofs_digest.len() {
-                //     let d = felt2var(builder, deferred_proofs_digest[i]);
-                //     builder.if_ne(d, C::N::zero()).then(|builder| {
-                //         builder.assign(is_zero, C::N::zero());
-                //     });
-                // }
-                // builder.if_eq(is_zero, C::N::zero()).then(|builder| {
-                //     #[allow(clippy::needless_range_loop)]
-                //     for i in 0..deferred_proofs_digest.len() {
-                //         builder.assert_felt_eq(
-                //             deferred_proofs_digest[i],
-                //             current_public_values.deferred_proofs_digest[i],
-                //         );
-                //     }
-                // });
+                //  If `deferred_proofs_digest` is not zero, then the current value should be
+                // `public_values.deferred_proofs_digest`. We will use a similar approach as above.
+                let mut is_non_zero_flags = vec![];
+                for element in deferred_proofs_digest {
+                    is_non_zero_flags.push(element);
+                }
+
+                for is_non_zero in is_non_zero_flags {
+                    for (digest_current, digest_public) in deferred_proofs_digest
+                        .into_iter()
+                        .zip(current_public_values.deferred_proofs_digest)
+                    {
+                        builder.assert_felt_eq(
+                            is_non_zero * (digest_current - digest_public),
+                            C::F::zero(),
+                        );
+                    }
+                }
 
                 // Update the deferred proofs digest.
                 for (digest, current_digest) in deferred_proofs_digest
@@ -367,18 +370,11 @@ where
                 {
                     *digest = *current_digest;
                 }
-
-                // Less nice version of above but simialr to original code:
-                // #[allow(clippy::needless_range_loop)]
-                // for i in 0..deferred_proofs_digest.len() {
-                //     builder.assign(
-                //         deferred_proofs_digest[i],
-                //         current_public_values.deferred_proofs_digest[i],
-                //     );
-                // }
             }
 
-            // Update the deferred proof digest.
+            // Update the accumulated values.
+
+            // Update the reconstruct deferred proof digest.
             for (digest, current_digest) in reconstruct_deferred_digest
                 .iter_mut()
                 .zip_eq(current_public_values.end_reconstruct_deferred_digest.iter())
@@ -386,7 +382,6 @@ where
                 *digest = *current_digest;
             }
 
-            // Update the accumulated values.
             // Update pc to be the next pc.
             pc = current_public_values.next_pc;
 
@@ -458,18 +453,8 @@ where
         // Set the exit code.
         compress_public_values.exit_code = exit_code;
 
-        // // If the proof is complete, make completeness assertions and set the flag. Otherwise,
-        // check // the flag is zero and set the public value to zero.
-        // builder.if_eq(is_complete, C::N::one()).then_or_else(
-        //     |builder| {
-        //         builder.assign(compress_public_values.is_complete, C::F::one());
-        //         assert_complete(builder, compress_public_values, &reconstruct_challenger)
-        //     },
-        //     |builder| {
-        //         builder.assert_var_eq(is_complete, C::N::zero());
-        //         builder.assign(compress_public_values.is_complete, C::F::zero());
-        //     },
-        // );
+        // If the proof is complete, make completeness assertions.
+        assert_complete(builder, compress_public_values, is_complete);
 
         SC::commit_recursion_public_values(builder, *compress_public_values);
     }

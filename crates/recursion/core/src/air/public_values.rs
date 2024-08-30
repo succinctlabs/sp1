@@ -11,12 +11,12 @@ use sp1_stark::{air::POSEIDON_NUM_WORDS, Word, PROOF_MAX_NUM_PVS};
 use static_assertions::const_assert_eq;
 use std::{
     borrow::BorrowMut,
-    mem::{size_of, transmute},
+    mem::{size_of, transmute, MaybeUninit},
 };
 
 pub const PV_DIGEST_NUM_WORDS: usize = 8;
 
-pub const CHALLENGER_STATE_NUM_ELTS: usize = 50;
+pub const CHALLENGER_STATE_NUM_ELTS: usize = size_of::<ChallengerPublicValues<u8>>();
 
 pub const RECURSIVE_PROOF_NUM_PV_ELTS: usize = size_of::<RecursionPublicValues<u8>>();
 
@@ -46,7 +46,7 @@ pub struct ChallengerPublicValues<T> {
     pub output_buffer: [T; PERMUTATION_WIDTH],
 }
 
-impl<T: Clone + Debug> ChallengerPublicValues<T> {
+impl<T: Clone> ChallengerPublicValues<T> {
     pub fn set_challenger<P: CryptographicPermutation<[T; PERMUTATION_WIDTH]>>(
         &self,
         challenger: &mut DuplexChallenger<T, P, PERMUTATION_WIDTH, HASH_RATE>,
@@ -58,6 +58,18 @@ impl<T: Clone + Debug> ChallengerPublicValues<T> {
         challenger.input_buffer = self.input_buffer[..num_inputs].to_vec();
         let num_outputs = self.num_outputs.as_canonical_u32() as usize;
         challenger.output_buffer = self.output_buffer[..num_outputs].to_vec();
+    }
+
+    pub fn as_array(&self) -> [T; CHALLENGER_STATE_NUM_ELTS]
+    where
+        T: Copy,
+    {
+        unsafe {
+            let mut ret = [MaybeUninit::<T>::zeroed().assume_init(); CHALLENGER_STATE_NUM_ELTS];
+            let pv: &mut ChallengerPublicValues<T> = ret.as_mut_slice().borrow_mut();
+            *pv = *self;
+            ret
+        }
     }
 }
 
@@ -137,12 +149,31 @@ pub struct RecursionPublicValues<T> {
 }
 
 /// Converts the public values to an array of elements.
-impl<F: Default + Copy> RecursionPublicValues<F> {
-    pub fn to_vec(&self) -> [F; RECURSIVE_PROOF_NUM_PV_ELTS] {
-        let mut ret = [F::default(); RECURSIVE_PROOF_NUM_PV_ELTS];
-        let pv: &mut RecursionPublicValues<F> = ret.as_mut_slice().borrow_mut();
+impl<F: Copy> RecursionPublicValues<F> {
+    pub fn as_array(&self) -> [F; RECURSIVE_PROOF_NUM_PV_ELTS] {
+        unsafe {
+            let mut ret = [MaybeUninit::<F>::zeroed().assume_init(); RECURSIVE_PROOF_NUM_PV_ELTS];
+            let pv: &mut RecursionPublicValues<F> = ret.as_mut_slice().borrow_mut();
+            *pv = *self;
+            ret
+        }
+    }
+}
 
-        *pv = *self;
-        ret
+impl<T: Copy> IntoIterator for RecursionPublicValues<T> {
+    type Item = T;
+    type IntoIter = std::array::IntoIter<T, RECURSIVE_PROOF_NUM_PV_ELTS>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.as_array().into_iter()
+    }
+}
+
+impl<T: Copy> IntoIterator for ChallengerPublicValues<T> {
+    type Item = T;
+    type IntoIter = std::array::IntoIter<T, CHALLENGER_STATE_NUM_ELTS>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.as_array().into_iter()
     }
 }
