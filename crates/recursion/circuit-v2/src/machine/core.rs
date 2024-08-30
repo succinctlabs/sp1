@@ -124,7 +124,7 @@ where
 
         // Initialize execution shard variables.
         let mut initial_execution_shard: Felt<_> = unsafe { MaybeUninit::zeroed().assume_init() };
-        let mut current_execution_shard: Felt<_> = unsafe { MaybeUninit::zeroed().assume_init() };
+        let mut previous_execution_shard: Felt<_> = unsafe { MaybeUninit::zeroed().assume_init() };
 
         // Initialize program counter variables.
         let mut start_pc: Felt<_> = unsafe { MaybeUninit::zeroed().assume_init() };
@@ -168,7 +168,6 @@ where
 
         // Verify proofs.
         for (i, shard_proof) in shard_proofs.into_iter().enumerate() {
-            let contains_cpu = shard_proof.contains_cpu();
             let _contains_memory_init = shard_proof.contains_memory_init();
             let _contains_memory_finalize = shard_proof.contains_memory_finalize();
 
@@ -186,7 +185,6 @@ where
 
                 // Execution shard.
                 initial_execution_shard = public_values.execution_shard;
-                current_execution_shard = public_values.execution_shard;
 
                 // Program counter.
                 start_pc = public_values.start_pc;
@@ -291,13 +289,18 @@ where
             {
                 // If the shard has a "CPU" chip, then the execution shard should be incremented by
                 // 1.
-                if contains_cpu {
+                if shard_proof.contains_cpu() && i != 0 {
                     // Assert that the shard of the proof is equal to the current shard.
                     // builder.assert_felt_eq(current_execution_shard,
                     // public_values.execution_shard);
 
-                    current_execution_shard = builder.eval(current_execution_shard + C::F::one());
+                    builder.assert_felt_eq(
+                        public_values.execution_shard,
+                        previous_execution_shard + C::F::one(),
+                    );
                 }
+
+                previous_execution_shard = public_values.execution_shard;
             }
 
             // Program counter constraints.
@@ -533,7 +536,7 @@ where
             recursion_public_values.start_shard = initial_shard;
             recursion_public_values.next_shard = current_shard;
             recursion_public_values.start_execution_shard = initial_execution_shard;
-            recursion_public_values.next_execution_shard = current_execution_shard;
+            recursion_public_values.next_execution_shard = previous_execution_shard;
             recursion_public_values.previous_init_addr_bits = initial_previous_init_addr_bits;
             recursion_public_values.last_init_addr_bits = current_init_addr_bits;
             recursion_public_values.previous_finalize_addr_bits =
@@ -551,15 +554,6 @@ where
             recursion_public_values.compress_vk_digest = compress_vk_digest;
             // TODO: set the digest according to the previous values.
             recursion_public_values.digest = array::from_fn(|_| builder.eval(C::F::zero()));
-
-            // // If the proof represents a complete proof, make completeness assertions.
-            // //
-            // // *Remark*: In this program, this only happends if there is one shard and the
-            // program has // no deferred proofs to verify. However, the completeness
-            // check is independent of these // facts.
-            // builder.if_eq(is_complete, C::N::one()).then(|builder| {
-            //     assert_complete(builder, recursion_public_values, &reconstruct_challenger)
-            // });
 
             SC::commit_recursion_public_values(builder, *recursion_public_values);
         }
