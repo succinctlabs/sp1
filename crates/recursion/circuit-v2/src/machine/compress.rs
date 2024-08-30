@@ -330,28 +330,6 @@ where
                     }
                 }
 
-                // value. let is_zero: Var<_> = builder.eval(C::N::one());
-                // #[allow(clippy::needless_range_loop)]
-                // for i in 0..committed_value_digest.len() {
-                //     for j in 0..WORD_SIZE {
-                //         let d = felt2var(builder, committed_value_digest[i][j]);
-                //         builder.if_ne(d, C::N::zero()).then(|builder| {
-                //             builder.assign(is_zero, C::N::zero());
-                //         });
-                //     }
-                // }
-                // builder.if_eq(is_zero, C::N::zero()).then(|builder| {
-                //     #[allow(clippy::needless_range_loop)]
-                //     for i in 0..committed_value_digest.len() {
-                //         for j in 0..WORD_SIZE {
-                //             builder.assert_felt_eq(
-                //                 committed_value_digest[i][j],
-                //                 current_public_values.committed_value_digest[i][j],
-                //             );
-                //         }
-                //     }
-                // });
-
                 // Update the committed value digest.
                 for (word, current_word) in committed_value_digest
                     .iter_mut()
@@ -362,25 +340,21 @@ where
                     }
                 }
 
-                // // If `deferred_proofs_digest` is not zero, then
-                // `public_values.deferred_proofs_digest // should be the current
-                // value. let is_zero: Var<_> = builder.eval(C::N::one());
-                // #[allow(clippy::needless_range_loop)]
-                // for i in 0..deferred_proofs_digest.len() {
-                //     let d = felt2var(builder, deferred_proofs_digest[i]);
-                //     builder.if_ne(d, C::N::zero()).then(|builder| {
-                //         builder.assign(is_zero, C::N::zero());
-                //     });
-                // }
-                // builder.if_eq(is_zero, C::N::zero()).then(|builder| {
-                //     #[allow(clippy::needless_range_loop)]
-                //     for i in 0..deferred_proofs_digest.len() {
-                //         builder.assert_felt_eq(
-                //             deferred_proofs_digest[i],
-                //             current_public_values.deferred_proofs_digest[i],
-                //         );
-                //     }
-                // });
+                // // If `deferred_proofs_digest` is not zero, then the current value should be
+                // `public_values.deferred_proofs_digest`. We will use a similar approach as above.
+                let mut is_non_zero: Felt<_> = builder.eval(C::F::one());
+                for element in deferred_proofs_digest {
+                    is_non_zero = builder.eval(is_non_zero * element);
+                }
+                for (digest_current, digest_public) in deferred_proofs_digest
+                    .into_iter()
+                    .zip(current_public_values.deferred_proofs_digest)
+                {
+                    builder.assert_felt_eq(
+                        is_non_zero * (digest_current - digest_public),
+                        C::F::zero(),
+                    );
+                }
 
                 // Update the deferred proofs digest.
                 for (digest, current_digest) in deferred_proofs_digest
@@ -391,7 +365,9 @@ where
                 }
             }
 
-            // Update the deferred proof digest.
+            // Update the accumulated values.
+
+            // Update the reconstruct deferred proof digest.
             for (digest, current_digest) in reconstruct_deferred_digest
                 .iter_mut()
                 .zip_eq(current_public_values.end_reconstruct_deferred_digest.iter())
@@ -399,7 +375,6 @@ where
                 *digest = *current_digest;
             }
 
-            // Update the accumulated values.
             // Update pc to be the next pc.
             pc = current_public_values.next_pc;
 
