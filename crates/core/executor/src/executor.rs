@@ -10,7 +10,6 @@ use hashbrown::HashMap;
 use serde::{Deserialize, Serialize};
 use sp1_stark::SP1CoreOpts;
 use thiserror::Error;
-use vec_map::Entry;
 
 use crate::{
     context::SP1Context,
@@ -19,6 +18,7 @@ use crate::{
         MemoryInitializeFinalizeEvent, MemoryReadRecord, MemoryRecord, MemoryWriteRecord,
     },
     hook::{HookEnv, HookRegistry},
+    mmu::btree_mmu::Entry,
     record::{ExecutionRecord, MemoryAccessRecord},
     report::ExecutionReport,
     state::{ExecutionState, ForkState},
@@ -1421,7 +1421,7 @@ impl<'a> Executor<'a> {
             MemoryInitializeFinalizeEvent::initialize(0, 0, addr_0_record.is_some());
         memory_initialize_events.push(addr_0_initialize_event);
 
-        self.report.touched_memory_addresses = self.state.memory.len() as u64;
+        let num_finalize_events_before = memory_finalize_events.len();
         for addr in self.state.memory.keys() {
             if addr == 0 {
                 // Handled above.
@@ -1444,6 +1444,8 @@ impl<'a> Executor<'a> {
             memory_finalize_events
                 .push(MemoryInitializeFinalizeEvent::finalize_from_record(addr_u32, &record));
         }
+        self.report.touched_memory_addresses =
+            (memory_finalize_events.len() - num_finalize_events_before) as u64;
     }
 
     fn get_syscall(&mut self, code: SyscallCode) -> Option<&Arc<dyn Syscall>> {
