@@ -117,6 +117,10 @@ pub trait CircuitConfig: Config {
 
     fn read_ext(builder: &mut Builder<Self>) -> Ext<Self::F, Self::EF>;
 
+    fn assert_bit_zero(builder: &mut Builder<Self>, bit: Self::Bit);
+
+    fn assert_bit_one(builder: &mut Builder<Self>, bit: Self::Bit);
+
     fn ext2felt(
         builder: &mut Builder<Self>,
         ext: Ext<<Self as Config>::F, <Self as Config>::EF>,
@@ -162,10 +166,25 @@ pub trait CircuitConfig: Config {
         first: impl IntoIterator<Item = Ext<<Self as Config>::F, <Self as Config>::EF>> + Clone,
         second: impl IntoIterator<Item = Ext<<Self as Config>::F, <Self as Config>::EF>> + Clone,
     ) -> Vec<Ext<<Self as Config>::F, <Self as Config>::EF>>;
+
+    fn range_check_felt(builder: &mut Builder<Self>, value: Felt<Self::F>, num_bits: usize) {
+        let bits = Self::num2bits(builder, value, 32);
+        for bit in bits.into_iter().skip(num_bits) {
+            Self::assert_bit_zero(builder, bit);
+        }
+    }
 }
 
 impl CircuitConfig for InnerConfig {
     type Bit = Felt<<Self as Config>::F>;
+
+    fn assert_bit_zero(builder: &mut Builder<Self>, bit: Self::Bit) {
+        builder.assert_felt_eq(bit, Self::F::zero());
+    }
+
+    fn assert_bit_one(builder: &mut Builder<Self>, bit: Self::Bit) {
+        builder.assert_felt_eq(bit, Self::F::one());
+    }
 
     fn read_bit(builder: &mut Builder<Self>) -> Self::Bit {
         builder.hint_felt_v2()
@@ -256,6 +275,14 @@ impl CircuitConfig for InnerConfig {
 
 impl CircuitConfig for OuterConfig {
     type Bit = Var<<Self as Config>::N>;
+
+    fn assert_bit_zero(builder: &mut Builder<Self>, bit: Self::Bit) {
+        builder.assert_var_eq(bit, Self::N::zero());
+    }
+
+    fn assert_bit_one(builder: &mut Builder<Self>, bit: Self::Bit) {
+        builder.assert_var_eq(bit, Self::N::one());
+    }
 
     fn read_bit(builder: &mut Builder<Self>) -> Self::Bit {
         builder.witness_var()

@@ -10,7 +10,12 @@ use p3_baby_bear::BabyBear;
 use p3_commit::Mmcs;
 use p3_field::AbstractField;
 use p3_matrix::dense::RowMajorMatrix;
-use sp1_core_machine::riscv::RiscvAir;
+
+use sp1_core_machine::{
+    cpu::MAX_CPU_LOG_DEGREE,
+    riscv::{RiscvAir, MAX_LOG_NUMBER_OF_SHARDS},
+};
+
 use sp1_recursion_core_v2::air::PV_DIGEST_NUM_WORDS;
 use sp1_stark::{
     air::{PublicValues, POSEIDON_NUM_WORDS},
@@ -248,6 +253,31 @@ where
                     (SymbolicFelt::one() - is_first_shard) * initial_shard,
                     C::F::one(),
                 );
+
+                // If the initial shard is the first shard, we assert that the initial challenger
+                // is the same as a fresh challenger that absorbed the verifying key.
+                let mut first_shard_challenger = machine.config().challenger_variable(builder);
+                vk.observe_into(builder, &mut first_shard_challenger);
+                let first_challenger_public_values = first_shard_challenger.public_values(builder);
+                let initial_challenger_public_values =
+                    initial_reconstruct_challenger.public_values(builder);
+                for (first, initial) in
+                    first_challenger_public_values.into_iter().zip(initial_challenger_public_values)
+                {
+                    builder.assert_felt_eq(is_first_shard * (first - initial), C::F::zero());
+                }
+
+                // If it's the first shard (which is the first execution shard), then the `start_pc`
+                // should be vk.pc_start.
+                builder.assert_felt_eq(is_first_shard * (start_pc - vk.pc_start), C::F::zero());
+
+                // Assert that `init_addr_bits` and `finalize_addr_bits` are zero for the first
+                for bit in current_init_addr_bits.iter() {
+                    builder.assert_felt_eq(is_first_shard * *bit, C::F::zero());
+                }
+                for bit in current_finalize_addr_bits.iter() {
+                    builder.assert_felt_eq(is_first_shard * *bit, C::F::zero());
+                }
             }
 
             // Verify the shard.
@@ -263,27 +293,11 @@ where
                 builder.assert_felt_ne(current_shard, C::F::one());
             }
 
-            // // CPU log degree bound check constraints.
-            // {
-            //     for (i, chip) in machine.chips().iter().enumerate() {
-            //         if chip.name() == "CPU" {
-            //             builder.if_eq(contains_cpu, C::N::one()).then(|builder| {
-            //                 let index = builder.get(&proof.sorted_idxs, i);
-            //                 let cpu_log_degree =
-            //                     builder.get(&proof.opened_values.chips, index).log_degree;
-            //                 let cpu_log_degree_lt_max: Var<_> = builder.eval(C::N::zero());
-            //                 builder
-            //                     .range(0, MAX_CPU_LOG_DEGREE + 1)
-            //                     .for_each(|j, builder| {
-            //                         builder.if_eq(j, cpu_log_degree).then(|builder| {
-            //                             builder.assign(cpu_log_degree_lt_max, C::N::one());
-            //                         });
-            //                     });
-            //                 builder.assert_var_eq(cpu_log_degree_lt_max, C::N::one());
-            //             });
-            //         }
-            //     }
-            // }
+            // CPU log degree bound check constraints (this assertion is made in compile time).
+            if shard_proof.contains_cpu() {
+                let log_degree_cpu = shard_proof.log_degree_cpu();
+                assert!(log_degree_cpu <= MAX_CPU_LOG_DEGREE);
+            }
 
             // Shard constraints.
             {
@@ -307,13 +321,6 @@ where
 
             // Program counter constraints.
             {
-                // // If it's the first shard (which is the first execution shard), then the
-                // start_pc should be vk.pc_start. Equivalently, if `start_pc != vk.pc_start`, then
-                // the shard is not equal to one.
-                // builder.if_eq(shard, C::N::one()).then(|builder| {
-                //     builder.assert_felt_eq(public_values.start_pc, vk.pc_start);
-                // });
-
                 // Assert that the start_pc of the proof is equal to the current pc.
                 builder.assert_felt_eq(current_pc, public_values.start_pc);
 
@@ -338,19 +345,6 @@ where
 
             // Memory initialization & finalization constraints.
             {
-                // // Assert that `init_addr_bits` and `finalize_addr_bits` are zero for the first
-                // execution shard. builder.if_eq(execution_shard,
-                // C::N::one()).then(|builder| {     // Assert that the
-                // MemoryInitialize address bits are zero.     for bit in
-                // current_init_addr_bits.iter() {         builder.assert_felt_eq(*
-                // bit, C::F::zero());     }
-
-                //     // Assert that the MemoryFinalize address bits are zero.
-                //     for bit in current_finalize_addr_bits.iter() {
-                //         builder.assert_felt_eq(*bit, C::F::zero());
-                //     }
-                // });
-
                 // Assert that the MemoryInitialize address bits match the current loop variable.
                 for (bit, current_bit) in current_init_addr_bits
                     .iter()
@@ -497,8 +491,9 @@ where
                 deferred_proofs_digest.copy_from_slice(&public_values.deferred_proofs_digest);
             }
 
-            // // Verify that the number of shards is not too large.
-            // builder.range_check_f(public_values.shard, 16);
+            // Verify that the number of shards is not too large, i.e. that for every shard, we
+            // have shard < 2^{MAX_LOG_NUMBER_OF_SHARDS}.
+            C::range_check_felt(builder, public_values.shard, MAX_LOG_NUMBER_OF_SHARDS);
 
             // Update the reconstruct challenger.
             reconstruct_challenger.observe(builder, shard_proof.commitment.main_commit);
