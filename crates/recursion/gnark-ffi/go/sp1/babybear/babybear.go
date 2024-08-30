@@ -29,7 +29,6 @@ func init() {
 type Variable struct {
 	Value  frontend.Variable
 	NbBits uint
-	Canonical bool
 }
 
 type ExtensionVariable struct {
