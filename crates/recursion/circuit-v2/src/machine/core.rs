@@ -11,7 +11,6 @@ use p3_commit::Mmcs;
 use p3_field::AbstractField;
 use p3_matrix::dense::RowMajorMatrix;
 use sp1_core_machine::riscv::RiscvAir;
-use sp1_primitives::consts::WORD_SIZE;
 use sp1_recursion_core_v2::air::PV_DIGEST_NUM_WORDS;
 use sp1_stark::{
     air::{PublicValues, POSEIDON_NUM_WORDS},
@@ -358,31 +357,28 @@ where
                     builder.assert_felt_eq(*bit, *current_bit);
                 }
 
-                // // Assert that if MemoryInit is not present, then the address bits are the same.
-                // builder
-                //     .if_ne(contains_memory_init, C::N::one())
-                //     .then(|builder| {
-                //         for (prev_bit, last_bit) in public_values
-                //             .previous_init_addr_bits
-                //             .iter()
-                //             .zip_eq(public_values.last_init_addr_bits.iter())
-                //         {
-                //             builder.assert_felt_eq(*prev_bit, *last_bit);
-                //         }
-                //     });
+                // Assert that if MemoryInit is not present, then the address bits are the same.
+                if !contains_memory_init {
+                    for (prev_bit, last_bit) in public_values
+                        .previous_init_addr_bits
+                        .iter()
+                        .zip_eq(public_values.last_init_addr_bits.iter())
+                    {
+                        builder.assert_felt_eq(*prev_bit, *last_bit);
+                    }
+                }
 
-                // // Assert that if MemoryFinalize is not present, then the address bits are the
-                // same. builder
-                //     .if_ne(contains_memory_finalize, C::N::one())
-                //     .then(|builder| {
-                //         for (prev_bit, last_bit) in public_values
-                //             .previous_finalize_addr_bits
-                //             .iter()
-                //             .zip_eq(public_values.last_finalize_addr_bits.iter())
-                //         {
-                //             builder.assert_felt_eq(*prev_bit, *last_bit);
-                //         }
-                //     });
+                // Assert that if MemoryFinalize is not present, then the address bits are the
+                // same.
+                if !contains_memory_finalize {
+                    for (prev_bit, last_bit) in public_values
+                        .previous_finalize_addr_bits
+                        .iter()
+                        .zip_eq(public_values.last_finalize_addr_bits.iter())
+                    {
+                        builder.assert_felt_eq(*prev_bit, *last_bit);
+                    }
+                }
 
                 // Update the MemoryInitialize address bits.
                 for (bit, pub_bit) in
@@ -402,81 +398,84 @@ where
 
             // Digest constraints.
             {
-                // // If `commited_value_digest` is not zero, then
-                // `public_values.commited_value_digest // should be the current
-                // value. let is_zero: Var<_> = builder.eval(C::N::one());
-                // #[allow(clippy::needless_range_loop)]
-                // for i in 0..committed_value_digest.len() {
-                //     for j in 0..WORD_SIZE {
-                //         let d = felt2var(builder, committed_value_digest[i][j]);
-                //         builder.if_ne(d, C::N::zero()).then(|builder| {
-                //             builder.assign(is_zero, C::N::zero());
-                //         });
-                //     }
-                // }
-                // builder.if_eq(is_zero, C::N::zero()).then(|builder| {
-                //     #[allow(clippy::needless_range_loop)]
-                //     for i in 0..committed_value_digest.len() {
-                //         for j in 0..WORD_SIZE {
-                //             builder.assert_felt_eq(
-                //                 committed_value_digest[i][j],
-                //                 public_values.committed_value_digest[i][j],
-                //             );
-                //         }
-                //     }
-                // });
+                // // If `commited_value_digest` is not zero, then the current value should be equal
+                // to `public_values.commited_value_digest`.
 
-                // // If it's not a shard with "CPU", then the committed value digest should not
-                // change. builder.if_ne(contains_cpu, C::N::one()).then(|builder| {
-                //     #[allow(clippy::needless_range_loop)]
-                //     for i in 0..committed_value_digest.len() {
-                //         for j in 0..WORD_SIZE {
-                //             builder.assert_felt_eq(
-                //                 committed_value_digest[i][j],
-                //                 public_values.committed_value_digest[i][j],
-                //             );
-                //         }
-                //     }
-                // });
-
-                // Update the committed value digest.
-                #[allow(clippy::needless_range_loop)]
-                for i in 0..committed_value_digest.len() {
-                    for j in 0..WORD_SIZE {
-                        committed_value_digest[i][j] = public_values.committed_value_digest[i][j];
+                // Set a flag to indicate whether `commited_value_digest` is non-zero. The flag is
+                // initialized to 1, and then get multiplied by each element of the array. If all
+                // elements are zero, then the flag will be zero.
+                let mut is_non_zero: Felt<_> = builder.eval(C::F::one());
+                for word in committed_value_digest {
+                    for byte in word {
+                        is_non_zero = builder.eval(is_non_zero * byte);
                     }
                 }
 
-                // // If `deferred_proofs_digest` is not zero, then
-                // `public_values.deferred_proofs_digest // should be the current
-                // value. let is_zero: Var<_> = builder.eval(C::N::one());
-                // #[allow(clippy::needless_range_loop)]
-                // for i in 0..deferred_proofs_digest.len() {
-                //     let d = felt2var(builder, deferred_proofs_digest[i]);
-                //     builder.if_ne(d, C::N::zero()).then(|builder| {
-                //         builder.assign(is_zero, C::N::zero());
-                //     });
-                // }
-                // builder.if_eq(is_zero, C::N::zero()).then(|builder| {
-                //     #[allow(clippy::needless_range_loop)]
-                //     for i in 0..deferred_proofs_digest.len() {
-                //         builder.assert_felt_eq(
-                //             deferred_proofs_digest[i],
-                //             public_values.deferred_proofs_digest[i],
-                //         );
-                //     }
-                // });
+                // Using the flag `is_non_zero`, we can constrain the equality.
+                for (word_current, word_public) in
+                    committed_value_digest.into_iter().zip(public_values.committed_value_digest)
+                {
+                    for (byte_current, byte_public) in word_current.into_iter().zip(word_public) {
+                        builder.assert_felt_eq(
+                            is_non_zero * (byte_current - byte_public),
+                            C::F::zero(),
+                        );
+                    }
+                }
 
-                // // If it's not a shard with "CPU", then the deferred proofs digest should not
-                // change. builder.if_ne(contains_cpu, C::N::one()).then(|builder| {
-                //     #[allow(clippy::needless_range_loop)]
-                //     for i in 0..deferred_proofs_digest.len() {
-                //         builder.assert_felt_eq(
-                //             deferred_proofs_digest[i],
-                //             public_values.deferred_proofs_digest[i],
-                //         );
-                //     }
-                // });
+                // If it's not a shard with "CPU", then the committed value digest shouldn't change.
+                if !contains_cpu {
+                    for (word_d, pub_word_d) in committed_value_digest
+                        .iter()
+                        .zip(public_values.committed_value_digest.iter())
+                    {
+                        for (d, pub_d) in word_d.0.iter().zip(pub_word_d.0.iter()) {
+                            builder.assert_felt_eq(*d, *pub_d);
+                        }
+                    }
+                }
+
+                // Update the committed value digest.
+                for (word_d, pub_word_d) in committed_value_digest
+                    .iter_mut()
+                    .zip(public_values.committed_value_digest.iter())
+                {
+                    for (d, pub_d) in word_d.0.iter_mut().zip(pub_word_d.0.iter()) {
+                        *d = *pub_d;
+                    }
+                }
+
+                // If `deferred_proofs_digest` is not zero, then the current value should be equal
+                // to `public_values.deferred_proofs_digest.
+
+                // Set a flag to indicate whether `deferred_proofs_digest` is non-zero. The flag is
+                // initialized to 1, and then get multiplied by each element of the array. If all
+                // elements are zero, then the flag will be zero.
+                let mut is_non_zero: Felt<_> = builder.eval(C::F::one());
+                for element in deferred_proofs_digest {
+                    is_non_zero = builder.eval(is_non_zero * element);
+                }
+
+                // Using the flag `is_non_zero`, we can constrain the equality.
+                for (deferred_current, deferred_public) in
+                    deferred_proofs_digest.iter().zip(public_values.deferred_proofs_digest.iter())
+                {
+                    builder.assert_felt_eq(
+                        is_non_zero * (*deferred_current - *deferred_public),
+                        C::F::zero(),
+                    );
+                }
+
+                // If it's not a shard with "CPU", then the deferred proofs digest should not
+                // change.
+                if !contains_cpu {
+                    for (d, pub_d) in deferred_proofs_digest
+                        .iter()
+                        .zip(public_values.deferred_proofs_digest.iter())
+                    {
+                        builder.assert_felt_eq(*d, *pub_d);
+                    }
+                }
 
                 // Update the deferred proofs digest.
                 deferred_proofs_digest.copy_from_slice(&public_values.deferred_proofs_digest);
