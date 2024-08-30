@@ -399,25 +399,28 @@ where
                 // // If `commited_value_digest` is not zero, then the current value should be equal
                 // to `public_values.commited_value_digest`.
 
-                // Set a flag to indicate whether `commited_value_digest` is non-zero. The flag is
-                // initialized to 1, and then get multiplied by each element of the array. If all
-                // elements are zero, then the flag will be zero.
-                let mut is_non_zero: Felt<_> = builder.eval(C::F::one());
+                // Set flags to indicate whether `commited_value_digest` is non-zero. The flags are
+                // given by the elements of the array, and they will be used as filters to constrain
+                // the equality.
+                let mut is_non_zero_flags = vec![];
                 for word in committed_value_digest {
                     for byte in word {
-                        is_non_zero = builder.eval(is_non_zero * byte);
+                        is_non_zero_flags.push(byte);
                     }
                 }
 
-                // Using the flag `is_non_zero`, we can constrain the equality.
-                for (word_current, word_public) in
-                    committed_value_digest.into_iter().zip(public_values.committed_value_digest)
-                {
-                    for (byte_current, byte_public) in word_current.into_iter().zip(word_public) {
-                        builder.assert_felt_eq(
-                            is_non_zero * (byte_current - byte_public),
-                            C::F::zero(),
-                        );
+                // Using the flags, we can constrain the equality.
+                for is_non_zero in is_non_zero_flags {
+                    for (word_current, word_public) in
+                        committed_value_digest.into_iter().zip(public_values.committed_value_digest)
+                    {
+                        for (byte_current, byte_public) in word_current.into_iter().zip(word_public)
+                        {
+                            builder.assert_felt_eq(
+                                is_non_zero * (byte_current - byte_public),
+                                C::F::zero(),
+                            );
+                        }
                     }
                 }
 
@@ -446,22 +449,25 @@ where
                 // If `deferred_proofs_digest` is not zero, then the current value should be equal
                 // to `public_values.deferred_proofs_digest.
 
-                // Set a flag to indicate whether `deferred_proofs_digest` is non-zero. The flag is
-                // initialized to 1, and then get multiplied by each element of the array. If all
-                // elements are zero, then the flag will be zero.
-                let mut is_non_zero: Felt<_> = builder.eval(C::F::one());
+                // Set a flag to indicate whether `deferred_proofs_digest` is non-zero. The flags
+                // are given by the elements of the array, and they will be used as filters to
+                // constrain the equality.
+                let mut is_non_zero_flags = vec![];
                 for element in deferred_proofs_digest {
-                    is_non_zero = builder.eval(is_non_zero * element);
+                    is_non_zero_flags.push(element);
                 }
 
-                // Using the flag `is_non_zero`, we can constrain the equality.
-                for (deferred_current, deferred_public) in
-                    deferred_proofs_digest.iter().zip(public_values.deferred_proofs_digest.iter())
-                {
-                    builder.assert_felt_eq(
-                        is_non_zero * (*deferred_current - *deferred_public),
-                        C::F::zero(),
-                    );
+                // Using the flags, we can constrain the equality.
+                for is_non_zero in is_non_zero_flags {
+                    for (deferred_current, deferred_public) in deferred_proofs_digest
+                        .iter()
+                        .zip(public_values.deferred_proofs_digest.iter())
+                    {
+                        builder.assert_felt_eq(
+                            is_non_zero * (*deferred_current - *deferred_public),
+                            C::F::zero(),
+                        );
+                    }
                 }
 
                 // If it's not a shard with "CPU", then the deferred proofs digest should not

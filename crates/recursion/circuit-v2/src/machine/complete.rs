@@ -19,7 +19,6 @@ pub(crate) fn assert_complete<C: Config>(
         start_shard,
         next_shard,
         start_execution_shard,
-        next_execution_shard,
         cumulative_sum,
         start_reconstruct_deferred_digest,
         end_reconstruct_deferred_digest,
@@ -38,7 +37,9 @@ pub(crate) fn assert_complete<C: Config>(
     builder.assert_felt_eq(is_complete * (*start_shard - C::F::one()), C::F::zero());
 
     // Assert that the next shard is not equal to one. This guarantees that there is at least one
-    // shard.
+    // shard that contains CPU.
+    //
+    // TODO: figure out if this is needed.
     builder.assert_felt_ne(is_complete * *next_shard, C::F::one());
 
     // Assert that the start execution shard is equal to 1.
@@ -50,10 +51,6 @@ pub(crate) fn assert_complete<C: Config>(
     {
         builder.assert_felt_eq(is_complete * (end_challenger_d - leaf_challenger_d), C::F::zero());
     }
-
-    // Assert that next execution shard is not equal to one. This guarantees that there is at least
-    // one shard that contains CPU.
-    builder.assert_felt_ne(is_complete * *next_execution_shard, C::F::one());
 
     // The start reconstruct deffered digest should be zero.
     for start_digest_word in start_reconstruct_deferred_digest {
