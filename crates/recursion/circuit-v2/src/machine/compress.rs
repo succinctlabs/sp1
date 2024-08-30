@@ -270,7 +270,7 @@ where
             // Verfiy that the exeuction shard is equal to the current execution shard.
             builder.assert_felt_eq(execution_shard, current_public_values.start_execution_shard);
 
-            // // Assert that the leaf challenger is always the same.
+            // Assert that the leaf challenger is always the same.
 
             // // Assert that the MemoryInitialize address bits are the same.
             // for (bit, current_bit) in
@@ -289,11 +289,6 @@ where
 
             // Assert that the leaf challenger is always the same.
 
-            // assert_challenger_eq_pv(
-            //     builder,
-            //     &leaf_challenger,
-            //     current_public_values.leaf_challenger,
-            // );
             // // Assert that the current challenger matches the start reconstruct challenger.
             // assert_challenger_eq_pv(
             //     builder,

@@ -461,7 +461,7 @@ where
                 }
 
                 Instruction::CommitPublicValues(instr) => {
-                    let pv_addrs = instr.pv_addrs.to_vec();
+                    let pv_addrs = instr.pv_addrs.as_array();
                     let pv_values: [F; RECURSIVE_PROOF_NUM_PV_ELTS] =
                         array::from_fn(|i| self.memory.mr(pv_addrs[i]).val[0]);
                     self.record.public_values = *pv_values.as_slice().borrow();
