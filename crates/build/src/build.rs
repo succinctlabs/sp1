@@ -35,8 +35,7 @@ pub fn execute_build_program(
     // Get the program metadata.
     let program_metadata_file = program_dir.join("Cargo.toml");
     let mut program_metadata_cmd = cargo_metadata::MetadataCommand::new();
-    let program_metadata =
-        program_metadata_cmd.manifest_path(program_metadata_file).exec().unwrap();
+    let program_metadata = program_metadata_cmd.manifest_path(program_metadata_file).exec()?;
 
     // Get the command corresponding to Docker or local build.
     let cmd = if args.docker {
