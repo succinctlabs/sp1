@@ -301,6 +301,8 @@ where
                 }
 
                 previous_execution_shard = public_values.execution_shard;
+                builder.print_f(previous_execution_shard);
+                builder.print_f(public_values.execution_shard);
             }
 
             // Program counter constraints.
