@@ -124,7 +124,7 @@ where
 
         // Initialize execution shard variables.
         let mut initial_execution_shard: Felt<_> = unsafe { MaybeUninit::zeroed().assume_init() };
-        let mut previous_execution_shard: Felt<_> = unsafe { MaybeUninit::zeroed().assume_init() };
+        let mut current_execution_shard: Felt<_> = unsafe { MaybeUninit::zeroed().assume_init() };
 
         // Initialize program counter variables.
         let mut start_pc: Felt<_> = unsafe { MaybeUninit::zeroed().assume_init() };
@@ -285,24 +285,14 @@ where
             }
 
             // Execution shard constraints.
-            // let execution_shard = felt2var(builder, public_values.execution_shard);
             {
                 // If the shard has a "CPU" chip, then the execution shard should be incremented by
                 // 1.
-                if shard_proof.contains_cpu() && i != 0 {
-                    // Assert that the shard of the proof is equal to the current shard.
-                    // builder.assert_felt_eq(current_execution_shard,
-                    // public_values.execution_shard);
+                if shard_proof.contains_cpu() {
+                    builder.assert_felt_eq(current_execution_shard, public_values.execution_shard);
 
-                    builder.assert_felt_eq(
-                        public_values.execution_shard,
-                        previous_execution_shard + C::F::one(),
-                    );
+                    current_execution_shard = builder.eval(current_execution_shard + C::F::one());
                 }
-
-                previous_execution_shard = public_values.execution_shard;
-                builder.print_f(previous_execution_shard);
-                builder.print_f(public_values.execution_shard);
             }
 
             // Program counter constraints.
@@ -538,7 +528,7 @@ where
             recursion_public_values.start_shard = initial_shard;
             recursion_public_values.next_shard = current_shard;
             recursion_public_values.start_execution_shard = initial_execution_shard;
-            recursion_public_values.next_execution_shard = previous_execution_shard;
+            recursion_public_values.next_execution_shard = current_execution_shard;
             recursion_public_values.previous_init_addr_bits = initial_previous_init_addr_bits;
             recursion_public_values.last_init_addr_bits = current_init_addr_bits;
             recursion_public_values.previous_finalize_addr_bits =
