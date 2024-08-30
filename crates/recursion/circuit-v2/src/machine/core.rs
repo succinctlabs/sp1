@@ -185,6 +185,7 @@ where
 
                 // Execution shard.
                 initial_execution_shard = public_values.execution_shard;
+                current_execution_shard = public_values.execution_shard;
 
                 // Program counter.
                 start_pc = public_values.start_pc;
