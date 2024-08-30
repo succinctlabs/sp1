@@ -408,7 +408,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         vk.observe_into(&mut reconstruct_challenger);
 
         // Prepare the inputs for the recursion programs.
-        for batch in shard_proofs.chunks(batch_size) {
+        for (batch_idx, batch) in shard_proofs.chunks(batch_size).enumerate() {
             let proofs = batch.to_vec();
 
             core_inputs.push(SP1RecursionWitnessValues {
@@ -417,6 +417,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                 leaf_challenger: leaf_challenger.clone(),
                 initial_reconstruct_challenger: reconstruct_challenger.clone(),
                 is_complete,
+                is_first_shard: batch_idx == 0,
             });
             assert_eq!(reconstruct_challenger.input_buffer.len(), 0);
             assert_eq!(reconstruct_challenger.sponge_state.len(), 16);

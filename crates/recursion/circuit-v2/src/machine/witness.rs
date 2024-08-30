@@ -112,12 +112,14 @@ where
         let leaf_challenger = self.leaf_challenger.read(builder);
         let initial_reconstruct_challenger = self.initial_reconstruct_challenger.read(builder);
         let is_complete = InnerVal::from_bool(self.is_complete).read(builder);
+        let is_first_shard = InnerVal::from_bool(self.is_first_shard).read(builder);
         SP1RecursionWitnessVariable {
             vk,
             shard_proofs,
             leaf_challenger,
             initial_reconstruct_challenger,
             is_complete,
+            is_first_shard,
         }
     }
 
@@ -127,27 +129,9 @@ where
         self.leaf_challenger.write(witness);
         self.initial_reconstruct_challenger.write(witness);
         self.is_complete.write(witness);
+        self.is_first_shard.write(witness);
     }
 }
-
-// impl<C> Witnessable<C> for SP1CompressWitnessValues<BabyBearPoseidon2>
-// where
-//     C: CircuitConfig<F = InnerVal, EF = InnerChallenge, Bit = Felt<InnerVal>>,
-// {
-//     type WitnessVariable = SP1CompressWitnessVariable<C, BabyBearPoseidon2>;
-
-//     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
-//         let vks_and_proofs = self.vks_and_proofs.read(builder);
-//         let is_complete = InnerVal::from_bool(self.is_complete).read(builder);
-
-//         SP1CompressWitnessVariable { vks_and_proofs, is_complete }
-//     }
-
-//     fn write(&self, witness: &mut impl WitnessWriter<C>) {
-//         self.vks_and_proofs.write(witness);
-//         self.is_complete.write(witness);
-//     }
-// }
 
 impl<C: CircuitConfig<F = InnerVal, EF = InnerChallenge>, SC: BabyBearFriConfigVariable<C>>
     Witnessable<C> for SP1CompressWitnessValues<SC>

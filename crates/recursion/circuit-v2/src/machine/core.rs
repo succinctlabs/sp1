@@ -21,7 +21,7 @@ use sp1_stark::{ShardProof, StarkGenericConfig, StarkVerifyingKey};
 
 use sp1_recursion_compiler::{
     circuit::CircuitV2Builder,
-    ir::{Builder, Config, Ext, ExtConst, Felt},
+    ir::{Builder, Config, Ext, ExtConst, Felt, SymbolicFelt},
 };
 
 use sp1_recursion_core_v2::{
@@ -44,6 +44,7 @@ pub struct SP1RecursionWitnessVariable<
     pub leaf_challenger: SC::FriChallengerVariable,
     pub initial_reconstruct_challenger: DuplexChallengerVariable<C>,
     pub is_complete: Felt<C::F>,
+    pub is_first_shard: Felt<C::F>,
 }
 
 pub struct SP1RecursionWitnessValues<SC: StarkGenericConfig> {
@@ -52,6 +53,7 @@ pub struct SP1RecursionWitnessValues<SC: StarkGenericConfig> {
     pub leaf_challenger: SC::Challenger,
     pub initial_reconstruct_challenger: SC::Challenger,
     pub is_complete: bool,
+    pub is_first_shard: bool,
 }
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -115,6 +117,7 @@ where
             leaf_challenger,
             initial_reconstruct_challenger,
             is_complete,
+            is_first_shard,
         } = input;
 
         // Initialize shard variables.
@@ -229,19 +232,23 @@ where
                 {
                     *digest = *first_digest;
                 }
+
+                // First shard constraints. We verify the validity of the `is_first_shard` boolean
+                // flag, and make assertions for that are specific to the first shard using that
+                // flag.
+
+                // Assert that the shard is boolean.
+                builder
+                    .assert_felt_eq(is_first_shard * (is_first_shard - C::F::one()), C::F::zero());
+                // Assert that if the flag is set to `1`, then the shard idex is `1`.
+                builder
+                    .assert_felt_eq(is_first_shard * (initial_shard - C::F::one()), C::F::zero());
+                // Assert that if the flag is set to `0`, then the shard index is not `1`.
+                builder.assert_felt_ne(
+                    (SymbolicFelt::one() - is_first_shard) * initial_shard,
+                    C::F::one(),
+                );
             }
-
-            // // If the shard is the first shard, assert that the initial challenger is equal to a
-            // // fresh challenger observing the verifier key and the initial pc.
-
-            // First, we compute the initial challenger.
-            // let mut initial_challenger = machine.config().challenger_variable(builder);
-
-            // let shard = felt2var(builder, public_values.shard);
-            // builder.if_eq(shard, C::N::one()).then(|builder| {
-            //      vk.observe_into(builder, challenger);
-            //     initial_reconstruct_challenger.assert_eq(builder, &first_initial_challenger);
-            // });
 
             // Verify the shard.
             //
