@@ -1,4 +1,7 @@
-[workspace] # 
+# RSP uses a different version of rust than the rest of SP1,
+# so we need to use a different toolchain, which we achieve by
+# declaring an empty workspace.
+[workspace]
 
 [package]
 version = "0.1.0"
