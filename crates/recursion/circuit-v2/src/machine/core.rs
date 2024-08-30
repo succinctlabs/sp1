@@ -168,8 +168,9 @@ where
 
         // Verify proofs.
         for (i, shard_proof) in shard_proofs.into_iter().enumerate() {
-            let _contains_memory_init = shard_proof.contains_memory_init();
-            let _contains_memory_finalize = shard_proof.contains_memory_finalize();
+            let contains_cpu = shard_proof.contains_cpu();
+            let contains_memory_init = shard_proof.contains_memory_init();
+            let contains_memory_finalize = shard_proof.contains_memory_finalize();
 
             // Get the public values.
             let public_values: &PublicValues<Word<Felt<_>>, Felt<_>> =
@@ -189,6 +190,7 @@ where
 
                 // Program counter.
                 start_pc = public_values.start_pc;
+                current_pc = public_values.start_pc;
 
                 // Memory initialization & finalization.
                 for ((bit, pub_bit), first_bit) in current_init_addr_bits
@@ -247,12 +249,11 @@ where
             let mut challenger = leaf_challenger.copy(builder);
             StarkVerifier::verify_shard(builder, &vk, machine, &mut challenger, &shard_proof);
 
-            // // First shard has a "CPU" constraint.
-            // {
-            //     builder.if_eq(shard, C::N::one()).then(|builder| {
-            //         builder.assert_var_eq(contains_cpu, C::N::one());
-            //     });
-            // }
+            // Assert that first shard has a "CPU". Equivalently, assert that if the shard does
+            // not have a "CPU", then the current shard is not 1.
+            if !contains_cpu {
+                builder.assert_felt_ne(current_shard, C::F::one());
+            }
 
             // // CPU log degree bound check constraints.
             // {
@@ -289,7 +290,7 @@ where
             {
                 // If the shard has a "CPU" chip, then the execution shard should be incremented by
                 // 1.
-                if shard_proof.contains_cpu() {
+                if contains_cpu {
                     builder.assert_felt_eq(current_execution_shard, public_values.execution_shard);
 
                     current_execution_shard = builder.eval(current_execution_shard + C::F::one());
@@ -304,18 +305,17 @@ where
                 //     builder.assert_felt_eq(public_values.start_pc, vk.pc_start);
                 // });
 
-                // // Assert that the start_pc of the proof is equal to the current pc.
-                // builder.assert_felt_eq(current_pc, public_values.start_pc);
+                // Assert that the start_pc of the proof is equal to the current pc.
+                builder.assert_felt_eq(current_pc, public_values.start_pc);
 
-                // // If it's not a shard with "CPU", then assert that the start_pc equals the
-                // next_pc. builder.if_ne(contains_cpu, C::N::one()).then(|builder|
-                // {     builder.assert_felt_eq(public_values.start_pc,
-                // public_values.next_pc); });
-
-                // // If it's a shard with "CPU", then assert that the start_pc is not zero.
-                // builder.if_eq(contains_cpu, C::N::one()).then(|builder| {
-                //     builder.assert_felt_ne(public_values.start_pc, C::F::zero());
-                // });
+                // If it's not a shard with "CPU", then assert that the start_pc equals the
+                // next_pc.
+                if !contains_cpu {
+                    builder.assert_felt_eq(public_values.start_pc, public_values.next_pc);
+                } else {
+                    // If it's a shard with "CPU", then assert that the start_pc is not zero.
+                    builder.assert_felt_ne(public_values.start_pc, C::F::zero());
+                }
 
                 // Update current_pc to be the end_pc of the current proof.
                 current_pc = public_values.next_pc;
