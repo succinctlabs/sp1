@@ -194,7 +194,8 @@ where
                 // Initialize start execution shard.
                 compress_public_values.start_execution_shard =
                     current_public_values.start_execution_shard;
-                execution_shard = current_public_values.start_execution_shard;
+                // TODO: comment back in.
+                // execution_shard = current_public_values.start_execution_shard;
 
                 // Initialize the MemoryInitialize address bits.
                 for (bit, (first_bit, current_bit)) in init_addr_bits.iter_mut().zip(
