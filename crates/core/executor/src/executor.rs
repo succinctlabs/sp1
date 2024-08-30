@@ -13,9 +13,9 @@ use thiserror::Error;
 use crate::{
     context::SP1Context,
     events::{
-        create_alu_lookup_id, create_alu_lookups, AluEvent, CpuEvent, MemoryAccessPosition,
-        MemoryInitializeFinalizeEvent, MemoryLocalEvent, MemoryReadRecord, MemoryRecord,
-        MemoryWriteRecord, SyscallEvent,
+        create_alu_lookup_id, create_alu_lookups, AluEvent, CpuEvent, LookupId,
+        MemoryAccessPosition, MemoryInitializeFinalizeEvent, MemoryLocalEvent, MemoryReadRecord,
+        MemoryRecord, MemoryWriteRecord, SyscallEvent,
     },
     hook::{HookEnv, HookRegistry},
     record::{ExecutionRecord, MemoryAccessRecord},
@@ -147,6 +147,10 @@ pub enum ExecutionError {
     /// The execution failed with an unimplemented feature.
     #[error("got unimplemented as opcode")]
     Unimplemented(),
+
+    /// The program ended in unconstrained mode.
+    #[error("program ended in unconstrained mode")]
+    EndInUnconstrained(),
 }
 
 macro_rules! assert_valid_memory_access {
@@ -257,7 +261,10 @@ impl<'a> Executor<'a> {
             let addr = Register::from_u32(i as u32) as u32;
             let record = self.state.memory.get(&addr);
 
-            if self.executor_mode != ExecutorMode::Simple {
+            // Only add the previous memory state to checkpoint map if we're in checkpoint mode,
+            // or if we're in unconstrained mode. In unconstrained mode, the mode is always
+            // Simple.
+            if self.executor_mode == ExecutorMode::Checkpoint || self.unconstrained {
                 match record {
                     Some(record) => {
                         self.memory_checkpoint.entry(addr).or_insert_with(|| Some(*record));
@@ -282,7 +289,7 @@ impl<'a> Executor<'a> {
         let addr = register as u32;
         let record = self.state.memory.get(&addr);
 
-        if self.executor_mode != ExecutorMode::Simple {
+        if self.executor_mode == ExecutorMode::Checkpoint || self.unconstrained {
             match record {
                 Some(record) => {
                     self.memory_checkpoint.entry(addr).or_insert_with(|| Some(*record));
@@ -305,7 +312,7 @@ impl<'a> Executor<'a> {
         #[allow(clippy::single_match_else)]
         let record = self.state.memory.get(&addr);
 
-        if self.executor_mode != ExecutorMode::Simple {
+        if self.executor_mode == ExecutorMode::Checkpoint || self.unconstrained {
             match record {
                 Some(record) => {
                     self.memory_checkpoint.entry(addr).or_insert_with(|| Some(*record));
@@ -353,7 +360,7 @@ impl<'a> Executor<'a> {
     pub fn mr(&mut self, addr: u32, shard: u32, timestamp: u32) -> MemoryReadRecord {
         // Get the memory record entry.
         let entry = self.state.memory.entry(addr);
-        if self.executor_mode != ExecutorMode::Simple {
+        if self.executor_mode == ExecutorMode::Checkpoint || self.unconstrained {
             match entry {
                 Entry::Occupied(ref entry) => {
                     let record = entry.get();
@@ -416,7 +423,7 @@ impl<'a> Executor<'a> {
     pub fn mw(&mut self, addr: u32, value: u32, shard: u32, timestamp: u32) -> MemoryWriteRecord {
         // Get the memory record entry.
         let entry = self.state.memory.entry(addr);
-        if self.executor_mode != ExecutorMode::Simple {
+        if self.executor_mode == ExecutorMode::Checkpoint || self.unconstrained {
             match entry {
                 Entry::Occupied(ref entry) => {
                     let record = entry.get();
@@ -567,8 +574,8 @@ impl<'a> Executor<'a> {
         memory_store_value: Option<u32>,
         record: MemoryAccessRecord,
         exit_code: u32,
-        lookup_id: u128,
-        syscall_lookup_id: u128,
+        lookup_id: LookupId,
+        syscall_lookup_id: LookupId,
     ) {
         let cpu_event = CpuEvent {
             shard,
@@ -602,7 +609,7 @@ impl<'a> Executor<'a> {
     }
 
     /// Emit an ALU event.
-    fn emit_alu(&mut self, clk: u32, opcode: Opcode, a: u32, b: u32, c: u32, lookup_id: u128) {
+    fn emit_alu(&mut self, clk: u32, opcode: Opcode, a: u32, b: u32, c: u32, lookup_id: LookupId) {
         let event = AluEvent {
             lookup_id,
             shard: self.shard(),
@@ -644,7 +651,14 @@ impl<'a> Executor<'a> {
         }
     }
 
-    fn emit_syscall(&mut self, clk: u32, syscall_id: u32, arg1: u32, arg2: u32, lookup_id: u128) {
+    fn emit_syscall(
+        &mut self,
+        clk: u32,
+        syscall_id: u32,
+        arg1: u32,
+        arg2: u32,
+        lookup_id: LookupId,
+    ) {
         let syscall_event = SyscallEvent {
             shard: self.shard(),
             clk,
@@ -685,7 +699,7 @@ impl<'a> Executor<'a> {
         a: u32,
         b: u32,
         c: u32,
-        lookup_id: u128,
+        lookup_id: LookupId,
     ) {
         self.rw(rd, a);
         if self.executor_mode == ExecutorMode::Trace {
@@ -742,13 +756,19 @@ impl<'a> Executor<'a> {
         let (addr, memory_read_value): (u32, u32);
         let mut memory_store_value: Option<u32> = None;
 
-        if self.executor_mode != ExecutorMode::Simple {
+        if self.executor_mode == ExecutorMode::Trace {
             self.memory_accesses = MemoryAccessRecord::default();
         }
-        let lookup_id =
-            if self.executor_mode == ExecutorMode::Simple { 0 } else { create_alu_lookup_id() };
-        let syscall_lookup_id =
-            if self.executor_mode == ExecutorMode::Simple { 0 } else { create_alu_lookup_id() };
+        let lookup_id = if self.executor_mode == ExecutorMode::Simple {
+            LookupId::default()
+        } else {
+            create_alu_lookup_id()
+        };
+        let syscall_lookup_id = if self.executor_mode == ExecutorMode::Simple {
+            LookupId::default()
+        } else {
+            create_alu_lookup_id()
+        };
 
         if self.print_report && !self.unconstrained {
             self.report
@@ -1180,8 +1200,14 @@ impl<'a> Executor<'a> {
             }
         }
 
-        Ok(self.state.pc.wrapping_sub(self.program.pc_base)
-            >= (self.program.instructions.len() * 4) as u32)
+        let done = self.state.pc == 0
+            || self.state.pc.wrapping_sub(self.program.pc_base)
+                >= (self.program.instructions.len() * 4) as u32;
+        if done && self.unconstrained {
+            log::error!("program ended in unconstrained mode at clk {}", self.state.global_clk);
+            return Err(ExecutionError::EndInUnconstrained());
+        }
+        Ok(done)
     }
 
     /// Bump the record.
@@ -1222,7 +1248,7 @@ impl<'a> Executor<'a> {
         self.executor_mode = ExecutorMode::Checkpoint;
         self.print_report = true;
 
-        // Take memory out and then clone so that memory is not cloned.
+        // Take memory out of state before cloning it so that memory is not cloned.
         let memory = std::mem::take(&mut self.state.memory);
         let mut checkpoint = tracing::info_span!("clone").in_scope(|| self.state.clone());
         self.state.memory = memory;
@@ -1413,7 +1439,7 @@ impl<'a> Executor<'a> {
 
         self.report.touched_memory_addresses = self.state.memory.len() as u64;
         for addr in self.state.memory.keys() {
-            if addr == &0 {
+            if *addr == 0 {
                 // Handled above.
                 continue;
             }

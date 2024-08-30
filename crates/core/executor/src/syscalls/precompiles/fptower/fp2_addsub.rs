@@ -103,7 +103,7 @@ impl<P: FpOpField> Syscall for Fp2AddSubSyscall<P> {
             fp2_addsub_local_mem_access.push(local_mem_access);
         }
 
-        let lookup_id = rt.syscall_lookup_id as usize;
+        let lookup_id = rt.syscall_lookup_id;
         let shard = rt.current_shard();
         let channel = rt.current_channel();
         let op = self.op;

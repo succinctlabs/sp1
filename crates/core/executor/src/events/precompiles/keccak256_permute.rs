@@ -1,6 +1,9 @@
 use serde::{Deserialize, Serialize};
 
-use crate::events::{memory::{MemoryReadRecord, MemoryWriteRecord}, MemoryLocalEvent};
+use crate::events::{
+    memory::{MemoryReadRecord, MemoryWriteRecord},
+    LookupId, MemoryLocalEvent,
+};
 
 pub(crate) const STATE_SIZE: usize = 25;
 
@@ -10,7 +13,7 @@ pub(crate) const STATE_SIZE: usize = 25;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct KeccakPermuteEvent {
     /// The lookup identifer.
-    pub lookup_id: u128,
+    pub lookup_id: LookupId,
     /// The shard number.
     pub shard: u32,
     /// The channel number.

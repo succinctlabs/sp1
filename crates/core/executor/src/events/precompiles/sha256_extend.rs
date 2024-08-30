@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::events::{
     memory::{MemoryReadRecord, MemoryWriteRecord},
-    MemoryLocalEvent,
+    LookupId, MemoryLocalEvent,
 };
 
 /// SHA-256 Extend Event.
@@ -11,7 +11,7 @@ use crate::events::{
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ShaExtendEvent {
     /// The lookup identifer.
-    pub lookup_id: u128,
+    pub lookup_id: LookupId,
     /// The shard number.
     pub shard: u32,
     /// The channel number.

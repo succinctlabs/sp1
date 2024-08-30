@@ -94,7 +94,7 @@ impl<P: FpOpField> Syscall for FpOpSyscall<P> {
             fp_local_mem_access.push(local_mem_access);
         }
 
-        let lookup_id = rt.syscall_lookup_id as usize;
+        let lookup_id = rt.syscall_lookup_id;
         let shard = rt.current_shard();
         let channel = rt.current_channel();
         match P::FIELD_TYPE {

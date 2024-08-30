@@ -1,11 +1,11 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    events::{MemoryLocalEvent, MemoryReadRecord, MemoryWriteRecord},
+    events::{LookupId, MemoryLocalEvent, MemoryReadRecord, MemoryWriteRecord},
     syscalls::SyscallCode,
 };
 
-/// Airthmetic operation for emulating modular arithmetic.
+/// This is an arithmetic operation for emulating modular arithmetic.
 #[derive(PartialEq, Copy, Clone, Debug, Serialize, Deserialize)]
 pub enum FieldOperation {
     /// Addition.
@@ -26,7 +26,7 @@ pub struct FpOpEvent {
     /// The syscall code.
     pub syscall: SyscallCode,
     /// The lookup id.
-    pub lookup_id: usize,
+    pub lookup_id: LookupId,
     /// The shard number.
     pub shard: u32,
     /// The channel number.
@@ -59,7 +59,7 @@ pub struct Fp2AddSubEvent {
     /// The syscall code.
     pub syscall: SyscallCode,
     /// The lookup id.
-    pub lookup_id: usize,
+    pub lookup_id: LookupId,
     /// The shard number.
     pub shard: u32,
     /// The channel number.
@@ -90,7 +90,7 @@ pub struct Fp2MulEvent {
     /// The syscall code.
     pub syscall: SyscallCode,
     /// The lookup id.
-    pub lookup_id: usize,
+    pub lookup_id: LookupId,
     /// The shard number.
     pub shard: u32,
     /// The channel number.

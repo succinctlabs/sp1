@@ -1,5 +1,5 @@
 use crate::{
-    events::{MemoryReadRecord, MemoryWriteRecord},
+    events::{LookupId, MemoryReadRecord, MemoryWriteRecord},
     record::ExecutionRecord,
     Executor, Register,
 };
@@ -21,7 +21,7 @@ pub struct SyscallContext<'a, 'b: 'a> {
     /// The runtime.
     pub rt: &'a mut Executor<'b>,
     /// The syscall lookup id.
-    pub syscall_lookup_id: u128,
+    pub syscall_lookup_id: LookupId,
     /// The syscall being executed.
     pub syscall: SyscallCode,
 }
@@ -37,7 +37,7 @@ impl<'a, 'b> SyscallContext<'a, 'b> {
             next_pc: runtime.state.pc.wrapping_add(4),
             exit_code: 0,
             rt: runtime,
-            syscall_lookup_id: 0,
+            syscall_lookup_id: LookupId::default(),
             syscall,
         }
     }

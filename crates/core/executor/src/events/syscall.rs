@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use super::LookupId;
+
 /// Syscall Event.
 ///
 /// This object encapsulated the information needed to prove a syscall invocation from the CPU table.
@@ -13,7 +15,7 @@ pub struct SyscallEvent {
     /// The clock cycle.
     pub clk: u32,
     /// The lookup id.
-    pub lookup_id: u128,
+    pub lookup_id: LookupId,
     /// The syscall id.
     pub syscall_id: u32,
     /// The first argument.

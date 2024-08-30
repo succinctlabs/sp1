@@ -11,7 +11,7 @@ use typenum::Unsigned;
 use crate::{
     events::{
         memory::{MemoryReadRecord, MemoryWriteRecord},
-        MemoryLocalEvent,
+        LookupId, MemoryLocalEvent,
     },
     syscalls::SyscallContext,
 };
@@ -21,7 +21,7 @@ use crate::{
 /// This event is emitted when an elliptic curve addition operation is performed.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EllipticCurveAddEvent {
-    pub(crate) lookup_id: u128,
+    pub(crate) lookup_id: LookupId,
     /// The shard number.
     pub shard: u32,
     /// The channel number.
@@ -50,7 +50,7 @@ pub struct EllipticCurveAddEvent {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EllipticCurveDoubleEvent {
     /// The lookup identifer.
-    pub lookup_id: u128,
+    pub lookup_id: LookupId,
     /// The shard number.
     pub shard: u32,
     /// The channel number.
@@ -71,7 +71,7 @@ pub struct EllipticCurveDoubleEvent {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EllipticCurveDecompressEvent {
     /// The lookup identifer.
-    pub lookup_id: u128,
+    pub lookup_id: LookupId,
     /// The shard number.
     pub shard: u32,
     /// The channel number.

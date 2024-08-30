@@ -3,7 +3,7 @@ use sp1_curves::{edwards::WORDS_FIELD_ELEMENT, COMPRESSED_POINT_BYTES, NUM_BYTES
 
 use crate::events::{
     memory::{MemoryReadRecord, MemoryWriteRecord},
-    MemoryLocalEvent,
+    LookupId, MemoryLocalEvent,
 };
 
 /// Edwards Decompress Event.
@@ -12,7 +12,7 @@ use crate::events::{
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EdDecompressEvent {
     /// The lookup identifer.
-    pub lookup_id: u128,
+    pub lookup_id: LookupId,
     /// The shard number.
     pub shard: u32,
     /// The channel number.

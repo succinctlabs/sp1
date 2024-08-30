@@ -7,12 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0-rc2](https://github.com/succinctlabs/sp1/compare/sp1-recursion-gnark-cli-v1.2.0-rc1...sp1-recursion-gnark-cli-v1.2.0-rc2) - 2024-08-29
+
+### Other
+- update Cargo.lock dependencies
+
 ## [1.1.0](https://github.com/succinctlabs/sp1/compare/sp1-recursion-gnark-cli-v1.0.1...sp1-recursion-gnark-cli-v1.1.0) - 2024-08-02
 
 ### Added
 - update tg ([#1214](https://github.com/succinctlabs/sp1/pull/1214))
 
-## [1.0.0-rc.1](https://github.com/succinctlabs/sp1/compare/sp1-recursion-gnark-cli-v1.0.0-rc.1...sp1-recursion-gnark-cli-v1.0.0-rc.1) - 2024-07-19
+## [1.0.0-rc1](https://github.com/succinctlabs/sp1/compare/sp1-recursion-gnark-cli-v1.0.0-rc1...sp1-recursion-gnark-cli-v1.0.0-rc1) - 2024-07-19
 
 ### Added
 

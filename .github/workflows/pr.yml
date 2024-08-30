@@ -2,7 +2,7 @@ name: PR
 
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
   pull_request:
     branches:
       - "**"
@@ -49,8 +49,6 @@ jobs:
           FRI_QUERIES: 1
           SP1_DEV: 1
 
-        
-          
   test-x86:
     name: Test (x86-64)
     runs-on:
@@ -153,6 +151,15 @@ jobs:
         env:
           CARGO_INCREMENTAL: 1
 
+      - name: Add wasm target
+        run: rustup target add wasm32-unknown-unknown
+
+      - name: Check wasm compatibility for sdk
+        uses: actions-rs/cargo@v1
+        with:
+          command: check
+          args: -p sp1-sdk --target wasm32-unknown-unknown --no-default-features
+
   examples:
     name: Examples
     runs-on: [runs-on, runner=8cpu-linux-x64, "run-id=${{ github.run_id }}"]
@@ -221,3 +228,38 @@ jobs:
           cargo remove sp1-sdk
           cargo add sp1-sdk --path $GITHUB_WORKSPACE/crates/sdk
           SP1_DEV=1 RUST_LOG=info cargo run --release -- --prove
+
+  performance:
+    name: Performance
+    runs-on: [runs-on, family=c7a.48xlarge, "run-id=${{ github.run_id }}"]
+    env:
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+
+      - name: Setup CI
+        uses: ./.github/actions/setup
+
+      - name: Install SP1 toolchain
+        run: |
+          curl -L https://sp1.succinct.xyz | bash
+          ~/.sp1/bin/sp1up 
+          ~/.sp1/bin/cargo-prove prove --version
+
+      - name: Run Evaluation
+        run: |
+          cd crates/eval
+          RUSTFLAGS='-C target-cpu=native' cargo run --release -- \
+            --programs fibonacci,ssz-withdrawals,tendermint \
+            --post-to-slack ${{ github.ref == 'refs/heads/dev' }} \
+            --slack-channel-id "${{ secrets.SLACK_CHANNEL_ID }}" \
+            --slack-token "${{ secrets.SLACK_TOKEN }}" \
+            --post-to-github ${{ github.event_name == 'pull_request' }} \
+            --github-token "${{ secrets.GITHUB_TOKEN }}" \
+            --repo-owner "${{ github.repository_owner }}" \
+            --repo-name "${{ github.event.repository.name }}" \
+            --pr-number "${{ github.event.pull_request.number }}" \
+            --branch-name "${{ github.head_ref || github.ref_name }}" \
+            --commit-hash "${{ github.sha }}" \
+            --author "${{ github.event.pull_request.user.login || github.actor }}"

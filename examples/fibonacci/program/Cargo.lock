@@ -335,11 +335,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-lib"
-<<<<<<< HEAD
-version = "1.1.1"
-=======
 version = "1.2.0-rc1"
->>>>>>> dev
 dependencies = [
  "anyhow",
  "bincode",
@@ -351,11 +347,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-zkvm"
-<<<<<<< HEAD
-version = "1.1.1"
-=======
 version = "1.2.0-rc1"
->>>>>>> dev
 dependencies = [
  "bincode",
  "cfg-if",

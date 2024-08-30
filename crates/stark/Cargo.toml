@@ -39,6 +39,7 @@ rayon-scan = "0.1.1"
 arrayref = "0.3.8"
 strum = "0.26.3"
 strum_macros = "0.26.4" 
+getrandom = { version = "0.2.15", features = ["custom"] }
 
 [dev-dependencies]
 sp1-zkvm = { workspace = true }
