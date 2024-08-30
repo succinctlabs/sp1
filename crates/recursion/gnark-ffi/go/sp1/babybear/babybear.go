@@ -161,6 +161,12 @@ func (c *Chip) AssertIsEqualF(a, b Variable) {
 	c.api.AssertIsEqual(a2.Value, b2.Value)
 }
 
+func (c *Chip) AssertNotEqualF(a, b Variable) {
+	a2 := c.ReduceSlow(a)
+	b2 := c.ReduceSlow(b)
+	c.api.AssertIsDifferent(a2.Value, b2.Value)
+}
+
 func (c *Chip) AssertIsEqualE(a, b ExtensionVariable) {
 	c.AssertIsEqualF(a.Value[0], b.Value[0])
 	c.AssertIsEqualF(a.Value[1], b.Value[1])

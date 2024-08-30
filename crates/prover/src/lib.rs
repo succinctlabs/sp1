@@ -72,10 +72,10 @@ use sp1_recursion_core_v2::{
 use sp1_recursion_circuit_v2::{
     hash::FieldHasher,
     machine::{
-        SP1CompressShape, SP1CompressVerifier, SP1CompressWithVKeyVerifier,
-        SP1CompressWithVKeyWitnessValues, SP1CompressWitnessValues, SP1DeferredVerifier,
-        SP1DeferredWitnessValues, SP1MerkleProofWitnessValues, SP1RecursionShape,
-        SP1RecursionWitnessValues, SP1RecursiveVerifier,
+        SP1CompressRootVerifier, SP1CompressRootVerifierWithVKey, SP1CompressShape,
+        SP1CompressWithVKeyVerifier, SP1CompressWithVKeyWitnessValues, SP1CompressWitnessValues,
+        SP1DeferredVerifier, SP1DeferredWitnessValues, SP1MerkleProofWitnessValues,
+        SP1RecursionShape, SP1RecursionWitnessValues, SP1RecursiveVerifier,
     },
     merkle_tree::MerkleTree,
     witness::Witnessable,
@@ -326,7 +326,24 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         &self,
         input: &SP1CompressWithVKeyWitnessValues<InnerSC>,
     ) -> Arc<RecursionProgram<BabyBear>> {
-        self.compress_program(input)
+        // Get the operations.
+        let builder_span = tracing::debug_span!("build shrink program").entered();
+        let mut builder = Builder::<InnerConfig>::default();
+        let input = input.read(&mut builder);
+        SP1CompressRootVerifierWithVKey::verify(
+            &mut builder,
+            self.compress_prover.machine(),
+            input,
+        );
+        let operations = builder.into_operations();
+        builder_span.exit();
+
+        // Compile the program.
+        let compiler_span = tracing::debug_span!("compile shrink program").entered();
+        let mut compiler = AsmCompiler::<InnerConfig>::default();
+        let program = Arc::new(compiler.compile(operations));
+        compiler_span.exit();
+        program
     }
 
     pub fn wrap_program(
@@ -338,10 +355,8 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         let mut builder = Builder::<InnerConfig>::default();
 
         let input = input.read(&mut builder);
-        // Assert that the proof is complete.
-        builder.assert_felt_eq(input.is_complete, BabyBear::one());
-        // Verify the proof, as a compress proof.
-        SP1CompressVerifier::verify(&mut builder, self.shrink_prover.machine(), input);
+        // Verify the proof.
+        SP1CompressRootVerifier::verify(&mut builder, self.shrink_prover.machine(), input);
 
         let operations = builder.into_operations();
         builder_span.exit();

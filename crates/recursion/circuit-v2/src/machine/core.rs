@@ -233,6 +233,10 @@ where
 
             // // If the shard is the first shard, assert that the initial challenger is equal to a
             // // fresh challenger observing the verifier key and the initial pc.
+
+            // First, we compute the initial challenger.
+            // let mut initial_challenger = machine.config().challenger_variable(builder);
+
             // let shard = felt2var(builder, public_values.shard);
             // builder.if_eq(shard, C::N::one()).then(|builder| {
             //      vk.observe_into(builder, challenger);
@@ -297,7 +301,8 @@ where
             // Program counter constraints.
             {
                 // // If it's the first shard (which is the first execution shard), then the
-                // start_pc // should be vk.pc_start.
+                // start_pc should be vk.pc_start. Equivalently, if `start_pc != vk.pc_start`, then
+                // the shard is not equal to one.
                 // builder.if_eq(shard, C::N::one()).then(|builder| {
                 //     builder.assert_felt_eq(public_values.start_pc, vk.pc_start);
                 // });
