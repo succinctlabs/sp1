@@ -304,8 +304,32 @@ where
 
             // Digest constraints.
             {
-                // // If `commited_value_digest` is not zero, then
-                // `public_values.commited_value_digest // should be the current
+                // If `commited_value_digest` is not zero, then `public_values.commited_value_digest
+                // should be the current.
+
+                // Set a flag to indicate whether `commited_value_digest` is non-zero. The flag is
+                // initialized to 1, and then get multiplied by each element of the array. If all
+                // elements are zero, then the flag will be zero.
+                let mut is_non_zero: Felt<_> = builder.eval(C::F::one());
+                for word in committed_value_digest {
+                    for byte in word {
+                        is_non_zero = builder.eval(is_non_zero * byte);
+                    }
+                }
+
+                // Using the flag `is_non_zero`, we can constrain the equality.
+                for (word_current, word_public) in committed_value_digest
+                    .into_iter()
+                    .zip(current_public_values.committed_value_digest)
+                {
+                    for (byte_current, byte_public) in word_current.into_iter().zip(word_public) {
+                        builder.assert_felt_eq(
+                            is_non_zero * (byte_current - byte_public),
+                            C::F::zero(),
+                        );
+                    }
+                }
+
                 // value. let is_zero: Var<_> = builder.eval(C::N::one());
                 // #[allow(clippy::needless_range_loop)]
                 // for i in 0..committed_value_digest.len() {
