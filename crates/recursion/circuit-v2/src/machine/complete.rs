@@ -28,6 +28,9 @@ pub(crate) fn assert_complete<C: Config>(
         ..
     } = public_values;
 
+    // Assert that the `is_complete` flag is boolean.
+    builder.assert_felt_eq(is_complete * (is_complete - C::F::one()), C::F::zero());
+
     // Assert that `next_pc` is equal to zero (so program execution has completed)
     builder.assert_felt_eq(is_complete * *next_pc, C::F::zero());
 
@@ -36,7 +39,7 @@ pub(crate) fn assert_complete<C: Config>(
 
     // Assert that the next shard is not equal to one. This guarantees that there is at least one
     // shard.
-    builder.assert_felt_ne(is_complete * (*next_shard - C::F::one()), C::F::zero());
+    builder.assert_felt_ne(is_complete * *next_shard, C::F::one());
 
     // Assert that the start execution shard is equal to 1.
     builder.assert_felt_eq(is_complete * (*start_execution_shard - C::F::one()), C::F::zero());
@@ -48,9 +51,9 @@ pub(crate) fn assert_complete<C: Config>(
         builder.assert_felt_eq(is_complete * (end_challenger_d - leaf_challenger_d), C::F::zero());
     }
 
-    // Assert that next shard is not equal to one. This guarantees that there is at least one shard
-    // contains CPU.
-    builder.assert_felt_ne(is_complete * (*next_execution_shard - C::F::one()), C::F::zero());
+    // Assert that next execution shard is not equal to one. This guarantees that there is at least
+    // one shard that contains CPU.
+    builder.assert_felt_ne(is_complete * *next_execution_shard, C::F::one());
 
     // The start reconstruct deffered digest should be zero.
     for start_digest_word in start_reconstruct_deferred_digest {
