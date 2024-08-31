@@ -15,7 +15,7 @@ use crate::{
     air::{InteractionScope, MachineAir, MachineProgram},
     lookup::{debug_interactions_with_all_chips, InteractionKind},
     record::MachineRecord,
-    DebugConstraintBuilder, ProvePhase, ShardProof, VerifierConstraintFolder,
+    DebugConstraintBuilder, ShardProof, VerifierConstraintFolder,
 };
 
 use super::{
@@ -230,13 +230,14 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
         &self,
         records: &mut [A::Record],
         opts: &<A::Record as MachineRecord>::Config,
-        phase: ProvePhase,
+        interaction_scope: InteractionScope,
     ) {
-        let chips = if phase == ProvePhase::Phase1 {
-            self.chips().iter().filter(|chip| chip.included_in_phase(phase)).collect::<Vec<_>>()
-        } else {
-            self.chips().iter().collect::<Vec<_>>()
-        };
+        let chips = self
+            .chips
+            .iter()
+            .filter(|chip| chip.interaction_randomness() == interaction_scope)
+            .collect::<Vec<_>>();
+
         records.iter_mut().for_each(|record| {
             chips.iter().for_each(|chip| {
                 tracing::debug_span!("chip dependencies", chip = chip.name()).in_scope(|| {
@@ -271,7 +272,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
         vk.observe_into(challenger);
         tracing::debug_span!("observe challenges for all shards").in_scope(|| {
             proof.shard_proofs.iter().for_each(|proof| {
-                challenger.observe(proof.commitment.phase1_main_commit.clone());
+                challenger.observe(proof.commitment.global_main_commit.clone());
                 challenger.observe_slice(&proof.public_values[0..self.num_pv_elts()]);
             });
         });

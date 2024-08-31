@@ -2,9 +2,11 @@ use p3_air::BaseAir;
 use p3_field::Field;
 use p3_matrix::dense::RowMajorMatrix;
 
-use crate::{MachineRecord, ProvePhase};
+use crate::MachineRecord;
 
 pub use sp1_derive::MachineAir;
+
+use super::InteractionScope;
 
 /// An AIR that is part of a multi table AIR arithmetization.
 pub trait MachineAir<F: Field>: BaseAir<F> + 'static + Send + Sync {
@@ -34,7 +36,7 @@ pub trait MachineAir<F: Field>: BaseAir<F> + 'static + Send + Sync {
 
     /// Whether the chip should be included in the given prove phase.  The majority of the chips are
     /// just for
-    fn included_in_phase(&self, phase: ProvePhase) -> bool;
+    fn interaction_randomness(&self) -> InteractionScope;
 
     /// The width of the preprocessed trace.
     fn preprocessed_width(&self) -> usize {

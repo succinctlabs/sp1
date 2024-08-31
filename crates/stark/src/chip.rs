@@ -7,9 +7,8 @@ use p3_uni_stark::{get_max_constraint_degree, SymbolicAirBuilder};
 use p3_util::log2_ceil_usize;
 
 use crate::{
-    air::{MachineAir, MultiTableAirBuilder, SP1AirBuilder},
+    air::{InteractionScope, MachineAir, MultiTableAirBuilder, SP1AirBuilder},
     lookup::{Interaction, InteractionBuilder, InteractionKind},
-    ProvePhase,
 };
 
 use super::{
@@ -200,8 +199,8 @@ where
         self.air.included_in_shard(shard)
     }
 
-    fn included_in_phase(&self, phase: ProvePhase) -> bool {
-        self.air.included_in_phase(phase)
+    fn interaction_randomness(&self) -> InteractionScope {
+        self.air.interaction_randomness()
     }
 }
 

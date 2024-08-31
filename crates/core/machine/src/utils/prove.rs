@@ -554,6 +554,13 @@ where
                                 |(record, traces)| {
                                     let _span = span.enter();
 
+                                    // Split the traces into the global and local chips.
+                                    let global_traces = traces
+                                        .iter()
+                                        .filter(|(name, _)| name.starts_with("Global"))
+                                        .map(|(_, trace)| trace.clone())
+                                        .collect::<Vec<_>>();
+
                                     let data = prover.commit(&record, traces);
                                     prover
                                         .open(

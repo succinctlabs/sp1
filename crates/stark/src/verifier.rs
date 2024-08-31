@@ -62,13 +62,13 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
             .collect::<Vec<_>>();
 
         let ShardCommitment {
-            phase1_main_commit,
-            main_commit,
+            global_main_commit,
+            local_main_commit,
             permutation_commit,
             quotient_commit,
         } = commitment;
 
-        challenger.observe(main_commit.clone());
+        challenger.observe(local_main_commit.clone());
 
         let local_permutation_challenges =
             (0..2).map(|_| challenger.sample_ext_element::<SC::Challenge>()).collect::<Vec<_>>();

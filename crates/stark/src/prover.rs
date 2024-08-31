@@ -1,9 +1,10 @@
 use core::fmt::Display;
+use hashbrown::HashMap;
 use itertools::Itertools;
 use serde::{de::DeserializeOwned, Serialize};
 use std::{cmp::Reverse, error::Error, time::Instant};
 
-use crate::{AirOpenedValues, ChipOpenedValues, ShardOpenedValues};
+use crate::{air::InteractionScope, AirOpenedValues, ChipOpenedValues, ShardOpenedValues};
 use p3_air::Air;
 use p3_challenger::{CanObserve, FieldChallenger};
 use p3_commit::{Pcs, PolynomialSpace};
@@ -21,13 +22,12 @@ use crate::{
     DebugConstraintBuilder, MachineChip, MachineProof, PackedChallenge, PcsProverData,
     ProverConstraintFolder, ShardCommitment, ShardMainData, ShardProof, StarkVerifyingKey,
 };
-
-/// The prover phases.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ProvePhase {
-    Phase1,
-    Phase2,
+struct MergedProverDataItem<'a, M, P> {
+    pub trace: &'a M,
+    pub main_data: &'a P,
+    pub main_data_idx: usize,
 }
+
 /// An algorithmic & hardware independent prover implementation for any [`MachineAir`].
 pub trait MachineProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>>:
     'static + Send + Sync
@@ -56,15 +56,12 @@ pub trait MachineProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>>:
     fn generate_traces(
         &self,
         record: &A::Record,
-        phase: ProvePhase,
+        interaction_scope: InteractionScope,
     ) -> Vec<(String, RowMajorMatrix<Val<SC>>)> {
-        let chips = if phase == ProvePhase::Phase1 {
-            self.shard_chips(record)
-                .filter(|chip| chip.included_in_phase(phase))
-                .collect::<Vec<_>>()
-        } else {
-            self.shard_chips(record).collect::<Vec<_>>()
-        };
+        let chips = self
+            .shard_chips(record)
+            .filter(|chip| chip.interaction_randomness() == interaction_scope)
+            .collect::<Vec<_>>();
 
         // For each chip, generate the trace.
         let parent_span = tracing::debug_span!("generate traces for shard");
@@ -113,9 +110,9 @@ pub trait MachineProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>>:
     fn open(
         &self,
         pk: &StarkProvingKey<SC>,
-        data: ShardMainData<SC, Self::DeviceMatrix, Self::DeviceProverData>,
+        global_data: ShardMainData<SC, Self::DeviceMatrix, Self::DeviceProverData>,
+        local_data: ShardMainData<SC, Self::DeviceMatrix, Self::DeviceProverData>,
         challenger: &mut SC::Challenger,
-        phase1_main_commit: Com<SC>,
         global_permutation_challenges: &[SC::Challenge],
     ) -> Result<ShardProof<SC>, Self::Error>;
 
@@ -164,6 +161,18 @@ pub trait MachineProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>>:
     {
         self.machine().debug_constraints(pk, records, challenger);
     }
+
+    /// Merge the global and local chips' sorted traces.
+    fn merge_shard_traces<'a, 'b>(
+        &'a self,
+        global_data: &'a ShardMainData<SC, Self::DeviceMatrix, Self::DeviceProverData>,
+        local_data: &'a ShardMainData<SC, Self::DeviceMatrix, Self::DeviceProverData>,
+    ) -> (
+        HashMap<String, usize>,
+        Vec<MergedProverDataItem<'b, Self::DeviceMatrix, Self::DeviceProverData>>,
+    )
+    where
+        'a: 'b;
 }
 
 /// A prover implementation based on x86 and ARM CPUs.
@@ -244,17 +253,24 @@ where
     fn open(
         &self,
         pk: &StarkProvingKey<SC>,
-        mut data: ShardMainData<SC, Self::DeviceMatrix, Self::DeviceProverData>,
+        global_data: ShardMainData<SC, Self::DeviceMatrix, Self::DeviceProverData>,
+        local_data: ShardMainData<SC, Self::DeviceMatrix, Self::DeviceProverData>,
         challenger: &mut <SC as StarkGenericConfig>::Challenger,
-        phase1_main_commit: Com<SC>,
+        // phase1_main_commit: Com<SC>,
         global_permutation_challenges: &[SC::Challenge],
     ) -> Result<ShardProof<SC>, Self::Error> {
-        let chips = self.machine().shard_chips_ordered(&data.chip_ordering).collect::<Vec<_>>();
-        let config = self.machine().config();
-        // Get the traces.
-        let traces = &mut data.traces;
+        // Merge the chip ordering and traces from the global and local data.
+        let (all_chips_ordering, all_shard_data) =
+            self.merge_shard_traces(&global_data, &local_data);
 
-        let degrees = traces.iter().map(|trace| trace.height()).collect::<Vec<_>>();
+        let chips = self.machine().shard_chips_ordered(&all_chips_ordering).collect::<Vec<_>>();
+
+        assert!(chips.len() == all_shard_data.len());
+
+        let config = self.machine().config();
+
+        let degrees =
+            all_shard_data.iter().map(|shard_data| shard_data.trace.height()).collect::<Vec<_>>();
 
         let log_degrees =
             degrees.iter().map(|degree| log2_strict_usize(*degree)).collect::<Vec<_>>();
@@ -267,7 +283,7 @@ where
             degrees.iter().map(|degree| pcs.natural_domain_for_degree(*degree)).collect::<Vec<_>>();
 
         // Observe the main commitment.
-        challenger.observe(data.main_commit.clone());
+        challenger.observe(local_data.main_commit.clone());
 
         // Obtain the challenges used for the local permutation argument.
         let mut local_permutation_challenges: Vec<SC::Challenge> = Vec::new();
@@ -292,13 +308,13 @@ where
             tracing::debug_span!("generate permutation traces").in_scope(|| {
                 chips
                     .par_iter()
-                    .zip(traces.par_iter_mut())
-                    .map(|(chip, main_trace)| {
+                    .zip(all_shard_data.par_iter())
+                    .map(|(chip, shard_data)| {
                         let preprocessed_trace =
                             pk.chip_ordering.get(&chip.name()).map(|&index| &pk.traces[index]);
                         let (perm_trace, global_sum, local_sum) = chip.generate_permutation_trace(
                             preprocessed_trace,
-                            main_trace,
+                            shard_data.trace,
                             &permutation_challenges,
                         );
                         ((perm_trace, preprocessed_trace), [global_sum, local_sum])
@@ -308,7 +324,7 @@ where
 
         // Compute some statistics.
         for i in 0..chips.len() {
-            let trace_width = traces[i].width();
+            let trace_width = all_shard_data[i].trace.width();
             let prep_width = prep_traces[i].map_or(0, |x| x.width());
             let permutation_width = permutation_traces[i].width();
             let total_width = trace_width
@@ -320,8 +336,8 @@ where
                 trace_width,
                 prep_width,
                 permutation_width * <SC::Challenge as AbstractExtensionField<SC::Val>>::D,
-                traces[i].height(),
-                total_width * traces[i].height(),
+                all_shard_data[i].trace.height(),
+                total_width * all_shard_data[i].trace.height(),
             );
         }
 
@@ -379,7 +395,11 @@ where
                                     ])
                                 });
                             let main_trace_on_quotient_domains = pcs
-                                .get_evaluations_on_domain(&data.main_data, i, *quotient_domain)
+                                .get_evaluations_on_domain(
+                                    all_shard_data[i].main_data,
+                                    all_shard_data[i].main_data_idx,
+                                    *quotient_domain,
+                                )
                                 .to_row_major_matrix();
                             let permutation_trace_on_quotient_domains = pcs
                                 .get_evaluations_on_domain(&permutation_data, i, *quotient_domain)
@@ -394,7 +414,7 @@ where
                                 permutation_trace_on_quotient_domains,
                                 &packed_perm_challenges,
                                 alpha,
-                                &data.public_values,
+                                &global_data.public_values,
                             )
                         })
                 })
@@ -451,11 +471,29 @@ where
         let quotient_opening_points =
             (0..num_quotient_chunks).map(|_| vec![zeta]).collect::<Vec<_>>();
 
+        // Split the trace_opening_points to the global and local chips.
+        let mut global_trace_opening_points = Vec::with_capacity(global_data.chip_ordering.len());
+        let mut local_trace_opening_points = Vec::with_capacity(local_data.chip_ordering.len());
+        for (trace_opening_point, chip) in
+            trace_opening_points.clone().into_iter().zip(chips.iter())
+        {
+            if let Some(order) = global_data.chip_ordering.get(&chip.name()) {
+                assert!(global_trace_opening_points.len() == *order - 1);
+                global_trace_opening_points.push(trace_opening_point);
+            } else if let Some(order) = local_data.chip_ordering.get(&chip.name()) {
+                assert!(local_trace_opening_points.len() == *order - 1);
+                local_trace_opening_points.push(trace_opening_point);
+            } else {
+                unreachable!();
+            }
+        }
+
         let (openings, opening_proof) = tracing::debug_span!("open multi batches").in_scope(|| {
             pcs.open(
                 vec![
                     (&pk.data, preprocessed_opening_points),
-                    (&data.main_data, trace_opening_points.clone()),
+                    (&global_data.main_data, global_trace_opening_points),
+                    (&local_data.main_data, local_trace_opening_points),
                     (&permutation_data, trace_opening_points),
                     (&quotient_data, quotient_opening_points),
                 ],
@@ -464,8 +502,26 @@ where
         });
 
         // Collect the opened values for each chip.
-        let [preprocessed_values, main_values, permutation_values, mut quotient_values] =
+        let [preprocessed_values, global_main_values, local_main_values, permutation_values, mut quotient_values] =
             openings.try_into().unwrap();
+
+        // Merge the global and local main values.
+        let mut main_values =
+            Vec::with_capacity(global_data.chip_ordering.len() + local_data.chip_ordering.len());
+        for chip in chips.iter() {
+            let global_order = global_data.chip_ordering.get(&chip.name());
+            let local_order = local_data.chip_ordering.get(&chip.name());
+            match (global_order, local_order) {
+                (Some(&global_order), None) => {
+                    main_values.push(global_main_values[global_order].clone());
+                }
+                (None, Some(&local_order)) => {
+                    main_values.push(local_main_values[local_order].clone());
+                }
+                _ => unreachable!(),
+            }
+        }
+
         assert!(main_values.len() == chips.len());
         let preprocessed_opened_values = preprocessed_values
             .into_iter()
@@ -524,15 +580,15 @@ where
 
         Ok(ShardProof::<SC> {
             commitment: ShardCommitment {
-                main_commit: data.main_commit.clone(),
-                phase1_main_commit,
+                global_main_commit: global_data.main_commit.clone(),
+                local_main_commit: local_data.main_commit.clone(),
                 permutation_commit,
                 quotient_commit,
             },
             opened_values: ShardOpenedValues { chips: opened_values },
             opening_proof,
-            chip_ordering: data.chip_ordering,
-            public_values: data.public_values,
+            chip_ordering: all_chips_ordering,
+            public_values: global_data.public_values,
         })
     }
 
@@ -552,23 +608,23 @@ where
         A: for<'a> Air<DebugConstraintBuilder<'a, Val<SC>, SC::Challenge>>,
     {
         // Generate dependencies.
-        self.machine().generate_dependencies(&mut records, &opts, ProvePhase::Phase1);
+        self.machine().generate_dependencies(&mut records, &opts, InteractionScope::Global);
 
         // Observe the preprocessed commitment.
         pk.observe_into(challenger);
 
-        // Generate and commit the traces for each shard.
-        let phase1_shard_data = records
+        // Generate and commit the global traces for each shard.
+        let global_data = records
             .par_iter()
             .map(|record| {
-                let named_traces = self.generate_traces(record, ProvePhase::Phase1);
-                self.commit(record, named_traces)
+                let global_named_traces = self.generate_traces(record, InteractionScope::Global);
+                self.commit(record, global_named_traces)
             })
             .collect::<Vec<_>>();
 
         // Observe the challenges for each segment.
         tracing::debug_span!("observing all challenges").in_scope(|| {
-            phase1_shard_data.iter().for_each(|data| {
+            global_data.iter().for_each(|data| {
                 challenger.observe(data.main_commit.clone());
                 challenger.observe_slice(&data.public_values[0..self.num_pv_elts()]);
             });
@@ -583,15 +639,15 @@ where
         let shard_proofs = tracing::info_span!("prove_shards").in_scope(|| {
             records
                 .par_iter()
-                .zip(phase1_shard_data.into_par_iter())
-                .map(|(record, phase1_data)| {
-                    let traces = self.generate_traces(record, ProvePhase::Phase2);
-                    let phase2_data = self.commit(record, traces);
+                .zip(global_data.into_par_iter())
+                .map(|(record, global_shard_data)| {
+                    let local_named_traces = self.generate_traces(record, InteractionScope::Local);
+                    let local_shard_data = self.commit(record, local_named_traces);
                     self.open(
                         pk,
-                        phase2_data,
+                        global_shard_data,
+                        local_shard_data,
                         &mut challenger.clone(),
-                        phase1_data.main_commit,
                         &global_permutation_challenges,
                     )
                 })
@@ -599,6 +655,93 @@ where
         })?;
 
         Ok(MachineProof { shard_proofs })
+    }
+
+    fn merge_shard_traces<'a, 'b>(
+        &'a self,
+        global_data: &'a ShardMainData<SC, Self::DeviceMatrix, Self::DeviceProverData>,
+        local_data: &'a ShardMainData<SC, Self::DeviceMatrix, Self::DeviceProverData>,
+    ) -> (
+        HashMap<String, usize>,
+        Vec<MergedProverDataItem<'b, Self::DeviceMatrix, Self::DeviceProverData>>,
+    )
+    where
+        'a: 'b,
+    {
+        let global_traces = &global_data.traces;
+        let local_traces = &local_data.traces;
+
+        // Get the sort order of the chips.
+        let global_chips =
+            global_data.chip_ordering.iter().sorted_by_key(|(_, &i)| i).collect::<Vec<_>>();
+        let local_chips =
+            local_data.chip_ordering.iter().sorted_by_key(|(_, &i)| i).collect::<Vec<_>>();
+
+        let mut merged_chips = Vec::with_capacity(global_traces.len() + local_traces.len());
+        let mut merged_prover_data = Vec::with_capacity(global_chips.len() + local_chips.len());
+
+        assert!(global_traces.len() == global_chips.len());
+        let mut global_iter = global_traces.iter().zip(global_chips.iter()).enumerate();
+        assert!(local_traces.len() == local_chips.len());
+        let mut local_iter = local_traces.iter().zip(local_chips.iter()).enumerate();
+
+        let mut global_next = global_iter.next();
+        let mut local_next = local_iter.next();
+
+        while global_next.is_some() || local_next.is_some() {
+            match (global_next, local_next) {
+                (Some(global), Some(local)) => {
+                    let (global_prover_data_idx, (global_trace, global_chip)) = global;
+                    let (local_prover_data_idx, (local_trace, local_chip)) = local;
+                    if global_trace.height() >= local_trace.height() {
+                        merged_chips.push(global_chip);
+                        merged_prover_data.push(MergedProverDataItem {
+                            trace: global_trace,
+                            main_data: &global_data.main_data,
+                            main_data_idx: global_prover_data_idx,
+                        });
+                        global_next = global_iter.next();
+                    } else {
+                        merged_chips.push(local_chip);
+                        merged_prover_data.push(MergedProverDataItem {
+                            trace: local_trace,
+                            main_data: &local_data.main_data,
+                            main_data_idx: local_prover_data_idx,
+                        });
+                        local_next = local_iter.next();
+                    }
+                }
+                (Some(global), None) => {
+                    let (global_prover_data_idx, (global_trace, global_chip)) = global;
+                    merged_chips.push(global_chip);
+                    merged_prover_data.push(MergedProverDataItem {
+                        trace: global_trace,
+                        main_data: &global_data.main_data,
+                        main_data_idx: global_prover_data_idx,
+                    });
+                    global_next = global_iter.next();
+                }
+                (None, Some(local)) => {
+                    let (local_prover_data_idx, (local_trace, local_chip)) = local;
+                    merged_chips.push(local_chip);
+                    merged_prover_data.push(MergedProverDataItem {
+                        trace: local_trace,
+                        main_data: &local_data.main_data,
+                        main_data_idx: local_prover_data_idx,
+                    });
+                    local_next = local_iter.next();
+                }
+                (None, None) => break,
+            }
+        }
+
+        let chip_ordering = merged_chips
+            .iter()
+            .enumerate()
+            .map(|(i, (name, _))| (name.clone().clone(), i))
+            .collect();
+
+        (chip_ordering, merged_prover_data)
     }
 }
 
