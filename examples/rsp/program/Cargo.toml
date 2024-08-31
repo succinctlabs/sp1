@@ -1,6 +1,6 @@
 [workspace]
 [package]
-name = "rsp-eth-program"
+name = "rsp-program"
 version = "1.1.0"
 edition = "2021"
 publish = false
