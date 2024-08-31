@@ -26,7 +26,7 @@ impl Default for Page {
 pub use vecmap_mmu::VecMapMmu;
 
 pub mod vecmap_mmu {
-    use std::mem::{replace, take};
+    use std::mem::replace;
 
     use serde::{Deserialize, Serialize};
     use vec_map::VecMap;
