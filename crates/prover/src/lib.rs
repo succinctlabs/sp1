@@ -341,7 +341,9 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         // Compile the program.
         let compiler_span = tracing::debug_span!("compile shrink program").entered();
         let mut compiler = AsmCompiler::<InnerConfig>::default();
-        let program = Arc::new(compiler.compile(operations));
+        let mut program = compiler.compile(operations);
+        program.shape = Some(ShrinkAir::<BabyBear>::shrink_shape());
+        let program = Arc::new(program);
         compiler_span.exit();
         program
     }

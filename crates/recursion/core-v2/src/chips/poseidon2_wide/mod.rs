@@ -22,15 +22,8 @@ pub const NUM_INTERNAL_ROUNDS: usize = 13;
 pub const NUM_ROUNDS: usize = NUM_EXTERNAL_ROUNDS + NUM_INTERNAL_ROUNDS;
 
 /// A chip that implements addition for the opcode Poseidon2Wide.
-pub struct Poseidon2WideChip<const DEGREE: usize> {
-    pub fixed_log2_rows: Option<usize>,
-}
-
-impl<const DEGREE: usize> Default for Poseidon2WideChip<DEGREE> {
-    fn default() -> Self {
-        Self { fixed_log2_rows: None }
-    }
-}
+#[derive(Default, Debug, Clone, Copy)]
+pub struct Poseidon2WideChip<const DEGREE: usize>;
 
 impl<'a, const DEGREE: usize> Poseidon2WideChip<DEGREE> {
     /// Transmute a row it to an immutable Poseidon2 instance.

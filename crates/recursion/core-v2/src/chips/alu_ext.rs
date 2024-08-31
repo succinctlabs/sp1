@@ -13,9 +13,7 @@ use crate::{builder::SP1RecursionAirBuilder, *};
 pub const NUM_EXT_ALU_ENTRIES_PER_ROW: usize = 4;
 
 #[derive(Default)]
-pub struct ExtAluChip {
-    pub fixed_log2_rows: Option<usize>,
-}
+pub struct ExtAluChip;
 
 pub const NUM_EXT_ALU_COLS: usize = core::mem::size_of::<ExtAluCols<u8>>();
 
@@ -84,7 +82,8 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for ExtAluChip {
             .collect::<Vec<_>>();
 
         let nb_rows = instrs.len().div_ceil(NUM_EXT_ALU_ENTRIES_PER_ROW);
-        let padded_nb_rows = match self.fixed_log2_rows {
+        let fixed_log2_rows = program.fixed_log2_rows(self);
+        let padded_nb_rows = match fixed_log2_rows {
             Some(log2_rows) => 1 << log2_rows,
             None => next_power_of_two(nb_rows, None),
         };
@@ -125,7 +124,8 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for ExtAluChip {
     fn generate_trace(&self, input: &Self::Record, _: &mut Self::Record) -> RowMajorMatrix<F> {
         let events = &input.ext_alu_events;
         let nb_rows = events.len().div_ceil(NUM_EXT_ALU_ENTRIES_PER_ROW);
-        let padded_nb_rows = match self.fixed_log2_rows {
+        let fixed_log2_rows = input.fixed_log2_rows(self);
+        let padded_nb_rows = match fixed_log2_rows {
             Some(log2_rows) => 1 << log2_rows,
             None => next_power_of_two(nb_rows, None),
         };
@@ -217,7 +217,7 @@ mod tests {
             }],
             ..Default::default()
         };
-        let chip = ExtAluChip::default();
+        let chip = ExtAluChip;
         let trace: RowMajorMatrix<F> = chip.generate_trace(&shard, &mut ExecutionRecord::default());
         println!("{:?}", trace.values)
     }
