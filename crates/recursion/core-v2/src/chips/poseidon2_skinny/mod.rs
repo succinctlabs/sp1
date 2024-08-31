@@ -1,3 +1,5 @@
+use std::marker::PhantomData;
+
 use p3_baby_bear::{MONTY_INVERSE, POSEIDON2_INTERNAL_MATRIX_DIAG_16_BABYBEAR_MONTY};
 use p3_field::{AbstractField, PrimeField32};
 
@@ -17,15 +19,13 @@ pub const NUM_ROUNDS: usize = NUM_EXTERNAL_ROUNDS + NUM_INTERNAL_ROUNDS;
 
 /// A chip that implements the Poseidon2 permutation in the skinny variant (one external round per
 /// row and one row for all internal rounds).
-pub struct Poseidon2SkinnyChip<const DEGREE: usize> {
-    pub fixed_log2_rows: Option<usize>,
-}
+pub struct Poseidon2SkinnyChip<const DEGREE: usize>(PhantomData<()>);
 
 impl<const DEGREE: usize> Default for Poseidon2SkinnyChip<DEGREE> {
     fn default() -> Self {
         // We only support machines with degree 9.
         assert!(DEGREE >= 9);
-        Self { fixed_log2_rows: None }
+        Self(PhantomData)
     }
 }
 pub fn apply_m_4<AF>(x: &mut [AF])

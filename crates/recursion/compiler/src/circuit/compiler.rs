@@ -623,7 +623,7 @@ where
                 (instrs_consts.chain(instrs).collect(), traces)
             }
         });
-        RecursionProgram { instructions, total_memory, traces }
+        RecursionProgram { instructions, total_memory, traces, shape: None }
     }
 }
 

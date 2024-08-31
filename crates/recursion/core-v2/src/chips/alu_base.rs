@@ -13,9 +13,7 @@ use crate::{builder::SP1RecursionAirBuilder, *};
 pub const NUM_BASE_ALU_ENTRIES_PER_ROW: usize = 4;
 
 #[derive(Default)]
-pub struct BaseAluChip {
-    pub fixed_log2_rows: Option<usize>,
-}
+pub struct BaseAluChip;
 
 pub const NUM_BASE_ALU_COLS: usize = core::mem::size_of::<BaseAluCols<u8>>();
 
@@ -86,7 +84,8 @@ impl<F: PrimeField32> MachineAir<F> for BaseAluChip {
             .collect::<Vec<_>>();
 
         let nb_rows = instrs.len().div_ceil(NUM_BASE_ALU_ENTRIES_PER_ROW);
-        let padded_nb_rows = match self.fixed_log2_rows {
+        let fixed_log2_rows = program.fixed_log2_rows(self);
+        let padded_nb_rows = match fixed_log2_rows {
             Some(log2_rows) => 1 << log2_rows,
             None => next_power_of_two(nb_rows, None),
         };
@@ -127,7 +126,8 @@ impl<F: PrimeField32> MachineAir<F> for BaseAluChip {
     fn generate_trace(&self, input: &Self::Record, _: &mut Self::Record) -> RowMajorMatrix<F> {
         let events = &input.base_alu_events;
         let nb_rows = events.len().div_ceil(NUM_BASE_ALU_ENTRIES_PER_ROW);
-        let padded_nb_rows = match self.fixed_log2_rows {
+        let fixed_log2_rows = input.fixed_log2_rows(self);
+        let padded_nb_rows = match fixed_log2_rows {
             Some(log2_rows) => 1 << log2_rows,
             None => next_power_of_two(nb_rows, None),
         };
@@ -208,7 +208,7 @@ mod tests {
             base_alu_events: vec![BaseAluIo { out: F::one(), in1: F::one(), in2: F::one() }],
             ..Default::default()
         };
-        let chip = BaseAluChip::default();
+        let chip = BaseAluChip;
         let trace: RowMajorMatrix<F> = chip.generate_trace(&shard, &mut ExecutionRecord::default());
         println!("{:?}", trace.values)
     }

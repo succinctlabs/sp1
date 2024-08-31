@@ -1,20 +1,24 @@
-use std::marker::PhantomData;
-
+use hashbrown::HashMap;
 use p3_field::{extension::BinomiallyExtendable, PrimeField32};
 use sp1_recursion_core::runtime::D;
-use sp1_stark::{Chip, StarkGenericConfig, StarkMachine, PROOF_MAX_NUM_PVS};
+use sp1_stark::{air::MachineAir, Chip, StarkGenericConfig, StarkMachine, PROOF_MAX_NUM_PVS};
 
-use crate::chips::{
-    alu_base::BaseAluChip,
-    alu_ext::ExtAluChip,
-    dummy::DummyChip,
-    exp_reverse_bits::ExpReverseBitsLenChip,
-    fri_fold::FriFoldChip,
-    mem::{MemoryConstChip, MemoryVarChip},
-    poseidon2_skinny::Poseidon2SkinnyChip,
-    poseidon2_wide::Poseidon2WideChip,
-    public_values::PublicValuesChip,
+use crate::{
+    chips::{
+        alu_base::BaseAluChip,
+        alu_ext::ExtAluChip,
+        dummy::DummyChip,
+        exp_reverse_bits::ExpReverseBitsLenChip,
+        fri_fold::FriFoldChip,
+        mem::{MemoryConstChip, MemoryVarChip},
+        poseidon2_skinny::Poseidon2SkinnyChip,
+        poseidon2_wide::Poseidon2WideChip,
+        public_values::{PublicValuesChip, PUB_VALUES_LOG_HEIGHT},
+    },
+    shape::RecursionShape,
 };
+
+const SHRINK_ID: usize = usize::MAX;
 
 #[derive(sp1_derive::MachineAir)]
 #[sp1_core_path = "sp1_core_machine"]
@@ -49,12 +53,12 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize, const COL_P
         let chips = [
             RecursionAir::MemoryConst(MemoryConstChip::default()),
             RecursionAir::MemoryVar(MemoryVarChip::default()),
-            RecursionAir::BaseAlu(BaseAluChip::default()),
-            RecursionAir::ExtAlu(ExtAluChip::default()),
-            RecursionAir::Poseidon2Wide(Poseidon2WideChip::<DEGREE>::default()),
+            RecursionAir::BaseAlu(BaseAluChip),
+            RecursionAir::ExtAlu(ExtAluChip),
+            RecursionAir::Poseidon2Wide(Poseidon2WideChip::<DEGREE>),
             RecursionAir::FriFold(FriFoldChip::<DEGREE>::default()),
-            RecursionAir::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE>::default()),
-            RecursionAir::PublicValues(PublicValuesChip::default()),
+            RecursionAir::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE>),
+            RecursionAir::PublicValues(PublicValuesChip),
         ]
         .map(Chip::new)
         .into_iter()
@@ -69,12 +73,12 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize, const COL_P
         let chips = [
             RecursionAir::MemoryConst(MemoryConstChip::default()),
             RecursionAir::MemoryVar(MemoryVarChip::default()),
-            RecursionAir::BaseAlu(BaseAluChip::default()),
-            RecursionAir::ExtAlu(ExtAluChip::default()),
+            RecursionAir::BaseAlu(BaseAluChip),
+            RecursionAir::ExtAlu(ExtAluChip),
             RecursionAir::Poseidon2Skinny(Poseidon2SkinnyChip::<DEGREE>::default()),
             RecursionAir::FriFold(FriFoldChip::<DEGREE>::default()),
-            RecursionAir::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE>::default()),
-            RecursionAir::PublicValues(PublicValuesChip::default()),
+            RecursionAir::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE>),
+            RecursionAir::PublicValues(PublicValuesChip),
         ]
         .map(Chip::new)
         .into_iter()
@@ -87,11 +91,11 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize, const COL_P
         let chips = [
             RecursionAir::MemoryConst(MemoryConstChip::default()),
             RecursionAir::MemoryVar(MemoryVarChip::default()),
-            RecursionAir::BaseAlu(BaseAluChip::default()),
-            RecursionAir::ExtAlu(ExtAluChip::default()),
-            RecursionAir::Poseidon2Wide(Poseidon2WideChip::<DEGREE>::default()),
-            RecursionAir::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE>::default()),
-            RecursionAir::PublicValues(PublicValuesChip::default()),
+            RecursionAir::BaseAlu(BaseAluChip),
+            RecursionAir::ExtAlu(ExtAluChip),
+            RecursionAir::Poseidon2Wide(Poseidon2WideChip::<DEGREE>),
+            RecursionAir::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE>),
+            RecursionAir::PublicValues(PublicValuesChip),
         ]
         .map(Chip::new)
         .into_iter()
@@ -99,29 +103,8 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize, const COL_P
         StarkMachine::new(config, chips, PROOF_MAX_NUM_PVS)
     }
 
-    /// A machine with fixed chip sizes to standartize the verification key.
     pub fn shrink_machine<SC: StarkGenericConfig<Val = F>>(config: SC) -> StarkMachine<SC, Self> {
-        let chips = [
-            RecursionAir::MemoryConst(MemoryConstChip {
-                fixed_log2_rows: Some(16),
-                _data: PhantomData,
-            }),
-            RecursionAir::MemoryVar(MemoryVarChip {
-                fixed_log2_rows: Some(18),
-                _data: PhantomData,
-            }),
-            RecursionAir::BaseAlu(BaseAluChip { fixed_log2_rows: Some(20) }),
-            RecursionAir::ExtAlu(ExtAluChip { fixed_log2_rows: Some(22) }),
-            RecursionAir::Poseidon2Wide(Poseidon2WideChip::<DEGREE> { fixed_log2_rows: Some(16) }),
-            RecursionAir::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE> {
-                fixed_log2_rows: Some(16),
-            }),
-            RecursionAir::PublicValues(PublicValuesChip::default()),
-        ]
-        .map(Chip::new)
-        .into_iter()
-        .collect::<Vec<_>>();
-        StarkMachine::new(config, chips, PROOF_MAX_NUM_PVS)
+        Self::compress_machine(config)
     }
 
     /// A machine with dynamic chip sizes that includes the skinny variant of the Poseidon2 chip.
@@ -132,16 +115,32 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize, const COL_P
         let chips = [
             RecursionAir::MemoryConst(MemoryConstChip::default()),
             RecursionAir::MemoryVar(MemoryVarChip::default()),
-            RecursionAir::BaseAlu(BaseAluChip::default()),
-            RecursionAir::ExtAlu(ExtAluChip::default()),
+            RecursionAir::BaseAlu(BaseAluChip),
+            RecursionAir::ExtAlu(ExtAluChip),
             RecursionAir::Poseidon2Skinny(Poseidon2SkinnyChip::<DEGREE>::default()),
-            RecursionAir::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE>::default()),
-            RecursionAir::PublicValues(PublicValuesChip::default()),
+            RecursionAir::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE>),
+            RecursionAir::PublicValues(PublicValuesChip),
         ]
         .map(Chip::new)
         .into_iter()
         .collect::<Vec<_>>();
         StarkMachine::new(config, chips, PROOF_MAX_NUM_PVS)
+    }
+
+    pub fn shrink_shape() -> RecursionShape {
+        let shape = HashMap::from(
+            [
+                (Self::MemoryConst(MemoryConstChip::default()), 16),
+                (Self::MemoryVar(MemoryVarChip::default()), 18),
+                (Self::BaseAlu(BaseAluChip), 20),
+                (Self::ExtAlu(ExtAluChip), 22),
+                (Self::Poseidon2Wide(Poseidon2WideChip::<DEGREE>), 16),
+                (Self::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE>), 16),
+                (Self::PublicValues(PublicValuesChip), PUB_VALUES_LOG_HEIGHT),
+            ]
+            .map(|(chip, log_height)| (chip.name(), log_height)),
+        );
+        RecursionShape { id: SHRINK_ID, shape }
     }
 }
 

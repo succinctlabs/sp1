@@ -16,8 +16,7 @@ pub const NUM_MEM_ENTRIES_PER_ROW: usize = 2;
 
 #[derive(Default)]
 pub struct MemoryChip<F> {
-    pub fixed_log2_rows: Option<usize>,
-    pub _data: PhantomData<F>,
+    _marker: PhantomData<F>,
 }
 
 pub const NUM_MEM_INIT_COLS: usize = core::mem::size_of::<MemoryCols<u8>>();
@@ -87,7 +86,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryChip<F> {
         pad_rows_fixed(
             &mut rows,
             || [F::zero(); NUM_MEM_PREPROCESSED_INIT_COLS],
-            self.fixed_log2_rows,
+            program.fixed_log2_rows(self),
         );
 
         // Convert the trace to a row major matrix.
@@ -114,7 +113,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryChip<F> {
             std::iter::repeat([F::zero(); NUM_MEM_INIT_COLS]).take(num_rows).collect::<Vec<_>>();
 
         // Pad the rows to the next power of two.
-        pad_rows_fixed(&mut rows, || [F::zero(); NUM_MEM_INIT_COLS], self.fixed_log2_rows);
+        pad_rows_fixed(&mut rows, || [F::zero(); NUM_MEM_INIT_COLS], input.fixed_log2_rows(self));
 
         // Convert the trace to a row major matrix.
         RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_MEM_INIT_COLS)

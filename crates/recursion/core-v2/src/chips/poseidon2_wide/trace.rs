@@ -44,9 +44,9 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
         _output: &mut ExecutionRecord<F>,
     ) -> RowMajorMatrix<F> {
         let events = &input.poseidon2_events;
-        let padded_nb_rows = match self.fixed_log2_rows {
+        let padded_nb_rows = match input.fixed_log2_rows(self) {
             Some(log2_rows) => 1 << log2_rows,
-            None => next_power_of_two(events.len(), self.fixed_log2_rows),
+            None => next_power_of_two(events.len(), None),
         };
         let num_columns = <Self as BaseAir<F>>::width(self);
         let mut values = vec![F::zero(); padded_nb_rows * num_columns];
@@ -102,9 +102,9 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
             })
             .collect::<Vec<_>>();
 
-        let padded_nb_rows = match self.fixed_log2_rows {
+        let padded_nb_rows = match program.fixed_log2_rows(self) {
             Some(log2_rows) => 1 << log2_rows,
-            None => next_power_of_two(instrs.len(), self.fixed_log2_rows),
+            None => next_power_of_two(instrs.len(), None),
         };
         let mut values = vec![F::zero(); padded_nb_rows * PREPROCESSED_POSEIDON2_WIDTH];
 
@@ -310,7 +310,7 @@ mod tests {
             ],
             ..Default::default()
         };
-        let chip_3 = Poseidon2WideChip::<3>::default();
+        let chip_3 = Poseidon2WideChip::<3>;
         let _: RowMajorMatrix<F> = chip_3.generate_trace(&shard, &mut ExecutionRecord::default());
     }
 
@@ -332,7 +332,7 @@ mod tests {
             ],
             ..Default::default()
         };
-        let chip_9 = Poseidon2WideChip::<9>::default();
+        let chip_9 = Poseidon2WideChip::<9>;
         let _: RowMajorMatrix<F> = chip_9.generate_trace(&shard, &mut ExecutionRecord::default());
     }
 }
