@@ -6,14 +6,14 @@ use p3_air::{Air, AirBuilder, AirBuilderWithPublicValues, BaseAir, PairBuilder};
 use p3_field::{AbstractField, PrimeField};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 
-use sp1_core_executor::{ExecutionRecord, Program};
+use sp1_core_executor::{CoreShape, ExecutionRecord, Program};
 use sp1_derive::AlignedBorrow;
 use sp1_stark::{
     air::{AirInteraction, MachineAir, PublicValues, SP1AirBuilder, SP1_PROOF_NUM_PV_ELTS},
     InteractionKind, Word,
 };
 
-use crate::{operations::IsZeroOperation, utils::pad_to_power_of_two};
+use crate::{operations::IsZeroOperation, utils::pad_rows_fixed};
 
 pub const NUM_MEMORY_PROGRAM_PREPROCESSED_COLS: usize =
     size_of::<MemoryProgramPreprocessedCols<u8>>();
@@ -70,7 +70,7 @@ impl<F: PrimeField> MachineAir<F> for MemoryProgramChip {
         let program_memory = program.memory_image.clone();
         // Note that BTreeMap is guaranteed to be sorted by key. This makes the row order
         // deterministic.
-        let rows = program_memory
+        let mut rows = program_memory
             .into_iter()
             .map(|(addr, word)| {
                 let mut row = [F::zero(); NUM_MEMORY_PROGRAM_PREPROCESSED_COLS];
@@ -82,15 +82,18 @@ impl<F: PrimeField> MachineAir<F> for MemoryProgramChip {
             })
             .collect::<Vec<_>>();
 
+        // Pad the trace to a power of two depending on the proof shape in `input`.
+        pad_rows_fixed(
+            &mut rows,
+            || [F::zero(); NUM_MEMORY_PROGRAM_PREPROCESSED_COLS],
+            program.fixed_log2_rows::<F, _>(self),
+        );
+
         // Convert the trace to a row major matrix.
-        let mut trace = RowMajorMatrix::new(
+        let trace = RowMajorMatrix::new(
             rows.into_iter().flatten().collect::<Vec<_>>(),
             NUM_MEMORY_PROGRAM_PREPROCESSED_COLS,
         );
-
-        // Pad the trace to a power of two.
-        pad_to_power_of_two::<NUM_MEMORY_PROGRAM_PREPROCESSED_COLS, F>(&mut trace.values);
-
         Some(trace)
     }
 
@@ -108,7 +111,7 @@ impl<F: PrimeField> MachineAir<F> for MemoryProgramChip {
         let mult = if input.public_values.shard == 1 { F::one() } else { F::zero() };
 
         // Generate the trace rows for each event.
-        let rows = program_memory_addrs
+        let mut rows = program_memory_addrs
             .into_iter()
             .map(|_| {
                 let mut row = [F::zero(); NUM_MEMORY_PROGRAM_MULT_COLS];
@@ -119,16 +122,19 @@ impl<F: PrimeField> MachineAir<F> for MemoryProgramChip {
             })
             .collect::<Vec<_>>();
 
-        // Convert the trace to a row major matrix.
-        let mut trace = RowMajorMatrix::new(
-            rows.into_iter().flatten().collect::<Vec<_>>(),
-            NUM_MEMORY_PROGRAM_MULT_COLS,
+        // Pad the trace to a power of two depending on the proof shape in `input`.
+        pad_rows_fixed(
+            &mut rows,
+            || [F::zero(); NUM_MEMORY_PROGRAM_MULT_COLS],
+            input.shape.as_ref().map(|s: &CoreShape| s.shape[&MachineAir::<F>::name(self)]),
         );
 
-        // Pad the trace to a power of two.
-        pad_to_power_of_two::<NUM_MEMORY_PROGRAM_MULT_COLS, F>(&mut trace.values);
+        // Convert the trace to a row major matrix.
 
-        trace
+        RowMajorMatrix::new(
+            rows.into_iter().flatten().collect::<Vec<_>>(),
+            NUM_MEMORY_PROGRAM_MULT_COLS,
+        )
     }
 
     fn included(&self, _: &Self::Record) -> bool {
