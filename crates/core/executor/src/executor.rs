@@ -18,7 +18,7 @@ use crate::{
         MemoryInitializeFinalizeEvent, MemoryReadRecord, MemoryRecord, MemoryWriteRecord,
     },
     hook::{HookEnv, HookRegistry},
-    mmu::btree_mmu::Entry,
+    mmu::vecmap_mmu::Entry,
     record::{ExecutionRecord, MemoryAccessRecord},
     report::ExecutionReport,
     state::{ExecutionState, ForkState},

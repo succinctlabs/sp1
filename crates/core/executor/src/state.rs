@@ -9,7 +9,7 @@ use sp1_stark::{baby_bear_poseidon2::BabyBearPoseidon2, ShardProof, StarkVerifyi
 
 use crate::{
     events::MemoryRecord,
-    mmu::BTreeMmu,
+    mmu::VecMapMmu,
     record::{ExecutionRecord, MemoryAccessRecord},
     syscalls::SyscallCode,
     ExecutorMode,
@@ -41,7 +41,7 @@ pub struct ExecutionState {
     //     serialize_with = "serialize_hashmap_as_vec",
     //     deserialize_with = "deserialize_hashmap_as_vec"
     // )]
-    pub memory: BTreeMmu,
+    pub memory: VecMapMmu,
 
     /// Uninitialized memory addresses that have a specific value they should be initialized with.
     /// `SyscallHintRead` uses this to write hint data into uninitialized memory.
@@ -85,7 +85,7 @@ impl ExecutionState {
             clk: 0,
             channel: 0,
             pc: pc_start,
-            memory: BTreeMmu::default(),
+            memory: VecMapMmu::new(),
             uninitialized_memory: HashMap::default(),
             input_stream: Vec::new(),
             input_stream_ptr: 0,
