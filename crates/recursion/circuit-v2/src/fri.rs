@@ -78,6 +78,9 @@ pub fn verify_two_adic_pcs<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigV
     let mut alpha_pows: Vec<Ext<C::F, C::EF>> =
         vec![builder.eval(SymbolicExt::from_f(C::EF::one()))];
 
+    let one: Felt<_> = builder.constant(C::F::one());
+    let neg_one: Felt<_> = builder.constant(C::F::two_adic_generator(1));
+
     let reduced_openings = proof
         .query_openings
         .iter()
@@ -100,6 +103,20 @@ pub fn verify_two_adic_pcs<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigV
 
                 let reduced_index_bits = &index_bits[bits_reduced..];
 
+                let mut precomputed_powers = vec![];
+                let mut curr = one;
+                for i in 0..log_batch_max_height {
+                    curr = builder.eval(curr * curr);
+                    let multiplier = C::select_chain_f(
+                        builder,
+                        reduced_index_bits[i],
+                        once(one),
+                        once(precomputed_generator_powers[i + bits_reduced]),
+                    )[0];
+                    curr = builder.eval(multiplier * curr);
+                    precomputed_powers.push(curr);
+                }
+
                 verify_batch::<C, SC>(
                     builder,
                     batch_commit,
@@ -120,12 +137,30 @@ pub fn verify_two_adic_pcs<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigV
                         index_bits[bits_reduced..(bits_reduced + log_height)].to_vec();
 
                     let g = builder.generator();
-                    let two_adic_generator_exp = C::exp_f_bits_precomputed(
+                    let two_adic_generator_exp_test = C::exp_f_bits_precomputed(
                         builder,
                         &reduced_index_bits_trunc.into_iter().rev().collect_vec(),
                         &precomputed_generator_powers[bits_reduced..],
                     );
+                    println!("Precomputed powers len: {}", precomputed_powers.len());
+                    println!("Log batch max height: {}", log_batch_max_height);
+                    println!("Log height: {}", log_height);
+                    let two_adic_generator_exp =
+                        precomputed_powers[log_batch_max_height - log_height];
 
+                    let zero = builder.constant(C::F::zero());
+                    builder.print_f(zero);
+                    builder.print_f(two_adic_generator_exp_test);
+                    builder.print_f(one);
+                    builder.print_f(two_adic_generator_exp);
+                    // let two = builder.constant(C::F::two());
+                    // builder.print_f(two);
+                    // builder.print_f(precomputed_powers[log_height]);
+                    // let three = builder.constant(C::F::from_canonical_usize(3));
+                    // builder.print_f(three);
+                    // builder.print_f(
+                    //     precomputed_generator_powers[log_batch_max_height - log_height - 1],
+                    // );
                     // Unroll the following to avoid symbolic expression overhead
                     // let x: Felt<_> = builder.eval(g * two_adic_generator_exp);
                     let x: Felt<_> = builder.uninit();
