@@ -10,7 +10,7 @@ use sp1_core_executor::{
     syscalls::SyscallCode,
     ExecutionRecord, Program,
 };
-use sp1_stark::{air::MachineAir, ProvePhase, Word};
+use sp1_stark::{air::MachineAir, Word};
 
 use super::{
     columns::{ShaCompressCols, NUM_SHA_COMPRESS_COLS},
@@ -107,10 +107,6 @@ impl<F: PrimeField32> MachineAir<F> for ShaCompressChip {
 
     fn included_in_shard(&self, shard: &Self::Record) -> bool {
         !shard.sha_compress_events.is_empty()
-    }
-
-    fn included_in_phase(&self, phase: ProvePhase) -> bool {
-        phase == ProvePhase::Phase2
     }
 }
 

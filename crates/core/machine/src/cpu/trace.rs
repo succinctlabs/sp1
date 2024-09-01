@@ -11,7 +11,7 @@ use sp1_core_executor::{
     Register::X0,
 };
 use sp1_primitives::consts::WORD_SIZE;
-use sp1_stark::{air::MachineAir, ProvePhase, Word};
+use sp1_stark::{air::MachineAir, Word};
 use std::{array, borrow::BorrowMut};
 
 use p3_field::{PrimeField, PrimeField32};
@@ -102,10 +102,6 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
 
     fn included_in_shard(&self, input: &Self::Record) -> bool {
         !input.cpu_events.is_empty()
-    }
-
-    fn included_in_phase(&self, phase: ProvePhase) -> bool {
-        phase == ProvePhase::Phase2
     }
 }
 

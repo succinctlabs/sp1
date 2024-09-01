@@ -10,10 +10,7 @@ use p3_field::PrimeField;
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use sp1_core_executor::{ExecutionRecord, Program};
 use sp1_derive::AlignedBorrow;
-use sp1_stark::{
-    air::{MachineAir, SP1AirBuilder},
-    ProvePhase,
-};
+use sp1_stark::air::{MachineAir, SP1AirBuilder};
 
 use crate::{
     cpu::columns::{InstructionCols, OpcodeSelectorCols},
@@ -147,10 +144,6 @@ impl<F: PrimeField> MachineAir<F> for ProgramChip {
 
     fn included_in_shard(&self, _: &Self::Record) -> bool {
         true
-    }
-
-    fn included_in_phase(&self, phase: ProvePhase) -> bool {
-        phase == ProvePhase::Phase2
     }
 }
 

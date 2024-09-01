@@ -6,13 +6,27 @@ use p3_field::{AbstractField, Field};
 use p3_uni_stark::{
     ProverConstraintFolder, StarkGenericConfig, SymbolicAirBuilder, VerifierConstraintFolder,
 };
+use serde::{Deserialize, Serialize};
 use strum_macros::{Display, EnumIter};
 
 use super::{interaction::AirInteraction, BinomialExtension};
 use crate::{lookup::InteractionKind, Word};
 
 /// The scope of an interaction.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Display, EnumIter, PartialOrd, Ord)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Hash,
+    Display,
+    EnumIter,
+    PartialOrd,
+    Ord,
+    Serialize,
+    Deserialize,
+)]
 pub enum InteractionScope {
     /// Global scope.
     Global = 0,

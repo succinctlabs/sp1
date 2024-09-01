@@ -23,10 +23,7 @@ use sp1_curves::{
     params::{limbs_from_vec, FieldParameters, Limbs},
 };
 use sp1_derive::AlignedBorrow;
-use sp1_stark::{
-    air::{BaseAirBuilder, InteractionScope, MachineAir, SP1AirBuilder},
-    ProvePhase,
-};
+use sp1_stark::air::{BaseAirBuilder, InteractionScope, MachineAir, SP1AirBuilder};
 use typenum::U32;
 
 use crate::{
@@ -293,10 +290,6 @@ impl<F: PrimeField32, E: EdwardsParameters> MachineAir<F> for EdDecompressChip<E
 
     fn included_in_shard(&self, shard: &Self::Record) -> bool {
         !shard.ed_decompress_events.is_empty()
-    }
-
-    fn included_in_phase(&self, phase: ProvePhase) -> bool {
-        phase == ProvePhase::Phase2
     }
 }
 

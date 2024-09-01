@@ -96,6 +96,8 @@ where
         machine: &StarkMachine<SC, RiscvAir<SC::Val>>,
         input: SP1RecursionWitnessVariable<C, SC>,
     ) {
+        unimplemented!()
+        /*
         // Read input.
         let SP1RecursionWitnessVariable {
             vk,
@@ -557,5 +559,6 @@ where
 
             commit_recursion_public_values(builder, recursion_public_values);
         }
+        */
     }
 }

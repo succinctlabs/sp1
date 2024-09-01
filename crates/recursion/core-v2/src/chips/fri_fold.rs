@@ -3,10 +3,7 @@
 use core::borrow::Borrow;
 use itertools::Itertools;
 use sp1_core_machine::utils::pad_rows_fixed;
-use sp1_stark::{
-    air::{BinomialExtension, MachineAir},
-    ProvePhase,
-};
+use sp1_stark::air::{BinomialExtension, MachineAir};
 use std::borrow::BorrowMut;
 use tracing::instrument;
 
@@ -227,10 +224,6 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for FriFoldChip<DEGREE>
     }
 
     fn included_in_shard(&self, _record: &Self::Record) -> bool {
-        true
-    }
-
-    fn included_in_phase(&self, _: ProvePhase) -> bool {
         true
     }
 }

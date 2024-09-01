@@ -149,7 +149,7 @@ mod tests {
     use sp1_stark::{
         air::{MachineAir, SP1AirBuilder},
         baby_bear_poseidon2::BabyBearPoseidon2,
-        ProvePhase, StarkGenericConfig,
+        StarkGenericConfig,
     };
 
     use super::{FieldDenCols, Limbs};
@@ -242,10 +242,6 @@ mod tests {
 
         fn included_in_shard(&self, _: &Self::Record) -> bool {
             true
-        }
-
-        fn included_in_phase(&self, phase: ProvePhase) -> bool {
-            phase == ProvePhase::Phase2
         }
     }
 

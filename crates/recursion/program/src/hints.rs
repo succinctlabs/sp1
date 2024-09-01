@@ -359,7 +359,9 @@ impl Hintable<C> for ShardCommitment<InnerDigestHash> {
 
     fn write(&self) -> Vec<Vec<Block<<C as Config>::F>>> {
         let mut stream = Vec::new();
-        let h: InnerDigest = self.main_commit.into();
+        let h: InnerDigest = self.global_main_commit.into();
+        stream.extend(h.write());
+        let h: InnerDigest = self.local_main_commit.into();
         stream.extend(h.write());
         let h: InnerDigest = self.permutation_commit.into();
         stream.extend(h.write());

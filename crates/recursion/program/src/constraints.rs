@@ -266,7 +266,8 @@ mod tests {
         let mut challenger = machine.config().challenger();
         vk.observe_into(&mut challenger);
         proof.shard_proofs.iter().for_each(|proof| {
-            challenger.observe(proof.commitment.main_commit);
+            challenger.observe(proof.commitment.global_main_commit);
+            challenger.observe(proof.commitment.local_main_commit);
             challenger.observe_slice(&proof.public_values[0..machine.num_pv_elts()]);
         });
 

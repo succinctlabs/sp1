@@ -29,7 +29,7 @@ use sp1_curves::{
 use sp1_derive::AlignedBorrow;
 use sp1_stark::{
     air::{BaseAirBuilder, InteractionScope, MachineAir, Polynomial, SP1AirBuilder},
-    MachineRecord, ProvePhase,
+    MachineRecord,
 };
 use std::{
     borrow::{Borrow, BorrowMut},
@@ -226,10 +226,6 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
 
     fn included_in_shard(&self, shard: &Self::Record) -> bool {
         !shard.uint256_mul_events.is_empty()
-    }
-
-    fn included_in_phase(&self, phase: ProvePhase) -> bool {
-        phase == ProvePhase::Phase2
     }
 }
 

@@ -83,6 +83,8 @@ where
     ) where
         A: for<'a> Air<RecursiveVerifierConstraintFolder<'a, C>>,
     {
+        unimplemented!()
+        /*
         let chips = machine.shard_chips_ordered(&proof.chip_ordering).collect::<Vec<_>>();
 
         let ShardProofVariable {
@@ -104,8 +106,8 @@ where
             .collect::<Vec<_>>();
 
         let ShardCommitment {
-            phase1_main_commit: _,
-            main_commit,
+            global_main_commit,
+            local_main_commit,
             permutation_commit,
             quotient_commit,
         } = *commitment;
@@ -230,6 +232,7 @@ where
             );
         }
         builder.cycle_tracker_v2_exit();
+        */
     }
 }
 
@@ -304,52 +307,55 @@ pub mod tests {
         StarkVerifyingKey<SC>: Witnessable<C, WitnessVariable = VerifyingKeyVariable<C, SC>>,
         ShardProof<SC>: Witnessable<C, WitnessVariable = ShardProofVariable<C, SC>>,
     {
-        // Generate a dummy proof.
-        setup_logger();
+        unimplemented!()
+        /*
+            // Generate a dummy proof.
+            setup_logger();
 
-        let machine = RiscvAir::<C::F>::machine(SC::default());
-        let (_, vk) = machine.setup(&Program::from(elf).unwrap());
-        let (proof, _, _) =
-            prove::<_, CoreP>(Program::from(elf).unwrap(), &SP1Stdin::new(), SC::default(), opts)
-                .unwrap();
-        let mut challenger = machine.config().challenger();
-        machine.verify(&vk, &proof, &mut challenger).unwrap();
-        println!("Proof generated successfully");
+            let machine = RiscvAir::<C::F>::machine(SC::default());
+            let (_, vk) = machine.setup(&Program::from(elf).unwrap());
+            let (proof, _, _) =
+                prove::<_, CoreP>(Program::from(elf).unwrap(), &SP1Stdin::new(), SC::default(), opts)
+                    .unwrap();
+            let mut challenger = machine.config().challenger();
+            machine.verify(&vk, &proof, &mut challenger).unwrap();
+            println!("Proof generated successfully");
 
-        // Observe all the commitments.
-        let mut builder = Builder::<C>::default();
+            // Observe all the commitments.
+            let mut builder = Builder::<C>::default();
 
-        let mut witness_stream = Vec::<WitnessBlock<C>>::new();
+            let mut witness_stream = Vec::<WitnessBlock<C>>::new();
 
-        // Add a hash invocation, since the poseidon2 table expects that it's in the first row.
-        let mut challenger = config.challenger_variable(&mut builder);
-        // let vk = VerifyingKeyVariable::from_constant_key_babybear(&mut builder, &vk);
-        vk.write(&mut witness_stream);
-        let vk: VerifyingKeyVariable<_, _> = vk.read(&mut builder);
-        vk.observe_into(&mut builder, &mut challenger);
+            // Add a hash invocation, since the poseidon2 table expects that it's in the first row.
+            let mut challenger = config.challenger_variable(&mut builder);
+            // let vk = VerifyingKeyVariable::from_constant_key_babybear(&mut builder, &vk);
+            vk.write(&mut witness_stream);
+            let vk: VerifyingKeyVariable<_, _> = vk.read(&mut builder);
+            vk.observe_into(&mut builder, &mut challenger);
 
-        let proofs = proof
-            .shard_proofs
-            .into_iter()
-            .map(|proof| {
-                proof.write(&mut witness_stream);
-                proof.read(&mut builder)
-            })
-            .collect::<Vec<_>>();
-        // Observe all the commitments, and put the proofs into the witness stream.
-        for proof in proofs.iter() {
-            let ShardCommitment { main_commit, .. } = proof.commitment;
-            challenger.observe(&mut builder, main_commit);
-            let pv_slice = &proof.public_values[..machine.num_pv_elts()];
-            challenger.observe_slice(&mut builder, pv_slice.iter().cloned());
-        }
-        // Verify the first proof.
-        let num_shards = num_shards_in_batch.unwrap_or(proofs.len());
-        for proof in proofs.into_iter().take(num_shards) {
-            let mut challenger = challenger.copy(&mut builder);
-            StarkVerifier::verify_shard(&mut builder, &vk, &machine, &mut challenger, &proof);
-        }
-        (builder.operations, witness_stream)
+            let proofs = proof
+                .shard_proofs
+                .into_iter()
+                .map(|proof| {
+                    proof.write(&mut witness_stream);
+                    proof.read(&mut builder)
+                })
+                .collect::<Vec<_>>();
+            // Observe all the commitments, and put the proofs into the witness stream.
+            for proof in proofs.iter() {
+                let ShardCommitment { main_commit, .. } = proof.commitment;
+                challenger.observe(&mut builder, main_commit);
+                let pv_slice = &proof.public_values[..machine.num_pv_elts()];
+                challenger.observe_slice(&mut builder, pv_slice.iter().cloned());
+            }
+            // Verify the first proof.
+            let num_shards = num_shards_in_batch.unwrap_or(proofs.len());
+            for proof in proofs.into_iter().take(num_shards) {
+                let mut challenger = challenger.copy(&mut builder);
+                StarkVerifier::verify_shard(&mut builder, &vk, &machine, &mut challenger, &proof);
+            }
+            (builder.operations, witness_stream)
+        */
     }
 
     #[test]

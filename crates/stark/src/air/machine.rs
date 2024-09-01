@@ -36,7 +36,9 @@ pub trait MachineAir<F: Field>: BaseAir<F> + 'static + Send + Sync {
 
     /// Whether the chip should be included in the given prove phase.  The majority of the chips are
     /// just for
-    fn interaction_randomness(&self) -> InteractionScope;
+    fn interaction_randomness(&self) -> InteractionScope {
+        InteractionScope::Local
+    }
 
     /// The width of the preprocessed trace.
     fn preprocessed_width(&self) -> usize {

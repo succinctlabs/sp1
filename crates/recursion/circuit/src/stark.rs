@@ -73,156 +73,158 @@ where
         Com<SC>: Into<[Bn254Fr; 1]>,
         SymbolicVar<<C as Config>::N>: From<Bn254Fr>,
     {
-        let RecursionShardProofVariable { commitment, opened_values, .. } = proof;
+        unimplemented!();
 
-        let ShardCommitment {
-            phase1_main_commit: _,
-            main_commit,
-            permutation_commit,
-            quotient_commit,
-        } = commitment;
+        // let RecursionShardProofVariable { commitment, opened_values, .. } = proof;
 
-        let permutation_challenges =
-            (0..4).map(|_| challenger.sample_ext(builder)).collect::<Vec<_>>();
+        // let ShardCommitment {
+        //     global_main_commit,
+        //     local_main_commit,
+        //     permutation_commit,
+        //     quotient_commit,
+        // } = commitment;
 
-        challenger.observe_commitment(builder, *permutation_commit);
+        // let permutation_challenges =
+        //     (0..4).map(|_| challenger.sample_ext(builder)).collect::<Vec<_>>();
 
-        let alpha = challenger.sample_ext(builder);
+        // challenger.observe_commitment(builder, *permutation_commit);
 
-        challenger.observe_commitment(builder, *quotient_commit);
+        // let alpha = challenger.sample_ext(builder);
 
-        let zeta = challenger.sample_ext(builder);
+        // challenger.observe_commitment(builder, *quotient_commit);
 
-        let num_shard_chips = opened_values.chips.len();
-        let mut trace_domains = Vec::new();
-        let mut quotient_domains = Vec::new();
+        // let zeta = challenger.sample_ext(builder);
 
-        let mut main_mats: Vec<TwoAdicPcsMatsVariable<_>> = Vec::new();
-        let mut perm_mats: Vec<TwoAdicPcsMatsVariable<_>> = Vec::new();
+        // let num_shard_chips = opened_values.chips.len();
+        // let mut trace_domains = Vec::new();
+        // let mut quotient_domains = Vec::new();
 
-        let mut quotient_mats = Vec::new();
+        // let mut main_mats: Vec<TwoAdicPcsMatsVariable<_>> = Vec::new();
+        // let mut perm_mats: Vec<TwoAdicPcsMatsVariable<_>> = Vec::new();
 
-        let qc_points = vec![zeta];
+        // let mut quotient_mats = Vec::new();
 
-        let prep_mats: Vec<TwoAdicPcsMatsVariable<_>> = vk
-            .chip_information
-            .iter()
-            .map(|(name, domain, _)| {
-                let chip_idx =
-                    machine.chips().iter().rposition(|chip| &chip.name() == name).unwrap();
-                let index = sorted_indices[chip_idx];
-                let opening = &opened_values.chips[index];
+        // let qc_points = vec![zeta];
 
-                let domain_var: TwoAdicMultiplicativeCosetVariable<_> = builder.constant(*domain);
+        // let prep_mats: Vec<TwoAdicPcsMatsVariable<_>> = vk
+        //     .chip_information
+        //     .iter()
+        //     .map(|(name, domain, _)| {
+        //         let chip_idx =
+        //             machine.chips().iter().rposition(|chip| &chip.name() == name).unwrap();
+        //         let index = sorted_indices[chip_idx];
+        //         let opening = &opened_values.chips[index];
 
-                let mut trace_points = Vec::new();
-                let zeta_next = domain_var.next_point(builder, zeta);
+        //         let domain_var: TwoAdicMultiplicativeCosetVariable<_> = builder.constant(*domain);
 
-                trace_points.push(zeta);
-                trace_points.push(zeta_next);
+        //         let mut trace_points = Vec::new();
+        //         let zeta_next = domain_var.next_point(builder, zeta);
 
-                let prep_values =
-                    vec![opening.preprocessed.local.clone(), opening.preprocessed.next.clone()];
-                TwoAdicPcsMatsVariable::<C> {
-                    domain: *domain,
-                    points: trace_points.clone(),
-                    values: prep_values,
-                }
-            })
-            .collect::<Vec<_>>();
+        //         trace_points.push(zeta);
+        //         trace_points.push(zeta_next);
 
-        (0..num_shard_chips).for_each(|i| {
-            let opening = &opened_values.chips[i];
-            let log_quotient_degree = chip_quotient_data[i].log_quotient_degree;
-            let domain = new_coset(builder, opening.log_degree);
+        //         let prep_values =
+        //             vec![opening.preprocessed.local.clone(), opening.preprocessed.next.clone()];
+        //         TwoAdicPcsMatsVariable::<C> {
+        //             domain: *domain,
+        //             points: trace_points.clone(),
+        //             values: prep_values,
+        //         }
+        //     })
+        //     .collect::<Vec<_>>();
 
-            let log_quotient_size = opening.log_degree + log_quotient_degree;
-            let quotient_domain =
-                domain.create_disjoint_domain(builder, Usize::Const(log_quotient_size), None);
+        // (0..num_shard_chips).for_each(|i| {
+        //     let opening = &opened_values.chips[i];
+        //     let log_quotient_degree = chip_quotient_data[i].log_quotient_degree;
+        //     let domain = new_coset(builder, opening.log_degree);
 
-            let mut trace_points = Vec::new();
-            let zeta_next = domain.next_point(builder, zeta);
-            trace_points.push(zeta);
-            trace_points.push(zeta_next);
+        //     let log_quotient_size = opening.log_degree + log_quotient_degree;
+        //     let quotient_domain =
+        //         domain.create_disjoint_domain(builder, Usize::Const(log_quotient_size), None);
 
-            let main_values = vec![opening.main.local.clone(), opening.main.next.clone()];
-            let main_mat = TwoAdicPcsMatsVariable::<C> {
-                domain: TwoAdicMultiplicativeCoset { log_n: domain.log_n, shift: domain.shift },
-                values: main_values,
-                points: trace_points.clone(),
-            };
+        //     let mut trace_points = Vec::new();
+        //     let zeta_next = domain.next_point(builder, zeta);
+        //     trace_points.push(zeta);
+        //     trace_points.push(zeta_next);
 
-            let perm_values =
-                vec![opening.permutation.local.clone(), opening.permutation.next.clone()];
-            let perm_mat = TwoAdicPcsMatsVariable::<C> {
-                domain: TwoAdicMultiplicativeCoset {
-                    log_n: domain.clone().log_n,
-                    shift: domain.clone().shift,
-                },
-                values: perm_values,
-                points: trace_points,
-            };
+        //     let main_values = vec![opening.main.local.clone(), opening.main.next.clone()];
+        //     let main_mat = TwoAdicPcsMatsVariable::<C> {
+        //         domain: TwoAdicMultiplicativeCoset { log_n: domain.log_n, shift: domain.shift },
+        //         values: main_values,
+        //         points: trace_points.clone(),
+        //     };
 
-            let qc_mats = quotient_domain
-                .split_domains_const(builder, log_quotient_degree)
-                .into_iter()
-                .enumerate()
-                .map(|(j, qc_dom)| TwoAdicPcsMatsVariable::<C> {
-                    domain: TwoAdicMultiplicativeCoset {
-                        log_n: qc_dom.clone().log_n,
-                        shift: qc_dom.clone().shift,
-                    },
-                    values: vec![opening.quotient[j].clone()],
-                    points: qc_points.clone(),
-                });
+        //     let perm_values =
+        //         vec![opening.permutation.local.clone(), opening.permutation.next.clone()];
+        //     let perm_mat = TwoAdicPcsMatsVariable::<C> {
+        //         domain: TwoAdicMultiplicativeCoset {
+        //             log_n: domain.clone().log_n,
+        //             shift: domain.clone().shift,
+        //         },
+        //         values: perm_values,
+        //         points: trace_points,
+        //     };
 
-            trace_domains.push(domain.clone());
-            quotient_domains.push(quotient_domain.clone());
-            main_mats.push(main_mat);
-            perm_mats.push(perm_mat);
-            quotient_mats.extend(qc_mats);
-        });
+        //     let qc_mats = quotient_domain
+        //         .split_domains_const(builder, log_quotient_degree)
+        //         .into_iter()
+        //         .enumerate()
+        //         .map(|(j, qc_dom)| TwoAdicPcsMatsVariable::<C> {
+        //             domain: TwoAdicMultiplicativeCoset {
+        //                 log_n: qc_dom.clone().log_n,
+        //                 shift: qc_dom.clone().shift,
+        //             },
+        //             values: vec![opening.quotient[j].clone()],
+        //             points: qc_points.clone(),
+        //         });
 
-        let mut rounds = Vec::new();
-        let prep_commit_val: [Bn254Fr; 1] = vk.commit.clone().into();
-        let prep_commit: OuterDigestVariable<C> = [builder.eval(prep_commit_val[0])];
-        let prep_round = TwoAdicPcsRoundVariable { batch_commit: prep_commit, mats: prep_mats };
-        let main_round = TwoAdicPcsRoundVariable { batch_commit: *main_commit, mats: main_mats };
-        let perm_round =
-            TwoAdicPcsRoundVariable { batch_commit: *permutation_commit, mats: perm_mats };
-        let quotient_round =
-            TwoAdicPcsRoundVariable { batch_commit: *quotient_commit, mats: quotient_mats };
-        rounds.push(prep_round);
-        rounds.push(main_round);
-        rounds.push(perm_round);
-        rounds.push(quotient_round);
-        let config = outer_fri_config_with_blowup(log2_strict_usize(DEGREE - 1));
-        verify_two_adic_pcs(builder, &config, &proof.opening_proof, challenger, rounds);
+        //     trace_domains.push(domain.clone());
+        //     quotient_domains.push(quotient_domain.clone());
+        //     main_mats.push(main_mat);
+        //     perm_mats.push(perm_mat);
+        //     quotient_mats.extend(qc_mats);
+        // });
 
-        if !sp1_dev_mode() {
-            for (i, sorted_chip) in sorted_chips.iter().enumerate() {
-                for chip in machine.chips() {
-                    if chip.name() == *sorted_chip {
-                        let values = &opened_values.chips[i];
-                        let trace_domain = &trace_domains[i];
-                        let quotient_domain = &quotient_domains[i];
-                        let qc_domains = quotient_domain
-                            .split_domains_const(builder, chip.log_quotient_degree());
-                        Self::verify_constraints(
-                            builder,
-                            chip,
-                            values,
-                            proof.public_values.clone(),
-                            trace_domain.clone(),
-                            qc_domains,
-                            zeta,
-                            alpha,
-                            &permutation_challenges,
-                        );
-                    }
-                }
-            }
-        }
+        // let mut rounds = Vec::new();
+        // let prep_commit_val: [Bn254Fr; 1] = vk.commit.clone().into();
+        // let prep_commit: OuterDigestVariable<C> = [builder.eval(prep_commit_val[0])];
+        // let prep_round = TwoAdicPcsRoundVariable { batch_commit: prep_commit, mats: prep_mats };
+        // let main_round = TwoAdicPcsRoundVariable { batch_commit: *main_commit, mats: main_mats };
+        // let perm_round =
+        //     TwoAdicPcsRoundVariable { batch_commit: *permutation_commit, mats: perm_mats };
+        // let quotient_round =
+        //     TwoAdicPcsRoundVariable { batch_commit: *quotient_commit, mats: quotient_mats };
+        // rounds.push(prep_round);
+        // rounds.push(main_round);
+        // rounds.push(perm_round);
+        // rounds.push(quotient_round);
+        // let config = outer_fri_config_with_blowup(log2_strict_usize(DEGREE - 1));
+        // verify_two_adic_pcs(builder, &config, &proof.opening_proof, challenger, rounds);
+
+        // if !sp1_dev_mode() {
+        //     for (i, sorted_chip) in sorted_chips.iter().enumerate() {
+        //         for chip in machine.chips() {
+        //             if chip.name() == *sorted_chip {
+        //                 let values = &opened_values.chips[i];
+        //                 let trace_domain = &trace_domains[i];
+        //                 let quotient_domain = &quotient_domains[i];
+        //                 let qc_domains = quotient_domain
+        //                     .split_domains_const(builder, chip.log_quotient_degree());
+        //                 Self::verify_constraints(
+        //                     builder,
+        //                     chip,
+        //                     values,
+        //                     proof.public_values.clone(),
+        //                     trace_domain.clone(),
+        //                     qc_domains,
+        //                     zeta,
+        //                     alpha,
+        //                     &permutation_challenges,
+        //                 );
+        //             }
+        //         }
+        //     }
+        // }
     }
 }
 
@@ -234,116 +236,117 @@ pub fn build_wrap_circuit(
     wrap_vk: &StarkVerifyingKey<OuterSC>,
     template_proof: ShardProof<OuterSC>,
 ) -> Vec<Constraint> {
-    let outer_config = OuterSC::new();
-    let outer_machine = RecursionAirWideDeg17::<OuterF>::wrap_machine(outer_config);
+    unimplemented!();
+    // let outer_config = OuterSC::new();
+    // let outer_machine = RecursionAirWideDeg17::<OuterF>::wrap_machine(outer_config);
 
-    let mut builder = Builder::<OuterConfig>::default();
-    let mut challenger = MultiField32ChallengerVariable::new(&mut builder);
+    // let mut builder = Builder::<OuterConfig>::default();
+    // let mut challenger = MultiField32ChallengerVariable::new(&mut builder);
 
-    let preprocessed_commit_val: [Bn254Fr; 1] = wrap_vk.commit.into();
-    let preprocessed_commit: OuterDigestVariable<OuterC> =
-        [builder.eval(preprocessed_commit_val[0])];
-    challenger.observe_commitment(&mut builder, preprocessed_commit);
-    let pc_start = builder.eval(wrap_vk.pc_start);
-    challenger.observe(&mut builder, pc_start);
+    // let preprocessed_commit_val: [Bn254Fr; 1] = wrap_vk.commit.into();
+    // let preprocessed_commit: OuterDigestVariable<OuterC> =
+    //     [builder.eval(preprocessed_commit_val[0])];
+    // challenger.observe_commitment(&mut builder, preprocessed_commit);
+    // let pc_start = builder.eval(wrap_vk.pc_start);
+    // challenger.observe(&mut builder, pc_start);
 
-    let mut witness = Witness::default();
-    template_proof.write(&mut witness);
-    let proof = template_proof.read(&mut builder);
+    // let mut witness = Witness::default();
+    // template_proof.write(&mut witness);
+    // let proof = template_proof.read(&mut builder);
 
-    let commited_values_digest = Bn254Fr::zero().read(&mut builder);
-    builder.commit_commited_values_digest_circuit(commited_values_digest);
-    let vkey_hash = Bn254Fr::zero().read(&mut builder);
-    builder.commit_vkey_hash_circuit(vkey_hash);
+    // let commited_values_digest = Bn254Fr::zero().read(&mut builder);
+    // builder.commit_commited_values_digest_circuit(commited_values_digest);
+    // let vkey_hash = Bn254Fr::zero().read(&mut builder);
+    // builder.commit_vkey_hash_circuit(vkey_hash);
 
-    // Validate public values
-    let mut pv_elements = Vec::new();
-    for i in 0..PROOF_MAX_NUM_PVS {
-        let element = builder.get(&proof.public_values, i);
-        pv_elements.push(element);
-    }
+    // // Validate public values
+    // let mut pv_elements = Vec::new();
+    // for i in 0..PROOF_MAX_NUM_PVS {
+    //     let element = builder.get(&proof.public_values, i);
+    //     pv_elements.push(element);
+    // }
 
-    let pv: &RecursionPublicValues<_> = pv_elements.as_slice().borrow();
+    // let pv: &RecursionPublicValues<_> = pv_elements.as_slice().borrow();
 
-    let one_felt: Felt<_> = builder.constant(BabyBear::one());
-    // Proof must be complete. In the reduce program, this will ensure that the SP1 proof has been
-    // fully accumulated.
-    builder.assert_felt_eq(pv.is_complete, one_felt);
+    // let one_felt: Felt<_> = builder.constant(BabyBear::one());
+    // // Proof must be complete. In the reduce program, this will ensure that the SP1 proof has been
+    // // fully accumulated.
+    // builder.assert_felt_eq(pv.is_complete, one_felt);
 
-    // Convert pv.sp1_vk_digest into Bn254
-    let pv_vkey_hash = babybears_to_bn254(&mut builder, &pv.sp1_vk_digest);
-    // Vkey hash must match the witnessed commited_values_digest that we are committing to.
-    builder.assert_var_eq(pv_vkey_hash, vkey_hash);
+    // // Convert pv.sp1_vk_digest into Bn254
+    // let pv_vkey_hash = babybears_to_bn254(&mut builder, &pv.sp1_vk_digest);
+    // // Vkey hash must match the witnessed commited_values_digest that we are committing to.
+    // builder.assert_var_eq(pv_vkey_hash, vkey_hash);
 
-    // Convert pv.committed_value_digest into Bn254
-    let pv_committed_values_digest_bytes: [Felt<_>; 32] =
-        words_to_bytes(&pv.committed_value_digest).try_into().unwrap();
-    let pv_committed_values_digest: Var<_> =
-        babybear_bytes_to_bn254(&mut builder, &pv_committed_values_digest_bytes);
+    // // Convert pv.committed_value_digest into Bn254
+    // let pv_committed_values_digest_bytes: [Felt<_>; 32] =
+    //     words_to_bytes(&pv.committed_value_digest).try_into().unwrap();
+    // let pv_committed_values_digest: Var<_> =
+    //     babybear_bytes_to_bn254(&mut builder, &pv_committed_values_digest_bytes);
 
-    // Committed values digest must match the witnessed one that we are committing to.
-    builder.assert_var_eq(pv_committed_values_digest, commited_values_digest);
+    // // Committed values digest must match the witnessed one that we are committing to.
+    // builder.assert_var_eq(pv_committed_values_digest, commited_values_digest);
 
-    let chips = outer_machine
-        .shard_chips_ordered(&template_proof.chip_ordering)
-        .map(|chip| chip.name())
-        .collect::<Vec<_>>();
+    // let chips = outer_machine
+    //     .shard_chips_ordered(&template_proof.chip_ordering)
+    //     .map(|chip| chip.name())
+    //     .collect::<Vec<_>>();
 
-    let sorted_indices = outer_machine
-        .chips()
-        .iter()
-        .map(|chip| template_proof.chip_ordering.get(&chip.name()).copied().unwrap_or(usize::MAX))
-        .collect::<Vec<_>>();
+    // let sorted_indices = outer_machine
+    //     .chips()
+    //     .iter()
+    //     .map(|chip| template_proof.chip_ordering.get(&chip.name()).copied().unwrap_or(usize::MAX))
+    //     .collect::<Vec<_>>();
 
-    let chip_quotient_data = outer_machine
-        .shard_chips_ordered(&template_proof.chip_ordering)
-        .map(|chip| {
-            let log_quotient_degree = chip.log_quotient_degree();
-            QuotientDataValues { log_quotient_degree, quotient_size: 1 << log_quotient_degree }
-        })
-        .collect();
+    // let chip_quotient_data = outer_machine
+    //     .shard_chips_ordered(&template_proof.chip_ordering)
+    //     .map(|chip| {
+    //         let log_quotient_degree = chip.log_quotient_degree();
+    //         QuotientDataValues { log_quotient_degree, quotient_size: 1 << log_quotient_degree }
+    //     })
+    //     .collect();
 
-    let ShardCommitment { main_commit, .. } = &proof.commitment;
-    challenger.observe_commitment(&mut builder, *main_commit);
-    let pv_slice = proof.public_values.slice(
-        &mut builder,
-        Usize::Const(0),
-        Usize::Const(outer_machine.num_pv_elts()),
-    );
-    challenger.observe_slice(&mut builder, pv_slice);
+    // let ShardCommitment { main_commit, .. } = &proof.commitment;
+    // challenger.observe_commitment(&mut builder, *main_commit);
+    // let pv_slice = proof.public_values.slice(
+    //     &mut builder,
+    //     Usize::Const(0),
+    //     Usize::Const(outer_machine.num_pv_elts()),
+    // );
+    // challenger.observe_slice(&mut builder, pv_slice);
 
-    StarkVerifierCircuit::<OuterC, OuterSC>::verify_shard::<_, 17>(
-        &mut builder,
-        wrap_vk,
-        &outer_machine,
-        &mut challenger.clone(),
-        &proof,
-        chip_quotient_data,
-        chips,
-        sorted_indices,
-    );
+    // StarkVerifierCircuit::<OuterC, OuterSC>::verify_shard::<_, 17>(
+    //     &mut builder,
+    //     wrap_vk,
+    //     &outer_machine,
+    //     &mut challenger.clone(),
+    //     &proof,
+    //     chip_quotient_data,
+    //     chips,
+    //     sorted_indices,
+    // );
 
-    let zero_ext: Ext<_, _> = builder.constant(<OuterConfig as Config>::EF::zero());
-    let cumulative_sum: Ext<_, _> = builder.eval(zero_ext);
-    for chip in proof.opened_values.chips {
-        builder.assign(cumulative_sum, cumulative_sum + chip.cumulative_sum);
-    }
-    builder.assert_ext_eq(cumulative_sum, zero_ext);
+    // let zero_ext: Ext<_, _> = builder.constant(<OuterConfig as Config>::EF::zero());
+    // let cumulative_sum: Ext<_, _> = builder.eval(zero_ext);
+    // for chip in proof.opened_values.chips {
+    //     builder.assign(cumulative_sum, cumulative_sum + chip.cumulative_sum);
+    // }
+    // builder.assert_ext_eq(cumulative_sum, zero_ext);
 
-    // Verify the public values digest.
-    let calculated_digest = builder.p2_babybear_hash(&pv_elements[0..NUM_PV_ELMS_TO_HASH]);
-    let expected_digest = pv.digest;
-    for (calculated_elm, expected_elm) in calculated_digest.iter().zip(expected_digest.iter()) {
-        builder.assert_felt_eq(*expected_elm, *calculated_elm);
-    }
+    // // Verify the public values digest.
+    // let calculated_digest = builder.p2_babybear_hash(&pv_elements[0..NUM_PV_ELMS_TO_HASH]);
+    // let expected_digest = pv.digest;
+    // for (calculated_elm, expected_elm) in calculated_digest.iter().zip(expected_digest.iter()) {
+    //     builder.assert_felt_eq(*expected_elm, *calculated_elm);
+    // }
 
-    // Print out cycle tracking info.
-    for line in cycle_tracker(&builder.operations.vec).unwrap().lines() {
-        println!("{}", line);
-    }
+    // // Print out cycle tracking info.
+    // for line in cycle_tracker(&builder.operations.vec).unwrap().lines() {
+    //     println!("{}", line);
+    // }
 
-    let mut backend = ConstraintCompiler::<OuterConfig>::default();
-    backend.emit(builder.operations)
+    // let mut backend = ConstraintCompiler::<OuterConfig>::default();
+    // backend.emit(builder.operations)
 }
 
 pub fn cycle_tracker<'a, C: Config + Debug + 'a>(

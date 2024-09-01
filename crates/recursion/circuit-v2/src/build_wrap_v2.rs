@@ -48,6 +48,8 @@ pub fn build_wrap_circuit_v2<F, const DEGREE: usize>(
 ) -> Vec<Constraint>
 where
 {
+    unimplemented!()
+    /*
     let mut builder = Builder::<OuterConfig>::default();
     let mut challenger = MultiField32ChallengerVariable::new(&mut builder);
 
@@ -142,6 +144,7 @@ where
 
     let mut backend = ConstraintCompiler::<OuterConfig>::default();
     backend.emit(builder.operations)
+    */
 }
 
 /// A utility function to convert a `ShardProof` into a `ShardProofVariable`. Should be replaced by
@@ -201,20 +204,28 @@ pub fn const_shard_proof(
         })
         .collect();
     let opened_values = ShardOpenedValues { chips: opened_values };
-    let ShardCommitment { phase1_main_commit, main_commit, permutation_commit, quotient_commit } =
-        proof.commitment;
-    let phase1_main_commit: [Bn254Fr; 1] = phase1_main_commit.into();
-    let main_commit: [Bn254Fr; 1] = main_commit.into();
+    let ShardCommitment {
+        global_main_commit,
+        local_main_commit,
+        permutation_commit,
+        quotient_commit,
+    } = proof.commitment;
+    let global_main_commit: [Bn254Fr; 1] = global_main_commit.into();
+    let local_main_commit: [Bn254Fr; 1] = local_main_commit.into();
     let permutation_commit: [Bn254Fr; 1] = permutation_commit.into();
     let quotient_commit: [Bn254Fr; 1] = quotient_commit.into();
 
-    let phase1_main_commit = core::array::from_fn(|i| builder.eval(phase1_main_commit[i]));
-    let main_commit = core::array::from_fn(|i| builder.eval(main_commit[i]));
+    let global_main_commit = core::array::from_fn(|i| builder.eval(global_main_commit[i]));
+    let local_main_commit = core::array::from_fn(|i| builder.eval(local_main_commit[i]));
     let permutation_commit = core::array::from_fn(|i| builder.eval(permutation_commit[i]));
     let quotient_commit = core::array::from_fn(|i| builder.eval(quotient_commit[i]));
 
-    let commitment =
-        ShardCommitment { phase1_main_commit, main_commit, permutation_commit, quotient_commit };
+    let commitment = ShardCommitment {
+        global_main_commit,
+        local_main_commit,
+        permutation_commit,
+        quotient_commit,
+    };
     ShardProofVariable {
         commitment,
         public_values: proof.public_values.iter().map(|x| builder.constant(*x)).collect(),

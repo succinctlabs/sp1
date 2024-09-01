@@ -152,20 +152,21 @@ impl<C: CircuitConfig, T: Witnessable<C>> Witnessable<C> for ShardCommitment<T> 
     type WitnessVariable = ShardCommitment<T::WitnessVariable>;
 
     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
-        let phase1_main_commit = self.phase1_main_commit.read(builder);
-        let main_commit = self.main_commit.read(builder);
+        let global_main_commit = self.global_main_commit.read(builder);
+        let local_main_commit = self.local_main_commit.read(builder);
         let permutation_commit = self.permutation_commit.read(builder);
         let quotient_commit = self.quotient_commit.read(builder);
         Self::WitnessVariable {
-            phase1_main_commit,
-            main_commit,
+            global_main_commit,
+            local_main_commit,
             permutation_commit,
             quotient_commit,
         }
     }
 
     fn write(&self, witness: &mut impl WitnessWriter<C>) {
-        self.main_commit.write(witness);
+        self.global_main_commit.write(witness);
+        self.local_main_commit.write(witness);
         self.permutation_commit.write(witness);
         self.quotient_commit.write(witness);
     }

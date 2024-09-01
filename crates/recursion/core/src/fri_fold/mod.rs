@@ -10,10 +10,7 @@ use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use sp1_core_machine::utils::{next_power_of_two, par_for_each_row};
 use sp1_derive::AlignedBorrow;
-use sp1_stark::{
-    air::{BaseAirBuilder, BinomialExtension, MachineAir},
-    ProvePhase,
-};
+use sp1_stark::air::{BaseAirBuilder, BinomialExtension, MachineAir};
 use std::borrow::BorrowMut;
 use tracing::instrument;
 
@@ -157,10 +154,6 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for FriFoldChip<DEGREE>
 
     fn included_in_shard(&self, record: &Self::Record) -> bool {
         !record.fri_fold_events.is_empty()
-    }
-
-    fn included_in_phase(&self, _: ProvePhase) -> bool {
-        true
     }
 }
 

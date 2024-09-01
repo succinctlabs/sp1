@@ -1,6 +1,6 @@
 use p3_field::{extension::BinomiallyExtendable, PrimeField32};
 use sp1_recursion_core::runtime::D;
-use sp1_stark::{Chip, ProvePhase, StarkGenericConfig, StarkMachine, PROOF_MAX_NUM_PVS};
+use sp1_stark::{air::InteractionScope, Chip, StarkGenericConfig, StarkMachine, PROOF_MAX_NUM_PVS};
 
 use crate::chips::{
     alu_base::BaseAluChip,

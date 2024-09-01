@@ -304,7 +304,7 @@ mod tests {
     use sp1_curves::params::FieldParameters;
     use sp1_stark::{
         air::{MachineAir, SP1AirBuilder},
-        ProvePhase, StarkGenericConfig,
+        StarkGenericConfig,
     };
 
     use super::{FieldOpCols, FieldOperation, Limbs};
@@ -404,10 +404,6 @@ mod tests {
 
         fn included_in_shard(&self, _: &Self::Record) -> bool {
             true
-        }
-
-        fn included_in_phase(&self, phase: ProvePhase) -> bool {
-            phase == ProvePhase::Phase2
         }
     }
 

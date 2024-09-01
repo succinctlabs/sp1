@@ -14,7 +14,7 @@ use sp1_stark::{
         AirInteraction, BaseAirBuilder, InteractionScope, MachineAir, PublicValues, SP1AirBuilder,
         SP1_PROOF_NUM_PV_ELTS,
     },
-    InteractionKind, ProvePhase, Word,
+    InteractionKind, Word,
 };
 
 use crate::{
@@ -151,8 +151,8 @@ impl<F: PrimeField32> MachineAir<F> for MemoryGlobalChip {
         }
     }
 
-    fn included_in_phase(&self, phase: ProvePhase) -> bool {
-        phase == ProvePhase::Phase1
+    fn interaction_randomness(&self) -> InteractionScope {
+        InteractionScope::Global
     }
 }
 
@@ -416,8 +416,8 @@ mod tests {
             RiscvAir::machine(BabyBearPoseidon2::new());
         let (pkey, _) = machine.setup(&program_clone);
         let opts = SP1CoreOpts::default();
-        machine.generate_dependencies(&mut runtime.records, &opts, ProvePhase::Phase1);
-        machine.generate_dependencies(&mut runtime.records, &opts, ProvePhase::Phase2);
+        machine.generate_dependencies(&mut runtime.records, &opts, InteractionScope::Global);
+        machine.generate_dependencies(&mut runtime.records, &opts, InteractionScope::Local);
 
         let shards = runtime.records;
         assert_eq!(shards.len(), 2);
@@ -449,7 +449,7 @@ mod tests {
         let machine = RiscvAir::machine(BabyBearPoseidon2::new());
         let (pkey, _) = machine.setup(&program_clone);
         let opts = SP1CoreOpts::default();
-        machine.generate_dependencies(&mut runtime.records, &opts, ProvePhase::Phase1);
+        machine.generate_dependencies(&mut runtime.records, &opts, InteractionScope::Global);
 
         let shards = runtime.records;
         assert_eq!(shards.len(), 2);

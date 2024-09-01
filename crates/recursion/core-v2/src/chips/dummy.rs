@@ -2,7 +2,7 @@ use p3_air::{Air, BaseAir, PairBuilder};
 use p3_field::{Field, PrimeField32};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use sp1_derive::AlignedBorrow;
-use sp1_stark::{air::MachineAir, ProvePhase};
+use sp1_stark::air::MachineAir;
 
 use crate::{builder::SP1RecursionAirBuilder, *};
 
@@ -63,10 +63,6 @@ impl<F: PrimeField32, const COL_PADDING: usize> MachineAir<F> for DummyChip<COL_
 
     fn included_in_shard(&self, _record: &Self::Record) -> bool {
         COL_PADDING != 0
-    }
-
-    fn included_in_phase(&self, _: ProvePhase) -> bool {
-        true
     }
 }
 

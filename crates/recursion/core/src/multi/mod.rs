@@ -11,10 +11,7 @@ use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use sp1_core_machine::utils::pad_rows_fixed;
 use sp1_derive::AlignedBorrow;
-use sp1_stark::{
-    air::{BaseAirBuilder, MachineAir},
-    ProvePhase,
-};
+use sp1_stark::air::{BaseAirBuilder, MachineAir};
 
 use crate::{
     air::{MultiBuilder, SP1RecursionAirBuilder},
@@ -149,10 +146,6 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for MultiChip<DEGREE> {
     }
 
     fn included_in_shard(&self, _: &Self::Record) -> bool {
-        true
-    }
-
-    fn included_in_phase(&self, _: ProvePhase) -> bool {
         true
     }
 }

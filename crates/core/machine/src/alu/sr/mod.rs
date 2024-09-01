@@ -59,7 +59,7 @@ use sp1_core_executor::{
 };
 use sp1_derive::AlignedBorrow;
 use sp1_primitives::consts::WORD_SIZE;
-use sp1_stark::{air::MachineAir, ProvePhase, Word};
+use sp1_stark::{air::MachineAir, Word};
 
 use crate::{
     air::SP1CoreAirBuilder,
@@ -220,10 +220,6 @@ impl<F: PrimeField> MachineAir<F> for ShiftRightChip {
 
     fn included_in_shard(&self, shard: &Self::Record) -> bool {
         !shard.shift_right_events.is_empty()
-    }
-
-    fn included_in_phase(&self, phase: ProvePhase) -> bool {
-        phase == ProvePhase::Phase2
     }
 }
 

@@ -100,19 +100,21 @@ impl Witnessable<C> for ShardCommitment<OuterDigest> {
     type WitnessVariable = ShardCommitment<OuterDigestVariable<C>>;
 
     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
-        let main_commit = self.main_commit.read(builder);
+        let global_main_commit = self.global_main_commit.read(builder);
+        let local_main_commit = self.local_main_commit.read(builder);
         let permutation_commit = self.permutation_commit.read(builder);
         let quotient_commit = self.quotient_commit.read(builder);
         ShardCommitment {
-            phase1_main_commit: main_commit,
-            main_commit,
+            global_main_commit,
+            local_main_commit,
             permutation_commit,
             quotient_commit,
         }
     }
 
     fn write(&self, witness: &mut Witness<C>) {
-        self.main_commit.write(witness);
+        self.global_main_commit.write(witness);
+        self.local_main_commit.write(witness);
         self.permutation_commit.write(witness);
         self.quotient_commit.write(witness);
     }
@@ -278,12 +280,13 @@ impl Witnessable<C> for ShardProof<BabyBearPoseidon2Outer> {
     type WitnessVariable = RecursionShardProofVariable<C>;
 
     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
-        let main_commit: OuterDigest = self.commitment.main_commit.into();
+        let global_main_commit: OuterDigest = self.commitment.global_main_commit.into();
+        let local_main_commit: OuterDigest = self.commitment.local_main_commit.into();
         let permutation_commit: OuterDigest = self.commitment.permutation_commit.into();
         let quotient_commit: OuterDigest = self.commitment.quotient_commit.into();
         let commitment = ShardCommitment {
-            phase1_main_commit: main_commit.read(builder),
-            main_commit: main_commit.read(builder),
+            global_main_commit: global_main_commit.read(builder),
+            local_main_commit: local_main_commit.read(builder),
             permutation_commit: permutation_commit.read(builder),
             quotient_commit: quotient_commit.read(builder),
         };
@@ -296,10 +299,12 @@ impl Witnessable<C> for ShardProof<BabyBearPoseidon2Outer> {
     }
 
     fn write(&self, witness: &mut Witness<C>) {
-        let main_commit: OuterDigest = self.commitment.main_commit.into();
+        let global_main_commit: OuterDigest = self.commitment.global_main_commit.into();
+        let local_main_commit: OuterDigest = self.commitment.local_main_commit.into();
         let permutation_commit: OuterDigest = self.commitment.permutation_commit.into();
         let quotient_commit: OuterDigest = self.commitment.quotient_commit.into();
-        main_commit.write(witness);
+        global_main_commit.write(witness);
+        local_main_commit.write(witness);
         permutation_commit.write(witness);
         quotient_commit.write(witness);
         self.opened_values.write(witness);

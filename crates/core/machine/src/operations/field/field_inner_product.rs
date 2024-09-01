@@ -140,10 +140,7 @@ mod tests {
     use p3_field::{Field, PrimeField32};
     use sp1_core_executor::{ExecutionRecord, Program};
     use sp1_curves::params::FieldParameters;
-    use sp1_stark::{
-        air::{MachineAir, SP1AirBuilder},
-        ProvePhase,
-    };
+    use sp1_stark::air::{MachineAir, SP1AirBuilder};
 
     use super::{FieldInnerProductCols, Limbs};
 
@@ -234,10 +231,6 @@ mod tests {
 
         fn included_in_shard(&self, _: &Self::Record) -> bool {
             true
-        }
-
-        fn included_in_phase(&self, phase: ProvePhase) -> bool {
-            phase == ProvePhase::Phase2
         }
     }
 

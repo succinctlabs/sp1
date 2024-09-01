@@ -15,7 +15,10 @@ use super::{
     types::{AirOpenedValues, ChipOpenedValues, ShardCommitment, ShardProof},
     Domain, OpeningError, StarkGenericConfig, StarkVerifyingKey, Val,
 };
-use crate::{air::MachineAir, MachineChip};
+use crate::{
+    air::{InteractionScope, MachineAir},
+    MachineChip,
+};
 
 /// A verifier for a collection of air chips.
 pub struct Verifier<SC, A>(PhantomData<SC>, PhantomData<A>);
@@ -41,6 +44,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
             opened_values,
             opening_proof,
             chip_ordering,
+            chip_scopes,
             public_values,
             ..
         } = proof;
@@ -149,12 +153,27 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
             })
             .collect::<Vec<_>>();
 
+        // Split the main_domains_points_and_opens to the global and local chips.
+        let mut global_trace_points_and_openings = Vec::new();
+        let mut local_trace_points_and_openings = Vec::new();
+        for (points_and_openings, chip) in
+            main_domains_points_and_opens.clone().into_iter().zip(chips.iter())
+        {
+            let scope = chip_scopes.get(&chip.name()).expect("chip not found");
+            if *scope == InteractionScope::Global {
+                global_trace_points_and_openings.push(points_and_openings);
+            } else {
+                local_trace_points_and_openings.push(points_and_openings);
+            }
+        }
+
         config
             .pcs()
             .verify(
                 vec![
                     (vk.commit.clone(), preprocessed_domains_points_and_opens),
-                    (main_commit.clone(), main_domains_points_and_opens),
+                    (global_main_commit.clone(), global_trace_points_and_openings),
+                    (local_main_commit.clone(), local_trace_points_and_openings),
                     (permutation_commit.clone(), perm_domains_points_and_opens),
                     (quotient_commit.clone(), quotient_domains_points_and_opens),
                 ],

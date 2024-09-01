@@ -12,7 +12,7 @@ use sp1_core_executor::{ExecutionRecord, Program};
 use sp1_derive::AlignedBorrow;
 use sp1_stark::{
     air::{AirInteraction, InteractionScope, MachineAir, SP1AirBuilder},
-    InteractionKind, ProvePhase, Word,
+    InteractionKind, Word,
 };
 
 use super::MemoryChipType;
@@ -188,9 +188,8 @@ impl<F: PrimeField32> MachineAir<F> for MemoryLocalChip {
             || !bls12381_fp2_mul_local_mem_events.is_empty()
     }
 
-    fn included_in_phase(&self, _: ProvePhase) -> bool {
-        // Should be included in both phase 1 and phase 2.
-        true
+    fn interaction_randomness(&self) -> InteractionScope {
+        InteractionScope::Global
     }
 }
 
@@ -242,7 +241,7 @@ mod tests {
     use sp1_stark::{
         air::{InteractionScope, MachineAir},
         baby_bear_poseidon2::BabyBearPoseidon2,
-        debug_interactions_with_all_chips, InteractionKind, ProvePhase, SP1CoreOpts, StarkMachine,
+        debug_interactions_with_all_chips, InteractionKind, SP1CoreOpts, StarkMachine,
     };
 
     use crate::{
@@ -286,8 +285,8 @@ mod tests {
             RiscvAir::machine(BabyBearPoseidon2::new());
         let (pkey, _) = machine.setup(&program_clone);
         let opts = SP1CoreOpts::default();
-        machine.generate_dependencies(&mut runtime.records, &opts, ProvePhase::Phase1);
-        machine.generate_dependencies(&mut runtime.records, &opts, ProvePhase::Phase2);
+        machine.generate_dependencies(&mut runtime.records, &opts, InteractionScope::Global);
+        machine.generate_dependencies(&mut runtime.records, &opts, InteractionScope::Local);
 
         let shards = runtime.records;
         assert_eq!(shards.len(), 2);
@@ -319,8 +318,8 @@ mod tests {
         let machine = RiscvAir::machine(BabyBearPoseidon2::new());
         let (pkey, _) = machine.setup(&program_clone);
         let opts = SP1CoreOpts::default();
-        machine.generate_dependencies(&mut runtime.records, &opts, ProvePhase::Phase1);
-        machine.generate_dependencies(&mut runtime.records, &opts, ProvePhase::Phase2);
+        machine.generate_dependencies(&mut runtime.records, &opts, InteractionScope::Global);
+        machine.generate_dependencies(&mut runtime.records, &opts, InteractionScope::Local);
 
         let shards = runtime.records;
         assert_eq!(shards.len(), 2);

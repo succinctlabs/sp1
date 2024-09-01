@@ -54,7 +54,7 @@ pub use sp1_recursion_program::machine::{
 };
 use sp1_stark::{
     air::PublicValues, baby_bear_poseidon2::BabyBearPoseidon2, Challenge, Challenger,
-    MachineProver, MachineVerificationError, ProvePhase, SP1CoreOpts, SP1ProverOpts, ShardProof,
+    MachineProver, MachineVerificationError, SP1CoreOpts, SP1ProverOpts, ShardProof,
     StarkGenericConfig, StarkProvingKey, StarkVerifyingKey, Val, Word, DIGEST_SIZE,
 };
 
@@ -261,6 +261,8 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         batch_size: usize,
         is_complete: bool,
     ) -> Vec<SP1RecursionMemoryLayout<'a, CoreSC, RiscvAir<BabyBear>>> {
+        unimplemented!()
+        /*
         let mut core_inputs = Vec::new();
         let mut reconstruct_challenger = self.core_prover.config().challenger();
         vk.observe_into(&mut reconstruct_challenger);
@@ -290,6 +292,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         assert_eq!(reconstruct_challenger.input_buffer, leaf_challenger.input_buffer);
         assert_eq!(reconstruct_challenger.output_buffer, leaf_challenger.output_buffer);
         core_inputs
+        */
     }
 
     pub fn get_recursion_deferred_inputs<'a>(
@@ -372,6 +375,8 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         deferred_proofs: Vec<ShardProof<InnerSC>>,
         opts: SP1ProverOpts,
     ) -> Result<SP1ReduceProof<InnerSC>, SP1RecursionProverError> {
+        unimplemented!()
+        /*
         // Set the batch size for the reduction tree.
         let batch_size = 2;
         let shard_proofs = &proof.proof.0;
@@ -702,6 +707,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         });
 
         Ok(SP1ReduceProof { proof })
+        */
     }
 
     /// Generate a proof with the compress machine.

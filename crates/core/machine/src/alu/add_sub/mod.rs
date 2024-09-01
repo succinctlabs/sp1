@@ -16,7 +16,7 @@ use sp1_core_executor::{
 use sp1_derive::AlignedBorrow;
 use sp1_stark::{
     air::{MachineAir, SP1AirBuilder},
-    ProvePhase, Word,
+    Word,
 };
 
 use crate::{operations::AddOperation, utils::pad_to_power_of_two};
@@ -147,10 +147,6 @@ impl<F: PrimeField> MachineAir<F> for AddSubChip {
 
     fn included_in_shard(&self, shard: &Self::Record) -> bool {
         !shard.add_events.is_empty() || !shard.sub_events.is_empty()
-    }
-
-    fn included_in_phase(&self, phase: ProvePhase) -> bool {
-        phase == ProvePhase::Phase2
     }
 }
 

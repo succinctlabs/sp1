@@ -6,7 +6,7 @@ use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use p3_maybe_rayon::prelude::*;
 use sp1_core_machine::utils::{next_power_of_two, pad_to_power_of_two};
 use sp1_derive::AlignedBorrow;
-use sp1_stark::{air::MachineAir, ProvePhase};
+use sp1_stark::air::MachineAir;
 use std::{borrow::BorrowMut, iter::zip, marker::PhantomData};
 
 use crate::{builder::SP1RecursionAirBuilder, *};
@@ -117,10 +117,6 @@ impl<F: PrimeField32> MachineAir<F> for MemoryChip<F> {
     }
 
     fn included_in_shard(&self, _record: &Self::Record) -> bool {
-        true
-    }
-
-    fn included_in_phase(&self, _: ProvePhase) -> bool {
         true
     }
 }

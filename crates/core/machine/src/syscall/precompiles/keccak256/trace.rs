@@ -5,7 +5,7 @@ use p3_keccak_air::{generate_trace_rows, NUM_KECCAK_COLS, NUM_ROUNDS};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use p3_maybe_rayon::prelude::{ParallelIterator, ParallelSlice};
 use sp1_core_executor::{syscalls::SyscallCode, ExecutionRecord, Program};
-use sp1_stark::{air::MachineAir, ProvePhase};
+use sp1_stark::air::MachineAir;
 
 use super::{
     columns::{KeccakMemCols, NUM_KECCAK_MEM_COLS},
@@ -169,9 +169,5 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
 
     fn included_in_shard(&self, shard: &Self::Record) -> bool {
         !shard.keccak_permute_events.is_empty()
-    }
-
-    fn included_in_phase(&self, phase: ProvePhase) -> bool {
-        phase == ProvePhase::Phase2
     }
 }

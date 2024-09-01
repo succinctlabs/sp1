@@ -12,10 +12,7 @@ use p3_field::{extension::BinomiallyExtendable, PrimeField32};
 use p3_matrix::dense::RowMajorMatrix;
 use p3_maybe_rayon::prelude::{IndexedParallelIterator, ParallelIterator, ParallelSliceMut};
 use sp1_core_machine::utils::{next_power_of_two, par_for_each_row};
-use sp1_stark::{
-    air::{BinomialExtension, MachineAir},
-    ProvePhase,
-};
+use sp1_stark::air::{BinomialExtension, MachineAir};
 use tracing::instrument;
 
 use super::{CpuChip, CpuCols, NUM_CPU_COLS};
@@ -139,10 +136,6 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const L: usize> MachineAir<F> fo
     }
 
     fn included_in_shard(&self, _: &Self::Record) -> bool {
-        true
-    }
-
-    fn included_in_phase(&self, _: ProvePhase) -> bool {
         true
     }
 }

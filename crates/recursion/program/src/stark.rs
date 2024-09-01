@@ -402,7 +402,8 @@ pub(crate) mod tests {
         challenger_val.observe(vk.commit);
 
         proofs.iter().for_each(|proof| {
-            challenger_val.observe(proof.commitment.main_commit);
+            challenger_val.observe(proof.commitment.global_main_commit);
+            challenger_val.observe(proof.commitment.local_main_commit);
             challenger_val.observe_slice(&proof.public_values[0..machine.num_pv_elts()]);
         });
 

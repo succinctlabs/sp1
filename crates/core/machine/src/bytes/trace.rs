@@ -3,7 +3,7 @@ use std::borrow::BorrowMut;
 use p3_field::Field;
 use p3_matrix::dense::RowMajorMatrix;
 use sp1_core_executor::{ByteOpcode, ExecutionRecord, Program};
-use sp1_stark::{air::MachineAir, ProvePhase};
+use sp1_stark::air::MachineAir;
 
 use super::{
     columns::{ByteMultCols, NUM_BYTE_MULT_COLS, NUM_BYTE_PREPROCESSED_COLS},
@@ -62,9 +62,5 @@ impl<F: Field> MachineAir<F> for ByteChip<F> {
 
     fn included_in_shard(&self, _shard: &Self::Record) -> bool {
         true
-    }
-
-    fn included_in_phase(&self, phase: ProvePhase) -> bool {
-        phase == ProvePhase::Phase2
     }
 }

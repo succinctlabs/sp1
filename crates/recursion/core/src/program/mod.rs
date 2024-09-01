@@ -7,7 +7,7 @@ use p3_air::{Air, BaseAir, PairBuilder};
 use p3_field::PrimeField32;
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use sp1_core_machine::utils::pad_rows_fixed;
-use sp1_stark::{air::MachineAir, ProvePhase};
+use sp1_stark::air::MachineAir;
 use std::collections::HashMap;
 use tracing::instrument;
 
@@ -129,10 +129,6 @@ impl<F: PrimeField32> MachineAir<F> for ProgramChip {
     }
 
     fn included_in_shard(&self, _: &Self::Record) -> bool {
-        true
-    }
-
-    fn included_in_phase(&self, _: ProvePhase) -> bool {
         true
     }
 }

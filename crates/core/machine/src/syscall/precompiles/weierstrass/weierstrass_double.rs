@@ -22,10 +22,7 @@ use sp1_curves::{
     AffinePoint, CurveType, EllipticCurve,
 };
 use sp1_derive::AlignedBorrow;
-use sp1_stark::{
-    air::{InteractionScope, MachineAir, SP1AirBuilder},
-    ProvePhase,
-};
+use sp1_stark::air::{InteractionScope, MachineAir, SP1AirBuilder};
 
 use crate::{
     memory::{MemoryCols, MemoryWriteCols},
@@ -319,10 +316,6 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
             CurveType::Bls12381 => !shard.bls12381_double_events.is_empty(),
             _ => panic!("Unsupported curve"),
         }
-    }
-
-    fn included_in_phase(&self, phase: ProvePhase) -> bool {
-        phase == ProvePhase::Phase2
     }
 }
 

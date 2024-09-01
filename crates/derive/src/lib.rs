@@ -184,10 +184,10 @@ pub fn machine_air_derive(input: TokenStream) -> TokenStream {
                 }
             });
 
-            let included_in_phase_arms = variants.iter().map(|(variant_name, field)| {
+            let interaction_randomness_arms = variants.iter().map(|(variant_name, field)| {
                 let field_ty = &field.ty;
                 quote! {
-                    #name::#variant_name(x) => <#field_ty as sp1_stark::air::MachineAir<F>>::included_in_phase(x, phase)
+                    #name::#variant_name(x) => <#field_ty as sp1_stark::air::MachineAir<F>>::interaction_randomness(x)
                 }
             });
 
@@ -244,12 +244,11 @@ pub fn machine_air_derive(input: TokenStream) -> TokenStream {
                         }
                     }
 
-                    fn included_in_phase(&self, phase: ProvePhase) -> bool {
+                    fn interaction_randomness(&self) -> InteractionScope {
                         match self {
-                            #(#included_in_phase_arms,)*
+                            #(#interaction_randomness_arms,)*
                         }
                     }
-
                 }
             };
 

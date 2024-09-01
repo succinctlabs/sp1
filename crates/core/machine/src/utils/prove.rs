@@ -13,7 +13,7 @@ use p3_challenger::{CanObserve, FieldChallenger};
 use p3_maybe_rayon::prelude::*;
 use serde::{de::DeserializeOwned, Serialize};
 use size::Size;
-use sp1_stark::{baby_bear_poseidon2::BabyBearPoseidon2, MachineVerificationError};
+use sp1_stark::{air::InteractionScope, baby_bear_poseidon2::BabyBearPoseidon2, MachineVerificationError};
 use std::thread::ScopedJoinHandle;
 use thiserror::Error;
 
@@ -35,7 +35,7 @@ use sp1_core_executor::{
 use sp1_stark::{
     air::{MachineAir, PublicValues},
     Com, CpuProver, DebugConstraintBuilder, InteractionBuilder, MachineProof, MachineProver,
-    MachineRecord, OpeningProof, PcsProverData, ProverConstraintFolder, ProvePhase, SP1CoreOpts,
+    MachineRecord, OpeningProof, PcsProverData, ProverConstraintFolder, SP1CoreOpts,
     StarkGenericConfig, StarkMachine, StarkProvingKey, StarkVerifyingKey, UniConfig, Val,
     VerifierConstraintFolder,
 };
@@ -226,7 +226,7 @@ where
                             reset_seek(&mut checkpoint);
 
                             tracing::debug_span!("generate dependencies", index).in_scope(|| {
-                                prover.machine().generate_dependencies(&mut records, &opts, ProvePhase::Phase1);
+                                prover.machine().generate_dependencies(&mut records, &opts, InteractionScope::Global);
                             });
 
                             // Wait for our turn to update the state.
@@ -289,7 +289,7 @@ where
                                 traces = records
                                     .par_iter()
                                     .map(|record| {
-                                        prover.generate_traces(record, ProvePhase::Phase1)
+                                        prover.generate_traces(record, InteractionScope::Global)
                                     })
                                     .collect::<Vec<_>>();
                             });
@@ -325,7 +325,6 @@ where
         let mut challenger = prover.config().challenger();
         challenger.observe(pk.commit.clone());
         challenger.observe(pk.pc_start);
-        let mut phase1_commitments = Vec::new();
 
         // Spawn the phase 1 prover thread.
         let phase_1_prover_span = tracing::Span::current().clone();
@@ -378,13 +377,12 @@ where
                             commitments.iter().zip(public_values.into_iter())
                         {
                             prover.observe(&mut challenger, commit.clone(), &public_values);
-                            phase1_commitments.push(commit.clone());
                         }                        
                     });
                 }
             });
 
-            (challenger, phase1_commitments)
+            challenger
         });
 
         // Wait until the checkpoint generator handle has fully finished.
@@ -394,7 +392,7 @@ where
         p1_record_and_trace_gen_handles.into_iter().for_each(|handle| handle.join().unwrap());
 
         // Wait until the phase 1 prover has completely finished.
-        let (mut challenger, phase1_commitments) = phase_1_prover_handle.join().unwrap();
+        let mut challenger = phase_1_prover_handle.join().unwrap();
 
         // Sample for the global permutation challenges.
         // Obtain the challenges used for the global permutation argument.
@@ -407,7 +405,7 @@ where
         let p2_record_gen_sync = Arc::new(TurnBasedSync::new());
         let p2_trace_gen_sync = Arc::new(TurnBasedSync::new());
         let (p2_records_and_traces_tx, p2_records_and_traces_rx) =
-            sync_channel::<(Vec<ExecutionRecord>, Vec<Vec<(String, RowMajorMatrix<Val<SC>>)>>)>(
+            sync_channel::<(Vec<ExecutionRecord>, (Vec<Vec<(String, RowMajorMatrix<Val<SC>>)>>, Vec<Vec<(String, RowMajorMatrix<Val<SC>>)>>))>(
                 opts.records_and_traces_channel_capacity,
             );
         let p2_records_and_traces_tx = Arc::new(Mutex::new(p2_records_and_traces_tx));
@@ -447,7 +445,8 @@ where
 
                             // Generate the dependencies.
                             tracing::debug_span!("generate dependencies", index).in_scope(|| {
-                                prover.machine().generate_dependencies(&mut records, &opts, ProvePhase::Phase2)
+                                prover.machine().generate_dependencies(&mut records, &opts, InteractionScope::Global);
+                                prover.machine().generate_dependencies(&mut records, &opts, InteractionScope::Local);
                             });
 
                             // Wait for our turn to update the state.
@@ -504,25 +503,35 @@ where
                             all_records_tx.send(records.clone()).unwrap();
 
                             // Generate the traces.
-                            let mut traces = Vec::new();
-                            tracing::debug_span!("generate traces", index).in_scope(|| {
-                                traces = records
+                            let mut local_traces = Vec::new();
+                            tracing::debug_span!("generate local traces", index).in_scope(|| {
+                                local_traces = records
                                     .par_iter()
-                                    .map(|record| prover.generate_traces(record, ProvePhase::Phase2))
+                                    .map(|record| prover.generate_traces(record, InteractionScope::Local))
                                     .collect::<Vec<_>>();
                             });
 
+                            let mut global_traces = Vec::new();
+                            tracing::debug_span!("generate global traces", index).in_scope(|| {
+                                global_traces = records
+                                    .par_iter()
+                                    .map(|record| prover.generate_traces(record, InteractionScope::Global))
+                                    .collect::<Vec<_>>();
+                            });
+
+
                             trace_gen_sync.wait_for_turn(index);
 
-                            // Send the records to the phase 1 prover.
+                            // Send the records to the phase 2 prover.
                             let chunked_records = chunk_vec(records, opts.shard_batch_size);
-                            let chunked_traces = chunk_vec(traces, opts.shard_batch_size);
-                            chunked_records.into_iter().zip(chunked_traces).for_each(
-                                |(records, traces)| {
+                            let chunked_global_traces = chunk_vec(global_traces, opts.shard_batch_size);
+                            let chunked_local_traces = chunk_vec(local_traces, opts.shard_batch_size);
+                            chunked_records.into_iter().zip(chunked_global_traces.into_iter()).zip(chunked_local_traces.into_iter()).for_each(
+                                |((records, global_traces), local_traces)| {
                                     records_and_traces_tx
                                         .lock()
                                         .unwrap()
-                                        .send((records, traces))
+                                        .send((records, (global_traces, local_traces)))
                                         .unwrap();
                                 },
                             );
@@ -551,23 +560,18 @@ where
                         let span = tracing::Span::current().clone();
                         shard_proofs.par_extend(
                             records.into_par_iter().zip(traces.into_par_iter()).map(
-                                |(record, traces)| {
+                                |(record, (global_traces, local_traces))| {
                                     let _span = span.enter();
 
-                                    // Split the traces into the global and local chips.
-                                    let global_traces = traces
-                                        .iter()
-                                        .filter(|(name, _)| name.starts_with("Global"))
-                                        .map(|(_, trace)| trace.clone())
-                                        .collect::<Vec<_>>();
+                                    let global_data = prover.commit(&record, global_traces);
+                                    let local_data = prover.commit(&record, local_traces);
 
-                                    let data = prover.commit(&record, traces);
                                     prover
                                         .open(
                                             pk,
-                                            data,
+                                            global_data,
+                                            local_data,
                                             &mut challenger.clone(),
-                                            phase1_commitments[record.public_values.shard as usize - 1].clone(),
                                             &global_permutation_challenges,
                                         )
                                         .unwrap()

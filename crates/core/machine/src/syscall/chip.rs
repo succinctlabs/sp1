@@ -8,10 +8,7 @@ use p3_field::PrimeField32;
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use sp1_core_executor::{ExecutionRecord, Program};
 use sp1_derive::AlignedBorrow;
-use sp1_stark::{
-    air::{InteractionScope, MachineAir, SP1AirBuilder},
-    ProvePhase,
-};
+use sp1_stark::air::{InteractionScope, MachineAir, SP1AirBuilder};
 
 use crate::utils::pad_to_power_of_two;
 
@@ -98,8 +95,8 @@ impl<F: PrimeField32> MachineAir<F> for SyscallChip {
         !shard.syscall_events.is_empty()
     }
 
-    fn included_in_phase(&self, _: ProvePhase) -> bool {
-        true
+    fn interaction_randomness(&self) -> InteractionScope {
+        InteractionScope::Global
     }
 }
 

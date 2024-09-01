@@ -22,7 +22,7 @@ use crate::{
     DebugConstraintBuilder, MachineChip, MachineProof, PackedChallenge, PcsProverData,
     ProverConstraintFolder, ShardCommitment, ShardMainData, ShardProof, StarkVerifyingKey,
 };
-struct MergedProverDataItem<'a, M, P> {
+pub struct MergedProverDataItem<'a, M, P> {
     pub trace: &'a M,
     pub main_data: &'a P,
     pub main_data_idx: usize,
@@ -163,12 +163,14 @@ pub trait MachineProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>>:
     }
 
     /// Merge the global and local chips' sorted traces.
+    #[allow(clippy::type_complexity)]
     fn merge_shard_traces<'a, 'b>(
         &'a self,
         global_data: &'a ShardMainData<SC, Self::DeviceMatrix, Self::DeviceProverData>,
         local_data: &'a ShardMainData<SC, Self::DeviceMatrix, Self::DeviceProverData>,
     ) -> (
         HashMap<String, usize>,
+        HashMap<String, InteractionScope>,
         Vec<MergedProverDataItem<'b, Self::DeviceMatrix, Self::DeviceProverData>>,
     )
     where
@@ -256,11 +258,10 @@ where
         global_data: ShardMainData<SC, Self::DeviceMatrix, Self::DeviceProverData>,
         local_data: ShardMainData<SC, Self::DeviceMatrix, Self::DeviceProverData>,
         challenger: &mut <SC as StarkGenericConfig>::Challenger,
-        // phase1_main_commit: Com<SC>,
         global_permutation_challenges: &[SC::Challenge],
     ) -> Result<ShardProof<SC>, Self::Error> {
         // Merge the chip ordering and traces from the global and local data.
-        let (all_chips_ordering, all_shard_data) =
+        let (all_chips_ordering, all_chip_scopes, all_shard_data) =
             self.merge_shard_traces(&global_data, &local_data);
 
         let chips = self.machine().shard_chips_ordered(&all_chips_ordering).collect::<Vec<_>>();
@@ -477,14 +478,11 @@ where
         for (trace_opening_point, chip) in
             trace_opening_points.clone().into_iter().zip(chips.iter())
         {
-            if let Some(order) = global_data.chip_ordering.get(&chip.name()) {
-                assert!(global_trace_opening_points.len() == *order - 1);
+            let scope = all_chip_scopes.get(&chip.name()).expect("chip not found");
+            if *scope == InteractionScope::Global {
                 global_trace_opening_points.push(trace_opening_point);
-            } else if let Some(order) = local_data.chip_ordering.get(&chip.name()) {
-                assert!(local_trace_opening_points.len() == *order - 1);
-                local_trace_opening_points.push(trace_opening_point);
             } else {
-                unreachable!();
+                local_trace_opening_points.push(trace_opening_point);
             }
         }
 
@@ -588,6 +586,7 @@ where
             opened_values: ShardOpenedValues { chips: opened_values },
             opening_proof,
             chip_ordering: all_chips_ordering,
+            chip_scopes: all_chip_scopes,
             public_values: global_data.public_values,
         })
     }
@@ -663,6 +662,7 @@ where
         local_data: &'a ShardMainData<SC, Self::DeviceMatrix, Self::DeviceProverData>,
     ) -> (
         HashMap<String, usize>,
+        HashMap<String, InteractionScope>,
         Vec<MergedProverDataItem<'b, Self::DeviceMatrix, Self::DeviceProverData>>,
     )
     where
@@ -672,10 +672,18 @@ where
         let local_traces = &local_data.traces;
 
         // Get the sort order of the chips.
-        let global_chips =
-            global_data.chip_ordering.iter().sorted_by_key(|(_, &i)| i).collect::<Vec<_>>();
-        let local_chips =
-            local_data.chip_ordering.iter().sorted_by_key(|(_, &i)| i).collect::<Vec<_>>();
+        let global_chips = global_data
+            .chip_ordering
+            .iter()
+            .sorted_by_key(|(_, &i)| i)
+            .map(|chip| chip.0.clone())
+            .collect::<Vec<_>>();
+        let local_chips = local_data
+            .chip_ordering
+            .iter()
+            .sorted_by_key(|(_, &i)| i)
+            .map(|chip| chip.0.clone())
+            .collect::<Vec<_>>();
 
         let mut merged_chips = Vec::with_capacity(global_traces.len() + local_traces.len());
         let mut merged_prover_data = Vec::with_capacity(global_chips.len() + local_chips.len());
@@ -688,13 +696,16 @@ where
         let mut global_next = global_iter.next();
         let mut local_next = local_iter.next();
 
+        let mut chip_scopes: HashMap<String, InteractionScope> = HashMap::new();
+
         while global_next.is_some() || local_next.is_some() {
             match (global_next, local_next) {
                 (Some(global), Some(local)) => {
                     let (global_prover_data_idx, (global_trace, global_chip)) = global;
                     let (local_prover_data_idx, (local_trace, local_chip)) = local;
                     if global_trace.height() >= local_trace.height() {
-                        merged_chips.push(global_chip);
+                        merged_chips.push(global_chip.clone());
+                        chip_scopes.insert(global_chip.clone(), InteractionScope::Global);
                         merged_prover_data.push(MergedProverDataItem {
                             trace: global_trace,
                             main_data: &global_data.main_data,
@@ -702,7 +713,8 @@ where
                         });
                         global_next = global_iter.next();
                     } else {
-                        merged_chips.push(local_chip);
+                        merged_chips.push(local_chip.clone());
+                        chip_scopes.insert(local_chip.clone(), InteractionScope::Local);
                         merged_prover_data.push(MergedProverDataItem {
                             trace: local_trace,
                             main_data: &local_data.main_data,
@@ -713,7 +725,8 @@ where
                 }
                 (Some(global), None) => {
                     let (global_prover_data_idx, (global_trace, global_chip)) = global;
-                    merged_chips.push(global_chip);
+                    merged_chips.push(global_chip.clone());
+                    chip_scopes.insert(global_chip.clone(), InteractionScope::Global);
                     merged_prover_data.push(MergedProverDataItem {
                         trace: global_trace,
                         main_data: &global_data.main_data,
@@ -723,7 +736,8 @@ where
                 }
                 (None, Some(local)) => {
                     let (local_prover_data_idx, (local_trace, local_chip)) = local;
-                    merged_chips.push(local_chip);
+                    merged_chips.push(local_chip.clone());
+                    chip_scopes.insert(local_chip.clone(), InteractionScope::Local);
                     merged_prover_data.push(MergedProverDataItem {
                         trace: local_trace,
                         main_data: &local_data.main_data,
@@ -735,13 +749,10 @@ where
             }
         }
 
-        let chip_ordering = merged_chips
-            .iter()
-            .enumerate()
-            .map(|(i, (name, _))| (name.clone().clone(), i))
-            .collect();
+        let chip_ordering =
+            merged_chips.iter().enumerate().map(|(i, name)| (name.clone(), i)).collect();
 
-        (chip_ordering, merged_prover_data)
+        (chip_ordering, chip_scopes, merged_prover_data)
     }
 }
 

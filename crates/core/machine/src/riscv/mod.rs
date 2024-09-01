@@ -9,8 +9,8 @@ use p3_field::PrimeField32;
 pub use riscv_chips::*;
 use sp1_curves::weierstrass::{bls12_381::Bls12381BaseField, bn254::Bn254BaseField};
 use sp1_stark::{
-    air::{MachineAir, SP1_PROOF_NUM_PV_ELTS},
-    Chip, ProvePhase, StarkGenericConfig, StarkMachine,
+    air::{InteractionScope, MachineAir, SP1_PROOF_NUM_PV_ELTS},
+    Chip, StarkGenericConfig, StarkMachine,
 };
 use strum_macros::{EnumDiscriminants, EnumIter};
 use tracing::instrument;
