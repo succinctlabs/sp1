@@ -835,7 +835,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             self.wrap_prover.machine().verify(self.wrap_vk(), &wrap_proof, &mut wrap_challenger);
         match result {
             Ok(_) => tracing::info!("Proof verified successfully"),
-            Err(MachineVerificationError::NonZeroCumulativeSum) => {
+            Err(MachineVerificationError::NonZeroCumulativeSum(_, _)) => {
                 tracing::info!("Proof verification failed: NonZeroCumulativeSum")
             }
             e => panic!("Proof verification failed: {:?}", e),
