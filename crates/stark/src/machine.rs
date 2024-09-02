@@ -311,19 +311,30 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
         // Verify the cumulative sum is 0.
         tracing::debug_span!("verify cumulative sum is 0").in_scope(|| {
             let mut sum = SC::Challenge::zero();
-            let mut local_sum_failed = false;
-            for proof in proof.shard_proofs.iter() {
+            let mut local_err = None;
+            for (shard_num, proof) in proof.shard_proofs.iter().enumerate() {
                 sum += proof.cumulative_sum(InteractionScope::Global);
                 if !proof.cumulative_sum(InteractionScope::Local).is_zero() {
-                    local_sum_failed = true;
+                    local_err = Some(MachineVerificationError::NonZeroCumulativeSum(
+                        InteractionScope::Local,
+                        shard_num,
+                    ));
                     break;
                 }
             }
 
-            match sum.is_zero() && !local_sum_failed {
-                true => Ok(()),
-                false => Err(MachineVerificationError::NonZeroCumulativeSum),
+            if let Some(err) = local_err {
+                return Err(err);
             }
+
+            if !sum.is_zero() {
+                return Err(MachineVerificationError::NonZeroCumulativeSum(
+                    InteractionScope::Global,
+                    0,
+                ));
+            }
+
+            Ok(())
         })
     }
 
@@ -459,7 +470,7 @@ pub enum MachineVerificationError<SC: StarkGenericConfig> {
     /// An error occurred during the verification of a global proof.
     InvalidGlobalProof(VerificationError<SC>),
     /// The cumulative sum is non-zero.
-    NonZeroCumulativeSum,
+    NonZeroCumulativeSum(InteractionScope, usize),
     /// The public values digest is invalid.
     InvalidPublicValuesDigest,
     /// The debug interactions failed.
@@ -488,8 +499,8 @@ impl<SC: StarkGenericConfig> Debug for MachineVerificationError<SC> {
             MachineVerificationError::InvalidGlobalProof(e) => {
                 write!(f, "Invalid global proof: {:?}", e)
             }
-            MachineVerificationError::NonZeroCumulativeSum => {
-                write!(f, "Non-zero cumulative sum")
+            MachineVerificationError::NonZeroCumulativeSum(scope, shard) => {
+                write!(f, "Non-zero cumulative sum.  Scope: {}, Shard: {}", scope, shard)
             }
             MachineVerificationError::InvalidPublicValuesDigest => {
                 write!(f, "Invalid public values digest")
