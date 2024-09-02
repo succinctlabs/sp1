@@ -34,8 +34,7 @@ fn main() {
     let client = ProverClient::new();
 
     // Setup the proving key and verification key.
-    let (pk, vk) =
-        client.setup(include_bytes!("../../eth-program/elf/riscv32im-succinct-zkvm-elf"));
+    let (pk, vk) = client.setup(include_bytes!("../../program/elf/riscv32im-succinct-zkvm-elf"));
 
     // Write the block to the program's stdin.
     let mut stdin = SP1Stdin::new();
