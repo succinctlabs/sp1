@@ -317,7 +317,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
                 if !proof.cumulative_sum(InteractionScope::Local).is_zero() {
                     local_err = Some(MachineVerificationError::NonZeroCumulativeSum(
                         InteractionScope::Local,
-                        shard_num,
+                        shard_num + 1,
                     ));
                     break;
                 }

@@ -63,6 +63,8 @@ pub struct EllipticCurveDoubleEvent {
     pub p: Vec<u32>,
     /// The memory records for the point.
     pub p_memory_records: Vec<MemoryWriteRecord>,
+    /// The local memory access records.
+    pub local_mem_access: Vec<MemoryLocalEvent>,
 }
 
 /// Elliptic Curve Point Decompress Event.
@@ -90,6 +92,8 @@ pub struct EllipticCurveDecompressEvent {
     pub x_memory_records: Vec<MemoryReadRecord>,
     /// The memory records for the y coordinate.
     pub y_memory_records: Vec<MemoryWriteRecord>,
+    /// The local memory access records.
+    pub local_mem_access: Vec<MemoryLocalEvent>,
 }
 
 /// Create an elliptic curve add event. It takes two pointers to memory locations, reads the points
@@ -114,6 +118,8 @@ pub fn create_ec_add_event<E: EllipticCurve>(
 
     let num_words = <E::BaseField as NumWords>::WordsCurvePoint::USIZE;
 
+    let p = rt.slice_unsafe(p_ptr, num_words);
+
     for i in 0..num_words {
         let addr = q_ptr + i as u32 * 4;
         let local_mem_access = rt.rt.local_memory_access.remove(&addr);
@@ -122,8 +128,6 @@ pub fn create_ec_add_event<E: EllipticCurve>(
             rt.rt.record.local_memory_access.push(local_mem_access);
         }
     }
-
-    let p = rt.slice_unsafe(p_ptr, num_words);
 
     let (q_memory_records, q) = rt.mr_slice(q_ptr, num_words);
 
@@ -204,7 +208,25 @@ pub fn create_ec_double_event<E: EllipticCurve>(
 
     let result_words = result_affine.to_words_le();
 
+    for i in 0..result_words.len() {
+        let addr = p_ptr + i as u32 * 4;
+        let local_mem_access = rt.rt.local_memory_access.remove(&addr);
+
+        if let Some(local_mem_access) = local_mem_access {
+            rt.rt.record.local_memory_access.push(local_mem_access);
+        }
+    }
+
     let p_memory_records = rt.mw_slice(p_ptr, &result_words);
+
+    let mut ec_double_local_mem_access = Vec::new();
+    for i in 0..result_words.len() {
+        let addr = p_ptr + i as u32 * 4;
+        let local_mem_access =
+            rt.rt.local_memory_access.remove(&addr).expect("Expected local memory access");
+
+        ec_double_local_mem_access.push(local_mem_access);
+    }
 
     EllipticCurveDoubleEvent {
         lookup_id: rt.syscall_lookup_id,
@@ -214,6 +236,7 @@ pub fn create_ec_double_event<E: EllipticCurve>(
         p_ptr,
         p,
         p_memory_records,
+        local_mem_access: ec_double_local_mem_access,
     }
 }
 
@@ -233,8 +256,26 @@ pub fn create_ec_decompress_event<E: EllipticCurve>(
     let num_limbs = <E::BaseField as NumLimbs>::Limbs::USIZE;
     let num_words_field_element = num_limbs / 4;
 
+    for i in 0..num_words_field_element {
+        let addr = (slice_ptr + (num_limbs as u32)) + i as u32 * 4;
+        let local_mem_access = rt.rt.local_memory_access.remove(&addr);
+
+        if let Some(local_mem_access) = local_mem_access {
+            rt.rt.record.local_memory_access.push(local_mem_access);
+        }
+    }
+
     let (x_memory_records, x_vec) =
         rt.mr_slice(slice_ptr + (num_limbs as u32), num_words_field_element);
+
+    let mut ec_decompress_local_mem_access = Vec::new();
+    for i in 0..num_words_field_element {
+        let addr = (slice_ptr + (num_limbs as u32)) + i as u32 * 4;
+        let local_mem_access =
+            rt.rt.local_memory_access.remove(&addr).expect("Expected local memory access");
+
+        ec_decompress_local_mem_access.push(local_mem_access);
+    }
 
     let x_bytes = words_to_bytes_le_vec(&x_vec);
     let mut x_bytes_be = x_bytes.clone();
@@ -252,7 +293,22 @@ pub fn create_ec_decompress_event<E: EllipticCurve>(
     decompressed_y_bytes.resize(num_limbs, 0u8);
     let y_words = bytes_to_words_le_vec(&decompressed_y_bytes);
 
+    for i in 0..y_words.len() {
+        let addr = slice_ptr + i as u32 * 4;
+        let local_mem_access = rt.rt.local_memory_access.remove(&addr);
+
+        if let Some(local_mem_access) = local_mem_access {
+            rt.rt.record.local_memory_access.push(local_mem_access);
+        }
+    }
     let y_memory_records = rt.mw_slice(slice_ptr, &y_words);
+    for i in 0..y_words.len() {
+        let addr = slice_ptr + i as u32 * 4;
+        let local_mem_access =
+            rt.rt.local_memory_access.remove(&addr).expect("Expected local memory access");
+
+        ec_decompress_local_mem_access.push(local_mem_access);
+    }
 
     EllipticCurveDecompressEvent {
         lookup_id: rt.syscall_lookup_id,
@@ -265,5 +321,6 @@ pub fn create_ec_decompress_event<E: EllipticCurve>(
         decompressed_y_bytes,
         x_memory_records,
         y_memory_records,
+        local_mem_access: ec_decompress_local_mem_access,
     }
 }
