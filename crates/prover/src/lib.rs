@@ -364,6 +364,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
     }
 
     /// Reduce shards proofs to a single shard proof using the recursion prover.
+    #[instrument(name = "compress", level = "info", skip_all)]
     pub fn compress(
         &self,
         vk: &SP1VerifyingKey,
@@ -534,7 +535,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             let proofs_sync = Arc::new(TurnBasedSync::new());
             let (proofs_tx, proofs_rx) =
                 sync_channel::<(usize, usize, ShardProof<BabyBearPoseidon2>, ReduceProgramType)>(
-                    opts.recursion_opts.shard_batch_size,
+                    num_first_layer_inputs * 2,
                 );
             let proofs_tx = Arc::new(Mutex::new(proofs_tx));
             let proofs_rx = Arc::new(Mutex::new(proofs_rx));

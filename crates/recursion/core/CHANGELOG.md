@@ -20,7 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - *(deps)* bump arrayref from 0.3.7 to 0.3.8 ([#1154](https://github.com/succinctlabs/sp1/pull/1154))
 - add audit reports ([#1142](https://github.com/succinctlabs/sp1/pull/1142))
 
-## [1.0.0-rc.1](https://github.com/succinctlabs/sp1/compare/sp1-recursion-core-v1.0.0-rc.1...sp1-recursion-core-v1.0.0-rc.1) - 2024-07-19
+## [1.0.0-rc1](https://github.com/succinctlabs/sp1/compare/sp1-recursion-core-v1.0.0-rc1...sp1-recursion-core-v1.0.0-rc1) - 2024-07-19
 
 ### Added
 

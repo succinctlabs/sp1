@@ -37,13 +37,13 @@ type ExtensionVariable struct {
 
 type Chip struct {
 	api          frontend.API
-	rangeChecker frontend.Rangechecker
+	RangeChecker frontend.Rangechecker
 }
 
 func NewChip(api frontend.API) *Chip {
 	return &Chip{
 		api:          api,
-		rangeChecker: rangecheck.New(api),
+		RangeChecker: rangecheck.New(api),
 	}
 }
 
@@ -118,7 +118,7 @@ func (c *Chip) MulFConst(a Variable, b int) Variable {
 }
 
 func (c *Chip) negF(a Variable) Variable {
-	if a.NbBits <= 31 {
+	if a.NbBits <= 30 {
 		return Variable{Value: c.api.Sub(modulus, a.Value), NbBits: 31}
 	}
 
@@ -127,10 +127,10 @@ func (c *Chip) negF(a Variable) Variable {
 	divisorPlusOne := new(big.Int).Add(divisor, big.NewInt(1))
 	liftedModulus := new(big.Int).Mul(divisorPlusOne, modulus)
 
-	return Variable{
+	return c.reduceFast(Variable{
 		Value:  c.api.Sub(liftedModulus, a.Value),
-		NbBits: a.NbBits,
-	}
+		NbBits: a.NbBits + 1,
+	})
 }
 
 func (c *Chip) invF(in Variable) Variable {
@@ -143,6 +143,11 @@ func (c *Chip) invF(in Variable) Variable {
 	xinv := Variable{
 		Value:  result[0],
 		NbBits: 31,
+	}
+	if os.Getenv("GROTH16") != "1" {
+		c.RangeChecker.Check(result[0], 31)
+	} else {
+		c.api.ToBinary(result[0], 31)
 	}
 	product := c.MulF(in, xinv)
 	c.AssertIsEqualF(product, NewF("1"))
@@ -261,6 +266,17 @@ func (c *Chip) InvE(in ExtensionVariable) ExtensionVariable {
 	yinv := Variable{Value: result[1], NbBits: 31}
 	zinv := Variable{Value: result[2], NbBits: 31}
 	linv := Variable{Value: result[3], NbBits: 31}
+	if os.Getenv("GROTH16") != "1" {
+		c.RangeChecker.Check(result[0], 31)
+		c.RangeChecker.Check(result[1], 31)
+		c.RangeChecker.Check(result[2], 31)
+		c.RangeChecker.Check(result[3], 31)
+	} else {
+		c.api.ToBinary(result[0], 31)
+		c.api.ToBinary(result[1], 31)
+		c.api.ToBinary(result[2], 31)
+		c.api.ToBinary(result[3], 31)
+	}
 	out := ExtensionVariable{Value: [4]Variable{xinv, yinv, zinv, linv}}
 
 	product := c.MulE(in, out)
@@ -301,7 +317,7 @@ func (p *Chip) reduceFast(x Variable) Variable {
 }
 
 func (p *Chip) ReduceSlow(x Variable) Variable {
-	if x.NbBits <= 31 {
+	if x.NbBits <= 30 {
 		return x
 	}
 	return Variable{
@@ -311,7 +327,7 @@ func (p *Chip) ReduceSlow(x Variable) Variable {
 }
 
 func (p *Chip) reduceWithMaxBits(x frontend.Variable, maxNbBits uint64) frontend.Variable {
-	if maxNbBits <= 31 {
+	if maxNbBits <= 30 {
 		return x
 	}
 	result, err := p.api.Compiler().NewHint(ReduceHint, 2, x)
@@ -323,9 +339,9 @@ func (p *Chip) reduceWithMaxBits(x frontend.Variable, maxNbBits uint64) frontend
 	remainder := result[1]
 
 	if os.Getenv("GROTH16") != "1" {
-		p.rangeChecker.Check(quotient, int(maxNbBits-31))
+		p.RangeChecker.Check(quotient, int(maxNbBits-30))
 	} else {
-		p.api.ToBinary(quotient, int(maxNbBits-31))
+		p.api.ToBinary(quotient, int(maxNbBits-30))
 	}
 	// Check that the remainder has size less than the BabyBear modulus, by decomposing it into a 27
 	// bit limb and a 4 bit limb.
@@ -346,8 +362,8 @@ func (p *Chip) reduceWithMaxBits(x frontend.Variable, maxNbBits uint64) frontend
 		remainder,
 	)
 	if os.Getenv("GROTH16") != "1" {
-		p.rangeChecker.Check(highLimb, 4)
-		p.rangeChecker.Check(lowLimb, 27)
+		p.RangeChecker.Check(highLimb, 4)
+		p.RangeChecker.Check(lowLimb, 27)
 	} else {
 		p.api.ToBinary(highLimb, 4)
 		p.api.ToBinary(lowLimb, 27)

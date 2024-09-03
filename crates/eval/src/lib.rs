@@ -6,7 +6,7 @@ use serde_json::json;
 use slack_rust::chat::post_message::{post_message, PostMessageRequest};
 use slack_rust::http_client::default_client;
 use sp1_prover::{components::SP1ProverComponents, utils::get_cycles, SP1Prover};
-use sp1_sdk::SP1Context;
+use sp1_sdk::{SP1Context, SP1Stdin};
 use sp1_stark::SP1ProverOpts;
 use std::time::{Duration, Instant};
 
@@ -27,15 +27,23 @@ struct EvalArgs {
     #[arg(long)]
     pub shard_size: Option<usize>,
 
-    /// The Slack channel ID to post results to, only required if you want to post to Slack.
+    /// Whether to post results to Slack.
+    #[arg(long, default_missing_value="true", num_args=0..=1)]
+    pub post_to_slack: Option<bool>,
+
+    /// The Slack channel ID to post results to, only used if post_to_slack is true.
     #[arg(long)]
     pub slack_channel_id: Option<String>,
 
-    /// The Slack bot token to post results to, only used if slack_channel_id is set.
+    /// The Slack bot token to post results to, only used if post_to_slack is true.
     #[arg(long)]
     pub slack_token: Option<String>,
 
-    /// The GitHub token for authentication, only required if you want to post to GitHub.
+    /// Whether to post results to GitHub PR.
+    #[arg(long, default_missing_value="true", num_args=0..=1)]
+    pub post_to_github: Option<bool>,
+
+    /// The GitHub token for authentication, only used if post_to_github is true.
     #[arg(long)]
     pub github_token: Option<String>,
 
@@ -51,10 +59,6 @@ struct EvalArgs {
     #[arg(long)]
     pub pr_number: Option<String>,
 
-    /// The name of the pull request.
-    #[arg(long)]
-    pub pr_name: Option<String>,
-
     /// The name of the branch.
     #[arg(long)]
     pub branch_name: Option<String>,
@@ -68,8 +72,11 @@ struct EvalArgs {
     pub author: Option<String>,
 }
 
-pub async fn evaluate_performance<C: SP1ProverComponents>() -> Result<(), Box<dyn std::error::Error>>
-{
+pub async fn evaluate_performance<C: SP1ProverComponents>(
+    opts: SP1ProverOpts,
+) -> Result<(), Box<dyn std::error::Error>> {
+    println!("opts: {:?}", opts);
+
     let args = EvalArgs::parse();
 
     // Set environment variables to configure the prover.
@@ -87,13 +94,16 @@ pub async fn evaluate_performance<C: SP1ProverComponents>() -> Result<(), Box<dy
             .collect()
     };
 
+    sp1_sdk::utils::setup_logger();
+
     // Run the evaluations on each program.
     let mut reports = Vec::new();
     for program in &programs {
         println!("Evaluating program: {}", program.name);
-        let report = run_evaluation::<C>(program.name, program.elf, program.input);
+        let (elf, stdin) = load_program(program.elf, program.input);
+        let report = run_evaluation::<C>(program.name, &elf, &stdin, opts);
         reports.push(report);
-        println!("Program: {} completed", program.name);
+        println!("Finished Program: {}", program.name);
     }
 
     // Prepare and format the results.
@@ -105,18 +115,28 @@ pub async fn evaluate_performance<C: SP1ProverComponents>() -> Result<(), Box<dy
     println!("{}", results_text.join("\n"));
 
     // Post to Slack if applicable
-    for message in &results_text {
-        if let (Some(token), Some(channel)) = (&args.slack_token, &args.slack_channel_id) {
-            post_to_slack(token, channel, message).await?;
+    if args.post_to_slack.unwrap_or(false) {
+        match (&args.slack_token, &args.slack_channel_id) {
+            (Some(token), Some(channel)) => {
+                for message in &results_text {
+                    post_to_slack(token, channel, message).await?;
+                }
+            }
+            _ => println!("Warning: post_to_slack is true, required Slack arguments are missing."),
         }
     }
 
     // Post to GitHub PR if applicable
-    if let (Some(owner), Some(repo), Some(pr_number), Some(token)) =
-        (&args.repo_owner, &args.repo_name, &args.pr_number, &args.github_token)
-    {
-        let message = format_github_message(&results_text);
-        post_to_github_pr(owner, repo, pr_number, token, &message).await?;
+    if args.post_to_github.unwrap_or(false) {
+        match (&args.repo_owner, &args.repo_name, &args.pr_number, &args.github_token) {
+            (Some(owner), Some(repo), Some(pr_number), Some(token)) => {
+                let message = format_github_message(&results_text);
+                post_to_github_pr(owner, repo, pr_number, token, &message).await?;
+            }
+            _ => {
+                println!("Warning: post_to_github is true, required GitHub arguments are missing.")
+            }
+        }
     }
 
     // Exit with an error if any programs failed.
@@ -142,22 +162,21 @@ pub struct PerformanceReport {
 
 fn run_evaluation<C: SP1ProverComponents>(
     program_name: &str,
-    elf_path: &str,
-    input_path: &str,
+    elf: &[u8],
+    stdin: &SP1Stdin,
+    opts: SP1ProverOpts,
 ) -> PerformanceReport {
-    let (elf, stdin) = load_program(elf_path, input_path);
-    let cycles = get_cycles(&elf, &stdin);
+    let cycles = get_cycles(elf, stdin);
 
     let prover = SP1Prover::<C>::new();
-    let (pk, vk) = prover.setup(&elf);
+    let (pk, vk) = prover.setup(elf);
 
-    let opts = SP1ProverOpts::default();
     let context = SP1Context::default();
 
-    let (_, exec_duration) = time_operation(|| prover.execute(&elf, &stdin, context.clone()));
+    let (_, exec_duration) = time_operation(|| prover.execute(elf, stdin, context.clone()));
 
     let (core_proof, core_duration) =
-        time_operation(|| prover.prove_core(&pk, &stdin, opts, context).unwrap());
+        time_operation(|| prover.prove_core(&pk, stdin, opts, context).unwrap());
 
     let (_, compress_duration) =
         time_operation(|| prover.compress(&vk, core_proof, vec![], opts).unwrap());
@@ -177,9 +196,6 @@ fn run_evaluation<C: SP1ProverComponents>(
 
 fn format_results(args: &EvalArgs, results: &[PerformanceReport]) -> Vec<String> {
     let mut detail_text = String::new();
-    if let Some(pr_name) = &args.pr_name {
-        detail_text.push_str(&format!("*PR*: {}\n", pr_name));
-    }
     if let Some(branch_name) = &args.branch_name {
         detail_text.push_str(&format!("*Branch*: {}\n", branch_name));
     }
@@ -374,16 +390,17 @@ mod tests {
         let args = EvalArgs {
             programs: vec!["fibonacci".to_string(), "super-program".to_string()],
             shard_size: None,
+            post_to_slack: Some(false),
             slack_channel_id: None,
             slack_token: None,
-            pr_name: Some("Test PR".to_string()),
-            branch_name: Some("feature-branch".to_string()),
-            commit_hash: Some("abcdef1234567890".to_string()),
-            author: Some("John Doe".to_string()),
+            post_to_github: Some(true),
+            github_token: Some("abcdef1234567890".to_string()),
             repo_owner: Some("succinctlabs".to_string()),
             repo_name: Some("sp1".to_string()),
             pr_number: Some("123456".to_string()),
-            github_token: Some("abcdef1234567890".to_string()),
+            branch_name: Some("feature-branch".to_string()),
+            commit_hash: Some("abcdef1234567890".to_string()),
+            author: Some("John Doe".to_string()),
         };
 
         let formatted_results = format_results(&args, &dummy_reports);
@@ -394,7 +411,6 @@ mod tests {
 
         assert_eq!(formatted_results.len(), 3);
         assert!(formatted_results[0].contains("SP1 Performance Test Results"));
-        assert!(formatted_results[1].contains("*PR*: Test PR"));
         assert!(formatted_results[1].contains("*Branch*: feature-branch"));
         assert!(formatted_results[1].contains("*Commit*: abcdef12"));
         assert!(formatted_results[1].contains("*Author*: John Doe"));
