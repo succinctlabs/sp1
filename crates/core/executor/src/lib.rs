@@ -37,6 +37,7 @@ mod report;
 mod state;
 pub mod subproof;
 pub mod syscalls;
+mod utils;
 
 pub use context::*;
 pub use executor::*;

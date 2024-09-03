@@ -54,11 +54,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - generate dep optimizations ([#1125](https://github.com/succinctlabs/sp1/pull/1125))
 - add audit reports ([#1142](https://github.com/succinctlabs/sp1/pull/1142))
 
-## [1.0.0-rc.1](https://github.com/succinctlabs/sp1/compare/sp1-core-v1.0.0-rc.1...sp1-core-v1.0.0-rc.1) - 2024-07-19
+## [1.0.0-rc1](https://github.com/succinctlabs/sp1/compare/sp1-core-v1.0.0-rc1...sp1-core-v1.0.0-rc1) - 2024-07-19
 
 ### Added
 
-- 1.0.0-rc.1 ([#1126](https://github.com/succinctlabs/sp1/pull/1126))
+- 1.0.0-rc1 ([#1126](https://github.com/succinctlabs/sp1/pull/1126))
 - multi-threaded tracing ([#1124](https://github.com/succinctlabs/sp1/pull/1124))
 - parallel recursion tracegen ([#1095](https://github.com/succinctlabs/sp1/pull/1095))
 - publish sp1 to crates.io ([#1052](https://github.com/succinctlabs/sp1/pull/1052))

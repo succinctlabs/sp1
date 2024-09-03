@@ -4,6 +4,7 @@ use std::{
 };
 
 use hashbrown::HashMap;
+use nohash_hasher::BuildNoHashHasher;
 use serde::{Deserialize, Serialize};
 use sp1_stark::{baby_bear_poseidon2::BabyBearPoseidon2, ShardProof, StarkVerifyingKey};
 
@@ -12,6 +13,7 @@ use crate::{
     mmu::Mmu,
     record::{ExecutionRecord, MemoryAccessRecord},
     syscalls::SyscallCode,
+    utils::{deserialize_hashmap_as_vec, serialize_hashmap_as_vec},
     ExecutorMode,
 };
 
@@ -37,19 +39,15 @@ pub struct ExecutionState {
 
     /// The memory which instructions operate over. Values contain the memory value and last shard
     /// + timestamp that each memory address was accessed.
-    // #[serde(
-    //     serialize_with = "serialize_hashmap_as_vec",
-    //     deserialize_with = "deserialize_hashmap_as_vec"
-    // )]
     pub memory: Mmu,
 
     /// Uninitialized memory addresses that have a specific value they should be initialized with.
     /// `SyscallHintRead` uses this to write hint data into uninitialized memory.
-    // #[serde(
-    //     serialize_with = "serialize_hashmap_as_vec",
-    //     deserialize_with = "deserialize_hashmap_as_vec"
-    // )]
-    pub uninitialized_memory: HashMap<u32, u32>,
+    #[serde(
+        serialize_with = "serialize_hashmap_as_vec",
+        deserialize_with = "deserialize_hashmap_as_vec"
+    )]
+    pub uninitialized_memory: HashMap<u32, u32, BuildNoHashHasher<u32>>,
 
     /// A stream of input values (global to the entire program).
     pub input_stream: Vec<Vec<u8>>,
