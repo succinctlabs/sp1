@@ -84,10 +84,12 @@ impl Mmu {
 
     pub fn keys(&self) -> impl Iterator<Item = usize> + '_ {
         self.page_table.iter().flat_map(|(upper, page)| {
+            let upper = upper << LOG_PAGE_LEN;
             page.0
                 .iter()
                 .enumerate()
-                .filter_map(move |(lower, record)| record.is_some().then_some(upper + lower))
+                .filter(|(_, record)| record.is_some())
+                .map(move |(lower, _)| upper + lower)
         })
     }
 
