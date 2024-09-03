@@ -145,9 +145,9 @@ func (c *Chip) invF(in Variable) Variable {
 		NbBits: 31,
 	}
 	if os.Getenv("GROTH16") != "1" {
-		p.rangeChecker.Check(result[0], 31);
+		c.rangeChecker.Check(result[0], 31)
 	} else {
-		p.api.ToBinary(result[0], 31)
+		c.api.ToBinary(result[0], 31)
 	}
 	product := c.MulF(in, xinv)
 	c.AssertIsEqualF(product, NewF("1"))
@@ -267,15 +267,15 @@ func (c *Chip) InvE(in ExtensionVariable) ExtensionVariable {
 	zinv := Variable{Value: result[2], NbBits: 31}
 	linv := Variable{Value: result[3], NbBits: 31}
 	if os.Getenv("GROTH16") != "1" {
-		p.rangeChecker.Check(results[0], 31)
-		p.rangeChecker.Check(results[1], 31)
-		p.rangeChecker.Check(results[2], 31)
-		p.rangeChecker.Check(results[3], 31)
+		c.rangeChecker.Check(result[0], 31)
+		c.rangeChecker.Check(result[1], 31)
+		c.rangeChecker.Check(result[2], 31)
+		c.rangeChecker.Check(result[3], 31)
 	} else {
-		p.api.ToBinary(results[0], 31)
-		p.api.ToBinary(results[1], 31)
-		p.api.ToBinary(results[2], 31)
-		p.api.ToBinary(results[3], 31)
+		c.api.ToBinary(result[0], 31)
+		c.api.ToBinary(result[1], 31)
+		c.api.ToBinary(result[2], 31)
+		c.api.ToBinary(result[3], 31)
 	}
 	out := ExtensionVariable{Value: [4]Variable{xinv, yinv, zinv, linv}}
 
@@ -450,6 +450,6 @@ func InvEHint(_ *big.Int, inputs []*big.Int, results []*big.Int) error {
 	results[0].SetUint64(uint64(ainv))
 	results[1].SetUint64(uint64(binv))
 	results[2].SetUint64(uint64(cinv))
-	results[3].SetUint64(uint64(dinv))	
+	results[3].SetUint64(uint64(dinv))
 	return nil
 }

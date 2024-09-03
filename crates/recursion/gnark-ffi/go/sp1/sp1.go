@@ -79,6 +79,14 @@ func (circuit *Circuit) Define(api frontend.API) error {
 	felts := make(map[string]babybear.Variable)
 	exts := make(map[string]babybear.ExtensionVariable)
 
+	// Iterate through the witnesses and range check them, if necessary.
+	for i := 0; i < len(circuit.Felts); i++ {
+		fieldAPI.ReduceSlow(circuit.Felts[i])
+	}
+	for i := 0; i < len(circuit.Exts); i++ {
+		fieldAPI.ReduceE(circuit.Exts[i])
+	}
+
 	// Iterate through the instructions and handle each opcode.
 	for _, cs := range constraints {
 		switch cs.Opcode {
