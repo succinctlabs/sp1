@@ -118,7 +118,7 @@ func (c *Chip) MulFConst(a Variable, b int) Variable {
 }
 
 func (c *Chip) negF(a Variable) Variable {
-	if a.NbBits <= 31 {
+	if a.NbBits <= 30 {
 		return Variable{Value: c.api.Sub(modulus, a.Value), NbBits: 31}
 	}
 
@@ -127,10 +127,10 @@ func (c *Chip) negF(a Variable) Variable {
 	divisorPlusOne := new(big.Int).Add(divisor, big.NewInt(1))
 	liftedModulus := new(big.Int).Mul(divisorPlusOne, modulus)
 
-	return Variable{
+	return c.reduceFast(Variable{
 		Value:  c.api.Sub(liftedModulus, a.Value),
-		NbBits: a.NbBits,
-	}
+		NbBits: a.NbBits + 1,
+	})
 }
 
 func (c *Chip) invF(in Variable) Variable {
@@ -143,6 +143,11 @@ func (c *Chip) invF(in Variable) Variable {
 	xinv := Variable{
 		Value:  result[0],
 		NbBits: 31,
+	}
+	if os.Getenv("GROTH16") != "1" {
+		p.rangeChecker.Check(result[0], 31);
+	} else {
+		p.api.ToBinary(result[0], 31)
 	}
 	product := c.MulF(in, xinv)
 	c.AssertIsEqualF(product, NewF("1"))
@@ -261,6 +266,17 @@ func (c *Chip) InvE(in ExtensionVariable) ExtensionVariable {
 	yinv := Variable{Value: result[1], NbBits: 31}
 	zinv := Variable{Value: result[2], NbBits: 31}
 	linv := Variable{Value: result[3], NbBits: 31}
+	if os.Getenv("GROTH16") != "1" {
+		p.rangeChecker.Check(results[0], 31)
+		p.rangeChecker.Check(results[1], 31)
+		p.rangeChecker.Check(results[2], 31)
+		p.rangeChecker.Check(results[3], 31)
+	} else {
+		p.api.ToBinary(results[0], 31)
+		p.api.ToBinary(results[1], 31)
+		p.api.ToBinary(results[2], 31)
+		p.api.ToBinary(results[3], 31)
+	}
 	out := ExtensionVariable{Value: [4]Variable{xinv, yinv, zinv, linv}}
 
 	product := c.MulE(in, out)
@@ -301,7 +317,7 @@ func (p *Chip) reduceFast(x Variable) Variable {
 }
 
 func (p *Chip) ReduceSlow(x Variable) Variable {
-	if x.NbBits <= 31 {
+	if x.NbBits <= 30 {
 		return x
 	}
 	return Variable{
@@ -323,9 +339,9 @@ func (p *Chip) reduceWithMaxBits(x frontend.Variable, maxNbBits uint64) frontend
 	remainder := result[1]
 
 	if os.Getenv("GROTH16") != "1" {
-		p.rangeChecker.Check(quotient, int(maxNbBits-31))
+		p.rangeChecker.Check(quotient, int(maxNbBits-30))
 	} else {
-		p.api.ToBinary(quotient, int(maxNbBits-31))
+		p.api.ToBinary(quotient, int(maxNbBits-30))
 	}
 	// Check that the remainder has size less than the BabyBear modulus, by decomposing it into a 27
 	// bit limb and a 4 bit limb.
@@ -434,6 +450,6 @@ func InvEHint(_ *big.Int, inputs []*big.Int, results []*big.Int) error {
 	results[0].SetUint64(uint64(ainv))
 	results[1].SetUint64(uint64(binv))
 	results[2].SetUint64(uint64(cinv))
-	results[3].SetUint64(uint64(dinv))
+	results[3].SetUint64(uint64(dinv))	
 	return nil
 }
