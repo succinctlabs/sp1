@@ -16,9 +16,9 @@ pub struct CreateProofRequest {
     /// The deadline for the proof request, signifying the latest time a fulfillment would be valid.
     #[prost(uint64, tag = "4")]
     pub deadline: u64,
-    /// The client version used, in the form of an 8-character git commit hash.
+    /// The SP1 circuit version to use for the proof.
     #[prost(string, tag = "5")]
-    pub version: ::prost::alloc::string::String,
+    pub circuit_version: ::prost::alloc::string::String,
 }
 /// The response for creating a proof.
 #[derive(serde::Serialize, serde::Deserialize)]
