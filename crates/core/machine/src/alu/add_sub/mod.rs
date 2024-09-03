@@ -92,8 +92,8 @@ impl<F: PrimeField> MachineAir<F> for AddSubChip {
                         let mut row = [F::zero(); NUM_ADD_SUB_COLS];
                         let cols: &mut AddSubCols<F> = row.as_mut_slice().borrow_mut();
                         let mut blu = Vec::new();
-                        //self.event_to_row(event, cols, &mut blu);
-                        self.event_to_row_alt(event, cols, &mut blu);
+                        self.event_to_row(event, cols, &mut blu);
+                        //self.event_to_row_alt(event, cols, &mut blu);
                         //self.event_to_row2(event, cols, &mut blu);
                         row
                     })
