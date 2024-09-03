@@ -205,7 +205,7 @@ jobs:
 
       - name: Run script
         run: |
-          cd examples/tendermint/program
+          cd examples/rsp/program
           cargo add sp1-zkvm --path $GITHUB_WORKSPACE/crates/zkvm/entrypoint
           cargo prove build
           cd ../script
