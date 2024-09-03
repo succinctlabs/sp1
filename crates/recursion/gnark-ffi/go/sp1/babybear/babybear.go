@@ -327,7 +327,7 @@ func (p *Chip) ReduceSlow(x Variable) Variable {
 }
 
 func (p *Chip) reduceWithMaxBits(x frontend.Variable, maxNbBits uint64) frontend.Variable {
-	if maxNbBits <= 31 {
+	if maxNbBits <= 30 {
 		return x
 	}
 	result, err := p.api.Compiler().NewHint(ReduceHint, 2, x)
