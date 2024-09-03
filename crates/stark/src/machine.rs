@@ -271,9 +271,9 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
         // Observe the preprocessed commitment.
         vk.observe_into(challenger);
         tracing::debug_span!("observe challenges for all shards").in_scope(|| {
-            proof.shard_proofs.iter().for_each(|proof| {
-                challenger.observe(proof.commitment.global_main_commit.clone());
-                challenger.observe_slice(&proof.public_values[0..self.num_pv_elts()]);
+            proof.shard_proofs.iter().for_each(|shard_proof| {
+                challenger.observe(shard_proof.commitment.global_main_commit.clone());
+                challenger.observe_slice(&shard_proof.public_values[0..self.num_pv_elts()]);
             });
         });
 

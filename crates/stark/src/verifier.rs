@@ -156,11 +156,11 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
         // Split the main_domains_points_and_opens to the global and local chips.
         let mut global_trace_points_and_openings = Vec::new();
         let mut local_trace_points_and_openings = Vec::new();
-        for (points_and_openings, chip) in
-            main_domains_points_and_opens.clone().into_iter().zip(chips.iter())
+        for (i, points_and_openings) in
+            main_domains_points_and_opens.clone().into_iter().enumerate()
         {
-            let scope = chip_scopes.get(&chip.name()).expect("chip not found");
-            if *scope == InteractionScope::Global {
+            let scope = chip_scopes[i];
+            if scope == InteractionScope::Global {
                 global_trace_points_and_openings.push(points_and_openings);
             } else {
                 local_trace_points_and_openings.push(points_and_openings);

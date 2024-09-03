@@ -171,7 +171,7 @@ pub trait MachineProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>>:
         local_chip_ordering: &'b HashMap<String, usize>,
     ) -> (
         HashMap<String, usize>,
-        HashMap<String, InteractionScope>,
+        Vec<InteractionScope>,
         Vec<MergedProverDataItem<'b, Self::DeviceMatrix>>,
     )
     where
@@ -200,7 +200,7 @@ pub trait MachineProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>>:
         let mut global_next = global_iter.next();
         let mut local_next = local_iter.next();
 
-        let mut chip_scopes: HashMap<String, InteractionScope> = HashMap::new();
+        let mut chip_scopes = Vec::new();
 
         while global_next.is_some() || local_next.is_some() {
             match (global_next, local_next) {
@@ -209,7 +209,7 @@ pub trait MachineProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>>:
                     let (local_prover_data_idx, (local_trace, local_chip)) = local;
                     if global_trace.height() >= local_trace.height() {
                         merged_chips.push(global_chip.clone());
-                        chip_scopes.insert(global_chip.clone(), InteractionScope::Global);
+                        chip_scopes.push(InteractionScope::Global);
                         merged_prover_data.push(MergedProverDataItem {
                             trace: global_trace,
                             main_data_idx: global_prover_data_idx,
@@ -217,7 +217,7 @@ pub trait MachineProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>>:
                         global_next = global_iter.next();
                     } else {
                         merged_chips.push(local_chip.clone());
-                        chip_scopes.insert(local_chip.clone(), InteractionScope::Local);
+                        chip_scopes.push(InteractionScope::Local);
                         merged_prover_data.push(MergedProverDataItem {
                             trace: local_trace,
                             main_data_idx: local_prover_data_idx,
@@ -228,7 +228,7 @@ pub trait MachineProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>>:
                 (Some(global), None) => {
                     let (global_prover_data_idx, (global_trace, global_chip)) = global;
                     merged_chips.push(global_chip.clone());
-                    chip_scopes.insert(global_chip.clone(), InteractionScope::Global);
+                    chip_scopes.push(InteractionScope::Global);
                     merged_prover_data.push(MergedProverDataItem {
                         trace: global_trace,
                         main_data_idx: global_prover_data_idx,
@@ -238,7 +238,7 @@ pub trait MachineProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>>:
                 (None, Some(local)) => {
                     let (local_prover_data_idx, (local_trace, local_chip)) = local;
                     merged_chips.push(local_chip.clone());
-                    chip_scopes.insert(local_chip.clone(), InteractionScope::Local);
+                    chip_scopes.push(InteractionScope::Local);
                     merged_prover_data.push(MergedProverDataItem {
                         trace: local_trace,
                         main_data_idx: local_prover_data_idx,
@@ -495,9 +495,8 @@ where
                                         quotient_domain.size()
                                     ])
                                 });
-                            let scope =
-                                all_chip_scopes.get(&chips[i].name()).expect("expected chip entry");
-                            let main_data = if *scope == InteractionScope::Global {
+                            let scope = all_chip_scopes[i];
+                            let main_data = if scope == InteractionScope::Global {
                                 &global_main_data
                             } else {
                                 &local_main_data
@@ -582,11 +581,9 @@ where
         // Split the trace_opening_points to the global and local chips.
         let mut global_trace_opening_points = Vec::with_capacity(global_chip_ordering.len());
         let mut local_trace_opening_points = Vec::with_capacity(local_chip_ordering.len());
-        for (trace_opening_point, chip) in
-            trace_opening_points.clone().into_iter().zip(chips.iter())
-        {
-            let scope = all_chip_scopes.get(&chip.name()).expect("chip not found");
-            if *scope == InteractionScope::Global {
+        for (i, trace_opening_point) in trace_opening_points.clone().into_iter().enumerate() {
+            let scope = all_chip_scopes[i];
+            if scope == InteractionScope::Global {
                 global_trace_opening_points.push(trace_opening_point);
             } else {
                 local_trace_opening_points.push(trace_opening_point);
