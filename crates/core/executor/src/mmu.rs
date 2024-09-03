@@ -1,4 +1,3 @@
-#![warn(clippy::pedantic)]
 use std::mem::{replace, size_of};
 
 use serde::{Deserialize, Serialize};
@@ -15,7 +14,7 @@ pub const LOG_PAGE_LEN: usize =
 pub const PAGE_LEN: usize = 1 << LOG_PAGE_LEN;
 /// The mask for retrieving the lowest bits necessary to index within a page.
 pub const PAGE_MASK: usize = PAGE_LEN - 1;
-
+/// The maximum number of pages. Used for the length of the page table.
 pub const MAX_PAGE_COUNT: usize = 1 << (u32::BITS as usize - LOG_PAGE_LEN);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
