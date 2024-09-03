@@ -1,7 +1,7 @@
 pub mod opcodes;
 
 use core::fmt::Debug;
-use p3_field::{AbstractExtensionField, Field, PrimeField};
+use p3_field::{AbstractExtensionField, PrimeField};
 use serde::{Deserialize, Serialize};
 use std::marker::PhantomData;
 
