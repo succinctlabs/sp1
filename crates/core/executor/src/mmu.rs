@@ -2,7 +2,6 @@ use std::mem::size_of;
 
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
-use vec_map::VecMap;
 
 use crate::events::MemoryRecord;
 
@@ -15,11 +14,11 @@ pub const MAX_PAGE_COUNT: usize = 1 << (u32::BITS as usize - LOG_BLOCK_LEN);
 
 #[serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Page(VecMap<MemoryRecord>);
+pub struct Page(#[serde_as(as = "Box<[_; BLOCK_LEN]>")] Box<[Option<MemoryRecord>; BLOCK_LEN]>);
 
 impl Default for Page {
     fn default() -> Self {
-        Self(VecMap::with_capacity(BLOCK_LEN))
+        Self(Box::new([None; BLOCK_LEN]))
     }
 }
 
@@ -46,29 +45,35 @@ pub mod vecmap_mmu {
 
         pub fn get(&self, index: usize) -> Option<&MemoryRecord> {
             let (upper, lower) = Self::split_index(index);
-            self.page_table.get(upper)?.0.get(lower)
+            self.page_table.get(upper)?.0[lower].as_ref()
         }
 
         pub fn get_mut(&mut self, index: usize) -> Option<&mut MemoryRecord> {
             let (upper, lower) = Self::split_index(index);
-            self.page_table.get_mut(upper)?.0.get_mut(lower)
+            self.page_table.get_mut(upper)?.0[lower].as_mut()
         }
 
-        pub fn insert(&mut self, index: usize, value: MemoryRecord) -> Option<MemoryRecord> {
+        pub fn insert(&mut self, index: usize, value: MemoryRecord) {
             let (upper, lower) = Self::split_index(index);
-            self.page_table.entry(upper).or_insert_with(Page::default).0.insert(lower, value)
+            if let Some(block) = self.page_table.get_mut(upper) {
+                block.0[lower] = Some(value);
+            } else {
+                let mut new_block = Page::default();
+                new_block.0[lower] = Some(value);
+                self.page_table.insert(upper, new_block);
+            }
         }
 
         pub fn remove(&mut self, index: usize) -> Option<MemoryRecord> {
             let (upper, lower) = Self::split_index(index);
-            self.page_table.get_mut(upper)?.0.remove(lower)
+            take(&mut self.page_table.get_mut(upper)?.0[lower])
         }
 
         pub fn entry(&mut self, index: usize) -> Entry<'_> {
             let (upper, lower) = Self::split_index(index);
             let page_table_entry = self.page_table.entry(upper);
             if let vec_map::Entry::Occupied(occ_entry) = page_table_entry {
-                if occ_entry.get().0.contains_key(lower) {
+                if occ_entry.get().0[lower].is_some() {
                     Entry::Occupied(OccupiedEntry { lower, page_table_occupied_entry: occ_entry })
                 } else {
                     Entry::Vacant(VacantEntry {
@@ -82,9 +87,12 @@ pub mod vecmap_mmu {
         }
 
         pub fn keys(&self) -> impl Iterator<Item = usize> + '_ {
-            self.page_table
-                .iter()
-                .flat_map(|(upper, page)| page.0.iter().map(move |(lower, _)| upper + lower))
+            self.page_table.iter().flat_map(|(upper, page)| {
+                page.0
+                    .iter()
+                    .enumerate()
+                    .filter_map(move |(lower, record)| record.is_some().then_some(upper + lower))
+            })
         }
 
         #[inline]
@@ -106,21 +114,8 @@ pub mod vecmap_mmu {
     impl<'a> VacantEntry<'a> {
         pub fn insert(self, value: MemoryRecord) -> &'a mut MemoryRecord {
             // By construction, the slot in the page is `None`.
-            match self
-                .page_table_entry
-                .or_insert_with(Default::default)
-                .0
-                .entry(self.index & BLOCK_MASK)
-            {
-                vec_map::Entry::Vacant(entry) => entry.insert(value),
-                vec_map::Entry::Occupied(entry) => {
-                    panic!(
-                        "entry at {} should be vacant, but found {:?}",
-                        self.index,
-                        entry.into_mut()
-                    )
-                }
-            }
+            self.page_table_entry.or_insert_with(Default::default).0[self.index & BLOCK_MASK]
+                .insert(value)
         }
 
         pub fn into_key(self) -> usize {
@@ -139,11 +134,11 @@ pub mod vecmap_mmu {
 
     impl<'a> OccupiedEntry<'a> {
         pub fn get(&self) -> &MemoryRecord {
-            self.page_table_occupied_entry.get().0.get(self.lower).unwrap()
+            self.page_table_occupied_entry.get().0[self.lower].as_ref().unwrap()
         }
 
         pub fn get_mut(&mut self) -> &mut MemoryRecord {
-            self.page_table_occupied_entry.get_mut().0.get_mut(self.lower).unwrap()
+            self.page_table_occupied_entry.get_mut().0[self.lower].as_mut().unwrap()
         }
 
         pub fn insert(&mut self, value: MemoryRecord) -> MemoryRecord {
@@ -151,11 +146,11 @@ pub mod vecmap_mmu {
         }
 
         pub fn into_mut(self) -> &'a mut MemoryRecord {
-            self.page_table_occupied_entry.into_mut().0.get_mut(self.lower).unwrap()
+            self.page_table_occupied_entry.into_mut().0[self.lower].as_mut().unwrap()
         }
 
         pub fn remove(mut self) -> MemoryRecord {
-            self.page_table_occupied_entry.get_mut().0.remove(self.lower).unwrap()
+            self.page_table_occupied_entry.get_mut().0[self.lower].take().unwrap()
         }
     }
 
