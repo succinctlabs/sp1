@@ -114,15 +114,15 @@ impl NetworkClient {
         Ok((res, proof))
     }
 
-    /// Get all the proof requests for a given status.
+    /// Get all the proof requests for a given status. Also filter by circuit version if provided.
     pub async fn get_proof_requests(
         &self,
         status: ProofStatus,
-        circuit_version: Option<String>,
+        circuit_version: Option<&str>,
     ) -> Result<GetProofRequestsResponse> {
         self.with_error_handling(self.rpc.get_proof_requests(GetProofRequestsRequest {
             status: status.into(),
-            circuit_version: circuit_version.map(|v| v.to_string()),
+            circuit_version: circuit_version.map(|v| v.to_owned()),
         }))
         .await
     }
