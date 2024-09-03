@@ -270,10 +270,20 @@ jobs:
             --commit-hash "${{ github.sha }}" \
             --author "${{ github.event.pull_request.user.login || github.actor }}"
 
-  # Runs on a c7a.2xlarge machine, which only has 16GiB memory. 
-  memory:
-    name: Memory
-    runs-on: [runs-on, family=c7a.2xlarge, "run-id=${{ github.run_id }}"]
+  low-memory:
+    name: Low Memory
+    strategy: 
+      matrix:
+        mem_limit: [16, 32, 64]
+    runs-on:
+      [
+        runs-on,
+        "ram=${{ matrix.mem_limit}}",
+        family=c7a,
+        image=ubuntu22-full-x64,
+        spot=false,
+        "run-id=${{ github.run_id }}",
+      ]
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
