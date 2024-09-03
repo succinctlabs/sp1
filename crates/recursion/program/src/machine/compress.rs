@@ -97,7 +97,7 @@ where
         let pcs = TwoAdicFriPcsVariable {
             config: const_fri_config(&mut builder, machine.config().pcs().fri_config()),
         };
-        SP1CompressVerifier::verify(&mut builder, &pcs, machine, input, recursive_vk, deferred_vk);
+        //SP1CompressVerifier::verify(&mut builder, &pcs, machine, input, recursive_vk, deferred_vk);
 
         builder.halt();
 

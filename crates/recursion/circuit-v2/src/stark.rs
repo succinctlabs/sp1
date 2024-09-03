@@ -13,7 +13,7 @@ use p3_commit::PolynomialSpace;
 
 use sp1_recursion_compiler::{
     circuit::CircuitV2Builder,
-    ir::{Builder, Config, Ext},
+    ir::{Builder, Config, Ext, Var},
     prelude::Felt,
 };
 use sp1_stark::{air::MachineAir, StarkGenericConfig, StarkMachine, StarkVerifyingKey};
@@ -31,7 +31,7 @@ use crate::{
 /// Reference: [sp1_core::stark::ShardProof]
 #[derive(Clone)]
 pub struct ShardProofVariable<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVariable<C>> {
-    pub commitment: ShardCommitment<SC::Digest>,
+    pub commitment: ShardCommitment<SC::Digest, C::Bit>,
     pub opened_values: ShardOpenedValues<Ext<C::F, C::EF>>,
     pub opening_proof: TwoAdicPcsProofVariable<C, SC>,
     pub chip_ordering: HashMap<String, usize>,

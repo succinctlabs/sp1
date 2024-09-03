@@ -123,7 +123,7 @@ pub struct RecursionPublicValues<T> {
     pub leaf_challenger: ChallengerPublicValues<T>,
 
     /// Current cumulative sum of lookup bus.
-    pub cumulative_sum: [T; 4],
+    pub global_cumulative_sum: [T; 4],
 
     /// Whether the proof completely proves the program execution.
     pub is_complete: T,

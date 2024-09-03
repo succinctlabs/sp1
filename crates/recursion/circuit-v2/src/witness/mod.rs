@@ -148,16 +148,20 @@ where
     }
 }
 
-impl<C: CircuitConfig, T: Witnessable<C>> Witnessable<C> for ShardCommitment<T> {
-    type WitnessVariable = ShardCommitment<T::WitnessVariable>;
+impl<C: CircuitConfig, T: Witnessable<C>, F: Witnessable<C>> Witnessable<C>
+    for ShardCommitment<T, F>
+{
+    type WitnessVariable = ShardCommitment<T::WitnessVariable, F::WitnessVariable>;
 
     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
         let global_main_commit = self.global_main_commit.read(builder);
+        let has_global_main_commit = self.has_global_main_commit.read(builder);
         let local_main_commit = self.local_main_commit.read(builder);
         let permutation_commit = self.permutation_commit.read(builder);
         let quotient_commit = self.quotient_commit.read(builder);
         Self::WitnessVariable {
             global_main_commit,
+            has_global_main_commit,
             local_main_commit,
             permutation_commit,
             quotient_commit,
@@ -166,6 +170,7 @@ impl<C: CircuitConfig, T: Witnessable<C>> Witnessable<C> for ShardCommitment<T> 
 
     fn write(&self, witness: &mut impl WitnessWriter<C>) {
         self.global_main_commit.write(witness);
+        self.has_global_main_commit.write(witness);
         self.local_main_commit.write(witness);
         self.permutation_commit.write(witness);
         self.quotient_commit.write(witness);

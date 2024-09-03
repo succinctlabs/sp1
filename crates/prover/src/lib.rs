@@ -455,6 +455,9 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                             )
                             .in_scope(|| match input {
                                 SP1CompressMemoryLayouts::Core(input) => {
+                                    for proof in input.shard_proofs.iter() {
+                                        println!("proof scopes: {:?}", proof.chip_scopes);
+                                    }
                                     let mut witness_stream = Vec::new();
                                     witness_stream.extend(input.write());
                                     (
@@ -483,6 +486,8 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                                 }
                             });
 
+                            println!("wrote the witness stream");
+
                             // Execute the runtime.
                             let record = tracing::debug_span!("execute runtime").in_scope(|| {
                                 let mut runtime =
@@ -500,6 +505,8 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                                 runtime.record
                             });
 
+                            println!("ran the runtime");
+
                             // Generate the dependencies.
                             let mut records = vec![record];
                             tracing::debug_span!("generate dependencies").in_scope(|| {
@@ -510,12 +517,16 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                                 )
                             });
 
+                            println!("generated the dependencies");
+
                             // Generate the traces.
                             let record = records.into_iter().next().unwrap();
                             let traces = tracing::debug_span!("generate traces").in_scope(|| {
                                 self.compress_prover
                                     .generate_traces(&record, InteractionScope::Local)
                             });
+
+                            println!("generated the traces");
 
                             // Wait for our turn to update the state.
                             record_and_trace_sync.wait_for_turn(index);
@@ -583,8 +594,6 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                                     );
                                 });
 
-                                let main_commit = data.main_commit;
-
                                 // Generate the proof.
                                 let proof = tracing::debug_span!("open").in_scope(|| {
                                     self.compress_prover
@@ -593,7 +602,10 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                                             None,
                                             data,
                                             &mut challenger,
-                                            &[SC::Challenge::zero(), SC::Challenge::zero()],
+                                            &[
+                                                <BabyBearPoseidon2 as StarkGenericConfig>::Challenge::zero(),
+                                                <BabyBearPoseidon2 as StarkGenericConfig>::Challenge::zero(),
+                                            ],
                                         )
                                         .unwrap()
                                 });

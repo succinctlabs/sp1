@@ -272,9 +272,8 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
         vk.observe_into(challenger);
         tracing::debug_span!("observe challenges for all shards").in_scope(|| {
             proof.shard_proofs.iter().for_each(|shard_proof| {
-                if let Some(global_main_commit) = shard_proof.commitment.global_main_commit.clone()
-                {
-                    challenger.observe(global_main_commit);
+                if shard_proof.commitment.has_global_main_commit {
+                    challenger.observe(shard_proof.commitment.global_main_commit.clone());
                 }
                 challenger.observe_slice(&shard_proof.public_values[0..self.num_pv_elts()]);
             });

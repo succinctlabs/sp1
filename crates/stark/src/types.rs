@@ -32,8 +32,9 @@ impl<SC: StarkGenericConfig, M, P> ShardMainData<SC, M, P> {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ShardCommitment<C> {
-    pub global_main_commit: Option<C>,
+pub struct ShardCommitment<C, F> {
+    pub global_main_commit: C,
+    pub has_global_main_commit: F,
     pub local_main_commit: C,
     pub permutation_commit: C,
     pub quotient_commit: C,
@@ -69,7 +70,7 @@ pub const PROOF_MAX_NUM_PVS: usize = 370;
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(bound = "")]
 pub struct ShardProof<SC: StarkGenericConfig> {
-    pub commitment: ShardCommitment<Com<SC>>,
+    pub commitment: ShardCommitment<Com<SC>, bool>,
     pub opened_values: ShardOpenedValues<Challenge<SC>>,
     pub opening_proof: OpeningProof<SC>,
     pub chip_ordering: HashMap<String, usize>,

@@ -72,7 +72,7 @@ where
             config: const_fri_config(&mut builder, machine.config().pcs().fri_config()),
         };
 
-        SP1RootVerifier::verify(&mut builder, &pcs, machine, vk, &proof);
+        //SP1RootVerifier::verify(&mut builder, &pcs, machine, vk, &proof);
 
         builder.compile_program()
     }

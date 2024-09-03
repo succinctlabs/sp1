@@ -49,6 +49,7 @@ pub struct VerifyingKeyVariable<C: Config> {
 #[derive(DslVariable, Clone)]
 pub struct ShardCommitmentVariable<C: Config> {
     pub global_main_commit: DigestVariable<C>,
+    pub has_global_main_commit: Var<C::N>,
     pub local_main_commit: DigestVariable<C>,
     pub permutation_commit: DigestVariable<C>,
     pub quotient_commit: DigestVariable<C>,

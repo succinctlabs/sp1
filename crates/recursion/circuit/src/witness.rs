@@ -1,4 +1,5 @@
 use p3_bn254_fr::Bn254Fr;
+use p3_field::AbstractField;
 use sp1_recursion_compiler::{
     config::OuterConfig,
     ir::{Builder, Config, Ext, Felt, Var, Witness},
@@ -26,6 +27,19 @@ pub trait Witnessable<C: Config> {
 }
 
 type C = OuterConfig;
+
+impl Witnessable<C> for bool {
+    type WitnessVariable = Var<Bn254Fr>;
+
+    fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
+        builder.witness_var()
+    }
+
+    fn write(&self, witness: &mut Witness<C>) {
+        let bn254_val = if *self { Bn254Fr::one() } else { Bn254Fr::zero() };
+        witness.vars.push(bn254_val);
+    }
+}
 
 impl Witnessable<C> for Bn254Fr {
     type WitnessVariable = Var<Bn254Fr>;
@@ -96,16 +110,18 @@ impl Witnessable<C> for OuterDigest {
 }
 impl VectorWitnessable<C> for OuterDigest {}
 
-impl Witnessable<C> for ShardCommitment<OuterDigest> {
-    type WitnessVariable = ShardCommitment<OuterDigestVariable<C>>;
+impl Witnessable<C> for ShardCommitment<OuterDigest, bool> {
+    type WitnessVariable = ShardCommitment<OuterDigestVariable<C>, Var<Bn254Fr>>;
 
     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
         let global_main_commit = self.global_main_commit.read(builder);
+        let has_global_main_commit = self.has_global_main_commit.read(builder);
         let local_main_commit = self.local_main_commit.read(builder);
         let permutation_commit = self.permutation_commit.read(builder);
         let quotient_commit = self.quotient_commit.read(builder);
         ShardCommitment {
             global_main_commit,
+            has_global_main_commit,
             local_main_commit,
             permutation_commit,
             quotient_commit,
@@ -281,11 +297,14 @@ impl Witnessable<C> for ShardProof<BabyBearPoseidon2Outer> {
 
     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
         let global_main_commit: OuterDigest = self.commitment.global_main_commit.into();
+        let has_global_main_commit: Bn254Fr =
+            if self.commitment.has_global_main_commit { Bn254Fr::one() } else { Bn254Fr::zero() };
         let local_main_commit: OuterDigest = self.commitment.local_main_commit.into();
         let permutation_commit: OuterDigest = self.commitment.permutation_commit.into();
         let quotient_commit: OuterDigest = self.commitment.quotient_commit.into();
         let commitment = ShardCommitment {
             global_main_commit: global_main_commit.read(builder),
+            has_global_main_commit: has_global_main_commit.read(builder),
             local_main_commit: local_main_commit.read(builder),
             permutation_commit: permutation_commit.read(builder),
             quotient_commit: quotient_commit.read(builder),

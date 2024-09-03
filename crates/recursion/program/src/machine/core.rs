@@ -65,6 +65,7 @@ impl SP1RecursiveVerifier<InnerConfig, BabyBearPoseidon2> {
     pub fn build(
         machine: &StarkMachine<BabyBearPoseidon2, RiscvAir<BabyBear>>,
     ) -> RecursionProgram<BabyBear> {
+        println!("build the compress program");
         let mut builder = Builder::<InnerConfig>::new(RecursionProgramType::Core);
 
         let input: SP1RecursionMemoryLayoutVariable<_> = builder.uninit();
@@ -167,8 +168,8 @@ where
         let mut reconstruct_challenger: DuplexChallengerVariable<_> =
             initial_reconstruct_challenger.copy(builder);
 
-        // Initialize the cumulative sum.
-        let cumulative_sum: Ext<_, _> = builder.eval(C::EF::zero().cons());
+        // Initialize the global cumulative sum.
+        let global_cumulative_sum: Ext<_, _> = builder.eval(C::EF::zero().cons());
 
         // Assert that the number of proofs is not zero.
         builder.assert_usize_ne(shard_proofs.len(), 0);
@@ -299,6 +300,8 @@ where
                 });
             }
 
+            builder.print_debug(8);
+
             // CPU log degree bound check constraints.
             {
                 for (i, chip) in machine.chips().iter().enumerate() {
@@ -319,6 +322,8 @@ where
                 }
             }
 
+            builder.print_debug(9);
+
             // Shard constraints.
             {
                 // Assert that the shard of the proof is equal to the current shard.
@@ -327,6 +332,8 @@ where
                 // Increment the current shard by one.
                 builder.assign(current_shard, current_shard + C::F::one());
             }
+
+            builder.print_debug(10);
 
             // Execution shard constraints.
             let execution_shard = felt2var(builder, public_values.execution_shard);
@@ -342,6 +349,8 @@ where
                     builder.assign(current_execution_shard, current_execution_shard + C::F::one());
                 });
             }
+
+            builder.print_debug(11);
 
             // Program counter constraints.
             {
@@ -368,11 +377,15 @@ where
                 builder.assign(current_pc, public_values.next_pc);
             }
 
+            builder.print_debug(12);
+
             // Exit code constraints.
             {
                 // Assert that the exit code is zero (success) for all proofs.
                 builder.assert_felt_eq(exit_code, C::F::zero());
             }
+
+            builder.print_debug(13);
 
             // Memory initialization & finalization constraints.
             {
@@ -390,6 +403,8 @@ where
                     }
                 });
 
+                builder.print_debug(14);
+
                 // Assert that the MemoryInitialize address bits match the current loop variable.
                 for (bit, current_bit) in current_init_addr_bits
                     .iter()
@@ -398,6 +413,8 @@ where
                     builder.assert_felt_eq(*bit, *current_bit);
                 }
 
+                builder.print_debug(15);
+
                 // Assert that the MemoryFinalize address bits match the current loop variable.
                 for (bit, current_bit) in current_finalize_addr_bits
                     .iter()
@@ -405,6 +422,8 @@ where
                 {
                     builder.assert_felt_eq(*bit, *current_bit);
                 }
+
+                builder.print_debug(16);
 
                 // Assert that if MemoryInit is not present, then the address bits are the same.
                 builder.if_ne(contains_memory_init, C::N::one()).then(|builder| {
@@ -417,6 +436,8 @@ where
                     }
                 });
 
+                builder.print_debug(17);
+
                 // Assert that if MemoryFinalize is not present, then the address bits are the same.
                 builder.if_ne(contains_memory_finalize, C::N::one()).then(|builder| {
                     for (prev_bit, last_bit) in public_values
@@ -428,12 +449,16 @@ where
                     }
                 });
 
+                builder.print_debug(18);
+
                 // Update the MemoryInitialize address bits.
                 for (bit, pub_bit) in
                     current_init_addr_bits.iter().zip(public_values.last_init_addr_bits.iter())
                 {
                     builder.assign(*bit, *pub_bit);
                 }
+
+                builder.print_debug(19);
 
                 // Update the MemoryFinalize address bits.
                 for (bit, pub_bit) in current_finalize_addr_bits
@@ -442,6 +467,8 @@ where
                 {
                     builder.assign(*bit, *pub_bit);
                 }
+
+                builder.print_debug(20);
             }
 
             // Digest constraints.
@@ -548,14 +575,16 @@ where
 
             // Cumulative sum is updated by sums of all chips.
             let opened_values = proof.opened_values.chips;
+            let local_cumulative_sum: Ext<_, _> = builder.eval(C::EF::zero().cons());
             builder.range(0, opened_values.len()).for_each(|k, builder| {
-                let chip_opened_values = builder.get(&opened_values, k);
-                let global_sum = chip_opened_values.global_cumulative_sum;
-                builder
-                    .assign(cumulative_sum, chip_opened_values.global_cumulative_sum + global_sum);
-                builder
-                    .assert_ext_eq(chip_opened_values.local_cumulative_sum, C::EF::zero().cons());
+                let values = builder.get(&opened_values, k);
+                let global_sum = values.global_cumulative_sum;
+                let local_sum = values.local_cumulative_sum;
+                builder.assign(global_cumulative_sum, global_cumulative_sum + global_sum);
+                builder.assign(local_cumulative_sum, local_cumulative_sum + local_sum);
             });
+
+            builder.assert_ext_eq(local_cumulative_sum, C::EF::zero().cons());
         });
 
         // Write all values to the public values struct and commit to them.
@@ -571,8 +600,9 @@ where
                 get_challenger_public_values(builder, &reconstruct_challenger);
 
             // Collect the cumulative sum.
-            let cumulative_sum_array = builder.ext2felt(cumulative_sum);
-            let cumulative_sum_array = array::from_fn(|i| builder.get(&cumulative_sum_array, i));
+            let global_cumulative_sum_array = builder.ext2felt(global_cumulative_sum);
+            let global_cumulative_sum_array =
+                array::from_fn(|i| builder.get(&global_cumulative_sum_array, i));
 
             // Collect the deferred proof digests.
             let zero: Felt<_> = builder.eval(C::F::zero());
@@ -603,7 +633,7 @@ where
             recursion_public_values.leaf_challenger = leaf_challenger_public_values;
             recursion_public_values.start_reconstruct_challenger = initial_challenger_public_values;
             recursion_public_values.end_reconstruct_challenger = final_challenger_public_values;
-            recursion_public_values.cumulative_sum = cumulative_sum_array;
+            recursion_public_values.global_cumulative_sum = global_cumulative_sum_array;
             recursion_public_values.start_reconstruct_deferred_digest = start_deferred_digest;
             recursion_public_values.end_reconstruct_deferred_digest = end_deferred_digest;
             recursion_public_values.exit_code = exit_code;

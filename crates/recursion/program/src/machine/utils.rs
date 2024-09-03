@@ -33,7 +33,7 @@ pub(crate) fn assert_complete<C: Config>(
         next_shard,
         start_execution_shard,
         next_execution_shard,
-        cumulative_sum,
+        global_cumulative_sum: cumulative_sum,
         start_reconstruct_deferred_digest,
         end_reconstruct_deferred_digest,
         leaf_challenger,

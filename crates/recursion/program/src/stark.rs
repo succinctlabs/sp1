@@ -123,6 +123,7 @@ where
 
         let ShardCommitmentVariable {
             global_main_commit,
+            has_global_main_commit,
             local_main_commit,
             permutation_commit,
             quotient_commit,
@@ -152,16 +153,16 @@ where
         let mut prep_mats: Array<_, TwoAdicPcsMatsVariable<_>> =
             builder.dyn_array(num_preprocessed_chips);
 
-        let mut num_global_chips: Var<_> = builder.eval(C::N::zero());
-        let mut num_local_chips: Var<_> = builder.eval(C::N::zero());
+        let num_global_chips: Var<_> = builder.eval(C::N::zero());
+        let num_local_chips: Var<_> = builder.eval(C::N::zero());
         builder.range(0, proof.perm_randomness_scopes.len()).for_each(|i, builder| {
             let scope = builder.get(&proof.perm_randomness_scopes, i);
             builder.if_eq(scope, C::N::zero()).then(|builder| {
-                num_global_chips = builder.eval(num_global_chips + C::N::one());
+                builder.assign(num_global_chips, num_global_chips + C::N::one());
             });
 
             builder.if_eq(scope, C::N::one()).then(|builder| {
-                num_local_chips = builder.eval(num_local_chips + C::N::one());
+                builder.assign(num_local_chips, num_local_chips + C::N::one());
             });
         });
 
@@ -182,6 +183,8 @@ where
 
         let mut qc_points = builder.dyn_array::<Ext<_, _>>(1);
         builder.set_value(&mut qc_points, 0, zeta);
+
+        builder.print_debug(2);
 
         // Iterate through machine.chips filtered for preprocessed chips.
         for (preprocessed_id, chip_id) in machine.preprocessed_chip_ids().into_iter().enumerate() {
@@ -212,9 +215,11 @@ where
             builder.set_value(&mut prep_mats, preprocessed_sorted_id, main_mat);
         }
 
+        builder.print_debug(3);
+
         let qc_index: Var<_> = builder.eval(C::N::zero());
-        let mut global_main_mats_idx: Var<_> = builder.eval(C::N::zero());
-        let mut local_main_mats_idx: Var<_> = builder.eval(C::N::zero());
+        let global_main_mats_idx: Var<_> = builder.eval(C::N::zero());
+        let local_main_mats_idx: Var<_> = builder.eval(C::N::zero());
         builder.range(0, num_shard_chips).for_each(|i, builder| {
             let opening = builder.get(&opened_values.chips, i);
             let QuotientData { log_quotient_degree, quotient_size } =
@@ -246,12 +251,12 @@ where
             let scope = builder.get(&proof.perm_randomness_scopes, i);
             builder.if_eq(scope, C::N::zero()).then(|builder| {
                 builder.set_value(&mut global_main_mats, global_main_mats_idx, main_mat.clone());
-                global_main_mats_idx = builder.eval(global_main_mats_idx + C::N::one());
+                builder.assign(global_main_mats_idx, global_main_mats_idx + C::N::one());
             });
 
             builder.if_eq(scope, C::N::one()).then(|builder| {
                 builder.set_value(&mut local_main_mats, local_main_mats_idx, main_mat.clone());
-                local_main_mats_idx = builder.eval(local_main_mats_idx + C::N::one());
+                builder.assign(local_main_mats_idx, local_main_mats_idx + C::N::one());
             });
 
             // Get the permutation matrix.
@@ -366,6 +371,8 @@ where
                 builder.assign(num_shard_chips_enabled, num_shard_chips_enabled + C::N::one());
             });
         }
+
+        builder.print_debug(6);
 
         // Assert that the number of chips in `opened_values` matches the number of shard chips
         // enabled.
@@ -540,7 +547,7 @@ pub(crate) mod tests {
         public_values.deferred_proofs_digest =
             [builder.constant(<C as Config>::F::from_canonical_usize(4)); POSEIDON_NUM_WORDS];
 
-        public_values.cumulative_sum =
+        public_values.global_cumulative_sum =
             [builder.constant(<C as Config>::F::from_canonical_usize(5)); 4];
 
         commit_public_values(&mut builder, public_values);

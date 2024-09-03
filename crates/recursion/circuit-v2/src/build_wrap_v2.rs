@@ -25,6 +25,7 @@ use sp1_stark::{
 
 use crate::{
     challenger::{CanObserveVariable, MultiField32ChallengerVariable},
+    hash::BN254_DIGEST_SIZE,
     stark::{ShardProofVariable, StarkVerifier},
     utils::{felt_bytes_to_bn254_var, felts_to_bn254_var, words_to_bytes},
     witness::Witnessable,
@@ -206,6 +207,7 @@ pub fn const_shard_proof(
     let opened_values = ShardOpenedValues { chips: opened_values };
     let ShardCommitment {
         global_main_commit,
+        has_global_main_commit,
         local_main_commit,
         permutation_commit,
         quotient_commit,
@@ -216,16 +218,23 @@ pub fn const_shard_proof(
     let quotient_commit: [Bn254Fr; 1] = quotient_commit.into();
 
     let global_main_commit = core::array::from_fn(|i| builder.eval(global_main_commit[i]));
+    let has_global_main_commit: Var<Bn254Fr> = if has_global_main_commit {
+        builder.eval(Bn254Fr::one())
+    } else {
+        builder.eval(Bn254Fr::zero())
+    };
     let local_main_commit = core::array::from_fn(|i| builder.eval(local_main_commit[i]));
     let permutation_commit = core::array::from_fn(|i| builder.eval(permutation_commit[i]));
     let quotient_commit = core::array::from_fn(|i| builder.eval(quotient_commit[i]));
 
-    let commitment = ShardCommitment {
-        global_main_commit,
-        local_main_commit,
-        permutation_commit,
-        quotient_commit,
-    };
+    let commitment: ShardCommitment<[Var<Bn254Fr>; BN254_DIGEST_SIZE], Var<Bn254Fr>> =
+        ShardCommitment {
+            global_main_commit,
+            has_global_main_commit,
+            local_main_commit,
+            permutation_commit,
+            quotient_commit,
+        };
     ShardProofVariable {
         commitment,
         public_values: proof.public_values.iter().map(|x| builder.constant(*x)).collect(),

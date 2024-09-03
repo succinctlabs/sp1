@@ -49,7 +49,8 @@ impl Prover<DefaultProverComponents> for CpuProver {
         kind: SP1ProofKind,
     ) -> Result<SP1ProofWithPublicValues> {
         // Generate the core proof.
-        let proof = self.prover.prove_core(pk, &stdin, opts.sp1_prover_opts, context)?;
+        let proof: sp1_prover::SP1ProofWithMetadata<sp1_prover::SP1CoreProofData> =
+            self.prover.prove_core(pk, &stdin, opts.sp1_prover_opts, context)?;
         if kind == SP1ProofKind::Core {
             return Ok(SP1ProofWithPublicValues {
                 proof: SP1Proof::Core(proof.proof.0),
@@ -58,6 +59,19 @@ impl Prover<DefaultProverComponents> for CpuProver {
                 sp1_version: self.version().to_string(),
             });
         }
+
+        self.verify(
+            &SP1ProofWithPublicValues {
+                proof: SP1Proof::Core(proof.proof.0.clone()),
+                stdin: proof.stdin.clone(),
+                public_values: proof.public_values.clone(),
+                sp1_version: self.version().to_string(),
+            },
+            &pk.vk,
+        )
+        .unwrap();
+
+        println!("verified core proof");
 
         let deferred_proofs = stdin.proofs.iter().map(|p| p.0.clone()).collect();
         let public_values = proof.public_values.clone();

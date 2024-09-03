@@ -18,9 +18,10 @@ use super::{
     VerifierConstraintFolder,
 };
 use crate::{
-    air::MachineAir, lookup::InteractionBuilder, opts::SP1CoreOpts, record::MachineRecord,
-    DebugConstraintBuilder, MachineChip, MachineProof, PackedChallenge, PcsProverData,
-    ProverConstraintFolder, ShardCommitment, ShardMainData, ShardProof, StarkVerifyingKey,
+    air::MachineAir, config::ZeroCommitment, lookup::InteractionBuilder, opts::SP1CoreOpts,
+    record::MachineRecord, DebugConstraintBuilder, MachineChip, MachineProof, PackedChallenge,
+    PcsProverData, ProverConstraintFolder, ShardCommitment, ShardMainData, ShardProof,
+    StarkVerifyingKey,
 };
 pub struct MergedProverDataItem<'a, M> {
     pub trace: &'a M,
@@ -355,13 +356,13 @@ where
             } = global_data;
             (
                 global_traces,
-                Some(global_main_commit),
+                global_main_commit,
                 Some(global_main_data),
                 global_chip_ordering,
                 global_public_values,
             )
         } else {
-            (vec![], None, None, HashMap::new(), vec![])
+            (vec![], self.config().pcs().zero_commitment(), None, HashMap::new(), vec![])
         };
 
         let ShardMainData {
@@ -630,8 +631,6 @@ where
             tracing::debug_span!("open multi batches").in_scope(|| pcs.open(rounds, challenger));
 
         // Collect the opened values for each chip.
-        // let [preprocessed_values, global_main_values, local_main_values, permutation_values, mut quotient_values] =
-        //     openings.try_into().unwrap();
         let (
             preprocessed_values,
             global_main_values,
@@ -732,6 +731,7 @@ where
         Ok(ShardProof::<SC> {
             commitment: ShardCommitment {
                 global_main_commit,
+                has_global_main_commit: global_main_data.is_some(),
                 local_main_commit,
                 permutation_commit,
                 quotient_commit,

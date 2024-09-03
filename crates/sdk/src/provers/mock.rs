@@ -70,6 +70,7 @@ impl Prover<DefaultProverComponents> for MockProver {
                     proof: SP1Proof::Compressed(ShardProof {
                         commitment: ShardCommitment {
                             global_main_commit: [BabyBear::zero(); 8].into(),
+                            has_global_main_commit: false,
                             local_main_commit: [BabyBear::zero(); 8].into(),
                             permutation_commit: [BabyBear::zero(); 8].into(),
                             quotient_commit: [BabyBear::zero(); 8].into(),
@@ -85,7 +86,7 @@ impl Prover<DefaultProverComponents> for MockProver {
                             query_openings: vec![],
                         },
                         chip_ordering: HashMap::new(),
-                        chip_scopes: HashMap::new(),
+                        chip_scopes: vec![],
                         public_values: vec![],
                     }),
                     stdin,

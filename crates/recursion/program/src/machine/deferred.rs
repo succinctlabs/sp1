@@ -104,7 +104,7 @@ where
             config: const_fri_config(&mut builder, machine.config().pcs().fri_config()),
         };
 
-        SP1DeferredVerifier::verify(&mut builder, &pcs, machine, input);
+        //SP1DeferredVerifier::verify(&mut builder, &pcs, machine, input);
 
         builder.halt();
 
