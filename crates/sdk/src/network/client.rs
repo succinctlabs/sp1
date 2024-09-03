@@ -118,10 +118,12 @@ impl NetworkClient {
     pub async fn get_proof_requests(
         &self,
         status: ProofStatus,
+        circuit_version: Option<String>,
     ) -> Result<GetProofRequestsResponse> {
-        self.with_error_handling(
-            self.rpc.get_proof_requests(GetProofRequestsRequest { status: status.into() }),
-        )
+        self.with_error_handling(self.rpc.get_proof_requests(GetProofRequestsRequest {
+            status: status.into(),
+            circuit_version: circuit_version.map(|v| v.to_string()),
+        }))
         .await
     }
 
