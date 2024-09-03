@@ -1,5 +1,8 @@
-#include <cstdint>
-#include <cstdbool>
+// #include <cstdint>
+// #include <cstdbool>
+// change these to c
+#include <stdint.h>
+#include <stdbool.h>
 // make the function available to Rust
 
 extern void add_one(unsigned int *x) {
