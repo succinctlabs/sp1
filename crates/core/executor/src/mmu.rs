@@ -53,7 +53,16 @@ impl Mmu {
 
     pub fn remove(&mut self, index: usize) -> Option<MemoryRecord> {
         let (upper, lower) = Self::split_index(index);
-        self.page_table.get_mut(upper)?.0.remove(lower)
+        match self.page_table.entry(upper) {
+            vec_map::Entry::Vacant(_) => None,
+            vec_map::Entry::Occupied(mut entry) => {
+                let res = entry.get_mut().0.remove(lower);
+                if entry.get().0.is_empty() {
+                    entry.remove();
+                }
+                res
+            }
+        }
     }
 
     pub fn entry(&mut self, index: usize) -> Entry<'_> {
@@ -140,7 +149,11 @@ impl<'a> OccupiedEntry<'a> {
     }
 
     pub fn remove(mut self) -> MemoryRecord {
-        self.page_table_occupied_entry.get_mut().0.remove(self.lower).unwrap()
+        let res = self.page_table_occupied_entry.get_mut().0.remove(self.lower).unwrap();
+        if self.page_table_occupied_entry.get().0.is_empty() {
+            self.page_table_occupied_entry.remove();
+        }
+        res
     }
 }
 
