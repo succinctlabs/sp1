@@ -15,7 +15,11 @@ pub const PAGE_LEN: usize = 1 << LOG_PAGE_LEN;
 /// The mask for retrieving the lowest bits necessary to index within a page.
 pub const PAGE_MASK: usize = PAGE_LEN - 1;
 /// The maximum number of pages. Used for the length of the page table.
-pub const MAX_PAGE_COUNT: usize = 1 << (u32::BITS as usize - LOG_PAGE_LEN);
+pub const MAX_PAGE_COUNT: usize = 1 << (u32::BITS as usize - LOG_PAGE_LEN - NUM_IGNORED_LOWER_BITS);
+/// The number of lower bits to ignore, since addresses (except registers) are a multiple of 4.
+pub const NUM_IGNORED_LOWER_BITS: usize = 2;
+/// The number of registers in the virtual machine.
+pub const NUM_REGISTERS: usize = 32;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Page(VecMap<MemoryRecord>);
@@ -85,13 +89,34 @@ impl Mmu {
     pub fn keys(&self) -> impl Iterator<Item = usize> + '_ {
         self.page_table.iter().flat_map(|(upper, page)| {
             let upper = upper << LOG_PAGE_LEN;
-            page.0.iter().map(move |(lower, _)| upper + lower)
+            page.0.iter().map(move |(lower, _)| Self::decompress_index(upper + lower))
         })
     }
 
     #[inline]
     const fn split_index(index: usize) -> (usize, usize) {
+        let index = Self::compress_index(index);
         (index >> LOG_PAGE_LEN, index & PAGE_MASK)
+    }
+
+    #[inline]
+    const fn compress_index(index: usize) -> usize {
+        if index < NUM_REGISTERS {
+            index
+        } else {
+            (index >> NUM_IGNORED_LOWER_BITS)
+                + const { NUM_REGISTERS - (NUM_REGISTERS >> NUM_IGNORED_LOWER_BITS) }
+        }
+    }
+
+    #[inline]
+    const fn decompress_index(index: usize) -> usize {
+        if index < NUM_REGISTERS {
+            index
+        } else {
+            (index - const { NUM_REGISTERS - (NUM_REGISTERS >> NUM_IGNORED_LOWER_BITS) })
+                << NUM_IGNORED_LOWER_BITS
+        }
     }
 }
 
@@ -108,7 +133,11 @@ pub struct VacantEntry<'a> {
 impl<'a> VacantEntry<'a> {
     pub fn insert(self, value: MemoryRecord) -> &'a mut MemoryRecord {
         // By construction, the slot in the page is `None`.
-        match self.page_table_entry.or_insert_with(Default::default).0.entry(self.index & PAGE_MASK)
+        match self
+            .page_table_entry
+            .or_insert_with(Default::default)
+            .0
+            .entry(Mmu::split_index(self.index).1)
         {
             vec_map::Entry::Vacant(entry) => entry.insert(value),
             vec_map::Entry::Occupied(entry) => {

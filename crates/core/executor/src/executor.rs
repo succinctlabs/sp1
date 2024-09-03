@@ -158,19 +158,11 @@ macro_rules! assert_valid_memory_access {
 }
 
 pub(crate) fn addr_compress(addr: u32) -> usize {
-    if addr < 32 {
-        addr as usize
-    } else {
-        addr as usize / 4 + 24
-    }
+    addr as usize
 }
 
 pub(crate) fn addr_decompress(addr: usize) -> u32 {
-    if addr < 32 {
-        addr as u32
-    } else {
-        (addr as u32 - 24) * 4
-    }
+    addr as u32
 }
 
 impl<'a> Executor<'a> {
