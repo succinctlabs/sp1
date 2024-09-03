@@ -22,40 +22,40 @@ pub const NUM_IGNORED_LOWER_BITS: usize = 2;
 pub const NUM_REGISTERS: usize = 32;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Page(VecMap<MemoryRecord>);
+pub struct Page<V>(VecMap<V>);
 
-impl Default for Page {
+impl<V> Default for Page<V> {
     fn default() -> Self {
         Self(VecMap::with_capacity(PAGE_LEN))
     }
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct Mmu {
-    pub page_table: VecMap<Page>,
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Mmu<V> {
+    pub page_table: VecMap<Page<V>>,
 }
 
-impl Mmu {
+impl<V> Mmu<V> {
     pub fn new() -> Self {
         Self { page_table: VecMap::with_capacity(MAX_PAGE_COUNT) }
     }
 
-    pub fn get(&self, addr: u32) -> Option<&MemoryRecord> {
+    pub fn get(&self, addr: u32) -> Option<&V> {
         let (upper, lower) = Self::indices(addr);
         self.page_table.get(upper)?.0.get(lower)
     }
 
-    pub fn get_mut(&mut self, addr: u32) -> Option<&mut MemoryRecord> {
+    pub fn get_mut(&mut self, addr: u32) -> Option<&mut V> {
         let (upper, lower) = Self::indices(addr);
         self.page_table.get_mut(upper)?.0.get_mut(lower)
     }
 
-    pub fn insert(&mut self, addr: u32, value: MemoryRecord) -> Option<MemoryRecord> {
+    pub fn insert(&mut self, addr: u32, value: V) -> Option<V> {
         let (upper, lower) = Self::indices(addr);
         self.page_table.entry(upper).or_insert_with(Page::default).0.insert(lower, value)
     }
 
-    pub fn remove(&mut self, addr: u32) -> Option<MemoryRecord> {
+    pub fn remove(&mut self, addr: u32) -> Option<V> {
         let (upper, lower) = Self::indices(addr);
         match self.page_table.entry(upper) {
             vec_map::Entry::Vacant(_) => None,
@@ -69,7 +69,7 @@ impl Mmu {
         }
     }
 
-    pub fn entry(&mut self, addr: u32) -> Entry<'_> {
+    pub fn entry(&mut self, addr: u32) -> Entry<'_, V> {
         let (upper, lower) = Self::indices(addr);
         let page_table_entry = self.page_table.entry(upper);
         if let vec_map::Entry::Occupied(occ_entry) = page_table_entry {
@@ -122,55 +122,57 @@ impl Mmu {
     }
 }
 
-pub enum Entry<'a> {
-    Vacant(VacantEntry<'a>),
-    Occupied(OccupiedEntry<'a>),
+impl<V> Default for Mmu<V> {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
-pub struct VacantEntry<'a> {
+pub enum Entry<'a, V> {
+    Vacant(VacantEntry<'a, V>),
+    Occupied(OccupiedEntry<'a, V>),
+}
+
+pub struct VacantEntry<'a, V> {
     lower: usize,
-    page_table_entry: vec_map::Entry<'a, Page>,
+    page_table_entry: vec_map::Entry<'a, Page<V>>,
 }
 
-impl<'a> VacantEntry<'a> {
-    pub fn insert(self, value: MemoryRecord) -> &'a mut MemoryRecord {
+impl<'a, V> VacantEntry<'a, V> {
+    pub fn insert(self, value: V) -> &'a mut V {
         // By construction, the slot in the page is `None`.
         match self.page_table_entry.or_insert_with(Default::default).0.entry(self.lower) {
             vec_map::Entry::Vacant(entry) => entry.insert(value),
-            vec_map::Entry::Occupied(entry) => {
-                panic!(
-                    "entry with lower bits {:#x} should be vacant, but found {:?}",
-                    self.lower,
-                    entry.into_mut()
-                )
+            vec_map::Entry::Occupied(_) => {
+                panic!("entry with lower bits {:#x} should be vacant", self.lower)
             }
         }
     }
 }
 
-pub struct OccupiedEntry<'a> {
+pub struct OccupiedEntry<'a, V> {
     lower: usize,
-    page_table_occupied_entry: vec_map::OccupiedEntry<'a, Page>,
+    page_table_occupied_entry: vec_map::OccupiedEntry<'a, Page<V>>,
 }
 
-impl<'a> OccupiedEntry<'a> {
-    pub fn get(&self) -> &MemoryRecord {
+impl<'a, V> OccupiedEntry<'a, V> {
+    pub fn get(&self) -> &V {
         self.page_table_occupied_entry.get().0.get(self.lower).unwrap()
     }
 
-    pub fn get_mut(&mut self) -> &mut MemoryRecord {
+    pub fn get_mut(&mut self) -> &mut V {
         self.page_table_occupied_entry.get_mut().0.get_mut(self.lower).unwrap()
     }
 
-    pub fn insert(&mut self, value: MemoryRecord) -> MemoryRecord {
+    pub fn insert(&mut self, value: V) -> V {
         replace(self.get_mut(), value)
     }
 
-    pub fn into_mut(self) -> &'a mut MemoryRecord {
+    pub fn into_mut(self) -> &'a mut V {
         self.page_table_occupied_entry.into_mut().0.get_mut(self.lower).unwrap()
     }
 
-    pub fn remove(mut self) -> MemoryRecord {
+    pub fn remove(mut self) -> V {
         let res = self.page_table_occupied_entry.get_mut().0.remove(self.lower).unwrap();
         if self.page_table_occupied_entry.get().0.is_empty() {
             self.page_table_occupied_entry.remove();
@@ -179,8 +181,8 @@ impl<'a> OccupiedEntry<'a> {
     }
 }
 
-impl FromIterator<(u32, MemoryRecord)> for Mmu {
-    fn from_iter<T: IntoIterator<Item = (u32, MemoryRecord)>>(iter: T) -> Self {
+impl<V> FromIterator<(u32, V)> for Mmu<V> {
+    fn from_iter<T: IntoIterator<Item = (u32, V)>>(iter: T) -> Self {
         let mut mmu = Self::default();
         for (k, v) in iter {
             mmu.insert(k, v);

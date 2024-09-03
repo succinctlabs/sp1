@@ -39,7 +39,7 @@ pub struct ExecutionState {
 
     /// The memory which instructions operate over. Values contain the memory value and last shard
     /// + timestamp that each memory address was accessed.
-    pub memory: Mmu,
+    pub memory: Mmu<MemoryRecord>,
 
     /// Uninitialized memory addresses that have a specific value they should be initialized with.
     /// `SyscallHintRead` uses this to write hint data into uninitialized memory.
@@ -83,7 +83,7 @@ impl ExecutionState {
             clk: 0,
             channel: 0,
             pc: pc_start,
-            memory: Mmu::new(),
+            memory: Mmu::default(),
             uninitialized_memory: HashMap::default(),
             input_stream: Vec::new(),
             input_stream_ptr: 0,
