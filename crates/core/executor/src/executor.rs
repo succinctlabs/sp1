@@ -157,14 +157,6 @@ macro_rules! assert_valid_memory_access {
     };
 }
 
-pub(crate) fn addr_compress(addr: u32) -> usize {
-    addr as usize
-}
-
-pub(crate) fn addr_decompress(addr: usize) -> u32 {
-    addr as u32
-}
-
 impl<'a> Executor<'a> {
     /// Create a new [``Executor``] from a program and options.
     #[must_use]
@@ -263,7 +255,7 @@ impl<'a> Executor<'a> {
         let mut registers = [0; 32];
         for i in 0..32 {
             let addr = Register::from_u32(i as u32) as u32;
-            let record = self.state.memory.get(addr_compress(addr));
+            let record = self.state.memory.get(addr);
 
             // Only add the previous memory state to checkpoint map if we're in checkpoint mode,
             // or if we're in unconstrained mode. In unconstrained mode, the mode is always
@@ -291,7 +283,7 @@ impl<'a> Executor<'a> {
     #[must_use]
     pub fn register(&mut self, register: Register) -> u32 {
         let addr = register as u32;
-        let record = self.state.memory.get(addr_compress(addr));
+        let record = self.state.memory.get(addr);
 
         if self.executor_mode == ExecutorMode::Checkpoint || self.unconstrained {
             match record {
@@ -314,7 +306,7 @@ impl<'a> Executor<'a> {
     #[must_use]
     pub fn word(&mut self, addr: u32) -> u32 {
         #[allow(clippy::single_match_else)]
-        let record = self.state.memory.get(addr_compress(addr));
+        let record = self.state.memory.get(addr);
 
         if self.executor_mode == ExecutorMode::Checkpoint || self.unconstrained {
             match record {
@@ -363,7 +355,7 @@ impl<'a> Executor<'a> {
     /// Read a word from memory and create an access record.
     pub fn mr(&mut self, addr: u32, shard: u32, timestamp: u32) -> MemoryReadRecord {
         // Get the memory record entry.
-        let entry = self.state.memory.entry(addr_compress(addr));
+        let entry = self.state.memory.entry(addr);
         if self.executor_mode == ExecutorMode::Checkpoint || self.unconstrained {
             match entry {
                 Entry::Occupied(ref entry) => {
@@ -408,7 +400,7 @@ impl<'a> Executor<'a> {
     /// Write a word to memory and create an access record.
     pub fn mw(&mut self, addr: u32, value: u32, shard: u32, timestamp: u32) -> MemoryWriteRecord {
         // Get the memory record entry.
-        let entry = self.state.memory.entry(addr_compress(addr));
+        let entry = self.state.memory.entry(addr);
         if self.executor_mode == ExecutorMode::Checkpoint || self.unconstrained {
             match entry {
                 Entry::Occupied(ref entry) => {
@@ -1200,15 +1192,15 @@ impl<'a> Executor<'a> {
                 checkpoint.memory.clone_from(&self.state.memory);
                 memory_checkpoint.into_iter().for_each(|(addr, record)| {
                     if let Some(record) = record {
-                        checkpoint.memory.insert(addr_compress(addr), record);
+                        checkpoint.memory.insert(addr, record);
                     } else {
-                        checkpoint.memory.remove(addr_compress(addr));
+                        checkpoint.memory.remove(addr);
                     }
                 });
             } else {
                 checkpoint.memory = memory_checkpoint
                     .into_iter()
-                    .filter_map(|(addr, record)| record.map(|record| (addr_compress(addr), record)))
+                    .filter_map(|(addr, record)| record.map(|record| (addr, record)))
                     .collect();
             }
         });
@@ -1220,11 +1212,8 @@ impl<'a> Executor<'a> {
         self.state.channel = 0;
 
         tracing::debug!("loading memory image");
-        for (addr, value) in &self.program.memory_image {
-            self.state.memory.insert(
-                addr_compress(*addr),
-                MemoryRecord { value: *value, shard: 0, timestamp: 0 },
-            );
+        for (&addr, value) in &self.program.memory_image {
+            self.state.memory.insert(addr, MemoryRecord { value: *value, shard: 0, timestamp: 0 });
         }
     }
 
@@ -1383,7 +1372,7 @@ impl<'a> Executor<'a> {
                 continue;
             }
 
-            let addr_u32 = addr_decompress(addr);
+            let addr_u32 = addr;
             // Program memory is initialized in the MemoryProgram chip and doesn't require any
             // events, so we only send init events for other memory addresses.
             if !self.record.program.memory_image.contains_key(&addr_u32) {

@@ -39,10 +39,10 @@ impl Syscall for ExitUnconstrainedSyscall {
             for (addr, value) in ctx.rt.unconstrained_state.memory_diff.drain() {
                 match value {
                     Some(value) => {
-                        ctx.rt.state.memory.insert(crate::addr_compress(addr), value);
+                        ctx.rt.state.memory.insert(addr, value);
                     }
                     None => {
-                        ctx.rt.state.memory.remove(crate::addr_compress(addr));
+                        ctx.rt.state.memory.remove(addr);
                     }
                 }
             }

@@ -40,23 +40,23 @@ impl Mmu {
         Self { page_table: VecMap::with_capacity(MAX_PAGE_COUNT) }
     }
 
-    pub fn get(&self, index: usize) -> Option<&MemoryRecord> {
-        let (upper, lower) = Self::split_index(index);
+    pub fn get(&self, addr: u32) -> Option<&MemoryRecord> {
+        let (upper, lower) = Self::indices(addr);
         self.page_table.get(upper)?.0.get(lower)
     }
 
-    pub fn get_mut(&mut self, index: usize) -> Option<&mut MemoryRecord> {
-        let (upper, lower) = Self::split_index(index);
+    pub fn get_mut(&mut self, addr: u32) -> Option<&mut MemoryRecord> {
+        let (upper, lower) = Self::indices(addr);
         self.page_table.get_mut(upper)?.0.get_mut(lower)
     }
 
-    pub fn insert(&mut self, index: usize, value: MemoryRecord) -> Option<MemoryRecord> {
-        let (upper, lower) = Self::split_index(index);
+    pub fn insert(&mut self, addr: u32, value: MemoryRecord) -> Option<MemoryRecord> {
+        let (upper, lower) = Self::indices(addr);
         self.page_table.entry(upper).or_insert_with(Page::default).0.insert(lower, value)
     }
 
-    pub fn remove(&mut self, index: usize) -> Option<MemoryRecord> {
-        let (upper, lower) = Self::split_index(index);
+    pub fn remove(&mut self, addr: u32) -> Option<MemoryRecord> {
+        let (upper, lower) = Self::indices(addr);
         match self.page_table.entry(upper) {
             vec_map::Entry::Vacant(_) => None,
             vec_map::Entry::Occupied(mut entry) => {
@@ -69,52 +69,54 @@ impl Mmu {
         }
     }
 
-    pub fn entry(&mut self, index: usize) -> Entry<'_> {
-        let (upper, lower) = Self::split_index(index);
+    pub fn entry(&mut self, addr: u32) -> Entry<'_> {
+        let (upper, lower) = Self::indices(addr);
         let page_table_entry = self.page_table.entry(upper);
         if let vec_map::Entry::Occupied(occ_entry) = page_table_entry {
             if occ_entry.get().0.contains_key(lower) {
                 Entry::Occupied(OccupiedEntry { lower, page_table_occupied_entry: occ_entry })
             } else {
                 Entry::Vacant(VacantEntry {
-                    index,
+                    lower,
                     page_table_entry: vec_map::Entry::Occupied(occ_entry),
                 })
             }
         } else {
-            Entry::Vacant(VacantEntry { index, page_table_entry })
+            Entry::Vacant(VacantEntry { lower, page_table_entry })
         }
     }
 
-    pub fn keys(&self) -> impl Iterator<Item = usize> + '_ {
+    pub fn keys(&self) -> impl Iterator<Item = u32> + '_ {
         self.page_table.iter().flat_map(|(upper, page)| {
             let upper = upper << LOG_PAGE_LEN;
-            page.0.iter().map(move |(lower, _)| Self::decompress_index(upper + lower))
+            page.0.iter().map(move |(lower, _)| Self::decompress_addr(upper + lower))
         })
     }
 
     #[inline]
-    const fn split_index(index: usize) -> (usize, usize) {
-        let index = Self::compress_index(index);
+    const fn indices(addr: u32) -> (usize, usize) {
+        let index = Self::compress_addr(addr);
         (index >> LOG_PAGE_LEN, index & PAGE_MASK)
     }
 
     #[inline]
-    const fn compress_index(index: usize) -> usize {
-        if index < NUM_REGISTERS {
-            index
+    const fn compress_addr(addr: u32) -> usize {
+        let addr = addr as usize;
+        if addr < NUM_REGISTERS {
+            addr
         } else {
-            (index >> NUM_IGNORED_LOWER_BITS)
+            (addr >> NUM_IGNORED_LOWER_BITS)
                 + const { NUM_REGISTERS - (NUM_REGISTERS >> NUM_IGNORED_LOWER_BITS) }
         }
     }
 
     #[inline]
-    const fn decompress_index(index: usize) -> usize {
-        if index < NUM_REGISTERS {
-            index
+    const fn decompress_addr(addr: usize) -> u32 {
+        if addr < NUM_REGISTERS {
+            addr as u32
         } else {
-            (index - const { NUM_REGISTERS - (NUM_REGISTERS >> NUM_IGNORED_LOWER_BITS) })
+            (addr as u32
+                - const { (NUM_REGISTERS - (NUM_REGISTERS >> NUM_IGNORED_LOWER_BITS)) as u32 })
                 << NUM_IGNORED_LOWER_BITS
         }
     }
@@ -126,32 +128,23 @@ pub enum Entry<'a> {
 }
 
 pub struct VacantEntry<'a> {
-    index: usize,
+    lower: usize,
     page_table_entry: vec_map::Entry<'a, Page>,
 }
 
 impl<'a> VacantEntry<'a> {
     pub fn insert(self, value: MemoryRecord) -> &'a mut MemoryRecord {
         // By construction, the slot in the page is `None`.
-        match self
-            .page_table_entry
-            .or_insert_with(Default::default)
-            .0
-            .entry(Mmu::split_index(self.index).1)
-        {
+        match self.page_table_entry.or_insert_with(Default::default).0.entry(self.lower) {
             vec_map::Entry::Vacant(entry) => entry.insert(value),
             vec_map::Entry::Occupied(entry) => {
-                panic!("entry at {} should be vacant, but found {:?}", self.index, entry.into_mut())
+                panic!(
+                    "entry with lower bits {:#x} should be vacant, but found {:?}",
+                    self.lower,
+                    entry.into_mut()
+                )
             }
         }
-    }
-
-    pub fn into_key(self) -> usize {
-        self.index
-    }
-
-    pub fn key(&self) -> &usize {
-        &self.index
     }
 }
 
@@ -186,8 +179,8 @@ impl<'a> OccupiedEntry<'a> {
     }
 }
 
-impl FromIterator<(usize, MemoryRecord)> for Mmu {
-    fn from_iter<T: IntoIterator<Item = (usize, MemoryRecord)>>(iter: T) -> Self {
+impl FromIterator<(u32, MemoryRecord)> for Mmu {
+    fn from_iter<T: IntoIterator<Item = (u32, MemoryRecord)>>(iter: T) -> Self {
         let mut mmu = Self::default();
         for (k, v) in iter {
             mmu.insert(k, v);
