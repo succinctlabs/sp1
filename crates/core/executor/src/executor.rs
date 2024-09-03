@@ -1,9 +1,7 @@
 use std::{
-    borrow::Cow,
     fs::File,
     io::{BufWriter, Write},
     sync::Arc,
-    time::{Duration, Instant},
 };
 
 use hashbrown::HashMap;
@@ -103,52 +101,6 @@ pub struct Executor<'a> {
     /// Memory addresses that were touched in this batch of shards. Used to minimize the size of
     /// checkpoints.
     pub memory_checkpoint: HashMap<u32, Option<MemoryRecord>>,
-
-    debug_writer: DebugWriter,
-}
-
-#[derive(Debug)]
-struct DebugWriter {
-    clk_interval: u64,
-    start_instant: Option<Instant>,
-    out: BufWriter<File>,
-    is_successor: bool,
-}
-
-impl DebugWriter {
-    fn new(clk_interval: u64, start_instant: Option<Instant>, out_file: File) -> Self {
-        let mut out = BufWriter::new(out_file);
-        write!(&mut out, "[").unwrap();
-        Self { clk_interval, start_instant, out, is_successor: false }
-    }
-
-    fn write_row(&mut self, row: &DebugWriterRow) {
-        if self.is_successor {
-            write!(&mut self.out, ",").unwrap();
-        } else {
-            self.is_successor = true;
-        }
-        serde_json::to_writer(&mut self.out, row).unwrap();
-    }
-
-    fn elapsed(&mut self) -> Duration {
-        self.start_instant.get_or_insert_with(Instant::now).elapsed()
-    }
-}
-
-impl Drop for DebugWriter {
-    fn drop(&mut self) {
-        writeln!(&mut self.out, "]").unwrap();
-        self.out.flush().unwrap();
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-struct DebugWriterRow<'a> {
-    since_start: Duration,
-    clk: u64,
-    pc: u32,
-    report: Cow<'a, ExecutionReport>,
 }
 
 /// The different modes the executor can run in.
@@ -281,15 +233,6 @@ impl<'a> Executor<'a> {
             opts,
             max_cycles: context.max_cycles,
             memory_checkpoint: HashMap::default(),
-            debug_writer: DebugWriter::new(
-                10_000_000,
-                None,
-                File::create(format!(
-                    "tmp/executor_{}.json",
-                    chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ")
-                ))
-                .unwrap(),
-            ),
         }
     }
 
@@ -1481,15 +1424,8 @@ impl<'a> Executor<'a> {
             }
         }
 
-        if !self.unconstrained && self.state.global_clk % self.debug_writer.clk_interval == 0 {
+        if !self.unconstrained && self.state.global_clk % 10_000_000 == 0 {
             log::info!("clk = {} pc = 0x{:x?}", self.state.global_clk, self.state.pc);
-            let debug_writer_row = DebugWriterRow {
-                since_start: self.debug_writer.elapsed(),
-                clk: self.state.global_clk,
-                pc: self.state.pc,
-                report: Cow::Borrowed(&self.report),
-            };
-            self.debug_writer.write_row(&debug_writer_row);
         }
     }
 }

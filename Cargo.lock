@@ -5963,7 +5963,6 @@ version = "1.2.0-rc2"
 dependencies = [
  "bincode",
  "bytemuck",
- "chrono",
  "elf",
  "eyre",
  "generic-array 1.1.0",
@@ -5979,7 +5978,6 @@ dependencies = [
  "rand 0.8.5",
  "rrs-succinct",
  "serde",
- "serde_json",
  "serde_with 3.9.0",
  "sp1-curves",
  "sp1-derive",
