@@ -32,22 +32,22 @@ pub mod utils;
 /// docker image.
 pub const SP1_CIRCUIT_VERSION: &str = "v1.2.0-rc1";
 
-extern "C" {
-    fn add_one(x: *mut u32);
-}
+// extern "C" {
+//     fn add_one(x: *mut u32);
+// }
 
-fn add_one_rust(x: &mut u32) {
-    let y = *x;
-    unsafe { add_one(x) };
-    assert_eq!(*x, y + 1);
-}
+// fn add_one_rust(x: &mut u32) {
+//     let y = *x;
+//     unsafe { add_one(x) };
+//     assert_eq!(*x, y + 1);
+// }
 
-#[cfg(test)]
-mod my_test {
-    use super::*;
-    #[test]
-    fn test_add_one() {
-        let mut x = 5u32;
-        add_one_rust(&mut x);
-    }
-}
+// #[cfg(test)]
+// mod my_test {
+//     use super::*;
+//     #[test]
+//     fn test_add_one() {
+//         let mut x = 5u32;
+//         add_one_rust(&mut x);
+//     }
+// }
