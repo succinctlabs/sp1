@@ -133,15 +133,17 @@ impl NetworkClient {
         elf: &[u8],
         stdin: &SP1Stdin,
         mode: ProofMode,
-        version: &str,
+        circuit_version: &str,
     ) -> Result<String> {
         let start = SystemTime::now();
         let since_the_epoch = start.duration_since(UNIX_EPOCH).expect("Invalid start time");
         let deadline = since_the_epoch.as_secs() + TIMEOUT.as_secs();
 
         let nonce = self.get_nonce().await?;
-        let create_proof_signature =
-            self.auth.sign_create_proof_message(nonce, deadline, mode.into(), version).await?;
+        let create_proof_signature = self
+            .auth
+            .sign_create_proof_message(nonce, deadline, mode.into(), circuit_version)
+            .await?;
 
         let res = self
             .with_error_handling(self.rpc.create_proof(CreateProofRequest {
@@ -149,7 +151,7 @@ impl NetworkClient {
                 nonce,
                 deadline,
                 mode: mode.into(),
-                version: version.to_string(),
+                circuit_version: circuit_version.to_string(),
             }))
             .await?;
 
