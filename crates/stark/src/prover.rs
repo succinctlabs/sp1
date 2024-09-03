@@ -109,7 +109,7 @@ pub trait MachineProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>>:
     fn open(
         &self,
         pk: &StarkProvingKey<SC>,
-        global_data: ShardMainData<SC, Self::DeviceMatrix, Self::DeviceProverData>,
+        global_data: Option<ShardMainData<SC, Self::DeviceMatrix, Self::DeviceProverData>>,
         local_data: ShardMainData<SC, Self::DeviceMatrix, Self::DeviceProverData>,
         challenger: &mut SC::Challenger,
         global_permutation_challenges: &[SC::Challenge],
@@ -334,18 +334,35 @@ where
     fn open(
         &self,
         pk: &StarkProvingKey<SC>,
-        global_data: ShardMainData<SC, Self::DeviceMatrix, Self::DeviceProverData>,
+        global_data: Option<ShardMainData<SC, Self::DeviceMatrix, Self::DeviceProverData>>,
         local_data: ShardMainData<SC, Self::DeviceMatrix, Self::DeviceProverData>,
         challenger: &mut <SC as StarkGenericConfig>::Challenger,
         global_permutation_challenges: &[SC::Challenge],
     ) -> Result<ShardProof<SC>, Self::Error> {
-        let ShardMainData {
-            traces: global_traces,
-            main_commit: global_main_commit,
-            main_data: global_main_data,
-            chip_ordering: global_chip_ordering,
-            public_values: global_public_values,
-        } = global_data;
+        let (
+            global_traces,
+            global_main_commit,
+            global_main_data,
+            global_chip_ordering,
+            global_public_values,
+        ) = if let Some(global_data) = global_data {
+            let ShardMainData {
+                traces: global_traces,
+                main_commit: global_main_commit,
+                main_data: global_main_data,
+                chip_ordering: global_chip_ordering,
+                public_values: global_public_values,
+            } = global_data;
+            (
+                global_traces,
+                Some(global_main_commit),
+                Some(global_main_data),
+                global_chip_ordering,
+                global_public_values,
+            )
+        } else {
+            (vec![], None, None, HashMap::new(), vec![])
+        };
 
         let ShardMainData {
             traces: local_traces,
@@ -497,7 +514,9 @@ where
                                 });
                             let scope = all_chip_scopes[i];
                             let main_data = if scope == InteractionScope::Global {
-                                &global_main_data
+                                global_main_data
+                                    .as_ref()
+                                    .expect("Expected global_main_data to be Some")
                             } else {
                                 &local_main_data
                             };
@@ -590,22 +609,50 @@ where
             }
         }
 
-        let (openings, opening_proof) = tracing::debug_span!("open multi batches").in_scope(|| {
-            pcs.open(
-                vec![
-                    (&pk.data, preprocessed_opening_points),
-                    (&global_main_data, global_trace_opening_points),
-                    (&local_main_data, local_trace_opening_points),
-                    (&permutation_data, trace_opening_points),
-                    (&quotient_data, quotient_opening_points),
-                ],
-                challenger,
-            )
-        });
+        let rounds = if let Some(global_main_data) = global_main_data.as_ref() {
+            vec![
+                (&pk.data, preprocessed_opening_points),
+                (global_main_data, global_trace_opening_points),
+                (&local_main_data, local_trace_opening_points),
+                (&permutation_data, trace_opening_points),
+                (&quotient_data, quotient_opening_points),
+            ]
+        } else {
+            vec![
+                (&pk.data, preprocessed_opening_points),
+                (&local_main_data, local_trace_opening_points),
+                (&permutation_data, trace_opening_points),
+                (&quotient_data, quotient_opening_points),
+            ]
+        };
+
+        let (openings, opening_proof) =
+            tracing::debug_span!("open multi batches").in_scope(|| pcs.open(rounds, challenger));
 
         // Collect the opened values for each chip.
-        let [preprocessed_values, global_main_values, local_main_values, permutation_values, mut quotient_values] =
-            openings.try_into().unwrap();
+        // let [preprocessed_values, global_main_values, local_main_values, permutation_values, mut quotient_values] =
+        //     openings.try_into().unwrap();
+        let (
+            preprocessed_values,
+            global_main_values,
+            local_main_values,
+            permutation_values,
+            mut quotient_values,
+        ) = if global_main_data.is_some() {
+            let [preprocessed_values, global_main_values, local_main_values, permutation_values, quotient_values] =
+                openings.try_into().unwrap();
+            (
+                preprocessed_values,
+                Some(global_main_values),
+                local_main_values,
+                permutation_values,
+                quotient_values,
+            )
+        } else {
+            let [preprocessed_values, local_main_values, permutation_values, quotient_values] =
+                openings.try_into().unwrap();
+            (preprocessed_values, None, local_main_values, permutation_values, quotient_values)
+        };
 
         let preprocessed_opened_values = preprocessed_values
             .into_iter()
@@ -623,6 +670,8 @@ where
             let local_order = local_chip_ordering.get(&chip.name());
             match (global_order, local_order) {
                 (Some(&global_order), None) => {
+                    let global_main_values =
+                        global_main_values.as_ref().expect("Global main values should be Some");
                     main_values.push(global_main_values[global_order].clone());
                 }
                 (None, Some(&local_order)) => {
@@ -748,7 +797,7 @@ where
                     let local_shard_data = self.commit(record, local_named_traces);
                     self.open(
                         pk,
-                        global_shard_data,
+                        Some(global_shard_data),
                         local_shard_data,
                         &mut challenger.clone(),
                         &global_permutation_challenges,

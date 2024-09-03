@@ -540,7 +540,7 @@ where
             builder.range_check_f(public_values.shard, 16);
 
             // Update the reconstruct challenger.
-            reconstruct_challenger.observe(builder, proof.commitment.main_commit.clone());
+            reconstruct_challenger.observe(builder, proof.commitment.local_main_commit.clone());
             for j in 0..machine.num_pv_elts() {
                 let element = builder.get(&proof.public_values, j);
                 reconstruct_challenger.observe(builder, element);
@@ -549,9 +549,12 @@ where
             // Cumulative sum is updated by sums of all chips.
             let opened_values = proof.opened_values.chips;
             builder.range(0, opened_values.len()).for_each(|k, builder| {
-                let values = builder.get(&opened_values, k);
-                let sum = values.cumulative_sum;
-                builder.assign(cumulative_sum, cumulative_sum + sum);
+                let chip_opened_values = builder.get(&opened_values, k);
+                let global_sum = chip_opened_values.global_cumulative_sum;
+                builder
+                    .assign(cumulative_sum, chip_opened_values.global_cumulative_sum + global_sum);
+                builder
+                    .assert_ext_eq(chip_opened_values.local_cumulative_sum, C::EF::zero().cons());
             });
         });
 

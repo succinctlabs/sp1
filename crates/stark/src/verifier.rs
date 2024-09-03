@@ -167,19 +167,26 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
             }
         }
 
+        let rounds = if let Some(global_main_commit) = global_main_commit {
+            vec![
+                (vk.commit.clone(), preprocessed_domains_points_and_opens),
+                (global_main_commit.clone(), global_trace_points_and_openings),
+                (local_main_commit.clone(), local_trace_points_and_openings),
+                (permutation_commit.clone(), perm_domains_points_and_opens),
+                (quotient_commit.clone(), quotient_domains_points_and_opens),
+            ]
+        } else {
+            vec![
+                (vk.commit.clone(), preprocessed_domains_points_and_opens),
+                (local_main_commit.clone(), local_trace_points_and_openings),
+                (permutation_commit.clone(), perm_domains_points_and_opens),
+                (quotient_commit.clone(), quotient_domains_points_and_opens),
+            ]
+        };
+
         config
             .pcs()
-            .verify(
-                vec![
-                    (vk.commit.clone(), preprocessed_domains_points_and_opens),
-                    (global_main_commit.clone(), global_trace_points_and_openings),
-                    (local_main_commit.clone(), local_trace_points_and_openings),
-                    (permutation_commit.clone(), perm_domains_points_and_opens),
-                    (quotient_commit.clone(), quotient_domains_points_and_opens),
-                ],
-                opening_proof,
-                challenger,
-            )
+            .verify(rounds, opening_proof, challenger)
             .map_err(|e| VerificationError::InvalidopeningArgument(e))?;
 
         let permutation_challenges = global_permutation_challenges

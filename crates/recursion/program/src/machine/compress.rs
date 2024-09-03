@@ -136,6 +136,8 @@ where
         recursive_vk: &StarkVerifyingKey<SC>,
         deferred_vk: &StarkVerifyingKey<SC>,
     ) {
+        unimplemented!()
+        /*
         let SP1CompressMemoryLayoutVariable { compress_vk, shard_proofs, kinds, is_complete } =
             input;
 
@@ -572,5 +574,6 @@ where
         );
 
         commit_public_values(builder, reduce_public_values);
+        */
     }
 }

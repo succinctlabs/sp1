@@ -100,6 +100,8 @@ where
         vk: &StarkVerifyingKey<SC>,
         proof: &ShardProofVariable<C>,
     ) {
+        unimplemented!()
+        /*
         // Get the verifying key info from the vk.
         let vk = proof_data_from_vk(builder, vk, machine);
 
@@ -156,5 +158,6 @@ where
         commit_public_values(builder, public_values);
 
         builder.halt();
+        */
     }
 }

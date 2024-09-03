@@ -569,7 +569,7 @@ where
                                     prover
                                         .open(
                                             pk,
-                                            global_data,
+                                            Some(global_data),
                                             local_data,
                                             &mut challenger.clone(),
                                             &global_permutation_challenges,

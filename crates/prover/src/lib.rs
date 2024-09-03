@@ -53,9 +53,10 @@ pub use sp1_recursion_program::machine::{
     SP1RootMemoryLayout,
 };
 use sp1_stark::{
-    air::PublicValues, baby_bear_poseidon2::BabyBearPoseidon2, Challenge, Challenger,
-    MachineProver, MachineVerificationError, SP1CoreOpts, SP1ProverOpts, ShardProof,
-    StarkGenericConfig, StarkProvingKey, StarkVerifyingKey, Val, Word, DIGEST_SIZE,
+    air::{InteractionScope, PublicValues},
+    baby_bear_poseidon2::BabyBearPoseidon2,
+    Challenge, Challenger, MachineProver, MachineVerificationError, SP1CoreOpts, SP1ProverOpts,
+    ShardProof, StarkGenericConfig, StarkProvingKey, StarkVerifyingKey, Val, Word, DIGEST_SIZE,
 };
 
 use tracing::instrument;
@@ -280,7 +281,6 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 
             for proof in batch.iter() {
                 reconstruct_challenger.observe(proof.commitment.global_main_commit);
-                reconstruct_challenger.observe(proof.commitment.local_main_commit);
                 reconstruct_challenger
                     .observe_slice(&proof.public_values[0..self.core_prover.num_pv_elts()]);
             }
@@ -506,14 +506,15 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                                 self.compress_prover.machine().generate_dependencies(
                                     &mut records,
                                     &opts.recursion_opts,
-                                    ProvePhase::Phase2,
+                                    InteractionScope::Local,
                                 )
                             });
 
                             // Generate the traces.
                             let record = records.into_iter().next().unwrap();
                             let traces = tracing::debug_span!("generate traces").in_scope(|| {
-                                self.compress_prover.generate_traces(&record, ProvePhase::Phase2)
+                                self.compress_prover
+                                    .generate_traces(&record, InteractionScope::Local)
                             });
 
                             // Wait for our turn to update the state.
@@ -587,7 +588,13 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                                 // Generate the proof.
                                 let proof = tracing::debug_span!("open").in_scope(|| {
                                     self.compress_prover
-                                        .open(pk, data, &mut challenger, main_commit, &[])
+                                        .open(
+                                            pk,
+                                            None,
+                                            data,
+                                            &mut challenger,
+                                            &[SC::Challenge::zero(), SC::Challenge::zero()],
+                                        )
                                         .unwrap()
                                 });
 
