@@ -26,7 +26,7 @@ use sp1_stark::{
 };
 
 use crate::{
-    challenger::{CanObserveVariable, DuplexChallengerVariable},
+    challenger::{CanObserveVariable, DuplexChallengerVariable, FeltChallenger},
     fri::TwoAdicFriPcsVariable,
     hints::Hintable,
     stark::{StarkVerifier, EMPTY},
@@ -277,6 +277,10 @@ where
             // Do not verify the cumulative sum here, since the permutation challenge is shared
             // between all shards.
             let mut challenger = leaf_challenger.copy(builder);
+
+            let global_permutation_challenges =
+                (0..2).map(|_| challenger.sample_ext(builder)).collect::<Vec<_>>();
+
             StarkVerifier::<C, SC>::verify_shard(
                 builder,
                 &vk,
@@ -285,6 +289,7 @@ where
                 &mut challenger,
                 &proof,
                 false,
+                &global_permutation_challenges,
             );
 
             // First shard has a "CPU" constraint.

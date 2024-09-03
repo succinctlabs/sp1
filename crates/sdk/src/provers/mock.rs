@@ -65,13 +65,12 @@ impl Prover<DefaultProverComponents> for MockProver {
                 })
             }
             SP1ProofKind::Compressed => {
-                /*
                 let (public_values, _) = self.prover.execute(&pk.elf, &stdin, context)?;
                 Ok(SP1ProofWithPublicValues {
                     proof: SP1Proof::Compressed(ShardProof {
                         commitment: ShardCommitment {
-                            phase1_main_commit: [BabyBear::zero(); 8].into(),
-                            main_commit: [BabyBear::zero(); 8].into(),
+                            global_main_commit: [BabyBear::zero(); 8].into(),
+                            local_main_commit: [BabyBear::zero(); 8].into(),
                             permutation_commit: [BabyBear::zero(); 8].into(),
                             quotient_commit: [BabyBear::zero(); 8].into(),
                         },
@@ -86,14 +85,13 @@ impl Prover<DefaultProverComponents> for MockProver {
                             query_openings: vec![],
                         },
                         chip_ordering: HashMap::new(),
+                        chip_scopes: HashMap::new(),
                         public_values: vec![],
                     }),
                     stdin,
                     public_values,
                     sp1_version: self.version().to_string(),
                 })
-                */
-                unimplemented!()
             }
             SP1ProofKind::Plonk => {
                 let (public_values, _) = self.prover.execute(&pk.elf, &stdin, context)?;

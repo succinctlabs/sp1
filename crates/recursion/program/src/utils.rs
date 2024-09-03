@@ -14,8 +14,9 @@ use sp1_recursion_core::{
     runtime::{DIGEST_SIZE, PERMUTATION_WIDTH},
 };
 use sp1_stark::{
-    air::MachineAir, baby_bear_poseidon2::BabyBearPoseidon2, Dom, ShardProof, StarkGenericConfig,
-    StarkMachine, StarkVerifyingKey,
+    air::{InteractionScope, MachineAir},
+    baby_bear_poseidon2::BabyBearPoseidon2,
+    Dom, ShardProof, StarkGenericConfig, StarkMachine, StarkVerifyingKey,
 };
 
 use crate::{
@@ -208,6 +209,12 @@ pub(crate) fn get_sorted_indices<SC: StarkGenericConfig, A: MachineAir<SC::Val>>
             None => EMPTY,
         })
         .collect()
+}
+
+pub(crate) fn get_perm_randomnness_scopes<SC: StarkGenericConfig>(
+    proof: &ShardProof<SC>,
+) -> Vec<usize> {
+    proof.chip_scopes.iter().map(|scope| (*scope == InteractionScope::Local) as usize).collect()
 }
 
 pub(crate) fn get_preprocessed_data<SC: StarkGenericConfig, A: MachineAir<SC::Val>>(

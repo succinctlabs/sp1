@@ -261,8 +261,6 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         batch_size: usize,
         is_complete: bool,
     ) -> Vec<SP1RecursionMemoryLayout<'a, CoreSC, RiscvAir<BabyBear>>> {
-        unimplemented!()
-        /*
         let mut core_inputs = Vec::new();
         let mut reconstruct_challenger = self.core_prover.config().challenger();
         vk.observe_into(&mut reconstruct_challenger);
@@ -281,7 +279,8 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             });
 
             for proof in batch.iter() {
-                reconstruct_challenger.observe(proof.commitment.main_commit);
+                reconstruct_challenger.observe(proof.commitment.global_main_commit);
+                reconstruct_challenger.observe(proof.commitment.local_main_commit);
                 reconstruct_challenger
                     .observe_slice(&proof.public_values[0..self.core_prover.num_pv_elts()]);
             }
@@ -292,7 +291,6 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         assert_eq!(reconstruct_challenger.input_buffer, leaf_challenger.input_buffer);
         assert_eq!(reconstruct_challenger.output_buffer, leaf_challenger.output_buffer);
         core_inputs
-        */
     }
 
     pub fn get_recursion_deferred_inputs<'a>(
@@ -375,8 +373,6 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         deferred_proofs: Vec<ShardProof<InnerSC>>,
         opts: SP1ProverOpts,
     ) -> Result<SP1ReduceProof<InnerSC>, SP1RecursionProverError> {
-        unimplemented!()
-        /*
         // Set the batch size for the reduction tree.
         let batch_size = 2;
         let shard_proofs = &proof.proof.0;
@@ -385,7 +381,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         let mut leaf_challenger = self.core_prover.config().challenger();
         vk.vk.observe_into(&mut leaf_challenger);
         shard_proofs.iter().for_each(|proof| {
-            leaf_challenger.observe(proof.commitment.main_commit);
+            leaf_challenger.observe(proof.commitment.global_main_commit);
             leaf_challenger.observe_slice(&proof.public_values[0..self.core_prover.num_pv_elts()]);
         });
 
@@ -707,7 +703,6 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         });
 
         Ok(SP1ReduceProof { proof })
-        */
     }
 
     /// Generate a proof with the compress machine.

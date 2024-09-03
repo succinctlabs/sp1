@@ -111,6 +111,7 @@ where
         challenger: &mut DuplexChallengerVariable<C>,
         proof: &ShardProofVariable<C>,
         check_cumulative_sum: bool,
+        global_permutation_challenges: &[Ext<C::F, C::EF>],
     ) where
         A: MachineAir<C::F> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, C>>,
         C::F: TwoAdicField,
@@ -120,11 +121,17 @@ where
         builder.cycle_tracker("stage-c-verify-shard-setup");
         let ShardProofVariable { commitment, opened_values, opening_proof, .. } = proof;
 
-        let ShardCommitmentVariable { main_commit, permutation_commit, quotient_commit } =
-            commitment;
+        let ShardCommitmentVariable {
+            global_main_commit,
+            local_main_commit,
+            permutation_commit,
+            quotient_commit,
+        } = commitment;
 
-        let permutation_challenges =
-            (0..4).map(|_| challenger.sample_ext(builder)).collect::<Vec<_>>();
+        challenger.observe(builder, local_main_commit.clone());
+
+        let local_permutation_challenges =
+            (0..2).map(|_| challenger.sample_ext(builder)).collect::<Vec<_>>();
 
         challenger.observe(builder, permutation_commit.clone());
 
@@ -144,7 +151,24 @@ where
 
         let mut prep_mats: Array<_, TwoAdicPcsMatsVariable<_>> =
             builder.dyn_array(num_preprocessed_chips);
-        let mut main_mats: Array<_, TwoAdicPcsMatsVariable<_>> = builder.dyn_array(num_shard_chips);
+
+        let mut num_global_chips: Var<_> = builder.eval(C::N::zero());
+        let mut num_local_chips: Var<_> = builder.eval(C::N::zero());
+        builder.range(0, proof.perm_randomness_scopes.len()).for_each(|i, builder| {
+            let scope = builder.get(&proof.perm_randomness_scopes, i);
+            builder.if_eq(scope, C::N::zero()).then(|builder| {
+                num_global_chips = builder.eval(num_global_chips + C::N::one());
+            });
+
+            builder.if_eq(scope, C::N::one()).then(|builder| {
+                num_local_chips = builder.eval(num_local_chips + C::N::one());
+            });
+        });
+
+        let mut global_main_mats: Array<_, TwoAdicPcsMatsVariable<_>> =
+            builder.dyn_array(num_global_chips);
+        let mut local_main_mats: Array<_, TwoAdicPcsMatsVariable<_>> =
+            builder.dyn_array(num_local_chips);
         let mut perm_mats: Array<_, TwoAdicPcsMatsVariable<_>> = builder.dyn_array(num_shard_chips);
 
         let num_quotient_mats: Var<_> = builder.eval(C::N::zero());
@@ -189,6 +213,8 @@ where
         }
 
         let qc_index: Var<_> = builder.eval(C::N::zero());
+        let mut global_main_mats_idx: Var<_> = builder.eval(C::N::zero());
+        let mut local_main_mats_idx: Var<_> = builder.eval(C::N::zero());
         builder.range(0, num_shard_chips).for_each(|i, builder| {
             let opening = builder.get(&opened_values.chips, i);
             let QuotientData { log_quotient_degree, quotient_size } =
@@ -217,7 +243,16 @@ where
                 values: main_values,
                 points: trace_points.clone(),
             };
-            builder.set_value(&mut main_mats, i, main_mat);
+            let scope = builder.get(&proof.perm_randomness_scopes, i);
+            builder.if_eq(scope, C::N::zero()).then(|builder| {
+                builder.set_value(&mut global_main_mats, global_main_mats_idx, main_mat.clone());
+                global_main_mats_idx = builder.eval(global_main_mats_idx + C::N::one());
+            });
+
+            builder.if_eq(scope, C::N::one()).then(|builder| {
+                builder.set_value(&mut local_main_mats, local_main_mats_idx, main_mat.clone());
+                local_main_mats_idx = builder.eval(local_main_mats_idx + C::N::one());
+            });
 
             // Get the permutation matrix.
             let mut perm_values = builder.dyn_array::<Array<C, _>>(2);
@@ -250,19 +285,26 @@ where
         });
 
         // Create the pcs rounds.
-        let mut rounds = builder.dyn_array::<TwoAdicPcsRoundVariable<_>>(4);
+        let mut rounds = builder.dyn_array::<TwoAdicPcsRoundVariable<_>>(5);
         let prep_commit = vk.commitment.clone();
         let prep_round = TwoAdicPcsRoundVariable { batch_commit: prep_commit, mats: prep_mats };
-        let main_round =
-            TwoAdicPcsRoundVariable { batch_commit: main_commit.clone(), mats: main_mats };
+        let global_main_round = TwoAdicPcsRoundVariable {
+            batch_commit: global_main_commit.clone(),
+            mats: global_main_mats,
+        };
+        let local_main_round = TwoAdicPcsRoundVariable {
+            batch_commit: local_main_commit.clone(),
+            mats: local_main_mats,
+        };
         let perm_round =
             TwoAdicPcsRoundVariable { batch_commit: permutation_commit.clone(), mats: perm_mats };
         let quotient_round =
             TwoAdicPcsRoundVariable { batch_commit: quotient_commit.clone(), mats: quotient_mats };
         builder.set_value(&mut rounds, 0, prep_round);
-        builder.set_value(&mut rounds, 1, main_round);
-        builder.set_value(&mut rounds, 2, perm_round);
-        builder.set_value(&mut rounds, 3, quotient_round);
+        builder.set_value(&mut rounds, 1, global_main_round);
+        builder.set_value(&mut rounds, 2, local_main_round);
+        builder.set_value(&mut rounds, 3, perm_round);
+        builder.set_value(&mut rounds, 4, quotient_round);
         builder.cycle_tracker("stage-c-verify-shard-setup");
 
         // Verify the pcs proof
@@ -299,6 +341,12 @@ where
                 // Get the domains from the chip itself.
                 let qc_domains = quotient_domain.split_domains_const(builder, log_quotient_degree);
 
+                let permutation_challenges = global_permutation_challenges
+                    .iter()
+                    .chain(local_permutation_challenges.iter())
+                    .copied()
+                    .collect::<Vec<_>>();
+
                 // Verify the constraints.
                 stacker::maybe_grow(16 * 1024 * 1024, 16 * 1024 * 1024, || {
                     Self::verify_constraints(
@@ -325,12 +373,14 @@ where
 
         // If we're checking the cumulative sum, assert that the sum of the cumulative sums is zero.
         if check_cumulative_sum {
-            let sum: Ext<_, _> = builder.eval(C::EF::zero().cons());
+            let global_sum: Ext<_, _> = builder.eval(C::EF::zero().cons());
             builder.range(0, proof.opened_values.chips.len()).for_each(|i, builder| {
-                let cumulative_sum = builder.get(&proof.opened_values.chips, i).cumulative_sum;
-                builder.assign(sum, sum + cumulative_sum);
+                let opened_values = builder.get(&proof.opened_values.chips, i);
+
+                builder.assign(global_sum, global_sum + opened_values.global_cumulative_sum);
+                builder.assert_ext_eq(opened_values.local_cumulative_sum, C::EF::zero().cons());
             });
-            builder.assert_ext_eq(sum, C::EF::zero().cons());
+            builder.assert_ext_eq(global_sum, C::EF::zero().cons());
         }
 
         builder.cycle_tracker("stage-e-verify-constraints");
@@ -407,7 +457,10 @@ pub(crate) mod tests {
             challenger_val.observe_slice(&proof.public_values[0..machine.num_pv_elts()]);
         });
 
-        let permutation_challenges =
+        let global_permutation_challenges =
+            (0..2).map(|_| challenger_val.sample_ext_element::<EF>()).collect::<Vec<_>>();
+
+        let local_permutation_challenges =
             (0..2).map(|_| challenger_val.sample_ext_element::<EF>()).collect::<Vec<_>>();
 
         // Observe all the commitments.
@@ -428,8 +481,10 @@ pub(crate) mod tests {
             let proof_hint = ShardProofHint::new(&machine, &proof);
             witness_stream.extend(proof_hint.write());
             let proof = ShardProofHint::<SC, A>::read(&mut builder);
-            let ShardCommitmentVariable { main_commit, .. } = proof.commitment;
-            challenger.observe(&mut builder, main_commit);
+            let ShardCommitmentVariable { global_main_commit, local_main_commit, .. } =
+                proof.commitment;
+            challenger.observe(&mut builder, global_main_commit);
+            challenger.observe(&mut builder, local_main_commit);
             let pv_slice = proof.public_values.slice(
                 &mut builder,
                 Usize::Const(0),
@@ -439,11 +494,23 @@ pub(crate) mod tests {
         }
 
         // Sample the permutation challenges.
-        let permutation_challenges_var =
+        let global_permutation_challenges_var =
+            (0..2).map(|_| challenger.sample_ext(&mut builder)).collect::<Vec<_>>();
+
+        let local_permutation_challenges_var =
             (0..2).map(|_| challenger.sample_ext(&mut builder)).collect::<Vec<_>>();
 
         for i in 0..2 {
-            builder.assert_ext_eq(permutation_challenges_var[i], permutation_challenges[i].cons());
+            builder.assert_ext_eq(
+                global_permutation_challenges_var[i],
+                global_permutation_challenges[i].cons(),
+            );
+        }
+        for i in 0..2 {
+            builder.assert_ext_eq(
+                local_permutation_challenges_var[i],
+                local_permutation_challenges[i].cons(),
+            );
         }
         builder.halt();
 

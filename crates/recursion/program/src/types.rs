@@ -21,6 +21,7 @@ pub struct ShardProofVariable<C: Config> {
     pub public_values: Array<C, Felt<C::F>>,
     pub quotient_data: Array<C, QuotientData<C>>,
     pub sorted_idxs: Array<C, Var<C::N>>,
+    pub perm_randomness_scopes: Array<C, Var<C::N>>,
 }
 
 #[derive(DslVariable, Clone, Copy)]
@@ -47,7 +48,8 @@ pub struct VerifyingKeyVariable<C: Config> {
 /// Reference: [sp1_core_machine::stark::ShardCommitment]
 #[derive(DslVariable, Clone)]
 pub struct ShardCommitmentVariable<C: Config> {
-    pub main_commit: DigestVariable<C>,
+    pub global_main_commit: DigestVariable<C>,
+    pub local_main_commit: DigestVariable<C>,
     pub permutation_commit: DigestVariable<C>,
     pub quotient_commit: DigestVariable<C>,
 }
@@ -65,7 +67,8 @@ pub struct ChipOpening<C: Config> {
     pub main: AirOpenedValues<Ext<C::F, C::EF>>,
     pub permutation: AirOpenedValues<Ext<C::F, C::EF>>,
     pub quotient: Vec<Vec<Ext<C::F, C::EF>>>,
-    pub cumulative_sum: Ext<C::F, C::EF>,
+    pub global_cumulative_sum: Ext<C::F, C::EF>,
+    pub local_cumulative_sum: Ext<C::F, C::EF>,
     pub log_degree: Var<C::N>,
 }
 
@@ -76,7 +79,8 @@ pub struct ChipOpenedValuesVariable<C: Config> {
     pub main: AirOpenedValuesVariable<C>,
     pub permutation: AirOpenedValuesVariable<C>,
     pub quotient: Array<C, Array<C, Ext<C::F, C::EF>>>,
-    pub cumulative_sum: Ext<C::F, C::EF>,
+    pub global_cumulative_sum: Ext<C::F, C::EF>,
+    pub local_cumulative_sum: Ext<C::F, C::EF>,
     pub log_degree: Var<C::N>,
 }
 
@@ -177,7 +181,8 @@ impl<C: Config> ChipOpening<C> {
             main,
             permutation,
             quotient,
-            cumulative_sum: opening.cumulative_sum,
+            global_cumulative_sum: opening.global_cumulative_sum,
+            local_cumulative_sum: opening.local_cumulative_sum,
             log_degree: opening.log_degree,
         }
     }
@@ -203,8 +208,8 @@ impl<C: Config> FromConstant<C> for ChipOpenedValuesVariable<C> {
             main: builder.constant(value.main),
             permutation: builder.constant(value.permutation),
             quotient: builder.constant(value.quotient),
-            // TODO: Need to add field for local cumulative sum.
-            cumulative_sum: builder.eval(value.global_cumulative_sum.cons()),
+            global_cumulative_sum: builder.eval(value.global_cumulative_sum.cons()),
+            local_cumulative_sum: builder.eval(value.local_cumulative_sum.cons()),
             log_degree: builder.eval(C::N::from_canonical_usize(value.log_degree)),
         }
     }
