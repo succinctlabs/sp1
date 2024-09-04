@@ -27,7 +27,7 @@ use sp1_stark::air::{BaseAirBuilder, InteractionScope, MachineAir, Polynomial, S
 use crate::{
     memory::{value_as_limbs, MemoryReadCols, MemoryWriteCols},
     operations::field::field_op::FieldOpCols,
-    utils::{limbs_from_prev_access, pad_rows, words_to_bytes_le_vec},
+    utils::{limbs_from_prev_access, pad_rows_fixed, words_to_bytes_le_vec},
 };
 
 pub const fn num_fp_cols<P: FpOpField>() -> usize {
@@ -138,22 +138,26 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for FpOpChip<P> {
             syscall_blu.add_byte_lookup_events(blu_events.to_vec());
         }
 
-        pad_rows(&mut rows, || {
-            let mut row = vec![F::zero(); num_fp_cols::<P>()];
-            let cols: &mut FpOpCols<F, P> = row.as_mut_slice().borrow_mut();
-            let zero = BigUint::zero();
-            cols.is_add = F::from_canonical_u8(1);
-            Self::populate_field_ops(
-                &mut vec![],
-                0,
-                0,
-                cols,
-                zero.clone(),
-                zero,
-                FieldOperation::Add,
-            );
-            row
-        });
+        pad_rows_fixed(
+            &mut rows,
+            || {
+                let mut row = vec![F::zero(); num_fp_cols::<P>()];
+                let cols: &mut FpOpCols<F, P> = row.as_mut_slice().borrow_mut();
+                let zero = BigUint::zero();
+                cols.is_add = F::from_canonical_u8(1);
+                Self::populate_field_ops(
+                    &mut vec![],
+                    0,
+                    0,
+                    cols,
+                    zero.clone(),
+                    zero,
+                    FieldOperation::Add,
+                );
+                row
+            },
+            input.fixed_log2_rows::<F, _>(self),
+        );
 
         // Convert the trace to a row major matrix.
         let mut trace =
