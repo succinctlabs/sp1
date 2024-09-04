@@ -57,7 +57,7 @@ fn main() {
     // It is strongly recommended you use the network prover given the size of these programs.
     if args.prove {
         println!("Starting proof generation.");
-        let proof = client.prove(&pk, stdin).compressed().run().expect("Proving should work.");
+        let proof = client.prove(&pk, stdin).run().expect("Proving should work.");
         println!("Proof generation finished.");
 
         client.verify(&proof, &vk).expect("proof verification should succeed");

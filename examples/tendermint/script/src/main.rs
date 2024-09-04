@@ -46,7 +46,7 @@ fn main() {
 
     let execute = client.execute(TENDERMINT_ELF, stdin.clone()).run().expect("proving failed");
 
-    let proof = client.prove(&pk, stdin).compressed().run().expect("proving failed");
+    let proof = client.prove(&pk, stdin).run().expect("proving failed");
 
     // Verify proof.
     client.verify(&proof, &vk).expect("verification failed");
