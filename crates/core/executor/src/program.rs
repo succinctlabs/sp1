@@ -82,7 +82,7 @@ impl Program {
             .as_ref()
             .map(|shape| {
                 shape
-                    .shape
+                    .inner
                     .get(&air.name())
                     .unwrap_or_else(|| panic!("Chip {} not found in specified shape", air.name()))
             })

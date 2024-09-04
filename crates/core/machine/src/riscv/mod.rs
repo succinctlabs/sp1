@@ -315,12 +315,37 @@ impl<F: PrimeField32> RiscvAir<F> {
 
     /// Get the heights of the preprocessed chips for a given program.
     pub(crate) fn preprocessed_heights(program: &Program) -> Vec<(Self, usize)> {
-        vec![]
+        vec![
+            (RiscvAir::Program(ProgramChip::default()), program.instructions.len()),
+            (RiscvAir::ProgramMemory(MemoryProgramChip::default()), program.memory_image.len()),
+        ]
     }
 
     /// Get the heights of the chips for a given execution record.
     pub(crate) fn heights(record: &ExecutionRecord) -> Vec<(Self, usize)> {
-        vec![]
+        let mut heights = vec![
+            (RiscvAir::Cpu(CpuChip::default()), record.cpu_events.len()),
+            (RiscvAir::DivRem(DivRemChip::default()), record.divrem_events.len()),
+            (
+                RiscvAir::Add(AddSubChip::default()),
+                record.add_events.len() + record.sub_events.len(),
+            ),
+            (RiscvAir::Bitwise(BitwiseChip::default()), record.bitwise_events.len()),
+            (RiscvAir::Mul(MulChip::default()), record.mul_events.len()),
+            (RiscvAir::ShiftRight(ShiftRightChip::default()), record.shift_right_events.len()),
+            (RiscvAir::ShiftLeft(ShiftLeft::default()), record.shift_left_events.len()),
+            (RiscvAir::Lt(LtChip::default()), record.lt_events.len()),
+            (
+                RiscvAir::MemoryInit(MemoryChip::new(MemoryChipType::Initialize)),
+                record.memory_initialize_events.len(),
+            ),
+            (
+                RiscvAir::MemoryFinal(MemoryChip::new(MemoryChipType::Finalize)),
+                record.memory_finalize_events.len(),
+            ),
+        ];
+        heights.extend(Self::preprocessed_heights(&record.program));
+        heights
     }
 }
 

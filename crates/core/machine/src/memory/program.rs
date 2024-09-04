@@ -126,7 +126,7 @@ impl<F: PrimeField> MachineAir<F> for MemoryProgramChip {
         pad_rows_fixed(
             &mut rows,
             || [F::zero(); NUM_MEMORY_PROGRAM_MULT_COLS],
-            input.shape.as_ref().map(|s: &CoreShape| s.shape[&MachineAir::<F>::name(self)]),
+            input.shape.as_ref().map(|s: &CoreShape| s.inner[&MachineAir::<F>::name(self)]),
         );
 
         // Convert the trace to a row major matrix.
