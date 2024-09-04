@@ -65,6 +65,9 @@ impl<SC: StarkGenericConfig> StarkProvingKey<SC> {
     pub fn observe_into(&self, challenger: &mut SC::Challenger) {
         challenger.observe(self.commit.clone());
         challenger.observe(self.pc_start);
+        for _ in 0..7 {
+            challenger.observe(Val::<SC>::zero());
+        }
     }
 }
 
@@ -88,6 +91,9 @@ impl<SC: StarkGenericConfig> StarkVerifyingKey<SC> {
     pub fn observe_into(&self, challenger: &mut SC::Challenger) {
         challenger.observe(self.commit.clone());
         challenger.observe(self.pc_start);
+        for _ in 0..7 {
+            challenger.observe(Val::<SC>::zero());
+        }
     }
 }
 
@@ -272,7 +278,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
         vk.observe_into(challenger);
         tracing::debug_span!("observe challenges for all shards").in_scope(|| {
             proof.shard_proofs.iter().for_each(|shard_proof| {
-                if shard_proof.commitment.has_global_main_commit {
+                if shard_proof.contains_global_main_commitment() {
                     challenger.observe(shard_proof.commitment.global_main_commit.clone());
                 }
                 challenger.observe_slice(&shard_proof.public_values[0..self.num_pv_elts()]);

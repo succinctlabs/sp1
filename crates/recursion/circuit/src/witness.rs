@@ -110,18 +110,16 @@ impl Witnessable<C> for OuterDigest {
 }
 impl VectorWitnessable<C> for OuterDigest {}
 
-impl Witnessable<C> for ShardCommitment<OuterDigest, bool> {
-    type WitnessVariable = ShardCommitment<OuterDigestVariable<C>, Var<Bn254Fr>>;
+impl Witnessable<C> for ShardCommitment<OuterDigest> {
+    type WitnessVariable = ShardCommitment<OuterDigestVariable<C>>;
 
     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
         let global_main_commit = self.global_main_commit.read(builder);
-        let has_global_main_commit = self.has_global_main_commit.read(builder);
         let local_main_commit = self.local_main_commit.read(builder);
         let permutation_commit = self.permutation_commit.read(builder);
         let quotient_commit = self.quotient_commit.read(builder);
         ShardCommitment {
             global_main_commit,
-            has_global_main_commit,
             local_main_commit,
             permutation_commit,
             quotient_commit,
@@ -297,14 +295,11 @@ impl Witnessable<C> for ShardProof<BabyBearPoseidon2Outer> {
 
     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
         let global_main_commit: OuterDigest = self.commitment.global_main_commit.into();
-        let has_global_main_commit: Bn254Fr =
-            if self.commitment.has_global_main_commit { Bn254Fr::one() } else { Bn254Fr::zero() };
         let local_main_commit: OuterDigest = self.commitment.local_main_commit.into();
         let permutation_commit: OuterDigest = self.commitment.permutation_commit.into();
         let quotient_commit: OuterDigest = self.commitment.quotient_commit.into();
         let commitment = ShardCommitment {
             global_main_commit: global_main_commit.read(builder),
-            has_global_main_commit: has_global_main_commit.read(builder),
             local_main_commit: local_main_commit.read(builder),
             permutation_commit: permutation_commit.read(builder),
             quotient_commit: quotient_commit.read(builder),
@@ -370,7 +365,7 @@ mod tests {
         builder.print_e(b);
 
         let mut backend = ConstraintCompiler::<OuterConfig>::default();
-        let constraints = backend.emit(builder.operations);
+        let constraints = backend.emit(builder.into_operations());
         PlonkBn254Prover::test::<OuterConfig>(
             constraints,
             Witness {

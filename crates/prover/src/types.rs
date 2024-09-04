@@ -6,22 +6,25 @@ use p3_bn254_fr::Bn254Fr;
 use p3_commit::{Pcs, TwoAdicMultiplicativeCoset};
 use p3_field::{AbstractField, PrimeField, PrimeField32, TwoAdicField};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use sp1_core_machine::{
-    io::{SP1PublicValues, SP1Stdin},
-    riscv::RiscvAir,
-};
+use sp1_core_machine::io::{SP1PublicValues, SP1Stdin};
 use sp1_primitives::poseidon2_hash;
-use sp1_recursion_core::{air::RecursionPublicValues, stark::config::BabyBearPoseidon2Outer};
-use sp1_recursion_gnark_ffi::proof::{Groth16Bn254Proof, PlonkBn254Proof};
-use sp1_recursion_program::machine::{
-    SP1CompressMemoryLayout, SP1DeferredMemoryLayout, SP1RecursionMemoryLayout,
+
+use sp1_recursion_core_v2::{air::RecursionPublicValues, stark::config::BabyBearPoseidon2Outer};
+
+use sp1_recursion_circuit_v2::machine::{
+    SP1CompressWitnessValues, SP1DeferredWitnessValues, SP1RecursionWitnessValues,
 };
-use sp1_stark::{ShardProof, StarkGenericConfig, StarkProvingKey, StarkVerifyingKey, DIGEST_SIZE};
+
+use sp1_recursion_gnark_ffi::proof::{Groth16Bn254Proof, PlonkBn254Proof};
+
+use sp1_stark::{
+    Dom, ShardProof, StarkGenericConfig, StarkProvingKey, StarkVerifyingKey, DIGEST_SIZE,
+};
 use thiserror::Error;
 
 use crate::{
     utils::{babybear_bytes_to_bn254, babybears_to_bn254, words_to_bytes_be},
-    words_to_bytes, CompressAir, CoreSC, InnerSC,
+    words_to_bytes, CoreSC, InnerSC,
 };
 
 /// The information necessary to generate a proof for a given RISC-V program.
@@ -201,9 +204,10 @@ impl ProofSystem {
 
 /// An intermediate proof which proves the execution over a range of shards.
 #[derive(Serialize, Deserialize, Clone)]
-#[serde(bound(serialize = "ShardProof<SC>: Serialize"))]
-#[serde(bound(deserialize = "ShardProof<SC>: Deserialize<'de>"))]
+#[serde(bound(serialize = "ShardProof<SC>: Serialize, Dom<SC>: Serialize"))]
+#[serde(bound(deserialize = "ShardProof<SC>: Deserialize<'de>, Dom<SC>: DeserializeOwned"))]
 pub struct SP1ReduceProof<SC: StarkGenericConfig> {
+    pub vk: StarkVerifyingKey<SC>,
     pub proof: ShardProof<SC>,
 }
 
@@ -241,8 +245,17 @@ pub enum SP1RecursionProverError {
 }
 
 #[allow(clippy::large_enum_variant)]
-pub enum SP1CompressMemoryLayouts<'a> {
-    Core(SP1RecursionMemoryLayout<'a, InnerSC, RiscvAir<BabyBear>>),
-    Deferred(SP1DeferredMemoryLayout<'a, InnerSC, CompressAir<BabyBear>>),
-    Compress(SP1CompressMemoryLayout<'a, InnerSC, CompressAir<BabyBear>>),
+pub enum SP1CircuitWitness {
+    Core(SP1RecursionWitnessValues<CoreSC>),
+    Deferred(SP1DeferredWitnessValues<InnerSC>),
+    Compress(SP1CompressWitnessValues<InnerSC>),
+}
+
+impl<SC: StarkGenericConfig> std::fmt::Debug for SP1ReduceProof<SC> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut debug_struct = f.debug_struct("SP1ReduceProof");
+        debug_struct.field("vk", &self.vk);
+        debug_struct.field("proof", &self.proof);
+        debug_struct.finish()
+    }
 }

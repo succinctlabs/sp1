@@ -13,7 +13,7 @@ use sp1_core_executor::SP1Context;
 use sp1_core_machine::{io::SP1Stdin, SP1_CIRCUIT_VERSION};
 use sp1_prover::{
     components::SP1ProverComponents, CoreSC, InnerSC, SP1CoreProofData, SP1Prover, SP1ProvingKey,
-    SP1ReduceProof, SP1VerifyingKey,
+    SP1VerifyingKey,
 };
 use sp1_stark::{MachineVerificationError, SP1ProverOpts};
 use std::time::Duration;
@@ -96,7 +96,7 @@ pub trait Prover<C: SP1ProverComponents>: Send + Sync {
                 .map_err(SP1VerificationError::Core),
             SP1Proof::Compressed(proof) => self
                 .sp1_prover()
-                .verify_compressed(&SP1ReduceProof { proof: proof.clone() }, vkey)
+                .verify_compressed(proof, vkey)
                 .map_err(SP1VerificationError::Recursion),
             SP1Proof::Plonk(proof) => self
                 .sp1_prover()

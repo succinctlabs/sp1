@@ -206,7 +206,7 @@ pub fn fri_fold<F: AbstractField>(
 pub fn commit_public_values<F: AbstractField>(
     public_values_a: &RecursionPublicValues<u32>,
 ) -> Instruction<F> {
-    let pv_a = public_values_a.to_vec().map(|pv| Address(F::from_canonical_u32(pv)));
+    let pv_a = public_values_a.as_array().map(|pv| Address(F::from_canonical_u32(pv)));
     let pv_address: &RecursionPublicValues<Address<F>> = pv_a.as_slice().borrow();
 
     Instruction::CommitPublicValues(Box::new(CommitPublicValuesInstr {

@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use sp1_core_machine::io::{SP1PublicValues, SP1Stdin};
 use strum_macros::{EnumDiscriminants, EnumTryAs};
 
-use sp1_prover::{CoreSC, Groth16Bn254Proof, InnerSC, PlonkBn254Proof};
+use sp1_prover::{CoreSC, Groth16Bn254Proof, InnerSC, PlonkBn254Proof, SP1ReduceProof};
 use sp1_stark::{MachineVerificationError, ShardProof};
 
 /// A proof generated with SP1 of a particular proof mode.
@@ -15,7 +15,7 @@ use sp1_stark::{MachineVerificationError, ShardProof};
 pub enum SP1Proof {
     #[strum_discriminants(default)]
     Core(Vec<ShardProof<CoreSC>>),
-    Compressed(ShardProof<InnerSC>),
+    Compressed(Box<SP1ReduceProof<InnerSC>>),
     Plonk(PlonkBn254Proof),
     Groth16(Groth16Bn254Proof),
 }

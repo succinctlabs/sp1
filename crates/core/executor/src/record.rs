@@ -1,7 +1,10 @@
 use hashbrown::HashMap;
 use itertools::{EitherOrBoth, Itertools};
-use p3_field::AbstractField;
-use sp1_stark::{air::PublicValues, MachineRecord, SP1CoreOpts, SplitOpts};
+use p3_field::{AbstractField, PrimeField};
+use sp1_stark::{
+    air::{MachineAir, PublicValues},
+    MachineRecord, SP1CoreOpts, SplitOpts,
+};
 use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
@@ -9,12 +12,9 @@ use serde::{Deserialize, Serialize};
 use super::{program::Program, Opcode};
 use crate::{
     events::{
-        add_sharded_byte_lookup_events, AluEvent, ByteLookupEvent, ByteRecord, CpuEvent,
-        EdDecompressEvent, EllipticCurveAddEvent, EllipticCurveDecompressEvent,
-        EllipticCurveDoubleEvent, Fp2AddSubEvent, Fp2MulEvent, FpOpEvent, KeccakPermuteEvent,
-        LookupId, MemoryInitializeFinalizeEvent, MemoryLocalEvent, MemoryRecordEnum,
-        ShaCompressEvent, ShaExtendEvent, SyscallEvent, Uint256MulEvent,
+        add_sharded_byte_lookup_events, AluEvent, ByteLookupEvent, ByteRecord, CpuEvent, EdDecompressEvent, EllipticCurveAddEvent, EllipticCurveDecompressEvent, EllipticCurveDoubleEvent, Fp2AddSubEvent, Fp2MulEvent, FpOpEvent, KeccakPermuteEvent, LookupId, MemoryInitializeFinalizeEvent, MemoryLocalEvent, MemoryRecordEnum, ShaCompressEvent, ShaExtendEvent, SyscallEvent, Uint256MulEvent
     },
+    shape::CoreShape,
     syscalls::SyscallCode,
 };
 
@@ -99,6 +99,8 @@ pub struct ExecutionRecord {
     pub public_values: PublicValues<u32, u32>,
     /// The nonce lookup.
     pub nonce_lookup: HashMap<LookupId, u32>,
+    /// The shape of the proof.
+    pub shape: Option<CoreShape>,
 }
 
 impl ExecutionRecord {
@@ -429,6 +431,20 @@ impl ExecutionRecord {
         }
 
         shards
+    }
+
+    /// Return the number of rows needed for a chip, according to the proof shape specified in the
+    /// struct.
+    pub fn fixed_log2_rows<F: PrimeField, A: MachineAir<F>>(&self, air: &A) -> Option<usize> {
+        self.shape
+            .as_ref()
+            .map(|shape| {
+                shape
+                    .shape
+                    .get(&air.name())
+                    .unwrap_or_else(|| panic!("Chip {} not found in specified shape", air.name()))
+            })
+            .copied()
     }
 }
 

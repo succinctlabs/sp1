@@ -67,7 +67,6 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
 
         let ShardCommitment {
             global_main_commit,
-            has_global_main_commit,
             local_main_commit,
             permutation_commit,
             quotient_commit,
@@ -168,7 +167,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
             }
         }
 
-        let rounds = if *has_global_main_commit {
+        let rounds = if !global_trace_points_and_openings.is_empty() {
             vec![
                 (vk.commit.clone(), preprocessed_domains_points_and_opens),
                 (global_main_commit.clone(), global_trace_points_and_openings),

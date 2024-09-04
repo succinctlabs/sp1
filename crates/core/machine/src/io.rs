@@ -11,7 +11,11 @@ pub struct SP1Stdin {
     /// a vec of bytes at a time.
     pub buffer: Vec<Vec<u8>>,
     pub ptr: usize,
-    pub proofs: Vec<(ShardProof<BabyBearPoseidon2>, StarkVerifyingKey<BabyBearPoseidon2>)>,
+    pub proofs: Vec<(
+        StarkVerifyingKey<BabyBearPoseidon2>,
+        ShardProof<BabyBearPoseidon2>,
+        StarkVerifyingKey<BabyBearPoseidon2>,
+    )>,
 }
 
 /// Public values for the prover.
@@ -63,10 +67,11 @@ impl SP1Stdin {
 
     pub fn write_proof(
         &mut self,
+        reduce_vk: StarkVerifyingKey<BabyBearPoseidon2>,
         proof: ShardProof<BabyBearPoseidon2>,
         vk: StarkVerifyingKey<BabyBearPoseidon2>,
     ) {
-        self.proofs.push((proof, vk));
+        self.proofs.push((reduce_vk, proof, vk));
     }
 }
 

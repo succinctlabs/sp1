@@ -7,7 +7,7 @@ use sp1_core_executor::{
     },
     syscalls::SyscallCode,
     ByteOpcode::{self, U16Range},
-    ExecutionRecord, Opcode, Program,
+    CoreShape, ExecutionRecord, Opcode, Program,
     Register::X0,
 };
 use sp1_primitives::consts::WORD_SIZE;
@@ -64,7 +64,7 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
         let mut trace = RowMajorMatrix::new(values, NUM_CPU_COLS);
 
         // Pad the trace to a power of two.
-        Self::pad_to_power_of_two::<F>(&mut trace.values);
+        Self::pad_to_power_of_two::<F>(self, &input.shape, &mut trace.values);
 
         trace
     }
@@ -706,9 +706,15 @@ impl CpuChip {
         is_halt
     }
 
-    fn pad_to_power_of_two<F: PrimeField>(values: &mut Vec<F>) {
+    fn pad_to_power_of_two<F: PrimeField32>(&self, shape: &Option<CoreShape>, values: &mut Vec<F>) {
         let n_real_rows = values.len() / NUM_CPU_COLS;
-        let padded_nb_rows = if n_real_rows < 16 { 16 } else { n_real_rows.next_power_of_two() };
+        let padded_nb_rows = if let Some(shape) = shape {
+            shape.shape[&MachineAir::<F>::name(self)]
+        } else if n_real_rows < 16 {
+            16
+        } else {
+            n_real_rows.next_power_of_two()
+        };
         values.resize(padded_nb_rows * NUM_CPU_COLS, F::zero());
 
         // Interpret values as a slice of arrays of length `NUM_CPU_COLS`

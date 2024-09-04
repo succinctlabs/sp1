@@ -106,7 +106,7 @@ impl BuildToolchainCmd {
         for tool in tools_bin_dir.read_dir()? {
             let tool = tool?;
             let tool_name = tool.file_name();
-            std::fs::copy(&tool.path(), target_bin_dir.join(tool_name))?;
+            std::fs::copy(tool.path(), target_bin_dir.join(tool_name))?;
         }
 
         // Link the toolchain to rustup.

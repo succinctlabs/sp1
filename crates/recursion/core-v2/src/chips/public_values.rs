@@ -22,8 +22,10 @@ pub const NUM_PUBLIC_VALUES_COLS: usize = core::mem::size_of::<PublicValuesCols<
 pub const NUM_PUBLIC_VALUES_PREPROCESSED_COLS: usize =
     core::mem::size_of::<PublicValuesPreprocessedCols<u8>>();
 
+pub(crate) const PUB_VALUES_LOG_HEIGHT: usize = 4;
+
 #[derive(Default)]
-pub struct PublicValuesChip {}
+pub struct PublicValuesChip;
 
 /// The preprocessed columns for the CommitPVHash instruction.
 #[derive(AlignedBorrow, Debug, Clone, Copy)]
@@ -94,7 +96,12 @@ impl<F: PrimeField32> MachineAir<F> for PublicValuesChip {
         }
 
         // Pad the preprocessed rows to 8 rows.
-        pad_rows_fixed(&mut rows, || [F::zero(); NUM_PUBLIC_VALUES_PREPROCESSED_COLS], Some(3));
+        // gpu code breaks for small traces
+        pad_rows_fixed(
+            &mut rows,
+            || [F::zero(); NUM_PUBLIC_VALUES_PREPROCESSED_COLS],
+            Some(PUB_VALUES_LOG_HEIGHT),
+        );
 
         let trace = RowMajorMatrix::new(
             rows.into_iter().flatten().collect(),
@@ -127,7 +134,11 @@ impl<F: PrimeField32> MachineAir<F> for PublicValuesChip {
         }
 
         // Pad the trace to 8 rows.
-        pad_rows_fixed(&mut rows, || [F::zero(); NUM_PUBLIC_VALUES_COLS], Some(3));
+        pad_rows_fixed(
+            &mut rows,
+            || [F::zero(); NUM_PUBLIC_VALUES_COLS],
+            Some(PUB_VALUES_LOG_HEIGHT),
+        );
 
         // Convert the trace to a row major matrix.
         RowMajorMatrix::new(rows.into_iter().flatten().collect(), NUM_PUBLIC_VALUES_COLS)
@@ -235,7 +246,7 @@ mod tests {
             }],
             ..Default::default()
         };
-        let chip = PublicValuesChip::default();
+        let chip = PublicValuesChip;
         let trace: RowMajorMatrix<F> = chip.generate_trace(&shard, &mut ExecutionRecord::default());
         println!("{:?}", trace.values)
     }

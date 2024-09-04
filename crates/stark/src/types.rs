@@ -3,6 +3,7 @@
 use std::fmt::Debug;
 
 use hashbrown::HashMap;
+use itertools::Itertools;
 use p3_matrix::{dense::RowMajorMatrixView, stack::VerticalPair};
 use serde::{Deserialize, Serialize};
 
@@ -32,22 +33,25 @@ impl<SC: StarkGenericConfig, M, P> ShardMainData<SC, M, P> {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ShardCommitment<C, F> {
+pub struct ShardCommitment<C> {
     pub global_main_commit: C,
-    pub has_global_main_commit: F,
     pub local_main_commit: C,
     pub permutation_commit: C,
     pub quotient_commit: C,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "T: Serialize"))]
+#[serde(bound(deserialize = "T: Deserialize<'de>"))]
 pub struct AirOpenedValues<T> {
     pub local: Vec<T>,
     pub next: Vec<T>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ChipOpenedValues<T: Serialize> {
+#[serde(bound(serialize = "T: Serialize"))]
+#[serde(bound(deserialize = "T: Deserialize<'de>"))]
+pub struct ChipOpenedValues<T> {
     pub preprocessed: AirOpenedValues<T>,
     pub main: AirOpenedValues<T>,
     pub permutation: AirOpenedValues<T>,
@@ -58,7 +62,7 @@ pub struct ChipOpenedValues<T: Serialize> {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ShardOpenedValues<T: Serialize> {
+pub struct ShardOpenedValues<T> {
     pub chips: Vec<ChipOpenedValues<T>>,
 }
 
@@ -70,12 +74,17 @@ pub const PROOF_MAX_NUM_PVS: usize = 370;
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(bound = "")]
 pub struct ShardProof<SC: StarkGenericConfig> {
-    pub commitment: ShardCommitment<Com<SC>, bool>,
+    pub commitment: ShardCommitment<Com<SC>>,
     pub opened_values: ShardOpenedValues<Challenge<SC>>,
     pub opening_proof: OpeningProof<SC>,
     pub chip_ordering: HashMap<String, usize>,
     pub chip_scopes: Vec<InteractionScope>,
     pub public_values: Vec<Val<SC>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, PartialOrd, Ord, Eq, Hash)]
+pub struct ProofShape {
+    pub chip_information: Vec<(String, usize, usize)>,
 }
 
 impl<SC: StarkGenericConfig> Debug for ShardProof<SC> {
@@ -121,6 +130,10 @@ impl<SC: StarkGenericConfig> ShardProof<SC> {
     pub fn contains_global_memory_finalize(&self) -> bool {
         self.chip_ordering.contains_key("MemoryGlobalFinalize")
     }
+
+    pub fn contains_global_main_commitment(&self) -> bool {
+        self.chip_scopes.contains(&InteractionScope::Global)
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -158,5 +171,19 @@ impl From<[u32; 8]> for DeferredDigest {
             bytes[i * 4..(i + 1) * 4].copy_from_slice(&word.to_le_bytes());
         }
         DeferredDigest(bytes)
+    }
+}
+
+impl<SC: StarkGenericConfig> ShardProof<SC> {
+    pub fn shape(&self) -> ProofShape {
+        ProofShape {
+            chip_information: self
+                .chip_ordering
+                .iter()
+                .sorted_by_key(|(_, idx)| *idx)
+                .zip(self.opened_values.chips.iter())
+                .map(|((name, idx), values)| (name.to_owned(), *idx, values.log_degree))
+                .collect(),
+        }
     }
 }

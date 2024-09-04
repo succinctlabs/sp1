@@ -364,18 +364,16 @@ impl Hintable<C> for ShardOpenedValues<InnerChallenge> {
     }
 }
 
-impl Hintable<C> for ShardCommitment<InnerDigestHash, bool> {
+impl Hintable<C> for ShardCommitment<InnerDigestHash> {
     type HintVariable = ShardCommitmentVariable<C>;
 
     fn read(builder: &mut Builder<C>) -> Self::HintVariable {
         let global_main_commit = InnerDigest::read(builder);
-        let has_global_main_commit = bool::read(builder);
         let local_main_commit = InnerDigest::read(builder);
         let permutation_commit = InnerDigest::read(builder);
         let quotient_commit = InnerDigest::read(builder);
         ShardCommitmentVariable {
             global_main_commit,
-            has_global_main_commit,
             local_main_commit,
             permutation_commit,
             quotient_commit,
@@ -386,7 +384,6 @@ impl Hintable<C> for ShardCommitment<InnerDigestHash, bool> {
         let mut stream = Vec::new();
         let h: InnerDigest = self.global_main_commit.into();
         stream.extend(h.write());
-        stream.extend(bool::write(&self.has_global_main_commit));
         let h: InnerDigest = self.local_main_commit.into();
         stream.extend(h.write());
         let h: InnerDigest = self.permutation_commit.into();
@@ -474,7 +471,7 @@ impl<
         A: MachineAir<SC::Val>,
     > Hintable<C> for ShardProofHint<'a, SC, A>
 where
-    ShardCommitment<Com<SC>, bool>: Hintable<C>,
+    ShardCommitment<Com<SC>>: Hintable<C>,
 {
     type HintVariable = ShardProofVariable<C>;
 

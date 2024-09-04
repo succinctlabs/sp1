@@ -22,16 +22,8 @@ pub const NUM_INTERNAL_ROUNDS: usize = 13;
 pub const NUM_ROUNDS: usize = NUM_EXTERNAL_ROUNDS + NUM_INTERNAL_ROUNDS;
 
 /// A chip that implements addition for the opcode Poseidon2Wide.
-pub struct Poseidon2WideChip<const DEGREE: usize> {
-    pub fixed_log2_rows: Option<usize>,
-    pub pad: bool,
-}
-
-impl<const DEGREE: usize> Default for Poseidon2WideChip<DEGREE> {
-    fn default() -> Self {
-        Self { fixed_log2_rows: None, pad: true }
-    }
-}
+#[derive(Default, Debug, Clone, Copy)]
+pub struct Poseidon2WideChip<const DEGREE: usize>;
 
 impl<'a, const DEGREE: usize> Poseidon2WideChip<DEGREE> {
     /// Transmute a row it to an immutable Poseidon2 instance.
@@ -172,7 +164,7 @@ pub(crate) mod tests {
         runtime.run().unwrap();
 
         let config = SC::new();
-        let machine_deg_3 = A::machine_wide(config);
+        let machine_deg_3 = A::compress_machine(config);
         let (pk_3, vk_3) = machine_deg_3.setup(&program);
         let result_deg_3 =
             run_test_machine(vec![runtime.record.clone()], machine_deg_3, pk_3, vk_3);
@@ -181,7 +173,7 @@ pub(crate) mod tests {
         }
 
         let config = SC::new();
-        let machine_deg_9 = B::machine_wide(config);
+        let machine_deg_9 = B::compress_machine(config);
         let (pk_9, vk_9) = machine_deg_9.setup(&program);
         let result_deg_9 = run_test_machine(vec![runtime.record], machine_deg_9, pk_9, vk_9);
         if let Err(e) = result_deg_9 {

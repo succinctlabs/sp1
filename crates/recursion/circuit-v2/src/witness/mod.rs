@@ -58,6 +58,19 @@ impl<'a, C: CircuitConfig, T: Witnessable<C>> Witnessable<C> for &'a T {
     }
 }
 
+impl<C: CircuitConfig, T: Witnessable<C>, U: Witnessable<C>> Witnessable<C> for (T, U) {
+    type WitnessVariable = (T::WitnessVariable, U::WitnessVariable);
+
+    fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
+        (self.0.read(builder), self.1.read(builder))
+    }
+
+    fn write(&self, witness: &mut impl WitnessWriter<C>) {
+        self.0.write(witness);
+        self.1.write(witness);
+    }
+}
+
 impl<C: CircuitConfig<F = InnerVal>> Witnessable<C> for InnerVal {
     type WitnessVariable = Felt<InnerVal>;
 
@@ -119,7 +132,7 @@ impl<C: CircuitConfig, T: Witnessable<C>> Witnessable<C> for Vec<T> {
 impl<C: CircuitConfig<F = InnerVal, EF = InnerChallenge>, SC: BabyBearFriConfigVariable<C>>
     Witnessable<C> for ShardProof<SC>
 where
-    Com<SC>: Witnessable<C, WitnessVariable = <SC as FieldHasherVariable<C>>::Digest>,
+    Com<SC>: Witnessable<C, WitnessVariable = <SC as FieldHasherVariable<C>>::DigestVariable>,
     OpeningProof<SC>: Witnessable<C, WitnessVariable = TwoAdicPcsProofVariable<C, SC>>,
 {
     type WitnessVariable = ShardProofVariable<C, SC>;
@@ -130,6 +143,7 @@ where
         let opening_proof = self.opening_proof.read(builder);
         let public_values = self.public_values.read(builder);
         let chip_ordering = self.chip_ordering.clone();
+        let chip_scopes = self.chip_scopes.clone();
 
         ShardProofVariable {
             commitment,
@@ -137,6 +151,7 @@ where
             opening_proof,
             public_values,
             chip_ordering,
+            chip_scopes,
         }
     }
 
@@ -148,20 +163,16 @@ where
     }
 }
 
-impl<C: CircuitConfig, T: Witnessable<C>, F: Witnessable<C>> Witnessable<C>
-    for ShardCommitment<T, F>
-{
-    type WitnessVariable = ShardCommitment<T::WitnessVariable, F::WitnessVariable>;
+impl<C: CircuitConfig, T: Witnessable<C>> Witnessable<C> for ShardCommitment<T> {
+    type WitnessVariable = ShardCommitment<T::WitnessVariable>;
 
     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
         let global_main_commit = self.global_main_commit.read(builder);
-        let has_global_main_commit = self.has_global_main_commit.read(builder);
         let local_main_commit = self.local_main_commit.read(builder);
         let permutation_commit = self.permutation_commit.read(builder);
         let quotient_commit = self.quotient_commit.read(builder);
         Self::WitnessVariable {
             global_main_commit,
-            has_global_main_commit,
             local_main_commit,
             permutation_commit,
             quotient_commit,
@@ -170,7 +181,6 @@ impl<C: CircuitConfig, T: Witnessable<C>, F: Witnessable<C>> Witnessable<C>
 
     fn write(&self, witness: &mut impl WitnessWriter<C>) {
         self.global_main_commit.write(witness);
-        self.has_global_main_commit.write(witness);
         self.local_main_commit.write(witness);
         self.permutation_commit.write(witness);
         self.quotient_commit.write(witness);

@@ -118,12 +118,13 @@ where
         C::EF: TwoAdicField,
         Com<SC>: Into<[SC::Val; DIGEST_SIZE]>,
     {
+        unimplemented!();
+        /*
         builder.cycle_tracker("stage-c-verify-shard-setup");
         let ShardProofVariable { commitment, opened_values, opening_proof, .. } = proof;
 
         let ShardCommitmentVariable {
             global_main_commit,
-            has_global_main_commit,
             local_main_commit,
             permutation_commit,
             quotient_commit,
@@ -404,6 +405,7 @@ where
         }
 
         builder.cycle_tracker("stage-e-verify-constraints");
+        */
     }
 }
 

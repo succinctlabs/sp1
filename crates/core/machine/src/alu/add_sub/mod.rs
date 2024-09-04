@@ -19,7 +19,7 @@ use sp1_stark::{
     Word,
 };
 
-use crate::{operations::AddOperation, utils::pad_to_power_of_two};
+use crate::{operations::AddOperation, utils::pad_rows_fixed};
 
 /// The number of main trace columns for `AddSubChip`.
 pub const NUM_ADD_SUB_COLS: usize = size_of::<AddSubCols<u8>>();
@@ -105,12 +105,14 @@ impl<F: PrimeField> MachineAir<F> for AddSubChip {
             rows.extend(row_batch);
         }
 
+        pad_rows_fixed(
+            &mut rows,
+            || [F::zero(); NUM_ADD_SUB_COLS],
+            input.fixed_log2_rows::<F, _>(self),
+        );
         // Convert the trace to a row major matrix.
         let mut trace =
             RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_ADD_SUB_COLS);
-
-        // Pad the trace to a power of two.
-        pad_to_power_of_two::<NUM_ADD_SUB_COLS, F>(&mut trace.values);
 
         // Write the nonces to the trace.
         for i in 0..trace.height() {

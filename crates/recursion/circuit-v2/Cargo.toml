@@ -61,3 +61,4 @@ rand = "0.8.5"
 [features]
 native-gnark = ["sp1-recursion-gnark-ffi/native"]
 export-tests = []
+debug = ["sp1-core-machine/debug"]
