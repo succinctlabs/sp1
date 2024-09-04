@@ -81,9 +81,9 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
         let mul_heights = vec![22, 21, 20, 19, 18, 17, 16, 10];
         let shift_right_heights = vec![22, 21, 20, 19, 18, 17, 16, 10];
         let shift_left_heights = vec![22, 21, 20, 19, 18, 17, 16, 10];
-        let lt_heights = vec![22, 21, 20, 19, 18, 17, 16, 10];
-        let memory_init_heights = vec![22, 21, 20, 19, 18, 16];
-        let memory_final_heights = vec![22, 21, 20, 19, 18, 16];
+        let lt_heights = vec![22, 21, 20, 19, 18, 16, 10];
+        let memory_init_heights = vec![22, 21, 20, 18, 16];
+        let memory_final_heights = vec![22, 21, 20, 18, 16];
 
         // Get allowed heights for preprocessed chips.
         allowed_heights.extend([
