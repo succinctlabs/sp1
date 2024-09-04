@@ -216,7 +216,7 @@ impl<'a> Executor<'a> {
             hook_registry,
             opts,
             max_cycles: context.max_cycles,
-            memory_checkpoint: PagedMemory::new(),
+            memory_checkpoint: PagedMemory::new_preallocated(),
         }
     }
 
@@ -1243,7 +1243,7 @@ impl<'a> Executor<'a> {
 
     /// Executes up to `self.shard_batch_size` cycles of the program, returning whether the program
     /// has finished.
-    pub fn execute(&mut self) -> Result<bool, ExecutionError> {
+    fn execute(&mut self) -> Result<bool, ExecutionError> {
         // Get the program.
         let program = self.program.clone();
 

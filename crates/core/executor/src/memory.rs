@@ -27,7 +27,7 @@ pub struct Page<V>(VecMap<V>);
 
 impl<V> Page<V> {
     /// Create a `Page` with capacity `PAGE_LEN`.
-    pub fn new() -> Self {
+    pub fn new_preallocated() -> Self {
         Self(VecMap::with_capacity(PAGE_LEN))
     }
 }
@@ -47,7 +47,7 @@ pub struct PagedMemory<V> {
 
 impl<V> PagedMemory<V> {
     /// Create a `PagedMemory` with capacity `MAX_PAGE_COUNT`.
-    pub fn new() -> Self {
+    pub fn new_preallocated() -> Self {
         Self { page_table: VecMap::with_capacity(MAX_PAGE_COUNT) }
     }
 
