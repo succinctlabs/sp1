@@ -370,7 +370,7 @@ where
             main_commit: local_main_commit,
             main_data: local_main_data,
             chip_ordering: local_chip_ordering,
-            public_values: _,
+            public_values: local_public_values,
         } = local_data;
 
         // Merge the chip ordering and traces from the global and local data.
@@ -541,7 +541,7 @@ where
                                 permutation_trace_on_quotient_domains,
                                 &packed_perm_challenges,
                                 alpha,
-                                &global_public_values,
+                                &local_public_values,
                             )
                         })
                 })
@@ -703,6 +703,8 @@ where
             quotient_opened_values.push(slice.map(|mut op| op.pop().unwrap()).collect::<Vec<_>>());
         }
 
+        println!("cumulative_sums are {:?}", cumulative_sums);
+
         let opened_values = main_opened_values
             .into_iter()
             .zip_eq(permutation_opened_values)
@@ -740,7 +742,7 @@ where
             opening_proof,
             chip_ordering: all_chips_ordering,
             chip_scopes: all_chip_scopes,
-            public_values: global_public_values,
+            public_values: local_public_values,
         })
     }
 

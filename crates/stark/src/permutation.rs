@@ -139,6 +139,10 @@ pub fn generate_permutation_trace<F: PrimeField, EF: ExtensionField<F>>(
         permutation_trace_width,
     );
 
+    println!("grouped_sends is {:?}", grouped_sends);
+    println!("grouped_receives is {:?}", grouped_receives);
+    println!("grouped_widths is {:?}", grouped_widths);
+
     let mut global_cumulative_sum = EF::zero();
     let mut local_cumulative_sum = EF::zero();
 

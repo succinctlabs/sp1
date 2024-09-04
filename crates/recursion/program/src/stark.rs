@@ -290,7 +290,11 @@ where
         });
 
         // Create the pcs rounds.
-        let mut rounds = builder.dyn_array::<TwoAdicPcsRoundVariable<_>>(5);
+        let num_rounds: Var<_> = builder.eval(C::N::from_canonical_usize(4));
+        builder.if_eq(*has_global_main_commit, C::N::one()).then(|builder| {
+            builder.assign(num_rounds, num_rounds + C::N::one());
+        });
+        let mut rounds = builder.dyn_array::<TwoAdicPcsRoundVariable<_>>(num_rounds);
         let prep_commit = vk.commitment.clone();
         let prep_round = TwoAdicPcsRoundVariable { batch_commit: prep_commit, mats: prep_mats };
         let global_main_round = TwoAdicPcsRoundVariable {
@@ -305,11 +309,18 @@ where
             TwoAdicPcsRoundVariable { batch_commit: permutation_commit.clone(), mats: perm_mats };
         let quotient_round =
             TwoAdicPcsRoundVariable { batch_commit: quotient_commit.clone(), mats: quotient_mats };
-        builder.set_value(&mut rounds, 0, prep_round);
-        builder.set_value(&mut rounds, 1, global_main_round);
-        builder.set_value(&mut rounds, 2, local_main_round);
-        builder.set_value(&mut rounds, 3, perm_round);
-        builder.set_value(&mut rounds, 4, quotient_round);
+        let index_num: Var<_> = builder.eval(C::N::zero());
+        builder.set_value(&mut rounds, index_num, prep_round);
+        builder.assign(index_num, index_num + C::N::one());
+        builder.if_eq(*has_global_main_commit, C::N::one()).then(|builder| {
+            builder.set_value(&mut rounds, index_num, global_main_round.clone());
+            builder.assign(index_num, index_num + C::N::one());
+        });
+        builder.set_value(&mut rounds, index_num, local_main_round);
+        builder.assign(index_num, index_num + C::N::one());
+        builder.set_value(&mut rounds, index_num, perm_round);
+        builder.assign(index_num, index_num + C::N::one());
+        builder.set_value(&mut rounds, index_num, quotient_round);
         builder.cycle_tracker("stage-c-verify-shard-setup");
 
         // Verify the pcs proof
@@ -378,16 +389,18 @@ where
         // enabled.
         builder.assert_var_eq(num_shard_chips_enabled, num_shard_chips);
 
+        builder.print_debug(7);
+
         // If we're checking the cumulative sum, assert that the sum of the cumulative sums is zero.
         if check_cumulative_sum {
-            let global_sum: Ext<_, _> = builder.eval(C::EF::zero().cons());
+            let local_sum: Ext<_, _> = builder.eval(C::EF::zero().cons());
             builder.range(0, proof.opened_values.chips.len()).for_each(|i, builder| {
                 let opened_values = builder.get(&proof.opened_values.chips, i);
 
-                builder.assign(global_sum, global_sum + opened_values.global_cumulative_sum);
-                builder.assert_ext_eq(opened_values.local_cumulative_sum, C::EF::zero().cons());
+                builder.assign(local_sum, local_sum + opened_values.local_cumulative_sum);
             });
-            builder.assert_ext_eq(global_sum, C::EF::zero().cons());
+            builder.assert_ext_eq(local_sum, C::EF::zero().cons());
+            builder.print_debug(8);
         }
 
         builder.cycle_tracker("stage-e-verify-constraints");

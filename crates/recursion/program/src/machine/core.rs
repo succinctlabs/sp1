@@ -65,7 +65,6 @@ impl SP1RecursiveVerifier<InnerConfig, BabyBearPoseidon2> {
     pub fn build(
         machine: &StarkMachine<BabyBearPoseidon2, RiscvAir<BabyBear>>,
     ) -> RecursionProgram<BabyBear> {
-        println!("build the compress program");
         let mut builder = Builder::<InnerConfig>::new(RecursionProgramType::Core);
 
         let input: SP1RecursionMemoryLayoutVariable<_> = builder.uninit();
@@ -189,11 +188,11 @@ where
                     builder.if_ne(index, C::N::from_canonical_usize(EMPTY)).then(|builder| {
                         builder.assign(contains_cpu, C::N::one());
                     });
-                } else if chip.name() == "MemoryInit" {
+                } else if chip.name() == "MemoryGlobalInit" {
                     builder.if_ne(index, C::N::from_canonical_usize(EMPTY)).then(|builder| {
                         builder.assign(contains_memory_init, C::N::one());
                     });
-                } else if chip.name() == "MemoryFinalize" {
+                } else if chip.name() == "MemoryGlobalFinalize" {
                     builder.if_ne(index, C::N::from_canonical_usize(EMPTY)).then(|builder| {
                         builder.assign(contains_memory_finalize, C::N::one());
                     });

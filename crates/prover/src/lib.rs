@@ -455,9 +455,6 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                             )
                             .in_scope(|| match input {
                                 SP1CompressMemoryLayouts::Core(input) => {
-                                    for proof in input.shard_proofs.iter() {
-                                        println!("proof scopes: {:?}", proof.chip_scopes);
-                                    }
                                     let mut witness_stream = Vec::new();
                                     witness_stream.extend(input.write());
                                     (
@@ -583,14 +580,13 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                                 });
 
                                 // Commit to the record and traces.
-                                let data = tracing::debug_span!("commit")
+                                let local_data = tracing::debug_span!("commit")
                                     .in_scope(|| self.compress_prover.commit(&record, traces));
 
                                 // Observe the commitment.
-                                tracing::debug_span!("observe commitment").in_scope(|| {
-                                    challenger.observe(data.main_commit);
+                                tracing::debug_span!("observe public values").in_scope(|| {
                                     challenger.observe_slice(
-                                        &data.public_values[0..self.compress_prover.num_pv_elts()],
+                                        &local_data.public_values[0..self.compress_prover.num_pv_elts()],
                                     );
                                 });
 
@@ -600,7 +596,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                                         .open(
                                             pk,
                                             None,
-                                            data,
+                                            local_data,
                                             &mut challenger,
                                             &[
                                                 <BabyBearPoseidon2 as StarkGenericConfig>::Challenge::zero(),

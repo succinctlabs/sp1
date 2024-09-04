@@ -122,7 +122,7 @@ pub struct RecursionPublicValues<T> {
     /// The leaf challenger containing the entropy from the main trace commitment.
     pub leaf_challenger: ChallengerPublicValues<T>,
 
-    /// Current cumulative sum of lookup bus.
+    /// Current global cumulative sum of lookup bus.
     pub global_cumulative_sum: [T; 4],
 
     /// Whether the proof completely proves the program execution.

@@ -97,7 +97,7 @@ where
         let pcs = TwoAdicFriPcsVariable {
             config: const_fri_config(&mut builder, machine.config().pcs().fri_config()),
         };
-        //SP1CompressVerifier::verify(&mut builder, &pcs, machine, input, recursive_vk, deferred_vk);
+        SP1CompressVerifier::verify(&mut builder, &pcs, machine, input, recursive_vk, deferred_vk);
 
         builder.halt();
 
@@ -136,8 +136,6 @@ where
         recursive_vk: &StarkVerifyingKey<SC>,
         deferred_vk: &StarkVerifyingKey<SC>,
     ) {
-        unimplemented!()
-        /*
         let SP1CompressMemoryLayoutVariable { compress_vk, shard_proofs, kinds, is_complete } =
             input;
 
@@ -236,13 +234,13 @@ where
             challenger.observe(builder, vk.pc_start);
 
             // Observe the main commitment and public values.
-            challenger.observe(builder, proof.commitment.main_commit.clone());
             for j in 0..machine.num_pv_elts() {
                 let element = builder.get(&proof.public_values, j);
                 challenger.observe(builder, element);
             }
 
             // Verify proof.
+            let zero_ext: Ext<C::F, C::EF> = builder.eval(C::F::zero());
             StarkVerifier::<C, SC>::verify_shard(
                 builder,
                 &vk,
@@ -251,6 +249,7 @@ where
                 &mut challenger,
                 &proof,
                 true,
+                &[zero_ext, zero_ext],
             );
 
             // Load the public values from the proof.
@@ -523,7 +522,7 @@ where
 
             // Update the cumulative sum.
             for (sum_element, current_sum_element) in
-                cumulative_sum.iter().zip_eq(current_public_values.cumulative_sum.iter())
+                cumulative_sum.iter().zip_eq(current_public_values.global_cumulative_sum.iter())
             {
                 builder.assign(*sum_element, *sum_element + *current_sum_element);
             }
@@ -558,7 +557,7 @@ where
         // Assign the committed value digests.
         reduce_public_values.committed_value_digest = committed_value_digest;
         // Assign the cumulative sum.
-        reduce_public_values.cumulative_sum = cumulative_sum;
+        reduce_public_values.global_cumulative_sum = cumulative_sum;
 
         // If the proof is complete, make completeness assertions and set the flag. Otherwise, check
         // the flag is zero and set the public value to zero.
@@ -574,6 +573,5 @@ where
         );
 
         commit_public_values(builder, reduce_public_values);
-        */
     }
 }
