@@ -83,7 +83,7 @@ impl ExecutionState {
             clk: 0,
             channel: 0,
             pc: pc_start,
-            memory: Mmu::default(),
+            memory: Mmu::new(),
             uninitialized_memory: HashMap::default(),
             input_stream: Vec::new(),
             input_stream_ptr: 0,

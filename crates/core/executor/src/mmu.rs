@@ -24,9 +24,15 @@ pub const NUM_REGISTERS: usize = 32;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Page<V>(VecMap<V>);
 
+impl<V> Page<V> {
+    pub fn new() -> Self {
+        Self(VecMap::with_capacity(PAGE_LEN))
+    }
+}
+
 impl<V> Default for Page<V> {
     fn default() -> Self {
-        Self(VecMap::with_capacity(PAGE_LEN))
+        Self(VecMap::default())
     }
 }
 
@@ -124,7 +130,7 @@ impl<V> Mmu<V> {
 
 impl<V> Default for Mmu<V> {
     fn default() -> Self {
-        Self::new()
+        Self { page_table: VecMap::default() }
     }
 }
 
