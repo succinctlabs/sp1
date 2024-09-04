@@ -211,7 +211,7 @@ impl<'a> Executor<'a> {
             executor_mode: ExecutorMode::Trace,
             max_syscall_cycles,
             report: ExecutionReport::default(),
-            print_report: true,
+            print_report: false,
             subproof_verifier,
             hook_registry,
             opts,
@@ -1365,20 +1365,22 @@ impl<'a> Executor<'a> {
             MemoryInitializeFinalizeEvent::initialize(0, 0, addr_0_record.is_some());
         memory_initialize_events.push(addr_0_initialize_event);
 
-        let num_finalize_events_before = memory_finalize_events.len();
+        // Count the number of touched memory addresses manually, since `PagedMemory` doesn't
+        // already know its length.
+        self.report.touched_memory_addresses = 0;
         for addr in self.state.memory.keys() {
+            self.report.touched_memory_addresses += 1;
             if addr == 0 {
                 // Handled above.
                 continue;
             }
 
-            let addr_u32 = addr;
             // Program memory is initialized in the MemoryProgram chip and doesn't require any
             // events, so we only send init events for other memory addresses.
-            if !self.record.program.memory_image.contains_key(&addr_u32) {
-                let initial_value = self.state.uninitialized_memory.get(&addr_u32).unwrap_or(&0);
+            if !self.record.program.memory_image.contains_key(&addr) {
+                let initial_value = self.state.uninitialized_memory.get(&addr).unwrap_or(&0);
                 memory_initialize_events.push(MemoryInitializeFinalizeEvent::initialize(
-                    addr_u32,
+                    addr,
                     *initial_value,
                     true,
                 ));
@@ -1386,10 +1388,8 @@ impl<'a> Executor<'a> {
 
             let record = *self.state.memory.get(addr).unwrap();
             memory_finalize_events
-                .push(MemoryInitializeFinalizeEvent::finalize_from_record(addr_u32, &record));
+                .push(MemoryInitializeFinalizeEvent::finalize_from_record(addr, &record));
         }
-        self.report.touched_memory_addresses =
-            (memory_finalize_events.len() - num_finalize_events_before) as u64;
     }
 
     fn get_syscall(&mut self, code: SyscallCode) -> Option<&Arc<dyn Syscall>> {
