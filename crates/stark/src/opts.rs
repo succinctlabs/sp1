@@ -4,8 +4,6 @@ use serde::{Deserialize, Serialize};
 use sysinfo::{System, SystemExt};
 
 const MAX_SHARD_SIZE: usize = 1 << 22;
-
-/// Empirically, increasing batch size above 8 doesn't result in a significant speedup.
 const MAX_SHARD_BATCH_SIZE: usize = 8;
 const DEFAULT_TRACE_GEN_WORKERS: usize = 1;
 const DEFAULT_CHECKPOINTS_CHANNEL_CAPACITY: usize = 128;
