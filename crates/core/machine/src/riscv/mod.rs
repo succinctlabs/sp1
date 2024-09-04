@@ -1,5 +1,9 @@
 pub mod cost;
 
+mod shape;
+
+pub use shape::*;
+
 use crate::{
     memory::{MemoryChipType, MemoryProgramChip},
     syscall::precompiles::fptower::{Fp2AddSubAssignChip, Fp2MulAssignChip, FpOpChip},
