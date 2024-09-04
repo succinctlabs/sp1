@@ -17,7 +17,7 @@ use crate::{
         MemoryWriteRecord,
     },
     hook::{HookEnv, HookRegistry},
-    mmu::{Entry, Mmu},
+    memory::{Entry, PagedMemory},
     record::{ExecutionRecord, MemoryAccessRecord},
     report::ExecutionReport,
     state::{ExecutionState, ForkState},
@@ -100,7 +100,7 @@ pub struct Executor<'a> {
 
     /// Memory addresses that were touched in this batch of shards. Used to minimize the size of
     /// checkpoints.
-    pub memory_checkpoint: Mmu<Option<MemoryRecord>>,
+    pub memory_checkpoint: PagedMemory<Option<MemoryRecord>>,
 }
 
 /// The different modes the executor can run in.
@@ -216,7 +216,7 @@ impl<'a> Executor<'a> {
             hook_registry,
             opts,
             max_cycles: context.max_cycles,
-            memory_checkpoint: Mmu::new(),
+            memory_checkpoint: PagedMemory::new(),
         }
     }
 

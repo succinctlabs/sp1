@@ -37,11 +37,11 @@ impl<V> Default for Page<V> {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Mmu<V> {
+pub struct PagedMemory<V> {
     pub page_table: VecMap<Page<V>>,
 }
 
-impl<V> Mmu<V> {
+impl<V> PagedMemory<V> {
     pub fn new() -> Self {
         Self { page_table: VecMap::with_capacity(MAX_PAGE_COUNT) }
     }
@@ -141,7 +141,7 @@ impl<V> Mmu<V> {
     }
 }
 
-impl<V> Default for Mmu<V> {
+impl<V> Default for PagedMemory<V> {
     fn default() -> Self {
         Self { page_table: VecMap::default() }
     }
@@ -216,7 +216,7 @@ impl<'a, V> OccupiedEntry<'a, V> {
     }
 }
 
-impl<V> FromIterator<(u32, V)> for Mmu<V> {
+impl<V> FromIterator<(u32, V)> for PagedMemory<V> {
     fn from_iter<T: IntoIterator<Item = (u32, V)>>(iter: T) -> Self {
         let mut mmu = Self::default();
         for (k, v) in iter {
@@ -226,7 +226,7 @@ impl<V> FromIterator<(u32, V)> for Mmu<V> {
     }
 }
 
-impl<V> IntoIterator for Mmu<V> {
+impl<V> IntoIterator for PagedMemory<V> {
     type Item = (u32, V);
 
     type IntoIter = IntoIter<V>;
@@ -260,7 +260,7 @@ impl<V> Iterator for IntoIter<V> {
             // Yield the next item.
             if let Some((lower, record)) = it.next() {
                 return Some((
-                    Mmu::<V>::decompress_addr((self.upper << LOG_PAGE_LEN) + lower),
+                    PagedMemory::<V>::decompress_addr((self.upper << LOG_PAGE_LEN) + lower),
                     record,
                 ));
             }
