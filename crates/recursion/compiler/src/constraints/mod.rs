@@ -1,7 +1,7 @@
 pub mod opcodes;
 
 use core::fmt::Debug;
-use p3_field::{AbstractExtensionField, Field, PrimeField};
+use p3_field::{AbstractExtensionField, PrimeField};
 use serde::{Deserialize, Serialize};
 use std::marker::PhantomData;
 
@@ -219,7 +219,7 @@ impl<C: Config + Debug> ConstraintCompiler<C> {
                     args: vec![vec![a.id()], vec![b.id()], vec![c.id()]],
                 }),
                 DslIr::DivFIN(a, b, c) => {
-                    let tmp = self.alloc_f(&mut constraints, b.inverse());
+                    let tmp = self.alloc_f(&mut constraints, b);
                     constraints.push(Constraint {
                         opcode: ConstraintOpcode::DivF,
                         args: vec![vec![a.id()], vec![tmp], vec![c.id()]],

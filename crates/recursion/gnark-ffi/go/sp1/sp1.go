@@ -79,6 +79,24 @@ func (circuit *Circuit) Define(api frontend.API) error {
 	felts := make(map[string]babybear.Variable)
 	exts := make(map[string]babybear.ExtensionVariable)
 
+	// Iterate through the witnesses and range check them, if necessary.
+	for i := 0; i < len(circuit.Felts); i++ {
+		if os.Getenv("GROTH16") != "1" {
+			fieldAPI.RangeChecker.Check(circuit.Felts[i].Value, 31)
+		} else {
+			api.ToBinary(circuit.Felts[i].Value, 31)
+		}
+	}
+	for i := 0; i < len(circuit.Exts); i++ {
+		for j := 0; j < 4; j++ {
+			if os.Getenv("GROTH16") != "1" {
+				fieldAPI.RangeChecker.Check(circuit.Exts[i].Value[j].Value, 31)
+			} else {
+				api.ToBinary(circuit.Exts[i].Value[j].Value, 31)
+			}
+		}
+	}
+
 	// Iterate through the instructions and handle each opcode.
 	for _, cs := range constraints {
 		switch cs.Opcode {
