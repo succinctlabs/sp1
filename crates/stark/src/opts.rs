@@ -5,7 +5,7 @@ use sysinfo::{System, SystemExt};
 
 const MAX_SHARD_SIZE: usize = 1 << 22;
 
-// Empirically, increasing batch size above 8 doesn't result in a significant speedup.
+/// Empirically, increasing batch size above 8 doesn't result in a significant speedup.
 const MAX_SHARD_BATCH_SIZE: usize = 8;
 const DEFAULT_TRACE_GEN_WORKERS: usize = 1;
 const DEFAULT_CHECKPOINTS_CHANNEL_CAPACITY: usize = 128;
@@ -45,7 +45,13 @@ pub struct SP1CoreOpts {
     pub records_and_traces_channel_capacity: usize,
 }
 
-// Calculate the default shard size using an empirically determined formula.
+/// Calculate the default shard size using an empirically determined formula.
+///
+/// For memory constrained machines, we need to set shard size to either 2^18.
+/// Otherwise, we use a linear formula derived from experimental results.
+/// The data comes from benchmarking the maximum physical memory usage
+/// of [rsp](https://github.com/succinctlabs/rsp) on a variety of shard sizes and
+/// shard batch sizes, and performing linear regression on the results.
 #[allow(clippy::cast_precision_loss)]
 fn shard_size(total_available_mem: u64) -> usize {
     let log_shard_size = match total_available_mem {
@@ -55,7 +61,10 @@ fn shard_size(total_available_mem: u64) -> usize {
     std::cmp::min(1 << log_shard_size, MAX_SHARD_SIZE)
 }
 
-// Calculate the default shard batch size using an empirically determined formula.
+/// Calculate the default shard batch size using an empirically determined formula.
+///
+/// For memory constrained machines, we need to set shard batch size to either 1 or 2.
+/// For machines with a large amount of memory
 fn shard_batch_size(total_available_mem: u64) -> usize {
     match total_available_mem {
         0..=16 => 1,
@@ -75,9 +84,6 @@ impl Default for SP1CoreOpts {
         let default_shard_size = shard_size(total_available_mem);
         let default_shard_batch_size = shard_batch_size(total_available_mem);
 
-        println!("total memory: {total_available_mem} GB");
-        println!("default shard size: {default_shard_size}");
-        println!("default shard batch size: {default_shard_batch_size}");
         Self {
             shard_size: env::var("SHARD_SIZE").map_or_else(
                 |_| default_shard_size,

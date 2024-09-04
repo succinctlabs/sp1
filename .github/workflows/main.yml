@@ -179,7 +179,6 @@ jobs:
         "ram=${{ matrix.mem_limit}}",
         family=c7a,
         image=ubuntu22-full-x64,
-        spot=false,
         "run-id=${{ github.run_id }}",
       ]
     env:
