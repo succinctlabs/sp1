@@ -27,7 +27,7 @@ use typenum::Unsigned;
 use crate::{
     memory::{MemoryCols, MemoryReadCols, MemoryWriteCols},
     operations::field::field_op::FieldOpCols,
-    utils::{limbs_from_prev_access, pad_rows},
+    utils::{limbs_from_prev_access, pad_rows_fixed},
 };
 
 pub const fn num_weierstrass_add_cols<P: FieldParameters + NumWords>() -> usize {
@@ -257,23 +257,27 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
         }
         output.add_byte_lookup_events(new_byte_lookup_events);
 
-        pad_rows(&mut rows, || {
-            let mut row = vec![F::zero(); num_weierstrass_add_cols::<E::BaseField>()];
-            let cols: &mut WeierstrassAddAssignCols<F, E::BaseField> =
-                row.as_mut_slice().borrow_mut();
-            let zero = BigUint::zero();
-            Self::populate_field_ops(
-                &mut vec![],
-                0,
-                0,
-                cols,
-                zero.clone(),
-                zero.clone(),
-                zero.clone(),
-                zero,
-            );
-            row
-        });
+        pad_rows_fixed(
+            &mut rows,
+            || {
+                let mut row = vec![F::zero(); num_weierstrass_add_cols::<E::BaseField>()];
+                let cols: &mut WeierstrassAddAssignCols<F, E::BaseField> =
+                    row.as_mut_slice().borrow_mut();
+                let zero = BigUint::zero();
+                Self::populate_field_ops(
+                    &mut vec![],
+                    0,
+                    0,
+                    cols,
+                    zero.clone(),
+                    zero.clone(),
+                    zero.clone(),
+                    zero,
+                );
+                row
+            },
+            input.fixed_log2_rows::<F, _>(self),
+        );
 
         // Convert the trace to a row major matrix.
         let mut trace = RowMajorMatrix::new(

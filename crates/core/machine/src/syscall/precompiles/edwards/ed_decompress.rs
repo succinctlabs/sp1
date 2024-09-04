@@ -29,7 +29,7 @@ use typenum::U32;
 use crate::{
     memory::{MemoryReadCols, MemoryWriteCols},
     operations::field::{field_op::FieldOpCols, field_sqrt::FieldSqrtCols, range::FieldLtCols},
-    utils::{limbs_from_access, limbs_from_prev_access, pad_rows},
+    utils::{limbs_from_access, limbs_from_prev_access, pad_rows_fixed},
 };
 
 pub const NUM_ED_DECOMPRESS_COLS: usize = size_of::<EdDecompressCols<u8>>();
@@ -273,13 +273,17 @@ impl<F: PrimeField32, E: EdwardsParameters> MachineAir<F> for EdDecompressChip<E
             rows.push(row);
         }
 
-        pad_rows(&mut rows, || {
-            let mut row = [F::zero(); NUM_ED_DECOMPRESS_COLS];
-            let cols: &mut EdDecompressCols<F> = row.as_mut_slice().borrow_mut();
-            let zero = BigUint::zero();
-            cols.populate_field_ops::<E>(&mut vec![], 0, 0, &zero);
-            row
-        });
+        pad_rows_fixed(
+            &mut rows,
+            || {
+                let mut row = [F::zero(); NUM_ED_DECOMPRESS_COLS];
+                let cols: &mut EdDecompressCols<F> = row.as_mut_slice().borrow_mut();
+                let zero = BigUint::zero();
+                cols.populate_field_ops::<E>(&mut vec![], 0, 0, &zero);
+                row
+            },
+            input.fixed_log2_rows::<F, _>(self),
+        );
 
         let mut trace = RowMajorMatrix::new(
             rows.into_iter().flatten().collect::<Vec<_>>(),
