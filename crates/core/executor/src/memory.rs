@@ -3,32 +3,14 @@ use std::mem::{replace, size_of};
 use serde::{Deserialize, Serialize};
 use vec_map::VecMap;
 
-use crate::events::MemoryRecord;
-
-/// The base 2 logarithm of the (maximum) page size in bytes.
-pub const LOG_PAGE_SIZE: usize = 12;
-/// The base 2 logarithm of the length of each page, considered as an array of `Option<MemoryRecord>`.
-pub const LOG_PAGE_LEN: usize =
-    LOG_PAGE_SIZE - size_of::<Option<MemoryRecord>>().next_power_of_two().ilog2() as usize;
-/// The length of each page, considered as an array of `Option<MemoryRecord>`.
-pub const PAGE_LEN: usize = 1 << LOG_PAGE_LEN;
-/// The mask for retrieving the lowest bits necessary to index within a page.
-pub const PAGE_MASK: usize = PAGE_LEN - 1;
-/// The maximum number of pages. Used for the length of the page table.
-pub const MAX_PAGE_COUNT: usize = 1 << (u32::BITS as usize - LOG_PAGE_LEN - NUM_IGNORED_LOWER_BITS);
-/// The number of lower bits to ignore, since addresses (except registers) are a multiple of 4.
-pub const NUM_IGNORED_LOWER_BITS: usize = 2;
-/// The number of registers in the virtual machine.
-pub const NUM_REGISTERS: usize = 32;
-
 /// A page of memory.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Page<V>(VecMap<V>);
 
 impl<V> Page<V> {
     /// Create a `Page` with capacity `PAGE_LEN`.
-    pub fn new_preallocated() -> Self {
-        Self(VecMap::with_capacity(PAGE_LEN))
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self(VecMap::with_capacity(capacity))
     }
 }
 
@@ -46,9 +28,29 @@ pub struct PagedMemory<V> {
 }
 
 impl<V> PagedMemory<V> {
+    /// The base 2 logarithm of the (maximum) page size in bytes.
+    const LOG_PAGE_SIZE: usize = 12;
+    /// The base 2 logarithm of the length of each page, considered as an array of `Option<V>`.
+    const LOG_PAGE_LEN: usize =
+        Self::LOG_PAGE_SIZE - size_of::<Option<V>>().next_power_of_two().ilog2() as usize;
+    /// The length of each page, considered as an array of `Option<V>`.
+    const PAGE_LEN: usize = 1 << Self::LOG_PAGE_LEN;
+    /// The mask for retrieving the lowest bits necessary to index within a page.
+    const PAGE_MASK: usize = Self::PAGE_LEN - 1;
+    /// The maximum number of pages. Used for the length of the page table.
+    const MAX_PAGE_COUNT: usize =
+        1 << (u32::BITS as usize - Self::LOG_PAGE_LEN - Self::NUM_IGNORED_LOWER_BITS);
+    /// The number of lower bits to ignore, since addresses (except registers) are a multiple of 4.
+    const NUM_IGNORED_LOWER_BITS: usize = 2;
+    /// The number of registers in the virtual machine.
+    const NUM_REGISTERS: usize = 32;
+    /// The offset subtracted from the main address space to make it contiguous.
+    const ADDR_COMPRESS_OFFSET: usize =
+        Self::NUM_REGISTERS - (Self::NUM_REGISTERS >> Self::NUM_IGNORED_LOWER_BITS);
+
     /// Create a `PagedMemory` with capacity `MAX_PAGE_COUNT`.
     pub fn new_preallocated() -> Self {
-        Self { page_table: VecMap::with_capacity(MAX_PAGE_COUNT) }
+        Self { page_table: VecMap::with_capacity(Self::MAX_PAGE_COUNT) }
     }
 
     /// Get a reference to the memory value at the given address, if it exists.
@@ -66,7 +68,11 @@ impl<V> PagedMemory<V> {
     /// Insert a value at the given address. Returns the previous value, if any.
     pub fn insert(&mut self, addr: u32, value: V) -> Option<V> {
         let (upper, lower) = Self::indices(addr);
-        self.page_table.entry(upper).or_insert_with(Page::default).0.insert(lower, value)
+        self.page_table
+            .entry(upper)
+            .or_insert_with(PagedMemory::<V>::new_page)
+            .0
+            .insert(lower, value)
     }
 
     /// Remove the value at the given address if it exists, returning it.
@@ -105,7 +111,7 @@ impl<V> PagedMemory<V> {
     /// Returns an iterator over the occupied addresses.
     pub fn keys(&self) -> impl Iterator<Item = u32> + '_ {
         self.page_table.iter().flat_map(|(upper, page)| {
-            let upper = upper << LOG_PAGE_LEN;
+            let upper = upper << Self::LOG_PAGE_LEN;
             page.0.iter().map(move |(lower, _)| Self::decompress_addr(upper + lower))
         })
     }
@@ -119,31 +125,33 @@ impl<V> PagedMemory<V> {
     #[inline]
     const fn indices(addr: u32) -> (usize, usize) {
         let index = Self::compress_addr(addr);
-        (index >> LOG_PAGE_LEN, index & PAGE_MASK)
+        (index >> Self::LOG_PAGE_LEN, index & Self::PAGE_MASK)
     }
 
     /// Compress an address from the sparse address space to a contiguous space.
     #[inline]
     const fn compress_addr(addr: u32) -> usize {
         let addr = addr as usize;
-        if addr < NUM_REGISTERS {
+        if addr < Self::NUM_REGISTERS {
             addr
         } else {
-            (addr >> NUM_IGNORED_LOWER_BITS)
-                + const { NUM_REGISTERS - (NUM_REGISTERS >> NUM_IGNORED_LOWER_BITS) }
+            (addr >> Self::NUM_IGNORED_LOWER_BITS) + Self::ADDR_COMPRESS_OFFSET
         }
     }
 
     /// Decompress an address from a contiguous space to the sparse address space.
     #[inline]
     const fn decompress_addr(addr: usize) -> u32 {
-        if addr < NUM_REGISTERS {
+        if addr < Self::NUM_REGISTERS {
             addr as u32
         } else {
-            (addr as u32
-                - const { (NUM_REGISTERS - (NUM_REGISTERS >> NUM_IGNORED_LOWER_BITS)) as u32 })
-                << NUM_IGNORED_LOWER_BITS
+            ((addr - Self::ADDR_COMPRESS_OFFSET) << Self::NUM_IGNORED_LOWER_BITS) as u32
         }
+    }
+
+    #[inline]
+    fn new_page() -> Page<V> {
+        Page::with_capacity(Self::PAGE_LEN)
     }
 }
 
@@ -189,7 +197,7 @@ impl<'a, V> VacantEntry<'a, V> {
     /// Insert a value into the `VacantEntry`, returning a mutable reference to it.
     pub fn insert(self, value: V) -> &'a mut V {
         // By construction, the slot in the page is `None`.
-        match self.page_table_entry.or_insert_with(Default::default).0.entry(self.lower) {
+        match self.page_table_entry.or_insert_with(PagedMemory::<V>::new_page).0.entry(self.lower) {
             vec_map::Entry::Vacant(entry) => entry.insert(value),
             vec_map::Entry::Occupied(_) => {
                 panic!("entry with lower bits {:#x} should be vacant", self.lower)
@@ -279,7 +287,9 @@ impl<V> Iterator for IntoIter<V> {
             // Yield the next item.
             if let Some((lower, record)) = it.next() {
                 return Some((
-                    PagedMemory::<V>::decompress_addr((self.upper << LOG_PAGE_LEN) + lower),
+                    PagedMemory::<V>::decompress_addr(
+                        (self.upper << PagedMemory::<V>::LOG_PAGE_LEN) + lower,
+                    ),
                     record,
                 ));
             }
