@@ -1937,6 +1937,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "doc-comment"
+version = "0.3.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fea41bba32d969b513997752735605054bc0dfa92b4c56bf1189f2e174be7a10"
+
+[[package]]
 name = "downcast-rs"
 version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3303,7 +3309,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4979f22fdb869068da03c9f7528f8297c6fd2606bc3a4affe42e6a823fdb8da4"
 dependencies = [
  "cfg-if",
- "windows-targets 0.48.5",
+ "windows-targets 0.52.6",
 ]
 
 [[package]]
@@ -3500,6 +3506,15 @@ checksum = "d273983c5a657a70a3e8f2a01329822f3b8c8172b73826411a55751e404a0a4a"
 dependencies = [
  "memchr",
  "minimal-lexical",
+]
+
+[[package]]
+name = "ntapi"
+version = "0.3.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c28774a7fd2fbb4f0babd8237ce554b73af68021b5f695a3cebd6c59bac0980f"
+dependencies = [
+ "winapi",
 ]
 
 [[package]]
@@ -6270,7 +6285,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-build"
-version = "1.2.0-rc2"
+version = "1.2.0"
 dependencies = [
  "anyhow",
  "cargo_metadata",
@@ -6281,7 +6296,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-core-executor"
-version = "1.2.0-rc2"
+version = "1.2.0"
 dependencies = [
  "bincode",
  "bytemuck",
@@ -6315,7 +6330,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-core-machine"
-version = "1.2.0-rc2"
+version = "1.2.0"
 dependencies = [
  "anyhow",
  "arrayref",
@@ -6379,7 +6394,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-cuda"
-version = "1.2.0-rc2"
+version = "1.2.0"
 dependencies = [
  "bincode",
  "ctrlc",
@@ -6398,7 +6413,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-curves"
-version = "1.2.0-rc2"
+version = "1.2.0"
 dependencies = [
  "curve25519-dalek",
  "dashu",
@@ -6417,7 +6432,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-derive"
-version = "1.2.0-rc2"
+version = "1.2.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -6426,7 +6441,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-primitives"
-version = "1.2.0-rc2"
+version = "1.2.0"
 dependencies = [
  "itertools 0.13.0",
  "lazy_static",
@@ -6438,7 +6453,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-prover"
-version = "1.2.0-rc2"
+version = "1.2.0"
 dependencies = [
  "anyhow",
  "bincode",
@@ -6476,7 +6491,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-circuit"
-version = "1.2.0-rc2"
+version = "1.2.0"
 dependencies = [
  "bincode",
  "itertools 0.13.0",
@@ -6499,7 +6514,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-compiler"
-version = "1.2.0-rc2"
+version = "1.2.0"
 dependencies = [
  "backtrace",
  "itertools 0.13.0",
@@ -6527,7 +6542,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-core"
-version = "1.2.0-rc2"
+version = "1.2.0"
 dependencies = [
  "arrayref",
  "backtrace",
@@ -6563,7 +6578,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-core-v2"
-version = "1.2.0-rc2"
+version = "1.2.0"
 dependencies = [
  "arrayref",
  "backtrace",
@@ -6602,7 +6617,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-derive"
-version = "1.2.0-rc2"
+version = "1.2.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -6611,7 +6626,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-gnark-ffi"
-version = "1.2.0-rc2"
+version = "1.2.0"
 dependencies = [
  "anyhow",
  "bincode",
@@ -6636,7 +6651,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-program"
-version = "1.2.0-rc2"
+version = "1.2.0"
 dependencies = [
  "itertools 0.13.0",
  "p3-air",
@@ -6666,7 +6681,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-sdk"
-version = "1.2.0-rc2"
+version = "1.2.0"
 dependencies = [
  "alloy-sol-types 0.7.7",
  "anyhow",
@@ -6700,7 +6715,7 @@ dependencies = [
  "sp1-stark",
  "strum",
  "strum_macros",
- "sysinfo",
+ "sysinfo 0.30.13",
  "tempfile",
  "thiserror",
  "tokio",
@@ -6711,7 +6726,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-stark"
-version = "1.2.0-rc2"
+version = "1.2.0"
 dependencies = [
  "arrayref",
  "getrandom",
@@ -6735,6 +6750,7 @@ dependencies = [
  "serde",
  "sp1-derive",
  "sp1-primitives",
+ "sysinfo 0.15.9",
  "tracing",
 ]
 
@@ -6770,7 +6786,7 @@ dependencies = [
  "cfg-if",
  "libc",
  "psm",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -6895,6 +6911,23 @@ checksum = "2047c6ded9c721764247e62cd3b03c09ffc529b2ba5b10ec482ae507a4a70160"
 
 [[package]]
 name = "sysinfo"
+version = "0.15.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "de94457a09609f33fec5e7fceaf907488967c6c7c75d64da6a7ce6ffdb8b5abd"
+dependencies = [
+ "cc",
+ "cfg-if",
+ "core-foundation-sys",
+ "doc-comment",
+ "libc",
+ "ntapi 0.3.7",
+ "once_cell",
+ "rayon",
+ "winapi",
+]
+
+[[package]]
+name = "sysinfo"
 version = "0.30.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0a5b4ddaee55fb2bea2bf0e5000747e5f5c0de765e5a5ff87f4cd106439f4bb3"
@@ -6902,7 +6935,7 @@ dependencies = [
  "cfg-if",
  "core-foundation-sys",
  "libc",
- "ntapi",
+ "ntapi 0.4.1",
  "once_cell",
  "rayon",
  "windows",
@@ -7653,7 +7686,7 @@ version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf221c93e13a30d793f7645a0e7762c55d169dbb0a49671918a2319d289b10bb"
 dependencies = [
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
