@@ -47,7 +47,7 @@ pub struct SP1CoreOpts {
 
 /// Calculate the default shard size using an empirically determined formula.
 ///
-/// For memory constrained machines, we need to set shard size to either 2^18.
+/// For super memory constrained machines, we need to set shard size to 2^18.
 /// Otherwise, we use a linear formula derived from experimental results.
 /// The data comes from benchmarking the maximum physical memory usage
 /// of [rsp](https://github.com/succinctlabs/rsp) on a variety of shard sizes and
@@ -64,7 +64,9 @@ fn shard_size(total_available_mem: u64) -> usize {
 /// Calculate the default shard batch size using an empirically determined formula.
 ///
 /// For memory constrained machines, we need to set shard batch size to either 1 or 2.
-/// For machines with a large amount of memory
+/// For machines with a very large amount of memory, we can use batch size 8. Empirically,
+/// going above 8 doesn't result in a significant speedup.
+/// For most machines, we can just use batch size 4.
 fn shard_batch_size(total_available_mem: u64) -> usize {
     match total_available_mem {
         0..=16 => 1,
