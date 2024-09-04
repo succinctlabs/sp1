@@ -21,10 +21,12 @@ pub const NUM_IGNORED_LOWER_BITS: usize = 2;
 /// The number of registers in the virtual machine.
 pub const NUM_REGISTERS: usize = 32;
 
+/// A page of memory.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Page<V>(VecMap<V>);
 
 impl<V> Page<V> {
+    /// Create a `Page` with capacity `PAGE_LEN`.
     pub fn new() -> Self {
         Self(VecMap::with_capacity(PAGE_LEN))
     }
@@ -36,31 +38,38 @@ impl<V> Default for Page<V> {
     }
 }
 
+/// Paged memory. Balances both memory locality and total memory usage.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PagedMemory<V> {
+    /// The internal page table.
     pub page_table: VecMap<Page<V>>,
 }
 
 impl<V> PagedMemory<V> {
+    /// Create a `PagedMemory` with capacity `MAX_PAGE_COUNT`.
     pub fn new() -> Self {
         Self { page_table: VecMap::with_capacity(MAX_PAGE_COUNT) }
     }
 
+    /// Get a reference to the memory value at the given address, if it exists.
     pub fn get(&self, addr: u32) -> Option<&V> {
         let (upper, lower) = Self::indices(addr);
         self.page_table.get(upper)?.0.get(lower)
     }
 
+    /// Get a mutable reference to the memory value at the given address, if it exists.
     pub fn get_mut(&mut self, addr: u32) -> Option<&mut V> {
         let (upper, lower) = Self::indices(addr);
         self.page_table.get_mut(upper)?.0.get_mut(lower)
     }
 
+    /// Insert a value at the given address. Returns the previous value, if any.
     pub fn insert(&mut self, addr: u32, value: V) -> Option<V> {
         let (upper, lower) = Self::indices(addr);
         self.page_table.entry(upper).or_insert_with(Page::default).0.insert(lower, value)
     }
 
+    /// Remove the value at the given address if it exists, returning it.
     pub fn remove(&mut self, addr: u32) -> Option<V> {
         let (upper, lower) = Self::indices(addr);
         match self.page_table.entry(upper) {
@@ -75,6 +84,7 @@ impl<V> PagedMemory<V> {
         }
     }
 
+    /// Gets the memory entry for the given address.
     pub fn entry(&mut self, addr: u32) -> Entry<'_, V> {
         let (upper, lower) = Self::indices(addr);
         let page_table_entry = self.page_table.entry(upper);
@@ -92,6 +102,7 @@ impl<V> PagedMemory<V> {
         }
     }
 
+    /// Returns an iterator over the occupied addresses.
     pub fn keys(&self) -> impl Iterator<Item = u32> + '_ {
         self.page_table.iter().flat_map(|(upper, page)| {
             let upper = upper << LOG_PAGE_LEN;
@@ -99,25 +110,19 @@ impl<V> PagedMemory<V> {
         })
     }
 
+    /// Clears the page table. Drops all `Page`s, but retains the memory used by the table itself.
     pub fn clear(&mut self) {
         self.page_table.clear();
     }
 
-    pub fn into_iter_rpit(self) -> impl Iterator<Item = (u32, V)> {
-        self.page_table.into_iter().flat_map(|(upper, page)| {
-            let upper = upper << LOG_PAGE_LEN;
-            page.0
-                .into_iter()
-                .map(move |(lower, record)| (Self::decompress_addr(upper + lower), record))
-        })
-    }
-
+    /// Break apart an address into an upper and lower index.
     #[inline]
     const fn indices(addr: u32) -> (usize, usize) {
         let index = Self::compress_addr(addr);
         (index >> LOG_PAGE_LEN, index & PAGE_MASK)
     }
 
+    /// Compress an address from the sparse address space to a contiguous space.
     #[inline]
     const fn compress_addr(addr: u32) -> usize {
         let addr = addr as usize;
@@ -129,6 +134,7 @@ impl<V> PagedMemory<V> {
         }
     }
 
+    /// Decompress an address from a contiguous space to the sparse address space.
     #[inline]
     const fn decompress_addr(addr: usize) -> u32 {
         if addr < NUM_REGISTERS {
@@ -147,12 +153,15 @@ impl<V> Default for PagedMemory<V> {
     }
 }
 
+/// An entry of `PagedMemory`, for in-place manipulation.
 pub enum Entry<'a, V> {
     Vacant(VacantEntry<'a, V>),
     Occupied(OccupiedEntry<'a, V>),
 }
 
 impl<'a, V> Entry<'a, V> {
+    /// Ensures a value is in the entry, inserting the provided value if necessary.
+    /// Returns a mutable reference to the value.
     pub fn or_insert(self, default: V) -> &'a mut V {
         match self {
             Entry::Vacant(entry) => entry.insert(default),
@@ -160,6 +169,8 @@ impl<'a, V> Entry<'a, V> {
         }
     }
 
+    /// Ensures a value is in the entry, computing a value if necessary.
+    /// Returns a mutable reference to the value.
     pub fn or_insert_with<F: FnOnce() -> V>(self, default: F) -> &'a mut V {
         match self {
             Entry::Vacant(entry) => entry.insert(default()),
@@ -168,12 +179,14 @@ impl<'a, V> Entry<'a, V> {
     }
 }
 
+/// A vacant entry of `PagedMemory`, for in-place manipulation.
 pub struct VacantEntry<'a, V> {
     lower: usize,
     page_table_entry: vec_map::Entry<'a, Page<V>>,
 }
 
 impl<'a, V> VacantEntry<'a, V> {
+    /// Insert a value into the `VacantEntry`, returning a mutable reference to it.
     pub fn insert(self, value: V) -> &'a mut V {
         // By construction, the slot in the page is `None`.
         match self.page_table_entry.or_insert_with(Default::default).0.entry(self.lower) {
@@ -185,28 +198,34 @@ impl<'a, V> VacantEntry<'a, V> {
     }
 }
 
+/// A vacant entry of `PagedMemory`, for in-place manipulation.
 pub struct OccupiedEntry<'a, V> {
     lower: usize,
     page_table_occupied_entry: vec_map::OccupiedEntry<'a, Page<V>>,
 }
 
 impl<'a, V> OccupiedEntry<'a, V> {
+    /// Get a reference to the value in the `OccupiedEntry`.
     pub fn get(&self) -> &V {
         self.page_table_occupied_entry.get().0.get(self.lower).unwrap()
     }
 
+    /// Get a mutable reference to the value in the `OccupiedEntry`.
     pub fn get_mut(&mut self) -> &mut V {
         self.page_table_occupied_entry.get_mut().0.get_mut(self.lower).unwrap()
     }
 
+    /// Insert a value in the `OccupiedEntry`, returning the previous value.
     pub fn insert(&mut self, value: V) -> V {
         replace(self.get_mut(), value)
     }
 
+    /// Converts the `OccupiedEntry` the into a mutable reference to the associated value.
     pub fn into_mut(self) -> &'a mut V {
         self.page_table_occupied_entry.into_mut().0.get_mut(self.lower).unwrap()
     }
 
+    /// Removes the value from the `OccupiedEntry` and returns it.
     pub fn remove(mut self) -> V {
         let res = self.page_table_occupied_entry.get_mut().0.remove(self.lower).unwrap();
         if self.page_table_occupied_entry.get().0.is_empty() {

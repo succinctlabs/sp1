@@ -1190,7 +1190,7 @@ impl<'a> Executor<'a> {
                 // If we're done, we need to include all memory. But we need to reset any modified
                 // memory to as it was before the execution.
                 checkpoint.memory.clone_from(&self.state.memory);
-                memory_checkpoint.into_iter_rpit().for_each(|(addr, record)| {
+                memory_checkpoint.into_iter().for_each(|(addr, record)| {
                     if let Some(record) = record {
                         checkpoint.memory.insert(addr, record);
                     } else {
@@ -1199,7 +1199,7 @@ impl<'a> Executor<'a> {
                 });
             } else {
                 checkpoint.memory = memory_checkpoint
-                    .into_iter_rpit()
+                    .into_iter()
                     .filter_map(|(addr, record)| record.map(|record| (addr, record)))
                     .collect();
             }
