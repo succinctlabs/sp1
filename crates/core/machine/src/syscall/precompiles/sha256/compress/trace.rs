@@ -15,7 +15,7 @@ use super::{
     columns::{ShaCompressCols, NUM_SHA_COMPRESS_COLS},
     ShaCompressChip, SHA_COMPRESS_K,
 };
-use crate::utils::pad_rows;
+use crate::utils::pad_rows_fixed;
 
 impl<F: PrimeField32> MachineAir<F> for ShaCompressChip {
     type Record = ExecutionRecord;
@@ -42,7 +42,11 @@ impl<F: PrimeField32> MachineAir<F> for ShaCompressChip {
 
         let num_real_rows = rows.len();
 
-        pad_rows(&mut rows, || [F::zero(); NUM_SHA_COMPRESS_COLS]);
+        pad_rows_fixed(
+            &mut rows,
+            || [F::zero(); NUM_SHA_COMPRESS_COLS],
+            input.fixed_log2_rows::<F, _>(self),
+        );
 
         // Set the octet_num and octect columns for the padded rows.
         let mut octet_num = 0;

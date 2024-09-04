@@ -27,7 +27,7 @@ use typenum::Unsigned;
 use crate::{
     memory::{value_as_limbs, MemoryReadCols, MemoryWriteCols},
     operations::field::field_op::FieldOpCols,
-    utils::{limbs_from_prev_access, pad_rows, words_to_bytes_le_vec},
+    utils::{limbs_from_prev_access, pad_rows_fixed, words_to_bytes_le_vec},
 };
 
 pub const fn num_fp2_addsub_cols<P: FpOpField>() -> usize {
@@ -154,24 +154,28 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for Fp2AddSubAssignChip<P> {
 
         output.add_byte_lookup_events(new_byte_lookup_events);
 
-        pad_rows(&mut rows, || {
-            let mut row = vec![F::zero(); num_fp2_addsub_cols::<P>()];
-            let cols: &mut Fp2AddSubAssignCols<F, P> = row.as_mut_slice().borrow_mut();
-            cols.is_add = F::one();
-            let zero = BigUint::zero();
-            Self::populate_field_ops(
-                &mut vec![],
-                0,
-                0,
-                cols,
-                zero.clone(),
-                zero.clone(),
-                zero.clone(),
-                zero,
-                FieldOperation::Add,
-            );
-            row
-        });
+        pad_rows_fixed(
+            &mut rows,
+            || {
+                let mut row = vec![F::zero(); num_fp2_addsub_cols::<P>()];
+                let cols: &mut Fp2AddSubAssignCols<F, P> = row.as_mut_slice().borrow_mut();
+                cols.is_add = F::one();
+                let zero = BigUint::zero();
+                Self::populate_field_ops(
+                    &mut vec![],
+                    0,
+                    0,
+                    cols,
+                    zero.clone(),
+                    zero.clone(),
+                    zero.clone(),
+                    zero,
+                    FieldOperation::Add,
+                );
+                row
+            },
+            input.fixed_log2_rows::<F, _>(self),
+        );
 
         // Convert the trace to a row major matrix.
         let mut trace = RowMajorMatrix::new(

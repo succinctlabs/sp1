@@ -31,7 +31,7 @@ use crate::{
     operations::field::{
         field_den::FieldDenCols, field_inner_product::FieldInnerProductCols, field_op::FieldOpCols,
     },
-    utils::{limbs_from_prev_access, pad_rows},
+    utils::{limbs_from_prev_access, pad_rows_fixed},
 };
 
 pub const NUM_ED_ADD_COLS: usize = size_of::<EdAddAssignCols<u8>>();
@@ -137,22 +137,26 @@ impl<F: PrimeField32, E: EllipticCurve + EdwardsParameters> MachineAir<F> for Ed
             })
             .collect::<Vec<_>>();
 
-        pad_rows(&mut rows, || {
-            let mut row = [F::zero(); NUM_ED_ADD_COLS];
-            let cols: &mut EdAddAssignCols<F> = row.as_mut_slice().borrow_mut();
-            let zero = BigUint::zero();
-            Self::populate_field_ops(
-                &mut vec![],
-                0,
-                0,
-                cols,
-                zero.clone(),
-                zero.clone(),
-                zero.clone(),
-                zero,
-            );
-            row
-        });
+        pad_rows_fixed(
+            &mut rows,
+            || {
+                let mut row = [F::zero(); NUM_ED_ADD_COLS];
+                let cols: &mut EdAddAssignCols<F> = row.as_mut_slice().borrow_mut();
+                let zero = BigUint::zero();
+                Self::populate_field_ops(
+                    &mut vec![],
+                    0,
+                    0,
+                    cols,
+                    zero.clone(),
+                    zero.clone(),
+                    zero.clone(),
+                    zero,
+                );
+                row
+            },
+            input.fixed_log2_rows::<F, _>(self),
+        );
 
         // Convert the trace to a row major matrix.
         let mut trace =
