@@ -566,7 +566,7 @@ where
             builder.range_check_f(public_values.shard, 16);
 
             // Update the reconstruct challenger.
-            reconstruct_challenger.observe(builder, proof.commitment.local_main_commit.clone());
+            reconstruct_challenger.observe(builder, proof.commitment.global_main_commit.clone());
             for j in 0..machine.num_pv_elts() {
                 let element = builder.get(&proof.public_values, j);
                 reconstruct_challenger.observe(builder, element);

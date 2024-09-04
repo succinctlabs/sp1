@@ -260,7 +260,7 @@ mod tests {
             SP1CoreOpts::default(),
         )
         .unwrap();
-        machine.verify(&vk, &proof, &mut challenger).unwrap();
+        machine.verify(&vk, &proof, &mut challenger, true).unwrap();
 
         println!("Proof generated and verified successfully");
         let mut challenger = machine.config().challenger();

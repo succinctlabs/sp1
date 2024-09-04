@@ -61,19 +61,6 @@ impl Prover<DefaultProverComponents> for CpuProver {
             });
         }
 
-        self.verify(
-            &SP1ProofWithPublicValues {
-                proof: SP1Proof::Core(proof.proof.0.clone()),
-                stdin: proof.stdin.clone(),
-                public_values: proof.public_values.clone(),
-                sp1_version: self.version().to_string(),
-            },
-            &pk.vk,
-        )
-        .unwrap();
-
-        println!("verified core proof");
-
         let deferred_proofs = stdin
             .proofs
             .iter()

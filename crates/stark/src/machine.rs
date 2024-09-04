@@ -269,6 +269,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
         vk: &StarkVerifyingKey<SC>,
         proof: &MachineProof<SC>,
         challenger: &mut SC::Challenger,
+        sample_global_challenges: bool,
     ) -> Result<(), MachineVerificationError<SC>>
     where
         SC::Challenger: Clone,
@@ -292,8 +293,12 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
 
         // Obtain the challenges used for the global permutation argument.
         let mut global_permutation_challenges: Vec<SC::Challenge> = Vec::new();
-        for _ in 0..2 {
-            global_permutation_challenges.push(challenger.sample_ext_element());
+        if sample_global_challenges {
+            for _ in 0..2 {
+                global_permutation_challenges.push(challenger.sample_ext_element());
+            }
+        } else {
+            global_permutation_challenges = vec![SC::Challenge::zero(), SC::Challenge::zero()];
         }
 
         tracing::debug_span!("verify shard proofs").in_scope(|| {

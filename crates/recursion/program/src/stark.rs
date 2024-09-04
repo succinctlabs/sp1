@@ -590,7 +590,7 @@ pub(crate) mod tests {
             prover.prove(&pk, vec![record], &mut challenger, SP1CoreOpts::recursion()).unwrap();
 
         let mut challenger = prover.config().challenger();
-        let verification_result = prover.machine().verify(&vk, &proof, &mut challenger);
+        let verification_result = prover.machine().verify(&vk, &proof, &mut challenger, true);
         if verification_result.is_err() {
             panic!("Proof should verify successfully");
         }
@@ -598,7 +598,7 @@ pub(crate) mod tests {
         // Corrupt the public values.
         proof.shard_proofs[0].public_values[RECURSION_PUBLIC_VALUES_COL_MAP.digest[0]] =
             InnerVal::zero();
-        let verification_result = prover.machine().verify(&vk, &proof, &mut challenger);
+        let verification_result = prover.machine().verify(&vk, &proof, &mut challenger, true);
         if verification_result.is_ok() {
             panic!("Proof should not verify successfully");
         }
