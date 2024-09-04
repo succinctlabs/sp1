@@ -7,7 +7,7 @@ Inside the zkVM, precompiles are exposed as system calls executed through the `e
 Each precompile has a unique system call number and implements an interface for the computation.
 
 SP1 also has been designed specifically to make it easy for external contributors to create and extend the zkVM with their own precompiles.
-To learn more about this, you can look at implementations of existing precompiles in the [precompiles](https://github.com/succinctlabs/sp1/tree/main/core/src/syscall/precompiles) folder. More documentation on this will be coming soon.
+To learn more about this, you can look at implementations of existing precompiles in the [precompiles](https://github.com/succinctlabs/sp1/tree/main/crates/core/executor/src/events/precompiles) folder. More documentation on this will be coming soon.
 
 **To use precompiles, we typically recommend you interact with them through [patches](./patched-crates.md), which are crates modified
 to use these precompiles under the hood, without requiring you to call system calls directly.**
