@@ -728,8 +728,6 @@ where
             quotient_opened_values.push(slice.map(|mut op| op.pop().unwrap()).collect::<Vec<_>>());
         }
 
-        println!("cumulative_sums are {:?}", cumulative_sums);
-
         let opened_values = main_opened_values
             .into_iter()
             .zip_eq(permutation_opened_values)

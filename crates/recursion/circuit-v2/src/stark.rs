@@ -95,7 +95,6 @@ where
         let chips = machine.shard_chips_ordered(&proof.chip_ordering).collect::<Vec<_>>();
 
         let has_global_main_commit = proof.contains_global_main_commitment();
-        assert!(has_global_main_commit);
 
         let ShardProofVariable {
             commitment,

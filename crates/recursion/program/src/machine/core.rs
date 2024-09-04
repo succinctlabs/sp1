@@ -632,7 +632,7 @@ where
             recursion_public_values.leaf_challenger = leaf_challenger_public_values;
             recursion_public_values.start_reconstruct_challenger = initial_challenger_public_values;
             recursion_public_values.end_reconstruct_challenger = final_challenger_public_values;
-            recursion_public_values.global_cumulative_sum = global_cumulative_sum_array;
+            recursion_public_values.cumulative_sum = global_cumulative_sum_array;
             recursion_public_values.start_reconstruct_deferred_digest = start_deferred_digest;
             recursion_public_values.end_reconstruct_deferred_digest = end_deferred_digest;
             recursion_public_values.exit_code = exit_code;

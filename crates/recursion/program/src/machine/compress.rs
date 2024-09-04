@@ -522,7 +522,7 @@ where
 
             // Update the cumulative sum.
             for (sum_element, current_sum_element) in
-                cumulative_sum.iter().zip_eq(current_public_values.global_cumulative_sum.iter())
+                cumulative_sum.iter().zip_eq(current_public_values.cumulative_sum.iter())
             {
                 builder.assign(*sum_element, *sum_element + *current_sum_element);
             }
@@ -557,7 +557,7 @@ where
         // Assign the committed value digests.
         reduce_public_values.committed_value_digest = committed_value_digest;
         // Assign the cumulative sum.
-        reduce_public_values.global_cumulative_sum = cumulative_sum;
+        reduce_public_values.cumulative_sum = cumulative_sum;
 
         // If the proof is complete, make completeness assertions and set the flag. Otherwise, check
         // the flag is zero and set the public value to zero.

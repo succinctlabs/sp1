@@ -562,7 +562,7 @@ pub(crate) mod tests {
         public_values.deferred_proofs_digest =
             [builder.constant(<C as Config>::F::from_canonical_usize(4)); POSEIDON_NUM_WORDS];
 
-        public_values.global_cumulative_sum =
+        public_values.cumulative_sum =
             [builder.constant(<C as Config>::F::from_canonical_usize(5)); 4];
 
         commit_public_values(&mut builder, public_values);

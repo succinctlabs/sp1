@@ -13,8 +13,6 @@ pub(crate) fn assert_complete<C: Config>(
     public_values: &RecursionPublicValues<Felt<C::F>>,
     is_complete: Felt<C::F>,
 ) {
-    unimplemented!();
-    /*
     let RecursionPublicValues {
         deferred_proofs_digest,
         next_pc,
@@ -71,5 +69,4 @@ pub(crate) fn assert_complete<C: Config>(
     for b in cumulative_sum.iter() {
         builder.assert_felt_eq(is_complete * *b, C::F::zero());
     }
-    */
 }
