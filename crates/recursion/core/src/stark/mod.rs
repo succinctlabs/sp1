@@ -39,19 +39,19 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAi
     /// A recursion machine that can have dynamic trace sizes.
     pub fn machine<SC: StarkGenericConfig<Val = F>>(config: SC) -> StarkMachine<SC, Self> {
         let chips = Self::get_all().into_iter().map(Chip::new).collect::<Vec<_>>();
-        StarkMachine::new(config, chips, PROOF_MAX_NUM_PVS)
+        StarkMachine::new(config, chips, PROOF_MAX_NUM_PVS, false)
     }
 
     /// A recursion machine with fixed trace sizes tuned to work specifically for the wrap layer.
     pub fn wrap_machine<SC: StarkGenericConfig<Val = F>>(config: SC) -> StarkMachine<SC, Self> {
         let chips = Self::get_wrap_all().into_iter().map(Chip::new).collect::<Vec<_>>();
-        StarkMachine::new(config, chips, PROOF_MAX_NUM_PVS)
+        StarkMachine::new(config, chips, PROOF_MAX_NUM_PVS, false)
     }
 
     /// A recursion machine with fixed trace sizes tuned to work specifically for the wrap layer.
     pub fn wrap_machine_dyn<SC: StarkGenericConfig<Val = F>>(config: SC) -> StarkMachine<SC, Self> {
         let chips = Self::get_wrap_dyn_all().into_iter().map(Chip::new).collect::<Vec<_>>();
-        StarkMachine::new(config, chips, PROOF_MAX_NUM_PVS)
+        StarkMachine::new(config, chips, PROOF_MAX_NUM_PVS, false)
     }
 
     pub fn get_all() -> Vec<Self> {

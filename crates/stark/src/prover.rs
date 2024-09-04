@@ -2,7 +2,7 @@ use core::fmt::Display;
 use hashbrown::HashMap;
 use itertools::Itertools;
 use serde::{de::DeserializeOwned, Serialize};
-use std::{cmp::Reverse, error::Error, time::Instant};
+use std::{array, cmp::Reverse, error::Error, time::Instant};
 
 use crate::{air::InteractionScope, AirOpenedValues, ChipOpenedValues, ShardOpenedValues};
 use p3_air::Air;
@@ -783,45 +783,65 @@ where
     where
         A: for<'a> Air<DebugConstraintBuilder<'a, Val<SC>, SC::Challenge>>,
     {
-        // Generate dependencies.
-        self.machine().generate_dependencies(&mut records, &opts, InteractionScope::Global);
-
         // Observe the preprocessed commitment.
         pk.observe_into(challenger);
+
+        let contains_global_bus = self.machine().contains_global_bus();
+
+        if contains_global_bus {
+            // Generate dependencies.
+            self.machine().generate_dependencies(&mut records, &opts, InteractionScope::Global);
+        }
 
         // Generate and commit the global traces for each shard.
         let global_data = records
             .par_iter()
             .map(|record| {
-                let global_named_traces = self.generate_traces(record, InteractionScope::Global);
-                self.commit(record, global_named_traces)
+                if contains_global_bus {
+                    let global_named_traces =
+                        self.generate_traces(record, InteractionScope::Global);
+                    Some(self.commit(record, global_named_traces))
+                } else {
+                    None
+                }
             })
             .collect::<Vec<_>>();
 
         // Observe the challenges for each segment.
         tracing::debug_span!("observing all challenges").in_scope(|| {
-            global_data.iter().for_each(|data| {
-                challenger.observe(data.main_commit.clone());
-                challenger.observe_slice(&data.public_values[0..self.num_pv_elts()]);
+            global_data.iter().zip_eq(records.iter()).for_each(|(global_data, record)| {
+                if contains_global_bus {
+                    challenger.observe(
+                        global_data
+                            .as_ref()
+                            .expect("must have a global commitment")
+                            .main_commit
+                            .clone(),
+                    );
+                }
+                challenger.observe_slice(&record.public_values::<SC::Val>()[0..self.num_pv_elts()]);
             });
         });
 
         // Obtain the challenges used for the global permutation argument.
-        let mut global_permutation_challenges: Vec<SC::Challenge> = Vec::new();
-        for _ in 0..2 {
-            global_permutation_challenges.push(challenger.sample_ext_element());
-        }
+        let global_permutation_challenges: [SC::Challenge; 2] = array::from_fn(|_| {
+            if contains_global_bus {
+                challenger.sample_ext_element()
+            } else {
+                SC::Challenge::zero()
+            }
+        });
 
         let shard_proofs = tracing::info_span!("prove_shards").in_scope(|| {
-            records
-                .par_iter()
-                .zip(global_data.into_par_iter())
-                .map(|(record, global_shard_data)| {
+            global_data
+                .into_par_iter()
+                .zip_eq(records.par_iter())
+                .map(|(global_shard_data, record)| {
                     let local_named_traces = self.generate_traces(record, InteractionScope::Local);
                     let local_shard_data = self.commit(record, local_named_traces);
                     self.open(
                         pk,
-                        Some(global_shard_data),
+                        global_shard_data,
                         local_shard_data,
                         &mut challenger.clone(),
                         &global_permutation_challenges,

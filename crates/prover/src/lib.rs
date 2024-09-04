@@ -964,8 +964,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         let elapsed = time.elapsed();
         tracing::debug!("Wrap proving time: {:?}", elapsed);
         let mut wrap_challenger = self.wrap_prover.config().challenger();
-        let result =
-            self.wrap_prover.machine().verify(&wrap_vk, &wrap_proof, &mut wrap_challenger, false);
+        let result = self.wrap_prover.machine().verify(&wrap_vk, &wrap_proof, &mut wrap_challenger);
         match result {
             Ok(_) => tracing::info!("Proof verified successfully"),
             Err(MachineVerificationError::NonZeroCumulativeSum(_, _)) => {

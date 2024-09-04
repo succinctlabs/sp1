@@ -281,7 +281,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         // Verify the shard proof.
         let mut challenger = self.core_prover.config().challenger();
         let machine_proof = MachineProof { shard_proofs: proof.0.to_vec() };
-        self.core_prover.machine().verify(&vk.vk, &machine_proof, &mut challenger, true)?;
+        self.core_prover.machine().verify(&vk.vk, &machine_proof, &mut challenger)?;
 
         Ok(())
     }
@@ -295,12 +295,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         let SP1ReduceProof { vk: compress_vk, proof } = proof;
         let mut challenger = self.compress_prover.config().challenger();
         let machine_proof = MachineProof { shard_proofs: vec![proof.clone()] };
-        self.compress_prover.machine().verify(
-            compress_vk,
-            &machine_proof,
-            &mut challenger,
-            false,
-        )?;
+        self.compress_prover.machine().verify(compress_vk, &machine_proof, &mut challenger)?;
 
         // Validate public values
         let public_values: &RecursionPublicValues<_> = proof.public_values.as_slice().borrow();
@@ -336,7 +331,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
     ) -> Result<(), MachineVerificationError<CoreSC>> {
         let mut challenger = self.shrink_prover.config().challenger();
         let machine_proof = MachineProof { shard_proofs: vec![proof.proof.clone()] };
-        self.shrink_prover.machine().verify(&proof.vk, &machine_proof, &mut challenger, false)?;
+        self.shrink_prover.machine().verify(&proof.vk, &machine_proof, &mut challenger)?;
 
         // Validate public values
         let public_values: &RecursionPublicValues<_> =
@@ -365,7 +360,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
     ) -> Result<(), MachineVerificationError<OuterSC>> {
         let mut challenger = self.wrap_prover.config().challenger();
         let machine_proof = MachineProof { shard_proofs: vec![proof.proof.clone()] };
-        self.wrap_prover.machine().verify(&proof.vk, &machine_proof, &mut challenger, false)?;
+        self.wrap_prover.machine().verify(&proof.vk, &machine_proof, &mut challenger)?;
 
         // Validate public values
         let public_values: &RecursionPublicValues<_> =

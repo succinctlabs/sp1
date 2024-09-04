@@ -7,7 +7,7 @@ use p3_field::{AbstractExtensionField, AbstractField, Field, PrimeField32};
 use p3_matrix::{dense::RowMajorMatrix, Dimensions, Matrix};
 use p3_maybe_rayon::prelude::*;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use std::{cmp::Reverse, fmt::Debug, time::Instant};
+use std::{array, cmp::Reverse, fmt::Debug, time::Instant};
 use tracing::instrument;
 
 use super::{debug_constraints, Dom};
@@ -34,12 +34,20 @@ pub struct StarkMachine<SC: StarkGenericConfig, A> {
 
     /// The number of public values elements that the machine uses
     num_pv_elts: usize,
+
+    /// Contains a global bus.  This should be true for the core proofs.
+    contains_global_bus: bool,
 }
 
 impl<SC: StarkGenericConfig, A> StarkMachine<SC, A> {
     /// Creates a new [`StarkMachine`].
-    pub const fn new(config: SC, chips: Vec<Chip<Val<SC>, A>>, num_pv_elts: usize) -> Self {
-        Self { config, chips, num_pv_elts }
+    pub const fn new(
+        config: SC,
+        chips: Vec<Chip<Val<SC>, A>>,
+        num_pv_elts: usize,
+        contains_global_bus: bool,
+    ) -> Self {
+        Self { config, chips, num_pv_elts, contains_global_bus }
     }
 }
 
@@ -112,6 +120,11 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
     /// The number of public value elements.
     pub const fn num_pv_elts(&self) -> usize {
         self.num_pv_elts
+    }
+
+    /// Returns whether the machine contains a global bus.
+    pub const fn contains_global_bus(&self) -> bool {
+        self.contains_global_bus
     }
 
     /// Returns the id of all chips in the machine that have preprocessed columns.
@@ -269,17 +282,18 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
         vk: &StarkVerifyingKey<SC>,
         proof: &MachineProof<SC>,
         challenger: &mut SC::Challenger,
-        sample_global_challenges: bool,
     ) -> Result<(), MachineVerificationError<SC>>
     where
         SC::Challenger: Clone,
         A: for<'a> Air<VerifierConstraintFolder<'a, SC>>,
     {
+        let contains_global_bus = self.contains_global_bus();
+
         // Observe the preprocessed commitment.
         vk.observe_into(challenger);
         tracing::debug_span!("observe challenges for all shards").in_scope(|| {
             proof.shard_proofs.iter().for_each(|shard_proof| {
-                if shard_proof.contains_global_main_commitment() {
+                if contains_global_bus {
                     challenger.observe(shard_proof.commitment.global_main_commit.clone());
                 }
                 challenger.observe_slice(&shard_proof.public_values[0..self.num_pv_elts()]);
@@ -292,14 +306,13 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
         }
 
         // Obtain the challenges used for the global permutation argument.
-        let mut global_permutation_challenges: Vec<SC::Challenge> = Vec::new();
-        if sample_global_challenges {
-            for _ in 0..2 {
-                global_permutation_challenges.push(challenger.sample_ext_element());
+        let global_permutation_challenges: [SC::Challenge; 2] = array::from_fn(|_| {
+            if contains_global_bus {
+                challenger.sample_ext_element()
+            } else {
+                SC::Challenge::zero()
             }
-        } else {
-            global_permutation_challenges = vec![SC::Challenge::zero(), SC::Challenge::zero()];
-        }
+        });
 
         tracing::debug_span!("verify shard proofs").in_scope(|| {
             for (i, shard_proof) in proof.shard_proofs.iter().enumerate() {

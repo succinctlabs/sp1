@@ -688,7 +688,7 @@ pub fn run_test_core<P: MachineProver<BabyBearPoseidon2, RiscvAir<BabyBear>>>(
     let machine = RiscvAir::machine(config);
     let (pk, vk) = machine.setup(runtime.program.as_ref());
     let mut challenger = machine.config().challenger();
-    machine.verify(&vk, &proof, &mut challenger, true).unwrap();
+    machine.verify(&vk, &proof, &mut challenger).unwrap();
 
     Ok(proof)
 }
@@ -724,7 +724,7 @@ where
     let nb_bytes = bincode::serialize(&proof).unwrap().len();
 
     let mut challenger = prover.config().challenger();
-    prover.machine().verify(&vk, &proof, &mut challenger, true)?;
+    prover.machine().verify(&vk, &proof, &mut challenger)?;
 
     Ok(proof)
 }
