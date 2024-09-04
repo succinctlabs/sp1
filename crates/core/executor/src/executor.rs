@@ -17,7 +17,7 @@ use crate::{
         MemoryWriteRecord,
     },
     hook::{HookEnv, HookRegistry},
-    mmu::Entry,
+    mmu::{Entry, Mmu},
     record::{ExecutionRecord, MemoryAccessRecord},
     report::ExecutionReport,
     state::{ExecutionState, ForkState},
@@ -100,7 +100,7 @@ pub struct Executor<'a> {
 
     /// Memory addresses that were touched in this batch of shards. Used to minimize the size of
     /// checkpoints.
-    pub memory_checkpoint: HashMap<u32, Option<MemoryRecord>>,
+    pub memory_checkpoint: Mmu<Option<MemoryRecord>>,
 }
 
 /// The different modes the executor can run in.
@@ -216,7 +216,7 @@ impl<'a> Executor<'a> {
             hook_registry,
             opts,
             max_cycles: context.max_cycles,
-            memory_checkpoint: HashMap::default(),
+            memory_checkpoint: Mmu::new(),
         }
     }
 
@@ -1190,7 +1190,7 @@ impl<'a> Executor<'a> {
                 // If we're done, we need to include all memory. But we need to reset any modified
                 // memory to as it was before the execution.
                 checkpoint.memory.clone_from(&self.state.memory);
-                memory_checkpoint.into_iter().for_each(|(addr, record)| {
+                memory_checkpoint.into_iter_rpit().for_each(|(addr, record)| {
                     if let Some(record) = record {
                         checkpoint.memory.insert(addr, record);
                     } else {
@@ -1199,7 +1199,7 @@ impl<'a> Executor<'a> {
                 });
             } else {
                 checkpoint.memory = memory_checkpoint
-                    .into_iter()
+                    .into_iter_rpit()
                     .filter_map(|(addr, record)| record.map(|record| (addr, record)))
                     .collect();
             }
@@ -1225,7 +1225,7 @@ impl<'a> Executor<'a> {
     pub fn run_fast(&mut self) -> Result<(), ExecutionError> {
         self.executor_mode = ExecutorMode::Simple;
         self.print_report = true;
-        while !self.execute()? {}
+        while !self.execute_state()?.1 {}
         Ok(())
     }
 

@@ -99,6 +99,19 @@ impl<V> Mmu<V> {
         })
     }
 
+    pub fn clear(&mut self) {
+        self.page_table.clear();
+    }
+
+    pub fn into_iter_rpit(self) -> impl Iterator<Item = (u32, V)> {
+        self.page_table.into_iter().flat_map(|(upper, page)| {
+            let upper = upper << LOG_PAGE_LEN;
+            page.0
+                .into_iter()
+                .map(move |(lower, record)| (Self::decompress_addr(upper + lower), record))
+        })
+    }
+
     #[inline]
     const fn indices(addr: u32) -> (usize, usize) {
         let index = Self::compress_addr(addr);
@@ -137,6 +150,22 @@ impl<V> Default for Mmu<V> {
 pub enum Entry<'a, V> {
     Vacant(VacantEntry<'a, V>),
     Occupied(OccupiedEntry<'a, V>),
+}
+
+impl<'a, V> Entry<'a, V> {
+    pub fn or_insert(self, default: V) -> &'a mut V {
+        match self {
+            Entry::Vacant(entry) => entry.insert(default),
+            Entry::Occupied(entry) => entry.into_mut(),
+        }
+    }
+
+    pub fn or_insert_with<F: FnOnce() -> V>(self, default: F) -> &'a mut V {
+        match self {
+            Entry::Vacant(entry) => entry.insert(default()),
+            Entry::Occupied(entry) => entry.into_mut(),
+        }
+    }
 }
 
 pub struct VacantEntry<'a, V> {
@@ -194,5 +223,49 @@ impl<V> FromIterator<(u32, V)> for Mmu<V> {
             mmu.insert(k, v);
         }
         mmu
+    }
+}
+
+impl<V> IntoIterator for Mmu<V> {
+    type Item = (u32, V);
+
+    type IntoIter = IntoIter<V>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        IntoIter { upper: 0, upper_iter: self.page_table.into_iter(), lower_iter: None }
+    }
+}
+
+pub struct IntoIter<V> {
+    upper: usize,
+    upper_iter: vec_map::IntoIter<Page<V>>,
+    lower_iter: Option<vec_map::IntoIter<V>>,
+}
+
+impl<V> Iterator for IntoIter<V> {
+    type Item = (u32, V);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            // Populate the lower iterator.
+            let it = match &mut self.lower_iter {
+                Some(it) => it,
+                None => {
+                    // Exit if the upper iterator has finished.
+                    let (upper, page) = self.upper_iter.next()?;
+                    self.upper = upper;
+                    self.lower_iter.insert(page.0.into_iter())
+                }
+            };
+            // Yield the next item.
+            if let Some((lower, record)) = it.next() {
+                return Some((
+                    Mmu::<V>::decompress_addr((self.upper << LOG_PAGE_LEN) + lower),
+                    record,
+                ));
+            }
+            // If no next item in the lower iterator, it must be finished.
+            self.lower_iter = None;
+        }
     }
 }
