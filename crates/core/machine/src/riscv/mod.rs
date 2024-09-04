@@ -3,6 +3,7 @@ pub mod cost;
 mod shape;
 
 pub use shape::*;
+use sp1_core_executor::{ExecutionRecord, Program};
 
 use crate::{
     memory::{MemoryChipType, MemoryProgramChip},
@@ -310,6 +311,16 @@ impl<F: PrimeField32> RiscvAir<F> {
         chips.push(byte);
 
         (chips, costs)
+    }
+
+    /// Get the heights of the preprocessed chips for a given program.
+    pub(crate) fn preprocessed_heights(program: &Program) -> Vec<(Self, usize)> {
+        vec![]
+    }
+
+    /// Get the heights of the chips for a given execution record.
+    pub(crate) fn heights(record: &ExecutionRecord) -> Vec<(Self, usize)> {
+        vec![]
     }
 }
 
