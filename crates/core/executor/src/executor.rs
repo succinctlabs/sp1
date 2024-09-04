@@ -1174,7 +1174,6 @@ impl<'a> Executor<'a> {
     pub fn execute_state(&mut self) -> Result<(ExecutionState, bool), ExecutionError> {
         self.memory_checkpoint.clear();
         self.executor_mode = ExecutorMode::Checkpoint;
-        self.print_report = true;
 
         // Take memory out of state before cloning it so that memory is not cloned.
         let memory = std::mem::take(&mut self.state.memory);
