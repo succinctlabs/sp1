@@ -668,6 +668,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "bls12381-script"
+version = "1.1.0"
+dependencies = [
+ "sp1-build",
+ "sp1-sdk",
+]
+
+[[package]]
 name = "bls12_381"
 version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -678,6 +686,14 @@ dependencies = [
  "pairing",
  "rand_core",
  "subtle",
+]
+
+[[package]]
+name = "bn254-script"
+version = "1.1.0"
+dependencies = [
+ "sp1-build",
+ "sp1-sdk",
 ]
 
 [[package]]
@@ -2580,6 +2596,7 @@ checksum = "8f518f335dce6725a761382244631d86cf0ccb2863413590b31338feb467f9c3"
 name = "is-prime-script"
 version = "1.1.0"
 dependencies = [
+ "sp1-build",
  "sp1-sdk",
 ]
 

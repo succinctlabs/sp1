@@ -1,6 +1,8 @@
 [workspace]
 members = [
   "aggregation/script",
+  "bls12381/script",
+  "bn254/script",
   "chess/script",
   "cycle-tracking/script",
   "fibonacci/script",
