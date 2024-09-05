@@ -146,7 +146,7 @@ pub(crate) mod tests {
         let proof_wide_span = tracing::debug_span!("Run test with wide machine").entered();
         let wide_machine = RecursionAir::<_, 3, 0>::compress_machine(SC::default());
         let (pk, vk) = wide_machine.setup(&program);
-        let pk = P::DeviceProvingKey::from_host(pk);
+        let pk = P::DeviceProvingKey::from_host(&pk);
         let prover = P::new(wide_machine);
         let result = run_test_machine_with_prover::<_, _, P>(&prover, records.clone(), pk, vk);
         proof_wide_span.exit();
