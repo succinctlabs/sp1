@@ -117,7 +117,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
         &self.chips
     }
 
-    /// The number of public value elements.
+    /// Returns the number of public values elements.
     pub const fn num_pv_elts(&self) -> usize {
         self.num_pv_elts
     }

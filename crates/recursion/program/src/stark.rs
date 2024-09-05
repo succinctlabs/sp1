@@ -118,8 +118,6 @@ where
         C::EF: TwoAdicField,
         Com<SC>: Into<[SC::Val; DIGEST_SIZE]>,
     {
-        unimplemented!();
-        /*
         builder.cycle_tracker("stage-c-verify-shard-setup");
         let ShardProofVariable { commitment, opened_values, opening_proof, .. } = proof;
 
@@ -185,8 +183,6 @@ where
         let mut qc_points = builder.dyn_array::<Ext<_, _>>(1);
         builder.set_value(&mut qc_points, 0, zeta);
 
-        builder.print_debug(2);
-
         // Iterate through machine.chips filtered for preprocessed chips.
         for (preprocessed_id, chip_id) in machine.preprocessed_chip_ids().into_iter().enumerate() {
             // Get index within sorted preprocessed chips.
@@ -215,8 +211,6 @@ where
             };
             builder.set_value(&mut prep_mats, preprocessed_sorted_id, main_mat);
         }
-
-        builder.print_debug(3);
 
         let qc_index: Var<_> = builder.eval(C::N::zero());
         let global_main_mats_idx: Var<_> = builder.eval(C::N::zero());
@@ -384,13 +378,9 @@ where
             });
         }
 
-        builder.print_debug(6);
-
         // Assert that the number of chips in `opened_values` matches the number of shard chips
         // enabled.
         builder.assert_var_eq(num_shard_chips_enabled, num_shard_chips);
-
-        builder.print_debug(7);
 
         // If we're checking the cumulative sum, assert that the sum of the cumulative sums is zero.
         if check_cumulative_sum {
@@ -401,11 +391,9 @@ where
                 builder.assign(local_sum, local_sum + opened_values.local_cumulative_sum);
             });
             builder.assert_ext_eq(local_sum, C::EF::zero().cons());
-            builder.print_debug(8);
         }
 
         builder.cycle_tracker("stage-e-verify-constraints");
-        */
     }
 }
 

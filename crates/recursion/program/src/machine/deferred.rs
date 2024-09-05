@@ -138,8 +138,6 @@ where
         machine: &StarkMachine<SC, A>,
         input: SP1DeferredMemoryLayoutVariable<C>,
     ) {
-        unimplemented!()
-        /*
         // Read the inputs.
         let SP1DeferredMemoryLayoutVariable {
             compress_vk,
@@ -316,6 +314,5 @@ where
         deferred_public_values.is_complete = var2felt(builder, is_complete);
 
         commit_public_values(builder, deferred_public_values);
-        */
     }
 }

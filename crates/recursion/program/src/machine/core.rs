@@ -299,8 +299,6 @@ where
                 });
             }
 
-            builder.print_debug(8);
-
             // CPU log degree bound check constraints.
             {
                 for (i, chip) in machine.chips().iter().enumerate() {
@@ -321,8 +319,6 @@ where
                 }
             }
 
-            builder.print_debug(9);
-
             // Shard constraints.
             {
                 // Assert that the shard of the proof is equal to the current shard.
@@ -331,8 +327,6 @@ where
                 // Increment the current shard by one.
                 builder.assign(current_shard, current_shard + C::F::one());
             }
-
-            builder.print_debug(10);
 
             // Execution shard constraints.
             let execution_shard = felt2var(builder, public_values.execution_shard);
@@ -348,8 +342,6 @@ where
                     builder.assign(current_execution_shard, current_execution_shard + C::F::one());
                 });
             }
-
-            builder.print_debug(11);
 
             // Program counter constraints.
             {
@@ -376,15 +368,11 @@ where
                 builder.assign(current_pc, public_values.next_pc);
             }
 
-            builder.print_debug(12);
-
             // Exit code constraints.
             {
                 // Assert that the exit code is zero (success) for all proofs.
                 builder.assert_felt_eq(exit_code, C::F::zero());
             }
-
-            builder.print_debug(13);
 
             // Memory initialization & finalization constraints.
             {
@@ -402,8 +390,6 @@ where
                     }
                 });
 
-                builder.print_debug(14);
-
                 // Assert that the MemoryInitialize address bits match the current loop variable.
                 for (bit, current_bit) in current_init_addr_bits
                     .iter()
@@ -412,8 +398,6 @@ where
                     builder.assert_felt_eq(*bit, *current_bit);
                 }
 
-                builder.print_debug(15);
-
                 // Assert that the MemoryFinalize address bits match the current loop variable.
                 for (bit, current_bit) in current_finalize_addr_bits
                     .iter()
@@ -421,8 +405,6 @@ where
                 {
                     builder.assert_felt_eq(*bit, *current_bit);
                 }
-
-                builder.print_debug(16);
 
                 // Assert that if MemoryInit is not present, then the address bits are the same.
                 builder.if_ne(contains_memory_init, C::N::one()).then(|builder| {
@@ -435,8 +417,6 @@ where
                     }
                 });
 
-                builder.print_debug(17);
-
                 // Assert that if MemoryFinalize is not present, then the address bits are the same.
                 builder.if_ne(contains_memory_finalize, C::N::one()).then(|builder| {
                     for (prev_bit, last_bit) in public_values
@@ -448,16 +428,12 @@ where
                     }
                 });
 
-                builder.print_debug(18);
-
                 // Update the MemoryInitialize address bits.
                 for (bit, pub_bit) in
                     current_init_addr_bits.iter().zip(public_values.last_init_addr_bits.iter())
                 {
                     builder.assign(*bit, *pub_bit);
                 }
-
-                builder.print_debug(19);
 
                 // Update the MemoryFinalize address bits.
                 for (bit, pub_bit) in current_finalize_addr_bits
@@ -466,8 +442,6 @@ where
                 {
                     builder.assign(*bit, *pub_bit);
                 }
-
-                builder.print_debug(20);
             }
 
             // Digest constraints.

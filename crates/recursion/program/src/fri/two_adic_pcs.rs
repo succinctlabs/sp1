@@ -153,9 +153,7 @@ pub fn verify_two_adic_pcs<C: Config>(
     builder.cycle_tracker("stage-d-2-fri-fold");
 
     builder.cycle_tracker("stage-d-3-verify-challenges");
-
     verify_challenges(builder, config, &proof.fri_proof, &fri_challenges, &reduced_openings);
-
     builder.cycle_tracker("stage-d-3-verify-challenges");
 }
 
