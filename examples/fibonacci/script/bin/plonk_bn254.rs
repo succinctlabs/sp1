@@ -32,9 +32,7 @@ fn main() {
     client.verify(&proof, &vk).expect("verification failed");
 
     // Save the proof.
-    proof
-        .save("proof-with-pis.bin")
-        .expect("saving proof failed");
+    proof.save("proof-with-pis.bin").expect("saving proof failed");
 
     println!("successfully generated and verified proof for the program!")
 }
