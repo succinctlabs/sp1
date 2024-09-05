@@ -34,7 +34,7 @@ dependencies = [
 
 [[package]]
 name = "bls12381-mul-test"
-version = "0.1.0"
+version = "1.1.0"
 dependencies = [
  "sp1-derive",
  "sp1-zkvm",
@@ -295,18 +295,18 @@ dependencies = [
 
 [[package]]
 name = "serde"
-version = "1.0.202"
+version = "1.0.209"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "226b61a0d411b2ba5ff6d7f73a476ac4f8bb900373459cd00fab8512828ba395"
+checksum = "99fce0ffe7310761ca6bf9faf5115afbc19688edd00171d81b1bb1b116c63e09"
 dependencies = [
  "serde_derive",
 ]
 
 [[package]]
 name = "serde_derive"
-version = "1.0.202"
+version = "1.0.209"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6048858004bcff69094cd972ed40a32500f153bd3be9f716b2eed2e8217c4838"
+checksum = "a5831b979fd7b5439637af1752d535ff49f4860c0f341d1baeb6faf0f4242170"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -336,7 +336,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-derive"
-version = "0.1.0"
+version = "1.2.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -345,7 +345,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-lib"
-version = "0.1.0"
+version = "1.2.0"
 dependencies = [
  "anyhow",
  "bincode",
@@ -357,7 +357,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-zkvm"
-version = "0.1.0"
+version = "1.2.0"
 dependencies = [
  "bincode",
  "cfg-if",
