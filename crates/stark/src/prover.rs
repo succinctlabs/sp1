@@ -365,30 +365,19 @@ where
         challenger: &mut <SC as StarkGenericConfig>::Challenger,
         global_permutation_challenges: &[SC::Challenge],
     ) -> Result<ShardProof<SC>, Self::Error> {
-        let (
-            global_traces,
-            global_main_commit,
-            global_main_data,
-            global_chip_ordering,
-            global_public_values,
-        ) = if let Some(global_data) = global_data {
-            let ShardMainData {
-                traces: global_traces,
-                main_commit: global_main_commit,
-                main_data: global_main_data,
-                chip_ordering: global_chip_ordering,
-                public_values: global_public_values,
-            } = global_data;
-            (
-                global_traces,
-                global_main_commit,
-                Some(global_main_data),
-                global_chip_ordering,
-                global_public_values,
-            )
-        } else {
-            (vec![], self.config().pcs().zero_commitment(), None, HashMap::new(), vec![])
-        };
+        let (global_traces, global_main_commit, global_main_data, global_chip_ordering) =
+            if let Some(global_data) = global_data {
+                let ShardMainData {
+                    traces: global_traces,
+                    main_commit: global_main_commit,
+                    main_data: global_main_data,
+                    chip_ordering: global_chip_ordering,
+                    public_values: _,
+                } = global_data;
+                (global_traces, global_main_commit, Some(global_main_data), global_chip_ordering)
+            } else {
+                (vec![], self.config().pcs().zero_commitment(), None, HashMap::new())
+            };
 
         let ShardMainData {
             traces: local_traces,

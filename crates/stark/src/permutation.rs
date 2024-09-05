@@ -89,7 +89,7 @@ pub fn get_grouped_maps<F: Field>(
     sends.sort_by_key(|k| k.scope);
     let grouped_sends: HashMap<_, _> = sends
         .iter()
-        .group_by(|int| int.scope)
+        .chunk_by(|int| int.scope)
         .into_iter()
         .map(|(k, values)| (k, values.cloned().collect_vec()))
         .collect();
@@ -99,7 +99,7 @@ pub fn get_grouped_maps<F: Field>(
     receives.sort_by_key(|k| k.scope);
     let grouped_receives: HashMap<_, _> = receives
         .iter()
-        .group_by(|int| int.scope)
+        .chunk_by(|int| int.scope)
         .into_iter()
         .map(|(k, values)| (k, values.cloned().collect_vec()))
         .collect();
