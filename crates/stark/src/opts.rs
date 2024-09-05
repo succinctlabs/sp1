@@ -81,13 +81,9 @@ impl Default for SP1CoreOpts {
             .unwrap_or(DEFERRED_SPLIT_THRESHOLD);
 
         let sys = System::new_all();
-        let total_available_mem = sys.total_memory() / (1024 * 1024);
+        let total_available_mem = sys.total_memory() / (1024 * 1024 * 1024);
         let default_shard_size = shard_size(total_available_mem);
         let default_shard_batch_size = shard_batch_size(total_available_mem);
-
-        println!("Using default shard size: {}", default_shard_size);
-        println!("Using default shard batch size: {}", default_shard_batch_size);
-        println!("total mem: {}", total_available_mem);
 
         Self {
             shard_size: env::var("SHARD_SIZE").map_or_else(
