@@ -42,7 +42,7 @@ use p3_matrix::dense::RowMajorMatrix;
 use sp1_core_executor::{ExecutionError, ExecutionReport, Executor, Program, SP1Context};
 use sp1_core_machine::{
     io::{SP1PublicValues, SP1Stdin},
-    riscv::RiscvAir,
+    riscv::{CoreShapeConfig, RiscvAir},
     utils::{concurrency::TurnBasedSync, SP1CoreProverError},
 };
 use sp1_stark::MachineProvingKey;
@@ -135,6 +135,8 @@ pub struct SP1Prover<C: SP1ProverComponents = DefaultProverComponents> {
     pub allowed_vkeys: Vec<<InnerSC as FieldHasher<BabyBear>>::Digest>,
 
     pub merkle_tree: MerkleTree<BabyBear, InnerSC>,
+
+    pub core_shape_config: CoreShapeConfig<BabyBear>,
 }
 
 impl<C: SP1ProverComponents> SP1Prover<C> {
@@ -192,6 +194,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             root,
             merkle_tree,
             allowed_vkeys,
+            core_shape_config: CoreShapeConfig::default(),
         }
     }
 
@@ -253,6 +256,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             stdin,
             opts.core_opts,
             context,
+            Some(&self.core_shape_config),
         )?;
         Self::check_for_high_cycles(cycles);
         let public_values = SP1PublicValues::from(&public_values_stream);

@@ -51,9 +51,10 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
         let shape = RiscvAir::<F>::heights(record)
             .into_iter()
             .map(|(air, height)| {
-                for &allowed in self.allowed_heights.get(&air).unwrap() {
-                    if height <= allowed {
-                        return (air.name(), allowed);
+                for allowed_log_height in self.allowed_heights.get(&air).unwrap() {
+                    let allowed_height = 1 << allowed_log_height;
+                    if height <= allowed_height {
+                        return (air.name(), *allowed_log_height);
                     }
                 }
                 panic!("air {} not allowed at height {}", air.name(), height);
