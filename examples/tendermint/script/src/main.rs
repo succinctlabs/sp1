@@ -44,7 +44,7 @@ fn main() {
     let client = ProverClient::new();
     let (pk, vk) = client.setup(TENDERMINT_ELF);
 
-    let execute = client.execute(TENDERMINT_ELF, stdin.clone()).run().expect("proving failed");
+    client.execute(TENDERMINT_ELF, stdin.clone()).run().expect("proving failed");
 
     let proof = client.prove(&pk, stdin).run().expect("proving failed");
 
