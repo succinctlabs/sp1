@@ -1,7 +1,7 @@
 use std::env;
 
 use serde::{Deserialize, Serialize};
-use sysinfo::{System, SystemExt};
+use sysinfo::System;
 
 const MAX_SHARD_SIZE: usize = 1 << 22;
 const MAX_SHARD_BATCH_SIZE: usize = 8;
@@ -79,8 +79,9 @@ impl Default for SP1CoreOpts {
         let split_threshold = env::var("SPLIT_THRESHOLD")
             .map(|s| s.parse::<usize>().unwrap_or(DEFERRED_SPLIT_THRESHOLD))
             .unwrap_or(DEFERRED_SPLIT_THRESHOLD);
+
         let sys = System::new_all();
-        let total_available_mem = sys.get_total_memory() / (1024 * 1024);
+        let total_available_mem = sys.total_memory() / (1024 * 1024 * 1024);
         let default_shard_size = shard_size(total_available_mem);
         let default_shard_batch_size = shard_batch_size(total_available_mem);
 
