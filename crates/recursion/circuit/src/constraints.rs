@@ -65,7 +65,7 @@ where
             main: opening.main.view(),
             perm: perm_opening.view(),
             perm_challenges: permutation_challenges,
-            cumulative_sums: &[opening.cumulative_sum, opening.cumulative_sum],
+            cumulative_sum: opening.cumulative_sum,
             public_values: &folder_pv,
             is_first_row: selectors.is_first_row,
             is_last_row: selectors.is_last_row,
@@ -259,7 +259,6 @@ mod tests {
 
     #[test]
     fn test_verify_constraints_whole() {
-        /*
         type SC = BabyBearPoseidon2Outer;
         type F = <SC as StarkGenericConfig>::Val;
         type EF = <SC as StarkGenericConfig>::Challenge;
@@ -338,6 +337,5 @@ mod tests {
         let mut backend = ConstraintCompiler::<OuterConfig>::default();
         let constraints = backend.emit(builder.into_operations());
         PlonkBn254Prover::test::<OuterConfig>(constraints.clone(), Witness::default());
-        */
     }
 }

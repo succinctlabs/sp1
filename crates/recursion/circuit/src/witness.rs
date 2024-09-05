@@ -1,5 +1,4 @@
 use p3_bn254_fr::Bn254Fr;
-use p3_field::AbstractField;
 use sp1_recursion_compiler::{
     config::OuterConfig,
     ir::{Builder, Config, Ext, Felt, Var, Witness},
@@ -27,19 +26,6 @@ pub trait Witnessable<C: Config> {
 }
 
 type C = OuterConfig;
-
-impl Witnessable<C> for bool {
-    type WitnessVariable = Var<Bn254Fr>;
-
-    fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
-        builder.witness_var()
-    }
-
-    fn write(&self, witness: &mut Witness<C>) {
-        let bn254_val = if *self { Bn254Fr::one() } else { Bn254Fr::zero() };
-        witness.vars.push(bn254_val);
-    }
-}
 
 impl Witnessable<C> for Bn254Fr {
     type WitnessVariable = Var<Bn254Fr>;
@@ -114,21 +100,14 @@ impl Witnessable<C> for ShardCommitment<OuterDigest> {
     type WitnessVariable = ShardCommitment<OuterDigestVariable<C>>;
 
     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
-        let global_main_commit = self.global_main_commit.read(builder);
-        let local_main_commit = self.local_main_commit.read(builder);
+        let main_commit = self.main_commit.read(builder);
         let permutation_commit = self.permutation_commit.read(builder);
         let quotient_commit = self.quotient_commit.read(builder);
-        ShardCommitment {
-            global_main_commit,
-            local_main_commit,
-            permutation_commit,
-            quotient_commit,
-        }
+        ShardCommitment { main_commit, permutation_commit, quotient_commit }
     }
 
     fn write(&self, witness: &mut Witness<C>) {
-        self.global_main_commit.write(witness);
-        self.local_main_commit.write(witness);
+        self.main_commit.write(witness);
         self.permutation_commit.write(witness);
         self.quotient_commit.write(witness);
     }
@@ -157,14 +136,13 @@ impl Witnessable<C> for ChipOpenedValues<OuterChallenge> {
         let main = self.main.read(builder);
         let permutation = self.permutation.read(builder);
         let quotient = self.quotient.read(builder);
-        let cumulative_sum = self.global_cumulative_sum.read(builder);
+        let cumulative_sum = self.cumulative_sum.read(builder);
         let log_degree = self.log_degree;
         ChipOpenedValuesVariable {
             preprocessed,
             main,
             permutation,
             quotient,
-            // TODO: Need to add field for local cumulative sum.
             cumulative_sum,
             log_degree,
         }
@@ -175,8 +153,7 @@ impl Witnessable<C> for ChipOpenedValues<OuterChallenge> {
         self.main.write(witness);
         self.permutation.write(witness);
         self.quotient.write(witness);
-        self.global_cumulative_sum.write(witness);
-        self.local_cumulative_sum.write(witness);
+        self.cumulative_sum.write(witness);
     }
 }
 impl VectorWitnessable<C> for ChipOpenedValues<OuterChallenge> {}
@@ -294,13 +271,11 @@ impl Witnessable<C> for ShardProof<BabyBearPoseidon2Outer> {
     type WitnessVariable = RecursionShardProofVariable<C>;
 
     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
-        let global_main_commit: OuterDigest = self.commitment.global_main_commit.into();
-        let local_main_commit: OuterDigest = self.commitment.local_main_commit.into();
+        let main_commit: OuterDigest = self.commitment.main_commit.into();
         let permutation_commit: OuterDigest = self.commitment.permutation_commit.into();
         let quotient_commit: OuterDigest = self.commitment.quotient_commit.into();
         let commitment = ShardCommitment {
-            global_main_commit: global_main_commit.read(builder),
-            local_main_commit: local_main_commit.read(builder),
+            main_commit: main_commit.read(builder),
             permutation_commit: permutation_commit.read(builder),
             quotient_commit: quotient_commit.read(builder),
         };
@@ -313,12 +288,10 @@ impl Witnessable<C> for ShardProof<BabyBearPoseidon2Outer> {
     }
 
     fn write(&self, witness: &mut Witness<C>) {
-        let global_main_commit: OuterDigest = self.commitment.global_main_commit.into();
-        let local_main_commit: OuterDigest = self.commitment.local_main_commit.into();
+        let main_commit: OuterDigest = self.commitment.main_commit.into();
         let permutation_commit: OuterDigest = self.commitment.permutation_commit.into();
         let quotient_commit: OuterDigest = self.commitment.quotient_commit.into();
-        global_main_commit.write(witness);
-        local_main_commit.write(witness);
+        main_commit.write(witness);
         permutation_commit.write(witness);
         quotient_commit.write(witness);
         self.opened_values.write(witness);

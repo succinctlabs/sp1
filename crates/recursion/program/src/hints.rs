@@ -27,10 +27,7 @@ use crate::{
         Sha256DigestVariable, ShardCommitmentVariable, ShardOpenedValuesVariable,
         ShardProofVariable, VerifyingKeyVariable,
     },
-    utils::{
-        get_chip_quotient_data, get_perm_randomnness_scopes, get_preprocessed_data,
-        get_sorted_indices,
-    },
+    utils::{get_chip_quotient_data, get_preprocessed_data, get_sorted_indices},
 };
 
 pub trait Hintable<C: Config> {
@@ -47,18 +44,6 @@ pub trait Hintable<C: Config> {
 }
 
 type C = InnerConfig;
-
-impl Hintable<C> for bool {
-    type HintVariable = Var<InnerVal>;
-
-    fn read(builder: &mut Builder<C>) -> Self::HintVariable {
-        builder.hint_var()
-    }
-
-    fn write(&self) -> Vec<Vec<Block<InnerVal>>> {
-        vec![vec![Block::from(InnerVal::from_canonical_usize(*self as usize))]]
-    }
-}
 
 impl Hintable<C> for usize {
     type HintVariable = Var<InnerVal>;
@@ -294,16 +279,14 @@ impl Hintable<C> for ChipOpenedValues<InnerChallenge> {
         let main = AirOpenedValues::<InnerChallenge>::read(builder);
         let permutation = AirOpenedValues::<InnerChallenge>::read(builder);
         let quotient = Vec::<Vec<InnerChallenge>>::read(builder);
-        let global_cumulative_sum = InnerChallenge::read(builder);
-        let local_cumulative_sum = InnerChallenge::read(builder);
+        let cumulative_sum = InnerChallenge::read(builder);
         let log_degree = builder.hint_var();
         ChipOpenedValuesVariable {
             preprocessed,
             main,
             permutation,
             quotient,
-            global_cumulative_sum,
-            local_cumulative_sum,
+            cumulative_sum,
             log_degree,
         }
     }
@@ -314,8 +297,7 @@ impl Hintable<C> for ChipOpenedValues<InnerChallenge> {
         stream.extend(self.main.write());
         stream.extend(self.permutation.write());
         stream.extend(self.quotient.write());
-        stream.extend(self.global_cumulative_sum.write());
-        stream.extend(self.local_cumulative_sum.write());
+        stream.extend(self.cumulative_sum.write());
         stream.extend(self.log_degree.write());
         stream
     }
@@ -368,23 +350,15 @@ impl Hintable<C> for ShardCommitment<InnerDigestHash> {
     type HintVariable = ShardCommitmentVariable<C>;
 
     fn read(builder: &mut Builder<C>) -> Self::HintVariable {
-        let global_main_commit = InnerDigest::read(builder);
-        let local_main_commit = InnerDigest::read(builder);
+        let main_commit = InnerDigest::read(builder);
         let permutation_commit = InnerDigest::read(builder);
         let quotient_commit = InnerDigest::read(builder);
-        ShardCommitmentVariable {
-            global_main_commit,
-            local_main_commit,
-            permutation_commit,
-            quotient_commit,
-        }
+        ShardCommitmentVariable { main_commit, permutation_commit, quotient_commit }
     }
 
     fn write(&self) -> Vec<Vec<Block<<C as Config>::F>>> {
         let mut stream = Vec::new();
-        let h: InnerDigest = self.global_main_commit.into();
-        stream.extend(h.write());
-        let h: InnerDigest = self.local_main_commit.into();
+        let h: InnerDigest = self.main_commit.into();
         stream.extend(h.write());
         let h: InnerDigest = self.permutation_commit.into();
         stream.extend(h.write());
@@ -482,7 +456,6 @@ where
         let public_values = Vec::<InnerVal>::read(builder);
         let quotient_data = Vec::<QuotientDataValues>::read(builder);
         let sorted_idxs = Vec::<usize>::read(builder);
-        let perm_randomness_scopes = Vec::<usize>::read(builder);
         ShardProofVariable {
             commitment,
             opened_values,
@@ -490,14 +463,12 @@ where
             public_values,
             quotient_data,
             sorted_idxs,
-            perm_randomness_scopes,
         }
     }
 
     fn write(&self) -> Vec<Vec<Block<<C as Config>::F>>> {
         let quotient_data = get_chip_quotient_data(self.machine, self.proof);
         let sorted_indices = get_sorted_indices(self.machine, self.proof);
-        let perm_randomness_scopes = get_perm_randomnness_scopes(self.proof);
 
         [
             self.proof.commitment.write(),
@@ -506,7 +477,6 @@ where
             self.proof.public_values.write(),
             quotient_data.write(),
             sorted_indices.write(),
-            perm_randomness_scopes.write(),
         ]
         .concat()
     }

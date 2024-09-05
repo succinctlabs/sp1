@@ -234,13 +234,13 @@ where
             challenger.observe(builder, vk.pc_start);
 
             // Observe the main commitment and public values.
+            challenger.observe(builder, proof.commitment.main_commit.clone());
             for j in 0..machine.num_pv_elts() {
                 let element = builder.get(&proof.public_values, j);
                 challenger.observe(builder, element);
             }
 
             // Verify proof.
-            let zero_ext: Ext<C::F, C::EF> = builder.eval(C::F::zero());
             StarkVerifier::<C, SC>::verify_shard(
                 builder,
                 &vk,
@@ -249,7 +249,6 @@ where
                 &mut challenger,
                 &proof,
                 true,
-                &[zero_ext, zero_ext],
             );
 
             // Load the public values from the proof.

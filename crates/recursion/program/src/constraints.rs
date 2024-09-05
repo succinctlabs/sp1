@@ -62,7 +62,7 @@ where
             main: opening.main.view(),
             perm: perm_opening.view(),
             perm_challenges: permutation_challenges,
-            cumulative_sums: &[opening.global_cumulative_sum, opening.local_cumulative_sum],
+            cumulative_sum: opening.cumulative_sum,
             public_values: &folder_pv,
             is_first_row: selectors.is_first_row,
             is_last_row: selectors.is_last_row,
@@ -266,8 +266,7 @@ mod tests {
         let mut challenger = machine.config().challenger();
         vk.observe_into(&mut challenger);
         proof.shard_proofs.iter().for_each(|proof| {
-            challenger.observe(proof.commitment.global_main_commit);
-            challenger.observe(proof.commitment.local_main_commit);
+            challenger.observe(proof.commitment.main_commit);
             challenger.observe_slice(&proof.public_values[0..machine.num_pv_elts()]);
         });
 

@@ -129,8 +129,7 @@ impl<C: Config> FromConstant<C> for ChipOpenedValuesVariable<C> {
                 .iter()
                 .map(|x| x.iter().map(|y| builder.constant(*y)).collect())
                 .collect(),
-            // TODO: Need to add field for local cumulative sum.
-            cumulative_sum: builder.eval(value.global_cumulative_sum.cons()),
+            cumulative_sum: builder.eval(value.cumulative_sum.cons()),
             log_degree: value.log_degree,
         }
     }

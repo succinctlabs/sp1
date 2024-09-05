@@ -26,7 +26,7 @@ use sp1_stark::{
 };
 
 use crate::{
-    challenger::{CanObserveVariable, DuplexChallengerVariable, FeltChallenger},
+    challenger::{CanObserveVariable, DuplexChallengerVariable},
     fri::TwoAdicFriPcsVariable,
     hints::Hintable,
     stark::{StarkVerifier, EMPTY},
@@ -167,8 +167,8 @@ where
         let mut reconstruct_challenger: DuplexChallengerVariable<_> =
             initial_reconstruct_challenger.copy(builder);
 
-        // Initialize the global cumulative sum.
-        let global_cumulative_sum: Ext<_, _> = builder.eval(C::EF::zero().cons());
+        // Initialize the cumulative sum.
+        let cumulative_sum: Ext<_, _> = builder.eval(C::EF::zero().cons());
 
         // Assert that the number of proofs is not zero.
         builder.assert_usize_ne(shard_proofs.len(), 0);
@@ -188,11 +188,11 @@ where
                     builder.if_ne(index, C::N::from_canonical_usize(EMPTY)).then(|builder| {
                         builder.assign(contains_cpu, C::N::one());
                     });
-                } else if chip.name() == "MemoryGlobalInit" {
+                } else if chip.name() == "MemoryInit" {
                     builder.if_ne(index, C::N::from_canonical_usize(EMPTY)).then(|builder| {
                         builder.assign(contains_memory_init, C::N::one());
                     });
-                } else if chip.name() == "MemoryGlobalFinalize" {
+                } else if chip.name() == "MemoryFinalize" {
                     builder.if_ne(index, C::N::from_canonical_usize(EMPTY)).then(|builder| {
                         builder.assign(contains_memory_finalize, C::N::one());
                     });
@@ -277,10 +277,6 @@ where
             // Do not verify the cumulative sum here, since the permutation challenge is shared
             // between all shards.
             let mut challenger = leaf_challenger.copy(builder);
-
-            let global_permutation_challenges =
-                (0..2).map(|_| challenger.sample_ext(builder)).collect::<Vec<_>>();
-
             StarkVerifier::<C, SC>::verify_shard(
                 builder,
                 &vk,
@@ -289,7 +285,6 @@ where
                 &mut challenger,
                 &proof,
                 false,
-                &global_permutation_challenges,
             );
 
             // First shard has a "CPU" constraint.
@@ -540,7 +535,7 @@ where
             builder.range_check_f(public_values.shard, 16);
 
             // Update the reconstruct challenger.
-            reconstruct_challenger.observe(builder, proof.commitment.global_main_commit.clone());
+            reconstruct_challenger.observe(builder, proof.commitment.main_commit.clone());
             for j in 0..machine.num_pv_elts() {
                 let element = builder.get(&proof.public_values, j);
                 reconstruct_challenger.observe(builder, element);
@@ -548,16 +543,11 @@ where
 
             // Cumulative sum is updated by sums of all chips.
             let opened_values = proof.opened_values.chips;
-            let local_cumulative_sum: Ext<_, _> = builder.eval(C::EF::zero().cons());
             builder.range(0, opened_values.len()).for_each(|k, builder| {
                 let values = builder.get(&opened_values, k);
-                let global_sum = values.global_cumulative_sum;
-                let local_sum = values.local_cumulative_sum;
-                builder.assign(global_cumulative_sum, global_cumulative_sum + global_sum);
-                builder.assign(local_cumulative_sum, local_cumulative_sum + local_sum);
+                let sum = values.cumulative_sum;
+                builder.assign(cumulative_sum, cumulative_sum + sum);
             });
-
-            builder.assert_ext_eq(local_cumulative_sum, C::EF::zero().cons());
         });
 
         // Write all values to the public values struct and commit to them.
@@ -573,9 +563,8 @@ where
                 get_challenger_public_values(builder, &reconstruct_challenger);
 
             // Collect the cumulative sum.
-            let global_cumulative_sum_array = builder.ext2felt(global_cumulative_sum);
-            let global_cumulative_sum_array =
-                array::from_fn(|i| builder.get(&global_cumulative_sum_array, i));
+            let cumulative_sum_array = builder.ext2felt(cumulative_sum);
+            let cumulative_sum_array = array::from_fn(|i| builder.get(&cumulative_sum_array, i));
 
             // Collect the deferred proof digests.
             let zero: Felt<_> = builder.eval(C::F::zero());
@@ -606,7 +595,7 @@ where
             recursion_public_values.leaf_challenger = leaf_challenger_public_values;
             recursion_public_values.start_reconstruct_challenger = initial_challenger_public_values;
             recursion_public_values.end_reconstruct_challenger = final_challenger_public_values;
-            recursion_public_values.cumulative_sum = global_cumulative_sum_array;
+            recursion_public_values.cumulative_sum = cumulative_sum_array;
             recursion_public_values.start_reconstruct_deferred_digest = start_deferred_digest;
             recursion_public_values.end_reconstruct_deferred_digest = end_deferred_digest;
             recursion_public_values.exit_code = exit_code;
