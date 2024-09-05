@@ -257,11 +257,7 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
 
             rows.push(row);
         }
-
-        let syscall_blu =
-            output.syscall_byte_lookups.entry(SyscallCode::ED_DECOMPRESS).or_default();
-
-        syscall_blu.add_byte_lookup_events(new_byte_lookup_events);
+        output.add_byte_lookup_events(new_byte_lookup_events);
 
         pad_rows_fixed(
             &mut rows,

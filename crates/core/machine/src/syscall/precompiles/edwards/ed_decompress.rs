@@ -93,10 +93,7 @@ impl<F: PrimeField32> EdDecompressCols<F> {
         let y = &BigUint::from_bytes_le(&event.y_bytes);
         self.populate_field_ops::<E>(&mut new_byte_lookup_events, event.shard, event.channel, y);
 
-        let syscall_blu =
-            record.syscall_byte_lookups.entry(SyscallCode::ED_DECOMPRESS).or_default();
-
-        syscall_blu.add_byte_lookup_events(new_byte_lookup_events);
+        record.add_byte_lookup_events(new_byte_lookup_events);
     }
 
     fn populate_field_ops<E: EdwardsParameters>(

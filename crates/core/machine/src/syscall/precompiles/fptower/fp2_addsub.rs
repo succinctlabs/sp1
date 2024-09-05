@@ -6,7 +6,6 @@ use std::{
 
 use crate::air::MemoryAirBuilder;
 use generic_array::GenericArray;
-use hashbrown::HashMap;
 use itertools::Itertools;
 use num::{BigUint, Zero};
 use p3_air::{Air, AirBuilder, BaseAir};
@@ -100,7 +99,7 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for Fp2AddSubAssignChip<P> {
         };
 
         let mut rows = Vec::new();
-        let mut new_byte_lookup_events: HashMap<SyscallCode, Vec<_>> = HashMap::new(); // Byte lookup events.
+        let mut new_byte_lookup_events = Vec::new();
 
         for i in 0..events.len() {
             let event = &events[i];
@@ -123,10 +122,8 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for Fp2AddSubAssignChip<P> {
             cols.x_ptr = F::from_canonical_u32(event.x_ptr);
             cols.y_ptr = F::from_canonical_u32(event.y_ptr);
 
-            let blu_events = new_byte_lookup_events.entry(event.syscall).or_default();
-
             Self::populate_field_ops(
-                blu_events,
+                &mut new_byte_lookup_events,
                 event.shard,
                 event.channel,
                 cols,
@@ -139,18 +136,23 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for Fp2AddSubAssignChip<P> {
 
             // Populate the memory access columns.
             for i in 0..cols.y_access.len() {
-                cols.y_access[i].populate(event.channel, event.y_memory_records[i], blu_events);
+                cols.y_access[i].populate(
+                    event.channel,
+                    event.y_memory_records[i],
+                    &mut new_byte_lookup_events,
+                );
             }
             for i in 0..cols.x_access.len() {
-                cols.x_access[i].populate(event.channel, event.x_memory_records[i], blu_events);
+                cols.x_access[i].populate(
+                    event.channel,
+                    event.x_memory_records[i],
+                    &mut new_byte_lookup_events,
+                );
             }
             rows.push(row)
         }
 
-        for (syscall, blu_events) in new_byte_lookup_events.iter_mut() {
-            let syscall_blu = output.syscall_byte_lookups.entry(*syscall).or_default();
-            syscall_blu.add_byte_lookup_events(blu_events.to_vec());
-        }
+        output.add_byte_lookup_events(new_byte_lookup_events);
 
         pad_rows_fixed(
             &mut rows,

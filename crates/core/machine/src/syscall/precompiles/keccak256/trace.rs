@@ -4,7 +4,7 @@ use p3_field::PrimeField32;
 use p3_keccak_air::{generate_trace_rows, NUM_KECCAK_COLS, NUM_ROUNDS};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use p3_maybe_rayon::prelude::{ParallelIterator, ParallelSlice};
-use sp1_core_executor::{syscalls::SyscallCode, ExecutionRecord, Program};
+use sp1_core_executor::{ExecutionRecord, Program};
 use sp1_stark::air::MachineAir;
 
 use super::{
@@ -119,12 +119,9 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
 
         // Generate the trace rows for each event.
         let mut rows: Vec<[F; NUM_KECCAK_MEM_COLS]> = vec![];
-        let syscall_blu =
-            output.syscall_byte_lookups.entry(SyscallCode::KECCAK_PERMUTE).or_default();
-
         for (mut row, blu_events) in rows_and_blu_events {
             rows.append(&mut row);
-            syscall_blu.add_byte_lookup_events(blu_events);
+            output.add_byte_lookup_events(blu_events);
         }
 
         let nb_rows = rows.len();

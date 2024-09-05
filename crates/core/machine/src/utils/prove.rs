@@ -225,14 +225,6 @@ where
                                 .in_scope(|| trace_checkpoint(program.clone(), &checkpoint, opts));
                             reset_seek(&mut checkpoint);
 
-                            tracing::debug_span!("generate dependencies", index).in_scope(|| {
-                                prover.machine().generate_dependencies(
-                                    &mut records,
-                                    &opts,
-                                    InteractionScope::Global,
-                                );
-                            });
-
                             // Wait for our turn to update the state.
                             record_gen_sync.wait_for_turn(index);
 
@@ -279,6 +271,14 @@ where
                                 record.public_values = *state;
                             }
                             records.append(&mut deferred);
+
+                            tracing::debug_span!("generate dependencies", index).in_scope(|| {
+                                prover.machine().generate_dependencies(
+                                    &mut records,
+                                    &opts,
+                                    InteractionScope::Global,
+                                );
+                            });
 
                             // Collect the checkpoints to be used again in the phase 2 prover.
                             let mut checkpoints = checkpoints.lock().unwrap();
@@ -453,20 +453,6 @@ where
                             *report_aggregate.lock().unwrap() += report;
                             reset_seek(&mut checkpoint);
 
-                            // Generate the dependencies.
-                            tracing::debug_span!("generate dependencies", index).in_scope(|| {
-                                prover.machine().generate_dependencies(
-                                    &mut records,
-                                    &opts,
-                                    InteractionScope::Global,
-                                );
-                                prover.machine().generate_dependencies(
-                                    &mut records,
-                                    &opts,
-                                    InteractionScope::Local,
-                                );
-                            });
-
                             // Wait for our turn to update the state.
                             record_gen_sync.wait_for_turn(index);
 
@@ -513,6 +499,20 @@ where
                                 record.public_values = *state;
                             }
                             records.append(&mut deferred);
+
+                            // Generate the dependencies.
+                            tracing::debug_span!("generate dependencies", index).in_scope(|| {
+                                prover.machine().generate_dependencies(
+                                    &mut records,
+                                    &opts,
+                                    InteractionScope::Global,
+                                );
+                                prover.machine().generate_dependencies(
+                                    &mut records,
+                                    &opts,
+                                    InteractionScope::Local,
+                                );
+                            });
 
                             // Let another worker update the state.
                             record_gen_sync.advance_turn();

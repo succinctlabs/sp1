@@ -5,7 +5,6 @@ use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use p3_maybe_rayon::prelude::{ParallelIterator, ParallelSlice};
 use sp1_core_executor::{
     events::{ByteLookupEvent, ByteRecord, ShaExtendEvent},
-    syscalls::SyscallCode,
     ExecutionRecord, Program,
 };
 use sp1_stark::air::MachineAir;
@@ -83,9 +82,7 @@ impl<F: PrimeField32> MachineAir<F> for ShaExtendChip {
             })
             .collect::<Vec<_>>();
 
-        let syscall_blu = output.syscall_byte_lookups.entry(SyscallCode::SHA_EXTEND).or_default();
-
-        syscall_blu.add_sharded_byte_lookup_events(blu_batches.iter().collect_vec());
+        output.add_sharded_byte_lookup_events(blu_batches.iter().collect_vec());
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
