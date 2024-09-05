@@ -4,8 +4,7 @@ use std::{
     sync::Arc,
 };
 
-use hashbrown::{hash_map::Entry, HashMap};
-use nohash_hasher::BuildNoHashHasher;
+use hashbrown::HashMap;
 use serde::{Deserialize, Serialize};
 use sp1_stark::SP1CoreOpts;
 use thiserror::Error;
@@ -18,6 +17,7 @@ use crate::{
         MemoryRecord, MemoryWriteRecord, SyscallEvent,
     },
     hook::{HookEnv, HookRegistry},
+    memory::{Entry, PagedMemory},
     record::{ExecutionRecord, MemoryAccessRecord},
     report::ExecutionReport,
     state::{ExecutionState, ForkState},
@@ -100,7 +100,7 @@ pub struct Executor<'a> {
 
     /// Memory addresses that were touched in this batch of shards. Used to minimize the size of
     /// checkpoints.
-    pub memory_checkpoint: HashMap<u32, Option<MemoryRecord>, BuildNoHashHasher<u32>>,
+    pub memory_checkpoint: PagedMemory<Option<MemoryRecord>>,
 
     /// Local memory access events for memory addresses.
     pub local_memory_access: HashMap<u32, MemoryLocalEvent>,
@@ -219,7 +219,7 @@ impl<'a> Executor<'a> {
             hook_registry,
             opts,
             max_cycles: context.max_cycles,
-            memory_checkpoint: HashMap::default(),
+            memory_checkpoint: PagedMemory::new_preallocated(),
             local_memory_access: HashMap::default(),
         }
     }
@@ -259,7 +259,7 @@ impl<'a> Executor<'a> {
         let mut registers = [0; 32];
         for i in 0..32 {
             let addr = Register::from_u32(i as u32) as u32;
-            let record = self.state.memory.get(&addr);
+            let record = self.state.memory.get(addr);
 
             // Only add the previous memory state to checkpoint map if we're in checkpoint mode,
             // or if we're in unconstrained mode. In unconstrained mode, the mode is always
@@ -287,7 +287,7 @@ impl<'a> Executor<'a> {
     #[must_use]
     pub fn register(&mut self, register: Register) -> u32 {
         let addr = register as u32;
-        let record = self.state.memory.get(&addr);
+        let record = self.state.memory.get(addr);
 
         if self.executor_mode == ExecutorMode::Checkpoint || self.unconstrained {
             match record {
@@ -310,7 +310,7 @@ impl<'a> Executor<'a> {
     #[must_use]
     pub fn word(&mut self, addr: u32) -> u32 {
         #[allow(clippy::single_match_else)]
-        let record = self.state.memory.get(&addr);
+        let record = self.state.memory.get(addr);
 
         if self.executor_mode == ExecutorMode::Checkpoint || self.unconstrained {
             match record {
@@ -1244,7 +1244,6 @@ impl<'a> Executor<'a> {
     pub fn execute_state(&mut self) -> Result<(ExecutionState, bool), ExecutionError> {
         self.memory_checkpoint.clear();
         self.executor_mode = ExecutorMode::Checkpoint;
-        self.print_report = true;
 
         // Take memory out of state before cloning it so that memory is not cloned.
         let memory = std::mem::take(&mut self.state.memory);
@@ -1264,7 +1263,7 @@ impl<'a> Executor<'a> {
                     if let Some(record) = record {
                         checkpoint.memory.insert(addr, record);
                     } else {
-                        checkpoint.memory.remove(&addr);
+                        checkpoint.memory.remove(addr);
                     }
                 });
             } else {
@@ -1282,8 +1281,8 @@ impl<'a> Executor<'a> {
         self.state.channel = 0;
 
         tracing::debug!("loading memory image");
-        for (addr, value) in &self.program.memory_image {
-            self.state.memory.insert(*addr, MemoryRecord { value: *value, shard: 0, timestamp: 0 });
+        for (&addr, value) in &self.program.memory_image {
+            self.state.memory.insert(addr, MemoryRecord { value: *value, shard: 0, timestamp: 0 });
         }
     }
 
@@ -1421,7 +1420,7 @@ impl<'a> Executor<'a> {
 
         // We handle the addr = 0 case separately, as we constrain it to be 0 in the first row
         // of the memory finalize table so it must be first in the array of events.
-        let addr_0_record = self.state.memory.get(&0u32);
+        let addr_0_record = self.state.memory.get(0);
 
         let addr_0_final_record = match addr_0_record {
             Some(record) => record,
@@ -1435,19 +1434,22 @@ impl<'a> Executor<'a> {
             MemoryInitializeFinalizeEvent::initialize(0, 0, addr_0_record.is_some());
         memory_initialize_events.push(addr_0_initialize_event);
 
-        self.report.touched_memory_addresses = self.state.memory.len() as u64;
+        // Count the number of touched memory addresses manually, since `PagedMemory` doesn't
+        // already know its length.
+        self.report.touched_memory_addresses = 0;
         for addr in self.state.memory.keys() {
-            if *addr == 0 {
+            self.report.touched_memory_addresses += 1;
+            if addr == 0 {
                 // Handled above.
                 continue;
             }
 
             // Program memory is initialized in the MemoryProgram chip and doesn't require any
             // events, so we only send init events for other memory addresses.
-            if !self.record.program.memory_image.contains_key(addr) {
-                let initial_value = self.state.uninitialized_memory.get(addr).unwrap_or(&0);
+            if !self.record.program.memory_image.contains_key(&addr) {
+                let initial_value = self.state.uninitialized_memory.get(&addr).unwrap_or(&0);
                 memory_initialize_events.push(MemoryInitializeFinalizeEvent::initialize(
-                    *addr,
+                    addr,
                     *initial_value,
                     true,
                 ));
@@ -1455,7 +1457,7 @@ impl<'a> Executor<'a> {
 
             let record = *self.state.memory.get(addr).unwrap();
             memory_finalize_events
-                .push(MemoryInitializeFinalizeEvent::finalize_from_record(*addr, &record));
+                .push(MemoryInitializeFinalizeEvent::finalize_from_record(addr, &record));
         }
     }
 
