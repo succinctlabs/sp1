@@ -16,9 +16,9 @@ pub struct CreateProofRequest {
     /// The deadline for the proof request, signifying the latest time a fulfillment would be valid.
     #[prost(uint64, tag = "4")]
     pub deadline: u64,
-    /// The client version used, in the form of an 8-character git commit hash.
+    /// The SP1 circuit version to use for the proof.
     #[prost(string, tag = "5")]
-    pub version: ::prost::alloc::string::String,
+    pub circuit_version: ::prost::alloc::string::String,
 }
 /// The response for creating a proof.
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -229,9 +229,12 @@ pub struct GetProofStatusResponse {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetProofRequestsRequest {
-    /// The status of the proof requests to get.
+    /// The status of the proof requests to filter for.
     #[prost(enumeration = "ProofStatus", tag = "1")]
     pub status: i32,
+    /// The SP1 circuit version of the proof requests to filter for.
+    #[prost(string, optional, tag = "2")]
+    pub circuit_version: ::core::option::Option<::prost::alloc::string::String>,
 }
 /// A proof request.
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -247,6 +250,9 @@ pub struct RequestedProof {
     /// Proof requester's address.
     #[prost(bytes = "vec", tag = "3")]
     pub requester: ::prost::alloc::vec::Vec<u8>,
+    /// The SP1 circuit version to use for the proof.
+    #[prost(string, tag = "4")]
+    pub circuit_version: ::prost::alloc::string::String,
 }
 /// The response for getting proof requests by a given status.
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -493,6 +499,7 @@ impl UnclaimReason {
         }
     }
 }
+pub use twirp;
 pub const SERVICE_FQN: &str = "/network.NetworkService";
 #[twirp::async_trait::async_trait]
 pub trait NetworkService {
