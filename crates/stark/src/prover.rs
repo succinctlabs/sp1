@@ -161,7 +161,7 @@ pub trait MachineProvingKey<SC: StarkGenericConfig>: Send + Sync {
     fn to_host(&self) -> StarkProvingKey<SC>;
 
     /// The proving key on the device.
-    fn from_host(host: StarkProvingKey<SC>) -> Self;
+    fn from_host(host: &StarkProvingKey<SC>) -> Self;
 
     /// Observe itself in the challenger.
     fn observe_into(&self, challenger: &mut Challenger<SC>);
@@ -595,8 +595,8 @@ where
         self.clone()
     }
 
-    fn from_host(host: StarkProvingKey<SC>) -> Self {
-        host
+    fn from_host(host: &StarkProvingKey<SC>) -> Self {
+        host.clone()
     }
 
     fn observe_into(&self, challenger: &mut Challenger<SC>) {

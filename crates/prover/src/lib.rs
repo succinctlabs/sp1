@@ -257,7 +257,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         >(
             &self.core_prover,
             &<C::CoreProver as MachineProver<BabyBearPoseidon2, RiscvAir<BabyBear>>>::DeviceProvingKey::from_host(
-                pk.pk.clone(),
+                &pk.pk,
             ),
             program,
             stdin,
@@ -1051,7 +1051,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         digest
     }
 
-    fn make_merkle_proofs(
+    pub fn make_merkle_proofs(
         &self,
         input: SP1CompressWitnessValues<CoreSC>,
     ) -> SP1CompressWithVKeyWitnessValues<CoreSC>
