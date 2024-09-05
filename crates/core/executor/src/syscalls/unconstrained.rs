@@ -42,7 +42,7 @@ impl Syscall for ExitUnconstrainedSyscall {
                         ctx.rt.state.memory.insert(addr, value);
                     }
                     None => {
-                        ctx.rt.state.memory.remove(&addr);
+                        ctx.rt.state.memory.remove(addr);
                     }
                 }
             }

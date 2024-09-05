@@ -1348,12 +1348,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "doc-comment"
-version = "0.3.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fea41bba32d969b513997752735605054bc0dfa92b4c56bf1189f2e174be7a10"
-
-[[package]]
 name = "downcast-rs"
 version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2921,15 +2915,6 @@ checksum = "d273983c5a657a70a3e8f2a01329822f3b8c8172b73826411a55751e404a0a4a"
 dependencies = [
  "memchr",
  "minimal-lexical",
-]
-
-[[package]]
-name = "ntapi"
-version = "0.3.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c28774a7fd2fbb4f0babd8237ce554b73af68021b5f695a3cebd6c59bac0980f"
-dependencies = [
- "winapi",
 ]
 
 [[package]]
@@ -4964,7 +4949,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-build"
-version = "1.2.0-rc2"
+version = "1.2.0"
 dependencies = [
  "anyhow",
  "cargo_metadata",
@@ -4975,7 +4960,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-core-executor"
-version = "1.2.0-rc2"
+version = "1.2.0"
 dependencies = [
  "bincode",
  "bytemuck",
@@ -5005,11 +4990,12 @@ dependencies = [
  "tiny-keccak",
  "tracing",
  "typenum",
+ "vec_map",
 ]
 
 [[package]]
 name = "sp1-core-machine"
-version = "1.2.0-rc2"
+version = "1.2.0"
 dependencies = [
  "anyhow",
  "arrayref",
@@ -5073,7 +5059,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-cuda"
-version = "1.2.0-rc2"
+version = "1.2.0"
 dependencies = [
  "bincode",
  "ctrlc",
@@ -5092,7 +5078,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-curves"
-version = "1.2.0-rc2"
+version = "1.2.0"
 dependencies = [
  "curve25519-dalek",
  "dashu",
@@ -5111,7 +5097,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-derive"
-version = "1.2.0-rc2"
+version = "1.2.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -5120,7 +5106,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-primitives"
-version = "1.2.0-rc2"
+version = "1.2.0"
 dependencies = [
  "itertools 0.13.0",
  "lazy_static",
@@ -5132,7 +5118,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-prover"
-version = "1.2.0-rc2"
+version = "1.2.0"
 dependencies = [
  "anyhow",
  "bincode",
@@ -5170,7 +5156,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-circuit"
-version = "1.2.0-rc2"
+version = "1.2.0"
 dependencies = [
  "bincode",
  "itertools 0.13.0",
@@ -5230,7 +5216,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-compiler"
-version = "1.2.0-rc2"
+version = "1.2.0"
 dependencies = [
  "backtrace",
  "itertools 0.13.0",
@@ -5258,7 +5244,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-core"
-version = "1.2.0-rc2"
+version = "1.2.0"
 dependencies = [
  "arrayref",
  "backtrace",
@@ -5294,7 +5280,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-core-v2"
-version = "1.2.0-rc2"
+version = "1.2.0"
 dependencies = [
  "arrayref",
  "backtrace",
@@ -5333,7 +5319,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-derive"
-version = "1.2.0-rc2"
+version = "1.2.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -5342,7 +5328,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-gnark-ffi"
-version = "1.2.0-rc2"
+version = "1.2.0"
 dependencies = [
  "anyhow",
  "bincode",
@@ -5367,7 +5353,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-program"
-version = "1.2.0-rc2"
+version = "1.2.0"
 dependencies = [
  "itertools 0.13.0",
  "p3-air",
@@ -5397,7 +5383,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-sdk"
-version = "1.2.0-rc2"
+version = "1.2.0"
 dependencies = [
  "alloy-sol-types",
  "anyhow",
@@ -5431,7 +5417,7 @@ dependencies = [
  "sp1-stark",
  "strum",
  "strum_macros",
- "sysinfo 0.30.13",
+ "sysinfo",
  "tempfile",
  "thiserror",
  "tokio",
@@ -5442,7 +5428,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-stark"
-version = "1.2.0-rc2"
+version = "1.2.0"
 dependencies = [
  "arrayref",
  "getrandom",
@@ -5466,7 +5452,7 @@ dependencies = [
  "serde",
  "sp1-derive",
  "sp1-primitives",
- "sysinfo 0.15.9",
+ "sysinfo",
  "tracing",
 ]
 
@@ -5629,23 +5615,6 @@ dependencies = [
 
 [[package]]
 name = "sysinfo"
-version = "0.15.9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "de94457a09609f33fec5e7fceaf907488967c6c7c75d64da6a7ce6ffdb8b5abd"
-dependencies = [
- "cc",
- "cfg-if",
- "core-foundation-sys",
- "doc-comment",
- "libc",
- "ntapi 0.3.7",
- "once_cell",
- "rayon",
- "winapi",
-]
-
-[[package]]
-name = "sysinfo"
 version = "0.30.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0a5b4ddaee55fb2bea2bf0e5000747e5f5c0de765e5a5ff87f4cd106439f4bb3"
@@ -5653,7 +5622,7 @@ dependencies = [
  "cfg-if",
  "core-foundation-sys",
  "libc",
- "ntapi 0.4.1",
+ "ntapi",
  "once_cell",
  "rayon",
  "windows",
@@ -6266,6 +6235,9 @@ name = "vec_map"
 version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f1bddf1187be692e79c5ffeab891132dfb0f236ed36a43c7ed39f1165ee20191"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "vergen"
