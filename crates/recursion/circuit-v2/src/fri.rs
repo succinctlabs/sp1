@@ -1,4 +1,4 @@
-use itertools::{izip, zip_eq, Itertools};
+use itertools::{izip, Itertools};
 use p3_baby_bear::BabyBear;
 use p3_commit::PolynomialSpace;
 use p3_field::{AbstractField, TwoAdicField};
@@ -81,14 +81,14 @@ pub fn verify_two_adic_pcs<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigV
     let reduced_openings = proof
         .query_openings
         .iter()
-        .zip_eq(&fri_challenges.query_indices)
+        .zip(&fri_challenges.query_indices)
         .map(|(query_opening, index_bits)| {
             // The powers of alpha, where the ith element is alpha^i.
             let mut log_height_pow = [0usize; 32];
             let mut ro: [Ext<C::F, C::EF>; 32] =
                 [builder.eval(SymbolicExt::from_f(C::EF::zero())); 32];
 
-            for (batch_opening, round) in zip_eq(query_opening, rounds.iter().cloned()) {
+            for (batch_opening, round) in zip(query_opening, rounds.iter().cloned()) {
                 let batch_commit = round.batch_commit;
                 let mats = round.domains_points_and_opens;
                 let batch_heights =

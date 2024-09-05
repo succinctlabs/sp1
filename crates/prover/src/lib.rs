@@ -624,8 +624,6 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                                 }
                             });
 
-                            println!("wrote the witness stream");
-
                             // Execute the runtime.
                             let record = tracing::debug_span!("execute runtime").in_scope(|| {
                                 let mut runtime =
@@ -643,8 +641,6 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                                 runtime.record
                             });
 
-                            println!("ran the runtime");
-
                             // Generate the dependencies.
                             let mut records = vec![record];
                             tracing::debug_span!("generate dependencies").in_scope(|| {
@@ -655,16 +651,12 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                                 )
                             });
 
-                            println!("generated the dependencies");
-
                             // Generate the traces.
                             let record = records.into_iter().next().unwrap();
                             let traces = tracing::debug_span!("generate traces").in_scope(|| {
                                 self.compress_prover
                                     .generate_traces(&record, InteractionScope::Local)
                             });
-
-                            println!("generated the traces");
 
                             // Wait for our turn to update the state.
                             record_and_trace_sync.wait_for_turn(index);

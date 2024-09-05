@@ -15,7 +15,8 @@ use p3_maybe_rayon::prelude::*;
 use serde::{de::DeserializeOwned, Serialize};
 use size::Size;
 use sp1_stark::{
-    air::InteractionScope, baby_bear_poseidon2::BabyBearPoseidon2, MachineProvingKey, MachineVerificationError
+    air::InteractionScope, baby_bear_poseidon2::BabyBearPoseidon2, MachineProvingKey,
+    MachineVerificationError,
 };
 use std::thread::ScopedJoinHandle;
 use thiserror::Error;
@@ -66,7 +67,7 @@ where
     <SC as StarkGenericConfig>::Val: PrimeField32,
 {
     // Setup the machine.
-    let machine = RiscvAir::machine(config.clone());
+    let machine = RiscvAir::machine(config);
     let prover = P::new(machine);
     let (pk, _) = prover.setup(runtime.program.as_ref());
 
@@ -225,7 +226,11 @@ where
                             reset_seek(&mut checkpoint);
 
                             tracing::debug_span!("generate dependencies", index).in_scope(|| {
-                                prover.machine().generate_dependencies(&mut records, &opts, InteractionScope::Global);
+                                prover.machine().generate_dependencies(
+                                    &mut records,
+                                    &opts,
+                                    InteractionScope::Global,
+                                );
                             });
 
                             // Wait for our turn to update the state.
@@ -348,12 +353,11 @@ where
 
                         // Commit to each shard.
                         let commitments = records
-                            .into_iter()
-                            .zip(traces.into_iter())
+                            .into_par_iter()
+                            .zip(traces.into_par_iter())
                             .map(|(record, traces)| {
                                 let _span = span.enter();
 
-                                // let chips = prover.machine().shard_chips(&record).collect::<Vec<_>>();
                                 for (name, trace) in traces.clone() {
                                     let trace_width = trace.width();
                                     let trace_height = trace.height();
@@ -376,10 +380,10 @@ where
 
                         //  the commitments.
                         for (commit, public_values) in
-                            commitments.iter().zip(public_values.into_iter())
+                            commitments.into_iter().zip(public_values.into_iter())
                         {
                             prover.observe(&mut challenger, commit.clone(), &public_values);
-                        }                        
+                        }
                     });
                 }
             });
@@ -407,9 +411,13 @@ where
         let p2_record_gen_sync = Arc::new(TurnBasedSync::new());
         let p2_trace_gen_sync = Arc::new(TurnBasedSync::new());
         let (p2_records_and_traces_tx, p2_records_and_traces_rx) =
-            sync_channel::<(Vec<ExecutionRecord>, (Vec<Vec<(String, RowMajorMatrix<Val<SC>>)>>, Vec<Vec<(String, RowMajorMatrix<Val<SC>>)>>))>(
-                opts.records_and_traces_channel_capacity,
-            );
+            sync_channel::<(
+                Vec<ExecutionRecord>,
+                (
+                    Vec<Vec<(String, RowMajorMatrix<Val<SC>>)>>,
+                    Vec<Vec<(String, RowMajorMatrix<Val<SC>>)>>,
+                ),
+            )>(opts.records_and_traces_channel_capacity);
         let p2_records_and_traces_tx = Arc::new(Mutex::new(p2_records_and_traces_tx));
 
         let report_aggregate = Arc::new(Mutex::new(ExecutionReport::default()));
@@ -440,15 +448,23 @@ where
                         let received = { checkpoints.lock().unwrap().pop_front() };
                         if let Some((index, mut checkpoint, done)) = received {
                             // Trace the checkpoint and reconstruct the execution records.
-                            let (mut records, report) = tracing::debug_span!("trace checkpoint", index)
+                            let (mut records, report) = tracing::debug_span!("trace checkpoint")
                                 .in_scope(|| trace_checkpoint(program.clone(), &checkpoint, opts));
                             *report_aggregate.lock().unwrap() += report;
                             reset_seek(&mut checkpoint);
 
                             // Generate the dependencies.
                             tracing::debug_span!("generate dependencies", index).in_scope(|| {
-                                prover.machine().generate_dependencies(&mut records, &opts, InteractionScope::Global);
-                                prover.machine().generate_dependencies(&mut records, &opts, InteractionScope::Local);
+                                prover.machine().generate_dependencies(
+                                    &mut records,
+                                    &opts,
+                                    InteractionScope::Global,
+                                );
+                                prover.machine().generate_dependencies(
+                                    &mut records,
+                                    &opts,
+                                    InteractionScope::Local,
+                                );
                             });
 
                             // Wait for our turn to update the state.
@@ -509,7 +525,9 @@ where
                             tracing::debug_span!("generate local traces", index).in_scope(|| {
                                 local_traces = records
                                     .par_iter()
-                                    .map(|record| prover.generate_traces(record, InteractionScope::Local))
+                                    .map(|record| {
+                                        prover.generate_traces(record, InteractionScope::Local)
+                                    })
                                     .collect::<Vec<_>>();
                             });
 
@@ -517,26 +535,31 @@ where
                             tracing::debug_span!("generate global traces", index).in_scope(|| {
                                 global_traces = records
                                     .par_iter()
-                                    .map(|record| prover.generate_traces(record, InteractionScope::Global))
+                                    .map(|record| {
+                                        prover.generate_traces(record, InteractionScope::Global)
+                                    })
                                     .collect::<Vec<_>>();
                             });
-
 
                             trace_gen_sync.wait_for_turn(index);
 
                             // Send the records to the phase 2 prover.
                             let chunked_records = chunk_vec(records, opts.shard_batch_size);
-                            let chunked_global_traces = chunk_vec(global_traces, opts.shard_batch_size);
-                            let chunked_local_traces = chunk_vec(local_traces, opts.shard_batch_size);
-                            chunked_records.into_iter().zip(chunked_global_traces.into_iter()).zip(chunked_local_traces.into_iter()).for_each(
-                                |((records, global_traces), local_traces)| {
+                            let chunked_global_traces =
+                                chunk_vec(global_traces, opts.shard_batch_size);
+                            let chunked_local_traces =
+                                chunk_vec(local_traces, opts.shard_batch_size);
+                            chunked_records
+                                .into_iter()
+                                .zip(chunked_global_traces.into_iter())
+                                .zip(chunked_local_traces.into_iter())
+                                .for_each(|((records, global_traces), local_traces)| {
                                     records_and_traces_tx
                                         .lock()
                                         .unwrap()
                                         .send((records, (global_traces, local_traces)))
                                         .unwrap();
-                                },
-                            );
+                                });
 
                             trace_gen_sync.advance_turn();
                         } else {
@@ -673,7 +696,6 @@ pub fn run_test_core<P: MachineProver<BabyBearPoseidon2, RiscvAir<BabyBear>>>(
     let machine = RiscvAir::machine(config);
     let prover = P::new(machine);
     let (pk, _) = prover.setup(runtime.program.as_ref());
-
     let (proof, output, _) = prove_with_context(
         &prover,
         &pk,
