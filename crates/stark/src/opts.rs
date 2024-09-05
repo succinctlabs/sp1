@@ -1,9 +1,10 @@
 use std::env;
 
 use serde::{Deserialize, Serialize};
+use sysinfo::System;
 
-const DEFAULT_SHARD_SIZE: usize = 1 << 22;
-const DEFAULT_SHARD_BATCH_SIZE: usize = 16;
+const MAX_SHARD_SIZE: usize = 1 << 22;
+const MAX_SHARD_BATCH_SIZE: usize = 8;
 const DEFAULT_TRACE_GEN_WORKERS: usize = 1;
 const DEFAULT_CHECKPOINTS_CHANNEL_CAPACITY: usize = 128;
 const DEFAULT_RECORDS_AND_TRACES_CHANNEL_CAPACITY: usize = 1;
@@ -42,19 +43,56 @@ pub struct SP1CoreOpts {
     pub records_and_traces_channel_capacity: usize,
 }
 
+/// Calculate the default shard size using an empirically determined formula.
+///
+/// For super memory constrained machines, we need to set shard size to 2^18.
+/// Otherwise, we use a linear formula derived from experimental results.
+/// The data comes from benchmarking the maximum physical memory usage
+/// of [rsp](https://github.com/succinctlabs/rsp) on a variety of shard sizes and
+/// shard batch sizes, and performing linear regression on the results.
+#[allow(clippy::cast_precision_loss)]
+fn shard_size(total_available_mem: u64) -> usize {
+    let log_shard_size = match total_available_mem {
+        0..=14 => 18,
+        m => (((m as f64).log2() * 0.619) + 17.2).floor() as usize,
+    };
+    std::cmp::min(1 << log_shard_size, MAX_SHARD_SIZE)
+}
+
+/// Calculate the default shard batch size using an empirically determined formula.
+///
+/// For memory constrained machines, we need to set shard batch size to either 1 or 2.
+/// For machines with a very large amount of memory, we can use batch size 8. Empirically,
+/// going above 8 doesn't result in a significant speedup.
+/// For most machines, we can just use batch size 4.
+fn shard_batch_size(total_available_mem: u64) -> usize {
+    match total_available_mem {
+        0..=16 => 1,
+        17..=48 => 2,
+        256.. => MAX_SHARD_BATCH_SIZE,
+        _ => 4,
+    }
+}
+
 impl Default for SP1CoreOpts {
     fn default() -> Self {
         let split_threshold = env::var("SPLIT_THRESHOLD")
             .map(|s| s.parse::<usize>().unwrap_or(DEFERRED_SPLIT_THRESHOLD))
             .unwrap_or(DEFERRED_SPLIT_THRESHOLD);
+
+        let sys = System::new_all();
+        let total_available_mem = sys.total_memory() / (1024 * 1024 * 1024);
+        let default_shard_size = shard_size(total_available_mem);
+        let default_shard_batch_size = shard_batch_size(total_available_mem);
+
         Self {
             shard_size: env::var("SHARD_SIZE").map_or_else(
-                |_| DEFAULT_SHARD_SIZE,
-                |s| s.parse::<usize>().unwrap_or(DEFAULT_SHARD_SIZE),
+                |_| default_shard_size,
+                |s| s.parse::<usize>().unwrap_or(default_shard_size),
             ),
             shard_batch_size: env::var("SHARD_BATCH_SIZE").map_or_else(
-                |_| DEFAULT_SHARD_BATCH_SIZE,
-                |s| s.parse::<usize>().unwrap_or(DEFAULT_SHARD_BATCH_SIZE),
+                |_| default_shard_batch_size,
+                |s| s.parse::<usize>().unwrap_or(default_shard_batch_size),
             ),
             split_opts: SplitOpts::new(split_threshold),
             reconstruct_commitments: true,
@@ -81,7 +119,9 @@ impl SP1CoreOpts {
     pub fn recursion() -> Self {
         let mut opts = Self::default();
         opts.reconstruct_commitments = false;
-        opts.shard_size = DEFAULT_SHARD_SIZE;
+
+        // Recursion only supports 1 << 22 shard size.
+        opts.shard_size = MAX_SHARD_SIZE;
         opts
     }
 }

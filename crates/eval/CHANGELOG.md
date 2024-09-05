@@ -6,6 +6,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.1](https://github.com/succinctlabs/sp1/compare/sp1-eval-v1.2.0...sp1-eval-v1.2.1) - 2024-09-04
+
+### Other
+- update Cargo.lock dependencies
+
 ## [1.2.0-rc2](https://github.com/succinctlabs/sp1/compare/sp1-eval-v1.2.0-rc1...sp1-eval-v1.2.0-rc2) - 2024-08-29
 
 ### Added
