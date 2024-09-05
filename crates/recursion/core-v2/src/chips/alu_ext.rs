@@ -144,7 +144,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for ExtAluChip {
         RowMajorMatrix::new(values, NUM_EXT_ALU_COLS)
     }
 
-    fn included_in_shard(&self, _record: &Self::Record) -> bool {
+    fn included(&self, _record: &Self::Record) -> bool {
         true
     }
 }

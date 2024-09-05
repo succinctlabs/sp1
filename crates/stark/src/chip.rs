@@ -47,7 +47,7 @@ impl<F: Field, A> Chip<F, A> {
 impl<F: PrimeField32, A: MachineAir<F>> Chip<F, A> {
     /// Returns whether the given chip is included in the execution record of the shard.
     pub fn included_in_shard(&self, shard: &A::Record) -> bool {
-        self.air.included_in_shard(shard)
+        self.air.included(shard)
     }
 }
 
@@ -195,8 +195,8 @@ where
         self.air.generate_dependencies(input, output);
     }
 
-    fn included_in_shard(&self, shard: &Self::Record) -> bool {
-        self.air.included_in_shard(shard)
+    fn included(&self, shard: &Self::Record) -> bool {
+        self.air.included(shard)
     }
 
     fn interaction_randomness(&self) -> InteractionScope {

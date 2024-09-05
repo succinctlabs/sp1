@@ -60,7 +60,7 @@ impl<F: Field> MachineAir<F> for ByteChip<F> {
         trace
     }
 
-    fn included_in_shard(&self, _shard: &Self::Record) -> bool {
+    fn included(&self, _shard: &Self::Record) -> bool {
         true
     }
 }

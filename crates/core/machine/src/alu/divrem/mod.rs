@@ -537,7 +537,7 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
         trace
     }
 
-    fn included_in_shard(&self, shard: &Self::Record) -> bool {
+    fn included(&self, shard: &Self::Record) -> bool {
         !shard.divrem_events.is_empty()
     }
 }

@@ -128,7 +128,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryLocalChip {
         trace
     }
 
-    fn included_in_shard(&self, shard: &Self::Record) -> bool {
+    fn included(&self, shard: &Self::Record) -> bool {
         let keccak_local_mem_events = shard
             .keccak_permute_events
             .iter()

@@ -117,7 +117,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryChip<F> {
         RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_MEM_INIT_COLS)
     }
 
-    fn included_in_shard(&self, _record: &Self::Record) -> bool {
+    fn included(&self, _record: &Self::Record) -> bool {
         true
     }
 }

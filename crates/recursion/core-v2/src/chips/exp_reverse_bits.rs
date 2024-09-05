@@ -191,7 +191,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for ExpReverseBitsLenCh
         trace
     }
 
-    fn included_in_shard(&self, _record: &Self::Record) -> bool {
+    fn included(&self, _record: &Self::Record) -> bool {
         true
     }
 }

@@ -91,7 +91,7 @@ impl<F: PrimeField32> MachineAir<F> for SyscallChip {
         trace
     }
 
-    fn included_in_shard(&self, shard: &Self::Record) -> bool {
+    fn included(&self, shard: &Self::Record) -> bool {
         !shard.syscall_events.is_empty()
     }
 

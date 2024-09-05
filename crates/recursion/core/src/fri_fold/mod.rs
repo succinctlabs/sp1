@@ -152,7 +152,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for FriFoldChip<DEGREE>
         trace
     }
 
-    fn included_in_shard(&self, record: &Self::Record) -> bool {
+    fn included(&self, record: &Self::Record) -> bool {
         !record.fri_fold_events.is_empty()
     }
 }

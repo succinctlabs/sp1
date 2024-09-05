@@ -145,7 +145,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for MultiChip<DEGREE> {
         RowMajorMatrix::new(rows.into_iter().flatten().collect(), num_columns)
     }
 
-    fn included_in_shard(&self, _: &Self::Record) -> bool {
+    fn included(&self, _: &Self::Record) -> bool {
         true
     }
 }

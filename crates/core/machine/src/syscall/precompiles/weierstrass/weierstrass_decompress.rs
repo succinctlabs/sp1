@@ -296,7 +296,7 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
         trace
     }
 
-    fn included_in_shard(&self, shard: &Self::Record) -> bool {
+    fn included(&self, shard: &Self::Record) -> bool {
         match E::CURVE_TYPE {
             CurveType::Secp256k1 => !shard.k256_decompress_events.is_empty(),
             CurveType::Bls12381 => !shard.bls12381_decompress_events.is_empty(),

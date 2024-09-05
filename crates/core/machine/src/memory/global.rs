@@ -64,20 +64,8 @@ impl<F: PrimeField32> MachineAir<F> for MemoryGlobalChip {
         _output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
         let mut memory_events = match self.kind {
-            MemoryChipType::Initialize => {
-                println!(
-                    "Global memory initialize table: {:?}",
-                    input.global_memory_initialize_events.len()
-                );
-                input.global_memory_initialize_events.clone()
-            }
-            MemoryChipType::Finalize => {
-                println!(
-                    "Global memory finalize table: {:?}",
-                    input.global_memory_finalize_events.len()
-                );
-                input.global_memory_finalize_events.clone()
-            }
+            MemoryChipType::Initialize => input.global_memory_initialize_events.clone(),
+            MemoryChipType::Finalize => input.global_memory_finalize_events.clone(),
         };
 
         let previous_addr_bits = match self.kind {
@@ -144,7 +132,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryGlobalChip {
         RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_MEMORY_INIT_COLS)
     }
 
-    fn included_in_shard(&self, shard: &Self::Record) -> bool {
+    fn included(&self, shard: &Self::Record) -> bool {
         match self.kind {
             MemoryChipType::Initialize => !shard.global_memory_initialize_events.is_empty(),
             MemoryChipType::Finalize => !shard.global_memory_finalize_events.is_empty(),

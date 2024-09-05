@@ -167,7 +167,7 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
         trace
     }
 
-    fn included_in_shard(&self, shard: &Self::Record) -> bool {
+    fn included(&self, shard: &Self::Record) -> bool {
         !shard.keccak_permute_events.is_empty()
     }
 }

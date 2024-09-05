@@ -621,7 +621,6 @@ impl<'a> Executor<'a> {
             c,
             sub_lookups: create_alu_lookups(),
         };
-
         match opcode {
             Opcode::ADD => {
                 self.record.add_events.push(event);
@@ -831,7 +830,6 @@ impl<'a> Executor<'a> {
 
                 self.alu_rw(instruction, rd, a, b, c, lookup_id);
             }
-
             // Load instructions.
             Opcode::LB => {
                 (rd, b, c, addr, memory_read_value) = self.load_rr(instruction);

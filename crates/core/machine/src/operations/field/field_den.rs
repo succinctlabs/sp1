@@ -240,7 +240,7 @@ mod tests {
             RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_TEST_COLS)
         }
 
-        fn included_in_shard(&self, _: &Self::Record) -> bool {
+        fn included(&self, _: &Self::Record) -> bool {
             true
         }
     }

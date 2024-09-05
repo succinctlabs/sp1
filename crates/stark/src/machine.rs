@@ -145,7 +145,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
     where
         'a: 'b,
     {
-        self.chips.iter().filter(|chip| chip.included_in_shard(shard))
+        self.chips.iter().filter(|chip| chip.included(shard))
     }
 
     /// Returns an iterator over the chips in the machine that are included in the given shard.

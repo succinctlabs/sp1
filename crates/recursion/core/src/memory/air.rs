@@ -91,7 +91,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryGlobalChip {
         RowMajorMatrix::new(values, NUM_MEMORY_INIT_COLS)
     }
 
-    fn included_in_shard(&self, shard: &Self::Record) -> bool {
+    fn included(&self, shard: &Self::Record) -> bool {
         !shard.first_memory_record.is_empty() || !shard.last_memory_record.is_empty()
     }
 }

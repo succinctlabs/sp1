@@ -177,10 +177,10 @@ pub fn machine_air_derive(input: TokenStream) -> TokenStream {
                 }
             });
 
-            let included_in_shard_arms = variants.iter().map(|(variant_name, field)| {
+            let included_arms = variants.iter().map(|(variant_name, field)| {
                 let field_ty = &field.ty;
                 quote! {
-                    #name::#variant_name(x) => <#field_ty as sp1_stark::air::MachineAir<F>>::included_in_shard(x, shard)
+                    #name::#variant_name(x) => <#field_ty as sp1_stark::air::MachineAir<F>>::included(x, shard)
                 }
             });
 
@@ -238,9 +238,9 @@ pub fn machine_air_derive(input: TokenStream) -> TokenStream {
                         }
                     }
 
-                    fn included_in_shard(&self, shard: &Self::Record) -> bool {
+                    fn included(&self, shard: &Self::Record) -> bool {
                         match self {
-                            #(#included_in_shard_arms,)*
+                            #(#included_arms,)*
                         }
                     }
 

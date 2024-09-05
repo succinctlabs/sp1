@@ -242,7 +242,7 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for Fp2MulAssignChip<P> {
         trace
     }
 
-    fn included_in_shard(&self, shard: &Self::Record) -> bool {
+    fn included(&self, shard: &Self::Record) -> bool {
         match P::FIELD_TYPE {
             FieldType::Bn254 => !shard.bn254_fp2_mul_events.is_empty(),
             FieldType::Bls12381 => !shard.bls12381_fp2_mul_events.is_empty(),

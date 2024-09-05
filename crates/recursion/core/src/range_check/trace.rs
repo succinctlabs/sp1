@@ -57,7 +57,7 @@ impl<F: PrimeField32> MachineAir<F> for RangeCheckChip<F> {
         trace
     }
 
-    fn included_in_shard(&self, _shard: &Self::Record) -> bool {
+    fn included(&self, _shard: &Self::Record) -> bool {
         true
     }
 }

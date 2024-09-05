@@ -109,7 +109,7 @@ impl<F: PrimeField32> MachineAir<F> for ShaCompressChip {
         syscall_blu.add_sharded_byte_lookup_events(blu_batches.iter().collect_vec());
     }
 
-    fn included_in_shard(&self, shard: &Self::Record) -> bool {
+    fn included(&self, shard: &Self::Record) -> bool {
         !shard.sha_compress_events.is_empty()
     }
 }

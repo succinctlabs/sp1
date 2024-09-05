@@ -81,9 +81,9 @@ pub enum RiscvAir<F: PrimeField32> {
     MemoryGlobalInit(MemoryGlobalChip),
     /// A table for finalizing the global memory state.
     MemoryGlobalFinal(MemoryGlobalChip),
-    /// A table for initializing the memory state.
+    /// A table for initializing the local memory state.
     MemoryLocalInit(MemoryLocalChip),
-    /// A table for finalizing the memory state.
+    /// A table for finalizing the local memory state.
     MemoryLocalFinal(MemoryLocalChip),
     /// A table for initializing the program memory.
     ProgramMemory(MemoryProgramChip),

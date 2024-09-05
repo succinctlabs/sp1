@@ -140,7 +140,7 @@ impl<F: PrimeField> MachineAir<F> for MemoryProgramChip {
         )
     }
 
-    fn included_in_shard(&self, _: &Self::Record) -> bool {
+    fn included(&self, _: &Self::Record) -> bool {
         true
     }
 

@@ -228,7 +228,7 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
         trace
     }
 
-    fn included_in_shard(&self, shard: &Self::Record) -> bool {
+    fn included(&self, shard: &Self::Record) -> bool {
         !shard.uint256_mul_events.is_empty()
     }
 }

@@ -100,7 +100,7 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
         output.add_sharded_byte_lookup_events(blu_events.iter().collect_vec());
     }
 
-    fn included_in_shard(&self, input: &Self::Record) -> bool {
+    fn included(&self, input: &Self::Record) -> bool {
         !input.cpu_events.is_empty()
     }
 }

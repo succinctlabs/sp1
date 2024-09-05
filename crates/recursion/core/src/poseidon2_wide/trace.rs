@@ -101,7 +101,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
         trace
     }
 
-    fn included_in_shard(&self, record: &Self::Record) -> bool {
+    fn included(&self, record: &Self::Record) -> bool {
         !record.poseidon2_compress_events.is_empty()
     }
 }

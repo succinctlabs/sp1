@@ -146,7 +146,7 @@ impl<F: PrimeField32> MachineAir<F> for BaseAluChip {
         RowMajorMatrix::new(values, NUM_BASE_ALU_COLS)
     }
 
-    fn included_in_shard(&self, _record: &Self::Record) -> bool {
+    fn included(&self, _record: &Self::Record) -> bool {
         true
     }
 }

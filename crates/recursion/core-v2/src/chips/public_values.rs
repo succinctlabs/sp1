@@ -144,7 +144,7 @@ impl<F: PrimeField32> MachineAir<F> for PublicValuesChip {
         RowMajorMatrix::new(rows.into_iter().flatten().collect(), NUM_PUBLIC_VALUES_COLS)
     }
 
-    fn included_in_shard(&self, _record: &Self::Record) -> bool {
+    fn included(&self, _record: &Self::Record) -> bool {
         true
     }
 }

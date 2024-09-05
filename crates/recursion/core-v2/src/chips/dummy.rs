@@ -61,7 +61,7 @@ impl<F: PrimeField32, const COL_PADDING: usize> MachineAir<F> for DummyChip<COL_
         1
     }
 
-    fn included_in_shard(&self, _record: &Self::Record) -> bool {
+    fn included(&self, _record: &Self::Record) -> bool {
         COL_PADDING != 0
     }
 }

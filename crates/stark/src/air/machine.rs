@@ -32,7 +32,7 @@ pub trait MachineAir<F: Field>: BaseAir<F> + 'static + Send + Sync {
     }
 
     /// Whether this execution record contains events for this air.
-    fn included_in_shard(&self, shard: &Self::Record) -> bool;
+    fn included(&self, shard: &Self::Record) -> bool;
 
     /// Whether the chip should be included in the given prove phase.  The majority of the chips are
     /// just for
