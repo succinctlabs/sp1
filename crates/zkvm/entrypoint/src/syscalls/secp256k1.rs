@@ -11,7 +11,7 @@ use core::arch::asm;
 /// byte boundary.
 #[allow(unused_variables)]
 #[no_mangle]
-pub extern "C" fn syscall_secp256k1_add(p: *mut [u32; 16], q: *mut [u32; 16]) {
+pub extern "C" fn syscall_secp256k1_add(p: *mut [u32; 16], q: *const [u32; 16]) {
     #[cfg(target_os = "zkvm")]
     unsafe {
         asm!(
