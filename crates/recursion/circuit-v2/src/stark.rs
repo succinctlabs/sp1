@@ -390,7 +390,7 @@ pub mod tests {
             .collect::<Vec<_>>();
         // Observe all the commitments, and put the proofs into the witness stream.
         for proof in proofs.iter() {
-            let ShardCommitment { global_main_commit, local_main_commit, .. } = proof.commitment;
+            let ShardCommitment { global_main_commit, .. } = proof.commitment;
             challenger.observe(&mut builder, global_main_commit);
             let pv_slice = &proof.public_values[..machine.num_pv_elts()];
             challenger.observe_slice(&mut builder, pv_slice.iter().cloned());
