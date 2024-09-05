@@ -545,11 +545,11 @@ where
         // Print the opcode and syscall count tables like `du`: sorted by count (descending) and
         // with the count in the first column.
         tracing::info!("execution report (opcode counts):");
-        for line in sorted_table_lines(&report_aggregate.opcode_counts) {
+        for line in sorted_table_lines(report_aggregate.opcode_counts.as_ref()) {
             tracing::info!("  {line}");
         }
         tracing::info!("execution report (syscall counts):");
-        for line in sorted_table_lines(&report_aggregate.syscall_counts) {
+        for line in sorted_table_lines(report_aggregate.syscall_counts.as_ref()) {
             tracing::info!("  {line}");
         }
 
