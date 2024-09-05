@@ -247,7 +247,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         >(
             &self.core_prover,
             &<C::CoreProver as MachineProver<BabyBearPoseidon2, RiscvAir<BabyBear>>>::DeviceProvingKey::from_host(
-                pk.pk.clone(),
+                &pk.pk,
             ),
             program,
             stdin,
