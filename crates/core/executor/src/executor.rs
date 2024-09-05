@@ -696,15 +696,15 @@ impl<'a> Executor<'a> {
         if self.executor_mode == ExecutorMode::Trace {
             self.memory_accesses = MemoryAccessRecord::default();
         }
-        let lookup_id = if self.executor_mode == ExecutorMode::Simple {
-            LookupId::default()
-        } else {
+        let lookup_id = if self.executor_mode == ExecutorMode::Trace {
             create_alu_lookup_id()
+        } else {
+            LookupId::default()
         };
-        let syscall_lookup_id = if self.executor_mode == ExecutorMode::Simple {
-            LookupId::default()
-        } else {
+        let syscall_lookup_id = if self.executor_mode == ExecutorMode::Trace {
             create_alu_lookup_id()
+        } else {
+            LookupId::default()
         };
 
         if self.print_report && !self.unconstrained {
