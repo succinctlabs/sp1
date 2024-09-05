@@ -18,21 +18,18 @@ members = [
   "crates/helper",
   "crates/primitives",
   "crates/prover",
-  "crates/recursion/circuit",
   "crates/recursion/circuit-v2",
   "crates/recursion/compiler",
-  "crates/recursion/core",
   "crates/recursion/core-v2",
   "crates/recursion/derive",
   "crates/recursion/gnark-cli",
   "crates/recursion/gnark-ffi",
-  "crates/recursion/program",
   "crates/sdk",
   "crates/cuda",
   "crates/stark",
   "crates/zkvm/*",
 ]
-exclude = ["examples/target"]
+exclude = ["examples/target", "crates/recursion/program", "crates/recursion/circuit"]
 resolver = "2"
 
 [profile.release]
