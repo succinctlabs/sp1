@@ -7,4 +7,4 @@ publish = false
 
 [dependencies]
 sp1-zkvm = { path = "../../zkvm/entrypoint", features = ["secp256k1"] }
-sp1-derive = { path = "../../derive" }
+sp1-derive = { path = "../../crates/derive" }

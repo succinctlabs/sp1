@@ -73,7 +73,7 @@ dependencies = [
  "group",
  "pairing",
  "rand_core",
- "sp1-lib 1.1.1 (git+https://github.com/succinctlabs/sp1?branch=dev)",
+ "sp1-lib 1.1.1",
  "subtle",
 ]
 
@@ -512,18 +512,6 @@ dependencies = [
 [[package]]
 name = "sp1-lib"
 version = "1.1.1"
-dependencies = [
- "anyhow",
- "bincode",
- "cfg-if",
- "hex",
- "serde",
- "snowbridge-amcl",
-]
-
-[[package]]
-name = "sp1-lib"
-version = "1.1.1"
 source = "git+https://github.com/succinctlabs/sp1?branch=dev#d3a73a9fc33351df68cf1f12625cd48b7415c77f"
 dependencies = [
  "anyhow",
@@ -535,8 +523,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "sp1-lib"
+version = "1.2.0"
+dependencies = [
+ "anyhow",
+ "bincode",
+ "cfg-if",
+ "hex",
+ "serde",
+ "snowbridge-amcl",
+]
+
+[[package]]
 name = "sp1-zkvm"
-version = "1.1.1"
+version = "1.2.0"
 dependencies = [
  "bincode",
  "cfg-if",
@@ -547,7 +547,7 @@ dependencies = [
  "rand",
  "serde",
  "sha2",
- "sp1-lib 1.1.1",
+ "sp1-lib 1.2.0",
 ]
 
 [[package]]
