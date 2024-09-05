@@ -20,6 +20,7 @@ members = [
   "crates/prover",
   "crates/recursion/circuit-v2",
   "crates/recursion/compiler",
+  "crates/recursion/core",
   "crates/recursion/core-v2",
   "crates/recursion/derive",
   "crates/recursion/gnark-cli",
