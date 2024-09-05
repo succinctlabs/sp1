@@ -205,11 +205,18 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
     /// Creates a proving key and a verifying key for a given RISC-V ELF.
     #[instrument(name = "setup", level = "debug", skip_all)]
     pub fn setup(&self, elf: &[u8]) -> (SP1ProvingKey, SP1VerifyingKey) {
-        let program = Program::from(elf).unwrap();
+        let program = self.get_program(elf).unwrap();
         let (pk, vk) = self.core_prover.setup(&program);
         let vk = SP1VerifyingKey { vk };
         let pk = SP1ProvingKey { pk: pk.to_host(), elf: elf.to_vec(), vk: vk.clone() };
         (pk, vk)
+    }
+
+    /// Get a program with an allowed preprocessed shape.
+    pub fn get_program(&self, elf: &[u8]) -> eyre::Result<Program> {
+        let mut program = Program::from(elf)?;
+        self.core_shape_config.fix_preprocessed_shape(&mut program);
+        Ok(program)
     }
 
     /// Generate a proof of an SP1 program with the specified inputs.
@@ -221,7 +228,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         mut context: SP1Context<'a>,
     ) -> Result<(SP1PublicValues, ExecutionReport), ExecutionError> {
         context.subproof_verifier.replace(Arc::new(self));
-        let program = Program::from(elf).unwrap();
+        let program = self.get_program(elf).unwrap();
         let opts = SP1CoreOpts::default();
         let mut runtime = Executor::with_context(program, opts, context);
         runtime.write_vecs(&stdin.buffer);
@@ -243,7 +250,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         mut context: SP1Context<'a>,
     ) -> Result<SP1CoreProof, SP1CoreProverError> {
         context.subproof_verifier.replace(Arc::new(self));
-        let program = Program::from(&pk.elf).unwrap();
+        let program = self.get_program(&pk.elf).unwrap();
         let (proof, public_values_stream, cycles) = sp1_core_machine::utils::prove_with_context::<
             _,
             C::CoreProver,

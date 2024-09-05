@@ -1,3 +1,5 @@
+use core::panic;
+
 use hashbrown::HashMap;
 use p3_field::PrimeField32;
 use sp1_core_executor::{CoreShape, ExecutionRecord, Program};
@@ -27,9 +29,10 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
         let shape = RiscvAir::<F>::preprocessed_heights(program)
             .into_iter()
             .map(|(air, height)| {
-                for &allowed in self.allowed_heights.get(&air).unwrap() {
-                    if height <= allowed {
-                        return (air.name(), allowed);
+                for &allowed_log_height in self.allowed_heights.get(&air).unwrap() {
+                    let allowed_height = 1 << allowed_log_height;
+                    if height <= allowed_height {
+                        return (air.name(), allowed_log_height);
                     }
                 }
                 panic!("air {} not allowed at height {}", air.name(), height);
@@ -42,6 +45,9 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
 
     /// Fix the shape of the proof.
     pub fn fix_shape(&self, record: &mut ExecutionRecord) {
+        if record.program.preprocessed_shape.is_none() {
+            panic!("program shape not set");
+        }
         if record.shape.is_some() {
             tracing::warn!("shape already fixed");
             // TODO: Change this to not panic (i.e. return);
@@ -51,10 +57,10 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
         let shape = RiscvAir::<F>::heights(record)
             .into_iter()
             .map(|(air, height)| {
-                for allowed_log_height in self.allowed_heights.get(&air).unwrap() {
+                for &allowed_log_height in self.allowed_heights.get(&air).unwrap() {
                     let allowed_height = 1 << allowed_log_height;
                     if height <= allowed_height {
-                        return (air.name(), *allowed_log_height);
+                        return (air.name(), allowed_log_height);
                     }
                 }
                 panic!("air {} not allowed at height {}", air.name(), height);

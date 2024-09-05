@@ -91,6 +91,8 @@ impl<F: PrimeField> MachineAir<F> for ProgramChip {
             NUM_PROGRAM_PREPROCESSED_COLS,
         );
 
+        println!("Preprocessed height for program: {}", trace.height());
+
         Some(trace)
     }
 
@@ -137,7 +139,14 @@ impl<F: PrimeField> MachineAir<F> for ProgramChip {
             input.fixed_log2_rows::<F, _>(self),
         );
 
-        RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_PROGRAM_MULT_COLS)
+        let trace = RowMajorMatrix::new(
+            rows.into_iter().flatten().collect::<Vec<_>>(),
+            NUM_PROGRAM_MULT_COLS,
+        );
+
+        println!("Height for program: {}", trace.height());
+
+        trace
     }
 
     fn included(&self, _: &Self::Record) -> bool {
