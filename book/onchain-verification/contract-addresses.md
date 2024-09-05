@@ -1,6 +1,6 @@
 # Contract Addresses
 
-When using SP1, we recommend using our deployed verifiers. Each contract is a [SP1VerifierGateway](https://github.com/succinctlabs/sp1-contracts/blob/main/contracts/src/ISP1VerifierGateway.sol) which can automatically routes your SP1 proof to the correct verifier based on the prover version. Whenever a new prover version is deployed, the gateway contract will be updated to support it (`addRoute`). If an old prover version is deprecated, the gateway contract will stop supporting it (`freezeRoute`).
+When using SP1, we recommend using our deployed verifiers. Each contract is a [SP1VerifierGateway](https://github.com/succinctlabs/sp1-contracts/blob/main/contracts/src/ISP1VerifierGateway.sol) which can automatically route your SP1 proof to the correct verifier based on the prover version. Whenever a new prover version is deployed, the gateway contract will be updated to support it (`addRoute`). If an old prover version is deprecated, the gateway contract will stop supporting it (`freezeRoute`).
 
 | Chain ID | Chain            | Gateway                                                                                                                         |
 | -------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------- |
