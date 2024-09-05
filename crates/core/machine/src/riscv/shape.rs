@@ -71,20 +71,20 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
         let mut allowed_heights = HashMap::new();
 
         // Preprocessed chip heights.
-        let program_heights = vec![22, 21, 20, 19, 18, 17, 16, 10];
-        let program_memory_heights = vec![22, 21, 20, 19, 18, 17, 16, 10];
+        let program_heights = vec![10, 16, 18, 19, 20, 21, 22];
+        let program_memory_heights = vec![10, 16, 18, 19, 20, 21, 22];
 
         // Core chip heights.
-        let cpu_heights = vec![22, 21, 20, 19, 18, 17, 16, 10];
-        let divrem_heights = vec![22, 21, 20, 19, 18, 17, 16, 10];
-        let add_sub_heights = vec![22, 21, 20, 19, 18, 17, 16, 10];
-        let bitwise_heights = vec![22, 21, 20, 19, 18, 17, 16, 10];
-        let mul_heights = vec![22, 21, 20, 19, 18, 17, 16, 10];
-        let shift_right_heights = vec![22, 21, 20, 19, 18, 17, 16, 10];
-        let shift_left_heights = vec![22, 21, 20, 19, 18, 17, 16, 10];
-        let lt_heights = vec![22, 21, 20, 19, 18, 16, 10];
-        let memory_init_heights = vec![22, 21, 20, 18, 16];
-        let memory_final_heights = vec![22, 21, 20, 18, 16];
+        let cpu_heights = vec![10, 16, 18, 19, 20, 21, 22];
+        let divrem_heights = vec![10, 16, 18, 19, 20, 21, 22];
+        let add_sub_heights = vec![10, 16, 18, 19, 20, 21, 22];
+        let bitwise_heights = vec![10, 16, 18, 19, 20, 21, 22];
+        let mul_heights = vec![10, 16, 18, 19, 20, 21, 22];
+        let shift_right_heights = vec![10, 16, 18, 19, 20, 21, 22];
+        let shift_left_heights = vec![10, 16, 18, 19, 20, 21, 22];
+        let lt_heights = vec![10, 16, 18, 19, 20, 21, 22];
+        let memory_init_heights = vec![10, 16, 18, 19, 20, 21, 22];
+        let memory_final_heights = vec![10, 16, 18, 19, 20, 21, 22];
 
         // Get allowed heights for preprocessed chips.
         allowed_heights.extend([
