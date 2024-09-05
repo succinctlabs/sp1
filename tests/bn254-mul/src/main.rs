@@ -16,10 +16,10 @@ pub fn main() {
 
         // scalar.
         // 3
-        let scalar: [u16; 2] = [3, 0];
+        let scalar: [u32; 2] = [3, 0];
 
         println!("cycle-tracker-start: bn254_mul");
-        a_point.mul_assign(&scalar);
+        a_point.mul_assign(&scalar).unwrap();
         println!("cycle-tracker-end: bn254_mul");
 
         // 3 * generator.
@@ -31,7 +31,7 @@ pub fn main() {
             3762852905, 716675518,
         ];
 
-        assert_eq!(a_point, c);
+        assert_eq!(a_point.0, c);
     }
 
     println!("done");
