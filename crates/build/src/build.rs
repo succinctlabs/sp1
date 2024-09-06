@@ -6,7 +6,7 @@ use cargo_metadata::camino::Utf8PathBuf;
 use crate::{
     command::{docker::create_docker_command, local::create_local_command, utils::execute_command},
     utils::{cargo_rerun_if_changed, copy_elf_to_output_dir, current_datetime},
-    BuildArgs,
+    BuildArgs, BuildScriptOpts,
 };
 
 /// Build a program with the specified [`BuildArgs`]. The `program_dir` is specified as an argument
@@ -50,7 +50,7 @@ pub fn execute_build_program(
 }
 
 /// Internal helper function to build the program with or without arguments.
-pub(crate) fn build_program_internal(path: &str, args: Option<BuildArgs>) {
+pub(crate) fn build_program_internal(path: &str, opts: BuildScriptOpts) {
     // Get the root package name and metadata.
     let program_dir = std::path::Path::new(path);
     let metadata_file = program_dir.join("Cargo.toml");
@@ -64,11 +64,13 @@ pub(crate) fn build_program_internal(path: &str, args: Option<BuildArgs>) {
         .map(|v| v.eq_ignore_ascii_case("true"))
         .unwrap_or(false);
     if skip_program_build {
-        println!(
-            "cargo:warning=Build skipped for {} at {} due to SP1_SKIP_PROGRAM_BUILD flag",
-            root_package_name,
-            current_datetime()
-        );
+        if !opts.quiet {
+            println!(
+                "cargo:warning=Build skipped for {} at {} due to SP1_SKIP_PROGRAM_BUILD flag",
+                root_package_name,
+                current_datetime()
+            );
+        }
         return;
     }
 
@@ -82,19 +84,19 @@ pub(crate) fn build_program_internal(path: &str, args: Option<BuildArgs>) {
         .map(|val| val.contains("clippy-driver"))
         .unwrap_or(false);
     if is_clippy_driver {
-        println!("cargo:warning=Skipping build due to clippy invocation.");
+        if !opts.quiet {
+            println!("cargo:warning=Skipping build due to clippy invocation.");
+        }
         return;
     }
 
     // Build the program with the given arguments.
-    let path_output = if let Some(args) = args {
-        execute_build_program(&args, Some(program_dir.to_path_buf()))
-    } else {
-        execute_build_program(&BuildArgs::default(), Some(program_dir.to_path_buf()))
-    };
+    let path_output = execute_build_program(&opts.args, Some(program_dir.to_path_buf()));
     if let Err(err) = path_output {
         panic!("Failed to build SP1 program: {}.", err);
     }
 
-    println!("cargo:warning={} built at {}", root_package_name, current_datetime());
+    if !opts.quiet {
+        println!("cargo:warning={} built at {}", root_package_name, current_datetime());
+    }
 }

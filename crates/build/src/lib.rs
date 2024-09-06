@@ -80,6 +80,17 @@ impl Default for BuildArgs {
     }
 }
 
+/// Options used to compile an SP1 program from a Cargo build script.
+///
+/// Refer to [`BuildArgs`] for options that are shared with the CLI.
+#[derive(Clone, Debug, Default)]
+pub struct BuildScriptOpts {
+    /// The CLI arguments used to build the program.
+    pub args: BuildArgs,
+    /// Whether to suppress information emitted via warnings while running the build script.
+    pub quiet: bool,
+}
+
 /// Builds the program if the program at the specified path, or one of its dependencies, changes.
 ///
 /// This function monitors the program and its dependencies for changes. If any changes are
@@ -94,11 +105,13 @@ impl Default for BuildArgs {
 ///
 /// Set the `SP1_SKIP_PROGRAM_BUILD` environment variable to `true` to skip building the program.
 pub fn build_program(path: &str) {
-    build_program_internal(path, None)
+    build_program_internal(path, BuildScriptOpts::default())
 }
 
 /// Builds the program with the given arguments if the program at path, or one of its dependencies,
 /// changes.
+///
+/// To configure even more options, see [`build_program_with`].
 ///
 /// # Arguments
 ///
@@ -107,5 +120,21 @@ pub fn build_program(path: &str) {
 ///
 /// Set the `SP1_SKIP_PROGRAM_BUILD` environment variable to `true` to skip building the program.
 pub fn build_program_with_args(path: &str, args: BuildArgs) {
-    build_program_internal(path, Some(args))
+    build_program_internal(path, BuildScriptOpts { args, ..Default::default() })
+}
+
+/// Builds the program with the given options if the program at path, or one of its dependencies,
+/// changes.
+///
+/// Allows for more configuration than [`build_program_with_args`], since [`BuildScriptOpts`]
+/// has the field `args` of type [`BuildArgs`].
+///
+/// # Arguments
+///
+/// * `path` - A string slice that holds the path to the program directory.
+/// * `opts` - A [`BuildScriptOpts`] struct that contains various build configuration options.
+///
+/// Set the `SP1_SKIP_PROGRAM_BUILD` environment variable to `true` to skip building the program.
+pub fn build_program_with(path: &str, opts: BuildScriptOpts) {
+    build_program_internal(path, opts)
 }
