@@ -57,12 +57,12 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize, const COL_P
             }
         }
 
-        if let Some(shape) = closest_shape {
-            let shape = RecursionShape { inner: shape };
-            program.shape = Some(shape);
-        } else {
-            panic!("no shape found for heights: {:?}", heights);
-        }
+        // if let Some(shape) = closest_shape {
+        //     let shape = RecursionShape { inner: shape };
+        //     program.shape = Some(shape);
+        // } else {
+        //     panic!("no shape found for heights: {:?}", heights);
+        // }
     }
 }
 
