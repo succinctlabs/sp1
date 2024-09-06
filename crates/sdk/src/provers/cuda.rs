@@ -1,7 +1,7 @@
 use anyhow::Result;
 use sp1_core_machine::io::SP1Stdin;
 use sp1_cuda::SP1CudaProver;
-use sp1_prover::{components::DefaultProverComponents, SP1Prover, SP1ReduceProof};
+use sp1_prover::{components::DefaultProverComponents, SP1Prover};
 
 use super::ProverType;
 use crate::{
@@ -59,14 +59,8 @@ impl Prover<DefaultProverComponents> for CudaProver {
             });
         }
 
-        let deferred_proofs = stdin
-            .proofs
-            .iter()
-            .map(|(reduce_vk, reduce_proof, _)| SP1ReduceProof {
-                vk: reduce_vk.clone(),
-                proof: reduce_proof.clone(),
-            })
-            .collect();
+        let deferred_proofs =
+            stdin.proofs.iter().map(|(reduce_proof, _)| reduce_proof.clone()).collect();
         let public_values = proof.public_values.clone();
 
         // Generate the compressed proof.
