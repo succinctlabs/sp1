@@ -14,16 +14,19 @@ use sp1_stark::{SP1CoreOpts, Word};
 
 use crate::SP1CoreProofData;
 
+/// Get the SP1 vkey BabyBear Poseidon2 digest this reduce proof is representing.
 pub fn sp1_vkey_digest_babybear(proof: &SP1ReduceProof<BabyBearPoseidon2Outer>) -> [BabyBear; 8] {
     let proof = &proof.proof;
     let pv: &RecursionPublicValues<BabyBear> = proof.public_values.as_slice().borrow();
     pv.sp1_vk_digest
 }
 
+/// Get the SP1 vkey Bn Poseidon2 digest this reduce proof is representing.
 pub fn sp1_vkey_digest_bn254(proof: &SP1ReduceProof<BabyBearPoseidon2Outer>) -> Bn254Fr {
     babybears_to_bn254(&sp1_vkey_digest_babybear(proof))
 }
 
+/// Get the committed values Bn Poseidon2 digest this reduce proof is representing.
 pub fn sp1_commited_values_digest_bn254(proof: &SP1ReduceProof<BabyBearPoseidon2Outer>) -> Bn254Fr {
     let proof = &proof.proof;
     let pv: &RecursionPublicValues<BabyBear> = proof.public_values.as_slice().borrow();
