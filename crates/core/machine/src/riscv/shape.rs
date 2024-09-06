@@ -1,9 +1,12 @@
 use core::panic;
+use std::{collections::BTreeSet, iter::once};
+
+use itertools::Itertools;
 
 use hashbrown::HashMap;
 use p3_field::PrimeField32;
 use sp1_core_executor::{CoreShape, ExecutionRecord, Program};
-use sp1_stark::air::MachineAir;
+use sp1_stark::{air::MachineAir, ProofShape};
 
 use crate::memory::{MemoryChipType, MemoryProgramChip};
 
@@ -14,7 +17,7 @@ use super::{
 
 /// A structure that enables fixing the shape of an executionrecord.
 pub struct CoreShapeConfig<F: PrimeField32> {
-    allowed_heights: HashMap<RiscvAir<F>, Vec<usize>>,
+    allowed_log_heights: HashMap<RiscvAir<F>, Vec<usize>>,
 }
 
 impl<F: PrimeField32> CoreShapeConfig<F> {
@@ -29,7 +32,7 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
         let shape = RiscvAir::<F>::preprocessed_heights(program)
             .into_iter()
             .map(|(air, height)| {
-                for &allowed_log_height in self.allowed_heights.get(&air).unwrap() {
+                for &allowed_log_height in self.allowed_log_heights.get(&air).unwrap() {
                     let allowed_height = 1 << allowed_log_height;
                     if height <= allowed_height {
                         return (air.name(), allowed_log_height);
@@ -57,7 +60,7 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
         let shape = RiscvAir::<F>::heights(record)
             .into_iter()
             .map(|(air, height)| {
-                for &allowed_log_height in self.allowed_heights.get(&air).unwrap() {
+                for &allowed_log_height in self.allowed_log_heights.get(&air).unwrap() {
                     let allowed_height = 1 << allowed_log_height;
                     if height <= allowed_height {
                         return (air.name(), allowed_log_height);
@@ -70,6 +73,26 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
         let shape = CoreShape { inner: shape };
         record.shape = Some(shape);
     }
+
+    pub fn generate_all_allowed_shapes(&self) -> BTreeSet<ProofShape> {
+        // for chip in allowed_heights.
+        self.allowed_log_heights
+            .iter()
+            .map(|(chip, heights)| {
+                let name = chip.name();
+                once((name.clone(), None))
+                    .chain(heights.iter().map(move |height| (name.clone(), Some(*height))))
+            })
+            .multi_cartesian_product()
+            .map(|iter| {
+                iter.into_iter()
+                    .filter_map(|(name, maybe_height)| {
+                        maybe_height.map(|log_height| (name, log_height))
+                    })
+                    .collect::<ProofShape>()
+            })
+            .collect()
+    }
 }
 
 impl<F: PrimeField32> Default for CoreShapeConfig<F> {
@@ -77,11 +100,11 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
         let mut allowed_heights = HashMap::new();
 
         // Preprocessed chip heights.
-        let program_heights = vec![10, 16, 18, 19, 20, 21, 22];
-        let program_memory_heights = vec![10, 16, 18, 19, 20, 21, 22];
+        let program_heights = vec![0, 10, 16, 18, 19, 20, 21, 22];
+        let program_memory_heights = vec![0, 10, 16, 18, 19, 20, 21, 22];
 
         // Core chip heights.
-        let cpu_heights = vec![10, 16, 18, 19, 20, 21, 22];
+        let cpu_heights = vec![0, 10, 16, 18, 19, 20, 21, 22];
         let divrem_heights = vec![10, 16, 18, 19, 20, 21, 22];
         let add_sub_heights = vec![10, 16, 18, 19, 20, 21, 22];
         let bitwise_heights = vec![10, 16, 18, 19, 20, 21, 22];
@@ -119,6 +142,6 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
             ),
         ]);
 
-        Self { allowed_heights }
+        Self { allowed_log_heights: allowed_heights }
     }
 }
