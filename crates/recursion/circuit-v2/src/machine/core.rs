@@ -61,7 +61,7 @@ pub struct SP1RecursionWitnessValues<SC: StarkGenericConfig> {
     pub is_first_shard: bool,
 }
 
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SP1RecursionShape {
     pub proof_shapes: Vec<ProofShape>,
     pub challenger_shapes: Vec<SpongeChallengerShape>,

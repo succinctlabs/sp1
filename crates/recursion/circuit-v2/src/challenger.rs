@@ -21,7 +21,7 @@ pub trait CanCopyChallenger<C: Config> {
     fn copy(&self, builder: &mut Builder<C>) -> Self;
 }
 
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SpongeChallengerShape {
     pub input_buffer_len: usize,
     pub output_buffer_len: usize,

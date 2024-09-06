@@ -1,4 +1,4 @@
-use std::marker::PhantomData;
+use std::{hash::Hash, marker::PhantomData};
 
 use hashbrown::HashMap;
 
@@ -25,7 +25,7 @@ pub struct RecursionShape {
 }
 
 pub struct RecursionShapeConfig<F, A> {
-    allowed_log_heights: HashMap<String, Vec<usize>>,
+    allowed_shapes: Vec<HashMap<String, usize>>,
     _marker: PhantomData<(F, A)>,
 }
 
@@ -33,27 +33,34 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize, const COL_P
     RecursionShapeConfig<F, RecursionAir<F, DEGREE, COL_PADDING>>
 {
     pub fn fix_shape(&self, program: &mut RecursionProgram<F>) {
-        if program.shape.is_some() {
-            tracing::warn!("recursion shape already fixed");
-            // TODO: Change this to not panic (i.e. return);
-            panic!("cannot fix recursion shape twice");
-        }
+        // if program.shape.is_some() {
+        //     tracing::warn!("recursion shape already fixed");
+        //     // TODO: Change this to not panic (i.e. return);
+        //     panic!("cannot fix recursion shape twice");
+        // }
 
-        let shape = RecursionAir::<F, DEGREE, COL_PADDING>::heights(program)
-            .into_iter()
-            .map(|(name, height)| {
-                for &allowed_log_height in self.allowed_log_heights.get(&name).unwrap() {
-                    let allowed_height = 1 << allowed_log_height;
-                    if height <= allowed_height {
-                        return (name, allowed_log_height);
-                    }
-                }
-                panic!("air {} not allowed at height {}", name, height);
-            })
-            .collect();
+        // let heights = RecursionAir::<F, DEGREE, COL_PADDING>::heights(program);
+        // let shape = {
+        //     for allowd in self.allowed_shapes.iter() {
+        //         for (name, height) in heights.iter() {
+        //             let bound;
+        //         }
+        //     }
+        // };
+        // // .into_iter()
+        // // .map(|(name, height)| {
+        // //     for &allowed_log_height in self.allowed_log_heights.get(&name).unwrap() {
+        // //         let allowed_height = 1 << allowed_log_height;
+        // //         if height <= allowed_height {
+        // //             return (name, allowed_log_height);
+        // //         }
+        // //     }
+        // //     panic!("air {} not allowed at height {}", name, height);
+        // // })
+        // // .collect();
 
-        let shape = RecursionShape { inner: shape };
-        program.shape = Some(shape);
+        // let shape = RecursionShape { inner: shape };
+        // program.shape = Some(shape);
     }
 }
 
@@ -61,46 +68,6 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize, const COL_P
     Default for RecursionShapeConfig<F, RecursionAir<F, DEGREE, COL_PADDING>>
 {
     fn default() -> Self {
-        let mem_const_heights = vec![10, 16, 19];
-        let mem_var_heights = vec![10, 18, 20];
-        let base_alu_heights = vec![10, 18, 22, 24];
-        let ext_alu_heights = vec![10, 18, 22, 24];
-        let poseidon2_wide_heights = vec![9, 10, 12, 14, 16, 18];
-        let exp_reverse_bits_len_heights = vec![10, 16, 19];
-        let public_values_heights = vec![PUB_VALUES_LOG_HEIGHT];
-
-        let allowed_log_heights = HashMap::from(
-            [
-                (
-                    RecursionAir::<F, DEGREE, COL_PADDING>::MemoryConst(MemoryConstChip::default()),
-                    mem_const_heights,
-                ),
-                (
-                    RecursionAir::<F, DEGREE, COL_PADDING>::MemoryVar(MemoryVarChip::default()),
-                    mem_var_heights,
-                ),
-                (RecursionAir::<F, DEGREE, COL_PADDING>::BaseAlu(BaseAluChip), base_alu_heights),
-                (RecursionAir::<F, DEGREE, COL_PADDING>::ExtAlu(ExtAluChip), ext_alu_heights),
-                (
-                    RecursionAir::<F, DEGREE, COL_PADDING>::Poseidon2Wide(
-                        Poseidon2WideChip::<DEGREE>,
-                    ),
-                    poseidon2_wide_heights,
-                ),
-                (
-                    RecursionAir::<F, DEGREE, COL_PADDING>::ExpReverseBitsLen(
-                        ExpReverseBitsLenChip::<DEGREE>,
-                    ),
-                    exp_reverse_bits_len_heights,
-                ),
-                (
-                    RecursionAir::<F, DEGREE, COL_PADDING>::PublicValues(PublicValuesChip),
-                    public_values_heights,
-                ),
-            ]
-            .map(|(air, heights)| (air.name(), heights)),
-        );
-
-        Self { allowed_log_heights, _marker: PhantomData }
+        Self { allowed_shapes: vec![], _marker: PhantomData }
     }
 }
