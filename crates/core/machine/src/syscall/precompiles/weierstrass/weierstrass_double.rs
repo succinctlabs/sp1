@@ -279,6 +279,11 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
             output.add_byte_lookup_events(chunk_blus);
         }
 
+        // Copy all the local memory events to the output record.
+        for event in events.iter() {
+            output.local_memory_access.extend(event.local_mem_access.iter().cloned());
+        }
+
         pad_rows_fixed(
             &mut rows,
             || {

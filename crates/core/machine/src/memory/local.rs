@@ -4,7 +4,6 @@ use std::{
 };
 
 use crate::utils::pad_to_power_of_two;
-use itertools::Itertools;
 use p3_air::{Air, BaseAir};
 use p3_field::PrimeField32;
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
@@ -31,6 +30,7 @@ pub struct MemoryLocalInitCols<T> {
     /// The address of the memory access.
     pub addr: T,
 
+    /// The value of the memory access.
     pub value: Word<T>,
 
     /// Whether the memory access is a real access.
@@ -78,30 +78,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryLocalChip {
         let mut rows =
             Vec::<[F; NUM_MEMORY_LOCAL_INIT_COLS]>::with_capacity(input.local_memory_access.len());
 
-        let keccak_local_mem_events =
-            input.keccak_permute_events.iter().flat_map(|x| x.local_mem_access.iter());
-
-        let ed_add_local_mem_events =
-            input.ed_add_events.iter().flat_map(|x| x.local_mem_access.iter());
-
-        let ed_decompress_local_mem_events =
-            input.ed_decompress_events.iter().flat_map(|x| x.local_mem_access.iter());
-
-        let sha_compress_local_mem_events =
-            input.sha_compress_events.iter().flat_map(|x| x.local_mem_access.iter());
-
-        let sha_extend_local_mem_events =
-            input.sha_extend_events.iter().flat_map(|x| x.local_mem_access.iter());
-
-        for local_mem_event in input
-            .local_memory_access
-            .iter()
-            .chain(keccak_local_mem_events)
-            .chain(ed_add_local_mem_events)
-            .chain(ed_decompress_local_mem_events)
-            .chain(sha_compress_local_mem_events)
-            .chain(sha_extend_local_mem_events)
-        {
+        for local_mem_event in input.local_memory_access.iter() {
             let mut row = [F::zero(); NUM_MEMORY_LOCAL_INIT_COLS];
             let cols: &mut MemoryLocalInitCols<F> = row.as_mut_slice().borrow_mut();
 
@@ -129,63 +106,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryLocalChip {
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
-        let keccak_local_mem_events = shard
-            .keccak_permute_events
-            .iter()
-            .flat_map(|x| x.local_mem_access.iter())
-            .collect_vec();
-
-        let ed_add_local_mem_events =
-            shard.ed_add_events.iter().flat_map(|x| x.local_mem_access.iter()).collect_vec();
-
-        let ed_decompress_local_mem_events =
-            shard.ed_decompress_events.iter().flat_map(|x| x.local_mem_access.iter()).collect_vec();
-
-        let sha_compress_local_mem_events =
-            shard.sha_compress_events.iter().flat_map(|x| x.local_mem_access.iter()).collect_vec();
-
-        let sha_extend_local_mem_events =
-            shard.sha_extend_events.iter().flat_map(|x| x.local_mem_access.iter()).collect_vec();
-
-        let bn254_fp_local_mem_events =
-            shard.bn254_fp_events.iter().flat_map(|x| x.local_mem_access.iter()).collect_vec();
-
-        let bn254_fp2_addsub_local_mem_events = shard
-            .bn254_fp2_addsub_events
-            .iter()
-            .flat_map(|x| x.local_mem_access.iter())
-            .collect_vec();
-
-        let bn254_fp2_mul_local_mem_events =
-            shard.bn254_fp2_mul_events.iter().flat_map(|x| x.local_mem_access.iter()).collect_vec();
-
-        let bls12381_fp_local_mem_events =
-            shard.bls12381_fp_events.iter().flat_map(|x| x.local_mem_access.iter()).collect_vec();
-
-        let bls12381_fp2_addsub_local_mem_events = shard
-            .bls12381_fp2_addsub_events
-            .iter()
-            .flat_map(|x| x.local_mem_access.iter())
-            .collect_vec();
-
-        let bls12381_fp2_mul_local_mem_events = shard
-            .bls12381_fp2_mul_events
-            .iter()
-            .flat_map(|x| x.local_mem_access.iter())
-            .collect_vec();
-
-        !keccak_local_mem_events.is_empty()
-            || !shard.local_memory_access.is_empty()
-            || !ed_add_local_mem_events.is_empty()
-            || !ed_decompress_local_mem_events.is_empty()
-            || !sha_compress_local_mem_events.is_empty()
-            || !sha_extend_local_mem_events.is_empty()
-            || !bn254_fp_local_mem_events.is_empty()
-            || !bn254_fp2_addsub_local_mem_events.is_empty()
-            || !bn254_fp2_mul_local_mem_events.is_empty()
-            || !bls12381_fp_local_mem_events.is_empty()
-            || !bls12381_fp2_addsub_local_mem_events.is_empty()
-            || !bls12381_fp2_mul_local_mem_events.is_empty()
+        !shard.local_memory_access.is_empty()
     }
 
     fn interaction_randomness(&self) -> InteractionScope {

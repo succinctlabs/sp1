@@ -199,6 +199,11 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
             output.append(&mut record);
         }
 
+        // Copy all the local memory events to the output record.
+        for event in input.uint256_mul_events.iter() {
+            output.local_memory_access.extend(event.local_mem_access.iter().cloned());
+        }
+
         pad_rows_fixed(
             &mut rows,
             || {

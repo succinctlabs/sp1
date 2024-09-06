@@ -286,6 +286,11 @@ impl<F: PrimeField32, E: EdwardsParameters> MachineAir<F> for EdDecompressChip<E
             cols.nonce = F::from_canonical_usize(i);
         }
 
+        // Move all the local memory events to the output record.
+        for event in input.ed_decompress_events.iter() {
+            output.local_memory_access.extend(event.local_mem_access.iter().cloned());
+        }
+
         trace
     }
 

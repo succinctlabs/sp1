@@ -92,7 +92,7 @@ pub struct ExecutionRecord {
     pub global_memory_initialize_events: Vec<MemoryInitializeFinalizeEvent>,
     /// A trace of the global memory finalize events.
     pub global_memory_finalize_events: Vec<MemoryInitializeFinalizeEvent>,
-    /// A trace of the local memory events.
+    /// A trace of all the shard's local memory events.
     pub local_memory_access: Vec<MemoryLocalEvent>,
     /// A trace of all the syscall events.
     pub syscall_events: Vec<SyscallEvent>,
@@ -419,6 +419,7 @@ impl MachineRecord for ExecutionRecord {
 
         self.global_memory_initialize_events.append(&mut other.global_memory_initialize_events);
         self.global_memory_finalize_events.append(&mut other.global_memory_finalize_events);
+        self.local_memory_access.append(&mut other.local_memory_access);
     }
 
     fn register_nonces(&mut self, _opts: &Self::Config) {

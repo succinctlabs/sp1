@@ -149,7 +149,10 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for Fp2AddSubAssignChip<P> {
                     &mut new_byte_lookup_events,
                 );
             }
-            rows.push(row)
+            rows.push(row);
+
+            // Copy the local memory events to the output record.
+            output.local_memory_access.extend(event.local_mem_access.iter().cloned());
         }
 
         output.add_byte_lookup_events(new_byte_lookup_events);

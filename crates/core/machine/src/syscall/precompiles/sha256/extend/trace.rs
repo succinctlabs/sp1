@@ -83,6 +83,11 @@ impl<F: PrimeField32> MachineAir<F> for ShaExtendChip {
             .collect::<Vec<_>>();
 
         output.add_sharded_byte_lookup_events(blu_batches.iter().collect_vec());
+
+        // Copy all the local memory events to the output record.
+        for event in input.sha_extend_events.iter() {
+            output.local_memory_access.extend(event.local_mem_access.iter().cloned());
+        }
     }
 
     fn included(&self, shard: &Self::Record) -> bool {

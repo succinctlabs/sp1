@@ -124,6 +124,11 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
             output.add_byte_lookup_events(blu_events);
         }
 
+        // Copy all the local memory events to the output record.
+        for event in input.keccak_permute_events.iter() {
+            output.local_memory_access.extend(event.local_mem_access.iter().cloned());
+        }
+
         let nb_rows = rows.len();
         let mut padded_nb_rows = nb_rows.next_power_of_two();
         if padded_nb_rows == 2 || padded_nb_rows == 1 {
