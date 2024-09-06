@@ -22,7 +22,7 @@ p3-field = { workspace = true }
 p3-maybe-rayon = { workspace = true, features = ["parallel"] }
 
 # misc
-serde = { version = "1.0.205", features = ["derive", "rc"] }
+serde = { version = "1.0.209", features = ["derive", "rc"] }
 elf = "0.7.4"
 rrs_lib = { package = "rrs-succinct", version = "0.1.0" }
 eyre = "0.6.12"

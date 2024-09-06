@@ -31,7 +31,7 @@ p3-symmetric = { workspace = true }
 p3-poseidon2 = { workspace = true }
 
 # misc
-serde = { version = "1.0.207", features = ["derive"] }
+serde = { version = "1.0.209", features = ["derive"] }
 hashbrown = { version = "0.14.5", features = ["serde", "inline-more"] }
 itertools = "0.13.0"
 tracing = "0.1.40"

@@ -30,7 +30,7 @@ sp1-primitives = { workspace = true }
 sp1-stark = { workspace = true }
 sp1-core-executor = { workspace = true }
 itertools = "0.13.0"
-serde = { version = "1.0.204", features = ["derive"] }
+serde = { version = "1.0.209", features = ["derive"] }
 rand = "0.8.5"
 tracing = "0.1.40"
 stacker = "0.1"
