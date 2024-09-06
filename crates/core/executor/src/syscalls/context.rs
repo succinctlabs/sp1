@@ -6,8 +6,6 @@ use crate::{
     Executor, Register,
 };
 
-use super::SyscallCode;
-
 /// A runtime for syscalls that is protected so that developers cannot arbitrarily modify the
 /// runtime.
 #[allow(dead_code)]
@@ -24,15 +22,13 @@ pub struct SyscallContext<'a, 'b: 'a> {
     pub rt: &'a mut Executor<'b>,
     /// The syscall lookup id.
     pub syscall_lookup_id: LookupId,
-    /// The syscall being executed.
-    pub syscall: SyscallCode,
     /// The local memory access events for the syscall.
     pub local_memory_access: HashMap<u32, MemoryLocalEvent>,
 }
 
 impl<'a, 'b> SyscallContext<'a, 'b> {
     /// Create a new [`SyscallContext`].
-    pub fn new(runtime: &'a mut Executor<'b>, syscall: SyscallCode) -> Self {
+    pub fn new(runtime: &'a mut Executor<'b>) -> Self {
         let current_shard = runtime.shard();
         let clk = runtime.state.clk;
         Self {
@@ -42,7 +38,6 @@ impl<'a, 'b> SyscallContext<'a, 'b> {
             exit_code: 0,
             rt: runtime,
             syscall_lookup_id: LookupId::default(),
-            syscall,
             local_memory_access: HashMap::new(),
         }
     }

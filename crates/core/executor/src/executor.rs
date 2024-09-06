@@ -1036,7 +1036,7 @@ impl<'a> Executor<'a> {
                 if syscall.should_send() != 0 {
                     self.emit_syscall(clk, syscall.syscall_id(), b, c, syscall_lookup_id);
                 }
-                let mut precompile_rt = SyscallContext::new(self, syscall);
+                let mut precompile_rt = SyscallContext::new(self);
                 precompile_rt.syscall_lookup_id = syscall_lookup_id;
                 let (precompile_next_pc, precompile_cycles, returned_exit_code) =
                     if let Some(syscall_impl) = syscall_impl {

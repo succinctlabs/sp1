@@ -24,8 +24,6 @@ impl<P> FpOpSyscall<P> {
 
 impl<P: FpOpField> Syscall for FpOpSyscall<P> {
     fn execute(&self, rt: &mut SyscallContext, arg1: u32, arg2: u32) -> Option<u32> {
-        let syscall = rt.syscall;
-
         let clk = rt.clk;
         let x_ptr = arg1;
         if x_ptr % 4 != 0 {
@@ -61,7 +59,6 @@ impl<P: FpOpField> Syscall for FpOpSyscall<P> {
         let shard = rt.current_shard();
         let channel = rt.current_channel();
         let event = FpOpEvent {
-            syscall,
             lookup_id,
             shard,
             channel,

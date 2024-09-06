@@ -24,8 +24,6 @@ impl<P> Fp2AddSubSyscall<P> {
 
 impl<P: FpOpField> Syscall for Fp2AddSubSyscall<P> {
     fn execute(&self, rt: &mut SyscallContext, arg1: u32, arg2: u32) -> Option<u32> {
-        let syscall = rt.syscall;
-
         let clk = rt.clk;
         let x_ptr = arg1;
         if x_ptr % 4 != 0 {
@@ -70,7 +68,6 @@ impl<P: FpOpField> Syscall for Fp2AddSubSyscall<P> {
         let channel = rt.current_channel();
         let op = self.op;
         let event = Fp2AddSubEvent {
-            syscall,
             lookup_id,
             shard,
             channel,
