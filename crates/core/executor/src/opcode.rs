@@ -2,6 +2,7 @@
 
 use std::fmt::Display;
 
+use enum_map::Enum;
 use p3_field::Field;
 use serde::{Deserialize, Serialize};
 
@@ -20,7 +21,9 @@ use serde::{Deserialize, Serialize};
 /// Refer to the "RV32I Reference Card" [here](https://github.com/johnwinans/rvalp/releases) for
 /// more details.
 #[allow(non_camel_case_types)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, PartialOrd, Ord)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, PartialOrd, Ord, Enum,
+)]
 pub enum Opcode {
     /// rd ← rs1 + rs2, pc ← pc + 4
     ADD = 0,

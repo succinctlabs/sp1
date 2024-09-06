@@ -1,3 +1,4 @@
+use enum_map::Enum;
 use serde::{Deserialize, Serialize};
 use strum_macros::EnumIter;
 
@@ -18,7 +19,7 @@ use strum_macros::EnumIter;
 ///   memory accesses is bounded.
 /// - Byte 3: Currently unused.
 #[derive(
-    Debug, Copy, Clone, PartialEq, Eq, Hash, EnumIter, Ord, PartialOrd, Serialize, Deserialize,
+    Debug, Copy, Clone, PartialEq, Eq, Hash, EnumIter, Ord, PartialOrd, Serialize, Deserialize, Enum,
 )]
 #[allow(non_camel_case_types)]
 #[allow(clippy::upper_case_acronyms)]
