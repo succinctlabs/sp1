@@ -1054,7 +1054,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         digest
     }
 
-    fn make_merkle_proofs(
+    pub fn make_merkle_proofs(
         &self,
         input: SP1CompressWitnessValues<CoreSC>,
     ) -> SP1CompressWithVKeyWitnessValues<CoreSC>
