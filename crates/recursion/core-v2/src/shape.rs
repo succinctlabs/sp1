@@ -1,4 +1,4 @@
-use std::{hash::Hash, marker::PhantomData};
+use std::marker::PhantomData;
 
 use hashbrown::HashMap;
 
@@ -33,34 +33,36 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize, const COL_P
     RecursionShapeConfig<F, RecursionAir<F, DEGREE, COL_PADDING>>
 {
     pub fn fix_shape(&self, program: &mut RecursionProgram<F>) {
-        // if program.shape.is_some() {
-        //     tracing::warn!("recursion shape already fixed");
-        //     // TODO: Change this to not panic (i.e. return);
-        //     panic!("cannot fix recursion shape twice");
-        // }
+        let heights = RecursionAir::<F, DEGREE, COL_PADDING>::heights(program);
+        // Get the allowed shape with a minimal hamming distance from the current shape.
+        let mut min_distance = usize::MAX;
+        let mut closest_shape = None;
+        for shape in self.allowed_shapes.iter() {
+            let mut distance = 0;
+            let mut is_valid = true;
+            for (name, height) in heights.iter() {
+                let next_power_of_two = height.next_power_of_two();
+                let allowed_log_height = shape.get(name).unwrap();
+                let allowed_height = 1 << allowed_log_height;
+                if next_power_of_two != allowed_height {
+                    distance += 1;
+                }
+                if next_power_of_two > allowed_height {
+                    is_valid = false;
+                }
+            }
+            if is_valid && distance < min_distance {
+                min_distance = distance;
+                closest_shape = Some(shape.clone());
+            }
+        }
 
-        // let heights = RecursionAir::<F, DEGREE, COL_PADDING>::heights(program);
-        // let shape = {
-        //     for allowd in self.allowed_shapes.iter() {
-        //         for (name, height) in heights.iter() {
-        //             let bound;
-        //         }
-        //     }
-        // };
-        // // .into_iter()
-        // // .map(|(name, height)| {
-        // //     for &allowed_log_height in self.allowed_log_heights.get(&name).unwrap() {
-        // //         let allowed_height = 1 << allowed_log_height;
-        // //         if height <= allowed_height {
-        // //             return (name, allowed_log_height);
-        // //         }
-        // //     }
-        // //     panic!("air {} not allowed at height {}", name, height);
-        // // })
-        // // .collect();
-
-        // let shape = RecursionShape { inner: shape };
-        // program.shape = Some(shape);
+        if let Some(shape) = closest_shape {
+            let shape = RecursionShape { inner: shape };
+            program.shape = Some(shape);
+        } else {
+            panic!("no shape found for heights: {:?}", heights);
+        }
     }
 }
 
@@ -68,6 +70,82 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize, const COL_P
     Default for RecursionShapeConfig<F, RecursionAir<F, DEGREE, COL_PADDING>>
 {
     fn default() -> Self {
-        Self { allowed_shapes: vec![], _marker: PhantomData }
+        // Get the names of all the recursion airs to make the shape specification more readable.
+        let mem_const =
+            RecursionAir::<F, DEGREE, COL_PADDING>::MemoryConst(MemoryConstChip::default()).name();
+        let mem_var =
+            RecursionAir::<F, DEGREE, COL_PADDING>::MemoryVar(MemoryVarChip::default()).name();
+        let base_alu = RecursionAir::<F, DEGREE, COL_PADDING>::BaseAlu(BaseAluChip).name();
+        let ext_alu = RecursionAir::<F, DEGREE, COL_PADDING>::ExtAlu(ExtAluChip).name();
+        let poseidon2_wide =
+            RecursionAir::<F, DEGREE, COL_PADDING>::Poseidon2Wide(Poseidon2WideChip::<DEGREE>)
+                .name();
+        let exp_reverse_bits_len = RecursionAir::<F, DEGREE, COL_PADDING>::ExpReverseBitsLen(
+            ExpReverseBitsLenChip::<DEGREE>,
+        )
+        .name();
+        let public_values =
+            RecursionAir::<F, DEGREE, COL_PADDING>::PublicValues(PublicValuesChip).name();
+
+        // Specify allowed shapes.
+        let allowed_shapes = [
+            [
+                (base_alu.clone(), 20),
+                (mem_var.clone(), 18),
+                (ext_alu.clone(), 18),
+                (exp_reverse_bits_len.clone(), 17),
+                (mem_const.clone(), 17),
+                (poseidon2_wide.clone(), 16),
+                (public_values.clone(), PUB_VALUES_LOG_HEIGHT),
+            ],
+            [
+                (base_alu.clone(), 20),
+                (mem_var.clone(), 18),
+                (ext_alu.clone(), 18),
+                (exp_reverse_bits_len.clone(), 17),
+                (mem_const.clone(), 16),
+                (poseidon2_wide.clone(), 16),
+                (public_values.clone(), PUB_VALUES_LOG_HEIGHT),
+            ],
+            [
+                (ext_alu.clone(), 20),
+                (base_alu.clone(), 19),
+                (mem_var.clone(), 19),
+                (poseidon2_wide.clone(), 17),
+                (mem_const.clone(), 16),
+                (exp_reverse_bits_len.clone(), 16),
+                (public_values.clone(), PUB_VALUES_LOG_HEIGHT),
+            ],
+            [
+                (base_alu.clone(), 19),
+                (mem_var.clone(), 18),
+                (ext_alu.clone(), 18),
+                (exp_reverse_bits_len.clone(), 17),
+                (mem_const.clone(), 16),
+                (poseidon2_wide.clone(), 16),
+                (public_values.clone(), PUB_VALUES_LOG_HEIGHT),
+            ],
+            [
+                (base_alu.clone(), 19),
+                (mem_var.clone(), 18),
+                (ext_alu.clone(), 18),
+                (exp_reverse_bits_len.clone(), 16),
+                (mem_const.clone(), 16),
+                (poseidon2_wide.clone(), 16),
+                (public_values.clone(), PUB_VALUES_LOG_HEIGHT),
+            ],
+            [
+                (base_alu.clone(), 20),
+                (mem_var.clone(), 19),
+                (ext_alu.clone(), 19),
+                (exp_reverse_bits_len.clone(), 17),
+                (mem_const.clone(), 17),
+                (poseidon2_wide.clone(), 17),
+                (public_values.clone(), PUB_VALUES_LOG_HEIGHT),
+            ],
+        ]
+        .map(HashMap::from)
+        .to_vec();
+        Self { allowed_shapes, _marker: PhantomData }
     }
 }
