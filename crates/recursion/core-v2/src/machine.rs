@@ -7,12 +7,15 @@ use sp1_stark::{air::MachineAir, Chip, StarkGenericConfig, StarkMachine, PROOF_M
 
 use crate::{
     chips::{
-        alu_base::BaseAluChip,
-        alu_ext::ExtAluChip,
+        alu_base::{BaseAluChip, NUM_BASE_ALU_ENTRIES_PER_ROW},
+        alu_ext::{ExtAluChip, NUM_EXT_ALU_ENTRIES_PER_ROW},
         dummy::DummyChip,
         exp_reverse_bits::ExpReverseBitsLenChip,
         fri_fold::FriFoldChip,
-        mem::{MemoryConstChip, MemoryVarChip},
+        mem::{
+            constant::NUM_CONST_MEM_ENTRIES_PER_ROW, variable::NUM_VAR_MEM_ENTRIES_PER_ROW,
+            MemoryConstChip, MemoryVarChip,
+        },
         poseidon2_skinny::Poseidon2SkinnyChip,
         poseidon2_wide::Poseidon2WideChip,
         public_values::{PublicValuesChip, PUB_VALUES_LOG_HEIGHT},
@@ -46,14 +49,14 @@ pub enum RecursionAir<
 }
 
 #[derive(Debug, Clone, Copy, Default)]
-pub struct RecursionAirHeights {
-    mem_const_height: usize,
-    mem_var_height: usize,
-    base_alu_height: usize,
-    ext_alu_height: usize,
-    poseidon2_wide_height: usize,
-    fri_fold_height: usize,
-    exp_reverse_bits_len_height: usize,
+pub struct RecursionAirEventCount {
+    mem_const_events: usize,
+    mem_var_events: usize,
+    base_alu_events: usize,
+    ext_alu_events: usize,
+    poseidon2_wide_events: usize,
+    fri_fold_events: usize,
+    exp_reverse_bits_len_events: usize,
 }
 
 impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize, const COL_PADDING: usize>
@@ -160,17 +163,29 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize, const COL_P
         let heights = program
             .instructions
             .iter()
-            .fold(RecursionAirHeights::default(), |heights, instruction| heights + instruction);
+            .fold(RecursionAirEventCount::default(), |heights, instruction| heights + instruction);
 
         [
-            (Self::MemoryConst(MemoryConstChip::default()), heights.mem_const_height),
-            (Self::MemoryVar(MemoryVarChip::default()), heights.mem_var_height),
-            (Self::BaseAlu(BaseAluChip), heights.base_alu_height),
-            (Self::ExtAlu(ExtAluChip), heights.ext_alu_height),
-            (Self::Poseidon2Wide(Poseidon2WideChip::<DEGREE>), heights.poseidon2_wide_height),
+            (
+                Self::MemoryConst(MemoryConstChip::default()),
+                heights.mem_const_events.div_ceil(NUM_CONST_MEM_ENTRIES_PER_ROW),
+            ),
+            (
+                Self::MemoryVar(MemoryVarChip::default()),
+                heights.mem_var_events.div_ceil(NUM_VAR_MEM_ENTRIES_PER_ROW),
+            ),
+            (
+                Self::BaseAlu(BaseAluChip),
+                heights.base_alu_events.div_ceil(NUM_BASE_ALU_ENTRIES_PER_ROW),
+            ),
+            (
+                Self::ExtAlu(ExtAluChip),
+                heights.ext_alu_events.div_ceil(NUM_EXT_ALU_ENTRIES_PER_ROW),
+            ),
+            (Self::Poseidon2Wide(Poseidon2WideChip::<DEGREE>), heights.poseidon2_wide_events),
             (
                 Self::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE>),
-                heights.exp_reverse_bits_len_height,
+                heights.exp_reverse_bits_len_events,
             ),
             (Self::PublicValues(PublicValuesChip), PUB_VALUES_LOG_HEIGHT),
         ]
@@ -179,34 +194,34 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize, const COL_P
     }
 }
 
-impl<F> AddAssign<&Instruction<F>> for RecursionAirHeights {
+impl<F> AddAssign<&Instruction<F>> for RecursionAirEventCount {
     #[inline]
     fn add_assign(&mut self, rhs: &Instruction<F>) {
         match rhs {
-            Instruction::BaseAlu(_) => self.base_alu_height += 1,
-            Instruction::ExtAlu(_) => self.ext_alu_height += 1,
-            Instruction::Mem(_) => self.mem_const_height += 1,
-            Instruction::Poseidon2(_) => self.poseidon2_wide_height += 1,
+            Instruction::BaseAlu(_) => self.base_alu_events += 1,
+            Instruction::ExtAlu(_) => self.ext_alu_events += 1,
+            Instruction::Mem(_) => self.mem_const_events += 1,
+            Instruction::Poseidon2(_) => self.poseidon2_wide_events += 1,
             Instruction::ExpReverseBitsLen(ExpReverseBitsInstr { addrs, .. }) => {
-                self.exp_reverse_bits_len_height += addrs.exp.len()
+                self.exp_reverse_bits_len_events += addrs.exp.len()
             }
             Instruction::Hint(HintInstr { output_addrs_mults })
             | Instruction::HintBits(HintBitsInstr {
                 output_addrs_mults,
                 input_addr: _, // No receive interaction for the hint operation
-            }) => self.mem_var_height += output_addrs_mults.len(),
+            }) => self.mem_var_events += output_addrs_mults.len(),
             Instruction::HintExt2Felts(HintExt2FeltsInstr {
                 output_addrs_mults,
                 input_addr: _, // No receive interaction for the hint operation
-            }) => self.mem_var_height += output_addrs_mults.len(),
-            Instruction::FriFold(_) => self.fri_fold_height += 1,
+            }) => self.mem_var_events += output_addrs_mults.len(),
+            Instruction::FriFold(_) => self.fri_fold_events += 1,
             Instruction::CommitPublicValues(_) => {}
             Instruction::Print(_) => {}
         }
     }
 }
 
-impl<F> Add<&Instruction<F>> for RecursionAirHeights {
+impl<F> Add<&Instruction<F>> for RecursionAirEventCount {
     type Output = Self;
 
     #[inline]

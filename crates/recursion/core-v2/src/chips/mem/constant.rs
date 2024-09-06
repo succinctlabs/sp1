@@ -12,7 +12,7 @@ use crate::{builder::SP1RecursionAirBuilder, *};
 
 use super::MemoryAccessCols;
 
-pub const NUM_MEM_ENTRIES_PER_ROW: usize = 2;
+pub const NUM_CONST_MEM_ENTRIES_PER_ROW: usize = 2;
 
 #[derive(Default)]
 pub struct MemoryChip<F> {
@@ -34,7 +34,7 @@ pub const NUM_MEM_PREPROCESSED_INIT_COLS: usize =
 #[derive(AlignedBorrow, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct MemoryPreprocessedCols<F: Copy> {
-    values_and_accesses: [(Block<F>, MemoryAccessCols<F>); NUM_MEM_ENTRIES_PER_ROW],
+    values_and_accesses: [(Block<F>, MemoryAccessCols<F>); NUM_CONST_MEM_ENTRIES_PER_ROW],
 }
 impl<F: Send + Sync> BaseAir<F> for MemoryChip<F> {
     fn width(&self) -> usize {
@@ -70,7 +70,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryChip<F> {
                 }
                 _ => None,
             })
-            .chunks(NUM_MEM_ENTRIES_PER_ROW)
+            .chunks(NUM_CONST_MEM_ENTRIES_PER_ROW)
             .into_iter()
             .map(|row_vs_as| {
                 let mut row = [F::zero(); NUM_MEM_PREPROCESSED_INIT_COLS];
@@ -107,7 +107,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryChip<F> {
         let num_rows = input
             .mem_const_count
             .checked_sub(1)
-            .map(|x| x / NUM_MEM_ENTRIES_PER_ROW + 1)
+            .map(|x| x / NUM_CONST_MEM_ENTRIES_PER_ROW + 1)
             .unwrap_or_default();
         let mut rows =
             std::iter::repeat([F::zero(); NUM_MEM_INIT_COLS]).take(num_rows).collect::<Vec<_>>();
