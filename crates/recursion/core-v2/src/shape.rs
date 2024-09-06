@@ -61,12 +61,12 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize, const COL_P
     Default for RecursionShapeConfig<F, RecursionAir<F, DEGREE, COL_PADDING>>
 {
     fn default() -> Self {
-        let mem_const_heights = vec![10, 16, 18, 19];
-        let mem_var_heights = vec![10, 18, 19, 20];
-        let base_alu_heights = vec![18, 20, 21, 22];
-        let ext_alu_heights = vec![18, 20, 21, 22];
-        let poseidon2_wide_heights = vec![10, 16, 18, 19];
-        let exp_reverse_bits_len_heights = vec![10, 16, 18, 19];
+        let mem_const_heights = vec![10, 16, 19];
+        let mem_var_heights = vec![10, 18, 20];
+        let base_alu_heights = vec![18, 22, 24];
+        let ext_alu_heights = vec![18, 22, 24];
+        let poseidon2_wide_heights = vec![10, 16, 19];
+        let exp_reverse_bits_len_heights = vec![10, 16, 19];
         let public_values_heights = vec![PUB_VALUES_LOG_HEIGHT];
 
         let allowed_log_heights = HashMap::from(
