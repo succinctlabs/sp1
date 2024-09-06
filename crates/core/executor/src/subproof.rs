@@ -1,10 +1,9 @@
 //! Types and methods for subproof verification inside the [`crate::Executor`].
 
-use std::sync::atomic::AtomicBool;
-
 use sp1_stark::{
     baby_bear_poseidon2::BabyBearPoseidon2, MachineVerificationError, StarkVerifyingKey,
 };
+use std::sync::atomic::AtomicBool;
 
 use crate::SP1ReduceProof;
 

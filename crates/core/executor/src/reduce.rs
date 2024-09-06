@@ -1,6 +1,5 @@
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use sp1_stark::{Dom, ShardProof, StarkGenericConfig, StarkVerifyingKey};
-
 /// An intermediate proof which proves the execution.
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(bound(serialize = "ShardProof<SC>: Serialize, Dom<SC>: Serialize"))]

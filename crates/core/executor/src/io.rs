@@ -3,9 +3,8 @@ use std::io::Read;
 use serde::{de::DeserializeOwned, Serialize};
 use sp1_stark::{baby_bear_poseidon2::BabyBearPoseidon2, StarkVerifyingKey};
 
-use crate::SP1ReduceProof;
-
 use super::Executor;
+use crate::SP1ReduceProof;
 
 impl<'a> Read for Executor<'a> {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
