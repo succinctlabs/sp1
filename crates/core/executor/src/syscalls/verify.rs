@@ -20,7 +20,7 @@ impl Syscall for VerifySyscall {
         if proof_index >= rt.state.proof_stream.len() {
             panic!("Not enough proofs were written to the runtime.");
         }
-        let (reduce_vk, proof, proof_vk) = &rt.state.proof_stream[proof_index].clone();
+        let (proof, proof_vk) = &rt.state.proof_stream[proof_index].clone();
         rt.state.proof_stream_ptr += 1;
 
         let vkey_bytes: [u32; 8] = vkey.try_into().unwrap();
@@ -28,7 +28,7 @@ impl Syscall for VerifySyscall {
 
         ctx.rt
             .subproof_verifier
-            .verify_deferred_proof(reduce_vk, proof, proof_vk, vkey_bytes, pv_digest_bytes)
+            .verify_deferred_proof(proof, proof_vk, vkey_bytes, pv_digest_bytes)
             .unwrap_or_else(|e| {
                 panic!(
                     "Failed to verify proof {proof_index} with digest {}: {}",

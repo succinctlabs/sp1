@@ -6,7 +6,7 @@ use std::{
 use hashbrown::HashMap;
 use nohash_hasher::BuildNoHashHasher;
 use serde::{Deserialize, Serialize};
-use sp1_stark::{baby_bear_poseidon2::BabyBearPoseidon2, ShardProof, StarkVerifyingKey};
+use sp1_stark::{baby_bear_poseidon2::BabyBearPoseidon2, StarkVerifyingKey};
 
 use crate::{
     events::MemoryRecord,
@@ -14,7 +14,7 @@ use crate::{
     record::{ExecutionRecord, MemoryAccessRecord},
     syscalls::SyscallCode,
     utils::{deserialize_hashmap_as_vec, serialize_hashmap_as_vec},
-    ExecutorMode,
+    ExecutorMode, SP1ReduceProof,
 };
 
 /// Holds data describing the current state of a program's execution.
@@ -56,11 +56,8 @@ pub struct ExecutionState {
     pub input_stream_ptr: usize,
 
     /// A stream of proofs (reduce vk, proof, verifying key) inputted to the program.
-    pub proof_stream: Vec<(
-        StarkVerifyingKey<BabyBearPoseidon2>,
-        ShardProof<BabyBearPoseidon2>,
-        StarkVerifyingKey<BabyBearPoseidon2>,
-    )>,
+    pub proof_stream:
+        Vec<(SP1ReduceProof<BabyBearPoseidon2>, StarkVerifyingKey<BabyBearPoseidon2>)>,
 
     /// A ptr to the current position in the proof stream, incremented after verifying a proof.
     pub proof_stream_ptr: usize,
