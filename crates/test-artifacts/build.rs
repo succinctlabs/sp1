@@ -12,13 +12,10 @@ fn main() -> Result<()> {
     let tests_dir = read_dir(tests_path)?;
     for dir in tests_dir {
         let dir_path = dir?.path();
-        eprintln!("{:?}", dir_path);
-        match dir_path.to_str() {
-            Some(path) => {
-                build_program_with(path, BuildScriptOpts { quiet: true, ..Default::default() })
-            }
-            None => return Err(Error::other(format!("expected {dir_path:?} to be valid UTF-8"))),
-        }
+        let path = dir_path
+            .to_str()
+            .ok_or_else(|| Error::other(format!("expected {dir_path:?} to be valid UTF-8")))?;
+        build_program_with(path, BuildScriptOpts { quiet: true, ..Default::default() });
     }
     Ok(())
 }
