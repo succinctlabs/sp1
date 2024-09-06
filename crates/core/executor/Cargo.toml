@@ -49,6 +49,3 @@ enum-map = { version = "2.7.3", features = ["serde"] }
 [dev-dependencies]
 sp1-zkvm = { workspace = true }
 test-artifacts = { workspace = true }
-
-[features]
-programs = []

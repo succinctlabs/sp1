@@ -29,7 +29,6 @@ mod io;
 mod memory;
 mod opcode;
 mod program;
-#[cfg(any(test, feature = "programs"))]
 pub mod programs;
 mod record;
 mod register;
