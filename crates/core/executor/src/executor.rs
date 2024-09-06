@@ -1428,7 +1428,7 @@ mod tests {
 
     use sp1_stark::SP1CoreOpts;
 
-    use crate::programs::tests::{
+    use crate::programs::{
         fibonacci_program, panic_program, simple_memory_program, simple_program,
         ssz_withdrawals_program,
     };

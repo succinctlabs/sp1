@@ -327,15 +327,11 @@ pub mod tests {
     use crate::{
         io::SP1Stdin,
         riscv::RiscvAir,
-        utils,
-        utils::{
-            prove, run_test, setup_logger,
-            tests::{fibonacci_program, ssz_withdrawals_program},
-        },
+        utils::{self, fibonacci_program, prove, run_test, setup_logger, ssz_withdrawals_program},
     };
 
     use sp1_core_executor::{
-        programs::tests::{simple_memory_program, simple_program},
+        programs::{simple_memory_program, simple_program},
         Instruction, Opcode, Program,
     };
     use sp1_stark::{

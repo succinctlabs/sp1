@@ -367,7 +367,7 @@ mod tests {
         utils::setup_logger,
     };
     use p3_baby_bear::BabyBear;
-    use sp1_core_executor::{programs::tests::simple_program, Executor};
+    use sp1_core_executor::{programs::simple_program, Executor};
     use sp1_stark::{
         baby_bear_poseidon2::BabyBearPoseidon2, debug_interactions_with_all_chips, SP1CoreOpts,
         StarkMachine,
