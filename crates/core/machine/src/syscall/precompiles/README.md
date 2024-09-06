@@ -235,8 +235,8 @@ edition = "2021"
 publish = false
 
 [dependencies]
-sp1-zkvm = { path = "../../crates/zkvm/entrypoint" }
-sp1-derive = { path = "../../crates/derive" }
+sp1-zkvm = { path = "../../../zkvm/entrypoint" }
+sp1-derive = { path = "../../../derive" }
 num-bigint = "0.4.6"
 rand = "0.8.5"
 ```
