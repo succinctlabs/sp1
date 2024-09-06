@@ -1,3 +1,5 @@
+use std::ops::{Add, AddAssign};
+
 use hashbrown::HashMap;
 use p3_field::{extension::BinomiallyExtendable, PrimeField32};
 use sp1_recursion_core::runtime::D;
@@ -16,9 +18,8 @@ use crate::{
         public_values::{PublicValuesChip, PUB_VALUES_LOG_HEIGHT},
     },
     shape::RecursionShape,
+    Instruction, RecursionProgram,
 };
-
-const SHRINK_ID: usize = usize::MAX;
 
 #[derive(sp1_derive::MachineAir)]
 #[sp1_core_path = "sp1_core_machine"]
@@ -41,6 +42,17 @@ pub enum RecursionAir<
     ExpReverseBitsLen(ExpReverseBitsLenChip<DEGREE>),
     PublicValues(PublicValuesChip),
     DummyWide(DummyChip<COL_PADDING>),
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct RecursionAirHeights {
+    mem_const_height: usize,
+    mem_var_height: usize,
+    base_alu_height: usize,
+    ext_alu_height: usize,
+    poseidon2_wide_height: usize,
+    fri_fold_height: usize,
+    exp_reverse_bits_len_height: usize,
 }
 
 impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize, const COL_PADDING: usize>
@@ -140,7 +152,58 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize, const COL_P
             ]
             .map(|(chip, log_height)| (chip.name(), log_height)),
         );
-        RecursionShape { id: SHRINK_ID, shape }
+        RecursionShape { inner: shape }
+    }
+
+    pub fn heights(program: &RecursionProgram<F>) -> Vec<(String, usize)> {
+        let heights = program
+            .instructions
+            .iter()
+            .fold(RecursionAirHeights::default(), |heights, instruction| heights + instruction);
+
+        [
+            (Self::MemoryConst(MemoryConstChip::default()), heights.mem_const_height),
+            (Self::MemoryVar(MemoryVarChip::default()), heights.mem_var_height),
+            (Self::BaseAlu(BaseAluChip), heights.base_alu_height),
+            (Self::ExtAlu(ExtAluChip), heights.ext_alu_height),
+            (Self::Poseidon2Wide(Poseidon2WideChip::<DEGREE>), heights.poseidon2_wide_height),
+            (
+                Self::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE>),
+                heights.exp_reverse_bits_len_height,
+            ),
+            (Self::PublicValues(PublicValuesChip), PUB_VALUES_LOG_HEIGHT),
+        ]
+        .map(|(chip, log_height)| (chip.name(), log_height))
+        .to_vec()
+    }
+}
+
+impl<F> AddAssign<&Instruction<F>> for RecursionAirHeights {
+    #[inline]
+    fn add_assign(&mut self, rhs: &Instruction<F>) {
+        match rhs {
+            Instruction::BaseAlu(_) => self.base_alu_height += 1,
+            Instruction::ExtAlu(_) => self.ext_alu_height += 1,
+            Instruction::Mem(_) => self.mem_const_height += 1,
+            Instruction::Poseidon2(_) => self.poseidon2_wide_height += 1,
+            Instruction::ExpReverseBitsLen(_) => self.exp_reverse_bits_len_height += 1,
+            Instruction::Hint(_) => self.mem_var_height += 1,
+            Instruction::HintBits(_) => self.mem_var_height += 1,
+            Instruction::HintExt2Felts(_) => self.mem_var_height += 1,
+            Instruction::FriFold(_) => self.fri_fold_height += 1,
+            Instruction::CommitPublicValues(_) => {}
+            Instruction::Print(_) => {}
+        }
+    }
+}
+
+impl<F> Add<&Instruction<F>> for RecursionAirHeights {
+    type Output = Self;
+
+    #[inline]
+    fn add(mut self, rhs: &Instruction<F>) -> Self::Output {
+        self += rhs;
+        self
     }
 }
 

@@ -66,7 +66,8 @@ use sp1_stark::{
 
 use sp1_recursion_core_v2::{
     air::RecursionPublicValues, machine::RecursionAir, runtime::ExecutionRecord,
-    stark::config::BabyBearPoseidon2Outer, RecursionProgram, Runtime as RecursionRuntime,
+    shape::RecursionShapeConfig, stark::config::BabyBearPoseidon2Outer, RecursionProgram,
+    Runtime as RecursionRuntime,
 };
 
 use sp1_recursion_circuit_v2::{
@@ -137,6 +138,8 @@ pub struct SP1Prover<C: SP1ProverComponents = DefaultProverComponents> {
     pub merkle_tree: MerkleTree<BabyBear, InnerSC>,
 
     pub core_shape_config: CoreShapeConfig<BabyBear>,
+
+    pub recursion_shape_config: RecursionShapeConfig<BabyBear, CompressAir<BabyBear>>,
 }
 
 impl<C: SP1ProverComponents> SP1Prover<C> {
@@ -195,6 +198,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             merkle_tree,
             allowed_vkeys,
             core_shape_config: CoreShapeConfig::default(),
+            recursion_shape_config: RecursionShapeConfig::default(),
         }
     }
 
@@ -326,7 +330,9 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                 // Compile the program.
                 let compiler_span = tracing::debug_span!("compile compress program").entered();
                 let mut compiler = AsmCompiler::<InnerConfig>::default();
-                let program = Arc::new(compiler.compile(operations));
+                let mut program = compiler.compile(operations);
+                self.recursion_shape_config.fix_shape(&mut program);
+                let program = Arc::new(program);
                 compiler_span.exit();
                 program
             })
@@ -529,9 +535,11 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         deferred_proofs: Vec<SP1ReduceProof<InnerSC>>,
         opts: SP1ProverOpts,
     ) -> Result<SP1ReduceProof<InnerSC>, SP1RecursionProverError> {
-        // Set the batch size for the reduction tree.
+        // The batch size for reducing two layers of recursion.
         let batch_size = 2;
-        let first_layer_batch_size = 2;
+        // The batch size for reducing the first layer of recursion.
+        let first_layer_batch_size = 1;
+
         let shard_proofs = &proof.proof.0;
 
         // Get the leaf challenger.

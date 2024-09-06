@@ -114,7 +114,6 @@ where
         F: PrimeField,
         A: MachineAir<F>,
     {
-        println!("Generating for chip {}", self.name());
         let batch_size = self.logup_batch_size();
         generate_permutation_trace(
             &self.sends,
