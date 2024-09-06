@@ -332,7 +332,9 @@ pub mod tests {
     use sp1_core_executor::Program;
     use sp1_stark::CpuProver;
 
-    use crate::utils::{self, tests::ED_DECOMPRESS_ELF};
+    use crate::utils;
+
+    use test_artifacts::ED_DECOMPRESS_ELF;
 
     #[test]
     fn test_ed_decompress() {

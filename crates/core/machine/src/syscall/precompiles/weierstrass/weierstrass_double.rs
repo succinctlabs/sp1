@@ -523,10 +523,9 @@ pub mod tests {
     use sp1_core_executor::Program;
     use sp1_stark::CpuProver;
 
-    use crate::utils::{
-        run_test, setup_logger,
-        tests::{BLS12381_DOUBLE_ELF, BN254_DOUBLE_ELF, SECP256K1_DOUBLE_ELF},
-    };
+    use crate::utils::{run_test, setup_logger};
+
+    use test_artifacts::{BLS12381_DOUBLE_ELF, BN254_DOUBLE_ELF, SECP256K1_DOUBLE_ELF};
 
     #[test]
     fn test_secp256k1_double_simple() {

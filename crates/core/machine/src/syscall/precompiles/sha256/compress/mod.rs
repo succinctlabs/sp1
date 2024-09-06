@@ -35,7 +35,9 @@ pub mod compress_tests {
     use sp1_core_executor::{syscalls::SyscallCode, Instruction, Opcode, Program};
     use sp1_stark::CpuProver;
 
-    use crate::utils::{run_test, setup_logger, tests::SHA_COMPRESS_ELF};
+    use crate::utils::{run_test, setup_logger};
+
+    use test_artifacts::SHA_COMPRESS_ELF;
 
     pub fn sha_compress_program() -> Program {
         let w_ptr = 100;

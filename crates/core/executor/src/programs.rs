@@ -6,7 +6,7 @@ pub mod tests {
     use crate::{Instruction, Opcode, Program};
 
     #[cfg(test)]
-    pub use test_artifacts::*;
+    use test_artifacts::{FIBONACCI_ELF, KECCAK_PERMUTE_ELF, PANIC_ELF};
 
     // pub const TENDERMINT_ELF: &[u8] =
     //     include_bytes!("../../../../examples/tendermint/program/elf/riscv32im-succinct-zkvm-elf");

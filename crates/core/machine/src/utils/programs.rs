@@ -31,7 +31,7 @@ pub mod tests {
     );
 
     /// Tests.
-    pub use test_artifacts::*;
+    use test_artifacts::{FIBONACCI_ELF, KECCAK_PERMUTE_ELF, PANIC_ELF};
 
     /// Get the fibonacci program.
     ///

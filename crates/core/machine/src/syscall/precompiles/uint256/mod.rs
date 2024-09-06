@@ -11,8 +11,10 @@ mod tests {
 
     use crate::{
         io::SP1Stdin,
-        utils::{self, run_test_io, tests::UINT256_MUL_ELF},
+        utils::{self, run_test_io},
     };
+
+    use test_artifacts::UINT256_MUL_ELF;
 
     #[test]
     fn test_uint256_mul() {

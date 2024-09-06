@@ -38,10 +38,9 @@ pub mod extend_tests {
     };
     use sp1_stark::{air::MachineAir, CpuProver};
 
-    use crate::utils::{
-        self, run_test,
-        tests::{SHA2_ELF, SHA_EXTEND_ELF},
-    };
+    use crate::utils::{self, run_test};
+
+    use test_artifacts::{SHA2_ELF, SHA_EXTEND_ELF};
 
     use super::ShaExtendChip;
 
