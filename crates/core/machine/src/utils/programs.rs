@@ -1,4 +1,7 @@
+#[cfg(test)]
 pub mod tests {
+    use sp1_core_executor::Program;
+
     /// Demos.
 
     pub const CHESS_ELF: &[u8] =
@@ -28,76 +31,38 @@ pub mod tests {
     );
 
     /// Tests.
+    pub use test_artifacts::*;
 
-    pub const FIBONACCI_ELF: &[u8] =
-        include_bytes!("../../../../../tests/fibonacci/elf/riscv32im-succinct-zkvm-elf");
+    /// Get the fibonacci program.
+    ///
+    /// # Panics
+    ///
+    /// This function will panic if the program fails to load.
+    #[cfg(test)]
+    #[must_use]
+    pub fn fibonacci_program() -> Program {
+        Program::from(FIBONACCI_ELF).unwrap()
+    }
 
-    pub const ED25519_ELF: &[u8] =
-        include_bytes!("../../../../../tests/ed25519/elf/riscv32im-succinct-zkvm-elf");
+    /// Get the SSZ withdrawals program.
+    ///
+    /// # Panics
+    ///
+    /// This function will panic if the program fails to load.
+    #[cfg(test)]
+    #[must_use]
+    pub fn ssz_withdrawals_program() -> Program {
+        Program::from(KECCAK_PERMUTE_ELF).unwrap()
+    }
 
-    pub const CYCLE_TRACKER_ELF: &[u8] =
-        include_bytes!("../../../../../tests/cycle-tracker/elf/riscv32im-succinct-zkvm-elf");
-
-    pub const ED_ADD_ELF: &[u8] =
-        include_bytes!("../../../../../tests/ed-add/elf/riscv32im-succinct-zkvm-elf");
-
-    pub const ED_DECOMPRESS_ELF: &[u8] =
-        include_bytes!("../../../../../tests/ed-decompress/elf/riscv32im-succinct-zkvm-elf");
-
-    pub const KECCAK_PERMUTE_ELF: &[u8] =
-        include_bytes!("../../../../../tests/keccak-permute/elf/riscv32im-succinct-zkvm-elf");
-
-    pub const KECCAK256_ELF: &[u8] =
-        include_bytes!("../../../../../tests/keccak256/elf/riscv32im-succinct-zkvm-elf");
-
-    pub const SECP256K1_ADD_ELF: &[u8] =
-        include_bytes!("../../../../../tests/secp256k1-add/elf/riscv32im-succinct-zkvm-elf");
-
-    pub const SECP256K1_DECOMPRESS_ELF: &[u8] =
-        include_bytes!("../../../../../tests/secp256k1-decompress/elf/riscv32im-succinct-zkvm-elf");
-
-    pub const SECP256K1_DOUBLE_ELF: &[u8] =
-        include_bytes!("../../../../../tests/secp256k1-double/elf/riscv32im-succinct-zkvm-elf");
-
-    pub const SHA_COMPRESS_ELF: &[u8] =
-        include_bytes!("../../../../../tests/sha-compress/elf/riscv32im-succinct-zkvm-elf");
-
-    pub const SHA_EXTEND_ELF: &[u8] =
-        include_bytes!("../../../../../tests/sha-extend/elf/riscv32im-succinct-zkvm-elf");
-
-    pub const SHA2_ELF: &[u8] =
-        include_bytes!("../../../../../tests/sha2/elf/riscv32im-succinct-zkvm-elf");
-
-    pub const BN254_ADD_ELF: &[u8] =
-        include_bytes!("../../../../../tests/bn254-add/elf/riscv32im-succinct-zkvm-elf");
-
-    pub const BN254_DOUBLE_ELF: &[u8] =
-        include_bytes!("../../../../../tests/bn254-double/elf/riscv32im-succinct-zkvm-elf");
-
-    pub const BN254_MUL_ELF: &[u8] =
-        include_bytes!("../../../../../tests/bn254-mul/elf/riscv32im-succinct-zkvm-elf");
-
-    pub const SECP256K1_MUL_ELF: &[u8] =
-        include_bytes!("../../../../../tests/secp256k1-mul/elf/riscv32im-succinct-zkvm-elf");
-
-    pub const BLS12381_ADD_ELF: &[u8] =
-        include_bytes!("../../../../../tests/bls12381-add/elf/riscv32im-succinct-zkvm-elf");
-
-    pub const BLS12381_DOUBLE_ELF: &[u8] =
-        include_bytes!("../../../../../tests/bls12381-double/elf/riscv32im-succinct-zkvm-elf");
-
-    pub const BLS12381_MUL_ELF: &[u8] =
-        include_bytes!("../../../../../tests/bls12381-mul/elf/riscv32im-succinct-zkvm-elf");
-
-    pub const UINT256_MUL_ELF: &[u8] =
-        include_bytes!("../../../../../tests/uint256-mul/elf/riscv32im-succinct-zkvm-elf");
-
-    pub const BLS12381_DECOMPRESS_ELF: &[u8] =
-        include_bytes!("../../../../../tests/bls12381-decompress/elf/riscv32im-succinct-zkvm-elf");
-
-    pub const VERIFY_PROOF_ELF: &[u8] =
-        include_bytes!("../../../../../tests/verify-proof/elf/riscv32im-succinct-zkvm-elf");
-
-    pub const PANIC_ELF: &[u8] =
-        include_bytes!("../../../../../tests/panic/elf/riscv32im-succinct-zkvm-elf");
+    /// Get the panic program.
+    ///
+    /// # Panics
+    ///
+    /// This function will panic if the program fails to load.
+    #[cfg(test)]
+    #[must_use]
+    pub fn panic_program() -> Program {
+        Program::from(PANIC_ELF).unwrap()
+    }
 }

@@ -31,6 +31,7 @@ members = [
   "crates/cuda",
   "crates/stark",
   "crates/zkvm/*",
+  "crates/test-artifacts",
 ]
 exclude = ["examples/target"]
 resolver = "2"
@@ -70,6 +71,9 @@ sp1-cuda = { path = "crates/cuda", version = "1.2.0" }
 sp1-stark = { path = "crates/stark", version = "1.2.0" }
 sp1-lib = { path = "crates/zkvm/lib", version = "1.2.0", default-features = false }
 sp1-zkvm = { path = "crates/zkvm/entrypoint", version = "1.2.0", default-features = false }
+
+# For testing.
+test-artifacts = { path = "crates/test-artifacts", version = "1.2.0" }
 
 # p3
 p3-air = "0.1.3-succinct"

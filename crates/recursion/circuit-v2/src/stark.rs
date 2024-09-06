@@ -243,7 +243,7 @@ impl<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVariable<C>> ShardProof
 }
 
 #[allow(unused_imports)]
-#[cfg(any(test, feature = "export-tests"))]
+#[cfg(test)]
 pub mod tests {
     use std::collections::VecDeque;
 
@@ -253,7 +253,7 @@ pub mod tests {
         BabyBearFriConfig,
     };
 
-    use sp1_core_executor::{programs::tests::FIBONACCI_ELF, Program};
+    use sp1_core_executor::Program;
     use sp1_core_machine::{
         io::SP1Stdin,
         riscv::RiscvAir,
@@ -271,6 +271,7 @@ pub mod tests {
         baby_bear_poseidon2::BabyBearPoseidon2, CpuProver, InnerVal, MachineProver, SP1CoreOpts,
         ShardProof,
     };
+    use test_artifacts::FIBONACCI_ELF;
 
     use super::*;
     use crate::witness::*;

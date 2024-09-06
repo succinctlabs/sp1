@@ -43,7 +43,7 @@ fn main() {
     let iterations = [480000u32];
     let shard_sizes = [1 << 19, 1 << 20, 1 << 21, 1 << 22];
     let batch_sizes = [2];
-    let elf = include_bytes!("../../tests/tendermint-benchmark/elf/riscv32im-succinct-zkvm-elf");
+    let elf = include_bytes!("../../tests/programs/tendermint-benchmark/elf/riscv32im-succinct-zkvm-elf");
     let (pk, vk) = prover.setup(elf);
 
     let mut lines = vec![

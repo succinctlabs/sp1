@@ -35,5 +35,8 @@ rand = "0.8.5"
 tracing = "0.1.40"
 stacker = "0.1"
 
+[dev-dependencies]
+test-artifacts = { workspace = true }
+
 [features]
 debug = ["sp1-core-machine/debug"]

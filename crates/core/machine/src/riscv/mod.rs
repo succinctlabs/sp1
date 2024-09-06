@@ -328,13 +328,14 @@ pub mod tests {
         io::SP1Stdin,
         riscv::RiscvAir,
         utils,
-        utils::{prove, run_test, setup_logger},
+        utils::{
+            prove, run_test, setup_logger,
+            tests::{fibonacci_program, ssz_withdrawals_program},
+        },
     };
 
     use sp1_core_executor::{
-        programs::tests::{
-            fibonacci_program, simple_memory_program, simple_program, ssz_withdrawals_program,
-        },
+        programs::tests::{simple_memory_program, simple_program},
         Instruction, Opcode, Program,
     };
     use sp1_stark::{

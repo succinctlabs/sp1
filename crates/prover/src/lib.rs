@@ -917,7 +917,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
     }
 }
 
-#[cfg(any(test, feature = "export-tests"))]
+#[cfg(test)]
 pub mod tests {
 
     use std::{
@@ -1042,11 +1042,10 @@ pub mod tests {
 
     pub fn test_e2e_with_deferred_proofs_prover<C: SP1ProverComponents>() -> Result<()> {
         // Test program which proves the Keccak-256 hash of various inputs.
-        let keccak_elf = include_bytes!("../../../tests/keccak256/elf/riscv32im-succinct-zkvm-elf");
+        let keccak_elf = test_artifacts::KECCAK256_ELF;
 
         // Test program which verifies proofs of a vkey and a list of committed inputs.
-        let verify_elf =
-            include_bytes!("../../../tests/verify-proof/elf/riscv32im-succinct-zkvm-elf");
+        let verify_elf = test_artifacts::VERIFY_PROOF_ELF;
 
         tracing::info!("initializing prover");
         let prover: SP1Prover = SP1Prover::new();
@@ -1129,7 +1128,7 @@ pub mod tests {
     #[test]
     #[serial]
     fn test_e2e() -> Result<()> {
-        let elf = include_bytes!("../../../tests/fibonacci/elf/riscv32im-succinct-zkvm-elf");
+        let elf = test_artifacts::FIBONACCI_ELF;
         setup_logger();
         let opts = SP1ProverOpts::default();
         // TODO(mattstam): We should Test::Plonk here, but this uses the existing

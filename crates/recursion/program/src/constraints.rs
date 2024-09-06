@@ -248,7 +248,7 @@ mod tests {
 
         // Generate a dummy proof.
         sp1_core_machine::utils::setup_logger();
-        let elf = include_bytes!("../../../../tests/fibonacci/elf/riscv32im-succinct-zkvm-elf");
+        let elf = test_artifacts::FIBONACCI_ELF;
 
         let machine = A::machine(SC::default());
         let (_, vk) = machine.setup(&Program::from(elf).unwrap());

@@ -1,7 +1,6 @@
 mod buffer;
 pub mod concurrency;
 mod logger;
-#[cfg(any(test, feature = "programs"))]
 mod programs;
 mod prove;
 mod span;
@@ -14,7 +13,7 @@ use sp1_curves::params::Limbs;
 pub use span::*;
 pub use tracer::*;
 
-#[cfg(any(test, feature = "programs"))]
+#[cfg(test)]
 pub use programs::*;
 
 use crate::memory::MemoryCols;
