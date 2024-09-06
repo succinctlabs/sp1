@@ -4,13 +4,9 @@ use std::{
     path::PathBuf,
 };
 
-use sp1_build::build_program;
+use sp1_build::{build_program_with, BuildScriptOpts};
 
-fn main() {
-    build().unwrap();
-}
-
-fn build() -> Result<()> {
+fn main() -> Result<()> {
     let tests_path =
         [env!("CARGO_MANIFEST_DIR"), "programs"].iter().collect::<PathBuf>().canonicalize()?;
     let tests_dir = read_dir(tests_path)?;
@@ -18,7 +14,9 @@ fn build() -> Result<()> {
         let dir_path = dir?.path();
         eprintln!("{:?}", dir_path);
         match dir_path.to_str() {
-            Some(path) => build_program(path),
+            Some(path) => {
+                build_program_with(path, BuildScriptOpts { quiet: true, ..Default::default() })
+            }
             None => return Err(Error::other(format!("expected {dir_path:?} to be valid UTF-8"))),
         }
     }
