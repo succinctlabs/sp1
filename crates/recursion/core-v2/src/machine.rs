@@ -17,6 +17,7 @@ use crate::{
         poseidon2_wide::Poseidon2WideChip,
         public_values::{PublicValuesChip, PUB_VALUES_LOG_HEIGHT},
     },
+    instruction::{HintBitsInstr, HintExt2FeltsInstr, HintInstr},
     shape::RecursionShape,
     Instruction, RecursionProgram,
 };
@@ -187,9 +188,15 @@ impl<F> AddAssign<&Instruction<F>> for RecursionAirHeights {
             Instruction::Mem(_) => self.mem_const_height += 1,
             Instruction::Poseidon2(_) => self.poseidon2_wide_height += 1,
             Instruction::ExpReverseBitsLen(_) => self.exp_reverse_bits_len_height += 1,
-            Instruction::Hint(_) => self.mem_var_height += 1,
-            Instruction::HintBits(_) => self.mem_var_height += 1,
-            Instruction::HintExt2Felts(_) => self.mem_var_height += 1,
+            Instruction::Hint(HintInstr { output_addrs_mults })
+            | Instruction::HintBits(HintBitsInstr {
+                output_addrs_mults,
+                input_addr: _, // No receive interaction for the hint operation
+            }) => self.mem_var_height += output_addrs_mults.len(),
+            Instruction::HintExt2Felts(HintExt2FeltsInstr {
+                output_addrs_mults,
+                input_addr: _, // No receive interaction for the hint operation
+            }) => self.mem_var_height += output_addrs_mults.len(),
             Instruction::FriFold(_) => self.fri_fold_height += 1,
             Instruction::CommitPublicValues(_) => {}
             Instruction::Print(_) => {}
