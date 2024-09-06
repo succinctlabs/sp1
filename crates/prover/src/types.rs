@@ -1,4 +1,4 @@
-use std::{borrow::Borrow, fs::File, path::Path};
+use std::{fs::File, path::Path};
 
 use anyhow::Result;
 use p3_baby_bear::BabyBear;
@@ -6,10 +6,11 @@ use p3_bn254_fr::Bn254Fr;
 use p3_commit::{Pcs, TwoAdicMultiplicativeCoset};
 use p3_field::{AbstractField, PrimeField, PrimeField32, TwoAdicField};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use sp1_core_machine::io::{SP1PublicValues, SP1Stdin};
+use sp1_core_machine::{
+    io::{SP1PublicValues, SP1Stdin},
+    reduce::SP1ReduceProof,
+};
 use sp1_primitives::poseidon2_hash;
-
-use sp1_recursion_core_v2::{air::RecursionPublicValues, stark::config::BabyBearPoseidon2Outer};
 
 use sp1_recursion_circuit_v2::machine::{
     SP1CompressWitnessValues, SP1DeferredWitnessValues, SP1RecursionWitnessValues,
@@ -17,14 +18,12 @@ use sp1_recursion_circuit_v2::machine::{
 
 use sp1_recursion_gnark_ffi::proof::{Groth16Bn254Proof, PlonkBn254Proof};
 
-use sp1_stark::{
-    Dom, ShardProof, StarkGenericConfig, StarkProvingKey, StarkVerifyingKey, DIGEST_SIZE,
-};
+use sp1_stark::{ShardProof, StarkGenericConfig, StarkProvingKey, StarkVerifyingKey, DIGEST_SIZE};
 use thiserror::Error;
 
 use crate::{
-    utils::{babybear_bytes_to_bn254, babybears_to_bn254, words_to_bytes_be},
-    words_to_bytes, CoreSC, InnerSC,
+    utils::{babybears_to_bn254, words_to_bytes_be},
+    CoreSC, InnerSC,
 };
 
 /// The information necessary to generate a proof for a given RISC-V program.
@@ -202,35 +201,6 @@ impl ProofSystem {
     }
 }
 
-/// An intermediate proof which proves the execution over a range of shards.
-#[derive(Serialize, Deserialize, Clone)]
-#[serde(bound(serialize = "ShardProof<SC>: Serialize, Dom<SC>: Serialize"))]
-#[serde(bound(deserialize = "ShardProof<SC>: Deserialize<'de>, Dom<SC>: DeserializeOwned"))]
-pub struct SP1ReduceProof<SC: StarkGenericConfig> {
-    pub vk: StarkVerifyingKey<SC>,
-    pub proof: ShardProof<SC>,
-}
-
-impl SP1ReduceProof<BabyBearPoseidon2Outer> {
-    pub fn sp1_vkey_digest_babybear(&self) -> [BabyBear; 8] {
-        let proof = &self.proof;
-        let pv: &RecursionPublicValues<BabyBear> = proof.public_values.as_slice().borrow();
-        pv.sp1_vk_digest
-    }
-
-    pub fn sp1_vkey_digest_bn254(&self) -> Bn254Fr {
-        babybears_to_bn254(&self.sp1_vkey_digest_babybear())
-    }
-
-    pub fn sp1_commited_values_digest_bn254(&self) -> Bn254Fr {
-        let proof = &self.proof;
-        let pv: &RecursionPublicValues<BabyBear> = proof.public_values.as_slice().borrow();
-        let committed_values_digest_bytes: [BabyBear; 32] =
-            words_to_bytes(&pv.committed_value_digest).try_into().unwrap();
-        babybear_bytes_to_bn254(&committed_values_digest_bytes)
-    }
-}
-
 /// A proof that can be reduced along with other proofs into one proof.
 #[derive(Serialize, Deserialize, Clone)]
 pub enum SP1ReduceProofWrapper {
@@ -249,13 +219,4 @@ pub enum SP1CircuitWitness {
     Core(SP1RecursionWitnessValues<CoreSC>),
     Deferred(SP1DeferredWitnessValues<InnerSC>),
     Compress(SP1CompressWitnessValues<InnerSC>),
-}
-
-impl<SC: StarkGenericConfig> std::fmt::Debug for SP1ReduceProof<SC> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut debug_struct = f.debug_struct("SP1ReduceProof");
-        debug_struct.field("vk", &self.vk);
-        debug_struct.field("proof", &self.proof);
-        debug_struct.finish()
-    }
 }

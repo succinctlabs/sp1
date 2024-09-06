@@ -31,3 +31,11 @@ pub mod utils;
 /// core, recursion, and plonk-bn254. This string is used to download SP1 artifacts and the gnark
 /// docker image.
 pub const SP1_CIRCUIT_VERSION: &str = "v1.3.0-rc1";
+
+// Re-export the `SP1ReduceProof` struct from sp1_core_executor.
+//
+// This is done to avoid a circular dependency between sp1_core_executor and sp1_core_machine, and
+// enables crates that depend on sp1_core_machine to import the `SP1ReduceProof` type directly.
+pub mod reduce {
+    pub use sp1_core_executor::SP1ReduceProof;
+}

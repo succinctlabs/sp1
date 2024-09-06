@@ -18,10 +18,9 @@ use crate::proto::api::ProverServiceClient;
 
 use proto::api::ReadyRequest;
 use serde::{Deserialize, Serialize};
-use sp1_core_machine::{io::SP1Stdin, utils::SP1CoreProverError};
+use sp1_core_machine::{io::SP1Stdin, reduce::SP1ReduceProof, utils::SP1CoreProverError};
 use sp1_prover::{
-    types::SP1ProvingKey, InnerSC, OuterSC, SP1CoreProof, SP1RecursionProverError, SP1ReduceProof,
-    SP1VerifyingKey,
+    types::SP1ProvingKey, InnerSC, OuterSC, SP1CoreProof, SP1RecursionProverError, SP1VerifyingKey,
 };
 use tokio::task::block_in_place;
 use twirp::{url::Url, Client};
@@ -297,10 +296,11 @@ pub fn block_on<T>(fut: impl Future<Output = T>) -> T {
 #[cfg(feature = "protobuf")]
 #[cfg(test)]
 mod tests {
-    use sp1_core_machine::utils::{setup_logger, tests::FIBONACCI_ELF};
-    use sp1_prover::{
-        components::DefaultProverComponents, InnerSC, SP1CoreProof, SP1Prover, SP1ReduceProof,
+    use sp1_core_machine::{
+        reduce::SP1ReduceProof,
+        utils::{setup_logger, tests::FIBONACCI_ELF},
     };
+    use sp1_prover::{components::DefaultProverComponents, InnerSC, SP1CoreProof, SP1Prover};
     use twirp::{url::Url, Client};
 
     use crate::{

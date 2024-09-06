@@ -1,7 +1,9 @@
 use std::io::Read;
 
 use serde::{de::DeserializeOwned, Serialize};
-use sp1_stark::{baby_bear_poseidon2::BabyBearPoseidon2, ShardProof, StarkVerifyingKey};
+use sp1_stark::{baby_bear_poseidon2::BabyBearPoseidon2, StarkVerifyingKey};
+
+use crate::SP1ReduceProof;
 
 use super::Executor;
 
@@ -35,11 +37,10 @@ impl<'a> Executor<'a> {
     /// Write a proof and verifying key to the proof stream.
     pub fn write_proof(
         &mut self,
-        reduce_vk: StarkVerifyingKey<BabyBearPoseidon2>,
-        proof: ShardProof<BabyBearPoseidon2>,
+        proof: SP1ReduceProof<BabyBearPoseidon2>,
         vk: StarkVerifyingKey<BabyBearPoseidon2>,
     ) {
-        self.state.proof_stream.push((reduce_vk, proof, vk));
+        self.state.proof_stream.push((proof, vk));
     }
 
     /// Read a serializable public values from the public values stream.

@@ -5,7 +5,7 @@ use num_bigint::BigUint;
 use p3_baby_bear::BabyBear;
 use p3_field::{AbstractField, PrimeField};
 use sp1_core_executor::subproof::SubproofVerifier;
-use sp1_core_machine::{cpu::MAX_CPU_LOG_DEGREE, io::SP1PublicValues};
+use sp1_core_machine::{cpu::MAX_CPU_LOG_DEGREE, io::SP1PublicValues, reduce::SP1ReduceProof};
 use sp1_primitives::consts::WORD_SIZE;
 
 use sp1_recursion_core_v2::{air::RecursionPublicValues, stark::config::BabyBearPoseidon2Outer};
@@ -21,7 +21,7 @@ use thiserror::Error;
 
 use crate::{
     components::SP1ProverComponents, CoreSC, HashableKey, OuterSC, SP1CoreProofData, SP1Prover,
-    SP1ReduceProof, SP1VerifyingKey,
+    SP1VerifyingKey,
 };
 
 #[derive(Error, Debug)]
@@ -472,8 +472,7 @@ pub fn verify_groth16_bn254_public_inputs(
 impl<C: SP1ProverComponents> SubproofVerifier for &SP1Prover<C> {
     fn verify_deferred_proof(
         &self,
-        reduce_vk: &sp1_stark::StarkVerifyingKey<BabyBearPoseidon2>,
-        proof: &sp1_stark::ShardProof<BabyBearPoseidon2>,
+        proof: &sp1_core_machine::reduce::SP1ReduceProof<BabyBearPoseidon2>,
         vk: &sp1_stark::StarkVerifyingKey<BabyBearPoseidon2>,
         vk_hash: [u32; 8],
         committed_value_digest: [u32; 8],
@@ -486,11 +485,12 @@ impl<C: SP1ProverComponents> SubproofVerifier for &SP1Prover<C> {
         }
         // Check that proof is valid.
         self.verify_compressed(
-            &SP1ReduceProof { vk: reduce_vk.clone(), proof: proof.clone() },
+            &SP1ReduceProof { vk: proof.vk.clone(), proof: proof.proof.clone() },
             &SP1VerifyingKey { vk: vk.clone() },
         )?;
         // Check that the committed value digest matches the one from syscall
-        let public_values: &RecursionPublicValues<_> = proof.public_values.as_slice().borrow();
+        let public_values: &RecursionPublicValues<_> =
+            proof.proof.public_values.as_slice().borrow();
         for (i, word) in public_values.committed_value_digest.iter().enumerate() {
             if *word != committed_value_digest[i].into() {
                 return Err(MachineVerificationError::InvalidPublicValues(
