@@ -86,11 +86,11 @@ pub fn build_groth16_bn254_artifacts(
 /// This may take a while as it needs to first generate a dummy proof and then it needs to compile
 /// the circuit.
 pub fn build_plonk_bn254_artifacts_with_dummy(build_dir: impl Into<PathBuf>) {
-    // let (wrap_vk, wrapped_proof) = dummy_proof();
-    // let wrap_vk_bytes = bincode::serialize(&wrap_vk).unwrap();
-    // let wrapped_proof_bytes = bincode::serialize(&wrapped_proof).unwrap();
-    // std::fs::write("wrap_vk.bin", wrap_vk_bytes).unwrap();
-    // std::fs::write("wraped_proof.bin", wrapped_proof_bytes).unwrap();
+    let (wrap_vk, wrapped_proof) = dummy_proof();
+    let wrap_vk_bytes = bincode::serialize(&wrap_vk).unwrap();
+    let wrapped_proof_bytes = bincode::serialize(&wrapped_proof).unwrap();
+    std::fs::write("wrap_vk.bin", wrap_vk_bytes).unwrap();
+    std::fs::write("wraped_proof.bin", wrapped_proof_bytes).unwrap();
     let wrap_vk_bytes = std::fs::read("wrap_vk.bin").unwrap();
     let wrapped_proof_bytes = std::fs::read("wraped_proof.bin").unwrap();
     let wrap_vk = bincode::deserialize(&wrap_vk_bytes).unwrap();
@@ -103,7 +103,11 @@ pub fn build_plonk_bn254_artifacts_with_dummy(build_dir: impl Into<PathBuf>) {
 /// This may take a while as it needs to first generate a dummy proof and then it needs to compile
 /// the circuit.
 pub fn build_groth16_bn254_artifacts_with_dummy(build_dir: impl Into<PathBuf>) {
-    // let (wrap_vk, wrapped_proof) = dummy_proof();
+    let (wrap_vk, wrapped_proof) = dummy_proof();
+    let wrap_vk_bytes = bincode::serialize(&wrap_vk).unwrap();
+    let wrapped_proof_bytes = bincode::serialize(&wrapped_proof).unwrap();
+    std::fs::write("wrap_vk.bin", wrap_vk_bytes).unwrap();
+    std::fs::write("wraped_proof.bin", wrapped_proof_bytes).unwrap();
     let wrap_vk_bytes = std::fs::read("wrap_vk.bin").unwrap();
     let wrapped_proof_bytes = std::fs::read("wraped_proof.bin").unwrap();
     let wrap_vk = bincode::deserialize(&wrap_vk_bytes).unwrap();
