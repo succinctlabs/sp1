@@ -63,9 +63,9 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize, const COL_P
     fn default() -> Self {
         let mem_const_heights = vec![10, 16, 19];
         let mem_var_heights = vec![10, 18, 20];
-        let base_alu_heights = vec![18, 22, 24];
-        let ext_alu_heights = vec![18, 22, 24];
-        let poseidon2_wide_heights = vec![10, 16, 19];
+        let base_alu_heights = vec![10, 18, 22, 24];
+        let ext_alu_heights = vec![10, 18, 22, 24];
+        let poseidon2_wide_heights = vec![9, 10, 12, 14, 16, 18];
         let exp_reverse_bits_len_heights = vec![10, 16, 19];
         let public_values_heights = vec![PUB_VALUES_LOG_HEIGHT];
 
