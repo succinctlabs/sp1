@@ -373,6 +373,8 @@ pub(crate) mod tests {
         InnerVal, MachineProver, SP1CoreOpts, StarkGenericConfig,
     };
 
+    use test_artifacts::FIBONACCI_ELF;
+
     type SC = BabyBearPoseidon2;
     type Challenge = <SC as StarkGenericConfig>::Challenge;
     type F = InnerVal;
@@ -384,7 +386,7 @@ pub(crate) mod tests {
     fn test_permutation_challenges() {
         // Generate a dummy proof.
         sp1_core_machine::utils::setup_logger();
-        let elf = test_artifacts::FIBONACCI_ELF;
+        let elf = FIBONACCI_ELF;
 
         let machine = A::machine(SC::default());
         let (_, vk) = machine.setup(&Program::from(elf).unwrap());

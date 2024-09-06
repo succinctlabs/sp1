@@ -172,6 +172,8 @@ mod tests {
 
     use crate::stark::StarkVerifier;
 
+    use test_artifacts::FIBONACCI_ELF;
+
     #[allow(clippy::type_complexity)]
     fn get_shard_data<'a, SC>(
         machine: &'a StarkMachine<SC, RiscvAir<SC::Val>>,
@@ -248,7 +250,7 @@ mod tests {
 
         // Generate a dummy proof.
         sp1_core_machine::utils::setup_logger();
-        let elf = test_artifacts::FIBONACCI_ELF;
+        let elf = FIBONACCI_ELF;
 
         let machine = A::machine(SC::default());
         let (_, vk) = machine.setup(&Program::from(elf).unwrap());
