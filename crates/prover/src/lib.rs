@@ -286,6 +286,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         let mut cache = self.recursion_programs.lock().unwrap();
         cache
             .get_or_insert(input.shape(), || {
+                tracing::info!("Proof shape: {:?}", input.shape());
                 let misses = self.recursion_cache_misses.fetch_add(1, Ordering::Relaxed);
                 tracing::debug!("Core cache miss, misses: {}", misses);
                 // Get the operations.
