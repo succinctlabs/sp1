@@ -30,6 +30,12 @@ jobs:
       - name: Setup CI
         uses: ./.github/actions/setup
 
+      - name: Install SP1 toolchain
+        run: |
+          curl -L https://sp1.succinct.xyz | bash
+          ~/.sp1/bin/sp1up 
+          ~/.sp1/bin/cargo-prove prove --version
+
       - name: Run cargo check
         uses: actions-rs/cargo@v1
         with:
@@ -66,6 +72,12 @@ jobs:
 
       - name: Setup CI
         uses: ./.github/actions/setup
+
+      - name: Install SP1 toolchain
+        run: |
+          curl -L https://sp1.succinct.xyz | bash
+          ~/.sp1/bin/sp1up 
+          ~/.sp1/bin/cargo-prove prove --version
 
       - name: Run cargo check
         uses: actions-rs/cargo@v1
@@ -104,6 +116,12 @@ jobs:
       - name: Setup CI
         uses: ./.github/actions/setup
 
+      - name: Install SP1 toolchain
+        run: |
+          curl -L https://sp1.succinct.xyz | bash
+          ~/.sp1/bin/sp1up 
+          ~/.sp1/bin/cargo-prove prove --version
+
       - name: Run cargo check
         uses: actions-rs/cargo@v1
         with:
@@ -134,6 +152,12 @@ jobs:
 
       - name: Setup CI
         uses: ./.github/actions/setup
+
+      - name: Install SP1 toolchain
+        run: |
+          curl -L https://sp1.succinct.xyz | bash
+          ~/.sp1/bin/sp1up 
+          ~/.sp1/bin/cargo-prove prove --version
 
       - name: Run cargo fmt
         uses: actions-rs/cargo@v1
