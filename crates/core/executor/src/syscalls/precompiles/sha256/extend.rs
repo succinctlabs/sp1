@@ -22,15 +22,6 @@ impl Syscall for Sha256ExtendSyscall {
         let mut w_i_minus_7_reads = Vec::new();
         let mut w_i_writes = Vec::new();
 
-        for i in 0..64 {
-            let addr = w_ptr + i as u32 * 4;
-            let local_mem_access = rt.rt.local_memory_access.remove(&addr);
-
-            if let Some(local_mem_access) = local_mem_access {
-                rt.rt.record.local_memory_access.push(local_mem_access);
-            }
-        }
-
         for i in 16..64 {
             // Read w[i-15].
             let (record, w_i_minus_15) = rt.mr(w_ptr + (i - 15) * 4);
@@ -64,20 +55,11 @@ impl Syscall for Sha256ExtendSyscall {
             rt.clk += 1;
         }
 
-        let mut sha_extend_local_mem_access = Vec::new();
-        for i in 0..64 {
-            let addr = w_ptr + i as u32 * 4;
-            let local_mem_access =
-                rt.rt.local_memory_access.remove(&addr).expect("Expected local memory access");
-
-            sha_extend_local_mem_access.push(local_mem_access);
-        }
-
         // Push the SHA extend event.
         let lookup_id = rt.syscall_lookup_id;
         let shard = rt.current_shard();
         let channel = rt.current_channel();
-        rt.record_mut().sha_extend_events.push(ShaExtendEvent {
+        let event = ShaExtendEvent {
             lookup_id,
             shard,
             channel,
@@ -88,8 +70,9 @@ impl Syscall for Sha256ExtendSyscall {
             w_i_minus_16_reads,
             w_i_minus_7_reads,
             w_i_writes,
-            local_mem_access: sha_extend_local_mem_access,
-        });
+            local_mem_access: rt.postprocess(),
+        };
+        rt.record_mut().sha_extend_events.push(event);
 
         None
     }

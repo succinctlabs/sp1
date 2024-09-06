@@ -85,6 +85,42 @@ pub enum MemoryRecordEnum {
     Write(MemoryWriteRecord),
 }
 
+impl MemoryRecordEnum {
+    /// Retrieve the current memory record.
+    #[must_use]
+    pub fn current_record(&self) -> MemoryRecord {
+        match self {
+            MemoryRecordEnum::Read(record) => MemoryRecord {
+                shard: record.shard,
+                timestamp: record.timestamp,
+                value: record.value,
+            },
+            MemoryRecordEnum::Write(record) => MemoryRecord {
+                shard: record.shard,
+                timestamp: record.timestamp,
+                value: record.value,
+            },
+        }
+    }
+
+    /// Retrieve the previous memory record.
+    #[must_use]
+    pub fn previous_record(&self) -> MemoryRecord {
+        match self {
+            MemoryRecordEnum::Read(record) => MemoryRecord {
+                shard: record.prev_shard,
+                timestamp: record.prev_timestamp,
+                value: record.value,
+            },
+            MemoryRecordEnum::Write(record) => MemoryRecord {
+                shard: record.prev_shard,
+                timestamp: record.prev_timestamp,
+                value: record.prev_value,
+            },
+        }
+    }
+}
+
 /// Memory Initialize/Finalize Event.
 ///
 /// This object encapsulates the information needed to prove a memory initialize or finalize

@@ -29,15 +29,6 @@ impl Syscall for Keccak256PermuteSyscall {
 
         let mut state = Vec::new();
 
-        for i in 0..STATE_NUM_WORDS {
-            let addr = state_ptr + i as u32 * 4;
-            let local_mem_access = rt.rt.local_memory_access.remove(&addr);
-
-            if let Some(local_mem_access) = local_mem_access {
-                rt.rt.record.local_memory_access.push(local_mem_access);
-            }
-        }
-
         let (state_records, state_values) = rt.mr_slice(state_ptr, STATE_NUM_WORDS);
         state_read_records.extend_from_slice(&state_records);
 
@@ -65,20 +56,11 @@ impl Syscall for Keccak256PermuteSyscall {
         let write_records = rt.mw_slice(state_ptr, values_to_write.as_slice());
         state_write_records.extend_from_slice(&write_records);
 
-        let mut keccek_local_mem_access = Vec::new();
-        for i in 0..STATE_NUM_WORDS {
-            let addr = state_ptr + i as u32 * 4;
-            let local_mem_access =
-                rt.rt.local_memory_access.remove(&addr).expect("Expected local memory access");
-
-            keccek_local_mem_access.push(local_mem_access);
-        }
-
         // Push the Keccak permute event.
         let shard = rt.current_shard();
         let channel = rt.current_channel();
         let lookup_id = rt.syscall_lookup_id;
-        rt.record_mut().keccak_permute_events.push(KeccakPermuteEvent {
+        let event = KeccakPermuteEvent {
             lookup_id,
             shard,
             channel,
@@ -88,8 +70,9 @@ impl Syscall for Keccak256PermuteSyscall {
             state_read_records,
             state_write_records,
             state_addr: state_ptr,
-            local_mem_access: keccek_local_mem_access,
-        });
+            local_mem_access: rt.postprocess(),
+        };
+        rt.record_mut().keccak_permute_events.push(event);
 
         None
     }

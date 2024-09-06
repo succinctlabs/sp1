@@ -1,5 +1,7 @@
+use hashbrown::HashMap;
+
 use crate::{
-    events::{LookupId, MemoryReadRecord, MemoryWriteRecord},
+    events::{LookupId, MemoryLocalEvent, MemoryReadRecord, MemoryWriteRecord},
     record::ExecutionRecord,
     Executor, Register,
 };
@@ -24,6 +26,8 @@ pub struct SyscallContext<'a, 'b: 'a> {
     pub syscall_lookup_id: LookupId,
     /// The syscall being executed.
     pub syscall: SyscallCode,
+    /// The local memory access events for the syscall.
+    pub local_memory_access: HashMap<u32, MemoryLocalEvent>,
 }
 
 impl<'a, 'b> SyscallContext<'a, 'b> {
@@ -39,6 +43,7 @@ impl<'a, 'b> SyscallContext<'a, 'b> {
             rt: runtime,
             syscall_lookup_id: LookupId::default(),
             syscall,
+            local_memory_access: HashMap::new(),
         }
     }
 
@@ -61,7 +66,8 @@ impl<'a, 'b> SyscallContext<'a, 'b> {
 
     /// Read a word from memory.
     pub fn mr(&mut self, addr: u32) -> (MemoryReadRecord, u32) {
-        let record = self.rt.mr(addr, self.current_shard, self.clk);
+        let record =
+            self.rt.mr(addr, self.current_shard, self.clk, Some(&mut self.local_memory_access));
         (record, record.value)
     }
 
@@ -79,7 +85,7 @@ impl<'a, 'b> SyscallContext<'a, 'b> {
 
     /// Write a word to memory.
     pub fn mw(&mut self, addr: u32, value: u32) -> MemoryWriteRecord {
-        self.rt.mw(addr, value, self.current_shard, self.clk)
+        self.rt.mw(addr, value, self.current_shard, self.clk, Some(&mut self.local_memory_access))
     }
 
     /// Write a slice of words to memory.
@@ -90,6 +96,28 @@ impl<'a, 'b> SyscallContext<'a, 'b> {
             records.push(record);
         }
         records
+    }
+
+    /// Postprocess the syscall.  Specifically will process the syscall's memory local events.
+    pub fn postprocess(&mut self) -> Vec<MemoryLocalEvent> {
+        let mut syscall_local_mem_events = Vec::new();
+
+        if !self.rt.unconstrained {
+            // Will need to transfer the existing memory local events in the executor to it's record,
+            // and return all the syscall memory local events.  This is similar to what
+            // `bump_record` does.
+            for (addr, event) in self.local_memory_access.drain() {
+                let local_mem_access = self.rt.local_memory_access.remove(&addr);
+
+                if let Some(local_mem_access) = local_mem_access {
+                    self.rt.record.local_memory_access.push(local_mem_access);
+                }
+
+                syscall_local_mem_events.push(event);
+            }
+        }
+
+        syscall_local_mem_events
     }
 
     /// Get the current value of a register, but doesn't use a memory record.

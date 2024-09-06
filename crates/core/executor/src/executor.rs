@@ -102,7 +102,7 @@ pub struct Executor<'a> {
     /// checkpoints.
     pub memory_checkpoint: PagedMemory<Option<MemoryRecord>>,
 
-    /// Local memory access events for memory addresses.
+    /// Local memory access events.
     pub local_memory_access: HashMap<u32, MemoryLocalEvent>,
 }
 
@@ -220,7 +220,7 @@ impl<'a> Executor<'a> {
             opts,
             max_cycles: context.max_cycles,
             memory_checkpoint: PagedMemory::new_preallocated(),
-            local_memory_access: HashMap::default(),
+            local_memory_access: HashMap::new(),
         }
     }
 
@@ -357,7 +357,13 @@ impl<'a> Executor<'a> {
     }
 
     /// Read a word from memory and create an access record.
-    pub fn mr(&mut self, addr: u32, shard: u32, timestamp: u32) -> MemoryReadRecord {
+    pub fn mr(
+        &mut self,
+        addr: u32,
+        shard: u32,
+        timestamp: u32,
+        local_memory_access: Option<&mut HashMap<u32, MemoryLocalEvent>>,
+    ) -> MemoryReadRecord {
         // Get the memory record entry.
         let entry = self.state.memory.entry(addr);
         if self.executor_mode == ExecutorMode::Checkpoint || self.unconstrained {
@@ -397,7 +403,13 @@ impl<'a> Executor<'a> {
         record.timestamp = timestamp;
 
         if !self.unconstrained {
-            self.local_memory_access
+            let local_memory_access = if let Some(local_memory_access) = local_memory_access {
+                local_memory_access
+            } else {
+                &mut self.local_memory_access
+            };
+
+            local_memory_access
                 .entry(addr)
                 .and_modify(|e| {
                     e.final_mem_access = *record;
@@ -420,7 +432,14 @@ impl<'a> Executor<'a> {
     }
 
     /// Write a word to memory and create an access record.
-    pub fn mw(&mut self, addr: u32, value: u32, shard: u32, timestamp: u32) -> MemoryWriteRecord {
+    pub fn mw(
+        &mut self,
+        addr: u32,
+        value: u32,
+        shard: u32,
+        timestamp: u32,
+        local_memory_access: Option<&mut HashMap<u32, MemoryLocalEvent>>,
+    ) -> MemoryWriteRecord {
         // Get the memory record entry.
         let entry = self.state.memory.entry(addr);
         if self.executor_mode == ExecutorMode::Checkpoint || self.unconstrained {
@@ -462,7 +481,13 @@ impl<'a> Executor<'a> {
         record.timestamp = timestamp;
 
         if !self.unconstrained {
-            self.local_memory_access
+            let local_memory_access = if let Some(local_memory_access) = local_memory_access {
+                local_memory_access
+            } else {
+                &mut self.local_memory_access
+            };
+
+            local_memory_access
                 .entry(addr)
                 .and_modify(|e| {
                     e.final_mem_access = *record;
@@ -491,7 +516,7 @@ impl<'a> Executor<'a> {
         assert_valid_memory_access!(addr, position);
 
         // Read the address from memory and create a memory read record.
-        let record = self.mr(addr, self.shard(), self.timestamp(&position));
+        let record = self.mr(addr, self.shard(), self.timestamp(&position), None);
 
         // If we're not in unconstrained mode, record the access for the current cycle.
         if !self.unconstrained && self.executor_mode == ExecutorMode::Trace {
@@ -516,7 +541,7 @@ impl<'a> Executor<'a> {
         assert_valid_memory_access!(addr, position);
 
         // Read the address from memory and create a memory read record.
-        let record = self.mw(addr, value, self.shard(), self.timestamp(&position));
+        let record = self.mw(addr, value, self.shard(), self.timestamp(&position), None);
 
         // If we're not in unconstrained mode, record the access for the current cycle.
         if !self.unconstrained && self.executor_mode == ExecutorMode::Trace {
@@ -1024,6 +1049,7 @@ impl<'a> Executor<'a> {
                         } else {
                             a = syscall_id;
                         }
+                        precompile_rt.postprocess();
 
                         // If the syscall is `HALT` and the exit code is non-zero, return an error.
                         if syscall == SyscallCode::HALT && precompile_rt.exit_code != 0 {

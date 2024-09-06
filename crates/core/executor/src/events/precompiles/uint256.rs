@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::events::{
     memory::{MemoryReadRecord, MemoryWriteRecord},
-    LookupId,
+    LookupId, MemoryLocalEvent,
 };
 
 /// Uint256 Mul Event.
@@ -34,4 +34,6 @@ pub struct Uint256MulEvent {
     pub y_memory_records: Vec<MemoryReadRecord>,
     /// The memory records for the modulus.
     pub modulus_memory_records: Vec<MemoryReadRecord>,
+    /// The local memory access records.
+    pub local_mem_access: Vec<MemoryLocalEvent>,
 }

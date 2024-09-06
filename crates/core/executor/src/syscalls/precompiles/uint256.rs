@@ -61,7 +61,7 @@ impl Syscall for Uint256MulSyscall {
         let lookup_id = rt.syscall_lookup_id;
         let shard = rt.current_shard();
         let channel = rt.current_channel();
-        rt.record_mut().uint256_mul_events.push(Uint256MulEvent {
+        let event = Uint256MulEvent {
             lookup_id,
             shard,
             channel,
@@ -74,7 +74,9 @@ impl Syscall for Uint256MulSyscall {
             x_memory_records,
             y_memory_records,
             modulus_memory_records,
-        });
+            local_mem_access: rt.postprocess(),
+        };
+        rt.record_mut().uint256_mul_events.push(event);
 
         None
     }

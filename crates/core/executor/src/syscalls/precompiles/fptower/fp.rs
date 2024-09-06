@@ -40,25 +40,7 @@ impl<P: FpOpField> Syscall for FpOpSyscall<P> {
 
         let x = rt.slice_unsafe(x_ptr, num_words);
 
-        for i in 0..num_words {
-            let addr = y_ptr + i as u32 * 4;
-            let local_mem_access = rt.rt.local_memory_access.remove(&addr);
-
-            if let Some(local_mem_access) = local_mem_access {
-                rt.rt.record.local_memory_access.push(local_mem_access);
-            }
-        }
-
         let (y_memory_records, y) = rt.mr_slice(y_ptr, num_words);
-
-        let mut fp_local_mem_access = Vec::new();
-        for i in 0..num_words {
-            let addr = y_ptr + i as u32 * 4;
-            let local_mem_access =
-                rt.rt.local_memory_access.remove(&addr).expect("Expected local memory access");
-
-            fp_local_mem_access.push(local_mem_access);
-        }
 
         let modulus = &BigUint::from_bytes_le(P::MODULUS);
         let a = BigUint::from_slice(&x) % modulus;
@@ -74,64 +56,30 @@ impl<P: FpOpField> Syscall for FpOpSyscall<P> {
         result.resize(num_words, 0);
 
         rt.clk += 1;
-
-        for i in 0..result.len() {
-            let addr = x_ptr + i as u32 * 4;
-            let local_mem_access = rt.rt.local_memory_access.remove(&addr);
-
-            if let Some(local_mem_access) = local_mem_access {
-                rt.rt.record.local_memory_access.push(local_mem_access);
-            }
-        }
-
         let x_memory_records = rt.mw_slice(x_ptr, &result);
-
-        for i in 0..result.len() {
-            let addr = x_ptr + i as u32 * 4;
-            let local_mem_access =
-                rt.rt.local_memory_access.remove(&addr).expect("Expected local memory access");
-
-            fp_local_mem_access.push(local_mem_access);
-        }
 
         let lookup_id = rt.syscall_lookup_id;
         let shard = rt.current_shard();
         let channel = rt.current_channel();
+        let event = FpOpEvent {
+            syscall,
+            lookup_id,
+            shard,
+            channel,
+            clk,
+            x_ptr,
+            x,
+            y_ptr,
+            y,
+            op: self.op,
+            x_memory_records,
+            y_memory_records,
+            local_mem_access: rt.postprocess(),
+        };
+
         match P::FIELD_TYPE {
-            FieldType::Bn254 => {
-                rt.record_mut().bn254_fp_events.push(FpOpEvent {
-                    syscall,
-                    lookup_id,
-                    shard,
-                    channel,
-                    clk,
-                    x_ptr,
-                    x,
-                    y_ptr,
-                    y,
-                    op: self.op,
-                    x_memory_records,
-                    y_memory_records,
-                    local_mem_access: fp_local_mem_access,
-                });
-            }
-            FieldType::Bls12381 => {
-                rt.record_mut().bls12381_fp_events.push(FpOpEvent {
-                    syscall,
-                    lookup_id,
-                    shard,
-                    channel,
-                    clk,
-                    x_ptr,
-                    x,
-                    y_ptr,
-                    y,
-                    op: self.op,
-                    x_memory_records,
-                    y_memory_records,
-                    local_mem_access: fp_local_mem_access,
-                });
-            }
+            FieldType::Bn254 => rt.record_mut().bn254_fp_events.push(event),
+            FieldType::Bls12381 => rt.record_mut().bls12381_fp_events.push(event),
         }
 
         None

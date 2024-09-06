@@ -30,26 +30,8 @@ impl<E: EdwardsParameters> Syscall for EdwardsDecompressSyscall<E> {
         assert!(slice_ptr % 4 == 0, "Pointer must be 4-byte aligned.");
         assert!(sign <= 1, "Sign bit must be 0 or 1.");
 
-        for i in 0..WORDS_FIELD_ELEMENT {
-            let addr = slice_ptr + (COMPRESSED_POINT_BYTES as u32) + i as u32 * 4;
-            let local_mem_access = rt.rt.local_memory_access.remove(&addr);
-
-            if let Some(local_mem_access) = local_mem_access {
-                rt.rt.record.local_memory_access.push(local_mem_access);
-            }
-        }
-
         let (y_memory_records_vec, y_vec) =
             rt.mr_slice(slice_ptr + (COMPRESSED_POINT_BYTES as u32), WORDS_FIELD_ELEMENT);
-
-        let mut ec_decompress_local_mem_access = Vec::new();
-        for i in 0..WORDS_FIELD_ELEMENT {
-            let addr = slice_ptr + (COMPRESSED_POINT_BYTES as u32) + i as u32 * 4;
-            let local_mem_access =
-                rt.rt.local_memory_access.remove(&addr).expect("Expected local memory access");
-
-            ec_decompress_local_mem_access.push(local_mem_access);
-        }
 
         let y_memory_records: [MemoryReadRecord; 8] = y_memory_records_vec.try_into().unwrap();
 
@@ -73,31 +55,14 @@ impl<E: EdwardsParameters> Syscall for EdwardsDecompressSyscall<E> {
         let decompressed_x_words: [u32; WORDS_FIELD_ELEMENT] =
             bytes_to_words_le(&decompressed_x_bytes);
 
-        for i in 0..decompressed_x_words.len() {
-            let addr = slice_ptr + i as u32 * 4;
-            let local_mem_access = rt.rt.local_memory_access.remove(&addr);
-
-            if let Some(local_mem_access) = local_mem_access {
-                rt.rt.record.local_memory_access.push(local_mem_access);
-            }
-        }
-
         // Write decompressed X into slice
         let x_memory_records_vec = rt.mw_slice(slice_ptr, &decompressed_x_words);
         let x_memory_records: [MemoryWriteRecord; 8] = x_memory_records_vec.try_into().unwrap();
 
-        for i in 0..decompressed_x_words.len() {
-            let addr = slice_ptr + i as u32 * 4;
-            let local_mem_access =
-                rt.rt.local_memory_access.remove(&addr).expect("Expected local memory access");
-
-            ec_decompress_local_mem_access.push(local_mem_access);
-        }
-
         let lookup_id = rt.syscall_lookup_id;
         let shard = rt.current_shard();
         let channel = rt.current_channel();
-        rt.record_mut().ed_decompress_events.push(EdDecompressEvent {
+        let event = EdDecompressEvent {
             lookup_id,
             shard,
             channel,
@@ -108,8 +73,9 @@ impl<E: EdwardsParameters> Syscall for EdwardsDecompressSyscall<E> {
             decompressed_x_bytes: decompressed_x_bytes.try_into().unwrap(),
             x_memory_records,
             y_memory_records,
-            local_mem_access: ec_decompress_local_mem_access,
-        });
+            local_mem_access: rt.postprocess(),
+        };
+        rt.record_mut().ed_decompress_events.push(event);
         None
     }
 
