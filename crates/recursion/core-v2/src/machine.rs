@@ -19,7 +19,7 @@ use crate::{
     },
     instruction::{HintBitsInstr, HintExt2FeltsInstr, HintInstr},
     shape::RecursionShape,
-    Instruction, RecursionProgram,
+    ExpReverseBitsInstr, Instruction, RecursionProgram,
 };
 
 #[derive(sp1_derive::MachineAir)]
@@ -143,12 +143,12 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize, const COL_P
     pub fn shrink_shape() -> RecursionShape {
         let shape = HashMap::from(
             [
-                (Self::MemoryConst(MemoryConstChip::default()), 16),
+                (Self::MemoryConst(MemoryConstChip::default()), 17),
                 (Self::MemoryVar(MemoryVarChip::default()), 18),
                 (Self::BaseAlu(BaseAluChip), 20),
                 (Self::ExtAlu(ExtAluChip), 22),
-                (Self::Poseidon2Wide(Poseidon2WideChip::<DEGREE>), 16),
-                (Self::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE>), 16),
+                (Self::Poseidon2Wide(Poseidon2WideChip::<DEGREE>), 17),
+                (Self::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE>), 17),
                 (Self::PublicValues(PublicValuesChip), PUB_VALUES_LOG_HEIGHT),
             ]
             .map(|(chip, log_height)| (chip.name(), log_height)),
@@ -187,7 +187,9 @@ impl<F> AddAssign<&Instruction<F>> for RecursionAirHeights {
             Instruction::ExtAlu(_) => self.ext_alu_height += 1,
             Instruction::Mem(_) => self.mem_const_height += 1,
             Instruction::Poseidon2(_) => self.poseidon2_wide_height += 1,
-            Instruction::ExpReverseBitsLen(_) => self.exp_reverse_bits_len_height += 1,
+            Instruction::ExpReverseBitsLen(ExpReverseBitsInstr { addrs, .. }) => {
+                self.exp_reverse_bits_len_height += addrs.exp.len()
+            }
             Instruction::Hint(HintInstr { output_addrs_mults })
             | Instruction::HintBits(HintBitsInstr {
                 output_addrs_mults,
