@@ -39,9 +39,7 @@ impl<P: FpOpField> Syscall for Fp2MulSyscall<P> {
         let num_words = <P as NumWords>::WordsCurvePoint::USIZE;
 
         let x = rt.slice_unsafe(x_ptr, num_words);
-
         let (y_memory_records, y) = rt.mr_slice(y_ptr, num_words);
-
         rt.clk += 1;
 
         let (ac0, ac1) = x.split_at(x.len() / 2);
@@ -64,7 +62,6 @@ impl<P: FpOpField> Syscall for Fp2MulSyscall<P> {
             c0.to_u32_digits().into_iter().chain(c1.to_u32_digits()).collect::<Vec<u32>>();
 
         result.resize(num_words, 0);
-
         let x_memory_records = rt.mw_slice(x_ptr, &result);
 
         let lookup_id = rt.syscall_lookup_id;

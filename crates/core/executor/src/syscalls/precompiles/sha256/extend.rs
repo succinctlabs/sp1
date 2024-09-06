@@ -21,7 +21,6 @@ impl Syscall for Sha256ExtendSyscall {
         let mut w_i_minus_16_reads = Vec::new();
         let mut w_i_minus_7_reads = Vec::new();
         let mut w_i_writes = Vec::new();
-
         for i in 16..64 {
             // Read w[i-15].
             let (record, w_i_minus_15) = rt.mr(w_ptr + (i - 15) * 4);

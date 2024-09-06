@@ -852,9 +852,9 @@ impl<'a> Executor<'a> {
             Opcode::SLTU => {
                 (rd, b, c) = self.alu_rr(instruction);
                 a = if b < c { 1 } else { 0 };
-
                 self.alu_rw(instruction, rd, a, b, c, lookup_id);
             }
+
             // Load instructions.
             Opcode::LB => {
                 (rd, b, c, addr, memory_read_value) = self.load_rr(instruction);
@@ -1049,7 +1049,6 @@ impl<'a> Executor<'a> {
                         } else {
                             a = syscall_id;
                         }
-                        precompile_rt.postprocess();
 
                         // If the syscall is `HALT` and the exit code is non-zero, return an error.
                         if syscall == SyscallCode::HALT && precompile_rt.exit_code != 0 {

@@ -39,7 +39,6 @@ impl<P: FpOpField> Syscall for FpOpSyscall<P> {
         let num_words = <P as NumWords>::WordsFieldElement::USIZE;
 
         let x = rt.slice_unsafe(x_ptr, num_words);
-
         let (y_memory_records, y) = rt.mr_slice(y_ptr, num_words);
 
         let modulus = &BigUint::from_bytes_le(P::MODULUS);

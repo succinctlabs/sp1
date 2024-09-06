@@ -51,7 +51,6 @@ impl Syscall for Sha256CompressSyscall {
         let mut f = hx[5];
         let mut g = hx[6];
         let mut h = hx[7];
-
         for i in 0..64 {
             let s1 = e.rotate_right(6) ^ e.rotate_right(11) ^ e.rotate_right(25);
             let ch = (e & f) ^ (!e & g);
@@ -76,7 +75,6 @@ impl Syscall for Sha256CompressSyscall {
             b = a;
             a = temp1.wrapping_add(temp2);
         }
-
         // Increment the clk by 1 before writing to h, since we've already read h at the start_clk
         // during the initialization phase.
         rt.clk += 1;
