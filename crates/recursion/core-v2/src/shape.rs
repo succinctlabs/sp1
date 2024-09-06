@@ -41,6 +41,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize, const COL_P
             let mut distance = 0;
             let mut is_valid = true;
             for (name, height) in heights.iter() {
+                tracing::info!("Checking height {} for air {}", height, name);
                 let next_power_of_two = height.next_power_of_two();
                 let allowed_log_height = shape.get(name).unwrap();
                 let allowed_height = 1 << allowed_log_height;
@@ -57,12 +58,13 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize, const COL_P
             }
         }
 
-        // if let Some(shape) = closest_shape {
-        //     let shape = RecursionShape { inner: shape };
-        //     program.shape = Some(shape);
-        // } else {
-        //     panic!("no shape found for heights: {:?}", heights);
-        // }
+        if let Some(shape) = closest_shape {
+            tracing::info!("Found shape with minimal hamming distance: {:?}", shape);
+            let shape = RecursionShape { inner: shape };
+            program.shape = Some(shape);
+        } else {
+            panic!("no shape found for heights: {:?}", heights);
+        }
     }
 }
 
