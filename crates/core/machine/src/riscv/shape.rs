@@ -145,3 +145,19 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
         Self { allowed_log_heights: allowed_heights }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use p3_baby_bear::BabyBear;
+
+    use super::*;
+
+    #[test]
+    #[ignore]
+    fn test_making_shapes() {
+        let shape_config = CoreShapeConfig::<BabyBear>::default();
+        let all_shapes = shape_config.generate_all_allowed_shapes();
+
+        println!("There are {} core shapes", all_shapes.len());
+    }
+}
