@@ -278,6 +278,11 @@ where
                                     &opts,
                                     InteractionScope::Global,
                                 );
+                                prover.machine().generate_dependencies(
+                                    &mut records,
+                                    &opts,
+                                    InteractionScope::Local,
+                                );
                             });
 
                             // Collect the checkpoints to be used again in the phase 2 prover.
