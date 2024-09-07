@@ -1,5 +1,5 @@
 use core::panic;
-use std::{collections::BTreeSet, iter::once};
+use std::iter::once;
 
 use itertools::Itertools;
 
@@ -74,7 +74,7 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
         record.shape = Some(shape);
     }
 
-    pub fn generate_all_allowed_shapes(&self) -> BTreeSet<ProofShape> {
+    pub fn generate_all_allowed_shapes(&self) -> impl Iterator<Item = ProofShape> + '_ {
         // for chip in allowed_heights.
         self.allowed_log_heights
             .iter()
@@ -91,7 +91,6 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
                     })
                     .collect::<ProofShape>()
             })
-            .collect()
     }
 }
 
@@ -100,20 +99,20 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
         let mut allowed_heights = HashMap::new();
 
         // Preprocessed chip heights.
-        let program_heights = vec![0, 10, 16, 18, 19, 20, 21, 22];
-        let program_memory_heights = vec![0, 10, 16, 18, 19, 20, 21, 22];
+        let program_heights = vec![10, 16, 21, 22];
+        let program_memory_heights = vec![10, 16, 21, 22];
 
         // Core chip heights.
-        let cpu_heights = vec![0, 10, 16, 18, 19, 20, 21, 22];
-        let divrem_heights = vec![10, 16, 18, 19, 20, 21, 22];
-        let add_sub_heights = vec![10, 16, 18, 19, 20, 21, 22];
-        let bitwise_heights = vec![10, 16, 18, 19, 20, 21, 22];
-        let mul_heights = vec![10, 16, 18, 19, 20, 21, 22];
-        let shift_right_heights = vec![10, 16, 18, 19, 20, 21, 22];
-        let shift_left_heights = vec![10, 16, 18, 19, 20, 21, 22];
-        let lt_heights = vec![10, 16, 18, 19, 20, 21, 22];
-        let memory_init_heights = vec![10, 16, 18, 19, 20, 21, 22];
-        let memory_final_heights = vec![10, 16, 18, 19, 20, 21, 22];
+        let cpu_heights = vec![16, 20, 21, 22];
+        let divrem_heights = vec![10, 16, 20, 21, 22];
+        let add_sub_heights = vec![10, 16, 20, 21, 22];
+        let bitwise_heights = vec![10, 16, 20, 21, 22];
+        let mul_heights = vec![10, 16, 20, 21, 22];
+        let shift_right_heights = vec![10, 18, 20, 21, 22];
+        let shift_left_heights = vec![10, 18, 20, 21, 22];
+        let lt_heights = vec![10, 18, 20, 21, 22];
+        let memory_init_heights = vec![10, 18, 20, 21, 22];
+        let memory_final_heights = vec![10, 18, 20, 21, 22];
 
         // Get allowed heights for preprocessed chips.
         allowed_heights.extend([
@@ -156,8 +155,8 @@ mod tests {
     #[ignore]
     fn test_making_shapes() {
         let shape_config = CoreShapeConfig::<BabyBear>::default();
-        let all_shapes = shape_config.generate_all_allowed_shapes();
+        let num_shapes = shape_config.generate_all_allowed_shapes().take(1 << 25).count();
 
-        println!("There are {} core shapes", all_shapes.len());
+        println!("There are {} core shapes", num_shapes);
     }
 }
