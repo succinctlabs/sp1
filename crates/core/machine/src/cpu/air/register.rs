@@ -23,7 +23,7 @@ impl CpuChip {
             .assert_eq(local.op_b_val().reduce::<AB>(), local.instruction.op_b);
         builder
             .when(local.selectors.imm_c)
-            .assert_eq(local.op_c_val().reduce::<AB>(), local.instruction.op_c);
+            .assert_word_eq(local.op_c_val(), local.instruction.op_c);
 
         // If they are not immediates, read `b` and `c` from memory.
         builder.eval_memory_access(
@@ -39,7 +39,7 @@ impl CpuChip {
             local.shard,
             local.channel,
             local.clk + AB::F::from_canonical_u32(MemoryAccessPosition::C as u32),
-            local.instruction.op_c,
+            local.instruction.op_c[0],
             &local.op_c_access,
             AB::Expr::one() - local.selectors.imm_c,
         );
