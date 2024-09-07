@@ -1,3 +1,4 @@
+use p3_air::AirBuilder;
 use p3_field::AbstractField;
 use sp1_stark::air::SP1AirBuilder;
 
@@ -19,17 +20,17 @@ impl CpuChip {
         // Load immediates into b and c, if the immediate flags are on.
         builder
             .when(local.selectors.imm_b)
-            .assert_word_eq(local.op_b_val(), local.instruction.op_b);
+            .assert_eq(local.op_b_val().reduce::<AB>(), local.instruction.op_b);
         builder
             .when(local.selectors.imm_c)
-            .assert_word_eq(local.op_c_val(), local.instruction.op_c);
+            .assert_eq(local.op_c_val().reduce::<AB>(), local.instruction.op_c);
 
         // If they are not immediates, read `b` and `c` from memory.
         builder.eval_memory_access(
             local.shard,
             local.channel,
             local.clk + AB::F::from_canonical_u32(MemoryAccessPosition::B as u32),
-            local.instruction.op_b[0],
+            local.instruction.op_b,
             &local.op_b_access,
             AB::Expr::one() - local.selectors.imm_b,
         );
@@ -38,7 +39,7 @@ impl CpuChip {
             local.shard,
             local.channel,
             local.clk + AB::F::from_canonical_u32(MemoryAccessPosition::C as u32),
-            local.instruction.op_c[0],
+            local.instruction.op_c,
             &local.op_c_access,
             AB::Expr::one() - local.selectors.imm_c,
         );
@@ -52,7 +53,7 @@ impl CpuChip {
             local.shard,
             local.channel,
             local.clk + AB::F::from_canonical_u32(MemoryAccessPosition::A as u32),
-            local.instruction.op_a[0],
+            local.instruction.op_a,
             &local.op_a_access,
             local.is_real,
         );
