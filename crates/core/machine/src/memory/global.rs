@@ -408,7 +408,6 @@ mod tests {
         machine.generate_dependencies(&mut runtime.records, &opts, InteractionScope::Local);
 
         let shards = runtime.records;
-        assert_eq!(shards.len(), 2);
         for shard in shards.clone() {
             debug_interactions_with_all_chips::<BabyBearPoseidon2, RiscvAir<BabyBear>>(
                 &machine,

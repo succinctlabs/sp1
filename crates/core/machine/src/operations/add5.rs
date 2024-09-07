@@ -99,9 +99,7 @@ impl<F: Field> Add5Operation<F> {
         builder.assert_bool(is_real);
         // Range check each byte.
         {
-            words
-                .iter()
-                .for_each(|word| builder.slice_range_check_u8(&word.0, channel, is_real));
+            words.iter().for_each(|word| builder.slice_range_check_u8(&word.0, channel, is_real));
             builder.slice_range_check_u8(&cols.value.0, channel, is_real);
         }
         let mut builder_is_real = builder.when(is_real);
