@@ -1,6 +1,6 @@
 #![allow(unused_variables)]
 use hashbrown::HashMap;
-use sp1_core_executor::SP1Context;
+use sp1_core_executor::{SP1Context, SP1ReduceProof};
 use sp1_core_machine::io::SP1Stdin;
 use sp1_stark::{ShardCommitment, ShardOpenedValues, ShardProof, StarkVerifyingKey};
 
@@ -15,7 +15,7 @@ use p3_fri::{FriProof, TwoAdicFriPcsProof};
 use sp1_prover::{
     components::DefaultProverComponents,
     verify::{verify_groth16_bn254_public_inputs, verify_plonk_bn254_public_inputs},
-    Groth16Bn254Proof, HashableKey, PlonkBn254Proof, SP1Prover, SP1ReduceProof,
+    Groth16Bn254Proof, HashableKey, PlonkBn254Proof, SP1Prover,
 };
 
 use super::{ProofOpts, ProverType};

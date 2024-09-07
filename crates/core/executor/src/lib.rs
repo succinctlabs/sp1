@@ -32,6 +32,7 @@ mod program;
 #[cfg(any(test, feature = "programs"))]
 pub mod programs;
 mod record;
+mod reduce;
 mod register;
 mod report;
 mod shape;
@@ -47,6 +48,7 @@ pub use instruction::*;
 pub use opcode::*;
 pub use program::*;
 pub use record::*;
+pub use reduce::*;
 pub use register::*;
 pub use report::*;
 pub use shape::*;

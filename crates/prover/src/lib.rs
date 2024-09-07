@@ -42,6 +42,7 @@ use p3_matrix::dense::RowMajorMatrix;
 use sp1_core_executor::{ExecutionError, ExecutionReport, Executor, Program, SP1Context};
 use sp1_core_machine::{
     io::{SP1PublicValues, SP1Stdin},
+    reduce::SP1ReduceProof,
     riscv::RiscvAir,
     utils::{concurrency::TurnBasedSync, SP1CoreProverError},
 };
@@ -82,7 +83,7 @@ use sp1_recursion_circuit_v2::{
 };
 
 pub use types::*;
-use utils::words_to_bytes;
+use utils::{sp1_commited_values_digest_bn254, sp1_vkey_digest_bn254, words_to_bytes};
 
 use components::{DefaultProverComponents, SP1ProverComponents};
 
@@ -222,8 +223,8 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         let opts = SP1CoreOpts::default();
         let mut runtime = Executor::with_context(program, opts, context);
         runtime.write_vecs(&stdin.buffer);
-        for (reduce_vk, proof, vkey) in stdin.proofs.iter() {
-            runtime.write_proof(reduce_vk.clone(), proof.clone(), vkey.clone());
+        for (proof, vkey) in stdin.proofs.iter() {
+            runtime.write_proof(proof.clone(), vkey.clone());
         }
         runtime.run_fast()?;
         Ok((SP1PublicValues::from(&runtime.state.public_values_stream), runtime.report))
@@ -980,8 +981,8 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             vks_and_proofs: vec![(proof.vk.clone(), proof.proof.clone())],
             is_complete: true,
         };
-        let vkey_hash = proof.sp1_vkey_digest_bn254();
-        let committed_values_digest = proof.sp1_commited_values_digest_bn254();
+        let vkey_hash = sp1_vkey_digest_bn254(&proof);
+        let committed_values_digest = sp1_commited_values_digest_bn254(&proof);
 
         let mut witness = Witness::default();
         input.write(&mut witness);
@@ -1013,8 +1014,8 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             vks_and_proofs: vec![(proof.vk.clone(), proof.proof.clone())],
             is_complete: true,
         };
-        let vkey_hash = proof.sp1_vkey_digest_bn254();
-        let committed_values_digest = proof.sp1_commited_values_digest_bn254();
+        let vkey_hash = sp1_vkey_digest_bn254(&proof);
+        let committed_values_digest = sp1_commited_values_digest_bn254(&proof);
 
         let mut witness = Witness::default();
         input.write(&mut witness);
@@ -1102,6 +1103,7 @@ pub mod tests {
     use serial_test::serial;
     #[cfg(test)]
     use sp1_core_machine::utils::setup_logger;
+    use utils::sp1_vkey_digest_babybear;
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub enum Test {
@@ -1181,11 +1183,11 @@ pub mod tests {
         }
 
         tracing::info!("checking vkey hash babybear");
-        let vk_digest_babybear = wrapped_bn254_proof.sp1_vkey_digest_babybear();
+        let vk_digest_babybear = sp1_vkey_digest_babybear(&wrapped_bn254_proof);
         assert_eq!(vk_digest_babybear, vk.hash_babybear());
 
         tracing::info!("checking vkey hash bn254");
-        let vk_digest_bn254 = wrapped_bn254_proof.sp1_vkey_digest_bn254();
+        let vk_digest_bn254 = sp1_vkey_digest_bn254(&wrapped_bn254_proof);
         assert_eq!(vk_digest_bn254, vk.hash_bn254());
 
         tracing::info!("generate plonk bn254 proof");
@@ -1267,21 +1269,9 @@ pub mod tests {
             .unwrap();
         stdin.write(&vkey_digest);
         stdin.write(&vec![pv_1.clone(), pv_2.clone(), pv_2.clone()]);
-        stdin.write_proof(
-            deferred_reduce_1.vk.clone(),
-            deferred_reduce_1.proof.clone(),
-            keccak_vk.vk.clone(),
-        );
-        stdin.write_proof(
-            deferred_reduce_2.vk.clone(),
-            deferred_reduce_2.proof.clone(),
-            keccak_vk.vk.clone(),
-        );
-        stdin.write_proof(
-            deferred_reduce_2.vk.clone(),
-            deferred_reduce_2.proof.clone(),
-            keccak_vk.vk.clone(),
-        );
+        stdin.write_proof(deferred_reduce_1.clone(), keccak_vk.vk.clone());
+        stdin.write_proof(deferred_reduce_2.clone(), keccak_vk.vk.clone());
+        stdin.write_proof(deferred_reduce_2.clone(), keccak_vk.vk.clone());
 
         tracing::info!("proving verify program (core)");
         let verify_proof = prover.prove_core(&verify_pk, &stdin, opts, Default::default())?;

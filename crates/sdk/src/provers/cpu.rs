@@ -1,7 +1,7 @@
 use anyhow::Result;
 use sp1_core_executor::SP1Context;
 use sp1_core_machine::io::SP1Stdin;
-use sp1_prover::{components::DefaultProverComponents, SP1Prover, SP1ReduceProof};
+use sp1_prover::{components::DefaultProverComponents, SP1Prover};
 
 use crate::{
     install::try_install_circuit_artifacts, provers::ProofOpts, Prover, SP1Proof, SP1ProofKind,
