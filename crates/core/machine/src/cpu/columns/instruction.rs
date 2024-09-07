@@ -1,6 +1,7 @@
 use p3_field::PrimeField;
 use sp1_core_executor::{Instruction, Register};
 use sp1_derive::AlignedBorrow;
+use sp1_stark::Word;
 use std::{iter::once, mem::size_of, vec::IntoIter};
 
 pub const NUM_INSTRUCTION_COLS: usize = size_of::<InstructionCols<u8>>();
@@ -19,7 +20,7 @@ pub struct InstructionCols<T> {
     pub op_b: T,
 
     /// The third operand for this instruction.
-    pub op_c: T,
+    pub op_c: Word<T>,
 
     /// Flags to indicate if op_a is register 0.
     pub op_a_0: T,
@@ -30,7 +31,7 @@ impl<F: PrimeField> InstructionCols<F> {
         self.opcode = instruction.opcode.as_field::<F>();
         self.op_a = F::from_canonical_u32(instruction.op_a);
         self.op_b = F::from_canonical_u32(instruction.op_b);
-        self.op_c = F::from_canonical_u32(instruction.op_c);
+        self.op_c = instruction.op_c.into();
 
         self.op_a_0 = F::from_bool(instruction.op_a == Register::X0 as u32);
     }
@@ -44,7 +45,7 @@ impl<T> IntoIterator for InstructionCols<T> {
         once(self.opcode)
             .chain(once(self.op_a))
             .chain(once(self.op_b))
-            .chain(once(self.op_c))
+            .chain(self.op_c)
             .chain(once(self.op_a_0))
             .collect::<Vec<_>>()
             .into_iter()
