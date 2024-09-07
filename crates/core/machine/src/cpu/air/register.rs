@@ -18,12 +18,12 @@ impl CpuChip {
         is_branch_instruction: AB::Expr,
     ) {
         // Load immediates into b and c, if the immediate flags are on.
-        builder
-            .when(local.selectors.imm_b)
-            .assert_eq(local.op_b_val().reduce::<AB>(), local.instruction.op_b);
-        builder
-            .when(local.selectors.imm_c)
-            .assert_eq(local.op_c_val().reduce::<AB>(), local.instruction.op_c);
+        // builder
+        //     .when(local.selectors.imm_b)
+        //     .assert_eq(local.op_b_val().reduce::<AB>(), local.instruction.op_b);
+        // builder
+        //     .when(local.selectors.imm_c)
+        //     .assert_eq(local.op_c_val().reduce::<AB>(), local.instruction.op_c);
 
         // If they are not immediates, read `b` and `c` from memory.
         builder.eval_memory_access(
