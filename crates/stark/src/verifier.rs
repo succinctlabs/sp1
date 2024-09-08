@@ -5,10 +5,11 @@ use std::{
 };
 
 use itertools::Itertools;
+use num_traits::cast::ToPrimitive;
 use p3_air::{Air, BaseAir};
 use p3_challenger::{CanObserve, FieldChallenger};
 use p3_commit::{LagrangeSelectors, Pcs, PolynomialSpace};
-use p3_field::{AbstractExtensionField, AbstractField};
+use p3_field::{AbstractExtensionField, AbstractField, Field};
 
 use super::{
     folder::VerifierConstraintFolder,
@@ -54,6 +55,23 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
         if chips.len() != opened_values.chips.len() {
             return Err(VerificationError::ChipOpeningLengthMismatch);
         }
+
+        // Assert that the byte multiplicities don't overflow.
+        let mut max_byte_lookup_mult = 0u64;
+        chips.iter().zip(opened_values.chips.iter()).for_each(|(chip, val)| {
+            max_byte_lookup_mult = max_byte_lookup_mult
+                .checked_add(
+                    (chip.num_sent_byte_lookups() as u64)
+                        .checked_mul(1u64.checked_shl(val.log_degree as u32).unwrap())
+                        .unwrap(),
+                )
+                .unwrap();
+        });
+
+        assert!(
+            max_byte_lookup_mult <= SC::Val::order().to_u64().unwrap(),
+            "Byte multiplicities overflow"
+        );
 
         let log_degrees = opened_values.chips.iter().map(|val| val.log_degree).collect::<Vec<_>>();
 

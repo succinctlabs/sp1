@@ -41,6 +41,7 @@ strum = "0.26.3"
 strum_macros = "0.26.4" 
 getrandom = { version = "0.2.15", features = ["custom"] }
 sysinfo = "0.30.13"
+num-traits = "0.2.19"
 
 [dev-dependencies]
 sp1-zkvm = { workspace = true }

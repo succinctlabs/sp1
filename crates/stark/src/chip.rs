@@ -90,6 +90,12 @@ where
         self.sends.len() + self.receives.len()
     }
 
+    /// Returns the number of sent byte lookups in the chip.
+    #[inline]
+    pub fn num_sent_byte_lookups(&self) -> usize {
+        self.sends.iter().filter(|i| i.kind == InteractionKind::Byte).count()
+    }
+
     /// Returns the number of sends of the given kind.
     #[inline]
     pub fn num_sends_by_kind(&self, kind: InteractionKind) -> usize {
