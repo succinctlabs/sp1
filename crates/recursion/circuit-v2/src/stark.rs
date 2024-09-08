@@ -1,21 +1,18 @@
 use hashbrown::HashMap;
 use itertools::{izip, Itertools};
-use p3_commit::Mmcs;
-use p3_matrix::dense::RowMajorMatrix;
-
+use num_traits::cast::ToPrimitive;
 use p3_air::Air;
 use p3_baby_bear::BabyBear;
-use p3_commit::{Pcs, TwoAdicMultiplicativeCoset};
-use p3_field::TwoAdicField;
-use sp1_stark::{air::InteractionScope, ShardCommitment, ShardOpenedValues, Val};
-
-use p3_commit::PolynomialSpace;
+use p3_commit::{Mmcs, Pcs, PolynomialSpace, TwoAdicMultiplicativeCoset};
+use p3_field::{Field, TwoAdicField};
+use p3_matrix::dense::RowMajorMatrix;
 
 use sp1_recursion_compiler::{
     circuit::CircuitV2Builder,
     ir::{Builder, Config, Ext},
     prelude::Felt,
 };
+use sp1_stark::{air::InteractionScope, ShardCommitment, ShardOpenedValues, Val};
 use sp1_stark::{air::MachineAir, StarkGenericConfig, StarkMachine, StarkVerifyingKey};
 
 use crate::{
@@ -104,6 +101,23 @@ where
             chip_scopes,
             public_values,
         } = proof;
+
+        // Assert that the byte multiplicities don't overflow.
+        let mut max_byte_lookup_mult = 0u64;
+        chips.iter().zip(opened_values.chips.iter()).for_each(|(chip, val)| {
+            max_byte_lookup_mult = max_byte_lookup_mult
+                .checked_add(
+                    (chip.num_sent_byte_lookups() as u64)
+                        .checked_mul(1u64.checked_shl(val.log_degree as u32).unwrap())
+                        .unwrap(),
+                )
+                .unwrap();
+        });
+
+        assert!(
+            max_byte_lookup_mult <= SC::Val::order().to_u64().unwrap(),
+            "Byte multiplicities overflow"
+        );
 
         let log_degrees = opened_values.chips.iter().map(|val| val.log_degree).collect::<Vec<_>>();
 
