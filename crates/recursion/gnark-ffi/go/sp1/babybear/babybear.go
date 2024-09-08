@@ -341,7 +341,7 @@ func (p *Chip) reduceWithMaxBits(x frontend.Variable, maxNbBits uint64) frontend
 	if maxNbBits <= 30 {
 		return x
 	}
-	result, err := p.api.Compiler().NewHint(ReduceHint, 2, x)
+	result, err := p.api.Compiler().NewHint(ReduceHint, 2, x, maxNbBits)
 	if err != nil {
 		panic(err)
 	}
@@ -354,6 +354,7 @@ func (p *Chip) reduceWithMaxBits(x frontend.Variable, maxNbBits uint64) frontend
 	} else {
 		p.api.ToBinary(quotient, int(maxNbBits-30))
 	}
+
 	// Check that the remainder has size less than the BabyBear modulus, by decomposing it into a 27
 	// bit limb and a 4 bit limb.
 	new_result, new_err := p.api.Compiler().NewHint(SplitLimbsHint, 2, remainder)
@@ -400,10 +401,14 @@ func (p *Chip) reduceWithMaxBits(x frontend.Variable, maxNbBits uint64) frontend
 
 // The hint used to compute Reduce.
 func ReduceHint(_ *big.Int, inputs []*big.Int, results []*big.Int) error {
-	if len(inputs) != 1 {
-		panic("reduceHint expects 1 input operand")
+	if len(inputs) != 2 {
+		panic("reduceHint expects 2 input operands")
 	}
 	input := inputs[0]
+	maxNbBits := inputs[1].Int64()
+	if input.BitLen() > int(maxNbBits) {
+		fmt.Println("input.BitLen() >= int(maxNbBits), input:", input, "maxNbBits:", maxNbBits)
+	}
 	quotient := new(big.Int).Div(input, modulus)
 	remainder := new(big.Int).Rem(input, modulus)
 	results[0] = quotient
