@@ -6,4 +6,4 @@ all: test-artifacts
 # Since Clippy does not interact well with SP1's toolchain, the artifacts must exist before
 # Clippy is run. However, `cargo check` works fine.
 test-artifacts:
-	@cd crates/test-artifacts && make
+	make -C crates/test-artifacts
