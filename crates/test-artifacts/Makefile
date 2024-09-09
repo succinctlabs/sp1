@@ -1,6 +1,3 @@
-SHELL := /bin/bash
-.SHELLFLAGS = -e
-
 all:
 	for dir in programs/*/ ; do \
 		echo "Building in $${dir}..."; \
