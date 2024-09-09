@@ -2,7 +2,8 @@
 
 all: test-artifacts
 
-# Build the ELF artifacts used for testing by triggering the `build.rs` script.
-# Must be done manually before running Clippy since it does not interact well with SP1's toolchain.
+# Manually build the ELF artifacts used for testing by calling `cargo prove build`.
+# Since Clippy does not interact well with SP1's toolchain, the artifacts must exist before
+# Clippy is run. However, `cargo check` works fine.
 test-artifacts:
-	@cargo check -p test-artifacts
+	@cd crates/test-artifacts && make
