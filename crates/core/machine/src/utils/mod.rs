@@ -1,7 +1,6 @@
 mod buffer;
 pub mod concurrency;
 mod logger;
-mod programs;
 mod prove;
 mod span;
 mod tracer;
@@ -12,9 +11,6 @@ pub use prove::*;
 use sp1_curves::params::Limbs;
 pub use span::*;
 pub use tracer::*;
-
-#[cfg(test)]
-pub use programs::*;
 
 use crate::memory::MemoryCols;
 use generic_array::ArrayLength;

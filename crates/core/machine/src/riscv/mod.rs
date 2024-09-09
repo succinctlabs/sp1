@@ -327,7 +327,7 @@ pub mod tests {
     use crate::{
         io::SP1Stdin,
         riscv::RiscvAir,
-        utils::{self, fibonacci_program, prove, run_test, setup_logger, ssz_withdrawals_program},
+        utils::{self, prove, run_test, setup_logger},
     };
 
     use sp1_core_executor::{
@@ -338,6 +338,8 @@ pub mod tests {
         baby_bear_poseidon2::BabyBearPoseidon2, CpuProver, SP1CoreOpts, StarkProvingKey,
         StarkVerifyingKey,
     };
+
+    use test_artifacts::{FIBONACCI_ELF, KECCAK_PERMUTE_ELF};
 
     #[test]
     fn test_simple_prove() {
@@ -466,7 +468,7 @@ pub mod tests {
     #[test]
     fn test_fibonacci_prove_simple() {
         setup_logger();
-        let program = fibonacci_program();
+        let program = Program::from(FIBONACCI_ELF).unwrap();
         run_test::<CpuProver<_, _>>(program).unwrap();
     }
 
@@ -474,7 +476,7 @@ pub mod tests {
     fn test_fibonacci_prove_checkpoints() {
         setup_logger();
 
-        let program = fibonacci_program();
+        let program = Program::from(FIBONACCI_ELF).unwrap();
         let stdin = SP1Stdin::new();
         let mut opts = SP1CoreOpts::default();
         opts.shard_size = 1024;
@@ -485,7 +487,7 @@ pub mod tests {
     #[test]
     fn test_fibonacci_prove_batch() {
         setup_logger();
-        let program = fibonacci_program();
+        let program = Program::from(FIBONACCI_ELF).unwrap();
         let stdin = SP1Stdin::new();
         prove::<_, CpuProver<_, _>>(
             program,
@@ -506,13 +508,13 @@ pub mod tests {
     #[test]
     fn test_ssz_withdrawal() {
         setup_logger();
-        let program = ssz_withdrawals_program();
+        let program = Program::from(KECCAK_PERMUTE_ELF).unwrap();
         run_test::<CpuProver<_, _>>(program).unwrap();
     }
 
     #[test]
     fn test_key_serde() {
-        let program = ssz_withdrawals_program();
+        let program = Program::from(KECCAK_PERMUTE_ELF).unwrap();
         let config = BabyBearPoseidon2::new();
         let machine = RiscvAir::machine(config);
         let (pk, vk) = machine.setup(&program);

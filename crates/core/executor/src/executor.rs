@@ -1428,14 +1428,13 @@ mod tests {
 
     use sp1_stark::SP1CoreOpts;
 
-    use crate::programs::{
-        fibonacci_program, panic_program, simple_memory_program, simple_program,
-        ssz_withdrawals_program,
-    };
+    use crate::programs::{simple_memory_program, simple_program};
 
     use crate::Register;
 
     use super::{Executor, Instruction, Opcode, Program};
+
+    use test_artifacts::{FIBONACCI_ELF, KECCAK_PERMUTE_ELF, PANIC_ELF};
 
     fn _assert_send<T: Send>() {}
 
@@ -1454,14 +1453,14 @@ mod tests {
 
     #[test]
     fn test_fibonacci_program_run() {
-        let program = fibonacci_program();
+        let program = Program::from(FIBONACCI_ELF).unwrap();
         let mut runtime = Executor::new(program, SP1CoreOpts::default());
         runtime.run().unwrap();
     }
 
     #[test]
     fn test_ssz_withdrawals_program_run() {
-        let program = ssz_withdrawals_program();
+        let program = Program::from(KECCAK_PERMUTE_ELF).unwrap();
         let mut runtime = Executor::new(program, SP1CoreOpts::default());
         runtime.run().unwrap();
     }
@@ -1469,7 +1468,7 @@ mod tests {
     #[test]
     #[should_panic]
     fn test_panic() {
-        let program = panic_program();
+        let program = Program::from(PANIC_ELF).unwrap();
         let mut runtime = Executor::new(program, SP1CoreOpts::default());
         runtime.run().unwrap();
     }
