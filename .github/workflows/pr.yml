@@ -168,12 +168,7 @@ jobs:
           CARGO_INCREMENTAL: 1
 
       - name: Build test-artifacts
-        uses: actions-rs/cargo@v1
-        with:
-          command: check
-          args: -p test-artifacts
-        env:
-          CARGO_INCREMENTAL: 1
+        run: make test-artifacts
 
       - name: Run cargo clippy
         uses: actions-rs/cargo@v1
