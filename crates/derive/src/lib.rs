@@ -184,10 +184,10 @@ pub fn machine_air_derive(input: TokenStream) -> TokenStream {
                 }
             });
 
-            let interaction_randomness_arms = variants.iter().map(|(variant_name, field)| {
+            let commit_scope_arms = variants.iter().map(|(variant_name, field)| {
                 let field_ty = &field.ty;
                 quote! {
-                    #name::#variant_name(x) => <#field_ty as sp1_stark::air::MachineAir<F>>::interaction_randomness(x)
+                    #name::#variant_name(x) => <#field_ty as sp1_stark::air::MachineAir<F>>::commit_scope(x)
                 }
             });
 
@@ -244,9 +244,9 @@ pub fn machine_air_derive(input: TokenStream) -> TokenStream {
                         }
                     }
 
-                    fn interaction_randomness(&self) -> InteractionScope {
+                    fn commit_scope(&self) -> InteractionScope {
                         match self {
-                            #(#interaction_randomness_arms,)*
+                            #(#commit_scope_arms,)*
                         }
                     }
                 }

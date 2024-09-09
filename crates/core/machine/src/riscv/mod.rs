@@ -87,7 +87,7 @@ pub enum RiscvAir<F: PrimeField32> {
     MemoryLocalFinal(MemoryLocalChip),
     /// A table for initializing the program memory.
     ProgramMemory(MemoryProgramChip),
-    /// A table for the syscal invocations.
+    /// A table for all the syscall invocations.
     Syscall(SyscallChip),
     /// A precompile for sha256 extend.
     Sha256Extend(ShaExtendChip),
@@ -142,6 +142,31 @@ impl<F: PrimeField32> RiscvAir<F> {
     pub fn chips() -> Vec<Chip<F, Self>> {
         let (chips, _) = Self::get_chips_and_costs();
         chips
+    }
+
+    pub fn phase_1_generate_dependencies_chips() -> Vec<String> {
+        vec![
+            "EdAddAssign".to_string(),
+            "EdDecompress".to_string(),
+            "Bn254FpOpAssign".to_string(),
+            "Bls12381FpOpAssign".to_string(),
+            "Bn254Fp2AddSubAssign".to_string(),
+            "Bls12831Fp2AddSubAssign".to_string(),
+            "Bn254Fp2MulAssign".to_string(),
+            "Bls12831Fp2MulAssign".to_string(),
+            "KeccakPermute".to_string(),
+            "ShaCompress".to_string(),
+            "ShaExtend".to_string(),
+            "Uint256MulMod".to_string(),
+            "Secp256k1AddAssign".to_string(),
+            "Bn254AddAssign".to_string(),
+            "Bls12381AddAssign".to_string(),
+            "Secp256k1Decompress".to_string(),
+            "Bls12381Decompress".to_string(),
+            "Secp256k1DoubleAssign".to_string(),
+            "Bn254DoubleAssign".to_string(),
+            "Bls12381DoubleAssign".to_string(),
+        ]
     }
 
     /// Get all the costs of the different RISC-V AIRs.

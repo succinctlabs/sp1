@@ -7,7 +7,7 @@ use p3_uni_stark::{get_max_constraint_degree, SymbolicAirBuilder};
 use p3_util::log2_ceil_usize;
 
 use crate::{
-    air::{InteractionScope, MachineAir, MultiTableAirBuilder, SP1AirBuilder},
+    air::{MachineAir, MultiTableAirBuilder, SP1AirBuilder},
     lookup::{Interaction, InteractionBuilder, InteractionKind},
 };
 
@@ -205,8 +205,8 @@ where
         self.air.included(shard)
     }
 
-    fn interaction_randomness(&self) -> InteractionScope {
-        self.air.interaction_randomness()
+    fn commit_scope(&self) -> crate::air::InteractionScope {
+        self.air.commit_scope()
     }
 }
 

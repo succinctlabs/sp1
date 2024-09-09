@@ -277,12 +277,9 @@ where
                                 prover.machine().generate_dependencies(
                                     &mut records,
                                     &opts,
-                                    InteractionScope::Global,
-                                );
-                                prover.machine().generate_dependencies(
-                                    &mut records,
-                                    &opts,
-                                    InteractionScope::Local,
+                                    Some(
+                                        &RiscvAir::<SC::Val>::phase_1_generate_dependencies_chips(),
+                                    ),
                                 );
                             });
 
@@ -508,16 +505,7 @@ where
 
                             // Generate the dependencies.
                             tracing::debug_span!("generate dependencies", index).in_scope(|| {
-                                prover.machine().generate_dependencies(
-                                    &mut records,
-                                    &opts,
-                                    InteractionScope::Global,
-                                );
-                                prover.machine().generate_dependencies(
-                                    &mut records,
-                                    &opts,
-                                    InteractionScope::Local,
-                                );
+                                prover.machine().generate_dependencies(&mut records, &opts, None);
                             });
 
                             // Let another worker update the state.

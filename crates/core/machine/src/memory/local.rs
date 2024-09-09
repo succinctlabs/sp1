@@ -109,7 +109,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryLocalChip {
         !shard.local_memory_access.is_empty()
     }
 
-    fn interaction_randomness(&self) -> InteractionScope {
+    fn commit_scope(&self) -> InteractionScope {
         InteractionScope::Global
     }
 }
@@ -206,8 +206,7 @@ mod tests {
             RiscvAir::machine(BabyBearPoseidon2::new());
         let (pkey, _) = machine.setup(&program_clone);
         let opts = SP1CoreOpts::default();
-        machine.generate_dependencies(&mut runtime.records, &opts, InteractionScope::Global);
-        machine.generate_dependencies(&mut runtime.records, &opts, InteractionScope::Local);
+        machine.generate_dependencies(&mut runtime.records, &opts, None);
 
         let shards = runtime.records;
         for shard in shards.clone() {
@@ -238,8 +237,7 @@ mod tests {
         let machine = RiscvAir::machine(BabyBearPoseidon2::new());
         let (pkey, _) = machine.setup(&program_clone);
         let opts = SP1CoreOpts::default();
-        machine.generate_dependencies(&mut runtime.records, &opts, InteractionScope::Global);
-        machine.generate_dependencies(&mut runtime.records, &opts, InteractionScope::Local);
+        machine.generate_dependencies(&mut runtime.records, &opts, None);
 
         let shards = runtime.records;
         for shard in shards.clone() {

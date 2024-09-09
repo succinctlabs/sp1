@@ -249,12 +249,18 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
         &self,
         records: &mut [A::Record],
         opts: &<A::Record as MachineRecord>::Config,
-        interaction_scope: InteractionScope,
+        chips_filter: Option<&[String]>,
     ) {
         let chips = self
             .chips
             .iter()
-            .filter(|chip| chip.interaction_randomness() == interaction_scope)
+            .filter(|chip| {
+                if let Some(chips_filter) = chips_filter {
+                    chips_filter.contains(&chip.name())
+                } else {
+                    true
+                }
+            })
             .collect::<Vec<_>>();
 
         records.iter_mut().for_each(|record| {

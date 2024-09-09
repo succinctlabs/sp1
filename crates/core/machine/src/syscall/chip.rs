@@ -95,7 +95,7 @@ impl<F: PrimeField32> MachineAir<F> for SyscallChip {
         !shard.syscall_events.is_empty()
     }
 
-    fn interaction_randomness(&self) -> InteractionScope {
+    fn commit_scope(&self) -> InteractionScope {
         InteractionScope::Global
     }
 }

@@ -34,12 +34,6 @@ pub trait MachineAir<F: Field>: BaseAir<F> + 'static + Send + Sync {
     /// Whether this execution record contains events for this air.
     fn included(&self, shard: &Self::Record) -> bool;
 
-    /// Whether the chip should be included in the given prove phase.  The majority of the chips are
-    /// just for
-    fn interaction_randomness(&self) -> InteractionScope {
-        InteractionScope::Local
-    }
-
     /// The width of the preprocessed trace.
     fn preprocessed_width(&self) -> usize {
         0
@@ -48,6 +42,11 @@ pub trait MachineAir<F: Field>: BaseAir<F> + 'static + Send + Sync {
     /// Generate the preprocessed trace given a specific program.
     fn generate_preprocessed_trace(&self, _program: &Self::Program) -> Option<RowMajorMatrix<F>> {
         None
+    }
+
+    /// Specifies whether it's trace should be part of either the global or local commit.
+    fn commit_scope(&self) -> InteractionScope {
+        InteractionScope::Local
     }
 }
 

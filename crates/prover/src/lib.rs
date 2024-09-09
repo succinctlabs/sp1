@@ -648,7 +648,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                                 self.compress_prover.machine().generate_dependencies(
                                     &mut records,
                                     &opts.recursion_opts,
-                                    InteractionScope::Local,
+                                    None,
                                 )
                             });
 

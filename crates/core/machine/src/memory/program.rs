@@ -144,7 +144,7 @@ impl<F: PrimeField> MachineAir<F> for MemoryProgramChip {
         true
     }
 
-    fn interaction_randomness(&self) -> InteractionScope {
+    fn commit_scope(&self) -> InteractionScope {
         InteractionScope::Global
     }
 }

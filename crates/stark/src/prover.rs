@@ -24,7 +24,9 @@ use crate::{
     ShardProof, StarkVerifyingKey,
 };
 
+/// A merged prover data item from the global and local prover data.
 pub struct MergedProverDataItem<'a, M> {
+    /// The trace.
     pub trace: &'a M,
     pub main_data_idx: usize,
 }
@@ -60,10 +62,12 @@ pub trait MachineProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>>:
         record: &A::Record,
         interaction_scope: InteractionScope,
     ) -> Vec<(String, RowMajorMatrix<Val<SC>>)> {
-        let chips = self
-            .shard_chips(record)
-            .filter(|chip| chip.interaction_randomness() == interaction_scope)
+        let shard_chips = self.shard_chips(record).collect::<Vec<_>>();
+        let chips = shard_chips
+            .iter()
+            .filter(|chip| chip.commit_scope() == interaction_scope)
             .collect::<Vec<_>>();
+        assert!(!chips.is_empty());
 
         // For each chip, generate the trace.
         let parent_span = tracing::debug_span!("generate traces for shard");
@@ -779,7 +783,7 @@ where
 
         if contains_global_bus {
             // Generate dependencies.
-            self.machine().generate_dependencies(&mut records, &opts, InteractionScope::Global);
+            self.machine().generate_dependencies(&mut records, &opts, None);
         }
 
         // Generate and commit the global traces for each shard.
