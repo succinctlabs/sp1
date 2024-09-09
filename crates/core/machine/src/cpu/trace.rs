@@ -135,13 +135,13 @@ impl CpuChip {
 
         // Populate memory accesses for a, b, and c.
         if let Some(record) = event.a_record {
-            cols.op_a_access.populate(event.channel, record, blu_events);
+            cols.op_a_access.populate(record, blu_events);
         }
         if let Some(MemoryRecordEnum::Read(record)) = event.b_record {
-            cols.op_b_access.populate(event.channel, record, blu_events);
+            cols.op_b_access.populate(record, blu_events);
         }
         if let Some(MemoryRecordEnum::Read(record)) = event.c_record {
-            cols.op_c_access.populate(event.channel, record, blu_events);
+            cols.op_c_access.populate(record, blu_events);
         }
 
         // Populate range checks for a.
@@ -155,7 +155,6 @@ impl CpuChip {
             .collect::<Vec<_>>();
         blu_events.add_byte_lookup_event(ByteLookupEvent {
             shard: event.shard,
-            channel: event.channel,
             opcode: ByteOpcode::U8Range,
             a1: 0,
             a2: 0,
@@ -164,7 +163,6 @@ impl CpuChip {
         });
         blu_events.add_byte_lookup_event(ByteLookupEvent {
             shard: event.shard,
-            channel: event.channel,
             opcode: ByteOpcode::U8Range,
             a1: 0,
             a2: 0,
@@ -176,7 +174,7 @@ impl CpuChip {
         assert_eq!(event.memory_record.is_some(), event.memory.is_some());
         let memory_columns = cols.opcode_specific_columns.memory_mut();
         if let Some(record) = event.memory_record {
-            memory_columns.memory_access.populate(event.channel, record, blu_events)
+            memory_columns.memory_access.populate(record, blu_events)
         }
 
         // Populate memory, branch, jump, and auipc specific fields.
@@ -198,7 +196,7 @@ impl CpuChip {
         new_alu_events
     }
 
-    /// Populates the shard, channel, and clk related rows.
+    /// Populates the shard and clk related rows.
     fn populate_shard_clk<F: PrimeField>(
         &self,
         cols: &mut CpuCols<F>,
@@ -206,7 +204,6 @@ impl CpuChip {
         blu_events: &mut impl ByteRecord,
     ) {
         cols.shard = F::from_canonical_u32(event.shard);
-        cols.channel = F::from_canonical_u8(event.channel);
         cols.clk = F::from_canonical_u32(event.clk);
 
         let clk_16bit_limb = (event.clk & 0xffff) as u16;
@@ -214,11 +211,8 @@ impl CpuChip {
         cols.clk_16bit_limb = F::from_canonical_u16(clk_16bit_limb);
         cols.clk_8bit_limb = F::from_canonical_u8(clk_8bit_limb);
 
-        cols.channel_selectors.populate(event.channel);
-
         blu_events.add_byte_lookup_event(ByteLookupEvent::new(
             event.shard,
-            event.channel,
             U16Range,
             event.shard as u16,
             0,
@@ -227,7 +221,6 @@ impl CpuChip {
         ));
         blu_events.add_byte_lookup_event(ByteLookupEvent::new(
             event.shard,
-            event.channel,
             U16Range,
             clk_16bit_limb,
             0,
@@ -236,7 +229,6 @@ impl CpuChip {
         ));
         blu_events.add_byte_lookup_event(ByteLookupEvent::new(
             event.shard,
-            event.channel,
             ByteOpcode::U8Range,
             0,
             0,
@@ -286,7 +278,6 @@ impl CpuChip {
         let add_event = AluEvent {
             lookup_id: event.memory_add_lookup_id,
             shard: event.shard,
-            channel: event.channel,
             clk: event.clk,
             opcode: Opcode::ADD,
             a: memory_addr,
@@ -356,7 +347,6 @@ impl CpuChip {
                         F::from_bool(event.instruction.op_a != (X0 as u32));
                     let sub_event = AluEvent {
                         lookup_id: event.memory_sub_lookup_id,
-                        channel: event.channel,
                         shard: event.shard,
                         clk: event.clk,
                         opcode: Opcode::SUB,
@@ -390,7 +380,6 @@ impl CpuChip {
         for byte_pair in addr_bytes.chunks_exact(2) {
             blu_events.add_byte_lookup_event(ByteLookupEvent {
                 shard: event.shard,
-                channel: event.channel,
                 opcode: ByteOpcode::U8Range,
                 a1: 0,
                 a2: 0,
@@ -433,7 +422,6 @@ impl CpuChip {
             let lt_comp_event = AluEvent {
                 lookup_id: event.branch_lt_lookup_id,
                 shard: event.shard,
-                channel: event.channel,
                 clk: event.clk,
                 opcode: alu_op_code,
                 a: a_lt_b as u32,
@@ -453,7 +441,6 @@ impl CpuChip {
             let gt_comp_event = AluEvent {
                 lookup_id: event.branch_gt_lookup_id,
                 shard: event.shard,
-                channel: event.channel,
                 clk: event.clk,
                 opcode: alu_op_code,
                 a: a_gt_b as u32,
@@ -494,7 +481,6 @@ impl CpuChip {
                 let add_event = AluEvent {
                     lookup_id: event.branch_add_lookup_id,
                     shard: event.shard,
-                    channel: event.channel,
                     clk: event.clk,
                     opcode: Opcode::ADD,
                     a: next_pc,
@@ -539,7 +525,6 @@ impl CpuChip {
                     let add_event = AluEvent {
                         lookup_id: event.jump_jal_lookup_id,
                         shard: event.shard,
-                        channel: event.channel,
                         clk: event.clk,
                         opcode: Opcode::ADD,
                         a: next_pc,
@@ -565,7 +550,6 @@ impl CpuChip {
                     let add_event = AluEvent {
                         lookup_id: event.jump_jalr_lookup_id,
                         shard: event.shard,
-                        channel: event.channel,
                         clk: event.clk,
                         opcode: Opcode::ADD,
                         a: next_pc,
@@ -604,7 +588,6 @@ impl CpuChip {
             let add_event = AluEvent {
                 lookup_id: event.auipc_lookup_id,
                 shard: event.shard,
-                channel: event.channel,
                 clk: event.clk,
                 opcode: Opcode::ADD,
                 a: event.a,

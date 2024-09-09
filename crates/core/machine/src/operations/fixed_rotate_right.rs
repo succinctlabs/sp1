@@ -43,7 +43,6 @@ impl<F: Field> FixedRotateRightOperation<F> {
         &mut self,
         record: &mut impl ByteRecord,
         shard: u32,
-        channel: u8,
         input: u32,
         rotation: usize,
     ) -> u32 {
@@ -75,7 +74,6 @@ impl<F: Field> FixedRotateRightOperation<F> {
 
             let byte_event = ByteLookupEvent {
                 shard,
-                channel,
                 opcode: ByteOpcode::ShrCarry,
                 a1: shift as u16,
                 a2: carry,
@@ -110,7 +108,6 @@ impl<F: Field> FixedRotateRightOperation<F> {
         input: Word<AB::Var>,
         rotation: usize,
         cols: FixedRotateRightOperation<AB::Var>,
-        channel: impl Into<AB::Expr> + Clone,
         is_real: AB::Var,
     ) {
         // Compute some constants with respect to the rotation needed for the rotation.
@@ -137,7 +134,6 @@ impl<F: Field> FixedRotateRightOperation<F> {
                 cols.carry[i],
                 input_bytes_rotated[i],
                 AB::F::from_canonical_usize(nb_bits_to_shift),
-                channel.clone(),
                 is_real,
             );
 

@@ -24,8 +24,6 @@ pub struct FpOpEvent {
     pub lookup_id: LookupId,
     /// The shard number.
     pub shard: u32,
-    /// The channel number.
-    pub channel: u8,
     /// The clock cycle.
     pub clk: u32,
     /// The pointer to the x operand.
@@ -55,8 +53,6 @@ pub struct Fp2AddSubEvent {
     pub lookup_id: LookupId,
     /// The shard number.
     pub shard: u32,
-    /// The channel number.
-    pub channel: u8,
     /// The clock cycle.
     pub clk: u32,
     /// The operation to perform.
@@ -84,8 +80,6 @@ pub struct Fp2MulEvent {
     pub lookup_id: LookupId,
     /// The shard number.
     pub shard: u32,
-    /// The channel number.
-    pub channel: u8,
     /// The clock cycle.
     pub clk: u32,
     /// The pointer to the x operand.

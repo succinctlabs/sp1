@@ -40,7 +40,6 @@ pub const fn num_fp2_addsub_cols<P: FpOpField>() -> usize {
 pub struct Fp2AddSubAssignCols<T, P: FpOpField> {
     pub is_real: T,
     pub shard: T,
-    pub channel: T,
     pub nonce: T,
     pub clk: T,
     pub is_add: T,
@@ -65,7 +64,6 @@ impl<P: FpOpField> Fp2AddSubAssignChip<P> {
     fn populate_field_ops<F: PrimeField32>(
         blu_events: &mut Vec<ByteLookupEvent>,
         shard: u32,
-        channel: u8,
         cols: &mut Fp2AddSubAssignCols<F, P>,
         p_x: BigUint,
         p_y: BigUint,
@@ -75,8 +73,8 @@ impl<P: FpOpField> Fp2AddSubAssignChip<P> {
     ) {
         let modulus_bytes = P::MODULUS;
         let modulus = BigUint::from_bytes_le(modulus_bytes);
-        cols.c0.populate_with_modulus(blu_events, shard, channel, &p_x, &q_x, &modulus, op);
-        cols.c1.populate_with_modulus(blu_events, shard, channel, &p_y, &q_y, &modulus, op);
+        cols.c0.populate_with_modulus(blu_events, shard, &p_x, &q_x, &modulus, op);
+        cols.c1.populate_with_modulus(blu_events, shard, &p_y, &q_y, &modulus, op);
     }
 }
 
@@ -117,7 +115,6 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for Fp2AddSubAssignChip<P> {
             cols.is_real = F::one();
             cols.is_add = F::from_bool(event.op == FieldOperation::Add);
             cols.shard = F::from_canonical_u32(event.shard);
-            cols.channel = F::from_canonical_u8(event.channel);
             cols.clk = F::from_canonical_u32(event.clk);
             cols.x_ptr = F::from_canonical_u32(event.x_ptr);
             cols.y_ptr = F::from_canonical_u32(event.y_ptr);
@@ -125,7 +122,6 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for Fp2AddSubAssignChip<P> {
             Self::populate_field_ops(
                 &mut new_byte_lookup_events,
                 event.shard,
-                event.channel,
                 cols,
                 p_x,
                 p_y,
@@ -136,18 +132,10 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for Fp2AddSubAssignChip<P> {
 
             // Populate the memory access columns.
             for i in 0..cols.y_access.len() {
-                cols.y_access[i].populate(
-                    event.channel,
-                    event.y_memory_records[i],
-                    &mut new_byte_lookup_events,
-                );
+                cols.y_access[i].populate(event.y_memory_records[i], &mut new_byte_lookup_events);
             }
             for i in 0..cols.x_access.len() {
-                cols.x_access[i].populate(
-                    event.channel,
-                    event.x_memory_records[i],
-                    &mut new_byte_lookup_events,
-                );
+                cols.x_access[i].populate(event.x_memory_records[i], &mut new_byte_lookup_events);
             }
             rows.push(row);
 
@@ -166,7 +154,6 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for Fp2AddSubAssignChip<P> {
                 let zero = BigUint::zero();
                 Self::populate_field_ops(
                     &mut vec![],
-                    0,
                     0,
                     cols,
                     zero.clone(),
@@ -250,7 +237,6 @@ where
                 AB::Expr::one() - local.is_add,
                 AB::F::zero(),
                 AB::F::zero(),
-                local.channel,
                 local.is_real,
             );
 
@@ -263,7 +249,6 @@ where
                 AB::Expr::one() - local.is_add,
                 AB::F::zero(),
                 AB::F::zero(),
-                local.channel,
                 local.is_real,
             );
         }
@@ -278,7 +263,6 @@ where
         );
         builder.eval_memory_access_slice(
             local.shard,
-            local.channel,
             local.clk.into(),
             local.y_ptr,
             &local.y_access,
@@ -286,7 +270,6 @@ where
         );
         builder.eval_memory_access_slice(
             local.shard,
-            local.channel,
             local.clk + AB::F::from_canonical_u32(1), /* We read p at +1 since p, q could be the
                                                        * same. */
             local.x_ptr,
@@ -310,7 +293,6 @@ where
 
         builder.receive_syscall(
             local.shard,
-            local.channel,
             local.clk,
             local.nonce,
             syscall_id_felt,

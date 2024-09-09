@@ -40,7 +40,6 @@ pub const fn num_fp2_mul_cols<P: FieldParameters + NumWords>() -> usize {
 pub struct Fp2MulAssignCols<T, P: FieldParameters + NumWords> {
     pub is_real: T,
     pub shard: T,
-    pub channel: T,
     pub nonce: T,
     pub clk: T,
     pub x_ptr: T,
@@ -69,7 +68,6 @@ impl<P: FpOpField> Fp2MulAssignChip<P> {
     fn populate_field_ops<F: PrimeField32>(
         blu_events: &mut Vec<ByteLookupEvent>,
         shard: u32,
-        channel: u8,
         cols: &mut Fp2MulAssignCols<F, P>,
         p_x: BigUint,
         p_y: BigUint,
@@ -81,7 +79,6 @@ impl<P: FpOpField> Fp2MulAssignChip<P> {
         let a0_mul_b0 = cols.a0_mul_b0.populate_with_modulus(
             blu_events,
             shard,
-            channel,
             &p_x,
             &q_x,
             &modulus,
@@ -90,7 +87,6 @@ impl<P: FpOpField> Fp2MulAssignChip<P> {
         let a1_mul_b1 = cols.a1_mul_b1.populate_with_modulus(
             blu_events,
             shard,
-            channel,
             &p_y,
             &q_y,
             &modulus,
@@ -99,7 +95,6 @@ impl<P: FpOpField> Fp2MulAssignChip<P> {
         let a0_mul_b1 = cols.a0_mul_b1.populate_with_modulus(
             blu_events,
             shard,
-            channel,
             &p_x,
             &q_y,
             &modulus,
@@ -108,7 +103,6 @@ impl<P: FpOpField> Fp2MulAssignChip<P> {
         let a1_mul_b0 = cols.a1_mul_b0.populate_with_modulus(
             blu_events,
             shard,
-            channel,
             &p_y,
             &q_x,
             &modulus,
@@ -117,7 +111,6 @@ impl<P: FpOpField> Fp2MulAssignChip<P> {
         cols.c0.populate_with_modulus(
             blu_events,
             shard,
-            channel,
             &a0_mul_b0,
             &a1_mul_b1,
             &modulus,
@@ -126,7 +119,6 @@ impl<P: FpOpField> Fp2MulAssignChip<P> {
         cols.c1.populate_with_modulus(
             blu_events,
             shard,
-            channel,
             &a0_mul_b1,
             &a1_mul_b0,
             &modulus,
@@ -170,7 +162,6 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for Fp2MulAssignChip<P> {
 
             cols.is_real = F::one();
             cols.shard = F::from_canonical_u32(event.shard);
-            cols.channel = F::from_canonical_u8(event.channel);
             cols.clk = F::from_canonical_u32(event.clk);
             cols.x_ptr = F::from_canonical_u32(event.x_ptr);
             cols.y_ptr = F::from_canonical_u32(event.y_ptr);
@@ -178,7 +169,6 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for Fp2MulAssignChip<P> {
             Self::populate_field_ops(
                 &mut new_byte_lookup_events,
                 event.shard,
-                event.channel,
                 cols,
                 p_x,
                 p_y,
@@ -188,18 +178,10 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for Fp2MulAssignChip<P> {
 
             // Populate the memory access columns.
             for i in 0..cols.y_access.len() {
-                cols.y_access[i].populate(
-                    event.channel,
-                    event.y_memory_records[i],
-                    &mut new_byte_lookup_events,
-                );
+                cols.y_access[i].populate(event.y_memory_records[i], &mut new_byte_lookup_events);
             }
             for i in 0..cols.x_access.len() {
-                cols.x_access[i].populate(
-                    event.channel,
-                    event.x_memory_records[i],
-                    &mut new_byte_lookup_events,
-                );
+                cols.x_access[i].populate(event.x_memory_records[i], &mut new_byte_lookup_events);
             }
             rows.push(row);
 
@@ -217,7 +199,6 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for Fp2MulAssignChip<P> {
                 let zero = BigUint::zero();
                 Self::populate_field_ops(
                     &mut vec![],
-                    0,
                     0,
                     cols,
                     zero.clone(),
@@ -294,7 +275,6 @@ where
                 &q_x,
                 &p_modulus,
                 FieldOperation::Mul,
-                local.channel,
                 local.is_real,
             );
 
@@ -304,7 +284,6 @@ where
                 &q_y,
                 &p_modulus,
                 FieldOperation::Mul,
-                local.channel,
                 local.is_real,
             );
 
@@ -314,7 +293,6 @@ where
                 &local.a1_mul_b1.result,
                 &p_modulus,
                 FieldOperation::Sub,
-                local.channel,
                 local.is_real,
             );
         }
@@ -326,7 +304,6 @@ where
                 &q_y,
                 &p_modulus,
                 FieldOperation::Mul,
-                local.channel,
                 local.is_real,
             );
 
@@ -336,7 +313,6 @@ where
                 &q_x,
                 &p_modulus,
                 FieldOperation::Mul,
-                local.channel,
                 local.is_real,
             );
 
@@ -346,7 +322,6 @@ where
                 &local.a1_mul_b0.result,
                 &p_modulus,
                 FieldOperation::Add,
-                local.channel,
                 local.is_real,
             );
         }
@@ -362,7 +337,6 @@ where
 
         builder.eval_memory_access_slice(
             local.shard,
-            local.channel,
             local.clk.into(),
             local.y_ptr,
             &local.y_access,
@@ -370,7 +344,6 @@ where
         );
         builder.eval_memory_access_slice(
             local.shard,
-            local.channel,
             local.clk + AB::F::from_canonical_u32(1), /* We read p at +1 since p, q could be the
                                                        * same. */
             local.x_ptr,
@@ -387,7 +360,6 @@ where
 
         builder.receive_syscall(
             local.shard,
-            local.channel,
             local.clk,
             local.nonce,
             syscall_id_felt,

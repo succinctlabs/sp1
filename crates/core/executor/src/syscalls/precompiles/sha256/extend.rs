@@ -57,11 +57,9 @@ impl Syscall for Sha256ExtendSyscall {
         // Push the SHA extend event.
         let lookup_id = rt.syscall_lookup_id;
         let shard = rt.current_shard();
-        let channel = rt.current_channel();
         let event = ShaExtendEvent {
             lookup_id,
             shard,
-            channel,
             clk: clk_init,
             w_ptr: w_ptr_init,
             w_i_minus_15_reads,

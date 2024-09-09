@@ -60,11 +60,9 @@ impl Syscall for Uint256MulSyscall {
 
         let lookup_id = rt.syscall_lookup_id;
         let shard = rt.current_shard();
-        let channel = rt.current_channel();
         let event = Uint256MulEvent {
             lookup_id,
             shard,
-            channel,
             clk,
             x_ptr,
             x,

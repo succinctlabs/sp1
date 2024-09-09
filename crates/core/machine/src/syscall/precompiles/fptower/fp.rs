@@ -43,7 +43,6 @@ pub struct FpOpChip<P> {
 pub struct FpOpCols<T, P: FpOpField> {
     pub is_real: T,
     pub shard: T,
-    pub channel: T,
     pub nonce: T,
     pub clk: T,
     pub is_add: T,
@@ -65,7 +64,6 @@ impl<P: FpOpField> FpOpChip<P> {
     fn populate_field_ops<F: PrimeField32>(
         blu_events: &mut Vec<ByteLookupEvent>,
         shard: u32,
-        channel: u8,
         cols: &mut FpOpCols<F, P>,
         p: BigUint,
         q: BigUint,
@@ -73,7 +71,7 @@ impl<P: FpOpField> FpOpChip<P> {
     ) {
         let modulus_bytes = P::MODULUS;
         let modulus = BigUint::from_bytes_le(modulus_bytes);
-        cols.output.populate_with_modulus(blu_events, shard, channel, &p, &q, &modulus, op);
+        cols.output.populate_with_modulus(blu_events, shard, &p, &q, &modulus, op);
     }
 }
 
@@ -113,7 +111,6 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for FpOpChip<P> {
             cols.is_mul = F::from_canonical_u8((event.op == FieldOperation::Mul) as u8);
             cols.is_real = F::one();
             cols.shard = F::from_canonical_u32(event.shard);
-            cols.channel = F::from_canonical_u8(event.channel);
             cols.clk = F::from_canonical_u32(event.clk);
             cols.x_ptr = F::from_canonical_u32(event.x_ptr);
             cols.y_ptr = F::from_canonical_u32(event.y_ptr);
@@ -121,7 +118,6 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for FpOpChip<P> {
             Self::populate_field_ops(
                 &mut new_byte_lookup_events,
                 event.shard,
-                event.channel,
                 cols,
                 p,
                 q,
@@ -130,18 +126,10 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for FpOpChip<P> {
 
             // Populate the memory access columns.
             for i in 0..cols.y_access.len() {
-                cols.y_access[i].populate(
-                    event.channel,
-                    event.y_memory_records[i],
-                    &mut new_byte_lookup_events,
-                );
+                cols.y_access[i].populate(event.y_memory_records[i], &mut new_byte_lookup_events);
             }
             for i in 0..cols.x_access.len() {
-                cols.x_access[i].populate(
-                    event.channel,
-                    event.x_memory_records[i],
-                    &mut new_byte_lookup_events,
-                );
+                cols.x_access[i].populate(event.x_memory_records[i], &mut new_byte_lookup_events);
             }
             rows.push(row);
 
@@ -160,7 +148,6 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for FpOpChip<P> {
                 cols.is_add = F::from_canonical_u8(1);
                 Self::populate_field_ops(
                     &mut vec![],
-                    0,
                     0,
                     cols,
                     zero.clone(),
@@ -240,7 +227,6 @@ where
             local.is_sub,
             local.is_mul,
             AB::F::zero(),
-            local.channel,
             local.is_real,
         );
 
@@ -250,7 +236,6 @@ where
 
         builder.eval_memory_access_slice(
             local.shard,
-            local.channel,
             local.clk.into(),
             local.y_ptr,
             &local.y_access,
@@ -258,7 +243,6 @@ where
         );
         builder.eval_memory_access_slice(
             local.shard,
-            local.channel,
             local.clk + AB::F::from_canonical_u32(1), /* We read p at +1 since p, q could be the
                                                        * same. */
             local.x_ptr,
@@ -287,7 +271,6 @@ where
 
         builder.receive_syscall(
             local.shard,
-            local.channel,
             local.clk,
             local.nonce,
             syscall_id_felt,

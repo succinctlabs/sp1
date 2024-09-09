@@ -59,9 +59,6 @@ pub struct Uint256MulCols<T> {
     /// The shard number of the syscall.
     pub shard: T,
 
-    /// The byte lookup channel.
-    pub channel: T,
-
     /// The clock cycle of the syscall.
     pub clk: T,
 
@@ -131,25 +128,17 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
                         // Assign basic values to the columns.
                         cols.is_real = F::one();
                         cols.shard = F::from_canonical_u32(event.shard);
-                        cols.channel = F::from_canonical_u8(event.channel);
                         cols.clk = F::from_canonical_u32(event.clk);
                         cols.x_ptr = F::from_canonical_u32(event.x_ptr);
                         cols.y_ptr = F::from_canonical_u32(event.y_ptr);
 
                         // Populate memory columns.
                         for i in 0..WORDS_FIELD_ELEMENT {
-                            cols.x_memory[i].populate(
-                                event.channel,
-                                event.x_memory_records[i],
-                                &mut new_byte_lookup_events,
-                            );
-                            cols.y_memory[i].populate(
-                                event.channel,
-                                event.y_memory_records[i],
-                                &mut new_byte_lookup_events,
-                            );
+                            cols.x_memory[i]
+                                .populate(event.x_memory_records[i], &mut new_byte_lookup_events);
+                            cols.y_memory[i]
+                                .populate(event.y_memory_records[i], &mut new_byte_lookup_events);
                             cols.modulus_memory[i].populate(
-                                event.channel,
                                 event.modulus_memory_records[i],
                                 &mut new_byte_lookup_events,
                             );
@@ -165,7 +154,6 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
                         let result = cols.output.populate_with_modulus(
                             &mut new_byte_lookup_events,
                             event.shard,
-                            event.channel,
                             &x,
                             &y,
                             &effective_modulus,
@@ -178,7 +166,6 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
                             cols.output_range_check.populate(
                                 &mut new_byte_lookup_events,
                                 event.shard,
-                                event.channel,
                                 &result,
                                 &effective_modulus,
                             );
@@ -212,7 +199,7 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
 
                 let x = BigUint::zero();
                 let y = BigUint::zero();
-                cols.output.populate(&mut vec![], 0, 0, &x, &y, FieldOperation::Mul);
+                cols.output.populate(&mut vec![], 0, &x, &y, FieldOperation::Mul);
 
                 row
             },
@@ -296,7 +283,6 @@ where
             &y_limbs,
             &p_modulus,
             FieldOperation::Mul,
-            local.channel,
             local.is_real,
         );
 
@@ -306,7 +292,6 @@ where
             builder,
             &local.output.result,
             &modulus_limbs,
-            local.channel,
             local.modulus_is_not_zero,
         );
         builder.assert_eq(
@@ -322,7 +307,6 @@ where
         // Read and write x.
         builder.eval_memory_access_slice(
             local.shard,
-            local.channel,
             local.clk.into() + AB::Expr::one(),
             local.x_ptr,
             &local.x_memory,
@@ -333,7 +317,6 @@ where
         // we read it contiguously from the y_ptr memory location.
         builder.eval_memory_access_slice(
             local.shard,
-            local.channel,
             local.clk.into(),
             local.y_ptr,
             &[local.y_memory, local.modulus_memory].concat(),
@@ -343,7 +326,6 @@ where
         // Receive the arguments.
         builder.receive_syscall(
             local.shard,
-            local.channel,
             local.clk,
             local.nonce,
             AB::F::from_canonical_u32(SyscallCode::UINT256_MUL.syscall_id()),
