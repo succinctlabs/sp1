@@ -36,8 +36,10 @@ pub enum CoreShapeError {
 pub struct CoreShapeConfig<F: PrimeField32> {
     included_shapes: Vec<HashMap<String, usize>>,
     allowed_preprocessed_log_heights: HashMap<RiscvAir<F>, Vec<usize>>,
-    short_allowed_log_heights: HashMap<RiscvAir<F>, Vec<usize>>,
-    long_allowed_log_heights: HashMap<RiscvAir<F>, Vec<usize>>,
+    short_core_allowed_log_heights: HashMap<RiscvAir<F>, Vec<usize>>,
+    long_core_allowed_log_heights: HashMap<RiscvAir<F>, Vec<usize>>,
+    memory_init_heights: Vec<usize>,
+    memory_finalize_heights: Vec<usize>,
     max_precompile_log_height: usize,
 }
 
@@ -90,6 +92,13 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
             return Err(CoreShapeError::ShapeAlreadyFixed);
         }
 
+        // If cpu is not included, try to fix the shape as a precompile.
+        if record.cpu_events.is_empty() {
+            // If this is a memory init/finalize shard, try to fix the shape.
+        }
+
+        // If cpu is included, try to fix the shape as a core.
+
         // Get the heights of the core airs in the record.
         let heights = RiscvAir::<F>::core_heights(record);
 
@@ -97,14 +106,14 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
 
         // Try to find a shape within the short shape cluster.
         if let Some(shape) =
-            Self::find_shape_with_allowed_heights(&heights, &self.short_allowed_log_heights)
+            Self::find_shape_with_allowed_heights(&heights, &self.short_core_allowed_log_heights)
         {
             record.shape = Some(shape);
             return Ok(());
         }
         // Try to find a shape within the long shape cluster.
         if let Some(shape) =
-            Self::find_shape_with_allowed_heights(&heights, &self.long_allowed_log_heights)
+            Self::find_shape_with_allowed_heights(&heights, &self.long_core_allowed_log_heights)
         {
             record.shape = Some(shape);
             return Ok(());
@@ -140,10 +149,10 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
             .iter()
             .map(ProofShape::from_map)
             .chain(Self::generate_all_shapes_from_allowed_log_heights(
-                &self.short_allowed_log_heights,
+                &self.short_core_allowed_log_heights,
             ))
             .chain(Self::generate_all_shapes_from_allowed_log_heights(
-                &self.long_allowed_log_heights,
+                &self.long_core_allowed_log_heights,
             ))
     }
 }
@@ -211,12 +220,18 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
             (RiscvAir::Lt(LtChip::default()), lt_heights),
         ]);
 
+        // Set the memory init and finalize heights.
+        let memory_init_heights = vec![10, 16, 18, 19, 20, 21, 22];
+        let memory_finalize_heights = vec![10, 16, 18, 19, 20, 21, 22];
+
         Self {
             included_shapes,
             allowed_preprocessed_log_heights,
-            short_allowed_log_heights,
-            long_allowed_log_heights,
+            short_core_allowed_log_heights: short_allowed_log_heights,
+            long_core_allowed_log_heights: long_allowed_log_heights,
             max_precompile_log_height: MAX_PRECOMPILE_LOG_HEIGHT,
+            memory_init_heights,
+            memory_finalize_heights,
         }
     }
 }

@@ -2,8 +2,6 @@ pub mod cost;
 
 mod shape;
 
-use std::collections::BTreeSet;
-
 pub use shape::*;
 use sp1_core_executor::{ExecutionRecord, Program};
 
@@ -145,6 +143,11 @@ impl<F: PrimeField32> RiscvAir<F> {
     pub fn costs() -> HashMap<RiscvAirDiscriminants, u64> {
         let (_, costs) = Self::get_chips_and_costs();
         costs
+    }
+
+    pub fn get_airs_and_costs() -> (Vec<Self>, HashMap<RiscvAirDiscriminants, u64>) {
+        let (chips, costs) = Self::get_chips_and_costs();
+        (chips.into_iter().map(|chip| chip.into_inner()).collect(), costs)
     }
 
     /// Get all the different RISC-V AIRs.
@@ -342,7 +345,7 @@ impl<F: PrimeField32> RiscvAir<F> {
         heights
     }
 
-    pub(crate) fn all_core_airs() -> Vec<Self> {
+    pub(crate) fn get_all_core_airs() -> Vec<Self> {
         vec![
             RiscvAir::Cpu(CpuChip::default()),
             RiscvAir::Add(AddSubChip::default()),
@@ -355,15 +358,23 @@ impl<F: PrimeField32> RiscvAir<F> {
         ]
     }
 
-    // pub(crate) fn all_precompile_chips() -> Vec<Self> {
-    //     let mut chips: HashSet<_> = Self::get_chips_and_costs().0.into_iter().collect();
-    //     for core_chip in Self::all_core_airs() {
-    //         chips.remove(&core_chip);
-    //     }
-    //     chips.into_iter().collect()
-    // }
+    pub(crate) fn memory_init_final_airs() -> Vec<Self> {
+        vec![
+            RiscvAir::MemoryInit(MemoryChip::new(MemoryChipType::Initialize)),
+            RiscvAir::MemoryFinal(MemoryChip::new(MemoryChipType::Finalize)),
+        ]
+    }
 
-    // pub (crate) fn all_precompile_chips() -> Vec<Self> {
+    pub(crate) fn get_all_precompile_airs() -> Vec<Self> {
+        let mut airs: HashSet<_> = Self::get_airs_and_costs().0.into_iter().collect();
+        for core_air in Self::get_all_core_airs() {
+            airs.remove(&core_air);
+        }
+        for memory_air in Self::memory_init_final_airs() {
+            airs.remove(&memory_air);
+        }
+        airs.into_iter().collect()
+    }
 }
 
 impl<F: PrimeField32> PartialEq for RiscvAir<F> {
