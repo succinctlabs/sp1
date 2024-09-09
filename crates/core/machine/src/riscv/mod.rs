@@ -2,6 +2,8 @@ pub mod cost;
 
 mod shape;
 
+use std::collections::BTreeSet;
+
 pub use shape::*;
 use sp1_core_executor::{ExecutionRecord, Program};
 
@@ -9,7 +11,7 @@ use crate::{
     memory::{MemoryChipType, MemoryProgramChip},
     syscall::precompiles::fptower::{Fp2AddSubAssignChip, Fp2MulAssignChip, FpOpChip},
 };
-use hashbrown::HashMap;
+use hashbrown::{HashMap, HashSet};
 use p3_field::PrimeField32;
 pub use riscv_chips::*;
 use sp1_curves::weierstrass::{bls12_381::Bls12381BaseField, bn254::Bn254BaseField};
@@ -322,7 +324,7 @@ impl<F: PrimeField32> RiscvAir<F> {
     }
 
     /// Get the heights of the chips for a given execution record.
-    pub(crate) fn heights(record: &ExecutionRecord) -> Vec<(Self, usize)> {
+    pub(crate) fn core_heights(record: &ExecutionRecord) -> Vec<(Self, usize)> {
         let mut heights = vec![
             (RiscvAir::Cpu(CpuChip::default()), record.cpu_events.len()),
             (RiscvAir::DivRem(DivRemChip::default()), record.divrem_events.len()),
@@ -335,18 +337,33 @@ impl<F: PrimeField32> RiscvAir<F> {
             (RiscvAir::ShiftRight(ShiftRightChip::default()), record.shift_right_events.len()),
             (RiscvAir::ShiftLeft(ShiftLeft::default()), record.shift_left_events.len()),
             (RiscvAir::Lt(LtChip::default()), record.lt_events.len()),
-            (
-                RiscvAir::MemoryInit(MemoryChip::new(MemoryChipType::Initialize)),
-                record.memory_initialize_events.len(),
-            ),
-            (
-                RiscvAir::MemoryFinal(MemoryChip::new(MemoryChipType::Finalize)),
-                record.memory_finalize_events.len(),
-            ),
         ];
         heights.extend(Self::preprocessed_heights(&record.program));
         heights
     }
+
+    pub(crate) fn all_core_airs() -> Vec<Self> {
+        vec![
+            RiscvAir::Cpu(CpuChip::default()),
+            RiscvAir::Add(AddSubChip::default()),
+            RiscvAir::Bitwise(BitwiseChip::default()),
+            RiscvAir::Mul(MulChip::default()),
+            RiscvAir::DivRem(DivRemChip::default()),
+            RiscvAir::Lt(LtChip::default()),
+            RiscvAir::ShiftLeft(ShiftLeft::default()),
+            RiscvAir::ShiftRight(ShiftRightChip::default()),
+        ]
+    }
+
+    // pub(crate) fn all_precompile_chips() -> Vec<Self> {
+    //     let mut chips: HashSet<_> = Self::get_chips_and_costs().0.into_iter().collect();
+    //     for core_chip in Self::all_core_airs() {
+    //         chips.remove(&core_chip);
+    //     }
+    //     chips.into_iter().collect()
+    // }
+
+    // pub (crate) fn all_precompile_chips() -> Vec<Self> {
 }
 
 impl<F: PrimeField32> PartialEq for RiscvAir<F> {
