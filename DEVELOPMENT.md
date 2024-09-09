@@ -4,11 +4,15 @@ This is a guide with helpful information for developers who want to contribute t
 
 ## Getting started
 
+You may need to run `make` in the root directory to manually build ELF artifacts in
+`crates/test-artifacts`. Although many tests rely on these artifacts, they will not be automatically
+built when Clippy is run due to conflicts with the SP1 toolchain. However, `cargo check` works fine.
+
 You can run the test suite in SP1 core by running the following command:
 
 ```bash
-cd core
-cargo test
+cd crates/core
+cargo test --release
 ```
 
 ### Tips
