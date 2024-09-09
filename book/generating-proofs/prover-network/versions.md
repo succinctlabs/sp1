@@ -2,13 +2,14 @@
 
 The prover network currently only supports specific versions of SP1:
 
-| Environment | RPC URL                    | Supported Version |
-| ----------- | -------------------------- | ----------------- |
-| Production  | `https://rpc.succinct.xyz` | `v1.2.X`          |
+| Version | Description                                                                                                      |
+| ------- | ---------------------------------------------------------------------------------------------------------------- |
+| v1.2.x  | Audited, production ready version.                                                                               |
+| v1.3.x  | Experimental version with enhanced performance, currently being audited. **Not recommended for production use.** |
 
-Where `X` denotes that any patch version is supported (e.g. `v1.2.0`, `v1.2.1`).
+`X` denotes that any patch version is supported (e.g. `v1.2.0`, `v1.2.1`).
 
-If you submit a proof request to the prover network and your are not using the supported version, you will receive an error message.
+If you submit a proof request to the prover network and you are not using a supported version, you will receive an error message.
 
 ## Changing versions
 
