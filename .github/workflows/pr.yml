@@ -313,3 +313,22 @@ jobs:
           cargo remove sp1-sdk
           cargo add sp1-sdk --path $GITHUB_WORKSPACE/crates/sdk
           SP1_DEV=1 RUST_LOG=info cargo run --release
+  test-cuda:
+    name: Test CUDA
+    runs-on:
+      [
+        runs-on,
+        runner=nvidia-gpu-linux-x64,
+        "run-id=${{ github.run_id }}",
+      ]
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+
+      - name: Setup CI
+        uses: ./.github/actions/setup
+
+      - name: Run script
+        run: |
+          cd examples/fibonacci
+          cargo run --release --features cuda
