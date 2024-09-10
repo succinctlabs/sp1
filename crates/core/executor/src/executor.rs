@@ -696,23 +696,19 @@ impl<'a> Executor<'a> {
         if self.executor_mode == ExecutorMode::Trace {
             self.memory_accesses = MemoryAccessRecord::default();
         }
-        let lookup_id = if self.executor_mode == ExecutorMode::Simple {
-            LookupId::default()
-        } else {
+        let lookup_id = if self.executor_mode == ExecutorMode::Trace {
             create_alu_lookup_id()
+        } else {
+            LookupId::default()
         };
-        let syscall_lookup_id = if self.executor_mode == ExecutorMode::Simple {
-            LookupId::default()
-        } else {
+        let syscall_lookup_id = if self.executor_mode == ExecutorMode::Trace {
             create_alu_lookup_id()
+        } else {
+            LookupId::default()
         };
 
         if self.print_report && !self.unconstrained {
-            self.report
-                .opcode_counts
-                .entry(instruction.opcode)
-                .and_modify(|c| *c += 1)
-                .or_insert(1);
+            self.report.opcode_counts[instruction.opcode] += 1;
         }
 
         match instruction.opcode {
@@ -930,7 +926,7 @@ impl<'a> Executor<'a> {
                 let syscall = SyscallCode::from_u32(syscall_id);
 
                 if self.print_report && !self.unconstrained {
-                    self.report.syscall_counts.entry(syscall).and_modify(|c| *c += 1).or_insert(1);
+                    self.report.syscall_counts[syscall] += 1;
                 }
 
                 // `hint_slice` is allowed in unconstrained mode since it is used to write the hint.

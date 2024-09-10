@@ -12,43 +12,25 @@ fn main() {
     let (_, report) = client.execute(PATCH_TEST_ELF, stdin).run().expect("executing failed");
 
     // Confirm there was at least 1 SHA_COMPUTE syscall.
-    assert!(
-        report.syscall_counts.contains_key(&sp1_core_executor::syscalls::SyscallCode::SHA_COMPRESS)
-    );
-    assert!(
-        report.syscall_counts.contains_key(&sp1_core_executor::syscalls::SyscallCode::SHA_EXTEND)
-    );
+    assert_ne!(report.syscall_counts[sp1_core_executor::syscalls::SyscallCode::SHA_COMPRESS], 0);
+    assert_ne!(report.syscall_counts[sp1_core_executor::syscalls::SyscallCode::SHA_EXTEND], 0);
 
     // Confirm there was at least 1 of each ED25519 syscall.
-    assert!(report.syscall_counts.contains_key(&sp1_core_executor::syscalls::SyscallCode::ED_ADD));
-    assert!(
-        report
-            .syscall_counts
-            .contains_key(&sp1_core_executor::syscalls::SyscallCode::ED_DECOMPRESS)
-    );
+    assert_ne!(report.syscall_counts[sp1_core_executor::syscalls::SyscallCode::ED_ADD], 0);
+    assert_ne!(report.syscall_counts[sp1_core_executor::syscalls::SyscallCode::ED_DECOMPRESS], 0);
 
     // Confirm there was at least 1 KECCAK_PERMUTE syscall.
-    assert!(
-        report
-            .syscall_counts
-            .contains_key(&sp1_core_executor::syscalls::SyscallCode::KECCAK_PERMUTE)
-    );
+    assert_ne!(report.syscall_counts[sp1_core_executor::syscalls::SyscallCode::KECCAK_PERMUTE], 0);
 
     // Confirm there was at least 1 SECP256K1_ADD, SECP256K1_DOUBLE and SECP256K1_DECOMPRESS syscall.
-    assert!(
-        report
-            .syscall_counts
-            .contains_key(&sp1_core_executor::syscalls::SyscallCode::SECP256K1_ADD)
+    assert_ne!(report.syscall_counts[sp1_core_executor::syscalls::SyscallCode::SECP256K1_ADD], 0);
+    assert_ne!(
+        report.syscall_counts[sp1_core_executor::syscalls::SyscallCode::SECP256K1_DOUBLE],
+        0
     );
-    assert!(
-        report
-            .syscall_counts
-            .contains_key(&sp1_core_executor::syscalls::SyscallCode::SECP256K1_DOUBLE)
-    );
-    assert!(
-        report
-            .syscall_counts
-            .contains_key(&sp1_core_executor::syscalls::SyscallCode::SECP256K1_DECOMPRESS)
+    assert_ne!(
+        report.syscall_counts[sp1_core_executor::syscalls::SyscallCode::SECP256K1_DECOMPRESS],
+        0
     );
 
     println!("Total instructions: {:?}", report.total_instruction_count());
