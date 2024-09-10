@@ -342,6 +342,8 @@ jobs:
       - name: Run script
         run: |
           . "$HOME/.cargo/env"
+          curl -L https://sp1.succinct.xyz | bash
+          source ~/.bashrc
           sudo apt install libssl-dev pkg-config
           cd examples/fibonacci
           RUST_LOG=info cargo run --release --features cuda
