@@ -365,6 +365,21 @@ impl<F: PrimeField32> RiscvAir<F> {
         ]
     }
 
+    pub(crate) fn get_memory_init_final_heights(record: &ExecutionRecord) -> Vec<(Self, usize)> {
+        let mut heights: Vec<(Self, usize)> = vec![
+            (
+                RiscvAir::MemoryInit(MemoryChip::new(MemoryChipType::Initialize)),
+                record.memory_initialize_events.len(),
+            ),
+            (
+                RiscvAir::MemoryFinal(MemoryChip::new(MemoryChipType::Finalize)),
+                record.memory_finalize_events.len(),
+            ),
+        ];
+        heights.extend(Self::preprocessed_heights(&record.program));
+        heights
+    }
+
     pub(crate) fn get_all_precompile_airs() -> Vec<Self> {
         let mut airs: HashSet<_> = Self::get_airs_and_costs().0.into_iter().collect();
         for core_air in Self::get_all_core_airs() {

@@ -293,6 +293,12 @@ impl ExecutionRecord {
             log2_rows
         })
     }
+
+    /// Determines whether the execution record contains CPU events.
+    #[must_use]
+    pub fn contains_cpu(&self) -> bool {
+        !self.cpu_events.is_empty()
+    }
 }
 
 /// A memory access record.

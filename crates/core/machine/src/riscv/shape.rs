@@ -61,7 +61,9 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
         let shape: Option<HashMap<String, usize>> = heights
             .iter()
             .map(|(air, height)| {
-                for allowed_log_height in allowed_log_heights.get(air).unwrap().iter().flatten() {
+                for allowed_log_height in
+                    allowed_log_heights.get(air).into_iter().flatten().flatten()
+                {
                     let allowed_height = 1 << allowed_log_height;
                     if *height <= allowed_height {
                         return Some((air.name(), *allowed_log_height));
@@ -84,32 +86,46 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
             return Err(CoreShapeError::ShapeAlreadyFixed);
         }
 
-        // If cpu is not included, try to fix the shape as a precompile.
-        if record.cpu_events.is_empty() {
-            // If this is a memory init/finalize shard, try to fix the shape.
-        }
-
         // If cpu is included, try to fix the shape as a core.
+        if record.contains_cpu() {
+            // If cpu is included, try to fix the shape as a core.
 
-        // Get the heights of the core airs in the record.
-        let heights = RiscvAir::<F>::core_heights(record);
+            // Get the heights of the core airs in the record.
+            let heights = RiscvAir::<F>::core_heights(record);
 
-        // Try to find a shape within the included shapes.
+            // Try to find a shape within the included shapes.
 
-        // Try to find a shape within the short shape cluster.
-        if let Some(shape) =
-            Self::find_shape_with_allowed_heights(&heights, &self.short_core_allowed_log_heights)
-        {
-            record.shape = Some(shape);
-            return Ok(());
+            // Try to find a shape within the short shape cluster.
+            if let Some(shape) = Self::find_shape_with_allowed_heights(
+                &heights,
+                &self.short_core_allowed_log_heights,
+            ) {
+                record.shape = Some(shape);
+                return Ok(());
+            }
+            // Try to find a shape within the long shape cluster.
+            if let Some(shape) =
+                Self::find_shape_with_allowed_heights(&heights, &self.long_core_allowed_log_heights)
+            {
+                record.shape = Some(shape);
+                return Ok(());
+            }
+            // No shape found, so return an error.
+            return Err(CoreShapeError::ShapeError);
         }
-        // Try to find a shape within the long shape cluster.
-        if let Some(shape) =
-            Self::find_shape_with_allowed_heights(&heights, &self.long_core_allowed_log_heights)
-        {
-            record.shape = Some(shape);
-            return Ok(());
-        }
+
+        // If the record is a global memory init/finalize record, try to fix the shape as such.
+        {}
+
+        // // Otherwise, try to fix the shape as a precompile record.
+        // for allowed_log_heights in &self.precompile_allowed_log_heights {
+        //     if let Some(shape) =
+        //         Self::find_shape_with_allowed_heights(&heights, allowed_log_heights)
+        //     {
+        //         record.shape = Some(shape);
+        //         return Ok(());
+        //     }
+        // }
 
         // No shape found, so return an error.
         Err(CoreShapeError::ShapeError)

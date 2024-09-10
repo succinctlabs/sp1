@@ -101,7 +101,7 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
     }
 
     fn included(&self, input: &Self::Record) -> bool {
-        !input.cpu_events.is_empty()
+        input.contains_cpu()
     }
 }
 
