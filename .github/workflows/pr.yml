@@ -343,7 +343,7 @@ jobs:
         run: |
           . "$HOME/.cargo/env"
           curl -L https://sp1.succinct.xyz | bash
-          source ~/.bashrc
+          source /home/runner/.bashrc
           sp1up
           sudo apt install libssl-dev pkg-config
           cd examples/fibonacci
