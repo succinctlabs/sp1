@@ -25,6 +25,8 @@ pub enum CoreShapeError {
     PrepcocessedShapeMissing,
     #[error("Shape already fixed")]
     ShapeAlreadyFixed,
+    #[error("Precompile not included in allowed shapes")]
+    PrecompileNotIncluded,
 }
 
 /// A structure that enables fixing the shape of an executionrecord.
@@ -115,20 +117,32 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
         }
 
         // If the record is a global memory init/finalize record, try to fix the shape as such.
-        {}
+        if !record.memory_initialize_events.is_empty() || !record.memory_finalize_events.is_empty()
+        {
+            let heights = RiscvAir::<F>::get_memory_init_final_heights(record);
+            let shape =
+                Self::find_shape_with_allowed_heights(&heights, &self.memory_allowed_log_heights)
+                    .ok_or(CoreShapeError::ShapeError)?;
+            record.shape = Some(shape);
+            return Ok(());
+        }
 
-        // // Otherwise, try to fix the shape as a precompile record.
-        // for allowed_log_heights in &self.precompile_allowed_log_heights {
-        //     if let Some(shape) =
-        //         Self::find_shape_with_allowed_heights(&heights, allowed_log_heights)
-        //     {
-        //         record.shape = Some(shape);
-        //         return Ok(());
-        //     }
-        // }
-
-        // No shape found, so return an error.
-        Err(CoreShapeError::ShapeError)
+        // Otherwise, try to fix the shape as a precompile record. Since we allow all possible
+        // heights up to 1 << 22, we currently just don't fix the shape, but making sure the shape
+        // is included
+        self.precompile_allowed_log_heights
+            .iter()
+            .find_map(|allowed_log_heights| {
+                // Check if the precompile is included in the shapes.
+                for (air, _) in allowed_log_heights {
+                    if !air.included(record) {
+                        return None;
+                    }
+                }
+                Some(())
+            })
+            .ok_or(CoreShapeError::PrecompileNotIncluded)?;
+        Ok(())
     }
 
     fn generate_all_shapes_from_allowed_log_heights(
@@ -254,7 +268,7 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
         ]);
 
         let mut precompile_allowed_log_heights: Vec<HashMap<_, _>> = vec![];
-        let precompile_heights = vec![Some(10), Some(16), Some(20), Some(21), Some(22)];
+        let precompile_heights = (1..22).map(Some).collect::<Vec<_>>();
         for air in RiscvAir::<F>::get_all_precompile_airs() {
             let mut allowed_log_heights = HashMap::from([
                 (RiscvAir::Program(ProgramChip::default()), program_heights.clone()),
