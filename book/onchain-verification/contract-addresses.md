@@ -1,6 +1,6 @@
 # Contract Addresses
 
-When using SP1, we recommend using the deployed verifier gateways. On each supported chain, an [SP1VerifierGateway](https://github.com/succinctlabs/sp1-contracts/blob/main/contracts/src/ISP1VerifierGateway.sol) can automatically route your SP1 proof to the correct verifier based on the prover version. The full list can be found below:
+To verify SP1 proofs on-chain, we recommend using our deployed verifier gateways. For the chains listed below, a [SP1VerifierGateway](https://github.com/succinctlabs/sp1-contracts/blob/main/contracts/src/ISP1VerifierGateway.sol) can automatically route your SP1 proof to the correct verifier based on the SP1 version.
 
 | Chain ID | Chain            | Gateway                                                                                                                                 |
 | -------- | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
@@ -16,9 +16,9 @@ When using SP1, we recommend using the deployed verifier gateways. On each suppo
 | 534351   | Scroll Sepolia   | [0x3B6041173B80E77f038f3F2C0f9744f04837185e](https://sepolia.scrollscan.com/address/0x3B6041173B80E77f038f3F2C0f9744f04837185e)         |
 | 534352   | Scroll           | [0x3B6041173B80E77f038f3F2C0f9744f04837185e](https://scrollscan.com/address/0x3B6041173B80E77f038f3F2C0f9744f04837185e)                 |
 
-A complete reference for all of the contract addresses can be also be found in the [SP1 Contracts Repo](https://github.com/succinctlabs/sp1-contracts/blob/main/contracts/deployments).
+A complete reference for all of the SP1Verifier contract addresses can be also be found in the [SP1 Contracts Repo](https://github.com/succinctlabs/sp1-contracts/blob/main/contracts/deployments).
 
-Whenever a new prover version is deployed, the gateway contract will be updated to support it with [addRoute()](https://github.com/succinctlabs/sp1-contracts/blob/main/contracts/src/ISP1VerifierGateway.sol#L65). In the case that a prover version has an issue, the gateway contract will stop supporting it with [freezeRoute()](https://github.com/succinctlabs/sp1-contracts/blob/main/contracts/src/ISP1VerifierGateway.sol#L71).
+Whenever a verifier for a new SP1 version is deployed, the gateway contract will be updated to support it with [addRoute()](https://github.com/succinctlabs/sp1-contracts/blob/main/contracts/src/ISP1VerifierGateway.sol#L65). If a verifier for an SP1 version has an issue, the route will be frozen with [freezeRoute()](https://github.com/succinctlabs/sp1-contracts/blob/main/contracts/src/ISP1VerifierGateway.sol#L71).
 
 ## ISP1Verifier Interface
 
