@@ -35,7 +35,7 @@ pub struct StarkMachine<SC: StarkGenericConfig, A> {
     /// The number of public values elements that the machine uses
     num_pv_elts: usize,
 
-    /// Contains a global bus.  This should be true for the core proofs.
+    /// Contains a global bus.  This should be true for the core machine and false otherwise.
     contains_global_bus: bool,
 }
 
@@ -137,7 +137,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
             .collect()
     }
 
-    /// Returns an iterator over the chips in the machine that are included in the given shard and prove phase.
+    /// Returns an iterator over the chips in the machine that are included in the given shard.
     pub fn shard_chips<'a, 'b>(
         &'a self,
         shard: &'b A::Record,

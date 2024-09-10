@@ -204,7 +204,6 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             } else if !shard_proof.contains_global_memory_init()
                 && public_values.previous_init_addr_bits != public_values.last_init_addr_bits
             {
-                println!("second failure case.  previous_init_addr_bits: {:?}, last_init_addr_bits: {:?}", public_values.previous_init_addr_bits, public_values.last_init_addr_bits);
                 return Err(MachineVerificationError::InvalidPublicValues(
                     "previous_init_addr_bits != last_init_addr_bits",
                 ));
