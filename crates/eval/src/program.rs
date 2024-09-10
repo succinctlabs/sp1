@@ -76,11 +76,6 @@ pub const PROGRAMS: &[TesterProgram] = &[
         include_bytes!("../programs/rsa/input.bin"),
     ),
     TesterProgram::new(
-        "reth",
-        include_bytes!("../programs/reth/elf"),
-        include_bytes!("../programs/reth/input.bin"),
-    ),
-    TesterProgram::new(
         "raiko",
         include_bytes!("../programs/raiko/elf"),
         include_bytes!("../programs/raiko/input.bin"),
