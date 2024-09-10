@@ -341,5 +341,6 @@ jobs:
 
       - name: Run script
         run: |
+          . "$HOME/.cargo/env"
           cd examples/fibonacci
           RUST_LOG=info cargo run --release --features cuda
