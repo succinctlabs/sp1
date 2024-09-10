@@ -102,8 +102,8 @@ const COMPRESS_DEGREE: usize = 3;
 const SHRINK_DEGREE: usize = 3;
 const WRAP_DEGREE: usize = 17;
 
-const CORE_CACHE_SIZE: usize = 100;
-const COMPRESS_CACHE_SIZE: usize = 10;
+const CORE_CACHE_SIZE: usize = 5;
+const COMPRESS_CACHE_SIZE: usize = 3;
 
 pub type CompressAir<F> = RecursionAir<F, COMPRESS_DEGREE, 0>;
 pub type ShrinkAir<F> = RecursionAir<F, SHRINK_DEGREE, 0>;
@@ -521,7 +521,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
     ) -> Result<SP1ReduceProof<InnerSC>, SP1RecursionProverError> {
         // Set the batch size for the reduction tree.
         let batch_size = 2;
-        let first_layer_batch_size = 2;
+        let first_layer_batch_size = 1;
         let shard_proofs = &proof.proof.0;
 
         // Get the leaf challenger.
