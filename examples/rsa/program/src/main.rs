@@ -19,7 +19,6 @@ pub fn main() {
     hasher.update(message);
     let hashed_msg = hasher.finalize();
 
-    // let padding = PaddingScheme::new_pkcs1v15_sign(Some(Sha256::new()));
     let verification = public_key.verify(Pkcs1v15Sign::new::<Sha256>(), &hashed_msg, &signature);
 
     let verified = match verification {
