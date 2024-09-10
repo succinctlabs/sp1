@@ -28,7 +28,7 @@ use typenum::Unsigned;
 use crate::{
     memory::{MemoryReadCols, MemoryReadWriteCols},
     operations::field::{field_op::FieldOpCols, field_sqrt::FieldSqrtCols, range::FieldLtCols},
-    utils::{bytes_to_words_le_vec, limbs_from_access, limbs_from_prev_access, pad_rows},
+    utils::{bytes_to_words_le_vec, limbs_from_access, limbs_from_prev_access, pad_rows_fixed},
 };
 
 pub const fn num_weierstrass_decompress_cols<P: FieldParameters + NumWords>() -> usize {
@@ -259,22 +259,26 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
         }
         output.add_byte_lookup_events(new_byte_lookup_events);
 
-        pad_rows(&mut rows, || {
-            let mut row = vec![F::zero(); width];
-            let cols: &mut WeierstrassDecompressCols<F, E::BaseField> =
-                row.as_mut_slice()[0..weierstrass_width].borrow_mut();
+        pad_rows_fixed(
+            &mut rows,
+            || {
+                let mut row = vec![F::zero(); width];
+                let cols: &mut WeierstrassDecompressCols<F, E::BaseField> =
+                    row.as_mut_slice()[0..weierstrass_width].borrow_mut();
 
-            // take X of the generator as a dummy value to make sure Y^2 = X^3 + b holds
-            let dummy_value = E::generator().0;
-            let dummy_bytes = dummy_value.to_bytes_le();
-            let words = bytes_to_words_le_vec(&dummy_bytes);
-            for i in 0..cols.x_access.len() {
-                cols.x_access[i].access.value = words[i].into();
-            }
+                // take X of the generator as a dummy value to make sure Y^2 = X^3 + b holds
+                let dummy_value = E::generator().0;
+                let dummy_bytes = dummy_value.to_bytes_le();
+                let words = bytes_to_words_le_vec(&dummy_bytes);
+                for i in 0..cols.x_access.len() {
+                    cols.x_access[i].access.value = words[i].into();
+                }
 
-            Self::populate_field_ops(&mut vec![], 0, 0, cols, dummy_value);
-            row
-        });
+                Self::populate_field_ops(&mut vec![], 0, 0, cols, dummy_value);
+                row
+            },
+            input.fixed_log2_rows::<F, _>(self),
+        );
 
         let mut trace = RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), width);
 

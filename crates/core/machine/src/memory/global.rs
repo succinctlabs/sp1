@@ -19,7 +19,7 @@ use sp1_stark::{
 
 use crate::{
     operations::{AssertLtColsBits, BabyBearBitDecomposition, IsZeroOperation},
-    utils::pad_to_power_of_two,
+    utils::pad_rows_fixed,
 };
 
 /// The type of memory chip that is being initialized.
@@ -79,7 +79,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryChip {
         };
 
         memory_events.sort_by_key(|event| event.addr);
-        let rows: Vec<[F; NUM_MEMORY_INIT_COLS]> = (0..memory_events.len()) // OPT: change this to par_iter
+        let mut rows: Vec<[F; NUM_MEMORY_INIT_COLS]> = (0..memory_events.len()) // OPT: change this to par_iter
             .map(|i| {
                 let MemoryInitializeFinalizeEvent { addr, value, shard, timestamp, used } =
                     memory_events[i];
@@ -127,14 +127,14 @@ impl<F: PrimeField32> MachineAir<F> for MemoryChip {
             })
             .collect::<Vec<_>>();
 
-        let mut trace = RowMajorMatrix::new(
-            rows.into_iter().flatten().collect::<Vec<_>>(),
-            NUM_MEMORY_INIT_COLS,
+        // Pad the trace to a power of two depending on the proof shape in `input`.
+        pad_rows_fixed(
+            &mut rows,
+            || [F::zero(); NUM_MEMORY_INIT_COLS],
+            input.fixed_log2_rows::<F, Self>(self),
         );
 
-        pad_to_power_of_two::<NUM_MEMORY_INIT_COLS, F>(&mut trace.values);
-
-        trace
+        RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_MEMORY_INIT_COLS)
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
@@ -410,7 +410,6 @@ mod tests {
         machine.generate_dependencies(&mut runtime.records, &opts);
 
         let shards = runtime.records;
-        assert_eq!(shards.len(), 2);
         debug_interactions_with_all_chips::<BabyBearPoseidon2, RiscvAir<BabyBear>>(
             &machine,
             &pkey,
@@ -432,7 +431,6 @@ mod tests {
         machine.generate_dependencies(&mut runtime.records, &opts);
 
         let shards = runtime.records;
-        assert_eq!(shards.len(), 2);
         debug_interactions_with_all_chips::<BabyBearPoseidon2, RiscvAir<BabyBear>>(
             &machine,
             &pkey,

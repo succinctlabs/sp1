@@ -15,6 +15,9 @@ use sp1_stark::{
 use strum_macros::{EnumDiscriminants, EnumIter};
 use tracing::instrument;
 
+pub const MAX_LOG_NUMBER_OF_SHARDS: usize = 16;
+pub const MAX_NUMBER_OF_SHARDS: usize = 1 << MAX_LOG_NUMBER_OF_SHARDS;
+
 /// A module for importing all the different RISC-V chips.
 pub(crate) mod riscv_chips {
     pub use crate::{

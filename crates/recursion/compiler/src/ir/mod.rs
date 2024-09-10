@@ -1,5 +1,6 @@
 use p3_field::{ExtensionField, PrimeField, TwoAdicField};
 
+mod arithmetic;
 mod bits;
 mod builder;
 mod collections;
@@ -12,6 +13,7 @@ mod types;
 mod utils;
 mod var;
 
+pub use arithmetic::*;
 pub use builder::*;
 pub use collections::*;
 pub use fold::*;

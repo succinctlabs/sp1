@@ -10,19 +10,22 @@ use web_time::Instant;
 
 use crate::riscv::RiscvAir;
 use p3_challenger::CanObserve;
+use p3_field::AbstractField;
 use p3_maybe_rayon::prelude::*;
 use serde::{de::DeserializeOwned, Serialize};
 use size::Size;
-use sp1_stark::{baby_bear_poseidon2::BabyBearPoseidon2, MachineVerificationError};
+use sp1_stark::{
+    baby_bear_poseidon2::BabyBearPoseidon2, MachineProvingKey, MachineVerificationError,
+};
 use std::thread::ScopedJoinHandle;
 use thiserror::Error;
 
 use p3_baby_bear::BabyBear;
 use p3_field::PrimeField32;
 
-use crate::riscv::cost::CostEstimator;
 use crate::{
     io::{SP1PublicValues, SP1Stdin},
+    riscv::cost::CostEstimator,
     utils::{chunk_vec, concurrency::TurnBasedSync},
 };
 use sp1_core_executor::events::sorted_table_lines;
@@ -112,7 +115,7 @@ where
 
 pub fn prove_with_context<SC: StarkGenericConfig, P: MachineProver<SC, RiscvAir<SC::Val>>>(
     prover: &P,
-    pk: &StarkProvingKey<SC>,
+    pk: &P::DeviceProvingKey,
     program: Program,
     stdin: &SP1Stdin,
     opts: SP1CoreOpts,
@@ -129,7 +132,8 @@ where
     let mut runtime = Executor::with_context(program.clone(), opts, context);
     runtime.write_vecs(&stdin.buffer);
     for proof in stdin.proofs.iter() {
-        runtime.write_proof(proof.0.clone(), proof.1.clone());
+        let (proof, vk) = proof.clone();
+        runtime.write_proof(proof, vk);
     }
 
     #[cfg(feature = "debug")]
@@ -322,8 +326,11 @@ where
 
         // Create the challenger and observe the verifying key.
         let mut challenger = prover.config().challenger();
-        challenger.observe(pk.commit.clone());
-        challenger.observe(pk.pc_start);
+        challenger.observe(pk.commit());
+        challenger.observe(pk.pc_start());
+        for _ in 0..7 {
+            challenger.observe(Val::<SC>::zero());
+        }
 
         // Spawn the phase 1 prover thread.
         let phase_1_prover_span = tracing::Span::current().clone();
@@ -356,7 +363,7 @@ where
                             })
                             .collect::<Vec<_>>();
 
-                        // Observe the commitments.
+                        //  the commitments.
                         for (commit, public_values) in
                             commitments.into_iter().zip(public_values.into_iter())
                         {
@@ -571,7 +578,7 @@ where
         {
             let all_records = all_records_rx.iter().flatten().collect::<Vec<_>>();
             let mut challenger = prover.machine().config().challenger();
-            prover.machine().debug_constraints(pk, all_records, &mut challenger);
+            prover.machine().debug_constraints(&pk.to_host(), all_records, &mut challenger);
         }
 
         Ok((proof, public_values_stream, cycles))
@@ -635,9 +642,9 @@ pub fn run_test_core<P: MachineProver<BabyBearPoseidon2, RiscvAir<BabyBear>>>(
 
 #[allow(unused_variables)]
 pub fn run_test_machine_with_prover<SC, A, P: MachineProver<SC, A>>(
+    prover: &P,
     records: Vec<A::Record>,
-    machine: StarkMachine<SC, A>,
-    pk: StarkProvingKey<SC>,
+    pk: P::DeviceProvingKey,
     vk: StarkVerifyingKey<SC>,
 ) -> Result<MachineProof<SC>, MachineVerificationError<SC>>
 where
@@ -653,9 +660,12 @@ where
     PcsProverData<SC>: Send + Sync + Serialize + DeserializeOwned,
     OpeningProof<SC>: Send + Sync,
 {
-    let prover = P::new(machine);
     let mut challenger = prover.config().challenger();
     let prove_span = tracing::debug_span!("prove").entered();
+
+    #[cfg(feature = "debug")]
+    prover.machine().debug_constraints(&pk.to_host(), records.clone(), &mut challenger.clone());
+
     let proof = prover.prove(&pk, records, &mut challenger, SP1CoreOpts::default()).unwrap();
     prove_span.exit();
     let nb_bytes = bincode::serialize(&proof).unwrap().len();
@@ -687,7 +697,8 @@ where
     PcsProverData<SC>: Send + Sync + Serialize + DeserializeOwned,
     OpeningProof<SC>: Send + Sync,
 {
-    run_test_machine_with_prover::<SC, A, CpuProver<_, _>>(records, machine, pk, vk)
+    let prover = CpuProver::new(machine);
+    run_test_machine_with_prover::<SC, A, CpuProver<_, _>>(&prover, records, pk, vk)
 }
 
 fn trace_checkpoint(

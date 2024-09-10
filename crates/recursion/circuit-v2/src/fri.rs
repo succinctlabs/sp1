@@ -3,9 +3,8 @@ use p3_baby_bear::BabyBear;
 use p3_commit::PolynomialSpace;
 use p3_field::{AbstractField, TwoAdicField};
 use p3_fri::FriConfig;
-use p3_matrix::Dimensions;
 use p3_util::log2_strict_usize;
-use sp1_recursion_compiler::ir::{Builder, Felt, SymbolicExt, SymbolicFelt};
+use sp1_recursion_compiler::ir::{Builder, DslIr, Felt, SymbolicExt};
 use std::{
     cmp::Reverse,
     iter::{once, repeat_with, zip},
@@ -67,6 +66,14 @@ pub fn verify_two_adic_pcs<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigV
 
     let log_global_max_height = proof.fri_proof.commit_phase_commits.len() + config.log_blowup;
 
+    // Precompute the two-adic powers of the two-adic generator. They can be loaded in as constants.
+    // The ith element has order 2^(log_global_max_height - i).
+    let mut precomputed_generator_powers: Vec<Felt<_>> = vec![];
+    for i in 0..log_global_max_height + 1 {
+        precomputed_generator_powers
+            .push(builder.constant(C::F::two_adic_generator(log_global_max_height - i)));
+    }
+
     // The powers of alpha, where the ith element is alpha^i.
     let mut alpha_pows: Vec<Ext<C::F, C::EF>> =
         vec![builder.eval(SymbolicExt::from_f(C::EF::one()))];
@@ -86,21 +93,17 @@ pub fn verify_two_adic_pcs<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigV
                 let mats = round.domains_points_and_opens;
                 let batch_heights =
                     mats.iter().map(|mat| mat.domain.size() << config.log_blowup).collect_vec();
-                let batch_dims = batch_heights
-                    .iter()
-                    .map(|&height| Dimensions { width: 0, height })
-                    .collect_vec();
 
                 let batch_max_height = batch_heights.iter().max().expect("Empty batch?");
                 let log_batch_max_height = log2_strict_usize(*batch_max_height);
                 let bits_reduced = log_global_max_height - log_batch_max_height;
 
-                let reduced_index_bits = index_bits[bits_reduced..].to_vec();
+                let reduced_index_bits = &index_bits[bits_reduced..];
 
                 verify_batch::<C, SC>(
                     builder,
                     batch_commit,
-                    batch_dims,
+                    &batch_heights,
                     reduced_index_bits,
                     batch_opening.opened_values.clone(),
                     batch_opening.opening_proof.clone(),
@@ -117,29 +120,74 @@ pub fn verify_two_adic_pcs<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigV
                         index_bits[bits_reduced..(bits_reduced + log_height)].to_vec();
 
                     let g = builder.generator();
-                    let two_adic_generator: Felt<_> =
-                        builder.eval(C::F::two_adic_generator(log_height));
-                    let two_adic_generator_exp =
-                        C::exp_reverse_bits(builder, two_adic_generator, reduced_index_bits_trunc);
-                    let x: Felt<_> = builder.eval(g * two_adic_generator_exp);
+                    let two_adic_generator_exp = C::exp_f_bits_precomputed(
+                        builder,
+                        &reduced_index_bits_trunc.into_iter().rev().collect_vec(),
+                        &precomputed_generator_powers[bits_reduced..],
+                    );
+
+                    // Unroll the following to avoid symbolic expression overhead
+                    // let x: Felt<_> = builder.eval(g * two_adic_generator_exp);
+                    let x: Felt<_> = builder.uninit();
+                    builder.push_op(DslIr::MulF(x, g, two_adic_generator_exp));
 
                     for (z, ps_at_z) in izip!(mat_points, mat_values) {
-                        // builder.cycle_tracker("2adic-hotloop");
-                        let mut acc: Ext<C::F, C::EF> =
-                            builder.eval(SymbolicExt::from_f(C::EF::zero()));
+                        // Unroll the loop calculation to avoid symbolic expression overhead
+
+                        // let mut acc: Ext<C::F, C::EF> = builder.constant(C::EF::zero());
+                        let mut acc: Ext<_, _> = builder.uninit();
+
+                        builder.push_op(DslIr::ImmE(acc, C::EF::zero()));
                         for (p_at_x, p_at_z) in izip!(mat_opening.clone(), ps_at_z) {
                             let pow = log_height_pow[log_height];
                             // Fill in any missing powers of alpha.
-                            (alpha_pows.len()..pow + 1).for_each(|_| {
-                                let new_alpha = builder.eval(*alpha_pows.last().unwrap() * alpha);
+                            for _ in alpha_pows.len()..pow + 1 {
+                                // let new_alpha = builder.eval(*alpha_pows.last().unwrap() *
+                                // alpha);
+                                let new_alpha: Ext<_, _> = builder.uninit();
+                                builder.push_op(DslIr::MulE(
+                                    new_alpha,
+                                    *alpha_pows.last().unwrap(),
+                                    alpha,
+                                ));
                                 builder.reduce_e(new_alpha);
                                 alpha_pows.push(new_alpha);
-                            });
-                            acc = builder.eval(acc + (alpha_pows[pow] * (p_at_z - p_at_x[0])));
+                            }
+                            // Unroll:
+                            //
+                            // acc = builder.eval(acc + (alpha_pows[pow] * (p_at_z - p_at_x[0])));
+
+                            // let temp_1 = p_at_z - p_at_x[0];
+                            let temp_1: Ext<_, _> = builder.uninit();
+                            builder.push_op(DslIr::SubEF(temp_1, p_at_z, p_at_x[0]));
+                            // let temp_2 = alpha_pows[pow] * temp_1;
+                            let temp_2: Ext<_, _> = builder.uninit();
+                            builder.push_op(DslIr::MulE(temp_2, alpha_pows[pow], temp_1));
+                            // let temp_3 = acc + temp_2;
+                            let temp_3: Ext<_, _> = builder.uninit();
+                            builder.push_op(DslIr::AddE(temp_3, acc, temp_2));
+                            // acc = temp_3;
+                            acc = temp_3;
+
                             log_height_pow[log_height] += 1;
                         }
-                        ro[log_height] = builder.eval(ro[log_height] + acc / (z - x));
-                        // builder.cycle_tracker("2adic-hotloop");
+                        // Unroll this calculation to avoid symbolic expression overhead
+                        // ro[log_height] = builder.eval(ro[log_height] + acc / (z - x));
+
+                        // let temp_1 = z - x;
+                        let temp_1: Ext<_, _> = builder.uninit();
+                        builder.push_op(DslIr::SubEF(temp_1, z, x));
+
+                        // let temp_2 = acc / (temp_1);
+                        let temp_2: Ext<_, _> = builder.uninit();
+                        builder.push_op(DslIr::DivE(temp_2, acc, temp_1));
+
+                        // let temp_3 = rp[log_height] + temp_2;
+                        let temp_3: Ext<_, _> = builder.uninit();
+                        builder.push_op(DslIr::AddE(temp_3, ro[log_height], temp_2));
+
+                        // ro[log_height] = temp_3;
+                        ro[log_height] = temp_3;
                     }
                 }
             }
@@ -150,7 +198,7 @@ pub fn verify_two_adic_pcs<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigV
     verify_challenges::<C, SC>(
         builder,
         config,
-        &proof.fri_proof,
+        proof.fri_proof.clone(),
         &fri_challenges,
         reduced_openings,
     );
@@ -159,20 +207,20 @@ pub fn verify_two_adic_pcs<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigV
 pub fn verify_challenges<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVariable<C>>(
     builder: &mut Builder<C>,
     config: &FriConfig<FriMmcs<SC>>,
-    proof: &FriProofVariable<C, SC>,
+    proof: FriProofVariable<C, SC>,
     challenges: &FriChallenges<C>,
     reduced_openings: Vec<[Ext<C::F, C::EF>; 32]>,
 ) {
     let log_max_height = proof.commit_phase_commits.len() + config.log_blowup;
     for ((index_bits, query_proof), ro) in
-        challenges.query_indices.iter().zip(&proof.query_proofs).zip(reduced_openings)
+        challenges.query_indices.iter().zip(proof.query_proofs).zip(reduced_openings)
     {
         let folded_eval = verify_query::<C, SC>(
             builder,
-            proof.commit_phase_commits.clone(),
+            &proof.commit_phase_commits,
             index_bits,
-            query_proof.clone(),
-            challenges.betas.clone(),
+            query_proof,
+            &challenges.betas,
             ro,
             log_max_height,
         );
@@ -183,19 +231,24 @@ pub fn verify_challenges<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVar
 
 pub fn verify_query<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVariable<C>>(
     builder: &mut Builder<C>,
-    commit_phase_commits: Vec<SC::Digest>,
+    commit_phase_commits: &[SC::DigestVariable],
     index_bits: &[C::Bit],
     proof: FriQueryProofVariable<C, SC>,
-    betas: Vec<Ext<C::F, C::EF>>,
+    betas: &[Ext<C::F, C::EF>],
     reduced_openings: [Ext<C::F, C::EF>; 32],
     log_max_height: usize,
 ) -> Ext<C::F, C::EF> {
     let mut folded_eval: Ext<_, _> = builder.constant(C::EF::zero());
     let two_adic_generator: Felt<_> = builder.constant(C::F::two_adic_generator(log_max_height));
 
-    let x_felt =
+    // TODO: fix expreversebits address bug to avoid needing to allocate a new variable.
+    let mut x =
         C::exp_reverse_bits(builder, two_adic_generator, index_bits[..log_max_height].to_vec());
-    let mut x: Ext<_, _> = builder.eval(SymbolicExt::one() * SymbolicFelt::from(x_felt));
+    // let mut x = builder.uninit();
+    // builder.push(DslIr::AddFI(x, x_f, C::F::zero()));
+
+    // let mut x = builder.eval(x + C::F::zero());
+    // let mut x: Ext<_, _> = builder.eval(SymbolicExt::one() * SymbolicFelt::from(x_felt));
 
     for (offset, log_folded_height, commit, step, beta) in izip!(
         0..,
@@ -206,15 +259,14 @@ pub fn verify_query<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVariable
     ) {
         folded_eval = builder.eval(folded_eval + reduced_openings[log_folded_height + 1]);
 
-        let index_sibling_complement: C::Bit = index_bits[offset].clone();
-        // let index_sibling_complement: Felt<_> = builder.constant(C::F::one());
+        let index_sibling_complement: C::Bit = index_bits[offset];
         let index_pair = &index_bits[(offset + 1)..];
 
         builder.reduce_e(folded_eval);
 
         let evals_ext = C::select_chain_ef(
             builder,
-            index_sibling_complement.clone(),
+            index_sibling_complement,
             once(folded_eval),
             once(step.sibling_value),
         );
@@ -223,21 +275,55 @@ pub fn verify_query<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVariable
             C::ext2felt(builder, evals_ext[1]).to_vec(),
         ];
 
-        let dims = &[Dimensions { width: 2, height: (1 << log_folded_height) }];
+        let heights = &[1 << log_folded_height];
         verify_batch::<C, SC>(
             builder,
-            commit,
-            dims.to_vec(),
-            index_pair.to_vec(),
+            *commit,
+            heights,
+            index_pair,
             [evals_felt].to_vec(),
             step.opening_proof.clone(),
         );
 
-        let xs_new: Ext<_, _> = builder.eval(x * C::EF::two_adic_generator(1));
-        let xs = C::select_chain_ef(builder, index_sibling_complement, once(x), once(xs_new));
-        folded_eval = builder
-            .eval(evals_ext[0] + (beta - xs[0]) * (evals_ext[1] - evals_ext[0]) / (xs[1] - xs[0]));
-        x = builder.eval(x * x);
+        let xs_new: Felt<_> = builder.eval(x * C::F::two_adic_generator(1));
+        let xs = C::select_chain_f(builder, index_sibling_complement, once(x), once(xs_new));
+
+        // Unroll the `folded_eval` calculation to avoid symbolic expression overhead.
+        // folded_eval = builder
+        //     .eval(evals_ext[0] + (beta - xs[0]) * (evals_ext[1] - evals_ext[0]) / (xs[1] -
+        // xs[0])); x = builder.eval(x * x);
+
+        // let temp_1 = xs[1] - xs[0];
+        let temp_1: Felt<_> = builder.uninit();
+        builder.push_op(DslIr::SubF(temp_1, xs[1], xs[0]));
+
+        // let temp_2 = evals_ext[1] - evals_ext[0];
+        let temp_2: Ext<_, _> = builder.uninit();
+        builder.push_op(DslIr::SubE(temp_2, evals_ext[1], evals_ext[0]));
+
+        // let temp_3 = temp_2 / temp_1;
+        let temp_3: Ext<_, _> = builder.uninit();
+        builder.push_op(DslIr::DivEF(temp_3, temp_2, temp_1));
+
+        // let temp_4 = beta - xs[0];
+        let temp_4: Ext<_, _> = builder.uninit();
+        builder.push_op(DslIr::SubEF(temp_4, *beta, xs[0]));
+
+        // let temp_5 = temp_4 * temp_3;
+        let temp_5: Ext<_, _> = builder.uninit();
+        builder.push_op(DslIr::MulE(temp_5, temp_4, temp_3));
+
+        // let temp65 = evals_ext[0] + temp_5;
+        let temp_6: Ext<_, _> = builder.uninit();
+        builder.push_op(DslIr::AddE(temp_6, evals_ext[0], temp_5));
+        // folded_eval = temp_6;
+        folded_eval = temp_6;
+
+        // let temp_7 = x * x;
+        let temp_7: Felt<_> = builder.uninit();
+        builder.push_op(DslIr::MulF(temp_7, x, x));
+        // x = temp_7;
+        x = temp_7;
     }
 
     folded_eval
@@ -245,27 +331,26 @@ pub fn verify_query<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVariable
 
 pub fn verify_batch<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVariable<C>>(
     builder: &mut Builder<C>,
-    commit: SC::Digest,
-    dimensions: Vec<Dimensions>,
-    index_bits: Vec<C::Bit>,
+    commit: SC::DigestVariable,
+    heights: &[usize],
+    index_bits: &[C::Bit],
     opened_values: Vec<Vec<Vec<Felt<C::F>>>>,
-    proof: Vec<SC::Digest>,
+    proof: Vec<SC::DigestVariable>,
 ) {
     let mut heights_tallest_first =
-        dimensions.iter().enumerate().sorted_by_key(|(_, dims)| Reverse(dims.height)).peekable();
+        heights.iter().enumerate().sorted_by_key(|(_, height)| Reverse(*height)).peekable();
 
-    let mut curr_height_padded = heights_tallest_first.peek().unwrap().1.height.next_power_of_two();
+    let mut curr_height_padded = heights_tallest_first.peek().unwrap().1.next_power_of_two();
 
     let ext_slice: Vec<Vec<Felt<C::F>>> = heights_tallest_first
-        .peeking_take_while(|(_, dims)| dims.height.next_power_of_two() == curr_height_padded)
+        .peeking_take_while(|(_, height)| height.next_power_of_two() == curr_height_padded)
         .flat_map(|(i, _)| opened_values[i].as_slice())
         .cloned()
         .collect::<Vec<_>>();
-    let felt_slice: Vec<Felt<C::F>> =
-        ext_slice.iter().flat_map(|ext| ext.as_slice()).cloned().collect::<Vec<_>>();
-    let mut root: SC::Digest = SC::hash(builder, &felt_slice[..]);
+    let felt_slice: Vec<Felt<C::F>> = ext_slice.into_iter().flatten().collect::<Vec<_>>();
+    let mut root: SC::DigestVariable = SC::hash(builder, &felt_slice[..]);
 
-    zip(index_bits, proof).for_each(|(bit, sibling): (C::Bit, SC::Digest)| {
+    zip(index_bits.iter(), proof).for_each(|(&bit, sibling): (&C::Bit, SC::DigestVariable)| {
         let compress_args = SC::select_chain_digest(builder, bit, [root, sibling]);
 
         root = SC::compress(builder, compress_args);
@@ -273,17 +358,15 @@ pub fn verify_batch<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVariable
 
         let next_height = heights_tallest_first
             .peek()
-            .map(|(_, dims)| dims.height)
+            .map(|(_, height)| *height)
             .filter(|h| h.next_power_of_two() == curr_height_padded);
 
         if let Some(next_height) = next_height {
             let ext_slice: Vec<Vec<Felt<C::F>>> = heights_tallest_first
-                .peeking_take_while(|(_, dims)| dims.height == next_height)
-                .flat_map(|(i, _)| opened_values[i].as_slice())
-                .cloned()
+                .peeking_take_while(|(_, height)| *height == next_height)
+                .flat_map(|(i, _)| opened_values[i].clone())
                 .collect::<Vec<_>>();
-            let felt_slice: Vec<Felt<C::F>> =
-                ext_slice.iter().flat_map(|ext| ext.as_slice()).cloned().collect::<Vec<_>>();
+            let felt_slice: Vec<Felt<C::F>> = ext_slice.into_iter().flatten().collect::<Vec<_>>();
             let next_height_openings_digest = SC::hash(builder, &felt_slice);
             root = SC::compress(builder, [root, next_height_openings_digest]);
         }
@@ -450,15 +533,15 @@ mod tests {
 
         // 4 mats with 1000 rows, 8 columns
         let large_mats = (0..4).map(|_| RowMajorMatrix::<F>::rand(&mut OsRng, 1000, 8));
-        let large_mat_dims = (0..4).map(|_| Dimensions { height: 1000, width: 8 });
+        let large_mat_heights = (0..4).map(|_| 1000);
 
         // 5 mats with 70 rows, 8 columns
         let medium_mats = (0..5).map(|_| RowMajorMatrix::<F>::rand(&mut OsRng, 70, 8));
-        let medium_mat_dims = (0..5).map(|_| Dimensions { height: 70, width: 8 });
+        let medium_mat_heights = (0..5).map(|_| 70);
 
         // 6 mats with 8 rows, 8 columns
         let small_mats = (0..6).map(|_| RowMajorMatrix::<F>::rand(&mut OsRng, 8, 8));
-        let small_mat_dims = (0..6).map(|_| Dimensions { height: 8, width: 8 });
+        let small_mat_heights = (0..6).map(|_| 8);
 
         let (commit, prover_data) =
             mmcs.commit(large_mats.chain(medium_mats).chain(small_mats).collect_vec());
@@ -477,8 +560,8 @@ mod tests {
         verify_batch::<_, SC>(
             &mut builder,
             commit,
-            large_mat_dims.chain(medium_mat_dims).chain(small_mat_dims).collect_vec(),
-            index_bits,
+            &large_mat_heights.chain(medium_mat_heights).chain(small_mat_heights).collect_vec(),
+            &index_bits,
             opened_values,
             proof,
         );
@@ -564,7 +647,7 @@ mod tests {
             );
         }
 
-        run_test_recursion(builder.operations, None);
+        run_test_recursion(builder.into_operations(), None);
     }
 
     #[test]
@@ -632,6 +715,6 @@ mod tests {
             rounds,
         );
 
-        run_test_recursion(builder.operations, std::iter::empty());
+        run_test_recursion(builder.into_operations(), std::iter::empty());
     }
 }

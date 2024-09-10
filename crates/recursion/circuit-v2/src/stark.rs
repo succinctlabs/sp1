@@ -19,7 +19,8 @@ use sp1_recursion_compiler::{
 use sp1_stark::{air::MachineAir, StarkGenericConfig, StarkMachine, StarkVerifyingKey};
 
 use crate::{
-    challenger::CanObserveVariable, CircuitConfig, TwoAdicPcsMatsVariable, TwoAdicPcsProofVariable,
+    challenger::CanObserveVariable, hash::FieldHasherVariable, CircuitConfig,
+    TwoAdicPcsMatsVariable, TwoAdicPcsProofVariable,
 };
 
 use crate::{
@@ -31,11 +32,17 @@ use crate::{
 /// Reference: [sp1_core::stark::ShardProof]
 #[derive(Clone)]
 pub struct ShardProofVariable<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVariable<C>> {
-    pub commitment: ShardCommitment<SC::Digest>,
+    pub commitment: ShardCommitment<SC::DigestVariable>,
     pub opened_values: ShardOpenedValues<Ext<C::F, C::EF>>,
     pub opening_proof: TwoAdicPcsProofVariable<C, SC>,
     pub chip_ordering: HashMap<String, usize>,
     pub public_values: Vec<Felt<C::F>>,
+}
+
+#[derive(Clone)]
+pub struct MerkleProofVariable<C: CircuitConfig, HV: FieldHasherVariable<C>> {
+    pub index: Vec<C::Bit>,
+    pub path: Vec<HV::DigestVariable>,
 }
 
 pub const EMPTY: usize = 0x_1111_1111;
@@ -233,6 +240,11 @@ impl<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVariable<C>> ShardProof
         self.chip_ordering.contains_key("CPU")
     }
 
+    pub fn log_degree_cpu(&self) -> usize {
+        let idx = self.chip_ordering.get("CPU").expect("CPU chip not found");
+        self.opened_values.chips[*idx].log_degree
+    }
+
     pub fn contains_memory_init(&self) -> bool {
         self.chip_ordering.contains_key("MemoryInit")
     }
@@ -344,7 +356,7 @@ pub mod tests {
             let mut challenger = challenger.copy(&mut builder);
             StarkVerifier::verify_shard(&mut builder, &vk, &machine, &mut challenger, &proof);
         }
-        (builder.operations, witness_stream)
+        (builder.into_operations(), witness_stream)
     }
 
     #[test]

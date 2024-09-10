@@ -10,6 +10,7 @@ pub mod builder;
 pub mod chips;
 pub mod machine;
 pub mod runtime;
+pub mod shape;
 
 pub use runtime::*;
 

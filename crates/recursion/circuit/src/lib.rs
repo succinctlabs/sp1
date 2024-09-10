@@ -61,7 +61,7 @@ mod tests {
         builder.assert_felt_eq(a_times_b_times_c, a_val * b_val * a_val * b_val * a_val * b_val);
 
         let mut backend = ConstraintCompiler::<OuterConfig>::default();
-        let constraints = backend.emit(builder.operations);
+        let constraints = backend.emit(builder.into_operations());
 
         let witness = Witness::default();
         PlonkBn254Prover::test::<OuterConfig>(constraints.clone(), witness);
@@ -113,7 +113,7 @@ mod tests {
         );
 
         let mut backend = ConstraintCompiler::<OuterConfig>::default();
-        let constraints = backend.emit(builder.operations);
+        let constraints = backend.emit(builder.into_operations());
 
         let witness = Witness::default();
         PlonkBn254Prover::test::<OuterConfig>(constraints.clone(), witness);
@@ -130,7 +130,7 @@ mod tests {
         builder.commit_commited_values_digest_circuit(commited_values_digest);
 
         let mut backend = ConstraintCompiler::<OuterConfig>::default();
-        let constraints = backend.emit(builder.operations);
+        let constraints = backend.emit(builder.into_operations());
 
         let mut witness = Witness::default();
         witness.write_vkey_hash(vkey_hash_bn254);
@@ -151,7 +151,7 @@ mod tests {
         builder.commit_commited_values_digest_circuit(commited_values_digest);
 
         let mut backend = ConstraintCompiler::<OuterConfig>::default();
-        let constraints = backend.emit(builder.operations);
+        let constraints = backend.emit(builder.into_operations());
 
         let mut witness = Witness::default();
         witness.write_commited_values_digest(commited_values_digest_bn254);
@@ -171,7 +171,7 @@ mod tests {
         builder.commit_commited_values_digest_circuit(commited_values_digest);
 
         let mut backend = ConstraintCompiler::<OuterConfig>::default();
-        let constraints = backend.emit(builder.operations);
+        let constraints = backend.emit(builder.into_operations());
 
         let mut witness = Witness::default();
         witness.write_vkey_hash(vkey_hash_bn254);

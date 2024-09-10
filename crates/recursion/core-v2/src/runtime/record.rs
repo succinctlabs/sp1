@@ -1,8 +1,8 @@
 use std::{array, sync::Arc};
 
-use p3_field::{AbstractField, PrimeField32};
+use p3_field::{AbstractField, Field, PrimeField32};
 use sp1_recursion_core::air::RecursionPublicValues;
-use sp1_stark::{MachineRecord, SP1CoreOpts, PROOF_MAX_NUM_PVS};
+use sp1_stark::{air::MachineAir, MachineRecord, SP1CoreOpts, PROOF_MAX_NUM_PVS};
 
 // TODO expand glob imports
 use crate::*;
@@ -59,7 +59,7 @@ impl<F: PrimeField32> MachineRecord for ExecutionRecord<F> {
     }
 
     fn public_values<T: AbstractField>(&self) -> Vec<T> {
-        let pv_elms = self.public_values.to_vec();
+        let pv_elms = self.public_values.as_array();
 
         let ret: [T; PROOF_MAX_NUM_PVS] = array::from_fn(|i| {
             if i < pv_elms.len() {
@@ -70,5 +70,12 @@ impl<F: PrimeField32> MachineRecord for ExecutionRecord<F> {
         });
 
         ret.to_vec()
+    }
+}
+
+impl<F: Field> ExecutionRecord<F> {
+    #[inline]
+    pub fn fixed_log2_rows<A: MachineAir<F>>(&self, air: &A) -> Option<usize> {
+        self.program.fixed_log2_rows(air)
     }
 }

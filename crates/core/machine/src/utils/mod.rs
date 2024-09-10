@@ -56,19 +56,12 @@ pub fn limbs_from_access<T: Copy, N: ArrayLength, M: MemoryCols<T>>(cols: &[M]) 
     Limbs(sized)
 }
 
-pub fn pad_rows<T: Clone>(rows: &mut Vec<T>, row_fn: impl Fn() -> T) {
-    let nb_rows = rows.len();
-    let mut padded_nb_rows = nb_rows.next_power_of_two();
-    if padded_nb_rows < 16 {
-        padded_nb_rows = 16;
-    }
-    if padded_nb_rows == nb_rows {
-        return;
-    }
-    let dummy_row = row_fn();
-    rows.resize(padded_nb_rows, dummy_row);
-}
-
+/// Pad to a power of two, with an option to specify the power.
+//
+// The `rows` argument represents the rows of a matrix stored in row-major order. The function will
+// pad the rows using `row_fn` to create the padded rows. The padding will be to the next power of
+// of two of `size_log_2` is `None`, or to the specified `size_log_2` if it is not `None`. The
+// function will panic of the number of rows is larger than the specified `size_log2`
 pub fn pad_rows_fixed<R: Clone>(
     rows: &mut Vec<R>,
     row_fn: impl Fn() -> R,

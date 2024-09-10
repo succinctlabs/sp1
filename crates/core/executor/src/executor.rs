@@ -1273,15 +1273,15 @@ impl<'a> Executor<'a> {
         // Get the final public values.
         let public_values = self.record.public_values;
 
-        // Push the remaining execution record, if there are any CPU events.
-        if !self.record.cpu_events.is_empty() {
-            self.bump_record();
-        }
-
         if done {
             self.postprocess();
 
             // Push the remaining execution record with memory initialize & finalize events.
+            self.bump_record();
+        }
+
+        // Push the remaining execution record, if there are any CPU events.
+        if !self.record.cpu_events.is_empty() {
             self.bump_record();
         }
 

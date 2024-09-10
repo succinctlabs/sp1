@@ -1,3 +1,5 @@
+use std::marker::PhantomData;
+
 use p3_baby_bear::{MONTY_INVERSE, POSEIDON2_INTERNAL_MATRIX_DIAG_16_BABYBEAR_MONTY};
 use p3_field::{AbstractField, PrimeField32};
 
@@ -17,16 +19,13 @@ pub const NUM_ROUNDS: usize = NUM_EXTERNAL_ROUNDS + NUM_INTERNAL_ROUNDS;
 
 /// A chip that implements the Poseidon2 permutation in the skinny variant (one external round per
 /// row and one row for all internal rounds).
-pub struct Poseidon2SkinnyChip<const DEGREE: usize> {
-    pub fixed_log2_rows: Option<usize>,
-    pub pad: bool,
-}
+pub struct Poseidon2SkinnyChip<const DEGREE: usize>(PhantomData<()>);
 
 impl<const DEGREE: usize> Default for Poseidon2SkinnyChip<DEGREE> {
     fn default() -> Self {
         // We only support machines with degree 9.
         assert!(DEGREE >= 9);
-        Self { fixed_log2_rows: None, pad: true }
+        Self(PhantomData)
     }
 }
 pub fn apply_m_4<AF>(x: &mut [AF])
@@ -141,7 +140,7 @@ pub(crate) mod tests {
         runtime.run().unwrap();
 
         let config = SC::new();
-        let machine_deg_9 = B::machine(config);
+        let machine_deg_9 = B::wrap_machine(config);
         let (pk_9, vk_9) = machine_deg_9.setup(&program);
         let result_deg_9 = run_test_machine(vec![runtime.record], machine_deg_9, pk_9, vk_9);
         if let Err(e) = result_deg_9 {

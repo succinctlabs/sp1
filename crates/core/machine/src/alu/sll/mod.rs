@@ -49,7 +49,7 @@ use sp1_derive::AlignedBorrow;
 use sp1_primitives::consts::WORD_SIZE;
 use sp1_stark::{air::MachineAir, Word};
 
-use crate::{air::SP1CoreAirBuilder, utils::pad_to_power_of_two};
+use crate::{air::SP1CoreAirBuilder, utils::pad_rows_fixed};
 
 /// The number of main trace columns for `ShiftLeft`.
 pub const NUM_SHIFT_LEFT_COLS: usize = size_of::<ShiftLeftCols<u8>>();
@@ -129,14 +129,18 @@ impl<F: PrimeField> MachineAir<F> for ShiftLeft {
             rows.push(row);
         }
 
+        // Pad the trace to a power of two depending on the proof shape in `input`.
+        pad_rows_fixed(
+            &mut rows,
+            || [F::zero(); NUM_SHIFT_LEFT_COLS],
+            input.fixed_log2_rows::<F, _>(self),
+        );
+
         // Convert the trace to a row major matrix.
         let mut trace = RowMajorMatrix::new(
             rows.into_iter().flatten().collect::<Vec<_>>(),
             NUM_SHIFT_LEFT_COLS,
         );
-
-        // Pad the trace to a power of two.
-        pad_to_power_of_two::<NUM_SHIFT_LEFT_COLS, F>(&mut trace.values);
 
         // Create the template for the padded rows. These are fake rows that don't fail on some
         // sanity checks.

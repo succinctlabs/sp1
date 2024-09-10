@@ -10,10 +10,10 @@ use std::{borrow::BorrowMut, iter::zip};
 
 use crate::{builder::SP1RecursionAirBuilder, *};
 
-pub const NUM_BASE_ALU_ENTRIES_PER_ROW: usize = 8;
+pub const NUM_BASE_ALU_ENTRIES_PER_ROW: usize = 4;
 
 #[derive(Default)]
-pub struct BaseAluChip {}
+pub struct BaseAluChip;
 
 pub const NUM_BASE_ALU_COLS: usize = core::mem::size_of::<BaseAluCols<u8>>();
 
@@ -84,8 +84,13 @@ impl<F: PrimeField32> MachineAir<F> for BaseAluChip {
             .collect::<Vec<_>>();
 
         let nb_rows = instrs.len().div_ceil(NUM_BASE_ALU_ENTRIES_PER_ROW);
-        let padded_nb_rows = next_power_of_two(nb_rows, None);
+        let fixed_log2_rows = program.fixed_log2_rows(self);
+        let padded_nb_rows = match fixed_log2_rows {
+            Some(log2_rows) => 1 << log2_rows,
+            None => next_power_of_two(nb_rows, None),
+        };
         let mut values = vec![F::zero(); padded_nb_rows * NUM_BASE_ALU_PREPROCESSED_COLS];
+
         // Generate the trace rows & corresponding records for each chunk of events in parallel.
         let populate_len = instrs.len() * NUM_BASE_ALU_ACCESS_COLS;
         values[..populate_len].par_chunks_mut(NUM_BASE_ALU_ACCESS_COLS).zip_eq(instrs).for_each(
@@ -121,8 +126,13 @@ impl<F: PrimeField32> MachineAir<F> for BaseAluChip {
     fn generate_trace(&self, input: &Self::Record, _: &mut Self::Record) -> RowMajorMatrix<F> {
         let events = &input.base_alu_events;
         let nb_rows = events.len().div_ceil(NUM_BASE_ALU_ENTRIES_PER_ROW);
-        let padded_nb_rows = next_power_of_two(nb_rows, None);
+        let fixed_log2_rows = input.fixed_log2_rows(self);
+        let padded_nb_rows = match fixed_log2_rows {
+            Some(log2_rows) => 1 << log2_rows,
+            None => next_power_of_two(nb_rows, None),
+        };
         let mut values = vec![F::zero(); padded_nb_rows * NUM_BASE_ALU_COLS];
+
         // Generate the trace rows & corresponding records for each chunk of events in parallel.
         let populate_len = events.len() * NUM_BASE_ALU_VALUE_COLS;
         values[..populate_len].par_chunks_mut(NUM_BASE_ALU_VALUE_COLS).zip_eq(events).for_each(
@@ -164,8 +174,8 @@ where
 
             builder.when(is_add).assert_eq(in1 + in2, out);
             builder.when(is_sub).assert_eq(in1, in2 + out);
-            builder.when(is_mul).assert_eq(in1 * in2, out);
-            builder.when(is_div).assert_eq(in1, in2 * out);
+            builder.when(is_mul).assert_eq(out, in1 * in2);
+            builder.when(is_div).assert_eq(in2 * out, in1);
 
             builder.receive_single(addrs.in1, in1, is_real.clone());
 
@@ -198,7 +208,7 @@ mod tests {
             base_alu_events: vec![BaseAluIo { out: F::one(), in1: F::one(), in2: F::one() }],
             ..Default::default()
         };
-        let chip = BaseAluChip::default();
+        let chip = BaseAluChip;
         let trace: RowMajorMatrix<F> = chip.generate_trace(&shard, &mut ExecutionRecord::default());
         println!("{:?}", trace.values)
     }

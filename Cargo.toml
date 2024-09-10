@@ -61,6 +61,7 @@ sp1-prover = { path = "crates/prover", version = "1.2.0" }
 sp1-recursion-compiler = { path = "crates/recursion/compiler", version = "1.2.0" }
 sp1-recursion-core = { path = "crates/recursion/core", version = "1.2.0", default-features = false }
 sp1-recursion-core-v2 = { path = "crates/recursion/core-v2", version = "1.2.0", default-features = false }
+sp1-recursion-circuit-v2 = { path = "crates/recursion/circuit-v2", version = "1.2.0", default-features = false }
 sp1-recursion-derive = { path = "crates/recursion/derive", version = "1.2.0", default-features = false }
 sp1-recursion-gnark-ffi = { path = "crates/recursion/gnark-ffi", version = "1.2.0", default-features = false }
 sp1-recursion-program = { path = "crates/recursion/program", version = "1.2.0", default-features = false }

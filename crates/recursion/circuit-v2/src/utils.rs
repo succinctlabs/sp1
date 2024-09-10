@@ -1,39 +1,18 @@
-use std::borrow::BorrowMut;
+use std::mem::MaybeUninit;
 
 use p3_baby_bear::BabyBear;
 use p3_bn254_fr::Bn254Fr;
-use p3_field::AbstractField;
-use p3_field::PrimeField32;
+use p3_field::{AbstractField, PrimeField32};
 
-use sp1_recursion_compiler::{
-    circuit::CircuitV2Builder,
-    ir::{Builder, Config, Felt, Var},
-};
-use sp1_recursion_core_v2::{
-    air::{RecursionPublicValues, NUM_PV_ELMS_TO_HASH, RECURSIVE_PROOF_NUM_PV_ELTS},
-    DIGEST_SIZE,
-};
+use sp1_recursion_compiler::ir::{Builder, Config, Felt, Var};
+use sp1_recursion_core_v2::{air::ChallengerPublicValues, DIGEST_SIZE};
+
 use sp1_stark::Word;
 
-/// Register and commits the recursion public values.
-pub fn commit_recursion_public_values<C: Config>(
-    builder: &mut Builder<C>,
-    public_values: &RecursionPublicValues<Felt<C::F>>,
-) {
-    let mut pv_elements: [Felt<_>; RECURSIVE_PROOF_NUM_PV_ELTS] =
-        core::array::from_fn(|_| builder.uninit());
-    *pv_elements.as_mut_slice().borrow_mut() = *public_values;
-    let pv_elms_no_digest = &pv_elements[0..NUM_PV_ELMS_TO_HASH];
-
-    for value in pv_elms_no_digest.iter() {
-        builder.register_public_value(*value);
-    }
-
-    // Hash the public values.
-    let pv_digest = builder.poseidon2_hash_v2(&pv_elements[0..NUM_PV_ELMS_TO_HASH]);
-    for element in pv_digest {
-        builder.commit_public_value(element);
-    }
+pub(crate) unsafe fn uninit_challenger_pv<C: Config>(
+    _builder: &mut Builder<C>,
+) -> ChallengerPublicValues<Felt<C::F>> {
+    unsafe { MaybeUninit::zeroed().assume_init() }
 }
 
 /// Convert 8 BabyBear words into a Bn254Fr field element by shifting by 31 bits each time. The last
@@ -68,6 +47,7 @@ pub fn babybear_bytes_to_bn254(bytes: &[BabyBear; 32]) -> Bn254Fr {
     result
 }
 
+#[allow(dead_code)]
 pub fn felts_to_bn254_var<C: Config>(
     builder: &mut Builder<C>,
     digest: &[Felt<C::F>; DIGEST_SIZE],
@@ -86,6 +66,7 @@ pub fn felts_to_bn254_var<C: Config>(
     result
 }
 
+#[allow(dead_code)]
 pub fn felt_bytes_to_bn254_var<C: Config>(
     builder: &mut Builder<C>,
     bytes: &[Felt<C::F>; 32],
@@ -111,6 +92,7 @@ pub fn felt_bytes_to_bn254_var<C: Config>(
     result
 }
 
+#[allow(dead_code)]
 pub fn words_to_bytes<T: Copy>(words: &[Word<T>]) -> Vec<T> {
     words.iter().flat_map(|w| w.0).collect::<Vec<_>>()
 }
@@ -126,6 +108,7 @@ pub(crate) mod tests {
     use sp1_recursion_core_v2::{machine::RecursionAir, Runtime};
     use sp1_stark::{
         baby_bear_poseidon2::BabyBearPoseidon2, CpuProver, InnerChallenge, InnerVal, MachineProver,
+        MachineProvingKey,
     };
 
     use crate::witness::WitnessBlock;
@@ -161,9 +144,11 @@ pub(crate) mod tests {
 
         // Run with the poseidon2 wide chip.
         let proof_wide_span = tracing::debug_span!("Run test with wide machine").entered();
-        let wide_machine = RecursionAir::<_, 3, 0>::machine_wide(SC::default());
+        let wide_machine = RecursionAir::<_, 3, 0>::compress_machine(SC::default());
         let (pk, vk) = wide_machine.setup(&program);
-        let result = run_test_machine_with_prover::<_, _, P>(records.clone(), wide_machine, pk, vk);
+        let pk = P::DeviceProvingKey::from_host(&pk);
+        let prover = P::new(wide_machine);
+        let result = run_test_machine_with_prover::<_, _, P>(&prover, records.clone(), pk, vk);
         proof_wide_span.exit();
 
         if let Err(e) = result {

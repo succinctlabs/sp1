@@ -58,6 +58,19 @@ impl<'a, C: CircuitConfig, T: Witnessable<C>> Witnessable<C> for &'a T {
     }
 }
 
+impl<C: CircuitConfig, T: Witnessable<C>, U: Witnessable<C>> Witnessable<C> for (T, U) {
+    type WitnessVariable = (T::WitnessVariable, U::WitnessVariable);
+
+    fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
+        (self.0.read(builder), self.1.read(builder))
+    }
+
+    fn write(&self, witness: &mut impl WitnessWriter<C>) {
+        self.0.write(witness);
+        self.1.write(witness);
+    }
+}
+
 impl<C: CircuitConfig<F = InnerVal>> Witnessable<C> for InnerVal {
     type WitnessVariable = Felt<InnerVal>;
 
@@ -119,7 +132,7 @@ impl<C: CircuitConfig, T: Witnessable<C>> Witnessable<C> for Vec<T> {
 impl<C: CircuitConfig<F = InnerVal, EF = InnerChallenge>, SC: BabyBearFriConfigVariable<C>>
     Witnessable<C> for ShardProof<SC>
 where
-    Com<SC>: Witnessable<C, WitnessVariable = <SC as FieldHasherVariable<C>>::Digest>,
+    Com<SC>: Witnessable<C, WitnessVariable = <SC as FieldHasherVariable<C>>::DigestVariable>,
     OpeningProof<SC>: Witnessable<C, WitnessVariable = TwoAdicPcsProofVariable<C, SC>>,
 {
     type WitnessVariable = ShardProofVariable<C, SC>;
