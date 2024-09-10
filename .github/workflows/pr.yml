@@ -315,12 +315,7 @@ jobs:
           SP1_DEV=1 RUST_LOG=info cargo run --release
   test-cuda:
     name: Test CUDA
-    runs-on:
-      [
-        runs-on,
-        runner=nvidia-gpu-linux-x64,
-        "run-id=${{ github.run_id }}",
-      ]
+    runs-on: nvidia-gpu-linux-x64
     steps:
       - name: Checkout sources
         uses: actions/checkout@v4
@@ -331,4 +326,4 @@ jobs:
       - name: Run script
         run: |
           cd examples/fibonacci
-          cargo run --release --features cuda
+          RUST_LOG=info cargo run --release --features cuda
