@@ -103,8 +103,8 @@ const COMPRESS_DEGREE: usize = 3;
 const SHRINK_DEGREE: usize = 3;
 const WRAP_DEGREE: usize = 17;
 
-const CORE_CACHE_SIZE: usize = 100;
-const COMPRESS_CACHE_SIZE: usize = 10;
+const CORE_CACHE_SIZE: usize = 5;
+const COMPRESS_CACHE_SIZE: usize = 3;
 
 pub type CompressAir<F> = RecursionAir<F, COMPRESS_DEGREE, 0>;
 pub type ShrinkAir<F> = RecursionAir<F, SHRINK_DEGREE, 0>;
