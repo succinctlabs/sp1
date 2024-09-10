@@ -342,6 +342,6 @@ jobs:
       - name: Run script
         run: |
           . "$HOME/.cargo/env"
-          sudo apt install openssl
+          sudo apt install libssl-dev pkg-config
           cd examples/fibonacci
           RUST_LOG=info cargo run --release --features cuda
