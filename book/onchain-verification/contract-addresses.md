@@ -1,6 +1,6 @@
 # Contract Addresses
 
-To verify SP1 proofs on-chain, we recommend using our deployed verifier gateways. For the chains listed below, a [SP1VerifierGateway](https://github.com/succinctlabs/sp1-contracts/blob/main/contracts/src/ISP1VerifierGateway.sol) can automatically route your SP1 proof to the correct verifier based on the SP1 version.
+To verify SP1 proofs on-chain, we recommend using our deployed verifier gateways. For the chains listed below, an [SP1VerifierGateway](https://github.com/succinctlabs/sp1-contracts/blob/main/contracts/src/ISP1VerifierGateway.sol) can automatically route your SP1 proof to the correct verifier based on the SP1 version.
 
 | Chain ID | Chain            | Gateway                                                                                                                                 |
 | -------- | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
