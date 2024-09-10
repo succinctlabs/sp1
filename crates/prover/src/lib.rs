@@ -220,7 +220,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
     /// Get a program with an allowed preprocessed shape.
     pub fn get_program(&self, elf: &[u8]) -> eyre::Result<Program> {
         let mut program = Program::from(elf)?;
-        self.core_shape_config.fix_preprocessed_shape(&mut program);
+        self.core_shape_config.fix_preprocessed_shape(&mut program)?;
         Ok(program)
     }
 
