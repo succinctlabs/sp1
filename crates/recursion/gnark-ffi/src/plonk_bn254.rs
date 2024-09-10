@@ -75,7 +75,7 @@ impl PlonkBn254Prover {
         // Write the corresponding asset files to the build dir.
         let sp1_verifier_path = build_dir.join("SP1VerifierPlonk.sol");
         let vkey_hash = Self::get_vkey_hash(&build_dir);
-        let sp1_verifier_str = include_str!("../assets/SP1Verifier.txt")
+        let sp1_verifier_str = include_str!("../assets/SP1VerifierPlonk.txt")
             .replace("{SP1_CIRCUIT_VERSION}", SP1_CIRCUIT_VERSION)
             .replace("{VERIFIER_HASH}", format!("0x{}", hex::encode(vkey_hash)).as_str())
             .replace("{PROOF_SYSTEM}", "Plonk");
