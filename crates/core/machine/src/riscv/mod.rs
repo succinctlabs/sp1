@@ -328,23 +328,9 @@ impl<F: PrimeField32> RiscvAir<F> {
         ]
     }
 
-    pub(crate) fn preprocessed_heights_from_shape(
-        shape: &HashMap<String, usize>,
-    ) -> Vec<(Self, usize)> {
-        let program_air = RiscvAir::Program(ProgramChip::default());
-        let program_memory_air = RiscvAir::ProgramMemory(MemoryProgramChip::default());
-
-        let program_name = program_air.name();
-        let program_memory_name = program_memory_air.name();
-        vec![
-            (program_air, 1 << shape[&program_name]),
-            (program_memory_air, 1 << shape[&program_memory_name]),
-        ]
-    }
-
     /// Get the heights of the chips for a given execution record.
     pub(crate) fn core_heights(record: &ExecutionRecord) -> Vec<(Self, usize)> {
-        let mut heights = vec![
+        vec![
             (RiscvAir::Cpu(CpuChip::default()), record.cpu_events.len()),
             (RiscvAir::DivRem(DivRemChip::default()), record.divrem_events.len()),
             (
@@ -356,10 +342,7 @@ impl<F: PrimeField32> RiscvAir<F> {
             (RiscvAir::ShiftRight(ShiftRightChip::default()), record.shift_right_events.len()),
             (RiscvAir::ShiftLeft(ShiftLeft::default()), record.shift_left_events.len()),
             (RiscvAir::Lt(LtChip::default()), record.lt_events.len()),
-        ];
-        let preprocessed_shape = &record.program.preprocessed_shape.as_ref().unwrap().inner;
-        heights.extend(Self::preprocessed_heights_from_shape(preprocessed_shape));
-        heights
+        ]
     }
 
     pub(crate) fn get_all_core_airs() -> Vec<Self> {
@@ -383,7 +366,7 @@ impl<F: PrimeField32> RiscvAir<F> {
     }
 
     pub(crate) fn get_memory_init_final_heights(record: &ExecutionRecord) -> Vec<(Self, usize)> {
-        let mut heights: Vec<(Self, usize)> = vec![
+        vec![
             (
                 RiscvAir::MemoryInit(MemoryChip::new(MemoryChipType::Initialize)),
                 record.memory_initialize_events.len(),
@@ -392,10 +375,7 @@ impl<F: PrimeField32> RiscvAir<F> {
                 RiscvAir::MemoryFinal(MemoryChip::new(MemoryChipType::Finalize)),
                 record.memory_finalize_events.len(),
             ),
-        ];
-        let preprocessed_shape = &record.program.preprocessed_shape.as_ref().unwrap().inner;
-        heights.extend(Self::preprocessed_heights_from_shape(preprocessed_shape));
-        heights
+        ]
     }
 
     pub(crate) fn get_all_precompile_airs() -> Vec<Self> {

@@ -48,7 +48,7 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
 
         let heights = RiscvAir::<F>::preprocessed_heights(program);
         let prep_shape =
-            Self::find_shape_with_allowed_heights(&heights, &self.allowed_preprocessed_log_heights)
+            Self::find_shape_from_allowed_heights(&heights, &self.allowed_preprocessed_log_heights)
                 .ok_or(CoreShapeError::PreprocessedShapeError)?;
 
         program.preprocessed_shape = Some(prep_shape);
@@ -56,7 +56,7 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
     }
 
     #[inline]
-    fn find_shape_with_allowed_heights(
+    fn find_shape_from_allowed_heights(
         heights: &[(RiscvAir<F>, usize)],
         allowed_log_heights: &HashMap<RiscvAir<F>, Vec<Option<usize>>>,
     ) -> Option<CoreShape> {
@@ -88,6 +88,10 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
             return Err(CoreShapeError::ShapeAlreadyFixed);
         }
 
+        // Set the shape of the chips with prepcoded shapes to match the preprocessed shape from the
+        // program.
+        record.shape.clone_from(&record.program.preprocessed_shape);
+
         // If cpu is included, try to fix the shape as a core.
         if record.contains_cpu() {
             // If cpu is included, try to fix the shape as a core.
@@ -98,18 +102,18 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
             // Try to find a shape within the included shapes.
 
             // Try to find a shape within the short shape cluster.
-            if let Some(shape) = Self::find_shape_with_allowed_heights(
+            if let Some(shape) = Self::find_shape_from_allowed_heights(
                 &heights,
                 &self.short_core_allowed_log_heights,
             ) {
-                record.shape = Some(shape);
+                record.shape.as_mut().unwrap().extend(shape);
                 return Ok(());
             }
             // Try to find a shape within the long shape cluster.
             if let Some(shape) =
-                Self::find_shape_with_allowed_heights(&heights, &self.long_core_allowed_log_heights)
+                Self::find_shape_from_allowed_heights(&heights, &self.long_core_allowed_log_heights)
             {
-                record.shape = Some(shape);
+                record.shape.as_mut().unwrap().extend(shape);
                 return Ok(());
             }
             // No shape found, so return an error.
@@ -121,9 +125,9 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
         {
             let heights = RiscvAir::<F>::get_memory_init_final_heights(record);
             let shape =
-                Self::find_shape_with_allowed_heights(&heights, &self.memory_allowed_log_heights)
+                Self::find_shape_from_allowed_heights(&heights, &self.memory_allowed_log_heights)
                     .ok_or(CoreShapeError::ShapeError)?;
-            record.shape = Some(shape);
+            record.shape.as_mut().unwrap().extend(shape);
             return Ok(());
         }
 
@@ -142,20 +146,16 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
                 Some(())
             })
             .ok_or(CoreShapeError::PrecompileNotIncluded)?;
-        record.shape.clone_from(&record.program.preprocessed_shape);
         Ok(())
     }
 
     fn generate_all_shapes_from_allowed_log_heights(
-        allowed_log_heights: &HashMap<RiscvAir<F>, Vec<Option<usize>>>,
-    ) -> impl Iterator<Item = ProofShape> + '_ {
+        allowed_log_heights: impl IntoIterator<Item = (String, Vec<Option<usize>>)>,
+    ) -> impl Iterator<Item = ProofShape> {
         // for chip in allowed_heights.
         allowed_log_heights
-            .iter()
-            .map(|(chip, heights)| {
-                let name = chip.name();
-                heights.iter().map(move |height| (name.clone(), *height))
-            })
+            .into_iter()
+            .map(|(name, heights)| heights.into_iter().map(move |height| (name.clone(), height)))
             .multi_cartesian_product()
             .map(|iter| {
                 iter.into_iter()
@@ -167,19 +167,54 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
     }
 
     pub fn generate_all_allowed_shapes(&self) -> impl Iterator<Item = ProofShape> + '_ {
-        self.included_shapes
+        let preprocessed_heights = self
+            .allowed_preprocessed_log_heights
             .iter()
-            .map(ProofShape::from_map)
-            .chain(Self::generate_all_shapes_from_allowed_log_heights(
-                &self.short_core_allowed_log_heights,
-            ))
-            .chain(Self::generate_all_shapes_from_allowed_log_heights(
-                &self.long_core_allowed_log_heights,
-            ))
-            .chain(Self::generate_all_shapes_from_allowed_log_heights(
-                &self.memory_allowed_log_heights,
-            ))
-            .chain(self.precompile_allowed_log_heights.iter().flat_map(|allowed_log_heights| {
+            .map(|(air, heights)| (air.name(), heights.clone()));
+
+        let mut short_heights = self
+            .short_core_allowed_log_heights
+            .iter()
+            .map(|(air, heights)| (air.name(), heights.clone()))
+            .collect::<HashMap<_, _>>();
+        short_heights.extend(preprocessed_heights.clone());
+
+        let mut long_heights = self
+            .long_core_allowed_log_heights
+            .iter()
+            .map(|(air, heights)| (air.name(), heights.clone()))
+            .collect::<HashMap<_, _>>();
+        long_heights.extend(preprocessed_heights.clone());
+
+        let mut memory_heights = self
+            .memory_allowed_log_heights
+            .iter()
+            .map(|(air, heights)| (air.name(), heights.clone()))
+            .collect::<HashMap<_, _>>();
+        memory_heights.extend(preprocessed_heights.clone());
+
+        let precompile_heights = self
+            .precompile_allowed_log_heights
+            .iter()
+            .map(|allowed_log_heights| {
+                let mut heights = allowed_log_heights
+                    .iter()
+                    .map(|(air, heights)| (air.name(), heights.clone()))
+                    .collect::<HashMap<_, _>>();
+                heights.extend(preprocessed_heights.clone());
+                heights
+            })
+            .collect::<Vec<_>>();
+
+        let included_shapes =
+            self.included_shapes.iter().map(ProofShape::from_map).collect::<Vec<_>>();
+
+        included_shapes
+            .into_iter()
+            .chain(Self::generate_all_shapes_from_allowed_log_heights(short_heights))
+            .chain(Self::generate_all_shapes_from_allowed_log_heights(long_heights))
+            .chain(Self::generate_all_shapes_from_allowed_log_heights(memory_heights))
+            .chain(precompile_heights.into_iter().flat_map(|allowed_log_heights| {
                 Self::generate_all_shapes_from_allowed_log_heights(allowed_log_heights)
             }))
     }
@@ -194,8 +229,8 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
         let program_memory_heights = vec![Some(10), Some(16), Some(20), Some(21), Some(22)];
 
         let allowed_preprocessed_log_heights = HashMap::from([
-            (RiscvAir::Program(ProgramChip::default()), program_heights.clone()),
-            (RiscvAir::ProgramMemory(MemoryProgramChip::default()), program_memory_heights.clone()),
+            (RiscvAir::Program(ProgramChip::default()), program_heights),
+            (RiscvAir::ProgramMemory(MemoryProgramChip::default()), program_memory_heights),
         ]);
 
         // Get the heights for the short shape cluster.
@@ -208,11 +243,7 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
         let shift_left_heights = vec![None, Some(19), Some(20), Some(21)];
         let lt_heights = vec![None, Some(19), Some(20), Some(21)];
 
-        let mut short_allowed_log_heights = HashMap::from([
-            (RiscvAir::Program(ProgramChip::default()), program_heights.clone()),
-            (RiscvAir::ProgramMemory(MemoryProgramChip::default()), program_memory_heights.clone()),
-        ]);
-        short_allowed_log_heights.extend([
+        let short_allowed_log_heights = HashMap::from([
             (RiscvAir::Cpu(CpuChip::default()), cpu_heights),
             (RiscvAir::DivRem(DivRemChip::default()), divrem_heights),
             (RiscvAir::Add(AddSubChip::default()), add_sub_heights),
@@ -233,11 +264,7 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
         let shift_left_heights = vec![None, Some(21), Some(22)];
         let lt_heights = vec![None, Some(21), Some(22)];
 
-        let mut long_allowed_log_heights = HashMap::from([
-            (RiscvAir::Program(ProgramChip::default()), program_heights.clone()),
-            (RiscvAir::ProgramMemory(MemoryProgramChip::default()), program_memory_heights.clone()),
-        ]);
-        long_allowed_log_heights.extend([
+        let long_allowed_log_heights = HashMap::from([
             (RiscvAir::Cpu(CpuChip::default()), cpu_heights),
             (RiscvAir::DivRem(DivRemChip::default()), divrem_heights),
             (RiscvAir::Add(AddSubChip::default()), add_sub_heights),
@@ -253,11 +280,7 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
             vec![Some(10), Some(16), Some(18), Some(19), Some(20), Some(21), Some(22)];
         let memory_finalize_heights =
             vec![Some(10), Some(16), Some(18), Some(19), Some(20), Some(21), Some(22)];
-        let mut memory_allowed_log_heights = HashMap::from([
-            (RiscvAir::Program(ProgramChip::default()), program_heights.clone()),
-            (RiscvAir::ProgramMemory(MemoryProgramChip::default()), program_memory_heights.clone()),
-        ]);
-        memory_allowed_log_heights.extend([
+        let memory_allowed_log_heights = HashMap::from([
             (
                 RiscvAir::MemoryInit(MemoryChip::new(MemoryChipType::Initialize)),
                 memory_init_heights,
@@ -271,14 +294,7 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
         let mut precompile_allowed_log_heights: Vec<HashMap<_, _>> = vec![];
         let precompile_heights = (1..22).map(Some).collect::<Vec<_>>();
         for air in RiscvAir::<F>::get_all_precompile_airs() {
-            let mut allowed_log_heights = HashMap::from([
-                (RiscvAir::Program(ProgramChip::default()), program_heights.clone()),
-                (
-                    RiscvAir::ProgramMemory(MemoryProgramChip::default()),
-                    program_memory_heights.clone(),
-                ),
-            ]);
-            allowed_log_heights.insert(air, precompile_heights.clone());
+            let allowed_log_heights = HashMap::from([(air, precompile_heights.clone())]);
             precompile_allowed_log_heights.push(allowed_log_heights);
         }
 
