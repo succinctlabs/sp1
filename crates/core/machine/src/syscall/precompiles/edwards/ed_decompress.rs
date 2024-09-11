@@ -11,7 +11,7 @@ use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use sp1_core_executor::{
-    events::{ByteLookupEvent, ByteRecord, EdDecompressEvent, FieldOperation},
+    events::{ByteLookupEvent, ByteRecord, EdDecompressEvent, FieldOperation, PrecompileEvent},
     syscalls::SyscallCode,
     ExecutionRecord, Program,
 };
@@ -251,9 +251,14 @@ impl<F: PrimeField32, E: EdwardsParameters> MachineAir<F> for EdDecompressChip<E
         output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
         let mut rows = Vec::new();
+        let events = input.get_precompile_events(SyscallCode::ED_DECOMPRESS);
 
-        for i in 0..input.ed_decompress_events.len() {
-            let event = &input.ed_decompress_events[i];
+        for event in events {
+            let event = if let PrecompileEvent::EdDecompress(event) = event {
+                event
+            } else {
+                unreachable!();
+            };
             let mut row = [F::zero(); NUM_ED_DECOMPRESS_COLS];
             let cols: &mut EdDecompressCols<F> = row.as_mut_slice().borrow_mut();
             cols.populate::<E::BaseField, E>(event.clone(), output);
@@ -286,16 +291,11 @@ impl<F: PrimeField32, E: EdwardsParameters> MachineAir<F> for EdDecompressChip<E
             cols.nonce = F::from_canonical_usize(i);
         }
 
-        // Move all the local memory events to the output record.
-        for event in input.ed_decompress_events.iter() {
-            output.local_memory_access.extend(event.local_mem_access.iter().cloned());
-        }
-
         trace
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
-        !shard.ed_decompress_events.is_empty()
+        !shard.get_precompile_events(SyscallCode::ED_DECOMPRESS).is_empty()
     }
 }
 

@@ -7,8 +7,8 @@ use std::marker::PhantomData;
 use typenum::Unsigned;
 
 use crate::{
-    events::{FieldOperation, FpOpEvent},
-    syscalls::{Syscall, SyscallContext},
+    events::{FieldOperation, FpOpEvent, PrecompileEvent},
+    syscalls::{Syscall, SyscallCode, SyscallContext},
 };
 
 pub struct FpOpSyscall<P> {
@@ -23,7 +23,13 @@ impl<P> FpOpSyscall<P> {
 }
 
 impl<P: FpOpField> Syscall for FpOpSyscall<P> {
-    fn execute(&self, rt: &mut SyscallContext, arg1: u32, arg2: u32) -> Option<u32> {
+    fn execute(
+        &self,
+        rt: &mut SyscallContext,
+        syscall_code: SyscallCode,
+        arg1: u32,
+        arg2: u32,
+    ) -> Option<u32> {
         let clk = rt.clk;
         let x_ptr = arg1;
         if x_ptr % 4 != 0 {
@@ -74,8 +80,12 @@ impl<P: FpOpField> Syscall for FpOpSyscall<P> {
         };
 
         match P::FIELD_TYPE {
-            FieldType::Bn254 => rt.record_mut().bn254_fp_events.push(event),
-            FieldType::Bls12381 => rt.record_mut().bls12381_fp_events.push(event),
+            FieldType::Bn254 => {
+                rt.record_mut().add_precompile_event(syscall_code, PrecompileEvent::Bn254Fp(event))
+            }
+            FieldType::Bls12381 => rt
+                .record_mut()
+                .add_precompile_event(syscall_code, PrecompileEvent::Bls12381Fp(event)),
         }
 
         None

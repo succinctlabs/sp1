@@ -18,7 +18,7 @@ use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use sp1_core_executor::{
-    events::{ByteRecord, FieldOperation},
+    events::{ByteRecord, FieldOperation, PrecompileEvent},
     syscalls::SyscallCode,
     ExecutionRecord, Program,
 };
@@ -110,7 +110,7 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
     ) -> RowMajorMatrix<F> {
         // Generate the trace rows & corresponding records for each chunk of events concurrently.
         let rows_and_records = input
-            .uint256_mul_events
+            .get_precompile_events(SyscallCode::UINT256_MUL)
             .chunks(1)
             .map(|events| {
                 let mut records = ExecutionRecord::default();
@@ -119,6 +119,11 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
                 let rows = events
                     .iter()
                     .map(|event| {
+                        let event = if let PrecompileEvent::Uint256Mul(event) = event {
+                            event
+                        } else {
+                            unreachable!()
+                        };
                         let mut row: [F; NUM_COLS] = [F::zero(); NUM_COLS];
                         let cols: &mut Uint256MulCols<F> = row.as_mut_slice().borrow_mut();
 
@@ -199,11 +204,6 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
             output.append(&mut record);
         }
 
-        // Copy all the local memory events to the output record.
-        for event in input.uint256_mul_events.iter() {
-            output.local_memory_access.extend(event.local_mem_access.iter().cloned());
-        }
-
         pad_rows_fixed(
             &mut rows,
             || {
@@ -234,7 +234,7 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
-        !shard.uint256_mul_events.is_empty()
+        !shard.get_precompile_events(SyscallCode::UINT256_MUL).is_empty()
     }
 }
 

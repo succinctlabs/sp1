@@ -75,10 +75,9 @@ impl<F: PrimeField32> MachineAir<F> for MemoryLocalChip {
         input: &ExecutionRecord,
         _output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
-        let mut rows =
-            Vec::<[F; NUM_MEMORY_LOCAL_INIT_COLS]>::with_capacity(input.local_memory_access.len());
+        let mut rows = Vec::<[F; NUM_MEMORY_LOCAL_INIT_COLS]>::new();
 
-        for local_mem_event in input.local_memory_access.iter() {
+        for local_mem_event in input.get_local_mem_events() {
             let mut row = [F::zero(); NUM_MEMORY_LOCAL_INIT_COLS];
             let cols: &mut MemoryLocalInitCols<F> = row.as_mut_slice().borrow_mut();
 
@@ -106,7 +105,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryLocalChip {
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
-        !shard.local_memory_access.is_empty()
+        shard.get_local_mem_events().nth(0).is_some()
     }
 
     fn commit_scope(&self) -> InteractionScope {

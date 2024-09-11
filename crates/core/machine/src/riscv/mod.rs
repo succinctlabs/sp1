@@ -144,31 +144,6 @@ impl<F: PrimeField32> RiscvAir<F> {
         chips
     }
 
-    pub fn phase_1_generate_dependencies_chips() -> Vec<String> {
-        vec![
-            "EdAddAssign".to_string(),
-            "EdDecompress".to_string(),
-            "Bn254FpOpAssign".to_string(),
-            "Bls12381FpOpAssign".to_string(),
-            "Bn254Fp2AddSubAssign".to_string(),
-            "Bls12831Fp2AddSubAssign".to_string(),
-            "Bn254Fp2MulAssign".to_string(),
-            "Bls12831Fp2MulAssign".to_string(),
-            "KeccakPermute".to_string(),
-            "ShaCompress".to_string(),
-            "ShaExtend".to_string(),
-            "Uint256MulMod".to_string(),
-            "Secp256k1AddAssign".to_string(),
-            "Bn254AddAssign".to_string(),
-            "Bls12381AddAssign".to_string(),
-            "Secp256k1Decompress".to_string(),
-            "Bls12381Decompress".to_string(),
-            "Secp256k1DoubleAssign".to_string(),
-            "Bn254DoubleAssign".to_string(),
-            "Bls12381DoubleAssign".to_string(),
-        ]
-    }
-
     /// Get all the costs of the different RISC-V AIRs.
     pub fn costs() -> HashMap<RiscvAirDiscriminants, u64> {
         let (_, costs) = Self::get_chips_and_costs();

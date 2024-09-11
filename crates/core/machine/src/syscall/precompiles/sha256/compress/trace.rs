@@ -6,7 +6,8 @@ use p3_field::PrimeField32;
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use p3_maybe_rayon::prelude::{ParallelIterator, ParallelSlice};
 use sp1_core_executor::{
-    events::{ByteLookupEvent, ByteRecord, ShaCompressEvent},
+    events::{ByteLookupEvent, ByteRecord, PrecompileEvent, ShaCompressEvent},
+    syscalls::SyscallCode,
     ExecutionRecord, Program,
 };
 use sp1_stark::{air::MachineAir, Word};
@@ -34,9 +35,13 @@ impl<F: PrimeField32> MachineAir<F> for ShaCompressChip {
         let rows = Vec::new();
 
         let mut wrapped_rows = Some(rows);
-        for i in 0..input.sha_compress_events.len() {
-            let event = input.sha_compress_events[i].clone();
-            self.event_to_rows(&event, &mut wrapped_rows, &mut Vec::new());
+        for event in input.get_precompile_events(SyscallCode::SHA_COMPRESS).iter() {
+            let event = if let PrecompileEvent::ShaCompress(event) = event {
+                event
+            } else {
+                unreachable!()
+            };
+            self.event_to_rows(event, &mut wrapped_rows, &mut Vec::new());
         }
         let mut rows = wrapped_rows.unwrap();
 
@@ -89,14 +94,19 @@ impl<F: PrimeField32> MachineAir<F> for ShaCompressChip {
     }
 
     fn generate_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
-        let chunk_size = std::cmp::max(input.sha_compress_events.len() / num_cpus::get(), 1);
+        let events = &input.get_precompile_events(SyscallCode::SHA_COMPRESS);
+        let chunk_size = std::cmp::max(events.len() / num_cpus::get(), 1);
 
-        let blu_batches = input
-            .sha_compress_events
+        let blu_batches = events
             .par_chunks(chunk_size)
             .map(|events| {
                 let mut blu: HashMap<u32, HashMap<ByteLookupEvent, usize>> = HashMap::new();
                 events.iter().for_each(|event| {
+                    let event = if let PrecompileEvent::ShaCompress(event) = event {
+                        event
+                    } else {
+                        unreachable!()
+                    };
                     self.event_to_rows::<F>(event, &mut None, &mut blu);
                 });
                 blu
@@ -104,15 +114,10 @@ impl<F: PrimeField32> MachineAir<F> for ShaCompressChip {
             .collect::<Vec<_>>();
 
         output.add_sharded_byte_lookup_events(blu_batches.iter().collect_vec());
-
-        // Copy all the local memory events to the output record.
-        for event in input.sha_compress_events.iter() {
-            output.local_memory_access.extend(event.local_mem_access.iter().cloned());
-        }
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
-        !shard.sha_compress_events.is_empty()
+        !shard.get_precompile_events(SyscallCode::SHA_COMPRESS).is_empty()
     }
 }
 

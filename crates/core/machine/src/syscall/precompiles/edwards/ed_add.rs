@@ -14,7 +14,7 @@ use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use p3_maybe_rayon::prelude::{IntoParallelRefIterator, ParallelIterator, ParallelSlice};
 use sp1_core_executor::{
-    events::{ByteLookupEvent, ByteRecord, EllipticCurveAddEvent, FieldOperation},
+    events::{ByteLookupEvent, ByteRecord, EllipticCurveAddEvent, FieldOperation, PrecompileEvent},
     syscalls::SyscallCode,
     ExecutionRecord, Program,
 };
@@ -125,10 +125,17 @@ impl<F: PrimeField32, E: EllipticCurve + EdwardsParameters> MachineAir<F> for Ed
         input: &ExecutionRecord,
         _: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
-        let mut rows = input
-            .ed_add_events
+        let events = input.get_precompile_events(SyscallCode::ED_ADD);
+
+        let mut rows = events
             .par_iter()
             .map(|event| {
+                let event = if let PrecompileEvent::EdAdd(event) = event {
+                    event
+                } else {
+                    unreachable!();
+                };
+
                 let mut row = [F::zero(); NUM_ED_ADD_COLS];
                 let cols: &mut EdAddAssignCols<F> = row.as_mut_slice().borrow_mut();
                 let mut blu = Vec::new();
@@ -173,14 +180,20 @@ impl<F: PrimeField32, E: EllipticCurve + EdwardsParameters> MachineAir<F> for Ed
     }
 
     fn generate_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
-        let chunk_size = std::cmp::max(input.ed_add_events.len() / num_cpus::get(), 1);
+        let events = input.get_precompile_events(SyscallCode::ED_ADD);
+        let chunk_size = std::cmp::max(events.len() / num_cpus::get(), 1);
 
-        let blu_batches = input
-            .ed_add_events
+        let blu_batches = events
             .par_chunks(chunk_size)
             .map(|events| {
                 let mut blu: HashMap<u32, HashMap<ByteLookupEvent, usize>> = HashMap::new();
                 events.iter().for_each(|event| {
+                    let event = if let PrecompileEvent::EdAdd(event) = event {
+                        event
+                    } else {
+                        unreachable!();
+                    };
+
                     let mut row = [F::zero(); NUM_ED_ADD_COLS];
                     let cols: &mut EdAddAssignCols<F> = row.as_mut_slice().borrow_mut();
                     self.event_to_row(event, cols, &mut blu);
@@ -190,15 +203,10 @@ impl<F: PrimeField32, E: EllipticCurve + EdwardsParameters> MachineAir<F> for Ed
             .collect::<Vec<_>>();
 
         output.add_sharded_byte_lookup_events(blu_batches.iter().collect_vec());
-
-        // Copy all the local memory events to the output record.
-        for event in input.ed_add_events.iter() {
-            output.local_memory_access.extend(event.local_mem_access.iter().cloned());
-        }
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
-        !shard.ed_add_events.is_empty()
+        !shard.get_precompile_events(SyscallCode::ED_ADD).is_empty()
     }
 }
 

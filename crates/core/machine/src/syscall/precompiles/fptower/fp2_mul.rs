@@ -11,7 +11,7 @@ use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use sp1_core_executor::{
-    events::{ByteLookupEvent, ByteRecord, FieldOperation},
+    events::{ByteLookupEvent, ByteRecord, FieldOperation, PrecompileEvent},
     syscalls::SyscallCode,
     ExecutionRecord, Program,
 };
@@ -149,15 +149,31 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for Fp2MulAssignChip<P> {
 
     fn generate_trace(&self, input: &Self::Record, output: &mut Self::Record) -> RowMajorMatrix<F> {
         let events = match P::FIELD_TYPE {
-            FieldType::Bn254 => &input.bn254_fp2_mul_events,
-            FieldType::Bls12381 => &input.bls12381_fp2_mul_events,
+            FieldType::Bn254 => input.get_precompile_events(SyscallCode::BN254_FP2_MUL),
+            FieldType::Bls12381 => input.get_precompile_events(SyscallCode::BLS12381_FP2_MUL),
         };
 
         let mut rows = Vec::new();
         let mut new_byte_lookup_events = Vec::new();
 
-        for i in 0..events.len() {
-            let event = &events[i];
+        for event in events {
+            let event = match P::FIELD_TYPE {
+                FieldType::Bn254 => {
+                    if let PrecompileEvent::Bn254Fp2Mul(event) = event {
+                        event
+                    } else {
+                        unreachable!()
+                    }
+                }
+                FieldType::Bls12381 => {
+                    if let PrecompileEvent::Bls12381Fp2Mul(event) = event {
+                        event
+                    } else {
+                        unreachable!()
+                    }
+                }
+            };
+
             let mut row = vec![F::zero(); num_fp2_mul_cols::<P>()];
             let cols: &mut Fp2MulAssignCols<F, P> = row.as_mut_slice().borrow_mut();
 
@@ -202,9 +218,6 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for Fp2MulAssignChip<P> {
                 );
             }
             rows.push(row);
-
-            // Copy the local memory events to the output record.
-            output.local_memory_access.extend(event.local_mem_access.iter().cloned());
         }
 
         output.add_byte_lookup_events(new_byte_lookup_events);
@@ -249,8 +262,10 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for Fp2MulAssignChip<P> {
 
     fn included(&self, shard: &Self::Record) -> bool {
         match P::FIELD_TYPE {
-            FieldType::Bn254 => !shard.bn254_fp2_mul_events.is_empty(),
-            FieldType::Bls12381 => !shard.bls12381_fp2_mul_events.is_empty(),
+            FieldType::Bn254 => !shard.get_precompile_events(SyscallCode::BN254_FP2_MUL).is_empty(),
+            FieldType::Bls12381 => {
+                !shard.get_precompile_events(SyscallCode::BLS12381_FP2_MUL).is_empty()
+            }
         }
     }
 }

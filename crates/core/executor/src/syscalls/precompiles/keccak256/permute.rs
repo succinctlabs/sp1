@@ -1,6 +1,6 @@
 use crate::{
-    events::KeccakPermuteEvent,
-    syscalls::{Syscall, SyscallContext},
+    events::{KeccakPermuteEvent, PrecompileEvent},
+    syscalls::{Syscall, SyscallCode, SyscallContext},
 };
 
 use tiny_keccak::keccakf;
@@ -17,7 +17,13 @@ impl Syscall for Keccak256PermuteSyscall {
         1
     }
 
-    fn execute(&self, rt: &mut SyscallContext, arg1: u32, arg2: u32) -> Option<u32> {
+    fn execute(
+        &self,
+        rt: &mut SyscallContext,
+        syscall_code: SyscallCode,
+        arg1: u32,
+        arg2: u32,
+    ) -> Option<u32> {
         let start_clk = rt.clk;
         let state_ptr = arg1;
         if arg2 != 0 {
@@ -60,7 +66,7 @@ impl Syscall for Keccak256PermuteSyscall {
         let shard = rt.current_shard();
         let channel = rt.current_channel();
         let lookup_id = rt.syscall_lookup_id;
-        let event = KeccakPermuteEvent {
+        let event = PrecompileEvent::KeccakPermute(KeccakPermuteEvent {
             lookup_id,
             shard,
             channel,
@@ -71,8 +77,8 @@ impl Syscall for Keccak256PermuteSyscall {
             state_write_records,
             state_addr: state_ptr,
             local_mem_access: rt.postprocess(),
-        };
-        rt.record_mut().keccak_permute_events.push(event);
+        });
+        rt.record_mut().add_precompile_event(syscall_code, event);
 
         None
     }

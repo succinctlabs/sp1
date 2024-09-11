@@ -105,7 +105,7 @@ impl<'a, 'b> SyscallContext<'a, 'b> {
                 let local_mem_access = self.rt.local_memory_access.remove(&addr);
 
                 if let Some(local_mem_access) = local_mem_access {
-                    self.rt.record.local_memory_access.push(local_mem_access);
+                    self.rt.record.cpu_local_memory_access.push(local_mem_access);
                 }
 
                 syscall_local_mem_events.push(event);

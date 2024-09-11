@@ -4,7 +4,11 @@ use p3_field::PrimeField32;
 use p3_keccak_air::{generate_trace_rows, NUM_KECCAK_COLS, NUM_ROUNDS};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use p3_maybe_rayon::prelude::{ParallelIterator, ParallelSlice};
-use sp1_core_executor::{ExecutionRecord, Program};
+use sp1_core_executor::{
+    events::{KeccakPermuteEvent, PrecompileEvent},
+    syscalls::SyscallCode,
+    ExecutionRecord, Program,
+};
 use sp1_stark::air::MachineAir;
 
 use super::{
@@ -26,8 +30,17 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
         input: &ExecutionRecord,
         output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
-        let num_events = input.keccak_permute_events.len();
+        let events = &input.get_precompile_events(SyscallCode::KECCAK_PERMUTE);
+        let num_events = events.len();
         let chunk_size = std::cmp::max(num_events / num_cpus::get(), 1);
+
+        fn event_transform(event: &PrecompileEvent) -> &KeccakPermuteEvent {
+            if let PrecompileEvent::KeccakPermute(event) = event {
+                event
+            } else {
+                unreachable!()
+            }
+        }
 
         // Use par_chunks to generate the trace in parallel.
         let rows_and_blu_events = (0..num_events)
@@ -39,7 +52,7 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
                 // First generate all the p3_keccak_air traces at once.
                 let perm_inputs = chunk
                     .iter()
-                    .map(|event_index| input.keccak_permute_events[*event_index].pre_state)
+                    .map(|event_index| event_transform(&events[*event_index]).pre_state)
                     .collect::<Vec<_>>();
                 let p3_keccak_trace = generate_trace_rows::<F>(perm_inputs);
 
@@ -49,7 +62,7 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
                     .flat_map(|(index_in_chunk, event_index)| {
                         let mut rows = Vec::new();
 
-                        let event = &input.keccak_permute_events[*event_index];
+                        let event = event_transform(&events[*event_index]);
                         let start_clk = event.clk;
                         let shard = event.shard;
                         let channel = event.channel;
@@ -124,11 +137,6 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
             output.add_byte_lookup_events(blu_events);
         }
 
-        // Copy all the local memory events to the output record.
-        for event in input.keccak_permute_events.iter() {
-            output.local_memory_access.extend(event.local_mem_access.iter().cloned());
-        }
-
         let nb_rows = rows.len();
         let mut padded_nb_rows = nb_rows.next_power_of_two();
         if padded_nb_rows == 2 || padded_nb_rows == 1 {
@@ -170,6 +178,6 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
-        !shard.keccak_permute_events.is_empty()
+        !shard.get_precompile_events(SyscallCode::KECCAK_PERMUTE).is_empty()
     }
 }

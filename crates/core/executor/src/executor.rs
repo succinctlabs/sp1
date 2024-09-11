@@ -178,7 +178,7 @@ impl<'a> Executor<'a> {
         let program = Arc::new(program);
 
         // Create a default record with the program.
-        let record = ExecutionRecord { program: program.clone(), ..Default::default() };
+        let record = ExecutionRecord::new(program.clone());
 
         // If `TRACE_FILE`` is set, initialize the trace buffer.
         let trace_buf = if let Ok(trace_file) = std::env::var("TRACE_FILE") {
@@ -1039,7 +1039,7 @@ impl<'a> Executor<'a> {
                         // Executing a syscall optionally returns a value to write to the t0
                         // register. If it returns None, we just keep the
                         // syscall_id in t0.
-                        let res = syscall_impl.execute(&mut precompile_rt, b, c);
+                        let res = syscall_impl.execute(&mut precompile_rt, syscall, b, c);
                         if let Some(val) = res {
                             a = val;
                         } else {
@@ -1233,7 +1233,7 @@ impl<'a> Executor<'a> {
     pub fn bump_record(&mut self) {
         // Copy all of the existing local memory accesses to the record's local_memory_access vec.
         for (_, event) in self.local_memory_access.drain() {
-            self.record.local_memory_access.push(event);
+            self.record.cpu_local_memory_access.push(event);
         }
 
         let removed_record =

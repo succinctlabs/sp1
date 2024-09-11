@@ -8,8 +8,8 @@ use sp1_curves::{
 use sp1_primitives::consts::{bytes_to_words_le, words_to_bytes_le};
 
 use crate::{
-    events::{EdDecompressEvent, MemoryReadRecord, MemoryWriteRecord},
-    syscalls::{Syscall, SyscallContext},
+    events::{EdDecompressEvent, MemoryReadRecord, MemoryWriteRecord, PrecompileEvent},
+    syscalls::{Syscall, SyscallCode, SyscallContext},
 };
 
 pub(crate) struct EdwardsDecompressSyscall<E: EdwardsParameters> {
@@ -24,7 +24,13 @@ impl<E: EdwardsParameters> EdwardsDecompressSyscall<E> {
 }
 
 impl<E: EdwardsParameters> Syscall for EdwardsDecompressSyscall<E> {
-    fn execute(&self, rt: &mut SyscallContext, arg1: u32, sign: u32) -> Option<u32> {
+    fn execute(
+        &self,
+        rt: &mut SyscallContext,
+        syscall_code: SyscallCode,
+        arg1: u32,
+        sign: u32,
+    ) -> Option<u32> {
         let start_clk = rt.clk;
         let slice_ptr = arg1;
         assert!(slice_ptr % 4 == 0, "Pointer must be 4-byte aligned.");
@@ -75,7 +81,7 @@ impl<E: EdwardsParameters> Syscall for EdwardsDecompressSyscall<E> {
             y_memory_records,
             local_mem_access: rt.postprocess(),
         };
-        rt.record_mut().ed_decompress_events.push(event);
+        rt.record_mut().add_precompile_event(syscall_code, PrecompileEvent::EdDecompress(event));
         None
     }
 

@@ -19,7 +19,7 @@ use crate::{
 /// Elliptic Curve Add Event.
 ///
 /// This event is emitted when an elliptic curve addition operation is performed.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize)]
 pub struct EllipticCurveAddEvent {
     pub(crate) lookup_id: LookupId,
     /// The shard number.
@@ -47,7 +47,7 @@ pub struct EllipticCurveAddEvent {
 /// Elliptic Curve Double Event.
 ///
 /// This event is emitted when an elliptic curve doubling operation is performed.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize)]
 pub struct EllipticCurveDoubleEvent {
     /// The lookup identifer.
     pub lookup_id: LookupId,
@@ -70,7 +70,7 @@ pub struct EllipticCurveDoubleEvent {
 /// Elliptic Curve Point Decompress Event.
 ///
 /// This event is emitted when an elliptic curve point decompression operation is performed.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize)]
 pub struct EllipticCurveDecompressEvent {
     /// The lookup identifer.
     pub lookup_id: LookupId,

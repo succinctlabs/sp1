@@ -11,7 +11,7 @@ use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use sp1_core_executor::{
-    events::{ByteLookupEvent, ByteRecord, FieldOperation},
+    events::{ByteLookupEvent, ByteRecord, FieldOperation, PrecompileEvent},
     syscalls::SyscallCode,
     ExecutionRecord, Program,
 };
@@ -194,9 +194,9 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
         output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
         let events = match E::CURVE_TYPE {
-            CurveType::Secp256k1 => &input.secp256k1_add_events,
-            CurveType::Bn254 => &input.bn254_add_events,
-            CurveType::Bls12381 => &input.bls12381_add_events,
+            CurveType::Secp256k1 => &input.get_precompile_events(SyscallCode::SECP256K1_ADD),
+            CurveType::Bn254 => &input.get_precompile_events(SyscallCode::BN254_ADD),
+            CurveType::Bls12381 => &input.get_precompile_events(SyscallCode::BLS12381_ADD),
             _ => panic!("Unsupported curve"),
         };
 
@@ -204,8 +204,13 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
 
         let mut new_byte_lookup_events = Vec::new();
 
-        for i in 0..events.len() {
-            let event = &events[i];
+        for event in events.iter() {
+            let event = match (E::CURVE_TYPE, event) {
+                (CurveType::Secp256k1, PrecompileEvent::Secp256k1Add(event)) => event,
+                (CurveType::Bn254, PrecompileEvent::Bn254Add(event)) => event,
+                (CurveType::Bls12381, PrecompileEvent::Bls12381Add(event)) => event,
+                _ => panic!("Unsupported curve"),
+            };
             let mut row = vec![F::zero(); num_weierstrass_add_cols::<E::BaseField>()];
             let cols: &mut WeierstrassAddAssignCols<F, E::BaseField> =
                 row.as_mut_slice().borrow_mut();
@@ -254,9 +259,6 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
             }
 
             rows.push(row);
-
-            // Copy all the local memory events to the output record.
-            output.local_memory_access.extend(event.local_mem_access.iter().cloned());
         }
         output.add_byte_lookup_events(new_byte_lookup_events);
 
@@ -302,9 +304,13 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
 
     fn included(&self, shard: &Self::Record) -> bool {
         match E::CURVE_TYPE {
-            CurveType::Secp256k1 => !shard.secp256k1_add_events.is_empty(),
-            CurveType::Bn254 => !shard.bn254_add_events.is_empty(),
-            CurveType::Bls12381 => !shard.bls12381_add_events.is_empty(),
+            CurveType::Secp256k1 => {
+                !shard.get_precompile_events(SyscallCode::SECP256K1_ADD).is_empty()
+            }
+            CurveType::Bn254 => !shard.get_precompile_events(SyscallCode::BN254_ADD).is_empty(),
+            CurveType::Bls12381 => {
+                !shard.get_precompile_events(SyscallCode::BLS12381_ADD).is_empty()
+            }
             _ => panic!("Unsupported curve"),
         }
     }

@@ -273,16 +273,6 @@ where
                             }
                             records.append(&mut deferred);
 
-                            tracing::debug_span!("generate dependencies", index).in_scope(|| {
-                                prover.machine().generate_dependencies(
-                                    &mut records,
-                                    &opts,
-                                    Some(
-                                        &RiscvAir::<SC::Val>::phase_1_generate_dependencies_chips(),
-                                    ),
-                                );
-                            });
-
                             // Collect the checkpoints to be used again in the phase 2 prover.
                             let mut checkpoints = checkpoints.lock().unwrap();
                             checkpoints.push_back((index, checkpoint, done));
