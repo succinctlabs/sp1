@@ -320,9 +320,25 @@ impl<F: PrimeField32> RiscvAir<F> {
 
     /// Get the heights of the preprocessed chips for a given program.
     pub(crate) fn preprocessed_heights(program: &Program) -> Vec<(Self, usize)> {
+        println!("Program instructions: {}", program.instructions.len());
+        println!("Program memory: {}", program.memory_image.len());
         vec![
             (RiscvAir::Program(ProgramChip::default()), program.instructions.len()),
             (RiscvAir::ProgramMemory(MemoryProgramChip::default()), program.memory_image.len()),
+        ]
+    }
+
+    pub(crate) fn preprocessed_heights_from_shape(
+        shape: &HashMap<String, usize>,
+    ) -> Vec<(Self, usize)> {
+        let program_air = RiscvAir::Program(ProgramChip::default());
+        let program_memory_air = RiscvAir::ProgramMemory(MemoryProgramChip::default());
+
+        let program_name = program_air.name();
+        let program_memory_name = program_memory_air.name();
+        vec![
+            (program_air, 1 << shape[&program_name]),
+            (program_memory_air, 1 << shape[&program_memory_name]),
         ]
     }
 
@@ -341,7 +357,8 @@ impl<F: PrimeField32> RiscvAir<F> {
             (RiscvAir::ShiftLeft(ShiftLeft::default()), record.shift_left_events.len()),
             (RiscvAir::Lt(LtChip::default()), record.lt_events.len()),
         ];
-        heights.extend(Self::preprocessed_heights(&record.program));
+        let preprocessed_shape = &record.program.preprocessed_shape.as_ref().unwrap().inner;
+        heights.extend(Self::preprocessed_heights_from_shape(preprocessed_shape));
         heights
     }
 
@@ -376,7 +393,8 @@ impl<F: PrimeField32> RiscvAir<F> {
                 record.memory_finalize_events.len(),
             ),
         ];
-        heights.extend(Self::preprocessed_heights(&record.program));
+        let preprocessed_shape = &record.program.preprocessed_shape.as_ref().unwrap().inner;
+        heights.extend(Self::preprocessed_heights_from_shape(preprocessed_shape));
         heights
     }
 

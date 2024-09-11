@@ -6,7 +6,7 @@ use p3_air::{Air, AirBuilder, AirBuilderWithPublicValues, BaseAir, PairBuilder};
 use p3_field::{AbstractField, PrimeField};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 
-use sp1_core_executor::{CoreShape, ExecutionRecord, Program};
+use sp1_core_executor::{ExecutionRecord, Program};
 use sp1_derive::AlignedBorrow;
 use sp1_stark::{
     air::{AirInteraction, MachineAir, PublicValues, SP1AirBuilder, SP1_PROOF_NUM_PV_ELTS},
@@ -126,7 +126,7 @@ impl<F: PrimeField> MachineAir<F> for MemoryProgramChip {
         pad_rows_fixed(
             &mut rows,
             || [F::zero(); NUM_MEMORY_PROGRAM_MULT_COLS],
-            input.shape.as_ref().map(|s: &CoreShape| s.inner[&MachineAir::<F>::name(self)]),
+            input.fixed_log2_rows::<F, _>(self),
         );
 
         // Convert the trace to a row major matrix.
