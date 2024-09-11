@@ -7,8 +7,10 @@ use plonk::{load_plonk_proof_from_bytes, load_plonk_verifying_key_from_bytes, ve
 
 mod constants;
 mod converter;
+#[cfg(feature = "verify-groth16")]
 mod groth16;
 mod hash_to_field;
+#[cfg(feature = "verify-plonk")]
 mod plonk;
 mod transcript;
 
@@ -19,6 +21,7 @@ pub trait Verifier {
 }
 
 #[cfg(feature = "verify-groth16")]
+
 pub struct Groth16Verifier;
 
 #[cfg(feature = "verify-groth16")]

@@ -13,6 +13,7 @@ members = [
   "ssz-withdrawals/script",
   "tendermint/script",
   "patch-testing/script",
+  "recursive-plonk/script",
 ]
 resolver = "2"
 

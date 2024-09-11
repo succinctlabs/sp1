@@ -1348,6 +1348,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "dotenv"
+version = "0.15.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "77c90badedccf4105eca100756a0b1289e191f6fcbdadd3cee1d2f614f97da8f"
+
+[[package]]
 name = "downcast-rs"
 version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4083,6 +4089,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "recursive-script"
+version = "1.1.0"
+dependencies = [
+ "dirs",
+ "dotenv",
+ "hex",
+ "num-bigint 0.4.6",
+ "num-traits",
+ "serde",
+ "serde_json",
+ "sp1-helper",
+ "sp1-sdk",
+]
+
+[[package]]
 name = "redox_syscall"
 version = "0.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5124,6 +5145,13 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 1.0.109",
+]
+
+[[package]]
+name = "sp1-helper"
+version = "1.2.0"
+dependencies = [
+ "sp1-build",
 ]
 
 [[package]]

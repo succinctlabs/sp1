@@ -1,11 +1,9 @@
 use anyhow::{anyhow, Error, Result};
-use ark_serialize::SerializationError;
 use bn::{AffineG1, AffineG2, Fq, Fq2, Fr, G2};
 use std::cmp::Ordering;
-use std::ops::Neg;
 
 use crate::bn254_verifier::{
-    constants::{GnarkCompressedPointFlag, GNARK_MASK},
+    constants::{GnarkCompressedPointFlag, SerializationError, GNARK_MASK},
     converter::is_zeroed,
 };
 
@@ -47,11 +45,11 @@ fn gnark_compressed_x_to_g1_point(buf: &[u8]) -> Result<AffineG1> {
     let mut final_y = y;
     if y.cmp(&neg_y) == Ordering::Greater {
         if m_data == GnarkCompressedPointFlag::Positive {
-            final_y = y.neg();
+            final_y = -y;
         }
     } else {
         if m_data == GnarkCompressedPointFlag::Negative {
-            final_y = y.neg();
+            final_y = -y;
         }
     }
 

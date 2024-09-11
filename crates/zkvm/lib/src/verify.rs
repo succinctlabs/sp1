@@ -20,10 +20,10 @@ pub fn verify_sp1_proof(vk_digest: &[u32; 8], pv_digest: &[u8; 32]) {
 
 #[cfg(feature = "verify-plonk")]
 pub fn verify_plonk_proof(
-    proof: &[u8; 904],
-    vk: &[u8; 34368],
-    vkey_hash: &[u8; 31],
-    committed_values_digest_bytes: &[u8; 32],
+    proof: &[u8],
+    vk: &[u8],
+    vkey_hash: &[u8],
+    committed_values_digest_bytes: &[u8],
 ) {
     let vkey_hash = bn::Fr::from_slice(vkey_hash).expect("Unable to read vkey_hash");
     let committed_values_digest = bn::Fr::from_slice(committed_values_digest_bytes)

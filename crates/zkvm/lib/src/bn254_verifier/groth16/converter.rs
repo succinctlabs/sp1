@@ -1,5 +1,4 @@
 use anyhow::{anyhow, Error, Result};
-use ark_serialize::SerializationError;
 use bn::{AffineG1, AffineG2, Fq, Fq2};
 use std::{
     cmp::{Ord, Ordering},
@@ -8,10 +7,10 @@ use std::{
 
 use crate::bn254_verifier::{
     constants::{
-        GnarkCompressedPointFlag, GNARK_COMPRESSED_INFINITY, GNARK_COMPRESSED_NEGATIVE,
-        GNARK_COMPRESSED_POSTIVE, GNARK_MASK,
+        GnarkCompressedPointFlag, SerializationError, SerializationError,
+        GNARK_COMPRESSED_INFINITY, GNARK_MASK,
     },
-    converter::{gnark_commpressed_x_to_ark_commpressed_x, is_zeroed},
+    converter::is_zeroed,
 };
 
 use groth16_verifier::{

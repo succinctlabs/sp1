@@ -1,7 +1,7 @@
 use std::hash::Hasher;
 
 use anyhow::{anyhow, Error, Result};
-use bn::{arith::U256, AffineG1, Fr};
+use bn::{arith::U256, AffineG1, Fr, G1};
 
 use crate::bn254_verifier::{
     constants::{

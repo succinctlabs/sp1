@@ -11,7 +11,6 @@ categories = { workspace = true }
 
 [dependencies]
 anyhow = "1.0.83"
-ark-serialize = "0.4.2"
 bn = { git = "https://github.com/sp1-patches/bn", branch = "bhargav/gnark-bn254-verifier", package = "substrate-bn" }
 lazy_static = "1.5.0"
 groth16-verifier = { git = "https://github.com/0xWOLAND/groth16-verifier"}

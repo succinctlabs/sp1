@@ -11,7 +11,7 @@ pub mod io;
 pub mod secp256k1;
 pub mod unconstrained;
 pub mod utils;
-#[cfg(feature = "verify")]
+#[cfg(any(feature = "verify", feature = "verify-plonk", feature = "verify-groth16"))]
 pub mod verify;
 
 extern "C" {
