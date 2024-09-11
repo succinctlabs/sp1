@@ -379,7 +379,9 @@ pub fn verify_batch<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVariable
 mod tests {
     use super::*;
     use crate::{
-        challenger::DuplexChallengerVariable, utils::tests::run_test_recursion,
+        challenger::DuplexChallengerVariable,
+        utils::tests::run_test_recursion,
+        witness::{WitnessBlock, Witnessable},
         BatchOpeningVariable, FriCommitPhaseProofStepVariable, FriProofVariable,
         FriQueryProofVariable, TwoAdicPcsMatsVariable, TwoAdicPcsProofVariable,
     };
@@ -697,24 +699,61 @@ mod tests {
             .collect::<Vec<_>>();
         pcs.verify(vec![(commit, os.clone())], &proof, &mut challenger).unwrap();
 
+        // TODO: make a `dummy_proof` function that returns dummy proof, commit, and openings.
+        let dummy_proof = proof.clone();
+        let dummy_commit = commit;
+        let dummy_openings = os.clone();
+
         // Define circuit.
         let mut builder = Builder::<InnerConfig>::default();
         let config = inner_fri_config();
-        let proof = const_two_adic_pcs_proof(&mut builder, proof);
-        let (commit, rounds) = const_two_adic_pcs_rounds(&mut builder, commit.into(), os);
+
+        let proof_variable = dummy_proof.read(&mut builder);
+        let commit_variable = dummy_commit.read(&mut builder);
+
+        let domains_points_and_opens = dummy_openings
+            .iter()
+            .map(|(domain, points_and_opens)| {
+                let mut points = vec![];
+                let mut opens = vec![];
+                for (point, opening_for_point) in points_and_opens {
+                    points.push(point.read(&mut builder));
+                    opens.push(opening_for_point.read(&mut builder));
+                }
+                TwoAdicPcsMatsVariable { domain: *domain, points, values: opens }
+            })
+            .collect::<Vec<_>>();
+
+        let rounds = vec![TwoAdicPcsRoundVariable {
+            batch_commit: commit_variable,
+            domains_points_and_opens,
+        }];
+        // let proof = const_two_adic_pcs_proof(&mut builder, proof);
+        // let (commit, rounds) = const_two_adic_pcs_rounds(&mut builder, commit.into(), os);
         let mut challenger = DuplexChallengerVariable::new(&mut builder);
-        challenger.observe_slice(&mut builder, commit);
+        challenger.observe_slice(&mut builder, commit_variable);
         let x2 = challenger.sample_ext(&mut builder);
         let x1: Ext<_, _> = builder.constant(x1);
         builder.assert_ext_eq(x1, x2);
         verify_two_adic_pcs::<_, BabyBearPoseidon2>(
             &mut builder,
             &config,
-            &proof,
+            &proof_variable,
             &mut challenger,
             rounds,
         );
 
-        run_test_recursion(builder.into_operations(), std::iter::empty());
+        let mut witness_stream = Vec::<WitnessBlock<C>>::new();
+        Witnessable::<C>::write(&proof, &mut witness_stream);
+        Witnessable::<C>::write(&commit, &mut witness_stream);
+        for dummy_opening in os {
+            let (_, points_and_opens) = dummy_opening;
+            for (point, opening_for_point) in points_and_opens {
+                Witnessable::<C>::write(&point, &mut witness_stream);
+                Witnessable::<C>::write(&opening_for_point, &mut witness_stream);
+            }
+        }
+
+        run_test_recursion(builder.into_operations(), witness_stream);
     }
 }
