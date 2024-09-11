@@ -7,8 +7,7 @@ use std::{
 
 use crate::bn254_verifier::{
     constants::{
-        GnarkCompressedPointFlag, SerializationError, SerializationError,
-        GNARK_COMPRESSED_INFINITY, GNARK_MASK,
+        GnarkCompressedPointFlag, SerializationError, GNARK_COMPRESSED_INFINITY, GNARK_MASK,
     },
     converter::is_zeroed,
 };
