@@ -4090,7 +4090,7 @@ dependencies = [
 
 [[package]]
 name = "recursive-script"
-version = "1.1.0"
+version = "0.1.0"
 dependencies = [
  "dirs",
  "dotenv",
@@ -4099,6 +4099,7 @@ dependencies = [
  "num-traits",
  "serde",
  "serde_json",
+ "sp1-build",
  "sp1-helper",
  "sp1-sdk",
 ]

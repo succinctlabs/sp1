@@ -1,0 +1,10 @@
+[workspace]
+[package]
+version = "0.1.0"
+name = "recursive-program"
+edition = "2021"
+
+[dependencies]
+sp1-zkvm = { path = "../../../crates/zkvm/entrypoint" }
+sp1-lib = { path = "../../../crates/zkvm/lib", features = ["verify-plonk"] }
+substrate-bn = { git = "https://github.com/sp1-patches/bn", branch = "bhargav/gnark-bn254-verifier" }
