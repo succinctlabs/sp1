@@ -382,13 +382,13 @@ mod tests {
         challenger::DuplexChallengerVariable,
         utils::tests::run_test_recursion,
         witness::{WitnessBlock, Witnessable},
-        BatchOpeningVariable, FriCommitPhaseProofStepVariable, FriProofVariable,
-        FriQueryProofVariable, TwoAdicPcsMatsVariable, TwoAdicPcsProofVariable,
+        FriCommitPhaseProofStepVariable, FriProofVariable, FriQueryProofVariable,
+        TwoAdicPcsMatsVariable,
     };
     use p3_challenger::{CanObserve, CanSample, FieldChallenger};
-    use p3_commit::{Pcs, TwoAdicMultiplicativeCoset};
+    use p3_commit::Pcs;
     use p3_field::AbstractField;
-    use p3_fri::{verifier, TwoAdicFriPcsProof};
+    use p3_fri::verifier;
     use p3_matrix::dense::RowMajorMatrix;
     use rand::{
         rngs::{OsRng, StdRng},
@@ -401,13 +401,11 @@ mod tests {
     };
     use sp1_stark::{
         baby_bear_poseidon2::BabyBearPoseidon2, inner_fri_config, inner_perm, InnerChallenge,
-        InnerChallengeMmcs, InnerChallenger, InnerCompress, InnerDft, InnerFriProof, InnerHash,
-        InnerPcs, InnerVal, InnerValMmcs, StarkGenericConfig,
+        InnerChallenger, InnerCompress, InnerDft, InnerFriProof, InnerHash, InnerPcs, InnerVal,
+        InnerValMmcs, StarkGenericConfig,
     };
 
     use sp1_recursion_core_v2::DIGEST_SIZE;
-
-    use crate::Digest;
 
     type C = InnerConfig;
     type SC = BabyBearPoseidon2;
@@ -458,68 +456,6 @@ mod tests {
             final_poly: builder.eval(SymbolicExt::from_f(fri_proof.final_poly)),
             pow_witness: builder.eval(fri_proof.pow_witness),
         }
-    }
-
-    pub fn const_two_adic_pcs_proof(
-        builder: &mut Builder<InnerConfig>,
-        proof: TwoAdicFriPcsProof<InnerVal, InnerChallenge, InnerValMmcs, InnerChallengeMmcs>,
-    ) -> TwoAdicPcsProofVariable<InnerConfig, SC> {
-        let fri_proof = const_fri_proof(builder, proof.fri_proof);
-        let query_openings = proof
-            .query_openings
-            .iter()
-            .map(|query_opening| {
-                query_opening
-                    .iter()
-                    .map(|opening| BatchOpeningVariable {
-                        opened_values: opening
-                            .opened_values
-                            .iter()
-                            .map(|opened_value| {
-                                opened_value
-                                    .iter()
-                                    .map(|value| vec![builder.eval::<Felt<_>, _>(*value)])
-                                    .collect::<Vec<_>>()
-                            })
-                            .collect::<Vec<_>>(),
-                        opening_proof: opening
-                            .opening_proof
-                            .iter()
-                            .map(|opening_proof| opening_proof.map(|x| builder.eval(x)))
-                            .collect::<Vec<_>>(),
-                    })
-                    .collect::<Vec<_>>()
-            })
-            .collect::<Vec<_>>();
-        TwoAdicPcsProofVariable { fri_proof, query_openings }
-    }
-
-    #[allow(clippy::type_complexity)]
-    pub fn const_two_adic_pcs_rounds(
-        builder: &mut Builder<InnerConfig>,
-        commit: [F; DIGEST_SIZE],
-        os: Vec<(TwoAdicMultiplicativeCoset<InnerVal>, Vec<(InnerChallenge, Vec<InnerChallenge>)>)>,
-    ) -> (Digest<InnerConfig, SC>, Vec<TwoAdicPcsRoundVariable<InnerConfig, SC>>) {
-        let commit: Digest<InnerConfig, SC> = commit.map(|x| builder.eval(x));
-
-        let mut domains_points_and_opens = Vec::new();
-        for (domain, poly) in os.into_iter() {
-            let points: Vec<Ext<InnerVal, InnerChallenge>> =
-                poly.iter().map(|(p, _)| builder.eval(SymbolicExt::from_f(*p))).collect::<Vec<_>>();
-            let values: Vec<Vec<Ext<InnerVal, InnerChallenge>>> = poly
-                .iter()
-                .map(|(_, v)| {
-                    v.clone()
-                        .iter()
-                        .map(|t| builder.eval(SymbolicExt::from_f(*t)))
-                        .collect::<Vec<_>>()
-                })
-                .collect::<Vec<_>>();
-            let domain_points_and_values = TwoAdicPcsMatsVariable { domain, points, values };
-            domains_points_and_opens.push(domain_points_and_values);
-        }
-
-        (commit, vec![TwoAdicPcsRoundVariable { batch_commit: commit, domains_points_and_opens }])
     }
 
     /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/merkle-tree/src/mmcs.rs#L421
