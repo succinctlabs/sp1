@@ -1,11 +1,9 @@
 #![no_main]
 sp1_zkvm::entrypoint!(main);
 
-use rsa::PaddingScheme;
-use rsa::PublicKey;
+use rsa::Pkcs1v15Sign;
 use rsa::{pkcs8::DecodePublicKey, RsaPublicKey};
-use sha2::Digest;
-use sha2::Sha256;
+use sha2::{Digest, Sha256}; // Ensure this is imported for the Digest trait to work
 
 pub fn main() {
     // Read an input to the program.
@@ -21,8 +19,7 @@ pub fn main() {
     hasher.update(message);
     let hashed_msg = hasher.finalize();
 
-    let padding = PaddingScheme::new_pkcs1v15_sign(Some(rsa::hash::Hash::SHA2_256));
-    let verification = public_key.verify(padding, &hashed_msg, &signature);
+    let verification = public_key.verify(Pkcs1v15Sign::new::<Sha256>(), &hashed_msg, &signature);
 
     let verified = match verification {
         Ok(_) => {
