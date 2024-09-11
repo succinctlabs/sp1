@@ -142,7 +142,7 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
                 Some(())
             })
             .ok_or(CoreShapeError::PrecompileNotIncluded)?;
-        record.shape = record.program.preprocessed_shape.clone();
+        record.shape.clone_from(&record.program.preprocessed_shape);
         Ok(())
     }
 
