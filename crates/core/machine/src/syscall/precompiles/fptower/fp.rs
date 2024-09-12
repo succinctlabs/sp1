@@ -107,21 +107,10 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for FpOpChip<P> {
         let mut new_byte_lookup_events = Vec::new();
 
         for event in events {
-            let event = match P::FIELD_TYPE {
-                FieldType::Bn254 => {
-                    if let PrecompileEvent::Bn254Fp(event) = event {
-                        event
-                    } else {
-                        unreachable!()
-                    }
-                }
-                FieldType::Bls12381 => {
-                    if let PrecompileEvent::Bls12381Fp(event) = event {
-                        event
-                    } else {
-                        unreachable!()
-                    }
-                }
+            let event = match (P::FIELD_TYPE, event) {
+                (FieldType::Bn254, PrecompileEvent::Bn254Fp(event)) => event,
+                (FieldType::Bls12381, PrecompileEvent::Bls12381Fp(event)) => event,
+                _ => unreachable!(),
             };
 
             let mut row = vec![F::zero(); num_fp_cols::<P>()];

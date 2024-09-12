@@ -30,7 +30,7 @@ use crate::{
     riscv::cost::CostEstimator,
     utils::{chunk_vec, concurrency::TurnBasedSync},
 };
-use sp1_core_executor::events::sorted_table_lines;
+use sp1_core_executor::{events::sorted_table_lines, syscalls::SyscallCode};
 
 use sp1_core_executor::{
     subproof::NoOpSubproofVerifier, ExecutionError, ExecutionRecord, ExecutionReport, Executor,
@@ -462,6 +462,15 @@ where
                                 state.deferred_proofs_digest =
                                     record.public_values.deferred_proofs_digest;
                                 record.public_values = *state;
+
+                                println!(
+                                    "number of edadd events 1 is {}",
+                                    record.get_precompile_events(SyscallCode::ED_ADD).len()
+                                );
+                                println!(
+                                    "number of sha events 1 is {}",
+                                    record.get_precompile_events(SyscallCode::SHA_COMPRESS).len()
+                                );
                             }
 
                             // Defer events that are too expensive to include in every shard.
@@ -492,6 +501,12 @@ where
                                 record.public_values = *state;
                             }
                             records.append(&mut deferred);
+                            for record in records.iter() {
+                                println!(
+                                    "number of edadd events 2 is {}",
+                                    record.get_precompile_events(SyscallCode::ED_ADD).len()
+                                );
+                            }
 
                             // Generate the dependencies.
                             tracing::debug_span!("generate dependencies", index).in_scope(|| {

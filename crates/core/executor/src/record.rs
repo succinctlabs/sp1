@@ -146,7 +146,7 @@ impl ExecutionRecord {
             };
 
             let chunks = events.chunks_exact(threshold);
-            if last {
+            if !last {
                 self.precompile_events.insert(syscall_code, chunks.remainder().to_vec());
             } else {
                 let remainder = chunks.remainder().to_vec();
@@ -188,7 +188,6 @@ impl ExecutionRecord {
                     EitherOrBoth::Right(mem_finalize_chunk) => ([].as_slice(), mem_finalize_chunk),
                 };
                 let mut shard = ExecutionRecord::new(self.program.clone());
-                shard.program = self.program.clone();
                 shard.global_memory_initialize_events.extend_from_slice(mem_init_chunk);
                 shard.public_values.previous_init_addr_bits = init_addr_bits;
                 if let Some(last_event) = mem_init_chunk.last() {
