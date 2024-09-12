@@ -138,9 +138,9 @@ pub struct SP1Prover<C: SP1ProverComponents = DefaultProverComponents> {
 
     pub merkle_tree: MerkleTree<BabyBear, InnerSC>,
 
-    pub core_shape_config: CoreShapeConfig<BabyBear>,
+    pub core_shape_config: Option<CoreShapeConfig<BabyBear>>,
 
-    pub recursion_shape_config: RecursionShapeConfig<BabyBear, CompressAir<BabyBear>>,
+    pub recursion_shape_config: Option<RecursionShapeConfig<BabyBear, CompressAir<BabyBear>>>,
 }
 
 impl<C: SP1ProverComponents> SP1Prover<C> {
@@ -186,6 +186,16 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 
         let (root, merkle_tree) = MerkleTree::commit(allowed_vkeys.clone());
 
+        let core_shape_config = env::var("FIX_CORE_SHAPES")
+            .map(|v| v.eq_ignore_ascii_case("true"))
+            .unwrap_or(true)
+            .then(CoreShapeConfig::default);
+
+        let recursion_shape_config = env::var("FIX_RECURSION_SHAPES")
+            .map(|v| v.eq_ignore_ascii_case("true"))
+            .unwrap_or(true)
+            .then(RecursionShapeConfig::default);
+
         Self {
             core_prover,
             compress_prover,
@@ -198,8 +208,8 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             root,
             merkle_tree,
             allowed_vkeys,
-            core_shape_config: CoreShapeConfig::default(),
-            recursion_shape_config: RecursionShapeConfig::default(),
+            core_shape_config,
+            recursion_shape_config,
         }
     }
 
@@ -220,7 +230,9 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
     /// Get a program with an allowed preprocessed shape.
     pub fn get_program(&self, elf: &[u8]) -> eyre::Result<Program> {
         let mut program = Program::from(elf)?;
-        self.core_shape_config.fix_preprocessed_shape(&mut program)?;
+        if let Some(core_shape_config) = &self.core_shape_config {
+            core_shape_config.fix_preprocessed_shape(&mut program)?;
+        }
         Ok(program)
     }
 
@@ -268,7 +280,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             stdin,
             opts.core_opts,
             context,
-            Some(&self.core_shape_config),
+            self.core_shape_config.as_ref(),
         )?;
         Self::check_for_high_cycles(cycles);
         let public_values = SP1PublicValues::from(&public_values_stream);
@@ -333,7 +345,9 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                 let compiler_span = tracing::debug_span!("compile compress program").entered();
                 let mut compiler = AsmCompiler::<InnerConfig>::default();
                 let mut program = compiler.compile(operations);
-                self.recursion_shape_config.fix_shape(&mut program);
+                if let Some(recursion_shape_config) = &self.recursion_shape_config {
+                    recursion_shape_config.fix_shape(&mut program);
+                }
                 let program = Arc::new(program);
                 compiler_span.exit();
                 program
