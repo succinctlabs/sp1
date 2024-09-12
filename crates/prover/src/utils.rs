@@ -1,5 +1,6 @@
 use std::{
     borrow::Borrow,
+    collections::BTreeMap,
     fs::{self, File},
     io::Read,
 };
@@ -41,15 +42,25 @@ pub fn get_all_vk_digests(
     core_shape_config: &CoreShapeConfig<BabyBear>,
     recursion_shape_config: &RecursionShapeConfig<BabyBear, CompressAir<BabyBear>>,
     reduce_batch_size: usize,
-) -> Vec<[BabyBear; 8]> {
-    let first_layer_vks =
-        core_shape_config.generate_all_allowed_shapes().map(|_| [BabyBear::zero(); 8]);
+) -> BTreeMap<[BabyBear; 8], usize> {
+    let mut vk_map = core_shape_config
+        .generate_all_allowed_shapes()
+        .enumerate()
+        .map(|(i, _)| ([BabyBear::from_canonical_usize(i); 8], i))
+        .collect::<BTreeMap<_, _>>();
 
-    let second_layer_vks = recursion_shape_config
-        .get_all_shape_combinations(reduce_batch_size)
-        .map(|_| [BabyBear::zero(); 8]);
+    let num_first_layer_vks = vk_map.len();
 
-    first_layer_vks.chain(second_layer_vks).collect()
+    vk_map.extend(
+        recursion_shape_config.get_all_shape_combinations(reduce_batch_size).enumerate().map(
+            |(i, _)| {
+                let index = num_first_layer_vks + i;
+                ([BabyBear::from_canonical_usize(index); 8], index)
+            },
+        ),
+    );
+
+    vk_map
 }
 
 impl SP1CoreProofData {

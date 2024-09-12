@@ -19,6 +19,7 @@ pub mod verify;
 
 use std::{
     borrow::Borrow,
+    collections::BTreeMap,
     env,
     num::NonZeroUsize,
     path::Path,
@@ -30,14 +31,13 @@ use std::{
     thread,
 };
 
-use itertools::Itertools;
 use lru::LruCache;
 
 use tracing::instrument;
 
 use p3_baby_bear::BabyBear;
 use p3_challenger::CanObserve;
-use p3_field::{AbstractField, PrimeField};
+use p3_field::{AbstractField, PrimeField, PrimeField32};
 use p3_matrix::dense::RowMajorMatrix;
 use sp1_core_executor::{ExecutionError, ExecutionReport, Executor, Program, SP1Context};
 use sp1_core_machine::{
@@ -84,7 +84,9 @@ use sp1_recursion_circuit_v2::{
 };
 
 pub use types::*;
-use utils::{sp1_commited_values_digest_bn254, sp1_vkey_digest_bn254, words_to_bytes};
+use utils::{
+    get_all_vk_digests, sp1_commited_values_digest_bn254, sp1_vkey_digest_bn254, words_to_bytes,
+};
 
 use components::{DefaultProverComponents, SP1ProverComponents};
 
@@ -105,6 +107,8 @@ const WRAP_DEGREE: usize = 17;
 
 const CORE_CACHE_SIZE: usize = 5;
 const COMPRESS_CACHE_SIZE: usize = 3;
+
+const REDUCE_BATCH_SIZE: usize = 2;
 
 pub type CompressAir<F> = RecursionAir<F, COMPRESS_DEGREE, 0>;
 pub type ShrinkAir<F> = RecursionAir<F, SHRINK_DEGREE, 0>;
@@ -134,7 +138,7 @@ pub struct SP1Prover<C: SP1ProverComponents = DefaultProverComponents> {
 
     pub root: <InnerSC as FieldHasher<BabyBear>>::Digest,
 
-    pub allowed_vkeys: Vec<<InnerSC as FieldHasher<BabyBear>>::Digest>,
+    pub allowed_vk_map: BTreeMap<<InnerSC as FieldHasher<BabyBear>>::Digest, usize>,
 
     pub merkle_tree: MerkleTree<BabyBear, InnerSC>,
 
@@ -182,19 +186,23 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         )
         .expect("PROVER_COMPRESS_CACHE_SIZE must be a non-zero usize");
 
-        let allowed_vkeys = vec![<InnerSC as FieldHasher<BabyBear>>::Digest::default(); 1 << 16];
+        let core_shape_config = CoreShapeConfig::default();
+        let recursion_shape_config = RecursionShapeConfig::default();
 
-        let (root, merkle_tree) = MerkleTree::commit(allowed_vkeys.clone());
+        let allowed_vk_map =
+            get_all_vk_digests(&core_shape_config, &recursion_shape_config, REDUCE_BATCH_SIZE);
+
+        let (root, merkle_tree) = MerkleTree::commit(allowed_vk_map.keys().cloned().collect());
 
         let core_shape_config = env::var("FIX_CORE_SHAPES")
             .map(|v| v.eq_ignore_ascii_case("true"))
             .unwrap_or(true)
-            .then(CoreShapeConfig::default);
+            .then_some(core_shape_config);
 
         let recursion_shape_config = env::var("FIX_RECURSION_SHAPES")
             .map(|v| v.eq_ignore_ascii_case("true"))
             .unwrap_or(true)
-            .then(RecursionShapeConfig::default);
+            .then_some(recursion_shape_config);
 
         Self {
             core_prover,
@@ -207,7 +215,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             compress_cache_misses: AtomicUsize::new(0),
             root,
             merkle_tree,
-            allowed_vkeys,
+            allowed_vk_map,
             core_shape_config,
             recursion_shape_config,
         }
@@ -556,7 +564,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         opts: SP1ProverOpts,
     ) -> Result<SP1ReduceProof<InnerSC>, SP1RecursionProverError> {
         // The batch size for reducing two layers of recursion.
-        let batch_size = 2;
+        let batch_size = REDUCE_BATCH_SIZE;
         // The batch size for reducing the first layer of recursion.
         let first_layer_batch_size = 1;
 
@@ -1082,13 +1090,20 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
     pub fn make_merkle_proofs(
         &self,
         input: SP1CompressWitnessValues<CoreSC>,
-    ) -> SP1CompressWithVKeyWitnessValues<CoreSC>
-where {
-        // TODO: make an index based on the key itself.
-        let vk_indices = input.vks_and_proofs.iter().map(|(_, _)| 0).collect_vec();
+    ) -> SP1CompressWithVKeyWitnessValues<CoreSC> {
+        // let (vk_indices, vk_digest_values) =
+        //     input.vks_and_proofs.iter().map(|(vk, _)| (0, vk.hash_babybear())).collect::<Vec<_>>();
 
-        let vk_digest_values =
-            input.vks_and_proofs.iter().map(|_| [BabyBear::zero(); 8]).collect_vec();
+        let num_vks = self.allowed_vk_map.len();
+        let (vk_indices, vk_digest_values): (Vec<_>, Vec<_>) = input
+            .vks_and_proofs
+            .iter()
+            .map(|(vk, _)| {
+                let vk_digest = vk.hash_babybear();
+                let index = (vk_digest[0].as_canonical_u32() as usize) % num_vks;
+                (index, [BabyBear::from_canonical_usize(index); 8])
+            })
+            .unzip();
 
         let proofs = vk_indices
             .iter()
