@@ -698,7 +698,6 @@ mod tests {
             .collect::<Vec<_>>();
         pcs.verify(vec![(commit, os.clone())], &proof, &mut challenger).unwrap();
 
-        // TODO: make a `dummy_proof` function that returns dummy proof, commit, and openings.
         let dummy_proof = dummy_pcs_proof(
             inner_fri_config().num_queries,
             vec![log_degrees.iter().copied().map(|d| (100, d)).collect()],
