@@ -397,7 +397,7 @@ pub fn dummy_query_proof(height: usize) -> QueryProof<InnerChallenge, InnerChall
 
 /// Takes in the number of fri queries, the overall max height of the fri, and the (width, height)
 /// data for each matrix in each batch.
-pub fn make_dummy_pcs_proof(
+pub fn dummy_pcs_proof(
     fri_queries: usize,
     batch_shapes: Vec<Vec<(usize, usize)>>,
     log_blowup: usize,
@@ -698,7 +698,7 @@ mod tests {
         pcs.verify(vec![(commit, os.clone())], &proof, &mut challenger).unwrap();
 
         // TODO: make a `dummy_proof` function that returns dummy proof, commit, and openings.
-        let dummy_proof = make_dummy_pcs_proof(
+        let dummy_proof = dummy_pcs_proof(
             inner_fri_config().num_queries,
             vec![log_degrees.iter().copied().map(|d| (100, d)).collect()],
             inner_fri_config().log_blowup,
