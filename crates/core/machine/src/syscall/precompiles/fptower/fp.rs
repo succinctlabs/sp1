@@ -210,13 +210,13 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for FpOpChip<P> {
         match P::FIELD_TYPE {
             FieldType::Bn254 => {
                 !shard.get_precompile_events(SyscallCode::BN254_FP_ADD).is_empty()
-                    || shard.get_precompile_events(SyscallCode::BN254_FP_ADD).is_empty()
-                    || shard.get_precompile_events(SyscallCode::BN254_FP_ADD).is_empty()
+                    || !shard.get_precompile_events(SyscallCode::BN254_FP_ADD).is_empty()
+                    || !shard.get_precompile_events(SyscallCode::BN254_FP_ADD).is_empty()
             }
             FieldType::Bls12381 => {
                 !shard.get_precompile_events(SyscallCode::BLS12381_FP_ADD).is_empty()
-                    || shard.get_precompile_events(SyscallCode::BLS12381_FP_SUB).is_empty()
-                    || shard.get_precompile_events(SyscallCode::BLS12381_FP_MUL).is_empty()
+                    || !shard.get_precompile_events(SyscallCode::BLS12381_FP_SUB).is_empty()
+                    || !shard.get_precompile_events(SyscallCode::BLS12381_FP_MUL).is_empty()
             }
         }
     }

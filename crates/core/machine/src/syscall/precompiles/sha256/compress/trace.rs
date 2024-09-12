@@ -35,7 +35,7 @@ impl<F: PrimeField32> MachineAir<F> for ShaCompressChip {
         let rows = Vec::new();
 
         let mut wrapped_rows = Some(rows);
-        for event in input.get_precompile_events(SyscallCode::SHA_COMPRESS).iter() {
+        for event in input.get_precompile_events(SyscallCode::SHA_COMPRESS) {
             let event = if let PrecompileEvent::ShaCompress(event) = event {
                 event
             } else {

@@ -5,7 +5,7 @@ use sp1_stark::{
     air::{MachineAir, PublicValues},
     MachineRecord, SP1CoreOpts, SplitOpts,
 };
-use std::{iter::empty, mem::take, sync::Arc};
+use std::{mem::take, sync::Arc};
 use strum::IntoEnumIterator;
 
 use serde::{Deserialize, Serialize};
@@ -397,7 +397,7 @@ impl ByteRecord for ExecutionRecord {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-struct PrecompileEvents {
+pub struct PrecompileEvents {
     events: HashMap<SyscallCode, Vec<PrecompileEvent>>,
 }
 
@@ -440,6 +440,7 @@ impl PrecompileEvents {
         self.events.into_iter()
     }
 
+    #[inline]
     fn get_events(&self, syscall_code: SyscallCode) -> &Vec<PrecompileEvent> {
         assert!(syscall_code.should_send() == 1);
         &self.events[&syscall_code]
