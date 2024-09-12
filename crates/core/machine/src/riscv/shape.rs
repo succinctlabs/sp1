@@ -34,6 +34,7 @@ pub struct CoreShapeConfig<F: PrimeField32> {
     included_shapes: Vec<HashMap<String, usize>>,
     allowed_preprocessed_log_heights: HashMap<RiscvAir<F>, Vec<Option<usize>>>,
     short_core_allowed_log_heights: HashMap<RiscvAir<F>, Vec<Option<usize>>>,
+    medium_core_allowed_log_heights: HashMap<RiscvAir<F>, Vec<Option<usize>>>,
     long_core_allowed_log_heights: HashMap<RiscvAir<F>, Vec<Option<usize>>>,
     memory_allowed_log_heights: HashMap<RiscvAir<F>, Vec<Option<usize>>>,
     precompile_allowed_log_heights: Vec<HashMap<RiscvAir<F>, Vec<Option<usize>>>>,
@@ -109,6 +110,16 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
                 record.shape.as_mut().unwrap().extend(shape);
                 return Ok(());
             }
+
+            // Try to find a shape within the medium shape cluster.
+            if let Some(shape) = Self::find_shape_from_allowed_heights(
+                &heights,
+                &self.medium_core_allowed_log_heights,
+            ) {
+                record.shape.as_mut().unwrap().extend(shape);
+                return Ok(());
+            }
+
             // Try to find a shape within the long shape cluster.
             if let Some(shape) =
                 Self::find_shape_from_allowed_heights(&heights, &self.long_core_allowed_log_heights)
@@ -179,6 +190,13 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
             .collect::<HashMap<_, _>>();
         short_heights.extend(preprocessed_heights.clone());
 
+        let mut medium_heights = self
+            .medium_core_allowed_log_heights
+            .iter()
+            .map(|(air, heights)| (air.name(), heights.clone()))
+            .collect::<HashMap<_, _>>();
+        medium_heights.extend(preprocessed_heights.clone());
+
         let mut long_heights = self
             .long_core_allowed_log_heights
             .iter()
@@ -242,13 +260,17 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
             let num_core_chips = core_chips_and_heights.len();
             let max_possible_sum = 2 * cpu_height + (cpu_height >> 1) * (num_core_chips - 2);
 
-            sum_of_heights < max_possible_sum
+            sum_of_heights <= max_possible_sum
         };
 
         included_shapes
             .into_iter()
             .chain(
                 Self::generate_all_shapes_from_allowed_log_heights(short_heights)
+                    .filter(core_filter),
+            )
+            .chain(
+                Self::generate_all_shapes_from_allowed_log_heights(medium_heights)
                     .filter(core_filter),
             )
             .chain(
@@ -275,7 +297,28 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
             (RiscvAir::ProgramMemory(MemoryProgramChip::default()), program_memory_heights),
         ]);
 
-        // Get the heights for the short shape cluster.
+        // Get the heights for the short shape cluster (for small shards).
+        let cpu_heights = vec![Some(10), Some(16)];
+        let divrem_heights = vec![None, Some(10), Some(16)];
+        let add_sub_heights = vec![None, Some(10), Some(16)];
+        let bitwise_heights = vec![None, Some(10), Some(16)];
+        let mul_heights = vec![None, Some(10), Some(16)];
+        let shift_right_heights = vec![None, Some(10), Some(16)];
+        let shift_left_heights = vec![None, Some(10), Some(16)];
+        let lt_heights = vec![None, Some(10), Some(16)];
+
+        let short_allowed_log_heights = HashMap::from([
+            (RiscvAir::Cpu(CpuChip::default()), cpu_heights),
+            (RiscvAir::DivRem(DivRemChip::default()), divrem_heights),
+            (RiscvAir::Add(AddSubChip::default()), add_sub_heights),
+            (RiscvAir::Bitwise(BitwiseChip::default()), bitwise_heights),
+            (RiscvAir::Mul(MulChip::default()), mul_heights),
+            (RiscvAir::ShiftRight(ShiftRightChip::default()), shift_right_heights),
+            (RiscvAir::ShiftLeft(ShiftLeft::default()), shift_left_heights),
+            (RiscvAir::Lt(LtChip::default()), lt_heights),
+        ]);
+
+        // Get the heights for the medium shape cluster.
         let cpu_heights = vec![Some(20), Some(21)];
         let divrem_heights = vec![None, Some(19), Some(20), Some(21)];
         let add_sub_heights = vec![None, Some(19), Some(20), Some(21)];
@@ -285,7 +328,7 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
         let shift_left_heights = vec![None, Some(19), Some(20), Some(21)];
         let lt_heights = vec![None, Some(19), Some(20), Some(21)];
 
-        let short_allowed_log_heights = HashMap::from([
+        let medium_allowed_log_heights = HashMap::from([
             (RiscvAir::Cpu(CpuChip::default()), cpu_heights),
             (RiscvAir::DivRem(DivRemChip::default()), divrem_heights),
             (RiscvAir::Add(AddSubChip::default()), add_sub_heights),
@@ -344,6 +387,7 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
             included_shapes,
             allowed_preprocessed_log_heights,
             short_core_allowed_log_heights: short_allowed_log_heights,
+            medium_core_allowed_log_heights: medium_allowed_log_heights,
             long_core_allowed_log_heights: long_allowed_log_heights,
             memory_allowed_log_heights,
             precompile_allowed_log_heights,
