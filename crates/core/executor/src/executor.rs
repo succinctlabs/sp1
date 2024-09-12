@@ -11,6 +11,7 @@ use thiserror::Error;
 
 use crate::{
     context::SP1Context,
+    dependencies::{emit_cpu_dependencies, emit_divrem_dependencies},
     events::{
         create_alu_lookup_id, create_alu_lookups, AluEvent, CpuEvent, LookupId,
         MemoryAccessPosition, MemoryInitializeFinalizeEvent, MemoryLocalEvent, MemoryReadRecord,
@@ -631,6 +632,7 @@ impl<'a> Executor<'a> {
         };
 
         self.record.cpu_events.push(cpu_event);
+        emit_cpu_dependencies(self, &cpu_event);
     }
 
     /// Emit an ALU event.
@@ -670,6 +672,7 @@ impl<'a> Executor<'a> {
             }
             Opcode::DIVU | Opcode::REMU | Opcode::DIV | Opcode::REM => {
                 self.record.divrem_events.push(event);
+                emit_divrem_dependencies(self, event);
             }
             _ => {}
         }

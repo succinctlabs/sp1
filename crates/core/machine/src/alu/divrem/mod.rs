@@ -60,20 +60,18 @@
 //!    # b = 0 * quotient + b is satisfied by any quotient.
 //!    assert quotient = 0xffffffff
 
-mod utils;
-
 use core::{
     borrow::{Borrow, BorrowMut},
     mem::size_of,
 };
-use hashbrown::HashMap;
 
 use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::{AbstractField, PrimeField};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use sp1_core_executor::{
-    events::{create_alu_lookups, AluEvent, ByteLookupEvent, ByteRecord},
-    ByteOpcode, ExecutionRecord, Opcode, Program,
+    events::{ByteLookupEvent, ByteRecord},
+    get_msb, get_quotient_and_remainder, is_signed_operation, ByteOpcode, ExecutionRecord, Opcode,
+    Program,
 };
 use sp1_derive::AlignedBorrow;
 use sp1_primitives::consts::WORD_SIZE;
@@ -81,7 +79,6 @@ use sp1_stark::{air::MachineAir, Word};
 
 use crate::{
     air::SP1CoreAirBuilder,
-    alu::divrem::utils::{get_msb, get_quotient_and_remainder, is_signed_operation},
     operations::{IsEqualWordOperation, IsZeroWordOperation},
     utils::pad_rows_fixed,
 };
@@ -350,93 +347,14 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
                 }
 
                 // Insert the necessary multiplication & LT events.
-                //
-                // This generate_trace for div must be executed _before_ calling generate_trace for
-                // mul and LT upon which div depends. This ordering is critical as mul and LT
-                // require all the mul and LT events be added before we can call generate_trace.
                 {
-                    // Insert the absolute value computation events.
-                    {
-                        let mut add_events: Vec<AluEvent> = vec![];
-                        if cols.abs_c_alu_event == F::one() {
-                            add_events.push(AluEvent {
-                                lookup_id: event.sub_lookups[4],
-                                shard: event.shard,
-                                channel: event.channel,
-                                clk: event.clk,
-                                opcode: Opcode::ADD,
-                                a: 0,
-                                b: event.c,
-                                c: (event.c as i32).abs() as u32,
-                                sub_lookups: create_alu_lookups(),
-                            })
-                        }
-                        if cols.abs_rem_alu_event == F::one() {
-                            add_events.push(AluEvent {
-                                lookup_id: event.sub_lookups[5],
-                                shard: event.shard,
-                                channel: event.channel,
-                                clk: event.clk,
-                                opcode: Opcode::ADD,
-                                a: 0,
-                                b: remainder,
-                                c: (remainder as i32).abs() as u32,
-                                sub_lookups: create_alu_lookups(),
-                            })
-                        }
-                        let mut alu_events = HashMap::new();
-                        alu_events.insert(Opcode::ADD, add_events);
-                        output.add_alu_events(alu_events);
-                    }
-
-                    let mut lower_word = 0;
-                    for i in 0..WORD_SIZE {
-                        lower_word += (c_times_quotient[i] as u32) << (i * BYTE_SIZE);
-                    }
-
-                    let mut upper_word = 0;
-                    for i in 0..WORD_SIZE {
-                        upper_word += (c_times_quotient[WORD_SIZE + i] as u32) << (i * BYTE_SIZE);
-                    }
-
-                    let lower_multiplication = AluEvent {
-                        lookup_id: event.sub_lookups[0],
-                        shard: event.shard,
-                        channel: event.channel,
-                        clk: event.clk,
-                        opcode: Opcode::MUL,
-                        a: lower_word,
-                        c: event.c,
-                        b: quotient,
-                        sub_lookups: create_alu_lookups(),
-                    };
                     cols.lower_nonce = F::from_canonical_u32(
                         input.nonce_lookup.get(&event.sub_lookups[0]).copied().unwrap_or_default(),
                     );
-                    output.add_mul_event(lower_multiplication);
-
-                    let upper_multiplication = AluEvent {
-                        lookup_id: event.sub_lookups[1],
-                        shard: event.shard,
-                        channel: event.channel,
-                        clk: event.clk,
-                        opcode: {
-                            if is_signed_operation(event.opcode) {
-                                Opcode::MULH
-                            } else {
-                                Opcode::MULHU
-                            }
-                        },
-                        a: upper_word,
-                        c: event.c,
-                        b: quotient,
-                        sub_lookups: create_alu_lookups(),
-                    };
                     cols.upper_nonce = F::from_canonical_u32(
                         input.nonce_lookup.get(&event.sub_lookups[1]).copied().unwrap_or_default(),
                     );
-                    output.add_mul_event(upper_multiplication);
-                    let lt_event = if is_signed_operation(event.opcode) {
+                    if is_signed_operation(event.opcode) {
                         cols.abs_nonce = F::from_canonical_u32(
                             input
                                 .nonce_lookup
@@ -444,17 +362,6 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
                                 .copied()
                                 .unwrap_or_default(),
                         );
-                        AluEvent {
-                            lookup_id: event.sub_lookups[2],
-                            shard: event.shard,
-                            channel: event.channel,
-                            opcode: Opcode::SLTU,
-                            a: 1,
-                            b: (remainder as i32).abs() as u32,
-                            c: u32::max(1, (event.c as i32).abs() as u32),
-                            clk: event.clk,
-                            sub_lookups: create_alu_lookups(),
-                        }
                     } else {
                         cols.abs_nonce = F::from_canonical_u32(
                             input
@@ -463,22 +370,7 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
                                 .copied()
                                 .unwrap_or_default(),
                         );
-                        AluEvent {
-                            lookup_id: event.sub_lookups[3],
-                            shard: event.shard,
-                            channel: event.channel,
-                            opcode: Opcode::SLTU,
-                            a: 1,
-                            b: remainder,
-                            c: u32::max(1, event.c),
-                            clk: event.clk,
-                            sub_lookups: create_alu_lookups(),
-                        }
                     };
-
-                    if cols.remainder_check_multiplicity == F::one() {
-                        output.add_lt_event(lt_event);
-                    }
                 }
 
                 // Range check.

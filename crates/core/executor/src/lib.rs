@@ -20,6 +20,7 @@
 #![warn(missing_docs)]
 
 mod context;
+mod dependencies;
 mod disassembler;
 pub mod events;
 mod executor;
@@ -53,3 +54,4 @@ pub use register::*;
 pub use report::*;
 pub use shape::*;
 pub use state::*;
+pub use utils::*;
