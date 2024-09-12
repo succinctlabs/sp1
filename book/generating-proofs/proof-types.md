@@ -31,7 +31,7 @@ client.prove(&pk, stdin).compressed().run().unwrap();
 ## Groth16 and PLONK
 
 <div class="warning">
-WARNING: The Groth16 and PLONK prover requires around 64GB of RAM and is only guaranteed to work on official releases of SP1. We recommend using the prover network to generate these proofs.
+WARNING: The Groth16 and PLONK provers require around 64GB of RAM and are only guaranteed to work on official releases of SP1. We recommend using the prover network to generate these proofs.
 </div>
 
 The Groth16 and PLONK prover modes generate a SNARK proof with extremely small proof size and low verification cost.
