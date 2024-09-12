@@ -711,7 +711,7 @@ mod tests {
                 (
                     *domain,
                     points_and_openings
-                        .into_iter()
+                        .iter()
                         .map(|(_, row)| {
                             (
                                 InnerChallenge::zero(),
