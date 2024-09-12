@@ -313,7 +313,11 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                 // Compile the program.
                 let compiler_span = tracing::debug_span!("compile recursion program").entered();
                 let mut compiler = AsmCompiler::<InnerConfig>::default();
-                let program = Arc::new(compiler.compile(operations));
+                let mut program = compiler.compile(operations);
+                if let Some(recursion_shape_config) = &self.recursion_shape_config {
+                    recursion_shape_config.fix_shape(&mut program);
+                }
+                let program = Arc::new(program);
                 compiler_span.exit();
                 program
             })
