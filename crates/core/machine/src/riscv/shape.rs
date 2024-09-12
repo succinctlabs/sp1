@@ -1,6 +1,6 @@
 use itertools::Itertools;
 
-use hashbrown::HashMap;
+use hashbrown::{HashMap, HashSet};
 use p3_field::PrimeField32;
 use sp1_core_executor::{CoreShape, ExecutionRecord, Program};
 use sp1_stark::{air::MachineAir, ProofShape};
@@ -209,10 +209,52 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
         let included_shapes =
             self.included_shapes.iter().map(ProofShape::from_map).collect::<Vec<_>>();
 
+        let cpu_name = || RiscvAir::<F>::Cpu(CpuChip::default()).name();
+        let core_filter = move |shape: &ProofShape| {
+            let core_airs = RiscvAir::<F>::get_all_core_airs()
+                .into_iter()
+                .map(|air| air.name())
+                .collect::<HashSet<_>>();
+            let core_chips_and_heights = shape
+                .chip_information
+                .iter()
+                .filter(|(name, _)| core_airs.contains(name))
+                .cloned()
+                .collect::<Vec<_>>();
+
+            let cpu_name = cpu_name();
+
+            if core_chips_and_heights.first().unwrap().0 != cpu_name {
+                return false;
+            }
+
+            let cpu_height = core_chips_and_heights.first().unwrap().1;
+            let num_core_chips_at_cpu_height =
+                core_chips_and_heights.iter().filter(|(_, height)| *height == cpu_height).count();
+
+            if num_core_chips_at_cpu_height > 2 {
+                return false;
+            }
+
+            let sum_of_heights =
+                core_chips_and_heights.iter().map(|(_, height)| *height).sum::<usize>();
+
+            let num_core_chips = core_chips_and_heights.len();
+            let max_possible_sum = 2 * cpu_height + (cpu_height >> 1) * (num_core_chips - 2);
+
+            sum_of_heights < max_possible_sum
+        };
+
         included_shapes
             .into_iter()
-            .chain(Self::generate_all_shapes_from_allowed_log_heights(short_heights))
-            .chain(Self::generate_all_shapes_from_allowed_log_heights(long_heights))
+            .chain(
+                Self::generate_all_shapes_from_allowed_log_heights(short_heights)
+                    .filter(core_filter),
+            )
+            .chain(
+                Self::generate_all_shapes_from_allowed_log_heights(long_heights)
+                    .filter(core_filter),
+            )
             .chain(Self::generate_all_shapes_from_allowed_log_heights(memory_heights))
             .chain(precompile_heights.into_iter().flat_map(|allowed_log_heights| {
                 Self::generate_all_shapes_from_allowed_log_heights(allowed_log_heights)
@@ -225,8 +267,8 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
         let included_shapes = vec![];
 
         // Preprocessed chip heights.
-        let program_heights = vec![Some(20), Some(21), Some(22)];
-        let program_memory_heights = vec![Some(20), Some(21), Some(22)];
+        let program_heights = vec![Some(16), Some(20), Some(21), Some(22)];
+        let program_memory_heights = vec![Some(16), Some(20), Some(21), Some(22)];
 
         let allowed_preprocessed_log_heights = HashMap::from([
             (RiscvAir::Program(ProgramChip::default()), program_heights),

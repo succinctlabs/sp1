@@ -1087,6 +1087,9 @@ where {
         // TODO: make an index based on the key itself.
         let vk_indices = input.vks_and_proofs.iter().map(|(_, _)| 0).collect_vec();
 
+        let vk_digest_values =
+            input.vks_and_proofs.iter().map(|_| [BabyBear::zero(); 8]).collect_vec();
+
         let proofs = vk_indices
             .iter()
             .map(|index| {
@@ -1095,7 +1098,11 @@ where {
             })
             .collect();
 
-        let merkle_val = SP1MerkleProofWitnessValues { root: self.root, vk_merkle_proofs: proofs };
+        let merkle_val = SP1MerkleProofWitnessValues {
+            root: self.root,
+            values: vk_digest_values,
+            vk_merkle_proofs: proofs,
+        };
 
         SP1CompressWithVKeyWitnessValues { compress_val: input, merkle_val }
     }

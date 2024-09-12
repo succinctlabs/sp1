@@ -248,12 +248,14 @@ where
     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
         SP1MerkleProofWitnessVariable {
             vk_merkle_proofs: self.vk_merkle_proofs.read(builder),
+            values: self.values.read(builder),
             root: self.root.read(builder),
         }
     }
 
     fn write(&self, witness: &mut impl WitnessWriter<C>) {
         self.vk_merkle_proofs.write(witness);
+        self.values.write(witness);
         self.root.write(witness);
     }
 }

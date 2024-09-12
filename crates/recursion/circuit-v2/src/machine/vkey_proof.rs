@@ -4,7 +4,6 @@ use itertools::Itertools;
 use p3_air::Air;
 use p3_baby_bear::BabyBear;
 use p3_commit::Mmcs;
-use p3_field::AbstractField;
 use p3_matrix::dense::RowMajorMatrix;
 use sp1_recursion_compiler::ir::{Builder, Felt};
 use sp1_recursion_core_v2::DIGEST_SIZE;
@@ -39,12 +38,16 @@ pub struct SP1MerkleProofWitnessVariable<
 > {
     /// The shard proofs to verify.
     pub vk_merkle_proofs: Vec<MerkleProofVariable<C, SC>>,
+    /// Hinted values to enable dummy digests.
+    pub values: Vec<SC::DigestVariable>,
+    /// The root of the merkle tree.
     pub root: SC::DigestVariable,
 }
 
 /// An input layout for the reduce verifier.
 pub struct SP1MerkleProofWitnessValues<SC: FieldHasher<BabyBear>> {
     pub vk_merkle_proofs: Vec<MerkleProof<BabyBear, SC>>,
+    pub values: Vec<SC::Digest>,
     pub root: SC::Digest,
 }
 
@@ -60,8 +63,13 @@ where
         digests: Vec<SC::DigestVariable>,
         input: SP1MerkleProofWitnessVariable<C, SC>,
     ) {
-        for (proof, value) in input.vk_merkle_proofs.into_iter().zip(digests) {
-            verify(builder, proof, value, input.root);
+        let SP1MerkleProofWitnessVariable { vk_merkle_proofs, values, root } = input;
+        for ((proof, value), _expected_value) in
+            vk_merkle_proofs.into_iter().zip(values).zip(digests)
+        {
+            verify(builder, proof, value, root);
+            // TODO: comment back in.
+            // SC::assert_digest_eq(builder, expected_value, value);
         }
     }
 }
@@ -103,15 +111,8 @@ where
         machine: &StarkMachine<SC, A>,
         input: SP1CompressWithVKeyWitnessVariable<C, SC>,
     ) {
-        // These are dummy values.
-        let values = input
-            .compress_var
-            .vks_and_proofs
-            .iter()
-            .map(|(_, _)| [builder.constant(BabyBear::zero()); DIGEST_SIZE])
-            .collect_vec();
-        // TODO: comment back in.
-        //     input.compress_var.vks_and_proofs.iter().map(|(vk, _)| vk.hash(builder)).collect_vec();
+        let values =
+            input.compress_var.vks_and_proofs.iter().map(|(vk, _)| vk.hash(builder)).collect_vec();
         SP1MerkleProofVerifier::verify(builder, values, input.merkle_var);
         SP1CompressVerifier::verify(builder, machine, input.compress_var);
     }
