@@ -395,8 +395,10 @@ pub fn dummy_query_proof(height: usize) -> QueryProof<InnerChallenge, InnerChall
     }
 }
 
-/// Takes in the number of fri queries, the overall max height of the fri, and the (width, height)
-/// data for each matrix in each batch.
+/// Make a dummy PCS proof for a given proof shape. Used to generate vkey information for fixed proof
+/// shapes.
+///
+/// The parameter `batch_shapes` contains (width, height) data for each matrix in each batch.
 pub fn dummy_pcs_proof(
     fri_queries: usize,
     batch_shapes: Vec<Vec<(usize, usize)>>,
@@ -413,10 +415,9 @@ pub fn dummy_pcs_proof(
         final_poly: InnerChallenge::zero(),
         pow_witness: InnerVal::zero(),
     };
-    // Query openings should be of length `fri_queries`. For each query opening, we have, for each round,
-    // a batch opening, which holds all the opened values for the batch (should be the number of
-    // matrices in the batch), and we have an opening proof for that batch, which should be a
-    // vector of length `batch_max_height` for the batch, consisting of digest elements.
+
+    // For each query, create a dummy batch opening for each matrix in the batch. `batch_shapes`
+    // determines the sizes of each dummy batch opening.
     let query_openings = (0..fri_queries)
         .map(|_| {
             batch_shapes
