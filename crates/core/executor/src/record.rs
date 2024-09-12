@@ -146,15 +146,15 @@ impl ExecutionRecord {
             };
 
             let chunks = events.chunks_exact(threshold);
-            if !last {
-                self.precompile_events.insert(syscall_code, chunks.remainder().to_vec());
-            } else {
+            if last {
                 let remainder = chunks.remainder().to_vec();
                 if !remainder.is_empty() {
                     let mut execution_record = ExecutionRecord::new(self.program.clone());
                     execution_record.precompile_events.insert(syscall_code, remainder);
                     shards.push(execution_record);
                 }
+            } else {
+                self.precompile_events.insert(syscall_code, chunks.remainder().to_vec());
             }
             let mut event_shards = chunks
                 .map(|chunk| {

@@ -32,7 +32,8 @@ impl<E: EllipticCurve> Syscall for WeierstrassAddAssignSyscall<E> {
                 .record_mut()
                 .add_precompile_event(syscall_code, PrecompileEvent::Secp256k1Add(event)),
             CurveType::Bn254 => {
-                rt.record_mut().add_precompile_event(syscall_code, PrecompileEvent::Bn254Add(event))
+                rt.record_mut()
+                    .add_precompile_event(syscall_code, PrecompileEvent::Bn254Add(event));
             }
             CurveType::Bls12381 => rt
                 .record_mut()

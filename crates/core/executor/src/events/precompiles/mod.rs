@@ -63,21 +63,11 @@ impl PrecompileLocalMemory for Vec<PrecompileEvent> {
                 PrecompileEvent::KeccakPermute(e) => {
                     iterators.push(e.local_mem_access.iter());
                 }
-                PrecompileEvent::EdAdd(e)
-                | PrecompileEvent::Secp256k1Add(e)
-                | PrecompileEvent::Bn254Add(e)
-                | PrecompileEvent::Bls12381Add(e) => {
-                    iterators.push(e.local_mem_access.iter());
-                }
                 PrecompileEvent::EdDecompress(e) => {
                     iterators.push(e.local_mem_access.iter());
                 }
                 PrecompileEvent::Secp256k1Add(e)
                 | PrecompileEvent::EdAdd(e)
-                | PrecompileEvent::Bn254Add(e)
-                | PrecompileEvent::Bls12381Add(e)
-                | PrecompileEvent::EdAdd(e)
-                | PrecompileEvent::Secp256k1Add(e)
                 | PrecompileEvent::Bn254Add(e)
                 | PrecompileEvent::Bls12381Add(e) => {
                     iterators.push(e.local_mem_access.iter());

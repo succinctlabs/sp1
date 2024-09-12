@@ -81,7 +81,7 @@ impl<P: FpOpField> Syscall for FpOpSyscall<P> {
 
         match P::FIELD_TYPE {
             FieldType::Bn254 => {
-                rt.record_mut().add_precompile_event(syscall_code, PrecompileEvent::Bn254Fp(event))
+                rt.record_mut().add_precompile_event(syscall_code, PrecompileEvent::Bn254Fp(event));
             }
             FieldType::Bls12381 => rt
                 .record_mut()

@@ -27,7 +27,7 @@ pub fn emit_divrem_dependencies(executor: &mut Executor, event: AluEvent) {
             opcode: Opcode::ADD,
             a: 0,
             b: event.c,
-            c: (event.c as i32).abs() as u32,
+            c: (event.c as i32).unsigned_abs(),
             sub_lookups: create_alu_lookups(),
         });
     }
@@ -40,7 +40,7 @@ pub fn emit_divrem_dependencies(executor: &mut Executor, event: AluEvent) {
             opcode: Opcode::ADD,
             a: 0,
             b: remainder,
-            c: (remainder as i32).abs() as u32,
+            c: (remainder as i32).unsigned_abs(),
             sub_lookups: create_alu_lookups(),
         });
     }
@@ -94,8 +94,8 @@ pub fn emit_divrem_dependencies(executor: &mut Executor, event: AluEvent) {
             channel: event.channel,
             opcode: Opcode::SLTU,
             a: 1,
-            b: (remainder as i32).abs() as u32,
-            c: u32::max(1, (event.c as i32).abs() as u32),
+            b: (remainder as i32).unsigned_abs(),
+            c: u32::max(1, (event.c as i32).unsigned_abs()),
             clk: event.clk,
             sub_lookups: create_alu_lookups(),
         }
@@ -146,7 +146,7 @@ pub fn emit_cpu_dependencies(executor: &mut Executor, event: &CpuEvent) {
             sub_lookups: create_alu_lookups(),
         };
         executor.record.add_events.push(add_event);
-        let addr_offset = (memory_addr % 4 as u32) as u8;
+        let addr_offset = (memory_addr % 4_u32) as u8;
         let mem_value = event.memory_record.unwrap().value();
 
         if matches!(event.instruction.opcode, Opcode::LB | Opcode::LH) {
