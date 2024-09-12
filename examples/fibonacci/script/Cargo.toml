@@ -14,8 +14,8 @@ sha2 = "0.10.8"
 sp1-build = { workspace = true }
 
 [[bin]]
-name = "plonk_bn254"
-path = "bin/plonk_bn254.rs"
+name = "groth16_bn254"
+path = "bin/groth16_bn254.rs"
 
 [[bin]]
 name = "compressed"
