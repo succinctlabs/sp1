@@ -2,9 +2,14 @@ use itertools::{izip, Itertools};
 use p3_baby_bear::BabyBear;
 use p3_commit::PolynomialSpace;
 use p3_field::{AbstractField, TwoAdicField};
-use p3_fri::FriConfig;
+use p3_fri::{
+    BatchOpening, CommitPhaseProofStep, FriConfig, FriProof, QueryProof, TwoAdicFriPcsProof,
+};
+use p3_symmetric::Hash;
 use p3_util::log2_strict_usize;
 use sp1_recursion_compiler::ir::{Builder, DslIr, Felt, SymbolicExt};
+use sp1_recursion_core_v2::DIGEST_SIZE;
+use sp1_stark::{InnerChallenge, InnerChallengeMmcs, InnerPcsProof, InnerVal};
 use std::{
     cmp::Reverse,
     iter::{once, repeat_with, zip},
@@ -375,6 +380,64 @@ pub fn verify_batch<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVariable
     SC::assert_digest_eq(builder, root, commit);
 }
 
+pub fn dummy_hash() -> Hash<BabyBear, BabyBear, DIGEST_SIZE> {
+    [BabyBear::zero(); DIGEST_SIZE].into()
+}
+
+pub fn dummy_query_proof(height: usize) -> QueryProof<InnerChallenge, InnerChallengeMmcs> {
+    QueryProof {
+        commit_phase_openings: (0..height)
+            .map(|i| CommitPhaseProofStep {
+                sibling_value: InnerChallenge::zero(),
+                opening_proof: vec![dummy_hash().into(); height - i],
+            })
+            .collect(),
+    }
+}
+
+/// Make a dummy PCS proof for a given proof shape. Used to generate vkey information for fixed proof
+/// shapes.
+///
+/// The parameter `batch_shapes` contains (width, height) data for each matrix in each batch.
+pub fn dummy_pcs_proof(
+    fri_queries: usize,
+    batch_shapes: Vec<Vec<(usize, usize)>>,
+    log_blowup: usize,
+) -> InnerPcsProof {
+    let &max_height = batch_shapes
+        .iter()
+        .map(|shapes| shapes.iter().map(|(_, x)| x).max().unwrap())
+        .max()
+        .unwrap();
+    let fri_proof = FriProof {
+        commit_phase_commits: vec![dummy_hash(); max_height],
+        query_proofs: vec![dummy_query_proof(max_height); fri_queries],
+        final_poly: InnerChallenge::zero(),
+        pow_witness: InnerVal::zero(),
+    };
+
+    // For each query, create a dummy batch opening for each matrix in the batch. `batch_shapes`
+    // determines the sizes of each dummy batch opening.
+    let query_openings = (0..fri_queries)
+        .map(|_| {
+            batch_shapes
+                .iter()
+                .map(|shapes| {
+                    let batch_max_height = shapes.iter().map(|(_, x)| x).max().unwrap();
+                    BatchOpening {
+                        opened_values: shapes
+                            .iter()
+                            .map(|(width, _)| vec![BabyBear::zero(); *width])
+                            .collect(),
+                        opening_proof: vec![dummy_hash().into(); *batch_max_height + log_blowup],
+                    }
+                })
+                .collect::<Vec<_>>()
+        })
+        .collect::<Vec<_>>();
+    TwoAdicFriPcsProof { fri_proof, query_openings }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -635,10 +698,30 @@ mod tests {
             .collect::<Vec<_>>();
         pcs.verify(vec![(commit, os.clone())], &proof, &mut challenger).unwrap();
 
-        // TODO: make a `dummy_proof` function that returns dummy proof, commit, and openings.
-        let dummy_proof = proof.clone();
-        let dummy_commit = commit;
-        let dummy_openings = os.clone();
+        let dummy_proof = dummy_pcs_proof(
+            inner_fri_config().num_queries,
+            vec![log_degrees.iter().copied().map(|d| (100, d)).collect()],
+            inner_fri_config().log_blowup,
+        );
+
+        let dummy_commit = dummy_hash();
+        let dummy_openings = os
+            .iter()
+            .map(|(domain, points_and_openings)| {
+                (
+                    *domain,
+                    points_and_openings
+                        .iter()
+                        .map(|(_, row)| {
+                            (
+                                InnerChallenge::zero(),
+                                row.iter().map(|_| InnerChallenge::zero()).collect_vec(),
+                            )
+                        })
+                        .collect_vec(),
+                )
+            })
+            .collect::<Vec<_>>();
 
         // Define circuit.
         let mut builder = Builder::<InnerConfig>::default();
@@ -648,15 +731,15 @@ mod tests {
         let commit_variable = dummy_commit.read(&mut builder);
 
         let domains_points_and_opens = dummy_openings
-            .iter()
+            .into_iter()
             .map(|(domain, points_and_opens)| {
                 let mut points = vec![];
                 let mut opens = vec![];
                 for (point, opening_for_point) in points_and_opens {
-                    points.push(point.read(&mut builder));
-                    opens.push(opening_for_point.read(&mut builder));
+                    points.push(InnerChallenge::read(&point, &mut builder));
+                    opens.push(Vec::<InnerChallenge>::read(&opening_for_point, &mut builder));
                 }
-                TwoAdicPcsMatsVariable { domain: *domain, points, values: opens }
+                TwoAdicPcsMatsVariable { domain, points, values: opens }
             })
             .collect::<Vec<_>>();
 
@@ -682,8 +765,8 @@ mod tests {
         let mut witness_stream = Vec::<WitnessBlock<C>>::new();
         Witnessable::<C>::write(&proof, &mut witness_stream);
         Witnessable::<C>::write(&commit, &mut witness_stream);
-        for dummy_opening in os {
-            let (_, points_and_opens) = dummy_opening;
+        for opening in os {
+            let (_, points_and_opens) = opening;
             for (point, opening_for_point) in points_and_opens {
                 Witnessable::<C>::write(&point, &mut witness_stream);
                 Witnessable::<C>::write(&opening_for_point, &mut witness_stream);
