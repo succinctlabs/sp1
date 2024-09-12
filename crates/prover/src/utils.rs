@@ -47,7 +47,6 @@ pub fn get_all_vk_digests(
 
     let second_layer_vks = recursion_shape_config
         .get_all_shape_combinations(reduce_batch_size)
-        .into_iter()
         .map(|_| [BabyBear::zero(); 8]);
 
     first_layer_vks.chain(second_layer_vks).collect()

@@ -235,13 +235,13 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
 
         // Get the heights for the short shape cluster.
         let cpu_heights = vec![Some(20), Some(21)];
-        let divrem_heights = vec![None, Some(19), Some(20), Some(21)];
-        let add_sub_heights = vec![None, Some(19), Some(20), Some(21)];
-        let bitwise_heights = vec![None, Some(19), Some(20), Some(21)];
-        let mul_heights = vec![None, Some(19), Some(20), Some(21)];
-        let shift_right_heights = vec![None, Some(19), Some(20), Some(21)];
-        let shift_left_heights = vec![None, Some(19), Some(20), Some(21)];
-        let lt_heights = vec![None, Some(19), Some(20), Some(21)];
+        let divrem_heights = vec![None, Some(20), Some(21)];
+        let add_sub_heights = vec![None, Some(20), Some(21)];
+        let bitwise_heights = vec![None, Some(20), Some(21)];
+        let mul_heights = vec![None, Some(20), Some(21)];
+        let shift_right_heights = vec![None, Some(20), Some(21)];
+        let shift_left_heights = vec![None, Some(20), Some(21)];
+        let lt_heights = vec![None, Some(20), Some(21)];
 
         let short_allowed_log_heights = HashMap::from([
             (RiscvAir::Cpu(CpuChip::default()), cpu_heights),
