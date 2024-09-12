@@ -380,16 +380,16 @@ pub fn verify_batch<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVariable
     SC::assert_digest_eq(builder, root, commit);
 }
 
-pub fn default_hash() -> Hash<BabyBear, BabyBear, DIGEST_SIZE> {
+pub fn dummy_hash() -> Hash<BabyBear, BabyBear, DIGEST_SIZE> {
     [BabyBear::zero(); DIGEST_SIZE].into()
 }
 
-pub fn default_query_proof(height: usize) -> QueryProof<InnerChallenge, InnerChallengeMmcs> {
+pub fn dummy_query_proof(height: usize) -> QueryProof<InnerChallenge, InnerChallengeMmcs> {
     QueryProof {
         commit_phase_openings: (0..height)
             .map(|i| CommitPhaseProofStep {
                 sibling_value: InnerChallenge::zero(),
-                opening_proof: vec![default_hash().into(); height - i],
+                opening_proof: vec![dummy_hash().into(); height - i],
             })
             .collect(),
     }
@@ -408,8 +408,8 @@ pub fn make_dummy_pcs_proof(
         .max()
         .unwrap();
     let fri_proof = FriProof {
-        commit_phase_commits: vec![default_hash(); max_height],
-        query_proofs: vec![default_query_proof(max_height); fri_queries],
+        commit_phase_commits: vec![dummy_hash(); max_height],
+        query_proofs: vec![dummy_query_proof(max_height); fri_queries],
         final_poly: InnerChallenge::zero(),
         pow_witness: InnerVal::zero(),
     };
@@ -428,7 +428,7 @@ pub fn make_dummy_pcs_proof(
                             .iter()
                             .map(|(width, _)| vec![BabyBear::zero(); *width])
                             .collect(),
-                        opening_proof: vec![default_hash().into(); *batch_max_height + log_blowup],
+                        opening_proof: vec![dummy_hash().into(); *batch_max_height + log_blowup],
                     }
                 })
                 .collect::<Vec<_>>()
@@ -704,7 +704,7 @@ mod tests {
             inner_fri_config().log_blowup,
         );
 
-        let dummy_commit = default_hash();
+        let dummy_commit = dummy_hash();
         let dummy_openings = os
             .iter()
             .map(|(domain, points_and_openings)| {
