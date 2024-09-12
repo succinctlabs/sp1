@@ -94,7 +94,7 @@ impl<F: PrimeField32> MachineAir<F> for ShaCompressChip {
     }
 
     fn generate_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
-        let events = &input.get_precompile_events(SyscallCode::SHA_COMPRESS);
+        let events = input.get_precompile_events(SyscallCode::SHA_COMPRESS);
         let chunk_size = std::cmp::max(events.len() / num_cpus::get(), 1);
 
         let blu_batches = events

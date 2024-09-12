@@ -67,7 +67,7 @@ impl<F: PrimeField32> MachineAir<F> for ShaExtendChip {
     }
 
     fn generate_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
-        let events = &input.get_precompile_events(SyscallCode::SHA_EXTEND);
+        let events = input.get_precompile_events(SyscallCode::SHA_EXTEND);
         let chunk_size = std::cmp::max(events.len() / num_cpus::get(), 1);
 
         let blu_batches = events

@@ -30,7 +30,7 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
         input: &ExecutionRecord,
         output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
-        let events = &input.get_precompile_events(SyscallCode::KECCAK_PERMUTE);
+        let events = input.get_precompile_events(SyscallCode::KECCAK_PERMUTE);
         let num_events = events.len();
         let chunk_size = std::cmp::max(num_events / num_cpus::get(), 1);
 

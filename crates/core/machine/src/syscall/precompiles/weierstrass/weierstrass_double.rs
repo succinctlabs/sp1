@@ -213,9 +213,9 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
     ) -> RowMajorMatrix<F> {
         // collects the events based on the curve type.
         let events = match E::CURVE_TYPE {
-            CurveType::Secp256k1 => &input.get_precompile_events(SyscallCode::SECP256K1_DOUBLE),
-            CurveType::Bn254 => &input.get_precompile_events(SyscallCode::BN254_DOUBLE),
-            CurveType::Bls12381 => &input.get_precompile_events(SyscallCode::BLS12381_DOUBLE),
+            CurveType::Secp256k1 => input.get_precompile_events(SyscallCode::SECP256K1_DOUBLE),
+            CurveType::Bn254 => input.get_precompile_events(SyscallCode::BN254_DOUBLE),
+            CurveType::Bls12381 => input.get_precompile_events(SyscallCode::BLS12381_DOUBLE),
             _ => panic!("Unsupported curve"),
         };
 
