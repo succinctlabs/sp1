@@ -441,7 +441,7 @@ pub fn verify_plonk_bn254_public_inputs(
         return Err(PlonkVerificationError::InvalidVerificationKey.into());
     }
 
-    let public_values_hash = public_values.hash();
+    let public_values_hash = public_values.hash_bn254();
     if public_values_hash != expected_public_values_hash {
         return Err(PlonkVerificationError::InvalidPublicValues.into());
     }
@@ -464,7 +464,7 @@ pub fn verify_groth16_bn254_public_inputs(
         return Err(Groth16VerificationError::InvalidVerificationKey.into());
     }
 
-    let public_values_hash = public_values.hash();
+    let public_values_hash = public_values.hash_bn254();
     if public_values_hash != expected_public_values_hash {
         return Err(Groth16VerificationError::InvalidPublicValues.into());
     }
