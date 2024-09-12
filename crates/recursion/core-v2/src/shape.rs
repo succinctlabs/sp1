@@ -1,10 +1,11 @@
-use std::marker::PhantomData;
+use std::{iter::repeat, marker::PhantomData};
 
 use hashbrown::HashMap;
 
+use itertools::Itertools;
 use p3_field::{extension::BinomiallyExtendable, PrimeField32};
 use serde::{Deserialize, Serialize};
-use sp1_stark::air::MachineAir;
+use sp1_stark::{air::MachineAir, ProofShape};
 
 use crate::{
     chips::{
@@ -64,6 +65,15 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize, const COL_P
         } else {
             panic!("no shape found for heights: {:?}", heights);
         }
+    }
+
+    pub fn get_all_shape_combinations(
+        &self,
+        batch_size: usize,
+    ) -> impl Iterator<Item = Vec<ProofShape>> + '_ {
+        (0..batch_size)
+            .map(|_| self.allowed_shapes.iter().map(ProofShape::from_map))
+            .multi_cartesian_product()
     }
 }
 
