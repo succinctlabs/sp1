@@ -14,7 +14,7 @@ Note that to use the macro, you must add the `sp1-derive` crate to your dependen
 
 ```toml
 [dependencies]
-sp1-derive = "1.1.0"
+sp1-derive = "2.0.0"
 ```
 
 In the script for proof generation, setup the logger with `utils::setup_logger()` and run the script with `RUST_LOG=info cargo run --release`. You should see the following output:
@@ -43,6 +43,7 @@ stdout: result: 2940
 Note that we elegantly handle nested cycle tracking, as you can see above.
 
 ### Get Tracked Cycle Counts
+
 To include tracked cycle counts in the `ExecutionReport` when using `ProverClient::execute`, use the following annotations:
 
 ```rust,noplayground
@@ -65,8 +66,7 @@ First, we need to generate a trace file of the program counter at each cycle whi
 TRACE_FILE=trace.log RUST_LOG=info cargo run --release
 ```
 
-When the `TRACE_FILE` environment variable is set, as SP1's RISC-V runtime is executing, it will write a log of the program counter to the file specified by `TRACE_FILE`. 
-
+When the `TRACE_FILE` environment variable is set, as SP1's RISC-V runtime is executing, it will write a log of the program counter to the file specified by `TRACE_FILE`.
 
 Next, we can use the `cargo prove` CLI with the `trace` command to analyze the trace file and generate a table of instruction counts. This can be done with the following command:
 
