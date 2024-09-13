@@ -188,7 +188,7 @@ fn run_evaluation<C: SP1ProverComponents>(
         cycles,
         exec_khz: calculate_khz(cycles, exec_duration),
         core_khz: calculate_khz(cycles, core_duration),
-        compressed_khz: calculate_khz(cycles, compress_duration),
+        compressed_khz: calculate_khz(cycles, compress_duration + core_duration),
         time: total_duration.as_secs_f64(),
         success: true,
     }

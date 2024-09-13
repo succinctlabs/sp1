@@ -113,13 +113,20 @@ impl SP1PublicValues {
         self.buffer.write_slice(slice);
     }
 
+    /// Hash the public values.
+    pub fn hash(&self) -> Vec<u8> {
+        let mut hasher = Sha256::new();
+        hasher.update(self.buffer.data.as_slice());
+        hasher.finalize().to_vec()
+    }
+
     /// Hash the public values, mask the top 3 bits and return a BigUint. Matches the implementation
     /// of `hashPublicValues` in the Solidity verifier.
     ///
     /// ```solidity
     /// sha256(publicValues) & bytes32(uint256((1 << 253) - 1));
     /// ```
-    pub fn hash(&self) -> BigUint {
+    pub fn hash_bn254(&self) -> BigUint {
         // Hash the public values.
         let mut hasher = Sha256::new();
         hasher.update(self.buffer.data.as_slice());
@@ -188,7 +195,7 @@ mod tests {
 
         let mut public_values = SP1PublicValues::new();
         public_values.write_slice(&test_bytes);
-        let hash = public_values.hash();
+        let hash = public_values.hash_bn254();
 
         let expected_hash = "1ce987d0a7fcc2636fe87e69295ba12b1cc46c256b369ae7401c51b805ee91bd";
         let expected_hash_biguint = BigUint::from_bytes_be(&hex::decode(expected_hash).unwrap());

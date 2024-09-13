@@ -22,7 +22,7 @@ This is likely due to two different versions of `alloy_sol_types` being used. To
 
 ```toml
 [dependencies]
-sp1-sdk = { version = "1.1.0", default-features = false }
+sp1-sdk = { version = "2.0.0", default-features = false }
 ```
 
 This will configure out the `network` feature which will remove the dependency on `alloy_sol_types` and configure out the `NetworkProver`.
@@ -100,7 +100,7 @@ C++ toolchain be setting this variable manually:
 export CC_riscv32im_succinct_zkvm_elf=/path/to/toolchain
 ```
 
-## Compilation Errors with [`sp1-lib::syscall_verify_sp1_proof`](https://docs.rs/sp1-lib/latest/sp1_lib/fn.syscall_verify_sp1_proof.html) 
+## Compilation Errors with [`sp1-lib::syscall_verify_sp1_proof`](https://docs.rs/sp1-lib/latest/sp1_lib/fn.syscall_verify_sp1_proof.html)
 
 If you are using the [`sp1-lib::syscall_verify_sp1_proof`](https://docs.rs/sp1-lib/latest/sp1_lib/fn.syscall_verify_sp1_proof.html) function, you may encounter compilation errors when building your program.
 
@@ -108,14 +108,15 @@ If you are using the [`sp1-lib::syscall_verify_sp1_proof`](https://docs.rs/sp1-l
   [sp1]    = note: rust-lld: error: undefined symbol: syscall_verify_sp1_proof
   [sp1]            >>> referenced by sp1_lib.b593533d149f0f6e-cgu.0
   [sp1]            >>>               sp1_lib-8f5deb4c47d01871.sp1_lib.b593533d149f0f6e-cgu.0.rcgu.o:(sp1_lib::verify::verify_sp1_proof::h5c1bb38f11b3fe71) in ...
-  [sp1]            
-  [sp1]  
+  [sp1]
+  [sp1]
   [sp1]  error: could not compile `package-name` (bin "package-name") due to 1 previous error
-  ```
+```
 
-  To resolve this, ensure that you're importing both `sp1-lib` and `sp1-zkvm` with the verify feature enabled.
-  ```toml
-  [dependencies]
-  sp1-lib = { version = "<VERSION>", features = ["verify"] }
-  sp1-zkvm = { version = "<VERSION>", features = ["verify"] }
-  ```
+To resolve this, ensure that you're importing both `sp1-lib` and `sp1-zkvm` with the verify feature enabled.
+
+```toml
+[dependencies]
+sp1-lib = { version = "<VERSION>", features = ["verify"] }
+sp1-zkvm = { version = "<VERSION>", features = ["verify"] }
+```
