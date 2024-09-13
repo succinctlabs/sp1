@@ -50,26 +50,21 @@ func NewChip(api frontend.API) *Chip {
 func Zero() Variable {
 	return Variable{
 		Value:  frontend.Variable("0"),
-		NbBits: 0,
+		NbBits: 32,
 	}
 }
 
 func One() Variable {
 	return Variable{
 		Value:  frontend.Variable("1"),
-		NbBits: 1,
+		NbBits: 32,
 	}
 }
 
 func NewF(value string) Variable {
-	if value == "0" {
-		return Zero()
-	} else if value == "1" {
-		return One()
-	}
 	return Variable{
 		Value:  frontend.Variable(value),
-		NbBits: 31,
+		NbBits: 32,
 	}
 }
 
