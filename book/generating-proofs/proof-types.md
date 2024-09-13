@@ -6,8 +6,6 @@ The `ProverClient` follows a "builder" pattern that allows you to configure the 
 
 For a full list of options, see the following [docs](https://docs.rs/sp1-sdk/1.2.0/sp1_sdk/action/struct.Prove.html).
 
-> > > > > > > be5a581dc (docs: add groth16)
-
 ## Core (Default)
 
 The default prover mode generates a list of STARK proofs that in aggregate have size proportional to
@@ -28,16 +26,34 @@ let client = ProverClient::new();
 client.prove(&pk, stdin).compressed().run().unwrap();
 ```
 
-## Groth16 and PLONK
+## Groth16 (testnet only)
 
 <div class="warning">
-WARNING: The Groth16 and PLONK provers require around 64GB of RAM and are only guaranteed to work on official releases of SP1. We recommend using the prover network to generate these proofs.
+WARNING: Groth16 proofs are currently only verifiable on testnets & are not production-ready
 </div>
 
-The Groth16 and PLONK prover modes generate a SNARK proof with extremely small proof size and low verification cost.
-This mode is necessary for generating proofs that can be verified onchain for around ~300k gas.
+<div class="warning">
+WARNING: The Groth16 prover requires around 64GB of RAM and are only guaranteed to work on official releases of SP1. We recommend using the prover network to generate these proofs.
+</div>
+
+The Groth16 prover mode generate a SNARK proof with extremely small proof size and low verification cost.
+This mode generates proofs that can be verified onchain for around ~300k gas.
 
 ```rust,noplayground
 let client = ProverClient::new();
 client.prove(&pk, stdin).groth16().run().unwrap();
+```
+
+## PLONK
+
+<div class="warning">
+WARNING: The PLONK prover requires around 64GB of RAM and are only guaranteed to work on official releases of SP1. We recommend using the prover network to generate these proofs.
+</div>
+
+The Groth16 and PLONK prover modes generate a SNARK proof with extremely small proof size and low verification cost.
+This mode generates proofs that can be verified onchain for around ~300k gas.
+
+```rust,noplayground
+let client = ProverClient::new();
+client.prove(&pk, stdin).plonk().run().unwrap();
 ```

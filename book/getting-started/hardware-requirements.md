@@ -36,7 +36,7 @@ of RAM to generate a proof.
 
 ### Disk
 
-Disk is required to install the SP1 zkVM toolchain and to install the trused setup artifacts, if you
+Disk is required to install the SP1 zkVM toolchain and to install the circuit artifacts, if you
 plan to locally build the Groth16 or PLONK provers.
 
 Furthermore, disk is used to checkpoint the state of the program execution, which is required to generate the proofs.
