@@ -61,8 +61,8 @@ use sp1_recursion_gnark_ffi::{groth16_bn254::Groth16Bn254Prover, plonk_bn254::Pl
 
 use sp1_stark::{
     air::PublicValues, baby_bear_poseidon2::BabyBearPoseidon2, Challenge, Challenger,
-    MachineProver, MachineVerificationError, SP1CoreOpts, SP1ProverOpts, ShardProof,
-    StarkGenericConfig, StarkVerifyingKey, Val, Word, DIGEST_SIZE,
+    MachineProver, SP1CoreOpts, SP1ProverOpts, ShardProof, StarkGenericConfig, StarkVerifyingKey,
+    Val, Word, DIGEST_SIZE,
 };
 
 use sp1_recursion_core_v2::{
