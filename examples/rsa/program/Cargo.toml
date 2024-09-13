@@ -9,9 +9,10 @@ publish = false
 sp1-zkvm = { path = "../../../crates/zkvm/entrypoint" }
 digest = "0.10.7"
 rand = "0.8.5"
-rsa = "0.6"                                      # Check for the latest version
-sha2 = "0.9.8"                                   # Check for the latest version
+rsa = "0.9.6"                                   # Check for the latest version
+sha2 = {version =  "0.10.8",package = "sha2", features = ["oid"]}                                   # Check for the latest version
 
 [patch.crates-io]
 # Patch sha2 so we can use sha precompiles
-sha2 = { git = "https://github.com/succinctbot/RustCrypto-hashes.git", package = "sha2", branch = "v0.9.8" }
+sha2-v0-10-8 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", package = "sha2", branch = "patch-sha2-v0.10.8"}
+

@@ -39,7 +39,9 @@ use {std::future::Future, tokio::task::block_in_place};
 pub use provers::{CpuProver, MockProver, Prover};
 
 pub use sp1_core_executor::{ExecutionReport, HookEnv, SP1Context, SP1ContextBuilder};
-pub use sp1_core_machine::{io::SP1Stdin, riscv::cost::CostEstimator, SP1_CIRCUIT_VERSION};
+pub use sp1_core_machine::{
+    io::SP1PublicValues, io::SP1Stdin, riscv::cost::CostEstimator, SP1_CIRCUIT_VERSION,
+};
 pub use sp1_prover::{
     CoreSC, HashableKey, InnerSC, OuterSC, PlonkBn254Proof, SP1Prover, SP1ProvingKey,
     SP1VerifyingKey,
@@ -291,6 +293,8 @@ pub fn block_on<T>(fut: impl Future<Output = T>) -> T {
 #[cfg(test)]
 mod tests {
 
+    use sp1_prover::init::SP1PublicValues;
+
     use crate::{utils, CostEstimator, ProverClient, SP1Stdin};
 
     #[test]
@@ -328,6 +332,48 @@ mod tests {
     }
 
     #[test]
+    fn test_e2e_core() {
+        utils::setup_logger();
+        let client = ProverClient::local();
+        let elf =
+            include_bytes!("../../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
+        let (pk, vk) = client.setup(elf);
+        let mut stdin = SP1Stdin::new();
+        stdin.write(&10usize);
+
+        // Generate proof & verify.
+        let mut proof = client.prove(&pk, stdin).run().unwrap();
+        client.verify(&proof, &vk).unwrap();
+
+        // Test invalid public values.
+        proof.public_values = SP1PublicValues::from(&[255, 4, 84]);
+        if client.verify(&proof, &vk).is_ok() {
+            panic!("verified proof with invalid public values")
+        }
+    }
+
+    #[test]
+    fn test_e2e_compressed() {
+        utils::setup_logger();
+        let client = ProverClient::local();
+        let elf =
+            include_bytes!("../../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
+        let (pk, vk) = client.setup(elf);
+        let mut stdin = SP1Stdin::new();
+        stdin.write(&10usize);
+
+        // Generate proof & verify.
+        let mut proof = client.prove(&pk, stdin).compressed().run().unwrap();
+        client.verify(&proof, &vk).unwrap();
+
+        // Test invalid public values.
+        proof.public_values = SP1PublicValues::from(&[255, 4, 84]);
+        if client.verify(&proof, &vk).is_ok() {
+            panic!("verified proof with invalid public values")
+        }
+    }
+
+    #[test]
     fn test_e2e_prove_plonk() {
         utils::setup_logger();
         let client = ProverClient::local();
@@ -336,8 +382,16 @@ mod tests {
         let (pk, vk) = client.setup(elf);
         let mut stdin = SP1Stdin::new();
         stdin.write(&10usize);
-        let proof = client.prove(&pk, stdin).plonk().run().unwrap();
+
+        // Generate proof & verify.
+        let mut proof = client.prove(&pk, stdin).plonk().run().unwrap();
         client.verify(&proof, &vk).unwrap();
+
+        // Test invalid public values.
+        proof.public_values = SP1PublicValues::from(&[255, 4, 84]);
+        if client.verify(&proof, &vk).is_ok() {
+            panic!("verified proof with invalid public values")
+        }
     }
 
     #[test]
