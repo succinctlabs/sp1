@@ -989,14 +989,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         let elapsed = time.elapsed();
         tracing::debug!("Wrap proving time: {:?}", elapsed);
         let mut wrap_challenger = self.wrap_prover.config().challenger();
-        let result = self.wrap_prover.machine().verify(&wrap_vk, &wrap_proof, &mut wrap_challenger);
-        match result {
-            Ok(_) => tracing::info!("Proof verified successfully"),
-            Err(MachineVerificationError::NonZeroCumulativeSum) => {
-                tracing::info!("Proof verification failed: NonZeroCumulativeSum")
-            }
-            e => panic!("Proof verification failed: {:?}", e),
-        }
+        self.wrap_prover.machine().verify(&wrap_vk, &wrap_proof, &mut wrap_challenger).unwrap();
         tracing::info!("Wrapping successful");
 
         Ok(SP1ReduceProof { vk: wrap_vk, proof: wrap_proof.shard_proofs.pop().unwrap() })
