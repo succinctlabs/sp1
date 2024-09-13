@@ -1160,6 +1160,27 @@ pub mod tests {
         opts: SP1ProverOpts,
         test_kind: Test,
     ) -> Result<()> {
+        run_e2e_prover_with_options(prover, elf, stdin, opts, test_kind, true)
+    }
+
+    pub fn bench_e2e_prover<C: SP1ProverComponents>(
+        prover: &SP1Prover<C>,
+        elf: &[u8],
+        stdin: SP1Stdin,
+        opts: SP1ProverOpts,
+        test_kind: Test,
+    ) -> Result<()> {
+        run_e2e_prover_with_options(prover, elf, stdin, opts, test_kind, false)
+    }
+
+    pub fn run_e2e_prover_with_options<C: SP1ProverComponents>(
+        prover: &SP1Prover<C>,
+        elf: &[u8],
+        stdin: SP1Stdin,
+        opts: SP1ProverOpts,
+        test_kind: Test,
+        verify: bool,
+    ) -> Result<()> {
         tracing::info!("initializing prover");
         let context = SP1Context::default();
 
@@ -1170,8 +1191,10 @@ pub mod tests {
         let core_proof = prover.prove_core(&pk, &stdin, opts, context)?;
         let public_values = core_proof.public_values.clone();
 
-        tracing::info!("verify core");
-        prover.verify(&core_proof.proof, &vk)?;
+        if verify {
+            tracing::info!("verify core");
+            prover.verify(&core_proof.proof, &vk)?;
+        }
 
         if test_kind == Test::Core {
             return Ok(());
@@ -1182,8 +1205,10 @@ pub mod tests {
         let compressed_proof = prover.compress(&vk, core_proof, vec![], opts)?;
         compress_span.exit();
 
-        tracing::info!("verify compressed");
-        prover.verify_compressed(&compressed_proof, &vk)?;
+        if verify {
+            tracing::info!("verify compressed");
+            prover.verify_compressed(&compressed_proof, &vk)?;
+        }
 
         if test_kind == Test::Compress {
             return Ok(());
@@ -1192,8 +1217,10 @@ pub mod tests {
         tracing::info!("shrink");
         let shrink_proof = prover.shrink(compressed_proof, opts)?;
 
-        tracing::info!("verify shrink");
-        prover.verify_shrink(&shrink_proof, &vk)?;
+        if verify {
+            tracing::info!("verify shrink");
+            prover.verify_shrink(&shrink_proof, &vk)?;
+        }
 
         if test_kind == Test::Shrink {
             return Ok(());
@@ -1214,8 +1241,10 @@ pub mod tests {
 
         let wrapped_bn254_proof = bincode::deserialize(&bytes).unwrap();
 
-        tracing::info!("verify wrap bn254");
-        prover.verify_wrap_bn254(&wrapped_bn254_proof, &vk).unwrap();
+        if verify {
+            tracing::info!("verify wrap bn254");
+            prover.verify_wrap_bn254(&wrapped_bn254_proof, &vk).unwrap();
+        }
 
         if test_kind == Test::Wrap {
             return Ok(());
@@ -1248,7 +1277,14 @@ pub mod tests {
         let groth16_bn254_proof = prover.wrap_groth16_bn254(wrapped_bn254_proof, &artifacts_dir);
         println!("{:?}", groth16_bn254_proof);
 
-        prover.verify_groth16_bn254(&groth16_bn254_proof, &vk, &public_values, &artifacts_dir)?;
+        if verify {
+            prover.verify_groth16_bn254(
+                &groth16_bn254_proof,
+                &vk,
+                &public_values,
+                &artifacts_dir,
+            )?;
+        }
 
         Ok(())
     }
