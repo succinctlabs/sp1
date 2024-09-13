@@ -46,7 +46,7 @@ In SP1, there is a fixed overhead for proving that is independent of your progra
 - For a Tendermint light client, the average cycle count can be between 10M and 50M cycles (including our ed25519 precompiles).
 - We consider programs with <2M cycles to be "small" and by default, the fixed overhead of proving will dominate the proof latency. If latency is incredibly important for your use-case, we can specialize the prover network for your program if you reach out to us.
 
-Note that if you generate Groth16 or PLONK proofs on the prover network, you will encounter a fixed overhead of 90 seconds for the STARK -> SNARK wrapping step. We're actively working on reducing this overhead in our next release.
+Note that if you generate Groth16 or PLONK proofs on the prover network, you will encounter a fixed overhead for the STARK -> SNARK wrapping step. We're actively working on reducing this overhead in future releases.
 
 #### On-Demand vs. Reserved Capacity
 
