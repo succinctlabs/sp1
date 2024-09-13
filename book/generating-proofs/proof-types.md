@@ -37,7 +37,7 @@ WARNING: The Groth16 prover requires around 64GB of RAM and are only guaranteed 
 </div>
 
 The Groth16 prover mode generate a SNARK proof with extremely small proof size and low verification cost.
-This mode generates proofs that can be verified onchain for around ~300k gas.
+This mode generates proofs that can be verified onchain for around ~270k gas.
 
 ```rust,noplayground
 let client = ProverClient::new();

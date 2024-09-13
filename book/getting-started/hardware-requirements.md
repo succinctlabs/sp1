@@ -13,12 +13,12 @@ If you want to generate SP1 proofs locally, this section has an overview of the 
 
 **The most important requirement is CPU for performance/latency and RAM to prevent running out of memory.**
 
-|                | Mock / Network               | Core / Compress                    | Groth16 and PLONK (EVM)    |
-| -------------- | ---------------------------- | ---------------------------------- | -------------------------- |
-| CPU            | 1+, single-core perf matters | 16+, more is better                | 32+, more is better        |
-| Memory         | 8GB+, more is better         | 32GB+, more if you have more cores | 64GB+, more is better      |
-| Disk           | 20GB+                        | 20GB+                              | 100GB+ (for trusted setup) |
-| EVM Compatible | ✅                           | ❌                                 | ✅                         |
+|                | Mock / Network               | Core / Compress                    | Groth16 and PLONK (EVM) |
+| -------------- | ---------------------------- | ---------------------------------- | ----------------------- |
+| CPU            | 1+, single-core perf matters | 16+, more is better                | 32+, more is better     |
+| Memory         | 8GB+, more is better         | 32GB+, more if you have more cores | 64GB+, more is better   |
+| Disk           | 20GB+                        | 20GB+                              | 12GB+                   |
+| EVM Compatible | ✅                           | ❌                                 | ✅                      |
 
 ### CPU
 
