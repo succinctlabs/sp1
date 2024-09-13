@@ -27,7 +27,6 @@ Define the necessary data structures that your chip will use. This might include
 #[repr(C)]
 pub struct CustomOpCols<T> {
     pub shard: T,
-    pub channel: T,
     pub clk: T,
     pub x_ptr: T,
     pub y_ptr: T,

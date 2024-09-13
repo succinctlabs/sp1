@@ -64,12 +64,10 @@ impl Syscall for Keccak256PermuteSyscall {
 
         // Push the Keccak permute event.
         let shard = rt.current_shard();
-        let channel = rt.current_channel();
         let lookup_id = rt.syscall_lookup_id;
         let event = PrecompileEvent::KeccakPermute(KeccakPermuteEvent {
             lookup_id,
             shard,
-            channel,
             clk: start_clk,
             pre_state: saved_state.as_slice().try_into().unwrap(),
             post_state: state.as_slice().try_into().unwrap(),

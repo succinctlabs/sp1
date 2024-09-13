@@ -71,12 +71,10 @@ impl<P: FpOpField> Syscall for Fp2AddSubSyscall<P> {
 
         let lookup_id = rt.syscall_lookup_id;
         let shard = rt.current_shard();
-        let channel = rt.current_channel();
         let op = self.op;
         let event = Fp2AddSubEvent {
             lookup_id,
             shard,
-            channel,
             clk,
             op,
             x_ptr,

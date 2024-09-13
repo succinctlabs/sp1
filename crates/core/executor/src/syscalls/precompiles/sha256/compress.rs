@@ -95,11 +95,9 @@ impl Syscall for Sha256CompressSyscall {
         // Push the SHA extend event.
         let lookup_id = rt.syscall_lookup_id;
         let shard = rt.current_shard();
-        let channel = rt.current_channel();
         let event = PrecompileEvent::ShaCompress(ShaCompressEvent {
             lookup_id,
             shard,
-            channel,
             clk: start_clk,
             w_ptr,
             h_ptr,

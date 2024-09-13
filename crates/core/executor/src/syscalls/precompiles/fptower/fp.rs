@@ -63,11 +63,9 @@ impl<P: FpOpField> Syscall for FpOpSyscall<P> {
 
         let lookup_id = rt.syscall_lookup_id;
         let shard = rt.current_shard();
-        let channel = rt.current_channel();
         let event = FpOpEvent {
             lookup_id,
             shard,
-            channel,
             clk,
             x_ptr,
             x,

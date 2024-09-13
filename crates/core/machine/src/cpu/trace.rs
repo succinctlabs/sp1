@@ -122,13 +122,13 @@ impl CpuChip {
 
         // Populate memory accesses for a, b, and c.
         if let Some(record) = event.a_record {
-            cols.op_a_access.populate(event.channel, record, blu_events);
+            cols.op_a_access.populate(record, blu_events);
         }
         if let Some(MemoryRecordEnum::Read(record)) = event.b_record {
-            cols.op_b_access.populate(event.channel, record, blu_events);
+            cols.op_b_access.populate(record, blu_events);
         }
         if let Some(MemoryRecordEnum::Read(record)) = event.c_record {
-            cols.op_c_access.populate(event.channel, record, blu_events);
+            cols.op_c_access.populate(record, blu_events);
         }
 
         // Populate range checks for a.
@@ -142,7 +142,6 @@ impl CpuChip {
             .collect::<Vec<_>>();
         blu_events.add_byte_lookup_event(ByteLookupEvent {
             shard: event.shard,
-            channel: event.channel,
             opcode: ByteOpcode::U8Range,
             a1: 0,
             a2: 0,
@@ -151,7 +150,6 @@ impl CpuChip {
         });
         blu_events.add_byte_lookup_event(ByteLookupEvent {
             shard: event.shard,
-            channel: event.channel,
             opcode: ByteOpcode::U8Range,
             a1: 0,
             a2: 0,
@@ -163,7 +161,7 @@ impl CpuChip {
         assert_eq!(event.memory_record.is_some(), event.memory.is_some());
         let memory_columns = cols.opcode_specific_columns.memory_mut();
         if let Some(record) = event.memory_record {
-            memory_columns.memory_access.populate(event.channel, record, blu_events)
+            memory_columns.memory_access.populate(record, blu_events)
         }
 
         // Populate memory, branch, jump, and auipc specific fields.
@@ -183,7 +181,7 @@ impl CpuChip {
         cols.is_real = F::one();
     }
 
-    /// Populates the shard, channel, and clk related rows.
+    /// Populates the shard and clk related rows.
     fn populate_shard_clk<F: PrimeField>(
         &self,
         cols: &mut CpuCols<F>,
@@ -191,7 +189,6 @@ impl CpuChip {
         blu_events: &mut impl ByteRecord,
     ) {
         cols.shard = F::from_canonical_u32(event.shard);
-        cols.channel = F::from_canonical_u8(event.channel);
         cols.clk = F::from_canonical_u32(event.clk);
 
         let clk_16bit_limb = (event.clk & 0xffff) as u16;
@@ -199,11 +196,8 @@ impl CpuChip {
         cols.clk_16bit_limb = F::from_canonical_u16(clk_16bit_limb);
         cols.clk_8bit_limb = F::from_canonical_u8(clk_8bit_limb);
 
-        cols.channel_selectors.populate(event.channel);
-
         blu_events.add_byte_lookup_event(ByteLookupEvent::new(
             event.shard,
-            event.channel,
             U16Range,
             event.shard as u16,
             0,
@@ -212,7 +206,6 @@ impl CpuChip {
         ));
         blu_events.add_byte_lookup_event(ByteLookupEvent::new(
             event.shard,
-            event.channel,
             U16Range,
             clk_16bit_limb,
             0,
@@ -221,7 +214,6 @@ impl CpuChip {
         ));
         blu_events.add_byte_lookup_event(ByteLookupEvent::new(
             event.shard,
-            event.channel,
             ByteOpcode::U8Range,
             0,
             0,
@@ -336,7 +328,6 @@ impl CpuChip {
         for byte_pair in addr_bytes.chunks_exact(2) {
             blu_events.add_byte_lookup_event(ByteLookupEvent {
                 shard: event.shard,
-                channel: event.channel,
                 opcode: ByteOpcode::U8Range,
                 a1: 0,
                 a2: 0,

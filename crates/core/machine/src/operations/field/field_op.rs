@@ -107,7 +107,6 @@ impl<F: PrimeField32, P: FieldParameters> FieldOpCols<F, P> {
         &mut self,
         record: &mut impl ByteRecord,
         shard: u32,
-        channel: u8,
         a: &BigUint,
         b: &BigUint,
         modulus: &BigUint,
@@ -152,10 +151,10 @@ impl<F: PrimeField32, P: FieldParameters> FieldOpCols<F, P> {
         };
 
         // Range checks
-        record.add_u8_range_checks_field(shard, channel, &self.result.0);
-        record.add_u8_range_checks_field(shard, channel, &self.carry.0);
-        record.add_u8_range_checks_field(shard, channel, &self.witness_low.0);
-        record.add_u8_range_checks_field(shard, channel, &self.witness_high.0);
+        record.add_u8_range_checks_field(shard, &self.result.0);
+        record.add_u8_range_checks_field(shard, &self.carry.0);
+        record.add_u8_range_checks_field(shard, &self.witness_low.0);
+        record.add_u8_range_checks_field(shard, &self.witness_high.0);
 
         result
     }
@@ -166,12 +165,11 @@ impl<F: PrimeField32, P: FieldParameters> FieldOpCols<F, P> {
         &mut self,
         record: &mut impl ByteRecord,
         shard: u32,
-        channel: u8,
         a: &BigUint,
         b: &BigUint,
         op: FieldOperation,
     ) -> BigUint {
-        self.populate_with_modulus(record, shard, channel, a, b, &P::modulus(), op)
+        self.populate_with_modulus(record, shard, a, b, &P::modulus(), op)
     }
 }
 
@@ -188,7 +186,6 @@ impl<V: Copy, P: FieldParameters> FieldOpCols<V, P> {
         is_sub: impl Into<AB::Expr> + Clone,
         is_mul: impl Into<AB::Expr> + Clone,
         is_div: impl Into<AB::Expr> + Clone,
-        channel: impl Into<AB::Expr> + Clone,
         is_real: impl Into<AB::Expr> + Clone,
     ) where
         V: Into<AB::Expr>,
@@ -212,7 +209,7 @@ impl<V: Copy, P: FieldParameters> FieldOpCols<V, P> {
         let p_div = p_res_param * p_b.clone();
         let p_op = p_add * is_add + p_sub * is_sub + p_mul * is_mul + p_div * is_div;
 
-        self.eval_with_polynomials(builder, p_op, modulus.clone(), p_result, channel, is_real);
+        self.eval_with_polynomials(builder, p_op, modulus.clone(), p_result, is_real);
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -223,7 +220,6 @@ impl<V: Copy, P: FieldParameters> FieldOpCols<V, P> {
         b: &(impl Into<Polynomial<AB::Expr>> + Clone),
         modulus: &(impl Into<Polynomial<AB::Expr>> + Clone),
         op: FieldOperation,
-        channel: impl Into<AB::Expr> + Clone,
         is_real: impl Into<AB::Expr> + Clone,
     ) where
         V: Into<AB::Expr>,
@@ -240,7 +236,7 @@ impl<V: Copy, P: FieldParameters> FieldOpCols<V, P> {
             FieldOperation::Add | FieldOperation::Sub => p_a + p_b,
             FieldOperation::Mul | FieldOperation::Div => p_a * p_b,
         };
-        self.eval_with_polynomials(builder, p_op, modulus.clone(), p_result, channel, is_real);
+        self.eval_with_polynomials(builder, p_op, modulus.clone(), p_result, is_real);
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -250,7 +246,6 @@ impl<V: Copy, P: FieldParameters> FieldOpCols<V, P> {
         op: impl Into<Polynomial<AB::Expr>>,
         modulus: impl Into<Polynomial<AB::Expr>>,
         result: impl Into<Polynomial<AB::Expr>>,
-        channel: impl Into<AB::Expr> + Clone,
         is_real: impl Into<AB::Expr> + Clone,
     ) where
         V: Into<AB::Expr>,
@@ -267,14 +262,10 @@ impl<V: Copy, P: FieldParameters> FieldOpCols<V, P> {
         eval_field_operation::<AB, P>(builder, &p_vanishing, &p_witness_low, &p_witness_high);
 
         // Range checks for the result, carry, and witness columns.
-        builder.slice_range_check_u8(&self.result.0, channel.clone(), is_real.clone());
-        builder.slice_range_check_u8(&self.carry.0, channel.clone(), is_real.clone());
-        builder.slice_range_check_u8(
-            p_witness_low.coefficients(),
-            channel.clone(),
-            is_real.clone(),
-        );
-        builder.slice_range_check_u8(p_witness_high.coefficients(), channel.clone(), is_real);
+        builder.slice_range_check_u8(&self.result.0, is_real.clone());
+        builder.slice_range_check_u8(&self.carry.0, is_real.clone());
+        builder.slice_range_check_u8(p_witness_low.coefficients(), is_real.clone());
+        builder.slice_range_check_u8(p_witness_high.coefficients(), is_real);
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -284,14 +275,13 @@ impl<V: Copy, P: FieldParameters> FieldOpCols<V, P> {
         a: &(impl Into<Polynomial<AB::Expr>> + Clone),
         b: &(impl Into<Polynomial<AB::Expr>> + Clone),
         op: FieldOperation,
-        channel: impl Into<AB::Expr> + Clone,
         is_real: impl Into<AB::Expr> + Clone,
     ) where
         V: Into<AB::Expr>,
         Limbs<V, P::Limbs>: Copy,
     {
         let p_limbs = Polynomial::from_iter(P::modulus_field_iter::<AB::F>().map(AB::Expr::from));
-        self.eval_with_modulus::<AB>(builder, a, b, &p_limbs, op, channel, is_real);
+        self.eval_with_modulus::<AB>(builder, a, b, &p_limbs, op, is_real);
     }
 }
 
@@ -387,7 +377,7 @@ mod tests {
                     let cols: &mut TestCols<F, P> = row.as_mut_slice().borrow_mut();
                     cols.a = P::to_limbs_field::<F, _>(a);
                     cols.b = P::to_limbs_field::<F, _>(b);
-                    cols.a_op_b.populate(&mut blu_events, 1, 0, a, b, self.operation);
+                    cols.a_op_b.populate(&mut blu_events, 1, a, b, self.operation);
                     output.add_byte_lookup_events(blu_events);
                     row
                 })
@@ -422,14 +412,7 @@ mod tests {
             let main = builder.main();
             let local = main.row_slice(0);
             let local: &TestCols<AB::Var, P> = (*local).borrow();
-            local.a_op_b.eval(
-                builder,
-                &local.a,
-                &local.b,
-                self.operation,
-                AB::F::zero(),
-                AB::F::one(),
-            );
+            local.a_op_b.eval(builder, &local.a, &local.b, self.operation, AB::F::one());
         }
     }
 

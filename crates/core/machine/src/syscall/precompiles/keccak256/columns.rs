@@ -18,7 +18,6 @@ pub(crate) struct KeccakMemCols<T> {
     pub keccak: KeccakCols<T>,
 
     pub shard: T,
-    pub channel: T,
     pub clk: T,
     pub nonce: T,
     pub state_addr: T,

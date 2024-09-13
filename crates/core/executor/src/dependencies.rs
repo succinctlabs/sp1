@@ -22,7 +22,6 @@ pub fn emit_divrem_dependencies(executor: &mut Executor, event: AluEvent) {
         executor.record.add_events.push(AluEvent {
             lookup_id: event.sub_lookups[4],
             shard: event.shard,
-            channel: event.channel,
             clk: event.clk,
             opcode: Opcode::ADD,
             a: 0,
@@ -35,7 +34,6 @@ pub fn emit_divrem_dependencies(executor: &mut Executor, event: AluEvent) {
         executor.record.add_events.push(AluEvent {
             lookup_id: event.sub_lookups[5],
             shard: event.shard,
-            channel: event.channel,
             clk: event.clk,
             opcode: Opcode::ADD,
             a: 0,
@@ -58,7 +56,6 @@ pub fn emit_divrem_dependencies(executor: &mut Executor, event: AluEvent) {
     let lower_multiplication = AluEvent {
         lookup_id: event.sub_lookups[0],
         shard: event.shard,
-        channel: event.channel,
         clk: event.clk,
         opcode: Opcode::MUL,
         a: lower_word,
@@ -71,7 +68,6 @@ pub fn emit_divrem_dependencies(executor: &mut Executor, event: AluEvent) {
     let upper_multiplication = AluEvent {
         lookup_id: event.sub_lookups[1],
         shard: event.shard,
-        channel: event.channel,
         clk: event.clk,
         opcode: {
             if is_signed_operation {
@@ -91,7 +87,6 @@ pub fn emit_divrem_dependencies(executor: &mut Executor, event: AluEvent) {
         AluEvent {
             lookup_id: event.sub_lookups[2],
             shard: event.shard,
-            channel: event.channel,
             opcode: Opcode::SLTU,
             a: 1,
             b: (remainder as i32).unsigned_abs(),
@@ -103,7 +98,6 @@ pub fn emit_divrem_dependencies(executor: &mut Executor, event: AluEvent) {
         AluEvent {
             lookup_id: event.sub_lookups[3],
             shard: event.shard,
-            channel: event.channel,
             opcode: Opcode::SLTU,
             a: 1,
             b: remainder,
@@ -137,7 +131,6 @@ pub fn emit_cpu_dependencies(executor: &mut Executor, event: &CpuEvent) {
         let add_event = AluEvent {
             lookup_id: event.memory_add_lookup_id,
             shard: event.shard,
-            channel: event.channel,
             clk: event.clk,
             opcode: Opcode::ADD,
             a: memory_addr,
@@ -173,7 +166,6 @@ pub fn emit_cpu_dependencies(executor: &mut Executor, event: &CpuEvent) {
             if most_sig_mem_value_byte >> 7 & 0x01 == 1 {
                 let sub_event = AluEvent {
                     lookup_id: event.memory_sub_lookup_id,
-                    channel: event.channel,
                     shard: event.shard,
                     clk: event.clk,
                     opcode: Opcode::SUB,
@@ -206,7 +198,6 @@ pub fn emit_cpu_dependencies(executor: &mut Executor, event: &CpuEvent) {
         let lt_comp_event = AluEvent {
             lookup_id: event.branch_lt_lookup_id,
             shard: event.shard,
-            channel: event.channel,
             clk: event.clk,
             opcode: alu_op_code,
             a: a_lt_b as u32,
@@ -217,7 +208,6 @@ pub fn emit_cpu_dependencies(executor: &mut Executor, event: &CpuEvent) {
         let gt_comp_event = AluEvent {
             lookup_id: event.branch_gt_lookup_id,
             shard: event.shard,
-            channel: event.channel,
             clk: event.clk,
             opcode: alu_op_code,
             a: a_gt_b as u32,
@@ -239,7 +229,6 @@ pub fn emit_cpu_dependencies(executor: &mut Executor, event: &CpuEvent) {
             let add_event = AluEvent {
                 lookup_id: event.branch_add_lookup_id,
                 shard: event.shard,
-                channel: event.channel,
                 clk: event.clk,
                 opcode: Opcode::ADD,
                 a: next_pc,
@@ -258,7 +247,6 @@ pub fn emit_cpu_dependencies(executor: &mut Executor, event: &CpuEvent) {
                 let add_event = AluEvent {
                     lookup_id: event.jump_jal_lookup_id,
                     shard: event.shard,
-                    channel: event.channel,
                     clk: event.clk,
                     opcode: Opcode::ADD,
                     a: next_pc,
@@ -273,7 +261,6 @@ pub fn emit_cpu_dependencies(executor: &mut Executor, event: &CpuEvent) {
                 let add_event = AluEvent {
                     lookup_id: event.jump_jalr_lookup_id,
                     shard: event.shard,
-                    channel: event.channel,
                     clk: event.clk,
                     opcode: Opcode::ADD,
                     a: next_pc,
@@ -291,7 +278,6 @@ pub fn emit_cpu_dependencies(executor: &mut Executor, event: &CpuEvent) {
         let add_event = AluEvent {
             lookup_id: event.auipc_lookup_id,
             shard: event.shard,
-            channel: event.channel,
             clk: event.clk,
             opcode: Opcode::ADD,
             a: event.a,

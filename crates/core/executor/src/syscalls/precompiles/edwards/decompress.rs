@@ -67,11 +67,9 @@ impl<E: EdwardsParameters> Syscall for EdwardsDecompressSyscall<E> {
 
         let lookup_id = rt.syscall_lookup_id;
         let shard = rt.current_shard();
-        let channel = rt.current_channel();
         let event = EdDecompressEvent {
             lookup_id,
             shard,
-            channel,
             clk: start_clk,
             ptr: slice_ptr,
             sign: sign_bool,

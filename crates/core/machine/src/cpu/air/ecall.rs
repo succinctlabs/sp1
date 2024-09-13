@@ -53,7 +53,6 @@ impl CpuChip {
 
         builder.send_syscall(
             local.shard,
-            local.channel,
             local.clk,
             ecall_cols.syscall_nonce,
             syscall_id,

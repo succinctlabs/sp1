@@ -114,10 +114,9 @@ pub trait ByteAirBuilder: BaseAirBuilder {
         a: impl Into<Self::Expr>,
         b: impl Into<Self::Expr>,
         c: impl Into<Self::Expr>,
-        channel: impl Into<Self::Expr>,
         multiplicity: impl Into<Self::Expr>,
     ) {
-        self.send_byte_pair(opcode, a, Self::Expr::zero(), b, c, channel, multiplicity);
+        self.send_byte_pair(opcode, a, Self::Expr::zero(), b, c, multiplicity);
     }
 
     /// Sends a byte operation with two outputs to be processed.
@@ -129,12 +128,11 @@ pub trait ByteAirBuilder: BaseAirBuilder {
         a2: impl Into<Self::Expr>,
         b: impl Into<Self::Expr>,
         c: impl Into<Self::Expr>,
-        channel: impl Into<Self::Expr>,
         multiplicity: impl Into<Self::Expr>,
     ) {
         self.send(
             AirInteraction::new(
-                vec![opcode.into(), a1.into(), a2.into(), b.into(), c.into(), channel.into()],
+                vec![opcode.into(), a1.into(), a2.into(), b.into(), c.into()],
                 multiplicity.into(),
                 InteractionKind::Byte,
             ),
@@ -150,10 +148,9 @@ pub trait ByteAirBuilder: BaseAirBuilder {
         a: impl Into<Self::Expr>,
         b: impl Into<Self::Expr>,
         c: impl Into<Self::Expr>,
-        channel: impl Into<Self::Expr>,
         multiplicity: impl Into<Self::Expr>,
     ) {
-        self.receive_byte_pair(opcode, a, Self::Expr::zero(), b, c, channel, multiplicity);
+        self.receive_byte_pair(opcode, a, Self::Expr::zero(), b, c, multiplicity);
     }
 
     /// Receives a byte operation with two outputs to be processed.
@@ -165,12 +162,11 @@ pub trait ByteAirBuilder: BaseAirBuilder {
         a2: impl Into<Self::Expr>,
         b: impl Into<Self::Expr>,
         c: impl Into<Self::Expr>,
-        channel: impl Into<Self::Expr>,
         multiplicity: impl Into<Self::Expr>,
     ) {
         self.receive(
             AirInteraction::new(
-                vec![opcode.into(), a1.into(), a2.into(), b.into(), c.into(), channel.into()],
+                vec![opcode.into(), a1.into(), a2.into(), b.into(), c.into()],
                 multiplicity.into(),
                 InteractionKind::Byte,
             ),
@@ -190,7 +186,6 @@ pub trait AluAirBuilder: BaseAirBuilder {
         b: Word<impl Into<Self::Expr>>,
         c: Word<impl Into<Self::Expr>>,
         shard: impl Into<Self::Expr>,
-        channel: impl Into<Self::Expr>,
         nonce: impl Into<Self::Expr>,
         multiplicity: impl Into<Self::Expr>,
     ) {
@@ -199,7 +194,6 @@ pub trait AluAirBuilder: BaseAirBuilder {
             .chain(b.0.into_iter().map(Into::into))
             .chain(c.0.into_iter().map(Into::into))
             .chain(once(shard.into()))
-            .chain(once(channel.into()))
             .chain(once(nonce.into()))
             .collect();
 
@@ -218,7 +212,6 @@ pub trait AluAirBuilder: BaseAirBuilder {
         b: Word<impl Into<Self::Expr>>,
         c: Word<impl Into<Self::Expr>>,
         shard: impl Into<Self::Expr>,
-        channel: impl Into<Self::Expr>,
         nonce: impl Into<Self::Expr>,
         multiplicity: impl Into<Self::Expr>,
     ) {
@@ -227,7 +220,6 @@ pub trait AluAirBuilder: BaseAirBuilder {
             .chain(b.0.into_iter().map(Into::into))
             .chain(c.0.into_iter().map(Into::into))
             .chain(once(shard.into()))
-            .chain(once(channel.into()))
             .chain(once(nonce.into()))
             .collect();
 
@@ -242,7 +234,6 @@ pub trait AluAirBuilder: BaseAirBuilder {
     fn send_syscall(
         &mut self,
         shard: impl Into<Self::Expr> + Clone,
-        channel: impl Into<Self::Expr> + Clone,
         clk: impl Into<Self::Expr> + Clone,
         nonce: impl Into<Self::Expr> + Clone,
         syscall_id: impl Into<Self::Expr> + Clone,
@@ -255,7 +246,6 @@ pub trait AluAirBuilder: BaseAirBuilder {
             AirInteraction::new(
                 vec![
                     shard.clone().into(),
-                    channel.clone().into(),
                     clk.clone().into(),
                     nonce.clone().into(),
                     syscall_id.clone().into(),
@@ -274,7 +264,6 @@ pub trait AluAirBuilder: BaseAirBuilder {
     fn receive_syscall(
         &mut self,
         shard: impl Into<Self::Expr> + Clone,
-        channel: impl Into<Self::Expr> + Clone,
         clk: impl Into<Self::Expr> + Clone,
         nonce: impl Into<Self::Expr> + Clone,
         syscall_id: impl Into<Self::Expr> + Clone,
@@ -287,7 +276,6 @@ pub trait AluAirBuilder: BaseAirBuilder {
             AirInteraction::new(
                 vec![
                     shard.clone().into(),
-                    channel.clone().into(),
                     clk.clone().into(),
                     nonce.clone().into(),
                     syscall_id.clone().into(),

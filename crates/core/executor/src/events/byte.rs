@@ -16,13 +16,11 @@ pub const NUM_BYTE_OPS: usize = 9;
 /// Byte Lookup Event.
 ///
 /// This object encapsulates the information needed to prove a byte lookup operation. This includes
-/// the shard, channel, opcode, operands, and other relevant information.
+/// the shard, opcode, operands, and other relevant information.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Hash)]
 pub struct ByteLookupEvent {
     /// The shard number.
     pub shard: u32,
-    /// The channel number.
-    pub channel: u8,
     /// The opcode.
     pub opcode: ByteOpcode,
     /// The first operand.
@@ -55,10 +53,9 @@ pub trait ByteRecord {
     }
 
     /// Adds a `ByteLookupEvent` to verify `a` and `b` are indeed bytes to the shard.
-    fn add_u8_range_check(&mut self, shard: u32, channel: u8, a: u8, b: u8) {
+    fn add_u8_range_check(&mut self, shard: u32, a: u8, b: u8) {
         self.add_byte_lookup_event(ByteLookupEvent {
             shard,
-            channel,
             opcode: ByteOpcode::U8Range,
             a1: 0,
             a2: 0,
@@ -68,10 +65,9 @@ pub trait ByteRecord {
     }
 
     /// Adds a `ByteLookupEvent` to verify `a` is indeed u16.
-    fn add_u16_range_check(&mut self, shard: u32, channel: u8, a: u16) {
+    fn add_u16_range_check(&mut self, shard: u32, a: u16) {
         self.add_byte_lookup_event(ByteLookupEvent {
             shard,
-            channel,
             opcode: ByteOpcode::U16Range,
             a1: a,
             a2: 0,
@@ -81,43 +77,36 @@ pub trait ByteRecord {
     }
 
     /// Adds `ByteLookupEvent`s to verify that all the bytes in the input slice are indeed bytes.
-    fn add_u8_range_checks(&mut self, shard: u32, channel: u8, bytes: &[u8]) {
+    fn add_u8_range_checks(&mut self, shard: u32, bytes: &[u8]) {
         let mut index = 0;
         while index + 1 < bytes.len() {
-            self.add_u8_range_check(shard, channel, bytes[index], bytes[index + 1]);
+            self.add_u8_range_check(shard, bytes[index], bytes[index + 1]);
             index += 2;
         }
         if index < bytes.len() {
             // If the input slice's length is odd, we need to add a check for the last byte.
-            self.add_u8_range_check(shard, channel, bytes[index], 0);
+            self.add_u8_range_check(shard, bytes[index], 0);
         }
     }
 
     /// Adds `ByteLookupEvent`s to verify that all the field elements in the input slice are indeed
     /// bytes.
-    fn add_u8_range_checks_field<F: PrimeField32>(
-        &mut self,
-        shard: u32,
-        channel: u8,
-        field_values: &[F],
-    ) {
+    fn add_u8_range_checks_field<F: PrimeField32>(&mut self, shard: u32, field_values: &[F]) {
         self.add_u8_range_checks(
             shard,
-            channel,
             &field_values.iter().map(|x| x.as_canonical_u32() as u8).collect::<Vec<_>>(),
         );
     }
 
     /// Adds `ByteLookupEvent`s to verify that all the bytes in the input slice are indeed bytes.
-    fn add_u16_range_checks(&mut self, shard: u32, channel: u8, ls: &[u16]) {
-        ls.iter().for_each(|x| self.add_u16_range_check(shard, channel, *x));
+    fn add_u16_range_checks(&mut self, shard: u32, ls: &[u16]) {
+        ls.iter().for_each(|x| self.add_u16_range_check(shard, *x));
     }
 
     /// Adds a `ByteLookupEvent` to compute the bitwise OR of the two input values.
-    fn lookup_or(&mut self, shard: u32, channel: u8, b: u8, c: u8) {
+    fn lookup_or(&mut self, shard: u32, b: u8, c: u8) {
         self.add_byte_lookup_event(ByteLookupEvent {
             shard,
-            channel,
             opcode: ByteOpcode::OR,
             a1: (b | c) as u16,
             a2: 0,
@@ -130,8 +119,8 @@ pub trait ByteRecord {
 impl ByteLookupEvent {
     /// Creates a new `ByteLookupEvent`.
     #[must_use]
-    pub fn new(shard: u32, channel: u8, opcode: ByteOpcode, a1: u16, a2: u8, b: u8, c: u8) -> Self {
-        Self { shard, channel, opcode, a1, a2, b, c }
+    pub fn new(shard: u32, opcode: ByteOpcode, a1: u16, a2: u8, b: u8, c: u8) -> Self {
+        Self { shard, opcode, a1, a2, b, c }
     }
 }
 
