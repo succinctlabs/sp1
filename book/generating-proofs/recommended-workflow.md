@@ -2,7 +2,7 @@
 
 We recommend the following workflow for developing with SP1.
 
-## Step 1: Iterate on your program with execution only 
+## Step 1: Iterate on your program with execution only
 
 While iterating on your SP1 program, you should **only execute** the program with the RISC-V runtime. This will allow you to verify the correctness of your program and test the `SP1Stdin` as well as the `SP1PublicValues` that are returned, without having to generate a proof (which can be slow and/or expensive). If the execution of your program succeeds, then proof generation should succeed as well!
 
@@ -14,7 +14,7 @@ Note that printing out the total number of executed cycles and the full executio
 
 **Crate Setup:** We recommend that your program crate that defines the `main` function (around which you wrap the `sp1_zkvm::entrypoint!` macro) should be kept minimal. Most of your business logic should be in a separate crate (in the same repo/workspace) that can be tested independently and that is not tied to the SP1 zkVM. This will allow you to unit test your program logic without having to worry about the `zkvm` compilation target. This will also allow you to efficient reuse types between your program crate and your crate that generates proofs.
 
-## Step 2: Generate proofs 
+## Step 2: Generate proofs
 
 After you have iterated on your program and finalized that it works correctly, you can generate proofs for your program for final end to end testing or production use.
 
@@ -28,7 +28,7 @@ There are a few things to keep in mind when using the prover network.
 
 #### Benchmarking latency on the prover network
 
-The prover network currently parallelizes proof generation across multiple machines. This means the latency of proof generation does not scale linearly with the number of cycles of your program, but rather with the number of cycles of your program divided by the number of currently available machines on the prover network. 
+The prover network currently parallelizes proof generation across multiple machines. This means the latency of proof generation does not scale linearly with the number of cycles of your program, but rather with the number of cycles of your program divided by the number of currently available machines on the prover network.
 
 Our prover network currently has limited capacity because it is still in beta. If you have an extremely latency sensitive use-case and you want to figure out the **minimal latency possible** for your program, you should [reach out to us](https://partner.succinct.xyz/) and we can onboard you to our reserved capacity cluster that has a dedicated instances that can significantly reduce latency.
 
@@ -40,13 +40,13 @@ Note that **latency is not the same as cost**, because we parallelize proof gene
 
 #### Benchmarking on small vs. large programs
 
-In SP1, there is a fixed overhead for proving that is independent of your program's cycle count. This means that benchmarking on *small programs* is not representative of the performance of larger programs. To get an idea of the scale of programs for real-world workloads, you can refer to our [benchmarking blog post](https://blog.succinct.xyz/sp1-production-benchmarks) and also some numbers below:
+In SP1, there is a fixed overhead for proving that is independent of your program's cycle count. This means that benchmarking on _small programs_ is not representative of the performance of larger programs. To get an idea of the scale of programs for real-world workloads, you can refer to our [benchmarking blog post](https://blog.succinct.xyz/sp1-production-benchmarks) and also some numbers below:
 
-* An average Ethereum block can be between 100-500M cycles (including merkle proof verification for storage and execution of transactions) with our `keccak` and `secp256k1` precompiles.
-* For a Tendermint light client, the average cycle count can be between 10M and 50M cycles (including our ed25519 precompiles).
-* We consider programs with <2M cycles to be "small" and by default, the fixed overhead of proving will dominate the proof latency. If latency is incredibly important for your use-case, we can specialize the prover network for your program if you reach out to us.
+- An average Ethereum block can be between 100-500M cycles (including merkle proof verification for storage and execution of transactions) with our `keccak` and `secp256k1` precompiles.
+- For a Tendermint light client, the average cycle count can be between 10M and 50M cycles (including our ed25519 precompiles).
+- We consider programs with <2M cycles to be "small" and by default, the fixed overhead of proving will dominate the proof latency. If latency is incredibly important for your use-case, we can specialize the prover network for your program if you reach out to us.
 
-Note that if you generate PLONK proofs on the prover network, you will encounter a fixed overhead of 90 seconds for the STARK -> SNARK wrapping step. We're actively working on reducing this overhead in our next release.
+Note that if you generate Groth16 or PLONK proofs on the prover network, you will encounter a fixed overhead for the STARK -> SNARK wrapping step. We're actively working on reducing this overhead in future releases.
 
 #### On-Demand vs. Reserved Capacity
 
