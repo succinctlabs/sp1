@@ -1938,6 +1938,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "enum-map"
+version = "2.7.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6866f3bfdf8207509a033af1a75a7b08abda06bbaaeae6669323fd5a097df2e9"
+dependencies = [
+ "enum-map-derive",
+ "serde",
+]
+
+[[package]]
+name = "enum-map-derive"
+version = "0.17.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f282cfdfe92516eb26c2af8589c274c7c17681f5ecc03c18255fe741c6aa64eb"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.72",
+]
+
+[[package]]
 name = "equivalent"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5913,7 +5934,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-build"
-version = "1.2.0"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "cargo_metadata",
@@ -5924,7 +5945,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-cli"
-version = "1.2.0"
+version = "2.0.0"
 dependencies = [
  "anstyle",
  "anyhow",
@@ -5959,11 +5980,12 @@ dependencies = [
 
 [[package]]
 name = "sp1-core-executor"
-version = "1.2.0"
+version = "2.0.0"
 dependencies = [
  "bincode",
  "bytemuck",
  "elf",
+ "enum-map",
  "eyre",
  "generic-array 1.1.0",
  "hashbrown 0.14.5",
@@ -5990,11 +6012,12 @@ dependencies = [
  "tiny-keccak",
  "tracing",
  "typenum",
+ "vec_map",
 ]
 
 [[package]]
 name = "sp1-core-machine"
-version = "1.2.0"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "arrayref",
@@ -6061,7 +6084,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-cuda"
-version = "1.2.0"
+version = "2.0.0"
 dependencies = [
  "bincode",
  "ctrlc",
@@ -6082,7 +6105,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-curves"
-version = "1.2.0"
+version = "2.0.0"
 dependencies = [
  "curve25519-dalek",
  "dashu",
@@ -6102,7 +6125,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-derive"
-version = "1.2.0"
+version = "2.0.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -6111,7 +6134,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-eval"
-version = "1.2.0"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "bincode",
@@ -6131,14 +6154,14 @@ dependencies = [
 
 [[package]]
 name = "sp1-helper"
-version = "1.2.0"
+version = "2.0.0"
 dependencies = [
  "sp1-build",
 ]
 
 [[package]]
 name = "sp1-lib"
-version = "1.2.0"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "bincode",
@@ -6150,7 +6173,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-primitives"
-version = "1.2.0"
+version = "2.0.0"
 dependencies = [
  "itertools 0.13.0",
  "lazy_static",
@@ -6162,7 +6185,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-prover"
-version = "1.2.0"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "bincode",
@@ -6200,7 +6223,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-circuit"
-version = "1.2.0"
+version = "2.0.0"
 dependencies = [
  "bincode",
  "ff 0.13.0",
@@ -6232,7 +6255,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-circuit-v2"
-version = "1.2.0"
+version = "2.0.0"
 dependencies = [
  "bincode",
  "ff 0.13.0",
@@ -6271,7 +6294,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-compiler"
-version = "1.2.0"
+version = "2.0.0"
 dependencies = [
  "backtrace",
  "criterion",
@@ -6304,7 +6327,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-core"
-version = "1.2.0"
+version = "2.0.0"
 dependencies = [
  "arrayref",
  "backtrace",
@@ -6341,7 +6364,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-core-v2"
-version = "1.2.0"
+version = "2.0.0"
 dependencies = [
  "arrayref",
  "backtrace",
@@ -6381,7 +6404,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-derive"
-version = "1.2.0"
+version = "2.0.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -6390,7 +6413,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-gnark-cli"
-version = "1.2.0"
+version = "2.0.0"
 dependencies = [
  "bincode",
  "clap",
@@ -6399,7 +6422,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-gnark-ffi"
-version = "1.2.0"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "bincode",
@@ -6424,7 +6447,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-program"
-version = "1.2.0"
+version = "2.0.0"
 dependencies = [
  "itertools 0.13.0",
  "p3-air",
@@ -6454,7 +6477,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-sdk"
-version = "1.2.0"
+version = "2.0.0"
 dependencies = [
  "alloy-sol-types",
  "anyhow",
@@ -6469,6 +6492,7 @@ dependencies = [
  "hashbrown 0.14.5",
  "hex",
  "indicatif",
+ "itertools 0.13.0",
  "log",
  "num-bigint 0.4.6",
  "p3-baby-bear",
@@ -6500,7 +6524,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-stark"
-version = "1.2.0"
+version = "2.0.0"
 dependencies = [
  "arrayref",
  "getrandom 0.2.15",
@@ -6525,12 +6549,13 @@ dependencies = [
  "sp1-derive",
  "sp1-primitives",
  "sp1-zkvm",
+ "sysinfo",
  "tracing",
 ]
 
 [[package]]
 name = "sp1-zkvm"
-version = "1.2.0"
+version = "2.0.0"
 dependencies = [
  "bincode",
  "cfg-if",
@@ -7447,6 +7472,9 @@ name = "vec_map"
 version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f1bddf1187be692e79c5ffeab891132dfb0f236ed36a43c7ed39f1165ee20191"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "vergen"

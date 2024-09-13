@@ -1,6 +1,6 @@
 use std::{
     fs::File,
-    io::Write,
+    io::{Read, Write},
     path::{Path, PathBuf},
 };
 
@@ -76,12 +76,15 @@ impl Groth16Bn254Prover {
         // Write the corresponding asset files to the build dir.
         let sp1_verifier_path = build_dir.join("SP1VerifierGroth16.sol");
         let vkey_hash = Self::get_vkey_hash(&build_dir);
-        let sp1_verifier_str = include_str!("../assets/SP1Verifier.txt")
+        let sp1_verifier_str = include_str!("../assets/SP1VerifierGroth16.txt")
             .replace("{SP1_CIRCUIT_VERSION}", SP1_CIRCUIT_VERSION)
             .replace("{VERIFIER_HASH}", format!("0x{}", hex::encode(vkey_hash)).as_str())
             .replace("{PROOF_SYSTEM}", "Groth16");
         let mut sp1_verifier_file = File::create(sp1_verifier_path).unwrap();
         sp1_verifier_file.write_all(sp1_verifier_str.as_bytes()).unwrap();
+
+        let groth16_verifier_path = build_dir.join("Groth16Verifier.sol");
+        Self::modify_groth16_verifier(&groth16_verifier_path);
     }
 
     /// Generates a Groth16 proof given a witness.
@@ -119,6 +122,20 @@ impl Groth16Bn254Prover {
             &committed_values_digest.to_string(),
         )
         .expect("failed to verify proof")
+    }
+
+    /// Modify the Groth16Verifier so that it works with the SP1Verifier.
+    fn modify_groth16_verifier(file_path: &Path) {
+        let mut content = String::new();
+        File::open(file_path).unwrap().read_to_string(&mut content).unwrap();
+
+        content = content
+            .replace("pragma solidity ^0.8.0;", "pragma solidity ^0.8.20;")
+            .replace("contract Verifier {", "contract Groth16Verifier {")
+            .replace("function verifyProof(", "function Verify(");
+
+        let mut file = File::create(file_path).unwrap();
+        file.write_all(content.as_bytes()).unwrap();
     }
 }
 

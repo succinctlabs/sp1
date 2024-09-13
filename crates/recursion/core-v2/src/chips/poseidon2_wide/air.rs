@@ -111,7 +111,7 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
             let calculated_sbox_deg_3 = add_rc[i].clone() * add_rc[i].clone() * add_rc[i].clone();
 
             if let Some(external_sbox) = local_row.external_rounds_sbox() {
-                // builder.assert_eq(external_sbox[r][i].into(), calculated_sbox_deg_3);
+                builder.assert_eq(external_sbox[r][i].into(), calculated_sbox_deg_3);
                 sbox_deg_3[i] = external_sbox[r][i].into();
             } else {
                 sbox_deg_3[i] = calculated_sbox_deg_3;

@@ -38,6 +38,7 @@ tracing = "0.1.40"
 rayon-scan = "0.1.1"
 arrayref = "0.3.8"
 getrandom = { version = "0.2.15", features = ["custom"] }
+sysinfo = "0.30.13"
 
 
 [dev-dependencies]
