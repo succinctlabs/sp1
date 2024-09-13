@@ -257,10 +257,16 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
             let sum_of_heights =
                 core_chips_and_heights.iter().map(|(_, height)| *height).sum::<usize>();
 
-            let num_core_chips = core_chips_and_heights.len();
-            let max_possible_sum = 2 * cpu_height + (cpu_height >> 1) * (num_core_chips - 2);
+            let mut max_possible_sum_of_heights = cpu_height;
 
-            sum_of_heights <= max_possible_sum
+            let num_core_chips = core_chips_and_heights.len();
+
+            if num_core_chips > 1 {
+                max_possible_sum_of_heights =
+                    2 * cpu_height + (cpu_height >> 1) * (num_core_chips - 2);
+            }
+
+            sum_of_heights <= max_possible_sum_of_heights
         };
 
         included_shapes
