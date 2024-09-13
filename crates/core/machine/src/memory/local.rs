@@ -14,37 +14,42 @@ use sp1_stark::{
     InteractionKind, Word,
 };
 
-use super::MemoryChipType;
-
 pub(crate) const NUM_MEMORY_LOCAL_INIT_COLS: usize = size_of::<MemoryLocalInitCols<u8>>();
 
 #[derive(AlignedBorrow, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct MemoryLocalInitCols<T> {
-    /// The shard number of the memory access.
-    pub shard: T,
-
-    /// The clk of the memory access.
-    pub clk: T,
-
     /// The address of the memory access.
     pub addr: T,
 
-    /// The value of the memory access.
-    pub value: Word<T>,
+    /// The initial shard of the memory access.
+    pub initial_shard: T,
+
+    /// The final shard of the memory access.
+    pub final_shard: T,
+
+    /// The initial clk of the memory access.
+    pub initial_clk: T,
+
+    /// The final clk of the memory access.
+    pub final_clk: T,
+
+    /// The initial value of the memory access.
+    pub initial_value: Word<T>,
+
+    /// The final value of the memory access.
+    pub final_value: Word<T>,
 
     /// Whether the memory access is a real access.
     pub is_real: T,
 }
 
-pub struct MemoryLocalChip {
-    pub kind: MemoryChipType,
-}
+pub struct MemoryLocalChip {}
 
 impl MemoryLocalChip {
     /// Creates a new memory chip with a certain type.
-    pub const fn new(kind: MemoryChipType) -> Self {
-        Self { kind }
+    pub const fn new() -> Self {
+        Self {}
     }
 }
 
@@ -60,10 +65,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryLocalChip {
     type Program = Program;
 
     fn name(&self) -> String {
-        match self.kind {
-            MemoryChipType::Initialize => "MemoryLocalInit".to_string(),
-            MemoryChipType::Finalize => "MemoryLocalFinalize".to_string(),
-        }
+        "MemoryLocal".to_string()
     }
 
     fn generate_dependencies(&self, _input: &ExecutionRecord, _output: &mut ExecutionRecord) {
@@ -81,15 +83,13 @@ impl<F: PrimeField32> MachineAir<F> for MemoryLocalChip {
             let mut row = [F::zero(); NUM_MEMORY_LOCAL_INIT_COLS];
             let cols: &mut MemoryLocalInitCols<F> = row.as_mut_slice().borrow_mut();
 
-            let mem_access = match self.kind {
-                MemoryChipType::Initialize => local_mem_event.initial_mem_access,
-                MemoryChipType::Finalize => local_mem_event.final_mem_access,
-            };
-
-            cols.shard = F::from_canonical_u32(mem_access.shard);
-            cols.clk = F::from_canonical_u32(mem_access.timestamp);
             cols.addr = F::from_canonical_u32(local_mem_event.addr);
-            cols.value = mem_access.value.into();
+            cols.initial_shard = F::from_canonical_u32(local_mem_event.initial_mem_access.shard);
+            cols.final_shard = F::from_canonical_u32(local_mem_event.final_mem_access.shard);
+            cols.initial_clk = F::from_canonical_u32(local_mem_event.initial_mem_access.timestamp);
+            cols.final_clk = F::from_canonical_u32(local_mem_event.final_mem_access.timestamp);
+            cols.initial_value = local_mem_event.initial_mem_access.value.into();
+            cols.final_value = local_mem_event.final_mem_access.value.into();
             cols.is_real = F::one();
 
             rows.push(row);
@@ -127,29 +127,27 @@ where
             local.is_real * local.is_real * local.is_real,
         );
 
-        if self.kind == MemoryChipType::Initialize {
-            let mut values = vec![local.shard.into(), local.clk.into(), local.addr.into()];
-            values.extend(local.value.map(Into::into));
-            builder.send(
-                AirInteraction::new(values.clone(), local.is_real.into(), InteractionKind::Memory),
-                InteractionScope::Global,
-            );
-            builder.receive(
-                AirInteraction::new(values, local.is_real.into(), InteractionKind::Memory),
-                InteractionScope::Local,
-            );
-        } else {
-            let mut values = vec![local.shard.into(), local.clk.into(), local.addr.into()];
-            values.extend(local.value.map(Into::into));
-            builder.receive(
-                AirInteraction::new(values.clone(), local.is_real.into(), InteractionKind::Memory),
-                InteractionScope::Global,
-            );
-            builder.send(
-                AirInteraction::new(values, local.is_real.into(), InteractionKind::Memory),
-                InteractionScope::Local,
-            );
-        }
+        let mut values =
+            vec![local.initial_shard.into(), local.initial_clk.into(), local.addr.into()];
+        values.extend(local.initial_value.map(Into::into));
+        builder.send(
+            AirInteraction::new(values.clone(), local.is_real.into(), InteractionKind::Memory),
+            InteractionScope::Global,
+        );
+        builder.receive(
+            AirInteraction::new(values, local.is_real.into(), InteractionKind::Memory),
+            InteractionScope::Local,
+        );
+        let mut values = vec![local.final_shard.into(), local.final_clk.into(), local.addr.into()];
+        values.extend(local.final_value.map(Into::into));
+        builder.receive(
+            AirInteraction::new(values.clone(), local.is_real.into(), InteractionKind::Memory),
+            InteractionScope::Global,
+        );
+        builder.send(
+            AirInteraction::new(values, local.is_real.into(), InteractionKind::Memory),
+            InteractionScope::Local,
+        );
     }
 }
 
@@ -165,10 +163,8 @@ mod tests {
     };
 
     use crate::{
-        memory::{MemoryChipType, MemoryLocalChip},
-        riscv::RiscvAir,
-        syscall::precompiles::sha256::extend_tests::sha_extend_program,
-        utils::setup_logger,
+        memory::MemoryLocalChip, riscv::RiscvAir,
+        syscall::precompiles::sha256::extend_tests::sha_extend_program, utils::setup_logger,
     };
 
     #[test]
@@ -178,13 +174,8 @@ mod tests {
         runtime.run().unwrap();
         let shard = runtime.records[0].clone();
 
-        let chip: MemoryLocalChip = MemoryLocalChip::new(MemoryChipType::Initialize);
+        let chip: MemoryLocalChip = MemoryLocalChip::new();
 
-        let trace: RowMajorMatrix<BabyBear> =
-            chip.generate_trace(&shard, &mut ExecutionRecord::default());
-        println!("{:?}", trace.values);
-
-        let chip: MemoryLocalChip = MemoryLocalChip::new(MemoryChipType::Finalize);
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&shard, &mut ExecutionRecord::default());
         println!("{:?}", trace.values);
