@@ -1106,6 +1106,26 @@ pub mod tests {
         stdin: SP1Stdin,
         opts: SP1ProverOpts,
         test_kind: Test,
+    ) -> Result<()> {
+        run_e2e_prover_with_options(prover, elf, stdin, opts, test_kind, true)
+    }
+
+    pub fn bench_e2e_prover<C: SP1ProverComponents>(
+        prover: &SP1Prover<C>,
+        elf: &[u8],
+        stdin: SP1Stdin,
+        opts: SP1ProverOpts,
+        test_kind: Test,
+    ) -> Result<()> {
+        run_e2e_prover_with_options(prover, elf, stdin, opts, test_kind, false)
+    }
+
+    pub fn run_e2e_prover_with_options<C: SP1ProverComponents>(
+        prover: &SP1Prover<C>,
+        elf: &[u8],
+        stdin: SP1Stdin,
+        opts: SP1ProverOpts,
+        test_kind: Test,
         verify: bool,
     ) -> Result<()> {
         tracing::info!("initializing prover");
@@ -1355,7 +1375,6 @@ pub mod tests {
             SP1Stdin::default(),
             opts,
             Test::Plonk,
-            true,
         )
     }
 
