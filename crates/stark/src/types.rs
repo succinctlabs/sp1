@@ -1,6 +1,6 @@
 #![allow(missing_docs)]
 
-use std::fmt::Debug;
+use std::{cmp::Reverse, collections::BTreeSet, fmt::Debug};
 
 use hashbrown::HashMap;
 use itertools::Itertools;
@@ -84,7 +84,7 @@ pub struct ShardProof<SC: StarkGenericConfig> {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, PartialOrd, Ord, Eq, Hash)]
 pub struct ProofShape {
-    pub chip_information: Vec<(String, usize, usize)>,
+    pub chip_information: Vec<(String, usize)>,
 }
 
 impl<SC: StarkGenericConfig> Debug for ShardProof<SC> {
@@ -182,7 +182,34 @@ impl<SC: StarkGenericConfig> ShardProof<SC> {
                 .iter()
                 .sorted_by_key(|(_, idx)| *idx)
                 .zip(self.opened_values.chips.iter())
-                .map(|((name, idx), values)| (name.to_owned(), *idx, values.log_degree))
+                .map(|((name, _), values)| (name.to_owned(), values.log_degree))
+                .collect(),
+        }
+    }
+}
+
+impl ProofShape {
+    #[must_use]
+    pub fn from_map(map: &HashMap<String, usize>) -> Self {
+        Self {
+            chip_information: map
+                .iter()
+                .map(|(name, log_degree)| (name.clone(), *log_degree))
+                .collect(),
+        }
+    }
+}
+
+impl FromIterator<(String, usize)> for ProofShape {
+    fn from_iter<T: IntoIterator<Item = (String, usize)>>(iter: T) -> Self {
+        let set = iter
+            .into_iter()
+            .map(|(name, log_degree)| Reverse((log_degree, name)))
+            .collect::<BTreeSet<_>>();
+        Self {
+            chip_information: set
+                .into_iter()
+                .map(|Reverse((log_degree, name))| (name, log_degree))
                 .collect(),
         }
     }

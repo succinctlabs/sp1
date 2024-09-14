@@ -35,10 +35,7 @@ use sp1_recursion_core_v2::{
 };
 
 use crate::{
-    challenger::{
-        CanObserveVariable, DuplexChallengerVariable, FieldChallengerVariable,
-        SpongeChallengerShape,
-    },
+    challenger::{CanObserveVariable, DuplexChallengerVariable, FieldChallengerVariable},
     stark::{ShardProofVariable, StarkVerifier},
     BabyBearFriConfig, BabyBearFriConfigVariable, CircuitConfig, VerifyingKeyVariable,
 };
@@ -64,10 +61,9 @@ pub struct SP1RecursionWitnessValues<SC: StarkGenericConfig> {
     pub is_first_shard: bool,
 }
 
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SP1RecursionShape {
     pub proof_shapes: Vec<ProofShape>,
-    pub challenger_shapes: Vec<SpongeChallengerShape>,
     pub is_complete: bool,
 }
 
@@ -581,10 +577,7 @@ where
 impl<SC: BabyBearFriConfig> SP1RecursionWitnessValues<SC> {
     pub fn shape(&self) -> SP1RecursionShape {
         let proof_shapes = self.shard_proofs.iter().map(|proof| proof.shape()).collect();
-        let challenger_shapes = vec![
-            SC::challenger_shape(&self.leaf_challenger),
-            SC::challenger_shape(&self.initial_reconstruct_challenger),
-        ];
-        SP1RecursionShape { proof_shapes, challenger_shapes, is_complete: self.is_complete }
+
+        SP1RecursionShape { proof_shapes, is_complete: self.is_complete }
     }
 }

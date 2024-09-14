@@ -8,6 +8,11 @@ pub use cpu::CpuProver;
 pub use cuda::CudaProver;
 pub use mock::MockProver;
 
+use itertools::Itertools;
+use p3_field::PrimeField32;
+use std::borrow::Borrow;
+use std::time::Duration;
+
 use anyhow::Result;
 use sp1_core_executor::SP1Context;
 use sp1_core_machine::{io::SP1Stdin, SP1_CIRCUIT_VERSION};
@@ -15,8 +20,7 @@ use sp1_prover::{
     components::SP1ProverComponents, CoreSC, InnerSC, SP1CoreProofData, SP1Prover, SP1ProvingKey,
     SP1VerifyingKey,
 };
-use sp1_stark::{MachineVerificationError, SP1ProverOpts};
-use std::time::Duration;
+use sp1_stark::{air::PublicValues, MachineVerificationError, SP1ProverOpts, Word};
 use strum_macros::EnumString;
 use thiserror::Error;
 
@@ -44,6 +48,8 @@ pub struct ProofOpts {
 
 #[derive(Error, Debug)]
 pub enum SP1VerificationError {
+    #[error("Invalid public values")]
+    InvalidPublicValues,
     #[error("Version mismatch")]
     VersionMismatch(String),
     #[error("Core machine verification error: {0}")]
@@ -90,14 +96,53 @@ pub trait Prover<C: SP1ProverComponents>: Send + Sync {
             return Err(SP1VerificationError::VersionMismatch(bundle.sp1_version.clone()));
         }
         match &bundle.proof {
-            SP1Proof::Core(proof) => self
-                .sp1_prover()
-                .verify(&SP1CoreProofData(proof.clone()), vkey)
-                .map_err(SP1VerificationError::Core),
-            SP1Proof::Compressed(proof) => self
-                .sp1_prover()
-                .verify_compressed(proof, vkey)
-                .map_err(SP1VerificationError::Recursion),
+            SP1Proof::Core(proof) => {
+                let public_values: &PublicValues<Word<_>, _> =
+                    proof.last().unwrap().public_values.as_slice().borrow();
+
+                // Get the commited value digest bytes.
+                let commited_value_digest_bytes = public_values
+                    .committed_value_digest
+                    .iter()
+                    .flat_map(|w| w.0.iter().map(|x| x.as_canonical_u32() as u8))
+                    .collect_vec();
+
+                // Make sure the commited value digest matches the public values hash.
+                for (a, b) in commited_value_digest_bytes.iter().zip_eq(bundle.public_values.hash())
+                {
+                    if *a != b {
+                        return Err(SP1VerificationError::InvalidPublicValues);
+                    }
+                }
+
+                // Verify the core proof.
+                self.sp1_prover()
+                    .verify(&SP1CoreProofData(proof.clone()), vkey)
+                    .map_err(SP1VerificationError::Core)
+            }
+            SP1Proof::Compressed(proof) => {
+                let public_values: &PublicValues<Word<_>, _> =
+                    proof.proof.public_values.as_slice().borrow();
+
+                // Get the commited value digest bytes.
+                let commited_value_digest_bytes = public_values
+                    .committed_value_digest
+                    .iter()
+                    .flat_map(|w| w.0.iter().map(|x| x.as_canonical_u32() as u8))
+                    .collect_vec();
+
+                // Make sure the commited value digest matches the public values hash.
+                for (a, b) in commited_value_digest_bytes.iter().zip_eq(bundle.public_values.hash())
+                {
+                    if *a != b {
+                        return Err(SP1VerificationError::InvalidPublicValues);
+                    }
+                }
+
+                self.sp1_prover()
+                    .verify_compressed(proof, vkey)
+                    .map_err(SP1VerificationError::Recursion)
+            }
             SP1Proof::Plonk(proof) => self
                 .sp1_prover()
                 .verify_plonk_bn254(

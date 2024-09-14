@@ -2,9 +2,14 @@ use itertools::{izip, Itertools};
 use p3_baby_bear::BabyBear;
 use p3_commit::PolynomialSpace;
 use p3_field::{AbstractField, TwoAdicField};
-use p3_fri::FriConfig;
+use p3_fri::{
+    BatchOpening, CommitPhaseProofStep, FriConfig, FriProof, QueryProof, TwoAdicFriPcsProof,
+};
+use p3_symmetric::Hash;
 use p3_util::log2_strict_usize;
 use sp1_recursion_compiler::ir::{Builder, DslIr, Felt, SymbolicExt};
+use sp1_recursion_core_v2::DIGEST_SIZE;
+use sp1_stark::{InnerChallenge, InnerChallengeMmcs, InnerPcsProof, InnerVal};
 use std::{
     cmp::Reverse,
     iter::{once, repeat_with, zip},
@@ -375,18 +380,78 @@ pub fn verify_batch<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVariable
     SC::assert_digest_eq(builder, root, commit);
 }
 
+pub fn dummy_hash() -> Hash<BabyBear, BabyBear, DIGEST_SIZE> {
+    [BabyBear::zero(); DIGEST_SIZE].into()
+}
+
+pub fn dummy_query_proof(height: usize) -> QueryProof<InnerChallenge, InnerChallengeMmcs> {
+    QueryProof {
+        commit_phase_openings: (0..height)
+            .map(|i| CommitPhaseProofStep {
+                sibling_value: InnerChallenge::zero(),
+                opening_proof: vec![dummy_hash().into(); height - i],
+            })
+            .collect(),
+    }
+}
+
+/// Make a dummy PCS proof for a given proof shape. Used to generate vkey information for fixed proof
+/// shapes.
+///
+/// The parameter `batch_shapes` contains (width, height) data for each matrix in each batch.
+pub fn dummy_pcs_proof(
+    fri_queries: usize,
+    batch_shapes: Vec<Vec<(usize, usize)>>,
+    log_blowup: usize,
+) -> InnerPcsProof {
+    let &max_height = batch_shapes
+        .iter()
+        .map(|shapes| shapes.iter().map(|(_, x)| x).max().unwrap())
+        .max()
+        .unwrap();
+    let fri_proof = FriProof {
+        commit_phase_commits: vec![dummy_hash(); max_height],
+        query_proofs: vec![dummy_query_proof(max_height); fri_queries],
+        final_poly: InnerChallenge::zero(),
+        pow_witness: InnerVal::zero(),
+    };
+
+    // For each query, create a dummy batch opening for each matrix in the batch. `batch_shapes`
+    // determines the sizes of each dummy batch opening.
+    let query_openings = (0..fri_queries)
+        .map(|_| {
+            batch_shapes
+                .iter()
+                .map(|shapes| {
+                    let batch_max_height = shapes.iter().map(|(_, x)| x).max().unwrap();
+                    BatchOpening {
+                        opened_values: shapes
+                            .iter()
+                            .map(|(width, _)| vec![BabyBear::zero(); *width])
+                            .collect(),
+                        opening_proof: vec![dummy_hash().into(); *batch_max_height + log_blowup],
+                    }
+                })
+                .collect::<Vec<_>>()
+        })
+        .collect::<Vec<_>>();
+    TwoAdicFriPcsProof { fri_proof, query_openings }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::{
-        challenger::DuplexChallengerVariable, utils::tests::run_test_recursion,
-        BatchOpeningVariable, FriCommitPhaseProofStepVariable, FriProofVariable,
-        FriQueryProofVariable, TwoAdicPcsMatsVariable, TwoAdicPcsProofVariable,
+        challenger::DuplexChallengerVariable,
+        utils::tests::run_test_recursion,
+        witness::{WitnessBlock, Witnessable},
+        FriCommitPhaseProofStepVariable, FriProofVariable, FriQueryProofVariable,
+        TwoAdicPcsMatsVariable,
     };
     use p3_challenger::{CanObserve, CanSample, FieldChallenger};
-    use p3_commit::{Pcs, TwoAdicMultiplicativeCoset};
+    use p3_commit::Pcs;
     use p3_field::AbstractField;
-    use p3_fri::{verifier, TwoAdicFriPcsProof};
+    use p3_fri::verifier;
     use p3_matrix::dense::RowMajorMatrix;
     use rand::{
         rngs::{OsRng, StdRng},
@@ -399,13 +464,11 @@ mod tests {
     };
     use sp1_stark::{
         baby_bear_poseidon2::BabyBearPoseidon2, inner_fri_config, inner_perm, InnerChallenge,
-        InnerChallengeMmcs, InnerChallenger, InnerCompress, InnerDft, InnerFriProof, InnerHash,
-        InnerPcs, InnerVal, InnerValMmcs, StarkGenericConfig,
+        InnerChallenger, InnerCompress, InnerDft, InnerFriProof, InnerHash, InnerPcs, InnerVal,
+        InnerValMmcs, StarkGenericConfig,
     };
 
     use sp1_recursion_core_v2::DIGEST_SIZE;
-
-    use crate::Digest;
 
     type C = InnerConfig;
     type SC = BabyBearPoseidon2;
@@ -456,68 +519,6 @@ mod tests {
             final_poly: builder.eval(SymbolicExt::from_f(fri_proof.final_poly)),
             pow_witness: builder.eval(fri_proof.pow_witness),
         }
-    }
-
-    pub fn const_two_adic_pcs_proof(
-        builder: &mut Builder<InnerConfig>,
-        proof: TwoAdicFriPcsProof<InnerVal, InnerChallenge, InnerValMmcs, InnerChallengeMmcs>,
-    ) -> TwoAdicPcsProofVariable<InnerConfig, SC> {
-        let fri_proof = const_fri_proof(builder, proof.fri_proof);
-        let query_openings = proof
-            .query_openings
-            .iter()
-            .map(|query_opening| {
-                query_opening
-                    .iter()
-                    .map(|opening| BatchOpeningVariable {
-                        opened_values: opening
-                            .opened_values
-                            .iter()
-                            .map(|opened_value| {
-                                opened_value
-                                    .iter()
-                                    .map(|value| vec![builder.eval::<Felt<_>, _>(*value)])
-                                    .collect::<Vec<_>>()
-                            })
-                            .collect::<Vec<_>>(),
-                        opening_proof: opening
-                            .opening_proof
-                            .iter()
-                            .map(|opening_proof| opening_proof.map(|x| builder.eval(x)))
-                            .collect::<Vec<_>>(),
-                    })
-                    .collect::<Vec<_>>()
-            })
-            .collect::<Vec<_>>();
-        TwoAdicPcsProofVariable { fri_proof, query_openings }
-    }
-
-    #[allow(clippy::type_complexity)]
-    pub fn const_two_adic_pcs_rounds(
-        builder: &mut Builder<InnerConfig>,
-        commit: [F; DIGEST_SIZE],
-        os: Vec<(TwoAdicMultiplicativeCoset<InnerVal>, Vec<(InnerChallenge, Vec<InnerChallenge>)>)>,
-    ) -> (Digest<InnerConfig, SC>, Vec<TwoAdicPcsRoundVariable<InnerConfig, SC>>) {
-        let commit: Digest<InnerConfig, SC> = commit.map(|x| builder.eval(x));
-
-        let mut domains_points_and_opens = Vec::new();
-        for (domain, poly) in os.into_iter() {
-            let points: Vec<Ext<InnerVal, InnerChallenge>> =
-                poly.iter().map(|(p, _)| builder.eval(SymbolicExt::from_f(*p))).collect::<Vec<_>>();
-            let values: Vec<Vec<Ext<InnerVal, InnerChallenge>>> = poly
-                .iter()
-                .map(|(_, v)| {
-                    v.clone()
-                        .iter()
-                        .map(|t| builder.eval(SymbolicExt::from_f(*t)))
-                        .collect::<Vec<_>>()
-                })
-                .collect::<Vec<_>>();
-            let domain_points_and_values = TwoAdicPcsMatsVariable { domain, points, values };
-            domains_points_and_opens.push(domain_points_and_values);
-        }
-
-        (commit, vec![TwoAdicPcsRoundVariable { batch_commit: commit, domains_points_and_opens }])
     }
 
     /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/merkle-tree/src/mmcs.rs#L421
@@ -697,24 +698,81 @@ mod tests {
             .collect::<Vec<_>>();
         pcs.verify(vec![(commit, os.clone())], &proof, &mut challenger).unwrap();
 
+        let dummy_proof = dummy_pcs_proof(
+            inner_fri_config().num_queries,
+            vec![log_degrees.iter().copied().map(|d| (100, d)).collect()],
+            inner_fri_config().log_blowup,
+        );
+
+        let dummy_commit = dummy_hash();
+        let dummy_openings = os
+            .iter()
+            .map(|(domain, points_and_openings)| {
+                (
+                    *domain,
+                    points_and_openings
+                        .iter()
+                        .map(|(_, row)| {
+                            (
+                                InnerChallenge::zero(),
+                                row.iter().map(|_| InnerChallenge::zero()).collect_vec(),
+                            )
+                        })
+                        .collect_vec(),
+                )
+            })
+            .collect::<Vec<_>>();
+
         // Define circuit.
         let mut builder = Builder::<InnerConfig>::default();
         let config = inner_fri_config();
-        let proof = const_two_adic_pcs_proof(&mut builder, proof);
-        let (commit, rounds) = const_two_adic_pcs_rounds(&mut builder, commit.into(), os);
+
+        let proof_variable = dummy_proof.read(&mut builder);
+        let commit_variable = dummy_commit.read(&mut builder);
+
+        let domains_points_and_opens = dummy_openings
+            .into_iter()
+            .map(|(domain, points_and_opens)| {
+                let mut points = vec![];
+                let mut opens = vec![];
+                for (point, opening_for_point) in points_and_opens {
+                    points.push(InnerChallenge::read(&point, &mut builder));
+                    opens.push(Vec::<InnerChallenge>::read(&opening_for_point, &mut builder));
+                }
+                TwoAdicPcsMatsVariable { domain, points, values: opens }
+            })
+            .collect::<Vec<_>>();
+
+        let rounds = vec![TwoAdicPcsRoundVariable {
+            batch_commit: commit_variable,
+            domains_points_and_opens,
+        }];
+        // let proof = const_two_adic_pcs_proof(&mut builder, proof);
+        // let (commit, rounds) = const_two_adic_pcs_rounds(&mut builder, commit.into(), os);
         let mut challenger = DuplexChallengerVariable::new(&mut builder);
-        challenger.observe_slice(&mut builder, commit);
+        challenger.observe_slice(&mut builder, commit_variable);
         let x2 = challenger.sample_ext(&mut builder);
         let x1: Ext<_, _> = builder.constant(x1);
         builder.assert_ext_eq(x1, x2);
         verify_two_adic_pcs::<_, BabyBearPoseidon2>(
             &mut builder,
             &config,
-            &proof,
+            &proof_variable,
             &mut challenger,
             rounds,
         );
 
-        run_test_recursion(builder.into_operations(), std::iter::empty());
+        let mut witness_stream = Vec::<WitnessBlock<C>>::new();
+        Witnessable::<C>::write(&proof, &mut witness_stream);
+        Witnessable::<C>::write(&commit, &mut witness_stream);
+        for opening in os {
+            let (_, points_and_opens) = opening;
+            for (point, opening_for_point) in points_and_opens {
+                Witnessable::<C>::write(&point, &mut witness_stream);
+                Witnessable::<C>::write(&opening_for_point, &mut witness_stream);
+            }
+        }
+
+        run_test_recursion(builder.into_operations(), witness_stream);
     }
 }

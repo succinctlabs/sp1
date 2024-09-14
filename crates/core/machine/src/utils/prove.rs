@@ -8,7 +8,7 @@ use std::{
 };
 use web_time::Instant;
 
-use crate::riscv::RiscvAir;
+use crate::riscv::{CoreShapeConfig, RiscvAir};
 use p3_challenger::{CanObserve, FieldChallenger};
 use p3_field::AbstractField;
 use p3_maybe_rayon::prelude::*;
@@ -112,7 +112,7 @@ where
     let machine = RiscvAir::machine(config);
     let prover = P::new(machine);
     let (pk, _) = prover.setup(&program);
-    prove_with_context::<SC, _>(&prover, &pk, program, stdin, opts, Default::default())
+    prove_with_context::<SC, _>(&prover, &pk, program, stdin, opts, Default::default(), None)
 }
 
 pub fn prove_with_context<SC: StarkGenericConfig, P: MachineProver<SC, RiscvAir<SC::Val>>>(
@@ -122,6 +122,7 @@ pub fn prove_with_context<SC: StarkGenericConfig, P: MachineProver<SC, RiscvAir<
     stdin: &SP1Stdin,
     opts: SP1CoreOpts,
     context: SP1Context,
+    shape_config: Option<&CoreShapeConfig<SC::Val>>,
 ) -> Result<(MachineProof<SC>, Vec<u8>, u64), SP1CoreProverError>
 where
     SC::Val: PrimeField32,
@@ -279,6 +280,13 @@ where
 
                             // Let another worker update the state.
                             record_gen_sync.advance_turn();
+
+                            // Fix the shape of the records.
+                            if let Some(shape_config) = shape_config {
+                                for record in records.iter_mut() {
+                                    shape_config.fix_shape(record).unwrap();
+                                }
+                            }
 
                             // Generate the traces.
                             let mut traces = vec![];
@@ -504,6 +512,13 @@ where
                             #[cfg(feature = "debug")]
                             all_records_tx.send(records.clone()).unwrap();
 
+                            // Fix the shape of the records.
+                            if let Some(shape_config) = shape_config {
+                                for record in records.iter_mut() {
+                                    shape_config.fix_shape(record).unwrap();
+                                }
+                            }
+
                             // Generate the traces.
                             let mut local_traces = Vec::new();
                             tracing::debug_span!("generate local traces", index).in_scope(|| {
@@ -687,6 +702,7 @@ pub fn run_test_core<P: MachineProver<BabyBearPoseidon2, RiscvAir<BabyBear>>>(
         &inputs,
         SP1CoreOpts::default(),
         SP1Context::default(),
+        None,
     )
     .unwrap();
 

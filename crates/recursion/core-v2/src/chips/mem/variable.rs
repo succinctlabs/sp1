@@ -13,7 +13,7 @@ use crate::{builder::SP1RecursionAirBuilder, *};
 
 use super::{MemoryAccessCols, NUM_MEM_ACCESS_COLS};
 
-pub const NUM_MEM_ENTRIES_PER_ROW: usize = 2;
+pub const NUM_VAR_MEM_ENTRIES_PER_ROW: usize = 2;
 
 #[derive(Default)]
 pub struct MemoryChip<F> {
@@ -25,7 +25,7 @@ pub const NUM_MEM_INIT_COLS: usize = core::mem::size_of::<MemoryCols<u8>>();
 #[derive(AlignedBorrow, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct MemoryCols<F: Copy> {
-    values: [Block<F>; NUM_MEM_ENTRIES_PER_ROW],
+    values: [Block<F>; NUM_VAR_MEM_ENTRIES_PER_ROW],
 }
 
 pub const NUM_MEM_PREPROCESSED_INIT_COLS: usize =
@@ -34,7 +34,7 @@ pub const NUM_MEM_PREPROCESSED_INIT_COLS: usize =
 #[derive(AlignedBorrow, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct MemoryPreprocessedCols<F: Copy> {
-    accesses: [MemoryAccessCols<F>; NUM_MEM_ENTRIES_PER_ROW],
+    accesses: [MemoryAccessCols<F>; NUM_VAR_MEM_ENTRIES_PER_ROW],
 }
 
 impl<F: Send + Sync> BaseAir<F> for MemoryChip<F> {
@@ -74,7 +74,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryChip<F> {
             })
             .collect::<Vec<_>>();
 
-        let nb_rows = accesses.len().div_ceil(NUM_MEM_ENTRIES_PER_ROW);
+        let nb_rows = accesses.len().div_ceil(NUM_VAR_MEM_ENTRIES_PER_ROW);
         let padded_nb_rows = match program.fixed_log2_rows(self) {
             Some(log2_rows) => 1 << log2_rows,
             None => next_power_of_two(nb_rows, None),
@@ -99,7 +99,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryChip<F> {
         // Generate the trace rows & corresponding records for each chunk of events in parallel.
         let mut rows = input
             .mem_var_events
-            .chunks(NUM_MEM_ENTRIES_PER_ROW)
+            .chunks(NUM_VAR_MEM_ENTRIES_PER_ROW)
             .map(|row_events| {
                 let mut row = [F::zero(); NUM_MEM_INIT_COLS];
                 let cols: &mut MemoryCols<_> = row.as_mut_slice().borrow_mut();

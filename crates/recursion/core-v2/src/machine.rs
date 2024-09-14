@@ -1,3 +1,5 @@
+use std::ops::{Add, AddAssign};
+
 use hashbrown::HashMap;
 use p3_field::{extension::BinomiallyExtendable, PrimeField32};
 use sp1_recursion_core::runtime::D;
@@ -8,20 +10,23 @@ use sp1_stark::{
 
 use crate::{
     chips::{
-        alu_base::BaseAluChip,
-        alu_ext::ExtAluChip,
+        alu_base::{BaseAluChip, NUM_BASE_ALU_ENTRIES_PER_ROW},
+        alu_ext::{ExtAluChip, NUM_EXT_ALU_ENTRIES_PER_ROW},
         dummy::DummyChip,
         exp_reverse_bits::ExpReverseBitsLenChip,
         fri_fold::FriFoldChip,
-        mem::{MemoryConstChip, MemoryVarChip},
+        mem::{
+            constant::NUM_CONST_MEM_ENTRIES_PER_ROW, variable::NUM_VAR_MEM_ENTRIES_PER_ROW,
+            MemoryConstChip, MemoryVarChip,
+        },
         poseidon2_skinny::Poseidon2SkinnyChip,
         poseidon2_wide::Poseidon2WideChip,
         public_values::{PublicValuesChip, PUB_VALUES_LOG_HEIGHT},
     },
+    instruction::{HintBitsInstr, HintExt2FeltsInstr, HintInstr},
     shape::RecursionShape,
+    ExpReverseBitsInstr, Instruction, RecursionProgram,
 };
-
-const SHRINK_ID: usize = usize::MAX;
 
 #[derive(sp1_derive::MachineAir)]
 #[sp1_core_path = "sp1_core_machine"]
@@ -44,6 +49,17 @@ pub enum RecursionAir<
     ExpReverseBitsLen(ExpReverseBitsLenChip<DEGREE>),
     PublicValues(PublicValuesChip),
     DummyWide(DummyChip<COL_PADDING>),
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct RecursionAirEventCount {
+    mem_const_events: usize,
+    mem_var_events: usize,
+    base_alu_events: usize,
+    ext_alu_events: usize,
+    poseidon2_wide_events: usize,
+    fri_fold_events: usize,
+    exp_reverse_bits_len_events: usize,
 }
 
 impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize, const COL_PADDING: usize>
@@ -143,7 +159,78 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize, const COL_P
             ]
             .map(|(chip, log_height)| (chip.name(), log_height)),
         );
-        RecursionShape { id: SHRINK_ID, shape }
+        RecursionShape { inner: shape }
+    }
+
+    pub fn heights(program: &RecursionProgram<F>) -> Vec<(String, usize)> {
+        let heights = program
+            .instructions
+            .iter()
+            .fold(RecursionAirEventCount::default(), |heights, instruction| heights + instruction);
+
+        [
+            (
+                Self::MemoryConst(MemoryConstChip::default()),
+                heights.mem_const_events.div_ceil(NUM_CONST_MEM_ENTRIES_PER_ROW),
+            ),
+            (
+                Self::MemoryVar(MemoryVarChip::default()),
+                heights.mem_var_events.div_ceil(NUM_VAR_MEM_ENTRIES_PER_ROW),
+            ),
+            (
+                Self::BaseAlu(BaseAluChip),
+                heights.base_alu_events.div_ceil(NUM_BASE_ALU_ENTRIES_PER_ROW),
+            ),
+            (
+                Self::ExtAlu(ExtAluChip),
+                heights.ext_alu_events.div_ceil(NUM_EXT_ALU_ENTRIES_PER_ROW),
+            ),
+            (Self::Poseidon2Wide(Poseidon2WideChip::<DEGREE>), heights.poseidon2_wide_events),
+            (
+                Self::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE>),
+                heights.exp_reverse_bits_len_events,
+            ),
+            (Self::PublicValues(PublicValuesChip), PUB_VALUES_LOG_HEIGHT),
+        ]
+        .map(|(chip, log_height)| (chip.name(), log_height))
+        .to_vec()
+    }
+}
+
+impl<F> AddAssign<&Instruction<F>> for RecursionAirEventCount {
+    #[inline]
+    fn add_assign(&mut self, rhs: &Instruction<F>) {
+        match rhs {
+            Instruction::BaseAlu(_) => self.base_alu_events += 1,
+            Instruction::ExtAlu(_) => self.ext_alu_events += 1,
+            Instruction::Mem(_) => self.mem_const_events += 1,
+            Instruction::Poseidon2(_) => self.poseidon2_wide_events += 1,
+            Instruction::ExpReverseBitsLen(ExpReverseBitsInstr { addrs, .. }) => {
+                self.exp_reverse_bits_len_events += addrs.exp.len()
+            }
+            Instruction::Hint(HintInstr { output_addrs_mults })
+            | Instruction::HintBits(HintBitsInstr {
+                output_addrs_mults,
+                input_addr: _, // No receive interaction for the hint operation
+            }) => self.mem_var_events += output_addrs_mults.len(),
+            Instruction::HintExt2Felts(HintExt2FeltsInstr {
+                output_addrs_mults,
+                input_addr: _, // No receive interaction for the hint operation
+            }) => self.mem_var_events += output_addrs_mults.len(),
+            Instruction::FriFold(_) => self.fri_fold_events += 1,
+            Instruction::CommitPublicValues(_) => {}
+            Instruction::Print(_) => {}
+        }
+    }
+}
+
+impl<F> Add<&Instruction<F>> for RecursionAirEventCount {
+    type Output = Self;
+
+    #[inline]
+    fn add(mut self, rhs: &Instruction<F>) -> Self::Output {
+        self += rhs;
+        self
     }
 }
 

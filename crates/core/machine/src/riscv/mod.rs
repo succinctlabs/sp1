@@ -1,10 +1,16 @@
 pub mod cost;
 
+mod shape;
+
+pub use shape::*;
+use sp1_core_executor::{ExecutionRecord, Program};
+
 use crate::{
     memory::{MemoryChipType, MemoryLocalChip, MemoryProgramChip},
+    riscv::MemoryChipType::{Finalize, Initialize},
     syscall::precompiles::fptower::{Fp2AddSubAssignChip, Fp2MulAssignChip, FpOpChip},
 };
-use hashbrown::HashMap;
+use hashbrown::{HashMap, HashSet};
 use p3_field::PrimeField32;
 pub use riscv_chips::*;
 use sp1_curves::weierstrass::{bls12_381::Bls12381BaseField, bn254::Bn254BaseField};
@@ -146,6 +152,11 @@ impl<F: PrimeField32> RiscvAir<F> {
     pub fn costs() -> HashMap<RiscvAirDiscriminants, u64> {
         let (_, costs) = Self::get_chips_and_costs();
         costs
+    }
+
+    pub fn get_airs_and_costs() -> (Vec<Self>, HashMap<RiscvAirDiscriminants, u64>) {
+        let (chips, costs) = Self::get_chips_and_costs();
+        (chips.into_iter().map(|chip| chip.into_inner()).collect(), costs)
     }
 
     /// Get all the different RISC-V AIRs.
@@ -323,6 +334,77 @@ impl<F: PrimeField32> RiscvAir<F> {
         chips.push(byte);
 
         (chips, costs)
+    }
+
+    /// Get the heights of the preprocessed chips for a given program.
+    pub(crate) fn preprocessed_heights(program: &Program) -> Vec<(Self, usize)> {
+        println!("Program instructions: {}", program.instructions.len());
+        println!("Program memory: {}", program.memory_image.len());
+        vec![
+            (RiscvAir::Program(ProgramChip::default()), program.instructions.len()),
+            (RiscvAir::ProgramMemory(MemoryProgramChip::default()), program.memory_image.len()),
+        ]
+    }
+
+    /// Get the heights of the chips for a given execution record.
+    pub(crate) fn core_heights(record: &ExecutionRecord) -> Vec<(Self, usize)> {
+        vec![
+            (RiscvAir::Cpu(CpuChip::default()), record.cpu_events.len()),
+            (RiscvAir::DivRem(DivRemChip::default()), record.divrem_events.len()),
+            (
+                RiscvAir::Add(AddSubChip::default()),
+                record.add_events.len() + record.sub_events.len(),
+            ),
+            (RiscvAir::Bitwise(BitwiseChip::default()), record.bitwise_events.len()),
+            (RiscvAir::Mul(MulChip::default()), record.mul_events.len()),
+            (RiscvAir::ShiftRight(ShiftRightChip::default()), record.shift_right_events.len()),
+            (RiscvAir::ShiftLeft(ShiftLeft::default()), record.shift_left_events.len()),
+            (RiscvAir::Lt(LtChip::default()), record.lt_events.len()),
+        ]
+    }
+
+    pub(crate) fn get_all_core_airs() -> Vec<Self> {
+        vec![
+            RiscvAir::Cpu(CpuChip::default()),
+            RiscvAir::Add(AddSubChip::default()),
+            RiscvAir::Bitwise(BitwiseChip::default()),
+            RiscvAir::Mul(MulChip::default()),
+            RiscvAir::DivRem(DivRemChip::default()),
+            RiscvAir::Lt(LtChip::default()),
+            RiscvAir::ShiftLeft(ShiftLeft::default()),
+            RiscvAir::ShiftRight(ShiftRightChip::default()),
+        ]
+    }
+
+    pub(crate) fn memory_init_final_airs() -> Vec<Self> {
+        vec![
+            RiscvAir::MemoryGlobalInit(MemoryGlobalChip::new(MemoryChipType::Initialize)),
+            RiscvAir::MemoryGlobalFinal(MemoryGlobalChip::new(MemoryChipType::Finalize)),
+        ]
+    }
+
+    pub(crate) fn get_memory_init_final_heights(record: &ExecutionRecord) -> Vec<(Self, usize)> {
+        vec![
+            (
+                RiscvAir::MemoryGlobalInit(MemoryGlobalChip::new(Initialize)),
+                record.global_memory_initialize_events.len(),
+            ),
+            (
+                RiscvAir::MemoryGlobalFinal(MemoryGlobalChip::new(Finalize)),
+                record.global_memory_finalize_events.len(),
+            ),
+        ]
+    }
+
+    pub(crate) fn get_all_precompile_airs() -> Vec<Self> {
+        let mut airs: HashSet<_> = Self::get_airs_and_costs().0.into_iter().collect();
+        for core_air in Self::get_all_core_airs() {
+            airs.remove(&core_air);
+        }
+        for memory_air in Self::memory_init_final_airs() {
+            airs.remove(&memory_air);
+        }
+        airs.into_iter().collect()
     }
 }
 

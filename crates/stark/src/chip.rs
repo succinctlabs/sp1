@@ -42,6 +42,11 @@ impl<F: Field, A> Chip<F, A> {
     pub const fn log_quotient_degree(&self) -> usize {
         self.log_quotient_degree
     }
+
+    /// Consumes the chip and returns the underlying air.
+    pub fn into_inner(self) -> A {
+        self.air
+    }
 }
 
 impl<F: PrimeField32, A: MachineAir<F>> Chip<F, A> {

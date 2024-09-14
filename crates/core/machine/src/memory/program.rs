@@ -6,7 +6,7 @@ use p3_air::{Air, AirBuilder, AirBuilderWithPublicValues, BaseAir, PairBuilder};
 use p3_field::{AbstractField, PrimeField};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 
-use sp1_core_executor::{CoreShape, ExecutionRecord, Program};
+use sp1_core_executor::{ExecutionRecord, Program};
 use sp1_derive::AlignedBorrow;
 use sp1_stark::{
     air::{
@@ -70,12 +70,12 @@ impl<F: PrimeField> MachineAir<F> for MemoryProgramChip {
     }
 
     fn generate_preprocessed_trace(&self, program: &Self::Program) -> Option<RowMajorMatrix<F>> {
-        let program_memory = program.memory_image.clone();
+        let program_memory = &program.memory_image;
         // Note that BTreeMap is guaranteed to be sorted by key. This makes the row order
         // deterministic.
         let mut rows = program_memory
-            .into_iter()
-            .map(|(addr, word)| {
+            .iter()
+            .map(|(&addr, &word)| {
                 let mut row = [F::zero(); NUM_MEMORY_PROGRAM_PREPROCESSED_COLS];
                 let cols: &mut MemoryProgramPreprocessedCols<F> = row.as_mut_slice().borrow_mut();
                 cols.addr = F::from_canonical_u32(addr);
@@ -109,7 +109,7 @@ impl<F: PrimeField> MachineAir<F> for MemoryProgramChip {
         input: &ExecutionRecord,
         _output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
-        let program_memory_addrs = input.program.memory_image.keys().copied().collect::<Vec<_>>();
+        let program_memory_addrs = input.program.memory_image.keys().copied();
 
         let mult = if input.public_values.shard == 1 { F::one() } else { F::zero() };
 
@@ -129,7 +129,7 @@ impl<F: PrimeField> MachineAir<F> for MemoryProgramChip {
         pad_rows_fixed(
             &mut rows,
             || [F::zero(); NUM_MEMORY_PROGRAM_MULT_COLS],
-            input.shape.as_ref().map(|s: &CoreShape| s.shape[&MachineAir::<F>::name(self)]),
+            input.fixed_log2_rows::<F, _>(self),
         );
 
         // Convert the trace to a row major matrix.
