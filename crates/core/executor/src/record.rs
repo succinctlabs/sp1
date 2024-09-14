@@ -6,7 +6,6 @@ use sp1_stark::{
     MachineRecord, SP1CoreOpts, SplitOpts,
 };
 use std::{mem::take, sync::Arc};
-use strum::IntoEnumIterator;
 
 use serde::{Deserialize, Serialize};
 
@@ -15,7 +14,7 @@ use crate::{
     events::{
         add_sharded_byte_lookup_events, AluEvent, ByteLookupEvent, ByteRecord, CpuEvent, LookupId,
         MemoryInitializeFinalizeEvent, MemoryLocalEvent, MemoryRecordEnum, PrecompileEvent,
-        PrecompileLocalMemory, SyscallEvent,
+        PrecompileEvents, SyscallEvent,
     },
     syscalls::SyscallCode,
     CoreShape,
@@ -227,15 +226,20 @@ impl ExecutionRecord {
     }
 
     #[inline]
+    /// Add a precompile event to the execution record.
     pub fn add_precompile_event(&mut self, syscall_code: SyscallCode, event: PrecompileEvent) {
-        self.precompile_events.add_precompile_event(syscall_code, event)
+        self.precompile_events.add_event(syscall_code, event);
     }
 
+    /// Get all the precompile events for a syscall code.
     #[inline]
+    #[must_use]
     pub fn get_precompile_events(&self, syscall_code: SyscallCode) -> &Vec<PrecompileEvent> {
         self.precompile_events.get_events(syscall_code)
     }
 
+    /// Get all the local memory events.
+    #[inline]
     pub fn get_local_mem_events(&self) -> impl Iterator<Item = &MemoryLocalEvent> {
         let precompile_local_mem_events = self.precompile_events.get_local_mem_events();
         precompile_local_mem_events.chain(self.cpu_local_memory_access.iter())
@@ -392,66 +396,5 @@ impl ByteRecord for ExecutionRecord {
         new_events: Vec<&HashMap<u32, HashMap<ByteLookupEvent, usize>>>,
     ) {
         add_sharded_byte_lookup_events(&mut self.byte_lookups, new_events);
-    }
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct PrecompileEvents {
-    events: HashMap<SyscallCode, Vec<PrecompileEvent>>,
-}
-
-impl Default for PrecompileEvents {
-    fn default() -> Self {
-        let mut events = HashMap::new();
-        for syscall_code in SyscallCode::iter() {
-            if syscall_code.should_send() == 1 {
-                events.insert(syscall_code, Vec::new());
-            }
-        }
-
-        Self { events }
-    }
-}
-
-impl PrecompileEvents {
-    fn append(&mut self, other: &mut PrecompileEvents) {
-        for (syscall, events) in other.events.iter_mut() {
-            if !events.is_empty() {
-                self.events.entry(*syscall).or_default().append(events);
-            }
-        }
-    }
-
-    #[inline]
-    fn add_precompile_event(&mut self, syscall_code: SyscallCode, event: PrecompileEvent) {
-        assert!(syscall_code.should_send() == 1);
-        self.events.entry(syscall_code).or_default().push(event);
-    }
-
-    #[inline]
-    fn insert(&mut self, syscall_code: SyscallCode, events: Vec<PrecompileEvent>) {
-        assert!(syscall_code.should_send() == 1);
-        self.events.insert(syscall_code, events);
-    }
-
-    #[inline]
-    fn into_iter(self) -> impl Iterator<Item = (SyscallCode, Vec<PrecompileEvent>)> {
-        self.events.into_iter()
-    }
-
-    #[inline]
-    fn get_events(&self, syscall_code: SyscallCode) -> &Vec<PrecompileEvent> {
-        assert!(syscall_code.should_send() == 1);
-        &self.events[&syscall_code]
-    }
-
-    fn get_local_mem_events(&self) -> impl Iterator<Item = &MemoryLocalEvent> {
-        let mut iterators = Vec::new();
-
-        for (_, events) in self.events.iter() {
-            iterators.push(events.get_local_mem_events());
-        }
-
-        iterators.into_iter().flatten()
     }
 }
