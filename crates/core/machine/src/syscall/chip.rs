@@ -26,9 +26,6 @@ pub struct SyscallCols<T> {
     /// The shard number of the syscall.
     pub shard: T,
 
-    /// The channel number of the syscall, used for byte lookup table.
-    pub channel: T,
-
     /// The clk of the syscall.
     pub clk: T,
 
@@ -72,7 +69,6 @@ impl<F: PrimeField32> MachineAir<F> for SyscallChip {
 
             cols.shard = F::from_canonical_u32(syscall_event.shard);
             cols.clk = F::from_canonical_u32(syscall_event.clk);
-            cols.channel = F::from_canonical_u8(syscall_event.channel);
             cols.syscall_id = F::from_canonical_u32(syscall_event.syscall_id);
             cols.nonce = F::from_canonical_u32(
                 input.nonce_lookup.get(&syscall_event.lookup_id).copied().unwrap_or_default(),
@@ -117,7 +113,6 @@ where
         // Receive the calls from the local bus from the CPU.
         builder.receive_syscall(
             local.shard,
-            local.channel,
             local.clk,
             local.nonce,
             local.syscall_id,
@@ -130,7 +125,6 @@ where
         // Send the call to the global bus to the precompile chips.
         builder.send_syscall(
             local.shard,
-            local.channel,
             local.clk,
             local.nonce,
             local.syscall_id,

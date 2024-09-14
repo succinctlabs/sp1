@@ -3,8 +3,8 @@ use std::marker::PhantomData;
 use sp1_curves::{CurveType, EllipticCurve};
 
 use crate::{
-    events::create_ec_decompress_event,
-    syscalls::{Syscall, SyscallContext},
+    events::{create_ec_decompress_event, PrecompileEvent},
+    syscalls::{Syscall, SyscallCode, SyscallContext},
 };
 
 pub(crate) struct WeierstrassDecompressSyscall<E: EllipticCurve> {
@@ -19,11 +19,21 @@ impl<E: EllipticCurve> WeierstrassDecompressSyscall<E> {
 }
 
 impl<E: EllipticCurve> Syscall for WeierstrassDecompressSyscall<E> {
-    fn execute(&self, rt: &mut SyscallContext, arg1: u32, arg2: u32) -> Option<u32> {
+    fn execute(
+        &self,
+        rt: &mut SyscallContext,
+        syscall_code: SyscallCode,
+        arg1: u32,
+        arg2: u32,
+    ) -> Option<u32> {
         let event = create_ec_decompress_event::<E>(rt, arg1, arg2);
         match E::CURVE_TYPE {
-            CurveType::Secp256k1 => rt.record_mut().k256_decompress_events.push(event),
-            CurveType::Bls12381 => rt.record_mut().bls12381_decompress_events.push(event),
+            CurveType::Secp256k1 => rt
+                .record_mut()
+                .add_precompile_event(syscall_code, PrecompileEvent::Secp256k1Decompress(event)),
+            CurveType::Bls12381 => rt
+                .record_mut()
+                .add_precompile_event(syscall_code, PrecompileEvent::Bls12381Decompress(event)),
             _ => panic!("Unsupported curve"),
         }
         None

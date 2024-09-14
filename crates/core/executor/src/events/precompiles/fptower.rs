@@ -3,9 +3,10 @@ use serde::{Deserialize, Serialize};
 use crate::events::{LookupId, MemoryLocalEvent, MemoryReadRecord, MemoryWriteRecord};
 
 /// This is an arithmetic operation for emulating modular arithmetic.
-#[derive(PartialEq, Copy, Clone, Debug, Serialize, Deserialize)]
+#[derive(Default, PartialEq, Copy, Clone, Debug, Serialize, Deserialize)]
 pub enum FieldOperation {
     /// Addition.
+    #[default]
     Add,
     /// Multiplication.
     Mul,
@@ -18,14 +19,12 @@ pub enum FieldOperation {
 /// Emulated Field Operation Events.
 ///
 /// This event is emitted when an emulated field operation is performed on the input operands.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize)]
 pub struct FpOpEvent {
     /// The lookup id.
     pub lookup_id: LookupId,
     /// The shard number.
     pub shard: u32,
-    /// The channel number.
-    pub channel: u8,
     /// The clock cycle.
     pub clk: u32,
     /// The pointer to the x operand.
@@ -49,14 +48,12 @@ pub struct FpOpEvent {
 /// Emulated Degree 2 Field Addition/Subtraction Events.
 ///
 /// This event is emitted when an emulated degree 2 field operation is performed on the input
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize)]
 pub struct Fp2AddSubEvent {
     /// The lookup id.
     pub lookup_id: LookupId,
     /// The shard number.
     pub shard: u32,
-    /// The channel number.
-    pub channel: u8,
     /// The clock cycle.
     pub clk: u32,
     /// The operation to perform.
@@ -78,14 +75,12 @@ pub struct Fp2AddSubEvent {
 }
 
 /// Emulated Degree 2 Field Multiplication Events.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize)]
 pub struct Fp2MulEvent {
     /// The lookup id.
     pub lookup_id: LookupId,
     /// The shard number.
     pub shard: u32,
-    /// The channel number.
-    pub channel: u8,
     /// The clock cycle.
     pub clk: u32,
     /// The pointer to the x operand.

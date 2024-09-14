@@ -196,7 +196,7 @@ where
 
         let mut values = vec![AB::Expr::zero(), AB::Expr::zero(), prep_local.addr.into()];
         values.extend(prep_local.value.map(Into::into));
-        builder.receive(
+        builder.send(
             AirInteraction::new(values, mult_local.multiplicity.into(), InteractionKind::Memory),
             InteractionScope::Global,
         );

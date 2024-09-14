@@ -50,10 +50,9 @@ impl<F: Field> MachineAir<F> for ByteChip<F> {
                     lookup.a1 as usize
                 };
                 let index = lookup.opcode as usize;
-                let channel = lookup.channel as usize;
 
                 let cols: &mut ByteMultCols<F> = trace.row_mut(row).borrow_mut();
-                cols.mult_channels[channel].multiplicities[index] += F::from_canonical_usize(*mult);
+                cols.multiplicities[index] += F::from_canonical_usize(*mult);
             }
         }
 

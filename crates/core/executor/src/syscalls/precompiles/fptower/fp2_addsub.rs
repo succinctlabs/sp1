@@ -7,8 +7,8 @@ use std::marker::PhantomData;
 use typenum::Unsigned;
 
 use crate::{
-    events::{FieldOperation, Fp2AddSubEvent},
-    syscalls::{Syscall, SyscallContext},
+    events::{FieldOperation, Fp2AddSubEvent, PrecompileEvent},
+    syscalls::{Syscall, SyscallCode, SyscallContext},
 };
 
 pub struct Fp2AddSubSyscall<P> {
@@ -23,7 +23,13 @@ impl<P> Fp2AddSubSyscall<P> {
 }
 
 impl<P: FpOpField> Syscall for Fp2AddSubSyscall<P> {
-    fn execute(&self, rt: &mut SyscallContext, arg1: u32, arg2: u32) -> Option<u32> {
+    fn execute(
+        &self,
+        rt: &mut SyscallContext,
+        syscall_code: SyscallCode,
+        arg1: u32,
+        arg2: u32,
+    ) -> Option<u32> {
         let clk = rt.clk;
         let x_ptr = arg1;
         if x_ptr % 4 != 0 {
@@ -65,12 +71,10 @@ impl<P: FpOpField> Syscall for Fp2AddSubSyscall<P> {
 
         let lookup_id = rt.syscall_lookup_id;
         let shard = rt.current_shard();
-        let channel = rt.current_channel();
         let op = self.op;
         let event = Fp2AddSubEvent {
             lookup_id,
             shard,
-            channel,
             clk,
             op,
             x_ptr,
@@ -83,10 +87,12 @@ impl<P: FpOpField> Syscall for Fp2AddSubSyscall<P> {
         };
         match P::FIELD_TYPE {
             FieldType::Bn254 => {
-                rt.record_mut().bn254_fp2_addsub_events.push(event);
+                rt.record_mut()
+                    .add_precompile_event(syscall_code, PrecompileEvent::Bn254Fp2AddSub(event));
             }
             FieldType::Bls12381 => {
-                rt.record_mut().bls12381_fp2_addsub_events.push(event);
+                rt.record_mut()
+                    .add_precompile_event(syscall_code, PrecompileEvent::Bls12381Fp2AddSub(event));
             }
         }
         None

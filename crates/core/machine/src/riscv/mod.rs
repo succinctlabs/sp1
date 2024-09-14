@@ -81,10 +81,8 @@ pub enum RiscvAir<F: PrimeField32> {
     MemoryGlobalInit(MemoryGlobalChip),
     /// A table for finalizing the global memory state.
     MemoryGlobalFinal(MemoryGlobalChip),
-    /// A table for initializing the local memory state.
-    MemoryLocalInit(MemoryLocalChip),
-    /// A table for finalizing the local memory state.
-    MemoryLocalFinal(MemoryLocalChip),
+    /// A table for the local memory state.
+    MemoryLocal(MemoryLocalChip),
     /// A table for initializing the program memory.
     ProgramMemory(MemoryProgramChip),
     /// A table for all the syscall invocations.
@@ -142,31 +140,6 @@ impl<F: PrimeField32> RiscvAir<F> {
     pub fn chips() -> Vec<Chip<F, Self>> {
         let (chips, _) = Self::get_chips_and_costs();
         chips
-    }
-
-    pub fn phase_1_generate_dependencies_chips() -> Vec<String> {
-        vec![
-            "EdAddAssign".to_string(),
-            "EdDecompress".to_string(),
-            "Bn254FpOpAssign".to_string(),
-            "Bls12381FpOpAssign".to_string(),
-            "Bn254Fp2AddSubAssign".to_string(),
-            "Bls12831Fp2AddSubAssign".to_string(),
-            "Bn254Fp2MulAssign".to_string(),
-            "Bls12831Fp2MulAssign".to_string(),
-            "KeccakPermute".to_string(),
-            "ShaCompress".to_string(),
-            "ShaExtend".to_string(),
-            "Uint256MulMod".to_string(),
-            "Secp256k1AddAssign".to_string(),
-            "Bn254AddAssign".to_string(),
-            "Bls12381AddAssign".to_string(),
-            "Secp256k1Decompress".to_string(),
-            "Bls12381Decompress".to_string(),
-            "Secp256k1DoubleAssign".to_string(),
-            "Bn254DoubleAssign".to_string(),
-            "Bls12381DoubleAssign".to_string(),
-        ]
     }
 
     /// Get all the costs of the different RISC-V AIRs.
@@ -337,15 +310,9 @@ impl<F: PrimeField32> RiscvAir<F> {
         costs.insert(RiscvAirDiscriminants::MemoryGlobalFinal, memory_global_finalize.cost());
         chips.push(memory_global_finalize);
 
-        let memory_local_init =
-            Chip::new(RiscvAir::MemoryLocalInit(MemoryLocalChip::new(MemoryChipType::Initialize)));
-        costs.insert(RiscvAirDiscriminants::MemoryLocalInit, memory_local_init.cost());
-        chips.push(memory_local_init);
-
-        let memory_local_finalize =
-            Chip::new(RiscvAir::MemoryLocalFinal(MemoryLocalChip::new(MemoryChipType::Finalize)));
-        costs.insert(RiscvAirDiscriminants::MemoryLocalFinal, memory_local_finalize.cost());
-        chips.push(memory_local_finalize);
+        let memory_local = Chip::new(RiscvAir::MemoryLocal(MemoryLocalChip::new()));
+        costs.insert(RiscvAirDiscriminants::MemoryLocal, memory_local.cost());
+        chips.push(memory_local);
 
         let memory_program = Chip::new(RiscvAir::ProgramMemory(MemoryProgramChip::default()));
         costs.insert(RiscvAirDiscriminants::ProgramMemory, memory_program.cost());

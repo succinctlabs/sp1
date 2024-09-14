@@ -11,6 +11,7 @@ use thiserror::Error;
 
 use crate::{
     context::SP1Context,
+    dependencies::{emit_cpu_dependencies, emit_divrem_dependencies},
     events::{
         create_alu_lookup_id, create_alu_lookups, AluEvent, CpuEvent, LookupId,
         MemoryAccessPosition, MemoryInitializeFinalizeEvent, MemoryLocalEvent, MemoryReadRecord,
@@ -178,7 +179,7 @@ impl<'a> Executor<'a> {
         let program = Arc::new(program);
 
         // Create a default record with the program.
-        let record = ExecutionRecord { program: program.clone(), ..Default::default() };
+        let record = ExecutionRecord::new(program.clone());
 
         // If `TRACE_FILE`` is set, initialize the trace buffer.
         let trace_buf = if let Ok(trace_file) = std::env::var("TRACE_FILE") {
@@ -347,13 +348,6 @@ impl<'a> Executor<'a> {
     #[inline]
     pub fn shard(&self) -> u32 {
         self.state.current_shard
-    }
-
-    /// Get the current channel.
-    #[must_use]
-    #[inline]
-    pub fn channel(&self) -> u8 {
-        self.state.channel
     }
 
     /// Read a word from memory and create an access record.
@@ -588,7 +582,6 @@ impl<'a> Executor<'a> {
     fn emit_cpu(
         &mut self,
         shard: u32,
-        channel: u8,
         clk: u32,
         pc: u32,
         next_pc: u32,
@@ -604,7 +597,6 @@ impl<'a> Executor<'a> {
     ) {
         let cpu_event = CpuEvent {
             shard,
-            channel,
             clk,
             pc,
             next_pc,
@@ -631,6 +623,7 @@ impl<'a> Executor<'a> {
         };
 
         self.record.cpu_events.push(cpu_event);
+        emit_cpu_dependencies(self, &cpu_event);
     }
 
     /// Emit an ALU event.
@@ -639,7 +632,6 @@ impl<'a> Executor<'a> {
             lookup_id,
             shard: self.shard(),
             clk,
-            channel: self.channel(),
             opcode,
             a,
             b,
@@ -670,6 +662,7 @@ impl<'a> Executor<'a> {
             }
             Opcode::DIVU | Opcode::REMU | Opcode::DIV | Opcode::REM => {
                 self.record.divrem_events.push(event);
+                emit_divrem_dependencies(self, event);
             }
             _ => {}
         }
@@ -683,15 +676,8 @@ impl<'a> Executor<'a> {
         arg2: u32,
         lookup_id: LookupId,
     ) {
-        let syscall_event = SyscallEvent {
-            shard: self.shard(),
-            clk,
-            channel: self.channel(),
-            syscall_id,
-            arg1,
-            arg2,
-            lookup_id,
-        };
+        let syscall_event =
+            SyscallEvent { shard: self.shard(), clk, syscall_id, arg1, arg2, lookup_id };
 
         self.record.syscall_events.push(syscall_event);
     }
@@ -1039,7 +1025,7 @@ impl<'a> Executor<'a> {
                         // Executing a syscall optionally returns a value to write to the t0
                         // register. If it returns None, we just keep the
                         // syscall_id in t0.
-                        let res = syscall_impl.execute(&mut precompile_rt, b, c);
+                        let res = syscall_impl.execute(&mut precompile_rt, syscall, b, c);
                         if let Some(val) = res {
                             a = val;
                         } else {
@@ -1158,18 +1144,10 @@ impl<'a> Executor<'a> {
         // Update the clk to the next cycle.
         self.state.clk += 4;
 
-        let channel = self.channel();
-
-        // Update the channel to the next cycle.
-        if !self.unconstrained {
-            self.state.channel = (self.state.channel + 1) % NUM_BYTE_LOOKUP_CHANNELS;
-        }
-
         // Emit the CPU event for this cycle.
         if self.executor_mode == ExecutorMode::Trace {
             self.emit_cpu(
                 self.shard(),
-                channel,
                 clk,
                 pc,
                 next_pc,
@@ -1207,7 +1185,6 @@ impl<'a> Executor<'a> {
         if !self.unconstrained && self.max_syscall_cycles + self.state.clk >= self.shard_size {
             self.state.current_shard += 1;
             self.state.clk = 0;
-            self.state.channel = 0;
 
             self.bump_record();
         }
@@ -1233,7 +1210,7 @@ impl<'a> Executor<'a> {
     pub fn bump_record(&mut self) {
         // Copy all of the existing local memory accesses to the record's local_memory_access vec.
         for (_, event) in self.local_memory_access.drain() {
-            self.record.local_memory_access.push(event);
+            self.record.cpu_local_memory_access.push(event);
         }
 
         let removed_record =
@@ -1299,7 +1276,6 @@ impl<'a> Executor<'a> {
 
     fn initialize(&mut self) {
         self.state.clk = 0;
-        self.state.channel = 0;
 
         tracing::debug!("loading memory image");
         for (&addr, value) in &self.program.memory_image {
@@ -1513,10 +1489,6 @@ impl Default for ExecutorMode {
 pub const fn align(addr: u32) -> u32 {
     addr - addr % 4
 }
-
-// TODO: FIX
-/// The number of different byte lookup channels.
-pub const NUM_BYTE_LOOKUP_CHANNELS: u8 = 16;
 
 #[cfg(test)]
 mod tests {

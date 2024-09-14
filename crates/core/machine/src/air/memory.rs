@@ -18,7 +18,6 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
     fn eval_memory_access<E: Into<Self::Expr> + Clone>(
         &mut self,
         shard: impl Into<Self::Expr>,
-        channel: impl Into<Self::Expr>,
         clk: impl Into<Self::Expr>,
         addr: impl Into<Self::Expr>,
         memory_access: &impl MemoryCols<E>,
@@ -26,20 +25,13 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
     ) {
         let do_check: Self::Expr = do_check.into();
         let shard: Self::Expr = shard.into();
-        let channel: Self::Expr = channel.into();
         let clk: Self::Expr = clk.into();
         let mem_access = memory_access.access();
 
         self.assert_bool(do_check.clone());
 
         // Verify that the current memory access time is greater than the previous's.
-        self.eval_memory_access_timestamp(
-            mem_access,
-            do_check.clone(),
-            shard.clone(),
-            channel,
-            clk.clone(),
-        );
+        self.eval_memory_access_timestamp(mem_access, do_check.clone(), shard.clone(), clk.clone());
 
         // Add to the memory argument.
         let addr = addr.into();
@@ -73,7 +65,6 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
     fn eval_memory_access_slice<E: Into<Self::Expr> + Copy>(
         &mut self,
         shard: impl Into<Self::Expr> + Copy,
-        channel: impl Into<Self::Expr> + Clone,
         clk: impl Into<Self::Expr> + Clone,
         initial_addr: impl Into<Self::Expr> + Clone,
         memory_access_slice: &[impl MemoryCols<E>],
@@ -82,7 +73,6 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
         for (i, access_slice) in memory_access_slice.iter().enumerate() {
             self.eval_memory_access(
                 shard,
-                channel.clone(),
                 clk.clone(),
                 initial_addr.clone().into() + Self::Expr::from_canonical_usize(i * 4),
                 access_slice,
@@ -102,7 +92,6 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
         mem_access: &MemoryAccessCols<impl Into<Self::Expr> + Clone>,
         do_check: impl Into<Self::Expr>,
         shard: impl Into<Self::Expr> + Clone,
-        channel: impl Into<Self::Expr> + Clone,
         clk: impl Into<Self::Expr>,
     ) {
         let do_check: Self::Expr = do_check.into();
@@ -140,7 +129,6 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
             diff_minus_one,
             mem_access.diff_16bit_limb.clone(),
             mem_access.diff_8bit_limb.clone(),
-            channel.clone(),
             do_check,
         );
     }
@@ -156,7 +144,6 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
         value: impl Into<Self::Expr>,
         limb_16: impl Into<Self::Expr> + Clone,
         limb_8: impl Into<Self::Expr> + Clone,
-        channel: impl Into<Self::Expr> + Clone,
         do_check: impl Into<Self::Expr> + Clone,
     ) {
         // Verify that value = limb_16 + limb_8 * 2^16.
@@ -172,7 +159,6 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
             limb_16,
             Self::Expr::zero(),
             Self::Expr::zero(),
-            channel.clone(),
             do_check.clone(),
         );
 
@@ -181,7 +167,6 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
             Self::Expr::zero(),
             Self::Expr::zero(),
             limb_8,
-            channel.clone(),
             do_check,
         )
     }

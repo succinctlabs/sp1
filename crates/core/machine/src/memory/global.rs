@@ -214,14 +214,14 @@ where
         if self.kind == MemoryChipType::Initialize {
             let mut values = vec![AB::Expr::zero(), AB::Expr::zero(), local.addr.into()];
             values.extend(value.map(Into::into));
-            builder.receive(
+            builder.send(
                 AirInteraction::new(values, local.is_real.into(), InteractionKind::Memory),
                 InteractionScope::Global,
             );
         } else {
             let mut values = vec![local.shard.into(), local.timestamp.into(), local.addr.into()];
             values.extend(value);
-            builder.send(
+            builder.receive(
                 AirInteraction::new(values, local.is_real.into(), InteractionKind::Memory),
                 InteractionScope::Global,
             );
