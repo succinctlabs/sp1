@@ -28,6 +28,7 @@ use crate::{
 pub struct MergedProverDataItem<'a, M> {
     /// The trace.
     pub trace: &'a M,
+    /// The main data index.
     pub main_data_idx: usize,
 }
 
