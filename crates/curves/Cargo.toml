@@ -27,6 +27,7 @@ sp1-stark = { workspace = true }
 sp1-primitives = { workspace = true }
 p3-field = { workspace = true }
 itertools = "0.13.0"
+rug = "1.26.1"
 
 [dev-dependencies]
 rand = "0.8.5"

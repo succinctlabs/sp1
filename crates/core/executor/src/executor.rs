@@ -1238,7 +1238,7 @@ impl<'a> Executor<'a> {
 
     /// Executes up to `self.shard_batch_size` cycles of the program, returning whether the program
     /// has finished.
-    fn execute(&mut self) -> Result<bool, ExecutionError> {
+    pub fn execute(&mut self) -> Result<bool, ExecutionError> {
         // Get the program.
         let program = self.program.clone();
 
