@@ -4,6 +4,7 @@ use std::{
 };
 
 use crate::utils::pad_to_power_of_two;
+use itertools::Itertools;
 use p3_air::{Air, BaseAir};
 use p3_field::PrimeField32;
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
@@ -14,11 +15,13 @@ use sp1_stark::{
     InteractionKind, Word,
 };
 
-pub(crate) const NUM_MEMORY_LOCAL_INIT_COLS: usize = size_of::<MemoryLocalInitCols<u8>>();
+const NUM_LOCAL_MEMORY_ENTRIES_PER_ROW: usize = 2;
+
+pub(crate) const NUM_MEMORY_LOCAL_INIT_COLS: usize = size_of::<MemoryLocalCols<u8>>();
 
 #[derive(AlignedBorrow, Debug, Clone, Copy)]
 #[repr(C)]
-pub struct MemoryLocalInitCols<T> {
+struct SingleMemoryLocal<T> {
     /// The address of the memory access.
     pub addr: T,
 
@@ -42,6 +45,12 @@ pub struct MemoryLocalInitCols<T> {
 
     /// Whether the memory access is a real access.
     pub is_real: T,
+}
+
+#[derive(AlignedBorrow, Debug, Clone, Copy)]
+#[repr(C)]
+pub struct MemoryLocalCols<T> {
+    memory_local_entries: [SingleMemoryLocal<T>; NUM_LOCAL_MEMORY_ENTRIES_PER_ROW],
 }
 
 pub struct MemoryLocalChip {}
@@ -79,18 +88,22 @@ impl<F: PrimeField32> MachineAir<F> for MemoryLocalChip {
     ) -> RowMajorMatrix<F> {
         let mut rows = Vec::<[F; NUM_MEMORY_LOCAL_INIT_COLS]>::new();
 
-        for local_mem_event in input.get_local_mem_events() {
+        for local_mem_events in
+            &input.get_local_mem_events().chunks(NUM_LOCAL_MEMORY_ENTRIES_PER_ROW)
+        {
             let mut row = [F::zero(); NUM_MEMORY_LOCAL_INIT_COLS];
-            let cols: &mut MemoryLocalInitCols<F> = row.as_mut_slice().borrow_mut();
+            let cols: &mut MemoryLocalCols<F> = row.as_mut_slice().borrow_mut();
 
-            cols.addr = F::from_canonical_u32(local_mem_event.addr);
-            cols.initial_shard = F::from_canonical_u32(local_mem_event.initial_mem_access.shard);
-            cols.final_shard = F::from_canonical_u32(local_mem_event.final_mem_access.shard);
-            cols.initial_clk = F::from_canonical_u32(local_mem_event.initial_mem_access.timestamp);
-            cols.final_clk = F::from_canonical_u32(local_mem_event.final_mem_access.timestamp);
-            cols.initial_value = local_mem_event.initial_mem_access.value.into();
-            cols.final_value = local_mem_event.final_mem_access.value.into();
-            cols.is_real = F::one();
+            for (cols, event) in cols.memory_local_entries.iter_mut().zip(local_mem_events) {
+                cols.addr = F::from_canonical_u32(event.addr);
+                cols.initial_shard = F::from_canonical_u32(event.initial_mem_access.shard);
+                cols.final_shard = F::from_canonical_u32(event.final_mem_access.shard);
+                cols.initial_clk = F::from_canonical_u32(event.initial_mem_access.timestamp);
+                cols.final_clk = F::from_canonical_u32(event.final_mem_access.timestamp);
+                cols.initial_value = event.initial_mem_access.value.into();
+                cols.final_value = event.final_mem_access.value.into();
+                cols.is_real = F::one();
+            }
 
             rows.push(row);
         }
@@ -120,34 +133,37 @@ where
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
         let local = main.row_slice(0);
-        let local: &MemoryLocalInitCols<AB::Var> = (*local).borrow();
+        let local: &MemoryLocalCols<AB::Var> = (*local).borrow();
 
-        builder.assert_eq(
-            local.is_real * local.is_real * local.is_real,
-            local.is_real * local.is_real * local.is_real,
-        );
+        for local in local.memory_local_entries.iter() {
+            builder.assert_eq(
+                local.is_real * local.is_real * local.is_real,
+                local.is_real * local.is_real * local.is_real,
+            );
 
-        let mut values =
-            vec![local.initial_shard.into(), local.initial_clk.into(), local.addr.into()];
-        values.extend(local.initial_value.map(Into::into));
-        builder.send(
-            AirInteraction::new(values.clone(), local.is_real.into(), InteractionKind::Memory),
-            InteractionScope::Global,
-        );
-        builder.receive(
-            AirInteraction::new(values, local.is_real.into(), InteractionKind::Memory),
-            InteractionScope::Local,
-        );
-        let mut values = vec![local.final_shard.into(), local.final_clk.into(), local.addr.into()];
-        values.extend(local.final_value.map(Into::into));
-        builder.receive(
-            AirInteraction::new(values.clone(), local.is_real.into(), InteractionKind::Memory),
-            InteractionScope::Global,
-        );
-        builder.send(
-            AirInteraction::new(values, local.is_real.into(), InteractionKind::Memory),
-            InteractionScope::Local,
-        );
+            let mut values =
+                vec![local.initial_shard.into(), local.initial_clk.into(), local.addr.into()];
+            values.extend(local.initial_value.map(Into::into));
+            builder.send(
+                AirInteraction::new(values.clone(), local.is_real.into(), InteractionKind::Memory),
+                InteractionScope::Global,
+            );
+            builder.receive(
+                AirInteraction::new(values, local.is_real.into(), InteractionKind::Memory),
+                InteractionScope::Local,
+            );
+            let mut values =
+                vec![local.final_shard.into(), local.final_clk.into(), local.addr.into()];
+            values.extend(local.final_value.map(Into::into));
+            builder.receive(
+                AirInteraction::new(values.clone(), local.is_real.into(), InteractionKind::Memory),
+                InteractionScope::Global,
+            );
+            builder.send(
+                AirInteraction::new(values, local.is_real.into(), InteractionKind::Memory),
+                InteractionScope::Local,
+            );
+        }
     }
 }
 
