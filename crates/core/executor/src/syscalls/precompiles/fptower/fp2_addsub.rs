@@ -86,13 +86,32 @@ impl<P: FpOpField> Syscall for Fp2AddSubSyscall<P> {
             local_mem_access: rt.postprocess(),
         };
         match P::FIELD_TYPE {
+            // All the fp2 add and sub events for a given curve are coalesced to the curve's fp2 add operation.  Only check for
+            // that operation.
+            // TODO:  Fix this.
             FieldType::Bn254 => {
+                let syscall_code_key = match syscall_code {
+                    SyscallCode::BN254_FP2_ADD | SyscallCode::BN254_FP2_SUB => {
+                        SyscallCode::BN254_FP2_ADD
+                    }
+                    _ => unreachable!(),
+                };
+
                 rt.record_mut()
-                    .add_precompile_event(syscall_code, PrecompileEvent::Bn254Fp2AddSub(event));
+                    .add_precompile_event(syscall_code_key, PrecompileEvent::Bn254Fp2AddSub(event));
             }
             FieldType::Bls12381 => {
-                rt.record_mut()
-                    .add_precompile_event(syscall_code, PrecompileEvent::Bls12381Fp2AddSub(event));
+                let syscall_code_key = match syscall_code {
+                    SyscallCode::BLS12381_FP2_ADD | SyscallCode::BLS12381_FP2_SUB => {
+                        SyscallCode::BLS12381_FP2_ADD
+                    }
+                    _ => unreachable!(),
+                };
+
+                rt.record_mut().add_precompile_event(
+                    syscall_code_key,
+                    PrecompileEvent::Bls12381Fp2AddSub(event),
+                );
             }
         }
         None

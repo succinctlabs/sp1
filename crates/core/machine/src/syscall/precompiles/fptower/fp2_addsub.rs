@@ -91,15 +91,15 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for Fp2AddSubAssignChip<P> {
     }
 
     fn generate_trace(&self, input: &Self::Record, output: &mut Self::Record) -> RowMajorMatrix<F> {
+        // All the fp2 sub and add events for a given curve are coalesce to the curve's Add operation.  Only retrieve
+        // precompile events for that operation.
+        // TODO:  Fix this.
+
         let events = match P::FIELD_TYPE {
-            FieldType::Bn254 => input
-                .get_precompile_events(SyscallCode::BN254_FP2_ADD)
-                .iter()
-                .chain(input.get_precompile_events(SyscallCode::BN254_FP2_SUB).iter()),
-            FieldType::Bls12381 => input
-                .get_precompile_events(SyscallCode::BLS12381_FP2_ADD)
-                .iter()
-                .chain(input.get_precompile_events(SyscallCode::BLS12381_FP2_SUB).iter()),
+            FieldType::Bn254 => input.get_precompile_events(SyscallCode::BN254_FP2_ADD).iter(),
+            FieldType::Bls12381 => {
+                input.get_precompile_events(SyscallCode::BLS12381_FP2_ADD).iter()
+            }
         };
 
         let mut rows = Vec::new();
@@ -192,14 +192,19 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for Fp2AddSubAssignChip<P> {
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
+        // All the fp2 sub and add events for a given curve are coalesce to the curve's Add operation.  Only retrieve
+        // precompile events for that operation.
+        // TODO:  Fix this.
+
+        assert!(
+            shard.get_precompile_events(SyscallCode::BN254_FP_SUB).is_empty()
+                && shard.get_precompile_events(SyscallCode::BLS12381_FP_SUB).is_empty()
+        );
+
         match P::FIELD_TYPE {
-            FieldType::Bn254 => {
-                !shard.get_precompile_events(SyscallCode::BN254_FP2_ADD).is_empty()
-                    || !shard.get_precompile_events(SyscallCode::BN254_FP2_SUB).is_empty()
-            }
+            FieldType::Bn254 => !shard.get_precompile_events(SyscallCode::BN254_FP2_ADD).is_empty(),
             FieldType::Bls12381 => {
                 !shard.get_precompile_events(SyscallCode::BLS12381_FP2_ADD).is_empty()
-                    || !shard.get_precompile_events(SyscallCode::BLS12381_FP2_SUB).is_empty()
             }
         }
     }
