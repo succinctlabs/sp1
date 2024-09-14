@@ -340,7 +340,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         cache
             .get_or_insert(input.shape(), || {
                 let misses = self.compress_cache_misses.fetch_add(1, Ordering::Relaxed);
-                tracing::debug!("Compress cache miss, misses: {}", misses);
+                tracing::debug!("compress cache miss, misses: {}", misses);
                 // Get the operations.
                 let builder_span = tracing::debug_span!("build compress program").entered();
                 let mut builder = Builder::<InnerConfig>::default();
@@ -424,7 +424,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 
         // Get the operations.
         let operations_span =
-            tracing::debug_span!("Get operations for the deferred program").entered();
+            tracing::debug_span!("get operations for the deferred program").entered();
         let mut builder = Builder::<InnerConfig>::default();
         let input_read_span = tracing::debug_span!("Read input values").entered();
         let input = input.read(&mut builder);
@@ -436,7 +436,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         operations_span.exit();
 
         // Compile the program.
-        tracing::debug_span!("Compile compress program").in_scope(|| {
+        tracing::debug_span!("compile compress program").in_scope(|| {
             let mut compiler = AsmCompiler::<InnerConfig>::default();
             Arc::new(compiler.compile(operations))
         })
