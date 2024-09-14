@@ -2,7 +2,7 @@
 
 You may want to use SP1 in your [Github Actions](https://docs.github.com/en/actions) CI workflow.
 
-You first need have Rust installed, and you can use
+You first need to have Rust installed, and you can use
 [actions-rs/toolchain](https://github.com/actions-rs/toolchain) for this:
 
 ```yaml
