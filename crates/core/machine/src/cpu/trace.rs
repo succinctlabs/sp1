@@ -101,7 +101,7 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
     }
 
     fn included(&self, input: &Self::Record) -> bool {
-        !input.cpu_events.is_empty()
+        input.contains_cpu()
     }
 }
 
@@ -709,7 +709,7 @@ impl CpuChip {
     fn pad_to_power_of_two<F: PrimeField32>(&self, shape: &Option<CoreShape>, values: &mut Vec<F>) {
         let n_real_rows = values.len() / NUM_CPU_COLS;
         let padded_nb_rows = if let Some(shape) = shape {
-            shape.shape[&MachineAir::<F>::name(self)]
+            1 << shape.inner[&MachineAir::<F>::name(self)]
         } else if n_real_rows < 16 {
             16
         } else {

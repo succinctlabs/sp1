@@ -22,7 +22,7 @@ use crate::{
 };
 
 pub trait FieldHasher<F: Field> {
-    type Digest: Clone + Copy + Default + PartialEq + Eq + Copy + Debug;
+    type Digest: Copy + Default + Eq + Ord + Copy + Debug;
 
     fn constant_compress(input: [Self::Digest; 2]) -> Self::Digest;
 }
