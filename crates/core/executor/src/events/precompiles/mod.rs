@@ -175,6 +175,11 @@ impl PrecompileEvents {
     }
 
     #[inline]
+    pub(crate) fn iter(&self) -> impl Iterator<Item = (&SyscallCode, &Vec<PrecompileEvent>)> {
+        self.events.iter()
+    }
+
+    #[inline]
     /// Get all the precompile events for a given syscall code.
     pub(crate) fn get_events(&self, syscall_code: SyscallCode) -> &Vec<PrecompileEvent> {
         assert!(syscall_code.should_send() == 1);

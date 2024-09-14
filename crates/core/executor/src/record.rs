@@ -273,32 +273,11 @@ impl MachineRecord for ExecutionRecord {
         stats.insert("shift_right_events".to_string(), self.shift_right_events.len());
         stats.insert("divrem_events".to_string(), self.divrem_events.len());
         stats.insert("lt_events".to_string(), self.lt_events.len());
-        // stats.insert("sha_extend_events".to_string(), self.sha_extend_events.len());
-        // stats.insert("sha_compress_events".to_string(), self.sha_compress_events.len());
-        // stats.insert("keccak_permute_events".to_string(), self.keccak_permute_events.len());
-        // stats.insert("ed_add_events".to_string(), self.ed_add_events.len());
-        // stats.insert("ed_decompress_events".to_string(), self.ed_decompress_events.len());
-        // stats.insert("secp256k1_add_events".to_string(), self.secp256k1_add_events.len());
-        // stats.insert("secp256k1_double_events".to_string(), self.secp256k1_double_events.len());
-        // stats.insert("bn254_add_events".to_string(), self.bn254_add_events.len());
-        // stats.insert("bn254_double_events".to_string(), self.bn254_double_events.len());
-        // stats.insert("k256_decompress_events".to_string(), self.k256_decompress_events.len());
-        // stats.insert("bls12381_add_events".to_string(), self.bls12381_add_events.len());
-        // stats.insert("bls12381_double_events".to_string(), self.bls12381_double_events.len());
-        // stats.insert("uint256_mul_events".to_string(), self.uint256_mul_events.len());
-        // stats.insert("bls12381_fp_event".to_string(), self.bls12381_fp_events.len());
-        // stats.insert(
-        //     "bls12381_fp2_addsub_events".to_string(),
-        //     self.bls12381_fp2_addsub_events.len(),
-        // );
-        // stats.insert("bls12381_fp2_mul_events".to_string(), self.bls12381_fp2_mul_events.len());
-        // stats.insert("bn254_fp_events".to_string(), self.bn254_fp_events.len());
-        // stats.insert("bn254_fp2_addsub_events".to_string(), self.bn254_fp2_addsub_events.len());
-        // stats.insert("bn254_fp2_mul_events".to_string(), self.bn254_fp2_mul_events.len());
-        // stats.insert(
-        //     "bls12381_decompress_events".to_string(),
-        //     self.bls12381_decompress_events.len(),
-        // );
+
+        for (syscall_code, events) in self.precompile_events.iter() {
+            stats.insert(format!("syscall {syscall_code:?}"), events.len());
+        }
+
         stats.insert(
             "global_memory_initialize_events".to_string(),
             self.global_memory_initialize_events.len(),
