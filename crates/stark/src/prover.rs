@@ -85,7 +85,6 @@ pub trait MachineProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>>:
                         chip_name,
                         begin.elapsed()
                     );
-
                     (chip_name, trace)
                 })
                 .collect::<Vec<_>>()

@@ -38,7 +38,6 @@ impl<E: EdwardsParameters> Syscall for EdwardsDecompressSyscall<E> {
 
         let (y_memory_records_vec, y_vec) =
             rt.mr_slice(slice_ptr + (COMPRESSED_POINT_BYTES as u32), WORDS_FIELD_ELEMENT);
-
         let y_memory_records: [MemoryReadRecord; 8] = y_memory_records_vec.try_into().unwrap();
 
         let sign_bool = sign != 0;

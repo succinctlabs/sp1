@@ -63,7 +63,6 @@ impl Prover<DefaultProverComponents> for CpuProver {
 
         let deferred_proofs =
             stdin.proofs.iter().map(|(reduce_proof, _)| reduce_proof.clone()).collect();
-
         let public_values = proof.public_values.clone();
 
         // Generate the compressed proof.

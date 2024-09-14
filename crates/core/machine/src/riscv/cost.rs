@@ -135,7 +135,6 @@ impl CostEstimator for ExecutionReport {
             + self.opcode_counts[Opcode::REM]
             + self.opcode_counts[Opcode::DIVU]
             + self.opcode_counts[Opcode::REMU];
-
         total_area += (divrem_events as u64) * costs[&RiscvAirDiscriminants::DivRem];
         total_chips += 1;
 
