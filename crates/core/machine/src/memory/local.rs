@@ -141,28 +141,31 @@ where
                 local.is_real * local.is_real * local.is_real,
             );
 
-            let mut values =
-                vec![local.initial_shard.into(), local.initial_clk.into(), local.addr.into()];
-            values.extend(local.initial_value.map(Into::into));
-            builder.send(
-                AirInteraction::new(values.clone(), local.is_real.into(), InteractionKind::Memory),
-                InteractionScope::Global,
-            );
-            builder.receive(
-                AirInteraction::new(values, local.is_real.into(), InteractionKind::Memory),
-                InteractionScope::Local,
-            );
-            let mut values =
-                vec![local.final_shard.into(), local.final_clk.into(), local.addr.into()];
-            values.extend(local.final_value.map(Into::into));
-            builder.receive(
-                AirInteraction::new(values.clone(), local.is_real.into(), InteractionKind::Memory),
-                InteractionScope::Global,
-            );
-            builder.send(
-                AirInteraction::new(values, local.is_real.into(), InteractionKind::Memory),
-                InteractionScope::Local,
-            );
+            for scope in [InteractionScope::Global, InteractionScope::Local] {
+                let mut values =
+                    vec![local.initial_shard.into(), local.initial_clk.into(), local.addr.into()];
+                values.extend(local.initial_value.map(Into::into));
+                builder.receive(
+                    AirInteraction::new(
+                        values.clone(),
+                        local.is_real.into(),
+                        InteractionKind::Memory,
+                    ),
+                    scope,
+                );
+
+                let mut values =
+                    vec![local.final_shard.into(), local.final_clk.into(), local.addr.into()];
+                values.extend(local.final_value.map(Into::into));
+                builder.send(
+                    AirInteraction::new(
+                        values.clone(),
+                        local.is_real.into(),
+                        InteractionKind::Memory,
+                    ),
+                    scope,
+                );
+            }
         }
     }
 }
