@@ -32,7 +32,7 @@ impl<V> PagedMemory<V> {
     const LOG_PAGE_SIZE: usize = 12;
     /// The base 2 logarithm of the length of each page, considered as an array of `Option<V>`.
     const LOG_PAGE_LEN: usize =
-        Self::LOG_PAGE_SIZE - size_of::<Option<V>>().next_power_of_two().ilog2() as usize;
+        Self::LOG_PAGE_SIZE - size_of::<Option<Option<V>>>().next_power_of_two().ilog2() as usize;
     /// The length of each page, considered as an array of `Option<V>`.
     const PAGE_LEN: usize = 1 << Self::LOG_PAGE_LEN;
     /// The mask for retrieving the lowest bits necessary to index within a page.
