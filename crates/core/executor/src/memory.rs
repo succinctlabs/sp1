@@ -24,9 +24,9 @@ impl<V> Default for Page<V> {
     }
 }
 
-const NEW_PAGE_LEN: usize = 4096;
-const NEW_LOG_PAGE_LEN: usize = 12;
-const NEW_MAX_PAGE_COUNT: usize = 122880;
+const NEW_LOG_PAGE_LEN: usize = 14;
+const NEW_PAGE_LEN: usize = 1 << NEW_LOG_PAGE_LEN;
+const NEW_MAX_PAGE_COUNT: usize = ((1 << 31) - (1 << 27)) / 4 / NEW_PAGE_LEN + 1;
 const NO_PAGE: usize = usize::MAX;
 const NEW_PAGE_MASK: usize = NEW_PAGE_LEN - 1;
 
@@ -193,14 +193,14 @@ impl<V: Copy> PagedMemory<V> {
     }
 
     /// Break apart an address into an upper and lower index.
-    #[inline]
+    #[inline(always)]
     const fn indices(addr: u32) -> (usize, usize) {
         let index = Self::compress_addr(addr);
         (index >> NEW_LOG_PAGE_LEN, index & NEW_PAGE_MASK)
     }
 
     /// Compress an address from the sparse address space to a contiguous space.
-    #[inline]
+    #[inline(always)]
     const fn compress_addr(addr: u32) -> usize {
         let addr = addr as usize;
         if addr < Self::NUM_REGISTERS {
@@ -211,7 +211,7 @@ impl<V: Copy> PagedMemory<V> {
     }
 
     /// Decompress an address from a contiguous space to the sparse address space.
-    #[inline]
+    #[inline(always)]
     const fn decompress_addr(addr: usize) -> u32 {
         if addr < Self::NUM_REGISTERS {
             addr as u32
@@ -220,7 +220,7 @@ impl<V: Copy> PagedMemory<V> {
         }
     }
 
-    #[inline]
+    #[inline(always)]
     fn new_page() -> Page<V> {
         Page::with_capacity(NEW_PAGE_LEN)
     }
