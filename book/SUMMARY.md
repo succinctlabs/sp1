@@ -34,7 +34,6 @@
 
 - [Proof Aggregation](./writing-programs/proof-aggregation.md)
 
-
 # Generating Proofs
 
 - [Setup](./generating-proofs/setup.md)
@@ -46,13 +45,15 @@
 - [Recommended Workflow](./generating-proofs/recommended-workflow.md)
 
 - [Prover Network Beta](./generating-proofs/prover-network.md)
-    - [Key Setup](./generating-proofs/prover-network/key-setup.md)
-    - [Usage](./generating-proofs/prover-network/usage.md)
-    - [Supported Versions](./generating-proofs/prover-network/versions.md)
+
+  - [Key Setup](./generating-proofs/prover-network/key-setup.md)
+  - [Usage](./generating-proofs/prover-network/usage.md)
+  - [Supported Versions](./generating-proofs/prover-network/versions.md)
 
 - [Hardware Acceleration](./generating-proofs/hardware-acceleration.md)
-    - [AVX](./generating-proofs/hardware-acceleration/avx.md)
-    - [CUDA](./generating-proofs/hardware-acceleration/cuda.md)
+
+  - [AVX](./generating-proofs/hardware-acceleration/avx.md)
+  - [CUDA](./generating-proofs/hardware-acceleration/cuda.md)
 
 - [FAQ](./generating-proofs/sp1-sdk-faq.md)
 
@@ -64,7 +65,6 @@
 
 - [Contract Addresses](./onchain-verification/contract-addresses.md)
 
-
 # Developers
 
 - [Common Issues](./developers/common-issues.md)
@@ -73,6 +73,4 @@
 
 - [RV32IM Specification](./developers/rv32im-specification.md)
 
-- [Building PLONK Artifacts](./developers/building-plonk-artifacts.md)
-
-
+- [Building Circuit Artifacts](./developers/building-circuit-artifacts.md)

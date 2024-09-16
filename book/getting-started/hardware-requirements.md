@@ -4,6 +4,7 @@
 We recommend that developers who want to use SP1 for non-trivial programs generate proofs on our prover network. The prover network generates SP1 proofs across multiple machines, reducing latency and also runs SP1 on optimized hardware instances that result in faster + cheaper proof generation times.
 
 We recommend that for any production benchmarking, you use the prover network to estimate latency and costs of proof generation.
+
 </div>
 
 ## Local Proving
@@ -12,16 +13,16 @@ If you want to generate SP1 proofs locally, this section has an overview of the 
 
 **The most important requirement is CPU for performance/latency and RAM to prevent running out of memory.**
 
-|                | Mock / Network               | Core / Compress                    | PLONK (EVM)                |
-|----------------|------------------------------|------------------------------------|----------------------------|
-| CPU            | 1+, single-core perf matters | 16+, more is better                | 32+, more is better        |
-| Memory         | 8GB+, more is better         | 32GB+, more if you have more cores | 64GB+ (for PLONK)         |
-| Disk           | 20GB+                        | 20GB+                              | 100GB+ (for trusted setup) |
-| EVM Compatible | ✅                            | ❌                                  | ✅                          |
+|                | Mock / Network               | Core / Compress                    | Groth16 and PLONK (EVM) |
+| -------------- | ---------------------------- | ---------------------------------- | ----------------------- |
+| CPU            | 1+, single-core perf matters | 16+, more is better                | 32+, more is better     |
+| Memory         | 8GB+, more is better         | 32GB+, more if you have more cores | 64GB+, more is better   |
+| Disk           | 20GB+                        | 20GB+                              | 12GB+                   |
+| EVM Compatible | ✅                           | ❌                                 | ✅                      |
 
 ### CPU
 
-The execution & trace generation of the zkVM is mostly CPU bound, having a high single-core 
+The execution & trace generation of the zkVM is mostly CPU bound, having a high single-core
 performance is recommended to accelerate these steps. The rest of the prover is mostly bound by hashing/field operations
 which can be parallelized with multiple cores.
 
@@ -30,13 +31,12 @@ which can be parallelized with multiple cores.
 Our prover requires keeping large matrices (i.e., traces) in memory to generate the proofs. Certain steps of the prover
 have a minimum memory requirement, meaning that if you have less than this amount of memory, the process will OOM.
 
-This effect is most noticeable when using the PLONK prover, which requires around 128GB of RAM to generate a proof. We use PLONK to avoid
-having to perform a trusted setup, which other SNARKs like Groth16 require. We have future optimizations planned to reduce
-the memory requirements of the PLONK prover substantially.
+This effect is most noticeable when using the Groth16 or PLONK provers, which requires around 128GB
+of RAM to generate a proof.
 
 ### Disk
 
-Disk is required to install the SP1 zkVM toolchain and to install the trused setup artifacts, if you plan to locally build the PLONK prover.
+Disk is required to install the SP1 zkVM toolchain and to install the circuit artifacts, if you
+plan to locally build the Groth16 or PLONK provers.
 
-Furthermore, disk is used to checkpoint the state of the program execution, which is required to generate the proofs. 
-
+Furthermore, disk is used to checkpoint the state of the program execution, which is required to generate the proofs.
