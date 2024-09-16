@@ -1245,10 +1245,12 @@ impl<'a> Executor<'a> {
         self.memory_checkpoint.clear();
         self.executor_mode = ExecutorMode::Checkpoint;
 
-        // Take memory out of state before cloning it so that memory is not cloned.
+        // Clone self.state without memory and uninitialized_memory in it so it's faster.
         let memory = std::mem::take(&mut self.state.memory);
+        let uninitialized_memory = std::mem::take(&mut self.state.uninitialized_memory);
         let mut checkpoint = tracing::info_span!("clone").in_scope(|| self.state.clone());
         self.state.memory = memory;
+        self.state.uninitialized_memory = uninitialized_memory;
 
         let done = tracing::info_span!("execute").in_scope(|| self.execute())?;
         // Create a checkpoint using `memory_checkpoint`. Just include all memory if `done` since we
@@ -1266,7 +1268,16 @@ impl<'a> Executor<'a> {
                         checkpoint.memory.remove(addr);
                     }
                 });
+                checkpoint.uninitialized_memory = self.state.uninitialized_memory.clone();
             } else {
+                for addr in memory_checkpoint.keys() {
+                    let record = self.state.memory.get(addr);
+                    if record.is_none() {
+                        checkpoint
+                            .uninitialized_memory
+                            .insert(addr, self.state.uninitialized_memory[&addr]);
+                    }
+                }
                 checkpoint.memory = memory_checkpoint
                     .into_iter()
                     .filter_map(|(addr, record)| record.map(|record| (addr, record)))
@@ -1414,49 +1425,51 @@ impl<'a> Executor<'a> {
             tracing::warn!("Not all input bytes were read.");
         }
 
-        // SECTION: Set up all MemoryInitializeFinalizeEvents needed for memory argument.
-        let memory_finalize_events = &mut self.record.global_memory_finalize_events;
+        if self.executor_mode == ExecutorMode::Trace {
+            // SECTION: Set up all MemoryInitializeFinalizeEvents needed for memory argument.
+            let memory_finalize_events = &mut self.record.memory_finalize_events;
 
-        // We handle the addr = 0 case separately, as we constrain it to be 0 in the first row
-        // of the memory finalize table so it must be first in the array of events.
-        let addr_0_record = self.state.memory.get(0);
+            // We handle the addr = 0 case separately, as we constrain it to be 0 in the first row
+            // of the memory finalize table so it must be first in the array of events.
+            let addr_0_record = self.state.memory.get(0);
 
-        let addr_0_final_record = match addr_0_record {
-            Some(record) => record,
-            None => &MemoryRecord { value: 0, shard: 0, timestamp: 1 },
-        };
-        memory_finalize_events
-            .push(MemoryInitializeFinalizeEvent::finalize_from_record(0, addr_0_final_record));
-
-        let memory_initialize_events = &mut self.record.global_memory_initialize_events;
-        let addr_0_initialize_event =
-            MemoryInitializeFinalizeEvent::initialize(0, 0, addr_0_record.is_some());
-        memory_initialize_events.push(addr_0_initialize_event);
-
-        // Count the number of touched memory addresses manually, since `PagedMemory` doesn't
-        // already know its length.
-        self.report.touched_memory_addresses = 0;
-        for addr in self.state.memory.keys() {
-            self.report.touched_memory_addresses += 1;
-            if addr == 0 {
-                // Handled above.
-                continue;
-            }
-
-            // Program memory is initialized in the MemoryProgram chip and doesn't require any
-            // events, so we only send init events for other memory addresses.
-            if !self.record.program.memory_image.contains_key(&addr) {
-                let initial_value = self.state.uninitialized_memory.get(addr).unwrap_or(&0);
-                memory_initialize_events.push(MemoryInitializeFinalizeEvent::initialize(
-                    addr,
-                    *initial_value,
-                    true,
-                ));
-            }
-
-            let record = *self.state.memory.get(addr).unwrap();
+            let addr_0_final_record = match addr_0_record {
+                Some(record) => record,
+                None => &MemoryRecord { value: 0, shard: 0, timestamp: 1 },
+            };
             memory_finalize_events
-                .push(MemoryInitializeFinalizeEvent::finalize_from_record(addr, &record));
+                .push(MemoryInitializeFinalizeEvent::finalize_from_record(0, addr_0_final_record));
+
+            let memory_initialize_events = &mut self.record.memory_initialize_events;
+            let addr_0_initialize_event =
+                MemoryInitializeFinalizeEvent::initialize(0, 0, addr_0_record.is_some());
+            memory_initialize_events.push(addr_0_initialize_event);
+
+            // Count the number of touched memory addresses manually, since `PagedMemory` doesn't
+            // already know its length.
+            self.report.touched_memory_addresses = 0;
+            for addr in self.state.memory.keys() {
+                self.report.touched_memory_addresses += 1;
+                if addr == 0 {
+                    // Handled above.
+                    continue;
+                }
+
+                // Program memory is initialized in the MemoryProgram chip and doesn't require any
+                // events, so we only send init events for other memory addresses.
+                if !self.record.program.memory_image.contains_key(&addr) {
+                    let initial_value = self.state.uninitialized_memory.get(&addr).unwrap_or(&0);
+                    memory_initialize_events.push(MemoryInitializeFinalizeEvent::initialize(
+                        addr,
+                        *initial_value,
+                        true,
+                    ));
+                }
+
+                let record = *self.state.memory.get(addr).unwrap();
+                memory_finalize_events
+                    .push(MemoryInitializeFinalizeEvent::finalize_from_record(addr, &record));
+            }
         }
     }
 
