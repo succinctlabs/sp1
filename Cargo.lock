@@ -5624,6 +5624,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "serde-big-array"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "11fc7cc2c76d73e0f27ee52abbd64eec84d46f370c88371120433196934e4b7f"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "serde_derive"
 version = "1.0.207"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6037,6 +6046,7 @@ dependencies = [
  "rand 0.8.5",
  "rrs-succinct",
  "serde",
+ "serde-big-array",
  "serde_with 3.9.0",
  "sp1-curves",
  "sp1-derive",
