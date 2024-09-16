@@ -1198,14 +1198,15 @@ impl<'a> Executor<'a> {
                 });
                 checkpoint.uninitialized_memory = self.state.uninitialized_memory.clone();
             } else {
-                for addr in memory_checkpoint.keys() {
-                    let record = self.state.memory.get(addr);
-                    if record.is_none() {
-                        checkpoint
-                            .uninitialized_memory
-                            .insert(addr, self.state.uninitialized_memory[&addr]);
-                    }
-                }
+                // for addr in memory_checkpoint.keys() {
+                //     let record = self.state.memory.get(addr);
+                //     if record.is_none() {
+                //         checkpoint
+                //             .uninitialized_memory
+                //             .insert(addr, self.state.uninitialized_memory[&addr]);
+                //     }
+                // }
+                checkpoint.uninitialized_memory = self.state.uninitialized_memory.clone();
                 checkpoint.memory = memory_checkpoint
                     .into_iter()
                     .filter_map(|(addr, record)| record.map(|record| (addr, record)))
