@@ -73,7 +73,7 @@ sp1-lib = { path = "crates/zkvm/lib", version = "2.0.0", default-features = fals
 sp1-zkvm = { path = "crates/zkvm/entrypoint", version = "2.0.0", default-features = false }
 
 # For testing.
-test-artifacts = { path = "crates/test-artifacts", version = "1.2.0" }
+test-artifacts = { path = "crates/test-artifacts", version = "2.0.0" }
 
 # p3
 p3-air = "0.1.3-succinct"
