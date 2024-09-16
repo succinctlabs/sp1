@@ -1247,10 +1247,10 @@ impl<'a> Executor<'a> {
 
         // Clone self.state without memory and uninitialized_memory in it so it's faster.
         let memory = std::mem::take(&mut self.state.memory);
-        let uninitialized_memory = std::mem::take(&mut self.state.uninitialized_memory);
+        // let uninitialized_memory = std::mem::take(&mut self.state.uninitialized_memory);
         let mut checkpoint = tracing::info_span!("clone").in_scope(|| self.state.clone());
         self.state.memory = memory;
-        self.state.uninitialized_memory = uninitialized_memory;
+        // self.state.uninitialized_memory = uninitialized_memory;
 
         let done = tracing::info_span!("execute").in_scope(|| self.execute())?;
         // Create a checkpoint using `memory_checkpoint`. Just include all memory if `done` since we
@@ -1268,7 +1268,7 @@ impl<'a> Executor<'a> {
                         checkpoint.memory.remove(addr);
                     }
                 });
-                checkpoint.uninitialized_memory = self.state.uninitialized_memory.clone();
+                // checkpoint.uninitialized_memory = self.state.uninitialized_memory.clone();
             } else {
                 // for addr in memory_checkpoint.keys() {
                 //     let record = self.state.memory.get(addr);
@@ -1278,7 +1278,7 @@ impl<'a> Executor<'a> {
                 //             .insert(addr, self.state.uninitialized_memory[&addr]);
                 //     }
                 // }
-                checkpoint.uninitialized_memory = self.state.uninitialized_memory.clone();
+                // checkpoint.uninitialized_memory = self.state.uninitialized_memory.clone();
                 checkpoint.memory = memory_checkpoint
                     .into_iter()
                     .filter_map(|(addr, record)| record.map(|record| (addr, record)))
