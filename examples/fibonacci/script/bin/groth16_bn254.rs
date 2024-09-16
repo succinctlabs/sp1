@@ -16,7 +16,7 @@ fn main() {
     // Generate the proof for the given program and input.
     let client = ProverClient::new();
     let (pk, vk) = client.setup(ELF);
-    let proof = client.prove(&pk, stdin).plonk().run().unwrap();
+    let proof = client.prove(&pk, stdin).groth16().run().unwrap();
 
     println!("generated proof");
 
