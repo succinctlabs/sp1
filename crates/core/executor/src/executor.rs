@@ -31,9 +31,48 @@ use crate::{
 ///
 /// The exeuctor is responsible for executing a user program and tracing important events which
 /// occur during execution (i.e., memory reads, alu operations, etc).
+#[repr(C)]
 pub struct Executor<'a> {
     /// The program.
     pub program: Arc<Program>,
+
+    /// The mode the executor is running in.
+    pub executor_mode: ExecutorMode,
+
+    /// Whether the runtime is in constrained mode or not.
+    ///
+    /// In unconstrained mode, any events, clock, register, or memory changes are reset after
+    /// leaving the unconstrained block. The only thing preserved is writes to the input
+    /// stream.
+    pub unconstrained: bool,
+
+    /// Whether we should write to the report.
+    pub print_report: bool,
+
+    /// The maximum size of each shard.
+    pub shard_size: u32,
+
+    /// The maximimum number of shards to execute at once.
+    pub shard_batch_size: u32,
+
+    /// The maximum number of cycles for a syscall.
+    pub max_syscall_cycles: u32,
+
+    /// The mapping between syscall codes and their implementations.
+    pub syscall_map: HashMap<SyscallCode, Arc<dyn Syscall>>,
+
+    /// The options for the runtime.
+    pub opts: SP1CoreOpts,
+
+    /// Memory addresses that were touched in this batch of shards. Used to minimize the size of
+    /// checkpoints.
+    pub memory_checkpoint: PagedMemory<Option<MemoryRecord>>,
+
+    /// The memory accesses for the current cycle.
+    pub memory_accesses: MemoryAccessRecord,
+
+    /// The maximum number of cpu cycles to use for execution.
+    pub max_cycles: Option<u64>,
 
     /// The state of the execution.
     pub state: ExecutionState,
@@ -44,14 +83,8 @@ pub struct Executor<'a> {
     /// The collected records, split by cpu cycles.
     pub records: Vec<ExecutionRecord>,
 
-    /// The memory accesses for the current cycle.
-    pub memory_accesses: MemoryAccessRecord,
-
-    /// The maximum size of each shard.
-    pub shard_size: u32,
-
-    /// The maximimum number of shards to execute at once.
-    pub shard_batch_size: u32,
+    /// Local memory access events.
+    pub local_memory_access: HashMap<u32, MemoryLocalEvent>,
 
     /// A counter for the number of cycles that have been executed in certain functions.
     pub cycle_tracker: HashMap<String, (u64, u32)>,
@@ -62,49 +95,17 @@ pub struct Executor<'a> {
     /// A buffer for writing trace events to a file.
     pub trace_buf: Option<BufWriter<File>>,
 
-    /// Whether the runtime is in constrained mode or not.
-    ///
-    /// In unconstrained mode, any events, clock, register, or memory changes are reset after
-    /// leaving the unconstrained block. The only thing preserved is writes to the input
-    /// stream.
-    pub unconstrained: bool,
-
     /// The state of the runtime when in unconstrained mode.
     pub unconstrained_state: ForkState,
 
-    /// The mapping between syscall codes and their implementations.
-    pub syscall_map: HashMap<SyscallCode, Arc<dyn Syscall>>,
-
-    /// The maximum number of cycles for a syscall.
-    pub max_syscall_cycles: u32,
-
-    /// The mode the executor is running in.
-    pub executor_mode: ExecutorMode,
-
     /// Report of the program execution.
     pub report: ExecutionReport,
-
-    /// Whether we should write to the report.
-    pub print_report: bool,
 
     /// Verifier used to sanity check `verify_sp1_proof` during runtime.
     pub subproof_verifier: Arc<dyn SubproofVerifier + 'a>,
 
     /// Registry of hooks, to be invoked by writing to certain file descriptors.
     pub hook_registry: HookRegistry<'a>,
-
-    /// The options for the runtime.
-    pub opts: SP1CoreOpts,
-
-    /// The maximum number of cpu cycles to use for execution.
-    pub max_cycles: Option<u64>,
-
-    /// Memory addresses that were touched in this batch of shards. Used to minimize the size of
-    /// checkpoints.
-    pub memory_checkpoint: PagedMemory<Option<MemoryRecord>>,
-
-    /// Local memory access events.
-    pub local_memory_access: HashMap<u32, MemoryLocalEvent>,
 }
 
 /// The different modes the executor can run in.
@@ -747,6 +748,7 @@ impl<'a> Executor<'a> {
     }
 
     /// Fetch the instruction at the current program counter.
+    #[inline(always)]
     fn fetch(&self) -> Instruction {
         let idx = ((self.state.pc - self.program.pc_base) / 4) as usize;
         self.program.instructions[idx]
@@ -1172,7 +1174,7 @@ impl<'a> Executor<'a> {
         let instruction = self.fetch();
 
         // Log the current state of the runtime.
-        self.log(&instruction);
+        // self.log(&instruction);
 
         // Execute the instruction.
         self.execute_instruction(&instruction)?;

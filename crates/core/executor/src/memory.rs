@@ -24,7 +24,7 @@ impl<V> Default for Page<V> {
     }
 }
 
-const NEW_LOG_PAGE_LEN: usize = 14;
+const NEW_LOG_PAGE_LEN: usize = 15;
 const NEW_PAGE_LEN: usize = 1 << NEW_LOG_PAGE_LEN;
 const NEW_MAX_PAGE_COUNT: usize = ((1 << 31) - (1 << 27)) / 4 / NEW_PAGE_LEN + 1;
 const NO_PAGE: usize = usize::MAX;
