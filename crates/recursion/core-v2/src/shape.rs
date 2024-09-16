@@ -59,7 +59,6 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize, const COL_P
         }
 
         if let Some(shape) = closest_shape {
-            tracing::info!("Found shape with minimal hamming distance: {}", min_distance);
             let shape = RecursionShape { inner: shape };
             program.shape = Some(shape);
         } else {
