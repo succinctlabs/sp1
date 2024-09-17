@@ -1,6 +1,6 @@
 use clap::Parser;
 use reth_primitives::B256;
-use rsp_client_executor::{io::ClientExecutorInput, CHAIN_ID_OP_MAINNET};
+use rsp_client_executor::{io::ClientExecutorInput, CHAIN_ID_ETH_MAINNET};
 use std::path::PathBuf;
 
 use sp1_sdk::{utils, ProverClient, SP1Stdin};
@@ -28,7 +28,7 @@ fn main() {
     let args = Args::parse();
 
     // Load the input from the cache.
-    let client_input = load_input_from_cache(CHAIN_ID_OP_MAINNET, 122853660);
+    let client_input = load_input_from_cache(CHAIN_ID_ETH_MAINNET, 20526624);
 
     // Generate the proof.
     let client = ProverClient::new();
