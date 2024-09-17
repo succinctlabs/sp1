@@ -61,8 +61,7 @@ impl NetworkProver {
             log::info!("Skipping simulation");
         }
 
-        let version = SP1_CIRCUIT_VERSION;
-        let proof_id = client.create_proof(elf, &stdin, mode, version).await?;
+        let proof_id = client.create_proof(elf, &stdin, mode, SP1_CIRCUIT_VERSION).await?;
         log::info!("Created {}", proof_id);
 
         if NetworkClient::rpc_url() == DEFAULT_PROVER_NETWORK_RPC {

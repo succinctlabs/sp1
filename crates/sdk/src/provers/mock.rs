@@ -97,7 +97,7 @@ impl Prover<DefaultProverComponents> for MockProver {
                     proof: SP1Proof::Plonk(PlonkBn254Proof {
                         public_inputs: [
                             pk.vk.hash_bn254().as_canonical_biguint().to_string(),
-                            public_values.hash().to_string(),
+                            public_values.hash_bn254().to_string(),
                         ],
                         encoded_proof: "".to_string(),
                         raw_proof: "".to_string(),
@@ -114,7 +114,7 @@ impl Prover<DefaultProverComponents> for MockProver {
                     proof: SP1Proof::Groth16(Groth16Bn254Proof {
                         public_inputs: [
                             pk.vk.hash_bn254().as_canonical_biguint().to_string(),
-                            public_values.hash().to_string(),
+                            public_values.hash_bn254().to_string(),
                         ],
                         encoded_proof: "".to_string(),
                         raw_proof: "".to_string(),
