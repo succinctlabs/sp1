@@ -6,26 +6,50 @@ use p3_field::{AbstractField, Field};
 use p3_uni_stark::{
     ProverConstraintFolder, StarkGenericConfig, SymbolicAirBuilder, VerifierConstraintFolder,
 };
+use serde::{Deserialize, Serialize};
+use strum_macros::{Display, EnumIter};
 
 use super::{interaction::AirInteraction, BinomialExtension};
 use crate::{lookup::InteractionKind, Word};
 
+/// The scope of an interaction.
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Hash,
+    Display,
+    EnumIter,
+    PartialOrd,
+    Ord,
+    Serialize,
+    Deserialize,
+)]
+pub enum InteractionScope {
+    /// Global scope.
+    Global = 0,
+    /// Local scope.
+    Local,
+}
+
 /// A builder that can send and receive messages (or interactions) with other AIRs.
 pub trait MessageBuilder<M> {
     /// Sends a message.
-    fn send(&mut self, message: M);
+    fn send(&mut self, message: M, scope: InteractionScope);
 
     /// Receives a message.
-    fn receive(&mut self, message: M);
+    fn receive(&mut self, message: M, scope: InteractionScope);
 }
 
 /// A message builder for which sending and receiving messages is a no-op.
 pub trait EmptyMessageBuilder: AirBuilder {}
 
 impl<AB: EmptyMessageBuilder, M> MessageBuilder<M> for AB {
-    fn send(&mut self, _message: M) {}
+    fn send(&mut self, _message: M, _scope: InteractionScope) {}
 
-    fn receive(&mut self, _message: M) {}
+    fn receive(&mut self, _message: M, _scope: InteractionScope) {}
 }
 
 /// A trait which contains basic methods for building an AIR.
@@ -90,11 +114,9 @@ pub trait ByteAirBuilder: BaseAirBuilder {
         a: impl Into<Self::Expr>,
         b: impl Into<Self::Expr>,
         c: impl Into<Self::Expr>,
-        shard: impl Into<Self::Expr>,
-        channel: impl Into<Self::Expr>,
         multiplicity: impl Into<Self::Expr>,
     ) {
-        self.send_byte_pair(opcode, a, Self::Expr::zero(), b, c, shard, channel, multiplicity);
+        self.send_byte_pair(opcode, a, Self::Expr::zero(), b, c, multiplicity);
     }
 
     /// Sends a byte operation with two outputs to be processed.
@@ -106,23 +128,16 @@ pub trait ByteAirBuilder: BaseAirBuilder {
         a2: impl Into<Self::Expr>,
         b: impl Into<Self::Expr>,
         c: impl Into<Self::Expr>,
-        shard: impl Into<Self::Expr>,
-        channel: impl Into<Self::Expr>,
         multiplicity: impl Into<Self::Expr>,
     ) {
-        self.send(AirInteraction::new(
-            vec![
-                opcode.into(),
-                a1.into(),
-                a2.into(),
-                b.into(),
-                c.into(),
-                shard.into(),
-                channel.into(),
-            ],
-            multiplicity.into(),
-            InteractionKind::Byte,
-        ));
+        self.send(
+            AirInteraction::new(
+                vec![opcode.into(), a1.into(), a2.into(), b.into(), c.into()],
+                multiplicity.into(),
+                InteractionKind::Byte,
+            ),
+            InteractionScope::Local,
+        );
     }
 
     /// Receives a byte operation to be processed.
@@ -133,11 +148,9 @@ pub trait ByteAirBuilder: BaseAirBuilder {
         a: impl Into<Self::Expr>,
         b: impl Into<Self::Expr>,
         c: impl Into<Self::Expr>,
-        shard: impl Into<Self::Expr>,
-        channel: impl Into<Self::Expr>,
         multiplicity: impl Into<Self::Expr>,
     ) {
-        self.receive_byte_pair(opcode, a, Self::Expr::zero(), b, c, shard, channel, multiplicity);
+        self.receive_byte_pair(opcode, a, Self::Expr::zero(), b, c, multiplicity);
     }
 
     /// Receives a byte operation with two outputs to be processed.
@@ -149,23 +162,16 @@ pub trait ByteAirBuilder: BaseAirBuilder {
         a2: impl Into<Self::Expr>,
         b: impl Into<Self::Expr>,
         c: impl Into<Self::Expr>,
-        shard: impl Into<Self::Expr>,
-        channel: impl Into<Self::Expr>,
         multiplicity: impl Into<Self::Expr>,
     ) {
-        self.receive(AirInteraction::new(
-            vec![
-                opcode.into(),
-                a1.into(),
-                a2.into(),
-                b.into(),
-                c.into(),
-                shard.into(),
-                channel.into(),
-            ],
-            multiplicity.into(),
-            InteractionKind::Byte,
-        ));
+        self.receive(
+            AirInteraction::new(
+                vec![opcode.into(), a1.into(), a2.into(), b.into(), c.into()],
+                multiplicity.into(),
+                InteractionKind::Byte,
+            ),
+            InteractionScope::Local,
+        );
     }
 }
 
@@ -180,7 +186,6 @@ pub trait AluAirBuilder: BaseAirBuilder {
         b: Word<impl Into<Self::Expr>>,
         c: Word<impl Into<Self::Expr>>,
         shard: impl Into<Self::Expr>,
-        channel: impl Into<Self::Expr>,
         nonce: impl Into<Self::Expr>,
         multiplicity: impl Into<Self::Expr>,
     ) {
@@ -189,11 +194,13 @@ pub trait AluAirBuilder: BaseAirBuilder {
             .chain(b.0.into_iter().map(Into::into))
             .chain(c.0.into_iter().map(Into::into))
             .chain(once(shard.into()))
-            .chain(once(channel.into()))
             .chain(once(nonce.into()))
             .collect();
 
-        self.send(AirInteraction::new(values, multiplicity.into(), InteractionKind::Alu));
+        self.send(
+            AirInteraction::new(values, multiplicity.into(), InteractionKind::Alu),
+            InteractionScope::Local,
+        );
     }
 
     /// Receives an ALU operation to be processed.
@@ -205,7 +212,6 @@ pub trait AluAirBuilder: BaseAirBuilder {
         b: Word<impl Into<Self::Expr>>,
         c: Word<impl Into<Self::Expr>>,
         shard: impl Into<Self::Expr>,
-        channel: impl Into<Self::Expr>,
         nonce: impl Into<Self::Expr>,
         multiplicity: impl Into<Self::Expr>,
     ) {
@@ -214,11 +220,13 @@ pub trait AluAirBuilder: BaseAirBuilder {
             .chain(b.0.into_iter().map(Into::into))
             .chain(c.0.into_iter().map(Into::into))
             .chain(once(shard.into()))
-            .chain(once(channel.into()))
             .chain(once(nonce.into()))
             .collect();
 
-        self.receive(AirInteraction::new(values, multiplicity.into(), InteractionKind::Alu));
+        self.receive(
+            AirInteraction::new(values, multiplicity.into(), InteractionKind::Alu),
+            InteractionScope::Local,
+        );
     }
 
     /// Sends an syscall operation to be processed (with "ECALL" opcode).
@@ -226,27 +234,29 @@ pub trait AluAirBuilder: BaseAirBuilder {
     fn send_syscall(
         &mut self,
         shard: impl Into<Self::Expr> + Clone,
-        channel: impl Into<Self::Expr> + Clone,
         clk: impl Into<Self::Expr> + Clone,
         nonce: impl Into<Self::Expr> + Clone,
         syscall_id: impl Into<Self::Expr> + Clone,
         arg1: impl Into<Self::Expr> + Clone,
         arg2: impl Into<Self::Expr> + Clone,
         multiplicity: impl Into<Self::Expr>,
+        scope: InteractionScope,
     ) {
-        self.send(AirInteraction::new(
-            vec![
-                shard.clone().into(),
-                channel.clone().into(),
-                clk.clone().into(),
-                nonce.clone().into(),
-                syscall_id.clone().into(),
-                arg1.clone().into(),
-                arg2.clone().into(),
-            ],
-            multiplicity.into(),
-            InteractionKind::Syscall,
-        ));
+        self.send(
+            AirInteraction::new(
+                vec![
+                    shard.clone().into(),
+                    clk.clone().into(),
+                    nonce.clone().into(),
+                    syscall_id.clone().into(),
+                    arg1.clone().into(),
+                    arg2.clone().into(),
+                ],
+                multiplicity.into(),
+                InteractionKind::Syscall,
+            ),
+            scope,
+        );
     }
 
     /// Receives a syscall operation to be processed.
@@ -254,27 +264,29 @@ pub trait AluAirBuilder: BaseAirBuilder {
     fn receive_syscall(
         &mut self,
         shard: impl Into<Self::Expr> + Clone,
-        channel: impl Into<Self::Expr> + Clone,
         clk: impl Into<Self::Expr> + Clone,
         nonce: impl Into<Self::Expr> + Clone,
         syscall_id: impl Into<Self::Expr> + Clone,
         arg1: impl Into<Self::Expr> + Clone,
         arg2: impl Into<Self::Expr> + Clone,
         multiplicity: impl Into<Self::Expr>,
+        scope: InteractionScope,
     ) {
-        self.receive(AirInteraction::new(
-            vec![
-                shard.clone().into(),
-                channel.clone().into(),
-                clk.clone().into(),
-                nonce.clone().into(),
-                syscall_id.clone().into(),
-                arg1.clone().into(),
-                arg2.clone().into(),
-            ],
-            multiplicity.into(),
-            InteractionKind::Syscall,
-        ));
+        self.receive(
+            AirInteraction::new(
+                vec![
+                    shard.clone().into(),
+                    clk.clone().into(),
+                    nonce.clone().into(),
+                    syscall_id.clone().into(),
+                    arg1.clone().into(),
+                    arg2.clone().into(),
+                ],
+                multiplicity.into(),
+                InteractionKind::Syscall,
+            ),
+            scope,
+        );
     }
 }
 
@@ -317,12 +329,12 @@ pub trait ExtensionAirBuilder: BaseAirBuilder {
 }
 
 /// A builder that implements a permutation argument.
-pub trait MultiTableAirBuilder: PermutationAirBuilder {
+pub trait MultiTableAirBuilder<'a>: PermutationAirBuilder {
     /// The type of the cumulative sum.
-    type Sum: Into<Self::ExprEF>;
+    type Sum: Into<Self::ExprEF> + Copy;
 
     /// Returns the cumulative sum of the permutation.
-    fn cumulative_sum(&self) -> Self::Sum;
+    fn cumulative_sums(&self) -> &'a [Self::Sum];
 }
 
 /// A trait that contains the common helper methods for building `SP1 recursion` and SP1 machine
@@ -336,12 +348,12 @@ pub trait MachineAirBuilder:
 pub trait SP1AirBuilder: MachineAirBuilder + ByteAirBuilder + AluAirBuilder {}
 
 impl<'a, AB: AirBuilder + MessageBuilder<M>, M> MessageBuilder<M> for FilteredAirBuilder<'a, AB> {
-    fn send(&mut self, message: M) {
-        self.inner.send(message);
+    fn send(&mut self, message: M, scope: InteractionScope) {
+        self.inner.send(message, scope);
     }
 
-    fn receive(&mut self, message: M) {
-        self.inner.receive(message);
+    fn receive(&mut self, message: M, scope: InteractionScope) {
+        self.inner.receive(message, scope);
     }
 }
 

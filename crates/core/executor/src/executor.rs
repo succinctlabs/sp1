@@ -11,10 +11,11 @@ use thiserror::Error;
 
 use crate::{
     context::SP1Context,
+    dependencies::{emit_cpu_dependencies, emit_divrem_dependencies},
     events::{
         create_alu_lookup_id, create_alu_lookups, AluEvent, CpuEvent, LookupId,
-        MemoryAccessPosition, MemoryInitializeFinalizeEvent, MemoryReadRecord, MemoryRecord,
-        MemoryWriteRecord,
+        MemoryAccessPosition, MemoryInitializeFinalizeEvent, MemoryLocalEvent, MemoryReadRecord,
+        MemoryRecord, MemoryWriteRecord, SyscallEvent,
     },
     hook::{HookEnv, HookRegistry},
     memory::{Entry, PagedMemory},
@@ -101,6 +102,9 @@ pub struct Executor<'a> {
     /// Memory addresses that were touched in this batch of shards. Used to minimize the size of
     /// checkpoints.
     pub memory_checkpoint: PagedMemory<Option<MemoryRecord>>,
+
+    /// Local memory access events.
+    pub local_memory_access: HashMap<u32, MemoryLocalEvent>,
 }
 
 /// The different modes the executor can run in.
@@ -175,7 +179,7 @@ impl<'a> Executor<'a> {
         let program = Arc::new(program);
 
         // Create a default record with the program.
-        let record = ExecutionRecord { program: program.clone(), ..Default::default() };
+        let record = ExecutionRecord::new(program.clone());
 
         // If `TRACE_FILE`` is set, initialize the trace buffer.
         let trace_buf = if let Ok(trace_file) = std::env::var("TRACE_FILE") {
@@ -217,6 +221,7 @@ impl<'a> Executor<'a> {
             opts,
             max_cycles: context.max_cycles,
             memory_checkpoint: PagedMemory::new_preallocated(),
+            local_memory_access: HashMap::new(),
         }
     }
 
@@ -345,15 +350,14 @@ impl<'a> Executor<'a> {
         self.state.current_shard
     }
 
-    /// Get the current channel.
-    #[must_use]
-    #[inline]
-    pub fn channel(&self) -> u8 {
-        self.state.channel
-    }
-
     /// Read a word from memory and create an access record.
-    pub fn mr(&mut self, addr: u32, shard: u32, timestamp: u32) -> MemoryReadRecord {
+    pub fn mr(
+        &mut self,
+        addr: u32,
+        shard: u32,
+        timestamp: u32,
+        local_memory_access: Option<&mut HashMap<u32, MemoryLocalEvent>>,
+    ) -> MemoryReadRecord {
         // Get the memory record entry.
         let entry = self.state.memory.entry(addr);
         if self.executor_mode == ExecutorMode::Checkpoint || self.unconstrained {
@@ -387,18 +391,49 @@ impl<'a> Executor<'a> {
                 entry.insert(MemoryRecord { value: *value, shard: 0, timestamp: 0 })
             }
         };
-        let value = record.value;
-        let prev_shard = record.shard;
-        let prev_timestamp = record.timestamp;
+
+        let prev_record = *record;
         record.shard = shard;
         record.timestamp = timestamp;
 
+        if !self.unconstrained {
+            let local_memory_access = if let Some(local_memory_access) = local_memory_access {
+                local_memory_access
+            } else {
+                &mut self.local_memory_access
+            };
+
+            local_memory_access
+                .entry(addr)
+                .and_modify(|e| {
+                    e.final_mem_access = *record;
+                })
+                .or_insert(MemoryLocalEvent {
+                    addr,
+                    initial_mem_access: prev_record,
+                    final_mem_access: *record,
+                });
+        }
+
         // Construct the memory read record.
-        MemoryReadRecord::new(value, shard, timestamp, prev_shard, prev_timestamp)
+        MemoryReadRecord::new(
+            record.value,
+            record.shard,
+            record.timestamp,
+            prev_record.shard,
+            prev_record.timestamp,
+        )
     }
 
     /// Write a word to memory and create an access record.
-    pub fn mw(&mut self, addr: u32, value: u32, shard: u32, timestamp: u32) -> MemoryWriteRecord {
+    pub fn mw(
+        &mut self,
+        addr: u32,
+        value: u32,
+        shard: u32,
+        timestamp: u32,
+        local_memory_access: Option<&mut HashMap<u32, MemoryLocalEvent>>,
+    ) -> MemoryWriteRecord {
         // Get the memory record entry.
         let entry = self.state.memory.entry(addr);
         if self.executor_mode == ExecutorMode::Checkpoint || self.unconstrained {
@@ -433,15 +468,40 @@ impl<'a> Executor<'a> {
                 entry.insert(MemoryRecord { value: *value, shard: 0, timestamp: 0 })
             }
         };
-        let prev_value = record.value;
-        let prev_shard = record.shard;
-        let prev_timestamp = record.timestamp;
+
+        let prev_record = *record;
         record.value = value;
         record.shard = shard;
         record.timestamp = timestamp;
 
+        if !self.unconstrained {
+            let local_memory_access = if let Some(local_memory_access) = local_memory_access {
+                local_memory_access
+            } else {
+                &mut self.local_memory_access
+            };
+
+            local_memory_access
+                .entry(addr)
+                .and_modify(|e| {
+                    e.final_mem_access = *record;
+                })
+                .or_insert(MemoryLocalEvent {
+                    addr,
+                    initial_mem_access: prev_record,
+                    final_mem_access: *record,
+                });
+        }
+
         // Construct the memory write record.
-        MemoryWriteRecord::new(value, shard, timestamp, prev_value, prev_shard, prev_timestamp)
+        MemoryWriteRecord::new(
+            record.value,
+            record.shard,
+            record.timestamp,
+            prev_record.value,
+            prev_record.shard,
+            prev_record.timestamp,
+        )
     }
 
     /// Read from memory, assuming that all addresses are aligned.
@@ -450,7 +510,7 @@ impl<'a> Executor<'a> {
         assert_valid_memory_access!(addr, position);
 
         // Read the address from memory and create a memory read record.
-        let record = self.mr(addr, self.shard(), self.timestamp(&position));
+        let record = self.mr(addr, self.shard(), self.timestamp(&position), None);
 
         // If we're not in unconstrained mode, record the access for the current cycle.
         if !self.unconstrained && self.executor_mode == ExecutorMode::Trace {
@@ -475,7 +535,7 @@ impl<'a> Executor<'a> {
         assert_valid_memory_access!(addr, position);
 
         // Read the address from memory and create a memory read record.
-        let record = self.mw(addr, value, self.shard(), self.timestamp(&position));
+        let record = self.mw(addr, value, self.shard(), self.timestamp(&position), None);
 
         // If we're not in unconstrained mode, record the access for the current cycle.
         if !self.unconstrained && self.executor_mode == ExecutorMode::Trace {
@@ -522,7 +582,6 @@ impl<'a> Executor<'a> {
     fn emit_cpu(
         &mut self,
         shard: u32,
-        channel: u8,
         clk: u32,
         pc: u32,
         next_pc: u32,
@@ -538,7 +597,6 @@ impl<'a> Executor<'a> {
     ) {
         let cpu_event = CpuEvent {
             shard,
-            channel,
             clk,
             pc,
             next_pc,
@@ -565,6 +623,7 @@ impl<'a> Executor<'a> {
         };
 
         self.record.cpu_events.push(cpu_event);
+        emit_cpu_dependencies(self, &cpu_event);
     }
 
     /// Emit an ALU event.
@@ -573,7 +632,6 @@ impl<'a> Executor<'a> {
             lookup_id,
             shard: self.shard(),
             clk,
-            channel: self.channel(),
             opcode,
             a,
             b,
@@ -604,9 +662,24 @@ impl<'a> Executor<'a> {
             }
             Opcode::DIVU | Opcode::REMU | Opcode::DIV | Opcode::REM => {
                 self.record.divrem_events.push(event);
+                emit_divrem_dependencies(self, event);
             }
             _ => {}
         }
+    }
+
+    fn emit_syscall(
+        &mut self,
+        clk: u32,
+        syscall_id: u32,
+        arg1: u32,
+        arg2: u32,
+        lookup_id: LookupId,
+    ) {
+        let syscall_event =
+            SyscallEvent { shard: self.shard(), clk, syscall_id, arg1, arg2, lookup_id };
+
+        self.record.syscall_events.push(syscall_event);
     }
 
     /// Fetch the destination register and input operand values for an ALU instruction.
@@ -942,6 +1015,9 @@ impl<'a> Executor<'a> {
                 }
 
                 let syscall_impl = self.get_syscall(syscall).cloned();
+                if syscall.should_send() != 0 {
+                    self.emit_syscall(clk, syscall.syscall_id(), b, c, syscall_lookup_id);
+                }
                 let mut precompile_rt = SyscallContext::new(self);
                 precompile_rt.syscall_lookup_id = syscall_lookup_id;
                 let (precompile_next_pc, precompile_cycles, returned_exit_code) =
@@ -949,7 +1025,7 @@ impl<'a> Executor<'a> {
                         // Executing a syscall optionally returns a value to write to the t0
                         // register. If it returns None, we just keep the
                         // syscall_id in t0.
-                        let res = syscall_impl.execute(&mut precompile_rt, b, c);
+                        let res = syscall_impl.execute(&mut precompile_rt, syscall, b, c);
                         if let Some(val) = res {
                             a = val;
                         } else {
@@ -1068,18 +1144,10 @@ impl<'a> Executor<'a> {
         // Update the clk to the next cycle.
         self.state.clk += 4;
 
-        let channel = self.channel();
-
-        // Update the channel to the next cycle.
-        if !self.unconstrained {
-            self.state.channel = (self.state.channel + 1) % NUM_BYTE_LOOKUP_CHANNELS;
-        }
-
         // Emit the CPU event for this cycle.
         if self.executor_mode == ExecutorMode::Trace {
             self.emit_cpu(
                 self.shard(),
-                channel,
                 clk,
                 pc,
                 next_pc,
@@ -1117,7 +1185,6 @@ impl<'a> Executor<'a> {
         if !self.unconstrained && self.max_syscall_cycles + self.state.clk >= self.shard_size {
             self.state.current_shard += 1;
             self.state.clk = 0;
-            self.state.channel = 0;
 
             self.bump_record();
         }
@@ -1141,6 +1208,11 @@ impl<'a> Executor<'a> {
 
     /// Bump the record.
     pub fn bump_record(&mut self) {
+        // Copy all of the existing local memory accesses to the record's local_memory_access vec.
+        for (_, event) in self.local_memory_access.drain() {
+            self.record.cpu_local_memory_access.push(event);
+        }
+
         let removed_record =
             std::mem::replace(&mut self.record, ExecutionRecord::new(self.program.clone()));
         let public_values = removed_record.public_values;
@@ -1204,7 +1276,6 @@ impl<'a> Executor<'a> {
 
     fn initialize(&mut self) {
         self.state.clk = 0;
-        self.state.channel = 0;
 
         tracing::debug!("loading memory image");
         for (&addr, value) in &self.program.memory_image {
@@ -1342,7 +1413,7 @@ impl<'a> Executor<'a> {
         }
 
         // SECTION: Set up all MemoryInitializeFinalizeEvents needed for memory argument.
-        let memory_finalize_events = &mut self.record.memory_finalize_events;
+        let memory_finalize_events = &mut self.record.global_memory_finalize_events;
 
         // We handle the addr = 0 case separately, as we constrain it to be 0 in the first row
         // of the memory finalize table so it must be first in the array of events.
@@ -1355,7 +1426,7 @@ impl<'a> Executor<'a> {
         memory_finalize_events
             .push(MemoryInitializeFinalizeEvent::finalize_from_record(0, addr_0_final_record));
 
-        let memory_initialize_events = &mut self.record.memory_initialize_events;
+        let memory_initialize_events = &mut self.record.global_memory_initialize_events;
         let addr_0_initialize_event =
             MemoryInitializeFinalizeEvent::initialize(0, 0, addr_0_record.is_some());
         memory_initialize_events.push(addr_0_initialize_event);
@@ -1418,10 +1489,6 @@ impl Default for ExecutorMode {
 pub const fn align(addr: u32) -> u32 {
     addr - addr % 4
 }
-
-// TODO: FIX
-/// The number of different byte lookup channels.
-pub const NUM_BYTE_LOOKUP_CHANNELS: u8 = 16;
 
 #[cfg(test)]
 mod tests {

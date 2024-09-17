@@ -134,7 +134,8 @@ pub struct RecursionPublicValues<T> {
     /// The leaf challenger containing the entropy from the main trace commitment.
     pub leaf_challenger: ChallengerPublicValues<T>,
 
-    /// Current cumulative sum of lookup bus.
+    /// Current cumulative sum of lookup bus.  Note that for recursive proofs for core proofs, this
+    /// contains the global cumulative sum.  For all other proofs, it's the local cumulative sum.
     pub cumulative_sum: [T; 4],
 
     /// Whether the proof completely proves the program execution.

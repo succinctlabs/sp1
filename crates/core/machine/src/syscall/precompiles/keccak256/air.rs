@@ -5,7 +5,7 @@ use p3_field::AbstractField;
 use p3_keccak_air::{KeccakAir, NUM_KECCAK_COLS, NUM_ROUNDS, U64_LIMBS};
 use p3_matrix::Matrix;
 use sp1_core_executor::syscalls::SyscallCode;
-use sp1_stark::air::{SP1AirBuilder, SubAirBuilder};
+use sp1_stark::air::{InteractionScope, SP1AirBuilder, SubAirBuilder};
 
 use super::{
     columns::{KeccakMemCols, NUM_KECCAK_MEM_COLS},
@@ -54,7 +54,6 @@ where
 
             builder.eval_memory_access(
                 local.shard,
-                local.channel,
                 local.clk + final_step, // The clk increments by 1 after a final step
                 local.state_addr + AB::Expr::from_canonical_u32(i * 4),
                 &local.state_mem[i as usize],
@@ -66,13 +65,13 @@ where
         builder.assert_eq(local.receive_ecall, first_step * local.is_real);
         builder.receive_syscall(
             local.shard,
-            local.channel,
             local.clk,
             local.nonce,
             AB::F::from_canonical_u32(SyscallCode::KECCAK_PERMUTE.syscall_id()),
             local.state_addr,
             AB::Expr::zero(),
             local.receive_ecall,
+            InteractionScope::Global,
         );
 
         // Constrain that the inputs stay the same throughout the 24 rows of each cycle
@@ -80,7 +79,6 @@ where
         let mut transition_not_final_builder = transition_builder.when(not_final_step);
         transition_not_final_builder.assert_eq(local.shard, next.shard);
         transition_not_final_builder.assert_eq(local.clk, next.clk);
-        transition_not_final_builder.assert_eq(local.channel, next.channel);
         transition_not_final_builder.assert_eq(local.state_addr, next.state_addr);
         transition_not_final_builder.assert_eq(local.is_real, next.is_real);
 
@@ -126,12 +124,7 @@ where
 
         // Range check all the values in `state_mem` to be bytes.
         for i in 0..STATE_NUM_WORDS {
-            builder.slice_range_check_u8(
-                &local.state_mem[i].value().0,
-                local.shard,
-                local.channel,
-                local.do_memory_check,
-            );
+            builder.slice_range_check_u8(&local.state_mem[i].value().0, local.do_memory_check);
         }
 
         let mut sub_builder =

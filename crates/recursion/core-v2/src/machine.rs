@@ -3,7 +3,10 @@ use std::ops::{Add, AddAssign};
 use hashbrown::HashMap;
 use p3_field::{extension::BinomiallyExtendable, PrimeField32};
 use sp1_recursion_core::runtime::D;
-use sp1_stark::{air::MachineAir, Chip, StarkGenericConfig, StarkMachine, PROOF_MAX_NUM_PVS};
+use sp1_stark::{
+    air::{InteractionScope, MachineAir},
+    Chip, StarkGenericConfig, StarkMachine, PROOF_MAX_NUM_PVS,
+};
 
 use crate::{
     chips::{
@@ -79,7 +82,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize, const COL_P
         .map(Chip::new)
         .into_iter()
         .collect::<Vec<_>>();
-        StarkMachine::new(config, chips, PROOF_MAX_NUM_PVS)
+        StarkMachine::new(config, chips, PROOF_MAX_NUM_PVS, false)
     }
 
     /// Get a machine with all chips, except the dummy chip.
@@ -99,7 +102,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize, const COL_P
         .map(Chip::new)
         .into_iter()
         .collect::<Vec<_>>();
-        StarkMachine::new(config, chips, PROOF_MAX_NUM_PVS)
+        StarkMachine::new(config, chips, PROOF_MAX_NUM_PVS, false)
     }
 
     /// A machine with dyunamic chip sizes that includes the wide variant of the Poseidon2 chip.
@@ -116,7 +119,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize, const COL_P
         .map(Chip::new)
         .into_iter()
         .collect::<Vec<_>>();
-        StarkMachine::new(config, chips, PROOF_MAX_NUM_PVS)
+        StarkMachine::new(config, chips, PROOF_MAX_NUM_PVS, false)
     }
 
     pub fn shrink_machine<SC: StarkGenericConfig<Val = F>>(config: SC) -> StarkMachine<SC, Self> {
@@ -140,7 +143,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize, const COL_P
         .map(Chip::new)
         .into_iter()
         .collect::<Vec<_>>();
-        StarkMachine::new(config, chips, PROOF_MAX_NUM_PVS)
+        StarkMachine::new(config, chips, PROOF_MAX_NUM_PVS, false)
     }
 
     pub fn shrink_shape() -> RecursionShape {

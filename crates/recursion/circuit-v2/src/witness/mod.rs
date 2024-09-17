@@ -143,6 +143,7 @@ where
         let opening_proof = self.opening_proof.read(builder);
         let public_values = self.public_values.read(builder);
         let chip_ordering = self.chip_ordering.clone();
+        let chip_scopes = self.chip_scopes.clone();
 
         ShardProofVariable {
             commitment,
@@ -150,6 +151,7 @@ where
             opening_proof,
             public_values,
             chip_ordering,
+            chip_scopes,
         }
     }
 
@@ -165,14 +167,21 @@ impl<C: CircuitConfig, T: Witnessable<C>> Witnessable<C> for ShardCommitment<T> 
     type WitnessVariable = ShardCommitment<T::WitnessVariable>;
 
     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
-        let main_commit = self.main_commit.read(builder);
+        let global_main_commit = self.global_main_commit.read(builder);
+        let local_main_commit = self.local_main_commit.read(builder);
         let permutation_commit = self.permutation_commit.read(builder);
         let quotient_commit = self.quotient_commit.read(builder);
-        Self::WitnessVariable { main_commit, permutation_commit, quotient_commit }
+        Self::WitnessVariable {
+            global_main_commit,
+            local_main_commit,
+            permutation_commit,
+            quotient_commit,
+        }
     }
 
     fn write(&self, witness: &mut impl WitnessWriter<C>) {
-        self.main_commit.write(witness);
+        self.global_main_commit.write(witness);
+        self.local_main_commit.write(witness);
         self.permutation_commit.write(witness);
         self.quotient_commit.write(witness);
     }
@@ -203,14 +212,16 @@ impl<C: CircuitConfig<F = InnerVal, EF = InnerChallenge>> Witnessable<C>
         let main = self.main.read(builder);
         let permutation = self.permutation.read(builder);
         let quotient = self.quotient.read(builder);
-        let cumulative_sum = self.cumulative_sum.read(builder);
+        let global_cumulative_sum = self.global_cumulative_sum.read(builder);
+        let local_cumulative_sum = self.local_cumulative_sum.read(builder);
         let log_degree = self.log_degree;
         Self::WitnessVariable {
             preprocessed,
             main,
             permutation,
             quotient,
-            cumulative_sum,
+            global_cumulative_sum,
+            local_cumulative_sum,
             log_degree,
         }
     }
@@ -220,6 +231,7 @@ impl<C: CircuitConfig<F = InnerVal, EF = InnerChallenge>> Witnessable<C>
         self.main.write(witness);
         self.permutation.write(witness);
         self.quotient.write(witness);
-        self.cumulative_sum.write(witness);
+        self.global_cumulative_sum.write(witness);
+        self.local_cumulative_sum.write(witness);
     }
 }

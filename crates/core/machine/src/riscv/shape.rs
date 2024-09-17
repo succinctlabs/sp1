@@ -6,10 +6,13 @@ use sp1_core_executor::{CoreShape, ExecutionRecord, Program};
 use sp1_stark::{air::MachineAir, ProofShape};
 use thiserror::Error;
 
-use crate::memory::{MemoryChipType, MemoryProgramChip};
+use crate::{
+    memory::MemoryProgramChip,
+    riscv::MemoryChipType::{Finalize, Initialize},
+};
 
 use super::{
-    AddSubChip, BitwiseChip, CpuChip, DivRemChip, LtChip, MemoryChip, MulChip, ProgramChip,
+    AddSubChip, BitwiseChip, CpuChip, DivRemChip, LtChip, MemoryGlobalChip, MulChip, ProgramChip,
     RiscvAir, ShiftLeft, ShiftRightChip,
 };
 
@@ -132,7 +135,8 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
         }
 
         // If the record is a global memory init/finalize record, try to fix the shape as such.
-        if !record.memory_initialize_events.is_empty() || !record.memory_finalize_events.is_empty()
+        if !record.global_memory_initialize_events.is_empty()
+            || !record.global_memory_finalize_events.is_empty()
         {
             let heights = RiscvAir::<F>::get_memory_init_final_heights(record);
             let shape =
@@ -372,14 +376,8 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
         let memory_finalize_heights =
             vec![Some(10), Some(16), Some(18), Some(19), Some(20), Some(21), Some(22)];
         let memory_allowed_log_heights = HashMap::from([
-            (
-                RiscvAir::MemoryInit(MemoryChip::new(MemoryChipType::Initialize)),
-                memory_init_heights,
-            ),
-            (
-                RiscvAir::MemoryFinal(MemoryChip::new(MemoryChipType::Finalize)),
-                memory_finalize_heights,
-            ),
+            (RiscvAir::MemoryGlobalInit(MemoryGlobalChip::new(Initialize)), memory_init_heights),
+            (RiscvAir::MemoryGlobalFinal(MemoryGlobalChip::new(Finalize)), memory_finalize_heights),
         ]);
 
         let mut precompile_allowed_log_heights: Vec<HashMap<_, _>> = vec![];

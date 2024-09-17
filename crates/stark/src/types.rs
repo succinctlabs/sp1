@@ -8,6 +8,7 @@ use p3_matrix::{dense::RowMajorMatrixView, stack::VerticalPair};
 use serde::{Deserialize, Serialize};
 
 use super::{Challenge, Com, OpeningProof, StarkGenericConfig, Val};
+use crate::air::InteractionScope;
 
 pub type QuotientOpenedValues<T> = Vec<T>;
 
@@ -33,7 +34,8 @@ impl<SC: StarkGenericConfig, M, P> ShardMainData<SC, M, P> {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ShardCommitment<C> {
-    pub main_commit: C,
+    pub global_main_commit: C,
+    pub local_main_commit: C,
     pub permutation_commit: C,
     pub quotient_commit: C,
 }
@@ -54,7 +56,8 @@ pub struct ChipOpenedValues<T> {
     pub main: AirOpenedValues<T>,
     pub permutation: AirOpenedValues<T>,
     pub quotient: Vec<Vec<T>>,
-    pub cumulative_sum: T,
+    pub global_cumulative_sum: T,
+    pub local_cumulative_sum: T,
     pub log_degree: usize,
 }
 
@@ -75,6 +78,7 @@ pub struct ShardProof<SC: StarkGenericConfig> {
     pub opened_values: ShardOpenedValues<Challenge<SC>>,
     pub opening_proof: OpeningProof<SC>,
     pub chip_ordering: HashMap<String, usize>,
+    pub chip_scopes: Vec<InteractionScope>,
     pub public_values: Vec<Val<SC>>,
 }
 
@@ -99,8 +103,15 @@ impl<T: Send + Sync + Clone> AirOpenedValues<T> {
 }
 
 impl<SC: StarkGenericConfig> ShardProof<SC> {
-    pub fn cumulative_sum(&self) -> Challenge<SC> {
-        self.opened_values.chips.iter().map(|c| c.cumulative_sum).sum()
+    pub fn cumulative_sum(&self, scope: InteractionScope) -> Challenge<SC> {
+        self.opened_values
+            .chips
+            .iter()
+            .map(|c| match scope {
+                InteractionScope::Global => c.global_cumulative_sum,
+                InteractionScope::Local => c.local_cumulative_sum,
+            })
+            .sum()
     }
 
     pub fn log_degree_cpu(&self) -> usize {
@@ -112,12 +123,16 @@ impl<SC: StarkGenericConfig> ShardProof<SC> {
         self.chip_ordering.contains_key("CPU")
     }
 
-    pub fn contains_memory_init(&self) -> bool {
-        self.chip_ordering.contains_key("MemoryInit")
+    pub fn contains_global_memory_init(&self) -> bool {
+        self.chip_ordering.contains_key("MemoryGlobalInit")
     }
 
-    pub fn contains_memory_finalize(&self) -> bool {
-        self.chip_ordering.contains_key("MemoryFinalize")
+    pub fn contains_global_memory_finalize(&self) -> bool {
+        self.chip_ordering.contains_key("MemoryGlobalFinalize")
+    }
+
+    pub fn contains_global_main_commitment(&self) -> bool {
+        self.chip_scopes.contains(&InteractionScope::Global)
     }
 }
 

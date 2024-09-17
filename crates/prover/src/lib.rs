@@ -46,7 +46,7 @@ use sp1_core_machine::{
     riscv::{CoreShapeConfig, RiscvAir},
     utils::{concurrency::TurnBasedSync, SP1CoreProverError},
 };
-use sp1_stark::MachineProvingKey;
+use sp1_stark::{air::InteractionScope, MachineProvingKey};
 
 use sp1_primitives::hash_deferred_proof;
 
@@ -471,7 +471,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             assert_eq!(reconstruct_challenger.output_buffer.len(), 16);
 
             for proof in batch.iter() {
-                reconstruct_challenger.observe(proof.commitment.main_commit);
+                reconstruct_challenger.observe(proof.commitment.global_main_commit);
                 reconstruct_challenger
                     .observe_slice(&proof.public_values[0..self.core_prover.num_pv_elts()]);
             }
@@ -574,7 +574,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         let mut leaf_challenger = self.core_prover.config().challenger();
         vk.vk.observe_into(&mut leaf_challenger);
         shard_proofs.iter().for_each(|proof| {
-            leaf_challenger.observe(proof.commitment.main_commit);
+            leaf_challenger.observe(proof.commitment.global_main_commit);
             leaf_challenger.observe_slice(&proof.public_values[0..self.core_prover.num_pv_elts()]);
         });
 
@@ -691,15 +691,19 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                             // Generate the dependencies.
                             let mut records = vec![record];
                             tracing::debug_span!("generate dependencies").in_scope(|| {
-                                self.compress_prover
-                                    .machine()
-                                    .generate_dependencies(&mut records, &opts.recursion_opts)
+                                self.compress_prover.machine().generate_dependencies(
+                                    &mut records,
+                                    &opts.recursion_opts,
+                                    None,
+                                )
                             });
 
                             // Generate the traces.
                             let record = records.into_iter().next().unwrap();
-                            let traces = tracing::debug_span!("generate traces")
-                                .in_scope(|| self.compress_prover.generate_traces(&record));
+                            let traces = tracing::debug_span!("generate traces").in_scope(|| {
+                                self.compress_prover
+                                    .generate_traces(&record, InteractionScope::Local)
+                            });
 
                             // Wait for our turn to update the state.
                             record_and_trace_sync.wait_for_turn(index);
@@ -758,20 +762,30 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                                 );
 
                                 // Commit to the record and traces.
-                                let data = tracing::debug_span!("commit")
-                                    .in_scope(|| self.compress_prover.commit(record, traces));
+                                let local_data = tracing::debug_span!("commit")
+                                    .in_scope(|| self.compress_prover.commit(&record, traces));
 
                                 // Observe the commitment.
-                                tracing::debug_span!("observe commitment").in_scope(|| {
-                                    challenger.observe(data.main_commit);
+                                tracing::debug_span!("observe public values").in_scope(|| {
                                     challenger.observe_slice(
-                                        &data.public_values[0..self.compress_prover.num_pv_elts()],
+                                        &local_data.public_values[0..self.compress_prover.num_pv_elts()],
                                     );
                                 });
 
                                 // Generate the proof.
                                 let proof = tracing::debug_span!("open").in_scope(|| {
-                                    self.compress_prover.open(&pk, data, &mut challenger).unwrap()
+                                    self.compress_prover
+                                        .open(
+                                            &pk,
+                                            None,
+                                            local_data,
+                                            &mut challenger,
+                                            &[
+                                                <BabyBearPoseidon2 as StarkGenericConfig>::Challenge::zero(),
+                                                <BabyBearPoseidon2 as StarkGenericConfig>::Challenge::zero(),
+                                            ],
+                                        )
+                                        .unwrap()
                                 });
 
                                 // Verify the proof.

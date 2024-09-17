@@ -9,7 +9,10 @@ use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use sp1_core_executor::{ExecutionRecord, Program};
 use sp1_derive::AlignedBorrow;
 use sp1_stark::{
-    air::{AirInteraction, MachineAir, PublicValues, SP1AirBuilder, SP1_PROOF_NUM_PV_ELTS},
+    air::{
+        AirInteraction, InteractionScope, MachineAir, PublicValues, SP1AirBuilder,
+        SP1_PROOF_NUM_PV_ELTS,
+    },
     InteractionKind, Word,
 };
 
@@ -140,6 +143,10 @@ impl<F: PrimeField> MachineAir<F> for MemoryProgramChip {
     fn included(&self, _: &Self::Record) -> bool {
         true
     }
+
+    fn commit_scope(&self) -> InteractionScope {
+        InteractionScope::Global
+    }
 }
 
 impl<F> BaseAir<F> for MemoryProgramChip {
@@ -189,10 +196,9 @@ where
 
         let mut values = vec![AB::Expr::zero(), AB::Expr::zero(), prep_local.addr.into()];
         values.extend(prep_local.value.map(Into::into));
-        builder.receive(AirInteraction::new(
-            values,
-            mult_local.multiplicity.into(),
-            InteractionKind::Memory,
-        ));
+        builder.send(
+            AirInteraction::new(values, mult_local.multiplicity.into(), InteractionKind::Memory),
+            InteractionScope::Global,
+        );
     }
 }

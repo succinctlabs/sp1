@@ -69,7 +69,8 @@ impl Prover<DefaultProverComponents> for MockProver {
 
                 let shard_proof = ShardProof {
                     commitment: ShardCommitment {
-                        main_commit: [BabyBear::zero(); 8].into(),
+                        global_main_commit: [BabyBear::zero(); 8].into(),
+                        local_main_commit: [BabyBear::zero(); 8].into(),
                         permutation_commit: [BabyBear::zero(); 8].into(),
                         quotient_commit: [BabyBear::zero(); 8].into(),
                     },
@@ -84,6 +85,7 @@ impl Prover<DefaultProverComponents> for MockProver {
                         query_openings: vec![],
                     },
                     chip_ordering: HashMap::new(),
+                    chip_scopes: vec![],
                     public_values: vec![],
                 };
 

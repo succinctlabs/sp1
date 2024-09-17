@@ -10,7 +10,7 @@ use p3_field::AbstractField;
 use p3_matrix::dense::RowMajorMatrix;
 
 use sp1_primitives::consts::WORD_SIZE;
-use sp1_recursion_compiler::ir::{Builder, Felt};
+use sp1_recursion_compiler::ir::{Builder, Ext, Felt};
 
 use sp1_stark::{
     air::{MachineAir, POSEIDON_NUM_WORDS},
@@ -130,13 +130,23 @@ where
                 challenger.observe(builder, zero);
             }
 
-            // Observe the main commitment and public values.
-            challenger.observe(builder, shard_proof.commitment.main_commit);
+            // Observe the and public values.
             challenger.observe_slice(
                 builder,
                 shard_proof.public_values[0..machine.num_pv_elts()].iter().copied(),
             );
-            StarkVerifier::verify_shard(builder, &vk, machine, &mut challenger, &shard_proof);
+
+            assert!(!shard_proof.contains_global_main_commitment());
+
+            let zero_ext: Ext<C::F, C::EF> = builder.eval(C::F::zero());
+            StarkVerifier::verify_shard(
+                builder,
+                &vk,
+                machine,
+                &mut challenger,
+                &shard_proof,
+                &[zero_ext, zero_ext],
+            );
 
             // Get the current public values.
             let current_public_values: &RecursionPublicValues<Felt<C::F>> =

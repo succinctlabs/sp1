@@ -28,16 +28,11 @@ p3-baby-bear = { workspace = true }
 sp1-core-machine = { workspace = true }
 sp1-core-executor = { workspace = true }
 sp1-stark = { workspace = true }
-
-# todo: remove this dependency once everything is migrated.
-sp1-recursion-program = { workspace = true }
-
 sp1-recursion-core-v2 = { workspace = true }
 sp1-recursion-derive = { workspace = true }
 sp1-recursion-compiler = { workspace = true }
 sp1-primitives = { workspace = true }
 sp1-recursion-gnark-ffi = { workspace = true }
-sp1-recursion-circuit = { workspace = true }
 
 itertools = "0.13.0"
 serde = { version = "1.0.204", features = ["derive"] }
@@ -46,6 +41,7 @@ rand = "0.8.5"
 tracing = "0.1.40"
 hashbrown = { version = "0.14.5", features = ["serde", "inline-more"] }
 stacker = "0.1"
+num-traits = "0.2.19"
 
 [dev-dependencies]
 sp1-core-executor = { workspace = true, features = ["programs"] }

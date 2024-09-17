@@ -68,9 +68,6 @@ pub struct ShiftLeftCols<T> {
     /// The shard number, used for byte lookup table.
     pub shard: T,
 
-    /// The channel number, used for byte lookup table.
-    pub channel: T,
-
     /// The nonce of the operation.
     pub nonce: T,
 
@@ -203,7 +200,6 @@ impl ShiftLeft {
         let b = event.b.to_le_bytes();
         let c = event.c.to_le_bytes();
         cols.shard = F::from_canonical_u32(event.shard);
-        cols.channel = F::from_canonical_u8(event.channel);
         cols.a = Word(a.map(F::from_canonical_u8));
         cols.b = Word(b.map(F::from_canonical_u8));
         cols.c = Word(c.map(F::from_canonical_u8));
@@ -242,8 +238,8 @@ impl ShiftLeft {
 
         // Range checks.
         {
-            blu.add_u8_range_checks(event.shard, event.channel, &bit_shift_result);
-            blu.add_u8_range_checks(event.shard, event.channel, &bit_shift_result_carry);
+            blu.add_u8_range_checks(event.shard, &bit_shift_result);
+            blu.add_u8_range_checks(event.shard, &bit_shift_result_carry);
         }
 
         // Sanity check.
@@ -369,18 +365,8 @@ where
 
         // Range check.
         {
-            builder.slice_range_check_u8(
-                &local.bit_shift_result,
-                local.shard,
-                local.channel,
-                local.is_real,
-            );
-            builder.slice_range_check_u8(
-                &local.bit_shift_result_carry,
-                local.shard,
-                local.channel,
-                local.is_real,
-            );
+            builder.slice_range_check_u8(&local.bit_shift_result, local.is_real);
+            builder.slice_range_check_u8(&local.bit_shift_result_carry, local.is_real);
         }
 
         for shift in local.shift_by_n_bytes.iter() {
@@ -401,7 +387,6 @@ where
             local.b,
             local.c,
             local.shard,
-            local.channel,
             local.nonce,
             local.is_real,
         );
@@ -422,7 +407,7 @@ mod tests {
     #[test]
     fn generate_trace() {
         let mut shard = ExecutionRecord::default();
-        shard.shift_left_events = vec![AluEvent::new(0, 0, 0, Opcode::SLL, 16, 8, 1)];
+        shard.shift_left_events = vec![AluEvent::new(0, 0, Opcode::SLL, 16, 8, 1)];
         let chip = ShiftLeft::default();
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&shard, &mut ExecutionRecord::default());
@@ -457,7 +442,7 @@ mod tests {
             (Opcode::SLL, 0x00000000, 0x21212120, 0xffffffff),
         ];
         for t in shift_instructions.iter() {
-            shift_events.push(AluEvent::new(0, 0, 0, t.0, t.1, t.2, t.3));
+            shift_events.push(AluEvent::new(0, 0, t.0, t.1, t.2, t.3));
         }
 
         // Append more events until we have 1000 tests.

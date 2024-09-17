@@ -14,7 +14,7 @@ use p3_commit::Mmcs;
 use p3_field::AbstractField;
 use p3_matrix::dense::RowMajorMatrix;
 
-use sp1_recursion_compiler::ir::{Builder, Felt};
+use sp1_recursion_compiler::ir::{Builder, Ext, Felt};
 
 use sp1_recursion_core_v2::{
     air::{ChallengerPublicValues, RecursionPublicValues, RECURSIVE_PROOF_NUM_PV_ELTS},
@@ -128,7 +128,8 @@ where
             array::from_fn(|_| unsafe { MaybeUninit::zeroed().assume_init() });
         let mut reconstruct_deferred_digest: [Felt<_>; POSEIDON_NUM_WORDS] =
             core::array::from_fn(|_| unsafe { MaybeUninit::zeroed().assume_init() });
-        let mut cumulative_sum: [Felt<_>; D] = core::array::from_fn(|_| builder.eval(C::F::zero()));
+        let mut global_cumulative_sum: [Felt<_>; D] =
+            core::array::from_fn(|_| builder.eval(C::F::zero()));
         let mut init_addr_bits: [Felt<_>; 32] =
             core::array::from_fn(|_| unsafe { MaybeUninit::zeroed().assume_init() });
         let mut finalize_addr_bits: [Felt<_>; 32] =
@@ -150,12 +151,22 @@ where
             }
 
             // Observe the main commitment and public values.
-            challenger.observe(builder, shard_proof.commitment.main_commit);
             challenger.observe_slice(
                 builder,
                 shard_proof.public_values[0..machine.num_pv_elts()].iter().copied(),
             );
-            StarkVerifier::verify_shard(builder, &vk, machine, &mut challenger, &shard_proof);
+
+            assert!(!shard_proof.contains_global_main_commitment());
+
+            let zero_ext: Ext<C::F, C::EF> = builder.eval(C::F::zero());
+            StarkVerifier::verify_shard(
+                builder,
+                &vk,
+                machine,
+                &mut challenger,
+                &shard_proof,
+                &[zero_ext, zero_ext],
+            );
 
             // Get the current public values.
             let current_public_values: &RecursionPublicValues<Felt<C::F>> =
@@ -411,7 +422,7 @@ where
 
             // Update the cumulative sum.
             for (sum_element, current_sum_element) in
-                cumulative_sum.iter_mut().zip_eq(current_public_values.cumulative_sum.iter())
+                global_cumulative_sum.iter_mut().zip_eq(current_public_values.cumulative_sum.iter())
             {
                 *sum_element = builder.eval(*sum_element + *current_sum_element);
             }
@@ -443,7 +454,7 @@ where
         // Assign the committed value digests.
         compress_public_values.committed_value_digest = committed_value_digest;
         // Assign the cumulative sum.
-        compress_public_values.cumulative_sum = cumulative_sum;
+        compress_public_values.cumulative_sum = global_cumulative_sum;
         // Assign the `is_complete` flag.
         compress_public_values.is_complete = is_complete;
         // Set the compress vk digest.

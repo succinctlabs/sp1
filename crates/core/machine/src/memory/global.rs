@@ -11,7 +11,7 @@ use sp1_core_executor::{events::MemoryInitializeFinalizeEvent, ExecutionRecord, 
 use sp1_derive::AlignedBorrow;
 use sp1_stark::{
     air::{
-        AirInteraction, BaseAirBuilder, MachineAir, PublicValues, SP1AirBuilder,
+        AirInteraction, BaseAirBuilder, InteractionScope, MachineAir, PublicValues, SP1AirBuilder,
         SP1_PROOF_NUM_PV_ELTS,
     },
     InteractionKind, Word,
@@ -22,40 +22,35 @@ use crate::{
     utils::pad_rows_fixed,
 };
 
-/// The type of memory chip that is being initialized.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum MemoryChipType {
-    Initialize,
-    Finalize,
-}
+use super::MemoryChipType;
 
 /// A memory chip that can initialize or finalize values in memory.
-pub struct MemoryChip {
+pub struct MemoryGlobalChip {
     pub kind: MemoryChipType,
 }
 
-impl MemoryChip {
+impl MemoryGlobalChip {
     /// Creates a new memory chip with a certain type.
     pub const fn new(kind: MemoryChipType) -> Self {
         Self { kind }
     }
 }
 
-impl<F> BaseAir<F> for MemoryChip {
+impl<F> BaseAir<F> for MemoryGlobalChip {
     fn width(&self) -> usize {
         NUM_MEMORY_INIT_COLS
     }
 }
 
-impl<F: PrimeField32> MachineAir<F> for MemoryChip {
+impl<F: PrimeField32> MachineAir<F> for MemoryGlobalChip {
     type Record = ExecutionRecord;
 
     type Program = Program;
 
     fn name(&self) -> String {
         match self.kind {
-            MemoryChipType::Initialize => "MemoryInit".to_string(),
-            MemoryChipType::Finalize => "MemoryFinalize".to_string(),
+            MemoryChipType::Initialize => "MemoryGlobalInit".to_string(),
+            MemoryChipType::Finalize => "MemoryGlobalFinalize".to_string(),
         }
     }
 
@@ -69,8 +64,8 @@ impl<F: PrimeField32> MachineAir<F> for MemoryChip {
         _output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
         let mut memory_events = match self.kind {
-            MemoryChipType::Initialize => input.memory_initialize_events.clone(),
-            MemoryChipType::Finalize => input.memory_finalize_events.clone(),
+            MemoryChipType::Initialize => input.global_memory_initialize_events.clone(),
+            MemoryChipType::Finalize => input.global_memory_finalize_events.clone(),
         };
 
         let previous_addr_bits = match self.kind {
@@ -139,9 +134,13 @@ impl<F: PrimeField32> MachineAir<F> for MemoryChip {
 
     fn included(&self, shard: &Self::Record) -> bool {
         match self.kind {
-            MemoryChipType::Initialize => !shard.memory_initialize_events.is_empty(),
-            MemoryChipType::Finalize => !shard.memory_finalize_events.is_empty(),
+            MemoryChipType::Initialize => !shard.global_memory_initialize_events.is_empty(),
+            MemoryChipType::Finalize => !shard.global_memory_finalize_events.is_empty(),
         }
+    }
+
+    fn commit_scope(&self) -> InteractionScope {
+        InteractionScope::Global
     }
 }
 
@@ -184,7 +183,7 @@ pub struct MemoryInitCols<T> {
 
 pub(crate) const NUM_MEMORY_INIT_COLS: usize = size_of::<MemoryInitCols<u8>>();
 
-impl<AB> Air<AB> for MemoryChip
+impl<AB> Air<AB> for MemoryGlobalChip
 where
     AB: SP1AirBuilder,
 {
@@ -215,19 +214,17 @@ where
         if self.kind == MemoryChipType::Initialize {
             let mut values = vec![AB::Expr::zero(), AB::Expr::zero(), local.addr.into()];
             values.extend(value.map(Into::into));
-            builder.receive(AirInteraction::new(
-                values,
-                local.is_real.into(),
-                InteractionKind::Memory,
-            ));
+            builder.send(
+                AirInteraction::new(values, local.is_real.into(), InteractionKind::Memory),
+                InteractionScope::Global,
+            );
         } else {
             let mut values = vec![local.shard.into(), local.timestamp.into(), local.addr.into()];
             values.extend(value);
-            builder.send(AirInteraction::new(
-                values,
-                local.is_real.into(),
-                InteractionKind::Memory,
-            ));
+            builder.receive(
+                AirInteraction::new(values, local.is_real.into(), InteractionKind::Memory),
+                InteractionScope::Global,
+            );
         }
 
         // Canonically decompose the address into bits so we can do comparisons.
@@ -380,18 +377,18 @@ mod tests {
         runtime.run().unwrap();
         let shard = runtime.record.clone();
 
-        let chip: MemoryChip = MemoryChip::new(MemoryChipType::Initialize);
+        let chip: MemoryGlobalChip = MemoryGlobalChip::new(MemoryChipType::Initialize);
 
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&shard, &mut ExecutionRecord::default());
         println!("{:?}", trace.values);
 
-        let chip: MemoryChip = MemoryChip::new(MemoryChipType::Finalize);
+        let chip: MemoryGlobalChip = MemoryGlobalChip::new(MemoryChipType::Finalize);
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&shard, &mut ExecutionRecord::default());
         println!("{:?}", trace.values);
 
-        for mem_event in shard.memory_finalize_events {
+        for mem_event in shard.global_memory_finalize_events {
             println!("{:?}", mem_event);
         }
     }
@@ -407,14 +404,24 @@ mod tests {
             RiscvAir::machine(BabyBearPoseidon2::new());
         let (pkey, _) = machine.setup(&program_clone);
         let opts = SP1CoreOpts::default();
-        machine.generate_dependencies(&mut runtime.records, &opts);
+        machine.generate_dependencies(&mut runtime.records, &opts, None);
 
         let shards = runtime.records;
+        for shard in shards.clone() {
+            debug_interactions_with_all_chips::<BabyBearPoseidon2, RiscvAir<BabyBear>>(
+                &machine,
+                &pkey,
+                &[shard],
+                vec![InteractionKind::Memory],
+                InteractionScope::Local,
+            );
+        }
         debug_interactions_with_all_chips::<BabyBearPoseidon2, RiscvAir<BabyBear>>(
             &machine,
             &pkey,
             &shards,
             vec![InteractionKind::Memory],
+            InteractionScope::Global,
         );
     }
 
@@ -428,7 +435,7 @@ mod tests {
         let machine = RiscvAir::machine(BabyBearPoseidon2::new());
         let (pkey, _) = machine.setup(&program_clone);
         let opts = SP1CoreOpts::default();
-        machine.generate_dependencies(&mut runtime.records, &opts);
+        machine.generate_dependencies(&mut runtime.records, &opts, None);
 
         let shards = runtime.records;
         debug_interactions_with_all_chips::<BabyBearPoseidon2, RiscvAir<BabyBear>>(
@@ -436,6 +443,7 @@ mod tests {
             &pkey,
             &shards,
             vec![InteractionKind::Byte],
+            InteractionScope::Global,
         );
     }
 }

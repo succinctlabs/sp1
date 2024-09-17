@@ -1,4 +1,4 @@
-use super::{Syscall, SyscallContext};
+use super::{Syscall, SyscallCode, SyscallContext};
 
 pub(crate) struct CommitSyscall;
 
@@ -7,6 +7,7 @@ impl Syscall for CommitSyscall {
     fn execute(
         &self,
         ctx: &mut SyscallContext,
+        _: SyscallCode,
         word_idx: u32,
         public_values_digest_word: u32,
     ) -> Option<u32> {

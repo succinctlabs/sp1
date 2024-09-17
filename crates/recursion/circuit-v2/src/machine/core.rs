@@ -35,7 +35,7 @@ use sp1_recursion_core_v2::{
 };
 
 use crate::{
-    challenger::{CanObserveVariable, DuplexChallengerVariable},
+    challenger::{CanObserveVariable, DuplexChallengerVariable, FieldChallengerVariable},
     stark::{ShardProofVariable, StarkVerifier},
     BabyBearFriConfig, BabyBearFriConfigVariable, CircuitConfig, VerifyingKeyVariable,
 };
@@ -167,7 +167,7 @@ where
             initial_reconstruct_challenger.copy(builder);
 
         // Initialize the cumulative sum.
-        let mut cumulative_sum: Ext<_, _> = builder.eval(C::EF::zero().cons());
+        let mut global_cumulative_sum: Ext<_, _> = builder.eval(C::EF::zero().cons());
 
         // Assert that the number of proofs is not zero.
         assert!(!shard_proofs.is_empty());
@@ -284,7 +284,18 @@ where
             // Do not verify the cumulative sum here, since the permutation challenge is shared
             // between all shards.
             let mut challenger = leaf_challenger.copy(builder);
-            StarkVerifier::verify_shard(builder, &vk, machine, &mut challenger, &shard_proof);
+
+            let global_permutation_challenges =
+                (0..2).map(|_| challenger.sample_ext(builder)).collect::<Vec<_>>();
+
+            StarkVerifier::verify_shard(
+                builder,
+                &vk,
+                machine,
+                &mut challenger,
+                &shard_proof,
+                &global_permutation_challenges,
+            );
 
             // Assert that first shard has a "CPU". Equivalently, assert that if the shard does
             // not have a "CPU", then the current shard is not 1.
@@ -495,14 +506,15 @@ where
             C::range_check_felt(builder, public_values.shard, MAX_LOG_NUMBER_OF_SHARDS);
 
             // Update the reconstruct challenger.
-            reconstruct_challenger.observe(builder, shard_proof.commitment.main_commit);
+            reconstruct_challenger.observe(builder, shard_proof.commitment.global_main_commit);
             for element in shard_proof.public_values.iter().take(machine.num_pv_elts()) {
                 reconstruct_challenger.observe(builder, *element);
             }
 
             // Cumulative sum is updated by sums of all chips.
             for values in shard_proof.opened_values.chips.iter() {
-                cumulative_sum = builder.eval(cumulative_sum + values.cumulative_sum);
+                global_cumulative_sum =
+                    builder.eval(global_cumulative_sum + values.global_cumulative_sum);
             }
         }
 
@@ -517,7 +529,7 @@ where
             let final_challenger_public_values = reconstruct_challenger.public_values(builder);
 
             // Collect the cumulative sum.
-            let cumulative_sum_array = builder.ext2felt_v2(cumulative_sum);
+            let global_cumulative_sum_array = builder.ext2felt_v2(global_cumulative_sum);
 
             // Collect the deferred proof digests.
             let zero: Felt<_> = builder.eval(C::F::zero());
@@ -548,7 +560,7 @@ where
             recursion_public_values.leaf_challenger = leaf_challenger_public_values;
             recursion_public_values.start_reconstruct_challenger = initial_challenger_public_values;
             recursion_public_values.end_reconstruct_challenger = final_challenger_public_values;
-            recursion_public_values.cumulative_sum = cumulative_sum_array;
+            recursion_public_values.cumulative_sum = global_cumulative_sum_array;
             recursion_public_values.start_reconstruct_deferred_digest = start_deferred_digest;
             recursion_public_values.end_reconstruct_deferred_digest = end_deferred_digest;
             recursion_public_values.exit_code = exit_code;

@@ -54,7 +54,9 @@ pub trait StarkGenericConfig: 'static + Send + Sync + Serialize + DeserializeOwn
     type Domain: PolynomialSpace<Val = Self::Val> + Sync;
 
     /// The PCS used to commit to trace polynomials.
-    type Pcs: Pcs<Self::Challenge, Self::Challenger, Domain = Self::Domain> + Sync;
+    type Pcs: Pcs<Self::Challenge, Self::Challenger, Domain = Self::Domain>
+        + Sync
+        + ZeroCommitment<Self>;
 
     /// The field from which most random challenges are drawn.
     type Challenge: ExtensionField<Self::Val>;
@@ -69,6 +71,10 @@ pub trait StarkGenericConfig: 'static + Send + Sync + Serialize + DeserializeOwn
 
     /// Initialize a new challenger.
     fn challenger(&self) -> Self::Challenger;
+}
+
+pub trait ZeroCommitment<SC: StarkGenericConfig> {
+    fn zero_commitment(&self) -> Com<SC>;
 }
 
 pub struct UniConfig<SC>(pub SC);

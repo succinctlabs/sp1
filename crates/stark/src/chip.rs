@@ -12,8 +12,7 @@ use crate::{
 };
 
 use super::{
-    eval_permutation_constraints, generate_permutation_trace, permutation_trace_width,
-    PROOF_MAX_NUM_PVS,
+    eval_permutation_constraints, generate_permutation_trace, get_grouped_maps, PROOF_MAX_NUM_PVS,
 };
 
 /// An Air that encodes lookups based on interactions.
@@ -96,6 +95,12 @@ where
         self.sends.len() + self.receives.len()
     }
 
+    /// Returns the number of sent byte lookups in the chip.
+    #[inline]
+    pub fn num_sent_byte_lookups(&self) -> usize {
+        self.sends.iter().filter(|i| i.kind == InteractionKind::Byte).count()
+    }
+
     /// Returns the number of sends of the given kind.
     #[inline]
     pub fn num_sends_by_kind(&self, kind: InteractionKind) -> usize {
@@ -114,7 +119,7 @@ where
         preprocessed: Option<&RowMajorMatrix<F>>,
         main: &RowMajorMatrix<F>,
         random_elements: &[EF],
-    ) -> RowMajorMatrix<EF>
+    ) -> (RowMajorMatrix<EF>, EF, EF)
     where
         F: PrimeField,
         A: MachineAir<F>,
@@ -133,7 +138,10 @@ where
     /// Returns the width of the permutation trace.
     #[inline]
     pub fn permutation_width(&self) -> usize {
-        permutation_trace_width(self.sends().len() + self.receives().len(), self.logup_batch_size())
+        let (_, _, grouped_widths) =
+            get_grouped_maps(self.sends(), self.receives(), self.logup_batch_size());
+
+        grouped_widths.values().sum()
     }
 
     /// Returns the cost of a row in the chip.
@@ -201,14 +209,18 @@ where
     fn included(&self, shard: &Self::Record) -> bool {
         self.air.included(shard)
     }
+
+    fn commit_scope(&self) -> crate::air::InteractionScope {
+        self.air.commit_scope()
+    }
 }
 
 // Implement AIR directly on Chip, evaluating both execution and permutation constraints.
-impl<F, A, AB> Air<AB> for Chip<F, A>
+impl<'a, F, A, AB> Air<AB> for Chip<F, A>
 where
     F: Field,
     A: Air<AB>,
-    AB: SP1AirBuilder<F = F> + MultiTableAirBuilder + PairBuilder,
+    AB: SP1AirBuilder<F = F> + MultiTableAirBuilder<'a> + PairBuilder + 'a,
 {
     fn eval(&self, builder: &mut AB) {
         // Evaluate the execution trace constraints.

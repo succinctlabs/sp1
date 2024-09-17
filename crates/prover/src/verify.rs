@@ -201,13 +201,13 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                 return Err(MachineVerificationError::InvalidPublicValues(
                     "last_init_addr_bits != last_finalize_addr_bits_prev",
                 ));
-            } else if !shard_proof.contains_memory_init()
+            } else if !shard_proof.contains_global_memory_init()
                 && public_values.previous_init_addr_bits != public_values.last_init_addr_bits
             {
                 return Err(MachineVerificationError::InvalidPublicValues(
                     "previous_init_addr_bits != last_init_addr_bits",
                 ));
-            } else if !shard_proof.contains_memory_finalize()
+            } else if !shard_proof.contains_global_memory_finalize()
                 && public_values.previous_finalize_addr_bits
                     != public_values.last_finalize_addr_bits
             {

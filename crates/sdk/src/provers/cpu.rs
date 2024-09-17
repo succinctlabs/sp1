@@ -50,7 +50,8 @@ impl Prover<DefaultProverComponents> for CpuProver {
         kind: SP1ProofKind,
     ) -> Result<SP1ProofWithPublicValues> {
         // Generate the core proof.
-        let proof = self.prover.prove_core(pk, &stdin, opts.sp1_prover_opts, context)?;
+        let proof: sp1_prover::SP1ProofWithMetadata<sp1_prover::SP1CoreProofData> =
+            self.prover.prove_core(pk, &stdin, opts.sp1_prover_opts, context)?;
         if kind == SP1ProofKind::Core {
             return Ok(SP1ProofWithPublicValues {
                 proof: SP1Proof::Core(proof.proof.0),
