@@ -10,7 +10,7 @@ In this section, we cover how you pass inputs and outputs to the zkVM and create
 
 ## Reading Data
 
-Data that is read is not public to the verifier by default. Use the `sp1_zkvm::io::read::<T>` method:
+To read a chunk of data and deserialize it into a given type `T`, use the `sp1_zkvm::io::read::<T>` method. Note that `T` must implement the `serde::Serialize` and `serde::Deserialize` traits.
 
 ```rust,noplayground
 let a = sp1_zkvm::io::read::<u32>();
@@ -18,15 +18,17 @@ let b = sp1_zkvm::io::read::<u64>();
 let c = sp1_zkvm::io::read::<String>();
 ```
 
-Note that `T` must implement the `serde::Serialize` and `serde::Deserialize` trait. If you want to read bytes directly, you can also use the `sp1_zkvm::io::read_vec` method.
+If you want to read bytes directly, you can also use the `sp1_zkvm::io::read_vec` method.
 
 ```rust,noplayground
 let my_vec = sp1_zkvm::io::read_vec();
 ```
 
+Note that, by default, this data is not available to the _verifier_ unless we commit it.
+
 ## Committing Data
 
-Committing to data makes the data public to the verifier. Use the `sp1_zkvm::io::commit::<T>` method:
+You can commit to data, which makes it available to the verifier, using the `sp1_zkvm::io::commit::<T>` method. Note that `T` must implement the `Serialize` and `Deserialize` traits.
 
 ```rust,noplayground
 sp1_zkvm::io::commit::<u32>(&a);
@@ -34,7 +36,7 @@ sp1_zkvm::io::commit::<u64>(&b);
 sp1_zkvm::io::commit::<String>(&c);
 ```
 
-Note that `T` must implement the `Serialize` and `Deserialize` trait. If you want to write bytes directly, you can also use `sp1_zkvm::io::write_slice` method:
+If you want to write bytes directly, you can also use `sp1_zkvm::io::write_slice` method:
 
 ```rust,noplayground
 let mut my_slice = [0_u8; 32];
