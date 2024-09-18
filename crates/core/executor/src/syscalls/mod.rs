@@ -27,6 +27,7 @@ use precompiles::{
     keccak256::permute::Keccak256PermuteSyscall,
     sha256::{compress::Sha256CompressSyscall, extend::Sha256ExtendSyscall},
     uint256::Uint256MulSyscall,
+    uma::UmaSyscall,
     weierstrass::{
         add::WeierstrassAddAssignSyscall, decompress::WeierstrassDecompressSyscall,
         double::WeierstrassDoubleAssignSyscall,
@@ -121,6 +122,8 @@ pub fn default_syscall_map() -> HashMap<SyscallCode, Arc<dyn Syscall>> {
     );
 
     syscall_map.insert(SyscallCode::UINT256_MUL, Arc::new(Uint256MulSyscall));
+
+    syscall_map.insert(SyscallCode::UMA, Arc::new(UmaSyscall));
 
     syscall_map.insert(
         SyscallCode::BLS12381_FP_ADD,

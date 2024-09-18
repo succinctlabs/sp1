@@ -30,7 +30,7 @@ members = [
   "crates/sdk",
   "crates/cuda",
   "crates/stark",
-  "crates/zkvm/*",
+  "crates/zkvm/*", "tests/uma-test",
 ]
 exclude = ["examples/target"]
 resolver = "2"
