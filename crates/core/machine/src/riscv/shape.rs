@@ -306,16 +306,16 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
         ]);
 
         // Get the heights for the short shape cluster (for small shards).
-        let cpu_heights = vec![Some(10), Some(16)];
-        let divrem_heights = vec![None, Some(10), Some(16)];
-        let add_sub_heights = vec![None, Some(10), Some(16)];
-        let bitwise_heights = vec![None, Some(10), Some(16)];
-        let mul_heights = vec![None, Some(10), Some(16)];
-        let shift_right_heights = vec![None, Some(10), Some(16)];
-        let shift_left_heights = vec![None, Some(10), Some(16)];
-        let lt_heights = vec![None, Some(10), Some(16)];
-        let memory_local_heights = vec![Some(16), Some(21)];
-        let syscall_heights = vec![None, Some(16)];
+        let cpu_heights = vec![Some(16), Some(19)];
+        let divrem_heights = vec![None, Some(10), Some(16), Some(19)];
+        let add_sub_heights = vec![None, Some(10), Some(16), Some(19)];
+        let bitwise_heights = vec![None, Some(10), Some(16), Some(19)];
+        let mul_heights = vec![None, Some(10), Some(16), Some(19)];
+        let shift_right_heights = vec![None, Some(10), Some(16), Some(19)];
+        let shift_left_heights = vec![None, Some(10), Some(16), Some(19)];
+        let lt_heights = vec![None, Some(10), Some(16), Some(19)];
+        let memory_local_heights = vec![Some(16), Some(20)];
+        let syscall_heights = vec![None, Some(19)];
 
         let short_allowed_log_heights = HashMap::from([
             (RiscvAir::Cpu(CpuChip::default()), cpu_heights),
