@@ -9,6 +9,7 @@ mod tracer;
 
 pub use buffer::*;
 pub use logger::*;
+use p3_field::PrimeField32;
 pub use prove::*;
 use sp1_curves::params::Limbs;
 pub use span::*;
@@ -199,4 +200,11 @@ where
 pub fn sp1_debug_mode() -> bool {
     let value = std::env::var("SP1_DEBUG").unwrap_or_else(|_| "false".to_string());
     value == "1" || value.to_lowercase() == "true"
+}
+
+/// Returns a vector of zeros of the given length. This is safe for BabyBear and other fields that
+/// can be transmuted from 0u32.
+pub unsafe fn zeroed_vec<F: PrimeField32>(len: usize) -> Vec<F> {
+    let vec = vec![0u32; len];
+    std::mem::transmute::<Vec<u32>, Vec<F>>(vec)
 }

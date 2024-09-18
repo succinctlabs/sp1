@@ -4,7 +4,7 @@ use core::{
 };
 use std::{fmt::Debug, marker::PhantomData};
 
-use crate::air::MemoryAirBuilder;
+use crate::{air::MemoryAirBuilder, utils::zeroed_vec};
 use generic_array::GenericArray;
 use num::{BigUint, Zero};
 use p3_air::{Air, AirBuilder, BaseAir};
@@ -12,10 +12,7 @@ use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use p3_maybe_rayon::prelude::{ParallelBridge, ParallelIterator, ParallelSlice};
 use sp1_core_executor::{
-    events::{
-        ByteLookupEvent, ByteRecord, EllipticCurveAddEvent, EllipticCurveDoubleEvent,
-        FieldOperation,
-    },
+    events::{ByteLookupEvent, ByteRecord, EllipticCurveDoubleEvent, FieldOperation},
     syscalls::SyscallCode,
     ExecutionRecord, Program,
 };
@@ -25,15 +22,12 @@ use sp1_curves::{
     AffinePoint, CurveType, EllipticCurve,
 };
 use sp1_derive::AlignedBorrow;
-use sp1_stark::{
-    air::{MachineAir, SP1AirBuilder},
-    MachineRecord,
-};
+use sp1_stark::air::{MachineAir, SP1AirBuilder};
 
 use crate::{
     memory::{MemoryCols, MemoryWriteCols},
     operations::field::field_op::FieldOpCols,
-    utils::{limbs_from_prev_access, pad_rows_fixed},
+    utils::limbs_from_prev_access,
 };
 
 pub const fn num_weierstrass_double_cols<P: FieldParameters + NumWords>() -> usize {
@@ -223,9 +217,9 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
         let num_cols = num_weierstrass_double_cols::<E::BaseField>();
         let chunk_size = std::cmp::max(events.len() / num_cpus::get(), 1);
 
-        let blu_events = events
+        let blu_events: Vec<Vec<ByteLookupEvent>> = events
             .par_chunks(chunk_size)
-            .flat_map(|ops: &[EllipticCurveDoubleEvent]| {
+            .map(|ops: &[EllipticCurveDoubleEvent]| {
                 // The blu map stores shard -> map(byte lookup event -> multiplicity).
                 let mut blu = Vec::new();
                 ops.iter().for_each(|op| {
@@ -238,7 +232,9 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
             })
             .collect();
 
-        output.add_byte_lookup_events(blu_events);
+        for blu in blu_events {
+            output.add_byte_lookup_events(blu);
+        }
     }
 
     fn generate_trace(
@@ -255,10 +251,12 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
         };
 
         let num_cols = num_weierstrass_double_cols::<E::BaseField>();
-        let num_rows =
-            input.fixed_log2_rows::<F, _>(self).unwrap_or(events.len().next_power_of_two());
-        let mut values = vec![F::zero(); num_rows * num_cols];
-        let chunk_size = 256;
+        let num_rows = input
+            .fixed_log2_rows::<F, _>(self)
+            .map(|x| 1 << x)
+            .unwrap_or(std::cmp::max(events.len().next_power_of_two(), 4));
+        let mut values = unsafe { zeroed_vec(num_rows * num_cols) };
+        let chunk_size = 64;
 
         let mut dummy_row = vec![F::zero(); num_cols];
         let cols: &mut WeierstrassDoubleAssignCols<F, E::BaseField> =

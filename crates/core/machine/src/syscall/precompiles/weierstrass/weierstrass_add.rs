@@ -4,7 +4,7 @@ use core::{
 };
 use std::{fmt::Debug, marker::PhantomData};
 
-use crate::air::MemoryAirBuilder;
+use crate::{air::MemoryAirBuilder, utils::zeroed_vec};
 use generic_array::GenericArray;
 use num::{BigUint, Zero};
 use p3_air::{Air, AirBuilder, BaseAir};
@@ -200,9 +200,9 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
         let num_cols = num_weierstrass_add_cols::<E::BaseField>();
         let chunk_size = std::cmp::max(events.len() / num_cpus::get(), 1);
 
-        let blu_events = events
+        let blu_events: Vec<Vec<ByteLookupEvent>> = events
             .par_chunks(chunk_size)
-            .flat_map(|ops: &[EllipticCurveAddEvent]| {
+            .map(|ops: &[EllipticCurveAddEvent]| {
                 // The blu map stores shard -> map(byte lookup event -> multiplicity).
                 let mut blu = Vec::new();
                 ops.iter().for_each(|op| {
@@ -215,7 +215,9 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
             })
             .collect();
 
-        output.add_byte_lookup_events(blu_events);
+        for blu in blu_events {
+            output.add_byte_lookup_events(blu);
+        }
     }
 
     fn generate_trace(
@@ -231,10 +233,12 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
         };
 
         let num_cols = num_weierstrass_add_cols::<E::BaseField>();
-        let num_rows =
-            input.fixed_log2_rows::<F, _>(self).unwrap_or(events.len().next_power_of_two());
-        let mut values = vec![F::zero(); num_rows * num_cols];
-        let chunk_size = std::cmp::max(num_rows / num_cpus::get(), 1);
+        let num_rows = input
+            .fixed_log2_rows::<F, _>(self)
+            .map(|x| 1 << x)
+            .unwrap_or(std::cmp::max(events.len().next_power_of_two(), 4));
+        let mut values = unsafe { zeroed_vec(num_rows * num_cols) };
+        let chunk_size = 64;
 
         let mut dummy_row = vec![F::zero(); num_weierstrass_add_cols::<E::BaseField>()];
         let cols: &mut WeierstrassAddAssignCols<F, E::BaseField> =
