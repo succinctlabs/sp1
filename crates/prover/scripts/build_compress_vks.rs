@@ -32,7 +32,7 @@ fn main() {
 
     tracing::info!("building compress vk map");
     let vk_map = get_all_vk_digests(&core_shape_config, &recursion_shape_config, reduce_batch_size);
-    tracing::info!("compress vks generated");
+    tracing::info!("compress vks generated, number of keys: {}", vk_map.len());
 
     // Save the vk map to a file.
     tracing::info!("saving vk map to file");
