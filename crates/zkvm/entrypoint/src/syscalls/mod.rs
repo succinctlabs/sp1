@@ -104,8 +104,8 @@ pub const BLS12381_DECOMPRESS: u32 = 0x00_00_01_1C;
 /// Executes the `UINT256_MUL` precompile.
 pub const UINT256_MUL: u32 = 0x00_01_01_1D;
 
-/// Executes the `UMA` precompile.
-pub const U256X2048_MUL: u32 = 0x00_01_01_2C;
+/// Executes the `U256XU2048_MUL` precompile.
+pub const U256XU2048_MUL: u32 = 0x00_01_01_2C;
 
 /// Executes the `BLS12381_ADD` precompile.
 pub const BLS12381_ADD: u32 = 0x00_01_01_1E;
