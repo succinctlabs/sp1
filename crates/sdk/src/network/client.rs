@@ -2,7 +2,9 @@ use std::{env, time::Duration};
 
 use crate::{
     network::auth::NetworkAuth,
-    proto::network::{UnclaimProofRequest, UnclaimReason},
+    proto::network::{
+        ModifyCpuCyclesRequest, ModifyCpuCyclesResponse, UnclaimProofRequest, UnclaimReason,
+    },
 };
 use anyhow::{Context, Ok, Result};
 use futures::{future::join_all, Future};
@@ -219,9 +221,31 @@ impl NetworkClient {
         Ok(())
     }
 
+    /// Modifies the CPU cycles for a proof. May be called by the claimer after the proof has been
+    /// claimed. Returns an error if the proof is not in a PROOF_CLAIMED state or if the caller is
+    /// not the claimer.
+    pub async fn modify_cpu_cycles(
+        &self,
+        proof_id: &str,
+        cycles: u64,
+    ) -> Result<ModifyCpuCyclesResponse> {
+        let nonce = self.get_nonce().await?;
+        let signature = self.auth.sign_modify_cpu_cycles_message(nonce, proof_id, cycles).await?;
+        let res = self
+            .with_error_handling(self.rpc.modify_cpu_cycles(ModifyCpuCyclesRequest {
+                signature,
+                nonce,
+                proof_id: proof_id.to_string(),
+                cycles,
+            }))
+            .await?;
+
+        Ok(res)
+    }
+
     /// Fulfill a proof. Should only be called after the proof has been uploaded. Returns an error
     /// if the proof is not in a PROOF_CLAIMED state or if the caller is not the claimer.
-    pub async fn fulfill_proof(&self, proof_id: &str, cycles: u64) -> Result<FulfillProofResponse> {
+    pub async fn fulfill_proof(&self, proof_id: &str) -> Result<FulfillProofResponse> {
         let nonce = self.get_nonce().await?;
         let signature = self.auth.sign_fulfill_proof_message(nonce, proof_id).await?;
         let res = self
@@ -229,7 +253,6 @@ impl NetworkClient {
                 signature,
                 nonce,
                 proof_id: proof_id.to_string(),
-                cycles,
             }))
             .await?;
 
