@@ -1430,7 +1430,7 @@ mod tests {
 
     use crate::programs::tests::{
         fibonacci_program, panic_program, simple_memory_program, simple_program,
-        ssz_withdrawals_program,
+        ssz_withdrawals_program, u256xu2048_mul_program,
     };
 
     use crate::Register;
@@ -1455,6 +1455,13 @@ mod tests {
     #[test]
     fn test_fibonacci_program_run() {
         let program = fibonacci_program();
+        let mut runtime = Executor::new(program, SP1CoreOpts::default());
+        runtime.run().unwrap();
+    }
+
+    #[test]
+    fn test_u256xu2048_mul() {
+        let program = u256xu2048_mul_program();
         let mut runtime = Executor::new(program, SP1CoreOpts::default());
         runtime.run().unwrap();
     }
