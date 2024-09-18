@@ -130,7 +130,7 @@ pub enum SyscallCode {
     BN254_FP2_MUL = 0x00_01_01_2B,
 
     /// Executes the `UMA` precompile.
-    UMA = 0x00_01_01_2C,
+    U256X2048_MUL = 0x00_01_01_2C,
 }
 
 impl SyscallCode {

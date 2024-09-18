@@ -123,7 +123,7 @@ pub fn default_syscall_map() -> HashMap<SyscallCode, Arc<dyn Syscall>> {
 
     syscall_map.insert(SyscallCode::UINT256_MUL, Arc::new(Uint256MulSyscall));
 
-    syscall_map.insert(SyscallCode::UMA, Arc::new(UmaSyscall));
+    syscall_map.insert(SyscallCode::U256X2048_MUL, Arc::new(U256x2048MulSyscall));
 
     syscall_map.insert(
         SyscallCode::BLS12381_FP_ADD,
