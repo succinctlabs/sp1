@@ -257,15 +257,6 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
             .unwrap_or(std::cmp::max(events.len().next_power_of_two(), 4));
         let mut values = unsafe { zeroed_vec(num_rows * num_cols) };
         let chunk_size = 64;
-
-        let mut dummy_row = vec![F::zero(); num_cols];
-        let cols: &mut WeierstrassDoubleAssignCols<F, E::BaseField> =
-            dummy_row.as_mut_slice().borrow_mut();
-        let zero = BigUint::zero();
-        Self::populate_field_ops(&mut vec![], 0, 0, cols, zero.clone(), zero);
-
-        values.chunks_mut(chunk_size * num_cols).enumerate().par_bridge().for_each(|(i, rows)| {
-            rows.chunks_mut(num_cols).enumerate().for_each(|(j, row)| {
                 let idx = i * chunk_size + j;
                 if idx < events.len() {
                     let mut new_byte_lookup_events = Vec::new();
