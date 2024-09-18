@@ -3,6 +3,7 @@ use std::fmt::Debug;
 use itertools::Itertools;
 use p3_field::Field;
 use p3_util::{reverse_bits_len, reverse_slice_index_bits};
+use serde::{Deserialize, Serialize};
 use sp1_core_machine::utils::log2_strict_usize;
 use sp1_recursion_compiler::ir::Builder;
 
@@ -12,7 +13,9 @@ use crate::{
     CircuitConfig,
 };
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "HV::Digest: Serialize"))]
+#[serde(bound(deserialize = "HV::Digest: Deserialize<'de>"))]
 pub struct MerkleTree<F: Field, HV: FieldHasher<F>> {
     /// The height of the tree, not counting the root layer. This is the same as the logarithm of the
     /// number of leaves.

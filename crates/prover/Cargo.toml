@@ -56,6 +56,10 @@ name = "build_groth16_bn254"
 path = "scripts/build_groth16_bn254.rs"
 
 [[bin]]
+name = "build_compress_vks"
+path = "scripts/build_compress_vks.rs"
+
+[[bin]]
 name = "e2e"
 path = "scripts/e2e.rs"
 

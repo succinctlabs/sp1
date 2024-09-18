@@ -84,9 +84,7 @@ use sp1_recursion_circuit_v2::{
 };
 
 pub use types::*;
-use utils::{
-    get_all_vk_digests, sp1_commited_values_digest_bn254, sp1_vkey_digest_bn254, words_to_bytes,
-};
+use utils::{sp1_commited_values_digest_bn254, sp1_vkey_digest_bn254, words_to_bytes};
 
 use components::{DefaultProverComponents, SP1ProverComponents};
 
@@ -108,7 +106,10 @@ const WRAP_DEGREE: usize = 17;
 const CORE_CACHE_SIZE: usize = 5;
 const COMPRESS_CACHE_SIZE: usize = 3;
 
-const REDUCE_BATCH_SIZE: usize = 2;
+pub const REDUCE_BATCH_SIZE: usize = 2;
+
+const VK_MAP_BYTES: &[u8] = include_bytes!("../vk_map.bin");
+const MERKLE_TREE_BYTES: &[u8] = include_bytes!("../merkle_tree.bin");
 
 pub type CompressAir<F> = RecursionAir<F, COMPRESS_DEGREE, 0>;
 pub type ShrinkAir<F> = RecursionAir<F, SHRINK_DEGREE, 0>;
@@ -190,9 +191,10 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         let recursion_shape_config = RecursionShapeConfig::default();
 
         let allowed_vk_map =
-            get_all_vk_digests(&core_shape_config, &recursion_shape_config, REDUCE_BATCH_SIZE);
+            bincode::deserialize(VK_MAP_BYTES).expect("failed to deserialize vk map");
 
-        let (root, merkle_tree) = MerkleTree::commit(allowed_vk_map.keys().cloned().collect());
+        let (root, merkle_tree) =
+            bincode::deserialize(MERKLE_TREE_BYTES).expect("failed to deserialize merkle tree");
 
         let core_shape_config = env::var("FIX_CORE_SHAPES")
             .map(|v| v.eq_ignore_ascii_case("true"))
