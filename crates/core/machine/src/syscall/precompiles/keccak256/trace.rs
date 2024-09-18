@@ -25,7 +25,7 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
     }
 
     fn generate_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
-        let chunk_size = 256 * 24;
+        let chunk_size = 8;
 
         let blu_events: Vec<Vec<ByteLookupEvent>> = input
             .keccak_permute_events
@@ -52,7 +52,7 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
     ) -> RowMajorMatrix<F> {
         let num_events = input.keccak_permute_events.len();
         let num_rows = (num_events * NUM_ROUNDS).next_power_of_two();
-        let chunk_size = 64 * 24;
+        let chunk_size = 8;
         // let mut values = vec![F::zero(); num_rows * NUM_KECCAK_MEM_COLS];
         let values = vec![0u32; num_rows * NUM_KECCAK_MEM_COLS];
         let mut values = unsafe { std::mem::transmute::<Vec<u32>, Vec<F>>(values) };
