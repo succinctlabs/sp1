@@ -79,10 +79,12 @@ impl PlonkBn254Prover {
             .replace("{SP1_CIRCUIT_VERSION}", SP1_CIRCUIT_VERSION)
             .replace("{VERIFIER_HASH}", format!("0x{}", hex::encode(vkey_hash)).as_str())
             .replace("{PROOF_SYSTEM}", "Plonk");
+        println!("sp1_verifier_path: {:?}", sp1_verifier_path);
         let mut sp1_verifier_file = File::create(sp1_verifier_path).unwrap();
         sp1_verifier_file.write_all(sp1_verifier_str.as_bytes()).unwrap();
 
         let plonk_verifier_path = build_dir.join("PlonkVerifier.sol");
+        println!("plonk_verifier_path: {:?}", plonk_verifier_path);
         Self::modify_plonk_verifier(&plonk_verifier_path);
     }
 
