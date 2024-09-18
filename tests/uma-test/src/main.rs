@@ -43,4 +43,5 @@ pub fn main() {
     let result_syscall = BigUint::from_bytes_le(&result_bytes);
 
     assert_eq!(result, result_syscall);
+    println!("All tests passed successfully!");
 }

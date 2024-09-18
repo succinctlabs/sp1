@@ -124,6 +124,11 @@ pub mod tests {
         include_bytes!("../../../../tests/bn254-fp2-mul/elf/riscv32im-succinct-zkvm-elf");
 
     #[must_use]
+    pub fn u256x2048_mul_program() -> Program {
+        Program::from(U256X2048_MUL_ELF).unwrap()
+    }
+
+    #[must_use]
     pub fn simple_program() -> Program {
         let instructions = vec![
             Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
