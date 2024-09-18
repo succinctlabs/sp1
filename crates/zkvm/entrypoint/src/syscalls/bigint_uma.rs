@@ -2,6 +2,7 @@ use super::syscall_u256x2048_mul;
 
 /// The number of limbs in a "uint256".
 const N: usize = 8;
+
 #[allow(unused_variables)]
 #[no_mangle]
 pub extern "C" fn sys_bigint_uma(

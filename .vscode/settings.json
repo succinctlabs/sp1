@@ -57,6 +57,7 @@
         // "tests/sha-extend/Cargo.toml",
         // "tests/sha2/Cargo.toml",
         // "tests/verify-proof/Cargo.toml",
+        // "tests/uma-test/Cargo.toml",
         // // Eval.
         // "eval/Cargo.toml"
     ],

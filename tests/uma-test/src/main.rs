@@ -1,7 +1,7 @@
 #![no_main]
 sp1_zkvm::entrypoint!(main);
 
-use num::{BigUint, One};
+use num::BigUint;
 use rand::Rng;
 use sp1_zkvm::syscalls::sys_bigint_uma;
 

@@ -1,3 +1,4 @@
+[workspace]
 [package]
 name = "uma-test"
 version = "1.0.0"

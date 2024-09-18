@@ -7340,18 +7340,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "uma-test"
-version = "1.0.0"
-dependencies = [
- "bytemuck",
- "num",
- "num-bigint 0.4.6",
- "rand 0.8.5",
- "sp1-derive",
- "sp1-zkvm",
-]
-
-[[package]]
 name = "unarray"
 version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
