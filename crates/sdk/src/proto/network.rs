@@ -131,6 +131,9 @@ pub struct FulfillProofRequest {
     /// The proof identifier.
     #[prost(string, tag = "3")]
     pub proof_id: ::prost::alloc::string::String,
+    /// The number of cycles used.
+    #[prost(uint64, tag = "4")]
+    pub cycles: u64,
 }
 /// The response for fulfilling a proof, empty on success.
 #[derive(serde::Serialize, serde::Deserialize)]

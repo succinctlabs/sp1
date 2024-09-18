@@ -221,7 +221,7 @@ impl NetworkClient {
 
     /// Fulfill a proof. Should only be called after the proof has been uploaded. Returns an error
     /// if the proof is not in a PROOF_CLAIMED state or if the caller is not the claimer.
-    pub async fn fulfill_proof(&self, proof_id: &str) -> Result<FulfillProofResponse> {
+    pub async fn fulfill_proof(&self, proof_id: &str, cycles: u64) -> Result<()> {
         let nonce = self.get_nonce().await?;
         let signature = self.auth.sign_fulfill_proof_message(nonce, proof_id).await?;
         let res = self
@@ -229,6 +229,7 @@ impl NetworkClient {
                 signature,
                 nonce,
                 proof_id: proof_id.to_string(),
+                cycles,
             }))
             .await?;
 
