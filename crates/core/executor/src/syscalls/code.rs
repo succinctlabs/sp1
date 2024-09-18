@@ -129,7 +129,7 @@ pub enum SyscallCode {
     /// Executes the `BN254_FP2_MUL` precompile.
     BN254_FP2_MUL = 0x00_01_01_2B,
 
-    /// Executes the `U256X2048_MUL` precompile.
+    /// Executes the `U256XU2048_MUL` precompile.
     U256XU2048_MUL = 0x00_01_01_2C,
 }
 
