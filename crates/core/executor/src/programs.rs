@@ -93,7 +93,7 @@ pub mod tests {
     pub const UINT256_MUL_ELF: &[u8] =
         include_bytes!("../../../../tests/uint256-mul/elf/riscv32im-succinct-zkvm-elf");
 
-    pub const U256X2048_MUL_ELF: &[u8] =
+    pub const U256XU2048_MUL_ELF: &[u8] =
         include_bytes!("../../../../tests/uma-test/elf/riscv32im-succinct-zkvm-elf");
 
     pub const BLS12381_DECOMPRESS_ELF: &[u8] =
@@ -124,8 +124,8 @@ pub mod tests {
         include_bytes!("../../../../tests/bn254-fp2-mul/elf/riscv32im-succinct-zkvm-elf");
 
     #[must_use]
-    pub fn u256x2048_mul_program() -> Program {
-        Program::from(U256X2048_MUL_ELF).unwrap()
+    pub fn u256xu2048_mul_program() -> Program {
+        Program::from(U256XU2048_MUL_ELF).unwrap()
     }
 
     #[must_use]

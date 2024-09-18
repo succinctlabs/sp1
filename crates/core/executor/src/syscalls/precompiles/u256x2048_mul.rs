@@ -8,9 +8,9 @@ use crate::{
     syscalls::{Syscall, SyscallContext},
 };
 
-pub(crate) struct U256x2048MulSyscall;
+pub(crate) struct U256xU2048MulSyscall;
 
-impl Syscall for U256x2048MulSyscall {
+impl Syscall for U256xU2048MulSyscall {
     fn execute(&self, rt: &mut SyscallContext, arg1: u32, arg2: u32) -> Option<u32> {
         let clk = rt.clk;
 
