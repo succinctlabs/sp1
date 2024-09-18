@@ -7,13 +7,13 @@ use sp1_stark::{air::MachineAir, ProofShape};
 use thiserror::Error;
 
 use crate::{
-    memory::MemoryProgramChip,
+    memory::{MemoryLocalChip, MemoryProgramChip},
     riscv::MemoryChipType::{Finalize, Initialize},
 };
 
 use super::{
     AddSubChip, BitwiseChip, CpuChip, DivRemChip, LtChip, MemoryGlobalChip, MulChip, ProgramChip,
-    RiscvAir, ShiftLeft, ShiftRightChip,
+    RiscvAir, ShiftLeft, ShiftRightChip, SyscallChip,
 };
 
 #[derive(Debug, Error)]
@@ -79,6 +79,7 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
             })
             .collect();
 
+        tracing::info!("Found shape");
         let shape = CoreShape { inner: shape? };
         Some(shape)
     }
@@ -232,10 +233,13 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
             self.included_shapes.iter().map(ProofShape::from_map).collect::<Vec<_>>();
 
         let cpu_name = || RiscvAir::<F>::Cpu(CpuChip::default()).name();
+        let memory_local_name = || RiscvAir::<F>::MemoryLocal(MemoryLocalChip::new()).name();
+        let syscall_name = || RiscvAir::<F>::Syscall(SyscallChip::default()).name();
         let core_filter = move |shape: &ProofShape| {
             let core_airs = RiscvAir::<F>::get_all_core_airs()
                 .into_iter()
                 .map(|air| air.name())
+                .filter(|name| name != &memory_local_name() && name != &syscall_name())
                 .collect::<HashSet<_>>();
             let core_chips_and_heights = shape
                 .chip_information
@@ -251,12 +255,6 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
             }
 
             let cpu_height = core_chips_and_heights.first().unwrap().1;
-            let num_core_chips_at_cpu_height =
-                core_chips_and_heights.iter().filter(|(_, height)| *height == cpu_height).count();
-
-            if num_core_chips_at_cpu_height > 2 {
-                return false;
-            }
 
             let sum_of_heights =
                 core_chips_and_heights.iter().map(|(_, height)| *height).sum::<usize>();
@@ -316,6 +314,8 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
         let shift_right_heights = vec![None, Some(10), Some(16)];
         let shift_left_heights = vec![None, Some(10), Some(16)];
         let lt_heights = vec![None, Some(10), Some(16)];
+        let memory_local_heights = vec![Some(16), Some(21)];
+        let syscall_heights = vec![None, Some(16)];
 
         let short_allowed_log_heights = HashMap::from([
             (RiscvAir::Cpu(CpuChip::default()), cpu_heights),
@@ -326,6 +326,8 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
             (RiscvAir::ShiftRight(ShiftRightChip::default()), shift_right_heights),
             (RiscvAir::ShiftLeft(ShiftLeft::default()), shift_left_heights),
             (RiscvAir::Lt(LtChip::default()), lt_heights),
+            (RiscvAir::MemoryLocal(MemoryLocalChip::new()), memory_local_heights),
+            (RiscvAir::Syscall(SyscallChip::default()), syscall_heights),
         ]);
 
         // Get the heights for the medium shape cluster.
@@ -337,6 +339,8 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
         let shift_right_heights = vec![None, Some(19), Some(20), Some(21)];
         let shift_left_heights = vec![None, Some(19), Some(20), Some(21)];
         let lt_heights = vec![None, Some(19), Some(20), Some(21)];
+        let memory_local_heights = vec![Some(20), Some(21)];
+        let syscall_heights = vec![None, Some(19)];
 
         let medium_allowed_log_heights = HashMap::from([
             (RiscvAir::Cpu(CpuChip::default()), cpu_heights),
@@ -347,6 +351,8 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
             (RiscvAir::ShiftRight(ShiftRightChip::default()), shift_right_heights),
             (RiscvAir::ShiftLeft(ShiftLeft::default()), shift_left_heights),
             (RiscvAir::Lt(LtChip::default()), lt_heights),
+            (RiscvAir::MemoryLocal(MemoryLocalChip::new()), memory_local_heights),
+            (RiscvAir::Syscall(SyscallChip::default()), syscall_heights),
         ]);
 
         // Core chip heights for the long shape cluster.
@@ -358,6 +364,8 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
         let shift_right_heights = vec![None, Some(20), Some(21), Some(22)];
         let shift_left_heights = vec![None, Some(20), Some(21), Some(22)];
         let lt_heights = vec![None, Some(20), Some(21), Some(22)];
+        let memory_local_heights = vec![Some(21), Some(22)];
+        let syscall_heights = vec![None, Some(20)];
 
         let long_allowed_log_heights = HashMap::from([
             (RiscvAir::Cpu(CpuChip::default()), cpu_heights),
@@ -368,6 +376,8 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
             (RiscvAir::ShiftRight(ShiftRightChip::default()), shift_right_heights),
             (RiscvAir::ShiftLeft(ShiftLeft::default()), shift_left_heights),
             (RiscvAir::Lt(LtChip::default()), lt_heights),
+            (RiscvAir::MemoryLocal(MemoryLocalChip::new()), memory_local_heights),
+            (RiscvAir::Syscall(SyscallChip::default()), syscall_heights),
         ]);
 
         // Set the memory init and finalize heights.

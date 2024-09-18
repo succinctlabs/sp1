@@ -15,7 +15,7 @@ use sp1_stark::{
     InteractionKind, Word,
 };
 
-const NUM_LOCAL_MEMORY_ENTRIES_PER_ROW: usize = 2;
+pub const NUM_LOCAL_MEMORY_ENTRIES_PER_ROW: usize = 3;
 
 pub(crate) const NUM_MEMORY_LOCAL_INIT_COLS: usize = size_of::<MemoryLocalCols<u8>>();
 
