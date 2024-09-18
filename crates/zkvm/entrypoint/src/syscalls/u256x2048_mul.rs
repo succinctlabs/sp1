@@ -16,7 +16,7 @@ pub extern "C" fn syscall_u256x2048_mul(x: *mut [u32; 8], y: *const [u32; 8]) {
     unsafe {
         asm!(
             "ecall",
-            in("t0") crate::syscalls::U256X2048_MUL,
+            in("t0") crate::syscalls::U256XU2048_MUL,
             in("a0") x,
             in("a1") y,
         );
