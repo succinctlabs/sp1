@@ -116,6 +116,29 @@ pub struct UnclaimProofRequest {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct UnclaimProofResponse {}
+/// The request to update a proof's CPU cycle count.
+#[derive(serde::Serialize, serde::Deserialize)]
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ModifyCpuCyclesRequest {
+    /// The signature of the message.
+    #[prost(bytes = "vec", tag = "1")]
+    pub signature: ::prost::alloc::vec::Vec<u8>,
+    /// The nonce for the account.
+    #[prost(uint64, tag = "2")]
+    pub nonce: u64,
+    /// The proof identifier.
+    #[prost(string, tag = "3")]
+    pub proof_id: ::prost::alloc::string::String,
+    /// The number of CPU cycles for this proof.
+    #[prost(uint64, tag = "4")]
+    pub cycles: u64,
+}
+/// The response for updating a proof's CPU cycle count, empty on success.
+#[derive(serde::Serialize, serde::Deserialize)]
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ModifyCpuCyclesResponse {}
 /// The request to fulfill a proof. MUST be called after the proof has been uploaded and MUST be called
 /// when the proof is in a PROOF_CLAIMED state.
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -523,6 +546,11 @@ pub trait NetworkService {
         ctx: twirp::Context,
         req: UnclaimProofRequest,
     ) -> Result<UnclaimProofResponse, twirp::TwirpErrorResponse>;
+    async fn modify_cpu_cycles(
+        &self,
+        ctx: twirp::Context,
+        req: ModifyCpuCyclesRequest,
+    ) -> Result<ModifyCpuCyclesResponse, twirp::TwirpErrorResponse>;
     async fn fulfill_proof(
         &self,
         ctx: twirp::Context,
@@ -584,6 +612,12 @@ where
             },
         )
         .route(
+            "/ModifyCpuCycles",
+            |api: std::sync::Arc<T>, ctx: twirp::Context, req: ModifyCpuCyclesRequest| async move {
+                api.modify_cpu_cycles(ctx, req).await
+            },
+        )
+        .route(
             "/FulfillProof",
             |api: std::sync::Arc<T>, ctx: twirp::Context, req: FulfillProofRequest| async move {
                 api.fulfill_proof(ctx, req).await
@@ -639,6 +673,10 @@ pub trait NetworkServiceClient: Send + Sync + std::fmt::Debug {
         &self,
         req: UnclaimProofRequest,
     ) -> Result<UnclaimProofResponse, twirp::ClientError>;
+    async fn modify_cpu_cycles(
+        &self,
+        req: ModifyCpuCyclesRequest,
+    ) -> Result<ModifyCpuCyclesResponse, twirp::ClientError>;
     async fn fulfill_proof(
         &self,
         req: FulfillProofRequest,
@@ -690,6 +728,13 @@ impl NetworkServiceClient for twirp::client::Client {
         req: UnclaimProofRequest,
     ) -> Result<UnclaimProofResponse, twirp::ClientError> {
         let url = self.base_url.join("network.NetworkService/UnclaimProof")?;
+        self.request(url, req).await
+    }
+    async fn modify_cpu_cycles(
+        &self,
+        req: ModifyCpuCyclesRequest,
+    ) -> Result<ModifyCpuCyclesResponse, twirp::ClientError> {
+        let url = self.base_url.join("network.NetworkService/ModifyCpuCycles")?;
         self.request(url, req).await
     }
     async fn fulfill_proof(
