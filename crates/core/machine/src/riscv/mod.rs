@@ -2,11 +2,14 @@ pub mod cost;
 
 mod shape;
 
+use itertools::Itertools;
 pub use shape::*;
 use sp1_core_executor::{ExecutionRecord, Program};
 
 use crate::{
-    memory::{MemoryChipType, MemoryLocalChip, MemoryProgramChip},
+    memory::{
+        MemoryChipType, MemoryLocalChip, MemoryProgramChip, NUM_LOCAL_MEMORY_ENTRIES_PER_ROW,
+    },
     riscv::MemoryChipType::{Finalize, Initialize},
     syscall::precompiles::fptower::{Fp2AddSubAssignChip, Fp2MulAssignChip, FpOpChip},
 };
@@ -338,8 +341,6 @@ impl<F: PrimeField32> RiscvAir<F> {
 
     /// Get the heights of the preprocessed chips for a given program.
     pub(crate) fn preprocessed_heights(program: &Program) -> Vec<(Self, usize)> {
-        println!("Program instructions: {}", program.instructions.len());
-        println!("Program memory: {}", program.memory_image.len());
         vec![
             (RiscvAir::Program(ProgramChip::default()), program.instructions.len()),
             (RiscvAir::ProgramMemory(MemoryProgramChip::default()), program.memory_image.len()),
@@ -360,6 +361,15 @@ impl<F: PrimeField32> RiscvAir<F> {
             (RiscvAir::ShiftRight(ShiftRightChip::default()), record.shift_right_events.len()),
             (RiscvAir::ShiftLeft(ShiftLeft::default()), record.shift_left_events.len()),
             (RiscvAir::Lt(LtChip::default()), record.lt_events.len()),
+            (
+                RiscvAir::MemoryLocal(MemoryLocalChip::new()),
+                record
+                    .get_local_mem_events()
+                    .chunks(NUM_LOCAL_MEMORY_ENTRIES_PER_ROW)
+                    .into_iter()
+                    .count(),
+            ),
+            (RiscvAir::Syscall(SyscallChip::default()), record.syscall_events.len()),
         ]
     }
 
@@ -373,6 +383,8 @@ impl<F: PrimeField32> RiscvAir<F> {
             RiscvAir::Lt(LtChip::default()),
             RiscvAir::ShiftLeft(ShiftLeft::default()),
             RiscvAir::ShiftRight(ShiftRightChip::default()),
+            RiscvAir::MemoryLocal(MemoryLocalChip::new()),
+            RiscvAir::Syscall(SyscallChip::default()),
         ]
     }
 

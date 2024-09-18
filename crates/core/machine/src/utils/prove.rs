@@ -9,8 +9,7 @@ use std::{
 use web_time::Instant;
 
 use crate::riscv::{CoreShapeConfig, RiscvAir};
-use p3_challenger::{CanObserve, FieldChallenger};
-use p3_field::AbstractField;
+use p3_challenger::FieldChallenger;
 use p3_maybe_rayon::prelude::*;
 use serde::{de::DeserializeOwned, Serialize};
 use size::Size;
@@ -328,11 +327,12 @@ where
 
         // Create the challenger and observe the verifying key.
         let mut challenger = prover.config().challenger();
-        challenger.observe(pk.commit());
-        challenger.observe(pk.pc_start());
-        for _ in 0..7 {
-            challenger.observe(Val::<SC>::zero());
-        }
+        pk.observe_into(&mut challenger);
+        // challenger.observe(pk.preprocessed_commit());
+        // challenger.observe(pk.pc_start());
+        // for _ in 0..7 {
+        //     challenger.observe(Val::<SC>::zero());
+        // }
 
         // Spawn the phase 1 prover thread.
         let phase_1_prover_span = tracing::Span::current().clone();
