@@ -81,7 +81,7 @@ impl ProverClient {
                 #[cfg(not(feature = "cuda"))]
                 prover: Box::new(CpuProver::new()),
                 #[cfg(feature = "cuda")]
-                prover: Box::new(CudaProver::new()),
+                prover: Box::new(CudaProver::new(SP1Prover::new())),
             },
             "network" => {
                 cfg_if! {
