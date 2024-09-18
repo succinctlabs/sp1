@@ -26,8 +26,8 @@ use precompiles::{
     fptower::{Fp2AddSubSyscall, Fp2MulSyscall, FpOpSyscall},
     keccak256::permute::Keccak256PermuteSyscall,
     sha256::{compress::Sha256CompressSyscall, extend::Sha256ExtendSyscall},
+    u256x2048_mul::U256x2048MulSyscall,
     uint256::Uint256MulSyscall,
-    uma::UmaSyscall,
     weierstrass::{
         add::WeierstrassAddAssignSyscall, decompress::WeierstrassDecompressSyscall,
         double::WeierstrassDoubleAssignSyscall,

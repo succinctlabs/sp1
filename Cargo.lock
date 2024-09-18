@@ -7341,7 +7341,15 @@ dependencies = [
 
 [[package]]
 name = "uma-test"
-version = "2.0.0"
+version = "1.0.0"
+dependencies = [
+ "bytemuck",
+ "num",
+ "num-bigint 0.4.6",
+ "rand 0.8.5",
+ "sp1-derive",
+ "sp1-zkvm",
+]
 
 [[package]]
 name = "unarray"

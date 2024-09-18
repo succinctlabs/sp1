@@ -173,7 +173,7 @@ impl SyscallCode {
             0x00_01_01_2A => SyscallCode::BN254_FP2_SUB,
             0x00_01_01_2B => SyscallCode::BN254_FP2_MUL,
             0x00_00_01_1C => SyscallCode::BLS12381_DECOMPRESS,
-            0x00_01_01_2C => SyscallCode::UMA,
+            0x00_01_01_2C => SyscallCode::U256X2048_MUL,
             _ => panic!("invalid syscall number: {value}"),
         }
     }
