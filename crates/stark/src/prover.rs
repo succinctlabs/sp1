@@ -266,7 +266,7 @@ pub trait MachineProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>>:
 /// A proving key for any [`MachineAir`] that is agnostic to hardware.
 pub trait MachineProvingKey<SC: StarkGenericConfig>: Send + Sync {
     /// The main commitment.
-    fn commit(&self) -> Com<SC>;
+    fn preprocessed_commit(&self) -> Com<SC>;
 
     /// The start pc.
     fn pc_start(&self) -> Val<SC>;
@@ -853,7 +853,7 @@ where
     PcsProverData<SC>: Send + Sync + Serialize + DeserializeOwned,
     Com<SC>: Send + Sync,
 {
-    fn commit(&self) -> Com<SC> {
+    fn preprocessed_commit(&self) -> Com<SC> {
         self.commit.clone()
     }
 
