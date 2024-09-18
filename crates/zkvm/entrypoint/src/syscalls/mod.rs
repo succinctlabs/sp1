@@ -1,4 +1,5 @@
 mod bigint;
+mod bigint_uma;
 mod bls12381;
 mod bn254;
 mod ed25519;
@@ -12,11 +13,13 @@ mod sha_compress;
 mod sha_extend;
 mod sys;
 mod uint256_mul;
+mod uma_mul;
 mod unconstrained;
 #[cfg(feature = "verify")]
 mod verify;
 
 pub use bigint::*;
+pub use bigint_uma::*;
 pub use bls12381::*;
 pub use bn254::*;
 pub use ed25519::*;
@@ -30,6 +33,7 @@ pub use sha_compress::*;
 pub use sha_extend::*;
 pub use sys::*;
 pub use uint256_mul::*;
+pub use uma_mul::*;
 pub use unconstrained::*;
 #[cfg(feature = "verify")]
 pub use verify::*;
@@ -99,6 +103,9 @@ pub const BLS12381_DECOMPRESS: u32 = 0x00_00_01_1C;
 
 /// Executes the `UINT256_MUL` precompile.
 pub const UINT256_MUL: u32 = 0x00_01_01_1D;
+
+/// Executes the `UMA` precompile.
+pub const UMA: u32 = 0x00_01_01_2C;
 
 /// Executes the `BLS12381_ADD` precompile.
 pub const BLS12381_ADD: u32 = 0x00_01_01_1E;
