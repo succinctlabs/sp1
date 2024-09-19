@@ -52,6 +52,7 @@ pub struct SP1RecursionWitnessVariable<
     pub is_first_shard: Felt<C::F>,
 }
 
+#[derive(Debug, Clone)]
 pub struct SP1RecursionWitnessValues<SC: StarkGenericConfig> {
     pub vk: StarkVerifyingKey<SC>,
     pub shard_proofs: Vec<ShardProof<SC>>,
