@@ -328,11 +328,6 @@ where
         // Create the challenger and observe the verifying key.
         let mut challenger = prover.config().challenger();
         pk.observe_into(&mut challenger);
-        // challenger.observe(pk.preprocessed_commit());
-        // challenger.observe(pk.pc_start());
-        // for _ in 0..7 {
-        //     challenger.observe(Val::<SC>::zero());
-        // }
 
         // Spawn the phase 1 prover thread.
         let phase_1_prover_span = tracing::Span::current().clone();

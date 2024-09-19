@@ -204,12 +204,12 @@ impl FromIterator<(String, usize)> for ProofShape {
     fn from_iter<T: IntoIterator<Item = (String, usize)>>(iter: T) -> Self {
         let set = iter
             .into_iter()
-            .map(|(name, log_degree)| Reverse((log_degree, name)))
+            .map(|(name, log_degree)| (Reverse(log_degree), name))
             .collect::<BTreeSet<_>>();
         Self {
             chip_information: set
                 .into_iter()
-                .map(|Reverse((log_degree, name))| (name, log_degree))
+                .map(|(Reverse(log_degree), name)| (name, log_degree))
                 .collect(),
         }
     }

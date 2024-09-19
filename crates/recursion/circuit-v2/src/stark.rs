@@ -48,7 +48,6 @@ pub struct ShardProofVariable<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConf
 /// Make a dummy shard proof for a given proof shape.
 pub fn dummy_shard_proof<A: MachineAir<BabyBear>>(
     machine: &StarkMachine<BabyBearPoseidon2, A>,
-    vk: &StarkVerifyingKey<BabyBearPoseidon2>,
     shape: &ProofShape,
 ) -> ShardProof<BabyBearPoseidon2> {
     // Make a dummy commitment.
@@ -85,18 +84,14 @@ pub fn dummy_shard_proof<A: MachineAir<BabyBear>>(
     let mut permutation_batch_shape = vec![];
     let mut quotient_batch_shape = vec![];
 
-    for info in vk.chip_information.iter() {
-        let name = &info.0;
-        let i = chip_ordering[name];
-        let opened_values = &opened_values.chips[i];
-        let prep_shape = PolynomialShape {
-            width: opened_values.preprocessed.local.len(),
-            log_degree: opened_values.log_degree,
-        };
-        preprocessed_batch_shape.push(prep_shape);
-    }
-
     for (chip_opening, scope) in opened_values.chips.iter().zip_eq(chip_scopes.iter()) {
+        if !chip_opening.preprocessed.local.is_empty() {
+            let prep_shape = PolynomialShape {
+                width: chip_opening.preprocessed.local.len(),
+                log_degree: chip_opening.log_degree,
+            };
+            preprocessed_batch_shape.push(prep_shape);
+        }
         let main_shape = PolynomialShape {
             width: chip_opening.main.local.len(),
             log_degree: chip_opening.log_degree,
@@ -526,7 +521,6 @@ pub mod tests {
         let mut challenger = config.challenger_variable(&mut builder);
         // let vk = VerifyingKeyVariable::from_constant_key_babybear(&mut builder, &vk);
         Witnessable::<C>::write(&vk, &mut witness_stream);
-        let vk_value = vk.clone();
         let vk: VerifyingKeyVariable<_, _> = vk.read(&mut builder);
         vk.observe_into(&mut builder, &mut challenger);
 
@@ -535,7 +529,7 @@ pub mod tests {
             .into_iter()
             .map(|proof| {
                 let shape = proof.shape();
-                let dummy_proof = dummy_shard_proof(&machine, &vk_value, &shape);
+                let dummy_proof = dummy_shard_proof(&machine, &shape);
                 Witnessable::<C>::write(&proof, &mut witness_stream);
                 dummy_proof.read(&mut builder)
             })
