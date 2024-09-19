@@ -111,7 +111,6 @@ impl SP1CudaProver {
                 "-p",
                 "3000:3000",
                 "--rm",
-                "--runtime=nvidia",
                 "--gpus",
                 "all",
                 "--name",
