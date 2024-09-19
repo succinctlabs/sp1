@@ -21,6 +21,18 @@ use crate::{
     FriProofVariable, FriQueryProofVariable, TwoAdicPcsProofVariable, TwoAdicPcsRoundVariable,
 };
 
+#[derive(Debug, Clone, Copy)]
+pub struct PolynomialShape {
+    pub width: usize,
+    pub log_degree: usize,
+}
+
+#[derive(Debug, Clone)]
+
+pub struct PolynomialBatchShape {
+    pub shapes: Vec<PolynomialShape>,
+}
+
 pub fn verify_shape_and_sample_challenges<
     C: CircuitConfig<F = BabyBear>,
     SC: BabyBearFriConfigVariable<C>,
@@ -401,12 +413,12 @@ pub fn dummy_query_proof(height: usize) -> QueryProof<InnerChallenge, InnerChall
 /// The parameter `batch_shapes` contains (width, height) data for each matrix in each batch.
 pub fn dummy_pcs_proof(
     fri_queries: usize,
-    batch_shapes: Vec<Vec<(usize, usize)>>,
+    batch_shapes: &[PolynomialBatchShape],
     log_blowup: usize,
 ) -> InnerPcsProof {
-    let &max_height = batch_shapes
+    let max_height = batch_shapes
         .iter()
-        .map(|shapes| shapes.iter().map(|(_, x)| x).max().unwrap())
+        .map(|shape| shape.shapes.iter().map(|shape| shape.log_degree).max().unwrap())
         .max()
         .unwrap();
     let fri_proof = FriProof {
@@ -423,13 +435,15 @@ pub fn dummy_pcs_proof(
             batch_shapes
                 .iter()
                 .map(|shapes| {
-                    let batch_max_height = shapes.iter().map(|(_, x)| x).max().unwrap();
+                    let batch_max_height =
+                        shapes.shapes.iter().map(|shape| shape.log_degree).max().unwrap();
                     BatchOpening {
                         opened_values: shapes
+                            .shapes
                             .iter()
-                            .map(|(width, _)| vec![BabyBear::zero(); *width])
+                            .map(|shape| vec![BabyBear::zero(); shape.width])
                             .collect(),
-                        opening_proof: vec![dummy_hash().into(); *batch_max_height + log_blowup],
+                        opening_proof: vec![dummy_hash().into(); batch_max_height + log_blowup],
                     }
                 })
                 .collect::<Vec<_>>()
@@ -698,9 +712,17 @@ mod tests {
             .collect::<Vec<_>>();
         pcs.verify(vec![(commit, os.clone())], &proof, &mut challenger).unwrap();
 
+        let batch_shapes = vec![PolynomialBatchShape {
+            shapes: log_degrees
+                .iter()
+                .copied()
+                .map(|d| PolynomialShape { width: 100, log_degree: d })
+                .collect(),
+        }];
+
         let dummy_proof = dummy_pcs_proof(
             inner_fri_config().num_queries,
-            vec![log_degrees.iter().copied().map(|d| (100, d)).collect()],
+            &batch_shapes,
             inner_fri_config().log_blowup,
         );
 

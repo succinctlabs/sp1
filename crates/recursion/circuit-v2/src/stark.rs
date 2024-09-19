@@ -1,10 +1,12 @@
 use hashbrown::HashMap;
 use itertools::{izip, Itertools};
+
 use num_traits::cast::ToPrimitive;
-use p3_air::Air;
+
+use p3_air::{Air, BaseAir};
 use p3_baby_bear::BabyBear;
 use p3_commit::{Mmcs, Pcs, PolynomialSpace, TwoAdicMultiplicativeCoset};
-use p3_field::{Field, TwoAdicField};
+use p3_field::{AbstractField, ExtensionField, Field, TwoAdicField};
 use p3_matrix::dense::RowMajorMatrix;
 
 use sp1_recursion_compiler::{
@@ -12,12 +14,18 @@ use sp1_recursion_compiler::{
     ir::{Builder, Config, Ext},
     prelude::Felt,
 };
-use sp1_stark::{air::InteractionScope, ShardCommitment, ShardOpenedValues, Val};
+use sp1_stark::{
+    air::InteractionScope, baby_bear_poseidon2::BabyBearPoseidon2, AirOpenedValues, Chip,
+    ChipOpenedValues, InnerChallenge, ProofShape, ShardCommitment, ShardOpenedValues, ShardProof,
+    Val, PROOF_MAX_NUM_PVS,
+};
 use sp1_stark::{air::MachineAir, StarkGenericConfig, StarkMachine, StarkVerifyingKey};
 
 use crate::{
-    challenger::CanObserveVariable, hash::FieldHasherVariable, CircuitConfig,
-    TwoAdicPcsMatsVariable, TwoAdicPcsProofVariable,
+    challenger::CanObserveVariable,
+    fri::{dummy_hash, dummy_pcs_proof, PolynomialBatchShape, PolynomialShape},
+    hash::FieldHasherVariable,
+    BabyBearFriConfig, CircuitConfig, TwoAdicPcsMatsVariable, TwoAdicPcsProofVariable,
 };
 
 use crate::{
@@ -35,6 +43,145 @@ pub struct ShardProofVariable<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConf
     pub chip_ordering: HashMap<String, usize>,
     pub chip_scopes: Vec<InteractionScope>,
     pub public_values: Vec<Felt<C::F>>,
+}
+
+/// Make a dummy shard proof for a given proof shape.
+pub fn dummy_shard_proof<A: MachineAir<BabyBear>>(
+    machine: &StarkMachine<BabyBearPoseidon2, A>,
+    vk: &StarkVerifyingKey<BabyBearPoseidon2>,
+    shape: &ProofShape,
+) -> ShardProof<BabyBearPoseidon2> {
+    // Make a dummy commitment.
+    let commitment = ShardCommitment {
+        global_main_commit: dummy_hash(),
+        local_main_commit: dummy_hash(),
+        permutation_commit: dummy_hash(),
+        quotient_commit: dummy_hash(),
+    };
+
+    // Get dummy opened values by reading the chip ordering from the shape.
+    let chip_ordering = shape
+        .chip_information
+        .iter()
+        .enumerate()
+        .map(|(i, (name, _))| (name.clone(), i))
+        .collect::<HashMap<_, _>>();
+    let shard_chips = machine.shard_chips_ordered(&chip_ordering).collect::<Vec<_>>();
+    let chip_scopes = shard_chips.iter().map(|chip| chip.commit_scope()).collect::<Vec<_>>();
+    let has_global_main_commit = chip_scopes.contains(&InteractionScope::Global);
+    let opened_values = ShardOpenedValues {
+        chips: shard_chips
+            .iter()
+            .zip_eq(shape.chip_information.iter())
+            .map(|(chip, (_, log_degree))| {
+                dummy_opened_values::<_, InnerChallenge, _>(chip, *log_degree)
+            })
+            .collect(),
+    };
+
+    let mut preprocessed_batch_shape = vec![];
+    let mut global_main_batch_shape = vec![];
+    let mut local_main_batch_shape = vec![];
+    let mut permutation_batch_shape = vec![];
+    let mut quotient_batch_shape = vec![];
+
+    for info in vk.chip_information.iter() {
+        let name = &info.0;
+        let i = chip_ordering[name];
+        let opened_values = &opened_values.chips[i];
+        let prep_shape = PolynomialShape {
+            width: opened_values.preprocessed.local.len(),
+            log_degree: opened_values.log_degree,
+        };
+        preprocessed_batch_shape.push(prep_shape);
+    }
+
+    for (chip_opening, scope) in opened_values.chips.iter().zip_eq(chip_scopes.iter()) {
+        let main_shape = PolynomialShape {
+            width: chip_opening.main.local.len(),
+            log_degree: chip_opening.log_degree,
+        };
+        match scope {
+            InteractionScope::Global => global_main_batch_shape.push(main_shape),
+            InteractionScope::Local => local_main_batch_shape.push(main_shape),
+        }
+        let permutation_shape = PolynomialShape {
+            width: chip_opening.permutation.local.len(),
+            log_degree: chip_opening.log_degree,
+        };
+        permutation_batch_shape.push(permutation_shape);
+        for quot_chunk in chip_opening.quotient.iter() {
+            assert_eq!(quot_chunk.len(), 4);
+            quotient_batch_shape.push(PolynomialShape {
+                width: quot_chunk.len(),
+                log_degree: chip_opening.log_degree,
+            });
+        }
+    }
+
+    let batch_shapes = if has_global_main_commit {
+        vec![
+            PolynomialBatchShape { shapes: preprocessed_batch_shape },
+            PolynomialBatchShape { shapes: global_main_batch_shape },
+            PolynomialBatchShape { shapes: local_main_batch_shape },
+            PolynomialBatchShape { shapes: permutation_batch_shape },
+            PolynomialBatchShape { shapes: quotient_batch_shape },
+        ]
+    } else {
+        vec![
+            PolynomialBatchShape { shapes: preprocessed_batch_shape },
+            PolynomialBatchShape { shapes: local_main_batch_shape },
+            PolynomialBatchShape { shapes: permutation_batch_shape },
+            PolynomialBatchShape { shapes: quotient_batch_shape },
+        ]
+    };
+
+    let fri_queries = machine.config().fri_config().num_queries;
+    let log_blowup = machine.config().fri_config().log_blowup;
+    let opening_proof = dummy_pcs_proof(fri_queries, &batch_shapes, log_blowup);
+
+    let public_values = (0..PROOF_MAX_NUM_PVS).map(|_| BabyBear::zero()).collect::<Vec<_>>();
+
+    ShardProof {
+        commitment,
+        opened_values,
+        opening_proof,
+        chip_ordering,
+        chip_scopes,
+        public_values,
+    }
+}
+
+fn dummy_opened_values<F: Field, EF: ExtensionField<F>, A: MachineAir<F>>(
+    chip: &Chip<F, A>,
+    log_degree: usize,
+) -> ChipOpenedValues<EF> {
+    let preprocessed_width = chip.preprocessed_width();
+    let preprocessed = AirOpenedValues {
+        local: vec![EF::zero(); preprocessed_width],
+        next: vec![EF::zero(); preprocessed_width],
+    };
+    let main_width = chip.width();
+    let main =
+        AirOpenedValues { local: vec![EF::zero(); main_width], next: vec![EF::zero(); main_width] };
+
+    let permutation_width = chip.permutation_width();
+    let permutation = AirOpenedValues {
+        local: vec![EF::zero(); permutation_width * EF::D],
+        next: vec![EF::zero(); permutation_width * EF::D],
+    };
+    let quotient_width = chip.quotient_width();
+    let quotient = (0..quotient_width).map(|_| vec![EF::zero(); EF::D]).collect::<Vec<_>>();
+
+    ChipOpenedValues {
+        preprocessed,
+        main,
+        permutation,
+        quotient,
+        global_cumulative_sum: EF::zero(),
+        local_cumulative_sum: EF::zero(),
+        log_degree,
+    }
 }
 
 #[derive(Clone)]
@@ -348,10 +495,10 @@ pub mod tests {
 
     type F = InnerVal;
     type A = RiscvAir<F>;
+    type SC = BabyBearPoseidon2;
 
     pub fn build_verify_shard_with_provers<
-        C: CircuitConfig<F = InnerVal, Bit = Felt<InnerVal>>,
-        SC: BabyBearFriConfigVariable<C> + Default + Sync + Send,
+        C: CircuitConfig<F = InnerVal, EF = InnerChallenge, Bit = Felt<InnerVal>>,
         CoreP: MachineProver<SC, A>,
         RecP: MachineProver<SC, RecursionAir<F, 3, 0>>,
     >(
@@ -359,18 +506,7 @@ pub mod tests {
         elf: &[u8],
         opts: SP1CoreOpts,
         num_shards_in_batch: Option<usize>,
-    ) -> (TracedVec<DslIr<C>>, Vec<Block<BabyBear>>)
-    where
-        SC::Challenger: Send,
-        <<SC as BabyBearFriConfig>::ValMmcs as Mmcs<BabyBear>>::ProverData<
-            RowMajorMatrix<BabyBear>,
-        >: Send + Sync,
-        <<SC as BabyBearFriConfig>::ValMmcs as Mmcs<BabyBear>>::Commitment: Send + Sync,
-        <<SC as BabyBearFriConfig>::ValMmcs as Mmcs<BabyBear>>::Proof: Send,
-        StarkVerifyingKey<SC>: Witnessable<C, WitnessVariable = VerifyingKeyVariable<C, SC>>,
-        ShardProof<SC>: Witnessable<C, WitnessVariable = ShardProofVariable<C, SC>>,
-    {
-        // Generate a dummy proof.
+    ) -> (TracedVec<DslIr<C>>, Vec<Block<BabyBear>>) {
         setup_logger();
 
         let machine = RiscvAir::<C::F>::machine(SC::default());
@@ -380,7 +516,6 @@ pub mod tests {
                 .unwrap();
         let mut challenger = machine.config().challenger();
         machine.verify(&vk, &proof, &mut challenger).unwrap();
-        println!("Proof generated successfully");
 
         // Observe all the commitments.
         let mut builder = Builder::<C>::default();
@@ -390,7 +525,8 @@ pub mod tests {
         // Add a hash invocation, since the poseidon2 table expects that it's in the first row.
         let mut challenger = config.challenger_variable(&mut builder);
         // let vk = VerifyingKeyVariable::from_constant_key_babybear(&mut builder, &vk);
-        vk.write(&mut witness_stream);
+        Witnessable::<C>::write(&vk, &mut witness_stream);
+        let vk_value = vk.clone();
         let vk: VerifyingKeyVariable<_, _> = vk.read(&mut builder);
         vk.observe_into(&mut builder, &mut challenger);
 
@@ -398,8 +534,10 @@ pub mod tests {
             .shard_proofs
             .into_iter()
             .map(|proof| {
-                proof.write(&mut witness_stream);
-                proof.read(&mut builder)
+                let shape = proof.shape();
+                let dummy_proof = dummy_shard_proof(&machine, &vk_value, &shape);
+                Witnessable::<C>::write(&proof, &mut witness_stream);
+                dummy_proof.read(&mut builder)
             })
             .collect::<Vec<_>>();
         // Observe all the commitments, and put the proofs into the witness stream.
@@ -432,12 +570,12 @@ pub mod tests {
     #[test]
     fn test_verify_shard_inner() {
         let (operations, stream) =
-            build_verify_shard_with_provers::<
-                InnerConfig,
-                BabyBearPoseidon2,
-                CpuProver<_, _>,
-                CpuProver<_, _>,
-            >(BabyBearPoseidon2::new(), FIBONACCI_ELF, SP1CoreOpts::default(), Some(2));
+            build_verify_shard_with_provers::<InnerConfig, CpuProver<_, _>, CpuProver<_, _>>(
+                BabyBearPoseidon2::new(),
+                FIBONACCI_ELF,
+                SP1CoreOpts::default(),
+                Some(2),
+            );
         run_test_recursion_with_prover::<CpuProver<_, _>>(operations, stream);
     }
 }
