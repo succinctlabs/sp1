@@ -1,4 +1,4 @@
-use super::syscall_u256x2048_mul;
+use super::syscall_uint256_mulmod;
 
 /// The number of limbs in a "uint256".
 const N: usize = 8;
@@ -34,6 +34,6 @@ pub extern "C" fn sys_bigint_uma(
         // This syscall writes the result in-place, so it will mutate the result ptr appropriately.
         let result_ptr = result_ptr as *mut [u32; N];
         let concat_ptr = concat_ptr as *mut [u32; N];
-        syscall_u256x2048_mul(result_ptr, concat_ptr);
+        syscall_uint256_mulmod(result_ptr, concat_ptr);
     }
 }

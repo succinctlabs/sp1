@@ -11,14 +11,21 @@ use core::arch::asm;
 /// byte boundary.
 #[allow(unused_variables)]
 #[no_mangle]
-pub extern "C" fn syscall_u256x2048_mul(x: *mut [u32; 8], y: *const [u32; 8]) {
+pub extern "C" fn syscall_u256x2048_mul(
+    a: *const [u32; 8],
+    b: *const [u32; 64],
+    lo: *mut [u32; 64],
+    hi: *mut [u32; 8],
+) {
     #[cfg(target_os = "zkvm")]
     unsafe {
         asm!(
             "ecall",
             in("t0") crate::syscalls::U256XU2048_MUL,
-            in("a0") x,
-            in("a1") y,
+            in("a0") a,
+            in("a1") b,
+            in("a2") lo,
+            in("a3") hi,
         );
     }
 
