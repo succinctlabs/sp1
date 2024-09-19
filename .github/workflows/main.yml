@@ -87,6 +87,7 @@ jobs:
         run: |
           echo "ERROR: You can only merge to main from dev, release/*, or hotfix/*."
           exit 1
+          
   ssz-withdrawals:
     name: Example (SSZ Withdrawals)
     runs-on:
