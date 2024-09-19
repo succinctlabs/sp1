@@ -1,5 +1,51 @@
 # Common Issues
 
+## `cargo prove build` fails to compile `getrandom`
+
+If you are running into an error like this:
+
+```txt
+[sp1]     Compiling getrandom v0.2.10
+[sp1]  error: target is not supported, for more information see: https://docs.rs/getrandom/#unsupported-targets
+[sp1]     --> /Users/umaroy/.cargo/registry/src/index.crates.io-6f17d22bba15001f/getrandom-0.2.10/src/lib.rs:290:9
+[sp1]      |
+[sp1]  290 | /         compile_error!("target is not supported, for more information see: \
+[sp1]  291 | |                         https://docs.rs/getrandom/#unsupported-targets");
+[sp1]      | |________________________________________________________________________^
+[sp1]
+[sp1]  error[E0433]: failed to resolve: use of undeclared crate or module `imp`
+[sp1]     --> /Users/umaroy/.cargo/registry/src/index.crates.io-6f17d22bba15001f/getrandom-0.2.10/src/lib.rs:341:9
+[sp1]      |
+[sp1]  341 |         imp::getrandom_inner(dest)?;
+[sp1]      |         ^^^ use of undeclared crate or module `imp`
+[sp1]
+[sp1]  For more information about this error, try `rustc --explain E0433`.
+[sp1]  error: could not compile `getrandom` (lib) due to 2 previous errors
+```
+
+The first solution is to import `sp1-zkvm` in your crate, which will ensure that the `getrandom` dependency is [shimmed correctly](https://github.com/succinctlabs/sp1/blob/dev/crates/zkvm/entrypoint/src/lib.rs#L81).
+
+Otherwise, to fix this manually, you can add the following code that will implement a custom `getrandom` function that always returns an error and will compile within SP1:
+
+```
+#[cfg(target_os = "zkvm")]
+mod random_shim {
+    use getrandom::register_custom_getrandom;
+
+    register_custom_getrandom!(return_err);
+
+    pub fn return_err(_buf: &mut [u8]) -> Result<(), getrandom::Error> {
+        Err(getrandom::Error::UNEXPECTED)
+    }
+}
+```
+
+Make sure to import `getrandom` in your `Cargo.toml` with the `custom` feature:
+
+```
+getrandom = { version = "0.2", features = ["custom"] }
+```
+
 ## Bus Error
 
 If you are running a executable that uses the `sp1-sdk` crate, you may encounter a bus error like this:

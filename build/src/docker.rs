@@ -3,7 +3,7 @@ use std::process::{exit, Command, Stdio};
 use anyhow::{Context, Result};
 use cargo_metadata::camino::Utf8PathBuf;
 
-use crate::{get_program_build_args, get_rust_compiler_flags, BuildArgs};
+use crate::{get_rust_compiler_flags, BuildArgs};
 
 /// Uses SP1_DOCKER_IMAGE environment variable if set, otherwise constructs the image to use based
 /// on the provided tag.
@@ -63,7 +63,7 @@ pub fn create_docker_command(
     ];
 
     // Add the SP1 program build arguments.
-    docker_args.extend_from_slice(&get_program_build_args(args));
+    docker_args.extend_from_slice(&args.get_program_build_args());
 
     let mut command = Command::new("docker");
     command.current_dir(program_dir.clone()).args(&docker_args);

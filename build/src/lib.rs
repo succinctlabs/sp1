@@ -11,6 +11,7 @@ use std::{
     process::{exit, Command, Stdio},
     thread,
 };
+pub mod check;
 
 const BUILD_TARGET: &str = "riscv32im-succinct-zkvm-elf";
 const DEFAULT_TAG: &str = "v1.1.0";
@@ -85,38 +86,39 @@ impl Default for BuildArgs {
     }
 }
 
-/// Get the arguments to build the program with the arguments from the [`BuildArgs`] struct.
-fn get_program_build_args(args: &BuildArgs) -> Vec<String> {
-    let mut build_args = vec![
-        "build".to_string(),
-        "--release".to_string(),
-        "--target".to_string(),
-        BUILD_TARGET.to_string(),
-    ];
+impl BuildArgs {
+    fn get_program_build_args(&self) -> Vec<String> {
+        let mut build_args = vec![
+            "build".to_string(),
+            "--release".to_string(),
+            "--target".to_string(),
+            BUILD_TARGET.to_string(),
+        ];
 
-    if args.ignore_rust_version {
-        build_args.push("--ignore-rust-version".to_string());
+        if self.ignore_rust_version {
+            build_args.push("--ignore-rust-version".to_string());
+        }
+
+        if !self.binary.is_empty() {
+            build_args.push("--bin".to_string());
+            build_args.push(self.binary.clone());
+        }
+
+        if !self.features.is_empty() {
+            build_args.push("--features".to_string());
+            build_args.push(self.features.join(","));
+        }
+
+        if self.no_default_features {
+            build_args.push("--no-default-features".to_string());
+        }
+
+        if self.locked {
+            build_args.push("--locked".to_string());
+        }
+
+        build_args
     }
-
-    if !args.binary.is_empty() {
-        build_args.push("--bin".to_string());
-        build_args.push(args.binary.clone());
-    }
-
-    if !args.features.is_empty() {
-        build_args.push("--features".to_string());
-        build_args.push(args.features.join(","));
-    }
-
-    if args.no_default_features {
-        build_args.push("--no-default-features".to_string());
-    }
-
-    if args.locked {
-        build_args.push("--locked".to_string());
-    }
-
-    build_args
 }
 
 /// Rust flags for compilation of C libraries.
@@ -131,9 +133,8 @@ fn get_rust_compiler_flags() -> String {
     ];
     rust_flags.join("\x1f")
 }
-
-/// Get the command to build the program locally.
-fn create_local_command(args: &BuildArgs, program_dir: &Utf8PathBuf) -> Command {
+/// Get the command to run cargo with the provided args locally.
+fn create_local_command(args: &Vec<String>, program_dir: &Utf8PathBuf) -> Command {
     let mut command = Command::new("cargo");
     let canonicalized_program_dir = program_dir
         .canonicalize()
@@ -157,7 +158,7 @@ fn create_local_command(args: &BuildArgs, program_dir: &Utf8PathBuf) -> Command 
         .current_dir(canonicalized_program_dir)
         .env("RUSTUP_TOOLCHAIN", "succinct")
         .env("CARGO_ENCODED_RUSTFLAGS", get_rust_compiler_flags())
-        .args(&get_program_build_args(args));
+        .args(args);
     command
 }
 
@@ -286,7 +287,7 @@ pub fn build_program(args: &BuildArgs, program_dir: Option<PathBuf>) -> Result<U
     let cmd = if args.docker {
         docker::create_docker_command(args, &program_dir, &metadata.workspace_root)?
     } else {
-        create_local_command(args, &program_dir)
+        create_local_command(&args.get_program_build_args(), &program_dir)
     };
 
     let program_metadata_file = program_dir.join("Cargo.toml");
