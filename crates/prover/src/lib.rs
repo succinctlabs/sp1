@@ -74,8 +74,8 @@ use sp1_recursion_core_v2::{
 use sp1_recursion_circuit_v2::{
     hash::FieldHasher,
     machine::{
-        SP1CompressRootVerifier, SP1CompressRootVerifierWithVKey, SP1CompressShape,
-        SP1CompressWithVKeyVerifier, SP1CompressWithVKeyWitnessValues, SP1CompressWitnessValues,
+        SP1CompressRootVerifier, SP1CompressRootVerifierWithVKey, SP1CompressWithVKeyVerifier,
+        SP1CompressWithVKeyWitnessValues, SP1CompressWithVkeyShape, SP1CompressWitnessValues,
         SP1DeferredVerifier, SP1DeferredWitnessValues, SP1MerkleProofWitnessValues,
         SP1RecursionShape, SP1RecursionWitnessValues, SP1RecursiveVerifier,
     },
@@ -133,7 +133,8 @@ pub struct SP1Prover<C: SP1ProverComponents = DefaultProverComponents> {
 
     pub recursion_cache_misses: AtomicUsize,
 
-    pub compress_programs: Mutex<LruCache<SP1CompressShape, Arc<RecursionProgram<BabyBear>>>>,
+    pub compress_programs:
+        Mutex<LruCache<SP1CompressWithVkeyShape, Arc<RecursionProgram<BabyBear>>>>,
 
     pub compress_cache_misses: AtomicUsize,
 
@@ -314,38 +315,12 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                 // Get the operations.
                 let builder_span = tracing::debug_span!("build recursion program").entered();
                 let mut builder = Builder::<InnerConfig>::default();
-                let mut dummy_input = SP1RecursionWitnessValues::<CoreSC>::dummy(
+                let dummy_input = SP1RecursionWitnessValues::<CoreSC>::dummy(
                     self.core_prover.machine(),
                     &input.shape(),
                 );
 
-                for proof in input.shard_proofs.iter() {
-                    println!("Proof shape: {:?}", proof.shape());
-                    println!("Proof chip ordering: {:?}", proof.chip_ordering);
-                }
-                // let leaf_challenger = input.leaf_challenger.clone();
-                // println!(
-                //     "Leaf challenger stats: spinge state len: {}, input buffer len: {}, output buffer len: {}",
-                //     leaf_challenger.sponge_state.len(),
-                //     leaf_challenger.input_buffer.len(),
-                //     leaf_challenger.output_buffer.len()
-                // );
-                // let initial_reconstruct_challenger = input.initial_reconstruct_challenger.clone();
-                // println!(
-                //     "Initial reconstruct challenger stats: spinge state len: {}, input buffer len: {}, output buffer len: {}",
-                //     initial_reconstruct_challenger.sponge_state.len(),
-                //     initial_reconstruct_challenger.input_buffer.len(),
-                //     initial_reconstruct_challenger.output_buffer.len()
-                // );
-                println!("Dummy vk chip information: {:?}", dummy_input.vk.chip_information);
-                println!("vk chip information: {:?}", input.vk.chip_information);
-                // dummy_input.vk = input.vk.clone();
-                dummy_input.shard_proofs = input.shard_proofs.clone();
-                // dummy_input.leaf_challenger = leaf_challenger;
-                // dummy_input.initial_reconstruct_challenger = initial_reconstruct_challenger;
-
                 let input = dummy_input.read(&mut builder);
-                // let input = input.read(&mut builder);
                 SP1RecursiveVerifier::verify(&mut builder, self.core_prover.machine(), input);
                 let operations = builder.into_operations();
                 builder_span.exit();
@@ -376,7 +351,12 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                 // Get the operations.
                 let builder_span = tracing::debug_span!("build compress program").entered();
                 let mut builder = Builder::<InnerConfig>::default();
-                let input = input.read(&mut builder);
+                let dummy_input = SP1CompressWithVKeyWitnessValues::<CoreSC>::dummy(
+                    self.compress_prover.machine(),
+                    &input.shape(),
+                );
+                let input = dummy_input.read(&mut builder);
+                // let input = input.read(&mut builder);
                 SP1CompressWithVKeyVerifier::verify(
                     &mut builder,
                     self.compress_prover.machine(),
