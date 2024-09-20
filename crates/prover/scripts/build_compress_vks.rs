@@ -2,8 +2,11 @@ use std::{fs::File, path::PathBuf};
 
 use clap::Parser;
 use p3_baby_bear::BabyBear;
-use sp1_core_machine::{riscv::CoreShapeConfig, utils::setup_logger};
-use sp1_prover::{utils::get_all_vk_digests, InnerSC, REDUCE_BATCH_SIZE};
+use sp1_core_machine::{
+    riscv::{CoreShapeConfig, RiscvAir},
+    utils::setup_logger,
+};
+use sp1_prover::{utils::get_all_vk_digests, CompressAir, CoreSC, InnerSC, REDUCE_BATCH_SIZE};
 use sp1_recursion_circuit_v2::merkle_tree::MerkleTree;
 use sp1_recursion_core_v2::shape::RecursionShapeConfig;
 
@@ -30,8 +33,17 @@ fn main() {
 
     std::fs::create_dir_all(&build_dir).expect("failed to create build directory");
 
+    let core_machine = RiscvAir::machine(CoreSC::default());
+    let compress_machine = CompressAir::compress_machine(InnerSC::default());
+
     tracing::info!("building compress vk map");
-    let vk_map = get_all_vk_digests(&core_shape_config, &recursion_shape_config, reduce_batch_size);
+    let vk_map = get_all_vk_digests(
+        &core_machine,
+        &compress_machine,
+        &core_shape_config,
+        &recursion_shape_config,
+        reduce_batch_size,
+    );
     tracing::info!("compress vks generated, number of keys: {}", vk_map.len());
 
     // Save the vk map to a file.
