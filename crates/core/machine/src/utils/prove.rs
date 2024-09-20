@@ -504,15 +504,15 @@ where
                             // Let another worker update the state.
                             record_gen_sync.advance_turn();
 
-                            #[cfg(feature = "debug")]
-                            all_records_tx.send(records.clone()).unwrap();
-
                             // Fix the shape of the records.
                             if let Some(shape_config) = shape_config {
                                 for record in records.iter_mut() {
                                     shape_config.fix_shape(record).unwrap();
                                 }
                             }
+
+                            #[cfg(feature = "debug")]
+                            all_records_tx.send(records.clone()).unwrap();
 
                             // Generate the traces.
                             let mut local_traces = Vec::new();
