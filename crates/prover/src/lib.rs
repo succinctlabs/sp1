@@ -521,7 +521,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                 vks_and_proofs,
                 start_reconstruct_deferred_digest: deferred_digest,
                 is_complete: false,
-                sp1_vk: vk.clone(),
+                sp1_vk_digest: vk.hash_babybear(),
                 end_pc: Val::<InnerSC>::zero(),
                 end_shard: last_proof_pv.shard + BabyBear::one(),
                 end_execution_shard: last_proof_pv.execution_shard,

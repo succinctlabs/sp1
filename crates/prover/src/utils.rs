@@ -13,9 +13,15 @@ use sp1_core_machine::{io::SP1Stdin, reduce::SP1ReduceProof, riscv::CoreShapeCon
 use sp1_recursion_core_v2::{
     air::RecursionPublicValues, shape::RecursionShapeConfig, stark::config::BabyBearPoseidon2Outer,
 };
-use sp1_stark::{SP1CoreOpts, Word};
+use sp1_stark::{ProofShape, SP1CoreOpts, Word};
 
 use crate::{CompressAir, SP1CoreProofData};
+
+pub enum SP1ProofShape {
+    Recursion(ProofShape),
+    Compress(Vec<ProofShape>),
+    Deferred(ProofShape),
+}
 
 /// Get the SP1 vkey BabyBear Poseidon2 digest this reduce proof is representing.
 pub fn sp1_vkey_digest_babybear(proof: &SP1ReduceProof<BabyBearPoseidon2Outer>) -> [BabyBear; 8] {
