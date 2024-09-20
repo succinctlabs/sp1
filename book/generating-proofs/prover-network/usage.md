@@ -1,6 +1,6 @@
 # Prover Network: Usage
 
-> **See [Supported Versions](../versions.md) for the currently supported versions of SP1 on the Prover Network.**
+> **See [Supported Versions](./versions.md) for the currently supported versions of SP1 on the Prover Network.**
 
 ## Sending a proof request
 
