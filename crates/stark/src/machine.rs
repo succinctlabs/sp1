@@ -205,13 +205,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
         named_preprocessed_traces
             .sort_by_key(|(name, trace)| (Reverse(trace.height()), name.clone()));
 
-        println!("Named traces and heights during setup");
-        for (name, trace) in named_preprocessed_traces.iter() {
-            println!("Name: {:?}, height: {}", name, trace.height());
-        }
-
         let pcs = self.config.pcs();
-
         let (chip_information, domains_and_traces): (Vec<_>, Vec<_>) = named_preprocessed_traces
             .iter()
             .map(|(name, trace)| {

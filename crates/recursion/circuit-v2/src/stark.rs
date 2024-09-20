@@ -86,10 +86,7 @@ pub fn dummy_vk_and_shard_proof<A: MachineAir<BabyBear>>(
             .collect(),
     };
 
-    println!("Chip ordering: {:?}", chip_ordering);
-
     let mut preprocessed_names_and_dimensions = vec![];
-
     let mut preprocessed_batch_shape = vec![];
     let mut global_main_batch_shape = vec![];
     let mut local_main_batch_shape = vec![];
