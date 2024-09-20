@@ -22,12 +22,20 @@ pub(crate) fn copy_elf_to_output_dir(
         HELPER_TARGET_SUBDIR.to_string()
     };
 
+    // The ELF's file name is the binary name if it's specified. Otherwise, it is the root package
+    // name.
+    let original_elf_file_name = if !args.binary.is_empty() {
+        args.binary.clone()
+    } else {
+        root_package_name.unwrap().clone()
+    };
+
     let original_elf_path = program_metadata
         .target_directory
         .join(target_dir_suffix)
         .join(BUILD_TARGET)
         .join("release")
-        .join(root_package_name.unwrap());
+        .join(original_elf_file_name);
 
     // The order of precedence for the ELF name is:
     // 1. --elf_name flag
