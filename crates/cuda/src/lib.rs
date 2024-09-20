@@ -85,7 +85,7 @@ impl SP1CudaProver {
     /// [SP1ProverClient] that can be used to communicate with the container.
     pub fn new() -> Result<Self, Box<dyn StdError>> {
         let container_name = "sp1-gpu";
-        let image_name = "jtguibas/sp1-gpu:v1.3.0-rc1";
+        let image_name = "jtguibas/sp1-gpu:v3.0-rc2";
 
         let cleaned_up = Arc::new(AtomicBool::new(false));
         let cleanup_name = container_name;
