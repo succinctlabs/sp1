@@ -314,7 +314,38 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                 // Get the operations.
                 let builder_span = tracing::debug_span!("build recursion program").entered();
                 let mut builder = Builder::<InnerConfig>::default();
-                let input = input.read(&mut builder);
+                let mut dummy_input = SP1RecursionWitnessValues::<CoreSC>::dummy(
+                    self.core_prover.machine(),
+                    &input.shape(),
+                );
+
+                for proof in input.shard_proofs.iter() {
+                    println!("Proof shape: {:?}", proof.shape());
+                    println!("Proof chip ordering: {:?}", proof.chip_ordering);
+                }
+                // let leaf_challenger = input.leaf_challenger.clone();
+                // println!(
+                //     "Leaf challenger stats: spinge state len: {}, input buffer len: {}, output buffer len: {}",
+                //     leaf_challenger.sponge_state.len(),
+                //     leaf_challenger.input_buffer.len(),
+                //     leaf_challenger.output_buffer.len()
+                // );
+                // let initial_reconstruct_challenger = input.initial_reconstruct_challenger.clone();
+                // println!(
+                //     "Initial reconstruct challenger stats: spinge state len: {}, input buffer len: {}, output buffer len: {}",
+                //     initial_reconstruct_challenger.sponge_state.len(),
+                //     initial_reconstruct_challenger.input_buffer.len(),
+                //     initial_reconstruct_challenger.output_buffer.len()
+                // );
+                println!("Dummy vk chip information: {:?}", dummy_input.vk.chip_information);
+                println!("vk chip information: {:?}", input.vk.chip_information);
+                // dummy_input.vk = input.vk.clone();
+                dummy_input.shard_proofs = input.shard_proofs.clone();
+                // dummy_input.leaf_challenger = leaf_challenger;
+                // dummy_input.initial_reconstruct_challenger = initial_reconstruct_challenger;
+
+                let input = dummy_input.read(&mut builder);
+                // let input = input.read(&mut builder);
                 SP1RecursiveVerifier::verify(&mut builder, self.core_prover.machine(), input);
                 let operations = builder.into_operations();
                 builder_span.exit();
