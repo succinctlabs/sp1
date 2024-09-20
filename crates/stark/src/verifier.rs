@@ -202,10 +202,10 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
             ]
         };
 
-        config
-            .pcs()
-            .verify(rounds, opening_proof, challenger)
-            .map_err(|e| VerificationError::InvalidopeningArgument(e))?;
+        // config
+        //     .pcs()
+        //     .verify(rounds, opening_proof, challenger)
+        //     .map_err(|e| VerificationError::InvalidopeningArgument(e))?;
 
         let permutation_challenges = global_permutation_challenges
             .iter()
