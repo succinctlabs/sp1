@@ -5,6 +5,14 @@ version = "1.1.0"
 edition = "2021"
 publish = false
 
+[[bin]]
+name = "normal"
+path = "bin/normal.rs"
+
+[[bin]]
+name = "report"
+path = "bin/report.rs"
+
 [dependencies]
 sp1-zkvm = { path = "../../../crates/zkvm/entrypoint" }
 sp1-derive = { path = "../../../crates/derive" }

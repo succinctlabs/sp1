@@ -128,6 +128,42 @@ jobs:
           cargo add sp1-sdk --path $GITHUB_WORKSPACE/crates/sdk
           SP1_DEV=1 RUST_LOG=info cargo run --release
 
+  cycle-tracking:
+    name: Example (Cycle Tracking)
+    runs-on:
+      [
+        runs-on,
+        runner=64cpu-linux-arm64,
+        spot=false,
+        "run-id=${{ github.run_id }}",
+      ]
+    env:
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+
+      - name: Setup CI
+        uses: ./.github/actions/setup
+
+      - name: Install SP1 toolchain
+        run: |
+          curl -L https://sp1.succinct.xyz | bash
+          ~/.sp1/bin/sp1up 
+          ~/.sp1/bin/cargo-prove prove --version
+
+      - name: Install SP1 CLI
+        run: |
+          cd crates/cli
+          cargo install --force --locked --path .
+          cd ~
+
+      - name: Run script
+        run: |
+          cd examples/cycle-tracking/script
+          cargo add sp1-sdk --path $GITHUB_WORKSPACE/crates/sdk
+          SP1_DEV=1 RUST_LOG=info cargo run --release
+
   tendermint:
     name: Example (Tendermint)
     runs-on:
@@ -167,3 +203,37 @@ jobs:
           cargo remove sp1-sdk
           cargo add sp1-sdk --path $GITHUB_WORKSPACE/crates/sdk
           SP1_DEV=1 RUST_LOG=info cargo run --release
+  test-cuda:
+    name: Test CUDA
+    runs-on: nvidia-gpu-linux-x64
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+
+      - name: rust-cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+            ~/.rustup/
+          key: rust-1.79.0-${{ hashFiles('**/Cargo.toml') }}
+          restore-keys: rust-1.79.0-
+
+      - name: Setup toolchain
+        id: rustc-toolchain
+        shell: bash
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --default-toolchain 1.79.0 -y
+
+      - name: Run script
+        run: |
+          . "$HOME/.cargo/env"
+          curl -L https://sp1.succinct.xyz | bash
+          /home/runner/.sp1/bin/sp1up
+          sudo apt install libssl-dev pkg-config
+          cd examples/fibonacci
+          RUST_LOG=info cargo run --release --features cuda
