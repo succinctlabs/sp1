@@ -328,11 +328,6 @@ where
         // Create the challenger and observe the verifying key.
         let mut challenger = prover.config().challenger();
         pk.observe_into(&mut challenger);
-        // challenger.observe(pk.preprocessed_commit());
-        // challenger.observe(pk.pc_start());
-        // for _ in 0..7 {
-        //     challenger.observe(Val::<SC>::zero());
-        // }
 
         // Spawn the phase 1 prover thread.
         let phase_1_prover_span = tracing::Span::current().clone();
@@ -509,15 +504,15 @@ where
                             // Let another worker update the state.
                             record_gen_sync.advance_turn();
 
-                            #[cfg(feature = "debug")]
-                            all_records_tx.send(records.clone()).unwrap();
-
                             // Fix the shape of the records.
                             if let Some(shape_config) = shape_config {
                                 for record in records.iter_mut() {
                                     shape_config.fix_shape(record).unwrap();
                                 }
                             }
+
+                            #[cfg(feature = "debug")]
+                            all_records_tx.send(records.clone()).unwrap();
 
                             // Generate the traces.
                             let mut local_traces = Vec::new();

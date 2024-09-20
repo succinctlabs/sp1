@@ -4,11 +4,13 @@ use itertools::Itertools;
 use p3_air::Air;
 use p3_baby_bear::BabyBear;
 use p3_commit::Mmcs;
+use p3_field::AbstractField;
 use p3_matrix::dense::RowMajorMatrix;
 use sp1_recursion_compiler::ir::{Builder, Felt};
 use sp1_recursion_core_v2::DIGEST_SIZE;
 use sp1_stark::{
-    air::MachineAir, Com, InnerChallenge, OpeningProof, StarkGenericConfig, StarkMachine,
+    air::MachineAir, baby_bear_poseidon2::BabyBearPoseidon2, Com, InnerChallenge, OpeningProof,
+    StarkGenericConfig, StarkMachine,
 };
 
 use crate::{
@@ -29,6 +31,13 @@ use super::{
 #[derive(Debug, Clone, Copy)]
 pub struct SP1MerkleProofVerifier<C, SC> {
     _phantom: PhantomData<(C, SC)>,
+}
+
+/// The shape of the compress proof with vk validation proofs.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct SP1CompressWithVkeyShape {
+    pub compress_shape: SP1CompressShape,
+    pub merkle_tree_height: usize,
 }
 
 /// Witness layout for the compress stage verifier.
@@ -119,8 +128,36 @@ where
 }
 
 impl<SC: BabyBearFriConfig + FieldHasher<BabyBear>> SP1CompressWithVKeyWitnessValues<SC> {
-    pub fn shape(&self) -> SP1CompressShape {
-        self.compress_val.shape()
+    pub fn shape(&self) -> SP1CompressWithVkeyShape {
+        let merkle_tree_height = self.merkle_val.vk_merkle_proofs.first().unwrap().path.len();
+        SP1CompressWithVkeyShape { compress_shape: self.compress_val.shape(), merkle_tree_height }
+    }
+}
+
+impl SP1MerkleProofWitnessValues<BabyBearPoseidon2> {
+    pub fn dummy(num_proofs: usize, height: usize) -> Self {
+        let dummy_digest = [BabyBear::zero(); DIGEST_SIZE];
+        let vk_merkle_proofs =
+            vec![MerkleProof { index: 0, path: vec![dummy_digest; height] }; num_proofs];
+        let values = vec![dummy_digest; num_proofs];
+
+        Self { vk_merkle_proofs, values, root: dummy_digest }
+    }
+}
+
+impl SP1CompressWithVKeyWitnessValues<BabyBearPoseidon2> {
+    pub fn dummy<A: MachineAir<BabyBear>>(
+        machine: &StarkMachine<BabyBearPoseidon2, A>,
+        shape: &SP1CompressWithVkeyShape,
+    ) -> Self {
+        let compress_val =
+            SP1CompressWitnessValues::<BabyBearPoseidon2>::dummy(machine, &shape.compress_shape);
+        let num_proofs = compress_val.vks_and_proofs.len();
+        let merkle_val = SP1MerkleProofWitnessValues::<BabyBearPoseidon2>::dummy(
+            num_proofs,
+            shape.merkle_tree_height,
+        );
+        Self { compress_val, merkle_val }
     }
 }
 

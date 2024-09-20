@@ -214,7 +214,9 @@ pub trait MachineProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>>:
                 (Some(global), Some(local)) => {
                     let (global_prover_data_idx, (global_trace, global_chip)) = global;
                     let (local_prover_data_idx, (local_trace, local_chip)) = local;
-                    if global_trace.height() >= local_trace.height() {
+                    if (Reverse(global_trace.height()), global_chip)
+                        < (Reverse(local_trace.height()), local_chip)
+                    {
                         merged_chips.push(global_chip.clone());
                         chip_scopes.push(InteractionScope::Global);
                         merged_prover_data.push(MergedProverDataItem {
@@ -327,7 +329,7 @@ where
         mut named_traces: Vec<(String, RowMajorMatrix<Val<SC>>)>,
     ) -> ShardMainData<SC, Self::DeviceMatrix, Self::DeviceProverData> {
         // Order the chips and traces by trace size (biggest first), and get the ordering map.
-        named_traces.sort_by_key(|(name, trace)| Reverse((trace.height(), name.clone())));
+        named_traces.sort_by_key(|(name, trace)| (Reverse(trace.height()), name.clone()));
 
         let pcs = self.config().pcs();
 

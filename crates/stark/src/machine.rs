@@ -203,10 +203,9 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
 
         // Order the chips and traces by trace size (biggest first), and get the ordering map.
         named_preprocessed_traces
-            .sort_by_key(|(name, trace)| Reverse((trace.height(), name.clone())));
+            .sort_by_key(|(name, trace)| (Reverse(trace.height()), name.clone()));
 
         let pcs = self.config.pcs();
-
         let (chip_information, domains_and_traces): (Vec<_>, Vec<_>) = named_preprocessed_traces
             .iter()
             .map(|(name, trace)| {

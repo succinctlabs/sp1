@@ -74,8 +74,8 @@ use sp1_recursion_core_v2::{
 use sp1_recursion_circuit_v2::{
     hash::FieldHasher,
     machine::{
-        SP1CompressRootVerifier, SP1CompressRootVerifierWithVKey, SP1CompressShape,
-        SP1CompressWithVKeyVerifier, SP1CompressWithVKeyWitnessValues, SP1CompressWitnessValues,
+        SP1CompressRootVerifier, SP1CompressRootVerifierWithVKey, SP1CompressWithVKeyVerifier,
+        SP1CompressWithVKeyWitnessValues, SP1CompressWithVkeyShape, SP1CompressWitnessValues,
         SP1DeferredVerifier, SP1DeferredWitnessValues, SP1MerkleProofWitnessValues,
         SP1RecursionShape, SP1RecursionWitnessValues, SP1RecursiveVerifier,
     },
@@ -133,7 +133,8 @@ pub struct SP1Prover<C: SP1ProverComponents = DefaultProverComponents> {
 
     pub recursion_cache_misses: AtomicUsize,
 
-    pub compress_programs: Mutex<LruCache<SP1CompressShape, Arc<RecursionProgram<BabyBear>>>>,
+    pub compress_programs:
+        Mutex<LruCache<SP1CompressWithVkeyShape, Arc<RecursionProgram<BabyBear>>>>,
 
     pub compress_cache_misses: AtomicUsize,
 
@@ -309,12 +310,19 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         let mut cache = self.recursion_programs.lock().unwrap();
         cache
             .get_or_insert(input.shape(), || {
-                tracing::info!("Proof shape: {:?}", input.shape());
                 let misses = self.recursion_cache_misses.fetch_add(1, Ordering::Relaxed);
-                tracing::debug!("Core cache miss, misses: {}", misses);
+                tracing::debug!("core cache miss, misses: {}", misses);
                 // Get the operations.
                 let builder_span = tracing::debug_span!("build recursion program").entered();
                 let mut builder = Builder::<InnerConfig>::default();
+
+                // // TODO: remove comment or make a test flag.
+                // let dummy_input = SP1RecursionWitnessValues::<CoreSC>::dummy(
+                //     self.core_prover.machine(),
+                //     &input.shape(),
+                // );
+                // let input = dummy_input.read(&mut builder);
+
                 let input = input.read(&mut builder);
                 SP1RecursiveVerifier::verify(&mut builder, self.core_prover.machine(), input);
                 let operations = builder.into_operations();
@@ -346,6 +354,13 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                 // Get the operations.
                 let builder_span = tracing::debug_span!("build compress program").entered();
                 let mut builder = Builder::<InnerConfig>::default();
+
+                // TODO: remove comment or make a test flag.
+                // let dummy_input = SP1CompressWithVKeyWitnessValues::<CoreSC>::dummy(
+                //     self.compress_prover.machine(),
+                //     &input.shape(),
+                // );
+                // let input = dummy_input.read(&mut builder);
                 let input = input.read(&mut builder);
                 SP1CompressWithVKeyVerifier::verify(
                     &mut builder,
@@ -506,7 +521,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                 vks_and_proofs,
                 start_reconstruct_deferred_digest: deferred_digest,
                 is_complete: false,
-                sp1_vk: vk.clone(),
+                sp1_vk_digest: vk.hash_babybear(),
                 end_pc: Val::<InnerSC>::zero(),
                 end_shard: last_proof_pv.shard + BabyBear::one(),
                 end_execution_shard: last_proof_pv.execution_shard,
