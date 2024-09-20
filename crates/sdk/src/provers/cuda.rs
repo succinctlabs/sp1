@@ -17,10 +17,9 @@ pub struct CudaProver {
 
 impl CudaProver {
     /// Creates a new [CudaProver].
-    pub fn new() -> Self {
-        let prover = SP1Prover::new();
+    pub fn new(prover: SP1Prover) -> Self {
         let cuda_prover = SP1CudaProver::new();
-        Self { prover, cuda_prover }
+        Self { prover, cuda_prover: cuda_prover.expect("Failed to initialize CUDA prover") }
     }
 }
 
@@ -102,6 +101,6 @@ impl Prover<DefaultProverComponents> for CudaProver {
 
 impl Default for CudaProver {
     fn default() -> Self {
-        Self::new()
+        Self::new(SP1Prover::new())
     }
 }
