@@ -227,7 +227,7 @@ where
         self.air.eval(builder);
         // Evaluate permutation constraints.
         let batch_size = self.logup_batch_size();
-        // eval_permutation_constraints(&self.sends, &self.receives, batch_size, builder);
+        eval_permutation_constraints(&self.sends, &self.receives, batch_size, builder);
     }
 }
 
