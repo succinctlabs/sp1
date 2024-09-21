@@ -43,11 +43,12 @@ pub struct ExecutionState {
 
     /// Uninitialized memory addresses that have a specific value they should be initialized with.
     /// `SyscallHintRead` uses this to write hint data into uninitialized memory.
-    #[serde(
-        serialize_with = "serialize_hashmap_as_vec",
-        deserialize_with = "deserialize_hashmap_as_vec"
-    )]
-    pub uninitialized_memory: HashMap<u32, u32, BuildNoHashHasher<u32>>,
+    // #[serde(
+    //     serialize_with = "serialize_hashmap_as_vec",
+    //     deserialize_with = "deserialize_hashmap_as_vec"
+    // )]
+    // pub uninitialized_memory: HashMap<u32, u32, BuildNoHashHasher<u32>>,
+    pub uninitialized_memory: PagedMemory<u32>,
 
     /// A stream of input values (global to the entire program).
     pub input_stream: Vec<Vec<u8>>,
@@ -85,7 +86,7 @@ impl ExecutionState {
             channel: 0,
             pc: pc_start,
             memory: PagedMemory::new_preallocated(),
-            uninitialized_memory: HashMap::default(),
+            uninitialized_memory: Default::default(),
             input_stream: Vec::new(),
             input_stream_ptr: 0,
             public_values_stream: Vec::new(),

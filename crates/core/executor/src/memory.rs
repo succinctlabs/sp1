@@ -185,6 +185,14 @@ impl<'a, V> Entry<'a, V> {
             Entry::Occupied(entry) => entry.into_mut(),
         }
     }
+
+    pub fn and_modify<F: FnOnce(&mut V)>(mut self, f: F) -> Self {
+        match &mut self {
+            Entry::Vacant(_) => {}
+            Entry::Occupied(entry) => f(entry.get_mut()),
+        }
+        self
+    }
 }
 
 /// A vacant entry of `PagedMemory`, for in-place manipulation.
