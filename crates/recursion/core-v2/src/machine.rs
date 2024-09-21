@@ -154,7 +154,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize, const COL_P
                 (Self::BaseAlu(BaseAluChip), 20),
                 (Self::ExtAlu(ExtAluChip), 22),
                 (Self::Poseidon2Wide(Poseidon2WideChip::<DEGREE>), 16),
-                (Self::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE>), 17),
+                (Self::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE>), 16),
                 (Self::PublicValues(PublicValuesChip), PUB_VALUES_LOG_HEIGHT),
             ]
             .map(|(chip, log_height)| (chip.name(), log_height)),
