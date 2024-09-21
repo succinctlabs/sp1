@@ -166,7 +166,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         let compress_prover = C::CompressProver::new(compress_machine);
 
         // TODO: Put the correct shrink and wrap machines here.
-        let shrink_machine = ShrinkAir::shrink_machine(InnerSC::compressed());
+        let shrink_machine = ShrinkAir::shrink_machine(InnerSC::default());
         let shrink_prover = C::ShrinkProver::new(shrink_machine);
 
         let wrap_machine = WrapAir::wrap_machine(OuterSC::default());
