@@ -97,7 +97,6 @@ pub fn dummy_vk_and_shard_proof<A: MachineAir<BabyBear>>(
         shard_chips.iter().zip_eq(opened_values.chips.iter()).zip_eq(chip_scopes.iter())
     {
         if !chip_opening.preprocessed.local.is_empty() {
-            println!("Prep chip: {:?}", chip.name());
             let prep_shape = PolynomialShape {
                 width: chip_opening.preprocessed.local.len(),
                 log_degree: chip_opening.log_degree,

@@ -143,7 +143,7 @@ pub struct SP1Prover<C: SP1ProverComponents = DefaultProverComponents> {
 
     pub allowed_vk_map: BTreeMap<<InnerSC as FieldHasher<BabyBear>>::Digest, usize>,
 
-    pub merkle_tree: MerkleTree<BabyBear, InnerSC>,
+    pub vk_merkle_tree: MerkleTree<BabyBear, InnerSC>,
 
     pub core_shape_config: Option<CoreShapeConfig<BabyBear>>,
 
@@ -215,7 +215,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             compress_programs: Mutex::new(LruCache::new(compress_cache_size)),
             compress_cache_misses: AtomicUsize::new(0),
             root,
-            merkle_tree,
+            vk_merkle_tree: merkle_tree,
             allowed_vk_map,
             core_shape_config,
             recursion_shape_config,
@@ -1130,7 +1130,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         let proofs = vk_indices
             .iter()
             .map(|index| {
-                let (_, proof) = MerkleTree::open(&self.merkle_tree, *index);
+                let (_, proof) = MerkleTree::open(&self.vk_merkle_tree, *index);
                 proof
             })
             .collect();
