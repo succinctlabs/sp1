@@ -11,7 +11,7 @@ use p3_matrix::{dense::RowMajorMatrix, Dimensions};
 
 use sp1_recursion_compiler::{
     circuit::CircuitV2Builder,
-    ir::{Builder, Config, Ext, SymbolicExt},
+    ir::{Builder, Config, Ext},
     prelude::Felt,
 };
 use sp1_stark::{
