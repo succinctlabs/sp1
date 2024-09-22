@@ -2,7 +2,7 @@ use std::{
     borrow::Borrow,
     fs::{self, File},
     io::Read,
-    iter::Take,
+    iter::{Skip, Take},
 };
 
 use p3_baby_bear::BabyBear;
@@ -105,31 +105,45 @@ pub fn words_to_bytes_be(words: &[u32; 8]) -> [u8; 32] {
 }
 
 pub trait MaybeTakeIterator<I: Iterator>: Iterator<Item = I::Item> {
-    fn maybe_take(self, bound: Option<usize>) -> MaybeTake<Self>
+    fn maybe_skip(self, bound: Option<usize>) -> RangedIterator<Self>
     where
         Self: Sized,
     {
         match bound {
-            Some(bound) => MaybeTake::Take(self.take(bound)),
-            None => MaybeTake::Unbounded(self),
+            Some(bound) => RangedIterator::Skip(self.skip(bound)),
+            None => RangedIterator::Unbounded(self),
+        }
+    }
+
+    fn maybe_take(self, bound: Option<usize>) -> RangedIterator<Self>
+    where
+        Self: Sized,
+    {
+        match bound {
+            Some(bound) => RangedIterator::Take(self.take(bound)),
+            None => RangedIterator::Unbounded(self),
         }
     }
 }
 
 impl<I: Iterator> MaybeTakeIterator<I> for I {}
 
-pub enum MaybeTake<I> {
-    Take(Take<I>),
+pub enum RangedIterator<I> {
     Unbounded(I),
+    Skip(Skip<I>),
+    Take(Take<I>),
+    Range(Take<Skip<I>>),
 }
 
-impl<I: Iterator> Iterator for MaybeTake<I> {
+impl<I: Iterator> Iterator for RangedIterator<I> {
     type Item = I::Item;
 
     fn next(&mut self) -> Option<Self::Item> {
         match self {
-            MaybeTake::Take(take) => take.next(),
-            MaybeTake::Unbounded(unbounded) => unbounded.next(),
+            RangedIterator::Unbounded(unbounded) => unbounded.next(),
+            RangedIterator::Skip(skip) => skip.next(),
+            RangedIterator::Take(take) => take.next(),
+            RangedIterator::Range(range) => range.next(),
         }
     }
 }

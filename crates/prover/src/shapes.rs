@@ -42,7 +42,8 @@ pub fn build_vk_map<C: SP1ProverComponents>(
     dummy: bool,
     num_compiler_workers: usize,
     num_setup_workers: usize,
-    shape_capacity: Option<usize>,
+    range_start: Option<usize>,
+    range_end: Option<usize>,
 ) {
     std::fs::create_dir_all(&build_dir).expect("failed to create build directory");
 
@@ -63,9 +64,11 @@ pub fn build_vk_map<C: SP1ProverComponents>(
         let shape_rx = Mutex::new(shape_rx);
         let program_rx = Mutex::new(program_rx);
 
+        let length = range_end.and_then(|end| end.checked_sub(range_start.unwrap_or(0)));
         let generate_shapes = || {
             SP1ProofShape::generate(core_shape_config, recursion_shape_config, reduce_batch_size)
-                .maybe_take(shape_capacity)
+                .maybe_skip(range_start)
+                .maybe_take(length)
         };
 
         let num_shapes = generate_shapes().count();

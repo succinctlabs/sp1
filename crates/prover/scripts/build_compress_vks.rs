@@ -18,7 +18,9 @@ struct Args {
     #[clap(short, long, default_value_t = 1)]
     num_setup_workers: usize,
     #[clap(short, long)]
-    shape_capacity: Option<usize>,
+    start: Option<usize>,
+    #[clap(short, long)]
+    end: Option<usize>,
 }
 
 fn main() {
@@ -30,7 +32,8 @@ fn main() {
     let dummy = args.dummy;
     let num_compiler_workers = args.num_compiler_workers;
     let num_setup_workers = args.num_setup_workers;
-    let shape_capacity = args.shape_capacity;
+    let range_start = args.start;
+    let range_end = args.end;
 
     build_vk_map::<DefaultProverComponents>(
         build_dir,
@@ -38,6 +41,7 @@ fn main() {
         dummy,
         num_compiler_workers,
         num_setup_workers,
-        shape_capacity,
+        range_start,
+        range_end,
     );
 }
