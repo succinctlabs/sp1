@@ -296,8 +296,8 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
         let included_shapes = vec![];
 
         // Preprocessed chip heights.
-        let program_heights = vec![Some(16), Some(20), Some(21), Some(22)];
-        let program_memory_heights = vec![Some(16), Some(20), Some(21), Some(22)];
+        let program_heights = vec![Some(16), Some(19), Some(20), Some(21), Some(22)];
+        let program_memory_heights = vec![Some(16), Some(19), Some(20), Some(21), Some(22)];
 
         let allowed_preprocessed_log_heights = HashMap::from([
             (RiscvAir::Program(ProgramChip::default()), program_heights),
