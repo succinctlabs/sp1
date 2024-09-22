@@ -79,7 +79,6 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
             })
             .collect();
 
-        tracing::info!("Found shape");
         let shape = CoreShape { inner: shape? };
         Some(shape)
     }
