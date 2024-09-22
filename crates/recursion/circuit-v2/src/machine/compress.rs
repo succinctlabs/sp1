@@ -14,7 +14,7 @@ use p3_commit::Mmcs;
 use p3_field::AbstractField;
 use p3_matrix::dense::RowMajorMatrix;
 
-use sp1_recursion_compiler::ir::{Builder, Ext, Felt};
+use sp1_recursion_compiler::ir::{Builder, Ext, Felt, SymbolicFelt};
 
 use sp1_recursion_core_v2::{
     air::{ChallengerPublicValues, RecursionPublicValues, RECURSIVE_PROOF_NUM_PV_ELTS},
@@ -30,7 +30,7 @@ use sp1_stark::{
 use crate::{
     challenger::CanObserveVariable,
     constraints::RecursiveVerifierConstraintFolder,
-    machine::assert_complete,
+    machine::{assert_complete, assert_recursion_public_values_valid, public_values_digest},
     stark::{dummy_vk_and_shard_proof, ShardProofVariable, StarkVerifier},
     utils::uninit_challenger_pv,
     BabyBearFriConfig, BabyBearFriConfigVariable, CircuitConfig, VerifyingKeyVariable,
@@ -136,6 +136,8 @@ where
         let mut finalize_addr_bits: [Felt<_>; 32] =
             core::array::from_fn(|_| unsafe { MaybeUninit::zeroed().assume_init() });
 
+        let mut contains_an_execution_shard: Felt<_> = builder.eval(C::F::zero());
+
         // Verify proofs, check consistency, and aggregate public values.
         for (i, (vk, shard_proof)) in vks_and_proofs.into_iter().enumerate() {
             // Verify the shard proof.
@@ -172,6 +174,8 @@ where
             // Get the current public values.
             let current_public_values: &RecursionPublicValues<Felt<C::F>> =
                 shard_proof.public_values.as_slice().borrow();
+            // Assert that the public values are valid.
+            assert_recursion_public_values_valid::<C, SC>(builder, current_public_values);
 
             // Set the exit code, it is already constrained to be zero in the previous proof.
             exit_code = current_public_values.exit_code;
@@ -386,6 +390,18 @@ where
 
             // Update the accumulated values.
 
+            // If the current shard has an execution shard, then we update the flag in case it was
+            // not already set. That is:
+            // - If the current shard has an execution shard and the flag is set to zero, it will
+            //   be set to one.
+            // - If the current shard has an execution shard and the flag is set to one, it will
+            //   remain set to one.
+            contains_an_execution_shard = builder.eval(
+                contains_an_execution_shard
+                    + current_public_values.contains_execution_shard
+                        * (SymbolicFelt::one() - contains_an_execution_shard),
+            );
+
             // Update the reconstruct deferred proof digest.
             for (digest, current_digest) in reconstruct_deferred_digest
                 .iter_mut()
@@ -460,8 +476,11 @@ where
         compress_public_values.is_complete = is_complete;
         // Set the compress vk digest.
         compress_public_values.compress_vk_digest = compress_vk_digest;
-        // TODO: set the digest according to the previous values.
-        compress_public_values.digest = array::from_fn(|_| builder.eval(C::F::zero()));
+        // Set the contains an execution shard flag.
+        compress_public_values.contains_execution_shard = contains_an_execution_shard;
+        // Set the digest according to the previous values.
+        compress_public_values.digest =
+            public_values_digest::<C, SC>(builder, compress_public_values);
         // Set the exit code.
         compress_public_values.exit_code = exit_code;
 
