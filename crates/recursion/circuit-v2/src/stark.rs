@@ -474,7 +474,7 @@ where
             );
         }
 
-        // Verify that all the chip's local cumulative_sum add to 0.
+        // Verify that all the chips' local_cumulative_sum sum to 0.
         let local_cumulative_sum: Ext<C::F, C::EF> = opened_values
             .chips
             .iter()
