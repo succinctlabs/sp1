@@ -7,7 +7,7 @@ use p3_air::{Air, BaseAir};
 use p3_baby_bear::BabyBear;
 use p3_commit::{Mmcs, Pcs, PolynomialSpace, TwoAdicMultiplicativeCoset};
 use p3_field::{AbstractField, ExtensionField, Field, TwoAdicField};
-use p3_matrix::dense::RowMajorMatrix;
+use p3_matrix::{dense::RowMajorMatrix, Dimensions};
 
 use sp1_recursion_compiler::{
     circuit::CircuitV2Builder,
@@ -15,9 +15,9 @@ use sp1_recursion_compiler::{
     prelude::Felt,
 };
 use sp1_stark::{
-    air::InteractionScope, baby_bear_poseidon2::BabyBearPoseidon2, AirOpenedValues, Chip,
-    ChipOpenedValues, InnerChallenge, ProofShape, ShardCommitment, ShardOpenedValues, ShardProof,
-    Val, PROOF_MAX_NUM_PVS,
+    air::InteractionScope, baby_bear_poseidon2::BabyBearPoseidon2, AirOpenedValues, Challenger,
+    Chip, ChipOpenedValues, InnerChallenge, ProofShape, ShardCommitment, ShardOpenedValues,
+    ShardProof, Val, PROOF_MAX_NUM_PVS,
 };
 use sp1_stark::{air::MachineAir, StarkGenericConfig, StarkMachine, StarkVerifyingKey};
 
@@ -45,12 +45,19 @@ pub struct ShardProofVariable<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConf
     pub public_values: Vec<Felt<C::F>>,
 }
 
+/// Get a dummy duplex challenger for use in dummy proofs.
+pub fn dummy_challenger(config: &BabyBearPoseidon2) -> Challenger<BabyBearPoseidon2> {
+    let mut challenger = config.challenger();
+    challenger.input_buffer = vec![];
+    challenger.output_buffer = vec![BabyBear::zero(); challenger.sponge_state.len()];
+    challenger
+}
+
 /// Make a dummy shard proof for a given proof shape.
-pub fn dummy_shard_proof<A: MachineAir<BabyBear>>(
+pub fn dummy_vk_and_shard_proof<A: MachineAir<BabyBear>>(
     machine: &StarkMachine<BabyBearPoseidon2, A>,
-    vk: &StarkVerifyingKey<BabyBearPoseidon2>,
     shape: &ProofShape,
-) -> ShardProof<BabyBearPoseidon2> {
+) -> (StarkVerifyingKey<BabyBearPoseidon2>, ShardProof<BabyBearPoseidon2>) {
     // Make a dummy commitment.
     let commitment = ShardCommitment {
         global_main_commit: dummy_hash(),
@@ -79,24 +86,28 @@ pub fn dummy_shard_proof<A: MachineAir<BabyBear>>(
             .collect(),
     };
 
+    let mut preprocessed_names_and_dimensions = vec![];
     let mut preprocessed_batch_shape = vec![];
     let mut global_main_batch_shape = vec![];
     let mut local_main_batch_shape = vec![];
     let mut permutation_batch_shape = vec![];
     let mut quotient_batch_shape = vec![];
 
-    for info in vk.chip_information.iter() {
-        let name = &info.0;
-        let i = chip_ordering[name];
-        let opened_values = &opened_values.chips[i];
-        let prep_shape = PolynomialShape {
-            width: opened_values.preprocessed.local.len(),
-            log_degree: opened_values.log_degree,
-        };
-        preprocessed_batch_shape.push(prep_shape);
-    }
-
-    for (chip_opening, scope) in opened_values.chips.iter().zip_eq(chip_scopes.iter()) {
+    for ((chip, chip_opening), scope) in
+        shard_chips.iter().zip_eq(opened_values.chips.iter()).zip_eq(chip_scopes.iter())
+    {
+        if !chip_opening.preprocessed.local.is_empty() {
+            let prep_shape = PolynomialShape {
+                width: chip_opening.preprocessed.local.len(),
+                log_degree: chip_opening.log_degree,
+            };
+            preprocessed_names_and_dimensions.push((
+                chip.name(),
+                prep_shape.width,
+                prep_shape.log_degree,
+            ));
+            preprocessed_batch_shape.push(prep_shape);
+        }
         let main_shape = PolynomialShape {
             width: chip_opening.main.local.len(),
             log_degree: chip_opening.log_degree,
@@ -142,14 +153,43 @@ pub fn dummy_shard_proof<A: MachineAir<BabyBear>>(
 
     let public_values = (0..PROOF_MAX_NUM_PVS).map(|_| BabyBear::zero()).collect::<Vec<_>>();
 
-    ShardProof {
+    // Get the preprocessed chip information.
+    let pcs = machine.config().pcs();
+    let preprocessed_chip_information: Vec<_> = preprocessed_names_and_dimensions
+        .iter()
+        .map(|(name, width, log_height)| {
+            let domain = <<BabyBearPoseidon2 as StarkGenericConfig>::Pcs as Pcs<
+                <BabyBearPoseidon2 as StarkGenericConfig>::Challenge,
+                <BabyBearPoseidon2 as StarkGenericConfig>::Challenger,
+            >>::natural_domain_for_degree(pcs, 1 << log_height);
+            (name.to_owned(), domain, Dimensions { width: *width, height: 1 << log_height })
+        })
+        .collect();
+
+    // Get the chip ordering.
+    let preprocessed_chip_ordering = preprocessed_names_and_dimensions
+        .iter()
+        .enumerate()
+        .map(|(i, (name, _, _))| (name.to_owned(), i))
+        .collect::<HashMap<_, _>>();
+
+    let vk = StarkVerifyingKey {
+        commit: dummy_hash(),
+        pc_start: BabyBear::zero(),
+        chip_information: preprocessed_chip_information,
+        chip_ordering: preprocessed_chip_ordering,
+    };
+
+    let shard_proof = ShardProof {
         commitment,
         opened_values,
         opening_proof,
         chip_ordering,
         chip_scopes,
         public_values,
-    }
+    };
+
+    (vk, shard_proof)
 }
 
 fn dummy_opened_values<F: Field, EF: ExtensionField<F>, A: MachineAir<F>>(
@@ -464,6 +504,7 @@ impl<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVariable<C>> ShardProof
 #[cfg(any(test, feature = "export-tests"))]
 pub mod tests {
     use std::collections::VecDeque;
+    use std::fmt::Debug;
 
     use crate::{
         challenger::{CanCopyChallenger, CanObserveVariable, DuplexChallengerVariable},
@@ -498,7 +539,7 @@ pub mod tests {
     type SC = BabyBearPoseidon2;
 
     pub fn build_verify_shard_with_provers<
-        C: CircuitConfig<F = InnerVal, EF = InnerChallenge, Bit = Felt<InnerVal>>,
+        C: CircuitConfig<F = InnerVal, EF = InnerChallenge, Bit = Felt<InnerVal>> + Debug,
         CoreP: MachineProver<SC, A>,
         RecP: MachineProver<SC, RecursionAir<F, 3, 0>>,
     >(
@@ -526,7 +567,6 @@ pub mod tests {
         let mut challenger = config.challenger_variable(&mut builder);
         // let vk = VerifyingKeyVariable::from_constant_key_babybear(&mut builder, &vk);
         Witnessable::<C>::write(&vk, &mut witness_stream);
-        let vk_value = vk.clone();
         let vk: VerifyingKeyVariable<_, _> = vk.read(&mut builder);
         vk.observe_into(&mut builder, &mut challenger);
 
@@ -535,7 +575,7 @@ pub mod tests {
             .into_iter()
             .map(|proof| {
                 let shape = proof.shape();
-                let dummy_proof = dummy_shard_proof(&machine, &vk_value, &shape);
+                let (_, dummy_proof) = dummy_vk_and_shard_proof(&machine, &shape);
                 Witnessable::<C>::write(&proof, &mut witness_stream);
                 dummy_proof.read(&mut builder)
             })

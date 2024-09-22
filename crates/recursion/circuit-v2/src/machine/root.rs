@@ -74,10 +74,11 @@ where
         builder: &mut Builder<C>,
         machine: &StarkMachine<SC, A>,
         input: SP1CompressWithVKeyWitnessVariable<C, SC>,
+        value_assertions: bool,
     ) {
         // Assert that the program is complete.
         builder.assert_felt_eq(input.compress_var.is_complete, C::F::one());
         // Verify the proof, as a compress proof.
-        SP1CompressWithVKeyVerifier::verify(builder, machine, input);
+        SP1CompressWithVKeyVerifier::verify(builder, machine, input, value_assertions);
     }
 }

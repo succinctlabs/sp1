@@ -14,7 +14,8 @@ use sp1_recursion_compiler::ir::{Builder, Ext, Felt};
 
 use sp1_stark::{
     air::{MachineAir, POSEIDON_NUM_WORDS},
-    ShardProof, StarkGenericConfig, StarkMachine, StarkVerifyingKey, Word,
+    baby_bear_poseidon2::BabyBearPoseidon2,
+    ProofShape, ShardProof, StarkMachine, StarkVerifyingKey, Word,
 };
 
 use sp1_recursion_core_v2::{
@@ -25,18 +26,24 @@ use sp1_recursion_core_v2::{
 use crate::{
     challenger::{CanObserveVariable, DuplexChallengerVariable},
     constraints::RecursiveVerifierConstraintFolder,
-    stark::{ShardProofVariable, StarkVerifier},
-    BabyBearFriConfigVariable, CircuitConfig, VerifyingKeyVariable,
+    stark::{dummy_challenger, ShardProofVariable, StarkVerifier},
+    BabyBearFriConfig, BabyBearFriConfigVariable, CircuitConfig, VerifyingKeyVariable,
 };
+
+use super::{SP1CompressShape, SP1CompressWitnessValues};
 
 pub struct SP1DeferredVerifier<C, SC, A> {
     _phantom: std::marker::PhantomData<(C, SC, A)>,
 }
 
-pub struct SP1DeferredWitnessValues<SC: StarkGenericConfig> {
+pub struct SP1DeferredShape {
+    inner: SP1CompressShape,
+}
+
+pub struct SP1DeferredWitnessValues<SC: BabyBearFriConfig> {
     pub vks_and_proofs: Vec<(StarkVerifyingKey<SC>, ShardProof<SC>)>,
     pub start_reconstruct_deferred_digest: [SC::Val; POSEIDON_NUM_WORDS],
-    pub sp1_vk: StarkVerifyingKey<SC>,
+    pub sp1_vk_digest: [SC::Val; DIGEST_SIZE],
     pub leaf_challenger: SC::Challenger,
     pub committed_value_digest: [Word<SC::Val>; PV_DIGEST_NUM_WORDS],
     pub deferred_proofs_digest: [SC::Val; POSEIDON_NUM_WORDS],
@@ -54,7 +61,7 @@ pub struct SP1DeferredWitnessVariable<
 > {
     pub vks_and_proofs: Vec<(VerifyingKeyVariable<C, SC>, ShardProofVariable<C, SC>)>,
     pub start_reconstruct_deferred_digest: [Felt<C::F>; POSEIDON_NUM_WORDS],
-    pub sp1_vk: VerifyingKeyVariable<C, SC>,
+    pub sp1_vk_digest: [Felt<C::F>; DIGEST_SIZE],
     pub leaf_challenger: SC::FriChallengerVariable,
     pub committed_value_digest: [Word<Felt<C::F>>; PV_DIGEST_NUM_WORDS],
     pub deferred_proofs_digest: [Felt<C::F>; POSEIDON_NUM_WORDS],
@@ -94,7 +101,7 @@ where
         let SP1DeferredWitnessVariable {
             vks_and_proofs,
             start_reconstruct_deferred_digest,
-            sp1_vk,
+            sp1_vk_digest,
             leaf_challenger,
             committed_value_digest,
             deferred_proofs_digest,
@@ -189,7 +196,7 @@ where
         deferred_public_values.last_finalize_addr_bits = finalize_addr_bits;
 
         // Set the sp1_vk_digest to be the hitned value.
-        deferred_public_values.sp1_vk_digest = sp1_vk.hash(builder);
+        deferred_public_values.sp1_vk_digest = sp1_vk_digest;
 
         // Set the committed value digest to be the hitned value.
         deferred_public_values.committed_value_digest = committed_value_digest;
@@ -219,5 +226,37 @@ where
         deferred_public_values.cumulative_sum = array::from_fn(|_| builder.eval(C::F::zero()));
 
         SC::commit_recursion_public_values(builder, *deferred_public_values);
+    }
+}
+
+impl SP1DeferredWitnessValues<BabyBearPoseidon2> {
+    pub fn dummy<A: MachineAir<BabyBear>>(
+        machine: &StarkMachine<BabyBearPoseidon2, A>,
+        shape: &SP1DeferredShape,
+    ) -> Self {
+        let inner_witness =
+            SP1CompressWitnessValues::<BabyBearPoseidon2>::dummy(machine, &shape.inner);
+        let vks_and_proofs = inner_witness.vks_and_proofs;
+
+        Self {
+            vks_and_proofs,
+            leaf_challenger: dummy_challenger(machine.config()),
+            is_complete: true,
+            sp1_vk_digest: [BabyBear::zero(); DIGEST_SIZE],
+            start_reconstruct_deferred_digest: [BabyBear::zero(); POSEIDON_NUM_WORDS],
+            committed_value_digest: [Word::default(); PV_DIGEST_NUM_WORDS],
+            deferred_proofs_digest: [BabyBear::zero(); POSEIDON_NUM_WORDS],
+            end_pc: BabyBear::zero(),
+            end_shard: BabyBear::zero(),
+            end_execution_shard: BabyBear::zero(),
+            init_addr_bits: [BabyBear::zero(); 32],
+            finalize_addr_bits: [BabyBear::zero(); 32],
+        }
+    }
+}
+
+impl From<ProofShape> for SP1DeferredShape {
+    fn from(proof_shape: ProofShape) -> Self {
+        Self { inner: SP1CompressShape::from(vec![proof_shape]) }
     }
 }

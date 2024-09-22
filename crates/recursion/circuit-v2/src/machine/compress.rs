@@ -23,6 +23,7 @@ use sp1_recursion_core_v2::{
 
 use sp1_stark::{
     air::{MachineAir, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS},
+    baby_bear_poseidon2::BabyBearPoseidon2,
     ProofShape, ShardProof, StarkGenericConfig, StarkMachine, StarkVerifyingKey, Word, DIGEST_SIZE,
 };
 
@@ -30,7 +31,7 @@ use crate::{
     challenger::CanObserveVariable,
     constraints::RecursiveVerifierConstraintFolder,
     machine::assert_complete,
-    stark::{ShardProofVariable, StarkVerifier},
+    stark::{dummy_vk_and_shard_proof, ShardProofVariable, StarkVerifier},
     utils::uninit_challenger_pv,
     BabyBearFriConfig, BabyBearFriConfigVariable, CircuitConfig, VerifyingKeyVariable,
 };
@@ -57,7 +58,7 @@ pub struct SP1CompressWitnessValues<SC: StarkGenericConfig> {
     pub is_complete: bool,
 }
 
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SP1CompressShape {
     proof_shapes: Vec<ProofShape>,
 }
@@ -475,5 +476,29 @@ impl<SC: BabyBearFriConfig> SP1CompressWitnessValues<SC> {
     pub fn shape(&self) -> SP1CompressShape {
         let proof_shapes = self.vks_and_proofs.iter().map(|(_, proof)| proof.shape()).collect();
         SP1CompressShape { proof_shapes }
+    }
+}
+
+impl SP1CompressWitnessValues<BabyBearPoseidon2> {
+    pub fn dummy<A: MachineAir<BabyBear>>(
+        machine: &StarkMachine<BabyBearPoseidon2, A>,
+        shape: &SP1CompressShape,
+    ) -> Self {
+        let vks_and_proofs = shape
+            .proof_shapes
+            .iter()
+            .map(|proof_shape| {
+                let (vk, proof) = dummy_vk_and_shard_proof(machine, proof_shape);
+                (vk, proof)
+            })
+            .collect();
+
+        Self { vks_and_proofs, is_complete: false }
+    }
+}
+
+impl From<Vec<ProofShape>> for SP1CompressShape {
+    fn from(proof_shapes: Vec<ProofShape>) -> Self {
+        Self { proof_shapes }
     }
 }

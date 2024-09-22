@@ -19,6 +19,7 @@ use sp1_core_machine::{
 use sp1_recursion_core_v2::air::PV_DIGEST_NUM_WORDS;
 use sp1_stark::{
     air::{PublicValues, POSEIDON_NUM_WORDS},
+    baby_bear_poseidon2::BabyBearPoseidon2,
     ProofShape, StarkMachine, Word,
 };
 
@@ -36,7 +37,7 @@ use sp1_recursion_core_v2::{
 
 use crate::{
     challenger::{CanObserveVariable, DuplexChallengerVariable, FieldChallengerVariable},
-    stark::{ShardProofVariable, StarkVerifier},
+    stark::{dummy_challenger, dummy_vk_and_shard_proof, ShardProofVariable, StarkVerifier},
     BabyBearFriConfig, BabyBearFriConfigVariable, CircuitConfig, VerifyingKeyVariable,
 };
 
@@ -580,5 +581,30 @@ impl<SC: BabyBearFriConfig> SP1RecursionWitnessValues<SC> {
         let proof_shapes = self.shard_proofs.iter().map(|proof| proof.shape()).collect();
 
         SP1RecursionShape { proof_shapes, is_complete: self.is_complete }
+    }
+}
+
+impl SP1RecursionWitnessValues<BabyBearPoseidon2> {
+    pub fn dummy(
+        machine: &StarkMachine<BabyBearPoseidon2, RiscvAir<BabyBear>>,
+        shape: &SP1RecursionShape,
+    ) -> Self {
+        let (mut vks, shard_proofs): (Vec<_>, Vec<_>) =
+            shape.proof_shapes.iter().map(|shape| dummy_vk_and_shard_proof(machine, shape)).unzip();
+        let vk = vks.pop().unwrap();
+        Self {
+            vk,
+            shard_proofs,
+            leaf_challenger: dummy_challenger(machine.config()),
+            initial_reconstruct_challenger: dummy_challenger(machine.config()),
+            is_complete: shape.is_complete,
+            is_first_shard: false,
+        }
+    }
+}
+
+impl From<ProofShape> for SP1RecursionShape {
+    fn from(proof_shape: ProofShape) -> Self {
+        Self { proof_shapes: vec![proof_shape], is_complete: false }
     }
 }

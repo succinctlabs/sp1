@@ -79,7 +79,6 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
             })
             .collect();
 
-        tracing::info!("Found shape");
         let shape = CoreShape { inner: shape? };
         Some(shape)
     }
@@ -297,8 +296,8 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
         let included_shapes = vec![];
 
         // Preprocessed chip heights.
-        let program_heights = vec![Some(16), Some(20), Some(21), Some(22)];
-        let program_memory_heights = vec![Some(16), Some(20), Some(21), Some(22)];
+        let program_heights = vec![Some(16), Some(19), Some(20), Some(21), Some(22)];
+        let program_memory_heights = vec![Some(16), Some(19), Some(20), Some(21), Some(22)];
 
         let allowed_preprocessed_log_heights = HashMap::from([
             (RiscvAir::Program(ProgramChip::default()), program_heights),
@@ -314,7 +313,7 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
         let shift_right_heights = vec![None, Some(10), Some(16), Some(19)];
         let shift_left_heights = vec![None, Some(10), Some(16), Some(19)];
         let lt_heights = vec![None, Some(10), Some(16), Some(19)];
-        let memory_local_heights = vec![Some(16), Some(20)];
+        let memory_local_heights = vec![Some(16), Some(19)];
         let syscall_heights = vec![None, Some(19)];
 
         let short_allowed_log_heights = HashMap::from([

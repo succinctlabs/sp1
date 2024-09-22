@@ -58,7 +58,7 @@ pub trait CanSampleBitsVariable<C: Config, V> {
 }
 
 /// Reference: [p3_challenger::DuplexChallenger]
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct DuplexChallengerVariable<C: Config> {
     pub sponge_state: [Felt<C::F>; PERMUTATION_WIDTH],
     pub input_buffer: Vec<Felt<C::F>>,

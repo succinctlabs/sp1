@@ -1,21 +1,19 @@
 use std::{
     borrow::Borrow,
-    collections::BTreeMap,
     fs::{self, File},
     io::Read,
+    iter::{Skip, Take},
 };
 
 use p3_baby_bear::BabyBear;
 use p3_bn254_fr::Bn254Fr;
 use p3_field::{AbstractField, PrimeField32};
 use sp1_core_executor::{Executor, Program};
-use sp1_core_machine::{io::SP1Stdin, reduce::SP1ReduceProof, riscv::CoreShapeConfig};
-use sp1_recursion_core_v2::{
-    air::RecursionPublicValues, shape::RecursionShapeConfig, stark::config::BabyBearPoseidon2Outer,
-};
+use sp1_core_machine::{io::SP1Stdin, reduce::SP1ReduceProof};
+use sp1_recursion_core_v2::{air::RecursionPublicValues, stark::config::BabyBearPoseidon2Outer};
 use sp1_stark::{SP1CoreOpts, Word};
 
-use crate::{CompressAir, SP1CoreProofData};
+use crate::SP1CoreProofData;
 
 /// Get the SP1 vkey BabyBear Poseidon2 digest this reduce proof is representing.
 pub fn sp1_vkey_digest_babybear(proof: &SP1ReduceProof<BabyBearPoseidon2Outer>) -> [BabyBear; 8] {
@@ -36,31 +34,6 @@ pub fn sp1_commited_values_digest_bn254(proof: &SP1ReduceProof<BabyBearPoseidon2
     let committed_values_digest_bytes: [BabyBear; 32] =
         words_to_bytes(&pv.committed_value_digest).try_into().unwrap();
     babybear_bytes_to_bn254(&committed_values_digest_bytes)
-}
-
-pub fn get_all_vk_digests(
-    core_shape_config: &CoreShapeConfig<BabyBear>,
-    recursion_shape_config: &RecursionShapeConfig<BabyBear, CompressAir<BabyBear>>,
-    reduce_batch_size: usize,
-) -> BTreeMap<[BabyBear; 8], usize> {
-    let mut vk_map = core_shape_config
-        .generate_all_allowed_shapes()
-        .enumerate()
-        .map(|(i, _)| ([BabyBear::from_canonical_usize(i); 8], i))
-        .collect::<BTreeMap<_, _>>();
-
-    let num_first_layer_vks = vk_map.len();
-
-    vk_map.extend(
-        recursion_shape_config.get_all_shape_combinations(reduce_batch_size).enumerate().map(
-            |(i, _)| {
-                let index = num_first_layer_vks + i;
-                ([BabyBear::from_canonical_usize(index); 8], index)
-            },
-        ),
-    );
-
-    vk_map
 }
 
 impl SP1CoreProofData {
@@ -131,18 +104,46 @@ pub fn words_to_bytes_be(words: &[u32; 8]) -> [u8; 32] {
     bytes
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+pub trait MaybeTakeIterator<I: Iterator>: Iterator<Item = I::Item> {
+    fn maybe_skip(self, bound: Option<usize>) -> RangedIterator<Self>
+    where
+        Self: Sized,
+    {
+        match bound {
+            Some(bound) => RangedIterator::Skip(self.skip(bound)),
+            None => RangedIterator::Unbounded(self),
+        }
+    }
 
-    #[test]
-    fn test_get_all_vk_digests() {
-        let core_shape_config = CoreShapeConfig::default();
-        let recursion_shape_config = RecursionShapeConfig::default();
-        let reduce_batch_size = 2;
-        let vk_digests =
-            get_all_vk_digests(&core_shape_config, &recursion_shape_config, reduce_batch_size);
-        println!("Number of vk digests: {}", vk_digests.len());
-        assert!(vk_digests.len() < 1 << 24);
+    fn maybe_take(self, bound: Option<usize>) -> RangedIterator<Self>
+    where
+        Self: Sized,
+    {
+        match bound {
+            Some(bound) => RangedIterator::Take(self.take(bound)),
+            None => RangedIterator::Unbounded(self),
+        }
+    }
+}
+
+impl<I: Iterator> MaybeTakeIterator<I> for I {}
+
+pub enum RangedIterator<I> {
+    Unbounded(I),
+    Skip(Skip<I>),
+    Take(Take<I>),
+    Range(Take<Skip<I>>),
+}
+
+impl<I: Iterator> Iterator for RangedIterator<I> {
+    type Item = I::Item;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self {
+            RangedIterator::Unbounded(unbounded) => unbounded.next(),
+            RangedIterator::Skip(skip) => skip.next(),
+            RangedIterator::Take(take) => take.next(),
+            RangedIterator::Range(range) => range.next(),
+        }
     }
 }
