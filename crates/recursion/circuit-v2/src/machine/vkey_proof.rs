@@ -71,14 +71,18 @@ where
         builder: &mut Builder<C>,
         digests: Vec<SC::DigestVariable>,
         input: SP1MerkleProofWitnessVariable<C, SC>,
+        value_assertions: bool,
     ) {
         let SP1MerkleProofWitnessVariable { vk_merkle_proofs, values, root } = input;
-        for ((proof, value), _expected_value) in
+        for ((proof, value), expected_value) in
             vk_merkle_proofs.into_iter().zip(values).zip(digests)
         {
             verify(builder, proof, value, root);
-            // TODO: comment back in.
-            // SC::assert_digest_eq(builder, expected_value, value);
+            if value_assertions {
+                SC::assert_digest_eq(builder, expected_value, value);
+            } else {
+                SC::assert_digest_eq(builder, value, value);
+            }
         }
     }
 }
@@ -119,10 +123,11 @@ where
         builder: &mut Builder<C>,
         machine: &StarkMachine<SC, A>,
         input: SP1CompressWithVKeyWitnessVariable<C, SC>,
+        value_assertions: bool,
     ) {
         let values =
             input.compress_var.vks_and_proofs.iter().map(|(vk, _)| vk.hash(builder)).collect_vec();
-        SP1MerkleProofVerifier::verify(builder, values, input.merkle_var);
+        SP1MerkleProofVerifier::verify(builder, values, input.merkle_var, value_assertions);
         SP1CompressVerifier::verify(builder, machine, input.compress_var);
     }
 }

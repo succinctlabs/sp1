@@ -148,6 +148,8 @@ pub struct SP1Prover<C: SP1ProverComponents = DefaultProverComponents> {
     pub core_shape_config: Option<CoreShapeConfig<BabyBear>>,
 
     pub recursion_shape_config: Option<RecursionShapeConfig<BabyBear, CompressAir<BabyBear>>>,
+
+    pub vk_verification: bool,
 }
 
 impl<C: SP1ProverComponents> SP1Prover<C> {
@@ -205,6 +207,9 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             .unwrap_or(true)
             .then_some(RecursionShapeConfig::default());
 
+        let vk_verification =
+            env::var("VERIFY_VK").map(|v| v.eq_ignore_ascii_case("true")).unwrap_or(false);
+
         Self {
             core_prover,
             compress_prover,
@@ -219,6 +224,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             allowed_vk_map,
             core_shape_config,
             recursion_shape_config,
+            vk_verification,
         }
     }
 
@@ -364,6 +370,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                     &mut builder,
                     self.compress_prover.machine(),
                     input,
+                    self.vk_verification,
                 );
                 let operations = builder.into_operations();
                 builder_span.exit();
@@ -394,6 +401,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             &mut builder,
             self.compress_prover.machine(),
             input,
+            self.vk_verification,
         );
         let operations = builder.into_operations();
         builder_span.exit();
