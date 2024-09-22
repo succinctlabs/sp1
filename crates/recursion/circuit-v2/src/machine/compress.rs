@@ -208,7 +208,7 @@ where
                 compress_public_values.start_execution_shard =
                     current_public_values.start_execution_shard;
                 // TODO: comment back in.
-                // execution_shard = current_public_values.start_execution_shard;
+                execution_shard = current_public_values.start_execution_shard;
 
                 // Initialize the MemoryInitialize address bits.
                 for (bit, (first_bit, current_bit)) in init_addr_bits.iter_mut().zip(
@@ -283,7 +283,7 @@ where
 
             // Verfiy that the exeuction shard is equal to the current execution shard.
             // TODO: comment back in.
-            // builder.assert_felt_eq(execution_shard, current_public_values.start_execution_shard);
+            builder.assert_felt_eq(execution_shard, current_public_values.start_execution_shard);
 
             // Assert that the MemoryInitialize address bits are the same.
             for (bit, current_bit) in
