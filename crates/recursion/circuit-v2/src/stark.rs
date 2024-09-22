@@ -11,7 +11,7 @@ use p3_matrix::{dense::RowMajorMatrix, Dimensions};
 
 use sp1_recursion_compiler::{
     circuit::CircuitV2Builder,
-    ir::{Builder, Config, Ext},
+    ir::{Builder, Config, Ext, SymbolicExt},
     prelude::Felt,
 };
 use sp1_stark::{
@@ -473,6 +473,16 @@ where
                 public_values,
             );
         }
+
+        // Verify that all the chip's local cumulative_sum add to 0.
+        let local_cumulative_sum: Ext<C::F, C::EF> = opened_values
+            .chips
+            .iter()
+            .map(|val| val.local_cumulative_sum)
+            .fold(builder.constant(C::EF::zero()), |acc, x| builder.eval(acc + x));
+        let zero_ext: Ext<_, _> = builder.constant(C::EF::zero());
+        builder.assert_ext_eq(local_cumulative_sum, zero_ext);
+
         builder.cycle_tracker_v2_exit();
     }
 }
