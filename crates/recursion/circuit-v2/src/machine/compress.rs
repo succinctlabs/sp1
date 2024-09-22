@@ -496,3 +496,9 @@ impl SP1CompressWitnessValues<BabyBearPoseidon2> {
         Self { vks_and_proofs, is_complete: false }
     }
 }
+
+impl From<Vec<ProofShape>> for SP1CompressShape {
+    fn from(proof_shapes: Vec<ProofShape>) -> Self {
+        Self { proof_shapes }
+    }
+}

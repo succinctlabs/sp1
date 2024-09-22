@@ -13,6 +13,7 @@
 
 pub mod build;
 pub mod components;
+pub mod shapes;
 pub mod types;
 pub mod utils;
 pub mod verify;
@@ -188,9 +189,6 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         )
         .expect("PROVER_COMPRESS_CACHE_SIZE must be a non-zero usize");
 
-        let core_shape_config = CoreShapeConfig::default();
-        let recursion_shape_config = RecursionShapeConfig::default();
-
         let allowed_vk_map =
             bincode::deserialize(VK_MAP_BYTES).expect("failed to deserialize vk map");
 
@@ -200,12 +198,12 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         let core_shape_config = env::var("FIX_CORE_SHAPES")
             .map(|v| v.eq_ignore_ascii_case("true"))
             .unwrap_or(true)
-            .then_some(core_shape_config);
+            .then_some(CoreShapeConfig::default());
 
         let recursion_shape_config = env::var("FIX_RECURSION_SHAPES")
             .map(|v| v.eq_ignore_ascii_case("true"))
             .unwrap_or(true)
-            .then_some(recursion_shape_config);
+            .then_some(RecursionShapeConfig::default());
 
         Self {
             core_prover,

@@ -15,7 +15,7 @@ use sp1_recursion_compiler::ir::{Builder, Ext, Felt};
 use sp1_stark::{
     air::{MachineAir, POSEIDON_NUM_WORDS},
     baby_bear_poseidon2::BabyBearPoseidon2,
-    ShardProof, StarkMachine, StarkVerifyingKey, Word,
+    ProofShape, ShardProof, StarkMachine, StarkVerifyingKey, Word,
 };
 
 use sp1_recursion_core_v2::{
@@ -252,5 +252,11 @@ impl SP1DeferredWitnessValues<BabyBearPoseidon2> {
             init_addr_bits: [BabyBear::zero(); 32],
             finalize_addr_bits: [BabyBear::zero(); 32],
         }
+    }
+}
+
+impl From<ProofShape> for SP1DeferredShape {
+    fn from(proof_shape: ProofShape) -> Self {
+        Self { inner: SP1CompressShape::from(vec![proof_shape]) }
     }
 }

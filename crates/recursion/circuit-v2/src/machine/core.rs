@@ -602,3 +602,9 @@ impl SP1RecursionWitnessValues<BabyBearPoseidon2> {
         }
     }
 }
+
+impl From<ProofShape> for SP1RecursionShape {
+    fn from(proof_shape: ProofShape) -> Self {
+        Self { proof_shapes: vec![proof_shape], is_complete: false }
+    }
+}

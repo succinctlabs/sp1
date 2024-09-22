@@ -20,15 +20,9 @@ use sp1_recursion_circuit_v2::machine::{
 use sp1_recursion_core_v2::{
     air::RecursionPublicValues, shape::RecursionShapeConfig, stark::config::BabyBearPoseidon2Outer,
 };
-use sp1_stark::{SP1CoreOpts, StarkMachine, Word};
+use sp1_stark::{ProofShape, SP1CoreOpts, StarkMachine, Word};
 
 use crate::{CompressAir, InnerSC, SP1CoreProofData};
-
-pub enum SP1CompressProgramShape {
-    Recursion(SP1RecursionShape),
-    Compress(Vec<SP1CompressWithVkeyShape>),
-    Deferred(SP1DeferredShape),
-}
 
 /// Get the SP1 vkey BabyBear Poseidon2 digest this reduce proof is representing.
 pub fn sp1_vkey_digest_babybear(proof: &SP1ReduceProof<BabyBearPoseidon2Outer>) -> [BabyBear; 8] {
@@ -51,36 +45,7 @@ pub fn sp1_commited_values_digest_bn254(proof: &SP1ReduceProof<BabyBearPoseidon2
     babybear_bytes_to_bn254(&committed_values_digest_bytes)
 }
 
-pub fn get_all_shapes(
-    core_machine: &StarkMachine<InnerSC, RiscvAir<BabyBear>>,
-    compress_machine: &StarkMachine<InnerSC, CompressAir<BabyBear>>,
-    core_shape_config: &CoreShapeConfig<BabyBear>,
-    recursion_shape_config: &RecursionShapeConfig<BabyBear, CompressAir<BabyBear>>,
-    reduce_batch_size: usize,
-) -> impl IntoIterator<Item = SP1CompressProgramShape> {
-    let mut vk_map = core_shape_config
-        .generate_all_allowed_shapes()
-        .enumerate()
-        .map(|(i, _)| ([BabyBear::from_canonical_usize(i); 8], i))
-        .collect::<BTreeMap<_, _>>();
-
-    let num_first_layer_vks = vk_map.len();
-
-    vk_map.extend(
-        recursion_shape_config.get_all_shape_combinations(reduce_batch_size).enumerate().map(
-            |(i, _)| {
-                let index = num_first_layer_vks + i;
-                ([BabyBear::from_canonical_usize(index); 8], index)
-            },
-        ),
-    );
-
-    Vec::new()
-}
-
 pub fn get_all_vk_digests(
-    core_machine: &StarkMachine<InnerSC, RiscvAir<BabyBear>>,
-    compress_machine: &StarkMachine<InnerSC, CompressAir<BabyBear>>,
     core_shape_config: &CoreShapeConfig<BabyBear>,
     recursion_shape_config: &RecursionShapeConfig<BabyBear, CompressAir<BabyBear>>,
     reduce_batch_size: usize,
@@ -187,13 +152,8 @@ mod tests {
 
         let core_machine = RiscvAir::machine(CoreSC::default());
         let compress_machine = CompressAir::compress_machine(InnerSC::default());
-        let vk_digests = get_all_vk_digests(
-            &core_machine,
-            &compress_machine,
-            &core_shape_config,
-            &recursion_shape_config,
-            reduce_batch_size,
-        );
+        let vk_digests =
+            get_all_vk_digests(&core_shape_config, &recursion_shape_config, reduce_batch_size);
         println!("Number of vk digests: {}", vk_digests.len());
         assert!(vk_digests.len() < 1 << 24);
     }

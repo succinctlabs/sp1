@@ -37,13 +37,7 @@ fn main() {
     let compress_machine = CompressAir::compress_machine(InnerSC::default());
 
     tracing::info!("building compress vk map");
-    let vk_map = get_all_vk_digests(
-        &core_machine,
-        &compress_machine,
-        &core_shape_config,
-        &recursion_shape_config,
-        reduce_batch_size,
-    );
+    let vk_map = get_all_vk_digests(&core_shape_config, &recursion_shape_config, reduce_batch_size);
     tracing::info!("compress vks generated, number of keys: {}", vk_map.len());
 
     // Save the vk map to a file.
