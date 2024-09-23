@@ -14,7 +14,7 @@ use p3_commit::Mmcs;
 use p3_field::AbstractField;
 use p3_matrix::dense::RowMajorMatrix;
 
-use sp1_recursion_compiler::ir::{Builder, Ext, Felt, SymbolicFelt};
+use sp1_recursion_compiler::ir::{Builder, Ext, Felt};
 
 use sp1_recursion_core_v2::{
     air::{ChallengerPublicValues, RecursionPublicValues, RECURSIVE_PROOF_NUM_PV_ELTS},
@@ -136,7 +136,9 @@ where
         let mut finalize_addr_bits: [Felt<_>; 32] =
             core::array::from_fn(|_| unsafe { MaybeUninit::zeroed().assume_init() });
 
-        let mut contains_an_execution_shard: Felt<_> = builder.eval(C::F::zero());
+        // Initialize a flag to denote if the any of the recursive proofs represents a shard range
+        // where at least once of the shards is an execution shard (i.e. contains cpu).
+        let contains_an_execution_shard: Felt<_> = builder.eval(C::F::zero());
 
         // Verify proofs, check consistency, and aggregate public values.
         for (i, (vk, shard_proof)) in vks_and_proofs.into_iter().enumerate() {
@@ -396,11 +398,11 @@ where
             //   be set to one.
             // - If the current shard has an execution shard and the flag is set to one, it will
             //   remain set to one.
-            contains_an_execution_shard = builder.eval(
-                contains_an_execution_shard
-                    + current_public_values.contains_execution_shard
-                        * (SymbolicFelt::one() - contains_an_execution_shard),
-            );
+            // contains_an_execution_shard = builder.eval(
+            //     contains_an_execution_shard
+            //         + current_public_values.contains_execution_shard
+            //             * (SymbolicFelt::one() - contains_an_execution_shard),
+            // );
 
             // Update the reconstruct deferred proof digest.
             for (digest, current_digest) in reconstruct_deferred_digest
