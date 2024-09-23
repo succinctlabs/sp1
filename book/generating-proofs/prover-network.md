@@ -6,4 +6,4 @@ Succinct [has been building](https://blog.succinct.xyz/succinct-network/) the Su
 
 To get started, **[FILL OUT THIS FORM](https://forms.gle/rTUvhstS8PFfv9B3A)** to gain access to the Succinct
 Network. Completing this form requires you to complete the [key
-setup](./prover-network/key-setup.md) steps below.
+setup](./prover-network/key-setup.md) steps.
