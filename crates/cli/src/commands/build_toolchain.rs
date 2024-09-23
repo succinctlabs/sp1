@@ -64,8 +64,16 @@ impl BuildToolchainCmd {
         std::fs::write(&config_file, config_toml)
             .with_context(|| format!("while writing configuration to {:?}", config_file))?;
 
+        // Work around target sanity check added in rust-lang/rust@09c076810cb7649e5817f316215010d49e78e8d7.
+        let temp_dir = std::env::temp_dir().join("rustc-targets");
+        if !temp_dir.exists() {
+            std::fs::create_dir_all(&temp_dir)?;
+        }
+        std::fs::File::create(temp_dir.join("riscv32im-succinct-zkvm-elf.json"))?;
+
         // Build the toolchain (stage 1).
         Command::new("python3")
+            .env("RUST_TARGET_PATH", &temp_dir)
             .env("CARGO_TARGET_RISCV32IM_SUCCINCT_ZKVM_ELF_RUSTFLAGS", "-Cpasses=loweratomic")
             .args(["x.py", "build"])
             .current_dir(&rust_dir)
@@ -73,6 +81,7 @@ impl BuildToolchainCmd {
 
         // Build the toolchain (stage 2).
         Command::new("python3")
+            .env("RUST_TARGET_PATH", &temp_dir)
             .env("CARGO_TARGET_RISCV32IM_SUCCINCT_ZKVM_ELF_RUSTFLAGS", "-Cpasses=loweratomic")
             .args(["x.py", "build", "--stage", "2"])
             .current_dir(&rust_dir)
