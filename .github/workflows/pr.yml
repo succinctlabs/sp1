@@ -282,3 +282,9 @@ jobs:
           cargo remove sp1-sdk
           cargo add sp1-sdk --path $GITHUB_WORKSPACE/crates/sdk
           SP1_DEV=1 RUST_LOG=info cargo run --release
+
+      - name: Run cycle tracking script
+        run: |
+          cd examples/cycle-tracking/script
+          cargo add sp1-sdk --path $GITHUB_WORKSPACE/crates/sdk
+          SP1_DEV=1 RUST_LOG=info cargo run --release

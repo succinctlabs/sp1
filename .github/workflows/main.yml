@@ -128,6 +128,42 @@ jobs:
           cargo add sp1-sdk --path $GITHUB_WORKSPACE/crates/sdk
           SP1_DEV=1 RUST_LOG=info cargo run --release
 
+  cycle-tracking:
+    name: Example (Cycle Tracking)
+    runs-on:
+      [
+        runs-on,
+        runner=64cpu-linux-arm64,
+        spot=false,
+        "run-id=${{ github.run_id }}",
+      ]
+    env:
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+
+      - name: Setup CI
+        uses: ./.github/actions/setup
+
+      - name: Install SP1 toolchain
+        run: |
+          curl -L https://sp1.succinct.xyz | bash
+          ~/.sp1/bin/sp1up 
+          ~/.sp1/bin/cargo-prove prove --version
+
+      - name: Install SP1 CLI
+        run: |
+          cd crates/cli
+          cargo install --force --locked --path .
+          cd ~
+
+      - name: Run script
+        run: |
+          cd examples/cycle-tracking/script
+          cargo add sp1-sdk --path $GITHUB_WORKSPACE/crates/sdk
+          SP1_DEV=1 RUST_LOG=info cargo run --release
+
   tendermint:
     name: Example (Tendermint)
     runs-on:
