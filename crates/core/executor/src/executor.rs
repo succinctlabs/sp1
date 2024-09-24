@@ -992,6 +992,7 @@ impl<'a> Executor<'a> {
                 };
                 let nonce = (((*syscall_count as usize) % threshold) * multiplier) as u32;
                 self.record.nonce_lookup.insert(syscall_lookup_id, nonce);
+                println!("syscall code: {syscall:?}, nonce: {nonce:?}");
                 *syscall_count += 1;
             }
             Opcode::EBREAK => {

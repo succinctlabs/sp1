@@ -12,7 +12,7 @@ use crate::events::{
     EdDecompressEvent, EllipticCurveAddEvent, EllipticCurveDecompressEvent,
     EllipticCurveDoubleEvent, Fp2AddSubEvent, Fp2MulEvent, FpOpEvent, KeccakPermuteEvent, LookupId,
     MemoryInitializeFinalizeEvent, MemoryRecordEnum, ShaCompressEvent, ShaExtendEvent,
-    Uint256MulEvent,
+    U256xU2048MulEvent, Uint256MulEvent,
 };
 
 /// A record of the execution of a program.
@@ -68,6 +68,8 @@ pub struct ExecutionRecord {
     pub bls12381_double_events: Vec<EllipticCurveDoubleEvent>,
     /// A trace of the uint256 mul events.
     pub uint256_mul_events: Vec<Uint256MulEvent>,
+    /// A trace of the u256x2048 mul events.
+    pub u256x2048_mul_events: Vec<U256xU2048MulEvent>,
     /// A trace of the memory initialize events.
     pub memory_initialize_events: Vec<MemoryInitializeFinalizeEvent>,
     /// A trace of the memory finalize events.
@@ -170,6 +172,7 @@ impl ExecutionRecord {
             bls12381_decompress_events: std::mem::take(&mut self.bls12381_decompress_events),
             memory_initialize_events: std::mem::take(&mut self.memory_initialize_events),
             memory_finalize_events: std::mem::take(&mut self.memory_finalize_events),
+            u256x2048_mul_events: std::mem::take(&mut self.u256x2048_mul_events),
             ..Default::default()
         }
     }
@@ -226,6 +229,7 @@ impl ExecutionRecord {
         split_events!(self, bn254_fp_events, shards, opts.deferred, last);
         split_events!(self, bn254_fp2_addsub_events, shards, opts.deferred, last);
         split_events!(self, bn254_fp2_mul_events, shards, opts.deferred, last);
+        split_events!(self, u256x2048_mul_events, shards, opts.deferred, last);
         // _ = last_pct;
 
         if last {
@@ -383,6 +387,8 @@ impl MachineRecord for ExecutionRecord {
 
         self.memory_initialize_events.append(&mut other.memory_initialize_events);
         self.memory_finalize_events.append(&mut other.memory_finalize_events);
+
+        self.u256x2048_mul_events.append(&mut other.u256x2048_mul_events);
     }
 
     fn register_nonces(&mut self, _opts: &Self::Config) {

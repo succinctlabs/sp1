@@ -62,6 +62,14 @@ extern "C" {
     /// Executes an uint256 multiplication on the given inputs.
     pub fn syscall_uint256_mulmod(x: *mut [u32; 8], y: *const [u32; 8]);
 
+    /// Executes an u256x2048 multiplication on the given inputs.
+    pub fn syscall_u256x2048_mul(
+        x: *const [u32; 8],
+        y: *const [u32; 64],
+        lo: *mut [u32; 64],
+        hi: *mut [u32; 8],
+    );
+
     /// Enters unconstrained mode.
     pub fn syscall_enter_unconstrained() -> bool;
 
