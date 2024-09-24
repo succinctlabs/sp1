@@ -2,7 +2,7 @@
 **/target
 
 # Cargo config
-.cargo
+/.cargo
 
 # Profile-guided optimization
 /tmp
