@@ -1170,7 +1170,7 @@ pub mod tests {
 
     use crate::build::try_build_plonk_bn254_artifacts_dev;
     use anyhow::Result;
-    use build::try_build_groth16_bn254_artifacts_dev;
+    use build::{build_constraints_and_witness, try_build_groth16_bn254_artifacts_dev};
     use p3_field::PrimeField32;
 
     use sp1_recursion_core_v2::air::RecursionPublicValues;
@@ -1187,7 +1187,8 @@ pub mod tests {
         Compress,
         Shrink,
         Wrap,
-        Plonk,
+        CircuitTest,
+        All,
     }
 
     pub fn test_e2e_prover<C: SP1ProverComponents>(
@@ -1294,6 +1295,15 @@ pub mod tests {
         tracing::info!("checking vkey hash bn254");
         let vk_digest_bn254 = sp1_vkey_digest_bn254(&wrapped_bn254_proof);
         assert_eq!(vk_digest_bn254, vk.hash_bn254());
+
+        tracing::info!("Test the outer Plonk circuit");
+        let (constraints, witness) =
+            build_constraints_and_witness(&wrapped_bn254_proof.vk, &wrapped_bn254_proof.proof);
+        PlonkBn254Prover::test(constraints, witness);
+
+        if test_kind == Test::CircuitTest {
+            return Ok(());
+        }
 
         tracing::info!("generate plonk bn254 proof");
         let artifacts_dir = try_build_plonk_bn254_artifacts_dev(
@@ -1464,7 +1474,7 @@ pub mod tests {
             elf,
             SP1Stdin::default(),
             opts,
-            Test::Plonk,
+            Test::All,
         )
     }
 

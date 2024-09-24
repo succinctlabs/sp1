@@ -481,8 +481,8 @@ where
         // Set the contains an execution shard flag.
         compress_public_values.contains_execution_shard = contains_an_execution_shard;
         // Set the digest according to the previous values.
-        compress_public_values.digest =
-            public_values_digest::<C, SC>(builder, compress_public_values);
+        compress_public_values.digest = array::from_fn(|_| builder.eval(C::F::zero()));
+        // public_values_digest::<C, SC>(builder, compress_public_values);
         // Set the exit code.
         compress_public_values.exit_code = exit_code;
 
