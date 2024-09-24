@@ -222,6 +222,9 @@ where
         // Set the is_complete flag.
         deferred_public_values.is_complete = is_complete;
 
+        // Set the `contains_execution_shard` flag.
+        deferred_public_values.contains_execution_shard = contains_an_execution_shard;
+
         // Set the cumulative sum to zero.
         deferred_public_values.cumulative_sum = array::from_fn(|_| builder.eval(C::F::zero()));
 
