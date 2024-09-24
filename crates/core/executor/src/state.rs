@@ -4,7 +4,6 @@ use std::{
 };
 
 use hashbrown::HashMap;
-use nohash_hasher::BuildNoHashHasher;
 use serde::{Deserialize, Serialize};
 use sp1_stark::{baby_bear_poseidon2::BabyBearPoseidon2, StarkVerifyingKey};
 
@@ -13,7 +12,6 @@ use crate::{
     memory::PagedMemory,
     record::{ExecutionRecord, MemoryAccessRecord},
     syscalls::SyscallCode,
-    utils::{deserialize_hashmap_as_vec, serialize_hashmap_as_vec},
     ExecutorMode, SP1ReduceProof,
 };
 
@@ -39,11 +37,7 @@ pub struct ExecutionState {
 
     /// Uninitialized memory addresses that have a specific value they should be initialized with.
     /// `SyscallHintRead` uses this to write hint data into uninitialized memory.
-    #[serde(
-        serialize_with = "serialize_hashmap_as_vec",
-        deserialize_with = "deserialize_hashmap_as_vec"
-    )]
-    pub uninitialized_memory: HashMap<u32, u32, BuildNoHashHasher<u32>>,
+    pub uninitialized_memory: PagedMemory<u32>,
 
     /// A stream of input values (global to the entire program).
     pub input_stream: Vec<Vec<u8>>,
@@ -80,7 +74,7 @@ impl ExecutionState {
             clk: 0,
             pc: pc_start,
             memory: PagedMemory::new_preallocated(),
-            uninitialized_memory: HashMap::default(),
+            uninitialized_memory: PagedMemory::default(),
             input_stream: Vec::new(),
             input_stream_ptr: 0,
             public_values_stream: Vec::new(),
