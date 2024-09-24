@@ -1,34 +1,21 @@
-use sp1_sdk::{utils, ProverClient, SP1ProofWithPublicValues, SP1Stdin};
+use sp1_sdk::{utils, ProverClient, SP1Stdin};
 
 /// The ELF we want to execute inside the zkVM.
-const ELF: &[u8] = include_bytes!("../../program/elf/riscv32im-succinct-zkvm-elf");
+const REPORT_ELF: &[u8] = include_bytes!("../../program/elf/report");
+const NORMAL_ELF: &[u8] = include_bytes!("../../program/elf/normal");
 
 fn main() {
     // Setup a tracer for logging.
     utils::setup_logger();
 
-    // Create an input stream.
-    let stdin = SP1Stdin::new();
-
-    // Generate the proof for the given program.
+    // Execute the normal program.
     let client = ProverClient::new();
-    let (pk, vk) = client.setup(ELF);
-    let proof = client.prove(&pk, stdin).run().expect("proving failed");
+    let (_, _) = client.execute(NORMAL_ELF, SP1Stdin::new()).run().expect("proving failed");
 
-    // Verify proof.
-    client.verify(&proof, &vk).expect("verification failed");
+    // Execute the report program.
+    let (_, report) = client.execute(REPORT_ELF, SP1Stdin::new()).run().expect("proving failed");
 
-    // Test a round trip of proof serialization and deserialization.
-    proof
-        .save("proof-with-pis.bin")
-        .expect("saving proof failed");
-    let deserialized_proof =
-        SP1ProofWithPublicValues::load("proof-with-pis.bin").expect("loading proof failed");
-
-    // Verify the deserialized proof.
-    client
-        .verify(&deserialized_proof, &vk)
-        .expect("verification failed");
-
-    println!("successfully generated and verified proof for the program!")
+    // Get the "setup" cycle count from the report program.
+    let setup_cycles = report.cycle_tracker.get("setup").unwrap();
+    println!("Using cycle-tracker-report saves the number of cycles to the cycle-tracker mapping in the report.\nHere's the number of cycles used by the setup: {}", setup_cycles);
 }
