@@ -230,8 +230,8 @@ where
         deferred_public_values.cumulative_sum = array::from_fn(|_| builder.eval(C::F::zero()));
 
         // Set the digest according to the previous values.
-        deferred_public_values.digest = core::array::from_fn(|_| builder.eval(C::F::zero()));
-        // public_values_digest::<C, SC>(builder, deferred_public_values);
+        deferred_public_values.digest =
+            public_values_digest::<C, SC>(builder, deferred_public_values);
 
         SC::commit_recursion_public_values(builder, *deferred_public_values);
     }
