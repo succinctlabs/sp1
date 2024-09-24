@@ -1,8 +1,8 @@
 [package]
-name = "fibonacci-script"
+name = "keccak-script"
 version = { workspace = true }
 edition = { workspace = true }
-default-run = "fibonacci-script"
+default-run = "keccak-script"
 publish = false
 
 [dependencies]
