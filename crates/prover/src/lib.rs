@@ -1300,6 +1300,7 @@ pub mod tests {
         let (constraints, witness) =
             build_constraints_and_witness(&wrapped_bn254_proof.vk, &wrapped_bn254_proof.proof);
         PlonkBn254Prover::test(constraints, witness);
+        tracing::info!("Circuit test succedded");
 
         if test_kind == Test::CircuitTest {
             return Ok(());
