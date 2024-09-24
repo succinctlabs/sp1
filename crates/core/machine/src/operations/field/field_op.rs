@@ -43,6 +43,7 @@ pub struct FieldOpCols<T, P: FieldParameters> {
 
 impl<F: PrimeField32, P: FieldParameters> FieldOpCols<F, P> {
     #[allow(clippy::too_many_arguments)]
+    /// Populate result and carry with a*b + c % modulus
     pub fn populate_mul_and_carry(
         &mut self,
         record: &mut impl ByteRecord,

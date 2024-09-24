@@ -171,7 +171,7 @@ impl CostEstimator for ExecutionReport {
         total_area += (memory_finalize_events as u64) * costs[&RiscvAirDiscriminants::MemoryFinal];
         total_chips += 1;
 
-        // assert_eq!(total_chips, chips.len(), "chip count mismatch");
+        assert_eq!(total_chips, chips.len(), "chip count mismatch");
         total_area
     }
 }

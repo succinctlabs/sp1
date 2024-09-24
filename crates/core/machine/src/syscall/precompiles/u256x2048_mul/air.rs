@@ -124,10 +124,6 @@ impl<F: PrimeField32> MachineAir<F> for U256x2048MulChip {
                         let mut row: [F; NUM_COLS] = [F::zero(); NUM_COLS];
                         let cols: &mut U256x2048MulCols<F> = row.as_mut_slice().borrow_mut();
 
-                        // // Decode uint256 points
-                        // let a = BigUint::from_bytes_le(&words_to_bytes_le::<32>(&event.a));
-                        // let b = BigUint::from_bytes_le(&words_to_bytes_le::<32>(&event.b));
-
                         // Assign basic values to the columns.
                         cols.is_real = F::one();
                         cols.shard = F::from_canonical_u32(event.shard);
@@ -192,9 +188,6 @@ impl<F: PrimeField32> MachineAir<F> for U256x2048MulChip {
                             .try_into()
                             .unwrap();
 
-                        // let b = BigUint::from_bytes_le(&words_to_bytes_le::<32>(&event.b));
-
-                        // let base = BigUint::one() << 2048;
                         let effective_modulus = BigUint::one() << 256;
 
                         let mut carries = vec![BigUint::zero(); 9];
@@ -221,17 +214,6 @@ impl<F: PrimeField32> MachineAir<F> for U256x2048MulChip {
                             );
                             carries[i + 1] = carry;
                         }
-
-                        // let hi_output = cols.hi_output.populate_with_modulus(
-                        //     &mut new_byte_lookup_events,
-                        //     event.shard,
-                        //     event.channel,
-                        //     &carries[8],
-                        //     &BigUint::zero(),
-                        //     &effective_modulus,
-                        //     FieldOperation::Add,
-                        // );
-
                         row
                     })
                     .collect::<Vec<_>>();
@@ -255,7 +237,7 @@ impl<F: PrimeField32> MachineAir<F> for U256x2048MulChip {
             let y = BigUint::zero();
             let z = BigUint::zero();
             let modulus = BigUint::one() << 256;
-            // cols.hi_output.populate(&mut vec![], 0, 0, &x, &y, FieldOperation::Add);
+
             cols.a_mul_b1.populate(&mut vec![], 0, 0, &x, &y, FieldOperation::Mul);
             cols.ab2_plus_carry.populate_mul_and_carry(&mut vec![], 0, 0, &x, &y, &z, &modulus);
             cols.ab3_plus_carry.populate_mul_and_carry(&mut vec![], 0, 0, &x, &y, &z, &modulus);
@@ -380,17 +362,11 @@ where
         builder.when_transition().assert_eq(local.nonce + AB::Expr::one(), next.nonce);
 
         // // Eval each of mul and carries
-        // println!("reading a_limbs");
-        // let a_limbs = limbs_from_access::<AB::Var, WordsFieldElement, MemoryReadCols<AB::Var>>(
-        //     &local.a_memory,
-        // );
-
-        // let a_limbs = limbs_from_access(&local.a_memory);
         let a_limbs =
             limbs_from_access::<AB::Var, <U256Field as NumLimbs>::Limbs, _>(&local.a_memory);
-        // let a_limbs = local.a_memory.iter().map(|mem_col| mem_col.value().0).collect::<Vec<_>>();
+
         //iterate through chunks of 8 for b_memory and convert each chunk to its limbs
-        println!("reading b_limbs");
+
         let b_limb_array = local
             .b_memory
             .chunks(8)
