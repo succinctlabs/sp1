@@ -27,7 +27,7 @@ name = "execute"
 path = "bin/execute.rs"
 
 [[bin]]
-name = "fibonacci-script"
+name = "keccak-script"
 path = "src/main.rs"
 
 [features]
