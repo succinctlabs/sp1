@@ -28,11 +28,13 @@ pub struct U256xU2048MulEvent {
     pub b: Vec<u32>,
     /// The pointer to the lo value.
     pub lo_ptr: u32,
+    /// The memory record for the pointer to the lo value.
     pub lo_ptr_memory: MemoryReadRecord,
     /// The lo value as a list of words.
     pub lo: Vec<u32>,
     /// The pointer to the hi value.
     pub hi_ptr: u32,
+    /// The memory record for the pointer to the hi value.
     pub hi_ptr_memory: MemoryReadRecord,
     /// The hi value as a list of words.
     pub hi: Vec<u32>,

@@ -1,18 +1,12 @@
 use crate::{
     air::MemoryAirBuilder,
-    operations::field::range::FieldLtCols,
-    utils::{
-        limbs_from_access, limbs_from_prev_access, pad_rows, words_to_bytes_le,
-        words_to_bytes_le_vec,
-    },
+    utils::{limbs_from_access, pad_rows, words_to_bytes_le},
 };
 use crate::{
-    memory::{value_as_limbs, MemoryCols, MemoryReadCols, MemoryWriteCols},
+    memory::{value_as_limbs, MemoryReadCols, MemoryWriteCols},
     operations::field::field_op::FieldOpCols,
 };
 
-use elliptic_curve::bigint::U64;
-use generic_array::GenericArray;
 use num::{BigUint, One, Zero};
 use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::{AbstractField, PrimeField32};
@@ -23,7 +17,7 @@ use sp1_core_executor::{
     ExecutionRecord, Program,
 };
 use sp1_curves::{
-    params::{Limbs, NumLimbs, NumWords},
+    params::{NumLimbs, NumWords},
     uint256::U256Field,
 };
 use sp1_derive::AlignedBorrow;
@@ -370,7 +364,7 @@ where
         let b_limb_array = local
             .b_memory
             .chunks(8)
-            .map(|chunk| limbs_from_access::<AB::Var, <U256Field as NumLimbs>::Limbs, _>(chunk))
+            .map(limbs_from_access::<AB::Var, <U256Field as NumLimbs>::Limbs, _>)
             .collect::<Vec<_>>();
 
         let mut coeff_2_256 = Vec::new();

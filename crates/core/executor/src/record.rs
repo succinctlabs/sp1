@@ -319,6 +319,7 @@ impl MachineRecord for ExecutionRecord {
         stats.insert("bls12381_add_events".to_string(), self.bls12381_add_events.len());
         stats.insert("bls12381_double_events".to_string(), self.bls12381_double_events.len());
         stats.insert("uint256_mul_events".to_string(), self.uint256_mul_events.len());
+        stats.insert("u256x2048_mul_events".to_string(), self.u256x2048_mul_events.len());
         stats.insert("bls12381_fp_event".to_string(), self.bls12381_fp_events.len());
         stats.insert(
             "bls12381_fp2_addsub_events".to_string(),
@@ -376,8 +377,7 @@ impl MachineRecord for ExecutionRecord {
         self.bn254_fp2_addsub_events.append(&mut other.bn254_fp2_addsub_events);
         self.bn254_fp2_mul_events.append(&mut other.bn254_fp2_mul_events);
         self.bls12381_decompress_events.append(&mut other.bls12381_decompress_events);
-
-        self.bls12381_decompress_events.append(&mut other.bls12381_decompress_events);
+        self.u256x2048_mul_events.append(&mut other.u256x2048_mul_events);
 
         if self.byte_lookups.is_empty() {
             self.byte_lookups = std::mem::take(&mut other.byte_lookups);
@@ -387,8 +387,6 @@ impl MachineRecord for ExecutionRecord {
 
         self.memory_initialize_events.append(&mut other.memory_initialize_events);
         self.memory_finalize_events.append(&mut other.memory_finalize_events);
-
-        self.u256x2048_mul_events.append(&mut other.u256x2048_mul_events);
     }
 
     fn register_nonces(&mut self, _opts: &Self::Config) {

@@ -4,7 +4,7 @@ use num::{BigUint, Integer, One};
 use sp1_primitives::consts::{bytes_to_words_le, words_to_bytes_le_vec};
 
 use crate::{
-    events::{MemoryAccessPosition, MemoryReadRecord, U256xU2048MulEvent},
+    events::U256xU2048MulEvent,
     syscalls::{Syscall, SyscallContext},
 };
 
@@ -17,16 +17,9 @@ impl Syscall for U256xU2048MulSyscall {
         let a_ptr = arg1;
         let b_ptr = arg2;
 
-        // 1) benchmark how good your precompile is gonna be by patching the rsa crate to use the syscall. benchmark cycles
-        // 2) slowly add the memory accesses in this file back in and add the appropriate constraints, and make sure the test still passes.
-
         let (r3, arg3) = rt.mr(crate::Register::X12 as u32);
         let (r4, arg4) = rt.mr(crate::Register::X13 as u32);
 
-        // // First read the words for the x value. We can read a slice_unsafe here because we write
-        // // the computed result to x later.
-        // let a = rt.slice_unsafe(a_ptr, 8);
-        // let b = rt.slice_unsafe(b_ptr, 64);
         let (a_memory_records, a) = rt.mr_slice(a_ptr, 8);
         let (b_memory_records, b) = rt.mr_slice(b_ptr, 64);
         let uint256_a = BigUint::from_bytes_le(&words_to_bytes_le_vec(&a));
@@ -60,8 +53,6 @@ impl Syscall for U256xU2048MulSyscall {
             channel,
             clk,
             a_ptr,
-            //
-            // a: vec![],
             a,
             b_ptr,
             b,

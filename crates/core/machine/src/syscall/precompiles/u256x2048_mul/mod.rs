@@ -5,7 +5,6 @@ pub use air::*;
 #[cfg(test)]
 mod tests {
     use sp1_core_executor::{programs::tests::U256XU2048_MUL_ELF, Program};
-    use sp1_curves::{params::FieldParameters, uint256::U256Field, utils::biguint_from_limbs};
     use sp1_stark::CpuProver;
 
     use crate::{
