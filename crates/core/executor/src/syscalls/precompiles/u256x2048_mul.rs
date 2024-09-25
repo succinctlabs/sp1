@@ -1,13 +1,17 @@
 use num::{BigUint, Integer, One};
 
-// use sp1_curves::edwards::WORDS_FIELD_ELEMENT;
 use sp1_primitives::consts::{bytes_to_words_le, words_to_bytes_le_vec};
 
 use crate::{
     events::U256xU2048MulEvent,
     syscalls::{Syscall, SyscallContext},
+    Register::{X12, X13},
 };
 
+const U256_NUM_WORDS: usize = 8;
+const U2048_NUM_WORDS: usize = 64;
+const U256_NUM_BYTES: usize = U256_NUM_WORDS * 4;
+const U2048_NUM_BYTES: usize = U2048_NUM_WORDS * 4;
 pub(crate) struct U256xU2048MulSyscall;
 
 impl Syscall for U256xU2048MulSyscall {
@@ -17,11 +21,11 @@ impl Syscall for U256xU2048MulSyscall {
         let a_ptr = arg1;
         let b_ptr = arg2;
 
-        let (r3, arg3) = rt.mr(crate::Register::X12 as u32);
-        let (r4, arg4) = rt.mr(crate::Register::X13 as u32);
+        let (lo_ptr_memory, lo_ptr) = rt.mr(X12 as u32);
+        let (hi_ptr_memory, hi_ptr) = rt.mr(X13 as u32);
 
-        let (a_memory_records, a) = rt.mr_slice(a_ptr, 8);
-        let (b_memory_records, b) = rt.mr_slice(b_ptr, 64);
+        let (a_memory_records, a) = rt.mr_slice(a_ptr, U256_NUM_WORDS);
+        let (b_memory_records, b) = rt.mr_slice(b_ptr, U2048_NUM_WORDS);
         let uint256_a = BigUint::from_bytes_le(&words_to_bytes_le_vec(&a));
         let uint2048_b = BigUint::from_bytes_le(&words_to_bytes_le_vec(&b));
 
@@ -32,18 +36,18 @@ impl Syscall for U256xU2048MulSyscall {
         let (hi, lo) = result.div_rem(&two_to_2048);
 
         let mut lo_bytes = lo.to_bytes_le();
-        lo_bytes.resize(256, 0u8);
-        let lo_words = bytes_to_words_le::<64>(&lo_bytes);
+        lo_bytes.resize(U2048_NUM_BYTES, 0u8);
+        let lo_words = bytes_to_words_le::<U2048_NUM_WORDS>(&lo_bytes);
 
         let mut hi_bytes = hi.to_bytes_le();
-        hi_bytes.resize(32, 0u8);
-        let hi_words = bytes_to_words_le::<8>(&hi_bytes);
+        hi_bytes.resize(U256_NUM_BYTES, 0u8);
+        let hi_words = bytes_to_words_le::<U256_NUM_WORDS>(&hi_bytes);
 
         // Increment clk so that the write is not at the same cycle as the read.
         rt.clk += 1;
 
-        let lo_memory_records = rt.mw_slice(arg3, &lo_words);
-        let hi_memory_records = rt.mw_slice(arg4, &hi_words);
+        let lo_memory_records = rt.mw_slice(lo_ptr, &lo_words);
+        let hi_memory_records = rt.mw_slice(hi_ptr, &hi_words);
         let lookup_id = rt.syscall_lookup_id;
         let shard = rt.current_shard();
         let channel = rt.current_channel();
@@ -56,12 +60,12 @@ impl Syscall for U256xU2048MulSyscall {
             a,
             b_ptr,
             b,
-            lo_ptr: arg3,
+            lo_ptr,
             lo: lo_words.to_vec(),
-            hi_ptr: arg4,
+            hi_ptr,
             hi: hi_words.to_vec(),
-            lo_ptr_memory: r3,
-            hi_ptr_memory: r4,
+            lo_ptr_memory,
+            hi_ptr_memory,
             a_memory_records,
             b_memory_records,
             lo_memory_records,

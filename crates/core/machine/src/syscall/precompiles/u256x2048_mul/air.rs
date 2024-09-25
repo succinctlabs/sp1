@@ -44,6 +44,8 @@ impl U256x2048MulChip {
 }
 type WordsFieldElement = <U256Field as NumWords>::WordsFieldElement;
 const WORDS_FIELD_ELEMENT: usize = WordsFieldElement::USIZE;
+const LO_REGISTER: u32 = 12;
+const HI_REGISTER: u32 = 13;
 
 /// A set of columns for the U256x2048Mul operation.
 #[derive(Debug, Clone, AlignedBorrow)]
@@ -301,7 +303,7 @@ where
             local.shard,
             local.channel,
             local.clk.into(),
-            AB::Expr::from_canonical_u32(12),
+            AB::Expr::from_canonical_u32(LO_REGISTER),
             &local.lo_ptr_memory,
             local.is_real,
         );
@@ -310,7 +312,7 @@ where
             local.shard,
             local.channel,
             local.clk.into(),
-            AB::Expr::from_canonical_u32(13),
+            AB::Expr::from_canonical_u32(HI_REGISTER),
             &local.hi_ptr_memory,
             local.is_real,
         );
@@ -407,18 +409,6 @@ where
                 local.is_real,
             );
         }
-        // println!("evaluated all mul and carry");
-
-        // local.hi_output.eval_with_modulus(
-        //     builder,
-        //     &outputs[outputs.len() - 1].carry,
-        //     &Polynomial::from_coefficients(&[AB::Expr::zero()]),
-        //     &modulus_polynomial,
-        //     FieldOperation::Add,
-        //     local.shard,
-        //     local.channel,
-        //     local.is_real,
-        // );
 
         // // Assert that the correct result is being written to hi_memory.
         builder
@@ -434,7 +424,5 @@ where
                 ),
             );
         }
-
-        // // Read and write x.
     }
 }

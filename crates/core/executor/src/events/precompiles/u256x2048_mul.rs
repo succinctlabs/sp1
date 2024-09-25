@@ -20,7 +20,7 @@ pub struct U256xU2048MulEvent {
     pub clk: u32,
     /// The pointer to the a value.
     pub a_ptr: u32,
-    /// The x value as a list of words.
+    /// The a value as a list of words.
     pub a: Vec<u32>,
     /// The pointer to the b value.
     pub b_ptr: u32,
