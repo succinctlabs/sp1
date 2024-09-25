@@ -1,5 +1,4 @@
 mod bigint;
-mod bigint_uma;
 mod bls12381;
 mod bn254;
 mod ed25519;
@@ -19,7 +18,6 @@ mod unconstrained;
 mod verify;
 
 pub use bigint::*;
-pub use bigint_uma::*;
 pub use bls12381::*;
 pub use bn254::*;
 pub use ed25519::*;
