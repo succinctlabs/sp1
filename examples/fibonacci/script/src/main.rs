@@ -1,6 +1,9 @@
 use clap::Parser;
 use sp1_sdk::{ProverClient, SP1Stdin};
 use std::time::SystemTime;
+use sp1_core_executor::{Executor, ExecutorMode, Program};
+use sp1_core_machine::riscv::RiscvAir;
+use sp1_stark::{baby_bear_poseidon2::BabyBearPoseidon2, StarkGenericConfig, SP1CoreOpts, CpuProver, MachineProver};
 
 /// The ELF we want to execute inside the zkVM.
 const ELF: &[u8] = include_bytes!("../../program/elf/riscv32im-succinct-zkvm-elf");
@@ -32,35 +35,47 @@ fn main() {
         std::process::exit(1);
     }
 
-    // Setup the prover client.
-    println!(
-        "\n Setup prover client (at {} sec)..",
-        start.elapsed().unwrap().as_secs()
-    );
-    let client = ProverClient::new();
+    // Setup fibonacci program
+    let program = Program::from(ELF).unwrap();
+    // println!("program: {:?}", program);
+    let mut runtime = Executor::new(program, SP1CoreOpts::default());
+
+    runtime.executor_mode = ExecutorMode::Trace;
 
     // Setup the inputs.
+    println!("n: {}", args.n);
     let mut stdin = SP1Stdin::new();
     stdin.write(&args.n);
 
-    println!("n: {}", args.n);
+    for input in &stdin.buffer {
+        runtime.state.input_stream.push(input.clone());
+    }
 
-    // Setup the program for proving.
+    // run to get execution records
+    runtime.run().unwrap();
+
+
+    // Setup the prover.
     println!(
-        "\n Setup the program (at {} sec)..",
+        "\n Setup prover (at {} sec)..",
         start.elapsed().unwrap().as_secs()
     );
-    let (pk, vk) = client.setup(ELF);
+
+    let config = BabyBearPoseidon2::new();
+    let machine = RiscvAir::machine(config);
+    let prover = <CpuProver<_, _>>::new(machine);
+    let (pk, vk) = prover.setup(runtime.program.as_ref());
 
     // Generate the proof
     println!(
         "\n Generating proof (at {} sec)..",
         start.elapsed().unwrap().as_secs()
     );
-    let proof = client
-        .prove(&pk, stdin)
-        .run()
-        .expect("failed to generate proof");
+    let mut challenger = prover.config().challenger();
+    //let records = vec![runtime.record];
+    let records = runtime.records;
+    let proof = prover.prove(&pk, records, &mut challenger, SP1CoreOpts::default()).unwrap();
+
 
     println!("Successfully generated proof!");
 
@@ -69,6 +84,7 @@ fn main() {
         "\n Verifying proof (at {} sec)..",
         start.elapsed().unwrap().as_secs()
     );
-    client.verify(&proof, &vk).expect("failed to verify proof");
+    let mut challenger = prover.config().challenger();
+    let _ = prover.machine().verify(&vk, &proof, &mut challenger);
     println!("Successfully verified proof!");
 }

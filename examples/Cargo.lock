@@ -1850,10 +1850,14 @@ checksum = "28dea519a9695b9977216879a3ebfddf92f1c08c05d984f8996aecd6ecdc811d"
 name = "fibonacci-script"
 version = "1.1.0"
 dependencies = [
+ "clap",
  "itertools 0.12.1",
  "sha2 0.10.8",
  "sp1-build",
+ "sp1-core-executor",
+ "sp1-core-machine",
  "sp1-sdk",
+ "sp1-stark",
 ]
 
 [[package]]
@@ -2731,6 +2735,17 @@ checksum = "422fbc7ff2f2f5bdffeb07718e5a5324dca72b0c9293d50df4026652385e3314"
 dependencies = [
  "digest 0.10.7",
  "sha3-asm",
+]
+
+[[package]]
+name = "keccak-script"
+version = "1.1.0"
+dependencies = [
+ "clap",
+ "itertools 0.12.1",
+ "sha2 0.10.8",
+ "sp1-build",
+ "sp1-sdk",
 ]
 
 [[package]]
@@ -4970,7 +4985,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-build"
-version = "1.2.0"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "cargo_metadata",
@@ -4981,7 +4996,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-core-executor"
-version = "1.2.0"
+version = "2.0.0"
 dependencies = [
  "bincode",
  "bytemuck",
@@ -5017,7 +5032,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-core-machine"
-version = "1.2.0"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "arrayref",
@@ -5081,7 +5096,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-cuda"
-version = "1.2.0"
+version = "2.0.0"
 dependencies = [
  "bincode",
  "ctrlc",
@@ -5100,7 +5115,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-curves"
-version = "1.2.0"
+version = "2.0.0"
 dependencies = [
  "curve25519-dalek",
  "dashu",
@@ -5119,7 +5134,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-derive"
-version = "1.2.0"
+version = "2.0.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -5128,7 +5143,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-primitives"
-version = "1.2.0"
+version = "2.0.0"
 dependencies = [
  "itertools 0.13.0",
  "lazy_static",
@@ -5140,7 +5155,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-prover"
-version = "1.2.0"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "bincode",
@@ -5178,7 +5193,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-circuit"
-version = "1.2.0"
+version = "2.0.0"
 dependencies = [
  "bincode",
  "itertools 0.13.0",
@@ -5201,7 +5216,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-compiler"
-version = "1.2.0"
+version = "2.0.0"
 dependencies = [
  "backtrace",
  "itertools 0.13.0",
@@ -5229,7 +5244,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-core"
-version = "1.2.0"
+version = "2.0.0"
 dependencies = [
  "arrayref",
  "backtrace",
@@ -5265,7 +5280,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-core-v2"
-version = "1.2.0"
+version = "2.0.0"
 dependencies = [
  "arrayref",
  "backtrace",
@@ -5304,7 +5319,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-derive"
-version = "1.2.0"
+version = "2.0.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -5313,7 +5328,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-gnark-ffi"
-version = "1.2.0"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "bincode",
@@ -5338,7 +5353,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-program"
-version = "1.2.0"
+version = "2.0.0"
 dependencies = [
  "itertools 0.13.0",
  "p3-air",
@@ -5368,7 +5383,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-sdk"
-version = "1.2.0"
+version = "2.0.0"
 dependencies = [
  "alloy-sol-types",
  "anyhow",
@@ -5382,6 +5397,7 @@ dependencies = [
  "hashbrown 0.14.5",
  "hex",
  "indicatif",
+ "itertools 0.13.0",
  "log",
  "num-bigint 0.4.6",
  "p3-baby-bear",
@@ -5413,7 +5429,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-stark"
-version = "1.2.0"
+version = "2.0.0"
 dependencies = [
  "arrayref",
  "getrandom",
