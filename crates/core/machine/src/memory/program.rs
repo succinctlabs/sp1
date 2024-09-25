@@ -2,6 +2,7 @@ use core::{
     borrow::{Borrow, BorrowMut},
     mem::size_of,
 };
+use itertools::Itertools;
 use p3_air::{Air, AirBuilder, AirBuilderWithPublicValues, BaseAir, PairBuilder};
 use p3_field::{AbstractField, PrimeField};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
@@ -106,7 +107,8 @@ impl<F: PrimeField> MachineAir<F> for MemoryProgramChip {
         input: &ExecutionRecord,
         _output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
-        let program_memory_addrs = input.program.memory_image.keys().copied().collect::<Vec<_>>();
+        let program_memory_addrs =
+            input.program.memory_image.keys().copied().sorted().collect::<Vec<_>>();
 
         let mult = if input.public_values.shard == 1 { F::one() } else { F::zero() };
 
