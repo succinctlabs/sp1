@@ -87,6 +87,9 @@ pub trait AffinePoint<const N: usize>: Clone + Sized {
         b_bits_le: &[bool],
         b: Self,
     ) -> Option<Self> {
+        // The length of the bit vectors must be the same.
+        debug_assert!(a_bits_le.len() == b_bits_le.len());
+
         let mut res: Option<Self> = None;
         let mut temp_a = a.clone();
         let mut temp_b = b.clone();
