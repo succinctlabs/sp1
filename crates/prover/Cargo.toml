@@ -20,6 +20,7 @@ sp1-recursion-circuit-v2 = { workspace = true }
 sp1-recursion-gnark-ffi = { workspace = true }
 sp1-core-machine = { workspace = true }
 sp1-stark = { workspace = true }
+p3-symmetric = { workspace = true }
 sp1-core-executor = { workspace = true }
 sp1-primitives = { workspace = true }
 p3-field = { workspace = true }

@@ -20,8 +20,8 @@ use sp1_stark::{
 use thiserror::Error;
 
 use crate::{
-    components::SP1ProverComponents, CoreSC, HashableKey, OuterSC, SP1CoreProofData, SP1Prover,
-    SP1VerifyingKey,
+    components::SP1ProverComponents, utils::assert_recursion_public_values_valid, CoreSC,
+    HashableKey, OuterSC, SP1CoreProofData, SP1Prover, SP1VerifyingKey,
 };
 
 #[derive(Error, Debug)]
@@ -298,6 +298,10 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 
         // Validate public values
         let public_values: &RecursionPublicValues<_> = proof.public_values.as_slice().borrow();
+        assert_recursion_public_values_valid(
+            self.compress_prover.machine().config(),
+            public_values,
+        );
 
         // `is_complete` should be 1. In the reduce program, this ensures that the proof is fully
         // reduced.
@@ -335,6 +339,10 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         // Validate public values
         let public_values: &RecursionPublicValues<_> =
             proof.proof.public_values.as_slice().borrow();
+        assert_recursion_public_values_valid(
+            self.compress_prover.machine().config(),
+            public_values,
+        );
 
         // `is_complete` should be 1. In the reduce program, this ensures that the proof is fully
         // reduced.
@@ -364,6 +372,10 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         // Validate public values
         let public_values: &RecursionPublicValues<_> =
             proof.proof.public_values.as_slice().borrow();
+        assert_recursion_public_values_valid(
+            self.compress_prover.machine().config(),
+            public_values,
+        );
 
         // `is_complete` should be 1. In the reduce program, this ensures that the proof is fully
         // reduced.

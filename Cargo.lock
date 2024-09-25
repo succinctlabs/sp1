@@ -6139,6 +6139,7 @@ dependencies = [
  "p3-commit",
  "p3-field",
  "p3-matrix",
+ "p3-symmetric",
  "rayon",
  "serde",
  "serde_json",
