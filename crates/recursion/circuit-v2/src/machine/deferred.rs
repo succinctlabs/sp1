@@ -224,14 +224,14 @@ where
         deferred_public_values.is_complete = is_complete;
 
         // Set the `contains_execution_shard` flag.
-        deferred_public_values.contains_execution_shard = builder.eval(C::F::one());
+        deferred_public_values.contains_execution_shard = builder.eval(C::F::zero());
 
         // Set the cumulative sum to zero.
         deferred_public_values.cumulative_sum = array::from_fn(|_| builder.eval(C::F::zero()));
 
         // Set the digest according to the previous values.
-        deferred_public_values.digest = core::array::from_fn(|_| builder.eval(C::F::zero()));
-        // public_values_digest::<C, SC>(builder, deferred_public_values);
+        deferred_public_values.digest =
+            public_values_digest::<C, SC>(builder, deferred_public_values);
 
         SC::commit_recursion_public_values(builder, *deferred_public_values);
     }
