@@ -73,6 +73,7 @@ impl<F: PrimeField> MachineAir<F> for MemoryProgramChip {
         // deterministic.
         let mut rows = program_memory
             .into_iter()
+            .sorted()
             .map(|(addr, word)| {
                 let mut row = [F::zero(); NUM_MEMORY_PROGRAM_PREPROCESSED_COLS];
                 let cols: &mut MemoryProgramPreprocessedCols<F> = row.as_mut_slice().borrow_mut();
