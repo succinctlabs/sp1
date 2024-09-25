@@ -295,7 +295,7 @@ where
                     C::F::zero(),
                 );
                 // A flag to indicate whether the first execution shard has been seen. We have:
-                // - `is_first_execution_shard_seen`  = if_current_contains_execution_shard &&
+                // - `is_first_execution_shard_seen`  = current_contains_execution_shard &&
                 //                                     !execution_shard_seen_before.
                 // Since `contains_execution_shard` is the boolean flag used to denote if we have
                 // seen an execution shard, we can use it to denote if we have seen an execution
@@ -440,7 +440,6 @@ where
                     + execution_shard
                         * (SymbolicFelt::one() - current_public_values.contains_execution_shard),
             );
-            builder.print_f(execution_shard);
 
             // Update the reconstruct deferred proof digest.
             for (digest, current_digest) in reconstruct_deferred_digest
