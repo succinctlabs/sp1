@@ -80,7 +80,7 @@ pub struct U256x2048MulCols<T> {
     pub lo_memory: [MemoryWriteCols<T>; WORDS_FIELD_ELEMENT * 8],
     pub hi_memory: [MemoryWriteCols<T>; WORDS_FIELD_ELEMENT],
 
-    // // Output values. We compute (x * y) % 2^2048 and (x * y) / 2^2048.
+    // Output values. We compute (x * y) % 2^2048 and (x * y) / 2^2048.
     pub a_mul_b1: FieldOpCols<T, U256Field>,
     pub ab2_plus_carry: FieldOpCols<T, U256Field>,
     pub ab3_plus_carry: FieldOpCols<T, U256Field>,
@@ -353,15 +353,15 @@ where
             local.is_real,
         );
 
-        // // Constrain the incrementing nonce.
+        // Constrain the incrementing nonce.
         builder.when_first_row().assert_zero(local.nonce);
         builder.when_transition().assert_eq(local.nonce + AB::Expr::one(), next.nonce);
 
-        // // Eval each of mul and carries
+        // Eval each of mul and carries
         let a_limbs =
             limbs_from_access::<AB::Var, <U256Field as NumLimbs>::Limbs, _>(&local.a_memory);
 
-        //iterate through chunks of 8 for b_memory and convert each chunk to its limbs
+        // Iterate through chunks of 8 for b_memory and convert each chunk to its limbs
 
         let b_limb_array = local
             .b_memory
