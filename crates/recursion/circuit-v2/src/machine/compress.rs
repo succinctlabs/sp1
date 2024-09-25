@@ -434,6 +434,7 @@ where
                     + execution_shard
                         * (SymbolicFelt::one() - current_public_values.contains_execution_shard),
             );
+            builder.print_f(execution_shard);
 
             // Update the reconstruct deferred proof digest.
             for (digest, current_digest) in reconstruct_deferred_digest
