@@ -427,6 +427,14 @@ where
                     + execution_shard * (SymbolicFelt::one() - contains_an_execution_shard),
             );
 
+            // If this is the last shard and an execution shard was not present, we update the
+            // execution shard value to be the last shard.
+            execution_shard = builder.eval(
+                execution_shard * contains_an_execution_shard
+                    + current_public_values.next_execution_shard
+                        * (SymbolicFelt::one() - contains_an_execution_shard),
+            );
+
             // Update the reconstruct deferred proof digest.
             for (digest, current_digest) in reconstruct_deferred_digest
                 .iter_mut()
