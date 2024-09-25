@@ -44,9 +44,9 @@ pub(crate) fn assert_complete<C: Config>(
     builder.assert_felt_ne(is_complete * *next_shard, C::F::one());
 
     // Assert that that an execution shard is present.
-    // builder.assert_felt_eq(is_complete * (*contains_execution_shard - C::F::one()), C::F::zero());
+    builder.assert_felt_eq(is_complete * (*contains_execution_shard - C::F::one()), C::F::zero());
     // Assert that the start execution shard is equal to 1.
-    // builder.assert_felt_eq(is_complete * (*start_execution_shard - C::F::one()), C::F::zero());
+    builder.assert_felt_eq(is_complete * (*start_execution_shard - C::F::one()), C::F::zero());
 
     // Assert that the end reconstruct challenger is equal to the leaf challenger.
     for (end_challenger_d, leaf_challenger_d) in
