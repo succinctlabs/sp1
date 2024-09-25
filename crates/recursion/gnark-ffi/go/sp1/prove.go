@@ -10,6 +10,7 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend/groth16"
+	groth16_bn254 "github.com/consensys/gnark/backend/groth16/bn254"
 	"github.com/consensys/gnark/backend/plonk"
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
@@ -162,6 +163,13 @@ func ProveGroth16(dataDir string, witnessPath string) Proof {
 		panic(err)
 	}
 	fmt.Printf("Generating witness took %s\n", time.Since(start))
+
+	// Cast globalPk to groth16_bn254.ProvingKey
+	pk, ok := globalPk.(*groth16_bn254.ProvingKey)
+	if !ok {
+		panic("Failed to cast globalPk to groth16_bn254.ProvingKey")
+	}
+	fmt.Println("cardinality", pk.Domain.Cardinality)
 
 	start = time.Now()
 	// Generate the proof.
