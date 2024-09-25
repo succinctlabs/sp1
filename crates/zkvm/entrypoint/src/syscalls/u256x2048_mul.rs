@@ -1,14 +1,9 @@
 #[cfg(target_os = "zkvm")]
 use core::arch::asm;
 
-/// Uint256 multiplication operation.
+/// Multiplication operation between a 256-bit and a 2048-bit unsigned integer.
 ///
-/// The result is written over the first input.
-///
-/// ### Safety
-///
-/// The caller must ensure that `x` and `y` are valid pointers to data that is aligned along a four
-/// byte boundary.
+/// The low 2048-bit result is written to the `lo` pointer, and the high 256-bit overflow is written to the `hi` pointer.
 #[allow(unused_variables)]
 #[no_mangle]
 pub extern "C" fn syscall_u256x2048_mul(
