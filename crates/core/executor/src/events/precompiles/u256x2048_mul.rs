@@ -5,9 +5,9 @@ use crate::events::{
     LookupId,
 };
 
-/// Uint256 Mul Event.
+/// `U256xU2048` Mul Event.
 ///
-/// This event is emitted when a uint256 mul operation is performed.
+/// This event is emitted when a `U256xU2048` mul operation is performed.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct U256xU2048MulEvent {
     /// The lookup identifer.
