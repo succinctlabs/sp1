@@ -288,6 +288,12 @@ where
 
             // Execution shard constraints.
             {
+                // Assert that `contains_execution_shard` is boolean.
+                builder.assert_felt_eq(
+                    current_public_values.contains_execution_shard
+                        * (SymbolicFelt::one() - current_public_values.contains_execution_shard),
+                    C::F::zero(),
+                );
                 // A flag to indicate whether the first execution shard has been seen.
                 let is_first_execution_shard_seen: Felt<_> = builder.eval(
                     current_public_values.contains_execution_shard - contains_an_execution_shard,
