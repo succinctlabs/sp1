@@ -1,6 +1,6 @@
 [workspace]
 [package]
-name = "uma-test"
+name = "u256x2048-mul"
 version = "1.0.0"
 edition = "2021"
 publish = false
