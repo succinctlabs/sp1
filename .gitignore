@@ -26,3 +26,9 @@ recursion/gnark-ffi/build
 crates/prover/build
 crates/prover/data
 crates/prover/*.tar.gz
+crates/prover/Groth16Verifier.sol
+crates/prover/pk
+crates/prover/powersOfTau28_hez_final.ptau
+crates/prover/semaphore-gnark-11
+crates/prover/trusted-setup
+crates/prover/vk
