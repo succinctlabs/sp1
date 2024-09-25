@@ -8,10 +8,10 @@ VERSION=$1
 S3_BUCKET="sp1-circuits"
 
 # Check for unstaged changes in the Git repository
-# if ! git diff --quiet; then
-#     echo "Error: There are unstaged changes. Please commit or stash them before running this script."
-#     exit 1
-# fi
+if ! git diff --quiet; then
+    echo "Error: There are unstaged changes. Please commit or stash them before running this script."
+    exit 1
+fi
 
 # Get the current git commit hash (shorthand)
 COMMIT_HASH=$(git rev-parse --short HEAD)

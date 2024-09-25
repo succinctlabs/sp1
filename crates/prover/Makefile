@@ -9,7 +9,10 @@ build-circuits:
 	mkdir -p build/plonk && \
 	RUST_LOG=debug RUSTFLAGS='-C target-cpu=native' \
 	cargo run -p sp1-prover --release --bin build_groth16_bn254 --features native-gnark -- \
-	--build-dir=./build/groth16
+	--build-dir=./build/groth16 && \
+	RUST_LOG=debug RUSTFLAGS='-C target-cpu=native' \
+	cargo run -p sp1-prover --release --bin build_plonk_bn254 --features native-gnark -- \
+	--build-dir=./build/plonk
 
 release-circuits:
 	@read -p "Release version (ex. v1.0.0-testnet)? " version; \
