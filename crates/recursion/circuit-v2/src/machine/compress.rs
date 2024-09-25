@@ -423,16 +423,18 @@ where
 
             // If this proof contains an execution shard, we update the execution shard value.
             execution_shard = builder.eval(
-                current_public_values.next_execution_shard * contains_an_execution_shard
-                    + execution_shard * (SymbolicFelt::one() - contains_an_execution_shard),
+                current_public_values.next_execution_shard
+                    * current_public_values.contains_execution_shard
+                    + execution_shard
+                        * (SymbolicFelt::one() - current_public_values.contains_execution_shard),
             );
 
             // If an execution shard is not present, we update the execution shard value to be the
             // last shard's `next_execution_shard`.
             execution_shard = builder.eval(
-                execution_shard * contains_an_execution_shard
+                execution_shard * current_public_values.contains_execution_shard
                     + current_public_values.next_execution_shard
-                        * (SymbolicFelt::one() - contains_an_execution_shard),
+                        * (SymbolicFelt::one() - current_public_values.contains_execution_shard),
             );
 
             // Update the reconstruct deferred proof digest.
