@@ -78,6 +78,7 @@ impl ExecutionState {
             current_shard: 1,
             clk: 0,
             pc: pc_start,
+            channel: 0,
             memory: PagedMemory::new_preallocated(),
             uninitialized_memory: PagedMemory::default(),
             input_stream: Vec::new(),

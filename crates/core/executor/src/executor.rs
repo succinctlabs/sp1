@@ -1428,7 +1428,7 @@ impl<'a> Executor<'a> {
 
         if self.executor_mode == ExecutorMode::Trace {
             // SECTION: Set up all MemoryInitializeFinalizeEvents needed for memory argument.
-            let memory_finalize_events = &mut self.record.memory_finalize_events;
+            let memory_finalize_events = &mut self.record.global_memory_finalize_events;
 
             // We handle the addr = 0 case separately, as we constrain it to be 0 in the first row
             // of the memory finalize table so it must be first in the array of events.
@@ -1441,7 +1441,7 @@ impl<'a> Executor<'a> {
             memory_finalize_events
                 .push(MemoryInitializeFinalizeEvent::finalize_from_record(0, addr_0_final_record));
 
-            let memory_initialize_events = &mut self.record.memory_initialize_events;
+            let memory_initialize_events = &mut self.record.global_memory_initialize_events;
             let addr_0_initialize_event =
                 MemoryInitializeFinalizeEvent::initialize(0, 0, addr_0_record.is_some());
             memory_initialize_events.push(addr_0_initialize_event);
@@ -1459,7 +1459,7 @@ impl<'a> Executor<'a> {
                 // Program memory is initialized in the MemoryProgram chip and doesn't require any
                 // events, so we only send init events for other memory addresses.
                 if !self.record.program.memory_image.contains_key(&addr) {
-                    let initial_value = self.state.uninitialized_memory.get(&addr).unwrap_or(&0);
+                    let initial_value = self.state.uninitialized_memory.get(addr).unwrap_or(&0);
                     memory_initialize_events.push(MemoryInitializeFinalizeEvent::initialize(
                         addr,
                         *initial_value,

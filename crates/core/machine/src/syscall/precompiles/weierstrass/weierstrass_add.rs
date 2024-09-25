@@ -12,7 +12,7 @@ use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use p3_maybe_rayon::prelude::{ParallelBridge, ParallelIterator, ParallelSlice};
 use sp1_core_executor::{
-    events::{ByteLookupEvent, ByteRecord, EllipticCurveAddEvent, FieldOperation},
+    events::{ByteLookupEvent, ByteRecord, EllipticCurveAddEvent, FieldOperation, PrecompileEvent},
     syscalls::SyscallCode,
     ExecutionRecord, Program,
 };
@@ -155,9 +155,9 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
 
     fn generate_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
         let events = match E::CURVE_TYPE {
-            CurveType::Secp256k1 => &input.secp256k1_add_events,
-            CurveType::Bn254 => &input.bn254_add_events,
-            CurveType::Bls12381 => &input.bls12381_add_events,
+            CurveType::Secp256k1 => &input.get_precompile_events(SyscallCode::SECP256K1_ADD),
+            CurveType::Bn254 => &input.get_precompile_events(SyscallCode::BN254_ADD),
+            CurveType::Bls12381 => &input.get_precompile_events(SyscallCode::BLS12381_ADD),
             _ => panic!("Unsupported curve"),
         };
 
@@ -166,14 +166,19 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
 
         let blu_events: Vec<Vec<ByteLookupEvent>> = events
             .par_chunks(chunk_size)
-            .map(|ops: &[EllipticCurveAddEvent]| {
+            .map(|ops: &[PrecompileEvent]| {
                 // The blu map stores shard -> map(byte lookup event -> multiplicity).
                 let mut blu = Vec::new();
-                ops.iter().for_each(|op| {
-                    let mut row = vec![F::zero(); num_cols];
-                    let cols: &mut WeierstrassAddAssignCols<F, E::BaseField> =
-                        row.as_mut_slice().borrow_mut();
-                    Self::populate_row(op, cols, &mut blu);
+                ops.iter().for_each(|op| match op {
+                    PrecompileEvent::Secp256k1Add(event)
+                    | PrecompileEvent::Bn254Add(event)
+                    | PrecompileEvent::Bls12381Add(event) => {
+                        let mut row = vec![F::zero(); num_cols];
+                        let cols: &mut WeierstrassAddAssignCols<F, E::BaseField> =
+                            row.as_mut_slice().borrow_mut();
+                        Self::populate_row(event, cols, &mut blu);
+                    }
+                    _ => unreachable!(),
                 });
                 blu
             })
@@ -211,7 +216,6 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
         Self::populate_field_ops(
             &mut vec![],
             0,
-            0,
             cols,
             zero.clone(),
             zero.clone(),
@@ -225,7 +229,14 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
                 if idx < events.len() {
                     let mut new_byte_lookup_events = Vec::new();
                     let cols: &mut WeierstrassAddAssignCols<F, E::BaseField> = row.borrow_mut();
-                    Self::populate_row(&events[idx], cols, &mut new_byte_lookup_events);
+                    match &events[idx] {
+                        PrecompileEvent::Secp256k1Add(event)
+                        | PrecompileEvent::Bn254Add(event)
+                        | PrecompileEvent::Bls12381Add(event) => {
+                            Self::populate_row(event, cols, &mut new_byte_lookup_events);
+                        }
+                        _ => unreachable!(),
+                    }
                 } else {
                     row.copy_from_slice(&dummy_row);
                 }
@@ -416,36 +427,18 @@ impl<E: EllipticCurve> WeierstrassAddAssignChip<E> {
         // Populate basic columns.
         cols.is_real = F::one();
         cols.shard = F::from_canonical_u32(event.shard);
-        cols.channel = F::from_canonical_u8(event.channel);
         cols.clk = F::from_canonical_u32(event.clk);
         cols.p_ptr = F::from_canonical_u32(event.p_ptr);
         cols.q_ptr = F::from_canonical_u32(event.q_ptr);
 
-        Self::populate_field_ops(
-            new_byte_lookup_events,
-            event.shard,
-            event.channel,
-            cols,
-            p_x,
-            p_y,
-            q_x,
-            q_y,
-        );
+        Self::populate_field_ops(new_byte_lookup_events, event.shard, cols, p_x, p_y, q_x, q_y);
 
         // Populate the memory access columns.
         for i in 0..cols.q_access.len() {
-            cols.q_access[i].populate(
-                event.channel,
-                event.q_memory_records[i],
-                new_byte_lookup_events,
-            );
+            cols.q_access[i].populate(event.q_memory_records[i], new_byte_lookup_events);
         }
         for i in 0..cols.p_access.len() {
-            cols.p_access[i].populate(
-                event.channel,
-                event.p_memory_records[i],
-                new_byte_lookup_events,
-            );
+            cols.p_access[i].populate(event.p_memory_records[i], new_byte_lookup_events);
         }
     }
 }
