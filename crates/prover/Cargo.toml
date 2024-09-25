@@ -60,6 +60,10 @@ name = "build_compress_vks"
 path = "scripts/build_compress_vks.rs"
 
 [[bin]]
+name = "post_trusted_setup"
+path = "scripts/post_trusted_setup.rs"
+
+[[bin]]
 name = "e2e"
 path = "scripts/e2e.rs"
 
