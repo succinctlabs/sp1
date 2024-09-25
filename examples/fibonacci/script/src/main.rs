@@ -1,5 +1,6 @@
 use clap::Parser;
 use sp1_sdk::{ProverClient, SP1Stdin};
+use std::time::SystemTime;
 
 /// The ELF we want to execute inside the zkVM.
 const ELF: &[u8] = include_bytes!("../../program/elf/riscv32im-succinct-zkvm-elf");
@@ -21,6 +22,7 @@ struct Args {
 fn main() {
     // Setup the logger.
     sp1_sdk::utils::setup_logger();
+    let start = SystemTime::now();
 
     // Parse the command line arguments.
     let args = Args::parse();
@@ -31,6 +33,10 @@ fn main() {
     }
 
     // Setup the prover client.
+    println!(
+        "\n Setup prover client (at {} sec)..",
+        start.elapsed().unwrap().as_secs()
+    );
     let client = ProverClient::new();
 
     // Setup the inputs.
@@ -40,9 +46,17 @@ fn main() {
     println!("n: {}", args.n);
 
     // Setup the program for proving.
+    println!(
+        "\n Setup the program (at {} sec)..",
+        start.elapsed().unwrap().as_secs()
+    );
     let (pk, vk) = client.setup(ELF);
 
     // Generate the proof
+    println!(
+        "\n Generating proof (at {} sec)..",
+        start.elapsed().unwrap().as_secs()
+    );
     let proof = client
         .prove(&pk, stdin)
         .run()
@@ -51,6 +65,10 @@ fn main() {
     println!("Successfully generated proof!");
 
     // Verify the proof.
+    println!(
+        "\n Verifying proof (at {} sec)..",
+        start.elapsed().unwrap().as_secs()
+    );
     client.verify(&proof, &vk).expect("failed to verify proof");
     println!("Successfully verified proof!");
 }
