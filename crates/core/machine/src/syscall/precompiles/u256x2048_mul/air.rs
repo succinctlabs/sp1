@@ -362,7 +362,6 @@ where
             limbs_from_access::<AB::Var, <U256Field as NumLimbs>::Limbs, _>(&local.a_memory);
 
         // Iterate through chunks of 8 for b_memory and convert each chunk to its limbs
-
         let b_limb_array = local
             .b_memory
             .chunks(8)
@@ -395,7 +394,6 @@ where
             local.channel,
             local.is_real,
         );
-        // println!("evaluated a_mul_b1");
 
         for i in 1..outputs.len() {
             outputs[i].eval_mul_and_carry(
@@ -410,12 +408,12 @@ where
             );
         }
 
-        // // Assert that the correct result is being written to hi_memory.
+        // Assert that the correct result is being written to hi_memory.
         builder
             .when(local.is_real)
             .assert_all_eq(outputs[outputs.len() - 1].carry, value_as_limbs(&local.hi_memory));
 
-        //loop through chunks of 8 for lo_memory and assert that each chunk is equal to corresponding result of outputs
+        // Loop through chunks of 8 for lo_memory and assert that each chunk is equal to corresponding result of outputs.
         for i in 0..8 {
             builder.when(local.is_real).assert_all_eq(
                 outputs[i].result,
