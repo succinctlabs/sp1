@@ -32,6 +32,7 @@ pub fn sp1_vkey_digest_bn254(proof: &SP1ReduceProof<BabyBearPoseidon2Outer>) -> 
     babybears_to_bn254(&sp1_vkey_digest_babybear(proof))
 }
 
+/// Compute the digest of the public values.
 pub fn recursion_public_values_digest(
     config: &InnerSC,
     public_values: &RecursionPublicValues<BabyBear>,
@@ -41,6 +42,7 @@ pub fn recursion_public_values_digest(
     hash.hash_slice(&pv_array[0..NUM_PV_ELMS_TO_HASH])
 }
 
+/// Assert that the digest of the public values is correct.
 pub fn assert_recursion_public_values_valid(
     config: &InnerSC,
     public_values: &RecursionPublicValues<BabyBear>,
