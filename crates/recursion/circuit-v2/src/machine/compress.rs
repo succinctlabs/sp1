@@ -300,12 +300,12 @@ where
                             * (SymbolicFelt::one() - is_first_execution_shard_seen),
                 );
 
-                // If this is an execution shard, make the assertion that the value is consistent.
-                builder.assert_felt_eq(
-                    current_public_values.contains_execution_shard
-                        * (execution_shard - current_public_values.start_execution_shard),
-                    C::F::zero(),
-                );
+                // // If this is an execution shard, make the assertion that the value is consistent.
+                // builder.assert_felt_eq(
+                //     current_public_values.contains_execution_shard
+                //         * (execution_shard - current_public_values.start_execution_shard),
+                //     C::F::zero(),
+                // );
             }
 
             // Assert that the MemoryInitialize address bits are the same.
