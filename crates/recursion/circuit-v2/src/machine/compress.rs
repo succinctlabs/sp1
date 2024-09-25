@@ -30,7 +30,7 @@ use sp1_stark::{
 use crate::{
     challenger::CanObserveVariable,
     constraints::RecursiveVerifierConstraintFolder,
-    machine::{assert_complete, public_values_digest},
+    machine::{assert_complete, assert_recursion_public_values_valid, public_values_digest},
     stark::{dummy_vk_and_shard_proof, ShardProofVariable, StarkVerifier},
     utils::uninit_challenger_pv,
     BabyBearFriConfig, BabyBearFriConfigVariable, CircuitConfig, VerifyingKeyVariable,
@@ -177,7 +177,7 @@ where
             let current_public_values: &RecursionPublicValues<Felt<C::F>> =
                 shard_proof.public_values.as_slice().borrow();
             // Assert that the public values are valid.
-            // assert_recursion_public_values_valid::<C, SC>(builder, current_public_values);
+            assert_recursion_public_values_valid::<C, SC>(builder, current_public_values);
 
             // Set the exit code, it is already constrained to be zero in the previous proof.
             exit_code = current_public_values.exit_code;
@@ -515,8 +515,8 @@ where
         // Set the contains an execution shard flag.
         compress_public_values.contains_execution_shard = contains_execution_shard;
         // Set the digest according to the previous values.
-        compress_public_values.digest = array::from_fn(|_| builder.eval(C::F::zero()));
-        // public_values_digest::<C, SC>(builder, compress_public_values);
+        compress_public_values.digest =
+            public_values_digest::<C, SC>(builder, compress_public_values);
         // Set the exit code.
         compress_public_values.exit_code = exit_code;
 

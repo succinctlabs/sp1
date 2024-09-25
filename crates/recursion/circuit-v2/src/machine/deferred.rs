@@ -160,8 +160,7 @@ where
             let current_public_values: &RecursionPublicValues<Felt<C::F>> =
                 shard_proof.public_values.as_slice().borrow();
             // Assert that the public values are valid.
-            // TODO: comment back in.
-            // assert_recursion_public_values_valid::<C, SC>(builder, current_public_values);
+            assert_recursion_public_values_valid::<C, SC>(builder, current_public_values);
 
             // Assert that the proof is complete.
             builder.assert_felt_eq(current_public_values.is_complete, C::F::one());
