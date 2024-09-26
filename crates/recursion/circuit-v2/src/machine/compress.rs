@@ -14,6 +14,7 @@ use p3_commit::Mmcs;
 use p3_field::AbstractField;
 use p3_matrix::dense::RowMajorMatrix;
 
+use serde::Serialize;
 use sp1_recursion_compiler::ir::{Builder, Ext, Felt};
 
 use sp1_recursion_core_v2::{
@@ -53,6 +54,7 @@ pub struct SP1CompressWitnessVariable<
 }
 
 /// An input layout for the reduce verifier.
+#[derive(Debug, Clone)]
 pub struct SP1CompressWitnessValues<SC: StarkGenericConfig> {
     pub vks_and_proofs: Vec<(StarkVerifyingKey<SC>, ShardProof<SC>)>,
     pub is_complete: bool,
