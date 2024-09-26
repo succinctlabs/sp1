@@ -550,9 +550,6 @@ where
             let start_deferred_digest = [zero; POSEIDON_NUM_WORDS];
             let end_deferred_digest = [zero; POSEIDON_NUM_WORDS];
 
-            // Collect the is_complete flag.
-            // let is_complete_felt = var2felt(builder, is_complete);
-
             // Initialize the public values we will commit to.
             let mut recursion_public_values_stream = [zero; RECURSIVE_PROOF_NUM_PV_ELTS];
             let recursion_public_values: &mut RecursionPublicValues<_> =
