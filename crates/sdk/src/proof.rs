@@ -47,6 +47,7 @@ impl SP1ProofWithPublicValues {
     pub fn raw(&self) -> String {
         match &self.proof {
             SP1Proof::Plonk(plonk) => plonk.raw_proof.clone(),
+            SP1Proof::Groth16(groth16) => groth16.raw_proof.clone(),
             _ => unimplemented!(),
         }
     }
