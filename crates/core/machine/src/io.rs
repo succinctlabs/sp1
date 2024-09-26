@@ -2,7 +2,8 @@ use crate::utils::Buffer;
 use k256::sha2::{Digest, Sha256};
 use num_bigint::BigUint;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use sp1_stark::{baby_bear_poseidon2::BabyBearPoseidon2, ShardProof, StarkVerifyingKey};
+use sp1_core_executor::SP1ReduceProof;
+use sp1_stark::{baby_bear_poseidon2::BabyBearPoseidon2, StarkVerifyingKey};
 
 /// Standard input for the prover.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -11,7 +12,7 @@ pub struct SP1Stdin {
     /// a vec of bytes at a time.
     pub buffer: Vec<Vec<u8>>,
     pub ptr: usize,
-    pub proofs: Vec<(ShardProof<BabyBearPoseidon2>, StarkVerifyingKey<BabyBearPoseidon2>)>,
+    pub proofs: Vec<(SP1ReduceProof<BabyBearPoseidon2>, StarkVerifyingKey<BabyBearPoseidon2>)>,
 }
 
 /// Public values for the prover.
@@ -63,7 +64,7 @@ impl SP1Stdin {
 
     pub fn write_proof(
         &mut self,
-        proof: ShardProof<BabyBearPoseidon2>,
+        proof: SP1ReduceProof<BabyBearPoseidon2>,
         vk: StarkVerifyingKey<BabyBearPoseidon2>,
     ) {
         self.proofs.push((proof, vk));

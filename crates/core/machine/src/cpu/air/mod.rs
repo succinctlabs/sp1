@@ -23,7 +23,7 @@ use crate::{
 };
 use sp1_core_executor::Opcode;
 
-use super::columns::{eval_channel_selectors, OPCODE_SELECTORS_COL_MAP};
+use super::columns::OPCODE_SELECTORS_COL_MAP;
 
 impl<AB> Air<AB> for CpuChip
 where
@@ -63,16 +63,6 @@ where
         self.eval_memory_load::<AB>(builder, local);
         self.eval_memory_store::<AB>(builder, local);
 
-        // Channel constraints.
-        eval_channel_selectors(
-            builder,
-            &local.channel_selectors,
-            &next.channel_selectors,
-            local.channel,
-            local.is_real,
-            next.is_real,
-        );
-
         // ALU instructions.
         builder.send_alu(
             local.instruction.opcode,
@@ -80,7 +70,6 @@ where
             local.op_b_val(),
             local.op_c_val(),
             local.shard,
-            local.channel,
             local.nonce,
             is_alu_instruction,
         );
@@ -207,7 +196,6 @@ impl CpuChip {
             jump_columns.pc,
             local.op_b_val(),
             local.shard,
-            local.channel,
             jump_columns.jal_nonce,
             local.selectors.is_jal,
         );
@@ -219,7 +207,6 @@ impl CpuChip {
             local.op_b_val(),
             local.op_c_val(),
             local.shard,
-            local.channel,
             jump_columns.jalr_nonce,
             local.selectors.is_jalr,
         );
@@ -248,7 +235,6 @@ impl CpuChip {
             auipc_columns.pc,
             local.op_b_val(),
             local.shard,
-            local.channel,
             auipc_columns.auipc_nonce,
             local.selectors.is_auipc,
         );
@@ -276,8 +262,6 @@ impl CpuChip {
             local.shard,
             AB::Expr::zero(),
             AB::Expr::zero(),
-            local.shard,
-            local.channel,
             local.is_real,
         );
 
@@ -300,8 +284,6 @@ impl CpuChip {
             local.clk,
             local.clk_16bit_limb,
             local.clk_8bit_limb,
-            local.shard,
-            local.channel,
             local.is_real,
         );
     }

@@ -1,6 +1,6 @@
 use crate::{
     air::MemoryAirBuilder,
-    utils::{limbs_from_access, pad_rows, words_to_bytes_le},
+    utils::{limbs_from_access, pad_rows_fixed, words_to_bytes_le},
 };
 use crate::{
     memory::{value_as_limbs, MemoryReadCols, MemoryWriteCols},
@@ -12,7 +12,7 @@ use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use sp1_core_executor::{
-    events::{ByteRecord, FieldOperation},
+    events::{ByteRecord, FieldOperation, PrecompileEvent},
     syscalls::SyscallCode,
     ExecutionRecord, Program,
 };
@@ -22,7 +22,7 @@ use sp1_curves::{
 };
 use sp1_derive::AlignedBorrow;
 use sp1_stark::{
-    air::{BaseAirBuilder, MachineAir, Polynomial, SP1AirBuilder},
+    air::{BaseAirBuilder, InteractionScope, MachineAir, Polynomial, SP1AirBuilder},
     MachineRecord,
 };
 use std::{
@@ -108,7 +108,7 @@ impl<F: PrimeField32> MachineAir<F> for U256x2048MulChip {
     ) -> RowMajorMatrix<F> {
         // Implement trace generation logic\
         let rows_and_records = input
-            .u256x2048_mul_events
+            .get_precompile_events(SyscallCode::U256XU2048_MUL)
             .chunks(1)
             .map(|events| {
                 let mut records = ExecutionRecord::default();
@@ -117,13 +117,17 @@ impl<F: PrimeField32> MachineAir<F> for U256x2048MulChip {
                 let rows = events
                     .iter()
                     .map(|event| {
+                        let event = if let PrecompileEvent::U256xU2048Mul(event) = event {
+                            event
+                        } else {
+                            unreachable!()
+                        };
                         let mut row: [F; NUM_COLS] = [F::zero(); NUM_COLS];
                         let cols: &mut U256x2048MulCols<F> = row.as_mut_slice().borrow_mut();
 
                         // Assign basic values to the columns.
                         cols.is_real = F::one();
                         cols.shard = F::from_canonical_u32(event.shard);
-                        cols.channel = F::from_canonical_u8(event.channel);
                         cols.clk = F::from_canonical_u32(event.clk);
                         cols.a_ptr = F::from_canonical_u32(event.a_ptr);
                         cols.b_ptr = F::from_canonical_u32(event.b_ptr);
@@ -131,48 +135,30 @@ impl<F: PrimeField32> MachineAir<F> for U256x2048MulChip {
                         cols.hi_ptr = F::from_canonical_u32(event.hi_ptr);
 
                         // populating the memory accesses for lo_ptr and hi_ptr
-                        cols.lo_ptr_memory.populate(
-                            event.channel,
-                            event.lo_ptr_memory,
-                            &mut new_byte_lookup_events,
-                        );
-                        cols.hi_ptr_memory.populate(
-                            event.channel,
-                            event.hi_ptr_memory,
-                            &mut new_byte_lookup_events,
-                        );
+                        cols.lo_ptr_memory
+                            .populate(event.lo_ptr_memory, &mut new_byte_lookup_events);
+                        cols.hi_ptr_memory
+                            .populate(event.hi_ptr_memory, &mut new_byte_lookup_events);
 
                         //  Populate memory columns.
                         for i in 0..WORDS_FIELD_ELEMENT {
-                            cols.a_memory[i].populate(
-                                event.channel,
-                                event.a_memory_records[i],
-                                &mut new_byte_lookup_events,
-                            );
+                            cols.a_memory[i]
+                                .populate(event.a_memory_records[i], &mut new_byte_lookup_events);
                         }
 
                         for i in 0..WORDS_FIELD_ELEMENT * 8 {
-                            cols.b_memory[i].populate(
-                                event.channel,
-                                event.b_memory_records[i],
-                                &mut new_byte_lookup_events,
-                            );
+                            cols.b_memory[i]
+                                .populate(event.b_memory_records[i], &mut new_byte_lookup_events);
                         }
 
                         for i in 0..WORDS_FIELD_ELEMENT * 8 {
-                            cols.lo_memory[i].populate(
-                                event.channel,
-                                event.lo_memory_records[i],
-                                &mut new_byte_lookup_events,
-                            );
+                            cols.lo_memory[i]
+                                .populate(event.lo_memory_records[i], &mut new_byte_lookup_events);
                         }
 
                         for i in 0..WORDS_FIELD_ELEMENT {
-                            cols.hi_memory[i].populate(
-                                event.channel,
-                                event.hi_memory_records[i],
-                                &mut new_byte_lookup_events,
-                            );
+                            cols.hi_memory[i]
+                                .populate(event.hi_memory_records[i], &mut new_byte_lookup_events);
                         }
 
                         let a = BigUint::from_bytes_le(&words_to_bytes_le::<32>(&event.a));
@@ -202,7 +188,6 @@ impl<F: PrimeField32> MachineAir<F> for U256x2048MulChip {
                             let (_, carry) = col.populate_mul_and_carry(
                                 &mut new_byte_lookup_events,
                                 event.shard,
-                                event.channel,
                                 &a,
                                 &b_array[i],
                                 &carries[i],
@@ -225,26 +210,30 @@ impl<F: PrimeField32> MachineAir<F> for U256x2048MulChip {
             output.append(&mut record);
         }
 
-        pad_rows(&mut rows, || {
-            let mut row: [F; NUM_COLS] = [F::zero(); NUM_COLS];
-            let cols: &mut U256x2048MulCols<F> = row.as_mut_slice().borrow_mut();
+        pad_rows_fixed(
+            &mut rows,
+            || {
+                let mut row: [F; NUM_COLS] = [F::zero(); NUM_COLS];
+                let cols: &mut U256x2048MulCols<F> = row.as_mut_slice().borrow_mut();
 
-            let x = BigUint::zero();
-            let y = BigUint::zero();
-            let z = BigUint::zero();
-            let modulus = BigUint::one() << 256;
+                let x = BigUint::zero();
+                let y = BigUint::zero();
+                let z = BigUint::zero();
+                let modulus = BigUint::one() << 256;
 
-            cols.a_mul_b1.populate(&mut vec![], 0, 0, &x, &y, FieldOperation::Mul);
-            cols.ab2_plus_carry.populate_mul_and_carry(&mut vec![], 0, 0, &x, &y, &z, &modulus);
-            cols.ab3_plus_carry.populate_mul_and_carry(&mut vec![], 0, 0, &x, &y, &z, &modulus);
-            cols.ab4_plus_carry.populate_mul_and_carry(&mut vec![], 0, 0, &x, &y, &z, &modulus);
-            cols.ab5_plus_carry.populate_mul_and_carry(&mut vec![], 0, 0, &x, &y, &z, &modulus);
-            cols.ab6_plus_carry.populate_mul_and_carry(&mut vec![], 0, 0, &x, &y, &z, &modulus);
-            cols.ab7_plus_carry.populate_mul_and_carry(&mut vec![], 0, 0, &x, &y, &z, &modulus);
-            cols.ab8_plus_carry.populate_mul_and_carry(&mut vec![], 0, 0, &x, &y, &z, &modulus);
+                cols.a_mul_b1.populate(&mut vec![], 0, &x, &y, FieldOperation::Mul);
+                cols.ab2_plus_carry.populate_mul_and_carry(&mut vec![], 0, &x, &y, &z, &modulus);
+                cols.ab3_plus_carry.populate_mul_and_carry(&mut vec![], 0, &x, &y, &z, &modulus);
+                cols.ab4_plus_carry.populate_mul_and_carry(&mut vec![], 0, &x, &y, &z, &modulus);
+                cols.ab5_plus_carry.populate_mul_and_carry(&mut vec![], 0, &x, &y, &z, &modulus);
+                cols.ab6_plus_carry.populate_mul_and_carry(&mut vec![], 0, &x, &y, &z, &modulus);
+                cols.ab7_plus_carry.populate_mul_and_carry(&mut vec![], 0, &x, &y, &z, &modulus);
+                cols.ab8_plus_carry.populate_mul_and_carry(&mut vec![], 0, &x, &y, &z, &modulus);
 
-            row
-        });
+                row
+            },
+            input.fixed_log2_rows::<F, _>(self),
+        );
 
         // Convert the trace to a row major matrix.
         let mut trace =
@@ -262,7 +251,7 @@ impl<F: PrimeField32> MachineAir<F> for U256x2048MulChip {
 
     fn included(&self, shard: &Self::Record) -> bool {
         // Implement logic to determine if this chip should be included
-        !shard.u256x2048_mul_events.is_empty()
+        !shard.get_precompile_events(SyscallCode::U256XU2048_MUL).is_empty()
     }
 }
 
@@ -289,19 +278,18 @@ where
         // receive the arguments.
         builder.receive_syscall(
             local.shard,
-            local.channel,
             local.clk,
             local.nonce,
             AB::F::from_canonical_u32(SyscallCode::U256XU2048_MUL.syscall_id()),
             local.a_ptr,
             local.b_ptr,
             local.is_real,
+            InteractionScope::Global,
         );
 
         // constraint memory access
         builder.eval_memory_access(
             local.shard,
-            local.channel,
             local.clk.into(),
             AB::Expr::from_canonical_u32(LO_REGISTER),
             &local.lo_ptr_memory,
@@ -310,7 +298,6 @@ where
 
         builder.eval_memory_access(
             local.shard,
-            local.channel,
             local.clk.into(),
             AB::Expr::from_canonical_u32(HI_REGISTER),
             &local.hi_ptr_memory,
@@ -319,7 +306,6 @@ where
 
         builder.eval_memory_access_slice(
             local.shard,
-            local.channel,
             local.clk.into(),
             local.a_ptr,
             &local.a_memory,
@@ -328,7 +314,6 @@ where
 
         builder.eval_memory_access_slice(
             local.shard,
-            local.channel,
             local.clk.into(),
             local.b_ptr,
             &local.b_memory,
@@ -337,7 +322,6 @@ where
 
         builder.eval_memory_access_slice(
             local.shard,
-            local.channel,
             local.clk.into() + AB::Expr::one(),
             local.lo_ptr,
             &local.lo_memory,
@@ -346,7 +330,6 @@ where
 
         builder.eval_memory_access_slice(
             local.shard,
-            local.channel,
             local.clk.into() + AB::Expr::one(),
             local.hi_ptr,
             &local.hi_memory,
@@ -390,8 +373,6 @@ where
             &b_limb_array[0],
             &Polynomial::from_coefficients(&[AB::Expr::zero()]), // Zero polynomial for no previous carry
             &modulus_polynomial,
-            local.shard,
-            local.channel,
             local.is_real,
         );
 
@@ -402,8 +383,6 @@ where
                 &b_limb_array[i],
                 &outputs[i - 1].carry,
                 &modulus_polynomial,
-                local.shard,
-                local.channel,
                 local.is_real,
             );
         }

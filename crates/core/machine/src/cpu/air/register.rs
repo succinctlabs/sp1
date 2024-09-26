@@ -27,7 +27,6 @@ impl CpuChip {
         // If they are not immediates, read `b` and `c` from memory.
         builder.eval_memory_access(
             local.shard,
-            local.channel,
             local.clk + AB::F::from_canonical_u32(MemoryAccessPosition::B as u32),
             local.instruction.op_b[0],
             &local.op_b_access,
@@ -36,7 +35,6 @@ impl CpuChip {
 
         builder.eval_memory_access(
             local.shard,
-            local.channel,
             local.clk + AB::F::from_canonical_u32(MemoryAccessPosition::C as u32),
             local.instruction.op_c[0],
             &local.op_c_access,
@@ -50,7 +48,6 @@ impl CpuChip {
         // we are performing a branch or a store.
         builder.eval_memory_access(
             local.shard,
-            local.channel,
             local.clk + AB::F::from_canonical_u32(MemoryAccessPosition::A as u32),
             local.instruction.op_a[0],
             &local.op_a_access,
@@ -59,12 +56,7 @@ impl CpuChip {
 
         // Always range check the word value in `op_a`, as JUMP instructions may witness
         // an invalid word and write it to memory.
-        builder.slice_range_check_u8(
-            &local.op_a_access.access.value.0,
-            local.shard,
-            local.channel,
-            local.is_real,
-        );
+        builder.slice_range_check_u8(&local.op_a_access.access.value.0, local.is_real);
 
         // If we are performing a branch or a store, then the value of `a` is the previous value.
         builder

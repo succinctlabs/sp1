@@ -332,13 +332,8 @@ pub fn build_wrap_circuit(
         builder.assert_felt_eq(*expected_elm, *calculated_elm);
     }
 
-    // Print out cycle tracking info.
-    for line in cycle_tracker(&builder.operations.vec).unwrap().lines() {
-        println!("{}", line);
-    }
-
     let mut backend = ConstraintCompiler::<OuterConfig>::default();
-    backend.emit(builder.operations)
+    backend.emit(builder.into_operations())
 }
 
 pub fn cycle_tracker<'a, C: Config + Debug + 'a>(

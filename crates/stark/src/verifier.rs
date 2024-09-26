@@ -5,17 +5,21 @@ use std::{
 };
 
 use itertools::Itertools;
+use num_traits::cast::ToPrimitive;
 use p3_air::{Air, BaseAir};
 use p3_challenger::{CanObserve, FieldChallenger};
 use p3_commit::{LagrangeSelectors, Pcs, PolynomialSpace};
-use p3_field::{AbstractExtensionField, AbstractField};
+use p3_field::{AbstractExtensionField, AbstractField, Field};
 
 use super::{
     folder::VerifierConstraintFolder,
     types::{AirOpenedValues, ChipOpenedValues, ShardCommitment, ShardProof},
     Domain, OpeningError, StarkGenericConfig, StarkVerifyingKey, Val,
 };
-use crate::{air::MachineAir, MachineChip};
+use crate::{
+    air::{InteractionScope, MachineAir},
+    MachineChip,
+};
 
 /// A verifier for a collection of air chips.
 pub struct Verifier<SC, A>(PhantomData<SC>, PhantomData<A>);
@@ -29,6 +33,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
         chips: &[&MachineChip<SC, A>],
         challenger: &mut SC::Challenger,
         proof: &ShardProof<SC>,
+        global_permutation_challenges: &[SC::Challenge],
     ) -> Result<(), VerificationError<SC>>
     where
         A: for<'a> Air<VerifierConstraintFolder<'a, SC>>,
@@ -40,6 +45,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
             opened_values,
             opening_proof,
             chip_ordering,
+            chip_scopes,
             public_values,
             ..
         } = proof;
@@ -49,6 +55,23 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
         if chips.len() != opened_values.chips.len() {
             return Err(VerificationError::ChipOpeningLengthMismatch);
         }
+
+        // Assert that the byte multiplicities don't overflow.
+        let mut max_byte_lookup_mult = 0u64;
+        chips.iter().zip(opened_values.chips.iter()).for_each(|(chip, val)| {
+            max_byte_lookup_mult = max_byte_lookup_mult
+                .checked_add(
+                    (chip.num_sent_byte_lookups() as u64)
+                        .checked_mul(1u64.checked_shl(val.log_degree as u32).unwrap())
+                        .unwrap(),
+                )
+                .unwrap();
+        });
+
+        assert!(
+            max_byte_lookup_mult <= SC::Val::order().to_u64().unwrap(),
+            "Byte multiplicities overflow"
+        );
 
         let log_degrees = opened_values.chips.iter().map(|val| val.log_degree).collect::<Vec<_>>();
 
@@ -60,9 +83,16 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
             .map(|log_degree| pcs.natural_domain_for_degree(1 << log_degree))
             .collect::<Vec<_>>();
 
-        let ShardCommitment { main_commit, permutation_commit, quotient_commit } = commitment;
+        let ShardCommitment {
+            global_main_commit,
+            local_main_commit,
+            permutation_commit,
+            quotient_commit,
+        } = commitment;
 
-        let permutation_challenges =
+        challenger.observe(local_main_commit.clone());
+
+        let local_permutation_challenges =
             (0..2).map(|_| challenger.sample_ext_element::<SC::Challenge>()).collect::<Vec<_>>();
 
         challenger.observe(permutation_commit.clone());
@@ -141,19 +171,47 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
             })
             .collect::<Vec<_>>();
 
+        // Split the main_domains_points_and_opens to the global and local chips.
+        let mut global_trace_points_and_openings = Vec::new();
+        let mut local_trace_points_and_openings = Vec::new();
+        for (i, points_and_openings) in
+            main_domains_points_and_opens.clone().into_iter().enumerate()
+        {
+            let scope = chip_scopes[i];
+            if scope == InteractionScope::Global {
+                global_trace_points_and_openings.push(points_and_openings);
+            } else {
+                local_trace_points_and_openings.push(points_and_openings);
+            }
+        }
+
+        let rounds = if !global_trace_points_and_openings.is_empty() {
+            vec![
+                (vk.commit.clone(), preprocessed_domains_points_and_opens),
+                (global_main_commit.clone(), global_trace_points_and_openings),
+                (local_main_commit.clone(), local_trace_points_and_openings),
+                (permutation_commit.clone(), perm_domains_points_and_opens),
+                (quotient_commit.clone(), quotient_domains_points_and_opens),
+            ]
+        } else {
+            vec![
+                (vk.commit.clone(), preprocessed_domains_points_and_opens),
+                (local_main_commit.clone(), local_trace_points_and_openings),
+                (permutation_commit.clone(), perm_domains_points_and_opens),
+                (quotient_commit.clone(), quotient_domains_points_and_opens),
+            ]
+        };
+
         config
             .pcs()
-            .verify(
-                vec![
-                    (vk.commit.clone(), preprocessed_domains_points_and_opens),
-                    (main_commit.clone(), main_domains_points_and_opens),
-                    (permutation_commit.clone(), perm_domains_points_and_opens),
-                    (quotient_commit.clone(), quotient_domains_points_and_opens),
-                ],
-                opening_proof,
-                challenger,
-            )
+            .verify(rounds, opening_proof, challenger)
             .map_err(|e| VerificationError::InvalidopeningArgument(e))?;
+
+        let permutation_challenges = global_permutation_challenges
+            .iter()
+            .chain(local_permutation_challenges.iter())
+            .copied()
+            .collect::<Vec<_>>();
 
         // Verify the constrtaint evaluations.
         for (chip, trace_domain, qc_domains, values) in
@@ -310,12 +368,14 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
             next: unflatten(&opening.permutation.next),
         };
 
+        let cumulative_sums = [opening.global_cumulative_sum, opening.local_cumulative_sum];
+        let cumulative_sums = cumulative_sums.as_slice();
         let mut folder = VerifierConstraintFolder::<SC> {
             preprocessed: opening.preprocessed.view(),
             main: opening.main.view(),
             perm: perm_opening.view(),
             perm_challenges: permutation_challenges,
-            cumulative_sum: opening.cumulative_sum,
+            cumulative_sums,
             is_first_row: selectors.is_first_row,
             is_last_row: selectors.is_last_row,
             is_transition: selectors.is_transition,

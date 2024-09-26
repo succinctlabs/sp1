@@ -1,8 +1,9 @@
 use std::{array, sync::Arc};
 
-use p3_field::{AbstractField, PrimeField32};
+use hashbrown::HashMap;
+use p3_field::{AbstractField, Field, PrimeField32};
 use sp1_recursion_core::air::RecursionPublicValues;
-use sp1_stark::{MachineRecord, SP1CoreOpts, PROOF_MAX_NUM_PVS};
+use sp1_stark::{air::MachineAir, MachineRecord, SP1CoreOpts, PROOF_MAX_NUM_PVS};
 
 // TODO expand glob imports
 use crate::*;
@@ -30,7 +31,16 @@ impl<F: PrimeField32> MachineRecord for ExecutionRecord<F> {
     type Config = SP1CoreOpts;
 
     fn stats(&self) -> hashbrown::HashMap<String, usize> {
-        hashbrown::HashMap::from([("cpu_events".to_owned(), 1337usize)])
+        let mut stats = HashMap::new();
+        stats.insert("base_alu_events".to_string(), self.base_alu_events.len());
+        stats.insert("ext_alu_events".to_string(), self.ext_alu_events.len());
+        stats.insert("mem_var_events".to_string(), self.mem_var_events.len());
+
+        stats.insert("poseidon2_events".to_string(), self.poseidon2_events.len());
+        stats.insert("exp_reverse_bits_events".to_string(), self.exp_reverse_bits_len_events.len());
+        stats.insert("fri_fold_events".to_string(), self.fri_fold_events.len());
+
+        stats
     }
 
     fn append(&mut self, other: &mut Self) {
@@ -59,7 +69,7 @@ impl<F: PrimeField32> MachineRecord for ExecutionRecord<F> {
     }
 
     fn public_values<T: AbstractField>(&self) -> Vec<T> {
-        let pv_elms = self.public_values.to_vec();
+        let pv_elms = self.public_values.as_array();
 
         let ret: [T; PROOF_MAX_NUM_PVS] = array::from_fn(|i| {
             if i < pv_elms.len() {
@@ -70,5 +80,12 @@ impl<F: PrimeField32> MachineRecord for ExecutionRecord<F> {
         });
 
         ret.to_vec()
+    }
+}
+
+impl<F: Field> ExecutionRecord<F> {
+    #[inline]
+    pub fn fixed_log2_rows<A: MachineAir<F>>(&self, air: &A) -> Option<usize> {
+        self.program.fixed_log2_rows(air)
     }
 }

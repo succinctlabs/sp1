@@ -3,8 +3,8 @@ use num::{BigUint, Integer, One};
 use sp1_primitives::consts::{bytes_to_words_le, words_to_bytes_le_vec};
 
 use crate::{
-    events::U256xU2048MulEvent,
-    syscalls::{Syscall, SyscallContext},
+    events::{PrecompileEvent, U256xU2048MulEvent},
+    syscalls::{Syscall, SyscallCode, SyscallContext},
     Register::{X12, X13},
 };
 
@@ -15,7 +15,13 @@ const U2048_NUM_BYTES: usize = U2048_NUM_WORDS * 4;
 pub(crate) struct U256xU2048MulSyscall;
 
 impl Syscall for U256xU2048MulSyscall {
-    fn execute(&self, rt: &mut SyscallContext, arg1: u32, arg2: u32) -> Option<u32> {
+    fn execute(
+        &self,
+        rt: &mut SyscallContext,
+        syscall_code: SyscallCode,
+        arg1: u32,
+        arg2: u32,
+    ) -> Option<u32> {
         let clk = rt.clk;
 
         let a_ptr = arg1;
@@ -50,11 +56,9 @@ impl Syscall for U256xU2048MulSyscall {
         let hi_memory_records = rt.mw_slice(hi_ptr, &hi_words);
         let lookup_id = rt.syscall_lookup_id;
         let shard = rt.current_shard();
-        let channel = rt.current_channel();
-        rt.record_mut().u256x2048_mul_events.push(U256xU2048MulEvent {
+        let event = PrecompileEvent::U256xU2048Mul(U256xU2048MulEvent {
             lookup_id,
             shard,
-            channel,
             clk,
             a_ptr,
             a,
@@ -70,7 +74,11 @@ impl Syscall for U256xU2048MulSyscall {
             b_memory_records,
             lo_memory_records,
             hi_memory_records,
+            local_mem_access: rt.postprocess(),
         });
+
+        // let channel = rt.current_channel();
+        rt.record_mut().add_precompile_event(syscall_code, event);
 
         None
     }

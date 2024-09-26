@@ -517,7 +517,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-lib"
-version = "1.1.1"
+version = "1.2.0"
 dependencies = [
  "anyhow",
  "bincode",
@@ -529,7 +529,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-primitives"
-version = "1.1.1"
+version = "1.2.0"
 dependencies = [
  "itertools 0.13.0",
  "lazy_static",
@@ -541,7 +541,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-zkvm"
-version = "1.1.1"
+version = "1.2.0"
 dependencies = [
  "bincode",
  "cfg-if",

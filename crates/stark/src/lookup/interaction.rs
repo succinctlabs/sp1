@@ -3,7 +3,10 @@ use core::fmt::{Debug, Display};
 use p3_air::VirtualPairCol;
 use p3_field::Field;
 
+use crate::air::InteractionScope;
+
 /// An interaction for a lookup or a permutation argument.
+#[derive(Clone)]
 pub struct Interaction<F: Field> {
     /// The values of the interaction.
     pub values: Vec<VirtualPairCol<F>>,
@@ -11,6 +14,8 @@ pub struct Interaction<F: Field> {
     pub multiplicity: VirtualPairCol<F>,
     /// The kind of interaction.
     pub kind: InteractionKind,
+    /// The scope of the interaction.
+    pub scope: InteractionScope,
 }
 
 /// The type of interaction for a lookup argument.
@@ -64,8 +69,9 @@ impl<F: Field> Interaction<F> {
         values: Vec<VirtualPairCol<F>>,
         multiplicity: VirtualPairCol<F>,
         kind: InteractionKind,
+        scope: InteractionScope,
     ) -> Self {
-        Self { values, multiplicity, kind }
+        Self { values, multiplicity, kind, scope }
     }
 
     /// The index of the argument in the lookup table.
@@ -76,7 +82,10 @@ impl<F: Field> Interaction<F> {
 
 impl<F: Field> Debug for Interaction<F> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Interaction").field("kind", &self.kind).finish_non_exhaustive()
+        f.debug_struct("Interaction")
+            .field("kind", &self.kind)
+            .field("scope", &self.scope)
+            .finish_non_exhaustive()
     }
 }
 

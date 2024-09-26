@@ -4,8 +4,12 @@ use p3_field::PrimeField32;
 use p3_keccak_air::{generate_trace_rows, NUM_KECCAK_COLS, NUM_ROUNDS};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use p3_maybe_rayon::prelude::{ParallelIterator, ParallelSlice};
-use sp1_core_executor::{ExecutionRecord, Program};
-use sp1_stark::{air::MachineAir, MachineRecord};
+use sp1_core_executor::{
+    events::{KeccakPermuteEvent, PrecompileEvent},
+    syscalls::SyscallCode,
+    ExecutionRecord, Program,
+};
+use sp1_stark::air::MachineAir;
 
 use super::{
     columns::{KeccakMemCols, NUM_KECCAK_MEM_COLS},
@@ -26,21 +30,29 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
         input: &ExecutionRecord,
         output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
-        let num_events = input.keccak_permute_events.len();
+        let events = input.get_precompile_events(SyscallCode::KECCAK_PERMUTE);
+        let num_events = events.len();
         let chunk_size = std::cmp::max(num_events / num_cpus::get(), 1);
 
+        fn event_transform(event: &PrecompileEvent) -> &KeccakPermuteEvent {
+            if let PrecompileEvent::KeccakPermute(event) = event {
+                event
+            } else {
+                unreachable!()
+            }
+        }
+
         // Use par_chunks to generate the trace in parallel.
-        let rows_and_records = (0..num_events)
+        let rows_and_blu_events = (0..num_events)
             .collect::<Vec<_>>()
             .par_chunks(chunk_size)
             .map(|chunk| {
-                let mut record = ExecutionRecord::default();
                 let mut new_byte_lookup_events = Vec::new();
 
                 // First generate all the p3_keccak_air traces at once.
                 let perm_inputs = chunk
                     .iter()
-                    .map(|event_index| input.keccak_permute_events[*event_index].pre_state)
+                    .map(|event_index| event_transform(&events[*event_index]).pre_state)
                     .collect::<Vec<_>>();
                 let p3_keccak_trace = generate_trace_rows::<F>(perm_inputs);
 
@@ -50,10 +62,9 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
                     .flat_map(|(index_in_chunk, event_index)| {
                         let mut rows = Vec::new();
 
-                        let event = &input.keccak_permute_events[*event_index];
+                        let event = event_transform(&events[*event_index]);
                         let start_clk = event.clk;
                         let shard = event.shard;
-                        let channel = event.channel;
 
                         // Create all the rows for the permutation.
                         for i in 0..NUM_ROUNDS {
@@ -66,7 +77,6 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
                             let cols: &mut KeccakMemCols<F> = row.as_mut_slice().borrow_mut();
 
                             cols.shard = F::from_canonical_u32(shard);
-                            cols.channel = F::from_canonical_u8(channel);
                             cols.clk = F::from_canonical_u32(start_clk);
                             cols.state_addr = F::from_canonical_u32(event.state_addr);
                             cols.is_real = F::one();
@@ -75,14 +85,10 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
                             if i == 0 {
                                 for (j, read_record) in event.state_read_records.iter().enumerate()
                                 {
-                                    cols.state_mem[j].populate_read(
-                                        channel,
-                                        *read_record,
-                                        &mut new_byte_lookup_events,
-                                    );
+                                    cols.state_mem[j]
+                                        .populate_read(*read_record, &mut new_byte_lookup_events);
                                     new_byte_lookup_events.add_u8_range_checks(
                                         shard,
-                                        channel,
                                         &read_record.value.to_le_bytes(),
                                     );
                                 }
@@ -95,14 +101,10 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
                                 for (j, write_record) in
                                     event.state_write_records.iter().enumerate()
                                 {
-                                    cols.state_mem[j].populate_write(
-                                        channel,
-                                        *write_record,
-                                        &mut new_byte_lookup_events,
-                                    );
+                                    cols.state_mem[j]
+                                        .populate_write(*write_record, &mut new_byte_lookup_events);
                                     new_byte_lookup_events.add_u8_range_checks(
                                         shard,
-                                        channel,
                                         &write_record.value.to_le_bytes(),
                                     );
                                 }
@@ -114,16 +116,15 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
                         rows
                     })
                     .collect::<Vec<_>>();
-                record.add_byte_lookup_events(new_byte_lookup_events);
-                (rows, record)
+                (rows, new_byte_lookup_events)
             })
             .collect::<Vec<_>>();
 
         // Generate the trace rows for each event.
         let mut rows: Vec<[F; NUM_KECCAK_MEM_COLS]> = vec![];
-        for (mut row, mut record) in rows_and_records {
+        for (mut row, blu_events) in rows_and_blu_events {
             rows.append(&mut row);
-            output.append(&mut record);
+            output.add_byte_lookup_events(blu_events);
         }
 
         let nb_rows = rows.len();
@@ -167,6 +168,6 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
-        !shard.keccak_permute_events.is_empty()
+        !shard.get_precompile_events(SyscallCode::KECCAK_PERMUTE).is_empty()
     }
 }

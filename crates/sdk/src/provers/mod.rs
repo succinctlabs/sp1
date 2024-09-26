@@ -18,7 +18,7 @@ use sp1_core_executor::SP1Context;
 use sp1_core_machine::{io::SP1Stdin, SP1_CIRCUIT_VERSION};
 use sp1_prover::{
     components::SP1ProverComponents, CoreSC, InnerSC, SP1CoreProofData, SP1Prover, SP1ProvingKey,
-    SP1ReduceProof, SP1VerifyingKey,
+    SP1VerifyingKey,
 };
 use sp1_stark::{air::PublicValues, MachineVerificationError, SP1ProverOpts, Word};
 use strum_macros::EnumString;
@@ -122,7 +122,7 @@ pub trait Prover<C: SP1ProverComponents>: Send + Sync {
             }
             SP1Proof::Compressed(proof) => {
                 let public_values: &PublicValues<Word<_>, _> =
-                    proof.public_values.as_slice().borrow();
+                    proof.proof.public_values.as_slice().borrow();
 
                 // Get the commited value digest bytes.
                 let commited_value_digest_bytes = public_values
@@ -140,7 +140,7 @@ pub trait Prover<C: SP1ProverComponents>: Send + Sync {
                 }
 
                 self.sp1_prover()
-                    .verify_compressed(&SP1ReduceProof { proof: proof.clone() }, vkey)
+                    .verify_compressed(proof, vkey)
                     .map_err(SP1VerificationError::Recursion)
             }
             SP1Proof::Plonk(proof) => self

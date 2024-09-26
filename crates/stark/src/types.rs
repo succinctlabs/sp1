@@ -1,12 +1,14 @@
 #![allow(missing_docs)]
 
-use std::fmt::Debug;
+use std::{cmp::Reverse, collections::BTreeSet, fmt::Debug};
 
 use hashbrown::HashMap;
+use itertools::Itertools;
 use p3_matrix::{dense::RowMajorMatrixView, stack::VerticalPair};
 use serde::{Deserialize, Serialize};
 
 use super::{Challenge, Com, OpeningProof, StarkGenericConfig, Val};
+use crate::air::InteractionScope;
 
 pub type QuotientOpenedValues<T> = Vec<T>;
 
@@ -32,29 +34,35 @@ impl<SC: StarkGenericConfig, M, P> ShardMainData<SC, M, P> {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ShardCommitment<C> {
-    pub main_commit: C,
+    pub global_main_commit: C,
+    pub local_main_commit: C,
     pub permutation_commit: C,
     pub quotient_commit: C,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "T: Serialize"))]
+#[serde(bound(deserialize = "T: Deserialize<'de>"))]
 pub struct AirOpenedValues<T> {
     pub local: Vec<T>,
     pub next: Vec<T>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ChipOpenedValues<T: Serialize> {
+#[serde(bound(serialize = "T: Serialize"))]
+#[serde(bound(deserialize = "T: Deserialize<'de>"))]
+pub struct ChipOpenedValues<T> {
     pub preprocessed: AirOpenedValues<T>,
     pub main: AirOpenedValues<T>,
     pub permutation: AirOpenedValues<T>,
     pub quotient: Vec<Vec<T>>,
-    pub cumulative_sum: T,
+    pub global_cumulative_sum: T,
+    pub local_cumulative_sum: T,
     pub log_degree: usize,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ShardOpenedValues<T: Serialize> {
+pub struct ShardOpenedValues<T> {
     pub chips: Vec<ChipOpenedValues<T>>,
 }
 
@@ -70,7 +78,13 @@ pub struct ShardProof<SC: StarkGenericConfig> {
     pub opened_values: ShardOpenedValues<Challenge<SC>>,
     pub opening_proof: OpeningProof<SC>,
     pub chip_ordering: HashMap<String, usize>,
+    pub chip_scopes: Vec<InteractionScope>,
     pub public_values: Vec<Val<SC>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, PartialOrd, Ord, Eq, Hash)]
+pub struct ProofShape {
+    pub chip_information: Vec<(String, usize)>,
 }
 
 impl<SC: StarkGenericConfig> Debug for ShardProof<SC> {
@@ -89,8 +103,15 @@ impl<T: Send + Sync + Clone> AirOpenedValues<T> {
 }
 
 impl<SC: StarkGenericConfig> ShardProof<SC> {
-    pub fn cumulative_sum(&self) -> Challenge<SC> {
-        self.opened_values.chips.iter().map(|c| c.cumulative_sum).sum()
+    pub fn cumulative_sum(&self, scope: InteractionScope) -> Challenge<SC> {
+        self.opened_values
+            .chips
+            .iter()
+            .map(|c| match scope {
+                InteractionScope::Global => c.global_cumulative_sum,
+                InteractionScope::Local => c.local_cumulative_sum,
+            })
+            .sum()
     }
 
     pub fn log_degree_cpu(&self) -> usize {
@@ -102,12 +123,16 @@ impl<SC: StarkGenericConfig> ShardProof<SC> {
         self.chip_ordering.contains_key("CPU")
     }
 
-    pub fn contains_memory_init(&self) -> bool {
-        self.chip_ordering.contains_key("MemoryInit")
+    pub fn contains_global_memory_init(&self) -> bool {
+        self.chip_ordering.contains_key("MemoryGlobalInit")
     }
 
-    pub fn contains_memory_finalize(&self) -> bool {
-        self.chip_ordering.contains_key("MemoryFinalize")
+    pub fn contains_global_memory_finalize(&self) -> bool {
+        self.chip_ordering.contains_key("MemoryGlobalFinalize")
+    }
+
+    pub fn contains_global_main_commitment(&self) -> bool {
+        self.chip_scopes.contains(&InteractionScope::Global)
     }
 }
 
@@ -146,5 +171,46 @@ impl From<[u32; 8]> for DeferredDigest {
             bytes[i * 4..(i + 1) * 4].copy_from_slice(&word.to_le_bytes());
         }
         DeferredDigest(bytes)
+    }
+}
+
+impl<SC: StarkGenericConfig> ShardProof<SC> {
+    pub fn shape(&self) -> ProofShape {
+        ProofShape {
+            chip_information: self
+                .chip_ordering
+                .iter()
+                .sorted_by_key(|(_, idx)| *idx)
+                .zip(self.opened_values.chips.iter())
+                .map(|((name, _), values)| (name.to_owned(), values.log_degree))
+                .collect(),
+        }
+    }
+}
+
+impl ProofShape {
+    #[must_use]
+    pub fn from_map(map: &HashMap<String, usize>) -> Self {
+        Self {
+            chip_information: map
+                .iter()
+                .map(|(name, log_degree)| (name.clone(), *log_degree))
+                .collect(),
+        }
+    }
+}
+
+impl FromIterator<(String, usize)> for ProofShape {
+    fn from_iter<T: IntoIterator<Item = (String, usize)>>(iter: T) -> Self {
+        let set = iter
+            .into_iter()
+            .map(|(name, log_degree)| (Reverse(log_degree), name))
+            .collect::<BTreeSet<_>>();
+        Self {
+            chip_information: set
+                .into_iter()
+                .map(|(Reverse(log_degree), name)| (name, log_degree))
+                .collect(),
+        }
     }
 }

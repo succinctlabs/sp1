@@ -81,7 +81,7 @@ impl ProverClient {
                 #[cfg(not(feature = "cuda"))]
                 prover: Box::new(CpuProver::new()),
                 #[cfg(feature = "cuda")]
-                prover: Box::new(CudaProver::new()),
+                prover: Box::new(CudaProver::new(SP1Prover::new())),
             },
             "network" => {
                 cfg_if! {
@@ -293,7 +293,7 @@ pub fn block_on<T>(fut: impl Future<Output = T>) -> T {
 #[cfg(test)]
 mod tests {
 
-    use sp1_prover::init::SP1PublicValues;
+    use sp1_core_machine::io::SP1PublicValues;
 
     use crate::{utils, CostEstimator, ProverClient, SP1Stdin};
 

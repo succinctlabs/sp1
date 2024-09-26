@@ -338,7 +338,7 @@ mod tests {
         builder.print_e(b);
 
         let mut backend = ConstraintCompiler::<OuterConfig>::default();
-        let constraints = backend.emit(builder.operations);
+        let constraints = backend.emit(builder.into_operations());
         PlonkBn254Prover::test::<OuterConfig>(
             constraints,
             Witness {

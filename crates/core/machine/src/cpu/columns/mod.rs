@@ -1,6 +1,5 @@
 mod auipc;
 mod branch;
-mod channel;
 mod ecall;
 mod instruction;
 mod jump;
@@ -10,7 +9,6 @@ mod opcode_specific;
 
 pub use auipc::*;
 pub use branch::*;
-pub use channel::*;
 pub use ecall::*;
 pub use instruction::*;
 pub use jump::*;
@@ -35,8 +33,6 @@ pub const CPU_COL_MAP: CpuCols<usize> = make_col_map();
 pub struct CpuCols<T: Copy> {
     /// The current shard.
     pub shard: T,
-    /// The channel value, used for byte lookup multiplicity.
-    pub channel: T,
 
     pub nonce: T,
 
@@ -55,9 +51,6 @@ pub struct CpuCols<T: Copy> {
 
     /// Columns related to the instruction.
     pub instruction: InstructionCols<T>,
-
-    /// Columns related to the byte lookup channel.
-    pub channel_selectors: ChannelSelectorCols<T>,
 
     /// Selectors for the opcode.
     pub selectors: OpcodeSelectorCols<T>,

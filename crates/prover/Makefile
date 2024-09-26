@@ -5,11 +5,11 @@ all:
 build-circuits:
 	rm -rf build && \
 	mkdir -p build && \
-	RUSTFLAGS='-C target-cpu=native' \
-	cargo run -p sp1-prover --release --bin build_plonk_bn254 --features native-gnark -- \
-	--build-dir=./build && \
-	RUSTFLAGS='-C target-cpu=native' \
+	RUST_LOG=debug RUSTFLAGS='-C target-cpu=native' \
 	cargo run -p sp1-prover --release --bin build_groth16_bn254 --features native-gnark -- \
+	--build-dir=./build && \
+	RUST_LOG=debug RUSTFLAGS='-C target-cpu=native' \
+	cargo run -p sp1-prover --release --bin build_plonk_bn254 --features native-gnark -- \
 	--build-dir=./build
 
 release-circuits:

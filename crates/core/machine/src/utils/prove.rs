@@ -8,21 +8,25 @@ use std::{
 };
 use web_time::Instant;
 
-use crate::riscv::RiscvAir;
-use p3_challenger::CanObserve;
+use crate::riscv::{CoreShapeConfig, RiscvAir};
+use p3_challenger::FieldChallenger;
 use p3_maybe_rayon::prelude::*;
 use serde::{de::DeserializeOwned, Serialize};
 use size::Size;
-use sp1_stark::{baby_bear_poseidon2::BabyBearPoseidon2, MachineVerificationError};
+use sp1_stark::{
+    air::InteractionScope, baby_bear_poseidon2::BabyBearPoseidon2, MachineProvingKey,
+    MachineVerificationError,
+};
 use std::thread::ScopedJoinHandle;
 use thiserror::Error;
 
 use p3_baby_bear::BabyBear;
 use p3_field::PrimeField32;
+use p3_matrix::Matrix;
 
-use crate::riscv::cost::CostEstimator;
 use crate::{
     io::{SP1PublicValues, SP1Stdin},
+    riscv::cost::CostEstimator,
     utils::{chunk_vec, concurrency::TurnBasedSync},
 };
 use sp1_core_executor::events::sorted_table_lines;
@@ -107,16 +111,17 @@ where
     let machine = RiscvAir::machine(config);
     let prover = P::new(machine);
     let (pk, _) = prover.setup(&program);
-    prove_with_context::<SC, _>(&prover, &pk, program, stdin, opts, Default::default())
+    prove_with_context::<SC, _>(&prover, &pk, program, stdin, opts, Default::default(), None)
 }
 
 pub fn prove_with_context<SC: StarkGenericConfig, P: MachineProver<SC, RiscvAir<SC::Val>>>(
     prover: &P,
-    pk: &StarkProvingKey<SC>,
+    pk: &P::DeviceProvingKey,
     program: Program,
     stdin: &SP1Stdin,
     opts: SP1CoreOpts,
     context: SP1Context,
+    shape_config: Option<&CoreShapeConfig<SC::Val>>,
 ) -> Result<(MachineProof<SC>, Vec<u8>, u64), SP1CoreProverError>
 where
     SC::Val: PrimeField32,
@@ -129,7 +134,8 @@ where
     let mut runtime = Executor::with_context(program.clone(), opts, context);
     runtime.write_vecs(&stdin.buffer);
     for proof in stdin.proofs.iter() {
-        runtime.write_proof(proof.0.clone(), proof.1.clone());
+        let (proof, vk) = proof.clone();
+        runtime.write_proof(proof, vk);
     }
 
     #[cfg(feature = "debug")]
@@ -207,9 +213,6 @@ where
 
             let span = tracing::Span::current().clone();
 
-            #[cfg(feature = "debug")]
-            let all_records_tx = all_records_tx.clone();
-
             let handle = s.spawn(move || {
                 let _span = span.enter();
                 tracing::debug_span!("phase 1 trace generation").in_scope(|| {
@@ -222,11 +225,6 @@ where
                             let (mut records, _) = tracing::debug_span!("trace checkpoint")
                                 .in_scope(|| trace_checkpoint(program.clone(), &checkpoint, opts));
                             reset_seek(&mut checkpoint);
-
-                            // Generate the dependencies.
-                            tracing::debug_span!("generate dependencies").in_scope(|| {
-                                prover.machine().generate_dependencies(&mut records, &opts)
-                            });
 
                             // Wait for our turn to update the state.
                             record_gen_sync.wait_for_turn(index);
@@ -282,14 +280,23 @@ where
                             // Let another worker update the state.
                             record_gen_sync.advance_turn();
 
-                            #[cfg(feature = "debug")]
-                            all_records_tx.send(records.clone()).unwrap();
+                            // Fix the shape of the records.
+                            if let Some(shape_config) = shape_config {
+                                for record in records.iter_mut() {
+                                    shape_config.fix_shape(record).unwrap();
+                                }
+                            }
 
                             // Generate the traces.
-                            let traces = records
-                                .par_iter()
-                                .map(|record| prover.generate_traces(record))
-                                .collect::<Vec<_>>();
+                            let mut traces = vec![];
+                            tracing::debug_span!("generate traces", index).in_scope(|| {
+                                traces = records
+                                    .par_iter()
+                                    .map(|record| {
+                                        prover.generate_traces(record, InteractionScope::Global)
+                                    })
+                                    .collect::<Vec<_>>();
+                            });
 
                             // Wait for our turn.
                             trace_gen_sync.wait_for_turn(index);
@@ -317,13 +324,10 @@ where
             p1_record_and_trace_gen_handles.push(handle);
         }
         drop(p1_records_and_traces_tx);
-        #[cfg(feature = "debug")]
-        drop(all_records_tx);
 
         // Create the challenger and observe the verifying key.
         let mut challenger = prover.config().challenger();
-        challenger.observe(pk.commit.clone());
-        challenger.observe(pk.pc_start);
+        pk.observe_into(&mut challenger);
 
         // Spawn the phase 1 prover thread.
         let phase_1_prover_span = tracing::Span::current().clone();
@@ -349,18 +353,32 @@ where
                             .zip(traces.into_par_iter())
                             .map(|(record, traces)| {
                                 let _span = span.enter();
-                                let data = prover.commit(record, traces);
-                                let main_commit = data.main_commit.clone();
+
+                                for (name, trace) in traces.clone() {
+                                    let trace_width = trace.width();
+                                    let trace_height = trace.height();
+                                    tracing::debug!(
+                                        "Phase 1 area: {:<15} | Main Cols = {:<5} | Rows = {:<5} | Cells = {:<10}",
+                                        name,
+                                        trace_width,
+                                        trace_height,
+                                        trace_width * trace_height,
+                                    );
+
+                                }
+
+                                let data = prover.commit(&record, traces);
+                                let phase1_main_commit = data.main_commit.clone();
                                 drop(data);
-                                main_commit
+                                phase1_main_commit
                             })
                             .collect::<Vec<_>>();
 
-                        // Observe the commitments.
+                        //  the commitments.
                         for (commit, public_values) in
                             commitments.into_iter().zip(public_values.into_iter())
                         {
-                            prover.observe(&mut challenger, commit, &public_values);
+                            prover.observe(&mut challenger, commit.clone(), &public_values);
                         }
                     });
                 }
@@ -376,15 +394,26 @@ where
         p1_record_and_trace_gen_handles.into_iter().for_each(|handle| handle.join().unwrap());
 
         // Wait until the phase 1 prover has completely finished.
-        let challenger = phase_1_prover_handle.join().unwrap();
+        let mut challenger = phase_1_prover_handle.join().unwrap();
+
+        // Sample for the global permutation challenges.
+        // Obtain the challenges used for the global permutation argument.
+        let mut global_permutation_challenges: Vec<SC::Challenge> = Vec::new();
+        for _ in 0..2 {
+            global_permutation_challenges.push(challenger.sample_ext_element());
+        }
 
         // Spawn the phase 2 record generator thread.
         let p2_record_gen_sync = Arc::new(TurnBasedSync::new());
         let p2_trace_gen_sync = Arc::new(TurnBasedSync::new());
         let (p2_records_and_traces_tx, p2_records_and_traces_rx) =
-            sync_channel::<(Vec<ExecutionRecord>, Vec<Vec<(String, RowMajorMatrix<Val<SC>>)>>)>(
-                opts.records_and_traces_channel_capacity,
-            );
+            sync_channel::<(
+                Vec<ExecutionRecord>,
+                (
+                    Vec<Vec<(String, RowMajorMatrix<Val<SC>>)>>,
+                    Vec<Vec<(String, RowMajorMatrix<Val<SC>>)>>,
+                ),
+            )>(opts.records_and_traces_channel_capacity);
         let p2_records_and_traces_tx = Arc::new(Mutex::new(p2_records_and_traces_tx));
 
         let report_aggregate = Arc::new(Mutex::new(ExecutionReport::default()));
@@ -403,6 +432,10 @@ where
             let program = program.clone();
 
             let span = tracing::Span::current().clone();
+
+            #[cfg(feature = "debug")]
+            let all_records_tx = all_records_tx.clone();
+
             let handle = s.spawn(move || {
                 let _span = span.enter();
                 tracing::debug_span!("phase 2 trace generation").in_scope(|| {
@@ -415,11 +448,6 @@ where
                                 .in_scope(|| trace_checkpoint(program.clone(), &checkpoint, opts));
                             *report_aggregate.lock().unwrap() += report;
                             reset_seek(&mut checkpoint);
-
-                            // Generate the dependencies.
-                            tracing::debug_span!("generate dependencies").in_scope(|| {
-                                prover.machine().generate_dependencies(&mut records, &opts)
-                            });
 
                             // Wait for our turn to update the state.
                             record_gen_sync.wait_for_turn(index);
@@ -468,29 +496,64 @@ where
                             }
                             records.append(&mut deferred);
 
+                            // Generate the dependencies.
+                            tracing::debug_span!("generate dependencies", index).in_scope(|| {
+                                prover.machine().generate_dependencies(&mut records, &opts, None);
+                            });
+
                             // Let another worker update the state.
                             record_gen_sync.advance_turn();
 
+                            // Fix the shape of the records.
+                            if let Some(shape_config) = shape_config {
+                                for record in records.iter_mut() {
+                                    shape_config.fix_shape(record).unwrap();
+                                }
+                            }
+
+                            #[cfg(feature = "debug")]
+                            all_records_tx.send(records.clone()).unwrap();
+
                             // Generate the traces.
-                            let traces = records
-                                .par_iter()
-                                .map(|record| prover.generate_traces(record))
-                                .collect::<Vec<_>>();
+                            let mut local_traces = Vec::new();
+                            tracing::debug_span!("generate local traces", index).in_scope(|| {
+                                local_traces = records
+                                    .par_iter()
+                                    .map(|record| {
+                                        prover.generate_traces(record, InteractionScope::Local)
+                                    })
+                                    .collect::<Vec<_>>();
+                            });
+
+                            let mut global_traces = Vec::new();
+                            tracing::debug_span!("generate global traces", index).in_scope(|| {
+                                global_traces = records
+                                    .par_iter()
+                                    .map(|record| {
+                                        prover.generate_traces(record, InteractionScope::Global)
+                                    })
+                                    .collect::<Vec<_>>();
+                            });
 
                             trace_gen_sync.wait_for_turn(index);
 
-                            // Send the records to the phase 1 prover.
+                            // Send the records to the phase 2 prover.
                             let chunked_records = chunk_vec(records, opts.shard_batch_size);
-                            let chunked_traces = chunk_vec(traces, opts.shard_batch_size);
-                            chunked_records.into_iter().zip(chunked_traces).for_each(
-                                |(records, traces)| {
+                            let chunked_global_traces =
+                                chunk_vec(global_traces, opts.shard_batch_size);
+                            let chunked_local_traces =
+                                chunk_vec(local_traces, opts.shard_batch_size);
+                            chunked_records
+                                .into_iter()
+                                .zip(chunked_global_traces.into_iter())
+                                .zip(chunked_local_traces.into_iter())
+                                .for_each(|((records, global_traces), local_traces)| {
                                     records_and_traces_tx
                                         .lock()
                                         .unwrap()
-                                        .send((records, traces))
+                                        .send((records, (global_traces, local_traces)))
                                         .unwrap();
-                                },
-                            );
+                                });
 
                             trace_gen_sync.advance_turn();
                         } else {
@@ -502,6 +565,8 @@ where
             p2_record_and_trace_gen_handles.push(handle);
         }
         drop(p2_records_and_traces_tx);
+        #[cfg(feature = "debug")]
+        drop(all_records_tx);
 
         // Spawn the phase 2 prover thread.
         let p2_prover_span = tracing::Span::current().clone();
@@ -514,10 +579,21 @@ where
                         let span = tracing::Span::current().clone();
                         shard_proofs.par_extend(
                             records.into_par_iter().zip(traces.into_par_iter()).map(
-                                |(record, traces)| {
+                                |(record, (global_traces, local_traces))| {
                                     let _span = span.enter();
-                                    let data = prover.commit(record, traces);
-                                    prover.open(pk, data, &mut challenger.clone()).unwrap()
+
+                                    let global_data = prover.commit(&record, global_traces);
+                                    let local_data = prover.commit(&record, local_traces);
+
+                                    prover
+                                        .open(
+                                            pk,
+                                            Some(global_data),
+                                            local_data,
+                                            &mut challenger.clone(),
+                                            &global_permutation_challenges,
+                                        )
+                                        .unwrap()
                                 },
                             ),
                         );
@@ -571,7 +647,7 @@ where
         {
             let all_records = all_records_rx.iter().flatten().collect::<Vec<_>>();
             let mut challenger = prover.machine().config().challenger();
-            prover.machine().debug_constraints(pk, all_records, &mut challenger);
+            prover.machine().debug_constraints(&pk.to_host(), all_records, &mut challenger);
         }
 
         Ok((proof, public_values_stream, cycles))
@@ -621,6 +697,7 @@ pub fn run_test_core<P: MachineProver<BabyBearPoseidon2, RiscvAir<BabyBear>>>(
         &inputs,
         SP1CoreOpts::default(),
         SP1Context::default(),
+        None,
     )
     .unwrap();
 
@@ -635,9 +712,9 @@ pub fn run_test_core<P: MachineProver<BabyBearPoseidon2, RiscvAir<BabyBear>>>(
 
 #[allow(unused_variables)]
 pub fn run_test_machine_with_prover<SC, A, P: MachineProver<SC, A>>(
+    prover: &P,
     records: Vec<A::Record>,
-    machine: StarkMachine<SC, A>,
-    pk: StarkProvingKey<SC>,
+    pk: P::DeviceProvingKey,
     vk: StarkVerifyingKey<SC>,
 ) -> Result<MachineProof<SC>, MachineVerificationError<SC>>
 where
@@ -653,9 +730,12 @@ where
     PcsProverData<SC>: Send + Sync + Serialize + DeserializeOwned,
     OpeningProof<SC>: Send + Sync,
 {
-    let prover = P::new(machine);
     let mut challenger = prover.config().challenger();
     let prove_span = tracing::debug_span!("prove").entered();
+
+    #[cfg(feature = "debug")]
+    prover.machine().debug_constraints(&pk.to_host(), records.clone(), &mut challenger.clone());
+
     let proof = prover.prove(&pk, records, &mut challenger, SP1CoreOpts::default()).unwrap();
     prove_span.exit();
     let nb_bytes = bincode::serialize(&proof).unwrap().len();
@@ -687,7 +767,8 @@ where
     PcsProverData<SC>: Send + Sync + Serialize + DeserializeOwned,
     OpeningProof<SC>: Send + Sync,
 {
-    run_test_machine_with_prover::<SC, A, CpuProver<_, _>>(records, machine, pk, vk)
+    let prover = CpuProver::new(machine);
+    run_test_machine_with_prover::<SC, A, CpuProver<_, _>>(&prover, records, pk, vk)
 }
 
 fn trace_checkpoint(

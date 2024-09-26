@@ -1,10 +1,5 @@
-#[rustfmt::skip]
-pub mod proto {
-    pub mod api;
-}
-
-use core::time::Duration;
 use std::{
+    error::Error as StdError,
     future::Future,
     io::{BufReader, Read, Write},
     process::{Command, Stdio},
@@ -12,20 +7,24 @@ use std::{
         atomic::{AtomicBool, Ordering},
         Arc,
     },
+    time::{Duration, Instant},
 };
 
 use crate::proto::api::ProverServiceClient;
 
 use proto::api::ReadyRequest;
 use serde::{Deserialize, Serialize};
-use sp1_core_machine::{io::SP1Stdin, utils::SP1CoreProverError};
+use sp1_core_machine::{io::SP1Stdin, reduce::SP1ReduceProof, utils::SP1CoreProverError};
 use sp1_prover::{
-    types::SP1ProvingKey, InnerSC, OuterSC, SP1CoreProof, SP1RecursionProverError, SP1ReduceProof,
-    SP1VerifyingKey,
+    types::SP1ProvingKey, InnerSC, OuterSC, SP1CoreProof, SP1RecursionProverError, SP1VerifyingKey,
 };
-use sp1_stark::ShardProof;
 use tokio::task::block_in_place;
 use twirp::{url::Url, Client};
+
+#[rustfmt::skip]
+pub mod proto {
+    pub mod api;
+}
 
 /// A remote client to [sp1_prover::SP1Prover] that runs inside a container.
 ///
@@ -62,7 +61,7 @@ pub struct CompressRequestPayload {
     /// The core proof.
     pub proof: SP1CoreProof,
     /// The deferred proofs.
-    pub deferred_proofs: Vec<ShardProof<InnerSC>>,
+    pub deferred_proofs: Vec<SP1ReduceProof<InnerSC>>,
 }
 
 /// The payload for the [sp1_prover::SP1Prover::shrink] method.
@@ -84,28 +83,31 @@ pub struct WrapRequestPayload {
 impl SP1CudaProver {
     /// Creates a new [SP1Prover] that runs inside a Docker container and returns a
     /// [SP1ProverClient] that can be used to communicate with the container.
-    pub fn new() -> Self {
+    pub fn new() -> Result<Self, Box<dyn StdError>> {
         let container_name = "sp1-gpu";
-        let image_name = "succinctlabs/sp1-gpu:v1.2.0-rc2";
+        let image_name = "jtguibas/sp1-gpu:v3.0.0-rc2";
 
         let cleaned_up = Arc::new(AtomicBool::new(false));
         let cleanup_name = container_name;
         let cleanup_flag = cleaned_up.clone();
 
-        // Pull the docker image if it's not present.
-        Command::new("sudo")
-            .args(["docker", "pull", image_name])
-            .output()
-            .expect("failed to pull docker image");
+        // Check if Docker is available and the user has necessary permissions
+        if !Self::check_docker_availability()? {
+            return Err("Docker is not available or you don't have the necessary permissions. Please ensure Docker is installed and you are part of the docker group.".into());
+        }
 
-        // Start the docker container.
-        let rust_log_level = std::env::var("RUST_LOG").unwrap_or("none".to_string());
-        let mut child = Command::new("sudo")
+        // Pull the docker image if it's not present
+        if let Err(e) = Command::new("docker").args(["pull", image_name]).output() {
+            return Err(format!("Failed to pull Docker image: {}. Please check your internet connection and Docker permissions.", e).into());
+        }
+
+        // Start the docker container
+        let rust_log_level = std::env::var("RUST_LOG").unwrap_or_else(|_| "none".to_string());
+        let mut child = Command::new("docker")
             .args([
-                "docker",
                 "run",
                 "-e",
-                format!("RUST_LOG={}", rust_log_level).as_str(),
+                &format!("RUST_LOG={}", rust_log_level),
                 "-p",
                 "3000:3000",
                 "--rm",
@@ -118,7 +120,7 @@ impl SP1CudaProver {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()
-            .expect("failed to start Docker container");
+            .map_err(|e| format!("Failed to start Docker container: {}. Please check your Docker installation and permissions.", e))?;
 
         let stdout = child.stdout.take().unwrap();
         std::thread::spawn(move || {
@@ -136,7 +138,7 @@ impl SP1CudaProver {
             }
         });
 
-        // Kill the container on control-c.
+        // Kill the container on control-c
         ctrlc::set_handler(move || {
             tracing::debug!("received Ctrl+C, cleaning up...");
             if !cleanup_flag.load(Ordering::SeqCst) {
@@ -147,37 +149,57 @@ impl SP1CudaProver {
         })
         .unwrap();
 
-        // Wait a few seconds for the container to start.
+        // Wait a few seconds for the container to start
         std::thread::sleep(Duration::from_secs(2));
 
-        // Check if the container is ready.
+        // Check if the container is ready
         let client = Client::from_base_url(
             Url::parse("http://localhost:3000/twirp/").expect("failed to parse url"),
         )
         .expect("failed to create client");
+
+        let timeout = Duration::from_secs(60); // Set a 60-second timeout
+        let start_time = Instant::now();
+
         block_on(async {
             tracing::info!("waiting for proving server to be ready");
             loop {
+                if start_time.elapsed() > timeout {
+                    return Err("Timeout: proving server did not become ready within 60 seconds. Please check your Docker container and network settings.".to_string());
+                }
+
                 let request = ReadyRequest {};
-                let response = client.ready(request).await;
-                if let Ok(response) = response {
-                    if response.ready {
+                match client.ready(request).await {
+                    Ok(response) if response.ready => {
                         tracing::info!("proving server is ready");
                         break;
                     }
+                    Ok(_) => {
+                        tracing::info!("proving server is not ready, retrying...");
+                    }
+                    Err(e) => {
+                        tracing::warn!("Error checking server readiness: {}", e);
+                    }
                 }
-                tracing::info!("proving server is not ready, retrying...");
-                std::thread::sleep(Duration::from_secs(2));
+                tokio::time::sleep(Duration::from_secs(2)).await;
             }
-        });
+            Ok(())
+        })?;
 
-        SP1CudaProver {
+        Ok(SP1CudaProver {
             client: Client::from_base_url(
                 Url::parse("http://localhost:3000/twirp/").expect("failed to parse url"),
             )
             .expect("failed to create client"),
             container_name: container_name.to_string(),
             cleaned_up: cleaned_up.clone(),
+        })
+    }
+
+    fn check_docker_availability() -> Result<bool, Box<dyn std::error::Error>> {
+        match Command::new("docker").arg("version").output() {
+            Ok(output) => Ok(output.status.success()),
+            Err(_) => Ok(false),
         }
     }
 
@@ -208,7 +230,7 @@ impl SP1CudaProver {
         &self,
         vk: &SP1VerifyingKey,
         proof: SP1CoreProof,
-        deferred_proofs: Vec<ShardProof<InnerSC>>,
+        deferred_proofs: Vec<SP1ReduceProof<InnerSC>>,
     ) -> Result<SP1ReduceProof<InnerSC>, SP1RecursionProverError> {
         let payload = CompressRequestPayload { vk: vk.clone(), proof, deferred_proofs };
         let request =
@@ -258,7 +280,7 @@ impl SP1CudaProver {
 
 impl Default for SP1CudaProver {
     fn default() -> Self {
-        Self::new()
+        Self::new().expect("Failed to create SP1CudaProver")
     }
 }
 
@@ -274,8 +296,8 @@ impl Drop for SP1CudaProver {
 
 /// Cleans up the a docker container with the given name.
 fn cleanup_container(container_name: &str) {
-    if let Err(e) = Command::new("sudo").args(["docker", "rm", "-f", container_name]).output() {
-        eprintln!("failed to remove container: {}", e);
+    if let Err(e) = Command::new("docker").args(["rm", "-f", container_name]).output() {
+        eprintln!("Failed to remove container: {}. You may need to manually remove it using 'docker rm -f {}'", e, container_name);
     }
 }
 
@@ -297,10 +319,11 @@ pub fn block_on<T>(fut: impl Future<Output = T>) -> T {
 #[cfg(feature = "protobuf")]
 #[cfg(test)]
 mod tests {
-    use sp1_core_machine::utils::{setup_logger, tests::FIBONACCI_ELF};
-    use sp1_prover::{
-        components::DefaultProverComponents, InnerSC, SP1CoreProof, SP1Prover, SP1ReduceProof,
+    use sp1_core_machine::{
+        reduce::SP1ReduceProof,
+        utils::{setup_logger, tests::FIBONACCI_ELF},
     };
+    use sp1_prover::{components::DefaultProverComponents, InnerSC, SP1CoreProof, SP1Prover};
     use twirp::{url::Url, Client};
 
     use crate::{
@@ -313,7 +336,7 @@ mod tests {
         setup_logger();
 
         let prover = SP1Prover::<DefaultProverComponents>::new();
-        let client = SP1CudaProver::new();
+        let client = SP1CudaProver::new().expect("Failed to create SP1CudaProver");
         let (pk, vk) = prover.setup(FIBONACCI_ELF);
 
         println!("proving core");

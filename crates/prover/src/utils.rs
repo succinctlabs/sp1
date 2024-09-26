@@ -1,16 +1,40 @@
 use std::{
+    borrow::Borrow,
     fs::{self, File},
     io::Read,
+    iter::{Skip, Take},
 };
 
 use p3_baby_bear::BabyBear;
 use p3_bn254_fr::Bn254Fr;
 use p3_field::{AbstractField, PrimeField32};
 use sp1_core_executor::{Executor, Program};
-use sp1_core_machine::io::SP1Stdin;
+use sp1_core_machine::{io::SP1Stdin, reduce::SP1ReduceProof};
+use sp1_recursion_core_v2::{air::RecursionPublicValues, stark::config::BabyBearPoseidon2Outer};
 use sp1_stark::{SP1CoreOpts, Word};
 
 use crate::SP1CoreProofData;
+
+/// Get the SP1 vkey BabyBear Poseidon2 digest this reduce proof is representing.
+pub fn sp1_vkey_digest_babybear(proof: &SP1ReduceProof<BabyBearPoseidon2Outer>) -> [BabyBear; 8] {
+    let proof = &proof.proof;
+    let pv: &RecursionPublicValues<BabyBear> = proof.public_values.as_slice().borrow();
+    pv.sp1_vk_digest
+}
+
+/// Get the SP1 vkey Bn Poseidon2 digest this reduce proof is representing.
+pub fn sp1_vkey_digest_bn254(proof: &SP1ReduceProof<BabyBearPoseidon2Outer>) -> Bn254Fr {
+    babybears_to_bn254(&sp1_vkey_digest_babybear(proof))
+}
+
+/// Get the committed values Bn Poseidon2 digest this reduce proof is representing.
+pub fn sp1_commited_values_digest_bn254(proof: &SP1ReduceProof<BabyBearPoseidon2Outer>) -> Bn254Fr {
+    let proof = &proof.proof;
+    let pv: &RecursionPublicValues<BabyBear> = proof.public_values.as_slice().borrow();
+    let committed_values_digest_bytes: [BabyBear; 32] =
+        words_to_bytes(&pv.committed_value_digest).try_into().unwrap();
+    babybear_bytes_to_bn254(&committed_values_digest_bytes)
+}
 
 impl SP1CoreProofData {
     pub fn save(&self, path: &str) -> Result<(), std::io::Error> {
@@ -78,4 +102,48 @@ pub fn words_to_bytes_be(words: &[u32; 8]) -> [u8; 32] {
         bytes[i * 4..(i + 1) * 4].copy_from_slice(&word_bytes);
     }
     bytes
+}
+
+pub trait MaybeTakeIterator<I: Iterator>: Iterator<Item = I::Item> {
+    fn maybe_skip(self, bound: Option<usize>) -> RangedIterator<Self>
+    where
+        Self: Sized,
+    {
+        match bound {
+            Some(bound) => RangedIterator::Skip(self.skip(bound)),
+            None => RangedIterator::Unbounded(self),
+        }
+    }
+
+    fn maybe_take(self, bound: Option<usize>) -> RangedIterator<Self>
+    where
+        Self: Sized,
+    {
+        match bound {
+            Some(bound) => RangedIterator::Take(self.take(bound)),
+            None => RangedIterator::Unbounded(self),
+        }
+    }
+}
+
+impl<I: Iterator> MaybeTakeIterator<I> for I {}
+
+pub enum RangedIterator<I> {
+    Unbounded(I),
+    Skip(Skip<I>),
+    Take(Take<I>),
+    Range(Take<Skip<I>>),
+}
+
+impl<I: Iterator> Iterator for RangedIterator<I> {
+    type Item = I::Item;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self {
+            RangedIterator::Unbounded(unbounded) => unbounded.next(),
+            RangedIterator::Skip(skip) => skip.next(),
+            RangedIterator::Take(take) => take.next(),
+            RangedIterator::Range(range) => range.next(),
+        }
+    }
 }
