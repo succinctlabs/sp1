@@ -143,7 +143,7 @@ pub trait WeierstrassAffinePoint<const N: usize>: AffinePoint<N> {
     ///     3. Only P2 is infinity
     ///     4. P1 equals P2
     ///     5. P1 is the negation of P2
-    /// 
+    ///
     /// Implements the special cases of addition according to the
     /// [Zcash complete addition spec](https://zcash.github.io/halo2/design/gadgets/ecc/addition.html#complete-addition).
     /// Returns true if the addition was performed by the special cases, false otherwise, so that
