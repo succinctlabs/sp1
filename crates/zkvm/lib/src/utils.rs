@@ -135,9 +135,15 @@ pub fn bytes_to_words_le(bytes: &[u8]) -> Vec<u32> {
 
 /// A trait for affine points on Weierstrass curves.
 pub trait WeierstrassAffinePoint<const N: usize>: AffinePoint<N> {
-    /// Performs the addition of two points on a Weierstrass curve.
-    /// Implements complete addition according to the Zcash specification.
-    /// Returns true if the addition was performed by the special cases, false otherwise.
+    /// Performs the addition of two points on a Weierstrass curve for special cases.
+    /// For an addition of two points P1 and P2, the special cases are:
+    ///     1. P1 and P2 are infinity
+    ///     2. Only P1 is infinity
+    ///     3. Only P2 is infinity
+    ///     4. P1 equals P2
+    ///     5. P1 is the negation of P2
+    /// Implements the special cases of addition according to the [Zcash complete addition spec](https://zcash.github.io/halo2/design/gadgets/ecc/addition.html#complete-addition).
+    /// Returns true if the addition was performed by the special cases, false otherwise, so that the regular addition can be performed by the curve-specific syscall.
     fn weierstrass_add_assign_special_cases(&mut self, other: &Self) -> bool {
         let a = self.limbs_mut();
         let b = other.limbs_ref();
