@@ -141,6 +141,10 @@ pub struct RecursionPublicValues<T> {
     /// Whether the proof completely proves the program execution.
     pub is_complete: T,
 
+    /// Whether the proof represents a collection of shards which contain at least one execution
+    /// shard, i.e. a shard that contains the `cpu` chip.
+    pub contains_execution_shard: T,
+
     /// The digest of all the previous public values elements.
     pub digest: [T; DIGEST_SIZE],
 

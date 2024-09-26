@@ -26,11 +26,12 @@ use sp1_recursion_core_v2::{
 use crate::{
     challenger::{CanObserveVariable, DuplexChallengerVariable},
     constraints::RecursiveVerifierConstraintFolder,
+    machine::assert_recursion_public_values_valid,
     stark::{dummy_challenger, ShardProofVariable, StarkVerifier},
     BabyBearFriConfig, BabyBearFriConfigVariable, CircuitConfig, VerifyingKeyVariable,
 };
 
-use super::{SP1CompressShape, SP1CompressWitnessValues};
+use super::{recursion_public_values_digest, SP1CompressShape, SP1CompressWitnessValues};
 
 pub struct SP1DeferredVerifier<C, SC, A> {
     _phantom: std::marker::PhantomData<(C, SC, A)>,
@@ -158,6 +159,8 @@ where
             // Get the current public values.
             let current_public_values: &RecursionPublicValues<Felt<C::F>> =
                 shard_proof.public_values.as_slice().borrow();
+            // Assert that the public values are valid.
+            assert_recursion_public_values_valid::<C, SC>(builder, current_public_values);
 
             // Assert that the proof is complete.
             builder.assert_felt_eq(current_public_values.is_complete, C::F::one());
@@ -219,11 +222,15 @@ where
         // Set the is_complete flag.
         deferred_public_values.is_complete = is_complete;
 
-        // TODO: set the digest according to the previous values.
-        deferred_public_values.digest = array::from_fn(|_| builder.eval(C::F::zero()));
+        // Set the `contains_execution_shard` flag.
+        deferred_public_values.contains_execution_shard = builder.eval(C::F::zero());
 
         // Set the cumulative sum to zero.
         deferred_public_values.cumulative_sum = array::from_fn(|_| builder.eval(C::F::zero()));
+
+        // Set the digest according to the previous values.
+        deferred_public_values.digest =
+            recursion_public_values_digest::<C, SC>(builder, deferred_public_values);
 
         SC::commit_recursion_public_values(builder, *deferred_public_values);
     }

@@ -3,7 +3,7 @@ use std::{borrow::Borrow, path::PathBuf};
 use p3_baby_bear::BabyBear;
 use sp1_core_executor::SP1Context;
 use sp1_core_machine::io::SP1Stdin;
-use sp1_recursion_circuit_v2::machine::{SP1CompressRootVerifier, SP1CompressWitnessValues};
+use sp1_recursion_circuit_v2::machine::{SP1CompressWitnessValues, SP1WrapVerifier};
 use sp1_recursion_compiler::{
     config::OuterConfig,
     constraints::{Constraint, ConstraintCompiler},
@@ -179,7 +179,7 @@ fn build_outer_circuit(template_input: &SP1CompressWitnessValues<OuterSC>) -> Ve
     let wrap_span = tracing::debug_span!("build wrap circuit").entered();
     let mut builder = Builder::<OuterConfig>::default();
     let input = template_input.read(&mut builder);
-    SP1CompressRootVerifier::verify(&mut builder, &wrap_machine, input);
+    SP1WrapVerifier::verify(&mut builder, &wrap_machine, input);
 
     let mut backend = ConstraintCompiler::<OuterConfig>::default();
     let operations = backend.emit(builder.into_operations());

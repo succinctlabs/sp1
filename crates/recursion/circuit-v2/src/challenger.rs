@@ -87,22 +87,6 @@ impl<C: Config> DuplexChallengerVariable<C> {
         }
     }
 
-    // /// Asserts that the state of this challenger is equal to the state of another challenger.
-    // fn assert_eq(&self, builder: &mut Builder<C>, other: &Self) {
-    //     zip(&self.sponge_state, &other.sponge_state)
-    //         .chain(zip(&self.input_buffer, &other.input_buffer))
-    //         .chain(zip(&self.output_buffer, &other.output_buffer))
-    //         .for_each(|(&element, &other_element)| {
-    //             builder.assert_felt_eq(element, other_element);
-    //         });
-    // }
-
-    // fn reset(&mut self, builder: &mut Builder<C>) {
-    //     self.sponge_state.fill(builder.eval(C::F::zero()));
-    //     self.input_buffer.clear();
-    //     self.output_buffer.clear();
-    // }
-
     fn observe(&mut self, builder: &mut Builder<C>, value: Felt<C::F>) {
         self.output_buffer.clear();
 
@@ -112,12 +96,6 @@ impl<C: Config> DuplexChallengerVariable<C> {
             self.duplexing(builder);
         }
     }
-
-    // fn observe_commitment(&mut self, builder: &mut Builder<C>, commitment: DigestVariable<C>) {
-    //     for element in commitment {
-    //         self.observe(builder, element);
-    //     }
-    // }
 
     fn sample(&mut self, builder: &mut Builder<C>) -> Felt<C::F> {
         if !self.input_buffer.is_empty() || self.output_buffer.is_empty() {

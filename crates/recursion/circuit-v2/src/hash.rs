@@ -13,11 +13,13 @@ use sp1_recursion_compiler::{
 };
 use sp1_recursion_core_v2::stark::config::outer_perm;
 use sp1_recursion_core_v2::{stark::config::BabyBearPoseidon2Outer, DIGEST_SIZE};
+use sp1_recursion_core_v2::{HASH_RATE, PERMUTATION_WIDTH};
 use sp1_stark::baby_bear_poseidon2::BabyBearPoseidon2;
 use sp1_stark::inner_perm;
 
+use crate::challenger::SPONGE_SIZE;
 use crate::{
-    challenger::{reduce_32, RATE, SPONGE_SIZE},
+    challenger::{reduce_32, RATE},
     select_chain, CircuitConfig,
 };
 
@@ -25,6 +27,27 @@ pub trait FieldHasher<F: Field> {
     type Digest: Copy + Default + Eq + Ord + Copy + Debug;
 
     fn constant_compress(input: [Self::Digest; 2]) -> Self::Digest;
+}
+
+pub trait Posedion2BabyBearHasherVariable<C: CircuitConfig> {
+    fn poseidon2_permute(
+        builder: &mut Builder<C>,
+        state: [Felt<C::F>; PERMUTATION_WIDTH],
+    ) -> [Felt<C::F>; PERMUTATION_WIDTH];
+
+    /// Applies the Poseidon2 hash function to the given array.
+    ///
+    /// Reference: [p3_symmetric::PaddingFreeSponge]
+    fn poseidon2_hash(builder: &mut Builder<C>, input: &[Felt<C::F>]) -> [Felt<C::F>; DIGEST_SIZE] {
+        // static_assert(RATE < WIDTH)
+        let mut state = core::array::from_fn(|_| builder.eval(C::F::zero()));
+        for input_chunk in input.chunks(HASH_RATE) {
+            state[..input_chunk.len()].copy_from_slice(input_chunk);
+            state = Self::poseidon2_permute(builder, state);
+        }
+        let digest: [Felt<C::F>; DIGEST_SIZE] = state[..DIGEST_SIZE].try_into().unwrap();
+        digest
+    }
 }
 
 pub trait FieldHasherVariable<C: CircuitConfig>: FieldHasher<C::F> {
@@ -58,13 +81,33 @@ impl FieldHasher<BabyBear> for BabyBearPoseidon2 {
     }
 }
 
+impl<C: CircuitConfig> Posedion2BabyBearHasherVariable<C> for BabyBearPoseidon2 {
+    fn poseidon2_permute(
+        builder: &mut Builder<C>,
+        input: [Felt<<C>::F>; PERMUTATION_WIDTH],
+    ) -> [Felt<<C>::F>; PERMUTATION_WIDTH] {
+        builder.poseidon2_permute_v2(input)
+    }
+}
+
+impl<C: CircuitConfig> Posedion2BabyBearHasherVariable<C> for BabyBearPoseidon2Outer {
+    fn poseidon2_permute(
+        builder: &mut Builder<C>,
+        state: [Felt<<C>::F>; PERMUTATION_WIDTH],
+    ) -> [Felt<<C>::F>; PERMUTATION_WIDTH] {
+        let state: [Felt<_>; PERMUTATION_WIDTH] = state.map(|x| builder.eval(x));
+        builder.push_op(DslIr::CircuitPoseidon2PermuteBabyBear(Box::new(state)));
+        state
+    }
+}
+
 impl<C: CircuitConfig<F = BabyBear, Bit = Felt<BabyBear>>> FieldHasherVariable<C>
     for BabyBearPoseidon2
 {
     type DigestVariable = [Felt<BabyBear>; DIGEST_SIZE];
 
     fn hash(builder: &mut Builder<C>, input: &[Felt<<C as Config>::F>]) -> Self::DigestVariable {
-        builder.poseidon2_hash_v2(input)
+        <Self as Posedion2BabyBearHasherVariable<C>>::poseidon2_hash(builder, input)
     }
 
     fn compress(
@@ -181,7 +224,3 @@ impl<C: CircuitConfig<F = BabyBear, N = Bn254Fr, Bit = Var<Bn254Fr>>> FieldHashe
         }
     }
 }
-
-// impl<C: Config<F = BabyBear>> FieldHasherVariable<C> for OuterHash {
-
-// }

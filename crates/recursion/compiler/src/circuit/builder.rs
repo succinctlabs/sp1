@@ -83,7 +83,7 @@ impl<C: Config> CircuitV2Builder<C> for Builder<C> {
         output
     }
 
-    /// Applies the Poseidon2 permutation to the given array.
+    /// Applies the Poseidon2 hash function to the given array.
     ///
     /// Reference: [p3_symmetric::PaddingFreeSponge]
     fn poseidon2_hash_v2(&mut self, input: &[Felt<C::F>]) -> [Felt<C::F>; DIGEST_SIZE] {

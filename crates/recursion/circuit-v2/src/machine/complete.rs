@@ -24,6 +24,7 @@ pub(crate) fn assert_complete<C: Config>(
         end_reconstruct_deferred_digest,
         leaf_challenger,
         end_reconstruct_challenger,
+        contains_execution_shard,
         ..
     } = public_values;
 
@@ -42,6 +43,8 @@ pub(crate) fn assert_complete<C: Config>(
     // TODO: figure out if this is needed.
     builder.assert_felt_ne(is_complete * *next_shard, C::F::one());
 
+    // Assert that that an execution shard is present.
+    builder.assert_felt_eq(is_complete * (*contains_execution_shard - C::F::one()), C::F::zero());
     // Assert that the start execution shard is equal to 1.
     builder.assert_felt_eq(is_complete * (*start_execution_shard - C::F::one()), C::F::zero());
 

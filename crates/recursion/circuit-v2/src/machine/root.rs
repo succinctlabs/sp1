@@ -6,21 +6,17 @@ use p3_commit::Mmcs;
 use p3_field::AbstractField;
 use p3_matrix::dense::RowMajorMatrix;
 
-use sp1_stark::{air::MachineAir, StarkMachine};
-
-use sp1_recursion_core_v2::DIGEST_SIZE;
-
-use sp1_recursion_compiler::ir::{Builder, Felt};
-
+use super::{
+    PublicValuesOutputDigest, SP1CompressVerifier, SP1CompressWithVKeyVerifier,
+    SP1CompressWithVKeyWitnessVariable, SP1CompressWitnessVariable,
+};
 use crate::{
     challenger::DuplexChallengerVariable, constraints::RecursiveVerifierConstraintFolder,
     BabyBearFriConfigVariable, CircuitConfig,
 };
-
-use super::{
-    SP1CompressVerifier, SP1CompressWithVKeyVerifier, SP1CompressWithVKeyWitnessVariable,
-    SP1CompressWitnessVariable,
-};
+use sp1_recursion_compiler::ir::{Builder, Felt};
+use sp1_recursion_core_v2::DIGEST_SIZE;
+use sp1_stark::{air::MachineAir, StarkMachine};
 
 /// A program to verify a single recursive proof representing a complete proof of program execution.
 ///
@@ -55,7 +51,7 @@ where
         // Assert that the program is complete.
         builder.assert_felt_eq(input.is_complete, C::F::one());
         // Verify the proof, as a compress proof.
-        SP1CompressVerifier::verify(builder, machine, input);
+        SP1CompressVerifier::verify(builder, machine, input, PublicValuesOutputDigest::Root);
     }
 }
 
@@ -79,6 +75,12 @@ where
         // Assert that the program is complete.
         builder.assert_felt_eq(input.compress_var.is_complete, C::F::one());
         // Verify the proof, as a compress proof.
-        SP1CompressWithVKeyVerifier::verify(builder, machine, input, value_assertions);
+        SP1CompressWithVKeyVerifier::verify(
+            builder,
+            machine,
+            input,
+            value_assertions,
+            PublicValuesOutputDigest::Root,
+        );
     }
 }

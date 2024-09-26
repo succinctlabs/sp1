@@ -24,7 +24,8 @@ use crate::{
 };
 
 use super::{
-    SP1CompressShape, SP1CompressVerifier, SP1CompressWitnessValues, SP1CompressWitnessVariable,
+    PublicValuesOutputDigest, SP1CompressShape, SP1CompressVerifier, SP1CompressWitnessValues,
+    SP1CompressWitnessVariable,
 };
 
 /// A program to verify a batch of recursive proofs and aggregate their public values.
@@ -124,11 +125,12 @@ where
         machine: &StarkMachine<SC, A>,
         input: SP1CompressWithVKeyWitnessVariable<C, SC>,
         value_assertions: bool,
+        kind: PublicValuesOutputDigest,
     ) {
         let values =
             input.compress_var.vks_and_proofs.iter().map(|(vk, _)| vk.hash(builder)).collect_vec();
         SP1MerkleProofVerifier::verify(builder, values, input.merkle_var, value_assertions);
-        SP1CompressVerifier::verify(builder, machine, input.compress_var);
+        SP1CompressVerifier::verify(builder, machine, input.compress_var, kind);
     }
 }
 

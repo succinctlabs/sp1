@@ -37,6 +37,7 @@ use sp1_recursion_core_v2::{
 
 use crate::{
     challenger::{CanObserveVariable, DuplexChallengerVariable, FieldChallengerVariable},
+    machine::recursion_public_values_digest,
     stark::{dummy_challenger, dummy_vk_and_shard_proof, ShardProofVariable, StarkVerifier},
     BabyBearFriConfig, BabyBearFriConfigVariable, CircuitConfig, VerifyingKeyVariable,
 };
@@ -173,6 +174,9 @@ where
 
         // Assert that the number of proofs is not zero.
         assert!(!shard_proofs.is_empty());
+
+        // Initialize a flag to denote the first (if any) CPU shard.
+        let mut cpu_shard_seen = false;
 
         // Verify proofs.
         for (i, shard_proof) in shard_proofs.into_iter().enumerate() {
@@ -325,6 +329,14 @@ where
                 // If the shard has a "CPU" chip, then the execution shard should be incremented by
                 // 1.
                 if contains_cpu {
+                    // If this is the first time we've seen the CPU, we initialize the initial and
+                    // current execution shards.
+                    if !cpu_shard_seen {
+                        initial_execution_shard = public_values.execution_shard;
+                        current_execution_shard = initial_execution_shard;
+                        cpu_shard_seen = true;
+                    }
+
                     builder.assert_felt_eq(current_execution_shard, public_values.execution_shard);
 
                     current_execution_shard = builder.eval(current_execution_shard + C::F::one());
@@ -538,9 +550,6 @@ where
             let start_deferred_digest = [zero; POSEIDON_NUM_WORDS];
             let end_deferred_digest = [zero; POSEIDON_NUM_WORDS];
 
-            // Collect the is_complete flag.
-            // let is_complete_felt = var2felt(builder, is_complete);
-
             // Initialize the public values we will commit to.
             let mut recursion_public_values_stream = [zero; RECURSIVE_PROOF_NUM_PV_ELTS];
             let recursion_public_values: &mut RecursionPublicValues<_> =
@@ -568,8 +577,13 @@ where
             recursion_public_values.exit_code = exit_code;
             recursion_public_values.is_complete = is_complete;
             recursion_public_values.compress_vk_digest = compress_vk_digest;
-            // TODO: set the digest according to the previous values.
-            recursion_public_values.digest = array::from_fn(|_| builder.eval(C::F::zero()));
+            // Set the contains an execution shard flag.
+            recursion_public_values.contains_execution_shard =
+                builder.eval(C::F::from_bool(cpu_shard_seen));
+
+            // Calculate the digest and set it in the public values.
+            recursion_public_values.digest =
+                recursion_public_values_digest::<C, SC>(builder, recursion_public_values);
 
             SC::commit_recursion_public_values(builder, *recursion_public_values);
         }
