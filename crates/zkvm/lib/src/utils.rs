@@ -47,6 +47,14 @@ pub trait AffinePoint<const N: usize>: Clone + Sized {
     /// Adds the given [`AffinePoint`] to `self`.
     fn add_assign(&mut self, other: &Self);
 
+    /// Adds the given [`AffinePoint`] to `self`. Handles special cases of affine point addition,
+    /// such as adding infinity to a point, adding a point to infinity, adding a point to itself,
+    /// and adding a point to its negation within Weierstrass curves. For Edwards curves,
+    /// this function is identical to `add_assign`.
+    fn complete_add_assign(&mut self, other: &Self) {
+        self.add_assign(other);
+    }
+
     /// Doubles `self`.
     fn double(&mut self);
 
@@ -136,43 +144,42 @@ pub fn bytes_to_words_le(bytes: &[u8]) -> Vec<u32> {
 
 /// A trait for affine points on Weierstrass curves.
 pub trait WeierstrassAffinePoint<const N: usize>: AffinePoint<N> {
-    /// Performs the addition of two [`AffinePoint`]'s on a Weierstrass curve for special cases.
-    /// For an addition of two points P1 and P2, the special cases are:
+    /// Performs the complete addition of two [`AffinePoint`]'s on a Weierstrass curve.
+    /// For an addition of two points P1 and P2, the cases are:
     ///     1. P1 and P2 are infinity
     ///     2. Only P1 is infinity
     ///     3. Only P2 is infinity
     ///     4. P1 equals P2
     ///     5. P1 is the negation of P2
+    ///     6. The addition is regular.
     ///
-    /// Implements the special cases of addition according to the
+    /// Implements the complete addition cases according to the
     /// [Zcash complete addition spec](https://zcash.github.io/halo2/design/gadgets/ecc/addition.html#complete-addition).
-    /// Returns true if the addition was performed by the special cases, false otherwise, so that
-    /// the regular addition can be performed by the curve-specific syscall.
-    fn weierstrass_add_assign_special_cases(&mut self, other: &Self) -> bool {
+    fn weierstrass_add_assign_special_cases(&mut self, other: &Self) {
         let p1 = self.limbs_mut();
         let p2 = other.limbs_ref();
 
         // Case 1: p1 and p2 are infinity
         if p1 == &[0; N] && p2 == &[0; N] {
             *self = Self::new([0; N]);
-            return true;
+            return;
         }
 
         // Case 2: p1 is infinity
         if p1 == &[0; N] {
             *self = other.clone();
-            return true;
+            return;
         }
 
         // Case 3: p2 is infinity
         if p2 == &[0; N] {
-            return true;
+            return;
         }
 
         // Case 4: p1 equals p2
         if p1 == p2 {
             self.double();
-            return true;
+            return;
         }
 
         // Case 5: p1 is the negation of p2
@@ -180,9 +187,9 @@ pub trait WeierstrassAffinePoint<const N: usize>: AffinePoint<N> {
             && p1[(N / 2)..].iter().zip(&p2[(N / 2)..]).all(|(y1, y2)| y1.wrapping_add(*y2) == 0)
         {
             *self = Self::new([0; N]);
-            return true;
+            return;
         }
 
-        false
+        self.add_assign(other);
     }
 }

@@ -33,14 +33,15 @@ impl AffinePoint<N> for Secp256k1AffinePoint {
         &mut self.0
     }
 
+    fn complete_add_assign(&mut self, other: &Self) {
+        self.weierstrass_add_assign_special_cases(other);
+    }
+
     fn add_assign(&mut self, other: &Self) {
-        let triggered = self.weierstrass_add_assign_special_cases(other);
-        if !triggered {
-            let a = self.limbs_mut();
-            let b = other.limbs_ref();
-            unsafe {
-                syscall_secp256k1_add(a, b);
-            }
+        let a = self.limbs_mut();
+        let b = other.limbs_ref();
+        unsafe {
+            syscall_secp256k1_add(a, b);
         }
     }
 
