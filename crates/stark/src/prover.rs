@@ -532,8 +532,11 @@ where
                             } else {
                                 &local_main_data
                             };
-                            let main_trace_on_quotient_domains =
-                                pcs.get_evaluations_on_domain(main_data, i, *quotient_domain);
+                            let main_trace_on_quotient_domains = pcs.get_evaluations_on_domain(
+                                main_data,
+                                all_shard_data[i].main_data_idx,
+                                *quotient_domain,
+                            );
                             let permutation_trace_on_quotient_domains = pcs
                                 .get_evaluations_on_domain(&permutation_data, i, *quotient_domain);
                             quotient_values(

@@ -45,13 +45,16 @@ pub fn recursion_public_values_digest(
 
 pub fn root_public_values_digest(
     config: &InnerSC,
-    public_values: &RecursionPublicValues<BabyBear>,
+    public_values: &RootPublicValues<BabyBear>,
 ) -> [BabyBear; 8] {
     let hash = InnerHash::new(config.perm.clone());
-    let input = public_values
-        .sp1_vk_digest
+    let input = (*public_values.sp1_vk_digest())
         .into_iter()
-        .chain(public_values.committed_value_digest.into_iter().flat_map(|word| word.0.into_iter()))
+        .chain(
+            (*public_values.committed_value_digest())
+                .into_iter()
+                .flat_map(|word| word.0.into_iter()),
+        )
         .collect::<Vec<_>>();
     hash.hash_slice(&input)
 }
@@ -60,8 +63,8 @@ pub fn assert_root_public_values_valid(
     config: &InnerSC,
     public_values: &RootPublicValues<BabyBear>,
 ) {
-    let expected_digest = root_public_values_digest(config, &public_values.inner);
-    for (value, expected) in public_values.inner.digest.iter().copied().zip_eq(expected_digest) {
+    let expected_digest = root_public_values_digest(config, public_values);
+    for (value, expected) in public_values.digest().iter().copied().zip_eq(expected_digest) {
         assert_eq!(value, expected);
     }
 }
