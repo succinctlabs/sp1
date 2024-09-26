@@ -44,6 +44,6 @@ pub struct U256xU2048MulEvent {
     pub lo_memory_records: Vec<MemoryWriteRecord>,
     /// The memory records for hi.
     pub hi_memory_records: Vec<MemoryWriteRecord>,
-
+    /// The local memory access events.
     pub local_mem_access: Vec<MemoryLocalEvent>,
 }

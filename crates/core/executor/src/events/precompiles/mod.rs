@@ -68,7 +68,7 @@ pub enum PrecompileEvent {
     Bls12381Fp2Mul(Fp2MulEvent),
     /// Uint256 mul precompile event.
     Uint256Mul(Uint256MulEvent),
-    /// U256xU2048 mul precompile event.
+    /// U256XU2048 mul precompile event.
     U256xU2048Mul(U256xU2048MulEvent),
 }
 
