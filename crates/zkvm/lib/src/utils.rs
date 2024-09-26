@@ -44,7 +44,6 @@ pub trait AffinePoint<const N: usize>: Clone + Sized {
         le_bytes
     }
 
-    /// Adds the given [`AffinePoint`] to `self`.
     fn add_assign(&mut self, other: &Self);
 
     /// Doubles `self`.
@@ -132,4 +131,48 @@ pub fn bytes_to_words_le(bytes: &[u8]) -> Vec<u32> {
         .chunks_exact(4)
         .map(|chunk| u32::from_le_bytes(chunk.try_into().unwrap()))
         .collect::<Vec<_>>()
+}
+
+/// A trait for affine points on Weierstrass curves.
+pub trait WeierstrassAffinePoint<const N: usize>: AffinePoint<N> {
+    /// Performs the addition of two points on a Weierstrass curve.
+    /// Implements complete addition according to the Zcash specification.
+    /// Returns true if the addition was performed by the special cases, false otherwise.
+    fn weierstrass_add_assign_special_cases(&mut self, other: &Self) -> bool {
+        let a = self.limbs_mut();
+        let b = other.limbs_ref();
+
+        // Case 1: Both points are infinity
+        if a == &[0; N] && b == &[0; N] {
+            *self = Self::new([0; N]);
+            return true;
+        }
+
+        // Case 2: Self is infinity
+        if a == &[0; N] {
+            *self = other.clone();
+            return true;
+        }
+
+        // Case 3: Other is infinity
+        if b == &[0; N] {
+            return true;
+        }
+
+        // Case 4: Self equals other
+        if a == b {
+            self.double();
+            return true;
+        }
+
+        // Case 5: Self is negation of other
+        if a[..(N / 2)] == b[..(N / 2)]
+            && a[(N / 2)..].iter().zip(&b[(N / 2)..]).all(|(y1, y2)| y1.wrapping_add(*y2) == 0)
+        {
+            *self = Self::new([0; N]);
+            return true;
+        }
+
+        false
+    }
 }

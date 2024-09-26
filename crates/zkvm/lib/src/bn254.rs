@@ -1,4 +1,7 @@
-use crate::{syscall_bn254_add, syscall_bn254_double, utils::AffinePoint};
+use crate::{
+    syscall_bn254_add, syscall_bn254_double,
+    utils::{AffinePoint, WeierstrassAffinePoint},
+};
 
 /// The number of limbs in [Bn254AffinePoint].
 pub const N: usize = 16;
@@ -7,6 +10,8 @@ pub const N: usize = 16;
 #[derive(Copy, Clone)]
 #[repr(align(4))]
 pub struct Bn254AffinePoint(pub [u32; N]);
+
+impl WeierstrassAffinePoint<N> for Bn254AffinePoint {}
 
 impl AffinePoint<N> for Bn254AffinePoint {
     /// The generator has been taken from py_pairing python library by the Ethereum Foundation:
@@ -27,43 +32,13 @@ impl AffinePoint<N> for Bn254AffinePoint {
     }
 
     fn add_assign(&mut self, other: &Self) {
-        let a = self.limbs_mut();
-        let b = other.limbs_ref();
-
-        // Case 1: Both points are infinity.
-        if a == &[0; N] && b == &[0; N] {
-            *self = Self::infinity();
-            return;
-        }
-
-        // Case 2: `self` is infinity.
-        if a == &[0; N] {
-            *self = *other;
-            return;
-        }
-
-        // Case 3: `other` is infinity.
-        if b == &[0; N] {
-            return;
-        }
-
-        // Case 4: a = b.
-        if a == b {
-            self.double();
-            return;
-        }
-
-        // Case 5: a = -b
-        if a[..(N / 2)] == b[..(N / 2)]
-            && a[(N / 2)..].iter().zip(&b[(N / 2)..]).all(|(y1, y2)| y1.wrapping_add(*y2) == 0)
-        {
-            *self = Self::infinity();
-            return;
-        }
-
-        // Case 6: General addition.
-        unsafe {
-            syscall_bn254_add(a, b);
+        let triggered = self.weierstrass_add_assign_special_cases(other);
+        if !triggered {
+            let a = self.limbs_mut();
+            let b = other.limbs_ref();
+            unsafe {
+                syscall_bn254_add(a, b);
+            }
         }
     }
 
@@ -72,11 +47,5 @@ impl AffinePoint<N> for Bn254AffinePoint {
         unsafe {
             syscall_bn254_double(a);
         }
-    }
-}
-
-impl Bn254AffinePoint {
-    fn infinity() -> Self {
-        Self([0; N])
     }
 }
