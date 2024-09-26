@@ -151,10 +151,11 @@ pub trait WeierstrassAffinePoint<const N: usize>: AffinePoint<N> {
     ///     3. Only P2 is infinity
     ///     4. P1 equals P2
     ///     5. P1 is the negation of P2
-    ///     6. The addition is regular.
+    ///     6. Default addition.
     ///
     /// Implements the complete addition cases according to the
     /// [Zcash complete addition spec](https://zcash.github.io/halo2/design/gadgets/ecc/addition.html#complete-addition).
+    /// 
     fn weierstrass_add_assign_special_cases(&mut self, other: &Self) {
         let p1 = self.limbs_mut();
         let p2 = other.limbs_ref();
@@ -165,24 +166,24 @@ pub trait WeierstrassAffinePoint<const N: usize>: AffinePoint<N> {
             return;
         }
 
-        // Case 2: p1 is infinity
+        // Case 2: p1 is infinity.
         if p1 == &[0; N] {
             *self = other.clone();
             return;
         }
 
-        // Case 3: p2 is infinity
+        // Case 3: p2 is infinity.
         if p2 == &[0; N] {
             return;
         }
 
-        // Case 4: p1 equals p2
+        // Case 4: p1 equals p2.
         if p1 == p2 {
             self.double();
             return;
         }
 
-        // Case 5: p1 is the negation of p2
+        // Case 5: p1 is the negation of p2.
         if p1[..(N / 2)] == p2[..(N / 2)]
             && p1[(N / 2)..].iter().zip(&p2[(N / 2)..]).all(|(y1, y2)| y1.wrapping_add(*y2) == 0)
         {
@@ -190,6 +191,7 @@ pub trait WeierstrassAffinePoint<const N: usize>: AffinePoint<N> {
             return;
         }
 
+        // Case 6: Default addition.
         self.add_assign(other);
     }
 }

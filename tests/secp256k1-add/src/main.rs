@@ -1,7 +1,7 @@
 #![no_main]
 
-use sp1_zkvm::syscalls::syscall_secp256k1_add;
-
+use sp1_zkvm::lib::secp256k1::Secp256k1AffinePoint;
+use sp1_zkvm::lib::utils::AffinePoint;
 sp1_zkvm::entrypoint!(main);
 
 pub fn main() {
@@ -9,7 +9,7 @@ pub fn main() {
         // generator.
         // 55066263022277343669578718895168534326250603453777594175500187360389116729240
         // 32670510020758816978083085130507043184471273380659243275938904335757337482424
-        let mut a: [u8; 64] = [
+        let a: [u8; 64] = [
             152, 23, 248, 22, 91, 129, 242, 89, 217, 40, 206, 45, 219, 252, 155, 2, 7, 11, 135,
             206, 149, 98, 160, 85, 172, 187, 220, 249, 126, 102, 190, 121, 184, 212, 16, 251, 143,
             208, 71, 156, 25, 84, 133, 166, 72, 180, 23, 253, 168, 8, 17, 14, 252, 251, 164, 93,
@@ -26,7 +26,9 @@ pub fn main() {
             163, 57, 195, 61, 166, 254, 104, 225, 26,
         ];
 
-        syscall_secp256k1_add(a.as_mut_ptr() as *mut u32, b.as_ptr() as *mut u32);
+        let mut a_point = Secp256k1AffinePoint::from_le_bytes(&a);
+        let b_point = Secp256k1AffinePoint::from_le_bytes(&b);
+        a_point.add_assign(&b_point);
 
         // 3 * generator.
         // 112711660439710606056748659173929673102114977341539408544630613555209775888121
@@ -44,56 +46,46 @@ pub fn main() {
     // TODO: Add test for the special cases of addition.
     // Test special cases of addition
 
-    // Case 1: Both points are infinity
-    let mut infinity1 = [0u8; 64];
-    let infinity2 = [0u8; 64];
-    let mut a_point = AffinePoint::<Secp256k1Operations, 16>::from_le_bytes(&infinity1);
-    let b_point = AffinePoint::<Secp256k1Operations, 16>::from_le_bytes(&infinity2);
+    let a: [u8; 64] = [
+            152, 23, 248, 22, 91, 129, 242, 89, 217, 40, 206, 45, 219, 252, 155, 2, 7, 11, 135,
+            206, 149, 98, 160, 85, 172, 187, 220, 249, 126, 102, 190, 121, 184, 212, 16, 251, 143,
+            208, 71, 156, 25, 84, 133, 166, 72, 180, 23, 253, 168, 8, 17, 14, 252, 251, 164, 93,
+            101, 196, 163, 38, 119, 218, 58, 72,
+    ];
+    let a_point = Secp256k1AffinePoint::from_le_bytes(&a);
 
-    syscall_secp256k1_add(a_point.as_mut_ptr() as *mut u32, b_point.as_ptr() as *mut u32);
-    assert_eq!(infinity1, [0u8; 64], "Adding two infinity points should result in infinity");
+    // Case 1: Both points are infinity
+    let infinity: [u8; 64] = [0u8; 64];
+    let orig_infinity = Secp256k1AffinePoint::from_le_bytes(&infinity);
+    let mut b = orig_infinity.clone();
+    let b2 = orig_infinity.clone();
+    b.complete_add_assign(&b2);
+    assert_eq!(b.limbs_ref(), orig_infinity.limbs_ref(), "Adding two infinity points should result in infinity");
 
     // Case 2: First point is infinity
-    let mut infinity = [0u8; 64];
-    let non_infinity = [
-        152, 23, 248, 22, 91, 129, 242, 89, 217, 40, 206, 45, 219, 252, 155, 2, 7, 11, 135,
-        206, 149, 98, 160, 85, 172, 187, 220, 249, 126, 102, 190, 121, 184, 212, 16, 251, 143,
-        208, 71, 156, 25, 84, 133, 166, 72, 180, 23, 253, 168, 8, 17, 14, 252, 251, 164, 93,
-        101, 196, 163, 38, 119, 218, 58, 72,
-    ];
-    let orig_a_point = AffinePoint::<Secp256k1Operations, 16>::from_le_bytes(&infinity);
-    let mut a_point = AffinePoint::<Secp256k1Operations, 16>::from_le_bytes(&infinity);
-    let b_point = AffinePoint::<Secp256k1Operations, 16>::from_le_bytes(&non_infinity);
+    let mut b = orig_infinity.clone();
+    b.complete_add_assign(&a_point);
+    assert_eq!(b.limbs_ref(), a_point.limbs_ref(), "Adding infinity to a point should result in that point");
 
-    syscall_secp256k1_add(a_point.as_mut_ptr() as *mut u32, b_point.as_ptr() as *mut u32);
-    assert_eq!(a_point, orig_a_point, "Adding infinity to a point should result in that point");
-
-    // Case 3: Second point is infinity (already covered by the main loop)
-    let orig_a_point = AffinePoint::<Secp256k1Operations, 16>::from_le_bytes(&non_infinity);
-    let mut a_point = AffinePoint::<Secp256k1Operations, 16>::from_le_bytes(&non_infinity);
-    let b_point = AffinePoint::<Secp256k1Operations, 16>::from_le_bytes(&infinity);
-
-    syscall_secp256k1_add(a_point.as_mut_ptr() as *mut u32, b_point.as_ptr() as *mut u32);
-    assert_eq!(a_point, orig_a_point, "Adding a point to infinity should result in that point");
+    // Case 3: Second point is infinity
+    let b = orig_infinity.clone();
+    let mut a_point_clone = a_point.clone();
+    a_point_clone.add_assign(&b);
+    assert_eq!(a_point_clone.limbs_ref(), a_point.limbs_ref(), "Adding a point to infinity should result in that point");
 
     // Case 4: Points are equal (point doubling, already covered by the main loop)
-    syscall_secp256k1_add(non_infinity.as_mut_ptr() as *mut u32, non_infinity.as_ptr() as *mut u32);
-    syscall_secp256k1_double(non_infinity.as_mut_ptr() as *mut u32);
-    assert_eq!(non_infinity, orig_non_infinity, "Adding a point to itself should double the point");
+    let mut a_point_clone = a_point.clone();
+    let a_point_clone2 = a_point.clone();
+    let mut a_point_clone3 = a_point.clone();
+    a_point_clone.complete_add_assign(&a_point_clone2);
+    a_point_clone3.double();
+    assert_eq!(a_point_clone.limbs_ref(), a_point_clone3.limbs_ref(), "Adding a point to itself should double the point");
 
     // Case 5: Points are negations of each other
-    let mut point = [
-        152, 23, 248, 22, 91, 129, 242, 89, 217, 40, 206, 45, 219, 252, 155, 2, 7, 11, 135,
-        206, 149, 98, 160, 85, 172, 187, 220, 249, 126, 102, 190, 121, 184, 212, 16, 251, 143,
-        208, 71, 156, 25, 84, 133, 166, 72, 180, 23, 253, 168, 8, 17, 14, 252, 251, 164, 93,
-        101, 196, 163, 38, 119, 218, 58, 72,
-    ];
-    let mut negation = point;
-    for i in 32..64 {
-        negation[i] = (!negation[i]).wrapping_add(1);
-    }
-    syscall_secp256k1_add(point.as_mut_ptr() as *mut u32, negation.as_ptr() as *mut u32);
-    assert_eq!(point, [0u8; 64], "Adding a point to its negation should result in infinity");
+    // TODO
+
+    // Case 6: Default addition
+    // TODO
 
     println!("done");
 }
