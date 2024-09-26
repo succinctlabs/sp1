@@ -40,3 +40,4 @@ sp1-recursion-circuit = { path = "../crates/recursion/circuit", default-features
 sp1-sdk = { path = "../crates/sdk" }
 sp1-lib = { path = "../crates/zkvm/lib", default-features = false }
 sp1-zkvm = { path = "../crates/zkvm/entrypoint", default-features = false }
+sp1-stark = { path = "../crates/stark", default-features = false}

@@ -466,6 +466,7 @@ pub mod tests {
         }
     }
 
+
     #[test]
     fn test_fibonacci_prove_simple() {
         setup_logger();
