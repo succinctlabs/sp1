@@ -1850,6 +1850,7 @@ checksum = "28dea519a9695b9977216879a3ebfddf92f1c08c05d984f8996aecd6ecdc811d"
 name = "fibonacci-script"
 version = "1.1.0"
 dependencies = [
+ "hex",
  "itertools 0.12.1",
  "sha2 0.10.8",
  "sp1-build",
