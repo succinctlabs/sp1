@@ -12,7 +12,7 @@ pub(crate) use complete::*;
 pub use compress::*;
 pub use core::*;
 pub use deferred::*;
-pub(crate) use public_values::*;
+pub use public_values::*;
 pub use root::*;
 pub use vkey_proof::*;
 pub use wrap::*;

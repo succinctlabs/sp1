@@ -25,11 +25,12 @@ use p3_field::PrimeField32;
 use p3_matrix::Matrix;
 
 use crate::{
-    io::{SP1PublicValues, SP1Stdin},
+    io::SP1Stdin,
     riscv::cost::CostEstimator,
     utils::{chunk_vec, concurrency::TurnBasedSync},
 };
 use sp1_core_executor::events::sorted_table_lines;
+use sp1_primitives::io::SP1PublicValues;
 
 use sp1_core_executor::{
     subproof::NoOpSubproofVerifier, ExecutionError, ExecutionRecord, ExecutionReport, Executor,

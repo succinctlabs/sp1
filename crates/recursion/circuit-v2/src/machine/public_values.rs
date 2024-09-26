@@ -11,7 +11,7 @@ use crate::{hash::Posedion2BabyBearHasherVariable, CircuitConfig};
 #[derive(Debug, Clone, Copy, Default, AlignedBorrow)]
 #[repr(C)]
 pub struct RootPublicValues<T> {
-    pub(crate) inner: RecursionPublicValues<T>,
+    pub inner: RecursionPublicValues<T>,
 }
 
 /// Verifies the digest of a recursive public values struct.

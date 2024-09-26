@@ -4,9 +4,9 @@ use anyhow::Result;
 use num_bigint::BigUint;
 use p3_baby_bear::BabyBear;
 use p3_field::{AbstractField, PrimeField};
-use sp1_core_executor::subproof::SubproofVerifier;
-use sp1_core_machine::{cpu::MAX_CPU_LOG_DEGREE, io::SP1PublicValues, reduce::SP1ReduceProof};
-use sp1_primitives::consts::WORD_SIZE;
+use sp1_core_executor::{subproof::SubproofVerifier, SP1ReduceProof};
+use sp1_core_machine::cpu::MAX_CPU_LOG_DEGREE;
+use sp1_primitives::{consts::WORD_SIZE, io::SP1PublicValues};
 
 use sp1_recursion_core_v2::{air::RecursionPublicValues, stark::config::BabyBearPoseidon2Outer};
 use sp1_recursion_gnark_ffi::{

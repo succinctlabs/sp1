@@ -42,14 +42,14 @@ use p3_field::{AbstractField, PrimeField, PrimeField32};
 use p3_matrix::dense::RowMajorMatrix;
 use sp1_core_executor::{ExecutionError, ExecutionReport, Executor, Program, SP1Context};
 use sp1_core_machine::{
-    io::{SP1PublicValues, SP1Stdin},
+    io::SP1Stdin,
     reduce::SP1ReduceProof,
     riscv::{CoreShapeConfig, RiscvAir},
     utils::{concurrency::TurnBasedSync, SP1CoreProverError},
 };
 use sp1_stark::{air::InteractionScope, MachineProvingKey};
 
-use sp1_primitives::hash_deferred_proof;
+use sp1_primitives::{hash_deferred_proof, io::SP1PublicValues};
 
 use sp1_recursion_compiler::{
     circuit::AsmCompiler,
