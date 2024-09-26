@@ -155,8 +155,8 @@ pub trait WeierstrassAffinePoint<const N: usize>: AffinePoint<N> {
     ///
     /// Implements the complete addition cases according to the
     /// [Zcash complete addition spec](https://zcash.github.io/halo2/design/gadgets/ecc/addition.html#complete-addition).
-    /// 
-    fn weierstrass_add_assign_special_cases(&mut self, other: &Self) {
+    ///
+    fn weierstrass_add_assign(&mut self, other: &Self) {
         let p1 = self.limbs_mut();
         let p2 = other.limbs_ref();
 

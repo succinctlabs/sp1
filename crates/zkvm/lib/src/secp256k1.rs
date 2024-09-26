@@ -34,7 +34,7 @@ impl AffinePoint<N> for Secp256k1AffinePoint {
     }
 
     fn complete_add_assign(&mut self, other: &Self) {
-        self.weierstrass_add_assign_special_cases(other);
+        self.weierstrass_add_assign(other);
     }
 
     fn add_assign(&mut self, other: &Self) {

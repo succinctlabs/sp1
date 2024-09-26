@@ -40,12 +40,10 @@ pub fn main() {
             232, 45, 99, 15, 123, 143, 56,
         ];
 
-        assert_eq!(a, c);
+        assert_eq!(a_point.to_le_bytes(), c);
     }
 
-    // TODO: Add test for the special cases of addition.
-    // Test special cases of addition
-
+    // Test all of the potential cases for addition.
     let a: [u8; 64] = [
             152, 23, 248, 22, 91, 129, 242, 89, 217, 40, 206, 45, 219, 252, 155, 2, 7, 11, 135,
             206, 149, 98, 160, 85, 172, 187, 220, 249, 126, 102, 190, 121, 184, 212, 16, 251, 143,
@@ -68,9 +66,9 @@ pub fn main() {
     assert_eq!(b.limbs_ref(), a_point.limbs_ref(), "Adding infinity to a point should result in that point");
 
     // Case 3: Second point is infinity
-    let b = orig_infinity.clone();
     let mut a_point_clone = a_point.clone();
-    a_point_clone.add_assign(&b);
+    let b = orig_infinity.clone();
+    a_point_clone.complete_add_assign(&b);
     assert_eq!(a_point_clone.limbs_ref(), a_point.limbs_ref(), "Adding a point to infinity should result in that point");
 
     // Case 4: Points are equal (point doubling, already covered by the main loop)

@@ -32,7 +32,7 @@ impl AffinePoint<N> for Bn254AffinePoint {
     }
 
     fn complete_add_assign(&mut self, other: &Self) {
-        self.weierstrass_add_assign_special_cases(other);
+        self.weierstrass_add_assign(other);
     }
 
     fn add_assign(&mut self, other: &Self) {
