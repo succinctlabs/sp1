@@ -285,9 +285,6 @@ impl<V: Copy, P: FieldParameters> FieldOpCols<V, P> {
         let p_b: Polynomial<AB::Expr> = (b).clone().into();
         let p_c: Polynomial<AB::Expr> = (c).clone().into();
 
-        // println!("a coefficients: {:?}", p_a.coefficients());
-        // println!("b coefficients: {:?}", p_b.coefficients());
-        // println!("c coefficients: {:?}", p_c.coefficients());
         let p_result: Polynomial<_> = self.result.into();
         let p_op = p_a * p_b + p_c;
 

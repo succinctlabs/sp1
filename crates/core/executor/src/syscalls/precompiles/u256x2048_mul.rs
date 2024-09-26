@@ -12,6 +12,7 @@ const U256_NUM_WORDS: usize = 8;
 const U2048_NUM_WORDS: usize = 64;
 const U256_NUM_BYTES: usize = U256_NUM_WORDS * 4;
 const U2048_NUM_BYTES: usize = U2048_NUM_WORDS * 4;
+
 pub(crate) struct U256xU2048MulSyscall;
 
 impl Syscall for U256xU2048MulSyscall {
@@ -77,7 +78,6 @@ impl Syscall for U256xU2048MulSyscall {
             local_mem_access: rt.postprocess(),
         });
 
-        // let channel = rt.current_channel();
         rt.record_mut().add_precompile_event(syscall_code, event);
 
         None

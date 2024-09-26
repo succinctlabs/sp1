@@ -54,9 +54,6 @@ pub struct U256x2048MulCols<T> {
     /// The shard number of the syscall.
     pub shard: T,
 
-    /// The byte lookup channel.
-    pub channel: T,
-
     /// The clock cycle of the syscall.
     pub clk: T,
 
@@ -89,7 +86,6 @@ pub struct U256x2048MulCols<T> {
     pub ab6_plus_carry: FieldOpCols<T, U256Field>,
     pub ab7_plus_carry: FieldOpCols<T, U256Field>,
     pub ab8_plus_carry: FieldOpCols<T, U256Field>,
-    // pub hi_output: FieldOpCols<T, U256Field>,
     pub is_real: T,
 }
 
@@ -106,7 +102,7 @@ impl<F: PrimeField32> MachineAir<F> for U256x2048MulChip {
         input: &ExecutionRecord,
         output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
-        // Implement trace generation logic\
+        // Implement trace generation logic.
         let rows_and_records = input
             .get_precompile_events(SyscallCode::U256XU2048_MUL)
             .chunks(1)
