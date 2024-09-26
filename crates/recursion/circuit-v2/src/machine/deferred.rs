@@ -31,7 +31,7 @@ use crate::{
     BabyBearFriConfig, BabyBearFriConfigVariable, CircuitConfig, VerifyingKeyVariable,
 };
 
-use super::{public_values_digest, SP1CompressShape, SP1CompressWitnessValues};
+use super::{recursion_public_values_digest, SP1CompressShape, SP1CompressWitnessValues};
 
 pub struct SP1DeferredVerifier<C, SC, A> {
     _phantom: std::marker::PhantomData<(C, SC, A)>,
@@ -230,7 +230,7 @@ where
 
         // Set the digest according to the previous values.
         deferred_public_values.digest =
-            public_values_digest::<C, SC>(builder, deferred_public_values);
+            recursion_public_values_digest::<C, SC>(builder, deferred_public_values);
 
         SC::commit_recursion_public_values(builder, *deferred_public_values);
     }

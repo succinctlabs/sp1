@@ -30,7 +30,10 @@ use sp1_stark::{
 use crate::{
     challenger::CanObserveVariable,
     constraints::RecursiveVerifierConstraintFolder,
-    machine::{assert_complete, assert_recursion_public_values_valid, public_values_digest},
+    machine::{
+        assert_complete, assert_recursion_public_values_valid, recursion_public_values_digest,
+        root_public_values_digest,
+    },
     stark::{dummy_vk_and_shard_proof, ShardProofVariable, StarkVerifier},
     utils::uninit_challenger_pv,
     BabyBearFriConfig, BabyBearFriConfigVariable, CircuitConfig, VerifyingKeyVariable,
@@ -40,6 +43,11 @@ use crate::{
 #[derive(Debug, Clone, Copy)]
 pub struct SP1CompressVerifier<C, SC, A> {
     _phantom: PhantomData<(C, SC, A)>,
+}
+
+pub enum PublicValuesOutputDigest {
+    Reduce,
+    Root,
 }
 
 /// Witness layout for the compress stage verifier.
@@ -86,6 +94,7 @@ where
         builder: &mut Builder<C>,
         machine: &StarkMachine<SC, A>,
         input: SP1CompressWitnessVariable<C, SC>,
+        kind: PublicValuesOutputDigest,
     ) {
         // Read input.
         let SP1CompressWitnessVariable { vks_and_proofs, is_complete } = input;
@@ -515,8 +524,15 @@ where
         // Set the contains an execution shard flag.
         compress_public_values.contains_execution_shard = contains_execution_shard;
         // Set the digest according to the previous values.
-        compress_public_values.digest =
-            public_values_digest::<C, SC>(builder, compress_public_values);
+        compress_public_values.digest = match kind {
+            PublicValuesOutputDigest::Reduce => {
+                recursion_public_values_digest::<C, SC>(builder, compress_public_values)
+            }
+            PublicValuesOutputDigest::Root => {
+                root_public_values_digest::<C, SC>(builder, compress_public_values)
+            }
+        };
+
         // Set the exit code.
         compress_public_values.exit_code = exit_code;
 

@@ -37,7 +37,7 @@ use sp1_recursion_core_v2::{
 
 use crate::{
     challenger::{CanObserveVariable, DuplexChallengerVariable, FieldChallengerVariable},
-    machine::public_values_digest,
+    machine::recursion_public_values_digest,
     stark::{dummy_challenger, dummy_vk_and_shard_proof, ShardProofVariable, StarkVerifier},
     BabyBearFriConfig, BabyBearFriConfigVariable, CircuitConfig, VerifyingKeyVariable,
 };
@@ -583,7 +583,7 @@ where
 
             // Calculate the digest and set it in the public values.
             recursion_public_values.digest =
-                public_values_digest::<C, SC>(builder, recursion_public_values);
+                recursion_public_values_digest::<C, SC>(builder, recursion_public_values);
 
             SC::commit_recursion_public_values(builder, *recursion_public_values);
         }

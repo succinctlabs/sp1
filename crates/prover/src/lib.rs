@@ -75,10 +75,10 @@ use sp1_recursion_core_v2::{
 use sp1_recursion_circuit_v2::{
     hash::FieldHasher,
     machine::{
-        SP1CompressRootVerifier, SP1CompressRootVerifierWithVKey, SP1CompressWithVKeyVerifier,
+        PublicValuesOutputDigest, SP1CompressRootVerifierWithVKey, SP1CompressWithVKeyVerifier,
         SP1CompressWithVKeyWitnessValues, SP1CompressWithVkeyShape, SP1CompressWitnessValues,
         SP1DeferredVerifier, SP1DeferredWitnessValues, SP1MerkleProofWitnessValues,
-        SP1RecursionShape, SP1RecursionWitnessValues, SP1RecursiveVerifier,
+        SP1RecursionShape, SP1RecursionWitnessValues, SP1RecursiveVerifier, SP1WrapVerifier,
     },
     merkle_tree::MerkleTree,
     witness::Witnessable,
@@ -371,6 +371,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                     self.compress_prover.machine(),
                     input,
                     self.vk_verification,
+                    PublicValuesOutputDigest::Reduce,
                 );
                 let operations = builder.into_operations();
                 builder_span.exit();
@@ -426,7 +427,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 
         let input = input.read(&mut builder);
         // Verify the proof.
-        SP1CompressRootVerifier::verify(&mut builder, self.shrink_prover.machine(), input);
+        SP1WrapVerifier::verify(&mut builder, self.shrink_prover.machine(), input);
 
         let operations = builder.into_operations();
         builder_span.exit();

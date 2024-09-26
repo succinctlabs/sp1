@@ -6,6 +6,7 @@ mod public_values;
 mod root;
 mod vkey_proof;
 mod witness;
+mod wrap;
 
 pub(crate) use complete::*;
 pub use compress::*;
@@ -14,6 +15,7 @@ pub use deferred::*;
 pub(crate) use public_values::*;
 pub use root::*;
 pub use vkey_proof::*;
+pub use wrap::*;
 
 #[allow(unused_imports)]
 pub use witness::*;
