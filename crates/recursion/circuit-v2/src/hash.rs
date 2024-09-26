@@ -95,6 +95,7 @@ impl<C: CircuitConfig> Posedion2BabyBearHasherVariable<C> for BabyBearPoseidon2O
         builder: &mut Builder<C>,
         state: [Felt<<C>::F>; PERMUTATION_WIDTH],
     ) -> [Felt<<C>::F>; PERMUTATION_WIDTH] {
+        let state: [Felt<_>; PERMUTATION_WIDTH] = state.map(|x| builder.eval(x));
         builder.push_op(DslIr::CircuitPoseidon2PermuteBabyBear(Box::new(state)));
         state
     }
