@@ -2745,7 +2745,10 @@ dependencies = [
  "itertools 0.12.1",
  "sha2 0.10.8",
  "sp1-build",
+ "sp1-core-executor",
+ "sp1-core-machine",
  "sp1-sdk",
+ "sp1-stark",
 ]
 
 [[package]]

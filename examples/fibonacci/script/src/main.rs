@@ -26,7 +26,6 @@ struct Args {
 fn main() {
     // Setup the logger.
     sp1_sdk::utils::setup_logger();
-    let start = SystemTime::now();
 
     // Parse the command line arguments.
     let args = Args::parse();
@@ -50,6 +49,8 @@ fn main() {
     for input in &stdin.buffer {
         runtime.state.input_stream.push(input.clone());
     }
+
+    let start = SystemTime::now();
 
     // run to get execution records
     runtime.run().unwrap();
