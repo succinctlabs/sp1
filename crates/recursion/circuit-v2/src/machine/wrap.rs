@@ -85,7 +85,7 @@ where
 
         // Get the public values, and assert that they are valid.
         let public_values: &RootPublicValues<Felt<C::F>> = proof.public_values.as_slice().borrow();
-        // assert_root_public_values_valid::<C, SC>(builder, public_values);
+        assert_root_public_values_valid::<C, SC>(builder, public_values);
 
         // Reflect the public values to the next level.
         SC::commit_recursion_public_values(builder, public_values.inner);
