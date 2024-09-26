@@ -52,6 +52,7 @@ hashbrown = "0.14.5"
 sysinfo = "0.30.13"
 sp1-core-executor = { workspace = true }
 sp1-stark = { workspace = true }
+sp1-primitives = { workspace = true }
 getrandom = { version = "0.2.15", features = ["custom", "js"] }
 itertools = "0.13.0"
 

@@ -1,5 +1,6 @@
 use sp1_core_executor::{ExecutionReport, HookEnv, SP1ContextBuilder};
-use sp1_core_machine::io::{SP1PublicValues, SP1Stdin};
+use sp1_core_machine::io::SP1Stdin;
+use sp1_primitives::io::SP1PublicValues;
 use sp1_prover::{components::DefaultProverComponents, SP1ProvingKey};
 
 use anyhow::{Ok, Result};
