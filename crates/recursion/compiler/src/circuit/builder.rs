@@ -63,13 +63,34 @@ impl<C: Config<F = BabyBear>> CircuitV2Builder<C> for Builder<C> {
 
         // Range check the bits to be less than the BabyBear modulus.
 
+        assert!(num_bits <= 31, "num_bits must be less than or equal to 31");
+
         // If there are less than 31 bits, there is nothing to check.
-        // if num_bits > 30 {
-        //     // Since BabyBear modulus is 2^31 - 2^27 + 1, if any of the top `4` bits are zero, the
-        //     // number is less than 2^27, and we can stop the iteration. Othwriwse, if all the top
-        //     // `4` bits are '1`, we need to check that all the bottom `27` are '0`
-        //     // If the top `4`
-        // }
+        if num_bits > 30 {
+            // Since BabyBear modulus is 2^31 - 2^27 + 1, if any of the top `4` bits are zero, the
+            // number is less than 2^27, and we can stop the iteration. Othwriwse, if all the top
+            // `4` bits are '1`, we need to check that all the bottom `27` are '0`
+
+            // Get a flag that is zero if any of the top `4` bits are zero, and one otherwise. We
+            // can do this by simply taking their product (which is bitwise AND).
+            let is_any_top_bit_zero: Felt<_> = self.eval(
+                output
+                    .iter()
+                    .rev()
+                    .take(4)
+                    .copied()
+                    .map(SymbolicFelt::from)
+                    .product::<SymbolicFelt<_>>(),
+            );
+
+            let are_all_top_bits_one: Felt<_> =
+                self.eval(SymbolicFelt::one() - is_any_top_bit_zero);
+
+            // Assert that if all the top `4` bits are one, then all the bottom `27` bits are zero.
+            for bit in output.iter().take(27).copied() {
+                // self.assert_felt_eq(bit * are_all_top_bits_one, C::F::zero());
+            }
+        }
 
         // Check that the original number matches the bit decomposition.
         self.assert_felt_eq(x, num);
