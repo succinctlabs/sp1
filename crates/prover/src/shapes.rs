@@ -100,7 +100,8 @@ pub fn build_vk_map<C: SP1ProverComponents>(
                 let prover = &prover;
                 s.spawn(move || {
                     while let Ok(program) = program_rx.lock().unwrap().recv() {
-                        let (_, vk) = prover.compress_prover.setup(&program);
+                        let (_, vk) = tracing::debug_span!("setup")
+                            .in_scope(|| prover.compress_prover.setup(&program));
                         let vk_digest = vk.hash_babybear();
                         vk_tx.send(vk_digest).unwrap();
                     }
@@ -187,7 +188,9 @@ impl SP1CompressProgramShape {
     pub fn from_proof_shape(shape: SP1ProofShape, height: usize) -> Self {
         match shape {
             SP1ProofShape::Recursion(proof_shape) => Self::Recursion(proof_shape.into()),
-            SP1ProofShape::Deferred(proof_shape) => Self::Deferred(proof_shape.into()),
+            SP1ProofShape::Deferred(proof_shape) => {
+                Self::Deferred(SP1DeferredShape::new(vec![proof_shape].into(), height))
+            }
             SP1ProofShape::Compress(proof_shapes) => Self::Compress(SP1CompressWithVkeyShape {
                 compress_shape: proof_shapes.into(),
                 merkle_tree_height: height,

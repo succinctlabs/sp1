@@ -139,10 +139,6 @@ where
         let mut start_pc: Felt<_> = unsafe { MaybeUninit::zeroed().assume_init() };
         let mut current_pc: Felt<_> = unsafe { MaybeUninit::zeroed().assume_init() };
 
-        // Set compress_vk_digest to be zero for now.
-        let compress_vk_digest: [Felt<_>; DIGEST_SIZE] =
-            array::from_fn(|_| builder.eval(C::F::zero()));
-
         // Initialize memory initialization and finalization variables.
         let mut initial_previous_init_addr_bits: [Felt<_>; 32] =
             unsafe { MaybeUninit::zeroed().assume_init() };
@@ -576,7 +572,6 @@ where
             recursion_public_values.end_reconstruct_deferred_digest = end_deferred_digest;
             recursion_public_values.exit_code = exit_code;
             recursion_public_values.is_complete = is_complete;
-            recursion_public_values.compress_vk_digest = compress_vk_digest;
             // Set the contains an execution shard flag.
             recursion_public_values.contains_execution_shard =
                 builder.eval(C::F::from_bool(cpu_shard_seen));

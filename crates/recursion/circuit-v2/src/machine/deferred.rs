@@ -15,7 +15,7 @@ use sp1_recursion_compiler::ir::{Builder, Ext, Felt};
 use sp1_stark::{
     air::{MachineAir, POSEIDON_NUM_WORDS},
     baby_bear_poseidon2::BabyBearPoseidon2,
-    ProofShape, ShardProof, StarkMachine, StarkVerifyingKey, Word,
+    ShardProof, StarkMachine, StarkVerifyingKey, Word,
 };
 
 use sp1_recursion_core_v2::{
@@ -26,12 +26,16 @@ use sp1_recursion_core_v2::{
 use crate::{
     challenger::{CanObserveVariable, DuplexChallengerVariable},
     constraints::RecursiveVerifierConstraintFolder,
+    hash::{FieldHasher, FieldHasherVariable},
     machine::assert_recursion_public_values_valid,
     stark::{dummy_challenger, ShardProofVariable, StarkVerifier},
     BabyBearFriConfig, BabyBearFriConfigVariable, CircuitConfig, VerifyingKeyVariable,
 };
 
-use super::{recursion_public_values_digest, SP1CompressShape, SP1CompressWitnessValues};
+use super::{
+    recursion_public_values_digest, SP1CompressShape, SP1CompressWitnessValues,
+    SP1MerkleProofVerifier, SP1MerkleProofWitnessValues, SP1MerkleProofWitnessVariable,
+};
 
 pub struct SP1DeferredVerifier<C, SC, A> {
     _phantom: std::marker::PhantomData<(C, SC, A)>,
@@ -39,10 +43,12 @@ pub struct SP1DeferredVerifier<C, SC, A> {
 
 pub struct SP1DeferredShape {
     inner: SP1CompressShape,
+    height: usize,
 }
 
-pub struct SP1DeferredWitnessValues<SC: BabyBearFriConfig> {
+pub struct SP1DeferredWitnessValues<SC: BabyBearFriConfig + FieldHasher<BabyBear>> {
     pub vks_and_proofs: Vec<(StarkVerifyingKey<SC>, ShardProof<SC>)>,
+    pub vk_merkle_data: SP1MerkleProofWitnessValues<SC>,
     pub start_reconstruct_deferred_digest: [SC::Val; POSEIDON_NUM_WORDS],
     pub sp1_vk_digest: [SC::Val; DIGEST_SIZE],
     pub leaf_challenger: SC::Challenger,
@@ -58,9 +64,10 @@ pub struct SP1DeferredWitnessValues<SC: BabyBearFriConfig> {
 
 pub struct SP1DeferredWitnessVariable<
     C: CircuitConfig<F = BabyBear>,
-    SC: BabyBearFriConfigVariable<C>,
+    SC: FieldHasherVariable<C> + BabyBearFriConfigVariable<C>,
 > {
     pub vks_and_proofs: Vec<(VerifyingKeyVariable<C, SC>, ShardProofVariable<C, SC>)>,
+    pub vk_merkle_data: SP1MerkleProofWitnessVariable<C, SC>,
     pub start_reconstruct_deferred_digest: [Felt<C::F>; POSEIDON_NUM_WORDS],
     pub sp1_vk_digest: [Felt<C::F>; DIGEST_SIZE],
     pub leaf_challenger: SC::FriChallengerVariable,
@@ -98,9 +105,11 @@ where
         builder: &mut Builder<C>,
         machine: &StarkMachine<SC, A>,
         input: SP1DeferredWitnessVariable<C, SC>,
+        value_assertions: bool,
     ) {
         let SP1DeferredWitnessVariable {
             vks_and_proofs,
+            vk_merkle_data,
             start_reconstruct_deferred_digest,
             sp1_vk_digest,
             leaf_challenger,
@@ -113,6 +122,10 @@ where
             finalize_addr_bits,
             is_complete,
         } = input;
+
+        // First, verify the merkle tree proofs.
+        let values = vks_and_proofs.iter().map(|(vk, _)| vk.hash(builder)).collect::<Vec<_>>();
+        SP1MerkleProofVerifier::verify(builder, values, vk_merkle_data, value_assertions);
 
         let mut deferred_public_values_stream: Vec<Felt<C::F>> =
             (0..RECURSIVE_PROOF_NUM_PV_ELTS).map(|_| builder.uninit()).collect();
@@ -213,21 +226,14 @@ where
         deferred_public_values.end_reconstruct_challenger = values;
         // Set the exit code to be zero for now.
         deferred_public_values.exit_code = builder.eval(C::F::zero());
-        // Set the compress vk digest to be zero for now.
-        deferred_public_values.compress_vk_digest = array::from_fn(|_| builder.eval(C::F::zero()));
-
         // Assign the deffered proof digests.
         deferred_public_values.end_reconstruct_deferred_digest = reconstruct_deferred_digest;
-
         // Set the is_complete flag.
         deferred_public_values.is_complete = is_complete;
-
         // Set the `contains_execution_shard` flag.
         deferred_public_values.contains_execution_shard = builder.eval(C::F::zero());
-
         // Set the cumulative sum to zero.
         deferred_public_values.cumulative_sum = array::from_fn(|_| builder.eval(C::F::zero()));
-
         // Set the digest according to the previous values.
         deferred_public_values.digest =
             recursion_public_values_digest::<C, SC>(builder, deferred_public_values);
@@ -245,8 +251,11 @@ impl SP1DeferredWitnessValues<BabyBearPoseidon2> {
             SP1CompressWitnessValues::<BabyBearPoseidon2>::dummy(machine, &shape.inner);
         let vks_and_proofs = inner_witness.vks_and_proofs;
 
+        let vk_merkle_data = SP1MerkleProofWitnessValues::dummy(vks_and_proofs.len(), shape.height);
+
         Self {
             vks_and_proofs,
+            vk_merkle_data,
             leaf_challenger: dummy_challenger(machine.config()),
             is_complete: true,
             sp1_vk_digest: [BabyBear::zero(); DIGEST_SIZE],
@@ -262,8 +271,8 @@ impl SP1DeferredWitnessValues<BabyBearPoseidon2> {
     }
 }
 
-impl From<ProofShape> for SP1DeferredShape {
-    fn from(proof_shape: ProofShape) -> Self {
-        Self { inner: SP1CompressShape::from(vec![proof_shape]) }
+impl SP1DeferredShape {
+    pub const fn new(inner: SP1CompressShape, height: usize) -> Self {
+        Self { inner, height }
     }
 }

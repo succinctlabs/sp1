@@ -118,9 +118,6 @@ where
         let mut pc: Felt<_> = unsafe { MaybeUninit::zeroed().assume_init() };
         let mut shard: Felt<_> = unsafe { MaybeUninit::zeroed().assume_init() };
 
-        let compress_vk_digest: [Felt<_>; DIGEST_SIZE] =
-            array::from_fn(|_| builder.eval(C::F::zero()));
-
         let mut exit_code: Felt<_> = builder.uninit();
 
         let mut execution_shard: Felt<_> = unsafe { MaybeUninit::zeroed().assume_init() };
@@ -519,8 +516,6 @@ where
         compress_public_values.cumulative_sum = global_cumulative_sum;
         // Assign the `is_complete` flag.
         compress_public_values.is_complete = is_complete;
-        // Set the compress vk digest.
-        compress_public_values.compress_vk_digest = compress_vk_digest;
         // Set the contains an execution shard flag.
         compress_public_values.contains_execution_shard = contains_execution_shard;
         // Set the digest according to the previous values.

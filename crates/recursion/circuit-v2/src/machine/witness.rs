@@ -162,6 +162,7 @@ where
 
     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
         let vks_and_proofs = self.vks_and_proofs.read(builder);
+        let vk_merkle_data = self.vk_merkle_data.read(builder);
         let start_reconstruct_deferred_digest =
             self.start_reconstruct_deferred_digest.read(builder);
         let sp1_vk_digest = self.sp1_vk_digest.read(builder);
@@ -177,6 +178,7 @@ where
 
         SP1DeferredWitnessVariable {
             vks_and_proofs,
+            vk_merkle_data,
             start_reconstruct_deferred_digest,
             sp1_vk_digest,
             leaf_challenger,
@@ -193,6 +195,7 @@ where
 
     fn write(&self, witness: &mut impl WitnessWriter<C>) {
         self.vks_and_proofs.write(witness);
+        self.vk_merkle_data.write(witness);
         self.start_reconstruct_deferred_digest.write(witness);
         self.sp1_vk_digest.write(witness);
         self.leaf_challenger.write(witness);

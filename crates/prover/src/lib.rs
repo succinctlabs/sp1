@@ -140,7 +140,7 @@ pub struct SP1Prover<C: SP1ProverComponents = DefaultProverComponents> {
 
     pub compress_cache_misses: AtomicUsize,
 
-    pub root: <InnerSC as FieldHasher<BabyBear>>::Digest,
+    pub vk_root: <InnerSC as FieldHasher<BabyBear>>::Digest,
 
     pub allowed_vk_map: BTreeMap<<InnerSC as FieldHasher<BabyBear>>::Digest, usize>,
 
@@ -151,6 +151,8 @@ pub struct SP1Prover<C: SP1ProverComponents = DefaultProverComponents> {
     pub recursion_shape_config: Option<RecursionShapeConfig<BabyBear, CompressAir<BabyBear>>>,
 
     pub wrap_program: OnceLock<Arc<RecursionProgram<BabyBear>>>,
+
+    pub wrap_vk: OnceLock<StarkVerifyingKey<OuterSC>>,
 
     pub vk_verification: bool,
 }
@@ -222,13 +224,14 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             recursion_cache_misses: AtomicUsize::new(0),
             compress_programs: Mutex::new(LruCache::new(compress_cache_size)),
             compress_cache_misses: AtomicUsize::new(0),
-            root,
+            vk_root: root,
             vk_merkle_tree: merkle_tree,
             allowed_vk_map,
             core_shape_config,
             recursion_shape_config,
             vk_verification,
             wrap_program: OnceLock::new(),
+            wrap_vk: OnceLock::new(),
         }
     }
 
@@ -369,7 +372,15 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                 //     &input.shape(),
                 // );
                 // let input = dummy_input.read(&mut builder);
+
                 let input = input.read(&mut builder);
+
+                // Attest that the merkle tree root is correct.
+                let root = input.merkle_var.root;
+                for (val, expected) in root.iter().zip(self.vk_root.iter()) {
+                    builder.assert_felt_eq(*val, *expected);
+                }
+                // Verify the proof.
                 SP1CompressWithVKeyVerifier::verify(
                     &mut builder,
                     self.compress_prover.machine(),
@@ -402,6 +413,13 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         let builder_span = tracing::debug_span!("build shrink program").entered();
         let mut builder = Builder::<InnerConfig>::default();
         let input = input.read(&mut builder);
+
+        // Attest that the merkle tree root is correct.
+        let root = input.merkle_var.root;
+        for (val, expected) in root.iter().zip(self.vk_root.iter()) {
+            builder.assert_felt_eq(*val, *expected);
+        }
+        // Verify the proof.
         SP1CompressRootVerifierWithVKey::verify(
             &mut builder,
             self.compress_prover.machine(),
@@ -439,6 +457,12 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                     SP1CompressWithVKeyWitnessValues::dummy(self.shrink_prover.machine(), &shape);
 
                 let input = dummy_input.read(&mut builder);
+
+                // Attest that the merkle tree root is correct.
+                let root = input.merkle_var.root;
+                for (val, expected) in root.iter().zip(self.vk_root.iter()) {
+                    builder.assert_felt_eq(*val, *expected);
+                }
                 // Verify the proof.
                 SP1CompressRootVerifierWithVKey::verify(
                     &mut builder,
@@ -475,7 +499,12 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         let input = input.read(&mut builder);
         input_read_span.exit();
         let verify_span = tracing::debug_span!("Verify deferred program").entered();
-        SP1DeferredVerifier::verify(&mut builder, self.compress_prover.machine(), input);
+        SP1DeferredVerifier::verify(
+            &mut builder,
+            self.compress_prover.machine(),
+            input,
+            self.vk_verification,
+        );
         verify_span.exit();
         let operations = builder.into_operations();
         operations_span.exit();
@@ -545,8 +574,13 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             let vks_and_proofs =
                 batch.iter().cloned().map(|proof| (proof.vk, proof.proof)).collect::<Vec<_>>();
 
+            let input = SP1CompressWitnessValues { vks_and_proofs, is_complete: true };
+            let input = self.make_merkle_proofs(input);
+            let SP1CompressWithVKeyWitnessValues { compress_val, merkle_val } = input;
+
             deferred_inputs.push(SP1DeferredWitnessValues {
-                vks_and_proofs,
+                vks_and_proofs: compress_val.vks_and_proofs,
+                vk_merkle_data: merkle_val,
                 start_reconstruct_deferred_digest: deferred_digest,
                 is_complete: false,
                 sp1_vk_digest: vk.hash_babybear(),
@@ -1038,6 +1072,10 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         let (wrap_pk, wrap_vk) =
             tracing::debug_span!("Setup wrap").in_scope(|| self.wrap_prover.setup(&program));
 
+        if self.wrap_vk.set(wrap_vk.clone()).is_ok() {
+            tracing::debug!("wrap verifier key set");
+        }
+
         // Prove the wrap program.
         let mut wrap_challenger = self.wrap_prover.config().challenger();
         let time = std::time::Instant::now();
@@ -1166,7 +1204,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             .collect();
 
         let merkle_val = SP1MerkleProofWitnessValues {
-            root: self.root,
+            root: self.vk_root,
             values: vk_digest_values,
             vk_merkle_proofs: proofs,
         };

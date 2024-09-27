@@ -305,6 +305,10 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             public_values,
         );
 
+        if self.vk_verification && !self.allowed_vk_map.contains_key(&compress_vk.hash_babybear()) {
+            return Err(MachineVerificationError::InvalidVerificationKey);
+        }
+
         // `is_complete` should be 1. In the reduce program, this ensures that the proof is fully
         // reduced.
         if public_values.is_complete != BabyBear::one() {
@@ -338,6 +342,10 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             public_values,
         );
 
+        if self.vk_verification && !self.allowed_vk_map.contains_key(&proof.vk.hash_babybear()) {
+            return Err(MachineVerificationError::InvalidVerificationKey);
+        }
+
         // Verify that the proof is for the sp1 vkey we are expecting.
         let vkey_hash = vk.hash_babybear();
         if public_values.sp1_vk_digest != vkey_hash {
@@ -355,7 +363,9 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
     ) -> Result<(), MachineVerificationError<OuterSC>> {
         let mut challenger = self.wrap_prover.config().challenger();
         let machine_proof = MachineProof { shard_proofs: vec![proof.proof.clone()] };
-        self.wrap_prover.machine().verify(&proof.vk, &machine_proof, &mut challenger)?;
+
+        let wrap_vk = self.wrap_vk.get().expect("Wrap verifier key not set");
+        self.wrap_prover.machine().verify(wrap_vk, &machine_proof, &mut challenger)?;
 
         // Validate public values
         let public_values: &RootPublicValues<_> = proof.proof.public_values.as_slice().borrow();
