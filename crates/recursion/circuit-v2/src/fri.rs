@@ -396,12 +396,15 @@ pub fn dummy_hash() -> Hash<BabyBear, BabyBear, DIGEST_SIZE> {
     [BabyBear::zero(); DIGEST_SIZE].into()
 }
 
-pub fn dummy_query_proof(height: usize) -> QueryProof<InnerChallenge, InnerChallengeMmcs> {
+pub fn dummy_query_proof(
+    height: usize,
+    log_blowup: usize,
+) -> QueryProof<InnerChallenge, InnerChallengeMmcs> {
     QueryProof {
         commit_phase_openings: (0..height)
             .map(|i| CommitPhaseProofStep {
                 sibling_value: InnerChallenge::zero(),
-                opening_proof: vec![dummy_hash().into(); height - i],
+                opening_proof: vec![dummy_hash().into(); height - i + log_blowup - 1],
             })
             .collect(),
     }
@@ -423,7 +426,7 @@ pub fn dummy_pcs_proof(
         .unwrap();
     let fri_proof = FriProof {
         commit_phase_commits: vec![dummy_hash(); max_height],
-        query_proofs: vec![dummy_query_proof(max_height); fri_queries],
+        query_proofs: vec![dummy_query_proof(max_height, log_blowup); fri_queries],
         final_poly: InnerChallenge::zero(),
         pow_witness: InnerVal::zero(),
     };
