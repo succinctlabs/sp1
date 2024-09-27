@@ -103,7 +103,7 @@ pub type OuterSC = BabyBearPoseidon2Outer;
 
 const COMPRESS_DEGREE: usize = 3;
 const SHRINK_DEGREE: usize = 3;
-const WRAP_DEGREE: usize = 17;
+const WRAP_DEGREE: usize = 9;
 
 const CORE_CACHE_SIZE: usize = 5;
 const COMPRESS_CACHE_SIZE: usize = 3;
