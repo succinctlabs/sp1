@@ -152,6 +152,8 @@ pub struct SP1Prover<C: SP1ProverComponents = DefaultProverComponents> {
 
     pub wrap_program: OnceLock<Arc<RecursionProgram<BabyBear>>>,
 
+    pub wrap_vk: OnceLock<StarkVerifyingKey<OuterSC>>,
+
     pub vk_verification: bool,
 }
 
@@ -229,6 +231,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             recursion_shape_config,
             vk_verification,
             wrap_program: OnceLock::new(),
+            wrap_vk: OnceLock::new(),
         }
     }
 
@@ -1068,6 +1071,10 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         // Setup the wrap program.
         let (wrap_pk, wrap_vk) =
             tracing::debug_span!("Setup wrap").in_scope(|| self.wrap_prover.setup(&program));
+
+        if self.wrap_vk.set(wrap_vk.clone()).is_ok() {
+            tracing::debug!("wrap verifier key set");
+        }
 
         // Prove the wrap program.
         let mut wrap_challenger = self.wrap_prover.config().challenger();
