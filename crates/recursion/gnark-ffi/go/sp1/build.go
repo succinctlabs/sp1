@@ -292,7 +292,7 @@ func BuildGroth16(dataDir string) {
 		panic(err)
 	}
 	defer pkFile.Close()
-	err = pk.WriteDump(pkFile)
+	_, err = pk.WriteTo(pkFile)
 	if err != nil {
 		panic(err)
 	}
