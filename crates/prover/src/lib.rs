@@ -327,7 +327,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                 let builder_span = tracing::debug_span!("build recursion program").entered();
                 let mut builder = Builder::<InnerConfig>::default();
 
-                // // TODO: remove comment or make a test flag.
+                // TODO: remove comment or make a test flag.
                 // let dummy_input = SP1RecursionWitnessValues::<CoreSC>::dummy(
                 //     self.core_prover.machine(),
                 //     &input.shape(),
