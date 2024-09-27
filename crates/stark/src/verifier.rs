@@ -96,9 +96,34 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
             (0..2).map(|_| challenger.sample_ext_element::<SC::Challenge>()).collect::<Vec<_>>();
 
         challenger.observe(permutation_commit.clone());
-        for opening in opened_values.chips.iter() {
-            challenger.observe_slice(opening.global_cumulative_sum.as_base_slice());
-            challenger.observe_slice(opening.local_cumulative_sum.as_base_slice());
+        // Observe the cumulative sums and constrain any sum without a corresponding scope to be
+        // zero.
+        for (opening, chip) in opened_values.chips.iter().zip_eq(chips.iter()) {
+            let global_sum = opening.global_cumulative_sum;
+            let local_sum = opening.local_cumulative_sum;
+            challenger.observe_slice(global_sum.as_base_slice());
+            challenger.observe_slice(local_sum.as_base_slice());
+
+            let has_global_interactions = chip
+                .sends()
+                .iter()
+                .chain(chip.receives())
+                .any(|i| i.scope == InteractionScope::Global);
+            if !has_global_interactions && !global_sum.is_zero() {
+                return Err(VerificationError::CumulativeSumsError(
+                    "global cumulative sum is non-zero, but no global interactions",
+                ));
+            }
+            let has_local_interactions = chip
+                .sends()
+                .iter()
+                .chain(chip.receives())
+                .any(|i| i.scope == InteractionScope::Local);
+            if !has_local_interactions && !local_sum.is_zero() {
+                return Err(VerificationError::CumulativeSumsError(
+                    "local cumulative sum is non-zero, but no local interactions",
+                ));
+            }
         }
 
         let alpha = challenger.sample_ext_element::<SC::Challenge>();
@@ -464,6 +489,8 @@ pub enum VerificationError<SC: StarkGenericConfig> {
     MissingCpuChip,
     /// The length of the chip opening does not match the expected length.
     ChipOpeningLengthMismatch,
+    /// Cumulative sums error
+    CumulativeSumsError(&'static str),
 }
 
 impl Debug for OpeningShapeError {
@@ -514,6 +541,7 @@ impl<SC: StarkGenericConfig> Debug for VerificationError<SC> {
             VerificationError::ChipOpeningLengthMismatch => {
                 write!(f, "Chip opening length mismatch")
             }
+            VerificationError::CumulativeSumsError(s) => write!(f, "cumulative sums error: {}", s),
         }
     }
 }
@@ -537,6 +565,7 @@ impl<SC: StarkGenericConfig> Display for VerificationError<SC> {
             VerificationError::ChipOpeningLengthMismatch => {
                 write!(f, "Chip opening length mismatch")
             }
+            VerificationError::CumulativeSumsError(s) => write!(f, "cumulative sums error: {}", s),
         }
     }
 }

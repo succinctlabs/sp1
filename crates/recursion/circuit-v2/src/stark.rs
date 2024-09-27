@@ -11,7 +11,7 @@ use p3_matrix::{dense::RowMajorMatrix, Dimensions};
 
 use sp1_recursion_compiler::{
     circuit::CircuitV2Builder,
-    ir::{Builder, Config, Ext},
+    ir::{Builder, Config, Ext, ExtConst},
     prelude::Felt,
 };
 use sp1_stark::{
@@ -329,11 +329,28 @@ where
             (0..2).map(|_| challenger.sample_ext(builder)).collect::<Vec<_>>();
 
         challenger.observe(builder, permutation_commit);
-        for opening in opened_values.chips.iter() {
+        for (opening, chip) in opened_values.chips.iter().zip_eq(chips.iter()) {
             let global_sum = C::ext2felt(builder, opening.global_cumulative_sum);
             let local_sum = C::ext2felt(builder, opening.local_cumulative_sum);
             challenger.observe_slice(builder, global_sum);
             challenger.observe_slice(builder, local_sum);
+
+            let has_global_interactions = chip
+                .sends()
+                .iter()
+                .chain(chip.receives())
+                .any(|i| i.scope == InteractionScope::Global);
+            if !has_global_interactions {
+                builder.assert_ext_eq(opening.global_cumulative_sum, C::EF::zero().cons());
+            }
+            let has_local_interactions = chip
+                .sends()
+                .iter()
+                .chain(chip.receives())
+                .any(|i| i.scope == InteractionScope::Local);
+            if !has_local_interactions {
+                builder.assert_ext_eq(opening.local_cumulative_sum, C::EF::zero().cons());
+            }
         }
 
         let alpha = challenger.sample_ext(builder);
