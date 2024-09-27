@@ -265,7 +265,7 @@ impl<const DEGREE: usize> ExpReverseBitsLenChip<DEGREE> {
 
         builder
             .when(local_prepr.is_real)
-            .when_not(local_prepr.is_last)
+            .when_not(local_prepr.is_first)
             .assert_eq(local.accum, local.prev_accum_squared_times_multiplier);
 
         // Constrain the accum_squared column.
