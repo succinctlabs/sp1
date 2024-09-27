@@ -497,7 +497,13 @@ where
         let (permutation_commit, permutation_data) =
             tracing::debug_span!("commit to permutation traces")
                 .in_scope(|| pcs.commit(domains_and_perm_traces));
+
+        // Observe the permutation commitment and cumulative sums.
         challenger.observe(permutation_commit.clone());
+        for [global_sum, local_sum] in cumulative_sums.iter() {
+            challenger.observe_slice(global_sum.as_base_slice());
+            challenger.observe_slice(local_sum.as_base_slice());
+        }
 
         // Compute the quotient polynomial for all chips.
 

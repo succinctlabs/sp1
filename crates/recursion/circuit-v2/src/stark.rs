@@ -329,6 +329,12 @@ where
             (0..2).map(|_| challenger.sample_ext(builder)).collect::<Vec<_>>();
 
         challenger.observe(builder, permutation_commit);
+        for opening in opened_values.chips.iter() {
+            let global_sum = C::ext2felt(builder, opening.global_cumulative_sum);
+            let local_sum = C::ext2felt(builder, opening.local_cumulative_sum);
+            challenger.observe_slice(builder, global_sum);
+            challenger.observe_slice(builder, local_sum);
+        }
 
         let alpha = challenger.sample_ext(builder);
 

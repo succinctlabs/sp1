@@ -96,6 +96,10 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
             (0..2).map(|_| challenger.sample_ext_element::<SC::Challenge>()).collect::<Vec<_>>();
 
         challenger.observe(permutation_commit.clone());
+        for opening in opened_values.chips.iter() {
+            challenger.observe_slice(opening.global_cumulative_sum.as_base_slice());
+            challenger.observe_slice(opening.local_cumulative_sum.as_base_slice());
+        }
 
         let alpha = challenger.sample_ext_element::<SC::Challenge>();
 
