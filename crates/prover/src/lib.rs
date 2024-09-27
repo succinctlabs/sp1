@@ -496,7 +496,12 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         let input = input.read(&mut builder);
         input_read_span.exit();
         let verify_span = tracing::debug_span!("Verify deferred program").entered();
-        SP1DeferredVerifier::verify(&mut builder, self.compress_prover.machine(), input);
+        SP1DeferredVerifier::verify(
+            &mut builder,
+            self.compress_prover.machine(),
+            input,
+            self.vk_verification,
+        );
         verify_span.exit();
         let operations = builder.into_operations();
         operations_span.exit();
@@ -566,8 +571,13 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             let vks_and_proofs =
                 batch.iter().cloned().map(|proof| (proof.vk, proof.proof)).collect::<Vec<_>>();
 
+            let input = SP1CompressWitnessValues { vks_and_proofs, is_complete: true };
+            let input = self.make_merkle_proofs(input);
+            let SP1CompressWithVKeyWitnessValues { compress_val, merkle_val } = input;
+
             deferred_inputs.push(SP1DeferredWitnessValues {
-                vks_and_proofs,
+                vks_and_proofs: compress_val.vks_and_proofs,
+                vk_merkle_data: merkle_val,
                 start_reconstruct_deferred_digest: deferred_digest,
                 is_complete: false,
                 sp1_vk_digest: vk.hash_babybear(),
