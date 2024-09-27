@@ -573,7 +573,7 @@ mod tests {
             .map(|x| x.into_iter().map(|y| vec![builder.eval::<Felt<_>, _>(y)]).collect())
             .collect();
         let index = builder.eval(F::from_canonical_u32(6));
-        let index_bits = C::num2bits(&mut builder, index, 32);
+        let index_bits = C::num2bits(&mut builder, index, 31);
         let proof = proof.into_iter().map(|p| p.map(|x| builder.eval(x))).collect();
         verify_batch::<_, SC>(
             &mut builder,
