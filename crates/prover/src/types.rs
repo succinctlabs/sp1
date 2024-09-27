@@ -6,11 +6,8 @@ use p3_bn254_fr::Bn254Fr;
 use p3_commit::{Pcs, TwoAdicMultiplicativeCoset};
 use p3_field::{AbstractField, PrimeField, PrimeField32, TwoAdicField};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use sp1_core_machine::{
-    io::{SP1PublicValues, SP1Stdin},
-    reduce::SP1ReduceProof,
-};
-use sp1_primitives::poseidon2_hash;
+use sp1_core_machine::{io::SP1Stdin, reduce::SP1ReduceProof};
+use sp1_primitives::{io::SP1PublicValues, poseidon2_hash};
 
 use sp1_recursion_circuit_v2::machine::{
     SP1CompressWitnessValues, SP1DeferredWitnessValues, SP1RecursionWitnessValues,

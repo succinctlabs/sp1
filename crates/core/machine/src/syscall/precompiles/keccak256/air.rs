@@ -138,10 +138,11 @@ where
 #[cfg(test)]
 mod test {
     use crate::{
-        io::{SP1PublicValues, SP1Stdin},
+        io::SP1Stdin,
         riscv::RiscvAir,
         utils::{prove, setup_logger, tests::KECCAK256_ELF},
     };
+    use sp1_primitives::io::SP1PublicValues;
 
     use rand::{Rng, SeedableRng};
     use sp1_core_executor::Program;

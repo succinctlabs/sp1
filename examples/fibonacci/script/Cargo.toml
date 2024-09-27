@@ -6,6 +6,7 @@ default-run = "fibonacci-script"
 publish = false
 
 [dependencies]
+hex = "0.4.3"
 itertools = "0.12.1"
 sp1-sdk = { workspace = true }
 sha2 = "0.10.8"

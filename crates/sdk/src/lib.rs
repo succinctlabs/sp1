@@ -39,9 +39,8 @@ use {std::future::Future, tokio::task::block_in_place};
 pub use provers::{CpuProver, MockProver, Prover};
 
 pub use sp1_core_executor::{ExecutionReport, HookEnv, SP1Context, SP1ContextBuilder};
-pub use sp1_core_machine::{
-    io::SP1PublicValues, io::SP1Stdin, riscv::cost::CostEstimator, SP1_CIRCUIT_VERSION,
-};
+pub use sp1_core_machine::{io::SP1Stdin, riscv::cost::CostEstimator, SP1_CIRCUIT_VERSION};
+pub use sp1_primitives::io::SP1PublicValues;
 pub use sp1_prover::{
     CoreSC, HashableKey, InnerSC, OuterSC, PlonkBn254Proof, SP1Prover, SP1ProvingKey,
     SP1VerifyingKey,
@@ -293,7 +292,7 @@ pub fn block_on<T>(fut: impl Future<Output = T>) -> T {
 #[cfg(test)]
 mod tests {
 
-    use sp1_core_machine::io::SP1PublicValues;
+    use sp1_primitives::io::SP1PublicValues;
 
     use crate::{utils, CostEstimator, ProverClient, SP1Stdin};
 

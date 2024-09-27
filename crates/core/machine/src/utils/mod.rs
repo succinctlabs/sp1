@@ -1,4 +1,3 @@
-mod buffer;
 pub mod concurrency;
 mod logger;
 #[cfg(any(test, feature = "programs"))]
@@ -7,7 +6,6 @@ mod prove;
 mod span;
 mod tracer;
 
-pub use buffer::*;
 pub use logger::*;
 pub use prove::*;
 use sp1_curves::params::Limbs;

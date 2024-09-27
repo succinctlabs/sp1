@@ -5,6 +5,7 @@ use sp1_recursion_core_v2::{
     air::{RecursionPublicValues, NUM_PV_ELMS_TO_HASH},
     DIGEST_SIZE,
 };
+use sp1_stark::{air::PV_DIGEST_NUM_WORDS, Word};
 
 use crate::{hash::Posedion2BabyBearHasherVariable, CircuitConfig};
 
@@ -75,5 +76,20 @@ where
 impl<T> RootPublicValues<T> {
     pub const fn new(inner: RecursionPublicValues<T>) -> Self {
         Self { inner }
+    }
+
+    #[inline]
+    pub const fn sp1_vk_digest(&self) -> &[T; DIGEST_SIZE] {
+        &self.inner.sp1_vk_digest
+    }
+
+    #[inline]
+    pub const fn committed_value_digest(&self) -> &[Word<T>; PV_DIGEST_NUM_WORDS] {
+        &self.inner.committed_value_digest
+    }
+
+    #[inline]
+    pub const fn digest(&self) -> &[T; DIGEST_SIZE] {
+        &self.inner.digest
     }
 }

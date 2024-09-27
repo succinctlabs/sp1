@@ -12,6 +12,7 @@ use p3_field::{AbstractField, PrimeField32};
 use p3_symmetric::CryptographicHasher;
 use sp1_core_executor::{Executor, Program};
 use sp1_core_machine::{io::SP1Stdin, reduce::SP1ReduceProof};
+use sp1_recursion_circuit_v2::machine::RootPublicValues;
 use sp1_recursion_core_v2::{
     air::{RecursionPublicValues, NUM_PV_ELMS_TO_HASH},
     stark::config::BabyBearPoseidon2Outer,
@@ -40,6 +41,32 @@ pub fn recursion_public_values_digest(
     let hash = InnerHash::new(config.perm.clone());
     let pv_array = public_values.as_array();
     hash.hash_slice(&pv_array[0..NUM_PV_ELMS_TO_HASH])
+}
+
+pub fn root_public_values_digest(
+    config: &InnerSC,
+    public_values: &RootPublicValues<BabyBear>,
+) -> [BabyBear; 8] {
+    let hash = InnerHash::new(config.perm.clone());
+    let input = (*public_values.sp1_vk_digest())
+        .into_iter()
+        .chain(
+            (*public_values.committed_value_digest())
+                .into_iter()
+                .flat_map(|word| word.0.into_iter()),
+        )
+        .collect::<Vec<_>>();
+    hash.hash_slice(&input)
+}
+
+pub fn assert_root_public_values_valid(
+    config: &InnerSC,
+    public_values: &RootPublicValues<BabyBear>,
+) {
+    let expected_digest = root_public_values_digest(config, public_values);
+    for (value, expected) in public_values.digest().iter().copied().zip_eq(expected_digest) {
+        assert_eq!(value, expected);
+    }
 }
 
 /// Assert that the digest of the public values is correct.

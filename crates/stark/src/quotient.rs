@@ -21,7 +21,7 @@ pub fn quotient_values<SC, A, Mat>(
     cumulative_sums: &[SC::Challenge],
     trace_domain: Domain<SC>,
     quotient_domain: Domain<SC>,
-    preprocessed_trace_on_quotient_domain: Mat,
+    preprocessed_trace_on_quotient_domain: Option<Mat>,
     main_trace_on_quotient_domain: Mat,
     permutation_trace_on_quotient_domain: Mat,
     perm_challenges: &[PackedChallenge<SC>],
@@ -34,7 +34,8 @@ where
     Mat: Matrix<Val<SC>> + Sync,
 {
     let quotient_size = quotient_domain.size();
-    let prep_width = preprocessed_trace_on_quotient_domain.width();
+    let prep_width =
+        preprocessed_trace_on_quotient_domain.as_ref().map_or(1, p3_matrix::Matrix::width);
     let main_width = main_trace_on_quotient_domain.width();
     let perm_width = permutation_trace_on_quotient_domain.width();
     let sels = trace_domain.selectors_on_coset(quotient_domain);
@@ -67,7 +68,9 @@ where
             let prep_local: Vec<_> = (0..prep_width)
                 .map(|col| {
                     PackedVal::<SC>::from_fn(|offset| {
-                        preprocessed_trace_on_quotient_domain.get(wrap(i_start + offset), col)
+                        preprocessed_trace_on_quotient_domain
+                            .as_ref()
+                            .map_or(Val::<SC>::zero(), |x| x.get(wrap(i_start + offset), col))
                     })
                 })
                 .collect();
@@ -75,7 +78,10 @@ where
                 .map(|col| {
                     PackedVal::<SC>::from_fn(|offset| {
                         preprocessed_trace_on_quotient_domain
-                            .get(wrap(i_start + next_step + offset), col)
+                            .as_ref()
+                            .map_or(Val::<SC>::zero(), |x| {
+                                x.get(wrap(i_start + next_step + offset), col)
+                            })
                     })
                 })
                 .collect();
