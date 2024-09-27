@@ -96,6 +96,20 @@ pub fn main() {
     );
 
     // Case 5: Points are negations of each other
+    let mut a_point_clone = a_point.clone();
+    // Create a point that is the negation of a_point
+    let mut negation = a_point.clone();
+    // Negate the y-coordinate
+    for y in &mut negation.0[sp1_lib::secp256k1::N / 2..] {
+        *y = y.wrapping_neg();
+    }
+    a_point_clone.complete_add_assign(&negation);
+    assert_eq!(
+        a_point_clone.limbs_ref(),
+        &[0; sp1_lib::secp256k1::N],
+        "Adding a point to its negation should result in infinity"
+    );
+
     // TODO
 
     // Case 6: Default addition

@@ -364,6 +364,7 @@ version = "1.1.0"
 dependencies = [
  "hex-literal",
  "num",
+ "sp1-lib",
  "sp1-zkvm",
 ]
 
