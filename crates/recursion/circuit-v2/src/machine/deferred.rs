@@ -213,21 +213,14 @@ where
         deferred_public_values.end_reconstruct_challenger = values;
         // Set the exit code to be zero for now.
         deferred_public_values.exit_code = builder.eval(C::F::zero());
-        // Set the compress vk digest to be zero for now.
-        deferred_public_values.compress_vk_digest = array::from_fn(|_| builder.eval(C::F::zero()));
-
         // Assign the deffered proof digests.
         deferred_public_values.end_reconstruct_deferred_digest = reconstruct_deferred_digest;
-
         // Set the is_complete flag.
         deferred_public_values.is_complete = is_complete;
-
         // Set the `contains_execution_shard` flag.
         deferred_public_values.contains_execution_shard = builder.eval(C::F::zero());
-
         // Set the cumulative sum to zero.
         deferred_public_values.cumulative_sum = array::from_fn(|_| builder.eval(C::F::zero()));
-
         // Set the digest according to the previous values.
         deferred_public_values.digest =
             recursion_public_values_digest::<C, SC>(builder, deferred_public_values);

@@ -140,7 +140,7 @@ pub struct SP1Prover<C: SP1ProverComponents = DefaultProverComponents> {
 
     pub compress_cache_misses: AtomicUsize,
 
-    pub root: <InnerSC as FieldHasher<BabyBear>>::Digest,
+    pub vk_root: <InnerSC as FieldHasher<BabyBear>>::Digest,
 
     pub allowed_vk_map: BTreeMap<<InnerSC as FieldHasher<BabyBear>>::Digest, usize>,
 
@@ -222,7 +222,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             recursion_cache_misses: AtomicUsize::new(0),
             compress_programs: Mutex::new(LruCache::new(compress_cache_size)),
             compress_cache_misses: AtomicUsize::new(0),
-            root,
+            vk_root: root,
             vk_merkle_tree: merkle_tree,
             allowed_vk_map,
             core_shape_config,
@@ -369,7 +369,15 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                 //     &input.shape(),
                 // );
                 // let input = dummy_input.read(&mut builder);
+
                 let input = input.read(&mut builder);
+
+                // Attest that the merkle tree root is correct.
+                let root = input.merkle_var.root;
+                for (val, expected) in root.iter().zip(self.vk_root.iter()) {
+                    builder.assert_felt_eq(*val, *expected);
+                }
+                // Verify the proof.
                 SP1CompressWithVKeyVerifier::verify(
                     &mut builder,
                     self.compress_prover.machine(),
@@ -402,6 +410,13 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         let builder_span = tracing::debug_span!("build shrink program").entered();
         let mut builder = Builder::<InnerConfig>::default();
         let input = input.read(&mut builder);
+
+        // Attest that the merkle tree root is correct.
+        let root = input.merkle_var.root;
+        for (val, expected) in root.iter().zip(self.vk_root.iter()) {
+            builder.assert_felt_eq(*val, *expected);
+        }
+        // Verify the proof.
         SP1CompressRootVerifierWithVKey::verify(
             &mut builder,
             self.compress_prover.machine(),
@@ -439,6 +454,12 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                     SP1CompressWithVKeyWitnessValues::dummy(self.shrink_prover.machine(), &shape);
 
                 let input = dummy_input.read(&mut builder);
+
+                // Attest that the merkle tree root is correct.
+                let root = input.merkle_var.root;
+                for (val, expected) in root.iter().zip(self.vk_root.iter()) {
+                    builder.assert_felt_eq(*val, *expected);
+                }
                 // Verify the proof.
                 SP1CompressRootVerifierWithVKey::verify(
                     &mut builder,
@@ -1166,7 +1187,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             .collect();
 
         let merkle_val = SP1MerkleProofWitnessValues {
-            root: self.root,
+            root: self.vk_root,
             values: vk_digest_values,
             vk_merkle_proofs: proofs,
         };

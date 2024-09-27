@@ -128,9 +128,6 @@ pub struct RecursionPublicValues<T> {
     /// The commitment to the sp1 program being proven.
     pub sp1_vk_digest: [T; DIGEST_SIZE],
 
-    /// The commitment to the compress key being used in recursive verification.
-    pub compress_vk_digest: [T; DIGEST_SIZE],
-
     /// The leaf challenger containing the entropy from the main trace commitment.
     pub leaf_challenger: ChallengerPublicValues<T>,
 
