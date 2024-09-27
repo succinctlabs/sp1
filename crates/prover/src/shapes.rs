@@ -86,9 +86,9 @@ pub fn build_vk_map<C: SP1ProverComponents>(
                 let shape_rx = &shape_rx;
                 let prover = &prover;
                 s.spawn(move || {
-                    while let Ok(shape) = shape_rx.lock().unwrap().recv() {
+                    while let Ok((i, shape)) = shape_rx.lock().unwrap().recv() {
                         let program = prover.program_from_shape(shape);
-                        program_tx.send(program).unwrap();
+                        program_tx.send((i, program)).unwrap();
                     }
                 });
             }
@@ -99,8 +99,8 @@ pub fn build_vk_map<C: SP1ProverComponents>(
                 let program_rx = &program_rx;
                 let prover = &prover;
                 s.spawn(move || {
-                    while let Ok(program) = program_rx.lock().unwrap().recv() {
-                        let (_, vk) = tracing::debug_span!("setup")
+                    while let Ok((i, program)) = program_rx.lock().unwrap().recv() {
+                        let (_, vk) = tracing::debug_span!("setup for program {}", i)
                             .in_scope(|| prover.compress_prover.setup(&program));
                         let vk_digest = vk.hash_babybear();
                         vk_tx.send(vk_digest).unwrap();
@@ -110,9 +110,10 @@ pub fn build_vk_map<C: SP1ProverComponents>(
 
             // Generate shapes and send them to the compiler workers.
             generate_shapes()
-                .map(|shape| SP1CompressProgramShape::from_proof_shape(shape, height))
-                .for_each(|program_shape| {
-                    shape_tx.send(program_shape).unwrap();
+                .enumerate()
+                .map(|(i, shape)| (i, SP1CompressProgramShape::from_proof_shape(shape, height)))
+                .for_each(|(i, program_shape)| {
+                    shape_tx.send((i, program_shape)).unwrap();
                 });
 
             drop(shape_tx);
