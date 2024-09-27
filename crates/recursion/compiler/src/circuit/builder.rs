@@ -62,7 +62,14 @@ impl<C: Config<F = BabyBear>> CircuitV2Builder<C> for Builder<C> {
             .sum();
 
         // Range check the bits to be less than the BabyBear modulus.
-        // if num_bits > 30 {}
+
+        // If there are less than 31 bits, there is nothing to check.
+        // if num_bits > 30 {
+        //     // Since BabyBear modulus is 2^31 - 2^27 + 1, if any of the top `4` bits are zero, the
+        //     // number is less than 2^27, and we can stop the iteration. Othwriwse, if all the top
+        //     // `4` bits are '1`, we need to check that all the bottom `27` are '0`
+        //     // If the top `4`
+        // }
 
         // Check that the original number matches the bit decomposition.
         self.assert_felt_eq(x, num);
