@@ -55,8 +55,7 @@ pub fn felts_to_bn254_var<C: Config>(
     let var_2_31: Var<_> = builder.constant(C::N::from_canonical_u32(1 << 31));
     let result = builder.constant(C::N::zero());
     for (i, word) in digest.iter().enumerate() {
-        let word_bits = builder.num2bits_f_circuit(*word);
-        let word_var = builder.bits2num_v_circuit(&word_bits);
+        let word_var = builder.felt2var_circuit(*word);
         if i == 0 {
             builder.assign(result, word_var);
         } else {
