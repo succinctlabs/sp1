@@ -110,8 +110,6 @@ pub fn main() {
         "Adding a point to its negation should result in infinity"
     );
 
-    // TODO
-
     // Case 6: Default addition
     let a: [u8; 64] = [
         152, 23, 248, 22, 91, 129, 242, 89, 217, 40, 206, 45, 219, 252, 155, 2, 7, 11, 135, 206,
