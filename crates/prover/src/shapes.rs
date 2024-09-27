@@ -100,7 +100,8 @@ pub fn build_vk_map<C: SP1ProverComponents>(
                 let prover = &prover;
                 s.spawn(move || {
                     while let Ok(program) = program_rx.lock().unwrap().recv() {
-                        let (_, vk) = prover.compress_prover.setup(&program);
+                        let (_, vk) = tracing::debug_span!("setup")
+                            .in_scope(|| prover.compress_prover.setup(&program));
                         let vk_digest = vk.hash_babybear();
                         vk_tx.send(vk_digest).unwrap();
                     }
