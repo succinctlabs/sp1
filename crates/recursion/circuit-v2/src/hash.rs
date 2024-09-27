@@ -81,7 +81,7 @@ impl FieldHasher<BabyBear> for BabyBearPoseidon2 {
     }
 }
 
-impl<C: CircuitConfig> Posedion2BabyBearHasherVariable<C> for BabyBearPoseidon2 {
+impl<C: CircuitConfig<F = BabyBear>> Posedion2BabyBearHasherVariable<C> for BabyBearPoseidon2 {
     fn poseidon2_permute(
         builder: &mut Builder<C>,
         input: [Felt<<C>::F>; PERMUTATION_WIDTH],

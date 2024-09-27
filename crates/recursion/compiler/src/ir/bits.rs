@@ -86,9 +86,6 @@ impl<C: Config> Builder<C> {
 
         self.push_op(DslIr::CircuitNum2BitsF(num, output.clone()));
 
-        let output_array = self.vec(output.clone());
-        self.less_than_bb_modulus(output_array);
-
         output
     }
 

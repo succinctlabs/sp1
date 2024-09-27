@@ -168,7 +168,7 @@ pub trait CircuitConfig: Config {
     ) -> Vec<Ext<<Self as Config>::F, <Self as Config>::EF>>;
 
     fn range_check_felt(builder: &mut Builder<Self>, value: Felt<Self::F>, num_bits: usize) {
-        let bits = Self::num2bits(builder, value, 32);
+        let bits = Self::num2bits(builder, value, 31);
         for bit in bits.into_iter().skip(num_bits) {
             Self::assert_bit_zero(builder, bit);
         }
