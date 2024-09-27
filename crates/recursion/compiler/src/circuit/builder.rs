@@ -2,6 +2,7 @@
 
 use std::iter::repeat;
 
+use p3_baby_bear::BabyBear;
 use p3_field::{AbstractExtensionField, AbstractField};
 use sp1_recursion_core::air::RecursionPublicValues;
 
@@ -33,7 +34,7 @@ pub trait CircuitV2Builder<C: Config> {
     fn hint_felts_v2(&mut self, len: usize) -> Vec<Felt<C::F>>;
 }
 
-impl<C: Config> CircuitV2Builder<C> for Builder<C> {
+impl<C: Config<F = BabyBear>> CircuitV2Builder<C> for Builder<C> {
     fn bits2num_v2_f(
         &mut self,
         bits: impl IntoIterator<Item = Felt<<C as Config>::F>>,
@@ -60,6 +61,10 @@ impl<C: Config> CircuitV2Builder<C> for Builder<C> {
             })
             .sum();
 
+        // Range check the bits to be less than the BabyBear modulus.
+        // if num_bits > 30 {}
+
+        // Check that the original number matches the bit decomposition.
         self.assert_felt_eq(x, num);
 
         output
