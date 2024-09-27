@@ -61,8 +61,8 @@ pub fn build_vk_map<C: SP1ProverComponents>(
         SP1ProofShape::dummy_vk_map(core_shape_config, recursion_shape_config, reduce_batch_size)
     } else {
         let (vk_tx, vk_rx) = std::sync::mpsc::channel();
-        let (shape_tx, shape_rx) = std::sync::mpsc::sync_channel(num_compiler_workers * 4);
-        let (program_tx, program_rx) = std::sync::mpsc::sync_channel(num_setup_workers * 4);
+        let (shape_tx, shape_rx) = std::sync::mpsc::sync_channel(num_compiler_workers);
+        let (program_tx, program_rx) = std::sync::mpsc::sync_channel(num_setup_workers);
 
         let shape_rx = Mutex::new(shape_rx);
         let program_rx = Mutex::new(program_rx);
