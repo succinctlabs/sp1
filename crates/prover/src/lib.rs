@@ -27,7 +27,7 @@ use std::{
     sync::{
         atomic::{AtomicUsize, Ordering},
         mpsc::sync_channel,
-        Arc, Mutex,
+        Arc, Mutex, OnceLock,
     },
     thread,
 };
@@ -47,7 +47,7 @@ use sp1_core_machine::{
     riscv::{CoreShapeConfig, RiscvAir},
     utils::{concurrency::TurnBasedSync, SP1CoreProverError},
 };
-use sp1_stark::{air::InteractionScope, MachineProvingKey};
+use sp1_stark::{air::InteractionScope, MachineProvingKey, ProofShape};
 
 use sp1_primitives::{hash_deferred_proof, io::SP1PublicValues};
 
@@ -75,10 +75,11 @@ use sp1_recursion_core_v2::{
 use sp1_recursion_circuit_v2::{
     hash::FieldHasher,
     machine::{
-        PublicValuesOutputDigest, SP1CompressRootVerifierWithVKey, SP1CompressWithVKeyVerifier,
-        SP1CompressWithVKeyWitnessValues, SP1CompressWithVkeyShape, SP1CompressWitnessValues,
-        SP1DeferredVerifier, SP1DeferredWitnessValues, SP1MerkleProofWitnessValues,
-        SP1RecursionShape, SP1RecursionWitnessValues, SP1RecursiveVerifier, SP1WrapVerifier,
+        PublicValuesOutputDigest, SP1CompressRootVerifierWithVKey, SP1CompressShape,
+        SP1CompressWithVKeyVerifier, SP1CompressWithVKeyWitnessValues, SP1CompressWithVkeyShape,
+        SP1CompressWitnessValues, SP1DeferredVerifier, SP1DeferredWitnessValues,
+        SP1MerkleProofWitnessValues, SP1RecursionShape, SP1RecursionWitnessValues,
+        SP1RecursiveVerifier, SP1WrapVerifier,
     },
     merkle_tree::MerkleTree,
     witness::Witnessable,
@@ -148,6 +149,10 @@ pub struct SP1Prover<C: SP1ProverComponents = DefaultProverComponents> {
     pub core_shape_config: Option<CoreShapeConfig<BabyBear>>,
 
     pub recursion_shape_config: Option<RecursionShapeConfig<BabyBear, CompressAir<BabyBear>>>,
+
+    pub shrink_program: OnceLock<Arc<RecursionProgram<BabyBear>>>,
+
+    pub wrap_program: OnceLock<Arc<RecursionProgram<BabyBear>>>,
 
     pub vk_verification: bool,
 }
@@ -225,6 +230,8 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             core_shape_config,
             recursion_shape_config,
             vk_verification,
+            shrink_program: OnceLock::new(),
+            wrap_program: OnceLock::new(),
         }
     }
 
@@ -360,12 +367,12 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                 let mut builder = Builder::<InnerConfig>::default();
 
                 // TODO: remove comment or make a test flag.
-                // let dummy_input = SP1CompressWithVKeyWitnessValues::<CoreSC>::dummy(
-                //     self.compress_prover.machine(),
-                //     &input.shape(),
-                // );
-                // let input = dummy_input.read(&mut builder);
-                let input = input.read(&mut builder);
+                let dummy_input = SP1CompressWithVKeyWitnessValues::<CoreSC>::dummy(
+                    self.compress_prover.machine(),
+                    &input.shape(),
+                );
+                let input = dummy_input.read(&mut builder);
+                // let input = input.read(&mut builder);
                 SP1CompressWithVKeyVerifier::verify(
                     &mut builder,
                     self.compress_prover.machine(),
@@ -394,50 +401,62 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         &self,
         input: &SP1CompressWithVKeyWitnessValues<InnerSC>,
     ) -> Arc<RecursionProgram<BabyBear>> {
-        // Get the operations.
-        let builder_span = tracing::debug_span!("build shrink program").entered();
-        let mut builder = Builder::<InnerConfig>::default();
-        let input = input.read(&mut builder);
-        SP1CompressRootVerifierWithVKey::verify(
-            &mut builder,
-            self.compress_prover.machine(),
-            input,
-            self.vk_verification,
-        );
-        let operations = builder.into_operations();
-        builder_span.exit();
+        self.shrink_program
+            .get_or_init(|| {
+                // Get the operations.
+                let builder_span = tracing::debug_span!("build shrink program").entered();
+                let mut builder = Builder::<InnerConfig>::default();
+                let input = input.read(&mut builder);
+                SP1CompressRootVerifierWithVKey::verify(
+                    &mut builder,
+                    self.compress_prover.machine(),
+                    input,
+                    self.vk_verification,
+                );
+                let operations = builder.into_operations();
+                builder_span.exit();
 
-        // Compile the program.
-        let compiler_span = tracing::debug_span!("compile shrink program").entered();
-        let mut compiler = AsmCompiler::<InnerConfig>::default();
-        let mut program = compiler.compile(operations);
-        program.shape = Some(ShrinkAir::<BabyBear>::shrink_shape());
-        let program = Arc::new(program);
-        compiler_span.exit();
-        program
+                // Compile the program.
+                let compiler_span = tracing::debug_span!("compile shrink program").entered();
+                let mut compiler = AsmCompiler::<InnerConfig>::default();
+                let mut program = compiler.compile(operations);
+                program.shape = Some(ShrinkAir::<BabyBear>::shrink_shape());
+                let program = Arc::new(program);
+                compiler_span.exit();
+                program
+            })
+            .clone()
     }
 
-    pub fn wrap_program(
-        &self,
-        input: &SP1CompressWitnessValues<InnerSC>,
-    ) -> Arc<RecursionProgram<BabyBear>> {
-        // Get the operations.
-        let builder_span = tracing::debug_span!("build compress program").entered();
-        let mut builder = Builder::<InnerConfig>::default();
+    pub fn wrap_program(&self) -> Arc<RecursionProgram<BabyBear>> {
+        self.wrap_program
+            .get_or_init(|| {
+                // Get the operations.
+                let builder_span = tracing::debug_span!("build compress program").entered();
+                let mut builder = Builder::<InnerConfig>::default();
 
-        let input = input.read(&mut builder);
-        // Verify the proof.
-        SP1WrapVerifier::verify(&mut builder, self.shrink_prover.machine(), input);
+                let shrink_shape: ProofShape = ShrinkAir::<BabyBear>::shrink_shape().into();
+                let input_shape = SP1CompressShape::from(vec![shrink_shape]);
+                let dummy_input = SP1CompressWitnessValues::<InnerSC>::dummy(
+                    self.shrink_prover.machine(),
+                    &input_shape,
+                );
 
-        let operations = builder.into_operations();
-        builder_span.exit();
+                let input = dummy_input.read(&mut builder);
+                // Verify the proof.
+                SP1WrapVerifier::verify(&mut builder, self.shrink_prover.machine(), input);
 
-        // Compile the program.
-        let compiler_span = tracing::debug_span!("compile compress program").entered();
-        let mut compiler = AsmCompiler::<InnerConfig>::default();
-        let program = Arc::new(compiler.compile(operations));
-        compiler_span.exit();
-        program
+                let operations = builder.into_operations();
+                builder_span.exit();
+
+                // Compile the program.
+                let compiler_span = tracing::debug_span!("compile compress program").entered();
+                let mut compiler = AsmCompiler::<InnerConfig>::default();
+                let program = Arc::new(compiler.compile(operations));
+                compiler_span.exit();
+                program
+            })
+            .clone()
     }
 
     pub fn deferred_program(
@@ -995,7 +1014,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             is_complete: true,
         };
 
-        let program = self.wrap_program(&input);
+        let program = self.wrap_program();
 
         // Run the compress program.
         let mut runtime = RecursionRuntime::<Val<InnerSC>, Challenge<InnerSC>, _>::new(

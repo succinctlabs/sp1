@@ -5,7 +5,7 @@ use p3_field::{extension::BinomiallyExtendable, PrimeField32};
 use sp1_recursion_core::runtime::D;
 use sp1_stark::{
     air::{InteractionScope, MachineAir},
-    Chip, StarkGenericConfig, StarkMachine, PROOF_MAX_NUM_PVS,
+    Chip, ProofShape, StarkGenericConfig, StarkMachine, PROOF_MAX_NUM_PVS,
 };
 
 use crate::{
@@ -231,6 +231,12 @@ impl<F> Add<&Instruction<F>> for RecursionAirEventCount {
     fn add(mut self, rhs: &Instruction<F>) -> Self::Output {
         self += rhs;
         self
+    }
+}
+
+impl From<RecursionShape> for ProofShape {
+    fn from(value: RecursionShape) -> Self {
+        value.inner.into_iter().collect()
     }
 }
 
