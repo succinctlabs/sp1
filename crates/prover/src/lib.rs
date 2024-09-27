@@ -1185,15 +1185,27 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         //     input.vks_and_proofs.iter().map(|(vk, _)| (0, vk.hash_babybear())).collect::<Vec<_>>();
 
         let num_vks = self.allowed_vk_map.len();
-        let (vk_indices, vk_digest_values): (Vec<_>, Vec<_>) = input
-            .vks_and_proofs
-            .iter()
-            .map(|(vk, _)| {
-                let vk_digest = vk.hash_babybear();
-                let index = (vk_digest[0].as_canonical_u32() as usize) % num_vks;
-                (index, [BabyBear::from_canonical_usize(index); 8])
-            })
-            .unzip();
+        let (vk_indices, vk_digest_values): (Vec<_>, Vec<_>) = if self.vk_verification {
+            input
+                .vks_and_proofs
+                .iter()
+                .map(|(vk, _)| {
+                    let vk_digest = vk.hash_babybear();
+                    let index = self.allowed_vk_map.get(&vk_digest).expect("vk not allowed");
+                    (index, vk_digest)
+                })
+                .unzip()
+        } else {
+            input
+                .vks_and_proofs
+                .iter()
+                .map(|(vk, _)| {
+                    let vk_digest = vk.hash_babybear();
+                    let index = (vk_digest[0].as_canonical_u32() as usize) % num_vks;
+                    (index, [BabyBear::from_canonical_usize(index); 8])
+                })
+                .unzip()
+        };
 
         let proofs = vk_indices
             .iter()
