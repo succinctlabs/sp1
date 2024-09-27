@@ -331,12 +331,16 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         self.shrink_prover.machine().verify(&proof.vk, &machine_proof, &mut challenger)?;
 
         // Validate public values
-        let public_values: &RootPublicValues<_> = proof.proof.public_values.as_slice().borrow();
-        assert_root_public_values_valid(self.compress_prover.machine().config(), public_values);
+        let public_values: &RecursionPublicValues<_> =
+            proof.proof.public_values.as_slice().borrow();
+        assert_recursion_public_values_valid(
+            self.compress_prover.machine().config(),
+            public_values,
+        );
 
         // Verify that the proof is for the sp1 vkey we are expecting.
         let vkey_hash = vk.hash_babybear();
-        if *public_values.sp1_vk_digest() != vkey_hash {
+        if public_values.sp1_vk_digest != vkey_hash {
             return Err(MachineVerificationError::InvalidPublicValues("sp1 vk hash mismatch"));
         }
 

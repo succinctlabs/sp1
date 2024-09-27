@@ -79,7 +79,7 @@ use sp1_recursion_circuit_v2::{
         SP1CompressWithVKeyVerifier, SP1CompressWithVKeyWitnessValues, SP1CompressWithVkeyShape,
         SP1CompressWitnessValues, SP1DeferredVerifier, SP1DeferredWitnessValues,
         SP1MerkleProofWitnessValues, SP1RecursionShape, SP1RecursionWitnessValues,
-        SP1RecursiveVerifier, SP1WrapVerifier,
+        SP1RecursiveVerifier,
     },
     merkle_tree::MerkleTree,
     witness::Witnessable,
@@ -366,13 +366,13 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                 let builder_span = tracing::debug_span!("build compress program").entered();
                 let mut builder = Builder::<InnerConfig>::default();
 
-                // TODO: remove comment or make a test flag.
-                let dummy_input = SP1CompressWithVKeyWitnessValues::<CoreSC>::dummy(
-                    self.compress_prover.machine(),
-                    &input.shape(),
-                );
-                let input = dummy_input.read(&mut builder);
-                // let input = input.read(&mut builder);
+                // // TODO: remove comment or make a test flag.
+                // let dummy_input = SP1CompressWithVKeyWitnessValues::<CoreSC>::dummy(
+                //     self.compress_prover.machine(),
+                //     &input.shape(),
+                // );
+                // let input = dummy_input.read(&mut builder);
+                let input = input.read(&mut builder);
                 SP1CompressWithVKeyVerifier::verify(
                     &mut builder,
                     self.compress_prover.machine(),
@@ -412,6 +412,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                     self.compress_prover.machine(),
                     input,
                     self.vk_verification,
+                    PublicValuesOutputDigest::Reduce,
                 );
                 let operations = builder.into_operations();
                 builder_span.exit();
@@ -437,14 +438,22 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 
                 let shrink_shape: ProofShape = ShrinkAir::<BabyBear>::shrink_shape().into();
                 let input_shape = SP1CompressShape::from(vec![shrink_shape]);
-                let dummy_input = SP1CompressWitnessValues::<InnerSC>::dummy(
-                    self.shrink_prover.machine(),
-                    &input_shape,
-                );
+                let shape = SP1CompressWithVkeyShape {
+                    compress_shape: input_shape,
+                    merkle_tree_height: self.vk_merkle_tree.height,
+                };
+                let dummy_input =
+                    SP1CompressWithVKeyWitnessValues::dummy(self.shrink_prover.machine(), &shape);
 
                 let input = dummy_input.read(&mut builder);
                 // Verify the proof.
-                SP1WrapVerifier::verify(&mut builder, self.shrink_prover.machine(), input);
+                SP1CompressRootVerifierWithVKey::verify(
+                    &mut builder,
+                    self.shrink_prover.machine(),
+                    input,
+                    self.vk_verification,
+                    PublicValuesOutputDigest::Root,
+                );
 
                 let operations = builder.into_operations();
                 builder_span.exit();
@@ -597,7 +606,6 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
     }
 
     /// Reduce shards proofs to a single shard proof using the recursion prover.
-    #[instrument(name = "compress", level = "info", skip_all)]
     #[instrument(name = "compress", level = "info", skip_all)]
     pub fn compress(
         &self,
@@ -1013,6 +1021,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             vks_and_proofs: vec![(compressed_vk, compressed_proof)],
             is_complete: true,
         };
+        let input_with_vk = self.make_merkle_proofs(input);
 
         let program = self.wrap_program();
 
@@ -1023,7 +1032,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         );
 
         let mut witness_stream = Vec::new();
-        Witnessable::<InnerConfig>::write(&input, &mut witness_stream);
+        Witnessable::<InnerConfig>::write(&input_with_vk, &mut witness_stream);
 
         runtime.witness_stream = witness_stream.into();
 
