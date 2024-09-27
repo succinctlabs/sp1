@@ -73,7 +73,7 @@ impl<C: Config<F = BabyBear>> CircuitV2Builder<C> for Builder<C> {
 
             // Get a flag that is zero if any of the top `4` bits are zero, and one otherwise. We
             // can do this by simply taking their product (which is bitwise AND).
-            let is_any_top_bit_zero: Felt<_> = self.eval(
+            let are_all_top_bits_one: Felt<_> = self.eval(
                 output
                     .iter()
                     .rev()
@@ -83,12 +83,9 @@ impl<C: Config<F = BabyBear>> CircuitV2Builder<C> for Builder<C> {
                     .product::<SymbolicFelt<_>>(),
             );
 
-            let are_all_top_bits_one: Felt<_> =
-                self.eval(SymbolicFelt::one() - is_any_top_bit_zero);
-
             // Assert that if all the top `4` bits are one, then all the bottom `27` bits are zero.
             for bit in output.iter().take(27).copied() {
-                // self.assert_felt_eq(bit * are_all_top_bits_one, C::F::zero());
+                self.assert_felt_eq(bit * are_all_top_bits_one, C::F::zero());
             }
         }
 
