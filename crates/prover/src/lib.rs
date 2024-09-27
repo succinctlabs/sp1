@@ -150,8 +150,6 @@ pub struct SP1Prover<C: SP1ProverComponents = DefaultProverComponents> {
 
     pub recursion_shape_config: Option<RecursionShapeConfig<BabyBear, CompressAir<BabyBear>>>,
 
-    pub shrink_program: OnceLock<Arc<RecursionProgram<BabyBear>>>,
-
     pub wrap_program: OnceLock<Arc<RecursionProgram<BabyBear>>>,
 
     pub vk_verification: bool,
@@ -230,7 +228,6 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             core_shape_config,
             recursion_shape_config,
             vk_verification,
-            shrink_program: OnceLock::new(),
             wrap_program: OnceLock::new(),
         }
     }
@@ -401,32 +398,28 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         &self,
         input: &SP1CompressWithVKeyWitnessValues<InnerSC>,
     ) -> Arc<RecursionProgram<BabyBear>> {
-        self.shrink_program
-            .get_or_init(|| {
-                // Get the operations.
-                let builder_span = tracing::debug_span!("build shrink program").entered();
-                let mut builder = Builder::<InnerConfig>::default();
-                let input = input.read(&mut builder);
-                SP1CompressRootVerifierWithVKey::verify(
-                    &mut builder,
-                    self.compress_prover.machine(),
-                    input,
-                    self.vk_verification,
-                    PublicValuesOutputDigest::Reduce,
-                );
-                let operations = builder.into_operations();
-                builder_span.exit();
+        // Get the operations.
+        let builder_span = tracing::debug_span!("build shrink program").entered();
+        let mut builder = Builder::<InnerConfig>::default();
+        let input = input.read(&mut builder);
+        SP1CompressRootVerifierWithVKey::verify(
+            &mut builder,
+            self.compress_prover.machine(),
+            input,
+            self.vk_verification,
+            PublicValuesOutputDigest::Reduce,
+        );
+        let operations = builder.into_operations();
+        builder_span.exit();
 
-                // Compile the program.
-                let compiler_span = tracing::debug_span!("compile shrink program").entered();
-                let mut compiler = AsmCompiler::<InnerConfig>::default();
-                let mut program = compiler.compile(operations);
-                program.shape = Some(ShrinkAir::<BabyBear>::shrink_shape());
-                let program = Arc::new(program);
-                compiler_span.exit();
-                program
-            })
-            .clone()
+        // Compile the program.
+        let compiler_span = tracing::debug_span!("compile shrink program").entered();
+        let mut compiler = AsmCompiler::<InnerConfig>::default();
+        let mut program = compiler.compile(operations);
+        program.shape = Some(ShrinkAir::<BabyBear>::shrink_shape());
+        let program = Arc::new(program);
+        compiler_span.exit();
+        program
     }
 
     pub fn wrap_program(&self) -> Arc<RecursionProgram<BabyBear>> {
