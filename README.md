@@ -29,7 +29,7 @@ We are always looking for contributors interested in tasks big and small, includ
 
 ## Acknowledgements
 
-We would like to acknowledge the projects below whose previous work has been instrumental in making this project a reality.
+We would like to acknowledge the projects below whose previous work has been instrumental in making this project a reality:
 
 - [Plonky3](https://github.com/Plonky3/Plonky3): The SP1's prover is powered by the Plonky3 toolkit.
 - [Valida](https://github.com/valida-xyz/valida): The SP1 cross-table lookups, prover, borrow macro, and chip design, including constraints, are inspired by Valida.
