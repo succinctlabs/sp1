@@ -1,10 +1,7 @@
 #![allow(dead_code)]
 use std::error::Error;
 
-use std::{
-    fs::File,
-    io::Read,
-};
+use std::{fs::File, io::Read};
 
 use tendermint_light_client_verifier::types::LightBlock;
 

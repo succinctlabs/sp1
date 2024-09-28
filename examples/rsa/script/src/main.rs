@@ -65,9 +65,7 @@ fn main() {
         SP1ProofWithPublicValues::load("proof-with-pis").expect("loading proof failed");
 
     // Verify the deserialized proof.
-    client
-        .verify(&deserialized_proof, &vk)
-        .expect("verification failed");
+    client.verify(&deserialized_proof, &vk).expect("verification failed");
 
     println!("successfully generated and verified proof for the program!")
 }

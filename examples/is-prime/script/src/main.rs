@@ -24,16 +24,12 @@ fn main() {
     client.verify(&proof, &vk).expect("verification failed");
 
     // Test a round trip of proof serialization and deserialization.
-    proof
-        .save("proof-with-is-prime.bin")
-        .expect("saving proof failed");
+    proof.save("proof-with-is-prime.bin").expect("saving proof failed");
     let deserialized_proof =
         SP1ProofWithPublicValues::load("proof-with-is-prime.bin").expect("loading proof failed");
 
     // Verify the deserialized proof.
-    client
-        .verify(&deserialized_proof, &vk)
-        .expect("verification failed");
+    client.verify(&deserialized_proof, &vk).expect("verification failed");
 
     println!("successfully generated and verified proof for the program!")
 }

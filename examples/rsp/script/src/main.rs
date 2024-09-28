@@ -1,5 +1,5 @@
-use clap::Parser;
 use alloy_primitives::B256;
+use clap::Parser;
 use rsp_client_executor::{io::ClientExecutorInput, CHAIN_ID_ETH_MAINNET};
 use std::path::PathBuf;
 
