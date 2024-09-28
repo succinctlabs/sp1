@@ -31,10 +31,9 @@ impl<F: Field> RangeCheckChip<F> {
     /// Creates the preprocessed range check trace and event map.
     ///
     /// This function returns a pair `(trace, map)`, where:
-    ///  - `trace` is a matrix containing all possible range check values.
+    /// - `trace` is a matrix containing all possible range check values.
     /// - `map` is a map from a range check lookup to the value's corresponding row it appears in
-    ///   the table and
-    /// the index of the result in the array of multiplicities.
+    ///   the table and the index of the result in the array of multiplicities.
     pub fn trace_and_map() -> (RowMajorMatrix<F>, BTreeMap<RangeCheckEvent, (usize, usize)>) {
         // A map from a byte lookup to its corresponding row in the table and index in the array of
         // multiplicities.
