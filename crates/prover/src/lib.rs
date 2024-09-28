@@ -83,6 +83,7 @@ use sp1_recursion_circuit_v2::{
     },
     merkle_tree::MerkleTree,
     witness::Witnessable,
+    WrapConfig,
 };
 
 pub use types::*;
@@ -445,7 +446,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             .get_or_init(|| {
                 // Get the operations.
                 let builder_span = tracing::debug_span!("build compress program").entered();
-                let mut builder = Builder::<InnerConfig>::default();
+                let mut builder = Builder::<WrapConfig>::default();
 
                 let shrink_shape: ProofShape = ShrinkAir::<BabyBear>::shrink_shape().into();
                 let input_shape = SP1CompressShape::from(vec![shrink_shape]);
@@ -477,7 +478,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 
                 // Compile the program.
                 let compiler_span = tracing::debug_span!("compile compress program").entered();
-                let mut compiler = AsmCompiler::<InnerConfig>::default();
+                let mut compiler = AsmCompiler::<WrapConfig>::default();
                 let program = Arc::new(compiler.compile(operations));
                 compiler_span.exit();
                 program
