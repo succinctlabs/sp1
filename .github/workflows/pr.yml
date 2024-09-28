@@ -34,14 +34,14 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: check
-          toolchain: 1.79.0
+          toolchain: 1.81.0
           args: --all-targets --all-features
 
       - name: Run cargo test core-v2
         uses: actions-rs/cargo@v1
         with:
           command: test
-          toolchain: 1.79.0
+          toolchain: 1.81.0
           args: --release --package sp1-recursion-core-v2 --package sp1-recursion-circuit-v2 --features native-gnark
         env:
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
@@ -71,14 +71,14 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: check
-          toolchain: 1.79.0
+          toolchain: 1.81.0
           args: --all-targets --all-features
 
       - name: Run cargo test
         uses: actions-rs/cargo@v1
         with:
           command: test
-          toolchain: 1.79.0
+          toolchain: 1.81.0
           args: --release --features native-gnark
         env:
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
@@ -108,14 +108,14 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: check
-          toolchain: 1.79.0
+          toolchain: 1.81.0
           args: --all-targets --all-features
 
       - name: Run cargo test
         uses: actions-rs/cargo@v1
         with:
           command: test
-          toolchain: 1.79.0
+          toolchain: 1.81.0
           args: --release --features native-gnark
         env:
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
