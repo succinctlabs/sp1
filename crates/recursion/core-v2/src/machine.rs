@@ -137,7 +137,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize, const COL_P
             RecursionAir::BaseAlu(BaseAluChip),
             RecursionAir::ExtAlu(ExtAluChip),
             RecursionAir::Poseidon2Skinny(Poseidon2SkinnyChip::<DEGREE>::default()),
-            RecursionAir::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE>),
+            // RecursionAir::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE>),
             RecursionAir::PublicValues(PublicValuesChip),
         ]
         .map(Chip::new)
