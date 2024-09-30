@@ -51,7 +51,7 @@ jobs:
       - name: Run sp1-perf
         uses: actions-rs/cargo@v1
         with:
-          command: test
+          command: run
           toolchain: 1.81.0
           args: --release -p sp1-perf -- --program ${{ matrix.s3_folder }}/program.bin --stdin ${{ matrix.s3_folder }}/stdin.bin --mode cpu
         env:
