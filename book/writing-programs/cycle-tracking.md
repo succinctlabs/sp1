@@ -7,14 +7,14 @@ When writing a program, it is useful to know how many RISC-V cycles a portion of
 To track the number of cycles spent in a portion of the program, you can either put `println!("cycle-tracker-start: block name")` + `println!("cycle-tracker-end: block name")` statements (block name must be same between start and end) around the portion of your program you want to profile or use the `#[sp1_derive::cycle_tracker]` macro on a function. An example is shown below:
 
 ```rust,noplayground
-{{#include ../../examples/cycle-tracking/program/src/main.rs}}
+{{#include ../../examples/cycle-tracking/program/bin/normal.rs}}
 ```
 
 Note that to use the macro, you must add the `sp1-derive` crate to your dependencies for your program.
 
 ```toml
 [dependencies]
-sp1-derive = "1.1.0"
+sp1-derive = "2.0.0"
 ```
 
 In the script for proof generation, setup the logger with `utils::setup_logger()` and run the script with `RUST_LOG=info cargo run --release`. You should see the following output:
@@ -42,6 +42,20 @@ stdout: result: 2940
 
 Note that we elegantly handle nested cycle tracking, as you can see above.
 
+### Get Tracked Cycle Counts
+
+To include tracked cycle counts in the `ExecutionReport` when using `ProverClient::execute`, use the following annotations:
+
+```rust,noplayground
+fn main() {
+  println!("cycle-tracker-report-start: block name");
+  // ...
+  println!("cycle-tracker-report-end: block name");
+}
+```
+
+This will log the cycle count for `block name` and include it in the `ExecutionReport` in the `cycle_tracker` map.
+
 ## Tracking Cycles with Tracing
 
 The `cycle-tracker` annotation is a convenient way to track cycles for specific sections of code. However, sometimes it can also be useful to track what functions are taking the most cycles across the entire program, without having to annotate every function individually.
@@ -52,8 +66,7 @@ First, we need to generate a trace file of the program counter at each cycle whi
 TRACE_FILE=trace.log RUST_LOG=info cargo run --release
 ```
 
-When the `TRACE_FILE` environment variable is set, as SP1's RISC-V runtime is executing, it will write a log of the program counter to the file specified by `TRACE_FILE`. 
-
+When the `TRACE_FILE` environment variable is set, as SP1's RISC-V runtime is executing, it will write a log of the program counter to the file specified by `TRACE_FILE`.
 
 Next, we can use the `cargo prove` CLI with the `trace` command to analyze the trace file and generate a table of instruction counts. This can be done with the following command:
 

@@ -23,5 +23,6 @@ benchmark.csv
 
 # Build Artifacts
 recursion/gnark-ffi/build
-prover/build
-prover/*.tar.gz
+crates/prover/build
+crates/prover/data
+crates/prover/*.tar.gz

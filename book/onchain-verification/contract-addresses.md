@@ -1,20 +1,24 @@
 # Contract Addresses
 
-When using SP1, we recommend using our deployed verifiers. Each contract is a [SP1VerifierGateway](https://github.com/succinctlabs/sp1-contracts/blob/main/contracts/src/ISP1VerifierGateway.sol) which can automatically routes your SP1 proof to the correct verifier based on the prover version.
+To verify SP1 proofs on-chain, we recommend using our deployed verifier gateways. For the chains listed below, an [SP1VerifierGateway](https://github.com/succinctlabs/sp1-contracts/blob/main/contracts/src/ISP1VerifierGateway.sol) can automatically route your SP1 proof to the correct verifier based on the SP1 version.
 
-| Chain ID | Chain            | Gateway                                                                                                                         |
-| -------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| 1        | Mainnet          | [0x3B6041173B80E77f038f3F2C0f9744f04837185e](https://etherscan.io/address/0x3B6041173B80E77f038f3F2C0f9744f04837185e)           |
-| 11155111 | Sepolia          | [0x3B6041173B80E77f038f3F2C0f9744f04837185e](https://sepolia.etherscan.io/address/0x3B6041173B80E77f038f3F2C0f9744f04837185e)   |
-| 17000    | Holesky          | [0x3B6041173B80E77f038f3F2C0f9744f04837185e](https://holesky.etherscan.io/address/0x3B6041173B80E77f038f3F2C0f9744f04837185e)   |
-| 42161    | Arbitrum One     | [0x3B6041173B80E77f038f3F2C0f9744f04837185e](https://arbiscan.io/address/0x3B6041173B80E77f038f3F2C0f9744f04837185e)            |
-| 421614   | Arbitrum Sepolia | [0x3B6041173B80E77f038f3F2C0f9744f04837185e](https://sepolia.arbiscan.io/address/0x3B6041173B80E77f038f3F2C0f9744f04837185e)    |
-| 534351   | Scroll Sepolia   | [0x3B6041173B80E77f038f3F2C0f9744f04837185e](https://sepolia.scrollscan.com/address/0x3B6041173B80E77f038f3F2C0f9744f04837185e) |
-| 534352   | Scroll           | [0x3B6041173B80E77f038f3F2C0f9744f04837185e](https://scrollscan.com/address/0x3B6041173B80E77f038f3F2C0f9744f04837185e)         |
-| 8453     | Base             | [0x3B6041173B80E77f038f3F2C0f9744f04837185e](https://basescan.org/address/0x3B6041173B80E77f038f3F2C0f9744f04837185e)           |
-| 84532    | Base Sepolia     | [0x3B6041173B80E77f038f3F2C0f9744f04837185e](https://sepolia.basescan.org/address/0x3B6041173B80E77f038f3F2C0f9744f04837185e)   |
+| Chain ID | Chain            | Gateway                                                                                                                                 |
+| -------- | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| 1        | Mainnet          | [0x3B6041173B80E77f038f3F2C0f9744f04837185e](https://etherscan.io/address/0x3B6041173B80E77f038f3F2C0f9744f04837185e)                   |
+| 11155111 | Sepolia          | [0x3B6041173B80E77f038f3F2C0f9744f04837185e](https://sepolia.etherscan.io/address/0x3B6041173B80E77f038f3F2C0f9744f04837185e)           |
+| 17000    | Holesky          | [0x3B6041173B80E77f038f3F2C0f9744f04837185e](https://holesky.etherscan.io/address/0x3B6041173B80E77f038f3F2C0f9744f04837185e)           |
+| 42161    | Arbitrum One     | [0x3B6041173B80E77f038f3F2C0f9744f04837185e](https://arbiscan.io/address/0x3B6041173B80E77f038f3F2C0f9744f04837185e)                    |
+| 421614   | Arbitrum Sepolia | [0x3B6041173B80E77f038f3F2C0f9744f04837185e](https://sepolia.arbiscan.io/address/0x3B6041173B80E77f038f3F2C0f9744f04837185e)            |
+| 8453     | Base             | [0x3B6041173B80E77f038f3F2C0f9744f04837185e](https://basescan.org/address/0x3B6041173B80E77f038f3F2C0f9744f04837185e)                   |
+| 84532    | Base Sepolia     | [0x3B6041173B80E77f038f3F2C0f9744f04837185e](https://sepolia.basescan.org/address/0x3B6041173B80E77f038f3F2C0f9744f04837185e)           |
+| 10       | Optimism         | [0x3B6041173B80E77f038f3F2C0f9744f04837185e](https://optimistic.etherscan.io/address/0x3b6041173b80e77f038f3f2c0f9744f04837185e)        |
+| 11155420 | Optimism Sepolia | [0x3B6041173B80E77f038f3F2C0f9744f04837185e](hhttps://sepolia-optimism.etherscan.io/address/0x3B6041173B80E77f038f3F2C0f9744f04837185e) |
+| 534351   | Scroll Sepolia   | [0x3B6041173B80E77f038f3F2C0f9744f04837185e](https://sepolia.scrollscan.com/address/0x3B6041173B80E77f038f3F2C0f9744f04837185e)         |
+| 534352   | Scroll           | [0x3B6041173B80E77f038f3F2C0f9744f04837185e](https://scrollscan.com/address/0x3B6041173B80E77f038f3F2C0f9744f04837185e)                 |
 
-**Currently officially supported version of SP1 is v1.1.0.** If you'd like official support for a verifier on a different chain, please ask in the [SP1 Telegram](https://t.me/+AzG4ws-kD24yMGYx).
+A complete reference for all of the SP1Verifier contract addresses can be also be found in the [SP1 Contracts Repo](https://github.com/succinctlabs/sp1-contracts/blob/main/contracts/deployments).
+
+Whenever a verifier for a new SP1 version is deployed, the gateway contract will be updated to support it with [addRoute()](https://github.com/succinctlabs/sp1-contracts/blob/main/contracts/src/ISP1VerifierGateway.sol#L65). If a verifier for an SP1 version has an issue, the route will be frozen with [freezeRoute()](https://github.com/succinctlabs/sp1-contracts/blob/main/contracts/src/ISP1VerifierGateway.sol#L71).
 
 ## ISP1Verifier Interface
 

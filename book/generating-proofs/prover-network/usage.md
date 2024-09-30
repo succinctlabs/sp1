@@ -1,6 +1,6 @@
 # Prover Network: Usage
 
-> **Currently, the supported version of SP1 on the prover network is `v1.1.0`.**
+> **See [Supported Versions](./versions.md) for the currently supported versions of SP1 on the Prover Network.**
 
 ## Sending a proof request
 

@@ -6,7 +6,7 @@ edition = "2021"
 publish = false
 
 [dependencies]
-sp1-zkvm = { path = "../../../zkvm/entrypoint" }
+sp1-zkvm = { path = "../../../crates/zkvm/entrypoint" }
 serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
 serde = { version = "1.0", default-features = false, features = ["derive"] }
 tendermint-light-client-verifier = { version = "0.35.0", default-features = false, features = [

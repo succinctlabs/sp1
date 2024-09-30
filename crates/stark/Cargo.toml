@@ -1,0 +1,45 @@
+[package]
+name = "sp1-stark"
+description = "SP1 is a performant, 100% open-source, contributor-friendly zkVM."
+readme = "../../README.md"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+keywords = { workspace = true }
+categories = { workspace = true }
+
+[dependencies]
+# sp1
+sp1-derive = { workspace = true }
+sp1-primitives = { workspace = true }
+
+# p3
+p3-air = { workspace = true }
+p3-field = { workspace = true }
+p3-matrix = { workspace = true }
+p3-uni-stark = { workspace = true }
+p3-util = { workspace = true }
+p3-challenger = { workspace = true }
+p3-commit = { workspace = true }
+p3-maybe-rayon = { workspace = true, features = ["parallel"] }
+p3-baby-bear = { workspace = true }
+p3-dft = { workspace = true }
+p3-fri = { workspace = true }
+p3-merkle-tree = { workspace = true }
+p3-symmetric = { workspace = true }
+p3-poseidon2 = { workspace = true }
+
+# misc
+serde = { version = "1.0.207", features = ["derive"] }
+hashbrown = { version = "0.14.5", features = ["serde", "inline-more"] }
+itertools = "0.13.0"
+tracing = "0.1.40"
+rayon-scan = "0.1.1"
+arrayref = "0.3.8"
+getrandom = { version = "0.2.15", features = ["custom"] }
+sysinfo = "0.30.13"
+
+
+[dev-dependencies]
+sp1-zkvm = { workspace = true }

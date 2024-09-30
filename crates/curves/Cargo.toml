@@ -1,0 +1,32 @@
+[package]
+name = "sp1-curves"
+description = "SP1 is a performant, 100% open-source, contributor-friendly zkVM."
+readme = "../../README.md"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+keywords = { workspace = true }
+categories = { workspace = true }
+
+[dependencies]
+num = "0.4.3"
+serde = { version = "1.0.207", features = ["derive"] }
+typenum = "1.17.0"
+curve25519-dalek = { version = "4.1.2" }
+k256 = { version = "0.13.3", features = ["expose-field"] }
+generic-array = { version = "1.1.0", features = ["alloc", "serde"] }
+amcl = { package = "snowbridge-amcl", version = "1.0.2", default-features = false, features = [
+  "bls381",
+] }
+elliptic-curve = "0.13.8"
+dashu = "0.4.2"
+
+sp1-stark = { workspace = true }
+
+sp1-primitives = { workspace = true }
+p3-field = { workspace = true }
+itertools = "0.13.0"
+
+[dev-dependencies]
+rand = "0.8.5"
