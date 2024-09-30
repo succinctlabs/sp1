@@ -14,6 +14,7 @@ use p3_commit::Mmcs;
 use p3_field::AbstractField;
 use p3_matrix::dense::RowMajorMatrix;
 
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use sp1_recursion_compiler::ir::{Builder, Ext, Felt, SymbolicFelt};
 
 use sp1_recursion_core_v2::{
@@ -24,7 +25,8 @@ use sp1_recursion_core_v2::{
 use sp1_stark::{
     air::{MachineAir, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS},
     baby_bear_poseidon2::BabyBearPoseidon2,
-    ProofShape, ShardProof, StarkGenericConfig, StarkMachine, StarkVerifyingKey, Word, DIGEST_SIZE,
+    Dom, ProofShape, ShardProof, StarkGenericConfig, StarkMachine, StarkVerifyingKey, Word,
+    DIGEST_SIZE,
 };
 
 use crate::{
@@ -61,6 +63,9 @@ pub struct SP1CompressWitnessVariable<
 }
 
 /// An input layout for the reduce verifier.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "ShardProof<SC>: Serialize, Dom<SC>: Serialize"))]
+#[serde(bound(deserialize = "ShardProof<SC>: Deserialize<'de>, Dom<SC>: DeserializeOwned"))]
 pub struct SP1CompressWitnessValues<SC: StarkGenericConfig> {
     pub vks_and_proofs: Vec<(StarkVerifyingKey<SC>, ShardProof<SC>)>,
     pub is_complete: bool,

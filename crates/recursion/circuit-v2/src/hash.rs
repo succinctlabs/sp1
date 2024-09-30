@@ -11,15 +11,14 @@ use sp1_recursion_compiler::{
     circuit::CircuitV2Builder,
     ir::{Builder, Config, DslIr, Felt, Var},
 };
-use sp1_recursion_core_v2::stark::config::outer_perm;
+use sp1_recursion_core_v2::stark::config::{outer_perm, OUTER_MULTI_FIELD_CHALLENGER_WIDTH};
 use sp1_recursion_core_v2::{stark::config::BabyBearPoseidon2Outer, DIGEST_SIZE};
 use sp1_recursion_core_v2::{HASH_RATE, PERMUTATION_WIDTH};
 use sp1_stark::baby_bear_poseidon2::BabyBearPoseidon2;
 use sp1_stark::inner_perm;
 
-use crate::challenger::SPONGE_SIZE;
 use crate::{
-    challenger::{reduce_32, RATE},
+    challenger::{reduce_32, POSEIDON_2_BB_RATE},
     select_chain, CircuitConfig,
 };
 
@@ -168,9 +167,9 @@ impl<C: CircuitConfig<F = BabyBear, N = Bn254Fr, Bit = Var<Bn254Fr>>> FieldHashe
         assert!(C::N::bits() == p3_bn254_fr::Bn254Fr::bits());
         assert!(C::F::bits() == p3_baby_bear::BabyBear::bits());
         let num_f_elms = C::N::bits() / C::F::bits();
-        let mut state: [Var<C::N>; SPONGE_SIZE] =
+        let mut state: [Var<C::N>; OUTER_MULTI_FIELD_CHALLENGER_WIDTH] =
             [builder.eval(C::N::zero()), builder.eval(C::N::zero()), builder.eval(C::N::zero())];
-        for block_chunk in &input.iter().chunks(RATE) {
+        for block_chunk in &input.iter().chunks(POSEIDON_2_BB_RATE) {
             for (chunk_id, chunk) in (&block_chunk.chunks(num_f_elms)).into_iter().enumerate() {
                 let chunk = chunk.copied().collect::<Vec<_>>();
                 state[chunk_id] = reduce_32(builder, chunk.as_slice());
@@ -185,7 +184,7 @@ impl<C: CircuitConfig<F = BabyBear, N = Bn254Fr, Bit = Var<Bn254Fr>>> FieldHashe
         builder: &mut Builder<C>,
         input: [Self::DigestVariable; 2],
     ) -> Self::DigestVariable {
-        let state: [Var<C::N>; SPONGE_SIZE] =
+        let state: [Var<C::N>; OUTER_MULTI_FIELD_CHALLENGER_WIDTH] =
             [builder.eval(input[0][0]), builder.eval(input[1][0]), builder.eval(C::N::zero())];
         builder.push_op(DslIr::CircuitPoseidon2Permute(state));
         [state[0]; BN254_DIGEST_SIZE]
