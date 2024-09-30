@@ -31,7 +31,10 @@ jobs:
     strategy:
       matrix:
         s3_folder: 
-          - s3://sp1-testing-suite/fibonacci-17k
+          - fibonacci-17k
+          - ssz-withdrawals
+          - tendermint
+          - rsp-20526624
     steps:
       - name: Checkout sources
         uses: actions/checkout@v4
@@ -46,8 +49,8 @@ jobs:
       - name: Copy files from S3
         run: |
           mkdir -p workdir
-          aws s3 cp ${{ matrix.s3_folder }}/program.bin workdir/program.bin
-          aws s3 cp ${{ matrix.s3_folder }}/stdin.bin workdir/stdin.bin
+          aws s3 cp s3://sp1-testing-suite/${{ matrix.s3_folder }}/program.bin workdir/program.bin
+          aws s3 cp s3://sp1-testing-suite/${{ matrix.s3_folder }}/stdin.bin workdir/stdin.bin
       - name: Run sp1-perf
         uses: actions-rs/cargo@v1
         with:
