@@ -28,7 +28,7 @@ members = [
   "crates/sdk",
   "crates/cuda",
   "crates/stark",
-  "crates/zkvm/*", "tests/common",
+  "crates/zkvm/*",
 ]
 exclude = [
   "examples/target",
