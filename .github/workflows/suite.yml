@@ -1,0 +1,59 @@
+name: Evaluation Suite
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches:
+      - "**"
+    paths:
+      - "crates/**"
+      - "examples/**"
+      - "Cargo.toml"
+      - ".github/workflows/**"
+  merge_group:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-x86:
+    name: Testing Suite - ${{ matrix.s3_folder }}
+    runs-on:
+      [
+        runs-on,
+        runner=64cpu-linux-x64,
+        spot=false,
+        "run-id=${{ github.run_id }}",
+      ]
+    env:
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+    strategy:
+      matrix:
+        s3_folder: 
+          - folder1
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+      - name: Setup CI
+        uses: ./.github/actions/setup
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-west-2
+      - name: Copy files from S3
+        run: |
+          mkdir -p workdir
+          aws s3 cp ${{ matrix.s3_folder }}/program.bin workdir/program.bin
+          aws s3 cp ${{ matrix.s3_folder }}/stdin.bin workdir/stdin.bin
+      - name: Run sp1-perf
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          toolchain: 1.81.0
+          args: --release -p sp1-perf -- --program ${{ matrix.s3_folder }}/program.bin --stdin ${{ matrix.s3_folder }}/stdin.bin --mode cpu
+        env:
+          RUSTFLAGS: -Copt-level=3 -Ctarget-cpu=native
+          RUST_BACKTRACE: 1

@@ -1,16 +1,9 @@
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use clap::{command, Parser, ValueEnum};
 use sp1_prover::components::DefaultProverComponents;
 use sp1_sdk::{self, SP1Context, SP1Prover, SP1Stdin};
 use sp1_stark::SP1ProverOpts;
-
-#[derive(Debug, Clone, ValueEnum, PartialEq, Eq)]
-enum ProverMode {
-    Cpu,
-    Cuda,
-    Network,
-}
 
 #[derive(Parser, Clone)]
 #[command(about = "Evaluate the performance of SP1 on programs.")]
@@ -21,6 +14,28 @@ struct PerfArgs {
     pub stdin: String,
     #[arg(short, long)]
     pub mode: ProverMode,
+}
+
+#[derive(Debug, Clone)]
+#[allow(dead_code)]
+struct PerfResult {
+    pub cycles: u64,
+    pub execution_duration: Duration,
+    pub prove_core_duration: Duration,
+    pub verify_core_duration: Duration,
+    pub compress_duration: Duration,
+    pub verify_compressed_duration: Duration,
+    pub shrink_duration: Duration,
+    pub verify_shrink_duration: Duration,
+    pub wrap_duration: Duration,
+    pub verify_wrap_duration: Duration,
+}
+
+#[derive(Debug, Clone, ValueEnum, PartialEq, Eq)]
+enum ProverMode {
+    Cpu,
+    Cuda,
+    Network,
 }
 
 pub fn time_operation<T, F: FnOnce() -> T>(operation: F) -> (T, std::time::Duration) {
@@ -68,6 +83,24 @@ fn main() {
 
             let (wrapped_bn254_proof, wrap_duration) =
                 time_operation(|| prover.wrap_bn254(shrink_proof, opts).unwrap());
+
+            let (_, verify_wrap_duration) =
+                time_operation(|| prover.verify_wrap_bn254(&wrapped_bn254_proof, &vk));
+
+            let result = PerfResult {
+                cycles,
+                execution_duration,
+                prove_core_duration,
+                verify_core_duration,
+                compress_duration,
+                verify_compressed_duration,
+                shrink_duration,
+                verify_shrink_duration,
+                wrap_duration,
+                verify_wrap_duration,
+            };
+
+            println!("{:?}", result);
         }
         ProverMode::Cuda => {
             todo!()
