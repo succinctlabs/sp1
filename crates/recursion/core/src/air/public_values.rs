@@ -142,12 +142,12 @@ pub struct RecursionPublicValues<T> {
     /// shard, i.e. a shard that contains the `cpu` chip.
     pub contains_execution_shard: T,
 
-    /// The digest of all the previous public values elements.
-    pub digest: [T; DIGEST_SIZE],
-
     /// The exit code of the program.  Note that this is not part of the public values digest,
     /// since it's value will be individually constrained.
     pub exit_code: T,
+
+    /// The digest of all the previous public values elements.
+    pub digest: [T; DIGEST_SIZE],
 }
 
 /// Converts the public values to an array of elements.

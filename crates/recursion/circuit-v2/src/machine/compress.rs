@@ -518,6 +518,8 @@ where
         compress_public_values.is_complete = is_complete;
         // Set the contains an execution shard flag.
         compress_public_values.contains_execution_shard = contains_execution_shard;
+        // Set the exit code.
+        compress_public_values.exit_code = exit_code;
         // Set the digest according to the previous values.
         compress_public_values.digest = match kind {
             PublicValuesOutputDigest::Reduce => {
@@ -527,9 +529,6 @@ where
                 root_public_values_digest::<C, SC>(builder, compress_public_values)
             }
         };
-
-        // Set the exit code.
-        compress_public_values.exit_code = exit_code;
 
         // If the proof is complete, make completeness assertions.
         assert_complete(builder, compress_public_values, is_complete);
