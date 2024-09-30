@@ -6,15 +6,12 @@ use bls12_381::{
 };
 use ff::Field;
 use group::Group;
-use rand::thread_rng;
 
 sp1_zkvm::entrypoint!(main);
 
 pub fn main() {
     // Fp operations
     {
-        let lhs = Fp::random(&mut rand::thread_rng());
-        let rhs = Fp::random(&mut rand::thread_rng());
         let lhs = Fp::one();
         let rhs = Fp::one();
 
