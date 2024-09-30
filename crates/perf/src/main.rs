@@ -1,0 +1,79 @@
+use std::time::Instant;
+
+use clap::{command, Parser, ValueEnum};
+use sp1_prover::components::DefaultProverComponents;
+use sp1_sdk::{self, SP1Context, SP1Prover, SP1Stdin};
+use sp1_stark::SP1ProverOpts;
+
+#[derive(Debug, Clone, ValueEnum, PartialEq, Eq)]
+enum ProverMode {
+    Cpu,
+    Cuda,
+    Network,
+}
+
+#[derive(Parser, Clone)]
+#[command(about = "Evaluate the performance of SP1 on programs.")]
+struct PerfArgs {
+    #[arg(short, long)]
+    pub program: String,
+    #[arg(short, long)]
+    pub stdin: String,
+    #[arg(short, long)]
+    pub mode: ProverMode,
+}
+
+pub fn time_operation<T, F: FnOnce() -> T>(operation: F) -> (T, std::time::Duration) {
+    let start = Instant::now();
+    let result = operation();
+    let duration = start.elapsed();
+    (result, duration)
+}
+
+fn main() {
+    let args = PerfArgs::parse();
+
+    let elf = std::fs::read(args.program).expect("failed to read program");
+    let stdin = std::fs::read(args.stdin).expect("failed to read stdin");
+    let stdin: SP1Stdin = bincode::deserialize(&stdin).expect("failed to deserialize stdin");
+
+    let prover = SP1Prover::<DefaultProverComponents>::new();
+    let (pk, vk) = prover.setup(&elf);
+    let cycles = sp1_prover::utils::get_cycles(&elf, &stdin);
+    let opts = SP1ProverOpts::default();
+
+    match args.mode {
+        ProverMode::Cpu => {
+            let context = SP1Context::default();
+            let (_, execution_duration) =
+                time_operation(|| prover.execute(&elf, &stdin, context.clone()));
+
+            let (core_proof, prove_core_duration) =
+                time_operation(|| prover.prove_core(&pk, &stdin, opts, context).unwrap());
+
+            let (_, verify_core_duration) =
+                time_operation(|| prover.verify(&core_proof.proof, &vk));
+
+            let (compress_proof, compress_duration) =
+                time_operation(|| prover.compress(&vk, core_proof, vec![], opts).unwrap());
+
+            let (_, verify_compressed_duration) =
+                time_operation(|| prover.verify_compressed(&compress_proof, &vk));
+
+            let (shrink_proof, shrink_duration) =
+                time_operation(|| prover.shrink(compress_proof, opts).unwrap());
+
+            let (_, verify_shrink_duration) =
+                time_operation(|| prover.verify_shrink(&shrink_proof, &vk));
+
+            let (wrapped_bn254_proof, wrap_duration) =
+                time_operation(|| prover.wrap_bn254(shrink_proof, opts).unwrap());
+        }
+        ProverMode::Cuda => {
+            todo!()
+        }
+        ProverMode::Network => {
+            todo!()
+        }
+    };
+}
