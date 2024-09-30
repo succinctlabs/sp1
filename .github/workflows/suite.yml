@@ -1,4 +1,4 @@
-name: Evaluation Suite
+name: Testing Suite
 on:
   push:
     branches: [main, dev]
@@ -31,7 +31,7 @@ jobs:
     strategy:
       matrix:
         s3_folder: 
-          - folder1
+          - s3://sp1-testing-suite/fibonacci-17k
     steps:
       - name: Checkout sources
         uses: actions/checkout@v4
