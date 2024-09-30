@@ -328,14 +328,14 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                 let builder_span = tracing::debug_span!("build recursion program").entered();
                 let mut builder = Builder::<InnerConfig>::default();
 
-                // TODO: remove comment or make a test flag.
-                let dummy_input = SP1RecursionWitnessValues::<CoreSC>::dummy(
-                    self.core_prover.machine(),
-                    &input.shape(),
-                );
-                let input = dummy_input.read(&mut builder);
+                // // TODO: remove comment or make a test flag.
+                // let dummy_input = SP1RecursionWitnessValues::<CoreSC>::dummy(
+                //     self.core_prover.machine(),
+                //     &input.shape(),
+                // );
+                // let input = dummy_input.read(&mut builder);
 
-                // let input = input.read(&mut builder);
+                let input = input.read(&mut builder);
                 SP1RecursiveVerifier::verify(&mut builder, self.core_prover.machine(), input);
                 let operations = builder.into_operations();
                 builder_span.exit();
@@ -367,14 +367,14 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                 let builder_span = tracing::debug_span!("build compress program").entered();
                 let mut builder = Builder::<InnerConfig>::default();
 
-                // TODO: remove comment or make a test flag.
-                let dummy_input = SP1CompressWithVKeyWitnessValues::<CoreSC>::dummy(
-                    self.compress_prover.machine(),
-                    &input.shape(),
-                );
-                let input = dummy_input.read(&mut builder);
+                // // TODO: remove comment or make a test flag.
+                // let dummy_input = SP1CompressWithVKeyWitnessValues::<CoreSC>::dummy(
+                //     self.compress_prover.machine(),
+                //     &input.shape(),
+                // );
+                // let input = dummy_input.read(&mut builder);
 
-                // let input = input.read(&mut builder);
+                let input = input.read(&mut builder);
 
                 // Attest that the merkle tree root is correct.
                 let root = input.merkle_var.root;
