@@ -6115,7 +6115,7 @@ dependencies = [
  "clap",
  "csv",
  "p3-baby-bear",
- "reqwest 0.12.5",
+ "reqwest 0.12.7",
  "serde",
  "serde_json",
  "slack-rust-rs",
