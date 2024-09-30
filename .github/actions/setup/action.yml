@@ -3,6 +3,10 @@ inputs:
   pull_token:
     description: "Token to use for private repo access"
     required: true
+  setup_gcc:
+    description: "Whether to setup GCC or not"
+    required: false
+    default: 'true'
 runs:
   using: "composite"
   steps:
@@ -22,8 +26,20 @@ runs:
       shell: bash
       run: go version
 
+    - name: Check GCC version
+      id: check-gcc
+      shell: bash
+      run: |
+        if command -v gcc &> /dev/null; then
+          echo "gcc_exists=true" >> $GITHUB_OUTPUT
+          echo "gcc_version=$(gcc --version | head -n1 | awk '{print $NF}')" >> $GITHUB_OUTPUT
+        else
+          echo "gcc_exists=false" >> $GITHUB_OUTPUT
+        fi
+
     - name: Setup GCC
       uses: Dup4/actions-setup-gcc@v1
+      if: inputs.setup_gcc == 'true' && steps.check-gcc.outputs.gcc_exists != 'true'
       with:
         version: latest
 
