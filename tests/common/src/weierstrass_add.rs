@@ -1,5 +1,6 @@
 use sp1_lib::utils::{AffinePoint, WeierstrassAffinePoint};
 
+/// Test all of the potential special cases for addition for Weierstrass elliptic curves.
 pub fn test_weierstrass_add<P: AffinePoint<N> + WeierstrassAffinePoint<N>, const N: usize>(
     a: &[u8],
     b: &[u8],
