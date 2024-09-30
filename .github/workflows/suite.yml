@@ -22,7 +22,7 @@ jobs:
     runs-on:
       [
         runs-on,
-        runner=${{ matrix.mode == 'cuda' && 'nvidia-gpu-linux-x64' || '64cpu-linux-x64' }},
+        "runner=${{ matrix.mode == 'cuda' && 'nvidia-gpu-linux-x64' || '64cpu-linux-x64' }}",
         spot=false,
         "run-id=${{ github.run_id }}",
       ]
