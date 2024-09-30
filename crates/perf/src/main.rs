@@ -3,7 +3,7 @@ use std::time::{Duration, Instant};
 use clap::{command, Parser, ValueEnum};
 use sp1_cuda::SP1CudaProver;
 use sp1_prover::components::DefaultProverComponents;
-use sp1_sdk::{self, SP1Context, SP1Prover, SP1Stdin};
+use sp1_sdk::{self, ProverClient, SP1Context, SP1Prover, SP1Stdin};
 use sp1_stark::SP1ProverOpts;
 
 #[derive(Parser, Clone)]
@@ -151,7 +151,14 @@ fn main() {
             println!("{:?}", result);
         }
         ProverMode::Network => {
-            todo!()
+            let prover = ProverClient::network();
+            let (_, execution_duration) = time_operation(|| prover.execute(&elf, &stdin));
+
+            let (core_proof, prove_core_duration) =
+                time_operation(|| prover.prove(&pk, &stdin).compressed().run().unwrap());
+
+            let (_, verify_core_duration) =
+                time_operation(|| prover.verify(&core_proof.proof, &vk));
         }
     };
 }
