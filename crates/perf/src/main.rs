@@ -1,6 +1,7 @@
 use std::time::{Duration, Instant};
 
 use clap::{command, Parser, ValueEnum};
+use sp1_cuda::SP1CudaProver;
 use sp1_prover::components::DefaultProverComponents;
 use sp1_sdk::{self, SP1Context, SP1Prover, SP1Stdin};
 use sp1_stark::SP1ProverOpts;
@@ -103,7 +104,51 @@ fn main() {
             println!("{:?}", result);
         }
         ProverMode::Cuda => {
-            todo!()
+            let server = SP1CudaProver::new().expect("failed to initialize CUDA prover");
+
+            let context = SP1Context::default();
+            let (_, execution_duration) =
+                time_operation(|| prover.execute(&elf, &stdin, context.clone()));
+
+            let (core_proof, prove_core_duration) =
+                time_operation(|| server.prove_core(&pk, &stdin).unwrap());
+
+            let (_, verify_core_duration) = time_operation(|| {
+                prover.verify(&core_proof.proof, &vk).expect("Proof verification failed")
+            });
+
+            let (compress_proof, compress_duration) =
+                time_operation(|| server.compress(&vk, core_proof, vec![]).unwrap());
+
+            let (_, verify_compressed_duration) =
+                time_operation(|| prover.verify_compressed(&compress_proof, &vk));
+
+            let (shrink_proof, shrink_duration) =
+                time_operation(|| server.shrink(compress_proof).unwrap());
+
+            let (_, verify_shrink_duration) =
+                time_operation(|| prover.verify_shrink(&shrink_proof, &vk));
+
+            let (wrapped_bn254_proof, wrap_duration) =
+                time_operation(|| prover.wrap_bn254(shrink_proof, opts).unwrap());
+
+            let (_, verify_wrap_duration) =
+                time_operation(|| prover.verify_wrap_bn254(&wrapped_bn254_proof, &vk));
+
+            let result = PerfResult {
+                cycles,
+                execution_duration,
+                prove_core_duration,
+                verify_core_duration,
+                compress_duration,
+                verify_compressed_duration,
+                shrink_duration,
+                verify_shrink_duration,
+                wrap_duration,
+                verify_wrap_duration,
+            };
+
+            println!("{:?}", result);
         }
         ProverMode::Network => {
             todo!()

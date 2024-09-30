@@ -18,11 +18,11 @@ concurrency:
 
 jobs:
   test-x86:
-    name: Testing Suite - ${{ matrix.s3_folder }}
+    name: ${{ matrix.s3_folder }} (${{ matrix.mode }})
     runs-on:
       [
         runs-on,
-        runner=64cpu-linux-x64,
+        runner=${{ matrix.mode == 'cuda' && 'nvidia-gpu-linux-x64' || '64cpu-linux-x64' }},
         spot=false,
         "run-id=${{ github.run_id }}",
       ]
@@ -30,11 +30,18 @@ jobs:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     strategy:
       matrix:
+        mode:
+          - cpu
+          - cuda
         s3_folder: 
           - fibonacci-17k
           - ssz-withdrawals
           - tendermint
           - rsp-20526624
+          - rsa
+          - regex
+          - json
+          - chess
     steps:
       - name: Checkout sources
         uses: actions/checkout@v4
@@ -56,7 +63,7 @@ jobs:
         with:
           command: run
           toolchain: 1.81.0
-          args: --release -p sp1-perf -- --program workdir/program.bin --stdin workdir/stdin.bin --mode cpu
+          args: --release -p sp1-perf -- --program workdir/program.bin --stdin workdir/stdin.bin --mode ${{ matrix.mode }}
         env:
           RUSTFLAGS: -Copt-level=3 -Ctarget-cpu=native
           RUST_BACKTRACE: 1
