@@ -12,8 +12,8 @@ use crate::{
 };
 
 use super::{
-    AddSubChip, BitwiseChip, CpuChip, DivRemChip, LtChip, MemoryGlobalChip, MulChip, ProgramChip,
-    RiscvAir, ShiftLeft, ShiftRightChip, SyscallChip,
+    AddSubChip, BitwiseChip, ByteChip, CpuChip, DivRemChip, LtChip, MemoryGlobalChip, MulChip,
+    ProgramChip, RiscvAir, ShiftLeft, ShiftRightChip, SyscallChip,
 };
 
 #[derive(Debug, Error)]
@@ -303,6 +303,7 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
         let allowed_preprocessed_log_heights = HashMap::from([
             (RiscvAir::Program(ProgramChip::default()), program_heights),
             (RiscvAir::ProgramMemory(MemoryProgramChip::default()), program_memory_heights),
+            (RiscvAir::ByteLookup(ByteChip::default()), vec![Some(16)]),
         ]);
 
         // Get the heights for the short shape cluster (for small shards).
