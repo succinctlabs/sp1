@@ -60,6 +60,7 @@ jobs:
           toolchain: 1.81.0
           args: --release -p sp1-perf -- --program workdir/program.bin --stdin workdir/stdin.bin --mode ${{ matrix.mode }}
         env:
+          RUST_LOG: debug
           RUSTFLAGS: -Copt-level=3 -Ctarget-cpu=native
           RUST_BACKTRACE: 1
           SP1_PROVER: ${{ matrix.mode == 'cpu' && 'local' || matrix.mode == 'cuda' && 'cuda' || matrix.mode == 'network' && 'network' }}
