@@ -316,11 +316,16 @@ where
                         * (SymbolicFelt::one() - contains_execution_shard),
                 );
 
-                // If this is the first execution shard, then we update the start execution shard.
+                // If this is the first execution shard, then we update the start execution shard
+                // and the `execution_shard` values.
                 compress_public_values.start_execution_shard = builder.eval(
                     current_public_values.start_execution_shard * is_first_execution_shard_seen
                         + compress_public_values.start_execution_shard
                             * (SymbolicFelt::one() - is_first_execution_shard_seen),
+                );
+                execution_shard = builder.eval(
+                    current_public_values.start_execution_shard * is_first_execution_shard_seen
+                        + execution_shard * (SymbolicFelt::one() - is_first_execution_shard_seen),
                 );
 
                 // If this is an execution shard, make the assertion that the value is consistent.
