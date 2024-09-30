@@ -3,7 +3,8 @@ use std::{fmt::Debug, fs::File, path::Path};
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use sp1_core_executor::SP1ReduceProof;
-use sp1_core_machine::io::{SP1PublicValues, SP1Stdin};
+use sp1_core_machine::io::SP1Stdin;
+use sp1_primitives::io::SP1PublicValues;
 use strum_macros::{EnumDiscriminants, EnumTryAs};
 
 use sp1_prover::{CoreSC, Groth16Bn254Proof, InnerSC, PlonkBn254Proof};
@@ -47,6 +48,7 @@ impl SP1ProofWithPublicValues {
     pub fn raw(&self) -> String {
         match &self.proof {
             SP1Proof::Plonk(plonk) => plonk.raw_proof.clone(),
+            SP1Proof::Groth16(groth16) => groth16.raw_proof.clone(),
             _ => unimplemented!(),
         }
     }

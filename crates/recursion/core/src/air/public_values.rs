@@ -128,9 +128,6 @@ pub struct RecursionPublicValues<T> {
     /// The commitment to the sp1 program being proven.
     pub sp1_vk_digest: [T; DIGEST_SIZE],
 
-    /// The commitment to the compress key being used in recursive verification.
-    pub compress_vk_digest: [T; DIGEST_SIZE],
-
     /// The leaf challenger containing the entropy from the main trace commitment.
     pub leaf_challenger: ChallengerPublicValues<T>,
 
@@ -140,6 +137,10 @@ pub struct RecursionPublicValues<T> {
 
     /// Whether the proof completely proves the program execution.
     pub is_complete: T,
+
+    /// Whether the proof represents a collection of shards which contain at least one execution
+    /// shard, i.e. a shard that contains the `cpu` chip.
+    pub contains_execution_shard: T,
 
     /// The digest of all the previous public values elements.
     pub digest: [T; DIGEST_SIZE],

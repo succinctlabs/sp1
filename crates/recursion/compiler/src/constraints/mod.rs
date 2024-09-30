@@ -159,6 +159,13 @@ impl<C: Config + Debug> ConstraintCompiler<C> {
                         args: vec![vec![a.id()], vec![b.id()], vec![tmp]],
                     });
                 }
+                DslIr::SubFIN(a, b, c) => {
+                    let temp = self.alloc_f(&mut constraints, b);
+                    constraints.push(Constraint {
+                        opcode: ConstraintOpcode::SubF,
+                        args: vec![vec![a.id()], vec![temp], vec![c.id()]],
+                    });
+                }
                 DslIr::SubE(a, b, c) => constraints.push(Constraint {
                     opcode: ConstraintOpcode::SubE,
                     args: vec![vec![a.id()], vec![b.id()], vec![c.id()]],

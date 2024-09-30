@@ -519,6 +519,8 @@ pub enum MachineVerificationError<SC: StarkGenericConfig> {
     MissingCpuInFirstShard,
     /// The CPU log degree is too large.
     CpuLogDegreeTooLarge(usize),
+    /// The verification key is not allowed.
+    InvalidVerificationKey,
 }
 
 impl<SC: StarkGenericConfig> Debug for MachineVerificationError<SC> {
@@ -557,6 +559,9 @@ impl<SC: StarkGenericConfig> Debug for MachineVerificationError<SC> {
             }
             MachineVerificationError::CpuLogDegreeTooLarge(log_degree) => {
                 write!(f, "CPU log degree too large: {}", log_degree)
+            }
+            MachineVerificationError::InvalidVerificationKey => {
+                write!(f, "Invalid verification key")
             }
         }
     }

@@ -18,8 +18,8 @@ Under the hood, we use [precompiles](./precompiles.md) to achieve tremendous per
 | curve25519-dalek    | [sp1-patches/curve25519-dalek](https://github.com/sp1-patches/curve25519-dalek)       | ed25519 verify                                      |
 | ecdsa-core          | [sp1-patches/signatures](http://github.com/sp1-patches/signatures)                    | secp256k1 verify                                    |
 | secp256k1           | [sp1-patches/rust-secp256k1](http://github.com/sp1-patches/rust-secp256k1)            | secp256k1 verify                                    |
-| ****                | substrate-bn                                                                          | [sp1-patches/bn](https://github.com/sp1-patches/bn) | BN254 |
-| substrate-bls12_381 | [sp1-patches/bls12_381](https://github.com/sp1-patches/bls12_381)                     | bls12_381                                           |
+| substrate-bn        | [sp1-patches/bn](https://github.com/sp1-patches/bn)                                   | BN254                                               |
+| substrate-bls12_381 | [sp1-patches/bls12_381](https://github.com/sp1-patches/bls12_381)                     | BLS12-381                                           |
 
 ## Using Patched Crates
 
