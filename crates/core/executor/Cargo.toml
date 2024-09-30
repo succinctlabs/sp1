@@ -38,7 +38,7 @@ nohash-hasher = "0.2.0"
 thiserror = "1.0.63"
 tracing = "0.1.40"
 strum_macros = "0.26.4"
-strum = "0.26.3"
+strum = { version = "0.26.3", features = ["derive"] }
 log = "0.4.22"
 hex = "0.4.3"
 bytemuck = "1.16.3"

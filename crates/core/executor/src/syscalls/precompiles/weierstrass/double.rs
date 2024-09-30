@@ -3,8 +3,8 @@ use std::marker::PhantomData;
 use sp1_curves::{CurveType, EllipticCurve};
 
 use crate::{
-    events::create_ec_double_event,
-    syscalls::{Syscall, SyscallContext},
+    events::{create_ec_double_event, PrecompileEvent},
+    syscalls::{Syscall, SyscallCode, SyscallContext},
 };
 
 pub(crate) struct WeierstrassDoubleAssignSyscall<E: EllipticCurve> {
@@ -19,12 +19,27 @@ impl<E: EllipticCurve> WeierstrassDoubleAssignSyscall<E> {
 }
 
 impl<E: EllipticCurve> Syscall for WeierstrassDoubleAssignSyscall<E> {
-    fn execute(&self, rt: &mut SyscallContext, arg1: u32, arg2: u32) -> Option<u32> {
+    fn execute(
+        &self,
+        rt: &mut SyscallContext,
+        syscall_code: SyscallCode,
+        arg1: u32,
+        arg2: u32,
+    ) -> Option<u32> {
         let event = create_ec_double_event::<E>(rt, arg1, arg2);
         match E::CURVE_TYPE {
-            CurveType::Secp256k1 => rt.record_mut().secp256k1_double_events.push(event),
-            CurveType::Bn254 => rt.record_mut().bn254_double_events.push(event),
-            CurveType::Bls12381 => rt.record_mut().bls12381_double_events.push(event),
+            CurveType::Secp256k1 => {
+                rt.record_mut()
+                    .add_precompile_event(syscall_code, PrecompileEvent::Secp256k1Double(event));
+            }
+            CurveType::Bn254 => {
+                rt.record_mut()
+                    .add_precompile_event(syscall_code, PrecompileEvent::Bn254Double(event));
+            }
+            CurveType::Bls12381 => {
+                rt.record_mut()
+                    .add_precompile_event(syscall_code, PrecompileEvent::Bls12381Double(event));
+            }
             _ => panic!("Unsupported curve"),
         }
         None

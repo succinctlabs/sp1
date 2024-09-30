@@ -19,7 +19,6 @@ members = [
   "crates/perf",
   "crates/primitives",
   "crates/prover",
-  "crates/recursion/circuit",
   "crates/recursion/circuit-v2",
   "crates/recursion/compiler",
   "crates/recursion/core",
@@ -27,13 +26,16 @@ members = [
   "crates/recursion/derive",
   "crates/recursion/gnark-cli",
   "crates/recursion/gnark-ffi",
-  "crates/recursion/program",
   "crates/sdk",
   "crates/cuda",
   "crates/stark",
   "crates/zkvm/*",
 ]
-exclude = ["examples/target"]
+exclude = [
+  "examples/target",
+  "crates/recursion/program",
+  "crates/recursion/circuit",
+]
 resolver = "2"
 
 [profile.release]
@@ -66,6 +68,7 @@ sp1-recursion-derive = { path = "crates/recursion/derive", version = "2.0.0", de
 sp1-recursion-gnark-ffi = { path = "crates/recursion/gnark-ffi", version = "2.0.0", default-features = false }
 sp1-recursion-program = { path = "crates/recursion/program", version = "2.0.0", default-features = false }
 sp1-recursion-circuit = { path = "crates/recursion/circuit", version = "2.0.0", default-features = false }
+sp1-recursion-circuit-v2 = { path = "crates/recursion/circuit-v2", version = "2.0.0", default-features = false }
 sp1-sdk = { path = "crates/sdk", version = "2.0.0" }
 sp1-cuda = { path = "crates/cuda", version = "2.0.0" }
 sp1-stark = { path = "crates/stark", version = "2.0.0" }

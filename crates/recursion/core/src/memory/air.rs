@@ -4,7 +4,7 @@ use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use sp1_core_machine::utils::{next_power_of_two, par_for_each_row};
 use sp1_stark::{
-    air::{AirInteraction, MachineAir},
+    air::{AirInteraction, InteractionScope, MachineAir},
     InteractionKind,
 };
 use std::borrow::{Borrow, BorrowMut};
@@ -181,30 +181,36 @@ where
             local.is_finalize,
         );
 
-        builder.send(AirInteraction::new(
-            vec![
-                local.timestamp.into(),
-                local.addr.into(),
-                local.value[0].into(),
-                local.value[1].into(),
-                local.value[2].into(),
-                local.value[3].into(),
-            ],
-            local.is_initialize.into(),
-            InteractionKind::Memory,
-        ));
-        builder.receive(AirInteraction::new(
-            vec![
-                local.timestamp.into(),
-                local.addr.into(),
-                local.value[0].into(),
-                local.value[1].into(),
-                local.value[2].into(),
-                local.value[3].into(),
-            ],
-            local.is_finalize.into(),
-            InteractionKind::Memory,
-        ));
+        builder.send(
+            AirInteraction::new(
+                vec![
+                    local.timestamp.into(),
+                    local.addr.into(),
+                    local.value[0].into(),
+                    local.value[1].into(),
+                    local.value[2].into(),
+                    local.value[3].into(),
+                ],
+                local.is_initialize.into(),
+                InteractionKind::Memory,
+            ),
+            InteractionScope::Global,
+        );
+        builder.receive(
+            AirInteraction::new(
+                vec![
+                    local.timestamp.into(),
+                    local.addr.into(),
+                    local.value[0].into(),
+                    local.value[1].into(),
+                    local.value[2].into(),
+                    local.value[3].into(),
+                ],
+                local.is_finalize.into(),
+                InteractionKind::Memory,
+            ),
+            InteractionScope::Global,
+        );
     }
 }
 

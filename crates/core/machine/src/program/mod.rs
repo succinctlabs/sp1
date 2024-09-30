@@ -4,7 +4,7 @@ use core::{
 };
 use std::collections::HashMap;
 
-use crate::air::ProgramAirBuilder;
+use crate::{air::ProgramAirBuilder, utils::pad_rows_fixed};
 use p3_air::{Air, BaseAir, PairBuilder};
 use p3_field::PrimeField;
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
@@ -12,10 +12,7 @@ use sp1_core_executor::{ExecutionRecord, Program};
 use sp1_derive::AlignedBorrow;
 use sp1_stark::air::{MachineAir, SP1AirBuilder};
 
-use crate::{
-    cpu::columns::{InstructionCols, OpcodeSelectorCols},
-    utils::pad_to_power_of_two,
-};
+use crate::cpu::columns::{InstructionCols, OpcodeSelectorCols};
 
 /// The number of preprocessed program columns.
 pub const NUM_PROGRAM_PREPROCESSED_COLS: usize = size_of::<ProgramPreprocessedCols<u8>>();
@@ -65,12 +62,11 @@ impl<F: PrimeField> MachineAir<F> for ProgramChip {
 
     fn generate_preprocessed_trace(&self, program: &Self::Program) -> Option<RowMajorMatrix<F>> {
         debug_assert!(!program.instructions.is_empty(), "empty program");
-        let rows = program
+        let mut rows = program
             .instructions
-            .clone()
-            .into_iter()
+            .iter()
             .enumerate()
-            .map(|(i, instruction)| {
+            .map(|(i, &instruction)| {
                 let pc = program.pc_base + (i as u32 * 4);
                 let mut row = [F::zero(); NUM_PROGRAM_PREPROCESSED_COLS];
                 let cols: &mut ProgramPreprocessedCols<F> = row.as_mut_slice().borrow_mut();
@@ -82,14 +78,18 @@ impl<F: PrimeField> MachineAir<F> for ProgramChip {
             })
             .collect::<Vec<_>>();
 
+        // Pad the trace to a power of two depending on the proof shape in `input`.
+        pad_rows_fixed(
+            &mut rows,
+            || [F::zero(); NUM_PROGRAM_PREPROCESSED_COLS],
+            program.fixed_log2_rows::<F, _>(self),
+        );
+
         // Convert the trace to a row major matrix.
-        let mut trace = RowMajorMatrix::new(
+        let trace = RowMajorMatrix::new(
             rows.into_iter().flatten().collect::<Vec<_>>(),
             NUM_PROGRAM_PREPROCESSED_COLS,
         );
-
-        // Pad the trace to a power of two.
-        pad_to_power_of_two::<NUM_PROGRAM_PREPROCESSED_COLS, F>(&mut trace.values);
 
         Some(trace)
     }
@@ -113,7 +113,7 @@ impl<F: PrimeField> MachineAir<F> for ProgramChip {
             instruction_counts.entry(pc).and_modify(|count| *count += 1).or_insert(1);
         });
 
-        let rows = input
+        let mut rows = input
             .program
             .instructions
             .clone()
@@ -130,16 +130,14 @@ impl<F: PrimeField> MachineAir<F> for ProgramChip {
             })
             .collect::<Vec<_>>();
 
-        // Convert the trace to a row major matrix.
-        let mut trace = RowMajorMatrix::new(
-            rows.into_iter().flatten().collect::<Vec<_>>(),
-            NUM_PROGRAM_MULT_COLS,
+        // Pad the trace to a power of two depending on the proof shape in `input`.
+        pad_rows_fixed(
+            &mut rows,
+            || [F::zero(); NUM_PROGRAM_MULT_COLS],
+            input.fixed_log2_rows::<F, _>(self),
         );
 
-        // Pad the trace to a power of two.
-        pad_to_power_of_two::<NUM_PROGRAM_MULT_COLS, F>(&mut trace.values);
-
-        trace
+        RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_PROGRAM_MULT_COLS)
     }
 
     fn included(&self, _: &Self::Record) -> bool {
@@ -207,6 +205,7 @@ mod tests {
                 pc_start: 0,
                 pc_base: 0,
                 memory_image: BTreeMap::new(),
+                preprocessed_shape: None,
             }),
             ..Default::default()
         };

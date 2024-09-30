@@ -15,7 +15,7 @@ use crate::{
 /// Reference: [sp1_core::stark::StarkVerifyingKey]
 #[derive(Clone)]
 pub struct VerifyingKeyVariable<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVariable<C>> {
-    pub commitment: SC::Digest,
+    pub commitment: SC::DigestVariable,
     pub pc_start: Felt<C::F>,
     pub chip_information: Vec<(String, TwoAdicMultiplicativeCoset<C::F>, Dimensions)>,
     pub chip_ordering: HashMap<String, usize>,
@@ -23,7 +23,7 @@ pub struct VerifyingKeyVariable<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriCo
 
 #[derive(Clone)]
 pub struct FriProofVariable<C: CircuitConfig, H: FieldHasherVariable<C>> {
-    pub commit_phase_commits: Vec<H::Digest>,
+    pub commit_phase_commits: Vec<H::DigestVariable>,
     pub query_proofs: Vec<FriQueryProofVariable<C, H>>,
     pub final_poly: Ext<C::F, C::EF>,
     pub pow_witness: Felt<C::F>,
@@ -33,7 +33,7 @@ pub struct FriProofVariable<C: CircuitConfig, H: FieldHasherVariable<C>> {
 #[derive(Clone)]
 pub struct FriCommitPhaseProofStepVariable<C: CircuitConfig, H: FieldHasherVariable<C>> {
     pub sibling_value: Ext<C::F, C::EF>,
-    pub opening_proof: Vec<H::Digest>,
+    pub opening_proof: Vec<H::DigestVariable>,
 }
 
 /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/fri/src/proof.rs#L23
@@ -58,12 +58,12 @@ pub struct TwoAdicPcsProofVariable<C: CircuitConfig, H: FieldHasherVariable<C>> 
 #[derive(Clone)]
 pub struct BatchOpeningVariable<C: CircuitConfig, H: FieldHasherVariable<C>> {
     pub opened_values: Vec<Vec<Vec<Felt<C::F>>>>,
-    pub opening_proof: Vec<H::Digest>,
+    pub opening_proof: Vec<H::DigestVariable>,
 }
 
 #[derive(Clone)]
 pub struct TwoAdicPcsRoundVariable<C: CircuitConfig, H: FieldHasherVariable<C>> {
-    pub batch_commit: H::Digest,
+    pub batch_commit: H::DigestVariable,
     pub domains_points_and_opens: Vec<TwoAdicPcsMatsVariable<C>>,
 }
 
@@ -77,20 +77,25 @@ pub struct TwoAdicPcsMatsVariable<C: CircuitConfig> {
 impl<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVariable<C>> VerifyingKeyVariable<C, SC> {
     pub fn observe_into<Challenger>(&self, builder: &mut Builder<C>, challenger: &mut Challenger)
     where
-        Challenger: CanObserveVariable<C, Felt<C::F>> + CanObserveVariable<C, SC::Digest>,
+        Challenger: CanObserveVariable<C, Felt<C::F>> + CanObserveVariable<C, SC::DigestVariable>,
     {
         // Observe the commitment.
         challenger.observe(builder, self.commitment);
         // Observe the pc_start.
         challenger.observe(builder, self.pc_start);
+        // Observe the padding.
+        let zero: Felt<_> = builder.eval(C::F::zero());
+        for _ in 0..7 {
+            challenger.observe(builder, zero);
+        }
     }
 
     /// Hash the verifying key + prep domains into a single digest.
     /// poseidon2( commit[0..8] || pc_start || prep_domains[N].{log_n, .size, .shift, .g})
-    pub fn hash(&self, builder: &mut Builder<C>) -> SC::Digest
+    pub fn hash(&self, builder: &mut Builder<C>) -> SC::DigestVariable
     where
         C::F: TwoAdicField,
-        SC::Digest: IntoIterator<Item = Felt<C::F>>,
+        SC::DigestVariable: IntoIterator<Item = Felt<C::F>>,
     {
         let prep_domains = self.chip_information.iter().map(|(_, domain, _)| domain);
         let num_inputs = DIGEST_SIZE + 1 + (4 * prep_domains.len());

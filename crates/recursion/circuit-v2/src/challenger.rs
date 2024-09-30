@@ -1,3 +1,4 @@
+use p3_baby_bear::BabyBear;
 use p3_field::{AbstractField, Field};
 use sp1_recursion_compiler::{
     circuit::CircuitV2Builder,
@@ -20,6 +21,13 @@ pub const RATE: usize = 16;
 pub trait CanCopyChallenger<C: Config> {
     fn copy(&self, builder: &mut Builder<C>) -> Self;
 }
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct SpongeChallengerShape {
+    pub input_buffer_len: usize,
+    pub output_buffer_len: usize,
+}
+
 /// Reference: [p3_challenger::CanObserve].
 pub trait CanObserveVariable<C: Config, V> {
     fn observe(&mut self, builder: &mut Builder<C>, value: V);
@@ -51,14 +59,14 @@ pub trait CanSampleBitsVariable<C: Config, V> {
 }
 
 /// Reference: [p3_challenger::DuplexChallenger]
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct DuplexChallengerVariable<C: Config> {
     pub sponge_state: [Felt<C::F>; PERMUTATION_WIDTH],
     pub input_buffer: Vec<Felt<C::F>>,
     pub output_buffer: Vec<Felt<C::F>>,
 }
 
-impl<C: Config> DuplexChallengerVariable<C> {
+impl<C: Config<F = BabyBear>> DuplexChallengerVariable<C> {
     /// Creates a new duplex challenger with the default state.
     pub fn new(builder: &mut Builder<C>) -> Self {
         DuplexChallengerVariable::<C> {
@@ -80,22 +88,6 @@ impl<C: Config> DuplexChallengerVariable<C> {
         }
     }
 
-    // /// Asserts that the state of this challenger is equal to the state of another challenger.
-    // fn assert_eq(&self, builder: &mut Builder<C>, other: &Self) {
-    //     zip(&self.sponge_state, &other.sponge_state)
-    //         .chain(zip(&self.input_buffer, &other.input_buffer))
-    //         .chain(zip(&self.output_buffer, &other.output_buffer))
-    //         .for_each(|(&element, &other_element)| {
-    //             builder.assert_felt_eq(element, other_element);
-    //         });
-    // }
-
-    // fn reset(&mut self, builder: &mut Builder<C>) {
-    //     self.sponge_state.fill(builder.eval(C::F::zero()));
-    //     self.input_buffer.clear();
-    //     self.output_buffer.clear();
-    // }
-
     fn observe(&mut self, builder: &mut Builder<C>, value: Felt<C::F>) {
         self.output_buffer.clear();
 
@@ -105,12 +97,6 @@ impl<C: Config> DuplexChallengerVariable<C> {
             self.duplexing(builder);
         }
     }
-
-    // fn observe_commitment(&mut self, builder: &mut Builder<C>, commitment: DigestVariable<C>) {
-    //     for element in commitment {
-    //         self.observe(builder, element);
-    //     }
-    // }
 
     fn sample(&mut self, builder: &mut Builder<C>) -> Felt<C::F> {
         if !self.input_buffer.is_empty() || self.output_buffer.is_empty() {
@@ -166,13 +152,13 @@ impl<C: Config> DuplexChallengerVariable<C> {
     }
 }
 
-impl<C: Config> CanCopyChallenger<C> for DuplexChallengerVariable<C> {
+impl<C: Config<F = BabyBear>> CanCopyChallenger<C> for DuplexChallengerVariable<C> {
     fn copy(&self, builder: &mut Builder<C>) -> Self {
         DuplexChallengerVariable::copy(self, builder)
     }
 }
 
-impl<C: Config> CanObserveVariable<C, Felt<C::F>> for DuplexChallengerVariable<C> {
+impl<C: Config<F = BabyBear>> CanObserveVariable<C, Felt<C::F>> for DuplexChallengerVariable<C> {
     fn observe(&mut self, builder: &mut Builder<C>, value: Felt<C::F>) {
         DuplexChallengerVariable::observe(self, builder, value);
     }
@@ -188,7 +174,7 @@ impl<C: Config> CanObserveVariable<C, Felt<C::F>> for DuplexChallengerVariable<C
     }
 }
 
-impl<C: Config, const N: usize> CanObserveVariable<C, [Felt<C::F>; N]>
+impl<C: Config<F = BabyBear>, const N: usize> CanObserveVariable<C, [Felt<C::F>; N]>
     for DuplexChallengerVariable<C>
 {
     fn observe(&mut self, builder: &mut Builder<C>, values: [Felt<C::F>; N]) {
@@ -198,19 +184,21 @@ impl<C: Config, const N: usize> CanObserveVariable<C, [Felt<C::F>; N]>
     }
 }
 
-impl<C: Config> CanSampleVariable<C, Felt<C::F>> for DuplexChallengerVariable<C> {
+impl<C: Config<F = BabyBear>> CanSampleVariable<C, Felt<C::F>> for DuplexChallengerVariable<C> {
     fn sample(&mut self, builder: &mut Builder<C>) -> Felt<C::F> {
         DuplexChallengerVariable::sample(self, builder)
     }
 }
 
-impl<C: Config> CanSampleBitsVariable<C, Felt<C::F>> for DuplexChallengerVariable<C> {
+impl<C: Config<F = BabyBear>> CanSampleBitsVariable<C, Felt<C::F>> for DuplexChallengerVariable<C> {
     fn sample_bits(&mut self, builder: &mut Builder<C>, nb_bits: usize) -> Vec<Felt<C::F>> {
         DuplexChallengerVariable::sample_bits(self, builder, nb_bits)
     }
 }
 
-impl<C: Config> FieldChallengerVariable<C, Felt<C::F>> for DuplexChallengerVariable<C> {
+impl<C: Config<F = BabyBear>> FieldChallengerVariable<C, Felt<C::F>>
+    for DuplexChallengerVariable<C>
+{
     fn sample_ext(&mut self, builder: &mut Builder<C>) -> Ext<C::F, C::EF> {
         let a = self.sample(builder);
         let b = self.sample(builder);
@@ -276,7 +264,7 @@ impl<C: Config> MultiField32ChallengerVariable<C> {
         self.input_buffer.clear();
 
         // TODO make this a method for the builder.
-        builder.push(DslIr::CircuitPoseidon2Permute(self.sponge_state));
+        builder.push_op(DslIr::CircuitPoseidon2Permute(self.sponge_state));
 
         self.output_buffer.clear();
         for &pf_val in self.sponge_state.iter() {
@@ -505,7 +493,7 @@ pub(crate) mod tests {
         builder.print_e(element_ef);
         builder.assert_ext_eq(expected_result_ef, element_ef);
 
-        run_test_recursion(builder.operations, None);
+        run_test_recursion(builder.into_operations(), None);
     }
 
     #[test]
@@ -568,7 +556,7 @@ pub(crate) mod tests {
         }
 
         let mut backend = ConstraintCompiler::<C>::default();
-        let constraints = backend.emit(builder.operations);
+        let constraints = backend.emit(builder.into_operations());
         let witness = OuterWitness::default();
         PlonkBn254Prover::test::<C>(constraints, witness);
     }
@@ -589,7 +577,7 @@ pub(crate) mod tests {
         builder.assert_var_eq(result[1][0], one);
 
         let mut backend = ConstraintCompiler::<C>::default();
-        let constraints = backend.emit(builder.operations);
+        let constraints = backend.emit(builder.into_operations());
         let witness = OuterWitness::default();
         PlonkBn254Prover::test::<C>(constraints, witness);
     }
@@ -623,7 +611,7 @@ pub(crate) mod tests {
         builder.assert_var_eq(result[0], output[0]);
 
         let mut backend = ConstraintCompiler::<C>::default();
-        let constraints = backend.emit(builder.operations);
+        let constraints = backend.emit(builder.into_operations());
         PlonkBn254Prover::test::<C>(constraints.clone(), OuterWitness::default());
     }
 
@@ -644,7 +632,7 @@ pub(crate) mod tests {
         builder.assert_var_eq(result[0], gt[0]);
 
         let mut backend = ConstraintCompiler::<C>::default();
-        let constraints = backend.emit(builder.operations);
+        let constraints = backend.emit(builder.into_operations());
         PlonkBn254Prover::test::<C>(constraints.clone(), OuterWitness::default());
     }
 }

@@ -3,7 +3,7 @@ use itertools::Itertools;
 use p3_air::{Air, BaseAir, PairBuilder};
 use p3_field::PrimeField32;
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
-use sp1_core_machine::utils::pad_to_power_of_two;
+use sp1_core_machine::utils::pad_rows_fixed;
 use sp1_derive::AlignedBorrow;
 use sp1_stark::air::MachineAir;
 use std::{borrow::BorrowMut, iter::zip, marker::PhantomData};
@@ -12,11 +12,11 @@ use crate::{builder::SP1RecursionAirBuilder, *};
 
 use super::MemoryAccessCols;
 
-pub const NUM_MEM_ENTRIES_PER_ROW: usize = 6;
+pub const NUM_CONST_MEM_ENTRIES_PER_ROW: usize = 2;
 
 #[derive(Default)]
 pub struct MemoryChip<F> {
-    _data: PhantomData<F>,
+    _marker: PhantomData<F>,
 }
 
 pub const NUM_MEM_INIT_COLS: usize = core::mem::size_of::<MemoryCols<u8>>();
@@ -34,7 +34,7 @@ pub const NUM_MEM_PREPROCESSED_INIT_COLS: usize =
 #[derive(AlignedBorrow, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct MemoryPreprocessedCols<F: Copy> {
-    values_and_accesses: [(Block<F>, MemoryAccessCols<F>); NUM_MEM_ENTRIES_PER_ROW],
+    values_and_accesses: [(Block<F>, MemoryAccessCols<F>); NUM_CONST_MEM_ENTRIES_PER_ROW],
 }
 impl<F: Send + Sync> BaseAir<F> for MemoryChip<F> {
     fn width(&self) -> usize {
@@ -55,7 +55,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryChip<F> {
     }
 
     fn generate_preprocessed_trace(&self, program: &Self::Program) -> Option<RowMajorMatrix<F>> {
-        let rows = program
+        let mut rows = program
             .instructions
             .iter()
             .filter_map(|instruction| match instruction {
@@ -70,7 +70,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryChip<F> {
                 }
                 _ => None,
             })
-            .chunks(NUM_MEM_ENTRIES_PER_ROW)
+            .chunks(NUM_CONST_MEM_ENTRIES_PER_ROW)
             .into_iter()
             .map(|row_vs_as| {
                 let mut row = [F::zero(); NUM_MEM_PREPROCESSED_INIT_COLS];
@@ -82,14 +82,18 @@ impl<F: PrimeField32> MachineAir<F> for MemoryChip<F> {
             })
             .collect::<Vec<_>>();
 
+        // Pad the rows to the next power of two.
+        pad_rows_fixed(
+            &mut rows,
+            || [F::zero(); NUM_MEM_PREPROCESSED_INIT_COLS],
+            program.fixed_log2_rows(self),
+        );
+
         // Convert the trace to a row major matrix.
-        let mut trace = RowMajorMatrix::new(
+        let trace = RowMajorMatrix::new(
             rows.into_iter().flatten().collect::<Vec<_>>(),
             NUM_MEM_PREPROCESSED_INIT_COLS,
         );
-
-        // Pad the trace to a power of two.
-        pad_to_power_of_two::<NUM_MEM_PREPROCESSED_INIT_COLS, F>(&mut trace.values);
 
         Some(trace)
     }
@@ -103,19 +107,16 @@ impl<F: PrimeField32> MachineAir<F> for MemoryChip<F> {
         let num_rows = input
             .mem_const_count
             .checked_sub(1)
-            .map(|x| x / NUM_MEM_ENTRIES_PER_ROW + 1)
+            .map(|x| x / NUM_CONST_MEM_ENTRIES_PER_ROW + 1)
             .unwrap_or_default();
-        let rows =
+        let mut rows =
             std::iter::repeat([F::zero(); NUM_MEM_INIT_COLS]).take(num_rows).collect::<Vec<_>>();
 
+        // Pad the rows to the next power of two.
+        pad_rows_fixed(&mut rows, || [F::zero(); NUM_MEM_INIT_COLS], input.fixed_log2_rows(self));
+
         // Convert the trace to a row major matrix.
-        let mut trace =
-            RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_MEM_INIT_COLS);
-
-        // Pad the trace to a power of two.
-        pad_to_power_of_two::<NUM_MEM_INIT_COLS, F>(&mut trace.values);
-
-        trace
+        RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_MEM_INIT_COLS)
     }
 
     fn included(&self, _record: &Self::Record) -> bool {
@@ -158,7 +159,7 @@ mod tests {
     type SC = BabyBearPoseidon2Outer;
     type F = <SC as StarkGenericConfig>::Val;
     type EF = <SC as StarkGenericConfig>::Challenge;
-    type A = RecursionAir<F, 3, 1>;
+    type A = RecursionAir<F, 3>;
 
     pub fn prove_program(program: RecursionProgram<F>) {
         let program = Arc::new(program);
@@ -169,7 +170,7 @@ mod tests {
         runtime.run().unwrap();
 
         let config = SC::new();
-        let machine = A::machine_wide(config);
+        let machine = A::compress_machine(config);
         let (pk, vk) = machine.setup(&program);
         let result = run_test_machine(vec![runtime.record], machine, pk, vk);
         if let Err(e) = result {

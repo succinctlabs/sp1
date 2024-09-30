@@ -21,14 +21,15 @@ use crate::air::{EmptyMessageBuilder, MachineAir, MultiTableAirBuilder};
 /// Checks that the constraints of the given AIR are satisfied, including the permutation trace.
 ///
 /// Note that this does not actually verify the proof.
-#[allow(clippy::needless_pass_by_value)]
+#[allow(clippy::too_many_arguments)]
 pub fn debug_constraints<SC, A>(
     chip: &MachineChip<SC, A>,
     preprocessed: Option<&RowMajorMatrix<Val<SC>>>,
     main: &RowMajorMatrix<Val<SC>>,
     perm: &RowMajorMatrix<SC::Challenge>,
     perm_challenges: &[SC::Challenge],
-    public_values: Vec<Val<SC>>,
+    public_values: &[Val<SC>],
+    cumulative_sums: &[SC::Challenge],
 ) where
     SC: StarkGenericConfig,
     Val<SC>: PrimeField32,
@@ -39,8 +40,6 @@ pub fn debug_constraints<SC, A>(
     if height == 0 {
         return;
     }
-
-    let cumulative_sum = perm.row_slice(perm.height() - 1).last().copied().unwrap();
 
     // Check that constraints are satisfied.
     (0..height).for_each(|i| {
@@ -69,7 +68,6 @@ pub fn debug_constraints<SC, A>(
         let perm_next = perm.row_slice(i_next);
         let perm_next = &(*perm_next);
 
-        let public_values = public_values.clone();
         let mut builder = DebugConstraintBuilder {
             preprocessed: VerticalPair::new(
                 RowMajorMatrixView::new_row(&preprocessed_local),
@@ -84,11 +82,11 @@ pub fn debug_constraints<SC, A>(
                 RowMajorMatrixView::new_row(perm_next),
             ),
             perm_challenges,
-            cumulative_sum,
+            cumulative_sums,
             is_first_row: Val::<SC>::zero(),
             is_last_row: Val::<SC>::zero(),
             is_transition: Val::<SC>::one(),
-            public_values: &public_values,
+            public_values,
         };
         if i == 0 {
             builder.is_first_row = Val::<SC>::one();
@@ -130,7 +128,7 @@ pub struct DebugConstraintBuilder<'a, F: Field, EF: ExtensionField<F>> {
     pub(crate) preprocessed: VerticalPair<RowMajorMatrixView<'a, F>, RowMajorMatrixView<'a, F>>,
     pub(crate) main: VerticalPair<RowMajorMatrixView<'a, F>, RowMajorMatrixView<'a, F>>,
     pub(crate) perm: VerticalPair<RowMajorMatrixView<'a, EF>, RowMajorMatrixView<'a, EF>>,
-    pub(crate) cumulative_sum: EF,
+    pub(crate) cumulative_sums: &'a [EF],
     pub(crate) perm_challenges: &'a [EF],
     pub(crate) is_first_row: F,
     pub(crate) is_last_row: F,
@@ -252,15 +250,15 @@ where
     }
 }
 
-impl<'a, F, EF> MultiTableAirBuilder for DebugConstraintBuilder<'a, F, EF>
+impl<'a, F, EF> MultiTableAirBuilder<'a> for DebugConstraintBuilder<'a, F, EF>
 where
     F: Field,
     EF: ExtensionField<F>,
 {
     type Sum = EF;
 
-    fn cumulative_sum(&self) -> Self::Sum {
-        self.cumulative_sum
+    fn cumulative_sums(&self) -> &'a [Self::Sum] {
+        self.cumulative_sums
     }
 }
 

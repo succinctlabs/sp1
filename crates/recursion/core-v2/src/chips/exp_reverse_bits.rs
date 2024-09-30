@@ -22,15 +22,8 @@ pub const NUM_EXP_REVERSE_BITS_LEN_COLS: usize = core::mem::size_of::<ExpReverse
 pub const NUM_EXP_REVERSE_BITS_LEN_PREPROCESSED_COLS: usize =
     core::mem::size_of::<ExpReverseBitsLenPreprocessedCols<u8>>();
 
-pub struct ExpReverseBitsLenChip<const DEGREE: usize> {
-    pub fixed_log2_rows: Option<usize>,
-    pub pad: bool,
-}
-impl<const DEGREE: usize> Default for ExpReverseBitsLenChip<DEGREE> {
-    fn default() -> Self {
-        Self { fixed_log2_rows: None, pad: true }
-    }
-}
+#[derive(Clone, Debug, Copy, Default)]
+pub struct ExpReverseBitsLenChip<const DEGREE: usize>;
 
 #[derive(AlignedBorrow, Clone, Copy, Debug)]
 #[repr(C)]
@@ -126,13 +119,11 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for ExpReverseBitsLenCh
             });
 
         // Pad the trace to a power of two.
-        if self.pad {
-            pad_rows_fixed(
-                &mut rows,
-                || [F::zero(); NUM_EXP_REVERSE_BITS_LEN_PREPROCESSED_COLS],
-                self.fixed_log2_rows,
-            );
-        }
+        pad_rows_fixed(
+            &mut rows,
+            || [F::zero(); NUM_EXP_REVERSE_BITS_LEN_PREPROCESSED_COLS],
+            program.fixed_log2_rows(self),
+        );
 
         let trace = RowMajorMatrix::new(
             rows.into_iter().flatten().collect(),
@@ -178,13 +169,11 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for ExpReverseBitsLenCh
         });
 
         // Pad the trace to a power of two.
-        if self.pad {
-            pad_rows_fixed(
-                &mut overall_rows,
-                || [F::zero(); NUM_EXP_REVERSE_BITS_LEN_COLS].to_vec(),
-                self.fixed_log2_rows,
-            );
-        }
+        pad_rows_fixed(
+            &mut overall_rows,
+            || [F::zero(); NUM_EXP_REVERSE_BITS_LEN_COLS].to_vec(),
+            input.fixed_log2_rows(self),
+        );
 
         // Convert the trace to a row major matrix.
         let trace = RowMajorMatrix::new(
@@ -394,7 +383,7 @@ mod tests {
             }],
             ..Default::default()
         };
-        let chip = ExpReverseBitsLenChip::<3>::default();
+        let chip = ExpReverseBitsLenChip::<3>;
         let trace: RowMajorMatrix<F> = chip.generate_trace(&shard, &mut ExecutionRecord::default());
         println!("{:?}", trace.values)
     }

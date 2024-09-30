@@ -161,6 +161,12 @@ func (c *Chip) AssertIsEqualF(a, b Variable) {
 	c.api.AssertIsEqual(a2.Value, b2.Value)
 }
 
+func (c *Chip) AssertNotEqualF(a, b Variable) {
+	a2 := c.ReduceSlow(a)
+	b2 := c.ReduceSlow(b)
+	c.api.AssertIsDifferent(a2.Value, b2.Value)
+}
+
 func (c *Chip) AssertIsEqualE(a, b ExtensionVariable) {
 	c.AssertIsEqualF(a.Value[0], b.Value[0])
 	c.AssertIsEqualF(a.Value[1], b.Value[1])
@@ -289,6 +295,11 @@ func (c *Chip) DivE(a, b ExtensionVariable) ExtensionVariable {
 	return c.MulE(a, bInv)
 }
 
+func (c *Chip) DivEF(a ExtensionVariable, b Variable) ExtensionVariable {
+	bInv := c.invF(b)
+	return c.MulEF(a, bInv)
+}
+
 func (c *Chip) NegE(a ExtensionVariable) ExtensionVariable {
 	v1 := c.negF(a.Value[0])
 	v2 := c.negF(a.Value[1])
@@ -338,6 +349,7 @@ func (p *Chip) reduceWithMaxBits(x frontend.Variable, maxNbBits uint64) frontend
 	} else {
 		p.api.ToBinary(quotient, int(maxNbBits-30))
 	}
+
 	// Check that the remainder has size less than the BabyBear modulus, by decomposing it into a 27
 	// bit limb and a 4 bit limb.
 	new_result, new_err := p.api.Compiler().NewHint(SplitLimbsHint, 2, remainder)

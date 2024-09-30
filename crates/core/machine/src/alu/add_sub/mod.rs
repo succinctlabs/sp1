@@ -19,7 +19,7 @@ use sp1_stark::{
     Word,
 };
 
-use crate::{operations::AddOperation, utils::pad_to_power_of_two};
+use crate::{operations::AddOperation, utils::pad_rows_fixed};
 
 /// The number of main trace columns for `AddSubChip`.
 pub const NUM_ADD_SUB_COLS: usize = size_of::<AddSubCols<u8>>();
@@ -39,9 +39,6 @@ pub struct AddSubChip;
 pub struct AddSubCols<T> {
     /// The shard number, used for byte lookup table.
     pub shard: T,
-
-    /// The channel number, used for byte lookup table.
-    pub channel: T,
 
     /// The nonce of the operation.
     pub nonce: T,
@@ -105,12 +102,14 @@ impl<F: PrimeField> MachineAir<F> for AddSubChip {
             rows.extend(row_batch);
         }
 
+        pad_rows_fixed(
+            &mut rows,
+            || [F::zero(); NUM_ADD_SUB_COLS],
+            input.fixed_log2_rows::<F, _>(self),
+        );
         // Convert the trace to a row major matrix.
         let mut trace =
             RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_ADD_SUB_COLS);
-
-        // Pad the trace to a power of two.
-        pad_to_power_of_two::<NUM_ADD_SUB_COLS, F>(&mut trace.values);
 
         // Write the nonces to the trace.
         for i in 0..trace.height() {
@@ -160,14 +159,13 @@ impl AddSubChip {
     ) {
         let is_add = event.opcode == Opcode::ADD;
         cols.shard = F::from_canonical_u32(event.shard);
-        cols.channel = F::from_canonical_u8(event.channel);
         cols.is_add = F::from_bool(is_add);
         cols.is_sub = F::from_bool(!is_add);
 
         let operand_1 = if is_add { event.b } else { event.a };
         let operand_2 = event.c;
 
-        cols.add_operation.populate(blu, event.shard, event.channel, operand_1, operand_2);
+        cols.add_operation.populate(blu, event.shard, operand_1, operand_2);
         cols.operand_1 = Word::from(operand_1);
         cols.operand_2 = Word::from(operand_2);
     }
@@ -200,8 +198,6 @@ where
             local.operand_1,
             local.operand_2,
             local.add_operation,
-            local.shard,
-            local.channel,
             local.is_add + local.is_sub,
         );
 
@@ -213,7 +209,6 @@ where
             local.operand_1,
             local.operand_2,
             local.shard,
-            local.channel,
             local.nonce,
             local.is_add,
         );
@@ -225,7 +220,6 @@ where
             local.add_operation.value,
             local.operand_2,
             local.shard,
-            local.channel,
             local.nonce,
             local.is_sub,
         );
@@ -251,7 +245,7 @@ mod tests {
     #[test]
     fn generate_trace() {
         let mut shard = ExecutionRecord::default();
-        shard.add_events = vec![AluEvent::new(0, 0, 0, Opcode::ADD, 14, 8, 6)];
+        shard.add_events = vec![AluEvent::new(0, 0, Opcode::ADD, 14, 8, 6)];
         let chip = AddSubChip::default();
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&shard, &mut ExecutionRecord::default());
@@ -269,7 +263,6 @@ mod tests {
             let operand_2 = thread_rng().gen_range(0..u32::MAX);
             let result = operand_1.wrapping_add(operand_2);
             shard.add_events.push(AluEvent::new(
-                0,
                 i % 2,
                 0,
                 Opcode::ADD,
@@ -283,7 +276,6 @@ mod tests {
             let operand_2 = thread_rng().gen_range(0..u32::MAX);
             let result = operand_1.wrapping_sub(operand_2);
             shard.add_events.push(AluEvent::new(
-                0,
                 i % 2,
                 0,
                 Opcode::SUB,

@@ -31,7 +31,6 @@ impl<F: PrimeField32, P: FieldParameters> FieldLtCols<F, P> {
         &mut self,
         record: &mut impl ByteRecord,
         shard: u32,
-        channel: u8,
         lhs: &BigUint,
         rhs: &BigUint,
     ) {
@@ -53,7 +52,6 @@ impl<F: PrimeField32, P: FieldParameters> FieldLtCols<F, P> {
                 record.add_byte_lookup_event(ByteLookupEvent {
                     opcode: ByteOpcode::LTU,
                     shard,
-                    channel,
                     a1: 1,
                     a2: 0,
                     b: *byte,
@@ -79,8 +77,6 @@ impl<V: Copy, P: FieldParameters> FieldLtCols<V, P> {
         builder: &mut AB,
         lhs: &E1,
         rhs: &E2,
-        shard: impl Into<AB::Expr> + Clone,
-        channel: impl Into<AB::Expr> + Clone,
         is_real: impl Into<AB::Expr> + Clone,
     ) where
         V: Into<AB::Expr>,
@@ -145,8 +141,6 @@ impl<V: Copy, P: FieldParameters> FieldLtCols<V, P> {
             AB::F::one(),
             self.lhs_comparison_byte,
             self.rhs_comparison_byte,
-            shard,
-            channel,
             is_real,
         )
     }

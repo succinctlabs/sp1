@@ -2,7 +2,7 @@ use p3_air::AirBuilderWithPublicValues;
 use p3_field::AbstractField;
 use sp1_recursion_core::air::Block;
 use sp1_stark::{
-    air::{AirInteraction, BaseAirBuilder, MachineAirBuilder},
+    air::{AirInteraction, BaseAirBuilder, InteractionScope, MachineAirBuilder},
     InteractionKind,
 };
 
@@ -32,11 +32,14 @@ pub trait RecursionAirBuilder: BaseAirBuilder {
         val: Block<E>,
         mult: impl Into<Self::Expr>,
     ) {
-        self.send(AirInteraction::new(
-            once(addr.0).chain(val).map(Into::into).collect(),
-            mult.into(),
-            InteractionKind::Memory,
-        ));
+        self.send(
+            AirInteraction::new(
+                once(addr.0).chain(val).map(Into::into).collect(),
+                mult.into(),
+                InteractionKind::Memory,
+            ),
+            InteractionScope::Local,
+        );
     }
 
     fn receive_single<E: Into<Self::Expr>>(
@@ -56,10 +59,13 @@ pub trait RecursionAirBuilder: BaseAirBuilder {
         val: Block<E>,
         mult: impl Into<Self::Expr>,
     ) {
-        self.receive(AirInteraction::new(
-            once(addr.0).chain(val).map(Into::into).collect(),
-            mult.into(),
-            InteractionKind::Memory,
-        ));
+        self.receive(
+            AirInteraction::new(
+                once(addr.0).chain(val).map(Into::into).collect(),
+                mult.into(),
+                InteractionKind::Memory,
+            ),
+            InteractionScope::Local,
+        );
     }
 }

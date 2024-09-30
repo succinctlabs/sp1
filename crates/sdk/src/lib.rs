@@ -292,7 +292,7 @@ pub fn block_on<T>(fut: impl Future<Output = T>) -> T {
 #[cfg(test)]
 mod tests {
 
-    use sp1_prover::init::SP1PublicValues;
+    use sp1_primitives::io::SP1PublicValues;
 
     use crate::{utils, CostEstimator, ProverClient, SP1Stdin};
 
