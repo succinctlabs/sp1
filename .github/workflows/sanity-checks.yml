@@ -1,0 +1,38 @@
+# A github action to run sanity checks on the codebase prior to release
+name: Sanity Checks
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Next version to be released'
+        required: true
+
+jobs:
+  sanity-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Install jq
+        run: sudo apt-get install -y jq
+
+      - name: Run sanity checks
+        run: |
+          chmod +x ./sanity-checks.sh
+          if ! ./sanity-checks.sh; then
+            echo "::error::Sanity checks failed. Some crates are not ready for release."
+            exit 1
+          fi
+        env:
+          NEXT_VERSION: ${{ github.event.inputs.version }}
+
+      - name: Check workspace version
+        run: |
+          WORKSPACE_VERSION=$(grep -m 1 "^version\s*=" Cargo.toml | sed -E 's/version\s*=\s*"(.*)"/\1/')
+          if [ "$WORKSPACE_VERSION" != "${{ github.event.inputs.version }}" ]; then
+            echo "::error::Workspace version ($WORKSPACE_VERSION) does not match the input version (${{ github.event.inputs.version }})"
+            exit 1
+          fi
+
