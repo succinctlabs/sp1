@@ -85,8 +85,7 @@ impl SP1CudaProver {
     /// [SP1ProverClient] that can be used to communicate with the container.
     pub fn new() -> Result<Self, Box<dyn StdError>> {
         let container_name = "sp1-gpu";
-        let image_name =
-            "public.ecr.aws/succinct-labs/sp1-gpu:3a3053b467532279f4996b0cdb95a5f9a764d649";
+        let image_name = "jtguibas/sp1-gpu:v3.0.0-rc2";
 
         let cleaned_up = Arc::new(AtomicBool::new(false));
         let cleanup_name = container_name;
@@ -159,7 +158,7 @@ impl SP1CudaProver {
         )
         .expect("failed to create client");
 
-        let timeout = Duration::from_secs(120);
+        let timeout = Duration::from_secs(60);
         let start_time = Instant::now();
 
         block_on(async {
