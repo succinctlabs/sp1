@@ -30,11 +30,11 @@ pub struct RecursionShapeConfig<F, A> {
     _marker: PhantomData<(F, A)>,
 }
 
-impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize, const COL_PADDING: usize>
-    RecursionShapeConfig<F, RecursionAir<F, DEGREE, COL_PADDING>>
+impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize>
+    RecursionShapeConfig<F, RecursionAir<F, DEGREE>>
 {
     pub fn fix_shape(&self, program: &mut RecursionProgram<F>) {
-        let heights = RecursionAir::<F, DEGREE, COL_PADDING>::heights(program);
+        let heights = RecursionAir::<F, DEGREE>::heights(program);
         // Get the allowed shape with a minimal hamming distance from the current shape.
         let mut min_distance = usize::MAX;
         let mut closest_shape = None;
@@ -76,26 +76,20 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize, const COL_P
     }
 }
 
-impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize, const COL_PADDING: usize>
-    Default for RecursionShapeConfig<F, RecursionAir<F, DEGREE, COL_PADDING>>
+impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> Default
+    for RecursionShapeConfig<F, RecursionAir<F, DEGREE>>
 {
     fn default() -> Self {
         // Get the names of all the recursion airs to make the shape specification more readable.
-        let mem_const =
-            RecursionAir::<F, DEGREE, COL_PADDING>::MemoryConst(MemoryConstChip::default()).name();
-        let mem_var =
-            RecursionAir::<F, DEGREE, COL_PADDING>::MemoryVar(MemoryVarChip::default()).name();
-        let base_alu = RecursionAir::<F, DEGREE, COL_PADDING>::BaseAlu(BaseAluChip).name();
-        let ext_alu = RecursionAir::<F, DEGREE, COL_PADDING>::ExtAlu(ExtAluChip).name();
+        let mem_const = RecursionAir::<F, DEGREE>::MemoryConst(MemoryConstChip::default()).name();
+        let mem_var = RecursionAir::<F, DEGREE>::MemoryVar(MemoryVarChip::default()).name();
+        let base_alu = RecursionAir::<F, DEGREE>::BaseAlu(BaseAluChip).name();
+        let ext_alu = RecursionAir::<F, DEGREE>::ExtAlu(ExtAluChip).name();
         let poseidon2_wide =
-            RecursionAir::<F, DEGREE, COL_PADDING>::Poseidon2Wide(Poseidon2WideChip::<DEGREE>)
-                .name();
-        let exp_reverse_bits_len = RecursionAir::<F, DEGREE, COL_PADDING>::ExpReverseBitsLen(
-            ExpReverseBitsLenChip::<DEGREE>,
-        )
-        .name();
-        let public_values =
-            RecursionAir::<F, DEGREE, COL_PADDING>::PublicValues(PublicValuesChip).name();
+            RecursionAir::<F, DEGREE>::Poseidon2Wide(Poseidon2WideChip::<DEGREE>).name();
+        let exp_reverse_bits_len =
+            RecursionAir::<F, DEGREE>::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE>).name();
+        let public_values = RecursionAir::<F, DEGREE>::PublicValues(PublicValuesChip).name();
 
         // Specify allowed shapes.
         let allowed_shapes = [

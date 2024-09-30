@@ -119,7 +119,7 @@ pub(crate) mod tests {
     /// A simplified version of some code from `recursion/core/src/stark/mod.rs`.
     /// Takes in a program and runs it with the given witness and generates a proof with a variety
     /// of machines depending on the provided test_config.
-    pub(crate) fn run_test_recursion_with_prover<P: MachineProver<SC, RecursionAir<F, 3, 0>>>(
+    pub(crate) fn run_test_recursion_with_prover<P: MachineProver<SC, RecursionAir<F, 3>>>(
         operations: TracedVec<DslIr<AsmConfig<F, EF>>>,
         witness_stream: impl IntoIterator<Item = WitnessBlock<AsmConfig<F, EF>>>,
     ) {
@@ -143,7 +143,7 @@ pub(crate) mod tests {
 
         // Run with the poseidon2 wide chip.
         let proof_wide_span = tracing::debug_span!("Run test with wide machine").entered();
-        let wide_machine = RecursionAir::<_, 3, 0>::compress_machine(SC::default());
+        let wide_machine = RecursionAir::<_, 3>::compress_machine(SC::default());
         let (pk, vk) = wide_machine.setup(&program);
         let pk = P::DeviceProvingKey::from_host(&pk);
         let prover = P::new(wide_machine);
