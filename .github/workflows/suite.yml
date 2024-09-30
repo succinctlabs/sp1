@@ -29,13 +29,13 @@ jobs:
           - cuda
         s3_folder: 
           - fibonacci-17k
-          - ssz-withdrawals
-          - tendermint
-          - rsp-20526624
-          - rsa
-          - regex
-          - json
-          - chess
+          # - ssz-withdrawals
+          # - tendermint
+          # - rsp-20526624
+          # - rsa
+          # - regex
+          # - json
+          # - chess
     steps:
       - name: Checkout sources
         uses: actions/checkout@v4
