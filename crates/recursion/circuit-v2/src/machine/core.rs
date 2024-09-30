@@ -473,6 +473,9 @@ where
                     }
                 }
 
+                // Update the exit code.
+                exit_code = public_values.exit_code;
+
                 // If `deferred_proofs_digest` is not zero, then the current value should be equal
                 // to `public_values.deferred_proofs_digest.
 
