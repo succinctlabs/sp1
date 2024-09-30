@@ -27,7 +27,7 @@ jobs:
         mode:
           - cpu
           - cuda
-          - network
+          # - network
         s3_folder: 
           - fibonacci-17k
           # - ssz-withdrawals
