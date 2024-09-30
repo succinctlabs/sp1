@@ -170,6 +170,10 @@ pub fn dashu_modpow(
 impl<E: WeierstrassParameters> AffinePoint<SwCurve<E>> {
     pub fn sw_add(&self, other: &AffinePoint<SwCurve<E>>) -> AffinePoint<SwCurve<E>> {
         if self.x == other.x && self.y == other.y {
+            eprintln!(
+                "Error: Points are the same. Use sw_double instead. {:?} {:?}",
+                self.x, other.x
+            );
             panic!("Error: Points are the same. Use sw_double instead.");
         }
 
