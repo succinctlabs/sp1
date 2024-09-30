@@ -3,6 +3,8 @@ use std::{
     borrow::{Borrow, BorrowMut},
 };
 
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
+
 use p3_air::Air;
 use p3_baby_bear::BabyBear;
 use p3_commit::Mmcs;
@@ -15,7 +17,7 @@ use sp1_recursion_compiler::ir::{Builder, Ext, Felt};
 use sp1_stark::{
     air::{MachineAir, POSEIDON_NUM_WORDS},
     baby_bear_poseidon2::BabyBearPoseidon2,
-    ShardProof, StarkMachine, StarkVerifyingKey, Word,
+    Dom, ShardProof, StarkMachine, StarkVerifyingKey, Word,
 };
 
 use sp1_recursion_core_v2::{
@@ -46,6 +48,13 @@ pub struct SP1DeferredShape {
     height: usize,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound(
+    serialize = "SC::Challenger: Serialize, ShardProof<SC>: Serialize, Dom<SC>: Serialize, [SC::Val; DIGEST_SIZE]: Serialize, SC::Digest: Serialize"
+))]
+#[serde(bound(
+    deserialize = "SC::Challenger: Deserialize<'de>, ShardProof<SC>: Deserialize<'de>, Dom<SC>: DeserializeOwned, [SC::Val; DIGEST_SIZE]: Deserialize<'de>, SC::Digest: Deserialize<'de>"
+))]
 pub struct SP1DeferredWitnessValues<SC: BabyBearFriConfig + FieldHasher<BabyBear>> {
     pub vks_and_proofs: Vec<(StarkVerifyingKey<SC>, ShardProof<SC>)>,
     pub vk_merkle_data: SP1MerkleProofWitnessValues<SC>,

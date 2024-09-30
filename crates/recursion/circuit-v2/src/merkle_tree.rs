@@ -27,7 +27,9 @@ pub struct MerkleTree<F: Field, HV: FieldHasher<F>> {
 }
 pub struct VcsError;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "HV::Digest: Serialize"))]
+#[serde(bound(deserialize = "HV::Digest: Deserialize<'de>"))]
 pub struct MerkleProof<F: Field, HV: FieldHasher<F>> {
     pub index: usize,
     pub path: Vec<HV::Digest>,
