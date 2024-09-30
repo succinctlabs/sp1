@@ -1,0 +1,4 @@
+runners:
+  g6-linux-x64:
+    family: ["g6.16xlarge"]
+    image: ubuntu22-full-x64
