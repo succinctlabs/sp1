@@ -184,8 +184,6 @@ where
             let public_values: &PublicValues<Word<Felt<_>>, Felt<_>> =
                 shard_proof.public_values.as_slice().borrow();
 
-            let _shard = public_values.shard;
-
             // If this is the first proof in the batch, initialize the variables.
             if i == 0 {
                 // Shard.
