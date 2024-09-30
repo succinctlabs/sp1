@@ -41,5 +41,5 @@ jobs:
           SP1_GNARK_IMAGE: sp1-gnark
         with:
           command: test
-          toolchain: 1.79.0
+          toolchain: 1.81.0
           args: --release -p sp1-prover -- --exact tests::test_e2e

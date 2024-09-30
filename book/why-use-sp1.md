@@ -15,7 +15,15 @@ SP1 has already been integrated in many of these applications, including but not
 
 - [SP1 Tendermint](https://github.com/succinctlabs/sp1-tendermint-example): An example of a ZK Tendermint light client on Ethereum powered by SP1.
 - [SP1 Reth](https://github.com/succinctlabs/rsp): A performant, type-1 zkEVM written in Rust & SP1 using Reth.
+- [SP1 Contract Call](https://github.com/succinctlabs/sp1-contract-call): A lightweight library to generate ZKPs of Ethereum smart contract execution
 - and many more!
+
+SP1 is used by protocols in production today:
+
+- [SP1 Blobstream](https://github.com/succinctlabs/sp1-blobstream): A bridge that verifies [Celestia](https://celestia.org/) “data roots” (a commitment to all data blobs posted in a range of Celestia blocks) on Ethereum and other EVM chains.
+- [SP1 Vector](https://github.com/succinctlabs/sp1-vector): A bridge that relays [Avail's](https://www.availproject.org/) merkle root to Ethereum and also functions as a token bridge from Avail to Ethereum.
+- [SP1 Helios](https://github.com/succinctlabs/sp1-helios): A light client bridge of Ethereum's sync committee. This bridge will soon be used by Avail.
+
 
 
 ## 100x developer productivity

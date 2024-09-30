@@ -40,7 +40,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: test
-          toolchain: 1.79.0
+          toolchain: 1.81.0
           args: --release -p sp1-sdk --features native-gnark -- test_e2e_prove_plonk --nocapture
         env:
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
@@ -72,7 +72,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: test
-          toolchain: 1.79.0
+          toolchain: 1.81.0
           args: --release -p sp1-sdk -- test_e2e_prove_plonk --nocapture
         env:
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
@@ -220,14 +220,14 @@ jobs:
             ~/.cargo/git/db/
             target/
             ~/.rustup/
-          key: rust-1.79.0-${{ hashFiles('**/Cargo.toml') }}
-          restore-keys: rust-1.79.0-
+          key: rust-1.81.0-${{ hashFiles('**/Cargo.toml') }}
+          restore-keys: rust-1.81.0-
 
       - name: Setup toolchain
         id: rustc-toolchain
         shell: bash
         run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --default-toolchain 1.79.0 -y
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --default-toolchain 1.81.0 -y
 
       - name: Run script
         run: |
