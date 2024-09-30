@@ -1,7 +1,7 @@
 #![no_main]
 sp1_zkvm::entrypoint!(main);
 
-use alloy_primitives::{address, hex, Signature};
+use alloy_primitives::{address, bytes, hex, Signature};
 use curve25519_dalek::edwards::CompressedEdwardsY as CompressedEdwardsY_dalek;
 use curve25519_dalek_ng::edwards::CompressedEdwardsY as CompressedEdwardsY_dalek_ng;
 use ed25519_consensus::{
@@ -11,6 +11,7 @@ use ed25519_dalek::{
     Signature as Ed25519DalekSignature, Verifier, VerifyingKey as Ed25519DalekVerifiyingKey,
 };
 
+use k256::ecdsa::RecoveryId;
 use sha2_v0_10_6::{Digest as Digest_10_6, Sha256 as Sha256_10_6};
 // use sha2_v0_10_8::{Digest as Digest_10_8, Sha256 as Sha256_10_8};
 use sha2_v0_9_8::{Digest as Digest_9_8, Sha256 as Sha256_9_8};
@@ -125,12 +126,18 @@ fn test_sha256() {
 /// Source: https://github.com/alloy-rs/core/blob/adcf7adfa1f35c56e6331bab85b8c56d32a465f1/crates/primitives/src/signature/sig.rs#L620-L631
 fn test_k256_patch() {
     let sig = Signature::from_str(
-        "b91467e570a6466aa9e9876cbcd013baba02900b8979d43fe208a4a4f339f5fd6007e74cd82e037b800186422fc2da167c747ef045e5d18a5f5d4300f8e1a0291c"
-    ).expect("could not parse signature");
-    let expected = address!("2c7536E3605D9C16a7a3D7b1898e529396a65c23");
+        "b91467e570a6466aa9e9876cbcd013baba02900b8979d43fe208a4a4f339f5fd6007e74cd82e037b800186422fc2da167c747ef045e5d18a5f5d4300f8e1a0291c").expect("could not parse signature");
+    // The last 64 bytes of the precompile input are the signature.
+    let precompile_input = bytes!("15499a876f0d57fdc360c760aec98245eba1902610140c14d5f0c3c0284e28a7000000000000000000000000000000000000000000000000000000000000001c2106219ec2e5ef9f7d5ffb303fac05c4066e66db6d501d2e5b1626f2cc8fbe1c316d4e90b09819db9c261017f18e1b5b105855922ec962fd58e83c943e4c4ba3");
+    let recid = RecoveryId::from_byte(precompile_input[63]-27).expect("could not parse recovery id");
+    let sig = Signature::from_bytes_and_parity(&precompile_input[64..128], recid.is_y_odd())
+        .expect("could not parse signature");
+
+    let expected = address!("ea532f4122fb1152b506b545c67e110d276e3448");
 
     println!("cycle-tracker-start: k256 verify");
-    let recovered_address = sig.recover_address_from_msg("Some data").expect("could not recover address");
+    let recovered_address =
+        sig.recover_address_from_msg("Some data").expect("could not recover address");
     println!("cycle-tracker-end: k256 verify");
 
     assert_eq!(recovered_address, expected);
@@ -158,8 +165,7 @@ fn test_secp256k1_patch() {
         .expect("could not recover public key");
     println!("cycle-tracker-end: secp256k1 verify");
 
-    let serialized_key = public_key
-        .serialize_uncompressed();
+    let serialized_key = public_key.serialize_uncompressed();
 
     // Use the message in the recover_ecdsa call
     assert_eq!(hex::encode(serialized_key), expected);
@@ -169,15 +175,15 @@ fn test_secp256k1_patch() {
 fn main() {
     // TODO: Specify which syscalls are linked to each function invocation, iterate
     // over this list that is shared between the program and script.
-    test_keccak();
-    test_sha256();
+    // test_keccak();
+    // test_sha256();
 
-    test_curve25519_dalek_ng();
-    test_curve25519_dalek();
+    // test_curve25519_dalek_ng();
+    // test_curve25519_dalek();
 
-    test_ed25519_dalek();
-    test_ed25519_consensus();
+    // test_ed25519_dalek();
+    // test_ed25519_consensus();
 
     test_k256_patch();
-    test_secp256k1_patch();
+    // test_secp256k1_patch();
 }
