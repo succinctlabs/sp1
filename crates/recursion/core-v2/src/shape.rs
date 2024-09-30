@@ -204,13 +204,13 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> Default
             [
                 (mem_const.clone(), 16),
                 (mem_var.clone(), 18),
-                (base_alu.clone(), 20),
+                (base_alu.clone(), 21),
                 (ext_alu.clone(), 22),
-                (poseidon2_wide.clone(), 16),
+                (poseidon2_wide.clone(), 17),
                 (exp_reverse_bits_len.clone(), 17),
                 (public_values.clone(), PUB_VALUES_LOG_HEIGHT),
             ],
-            // [("MemoryConst", 64101), ("MemoryVar", 189175), ("BaseAlu", 572632), ("ExtAlu", 153656), ("Poseidon2WideDeg3", 47715), ("ExpReverseBitsLen", 93700), ("PublicValues", 4)]
+            // [(\"MemoryConst\", 146235), (\"MemoryVar\", 376698), (\"BaseAlu\", 1178255), (\"ExtAlu\", 278570), (\"Poseidon2WideDeg3\", 97951), (\"ExpReverseBitsLen\", 124600), (\"PublicValues\", 4)]"
             // (Self::MemoryConst(MemoryConstChip::default()), 16),
             // (Self::MemoryVar(MemoryVarChip::default()), 18),
             // (Self::BaseAlu(BaseAluChip), 20),
