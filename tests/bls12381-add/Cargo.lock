@@ -42,6 +42,7 @@ dependencies = [
 name = "bls12381-add-test"
 version = "1.1.0"
 dependencies = [
+ "common-test-utils",
  "num",
  "sp1-lib",
  "sp1-zkvm",
@@ -58,6 +59,14 @@ name = "cfg-if"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
+
+[[package]]
+name = "common-test-utils"
+version = "2.0.0"
+dependencies = [
+ "sp1-lib",
+ "sp1-zkvm",
+]
 
 [[package]]
 name = "cpufeatures"

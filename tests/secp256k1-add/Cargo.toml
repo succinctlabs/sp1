@@ -8,5 +8,6 @@ publish = false
 [dependencies]
 sp1-zkvm = { path = "../../crates/zkvm/entrypoint" }
 sp1-lib = { path = "../../crates/zkvm/lib" }
+common-test-utils = { path = "../common" }
 hex-literal = "0.4.1"
 num = { version = "0.4.1", default-features = false }

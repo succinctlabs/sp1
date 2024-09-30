@@ -44,6 +44,14 @@ pub trait AffinePoint<const N: usize>: Clone + Sized {
         le_bytes
     }
 
+    /// Negates the point.
+    fn negate(&mut self) {
+        let negated = self.limbs_mut();
+        for y in &mut negated[N / 2..] {
+            *y = y.wrapping_neg();
+        }
+    }
+
     /// Adds the given [`AffinePoint`] to `self`.
     fn add_assign(&mut self, other: &Self);
 
@@ -144,6 +152,11 @@ pub fn bytes_to_words_le(bytes: &[u8]) -> Vec<u32> {
 
 /// A trait for affine points on Weierstrass curves.
 pub trait WeierstrassAffinePoint<const N: usize>: AffinePoint<N> {
+    /// The infinity point is set to (0, 0).
+    fn infinity() -> Self {
+        Self::new([0; N])
+    }
+
     /// Performs the complete addition of two [`AffinePoint`]'s on a Weierstrass curve.
     /// For an addition of two points P1 and P2, the cases are:
     ///     1. P1 and P2 are infinity
