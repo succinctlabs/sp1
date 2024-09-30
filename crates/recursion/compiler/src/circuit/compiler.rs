@@ -815,7 +815,7 @@ mod tests {
 
         // Run with the poseidon2 wide chip.
         let wide_machine =
-            RecursionAir::<_, 3, 0>::machine_wide_with_all_chips(BabyBearPoseidon2::default());
+            RecursionAir::<_, 3>::machine_wide_with_all_chips(BabyBearPoseidon2::default());
         let (pk, vk) = wide_machine.setup(&program);
         let result = run_test_machine(vec![record.clone()], wide_machine, pk, vk);
         if let Err(e) = result {
@@ -823,7 +823,7 @@ mod tests {
         }
 
         // Run with the poseidon2 skinny chip.
-        let skinny_machine = RecursionAir::<_, 9, 0>::machine_skinny_with_all_chips(
+        let skinny_machine = RecursionAir::<_, 9>::machine_skinny_with_all_chips(
             BabyBearPoseidon2::ultra_compressed(),
         );
         let (pk, vk) = skinny_machine.setup(&program);

@@ -12,7 +12,6 @@ use crate::{
     chips::{
         alu_base::{BaseAluChip, NUM_BASE_ALU_ENTRIES_PER_ROW},
         alu_ext::{ExtAluChip, NUM_EXT_ALU_ENTRIES_PER_ROW},
-        dummy::DummyChip,
         exp_reverse_bits::ExpReverseBitsLenChip,
         fri_fold::FriFoldChip,
         mem::{
@@ -34,11 +33,7 @@ use crate::{
 #[program_path = "crate::RecursionProgram<F>"]
 #[builder_path = "crate::builder::SP1RecursionAirBuilder<F = F>"]
 #[eval_trait_bound = "AB::Var: 'static"]
-pub enum RecursionAir<
-    F: PrimeField32 + BinomiallyExtendable<D>,
-    const DEGREE: usize,
-    const COL_PADDING: usize,
-> {
+pub enum RecursionAir<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> {
     MemoryConst(MemoryConstChip<F>),
     MemoryVar(MemoryVarChip<F>),
     BaseAlu(BaseAluChip),
@@ -48,7 +43,6 @@ pub enum RecursionAir<
     FriFold(FriFoldChip<DEGREE>),
     ExpReverseBitsLen(ExpReverseBitsLenChip<DEGREE>),
     PublicValues(PublicValuesChip),
-    DummyWide(DummyChip<COL_PADDING>),
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -62,9 +56,7 @@ pub struct RecursionAirEventCount {
     exp_reverse_bits_len_events: usize,
 }
 
-impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize, const COL_PADDING: usize>
-    RecursionAir<F, DEGREE, COL_PADDING>
-{
+impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAir<F, DEGREE> {
     /// Get a machine with all chips, except the dummy chip.
     pub fn machine_wide_with_all_chips<SC: StarkGenericConfig<Val = F>>(
         config: SC,
@@ -261,8 +253,8 @@ pub mod tests {
     type SC = BabyBearPoseidon2;
     type F = <SC as StarkGenericConfig>::Val;
     type EF = <SC as StarkGenericConfig>::Challenge;
-    type A = RecursionAir<F, 3, 0>;
-    type B = RecursionAir<F, 9, 0>;
+    type A = RecursionAir<F, 3>;
+    type B = RecursionAir<F, 9>;
 
     /// Runs the given program on machines that use the wide and skinny Poseidon2 chips.
     pub fn run_recursion_test_machines(program: RecursionProgram<F>) {
