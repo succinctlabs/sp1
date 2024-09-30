@@ -26,7 +26,7 @@ mod tests {
     type SC = BabyBearPoseidon2Inner;
     type F = <SC as StarkGenericConfig>::Val;
     type EF = <SC as StarkGenericConfig>::Challenge;
-    type A = RecursionAir<F, DEGREE, 0>;
+    type A = RecursionAir<F, DEGREE>;
 
     #[test]
     fn test_io() {

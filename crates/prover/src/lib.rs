@@ -114,9 +114,9 @@ pub const REDUCE_BATCH_SIZE: usize = 2;
 const VK_MAP_BYTES: &[u8] = include_bytes!("../vk_map.bin");
 const MERKLE_TREE_BYTES: &[u8] = include_bytes!("../merkle_tree.bin");
 
-pub type CompressAir<F> = RecursionAir<F, COMPRESS_DEGREE, 0>;
-pub type ShrinkAir<F> = RecursionAir<F, SHRINK_DEGREE, 0>;
-pub type WrapAir<F> = RecursionAir<F, WRAP_DEGREE, 0>;
+pub type CompressAir<F> = RecursionAir<F, COMPRESS_DEGREE>;
+pub type ShrinkAir<F> = RecursionAir<F, SHRINK_DEGREE>;
+pub type WrapAir<F> = RecursionAir<F, WRAP_DEGREE>;
 
 /// A end-to-end prover implementation for the SP1 RISC-V zkVM.
 pub struct SP1Prover<C: SP1ProverComponents = DefaultProverComponents> {

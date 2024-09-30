@@ -159,7 +159,7 @@ mod tests {
     type SC = BabyBearPoseidon2Outer;
     type F = <SC as StarkGenericConfig>::Val;
     type EF = <SC as StarkGenericConfig>::Challenge;
-    type A = RecursionAir<F, 3, 1>;
+    type A = RecursionAir<F, 3>;
 
     pub fn prove_program(program: RecursionProgram<F>) {
         let program = Arc::new(program);

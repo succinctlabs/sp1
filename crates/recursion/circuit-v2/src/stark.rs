@@ -574,7 +574,7 @@ pub mod tests {
     pub fn build_verify_shard_with_provers<
         C: CircuitConfig<F = InnerVal, EF = InnerChallenge, Bit = Felt<InnerVal>> + Debug,
         CoreP: MachineProver<SC, A>,
-        RecP: MachineProver<SC, RecursionAir<F, 3, 0>>,
+        RecP: MachineProver<SC, RecursionAir<F, 3>>,
     >(
         config: SC,
         elf: &[u8],
