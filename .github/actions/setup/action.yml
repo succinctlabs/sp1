@@ -7,6 +7,10 @@ inputs:
     description: "Whether to setup GCC or not"
     required: false
     default: 'true'
+  setup_aws_cli:
+    description: "Whether to install AWS CLI or not"
+    required: false
+    default: 'true'
 runs:
   using: "composite"
   steps:
@@ -43,6 +47,20 @@ runs:
       with:
         version: latest
 
+    - name: Install AWS CLI v2
+      if: inputs.setup_aws_cli == 'true'
+      shell: bash
+      run: |
+        if ! command -v aws &> /dev/null; then
+          echo "AWS CLI not found. Installing..."
+          python3 -m pip install --user awscli
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+        else
+          echo "AWS CLI is already installed."
+        fi
+        export PATH="$HOME/.local/bin:$PATH"
+        aws --version
+
     - name: rust-cache
       uses: actions/cache@v3
       with:
@@ -61,3 +79,7 @@ runs:
       shell: bash
       run: |
         curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --default-toolchain 1.81.0 -y
+        . "$HOME/.cargo/env" 
+        echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+    
