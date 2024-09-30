@@ -152,13 +152,12 @@ fn main() {
         }
         ProverMode::Network => {
             let prover = ProverClient::network();
-            let (_, execution_duration) = time_operation(|| prover.execute(&elf, &stdin));
+            let (_, execution_duration) = time_operation(|| prover.execute(&elf, stdin.clone()));
 
             let (core_proof, prove_core_duration) =
-                time_operation(|| prover.prove(&pk, &stdin).compressed().run().unwrap());
+                time_operation(|| prover.prove(&pk, stdin).compressed().run().unwrap());
 
-            let (_, verify_core_duration) =
-                time_operation(|| prover.verify(&core_proof.proof, &vk));
+            let (_, verify_core_duration) = time_operation(|| prover.verify(&core_proof, &vk));
         }
     };
 }

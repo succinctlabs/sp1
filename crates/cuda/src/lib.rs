@@ -85,7 +85,8 @@ impl SP1CudaProver {
     /// [SP1ProverClient] that can be used to communicate with the container.
     pub fn new() -> Result<Self, Box<dyn StdError>> {
         let container_name = "sp1-gpu";
-        let image_name = "jtguibas/sp1-gpu:v3.0.0-rc2";
+        let image_name =
+            "public.ecr.aws/succinct-labs/sp1-gpu:3a3053b467532279f4996b0cdb95a5f9a764d649";
 
         let cleaned_up = Arc::new(AtomicBool::new(false));
         let cleanup_name = container_name;
@@ -297,7 +298,10 @@ impl Drop for SP1CudaProver {
 /// Cleans up the a docker container with the given name.
 fn cleanup_container(container_name: &str) {
     if let Err(e) = Command::new("docker").args(["rm", "-f", container_name]).output() {
-        eprintln!("Failed to remove container: {}. You may need to manually remove it using 'docker rm -f {}'", e, container_name);
+        eprintln!(
+            "Failed to remove container: {}. You may need to manually remove it using 'docker rm -f {}'",
+            e, container_name
+        );
     }
 }
 
