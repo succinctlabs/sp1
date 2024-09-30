@@ -497,7 +497,13 @@ where
         let (permutation_commit, permutation_data) =
             tracing::debug_span!("commit to permutation traces")
                 .in_scope(|| pcs.commit(domains_and_perm_traces));
+
+        // Observe the permutation commitment and cumulative sums.
         challenger.observe(permutation_commit.clone());
+        for [global_sum, local_sum] in cumulative_sums.iter() {
+            challenger.observe_slice(global_sum.as_base_slice());
+            challenger.observe_slice(local_sum.as_base_slice());
+        }
 
         // Compute the quotient polynomial for all chips.
 
@@ -520,18 +526,9 @@ where
                 .map(|(i, quotient_domain)| {
                     tracing::debug_span!(parent: &parent_span, "compute quotient values for domain")
                         .in_scope(|| {
-                            let preprocessed_trace_on_quotient_domains = pk
-                                .chip_ordering
-                                .get(&chips[i].name())
-                                .map(|&index| {
+                            let preprocessed_trace_on_quotient_domains =
+                                pk.chip_ordering.get(&chips[i].name()).map(|&index| {
                                     pcs.get_evaluations_on_domain(&pk.data, index, *quotient_domain)
-                                        .to_row_major_matrix()
-                                })
-                                .unwrap_or_else(|| {
-                                    RowMajorMatrix::new_col(vec![
-                                        SC::Val::zero();
-                                        quotient_domain.size()
-                                    ])
                                 });
                             let scope = all_chip_scopes[i];
                             let main_data = if scope == InteractionScope::Global {
@@ -541,16 +538,13 @@ where
                             } else {
                                 &local_main_data
                             };
-                            let main_trace_on_quotient_domains = pcs
-                                .get_evaluations_on_domain(
-                                    main_data,
-                                    all_shard_data[i].main_data_idx,
-                                    *quotient_domain,
-                                )
-                                .to_row_major_matrix();
+                            let main_trace_on_quotient_domains = pcs.get_evaluations_on_domain(
+                                main_data,
+                                all_shard_data[i].main_data_idx,
+                                *quotient_domain,
+                            );
                             let permutation_trace_on_quotient_domains = pcs
-                                .get_evaluations_on_domain(&permutation_data, i, *quotient_domain)
-                                .to_row_major_matrix();
+                                .get_evaluations_on_domain(&permutation_data, i, *quotient_domain);
                             quotient_values(
                                 chips[i],
                                 &cumulative_sums[i],

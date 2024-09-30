@@ -288,3 +288,72 @@ jobs:
           cd examples/cycle-tracking/script
           cargo add sp1-sdk --path $GITHUB_WORKSPACE/crates/sdk
           SP1_DEV=1 RUST_LOG=info cargo run --release
+
+  toolchain-test:
+    name: "Test toolchain installation (${{ matrix.name }})"
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: "Ubuntu 24.04 (x86_64)"
+            runner: "ubuntu-24.04"
+          - name: "Ubuntu 22.04 (x86_64)"
+            runner: "ubuntu-22.04"
+          - name: "Ubuntu 20.04 (x86_64)"
+            runner: "ubuntu-20.04"
+          - name: "macOS Monterey (x86_64)"
+            runner: "macos-12"
+          - name: "macOS Ventura (x86_64)"
+            runner: "macos-13"
+          - name: "macOS Sonoma (ARM64)"
+            runner: "macos-14"
+
+    runs-on: "${{ matrix.runner }}"
+    steps:
+      - name: "Checkout source code"
+        uses: "actions/checkout@v4"
+
+      - name: "Install cargo-prove"
+        run: |
+          cargo install --locked --path ./crates/cli
+
+      - name: "Install SP1 toolchain"
+        run: |
+          cargo prove install-toolchain --token ${{ secrets.GITHUB_TOKEN }}
+
+      - name: "Create SP1 project from template"
+        run: |
+          cargo prove new hello
+
+      - name: "Build SP1 project"
+        run: |
+          cd ./hello/program
+          cargo prove build
+
+  toolchain-test-ec2:
+    name: "Test toolchain installation (${{ matrix.name }})"
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # AMI from `us-east-1`
+          - name: "Debian 12 (x86_64)"
+            ec2-instance: "c5.2xlarge"
+            ami: "ami-064519b8c76274859"
+            volume: "/dev/xvda"
+          - name: "Debian 12 (ARM64)"
+            ec2-instance: "c6g.2xlarge"
+            ami: "ami-0789039e34e739d67"
+            volume: "/dev/xvda"
+    uses: "./.github/workflows/toolchain-ec2.yml"
+    with:
+      image-id: "${{ matrix.ami }}"
+      instance-type: "${{ matrix.ec2-instance }}"
+      root-volume: "${{ matrix.volume }}"
+    secrets:
+      AWS_REGION: "${{ secrets.AWS_REGION }}"
+      AWS_ACCESS_KEY_ID: "${{ secrets.AWS_ACCESS_KEY_ID }}"
+      AWS_SECRET_ACCESS_KEY: "${{ secrets.AWS_SECRET_ACCESS_KEY }}"
+      AWS_SUBNET_ID: "${{ secrets.AWS_SUBNET_ID }}"
+      AWS_SG_ID: "${{ secrets.AWS_SG_ID }}"
+      GH_PAT: "${{ secrets.GH_PAT }}"

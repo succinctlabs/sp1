@@ -5,15 +5,21 @@ use std::{
     iter::{Skip, Take},
 };
 
+use itertools::Itertools;
 use p3_baby_bear::BabyBear;
 use p3_bn254_fr::Bn254Fr;
 use p3_field::{AbstractField, PrimeField32};
+use p3_symmetric::CryptographicHasher;
 use sp1_core_executor::{Executor, Program};
 use sp1_core_machine::{io::SP1Stdin, reduce::SP1ReduceProof};
-use sp1_recursion_core_v2::{air::RecursionPublicValues, stark::config::BabyBearPoseidon2Outer};
-use sp1_stark::{SP1CoreOpts, Word};
+use sp1_recursion_circuit_v2::machine::RootPublicValues;
+use sp1_recursion_core_v2::{
+    air::{RecursionPublicValues, NUM_PV_ELMS_TO_HASH},
+    stark::config::BabyBearPoseidon2Outer,
+};
+use sp1_stark::{baby_bear_poseidon2::MyHash as InnerHash, SP1CoreOpts, Word};
 
-use crate::SP1CoreProofData;
+use crate::{InnerSC, SP1CoreProofData};
 
 /// Get the SP1 vkey BabyBear Poseidon2 digest this reduce proof is representing.
 pub fn sp1_vkey_digest_babybear(proof: &SP1ReduceProof<BabyBearPoseidon2Outer>) -> [BabyBear; 8] {
@@ -25,6 +31,53 @@ pub fn sp1_vkey_digest_babybear(proof: &SP1ReduceProof<BabyBearPoseidon2Outer>) 
 /// Get the SP1 vkey Bn Poseidon2 digest this reduce proof is representing.
 pub fn sp1_vkey_digest_bn254(proof: &SP1ReduceProof<BabyBearPoseidon2Outer>) -> Bn254Fr {
     babybears_to_bn254(&sp1_vkey_digest_babybear(proof))
+}
+
+/// Compute the digest of the public values.
+pub fn recursion_public_values_digest(
+    config: &InnerSC,
+    public_values: &RecursionPublicValues<BabyBear>,
+) -> [BabyBear; 8] {
+    let hash = InnerHash::new(config.perm.clone());
+    let pv_array = public_values.as_array();
+    hash.hash_slice(&pv_array[0..NUM_PV_ELMS_TO_HASH])
+}
+
+pub fn root_public_values_digest(
+    config: &InnerSC,
+    public_values: &RootPublicValues<BabyBear>,
+) -> [BabyBear; 8] {
+    let hash = InnerHash::new(config.perm.clone());
+    let input = (*public_values.sp1_vk_digest())
+        .into_iter()
+        .chain(
+            (*public_values.committed_value_digest())
+                .into_iter()
+                .flat_map(|word| word.0.into_iter()),
+        )
+        .collect::<Vec<_>>();
+    hash.hash_slice(&input)
+}
+
+pub fn assert_root_public_values_valid(
+    config: &InnerSC,
+    public_values: &RootPublicValues<BabyBear>,
+) {
+    let expected_digest = root_public_values_digest(config, public_values);
+    for (value, expected) in public_values.digest().iter().copied().zip_eq(expected_digest) {
+        assert_eq!(value, expected);
+    }
+}
+
+/// Assert that the digest of the public values is correct.
+pub fn assert_recursion_public_values_valid(
+    config: &InnerSC,
+    public_values: &RecursionPublicValues<BabyBear>,
+) {
+    let expected_digest = recursion_public_values_digest(config, public_values);
+    for (value, expected) in public_values.digest.iter().copied().zip_eq(expected_digest) {
+        assert_eq!(value, expected);
+    }
 }
 
 /// Get the committed values Bn Poseidon2 digest this reduce proof is representing.

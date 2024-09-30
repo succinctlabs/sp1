@@ -4,10 +4,11 @@ use anyhow::Result;
 use num_bigint::BigUint;
 use p3_baby_bear::BabyBear;
 use p3_field::{AbstractField, PrimeField};
-use sp1_core_executor::subproof::SubproofVerifier;
-use sp1_core_machine::{cpu::MAX_CPU_LOG_DEGREE, io::SP1PublicValues, reduce::SP1ReduceProof};
-use sp1_primitives::consts::WORD_SIZE;
+use sp1_core_executor::{subproof::SubproofVerifier, SP1ReduceProof};
+use sp1_core_machine::cpu::MAX_CPU_LOG_DEGREE;
+use sp1_primitives::{consts::WORD_SIZE, io::SP1PublicValues};
 
+use sp1_recursion_circuit_v2::machine::RootPublicValues;
 use sp1_recursion_core_v2::{air::RecursionPublicValues, stark::config::BabyBearPoseidon2Outer};
 use sp1_recursion_gnark_ffi::{
     Groth16Bn254Proof, Groth16Bn254Prover, PlonkBn254Proof, PlonkBn254Prover,
@@ -20,8 +21,9 @@ use sp1_stark::{
 use thiserror::Error;
 
 use crate::{
-    components::SP1ProverComponents, CoreSC, HashableKey, OuterSC, SP1CoreProofData, SP1Prover,
-    SP1VerifyingKey,
+    components::SP1ProverComponents,
+    utils::{assert_recursion_public_values_valid, assert_root_public_values_valid},
+    CoreSC, HashableKey, OuterSC, SP1CoreProofData, SP1Prover, SP1VerifyingKey,
 };
 
 #[derive(Error, Debug)]
@@ -298,6 +300,14 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 
         // Validate public values
         let public_values: &RecursionPublicValues<_> = proof.public_values.as_slice().borrow();
+        assert_recursion_public_values_valid(
+            self.compress_prover.machine().config(),
+            public_values,
+        );
+
+        if self.vk_verification && !self.allowed_vk_map.contains_key(&compress_vk.hash_babybear()) {
+            return Err(MachineVerificationError::InvalidVerificationKey);
+        }
 
         // `is_complete` should be 1. In the reduce program, this ensures that the proof is fully
         // reduced.
@@ -310,14 +320,6 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         if public_values.sp1_vk_digest != vkey_hash {
             return Err(MachineVerificationError::InvalidPublicValues("sp1 vk hash mismatch"));
         }
-
-        // // Verify that the reduce program is the one we are expecting.
-        // let recursion_vkey_hash = self.compress_vk().hash_babybear();
-        // if public_values.compress_vk_digest != recursion_vkey_hash {
-        //     return Err(MachineVerificationError::InvalidPublicValues(
-        //         "recursion vk hash mismatch",
-        //     ));
-        // }
 
         Ok(())
     }
@@ -335,11 +337,13 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         // Validate public values
         let public_values: &RecursionPublicValues<_> =
             proof.proof.public_values.as_slice().borrow();
+        assert_recursion_public_values_valid(
+            self.compress_prover.machine().config(),
+            public_values,
+        );
 
-        // `is_complete` should be 1. In the reduce program, this ensures that the proof is fully
-        // reduced.
-        if public_values.is_complete != BabyBear::one() {
-            return Err(MachineVerificationError::InvalidPublicValues("is_complete is not 1"));
+        if self.vk_verification && !self.allowed_vk_map.contains_key(&proof.vk.hash_babybear()) {
+            return Err(MachineVerificationError::InvalidVerificationKey);
         }
 
         // Verify that the proof is for the sp1 vkey we are expecting.
@@ -359,21 +363,17 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
     ) -> Result<(), MachineVerificationError<OuterSC>> {
         let mut challenger = self.wrap_prover.config().challenger();
         let machine_proof = MachineProof { shard_proofs: vec![proof.proof.clone()] };
-        self.wrap_prover.machine().verify(&proof.vk, &machine_proof, &mut challenger)?;
+
+        let wrap_vk = self.wrap_vk.get().expect("Wrap verifier key not set");
+        self.wrap_prover.machine().verify(wrap_vk, &machine_proof, &mut challenger)?;
 
         // Validate public values
-        let public_values: &RecursionPublicValues<_> =
-            proof.proof.public_values.as_slice().borrow();
-
-        // `is_complete` should be 1. In the reduce program, this ensures that the proof is fully
-        // reduced.
-        if public_values.is_complete != BabyBear::one() {
-            return Err(MachineVerificationError::InvalidPublicValues("is_complete is not 1"));
-        }
+        let public_values: &RootPublicValues<_> = proof.proof.public_values.as_slice().borrow();
+        assert_root_public_values_valid(self.shrink_prover.machine().config(), public_values);
 
         // Verify that the proof is for the sp1 vkey we are expecting.
         let vkey_hash = vk.hash_babybear();
-        if public_values.sp1_vk_digest != vkey_hash {
+        if *public_values.sp1_vk_digest() != vkey_hash {
             return Err(MachineVerificationError::InvalidPublicValues("sp1 vk hash mismatch"));
         }
 

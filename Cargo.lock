@@ -6011,7 +6011,6 @@ dependencies = [
  "log",
  "nohash-hasher",
  "num",
- "num-bigint 0.4.6",
  "num_cpus",
  "p3-air",
  "p3-baby-bear",
@@ -6151,12 +6150,17 @@ dependencies = [
 name = "sp1-primitives"
 version = "2.0.0"
 dependencies = [
+ "bincode",
+ "hex",
  "itertools 0.13.0",
  "lazy_static",
+ "num-bigint 0.4.6",
  "p3-baby-bear",
  "p3-field",
  "p3-poseidon2",
  "p3-symmetric",
+ "serde",
+ "sha2 0.10.8",
 ]
 
 [[package]]
@@ -6179,6 +6183,7 @@ dependencies = [
  "p3-commit",
  "p3-field",
  "p3-matrix",
+ "p3-symmetric",
  "rayon",
  "serde",
  "serde_json",
@@ -6225,6 +6230,7 @@ dependencies = [
  "serde",
  "sp1-core-executor",
  "sp1-core-machine",
+ "sp1-derive",
  "sp1-primitives",
  "sp1-recursion-compiler",
  "sp1-recursion-core-v2",
@@ -6423,6 +6429,7 @@ dependencies = [
  "sp1-core-executor",
  "sp1-core-machine",
  "sp1-cuda",
+ "sp1-primitives",
  "sp1-prover",
  "sp1-stark",
  "strum",

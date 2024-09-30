@@ -66,6 +66,7 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
     ) -> Option<CoreShape> {
         let shape: Option<HashMap<String, usize>> = heights
             .iter()
+            .filter(|(_, height)| *height != 0)
             .map(|(air, height)| {
                 for allowed_log_height in
                     allowed_log_heights.get(air).into_iter().flatten().flatten()

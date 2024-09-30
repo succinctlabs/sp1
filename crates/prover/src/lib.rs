@@ -27,7 +27,7 @@ use std::{
     sync::{
         atomic::{AtomicUsize, Ordering},
         mpsc::sync_channel,
-        Arc, Mutex,
+        Arc, Mutex, OnceLock,
     },
     thread,
 };
@@ -42,14 +42,14 @@ use p3_field::{AbstractField, PrimeField, PrimeField32};
 use p3_matrix::dense::RowMajorMatrix;
 use sp1_core_executor::{ExecutionError, ExecutionReport, Executor, Program, SP1Context};
 use sp1_core_machine::{
-    io::{SP1PublicValues, SP1Stdin},
+    io::SP1Stdin,
     reduce::SP1ReduceProof,
     riscv::{CoreShapeConfig, RiscvAir},
     utils::{concurrency::TurnBasedSync, SP1CoreProverError},
 };
-use sp1_stark::{air::InteractionScope, MachineProvingKey};
+use sp1_stark::{air::InteractionScope, MachineProvingKey, ProofShape};
 
-use sp1_primitives::hash_deferred_proof;
+use sp1_primitives::{hash_deferred_proof, io::SP1PublicValues};
 
 use sp1_recursion_compiler::{
     circuit::AsmCompiler,
@@ -75,13 +75,15 @@ use sp1_recursion_core_v2::{
 use sp1_recursion_circuit_v2::{
     hash::FieldHasher,
     machine::{
-        SP1CompressRootVerifier, SP1CompressRootVerifierWithVKey, SP1CompressWithVKeyVerifier,
-        SP1CompressWithVKeyWitnessValues, SP1CompressWithVkeyShape, SP1CompressWitnessValues,
-        SP1DeferredVerifier, SP1DeferredWitnessValues, SP1MerkleProofWitnessValues,
-        SP1RecursionShape, SP1RecursionWitnessValues, SP1RecursiveVerifier,
+        PublicValuesOutputDigest, SP1CompressRootVerifierWithVKey, SP1CompressShape,
+        SP1CompressWithVKeyVerifier, SP1CompressWithVKeyWitnessValues, SP1CompressWithVkeyShape,
+        SP1CompressWitnessValues, SP1DeferredVerifier, SP1DeferredWitnessValues,
+        SP1MerkleProofWitnessValues, SP1RecursionShape, SP1RecursionWitnessValues,
+        SP1RecursiveVerifier,
     },
     merkle_tree::MerkleTree,
     witness::Witnessable,
+    WrapConfig,
 };
 
 pub use types::*;
@@ -102,7 +104,7 @@ pub type OuterSC = BabyBearPoseidon2Outer;
 
 const COMPRESS_DEGREE: usize = 3;
 const SHRINK_DEGREE: usize = 3;
-const WRAP_DEGREE: usize = 17;
+const WRAP_DEGREE: usize = 9;
 
 const CORE_CACHE_SIZE: usize = 5;
 const COMPRESS_CACHE_SIZE: usize = 3;
@@ -139,7 +141,7 @@ pub struct SP1Prover<C: SP1ProverComponents = DefaultProverComponents> {
 
     pub compress_cache_misses: AtomicUsize,
 
-    pub root: <InnerSC as FieldHasher<BabyBear>>::Digest,
+    pub vk_root: <InnerSC as FieldHasher<BabyBear>>::Digest,
 
     pub allowed_vk_map: BTreeMap<<InnerSC as FieldHasher<BabyBear>>::Digest, usize>,
 
@@ -148,6 +150,10 @@ pub struct SP1Prover<C: SP1ProverComponents = DefaultProverComponents> {
     pub core_shape_config: Option<CoreShapeConfig<BabyBear>>,
 
     pub recursion_shape_config: Option<RecursionShapeConfig<BabyBear, CompressAir<BabyBear>>>,
+
+    pub wrap_program: OnceLock<Arc<RecursionProgram<BabyBear>>>,
+
+    pub wrap_vk: OnceLock<StarkVerifyingKey<OuterSC>>,
 
     pub vk_verification: bool,
 }
@@ -219,12 +225,14 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             recursion_cache_misses: AtomicUsize::new(0),
             compress_programs: Mutex::new(LruCache::new(compress_cache_size)),
             compress_cache_misses: AtomicUsize::new(0),
-            root,
+            vk_root: root,
             vk_merkle_tree: merkle_tree,
             allowed_vk_map,
             core_shape_config,
             recursion_shape_config,
             vk_verification,
+            wrap_program: OnceLock::new(),
+            wrap_vk: OnceLock::new(),
         }
     }
 
@@ -320,7 +328,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                 let builder_span = tracing::debug_span!("build recursion program").entered();
                 let mut builder = Builder::<InnerConfig>::default();
 
-                // // TODO: remove comment or make a test flag.
+                // TODO: remove comment or make a test flag.
                 // let dummy_input = SP1RecursionWitnessValues::<CoreSC>::dummy(
                 //     self.core_prover.machine(),
                 //     &input.shape(),
@@ -359,18 +367,27 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                 let builder_span = tracing::debug_span!("build compress program").entered();
                 let mut builder = Builder::<InnerConfig>::default();
 
-                // TODO: remove comment or make a test flag.
+                // // TODO: remove comment or make a test flag.
                 // let dummy_input = SP1CompressWithVKeyWitnessValues::<CoreSC>::dummy(
                 //     self.compress_prover.machine(),
                 //     &input.shape(),
                 // );
                 // let input = dummy_input.read(&mut builder);
+
                 let input = input.read(&mut builder);
+
+                // Attest that the merkle tree root is correct.
+                let root = input.merkle_var.root;
+                for (val, expected) in root.iter().zip(self.vk_root.iter()) {
+                    builder.assert_felt_eq(*val, *expected);
+                }
+                // Verify the proof.
                 SP1CompressWithVKeyVerifier::verify(
                     &mut builder,
                     self.compress_prover.machine(),
                     input,
                     self.vk_verification,
+                    PublicValuesOutputDigest::Reduce,
                 );
                 let operations = builder.into_operations();
                 builder_span.exit();
@@ -397,11 +414,19 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         let builder_span = tracing::debug_span!("build shrink program").entered();
         let mut builder = Builder::<InnerConfig>::default();
         let input = input.read(&mut builder);
+
+        // Attest that the merkle tree root is correct.
+        let root = input.merkle_var.root;
+        for (val, expected) in root.iter().zip(self.vk_root.iter()) {
+            builder.assert_felt_eq(*val, *expected);
+        }
+        // Verify the proof.
         SP1CompressRootVerifierWithVKey::verify(
             &mut builder,
             self.compress_prover.machine(),
             input,
             self.vk_verification,
+            PublicValuesOutputDigest::Reduce,
         );
         let operations = builder.into_operations();
         builder_span.exit();
@@ -416,27 +441,49 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         program
     }
 
-    pub fn wrap_program(
-        &self,
-        input: &SP1CompressWitnessValues<InnerSC>,
-    ) -> Arc<RecursionProgram<BabyBear>> {
-        // Get the operations.
-        let builder_span = tracing::debug_span!("build compress program").entered();
-        let mut builder = Builder::<InnerConfig>::default();
+    pub fn wrap_program(&self) -> Arc<RecursionProgram<BabyBear>> {
+        self.wrap_program
+            .get_or_init(|| {
+                // Get the operations.
+                let builder_span = tracing::debug_span!("build compress program").entered();
+                let mut builder = Builder::<WrapConfig>::default();
 
-        let input = input.read(&mut builder);
-        // Verify the proof.
-        SP1CompressRootVerifier::verify(&mut builder, self.shrink_prover.machine(), input);
+                let shrink_shape: ProofShape = ShrinkAir::<BabyBear>::shrink_shape().into();
+                let input_shape = SP1CompressShape::from(vec![shrink_shape]);
+                let shape = SP1CompressWithVkeyShape {
+                    compress_shape: input_shape,
+                    merkle_tree_height: self.vk_merkle_tree.height,
+                };
+                let dummy_input =
+                    SP1CompressWithVKeyWitnessValues::dummy(self.shrink_prover.machine(), &shape);
 
-        let operations = builder.into_operations();
-        builder_span.exit();
+                let input = dummy_input.read(&mut builder);
 
-        // Compile the program.
-        let compiler_span = tracing::debug_span!("compile compress program").entered();
-        let mut compiler = AsmCompiler::<InnerConfig>::default();
-        let program = Arc::new(compiler.compile(operations));
-        compiler_span.exit();
-        program
+                // Attest that the merkle tree root is correct.
+                let root = input.merkle_var.root;
+                for (val, expected) in root.iter().zip(self.vk_root.iter()) {
+                    builder.assert_felt_eq(*val, *expected);
+                }
+                // Verify the proof.
+                SP1CompressRootVerifierWithVKey::verify(
+                    &mut builder,
+                    self.shrink_prover.machine(),
+                    input,
+                    self.vk_verification,
+                    PublicValuesOutputDigest::Root,
+                );
+
+                let operations = builder.into_operations();
+                builder_span.exit();
+
+                // Compile the program.
+                let compiler_span = tracing::debug_span!("compile compress program").entered();
+                let mut compiler = AsmCompiler::<WrapConfig>::default();
+                let program = Arc::new(compiler.compile(operations));
+                compiler_span.exit();
+                program
+            })
+            .clone()
     }
 
     pub fn deferred_program(
@@ -453,7 +500,12 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         let input = input.read(&mut builder);
         input_read_span.exit();
         let verify_span = tracing::debug_span!("Verify deferred program").entered();
-        SP1DeferredVerifier::verify(&mut builder, self.compress_prover.machine(), input);
+        SP1DeferredVerifier::verify(
+            &mut builder,
+            self.compress_prover.machine(),
+            input,
+            self.vk_verification,
+        );
         verify_span.exit();
         let operations = builder.into_operations();
         operations_span.exit();
@@ -523,8 +575,13 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             let vks_and_proofs =
                 batch.iter().cloned().map(|proof| (proof.vk, proof.proof)).collect::<Vec<_>>();
 
+            let input = SP1CompressWitnessValues { vks_and_proofs, is_complete: true };
+            let input = self.make_merkle_proofs(input);
+            let SP1CompressWithVKeyWitnessValues { compress_val, merkle_val } = input;
+
             deferred_inputs.push(SP1DeferredWitnessValues {
-                vks_and_proofs,
+                vks_and_proofs: compress_val.vks_and_proofs,
+                vk_merkle_data: merkle_val,
                 start_reconstruct_deferred_digest: deferred_digest,
                 is_complete: false,
                 sp1_vk_digest: vk.hash_babybear(),
@@ -577,7 +634,6 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
     }
 
     /// Reduce shards proofs to a single shard proof using the recursion prover.
-    #[instrument(name = "compress", level = "info", skip_all)]
     #[instrument(name = "compress", level = "info", skip_all)]
     pub fn compress(
         &self,
@@ -667,7 +723,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                         if let Ok((index, height, input)) = received {
                             // Get the program and witness stream.
                             let (program, witness_stream) = tracing::debug_span!(
-                                "Get program and witness stream"
+                                "get program and witness stream"
                             )
                             .in_scope(|| match input {
                                 SP1CircuitWitness::Core(input) => {
@@ -993,8 +1049,9 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             vks_and_proofs: vec![(compressed_vk, compressed_proof)],
             is_complete: true,
         };
+        let input_with_vk = self.make_merkle_proofs(input);
 
-        let program = self.wrap_program(&input);
+        let program = self.wrap_program();
 
         // Run the compress program.
         let mut runtime = RecursionRuntime::<Val<InnerSC>, Challenge<InnerSC>, _>::new(
@@ -1003,7 +1060,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         );
 
         let mut witness_stream = Vec::new();
-        Witnessable::<InnerConfig>::write(&input, &mut witness_stream);
+        Witnessable::<InnerConfig>::write(&input_with_vk, &mut witness_stream);
 
         runtime.witness_stream = witness_stream.into();
 
@@ -1015,6 +1072,10 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         // Setup the wrap program.
         let (wrap_pk, wrap_vk) =
             tracing::debug_span!("Setup wrap").in_scope(|| self.wrap_prover.setup(&program));
+
+        if self.wrap_vk.set(wrap_vk.clone()).is_ok() {
+            tracing::debug!("wrap verifier key set");
+        }
 
         // Prove the wrap program.
         let mut wrap_challenger = self.wrap_prover.config().challenger();
@@ -1125,15 +1186,27 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         //     input.vks_and_proofs.iter().map(|(vk, _)| (0, vk.hash_babybear())).collect::<Vec<_>>();
 
         let num_vks = self.allowed_vk_map.len();
-        let (vk_indices, vk_digest_values): (Vec<_>, Vec<_>) = input
-            .vks_and_proofs
-            .iter()
-            .map(|(vk, _)| {
-                let vk_digest = vk.hash_babybear();
-                let index = (vk_digest[0].as_canonical_u32() as usize) % num_vks;
-                (index, [BabyBear::from_canonical_usize(index); 8])
-            })
-            .unzip();
+        let (vk_indices, vk_digest_values): (Vec<_>, Vec<_>) = if self.vk_verification {
+            input
+                .vks_and_proofs
+                .iter()
+                .map(|(vk, _)| {
+                    let vk_digest = vk.hash_babybear();
+                    let index = self.allowed_vk_map.get(&vk_digest).expect("vk not allowed");
+                    (index, vk_digest)
+                })
+                .unzip()
+        } else {
+            input
+                .vks_and_proofs
+                .iter()
+                .map(|(vk, _)| {
+                    let vk_digest = vk.hash_babybear();
+                    let index = (vk_digest[0].as_canonical_u32() as usize) % num_vks;
+                    (index, [BabyBear::from_canonical_usize(index); 8])
+                })
+                .unzip()
+        };
 
         let proofs = vk_indices
             .iter()
@@ -1144,7 +1217,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             .collect();
 
         let merkle_val = SP1MerkleProofWitnessValues {
-            root: self.root,
+            root: self.vk_root,
             values: vk_digest_values,
             vk_merkle_proofs: proofs,
         };
@@ -1170,7 +1243,7 @@ pub mod tests {
 
     use crate::build::try_build_plonk_bn254_artifacts_dev;
     use anyhow::Result;
-    use build::try_build_groth16_bn254_artifacts_dev;
+    use build::{build_constraints_and_witness, try_build_groth16_bn254_artifacts_dev};
     use p3_field::PrimeField32;
 
     use sp1_recursion_core_v2::air::RecursionPublicValues;
@@ -1187,7 +1260,8 @@ pub mod tests {
         Compress,
         Shrink,
         Wrap,
-        Plonk,
+        CircuitTest,
+        All,
     }
 
     pub fn test_e2e_prover<C: SP1ProverComponents>(
@@ -1294,6 +1368,16 @@ pub mod tests {
         tracing::info!("checking vkey hash bn254");
         let vk_digest_bn254 = sp1_vkey_digest_bn254(&wrapped_bn254_proof);
         assert_eq!(vk_digest_bn254, vk.hash_bn254());
+
+        tracing::info!("Test the outer Plonk circuit");
+        let (constraints, witness) =
+            build_constraints_and_witness(&wrapped_bn254_proof.vk, &wrapped_bn254_proof.proof);
+        PlonkBn254Prover::test(constraints, witness);
+        tracing::info!("Circuit test succedded");
+
+        if test_kind == Test::CircuitTest {
+            return Ok(());
+        }
 
         tracing::info!("generate plonk bn254 proof");
         let artifacts_dir = try_build_plonk_bn254_artifacts_dev(
@@ -1417,29 +1501,6 @@ pub mod tests {
         println!("verify wrap bn254 {:#?}", wrapped_bn254_proof.vk.commit);
         prover.verify_wrap_bn254(&wrapped_bn254_proof, &verify_vk).unwrap();
 
-        // tracing::info!("checking vkey hash babybear");
-        // let vk_digest_babybear = wrapped_bn254_proof.sp1_vkey_digest_babybear();
-        // assert_eq!(vk_digest_babybear, verify_vk.hash_babybear());
-
-        // tracing::info!("checking vkey hash bn254");
-        // let vk_digest_bn254 = wrapped_bn254_proof.sp1_vkey_digest_bn254();
-        // assert_eq!(vk_digest_bn254, verify_vk.hash_bn254());
-
-        // tracing::info!("generate groth16 bn254 proof");
-        // let artifacts_dir = try_build_groth16_bn254_artifacts_dev(
-        //     &wrapped_bn254_proof.vk,
-        //     &wrapped_bn254_proof.proof,
-        // );
-        // let groth16_bn254_proof = prover.wrap_groth16_bn254(wrapped_bn254_proof, &artifacts_dir);
-        // println!("{:?}", groth16_bn254_proof);
-
-        // prover.verify_groth16_bn254(
-        //     &groth16_bn254_proof,
-        //     &verify_vk,
-        //     &public_values,
-        //     &artifacts_dir,
-        // )?;
-
         Ok(())
     }
 
@@ -1464,7 +1525,7 @@ pub mod tests {
             elf,
             SP1Stdin::default(),
             opts,
-            Test::Plonk,
+            Test::All,
         )
     }
 

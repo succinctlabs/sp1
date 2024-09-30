@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use p3_field::{ExtensionField, PrimeField, TwoAdicField};
+use p3_field::{ExtensionField, PrimeField32, TwoAdicField};
 
 use crate::prelude::Config;
 
@@ -8,7 +8,7 @@ use crate::prelude::Config;
 #[derive(Debug, Clone, Default)]
 pub struct AsmConfig<F, EF>(PhantomData<(F, EF)>);
 
-impl<F: PrimeField + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> Config
+impl<F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> Config
     for AsmConfig<F, EF>
 {
     type N = F;
