@@ -47,6 +47,7 @@ pub fn time_operation<T, F: FnOnce() -> T>(operation: F) -> (T, std::time::Durat
 }
 
 fn main() {
+    sp1_sdk::utils::setup_logger();
     let args = PerfArgs::parse();
 
     let elf = std::fs::read(args.program).expect("failed to read program");
