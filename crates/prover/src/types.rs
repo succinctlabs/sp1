@@ -6,11 +6,8 @@ use p3_bn254_fr::Bn254Fr;
 use p3_commit::{Pcs, TwoAdicMultiplicativeCoset};
 use p3_field::{AbstractField, PrimeField, PrimeField32, TwoAdicField};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use sp1_core_machine::{
-    io::{SP1PublicValues, SP1Stdin},
-    riscv::RiscvAir,
-};
-use sp1_primitives::poseidon2_hash;
+use sp1_core_machine::{io::SP1Stdin, riscv::RiscvAir};
+use sp1_primitives::{io::SP1PublicValues, poseidon2_hash};
 use sp1_recursion_core::{air::RecursionPublicValues, stark::config::BabyBearPoseidon2Outer};
 use sp1_recursion_gnark_ffi::proof::{Groth16Bn254Proof, PlonkBn254Proof};
 use sp1_recursion_program::machine::{

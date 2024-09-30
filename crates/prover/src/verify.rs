@@ -5,8 +5,8 @@ use num_bigint::BigUint;
 use p3_baby_bear::BabyBear;
 use p3_field::{AbstractField, PrimeField};
 use sp1_core_executor::subproof::SubproofVerifier;
-use sp1_core_machine::{cpu::MAX_CPU_LOG_DEGREE, io::SP1PublicValues};
-use sp1_primitives::consts::WORD_SIZE;
+use sp1_core_machine::cpu::MAX_CPU_LOG_DEGREE;
+use sp1_primitives::{consts::WORD_SIZE, io::SP1PublicValues};
 use sp1_recursion_core::{air::RecursionPublicValues, stark::config::BabyBearPoseidon2Outer};
 use sp1_recursion_gnark_ffi::{
     Groth16Bn254Proof, Groth16Bn254Prover, PlonkBn254Proof, PlonkBn254Prover,

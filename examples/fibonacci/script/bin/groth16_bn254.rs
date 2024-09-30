@@ -21,12 +21,12 @@ fn main() {
     println!("generated proof");
 
     // Get the public values as bytes.
-    let public_values = proof.public_values.raw();
-    println!("public values: {:?}", public_values);
+    let public_values = proof.public_values.as_slice();
+    println!("public values: 0x{}", hex::encode(public_values));
 
     // Get the proof as bytes.
-    let solidity_proof = proof.raw();
-    println!("proof: {:?}", solidity_proof);
+    let solidity_proof = proof.bytes();
+    println!("proof: 0x{}", hex::encode(solidity_proof));
 
     // Verify proof and public values
     client.verify(&proof, &vk).expect("verification failed");

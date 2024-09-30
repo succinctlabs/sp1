@@ -39,9 +39,8 @@ use {std::future::Future, tokio::task::block_in_place};
 pub use provers::{CpuProver, MockProver, Prover};
 
 pub use sp1_core_executor::{ExecutionReport, HookEnv, SP1Context, SP1ContextBuilder};
-pub use sp1_core_machine::{
-    io::SP1PublicValues, io::SP1Stdin, riscv::cost::CostEstimator, SP1_CIRCUIT_VERSION,
-};
+pub use sp1_core_machine::{io::SP1Stdin, riscv::cost::CostEstimator, SP1_CIRCUIT_VERSION};
+pub use sp1_primitives::io::SP1PublicValues;
 pub use sp1_prover::{
     CoreSC, HashableKey, InnerSC, OuterSC, PlonkBn254Proof, SP1Prover, SP1ProvingKey,
     SP1VerifyingKey,
@@ -81,7 +80,7 @@ impl ProverClient {
                 #[cfg(not(feature = "cuda"))]
                 prover: Box::new(CpuProver::new()),
                 #[cfg(feature = "cuda")]
-                prover: Box::new(CudaProver::new()),
+                prover: Box::new(CudaProver::new(SP1Prover::new())),
             },
             "network" => {
                 cfg_if! {
