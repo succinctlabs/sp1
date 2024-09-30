@@ -53,7 +53,7 @@ jobs:
         with:
           command: run
           toolchain: 1.81.0
-          args: --release -p sp1-perf -- --program ${{ matrix.s3_folder }}/program.bin --stdin ${{ matrix.s3_folder }}/stdin.bin --mode cpu
+          args: --release -p sp1-perf -- --program workdir/program.bin --stdin workdir/stdin.bin --mode cpu
         env:
           RUSTFLAGS: -Copt-level=3 -Ctarget-cpu=native
           RUST_BACKTRACE: 1
