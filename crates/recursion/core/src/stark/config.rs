@@ -20,6 +20,7 @@ pub const DIGEST_SIZE: usize = 1;
 
 pub const OUTER_MULTI_FIELD_CHALLENGER_WIDTH: usize = 3;
 pub const OUTER_MULTI_FIELD_CHALLENGER_RATE: usize = 2;
+pub const OUTER_MULTI_FIELD_CHALLENGER_DIGEST_SIZE: usize = 1;
 
 /// A configuration for outer recursion.
 pub type OuterVal = BabyBear;
