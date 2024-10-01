@@ -498,6 +498,9 @@ impl<F: PrimeField32> RiscvAir<F> {
         for memory_air in Self::memory_init_final_airs() {
             airs.remove(&memory_air);
         }
+        airs.remove(&Self::new(RiscvAirDiscriminants::Program));
+        airs.remove(&Self::new(RiscvAirDiscriminants::ProgramMemory));
+        airs.remove(&Self::new(RiscvAirDiscriminants::ByteLookup));
         airs.into_iter().collect()
     }
 
@@ -523,7 +526,7 @@ impl<F: PrimeField32> RiscvAir<F> {
                 record.get_precompile_events(SyscallCode::KECCAK_PERMUTE).len().div_ceil(NUM_ROUNDS)
             }
             _ => unimplemented!(
-                "For the precompile {}, Shape cannot be fixed beofe the proof",
+                "For the precompile {}, shape fixing for the record is not implemented",
                 self.name()
             ),
         };
