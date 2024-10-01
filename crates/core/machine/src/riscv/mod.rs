@@ -526,6 +526,9 @@ impl<F: PrimeField32> RiscvAir<F> {
                 record.get_precompile_events(SyscallCode::KECCAK_PERMUTE).len().div_ceil(NUM_ROUNDS)
             }
             RiscvAir::Ed25519Add(_) => record.get_precompile_events(SyscallCode::ED_ADD).len(),
+            RiscvAir::Ed25519Decompress(_) => {
+                record.get_precompile_events(SyscallCode::ED_DECOMPRESS).len()
+            }
             _ => unimplemented!(
                 "For the precompile {}, shape fixing for the record is not implemented",
                 self.name()
