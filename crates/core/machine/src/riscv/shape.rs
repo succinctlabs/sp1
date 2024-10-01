@@ -387,7 +387,7 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
         ]);
 
         let mut precompile_allowed_log_heights: Vec<(_, HashMap<_, _>)> = vec![];
-        let precompile_heights = (3..19).skip(2).map(Some).collect::<Vec<_>>();
+        let precompile_heights = (3..19).map(Some).collect::<Vec<_>>();
         let mem_local_precompile_heights = vec![Some(16), Some(20), Some(21), Some(22)];
         for air in RiscvAir::<F>::get_all_precompile_airs() {
             let air_copy = RiscvAir::new(RiscvAirDiscriminants::from(&air));
