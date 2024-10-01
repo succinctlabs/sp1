@@ -340,7 +340,7 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
         let shift_right_heights = vec![None, Some(19), Some(20), Some(21)];
         let shift_left_heights = vec![None, Some(19), Some(20), Some(21)];
         let lt_heights = vec![None, Some(19), Some(20), Some(21)];
-        let memory_local_heights = vec![Some(20), Some(21)];
+        let memory_local_heights = vec![Some(19), Some(20), Some(21)];
         let syscall_heights = vec![None, Some(19)];
 
         let medium_allowed_log_heights = HashMap::from([
