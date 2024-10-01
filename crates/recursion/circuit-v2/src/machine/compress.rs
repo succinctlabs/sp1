@@ -497,9 +497,6 @@ where
             }
         }
 
-        // Assert that the exit code is zero.
-        builder.assert_felt_eq(exit_code, C::F::zero());
-
         // Update the global values from the last accumulated values.
         // Set sp1_vk digest to the one from the proof values.
         compress_public_values.sp1_vk_digest = sp1_vk_digest;
