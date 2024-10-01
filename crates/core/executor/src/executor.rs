@@ -1279,6 +1279,12 @@ impl<'a> Executor<'a> {
                     }
                 });
                 checkpoint.uninitialized_memory = self.state.uninitialized_memory.clone();
+                // Remove memory that was written to in this batch.
+                for (addr, is_old) in uninitialized_memory_checkpoint {
+                    if !is_old {
+                        checkpoint.uninitialized_memory.remove(addr);
+                    }
+                }
             } else {
                 checkpoint.memory = memory_checkpoint
                     .into_iter()
