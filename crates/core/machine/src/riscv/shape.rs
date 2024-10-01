@@ -13,7 +13,7 @@ use crate::{
 
 use super::{
     AddSubChip, BitwiseChip, ByteChip, CpuChip, DivRemChip, LtChip, MemoryGlobalChip, MulChip,
-    ProgramChip, RiscvAir, ShiftLeft, ShiftRightChip, SyscallChip,
+    ProgramChip, RiscvAir, RiscvAirDiscriminants, ShiftLeft, ShiftRightChip, SyscallChip,
 };
 
 #[derive(Debug, Error)]
@@ -40,7 +40,7 @@ pub struct CoreShapeConfig<F: PrimeField32> {
     medium_core_allowed_log_heights: HashMap<RiscvAir<F>, Vec<Option<usize>>>,
     long_core_allowed_log_heights: HashMap<RiscvAir<F>, Vec<Option<usize>>>,
     memory_allowed_log_heights: HashMap<RiscvAir<F>, Vec<Option<usize>>>,
-    precompile_allowed_log_heights: Vec<HashMap<RiscvAir<F>, Vec<Option<usize>>>>,
+    precompile_allowed_log_heights: Vec<(RiscvAir<F>, HashMap<RiscvAir<F>, Vec<Option<usize>>>)>,
 }
 
 impl<F: PrimeField32> CoreShapeConfig<F> {
@@ -147,22 +147,29 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
             return Ok(());
         }
 
-        // Otherwise, try to fix the shape as a precompile record. Since we allow all possible
-        // heights up to 1 << 22, we currently just don't fix the shape, but making sure the shape
-        // is included
-        self.precompile_allowed_log_heights
-            .iter()
-            .find_map(|allowed_log_heights| {
-                // Check if the precompile is included in the shapes.
-                for (air, _) in allowed_log_heights {
-                    if !air.included(record) {
-                        return None;
-                    }
-                }
-                Some(())
-            })
-            .ok_or(CoreShapeError::PrecompileNotIncluded)?;
-        Ok(())
+        // Otherwise, try to fix the shape as a precompile record.
+        for (air, allowed_log_heights) in self.precompile_allowed_log_heights.iter() {
+            if air.included(record) {
+                let heights = air.get_precompile_heights(record);
+                let shape = Self::find_shape_from_allowed_heights(&heights, allowed_log_heights)
+                    .ok_or(CoreShapeError::PrecompileNotIncluded)?;
+                record.shape.as_mut().unwrap().extend(shape);
+                return Ok(());
+            }
+        }
+        // self.precompile_allowed_log_heights
+        //     .iter()
+        //     .find_map(|allowed_log_heights| {
+        //         // Check if the precompile is included in the shapes.
+        //         for (air, _) in allowed_log_heights {
+        //             if !air.included(record) {
+        //                 return None;
+        //             }
+        //         }
+        //         Some(())
+        //     })
+        //     .ok_or(CoreShapeError::PrecompileNotIncluded)?;
+        Err(CoreShapeError::PrecompileNotIncluded)
     }
 
     fn generate_all_shapes_from_allowed_log_heights(
@@ -219,7 +226,7 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
         let precompile_heights = self
             .precompile_allowed_log_heights
             .iter()
-            .map(|allowed_log_heights| {
+            .map(|(_, allowed_log_heights)| {
                 let mut heights = allowed_log_heights
                     .iter()
                     .map(|(air, heights)| (air.name(), heights.clone()))
@@ -391,10 +398,11 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
             (RiscvAir::MemoryGlobalFinal(MemoryGlobalChip::new(Finalize)), memory_finalize_heights),
         ]);
 
-        let mut precompile_allowed_log_heights: Vec<HashMap<_, _>> = vec![];
+        let mut precompile_allowed_log_heights: Vec<(_, HashMap<_, _>)> = vec![];
         let precompile_heights = (3..19).skip(2).map(Some).collect::<Vec<_>>();
         let mem_local_precompile_heights = vec![Some(16), Some(20), Some(21), Some(22)];
         for air in RiscvAir::<F>::get_all_precompile_airs() {
+            let air_copy = RiscvAir::new(RiscvAirDiscriminants::from(&air));
             let allowed_log_heights = HashMap::from([
                 (air, precompile_heights.clone()),
                 (
@@ -402,7 +410,7 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
                     mem_local_precompile_heights.clone(),
                 ),
             ]);
-            precompile_allowed_log_heights.push(allowed_log_heights);
+            precompile_allowed_log_heights.push((air_copy, allowed_log_heights));
         }
 
         Self {

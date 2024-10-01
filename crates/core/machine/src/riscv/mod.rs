@@ -2,6 +2,8 @@ pub mod cost;
 
 mod shape;
 
+use std::mem::Discriminant;
+
 use itertools::Itertools;
 use p3_keccak_air::NUM_ROUNDS;
 pub use shape::*;
@@ -161,6 +163,84 @@ impl<F: PrimeField32> RiscvAir<F> {
     pub fn get_airs_and_costs() -> (Vec<Self>, HashMap<RiscvAirDiscriminants, u64>) {
         let (chips, costs) = Self::get_chips_and_costs();
         (chips.into_iter().map(|chip| chip.into_inner()).collect(), costs)
+    }
+
+    pub fn new(kind: RiscvAirDiscriminants) -> Self {
+        match kind {
+            RiscvAirDiscriminants::Cpu => Self::Cpu(CpuChip::default()),
+            RiscvAirDiscriminants::Program => Self::Program(ProgramChip::default()),
+            RiscvAirDiscriminants::MemoryLocal => Self::MemoryLocal(MemoryLocalChip::new()),
+            RiscvAirDiscriminants::Add => Self::Add(AddSubChip::default()),
+            RiscvAirDiscriminants::Bitwise => Self::Bitwise(BitwiseChip::default()),
+            RiscvAirDiscriminants::DivRem => Self::DivRem(DivRemChip::default()),
+            RiscvAirDiscriminants::Lt => Self::Lt(LtChip::default()),
+            RiscvAirDiscriminants::Mul => Self::Mul(MulChip::default()),
+            RiscvAirDiscriminants::ShiftLeft => Self::ShiftLeft(ShiftLeft::default()),
+            RiscvAirDiscriminants::ShiftRight => Self::ShiftRight(ShiftRightChip::default()),
+            RiscvAirDiscriminants::ByteLookup => Self::ByteLookup(ByteChip::default()),
+            RiscvAirDiscriminants::MemoryGlobalInit => {
+                Self::MemoryGlobalInit(MemoryGlobalChip::new(MemoryChipType::Initialize))
+            }
+            RiscvAirDiscriminants::MemoryGlobalFinal => {
+                Self::MemoryGlobalFinal(MemoryGlobalChip::new(MemoryChipType::Finalize))
+            }
+            RiscvAirDiscriminants::ProgramMemory => {
+                Self::ProgramMemory(MemoryProgramChip::default())
+            }
+            RiscvAirDiscriminants::Syscall => Self::Syscall(SyscallChip::default()),
+            RiscvAirDiscriminants::Bn254Add => {
+                Self::Bn254Add(WeierstrassAddAssignChip::<SwCurve<Bn254Parameters>>::new())
+            }
+            RiscvAirDiscriminants::Bn254Double => {
+                Self::Bn254Double(WeierstrassDoubleAssignChip::<SwCurve<Bn254Parameters>>::new())
+            }
+            RiscvAirDiscriminants::Bn254Fp => Self::Bn254Fp(FpOpChip::<Bn254BaseField>::new()),
+            RiscvAirDiscriminants::Bn254Fp2AddSub => {
+                Self::Bn254Fp2AddSub(Fp2AddSubAssignChip::<Bn254BaseField>::new())
+            }
+            RiscvAirDiscriminants::Bn254Fp2Mul => {
+                Self::Bn254Fp2Mul(Fp2MulAssignChip::<Bn254BaseField>::new())
+            }
+            RiscvAirDiscriminants::Ed25519Add => {
+                RiscvAir::Ed25519Add(EdAddAssignChip::<EdwardsCurve<Ed25519Parameters>>::new())
+            }
+            RiscvAirDiscriminants::Sha256Compress => {
+                RiscvAir::Sha256Compress(ShaCompressChip::default())
+            }
+            RiscvAirDiscriminants::Ed25519Decompress => {
+                RiscvAir::Ed25519Decompress(EdDecompressChip::<Ed25519Parameters>::default())
+            }
+            RiscvAirDiscriminants::K256Decompress => RiscvAir::K256Decompress(
+                WeierstrassDecompressChip::<SwCurve<Secp256k1Parameters>>::with_lsb_rule(),
+            ),
+            RiscvAirDiscriminants::Secp256k1Add => RiscvAir::Secp256k1Add(
+                WeierstrassAddAssignChip::<SwCurve<Secp256k1Parameters>>::new(),
+            ),
+            RiscvAirDiscriminants::Secp256k1Double => RiscvAir::Secp256k1Double(
+                WeierstrassDoubleAssignChip::<SwCurve<Secp256k1Parameters>>::new(),
+            ),
+            RiscvAirDiscriminants::KeccakP => RiscvAir::KeccakP(KeccakPermuteChip::new()),
+            RiscvAirDiscriminants::Bls12381Add => {
+                RiscvAir::Bls12381Add(WeierstrassAddAssignChip::<SwCurve<Bls12381Parameters>>::new())
+            }
+            RiscvAirDiscriminants::Bls12381Double => RiscvAir::Bls12381Double(
+                WeierstrassDoubleAssignChip::<SwCurve<Bls12381Parameters>>::new(),
+            ),
+            RiscvAirDiscriminants::Bls12381Fp => {
+                RiscvAir::Bls12381Fp(FpOpChip::<Bls12381BaseField>::new())
+            }
+            RiscvAirDiscriminants::Bls12381Fp2AddSub => {
+                RiscvAir::Bls12381Fp2AddSub(Fp2AddSubAssignChip::<Bls12381BaseField>::new())
+            }
+            RiscvAirDiscriminants::Bls12381Fp2Mul => {
+                RiscvAir::Bls12381Fp2Mul(Fp2MulAssignChip::<Bls12381BaseField>::new())
+            }
+            RiscvAirDiscriminants::Bls12381Decompress => RiscvAir::Bls12381Decompress(
+                WeierstrassDecompressChip::<SwCurve<Bls12381Parameters>>::with_lexicographic_rule(),
+            ),
+            RiscvAirDiscriminants::Sha256Extend => RiscvAir::Sha256Extend(ShaExtendChip::default()),
+            RiscvAirDiscriminants::Uint256Mul => RiscvAir::Uint256Mul(Uint256MulChip::default()),
+        }
     }
 
     /// Get all the different RISC-V AIRs.
@@ -421,7 +501,7 @@ impl<F: PrimeField32> RiscvAir<F> {
         airs.into_iter().collect()
     }
 
-    pub(crate) fn get_precompile_heights(&self, record: &ExecutionRecord) -> Vec<(String, usize)> {
+    pub(crate) fn get_precompile_heights(&self, record: &ExecutionRecord) -> Vec<(Self, usize)> {
         let height = match self {
             RiscvAir::Bls12381Add(_) => {
                 record.get_precompile_events(SyscallCode::BLS12381_ADD).len()
@@ -447,10 +527,12 @@ impl<F: PrimeField32> RiscvAir<F> {
                 self.name()
             ),
         };
-        let mut heights = vec![(self.name(), height)];
+
+        let disc: RiscvAirDiscriminants = self.into();
+        let mut heights = vec![(Self::new(disc), height)];
 
         heights.push((
-            RiscvAir::<F>::MemoryLocal(MemoryLocalChip::new()).name(),
+            RiscvAir::<F>::MemoryLocal(MemoryLocalChip::new()),
             record
                 .get_local_mem_events()
                 .chunks(NUM_LOCAL_MEMORY_ENTRIES_PER_ROW)

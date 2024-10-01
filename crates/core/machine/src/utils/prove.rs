@@ -602,6 +602,7 @@ where
                                             assert_eq!(
                                                 proof.shape(),
                                                 shape.clone().into_iter().collect(),
+                                                "Proof shape does not match the shape of the record, the configuration of the record shape may be incorrect",
                                             );
                                         }
                                     }
