@@ -502,7 +502,7 @@ where
             local.ptr,
             local.sign_bit,
             local.is_real,
-            InteractionScope::Global,
+            InteractionScope::Local,
         );
     }
 }

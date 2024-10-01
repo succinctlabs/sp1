@@ -440,7 +440,7 @@ where
             local.p_ptr,
             AB::Expr::zero(),
             local.is_real,
-            InteractionScope::Global,
+            InteractionScope::Local,
         );
     }
 }

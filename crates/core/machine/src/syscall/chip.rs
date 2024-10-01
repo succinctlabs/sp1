@@ -40,7 +40,7 @@ pub struct SyscallCols<T> {
     /// The arg2.
     pub arg2: T,
 
-    pub is_real: T,
+    pub send_mult: T,
 }
 
 impl<F: PrimeField32> MachineAir<F> for SyscallChip {
@@ -63,7 +63,11 @@ impl<F: PrimeField32> MachineAir<F> for SyscallChip {
     ) -> RowMajorMatrix<F> {
         let mut rows = Vec::new();
 
-        for syscall_event in input.syscall_events.iter() {
+        let shard_events = input.syscall_events.iter().map(|event| (event, true));
+        let precompile_events =
+            input.precompile_events.all_events().map(|(event, _)| (event, false));
+
+        for (syscall_event, is_send) in shard_events.chain(precompile_events) {
             let mut row = [F::zero(); NUM_SYSCALL_COLS];
             let cols: &mut SyscallCols<F> = row.as_mut_slice().borrow_mut();
 
@@ -75,7 +79,7 @@ impl<F: PrimeField32> MachineAir<F> for SyscallChip {
             );
             cols.arg1 = F::from_canonical_u32(syscall_event.arg1);
             cols.arg2 = F::from_canonical_u32(syscall_event.arg2);
-            cols.is_real = F::one();
+            cols.send_mult = F::from_bool(is_send);
 
             rows.push(row);
         }
@@ -90,7 +94,7 @@ impl<F: PrimeField32> MachineAir<F> for SyscallChip {
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
-        !shard.syscall_events.is_empty()
+        !shard.syscall_events.is_empty() || !shard.precompile_events.is_empty()
     }
 
     fn commit_scope(&self) -> InteractionScope {
@@ -108,11 +112,11 @@ where
         let local: &SyscallCols<AB::Var> = (*local).borrow();
 
         builder.assert_eq(
-            local.is_real * local.is_real * local.is_real,
-            local.is_real * local.is_real * local.is_real,
+            local.send_mult * local.send_mult * local.send_mult,
+            local.send_mult * local.send_mult * local.send_mult,
         );
 
-        // Receive the calls from the local bus from the CPU.
+        // Receive the calls from the local bus from the CPU/Precompile.
         builder.receive_syscall(
             local.shard,
             local.clk,
@@ -120,11 +124,11 @@ where
             local.syscall_id,
             local.arg1,
             local.arg2,
-            local.is_real,
+            local.send_mult,
             InteractionScope::Local,
         );
 
-        // Send the call to the global bus to the precompile chips.
+        // Send the call to the global bus to/from the precompile chips.
         builder.send_syscall(
             local.shard,
             local.clk,
@@ -132,7 +136,7 @@ where
             local.syscall_id,
             local.arg1,
             local.arg2,
-            local.is_real,
+            local.send_mult,
             InteractionScope::Global,
         );
     }

@@ -60,7 +60,7 @@ where
             local.w_ptr,
             local.h_ptr,
             local.start,
-            InteractionScope::Global,
+            InteractionScope::Local,
         );
     }
 }

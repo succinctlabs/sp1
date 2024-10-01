@@ -186,7 +186,7 @@ impl<V: Copy> EdDecompressCols<V> {
             self.ptr,
             self.sign,
             self.is_real,
-            InteractionScope::Global,
+            InteractionScope::Local,
         );
     }
 }

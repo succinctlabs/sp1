@@ -402,7 +402,7 @@ where
             local.p_ptr,
             local.q_ptr,
             local.is_real,
-            InteractionScope::Global,
+            InteractionScope::Local,
         );
     }
 }

@@ -167,6 +167,18 @@ impl PrecompileEvents {
         self.events.entry(syscall_code).or_default().push((syscall_event, event));
     }
 
+    /// Checks if the precompile events are empty.
+    #[inline]
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.events.is_empty()
+    }
+
+    /// Get all the precompile events.
+    pub fn all_events(&self) -> impl Iterator<Item = &(SyscallEvent, PrecompileEvent)> {
+        self.events.values().flatten()
+    }
+
     #[inline]
     /// Insert a vector of precompile events for a given syscall code.
     pub(crate) fn insert(

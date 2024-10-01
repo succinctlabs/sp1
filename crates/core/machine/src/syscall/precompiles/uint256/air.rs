@@ -332,7 +332,7 @@ where
             local.x_ptr,
             local.y_ptr,
             local.is_real,
-            InteractionScope::Global,
+            InteractionScope::Local,
         );
 
         // Assert that is_real is a boolean.
