@@ -164,11 +164,8 @@ impl ExecutionRecord {
                 .collect::<Vec<_>>();
             shards.append(&mut event_shards);
         }
-        // _ = last_pct;
 
         if last {
-            // shards.push(last_shard);
-
             self.global_memory_initialize_events.sort_by_key(|event| event.addr);
             self.global_memory_finalize_events.sort_by_key(|event| event.addr);
 

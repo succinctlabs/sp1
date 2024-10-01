@@ -3,8 +3,9 @@ pub mod cost;
 mod shape;
 
 use itertools::Itertools;
+use p3_keccak_air::NUM_ROUNDS;
 pub use shape::*;
-use sp1_core_executor::{ExecutionRecord, Program};
+use sp1_core_executor::{syscalls::SyscallCode, ExecutionRecord, Program};
 
 use crate::{
     memory::{
@@ -418,6 +419,43 @@ impl<F: PrimeField32> RiscvAir<F> {
             airs.remove(&memory_air);
         }
         airs.into_iter().collect()
+    }
+
+    pub(crate) fn get_precompile_heights(&self, record: &ExecutionRecord) -> Vec<(String, usize)> {
+        let height = match self {
+            RiscvAir::Bls12381Add(_) => {
+                record.get_precompile_events(SyscallCode::BLS12381_ADD).len()
+            }
+            RiscvAir::Bn254Add(_) => record.get_precompile_events(SyscallCode::BN254_ADD).len(),
+            RiscvAir::Bn254Double(_) => {
+                record.get_precompile_events(SyscallCode::BN254_DOUBLE).len()
+            }
+            RiscvAir::Bls12381Decompress(_) => {
+                record.get_precompile_events(SyscallCode::BLS12381_DECOMPRESS).len()
+            }
+            RiscvAir::Bls12381Double(_) => {
+                record.get_precompile_events(SyscallCode::BLS12381_DOUBLE).len()
+            }
+            RiscvAir::K256Decompress(_) => {
+                record.get_precompile_events(SyscallCode::SECP256K1_DECOMPRESS).len()
+            }
+            RiscvAir::KeccakP(_) => {
+                record.get_precompile_events(SyscallCode::KECCAK_PERMUTE).len().div_ceil(NUM_ROUNDS)
+            }
+            _ => unimplemented!(),
+        };
+        let mut heights = vec![(self.name(), height)];
+
+        heights.push((
+            RiscvAir::<F>::MemoryLocal(MemoryLocalChip::new()).name(),
+            record
+                .get_local_mem_events()
+                .chunks(NUM_LOCAL_MEMORY_ENTRIES_PER_ROW)
+                .into_iter()
+                .count(),
+        ));
+
+        heights
     }
 }
 

@@ -297,8 +297,8 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
         let included_shapes = vec![];
 
         // Preprocessed chip heights.
-        let program_heights = vec![Some(16), Some(19), Some(20), Some(21), Some(22)];
-        let program_memory_heights = vec![Some(16), Some(19), Some(20), Some(21), Some(22)];
+        let program_heights = vec![Some(16), Some(20), Some(21), Some(22)];
+        let program_memory_heights = vec![Some(16), Some(20), Some(21), Some(22)];
 
         let allowed_preprocessed_log_heights = HashMap::from([
             (RiscvAir::Program(ProgramChip::default()), program_heights),
@@ -392,9 +392,16 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
         ]);
 
         let mut precompile_allowed_log_heights: Vec<HashMap<_, _>> = vec![];
-        let precompile_heights = (1..22).map(Some).collect::<Vec<_>>();
+        let precompile_heights = (3..19).skip(2).map(Some).collect::<Vec<_>>();
+        let mem_local_precompile_heights = vec![Some(16), Some(20), Some(21), Some(22)];
         for air in RiscvAir::<F>::get_all_precompile_airs() {
-            let allowed_log_heights = HashMap::from([(air, precompile_heights.clone())]);
+            let allowed_log_heights = HashMap::from([
+                (air, precompile_heights.clone()),
+                (
+                    RiscvAir::MemoryLocal(MemoryLocalChip::new()),
+                    mem_local_precompile_heights.clone(),
+                ),
+            ]);
             precompile_allowed_log_heights.push(allowed_log_heights);
         }
 
