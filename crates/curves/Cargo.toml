@@ -32,6 +32,7 @@ cfg-if = "1.0.0"
 
 [dev-dependencies]
 rand = "0.8.5"
+num = { version = "0.4.3", features = ["rand"] }
 
 [features]
 bigint-rug = ["rug"]
