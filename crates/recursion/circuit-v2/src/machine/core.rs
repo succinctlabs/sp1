@@ -532,6 +532,9 @@ where
             }
         }
 
+        // Assert that the last exit code is zero.
+        builder.assert_felt_eq(exit_code, C::F::zero());
+
         // Write all values to the public values struct and commit to them.
         {
             // Compute the vk digest.
