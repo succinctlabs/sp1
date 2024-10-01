@@ -59,7 +59,6 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
         let num_events = events.len();
         let num_rows = (num_events * NUM_ROUNDS).next_power_of_two();
         let chunk_size = 8;
-        // let mut values = vec![F::zero(); num_rows * NUM_KECCAK_MEM_COLS];
         let values = vec![0u32; num_rows * NUM_KECCAK_MEM_COLS];
         let mut values = unsafe { std::mem::transmute::<Vec<u32>, Vec<F>>(values) };
 

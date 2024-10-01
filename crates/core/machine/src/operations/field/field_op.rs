@@ -137,8 +137,6 @@ impl<F: PrimeField32, P: FieldParameters> FieldOpCols<F, P> {
             FieldOperation::Div => {
                 // As modulus is prime, we can use Fermat's little theorem to compute the
                 // inverse.
-                // let result =
-                //     (a * b.modpow(&(modulus.clone() - 2u32), &modulus.clone())) % modulus.clone();
                 let rug_a = biguint_to_rug(a);
                 let rug_b = biguint_to_rug(b);
                 let rug_modulus = biguint_to_rug(modulus);
