@@ -47,10 +47,8 @@ pub trait AffinePoint<const N: usize>: Clone + Sized {
     /// Adds the given [`AffinePoint`] to `self`.
     fn add_assign(&mut self, other: &Self);
 
-    /// Adds the given [`AffinePoint`] to `self`. Handles special cases of affine point addition,
-    /// such as adding infinity to a point, adding a point to infinity, adding a point to itself,
-    /// and adding a point to its negation within Weierstrass curves. For Edwards curves,
-    /// this function is identical to `add_assign`.
+    /// Adds the given [`AffinePoint`] to `self`. Can be optionally overriden to use a different
+    /// implementation of addition in multi-scalar multiplication, which is used in secp256k1 recovery.
     fn complete_add_assign(&mut self, other: &Self) {
         self.add_assign(other);
     }
