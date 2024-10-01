@@ -45,7 +45,6 @@ bytemuck = "1.16.3"
 tiny-keccak = { version = "2.0.2", features = ["keccak"] }
 vec_map = { version = "0.8.2", features = ["serde"] }
 enum-map = { version = "2.7.3", features = ["serde"] }
-serde-big-array = "0.5.1"
 
 [dev-dependencies]
 sp1-zkvm = { workspace = true }
