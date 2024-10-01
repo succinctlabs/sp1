@@ -93,8 +93,8 @@ pub trait AffinePoint<const N: usize>: Clone + Sized {
         for (a_bit, b_bit) in a_bits_le.iter().zip(b_bits_le.iter()) {
             if let Some(new_res) = res.clone() {
                 if new_res.limbs_ref() == temp_a.limbs_ref() {
-                    eprintln!("Res limbs: {:?}", new_res.limbs_ref());
                     eprintln!("Temp A limbs: {:?}", temp_a.limbs_ref());
+                    eprintln!("Temp B limbs: {:?}", temp_b.limbs_ref());
                     eprintln!("Error: Points are the same. Use sw_double instead.");
                 }
             }
@@ -108,7 +108,7 @@ pub trait AffinePoint<const N: usize>: Clone + Sized {
 
             if let Some(new_res) = res.clone() {
                 if new_res.limbs_ref() == temp_b.limbs_ref() {
-                    eprintln!("Res limbs: {:?}", new_res.limbs_ref());
+                    eprintln!("Temp A limbs: {:?}", temp_a.limbs_ref());
                     eprintln!("Temp B limbs: {:?}", temp_b.limbs_ref());
                     eprintln!("Error: Points are the same. Use sw_double instead.");
                 }
