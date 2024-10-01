@@ -19,7 +19,7 @@ concurrency:
 jobs:
   test-x86:
     name: ${{ matrix.s3_folder }} (${{ matrix.mode }})
-    runs-on: ${{ matrix.mode == 'cuda' && fromJSON('["runs-on", "family=g6.16xlarge", "image=nvidia-linux", "spot=false", "run-id=${{ github.run_id }}"]') || fromJSON('["runs-on", "runner=64cpu-linux-x64", "spot=false", "run-id=${{ github.run_id }}"]') }}
+    runs-on: ${{ matrix.mode == 'cuda' && fromJSON('["runs-on", "family=g6.16xlarge", "image=ubuntu22-full-x64", "spot=false", "run-id=${{ github.run_id }}"]') || fromJSON('["runs-on", "runner=64cpu-linux-x64", "spot=false", "run-id=${{ github.run_id }}"]') }}
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     strategy:
@@ -64,6 +64,14 @@ jobs:
           mkdir -p workdir
           aws s3 cp s3://sp1-testing-suite/${{ matrix.s3_folder }}/program.bin workdir/program.bin
           aws s3 cp s3://sp1-testing-suite/${{ matrix.s3_folder }}/stdin.bin workdir/stdin.bin
+      - name: Setup NVIDIA Container Toolkit
+        run: |
+          curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | sudo gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
+          curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list | sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' | sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
+          sudo apt-get update
+          sudo apt-get install -y nvidia-container-toolkit
+          sudo nvidia-ctk runtime configure --runtime=docker
+          sudo systemctl restart docker
       - name: Test docker container
         if: matrix.mode == 'cuda'
         run: |
