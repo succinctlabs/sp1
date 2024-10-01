@@ -68,6 +68,10 @@ pub struct Executor<'a> {
     /// checkpoints.
     pub memory_checkpoint: PagedMemory<Option<MemoryRecord>>,
 
+    /// Memory addresses that were initialized in this batch of shards. Used to minimize the size of
+    /// checkpoints. The value stored is whether or not it had a value at the beginning of the batch.
+    pub uninitialized_memory_checkpoint: PagedMemory<bool>,
+
     /// The memory accesses for the current cycle.
     pub memory_accesses: MemoryAccessRecord,
 
@@ -222,6 +226,7 @@ impl<'a> Executor<'a> {
             opts,
             max_cycles: context.max_cycles,
             memory_checkpoint: PagedMemory::new_preallocated(),
+            uninitialized_memory_checkpoint: PagedMemory::new_preallocated(),
             local_memory_access: HashMap::new(),
         }
     }
@@ -389,6 +394,7 @@ impl<'a> Executor<'a> {
             Entry::Vacant(entry) => {
                 // If addr has a specific value to be initialized with, use that, otherwise 0.
                 let value = self.state.uninitialized_memory.get(addr).unwrap_or(&0);
+                self.uninitialized_memory_checkpoint.entry(addr).or_insert_with(|| *value != 0);
                 entry.insert(MemoryRecord { value: *value, shard: 0, timestamp: 0 })
             }
         };
@@ -465,6 +471,7 @@ impl<'a> Executor<'a> {
             Entry::Vacant(entry) => {
                 // If addr has a specific value to be initialized with, use that, otherwise 0.
                 let value = self.state.uninitialized_memory.get(addr).unwrap_or(&0);
+                self.uninitialized_memory_checkpoint.entry(addr).or_insert_with(|| *value != 0);
 
                 entry.insert(MemoryRecord { value: *value, shard: 0, timestamp: 0 })
             }
@@ -1258,6 +1265,8 @@ impl<'a> Executor<'a> {
         // need it all for MemoryFinalize.
         tracing::info_span!("create memory checkpoint").in_scope(|| {
             let memory_checkpoint = std::mem::take(&mut self.memory_checkpoint);
+            let uninitialized_memory_checkpoint =
+                std::mem::take(&mut self.uninitialized_memory_checkpoint);
             if done {
                 // If we're done, we need to include all memory. But we need to reset any modified
                 // memory to as it was before the execution.
@@ -1273,17 +1282,12 @@ impl<'a> Executor<'a> {
             } else {
                 checkpoint.memory = memory_checkpoint
                     .into_iter()
-                    .filter_map(|(addr, record)| {
-                        if let Some(record) = record {
-                            Some((addr, record))
-                        } else {
-                            self.state
-                                .uninitialized_memory
-                                .get(addr)
-                                .map(|val| checkpoint.uninitialized_memory.insert(addr, *val));
-                            None
-                        }
-                    })
+                    .filter_map(|(addr, record)| record.map(|record| (addr, record)))
+                    .collect();
+                checkpoint.uninitialized_memory = uninitialized_memory_checkpoint
+                    .into_iter()
+                    .filter(|&(_, has_value)| has_value)
+                    .map(|(addr, _)| (addr, *self.state.uninitialized_memory.get(addr).unwrap()))
                     .collect();
             }
         });
