@@ -157,18 +157,6 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
                 return Ok(());
             }
         }
-        // self.precompile_allowed_log_heights
-        //     .iter()
-        //     .find_map(|allowed_log_heights| {
-        //         // Check if the precompile is included in the shapes.
-        //         for (air, _) in allowed_log_heights {
-        //             if !air.included(record) {
-        //                 return None;
-        //             }
-        //         }
-        //         Some(())
-        //     })
-        //     .ok_or(CoreShapeError::PrecompileNotIncluded)?;
         Err(CoreShapeError::PrecompileNotIncluded)
     }
 
