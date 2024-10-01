@@ -211,13 +211,9 @@ impl ExecutionRecord {
     /// Return the number of rows needed for a chip, according to the proof shape specified in the
     /// struct.
     pub fn fixed_log2_rows<F: PrimeField, A: MachineAir<F>>(&self, air: &A) -> Option<usize> {
-        self.shape.as_ref().and_then(|shape| {
-            let log2_rows = shape.inner.get(&air.name()).copied();
-            if log2_rows.is_none() {
-                tracing::warn!("Chip {} not found in specified shape", air.name());
-            }
-            log2_rows
-        })
+        self.shape
+            .as_ref()
+            .map(|shape| shape.inner.get(&air.name()).copied().expect("Chip not found in shape"))
     }
 
     /// Determines whether the execution record contains CPU events.
