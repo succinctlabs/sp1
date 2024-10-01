@@ -17,7 +17,8 @@ serde = { version = "1.0.204", features = ["derive"] }
 amcl = { package = "snowbridge-amcl", version = "1.0.2", default-features = false, features = [
     "bls381",
 ] }
-hex = "0.4.3"
+hex = "0.4.3" 
+num-bigint = "0.4.6"
 
 [features]
 default = []

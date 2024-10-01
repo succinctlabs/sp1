@@ -1,3 +1,5 @@
+use num_bigint::BigUint;
+
 use crate::{
     syscall_bn254_add, syscall_bn254_double,
     utils::{AffinePoint, WeierstrassAffinePoint},
@@ -11,7 +13,15 @@ pub const N: usize = 16;
 #[repr(align(4))]
 pub struct Bn254AffinePoint(pub [u32; N]);
 
-impl WeierstrassAffinePoint<N> for Bn254AffinePoint {}
+impl WeierstrassAffinePoint<N> for Bn254AffinePoint {
+    fn modulus() -> BigUint {
+        BigUint::from_bytes_le(&[
+            0x01, 0x00, 0x00, 0x00, 0x3F, 0xF5, 0xE1, 0x43, 0x91, 0x70, 0xB9, 0x79, 0x48, 0xE8,
+            0x33, 0x28, 0x5D, 0x58, 0x81, 0x81, 0xB6, 0x45, 0x50, 0xB8, 0x29, 0xA0, 0x31, 0xE1,
+            0x72, 0x4E, 0x64, 0x30,
+        ])
+    }
+}
 
 impl AffinePoint<N> for Bn254AffinePoint {
     /// The generator has been taken from py_pairing python library by the Ethereum Foundation:

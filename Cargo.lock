@@ -5990,6 +5990,7 @@ dependencies = [
  "bincode",
  "cfg-if",
  "hex",
+ "num-bigint 0.4.6",
  "serde",
  "snowbridge-amcl",
 ]

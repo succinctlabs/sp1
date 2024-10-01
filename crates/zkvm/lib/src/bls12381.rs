@@ -1,5 +1,7 @@
 use std::io::ErrorKind;
 
+use num_bigint::BigUint;
+
 use crate::{
     syscall_bls12381_add, syscall_bls12381_decompress, syscall_bls12381_double,
     utils::{AffinePoint, WeierstrassAffinePoint},
@@ -13,7 +15,16 @@ pub const N: usize = 24;
 #[repr(align(4))]
 pub struct Bls12381AffinePoint(pub [u32; N]);
 
-impl WeierstrassAffinePoint<N> for Bls12381AffinePoint {}
+impl WeierstrassAffinePoint<N> for Bls12381AffinePoint {
+    fn modulus() -> BigUint {
+        BigUint::from_bytes_le(&[
+            0x45, 0x0D, 0x36, 0x98, 0x4E, 0xA1, 0x5A, 0x1E, 0xE7, 0xA0, 0xE6, 0xC7, 0xF6, 0x47,
+            0x77, 0x64, 0xD7, 0xAC, 0x4B, 0x43, 0xB6, 0xA7, 0x1B, 0x4B, 0x9A, 0xE6, 0x7F, 0x39,
+            0xEA, 0x11, 0x01, 0x1A, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        ])
+    }
+}
 
 impl AffinePoint<N> for Bls12381AffinePoint {
     /// The generator was taken from "py_ecc" python library by the Ethereum Foundation:

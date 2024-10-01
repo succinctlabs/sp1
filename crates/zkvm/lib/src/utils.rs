@@ -1,3 +1,5 @@
+use num_bigint::BigUint;
+
 pub trait AffinePoint<const N: usize>: Clone + Sized {
     /// The generator.
     const GENERATOR: [u32; N];
@@ -42,14 +44,6 @@ pub trait AffinePoint<const N: usize>: Clone + Sized {
         let le_bytes = words_to_bytes_le(self.limbs_ref());
         debug_assert!(le_bytes.len() == N * 4);
         le_bytes
-    }
-
-    /// Negates the point.
-    fn negate(&mut self) {
-        let negated = self.limbs_mut();
-        for y in &mut negated[N / 2..] {
-            *y = y.wrapping_neg();
-        }
     }
 
     /// Adds the given [`AffinePoint`] to `self`.
@@ -152,6 +146,19 @@ pub fn bytes_to_words_le(bytes: &[u8]) -> Vec<u32> {
 
 /// A trait for affine points on Weierstrass curves.
 pub trait WeierstrassAffinePoint<const N: usize>: AffinePoint<N> {
+    /// Negates the point.
+    fn negate(&mut self) {
+        let modulus = Self::modulus();
+        let y = BigUint::from_bytes_le(&self.to_le_bytes()[N / 2..]);
+        let negated_y = (&modulus - y) % &modulus;
+        let negated_y_bytes = negated_y.to_bytes_le();
+        let negated_y_words = bytes_to_words_le(&negated_y_bytes);
+        self.limbs_mut()[N / 2..].copy_from_slice(&negated_y_words);
+    }
+
+    /// Field modulus.
+    fn modulus() -> BigUint;
+
     /// The infinity point is set to (0, 0).
     fn infinity() -> Self {
         Self::new([0; N])
@@ -197,8 +204,13 @@ pub trait WeierstrassAffinePoint<const N: usize>: AffinePoint<N> {
         }
 
         // Case 5: p1 is the negation of p2.
-        if p1[..(N / 2)] == p2[..(N / 2)]
-            && p1[(N / 2)..].iter().zip(&p2[(N / 2)..]).all(|(y1, y2)| y1.wrapping_add(*y2) == 0)
+        let p1_le_bytes = self.to_le_bytes();
+        let p2_le_bytes = other.to_le_bytes();
+        if p1_le_bytes[..(N / 2)] == p2_le_bytes[..(N / 2)]
+            && ((BigUint::from_bytes_le(&p1_le_bytes[(N / 2)..])
+                + BigUint::from_bytes_le(&p2_le_bytes[(N / 2)..]))
+                % Self::modulus()
+                == BigUint::from(0u8))
         {
             *self = Self::new([0; N]);
             return;

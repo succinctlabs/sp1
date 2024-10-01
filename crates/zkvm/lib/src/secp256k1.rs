@@ -1,3 +1,5 @@
+use num_bigint::BigUint;
+
 use crate::{
     syscall_secp256k1_add, syscall_secp256k1_double,
     utils::{AffinePoint, WeierstrassAffinePoint},
@@ -11,7 +13,15 @@ pub const N: usize = 16;
 #[repr(align(4))]
 pub struct Secp256k1AffinePoint(pub [u32; N]);
 
-impl WeierstrassAffinePoint<N> for Secp256k1AffinePoint {}
+impl WeierstrassAffinePoint<N> for Secp256k1AffinePoint {
+    fn modulus() -> BigUint {
+        BigUint::from_bytes_le(&[
+            0x2F, 0xFC, 0xFF, 0xFF, 0xFE, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+            0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+            0xFF, 0xFF, 0xFF, 0xFF,
+        ])
+    }
+}
 
 impl AffinePoint<N> for Secp256k1AffinePoint {
     /// The values are taken from https://en.bitcoin.it/wiki/Secp256k1.
