@@ -83,7 +83,7 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
                         if idx < num_events {
                             let mut new_byte_lookup_events = Vec::new();
                             if let PrecompileEvent::KeccakPermute(event) = &events[idx] {
-                                Self::populate_chunk(&event, rounds, &mut new_byte_lookup_events);
+                                Self::populate_chunk(event, rounds, &mut new_byte_lookup_events);
                             } else {
                                 unreachable!();
                             }

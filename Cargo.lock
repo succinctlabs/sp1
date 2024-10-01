@@ -5969,6 +5969,7 @@ dependencies = [
 name = "sp1-curves"
 version = "2.0.0"
 dependencies = [
+ "cfg-if",
  "curve25519-dalek",
  "dashu",
  "elliptic-curve",

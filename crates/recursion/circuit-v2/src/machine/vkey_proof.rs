@@ -54,7 +54,6 @@ pub struct SP1MerkleProofWitnessVariable<
     pub root: SC::DigestVariable,
 }
 
-#[derive(Serialize, Deserialize)]
 /// An input layout for the reduce verifier.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(bound(serialize = "SC::Digest: Serialize"))]

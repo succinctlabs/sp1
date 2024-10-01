@@ -748,7 +748,7 @@ impl<'a> Executor<'a> {
     }
 
     /// Fetch the instruction at the current program counter.
-    #[inline(always)]
+    #[inline]
     fn fetch(&self) -> Instruction {
         let idx = ((self.state.pc - self.program.pc_base) / 4) as usize;
         self.program.instructions[idx]
@@ -1174,7 +1174,8 @@ impl<'a> Executor<'a> {
         let instruction = self.fetch();
 
         // Log the current state of the runtime.
-        // self.log(&instruction);
+        #[cfg(debug_assertions)]
+        self.log(&instruction);
 
         // Execute the instruction.
         self.execute_instruction(&instruction)?;

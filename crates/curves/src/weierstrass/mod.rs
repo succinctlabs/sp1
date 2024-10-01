@@ -135,44 +135,30 @@ impl<E: WeierstrassParameters> AffinePoint<SwCurve<E>> {
     }
 }
 
-pub fn biguint_to_rug(integer: &BigUint) -> rug::Integer {
-    let mut int = rug::Integer::new();
-    unsafe {
-        int.assign_bytes_radix_unchecked(integer.to_bytes_be().as_slice(), 256, false);
+cfg_if::cfg_if! {
+    if #[cfg(feature = "bigint-rug")] {
+        pub fn biguint_to_rug(integer: &BigUint) -> rug::Integer {
+            let mut int = rug::Integer::new();
+            unsafe {
+                int.assign_bytes_radix_unchecked(integer.to_bytes_be().as_slice(), 256, false);
+            }
+            int
+        }
+
+        pub fn rug_to_biguint(integer: &rug::Integer) -> BigUint {
+            let be_bytes = integer.to_digits::<u8>(rug::integer::Order::MsfBe);
+            BigUint::from_bytes_be(&be_bytes)
+        }
+
+        pub fn rug_modpow(
+            base: &rug::Integer,
+            exponent: &rug::Integer,
+            modulus: &rug::Integer,
+        ) -> rug::Integer {
+            use rug::Complete;
+            base.pow_mod_ref(exponent, modulus).unwrap().complete()
+        }
     }
-    int
-}
-
-pub fn rug_to_biguint(integer: &rug::Integer) -> BigUint {
-    let be_bytes = integer.to_digits::<u8>(rug::integer::Order::MsfBe);
-    BigUint::from_bytes_be(&be_bytes)
-}
-
-pub fn rug_modpow(
-    base: &rug::Integer,
-    exponent: &rug::Integer,
-    modulus: &rug::Integer,
-) -> rug::Integer {
-    use rug::Complete;
-    // if modulus == &rug::Integer::from(1u32) {
-    //     return rug::Integer::from(0u32);
-    // }
-
-    // let mut result = rug::Integer::from(1u32);
-    // let mut base = base.clone() % modulus;
-    // let mut exp = exponent.clone();
-
-    // while exp > rug::Integer::from(0u32) {
-    //     if (&exp % &rug::Integer::from(2u32)).complete() == rug::Integer::from(1u32) {
-    //         result = (result * &base) % modulus;
-    //     }
-    //     exp >>= 1;
-    //     base = (&base * &base).complete() % modulus;
-    // }
-
-    // result
-
-    base.pow_mod_ref(&exponent, &modulus).unwrap().complete()
 }
 
 pub fn biguint_to_dashu(integer: &BigUint) -> dashu::integer::UBig {
@@ -209,30 +195,63 @@ pub fn dashu_modpow(
 
 impl<E: WeierstrassParameters> AffinePoint<SwCurve<E>> {
     pub fn sw_add(&self, other: &AffinePoint<SwCurve<E>>) -> AffinePoint<SwCurve<E>> {
-        // if self.x == other.x && self.y == other.y {
-        //     panic!("Error: Points are the same. Use sw_double instead.");
-        // }
+        if self.x == other.x && self.y == other.y {
+            panic!("Error: Points are the same. Use sw_double instead.");
+        }
 
-        // let p = biguint_to_dashu(&E::BaseField::modulus());
-        // let self_x = biguint_to_dashu(&self.x);
-        // let self_y = biguint_to_dashu(&self.y);
-        // let other_x = biguint_to_dashu(&other.x);
-        // let other_y = biguint_to_dashu(&other.y);
+        cfg_if::cfg_if! {
+            if #[cfg(feature = "bigint-rug")] {
+                self.sw_add_rug(other)
+            } else {
+                let p = biguint_to_dashu(&E::BaseField::modulus());
+                let self_x = biguint_to_dashu(&self.x);
+                let self_y = biguint_to_dashu(&self.y);
+                let other_x = biguint_to_dashu(&other.x);
+                let other_y = biguint_to_dashu(&other.y);
 
-        // let slope_numerator = (&p + &other_y - &self_y) % &p;
-        // let slope_denominator = (&p + &other_x - &self_x) % &p;
-        // let slope_denom_inverse =
-        //     dashu_modpow(&slope_denominator, &(&p - &dashu::integer::UBig::from(2u32)), &p);
-        // let slope = (slope_numerator * &slope_denom_inverse) % &p;
+                let slope_numerator = (&p + &other_y - &self_y) % &p;
+                let slope_denominator = (&p + &other_x - &self_x) % &p;
+                let slope_denom_inverse =
+                    dashu_modpow(&slope_denominator, &(&p - &dashu::integer::UBig::from(2u32)), &p);
+                let slope = (slope_numerator * &slope_denom_inverse) % &p;
 
-        // let x_3n = (&slope * &slope + &p + &p - &self_x - &other_x) % &p;
-        // let y_3n = (&slope * &(&p + &self_x - &x_3n) + &p - &self_y) % &p;
+                let x_3n = (&slope * &slope + &p + &p - &self_x - &other_x) % &p;
+                let y_3n = (&slope * &(&p + &self_x - &x_3n) + &p - &self_y) % &p;
 
-        // AffinePoint::new(dashu_to_biguint(&x_3n), dashu_to_biguint(&y_3n))
-
-        self.sw_add_rug(other)
+                AffinePoint::new(dashu_to_biguint(&x_3n), dashu_to_biguint(&y_3n))
+            }
+        }
     }
 
+    pub fn sw_double(&self) -> AffinePoint<SwCurve<E>> {
+        cfg_if::cfg_if! {
+            if #[cfg(feature = "bigint-rug")] {
+                self.sw_double_rug()
+            } else {
+                let p = biguint_to_dashu(&E::BaseField::modulus());
+                let a = biguint_to_dashu(&E::a_int());
+
+                let self_x = biguint_to_dashu(&self.x);
+                let self_y = biguint_to_dashu(&self.y);
+
+                let slope_numerator = (&a + &(&self_x * &self_x) * 3u32) % &p;
+
+                let slope_denominator = (&self_y * 2u32) % &p;
+                let slope_denom_inverse =
+                    dashu_modpow(&slope_denominator, &(&p - &dashu::integer::UBig::from(2u32)), &p);
+                // let slope_denom_inverse = slope_denominator.modpow(&(&p - 2u32), &p);
+                let slope = (slope_numerator * &slope_denom_inverse) % &p;
+
+                let x_3n = (&slope * &slope + &p + &p - &self_x - &self_x) % &p;
+
+                let y_3n = (&slope * &(&p + &self_x - &x_3n) + &p - &self_y) % &p;
+
+                AffinePoint::new(dashu_to_biguint(&x_3n), dashu_to_biguint(&y_3n))
+            }
+        }
+    }
+
+    #[cfg(feature = "bigint-rug")]
     pub fn sw_add_rug(&self, other: &AffinePoint<SwCurve<E>>) -> AffinePoint<SwCurve<E>> {
         use rug::Complete;
         let p = biguint_to_rug(&E::BaseField::modulus());
@@ -253,29 +272,7 @@ impl<E: WeierstrassParameters> AffinePoint<SwCurve<E>> {
         AffinePoint::new(rug_to_biguint(&x_3n), rug_to_biguint(&y_3n))
     }
 
-    pub fn sw_double(&self) -> AffinePoint<SwCurve<E>> {
-        self.sw_double_rug()
-        // let p = biguint_to_dashu(&E::BaseField::modulus());
-        // let a = biguint_to_dashu(&E::a_int());
-
-        // let self_x = biguint_to_dashu(&self.x);
-        // let self_y = biguint_to_dashu(&self.y);
-
-        // let slope_numerator = (&a + &(&self_x * &self_x) * 3u32) % &p;
-
-        // let slope_denominator = (&self_y * 2u32) % &p;
-        // let slope_denom_inverse =
-        //     dashu_modpow(&slope_denominator, &(&p - &dashu::integer::UBig::from(2u32)), &p);
-        // // let slope_denom_inverse = slope_denominator.modpow(&(&p - 2u32), &p);
-        // let slope = (slope_numerator * &slope_denom_inverse) % &p;
-
-        // let x_3n = (&slope * &slope + &p + &p - &self_x - &self_x) % &p;
-
-        // let y_3n = (&slope * &(&p + &self_x - &x_3n) + &p - &self_y) % &p;
-
-        // AffinePoint::new(dashu_to_biguint(&x_3n), dashu_to_biguint(&y_3n))
-    }
-
+    #[cfg(feature = "bigint-rug")]
     pub fn sw_double_rug(&self) -> AffinePoint<SwCurve<E>> {
         use rug::Complete;
         let p = biguint_to_rug(&E::BaseField::modulus());
@@ -289,7 +286,7 @@ impl<E: WeierstrassParameters> AffinePoint<SwCurve<E>> {
         let slope_denominator = (&self_y * 2u32).complete() % &p;
         let slope_denom_inverse =
             rug_modpow(&slope_denominator, &(&p - &rug::Integer::from(2u32)).complete(), &p);
-        // let slope_denom_inverse = slope_denominator.modpow(&(&p - 2u32), &p);
+
         let slope = (slope_numerator * &slope_denom_inverse) % &p;
 
         let x_3n = ((&slope * &slope + &p).complete() + ((&p - &self_x).complete() - &self_x)) % &p;
