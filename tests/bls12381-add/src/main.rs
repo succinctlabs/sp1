@@ -1,6 +1,7 @@
 #![no_main]
 
 use sp1_lib::bls12381::Bls12381AffinePoint;
+use sp1_curves::params::FieldParameters;
 sp1_zkvm::entrypoint!(main);
 
 // generator.
@@ -40,5 +41,5 @@ pub fn main() {
     common_test_utils::weierstrass_add::test_weierstrass_add::<
         Bls12381AffinePoint,
         { sp1_lib::bls12381::N },
-    >(&A, &B, &C);
+    >(&A, &B, &C, sp1_curves::weierstrass::bls12_381::Bls12381BaseField::MODULUS);
 }

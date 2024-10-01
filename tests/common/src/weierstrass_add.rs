@@ -1,10 +1,12 @@
 use sp1_lib::utils::{AffinePoint, WeierstrassAffinePoint};
+use num_bigint::BigUint;
 
 /// Test all of the potential special cases for addition for Weierstrass elliptic curves.
 pub fn test_weierstrass_add<P: AffinePoint<N> + WeierstrassAffinePoint<N>, const N: usize>(
     a: &[u8],
     b: &[u8],
     c: &[u8],
+    modulus: &[u8],
 ) {
     // Validate that add_assign works.
     let mut a_point = P::from_le_bytes(a);
@@ -62,9 +64,19 @@ pub fn test_weierstrass_add<P: AffinePoint<N> + WeierstrassAffinePoint<N>, const
     // Case 5: Points are negations of each other
     let mut a_point_clone = a_point.clone();
     // Create a point that is the negation of a_point
-    let mut negation = a_point.clone();
-    negation.negate();
-    a_point_clone.complete_add_assign(&negation);
+    let negation = a_point.clone();
+    let negation_bytes = negation.to_le_bytes();
+    let mut negation_biguint = BigUint::from_bytes_le(&negation_bytes[N*2..]);
+    let modulus_biguint = BigUint::from_bytes_le(&modulus);
+
+    negation_biguint = (&modulus_biguint - &negation_biguint) % &modulus_biguint;
+    // Create negation point from negation_biguint limbs
+    let mut combined_bytes = negation_bytes[..N*2].to_vec();
+    combined_bytes.extend_from_slice(&negation_biguint.to_bytes_le());
+    let negation_point = P::from_le_bytes(&combined_bytes);
+
+
+    a_point_clone.complete_add_assign(&negation_point);
     assert_eq!(
         a_point_clone.limbs_ref(),
         &[0; N],

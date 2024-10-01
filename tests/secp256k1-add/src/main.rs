@@ -1,6 +1,7 @@
 #![no_main]
 
 use sp1_zkvm::lib::secp256k1::Secp256k1AffinePoint;
+use sp1_curves::params::FieldParameters;
 sp1_zkvm::entrypoint!(main);
 
 const A: [u8; 64] = [
@@ -32,5 +33,5 @@ pub fn main() {
     common_test_utils::weierstrass_add::test_weierstrass_add::<
         Secp256k1AffinePoint,
         { sp1_lib::secp256k1::N },
-    >(&A, &B, &C);
+    >(&A, &B, &C, sp1_curves::weierstrass::secp256k1::Secp256k1BaseField::MODULUS);
 }

@@ -10,3 +10,4 @@ categories.workspace = true
 [dependencies]
 sp1-zkvm = { path = "../../crates/zkvm/entrypoint" }
 sp1-lib = { path = "../../crates/zkvm/lib" }
+num-bigint = "0.4"
