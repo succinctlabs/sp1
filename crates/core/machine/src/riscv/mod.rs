@@ -521,7 +521,7 @@ impl<F: PrimeField32> RiscvAir<F> {
                 record.get_precompile_events(SyscallCode::SECP256K1_DECOMPRESS).len()
             }
             RiscvAir::KeccakP(_) => {
-                record.get_precompile_events(SyscallCode::KECCAK_PERMUTE).len().div_ceil(NUM_ROUNDS)
+                record.get_precompile_events(SyscallCode::KECCAK_PERMUTE).len() * NUM_ROUNDS
             }
             RiscvAir::Ed25519Add(_) => record.get_precompile_events(SyscallCode::ED_ADD).len(),
             RiscvAir::Ed25519Decompress(_) => {
@@ -534,10 +534,10 @@ impl<F: PrimeField32> RiscvAir<F> {
                 record.get_precompile_events(SyscallCode::SECP256K1_DOUBLE).len()
             }
             RiscvAir::Sha256Compress(_) => {
-                record.get_precompile_events(SyscallCode::SHA_EXTEND).len().div_ceil(80)
+                record.get_precompile_events(SyscallCode::SHA_EXTEND).len() * 80
             }
             RiscvAir::Sha256Extend(_) => {
-                record.get_precompile_events(SyscallCode::SHA_EXTEND).len().div_ceil(48)
+                record.get_precompile_events(SyscallCode::SHA_EXTEND).len() * 48
             }
             RiscvAir::Bn254Fp2Mul(_) => {
                 record.get_precompile_events(SyscallCode::BN254_FP2_MUL).len()
