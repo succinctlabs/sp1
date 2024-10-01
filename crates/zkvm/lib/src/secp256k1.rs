@@ -33,9 +33,6 @@ impl AffinePoint<N> for Secp256k1AffinePoint {
         &mut self.0
     }
 
-    /// Handles special cases of affine point addition, such as adding infinity to a point,
-    /// adding a point to infinity, adding a point to itself, and adding a point to its negation
-    /// within Weierstrass curves.
     fn complete_add_assign(&mut self, other: &Self) {
         self.weierstrass_add_assign(other);
     }
