@@ -139,7 +139,7 @@ fn test_k256_patch() {
         .unwrap_or_default();
     println!("cycle-tracker-end: k256 verify");
 
-    // Note: Doesn't work because the signature is by the 0x1 private key.
+    // Signature by the 0x1 private key. Confirms that multi_scalar_multiplication works as intended.
     let precompile_input = bytes!("15499a876f0d57fdc360c760aec98245eba1902610140c14d5f0c3c0284e28a7000000000000000000000000000000000000000000000000000000000000001c2106219ec2e5ef9f7d5ffb303fac05c4066e66db6d501d2e5b1626f2cc8fbe1c316d4e90b09819db9c261017f18e1b5b105855922ec962fd58e83c943e4c4ba3");
 
     let msg = <&B256>::try_from(&precompile_input[0..32]).unwrap();
