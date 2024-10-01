@@ -534,7 +534,7 @@ impl<F: PrimeField32> RiscvAir<F> {
                 record.get_precompile_events(SyscallCode::SECP256K1_DOUBLE).len()
             }
             RiscvAir::Sha256Compress(_) => {
-                record.get_precompile_events(SyscallCode::SHA_EXTEND).len() * 80
+                record.get_precompile_events(SyscallCode::SHA_COMPRESS).len() * 80
             }
             RiscvAir::Sha256Extend(_) => {
                 record.get_precompile_events(SyscallCode::SHA_EXTEND).len() * 48
