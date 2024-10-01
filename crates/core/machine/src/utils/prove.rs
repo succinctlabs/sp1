@@ -596,7 +596,8 @@ where
                                         )
                                         .unwrap();
 
-                                    #[cfg(feature = "debug")]
+                                    // TODO: remove comment.
+                                    // #[cfg(feature = "debug")]
                                     {
                                         if let Some(shape) = record.shape {
                                             assert_eq!(
