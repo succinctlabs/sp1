@@ -97,15 +97,13 @@ impl ProofShape {
         global_traces: Option<&[(String, RowMajorMatrix<V>)]>,
         local_traces: &[(String, RowMajorMatrix<V>)],
     ) -> Self {
-        ProofShape {
-            chip_information: global_traces
-                .into_iter()
-                .flatten()
-                .chain(local_traces.iter())
-                .map(|(name, trace)| (name.clone(), trace.height().ilog2() as usize))
-                .sorted_by_key(|(_, height)| *height)
-                .collect(),
-        }
+        global_traces
+            .into_iter()
+            .flatten()
+            .chain(local_traces.iter())
+            .map(|(name, trace)| (name.clone(), trace.height().ilog2() as usize))
+            .sorted_by_key(|(_, height)| *height)
+            .collect()
     }
 }
 
