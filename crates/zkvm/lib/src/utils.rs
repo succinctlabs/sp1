@@ -149,12 +149,11 @@ pub trait WeierstrassAffinePoint<const N: usize>: AffinePoint<N> {
 
     /// Performs the complete addition of two [`AffinePoint`]'s on a Weierstrass curve.
     /// For an addition of two points P1 and P2, the cases are:
-    ///     1. P1 and P2 are infinity
-    ///     2. Only P1 is infinity
-    ///     3. Only P2 is infinity
-    ///     4. P1 equals P2
-    ///     5. P1 is the negation of P2
-    ///     6. Default addition.
+    ///     1. P1 is infinity
+    ///     2. P2 is infinity
+    ///     3. P1 equals P2
+    ///     4. P1 is the negation of P2
+    ///     5. Default addition.
     ///
     /// Implements the complete addition cases according to the
     /// [Zcash complete addition spec](https://zcash.github.io/halo2/design/gadgets/ecc/addition.html#complete-addition).
@@ -163,30 +162,24 @@ pub trait WeierstrassAffinePoint<const N: usize>: AffinePoint<N> {
         let p1 = self.limbs_mut();
         let p2 = other.limbs_ref();
 
-        // Case 1: p1 and p2 are infinity
-        if p1 == &[0; N] && p2 == &[0; N] {
-            *self = Self::new([0; N]);
-            return;
-        }
-
-        // Case 2: p1 is infinity.
+        // Case 1: p1 is infinity.
         if p1 == &[0; N] {
             *self = other.clone();
             return;
         }
 
-        // Case 3: p2 is infinity.
+        // Case 2: p2 is infinity.
         if p2 == &[0; N] {
             return;
         }
 
-        // Case 4: p1 equals p2.
+        // Case 3: p1 equals p2.
         if p1 == p2 {
             self.double();
             return;
         }
 
-        // Case 5: p1 is the negation of p2.
+        // Case 4: p1 is the negation of p2.
         // Note: If p1 and p2 are valid elliptic curve points, and p1.x == p2.x, that means that
         // either p1.y == p2.y or p1.y + p2.y == p. Because we are past Case 4, we know that p1.y !=
         // p2.y, so we can just check if p1.x == p2.x. Therefore, this implictly checks that
@@ -196,7 +189,7 @@ pub trait WeierstrassAffinePoint<const N: usize>: AffinePoint<N> {
             return;
         }
 
-        // Case 6: Default addition.
+        // Case 5: Default addition.
         self.add_assign(other);
     }
 }
