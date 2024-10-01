@@ -14,7 +14,7 @@ use p3_commit::Mmcs;
 use p3_field::AbstractField;
 use p3_matrix::dense::RowMajorMatrix;
 
-use serde::Serialize;
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use sp1_recursion_compiler::ir::{Builder, Ext, Felt, SymbolicFelt};
 
 use sp1_recursion_core_v2::{
@@ -25,7 +25,8 @@ use sp1_recursion_core_v2::{
 use sp1_stark::{
     air::{MachineAir, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS},
     baby_bear_poseidon2::BabyBearPoseidon2,
-    ProofShape, ShardProof, StarkGenericConfig, StarkMachine, StarkVerifyingKey, Word, DIGEST_SIZE,
+    Dom, ProofShape, ShardProof, StarkGenericConfig, StarkMachine, StarkVerifyingKey, Word,
+    DIGEST_SIZE,
 };
 
 use crate::{
@@ -62,7 +63,9 @@ pub struct SP1CompressWitnessVariable<
 }
 
 /// An input layout for the reduce verifier.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "ShardProof<SC>: Serialize, Dom<SC>: Serialize"))]
+#[serde(bound(deserialize = "ShardProof<SC>: Deserialize<'de>, Dom<SC>: DeserializeOwned"))]
 pub struct SP1CompressWitnessValues<SC: StarkGenericConfig> {
     pub vks_and_proofs: Vec<(StarkVerifyingKey<SC>, ShardProof<SC>)>,
     pub is_complete: bool,
@@ -313,11 +316,16 @@ where
                         * (SymbolicFelt::one() - contains_execution_shard),
                 );
 
-                // If this is the first execution shard, then we update the start execution shard.
+                // If this is the first execution shard, then we update the start execution shard
+                // and the `execution_shard` values.
                 compress_public_values.start_execution_shard = builder.eval(
                     current_public_values.start_execution_shard * is_first_execution_shard_seen
                         + compress_public_values.start_execution_shard
                             * (SymbolicFelt::one() - is_first_execution_shard_seen),
+                );
+                execution_shard = builder.eval(
+                    current_public_values.start_execution_shard * is_first_execution_shard_seen
+                        + execution_shard * (SymbolicFelt::one() - is_first_execution_shard_seen),
                 );
 
                 // If this is an execution shard, make the assertion that the value is consistent.
@@ -520,6 +528,8 @@ where
         compress_public_values.is_complete = is_complete;
         // Set the contains an execution shard flag.
         compress_public_values.contains_execution_shard = contains_execution_shard;
+        // Set the exit code.
+        compress_public_values.exit_code = exit_code;
         // Set the digest according to the previous values.
         compress_public_values.digest = match kind {
             PublicValuesOutputDigest::Reduce => {
@@ -529,9 +539,6 @@ where
                 root_public_values_digest::<C, SC>(builder, compress_public_values)
             }
         };
-
-        // Set the exit code.
-        compress_public_values.exit_code = exit_code;
 
         // If the proof is complete, make completeness assertions.
         assert_complete(builder, compress_public_values, is_complete);

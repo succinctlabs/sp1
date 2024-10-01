@@ -56,6 +56,9 @@ pub struct SP1MerkleProofWitnessVariable<
 
 #[derive(Serialize, Deserialize)]
 /// An input layout for the reduce verifier.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "SC::Digest: Serialize"))]
+#[serde(bound(deserialize = "SC::Digest: Deserialize<'de>"))]
 pub struct SP1MerkleProofWitnessValues<SC: FieldHasher<BabyBear>> {
     pub vk_merkle_proofs: Vec<MerkleProof<BabyBear, SC>>,
     pub values: Vec<SC::Digest>,
