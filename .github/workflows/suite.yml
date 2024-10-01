@@ -65,6 +65,7 @@ jobs:
           aws s3 cp s3://sp1-testing-suite/${{ matrix.s3_folder }}/program.bin workdir/program.bin
           aws s3 cp s3://sp1-testing-suite/${{ matrix.s3_folder }}/stdin.bin workdir/stdin.bin
       - name: Test docker container
+        if: matrix.mode == 'cuda'
         run: |
           docker run -e RUST_LOG=debug -p 3000:3000 --rm --gpus all --name sp1-gpu jtguibas/sp1-gpu:v3.0.0-rc2
       - name: Run sp1-perf
