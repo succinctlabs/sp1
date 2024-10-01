@@ -596,15 +596,14 @@ where
                                         )
                                         .unwrap();
 
-                                    // TODO: remove comment.
-                                    // #[cfg(feature = "debug")]
+                                    #[cfg(debug_assertions)]
                                     {
                                         if let Some(shape) = record.shape {
                                             assert_eq!(
-                                                proof.shape(),
-                                                shape.clone().into_iter().collect(),
-                                                "Proof shape does not match the shape of the record, the configuration of the record shape may be incorrect",
-                                            );
+                                            proof.shape(),
+                                            shape.clone().into_iter().collect(),
+                                            "Proof shape does not match the shape of the record",
+                                        );
                                         }
                                     }
 
