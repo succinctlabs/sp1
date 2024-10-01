@@ -231,25 +231,21 @@ pub struct OccupiedEntry<'a, V> {
 impl<'a, V: Copy> OccupiedEntry<'a, V> {
     /// Get a reference to the value in the `OccupiedEntry`.
     pub fn get(&self) -> &V {
-        // self.page_table_occupied_entry.get().0.get(self.lower).unwrap()
         self.entry.as_ref().unwrap()
     }
 
     /// Get a mutable reference to the value in the `OccupiedEntry`.
     pub fn get_mut(&mut self) -> &mut V {
-        // self.page_table_occupied_entry.get_mut().0.get_mut(self.lower).unwrap()
         self.entry.as_mut().unwrap()
     }
 
     /// Insert a value in the `OccupiedEntry`, returning the previous value.
     pub fn insert(&mut self, value: V) -> V {
-        // replace(self.get_mut(), value)
         self.entry.replace(value).unwrap()
     }
 
     /// Converts the `OccupiedEntry` the into a mutable reference to the associated value.
     pub fn into_mut(self) -> &'a mut V {
-        // self.page_table_occupied_entry.into_mut().0.get_mut(self.lower).unwrap()
         self.entry.as_mut().unwrap()
     }
 

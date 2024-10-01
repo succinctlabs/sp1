@@ -5920,7 +5920,6 @@ dependencies = [
  "rand 0.8.5",
  "rayon-scan",
  "rrs-succinct",
- "rug",
  "serde",
  "serde_with 3.9.0",
  "size",

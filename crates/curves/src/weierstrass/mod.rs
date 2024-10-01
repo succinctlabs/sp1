@@ -9,6 +9,9 @@ use crate::{
     AffinePoint, EllipticCurve, EllipticCurveParameters,
 };
 
+#[cfg(feature = "bigint-rug")]
+use crate::utils::{biguint_to_rug, rug_to_biguint};
+
 pub mod bls12_381;
 pub mod bn254;
 pub mod secp256k1;
@@ -135,32 +138,6 @@ impl<E: WeierstrassParameters> AffinePoint<SwCurve<E>> {
     }
 }
 
-cfg_if::cfg_if! {
-    if #[cfg(feature = "bigint-rug")] {
-        pub fn biguint_to_rug(integer: &BigUint) -> rug::Integer {
-            let mut int = rug::Integer::new();
-            unsafe {
-                int.assign_bytes_radix_unchecked(integer.to_bytes_be().as_slice(), 256, false);
-            }
-            int
-        }
-
-        pub fn rug_to_biguint(integer: &rug::Integer) -> BigUint {
-            let be_bytes = integer.to_digits::<u8>(rug::integer::Order::MsfBe);
-            BigUint::from_bytes_be(&be_bytes)
-        }
-
-        pub fn rug_modpow(
-            base: &rug::Integer,
-            exponent: &rug::Integer,
-            modulus: &rug::Integer,
-        ) -> rug::Integer {
-            use rug::Complete;
-            base.pow_mod_ref(exponent, modulus).unwrap().complete()
-        }
-    }
-}
-
 pub fn biguint_to_dashu(integer: &BigUint) -> dashu::integer::UBig {
     dashu::integer::UBig::from_le_bytes(integer.to_bytes_le().as_slice())
 }
@@ -262,8 +239,10 @@ impl<E: WeierstrassParameters> AffinePoint<SwCurve<E>> {
 
         let slope_numerator = ((&p + &other_y).complete() - &self_y) % &p;
         let slope_denominator = ((&p + &other_x).complete() - &self_x) % &p;
-        let slope_denom_inverse =
-            rug_modpow(&slope_denominator, &(&p - &rug::Integer::from(2u32)).complete(), &p);
+        let slope_denom_inverse = slope_denominator
+            .pow_mod_ref(&(&p - &rug::Integer::from(2u32)).complete(), &p)
+            .unwrap()
+            .complete();
         let slope = (slope_numerator * &slope_denom_inverse) % &p;
 
         let x_3n = ((&slope * &slope + &p).complete() + &p - &self_x - &other_x) % &p;
@@ -284,8 +263,10 @@ impl<E: WeierstrassParameters> AffinePoint<SwCurve<E>> {
         let slope_numerator = (&a + &(&self_x * &self_x).complete() * 3u32).complete() % &p;
 
         let slope_denominator = (&self_y * 2u32).complete() % &p;
-        let slope_denom_inverse =
-            rug_modpow(&slope_denominator, &(&p - &rug::Integer::from(2u32)).complete(), &p);
+        let slope_denom_inverse = slope_denominator
+            .pow_mod_ref(&(&p - &rug::Integer::from(2u32)).complete(), &p)
+            .unwrap()
+            .complete();
 
         let slope = (slope_numerator * &slope_denom_inverse) % &p;
 

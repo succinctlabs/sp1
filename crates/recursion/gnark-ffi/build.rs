@@ -8,9 +8,9 @@ use bindgen::CargoCallbacks;
 
 /// Build the go library, generate Rust bindings for the exposed functions, and link the library.
 fn main() {
-    println!("cargo:rerun-if-changed=build.rs");
     cfg_if! {
         if #[cfg(feature = "native")] {
+            println!("cargo:rerun-if-changed=go");
             // Define the output directory
             let out_dir = env::var("OUT_DIR").unwrap();
             let dest_path = PathBuf::from(&out_dir);

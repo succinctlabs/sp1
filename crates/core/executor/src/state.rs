@@ -36,10 +36,6 @@ pub struct ExecutionState {
     /// executed in this shard.
     pub clk: u32,
 
-    /// The channel alternates between 0 and [`crate::bytes::NUM_BYTE_LOOKUP_CHANNELS`],
-    /// used to control byte lookup multiplicity.
-    pub channel: u8,
-
     /// Uninitialized memory addresses that have a specific value they should be initialized with.
     /// `SyscallHintRead` uses this to write hint data into uninitialized memory.
     pub uninitialized_memory: PagedMemory<u32>,
@@ -78,7 +74,6 @@ impl ExecutionState {
             current_shard: 1,
             clk: 0,
             pc: pc_start,
-            channel: 0,
             memory: PagedMemory::new_preallocated(),
             uninitialized_memory: PagedMemory::default(),
             input_stream: Vec::new(),

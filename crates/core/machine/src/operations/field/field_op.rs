@@ -14,10 +14,7 @@ use super::{
     util::{compute_root_quotient_and_shift, split_u16_limbs_to_u8_limbs},
     util_air::eval_field_operation,
 };
-use sp1_curves::{
-    params::{FieldParameters, Limbs},
-    weierstrass::{biguint_to_rug, rug_to_biguint},
-};
+use sp1_curves::params::{FieldParameters, Limbs};
 
 use typenum::Unsigned;
 
@@ -137,14 +134,21 @@ impl<F: PrimeField32, P: FieldParameters> FieldOpCols<F, P> {
             FieldOperation::Div => {
                 // As modulus is prime, we can use Fermat's little theorem to compute the
                 // inverse.
-                let rug_a = biguint_to_rug(a);
-                let rug_b = biguint_to_rug(b);
-                let rug_modulus = biguint_to_rug(modulus);
-                let rug_result = (rug_a
-                    * rug_b.pow_mod(&(rug_modulus.clone() - 2u32), &rug_modulus.clone()).unwrap())
-                    % rug_modulus.clone();
-                let result = rug_to_biguint(&rug_result);
-
+                cfg_if::cfg_if! {
+                    if #[cfg(feature = "bigint-rug")] {
+                        use sp1_curves::utils::{biguint_to_rug, rug_to_biguint};
+                        let rug_a = biguint_to_rug(a);
+                        let rug_b = biguint_to_rug(b);
+                        let rug_modulus = biguint_to_rug(modulus);
+                        let rug_result = (rug_a
+                            * rug_b.pow_mod(&(rug_modulus.clone() - 2u32), &rug_modulus.clone()).unwrap())
+                            % rug_modulus.clone();
+                        let result = rug_to_biguint(&rug_result);
+                    } else {
+                        let result =
+                            (a * b.modpow(&(modulus.clone() - 2u32), &modulus.clone())) % modulus.clone();
+                    }
+                }
                 // We populate the carry, witness_low, witness_high as if we were doing a
                 // multiplication with result * b. But we populate `result` with the
                 // actual result of the multiplication because those columns are
