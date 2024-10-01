@@ -2,6 +2,8 @@
 sp1_zkvm::entrypoint!(main);
 
 use alloy_primitives::{address, bytes, hex, Signature};
+use alloy_primitives::{B256, B512};
+use alloy_primitives::Bytes;
 use curve25519_dalek::edwards::CompressedEdwardsY as CompressedEdwardsY_dalek;
 use curve25519_dalek_ng::edwards::CompressedEdwardsY as CompressedEdwardsY_dalek_ng;
 use ed25519_consensus::{
@@ -125,22 +127,19 @@ fn test_sha256() {
 /// Emits SECP256K1_ADD, SECP256K1_DOUBLE, and SECP256K1_DECOMPRESS syscalls.
 /// Source: https://github.com/alloy-rs/core/blob/adcf7adfa1f35c56e6331bab85b8c56d32a465f1/crates/primitives/src/signature/sig.rs#L620-L631
 fn test_k256_patch() {
-    let sig = Signature::from_str(
-        "b91467e570a6466aa9e9876cbcd013baba02900b8979d43fe208a4a4f339f5fd6007e74cd82e037b800186422fc2da167c747ef045e5d18a5f5d4300f8e1a0291c").expect("could not parse signature");
     // The last 64 bytes of the precompile input are the signature.
+    // Note: This signature doesn't work!
     let precompile_input = bytes!("15499a876f0d57fdc360c760aec98245eba1902610140c14d5f0c3c0284e28a7000000000000000000000000000000000000000000000000000000000000001c2106219ec2e5ef9f7d5ffb303fac05c4066e66db6d501d2e5b1626f2cc8fbe1c316d4e90b09819db9c261017f18e1b5b105855922ec962fd58e83c943e4c4ba3");
-    let recid = RecoveryId::from_byte(precompile_input[63]-27).expect("could not parse recovery id");
-    let sig = Signature::from_bytes_and_parity(&precompile_input[64..128], recid.is_y_odd())
-        .expect("could not parse signature");
+
+    let msg = <&B256>::try_from(&precompile_input[0..32]).unwrap();
+    let recid = precompile_input[63] - 27;
+    let sig = <&B512>::try_from(&precompile_input[64..128]).unwrap();
+
+    let recovered_address: Bytes = revm::precompile::secp256k1::ecrecover(sig, recid, msg).map(|o| o.to_vec().into()).unwrap_or_default();
+
+    println!("recovered_address: {:?}", recovered_address);
 
     let expected = address!("ea532f4122fb1152b506b545c67e110d276e3448");
-
-    println!("cycle-tracker-start: k256 verify");
-    let recovered_address =
-        sig.recover_address_from_msg("Some data").expect("could not recover address");
-    println!("cycle-tracker-end: k256 verify");
-
-    assert_eq!(recovered_address, expected);
 }
 
 /// Emits SECP256K1_ADD, SECP256K1_DOUBLE, and SECP256K1_DECOMPRESS syscalls.

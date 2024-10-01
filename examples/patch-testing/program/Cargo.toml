@@ -19,8 +19,9 @@ tiny-keccak = { version = "2.0.2", features = ["keccak"] }
 curve25519-dalek = { version = "4.1.3", default-features = false, features = ["alloc"] }
 curve25519-dalek-ng = { version = "4.1", default-features = false, features = ["u32_backend", "alloc"] }
 k256 = { version = "0.13.3", default-features = false, features = ["ecdsa"] }
-alloy-primitives = { version = "0.7", features = ["k256"] }
+alloy-primitives = { version = "0.8", features = ["k256"] }
 secp256k1 = { version = "0.29", features = ["recovery", "global-context"]}
+revm = { version = "14.0.3", default-features = false, features = ["kzg-rs"] }
 
 [patch.crates-io]
 tiny-keccak = { git = "https://github.com/sp1-patches/tiny-keccak", branch = "patch-v2.0.2" } 
