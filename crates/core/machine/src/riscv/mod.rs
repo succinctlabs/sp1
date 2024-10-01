@@ -442,7 +442,10 @@ impl<F: PrimeField32> RiscvAir<F> {
             RiscvAir::KeccakP(_) => {
                 record.get_precompile_events(SyscallCode::KECCAK_PERMUTE).len().div_ceil(NUM_ROUNDS)
             }
-            _ => unimplemented!(),
+            _ => unimplemented!(
+                "For the precompile {}, Shape cannot be fixed beofe the proof",
+                self.name()
+            ),
         };
         let mut heights = vec![(self.name(), height)];
 
