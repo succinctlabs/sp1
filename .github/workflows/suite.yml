@@ -19,7 +19,7 @@ concurrency:
 jobs:
   test-x86:
     name: ${{ matrix.s3_folder }} (${{ matrix.mode }})
-    runs-on: ${{ matrix.mode == 'cuda' && fromJSON('["runs-on", "family=g6.16xlarge", "image=ubuntu22-full-x64", "spot=false", "run-id=${{ github.run_id }}"]') || fromJSON('["runs-on", "runner=64cpu-linux-x64", "spot=false", "run-id=${{ github.run_id }}"]') }}
+    runs-on: ${{ matrix.mode == 'cuda' && fromJSON('["runs-on", "family=g6.16xlarge", "image=nvidia-linux", "spot=false", "run-id=${{ github.run_id }}"]') || fromJSON('["runs-on", "runner=64cpu-linux-x64", "spot=false", "run-id=${{ github.run_id }}"]') }}
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     strategy:
