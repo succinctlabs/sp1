@@ -5986,13 +5986,8 @@ dependencies = [
 name = "sp1-lib"
 version = "2.0.0"
 dependencies = [
- "anyhow",
  "bincode",
- "cfg-if",
- "hex",
- "num-bigint 0.4.6",
  "serde",
- "snowbridge-amcl",
 ]
 
 [[package]]
