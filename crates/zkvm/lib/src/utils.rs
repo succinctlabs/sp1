@@ -74,7 +74,7 @@ pub trait AffinePoint<const N: usize>: Clone + Sized {
             for i in 0..32 {
                 if (words >> i) & 1 == 1 {
                     match res.as_mut() {
-                        Some(res) => res.complete_add_assign(&temp),
+                        Some(res) => res.add_assign(&temp),
                         None => res = Some(temp.clone()),
                     };
                 }
