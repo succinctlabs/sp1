@@ -196,7 +196,7 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
 
                 let rows = events
                     .iter()
-                    .map(|event| {
+                    .map(|(_, event)| {
                         let event = match (E::CURVE_TYPE, event) {
                             (CurveType::Secp256k1, PrecompileEvent::Secp256k1Double(event)) => {
                                 event

@@ -19,7 +19,7 @@ pub use uint256::*;
 
 use crate::syscalls::SyscallCode;
 
-use super::MemoryLocalEvent;
+use super::{MemoryLocalEvent, SyscallEvent};
 
 #[derive(Clone, Debug, Serialize, Deserialize, EnumIter)]
 /// Precompile event.  There should be one variant for every precompile syscall.
@@ -74,11 +74,11 @@ pub trait PrecompileLocalMemory {
     fn get_local_mem_events(&self) -> impl IntoIterator<Item = &MemoryLocalEvent>;
 }
 
-impl PrecompileLocalMemory for Vec<PrecompileEvent> {
+impl PrecompileLocalMemory for Vec<(SyscallEvent, PrecompileEvent)> {
     fn get_local_mem_events(&self) -> impl IntoIterator<Item = &MemoryLocalEvent> {
         let mut iterators = Vec::new();
 
-        for event in self.iter() {
+        for (_, event) in self.iter() {
             match event {
                 PrecompileEvent::ShaExtend(e) => {
                     iterators.push(e.local_mem_access.iter());
@@ -130,7 +130,7 @@ impl PrecompileLocalMemory for Vec<PrecompileEvent> {
 /// A record of all the precompile events.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PrecompileEvents {
-    events: HashMap<SyscallCode, Vec<PrecompileEvent>>,
+    events: HashMap<SyscallCode, Vec<(SyscallEvent, PrecompileEvent)>>,
 }
 
 impl Default for PrecompileEvents {
@@ -157,31 +157,47 @@ impl PrecompileEvents {
 
     #[inline]
     /// Add a precompile event for a given syscall code.
-    pub(crate) fn add_event(&mut self, syscall_code: SyscallCode, event: PrecompileEvent) {
+    pub(crate) fn add_event(
+        &mut self,
+        syscall_code: SyscallCode,
+        syscall_event: SyscallEvent,
+        event: PrecompileEvent,
+    ) {
         assert!(syscall_code.should_send() == 1);
-        self.events.entry(syscall_code).or_default().push(event);
+        self.events.entry(syscall_code).or_default().push((syscall_event, event));
     }
 
     #[inline]
     /// Insert a vector of precompile events for a given syscall code.
-    pub(crate) fn insert(&mut self, syscall_code: SyscallCode, events: Vec<PrecompileEvent>) {
+    pub(crate) fn insert(
+        &mut self,
+        syscall_code: SyscallCode,
+        events: Vec<(SyscallEvent, PrecompileEvent)>,
+    ) {
         assert!(syscall_code.should_send() == 1);
         self.events.insert(syscall_code, events);
     }
 
     #[inline]
-    pub(crate) fn into_iter(self) -> impl Iterator<Item = (SyscallCode, Vec<PrecompileEvent>)> {
+    pub(crate) fn into_iter(
+        self,
+    ) -> impl Iterator<Item = (SyscallCode, Vec<(SyscallEvent, PrecompileEvent)>)> {
         self.events.into_iter()
     }
 
     #[inline]
-    pub(crate) fn iter(&self) -> impl Iterator<Item = (&SyscallCode, &Vec<PrecompileEvent>)> {
+    pub(crate) fn iter(
+        &self,
+    ) -> impl Iterator<Item = (&SyscallCode, &Vec<(SyscallEvent, PrecompileEvent)>)> {
         self.events.iter()
     }
 
     #[inline]
     /// Get all the precompile events for a given syscall code.
-    pub(crate) fn get_events(&self, syscall_code: SyscallCode) -> &Vec<PrecompileEvent> {
+    pub(crate) fn get_events(
+        &self,
+        syscall_code: SyscallCode,
+    ) -> &Vec<(SyscallEvent, PrecompileEvent)> {
         assert!(syscall_code.should_send() == 1);
         &self.events[&syscall_code]
     }

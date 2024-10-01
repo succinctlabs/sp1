@@ -168,7 +168,7 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
 
         let mut new_byte_lookup_events = Vec::new();
 
-        for event in events.iter() {
+        for (_, event) in events.iter() {
             let event = match (E::CURVE_TYPE, event) {
                 (CurveType::Secp256k1, PrecompileEvent::Secp256k1Add(event)) => event,
                 (CurveType::Bn254, PrecompileEvent::Bn254Add(event)) => event,

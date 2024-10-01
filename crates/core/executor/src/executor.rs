@@ -668,6 +668,18 @@ impl<'a> Executor<'a> {
         }
     }
 
+    #[inline]
+    pub(crate) fn syscall_event(
+        &self,
+        clk: u32,
+        syscall_id: u32,
+        arg1: u32,
+        arg2: u32,
+        lookup_id: LookupId,
+    ) -> SyscallEvent {
+        SyscallEvent { shard: self.shard(), clk, syscall_id, arg1, arg2, lookup_id }
+    }
+
     fn emit_syscall(
         &mut self,
         clk: u32,
@@ -676,8 +688,7 @@ impl<'a> Executor<'a> {
         arg2: u32,
         lookup_id: LookupId,
     ) {
-        let syscall_event =
-            SyscallEvent { shard: self.shard(), clk, syscall_id, arg1, arg2, lookup_id };
+        let syscall_event = self.syscall_event(clk, syscall_id, arg1, arg2, lookup_id);
 
         self.record.syscall_events.push(syscall_event);
     }

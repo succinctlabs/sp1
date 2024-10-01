@@ -115,7 +115,7 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
 
                 let rows = events
                     .iter()
-                    .map(|event| {
+                    .map(|(_, event)| {
                         let event = if let PrecompileEvent::Uint256Mul(event) = event {
                             event
                         } else {
