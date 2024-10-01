@@ -27,8 +27,8 @@ func init() {
 }
 
 type Variable struct {
-	Value  frontend.Variable
-	NbBits uint
+	Value      frontend.Variable
+	UpperBound *big.Int
 }
 
 type ExtensionVariable struct {
@@ -49,22 +49,33 @@ func NewChip(api frontend.API) *Chip {
 
 func Zero() Variable {
 	return Variable{
-		Value:  frontend.Variable("0"),
-		NbBits: 32,
+		Value:      frontend.Variable("0"),
+		UpperBound: new(big.Int).SetUint64(0),
 	}
 }
 
 func One() Variable {
 	return Variable{
-		Value:  frontend.Variable("1"),
-		NbBits: 32,
+		Value:      frontend.Variable("1"),
+		UpperBound: new(big.Int).SetUint64(1),
+	}
+}
+
+func NewFConst(value string) Variable {
+	int_value, success := new(big.Int).SetString(value, 10)
+	if !success {
+		panic("string to int conversion failed")
+	}
+	return Variable{
+		Value:      frontend.Variable(value),
+		UpperBound: int_value,
 	}
 }
 
 func NewF(value string) Variable {
 	return Variable{
-		Value:  frontend.Variable(value),
-		NbBits: 32,
+		Value:      frontend.Variable(value),
+		UpperBound: new(big.Int).SetUint64(uint64(math.Pow(2, 32))),
 	}
 }
 
@@ -81,15 +92,9 @@ func Felts2Ext(a, b, c, d Variable) ExtensionVariable {
 }
 
 func (c *Chip) AddF(a, b Variable) Variable {
-	var maxBits uint
-	if a.NbBits > b.NbBits {
-		maxBits = a.NbBits
-	} else {
-		maxBits = b.NbBits
-	}
 	return c.reduceFast(Variable{
-		Value:  c.api.Add(a.Value, b.Value),
-		NbBits: maxBits + 1,
+		Value:      c.api.Add(a.Value, b.Value),
+		UpperBound: new(big.Int).Add(a.UpperBound, b.UpperBound),
 	})
 }
 
@@ -100,31 +105,26 @@ func (c *Chip) SubF(a, b Variable) Variable {
 
 func (c *Chip) MulF(a, b Variable) Variable {
 	return c.reduceFast(Variable{
-		Value:  c.api.Mul(a.Value, b.Value),
-		NbBits: a.NbBits + b.NbBits,
+		Value:      c.api.Mul(a.Value, b.Value),
+		UpperBound: new(big.Int).Mul(a.UpperBound, b.UpperBound),
 	})
 }
 
 func (c *Chip) MulFConst(a Variable, b int) Variable {
 	return c.reduceFast(Variable{
-		Value:  c.api.Mul(a.Value, b),
-		NbBits: a.NbBits + 4,
+		Value:      c.api.Mul(a.Value, b),
+		UpperBound: new(big.Int).Mul(a.UpperBound, new(big.Int).SetUint64(uint64(b))),
 	})
 }
 
 func (c *Chip) negF(a Variable) Variable {
-	if a.NbBits <= 30 {
-		return Variable{Value: c.api.Sub(modulus, a.Value), NbBits: 31}
-	}
-
-	ub := new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(a.NbBits)), big.NewInt(0))
-	divisor := new(big.Int).Div(ub, modulus)
+	divisor := new(big.Int).Div(a.UpperBound, modulus)
 	divisorPlusOne := new(big.Int).Add(divisor, big.NewInt(1))
 	liftedModulus := new(big.Int).Mul(divisorPlusOne, modulus)
 
 	return c.reduceFast(Variable{
-		Value:  c.api.Sub(liftedModulus, a.Value),
-		NbBits: a.NbBits + 1,
+		Value:      c.api.Sub(liftedModulus, a.Value),
+		UpperBound: liftedModulus,
 	})
 }
 
@@ -136,8 +136,8 @@ func (c *Chip) invF(in Variable) Variable {
 	}
 
 	xinv := Variable{
-		Value:  result[0],
-		NbBits: 31,
+		Value:      result[0],
+		UpperBound: new(big.Int).SetUint64(2147483648),
 	}
 	if os.Getenv("GROTH16") != "1" {
 		c.RangeChecker.Check(result[0], 31)
@@ -145,7 +145,7 @@ func (c *Chip) invF(in Variable) Variable {
 		c.api.ToBinary(result[0], 31)
 	}
 	product := c.MulF(in, xinv)
-	c.AssertIsEqualF(product, NewF("1"))
+	c.AssertIsEqualF(product, NewFConst("1"))
 
 	return xinv
 }
@@ -175,15 +175,15 @@ func (c *Chip) AssertIsEqualE(a, b ExtensionVariable) {
 }
 
 func (c *Chip) SelectF(cond frontend.Variable, a, b Variable) Variable {
-	var nbBits uint
-	if a.NbBits > b.NbBits {
-		nbBits = a.NbBits
+	var UpperBound *big.Int
+	if a.UpperBound.Cmp(b.UpperBound) == -1 {
+		UpperBound = b.UpperBound
 	} else {
-		nbBits = b.NbBits
+		UpperBound = a.UpperBound
 	}
 	return Variable{
-		Value:  c.api.Select(cond, a.Value, b.Value),
-		NbBits: nbBits,
+		Value:      c.api.Select(cond, a.Value, b.Value),
+		UpperBound: UpperBound,
 	}
 }
 
@@ -263,10 +263,10 @@ func (c *Chip) InvE(in ExtensionVariable) ExtensionVariable {
 		panic(err)
 	}
 
-	xinv := Variable{Value: result[0], NbBits: 31}
-	yinv := Variable{Value: result[1], NbBits: 31}
-	zinv := Variable{Value: result[2], NbBits: 31}
-	linv := Variable{Value: result[3], NbBits: 31}
+	xinv := Variable{Value: result[0], UpperBound: new(big.Int).SetUint64(2147483648)}
+	yinv := Variable{Value: result[1], UpperBound: new(big.Int).SetUint64(2147483648)}
+	zinv := Variable{Value: result[2], UpperBound: new(big.Int).SetUint64(2147483648)}
+	linv := Variable{Value: result[3], UpperBound: new(big.Int).SetUint64(2147483648)}
 	if os.Getenv("GROTH16") != "1" {
 		c.RangeChecker.Check(result[0], 31)
 		c.RangeChecker.Check(result[1], 31)
@@ -313,22 +313,22 @@ func (c *Chip) ToBinary(in Variable) []frontend.Variable {
 }
 
 func (p *Chip) reduceFast(x Variable) Variable {
-	if x.NbBits >= uint(126) {
+	if x.UpperBound.BitLen() >= 126 {
 		return Variable{
-			Value:  p.reduceWithMaxBits(x.Value, uint64(x.NbBits)),
-			NbBits: 31,
+			Value:      p.reduceWithMaxBits(x.Value, uint64(x.UpperBound.BitLen())),
+			UpperBound: modulus,
 		}
 	}
 	return x
 }
 
 func (p *Chip) ReduceSlow(x Variable) Variable {
-	if x.NbBits <= 30 {
+	if x.UpperBound.Cmp(modulus) == -1 {
 		return x
 	}
 	return Variable{
-		Value:  p.reduceWithMaxBits(x.Value, uint64(x.NbBits)),
-		NbBits: 31,
+		Value:      p.reduceWithMaxBits(x.Value, uint64(x.UpperBound.BitLen())),
+		UpperBound: modulus,
 	}
 }
 
