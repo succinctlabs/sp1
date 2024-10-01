@@ -19,13 +19,15 @@ pub const NUM_ROUNDS: usize = NUM_EXTERNAL_ROUNDS + NUM_INTERNAL_ROUNDS;
 
 /// A chip that implements the Poseidon2 permutation in the skinny variant (one external round per
 /// row and one row for all internal rounds).
-pub struct Poseidon2SkinnyChip<const DEGREE: usize>(PhantomData<()>);
+pub struct Poseidon2SkinnyChip<const DEGREE: usize> {
+    pub pad: bool,
+}
 
 impl<const DEGREE: usize> Default for Poseidon2SkinnyChip<DEGREE> {
     fn default() -> Self {
         // We only support machines with degree 9.
         assert!(DEGREE >= 9);
-        Self(PhantomData)
+        Self { pad: true }
     }
 }
 pub fn apply_m_4<AF>(x: &mut [AF])

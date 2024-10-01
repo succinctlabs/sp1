@@ -1,5 +1,6 @@
 use std::ops::{Add, AddAssign};
 
+use crate::chips::multi::MultiChip;
 use hashbrown::HashMap;
 use p3_field::{extension::BinomiallyExtendable, PrimeField32};
 use sp1_recursion_core::runtime::D;
@@ -43,6 +44,7 @@ pub enum RecursionAir<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: u
     FriFold(FriFoldChip<DEGREE>),
     ExpReverseBitsLen(ExpReverseBitsLenChip<DEGREE>),
     PublicValues(PublicValuesChip),
+    Multi(MultiChip),
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -64,8 +66,8 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAi
         let chips = [
             RecursionAir::MemoryConst(MemoryConstChip::default()),
             RecursionAir::MemoryVar(MemoryVarChip::default()),
-            RecursionAir::BaseAlu(BaseAluChip),
-            RecursionAir::ExtAlu(ExtAluChip),
+            RecursionAir::BaseAlu(BaseAluChip { pad: true }),
+            RecursionAir::ExtAlu(ExtAluChip { pad: true }),
             RecursionAir::Poseidon2Wide(Poseidon2WideChip::<DEGREE>),
             RecursionAir::FriFold(FriFoldChip::<DEGREE>::default()),
             RecursionAir::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE>),
@@ -84,8 +86,8 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAi
         let chips = [
             RecursionAir::MemoryConst(MemoryConstChip::default()),
             RecursionAir::MemoryVar(MemoryVarChip::default()),
-            RecursionAir::BaseAlu(BaseAluChip),
-            RecursionAir::ExtAlu(ExtAluChip),
+            RecursionAir::BaseAlu(BaseAluChip { pad: true }),
+            RecursionAir::ExtAlu(ExtAluChip { pad: true }),
             RecursionAir::Poseidon2Skinny(Poseidon2SkinnyChip::<DEGREE>::default()),
             RecursionAir::FriFold(FriFoldChip::<DEGREE>::default()),
             RecursionAir::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE>),
@@ -102,8 +104,8 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAi
         let chips = [
             RecursionAir::MemoryConst(MemoryConstChip::default()),
             RecursionAir::MemoryVar(MemoryVarChip::default()),
-            RecursionAir::BaseAlu(BaseAluChip),
-            RecursionAir::ExtAlu(ExtAluChip),
+            RecursionAir::BaseAlu(BaseAluChip { pad: true }),
+            RecursionAir::ExtAlu(ExtAluChip { pad: true }),
             RecursionAir::Poseidon2Wide(Poseidon2WideChip::<DEGREE>),
             RecursionAir::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE>),
             RecursionAir::PublicValues(PublicValuesChip),
@@ -126,8 +128,9 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAi
         let chips = [
             RecursionAir::MemoryConst(MemoryConstChip::default()),
             RecursionAir::MemoryVar(MemoryVarChip::default()),
-            RecursionAir::BaseAlu(BaseAluChip),
-            RecursionAir::ExtAlu(ExtAluChip),
+            RecursionAir::BaseAlu(BaseAluChip { pad: true }),
+            // RecursionAir::Multi(MultiChip),
+            RecursionAir::ExtAlu(ExtAluChip { pad: true }),
             RecursionAir::Poseidon2Skinny(Poseidon2SkinnyChip::<DEGREE>::default()),
             // RecursionAir::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE>),
             RecursionAir::PublicValues(PublicValuesChip),
@@ -141,10 +144,10 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAi
     pub fn shrink_shape() -> RecursionShape {
         let shape = HashMap::from(
             [
-                (Self::MemoryConst(MemoryConstChip::default()), 16),
+                (Self::MemoryConst(MemoryConstChip::default()), 17),
                 (Self::MemoryVar(MemoryVarChip::default()), 18),
-                (Self::BaseAlu(BaseAluChip), 20),
-                (Self::ExtAlu(ExtAluChip), 22),
+                (Self::BaseAlu(BaseAluChip { pad: true }), 22),
+                (Self::ExtAlu(ExtAluChip { pad: true }), 24),
                 (Self::Poseidon2Wide(Poseidon2WideChip::<DEGREE>), 16),
                 (Self::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE>), 16),
                 (Self::PublicValues(PublicValuesChip), PUB_VALUES_LOG_HEIGHT),
@@ -170,11 +173,11 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAi
                 heights.mem_var_events.div_ceil(NUM_VAR_MEM_ENTRIES_PER_ROW),
             ),
             (
-                Self::BaseAlu(BaseAluChip),
+                Self::BaseAlu(BaseAluChip { pad: true }),
                 heights.base_alu_events.div_ceil(NUM_BASE_ALU_ENTRIES_PER_ROW),
             ),
             (
-                Self::ExtAlu(ExtAluChip),
+                Self::ExtAlu(ExtAluChip { pad: true }),
                 heights.ext_alu_events.div_ceil(NUM_EXT_ALU_ENTRIES_PER_ROW),
             ),
             (Self::Poseidon2Wide(Poseidon2WideChip::<DEGREE>), heights.poseidon2_wide_events),

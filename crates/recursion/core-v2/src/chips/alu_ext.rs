@@ -10,10 +10,12 @@ use std::{borrow::BorrowMut, iter::zip};
 
 use crate::{builder::SP1RecursionAirBuilder, *};
 
-pub const NUM_EXT_ALU_ENTRIES_PER_ROW: usize = 4;
+pub const NUM_EXT_ALU_ENTRIES_PER_ROW: usize = 2;
 
 #[derive(Default)]
-pub struct ExtAluChip;
+pub struct ExtAluChip {
+    pub pad: bool,
+}
 
 pub const NUM_EXT_ALU_COLS: usize = core::mem::size_of::<ExtAluCols<u8>>();
 
@@ -51,7 +53,7 @@ pub struct ExtAluAccessCols<F: Copy> {
     pub mult: F,
 }
 
-impl<F: Field> BaseAir<F> for ExtAluChip {
+impl<F> BaseAir<F> for ExtAluChip {
     fn width(&self) -> usize {
         NUM_EXT_ALU_COLS
     }
@@ -83,9 +85,13 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for ExtAluChip {
 
         let nb_rows = instrs.len().div_ceil(NUM_EXT_ALU_ENTRIES_PER_ROW);
         let fixed_log2_rows = program.fixed_log2_rows(self);
-        let padded_nb_rows = match fixed_log2_rows {
-            Some(log2_rows) => 1 << log2_rows,
-            None => next_power_of_two(nb_rows, None),
+        let padded_nb_rows = if self.pad {
+            match fixed_log2_rows {
+                Some(log2_rows) => 1 << log2_rows,
+                None => next_power_of_two(nb_rows, None),
+            }
+        } else {
+            nb_rows
         };
         let mut values = vec![F::zero(); padded_nb_rows * NUM_EXT_ALU_PREPROCESSED_COLS];
 
@@ -125,9 +131,13 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for ExtAluChip {
         let events = &input.ext_alu_events;
         let nb_rows = events.len().div_ceil(NUM_EXT_ALU_ENTRIES_PER_ROW);
         let fixed_log2_rows = input.fixed_log2_rows(self);
-        let padded_nb_rows = match fixed_log2_rows {
-            Some(log2_rows) => 1 << log2_rows,
-            None => next_power_of_two(nb_rows, None),
+        let padded_nb_rows = if self.pad {
+            match fixed_log2_rows {
+                Some(log2_rows) => 1 << log2_rows,
+                None => next_power_of_two(nb_rows, None),
+            }
+        } else {
+            nb_rows
         };
         let mut values = vec![F::zero(); padded_nb_rows * NUM_EXT_ALU_COLS];
 
@@ -161,10 +171,21 @@ where
         let prep_local = prep.row_slice(0);
         let prep_local: &ExtAluPreprocessedCols<AB::Var> = (*prep_local).borrow();
 
+        self.eval_ext_alu(builder, local, prep_local);
+    }
+}
+
+impl ExtAluChip {
+    pub fn eval_ext_alu<AB: SP1RecursionAirBuilder>(
+        &self,
+        builder: &mut AB,
+        local: &ExtAluCols<AB::Var>,
+        prep: &ExtAluPreprocessedCols<AB::Var>,
+    ) {
         for (
             ExtAluValueCols { vals },
             ExtAluAccessCols { addrs, is_add, is_sub, is_mul, is_div, mult },
-        ) in zip(local.values, prep_local.accesses)
+        ) in zip(local.values, prep.accesses)
         {
             let in1 = vals.in1.as_extension::<AB>();
             let in2 = vals.in2.as_extension::<AB>();
@@ -217,7 +238,7 @@ mod tests {
             }],
             ..Default::default()
         };
-        let chip = ExtAluChip;
+        let chip = ExtAluChip { pad: true };
         let trace: RowMajorMatrix<F> = chip.generate_trace(&shard, &mut ExecutionRecord::default());
         println!("{:?}", trace.values)
     }

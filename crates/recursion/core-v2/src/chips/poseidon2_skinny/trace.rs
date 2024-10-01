@@ -27,7 +27,7 @@ use crate::{
 
 use super::{columns::preprocessed::Poseidon2PreprocessedCols, internal_linear_layer, WIDTH};
 
-const PREPROCESSED_POSEIDON2_WIDTH: usize = size_of::<Poseidon2PreprocessedCols<u8>>();
+pub const PREPROCESSED_POSEIDON2_WIDTH: usize = size_of::<Poseidon2PreprocessedCols<u8>>();
 
 const INTERNAL_ROUND_IDX: usize = NUM_EXTERNAL_ROUNDS / 2 + 1;
 const INPUT_ROUND_IDX: usize = 0;
@@ -99,7 +99,13 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2SkinnyChip
 
         // Pad the trace to a power of two.
         // This will need to be adjusted when the AIR constraints are implemented.
-        pad_rows_fixed(&mut rows, || [F::zero(); NUM_POSEIDON2_COLS], input.fixed_log2_rows(self));
+        if self.pad {
+            pad_rows_fixed(
+                &mut rows,
+                || [F::zero(); NUM_POSEIDON2_COLS],
+                input.fixed_log2_rows(self),
+            );
+        }
 
         // Convert the trace to a row major matrix.
         let trace =
@@ -192,11 +198,14 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2SkinnyChip
 
         // Pad the trace to a power of two.
         // This may need to be adjusted when the AIR constraints are implemented.
-        pad_rows_fixed(
-            &mut rows,
-            || [F::zero(); PREPROCESSED_POSEIDON2_WIDTH],
-            program.fixed_log2_rows(self),
-        );
+        if self.pad {
+            pad_rows_fixed(
+                &mut rows,
+                || [F::zero(); PREPROCESSED_POSEIDON2_WIDTH],
+                program.fixed_log2_rows(self),
+            );
+        }
+
         let trace_rows = rows.into_iter().flatten().collect::<Vec<_>>();
         Some(RowMajorMatrix::new(trace_rows, PREPROCESSED_POSEIDON2_WIDTH))
     }

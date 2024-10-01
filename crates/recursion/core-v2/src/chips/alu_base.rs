@@ -10,10 +10,12 @@ use std::{borrow::BorrowMut, iter::zip};
 
 use crate::{builder::SP1RecursionAirBuilder, *};
 
-pub const NUM_BASE_ALU_ENTRIES_PER_ROW: usize = 4;
+pub const NUM_BASE_ALU_ENTRIES_PER_ROW: usize = 2;
 
 #[derive(Default)]
-pub struct BaseAluChip;
+pub struct BaseAluChip {
+    pub pad: bool,
+}
 
 pub const NUM_BASE_ALU_COLS: usize = core::mem::size_of::<BaseAluCols<u8>>();
 
@@ -53,7 +55,7 @@ pub struct BaseAluAccessCols<F: Copy> {
     pub mult: F,
 }
 
-impl<F: Field> BaseAir<F> for BaseAluChip {
+impl<F> BaseAir<F> for BaseAluChip {
     fn width(&self) -> usize {
         NUM_BASE_ALU_COLS
     }
@@ -163,6 +165,17 @@ where
         let prep_local = prep.row_slice(0);
         let prep_local: &BaseAluPreprocessedCols<AB::Var> = (*prep_local).borrow();
 
+        self.eval_base_alu(builder, local, prep_local);
+    }
+}
+
+impl BaseAluChip {
+    pub fn eval_base_alu<AB: SP1RecursionAirBuilder>(
+        &self,
+        builder: &mut AB,
+        local: &BaseAluCols<AB::Var>,
+        prep_local: &BaseAluPreprocessedCols<AB::Var>,
+    ) {
         for (
             BaseAluValueCols { vals: BaseAluIo { out, in1, in2 } },
             BaseAluAccessCols { addrs, is_add, is_sub, is_mul, is_div, mult },
@@ -208,7 +221,7 @@ mod tests {
             base_alu_events: vec![BaseAluIo { out: F::one(), in1: F::one(), in2: F::one() }],
             ..Default::default()
         };
-        let chip = BaseAluChip;
+        let chip = BaseAluChip { pad: true };
         let trace: RowMajorMatrix<F> = chip.generate_trace(&shard, &mut ExecutionRecord::default());
         println!("{:?}", trace.values)
     }

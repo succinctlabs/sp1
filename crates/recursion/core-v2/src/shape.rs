@@ -83,8 +83,8 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> Default
         // Get the names of all the recursion airs to make the shape specification more readable.
         let mem_const = RecursionAir::<F, DEGREE>::MemoryConst(MemoryConstChip::default()).name();
         let mem_var = RecursionAir::<F, DEGREE>::MemoryVar(MemoryVarChip::default()).name();
-        let base_alu = RecursionAir::<F, DEGREE>::BaseAlu(BaseAluChip).name();
-        let ext_alu = RecursionAir::<F, DEGREE>::ExtAlu(ExtAluChip).name();
+        let base_alu = RecursionAir::<F, DEGREE>::BaseAlu(BaseAluChip { pad: true }).name();
+        let ext_alu = RecursionAir::<F, DEGREE>::ExtAlu(ExtAluChip { pad: true }).name();
         let poseidon2_wide =
             RecursionAir::<F, DEGREE>::Poseidon2Wide(Poseidon2WideChip::<DEGREE>).name();
         let exp_reverse_bits_len =

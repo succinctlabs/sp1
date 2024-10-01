@@ -39,6 +39,18 @@ where
         let prep_local = prepr.row_slice(0);
         let prep_local: &Poseidon2PreprocessedCols<_> = (*prep_local).borrow();
 
+        self.eval_p2_skinny(builder, local_row, prep_local, next_row);
+    }
+}
+
+impl<const DEGREE: usize> Poseidon2SkinnyChip<DEGREE> {
+    pub fn eval_p2_skinny<AB: SP1RecursionAirBuilder>(
+        &self,
+        builder: &mut AB,
+        local_row: &Poseidon2<AB::Var>,
+        prep_local: &Poseidon2PreprocessedCols<AB::Var>,
+        next_row: &Poseidon2<AB::Var>,
+    ) {
         // Dummy constraints to normalize to DEGREE.
         let lhs = (0..DEGREE).map(|_| local_row.state_var[0].into()).product::<AB::Expr>();
         let rhs = (0..DEGREE).map(|_| local_row.state_var[0].into()).product::<AB::Expr>();
@@ -65,9 +77,7 @@ where
             prep_local.round_counters_preprocessed.is_internal_round,
         );
     }
-}
 
-impl<const DEGREE: usize> Poseidon2SkinnyChip<DEGREE> {
     fn eval_input_round<AB: SP1RecursionAirBuilder>(
         &self,
         builder: &mut AB,
