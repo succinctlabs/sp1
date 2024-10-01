@@ -2,8 +2,6 @@ pub mod cost;
 
 mod shape;
 
-use std::mem::Discriminant;
-
 use itertools::Itertools;
 use p3_keccak_air::NUM_ROUNDS;
 pub use shape::*;
@@ -529,10 +527,50 @@ impl<F: PrimeField32> RiscvAir<F> {
             RiscvAir::Ed25519Decompress(_) => {
                 record.get_precompile_events(SyscallCode::ED_DECOMPRESS).len()
             }
-            _ => unimplemented!(
-                "For the precompile {}, shape fixing for the record is not implemented",
-                self.name()
-            ),
+            RiscvAir::Secp256k1Add(_) => {
+                record.get_precompile_events(SyscallCode::SECP256K1_ADD).len()
+            }
+            RiscvAir::Secp256k1Double(_) => {
+                record.get_precompile_events(SyscallCode::SECP256K1_DOUBLE).len()
+            }
+            RiscvAir::Sha256Compress(_) => {
+                record.get_precompile_events(SyscallCode::SHA_EXTEND).len().div_ceil(80)
+            }
+            RiscvAir::Sha256Extend(_) => {
+                record.get_precompile_events(SyscallCode::SHA_EXTEND).len().div_ceil(48)
+            }
+            RiscvAir::Bn254Fp2Mul(_) => {
+                record.get_precompile_events(SyscallCode::BN254_FP2_MUL).len()
+            }
+            RiscvAir::Bn254Fp2AddSub(_) => {
+                record.get_precompile_events(SyscallCode::BN254_FP2_ADD).len()
+            }
+            RiscvAir::Bls12381Fp(_) => {
+                record.get_precompile_events(SyscallCode::BLS12381_FP_ADD).len()
+            }
+            RiscvAir::Bls12381Fp2Mul(_) => {
+                record.get_precompile_events(SyscallCode::BLS12381_FP2_MUL).len()
+            }
+            RiscvAir::Bls12381Fp2AddSub(_) => {
+                record.get_precompile_events(SyscallCode::BLS12381_FP2_ADD).len()
+            }
+            RiscvAir::Bn254Fp(_) => record.get_precompile_events(SyscallCode::BN254_FP_ADD).len(),
+            RiscvAir::Uint256Mul(_) => record.get_precompile_events(SyscallCode::UINT256_MUL).len(),
+            RiscvAir::Program(_)
+            | RiscvAir::Cpu(_)
+            | RiscvAir::MemoryLocal(_)
+            | RiscvAir::Mul(_)
+            | RiscvAir::DivRem(_)
+            | RiscvAir::Lt(_)
+            | RiscvAir::ShiftLeft(_)
+            | RiscvAir::ShiftRight(_)
+            | RiscvAir::Bitwise(_)
+            | RiscvAir::ByteLookup(_)
+            | RiscvAir::MemoryGlobalInit(_)
+            | RiscvAir::MemoryGlobalFinal(_)
+            | RiscvAir::ProgramMemory(_)
+            | RiscvAir::Syscall(_)
+            | RiscvAir::Add(_) => unreachable!(),
         };
 
         let disc: RiscvAirDiscriminants = self.into();
