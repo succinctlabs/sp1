@@ -1,16 +1,7 @@
 name: Testing Suite
+
 on:
-  push:
-    branches: [main, dev]
-  pull_request:
-    branches:
-      - "**"
-    paths:
-      - "crates/**"
-      - "examples/**"
-      - "Cargo.toml"
-      - ".github/workflows/**"
-  merge_group:
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -26,28 +17,28 @@ jobs:
       matrix:
         mode:
           - cpu
-          - cuda
-          # - network
+          # - cuda
+          - network
         s3_folder: 
           - fibonacci-17k
-          # - ssz-withdrawals
-          # - tendermint
-          # - rsp-20526624
-          # - rsa
-          # - regex
-          # - json
-          # - chess
-          # - blobstream-01j6z63fgafrc8jeh0k12gbtvw
-          # - blobstream-01j6z95bdme9svevmfyc974bja
-          # - blobstream-01j6z9ak0ke9srsppgywgke6fj
-          # - blobstream-01j6z9bysje9ssrw1dn4w0w9h5
-          # - blobstream-01j6zbcx2veyp83r8t6wdhbjsh
-          # - vector-01j6xsv35re96tkgyda115320t
-          # - vector-01j6xzy366ff5tbkzcrs8pma02
-          # - vector-01j6y06de0fdaafemr8b1t69z3
-          # - vector-01j6y0en9pfdab5whxq2k60fqs
-          # - vector-01j6y0q023edftg2z0d3cj1bgh
-          # - raiko-a7-10
+          - ssz-withdrawals
+          - tendermint
+          - rsp-20526624
+          - rsa
+          - regex
+          - json
+          - chess
+          - blobstream-01j6z63fgafrc8jeh0k12gbtvw
+          - blobstream-01j6z95bdme9svevmfyc974bja
+          - blobstream-01j6z9ak0ke9srsppgywgke6fj
+          - blobstream-01j6z9bysje9ssrw1dn4w0w9h5
+          - blobstream-01j6zbcx2veyp83r8t6wdhbjsh
+          - vector-01j6xsv35re96tkgyda115320t
+          - vector-01j6xzy366ff5tbkzcrs8pma02
+          - vector-01j6y06de0fdaafemr8b1t69z3
+          - vector-01j6y0en9pfdab5whxq2k60fqs
+          - vector-01j6y0q023edftg2z0d3cj1bgh
+          - raiko-a7-10
     steps:
       - name: Checkout sources
         uses: actions/checkout@v4
