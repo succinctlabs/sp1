@@ -77,7 +77,7 @@ pub fn next_power_of_two(n: usize, fixed_power: Option<usize>) -> usize {
         Some(power) => {
             let padded_nb_rows = 1 << power;
             if n * 2 < padded_nb_rows {
-                tracing::warn!(
+                tracing::debug!(
                     "fixed log2 rows can be potentially reduced: got {}, expected {}",
                     n,
                     padded_nb_rows
