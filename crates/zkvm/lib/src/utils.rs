@@ -93,14 +93,26 @@ pub trait AffinePoint<const N: usize>: Clone + Sized {
         for (a_bit, b_bit) in a_bits_le.iter().zip(b_bits_le.iter()) {
             if *a_bit {
                 match res.as_mut() {
-                    Some(res) => res.add_assign(&temp_a),
+                    Some(res) => {
+                        if res.limbs_ref() == temp_a.limbs_ref() {
+                            res.double();
+                        } else {
+                            res.add_assign(&temp_a);
+                        }
+                    }
                     None => res = Some(temp_a.clone()),
                 };
             }
 
             if *b_bit {
                 match res.as_mut() {
-                    Some(res) => res.add_assign(&temp_b),
+                    Some(res) => {
+                        if res.limbs_ref() == temp_b.limbs_ref() {
+                            res.double();
+                        } else {
+                            res.add_assign(&temp_b);
+                        }
+                    }
                     None => res = Some(temp_b.clone()),
                 };
             }
