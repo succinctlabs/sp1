@@ -1,8 +1,7 @@
 use std::io::ErrorKind;
 
 use crate::{
-    syscall_bls12381_add, syscall_bls12381_decompress, syscall_bls12381_double,
-    utils::{AffinePoint, WeierstrassAffinePoint},
+    syscall_bls12381_add, syscall_bls12381_decompress, syscall_bls12381_double, utils::AffinePoint,
 };
 
 /// The number of limbs in [Bls12381AffinePoint].
@@ -12,8 +11,6 @@ pub const N: usize = 24;
 #[derive(Copy, Clone)]
 #[repr(align(4))]
 pub struct Bls12381AffinePoint(pub [u32; N]);
-
-impl WeierstrassAffinePoint<N> for Bls12381AffinePoint {}
 
 impl AffinePoint<N> for Bls12381AffinePoint {
     /// The generator was taken from "py_ecc" python library by the Ethereum Foundation:
@@ -36,10 +33,6 @@ impl AffinePoint<N> for Bls12381AffinePoint {
 
     fn limbs_mut(&mut self) -> &mut [u32; N] {
         &mut self.0
-    }
-
-    fn complete_add_assign(&mut self, other: &Self) {
-        self.weierstrass_add_assign(other);
     }
 
     fn add_assign(&mut self, other: &Self) {

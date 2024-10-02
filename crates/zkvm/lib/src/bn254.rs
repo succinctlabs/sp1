@@ -1,7 +1,4 @@
-use crate::{
-    syscall_bn254_add, syscall_bn254_double,
-    utils::{AffinePoint, WeierstrassAffinePoint},
-};
+use crate::{syscall_bn254_add, syscall_bn254_double, utils::AffinePoint};
 
 /// The number of limbs in [Bn254AffinePoint].
 pub const N: usize = 16;
@@ -10,8 +7,6 @@ pub const N: usize = 16;
 #[derive(Copy, Clone)]
 #[repr(align(4))]
 pub struct Bn254AffinePoint(pub [u32; N]);
-
-impl WeierstrassAffinePoint<N> for Bn254AffinePoint {}
 
 impl AffinePoint<N> for Bn254AffinePoint {
     /// The generator has been taken from py_pairing python library by the Ethereum Foundation:
@@ -29,10 +24,6 @@ impl AffinePoint<N> for Bn254AffinePoint {
 
     fn limbs_mut(&mut self) -> &mut [u32; N] {
         &mut self.0
-    }
-
-    fn complete_add_assign(&mut self, other: &Self) {
-        self.weierstrass_add_assign(other);
     }
 
     fn add_assign(&mut self, other: &Self) {

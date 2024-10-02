@@ -8,7 +8,7 @@ pub trait AffinePoint<const N: usize>: Clone + Sized {
     /// Returns a reference to the limbs.
     fn limbs_ref(&self) -> &[u32; N];
 
-    /// Returns a mutable reference to the limbs.
+    /// Returns a mutable reference to the limbs. If the point is the infinity point, this will panic.
     fn limbs_mut(&mut self) -> &mut [u32; N];
 
     /// Creates a new [`AffinePoint`] from the given x and y coordinates.
@@ -142,10 +142,11 @@ pub fn bytes_to_words_le(bytes: &[u8]) -> Vec<u32> {
 
 /// A trait for affine points on Weierstrass curves.
 pub trait WeierstrassAffinePoint<const N: usize>: AffinePoint<N> {
-    /// The infinity point is set to (0, 0).
-    fn infinity() -> Self {
-        Self::new([0; N])
-    }
+    /// The infinity point of the Weierstrass curve.
+    fn infinity() -> Self;
+
+    /// Checks if the point is the infinity point.
+    fn is_infinity(&self) -> bool;
 
     /// Performs the complete addition of two [`AffinePoint`]'s on a Weierstrass curve.
     /// For an addition of two points P1 and P2, the cases are:
@@ -159,19 +160,20 @@ pub trait WeierstrassAffinePoint<const N: usize>: AffinePoint<N> {
     /// [Zcash complete addition spec](https://zcash.github.io/halo2/design/gadgets/ecc/addition.html#complete-addition).
     ///
     fn weierstrass_add_assign(&mut self, other: &Self) {
-        let p1 = self.limbs_mut();
-        let p2 = other.limbs_ref();
-
         // Case 1: p1 is infinity.
-        if p1 == &[0; N] {
+        if self.is_infinity() {
             *self = other.clone();
             return;
         }
 
         // Case 2: p2 is infinity.
-        if p2 == &[0; N] {
+        if other.is_infinity() {
             return;
         }
+
+        // Once it's known the points are not infinity, their limbs can be safely used.
+        let p1 = self.limbs_mut();
+        let p2 = other.limbs_ref();
 
         // Case 3: p1 equals p2.
         if p1 == p2 {
@@ -185,7 +187,7 @@ pub trait WeierstrassAffinePoint<const N: usize>: AffinePoint<N> {
         // p2.y, so we can just check if p1.x == p2.x. Therefore, this implictly checks that
         // p1.x == p2.x AND p1.y + p2.y == p without modular negation.
         if p1[..N / 2] == p2[..N / 2] {
-            *self = Self::new([0; N]);
+            *self = Self::infinity();
             return;
         }
 
