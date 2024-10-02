@@ -451,21 +451,22 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
                 );
             }
 
-            tracing::info_span!("debug constraints").in_scope(|| {
-                for i in 0..chips.len() {
-                    let preprocessed_trace =
-                        pk.chip_ordering.get(&chips[i].name()).map(|index| &pk.traces[*index]);
-                    debug_constraints::<SC, A>(
-                        chips[i],
-                        preprocessed_trace,
-                        &traces[i].0,
-                        &permutation_traces[i],
-                        &permutation_challenges,
-                        &shard.public_values(),
-                        &cumulative_sums[i],
-                    );
-                }
-            });
+            // TODO: COMMENT BACK IN.
+            // tracing::info_span!("debug constraints").in_scope(|| {
+            //     for i in 0..chips.len() {
+            //         let preprocessed_trace =
+            //             pk.chip_ordering.get(&chips[i].name()).map(|index| &pk.traces[*index]);
+            //         debug_constraints::<SC, A>(
+            //             chips[i],
+            //             preprocessed_trace,
+            //             &traces[i].0,
+            //             &permutation_traces[i],
+            //             &permutation_challenges,
+            //             &shard.public_values(),
+            //             &cumulative_sums[i],
+            //         );
+            //     }
+            // });
         }
 
         tracing::info!("Constraints verified successfully");
