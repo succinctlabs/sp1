@@ -192,6 +192,7 @@ impl PrecompileEvents {
 
     /// Get the number of precompile events.
     #[inline]
+    #[must_use]
     pub fn len(&self) -> usize {
         self.events.len()
     }

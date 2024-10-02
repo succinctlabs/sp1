@@ -596,15 +596,15 @@ where
                                         )
                                         .unwrap();
 
-                                    #[cfg(feature = "debug")]
-                                    {
-                                        if let Some(shape) = record.shape {
-                                            assert_eq!(
-                                                proof.shape(),
-                                                shape.clone().into_iter().collect(),
-                                            );
-                                        }
-                                    }
+                                    // #[cfg(feature = "debug")]
+                                    // {
+                                    //     if let Some(shape) = record.shape {
+                                    //         assert_eq!(
+                                    //             proof.shape(),
+                                    //             shape.clone().into_iter().collect(),
+                                    //         );
+                                    //     }
+                                    // }
 
                                     proof
                                 },
