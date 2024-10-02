@@ -15,7 +15,7 @@ use crate::{
     BabyBearFriConfigVariable, CircuitConfig,
 };
 use sp1_recursion_compiler::ir::{Builder, Felt};
-use sp1_recursion_core_v2::DIGEST_SIZE;
+use sp1_recursion_core::DIGEST_SIZE;
 use sp1_stark::{air::MachineAir, StarkMachine};
 
 /// A program to verify a single recursive proof representing a complete proof of program execution.

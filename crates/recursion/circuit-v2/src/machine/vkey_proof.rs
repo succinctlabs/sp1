@@ -7,7 +7,7 @@ use p3_field::AbstractField;
 use p3_matrix::dense::RowMajorMatrix;
 use serde::{Deserialize, Serialize};
 use sp1_recursion_compiler::ir::{Builder, Felt};
-use sp1_recursion_core_v2::DIGEST_SIZE;
+use sp1_recursion_core::DIGEST_SIZE;
 use sp1_stark::{
     air::MachineAir, baby_bear_poseidon2::BabyBearPoseidon2, Com, InnerChallenge, OpeningProof,
     StarkGenericConfig, StarkMachine,

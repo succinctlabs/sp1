@@ -6,14 +6,14 @@ use p3_field::{
     AbstractExtensionField, AbstractField, Field, PrimeField, PrimeField64, TwoAdicField,
 };
 use sp1_core_machine::utils::{sp1_debug_mode, SpanBuilder};
-use sp1_recursion_core_v2::{
+use sp1_recursion_core::{
     air::{Block, RecursionPublicValues, RECURSIVE_PROOF_NUM_PV_ELTS},
     BaseAluInstr, BaseAluOpcode,
 };
 use std::{borrow::Borrow, collections::HashMap, iter::repeat, mem::transmute};
 use vec_map::VecMap;
 
-use sp1_recursion_core_v2::*;
+use sp1_recursion_core::*;
 
 use crate::prelude::*;
 
@@ -780,7 +780,7 @@ mod tests {
     use rand::{rngs::StdRng, Rng, SeedableRng};
 
     use sp1_core_machine::utils::{run_test_machine, setup_logger};
-    use sp1_recursion_core_v2::{machine::RecursionAir, RecursionProgram, Runtime};
+    use sp1_recursion_core::{machine::RecursionAir, RecursionProgram, Runtime};
     use sp1_stark::{
         baby_bear_poseidon2::BabyBearPoseidon2, inner_perm, BabyBearPoseidon2Inner, InnerHash,
         StarkGenericConfig,

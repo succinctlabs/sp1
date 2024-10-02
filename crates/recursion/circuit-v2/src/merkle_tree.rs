@@ -155,7 +155,7 @@ mod tests {
         config::InnerConfig,
         ir::{Builder, Felt},
     };
-    use sp1_recursion_core_v2::DIGEST_SIZE;
+    use sp1_recursion_core::DIGEST_SIZE;
     use sp1_stark::baby_bear_poseidon2::BabyBearPoseidon2;
     use zkhash::ark_ff::UniformRand;
 

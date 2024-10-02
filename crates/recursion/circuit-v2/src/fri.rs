@@ -8,7 +8,7 @@ use p3_fri::{
 use p3_symmetric::Hash;
 use p3_util::log2_strict_usize;
 use sp1_recursion_compiler::ir::{Builder, DslIr, Felt, SymbolicExt};
-use sp1_recursion_core_v2::DIGEST_SIZE;
+use sp1_recursion_core::DIGEST_SIZE;
 use sp1_stark::{InnerChallenge, InnerChallengeMmcs, InnerPcsProof, InnerVal};
 use std::{
     cmp::Reverse,
@@ -485,7 +485,7 @@ mod tests {
         InnerValMmcs, StarkGenericConfig,
     };
 
-    use sp1_recursion_core_v2::DIGEST_SIZE;
+    use sp1_recursion_core::DIGEST_SIZE;
 
     type C = InnerConfig;
     type SC = BabyBearPoseidon2;

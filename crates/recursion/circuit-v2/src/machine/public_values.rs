@@ -1,7 +1,7 @@
 use itertools::Itertools;
 use sp1_derive::AlignedBorrow;
 use sp1_recursion_compiler::ir::{Builder, Felt};
-use sp1_recursion_core_v2::{
+use sp1_recursion_core::{
     air::{RecursionPublicValues, NUM_PV_ELMS_TO_HASH},
     DIGEST_SIZE,
 };

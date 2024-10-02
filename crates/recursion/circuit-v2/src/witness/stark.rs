@@ -5,7 +5,7 @@ use p3_field::{AbstractExtensionField, AbstractField};
 use p3_fri::{CommitPhaseProofStep, QueryProof};
 
 use sp1_recursion_compiler::ir::{Builder, Config, Ext, Felt};
-use sp1_recursion_core_v2::air::Block;
+use sp1_recursion_core::air::Block;
 use sp1_stark::{
     baby_bear_poseidon2::BabyBearPoseidon2, AirOpenedValues, InnerBatchOpening, InnerChallenge,
     InnerChallengeMmcs, InnerDigest, InnerFriProof, InnerPcsProof, InnerVal,

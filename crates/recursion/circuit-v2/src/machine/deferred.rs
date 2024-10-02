@@ -20,7 +20,7 @@ use sp1_stark::{
     Dom, ShardProof, StarkMachine, StarkVerifyingKey, Word,
 };
 
-use sp1_recursion_core_v2::{
+use sp1_recursion_core::{
     air::{RecursionPublicValues, PV_DIGEST_NUM_WORDS, RECURSIVE_PROOF_NUM_PV_ELTS},
     DIGEST_SIZE,
 };

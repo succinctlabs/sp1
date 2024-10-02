@@ -5,7 +5,7 @@ use p3_matrix::Dimensions;
 
 use sp1_recursion_compiler::ir::{Builder, Ext, Felt};
 
-use sp1_recursion_core_v2::DIGEST_SIZE;
+use sp1_recursion_core::DIGEST_SIZE;
 
 use crate::{
     challenger::CanObserveVariable, hash::FieldHasherVariable, BabyBearFriConfigVariable,

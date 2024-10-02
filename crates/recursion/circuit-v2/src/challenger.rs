@@ -5,7 +5,7 @@ use sp1_recursion_compiler::{
     ir::{DslIr, Var},
     prelude::{Builder, Config, Ext, Felt},
 };
-use sp1_recursion_core_v2::{
+use sp1_recursion_core::{
     air::ChallengerPublicValues,
     runtime::{HASH_RATE, PERMUTATION_WIDTH},
     stark::{OUTER_MULTI_FIELD_CHALLENGER_DIGEST_SIZE, OUTER_MULTI_FIELD_CHALLENGER_RATE},
@@ -443,9 +443,7 @@ pub(crate) mod tests {
         constraints::ConstraintCompiler,
         ir::{Builder, Config, Ext, ExtConst, Felt, Var},
     };
-    use sp1_recursion_core_v2::stark::{
-        outer_perm, BabyBearPoseidon2Outer, OuterCompress, OuterHash,
-    };
+    use sp1_recursion_core::stark::{outer_perm, BabyBearPoseidon2Outer, OuterCompress, OuterHash};
     use sp1_recursion_gnark_ffi::PlonkBn254Prover;
     use sp1_stark::{baby_bear_poseidon2::BabyBearPoseidon2, StarkGenericConfig};
 

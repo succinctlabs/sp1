@@ -4872,7 +4872,7 @@ dependencies = [
  "sp1-core-machine",
  "sp1-primitives",
  "sp1-recursion-core",
- "sp1-recursion-core-v2",
+ "sp1-recursion-core",
  "sp1-recursion-derive",
  "sp1-stark",
  "tracing",
@@ -4916,7 +4916,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "sp1-recursion-core-v2"
+name = "sp1-recursion-core"
 version = "1.2.0-rc1"
 dependencies = [
  "arrayref",

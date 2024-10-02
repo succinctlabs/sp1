@@ -13,8 +13,8 @@ use sp1_recursion_compiler::{
     ir::Builder,
 };
 
-use sp1_recursion_core_v2::air::RecursionPublicValues;
-pub use sp1_recursion_core_v2::stark::sp1_dev_mode;
+use sp1_recursion_core::air::RecursionPublicValues;
+pub use sp1_recursion_core::stark::sp1_dev_mode;
 
 pub use sp1_recursion_circuit_v2::witness::{OuterWitness, Witnessable};
 

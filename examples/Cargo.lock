@@ -5181,7 +5181,7 @@ dependencies = [
  "sp1-primitives",
  "sp1-recursion-circuit-v2",
  "sp1-recursion-compiler",
- "sp1-recursion-core-v2",
+ "sp1-recursion-core",
  "sp1-recursion-gnark-ffi",
  "sp1-stark",
  "subtle-encoding",
@@ -5219,7 +5219,7 @@ dependencies = [
  "sp1-core-machine",
  "sp1-primitives",
  "sp1-recursion-compiler",
- "sp1-recursion-core-v2",
+ "sp1-recursion-core",
  "sp1-recursion-derive",
  "sp1-recursion-gnark-ffi",
  "sp1-stark",
@@ -5248,7 +5248,7 @@ dependencies = [
  "sp1-core-machine",
  "sp1-primitives",
  "sp1-recursion-core",
- "sp1-recursion-core-v2",
+ "sp1-recursion-core",
  "sp1-recursion-derive",
  "sp1-stark",
  "tracing",
@@ -5292,7 +5292,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "sp1-recursion-core-v2"
+name = "sp1-recursion-core"
 version = "2.0.0"
 dependencies = [
  "arrayref",

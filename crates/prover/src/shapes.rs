@@ -16,7 +16,7 @@ use sp1_recursion_circuit_v2::{
     },
     merkle_tree::MerkleTree,
 };
-use sp1_recursion_core_v2::{shape::RecursionShapeConfig, RecursionProgram};
+use sp1_recursion_core::{shape::RecursionShapeConfig, RecursionProgram};
 use sp1_stark::{MachineProver, ProofShape, DIGEST_SIZE};
 
 use crate::{

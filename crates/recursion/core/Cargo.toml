@@ -1,5 +1,5 @@
 [package]
-name = "sp1-recursion-core-v2"
+name = "sp1-recursion-core"
 description = "SP1 is a performant, 100% open-source, contributor-friendly zkVM."
 readme = "../../../README.md"
 version = { workspace = true }

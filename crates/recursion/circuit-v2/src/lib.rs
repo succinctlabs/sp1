@@ -42,7 +42,7 @@ use p3_challenger::{CanObserve, CanSample, FieldChallenger, GrindingChallenger};
 use p3_commit::{ExtensionMmcs, Mmcs};
 use p3_dft::Radix2DitParallel;
 use p3_fri::{FriConfig, TwoAdicFriPcs};
-use sp1_recursion_core_v2::{
+use sp1_recursion_core::{
     air::RecursionPublicValues,
     stark::{BabyBearPoseidon2Outer, OuterValMmcs},
     D,

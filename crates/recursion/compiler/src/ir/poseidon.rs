@@ -1,5 +1,5 @@
 use p3_field::AbstractField;
-use sp1_recursion_core_v2::runtime::{DIGEST_SIZE, HASH_RATE, PERMUTATION_WIDTH};
+use sp1_recursion_core::runtime::{DIGEST_SIZE, HASH_RATE, PERMUTATION_WIDTH};
 
 use super::{Array, Builder, Config, DslIr, Ext, Felt, Usize, Var};
 

@@ -5,7 +5,7 @@ use p3_bn254_fr::Bn254Fr;
 use p3_field::{AbstractField, PrimeField32};
 
 use sp1_recursion_compiler::ir::{Builder, Config, Felt, Var};
-use sp1_recursion_core_v2::{air::ChallengerPublicValues, DIGEST_SIZE};
+use sp1_recursion_core::{air::ChallengerPublicValues, DIGEST_SIZE};
 
 use sp1_stark::Word;
 
@@ -104,7 +104,7 @@ pub(crate) mod tests {
     use sp1_recursion_compiler::{circuit::AsmCompiler, circuit::AsmConfig, ir::DslIr};
 
     use sp1_recursion_compiler::ir::TracedVec;
-    use sp1_recursion_core_v2::{machine::RecursionAir, Runtime};
+    use sp1_recursion_core::{machine::RecursionAir, Runtime};
     use sp1_stark::{
         baby_bear_poseidon2::BabyBearPoseidon2, CpuProver, InnerChallenge, InnerVal, MachineProver,
         MachineProvingKey,

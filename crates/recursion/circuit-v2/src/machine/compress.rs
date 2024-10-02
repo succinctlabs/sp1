@@ -17,7 +17,7 @@ use p3_matrix::dense::RowMajorMatrix;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use sp1_recursion_compiler::ir::{Builder, Ext, Felt, SymbolicFelt};
 
-use sp1_recursion_core_v2::{
+use sp1_recursion_core::{
     air::{ChallengerPublicValues, RecursionPublicValues, RECURSIVE_PROOF_NUM_PV_ELTS},
     D,
 };

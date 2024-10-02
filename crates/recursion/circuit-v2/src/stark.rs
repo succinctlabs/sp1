@@ -556,7 +556,7 @@ pub mod tests {
         ir::{Builder, DslIr, TracedVec},
     };
 
-    use sp1_recursion_core_v2::{air::Block, machine::RecursionAir, stark::BabyBearPoseidon2Outer};
+    use sp1_recursion_core::{air::Block, machine::RecursionAir, stark::BabyBearPoseidon2Outer};
     use sp1_stark::{
         baby_bear_poseidon2::BabyBearPoseidon2, CpuProver, InnerVal, MachineProver, SP1CoreOpts,
         ShardProof,

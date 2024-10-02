@@ -17,7 +17,7 @@ use sp1_core_machine::{
     riscv::{RiscvAir, MAX_LOG_NUMBER_OF_SHARDS},
 };
 
-use sp1_recursion_core_v2::air::PV_DIGEST_NUM_WORDS;
+use sp1_recursion_core::air::PV_DIGEST_NUM_WORDS;
 use sp1_stark::{
     air::{PublicValues, POSEIDON_NUM_WORDS},
     baby_bear_poseidon2::BabyBearPoseidon2,
@@ -31,7 +31,7 @@ use sp1_recursion_compiler::{
     ir::{Builder, Config, Ext, ExtConst, Felt, SymbolicFelt},
 };
 
-use sp1_recursion_core_v2::{
+use sp1_recursion_core::{
     air::{RecursionPublicValues, RECURSIVE_PROOF_NUM_PV_ELTS},
     DIGEST_SIZE,
 };

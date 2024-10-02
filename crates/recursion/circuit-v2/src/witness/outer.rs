@@ -9,7 +9,7 @@ use sp1_recursion_compiler::{
     config::OuterConfig,
     ir::{Builder, Var},
 };
-use sp1_recursion_core_v2::stark::{
+use sp1_recursion_core::stark::{
     BabyBearPoseidon2Outer, OuterBatchOpening, OuterChallenge, OuterChallengeMmcs, OuterDigest,
     OuterFriProof, OuterPcsProof, OuterVal,
 };
