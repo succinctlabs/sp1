@@ -20,24 +20,24 @@ concurrency:
 jobs:
   test-x86:
     name: ${{ matrix.s3_folder }} (${{ matrix.mode }})
-    runs-on: ${{ matrix.mode == 'cuda' && fromJSON('["runs-on", "family=g6.16xlarge", "image=nvidia-linux", "spot=false", "run-id=${{ github.run_id }}"]') || fromJSON('["runs-on", "runner=64cpu-linux-x64", "spot=false", "run-id=${{ github.run_id }}"]') }}
+    runs-on: ${{ matrix.mode == 'cuda' && fromJSON('["runs-on", "family=g6.16xlarge", "ami=ami-0a63dc9cb9e934ba3", "spot=false", "run-id=${{ github.run_id }}"]') || fromJSON('["runs-on", "runner=64cpu-linux-x64", "spot=false", "run-id=${{ github.run_id }}"]') }}
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     strategy:
       matrix:
         mode:
           - cpu
-          # - cuda
+          - cuda
           - network
         s3_folder: 
           - fibonacci-17k
-          - ssz-withdrawals
-          - tendermint
-          - rsp-20526624
-          - rsa
-          - regex
-          - json
-          - chess
+          # - ssz-withdrawals
+          # - tendermint
+          # - rsp-20526624
+          # - rsa
+          # - regex
+          # - json
+          # - chess
     #       - blobstream-01j6z63fgafrc8jeh0k12gbtvw
     #       - blobstream-01j6z95bdme9svevmfyc974bja
     #       - blobstream-01j6z9ak0ke9srsppgywgke6fj
