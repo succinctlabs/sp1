@@ -31,13 +31,13 @@ jobs:
           - network
         s3_folder: 
           - fibonacci-17k
-    #       - ssz-withdrawals
-    #       - tendermint
-    #       - rsp-20526624
-    #       - rsa
-    #       - regex
-    #       - json
-    #       - chess
+          - ssz-withdrawals
+          - tendermint
+          - rsp-20526624
+          - rsa
+          - regex
+          - json
+          - chess
     #       - blobstream-01j6z63fgafrc8jeh0k12gbtvw
     #       - blobstream-01j6z95bdme9svevmfyc974bja
     #       - blobstream-01j6z9ak0ke9srsppgywgke6fj
