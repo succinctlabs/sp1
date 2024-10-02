@@ -5,6 +5,7 @@ use p3_baby_bear::BabyBear;
 use p3_commit::Mmcs;
 use p3_field::AbstractField;
 use p3_matrix::dense::RowMajorMatrix;
+use serde::{Deserialize, Serialize};
 use sp1_recursion_compiler::ir::{Builder, Felt};
 use sp1_recursion_core_v2::DIGEST_SIZE;
 use sp1_stark::{
@@ -54,6 +55,9 @@ pub struct SP1MerkleProofWitnessVariable<
 }
 
 /// An input layout for the reduce verifier.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "SC::Digest: Serialize"))]
+#[serde(bound(deserialize = "SC::Digest: Deserialize<'de>"))]
 pub struct SP1MerkleProofWitnessValues<SC: FieldHasher<BabyBear>> {
     pub vk_merkle_proofs: Vec<MerkleProof<BabyBear, SC>>,
     pub values: Vec<SC::Digest>,

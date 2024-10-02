@@ -344,6 +344,7 @@ impl<F: PrimeField32> RiscvAir<F> {
         vec![
             (RiscvAir::Program(ProgramChip::default()), program.instructions.len()),
             (RiscvAir::ProgramMemory(MemoryProgramChip::default()), program.memory_image.len()),
+            (RiscvAir::ByteLookup(ByteChip::default()), 1 << 16),
         ]
     }
 

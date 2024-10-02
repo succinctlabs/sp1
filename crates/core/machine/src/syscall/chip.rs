@@ -10,7 +10,7 @@ use sp1_core_executor::{ExecutionRecord, Program};
 use sp1_derive::AlignedBorrow;
 use sp1_stark::air::{InteractionScope, MachineAir, SP1AirBuilder};
 
-use crate::utils::pad_to_power_of_two;
+use crate::utils::pad_rows_fixed;
 
 /// The number of main trace columns for `SyscallChip`.
 pub const NUM_SYSCALL_COLS: usize = size_of::<SyscallCols<u8>>();
@@ -79,12 +79,14 @@ impl<F: PrimeField32> MachineAir<F> for SyscallChip {
 
             rows.push(row);
         }
-        let mut trace =
-            RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_SYSCALL_COLS);
+        // Pad the trace to a power of two depending on the proof shape in `input`.
+        pad_rows_fixed(
+            &mut rows,
+            || [F::zero(); NUM_SYSCALL_COLS],
+            input.fixed_log2_rows::<F, _>(self),
+        );
 
-        pad_to_power_of_two::<NUM_SYSCALL_COLS, F>(&mut trace.values);
-
-        trace
+        RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_SYSCALL_COLS)
     }
 
     fn included(&self, shard: &Self::Record) -> bool {

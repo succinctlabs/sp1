@@ -3,7 +3,7 @@ use std::{
     mem::size_of,
 };
 
-use crate::utils::pad_to_power_of_two;
+use crate::utils::pad_rows_fixed;
 use itertools::Itertools;
 use p3_air::{Air, BaseAir};
 use p3_field::PrimeField32;
@@ -107,14 +107,18 @@ impl<F: PrimeField32> MachineAir<F> for MemoryLocalChip {
 
             rows.push(row);
         }
-        let mut trace = RowMajorMatrix::new(
-            rows.into_iter().flatten().collect::<Vec<_>>(),
-            NUM_MEMORY_LOCAL_INIT_COLS,
+
+        // Pad the trace to a power of two depending on the proof shape in `input`.
+        pad_rows_fixed(
+            &mut rows,
+            || [F::zero(); NUM_MEMORY_LOCAL_INIT_COLS],
+            input.fixed_log2_rows::<F, _>(self),
         );
 
-        pad_to_power_of_two::<NUM_MEMORY_LOCAL_INIT_COLS, F>(&mut trace.values);
-
-        trace
+        RowMajorMatrix::new(
+            rows.into_iter().flatten().collect::<Vec<_>>(),
+            NUM_MEMORY_LOCAL_INIT_COLS,
+        )
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
