@@ -1,12 +1,13 @@
+use std::iter::once;
+
 use p3_air::AirBuilderWithPublicValues;
 use p3_field::AbstractField;
-use sp1_recursion_core::air::Block;
 use sp1_stark::{
     air::{AirInteraction, BaseAirBuilder, InteractionScope, MachineAirBuilder},
     InteractionKind,
 };
 
-use crate::*;
+use crate::{air::Block, Address};
 
 /// A trait which contains all helper methods for building SP1 recursion machine AIRs.
 pub trait SP1RecursionAirBuilder: MachineAirBuilder + RecursionAirBuilder {}

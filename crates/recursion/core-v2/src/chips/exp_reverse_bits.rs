@@ -300,7 +300,6 @@ mod tests {
     use p3_util::reverse_bits_len;
     use rand::{rngs::StdRng, Rng, SeedableRng};
     use sp1_core_machine::utils::setup_logger;
-    use sp1_recursion_core::stark::config::BabyBearPoseidon2Outer;
     use sp1_stark::{air::MachineAir, StarkGenericConfig};
     use std::iter::once;
 
@@ -312,6 +311,7 @@ mod tests {
         chips::exp_reverse_bits::ExpReverseBitsLenChip,
         machine::tests::run_recursion_test_machines,
         runtime::{instruction as instr, ExecutionRecord},
+        stark::BabyBearPoseidon2Outer,
         ExpReverseBitsEvent, Instruction, MemAccessKind, RecursionProgram,
     };
 

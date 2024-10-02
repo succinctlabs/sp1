@@ -68,7 +68,7 @@ use sp1_stark::{
 
 use sp1_recursion_core_v2::{
     air::RecursionPublicValues, machine::RecursionAir, runtime::ExecutionRecord,
-    shape::RecursionShapeConfig, stark::config::BabyBearPoseidon2Outer, RecursionProgram,
+    shape::RecursionShapeConfig, stark::BabyBearPoseidon2Outer, RecursionProgram,
     Runtime as RecursionRuntime,
 };
 

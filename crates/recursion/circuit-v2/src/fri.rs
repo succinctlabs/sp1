@@ -475,7 +475,7 @@ mod tests {
         SeedableRng,
     };
     use sp1_recursion_compiler::{
-        asm::AsmBuilder,
+        circuit::AsmBuilder,
         config::InnerConfig,
         ir::{Builder, Ext, SymbolicExt},
     };

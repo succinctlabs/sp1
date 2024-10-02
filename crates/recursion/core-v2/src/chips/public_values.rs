@@ -5,10 +5,10 @@ use p3_field::PrimeField32;
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use sp1_core_machine::utils::pad_rows_fixed;
 use sp1_derive::AlignedBorrow;
-use sp1_recursion_core::air::{RecursionPublicValues, RECURSIVE_PROOF_NUM_PV_ELTS};
 use sp1_stark::air::MachineAir;
 
 use crate::{
+    air::{RecursionPublicValues, RECURSIVE_PROOF_NUM_PV_ELTS},
     builder::SP1RecursionAirBuilder,
     runtime::{Instruction, RecursionProgram},
     ExecutionRecord,
@@ -180,10 +180,7 @@ where
 mod tests {
     use rand::{rngs::StdRng, Rng, SeedableRng};
     use sp1_core_machine::utils::setup_logger;
-    use sp1_recursion_core::{
-        air::{RecursionPublicValues, NUM_PV_ELMS_TO_HASH, RECURSIVE_PROOF_NUM_PV_ELTS},
-        stark::config::BabyBearPoseidon2Outer,
-    };
+
     use sp1_stark::{air::MachineAir, StarkGenericConfig};
     use std::{array, borrow::Borrow};
 
@@ -192,9 +189,11 @@ mod tests {
     use p3_matrix::dense::RowMajorMatrix;
 
     use crate::{
+        air::{RecursionPublicValues, NUM_PV_ELMS_TO_HASH, RECURSIVE_PROOF_NUM_PV_ELTS},
         chips::public_values::PublicValuesChip,
         machine::tests::run_recursion_test_machines,
         runtime::{instruction as instr, ExecutionRecord},
+        stark::BabyBearPoseidon2Outer,
         CommitPublicValuesEvent, MemAccessKind, RecursionProgram, DIGEST_SIZE,
     };
 

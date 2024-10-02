@@ -2,7 +2,6 @@ use std::ops::{Add, AddAssign};
 
 use hashbrown::HashMap;
 use p3_field::{extension::BinomiallyExtendable, PrimeField32};
-use sp1_recursion_core::runtime::D;
 use sp1_stark::{
     air::{InteractionScope, MachineAir},
     Chip, ProofShape, StarkGenericConfig, StarkMachine, PROOF_MAX_NUM_PVS,
@@ -24,7 +23,7 @@ use crate::{
     },
     instruction::{HintBitsInstr, HintExt2FeltsInstr, HintInstr},
     shape::RecursionShape,
-    ExpReverseBitsInstr, Instruction, RecursionProgram,
+    ExpReverseBitsInstr, Instruction, RecursionProgram, D,
 };
 
 #[derive(sp1_derive::MachineAir)]
@@ -235,7 +234,7 @@ impl From<RecursionShape> for ProofShape {
 #[cfg(test)]
 pub mod tests {
 
-    use std::sync::Arc;
+    use std::{iter::once, sync::Arc};
 
     use machine::RecursionAir;
     use p3_baby_bear::DiffusionMatrixBabyBear;

@@ -3,7 +3,7 @@ use backtrace::Backtrace;
 use core::{fmt, fmt::Display};
 
 use p3_field::{ExtensionField, PrimeField32};
-use sp1_recursion_core::runtime::RecursionProgram;
+use sp1_recursion_core_v2::runtime::RecursionProgram;
 
 use super::AsmInstruction;
 

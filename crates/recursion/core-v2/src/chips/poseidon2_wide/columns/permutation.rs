@@ -4,9 +4,8 @@ use std::{
 };
 
 use sp1_derive::AlignedBorrow;
-use sp1_recursion_core::poseidon2_wide::NUM_EXTERNAL_ROUNDS;
 
-use crate::chips::poseidon2_wide::{NUM_INTERNAL_ROUNDS, WIDTH};
+use crate::chips::poseidon2_wide::{NUM_EXTERNAL_ROUNDS, NUM_INTERNAL_ROUNDS, WIDTH};
 
 use super::{POSEIDON2_DEGREE3_COL_MAP, POSEIDON2_DEGREE9_COL_MAP};
 

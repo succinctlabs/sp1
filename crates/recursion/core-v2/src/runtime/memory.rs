@@ -1,10 +1,9 @@
 use std::iter::repeat;
 
 use p3_field::PrimeField64;
-use sp1_recursion_core::air::Block;
 use vec_map::{Entry, VecMap};
 
-use crate::Address;
+use crate::{air::Block, Address};
 
 #[derive(Debug, Clone, Default)]
 pub struct MemoryEntry<F> {

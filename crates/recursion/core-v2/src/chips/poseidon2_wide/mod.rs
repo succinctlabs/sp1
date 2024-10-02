@@ -98,15 +98,14 @@ pub(crate) mod tests {
     use std::{iter::once, sync::Arc};
 
     use crate::{
-        machine::RecursionAir, runtime::instruction as instr, MemAccessKind, RecursionProgram,
-        Runtime,
+        machine::RecursionAir, runtime::instruction as instr, stark::BabyBearPoseidon2Outer,
+        MemAccessKind, RecursionProgram, Runtime,
     };
     use p3_baby_bear::{BabyBear, DiffusionMatrixBabyBear};
     use p3_field::{AbstractField, PrimeField32};
     use p3_symmetric::Permutation;
 
     use sp1_core_machine::utils::{run_test_machine, setup_logger};
-    use sp1_recursion_core::stark::config::BabyBearPoseidon2Outer;
     use sp1_stark::{baby_bear_poseidon2::BabyBearPoseidon2, inner_perm, StarkGenericConfig};
     use zkhash::ark_ff::UniformRand;
 

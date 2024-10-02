@@ -8,7 +8,7 @@ use sp1_recursion_compiler::{
 use sp1_recursion_core_v2::{
     air::ChallengerPublicValues,
     runtime::{HASH_RATE, PERMUTATION_WIDTH},
-    stark::config::{OUTER_MULTI_FIELD_CHALLENGER_DIGEST_SIZE, OUTER_MULTI_FIELD_CHALLENGER_RATE},
+    stark::{OUTER_MULTI_FIELD_CHALLENGER_DIGEST_SIZE, OUTER_MULTI_FIELD_CHALLENGER_RATE},
     NUM_BITS,
 };
 
@@ -438,12 +438,12 @@ pub(crate) mod tests {
     use p3_field::AbstractField;
     use p3_symmetric::{CryptographicHasher, Hash, PseudoCompressionFunction};
     use sp1_recursion_compiler::{
-        asm::{AsmBuilder, AsmConfig},
+        circuit::{AsmBuilder, AsmConfig},
         config::OuterConfig,
         constraints::ConstraintCompiler,
         ir::{Builder, Config, Ext, ExtConst, Felt, Var},
     };
-    use sp1_recursion_core_v2::stark::config::{
+    use sp1_recursion_core_v2::stark::{
         outer_perm, BabyBearPoseidon2Outer, OuterCompress, OuterHash,
     };
     use sp1_recursion_gnark_ffi::PlonkBn254Prover;

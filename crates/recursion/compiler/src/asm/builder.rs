@@ -1,5 +1,5 @@
 use p3_field::{ExtensionField, PrimeField32, TwoAdicField};
-use sp1_recursion_core::runtime::RecursionProgram;
+use sp1_recursion_core_v2::runtime::RecursionProgram;
 
 use crate::prelude::Builder;
 

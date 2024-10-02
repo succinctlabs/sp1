@@ -13,9 +13,9 @@ use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use sp1_stark::air::{BaseAirBuilder, ExtensionAirBuilder};
 
 use sp1_derive::AlignedBorrow;
-use sp1_recursion_core::air::Block;
 
 use crate::{
+    air::Block,
     builder::SP1RecursionAirBuilder,
     runtime::{Instruction, RecursionProgram},
     ExecutionRecord, FriFoldInstr,
@@ -355,7 +355,6 @@ mod tests {
     use p3_field::AbstractExtensionField;
     use rand::{rngs::StdRng, Rng, SeedableRng};
     use sp1_core_machine::utils::setup_logger;
-    use sp1_recursion_core::{air::Block, stark::config::BabyBearPoseidon2Outer};
     use sp1_stark::{air::MachineAir, StarkGenericConfig};
     use std::mem::size_of;
 
@@ -364,9 +363,11 @@ mod tests {
     use p3_matrix::dense::RowMajorMatrix;
 
     use crate::{
+        air::Block,
         chips::fri_fold::FriFoldChip,
         machine::tests::run_recursion_test_machines,
         runtime::{instruction as instr, ExecutionRecord},
+        stark::BabyBearPoseidon2Outer,
         FriFoldBaseIo, FriFoldEvent, FriFoldExtSingleIo, FriFoldExtVecIo, Instruction,
         MemAccessKind, RecursionProgram,
     };

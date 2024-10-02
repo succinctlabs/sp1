@@ -15,7 +15,7 @@ use sp1_core_machine::{io::SP1Stdin, reduce::SP1ReduceProof};
 use sp1_recursion_circuit_v2::machine::RootPublicValues;
 use sp1_recursion_core_v2::{
     air::{RecursionPublicValues, NUM_PV_ELMS_TO_HASH},
-    stark::config::BabyBearPoseidon2Outer,
+    stark::BabyBearPoseidon2Outer,
 };
 use sp1_stark::{baby_bear_poseidon2::MyHash as InnerHash, SP1CoreOpts, Word};
 

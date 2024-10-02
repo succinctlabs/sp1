@@ -1,8 +1,10 @@
 mod builder;
 mod compiler;
+mod config;
 
 pub use builder::*;
 pub use compiler::*;
+pub use config::*;
 
 #[cfg(test)]
 mod tests {
@@ -16,8 +18,7 @@ mod tests {
     use sp1_stark::{BabyBearPoseidon2Inner, StarkGenericConfig};
 
     use crate::{
-        asm::AsmBuilder,
-        circuit::{AsmCompiler, CircuitV2Builder},
+        circuit::{AsmBuilder, AsmCompiler, CircuitV2Builder},
         ir::*,
     };
 

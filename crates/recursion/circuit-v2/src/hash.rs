@@ -11,8 +11,8 @@ use sp1_recursion_compiler::{
     circuit::CircuitV2Builder,
     ir::{Builder, Config, DslIr, Felt, Var},
 };
-use sp1_recursion_core_v2::stark::config::{outer_perm, OUTER_MULTI_FIELD_CHALLENGER_WIDTH};
-use sp1_recursion_core_v2::{stark::config::BabyBearPoseidon2Outer, DIGEST_SIZE};
+use sp1_recursion_core_v2::stark::{outer_perm, OUTER_MULTI_FIELD_CHALLENGER_WIDTH};
+use sp1_recursion_core_v2::{stark::BabyBearPoseidon2Outer, DIGEST_SIZE};
 use sp1_recursion_core_v2::{HASH_RATE, PERMUTATION_WIDTH};
 use sp1_stark::baby_bear_poseidon2::BabyBearPoseidon2;
 use sp1_stark::inner_perm;

@@ -24,7 +24,6 @@ tracing = "0.1.40"
 sp1-core-machine = { workspace = true }
 sp1-core-executor = { workspace = true }
 sp1-stark = { workspace = true }
-sp1-recursion-core = { workspace = true }
 hashbrown = { version = "0.14.5", features = ["serde"] }
 itertools = "0.13.0"
 p3-bn254-fr = { workspace = true }

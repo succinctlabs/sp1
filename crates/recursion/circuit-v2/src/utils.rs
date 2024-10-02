@@ -101,7 +101,7 @@ pub(crate) mod tests {
     use std::sync::Arc;
 
     use sp1_core_machine::utils::{run_test_machine_with_prover, setup_logger};
-    use sp1_recursion_compiler::{asm::AsmConfig, circuit::AsmCompiler, ir::DslIr};
+    use sp1_recursion_compiler::{circuit::AsmCompiler, circuit::AsmConfig, ir::DslIr};
 
     use sp1_recursion_compiler::ir::TracedVec;
     use sp1_recursion_core_v2::{machine::RecursionAir, Runtime};

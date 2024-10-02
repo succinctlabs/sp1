@@ -32,7 +32,7 @@ use p3_symmetric::{CryptographicPermutation, Permutation};
 use p3_util::reverse_bits_len;
 use thiserror::Error;
 
-use sp1_recursion_core::air::{Block, RECURSIVE_PROOF_NUM_PV_ELTS};
+use crate::air::{Block, RECURSIVE_PROOF_NUM_PV_ELTS};
 
 /// TODO expand glob import once things are organized enough
 use crate::*;

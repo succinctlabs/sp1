@@ -6,8 +6,10 @@ use p3_field::{
     AbstractExtensionField, AbstractField, Field, PrimeField, PrimeField64, TwoAdicField,
 };
 use sp1_core_machine::utils::{sp1_debug_mode, SpanBuilder};
-use sp1_recursion_core::air::{Block, RecursionPublicValues, RECURSIVE_PROOF_NUM_PV_ELTS};
-use sp1_recursion_core_v2::{BaseAluInstr, BaseAluOpcode};
+use sp1_recursion_core_v2::{
+    air::{Block, RecursionPublicValues, RECURSIVE_PROOF_NUM_PV_ELTS},
+    BaseAluInstr, BaseAluOpcode,
+};
 use std::{borrow::Borrow, collections::HashMap, iter::repeat, mem::transmute};
 use vec_map::VecMap;
 
@@ -784,10 +786,7 @@ mod tests {
         StarkGenericConfig,
     };
 
-    use crate::{
-        asm::{AsmBuilder, AsmConfig},
-        circuit::CircuitV2Builder,
-    };
+    use crate::circuit::{AsmBuilder, AsmConfig, CircuitV2Builder};
 
     use super::*;
 

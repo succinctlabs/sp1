@@ -82,8 +82,8 @@ pub(crate) mod tests {
     use p3_field::{AbstractField, PrimeField32};
     use p3_symmetric::Permutation;
 
+    use crate::stark::BabyBearPoseidon2Outer;
     use sp1_core_machine::utils::{run_test_machine, setup_logger};
-    use sp1_recursion_core::stark::config::BabyBearPoseidon2Outer;
     use sp1_stark::{baby_bear_poseidon2::BabyBearPoseidon2, inner_perm, StarkGenericConfig};
     use zkhash::ark_ff::UniformRand;
 

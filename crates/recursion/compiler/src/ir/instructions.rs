@@ -1,4 +1,4 @@
-use sp1_recursion_core::air::RecursionPublicValues;
+use sp1_recursion_core_v2::air::RecursionPublicValues;
 
 use super::{
     Array, CircuitV2FriFoldInput, CircuitV2FriFoldOutput, Config, Ext, Felt, FriFoldInput,

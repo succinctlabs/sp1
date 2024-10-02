@@ -14,7 +14,7 @@ use sp1_recursion_compiler::{
 };
 
 use sp1_recursion_core_v2::air::RecursionPublicValues;
-pub use sp1_recursion_core_v2::stark::utils::sp1_dev_mode;
+pub use sp1_recursion_core_v2::stark::sp1_dev_mode;
 
 pub use sp1_recursion_circuit_v2::witness::{OuterWitness, Witnessable};
 

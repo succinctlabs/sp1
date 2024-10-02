@@ -7,7 +7,6 @@ use p3_air::{Air, BaseAir, PairBuilder};
 use p3_field::AbstractField;
 use p3_matrix::Matrix;
 use sp1_primitives::RC_16_30_U32;
-use sp1_recursion_core::poseidon2_wide::NUM_EXTERNAL_ROUNDS;
 
 use crate::builder::SP1RecursionAirBuilder;
 
@@ -16,7 +15,8 @@ use super::{
         permutation::Poseidon2, preprocessed::Poseidon2PreprocessedCols,
         NUM_POSEIDON2_DEGREE3_COLS, NUM_POSEIDON2_DEGREE9_COLS,
     },
-    external_linear_layer, internal_linear_layer, Poseidon2WideChip, NUM_INTERNAL_ROUNDS, WIDTH,
+    external_linear_layer, internal_linear_layer, Poseidon2WideChip, NUM_EXTERNAL_ROUNDS,
+    NUM_INTERNAL_ROUNDS, WIDTH,
 };
 
 impl<F, const DEGREE: usize> BaseAir<F> for Poseidon2WideChip<DEGREE> {
