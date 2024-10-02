@@ -92,9 +92,6 @@ impl<F: PrimeField32> MachineAir<F> for SyscallChip {
             cols.shard = F::from_canonical_u32(syscall_event.shard);
             cols.clk = F::from_canonical_u32(syscall_event.clk);
             cols.syscall_id = F::from_canonical_u32(syscall_event.syscall_id);
-            // cols.nonce = F::from_canonical_u32(
-            //     input.nonce_lookup.get(&syscall_event.lookup_id).copied().unwrap_or_default(),
-            // );
             cols.nonce = F::from_canonical_u32(syscall_event.nonce);
             cols.arg1 = F::from_canonical_u32(syscall_event.arg1);
             cols.arg2 = F::from_canonical_u32(syscall_event.arg2);
