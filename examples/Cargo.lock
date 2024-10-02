@@ -290,7 +290,7 @@ dependencies = [
  "getrandom",
  "hashbrown 0.14.5",
  "hex-literal",
- "indexmap 2.5.0",
+ "indexmap 2.6.0",
  "itoa",
  "k256",
  "keccak-asm",
@@ -450,8 +450,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.79",
-<<<<<<< HEAD
-=======
 ]
 
 [[package]]
@@ -466,7 +464,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.79",
->>>>>>> origin/tamir/v1.3.0-rc2
 ]
 
 [[package]]
@@ -478,18 +475,11 @@ dependencies = [
  "alloy-sol-macro-input 0.7.7",
  "const-hex",
  "heck",
-<<<<<<< HEAD
  "indexmap 2.6.0",
-=======
- "indexmap 2.5.0",
->>>>>>> origin/tamir/v1.3.0-rc2
  "proc-macro-error",
  "proc-macro2",
  "quote",
  "syn 2.0.79",
-<<<<<<< HEAD
- "syn-solidity",
-=======
  "syn-solidity 0.7.7",
  "tiny-keccak",
 ]
@@ -503,13 +493,12 @@ dependencies = [
  "alloy-sol-macro-input 0.8.5",
  "const-hex",
  "heck",
- "indexmap 2.5.0",
+ "indexmap 2.6.0",
  "proc-macro-error2",
  "proc-macro2",
  "quote",
  "syn 2.0.79",
  "syn-solidity 0.8.5",
->>>>>>> origin/tamir/v1.3.0-rc2
  "tiny-keccak",
 ]
 
@@ -525,9 +514,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.79",
-<<<<<<< HEAD
- "syn-solidity",
-=======
  "syn-solidity 0.7.7",
 ]
 
@@ -554,7 +540,6 @@ checksum = "bc85178909a49c8827ffccfc9103a7ce1767ae66a801b69bdc326913870bf8e6"
 dependencies = [
  "serde",
  "winnow 0.6.20",
->>>>>>> origin/tamir/v1.3.0-rc2
 ]
 
 [[package]]
@@ -840,15 +825,12 @@ name = "arrayref"
 version = "0.3.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "76a2e8124351fda1ef8aaaa3bbd7ebbcb486bbcd4225aca0aa0d84bb2db8fecb"
-<<<<<<< HEAD
-=======
 
 [[package]]
 name = "arrayvec"
 version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "23b62fc65de8e4e7f52534fb52b0f3ed04746ae267519eef2a83941e8085068b"
->>>>>>> origin/tamir/v1.3.0-rc2
 
 [[package]]
 name = "arrayvec"
@@ -857,16 +839,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7c02d123df017efcdfbd739ef81735b36c5ba83ec3c59c80a9d7ecc718f92e50"
 
 [[package]]
-<<<<<<< HEAD
-name = "async-trait"
-version = "0.1.83"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "721cae7de5c34fbb2acd27e21e6d2cf7b886dce0c27388d46c4e6c47ea4318dd"
-=======
 name = "async-stream"
-version = "0.3.5"
+version = "0.3.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cd56dd203fef61ac097dd65721a419ddccb106b2d2b70ba60a6b529f03961a51"
+checksum = "0b5a71a6f37880a80d1d7f19efd781e4b5de42c88f0722cc13bcb6cc2cfe8476"
 dependencies = [
  "async-stream-impl",
  "futures-core",
@@ -875,16 +851,13 @@ dependencies = [
 
 [[package]]
 name = "async-stream-impl"
-version = "0.3.5"
+version = "0.3.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "16e62a023e7c117e27523144c5d2459f4397fcc3cab0085af8e2224f643a0193"
->>>>>>> origin/tamir/v1.3.0-rc2
+checksum = "c7c24de15d275a1ecfd47a380fb4d5ec9bfe0933f309ed5e705b775596a3574d"
 dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.79",
-<<<<<<< HEAD
-=======
 ]
 
 [[package]]
@@ -896,7 +869,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.79",
->>>>>>> origin/tamir/v1.3.0-rc2
 ]
 
 [[package]]
@@ -1442,15 +1414,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-<<<<<<< HEAD
 version = "4.5.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7be5744db7978a28d9df86a214130d106a89ce49644cbc4e3f0c22c3fba30615"
-=======
-version = "4.5.18"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b0956a43b323ac1afaffc053ed5c4b7c1f1800bacd1683c353aabbb752515dd3"
->>>>>>> origin/tamir/v1.3.0-rc2
 dependencies = [
  "clap_builder",
  "clap_derive",
@@ -1458,15 +1424,9 @@ dependencies = [
 
 [[package]]
 name = "clap_builder"
-<<<<<<< HEAD
 version = "4.5.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a5fbc17d3ef8278f55b282b2a2e75ae6f6c7d4bb70ed3d0382375104bfafdb4b"
-=======
-version = "4.5.18"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4d72166dd41634086d5803a47eb71ae740e61d84709c36f3c34110173db3961b"
->>>>>>> origin/tamir/v1.3.0-rc2
 dependencies = [
  "anstream",
  "anstyle",
@@ -1743,10 +1703,7 @@ dependencies = [
  "digest 0.10.7",
  "fiat-crypto",
  "rustc_version 0.4.1",
-<<<<<<< HEAD
-=======
  "sp1-lib 1.2.0",
->>>>>>> origin/tamir/v1.3.0-rc2
  "subtle",
  "zeroize",
 ]
@@ -1825,8 +1782,6 @@ dependencies = [
  "darling_core",
  "quote",
  "syn 2.0.79",
-<<<<<<< HEAD
-=======
 ]
 
 [[package]]
@@ -1841,7 +1796,6 @@ dependencies = [
  "lock_api",
  "once_cell",
  "parking_lot_core",
->>>>>>> origin/tamir/v1.3.0-rc2
 ]
 
 [[package]]
@@ -1976,8 +1930,6 @@ dependencies = [
  "quote",
  "rustc_version 0.4.1",
  "syn 2.0.79",
-<<<<<<< HEAD
-=======
 ]
 
 [[package]]
@@ -2000,7 +1952,6 @@ dependencies = [
  "quote",
  "syn 2.0.79",
  "unicode-xid",
->>>>>>> origin/tamir/v1.3.0-rc2
 ]
 
 [[package]]
@@ -2217,8 +2168,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.79",
-<<<<<<< HEAD
-=======
 ]
 
 [[package]]
@@ -2230,7 +2179,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.79",
->>>>>>> origin/tamir/v1.3.0-rc2
 ]
 
 [[package]]
@@ -2524,11 +2472,6 @@ dependencies = [
 ]
 
 [[package]]
-<<<<<<< HEAD
-name = "fastrand"
-version = "2.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-=======
 name = "failure"
 version = "0.1.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2554,7 +2497,6 @@ dependencies = [
 name = "fastrand"
 version = "2.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
->>>>>>> origin/tamir/v1.3.0-rc2
 checksum = "e8c02a5121d4ea3eb16a80748c74f5549a5665e4c21333c6098f283870fbdea6"
 
 [[package]]
@@ -2925,11 +2867,7 @@ dependencies = [
  "futures-sink",
  "futures-util",
  "http 0.2.12",
-<<<<<<< HEAD
  "indexmap 2.6.0",
-=======
- "indexmap 2.5.0",
->>>>>>> origin/tamir/v1.3.0-rc2
  "slab",
  "tokio",
  "tokio-util",
@@ -2948,11 +2886,7 @@ dependencies = [
  "futures-core",
  "futures-sink",
  "http 1.1.0",
-<<<<<<< HEAD
  "indexmap 2.6.0",
-=======
- "indexmap 2.5.0",
->>>>>>> origin/tamir/v1.3.0-rc2
  "slab",
  "tokio",
  "tokio-util",
@@ -3340,15 +3274,9 @@ dependencies = [
 
 [[package]]
 name = "indexmap"
-<<<<<<< HEAD
 version = "2.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "707907fe3c25f5424cce2cb7e1cbcafee6bdbe735ca90ef77c29e84591e5b9da"
-=======
-version = "2.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "68b900aa2f7301e21c36462b170ee99994de34dff39a4a6a528e80e7376d07e5"
->>>>>>> origin/tamir/v1.3.0-rc2
 dependencies = [
  "equivalent",
  "hashbrown 0.15.0",
@@ -3408,8 +3336,6 @@ name = "ipnet"
 version = "2.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "187674a687eed5fe42285b40c6291f9a01517d415fad1c3cbc6a9f778af7fcd4"
-<<<<<<< HEAD
-=======
 
 [[package]]
 name = "is-prime-program"
@@ -3417,7 +3343,6 @@ version = "1.1.0"
 dependencies = [
  "sp1-zkvm",
 ]
->>>>>>> origin/tamir/v1.3.0-rc2
 
 [[package]]
 name = "is-prime-script"
@@ -4041,11 +3966,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "830b246a0e5f20af87141b25c173cd1b609bd7779a4617d6ec582abaf90870f3"
 
 [[package]]
-<<<<<<< HEAD
-name = "object"
-version = "0.36.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-=======
 name = "nybbles"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4062,7 +3982,6 @@ dependencies = [
 name = "object"
 version = "0.36.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
->>>>>>> origin/tamir/v1.3.0-rc2
 checksum = "084f1a5821ac4c651660a94a7153d27ac9d8a53736203f58b31945ded098070a"
 dependencies = [
  "memchr",
@@ -4424,12 +4343,8 @@ dependencies = [
  "p3-field",
  "p3-mds",
  "p3-symmetric",
-<<<<<<< HEAD
- "rand",
- "serde",
-=======
  "rand 0.8.5",
->>>>>>> origin/tamir/v1.3.0-rc2
+ "serde",
 ]
 
 [[package]]
@@ -4757,21 +4672,6 @@ name = "portable-atomic"
 version = "1.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cc9c68a3f6da06753e9335d63e27f6b9754dd1920d941135b7ea8224f141adb2"
-<<<<<<< HEAD
-=======
-
-[[package]]
-name = "postcard"
-version = "1.0.10"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5f7f0a8d620d71c457dd1d47df76bb18960378da56af4527aaa10f515eee732e"
-dependencies = [
- "cobs",
- "embedded-io 0.4.0",
- "embedded-io 0.6.1",
- "serde",
-]
->>>>>>> origin/tamir/v1.3.0-rc2
 
 [[package]]
 name = "powerfmt"
@@ -4796,8 +4696,6 @@ checksum = "479cf940fbbb3426c32c5d5176f62ad57549a0bb84773423ba8be9d089f5faba"
 dependencies = [
  "proc-macro2",
  "syn 2.0.79",
-<<<<<<< HEAD
-=======
 ]
 
 [[package]]
@@ -4807,7 +4705,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "353e1ca18966c16d9deb1c69278edbc5f194139612772bd9537af60ac231e1e6"
 dependencies = [
  "elliptic-curve",
->>>>>>> origin/tamir/v1.3.0-rc2
 ]
 
 [[package]]
@@ -5193,8 +5090,6 @@ dependencies = [
  "aho-corasick",
  "memchr",
  "regex-syntax 0.8.5",
-<<<<<<< HEAD
-=======
 ]
 
 [[package]]
@@ -5203,7 +5098,6 @@ version = "1.1.0"
 dependencies = [
  "regex",
  "sp1-zkvm",
->>>>>>> origin/tamir/v1.3.0-rc2
 ]
 
 [[package]]
@@ -6541,7 +6435,7 @@ version = "1.0.128"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6ff5456707a1de34e7e37f2a6fd3d3f808c318259cbd01ab6377795054b483d8"
 dependencies = [
- "indexmap 2.5.0",
+ "indexmap 2.6.0",
  "itoa",
  "memchr",
  "ryu",
@@ -6600,11 +6494,7 @@ dependencies = [
  "chrono",
  "hex",
  "indexmap 1.9.3",
-<<<<<<< HEAD
  "indexmap 2.6.0",
-=======
- "indexmap 2.5.0",
->>>>>>> origin/tamir/v1.3.0-rc2
  "serde",
  "serde_derive",
  "serde_json",
@@ -6622,8 +6512,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.79",
-<<<<<<< HEAD
-=======
 ]
 
 [[package]]
@@ -6632,12 +6520,11 @@ version = "0.9.34+deprecated"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6a8b1a1a2ebf674015cc02edccce75287f1a0130d394307b36743c2f5d504b47"
 dependencies = [
- "indexmap 2.5.0",
+ "indexmap 2.6.0",
  "itoa",
  "ryu",
  "serde",
  "unsafe-libyaml",
->>>>>>> origin/tamir/v1.3.0-rc2
 ]
 
 [[package]]
@@ -6663,8 +6550,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.79",
-<<<<<<< HEAD
-=======
 ]
 
 [[package]]
@@ -6677,7 +6562,6 @@ dependencies = [
  "cpufeatures",
  "digest 0.9.0",
  "opaque-debug",
->>>>>>> origin/tamir/v1.3.0-rc2
 ]
 
 [[package]]
@@ -6998,7 +6882,7 @@ dependencies = [
 [[package]]
 name = "sp1-lib"
 version = "2.0.0"
-source = "git+https://github.com/succinctlabs/sp1.git?branch=dev#11b75dae43d268d1071bb28f66aecd4939992bf7"
+source = "git+https://github.com/succinctlabs/sp1.git?branch=dev#62ff82c8e86f533b3b64eb4cf82a325bb721e3c6"
 dependencies = [
  "anyhow",
  "bincode",
@@ -7087,7 +6971,7 @@ dependencies = [
  "p3-poseidon2",
  "p3-symmetric",
  "p3-util",
- "rand",
+ "rand 0.8.5",
  "serde",
  "sp1-core-executor",
  "sp1-core-machine",
@@ -7202,39 +7086,6 @@ dependencies = [
 ]
 
 [[package]]
-<<<<<<< HEAD
-=======
-name = "sp1-recursion-program"
-version = "2.0.0"
-dependencies = [
- "itertools 0.13.0",
- "p3-air",
- "p3-baby-bear",
- "p3-challenger",
- "p3-commit",
- "p3-dft",
- "p3-field",
- "p3-fri",
- "p3-matrix",
- "p3-maybe-rayon",
- "p3-merkle-tree",
- "p3-poseidon2",
- "p3-symmetric",
- "p3-util",
- "rand 0.8.5",
- "serde",
- "sp1-core-executor",
- "sp1-core-machine",
- "sp1-primitives",
- "sp1-recursion-compiler",
- "sp1-recursion-core",
- "sp1-stark",
- "stacker",
- "tracing",
-]
-
-[[package]]
->>>>>>> origin/tamir/v1.3.0-rc2
 name = "sp1-sdk"
 version = "2.0.0"
 dependencies = [
@@ -7408,11 +7259,6 @@ dependencies = [
 ]
 
 [[package]]
-<<<<<<< HEAD
-name = "stacker"
-version = "0.1.17"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-=======
 name = "ssz_rs"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7441,7 +7287,6 @@ dependencies = [
 name = "stacker"
 version = "0.1.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
->>>>>>> origin/tamir/v1.3.0-rc2
 checksum = "799c883d55abdb5e98af1a7b3f23b9b6de8ecada0ecac058672d7635eb48ca7b"
 dependencies = [
  "cc",
@@ -7483,8 +7328,6 @@ dependencies = [
  "quote",
  "rustversion",
  "syn 2.0.79",
-<<<<<<< HEAD
-=======
 ]
 
 [[package]]
@@ -7513,7 +7356,6 @@ dependencies = [
  "rand 0.8.5",
  "rustc-hex",
  "sp1-lib 2.0.0 (git+https://github.com/succinctlabs/sp1.git?branch=dev)",
->>>>>>> origin/tamir/v1.3.0-rc2
 ]
 
 [[package]]
@@ -7569,8 +7411,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.79",
-<<<<<<< HEAD
-=======
 ]
 
 [[package]]
@@ -7583,7 +7423,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.79",
->>>>>>> origin/tamir/v1.3.0-rc2
 ]
 
 [[package]]
@@ -7797,8 +7636,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.79",
-<<<<<<< HEAD
-=======
 ]
 
 [[package]]
@@ -7819,7 +7656,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a3ad459d94dd517257cc96add8a43190ee620011bb6e6cdc82dafd97dfafafea"
 dependencies = [
  "thiserror-impl-no-std",
->>>>>>> origin/tamir/v1.3.0-rc2
 ]
 
 [[package]]
@@ -7949,11 +7785,6 @@ dependencies = [
 ]
 
 [[package]]
-<<<<<<< HEAD
-name = "tokio-util"
-version = "0.7.12"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-=======
 name = "tokio-stream"
 version = "0.1.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7969,7 +7800,6 @@ dependencies = [
 name = "tokio-util"
 version = "0.7.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
->>>>>>> origin/tamir/v1.3.0-rc2
 checksum = "61e7c3654c13bcd040d4a03abee2c75b1d14a37b423cf5a813ceae1cc903ec6a"
 dependencies = [
  "bytes",
@@ -8006,11 +7836,7 @@ version = "0.19.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1b5bb770da30e5cbfde35a2d7b9b8a2c4b8ef89548a7a6aeab5c9a576e3e7421"
 dependencies = [
-<<<<<<< HEAD
  "indexmap 2.6.0",
-=======
- "indexmap 2.5.0",
->>>>>>> origin/tamir/v1.3.0-rc2
  "toml_datetime",
  "winnow 0.5.40",
 ]
@@ -8021,11 +7847,7 @@ version = "0.22.22"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4ae48d6208a266e853d946088ed816055e556cc6028c5e8e2b84d9fa5dd7c7f5"
 dependencies = [
-<<<<<<< HEAD
  "indexmap 2.6.0",
-=======
- "indexmap 2.5.0",
->>>>>>> origin/tamir/v1.3.0-rc2
  "serde",
  "serde_spanned",
  "toml_datetime",
@@ -8236,11 +8058,6 @@ dependencies = [
 ]
 
 [[package]]
-<<<<<<< HEAD
-name = "unicode-width"
-version = "0.1.14"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-=======
 name = "unicode-segmentation"
 version = "1.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8250,7 +8067,6 @@ checksum = "f6ccf251212114b54433ec949fd6a7841275f9ada20dddd2f29e9ceea4501493"
 name = "unicode-width"
 version = "0.1.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
->>>>>>> origin/tamir/v1.3.0-rc2
 checksum = "7dd6e30e90baa6f72411720665d41d89b9a3d039dc45b8faea1ddd07f617f6af"
 
 [[package]]
@@ -8258,15 +8074,12 @@ name = "unicode-xid"
 version = "0.2.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ebc1c04c71510c7f702b52b7c350734c9ff1295c464a03335b00bb84fc54f853"
-<<<<<<< HEAD
-=======
 
 [[package]]
 name = "unsafe-libyaml"
 version = "0.2.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "673aac59facbab8a9007c7f6108d11f63b603f7cabff99fabf650fea5c32b861"
->>>>>>> origin/tamir/v1.3.0-rc2
 
 [[package]]
 name = "untrusted"
