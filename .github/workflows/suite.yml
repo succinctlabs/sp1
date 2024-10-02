@@ -82,3 +82,4 @@ jobs:
           RUST_BACKTRACE: 1
           SP1_PROVER: ${{ matrix.mode == 'cpu' && 'local' || matrix.mode == 'cuda' && 'cuda' || matrix.mode == 'network' && 'network' }}
           SP1_PRIVATE_KEY: ${{ secrets.SP1_PRIVATE_KEY }}
+          PROVER_NETWORK_RPC: https://43xadiwbrdkiquizwybgpzdhcu0pgvux.lambda-url.us-east-2.on.aws/
