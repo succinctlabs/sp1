@@ -5,6 +5,11 @@ pub trait AffinePoint<const N: usize>: Clone + Sized {
     /// Creates a new [`AffinePoint`] from the given limbs.
     fn new(limbs: [u32; N]) -> Self;
 
+    /// Check if the point is the infinity point.
+    fn is_infinity(&self) -> bool {
+        false
+    }
+
     /// Returns a reference to the limbs.
     fn limbs_ref(&self) -> &[u32; N];
 
@@ -47,12 +52,6 @@ pub trait AffinePoint<const N: usize>: Clone + Sized {
     /// Adds the given [`AffinePoint`] to `self`.
     fn add_assign(&mut self, other: &Self);
 
-    /// Adds the given [`AffinePoint`] to `self`. Can be optionally overriden to use a different
-    /// implementation of addition in multi-scalar multiplication, which is used in secp256k1 recovery.
-    fn complete_add_assign(&mut self, other: &Self) {
-        self.add_assign(other);
-    }
-
     /// Doubles `self`.
     fn double(&mut self);
 
@@ -84,41 +83,6 @@ pub trait AffinePoint<const N: usize>: Clone + Sized {
         *self = res.unwrap();
         Ok(())
     }
-
-    /// Performs multi-scalar multiplication (MSM) on slices of bit vectors and points. Note:
-    /// a_bits_le and b_bits_le should be in little endian order.
-    fn multi_scalar_multiplication(
-        a_bits_le: &[bool],
-        a: Self,
-        b_bits_le: &[bool],
-        b: Self,
-    ) -> Option<Self> {
-        // The length of the bit vectors must be the same.
-        debug_assert!(a_bits_le.len() == b_bits_le.len());
-
-        let mut res: Option<Self> = None;
-        let mut temp_a = a.clone();
-        let mut temp_b = b.clone();
-        for (a_bit, b_bit) in a_bits_le.iter().zip(b_bits_le.iter()) {
-            if *a_bit {
-                match res.as_mut() {
-                    Some(res) => res.complete_add_assign(&temp_a),
-                    None => res = Some(temp_a.clone()),
-                };
-            }
-
-            if *b_bit {
-                match res.as_mut() {
-                    Some(res) => res.complete_add_assign(&temp_b),
-                    None => res = Some(temp_b.clone()),
-                };
-            }
-
-            temp_a.double();
-            temp_b.double();
-        }
-        res
-    }
 }
 
 /// Errors that can occur during scalar multiplication of an [`AffinePoint`].
@@ -140,11 +104,53 @@ pub fn bytes_to_words_le(bytes: &[u8]) -> Vec<u32> {
         .collect::<Vec<_>>()
 }
 
+/// Represents a point on a Weierstrass curve.
+#[derive(Debug, Clone, PartialEq, Eq, Copy)]
+pub enum WeierstrassPoint<const N: usize> {
+    /// The point at infinity.
+    Infinity,
+    /// A point represented by its affine coordinates.
+    Affine([u32; N]),
+}
+
 /// A trait for affine points on Weierstrass curves.
 pub trait WeierstrassAffinePoint<const N: usize>: AffinePoint<N> {
     /// The infinity point is set to (0, 0).
-    fn infinity() -> Self {
-        Self::new([0; N])
+    fn infinity() -> Self;
+
+    /// Performs multi-scalar multiplication (MSM) on slices of bit vectors and points. Note:
+    /// a_bits_le and b_bits_le should be in little endian order.
+    fn multi_scalar_multiplication(
+        a_bits_le: &[bool],
+        a: Self,
+        b_bits_le: &[bool],
+        b: Self,
+    ) -> Option<Self> {
+        // The length of the bit vectors must be the same.
+        debug_assert!(a_bits_le.len() == b_bits_le.len());
+
+        let mut res: Option<Self> = None;
+        let mut temp_a = a.clone();
+        let mut temp_b = b.clone();
+        for (a_bit, b_bit) in a_bits_le.iter().zip(b_bits_le.iter()) {
+            if *a_bit {
+                match res.as_mut() {
+                    Some(res) => res.weierstrass_add_assign(&temp_a),
+                    None => res = Some(temp_a.clone()),
+                };
+            }
+
+            if *b_bit {
+                match res.as_mut() {
+                    Some(res) => res.weierstrass_add_assign(&temp_b),
+                    None => res = Some(temp_b.clone()),
+                };
+            }
+
+            temp_a.double();
+            temp_b.double();
+        }
+        res
     }
 
     /// Performs the complete addition of two [`AffinePoint`]'s on a Weierstrass curve.
@@ -159,19 +165,19 @@ pub trait WeierstrassAffinePoint<const N: usize>: AffinePoint<N> {
     /// [Zcash complete addition spec](https://zcash.github.io/halo2/design/gadgets/ecc/addition.html#complete-addition).
     ///
     fn weierstrass_add_assign(&mut self, other: &Self) {
-        let p1 = self.limbs_mut();
-        let p2 = other.limbs_ref();
-
         // Case 1: p1 is infinity.
-        if p1 == &[0; N] {
+        if self.is_infinity() {
             *self = other.clone();
             return;
         }
 
         // Case 2: p2 is infinity.
-        if p2 == &[0; N] {
+        if other.is_infinity() {
             return;
         }
+
+        let p1 = self.limbs_mut();
+        let p2 = other.limbs_ref();
 
         // Case 3: p1 equals p2.
         if p1 == p2 {
@@ -185,7 +191,7 @@ pub trait WeierstrassAffinePoint<const N: usize>: AffinePoint<N> {
         // p2.y, so we can just check if p1.x == p2.x. Therefore, this implictly checks that
         // p1.x == p2.x AND p1.y + p2.y == p without modular negation.
         if p1[..N / 2] == p2[..N / 2] {
-            *self = Self::new([0; N]);
+            *self = Self::infinity();
             return;
         }
 

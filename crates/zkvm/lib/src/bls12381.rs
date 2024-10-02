@@ -2,7 +2,7 @@ use std::io::ErrorKind;
 
 use crate::{
     syscall_bls12381_add, syscall_bls12381_decompress, syscall_bls12381_double,
-    utils::{AffinePoint, WeierstrassAffinePoint},
+    utils::{AffinePoint, WeierstrassAffinePoint, WeierstrassPoint},
 };
 
 /// The number of limbs in [Bls12381AffinePoint].
@@ -11,9 +11,13 @@ pub const N: usize = 24;
 /// An affine point on the BLS12-381 curve.
 #[derive(Copy, Clone)]
 #[repr(align(4))]
-pub struct Bls12381AffinePoint(pub [u32; N]);
+pub struct Bls12381AffinePoint(pub WeierstrassPoint<N>);
 
-impl WeierstrassAffinePoint<N> for Bls12381AffinePoint {}
+impl WeierstrassAffinePoint<N> for Bls12381AffinePoint {
+    fn infinity() -> Self {
+        Self(WeierstrassPoint::Infinity)
+    }
+}
 
 impl AffinePoint<N> for Bls12381AffinePoint {
     /// The generator was taken from "py_ecc" python library by the Ethereum Foundation:
@@ -27,19 +31,28 @@ impl AffinePoint<N> for Bls12381AffinePoint {
     ];
 
     fn new(limbs: [u32; N]) -> Self {
-        Self(limbs)
+        Self(WeierstrassPoint::Affine(limbs))
+    }
+
+    fn is_infinity(&self) -> bool {
+        match self.0 {
+            WeierstrassPoint::Infinity => true,
+            WeierstrassPoint::Affine(_) => false,
+        }
     }
 
     fn limbs_ref(&self) -> &[u32; N] {
-        &self.0
+        match &self.0 {
+            WeierstrassPoint::Infinity => panic!("infinity point has no limbs"),
+            WeierstrassPoint::Affine(limbs) => limbs,
+        }
     }
 
     fn limbs_mut(&mut self) -> &mut [u32; N] {
-        &mut self.0
-    }
-
-    fn complete_add_assign(&mut self, other: &Self) {
-        self.weierstrass_add_assign(other);
+        match &mut self.0 {
+            WeierstrassPoint::Infinity => panic!("infinity point has no limbs"),
+            WeierstrassPoint::Affine(limbs) => limbs,
+        }
     }
 
     fn add_assign(&mut self, other: &Self) {
@@ -51,10 +64,15 @@ impl AffinePoint<N> for Bls12381AffinePoint {
     }
 
     fn double(&mut self) {
-        let a = self.limbs_mut();
-        unsafe {
-            syscall_bls12381_double(a);
-        }
+        match self.0 {
+            WeierstrassPoint::Infinity => (),
+            WeierstrassPoint::Affine(_) => {
+                let a = self.limbs_mut();
+                unsafe {
+                    syscall_bls12381_double(a);
+                }
+            }
+        };
     }
 }
 

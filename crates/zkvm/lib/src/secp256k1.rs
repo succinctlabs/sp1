@@ -1,6 +1,6 @@
 use crate::{
     syscall_secp256k1_add, syscall_secp256k1_double,
-    utils::{AffinePoint, WeierstrassAffinePoint},
+    utils::{AffinePoint, WeierstrassAffinePoint, WeierstrassPoint},
 };
 
 /// The number of limbs in [Secp256k1AffinePoint].
@@ -9,9 +9,13 @@ pub const N: usize = 16;
 /// An affine point on the Secp256k1 curve.
 #[derive(Copy, Clone)]
 #[repr(align(4))]
-pub struct Secp256k1AffinePoint(pub [u32; N]);
+pub struct Secp256k1AffinePoint(pub WeierstrassPoint<N>);
 
-impl WeierstrassAffinePoint<N> for Secp256k1AffinePoint {}
+impl WeierstrassAffinePoint<N> for Secp256k1AffinePoint {
+    fn infinity() -> Self {
+        Self(WeierstrassPoint::Infinity)
+    }
+}
 
 impl AffinePoint<N> for Secp256k1AffinePoint {
     /// The values are taken from https://en.bitcoin.it/wiki/Secp256k1.
@@ -22,19 +26,28 @@ impl AffinePoint<N> for Secp256k1AffinePoint {
     ];
 
     fn new(limbs: [u32; N]) -> Self {
-        Self(limbs)
+        Self(WeierstrassPoint::Affine(limbs))
+    }
+
+    fn is_infinity(&self) -> bool {
+        match self.0 {
+            WeierstrassPoint::Infinity => true,
+            WeierstrassPoint::Affine(_) => false,
+        }
     }
 
     fn limbs_ref(&self) -> &[u32; N] {
-        &self.0
+        match &self.0 {
+            WeierstrassPoint::Infinity => panic!("infinity point has no limbs"),
+            WeierstrassPoint::Affine(limbs) => limbs,
+        }
     }
 
     fn limbs_mut(&mut self) -> &mut [u32; N] {
-        &mut self.0
-    }
-
-    fn complete_add_assign(&mut self, other: &Self) {
-        self.weierstrass_add_assign(other);
+        match &mut self.0 {
+            WeierstrassPoint::Infinity => panic!("infinity point has no limbs"),
+            WeierstrassPoint::Affine(limbs) => limbs,
+        }
     }
 
     fn add_assign(&mut self, other: &Self) {
@@ -46,9 +59,14 @@ impl AffinePoint<N> for Secp256k1AffinePoint {
     }
 
     fn double(&mut self) {
-        let a = self.limbs_mut();
-        unsafe {
-            syscall_secp256k1_double(a);
-        }
+        match self.0 {
+            WeierstrassPoint::Infinity => (),
+            WeierstrassPoint::Affine(_) => {
+                let a = self.limbs_mut();
+                unsafe {
+                    syscall_secp256k1_double(a);
+                }
+            }
+        };
     }
 }
