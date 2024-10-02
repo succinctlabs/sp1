@@ -3,7 +3,7 @@ use std::{borrow::Borrow, path::PathBuf};
 use p3_baby_bear::BabyBear;
 use sp1_core_executor::SP1Context;
 use sp1_core_machine::io::SP1Stdin;
-use sp1_recursion_circuit_v2::{
+use sp1_recursion_circuit::{
     hash::FieldHasherVariable,
     machine::{SP1CompressWitnessValues, SP1WrapVerifier},
 };
@@ -13,10 +13,10 @@ use sp1_recursion_compiler::{
     ir::Builder,
 };
 
-use sp1_recursion_core_v2::air::RecursionPublicValues;
-pub use sp1_recursion_core_v2::stark::utils::sp1_dev_mode;
+use sp1_recursion_core::air::RecursionPublicValues;
+pub use sp1_recursion_core::stark::sp1_dev_mode;
 
-pub use sp1_recursion_circuit_v2::witness::{OuterWitness, Witnessable};
+pub use sp1_recursion_circuit::witness::{OuterWitness, Witnessable};
 
 use sp1_recursion_gnark_ffi::{Groth16Bn254Prover, PlonkBn254Prover};
 use sp1_stark::{SP1ProverOpts, ShardProof, StarkVerifyingKey};

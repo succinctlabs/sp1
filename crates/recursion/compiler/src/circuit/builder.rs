@@ -7,7 +7,7 @@ use p3_field::{AbstractExtensionField, AbstractField};
 use sp1_recursion_core::air::RecursionPublicValues;
 
 use crate::prelude::*;
-use sp1_recursion_core_v2::{chips::poseidon2_skinny::WIDTH, D, DIGEST_SIZE, HASH_RATE};
+use sp1_recursion_core::{chips::poseidon2_skinny::WIDTH, D, DIGEST_SIZE, HASH_RATE};
 
 pub trait CircuitV2Builder<C: Config> {
     fn bits2num_v2_f(
