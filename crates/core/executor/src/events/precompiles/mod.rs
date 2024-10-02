@@ -190,6 +190,12 @@ impl PrecompileEvents {
         self.events.insert(syscall_code, events);
     }
 
+    /// Get the number of precompile events.
+    #[inline]
+    pub fn len(&self) -> usize {
+        self.events.len()
+    }
+
     #[inline]
     pub(crate) fn into_iter(
         self,

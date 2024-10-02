@@ -370,7 +370,10 @@ impl<F: PrimeField32> RiscvAir<F> {
                     .into_iter()
                     .count(),
             ),
-            (RiscvAir::Syscall(SyscallChip::default()), record.syscall_events.len()),
+            (
+                RiscvAir::Syscall(SyscallChip::default()),
+                record.syscall_events.len() + record.precompile_events.len(),
+            ),
         ]
     }
 
