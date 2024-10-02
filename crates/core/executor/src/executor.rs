@@ -677,7 +677,15 @@ impl<'a> Executor<'a> {
         arg2: u32,
         lookup_id: LookupId,
     ) -> SyscallEvent {
-        SyscallEvent { shard: self.shard(), clk, syscall_id, arg1, arg2, lookup_id }
+        SyscallEvent {
+            shard: self.shard(),
+            clk,
+            syscall_id,
+            arg1,
+            arg2,
+            lookup_id,
+            nonce: self.record.nonce_lookup[&lookup_id],
+        }
     }
 
     fn emit_syscall(
@@ -1025,6 +1033,19 @@ impl<'a> Executor<'a> {
                     return Err(ExecutionError::InvalidSyscallUsage(syscall_id as u64));
                 }
 
+                // Update the syscall counts.
+                let syscall_for_count = syscall.count_map();
+                let syscall_count = self.state.syscall_counts.entry(syscall_for_count).or_insert(0);
+                let (threshold, multiplier) = match syscall_for_count {
+                    SyscallCode::KECCAK_PERMUTE => (self.opts.split_opts.keccak, 24),
+                    SyscallCode::SHA_EXTEND => (self.opts.split_opts.sha_extend, 48),
+                    SyscallCode::SHA_COMPRESS => (self.opts.split_opts.sha_compress, 80),
+                    _ => (self.opts.split_opts.deferred, 1),
+                };
+                let nonce = (((*syscall_count as usize) % threshold) * multiplier) as u32;
+                self.record.nonce_lookup.insert(syscall_lookup_id, nonce);
+                *syscall_count += 1;
+
                 let syscall_impl = self.get_syscall(syscall).cloned();
                 if syscall.should_send() != 0 {
                     self.emit_syscall(clk, syscall.syscall_id(), b, c, syscall_lookup_id);
@@ -1067,19 +1088,6 @@ impl<'a> Executor<'a> {
                 next_pc = precompile_next_pc;
                 self.state.clk += precompile_cycles;
                 exit_code = returned_exit_code;
-
-                // Update the syscall counts.
-                let syscall_for_count = syscall.count_map();
-                let syscall_count = self.state.syscall_counts.entry(syscall_for_count).or_insert(0);
-                let (threshold, multiplier) = match syscall_for_count {
-                    SyscallCode::KECCAK_PERMUTE => (self.opts.split_opts.keccak, 24),
-                    SyscallCode::SHA_EXTEND => (self.opts.split_opts.sha_extend, 48),
-                    SyscallCode::SHA_COMPRESS => (self.opts.split_opts.sha_compress, 80),
-                    _ => (self.opts.split_opts.deferred, 1),
-                };
-                let nonce = (((*syscall_count as usize) % threshold) * multiplier) as u32;
-                self.record.nonce_lookup.insert(syscall_lookup_id, nonce);
-                *syscall_count += 1;
             }
             Opcode::EBREAK => {
                 return Err(ExecutionError::Breakpoint());
