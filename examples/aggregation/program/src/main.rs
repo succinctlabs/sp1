@@ -24,10 +24,7 @@ pub fn commit_proof_pairs(vkeys: &[[u32; 8]], committed_values: &[Vec<u8>]) -> V
     let mut res = Vec::with_capacity(
         4 + vkeys.len() * 32
             + committed_values.len() * 4
-            + committed_values
-                .iter()
-                .map(|vals| vals.len())
-                .sum::<usize>(),
+            + committed_values.iter().map(|vals| vals.len()).sum::<usize>(),
     );
 
     // Note we use big endian because abi.encodePacked in solidity does also
