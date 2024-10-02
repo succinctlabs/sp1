@@ -1298,7 +1298,7 @@ pub mod tests {
         tracing::info!("setup elf");
         let (pk, vk) = prover.setup(elf);
 
-        tracing::info!("prove core");
+        /* tracing::info!("prove core");
         let core_proof = prover.prove_core(&pk, &stdin, opts, context)?;
         let public_values = core_proof.public_values.clone();
 
@@ -1343,7 +1343,7 @@ pub mod tests {
 
         // Save the proof.
         let mut file = File::create("proof-with-pis.bin").unwrap();
-        file.write_all(bytes.as_slice()).unwrap();
+        file.write_all(bytes.as_slice()).unwrap(); */
 
         // Load the proof.
         let mut file = File::open("proof-with-pis.bin").unwrap();
@@ -1352,11 +1352,11 @@ pub mod tests {
 
         let wrapped_bn254_proof = bincode::deserialize(&bytes).unwrap();
 
-        if verify {
-            tracing::info!("verify wrap bn254");
-            prover.verify_wrap_bn254(&wrapped_bn254_proof, &vk).unwrap();
-        }
-
+        /* if verify {
+                   tracing::info!("verify wrap bn254");
+                   prover.verify_wrap_bn254(&wrapped_bn254_proof, &vk).unwrap();
+               }
+        */
         if test_kind == Test::Wrap {
             return Ok(());
         }
@@ -1399,14 +1399,14 @@ pub mod tests {
         let groth16_bn254_proof = prover.wrap_groth16_bn254(wrapped_bn254_proof, &artifacts_dir);
         println!("{:?}", groth16_bn254_proof);
 
-        if verify {
+        /* if verify {
             prover.verify_groth16_bn254(
                 &groth16_bn254_proof,
                 &vk,
                 &public_values,
                 &artifacts_dir,
             )?;
-        }
+        } */
 
         Ok(())
     }

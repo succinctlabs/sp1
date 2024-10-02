@@ -19,6 +19,12 @@ import (
 var modulus = new(big.Int).SetUint64(2013265921)
 var modulus_sub_1 = new(big.Int).SetUint64(2013265920)
 
+// bound = 2^120: we'll keep an invariant that all direct inputs and final outputs of invocations of BabyBear API has UpperBound less than bound
+var bound = new(big.Int).Exp(new(big.Int).SetUint64(2), new(big.Int).SetUint64(120), new(big.Int).SetUint64(0))
+
+// bound_reduce = 2^250: we'll keep an invariant that all invocations of reduceFast and ReduceSlow has UpperBound less than bound_reduce
+var bound_reduce = new(big.Int).Exp(new(big.Int).SetUint64(2), new(big.Int).SetUint64(250), new(big.Int).SetUint64(0))
+
 func init() {
 	// These functions must be public so Gnark's hint system can access them.
 	solver.RegisterHint(InvFHint)
@@ -27,6 +33,7 @@ func init() {
 	solver.RegisterHint(SplitLimbsHint)
 }
 
+// UpperBound represents the known upper bound of the Value (0 <= Value <= UpperBound)
 type Variable struct {
 	Value      frontend.Variable
 	UpperBound *big.Int
@@ -64,7 +71,7 @@ func One() Variable {
 
 func NewFConst(value string) Variable {
 	int_value, success := new(big.Int).SetString(value, 10)
-	if !success {
+	if !success || int_value.BitLen() > 32 {
 		panic("string to int conversion failed")
 	}
 	return Variable{
@@ -96,53 +103,98 @@ func NewEConst(value []string) ExtensionVariable {
 	return ExtensionVariable{Value: [4]Variable{a, b, c, d}}
 }
 
+// we compile-time assert that the variable has UpperBound less than 2^120
+func InvariantCheckF(a Variable) {
+	if a.UpperBound.Cmp(bound) != -1 {
+		panic("InvariantCheckF failure")
+	}
+}
+
+// we compile-time assert that each Variable of the ExtensionVariable has UpperBound less than 2^120
+func InvariantCheckE(a ExtensionVariable) {
+	for i := 0; i < 4; i++ {
+		InvariantCheckF(a.Value[i])
+	}
+}
+
+// we compile-time assert that the Variable being reduced has UpperBound less than 2^250
+func InvariantCheckReduce(a Variable) {
+	if a.UpperBound.Cmp(bound_reduce) != -1 {
+		panic("InvariantCheckReduce failure")
+	}
+}
+
 func Felts2Ext(a, b, c, d Variable) ExtensionVariable {
 	return ExtensionVariable{Value: [4]Variable{a, b, c, d}}
 }
 
 func (c *Chip) AddF(a, b Variable, forceReduce ...bool) Variable {
+	// a.Value <= a.UpperBound, b.Value <= b.UpperBound implies
+	// a.Value + b.Value <= a.UpperBound + b.UpperBound
 	result := Variable{
 		Value:      c.api.Add(a.Value, b.Value),
 		UpperBound: new(big.Int).Add(a.UpperBound, b.UpperBound),
 	}
+	// we assert that the result has upper bound less than 2^250
+	InvariantCheckReduce(result)
+	// if we explicitly send over false, we skip the call to reduceFast
 	if len(forceReduce) > 0 && !forceReduce[0] {
 		return result
 	}
+	InvariantCheckF(a)
+	InvariantCheckF(b)
 	return c.reduceFast(result)
 }
 
 func (c *Chip) SubF(a, b Variable) Variable {
+	InvariantCheckF(a)
+	InvariantCheckF(b)
 	negB := c.negF(b)
 	return c.AddF(a, negB)
 }
 
 func (c *Chip) MulF(a, b Variable, forceReduce ...bool) Variable {
+	// a.Value <= a.UpperBound, b.Value <= b.UpperBound implies
+	// a.Value * b.Value <= a.UpperBound * b.UpperBound
 	result := Variable{
 		Value:      c.api.Mul(a.Value, b.Value),
 		UpperBound: new(big.Int).Mul(a.UpperBound, b.UpperBound),
 	}
+	// we assert that the result has upper bound less than 2^250
+	InvariantCheckReduce(result)
+	// if we explicitly send over false, we skip the call to reduceFast
 	if len(forceReduce) > 0 && !forceReduce[0] {
 		return result
 	}
+	InvariantCheckF(a)
+	InvariantCheckF(b)
 	return c.reduceFast(result)
 }
 
 func (c *Chip) MulFConst(a Variable, b int, forceReduce ...bool) Variable {
+	// a.Value <= a.UpperBound implies
+	// a.Value * b <= a.UpperBound * b
 	result := Variable{
 		Value:      c.api.Mul(a.Value, b),
 		UpperBound: new(big.Int).Mul(a.UpperBound, new(big.Int).SetUint64(uint64(b))),
 	}
+	// we assert that the result has upper bound less than 2^250
+	InvariantCheckReduce(result)
+	// if we explicitly send over false, we skip the call to reduceFast
 	if len(forceReduce) > 0 && !forceReduce[0] {
 		return result
 	}
+	InvariantCheckF(a)
 	return c.reduceFast(result)
 }
 
 func (c *Chip) negF(a Variable) Variable {
+	// 0 <= a.Value <= a.UpperBound implies
+	// 0 <= a.Value <= liftedModulus, so 0 <= liftedModulus - a.Value <= liftedModulus
 	divisor := new(big.Int).Div(a.UpperBound, modulus)
 	divisorPlusOne := new(big.Int).Add(divisor, big.NewInt(1))
 	liftedModulus := new(big.Int).Mul(divisorPlusOne, modulus)
-
+	InvariantCheckF(a)
 	return c.reduceFast(Variable{
 		Value:      c.api.Sub(liftedModulus, a.Value),
 		UpperBound: liftedModulus,
@@ -150,6 +202,7 @@ func (c *Chip) negF(a Variable) Variable {
 }
 
 func (c *Chip) invF(in Variable) Variable {
+	InvariantCheckF(in)
 	result, err := c.api.Compiler().NewHint(InvFHint, 1, in.Value)
 	if err != nil {
 		panic(err)
@@ -167,27 +220,36 @@ func (c *Chip) invF(in Variable) Variable {
 	product := c.MulF(in, xinv)
 	c.AssertIsEqualF(product, NewFConst("1"))
 
+	// UpperBound is 2^31, so the invariant holds
 	return xinv
 }
 
 func (c *Chip) DivF(a, b Variable) Variable {
+	InvariantCheckF(a)
+	InvariantCheckF(b)
 	bInv := c.invF(b)
 	return c.MulF(a, bInv)
 }
 
 func (c *Chip) AssertIsEqualF(a, b Variable) {
+	InvariantCheckF(a)
+	InvariantCheckF(b)
 	a2 := c.ReduceSlow(a)
 	b2 := c.ReduceSlow(b)
 	c.api.AssertIsEqual(a2.Value, b2.Value)
 }
 
 func (c *Chip) AssertNotEqualF(a, b Variable) {
+	InvariantCheckF(a)
+	InvariantCheckF(b)
 	a2 := c.ReduceSlow(a)
 	b2 := c.ReduceSlow(b)
 	c.api.AssertIsDifferent(a2.Value, b2.Value)
 }
 
 func (c *Chip) AssertIsEqualE(a, b ExtensionVariable) {
+	InvariantCheckE(a)
+	InvariantCheckE(b)
 	c.AssertIsEqualF(a.Value[0], b.Value[0])
 	c.AssertIsEqualF(a.Value[1], b.Value[1])
 	c.AssertIsEqualF(a.Value[2], b.Value[2])
@@ -195,7 +257,10 @@ func (c *Chip) AssertIsEqualE(a, b ExtensionVariable) {
 }
 
 func (c *Chip) SelectF(cond frontend.Variable, a, b Variable) Variable {
+	InvariantCheckF(a)
+	InvariantCheckF(b)
 	var UpperBound *big.Int
+	// take maximum of a.UpperBound and b.UpperBound
 	if a.UpperBound.Cmp(b.UpperBound) == -1 {
 		UpperBound = b.UpperBound
 	} else {
@@ -208,6 +273,8 @@ func (c *Chip) SelectF(cond frontend.Variable, a, b Variable) Variable {
 }
 
 func (c *Chip) SelectE(cond frontend.Variable, a, b ExtensionVariable) ExtensionVariable {
+	InvariantCheckE(a)
+	InvariantCheckE(b)
 	return ExtensionVariable{
 		Value: [4]Variable{
 			c.SelectF(cond, a.Value[0], b.Value[0]),
@@ -219,11 +286,15 @@ func (c *Chip) SelectE(cond frontend.Variable, a, b ExtensionVariable) Extension
 }
 
 func (c *Chip) AddEF(a ExtensionVariable, b Variable) ExtensionVariable {
+	InvariantCheckE(a)
+	InvariantCheckF(b)
 	v1 := c.AddF(a.Value[0], b)
 	return ExtensionVariable{Value: [4]Variable{v1, a.Value[1], a.Value[2], a.Value[3]}}
 }
 
 func (c *Chip) AddE(a, b ExtensionVariable) ExtensionVariable {
+	InvariantCheckE(a)
+	InvariantCheckE(b)
 	v1 := c.AddF(a.Value[0], b.Value[0])
 	v2 := c.AddF(a.Value[1], b.Value[1])
 	v3 := c.AddF(a.Value[2], b.Value[2])
@@ -232,6 +303,8 @@ func (c *Chip) AddE(a, b ExtensionVariable) ExtensionVariable {
 }
 
 func (c *Chip) SubE(a, b ExtensionVariable) ExtensionVariable {
+	InvariantCheckE(a)
+	InvariantCheckE(b)
 	v1 := c.SubF(a.Value[0], b.Value[0])
 	v2 := c.SubF(a.Value[1], b.Value[1])
 	v3 := c.SubF(a.Value[2], b.Value[2])
@@ -240,11 +313,16 @@ func (c *Chip) SubE(a, b ExtensionVariable) ExtensionVariable {
 }
 
 func (c *Chip) SubEF(a ExtensionVariable, b Variable) ExtensionVariable {
+	InvariantCheckE(a)
+	InvariantCheckF(b)
 	v1 := c.SubF(a.Value[0], b)
 	return ExtensionVariable{Value: [4]Variable{v1, a.Value[1], a.Value[2], a.Value[3]}}
 }
 
 func (c *Chip) MulE(a, b ExtensionVariable) ExtensionVariable {
+	// we check that a, b has UpperBound less than 2^120
+	InvariantCheckE(a)
+	InvariantCheckE(b)
 	v2 := [4]Variable{
 		Zero(),
 		Zero(),
@@ -252,6 +330,7 @@ func (c *Chip) MulE(a, b ExtensionVariable) ExtensionVariable {
 		Zero(),
 	}
 
+	// each v2[idx] will be at most 2^120 * 2^120 * 4 * 11 < 2^250, so we delay the reduceFast
 	for i := 0; i < 4; i++ {
 		for j := 0; j < 4; j++ {
 			if i+j >= 4 {
@@ -261,6 +340,8 @@ func (c *Chip) MulE(a, b ExtensionVariable) ExtensionVariable {
 			}
 		}
 	}
+
+	// we invoke reduceFast at the end to assure that each Variable has UpperBound less than 2^120
 	v2[0] = c.reduceFast(v2[0])
 	v2[1] = c.reduceFast(v2[1])
 	v2[2] = c.reduceFast(v2[2])
@@ -269,6 +350,8 @@ func (c *Chip) MulE(a, b ExtensionVariable) ExtensionVariable {
 }
 
 func (c *Chip) MulEF(a ExtensionVariable, b Variable) ExtensionVariable {
+	InvariantCheckE(a)
+	InvariantCheckF(b)
 	v1 := c.MulF(a.Value[0], b)
 	v2 := c.MulF(a.Value[1], b)
 	v3 := c.MulF(a.Value[2], b)
@@ -277,6 +360,7 @@ func (c *Chip) MulEF(a ExtensionVariable, b Variable) ExtensionVariable {
 }
 
 func (c *Chip) InvE(in ExtensionVariable) ExtensionVariable {
+	InvariantCheckE(in)
 	result, err := c.api.Compiler().NewHint(InvEHint, 4, in.Value[0].Value, in.Value[1].Value, in.Value[2].Value, in.Value[3].Value)
 	if err != nil {
 		panic(err)
@@ -302,6 +386,7 @@ func (c *Chip) InvE(in ExtensionVariable) ExtensionVariable {
 	product := c.MulE(in, out)
 	c.AssertIsEqualE(product, NewEConst([]string{"1", "0", "0", "0"}))
 
+	// UpperBound is 2^31, so the invariant holds
 	return out
 }
 
@@ -310,16 +395,21 @@ func (c *Chip) Ext2Felt(in ExtensionVariable) [4]Variable {
 }
 
 func (c *Chip) DivE(a, b ExtensionVariable) ExtensionVariable {
+	InvariantCheckE(a)
+	InvariantCheckE(b)
 	bInv := c.InvE(b)
 	return c.MulE(a, bInv)
 }
 
 func (c *Chip) DivEF(a ExtensionVariable, b Variable) ExtensionVariable {
+	InvariantCheckE(a)
+	InvariantCheckF(b)
 	bInv := c.invF(b)
 	return c.MulEF(a, bInv)
 }
 
 func (c *Chip) NegE(a ExtensionVariable) ExtensionVariable {
+	InvariantCheckE(a)
 	v1 := c.negF(a.Value[0])
 	v2 := c.negF(a.Value[1])
 	v3 := c.negF(a.Value[2])
@@ -332,6 +422,10 @@ func (c *Chip) ToBinary(in Variable) []frontend.Variable {
 }
 
 func (p *Chip) reduceFast(x Variable) Variable {
+	// check the variable being reduced has UpperBound less than 2^250, so BN254 overflow doesn't occur
+	InvariantCheckReduce(x)
+	// if x >= 2^119, we reduce x modulo BabyBear
+	// 0 <= remainder <= p - 1, so we choose UpperBound = p - 1
 	if x.UpperBound.BitLen() >= 120 {
 		return Variable{
 			Value:      p.reduceWithMaxBits(x.Value, uint64(x.UpperBound.BitLen())),
@@ -341,10 +435,16 @@ func (p *Chip) reduceFast(x Variable) Variable {
 	return x
 }
 
+// ReduceSlow is guaranteed to return x fully reduced to BabyBear range
 func (p *Chip) ReduceSlow(x Variable) Variable {
+	// check the variable being reduced has UpperBound less than 2^250, so BN254 overflow doesn't occur
+	InvariantCheckReduce(x)
+	// if x.UpperBound < modulus, this means 0 <= x.Value <= x.UpperBound < modulus
+	// therefore, no need to reduce x
 	if x.UpperBound.Cmp(modulus) == -1 {
 		return x
 	}
+	// 0 <= remainder <= p - 1, so we choose UpperBound = p - 1
 	return Variable{
 		Value:      p.reduceWithMaxBits(x.Value, uint64(x.UpperBound.BitLen())),
 		UpperBound: modulus_sub_1,
@@ -426,6 +526,7 @@ func ReduceHint(_ *big.Int, inputs []*big.Int, results []*big.Int) error {
 }
 
 func (p *Chip) ReduceE(x ExtensionVariable) ExtensionVariable {
+	InvariantCheckE(x)
 	for i := 0; i < 4; i++ {
 		x.Value[i] = p.ReduceSlow(x.Value[i])
 	}
