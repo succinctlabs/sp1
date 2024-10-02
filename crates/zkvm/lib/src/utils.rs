@@ -142,10 +142,10 @@ pub fn bytes_to_words_le(bytes: &[u8]) -> Vec<u32> {
 
 /// A trait for affine points on Weierstrass curves.
 pub trait WeierstrassAffinePoint<const N: usize>: AffinePoint<N> {
-    /// The infinity point of the Weierstrass curve.
+    /// The infinity point representation of the Weierstrass curve. Typically an enum variant.
     fn infinity() -> Self;
 
-    /// Checks if the point is the infinity point.
+    /// Returns true if the point is the infinity point.
     fn is_infinity(&self) -> bool;
 
     /// Performs the complete addition of two [`AffinePoint`]'s on a Weierstrass curve.
