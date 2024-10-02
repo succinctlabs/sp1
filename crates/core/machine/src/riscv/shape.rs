@@ -234,7 +234,7 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
 
         let cpu_name = || RiscvAir::<F>::Cpu(CpuChip::default()).name();
         let memory_local_name = || RiscvAir::<F>::MemoryLocal(MemoryLocalChip::new()).name();
-        let syscall_name = || RiscvAir::<F>::Syscall(SyscallChip::default()).name();
+        let syscall_name = || RiscvAir::<F>::SyscallCore(SyscallChip::core()).name();
         let core_filter = move |shape: &ProofShape| {
             let core_airs = RiscvAir::<F>::get_all_core_airs()
                 .into_iter()
@@ -328,7 +328,7 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
             (RiscvAir::ShiftLeft(ShiftLeft::default()), shift_left_heights),
             (RiscvAir::Lt(LtChip::default()), lt_heights),
             (RiscvAir::MemoryLocal(MemoryLocalChip::new()), memory_local_heights),
-            (RiscvAir::Syscall(SyscallChip::default()), syscall_heights),
+            (RiscvAir::SyscallCore(SyscallChip::core()), syscall_heights),
         ]);
 
         // Get the heights for the medium shape cluster.
@@ -353,7 +353,7 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
             (RiscvAir::ShiftLeft(ShiftLeft::default()), shift_left_heights),
             (RiscvAir::Lt(LtChip::default()), lt_heights),
             (RiscvAir::MemoryLocal(MemoryLocalChip::new()), memory_local_heights),
-            (RiscvAir::Syscall(SyscallChip::default()), syscall_heights),
+            (RiscvAir::SyscallCore(SyscallChip::core()), syscall_heights),
         ]);
 
         // Core chip heights for the long shape cluster.
@@ -378,7 +378,7 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
             (RiscvAir::ShiftLeft(ShiftLeft::default()), shift_left_heights),
             (RiscvAir::Lt(LtChip::default()), lt_heights),
             (RiscvAir::MemoryLocal(MemoryLocalChip::new()), memory_local_heights),
-            (RiscvAir::Syscall(SyscallChip::default()), syscall_heights),
+            (RiscvAir::SyscallCore(SyscallChip::core()), syscall_heights),
         ]);
 
         // Set the memory init and finalize heights.

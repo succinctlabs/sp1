@@ -27,18 +27,29 @@ impl<E: EllipticCurve> Syscall for WeierstrassDoubleAssignSyscall<E> {
         arg2: u32,
     ) -> Option<u32> {
         let event = create_ec_double_event::<E>(rt, arg1, arg2);
+        let syscall_event =
+            rt.rt.syscall_event(event.clk, syscall_code.syscall_id(), arg1, arg2, event.lookup_id);
         match E::CURVE_TYPE {
             CurveType::Secp256k1 => {
-                rt.record_mut()
-                    .add_precompile_event(syscall_code, PrecompileEvent::Secp256k1Double(event));
+                rt.record_mut().add_precompile_event(
+                    syscall_code,
+                    syscall_event,
+                    PrecompileEvent::Secp256k1Double(event),
+                );
             }
             CurveType::Bn254 => {
-                rt.record_mut()
-                    .add_precompile_event(syscall_code, PrecompileEvent::Bn254Double(event));
+                rt.record_mut().add_precompile_event(
+                    syscall_code,
+                    syscall_event,
+                    PrecompileEvent::Bn254Double(event),
+                );
             }
             CurveType::Bls12381 => {
-                rt.record_mut()
-                    .add_precompile_event(syscall_code, PrecompileEvent::Bls12381Double(event));
+                rt.record_mut().add_precompile_event(
+                    syscall_code,
+                    syscall_event,
+                    PrecompileEvent::Bls12381Double(event),
+                );
             }
             _ => panic!("Unsupported curve"),
         }

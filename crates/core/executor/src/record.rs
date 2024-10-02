@@ -164,11 +164,8 @@ impl ExecutionRecord {
                 .collect::<Vec<_>>();
             shards.append(&mut event_shards);
         }
-        // _ = last_pct;
 
         if last {
-            // shards.push(last_shard);
-
             self.global_memory_initialize_events.sort_by_key(|event| event.addr);
             self.global_memory_finalize_events.sort_by_key(|event| event.addr);
 
@@ -231,14 +228,22 @@ impl ExecutionRecord {
 
     #[inline]
     /// Add a precompile event to the execution record.
-    pub fn add_precompile_event(&mut self, syscall_code: SyscallCode, event: PrecompileEvent) {
-        self.precompile_events.add_event(syscall_code, event);
+    pub fn add_precompile_event(
+        &mut self,
+        syscall_code: SyscallCode,
+        syscall_event: SyscallEvent,
+        event: PrecompileEvent,
+    ) {
+        self.precompile_events.add_event(syscall_code, syscall_event, event);
     }
 
     /// Get all the precompile events for a syscall code.
     #[inline]
     #[must_use]
-    pub fn get_precompile_events(&self, syscall_code: SyscallCode) -> &Vec<PrecompileEvent> {
+    pub fn get_precompile_events(
+        &self,
+        syscall_code: SyscallCode,
+    ) -> &Vec<(SyscallEvent, PrecompileEvent)> {
         self.precompile_events.get_events(syscall_code)
     }
 

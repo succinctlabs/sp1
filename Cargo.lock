@@ -6322,6 +6322,7 @@ dependencies = [
  "strum",
  "strum_macros",
  "sysinfo",
+ "thiserror",
  "tracing",
 ]
 

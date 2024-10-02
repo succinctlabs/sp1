@@ -97,8 +97,18 @@ impl<P: FpOpField> Syscall for Fp2AddSubSyscall<P> {
                     _ => unreachable!(),
                 };
 
-                rt.record_mut()
-                    .add_precompile_event(syscall_code_key, PrecompileEvent::Bn254Fp2AddSub(event));
+                let syscall_event = rt.rt.syscall_event(
+                    clk,
+                    syscall_code.syscall_id(),
+                    arg1,
+                    arg2,
+                    event.lookup_id,
+                );
+                rt.record_mut().add_precompile_event(
+                    syscall_code_key,
+                    syscall_event,
+                    PrecompileEvent::Bn254Fp2AddSub(event),
+                );
             }
             FieldType::Bls12381 => {
                 let syscall_code_key = match syscall_code {
@@ -108,8 +118,16 @@ impl<P: FpOpField> Syscall for Fp2AddSubSyscall<P> {
                     _ => unreachable!(),
                 };
 
+                let syscall_event = rt.rt.syscall_event(
+                    clk,
+                    syscall_code.syscall_id(),
+                    arg1,
+                    arg2,
+                    event.lookup_id,
+                );
                 rt.record_mut().add_precompile_event(
                     syscall_code_key,
+                    syscall_event,
                     PrecompileEvent::Bls12381Fp2AddSub(event),
                 );
             }

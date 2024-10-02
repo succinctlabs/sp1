@@ -52,7 +52,7 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
                 // First generate all the p3_keccak_air traces at once.
                 let perm_inputs = chunk
                     .iter()
-                    .map(|event_index| event_transform(&events[*event_index]).pre_state)
+                    .map(|event_index| event_transform(&events[*event_index].1).pre_state)
                     .collect::<Vec<_>>();
                 let p3_keccak_trace = generate_trace_rows::<F>(perm_inputs);
 
@@ -62,7 +62,7 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
                     .flat_map(|(index_in_chunk, event_index)| {
                         let mut rows = Vec::new();
 
-                        let event = event_transform(&events[*event_index]);
+                        let event = event_transform(&events[*event_index].1);
                         let start_clk = event.clk;
                         let shard = event.shard;
 

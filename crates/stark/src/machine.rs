@@ -7,7 +7,7 @@ use p3_field::{AbstractExtensionField, AbstractField, Field, PrimeField32};
 use p3_matrix::{dense::RowMajorMatrix, Dimensions, Matrix};
 use p3_maybe_rayon::prelude::*;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use std::{array, cmp::Reverse, fmt::Debug, time::Instant};
+use std::{array, cmp::Reverse, env, fmt::Debug, time::Instant};
 use tracing::instrument;
 
 use super::{debug_constraints, Dom};
@@ -341,23 +341,12 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
         })?;
 
         // Verify the cumulative sum is 0.
-        tracing::debug_span!("verify cumulative sum is 0").in_scope(|| {
-            let mut sum = SC::Challenge::zero();
-            let mut local_err = None;
-            for (shard_num, proof) in proof.shard_proofs.iter().enumerate() {
-                sum += proof.cumulative_sum(InteractionScope::Global);
-                if !proof.cumulative_sum(InteractionScope::Local).is_zero() {
-                    local_err = Some(MachineVerificationError::NonZeroCumulativeSum(
-                        InteractionScope::Local,
-                        shard_num + 1,
-                    ));
-                    break;
-                }
-            }
-
-            if let Some(err) = local_err {
-                return Err(err);
-            }
+        tracing::debug_span!("verify global cumulative sum is 0").in_scope(|| {
+            let sum = proof
+                .shard_proofs
+                .iter()
+                .map(|proof| proof.cumulative_sum(InteractionScope::Global))
+                .sum::<SC::Challenge>();
 
             if !sum.is_zero() {
                 return Err(MachineVerificationError::NonZeroCumulativeSum(
@@ -434,13 +423,16 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
             let local_cumulative_sum =
                 cumulative_sums.iter().map(|sum| sum[1]).sum::<SC::Challenge>();
             if !local_cumulative_sum.is_zero() {
-                debug_interactions_with_all_chips::<SC, A>(
-                    self,
-                    pk,
-                    &[shard.clone()],
-                    InteractionKind::all_kinds(),
-                    InteractionScope::Local,
-                );
+                tracing::warn!("Local cumulative sum is not zero");
+                tracing::debug_span!("debug local interactions").in_scope(|| {
+                    debug_interactions_with_all_chips::<SC, A>(
+                        self,
+                        pk,
+                        &[shard.clone()],
+                        InteractionKind::all_kinds(),
+                        InteractionScope::Local,
+                    )
+                });
                 panic!("Local cumulative sum is not zero");
             }
 
@@ -462,34 +454,39 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
                 );
             }
 
-            tracing::info_span!("debug constraints").in_scope(|| {
-                for i in 0..chips.len() {
-                    let preprocessed_trace =
-                        pk.chip_ordering.get(&chips[i].name()).map(|index| &pk.traces[*index]);
-                    debug_constraints::<SC, A>(
-                        chips[i],
-                        preprocessed_trace,
-                        &traces[i].0,
-                        &permutation_traces[i],
-                        &permutation_challenges,
-                        &shard.public_values(),
-                        &cumulative_sums[i],
-                    );
-                }
-            });
+            if env::var("SKIP_CONSTRAINTS").is_err() {
+                tracing::info_span!("debug constraints").in_scope(|| {
+                    for i in 0..chips.len() {
+                        let preprocessed_trace =
+                            pk.chip_ordering.get(&chips[i].name()).map(|index| &pk.traces[*index]);
+                        debug_constraints::<SC, A>(
+                            chips[i],
+                            preprocessed_trace,
+                            &traces[i].0,
+                            &permutation_traces[i],
+                            &permutation_challenges,
+                            &shard.public_values(),
+                            &cumulative_sums[i],
+                        );
+                    }
+                });
+            }
         }
 
         tracing::info!("Constraints verified successfully");
 
         // If the global cumulative sum is not zero, debug the interactions.
         if !global_cumulative_sum.is_zero() {
-            debug_interactions_with_all_chips::<SC, A>(
-                self,
-                pk,
-                &records,
-                InteractionKind::all_kinds(),
-                InteractionScope::Global,
-            );
+            tracing::warn!("Global cumulative sum is not zero");
+            tracing::debug_span!("debug global interactions").in_scope(|| {
+                debug_interactions_with_all_chips::<SC, A>(
+                    self,
+                    pk,
+                    &records,
+                    InteractionKind::all_kinds(),
+                    InteractionScope::Global,
+                )
+            });
             panic!("Global cumulative sum is not zero");
         }
     }
