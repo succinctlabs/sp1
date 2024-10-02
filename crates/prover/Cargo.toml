@@ -13,7 +13,7 @@ categories = { workspace = true }
 p3-matrix = { workspace = true }
 sp1-recursion-compiler = { workspace = true }
 sp1-recursion-core = { workspace = true }
-sp1-recursion-circuit-v2 = { workspace = true }
+sp1-recursion-circuit = { workspace = true }
 sp1-recursion-gnark-ffi = { workspace = true }
 sp1-core-machine = { workspace = true }
 sp1-stark = { workspace = true }

@@ -9,7 +9,7 @@ use std::{
 use p3_baby_bear::BabyBear;
 use p3_field::AbstractField;
 use sp1_core_machine::riscv::CoreShapeConfig;
-use sp1_recursion_circuit_v2::{
+use sp1_recursion_circuit::{
     machine::{
         SP1CompressWithVKeyWitnessValues, SP1CompressWithVkeyShape, SP1DeferredShape,
         SP1DeferredWitnessValues, SP1RecursionShape, SP1RecursionWitnessValues,

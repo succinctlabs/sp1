@@ -72,7 +72,7 @@ use sp1_recursion_core::{
     Runtime as RecursionRuntime,
 };
 
-use sp1_recursion_circuit_v2::{
+use sp1_recursion_circuit::{
     hash::FieldHasher,
     machine::{
         PublicValuesOutputDigest, SP1CompressRootVerifierWithVKey, SP1CompressShape,

@@ -18,7 +18,7 @@ members = [
   "crates/helper",
   "crates/primitives",
   "crates/prover",
-  "crates/recursion/circuit-v2",
+  "crates/recursion/circuit",
   "crates/recursion/compiler",
   "crates/recursion/core",
   "crates/recursion/derive",
@@ -59,7 +59,7 @@ sp1-recursion-compiler = { path = "crates/recursion/compiler", version = "2.0.0"
 sp1-recursion-core = { path = "crates/recursion/core", version = "2.0.0", default-features = false }
 sp1-recursion-derive = { path = "crates/recursion/derive", version = "2.0.0", default-features = false }
 sp1-recursion-gnark-ffi = { path = "crates/recursion/gnark-ffi", version = "2.0.0", default-features = false }
-sp1-recursion-circuit-v2 = { path = "crates/recursion/circuit-v2", version = "2.0.0", default-features = false }
+sp1-recursion-circuit = { path = "crates/recursion/circuit", version = "2.0.0", default-features = false }
 sp1-sdk = { path = "crates/sdk", version = "2.0.0" }
 sp1-cuda = { path = "crates/cuda", version = "2.0.0" }
 sp1-stark = { path = "crates/stark", version = "2.0.0" }
