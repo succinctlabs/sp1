@@ -98,7 +98,7 @@ impl<P: FpOpField> Syscall for Fp2AddSubSyscall<P> {
                 };
 
                 let syscall_event = rt.rt.syscall_event(
-                    rt.clk,
+                    clk,
                     syscall_code_key.syscall_id(),
                     arg1,
                     arg2,
@@ -119,7 +119,7 @@ impl<P: FpOpField> Syscall for Fp2AddSubSyscall<P> {
                 };
 
                 let syscall_event = rt.rt.syscall_event(
-                    rt.clk,
+                    clk,
                     syscall_code_key.syscall_id(),
                     arg1,
                     arg2,

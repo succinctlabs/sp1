@@ -28,7 +28,7 @@ impl<E: EllipticCurve> Syscall for WeierstrassDoubleAssignSyscall<E> {
     ) -> Option<u32> {
         let event = create_ec_double_event::<E>(rt, arg1, arg2);
         let syscall_event =
-            rt.rt.syscall_event(rt.clk, syscall_code.syscall_id(), arg1, arg2, event.lookup_id);
+            rt.rt.syscall_event(event.clk, syscall_code.syscall_id(), arg1, arg2, event.lookup_id);
         match E::CURVE_TYPE {
             CurveType::Secp256k1 => {
                 rt.record_mut().add_precompile_event(
