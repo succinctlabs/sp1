@@ -95,7 +95,9 @@ pub enum RiscvAir<F: PrimeField32> {
     /// A table for initializing the program memory.
     ProgramMemory(MemoryProgramChip),
     /// A table for all the syscall invocations.
-    Syscall(SyscallChip),
+    SyscallCore(SyscallChip),
+    /// A table for all the precompile invocations.
+    SyscallPrecompile(SyscallChip),
     /// A precompile for sha256 extend.
     Sha256Extend(ShaExtendChip),
     /// A precompile for sha256 compress.
@@ -281,9 +283,13 @@ impl<F: PrimeField32> RiscvAir<F> {
         costs.insert(RiscvAirDiscriminants::Bls12381Decompress, bls12381_decompress.cost());
         chips.push(bls12381_decompress);
 
-        let syscall = Chip::new(RiscvAir::Syscall(SyscallChip::default()));
-        costs.insert(RiscvAirDiscriminants::Syscall, syscall.cost());
-        chips.push(syscall);
+        let syscall_core = Chip::new(RiscvAir::SyscallCore(SyscallChip::core()));
+        costs.insert(RiscvAirDiscriminants::SyscallCore, syscall_core.cost());
+        chips.push(syscall_core);
+
+        let syscall_precompile = Chip::new(RiscvAir::SyscallPrecompile(SyscallChip::precompile()));
+        costs.insert(RiscvAirDiscriminants::SyscallPrecompile, syscall_precompile.cost());
+        chips.push(syscall_precompile);
 
         let div_rem = Chip::new(RiscvAir::DivRem(DivRemChip::default()));
         costs.insert(RiscvAirDiscriminants::DivRem, div_rem.cost());
@@ -371,7 +377,7 @@ impl<F: PrimeField32> RiscvAir<F> {
                     .count(),
             ),
             (
-                RiscvAir::Syscall(SyscallChip::default()),
+                RiscvAir::SyscallCore(SyscallChip::core()),
                 record.syscall_events.len() + record.precompile_events.len(),
             ),
         ]
@@ -388,7 +394,7 @@ impl<F: PrimeField32> RiscvAir<F> {
             RiscvAir::ShiftLeft(ShiftLeft::default()),
             RiscvAir::ShiftRight(ShiftRightChip::default()),
             RiscvAir::MemoryLocal(MemoryLocalChip::new()),
-            RiscvAir::Syscall(SyscallChip::default()),
+            RiscvAir::SyscallCore(SyscallChip::core()),
         ]
     }
 
