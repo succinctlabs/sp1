@@ -341,23 +341,12 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
         })?;
 
         // Verify the cumulative sum is 0.
-        tracing::debug_span!("verify cumulative sum is 0").in_scope(|| {
-            let mut sum = SC::Challenge::zero();
-            let mut local_err = None;
-            for (shard_num, proof) in proof.shard_proofs.iter().enumerate() {
-                sum += proof.cumulative_sum(InteractionScope::Global);
-                if !proof.cumulative_sum(InteractionScope::Local).is_zero() {
-                    local_err = Some(MachineVerificationError::NonZeroCumulativeSum(
-                        InteractionScope::Local,
-                        shard_num + 1,
-                    ));
-                    break;
-                }
-            }
-
-            if let Some(err) = local_err {
-                return Err(err);
-            }
+        tracing::debug_span!("verify global cumulative sum is 0").in_scope(|| {
+            let sum = proof
+                .shard_proofs
+                .iter()
+                .map(|proof| proof.cumulative_sum(InteractionScope::Global))
+                .sum::<SC::Challenge>();
 
             if !sum.is_zero() {
                 return Err(MachineVerificationError::NonZeroCumulativeSum(
