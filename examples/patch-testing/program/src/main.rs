@@ -130,7 +130,8 @@ fn test_k256_patch() {
     let expected = address!("2c7536E3605D9C16a7a3D7b1898e529396a65c23");
 
     println!("cycle-tracker-start: k256 verify");
-    let recovered_address = sig.recover_address_from_msg("Some data").expect("could not recover address");
+    let recovered_address =
+        sig.recover_address_from_msg("Some data").expect("could not recover address");
     println!("cycle-tracker-end: k256 verify");
 
     assert_eq!(recovered_address, expected);
@@ -158,8 +159,7 @@ fn test_secp256k1_patch() {
         .expect("could not recover public key");
     println!("cycle-tracker-end: secp256k1 verify");
 
-    let serialized_key = public_key
-        .serialize_uncompressed();
+    let serialized_key = public_key.serialize_uncompressed();
 
     // Use the message in the recover_ecdsa call
     assert_eq!(hex::encode(serialized_key), expected);
