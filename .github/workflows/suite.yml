@@ -1,7 +1,17 @@
 name: Testing Suite
 
 on:
-  workflow_dispatch:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches:
+      - "**"
+    paths:
+      - "crates/**"
+      - "examples/**"
+      - "Cargo.toml"
+      - ".github/workflows/**"
+  merge_group:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -11,6 +21,7 @@ jobs:
   test-x86:
     name: ${{ matrix.s3_folder }} (${{ matrix.mode }})
     runs-on: ${{ matrix.mode == 'cuda' && fromJSON('["runs-on", "family=g6.16xlarge", "image=nvidia-linux", "spot=false", "run-id=${{ github.run_id }}"]') || fromJSON('["runs-on", "runner=64cpu-linux-x64", "spot=false", "run-id=${{ github.run_id }}"]') }}
+    if: "contains(github.event.head_commit.message, '(run-suite)')"
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     strategy:
