@@ -9,7 +9,7 @@ You first need have Rust installed, and you can use
 - name: Install Rust Toolchain
   uses: actions-rs/toolchain@v1
   with:
-    toolchain: 1.79.0
+    toolchain: 1.81.0
     profile: default
     override: true
     default: true

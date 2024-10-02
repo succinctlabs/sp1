@@ -64,7 +64,9 @@ pub trait StarkGenericConfig: 'static + Send + Sync + Serialize + DeserializeOwn
     /// The challenger (Fiat-Shamir) implementation used.
     type Challenger: FieldChallenger<Val<Self>>
         + CanObserve<<Self::Pcs as Pcs<Self::Challenge, Self::Challenger>>::Commitment>
-        + CanSample<Self::Challenge>;
+        + CanSample<Self::Challenge>
+        + Serialize
+        + DeserializeOwned;
 
     /// Get the PCS used by this configuration.
     fn pcs(&self) -> &Self::Pcs;

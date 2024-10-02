@@ -100,7 +100,7 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for FpOpChip<P> {
         let mut rows = Vec::new();
         let mut new_byte_lookup_events = Vec::new();
 
-        for event in events {
+        for (_, event) in events {
             let event = match (P::FIELD_TYPE, event) {
                 (FieldType::Bn254, PrecompileEvent::Bn254Fp(event)) => event,
                 (FieldType::Bls12381, PrecompileEvent::Bls12381Fp(event)) => event,
@@ -295,7 +295,7 @@ where
             local.x_ptr,
             local.y_ptr,
             local.is_real,
-            InteractionScope::Global,
+            InteractionScope::Local,
         );
     }
 }

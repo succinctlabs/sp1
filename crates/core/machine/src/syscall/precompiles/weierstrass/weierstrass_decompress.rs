@@ -159,7 +159,7 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
 
         let modulus = E::BaseField::modulus();
 
-        for event in events {
+        for (_, event) in events {
             let event = match (E::CURVE_TYPE, event) {
                 (CurveType::Secp256k1, PrecompileEvent::Secp256k1Decompress(event)) => event,
                 (CurveType::Bls12381, PrecompileEvent::Bls12381Decompress(event)) => event,
@@ -502,7 +502,7 @@ where
             local.ptr,
             local.sign_bit,
             local.is_real,
-            InteractionScope::Global,
+            InteractionScope::Local,
         );
     }
 }

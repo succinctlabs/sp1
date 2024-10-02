@@ -500,6 +500,13 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         let input = input.read(&mut builder);
         input_read_span.exit();
         let verify_span = tracing::debug_span!("Verify deferred program").entered();
+
+        // Attest that the merkle tree root is correct.
+        let root = input.vk_merkle_data.root;
+        for (val, expected) in root.iter().zip(self.vk_root.iter()) {
+            builder.assert_felt_eq(*val, *expected);
+        }
+        // Verify the proof.
         SP1DeferredVerifier::verify(
             &mut builder,
             self.compress_prover.machine(),

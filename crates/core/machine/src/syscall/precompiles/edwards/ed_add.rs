@@ -122,7 +122,7 @@ impl<F: PrimeField32, E: EllipticCurve + EdwardsParameters> MachineAir<F> for Ed
 
         let mut rows = events
             .par_iter()
-            .map(|event| {
+            .map(|(_, event)| {
                 let event = if let PrecompileEvent::EdAdd(event) = event {
                     event
                 } else {
@@ -179,7 +179,7 @@ impl<F: PrimeField32, E: EllipticCurve + EdwardsParameters> MachineAir<F> for Ed
             .par_chunks(chunk_size)
             .map(|events| {
                 let mut blu: HashMap<u32, HashMap<ByteLookupEvent, usize>> = HashMap::new();
-                events.iter().for_each(|event| {
+                events.iter().for_each(|(_, event)| {
                     let event = if let PrecompileEvent::EdAdd(event) = event {
                         event
                     } else {
@@ -325,7 +325,7 @@ where
             local.p_ptr,
             local.q_ptr,
             local.is_real,
-            InteractionScope::Global,
+            InteractionScope::Local,
         );
     }
 }

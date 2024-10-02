@@ -186,7 +186,7 @@ impl<V: Copy> EdDecompressCols<V> {
             self.ptr,
             self.sign,
             self.is_real,
-            InteractionScope::Global,
+            InteractionScope::Local,
         );
     }
 }
@@ -219,7 +219,7 @@ impl<F: PrimeField32, E: EdwardsParameters> MachineAir<F> for EdDecompressChip<E
         let mut rows = Vec::new();
         let events = input.get_precompile_events(SyscallCode::ED_DECOMPRESS);
 
-        for event in events {
+        for (_, event) in events {
             let event = if let PrecompileEvent::EdDecompress(event) = event {
                 event
             } else {

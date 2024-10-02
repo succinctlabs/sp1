@@ -8,13 +8,12 @@ use sp1_recursion_compiler::{
 use sp1_recursion_core_v2::{
     air::ChallengerPublicValues,
     runtime::{HASH_RATE, PERMUTATION_WIDTH},
+    stark::config::{OUTER_MULTI_FIELD_CHALLENGER_DIGEST_SIZE, OUTER_MULTI_FIELD_CHALLENGER_RATE},
     NUM_BITS,
 };
 
 // Constants for the Multifield challenger.
-pub const SPONGE_SIZE: usize = 3;
-pub const DIGEST_SIZE: usize = 1;
-pub const RATE: usize = 16;
+pub const POSEIDON_2_BB_RATE: usize = 16;
 
 // use crate::{DigestVariable, VerifyingKeyVariable};
 
@@ -256,7 +255,7 @@ impl<C: Config> MultiField32ChallengerVariable<C> {
     }
 
     pub fn duplexing(&mut self, builder: &mut Builder<C>) {
-        assert!(self.input_buffer.len() <= self.num_f_elms * SPONGE_SIZE);
+        assert!(self.input_buffer.len() <= self.num_f_elms * OUTER_MULTI_FIELD_CHALLENGER_RATE);
 
         for (i, f_chunk) in self.input_buffer.chunks(self.num_f_elms).enumerate() {
             self.sponge_state[i] = reduce_32(builder, f_chunk);
@@ -279,7 +278,7 @@ impl<C: Config> MultiField32ChallengerVariable<C> {
         self.output_buffer.clear();
 
         self.input_buffer.push(value);
-        if self.input_buffer.len() == self.num_f_elms * SPONGE_SIZE {
+        if self.input_buffer.len() == self.num_f_elms * OUTER_MULTI_FIELD_CHALLENGER_RATE {
             self.duplexing(builder);
         }
     }
@@ -287,7 +286,7 @@ impl<C: Config> MultiField32ChallengerVariable<C> {
     pub fn observe_commitment(
         &mut self,
         builder: &mut Builder<C>,
-        value: [Var<C::N>; DIGEST_SIZE],
+        value: [Var<C::N>; OUTER_MULTI_FIELD_CHALLENGER_DIGEST_SIZE],
     ) {
         for val in value {
             let f_vals: Vec<Felt<C::F>> = split_32(builder, val, self.num_f_elms);
@@ -353,10 +352,14 @@ impl<C: Config> CanObserveVariable<C, Felt<C::F>> for MultiField32ChallengerVari
     }
 }
 
-impl<C: Config> CanObserveVariable<C, [Var<C::N>; DIGEST_SIZE]>
+impl<C: Config> CanObserveVariable<C, [Var<C::N>; OUTER_MULTI_FIELD_CHALLENGER_DIGEST_SIZE]>
     for MultiField32ChallengerVariable<C>
 {
-    fn observe(&mut self, builder: &mut Builder<C>, value: [Var<C::N>; DIGEST_SIZE]) {
+    fn observe(
+        &mut self,
+        builder: &mut Builder<C>,
+        value: [Var<C::N>; OUTER_MULTI_FIELD_CHALLENGER_DIGEST_SIZE],
+    ) {
         self.observe_commitment(builder, value)
     }
 }

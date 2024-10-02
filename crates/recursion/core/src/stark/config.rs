@@ -18,6 +18,10 @@ use super::{poseidon2::bn254_poseidon2_rc3, utils};
 
 pub const DIGEST_SIZE: usize = 1;
 
+pub const OUTER_MULTI_FIELD_CHALLENGER_WIDTH: usize = 3;
+pub const OUTER_MULTI_FIELD_CHALLENGER_RATE: usize = 2;
+pub const OUTER_MULTI_FIELD_CHALLENGER_DIGEST_SIZE: usize = 1;
+
 /// A configuration for outer recursion.
 pub type OuterVal = BabyBear;
 pub type OuterChallenge = BinomialExtensionField<OuterVal, 4>;
@@ -30,7 +34,13 @@ pub type OuterCompress = TruncatedPermutation<OuterPerm, 2, 1, 3>;
 pub type OuterValMmcs = FieldMerkleTreeMmcs<BabyBear, Bn254Fr, OuterHash, OuterCompress, 1>;
 pub type OuterChallengeMmcs = ExtensionMmcs<OuterVal, OuterChallenge, OuterValMmcs>;
 pub type OuterDft = Radix2DitParallel;
-pub type OuterChallenger = MultiField32Challenger<OuterVal, Bn254Fr, OuterPerm, 3>;
+pub type OuterChallenger = MultiField32Challenger<
+    OuterVal,
+    Bn254Fr,
+    OuterPerm,
+    OUTER_MULTI_FIELD_CHALLENGER_WIDTH,
+    OUTER_MULTI_FIELD_CHALLENGER_RATE,
+>;
 pub type OuterPcs = TwoAdicFriPcs<OuterVal, OuterDft, OuterValMmcs, OuterChallengeMmcs>;
 
 pub type OuterQueryProof = QueryProof<OuterChallenge, OuterChallengeMmcs>;

@@ -11,6 +11,7 @@ use p3_commit::Mmcs;
 use p3_field::AbstractField;
 use p3_matrix::dense::RowMajorMatrix;
 
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use sp1_core_machine::{
     cpu::MAX_CPU_LOG_DEGREE,
     riscv::{RiscvAir, MAX_LOG_NUMBER_OF_SHARDS},
@@ -20,7 +21,7 @@ use sp1_recursion_core_v2::air::PV_DIGEST_NUM_WORDS;
 use sp1_stark::{
     air::{PublicValues, POSEIDON_NUM_WORDS},
     baby_bear_poseidon2::BabyBearPoseidon2,
-    ProofShape, StarkMachine, Word,
+    Dom, ProofShape, StarkMachine, Word,
 };
 
 use sp1_stark::{ShardProof, StarkGenericConfig, StarkVerifyingKey};
@@ -54,7 +55,9 @@ pub struct SP1RecursionWitnessVariable<
     pub is_first_shard: Felt<C::F>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "ShardProof<SC>: Serialize, Dom<SC>: Serialize"))]
+#[serde(bound(deserialize = "ShardProof<SC>: Deserialize<'de>, Dom<SC>: DeserializeOwned"))]
 pub struct SP1RecursionWitnessValues<SC: StarkGenericConfig> {
     pub vk: StarkVerifyingKey<SC>,
     pub shard_proofs: Vec<ShardProof<SC>>,
@@ -183,8 +186,6 @@ where
             // Get the public values.
             let public_values: &PublicValues<Word<Felt<_>>, Felt<_>> =
                 shard_proof.public_values.as_slice().borrow();
-
-            let _shard = public_values.shard;
 
             // If this is the first proof in the batch, initialize the variables.
             if i == 0 {
@@ -472,6 +473,9 @@ where
                     }
                 }
 
+                // Update the exit code.
+                exit_code = public_values.exit_code;
+
                 // If `deferred_proofs_digest` is not zero, then the current value should be equal
                 // to `public_values.deferred_proofs_digest.
 
@@ -527,6 +531,9 @@ where
                     builder.eval(global_cumulative_sum + values.global_cumulative_sum);
             }
         }
+
+        // Assert that the last exit code is zero.
+        builder.assert_felt_eq(exit_code, C::F::zero());
 
         // Write all values to the public values struct and commit to them.
         {

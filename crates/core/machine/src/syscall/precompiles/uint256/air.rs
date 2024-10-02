@@ -115,7 +115,7 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
 
                 let rows = events
                     .iter()
-                    .map(|event| {
+                    .map(|(_, event)| {
                         let event = if let PrecompileEvent::Uint256Mul(event) = event {
                             event
                         } else {
@@ -332,7 +332,7 @@ where
             local.x_ptr,
             local.y_ptr,
             local.is_real,
-            InteractionScope::Global,
+            InteractionScope::Local,
         );
 
         // Assert that is_real is a boolean.

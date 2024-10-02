@@ -595,6 +595,17 @@ where
                                             &global_permutation_challenges,
                                         )
                                         .unwrap()
+
+                                    // TODO: remove or fix record shape assignment.
+                                    // #[cfg(feature = "debug")]
+                                    // {
+                                    //     if let Some(shape) = record.shape {
+                                    //         assert_eq!(
+                                    //             proof.shape(),
+                                    //             shape.clone().into_iter().collect(),
+                                    //         );
+                                    //     }
+                                    // }
                                 },
                             ),
                         );

@@ -31,7 +31,7 @@ impl<F: PrimeField32> MachineAir<F> for ShaExtendChip {
 
         let mut new_byte_lookup_events = Vec::new();
         let mut wrapped_rows = Some(rows);
-        for event in input.get_precompile_events(SyscallCode::SHA_EXTEND).iter() {
+        for (_, event) in input.get_precompile_events(SyscallCode::SHA_EXTEND).iter() {
             let event =
                 if let PrecompileEvent::ShaExtend(event) = event { event } else { unreachable!() };
             self.event_to_rows(event, &mut wrapped_rows, &mut new_byte_lookup_events);
@@ -74,7 +74,7 @@ impl<F: PrimeField32> MachineAir<F> for ShaExtendChip {
             .par_chunks(chunk_size)
             .map(|events| {
                 let mut blu: HashMap<u32, HashMap<ByteLookupEvent, usize>> = HashMap::new();
-                events.iter().for_each(|event| {
+                events.iter().for_each(|(_, event)| {
                     let event = if let PrecompileEvent::ShaExtend(event) = event {
                         event
                     } else {
