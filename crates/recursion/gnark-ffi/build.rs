@@ -46,9 +46,7 @@ fn main() {
             let header_path = dest_path.join(format!("lib{}.h", lib_name));
             let bindings = bindgen::Builder::default()
                 .header(header_path.to_str().unwrap())
-                // `rerun_on_header_files` needs to be turned off as `libsp1gnark.h` is regenerated
-                // on each run.
-                .parse_callbacks(Box::new(CargoCallbacks::new().rerun_on_header_files(false)))
+                .parse_callbacks(Box::new(CargoCallbacks::new()))
                 .generate()
                 .expect("Unable to generate bindings");
 
