@@ -131,6 +131,11 @@ impl CostEstimator for ExecutionReport {
         total_area += (syscall_events as u64) * costs[&RiscvAirDiscriminants::SyscallCore];
         total_chips += 1;
 
+        let syscall_precompile_events = self.syscall_counts.len();
+        total_area +=
+            (syscall_precompile_events as u64) * costs[&RiscvAirDiscriminants::SyscallPrecompile];
+        total_chips += 1;
+
         let divrem_events = self.opcode_counts[Opcode::DIV]
             + self.opcode_counts[Opcode::REM]
             + self.opcode_counts[Opcode::DIVU]
@@ -182,8 +187,7 @@ impl CostEstimator for ExecutionReport {
             (memory_local_initialize_events as u64) * costs[&RiscvAirDiscriminants::MemoryLocal];
         total_chips += 1;
 
-        // TODO: insert back with correct count.
-        // assert_eq!(total_chips, chips.len(), "chip count mismatch");
+        assert_eq!(total_chips, chips.len(), "chip count mismatch");
         total_area
     }
 }
