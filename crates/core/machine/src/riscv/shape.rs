@@ -179,7 +179,7 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
         mem_events_per_row: usize,
         allowed_log_height: usize,
     ) -> [(String, usize); 3] {
-        [
+        let height = [
             (air.name(), allowed_log_height),
             (
                 RiscvAir::<F>::SyscallPrecompile(SyscallChip::precompile()).name(),
@@ -193,7 +193,9 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
                 ((1 << allowed_log_height) * mem_events_per_row).next_power_of_two().ilog2()
                     as usize,
             ),
-        ]
+        ];
+        println!("heights: {:?}", height);
+        height
     }
 
     fn generate_all_shapes_from_allowed_log_heights(
