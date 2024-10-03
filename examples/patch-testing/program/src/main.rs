@@ -2,7 +2,7 @@
 sp1_zkvm::entrypoint!(main);
 
 use alloy_primitives::Bytes;
-use alloy_primitives::{address, bytes, hex, Signature};
+use alloy_primitives::{address, bytes, hex};
 use alloy_primitives::{B256, B512};
 use curve25519_dalek::edwards::CompressedEdwardsY as CompressedEdwardsY_dalek;
 use curve25519_dalek_ng::edwards::CompressedEdwardsY as CompressedEdwardsY_dalek_ng;
@@ -16,7 +16,6 @@ use ed25519_dalek::{
 use sha2_v0_10_6::{Digest as Digest_10_6, Sha256 as Sha256_10_6};
 // use sha2_v0_10_8::{Digest as Digest_10_8, Sha256 as Sha256_10_8};
 use sha2_v0_9_8::{Digest as Digest_9_8, Sha256 as Sha256_9_8};
-use std::str::FromStr;
 use tiny_keccak::{Hasher, Keccak};
 
 use secp256k1::{
@@ -134,7 +133,7 @@ fn test_k256_patch() {
     let sig = <&B512>::try_from(&precompile_input[64..128]).unwrap();
 
     println!("cycle-tracker-start: k256 verify");
-    let recovered_address: Bytes = revm_precompile::secp256k1::ecrecover(sig, recid, msg)
+    let _: Bytes = revm_precompile::secp256k1::ecrecover(sig, recid, msg)
         .map(|o| o.to_vec().into())
         .unwrap_or_default();
     println!("cycle-tracker-end: k256 verify");
@@ -154,7 +153,7 @@ fn test_k256_patch() {
 
     println!("recovered_address: {:?}", recovered_address);
 
-    let expected = address!("ea532f4122fb1152b506b545c67e110d276e3448");
+    let _ = address!("ea532f4122fb1152b506b545c67e110d276e3448");
 }
 
 /// Emits SECP256K1_ADD, SECP256K1_DOUBLE, and SECP256K1_DECOMPRESS syscalls.
