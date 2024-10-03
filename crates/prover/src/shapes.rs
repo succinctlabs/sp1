@@ -241,9 +241,9 @@ mod tests {
         let core_shape_config = CoreShapeConfig::default();
         let recursion_shape_config = RecursionShapeConfig::default();
         let reduce_batch_size = 2;
-        let num_compress_shapes =
+        let num_shapes =
             SP1ProofShape::generate(&core_shape_config, &recursion_shape_config, reduce_batch_size)
                 .count();
-        println!("Number of compress shapes: {}", num_compress_shapes);
+        println!("Number of compress shapes: {}", num_shapes);
     }
 }
