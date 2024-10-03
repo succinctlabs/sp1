@@ -40,16 +40,13 @@ pub enum SP1CompressProgramShape {
 }
 
 pub fn build_vk_map<C: SP1ProverComponents>(
-    build_dir: PathBuf,
     reduce_batch_size: usize,
     dummy: bool,
     num_compiler_workers: usize,
     num_setup_workers: usize,
     range_start: Option<usize>,
     range_end: Option<usize>,
-) {
-    std::fs::create_dir_all(&build_dir).expect("failed to create build directory");
-
+) -> BTreeMap<[BabyBear; DIGEST_SIZE], usize> {
     let prover = SP1Prover::<C>::new();
     let core_shape_config = prover.core_shape_config.as_ref().expect("core shape config not found");
     let recursion_shape_config =
@@ -130,6 +127,28 @@ pub fn build_vk_map<C: SP1ProverComponents>(
         })
     };
     tracing::info!("compress vks generated, number of keys: {}", vk_map.len());
+    vk_map
+}
+
+pub fn build_vk_map_to_file<C: SP1ProverComponents>(
+    build_dir: PathBuf,
+    reduce_batch_size: usize,
+    dummy: bool,
+    num_compiler_workers: usize,
+    num_setup_workers: usize,
+    range_start: Option<usize>,
+    range_end: Option<usize>,
+) {
+    std::fs::create_dir_all(&build_dir).expect("failed to create build directory");
+
+    let vk_map = build_vk_map::<C>(
+        reduce_batch_size,
+        dummy,
+        num_compiler_workers,
+        num_setup_workers,
+        range_start,
+        range_end,
+    );
 
     // Save the vk map to a file.
     tracing::info!("saving vk map to file");
