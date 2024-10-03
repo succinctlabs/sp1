@@ -6,7 +6,7 @@ use core::arch::asm;
 /// The result is stored in the first point.
 ///
 /// ### Safety
-/// 
+///
 /// The caller must ensure that `p` and `q` are valid pointers to data that is aligned along a four
 /// byte boundary. Additionally, `p` and `q` must be valid Affine points, and `p` and `q` must not
 /// be equal to each other.
