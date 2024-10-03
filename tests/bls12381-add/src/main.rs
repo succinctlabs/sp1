@@ -30,7 +30,7 @@ pub fn main() {
             22,
         ];
 
-        syscall_bls12381_add(a.as_mut_ptr() as *mut u32, b.as_ptr() as *const u32);
+        syscall_bls12381_add(a.as_mut_ptr() as *mut [u32; 24], b.as_ptr() as *const [u32; 24]);
 
         // 3 * generator.
         // 1527649530533633684281386512094328299672026648504329745640827351945739272160755686119065091946435084697047221031460
