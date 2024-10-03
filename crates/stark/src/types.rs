@@ -214,3 +214,13 @@ impl FromIterator<(String, usize)> for ProofShape {
         }
     }
 }
+
+impl IntoIterator for ProofShape {
+    type Item = (String, usize);
+
+    type IntoIter = <Vec<(String, usize)> as IntoIterator>::IntoIter;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.chip_information.into_iter()
+    }
+}

@@ -4,7 +4,9 @@ mod shape;
 
 use itertools::Itertools;
 pub use shape::*;
-use sp1_core_executor::{ExecutionRecord, Program};
+use sp1_core_executor::{
+    events::PrecompileLocalMemory, syscalls::SyscallCode, ExecutionRecord, Program,
+};
 
 use crate::{
     memory::{
@@ -19,7 +21,7 @@ pub use riscv_chips::*;
 use sp1_curves::weierstrass::{bls12_381::Bls12381BaseField, bn254::Bn254BaseField};
 use sp1_stark::{
     air::{InteractionScope, MachineAir, SP1_PROOF_NUM_PV_ELTS},
-    Chip, StarkGenericConfig, StarkMachine,
+    Chip, InteractionKind, StarkGenericConfig, StarkMachine,
 };
 use strum_macros::{EnumDiscriminants, EnumIter};
 use tracing::instrument;
@@ -376,10 +378,7 @@ impl<F: PrimeField32> RiscvAir<F> {
                     .into_iter()
                     .count(),
             ),
-            (
-                RiscvAir::SyscallCore(SyscallChip::core()),
-                record.syscall_events.len() + record.precompile_events.len(),
-            ),
+            (RiscvAir::SyscallCore(SyscallChip::core()), record.syscall_events.len()),
         ]
     }
 
@@ -418,7 +417,7 @@ impl<F: PrimeField32> RiscvAir<F> {
         ]
     }
 
-    pub(crate) fn get_all_precompile_airs() -> Vec<Self> {
+    pub(crate) fn get_all_precompile_airs() -> Vec<(Self, usize)> {
         let mut airs: HashSet<_> = Self::get_airs_and_costs().0.into_iter().collect();
         for core_air in Self::get_all_core_airs() {
             airs.remove(&core_air);
@@ -426,7 +425,100 @@ impl<F: PrimeField32> RiscvAir<F> {
         for memory_air in Self::memory_init_final_airs() {
             airs.remove(&memory_air);
         }
-        airs.into_iter().collect()
+        airs.remove(&Self::SyscallPrecompile(SyscallChip::precompile()));
+
+        // Remove the preprocessed chips.
+        airs.remove(&Self::Program(ProgramChip::default()));
+        airs.remove(&Self::ProgramMemory(MemoryProgramChip::default()));
+        airs.remove(&Self::ByteLookup(ByteChip::default()));
+
+        airs.into_iter()
+            .map(|air| {
+                let chip = Chip::new(air);
+                let local_mem_events: usize = chip
+                    .sends()
+                    .iter()
+                    .chain(chip.receives())
+                    .filter(|interaction| {
+                        interaction.kind == InteractionKind::Memory
+                            && interaction.scope == InteractionScope::Local
+                    })
+                    .count();
+
+                (chip.into_inner(), local_mem_events)
+            })
+            .collect()
+    }
+
+    pub(crate) fn rows_per_event(&self) -> usize {
+        match self {
+            Self::Sha256Compress(_) => 80,
+            Self::Sha256Extend(_) => 48,
+            Self::KeccakP(_) => 24,
+            _ => 1,
+        }
+    }
+
+    pub(crate) fn syscall_code(&self) -> SyscallCode {
+        match self {
+            Self::Bls12381Add(_) => SyscallCode::BLS12381_ADD,
+            Self::Bn254Add(_) => SyscallCode::BN254_ADD,
+            Self::Bn254Double(_) => SyscallCode::BN254_DOUBLE,
+            Self::Bn254Fp(_) => SyscallCode::BN254_FP_ADD,
+            Self::Bn254Fp2AddSub(_) => SyscallCode::BN254_FP2_ADD,
+            Self::Bn254Fp2Mul(_) => SyscallCode::BN254_FP2_MUL,
+            Self::Ed25519Add(_) => SyscallCode::ED_ADD,
+            Self::Ed25519Decompress(_) => SyscallCode::ED_DECOMPRESS,
+            Self::KeccakP(_) => SyscallCode::KECCAK_PERMUTE,
+            Self::Secp256k1Add(_) => SyscallCode::SECP256K1_ADD,
+            Self::Secp256k1Double(_) => SyscallCode::SECP256K1_DOUBLE,
+            Self::Sha256Compress(_) => SyscallCode::SHA_COMPRESS,
+            Self::Sha256Extend(_) => SyscallCode::SHA_EXTEND,
+            Self::Uint256Mul(_) => SyscallCode::UINT256_MUL,
+            Self::Bls12381Decompress(_) => SyscallCode::BLS12381_DECOMPRESS,
+            Self::K256Decompress(_) => SyscallCode::SECP256K1_DECOMPRESS,
+            Self::Bls12381Double(_) => SyscallCode::BLS12381_DOUBLE,
+            Self::Bls12381Fp(_) => SyscallCode::BLS12381_FP_ADD,
+            Self::Bls12381Fp2Mul(_) => SyscallCode::BLS12381_FP2_MUL,
+            Self::Bls12381Fp2AddSub(_) => SyscallCode::BLS12381_FP2_ADD,
+            Self::Add(_) => unreachable!("Invalid for core chip"),
+            Self::Bitwise(_) => unreachable!("Invalid for core chip"),
+            Self::DivRem(_) => unreachable!("Invalid for core chip"),
+            Self::Cpu(_) => unreachable!("Invalid for core chip"),
+            Self::MemoryGlobalInit(_) => unreachable!("Invalid for memory init/final"),
+            Self::MemoryGlobalFinal(_) => unreachable!("Invalid for memory init/final"),
+            Self::MemoryLocal(_) => unreachable!("Invalid for memory local"),
+            Self::ProgramMemory(_) => unreachable!("Invalid for memory program"),
+            Self::Program(_) => unreachable!("Invalid for core chip"),
+            Self::Mul(_) => unreachable!("Invalid for core chip"),
+            Self::Lt(_) => unreachable!("Invalid for core chip"),
+            Self::ShiftRight(_) => unreachable!("Invalid for core chip"),
+            Self::ShiftLeft(_) => unreachable!("Invalid for core chip"),
+            Self::ByteLookup(_) => unreachable!("Invalid for core chip"),
+            Self::SyscallCore(_) => unreachable!("Invalid for core chip"),
+            Self::SyscallPrecompile(_) => unreachable!("Invalid for syscall precompile chip"),
+        }
+    }
+
+    /// Get the height of the corresponding precompile chip.
+    ///
+    /// If the precompile is not included in the record, returns `None`. Otherwise, returns
+    /// `Some(num_rows, num_local_mem_events)`, where `num_rows` is the number of rows of the
+    /// corresponding chip and `num_local_mem_events` is the number of local memory events.
+    pub(crate) fn get_precompile_heights(
+        &self,
+        record: &ExecutionRecord,
+    ) -> Option<(usize, usize)> {
+        record
+            .precompile_events
+            .get_events(self.syscall_code())
+            .filter(|events| !events.is_empty())
+            .map(|events| {
+                (
+                    events.len() * self.rows_per_event(),
+                    events.get_local_mem_events().into_iter().count(),
+                )
+            })
     }
 }
 

@@ -211,14 +211,15 @@ impl PrecompileEvents {
         self.events.iter()
     }
 
-    #[inline]
     /// Get all the precompile events for a given syscall code.
-    pub(crate) fn get_events(
+    #[inline]
+    #[must_use]
+    pub fn get_events(
         &self,
         syscall_code: SyscallCode,
-    ) -> &Vec<(SyscallEvent, PrecompileEvent)> {
+    ) -> Option<&Vec<(SyscallEvent, PrecompileEvent)>> {
         assert!(syscall_code.should_send() == 1);
-        &self.events[&syscall_code]
+        self.events.get(&syscall_code)
     }
 
     /// Get all the local events from all the precompile events.

@@ -1,13 +1,14 @@
 use itertools::Itertools;
 
 use hashbrown::{HashMap, HashSet};
+use num::Integer;
 use p3_field::PrimeField32;
 use sp1_core_executor::{CoreShape, ExecutionRecord, Program};
 use sp1_stark::{air::MachineAir, ProofShape};
 use thiserror::Error;
 
 use crate::{
-    memory::{MemoryLocalChip, MemoryProgramChip},
+    memory::{MemoryLocalChip, MemoryProgramChip, NUM_LOCAL_MEMORY_ENTRIES_PER_ROW},
     riscv::MemoryChipType::{Finalize, Initialize},
 };
 
@@ -40,7 +41,7 @@ pub struct CoreShapeConfig<F: PrimeField32> {
     medium_core_allowed_log_heights: HashMap<RiscvAir<F>, Vec<Option<usize>>>,
     long_core_allowed_log_heights: HashMap<RiscvAir<F>, Vec<Option<usize>>>,
     memory_allowed_log_heights: HashMap<RiscvAir<F>, Vec<Option<usize>>>,
-    precompile_allowed_log_heights: Vec<HashMap<RiscvAir<F>, Vec<Option<usize>>>>,
+    precompile_allowed_log_heights: HashMap<RiscvAir<F>, (usize, Vec<usize>)>,
 }
 
 impl<F: PrimeField32> CoreShapeConfig<F> {
@@ -147,22 +148,69 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
             return Ok(());
         }
 
-        // Otherwise, try to fix the shape as a precompile record. Since we allow all possible
-        // heights up to 1 << 22, we currently just don't fix the shape, but making sure the shape
-        // is included
-        self.precompile_allowed_log_heights
-            .iter()
-            .find_map(|allowed_log_heights| {
-                // Check if the precompile is included in the shapes.
-                for (air, _) in allowed_log_heights {
-                    if !air.included(record) {
-                        return None;
+        // Try to fix the shape as a precompile record. Since we allow all possible
+        for (air, (mem_events_per_row, allowed_log_heights)) in
+            self.precompile_allowed_log_heights.iter()
+        {
+            if let Some((height, mem_events)) = air.get_precompile_heights(record) {
+                for allowed_log_height in allowed_log_heights {
+                    if height <= (1 << allowed_log_height) {
+                        for shape in self.get_precompile_shapes(
+                            air,
+                            *mem_events_per_row,
+                            *allowed_log_height,
+                        ) {
+                            let mem_events_height = shape[2].1;
+                            if mem_events
+                                <= (1 << mem_events_height) * NUM_LOCAL_MEMORY_ENTRIES_PER_ROW
+                            {
+                                record.shape.as_mut().unwrap().extend(shape);
+                                return Ok(());
+                            }
+                        }
+                        return Ok(());
                     }
                 }
-                Some(())
+            }
+        }
+        tracing::warn!(
+            "No shape found for the record with syscall events {:?}",
+            record.syscall_events
+        );
+
+        Err(CoreShapeError::PrecompileNotIncluded)
+    }
+
+    fn get_precompile_shapes(
+        &self,
+        air: &RiscvAir<F>,
+        mem_events_per_row: usize,
+        allowed_log_height: usize,
+    ) -> Vec<[(String, usize); 3]> {
+        (1..=air.rows_per_event())
+            .rev()
+            .map(|rows_per_event| {
+                [
+                    (air.name(), allowed_log_height),
+                    (
+                        RiscvAir::<F>::SyscallPrecompile(SyscallChip::precompile()).name(),
+                        ((1 << allowed_log_height)
+                            .div_ceil(&air.rows_per_event())
+                            .next_power_of_two()
+                            .ilog2() as usize)
+                            .max(4),
+                    ),
+                    (
+                        RiscvAir::<F>::MemoryLocal(MemoryLocalChip::new()).name(),
+                        (((1 << allowed_log_height) * mem_events_per_row)
+                            .div_ceil(NUM_LOCAL_MEMORY_ENTRIES_PER_ROW * rows_per_event)
+                            .next_power_of_two()
+                            .ilog2() as usize)
+                            .max(4),
+                    ),
+                ]
             })
-            .ok_or(CoreShapeError::PrecompileNotIncluded)?;
-        Ok(())
+            .collect()
     }
 
     fn generate_all_shapes_from_allowed_log_heights(
@@ -216,21 +264,7 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
             .collect::<HashMap<_, _>>();
         memory_heights.extend(preprocessed_heights.clone());
 
-        let precompile_heights = self
-            .precompile_allowed_log_heights
-            .iter()
-            .map(|allowed_log_heights| {
-                let mut heights = allowed_log_heights
-                    .iter()
-                    .map(|(air, heights)| (air.name(), heights.clone()))
-                    .collect::<HashMap<_, _>>();
-                heights.extend(preprocessed_heights.clone());
-                heights
-            })
-            .collect::<Vec<_>>();
-
-        let included_shapes =
-            self.included_shapes.iter().map(ProofShape::from_map).collect::<Vec<_>>();
+        let included_shapes = self.included_shapes.iter().map(ProofShape::from_map);
 
         let cpu_name = || RiscvAir::<F>::Cpu(CpuChip::default()).name();
         let memory_local_name = || RiscvAir::<F>::MemoryLocal(MemoryLocalChip::new()).name();
@@ -271,8 +305,27 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
             sum_of_heights <= max_possible_sum_of_heights
         };
 
+        let precompile_only_shapes = self.precompile_allowed_log_heights.iter().flat_map(
+            move |(air, (mem_events_per_row, allowed_log_heights))| {
+                allowed_log_heights.iter().flat_map(move |allowed_log_height| {
+                    self.get_precompile_shapes(air, *mem_events_per_row, *allowed_log_height)
+                })
+            },
+        );
+
+        let precompile_shapes =
+            Self::generate_all_shapes_from_allowed_log_heights(preprocessed_heights.clone())
+                .flat_map(move |preprocessed_shape| {
+                    precompile_only_shapes.clone().map(move |precompile_shape| {
+                        preprocessed_shape
+                            .clone()
+                            .into_iter()
+                            .chain(precompile_shape)
+                            .collect::<ProofShape>()
+                    })
+                });
+
         included_shapes
-            .into_iter()
             .chain(
                 Self::generate_all_shapes_from_allowed_log_heights(short_heights)
                     .filter(core_filter),
@@ -286,9 +339,7 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
                     .filter(core_filter),
             )
             .chain(Self::generate_all_shapes_from_allowed_log_heights(memory_heights))
-            .chain(precompile_heights.into_iter().flat_map(|allowed_log_heights| {
-                Self::generate_all_shapes_from_allowed_log_heights(allowed_log_heights)
-            }))
+            .chain(precompile_shapes)
     }
 }
 
@@ -391,11 +442,11 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
             (RiscvAir::MemoryGlobalFinal(MemoryGlobalChip::new(Finalize)), memory_finalize_heights),
         ]);
 
-        let mut precompile_allowed_log_heights: Vec<HashMap<_, _>> = vec![];
-        let precompile_heights = (1..22).map(Some).collect::<Vec<_>>();
-        for air in RiscvAir::<F>::get_all_precompile_airs() {
-            let allowed_log_heights = HashMap::from([(air, precompile_heights.clone())]);
-            precompile_allowed_log_heights.push(allowed_log_heights);
+        let mut precompile_allowed_log_heights = HashMap::new();
+        let precompile_heights = (1..22).collect::<Vec<_>>();
+        for (air, mem_events_per_row) in RiscvAir::<F>::get_all_precompile_airs() {
+            precompile_allowed_log_heights
+                .insert(air, (mem_events_per_row, precompile_heights.clone()));
         }
 
         Self {
