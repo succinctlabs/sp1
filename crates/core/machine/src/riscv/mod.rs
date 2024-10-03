@@ -509,6 +509,7 @@ impl<F: PrimeField32> RiscvAir<F> {
         record
             .precompile_events
             .get_events(self.syscall_code())
+            .filter(|events| !events.is_empty())
             .map(|events| events.len() * self.rows_per_event())
     }
 }
