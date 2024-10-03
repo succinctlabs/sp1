@@ -8,9 +8,12 @@ publish = false
 sp1-zkvm = { path = "../../crates/zkvm/entrypoint" }
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 sp1-lib = { path = "../../crates/zkvm/lib" }
 sp1-curves = { path = "../../crates/curves" }
 common-test-utils = { path = "../common" }
+=======
+>>>>>>> origin/dev
 =======
 >>>>>>> origin/dev
 =======

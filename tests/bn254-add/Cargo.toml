@@ -7,10 +7,14 @@ publish = false
 [dependencies]
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 common-test-utils = { path = "../common" }
 sp1-lib = { path = "../../crates/zkvm/lib" }
 sp1-zkvm = { path = "../../crates/zkvm/entrypoint" }
 sp1-curves = { path = "../../crates/curves" }
+=======
+sp1-zkvm = { path = "../../crates/zkvm/entrypoint" }
+>>>>>>> origin/dev
 =======
 sp1-zkvm = { path = "../../crates/zkvm/entrypoint" }
 >>>>>>> origin/dev
