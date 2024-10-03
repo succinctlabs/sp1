@@ -8,7 +8,7 @@ use sp1_stark::{air::MachineAir, ProofShape};
 use thiserror::Error;
 
 use crate::{
-    memory::{MemoryLocalChip, MemoryProgramChip},
+    memory::{MemoryLocalChip, MemoryProgramChip, NUM_LOCAL_MEMORY_ENTRIES_PER_ROW},
     riscv::MemoryChipType::{Finalize, Initialize},
 };
 
@@ -193,8 +193,10 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
             ),
             (
                 RiscvAir::<F>::MemoryLocal(MemoryLocalChip::new()).name(),
-                ((1 << allowed_log_height) * mem_events_per_row).next_power_of_two().ilog2()
-                    as usize,
+                ((1 << allowed_log_height) * mem_events_per_row)
+                    .div_ceil(NUM_LOCAL_MEMORY_ENTRIES_PER_ROW)
+                    .next_power_of_two()
+                    .ilog2() as usize,
             ),
         ];
         println!("heights: {:?}", height);
