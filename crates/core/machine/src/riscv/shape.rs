@@ -162,7 +162,9 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
                             *allowed_log_height,
                         ) {
                             let mem_events_height = shape[2].1;
-                            if mem_events <= 1 << mem_events_height {
+                            if mem_events
+                                <= (1 << mem_events_height) * NUM_LOCAL_MEMORY_ENTRIES_PER_ROW
+                            {
                                 println!(
                                     "Found allowed height: {:?} and mem events: {:?}",
                                     allowed_log_height, mem_events_height
