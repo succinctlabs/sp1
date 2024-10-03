@@ -2016,8 +2016,8 @@ checksum = "0d6ef0072f8a535281e4876be788938b528e9a1d43900b82c2569af7da799125"
 
 [[package]]
 name = "ecdsa"
-version = "0.16.9"
-source = "git+https://github.com/sp1-patches/signatures?branch=patch-ecdsa-v0.16.9#de1b108e8140dcb86ecf56f1215ac4b7fab6fcd8"
+version = "0.16.8"
+source = "git+https://github.com/sp1-patches/signatures?branch=ratan/secp256k1-add-fixes-v0.16.8#eb857475072f0045950ec35bf230b86b5f6aca43"
 dependencies = [
  "anyhow",
  "cfg-if",
@@ -2026,6 +2026,21 @@ dependencies = [
  "elliptic-curve",
  "hex-literal",
  "rfc6979",
+ "signature",
+ "sp1-lib 2.0.0 (git+https://github.com/succinctlabs/sp1.git?branch=ratan/impl-add-assign-fixes)",
+ "spki 0.7.3",
+]
+
+[[package]]
+name = "ecdsa"
+version = "0.16.9"
+source = "git+https://github.com/sp1-patches/signatures?branch=patch-ecdsa-v0.16.9#de1b108e8140dcb86ecf56f1215ac4b7fab6fcd8"
+dependencies = [
+ "anyhow",
+ "cfg-if",
+ "digest 0.10.7",
+ "elliptic-curve",
+ "hex-literal",
  "signature",
  "sp1-lib 1.2.0",
  "spki 0.7.3",
@@ -3472,7 +3487,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f6e3919bbaa2945715f0bb6d3934a173d1e9a59ac23767fbaaef277265a7411b"
 dependencies = [
  "cfg-if",
- "ecdsa",
+ "ecdsa 0.16.8",
  "elliptic-curve",
  "once_cell",
  "sha2 0.10.8",
@@ -4129,7 +4144,7 @@ version = "0.13.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c9863ad85fa8f4460f9c48cb909d38a0d689dba1f6f6988a5e3e0d31071bcd4b"
 dependencies = [
- "ecdsa",
+ "ecdsa 0.16.8",
  "elliptic-curve",
  "primeorder",
  "sha2 0.10.8",
@@ -4490,12 +4505,13 @@ checksum = "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a"
 name = "patch-testing-program"
 version = "1.1.0"
 dependencies = [
- "alloy-primitives 0.7.7",
+ "alloy-primitives 0.8.5",
  "curve25519-dalek",
  "curve25519-dalek-ng",
  "ed25519-consensus",
  "ed25519-dalek",
  "k256",
+ "revm-precompile",
  "secp256k1",
  "sha2 0.10.8",
  "sha2 0.9.9",
@@ -5733,7 +5749,7 @@ dependencies = [
 [[package]]
 name = "rfc6979"
 version = "0.4.0"
-source = "git+https://github.com/sp1-patches/signatures?branch=patch-ecdsa-v0.16.9#de1b108e8140dcb86ecf56f1215ac4b7fab6fcd8"
+source = "git+https://github.com/sp1-patches/signatures?branch=ratan/secp256k1-add-fixes-v0.16.8#eb857475072f0045950ec35bf230b86b5f6aca43"
 dependencies = [
  "hmac",
  "subtle",
@@ -6313,7 +6329,7 @@ version = "0.29.0"
 source = "git+https://github.com/sp1-patches/rust-secp256k1?branch=patch-secp256k1-v0.29.0#13910d476dbdaf436312a9f096ee312593028557"
 dependencies = [
  "cfg-if",
- "ecdsa",
+ "ecdsa 0.16.9",
  "elliptic-curve",
  "k256",
  "rand 0.8.5",
@@ -6632,9 +6648,9 @@ dependencies = [
 
 [[package]]
 name = "signature"
-version = "2.2.0"
+version = "2.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "77549399552de45a898a580c1b41d445bf730df867cc44e6c0233bbc4b8329de"
+checksum = "5e1788eed21689f9cf370582dfc467ef36ed9c707f073528ddafa8d83e3b8500"
 dependencies = [
  "digest 0.10.7",
  "rand_core 0.6.4",
@@ -6871,12 +6887,8 @@ dependencies = [
 name = "sp1-lib"
 version = "2.0.0"
 dependencies = [
- "anyhow",
  "bincode",
- "cfg-if",
- "hex",
  "serde",
- "snowbridge-amcl",
 ]
 
 [[package]]
@@ -6890,6 +6902,15 @@ dependencies = [
  "hex",
  "serde",
  "snowbridge-amcl",
+]
+
+[[package]]
+name = "sp1-lib"
+version = "2.0.0"
+source = "git+https://github.com/succinctlabs/sp1.git?branch=ratan/impl-add-assign-fixes#40cfe8d6b76fa2061f3ffad1b9b403ff16d5af97"
+dependencies = [
+ "bincode",
+ "serde",
 ]
 
 [[package]]
@@ -8666,3 +8687,13 @@ dependencies = [
  "sha3",
  "subtle",
 ]
+
+[[patch.unused]]
+name = "sha2"
+version = "0.10.6"
+source = "git+https://github.com/sp1-patches/RustCrypto-hashes?branch=patch-sha2-v0.10.6#e5f8b7eaaa9801503bd998932a52b65848eee234"
+
+[[patch.unused]]
+name = "sha2"
+version = "0.9.8"
+source = "git+https://github.com/sp1-patches/RustCrypto-hashes?branch=patch-sha2-v0.9.8#afdbfb09c325f8a69c01d540ec9a261e3637725d"

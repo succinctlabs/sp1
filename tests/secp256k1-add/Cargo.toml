@@ -6,6 +6,9 @@ edition = "2021"
 publish = false
 
 [dependencies]
-sp1-zkvm = { path = "../../zkvm/entrypoint" }
+sp1-zkvm = { path = "../../crates/zkvm/entrypoint" }
+sp1-lib = { path = "../../crates/zkvm/lib" }
+sp1-curves = { path = "../../crates/curves" }
+common-test-utils = { path = "../common" }
 hex-literal = "0.4.1"
 num = { version = "0.4.1", default-features = false }
