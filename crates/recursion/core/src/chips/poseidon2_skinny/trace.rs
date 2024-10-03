@@ -7,7 +7,6 @@ use std::{
 use itertools::Itertools;
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::Matrix;
 use sp1_core_machine::utils::pad_rows_fixed;
 use sp1_primitives::RC_16_30_U32;
 use sp1_stark::air::MachineAir;
@@ -102,17 +101,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2SkinnyChip
         pad_rows_fixed(&mut rows, || [F::zero(); NUM_POSEIDON2_COLS], input.fixed_log2_rows(self));
 
         // Convert the trace to a row major matrix.
-        let trace =
-            RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_POSEIDON2_COLS);
-
-        #[cfg(debug_assertions)]
-        println!(
-            "poseidon2 skinny main trace dims is width: {:?}, height: {:?}",
-            trace.width(),
-            trace.height()
-        );
-
-        trace
+        RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_POSEIDON2_COLS)
     }
 
     fn included(&self, _record: &Self::Record) -> bool {
