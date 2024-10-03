@@ -203,14 +203,15 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
                             .div_ceil(&air.rows_per_event())
                             .next_power_of_two()
                             .ilog2() as usize)
-                            .max(1),
+                            .max(3),
                     ),
                     (
                         RiscvAir::<F>::MemoryLocal(MemoryLocalChip::new()).name(),
-                        ((1 << allowed_log_height) * mem_events_per_row)
+                        (((1 << allowed_log_height) * mem_events_per_row)
                             .div_ceil(NUM_LOCAL_MEMORY_ENTRIES_PER_ROW * rows_per_event)
                             .next_power_of_two()
-                            .ilog2() as usize,
+                            .ilog2() as usize)
+                            .max(3),
                     ),
                 ]
             })
