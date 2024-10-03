@@ -11,6 +11,8 @@ use sp1_core_executor::{
 };
 use sp1_stark::air::MachineAir;
 
+use crate::utils::zeroed_f_vec;
+
 use super::{
     columns::{KeccakMemCols, NUM_KECCAK_MEM_COLS},
     KeccakPermuteChip, STATE_SIZE,
@@ -34,7 +36,7 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
             .map(|ops: &[(SyscallEvent, PrecompileEvent)]| {
                 // The blu map stores shard -> map(byte lookup event -> multiplicity).
                 let mut blu = Vec::new();
-                let mut chunk = vec![F::zero(); NUM_KECCAK_MEM_COLS * NUM_ROUNDS];
+                let mut chunk = zeroed_f_vec::<F>(NUM_KECCAK_MEM_COLS * NUM_ROUNDS);
                 ops.iter().for_each(|(_, op)| {
                     if let PrecompileEvent::KeccakPermute(event) = op {
                         Self::populate_chunk(event, &mut chunk, &mut blu);

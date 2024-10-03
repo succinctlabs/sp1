@@ -4,7 +4,7 @@ use core::{
 };
 use std::{fmt::Debug, marker::PhantomData};
 
-use crate::{air::MemoryAirBuilder, utils::zeroed_vec};
+use crate::{air::MemoryAirBuilder, utils::zeroed_f_vec};
 use generic_array::GenericArray;
 use num::{BigUint, Zero};
 use p3_air::{Air, AirBuilder, BaseAir};
@@ -196,7 +196,7 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
                     PrecompileEvent::Secp256k1Double(event)
                     | PrecompileEvent::Bn254Double(event)
                     | PrecompileEvent::Bls12381Double(event) => {
-                        let mut row = vec![F::zero(); num_cols];
+                        let mut row = zeroed_f_vec(num_cols);
                         let cols: &mut WeierstrassDoubleAssignCols<F, E::BaseField> =
                             row.as_mut_slice().borrow_mut();
                         Self::populate_row(event, cols, &mut blu);
@@ -230,10 +230,10 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
             .fixed_log2_rows::<F, _>(self)
             .map(|x| 1 << x)
             .unwrap_or(std::cmp::max(events.len().next_power_of_two(), 4));
-        let mut values = unsafe { zeroed_vec(num_rows * num_cols) };
+        let mut values = zeroed_f_vec(num_rows * num_cols);
         let chunk_size = 64;
 
-        let mut dummy_row = vec![F::zero(); num_cols];
+        let mut dummy_row = zeroed_f_vec(num_cols);
         let cols: &mut WeierstrassDoubleAssignCols<F, E::BaseField> =
             dummy_row.as_mut_slice().borrow_mut();
         let zero = BigUint::zero();

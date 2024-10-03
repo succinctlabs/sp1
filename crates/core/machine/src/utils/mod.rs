@@ -7,7 +7,7 @@ mod span;
 mod tracer;
 
 pub use logger::*;
-use p3_field::PrimeField32;
+use p3_field::Field;
 pub use prove::*;
 use sp1_curves::params::Limbs;
 pub use span::*;
@@ -202,10 +202,10 @@ pub fn sp1_debug_mode() -> bool {
 
 /// Returns a vector of zeros of the given length.
 ///
-/// # Safety
-///
 /// This function is safe to use only for fields that can be transmuted from 0u32.
-pub unsafe fn zeroed_vec<F: PrimeField32>(len: usize) -> Vec<F> {
+pub fn zeroed_f_vec<F: Field>(len: usize) -> Vec<F> {
+    debug_assert!(F::bits() == 32);
+
     let vec = vec![0u32; len];
-    std::mem::transmute::<Vec<u32>, Vec<F>>(vec)
+    unsafe { std::mem::transmute::<Vec<u32>, Vec<F>>(vec) }
 }
