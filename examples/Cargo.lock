@@ -6907,7 +6907,7 @@ dependencies = [
 [[package]]
 name = "sp1-lib"
 version = "2.0.0"
-source = "git+https://github.com/succinctlabs/sp1.git?branch=ratan/impl-add-assign-fixes#42868aeecc192d8a4caf93938b50c043b48fa8d3"
+source = "git+https://github.com/succinctlabs/sp1.git?branch=ratan/impl-add-assign-fixes#40cfe8d6b76fa2061f3ffad1b9b403ff16d5af97"
 dependencies = [
  "bincode",
  "serde",
