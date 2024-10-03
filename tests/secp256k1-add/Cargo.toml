@@ -1,4 +1,3 @@
-[workspace]
 [package]
 name = "secp256k1-add-test"
 version = "1.1.0"
@@ -7,8 +6,14 @@ publish = false
 
 [dependencies]
 sp1-zkvm = { path = "../../crates/zkvm/entrypoint" }
+<<<<<<< HEAD
+<<<<<<< HEAD
 sp1-lib = { path = "../../crates/zkvm/lib" }
 sp1-curves = { path = "../../crates/curves" }
 common-test-utils = { path = "../common" }
+=======
+>>>>>>> origin/dev
+=======
+>>>>>>> origin/dev
 hex-literal = "0.4.1"
 num = { version = "0.4.1", default-features = false }

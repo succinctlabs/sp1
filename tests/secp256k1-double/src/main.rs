@@ -16,7 +16,7 @@ pub fn main() {
             101, 196, 163, 38, 119, 218, 58, 72,
         ];
 
-        syscall_secp256k1_double(a.as_mut_ptr() as *mut u32);
+        syscall_secp256k1_double(a.as_mut_ptr() as *mut [u32; 16]);
 
         // 2 * generator.
         // 89565891926547004231252920425935692360644145829622209833684329913297188986597

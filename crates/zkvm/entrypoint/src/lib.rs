@@ -38,7 +38,6 @@ mod zkvm {
 
     pub static mut PUBLIC_VALUES_HASHER: Option<Sha256> = None;
 
-    #[cfg(not(feature = "interface"))]
     #[no_mangle]
     unsafe extern "C" fn __start() {
         {
