@@ -4,3 +4,6 @@ pub mod prover;
 
 #[rustfmt::skip]
 pub mod proto;
+
+#[cfg(feature = "network")]
+use prost;

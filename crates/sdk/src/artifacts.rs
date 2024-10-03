@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use anyhow::{Context, Result};
 
-#[cfg(feature = "network")]
+#[cfg(any(feature = "network", feature = "network-v2"))]
 use {
     futures::StreamExt,
     indicatif::{ProgressBar, ProgressStyle},
@@ -72,7 +72,7 @@ pub fn export_solidity_groth16_bn254_verifier(output_dir: impl Into<PathBuf>) ->
     Ok(())
 }
 
-#[cfg(feature = "network")]
+#[cfg(any(feature = "network", feature = "network-v2"))]
 pub async fn download_file(
     client: &Client,
     url: &str,
