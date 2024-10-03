@@ -99,10 +99,7 @@ pub fn main() {
         } else {
             (a_bigint.clone() - b_bigint.clone()) % &modulus
         };
-        assert_eq!(
-            expected_sub,
-            u32_12_to_biguint(&sub(&a_reduced, &b_reduced)) % &modulus
-        );
+        assert_eq!(expected_sub, u32_12_to_biguint(&sub(&a_reduced, &b_reduced)) % &modulus);
 
         // Test subtraction with zero
         assert_eq!(

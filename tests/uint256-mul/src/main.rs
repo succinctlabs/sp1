@@ -83,10 +83,7 @@ fn main() {
     one[0] = 1; // Least significant byte set to 1, represents the number 1
     let original_x = x; // Copy original x value before multiplication by 1
     let result_one = uint256_mul(&x, &one, &modulus);
-    assert_eq!(
-        result_one, original_x,
-        "Multiplying by 1 should yield the same number."
-    );
+    assert_eq!(result_one, original_x, "Multiplying by 1 should yield the same number.");
 
     // Hardcoded edge case: Multiplying by 0
     let zero: [u8; 32] = [0; 32]; // Represents the number 0
