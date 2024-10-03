@@ -1,21 +1,15 @@
 use crate::{
     syscall_secp256k1_add, syscall_secp256k1_double,
-    utils::{AffinePoint, WeierstrassAffinePoint},
+    utils::{AffinePoint, WeierstrassAffinePoint, WeierstrassPoint},
 };
 
 /// The number of limbs in [Secp256k1AffinePoint].
 pub const N: usize = 16;
 
-#[derive(Copy, Clone)]
-pub enum WeierstrassPoint {
-    Infinity,
-    Affine([u32; N]),
-}
-
 /// An affine point on the Secp256k1 curve.
 #[derive(Copy, Clone)]
 #[repr(align(4))]
-pub struct Secp256k1AffinePoint(pub WeierstrassPoint);
+pub struct Secp256k1AffinePoint(pub WeierstrassPoint<N>);
 
 impl WeierstrassAffinePoint<N> for Secp256k1AffinePoint {
     fn infinity() -> Self {
