@@ -164,6 +164,7 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
                 }
             }
         }
+        tracing::warn!("No shape found for the record {:?}", record);
 
         Err(CoreShapeError::PrecompileNotIncluded)
     }
