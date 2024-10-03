@@ -37,8 +37,8 @@ fn mul(lhs: &[u32; 12], rhs: &[u32; 12]) -> [u32; 12] {
 fn random_u32_12() -> [u32; 12] {
     let mut rng = rand::thread_rng();
     let mut arr = [0u32; 12];
-    for i in 0..12 {
-        arr[i] = rng.gen();
+    for item in arr.iter_mut() {
+        *item = rng.gen();
     }
     arr
 }
