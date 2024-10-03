@@ -4,7 +4,9 @@ mod shape;
 
 use itertools::Itertools;
 pub use shape::*;
-use sp1_core_executor::{syscalls::SyscallCode, ExecutionRecord, Program};
+use sp1_core_executor::{
+    events::PrecompileLocalMemory, syscalls::SyscallCode, ExecutionRecord, Program,
+};
 
 use crate::{
     memory::{
@@ -504,13 +506,22 @@ impl<F: PrimeField32> RiscvAir<F> {
     /// Get the height of the corresponding precompile chip.
     ///
     /// If the precompile is not included in the record, returns `None`. Otherwise, returns
-    /// `Some(num_rows)`, where `num_rows` is the number of rows of the corresponding chip.
-    pub(crate) fn get_precompile_heights(&self, record: &ExecutionRecord) -> Option<usize> {
+    /// `Some(num_rows, num_local_mem_events)`, where `num_rows` is the number of rows of the
+    /// corresponding chip and `num_local_mem_events` is the number of local memory events.
+    pub(crate) fn get_precompile_heights(
+        &self,
+        record: &ExecutionRecord,
+    ) -> Option<(usize, usize)> {
         record
             .precompile_events
             .get_events(self.syscall_code())
             .filter(|events| !events.is_empty())
-            .map(|events| events.len() * self.rows_per_event())
+            .map(|events| {
+                (
+                    events.len() * self.rows_per_event(),
+                    events.get_local_mem_events().into_iter().count(),
+                )
+            })
     }
 }
 

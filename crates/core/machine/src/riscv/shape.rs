@@ -152,16 +152,25 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
         for (air, (mem_events_per_row, allowed_log_heights)) in
             self.precompile_allowed_log_heights.iter()
         {
-            if let Some(height) = air.get_precompile_heights(record) {
+            if let Some((height, mem_events)) = air.get_precompile_heights(record) {
                 println!("air: {:?}, height: {:?}", air.name(), height);
                 for allowed_log_height in allowed_log_heights {
                     if height <= (1 << allowed_log_height) {
-                        println!("Found allowed height: {:?}", allowed_log_height);
-                        record.shape.as_mut().unwrap().extend(self.get_precompile_shape(
+                        for shape in self.get_precompile_shapes(
                             air,
                             *mem_events_per_row,
                             *allowed_log_height,
-                        ));
+                        ) {
+                            let mem_events_height = shape[2].1;
+                            if mem_events <= 1 << mem_events_height {
+                                println!(
+                                    "Found allowed height: {:?} and mem events: {:?}",
+                                    allowed_log_height, mem_events_height
+                                );
+                                record.shape.as_mut().unwrap().extend(shape);
+                                return Ok(());
+                            }
+                        }
                         return Ok(());
                     }
                 }
@@ -175,38 +184,42 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
         Err(CoreShapeError::PrecompileNotIncluded)
     }
 
-    fn get_precompile_shape(
+    fn get_precompile_shapes(
         &self,
         air: &RiscvAir<F>,
         mem_events_per_row: usize,
         allowed_log_height: usize,
-    ) -> [(String, usize); 3] {
+    ) -> Vec<[(String, usize); 3]> {
         println!(
             "air: {:?}, log_height: {:?}, mem_events_per_row: {:?}",
             air.name(),
             allowed_log_height,
             mem_events_per_row
         );
-        let height = [
-            (air.name(), allowed_log_height),
-            (
-                RiscvAir::<F>::SyscallPrecompile(SyscallChip::precompile()).name(),
-                ((1 << allowed_log_height)
-                    .div_ceil(&air.rows_per_event())
-                    .next_power_of_two()
-                    .ilog2() as usize)
-                    .max(1),
-            ),
-            (
-                RiscvAir::<F>::MemoryLocal(MemoryLocalChip::new()).name(),
-                ((1 << allowed_log_height) * mem_events_per_row)
-                    .div_ceil(NUM_LOCAL_MEMORY_ENTRIES_PER_ROW)
-                    .next_power_of_two()
-                    .ilog2() as usize,
-            ),
-        ];
-        println!("heights: {:?}", height);
-        height
+        (1..=mem_events_per_row)
+            .map(|num_events| {
+                let height = [
+                    (air.name(), allowed_log_height),
+                    (
+                        RiscvAir::<F>::SyscallPrecompile(SyscallChip::precompile()).name(),
+                        ((1 << allowed_log_height)
+                            .div_ceil(&air.rows_per_event())
+                            .next_power_of_two()
+                            .ilog2() as usize)
+                            .max(1),
+                    ),
+                    (
+                        RiscvAir::<F>::MemoryLocal(MemoryLocalChip::new()).name(),
+                        ((1 << allowed_log_height) * num_events)
+                            .div_ceil(NUM_LOCAL_MEMORY_ENTRIES_PER_ROW)
+                            .next_power_of_two()
+                            .ilog2() as usize,
+                    ),
+                ];
+                println!("heights: {:?}", height);
+                height
+            })
+            .collect()
     }
 
     fn generate_all_shapes_from_allowed_log_heights(
@@ -303,8 +316,8 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
 
         let precompile_only_shapes = self.precompile_allowed_log_heights.iter().flat_map(
             move |(air, (mem_events_per_row, allowed_log_heights))| {
-                allowed_log_heights.iter().map(move |allowed_log_height| {
-                    self.get_precompile_shape(air, *mem_events_per_row, *allowed_log_height)
+                allowed_log_heights.iter().flat_map(move |allowed_log_height| {
+                    self.get_precompile_shapes(air, *mem_events_per_row, *allowed_log_height)
                 })
             },
         );
