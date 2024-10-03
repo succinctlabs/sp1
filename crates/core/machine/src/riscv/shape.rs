@@ -154,7 +154,7 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
         {
             if let Some(height) = air.get_precompile_heights(record) {
                 for allowed_log_height in allowed_log_heights {
-                    if height <= 1 << allowed_log_height {
+                    if height <= (1 << allowed_log_height) {
                         record.shape.as_mut().unwrap().extend(self.get_precompile_shape(
                             air,
                             *mem_events_per_row,
