@@ -20,6 +20,7 @@ Under the hood, we use [precompiles](./precompiles.md) to achieve tremendous per
 | secp256k1           | [sp1-patches/rust-secp256k1](http://github.com/sp1-patches/rust-secp256k1)            | secp256k1 verify                                    |
 | substrate-bn        | [sp1-patches/bn](https://github.com/sp1-patches/bn)                                   | BN254                                               |
 | substrate-bls12_381 | [sp1-patches/bls12_381](https://github.com/sp1-patches/bls12_381)                     | BLS12-381                                           |
+| reth                | [sp1-patches/reth](https://github.com/sp1-patches/reth)                               | All crates in this repository have been patched     |
 
 ## Using Patched Crates
 
@@ -42,6 +43,8 @@ ecdsa-core = { git = "https://github.com/sp1-patches/signatures", package = "ecd
 secp256k1 = { git = "https://github.com/sp1-patches/rust-secp256k1", branch = "patch-secp256k1-v0.29.0" }
 substrate-bn = { git = "https://github.com/sp1-patches/bn", branch = "patch-v0.6.0" }
 bls12_381 = { git = "https://github.com/sp1-patches/bls12_381", branch = "patch-v0.8.8" }
+reth-primitives = { git = "https://github.com/sp1-patches/reth", tag = "rsp-20240830" }
+# Other reth crates can be patched the same way.
 
 ```
 
