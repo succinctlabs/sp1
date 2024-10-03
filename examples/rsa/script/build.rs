@@ -1,3 +1,8 @@
+use sp1_build::{build_program_with_args, BuildArgs};
+
 fn main() {
-    sp1_build::build_program(&format!("{}/../program", env!("CARGO_MANIFEST_DIR")));
+    build_program_with_args(
+        "../program",
+        BuildArgs { output_directory: "rsa/program/elf".into(), ..Default::default() },
+    );
 }

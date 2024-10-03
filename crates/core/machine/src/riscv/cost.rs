@@ -128,7 +128,12 @@ impl CostEstimator for ExecutionReport {
         total_chips += 1;
 
         let syscall_events = self.syscall_counts.values().sum::<u64>();
-        total_area += (syscall_events as u64) * costs[&RiscvAirDiscriminants::Syscall];
+        total_area += (syscall_events as u64) * costs[&RiscvAirDiscriminants::SyscallCore];
+        total_chips += 1;
+
+        let syscall_precompile_events = self.syscall_counts.len();
+        total_area +=
+            (syscall_precompile_events as u64) * costs[&RiscvAirDiscriminants::SyscallPrecompile];
         total_chips += 1;
 
         let divrem_events = self.opcode_counts[Opcode::DIV]

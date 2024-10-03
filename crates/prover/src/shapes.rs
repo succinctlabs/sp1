@@ -9,14 +9,14 @@ use std::{
 use p3_baby_bear::BabyBear;
 use p3_field::AbstractField;
 use sp1_core_machine::riscv::CoreShapeConfig;
-use sp1_recursion_circuit_v2::{
+use sp1_recursion_circuit::{
     machine::{
         SP1CompressWithVKeyWitnessValues, SP1CompressWithVkeyShape, SP1DeferredShape,
         SP1DeferredWitnessValues, SP1RecursionShape, SP1RecursionWitnessValues,
     },
     merkle_tree::MerkleTree,
 };
-use sp1_recursion_core_v2::{shape::RecursionShapeConfig, RecursionProgram};
+use sp1_recursion_core::{shape::RecursionShapeConfig, RecursionProgram};
 use sp1_stark::{MachineProver, ProofShape, DIGEST_SIZE};
 
 use crate::{
@@ -241,9 +241,9 @@ mod tests {
         let core_shape_config = CoreShapeConfig::default();
         let recursion_shape_config = RecursionShapeConfig::default();
         let reduce_batch_size = 2;
-        let num_compress_shapes =
+        let num_shapes =
             SP1ProofShape::generate(&core_shape_config, &recursion_shape_config, reduce_batch_size)
                 .count();
-        println!("Number of compress shapes: {}", num_compress_shapes);
+        println!("Number of compress shapes: {}", num_shapes);
     }
 }

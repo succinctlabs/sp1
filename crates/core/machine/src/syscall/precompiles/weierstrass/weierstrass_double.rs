@@ -14,6 +14,7 @@ use p3_maybe_rayon::prelude::{ParallelBridge, ParallelIterator, ParallelSlice};
 use sp1_core_executor::{
     events::{
         ByteLookupEvent, ByteRecord, EllipticCurveDoubleEvent, FieldOperation, PrecompileEvent,
+        SyscallEvent,
     },
     syscalls::SyscallCode,
     ExecutionRecord, Program,
@@ -188,10 +189,10 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
 
         let blu_events: Vec<Vec<ByteLookupEvent>> = events
             .par_chunks(chunk_size)
-            .map(|ops: &[PrecompileEvent]| {
+            .map(|ops: &[(SyscallEvent, PrecompileEvent)]| {
                 // The blu map stores shard -> map(byte lookup event -> multiplicity).
                 let mut blu = Vec::new();
-                ops.iter().for_each(|op| match op {
+                ops.iter().for_each(|(_, op)| match op {
                     PrecompileEvent::Secp256k1Double(event)
                     | PrecompileEvent::Bn254Double(event)
                     | PrecompileEvent::Bls12381Double(event) => {
@@ -244,7 +245,7 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
                 if idx < events.len() {
                     let mut new_byte_lookup_events = Vec::new();
                     let cols: &mut WeierstrassDoubleAssignCols<F, E::BaseField> = row.borrow_mut();
-                    match &events[idx] {
+                    match &events[idx].1 {
                         PrecompileEvent::Secp256k1Double(event)
                         | PrecompileEvent::Bn254Double(event)
                         | PrecompileEvent::Bls12381Double(event) => {
@@ -458,7 +459,7 @@ where
             local.p_ptr,
             AB::Expr::zero(),
             local.is_real,
-            InteractionScope::Global,
+            InteractionScope::Local,
         );
     }
 }

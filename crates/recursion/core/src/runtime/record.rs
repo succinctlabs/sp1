@@ -1,85 +1,92 @@
-use hashbrown::HashMap;
 use std::{array, sync::Arc};
 
-use p3_field::{AbstractField, PrimeField32};
-use sp1_stark::{MachineRecord, SP1CoreOpts, PROOF_MAX_NUM_PVS};
+use hashbrown::HashMap;
+use p3_field::{AbstractField, Field, PrimeField32};
+use sp1_stark::{air::MachineAir, MachineRecord, SP1CoreOpts, PROOF_MAX_NUM_PVS};
 
-use super::RecursionProgram;
-use crate::{
-    air::Block,
-    cpu::CpuEvent,
-    exp_reverse_bits::ExpReverseBitsLenEvent,
-    fri_fold::FriFoldEvent,
-    poseidon2_wide::events::{Poseidon2CompressEvent, Poseidon2HashEvent},
-    range_check::RangeCheckEvent,
+use super::{
+    BaseAluEvent, CommitPublicValuesEvent, ExpReverseBitsEvent, ExtAluEvent, FriFoldEvent,
+    MemEvent, Poseidon2Event, RecursionProgram, RecursionPublicValues,
 };
 
-#[derive(Default, Debug, Clone)]
-pub struct ExecutionRecord<F: Default> {
+#[derive(Clone, Default, Debug)]
+pub struct ExecutionRecord<F> {
     pub program: Arc<RecursionProgram<F>>,
-    pub cpu_events: Vec<CpuEvent<F>>,
-    pub poseidon2_compress_events: Vec<Poseidon2CompressEvent<F>>,
-    pub poseidon2_hash_events: Vec<Poseidon2HashEvent<F>>,
-    pub fri_fold_events: Vec<FriFoldEvent<F>>,
-    pub range_check_events: HashMap<RangeCheckEvent, usize>,
-    pub exp_reverse_bits_len_events: Vec<ExpReverseBitsLenEvent<F>>,
-    // (address, value)
-    pub first_memory_record: Vec<(F, Block<F>)>,
+    /// The index of the shard.
+    pub index: u32,
 
-    // (address, last_timestamp, last_value)
-    pub last_memory_record: Vec<(F, F, Block<F>)>,
-
+    pub base_alu_events: Vec<BaseAluEvent<F>>,
+    pub ext_alu_events: Vec<ExtAluEvent<F>>,
+    pub mem_const_count: usize,
+    pub mem_var_events: Vec<MemEvent<F>>,
     /// The public values.
-    pub public_values: Vec<F>,
-}
+    pub public_values: RecursionPublicValues<F>,
 
-impl<F: Default> ExecutionRecord<F> {
-    pub fn add_range_check_events(&mut self, events: &[RangeCheckEvent]) {
-        for event in events {
-            *self.range_check_events.entry(*event).or_insert(0) += 1;
-        }
-    }
+    pub poseidon2_events: Vec<Poseidon2Event<F>>,
+    pub exp_reverse_bits_len_events: Vec<ExpReverseBitsEvent<F>>,
+    pub fri_fold_events: Vec<FriFoldEvent<F>>,
+    pub commit_pv_hash_events: Vec<CommitPublicValuesEvent<F>>,
 }
 
 impl<F: PrimeField32> MachineRecord for ExecutionRecord<F> {
     type Config = SP1CoreOpts;
 
-    fn stats(&self) -> HashMap<String, usize> {
+    fn stats(&self) -> hashbrown::HashMap<String, usize> {
         let mut stats = HashMap::new();
-        stats.insert("cpu_events".to_string(), self.cpu_events.len());
-        stats.insert("poseidon2_events".to_string(), self.poseidon2_compress_events.len());
-        stats.insert("poseidon2_events".to_string(), self.poseidon2_hash_events.len());
+        stats.insert("base_alu_events".to_string(), self.base_alu_events.len());
+        stats.insert("ext_alu_events".to_string(), self.ext_alu_events.len());
+        stats.insert("mem_var_events".to_string(), self.mem_var_events.len());
+
+        stats.insert("poseidon2_events".to_string(), self.poseidon2_events.len());
+        stats.insert("exp_reverse_bits_events".to_string(), self.exp_reverse_bits_len_events.len());
         stats.insert("fri_fold_events".to_string(), self.fri_fold_events.len());
-        stats.insert("range_check_events".to_string(), self.range_check_events.len());
-        stats.insert(
-            "exp_reverse_bits_len_events".to_string(),
-            self.exp_reverse_bits_len_events.len(),
-        );
+
         stats
     }
 
-    // NOTE: This should be unused.
     fn append(&mut self, other: &mut Self) {
-        self.cpu_events.append(&mut other.cpu_events);
-        self.first_memory_record.append(&mut other.first_memory_record);
-        self.last_memory_record.append(&mut other.last_memory_record);
-
-        // Merge the range check lookups.
-        for (range_check_event, count) in std::mem::take(&mut other.range_check_events).into_iter()
-        {
-            *self.range_check_events.entry(range_check_event).or_insert(0) += count;
-        }
+        // Exhaustive destructuring for refactoring purposes.
+        let Self {
+            program: _,
+            index: _,
+            base_alu_events,
+            ext_alu_events,
+            mem_const_count,
+            mem_var_events,
+            public_values: _,
+            poseidon2_events,
+            exp_reverse_bits_len_events,
+            fri_fold_events,
+            commit_pv_hash_events,
+        } = self;
+        base_alu_events.append(&mut other.base_alu_events);
+        ext_alu_events.append(&mut other.ext_alu_events);
+        *mem_const_count += other.mem_const_count;
+        mem_var_events.append(&mut other.mem_var_events);
+        poseidon2_events.append(&mut other.poseidon2_events);
+        exp_reverse_bits_len_events.append(&mut other.exp_reverse_bits_len_events);
+        fri_fold_events.append(&mut other.fri_fold_events);
+        commit_pv_hash_events.append(&mut other.commit_pv_hash_events);
     }
 
     fn public_values<T: AbstractField>(&self) -> Vec<T> {
+        let pv_elms = self.public_values.as_array();
+
         let ret: [T; PROOF_MAX_NUM_PVS] = array::from_fn(|i| {
-            if i < self.public_values.len() {
-                T::from_canonical_u32(self.public_values[i].as_canonical_u32())
+            if i < pv_elms.len() {
+                T::from_canonical_u32(pv_elms[i].as_canonical_u32())
             } else {
                 T::zero()
             }
         });
 
         ret.to_vec()
+    }
+}
+
+impl<F: Field> ExecutionRecord<F> {
+    #[inline]
+    pub fn fixed_log2_rows<A: MachineAir<F>>(&self, air: &A) -> Option<usize> {
+        self.program.fixed_log2_rows(air)
     }
 }

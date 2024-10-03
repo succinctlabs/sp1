@@ -8,8 +8,8 @@ use sp1_core_executor::{subproof::SubproofVerifier, SP1ReduceProof};
 use sp1_core_machine::cpu::MAX_CPU_LOG_DEGREE;
 use sp1_primitives::{consts::WORD_SIZE, io::SP1PublicValues};
 
-use sp1_recursion_circuit_v2::machine::RootPublicValues;
-use sp1_recursion_core_v2::{air::RecursionPublicValues, stark::config::BabyBearPoseidon2Outer};
+use sp1_recursion_circuit::machine::RootPublicValues;
+use sp1_recursion_core::{air::RecursionPublicValues, stark::BabyBearPoseidon2Outer};
 use sp1_recursion_gnark_ffi::{
     Groth16Bn254Proof, Groth16Bn254Prover, PlonkBn254Proof, PlonkBn254Prover,
 };

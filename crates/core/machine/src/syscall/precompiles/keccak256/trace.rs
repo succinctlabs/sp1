@@ -5,7 +5,7 @@ use p3_keccak_air::{generate_trace_rows, NUM_KECCAK_COLS, NUM_ROUNDS};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use p3_maybe_rayon::prelude::{ParallelBridge, ParallelIterator, ParallelSlice};
 use sp1_core_executor::{
-    events::{ByteLookupEvent, KeccakPermuteEvent, PrecompileEvent},
+    events::{ByteLookupEvent, KeccakPermuteEvent, PrecompileEvent, SyscallEvent},
     syscalls::SyscallCode,
     ExecutionRecord, Program,
 };
@@ -31,11 +31,11 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
         let blu_events: Vec<Vec<ByteLookupEvent>> = input
             .get_precompile_events(SyscallCode::KECCAK_PERMUTE)
             .par_chunks(chunk_size)
-            .map(|ops: &[PrecompileEvent]| {
+            .map(|ops: &[(SyscallEvent, PrecompileEvent)]| {
                 // The blu map stores shard -> map(byte lookup event -> multiplicity).
                 let mut blu = Vec::new();
                 let mut chunk = vec![F::zero(); NUM_KECCAK_MEM_COLS * NUM_ROUNDS];
-                ops.iter().for_each(|op| {
+                ops.iter().for_each(|(_, op)| {
                     if let PrecompileEvent::KeccakPermute(event) = op {
                         Self::populate_chunk(event, &mut chunk, &mut blu);
                     } else {
@@ -81,7 +81,7 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
                         let idx = i * chunk_size + j;
                         if idx < num_events {
                             let mut new_byte_lookup_events = Vec::new();
-                            if let PrecompileEvent::KeccakPermute(event) = &events[idx] {
+                            if let PrecompileEvent::KeccakPermute(event) = &events[idx].1 {
                                 Self::populate_chunk(event, rounds, &mut new_byte_lookup_events);
                             } else {
                                 unreachable!();

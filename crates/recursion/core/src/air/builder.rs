@@ -1,8 +1,3 @@
-use crate::{
-    cpu::{InstructionCols, OpcodeSelectorCols},
-    memory::{MemoryAccessTimestampCols, MemoryCols},
-    range_check::RangeCheckOpcode,
-};
 use core::iter::{once, repeat};
 use p3_air::{AirBuilder, AirBuilderWithPublicValues};
 use p3_field::AbstractField;
@@ -11,7 +6,10 @@ use sp1_stark::{
     InteractionKind,
 };
 
-use super::Block;
+use super::{
+    Block, InstructionCols, MemoryAccessTimestampCols, MemoryCols, OpcodeSelectorCols,
+    RangeCheckOpcode,
+};
 
 /// A trait which contains all helper methods for building SP1 recursion machine AIRs.
 pub trait SP1RecursionAirBuilder:

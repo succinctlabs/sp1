@@ -35,7 +35,7 @@ impl<F: PrimeField32> MachineAir<F> for ShaCompressChip {
         let rows = Vec::new();
 
         let mut wrapped_rows = Some(rows);
-        for event in input.get_precompile_events(SyscallCode::SHA_COMPRESS) {
+        for (_, event) in input.get_precompile_events(SyscallCode::SHA_COMPRESS) {
             let event = if let PrecompileEvent::ShaCompress(event) = event {
                 event
             } else {
@@ -101,7 +101,7 @@ impl<F: PrimeField32> MachineAir<F> for ShaCompressChip {
             .par_chunks(chunk_size)
             .map(|events| {
                 let mut blu: HashMap<u32, HashMap<ByteLookupEvent, usize>> = HashMap::new();
-                events.iter().for_each(|event| {
+                events.iter().for_each(|(_, event)| {
                     let event = if let PrecompileEvent::ShaCompress(event) = event {
                         event
                     } else {

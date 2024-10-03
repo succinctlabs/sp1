@@ -66,13 +66,13 @@ use sp1_stark::{
     Val, Word, DIGEST_SIZE,
 };
 
-use sp1_recursion_core_v2::{
+use sp1_recursion_core::{
     air::RecursionPublicValues, machine::RecursionAir, runtime::ExecutionRecord,
-    shape::RecursionShapeConfig, stark::config::BabyBearPoseidon2Outer, RecursionProgram,
+    shape::RecursionShapeConfig, stark::BabyBearPoseidon2Outer, RecursionProgram,
     Runtime as RecursionRuntime,
 };
 
-use sp1_recursion_circuit_v2::{
+use sp1_recursion_circuit::{
     hash::FieldHasher,
     machine::{
         PublicValuesOutputDigest, SP1CompressRootVerifierWithVKey, SP1CompressShape,
@@ -1253,7 +1253,7 @@ pub mod tests {
     use build::{build_constraints_and_witness, try_build_groth16_bn254_artifacts_dev};
     use p3_field::PrimeField32;
 
-    use sp1_recursion_core_v2::air::RecursionPublicValues;
+    use sp1_recursion_core::air::RecursionPublicValues;
 
     #[cfg(test)]
     use serial_test::serial;
