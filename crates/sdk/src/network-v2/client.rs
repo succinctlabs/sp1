@@ -26,7 +26,7 @@ use crate::network::proto::network::{
 };
 
 /// The default RPC endpoint for the Succinct prover network.
-pub const DEFAULT_PROVER_NETWORK_RPC: &str = "https://rpc.succinct.xyz/";
+pub const DEFAULT_PROVER_NETWORK_RPC: &str = "http://localhost:3000";
 
 /// The timeout for a proof request to be fulfilled.
 const TIMEOUT: Duration = Duration::from_secs(60 * 60);

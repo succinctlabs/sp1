@@ -5,7 +5,7 @@ use std::{
 
 use crate::{
     network::client::{NetworkClient, DEFAULT_PROVER_NETWORK_RPC},
-    proto::network::{ProofMode, ProofStatus},
+    network::proto::network::{ProofMode, ProofStatus},
     Prover, SP1Context, SP1ProofKind, SP1ProofWithPublicValues, SP1ProvingKey, SP1VerifyingKey,
 };
 use anyhow::Result;

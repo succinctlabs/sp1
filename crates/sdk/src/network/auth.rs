@@ -7,7 +7,7 @@ use ethers::{
     types::H256,
 };
 
-use crate::proto::network::UnclaimReason;
+use crate::network::proto::network::UnclaimReason;
 
 sol! {
     struct CreateProof {
