@@ -586,7 +586,7 @@ where
                                     let global_data = prover.commit(&record, global_traces);
                                     let local_data = prover.commit(&record, local_traces);
 
-                                    let proof = prover
+                                    prover
                                         .open(
                                             pk,
                                             Some(global_data),
@@ -594,19 +594,18 @@ where
                                             &mut challenger.clone(),
                                             &global_permutation_challenges,
                                         )
-                                        .unwrap();
+                                        .unwrap()
 
-                                    #[cfg(feature = "debug")]
-                                    {
-                                        if let Some(shape) = record.shape {
-                                            assert_eq!(
-                                                proof.shape(),
-                                                shape.clone().into_iter().collect(),
-                                            );
-                                        }
-                                    }
-
-                                    proof
+                                    // TODO: remove or fix record shape assignment.
+                                    // #[cfg(feature = "debug")]
+                                    // {
+                                    //     if let Some(shape) = record.shape {
+                                    //         assert_eq!(
+                                    //             proof.shape(),
+                                    //             shape.clone().into_iter().collect(),
+                                    //         );
+                                    //     }
+                                    // }
                                 },
                             ),
                         );

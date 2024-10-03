@@ -1,8 +1,10 @@
 mod builder;
 mod compiler;
+mod config;
 
 pub use builder::*;
 pub use compiler::*;
+pub use config::*;
 
 #[cfg(test)]
 mod tests {
@@ -12,12 +14,11 @@ mod tests {
     use p3_field::AbstractField;
 
     use sp1_core_machine::utils::run_test_machine;
-    use sp1_recursion_core_v2::{machine::RecursionAir, Runtime, RuntimeError};
+    use sp1_recursion_core::{machine::RecursionAir, Runtime, RuntimeError};
     use sp1_stark::{BabyBearPoseidon2Inner, StarkGenericConfig};
 
     use crate::{
-        asm::AsmBuilder,
-        circuit::{AsmCompiler, CircuitV2Builder},
+        circuit::{AsmBuilder, AsmCompiler, CircuitV2Builder},
         ir::*,
     };
 

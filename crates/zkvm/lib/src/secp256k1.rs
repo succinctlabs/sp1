@@ -15,7 +15,7 @@ pub enum WeierstrassPoint {
 /// An affine point on the Secp256k1 curve.
 #[derive(Copy, Clone)]
 #[repr(align(4))]
-pub struct Secp256k1AffinePoint(WeierstrassPoint);
+pub struct Secp256k1AffinePoint(pub WeierstrassPoint);
 
 impl WeierstrassAffinePoint<N> for Secp256k1AffinePoint {
     fn infinity() -> Self {

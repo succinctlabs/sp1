@@ -134,7 +134,7 @@ fn test_k256_patch() {
     let sig = <&B512>::try_from(&precompile_input[64..128]).unwrap();
 
     println!("cycle-tracker-start: k256 verify");
-    let recovered_address: Bytes = revm::precompile::secp256k1::ecrecover(sig, recid, msg)
+    let recovered_address: Bytes = revm_precompile::secp256k1::ecrecover(sig, recid, msg)
         .map(|o| o.to_vec().into())
         .unwrap_or_default();
     println!("cycle-tracker-end: k256 verify");
@@ -147,7 +147,7 @@ fn test_k256_patch() {
     let sig = <&B512>::try_from(&precompile_input[64..128]).unwrap();
 
     println!("cycle-tracker-start: k256 verify");
-    let recovered_address: Bytes = revm::precompile::secp256k1::ecrecover(sig, recid, msg)
+    let recovered_address: Bytes = revm_precompile::secp256k1::ecrecover(sig, recid, msg)
         .map(|o| o.to_vec().into())
         .unwrap_or_default();
     println!("cycle-tracker-end: k256 verify");

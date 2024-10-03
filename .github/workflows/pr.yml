@@ -131,7 +131,7 @@ jobs:
 
   examples:
     name: Examples
-    runs-on: [runs-on, runner=8cpu-linux-x64, "run-id=${{ github.run_id }}"]
+    runs-on: [runs-on, runner=64cpu-linux-x64, "run-id=${{ github.run_id }}"]
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
@@ -143,27 +143,22 @@ jobs:
 
       - name: Install SP1 toolchain
         run: |
-          curl -L https://sp1.succinct.xyz | bash
-          ~/.sp1/bin/sp1up 
-          ~/.sp1/bin/cargo-prove prove --version
+          cargo run -p sp1-cli -- prove install-toolchain
 
-      - name: Install SP1 CLI
+      - name: Run cargo fmt
         run: |
-          cd crates/cli
-          cargo install --force --locked --path .
-          ~/.sp1/bin/cargo-prove prove install-toolchain
-          cd ~
+          cd ./examples/
+          cargo fmt --all -- --check
 
       - name: Run cargo check
         run: |
-          RUSTFLAGS="-Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native" \
-          cargo check --manifest-path examples/Cargo.toml --all-targets --all-features
-
-      - name: Run cargo check on RSP
-        run: |
-          cd examples/rsp/script
-          RUSTFLAGS="-Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native" \
+          cd ./examples/
           cargo check --all-targets --all-features
+
+      - name: Run cargo clippy
+        run: |
+          cd ./examples/
+          cargo clippy --all-targets --all-features -- -D warnings -A incomplete-features
 
   cli:
     name: CLI

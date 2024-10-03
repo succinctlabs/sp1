@@ -3,7 +3,7 @@ use p3_bn254_fr::Bn254Fr;
 use p3_field::extension::BinomialExtensionField;
 use sp1_stark::{InnerChallenge, InnerVal};
 
-use crate::{asm::AsmConfig, prelude::Config};
+use crate::{circuit::AsmConfig, prelude::Config};
 
 pub type InnerConfig = AsmConfig<InnerVal, InnerChallenge>;
 

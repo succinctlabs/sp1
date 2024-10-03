@@ -1,4 +1,3 @@
-[workspace]
 [package]
 version = "0.1.0"
 name = "bn254-script"
@@ -9,4 +8,4 @@ sp1-sdk = { path = "../../../../sp1/crates/sdk" }
 
 
 [build-dependencies]
-sp1-helper = { path = "../../../../sp1/crates/helper" }
+sp1-build = { path = "../../../../sp1/crates/build" }

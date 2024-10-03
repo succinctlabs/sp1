@@ -71,7 +71,7 @@ where
             local.state_addr,
             AB::Expr::zero(),
             local.receive_ecall,
-            InteractionScope::Global,
+            InteractionScope::Local,
         );
 
         // Constrain that the inputs stay the same throughout the 24 rows of each cycle
