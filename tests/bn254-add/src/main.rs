@@ -25,7 +25,7 @@ pub fn main() {
             124, 10, 14, 140, 115, 237, 21,
         ];
 
-        syscall_bn254_add(a.as_mut_ptr() as *mut u32, b.as_ptr() as *const u32);
+        syscall_bn254_add(a.as_mut_ptr() as *mut [u32; 16], b.as_ptr() as *const [u32; 16]);
 
         // 3 * generator.
         // 3353031288059533942658390886683067124040920775575537747144343083137631628272
