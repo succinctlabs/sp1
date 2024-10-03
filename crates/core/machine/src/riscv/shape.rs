@@ -183,10 +183,11 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
             (air.name(), allowed_log_height),
             (
                 RiscvAir::<F>::SyscallPrecompile(SyscallChip::precompile()).name(),
-                (1 << allowed_log_height)
+                ((1 << allowed_log_height)
                     .div_ceil(&air.rows_per_event())
                     .next_power_of_two()
-                    .ilog2() as usize,
+                    .ilog2() as usize)
+                    .max(1),
             ),
             (
                 RiscvAir::<F>::MemoryLocal(MemoryLocalChip::new()).name(),
