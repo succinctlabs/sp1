@@ -427,6 +427,12 @@ impl<F: PrimeField32> RiscvAir<F> {
             airs.remove(&memory_air);
         }
         airs.remove(&Self::SyscallPrecompile(SyscallChip::precompile()));
+
+        // Remove the preprocessed chips.
+        airs.remove(&Self::Program(ProgramChip::default()));
+        airs.remove(&Self::ProgramMemory(MemoryProgramChip::default()));
+        airs.remove(&Self::ByteLookup(ByteChip::default()));
+
         airs.into_iter()
             .map(|air| {
                 let chip = Chip::new(air);
