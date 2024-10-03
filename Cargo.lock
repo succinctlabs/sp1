@@ -6499,6 +6499,7 @@ dependencies = [
  "itertools 0.13.0",
  "log",
  "num-bigint 0.4.6",
+ "once_cell",
  "p3-baby-bear",
  "p3-commit",
  "p3-field",
