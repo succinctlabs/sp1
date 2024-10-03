@@ -3,15 +3,15 @@ use crate::{
     utils::{AffinePoint, WeierstrassAffinePoint, WeierstrassPoint},
 };
 
-/// The number of limbs in [Secp256k1AffinePoint].
+/// The number of limbs in [Secp256k1Point].
 pub const N: usize = 16;
 
 /// An affine point on the Secp256k1 curve.
 #[derive(Copy, Clone)]
 #[repr(align(4))]
-pub struct Secp256k1AffinePoint(pub WeierstrassPoint<N>);
+pub struct Secp256k1Point(pub WeierstrassPoint<N>);
 
-impl WeierstrassAffinePoint<N> for Secp256k1AffinePoint {
+impl WeierstrassAffinePoint<N> for Secp256k1Point {
     fn infinity() -> Self {
         Self(WeierstrassPoint::Infinity)
     }
@@ -21,7 +21,7 @@ impl WeierstrassAffinePoint<N> for Secp256k1AffinePoint {
     }
 }
 
-impl AffinePoint<N> for Secp256k1AffinePoint {
+impl AffinePoint<N> for Secp256k1Point {
     /// The values are taken from https://en.bitcoin.it/wiki/Secp256k1.
     const GENERATOR: [u32; N] = [
         385357720, 1509065051, 768485593, 43777243, 3464956679, 1436574357, 4191992748, 2042521214,
