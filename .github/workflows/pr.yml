@@ -160,6 +160,36 @@ jobs:
           cd ./examples/
           cargo clippy --all-targets --all-features -- -D warnings -A incomplete-features
 
+  tests:
+    name: Tests
+    runs-on: [runs-on, runner=64cpu-linux-x64, "run-id=${{ github.run_id }}"]
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+
+      - name: Setup CI
+        uses: ./.github/actions/setup
+
+      - name: Install SP1 toolchain
+        run: |
+          cargo install --locked --path crates/cli
+          cargo prove install-toolchain
+
+      - name: Run cargo fmt
+        run: |
+          cd ./tests/
+          cargo fmt --all -- --check
+
+      - name: Run cargo clippy
+        run: |
+          cd ./tests/
+          cargo clippy --all-targets --all-features -- -D warnings -A incomplete-features
+
+      - name: Build test ELF files
+        run: |
+          cd ./tests/
+          make
+
   cli:
     name: CLI
     runs-on: [runs-on, runner=8cpu-linux-x64, "run-id=${{ github.run_id }}"]

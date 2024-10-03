@@ -1,7 +1,7 @@
 #![no_main]
 
-use sp1_lib::bls12381::Bls12381AffinePoint;
 use sp1_curves::params::FieldParameters;
+use sp1_lib::bls12381::Bls12381AffinePoint;
 sp1_zkvm::entrypoint!(main);
 
 // generator.
