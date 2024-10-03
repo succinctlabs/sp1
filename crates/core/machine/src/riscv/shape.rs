@@ -164,7 +164,10 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
                 }
             }
         }
-        tracing::warn!("No shape found for the record {:?}", record);
+        tracing::warn!(
+            "No shape found for the record with syscall events {:?}",
+            record.syscall_events
+        );
 
         Err(CoreShapeError::PrecompileNotIncluded)
     }
