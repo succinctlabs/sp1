@@ -160,6 +160,7 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
                             *mem_events_per_row,
                             *allowed_log_height,
                         ));
+                        return Ok(());
                     }
                 }
             }
