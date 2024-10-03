@@ -126,7 +126,7 @@ fn test_sha256() {
 /// Emits SECP256K1_ADD, SECP256K1_DOUBLE, and SECP256K1_DECOMPRESS syscalls.
 /// Source: https://github.com/alloy-rs/core/blob/adcf7adfa1f35c56e6331bab85b8c56d32a465f1/crates/primitives/src/signature/sig.rs#L620-L631
 fn test_k256_patch() {
-    // Valid signature.
+    // A valid signature.
     let precompile_input = bytes!("a79c77e94d0cd778e606e61130d9065e718eced9408e63df3a71919d5830d82d000000000000000000000000000000000000000000000000000000000000001cd685e79fb0b7ff849cbc6283dd1174b4a06f2aa556f019169a99396fc052b42e2c0ff35d08662f2685929c20ce8eaab568a404d61cf2aa837f1f431e2aef6211");
 
     let msg = <&B256>::try_from(&precompile_input[0..32]).unwrap();
