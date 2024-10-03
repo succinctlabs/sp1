@@ -979,11 +979,7 @@ dependencies = [
  "serde_urlencoded",
  "sync_wrapper 1.0.1",
  "tokio",
-<<<<<<< HEAD
  "tower 0.5.1",
-=======
- "tower 0.4.13",
->>>>>>> 07ee3adc7 (wip)
  "tower-layer",
  "tower-service",
  "tracing",
@@ -5044,17 +5040,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7b0487d90e047de87f984913713b85c601c05609aad5b0df4b4573fbf69aa13f"
 dependencies = [
  "bytes 1.7.1",
- "prost-derive 0.12.6",
-]
-
-[[package]]
-name = "prost"
-version = "0.13.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7b0487d90e047de87f984913713b85c601c05609aad5b0df4b4573fbf69aa13f"
-dependencies = [
- "bytes 1.7.1",
- "prost-derive 0.13.3",
+ "prost-derive",
 ]
 
 [[package]]
@@ -5071,24 +5057,11 @@ dependencies = [
  "once_cell",
  "petgraph",
  "prettyplease",
- "prost 0.12.6",
+ "prost",
  "prost-types",
  "regex",
  "syn 2.0.72",
  "tempfile",
-]
-
-[[package]]
-name = "prost-derive"
-version = "0.13.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e9552f850d5f0964a4e4d0bf306459ac29323ddfbae05e35a7c0d35cb0803cc5"
-dependencies = [
- "anyhow",
- "itertools 0.13.0",
- "proc-macro2",
- "quote",
- "syn 2.0.72",
 ]
 
 [[package]]
@@ -5110,7 +5083,7 @@ version = "0.13.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4759aa0d3a6232fb8dbdb97b61de2c20047c68aca932c7ed76da9d788508d670"
 dependencies = [
- "prost 0.12.6",
+ "prost",
 ]
 
 [[package]]
@@ -6509,7 +6482,7 @@ version = "2.0.0"
 dependencies = [
  "bincode",
  "ctrlc",
- "prost 0.12.6",
+ "prost",
  "prost-build",
  "prost-types",
  "serde",
@@ -6521,7 +6494,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "twirp-build-rs",
- "twirp-rs 0.3.0",
+ "twirp-rs",
 ]
 
 [[package]]
@@ -6929,7 +6902,7 @@ dependencies = [
  "p3-field",
  "p3-fri",
  "p3-matrix",
- "prost 0.13.3",
+ "prost",
  "reqwest 0.12.5",
  "reqwest-middleware",
  "serde",
@@ -6949,7 +6922,7 @@ dependencies = [
  "tokio",
  "tonic",
  "tracing",
- "twirp-rs 0.13.0-succinct",
+ "twirp-rs",
  "vergen",
 ]
 
@@ -7628,7 +7601,7 @@ dependencies = [
  "hyper-util",
  "percent-encoding",
  "pin-project",
- "prost 0.13.3",
+ "prost",
  "rustls-native-certs",
  "rustls-pemfile 2.1.3",
  "socket2 0.5.7",
@@ -7658,6 +7631,7 @@ dependencies = [
  "tokio-util",
  "tower-layer",
  "tower-service",
+ "tracing",
 ]
 
 [[package]]
@@ -7674,16 +7648,6 @@ dependencies = [
  "tower-layer",
  "tower-service",
  "tracing",
-]
-
-[[package]]
-name = "tower"
-version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "36b837f86b25d7c0d7988f00a54e74739be6477f2aac6201b8f429a7569991b7"
-dependencies = [
- "tower-layer",
- "tower-service",
 ]
 
 [[package]]
@@ -7829,39 +7793,13 @@ dependencies = [
  "http 1.1.0",
  "http-body-util",
  "hyper 1.4.1",
- "prost 0.12.6",
+ "prost",
  "reqwest 0.12.5",
  "serde",
  "serde_json",
  "thiserror",
  "tokio",
-<<<<<<< HEAD
  "tower 0.5.1",
-=======
- "tower 0.4.13",
- "url",
-]
-
-[[package]]
-name = "twirp-rs"
-version = "0.13.0-succinct"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "27dfcc06b8d9262bc2d4b8d1847c56af9971a52dd8a0076876de9db763227d0d"
-dependencies = [
- "async-trait",
- "axum",
- "futures",
- "http 1.1.0",
- "http-body-util",
- "hyper 1.4.1",
- "prost 0.13.3",
- "reqwest 0.12.5",
- "serde",
- "serde_json",
- "thiserror",
- "tokio",
- "tower 0.5.0",
->>>>>>> 07ee3adc7 (wip)
  "url",
 ]
 

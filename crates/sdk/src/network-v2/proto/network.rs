@@ -245,7 +245,6 @@ impl ProofStrategy {
 #[derive(
     serde::Serialize,
     serde::Deserialize,
-    sqlx::Type,
     Clone,
     Copy,
     Debug,

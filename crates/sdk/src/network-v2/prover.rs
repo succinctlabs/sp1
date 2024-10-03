@@ -175,13 +175,13 @@ fn warn_if_not_default(opts: &SP1ProverOpts, context: &SP1Context) {
     }
 }
 
-impl From<SP1ProofKind> for ProofMode {
-    fn from(value: SP1ProofKind) -> Self {
-        match value {
-            SP1ProofKind::Core => Self::Core,
-            SP1ProofKind::Compressed => Self::Compressed,
-            SP1ProofKind::Plonk => Self::Plonk,
-            SP1ProofKind::Groth16 => Self::Groth16,
-        }
-    }
-}
+// impl From<SP1ProofKind> for ProofMode {
+//     fn from(value: SP1ProofKind) -> Self {
+//         match value {
+//             SP1ProofKind::Core => Self::Core,
+//             SP1ProofKind::Compressed => Self::Compressed,
+//             SP1ProofKind::Plonk => Self::Plonk,
+//             SP1ProofKind::Groth16 => Self::Groth16,
+//         }
+//     }
+// }

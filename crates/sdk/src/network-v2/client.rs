@@ -1,5 +1,6 @@
 use std::{env, time::Duration};
 
+use crate::network_v2::auth::NetworkAuth;
 use crate::network_v2::proto::network::{
     GetFilteredProofRequestsRequest, GetFilteredProofRequestsResponse,
 };
@@ -29,9 +30,9 @@ pub const DEFAULT_PROVER_NETWORK_RPC: &str = "http://localhost:3000";
 const TIMEOUT: Duration = Duration::from_secs(60 * 60);
 
 pub struct NetworkClient {
+    pub auth: NetworkAuth,
     pub rpc: TwirpClient,
     pub http: HttpClientWithMiddleware,
-    pub auth: NetworkAuth,
 }
 
 impl NetworkClient {

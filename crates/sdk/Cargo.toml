@@ -10,11 +10,11 @@ keywords = { workspace = true }
 categories = { workspace = true }
 
 [dependencies]
-prost = "0.13"
+prost = { version = "0.13", optional = true }
 serde = { version = "1.0.204", features = ["derive"] }
 serde_json = "1.0.121"
 twirp = { package = "twirp-rs", version = "0.13.0-succinct", optional = true }
-async-trait = "0.1.75"
+async-trait = "0.1.81"
 reqwest-middleware = { version = "0.3.2", optional = true }
 reqwest = { version = "0.12.4", features = [
   "rustls-tls",
@@ -61,7 +61,13 @@ alloy-signer-local = { version = "0.3.6", optional = true }
 alloy-primitives = { version = "0.8.3", optional = true }
 
 [features]
+default = ["network", "network-v2"]
+neon = ["sp1-core-machine/neon"]
+native-gnark = ["sp1-prover/native-gnark"]
+# TODO: Once alloy has a 1.* release, we can likely remove this feature flag, as there will be less 
+# dependency resolution issues.
 network = [
+  "dep:prost",
   "dep:alloy-sol-types",
   "dep:tokio",
   "dep:ethers",
@@ -69,11 +75,6 @@ network = [
   "dep:twirp",
   "dep:reqwest-middleware",
 ]
-default = ["network", "network-v2"]
-neon = ["sp1-core-machine/neon"]
-native-gnark = ["sp1-prover/native-gnark"]
-# TODO: Once alloy has a 1.* release, we can likely remove this feature flag, as there will be less 
-# dependency resolution issues.
 network-v2 = [
   "dep:prost",
   "dep:alloy-sol-types",

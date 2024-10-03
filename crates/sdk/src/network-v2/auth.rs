@@ -7,8 +7,6 @@ use ethers::{
     types::H256,
 };
 
-use crate::network::proto::network::UnclaimReason;
-
 sol! {
     struct CreateProof {
         uint64 nonce;
@@ -57,59 +55,15 @@ impl NetworkAuth {
         Ok(signature.to_vec())
     }
 
-    /// Signs a message to to request ot create a proof.
-    pub async fn sign_create_proof_message(
-        &self,
-        nonce: u64,
-        deadline: u64,
-        mode: i32,
-        version: &str,
-    ) -> Result<Vec<u8>> {
-        let type_struct =
-            CreateProof { nonce, deadline, mode: mode as u32, version: version.to_string() };
-        self.sign_message(type_struct).await
-    }
-
-    /// Signs a message to mark a proof as ready for proof generation.
-    pub async fn sign_submit_proof_message(&self, nonce: u64, proof_id: &str) -> Result<Vec<u8>> {
-        let type_struct = SubmitProof { nonce, proof_id: proof_id.to_string() };
-        self.sign_message(type_struct).await
-    }
-
-    /// Signs a message to claim a proof that was requested.
-    pub async fn sign_claim_proof_message(&self, nonce: u64, proof_id: &str) -> Result<Vec<u8>> {
-        let type_struct = ClaimProof { nonce, proof_id: proof_id.to_string() };
-        self.sign_message(type_struct).await
-    }
-
-    /// Signs a message to unclaim a proof that was previously claimed.
-    pub async fn sign_unclaim_proof_message(
-        &self,
-        nonce: u64,
-        proof_id: String,
-        reason: UnclaimReason,
-        description: String,
-    ) -> Result<Vec<u8>> {
-        let type_struct = UnclaimProof { nonce, proof_id, reason: reason as u8, description };
-        self.sign_message(type_struct).await
-    }
-
-    /// Signs a message to modify the CPU cycles for a proof. The proof must have been previously
-    /// claimed by the signer first.
-    pub async fn sign_modify_cpu_cycles_message(
-        &self,
-        nonce: u64,
-        proof_id: &str,
-        cycles: u64,
-    ) -> Result<Vec<u8>> {
-        let type_struct = ModifyCpuCycles { nonce, proof_id: proof_id.to_string(), cycles };
-        self.sign_message(type_struct).await
-    }
-
-    /// Signs a message to fulfill a proof. The proof must have been previously claimed by the
-    /// signer first.
-    pub async fn sign_fulfill_proof_message(&self, nonce: u64, proof_id: &str) -> Result<Vec<u8>> {
-        let type_struct = FulfillProof { nonce, proof_id: proof_id.to_string() };
-        self.sign_message(type_struct).await
-    }
+    // pub async fn sign_create_proof_message(
+    //     &self,
+    //     nonce: u64,
+    //     deadline: u64,
+    //     mode: i32,
+    //     version: &str,
+    // ) -> Result<Vec<u8>> {
+    //     let type_struct =
+    //         CreateProof { nonce, deadline, mode: mode as u32, version: version.to_string() };
+    //     self.sign_message(type_struct).await
+    // }
 }
