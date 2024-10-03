@@ -2017,7 +2017,7 @@ checksum = "0d6ef0072f8a535281e4876be788938b528e9a1d43900b82c2569af7da799125"
 [[package]]
 name = "ecdsa"
 version = "0.16.8"
-source = "git+https://github.com/sp1-patches/signatures?branch=ratan/secp256k1-add-fixes-v0.16.8#7f9d8f7bdab74f621520c8bb72415b452f0aedd4"
+source = "git+https://github.com/sp1-patches/signatures?branch=ratan/secp256k1-add-fixes-v0.16.8#eb857475072f0045950ec35bf230b86b5f6aca43"
 dependencies = [
  "anyhow",
  "cfg-if",
@@ -5749,7 +5749,7 @@ dependencies = [
 [[package]]
 name = "rfc6979"
 version = "0.4.0"
-source = "git+https://github.com/sp1-patches/signatures?branch=ratan/secp256k1-add-fixes-v0.16.8#7f9d8f7bdab74f621520c8bb72415b452f0aedd4"
+source = "git+https://github.com/sp1-patches/signatures?branch=ratan/secp256k1-add-fixes-v0.16.8#eb857475072f0045950ec35bf230b86b5f6aca43"
 dependencies = [
  "hmac",
  "subtle",
@@ -6907,7 +6907,7 @@ dependencies = [
 [[package]]
 name = "sp1-lib"
 version = "2.0.0"
-source = "git+https://github.com/succinctlabs/sp1.git?branch=ratan/impl-add-assign-fixes#11cce63d15152e4b0a9ac1c152ccf1473cab6cf0"
+source = "git+https://github.com/succinctlabs/sp1.git?branch=ratan/impl-add-assign-fixes#42868aeecc192d8a4caf93938b50c043b48fa8d3"
 dependencies = [
  "bincode",
  "serde",
