@@ -200,7 +200,8 @@ pub fn sp1_debug_mode() -> bool {
     value == "1" || value.to_lowercase() == "true"
 }
 
-/// Returns a vector of zeros of the given length.
+/// Returns a vector of zeros of the given length. This is faster than vec![F::zero(); len] which
+/// requires copying.
 ///
 /// This function is safe to use only for fields that can be transmuted from 0u32.
 pub fn zeroed_f_vec<F: Field>(len: usize) -> Vec<F> {
