@@ -181,6 +181,12 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
         mem_events_per_row: usize,
         allowed_log_height: usize,
     ) -> [(String, usize); 3] {
+        println!(
+            "air: {:?}, log_height: {:?}, mem_events_per_row: {:?}",
+            air.name(),
+            allowed_log_height,
+            mem_events_per_row
+        );
         let height = [
             (air.name(), allowed_log_height),
             (
