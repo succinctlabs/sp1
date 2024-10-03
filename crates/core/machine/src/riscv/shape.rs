@@ -166,8 +166,8 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
                                 <= (1 << mem_events_height) * NUM_LOCAL_MEMORY_ENTRIES_PER_ROW
                             {
                                 println!(
-                                    "Found allowed height: {:?} and mem events: {:?}",
-                                    allowed_log_height, mem_events_height
+                                    "Found allowed height: {:?} and mem events: {:?}. for original height: {:?}, mem events: {:?}",
+                                    allowed_log_height, mem_events_height, height, mem_events
                                 );
                                 record.shape.as_mut().unwrap().extend(shape);
                                 return Ok(());
