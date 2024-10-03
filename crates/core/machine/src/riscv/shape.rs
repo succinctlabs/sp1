@@ -192,15 +192,10 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
         mem_events_per_row: usize,
         allowed_log_height: usize,
     ) -> Vec<[(String, usize); 3]> {
-        println!(
-            "air: {:?}, log_height: {:?}, mem_events_per_row: {:?}",
-            air.name(),
-            allowed_log_height,
-            mem_events_per_row
-        );
-        (1..=mem_events_per_row)
-            .map(|num_events| {
-                let height = [
+        (1..=air.rows_per_event())
+            .rev()
+            .map(|rows_per_event| {
+                [
                     (air.name(), allowed_log_height),
                     (
                         RiscvAir::<F>::SyscallPrecompile(SyscallChip::precompile()).name(),
@@ -212,14 +207,12 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
                     ),
                     (
                         RiscvAir::<F>::MemoryLocal(MemoryLocalChip::new()).name(),
-                        ((1 << allowed_log_height) * num_events)
-                            .div_ceil(NUM_LOCAL_MEMORY_ENTRIES_PER_ROW)
+                        ((1 << allowed_log_height) * mem_events_per_row)
+                            .div_ceil(NUM_LOCAL_MEMORY_ENTRIES_PER_ROW * rows_per_event)
                             .next_power_of_two()
                             .ilog2() as usize,
                     ),
-                ];
-                println!("heights: {:?}", height);
-                height
+                ]
             })
             .collect()
     }
