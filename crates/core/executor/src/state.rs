@@ -17,23 +17,24 @@ use crate::{
 
 /// Holds data describing the current state of a program's execution.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[repr(C)]
 pub struct ExecutionState {
-    /// The global clock keeps track of how many instrutions have been executed through all shards.
-    pub global_clk: u64,
+    /// The program counter.
+    pub pc: u32,
 
     /// The shard clock keeps track of how many shards have been executed.
     pub current_shard: u32,
 
-    /// The clock increments by 4 (possibly more in syscalls) for each instruction that has been
-    /// executed in this shard.
-    pub clk: u32,
-
-    /// The program counter.
-    pub pc: u32,
-
     /// The memory which instructions operate over. Values contain the memory value and last shard
     /// + timestamp that each memory address was accessed.
     pub memory: PagedMemory<MemoryRecord>,
+
+    /// The global clock keeps track of how many instrutions have been executed through all shards.
+    pub global_clk: u64,
+
+    /// The clock increments by 4 (possibly more in syscalls) for each instruction that has been
+    /// executed in this shard.
+    pub clk: u32,
 
     /// Uninitialized memory addresses that have a specific value they should be initialized with.
     /// `SyscallHintRead` uses this to write hint data into uninitialized memory.

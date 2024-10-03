@@ -31,9 +31,52 @@ use crate::{
 ///
 /// The exeuctor is responsible for executing a user program and tracing important events which
 /// occur during execution (i.e., memory reads, alu operations, etc).
+#[repr(C)]
 pub struct Executor<'a> {
     /// The program.
     pub program: Arc<Program>,
+
+    /// The mode the executor is running in.
+    pub executor_mode: ExecutorMode,
+
+    /// Whether the runtime is in constrained mode or not.
+    ///
+    /// In unconstrained mode, any events, clock, register, or memory changes are reset after
+    /// leaving the unconstrained block. The only thing preserved is writes to the input
+    /// stream.
+    pub unconstrained: bool,
+
+    /// Whether we should write to the report.
+    pub print_report: bool,
+
+    /// The maximum size of each shard.
+    pub shard_size: u32,
+
+    /// The maximimum number of shards to execute at once.
+    pub shard_batch_size: u32,
+
+    /// The maximum number of cycles for a syscall.
+    pub max_syscall_cycles: u32,
+
+    /// The mapping between syscall codes and their implementations.
+    pub syscall_map: HashMap<SyscallCode, Arc<dyn Syscall>>,
+
+    /// The options for the runtime.
+    pub opts: SP1CoreOpts,
+
+    /// Memory addresses that were touched in this batch of shards. Used to minimize the size of
+    /// checkpoints.
+    pub memory_checkpoint: PagedMemory<Option<MemoryRecord>>,
+
+    /// Memory addresses that were initialized in this batch of shards. Used to minimize the size of
+    /// checkpoints. The value stored is whether or not it had a value at the beginning of the batch.
+    pub uninitialized_memory_checkpoint: PagedMemory<bool>,
+
+    /// The memory accesses for the current cycle.
+    pub memory_accesses: MemoryAccessRecord,
+
+    /// The maximum number of cpu cycles to use for execution.
+    pub max_cycles: Option<u64>,
 
     /// The state of the execution.
     pub state: ExecutionState,
@@ -44,14 +87,8 @@ pub struct Executor<'a> {
     /// The collected records, split by cpu cycles.
     pub records: Vec<ExecutionRecord>,
 
-    /// The memory accesses for the current cycle.
-    pub memory_accesses: MemoryAccessRecord,
-
-    /// The maximum size of each shard.
-    pub shard_size: u32,
-
-    /// The maximimum number of shards to execute at once.
-    pub shard_batch_size: u32,
+    /// Local memory access events.
+    pub local_memory_access: HashMap<u32, MemoryLocalEvent>,
 
     /// A counter for the number of cycles that have been executed in certain functions.
     pub cycle_tracker: HashMap<String, (u64, u32)>,
@@ -62,49 +99,17 @@ pub struct Executor<'a> {
     /// A buffer for writing trace events to a file.
     pub trace_buf: Option<BufWriter<File>>,
 
-    /// Whether the runtime is in constrained mode or not.
-    ///
-    /// In unconstrained mode, any events, clock, register, or memory changes are reset after
-    /// leaving the unconstrained block. The only thing preserved is writes to the input
-    /// stream.
-    pub unconstrained: bool,
-
     /// The state of the runtime when in unconstrained mode.
     pub unconstrained_state: ForkState,
 
-    /// The mapping between syscall codes and their implementations.
-    pub syscall_map: HashMap<SyscallCode, Arc<dyn Syscall>>,
-
-    /// The maximum number of cycles for a syscall.
-    pub max_syscall_cycles: u32,
-
-    /// The mode the executor is running in.
-    pub executor_mode: ExecutorMode,
-
     /// Report of the program execution.
     pub report: ExecutionReport,
-
-    /// Whether we should write to the report.
-    pub print_report: bool,
 
     /// Verifier used to sanity check `verify_sp1_proof` during runtime.
     pub subproof_verifier: Arc<dyn SubproofVerifier + 'a>,
 
     /// Registry of hooks, to be invoked by writing to certain file descriptors.
     pub hook_registry: HookRegistry<'a>,
-
-    /// The options for the runtime.
-    pub opts: SP1CoreOpts,
-
-    /// The maximum number of cpu cycles to use for execution.
-    pub max_cycles: Option<u64>,
-
-    /// Memory addresses that were touched in this batch of shards. Used to minimize the size of
-    /// checkpoints.
-    pub memory_checkpoint: PagedMemory<Option<MemoryRecord>>,
-
-    /// Local memory access events.
-    pub local_memory_access: HashMap<u32, MemoryLocalEvent>,
 }
 
 /// The different modes the executor can run in.
@@ -221,6 +226,7 @@ impl<'a> Executor<'a> {
             opts,
             max_cycles: context.max_cycles,
             memory_checkpoint: PagedMemory::new_preallocated(),
+            uninitialized_memory_checkpoint: PagedMemory::new_preallocated(),
             local_memory_access: HashMap::new(),
         }
     }
@@ -388,6 +394,7 @@ impl<'a> Executor<'a> {
             Entry::Vacant(entry) => {
                 // If addr has a specific value to be initialized with, use that, otherwise 0.
                 let value = self.state.uninitialized_memory.get(addr).unwrap_or(&0);
+                self.uninitialized_memory_checkpoint.entry(addr).or_insert_with(|| *value != 0);
                 entry.insert(MemoryRecord { value: *value, shard: 0, timestamp: 0 })
             }
         };
@@ -464,6 +471,7 @@ impl<'a> Executor<'a> {
             Entry::Vacant(entry) => {
                 // If addr has a specific value to be initialized with, use that, otherwise 0.
                 let value = self.state.uninitialized_memory.get(addr).unwrap_or(&0);
+                self.uninitialized_memory_checkpoint.entry(addr).or_insert_with(|| *value != 0);
 
                 entry.insert(MemoryRecord { value: *value, shard: 0, timestamp: 0 })
             }
@@ -766,6 +774,7 @@ impl<'a> Executor<'a> {
     }
 
     /// Fetch the instruction at the current program counter.
+    #[inline]
     fn fetch(&self) -> Instruction {
         let idx = ((self.state.pc - self.program.pc_base) / 4) as usize;
         self.program.instructions[idx]
@@ -1191,6 +1200,7 @@ impl<'a> Executor<'a> {
         let instruction = self.fetch();
 
         // Log the current state of the runtime.
+        #[cfg(debug_assertions)]
         self.log(&instruction);
 
         // Execute the instruction.
@@ -1262,16 +1272,20 @@ impl<'a> Executor<'a> {
         self.memory_checkpoint.clear();
         self.executor_mode = ExecutorMode::Checkpoint;
 
-        // Take memory out of state before cloning it so that memory is not cloned.
+        // Clone self.state without memory and uninitialized_memory in it so it's faster.
         let memory = std::mem::take(&mut self.state.memory);
+        let uninitialized_memory = std::mem::take(&mut self.state.uninitialized_memory);
         let mut checkpoint = tracing::info_span!("clone").in_scope(|| self.state.clone());
         self.state.memory = memory;
+        self.state.uninitialized_memory = uninitialized_memory;
 
         let done = tracing::info_span!("execute").in_scope(|| self.execute())?;
         // Create a checkpoint using `memory_checkpoint`. Just include all memory if `done` since we
         // need it all for MemoryFinalize.
         tracing::info_span!("create memory checkpoint").in_scope(|| {
             let memory_checkpoint = std::mem::take(&mut self.memory_checkpoint);
+            let uninitialized_memory_checkpoint =
+                std::mem::take(&mut self.uninitialized_memory_checkpoint);
             if done {
                 // If we're done, we need to include all memory. But we need to reset any modified
                 // memory to as it was before the execution.
@@ -1283,10 +1297,22 @@ impl<'a> Executor<'a> {
                         checkpoint.memory.remove(addr);
                     }
                 });
+                checkpoint.uninitialized_memory = self.state.uninitialized_memory.clone();
+                // Remove memory that was written to in this batch.
+                for (addr, is_old) in uninitialized_memory_checkpoint {
+                    if !is_old {
+                        checkpoint.uninitialized_memory.remove(addr);
+                    }
+                }
             } else {
                 checkpoint.memory = memory_checkpoint
                     .into_iter()
                     .filter_map(|(addr, record)| record.map(|record| (addr, record)))
+                    .collect();
+                checkpoint.uninitialized_memory = uninitialized_memory_checkpoint
+                    .into_iter()
+                    .filter(|&(_, has_value)| has_value)
+                    .map(|(addr, _)| (addr, *self.state.uninitialized_memory.get(addr).unwrap()))
                     .collect();
             }
         });
@@ -1328,7 +1354,7 @@ impl<'a> Executor<'a> {
 
     /// Executes up to `self.shard_batch_size` cycles of the program, returning whether the program
     /// has finished.
-    fn execute(&mut self) -> Result<bool, ExecutionError> {
+    pub fn execute(&mut self) -> Result<bool, ExecutionError> {
         // Get the program.
         let program = self.program.clone();
 
@@ -1431,49 +1457,51 @@ impl<'a> Executor<'a> {
             tracing::warn!("Not all input bytes were read.");
         }
 
-        // SECTION: Set up all MemoryInitializeFinalizeEvents needed for memory argument.
-        let memory_finalize_events = &mut self.record.global_memory_finalize_events;
+        if self.executor_mode == ExecutorMode::Trace {
+            // SECTION: Set up all MemoryInitializeFinalizeEvents needed for memory argument.
+            let memory_finalize_events = &mut self.record.global_memory_finalize_events;
 
-        // We handle the addr = 0 case separately, as we constrain it to be 0 in the first row
-        // of the memory finalize table so it must be first in the array of events.
-        let addr_0_record = self.state.memory.get(0);
+            // We handle the addr = 0 case separately, as we constrain it to be 0 in the first row
+            // of the memory finalize table so it must be first in the array of events.
+            let addr_0_record = self.state.memory.get(0);
 
-        let addr_0_final_record = match addr_0_record {
-            Some(record) => record,
-            None => &MemoryRecord { value: 0, shard: 0, timestamp: 1 },
-        };
-        memory_finalize_events
-            .push(MemoryInitializeFinalizeEvent::finalize_from_record(0, addr_0_final_record));
-
-        let memory_initialize_events = &mut self.record.global_memory_initialize_events;
-        let addr_0_initialize_event =
-            MemoryInitializeFinalizeEvent::initialize(0, 0, addr_0_record.is_some());
-        memory_initialize_events.push(addr_0_initialize_event);
-
-        // Count the number of touched memory addresses manually, since `PagedMemory` doesn't
-        // already know its length.
-        self.report.touched_memory_addresses = 0;
-        for addr in self.state.memory.keys() {
-            self.report.touched_memory_addresses += 1;
-            if addr == 0 {
-                // Handled above.
-                continue;
-            }
-
-            // Program memory is initialized in the MemoryProgram chip and doesn't require any
-            // events, so we only send init events for other memory addresses.
-            if !self.record.program.memory_image.contains_key(&addr) {
-                let initial_value = self.state.uninitialized_memory.get(addr).unwrap_or(&0);
-                memory_initialize_events.push(MemoryInitializeFinalizeEvent::initialize(
-                    addr,
-                    *initial_value,
-                    true,
-                ));
-            }
-
-            let record = *self.state.memory.get(addr).unwrap();
+            let addr_0_final_record = match addr_0_record {
+                Some(record) => record,
+                None => &MemoryRecord { value: 0, shard: 0, timestamp: 1 },
+            };
             memory_finalize_events
-                .push(MemoryInitializeFinalizeEvent::finalize_from_record(addr, &record));
+                .push(MemoryInitializeFinalizeEvent::finalize_from_record(0, addr_0_final_record));
+
+            let memory_initialize_events = &mut self.record.global_memory_initialize_events;
+            let addr_0_initialize_event =
+                MemoryInitializeFinalizeEvent::initialize(0, 0, addr_0_record.is_some());
+            memory_initialize_events.push(addr_0_initialize_event);
+
+            // Count the number of touched memory addresses manually, since `PagedMemory` doesn't
+            // already know its length.
+            self.report.touched_memory_addresses = 0;
+            for addr in self.state.memory.keys() {
+                self.report.touched_memory_addresses += 1;
+                if addr == 0 {
+                    // Handled above.
+                    continue;
+                }
+
+                // Program memory is initialized in the MemoryProgram chip and doesn't require any
+                // events, so we only send init events for other memory addresses.
+                if !self.record.program.memory_image.contains_key(&addr) {
+                    let initial_value = self.state.uninitialized_memory.get(addr).unwrap_or(&0);
+                    memory_initialize_events.push(MemoryInitializeFinalizeEvent::initialize(
+                        addr,
+                        *initial_value,
+                        true,
+                    ));
+                }
+
+                let record = *self.state.memory.get(addr).unwrap();
+                memory_finalize_events
+                    .push(MemoryInitializeFinalizeEvent::finalize_from_record(addr, &record));
+            }
         }
     }
 
@@ -1482,6 +1510,7 @@ impl<'a> Executor<'a> {
     }
 
     #[inline]
+    #[cfg(debug_assertions)]
     fn log(&mut self, _: &Instruction) {
         // Write the current program counter to the trace buffer for the cycle tracer.
         if let Some(ref mut buf) = self.trace_buf {

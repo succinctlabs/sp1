@@ -84,6 +84,7 @@ sp1-core-executor = { workspace = true, features = ["programs"] }
 neon = ["p3-blake3/neon"]
 programs = []
 debug = []
+bigint-rug = ["sp1-curves/bigint-rug"]
 
 [lib]
 bench = false

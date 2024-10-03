@@ -4,7 +4,7 @@ use std::{
     mem::size_of,
 };
 
-use crate::air::MemoryAirBuilder;
+use crate::{air::MemoryAirBuilder, utils::zeroed_f_vec};
 use generic_array::GenericArray;
 use itertools::Itertools;
 use num::{BigUint, Zero};
@@ -112,7 +112,7 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for Fp2AddSubAssignChip<P> {
                 _ => unreachable!(),
             };
 
-            let mut row = vec![F::zero(); num_fp2_addsub_cols::<P>()];
+            let mut row = zeroed_f_vec(num_fp2_addsub_cols::<P>());
             let cols: &mut Fp2AddSubAssignCols<F, P> = row.as_mut_slice().borrow_mut();
 
             let p = &event.x;
@@ -155,7 +155,7 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for Fp2AddSubAssignChip<P> {
         pad_rows_fixed(
             &mut rows,
             || {
-                let mut row = vec![F::zero(); num_fp2_addsub_cols::<P>()];
+                let mut row = zeroed_f_vec(num_fp2_addsub_cols::<P>());
                 let cols: &mut Fp2AddSubAssignCols<F, P> = row.as_mut_slice().borrow_mut();
                 cols.is_add = F::one();
                 let zero = BigUint::zero();

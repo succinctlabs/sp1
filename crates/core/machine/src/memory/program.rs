@@ -2,6 +2,7 @@ use core::{
     borrow::{Borrow, BorrowMut},
     mem::size_of,
 };
+use itertools::Itertools;
 use p3_air::{Air, AirBuilder, AirBuilderWithPublicValues, BaseAir, PairBuilder};
 use p3_field::{AbstractField, PrimeField};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
@@ -75,6 +76,7 @@ impl<F: PrimeField> MachineAir<F> for MemoryProgramChip {
         // deterministic.
         let mut rows = program_memory
             .iter()
+            .sorted()
             .map(|(&addr, &word)| {
                 let mut row = [F::zero(); NUM_MEMORY_PROGRAM_PREPROCESSED_COLS];
                 let cols: &mut MemoryProgramPreprocessedCols<F> = row.as_mut_slice().borrow_mut();
@@ -109,7 +111,7 @@ impl<F: PrimeField> MachineAir<F> for MemoryProgramChip {
         input: &ExecutionRecord,
         _output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
-        let program_memory_addrs = input.program.memory_image.keys().copied();
+        let program_memory_addrs = input.program.memory_image.keys().copied().sorted();
 
         let mult = if input.public_values.shard == 1 { F::one() } else { F::zero() };
 

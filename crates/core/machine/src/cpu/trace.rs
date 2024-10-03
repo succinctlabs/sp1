@@ -22,7 +22,7 @@ use super::{
     columns::{CPU_COL_MAP, NUM_CPU_COLS},
     CpuChip,
 };
-use crate::{cpu::columns::CpuCols, memory::MemoryCols};
+use crate::{cpu::columns::CpuCols, memory::MemoryCols, utils::zeroed_f_vec};
 
 impl<F: PrimeField32> MachineAir<F> for CpuChip {
     type Record = ExecutionRecord;
@@ -38,7 +38,7 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
         input: &ExecutionRecord,
         _: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
-        let mut values = vec![F::zero(); input.cpu_events.len() * NUM_CPU_COLS];
+        let mut values = zeroed_f_vec(input.cpu_events.len() * NUM_CPU_COLS);
 
         let chunk_size = std::cmp::max(input.cpu_events.len() / num_cpus::get(), 1);
         values.chunks_mut(chunk_size * NUM_CPU_COLS).enumerate().par_bridge().for_each(

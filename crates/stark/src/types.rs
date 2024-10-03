@@ -4,7 +4,11 @@ use std::{cmp::Reverse, collections::BTreeSet, fmt::Debug};
 
 use hashbrown::HashMap;
 use itertools::Itertools;
-use p3_matrix::{dense::RowMajorMatrixView, stack::VerticalPair};
+use p3_matrix::{
+    dense::{RowMajorMatrix, RowMajorMatrixView},
+    stack::VerticalPair,
+    Matrix,
+};
 use serde::{Deserialize, Serialize};
 
 use super::{Challenge, Com, OpeningProof, StarkGenericConfig, Val};
@@ -85,6 +89,22 @@ pub struct ShardProof<SC: StarkGenericConfig> {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, PartialOrd, Ord, Eq, Hash)]
 pub struct ProofShape {
     pub chip_information: Vec<(String, usize)>,
+}
+
+impl ProofShape {
+    #[must_use]
+    pub fn from_traces<V: Clone + Send + Sync>(
+        global_traces: Option<&[(String, RowMajorMatrix<V>)]>,
+        local_traces: &[(String, RowMajorMatrix<V>)],
+    ) -> Self {
+        global_traces
+            .into_iter()
+            .flatten()
+            .chain(local_traces.iter())
+            .map(|(name, trace)| (name.clone(), trace.height().ilog2() as usize))
+            .sorted_by_key(|(_, height)| *height)
+            .collect()
+    }
 }
 
 impl<SC: StarkGenericConfig> Debug for ShardProof<SC> {

@@ -7,6 +7,7 @@ mod span;
 mod tracer;
 
 pub use logger::*;
+use p3_field::Field;
 pub use prove::*;
 use sp1_curves::params::Limbs;
 pub use span::*;
@@ -197,4 +198,15 @@ where
 pub fn sp1_debug_mode() -> bool {
     let value = std::env::var("SP1_DEBUG").unwrap_or_else(|_| "false".to_string());
     value == "1" || value.to_lowercase() == "true"
+}
+
+/// Returns a vector of zeros of the given length. This is faster than vec![F::zero(); len] which
+/// requires copying.
+///
+/// This function is safe to use only for fields that can be transmuted from 0u32.
+pub fn zeroed_f_vec<F: Field>(len: usize) -> Vec<F> {
+    debug_assert!(std::mem::size_of::<F>() == 4);
+
+    let vec = vec![0u32; len];
+    unsafe { std::mem::transmute::<Vec<u32>, Vec<F>>(vec) }
 }

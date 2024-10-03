@@ -51,3 +51,4 @@ sp1-zkvm = { workspace = true }
 
 [features]
 programs = []
+bigint-rug = ["sp1-curves/bigint-rug"]

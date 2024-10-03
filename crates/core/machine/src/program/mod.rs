@@ -178,8 +178,9 @@ where
 #[cfg(test)]
 mod tests {
 
-    use std::{collections::BTreeMap, sync::Arc};
+    use std::sync::Arc;
 
+    use hashbrown::HashMap;
     use p3_baby_bear::BabyBear;
 
     use p3_matrix::dense::RowMajorMatrix;
@@ -204,7 +205,7 @@ mod tests {
                 instructions,
                 pc_start: 0,
                 pc_base: 0,
-                memory_image: BTreeMap::new(),
+                memory_image: HashMap::new(),
                 preprocessed_shape: None,
             }),
             ..Default::default()

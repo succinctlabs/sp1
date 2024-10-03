@@ -4,7 +4,7 @@ use std::{
     mem::size_of,
 };
 
-use crate::air::MemoryAirBuilder;
+use crate::{air::MemoryAirBuilder, utils::zeroed_f_vec};
 use generic_array::GenericArray;
 use itertools::Itertools;
 use num::{BigUint, Zero};
@@ -107,7 +107,7 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for FpOpChip<P> {
                 _ => unreachable!(),
             };
 
-            let mut row = vec![F::zero(); num_fp_cols::<P>()];
+            let mut row = zeroed_f_vec(num_fp_cols::<P>());
             let cols: &mut FpOpCols<F, P> = row.as_mut_slice().borrow_mut();
 
             let modulus = &BigUint::from_bytes_le(P::MODULUS);
@@ -147,7 +147,7 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for FpOpChip<P> {
         pad_rows_fixed(
             &mut rows,
             || {
-                let mut row = vec![F::zero(); num_fp_cols::<P>()];
+                let mut row = zeroed_f_vec(num_fp_cols::<P>());
                 let cols: &mut FpOpCols<F, P> = row.as_mut_slice().borrow_mut();
                 let zero = BigUint::zero();
                 cols.is_add = F::from_canonical_u8(1);
