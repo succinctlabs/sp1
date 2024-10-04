@@ -408,7 +408,7 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
         ]);
 
         // Core chip heights for the long shape cluster.
-        let cpu_heights = vec![Some(21), Some(22)];
+        let cpu_heights = vec![Some(22)];
         let divrem_heights = vec![None, Some(20), Some(21), Some(22)];
         let add_sub_heights = vec![None, Some(20), Some(21), Some(22)];
         let bitwise_heights = vec![None, Some(20), Some(21), Some(22)];
@@ -443,7 +443,7 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
         ]);
 
         let mut precompile_allowed_log_heights = HashMap::new();
-        let precompile_heights = (1..22).collect::<Vec<_>>();
+        let precompile_heights = (1..19).collect::<Vec<_>>();
         for (air, mem_events_per_row) in RiscvAir::<F>::get_all_precompile_airs() {
             precompile_allowed_log_heights
                 .insert(air, (mem_events_per_row, precompile_heights.clone()));
