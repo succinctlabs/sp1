@@ -20,9 +20,11 @@ use sp1_recursion_circuit::{
 use sp1_recursion_core::{shape::RecursionShapeConfig, RecursionProgram};
 use sp1_stark::{MachineProver, ProofShape, DIGEST_SIZE};
 
+pub const SHAPE_BYTES: &[u8] = include_bytes!("../shapes.bin");
+
 use crate::{components::SP1ProverComponents, CompressAir, HashableKey, InnerSC, SP1Prover};
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum SP1ProofShape {
     Recursion(ProofShape),
     Compress(Vec<ProofShape>),
@@ -244,6 +246,12 @@ impl SP1ProofShape {
         recursion_shape_config: &'a RecursionShapeConfig<BabyBear, CompressAir<BabyBear>>,
         reduce_batch_size: usize,
     ) -> impl Iterator<Item = Self> + 'a {
+        // let shapes: Vec<SP1ProofShape> = bincode::deserialize(SHAPE_BYTES).unwrap();
+        // shapes.into_iter().chain(
+        //     recursion_shape_config
+        //         .get_all_shape_combinations(1)
+        //         .map(|mut x| Self::Shrink(x.pop().unwrap())),
+        // )
         core_shape_config
             .generate_all_allowed_shapes()
             .map(Self::Recursion)
@@ -332,10 +340,15 @@ mod tests {
         let core_shape_config = CoreShapeConfig::default();
         let recursion_shape_config = RecursionShapeConfig::default();
         let reduce_batch_size = 2;
-        let num_shapes =
+        let all_shapes =
             SP1ProofShape::generate(&core_shape_config, &recursion_shape_config, reduce_batch_size)
-                .collect::<BTreeSet<_>>()
-                .len();
-        println!("Number of compress shapes: {}", num_shapes);
+                .collect::<BTreeSet<_>>();
+
+        println!("Number of compress shapes: {}", all_shapes.len());
+
+        let test_shapes: Vec<SP1ProofShape> = bincode::deserialize(SHAPE_BYTES).unwrap();
+        for shape in test_shapes {
+            assert!(all_shapes.contains(&shape));
+        }
     }
 }

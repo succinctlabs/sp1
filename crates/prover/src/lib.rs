@@ -1169,7 +1169,9 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                 .iter()
                 .map(|(vk, _)| {
                     let vk_digest = vk.hash_babybear();
+                    tracing::info!("vk_digest: {:?}", vk_digest);
                     let index = self.allowed_vk_map.get(&vk_digest).expect("vk not allowed");
+                    tracing::info!("vk found at index: {:?}", index);
                     (index, vk_digest)
                 })
                 .unzip()
@@ -1223,6 +1225,7 @@ pub mod tests {
     use build::{build_constraints_and_witness, try_build_groth16_bn254_artifacts_dev};
     use p3_field::PrimeField32;
 
+    use shapes::SP1ProofShape;
     use sp1_recursion_core::air::RecursionPublicValues;
 
     #[cfg(test)]
@@ -1275,9 +1278,20 @@ pub mod tests {
         tracing::info!("setup elf");
         let (pk, vk) = prover.setup(elf);
 
+        // let mut shapes = Vec::new();
+
         tracing::info!("prove core");
         let core_proof = prover.prove_core(&pk, &stdin, opts, context)?;
         let public_values = core_proof.public_values.clone();
+
+        // for proof in core_proof.proof.0.iter() {
+        //     let shape = SP1ProofShape::Recursion(proof.shape());
+        //     tracing::info!("shape: {:?}", shape);
+        //     shapes.push(shape);
+        // }
+
+        // let mut file = File::create("../shapes.bin").unwrap();
+        // bincode::serialize_into(&mut file, &shapes).unwrap();
 
         if verify {
             tracing::info!("verify core");
