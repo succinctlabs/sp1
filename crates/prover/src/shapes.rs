@@ -80,7 +80,7 @@ pub fn build_vk_map<C: SP1ProverComponents>(
     num_compiler_workers: usize,
     num_setup_workers: usize,
     indices: Option<Vec<usize>>,
-    num_shapes: Option<usize>,
+    _num_shapes: Option<usize>,
 ) -> (BTreeSet<[BabyBear; DIGEST_SIZE]>, Vec<usize>, usize) {
     let mut prover = SP1Prover::<C>::new();
     prover.vk_verification = !dummy;
@@ -111,13 +111,11 @@ pub fn build_vk_map<C: SP1ProverComponents>(
         let program_rx = Mutex::new(program_rx);
 
         let indices_set = indices.map(|indices| indices.into_iter().collect::<HashSet<_>>());
-        let generate_shapes = || {
+        let all_shapes =
             SP1ProofShape::generate(core_shape_config, recursion_shape_config, reduce_batch_size)
-                .enumerate()
-                .filter(|(i, _)| indices_set.as_ref().map(|set| set.contains(i)).unwrap_or(true))
-        };
+                .collect::<BTreeSet<_>>();
+        let num_shapes = all_shapes.len();
 
-        let num_shapes = num_shapes.unwrap_or(generate_shapes().count());
         let height = num_shapes.next_power_of_two().ilog2() as usize;
         let chunk_size = indices_set.as_ref().map(|indices| indices.len()).unwrap_or(num_shapes);
 
@@ -183,7 +181,10 @@ pub fn build_vk_map<C: SP1ProverComponents>(
             }
 
             // Generate shapes and send them to the compiler workers.
-            generate_shapes()
+            all_shapes
+                .into_iter()
+                .enumerate()
+                .filter(|(i, _)| indices_set.as_ref().map(|set| set.contains(i)).unwrap_or(true))
                 .map(|(i, shape)| (i, SP1CompressProgramShape::from_proof_shape(shape, height)))
                 .for_each(|(i, program_shape)| {
                     shape_tx.send((i, program_shape)).unwrap();
@@ -329,7 +330,8 @@ mod tests {
         let reduce_batch_size = 2;
         let num_shapes =
             SP1ProofShape::generate(&core_shape_config, &recursion_shape_config, reduce_batch_size)
-                .count();
+                .collect::<BTreeSet<_>>()
+                .len();
         println!("Number of compress shapes: {}", num_shapes);
     }
 }
