@@ -113,6 +113,7 @@ const COMPRESS_CACHE_SIZE: usize = 3;
 pub const REDUCE_BATCH_SIZE: usize = 2;
 
 const VK_DATA_BYTES: &[u8] = include_bytes!("../vk_data.bin");
+const DUMMY_VK_DATA_BYTES: &[u8] = include_bytes!("../dummy_vk_data.bin");
 
 pub type CompressAir<F> = RecursionAir<F, COMPRESS_DEGREE>;
 pub type ShrinkAir<F> = RecursionAir<F, SHRINK_DEGREE>;
@@ -197,11 +198,6 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         )
         .expect("PROVER_COMPRESS_CACHE_SIZE must be a non-zero usize");
 
-        let vk_data: VkData =
-            bincode::deserialize(VK_DATA_BYTES).expect("failed to deserialize vk data");
-
-        let VkData { vk_map: allowed_vk_map, root, merkle_tree } = vk_data;
-
         let core_shape_config = env::var("FIX_CORE_SHAPES")
             .map(|v| v.eq_ignore_ascii_case("true"))
             .unwrap_or(true)
@@ -214,6 +210,13 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 
         let vk_verification =
             env::var("VERIFY_VK").map(|v| v.eq_ignore_ascii_case("true")).unwrap_or(true);
+
+        let vk_data_bytes = if vk_verification { VK_DATA_BYTES } else { DUMMY_VK_DATA_BYTES };
+
+        let vk_data: VkData =
+            bincode::deserialize(vk_data_bytes).expect("failed to deserialize vk data");
+
+        let VkData { vk_map: allowed_vk_map, root, merkle_tree } = vk_data;
 
         Self {
             core_prover,

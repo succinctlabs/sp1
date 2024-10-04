@@ -56,7 +56,7 @@ fn main() {
         let height = vk_set.len().next_power_of_two().ilog2() as usize;
         let vk_data = VkData::new(vk_set, height);
 
-        vk_data.save(build_dir).expect("failed to save vk data");
+        vk_data.save(build_dir, dummy).expect("failed to save vk data");
     } else {
         build_vk_map_to_file::<DefaultProverComponents>(
             build_dir,

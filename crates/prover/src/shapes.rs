@@ -38,8 +38,12 @@ pub struct VkData {
 }
 
 impl VkData {
-    pub fn save(&self, build_dir: PathBuf) -> Result<(), std::io::Error> {
-        let mut file = File::create(build_dir.join("vk_data.bin"))?;
+    pub fn save(&self, build_dir: PathBuf, dummy: bool) -> Result<(), std::io::Error> {
+        let mut file = if dummy {
+            File::create(build_dir.join("dummy_vk_data.bin"))?
+        } else {
+            File::create(build_dir.join("vk_data.bin"))?
+        };
         bincode::serialize_into(&mut file, self).unwrap();
         Ok(())
     }
@@ -231,7 +235,7 @@ pub fn build_vk_map_to_file<C: SP1ProverComponents>(
     tracing::info!("Creating vk data from vk set");
     let vk_data = VkData::new(vk_set, height);
 
-    vk_data.save(build_dir).expect("failed to save vk data");
+    vk_data.save(build_dir, dummy).expect("failed to save vk data");
 }
 
 impl SP1ProofShape {
