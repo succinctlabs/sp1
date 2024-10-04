@@ -1214,6 +1214,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 }
 
 #[cfg(any(test, feature = "export-tests"))]
+#[cfg(test)]
 pub mod tests {
 
     use std::{fs::File, io::Read, io::Write};
@@ -1225,7 +1226,6 @@ pub mod tests {
     use build::{build_constraints_and_witness, try_build_groth16_bn254_artifacts_dev};
     use p3_field::PrimeField32;
 
-    use shapes::SP1ProofShape;
     use sp1_recursion_core::air::RecursionPublicValues;
 
     #[cfg(test)]
