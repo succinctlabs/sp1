@@ -190,10 +190,10 @@ where
                 shard_proof.public_values.as_slice().borrow();
             // Assert that the public values are valid.
             assert_recursion_public_values_valid::<C, SC>(builder, current_public_values);
-            // // Assert that the vk root is the same as the witnessed one.
-            // for (expected, actual) in vk_root.iter().zip(current_public_values.vk_root.iter()) {
-            //     builder.assert_felt_eq(*expected, *actual);
-            // }
+            // Assert that the vk root is the same as the witnessed one.
+            for (expected, actual) in vk_root.iter().zip(current_public_values.vk_root.iter()) {
+                builder.assert_felt_eq(*expected, *actual);
+            }
 
             // Set the exit code, it is already constrained to be zero in the previous proof.
             exit_code = current_public_values.exit_code;
