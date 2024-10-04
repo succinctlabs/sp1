@@ -9,14 +9,6 @@ use alloy_signer::{Signature, SignerSync};
 use prost::Message;
 pub use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, PartialEq, PartialOrd, Deserialize, Serialize)]
-pub enum ProofStatus {
-    Unspecified,
-    Requested,
-    Assigned,
-    Fulfilled,
-}
-
 pub trait Signable: Message {
     fn sign<S: SignerSync>(&self, signer: &S) -> Signature;
 }

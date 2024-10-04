@@ -157,6 +157,35 @@ pub struct GetNonceResponse {
     #[prost(uint64, tag = "1")]
     pub nonce: u64,
 }
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct GetProofRequestStatusRequest {
+    /// The identifier for the proof request.
+    #[prost(bytes = "vec", tag = "1")]
+    pub request_id: ::prost::alloc::vec::Vec<u8>,
+}
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct GetProofRequestStatusResponse {
+    /// The status of the proof request.
+    #[prost(enumeration = "ProofStatus", tag = "1")]
+    pub status: i32,
+    /// The transaction hash of the proof request.
+    #[prost(bytes = "vec", tag = "2")]
+    pub request_tx_hash: ::prost::alloc::vec::Vec<u8>,
+    /// The optional transaction hash of the proof fulfill. Only included if the proof request has a
+    /// status of FULFILLED.
+    #[prost(bytes = "vec", optional, tag = "3")]
+    pub fulfill_tx_hash: ::core::option::Option<::prost::alloc::vec::Vec<u8>>,
+    /// The optional proof URI, where you can download the result of the proof request. Only included
+    /// if the proof has a status of FULFILLED.
+    #[prost(string, optional, tag = "4")]
+    pub proof_uri: ::core::option::Option<::prost::alloc::string::String>,
+    /// The optional error status code, if the request failed.
+    #[prost(uint32, optional, tag = "5")]
+    pub error_code: ::core::option::Option<u32>,
+    /// The optional error description details, if the request failed.
+    #[prost(string, optional, tag = "6")]
+    pub error_description: ::core::option::Option<::prost::alloc::string::String>,
+}
 #[derive(
     serde::Serialize,
     serde::Deserialize,
@@ -245,6 +274,7 @@ impl ProofStrategy {
 #[derive(
     serde::Serialize,
     serde::Deserialize,
+    sqlx::Type,
     Clone,
     Copy,
     Debug,
@@ -429,6 +459,27 @@ pub mod prover_network_client {
                 .insert(GrpcMethod::new("network.ProverNetwork", "GetFilteredProofRequests"));
             self.inner.unary(req, path, codec).await
         }
+        /// Get the status of a proof request.
+        pub async fn get_proof_request_status(
+            &mut self,
+            request: impl tonic::IntoRequest<super::GetProofRequestStatusRequest>,
+        ) -> std::result::Result<tonic::Response<super::GetProofRequestStatusResponse>, tonic::Status>
+        {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/network.ProverNetwork/GetProofRequestStatus",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("network.ProverNetwork", "GetProofRequestStatus"));
+            self.inner.unary(req, path, codec).await
+        }
         /// Get the balance of the account.
         pub async fn get_balance(
             &mut self,
@@ -491,6 +542,11 @@ pub mod prover_network_server {
             tonic::Response<super::GetFilteredProofRequestsResponse>,
             tonic::Status,
         >;
+        /// Get the status of a proof request.
+        async fn get_proof_request_status(
+            &self,
+            request: tonic::Request<super::GetProofRequestStatusRequest>,
+        ) -> std::result::Result<tonic::Response<super::GetProofRequestStatusResponse>, tonic::Status>;
         /// Get the balance of the account.
         async fn get_balance(
             &self,
@@ -685,6 +741,49 @@ pub mod prover_network_server {
                     let inner = self.inner.clone();
                     let fut = async move {
                         let method = GetFilteredProofRequestsSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/network.ProverNetwork/GetProofRequestStatus" => {
+                    #[allow(non_camel_case_types)]
+                    struct GetProofRequestStatusSvc<T: ProverNetwork>(pub Arc<T>);
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<super::GetProofRequestStatusRequest>
+                        for GetProofRequestStatusSvc<T>
+                    {
+                        type Response = super::GetProofRequestStatusResponse;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::GetProofRequestStatusRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as ProverNetwork>::get_proof_request_status(&inner, request)
+                                    .await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = GetProofRequestStatusSvc(inner);
                         let codec = tonic::codec::ProstCodec::default();
                         let mut grpc = tonic::server::Grpc::new(codec)
                             .apply_compression_config(

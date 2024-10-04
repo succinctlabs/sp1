@@ -4,8 +4,8 @@ use std::{
 };
 
 use crate::{
-    network::client::{NetworkClient, DEFAULT_PROVER_NETWORK_RPC},
-    network::proto::network::{ProofMode, ProofStatus},
+    network_v2::client::{NetworkClient, DEFAULT_PROVER_NETWORK_RPC},
+    network_v2::proto::network::{ProofMode, ProofStatus},
     Prover, SP1Context, SP1ProofKind, SP1ProofWithPublicValues, SP1ProvingKey, SP1VerifyingKey,
 };
 use anyhow::Result;
@@ -86,7 +86,7 @@ impl NetworkProver {
                 }
             }
 
-            let (status, maybe_proof) = client.get_proof_status::<P>(proof_id).await?;
+            let (status, maybe_proof) = client.get_proof_request_status::<P>(proof_id).await?;
 
             match status.status() {
                 ProofStatus::ProofFulfilled => {
@@ -175,13 +175,13 @@ fn warn_if_not_default(opts: &SP1ProverOpts, context: &SP1Context) {
     }
 }
 
-// impl From<SP1ProofKind> for ProofMode {
-//     fn from(value: SP1ProofKind) -> Self {
-//         match value {
-//             SP1ProofKind::Core => Self::Core,
-//             SP1ProofKind::Compressed => Self::Compressed,
-//             SP1ProofKind::Plonk => Self::Plonk,
-//             SP1ProofKind::Groth16 => Self::Groth16,
-//         }
-//     }
-// }
+impl From<SP1ProofKind> for ProofMode {
+    fn from(value: SP1ProofKind) -> Self {
+        match value {
+            SP1ProofKind::Core => Self::Core,
+            SP1ProofKind::Compressed => Self::Compressed,
+            SP1ProofKind::Plonk => Self::Plonk,
+            SP1ProofKind::Groth16 => Self::Groth16,
+        }
+    }
+}
