@@ -2,6 +2,7 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     fs::File,
     iter::once,
+    panic::{catch_unwind, AssertUnwindSafe},
     path::PathBuf,
     sync::{Arc, Mutex},
 };
@@ -32,6 +33,7 @@ pub enum SP1ProofShape {
     Shrink(ProofShape),
 }
 
+#[derive(Debug, Clone)]
 pub enum SP1CompressProgramShape {
     Recursion(SP1RecursionShape),
     Compress(SP1CompressWithVkeyShape),
@@ -58,7 +60,8 @@ pub fn build_vk_map<C: SP1ProverComponents>(
         SP1ProofShape::dummy_vk_map(core_shape_config, recursion_shape_config, reduce_batch_size)
     } else {
         let (vk_tx, vk_rx) = std::sync::mpsc::channel();
-        let (shape_tx, shape_rx) = std::sync::mpsc::sync_channel(num_compiler_workers);
+        let (shape_tx, shape_rx) =
+            std::sync::mpsc::sync_channel::<(usize, SP1CompressProgramShape)>(num_compiler_workers);
         let (program_tx, program_rx) = std::sync::mpsc::sync_channel(num_setup_workers);
 
         let shape_rx = Mutex::new(shape_rx);
@@ -84,8 +87,17 @@ pub fn build_vk_map<C: SP1ProverComponents>(
                 let prover = &prover;
                 s.spawn(move || {
                     while let Ok((i, shape)) = shape_rx.lock().unwrap().recv() {
-                        let program = prover.program_from_shape(shape);
-                        program_tx.send((i, program)).unwrap();
+                        let program = catch_unwind(AssertUnwindSafe(|| {
+                            prover.program_from_shape(shape.clone())
+                        }));
+                        match program {
+                            Ok(program) => program_tx.send((i, program)).unwrap(),
+                            Err(e) => tracing::warn!(
+                                "Program generation failed for shape {:?}, with error: {:?}",
+                                shape,
+                                e
+                            ),
+                        }
                     }
                 });
             }
