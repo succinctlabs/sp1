@@ -34,6 +34,7 @@ use std::{
 
 use lru::LruCache;
 
+use shapes::VkData;
 use tracing::instrument;
 
 use p3_baby_bear::BabyBear;
@@ -111,8 +112,7 @@ const COMPRESS_CACHE_SIZE: usize = 3;
 
 pub const REDUCE_BATCH_SIZE: usize = 2;
 
-const VK_MAP_BYTES: &[u8] = include_bytes!("../vk_map.bin");
-const MERKLE_TREE_BYTES: &[u8] = include_bytes!("../merkle_tree.bin");
+const VK_DATA_BYTES: &[u8] = include_bytes!("../vk_data.bin");
 
 pub type CompressAir<F> = RecursionAir<F, COMPRESS_DEGREE>;
 pub type ShrinkAir<F> = RecursionAir<F, SHRINK_DEGREE>;
@@ -197,11 +197,10 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         )
         .expect("PROVER_COMPRESS_CACHE_SIZE must be a non-zero usize");
 
-        let allowed_vk_map =
-            bincode::deserialize(VK_MAP_BYTES).expect("failed to deserialize vk map");
+        let vk_data: VkData =
+            bincode::deserialize(VK_DATA_BYTES).expect("failed to deserialize vk data");
 
-        let (root, merkle_tree) =
-            bincode::deserialize(MERKLE_TREE_BYTES).expect("failed to deserialize merkle tree");
+        let VkData { vk_map: allowed_vk_map, root, merkle_tree } = vk_data;
 
         let core_shape_config = env::var("FIX_CORE_SHAPES")
             .map(|v| v.eq_ignore_ascii_case("true"))

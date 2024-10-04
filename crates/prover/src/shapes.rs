@@ -9,6 +9,7 @@ use std::{
 
 use p3_baby_bear::BabyBear;
 use p3_field::AbstractField;
+use serde::{Deserialize, Serialize};
 use sp1_core_machine::riscv::CoreShapeConfig;
 use sp1_recursion_circuit::{
     machine::{
@@ -30,6 +31,39 @@ pub enum SP1ProofShape {
     Compress(Vec<ProofShape>),
     Deferred(ProofShape),
     Shrink(ProofShape),
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+pub struct VkData {
+    pub vk_map: BTreeMap<[BabyBear; DIGEST_SIZE], usize>,
+    pub root: [BabyBear; DIGEST_SIZE],
+    pub merkle_tree: MerkleTree<BabyBear, InnerSC>,
+}
+
+impl VkData {
+    pub fn save(&self, build_dir: PathBuf) -> Result<(), std::io::Error> {
+        let mut file = File::create(build_dir.join("vk_data.bin"))?;
+        bincode::serialize_into(&mut file, self).unwrap();
+        Ok(())
+    }
+
+    pub fn load(build_dir: PathBuf) -> Result<Self, std::io::Error> {
+        let mut file = File::open(build_dir.join("vk_data.bin"))?;
+        let vk_data: Self = bincode::deserialize_from(&mut file).unwrap();
+        Ok(vk_data)
+    }
+
+    pub fn new(vk_set: BTreeSet<[BabyBear; DIGEST_SIZE]>) -> Self {
+        let vk_map: BTreeMap<_, _> =
+            vk_set.into_iter().enumerate().map(|(i, vk_digest)| (vk_digest, i)).collect();
+
+        // Build a merkle tree from the vk map.
+        tracing::info!("building merkle tree");
+        let (root, merkle_tree) =
+            MerkleTree::<BabyBear, InnerSC>::commit(vk_map.keys().cloned().collect());
+
+        VkData { vk_map, root, merkle_tree }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -171,6 +205,8 @@ pub fn build_vk_map_to_file<C: SP1ProverComponents>(
 ) {
     std::fs::create_dir_all(&build_dir).expect("failed to create build directory");
 
+    tracing::info!("Building vk set");
+
     let (vk_set, _) = build_vk_map::<C>(
         reduce_batch_size,
         dummy,
@@ -179,27 +215,11 @@ pub fn build_vk_map_to_file<C: SP1ProverComponents>(
         range_start.and_then(|start| range_end.map(|end| (start..end).collect())),
         None,
     );
-    let vk_map: BTreeMap<_, _> =
-        vk_set.into_iter().enumerate().map(|(i, vk_digest)| (vk_digest, i)).collect();
 
-    // Save the vk map to a file.
-    tracing::info!("saving vk map to file");
-    let vk_map_path = build_dir.join("vk_map.bin");
-    let mut vk_map_file = File::create(vk_map_path).unwrap();
-    bincode::serialize_into(&mut vk_map_file, &vk_map).unwrap();
-    tracing::info!("File saved successfully.");
+    tracing::info!("Creating vk data from vk set");
+    let vk_data = VkData::new(vk_set);
 
-    // Build a merkle tree from the vk map.
-    tracing::info!("building merkle tree");
-    let (root, merkle_tree) =
-        MerkleTree::<BabyBear, InnerSC>::commit(vk_map.keys().cloned().collect());
-
-    // Saving merkle tree data to file.
-    tracing::info!("saving merkle tree to file");
-    let merkle_tree_path = build_dir.join("merkle_tree.bin");
-    let mut merkle_tree_file = File::create(merkle_tree_path).unwrap();
-    bincode::serialize_into(&mut merkle_tree_file, &(root, merkle_tree)).unwrap();
-    tracing::info!("File saved successfully.");
+    vk_data.save(build_dir).expect("failed to save vk data");
 }
 
 impl SP1ProofShape {
