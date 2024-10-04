@@ -42,8 +42,7 @@ impl NetworkProver {
         let version = SP1_CIRCUIT_VERSION;
         log::info!("Client circuit version: {}", version);
         let local_prover = CpuProver::new();
-        let client =
-            block_on(NetworkClient::new(private_key)).expect("failed to create NetworkClient");
+        let client = NetworkClient::new(private_key);
         Self { client, local_prover }
     }
 
@@ -73,6 +72,8 @@ impl NetworkProver {
 
         // Get the timeout.
         let timeout_secs = timeout.map(|dur| dur.as_secs()).unwrap_or(TIMEOUT_SECS);
+
+        log::info!("Requesting proof with cycle limit: {}", cycle_limit);
 
         let response = self
             .client

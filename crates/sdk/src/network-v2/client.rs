@@ -22,14 +22,14 @@ use sp1_prover::SP1VerifyingKey;
 use std::str::FromStr;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::try_join;
-use tonic::transport::{Channel, Endpoint};
+use tonic::transport::Channel;
 
 /// The default RPC endpoint for the Succinct prover network.
-pub const DEFAULT_PROVER_NETWORK_RPC: &str = "http://localhost:3000";
+pub const DEFAULT_PROVER_NETWORK_RPC: &str = "http://127.0.0.1:50051";
+
 pub struct NetworkClient {
     pub signer: PrivateKeySigner,
-    pub rpc: ProverNetworkClient<Channel>,
-    pub store: ArtifactStoreClient<Channel>,
+    pub rpc_url: String,
     pub http: HttpClientWithMiddleware,
 }
 
@@ -39,31 +39,85 @@ impl NetworkClient {
         env::var("PROVER_NETWORK_RPC").unwrap_or_else(|_| DEFAULT_PROVER_NETWORK_RPC.to_string())
     }
 
-    /// Create a new NetworkClient with the given private key for authentication.
-    pub async fn new(private_key: &str) -> Result<Self> {
+    // async fn create_channel(rpc_url: &str) -> Result<Channel> {
+    //     Channel::from_shared(rpc_url.to_string())?
+    //         .connect_timeout(Duration::from_secs(30))
+    //         .tcp_keepalive(Some(Duration::from_secs(60)))
+    //         .timeout(Duration::from_secs(60))
+    //         .connect()
+    //         .await
+    //         .map_err(Into::into)
+    // }
+
+    // fn create_clients(
+    //     channel: Channel,
+    // ) -> (ProverNetworkClient<Channel>, ArtifactStoreClient<Channel>) {
+    //     let rpc = ProverNetworkClient::new(channel.clone());
+    //     let store = ArtifactStoreClient::new(channel);
+    //     (rpc, store)
+    // }
+
+    // pub async fn new(private_key: &str) -> Result<Self> {
+    //     let signer = PrivateKeySigner::from_str(private_key).unwrap();
+
+    //     let rpc_url = Self::rpc_url();
+    //     let channel = Self::create_channel(&rpc_url).await?;
+    //     let (mut rpc, store) = Self::create_clients(channel);
+
+    //     let http_client = HttpClient::builder()
+    //         .pool_max_idle_per_host(0)
+    //         .pool_idle_timeout(Duration::from_secs(240))
+    //         .build()
+    //         .unwrap();
+
+    //     Ok(Self { signer, rpc, store, http: http_client.into() })
+    // }
+
+    // async fn ensure_connected(&mut self) -> Result<()> {
+    //     let check_connection = async {
+    //         // Try a simple RPC call to check the connection
+    //         self.rpc
+    //             .clone()
+    //             .get_nonce(GetNonceRequest { address: self.signer.address().to_vec() })
+    //             .await?;
+    //         Ok(())
+    //     };
+
+    //     if check_connection.await.is_err() {
+    //         log::warn!("Connection seems to be lost, reconnecting...");
+    //         let rpc_url = Self::rpc_url();
+    //         let channel = Self::create_channel(&rpc_url).await?;
+    //         (self.rpc, self.store) = Self::create_clients(channel);
+    //     }
+    //     Ok(())
+    // }
+
+    pub fn new(private_key: &str) -> Self {
         let signer = PrivateKeySigner::from_str(private_key).unwrap();
-
         let rpc_url = Self::rpc_url();
-        let rpc =
-            ProverNetworkClient::connect(Endpoint::from_shared(rpc_url.clone()).unwrap()).await?;
-        let store = ArtifactStoreClient::connect(Endpoint::from_shared(rpc_url).unwrap()).await?;
-
         let http_client = HttpClient::builder()
             .pool_max_idle_per_host(0)
             .pool_idle_timeout(Duration::from_secs(240))
             .build()
             .unwrap();
 
-        Ok(Self { signer, rpc, store, http: http_client.into() })
+        Self { signer, rpc_url, http: http_client.into() }
     }
 
-    /// Gets the latest nonce for this auth's account.
+    async fn connect(
+        &self,
+    ) -> Result<(ProverNetworkClient<Channel>, ArtifactStoreClient<Channel>)> {
+        let rpc_url = Self::rpc_url();
+        let channel = Channel::from_shared(rpc_url.clone())?.connect().await?;
+        Ok((ProverNetworkClient::new(channel.clone()), ArtifactStoreClient::new(channel)))
+    }
+
+    /// Gets the latest nonce for this account's address.
     pub async fn get_nonce(&self) -> Result<u64> {
-        let res = self
-            .rpc
-            .clone()
-            .get_nonce(GetNonceRequest { address: self.signer.address().to_vec() })
-            .await?;
+        let (mut rpc, _) = self.connect().await?;
+
+        let res =
+            rpc.get_nonce(GetNonceRequest { address: self.signer.address().to_vec() }).await?;
         Ok(res.into_inner().nonce)
     }
 
@@ -73,9 +127,9 @@ impl NetworkClient {
         &self,
         request_id: &[u8],
     ) -> Result<(GetProofRequestStatusResponse, Option<P>)> {
-        let res = self
-            .rpc
-            .clone()
+        let (mut rpc, _) = self.connect().await?;
+
+        let res = rpc
             .get_proof_request_status(GetProofRequestStatusRequest {
                 request_id: request_id.to_vec(),
             })
@@ -109,9 +163,8 @@ impl NetworkClient {
         status: ProofStatus,
         circuit_version: Option<&str>,
     ) -> Result<GetFilteredProofRequestsResponse> {
-        let res = self
-            .rpc
-            .clone()
+        let (mut rpc, _) = self.connect().await?;
+        let res = rpc
             .get_filtered_proof_requests(GetFilteredProofRequestsRequest {
                 status: status.into(),
                 version: circuit_version.map(|v| v.to_string()).unwrap_or_default(),
@@ -135,6 +188,8 @@ impl NetworkClient {
         timeout_secs: u64,
         cycle_limit: u64,
     ) -> Result<RequestProofResponse> {
+        let (mut rpc, _) = self.connect().await?;
+
         let start = SystemTime::now();
         let since_the_epoch = start.duration_since(UNIX_EPOCH).expect("Invalid start time");
         let deadline = since_the_epoch.as_secs() + timeout_secs;
@@ -147,9 +202,7 @@ impl NetworkClient {
         // Serialize the vkey.
         let vkey = bincode::serialize(&vk)?;
 
-        let nonce = self
-            .rpc
-            .clone()
+        let nonce = rpc
             .get_nonce(GetNonceRequest { address: self.signer.address().to_vec() })
             .await?
             .into_inner()
@@ -166,9 +219,10 @@ impl NetworkClient {
             deadline,
             cycle_limit,
         };
-        let request_response = self
-            .rpc
-            .clone()
+
+        log::info!("Requesting proof");
+
+        let request_response = rpc
             .request_proof(RequestProofRequest {
                 signature: request_body.sign(&self.signer).into(),
                 body: Some(request_body),
@@ -187,9 +241,11 @@ impl NetworkClient {
 
     /// Uses the artifact store to to create an artifact, upload the content, and return the URI.
     async fn create_artifact_with_content<T: Serialize>(&self, item: &T) -> Result<String> {
+        let (_, store) = self.connect().await?;
+
         let signature = self.signer.sign_message_sync("create_artifact".as_bytes())?;
         let request = CreateArtifactRequest { signature: signature.as_bytes().to_vec() };
-        let response = self.store.clone().create_artifact(request).await?.into_inner();
+        let response = store.clone().create_artifact(request).await?.into_inner();
 
         let presigned_url = response.artifact_presigned_url;
         let uri = response.artifact_uri;
