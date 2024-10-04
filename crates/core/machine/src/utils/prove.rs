@@ -596,7 +596,7 @@ where
                                         )
                                         .unwrap();
 
-                                    #[cfg(debug_assertions)]
+                                    // #[cfg(debug_assertions)]
                                     {
                                         if let Some(shape) = record.shape {
                                             assert_eq!(
