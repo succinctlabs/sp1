@@ -166,22 +166,16 @@ pub trait WeierstrassAffinePoint<const N: usize>: AffinePoint<N> {
     /// Implements the complete addition cases according to the
     /// [Zcash complete addition spec](https://zcash.github.io/halo2/design/gadgets/ecc/addition.html#complete-addition).
     fn weierstrass_add_assign(&mut self, other: &Self) {
-        println!("here 1");
-
         // Case 1: p1 is infinity.
         if self.is_infinity() {
             *self = other.clone();
             return;
         }
 
-        println!("here 2");
-
         // Case 2: p2 is infinity.
         if other.is_infinity() {
             return;
         }
-
-        println!("here 3");
 
         // Once it's known the points are not infinity, their limbs can be safely used.
         let p1 = self.limbs_mut();
