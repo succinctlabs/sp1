@@ -25,30 +25,91 @@ jobs:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     strategy:
       matrix:
-        mode:
-          # - cpu
-          # - cuda
-          - network
-        s3_folder:
-          - fibonacci-17k
-          - ssz-withdrawals
-          - tendermint
-          - rsp-20526624
-          - rsa
-          - regex
-          - json
-          - chess
-          - blobstream-01j6z63fgafrc8jeh0k12gbtvw
-          - blobstream-01j6z95bdme9svevmfyc974bja
-          - blobstream-01j6z9ak0ke9srsppgywgke6fj
-          - blobstream-01j6z9bysje9ssrw1dn4w0w9h5
-          - blobstream-01j6zbcx2veyp83r8t6wdhbjsh
-          - vector-01j6xsv35re96tkgyda115320t
-          - vector-01j6xzy366ff5tbkzcrs8pma02
-          - vector-01j6y06de0fdaafemr8b1t69z3
-          - vector-01j6y0en9pfdab5whxq2k60fqs
-          - vector-01j6y0q023edftg2z0d3cj1bgh
-          - raiko-a7-10
+        workload:
+          # Fibonacci 17k
+          - { s3_folder: fibonacci-17k, mode: cpu }
+          - { s3_folder: fibonacci-17k, mode: cuda }
+          - { s3_folder: fibonacci-17k, mode: network }
+          # SSZ Withdrawals
+          - { s3_folder: ssz-withdrawals, mode: cpu }
+          - { s3_folder: ssz-withdrawals, mode: cuda }
+          - { s3_folder: ssz-withdrawals, mode: network }
+          # Tendermint
+          - { s3_folder: tendermint, mode: cpu }
+          - { s3_folder: tendermint, mode: cuda }
+          - { s3_folder: tendermint, mode: network }
+          # RSP 20526624
+          - { s3_folder: rsp-20526624, mode: cpu }
+          - { s3_folder: rsp-20526624, mode: cuda }
+          - { s3_folder: rsp-20526624, mode: network }
+          # RSA
+          - { s3_folder: rsa, mode: cpu }
+          - { s3_folder: rsa, mode: cuda }
+          - { s3_folder: rsa, mode: network }
+          # Regex
+          - { s3_folder: regex, mode: cpu }
+          - { s3_folder: regex, mode: cuda }
+          - { s3_folder: regex, mode: network }
+          # Chess
+          - { s3_folder: chess, mode: cpu }
+          - { s3_folder: chess, mode: cuda }
+          - { s3_folder: chess, mode: network }
+          # Tendermint
+          - { s3_folder: tendermint, mode: cpu }
+          - { s3_folder: tendermint, mode: cuda }
+          - { s3_folder: tendermint, mode: network }
+          # RSP 20526624
+          - { s3_folder: rsp-20526624, mode: cpu }
+          - { s3_folder: rsp-20526624, mode: cuda }
+          - { s3_folder: rsp-20526624, mode: network }
+          # RSA 
+          - { s3_folder: rsa, mode: cpu }
+          - { s3_folder: rsa, mode: cuda }
+          - { s3_folder: rsa, mode: network }
+          # Regex
+          - { s3_folder: regex, mode: cpu }
+          - { s3_folder: regex, mode: cuda }
+          - { s3_folder: regex, mode: network }
+          # JSON
+          - { s3_folder: json, mode: cpu }
+          - { s3_folder: json, mode: cuda }
+          - { s3_folder: json, mode: network }
+          # Chess
+          - { s3_folder: chess, mode: cpu }
+          - { s3_folder: chess, mode: cuda }
+          - { s3_folder: chess, mode: network }
+          # Blobstream 01j6z63fgafrc8jeh0k12gbtvw
+          - { s3_folder: blobstream-01j6z63fgafrc8jeh0k12gbtvw, mode: cpu }
+          - { s3_folder: blobstream-01j6z63fgafrc8jeh0k12gbtvw, mode: cuda }
+          - { s3_folder: blobstream-01j6z63fgafrc8jeh0k12gbtvw, mode: network }
+          # Blobstream 01j6z95bdme9svevmfyc974bja
+          - { s3_folder: blobstream-01j6z95bdme9svevmfyc974bja, mode: cpu }
+          - { s3_folder: blobstream-01j6z95bdme9svevmfyc974bja, mode: cuda }
+          - { s3_folder: blobstream-01j6z95bdme9svevmfyc974bja, mode: network }
+          # Blobstream 01j6z9ak0ke9srsppgywgke6fj
+          - { s3_folder: blobstream-01j6z9ak0ke9srsppgywgke6fj, mode: cpu }
+          - { s3_folder: blobstream-01j6z9ak0ke9srsppgywgke6fj, mode: cuda }
+          - { s3_folder: blobstream-01j6z9ak0ke9srsppgywgke6fj, mode: network }
+          # Vector 01j6xsv35re96tkgyda115320t
+          - { s3_folder: vector-01j6xsv35re96tkgyda115320t, mode: cpu }
+          - { s3_folder: vector-01j6xsv35re96tkgyda115320t, mode: cuda }
+          - { s3_folder: vector-01j6xsv35re96tkgyda115320t, mode: network }
+          # Vector 01j6xzy366ff5tbkzcrs8pma02
+          - { s3_folder: vector-01j6xzy366ff5tbkzcrs8pma02, mode: cpu }
+          - { s3_folder: vector-01j6xzy366ff5tbkzcrs8pma02, mode: cuda }
+          - { s3_folder: vector-01j6xzy366ff5tbkzcrs8pma02, mode: network }
+          # Vector 01j6y06de0fdaafemr8b1t69z3
+          - { s3_folder: vector-01j6y06de0fdaafemr8b1t69z3, mode: cpu }
+          - { s3_folder: vector-01j6y06de0fdaafemr8b1t69z3, mode: cuda }
+          - { s3_folder: vector-01j6y06de0fdaafemr8b1t69z3, mode: network }
+          # Raiko A7 10
+          - { s3_folder: raiko-a7-10, mode: cpu }
+          - { s3_folder: raiko-a7-10, mode: cuda }
+          - { s3_folder: raiko-a7-10, mode: network }
+          # OP Succinct
+          - { s3_folder: op-succinct-op-sepolia-range-17685896-17685897, mode: network }
+          - { s3_folder: op-succinct-op-sepolia-range-17985900-17985905, mode: network }
+          - { s3_folder: op-succinct-op-sepolia-range-18129400-18129401, mode: network }
     steps:
       - name: Checkout sources
         uses: actions/checkout@v4
@@ -63,8 +124,8 @@ jobs:
       - name: Copy files from S3
         run: |
           mkdir -p workdir
-          aws s3 cp s3://sp1-testing-suite/${{ matrix.s3_folder }}/program.bin workdir/program.bin
-          aws s3 cp s3://sp1-testing-suite/${{ matrix.s3_folder }}/stdin.bin workdir/stdin.bin
+          aws s3 cp s3://sp1-testing-suite/${{ matrix.workload.s3_folder }}/program.bin workdir/program.bin
+          aws s3 cp s3://sp1-testing-suite/${{ matrix.workload.s3_folder }}/stdin.bin workdir/stdin.bin
       - name: Run sp1-perf
         uses: actions-rs/cargo@v1
         with:
@@ -75,6 +136,6 @@ jobs:
           RUST_LOG: debug
           RUSTFLAGS: -Copt-level=3 -Ctarget-cpu=native
           RUST_BACKTRACE: 1
-          SP1_PROVER: ${{ matrix.mode == 'cpu' && 'local' || matrix.mode == 'cuda' && 'cuda' || matrix.mode == 'network' && 'network' }}
+          SP1_PROVER: ${{ matrix.workload.mode == 'cpu' && 'local' || matrix.workload.mode == 'cuda' && 'cuda' || matrix.workload.mode == 'network' && 'network' }}
           SP1_PRIVATE_KEY: ${{ secrets.SP1_PRIVATE_KEY }}
           PROVER_NETWORK_RPC: https://43xadiwbrdkiquizwybgpzdhcu0pgvux.lambda-url.us-east-2.on.aws/
