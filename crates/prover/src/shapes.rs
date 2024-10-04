@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{BTreeMap, BTreeSet, HashSet},
     fs::File,
     iter::once,
     panic::{catch_unwind, AssertUnwindSafe},
@@ -21,8 +21,7 @@ use sp1_recursion_core::{shape::RecursionShapeConfig, RecursionProgram};
 use sp1_stark::{MachineProver, ProofShape, DIGEST_SIZE};
 
 use crate::{
-    components::SP1ProverComponents, utils::MaybeTakeIterator, CompressAir, HashableKey, InnerSC,
-    SP1Prover, ShrinkAir,
+    components::SP1ProverComponents, CompressAir, HashableKey, InnerSC, SP1Prover, ShrinkAir,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -46,38 +45,47 @@ pub fn build_vk_map<C: SP1ProverComponents>(
     dummy: bool,
     num_compiler_workers: usize,
     num_setup_workers: usize,
-    range_start: Option<usize>,
-    range_end: Option<usize>,
-) -> BTreeMap<[BabyBear; DIGEST_SIZE], usize> {
+    indices: Option<Vec<usize>>,
+    num_shapes: Option<usize>,
+) -> (BTreeSet<[BabyBear; DIGEST_SIZE]>, Vec<usize>) {
     let prover = SP1Prover::<C>::new();
     let core_shape_config = prover.core_shape_config.as_ref().expect("core shape config not found");
     let recursion_shape_config =
         prover.recursion_shape_config.as_ref().expect("recursion shape config not found");
 
     tracing::info!("building compress vk map");
-    let vk_map = if dummy {
+    let (vk_set, panic_indices) = if dummy {
         tracing::warn!("Making a dummy vk map");
-        SP1ProofShape::dummy_vk_map(core_shape_config, recursion_shape_config, reduce_batch_size)
+        (
+            SP1ProofShape::dummy_vk_map(
+                core_shape_config,
+                recursion_shape_config,
+                reduce_batch_size,
+            )
+            .into_keys()
+            .collect(),
+            vec![],
+        )
     } else {
         let (vk_tx, vk_rx) = std::sync::mpsc::channel();
         let (shape_tx, shape_rx) =
             std::sync::mpsc::sync_channel::<(usize, SP1CompressProgramShape)>(num_compiler_workers);
         let (program_tx, program_rx) = std::sync::mpsc::sync_channel(num_setup_workers);
+        let (panic_tx, panic_rx) = std::sync::mpsc::channel();
 
         let shape_rx = Mutex::new(shape_rx);
         let program_rx = Mutex::new(program_rx);
 
-        let length = range_end.and_then(|end| end.checked_sub(range_start.unwrap_or(0)));
+        let indices_set = indices.map(|indices| indices.into_iter().collect::<HashSet<_>>());
         let generate_shapes = || {
             SP1ProofShape::generate(core_shape_config, recursion_shape_config, reduce_batch_size)
-                .maybe_skip(range_start)
-                .maybe_take(length)
+                .enumerate()
+                .filter(|(i, _)| indices_set.as_ref().map(|set| set.contains(i)).unwrap_or(true))
         };
 
-        let num_shapes = generate_shapes().count();
+        let num_shapes = num_shapes.unwrap_or(generate_shapes().count());
         let height = num_shapes.next_power_of_two().ilog2() as usize;
-
-        tracing::info!("There are {} shapes to generate", num_shapes);
+        let chunk_size = indices_set.as_ref().map(|indices| indices.len()).unwrap_or(num_shapes);
 
         std::thread::scope(|s| {
             // Initialize compiler workers.
@@ -85,6 +93,7 @@ pub fn build_vk_map<C: SP1ProverComponents>(
                 let program_tx = program_tx.clone();
                 let shape_rx = &shape_rx;
                 let prover = &prover;
+                let panic_tx = panic_tx.clone();
                 s.spawn(move || {
                     while let Ok((i, shape)) = shape_rx.lock().unwrap().recv() {
                         let program = catch_unwind(AssertUnwindSafe(|| {
@@ -92,11 +101,15 @@ pub fn build_vk_map<C: SP1ProverComponents>(
                         }));
                         match program {
                             Ok(program) => program_tx.send((i, program)).unwrap(),
-                            Err(e) => tracing::warn!(
-                                "Program generation failed for shape {:?}, with error: {:?}",
-                                shape,
-                                e
-                            ),
+                            Err(e) => {
+                                tracing::warn!(
+                                    "Program generation failed for shape {} {:?}, with error: {:?}",
+                                    i,
+                                    shape,
+                                    e
+                                );
+                                panic_tx.send(i).unwrap();
+                            }
                         }
                     }
                 });
@@ -108,18 +121,24 @@ pub fn build_vk_map<C: SP1ProverComponents>(
                 let program_rx = &program_rx;
                 let prover = &prover;
                 s.spawn(move || {
+                    let mut done = 0;
                     while let Ok((i, program)) = program_rx.lock().unwrap().recv() {
                         let (_, vk) = tracing::debug_span!("setup for program {}", i)
                             .in_scope(|| prover.compress_prover.setup(&program));
                         let vk_digest = vk.hash_babybear();
                         vk_tx.send(vk_digest).unwrap();
+                        done += 1;
+                        tracing::info!(
+                            "setup for program {} done, {}% done",
+                            i,
+                            done * 100 / chunk_size
+                        );
                     }
                 });
             }
 
             // Generate shapes and send them to the compiler workers.
             generate_shapes()
-                .enumerate()
                 .map(|(i, shape)| (i, SP1CompressProgramShape::from_proof_shape(shape, height)))
                 .for_each(|(i, program_shape)| {
                     shape_tx.send((i, program_shape)).unwrap();
@@ -128,18 +147,17 @@ pub fn build_vk_map<C: SP1ProverComponents>(
             drop(shape_tx);
             drop(program_tx);
             drop(vk_tx);
+            drop(panic_tx);
 
-            let mut vk_set = BTreeSet::new();
+            let vk_set = vk_rx.iter().collect::<BTreeSet<_>>();
 
-            for vk_digest in vk_rx.iter().take(num_shapes) {
-                vk_set.insert(vk_digest);
-            }
+            let panic_indices = panic_rx.iter().collect::<Vec<_>>();
 
-            vk_set.into_iter().enumerate().map(|(i, vk_digest)| (vk_digest, i)).collect()
+            (vk_set, panic_indices)
         })
     };
-    tracing::info!("compress vks generated, number of keys: {}", vk_map.len());
-    vk_map
+    tracing::info!("compress vks generated, number of keys: {}", vk_set.len());
+    (vk_set, panic_indices)
 }
 
 pub fn build_vk_map_to_file<C: SP1ProverComponents>(
@@ -153,14 +171,16 @@ pub fn build_vk_map_to_file<C: SP1ProverComponents>(
 ) {
     std::fs::create_dir_all(&build_dir).expect("failed to create build directory");
 
-    let vk_map = build_vk_map::<C>(
+    let (vk_set, _) = build_vk_map::<C>(
         reduce_batch_size,
         dummy,
         num_compiler_workers,
         num_setup_workers,
-        range_start,
-        range_end,
+        range_start.and_then(|start| range_end.map(|end| (start..end).collect())),
+        None,
     );
+    let vk_map: BTreeMap<_, _> =
+        vk_set.into_iter().enumerate().map(|(i, vk_digest)| (vk_digest, i)).collect();
 
     // Save the vk map to a file.
     tracing::info!("saving vk map to file");
