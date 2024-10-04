@@ -1,7 +1,6 @@
 use std::{
     collections::{BTreeMap, BTreeSet, HashSet},
     fs::File,
-    iter::once,
     panic::{catch_unwind, AssertUnwindSafe},
     path::PathBuf,
     sync::{Arc, Mutex},
@@ -21,9 +20,7 @@ use sp1_recursion_circuit::{
 use sp1_recursion_core::{shape::RecursionShapeConfig, RecursionProgram};
 use sp1_stark::{MachineProver, ProofShape, DIGEST_SIZE};
 
-use crate::{
-    components::SP1ProverComponents, CompressAir, HashableKey, InnerSC, SP1Prover, ShrinkAir,
-};
+use crate::{components::SP1ProverComponents, CompressAir, HashableKey, InnerSC, SP1Prover};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum SP1ProofShape {
@@ -157,10 +154,16 @@ pub fn build_vk_map<C: SP1ProverComponents>(
                 s.spawn(move || {
                     let mut done = 0;
                     while let Ok((i, program)) = program_rx.lock().unwrap().recv() {
-                        let (_, vk) = tracing::debug_span!("setup for program {}", i)
-                            .in_scope(|| prover.compress_prover.setup(&program));
-                        let vk_digest = vk.hash_babybear();
-                        vk_tx.send(vk_digest).unwrap();
+                        let setup_result = tracing::debug_span!("setup for program {}", i)
+                            .in_scope(|| {
+                                catch_unwind(AssertUnwindSafe(|| {
+                                    prover.compress_prover.setup(&program)
+                                }))
+                            });
+                        if let Ok((_, vk)) = setup_result {
+                            let vk_digest = vk.hash_babybear();
+                            vk_tx.send(vk_digest).unwrap();
+                        }
                         done += 1;
                         tracing::info!(
                             "setup for program {} done, {}% done",
@@ -241,7 +244,11 @@ impl SP1ProofShape {
                     .get_all_shape_combinations(reduce_batch_size)
                     .map(Self::Compress),
             )
-            .chain(once(Self::Shrink(ShrinkAir::<BabyBear>::shrink_shape().into())))
+            .chain(
+                recursion_shape_config
+                    .get_all_shape_combinations(1)
+                    .map(|mut x| Self::Shrink(x.pop().unwrap())),
+            )
     }
 
     pub fn dummy_vk_map<'a>(
