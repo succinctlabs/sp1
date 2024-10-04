@@ -127,6 +127,7 @@ pub fn build_vk_map<C: SP1ProverComponents>(
                 let panic_tx = panic_tx.clone();
                 s.spawn(move || {
                     while let Ok((i, shape)) = shape_rx.lock().unwrap().recv() {
+                        println!("shape {} is {:?}", i, shape);
                         let program = catch_unwind(AssertUnwindSafe(|| {
                             prover.program_from_shape(shape.clone())
                         }));
@@ -160,21 +161,22 @@ pub fn build_vk_map<C: SP1ProverComponents>(
                                     prover.compress_prover.setup(&program)
                                 }))
                             });
+                        done += 1;
                         match setup_result {
                             Ok((_, vk)) => {
                                 let vk_digest = vk.hash_babybear();
+                                tracing::info!(
+                                    "program {} = {:?}, {}% done",
+                                    i,
+                                    vk_digest,
+                                    done * 100 / chunk_size
+                                );
                                 vk_tx.send(vk_digest).unwrap();
                             }
                             Err(e) => {
                                 tracing::warn!("setup for program {} failed: {:?}", i, e);
                             }
                         }
-                        done += 1;
-                        tracing::info!(
-                            "setup for program {} done, {}% done",
-                            i,
-                            done * 100 / chunk_size
-                        );
                     }
                 });
             }
