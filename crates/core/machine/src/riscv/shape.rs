@@ -327,16 +327,13 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
 
         included_shapes
             .chain(
-                Self::generate_all_shapes_from_allowed_log_heights(short_heights)
-                    .filter(core_filter),
+                Self::generate_all_shapes_from_allowed_log_heights(short_heights), // .filter(core_filter),
             )
             .chain(
-                Self::generate_all_shapes_from_allowed_log_heights(medium_heights)
-                    .filter(core_filter),
+                Self::generate_all_shapes_from_allowed_log_heights(medium_heights), // .filter(core_filter),
             )
             .chain(
-                Self::generate_all_shapes_from_allowed_log_heights(long_heights)
-                    .filter(core_filter),
+                Self::generate_all_shapes_from_allowed_log_heights(long_heights), // .filter(core_filter),
             )
             .chain(Self::generate_all_shapes_from_allowed_log_heights(memory_heights))
             .chain(precompile_shapes)
