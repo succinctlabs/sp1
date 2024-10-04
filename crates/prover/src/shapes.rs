@@ -80,7 +80,6 @@ pub fn build_vk_map<C: SP1ProverComponents>(
     num_compiler_workers: usize,
     num_setup_workers: usize,
     indices: Option<Vec<usize>>,
-    _num_shapes: Option<usize>,
 ) -> (BTreeSet<[BabyBear; DIGEST_SIZE]>, Vec<usize>, usize) {
     let mut prover = SP1Prover::<C>::new();
     prover.vk_verification = !dummy;
@@ -225,7 +224,6 @@ pub fn build_vk_map_to_file<C: SP1ProverComponents>(
         num_compiler_workers,
         num_setup_workers,
         range_start.and_then(|start| range_end.map(|end| (start..end).collect())),
-        None,
     );
 
     tracing::info!("Creating vk data from vk set");
