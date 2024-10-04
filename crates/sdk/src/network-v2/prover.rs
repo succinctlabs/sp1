@@ -91,7 +91,7 @@ impl NetworkProver {
         let tx_hash = "0x".to_string() + &hex::encode(response.tx_hash);
         let request_id_bytes = response.body.unwrap().request_id;
         let request_id = "0x".to_string() + &hex::encode(request_id_bytes.clone());
-        log::info!("Created request {} in transaction: {}", request_id, tx_hash);
+        log::info!("Created request {} in transaction {}", request_id, tx_hash);
 
         if NetworkClient::rpc_url() == DEFAULT_PROVER_NETWORK_RPC {
             log::info!("View in explorer: https://explorer-v2.succinct.xyz/{}", request_id);
