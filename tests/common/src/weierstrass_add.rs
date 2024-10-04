@@ -76,9 +76,8 @@ pub fn test_weierstrass_add<P: AffinePoint<N> + WeierstrassAffinePoint<N>, const
 
     let mut a_point_clone = a_point.clone();
     a_point_clone.complete_add_assign(&negation_point);
-    assert_eq!(
-        a_point_clone.limbs_ref(),
-        &[0; N],
+    assert!(
+        a_point_clone.is_infinity(),
         "Adding a point to its negation should result in infinity"
     );
 
