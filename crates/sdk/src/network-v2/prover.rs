@@ -31,19 +31,20 @@ pub struct NetworkProver {
 
 impl NetworkProver {
     /// Creates a new [NetworkProver] with the private key set in `SP1_PRIVATE_KEY`.
-    pub async fn new() -> Result<Self> {
+    pub fn new() -> Self {
         let private_key = env::var("SP1_PRIVATE_KEY")
-            .map_err(|_| anyhow::anyhow!("SP1_PRIVATE_KEY must be set for remote proving"))?;
-        Self::new_from_key(&private_key).await
+            .unwrap_or_else(|_| panic!("SP1_PRIVATE_KEY must be set for remote proving"));
+        Self::new_from_key(&private_key)
     }
 
     /// Creates a new [NetworkProver] with the given private key.
-    pub async fn new_from_key(private_key: &str) -> Result<Self> {
+    pub fn new_from_key(private_key: &str) -> Self {
         let version = SP1_CIRCUIT_VERSION;
         log::info!("Client circuit version: {}", version);
         let local_prover = CpuProver::new();
-        let client = NetworkClient::new(private_key).await?;
-        Ok(Self { client, local_prover })
+        let client =
+            block_on(NetworkClient::new(private_key)).expect("failed to create NetworkClient");
+        Self { client, local_prover }
     }
 
     /// Requests a proof from the prover network, returning the proof ID.
@@ -174,9 +175,7 @@ impl Prover<DefaultProverComponents> for NetworkProver {
 
 impl Default for NetworkProver {
     fn default() -> Self {
-        tokio::runtime::Runtime::new()
-            .unwrap()
-            .block_on(async { Self::new().await.expect("ailed to create default NetworkProver") })
+        Self::new()
     }
 }
 
