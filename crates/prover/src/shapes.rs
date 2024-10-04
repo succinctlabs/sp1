@@ -50,11 +50,14 @@ impl VkData {
         Ok(vk_data)
     }
 
-    pub fn new(vk_set: BTreeSet<[BabyBear; DIGEST_SIZE]>) -> Self {
+    pub fn new(vk_set: BTreeSet<[BabyBear; DIGEST_SIZE]>, height: usize) -> Self {
         let vk_map: BTreeMap<_, _> =
             vk_set.into_iter().enumerate().map(|(i, vk_digest)| (vk_digest, i)).collect();
 
         // Build a merkle tree from the vk map.
+        let mut vks_padded = vk_map.keys().cloned().collect::<Vec<_>>();
+        assert!(vks_padded.len() < 1 << height);
+        vks_padded.resize(1 << height, <[BabyBear; DIGEST_SIZE]>::default());
         tracing::info!("building merkle tree");
         let (root, merkle_tree) =
             MerkleTree::<BabyBear, InnerSC>::commit(vk_map.keys().cloned().collect());
@@ -78,25 +81,25 @@ pub fn build_vk_map<C: SP1ProverComponents>(
     num_setup_workers: usize,
     indices: Option<Vec<usize>>,
     num_shapes: Option<usize>,
-) -> (BTreeSet<[BabyBear; DIGEST_SIZE]>, Vec<usize>) {
-    let prover = SP1Prover::<C>::new();
+) -> (BTreeSet<[BabyBear; DIGEST_SIZE]>, Vec<usize>, usize) {
+    let mut prover = SP1Prover::<C>::new();
+    prover.vk_verification = !dummy;
     let core_shape_config = prover.core_shape_config.as_ref().expect("core shape config not found");
     let recursion_shape_config =
         prover.recursion_shape_config.as_ref().expect("recursion shape config not found");
 
     tracing::info!("building compress vk map");
-    let (vk_set, panic_indices) = if dummy {
+    let (vk_set, panic_indices, height) = if dummy {
         tracing::warn!("Making a dummy vk map");
-        (
-            SP1ProofShape::dummy_vk_map(
-                core_shape_config,
-                recursion_shape_config,
-                reduce_batch_size,
-            )
-            .into_keys()
-            .collect(),
-            vec![],
+        let dummy_set = SP1ProofShape::dummy_vk_map(
+            core_shape_config,
+            recursion_shape_config,
+            reduce_batch_size,
         )
+        .into_keys()
+        .collect::<BTreeSet<_>>();
+        let height = dummy_set.len().next_power_of_two().ilog2() as usize;
+        (dummy_set, vec![], height)
     } else {
         let (vk_tx, vk_rx) = std::sync::mpsc::channel();
         let (shape_tx, shape_rx) =
@@ -195,11 +198,11 @@ pub fn build_vk_map<C: SP1ProverComponents>(
 
             let panic_indices = panic_rx.iter().collect::<Vec<_>>();
 
-            (vk_set, panic_indices)
+            (vk_set, panic_indices, height)
         })
     };
     tracing::info!("compress vks generated, number of keys: {}", vk_set.len());
-    (vk_set, panic_indices)
+    (vk_set, panic_indices, height)
 }
 
 pub fn build_vk_map_to_file<C: SP1ProverComponents>(
@@ -215,7 +218,7 @@ pub fn build_vk_map_to_file<C: SP1ProverComponents>(
 
     tracing::info!("Building vk set");
 
-    let (vk_set, _) = build_vk_map::<C>(
+    let (vk_set, _, height) = build_vk_map::<C>(
         reduce_batch_size,
         dummy,
         num_compiler_workers,
@@ -225,7 +228,7 @@ pub fn build_vk_map_to_file<C: SP1ProverComponents>(
     );
 
     tracing::info!("Creating vk data from vk set");
-    let vk_data = VkData::new(vk_set);
+    let vk_data = VkData::new(vk_set, height);
 
     vk_data.save(build_dir).expect("failed to save vk data");
 }

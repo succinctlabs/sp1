@@ -136,8 +136,9 @@ where
             .iter()
             .map(|(vk, _)| vk.hash(builder))
             .collect::<Vec<_>>();
+        let vk_root = input.merkle_var.root.map(|x| builder.eval(x));
         SP1MerkleProofVerifier::verify(builder, values, input.merkle_var, value_assertions);
-        SP1CompressVerifier::verify(builder, machine, input.compress_var, kind);
+        SP1CompressVerifier::verify(builder, machine, input.compress_var, vk_root, kind);
     }
 }
 

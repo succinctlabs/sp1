@@ -53,6 +53,7 @@ pub struct SP1RecursionWitnessVariable<
     pub initial_reconstruct_challenger: DuplexChallengerVariable<C>,
     pub is_complete: Felt<C::F>,
     pub is_first_shard: Felt<C::F>,
+    pub vk_root: [Felt<C::F>; DIGEST_SIZE],
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -65,6 +66,7 @@ pub struct SP1RecursionWitnessValues<SC: StarkGenericConfig> {
     pub initial_reconstruct_challenger: SC::Challenger,
     pub is_complete: bool,
     pub is_first_shard: bool,
+    pub vk_root: [SC::Val; DIGEST_SIZE],
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -128,6 +130,7 @@ where
             initial_reconstruct_challenger,
             is_complete,
             is_first_shard,
+            vk_root,
         } = input;
 
         // Initialize shard variables.
@@ -582,6 +585,7 @@ where
             // Set the contains an execution shard flag.
             recursion_public_values.contains_execution_shard =
                 builder.eval(C::F::from_bool(cpu_shard_seen));
+            recursion_public_values.vk_root = vk_root;
 
             // Calculate the digest and set it in the public values.
             recursion_public_values.digest =
@@ -615,6 +619,7 @@ impl SP1RecursionWitnessValues<BabyBearPoseidon2> {
             initial_reconstruct_challenger: dummy_challenger(machine.config()),
             is_complete: shape.is_complete,
             is_first_shard: false,
+            vk_root: [BabyBear::zero(); DIGEST_SIZE],
         }
     }
 }

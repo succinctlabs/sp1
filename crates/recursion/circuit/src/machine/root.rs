@@ -47,11 +47,18 @@ where
         builder: &mut Builder<C>,
         machine: &StarkMachine<SC, A>,
         input: SP1CompressWitnessVariable<C, SC>,
+        vk_root: [Felt<C::F>; DIGEST_SIZE],
     ) {
         // Assert that the program is complete.
         builder.assert_felt_eq(input.is_complete, C::F::one());
         // Verify the proof, as a compress proof.
-        SP1CompressVerifier::verify(builder, machine, input, PublicValuesOutputDigest::Root);
+        SP1CompressVerifier::verify(
+            builder,
+            machine,
+            input,
+            vk_root,
+            PublicValuesOutputDigest::Root,
+        );
     }
 }
 

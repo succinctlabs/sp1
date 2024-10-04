@@ -1,9 +1,16 @@
-use std::path::PathBuf;
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    fs::File,
+    path::PathBuf,
+};
 
 use clap::Parser;
+use p3_baby_bear::BabyBear;
 use sp1_core_machine::utils::setup_logger;
 use sp1_prover::{
-    components::DefaultProverComponents, shapes::build_vk_map_to_file, REDUCE_BATCH_SIZE,
+    components::DefaultProverComponents,
+    shapes::{build_vk_map_to_file, VkData},
+    REDUCE_BATCH_SIZE,
 };
 
 #[derive(Parser, Debug)]
@@ -23,6 +30,8 @@ struct Args {
     start: Option<usize>,
     #[clap(short, long)]
     end: Option<usize>,
+    #[clap(short, long, default_value_t = false)]
+    from_map_file: bool,
 }
 
 fn main() {
@@ -36,14 +45,26 @@ fn main() {
     let num_setup_workers = args.num_setup_workers;
     let range_start = args.start;
     let range_end = args.end;
+    let from_map_file = args.from_map_file;
 
-    build_vk_map_to_file::<DefaultProverComponents>(
-        build_dir,
-        reduce_batch_size,
-        dummy,
-        num_compiler_workers,
-        num_setup_workers,
-        range_start,
-        range_end,
-    );
+    if from_map_file {
+        tracing::info!("Creating vk data from vk set");
+        let mut file = File::open(build_dir.join("vk_map.bin")).unwrap();
+        let (vk_map, _): (BTreeMap<[BabyBear; 8], usize>, Vec<usize>) =
+            bincode::deserialize_from(&mut file).unwrap();
+        let vk_set: BTreeSet<[BabyBear; 8]> = vk_map.keys().cloned().collect();
+        let vk_data = VkData::new(vk_set, 18);
+
+        vk_data.save(build_dir).expect("failed to save vk data");
+    } else {
+        build_vk_map_to_file::<DefaultProverComponents>(
+            build_dir,
+            reduce_batch_size,
+            dummy,
+            num_compiler_workers,
+            num_setup_workers,
+            range_start,
+            range_end,
+        );
+    }
 }

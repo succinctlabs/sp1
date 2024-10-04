@@ -134,6 +134,7 @@ where
         } = input;
 
         // First, verify the merkle tree proofs.
+        let vk_root = vk_merkle_data.root;
         let values = vks_and_proofs.iter().map(|(vk, _)| vk.hash(builder)).collect::<Vec<_>>();
         SP1MerkleProofVerifier::verify(builder, values, vk_merkle_data, value_assertions);
 
@@ -244,6 +245,8 @@ where
         deferred_public_values.contains_execution_shard = builder.eval(C::F::zero());
         // Set the cumulative sum to zero.
         deferred_public_values.cumulative_sum = array::from_fn(|_| builder.eval(C::F::zero()));
+        // Set the vk root from the witness.
+        deferred_public_values.vk_root = vk_root;
         // Set the digest according to the previous values.
         deferred_public_values.digest =
             recursion_public_values_digest::<C, SC>(builder, deferred_public_values);

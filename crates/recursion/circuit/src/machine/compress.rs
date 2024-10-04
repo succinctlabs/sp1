@@ -99,6 +99,7 @@ where
         builder: &mut Builder<C>,
         machine: &StarkMachine<SC, A>,
         input: SP1CompressWitnessVariable<C, SC>,
+        vk_root: [Felt<C::F>; DIGEST_SIZE],
         kind: PublicValuesOutputDigest,
     ) {
         // Read input.
@@ -189,6 +190,10 @@ where
                 shard_proof.public_values.as_slice().borrow();
             // Assert that the public values are valid.
             assert_recursion_public_values_valid::<C, SC>(builder, current_public_values);
+            // // Assert that the vk root is the same as the witnessed one.
+            // for (expected, actual) in vk_root.iter().zip(current_public_values.vk_root.iter()) {
+            //     builder.assert_felt_eq(*expected, *actual);
+            // }
 
             // Set the exit code, it is already constrained to be zero in the previous proof.
             exit_code = current_public_values.exit_code;
@@ -530,6 +535,8 @@ where
         compress_public_values.contains_execution_shard = contains_execution_shard;
         // Set the exit code.
         compress_public_values.exit_code = exit_code;
+        // Refelct the vk root.
+        compress_public_values.vk_root = vk_root;
         // Set the digest according to the previous values.
         compress_public_values.digest = match kind {
             PublicValuesOutputDigest::Reduce => {
