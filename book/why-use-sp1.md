@@ -30,7 +30,7 @@ SP1 enables teams to use ZKPs in production with minimal overhead and fast timel
 
 **Maintainable:** With SP1, you can reuse existing Rust crates, like `revm`, `reth`, `tendermint-rs`, `serde` and more, to write your ZKP logic in maintainable, Rust code.
 
-**Go to market faster:** By reusing existng crates and expressing ZKP logic in regular code, SP1 significantly reduces audit surface area and complexity, enabling teams to go to market with ZKPs faster.
+**Go to market faster:** By reusing existing crates and expressing ZKP logic in regular code, SP1 significantly reduces audit surface area and complexity, enabling teams to go to market with ZKPs faster.
 
 ## Blazing Fast Performance
 

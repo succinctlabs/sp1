@@ -18,7 +18,7 @@ SP1 has undergone multiple audits from leading ZK security firms and is currentl
 
 Zero-knowledge proofs (ZKPs) are one of the most critical technologies to blockchain scaling, interoperability and privacy. But, historically building ZKP systems was extrememly complicated--requiring large teams with specialized cryptography expertise and taking years to go to production. 
 
-SP1 provides a performant, general-purpose zkVM that enables **any developer** to use ZKPs by writing normal code (in Rust), and get cheap and fast proofs. SP1 will enable ZKPs to become mainstream, introducing a a new era of verifiability for all of blockchain infrastructure and beyond.
+SP1 provides a performant, general-purpose zkVM that enables **any developer** to use ZKPs by writing normal code (in Rust), and get cheap and fast proofs. SP1 will enable ZKPs to become mainstream, introducing a new era of verifiability for all of blockchain infrastructure and beyond.
 
 
 ## SP1 enables a diversity of use-cases
