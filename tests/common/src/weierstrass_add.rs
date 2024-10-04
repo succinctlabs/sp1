@@ -19,6 +19,8 @@ pub fn test_weierstrass_add<P: AffinePoint<N> + WeierstrassAffinePoint<N>, const
     let a_point = P::from_le_bytes(a);
     let b_point = P::from_le_bytes(b);
 
+    println!("1");
+
     // Case 1: Both points are infinity
     let orig_infinity = P::infinity();
     let mut b = orig_infinity.clone();
@@ -29,6 +31,8 @@ pub fn test_weierstrass_add<P: AffinePoint<N> + WeierstrassAffinePoint<N>, const
         "Adding two infinity points should result in infinity"
     );
 
+    println!("2");
+
     // Case 2: First point is infinity
     let mut b = orig_infinity.clone();
     b.complete_add_assign(&a_point);
@@ -37,6 +41,8 @@ pub fn test_weierstrass_add<P: AffinePoint<N> + WeierstrassAffinePoint<N>, const
         a_point.limbs_ref(),
         "Adding infinity to a point should result in that point"
     );
+
+    println!("3");
 
     // Case 3: Second point is infinity
     let mut a_point_clone = a_point.clone();
@@ -47,6 +53,8 @@ pub fn test_weierstrass_add<P: AffinePoint<N> + WeierstrassAffinePoint<N>, const
         a_point.limbs_ref(),
         "Adding a point to infinity should result in that point"
     );
+
+    println!("4");
 
     // Case 4: Points are equal (point doubling, already covered by the main loop)
     let mut a_point_clone = a_point.clone();

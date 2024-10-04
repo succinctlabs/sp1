@@ -51,6 +51,11 @@ impl AffinePoint<N> for Bls12381Point {
             WeierstrassPoint::Affine(limbs) => limbs,
         }
     }
+
+    fn complete_add_assign(&mut self, other: &Self) {
+        self.weierstrass_add_assign(other);
+    }
+
     fn add_assign(&mut self, other: &Self) {
         let a = self.limbs_mut();
         let b = other.limbs_ref();
