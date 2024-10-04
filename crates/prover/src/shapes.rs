@@ -160,9 +160,14 @@ pub fn build_vk_map<C: SP1ProverComponents>(
                                     prover.compress_prover.setup(&program)
                                 }))
                             });
-                        if let Ok((_, vk)) = setup_result {
-                            let vk_digest = vk.hash_babybear();
-                            vk_tx.send(vk_digest).unwrap();
+                        match setup_result {
+                            Ok((_, vk)) => {
+                                let vk_digest = vk.hash_babybear();
+                                vk_tx.send(vk_digest).unwrap();
+                            }
+                            Err(e) => {
+                                tracing::warn!("setup for program {} failed: {:?}", i, e);
+                            }
                         }
                         done += 1;
                         tracing::info!(
