@@ -23,7 +23,7 @@ pub fn export_solidity_plonk_bn254_verifier(output_dir: impl Into<PathBuf>) -> R
     let artifacts_dir = if sp1_prover::build::sp1_dev_mode() {
         sp1_prover::build::plonk_bn254_artifacts_dev_dir()
     } else {
-        try_install_circuit_artifacts()
+        try_install_circuit_artifacts("plonk")
     };
     let verifier_path = artifacts_dir.join("SP1VerifierPlonk.sol");
 
@@ -52,7 +52,7 @@ pub fn export_solidity_groth16_bn254_verifier(output_dir: impl Into<PathBuf>) ->
     let artifacts_dir = if sp1_prover::build::sp1_dev_mode() {
         sp1_prover::build::groth16_bn254_artifacts_dev_dir()
     } else {
-        try_install_circuit_artifacts()
+        try_install_circuit_artifacts("groth16")
     };
     let verifier_path = artifacts_dir.join("SP1VerifierGroth16.sol");
 
