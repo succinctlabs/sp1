@@ -59,7 +59,8 @@ tonic = { version = "0.12", features = ["tls", "tls-roots"], optional = true }
 alloy-signer = { version = "0.3.6", optional = true }
 alloy-signer-local = { version = "0.3.6", optional = true }
 alloy-primitives = { version = "0.8.3", optional = true }
-async-once-cell = { version = "0.5.3", optional = true }
+aws-sdk-s3 = { version = "1.53.0", optional = true }
+aws-config = { version = "1.5.7", optional = true }
 
 [features]
 default = []
@@ -88,7 +89,8 @@ network-v2 = [
   "dep:twirp",
   "dep:reqwest-middleware",
   "dep:tonic",
-  "dep:async-once-cell",
+  "dep:aws-sdk-s3",
+  "dep:aws-config",
 ]
 cuda = ["sp1-cuda"]
 

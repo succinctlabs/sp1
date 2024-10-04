@@ -13,6 +13,8 @@ use crate::network_v2::Signable;
 use alloy_signer::SignerSync;
 use alloy_signer_local::PrivateKeySigner;
 use anyhow::{Context, Ok, Result};
+use aws_config::BehaviorVersion;
+use aws_sdk_s3::Client as S3Client;
 use reqwest::Client as HttpClient;
 use reqwest_middleware::ClientWithMiddleware as HttpClientWithMiddleware;
 use serde::de::DeserializeOwned;
@@ -21,6 +23,7 @@ use sp1_core_machine::io::SP1Stdin;
 use sp1_prover::SP1VerifyingKey;
 use std::str::FromStr;
 use std::time::{SystemTime, UNIX_EPOCH};
+use tokio::sync::OnceCell;
 use tokio::try_join;
 use tonic::transport::Channel;
 
@@ -28,9 +31,10 @@ use tonic::transport::Channel;
 pub const DEFAULT_PROVER_NETWORK_RPC: &str = "http://127.0.0.1:50051";
 
 pub struct NetworkClient {
-    pub signer: PrivateKeySigner,
-    pub rpc_url: String,
-    pub http: HttpClientWithMiddleware,
+    signer: PrivateKeySigner,
+    rpc_url: String,
+    http: HttpClientWithMiddleware,
+    s3: OnceCell<S3Client>,
 }
 
 impl NetworkClient {
@@ -95,13 +99,40 @@ impl NetworkClient {
     pub fn new(private_key: &str) -> Self {
         let signer = PrivateKeySigner::from_str(private_key).unwrap();
         let rpc_url = Self::rpc_url();
-        let http_client = HttpClient::builder()
+
+        let http_client = reqwest::Client::builder()
             .pool_max_idle_per_host(0)
             .pool_idle_timeout(Duration::from_secs(240))
             .build()
             .unwrap();
 
-        Self { signer, rpc_url, http: http_client.into() }
+        Self { signer, rpc_url, http: http_client.into(), s3: OnceCell::new() }
+    }
+
+    async fn get_s3_client(&self) -> &S3Client {
+        self.s3
+            .get_or_init(|| async {
+                let config = aws_config::load_defaults(BehaviorVersion::latest()).await;
+                S3Client::new(&config)
+            })
+            .await
+    }
+
+    async fn download_from_s3(&self, uri: &str) -> Result<Vec<u8>> {
+        let s3_client = self.get_s3_client().await;
+        let uri = uri.strip_prefix("s3://").context("Invalid S3 URI")?;
+        let (bucket, key) = uri.split_once('/').context("Invalid S3 URI format")?;
+
+        let resp = s3_client
+            .get_object()
+            .bucket(bucket)
+            .key(key)
+            .send()
+            .await
+            .context("Failed to get object from S3")?;
+
+        let data = resp.body.collect().await.context("Failed to read S3 object body")?;
+        Ok(data.into_bytes().to_vec())
     }
 
     async fn connect(
@@ -139,15 +170,10 @@ impl NetworkClient {
         let proof = match status {
             ProofStatus::Fulfilled => {
                 log::info!("Proof request fulfilled");
-                let proof_bytes = self
-                    .http
-                    .get(res.proof_uri.as_ref().expect("no proof url"))
-                    .send()
-                    .await
-                    .context("Failed to send HTTP request for proof")?
-                    .bytes()
-                    .await
-                    .context("Failed to load proof bytes")?;
+
+                let proof_uri = res.proof_uri.as_ref().expect("no proof url");
+
+                let proof_bytes = self.download_from_s3(proof_uri).await?;
 
                 Some(bincode::deserialize(&proof_bytes).context("Failed to deserialize proof")?)
             }
@@ -220,8 +246,6 @@ impl NetworkClient {
             cycle_limit,
         };
 
-        log::info!("Requesting proof");
-
         let request_response = rpc
             .request_proof(RequestProofRequest {
                 signature: request_body.sign(&self.signer).into(),
@@ -233,26 +257,19 @@ impl NetworkClient {
         Ok(request_response)
     }
 
-    /// Upload a file to the specified url.
-    async fn upload_file(&self, url: &str, data: Vec<u8>) -> Result<()> {
-        self.http.put(url).body(data).send().await?;
-        Ok(())
-    }
-
     /// Uses the artifact store to to create an artifact, upload the content, and return the URI.
     async fn create_artifact_with_content<T: Serialize>(&self, item: &T) -> Result<String> {
-        let (_, store) = self.connect().await?;
+        let (_, mut store) = self.connect().await?;
 
         let signature = self.signer.sign_message_sync("create_artifact".as_bytes())?;
         let request = CreateArtifactRequest { signature: signature.as_bytes().to_vec() };
-        let response = store.clone().create_artifact(request).await?.into_inner();
+        let response = store.create_artifact(request).await?.into_inner();
 
         let presigned_url = response.artifact_presigned_url;
         let uri = response.artifact_uri;
 
-        let client = reqwest::Client::new();
         let response =
-            client.put(&presigned_url).body(bincode::serialize::<T>(item)?).send().await?;
+            self.http.put(&presigned_url).body(bincode::serialize::<T>(item)?).send().await?;
 
         assert!(response.status().is_success());
 

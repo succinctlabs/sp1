@@ -46,7 +46,7 @@ impl NetworkProver {
         Self { client, local_prover }
     }
 
-    /// Requests a proof from the prover network, returning the proof ID.
+    /// Requests a proof from the prover network, returning the request ID.
     pub async fn request_proof(
         &self,
         elf: &[u8],
@@ -75,6 +75,7 @@ impl NetworkProver {
 
         log::info!("Requesting proof with cycle limit: {}", cycle_limit);
 
+        // Request the proof.
         let response = self
             .client
             .request_proof(
@@ -88,16 +89,18 @@ impl NetworkProver {
                 cycle_limit,
             )
             .await?;
-        let tx_hash = "0x".to_string() + &hex::encode(response.tx_hash);
-        let request_id_bytes = response.body.unwrap().request_id;
-        let request_id = "0x".to_string() + &hex::encode(request_id_bytes.clone());
-        log::info!("Created request {} in transaction {}", request_id, tx_hash);
+
+        // Log the request ID and transaction hash.
+        let tx_hash_hex = "0x".to_string() + &hex::encode(response.tx_hash);
+        let request_id = response.body.unwrap().request_id;
+        let request_id_hex = "0x".to_string() + &hex::encode(request_id.clone());
+        log::info!("Created request {} in transaction {}", request_id_hex, tx_hash_hex);
 
         if NetworkClient::rpc_url() == DEFAULT_PROVER_NETWORK_RPC {
-            log::info!("View in explorer: https://explorer-v2.succinct.xyz/{}", request_id);
+            log::info!("View in explorer: https://explorer-v2.succinct.xyz/{}", request_id_hex);
         }
 
-        Ok(request_id_bytes)
+        Ok(request_id)
     }
 
     /// Waits for a proof to be generated and returns the proof. If a timeout is supplied, the
