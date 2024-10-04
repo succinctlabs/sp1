@@ -4,10 +4,10 @@ use crate::network_v2::proto::artifact::{
     artifact_store_client::ArtifactStoreClient, CreateArtifactRequest,
 };
 use crate::network_v2::proto::network::{
-    prover_network_client::ProverNetworkClient, FulfillProofRequest, FulfillProofResponse,
-    GetFilteredProofRequestsRequest, GetFilteredProofRequestsResponse, GetNonceRequest,
-    GetProofRequestStatusRequest, GetProofRequestStatusResponse, ProofMode, ProofStatus,
-    ProofStrategy, RequestProofRequest, RequestProofRequestBody, RequestProofResponse,
+    prover_network_client::ProverNetworkClient, GetFilteredProofRequestsRequest,
+    GetFilteredProofRequestsResponse, GetNonceRequest, GetProofRequestStatusRequest,
+    GetProofRequestStatusResponse, ProofMode, ProofStatus, ProofStrategy, RequestProofRequest,
+    RequestProofRequestBody, RequestProofResponse,
 };
 use crate::network_v2::Signable;
 use alloy_signer::SignerSync;
@@ -18,6 +18,7 @@ use reqwest_middleware::ClientWithMiddleware as HttpClientWithMiddleware;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sp1_core_machine::io::SP1Stdin;
+use sp1_prover::SP1VerifyingKey;
 use std::str::FromStr;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::try_join;
@@ -25,10 +26,6 @@ use tonic::transport::{Channel, Endpoint};
 
 /// The default RPC endpoint for the Succinct prover network.
 pub const DEFAULT_PROVER_NETWORK_RPC: &str = "http://localhost:3000";
-
-/// The timeout for a proof request to be fulfilled.
-const TIMEOUT: Duration = Duration::from_secs(60 * 60);
-
 pub struct NetworkClient {
     pub signer: PrivateKeySigner,
     pub rpc: ProverNetworkClient<Channel>,
@@ -61,20 +58,24 @@ impl NetworkClient {
     }
 
     /// Gets the latest nonce for this auth's account.
-    pub async fn get_nonce(&mut self) -> Result<u64> {
-        let res =
-            self.rpc.get_nonce(GetNonceRequest { address: self.signer.address().to_vec() }).await?;
+    pub async fn get_nonce(&self) -> Result<u64> {
+        let res = self
+            .rpc
+            .clone()
+            .get_nonce(GetNonceRequest { address: self.signer.address().to_vec() })
+            .await?;
         Ok(res.into_inner().nonce)
     }
 
     /// Get the status of a given proof. If the status is ProofFulfilled, the proof is also
     /// returned.
     pub async fn get_proof_request_status<P: DeserializeOwned>(
-        &mut self,
+        &self,
         request_id: &[u8],
     ) -> Result<(GetProofRequestStatusResponse, Option<P>)> {
         let res = self
             .rpc
+            .clone()
             .get_proof_request_status(GetProofRequestStatusRequest {
                 request_id: request_id.to_vec(),
             })
@@ -104,12 +105,13 @@ impl NetworkClient {
 
     /// Get all the proof requests for a given status. Also filter by circuit version if provided.
     pub async fn get_filtered_proof_requests(
-        &mut self,
+        &self,
         status: ProofStatus,
         circuit_version: Option<&str>,
     ) -> Result<GetFilteredProofRequestsResponse> {
         let res = self
             .rpc
+            .clone()
             .get_filtered_proof_requests(GetFilteredProofRequestsRequest {
                 status: status.into(),
                 version: circuit_version.map(|v| v.to_string()).unwrap_or_default(),
@@ -121,11 +123,12 @@ impl NetworkClient {
     }
 
     /// Creates a proof request with the given ELF and stdin.
+    #[allow(clippy::too_many_arguments)]
     pub async fn request_proof(
-        &mut self,
+        &self,
         elf: &[u8],
         stdin: &SP1Stdin,
-        vk: &[u8],
+        vk: &SP1VerifyingKey,
         mode: ProofMode,
         _version: &str,
         strategy: ProofStrategy,
@@ -141,8 +144,12 @@ impl NetworkClient {
         let stdin_promise = self.create_artifact_with_content(&stdin);
         let (program_uri, stdin_uri) = try_join!(program_promise, stdin_promise)?;
 
+        // Serialize the vkey.
+        let vkey = bincode::serialize(&vk)?;
+
         let nonce = self
             .rpc
+            .clone()
             .get_nonce(GetNonceRequest { address: self.signer.address().to_vec() })
             .await?
             .into_inner()
@@ -151,7 +158,7 @@ impl NetworkClient {
             nonce,
             // version: version.to_string(),
             version: "sp1-v3.0.0-rc1".to_string(),
-            vkey: vk.to_vec(),
+            vkey,
             mode: mode.into(),
             strategy: strategy.into(),
             program_uri,
@@ -161,6 +168,7 @@ impl NetworkClient {
         };
         let request_response = self
             .rpc
+            .clone()
             .request_proof(RequestProofRequest {
                 signature: request_body.sign(&self.signer).into(),
                 body: Some(request_body),
