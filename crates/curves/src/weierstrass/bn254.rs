@@ -1,5 +1,5 @@
 use generic_array::GenericArray;
-use num::{BigUint, Num, Zero};
+use num::{BigUint, Zero};
 use serde::{Deserialize, Serialize};
 use typenum::{U32, U62};
 
@@ -31,11 +31,10 @@ impl FieldParameters for Bn254BaseField {
     // The modulus has been taken from py_ecc python library by Ethereum Foundation.
     // https://github.com/ethereum/py_pairing/blob/5f609da/py_ecc/bn128/bn128_field_elements.py#L10-L11
     fn modulus() -> BigUint {
-        BigUint::from_str_radix(
-            "21888242871839275222246405745257275088696311157297823662689037894645226208583",
-            10,
+        crate::utils::memo_big_uint_str!(
+            "21888242871839275222246405745257275088696311157297823662689037894645226208583"
         )
-        .unwrap()
+        .clone()
     }
 }
 
@@ -73,11 +72,10 @@ impl WeierstrassParameters for Bn254Parameters {
     }
 
     fn prime_group_order() -> num::BigUint {
-        BigUint::from_str_radix(
-            "21888242871839275222246405745257275088548364400416034343698204186575808495617",
-            10,
+        crate::utils::memo_big_uint_str!(
+            "21888242871839275222246405745257275088548364400416034343698204186575808495617"
         )
-        .unwrap()
+        .clone()
     }
 
     fn a_int() -> BigUint {

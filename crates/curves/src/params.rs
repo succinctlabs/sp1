@@ -14,8 +14,6 @@ use sp1_stark::air::Polynomial;
 
 use p3_field::Field;
 
-use crate::utils::biguint_from_limbs;
-
 pub const NB_BITS_PER_LIMB: usize = 8;
 
 /// An array representing N limbs of T.
@@ -38,7 +36,7 @@ pub trait FieldParameters:
     const MODULUS: &'static [u8];
 
     fn modulus() -> BigUint {
-        biguint_from_limbs(Self::MODULUS)
+        crate::utils::memo_big_uint_limbs!(Self::MODULUS).clone()
     }
 
     fn nb_bits() -> usize {

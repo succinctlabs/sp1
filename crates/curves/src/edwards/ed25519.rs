@@ -1,8 +1,6 @@
-use std::str::FromStr;
-
 use curve25519_dalek::edwards::CompressedEdwardsY;
 use generic_array::GenericArray;
-use num::{BigUint, Num, One};
+use num::{BigUint, One};
 use serde::{Deserialize, Serialize};
 use typenum::{U32, U62};
 
@@ -54,17 +52,14 @@ impl EdwardsParameters for Ed25519Parameters {
     }
 
     fn generator() -> (BigUint, BigUint) {
-        let x = BigUint::from_str_radix(
-            "15112221349535400772501151409588531511454012693041857206046113283949847762202",
-            10,
-        )
-        .unwrap();
-        let y = BigUint::from_str_radix(
-            "46316835694926478169428394003475163141307993866256225615783033603165251855960",
-            10,
-        )
-        .unwrap();
-        (x, y)
+        let x = crate::utils::memo_big_uint_str!(
+            "15112221349535400772501151409588531511454012693041857206046113283949847762202"
+        );
+        let y = crate::utils::memo_big_uint_str!(
+            "46316835694926478169428394003475163141307993866256225615783033603165251855960"
+        );
+
+        (x.clone(), y.clone())
     }
 }
 
@@ -80,10 +75,9 @@ pub fn ed25519_sqrt(a: &BigUint) -> BigUint {
     let modulus = Ed25519BaseField::modulus();
     // The exponent is (modulus+3)/8;
     let mut beta = a.modpow(
-        &BigUint::from_str(
-            "7237005577332262213973186563042994240829374041602535252466099000494570602494",
-        )
-        .unwrap(),
+        crate::utils::memo_big_uint_str!(
+            "7237005577332262213973186563042994240829374041602535252466099000494570602494"
+        ),
         &modulus,
     );
 
@@ -92,16 +86,15 @@ pub fn ed25519_sqrt(a: &BigUint) -> BigUint {
     // ssh://git@github.com/succinctlabs/curve25519-dalek/blob/
     // e2d1bd10d6d772af07cac5c8161cd7655016af6d/curve25519-dalek/src/backend/serial/u64/constants.
     // rs#L89
-    let sqrt_m1 = BigUint::from_str(
-        "19681161376707505956807079304988542015446066515923890162744021073123829784752",
-    )
-    .unwrap();
+    let sqrt_m1 = crate::utils::memo_big_uint_str!(
+        "19681161376707505956807079304988542015446066515923890162744021073123829784752"
+    );
 
     let beta_squared = &beta * &beta % &modulus;
     let neg_a = &modulus - a;
 
     if beta_squared == neg_a {
-        beta = (&beta * &sqrt_m1) % &modulus;
+        beta = (&beta * sqrt_m1) % &modulus;
     }
 
     let correct_sign_sqrt = &beta_squared == a;

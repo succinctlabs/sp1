@@ -26,3 +26,38 @@ pub fn biguint_to_limbs<const N: usize>(integer: &BigUint) -> [u8; N] {
 pub fn biguint_from_limbs(limbs: &[u8]) -> BigUint {
     BigUint::from_bytes_le(limbs)
 }
+
+/// Memoize a BigUint from a slice of limbs.
+///
+/// See: [biguint_from_limbs]
+macro_rules! memo_big_uint_limbs {
+    ($limbs:expr) => {{
+        static _MEMO_TEMP: std::sync::OnceLock<::num::BigUint> = std::sync::OnceLock::new();
+
+        _MEMO_TEMP.get_or_init(|| $crate::utils::biguint_from_limbs($limbs))
+    }};
+}
+
+/// Memoize a BigUint from a const string, you can optionally pass a radix.
+///
+/// ```ignore
+///     let t = memo_big_uint_str!("1234567890");
+///     let t = memo_big_uint_str!("1234567890", 16);
+/// ```
+macro_rules! memo_big_uint_str {
+    ($uint:expr, $radix:expr) => {{
+        static _MEMO_TEMP: std::sync::OnceLock<::num::BigUint> = std::sync::OnceLock::new();
+
+        _MEMO_TEMP.get_or_init(|| ::num::BigUint::from_str_radix($uint, $radix).unwrap())
+    }};
+    ($uint:expr) => {{
+        use std::str::FromStr;
+
+        static _MEMO_TEMP: std::sync::OnceLock<::num::BigUint> = std::sync::OnceLock::new();
+
+        _MEMO_TEMP.get_or_init(|| ::num::BigUint::from_str($uint).unwrap())
+    }};
+}
+
+pub(crate) use memo_big_uint_limbs;
+pub(crate) use memo_big_uint_str;

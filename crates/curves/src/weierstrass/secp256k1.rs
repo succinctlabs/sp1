@@ -1,8 +1,6 @@
 //! Modulo defining the Secp256k1 curve and its base field. The constants are all taken from
 //! https://en.bitcoin.it/wiki/Secp256k1.
 
-use std::str::FromStr;
-
 use elliptic_curve::{sec1::ToEncodedPoint, subtle::Choice};
 use generic_array::GenericArray;
 use k256::{elliptic_curve::point::DecompressPoint, FieldElement};
@@ -40,7 +38,7 @@ impl FieldParameters for Secp256k1BaseField {
     const WITNESS_OFFSET: usize = 1usize << 14;
 
     fn modulus() -> BigUint {
-        BigUint::from_bytes_le(Self::MODULUS)
+        crate::utils::memo_big_uint_limbs!(Self::MODULUS).clone()
     }
 }
 
@@ -64,16 +62,16 @@ impl WeierstrassParameters for Secp256k1Parameters {
         7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         0, 0,
     ]);
+
     fn generator() -> (BigUint, BigUint) {
-        let x = BigUint::from_str(
-            "55066263022277343669578718895168534326250603453777594175500187360389116729240",
-        )
-        .unwrap();
-        let y = BigUint::from_str(
-            "32670510020758816978083085130507043184471273380659243275938904335757337482424",
-        )
-        .unwrap();
-        (x, y)
+        let x = crate::utils::memo_big_uint_str!(
+            "55066263022277343669578718895168534326250603453777594175500187360389116729240"
+        );
+        let y = crate::utils::memo_big_uint_str!(
+            "32670510020758816978083085130507043184471273380659243275938904335757337482424"
+        );
+
+        (x.clone(), y.clone())
     }
 
     fn prime_group_order() -> num::BigUint {

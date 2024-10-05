@@ -43,11 +43,10 @@ impl FieldParameters for Bls12381BaseField {
     const WITNESS_OFFSET: usize = 1usize << 15;
 
     fn modulus() -> BigUint {
-        BigUint::from_str_radix(
-            "4002409555221667393417789825735904156556882819939007885332058136124031650490837864442687629129015664037894272559787",
-            10,
+        crate::utils::memo_big_uint_str!(
+            "4002409555221667393417789825735904156556882819939007885332058136124031650490837864442687629129015664037894272559787"
         )
-        .unwrap()
+        .clone()
     }
 }
 
@@ -79,27 +78,23 @@ impl WeierstrassParameters for Bls12381Parameters {
     ]);
 
     fn generator() -> (BigUint, BigUint) {
-        let x = BigUint::from_str_radix(
-            "3685416753713387016781088315183077757961620795782546409894578378688607592378376318836054947676345821548104185464507",
-            10,
-        )
-        .unwrap();
-        let y = BigUint::from_str_radix(
-            "1339506544944476473020471379941921221584933875938349620426543736416511423956333506472724655353366534992391756441569",
-            10,
-        )
-        .unwrap();
-        (x, y)
+        let x = crate::utils::memo_big_uint_str!(
+            "3685416753713387016781088315183077757961620795782546409894578378688607592378376318836054947676345821548104185464507"
+        );
+        let y = crate::utils::memo_big_uint_str!(
+            "1339506544944476473020471379941921221584933875938349620426543736416511423956333506472724655353366534992391756441569"
+        );
+
+        (x.clone(), y.clone())
     }
 
     // The prime group order has been taken from py_ecc python library by Ethereum Foundation.
     // https://github.com/ethereum/py_ecc/blob/7b9e1b3/py_ecc/bls12_381/bls12_381_curve.py#L21-L23
     fn prime_group_order() -> num::BigUint {
-        BigUint::from_str_radix(
-            "52435875175126190479447740508185965837690552500527637822603658699938581184513",
-            10,
+        crate::utils::memo_big_uint_str!(
+            "52435875175126190479447740508185965837690552500527637822603658699938581184513"
         )
-        .unwrap()
+        .clone()
     }
 
     fn a_int() -> BigUint {
