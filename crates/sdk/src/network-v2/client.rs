@@ -32,7 +32,6 @@ pub const DEFAULT_PROVER_NETWORK_RPC: &str = "http://127.0.0.1:50051";
 
 pub struct NetworkClient {
     signer: PrivateKeySigner,
-    rpc_url: String,
     http: HttpClientWithMiddleware,
     s3: OnceCell<S3Client>,
 }
@@ -43,59 +42,7 @@ impl NetworkClient {
         env::var("PROVER_NETWORK_RPC").unwrap_or_else(|_| DEFAULT_PROVER_NETWORK_RPC.to_string())
     }
 
-    // async fn create_channel(rpc_url: &str) -> Result<Channel> {
-    //     Channel::from_shared(rpc_url.to_string())?
-    //         .connect_timeout(Duration::from_secs(30))
-    //         .tcp_keepalive(Some(Duration::from_secs(60)))
-    //         .timeout(Duration::from_secs(60))
-    //         .connect()
-    //         .await
-    //         .map_err(Into::into)
-    // }
-
-    // fn create_clients(
-    //     channel: Channel,
-    // ) -> (ProverNetworkClient<Channel>, ArtifactStoreClient<Channel>) {
-    //     let rpc = ProverNetworkClient::new(channel.clone());
-    //     let store = ArtifactStoreClient::new(channel);
-    //     (rpc, store)
-    // }
-
-    // pub async fn new(private_key: &str) -> Result<Self> {
-    //     let signer = PrivateKeySigner::from_str(private_key).unwrap();
-
-    //     let rpc_url = Self::rpc_url();
-    //     let channel = Self::create_channel(&rpc_url).await?;
-    //     let (mut rpc, store) = Self::create_clients(channel);
-
-    //     let http_client = HttpClient::builder()
-    //         .pool_max_idle_per_host(0)
-    //         .pool_idle_timeout(Duration::from_secs(240))
-    //         .build()
-    //         .unwrap();
-
-    //     Ok(Self { signer, rpc, store, http: http_client.into() })
-    // }
-
-    // async fn ensure_connected(&mut self) -> Result<()> {
-    //     let check_connection = async {
-    //         // Try a simple RPC call to check the connection
-    //         self.rpc
-    //             .clone()
-    //             .get_nonce(GetNonceRequest { address: self.signer.address().to_vec() })
-    //             .await?;
-    //         Ok(())
-    //     };
-
-    //     if check_connection.await.is_err() {
-    //         log::warn!("Connection seems to be lost, reconnecting...");
-    //         let rpc_url = Self::rpc_url();
-    //         let channel = Self::create_channel(&rpc_url).await?;
-    //         (self.rpc, self.store) = Self::create_clients(channel);
-    //     }
-    //     Ok(())
-    // }
-
+    /// Create a new network client with the given private key.
     pub fn new(private_key: &str) -> Self {
         let signer = PrivateKeySigner::from_str(private_key).unwrap();
         let rpc_url = Self::rpc_url();
@@ -106,7 +53,7 @@ impl NetworkClient {
             .build()
             .unwrap();
 
-        Self { signer, rpc_url, http: http_client.into(), s3: OnceCell::new() }
+        Self { signer, http: http_client.into(), s3: OnceCell::new() }
     }
 
     // Connect to the prover network and artifact store.
