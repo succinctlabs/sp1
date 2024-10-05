@@ -67,6 +67,8 @@ pub struct Executor<'a> {
     /// checkpoints.
     pub memory_checkpoint: PagedMemory<Option<MemoryRecord>>,
 
+    pub uninitialized_memory_checkpoint: PagedMemory<bool>,
+
     /// The memory accesses for the current cycle.
     pub memory_accesses: MemoryAccessRecord,
 
@@ -218,6 +220,7 @@ impl<'a> Executor<'a> {
             opts,
             max_cycles: context.max_cycles,
             memory_checkpoint: PagedMemory::new_preallocated(),
+            uninitialized_memory_checkpoint: PagedMemory::new_preallocated(),
         }
     }
 
@@ -1185,6 +1188,8 @@ impl<'a> Executor<'a> {
         // need it all for MemoryFinalize.
         tracing::info_span!("create memory checkpoint").in_scope(|| {
             let memory_checkpoint = std::mem::take(&mut self.memory_checkpoint);
+            let uninitialized_memory_checkpoint =
+                std::mem::take(&mut self.uninitialized_memory_checkpoint);
             if done {
                 // If we're done, we need to include all memory. But we need to reset any modified
                 // memory to as it was before the execution.
@@ -1197,18 +1202,21 @@ impl<'a> Executor<'a> {
                     }
                 });
                 checkpoint.uninitialized_memory = self.state.uninitialized_memory.clone();
-            } else {
-                for addr in memory_checkpoint.keys() {
-                    let record = self.state.memory.get(addr);
-                    if record.is_none() {
-                        checkpoint
-                            .uninitialized_memory
-                            .insert(addr, *self.state.uninitialized_memory.get(addr).unwrap_or(&0));
+                // Remove memory that was written to in this batch.
+                for (addr, is_old) in uninitialized_memory_checkpoint {
+                    if !is_old {
+                        checkpoint.uninitialized_memory.remove(addr);
                     }
                 }
+            } else {
                 checkpoint.memory = memory_checkpoint
                     .into_iter()
                     .filter_map(|(addr, record)| record.map(|record| (addr, record)))
+                    .collect();
+                checkpoint.uninitialized_memory = uninitialized_memory_checkpoint
+                    .into_iter()
+                    .filter(|&(_, has_value)| has_value)
+                    .map(|(addr, _)| (addr, *self.state.uninitialized_memory.get(addr).unwrap()))
                     .collect();
             }
         });
