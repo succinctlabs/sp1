@@ -109,32 +109,7 @@ impl NetworkClient {
         Self { signer, rpc_url, http: http_client.into(), s3: OnceCell::new() }
     }
 
-    async fn get_s3_client(&self) -> &S3Client {
-        self.s3
-            .get_or_init(|| async {
-                let config = aws_config::load_defaults(BehaviorVersion::latest()).await;
-                S3Client::new(&config)
-            })
-            .await
-    }
-
-    async fn download_from_s3(&self, uri: &str) -> Result<Vec<u8>> {
-        let s3_client = self.get_s3_client().await;
-        let uri = uri.strip_prefix("s3://").context("Invalid S3 URI")?;
-        let (bucket, key) = uri.split_once('/').context("Invalid S3 URI format")?;
-
-        let resp = s3_client
-            .get_object()
-            .bucket(bucket)
-            .key(key)
-            .send()
-            .await
-            .context("Failed to get object from S3")?;
-
-        let data = resp.body.collect().await.context("Failed to read S3 object body")?;
-        Ok(data.into_bytes().to_vec())
-    }
-
+    // Connect to the prover network and artifact store.
     async fn connect(
         &self,
     ) -> Result<(ProverNetworkClient<Channel>, ArtifactStoreClient<Channel>)> {
@@ -152,8 +127,7 @@ impl NetworkClient {
         Ok(res.into_inner().nonce)
     }
 
-    /// Get the status of a given proof. If the status is ProofFulfilled, the proof is also
-    /// returned.
+    /// Get the status of a given proof. If the status is Fulfilled, the proof is also returned.
     pub async fn get_proof_request_status<P: DeserializeOwned>(
         &self,
         request_id: &[u8],
@@ -170,11 +144,8 @@ impl NetworkClient {
         let proof = match status {
             ProofStatus::Fulfilled => {
                 log::info!("Proof request fulfilled");
-
                 let proof_uri = res.proof_uri.as_ref().expect("no proof url");
-
-                let proof_bytes = self.download_from_s3(proof_uri).await?;
-
+                let proof_bytes = self.download_artifact(proof_uri).await?;
                 Some(bincode::deserialize(&proof_bytes).context("Failed to deserialize proof")?)
             }
             _ => None,
@@ -183,17 +154,17 @@ impl NetworkClient {
         Ok((res, proof))
     }
 
-    /// Get all the proof requests for a given status. Also filter by circuit version if provided.
+    /// Get all the proof requests for a given status. Also filter by version if provided.
     pub async fn get_filtered_proof_requests(
         &self,
         status: ProofStatus,
-        circuit_version: Option<&str>,
+        version: Option<&str>,
     ) -> Result<GetFilteredProofRequestsResponse> {
         let (mut rpc, _) = self.connect().await?;
         let res = rpc
             .get_filtered_proof_requests(GetFilteredProofRequestsRequest {
                 status: status.into(),
-                version: circuit_version.map(|v| v.to_string()).unwrap_or_default(),
+                version: version.map(|v| v.to_string()).unwrap_or_default(),
             })
             .await?
             .into_inner();
@@ -216,6 +187,7 @@ impl NetworkClient {
     ) -> Result<RequestProofResponse> {
         let (mut rpc, _) = self.connect().await?;
 
+        // Calculate the deadline.
         let start = SystemTime::now();
         let since_the_epoch = start.duration_since(UNIX_EPOCH).expect("Invalid start time");
         let deadline = since_the_epoch.as_secs() + timeout_secs;
@@ -228,11 +200,8 @@ impl NetworkClient {
         // Serialize the vkey.
         let vkey = bincode::serialize(&vk)?;
 
-        let nonce = rpc
-            .get_nonce(GetNonceRequest { address: self.signer.address().to_vec() })
-            .await?
-            .into_inner()
-            .nonce;
+        // Send the request.
+        let nonce = self.get_nonce().await?;
         let request_body = RequestProofRequestBody {
             nonce,
             // version: version.to_string(),
@@ -245,7 +214,6 @@ impl NetworkClient {
             deadline,
             cycle_limit,
         };
-
         let request_response = rpc
             .request_proof(RequestProofRequest {
                 signature: request_body.sign(&self.signer).into(),
@@ -255,6 +223,16 @@ impl NetworkClient {
             .into_inner();
 
         Ok(request_response)
+    }
+
+    /// Get the S3 client.
+    async fn get_s3_client(&self) -> &S3Client {
+        self.s3
+            .get_or_init(|| async {
+                let config = aws_config::load_defaults(BehaviorVersion::latest()).await;
+                S3Client::new(&config)
+            })
+            .await
     }
 
     /// Uses the artifact store to to create an artifact, upload the content, and return the URI.
@@ -274,5 +252,23 @@ impl NetworkClient {
         assert!(response.status().is_success());
 
         Ok(uri)
+    }
+
+    /// Download an artifact from S3.
+    async fn download_artifact(&self, uri: &str) -> Result<Vec<u8>> {
+        let s3_client = self.get_s3_client().await;
+        let uri = uri.strip_prefix("s3://").context("Invalid S3 URI")?;
+        let (bucket, key) = uri.split_once('/').context("Invalid S3 URI format")?;
+
+        let resp = s3_client
+            .get_object()
+            .bucket(bucket)
+            .key(key)
+            .send()
+            .await
+            .context("Failed to get object from S3")?;
+
+        let data = resp.body.collect().await.context("Failed to read S3 object body")?;
+        Ok(data.into_bytes().to_vec())
     }
 }
