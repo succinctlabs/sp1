@@ -4,6 +4,7 @@ use thiserror::Error;
 
 use crate::network_v2::proto::network::{FulfillProofRequest, RequestProofRequest};
 
+#[allow(dead_code)]
 pub trait SignedMessage {
     fn signature(&self) -> Vec<u8>;
     fn nonce(&self) -> Result<u64, MessageError>;

@@ -45,7 +45,6 @@ impl NetworkClient {
     /// Create a new network client with the given private key.
     pub fn new(private_key: &str) -> Self {
         let signer = PrivateKeySigner::from_str(private_key).unwrap();
-        let rpc_url = Self::rpc_url();
 
         let http_client = reqwest::Client::builder()
             .pool_max_idle_per_host(0)

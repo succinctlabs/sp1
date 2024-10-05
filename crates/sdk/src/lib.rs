@@ -84,13 +84,13 @@ impl ProverClient {
             },
             "network" => {
                 cfg_if! {
-                    if #[cfg(feature = "network")] {
-                        Self {
-                            prover: Box::new(NetworkProverV1::new()),
-                        }
-                    } else if #[cfg(feature = "network-v2")] {
+                    if #[cfg(feature = "network-v2")] {
                         Self {
                             prover: Box::new(NetworkProverV2::new()),
+                        }
+                    } else if #[cfg(feature = "network")] {
+                        Self {
+                            prover: Box::new(NetworkProverV1::new()),
                         }
                     } else {
                         panic!("network feature is not enabled")
@@ -149,13 +149,13 @@ impl ProverClient {
     /// ```
     pub fn network() -> Self {
         cfg_if! {
-            if #[cfg(feature = "network")] {
-                Self {
-                    prover: Box::new(NetworkProverV1::new()),
-                }
-            } else if #[cfg(feature = "network-v2")] {
+            if #[cfg(feature = "network-v2")] {
                 Self {
                     prover: Box::new(NetworkProverV2::new()),
+                }
+            } else if #[cfg(feature = "network")] {
+                Self {
+                    prover: Box::new(NetworkProverV1::new()),
                 }
             } else {
                 panic!("network feature is not enabled")

@@ -63,7 +63,7 @@ aws-sdk-s3 = { version = "1.53.0", optional = true }
 aws-config = { version = "1.5.7", optional = true }
 
 [features]
-default = []
+default = ["network"]
 neon = ["sp1-core-machine/neon"]
 native-gnark = ["sp1-prover/native-gnark"]
 # TODO: Once alloy has a 1.* release, we can likely remove this feature flag, as there will be less 
