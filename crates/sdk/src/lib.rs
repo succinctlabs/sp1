@@ -15,7 +15,7 @@ pub mod network;
 pub mod network_v2;
 #[cfg(feature = "network")]
 pub use crate::network::prover::NetworkProver as NetworkProverV1;
-
+#[cfg(feature = "network-v2")]
 pub use crate::network_v2::prover::NetworkProver as NetworkProverV2;
 #[cfg(feature = "cuda")]
 pub use crate::provers::CudaProver;

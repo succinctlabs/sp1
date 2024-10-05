@@ -1,4 +1,3 @@
-pub mod auth;
 pub mod client;
 pub mod prover;
 mod sign_message;
