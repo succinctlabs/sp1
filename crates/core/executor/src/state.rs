@@ -4,7 +4,6 @@ use std::{
 };
 
 use hashbrown::HashMap;
-use nohash_hasher::BuildNoHashHasher;
 use serde::{Deserialize, Serialize};
 use sp1_stark::{baby_bear_poseidon2::BabyBearPoseidon2, StarkVerifyingKey};
 
@@ -13,7 +12,6 @@ use crate::{
     memory::PagedMemory,
     record::{ExecutionRecord, MemoryAccessRecord},
     syscalls::SyscallCode,
-    utils::{deserialize_hashmap_as_vec, serialize_hashmap_as_vec},
     ExecutorMode, SP1ReduceProof,
 };
 
