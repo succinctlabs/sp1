@@ -384,7 +384,7 @@ impl<'a> Executor<'a> {
             Entry::Occupied(entry) => entry.into_mut(),
             Entry::Vacant(entry) => {
                 // If addr has a specific value to be initialized with, use that, otherwise 0.
-                let value = self.state.uninitialized_memory.get(&addr).unwrap_or(&0);
+                let value = self.state.uninitialized_memory.get(addr).unwrap_or(&0);
                 entry.insert(MemoryRecord { value: *value, shard: 0, timestamp: 0 })
             }
         };
@@ -429,7 +429,7 @@ impl<'a> Executor<'a> {
             Entry::Occupied(entry) => entry.into_mut(),
             Entry::Vacant(entry) => {
                 // If addr has a specific value to be initialized with, use that, otherwise 0.
-                let value = self.state.uninitialized_memory.get(&addr).unwrap_or(&0);
+                let value = self.state.uninitialized_memory.get(addr).unwrap_or(&0);
 
                 entry.insert(MemoryRecord { value: *value, shard: 0, timestamp: 0 })
             }
@@ -1203,7 +1203,7 @@ impl<'a> Executor<'a> {
                     if record.is_none() {
                         checkpoint
                             .uninitialized_memory
-                            .insert(addr, self.state.uninitialized_memory[&addr]);
+                            .insert(addr, *self.state.uninitialized_memory.get(addr).unwrap_or(&0));
                     }
                 }
                 checkpoint.memory = memory_checkpoint
@@ -1387,7 +1387,7 @@ impl<'a> Executor<'a> {
                 // Program memory is initialized in the MemoryProgram chip and doesn't require any
                 // events, so we only send init events for other memory addresses.
                 if !self.record.program.memory_image.contains_key(&addr) {
-                    let initial_value = self.state.uninitialized_memory.get(&addr).unwrap_or(&0);
+                    let initial_value = self.state.uninitialized_memory.get(addr).unwrap_or(&0);
                     memory_initialize_events.push(MemoryInitializeFinalizeEvent::initialize(
                         addr,
                         *initial_value,
