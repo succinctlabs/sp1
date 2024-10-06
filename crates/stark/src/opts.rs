@@ -3,7 +3,8 @@ use std::env;
 use serde::{Deserialize, Serialize};
 use sysinfo::System;
 
-const MAX_SHARD_SIZE: usize = 1 << 22;
+const MAX_SHARD_SIZE: usize = 1 << 21;
+const RECURSION_MAX_SHARD_SIZE: usize = 1 << 22;
 const MAX_SHARD_BATCH_SIZE: usize = 8;
 const DEFAULT_TRACE_GEN_WORKERS: usize = 1;
 const DEFAULT_CHECKPOINTS_CHANNEL_CAPACITY: usize = 128;
@@ -120,8 +121,8 @@ impl SP1CoreOpts {
         let mut opts = Self::default();
         opts.reconstruct_commitments = false;
 
-        // Recursion only supports 1 << 22 shard size.
-        opts.shard_size = MAX_SHARD_SIZE;
+        // Recursion only supports [RECURSION_MAX_SHARD_SIZE] shard size.
+        opts.shard_size = RECURSION_MAX_SHARD_SIZE;
         opts
     }
 }
