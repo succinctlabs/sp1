@@ -208,18 +208,6 @@ impl<SC: StarkGenericConfig> ShardProof<SC> {
     }
 }
 
-impl ProofShape {
-    #[must_use]
-    pub fn from_map(map: &HashMap<String, usize>) -> Self {
-        Self {
-            chip_information: map
-                .iter()
-                .map(|(name, log_degree)| (name.clone(), *log_degree))
-                .collect(),
-        }
-    }
-}
-
 impl FromIterator<(String, usize)> for ProofShape {
     fn from_iter<T: IntoIterator<Item = (String, usize)>>(iter: T) -> Self {
         let set = iter

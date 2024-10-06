@@ -49,14 +49,15 @@ fn main() {
 
     if from_map_file {
         tracing::info!("Creating vk data from vk set");
-        let mut file = File::open(build_dir.join("vk_map_75740.bin")).unwrap();
+        let mut file = File::open(build_dir.join("vk_map.bin")).unwrap();
         let (vk_map, _): (BTreeMap<[BabyBear; 8], usize>, Vec<usize>) =
             bincode::deserialize_from(&mut file).unwrap();
         let vk_set: BTreeSet<[BabyBear; 8]> = vk_map.keys().cloned().collect();
         let height = vk_set.len().next_power_of_two().ilog2() as usize;
+
         let vk_data = VkData::new(vk_set, height);
 
-        vk_data.save(build_dir).expect("failed to save vk data");
+        vk_data.save(build_dir, dummy).expect("failed to save vk data");
     } else {
         build_vk_map_to_file::<DefaultProverComponents>(
             build_dir,

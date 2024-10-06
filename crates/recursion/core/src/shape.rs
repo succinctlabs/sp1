@@ -71,7 +71,12 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize>
         batch_size: usize,
     ) -> impl Iterator<Item = Vec<ProofShape>> + '_ {
         (0..batch_size)
-            .map(|_| self.allowed_shapes.iter().map(ProofShape::from_map))
+            .map(|_| {
+                self.allowed_shapes
+                    .iter()
+                    .cloned()
+                    .map(|map| map.into_iter().collect::<ProofShape>())
+            })
             .multi_cartesian_product()
     }
 }

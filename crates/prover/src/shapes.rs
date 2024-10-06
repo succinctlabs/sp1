@@ -22,7 +22,7 @@ use sp1_stark::{MachineProver, ProofShape, DIGEST_SIZE};
 
 use crate::{components::SP1ProverComponents, CompressAir, HashableKey, InnerSC, SP1Prover};
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum SP1ProofShape {
     Recursion(ProofShape),
     Compress(Vec<ProofShape>),
@@ -38,8 +38,12 @@ pub struct VkData {
 }
 
 impl VkData {
-    pub fn save(&self, build_dir: PathBuf) -> Result<(), std::io::Error> {
-        let mut file = File::create(build_dir.join("vk_data.bin"))?;
+    pub fn save(&self, build_dir: PathBuf, dummy: bool) -> Result<(), std::io::Error> {
+        let mut file = if dummy {
+            File::create(build_dir.join("dummy_vk_data.bin"))?
+        } else {
+            File::create(build_dir.join("vk_data.bin"))?
+        };
         bincode::serialize_into(&mut file, self).unwrap();
         Ok(())
     }
@@ -131,8 +135,9 @@ pub fn build_vk_map<C: SP1ProverComponents>(
                         let program = catch_unwind(AssertUnwindSafe(|| {
                             prover.program_from_shape(shape.clone())
                         }));
+                        let is_shrink = matches!(shape, SP1CompressProgramShape::Shrink(_));
                         match program {
-                            Ok(program) => program_tx.send((i, program)).unwrap(),
+                            Ok(program) => program_tx.send((i, program, is_shrink)).unwrap(),
                             Err(e) => {
                                 tracing::warn!(
                                     "Program generation failed for shape {} {:?}, with error: {:?}",
@@ -154,16 +159,20 @@ pub fn build_vk_map<C: SP1ProverComponents>(
                 let prover = &prover;
                 s.spawn(move || {
                     let mut done = 0;
-                    while let Ok((i, program)) = program_rx.lock().unwrap().recv() {
+                    while let Ok((i, program, is_shrink)) = program_rx.lock().unwrap().recv() {
                         let setup_result = tracing::debug_span!("setup for program {}", i)
                             .in_scope(|| {
                                 catch_unwind(AssertUnwindSafe(|| {
-                                    prover.compress_prover.setup(&program)
+                                    if is_shrink {
+                                        prover.shrink_prover.setup(&program).1
+                                    } else {
+                                        prover.compress_prover.setup(&program).1
+                                    }
                                 }))
                             });
                         done += 1;
                         match setup_result {
-                            Ok((_, vk)) => {
+                            Ok(vk) => {
                                 let vk_digest = vk.hash_babybear();
                                 tracing::info!(
                                     "program {} = {:?}, {}% done",
@@ -231,7 +240,7 @@ pub fn build_vk_map_to_file<C: SP1ProverComponents>(
     tracing::info!("Creating vk data from vk set");
     let vk_data = VkData::new(vk_set, height);
 
-    vk_data.save(build_dir).expect("failed to save vk data");
+    vk_data.save(build_dir, dummy).expect("failed to save vk data");
 }
 
 impl SP1ProofShape {
@@ -243,16 +252,9 @@ impl SP1ProofShape {
         core_shape_config
             .generate_all_allowed_shapes()
             .map(Self::Recursion)
-            .chain(
-                recursion_shape_config
-                    .get_all_shape_combinations(1)
-                    .map(|mut x| Self::Deferred(x.pop().unwrap())),
-            )
-            .chain(
-                recursion_shape_config
-                    .get_all_shape_combinations(reduce_batch_size)
-                    .map(Self::Compress),
-            )
+            .chain((1..=reduce_batch_size).flat_map(|batch_size| {
+                recursion_shape_config.get_all_shape_combinations(batch_size).map(Self::Compress)
+            }))
             .chain(
                 recursion_shape_config
                     .get_all_shape_combinations(1)
@@ -324,14 +326,15 @@ mod tests {
     use super::*;
 
     #[test]
+    #[ignore]
     fn test_generate_all_shapes() {
         let core_shape_config = CoreShapeConfig::default();
         let recursion_shape_config = RecursionShapeConfig::default();
         let reduce_batch_size = 2;
-        let num_shapes =
+        let all_shapes =
             SP1ProofShape::generate(&core_shape_config, &recursion_shape_config, reduce_batch_size)
-                .collect::<BTreeSet<_>>()
-                .len();
-        println!("Number of compress shapes: {}", num_shapes);
+                .collect::<BTreeSet<_>>();
+
+        println!("Number of compress shapes: {}", all_shapes.len());
     }
 }

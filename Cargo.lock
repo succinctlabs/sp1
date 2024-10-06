@@ -6107,6 +6107,7 @@ dependencies = [
  "p3-symmetric",
  "p3-util",
  "rand 0.8.5",
+ "rayon",
  "serde",
  "sp1-core-executor",
  "sp1-core-machine",

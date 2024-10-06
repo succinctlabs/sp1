@@ -43,6 +43,7 @@ tracing = "0.1.40"
 hashbrown = { version = "0.14.5", features = ["serde", "inline-more"] }
 stacker = "0.1"
 num-traits = "0.2.19"
+rayon = "1.10.0"
 
 [dev-dependencies]
 sp1-core-executor = { workspace = true, features = ["programs"] }
