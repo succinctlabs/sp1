@@ -211,20 +211,6 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 
         tracing::info!("vk verification: {}", vk_verification);
 
-        // let vk_data_bytes = if vk_verification { VK_DATA_BYTES } else { DUMMY_VK_DATA_BYTES };
-
-        // let vk_data: VkData =
-        //     bincode::deserialize(vk_data_bytes).expect("failed to deserialize vk data");
-
-        // let mut new_vk_map_file = std::fs::File::create("allowed_vk_map.bin").unwrap();
-        // bincode::serialize_into(&mut new_vk_map_file, &vk_data.vk_map).unwrap();
-        // let mut new_merkle_tree_file = std::fs::File::create("merkle_tree.bin").unwrap();
-        // bincode::serialize_into(&mut new_merkle_tree_file, &vk_data.merkle_tree).unwrap();
-        // let mut new_root_file = std::fs::File::create("root.bin").unwrap();
-        // bincode::serialize_into(&mut new_root_file, &vk_data.root).unwrap();
-
-        // let VkData { vk_map: allowed_vk_map, root, merkle_tree } = vk_data;
-
         let allowed_vk_map: BTreeMap<[BabyBear; DIGEST_SIZE], usize> =
             bincode::deserialize(VK_ALLOWED_VK_MAP_BYTES).unwrap();
 

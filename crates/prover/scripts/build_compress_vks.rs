@@ -37,6 +37,25 @@ fn main() {
     let range_start = args.start;
     let range_end = args.end;
 
+    // let mut allowd_vk_file = std::fs::File::open(build_dir.join("allowed_vk_map.bin")).unwrap();
+    // let allowed_vk_map: BTreeMap<[BabyBear; 8], usize> =
+    //     bincode::deserialize_from(&mut allowd_vk_file).unwrap();
+
+    // let deferered_data_file = std::fs::File::open(build_dir.join("deferred/vk_data.bin")).unwrap();
+    // let data: VkData = bincode::deserialize_from(deferered_data_file).unwrap();
+
+    // let new_set =
+    //     allowed_vk_map.keys().copied().chain(data.vk_map.keys().copied()).collect::<BTreeSet<_>>();
+
+    // let new_vk = VkData::new(new_set, 21);
+
+    // // overwrite the allowd_vk_map with the new one
+    // let mut allowd_vk_file =
+    //     std::fs::File::create(build_dir.join("allowed_vk_map_new.bin")).unwrap();
+    // bincode::serialize_into(&mut allowd_vk_file, &new_vk.vk_map).unwrap();
+
+    // // bincode::serialize_into(&mut allowd_vk_file, &new_vk.vk_map).unwrap();
+
     build_vk_map_to_file::<DefaultProverComponents>(
         build_dir,
         reduce_batch_size,
