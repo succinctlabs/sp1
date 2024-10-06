@@ -258,6 +258,11 @@ impl SP1ProofShape {
             .chain(
                 recursion_shape_config
                     .get_all_shape_combinations(1)
+                    .map(|mut x| Self::Deferred(x.pop().unwrap())),
+            )
+            .chain(
+                recursion_shape_config
+                    .get_all_shape_combinations(1)
                     .map(|mut x| Self::Shrink(x.pop().unwrap())),
             )
     }
