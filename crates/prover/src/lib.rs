@@ -719,7 +719,6 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                             )
                             .in_scope(|| match input {
                                 SP1CircuitWitness::Core(input) => {
-                                    tracing::info!("core input: {:?}", input.shape());
                                     let mut witness_stream = Vec::new();
                                     Witnessable::<InnerConfig>::write(&input, &mut witness_stream);
                                     (self.recursion_program(&input), witness_stream)
@@ -730,7 +729,6 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                                     (self.deferred_program(&input), witness_stream)
                                 }
                                 SP1CircuitWitness::Compress(input) => {
-                                    tracing::info!("compress input: {:?}", input.shape());
                                     let mut witness_stream = Vec::new();
 
                                     let input_with_merkle = self.make_merkle_proofs(input);
@@ -1183,9 +1181,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                 .iter()
                 .map(|(vk, _)| {
                     let vk_digest = vk.hash_babybear();
-                    tracing::info!("vk_digest: {:?}", vk_digest);
                     let index = self.allowed_vk_map.get(&vk_digest).expect("vk not allowed");
-                    tracing::info!("vk found at index: {:?}", index);
                     (index, vk_digest)
                 })
                 .unzip()
