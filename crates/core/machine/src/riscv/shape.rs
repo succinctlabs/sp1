@@ -4,7 +4,7 @@ use hashbrown::{HashMap, HashSet};
 use num::Integer;
 use p3_field::PrimeField32;
 use sp1_core_executor::{CoreShape, ExecutionRecord, Program};
-use sp1_stark::{air::MachineAir, ProofShape};
+use sp1_stark::{air::MachineAir, MachineRecord, ProofShape};
 use thiserror::Error;
 
 use crate::{
@@ -24,13 +24,13 @@ pub enum CoreShapeError {
     #[error("Preprocessed shape already fixed")]
     PreprocessedShapeAlreadyFixed,
     #[error("no shape found")]
-    ShapeError,
+    ShapeError(HashMap<String, usize>),
     #[error("Preprocessed shape missing")]
     PrepcocessedShapeMissing,
     #[error("Shape already fixed")]
     ShapeAlreadyFixed,
     #[error("Precompile not included in allowed shapes")]
-    PrecompileNotIncluded,
+    PrecompileNotIncluded(HashMap<String, usize>),
 }
 
 /// A structure that enables fixing the shape of an executionrecord.
@@ -114,7 +114,7 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
             }
 
             // No shape found, so return an error.
-            return Err(CoreShapeError::ShapeError);
+            return Err(CoreShapeError::ShapeError(record.stats()));
         }
 
         // If the record is a global memory init/finalize record, try to fix the shape as such.
@@ -124,12 +124,12 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
             let heights = RiscvAir::<F>::get_memory_init_final_heights(record);
             let shape =
                 Self::find_shape_from_allowed_heights(&heights, &self.memory_allowed_log_heights)
-                    .ok_or(CoreShapeError::ShapeError)?;
+                    .ok_or(CoreShapeError::ShapeError(record.stats()))?;
             record.shape.as_mut().unwrap().extend(shape);
             return Ok(());
         }
 
-        // Try to fix the shape as a precompile record. Since we allow all possible
+        // Try to fix the shape as a precompile record.
         for (air, (mem_events_per_row, allowed_log_heights)) in
             self.precompile_allowed_log_heights.iter()
         {
@@ -154,12 +154,7 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
                 }
             }
         }
-        tracing::warn!(
-            "No shape found for the record with syscall events {:?}",
-            record.syscall_events
-        );
-
-        Err(CoreShapeError::PrecompileNotIncluded)
+        Err(CoreShapeError::PrecompileNotIncluded(record.stats()))
     }
 
     fn get_precompile_shapes(
