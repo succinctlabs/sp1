@@ -11,7 +11,6 @@ use std::{
 };
 
 use crate::proto::api::ProverServiceClient;
-
 use proto::api::ReadyRequest;
 use serde::{Deserialize, Serialize};
 use sp1_core_machine::{io::SP1Stdin, reduce::SP1ReduceProof, utils::SP1CoreProverError};
