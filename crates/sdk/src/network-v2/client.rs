@@ -15,7 +15,6 @@ use alloy_signer_local::PrivateKeySigner;
 use anyhow::{Context, Ok, Result};
 use aws_config::BehaviorVersion;
 use aws_sdk_s3::Client as S3Client;
-use reqwest::Client as HttpClient;
 use reqwest_middleware::ClientWithMiddleware as HttpClientWithMiddleware;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
