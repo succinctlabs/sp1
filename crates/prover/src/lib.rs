@@ -47,31 +47,7 @@ use sp1_core_machine::{
     riscv::{CoreShapeConfig, RiscvAir},
     utils::{concurrency::TurnBasedSync, SP1CoreProverError},
 };
-use sp1_stark::{air::InteractionScope, MachineProvingKey, ProofShape};
-
 use sp1_primitives::{hash_deferred_proof, io::SP1PublicValues};
-
-use sp1_recursion_compiler::{
-    circuit::AsmCompiler,
-    config::InnerConfig,
-    ir::{Builder, Witness},
-};
-
-pub use sp1_recursion_gnark_ffi::proof::{Groth16Bn254Proof, PlonkBn254Proof};
-use sp1_recursion_gnark_ffi::{groth16_bn254::Groth16Bn254Prover, plonk_bn254::PlonkBn254Prover};
-
-use sp1_stark::{
-    air::PublicValues, baby_bear_poseidon2::BabyBearPoseidon2, Challenge, Challenger,
-    MachineProver, SP1CoreOpts, SP1ProverOpts, ShardProof, StarkGenericConfig, StarkVerifyingKey,
-    Val, Word, DIGEST_SIZE,
-};
-
-use sp1_recursion_core::{
-    air::RecursionPublicValues, machine::RecursionAir, runtime::ExecutionRecord,
-    shape::RecursionShapeConfig, stark::BabyBearPoseidon2Outer, RecursionProgram,
-    Runtime as RecursionRuntime,
-};
-
 use sp1_recursion_circuit::{
     hash::FieldHasher,
     machine::{
@@ -84,6 +60,24 @@ use sp1_recursion_circuit::{
     merkle_tree::MerkleTree,
     witness::Witnessable,
     WrapConfig,
+};
+use sp1_recursion_compiler::{
+    circuit::AsmCompiler,
+    config::InnerConfig,
+    ir::{Builder, Witness},
+};
+use sp1_recursion_core::{
+    air::RecursionPublicValues, machine::RecursionAir, runtime::ExecutionRecord,
+    shape::RecursionShapeConfig, stark::BabyBearPoseidon2Outer, RecursionProgram,
+    Runtime as RecursionRuntime,
+};
+pub use sp1_recursion_gnark_ffi::proof::{Groth16Bn254Proof, PlonkBn254Proof};
+use sp1_recursion_gnark_ffi::{groth16_bn254::Groth16Bn254Prover, plonk_bn254::PlonkBn254Prover};
+use sp1_stark::{air::InteractionScope, MachineProvingKey, ProofShape};
+use sp1_stark::{
+    air::PublicValues, baby_bear_poseidon2::BabyBearPoseidon2, Challenge, Challenger,
+    MachineProver, SP1CoreOpts, SP1ProverOpts, ShardProof, StarkGenericConfig, StarkVerifyingKey,
+    Val, Word, DIGEST_SIZE,
 };
 
 pub use types::*;
