@@ -172,7 +172,7 @@ jobs:
 
       - name: Install SP1 toolchain
         run: |
-          cargo install --locked --path crates/cli
+          cargo install --locked --path --force crates/cli
           cargo prove install-toolchain
 
       - name: Run cargo fmt
