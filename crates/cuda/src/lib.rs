@@ -158,7 +158,7 @@ impl SP1CudaProver {
         )
         .expect("failed to create client");
 
-        let timeout = Duration::from_secs(60); // Set a 60-second timeout
+        let timeout = Duration::from_secs(60);
         let start_time = Instant::now();
 
         block_on(async {
@@ -297,7 +297,10 @@ impl Drop for SP1CudaProver {
 /// Cleans up the a docker container with the given name.
 fn cleanup_container(container_name: &str) {
     if let Err(e) = Command::new("docker").args(["rm", "-f", container_name]).output() {
-        eprintln!("Failed to remove container: {}. You may need to manually remove it using 'docker rm -f {}'", e, container_name);
+        eprintln!(
+            "Failed to remove container: {}. You may need to manually remove it using 'docker rm -f {}'",
+            e, container_name
+        );
     }
 }
 

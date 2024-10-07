@@ -6027,6 +6027,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "sp1-perf"
+version = "2.0.0"
+dependencies = [
+ "anyhow",
+ "bincode",
+ "clap",
+ "csv",
+ "p3-baby-bear",
+ "reqwest 0.12.8",
+ "serde",
+ "serde_json",
+ "slack-rust-rs",
+ "sp1-cuda",
+ "sp1-prover",
+ "sp1-sdk",
+ "sp1-stark",
+ "time 0.3.36",
+ "tokio",
+]
+
+[[package]]
 name = "sp1-primitives"
 version = "2.0.0"
 dependencies = [
