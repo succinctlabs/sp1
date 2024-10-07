@@ -19,7 +19,7 @@ concurrency:
 jobs:
   test-x86:
     name: ${{ matrix.workload.s3_folder }} (${{ matrix.workload.mode }})
-    runs-on: ${{ matrix.workload.mode == 'cuda' && fromJSON('["runs-on", "family=g6.16xlarge", "ami=ami-0a63dc9cb9e934ba3", "spot=false", "run-id=${{ github.run_id }}"]') || fromJSON('["runs-on", "runner=64cpu-linux-x64", "spot=false", "run-id=${{ github.run_id }}"]') }}
+    runs-on: ${{ matrix.workload.mode == 'cuda' && fromJSON('["runs-on", "family=g6.4xlarge", "ami=ami-0a63dc9cb9e934ba3", "spot=false", "run-id=${{ github.run_id }}"]') || fromJSON('["runs-on", "runner=64cpu-linux-x64", "spot=false", "run-id=${{ github.run_id }}"]') }}
     # if: ${{ contains(github.event.head_commit.message, '(run-suite)') }}
     strategy:
       matrix:
