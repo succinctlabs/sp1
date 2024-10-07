@@ -237,7 +237,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
     }
 
     /// Fully initializes the programs, proving keys, and verifying keys that are normally
-    /// lazily initialized.
+    /// lazily initialized. TODO: remove this.
     pub fn initialize(&mut self) {}
 
     /// Creates a proving key and a verifying key for a given RISC-V ELF.
