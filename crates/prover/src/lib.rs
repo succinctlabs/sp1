@@ -106,6 +106,7 @@ const COMPRESS_CACHE_SIZE: usize = 3;
 pub const REDUCE_BATCH_SIZE: usize = 2;
 
 const VK_ALLOWED_VK_MAP_BYTES: &[u8] = include_bytes!("../allowed_vk_map.bin");
+const DUMMY_VK_ALLOWED_VK_MAP_BYTES: &[u8] = include_bytes!("../dummy_vk_map.bin");
 
 pub type CompressAir<F> = RecursionAir<F, COMPRESS_DEGREE>;
 pub type ShrinkAir<F> = RecursionAir<F, SHRINK_DEGREE>;
@@ -205,8 +206,11 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 
         tracing::info!("vk verification: {}", vk_verification);
 
-        let allowed_vk_map: BTreeMap<[BabyBear; DIGEST_SIZE], usize> =
-            bincode::deserialize(VK_ALLOWED_VK_MAP_BYTES).unwrap();
+        let allowed_vk_map: BTreeMap<[BabyBear; DIGEST_SIZE], usize> = if vk_verification {
+            bincode::deserialize(VK_ALLOWED_VK_MAP_BYTES).unwrap()
+        } else {
+            bincode::deserialize(DUMMY_VK_ALLOWED_VK_MAP_BYTES).unwrap()
+        };
 
         let (root, merkle_tree) = MerkleTree::commit(allowed_vk_map.keys().copied().collect());
 

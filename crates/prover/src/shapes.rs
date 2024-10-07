@@ -6,21 +6,20 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+use thiserror::Error;
+
 use p3_baby_bear::BabyBear;
 use p3_field::AbstractField;
 use serde::{Deserialize, Serialize};
 use sp1_core_machine::riscv::CoreShapeConfig;
-use sp1_recursion_circuit::{
-    machine::{
-        SP1CompressWithVKeyWitnessValues, SP1CompressWithVkeyShape, SP1DeferredShape,
-        SP1DeferredWitnessValues, SP1RecursionShape, SP1RecursionWitnessValues,
-    },
-    merkle_tree::MerkleTree,
+use sp1_recursion_circuit::machine::{
+    SP1CompressWithVKeyWitnessValues, SP1CompressWithVkeyShape, SP1DeferredShape,
+    SP1DeferredWitnessValues, SP1RecursionShape, SP1RecursionWitnessValues,
 };
 use sp1_recursion_core::{shape::RecursionShapeConfig, RecursionProgram};
 use sp1_stark::{MachineProver, ProofShape, DIGEST_SIZE};
 
-use crate::{components::SP1ProverComponents, CompressAir, HashableKey, InnerSC, SP1Prover};
+use crate::{components::SP1ProverComponents, CompressAir, HashableKey, SP1Prover};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum SP1ProofShape {
@@ -30,52 +29,20 @@ pub enum SP1ProofShape {
     Shrink(ProofShape),
 }
 
-#[derive(Clone, Serialize, Deserialize)]
-pub struct VkData {
-    pub vk_map: BTreeMap<[BabyBear; DIGEST_SIZE], usize>,
-    pub root: [BabyBear; DIGEST_SIZE],
-    pub merkle_tree: MerkleTree<BabyBear, InnerSC>,
-}
-
-impl VkData {
-    pub fn save(&self, build_dir: PathBuf, dummy: bool) -> Result<(), std::io::Error> {
-        let mut file = if dummy {
-            File::create(build_dir.join("dummy_vk_data.bin"))?
-        } else {
-            File::create(build_dir.join("vk_data.bin"))?
-        };
-        bincode::serialize_into(&mut file, self).unwrap();
-        Ok(())
-    }
-
-    pub fn load(build_dir: PathBuf) -> Result<Self, std::io::Error> {
-        let mut file = File::open(build_dir.join("vk_data.bin"))?;
-        let vk_data: Self = bincode::deserialize_from(&mut file).unwrap();
-        Ok(vk_data)
-    }
-
-    pub fn new(vk_set: BTreeSet<[BabyBear; DIGEST_SIZE]>, height: usize) -> Self {
-        let vk_map: BTreeMap<_, _> =
-            vk_set.into_iter().enumerate().map(|(i, vk_digest)| (vk_digest, i)).collect();
-
-        // Build a merkle tree from the vk map.
-        let mut vks_padded = vk_map.keys().cloned().collect::<Vec<_>>();
-        assert!(vks_padded.len() < 1 << height);
-        vks_padded.resize(1 << height, <[BabyBear; DIGEST_SIZE]>::default());
-        tracing::info!("building merkle tree");
-        let (root, merkle_tree) =
-            MerkleTree::<BabyBear, InnerSC>::commit(vk_map.keys().cloned().collect());
-
-        VkData { vk_map, root, merkle_tree }
-    }
-}
-
 #[derive(Debug, Clone)]
 pub enum SP1CompressProgramShape {
     Recursion(SP1RecursionShape),
     Compress(SP1CompressWithVkeyShape),
     Deferred(SP1DeferredShape),
     Shrink(SP1CompressWithVkeyShape),
+}
+
+#[derive(Debug, Error)]
+pub enum VkBuildError {
+    #[error("IO error: {0}")]
+    IO(#[from] std::io::Error),
+    #[error("Serialization error: {0}")]
+    Bincode(#[from] bincode::Error),
 }
 
 pub fn build_vk_map<C: SP1ProverComponents>(
@@ -225,12 +192,12 @@ pub fn build_vk_map_to_file<C: SP1ProverComponents>(
     num_setup_workers: usize,
     range_start: Option<usize>,
     range_end: Option<usize>,
-) {
-    std::fs::create_dir_all(&build_dir).expect("failed to create build directory");
+) -> Result<(), VkBuildError> {
+    std::fs::create_dir_all(&build_dir)?;
 
     tracing::info!("Building vk set");
 
-    let (vk_set, _, height) = build_vk_map::<C>(
+    let (vk_set, _, _) = build_vk_map::<C>(
         reduce_batch_size,
         dummy,
         num_compiler_workers,
@@ -238,10 +205,15 @@ pub fn build_vk_map_to_file<C: SP1ProverComponents>(
         range_start.and_then(|start| range_end.map(|end| (start..end).collect())),
     );
 
-    tracing::info!("Creating vk data from vk set");
-    let vk_data = VkData::new(vk_set, height);
+    let vk_map = vk_set.into_iter().enumerate().map(|(i, vk)| (vk, i)).collect::<BTreeMap<_, _>>();
 
-    vk_data.save(build_dir, dummy).expect("failed to save vk data");
+    tracing::info!("Save the vk set to file");
+    let mut file = if dummy {
+        File::create(build_dir.join("dummy_vk_map.bin"))?
+    } else {
+        File::create(build_dir.join("vk_map.bin"))?
+    };
+    Ok(bincode::serialize_into(&mut file, &vk_map)?)
 }
 
 impl SP1ProofShape {
@@ -266,6 +238,7 @@ impl SP1ProofShape {
                     .get_all_shape_combinations(1)
                     .map(|mut x| Self::Shrink(x.pop().unwrap())),
             )
+            .take(10000)
     }
 
     pub fn dummy_vk_map<'a>(
