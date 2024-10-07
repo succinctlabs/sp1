@@ -19,10 +19,8 @@ concurrency:
 
 jobs:
   test-x86:
-    name: ${{ matrix.s3_folder }} (${{ matrix.mode }})
-    runs-on: ${{ matrix.mode == 'cuda' && fromJSON('["runs-on", "family=g6.16xlarge", "ami=ami-0a63dc9cb9e934ba3", "spot=false", "run-id=${{ github.run_id }}"]') || fromJSON('["runs-on", "runner=64cpu-linux-x64", "spot=false", "run-id=${{ github.run_id }}"]') }}
-    env:
-      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+    name: ${{ matrix.workload.s3_folder }} (${{ matrix.workload.mode }})
+    runs-on: ${{ matrix.workload.mode == 'cuda' && fromJSON('["runs-on", "family=g6.16xlarge", "ami=ami-0a63dc9cb9e934ba3", "spot=false", "run-id=${{ github.run_id }}"]') || fromJSON('["runs-on", "runner=64cpu-linux-x64", "spot=false", "run-id=${{ github.run_id }}"]') }}
     strategy:
       matrix:
         workload:
@@ -131,7 +129,7 @@ jobs:
         with:
           command: run
           toolchain: 1.81.0
-          args: --release -p sp1-perf -- --program workdir/program.bin --stdin workdir/stdin.bin --mode ${{ matrix.mode }}
+          args: --release -p sp1-perf -- --program workdir/program.bin --stdin workdir/stdin.bin --mode ${{ matrix.workload.mode }}
         env:
           RUST_LOG: debug
           RUSTFLAGS: -Copt-level=3 -Ctarget-cpu=native
