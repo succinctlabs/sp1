@@ -152,6 +152,13 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
                         return Ok(());
                     }
                 }
+                tracing::error!(
+                    "Cannot find shape for precompile {:?}, height {:?}, and mem events {:?}",
+                    air.name(),
+                    height,
+                    mem_events
+                );
+                return Err(CoreShapeError::ShapeError(record.stats()));
             }
         }
         Err(CoreShapeError::PrecompileNotIncluded(record.stats()))
