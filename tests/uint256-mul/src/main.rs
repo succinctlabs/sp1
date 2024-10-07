@@ -26,7 +26,7 @@ fn biguint_to_bytes_le(x: BigUint) -> [u8; 32] {
 }
 
 #[sp1_derive::cycle_tracker]
-fn main() {
+pub fn main() {
     for _ in 0..50 {
         // Test with random numbers.
         let mut rng = rand::thread_rng();

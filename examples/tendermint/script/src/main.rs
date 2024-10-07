@@ -19,7 +19,7 @@ fn get_light_blocks() -> (LightBlock, LightBlock) {
     (light_block_1, light_block_2)
 }
 
-fn main() {
+pub fn main() {
     // Generate proof.
     utils::setup_logger();
 
