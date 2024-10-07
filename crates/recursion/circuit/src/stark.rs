@@ -583,9 +583,14 @@ pub mod tests {
 
         let machine = RiscvAir::<C::F>::machine(SC::default());
         let (_, vk) = machine.setup(&Program::from(elf).unwrap());
-        let (proof, _, _) =
-            prove::<_, CoreP>(Program::from(elf).unwrap(), &SP1Stdin::new(), SC::default(), opts)
-                .unwrap();
+        let (proof, _, _) = prove::<_, CoreP>(
+            Program::from(elf).unwrap(),
+            &SP1Stdin::new(),
+            SC::default(),
+            opts,
+            None,
+        )
+        .unwrap();
         let mut challenger = machine.config().challenger();
         machine.verify(&vk, &proof, &mut challenger).unwrap();
 

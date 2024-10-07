@@ -101,6 +101,7 @@ pub fn prove<SC: StarkGenericConfig, P: MachineProver<SC, RiscvAir<SC::Val>>>(
     stdin: &SP1Stdin,
     config: SC,
     opts: SP1CoreOpts,
+    shape_config: Option<&CoreShapeConfig<SC::Val>>,
 ) -> Result<(MachineProof<SC>, Vec<u8>, u64), SP1CoreProverError>
 where
     SC::Challenger: 'static + Clone + Send,
@@ -112,7 +113,15 @@ where
     let machine = RiscvAir::machine(config);
     let prover = P::new(machine);
     let (pk, _) = prover.setup(&program);
-    prove_with_context::<SC, _>(&prover, &pk, program, stdin, opts, Default::default(), None)
+    prove_with_context::<SC, _>(
+        &prover,
+        &pk,
+        program,
+        stdin,
+        opts,
+        Default::default(),
+        shape_config,
+    )
 }
 
 pub fn prove_with_context<SC: StarkGenericConfig, P: MachineProver<SC, RiscvAir<SC::Val>>>(
@@ -284,6 +293,7 @@ where
                             // Fix the shape of the records.
                             if let Some(shape_config) = shape_config {
                                 for record in records.iter_mut() {
+                                    tracing::info!("fixing shape");
                                     shape_config.fix_shape(record).unwrap();
                                 }
                             }
@@ -668,9 +678,13 @@ where
 
 /// Runs a program and returns the public values stream.
 pub fn run_test_io<P: MachineProver<BabyBearPoseidon2, RiscvAir<BabyBear>>>(
-    program: Program,
+    mut program: Program,
     inputs: SP1Stdin,
 ) -> Result<SP1PublicValues, MachineVerificationError<BabyBearPoseidon2>> {
+    // TODO: decide if you include this in tests.
+    let shape_config = CoreShapeConfig::<BabyBear>::default();
+    shape_config.fix_preprocessed_shape(&mut program).unwrap();
+
     let runtime = tracing::debug_span!("runtime.run(...)").in_scope(|| {
         let mut runtime = Executor::new(program, SP1CoreOpts::default());
         runtime.write_vecs(&inputs.buffer);
@@ -678,29 +692,35 @@ pub fn run_test_io<P: MachineProver<BabyBearPoseidon2, RiscvAir<BabyBear>>>(
         runtime
     });
     let public_values = SP1PublicValues::from(&runtime.state.public_values_stream);
-    let _ = run_test_core::<P>(runtime, inputs)?;
+
+    let _ = run_test_core::<P>(runtime, inputs, Some(&shape_config))?;
     Ok(public_values)
 }
 
 pub fn run_test<P: MachineProver<BabyBearPoseidon2, RiscvAir<BabyBear>>>(
-    program: Program,
+    mut program: Program,
 ) -> Result<MachineProof<BabyBearPoseidon2>, MachineVerificationError<BabyBearPoseidon2>> {
+    // TODO: decide if you include this in tests.
+    let shape_config = CoreShapeConfig::<BabyBear>::default();
+    shape_config.fix_preprocessed_shape(&mut program).unwrap();
     let runtime = tracing::debug_span!("runtime.run(...)").in_scope(|| {
         let mut runtime = Executor::new(program, SP1CoreOpts::default());
         runtime.run().unwrap();
         runtime
     });
-    run_test_core::<P>(runtime, SP1Stdin::new())
+    run_test_core::<P>(runtime, SP1Stdin::new(), Some(&shape_config))
 }
 
 #[allow(unused_variables)]
 pub fn run_test_core<P: MachineProver<BabyBearPoseidon2, RiscvAir<BabyBear>>>(
     runtime: Executor,
     inputs: SP1Stdin,
+    shape_config: Option<&CoreShapeConfig<BabyBear>>,
 ) -> Result<MachineProof<BabyBearPoseidon2>, MachineVerificationError<BabyBearPoseidon2>> {
     let config = BabyBearPoseidon2::new();
     let machine = RiscvAir::machine(config);
     let prover = P::new(machine);
+
     let (pk, _) = prover.setup(runtime.program.as_ref());
     let (proof, output, _) = prove_with_context(
         &prover,
@@ -709,7 +729,7 @@ pub fn run_test_core<P: MachineProver<BabyBearPoseidon2, RiscvAir<BabyBear>>>(
         &inputs,
         SP1CoreOpts::default(),
         SP1Context::default(),
-        None,
+        shape_config,
     )
     .unwrap();
 
