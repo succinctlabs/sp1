@@ -39,6 +39,7 @@ pub const NUM_WORDS_EC_POINT: usize = 2 * NUM_WORDS_FIELD_ELEMENT;
 #[derive(Debug, PartialEq, Eq)]
 pub enum CurveType {
     Secp256k1,
+    Secp256r1,
     Bn254,
     Ed25519,
     Bls12381,
@@ -48,6 +49,7 @@ impl Display for CurveType {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         match self {
             CurveType::Secp256k1 => write!(f, "Secp256k1"),
+            CurveType::Secp256r1 => write!(f, "Secp256r1"),
             CurveType::Bn254 => write!(f, "Bn254"),
             CurveType::Ed25519 => write!(f, "Ed25519"),
             CurveType::Bls12381 => write!(f, "Bls12381"),

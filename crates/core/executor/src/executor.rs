@@ -1544,8 +1544,8 @@ mod tests {
     use sp1_stark::SP1CoreOpts;
 
     use crate::programs::tests::{
-        fibonacci_program, panic_program, simple_memory_program, simple_program,
-        ssz_withdrawals_program,
+        fibonacci_program, panic_program, secp256r1_add_program, simple_memory_program,
+        simple_program, ssz_withdrawals_program,
     };
 
     use crate::Register;
@@ -1570,6 +1570,13 @@ mod tests {
     #[test]
     fn test_fibonacci_program_run() {
         let program = fibonacci_program();
+        let mut runtime = Executor::new(program, SP1CoreOpts::default());
+        runtime.run().unwrap();
+    }
+
+    #[test]
+    fn test_secp256r1_add_program_run() {
+        let program = secp256r1_add_program();
         let mut runtime = Executor::new(program, SP1CoreOpts::default());
         runtime.run().unwrap();
     }
