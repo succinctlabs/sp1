@@ -57,8 +57,8 @@ pub struct SP1CoreOpts {
 #[allow(clippy::cast_precision_loss)]
 fn shard_size(total_available_mem: u64) -> usize {
     let log_shard_size = match total_available_mem {
-        0..=14 => 18,
-        m => (((m as f64).log2() * 0.619) + 17.2).floor() as usize,
+        0..=14 => 17,
+        m => (((m as f64).log2() * 0.619) + 16.2).floor() as usize,
     };
     std::cmp::min(1 << log_shard_size, MAX_SHARD_SIZE)
 }

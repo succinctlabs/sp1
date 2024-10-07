@@ -609,6 +609,13 @@ where
                                     #[cfg(debug_assertions)]
                                     {
                                         if let Some(shape) = record.shape {
+                                            tracing::error!(
+                                                "Shape mismatch: \n
+                                            proof shape: {:?}\n
+                                            record shape: {:?}\n",
+                                                proof.shape(),
+                                                shape,
+                                            );
                                             assert_eq!(
                                                 proof.shape(),
                                                 shape.clone().into_iter().collect(),
