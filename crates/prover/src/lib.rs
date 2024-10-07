@@ -1045,11 +1045,11 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         runtime.run().map_err(|e| SP1RecursionProverError::RuntimeError(e.to_string()))?;
 
         runtime.print_stats();
-        tracing::debug!("Wrap program executed successfully");
+        tracing::debug!("wrap program executed successfully");
 
         // Setup the wrap program.
         let (wrap_pk, wrap_vk) =
-            tracing::debug_span!("Setup wrap").in_scope(|| self.wrap_prover.setup(&program));
+            tracing::debug_span!("setup wrap").in_scope(|| self.wrap_prover.setup(&program));
 
         if self.wrap_vk.set(wrap_vk.clone()).is_ok() {
             tracing::debug!("wrap verifier key set");
@@ -1063,10 +1063,10 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             .prove(&wrap_pk, vec![runtime.record], &mut wrap_challenger, opts.recursion_opts)
             .unwrap();
         let elapsed = time.elapsed();
-        tracing::debug!("Wrap proving time: {:?}", elapsed);
+        tracing::debug!("wrap proving time: {:?}", elapsed);
         let mut wrap_challenger = self.wrap_prover.config().challenger();
         self.wrap_prover.machine().verify(&wrap_vk, &wrap_proof, &mut wrap_challenger).unwrap();
-        tracing::info!("Wrapping successful");
+        tracing::info!("wrapping successful");
 
         Ok(SP1ReduceProof { vk: wrap_vk, proof: wrap_proof.shard_proofs.pop().unwrap() })
     }
