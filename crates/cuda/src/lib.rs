@@ -157,7 +157,7 @@ impl SP1CudaProver {
         )
         .expect("failed to create client");
 
-        let timeout = Duration::from_secs(60);
+        let timeout = Duration::from_secs(300);
         let start_time = Instant::now();
 
         block_on(async {
