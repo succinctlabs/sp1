@@ -52,7 +52,7 @@ jobs:
         env:
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
           RUST_BACKTRACE: 1
-          FRI_QUERIES: 1
+          # FRI_QUERIES: 1
           SP1_DEV: 1
 
   test-arm:
@@ -89,7 +89,7 @@ jobs:
         env:
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
           RUST_BACKTRACE: 1
-          FRI_QUERIES: 1
+          # FRI_QUERIES: 1
           SP1_DEV: 1
 
   lint:
