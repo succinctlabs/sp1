@@ -29,11 +29,19 @@ Your new project will have the following structure (ignoring the `contracts` fol
 
 ```
 .
+├── Cargo.lock
+├── Cargo.toml
+├── LICENSE-MIT
+├── README.md
+├── elf
+│   └── riscv32im-succinct-zkvm-elf
+├── lib
+│   ├── Cargo.toml
+│   └── src
+│       └── lib.rs
 ├── program
 │   ├── Cargo.lock
 │   ├── Cargo.toml
-│   ├── elf
-│   │   └── riscv32im-succinct-zkvm-elf
 │   └── src
 │       └── main.rs
 ├── rust-toolchain
@@ -43,13 +51,13 @@ Your new project will have the following structure (ignoring the `contracts` fol
     ├── build.rs
     └── src
         └── bin
-            ├── prove.rs
-            └── vkey.rs
+            ├── evm.rs
+            └── main.rs
 
-6 directories, 4 files
+9 directories, 16 files
 ```
 
-There are 2 directories (each a crate) in the project: 
+There are 2 directories (each a crate) in the project:
 - `program`: the source code that will be proven inside the zkVM.
 - `script`: code that contains proof generation and verification code.
 
@@ -64,13 +72,13 @@ Before we can run the program inside the zkVM, it must be compiled to a RISC-V e
 cd program && cargo prove build
 ```
 
-which will output the compiled ELF to the file `program/elf/riscv32im-succinct-zkvm-elf`. 
+which will output the compiled ELF to the file `elf/riscv32im-succinct-zkvm-elf`.
 
 Note: the `build.rs` file in the `script` directory will use run the above command automatically to build the ELF, meaning you don't have to manually run `cargo prove build` every time you make a change to the program!
 
 ## Execute
 
-To test your program, you can first execute your program without generating a proof. In general this is helpful for iterating on your program and verifying that it is correct. 
+To test your program, you can first execute your program without generating a proof. In general this is helpful for iterating on your program and verifying that it is correct.
 
 ```bash
 cd script
@@ -108,7 +116,7 @@ Successfully generated proof!
 fib(n): 10946
 ```
 
-The program by default is quite small, so proof generation will only take a few seconds locally. After it generates, the proof will be verified for correctness. 
+The program by default is quite small, so proof generation will only take a few seconds locally. After it generates, the proof will be verified for correctness.
 
 **Note:** When benchmarking proof generation times locally, it is important to note that there is a fixed overhead for proving, which means that the proof generation time for programs with a small number of cycles is not representative of the performance of larger programs (which often have better performance characteristics as the overhead is amortized across many cycles).
 
