@@ -41,7 +41,7 @@ ed25519-consensus = { git = "https://github.com/sp1-patches/ed25519-consensus", 
 ecdsa-core = { git = "https://github.com/sp1-patches/signatures", package = "ecdsa", branch = "patch-ecdsa-v0.16.9" }
 secp256k1 = { git = "https://github.com/sp1-patches/rust-secp256k1", branch = "patch-secp256k1-v0.29.0" }
 substrate-bn = { git = "https://github.com/sp1-patches/bn", branch = "patch-v0.6.0" }
-bls12_381 = { git = "https://github.com/sp1-patches/bls12_381", branch = "patch-v0.8.8" }
+bls12_381 = { git = "https://github.com/sp1-patches/bls12_381", branch = "patch-v0.8.0" }
 
 ```
 
