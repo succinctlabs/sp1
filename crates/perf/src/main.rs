@@ -133,8 +133,9 @@ fn main() {
             let (wrapped_bn254_proof, wrap_duration) =
                 time_operation(|| server.wrap_bn254(shrink_proof).unwrap());
 
-            let (_, verify_wrap_duration) =
-                time_operation(|| prover.verify_wrap_bn254(&wrapped_bn254_proof, &vk));
+            // TODO: Verify wrapped bn254 proofs.
+            // let (_, verify_wrap_duration) =
+            //     time_operation(|| prover.verify_wrap_bn254(&wrapped_bn254_proof, &vk));
 
             let result = PerfResult {
                 cycles,
