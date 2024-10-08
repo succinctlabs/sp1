@@ -95,7 +95,7 @@ jobs:
       matrix:
         workload: ${{ fromJSON(github.event.inputs.network_workloads) }}
     name: ${{ matrix.workload }} (network)
-    runs-on: ["runs-on", "runner=4cpu-linux-x64", "spot=false", "run-id=${{ github.run_id }}"]
+    runs-on: ["runs-on", "runner=8cpu-linux-x64", "spot=false", "run-id=${{ github.run_id }}"]
     steps:
     - name: Checkout sources
       uses: actions/checkout@v4
