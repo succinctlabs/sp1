@@ -84,7 +84,7 @@ impl SP1CudaProver {
     /// [SP1ProverClient] that can be used to communicate with the container.
     pub fn new() -> Result<Self, Box<dyn StdError>> {
         let container_name = "sp1-gpu";
-        let image_name = "public.ecr.aws/succinct-labs/sp1-gpu:c74cf97";
+        let image_name = "public.ecr.aws/succinct-labs/sp1-gpu:b0756e2";
 
         let cleaned_up = Arc::new(AtomicBool::new(false));
         let cleanup_name = container_name;
