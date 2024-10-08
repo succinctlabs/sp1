@@ -297,7 +297,7 @@ jobs:
 
   low-memory:
     name: Low Memory
-    strategy: 
+    strategy:
       matrix:
         mem_limit: [16, 32, 64]
     runs-on:
@@ -353,16 +353,22 @@ jobs:
         include:
           - name: "Ubuntu 24.04 (x86_64)"
             runner: "ubuntu-24.04"
+            template: evm
           - name: "Ubuntu 22.04 (x86_64)"
             runner: "ubuntu-22.04"
+            template: bare
           - name: "Ubuntu 20.04 (x86_64)"
             runner: "ubuntu-20.04"
+            template: evm
           - name: "macOS Monterey (x86_64)"
             runner: "macos-12"
+            template: evm
           - name: "macOS Ventura (x86_64)"
             runner: "macos-13"
+            template: bare
           - name: "macOS Sonoma (ARM64)"
             runner: "macos-14"
+            template: evm
 
     runs-on: "${{ matrix.runner }}"
     steps:
@@ -379,7 +385,7 @@ jobs:
 
       - name: "Create SP1 project from template"
         run: |
-          cargo prove new hello
+          cargo prove new --{{ matrix.template }} hello
 
       - name: "Build SP1 project"
         run: |
