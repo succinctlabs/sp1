@@ -86,6 +86,7 @@ pub fn build_vk_map<C: SP1ProverComponents>(
                 .collect::<BTreeSet<_>>();
         let num_shapes = all_shapes.len();
 
+        // TODO: comment back in.
         // let height = num_shapes.next_power_of_two().ilog2() as usize;
         let height = 21;
         let chunk_size = indices_set.as_ref().map(|indices| indices.len()).unwrap_or(num_shapes);
