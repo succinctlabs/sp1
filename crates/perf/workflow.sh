@@ -39,7 +39,6 @@ CUDA_WORKLOADS=(
     # "vector-01j6xzy366ff5tbkzcrs8pma02"
     # "vector-01j6y06de0fdaafemr8b1t69z3"
     # "raiko-a7-10"   
-    # "op-succinct-op-sepolia-range-17985900-17985905"
 )
 
 # Define the list of network workloads.

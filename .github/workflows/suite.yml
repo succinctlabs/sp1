@@ -17,6 +17,7 @@ on:
 jobs:
   test-cpu:
     strategy:
+      fail-fast: false
       matrix:
         workload: ${{ fromJSON(github.event.inputs.cpu_workloads) }}
     name: ${{ matrix.workload }} (cpu)
@@ -54,6 +55,7 @@ jobs:
 
   test-cuda:
     strategy:
+      fail-fast: false
       matrix:
         workload: ${{ fromJSON(github.event.inputs.cuda_workloads) }}
     name: ${{ matrix.workload }} (gpu)
@@ -92,6 +94,7 @@ jobs:
 
   test-network:
     strategy:
+      fail-fast: false
       matrix:
         workload: ${{ fromJSON(github.event.inputs.network_workloads) }}
     name: ${{ matrix.workload }} (network)
@@ -121,7 +124,7 @@ jobs:
       with:
         command: run
         toolchain: 1.81.0
-        args: --release -p sp1-perf -- --program workdir/program.bin --stdin workdir/stdin.bin --mode network
+        args: --release -p sp1-perf --features native-gnark -- --program workdir/program.bin --stdin workdir/stdin.bin --mode network
       env:
         RUST_LOG: info
         RUSTFLAGS: -Copt-level=3 -Ctarget-cpu=native
