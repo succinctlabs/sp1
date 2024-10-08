@@ -232,7 +232,7 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
         let cpu_name = || RiscvAir::<F>::Cpu(CpuChip::default()).name();
         let memory_local_name = || RiscvAir::<F>::MemoryLocal(MemoryLocalChip::new()).name();
         let syscall_name = || RiscvAir::<F>::SyscallCore(SyscallChip::core()).name();
-        let _ = move |shape: &ProofShape| {
+        let core_filter = move |shape: &ProofShape| {
             let core_airs = RiscvAir::<F>::get_all_core_airs()
                 .into_iter()
                 .map(|air| air.name())

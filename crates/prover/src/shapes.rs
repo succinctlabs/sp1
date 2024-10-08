@@ -214,12 +214,6 @@ impl SP1ProofShape {
         recursion_shape_config: &'a RecursionShapeConfig<BabyBear, CompressAir<BabyBear>>,
         reduce_batch_size: usize,
     ) -> impl Iterator<Item = Self> + 'a {
-        // let shapes: Vec<SP1ProofShape> = bincode::deserialize(SHAPE_BYTES).unwrap();
-        // shapes.into_iter().chain(
-        //     recursion_shape_config
-        //         .get_all_shape_combinations(1)
-        //         .map(|mut x| Self::Shrink(x.pop().unwrap())),
-        // )
         core_shape_config
             .generate_all_allowed_shapes()
             .map(Self::Recursion)

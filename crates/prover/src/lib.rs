@@ -1165,9 +1165,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                 .iter()
                 .map(|(vk, _)| {
                     let vk_digest = vk.hash_babybear();
-                    tracing::info!("vk_digest: {:?}", vk_digest);
                     let index = self.allowed_vk_map.get(&vk_digest).expect("vk not allowed");
-                    tracing::info!("vk found at index: {:?}", index);
                     (index, vk_digest)
                 })
                 .unzip()
@@ -1210,7 +1208,6 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 }
 
 #[cfg(any(test, feature = "export-tests"))]
-#[cfg(test)]
 pub mod tests {
 
     use std::{
@@ -1278,8 +1275,6 @@ pub mod tests {
 
         tracing::info!("setup elf");
         let (pk, vk) = prover.setup(elf);
-
-        // let mut shapes = Vec::new();
 
         tracing::info!("prove core");
         let core_proof = prover.prove_core(&pk, &stdin, opts, context)?;
