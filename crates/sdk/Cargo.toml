@@ -12,7 +12,6 @@ categories = { workspace = true }
 [dependencies]
 prost = "0.13"
 serde = { version = "1.0.204", features = ["derive"] }
-serde_json = "1.0.121"
 twirp = { package = "twirp-rs", version = "0.13.0-succinct", optional = true }
 async-trait = "0.1.81"
 reqwest-middleware = { version = "0.3.2", optional = true }
@@ -28,8 +27,6 @@ sp1-cuda = { workspace = true, optional = true }
 futures = "0.3.30"
 bincode = "1.3.3"
 tokio = { version = "1.39.2", features = ["full"], optional = true }
-p3-matrix = { workspace = true }
-p3-commit = { workspace = true }
 p3-field = { workspace = true }
 p3-baby-bear = { workspace = true }
 p3-fri = { workspace = true }
@@ -37,23 +34,18 @@ indicatif = "0.17.8"
 tracing = "0.1.40"
 hex = "0.4.3"
 log = "0.4.22"
-axum = { version = "0.7.7", optional = true }
 alloy-sol-types = { version = "0.7.7", optional = true }
-sha2 = "0.10.8"
 dirs = "5.0.1"
 tempfile = "3.10.1"
-num-bigint = "0.4.6"
 cfg-if = "1.0"
 ethers = { version = "2", default-features = false, optional = true }
-strum_macros = "0.26.4"
 strum = "0.26.3"
+strum_macros = "0.26.4"
 thiserror = "1.0.63"
 hashbrown = "0.14.5"
-sysinfo = "0.30.13"
 sp1-core-executor = { workspace = true }
 sp1-stark = { workspace = true }
 sp1-primitives = { workspace = true }
-getrandom = { version = "0.2.15", features = ["custom", "js"] }
 itertools = "0.13.0"
 
 [features]
