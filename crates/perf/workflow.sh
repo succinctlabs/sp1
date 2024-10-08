@@ -69,9 +69,9 @@ WORKLOADS=$(jq -n \
     --argjson cuda "$(printf '%s\n' "${CUDA_WORKLOADS[@]}" | jq -R . | jq -s .)" \
     --argjson network "$(printf '%s\n' "${NETWORK_WORKLOADS[@]}" | jq -R . | jq -s .)" \
     '{
-        cpu_workloads: $cpu,
-        cuda_workloads: $cuda,
-        network_workloads: $network
+        cpu_workloads: "$cpu",
+        cuda_workloads: "$cuda",
+        network_workloads: "$network"
     } | map_values(if . == [""] then [] else . end)')
 
 
