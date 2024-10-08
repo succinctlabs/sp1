@@ -5,15 +5,15 @@ on:
     inputs:
       cpu:
         type: boolean
-        required: false
+        required: true
         description: Run CPU tests
       cuda:
         type: boolean
-        required: false
+        required: true
         description: Run CUDA tests
       network:
         type: boolean
-        required: false
+        required: true
         description: Run network tests
   merge_group:
 
