@@ -37,11 +37,6 @@ pub struct NetworkClient {
 }
 
 impl NetworkClient {
-    /// Returns the currently configured RPC endpoint for the Succinct prover network.
-    pub fn rpc_url() -> String {
-        env::var("PROVER_NETWORK_RPC").unwrap_or_else(|_| DEFAULT_PROVER_NETWORK_RPC.to_string())
-    }
-
     /// Create a new network client with the given private key.
     pub fn new(private_key: &str) -> Self {
         let signer = PrivateKeySigner::from_str(private_key).unwrap();
@@ -53,6 +48,11 @@ impl NetworkClient {
             .unwrap();
 
         Self { signer, http: http_client.into(), s3: OnceCell::new() }
+    }
+
+    /// Returns the currently configured RPC endpoint for the Succinct prover network.
+    pub fn rpc_url() -> String {
+        env::var("PROVER_NETWORK_RPC").unwrap_or_else(|_| DEFAULT_PROVER_NETWORK_RPC.to_string())
     }
 
     /// Get a connected RPC client.
@@ -69,10 +69,19 @@ impl NetworkClient {
         Ok(ArtifactStoreClient::new(channel.clone()))
     }
 
-    /// Gets the latest nonce for this account's address.
+    /// Get the S3 client.
+    async fn get_s3_client(&self) -> &S3Client {
+        self.s3
+            .get_or_init(|| async {
+                let config = aws_config::load_defaults(BehaviorVersion::latest()).await;
+                S3Client::new(&config)
+            })
+            .await
+    }
+
+    /// Get the latest nonce for this account's address.
     pub async fn get_nonce(&self) -> Result<u64> {
         let mut rpc = self.get_rpc().await?;
-
         let res =
             rpc.get_nonce(GetNonceRequest { address: self.signer.address().to_vec() }).await?;
         Ok(res.into_inner().nonce)
@@ -84,7 +93,6 @@ impl NetworkClient {
         request_id: &[u8],
     ) -> Result<(GetProofRequestStatusResponse, Option<P>)> {
         let mut rpc = self.get_rpc().await?;
-
         let res = rpc
             .get_proof_request_status(GetProofRequestStatusRequest {
                 request_id: request_id.to_vec(),
@@ -95,7 +103,10 @@ impl NetworkClient {
         let proof = match status {
             ProofStatus::Fulfilled => {
                 log::info!("Proof request fulfilled");
-                let proof_uri = res.proof_uri.as_ref().expect("no proof url");
+                let proof_uri = res
+                    .proof_uri
+                    .as_ref()
+                    .ok_or_else(|| anyhow::anyhow!("No proof URL provided"))?;
                 let proof_bytes = self.download_artifact(proof_uri).await?;
                 Some(bincode::deserialize(&proof_bytes).context("Failed to deserialize proof")?)
             }
@@ -131,7 +142,7 @@ impl NetworkClient {
         stdin: &SP1Stdin,
         vk: &SP1VerifyingKey,
         mode: ProofMode,
-        _version: &str,
+        version: &str,
         strategy: ProofStrategy,
         timeout_secs: u64,
         cycle_limit: u64,
@@ -156,8 +167,7 @@ impl NetworkClient {
         let nonce = self.get_nonce().await?;
         let request_body = RequestProofRequestBody {
             nonce,
-            // version: version.to_string(),
-            version: "sp1-v3.0.0-rc1".to_string(),
+            version: format!("sp1-{}", version),
             vkey,
             mode: mode.into(),
             strategy: strategy.into(),
@@ -175,16 +185,6 @@ impl NetworkClient {
             .into_inner();
 
         Ok(request_response)
-    }
-
-    /// Get the S3 client.
-    async fn get_s3_client(&self) -> &S3Client {
-        self.s3
-            .get_or_init(|| async {
-                let config = aws_config::load_defaults(BehaviorVersion::latest()).await;
-                S3Client::new(&config)
-            })
-            .await
     }
 
     /// Uses the artifact store to to create an artifact, upload the content, and return the URI.
