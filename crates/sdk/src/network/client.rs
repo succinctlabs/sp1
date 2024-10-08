@@ -2,7 +2,7 @@ use std::{env, time::Duration};
 
 use crate::{
     network::auth::NetworkAuth,
-    proto::network::{
+    network::proto::network::{
         ModifyCpuCyclesRequest, ModifyCpuCyclesResponse, UnclaimProofRequest, UnclaimReason,
     },
 };
@@ -18,7 +18,7 @@ use std::{
 };
 use twirp::{Client as TwirpClient, ClientError};
 
-use crate::proto::network::{
+use crate::network::proto::network::{
     ClaimProofRequest, ClaimProofResponse, CreateProofRequest, FulfillProofRequest,
     FulfillProofResponse, GetNonceRequest, GetProofRequestsRequest, GetProofRequestsResponse,
     GetProofStatusRequest, GetProofStatusResponse, NetworkServiceClient, ProofMode, ProofStatus,
