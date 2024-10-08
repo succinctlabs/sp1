@@ -6,10 +6,18 @@
 
 ## Run the testing suite
 
-Set the flags to run on the set of workloads you want to test on.
-
+Set the workloads you want to run in the `workflow.sh` file.
 ```
-gh workflow run "Testing Suite" --ref <MY_BRANCH> -f cpu=true -f cuda=true -f network=true
+CPU_WORKLOADS=("fibonacci-17k" "ssz-withdrawal")
+CUDA_WORKLOADS=()
+NETWORK_WORKLOADS=()
+```
+
+Run the workflow.
+```
+./workflow.sh
 ```
 
 ## View the results
+
+Visit the [actions](https://github.com/succinctlabs/sp1/actions) tab on GitHub to view the results.
