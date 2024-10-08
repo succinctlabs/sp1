@@ -155,10 +155,14 @@ fn main() {
             let prover = ProverClient::network();
             let (_, _) = time_operation(|| prover.execute(&elf, stdin.clone()));
 
-            let (core_proof, _) =
-                time_operation(|| prover.prove(&pk, stdin).compressed().run().unwrap());
+            let (proof, _) =
+                time_operation(|| prover.prove(&pk, stdin.clone()).groth16().run().unwrap());
 
-            let (_, _) = time_operation(|| prover.verify(&core_proof, &vk));
+            let (_, _) = time_operation(|| prover.verify(&proof, &vk));
+
+            let (proof, _) = time_operation(|| prover.prove(&pk, stdin).plonk().run().unwrap());
+
+            let (_, _) = time_operation(|| prover.verify(&proof, &vk));
         }
     };
 }
