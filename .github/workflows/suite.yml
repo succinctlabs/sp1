@@ -27,9 +27,7 @@ jobs:
     runs-on: ${{ matrix.workload.mode == 'cuda' && fromJSON('["runs-on", "family=g6.16xlarge", "ami=ami-0a63dc9cb9e934ba3", "spot=false", "run-id=${{ github.run_id }}"]') || fromJSON('["runs-on", "runner=64cpu-linux-x64", "spot=false", "run-id=${{ github.run_id }}"]') }}
     strategy:
       matrix:
-        workload:
-          # CPU
-          - ${{ fromJSON(github.event.inputs.cpu == 'true' && '
+        workload: ${{ fromJSON(github.event.inputs.cpu == 'true' && '
             [
               { "s3_folder": "fibonacci-17k", "mode": "cpu" },
               { "s3_folder": "ssz-withdrawals", "mode": "cpu" },
