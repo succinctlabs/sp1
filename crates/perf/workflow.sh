@@ -63,17 +63,12 @@ NETWORK_WORKLOADS=(
     "op-succinct-op-sepolia-range-18129400-18129401"
 )
 
-# Create a JSON object with the list of workloads, replacing [""] with []
+# Create a JSON object with the list of workloads.
 WORKLOADS=$(jq -n \
-    --argjson cpu "$(printf '%s\n' "${CPU_WORKLOADS[@]}" | jq -R . | jq -s .)" \
-    --argjson cuda "$(printf '%s\n' "${CUDA_WORKLOADS[@]}" | jq -R . | jq -s .)" \
-    --argjson network "$(printf '%s\n' "${NETWORK_WORKLOADS[@]}" | jq -R . | jq -s .)" \
-    '{
-        cpu_workloads: "$cpu",
-        cuda_workloads: "$cuda",
-        network_workloads: "$network"
-    } | map_values(if . == [""] then [] else . end)')
-
+    --arg cpu "$(printf '%s\n' "${CPU_WORKLOADS[@]}" | jq -R . | jq -s 'map(select(length > 0))')" \
+    --arg cuda "$(printf '%s\n' "${CUDA_WORKLOADS[@]}" | jq -R . | jq -s 'map(select(length > 0))')" \
+    --arg network "$(printf '%s\n' "${NETWORK_WORKLOADS[@]}" | jq -R . | jq -s 'map(select(length > 0))')" \
+    '{cpu_workloads: $cpu, cuda_workloads: $cuda, network_workloads: $network}')
 
 # Run the workflow with the list of workloads.
 echo $WORKLOADS | gh workflow run suite.yml --ref $GIT_REF --json
