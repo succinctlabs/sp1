@@ -51,7 +51,7 @@ pub fn execute_build_program(
     // Temporary backward compatibility with the deprecated behavior of copying the ELF file.
     // TODO: add option to turn off this behavior
     if target_elf_paths.len() == 1 {
-        copy_elf_to_output_dir(args, &program_metadata)?;
+        copy_elf_to_output_dir(args, &program_metadata, &target_elf_paths[0].1)?;
     }
 
     Ok(target_elf_paths)
