@@ -22,6 +22,7 @@ jobs:
   test-cpu:
     if: ${{ fromJSON(github.event.inputs.cpu_workloads)[0] != null }}
     strategy:
+      fail-fast: false
       matrix:
         workload: ${{ fromJSON(github.event.inputs.cpu_workloads) }}
     name: ${{ matrix.workload }} (cpu)
@@ -60,6 +61,7 @@ jobs:
   test-cuda:
     if: ${{ fromJSON(github.event.inputs.cuda_workloads)[0] != null }}
     strategy:
+      fail-fast: false
       matrix:
         workload: ${{ fromJSON(github.event.inputs.cuda_workloads) }}
     name: ${{ matrix.workload }} (gpu)
@@ -99,6 +101,7 @@ jobs:
   test-network:
     if: ${{ fromJSON(github.event.inputs.network_workloads)[0] != null }}
     strategy:
+      fail-fast: false
       matrix:
         workload: ${{ fromJSON(github.event.inputs.network_workloads) }}
     name: ${{ matrix.workload }} (network)
