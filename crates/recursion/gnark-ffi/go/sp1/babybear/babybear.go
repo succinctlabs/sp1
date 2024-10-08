@@ -197,9 +197,9 @@ func (c *Chip) AssertIsEqualE(a, b ExtensionVariable) {
 func (c *Chip) SelectF(cond frontend.Variable, a, b Variable) Variable {
 	var UpperBound *big.Int
 	if a.UpperBound.Cmp(b.UpperBound) == -1 {
-		UpperBound = b.UpperBound
+		UpperBound = new(big.Int).Set(b.UpperBound)
 	} else {
-		UpperBound = a.UpperBound
+		UpperBound = new(big.Int).Set(a.UpperBound)
 	}
 	return Variable{
 		Value:      c.api.Select(cond, a.Value, b.Value),
