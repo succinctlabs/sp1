@@ -68,8 +68,7 @@ pub fn build_vk_map<C: SP1ProverComponents>(
         )
         .into_keys()
         .collect::<BTreeSet<_>>();
-        // let height = dummy_set.len().next_power_of_two().ilog2() as usize;
-        let height = 21;
+        let height = dummy_set.len().next_power_of_two().ilog2() as usize;
         (dummy_set, vec![], height)
     } else {
         let (vk_tx, vk_rx) = std::sync::mpsc::channel();
@@ -87,8 +86,7 @@ pub fn build_vk_map<C: SP1ProverComponents>(
                 .collect::<BTreeSet<_>>();
         let num_shapes = all_shapes.len();
 
-        // let height = num_shapes.next_power_of_two().ilog2() as usize;
-        let height = 21;
+        let height = num_shapes.next_power_of_two().ilog2() as usize;
         let chunk_size = indices_set.as_ref().map(|indices| indices.len()).unwrap_or(num_shapes);
 
         std::thread::scope(|s| {
@@ -214,22 +212,22 @@ impl SP1ProofShape {
         recursion_shape_config: &'a RecursionShapeConfig<BabyBear, CompressAir<BabyBear>>,
         reduce_batch_size: usize,
     ) -> impl Iterator<Item = Self> + 'a {
-        // core_shape_config
-        //     .generate_all_allowed_shapes()
-        //     .map(Self::Recursion)
-        //     .chain((1..=reduce_batch_size).flat_map(|batch_size| {
-        //         recursion_shape_config.get_all_shape_combinations(batch_size).map(Self::Compress)
-        //     }))
-        //     .chain(
-        //         recursion_shape_config
-        //             .get_all_shape_combinations(1)
-        //             .map(|mut x| Self::Deferred(x.pop().unwrap())),
-        //     )
-        //     .chain(
-        recursion_shape_config
-            .get_all_shape_combinations(1)
-            .map(|mut x| Self::Shrink(x.pop().unwrap()))
-        // )
+        core_shape_config
+            .generate_all_allowed_shapes()
+            .map(Self::Recursion)
+            .chain((1..=reduce_batch_size).flat_map(|batch_size| {
+                recursion_shape_config.get_all_shape_combinations(batch_size).map(Self::Compress)
+            }))
+            .chain(
+                recursion_shape_config
+                    .get_all_shape_combinations(1)
+                    .map(|mut x| Self::Deferred(x.pop().unwrap())),
+            )
+            .chain(
+                recursion_shape_config
+                    .get_all_shape_combinations(1)
+                    .map(|mut x| Self::Shrink(x.pop().unwrap())),
+            )
     }
 
     pub fn dummy_vk_map<'a>(
