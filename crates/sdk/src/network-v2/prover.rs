@@ -20,6 +20,7 @@ use crate::provers::{CpuProver, ProofOpts, ProverType};
 
 /// The timeout for a proof request to be fulfilled.
 const TIMEOUT_SECS: u64 = 3600;
+
 /// The default cycle limit for a proof request.
 const DEFAULT_CYCLE_LIMIT: u64 = 1_000_000_000;
 
