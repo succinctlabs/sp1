@@ -2,14 +2,19 @@ name: Testing Suite
 
 on:
   workflow_dispatch:
-  pull_request:
-    branches:
-      - "**"
-    paths:
-      - "crates/**"
-      - "examples/**"
-      - "Cargo.toml"
-      - ".github/workflows/**"
+    inputs:
+      cpu:
+        type: boolean
+        required: false
+        description: Run CPU tests
+      cuda:
+        type: boolean
+        required: false
+        description: Run CUDA tests
+      network:
+        type: boolean
+        required: false
+        description: Run network tests
   merge_group:
 
 concurrency:
@@ -19,94 +24,99 @@ concurrency:
 jobs:
   test-x86:
     name: ${{ matrix.workload.s3_folder }} (${{ matrix.workload.mode }})
-    runs-on: ${{ matrix.workload.mode == 'cuda' && fromJSON('["runs-on", "family=g6.16xlarge", "ami=ami-0a63dc9cb9e934ba3", "spot=false", "run-id=${{ github.run_id }}"]') || fromJSON('["runs-on", "runner=64cpu-linux-x64", "spot=false", "run-id=${{ github.run_id }}"]') }}
     strategy:
       matrix:
         workload:
           # Fibonacci 17k
-          # - { s3_folder: fibonacci-17k, mode: cpu }
-          # - { s3_folder: fibonacci-17k, mode: cuda }
+          - { s3_folder: fibonacci-17k, mode: cpu }
+          - { s3_folder: fibonacci-17k, mode: cuda }
           - { s3_folder: fibonacci-17k, mode: network }
           # SSZ Withdrawals
-          # - { s3_folder: ssz-withdrawals, mode: cpu }
-          # - { s3_folder: ssz-withdrawals, mode: cuda }
+          - { s3_folder: ssz-withdrawals, mode: cpu }
+          - { s3_folder: ssz-withdrawals, mode: cuda }
           - { s3_folder: ssz-withdrawals, mode: network }
           # Tendermint
-          # - { s3_folder: tendermint, mode: cpu }
-          # - { s3_folder: tendermint, mode: cuda }
+          - { s3_folder: tendermint, mode: cpu }
+          - { s3_folder: tendermint, mode: cuda }
           - { s3_folder: tendermint, mode: network }
           # RSP 20526624
-          # - { s3_folder: rsp-20526624, mode: cpu }
-          # - { s3_folder: rsp-20526624, mode: cuda }
+          - { s3_folder: rsp-20526624, mode: cpu }
+          - { s3_folder: rsp-20526624, mode: cuda }
           - { s3_folder: rsp-20526624, mode: network }
           # RSA
-          # - { s3_folder: rsa, mode: cpu }
-          # - { s3_folder: rsa, mode: cuda }
+          - { s3_folder: rsa, mode: cpu }
+          - { s3_folder: rsa, mode: cuda }
           - { s3_folder: rsa, mode: network }
           # Regex
-          # - { s3_folder: regex, mode: cpu }
-          # - { s3_folder: regex, mode: cuda }
+          - { s3_folder: regex, mode: cpu }
+          - { s3_folder: regex, mode: cuda }
           - { s3_folder: regex, mode: network }
           # Chess
-          # - { s3_folder: chess, mode: cpu }
-          # - { s3_folder: chess, mode: cuda }
+          - { s3_folder: chess, mode: cpu }
+          - { s3_folder: chess, mode: cuda }
           - { s3_folder: chess, mode: network }
           # Tendermint
-          # - { s3_folder: tendermint, mode: cpu }
-          # - { s3_folder: tendermint, mode: cuda }
+          - { s3_folder: tendermint, mode: cpu }
+          - { s3_folder: tendermint, mode: cuda }
           - { s3_folder: tendermint, mode: network }
           # RSP 20526624
-          # - { s3_folder: rsp-20526624, mode: cpu }
-          # - { s3_folder: rsp-20526624, mode: cuda }
+          - { s3_folder: rsp-20526624, mode: cpu }
+          - { s3_folder: rsp-20526624, mode: cuda }
           - { s3_folder: rsp-20526624, mode: network }
           # RSA 
-          # - { s3_folder: rsa, mode: cpu }
-          # - { s3_folder: rsa, mode: cuda }
+          - { s3_folder: rsa, mode: cpu }
+          - { s3_folder: rsa, mode: cuda }
           - { s3_folder: rsa, mode: network }
           # Regex
-          # - { s3_folder: regex, mode: cpu }
-          # - { s3_folder: regex, mode: cuda }
+          - { s3_folder: regex, mode: cpu }
+          - { s3_folder: regex, mode: cuda }
           - { s3_folder: regex, mode: network }
           # JSON
-          # - { s3_folder: json, mode: cpu }
-          # - { s3_folder: json, mode: cuda }
+          - { s3_folder: json, mode: cpu }
+          - { s3_folder: json, mode: cuda }
           - { s3_folder: json, mode: network }
           # Chess
-          # - { s3_folder: chess, mode: cpu }
-          # - { s3_folder: chess, mode: cuda }
+          - { s3_folder: chess, mode: cpu }
+          - { s3_folder: chess, mode: cuda }
           - { s3_folder: chess, mode: network }
           # Blobstream 01j6z63fgafrc8jeh0k12gbtvw
-          # - { s3_folder: blobstream-01j6z63fgafrc8jeh0k12gbtvw, mode: cpu }
-          # - { s3_folder: blobstream-01j6z63fgafrc8jeh0k12gbtvw, mode: cuda }
+          - { s3_folder: blobstream-01j6z63fgafrc8jeh0k12gbtvw, mode: cpu }
+          - { s3_folder: blobstream-01j6z63fgafrc8jeh0k12gbtvw, mode: cuda }
           - { s3_folder: blobstream-01j6z63fgafrc8jeh0k12gbtvw, mode: network }
           # Blobstream 01j6z95bdme9svevmfyc974bja
-          # - { s3_folder: blobstream-01j6z95bdme9svevmfyc974bja, mode: cpu }
-          # - { s3_folder: blobstream-01j6z95bdme9svevmfyc974bja, mode: cuda }
+          - { s3_folder: blobstream-01j6z95bdme9svevmfyc974bja, mode: cpu }
+          - { s3_folder: blobstream-01j6z95bdme9svevmfyc974bja, mode: cuda }
           - { s3_folder: blobstream-01j6z95bdme9svevmfyc974bja, mode: network }
           # Blobstream 01j6z9ak0ke9srsppgywgke6fj
-          # - { s3_folder: blobstream-01j6z9ak0ke9srsppgywgke6fj, mode: cpu }
-          # - { s3_folder: blobstream-01j6z9ak0ke9srsppgywgke6fj, mode: cuda }
+          - { s3_folder: blobstream-01j6z9ak0ke9srsppgywgke6fj, mode: cpu }
+          - { s3_folder: blobstream-01j6z9ak0ke9srsppgywgke6fj, mode: cuda }
           - { s3_folder: blobstream-01j6z9ak0ke9srsppgywgke6fj, mode: network }
           # Vector 01j6xsv35re96tkgyda115320t
-          # - { s3_folder: vector-01j6xsv35re96tkgyda115320t, mode: cpu }
-          # - { s3_folder: vector-01j6xsv35re96tkgyda115320t, mode: cuda }
+          - { s3_folder: vector-01j6xsv35re96tkgyda115320t, mode: cpu }
+          - { s3_folder: vector-01j6xsv35re96tkgyda115320t, mode: cuda }
           - { s3_folder: vector-01j6xsv35re96tkgyda115320t, mode: network }
           # Vector 01j6xzy366ff5tbkzcrs8pma02
-          # - { s3_folder: vector-01j6xzy366ff5tbkzcrs8pma02, mode: cpu }
-          # - { s3_folder: vector-01j6xzy366ff5tbkzcrs8pma02, mode: cuda }
+          - { s3_folder: vector-01j6xzy366ff5tbkzcrs8pma02, mode: cpu }
+          - { s3_folder: vector-01j6xzy366ff5tbkzcrs8pma02, mode: cuda }
           - { s3_folder: vector-01j6xzy366ff5tbkzcrs8pma02, mode: network }
           # Vector 01j6y06de0fdaafemr8b1t69z3
-          # - { s3_folder: vector-01j6y06de0fdaafemr8b1t69z3, mode: cpu }
-          # - { s3_folder: vector-01j6y06de0fdaafemr8b1t69z3, mode: cuda }
+          - { s3_folder: vector-01j6y06de0fdaafemr8b1t69z3, mode: cpu }
+          - { s3_folder: vector-01j6y06de0fdaafemr8b1t69z3, mode: cuda }
           - { s3_folder: vector-01j6y06de0fdaafemr8b1t69z3, mode: network }
           # Raiko A7 10
-          # - { s3_folder: raiko-a7-10, mode: cpu }
-          # - { s3_folder: raiko-a7-10, mode: cuda }
+          - { s3_folder: raiko-a7-10, mode: cpu }
+          - { s3_folder: raiko-a7-10, mode: cuda }
           - { s3_folder: raiko-a7-10, mode: network }
           # OP Succinct
-          # - { s3_folder: op-succinct-op-sepolia-range-17685896-17685897, mode: network }
-          # - { s3_folder: op-succinct-op-sepolia-range-17985900-17985905, mode: network }
+          - { s3_folder: op-succinct-op-sepolia-range-17685896-17685897, mode: network }
+          - { s3_folder: op-succinct-op-sepolia-range-17985900-17985905, mode: network }
           - { s3_folder: op-succinct-op-sepolia-range-18129400-18129401, mode: network }
+    runs-on: ${{ matrix.workload.mode == 'cuda' && fromJSON('["runs-on", "family=g6.16xlarge", "ami=ami-0a63dc9cb9e934ba3", "spot=false", "run-id=${{ github.run_id }}"]') || fromJSON('["runs-on", "runner=64cpu-linux-x64", "spot=false", "run-id=${{ github.run_id }}"]') }}
+    if: >
+      (github.event_name != 'workflow_dispatch') ||
+      (matrix.workload.mode == 'cpu' && github.event.inputs.cpu == 'true') ||
+      (matrix.workload.mode == 'cuda' && github.event.inputs.cuda == 'true') ||
+      (matrix.workload.mode == 'network' && github.event.inputs.network == 'true') 
     steps:
       - name: Checkout sources
         uses: actions/checkout@v4
