@@ -23,3 +23,14 @@ Run the workflow.
 ## View the results
 
 Visit the [actions](https://github.com/succinctlabs/sp1/actions) tab on GitHub to view the results.
+
+## Uploading new workloads
+
+Take any existing binary that uses `sp1-sdk` and run it with `SP1_DUMP=1`. This will dump the 
+program and stdin to the current directory.
+
+```
+SP1_DUMP=1 cargo run --release
+aws s3 cp program.bin s3://sp1-testing-suite/<workload>/program.bin
+aws s3 cp stdin.bin s3://sp1-testing-suite/<workload>/stdin.bin
+```
