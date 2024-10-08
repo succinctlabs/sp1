@@ -112,6 +112,10 @@ jobs:
           - { s3_folder: op-succinct-op-sepolia-range-17685896-17685897, mode: network }
           - { s3_folder: op-succinct-op-sepolia-range-17985900-17985905, mode: network }
           - { s3_folder: op-succinct-op-sepolia-range-18129400-18129401, mode: network }
+    if: >-
+      (github.event.inputs.cpu == 'true' && matrix.workload.mode == 'cpu') ||
+      (github.event.inputs.cuda == 'true' && matrix.workload.mode == 'cuda') ||
+      (github.event.inputs.network == 'true' && matrix.workload.mode == 'network')
     steps:
       - name: Checkout sources
         uses: actions/checkout@v4
