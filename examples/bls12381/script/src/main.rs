@@ -1,5 +1,5 @@
-use sp1_sdk::{utils, ProverClient, SP1Stdin};
-pub const ELF: &[u8] = include_bytes!("../../program/elf/riscv32im-succinct-zkvm-elf");
+use sp1_sdk::{include_elf, utils, ProverClient, SP1Stdin};
+pub const ELF: &[u8] = include_elf!("bls12381-program");
 
 fn main() {
     utils::setup_logger();

@@ -1,6 +1,6 @@
-use sp1_sdk::{utils, ProverClient, SP1ProofWithPublicValues, SP1Stdin};
+use sp1_sdk::{include_elf, utils, ProverClient, SP1ProofWithPublicValues, SP1Stdin};
 
-const ELF: &[u8] = include_bytes!("../../program/elf/riscv32im-succinct-zkvm-elf");
+const ELF: &[u8] = include_elf!("ssz-withdrawals-program");
 
 fn main() {
     // Generate proof.
