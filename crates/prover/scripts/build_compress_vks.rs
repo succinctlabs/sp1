@@ -1,6 +1,10 @@
-use std::path::PathBuf;
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    path::PathBuf,
+};
 
 use clap::Parser;
+use p3_baby_bear::BabyBear;
 use sp1_core_machine::utils::setup_logger;
 use sp1_prover::{
     components::DefaultProverComponents, shapes::build_vk_map_to_file, REDUCE_BATCH_SIZE,
@@ -37,14 +41,31 @@ fn main() {
     let range_start = args.start;
     let range_end = args.end;
 
-    build_vk_map_to_file::<DefaultProverComponents>(
-        build_dir,
-        reduce_batch_size,
-        dummy,
-        num_compiler_workers,
-        num_setup_workers,
-        range_start,
-        range_end,
-    )
-    .unwrap();
+    let old_set_file = std::fs::File::open(build_dir.join("allowed_vk_map.bin")).unwrap();
+    let old_set: BTreeMap<[BabyBear; 8], usize> = bincode::deserialize_from(old_set_file).unwrap();
+
+    println!("old_set: {:?}", old_set.len());
+
+    let shrink_set_file = std::fs::File::open(build_dir.join("shrink/vk_map.bin")).unwrap();
+    let shrink_set: BTreeMap<[BabyBear; 8], usize> =
+        bincode::deserialize_from(shrink_set_file).unwrap();
+
+    println!("shrink_set: {:?}", shrink_set.len());
+
+    let new_set = old_set.into_keys().chain(shrink_set.into_keys()).collect::<BTreeSet<_>>();
+
+    println!("new_set: {:?}", new_set.len());
+
+    let mut file = std::fs::File::create(build_dir.join("allowed_vk_map_new.bin")).unwrap();
+    bincode::serialize_into(&mut file, &new_set).unwrap();
+    // build_vk_map_to_file::<DefaultProverComponents>(
+    //     build_dir,
+    //     reduce_batch_size,
+    //     dummy,
+    //     num_compiler_workers,
+    //     num_setup_workers,
+    //     range_start,
+    //     range_end,
+    // )
+    // .unwrap();
 }
