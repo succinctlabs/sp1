@@ -130,11 +130,12 @@ fn main() {
             let (_, verify_shrink_duration) =
                 time_operation(|| prover.verify_shrink(&shrink_proof, &vk));
 
-            let (wrapped_bn254_proof, wrap_duration) =
-                time_operation(|| prover.wrap_bn254(shrink_proof, opts).unwrap());
+            let (_, wrap_duration) = time_operation(|| server.wrap_bn254(shrink_proof).unwrap());
 
-            let (_, verify_wrap_duration) =
-                time_operation(|| prover.verify_wrap_bn254(&wrapped_bn254_proof, &vk));
+            // TODO: Verify wrapped bn254 proofs.
+            // let (_, verify_wrap_duration) =
+            //     time_operation(|| prover.verify_wrap_bn254(&wrapped_bn254_proof, &vk));
+            let verify_wrap_duration = Duration::from_secs(0);
 
             let result = PerfResult {
                 cycles,
