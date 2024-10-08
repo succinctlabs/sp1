@@ -14,6 +14,8 @@ pgo-data.profdata
 # Proofs
 **/proof-with-pis.bin
 **/proof-with-io.bin
+**/program.bin
+**/stdin.bin
 
 # Benchmark
 benchmark.csv

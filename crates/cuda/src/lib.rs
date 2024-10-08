@@ -11,7 +11,6 @@ use std::{
 };
 
 use crate::proto::api::ProverServiceClient;
-
 use proto::api::ReadyRequest;
 use serde::{Deserialize, Serialize};
 use sp1_core_machine::{io::SP1Stdin, reduce::SP1ReduceProof, utils::SP1CoreProverError};
@@ -85,7 +84,7 @@ impl SP1CudaProver {
     /// [SP1ProverClient] that can be used to communicate with the container.
     pub fn new() -> Result<Self, Box<dyn StdError>> {
         let container_name = "sp1-gpu";
-        let image_name = "jtguibas/sp1-gpu:v3.0.0-rc2";
+        let image_name = "public.ecr.aws/succinct-labs/sp1-gpu:a0a64fe";
 
         let cleaned_up = Arc::new(AtomicBool::new(false));
         let cleanup_name = container_name;
@@ -158,7 +157,7 @@ impl SP1CudaProver {
         )
         .expect("failed to create client");
 
-        let timeout = Duration::from_secs(60); // Set a 60-second timeout
+        let timeout = Duration::from_secs(300);
         let start_time = Instant::now();
 
         block_on(async {
@@ -297,7 +296,10 @@ impl Drop for SP1CudaProver {
 /// Cleans up the a docker container with the given name.
 fn cleanup_container(container_name: &str) {
     if let Err(e) = Command::new("docker").args(["rm", "-f", container_name]).output() {
-        eprintln!("Failed to remove container: {}. You may need to manually remove it using 'docker rm -f {}'", e, container_name);
+        eprintln!(
+            "Failed to remove container: {}. You may need to manually remove it using 'docker rm -f {}'",
+            e, container_name
+        );
     }
 }
 

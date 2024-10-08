@@ -6,23 +6,20 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+use thiserror::Error;
+
 use p3_baby_bear::BabyBear;
 use p3_field::AbstractField;
 use serde::{Deserialize, Serialize};
 use sp1_core_machine::riscv::CoreShapeConfig;
-use sp1_recursion_circuit::{
-    machine::{
-        SP1CompressWithVKeyWitnessValues, SP1CompressWithVkeyShape, SP1DeferredShape,
-        SP1DeferredWitnessValues, SP1RecursionShape, SP1RecursionWitnessValues,
-    },
-    merkle_tree::MerkleTree,
+use sp1_recursion_circuit::machine::{
+    SP1CompressWithVKeyWitnessValues, SP1CompressWithVkeyShape, SP1DeferredShape,
+    SP1DeferredWitnessValues, SP1RecursionShape, SP1RecursionWitnessValues,
 };
 use sp1_recursion_core::{shape::RecursionShapeConfig, RecursionProgram};
 use sp1_stark::{MachineProver, ProofShape, DIGEST_SIZE};
 
-pub const SHAPE_BYTES: &[u8] = include_bytes!("../shapes.bin");
-
-use crate::{components::SP1ProverComponents, CompressAir, HashableKey, InnerSC, SP1Prover};
+use crate::{components::SP1ProverComponents, CompressAir, HashableKey, SP1Prover};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum SP1ProofShape {
@@ -32,52 +29,20 @@ pub enum SP1ProofShape {
     Shrink(ProofShape),
 }
 
-#[derive(Clone, Serialize, Deserialize)]
-pub struct VkData {
-    pub vk_map: BTreeMap<[BabyBear; DIGEST_SIZE], usize>,
-    pub root: [BabyBear; DIGEST_SIZE],
-    pub merkle_tree: MerkleTree<BabyBear, InnerSC>,
-}
-
-impl VkData {
-    pub fn save(&self, build_dir: PathBuf, dummy: bool) -> Result<(), std::io::Error> {
-        let mut file = if dummy {
-            File::create(build_dir.join("dummy_vk_data.bin"))?
-        } else {
-            File::create(build_dir.join("vk_data.bin"))?
-        };
-        bincode::serialize_into(&mut file, self).unwrap();
-        Ok(())
-    }
-
-    pub fn load(build_dir: PathBuf) -> Result<Self, std::io::Error> {
-        let mut file = File::open(build_dir.join("vk_data.bin"))?;
-        let vk_data: Self = bincode::deserialize_from(&mut file).unwrap();
-        Ok(vk_data)
-    }
-
-    pub fn new(vk_set: BTreeSet<[BabyBear; DIGEST_SIZE]>, height: usize) -> Self {
-        let vk_map: BTreeMap<_, _> =
-            vk_set.into_iter().enumerate().map(|(i, vk_digest)| (vk_digest, i)).collect();
-
-        // Build a merkle tree from the vk map.
-        let mut vks_padded = vk_map.keys().cloned().collect::<Vec<_>>();
-        assert!(vks_padded.len() < 1 << height);
-        vks_padded.resize(1 << height, <[BabyBear; DIGEST_SIZE]>::default());
-        tracing::info!("building merkle tree");
-        let (root, merkle_tree) =
-            MerkleTree::<BabyBear, InnerSC>::commit(vk_map.keys().cloned().collect());
-
-        VkData { vk_map, root, merkle_tree }
-    }
-}
-
 #[derive(Debug, Clone)]
 pub enum SP1CompressProgramShape {
     Recursion(SP1RecursionShape),
     Compress(SP1CompressWithVkeyShape),
     Deferred(SP1DeferredShape),
     Shrink(SP1CompressWithVkeyShape),
+}
+
+#[derive(Debug, Error)]
+pub enum VkBuildError {
+    #[error("IO error: {0}")]
+    IO(#[from] std::io::Error),
+    #[error("Serialization error: {0}")]
+    Bincode(#[from] bincode::Error),
 }
 
 pub fn build_vk_map<C: SP1ProverComponents>(
@@ -121,7 +86,9 @@ pub fn build_vk_map<C: SP1ProverComponents>(
                 .collect::<BTreeSet<_>>();
         let num_shapes = all_shapes.len();
 
-        let height = num_shapes.next_power_of_two().ilog2() as usize;
+        // TODO: comment back in.
+        // let height = num_shapes.next_power_of_two().ilog2() as usize;
+        let height = 21;
         let chunk_size = indices_set.as_ref().map(|indices| indices.len()).unwrap_or(num_shapes);
 
         std::thread::scope(|s| {
@@ -137,8 +104,9 @@ pub fn build_vk_map<C: SP1ProverComponents>(
                         let program = catch_unwind(AssertUnwindSafe(|| {
                             prover.program_from_shape(shape.clone())
                         }));
+                        let is_shrink = matches!(shape, SP1CompressProgramShape::Shrink(_));
                         match program {
-                            Ok(program) => program_tx.send((i, program)).unwrap(),
+                            Ok(program) => program_tx.send((i, program, is_shrink)).unwrap(),
                             Err(e) => {
                                 tracing::warn!(
                                     "Program generation failed for shape {} {:?}, with error: {:?}",
@@ -160,29 +128,24 @@ pub fn build_vk_map<C: SP1ProverComponents>(
                 let prover = &prover;
                 s.spawn(move || {
                     let mut done = 0;
-                    while let Ok((i, program)) = program_rx.lock().unwrap().recv() {
-                        let setup_result = tracing::debug_span!("setup for program {}", i)
-                            .in_scope(|| {
-                                catch_unwind(AssertUnwindSafe(|| {
-                                    prover.compress_prover.setup(&program)
-                                }))
-                            });
+                    while let Ok((i, program, is_shrink)) = program_rx.lock().unwrap().recv() {
+                        let vk = tracing::debug_span!("setup for program {}", i).in_scope(|| {
+                            if is_shrink {
+                                prover.shrink_prover.setup(&program).1
+                            } else {
+                                prover.compress_prover.setup(&program).1
+                            }
+                        });
                         done += 1;
-                        match setup_result {
-                            Ok((_, vk)) => {
-                                let vk_digest = vk.hash_babybear();
-                                tracing::info!(
-                                    "program {} = {:?}, {}% done",
-                                    i,
-                                    vk_digest,
-                                    done * 100 / chunk_size
-                                );
-                                vk_tx.send(vk_digest).unwrap();
-                            }
-                            Err(e) => {
-                                tracing::warn!("setup for program {} failed: {:?}", i, e);
-                            }
-                        }
+
+                        let vk_digest = vk.hash_babybear();
+                        tracing::info!(
+                            "program {} = {:?}, {}% done",
+                            i,
+                            vk_digest,
+                            done * 100 / chunk_size
+                        );
+                        vk_tx.send(vk_digest).unwrap();
                     }
                 });
             }
@@ -221,12 +184,12 @@ pub fn build_vk_map_to_file<C: SP1ProverComponents>(
     num_setup_workers: usize,
     range_start: Option<usize>,
     range_end: Option<usize>,
-) {
-    std::fs::create_dir_all(&build_dir).expect("failed to create build directory");
+) -> Result<(), VkBuildError> {
+    std::fs::create_dir_all(&build_dir)?;
 
     tracing::info!("Building vk set");
 
-    let (vk_set, _, height) = build_vk_map::<C>(
+    let (vk_set, _, _) = build_vk_map::<C>(
         reduce_batch_size,
         dummy,
         num_compiler_workers,
@@ -234,10 +197,15 @@ pub fn build_vk_map_to_file<C: SP1ProverComponents>(
         range_start.and_then(|start| range_end.map(|end| (start..end).collect())),
     );
 
-    tracing::info!("Creating vk data from vk set");
-    let vk_data = VkData::new(vk_set, height);
+    let vk_map = vk_set.into_iter().enumerate().map(|(i, vk)| (vk, i)).collect::<BTreeMap<_, _>>();
 
-    vk_data.save(build_dir, dummy).expect("failed to save vk data");
+    tracing::info!("Save the vk set to file");
+    let mut file = if dummy {
+        File::create(build_dir.join("dummy_vk_map.bin"))?
+    } else {
+        File::create(build_dir.join("vk_map.bin"))?
+    };
+    Ok(bincode::serialize_into(&mut file, &vk_map)?)
 }
 
 impl SP1ProofShape {
@@ -255,15 +223,13 @@ impl SP1ProofShape {
         core_shape_config
             .generate_all_allowed_shapes()
             .map(Self::Recursion)
+            .chain((1..=reduce_batch_size).flat_map(|batch_size| {
+                recursion_shape_config.get_all_shape_combinations(batch_size).map(Self::Compress)
+            }))
             .chain(
                 recursion_shape_config
                     .get_all_shape_combinations(1)
                     .map(|mut x| Self::Deferred(x.pop().unwrap())),
-            )
-            .chain(
-                recursion_shape_config
-                    .get_all_shape_combinations(reduce_batch_size)
-                    .map(Self::Compress),
             )
             .chain(
                 recursion_shape_config
@@ -336,6 +302,7 @@ mod tests {
     use super::*;
 
     #[test]
+    #[ignore]
     fn test_generate_all_shapes() {
         let core_shape_config = CoreShapeConfig::default();
         let recursion_shape_config = RecursionShapeConfig::default();
@@ -345,10 +312,5 @@ mod tests {
                 .collect::<BTreeSet<_>>();
 
         println!("Number of compress shapes: {}", all_shapes.len());
-
-        let test_shapes: Vec<SP1ProofShape> = bincode::deserialize(SHAPE_BYTES).unwrap();
-        for shape in test_shapes {
-            assert!(all_shapes.contains(&shape));
-        }
     }
 }

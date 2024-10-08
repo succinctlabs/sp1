@@ -181,7 +181,8 @@ mod test {
 
         let program = Program::from(KECCAK256_ELF).unwrap();
         let (proof, public_values, _) =
-            prove::<_, CpuProver<_, _>>(program, &stdin, config, SP1CoreOpts::default()).unwrap();
+            prove::<_, CpuProver<_, _>>(program, &stdin, config, SP1CoreOpts::default(), None)
+                .unwrap();
         let mut public_values = SP1PublicValues::from(&public_values);
 
         let config = BabyBearPoseidon2::new();

@@ -1,6 +1,7 @@
 use std::fmt::Debug;
 
-use itertools::Itertools;
+use rayon::prelude::*;
+
 use p3_field::Field;
 use p3_util::{reverse_bits_len, reverse_slice_index_bits};
 use serde::{Deserialize, Serialize};
@@ -65,9 +66,13 @@ impl<F: Field, HV: FieldHasher<F>> MerkleTree<F, HV> {
         // Compute the rest of the layers.
         for _ in 0..height - 1 {
             let mut next_layer = Vec::with_capacity(last_layer.len() / 2);
-            for (a, b) in last_layer.iter().tuples() {
-                next_layer.push(HV::constant_compress([*a, *b]));
-            }
+            last_layer
+                .par_chunks_exact(2)
+                .map(|chunk| {
+                    let [left, right] = chunk.try_into().unwrap();
+                    HV::constant_compress([left, right])
+                })
+                .collect_into_vec(&mut next_layer);
             digest_layers.extend(next_layer.iter());
 
             last_layer = next_layer;

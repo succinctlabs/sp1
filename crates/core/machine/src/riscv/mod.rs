@@ -698,7 +698,7 @@ pub mod tests {
         let mut opts = SP1CoreOpts::default();
         opts.shard_size = 1024;
         opts.shard_batch_size = 2;
-        prove::<_, CpuProver<_, _>>(program, &stdin, BabyBearPoseidon2::new(), opts).unwrap();
+        prove::<_, CpuProver<_, _>>(program, &stdin, BabyBearPoseidon2::new(), opts, None).unwrap();
     }
 
     #[test]
@@ -711,6 +711,7 @@ pub mod tests {
             &stdin,
             BabyBearPoseidon2::new(),
             SP1CoreOpts::default(),
+            None,
         )
         .unwrap();
     }
