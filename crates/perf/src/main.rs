@@ -130,8 +130,7 @@ fn main() {
             let (_, verify_shrink_duration) =
                 time_operation(|| prover.verify_shrink(&shrink_proof, &vk));
 
-            let (wrapped_bn254_proof, wrap_duration) =
-                time_operation(|| server.wrap_bn254(shrink_proof).unwrap());
+            let (_, wrap_duration) = time_operation(|| server.wrap_bn254(shrink_proof).unwrap());
 
             // TODO: Verify wrapped bn254 proofs.
             // let (_, verify_wrap_duration) =
