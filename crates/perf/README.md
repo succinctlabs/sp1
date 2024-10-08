@@ -6,9 +6,11 @@
 
 ## Run the testing suite
 
-Set the workloads you want to run in the `workflow.sh` file.
+Set the workloads you want to run in the `workflow.sh` file. The workloads are keys in the 
+`sp1-testing-suite` s3 bucket.
+
 ```
-CPU_WORKLOADS=("fibonacci-17k" "ssz-withdrawal")
+CPU_WORKLOADS=("fibonacci-17k" "ssz-withdrawals")
 CUDA_WORKLOADS=()
 NETWORK_WORKLOADS=()
 ```
