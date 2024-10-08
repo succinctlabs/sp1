@@ -1,17 +1,17 @@
 #![no_main]
 sp1_zkvm::entrypoint!(main);
 
-use p256::elliptic_curve::group::prime::PrimeCurveAffine;
-use p256::elliptic_curve::group::GroupEncoding;
+// use p256::elliptic_curve::group::prime::PrimeCurveAffine;
+// use p256::elliptic_curve::group::GroupEncoding;
 // use p256::elliptic_curve::{CurveArithmetic, PrimeCurveArithmetic};
 // use p256::primeorder::{point_arithmetic, PrimeCurveParams};
-use hex_literal::hex;
-use p256::elliptic_curve::sec1::{FromEncodedPoint, ToCompactEncodedPoint, ToEncodedPoint};
-use p256::{AffinePoint, EncodedPoint};
-use p256::{Scalar, U256};
-use sp1_curves::params::FieldParameters;
+// use hex_literal::hex;
+// use p256::elliptic_curve::sec1::{FromEncodedPoint, ToCompactEncodedPoint, ToEncodedPoint};
+// use p256::{AffinePoint, EncodedPoint};
+// use p256::{Scalar, U256};
+// use sp1_curves::params::FieldParameters;
 use sp1_zkvm::lib::secp256r1::Secp256r1Point;
-use sp1_zkvm::syscalls::syscall_secp256r1_add;
+use sp1_zkvm::syscalls::syscall_secp256r1_double;
 
 pub fn main() {
     // generator.
@@ -36,19 +36,8 @@ pub fn main() {
     ];
 
     unsafe {
-        syscall_secp256r1_add(a.as_mut_ptr() as *mut [u32; 16], b.as_mut_ptr() as *mut [u32; 16]);
+        syscall_secp256r1_double(a.as_mut_ptr() as *mut [u32; 16]);
     }
 
-    // 3 * generator.
-    // 42877656971275811310262564894490210024759287182177196162425349131675946712428
-    // 61154801112014214504178281461992570017247172004704277041681093927569603776562
-
-    let c: [u8; 64] = [
-        108, 253, 231, 198, 27, 102, 65, 251, 133, 169, 173, 239, 33, 183, 198, 230, 101, 241, 75,
-        29, 149, 239, 247, 200, 68, 10, 51, 166, 209, 228, 203, 94, 50, 80, 125, 162, 39, 177, 121,
-        154, 61, 184, 79, 56, 54, 176, 42, 216, 236, 162, 100, 26, 206, 6, 75, 55, 126, 255, 152,
-        73, 12, 100, 52, 135,
-    ];
-
-    assert_eq!(a, c);
+    assert_eq!(a, b);
 }

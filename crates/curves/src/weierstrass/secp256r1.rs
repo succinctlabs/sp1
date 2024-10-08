@@ -8,7 +8,7 @@ use generic_array::GenericArray;
 // use k256::{elliptic_curve::point::DecompressPoint, FieldElement};
 use num::{
     traits::{FromBytes, ToBytes},
-    BigUint, Zero,
+    BigUint,
 };
 use p256::{elliptic_curve::point::DecompressPoint, FieldElement};
 use serde::{Deserialize, Serialize};
@@ -34,10 +34,9 @@ impl FieldParameters for Secp256r1BaseField {
     //0xffffffff00000001000000000000000000000000ffffffffffffffffffffffff
     const MODULUS: &'static [u8] = &[
         0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0xff, 0xff,
         0xff, 0xff,
     ];
-
     /// A rough witness-offset estimate given the size of the limbs and the size of the field.
     const WITNESS_OFFSET: usize = 1usize << 14;
 
@@ -87,24 +86,16 @@ impl WeierstrassParameters for Secp256r1Parameters {
     }
 
     fn a_int() -> BigUint {
-        // BigUint::from(
-        //     115792089210356248762697446949407573530086143415290314195533631308867097853948u128,
-        // )
-        BigUint::from_bytes_le(&[
-            0xfc, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x00, 0x00,
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00,
-            0xff, 0xff, 0xff, 0xff,
+        BigUint::from_slice(&[
+            0xFFFFFFFC, 0xFFFFFFFF, 0xFFFFFFFF, 0x00000000, 0x00000000, 0x00000000, 0x00000001,
+            0xFFFFFFFF,
         ])
     }
 
     fn b_int() -> BigUint {
-        // BigUint::from(
-        //     41058363725152142129326129780047268409114441015993725554835256314039467401291u128,
-        // )
-        BigUint::from_bytes_le(&[
-            0x4b, 0x60, 0xd2, 0x27, 0x3e, 0x3c, 0xce, 0x3b, 0xf6, 0xb0, 0x53, 0xcc, 0xb0, 0x06,
-            0x1d, 0x65, 0xbc, 0x86, 0x98, 0x76, 0x55, 0xbd, 0xeb, 0xb3, 0xe7, 0x93, 0x3a, 0xaa,
-            0xd8, 0x35, 0xc6, 0x5a,
+        BigUint::from_slice(&[
+            0x27D2604B, 0x3BCE3C3E, 0xCC53B0F6, 0x651D06B0, 0x769886BC, 0xB3EBBD55, 0xAA3A93E7,
+            0x5AC635D8,
         ])
     }
 }
@@ -120,6 +111,7 @@ pub fn secp256r1_decompress<E: EllipticCurve>(bytes_be: &[u8], sign: u32) -> Aff
 }
 
 pub fn secp256r1_sqrt(n: &BigUint) -> BigUint {
+    // println!("n: {}", n);
     let be_bytes = n.to_be_bytes();
     let mut bytes = [0_u8; 32];
     bytes[32 - be_bytes.len()..].copy_from_slice(&be_bytes);
@@ -147,11 +139,19 @@ mod tests {
         for _ in 0..10 {
             // Check that sqrt(x^2)^2 == x^2
             // We use x^2 since not all field elements have a square root
+            println!("modulus: {}", Secp256r1BaseField::modulus());
             let x = rng.gen_biguint(256) % Secp256r1BaseField::modulus();
-            let x_2 = (&x * &x) % Secp256r1BaseField::modulus();
-            let sqrt = secp256r1_sqrt(&x_2);
+
+            println!("x: {}", x);
+            let x_2 = (&x * &x) % Secp256r1BaseField::modulus(); // x^2
+                                                                 // let x_2 =
+
+            // let x_2 = BigUint::from_str("64s").unwrap();
+            let sqrt = secp256r1_sqrt(&x_2); //sqrt(x^2) = x
 
             println!("sqrt: {}", sqrt);
+            // println!("x_2: {}", &x * &x);
+            println!("sqrt_2: {}", (&sqrt * &sqrt));
 
             let sqrt_2 = (&sqrt * &sqrt) % Secp256r1BaseField::modulus();
 

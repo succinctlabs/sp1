@@ -64,6 +64,15 @@ impl CostEstimator for ExecutionReport {
             (secp256k1_double_events as u64) * costs[&RiscvAirDiscriminants::Secp256k1Double];
         total_chips += 1;
 
+        let secp256r1_add_events = self.syscall_counts[SyscallCode::SECP256R1_ADD];
+        total_area += (secp256r1_add_events as u64) * costs[&RiscvAirDiscriminants::Secp256r1Add];
+        total_chips += 1;
+
+        let secp256r1_double_events = self.syscall_counts[SyscallCode::SECP256R1_DOUBLE];
+        total_area +=
+            (secp256r1_double_events as u64) * costs[&RiscvAirDiscriminants::Secp256r1Double];
+        total_chips += 1;
+
         let keccak256_permute_events = self.syscall_counts[SyscallCode::KECCAK_PERMUTE];
         total_area += (keccak256_permute_events as u64) * costs[&RiscvAirDiscriminants::KeccakP];
         total_chips += 1;

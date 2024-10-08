@@ -63,6 +63,9 @@ pub mod tests {
     pub const SECP256R1_ADD_ELF: &[u8] =
         include_bytes!("../../../../tests/secp256r1-add/elf/riscv32im-succinct-zkvm-elf");
 
+    pub const SECP256R1_DOUBLE_ELF: &[u8] =
+        include_bytes!("../../../../tests/secp256r1-double/elf/riscv32im-succinct-zkvm-elf");
+
     pub const SHA_COMPRESS_ELF: &[u8] =
         include_bytes!("../../../../tests/sha-compress/elf/riscv32im-succinct-zkvm-elf");
 
@@ -151,6 +154,16 @@ pub mod tests {
     #[must_use]
     pub fn secp256r1_add_program() -> Program {
         Program::from(SECP256R1_ADD_ELF).unwrap()
+    }
+
+    /// Get the secp256r1 double program.
+    ///
+    /// # Panics
+    ///
+    /// This function will panic if the program fails to load.
+    #[must_use]
+    pub fn secp256r1_double_program() -> Program {
+        Program::from(SECP256R1_DOUBLE_ELF).unwrap()
     }
 
     /// Get the SSZ withdrawals program.
