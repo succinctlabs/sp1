@@ -63,7 +63,7 @@ NETWORK_WORKLOADS=(
     "op-succinct-op-sepolia-range-18129400-18129401"
 )
 
-# Create a JSON object with the list of workloads, excluding arrays with only an empty string
+# Create a JSON object with the list of workloads, replacing [""] with []
 WORKLOADS=$(jq -n \
     --argjson cpu "$(printf '%s\n' "${CPU_WORKLOADS[@]}" | jq -R . | jq -s .)" \
     --argjson cuda "$(printf '%s\n' "${CUDA_WORKLOADS[@]}" | jq -R . | jq -s .)" \
@@ -72,7 +72,8 @@ WORKLOADS=$(jq -n \
         cpu_workloads: $cpu,
         cuda_workloads: $cuda,
         network_workloads: $network
-    } | del(.[] | select(. == [""]))')
+    } | map_values(if . == [""] then [] else . end)')
+
 
 # Run the workflow with the list of workloads.
 echo $WORKLOADS | gh workflow run suite.yml --ref $GIT_REF --json
