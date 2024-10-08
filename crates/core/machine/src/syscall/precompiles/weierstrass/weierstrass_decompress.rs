@@ -17,7 +17,10 @@ use sp1_core_executor::{
 };
 use sp1_curves::{
     params::{limbs_from_vec, FieldParameters, Limbs, NumLimbs, NumWords},
-    weierstrass::{bls12_381::bls12381_sqrt, secp256k1::secp256k1_sqrt, WeierstrassParameters},
+    weierstrass::{
+        bls12_381::bls12381_sqrt, secp256k1::secp256k1_sqrt, secp256r1::secp256r1_sqrt,
+        WeierstrassParameters,
+    },
     CurveType, EllipticCurve,
 };
 use sp1_derive::AlignedBorrow;
@@ -116,6 +119,7 @@ impl<E: EllipticCurve + WeierstrassParameters> WeierstrassDecompressChip<E> {
 
         let sqrt_fn = match E::CURVE_TYPE {
             CurveType::Secp256k1 => secp256k1_sqrt,
+            CurveType::Secp256r1 => secp256r1_sqrt,
             CurveType::Bls12381 => bls12381_sqrt,
             _ => panic!("Unsupported curve"),
         };
@@ -135,6 +139,7 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
     fn name(&self) -> String {
         match E::CURVE_TYPE {
             CurveType::Secp256k1 => "Secp256k1Decompress".to_string(),
+            CurveType::Secp256r1 => "Secp256r1Decompress".to_string(),
             CurveType::Bls12381 => "Bls12381Decompress".to_string(),
             _ => panic!("Unsupported curve"),
         }
@@ -147,6 +152,7 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
     ) -> RowMajorMatrix<F> {
         let events = match E::CURVE_TYPE {
             CurveType::Secp256k1 => input.get_precompile_events(SyscallCode::SECP256K1_DECOMPRESS),
+            CurveType::Secp256r1 => input.get_precompile_events(SyscallCode::SECP256R1_DECOMPRESS),
             CurveType::Bls12381 => input.get_precompile_events(SyscallCode::BLS12381_DECOMPRESS),
             _ => panic!("Unsupported curve"),
         };
@@ -162,6 +168,7 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
         for (_, event) in events {
             let event = match (E::CURVE_TYPE, event) {
                 (CurveType::Secp256k1, PrecompileEvent::Secp256k1Decompress(event)) => event,
+                (CurveType::Secp256r1, PrecompileEvent::Secp256r1Decompress(event)) => event,
                 (CurveType::Bls12381, PrecompileEvent::Bls12381Decompress(event)) => event,
                 _ => panic!("Unsupported curve"),
             };
@@ -278,6 +285,9 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
         match E::CURVE_TYPE {
             CurveType::Secp256k1 => {
                 !shard.get_precompile_events(SyscallCode::SECP256K1_DECOMPRESS).is_empty()
+            }
+            CurveType::Secp256r1 => {
+                !shard.get_precompile_events(SyscallCode::SECP256R1_DECOMPRESS).is_empty()
             }
             CurveType::Bls12381 => {
                 !shard.get_precompile_events(SyscallCode::BLS12381_DECOMPRESS).is_empty()
@@ -487,6 +497,9 @@ where
         let syscall_id = match E::CURVE_TYPE {
             CurveType::Secp256k1 => {
                 AB::F::from_canonical_u32(SyscallCode::SECP256K1_DECOMPRESS.syscall_id())
+            }
+            CurveType::Secp256r1 => {
+                AB::F::from_canonical_u32(SyscallCode::SECP256R1_DECOMPRESS.syscall_id())
             }
             CurveType::Bls12381 => {
                 AB::F::from_canonical_u32(SyscallCode::BLS12381_DECOMPRESS.syscall_id())

@@ -55,6 +55,11 @@ impl CostEstimator for ExecutionReport {
             (k256_decompress_events as u64) * costs[&RiscvAirDiscriminants::K256Decompress];
         total_chips += 1;
 
+        let p256_decompress_events = self.syscall_counts[SyscallCode::SECP256R1_DECOMPRESS];
+        total_area +=
+            (p256_decompress_events as u64) * costs[&RiscvAirDiscriminants::P256Decompress];
+        total_chips += 1;
+
         let secp256k1_add_events = self.syscall_counts[SyscallCode::SECP256K1_ADD];
         total_area += (secp256k1_add_events as u64) * costs[&RiscvAirDiscriminants::Secp256k1Add];
         total_chips += 1;
