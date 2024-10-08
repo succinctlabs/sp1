@@ -78,7 +78,8 @@ impl NetworkClient {
 
     /// Upload a file to the specified url.
     async fn upload_file(&self, url: &str, data: Vec<u8>) -> Result<()> {
-        self.http.put(url).body(data).send().await?;
+        let response = self.http.put(url).body(data).send().await?;
+        response.error_for_status()?;
         Ok(())
     }
 
