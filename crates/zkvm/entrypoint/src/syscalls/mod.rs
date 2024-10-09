@@ -82,7 +82,7 @@ pub const SECP256R1_ADD: u32 = 0x00_01_01_2C;
 pub const SECP256R1_DOUBLE: u32 = 0x00_01_01_2D;
 
 /// Executes `SECP256R1_DECOMPRESS`.
-pub const SECP256R1_DECOMPRESS: u32 = 0x00_01_01_2E;
+pub const SECP256R1_DECOMPRESS: u32 = 0x00_00_01_2E;
 
 /// Executes `BN254_ADD`.
 pub const BN254_ADD: u32 = 0x00_01_01_0E;

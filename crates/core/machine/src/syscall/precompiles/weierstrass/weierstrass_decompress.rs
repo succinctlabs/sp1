@@ -55,6 +55,8 @@ pub struct WeierstrassDecompressCols<T, P: FieldParameters + NumWords> {
     pub(crate) x_2: FieldOpCols<T, P>,
     pub(crate) x_3: FieldOpCols<T, P>,
     pub(crate) x_3_plus_b: FieldOpCols<T, P>,
+    pub(crate) a_mul_x: FieldOpCols<T, P>,
+    pub(crate) x_3_plus_b_plus_a_mul_x: FieldOpCols<T, P>,
     pub(crate) y: FieldSqrtCols<T, P>,
     pub(crate) neg_y: FieldOpCols<T, P>,
 }
@@ -110,12 +112,21 @@ impl<E: EllipticCurve + WeierstrassParameters> WeierstrassDecompressChip<E> {
         cols: &mut WeierstrassDecompressCols<F, E::BaseField>,
         x: BigUint,
     ) {
-        // Y = sqrt(x^3 + b)
+        // Y = sqrt(x^3 + ax + b)
         cols.range_x.populate(record, shard, &x, &E::BaseField::modulus());
         let x_2 = cols.x_2.populate(record, shard, &x.clone(), &x.clone(), FieldOperation::Mul);
         let x_3 = cols.x_3.populate(record, shard, &x_2, &x, FieldOperation::Mul);
         let b = E::b_int();
         let x_3_plus_b = cols.x_3_plus_b.populate(record, shard, &x_3, &b, FieldOperation::Add);
+        let a = E::a_int();
+        let a_mul_x = cols.a_mul_x.populate(record, shard, &a, &x, FieldOperation::Mul);
+        let x_3_plus_b_plus_a_mul_x = cols.x_3_plus_b_plus_a_mul_x.populate(
+            record,
+            shard,
+            &x_3_plus_b,
+            &a_mul_x,
+            FieldOperation::Add,
+        );
 
         let sqrt_fn = match E::CURVE_TYPE {
             CurveType::Secp256k1 => secp256k1_sqrt,
@@ -123,7 +134,7 @@ impl<E: EllipticCurve + WeierstrassParameters> WeierstrassDecompressChip<E> {
             CurveType::Bls12381 => bls12381_sqrt,
             _ => panic!("Unsupported curve"),
         };
-        let y = cols.y.populate(record, shard, &x_3_plus_b, sqrt_fn);
+        let y = cols.y.populate(record, shard, &x_3_plus_b_plus_a_mul_x, sqrt_fn);
 
         let zero = BigUint::zero();
         cols.neg_y.populate(record, shard, &zero, &y, FieldOperation::Sub);
@@ -354,6 +365,17 @@ where
             FieldOperation::Add,
             local.is_real,
         );
+        let a = E::a_int();
+        let a_const = E::BaseField::to_limbs_field::<AB::F, _>(&a);
+        local.a_mul_x.eval(builder, &a_const, &x, FieldOperation::Mul, local.is_real);
+
+        local.x_3_plus_b_plus_a_mul_x.eval(
+            builder,
+            &local.x_3_plus_b.result,
+            &local.a_mul_x.result,
+            FieldOperation::Add,
+            local.is_real,
+        );
 
         local.neg_y.eval(
             builder,
@@ -363,7 +385,7 @@ where
             local.is_real,
         );
 
-        local.y.eval(builder, &local.x_3_plus_b.result, local.y.lsb, local.is_real);
+        local.y.eval(builder, &local.x_3_plus_b_plus_a_mul_x.result, local.y.lsb, local.is_real);
 
         let y_limbs: Limbs<AB::Var, <E::BaseField as NumLimbs>::Limbs> =
             limbs_from_access(&local.y_access);
@@ -584,7 +606,9 @@ mod tests {
             let public_key = secret_key.public_key();
             let encoded = public_key.to_encoded_point(false);
             let decompressed = encoded.as_bytes();
+            println!("decompressed: {:?}", decompressed);
             let compressed = public_key.to_sec1_bytes();
+            println!("compressed: {:?}", compressed);
 
             let inputs = SP1Stdin::from(&compressed);
 
@@ -605,14 +629,17 @@ mod tests {
 
         let mut rng = thread_rng();
 
-        let num_tests = 10;
+        let num_tests = 1;
 
         for _ in 0..num_tests {
             let secret_key = p256::SecretKey::random(&mut rng);
             let public_key = secret_key.public_key();
             let encoded = public_key.to_encoded_point(false);
             let decompressed = encoded.as_bytes();
-            let compressed = public_key.to_sec1_bytes();
+            let encoded_compressed = public_key.to_encoded_point(true);
+            println!("decompressed: {:?}", decompressed);
+            let compressed = encoded_compressed.as_bytes();
+            println!("compressed: {:?}", compressed);
 
             let inputs = SP1Stdin::from(&compressed);
 

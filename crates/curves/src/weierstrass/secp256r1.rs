@@ -139,20 +139,9 @@ mod tests {
         for _ in 0..10 {
             // Check that sqrt(x^2)^2 == x^2
             // We use x^2 since not all field elements have a square root
-            println!("modulus: {}", Secp256r1BaseField::modulus());
             let x = rng.gen_biguint(256) % Secp256r1BaseField::modulus();
-
-            println!("x: {}", x);
             let x_2 = (&x * &x) % Secp256r1BaseField::modulus(); // x^2
-                                                                 // let x_2 =
-
-            // let x_2 = BigUint::from_str("64s").unwrap();
             let sqrt = secp256r1_sqrt(&x_2); //sqrt(x^2) = x
-
-            println!("sqrt: {}", sqrt);
-            // println!("x_2: {}", &x * &x);
-            println!("sqrt_2: {}", (&sqrt * &sqrt));
-
             let sqrt_2 = (&sqrt * &sqrt) % Secp256r1BaseField::modulus();
 
             assert_eq!(sqrt_2, x_2);
