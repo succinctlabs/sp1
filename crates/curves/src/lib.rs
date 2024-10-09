@@ -17,6 +17,13 @@ pub mod k256 {
     };
 }
 
+pub mod p256 {
+    pub use p256::{
+        ecdsa::{RecoveryId, Signature, VerifyingKey},
+        elliptic_curve::ops::Invert,
+    };
+}
+
 use params::{FieldParameters, NumWords};
 use sp1_primitives::consts::WORD_SIZE;
 use std::{

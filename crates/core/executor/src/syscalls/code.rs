@@ -178,6 +178,7 @@ impl SyscallCode {
             0x00_01_01_29 => SyscallCode::BN254_FP2_ADD,
             0x00_01_01_2A => SyscallCode::BN254_FP2_SUB,
             0x00_01_01_2B => SyscallCode::BN254_FP2_MUL,
+            0x00_00_01_1C => SyscallCode::BLS12381_DECOMPRESS,
             0x00_01_01_2C => SyscallCode::SECP256R1_ADD,
             0x00_01_01_2D => SyscallCode::SECP256R1_DOUBLE,
             0x00_00_01_2E => SyscallCode::SECP256R1_DECOMPRESS,
