@@ -138,4 +138,4 @@ jobs:
         RUST_BACKTRACE: 1
         SP1_PROVER: network
         SP1_PRIVATE_KEY: ${{ secrets.SP1_PRIVATE_KEY }}
-        PROVER_NETWORK_RPC: https://rpc-staging.succinct.xyz
+        PROVER_NETWORK_RPC: https://rpc-taiko.succinct.xyz
