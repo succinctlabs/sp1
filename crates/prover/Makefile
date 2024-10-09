@@ -18,6 +18,9 @@ release-circuits:
 	@read -p "Release version (ex. v1.0.0-testnet)? " version; \
 	bash release.sh $$version
 
+release-shapes:
+	bash shapes.sh
+
 test-e2e:
 	RUSTFLAGS='-C target-cpu=native' \
 	cargo test --package sp1-prover --lib --release -- tests::test_e2e --exact --show-output 

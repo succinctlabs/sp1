@@ -42,6 +42,8 @@ num-bigint = "0.4.6"
 thiserror = "1.0.63"
 lru = "0.12.4"
 eyre = "0.6.12"
+reqwest = { version = "0.11", features = ["blocking"] }
+lazy_static = "1.5.0"
 
 [[bin]]
 name = "build_plonk_bn254"
