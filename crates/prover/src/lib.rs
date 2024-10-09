@@ -109,7 +109,7 @@ const COMPRESS_CACHE_SIZE: usize = 3;
 pub const REDUCE_BATCH_SIZE: usize = 2;
 
 const SHAPES_URL_PREFIX: &str = "https://sp1-circuits.s3.us-east-2.amazonaws.com/shapes";
-const SHAPES_VERSION: &str = "5202143e0";
+const SHAPES_VERSION: &str = "146079e0e";
 lazy_static! {
     static ref SHAPES_INIT: Once = Once::new();
 }
