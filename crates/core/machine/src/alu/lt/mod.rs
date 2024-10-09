@@ -162,7 +162,8 @@ impl<F: PrimeField32> MachineAir<F> for LtChip {
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
-        !shard.lt_events.is_empty()
+        // !shard.lt_events.is_empty()
+        shard.fixed_log2_rows::<F, _>(self).is_some()
     }
 }
 

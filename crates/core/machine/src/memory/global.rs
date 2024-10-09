@@ -133,10 +133,11 @@ impl<F: PrimeField32> MachineAir<F> for MemoryGlobalChip {
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
-        match self.kind {
-            MemoryChipType::Initialize => !shard.global_memory_initialize_events.is_empty(),
-            MemoryChipType::Finalize => !shard.global_memory_finalize_events.is_empty(),
-        }
+        // match self.kind {
+        //     MemoryChipType::Initialize => !shard.global_memory_initialize_events.is_empty(),
+        //     MemoryChipType::Finalize => !shard.global_memory_finalize_events.is_empty(),
+        // }
+        shard.fixed_log2_rows::<F, _>(self).is_some()
     }
 
     fn commit_scope(&self) -> InteractionScope {

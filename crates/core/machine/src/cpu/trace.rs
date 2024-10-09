@@ -90,7 +90,8 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
     }
 
     fn included(&self, input: &Self::Record) -> bool {
-        input.contains_cpu()
+        // input.contains_cpu()
+        input.fixed_log2_rows::<F, _>(self).is_some()
     }
 }
 

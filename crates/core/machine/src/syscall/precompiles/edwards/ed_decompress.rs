@@ -261,7 +261,8 @@ impl<F: PrimeField32, E: EdwardsParameters> MachineAir<F> for EdDecompressChip<E
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
-        !shard.get_precompile_events(SyscallCode::ED_DECOMPRESS).is_empty()
+        // !shard.get_precompile_events(SyscallCode::ED_DECOMPRESS).is_empty()
+        shard.fixed_log2_rows::<F, _>(self).is_some()
     }
 }
 

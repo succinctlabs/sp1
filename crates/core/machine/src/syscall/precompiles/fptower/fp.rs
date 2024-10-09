@@ -179,23 +179,24 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for FpOpChip<P> {
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
-        // All the fp events for a given curve are coalesce to the curve's Add operation.  Only check for
-        // that operation.
-        // TODO:  Fix this.
+        // // All the fp events for a given curve are coalesce to the curve's Add operation.  Only check for
+        // // that operation.
+        // // TODO:  Fix this.
 
-        assert!(
-            shard.get_precompile_events(SyscallCode::BN254_FP_SUB).is_empty()
-                && shard.get_precompile_events(SyscallCode::BN254_FP_MUL).is_empty()
-                && shard.get_precompile_events(SyscallCode::BLS12381_FP_SUB).is_empty()
-                && shard.get_precompile_events(SyscallCode::BLS12381_FP_MUL).is_empty()
-        );
+        // assert!(
+        //     shard.get_precompile_events(SyscallCode::BN254_FP_SUB).is_empty()
+        //         && shard.get_precompile_events(SyscallCode::BN254_FP_MUL).is_empty()
+        //         && shard.get_precompile_events(SyscallCode::BLS12381_FP_SUB).is_empty()
+        //         && shard.get_precompile_events(SyscallCode::BLS12381_FP_MUL).is_empty()
+        // );
 
-        match P::FIELD_TYPE {
-            FieldType::Bn254 => !shard.get_precompile_events(SyscallCode::BN254_FP_ADD).is_empty(),
-            FieldType::Bls12381 => {
-                !shard.get_precompile_events(SyscallCode::BLS12381_FP_ADD).is_empty()
-            }
-        }
+        // match P::FIELD_TYPE {
+        //     FieldType::Bn254 => !shard.get_precompile_events(SyscallCode::BN254_FP_ADD).is_empty(),
+        //     FieldType::Bls12381 => {
+        //         !shard.get_precompile_events(SyscallCode::BLS12381_FP_ADD).is_empty()
+        //     }
+        // }
+        shard.fixed_log2_rows::<F, _>(self).is_some()
     }
 }
 

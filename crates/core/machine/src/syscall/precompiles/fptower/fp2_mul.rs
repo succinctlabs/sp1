@@ -231,12 +231,13 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for Fp2MulAssignChip<P> {
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
-        match P::FIELD_TYPE {
-            FieldType::Bn254 => !shard.get_precompile_events(SyscallCode::BN254_FP2_MUL).is_empty(),
-            FieldType::Bls12381 => {
-                !shard.get_precompile_events(SyscallCode::BLS12381_FP2_MUL).is_empty()
-            }
-        }
+        // match P::FIELD_TYPE {
+        //     FieldType::Bn254 => !shard.get_precompile_events(SyscallCode::BN254_FP2_MUL).is_empty(),
+        //     FieldType::Bls12381 => {
+        //         !shard.get_precompile_events(SyscallCode::BLS12381_FP2_MUL).is_empty()
+        //     }
+        // }
+        shard.fixed_log2_rows::<F, _>(self).is_some()
     }
 }
 
