@@ -221,8 +221,8 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
-        // !shard.get_precompile_events(SyscallCode::UINT256_MUL).is_empty()
-        shard.included::<F, _>(self)
+        !shard.get_precompile_events(SyscallCode::UINT256_MUL).is_empty()
+            || shard.included::<F, _>(self)
     }
 }
 

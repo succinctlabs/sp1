@@ -220,8 +220,7 @@ impl<F: PrimeField> MachineAir<F> for ShiftRightChip {
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
-        // !shard.shift_right_events.is_empty()
-        shard.included::<F, _>(self)
+        !shard.shift_right_events.is_empty() || shard.included::<F, _>(self)
     }
 }
 

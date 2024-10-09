@@ -421,8 +421,7 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
-        // !shard.divrem_events.is_empty()
-        shard.included::<F, _>(self)
+        !shard.divrem_events.is_empty() || shard.included::<F, _>(self)
     }
 }
 

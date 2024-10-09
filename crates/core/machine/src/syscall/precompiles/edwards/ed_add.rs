@@ -198,8 +198,7 @@ impl<F: PrimeField32, E: EllipticCurve + EdwardsParameters> MachineAir<F> for Ed
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
-        // !shard.get_precompile_events(SyscallCode::ED_ADD).is_empty()
-        shard.included::<F, _>(self)
+        !shard.get_precompile_events(SyscallCode::ED_ADD).is_empty() || shard.included::<F, _>(self)
     }
 }
 

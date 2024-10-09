@@ -276,8 +276,7 @@ impl<F: PrimeField> MachineAir<F> for MulChip {
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
-        // !shard.mul_events.is_empty()
-        shard.included::<F, _>(self)
+        !shard.mul_events.is_empty() || shard.included::<F, _>(self)
     }
 }
 

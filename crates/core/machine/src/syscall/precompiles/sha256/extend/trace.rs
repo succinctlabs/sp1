@@ -90,8 +90,8 @@ impl<F: PrimeField32> MachineAir<F> for ShaExtendChip {
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
-        // !shard.get_precompile_events(SyscallCode::SHA_EXTEND).is_empty()
-        shard.included::<F, _>(self)
+        !shard.get_precompile_events(SyscallCode::SHA_EXTEND).is_empty()
+            || shard.included::<F, _>(self)
     }
 }
 
