@@ -1163,9 +1163,14 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             input
                 .vks_and_proofs
                 .iter()
-                .map(|(vk, _)| {
+                .map(|(vk, proof)| {
                     let vk_digest = vk.hash_babybear();
-                    let index = self.allowed_vk_map.get(&vk_digest).expect("vk not allowed");
+                    let index = self.allowed_vk_map.get(&vk_digest);
+                    if index.is_none() {
+                        let shape = proof.shape();
+                        tracing::error!("vk not allowed for shape {:?}", shape);
+                    }
+                    let index = index.unwrap();
                     (index, vk_digest)
                 })
                 .unzip()
