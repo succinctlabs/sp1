@@ -112,10 +112,10 @@ impl<F: PrimeField32, P: FieldParameters> FieldOpCols<F, P> {
         modulus: &BigUint,
         op: FieldOperation,
     ) -> BigUint {
-        // if b == &BigUint::zero() && op == FieldOperation::Div {
-        //     // Division by 0 is allowed only when dividing 0 so that padded rows can be all 0.
-        //     assert_eq!(*a, BigUint::zero(), "division by zero is allowed only when dividing zero");
-        // }
+        if b == &BigUint::zero() && op == FieldOperation::Div {
+            // Division by 0 is allowed only when dividing 0 so that padded rows can be all 0.
+            assert_eq!(*a, BigUint::zero(), "division by zero is allowed only when dividing zero");
+        }
 
         let result = match op {
             // If doing the subtraction operation, a - b = result, equivalent to a = result + b.
