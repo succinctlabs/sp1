@@ -3,7 +3,7 @@ use clap::Parser;
 use rsp_client_executor::{io::ClientExecutorInput, CHAIN_ID_ETH_MAINNET};
 use std::path::PathBuf;
 
-use sp1_sdk::{utils, ProverClient, SP1Stdin};
+use sp1_sdk::{include_elf, utils, ProverClient, SP1Stdin};
 
 #[derive(Parser, Debug)]
 struct Args {
@@ -34,7 +34,7 @@ fn main() {
     let client = ProverClient::new();
 
     // Setup the proving key and verification key.
-    let (pk, vk) = client.setup(include_bytes!("../../program/elf/riscv32im-succinct-zkvm-elf"));
+    let (pk, vk) = client.setup(include_elf!("rsp-program"));
 
     // Write the block to the program's stdin.
     let mut stdin = SP1Stdin::new();

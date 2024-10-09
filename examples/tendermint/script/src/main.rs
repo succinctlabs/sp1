@@ -1,4 +1,4 @@
-use sp1_sdk::SP1ProofWithPublicValues;
+use sp1_sdk::{include_elf, SP1ProofWithPublicValues};
 use std::time::Duration;
 
 use sp1_sdk::{utils, ProverClient, SP1Stdin};
@@ -9,7 +9,7 @@ use tendermint_light_client_verifier::{
 
 use crate::util::load_light_block;
 
-const TENDERMINT_ELF: &[u8] = include_bytes!("../../program/elf/riscv32im-succinct-zkvm-elf");
+const TENDERMINT_ELF: &[u8] = include_elf!("tendermint-program");
 
 mod util;
 
