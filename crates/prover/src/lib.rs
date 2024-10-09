@@ -18,7 +18,6 @@ pub mod types;
 pub mod utils;
 pub mod verify;
 
-use std::path::PathBuf;
 use std::{
     borrow::Borrow,
     collections::BTreeMap,
@@ -39,7 +38,6 @@ use tracing::instrument;
 
 use p3_baby_bear::BabyBear;
 
-use lazy_static::lazy_static;
 use p3_challenger::CanObserve;
 use p3_field::{AbstractField, PrimeField, PrimeField32};
 use p3_matrix::dense::RowMajorMatrix;
@@ -82,7 +80,6 @@ use sp1_stark::{
     MachineProver, SP1CoreOpts, SP1ProverOpts, ShardProof, StarkGenericConfig, StarkVerifyingKey,
     Val, Word, DIGEST_SIZE,
 };
-use std::sync::Once;
 
 pub use types::*;
 use utils::{sp1_commited_values_digest_bn254, sp1_vkey_digest_bn254, words_to_bytes};
