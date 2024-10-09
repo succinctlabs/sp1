@@ -96,6 +96,7 @@ jobs:
         with:
           context: .
           file: ./Dockerfile.gnark-ffi
+          platforms: linux/amd64
           push: true
           tags: ${{ steps.docker_tagging.outputs.docker_tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -182,6 +183,7 @@ jobs:
         with:
           context: .
           file: ./Dockerfile.gnark-ffi
+          platforms: linux/arm64
           push: true
           tags: ${{ steps.docker_tagging.outputs.docker_tags }}
           labels: ${{ steps.meta.outputs.labels }}
