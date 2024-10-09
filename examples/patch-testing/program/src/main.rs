@@ -185,7 +185,7 @@ fn test_secp256k1_patch() {
 }
 
 /// To add testing for a new patch, add a new case to the function below.
-fn main() {
+pub fn main() {
     // TODO: Specify which syscalls are linked to each function invocation, iterate
     // over this list that is shared between the program and script.
     test_keccak();

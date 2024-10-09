@@ -10,7 +10,7 @@ keywords = { workspace = true }
 categories = { workspace = true }
 
 [dependencies]
-prost = "0.13"
+prost = { version = "0.13", optional = true }
 serde = { version = "1.0.204", features = ["derive"] }
 twirp = { package = "twirp-rs", version = "0.13.0-succinct", optional = true }
 async-trait = "0.1.81"
@@ -47,6 +47,12 @@ sp1-core-executor = { workspace = true }
 sp1-stark = { workspace = true }
 sp1-primitives = { workspace = true }
 itertools = "0.13.0"
+tonic = { version = "0.12", features = ["tls", "tls-roots"], optional = true }
+alloy-signer = { version = "0.3.6", optional = true }
+alloy-signer-local = { version = "0.3.6", optional = true }
+alloy-primitives = { version = "0.8.3", optional = true }
+aws-sdk-s3 = { version = "1.53.0", optional = true }
+aws-config = { version = "1.5.7", optional = true }
 
 [features]
 default = ["network"]
@@ -55,12 +61,28 @@ native-gnark = ["sp1-prover/native-gnark"]
 # TODO: Once alloy has a 1.* release, we can likely remove this feature flag, as there will be less 
 # dependency resolution issues.
 network = [
+  "dep:prost",
   "dep:alloy-sol-types",
   "dep:tokio",
   "dep:ethers",
   "dep:reqwest",
   "dep:twirp",
   "dep:reqwest-middleware",
+]
+network-v2 = [
+  "dep:prost",
+  "dep:alloy-sol-types",
+  "dep:alloy-signer",
+  "dep:alloy-signer-local",
+  "dep:alloy-primitives",
+  "dep:tokio",
+  "dep:ethers",
+  "dep:reqwest",
+  "dep:twirp",
+  "dep:reqwest-middleware",
+  "dep:tonic",
+  "dep:aws-sdk-s3",
+  "dep:aws-config",
 ]
 cuda = ["sp1-cuda"]
 

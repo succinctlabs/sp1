@@ -4,8 +4,8 @@ use std::{
 };
 
 use crate::{
-    network::client::{NetworkClient, DEFAULT_PROVER_NETWORK_RPC},
-    network::proto::network::{ProofMode, ProofStatus},
+    network_v2::client::{NetworkClient, DEFAULT_PROVER_NETWORK_RPC},
+    network_v2::proto::network::{ProofMode, ProofStatus, ProofStrategy},
     Prover, SP1Context, SP1ProofKind, SP1ProofWithPublicValues, SP1ProvingKey, SP1VerifyingKey,
 };
 use anyhow::Result;
@@ -17,6 +17,12 @@ use sp1_stark::SP1ProverOpts;
 use {crate::block_on, tokio::time::sleep};
 
 use crate::provers::{CpuProver, ProofOpts, ProverType};
+
+/// The timeout for a proof request to be fulfilled.
+const TIMEOUT_SECS: u64 = 3600;
+
+/// The default cycle limit for a proof request.
+const DEFAULT_CYCLE_LIMIT: u64 = 1_000_000_000;
 
 /// An implementation of [crate::ProverClient] that can generate proofs on a remote RPC server.
 pub struct NetworkProver {
@@ -36,73 +42,96 @@ impl NetworkProver {
     pub fn new_from_key(private_key: &str) -> Self {
         let version = SP1_CIRCUIT_VERSION;
         log::info!("Client circuit version: {}", version);
-
         let local_prover = CpuProver::new();
-        Self { client: NetworkClient::new(private_key), local_prover }
+        let client = NetworkClient::new(private_key);
+        Self { client, local_prover }
     }
 
-    /// Requests a proof from the prover network, returning the proof ID.
+    /// Requests a proof from the prover network, returning the request ID.
     pub async fn request_proof(
         &self,
         elf: &[u8],
         stdin: SP1Stdin,
         mode: ProofMode,
-    ) -> Result<String> {
-        let client = &self.client;
-
+        timeout: Option<Duration>,
+    ) -> Result<Vec<u8>> {
+        // Simulate and get the cycle limit.
         let skip_simulation = env::var("SKIP_SIMULATION").map(|val| val == "true").unwrap_or(false);
-
-        if !skip_simulation {
+        let cycle_limit = if !skip_simulation {
             let (_, report) =
                 self.local_prover.sp1_prover().execute(elf, &stdin, Default::default())?;
-            log::info!("Simulation complete, cycles: {}", report.total_instruction_count());
+            let cycles = report.total_instruction_count();
+            log::info!("Simulation complete, cycles: {}", cycles);
+            cycles
         } else {
             log::info!("Skipping simulation");
-        }
+            DEFAULT_CYCLE_LIMIT
+        };
 
-        let proof_id = client.create_proof(elf, &stdin, mode, SP1_CIRCUIT_VERSION).await?;
-        log::info!("Created {}", proof_id);
+        // Get the verifying key.
+        let (_, vk) = self.setup(elf);
+
+        // Get the timeout.
+        let timeout_secs = timeout.map(|dur| dur.as_secs()).unwrap_or(TIMEOUT_SECS);
+
+        log::info!("Requesting proof with cycle limit: {}", cycle_limit);
+
+        // Request the proof.
+        let response = self
+            .client
+            .request_proof(
+                elf,
+                &stdin,
+                &vk,
+                mode,
+                SP1_CIRCUIT_VERSION,
+                ProofStrategy::Hosted,
+                timeout_secs,
+                cycle_limit,
+            )
+            .await?;
+
+        // Log the request ID and transaction hash.
+        let tx_hash_hex = "0x".to_string() + &hex::encode(response.tx_hash);
+        let request_id = response.body.unwrap().request_id;
+        let request_id_hex = "0x".to_string() + &hex::encode(request_id.clone());
+        log::info!("Created request {} in transaction {}", request_id_hex, tx_hash_hex);
 
         if NetworkClient::rpc_url() == DEFAULT_PROVER_NETWORK_RPC {
-            log::info!("View in explorer: https://explorer.succinct.xyz/{}", proof_id);
+            log::info!("View in explorer: https://explorer-v2.succinct.xyz/{}", request_id_hex);
         }
-        Ok(proof_id)
+
+        Ok(request_id)
     }
 
     /// Waits for a proof to be generated and returns the proof. If a timeout is supplied, the
     /// function will return an error if the proof is not generated within the timeout.
     pub async fn wait_proof<P: DeserializeOwned>(
         &self,
-        proof_id: &str,
+        request_id: &[u8],
         timeout: Option<Duration>,
     ) -> Result<P> {
-        let client = &self.client;
-        let mut is_claimed = false;
+        let mut is_assigned = false;
         let start_time = Instant::now();
         loop {
             if let Some(timeout) = timeout {
                 if start_time.elapsed() > timeout {
-                    return Err(anyhow::anyhow!("Proof generation timed out."));
+                    return Err(anyhow::anyhow!("Proof request timed out."));
                 }
             }
 
-            let (status, maybe_proof) = client.get_proof_status::<P>(proof_id).await?;
+            let (status, maybe_proof) =
+                self.client.get_proof_request_status::<P>(request_id).await?;
 
             match status.status() {
-                ProofStatus::ProofFulfilled => {
+                ProofStatus::Fulfilled => {
                     return Ok(maybe_proof.unwrap());
                 }
-                ProofStatus::ProofClaimed => {
-                    if !is_claimed {
-                        log::info!("Proof request claimed, proving...");
-                        is_claimed = true;
+                ProofStatus::Assigned => {
+                    if !is_assigned {
+                        log::info!("Proof request assigned, proving...");
+                        is_assigned = true;
                     }
-                }
-                ProofStatus::ProofUnclaimed => {
-                    return Err(anyhow::anyhow!(
-                        "Proof generation failed: {}",
-                        status.unclaim_description()
-                    ));
                 }
                 _ => {}
             }
@@ -118,8 +147,8 @@ impl NetworkProver {
         mode: ProofMode,
         timeout: Option<Duration>,
     ) -> Result<SP1ProofWithPublicValues> {
-        let proof_id = self.request_proof(elf, stdin, mode).await?;
-        self.wait_proof(&proof_id, timeout).await
+        let request_id = self.request_proof(elf, stdin, mode, timeout).await?;
+        self.wait_proof(&request_id, timeout).await
     }
 }
 

@@ -5,18 +5,18 @@
 //! Visit the [Getting Started](https://succinctlabs.github.io/sp1/getting-started.html) section
 //! in the official SP1 documentation for a quick start guide.
 
-#[rustfmt::skip]
-#[cfg(feature = "network")]
-pub mod proto {
-    pub mod network;
-}
 pub mod action;
 pub mod artifacts;
 pub mod install;
 #[cfg(feature = "network")]
 pub mod network;
+#[cfg(feature = "network-v2")]
+#[path = "network-v2/mod.rs"]
+pub mod network_v2;
 #[cfg(feature = "network")]
-pub use crate::network::prover::NetworkProver;
+pub use crate::network::prover::NetworkProver as NetworkProverV1;
+#[cfg(feature = "network-v2")]
+pub use crate::network_v2::prover::NetworkProver as NetworkProverV2;
 #[cfg(feature = "cuda")]
 pub use crate::provers::CudaProver;
 
@@ -33,7 +33,7 @@ use sp1_prover::components::DefaultProverComponents;
 
 use std::env;
 
-#[cfg(feature = "network")]
+#[cfg(any(feature = "network", feature = "network-v2"))]
 use {std::future::Future, tokio::task::block_in_place};
 
 pub use provers::{CpuProver, MockProver, Prover};
@@ -84,9 +84,13 @@ impl ProverClient {
             },
             "network" => {
                 cfg_if! {
-                    if #[cfg(feature = "network")] {
+                    if #[cfg(feature = "network-v2")] {
                         Self {
-                            prover: Box::new(NetworkProver::new()),
+                            prover: Box::new(NetworkProverV2::new()),
+                        }
+                    } else if #[cfg(feature = "network")] {
+                        Self {
+                            prover: Box::new(NetworkProverV1::new()),
                         }
                     } else {
                         panic!("network feature is not enabled")
@@ -145,9 +149,13 @@ impl ProverClient {
     /// ```
     pub fn network() -> Self {
         cfg_if! {
-            if #[cfg(feature = "network")] {
+            if #[cfg(feature = "network-v2")] {
                 Self {
-                    prover: Box::new(NetworkProver::new()),
+                    prover: Box::new(NetworkProverV2::new()),
+                }
+            } else if #[cfg(feature = "network")] {
+                Self {
+                    prover: Box::new(NetworkProverV1::new()),
                 }
             } else {
                 panic!("network feature is not enabled")
@@ -277,7 +285,7 @@ impl Default for ProverClient {
 ///
 /// If we're already in a tokio runtime, we'll block in place. Otherwise, we'll create a new
 /// runtime.
-#[cfg(feature = "network")]
+#[cfg(any(feature = "network", feature = "network-v2"))]
 pub fn block_on<T>(fut: impl Future<Output = T>) -> T {
     // Handle case if we're already in an tokio runtime.
     if let Ok(handle) = tokio::runtime::Handle::try_current() {

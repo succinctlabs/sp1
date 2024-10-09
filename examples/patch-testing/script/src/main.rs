@@ -3,7 +3,7 @@ use sp1_sdk::{utils, ProverClient, SP1Stdin};
 const PATCH_TEST_ELF: &[u8] = include_bytes!("../../program/elf/riscv32im-succinct-zkvm-elf");
 
 /// This script is used to test that SP1 patches are correctly applied and syscalls are triggered.
-fn main() {
+pub fn main() {
     utils::setup_logger();
 
     let stdin = SP1Stdin::new();
