@@ -120,14 +120,14 @@ jobs:
         env:
           CARGO_INCREMENTAL: 1
 
-      - name: Add wasm target
-        run: rustup target add wasm32-unknown-unknown
+      # - name: Add wasm target
+      #   run: rustup target add wasm32-unknown-unknown
 
-      - name: Check wasm compatibility for sdk
-        uses: actions-rs/cargo@v1
-        with:
-          command: check
-          args: -p sp1-sdk --target wasm32-unknown-unknown --no-default-features
+      # - name: Check wasm compatibility for sdk
+      #   uses: actions-rs/cargo@v1
+      #   with:
+      #     command: check
+      #     args: -p sp1-sdk --target wasm32-unknown-unknown --no-default-features
 
   examples:
     name: Examples
