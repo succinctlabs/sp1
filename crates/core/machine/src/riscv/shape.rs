@@ -317,7 +317,7 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
 
         let mut allowed_core_log_heights = vec![];
 
-        let small_cpu_heights = vec![16, 17, 18, 19, 20];
+        let small_cpu_heights = vec![16, 18, 20];
 
         for height in small_cpu_heights {
             assert!(height > 1);
@@ -330,7 +330,7 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
             let shift_right_heights = vec![None, Some(height - 1), Some(height)];
             let shift_left_heights = vec![None, Some(height - 1), Some(height)];
             let lt_heights = vec![None, Some(height - 1), Some(height)];
-            let memory_local_heights = vec![Some(height - 1), Some(height)];
+            let memory_local_heights = vec![Some(height - 1), Some(height), Some(height + 1)];
             let syscall_heights = vec![None, Some(height - 1), Some(height)];
 
             let short_allowed_log_heights = HashMap::from([
