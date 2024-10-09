@@ -237,7 +237,7 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for Fp2MulAssignChip<P> {
         //         !shard.get_precompile_events(SyscallCode::BLS12381_FP2_MUL).is_empty()
         //     }
         // }
-        shard.fixed_log2_rows::<F, _>(self).is_some()
+        shard.included::<F, _>(self)
     }
 }
 

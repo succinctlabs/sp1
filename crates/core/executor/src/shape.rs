@@ -1,6 +1,10 @@
+use std::sync::Arc;
+
 use hashbrown::{HashMap, HashSet};
 use serde::{Deserialize, Serialize};
 use sp1_stark::ProofShape;
+
+use crate::{ExecutionRecord, Program};
 
 /// The shape of a core proof.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
@@ -9,6 +13,29 @@ pub struct CoreShape {
     ///
     /// Keys are the chip names and values are the log-heights of the chips.
     pub inner: HashMap<String, usize>,
+}
+
+impl CoreShape {
+    /// Create a dummy program with this shape.
+    ///
+    /// This can be used to generate a dummy preprocessed traces.
+    #[must_use]
+    pub fn dummy_program(&self) -> Program {
+        let mut program = Program::new(vec![], 1 << 5, 1 << 5);
+        program.preprocessed_shape = Some(self.clone());
+        program
+    }
+
+    /// Create a dummy execution record with this shape.
+    ///
+    /// This can be used to generate dummy traces.
+    #[must_use]
+    pub fn dummy_record(&self) -> ExecutionRecord {
+        let program = Arc::new(self.dummy_program());
+        let mut record = ExecutionRecord::new(program);
+        record.shape = Some(self.clone());
+        record
+    }
 }
 
 impl Extend<CoreShape> for CoreShape {

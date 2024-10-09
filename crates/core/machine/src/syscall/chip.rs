@@ -134,7 +134,7 @@ impl<F: PrimeField32> MachineAir<F> for SyscallChip {
         //             && shard.global_memory_finalize_events.is_empty()
         //     }
         // }
-        shard.fixed_log2_rows::<F, _>(self).is_some()
+        shard.included::<F, _>(self)
     }
 
     fn commit_scope(&self) -> InteractionScope {

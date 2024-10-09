@@ -110,7 +110,7 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
 
     fn included(&self, shard: &Self::Record) -> bool {
         // !shard.get_precompile_events(SyscallCode::KECCAK_PERMUTE).is_empty()
-        shard.fixed_log2_rows::<F, _>(self).is_some()
+        shard.included::<F, _>(self)
     }
 }
 

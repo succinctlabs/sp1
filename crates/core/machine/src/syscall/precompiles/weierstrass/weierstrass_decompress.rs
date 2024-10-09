@@ -284,7 +284,7 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
         //     }
         //     _ => panic!("Unsupported curve"),
         // }
-        shard.fixed_log2_rows::<F, _>(self).is_some()
+        shard.included::<F, _>(self)
     }
 }
 

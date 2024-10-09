@@ -185,7 +185,7 @@ impl<F: PrimeField> MachineAir<F> for ShiftLeft {
 
     fn included(&self, shard: &Self::Record) -> bool {
         // !shard.shift_left_events.is_empty()
-        shard.fixed_log2_rows::<F, _>(self).is_some()
+        shard.included::<F, _>(self)
     }
 }
 

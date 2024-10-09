@@ -123,7 +123,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryLocalChip {
 
     fn included(&self, shard: &Self::Record) -> bool {
         // shard.get_local_mem_events().nth(0).is_some()
-        shard.fixed_log2_rows::<F, _>(self).is_some()
+        shard.included::<F, _>(self)
     }
 
     fn commit_scope(&self) -> InteractionScope {
