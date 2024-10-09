@@ -108,11 +108,13 @@ const CORE_CACHE_SIZE: usize = 5;
 const COMPRESS_CACHE_SIZE: usize = 3;
 pub const REDUCE_BATCH_SIZE: usize = 2;
 
-const SHAPES_URL_PREFIX: &str = "https://sp1-circuits.s3.us-east-2.amazonaws.com/shapes";
-const SHAPES_VERSION: &str = "146079e0e";
-lazy_static! {
-    static ref SHAPES_INIT: Once = Once::new();
-}
+// TODO: FIX
+//
+// const SHAPES_URL_PREFIX: &str = "https://sp1-circuits.s3.us-east-2.amazonaws.com/shapes";
+// const SHAPES_VERSION: &str = "146079e0e";
+// lazy_static! {
+//     static ref SHAPES_INIT: Once = Once::new();
+// }
 
 pub type CompressAir<F> = RecursionAir<F, COMPRESS_DEGREE>;
 pub type ShrinkAir<F> = RecursionAir<F, SHRINK_DEGREE>;
@@ -162,42 +164,46 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
     /// Initializes a new [SP1Prover].
     #[instrument(name = "initialize prover", level = "debug", skip_all)]
     pub fn new() -> Self {
+        // TODO: Enable
+        //
         // Initialize the shapes (only once).
-        SHAPES_INIT.call_once(|| {
-            let shapes_dir = Self::shapes_dir();
-            if !shapes_dir.exists() {
-                std::fs::create_dir_all(&shapes_dir).expect("failed to create shapes directory");
+        // SHAPES_INIT.call_once(|| {
+        //     let shapes_dir = Self::shapes_dir();
+        //     if !shapes_dir.exists() {
+        //         std::fs::create_dir_all(&shapes_dir).expect("failed to create shapes directory");
 
-                let url = format!("{}-{}/allowed_vk_map.bin", SHAPES_URL_PREFIX, SHAPES_VERSION);
-                let allowed_vk_map_bytes = reqwest::blocking::get(url)
-                    .expect("failed to download allowed_vk_map.bin")
-                    .bytes()
-                    .expect("failed to read response body");
-                let allowed_vk_map_bytes = allowed_vk_map_bytes.as_ref().to_vec();
-                std::fs::write(shapes_dir.join("allowed_vk_map.bin"), allowed_vk_map_bytes)
-                    .unwrap();
+        //         let url = format!("{}-{}/allowed_vk_map.bin", SHAPES_URL_PREFIX, SHAPES_VERSION);
+        //         let allowed_vk_map_bytes = reqwest::blocking::get(url)
+        //             .expect("failed to download allowed_vk_map.bin")
+        //             .bytes()
+        //             .expect("failed to read response body");
+        //         let allowed_vk_map_bytes = allowed_vk_map_bytes.as_ref().to_vec();
+        //         std::fs::write(shapes_dir.join("allowed_vk_map.bin"), allowed_vk_map_bytes)
+        //             .unwrap();
 
-                let url = format!("{}-{}/dummy_vk_map.bin", SHAPES_URL_PREFIX, SHAPES_VERSION);
-                let dummy_vk_map_bytes = reqwest::blocking::get(url)
-                    .expect("failed to download dummy_vk_map.bin")
-                    .bytes()
-                    .expect("failed to read response body");
-                let dummy_vk_map_bytes = dummy_vk_map_bytes.as_ref().to_vec();
-                std::fs::write(shapes_dir.join("dummy_vk_map.bin"), dummy_vk_map_bytes).unwrap();
-            }
-        });
+        //         let url = format!("{}-{}/dummy_vk_map.bin", SHAPES_URL_PREFIX, SHAPES_VERSION);
+        //         let dummy_vk_map_bytes = reqwest::blocking::get(url)
+        //             .expect("failed to download dummy_vk_map.bin")
+        //             .bytes()
+        //             .expect("failed to read response body");
+        //         let dummy_vk_map_bytes = dummy_vk_map_bytes.as_ref().to_vec();
+        //         std::fs::write(shapes_dir.join("dummy_vk_map.bin"), dummy_vk_map_bytes).unwrap();
+        //     }
+        // });
 
         Self::uninitialized()
     }
 
-    /// Get the shapes directory.
-    pub fn shapes_dir() -> PathBuf {
-        dirs::home_dir()
-            .expect("failed to get home directory")
-            .join(".sp1")
-            .join("shapes")
-            .join(SHAPES_VERSION)
-    }
+    // TODO: FIX
+    //
+    // Get the shapes directory.
+    // pub fn shapes_dir() -> PathBuf {
+    //     dirs::home_dir()
+    //         .expect("failed to get home directory")
+    //         .join(".sp1")
+    //         .join("shapes")
+    //         .join(SHAPES_VERSION)
+    // }
 
     /// Creates a new [SP1Prover] with lazily initialized components.
     pub fn uninitialized() -> Self {
@@ -248,13 +254,18 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 
         // Read the shapes from the shapes directory and deserialize them into memory.
         let allowed_vk_map: BTreeMap<[BabyBear; DIGEST_SIZE], usize> = if vk_verification {
-            let vk_allowed_map_bytes =
-                std::fs::read(Self::shapes_dir().join("allowed_vk_map.bin")).unwrap();
-            bincode::deserialize(&vk_allowed_map_bytes).unwrap()
+            unreachable!()
+            // TODO: FIX
+            //
+            // let vk_allowed_map_bytes =
+            //     std::fs::read(Self::shapes_dir().join("allowed_vk_map.bin")).unwrap();
+            // bincode::deserialize(&vk_allowed_map_bytes).unwrap()
         } else {
-            let vk_dummy_map_bytes =
-                std::fs::read(Self::shapes_dir().join("dummy_vk_map.bin")).unwrap();
-            bincode::deserialize(&vk_dummy_map_bytes).unwrap()
+            // TODO: FIX
+            //
+            // let vk_dummy_map_bytes =
+            //     std::fs::read(Self::shapes_dir().join("dummy_vk_map.bin")).unwrap();
+            bincode::deserialize(include_bytes!("../dummy_vk_map.bin")).unwrap()
         };
 
         let (root, merkle_tree) = MerkleTree::commit(allowed_vk_map.keys().copied().collect());
