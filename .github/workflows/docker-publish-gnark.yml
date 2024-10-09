@@ -96,7 +96,7 @@ jobs:
         with:
           context: .
           file: ./Dockerfile.gnark-ffi
-          platforms: linux/amd64
+          platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.docker_tagging.outputs.docker_tags }}
           labels: ${{ steps.meta.outputs.labels }}
