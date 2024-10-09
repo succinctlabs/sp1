@@ -224,8 +224,7 @@ impl ExecutionRecord {
 
     /// Determines whether the execution record contains a trace for a given chip.
     pub fn included<F: PrimeField, A: MachineAir<F>>(&self, air: &A) -> bool {
-        let shape = self.shape.as_ref().expect("shape not initialized");
-        shape.inner.contains_key(&air.name())
+        self.shape.as_ref().is_some_and(|shape| shape.inner.contains_key(&air.name()))
     }
 
     /// Determines whether the execution record contains CPU events.
