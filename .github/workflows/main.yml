@@ -4,6 +4,7 @@ on:
   pull_request:
     branches:
       - main
+      - tamir/v1.3.0-rc2
     paths:
       - "crates/**"
       - "Cargo.toml"
