@@ -1,4 +1,4 @@
-ame: docker-gnark
+name: docker-gnark
 
 on:
   push:
