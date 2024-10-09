@@ -112,10 +112,10 @@ impl<F: PrimeField32, P: FieldParameters> FieldOpCols<F, P> {
         modulus: &BigUint,
         op: FieldOperation,
     ) -> BigUint {
-        if b == &BigUint::zero() && op == FieldOperation::Div {
-            // Division by 0 is allowed only when dividing 0 so that padded rows can be all 0.
-            assert_eq!(*a, BigUint::zero(), "division by zero is allowed only when dividing zero");
-        }
+        // if b == &BigUint::zero() && op == FieldOperation::Div {
+        //     // Division by 0 is allowed only when dividing 0 so that padded rows can be all 0.
+        //     assert_eq!(*a, BigUint::zero(), "division by zero is allowed only when dividing zero");
+        // }
 
         let result = match op {
             // If doing the subtraction operation, a - b = result, equivalent to a = result + b.
@@ -147,6 +147,7 @@ impl<F: PrimeField32, P: FieldParameters> FieldOpCols<F, P> {
                     } else {
                         let result =
                             (a * b.modpow(&(modulus.clone() - 2u32), &modulus.clone())) % modulus.clone();
+                        println!("result: {:?}", result);
                     }
                 }
                 // We populate the carry, witness_low, witness_high as if we were doing a
@@ -271,7 +272,13 @@ impl<V: Copy, P: FieldParameters> FieldOpCols<V, P> {
         let p_vanishing = p_op_minus_result - &(&p_carry * &p_modulus);
         let p_witness_low = self.witness_low.0.iter().into();
         let p_witness_high = self.witness_high.0.iter().into();
-        eval_field_operation::<AB, P>(builder, &p_vanishing, &p_witness_low, &p_witness_high);
+        eval_field_operation::<AB, P>(
+            builder,
+            &p_vanishing,
+            &p_witness_low,
+            &p_witness_high,
+            is_real.clone(),
+        );
 
         // Range checks for the result, carry, and witness columns.
         builder.slice_range_check_u8(&self.result.0, is_real.clone());

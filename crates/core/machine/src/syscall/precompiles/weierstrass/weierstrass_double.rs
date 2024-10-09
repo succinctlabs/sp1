@@ -4,9 +4,13 @@ use core::{
 };
 use std::{fmt::Debug, marker::PhantomData};
 
-use crate::{air::MemoryAirBuilder, utils::zeroed_f_vec};
+use crate::{
+    air::MemoryAirBuilder,
+    operations::{field::range::FieldLtCols, IsZeroOperation},
+    utils::zeroed_f_vec,
+};
 use generic_array::GenericArray;
-use num::{BigUint, Zero};
+use num::{BigUint, One, Zero};
 use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
@@ -51,6 +55,7 @@ pub struct WeierstrassDoubleAssignCols<T, P: FieldParameters + NumWords> {
     pub p_ptr: T,
     pub p_access: GenericArray<MemoryWriteCols<T>, P::WordsCurvePoint>,
     pub(crate) slope_denominator: FieldOpCols<T, P>,
+    // pub(crate) slope_denominator_is_zero: IsZeroOperation<T>,
     pub(crate) slope_numerator: FieldOpCols<T, P>,
     pub(crate) slope: FieldOpCols<T, P>,
     pub(crate) p_x_squared: FieldOpCols<T, P>,
@@ -78,13 +83,13 @@ impl<E: EllipticCurve + WeierstrassParameters> WeierstrassDoubleAssignChip<E> {
         shard: u32,
         cols: &mut WeierstrassDoubleAssignCols<F, E::BaseField>,
         p_x: BigUint,
-        p_y: BigUint,
+        p_y: BigUint, // is_dummy: bool,
     ) {
         // This populates necessary field operations to double a point on a Weierstrass curve.
+        println!("p_x: {:?}", p_x);
+        println!("p_y: {:?}", p_y);
 
         let a = E::a_int();
-
-        // slope = slope_numerator / slope_denominator.
         let slope = {
             // slope_numerator = a + (p.x * p.x) * 3.
             let slope_numerator = {
@@ -105,6 +110,7 @@ impl<E: EllipticCurve + WeierstrassParameters> WeierstrassDoubleAssignChip<E> {
                     FieldOperation::Add,
                 )
             };
+            println!("slope_numerator: {:?}", slope_numerator);
 
             // slope_denominator = 2 * y.
             let slope_denominator = cols.slope_denominator.populate(
@@ -237,15 +243,18 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
         let mut values = zeroed_f_vec(num_rows * num_cols);
         let chunk_size = 64;
 
+        println!("dummy row");
         let mut dummy_row = zeroed_f_vec(num_cols);
         let cols: &mut WeierstrassDoubleAssignCols<F, E::BaseField> =
             dummy_row.as_mut_slice().borrow_mut();
         let zero = BigUint::zero();
         Self::populate_field_ops(&mut vec![], 0, cols, zero.clone(), zero);
 
+        println!("events: {}", events.len());
         values.chunks_mut(chunk_size * num_cols).enumerate().par_bridge().for_each(|(i, rows)| {
             rows.chunks_mut(num_cols).enumerate().for_each(|(j, row)| {
                 let idx = i * chunk_size + j;
+                println!("idx: {}", idx);
                 if idx < events.len() {
                     let mut new_byte_lookup_events = Vec::new();
                     let cols: &mut WeierstrassDoubleAssignCols<F, E::BaseField> = row.borrow_mut();
@@ -495,6 +504,7 @@ pub mod tests {
         run_test::<CpuProver<_, _>>(program).unwrap();
     }
 
+    #[test]
     fn test_secp256r1_double_simple() {
         setup_logger();
         let program = Program::from(SECP256R1_DOUBLE_ELF).unwrap();

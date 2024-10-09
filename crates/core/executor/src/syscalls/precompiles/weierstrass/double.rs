@@ -62,6 +62,6 @@ impl<E: EllipticCurve> Syscall for WeierstrassDoubleAssignSyscall<E> {
     }
 
     fn num_extra_cycles(&self) -> u32 {
-        0
+        1
     }
 }

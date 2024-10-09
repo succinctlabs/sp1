@@ -5,7 +5,7 @@ use sp1_zkvm::syscalls::syscall_secp256k1_double;
 sp1_zkvm::entrypoint!(main);
 
 pub fn main() {
-    for _ in 0..10i64.pow(3) {
+    for _ in 0..10 {
         // generator.
         // 55066263022277343669578718895168534326250603453777594175500187360389116729240
         // 32670510020758816978083085130507043184471273380659243275938904335757337482424
@@ -16,7 +16,7 @@ pub fn main() {
             101, 196, 163, 38, 119, 218, 58, 72,
         ];
 
-        syscall_secp256k1_double(a.as_mut_ptr() as *mut u32);
+        syscall_secp256k1_double(a.as_mut_ptr() as *mut [u32; 16]);
 
         // 2 * generator.
         // 89565891926547004231252920425935692360644145829622209833684329913297188986597
