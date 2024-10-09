@@ -145,7 +145,7 @@ impl<F: PrimeField> MachineAir<F> for AddSubChip {
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
-        !shard.add_events.is_empty() || !shard.sub_events.is_empty()
+        !shard.add_events.is_empty() || !shard.sub_events.is_empty() || shard.included::<F, _>(self)
     }
 }
 

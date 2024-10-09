@@ -222,6 +222,11 @@ impl ExecutionRecord {
             .copied()
     }
 
+    /// Determines whether the execution record contains a trace for a given chip.
+    pub fn included<F: PrimeField, A: MachineAir<F>>(&self, air: &A) -> bool {
+        self.shape.as_ref().is_some_and(|shape| shape.inner.contains_key(&air.name()))
+    }
+
     /// Determines whether the execution record contains CPU events.
     #[must_use]
     pub fn contains_cpu(&self) -> bool {

@@ -125,7 +125,7 @@ impl<F: PrimeField32> MachineAir<F> for SyscallChip {
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
-        match self.shard_kind {
+        (match self.shard_kind {
             SyscallShardKind::Core => !shard.syscall_events.is_empty(),
             SyscallShardKind::Precompile => {
                 !shard.precompile_events.is_empty()
@@ -133,7 +133,7 @@ impl<F: PrimeField32> MachineAir<F> for SyscallChip {
                     && shard.global_memory_initialize_events.is_empty()
                     && shard.global_memory_finalize_events.is_empty()
             }
-        }
+        }) || shard.included::<F, _>(self)
     }
 
     fn commit_scope(&self) -> InteractionScope {

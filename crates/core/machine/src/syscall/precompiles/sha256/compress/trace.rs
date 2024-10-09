@@ -118,6 +118,7 @@ impl<F: PrimeField32> MachineAir<F> for ShaCompressChip {
 
     fn included(&self, shard: &Self::Record) -> bool {
         !shard.get_precompile_events(SyscallCode::SHA_COMPRESS).is_empty()
+            || shard.included::<F, _>(self)
     }
 }
 

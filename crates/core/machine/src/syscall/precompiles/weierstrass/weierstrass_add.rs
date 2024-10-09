@@ -262,7 +262,7 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
-        match E::CURVE_TYPE {
+        (match E::CURVE_TYPE {
             CurveType::Secp256k1 => {
                 !shard.get_precompile_events(SyscallCode::SECP256K1_ADD).is_empty()
             }
@@ -271,7 +271,7 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
                 !shard.get_precompile_events(SyscallCode::BLS12381_ADD).is_empty()
             }
             _ => panic!("Unsupported curve"),
-        }
+        }) || shard.included::<F, _>(self)
     }
 }
 
