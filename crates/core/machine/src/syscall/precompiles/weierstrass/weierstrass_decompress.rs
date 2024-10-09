@@ -535,7 +535,9 @@ mod tests {
     use sp1_core_executor::Program;
     use sp1_stark::CpuProver;
 
-    use crate::utils::{run_test_io, tests::SECP256K1_DECOMPRESS_ELF};
+    use crate::utils::{
+        run_test_io, tests::SECP256K1_DECOMPRESS_ELF, tests::SECP256R1_DECOMPRESS_ELF,
+    };
 
     #[test]
     fn test_weierstrass_bls_decompress() {
@@ -588,6 +590,34 @@ mod tests {
 
             let mut public_values = run_test_io::<CpuProver<_, _>>(
                 Program::from(SECP256K1_DECOMPRESS_ELF).unwrap(),
+                inputs,
+            )
+            .unwrap();
+            let mut result = [0; 65];
+            public_values.read_slice(&mut result);
+            assert_eq!(result, decompressed);
+        }
+    }
+
+    #[test]
+    fn test_weierstrass_p256_decompress() {
+        utils::setup_logger();
+
+        let mut rng = thread_rng();
+
+        let num_tests = 10;
+
+        for _ in 0..num_tests {
+            let secret_key = p256::SecretKey::random(&mut rng);
+            let public_key = secret_key.public_key();
+            let encoded = public_key.to_encoded_point(false);
+            let decompressed = encoded.as_bytes();
+            let compressed = public_key.to_sec1_bytes();
+
+            let inputs = SP1Stdin::from(&compressed);
+
+            let mut public_values = run_test_io::<CpuProver<_, _>>(
+                Program::from(SECP256R1_DECOMPRESS_ELF).unwrap(),
                 inputs,
             )
             .unwrap();

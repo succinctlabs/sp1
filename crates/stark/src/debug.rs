@@ -102,6 +102,7 @@ pub fn debug_constraints<SC, A>(
             eprintln!("local: {main_local:?}");
             eprintln!("next:  {main_next:?}");
             eprintln!("failed at row {} of chip {}", i, chip.name());
+
             exit(1);
         }
     });

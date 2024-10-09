@@ -122,13 +122,7 @@ where
         let p_witness_low = self.witness_low.0.iter().into();
         let p_witness_high = self.witness_high.0.iter().into();
 
-        eval_field_operation::<AB, P>(
-            builder,
-            &p_vanishing,
-            &p_witness_low,
-            &p_witness_high,
-            is_real.clone(),
-        );
+        eval_field_operation::<AB, P>(builder, &p_vanishing, &p_witness_low, &p_witness_high);
 
         // Range checks for the result, carry, and witness columns.
         builder.slice_range_check_u8(&self.result.0, is_real.clone());

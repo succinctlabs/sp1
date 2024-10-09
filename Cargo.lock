@@ -5928,6 +5928,7 @@ dependencies = [
  "nohash-hasher",
  "num",
  "num_cpus",
+ "p256",
  "p3-air",
  "p3-baby-bear",
  "p3-blake3",
