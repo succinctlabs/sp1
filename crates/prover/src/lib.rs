@@ -105,8 +105,11 @@ const COMPRESS_CACHE_SIZE: usize = 3;
 
 pub const REDUCE_BATCH_SIZE: usize = 2;
 
-const VK_ALLOWED_VK_MAP_BYTES: &[u8] = include_bytes!("../allowed_vk_map.bin");
-const DUMMY_VK_ALLOWED_VK_MAP_BYTES: &[u8] = include_bytes!("../dummy_vk_map.bin");
+const VK_ALLOWED_VK_MAP_S3_PATH: &str = "s3://sp1-circuits/shapes-d92f68069/allowed_vk_map.bin";
+const DUMMY_VK_ALLOWED_VK_MAP_S3_PATH: &str = "s3://sp1-circuits/shapes-d92f68069/dummy_vk_map.bin";
+
+// const VK_ALLOWED_VK_MAP_BYTES: &[u8] = include_bytes!("../allowed_vk_map.bin");
+// const DUMMY_VK_ALLOWED_VK_MAP_BYTES: &[u8] = include_bytes!("../dummy_vk_map.bin");
 
 pub type CompressAir<F> = RecursionAir<F, COMPRESS_DEGREE>;
 pub type ShrinkAir<F> = RecursionAir<F, SHRINK_DEGREE>;
