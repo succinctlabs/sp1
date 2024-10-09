@@ -5693,7 +5693,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-build"
-version = "2.0.0"
+version = "3.0.0-rc3"
 dependencies = [
  "anyhow",
  "cargo_metadata",
@@ -5704,7 +5704,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-cli"
-version = "2.0.0"
+version = "3.0.0-rc3"
 dependencies = [
  "anstyle",
  "anyhow",
@@ -5732,7 +5732,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-core-executor"
-version = "2.0.0"
+version = "3.0.0-rc3"
 dependencies = [
  "bincode",
  "bytemuck",
@@ -5765,7 +5765,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-core-machine"
-version = "2.0.0"
+version = "3.0.0-rc3"
 dependencies = [
  "bincode",
  "cfg-if",
@@ -5814,7 +5814,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-cuda"
-version = "2.0.0"
+version = "3.0.0-rc3"
 dependencies = [
  "bincode",
  "ctrlc",
@@ -5831,7 +5831,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-curves"
-version = "2.0.0"
+version = "3.0.0-rc3"
 dependencies = [
  "cfg-if",
  "curve25519-dalek",
@@ -5853,7 +5853,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-derive"
-version = "2.0.0"
+version = "3.0.0-rc3"
 dependencies = [
  "quote",
  "syn 1.0.109",
@@ -5861,7 +5861,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-eval"
-version = "2.0.0"
+version = "3.0.0-rc3"
 dependencies = [
  "anyhow",
  "bincode",
@@ -5881,14 +5881,14 @@ dependencies = [
 
 [[package]]
 name = "sp1-helper"
-version = "2.0.0"
+version = "3.0.0-rc3"
 dependencies = [
  "sp1-build",
 ]
 
 [[package]]
 name = "sp1-lib"
-version = "2.0.0"
+version = "3.0.0-rc3"
 dependencies = [
  "bincode",
  "serde",
@@ -5896,7 +5896,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-perf"
-version = "2.0.0"
+version = "3.0.0-rc3"
 dependencies = [
  "anyhow",
  "bincode",
@@ -5917,7 +5917,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-primitives"
-version = "2.0.0"
+version = "3.0.0-rc3"
 dependencies = [
  "bincode",
  "hex",
@@ -5933,7 +5933,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-prover"
-version = "2.0.0"
+version = "3.0.0-rc3"
 dependencies = [
  "anyhow",
  "bincode",
@@ -5973,7 +5973,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-circuit"
-version = "2.0.0"
+version = "3.0.0-rc3"
 dependencies = [
  "ff 0.13.0",
  "hashbrown 0.14.5",
@@ -6009,7 +6009,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-compiler"
-version = "2.0.0"
+version = "3.0.0-rc3"
 dependencies = [
  "backtrace",
  "criterion",
@@ -6034,7 +6034,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-core"
-version = "2.0.0"
+version = "3.0.0-rc3"
 dependencies = [
  "backtrace",
  "ff 0.13.0",
@@ -6069,7 +6069,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-derive"
-version = "2.0.0"
+version = "3.0.0-rc3"
 dependencies = [
  "quote",
  "syn 1.0.109",
@@ -6077,7 +6077,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-gnark-cli"
-version = "2.0.0"
+version = "3.0.0-rc3"
 dependencies = [
  "bincode",
  "clap",
@@ -6086,7 +6086,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-gnark-ffi"
-version = "2.0.0"
+version = "3.0.0-rc3"
 dependencies = [
  "anyhow",
  "bincode",
@@ -6110,7 +6110,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-sdk"
-version = "2.0.0"
+version = "3.0.0-rc3"
 dependencies = [
  "alloy-sol-types",
  "anyhow",
@@ -6150,7 +6150,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-stark"
-version = "2.0.0"
+version = "3.0.0-rc3"
 dependencies = [
  "arrayref",
  "getrandom 0.2.15",
@@ -6185,7 +6185,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-zkvm"
-version = "2.0.0"
+version = "3.0.0-rc3"
 dependencies = [
  "cfg-if",
  "getrandom 0.2.15",
