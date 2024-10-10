@@ -61,7 +61,10 @@ impl<F: PrimeField> MachineAir<F> for ProgramChip {
     }
 
     fn generate_preprocessed_trace(&self, program: &Self::Program) -> Option<RowMajorMatrix<F>> {
-        debug_assert!(!program.instructions.is_empty(), "empty program");
+        debug_assert!(
+            !program.instructions.is_empty() || program.preprocessed_shape.is_some(),
+            "empty program"
+        );
         let mut rows = program
             .instructions
             .iter()
