@@ -68,6 +68,12 @@ impl IntoIterator for CoreShape {
     }
 }
 
+impl FromIterator<(String, usize)> for CoreShape {
+    fn from_iter<T: IntoIterator<Item = (String, usize)>>(iter: T) -> Self {
+        Self { inner: iter.into_iter().collect() }
+    }
+}
+
 impl From<ProofShape> for CoreShape {
     fn from(value: ProofShape) -> Self {
         Self { inner: value.into_iter().collect() }

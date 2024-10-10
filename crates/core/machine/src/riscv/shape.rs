@@ -1,6 +1,6 @@
 use itertools::Itertools;
 
-use hashbrown::{HashMap, HashSet};
+use hashbrown::HashMap;
 use num::Integer;
 use p3_field::PrimeField32;
 use sp1_core_executor::{CoreShape, ExecutionRecord, Program};
@@ -37,9 +37,22 @@ pub enum CoreShapeError {
 pub struct CoreShapeConfig<F: PrimeField32> {
     included_shapes: Vec<HashMap<String, usize>>,
     allowed_preprocessed_log_heights: HashMap<RiscvAir<F>, Vec<Option<usize>>>,
-    allowed_core_log_heights: Vec<(HashMap<RiscvAir<F>, Vec<Option<usize>>>, bool)>,
+    allowed_core_log_heights: Vec<HashMap<RiscvAir<F>, Vec<Option<usize>>>>,
     memory_allowed_log_heights: HashMap<RiscvAir<F>, Vec<Option<usize>>>,
     precompile_allowed_log_heights: HashMap<RiscvAir<F>, (usize, Vec<usize>)>,
+}
+
+struct MaximalCoreShape {
+    cpu_height: usize,
+    add_sub_height: usize,
+    divrem_height: usize,
+    bitwise_height: usize,
+    mul_height: usize,
+    shift_right_height: usize,
+    shift_left_height: usize,
+    lt_height: usize,
+    memory_local_height: usize,
+    syscall_core_height: usize,
 }
 
 impl<F: PrimeField32> CoreShapeConfig<F> {
@@ -104,7 +117,7 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
             let heights = RiscvAir::<F>::core_heights(record);
 
             // Try to find a shape within the included shapes.
-            for (allowed_log_heights, _) in self.allowed_core_log_heights.iter() {
+            for allowed_log_heights in self.allowed_core_log_heights.iter() {
                 if let Some(shape) =
                     Self::find_shape_from_allowed_heights(&heights, allowed_log_heights)
                 {
@@ -229,39 +242,6 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
         let included_shapes =
             self.included_shapes.iter().cloned().map(|map| map.into_iter().collect::<ProofShape>());
 
-        let cpu_name = || RiscvAir::<F>::Cpu(CpuChip::default()).name();
-        let memory_local_name = || RiscvAir::<F>::MemoryLocal(MemoryLocalChip::new()).name();
-        let syscall_name = || RiscvAir::<F>::SyscallCore(SyscallChip::core()).name();
-        let core_filter = move |shape: &ProofShape| {
-            let core_airs = RiscvAir::<F>::get_all_core_airs()
-                .into_iter()
-                .map(|air| air.name())
-                .filter(|name| name != &memory_local_name() && name != &syscall_name())
-                .collect::<HashSet<_>>();
-            let core_chips_and_heights = shape
-                .chip_information
-                .iter()
-                .filter(|(name, _)| core_airs.contains(name))
-                .cloned()
-                .collect::<Vec<_>>();
-
-            let cpu_name = cpu_name();
-
-            let biggest_height =
-                *core_chips_and_heights.iter().map(|(_, height)| height).max().unwrap();
-            let cpu_height =
-                core_chips_and_heights.iter().find(|(name, _)| *name == cpu_name).unwrap().1;
-
-            if biggest_height != cpu_height {
-                return false;
-            }
-
-            let num_airs_at_cpu_height =
-                core_chips_and_heights.iter().filter(|(_, height)| *height == cpu_height).count();
-
-            num_airs_at_cpu_height <= 2
-        };
-
         let precompile_only_shapes = self.precompile_allowed_log_heights.iter().flat_map(
             move |(air, (mem_events_per_row, allowed_log_heights))| {
                 allowed_log_heights.iter().flat_map(move |allowed_log_height| {
@@ -283,21 +263,36 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
                 });
 
         included_shapes
-            .chain(self.allowed_core_log_heights.iter().flat_map(
-                move |(allowed_log_heights, filter)| {
-                    Self::generate_all_shapes_from_allowed_log_heights({
-                        let mut log_heights = allowed_log_heights
-                            .iter()
-                            .map(|(air, heights)| (air.name(), heights.clone()))
-                            .collect::<HashMap<_, _>>();
-                        log_heights.extend(preprocessed_heights.clone());
-                        log_heights
-                    })
-                    .filter(move |shape| !filter || core_filter(shape))
-                },
-            ))
+            .chain(self.allowed_core_log_heights.iter().flat_map(move |allowed_log_heights| {
+                Self::generate_all_shapes_from_allowed_log_heights({
+                    let mut log_heights = allowed_log_heights
+                        .iter()
+                        .map(|(air, heights)| (air.name(), heights.clone()))
+                        .collect::<HashMap<_, _>>();
+                    log_heights.extend(preprocessed_heights.clone());
+                    log_heights
+                })
+                // .filter(move |shape| !filter || core_filter(shape))
+            }))
             .chain(Self::generate_all_shapes_from_allowed_log_heights(memory_heights))
             .chain(precompile_shapes)
+    }
+
+    pub fn maximal_core_shapes(&self) -> Vec<CoreShape> {
+        let max_preprocessed = self
+            .allowed_preprocessed_log_heights
+            .iter()
+            .map(|(air, allowed_heights)| (air.name(), allowed_heights.last().unwrap().unwrap()));
+
+        let max_core_shapes = self.allowed_core_log_heights.iter().map(|allowed_log_heights| {
+            max_preprocessed
+                .clone()
+                .chain(allowed_log_heights.iter().map(|(air, allowed_heights)| {
+                    (air.name(), allowed_heights.last().unwrap().unwrap())
+                }))
+                .collect::<CoreShape>()
+        });
+        max_core_shapes.collect()
     }
 }
 
@@ -306,8 +301,8 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
         let included_shapes = vec![];
 
         // Preprocessed chip heights.
-        let program_heights = vec![Some(16), Some(19), Some(20), Some(21), Some(22)];
-        let program_memory_heights = vec![Some(16), Some(19), Some(20), Some(21), Some(22)];
+        let program_heights = vec![Some(19), Some(20), Some(21), Some(22)];
+        let program_memory_heights = vec![Some(19), Some(20), Some(21), Some(22)];
 
         let allowed_preprocessed_log_heights = HashMap::from([
             (RiscvAir::Program(ProgramChip::default()), program_heights),
@@ -317,27 +312,48 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
 
         let mut allowed_core_log_heights = vec![];
 
-        let small_cpu_heights = vec![16, 18, 20];
+        let maximal_core_shapes = [MaximalCoreShape {
+            cpu_height: 21,
+            lt_height: 21,
+            add_sub_height: 21,
+            bitwise_height: 19,
+            divrem_height: 18,
+            mul_height: 16,
+            shift_right_height: 16,
+            shift_left_height: 16,
+            syscall_core_height: 19,
+            memory_local_height: 18,
+        }];
 
-        for height in small_cpu_heights {
-            assert!(height > 1);
-            // Get the heights for the short shape cluster (for small shards).
-            let cpu_heights = vec![Some(height)];
-            let divrem_heights = vec![None, Some(height - 1), Some(height)];
-            let add_sub_heights = vec![None, Some(height - 1), Some(height)];
-            let bitwise_heights = vec![None, Some(height - 1), Some(height)];
-            let mul_heights = vec![None, Some(height - 1), Some(height)];
-            let shift_right_heights = vec![None, Some(height - 1), Some(height)];
-            let shift_left_heights = vec![None, Some(height - 1), Some(height)];
-            let lt_heights = vec![None, Some(height - 1), Some(height)];
-            let memory_local_heights = vec![Some(height - 1), Some(height), Some(height + 1)];
-            let syscall_heights = vec![None, Some(height - 1), Some(height)];
+        for shape in maximal_core_shapes {
+            let cpu_heights = vec![Some(shape.cpu_height)];
+            let add_sub_heights = vec![Some(shape.add_sub_height)];
+            let lt_heights = vec![Some(shape.lt_height)];
+            let bitwise_heights = vec![Some(shape.bitwise_height - 1), Some(shape.bitwise_height)];
+            let divrem_heights = vec![
+                None,
+                Some(shape.divrem_height - 2),
+                Some(shape.divrem_height - 1),
+                Some(shape.divrem_height),
+            ];
+            let mul_heights = vec![None, Some(shape.mul_height - 1), Some(shape.mul_height)];
+            let shift_right_heights =
+                vec![Some(shape.shift_right_height - 1), Some(shape.shift_right_height)];
+            let shift_left_heights =
+                vec![Some(shape.shift_left_height - 1), Some(shape.shift_left_height)];
+            let memory_local_heights = vec![
+                Some(shape.memory_local_height - 1),
+                Some(shape.memory_local_height - 1),
+                Some(shape.memory_local_height),
+            ];
+            let syscall_heights =
+                vec![Some(shape.syscall_core_height - 1), Some(shape.syscall_core_height)];
 
             let short_allowed_log_heights = HashMap::from([
                 (RiscvAir::Cpu(CpuChip::default()), cpu_heights),
-                (RiscvAir::DivRem(DivRemChip::default()), divrem_heights),
                 (RiscvAir::Add(AddSubChip::default()), add_sub_heights),
                 (RiscvAir::Bitwise(BitwiseChip::default()), bitwise_heights),
+                (RiscvAir::DivRem(DivRemChip::default()), divrem_heights),
                 (RiscvAir::Mul(MulChip::default()), mul_heights),
                 (RiscvAir::ShiftRight(ShiftRightChip::default()), shift_right_heights),
                 (RiscvAir::ShiftLeft(ShiftLeft::default()), shift_left_heights),
@@ -345,7 +361,7 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
                 (RiscvAir::MemoryLocal(MemoryLocalChip::new()), memory_local_heights),
                 (RiscvAir::SyscallCore(SyscallChip::core()), syscall_heights),
             ]);
-            allowed_core_log_heights.push((short_allowed_log_heights, true));
+            allowed_core_log_heights.push(short_allowed_log_heights);
         }
 
         // Set the memory init and finalize heights.
@@ -380,7 +396,6 @@ pub mod tests {
     use std::fmt::Debug;
 
     use p3_challenger::{CanObserve, FieldChallenger};
-    use p3_matrix::Matrix;
     use sp1_stark::{air::InteractionScope, Dom, MachineProver, StarkGenericConfig};
 
     use super::*;
@@ -399,19 +414,11 @@ pub mod tests {
         let record = shape.dummy_record();
 
         // Try doing setup.
-        let (pk, vk) = prover.setup(&program);
-
-        println!("Chip information: {:?}", vk.chip_information);
+        let (pk, _) = prover.setup(&program);
 
         // Try to generate traces.
         let global_traces = prover.generate_traces(&record, InteractionScope::Global);
-        for (name, trace) in global_traces.iter() {
-            println!("Global trace for {}: ({}, {})", name, trace.width(), trace.height());
-        }
         let local_traces = prover.generate_traces(&record, InteractionScope::Local);
-        for (name, trace) in local_traces.iter() {
-            println!("Local trace for {}: ({}, {})", name, trace.width(), trace.height());
-        }
 
         // Try to commit the traces.
         let global_data = prover.commit(&record, global_traces);
