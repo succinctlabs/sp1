@@ -34,3 +34,5 @@ crates/prover/powersOfTau28_hez_final.ptau
 crates/prover/semaphore-gnark-11
 crates/prover/trusted-setup
 crates/prover/vk
+crates/prover/wrap_vk.bin
+crates/prover/wraped_proof.bin
