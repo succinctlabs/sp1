@@ -109,8 +109,11 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
-        !shard.get_precompile_events(SyscallCode::KECCAK_PERMUTE).is_empty()
-            || shard.included::<F, _>(self)
+        if let Some(shape) = shard.shape.as_ref() {
+            shape.included::<F, _>(self)
+        } else {
+            !shard.get_precompile_events(SyscallCode::KECCAK_PERMUTE).is_empty()
+        }
     }
 }
 

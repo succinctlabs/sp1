@@ -90,7 +90,11 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
-        shard.contains_cpu() || shard.included::<F, _>(self)
+        if let Some(shape) = shard.shape.as_ref() {
+            shape.included::<F, _>(self)
+        } else {
+            shard.contains_cpu()
+        }
     }
 }
 

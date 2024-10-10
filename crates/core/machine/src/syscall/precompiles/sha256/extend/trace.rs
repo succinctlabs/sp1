@@ -90,8 +90,11 @@ impl<F: PrimeField32> MachineAir<F> for ShaExtendChip {
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
-        !shard.get_precompile_events(SyscallCode::SHA_EXTEND).is_empty()
-            || shard.included::<F, _>(self)
+        if let Some(shape) = shard.shape.as_ref() {
+            shape.included::<F, _>(self)
+        } else {
+            !shard.get_precompile_events(SyscallCode::SHA_EXTEND).is_empty()
+        }
     }
 }
 

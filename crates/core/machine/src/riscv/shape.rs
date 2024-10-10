@@ -447,7 +447,6 @@ pub mod tests {
     }
 
     #[test]
-    #[ignore]
     fn test_dummy_record() {
         use crate::utils::setup_logger;
         use p3_baby_bear::BabyBear;

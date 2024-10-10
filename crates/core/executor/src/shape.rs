@@ -1,8 +1,9 @@
 use std::sync::Arc;
 
 use hashbrown::{HashMap, HashSet};
+use p3_field::PrimeField;
 use serde::{Deserialize, Serialize};
-use sp1_stark::ProofShape;
+use sp1_stark::{air::MachineAir, ProofShape};
 
 use crate::{ExecutionRecord, Program};
 
@@ -35,6 +36,11 @@ impl CoreShape {
         let mut record = ExecutionRecord::new(program);
         record.shape = Some(self.clone());
         record
+    }
+
+    /// Determines whether the execution record contains a trace for a given chip.
+    pub fn included<F: PrimeField, A: MachineAir<F>>(&self, air: &A) -> bool {
+        self.inner.contains_key(&air.name())
     }
 }
 
