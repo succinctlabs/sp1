@@ -187,13 +187,14 @@ pub fn build_vk_map_to_file<C: SP1ProverComponents>(
 
     tracing::info!("Building vk set");
 
-    let (vk_set, _, _) = build_vk_map::<C>(
+    let (vk_set, panic_ids, _) = build_vk_map::<C>(
         reduce_batch_size,
         dummy,
         num_compiler_workers,
         num_setup_workers,
         range_start.and_then(|start| range_end.map(|end| (start..end).collect())),
     );
+    assert!(panic_ids.is_empty());
 
     let vk_map = vk_set.into_iter().enumerate().map(|(i, vk)| (vk, i)).collect::<BTreeMap<_, _>>();
 
