@@ -85,6 +85,7 @@ pub fn build_vk_map<C: SP1ProverComponents>(
             SP1ProofShape::generate(core_shape_config, recursion_shape_config, reduce_batch_size)
                 .collect::<BTreeSet<_>>();
         let num_shapes = all_shapes.len();
+        println!("num_shapes: {}", num_shapes);
 
         let height = num_shapes.next_power_of_two().ilog2() as usize;
         let chunk_size = indices_set.as_ref().map(|indices| indices.len()).unwrap_or(num_shapes);

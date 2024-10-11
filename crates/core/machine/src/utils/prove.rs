@@ -241,9 +241,11 @@ where
                                         shape_config,
                                     )
                                 });
+                            log::info!("generated {} records", records.len());
                             reset_seek(&mut checkpoint);
 
                             // Wait for our turn to update the state.
+                            log::info!("waiting for turn {}", index);
                             record_gen_sync.wait_for_turn(index);
 
                             // Update the public values & prover state for the shards which contain
@@ -269,6 +271,7 @@ where
 
                             // See if any deferred shards are ready to be commited to.
                             let mut deferred = deferred.split(done, opts.split_opts);
+                            log::info!("deferred {} records", deferred.len());
 
                             // Update the public values & prover state for the shards which do not
                             // contain "cpu events" before committing to them.
@@ -291,6 +294,7 @@ where
                             records.append(&mut deferred);
 
                             // Collect the checkpoints to be used again in the phase 2 prover.
+                            log::info!("collecting checkpoints");
                             let mut checkpoints = checkpoints.lock().unwrap();
                             checkpoints.push_back((index, checkpoint, done));
 
@@ -471,6 +475,7 @@ where
                                         shape_config,
                                     )
                                 });
+                            log::info!("generated {} records", records.len());
                             *report_aggregate.lock().unwrap() += report;
                             reset_seek(&mut checkpoint);
 
@@ -500,6 +505,7 @@ where
 
                             // See if any deferred shards are ready to be commited to.
                             let mut deferred = deferred.split(done, opts.split_opts);
+                            log::info!("deferred {} records", deferred.len());
 
                             // Update the public values & prover state for the shards which do not
                             // contain "cpu events" before committing to them.
@@ -837,6 +843,7 @@ where
 
     // Execute from the checkpoint.
     let (mut records_long, _) = runtime.execute_record().unwrap();
+    log::info!("executed {} records", records_long.len());
 
     // Set the parameters for the shape dropping logic.
     const LONG_SHARD_SIZE: usize = 1 << 21;
@@ -855,12 +862,19 @@ where
         let mut oom_shape_idxs = Vec::new();
         for (i, record) in records_long.iter_mut().enumerate() {
             match shape_config.fix_shape(record) {
-                Ok(_) => (),
-                Err(_) => oom_shape_idxs.push(i),
-            }
+                Ok(_) => {
+                    log::info!("found satisfying shape");
+                    record.shape = None;
+                }
+                Err(_) => {
+                    log::info!("found unsatisfying shape");
+                    oom_shape_idxs.push(i);
+                }
+            };
         }
 
         if !oom_shape_idxs.is_empty() {
+            log::info!("found {} unsatisfying shapes", oom_shape_idxs.len());
             let mut opts = opts;
             opts.shard_size = SHORT_SHARD_SIZE;
             opts.shard_batch_size *= LONG_SHORT_RATIO;
@@ -872,18 +886,20 @@ where
             let mut records_combined = Vec::new();
             for i in 0..records_long.len() {
                 if oom_shape_idxs.contains(&i) {
-                    records_combined.extend_from_slice(
-                        &records_short[i * LONG_SHORT_RATIO..(i + 1) * LONG_SHORT_RATIO],
-                    );
+                    let start = i * LONG_SHORT_RATIO;
+                    let end = std::cmp::min((i + 1) * LONG_SHORT_RATIO, records_short.len());
+                    records_combined.extend_from_slice(&records_short[start..end]);
                 } else {
                     records_combined.push(records_long[i].clone());
                 }
             }
 
+            log::info!("combined {} records", records_combined.len());
             return (records_combined, runtime.report);
         }
     }
 
+    log::info!("no shapes to drop, using {} records", records_long.len());
     (records_long, runtime.report)
 }
 

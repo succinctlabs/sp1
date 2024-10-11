@@ -306,8 +306,8 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
         let included_shapes = vec![];
 
         // Preprocessed chip heights.
-        let program_heights = vec![Some(16), Some(19), Some(20), Some(21), Some(22)];
-        let program_memory_heights = vec![Some(16), Some(19), Some(20), Some(21), Some(22)];
+        let program_heights = vec![Some(22)];
+        let program_memory_heights = vec![Some(22)];
 
         let allowed_preprocessed_log_heights = HashMap::from([
             (RiscvAir::Program(ProgramChip::default()), program_heights),
@@ -317,21 +317,21 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
 
         let mut allowed_core_log_heights = vec![];
 
-        let small_cpu_heights = vec![16, 18, 20];
+        let small_cpu_heights = vec![19, 20];
 
         for height in small_cpu_heights {
             assert!(height > 1);
             // Get the heights for the short shape cluster (for small shards).
             let cpu_heights = vec![Some(height)];
-            let divrem_heights = vec![None, Some(height - 1), Some(height)];
-            let add_sub_heights = vec![None, Some(height - 1), Some(height)];
-            let bitwise_heights = vec![None, Some(height - 1), Some(height)];
-            let mul_heights = vec![None, Some(height - 1), Some(height)];
-            let shift_right_heights = vec![None, Some(height - 1), Some(height)];
-            let shift_left_heights = vec![None, Some(height - 1), Some(height)];
-            let lt_heights = vec![None, Some(height - 1), Some(height)];
-            let memory_local_heights = vec![Some(height - 1), Some(height), Some(height + 1)];
-            let syscall_heights = vec![None, Some(height - 1), Some(height)];
+            let divrem_heights = vec![Some(height)];
+            let add_sub_heights = vec![Some(height)];
+            let bitwise_heights = vec![Some(height)];
+            let mul_heights = vec![Some(height)];
+            let shift_right_heights = vec![Some(height)];
+            let shift_left_heights = vec![Some(height)];
+            let lt_heights = vec![Some(height)];
+            let memory_local_heights = vec![Some(height + 1)];
+            let syscall_heights = vec![Some(height)];
 
             let short_allowed_log_heights = HashMap::from([
                 (RiscvAir::Cpu(CpuChip::default()), cpu_heights),
@@ -349,17 +349,15 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
         }
 
         // Set the memory init and finalize heights.
-        let memory_init_heights =
-            vec![None, Some(10), Some(16), Some(18), Some(19), Some(20), Some(21)];
-        let memory_finalize_heights =
-            vec![None, Some(10), Some(16), Some(18), Some(19), Some(20), Some(21)];
+        let memory_init_heights = vec![None, Some(21)];
+        let memory_finalize_heights = vec![None, Some(21)];
         let memory_allowed_log_heights = HashMap::from([
             (RiscvAir::MemoryGlobalInit(MemoryGlobalChip::new(Initialize)), memory_init_heights),
             (RiscvAir::MemoryGlobalFinal(MemoryGlobalChip::new(Finalize)), memory_finalize_heights),
         ]);
 
         let mut precompile_allowed_log_heights = HashMap::new();
-        let precompile_heights = (1..19).collect::<Vec<_>>();
+        let precompile_heights = (18..19).collect::<Vec<_>>();
         for (air, mem_events_per_row) in RiscvAir::<F>::get_all_precompile_airs() {
             precompile_allowed_log_heights
                 .insert(air, (mem_events_per_row, precompile_heights.clone()));

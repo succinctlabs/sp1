@@ -236,33 +236,34 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 
         let core_shape_config = env::var("FIX_CORE_SHAPES")
             .map(|v| v.eq_ignore_ascii_case("true"))
-            .unwrap_or(false)
+            .unwrap_or(true)
             .then_some(CoreShapeConfig::default());
 
         let recursion_shape_config = env::var("FIX_RECURSION_SHAPES")
             .map(|v| v.eq_ignore_ascii_case("true"))
-            .unwrap_or(false)
+            .unwrap_or(true)
             .then_some(RecursionShapeConfig::default());
 
         let vk_verification =
-            env::var("VERIFY_VK").map(|v| v.eq_ignore_ascii_case("true")).unwrap_or(false);
+            env::var("VERIFY_VK").map(|v| v.eq_ignore_ascii_case("true")).unwrap_or(true);
 
         tracing::info!("vk verification: {}", vk_verification);
 
         // Read the shapes from the shapes directory and deserialize them into memory.
         let allowed_vk_map: BTreeMap<[BabyBear; DIGEST_SIZE], usize> = if vk_verification {
-            unreachable!()
             // TODO: FIX
             //
             // let vk_allowed_map_bytes =
             //     std::fs::read(Self::shapes_dir().join("allowed_vk_map.bin")).unwrap();
             // bincode::deserialize(&vk_allowed_map_bytes).unwrap()
+
+            bincode::deserialize(include_bytes!("../vk_map.bin")).unwrap()
         } else {
             // TODO: FIX
             //
             // let vk_dummy_map_bytes =
             //     std::fs::read(Self::shapes_dir().join("dummy_vk_map.bin")).unwrap();
-            bincode::deserialize(include_bytes!("../dummy_vk_map.bin")).unwrap()
+            bincode::deserialize(include_bytes!("../vk_map.bin")).unwrap()
         };
 
         let (root, merkle_tree) = MerkleTree::commit(allowed_vk_map.keys().copied().collect());
