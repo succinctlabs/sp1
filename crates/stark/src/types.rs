@@ -1,5 +1,6 @@
 #![allow(missing_docs)]
 
+use core::fmt;
 use std::{cmp::Reverse, collections::BTreeSet, fmt::Debug};
 
 use hashbrown::HashMap;
@@ -230,5 +231,16 @@ impl IntoIterator for ProofShape {
 
     fn into_iter(self) -> Self::IntoIter {
         self.chip_information.into_iter()
+    }
+}
+
+impl fmt::Display for ProofShape {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // Print the proof shapes in a human-readable format
+        writeln!(f, "Proofshape:")?;
+        for (name, log_degree) in &self.chip_information {
+            writeln!(f, "{name}: {}", 1 << log_degree)?;
+        }
+        Ok(())
     }
 }
