@@ -297,6 +297,8 @@ where
                                     if let Err(e) = fix_result {
                                         tracing::warn!("error fixing shape: {e}");
                                         panic!("Fixing shape failed");
+                                    } else {
+                                        tracing::info!("Found shape for record");
                                     }
                                 }
                             }
