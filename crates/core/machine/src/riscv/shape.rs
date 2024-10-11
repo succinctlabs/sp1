@@ -330,7 +330,7 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
             CoreShapeSpec {
                 cpu_height: vec![Some(21)],
                 add_sub_height: vec![Some(19), Some(20)],
-                lt_height: vec![Some(19), Some(20)],
+                lt_height: vec![Some(19)],
                 bitwise_height: vec![Some(20)],
                 shift_right_height: vec![Some(16), Some(17), Some(18), Some(19)],
                 shift_left_height: vec![Some(16), Some(17), Some(18), Some(19)],
