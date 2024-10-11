@@ -327,6 +327,18 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
                 mul_height: vec![Some(10), Some(16), Some(18)],
                 divrem_height: vec![Some(10), Some(16), Some(17)],
             },
+            CoreShapeSpec {
+                cpu_height: vec![Some(21)],
+                add_sub_height: vec![Some(19), Some(20)],
+                lt_height: vec![Some(19)],
+                bitwise_height: vec![Some(20)],
+                shift_right_height: vec![Some(16), Some(17), Some(18), Some(19)],
+                shift_left_height: vec![Some(16), Some(17), Some(18), Some(19)],
+                syscall_core_height: vec![Some(16), Some(17), Some(19)],
+                memory_local_height: vec![Some(16), Some(18), Some(19)],
+                mul_height: vec![Some(10), Some(16), Some(18)],
+                divrem_height: vec![Some(10), Some(16), Some(17)],
+            },
             // LT in <= 1<<20
             //
             // For records with a lot of `LT` instructions, but less than 1<<20, this cluster is
