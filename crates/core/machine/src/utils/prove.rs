@@ -866,8 +866,8 @@ where
                     log::info!("found satisfying shape");
                     record.shape = None;
                 }
-                Err(_) => {
-                    log::info!("found unsatisfying shape");
+                Err(e) => {
+                    log::warn!("No shape found, {:?}", e);
                     oom_shape_idxs.push(i);
                 }
             };
