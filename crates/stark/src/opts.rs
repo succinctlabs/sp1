@@ -87,7 +87,8 @@ impl Default for SP1CoreOpts {
 
         let sys = System::new_all();
         let total_available_mem = sys.total_memory() / (1024 * 1024 * 1024);
-        let default_shard_size = shard_size(total_available_mem);
+        // TODO: fix.
+        let default_shard_size = 1 << 21; //shard_size(total_available_mem) ;
         let default_shard_batch_size = shard_batch_size(total_available_mem);
 
         Self {
