@@ -4,7 +4,9 @@ use std::sync::{Arc, RwLock, RwLockWriteGuard};
 
 use hashbrown::HashMap;
 use sp1_curves::k256::{Invert, RecoveryId, Signature, VerifyingKey};
-use sp1_curves::p256::{Invert, RecoveryId, Signature, VerifyingKey};
+use sp1_curves::p256::{
+    Invert as p256Invert, Signature as p256Signature, VerifyingKey as p256VerifyingKey,
+};
 
 use crate::Executor;
 
@@ -152,16 +154,15 @@ pub fn hook_r1_ecrecover(_: HookEnv, buf: &[u8]) -> Vec<Vec<u8>> {
     let msg_hash: &[u8; 32] = msg_hash.try_into().unwrap();
 
     let mut recovery_id = sig[64];
-    let mut sig = p256::Signature::from_slice(&sig[..64]).unwrap();
+    let mut sig = p256Signature::from_slice(&sig[..64]).unwrap();
 
     if let Some(sig_normalized) = sig.normalize_s() {
         sig = sig_normalized;
         recovery_id ^= 1;
     };
-    let recid = p256::RecoveryId::from_byte(recovery_id).expect("Computed recovery ID is invalid!");
+    let recid = RecoveryId::from_byte(recovery_id).expect("Computed recovery ID is invalid!");
 
-    let recovered_key =
-        p256::VerifyingKey::recover_from_prehash(&msg_hash[..], &sig, recid).unwrap();
+    let recovered_key = p256VerifyingKey::recover_from_prehash(&msg_hash[..], &sig, recid).unwrap();
     let bytes = recovered_key.to_sec1_bytes();
 
     let (_, s) = sig.split_scalars();

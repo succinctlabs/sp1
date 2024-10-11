@@ -33,6 +33,16 @@ fn main() {
         0
     );
 
+    assert_ne!(report.syscall_counts[sp1_core_executor::syscalls::SyscallCode::SECP256R1_ADD], 0);
+    assert_ne!(
+        report.syscall_counts[sp1_core_executor::syscalls::SyscallCode::SECP256R1_DOUBLE],
+        0
+    );
+    assert_ne!(
+        report.syscall_counts[sp1_core_executor::syscalls::SyscallCode::SECP256R1_DECOMPRESS],
+        0
+    );
+
     println!("Total instructions: {:?}", report.total_instruction_count());
     println!("Successfully executed the program & confirmed syscalls.");
 }

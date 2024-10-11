@@ -15,15 +15,15 @@ use ed25519_dalek::{
 
 use sha2_v0_10_6::{Digest as Digest_10_6, Sha256 as Sha256_10_6};
 // use sha2_v0_10_8::{Digest as Digest_10_8, Sha256 as Sha256_10_8};
-use sha2_v0_9_8::{Digest as Digest_9_8, Sha256 as Sha256_9_8};
-use tiny_keccak::{Hasher, Keccak};
-
+// use hex::FromHex;
 use secp256k1::{
     ecdsa::{
         RecoverableSignature as Secp256k1RecoverableSignature, RecoveryId as Secp256k1RecoveryId,
     },
     Message as Secp256k1Message,
 };
+use sha2_v0_9_8::{Digest as Digest_9_8, Sha256 as Sha256_9_8};
+use tiny_keccak::{Hasher, Keccak};
 
 /// Simple interface to the [`keccak256`] hash function.
 ///
@@ -122,6 +122,14 @@ fn test_sha256() {
     // let output_10_8 = sha256_10_8.finalize();
 }
 
+fn test_p256_patch() {
+    let precompile_input = Bytes::from_hex("b5a77e7a90aa14e0bf5f337f06f597148676424fae26e175c6e5621c34351955289f319789da424845c9eac935245fcddd805950e2f02506d09be7e411199556d262144475b1fa46ad85250728c600c53dfd10f8b3f4adf140e27241aec3c2da3a81046703fccf468b48b145f939efdbb96c3786db712b3113bb2488ef286cdcef8afe82d200a5bb36b5462166e8ce77f2d831a52ef2135b2af188110beaefb1").unwrap();
+
+    let result = revm_precompile::secp256r1::verify_impl(&precompile_input);
+
+    assert!(result);
+}
+
 /// Emits SECP256K1_ADD, SECP256K1_DOUBLE, and SECP256K1_DECOMPRESS syscalls.
 /// Source: https://github.com/alloy-rs/core/blob/adcf7adfa1f35c56e6331bab85b8c56d32a465f1/crates/primitives/src/signature/sig.rs#L620-L631
 fn test_k256_patch() {
@@ -199,4 +207,5 @@ fn main() {
 
     test_k256_patch();
     test_secp256k1_patch();
+    test_p256_patch();
 }

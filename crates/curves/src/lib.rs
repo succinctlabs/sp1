@@ -19,7 +19,7 @@ pub mod k256 {
 
 pub mod p256 {
     pub use p256::{
-        ecdsa::{RecoveryId, Signature, VerifyingKey},
+        ecdsa::{Signature, VerifyingKey},
         elliptic_curve::ops::Invert,
     };
 }
