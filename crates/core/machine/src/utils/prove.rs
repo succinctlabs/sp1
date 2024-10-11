@@ -29,7 +29,7 @@ use crate::{
     riscv::cost::CostEstimator,
     utils::{chunk_vec, concurrency::TurnBasedSync},
 };
-use sp1_core_executor::events::sorted_table_lines;
+use sp1_core_executor::{events::sorted_table_lines, ExecutionState};
 use sp1_primitives::io::SP1PublicValues;
 
 use sp1_core_executor::{
@@ -233,7 +233,14 @@ where
                         if let Ok((index, mut checkpoint, done)) = received {
                             // Trace the checkpoint and reconstruct the execution records.
                             let (mut records, _) = tracing::debug_span!("trace checkpoint")
-                                .in_scope(|| trace_checkpoint(program.clone(), &checkpoint, opts));
+                                .in_scope(|| {
+                                    trace_checkpoint::<SC>(
+                                        program.clone(),
+                                        &checkpoint,
+                                        opts,
+                                        shape_config,
+                                    )
+                                });
                             reset_seek(&mut checkpoint);
 
                             // Wait for our turn to update the state.
@@ -456,7 +463,14 @@ where
                         if let Some((index, mut checkpoint, done)) = received {
                             // Trace the checkpoint and reconstruct the execution records.
                             let (mut records, report) = tracing::debug_span!("trace checkpoint")
-                                .in_scope(|| trace_checkpoint(program.clone(), &checkpoint, opts));
+                                .in_scope(|| {
+                                    trace_checkpoint::<SC>(
+                                        program.clone(),
+                                        &checkpoint,
+                                        opts,
+                                        shape_config,
+                                    )
+                                });
                             *report_aggregate.lock().unwrap() += report;
                             reset_seek(&mut checkpoint);
 
@@ -803,19 +817,74 @@ where
     run_test_machine_with_prover::<SC, A, CpuProver<_, _>>(&prover, records, pk, vk)
 }
 
-fn trace_checkpoint(
+fn trace_checkpoint<SC: StarkGenericConfig>(
     program: Program,
     file: &File,
     opts: SP1CoreOpts,
-) -> (Vec<ExecutionRecord>, ExecutionReport) {
+    shape_config: Option<&CoreShapeConfig<SC::Val>>,
+) -> (Vec<ExecutionRecord>, ExecutionReport)
+where
+    <SC as StarkGenericConfig>::Val: PrimeField32,
+{
     let mut reader = std::io::BufReader::new(file);
-    let state = bincode::deserialize_from(&mut reader).expect("failed to deserialize state");
-    let mut runtime = Executor::recover(program.clone(), state, opts);
+    let state: ExecutionState =
+        bincode::deserialize_from(&mut reader).expect("failed to deserialize state");
+    let mut runtime = Executor::recover(program.clone(), state.clone(), opts);
+
     // We already passed the deferred proof verifier when creating checkpoints, so the proofs were
     // already verified. So here we use a noop verifier to not print any warnings.
     runtime.subproof_verifier = Arc::new(NoOpSubproofVerifier);
-    let (events, _) = runtime.execute_record().unwrap();
-    (events, runtime.report)
+
+    // Execute from the checkpoint.
+    let (mut records_long, _) = runtime.execute_record().unwrap();
+
+    // Set the parameters for the shape dropping logic.
+    const LONG_SHARD_SIZE: usize = 1 << 21;
+    const SHORT_SHARD_SIZE: usize = 1 << 19;
+    const LONG_SHORT_RATIO: usize = LONG_SHARD_SIZE / SHORT_SHARD_SIZE;
+
+    // If the shape config is provided, we need to drop shapes dynamically.
+    //
+    // If we find a long shard shape that doesn't fit in memory, we'll use a short shard size to
+    // guarantee that we don't OOM on GPU.
+    //
+    // TODO: only enable this on GPU?
+    if let Some(shape_config) = shape_config {
+        assert_eq!(opts.shard_size, LONG_SHARD_SIZE);
+
+        let mut oom_shape_idxs = Vec::new();
+        for (i, record) in records_long.iter_mut().enumerate() {
+            match shape_config.fix_shape(record) {
+                Ok(_) => (),
+                Err(_) => oom_shape_idxs.push(i),
+            }
+        }
+
+        if !oom_shape_idxs.is_empty() {
+            let mut opts = opts;
+            opts.shard_size = SHORT_SHARD_SIZE;
+            opts.shard_batch_size *= LONG_SHORT_RATIO;
+
+            let mut runtime = Executor::recover(program.clone(), state, opts);
+            runtime.subproof_verifier = Arc::new(NoOpSubproofVerifier);
+            let (records_short, _) = runtime.execute_record().unwrap();
+
+            let mut records_combined = Vec::new();
+            for i in 0..records_long.len() {
+                if oom_shape_idxs.contains(&i) {
+                    records_combined.extend_from_slice(
+                        &records_short[i * LONG_SHORT_RATIO..(i + 1) * LONG_SHORT_RATIO],
+                    );
+                } else {
+                    records_combined.push(records_long[i].clone());
+                }
+            }
+
+            return (records_combined, runtime.report);
+        }
+    }
+
+    (records_long, runtime.report)
 }
 
 fn reset_seek(file: &mut File) {
