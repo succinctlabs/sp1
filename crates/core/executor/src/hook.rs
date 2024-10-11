@@ -147,7 +147,7 @@ pub fn hook_k1_ecrecover(_: HookEnv, buf: &[u8]) -> Vec<Vec<u8>> {
     vec![bytes.to_vec(), s_inverse.to_bytes().to_vec()]
 }
 
-/// Recovers the public key from the signature and message hash using the p256 crate.
+/// Recovers the public key from the signature and message hash using the secp256r1 crate.
 ///
 /// # Arguments
 ///
@@ -179,7 +179,8 @@ pub fn hook_r1_ecrecover(_: HookEnv, buf: &[u8]) -> Vec<Vec<u8>> {
     let recid = RecoveryId::from_byte(recovery_id).expect("Computed recovery ID is invalid!");
 
     let recovered_key = p256VerifyingKey::recover_from_prehash(&msg_hash[..], &sig, recid).unwrap();
-    let bytes = recovered_key.to_sec1_bytes();
+    let recovered_key_compressed = recovered_key.to_encoded_point(true);
+    let bytes = recovered_key_compressed.as_bytes();
 
     let (_, s) = sig.split_scalars();
     let s_inverse = s.invert();
