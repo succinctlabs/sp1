@@ -2019,7 +2019,7 @@ checksum = "0d6ef0072f8a535281e4876be788938b528e9a1d43900b82c2569af7da799125"
 [[package]]
 name = "ecdsa"
 version = "0.16.8"
-source = "git+https://github.com/sp1-patches/signatures?branch=umadayal/secp256r1#f1170c8f9bdabfb56bc073f601ee0cef35a2c5d1"
+source = "git+https://github.com/sp1-patches/signatures?branch=umadayal/secp256r1#ec3502ed27aeb35756a64f501d28c68346f783b4"
 dependencies = [
  "anyhow",
  "cfg-if",
@@ -5762,7 +5762,7 @@ dependencies = [
 [[package]]
 name = "rfc6979"
 version = "0.4.0"
-source = "git+https://github.com/sp1-patches/signatures?branch=umadayal/secp256r1#f1170c8f9bdabfb56bc073f601ee0cef35a2c5d1"
+source = "git+https://github.com/sp1-patches/signatures?branch=umadayal/secp256r1#ec3502ed27aeb35756a64f501d28c68346f783b4"
 dependencies = [
  "hmac",
  "subtle",
@@ -6923,7 +6923,7 @@ dependencies = [
 [[package]]
 name = "sp1-lib"
 version = "2.0.0"
-source = "git+https://github.com/succinctlabs/sp1.git?branch=secp256r1#e1c55209d0eeb850d69fbe58b6623da9ec778e71"
+source = "git+https://github.com/succinctlabs/sp1.git?branch=secp256r1#fc98467912b8fa076800ef8c03d92f7838678964"
 dependencies = [
  "bincode",
  "serde",
