@@ -866,7 +866,10 @@ where
                     record.shape = None;
                 }
                 Err(e) => {
-                    log::warn!("found unsatisfying shape: {e}");
+                    log::warn!(
+                        "Error fixing shape: {e} for record {i} stats: {:?}",
+                        record.stats()
+                    );
                     panic!("found unsatisfying shape");
                     oom_shape_idxs.push(i);
                 }
