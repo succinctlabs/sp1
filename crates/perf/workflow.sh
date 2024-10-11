@@ -5,16 +5,16 @@ GIT_REF=$(git rev-parse --abbrev-ref HEAD)
 
 # Define the list of CPU workloads.
 CPU_WORKLOADS=(
-    # "fibonacci-17k"
+    "fibonacci-17k"
     # "ssz-withdrawals"
     # "tendermint"
     # "rsp-20526624"
-    # "rsa"
+    "rsa"
     # "regex"
     # "chess"
     # "json"
     # "blobstream-01j6z63fgafrc8jeh0k12gbtvw"
-    # "blobstream-01j6z95bdme9svevmfyc974bja"
+    "blobstream-01j6z95bdme9svevmfyc974bja"
     # "blobstream-01j6z9ak0ke9srsppgywgke6fj"
     # "vector-01j6xsv35re96tkgyda115320t"
     # "vector-01j6xzy366ff5tbkzcrs8pma02"
