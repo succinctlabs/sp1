@@ -13,8 +13,9 @@ use crate::Executor;
 /// A runtime hook, wrapped in a smart pointer.
 pub type BoxedHook<'a> = Arc<RwLock<dyn Hook + Send + Sync + 'a>>;
 
-/// The file descriptor through which to access `hook_ecrecover`.
+/// The file descriptor through which to access `hook_k1_ecrecover`.
 pub const K1_ECRECOVER_HOOK: u32 = 5;
+/// The file descriptor through which to access `hook_r1_ecrecover`.
 pub const R1_ECRECOVER_HOOK: u32 = 6;
 
 /// A runtime hook. May be called during execution by writing to a specified file descriptor,
@@ -146,6 +147,21 @@ pub fn hook_k1_ecrecover(_: HookEnv, buf: &[u8]) -> Vec<Vec<u8>> {
     vec![bytes.to_vec(), s_inverse.to_bytes().to_vec()]
 }
 
+/// Recovers the public key from the signature and message hash using the p256 crate.
+///
+/// # Arguments
+///
+/// * `env` - The environment in which the hook is invoked.
+/// * `buf` - The buffer containing the signature and message hash.
+///     - The signature is 65 bytes, the first 64 bytes are the signature and the last byte is the
+///       recovery ID.
+///     - The message hash is 32 bytes.
+///
+/// The result is returned as a pair of bytes, where the first 32 bytes are the X coordinate
+/// and the second 32 bytes are the Y coordinate of the decompressed point.
+///
+/// WARNING: This function is used to recover the public key outside of the zkVM context. These
+/// values must be constrained by the zkVM for correctness.
 #[must_use]
 pub fn hook_r1_ecrecover(_: HookEnv, buf: &[u8]) -> Vec<Vec<u8>> {
     assert_eq!(buf.len(), 65 + 32, "ecrecover input should have length 65 + 32");
