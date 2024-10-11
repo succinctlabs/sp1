@@ -23,13 +23,13 @@ pub enum CoreShapeError {
     PreprocessedShapeError,
     #[error("Preprocessed shape already fixed")]
     PreprocessedShapeAlreadyFixed,
-    #[error("no shape found")]
+    #[error("no shape found {0:?}")]
     ShapeError(HashMap<String, usize>),
     #[error("Preprocessed shape missing")]
     PrepcocessedShapeMissing,
     #[error("Shape already fixed")]
     ShapeAlreadyFixed,
-    #[error("Precompile not included in allowed shapes")]
+    #[error("Precompile not included in allowed shapes {0:?}")]
     PrecompileNotIncluded(HashMap<String, usize>),
 }
 
@@ -165,7 +165,7 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
                         return Ok(());
                     }
                 }
-                tracing::error!(
+                tracing::warn!(
                     "Cannot find shape for precompile {:?}, height {:?}, and mem events {:?}",
                     air.name(),
                     height,
