@@ -7,7 +7,7 @@ GIT_REF=$(git rev-parse --abbrev-ref HEAD)
 CPU_WORKLOADS=(
     "fibonacci-17k"
     # "ssz-withdrawals"
-    # "tendermint"
+    "tendermint"
     # "rsp-20526624"
     "rsa"
     # "regex"
