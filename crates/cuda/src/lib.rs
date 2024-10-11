@@ -107,6 +107,8 @@ impl SP1CudaProver {
                 "run",
                 "-e",
                 &format!("RUST_LOG={}", rust_log_level),
+                "-e",
+                &format!("SHARD_SIZE={}", 1 << 21),
                 "-p",
                 "3000:3000",
                 "--rm",
