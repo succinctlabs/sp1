@@ -262,8 +262,8 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
                     })
                 });
 
-        included_shapes.chain(self.allowed_core_log_heights.iter().flat_map(
-            move |allowed_log_heights| {
+        included_shapes
+            .chain(self.allowed_core_log_heights.iter().flat_map(move |allowed_log_heights| {
                 Self::generate_all_shapes_from_allowed_log_heights({
                     let mut log_heights = allowed_log_heights
                         .iter()
@@ -272,10 +272,9 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
                     log_heights.extend(preprocessed_heights.clone());
                     log_heights
                 })
-            },
-        ))
-        // .chain(Self::generate_all_shapes_from_allowed_log_heights(memory_heights))
-        // .chain(precompile_shapes)
+            }))
+            .chain(Self::generate_all_shapes_from_allowed_log_heights(memory_heights))
+            .chain(precompile_shapes)
     }
 
     pub fn maximal_core_shapes(&self) -> Vec<CoreShape> {
