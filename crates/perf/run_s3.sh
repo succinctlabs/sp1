@@ -19,4 +19,4 @@ export RUST_BACKTRACE=1
 export RUST_LOG=debug
 
 # Run moongate-perf
-cargo run --release -p sp1-perf -- --program /tmp/program.bin --stdin /tmp/stdin.bin --mode$stage
+cargo run --release -p sp1-perf -- --program /tmp/program.bin --stdin /tmp/stdin.bin --mode $stage
