@@ -140,8 +140,12 @@ where
     Com<SC>: Send + Sync,
     PcsProverData<SC>: Send + Sync,
 {
+    let maximal_shapes = shape_config.as_ref().unwrap().maximal_core_shapes();
+    println!("{:#?}", maximal_shapes);
+
     // Setup the runtime.
     let mut runtime = Executor::with_context(program.clone(), opts, context);
+    runtime.maximal_shapes = Some(maximal_shapes.into_iter().map(|s| s.inner).collect());
     runtime.write_vecs(&stdin.buffer);
     for proof in stdin.proofs.iter() {
         let (proof, vk) = proof.clone();
@@ -192,6 +196,7 @@ where
 
                         // Update the index.
                         index += 1;
+                        log::info!("generated checkpoint {}", index);
                     }
                 })
             });
@@ -832,75 +837,22 @@ fn trace_checkpoint<SC: StarkGenericConfig>(
 where
     <SC as StarkGenericConfig>::Val: PrimeField32,
 {
+    let maximal_shapes = shape_config.as_ref().unwrap().maximal_core_shapes();
     let mut reader = std::io::BufReader::new(file);
     let state: ExecutionState =
         bincode::deserialize_from(&mut reader).expect("failed to deserialize state");
     let mut runtime = Executor::recover(program.clone(), state.clone(), opts);
+    runtime.maximal_shapes = Some(maximal_shapes.into_iter().map(|s| s.inner).collect());
 
     // We already passed the deferred proof verifier when creating checkpoints, so the proofs were
     // already verified. So here we use a noop verifier to not print any warnings.
     runtime.subproof_verifier = Arc::new(NoOpSubproofVerifier);
 
     // Execute from the checkpoint.
-    let (mut records_long, _) = runtime.execute_record().unwrap();
-    log::info!("executed {} records", records_long.len());
+    let (records, _) = runtime.execute_record().unwrap();
+    log::info!("executed {} records", records.len());
 
-    // Set the parameters for the shape dropping logic.
-    const LONG_SHARD_SIZE: usize = 1 << 21;
-    const SHORT_SHARD_SIZE: usize = 1 << 19;
-    const LONG_SHORT_RATIO: usize = LONG_SHARD_SIZE / SHORT_SHARD_SIZE;
-
-    // If the shape config is provided, we need to drop shapes dynamically.
-    //
-    // If we find a long shard shape that doesn't fit in memory, we'll use a short shard size to
-    // guarantee that we don't OOM on GPU.
-    //
-    // TODO: only enable this on GPU?
-    if let Some(shape_config) = shape_config {
-        assert_eq!(opts.shard_size, LONG_SHARD_SIZE);
-
-        let mut oom_shape_idxs = Vec::new();
-        for (i, record) in records_long.iter_mut().enumerate() {
-            match shape_config.fix_shape(record) {
-                Ok(_) => {
-                    log::info!("found satisfying shape");
-                    record.shape = None;
-                }
-                Err(e) => {
-                    log::warn!("No shape found, {:?}", e);
-                    oom_shape_idxs.push(i);
-                }
-            };
-        }
-
-        if !oom_shape_idxs.is_empty() {
-            log::info!("found {} unsatisfying shapes", oom_shape_idxs.len());
-            let mut opts = opts;
-            opts.shard_size = SHORT_SHARD_SIZE;
-            opts.shard_batch_size *= LONG_SHORT_RATIO;
-
-            let mut runtime = Executor::recover(program.clone(), state, opts);
-            runtime.subproof_verifier = Arc::new(NoOpSubproofVerifier);
-            let (records_short, _) = runtime.execute_record().unwrap();
-
-            let mut records_combined = Vec::new();
-            for i in 0..records_long.len() {
-                if oom_shape_idxs.contains(&i) {
-                    let start = i * LONG_SHORT_RATIO;
-                    let end = std::cmp::min((i + 1) * LONG_SHORT_RATIO, records_short.len());
-                    records_combined.extend_from_slice(&records_short[start..end]);
-                } else {
-                    records_combined.push(records_long[i].clone());
-                }
-            }
-
-            log::info!("combined {} records", records_combined.len());
-            return (records_combined, runtime.report);
-        }
-    }
-
-    log::info!("no shapes to drop, using {} records", records_long.len());
-    (records_long, runtime.report)
+    (records, runtime.report)
 }
 
 fn reset_seek(file: &mut File) {

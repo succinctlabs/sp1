@@ -10,7 +10,7 @@ keywords = { workspace = true }
 categories = { workspace = true }
 
 [dependencies]
-sp1-prover = { workspace = true }
+sp1-prover = { workspace = true, features = ["debug"] }
 sp1-sdk = { workspace = true }
 p3-baby-bear = { workspace = true }
 sp1-stark = { workspace = true }

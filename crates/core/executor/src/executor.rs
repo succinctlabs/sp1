@@ -110,6 +110,9 @@ pub struct Executor<'a> {
 
     /// Registry of hooks, to be invoked by writing to certain file descriptors.
     pub hook_registry: HookRegistry<'a>,
+
+    /// The maximal shapes for the program.
+    pub maximal_shapes: Option<Vec<HashMap<String, usize>>>,
 }
 
 /// The different modes the executor can run in.
@@ -228,6 +231,7 @@ impl<'a> Executor<'a> {
             memory_checkpoint: PagedMemory::new_preallocated(),
             uninitialized_memory_checkpoint: PagedMemory::new_preallocated(),
             local_memory_access: HashMap::new(),
+            maximal_shapes: None,
         }
     }
 
@@ -808,7 +812,7 @@ impl<'a> Executor<'a> {
             LookupId::default()
         };
 
-        if self.print_report && !self.unconstrained {
+        if !self.unconstrained {
             self.report.opcode_counts[instruction.opcode] += 1;
         }
 
@@ -1209,13 +1213,96 @@ impl<'a> Executor<'a> {
         // Increment the clock.
         self.state.global_clk += 1;
 
-        // If there's not enough cycles left for another instruction, move to the next shard.
-        // We multiply by 4 because clk is incremented by 4 for each normal instruction.
-        if !self.unconstrained && self.max_syscall_cycles + self.state.clk >= self.shard_size {
-            self.state.current_shard += 1;
-            self.state.clk = 0;
+        if !self.unconstrained {
+            // If there's not enough cycles left for another instruction, move to the next shard.
+            let cpu_exit = self.max_syscall_cycles + self.state.clk >= self.shard_size;
 
-            self.bump_record();
+            // Check if the L-infinity norm between the maximal shapes and the current shapes is
+            // within some threshold.
+            let mut shape_exit = false;
+            if let Some(maximal_shapes) = &self.maximal_shapes {
+                for shape in maximal_shapes {
+                    let addsub_distance = (1 << shape["AddSub"])
+                        - ((self.report.opcode_counts[Opcode::ADD]
+                            + self.report.opcode_counts[Opcode::SUB])
+                            as usize);
+
+                    let mul_distance =
+                        (1 << shape["Mul"]) - (self.report.opcode_counts[Opcode::MUL] as usize);
+
+                    let bitwise_distance = (1 << shape["Bitwise"])
+                        - ((self.report.opcode_counts[Opcode::XOR]
+                            + self.report.opcode_counts[Opcode::OR]
+                            + self.report.opcode_counts[Opcode::AND])
+                            as usize);
+
+                    let shift_left_distance = (1 << shape["ShiftLeft"])
+                        - (self.report.opcode_counts[Opcode::SLL] as usize);
+
+                    let shift_right_distance = (1 << shape["ShiftRight"])
+                        - ((self.report.opcode_counts[Opcode::SRL]
+                            + self.report.opcode_counts[Opcode::SRA])
+                            as usize);
+
+                    let divrem_distance = (1 << shape["DivRem"])
+                        - ((self.report.opcode_counts[Opcode::DIV]
+                            + self.report.opcode_counts[Opcode::DIVU]
+                            + self.report.opcode_counts[Opcode::REM]
+                            + self.report.opcode_counts[Opcode::REMU])
+                            as usize);
+
+                    let lt_distance = (1 << shape["Lt"])
+                        - ((self.report.opcode_counts[Opcode::SLT]
+                            + self.report.opcode_counts[Opcode::SLTU])
+                            as usize);
+
+                    // let memory_local_distance =
+                    //     shape["MemoryLocal"] - self.local_memory_access.len();
+
+                    // let syscall_events_distance =
+                    //     shape["SyscallCore"] - (self.report.opcode_counts[Opcode::ECALL] as usize);
+
+                    let l_infinity = vec![
+                        addsub_distance,
+                        mul_distance,
+                        bitwise_distance,
+                        shift_left_distance,
+                        shift_right_distance,
+                        divrem_distance,
+                        lt_distance,
+                        // memory_local_distance,
+                        // syscall_events_distance,
+                    ]
+                    .into_iter()
+                    .max()
+                    .unwrap();
+
+                    if l_infinity <= 1000 {
+                        log::warn!(
+                            "EXITING EARLY BECAUSE L-INFINITY NORM IS TOO HIGH: {l_infinity}"
+                        );
+                        log::warn!("addsub_distance={addsub_distance}");
+                        log::warn!("mul_distance={mul_distance}");
+                        log::warn!("bitwise_distance={bitwise_distance}");
+                        log::warn!("shift_left_distance={shift_left_distance}");
+                        log::warn!("shift_right_distance={shift_right_distance}");
+                        log::warn!("divrem_distance={divrem_distance}");
+                        log::warn!("lt_distance={lt_distance}");
+                        log::warn!("cpu_events={}", self.record.cpu_events.len());
+                        // log::warn!("memory_local_distance={memory_local_distance}");
+                        // log::warn!("syscall_events_distance={syscall_events_distance}");
+                        shape_exit = true;
+                        break;
+                    }
+                }
+            }
+
+            if cpu_exit || shape_exit {
+                self.state.current_shard += 1;
+                self.state.clk = 0;
+                self.report = ExecutionReport::default();
+                self.bump_record();
+            }
         }
 
         // If the cycle limit is exceeded, return an error.
