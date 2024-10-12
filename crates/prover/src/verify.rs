@@ -66,16 +66,6 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             return Err(MachineVerificationError::MissingCpuInFirstShard);
         }
 
-        for shard_proof in proof.0.iter() {
-            let public_values: &PublicValues<Word<_>, _> =
-                shard_proof.public_values.as_slice().borrow();
-            tracing::info!(
-                "shard={}, execution_shard={}",
-                public_values.shard,
-                public_values.execution_shard
-            );
-        }
-
         // CPU log degree bound constraints.
         //
         // Assert that the CPU log degree does not exceed `MAX_CPU_LOG_DEGREE`. This is to ensure
