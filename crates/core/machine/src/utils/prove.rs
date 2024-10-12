@@ -140,11 +140,9 @@ where
     Com<SC>: Send + Sync,
     PcsProverData<SC>: Send + Sync,
 {
-    let maximal_shapes = shape_config.as_ref().unwrap().maximal_core_shapes();
-    println!("{:#?}", maximal_shapes);
-
     // Setup the runtime.
     let mut runtime = Executor::with_context(program.clone(), opts, context);
+    let maximal_shapes = shape_config.as_ref().unwrap().maximal_core_shapes();
     runtime.maximal_shapes = Some(maximal_shapes.into_iter().map(|s| s.inner).collect());
     runtime.write_vecs(&stdin.buffer);
     for proof in stdin.proofs.iter() {
@@ -196,7 +194,6 @@ where
 
                         // Update the index.
                         index += 1;
-                        log::info!("generated checkpoint {}", index);
                     }
                 })
             });
@@ -850,7 +847,6 @@ where
 
     // Execute from the checkpoint.
     let (records, _) = runtime.execute_record().unwrap();
-    log::info!("executed {} records", records.len());
 
     (records, runtime.report)
 }
