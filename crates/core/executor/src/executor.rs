@@ -1256,12 +1256,6 @@ impl<'a> Executor<'a> {
                             + self.report.opcode_counts[Opcode::SLTU])
                             as usize);
 
-                    // let memory_local_distance =
-                    //     shape["MemoryLocal"] - self.local_memory_access.len();
-
-                    // let syscall_events_distance =
-                    //     shape["SyscallCore"] - (self.report.opcode_counts[Opcode::ECALL] as usize);
-
                     let l_infinity = vec![
                         addsub_distance,
                         mul_distance,
@@ -1270,8 +1264,6 @@ impl<'a> Executor<'a> {
                         shift_right_distance,
                         divrem_distance,
                         lt_distance,
-                        // memory_local_distance,
-                        // syscall_events_distance,
                     ]
                     .into_iter()
                     .max()
@@ -1279,18 +1271,24 @@ impl<'a> Executor<'a> {
 
                     if l_infinity <= 1000 {
                         log::warn!(
-                            "EXITING EARLY BECAUSE L-INFINITY NORM IS TOO HIGH: {l_infinity}"
+                            "execiting early because l-∞ is too high: \
+                            l_infinity={}, \
+                            addsub_distance={}, \
+                            mul_distance={}, \
+                            bitwise_distance={}, \
+                            shift_left_distance={}, \
+                            shift_right_distance={}, \
+                            divrem_distance={}, \
+                            lt_distance={}",
+                            l_infinity,
+                            addsub_distance,
+                            mul_distance,
+                            bitwise_distance,
+                            shift_left_distance,
+                            shift_right_distance,
+                            divrem_distance,
+                            lt_distance
                         );
-                        log::warn!("addsub_distance={addsub_distance}");
-                        log::warn!("mul_distance={mul_distance}");
-                        log::warn!("bitwise_distance={bitwise_distance}");
-                        log::warn!("shift_left_distance={shift_left_distance}");
-                        log::warn!("shift_right_distance={shift_right_distance}");
-                        log::warn!("divrem_distance={divrem_distance}");
-                        log::warn!("lt_distance={lt_distance}");
-                        log::warn!("cpu_events={}", self.record.cpu_events.len());
-                        // log::warn!("memory_local_distance={memory_local_distance}");
-                        // log::warn!("syscall_events_distance={syscall_events_distance}");
                         shape_exit = true;
                         break;
                     }
