@@ -14,7 +14,6 @@ use p3_matrix::{
     stack::VerticalPair,
     Matrix,
 };
-use p3_maybe_rayon::prelude::IntoParallelIterator;
 use p3_maybe_rayon::prelude::ParallelBridge;
 use p3_maybe_rayon::prelude::ParallelIterator;
 
