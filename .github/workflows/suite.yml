@@ -71,7 +71,7 @@ jobs:
       matrix:
         workload: ${{ fromJSON(github.event.inputs.cuda_workloads) }}
     name: ${{ matrix.workload }} (gpu)
-    runs-on: ["runs-on", "family=g6.4xlarge", "ami=ami-0a63dc9cb9e934ba3", "spot=false", "run-id=${{ github.run_id }}"]
+    runs-on: ["runs-on", "family=g6.4xlarge", "hdd=200", "ami=ami-0a63dc9cb9e934ba3", "spot=false", "run-id=${{ github.run_id }}"]
     steps:
     - name: Checkout sources
       uses: actions/checkout@v4
