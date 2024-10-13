@@ -126,6 +126,12 @@ jobs:
         aws s3 cp s3://sp1-testing-suite/${{ matrix.workload }}/program.bin workdir/program.bin
         aws s3 cp s3://sp1-testing-suite/${{ matrix.workload }}/stdin.bin workdir/stdin.bin
 
+    - name: Clean Cargo cache
+      uses: actions-rs/cargo@v1
+      with:
+        command: clean
+        toolchain: 1.81.0
+
     - name: Run sp1-perf
       uses: actions-rs/cargo@v1
       with:
