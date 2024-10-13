@@ -50,7 +50,7 @@ itertools = "0.13.0"
 tonic = { version = "0.12", features = ["tls", "tls-roots"], optional = true }
 alloy-signer = { version = "0.3.6", optional = true }
 alloy-signer-local = { version = "0.3.6", optional = true }
-alloy-primitives = { version = "=0.7.7", optional = true }
+alloy-primitives = { version = "0.8.7", optional = true }
 aws-sdk-s3 = { version = "1.53.0", optional = true }
 aws-config = { version = "1.5.7", optional = true }
 

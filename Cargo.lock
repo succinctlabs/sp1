@@ -7139,7 +7139,7 @@ dependencies = [
 name = "sp1-sdk"
 version = "3.0.0-rc3"
 dependencies = [
- "alloy-primitives 0.7.7",
+ "alloy-primitives 0.8.7",
  "alloy-signer",
  "alloy-signer-local",
  "alloy-sol-types 0.7.7",
