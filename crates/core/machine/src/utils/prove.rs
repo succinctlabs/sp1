@@ -841,7 +841,6 @@ where
         Some(shape_config) => shape_config.maximal_core_shapes(),
         None => vec![],
     };
-    tracing::info!("maximal_shapes: {:#?}", maximal_shapes);
     let mut reader = std::io::BufReader::new(file);
     let state: ExecutionState =
         bincode::deserialize_from(&mut reader).expect("failed to deserialize state");
