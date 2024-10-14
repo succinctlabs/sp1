@@ -1301,6 +1301,11 @@ impl<'a> Executor<'a> {
                 shape_match_found = true;
             }
 
+            // TODO: don't use report for event tracing
+            if !shape_match_found {
+                log::warn!("shape match not found for {:?}", self.report.opcode_counts);
+            }
+
             if cpu_exit || !shape_match_found {
                 self.state.current_shard += 1;
                 self.state.clk = 0;
