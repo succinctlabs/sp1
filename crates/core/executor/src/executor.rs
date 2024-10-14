@@ -1219,7 +1219,7 @@ impl<'a> Executor<'a> {
 
             // Check if the L-infinity norm between the maximal shapes and the current shapes is
             // within some threshold.
-            let mut shape_exit = false;
+            let mut shape_match_found = false;
             if let Some(maximal_shapes) = &self.maximal_shapes {
                 for shape in maximal_shapes {
                     let mul_distance =
@@ -1263,33 +1263,14 @@ impl<'a> Executor<'a> {
                     .min()
                     .unwrap();
 
-                    if l_infinity <= 64 {
-                        log::warn!(
-                            "exiting early because l-∞ is too high: \
-                            l_infinity={}, \
-                            nb_cpu_cycles={}, \
-                            mul_distance={}, \
-                            bitwise_distance={}, \
-                            shift_left_distance={}, \
-                            shift_right_distance={}, \
-                            divrem_distance={}, \
-                            lt_distance={}",
-                            l_infinity,
-                            self.report.total_instruction_count(),
-                            mul_distance,
-                            bitwise_distance,
-                            shift_left_distance,
-                            shift_right_distance,
-                            divrem_distance,
-                            lt_distance
-                        );
-                        shape_exit = true;
+                    if l_infinity >= 64 {
+                        shape_match_found = true;
                         break;
                     }
                 }
             }
 
-            if cpu_exit || shape_exit {
+            if cpu_exit || !shape_match_found {
                 self.state.current_shard += 1;
                 self.state.clk = 0;
                 self.report = ExecutionReport::default();
