@@ -1237,6 +1237,25 @@ impl<'a> Executor<'a> {
         // Increment the clock.
         self.state.global_clk += 1;
 
+        let addsub_count = (self.report.opcode_counts[Opcode::ADD]
+            + self.report.opcode_counts[Opcode::SUB]) as i32;
+        let mul_count = (self.report.opcode_counts[Opcode::MUL]
+            + self.report.opcode_counts[Opcode::MULH]
+            + self.report.opcode_counts[Opcode::MULHU]
+            + self.report.opcode_counts[Opcode::MULHSU]) as i32;
+        let bitwise_count = (self.report.opcode_counts[Opcode::XOR]
+            + self.report.opcode_counts[Opcode::OR]
+            + self.report.opcode_counts[Opcode::AND]) as i32;
+        let shift_left_count = self.report.opcode_counts[Opcode::SLL] as i32;
+        let shift_right_count = (self.report.opcode_counts[Opcode::SRL]
+            + self.report.opcode_counts[Opcode::SRA]) as i32;
+        let divrem_count = (self.report.opcode_counts[Opcode::DIV]
+            + self.report.opcode_counts[Opcode::DIVU]
+            + self.report.opcode_counts[Opcode::REM]
+            + self.report.opcode_counts[Opcode::REMU]) as i32;
+        let lt_count = (self.report.opcode_counts[Opcode::SLT]
+            + self.report.opcode_counts[Opcode::SLTU]) as i32;
+
         if !self.unconstrained {
             // If there's not enough cycles left for another instruction, move to the next shard.
             let cpu_exit = self.max_syscall_cycles + self.state.clk >= self.shard_size;
@@ -1247,66 +1266,42 @@ impl<'a> Executor<'a> {
             if let Some(maximal_shapes) = &self.maximal_shapes {
                 for shape in maximal_shapes {
                     let addsub_threshold = 1 << shape["AddSub"];
-                    let addsub_count = (self.report.opcode_counts[Opcode::ADD]
-                        + self.report.opcode_counts[Opcode::SUB])
-                        as i32;
                     if addsub_count > addsub_threshold {
                         continue;
                     }
                     let addsub_distance = addsub_threshold - addsub_count;
 
                     let mul_threshold = 1 << shape["Mul"];
-                    let mul_count = (self.report.opcode_counts[Opcode::MUL]
-                        + self.report.opcode_counts[Opcode::MULH]
-                        + self.report.opcode_counts[Opcode::MULHU]
-                        + self.report.opcode_counts[Opcode::MULHSU])
-                        as i32;
                     if mul_count > mul_threshold {
                         continue;
                     }
                     let mul_distance = mul_threshold - mul_count;
 
                     let bitwise_threshold = 1 << shape["Bitwise"];
-                    let bitwise_count = (self.report.opcode_counts[Opcode::XOR]
-                        + self.report.opcode_counts[Opcode::OR]
-                        + self.report.opcode_counts[Opcode::AND])
-                        as i32;
                     if bitwise_count > bitwise_threshold {
                         continue;
                     }
                     let bitwise_distance = bitwise_threshold - bitwise_count;
 
                     let shift_left_threshold = 1 << shape["ShiftLeft"];
-                    let shift_left_count = self.report.opcode_counts[Opcode::SLL] as i32;
                     if shift_left_count > shift_left_threshold {
                         continue;
                     }
                     let shift_left_distance = shift_left_threshold - shift_left_count;
 
                     let shift_right_threshold = 1 << shape["ShiftRight"];
-                    let shift_right_count = (self.report.opcode_counts[Opcode::SRL]
-                        + self.report.opcode_counts[Opcode::SRA])
-                        as i32;
                     if shift_right_count > shift_right_threshold {
                         continue;
                     }
                     let shift_right_distance = shift_right_threshold - shift_right_count;
 
                     let divrem_threshold = 1 << shape["DivRem"];
-                    let divrem_count = (self.report.opcode_counts[Opcode::DIV]
-                        + self.report.opcode_counts[Opcode::DIVU]
-                        + self.report.opcode_counts[Opcode::REM]
-                        + self.report.opcode_counts[Opcode::REMU])
-                        as i32;
                     if divrem_count > divrem_threshold {
                         continue;
                     }
                     let divrem_distance = divrem_threshold - divrem_count;
 
                     let lt_threshold = 1 << shape["Lt"];
-                    let lt_count = (self.report.opcode_counts[Opcode::SLT]
-                        + self.report.opcode_counts[Opcode::SLTU])
-                        as i32;
                     if lt_count > lt_threshold {
                         continue;
                     }
@@ -1334,16 +1329,22 @@ impl<'a> Executor<'a> {
                 shape_match_found = true;
             }
 
-            // TODO: don't use report for event tracing
+            if !shape_match_found {
+                log::warn!(
+                    "dropping shard due to no shapes fitting: opcode_counts={:?}, nb_cycles={}, addsub_count={}, mul_count={}, bitwise_count={}, shift_left_count={}, shift_right_count={}, divrem_count={}, lt_count={}",
+                    self.report.opcode_counts,
+                    self.state.clk,
+                    addsub_count,
+                    mul_count,
+                    bitwise_count,
+                    shift_left_count,
+                    shift_right_count,
+                    divrem_count,
+                    lt_count,
+                );
+            }
 
             if cpu_exit || !shape_match_found {
-                if !shape_match_found {
-                    log::warn!(
-                        "dropping shard due to no shapes fitting: opcode_counts={:?}, nb_cycles={}",
-                        self.report.opcode_counts,
-                        self.state.clk
-                    );
-                }
                 self.state.current_shard += 1;
                 self.state.clk = 0;
                 self.report = ExecutionReport::default();
