@@ -1245,6 +1245,9 @@ impl<'a> Executor<'a> {
             let mut shape_match_found = false;
             if let Some(maximal_shapes) = &self.maximal_shapes {
                 for shape in maximal_shapes {
+                    let addsub_threshold = 1 << shape["AddSub"];
+                    let addsub_count = self.report.opcode_counts[Opcode::ADD]
+                        + self.report.opcode_counts[Opcode::SUB] as i32;
                     let addsub_distance = (1 << shape["AddSub"])
                         - ((self.report.opcode_counts[Opcode::ADD]
                             + self.report.opcode_counts[Opcode::SUB])
@@ -1298,6 +1301,11 @@ impl<'a> Executor<'a> {
                     // if the min distance is less than 64, then we have a shape match
 
                     if l_infinity >= 1024 {
+                        tracing::warn!(
+                            "shape match found: l_infinity={}, shape={:?}",
+                            l_infinity,
+                            shape
+                        );
                         shape_match_found = true;
                         break;
                     }
