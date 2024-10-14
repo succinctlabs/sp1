@@ -1238,23 +1238,23 @@ impl<'a> Executor<'a> {
         self.state.global_clk += 1;
 
         let addsub_count = (self.report.opcode_counts[Opcode::ADD]
-            + self.report.opcode_counts[Opcode::SUB]) as i32;
+            + self.report.opcode_counts[Opcode::SUB]) as usize;
         let mul_count = (self.report.opcode_counts[Opcode::MUL]
             + self.report.opcode_counts[Opcode::MULH]
             + self.report.opcode_counts[Opcode::MULHU]
-            + self.report.opcode_counts[Opcode::MULHSU]) as i32;
+            + self.report.opcode_counts[Opcode::MULHSU]) as usize;
         let bitwise_count = (self.report.opcode_counts[Opcode::XOR]
             + self.report.opcode_counts[Opcode::OR]
-            + self.report.opcode_counts[Opcode::AND]) as i32;
-        let shift_left_count = self.report.opcode_counts[Opcode::SLL] as i32;
+            + self.report.opcode_counts[Opcode::AND]) as usize;
+        let shift_left_count = self.report.opcode_counts[Opcode::SLL] as usize;
         let shift_right_count = (self.report.opcode_counts[Opcode::SRL]
-            + self.report.opcode_counts[Opcode::SRA]) as i32;
+            + self.report.opcode_counts[Opcode::SRA]) as usize;
         let divrem_count = (self.report.opcode_counts[Opcode::DIV]
             + self.report.opcode_counts[Opcode::DIVU]
             + self.report.opcode_counts[Opcode::REM]
-            + self.report.opcode_counts[Opcode::REMU]) as i32;
+            + self.report.opcode_counts[Opcode::REMU]) as usize;
         let lt_count = (self.report.opcode_counts[Opcode::SLT]
-            + self.report.opcode_counts[Opcode::SLTU]) as i32;
+            + self.report.opcode_counts[Opcode::SLTU]) as usize;
 
         if !self.unconstrained {
             // If there's not enough cycles left for another instruction, move to the next shard.
@@ -1334,13 +1334,13 @@ impl<'a> Executor<'a> {
                     "dropping shard due to no shapes fitting: opcode_counts={:?}, nb_cycles={}, addsub_count={}, mul_count={}, bitwise_count={}, shift_left_count={}, shift_right_count={}, divrem_count={}, lt_count={}",
                     self.report.opcode_counts,
                     self.state.clk,
-                    addsub_count,
-                    mul_count,
-                    bitwise_count,
-                    shift_left_count,
-                    shift_right_count,
-                    divrem_count,
-                    lt_count,
+                    log2_ceil_usize(addsub_count),
+                    log2_ceil_usize(mul_count),
+                    log2_ceil_usize(bitwise_count),
+                    log2_ceil_usize(shift_left_count),
+                    log2_ceil_usize(shift_right_count),
+                    log2_ceil_usize(divrem_count),
+                    log2_ceil_usize(lt_count),
                 );
             }
 
@@ -1670,6 +1670,10 @@ impl Default for ExecutorMode {
 #[must_use]
 pub const fn align(addr: u32) -> u32 {
     addr - addr % 4
+}
+
+fn log2_ceil_usize(n: usize) -> usize {
+    (usize::BITS - n.saturating_sub(1).leading_zeros()) as usize
 }
 
 #[cfg(test)]
