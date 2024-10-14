@@ -1222,6 +1222,11 @@ impl<'a> Executor<'a> {
             let mut shape_match_found = false;
             if let Some(maximal_shapes) = &self.maximal_shapes {
                 for shape in maximal_shapes {
+                    let addsub_distance = (1 << shape["AddSub"])
+                        - ((self.report.opcode_counts[Opcode::ADD]
+                            + self.report.opcode_counts[Opcode::SUB])
+                            as usize);
+
                     let mul_distance =
                         (1 << shape["Mul"]) - (self.report.opcode_counts[Opcode::MUL] as usize);
 
@@ -1252,6 +1257,7 @@ impl<'a> Executor<'a> {
                             as usize);
 
                     let l_infinity = vec![
+                        addsub_distance,
                         mul_distance,
                         bitwise_distance,
                         shift_left_distance,
