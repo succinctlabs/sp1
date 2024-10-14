@@ -606,6 +606,20 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
                 divrem_height: vec![Some(10), Some(16), Some(17)],
                 is_potentially_maximal: true,
             },
+            // Shards with basic arithmetic and branching.
+            CoreShapeSpec {
+                cpu_height: vec![Some(21)],
+                add_sub_height: vec![Some(21)],
+                lt_height: vec![Some(19)],
+                bitwise_height: vec![Some(5)],
+                shift_right_height: vec![Some(19)],
+                shift_left_height: vec![None],
+                syscall_core_height: vec![Some(16)],
+                memory_local_height: vec![Some(16)],
+                mul_height: vec![Some(19)],
+                divrem_height: vec![None],
+                is_potentially_maximal: true,
+            },
             // Shards with many mul events.
             CoreShapeSpec {
                 cpu_height: vec![Some(21)],
