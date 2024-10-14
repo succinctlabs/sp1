@@ -1256,7 +1256,11 @@ impl<'a> Executor<'a> {
                     let addsub_distance = addsub_threshold - addsub_count;
 
                     let mul_threshold = 1 << shape["Mul"];
-                    let mul_count = self.report.opcode_counts[Opcode::MUL] as i32;
+                    let mul_count = (self.report.opcode_counts[Opcode::MUL]
+                        + self.report.opcode_counts[Opcode::MULH]
+                        + self.report.opcode_counts[Opcode::MULHU]
+                        + self.report.opcode_counts[Opcode::MULHSU])
+                        as i32;
                     if mul_count > mul_threshold {
                         continue;
                     }
