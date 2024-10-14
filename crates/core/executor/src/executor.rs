@@ -1266,7 +1266,7 @@ impl<'a> Executor<'a> {
                         lt_distance,
                     ]
                     .into_iter()
-                    .max()
+                    .min()
                     .unwrap();
 
                     if l_infinity <= 1000 {
