@@ -1268,6 +1268,8 @@ impl<'a> Executor<'a> {
                         break;
                     }
                 }
+            } else {
+                shape_match_found = true;
             }
 
             if cpu_exit || !shape_match_found {
