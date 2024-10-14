@@ -126,13 +126,15 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
                 {
                     let mut msg = "Shape Lifted:\n".to_string();
                     for (air, height) in heights.iter() {
-                        msg += &format!(
-                            "{:<10}: {:<10} -> {:<10}\n",
-                            air.name(),
-                            log2_ceil_usize(*height),
-                            shape.inner[&air.name()]
-                        )
-                        .to_string();
+                        if shape.inner.contains_key(&air.name()) {
+                            msg += &format!(
+                                "{:<10}: {:<10} -> {:<10}\n",
+                                air.name(),
+                                log2_ceil_usize(*height),
+                                shape.inner[&air.name()]
+                            )
+                            .to_string();
+                        }
                     }
                     tracing::info!("{}", msg);
 
