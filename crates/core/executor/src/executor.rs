@@ -1320,7 +1320,7 @@ impl<'a> Executor<'a> {
                     .min()
                     .unwrap();
 
-                    if l_infinity >= 32 {
+                    if l_infinity >= 8 {
                         shape_match_found = true;
                         break;
                     }
