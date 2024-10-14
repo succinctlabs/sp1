@@ -142,7 +142,10 @@ where
 {
     // Setup the runtime.
     let mut runtime = Executor::with_context(program.clone(), opts, context);
-    let maximal_shapes = shape_config.as_ref().unwrap().maximal_core_shapes();
+    let maximal_shapes = match shape_config.as_ref() {
+        Some(shape_config) => shape_config.maximal_core_shapes(),
+        None => vec![],
+    };
     runtime.maximal_shapes = Some(maximal_shapes.into_iter().map(|s| s.inner).collect());
     runtime.write_vecs(&stdin.buffer);
     for proof in stdin.proofs.iter() {
@@ -834,7 +837,10 @@ fn trace_checkpoint<SC: StarkGenericConfig>(
 where
     <SC as StarkGenericConfig>::Val: PrimeField32,
 {
-    let maximal_shapes = shape_config.as_ref().unwrap().maximal_core_shapes();
+    let maximal_shapes = match shape_config {
+        Some(shape_config) => shape_config.maximal_core_shapes(),
+        None => vec![],
+    };
     let mut reader = std::io::BufReader::new(file);
     let state: ExecutionState =
         bincode::deserialize_from(&mut reader).expect("failed to deserialize state");
