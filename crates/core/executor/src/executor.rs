@@ -814,6 +814,29 @@ impl<'a> Executor<'a> {
 
         if !self.unconstrained {
             self.report.opcode_counts[instruction.opcode] += 1;
+            match instruction.opcode {
+                Opcode::LB | Opcode::LH | Opcode::LW | Opcode::LBU | Opcode::LHU => {
+                    self.report.opcode_counts[Opcode::ADD] += 2;
+                }
+                Opcode::JAL | Opcode::JALR | Opcode::AUIPC => {
+                    self.report.opcode_counts[Opcode::ADD] += 1;
+                }
+                Opcode::BEQ
+                | Opcode::BNE
+                | Opcode::BLT
+                | Opcode::BGE
+                | Opcode::BLTU
+                | Opcode::BGEU => {
+                    self.report.opcode_counts[Opcode::ADD] += 1;
+                    self.report.opcode_counts[Opcode::SLTU] += 2;
+                }
+                Opcode::DIVU | Opcode::REMU | Opcode::DIV | Opcode::REM => {
+                    self.report.opcode_counts[Opcode::MUL] += 2;
+                    self.report.opcode_counts[Opcode::ADD] += 2;
+                    self.report.opcode_counts[Opcode::SLTU] += 1;
+                }
+                _ => {}
+            };
         }
 
         match instruction.opcode {
