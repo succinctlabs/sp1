@@ -1327,11 +1327,11 @@ impl<'a> Executor<'a> {
                     // if the min distance is less than 64, then we have a shape match
 
                     if l_infinity >= 1024 {
-                        tracing::warn!(
-                            "shape match found: l_infinity={}, shape={:?}",
-                            l_infinity,
-                            shape
-                        );
+                        // tracing::warn!(
+                        //     "shape match found: l_infinity={}, shape={:?}",
+                        //     l_infinity,
+                        //     shape
+                        // );
                         shape_match_found = true;
                         break;
                     }
