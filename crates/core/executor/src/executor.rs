@@ -1251,14 +1251,14 @@ impl<'a> Executor<'a> {
                         + self.report.opcode_counts[Opcode::SUB])
                         as i32;
                     if addsub_count > addsub_threshold {
-                        // continue;
+                        continue;
                     }
                     let addsub_distance = addsub_threshold - addsub_count;
 
                     let mul_threshold = 1 << shape["Mul"];
                     let mul_count = self.report.opcode_counts[Opcode::MUL] as i32;
                     if mul_count > mul_threshold {
-                        // continue;
+                        continue;
                     }
                     let mul_distance = mul_threshold - mul_count;
 
@@ -1268,14 +1268,14 @@ impl<'a> Executor<'a> {
                         + self.report.opcode_counts[Opcode::AND])
                         as i32;
                     if bitwise_count > bitwise_threshold {
-                        // continue;
+                        continue;
                     }
                     let bitwise_distance = bitwise_threshold - bitwise_count;
 
                     let shift_left_threshold = 1 << shape["ShiftLeft"];
                     let shift_left_count = self.report.opcode_counts[Opcode::SLL] as i32;
                     if shift_left_count > shift_left_threshold {
-                        // continue;
+                        continue;
                     }
                     let shift_left_distance = shift_left_threshold - shift_left_count;
 
@@ -1284,7 +1284,7 @@ impl<'a> Executor<'a> {
                         + self.report.opcode_counts[Opcode::SRA])
                         as i32;
                     if shift_right_count > shift_right_threshold {
-                        // continue;
+                        continue;
                     }
                     let shift_right_distance = shift_right_threshold - shift_right_count;
 
@@ -1295,7 +1295,7 @@ impl<'a> Executor<'a> {
                         + self.report.opcode_counts[Opcode::REMU])
                         as i32;
                     if divrem_count > divrem_threshold {
-                        // continue;
+                        continue;
                     }
                     let divrem_distance = divrem_threshold - divrem_count;
 
@@ -1304,7 +1304,7 @@ impl<'a> Executor<'a> {
                         + self.report.opcode_counts[Opcode::SLTU])
                         as i32;
                     if lt_count > lt_threshold {
-                        // continue;
+                        continue;
                     }
                     let lt_distance = lt_threshold - lt_count;
 
