@@ -38,6 +38,7 @@ pub struct CoreShapeConfig<F: PrimeField32> {
     included_shapes: Vec<HashMap<String, usize>>,
     allowed_preprocessed_log_heights: HashMap<RiscvAir<F>, Vec<Option<usize>>>,
     allowed_core_log_heights: Vec<HashMap<RiscvAir<F>, Vec<Option<usize>>>>,
+    maximal_core_log_heights_mask: Vec<bool>,
     memory_allowed_log_heights: HashMap<RiscvAir<F>, Vec<Option<usize>>>,
     precompile_allowed_log_heights: HashMap<RiscvAir<F>, (usize, Vec<usize>)>,
 }
@@ -53,6 +54,7 @@ struct CoreShapeSpec {
     lt_height: Vec<Option<usize>>,
     memory_local_height: Vec<Option<usize>>,
     syscall_core_height: Vec<Option<usize>>,
+    is_potentially_maximal: bool,
 }
 
 impl<F: PrimeField32> CoreShapeConfig<F> {
@@ -283,22 +285,26 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
             .iter()
             .map(|(air, allowed_heights)| (air.name(), allowed_heights.last().unwrap().unwrap()));
 
-        let max_core_shapes = self.allowed_core_log_heights.iter().map(|allowed_log_heights| {
-            max_preprocessed
-                .clone()
-                .chain(allowed_log_heights.iter().map(|(air, allowed_heights)| {
-                    (air.name(), allowed_heights.last().unwrap().unwrap())
-                }))
-                .collect::<CoreShape>()
-        });
+        let max_core_shapes = self
+            .allowed_core_log_heights
+            .iter()
+            .zip(self.maximal_core_log_heights_mask.iter())
+            .filter(|(_, mask)| **mask)
+            .map(|(allowed_log_heights, _)| {
+                max_preprocessed
+                    .clone()
+                    .chain(allowed_log_heights.iter().map(|(air, allowed_heights)| {
+                        (air.name(), allowed_heights.last().unwrap().unwrap())
+                    }))
+                    .collect::<CoreShape>()
+            });
+
         max_core_shapes.collect()
     }
 }
 
 impl<F: PrimeField32> Default for CoreShapeConfig<F> {
     fn default() -> Self {
-        let included_shapes = vec![];
-
         // Preprocessed chip heights.
         let program_heights = vec![Some(19), Some(20), Some(21), Some(22)];
         let program_memory_heights = vec![Some(19), Some(20), Some(21), Some(22)];
@@ -309,32 +315,98 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
             (RiscvAir::ByteLookup(ByteChip::default()), vec![Some(16)]),
         ]);
 
-        let mut allowed_core_log_heights = vec![];
-
         let core_shapes = [
+            // Small program shapes.
             CoreShapeSpec {
-                cpu_height: vec![Some(19)],
-                add_sub_height: vec![Some(21)],
+                cpu_height: vec![Some(14)],
+                add_sub_height: vec![Some(14)],
+                lt_height: vec![Some(14)],
+                bitwise_height: vec![Some(14)],
+                shift_right_height: vec![Some(14)],
+                shift_left_height: vec![Some(14)],
+                syscall_core_height: vec![Some(14)],
+                memory_local_height: vec![Some(14)],
+                mul_height: vec![Some(14)],
+                divrem_height: vec![Some(14)],
+                is_potentially_maximal: false,
+            },
+            CoreShapeSpec {
+                cpu_height: vec![Some(15)],
+                add_sub_height: vec![Some(15)],
+                lt_height: vec![Some(15)],
+                bitwise_height: vec![Some(15)],
+                shift_right_height: vec![Some(15)],
+                shift_left_height: vec![Some(15)],
+                syscall_core_height: vec![Some(15)],
+                memory_local_height: vec![Some(15)],
+                mul_height: vec![Some(15)],
+                divrem_height: vec![Some(15)],
+                is_potentially_maximal: false,
+            },
+            CoreShapeSpec {
+                cpu_height: vec![Some(16)],
+                add_sub_height: vec![Some(16)],
                 lt_height: vec![Some(16)],
-                bitwise_height: vec![Some(16), Some(16)],
+                bitwise_height: vec![Some(16)],
                 shift_right_height: vec![Some(16)],
                 shift_left_height: vec![Some(16)],
                 syscall_core_height: vec![Some(16)],
                 memory_local_height: vec![Some(16)],
                 mul_height: vec![Some(16)],
                 divrem_height: vec![Some(16)],
+                is_potentially_maximal: false,
+            },
+            CoreShapeSpec {
+                cpu_height: vec![Some(17)],
+                add_sub_height: vec![Some(17)],
+                lt_height: vec![Some(17)],
+                bitwise_height: vec![Some(17)],
+                shift_right_height: vec![Some(17)],
+                shift_left_height: vec![Some(17)],
+                syscall_core_height: vec![Some(17)],
+                memory_local_height: vec![Some(17)],
+                mul_height: vec![Some(17)],
+                divrem_height: vec![Some(17)],
+                is_potentially_maximal: false,
+            },
+            CoreShapeSpec {
+                cpu_height: vec![Some(18)],
+                add_sub_height: vec![Some(18)],
+                lt_height: vec![Some(18)],
+                bitwise_height: vec![Some(18)],
+                shift_right_height: vec![Some(18)],
+                shift_left_height: vec![Some(18)],
+                syscall_core_height: vec![Some(18)],
+                memory_local_height: vec![Some(18)],
+                mul_height: vec![Some(18)],
+                divrem_height: vec![Some(18)],
+                is_potentially_maximal: false,
+            },
+            CoreShapeSpec {
+                cpu_height: vec![Some(19)],
+                add_sub_height: vec![Some(21)],
+                lt_height: vec![Some(16)],
+                bitwise_height: vec![Some(16)],
+                shift_right_height: vec![Some(16)],
+                shift_left_height: vec![Some(16)],
+                syscall_core_height: vec![Some(16)],
+                memory_local_height: vec![Some(16)],
+                mul_height: vec![Some(16)],
+                divrem_height: vec![Some(16)],
+                is_potentially_maximal: false,
             },
             CoreShapeSpec {
                 cpu_height: vec![Some(19)],
                 add_sub_height: vec![Some(20)],
                 lt_height: vec![Some(20)],
-                bitwise_height: vec![Some(16), Some(16)],
+                bitwise_height: vec![Some(16)],
                 shift_right_height: vec![Some(16)],
                 shift_left_height: vec![Some(16)],
                 syscall_core_height: vec![Some(16)],
                 memory_local_height: vec![Some(16)],
                 mul_height: vec![Some(16)],
                 divrem_height: vec![Some(16)],
+                is_potentially_maximal: false,
             },
             CoreShapeSpec {
                 cpu_height: vec![Some(19)],
@@ -347,8 +419,9 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
                 memory_local_height: vec![Some(19)],
                 mul_height: vec![Some(19)],
                 divrem_height: vec![Some(19)],
+                is_potentially_maximal: false,
             },
-            // All no-add chips in <= 1<<19
+            // All no-add chips in <= 1<<19.
             //
             // Most shapes should be included in this cluster.
             CoreShapeSpec {
@@ -362,6 +435,7 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
                 memory_local_height: vec![Some(16), Some(18), Some(18)],
                 mul_height: vec![Some(10), Some(16), Some(18)],
                 divrem_height: vec![Some(10), Some(16), Some(17)],
+                is_potentially_maximal: true,
             },
             CoreShapeSpec {
                 cpu_height: vec![Some(21)],
@@ -374,6 +448,7 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
                 memory_local_height: vec![Some(16), Some(18), Some(18)],
                 mul_height: vec![Some(10), Some(16), Some(18)],
                 divrem_height: vec![Some(10), Some(16), Some(17)],
+                is_potentially_maximal: true,
             },
             CoreShapeSpec {
                 cpu_height: vec![Some(21)],
@@ -386,6 +461,7 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
                 memory_local_height: vec![Some(16), Some(18), Some(19)],
                 mul_height: vec![Some(10), Some(16), Some(18)],
                 divrem_height: vec![Some(10), Some(16), Some(17)],
+                is_potentially_maximal: true,
             },
             CoreShapeSpec {
                 cpu_height: vec![Some(21)],
@@ -398,6 +474,7 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
                 memory_local_height: vec![Some(16), Some(18), Some(19)],
                 mul_height: vec![Some(10), Some(16), Some(18)],
                 divrem_height: vec![Some(10), Some(16), Some(17)],
+                is_potentially_maximal: true,
             },
             CoreShapeSpec {
                 cpu_height: vec![Some(21)],
@@ -410,6 +487,7 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
                 memory_local_height: vec![Some(16), Some(18), Some(19)],
                 mul_height: vec![Some(10), Some(16), Some(18)],
                 divrem_height: vec![Some(10), Some(16), Some(17)],
+                is_potentially_maximal: true,
             },
             // LT in <= 1<<20
             //
@@ -426,6 +504,7 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
                 memory_local_height: vec![Some(16), Some(18), Some(19)],
                 mul_height: vec![Some(10), Some(16), Some(18)],
                 divrem_height: vec![Some(10), Some(16), Some(17)],
+                is_potentially_maximal: true,
             },
             CoreShapeSpec {
                 cpu_height: vec![Some(21)],
@@ -438,6 +517,7 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
                 memory_local_height: vec![Some(16), Some(18), Some(19)],
                 mul_height: vec![Some(10), Some(16), Some(18)],
                 divrem_height: vec![Some(10), Some(16), Some(17)],
+                is_potentially_maximal: true,
             },
             // LT in <= 1<<21
             //
@@ -454,6 +534,7 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
                 memory_local_height: vec![Some(16), Some(18)],
                 mul_height: vec![Some(10), Some(16), Some(18)],
                 divrem_height: vec![Some(10), Some(16), Some(17)],
+                is_potentially_maximal: true,
             },
             // Bitwise in <= 1<<20
             CoreShapeSpec {
@@ -467,6 +548,7 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
                 memory_local_height: vec![Some(16), Some(18)],
                 mul_height: vec![Some(10), Some(16), Some(18)],
                 divrem_height: vec![Some(10), Some(16)],
+                is_potentially_maximal: true,
             },
             // Bitwise in <= 1<<21
             CoreShapeSpec {
@@ -480,6 +562,7 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
                 memory_local_height: vec![Some(16), Some(18)],
                 mul_height: vec![Some(10), Some(16), Some(18)],
                 divrem_height: vec![Some(10), Some(16), Some(17)],
+                is_potentially_maximal: true,
             },
             // SLL in <= 1<<20
             CoreShapeSpec {
@@ -493,6 +576,7 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
                 memory_local_height: vec![Some(16), Some(18), Some(19)],
                 mul_height: vec![Some(10), Some(16), Some(18)],
                 divrem_height: vec![Some(10), Some(16), Some(17)],
+                is_potentially_maximal: true,
             },
             // SLL in <= 1<<21
             CoreShapeSpec {
@@ -506,6 +590,7 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
                 memory_local_height: vec![Some(16), Some(18)],
                 mul_height: vec![Some(10), Some(16), Some(18)],
                 divrem_height: vec![Some(10), Some(16), Some(17)],
+                is_potentially_maximal: true,
             },
             // SRL in <= 1<<20
             CoreShapeSpec {
@@ -519,6 +604,7 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
                 memory_local_height: vec![Some(16), Some(18), Some(19)],
                 mul_height: vec![Some(10), Some(16), Some(18)],
                 divrem_height: vec![Some(10), Some(16), Some(17)],
+                is_potentially_maximal: true,
             },
             // Shards with many mul events.
             CoreShapeSpec {
@@ -532,9 +618,12 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
                 memory_local_height: vec![Some(16)],
                 mul_height: vec![Some(19), Some(20)],
                 divrem_height: vec![Some(10), Some(16)],
+                is_potentially_maximal: true,
             },
         ];
 
+        let mut allowed_core_log_heights = vec![];
+        let mut maximal_core_log_heights_mask = vec![];
         for spec in core_shapes {
             let short_allowed_log_heights = HashMap::from([
                 (RiscvAir::Cpu(CpuChip::default()), spec.cpu_height),
@@ -549,6 +638,7 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
                 (RiscvAir::SyscallCore(SyscallChip::core()), spec.syscall_core_height),
             ]);
             allowed_core_log_heights.push(short_allowed_log_heights);
+            maximal_core_log_heights_mask.push(spec.is_potentially_maximal);
         }
 
         // Set the memory init and finalize heights.
@@ -569,9 +659,10 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
         }
 
         Self {
-            included_shapes,
+            included_shapes: vec![],
             allowed_preprocessed_log_heights,
             allowed_core_log_heights,
+            maximal_core_log_heights_mask,
             memory_allowed_log_heights,
             precompile_allowed_log_heights,
         }
