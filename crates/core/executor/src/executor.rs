@@ -1292,7 +1292,12 @@ impl<'a> Executor<'a> {
                     .min()
                     .unwrap();
 
-                    if l_infinity >= 64 {
+                    // compute distance from every shape
+                    // if the max distance is less than 64, then we have a shape match
+
+                    // if the min distance is less than 64, then we have a shape match
+
+                    if l_infinity >= 1024 {
                         shape_match_found = true;
                         break;
                     }
