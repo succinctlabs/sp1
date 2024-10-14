@@ -1269,6 +1269,8 @@ impl<'a> Executor<'a> {
                     .min()
                     .unwrap();
 
+                    log::warn!("l_infinity for shape {:?}: {}", shape, l_infinity);
+
                     if l_infinity >= 64 {
                         shape_match_found = true;
                         break;
