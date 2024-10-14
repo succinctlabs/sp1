@@ -1222,11 +1222,6 @@ impl<'a> Executor<'a> {
             let mut shape_exit = false;
             if let Some(maximal_shapes) = &self.maximal_shapes {
                 for shape in maximal_shapes {
-                    let addsub_distance = (1 << shape["AddSub"])
-                        - ((self.report.opcode_counts[Opcode::ADD]
-                            + self.report.opcode_counts[Opcode::SUB])
-                            as usize);
-
                     let mul_distance =
                         (1 << shape["Mul"]) - (self.report.opcode_counts[Opcode::MUL] as usize);
 
@@ -1257,7 +1252,6 @@ impl<'a> Executor<'a> {
                             as usize);
 
                     let l_infinity = vec![
-                        addsub_distance,
                         mul_distance,
                         bitwise_distance,
                         shift_left_distance,
@@ -1269,11 +1263,11 @@ impl<'a> Executor<'a> {
                     .min()
                     .unwrap();
 
-                    if l_infinity <= 1000 {
+                    if l_infinity <= 64 {
                         log::warn!(
                             "exiting early because l-∞ is too high: \
                             l_infinity={}, \
-                            addsub_distance={}, \
+                            nb_cpu_cycles={}, \
                             mul_distance={}, \
                             bitwise_distance={}, \
                             shift_left_distance={}, \
@@ -1281,7 +1275,7 @@ impl<'a> Executor<'a> {
                             divrem_distance={}, \
                             lt_distance={}",
                             l_infinity,
-                            addsub_distance,
+                            self.report.total_instruction_count(),
                             mul_distance,
                             bitwise_distance,
                             shift_left_distance,
