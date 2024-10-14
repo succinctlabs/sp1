@@ -4,6 +4,7 @@ use std::{
     sync::Arc,
 };
 
+use enum_map::EnumMap;
 use hashbrown::HashMap;
 use serde::{Deserialize, Serialize};
 use sp1_stark::SP1CoreOpts;
@@ -814,12 +815,13 @@ impl<'a> Executor<'a> {
 
         if !self.unconstrained {
             self.report.opcode_counts[instruction.opcode] += 1;
+            self.report.event_counts[instruction.opcode] += 1;
             match instruction.opcode {
                 Opcode::LB | Opcode::LH | Opcode::LW | Opcode::LBU | Opcode::LHU => {
-                    self.report.opcode_counts[Opcode::ADD] += 2;
+                    self.report.event_counts[Opcode::ADD] += 2;
                 }
                 Opcode::JAL | Opcode::JALR | Opcode::AUIPC => {
-                    self.report.opcode_counts[Opcode::ADD] += 1;
+                    self.report.event_counts[Opcode::ADD] += 1;
                 }
                 Opcode::BEQ
                 | Opcode::BNE
@@ -827,13 +829,13 @@ impl<'a> Executor<'a> {
                 | Opcode::BGE
                 | Opcode::BLTU
                 | Opcode::BGEU => {
-                    self.report.opcode_counts[Opcode::ADD] += 1;
-                    self.report.opcode_counts[Opcode::SLTU] += 2;
+                    self.report.event_counts[Opcode::ADD] += 1;
+                    self.report.event_counts[Opcode::SLTU] += 2;
                 }
                 Opcode::DIVU | Opcode::REMU | Opcode::DIV | Opcode::REM => {
-                    self.report.opcode_counts[Opcode::MUL] += 2;
-                    self.report.opcode_counts[Opcode::ADD] += 2;
-                    self.report.opcode_counts[Opcode::SLTU] += 1;
+                    self.report.event_counts[Opcode::MUL] += 2;
+                    self.report.event_counts[Opcode::ADD] += 2;
+                    self.report.event_counts[Opcode::SLTU] += 1;
                 }
                 _ => {}
             };
@@ -1237,24 +1239,24 @@ impl<'a> Executor<'a> {
         // Increment the clock.
         self.state.global_clk += 1;
 
-        let addsub_count = (self.report.opcode_counts[Opcode::ADD]
-            + self.report.opcode_counts[Opcode::SUB]) as usize;
-        let mul_count = (self.report.opcode_counts[Opcode::MUL]
-            + self.report.opcode_counts[Opcode::MULH]
-            + self.report.opcode_counts[Opcode::MULHU]
-            + self.report.opcode_counts[Opcode::MULHSU]) as usize;
-        let bitwise_count = (self.report.opcode_counts[Opcode::XOR]
-            + self.report.opcode_counts[Opcode::OR]
-            + self.report.opcode_counts[Opcode::AND]) as usize;
-        let shift_left_count = self.report.opcode_counts[Opcode::SLL] as usize;
-        let shift_right_count = (self.report.opcode_counts[Opcode::SRL]
-            + self.report.opcode_counts[Opcode::SRA]) as usize;
-        let divrem_count = (self.report.opcode_counts[Opcode::DIV]
-            + self.report.opcode_counts[Opcode::DIVU]
-            + self.report.opcode_counts[Opcode::REM]
-            + self.report.opcode_counts[Opcode::REMU]) as usize;
-        let lt_count = (self.report.opcode_counts[Opcode::SLT]
-            + self.report.opcode_counts[Opcode::SLTU]) as usize;
+        let addsub_count = (self.report.event_counts[Opcode::ADD]
+            + self.report.event_counts[Opcode::SUB]) as usize;
+        let mul_count = (self.report.event_counts[Opcode::MUL]
+            + self.report.event_counts[Opcode::MULH]
+            + self.report.event_counts[Opcode::MULHU]
+            + self.report.event_counts[Opcode::MULHSU]) as usize;
+        let bitwise_count = (self.report.event_counts[Opcode::XOR]
+            + self.report.event_counts[Opcode::OR]
+            + self.report.event_counts[Opcode::AND]) as usize;
+        let shift_left_count = self.report.event_counts[Opcode::SLL] as usize;
+        let shift_right_count = (self.report.event_counts[Opcode::SRL]
+            + self.report.event_counts[Opcode::SRA]) as usize;
+        let divrem_count = (self.report.event_counts[Opcode::DIV]
+            + self.report.event_counts[Opcode::DIVU]
+            + self.report.event_counts[Opcode::REM]
+            + self.report.event_counts[Opcode::REMU]) as usize;
+        let lt_count = (self.report.event_counts[Opcode::SLT]
+            + self.report.event_counts[Opcode::SLTU]) as usize;
 
         if !self.unconstrained {
             // If there's not enough cycles left for another instruction, move to the next shard.
@@ -1332,7 +1334,7 @@ impl<'a> Executor<'a> {
             if !shape_match_found {
                 log::warn!(
                     "dropping shard due to no shapes fitting: opcode_counts={:?}, nb_cycles={}, addsub_count={}, mul_count={}, bitwise_count={}, shift_left_count={}, shift_right_count={}, divrem_count={}, lt_count={}",
-                    self.report.opcode_counts,
+                    self.report.event_counts,
                     self.state.clk / 4,
                     log2_ceil_usize(addsub_count),
                     log2_ceil_usize(mul_count),
@@ -1347,7 +1349,7 @@ impl<'a> Executor<'a> {
             if cpu_exit || !shape_match_found {
                 self.state.current_shard += 1;
                 self.state.clk = 0;
-                self.report = ExecutionReport::default();
+                self.report.event_counts = Box::default();
                 self.bump_record();
             }
         }
