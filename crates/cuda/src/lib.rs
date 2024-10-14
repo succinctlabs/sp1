@@ -11,14 +11,21 @@ use std::{
 };
 
 use crate::proto::api::ProverServiceClient;
+use async_trait::async_trait;
 use proto::api::ReadyRequest;
+use reqwest::{Request, Response};
 use serde::{Deserialize, Serialize};
 use sp1_core_machine::{io::SP1Stdin, reduce::SP1ReduceProof, utils::SP1CoreProverError};
 use sp1_prover::{
     types::SP1ProvingKey, InnerSC, OuterSC, SP1CoreProof, SP1RecursionProverError, SP1VerifyingKey,
 };
 use tokio::task::block_in_place;
-use twirp::{url::Url, Client};
+use twirp::{
+    async_trait,
+    reqwest::{self},
+    url::Url,
+    Client, ClientError, Middleware, Next,
+};
 
 #[rustfmt::skip]
 pub mod proto {
@@ -185,11 +192,15 @@ impl SP1CudaProver {
             Ok(())
         })?;
 
+        let client = Client::new(
+            Url::parse("http://localhost:3000/twirp/").expect("failed to parse url"),
+            reqwest::Client::new(),
+            vec![Box::new(LoggingMiddleware) as Box<dyn Middleware>],
+        )
+        .expect("failed to create client");
+
         Ok(SP1CudaProver {
-            client: Client::from_base_url(
-                Url::parse("http://localhost:3000/twirp/").expect("failed to parse url"),
-            )
-            .expect("failed to create client"),
+            client,
             container_name: container_name.to_string(),
             cleaned_up: cleaned_up.clone(),
         })
@@ -315,6 +326,24 @@ pub fn block_on<T>(fut: impl Future<Output = T>) -> T {
         // Otherwise create a new runtime.
         let rt = tokio::runtime::Runtime::new().expect("Failed to create a new runtime");
         rt.block_on(fut)
+    }
+}
+
+struct LoggingMiddleware;
+
+pub type Result<T, E = ClientError> = std::result::Result<T, E>;
+
+#[async_trait]
+impl Middleware for LoggingMiddleware {
+    async fn handle(&self, req: Request, next: Next<'_>) -> Result<Response> {
+        let response = next.run(req).await;
+        match response {
+            Ok(response) => {
+                tracing::debug!("{:?}", response);
+                Ok(response)
+            }
+            Err(e) => Err(e),
+        }
     }
 }
 
