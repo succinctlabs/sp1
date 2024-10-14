@@ -3,6 +3,7 @@ use itertools::Itertools;
 use hashbrown::HashMap;
 use num::Integer;
 use p3_field::PrimeField32;
+use p3_util::log2_ceil_usize;
 use sp1_core_executor::{CoreShape, ExecutionRecord, Program};
 use sp1_stark::{air::MachineAir, MachineRecord, ProofShape};
 use thiserror::Error;
@@ -123,6 +124,18 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
                 if let Some(shape) =
                     Self::find_shape_from_allowed_heights(&heights, allowed_log_heights)
                 {
+                    let mut msg = "Shape Lifted:\n".to_string();
+                    for (air, height) in heights.iter() {
+                        msg += &format!(
+                            "{:<10}: {:<10} -> {:<10}\n",
+                            air.name(),
+                            log2_ceil_usize(*height),
+                            shape.inner[&air.name()]
+                        )
+                        .to_string();
+                    }
+                    tracing::info!("{}", msg);
+
                     record.shape.as_mut().unwrap().extend(shape);
                     return Ok(());
                 }

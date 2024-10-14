@@ -4,7 +4,6 @@ use std::{
     sync::Arc,
 };
 
-use enum_map::EnumMap;
 use hashbrown::HashMap;
 use serde::{Deserialize, Serialize};
 use sp1_stark::SP1CoreOpts;
