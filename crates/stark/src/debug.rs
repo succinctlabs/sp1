@@ -218,7 +218,11 @@ where
     }
 
     fn is_transition_window(&self, size: usize) -> Self::Expr {
-        if size == 2 { self.is_transition } else { panic!("only supports a window size of 2") }
+        if size == 2 {
+            self.is_transition
+        } else {
+            panic!("only supports a window size of 2")
+        }
     }
 
     fn main(&self) -> Self::M {

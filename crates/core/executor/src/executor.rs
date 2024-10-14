@@ -1271,7 +1271,7 @@ impl<'a> Executor<'a> {
 
                     if l_infinity <= 1000 {
                         log::warn!(
-                            "execiting early because l-∞ is too high: \
+                            "exiting early because l-∞ is too high: \
                             l_infinity={}, \
                             addsub_distance={}, \
                             mul_distance={}, \
