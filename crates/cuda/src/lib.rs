@@ -339,7 +339,7 @@ impl Middleware for LoggingMiddleware {
         let response = next.run(req).await;
         match response {
             Ok(response) => {
-                tracing::debug!("{:?}", response);
+                tracing::info!("{:?}", response);
                 Ok(response)
             }
             Err(e) => Err(e),
