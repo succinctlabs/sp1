@@ -1302,11 +1302,13 @@ impl<'a> Executor<'a> {
             }
 
             // TODO: don't use report for event tracing
-            if !shape_match_found {
-                log::warn!("shape match not found for {:?}", self.report.opcode_counts);
-            }
 
             if cpu_exit || !shape_match_found {
+                if !shape_match_found {
+                    log::warn!("SHAPE MATCH NOT FOUND {:?}", self.report.opcode_counts);
+                } else {
+                    log::warn!("SHAPE MATCH FOUND FOR {:?}", self.report.opcode_counts);
+                }
                 self.state.current_shard += 1;
                 self.state.clk = 0;
                 self.report = ExecutionReport::default();
