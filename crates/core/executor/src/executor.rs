@@ -1325,17 +1325,7 @@ impl<'a> Executor<'a> {
                     .min()
                     .unwrap();
 
-                    // compute distance from every shape
-                    // if the max distance is less than 64, then we have a shape match
-
-                    // if the min distance is less than 64, then we have a shape match
-
                     if l_infinity >= 1024 {
-                        // tracing::warn!(
-                        //     "shape match found: l_infinity={}, shape={:?}",
-                        //     l_infinity,
-                        //     shape
-                        // );
                         shape_match_found = true;
                         break;
                     }
@@ -1348,9 +1338,11 @@ impl<'a> Executor<'a> {
 
             if cpu_exit || !shape_match_found {
                 if !shape_match_found {
-                    log::warn!("SHAPE MATCH NOT FOUND {:?}", self.report.opcode_counts);
-                } else {
-                    log::warn!("SHAPE MATCH FOUND FOR {:?}", self.report.opcode_counts);
+                    log::warn!(
+                        "dropping shard due to no shapes fitting: opcode_counts={:?}, nb_cycles={}",
+                        self.report.opcode_counts,
+                        self.state.clk
+                    );
                 }
                 self.state.current_shard += 1;
                 self.state.clk = 0;
