@@ -1320,7 +1320,7 @@ impl<'a> Executor<'a> {
                     .min()
                     .unwrap();
 
-                    if l_infinity >= 1024 {
+                    if l_infinity >= 32 {
                         shape_match_found = true;
                         break;
                     }
@@ -1333,7 +1333,7 @@ impl<'a> Executor<'a> {
                 log::warn!(
                     "dropping shard due to no shapes fitting: opcode_counts={:?}, nb_cycles={}, addsub_count={}, mul_count={}, bitwise_count={}, shift_left_count={}, shift_right_count={}, divrem_count={}, lt_count={}",
                     self.report.opcode_counts,
-                    self.state.clk,
+                    self.state.clk / 4,
                     log2_ceil_usize(addsub_count),
                     log2_ceil_usize(mul_count),
                     log2_ceil_usize(bitwise_count),
