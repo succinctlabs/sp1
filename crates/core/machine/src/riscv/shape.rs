@@ -686,7 +686,7 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
         ]);
 
         let mut precompile_allowed_log_heights = HashMap::new();
-        let precompile_heights = (1..19).collect::<Vec<_>>();
+        let precompile_heights = (3..19).collect::<Vec<_>>();
         for (air, mem_events_per_row) in RiscvAir::<F>::get_all_precompile_airs() {
             precompile_allowed_log_heights
                 .insert(air, (mem_events_per_row, precompile_heights.clone()));
