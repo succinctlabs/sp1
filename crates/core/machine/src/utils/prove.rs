@@ -634,13 +634,6 @@ where
                                     #[cfg(debug_assertions)]
                                     {
                                         if let Some(shape) = record.shape {
-                                            tracing::error!(
-                                                "Shape mismatch: \n
-                                            proof shape: {:?}\n
-                                            record shape: {:?}\n",
-                                                proof.shape(),
-                                                shape,
-                                            );
                                             assert_eq!(
                                                 proof.shape(),
                                                 shape.clone().into_iter().collect(),
@@ -710,18 +703,22 @@ where
 
 /// Runs a program and returns the public values stream.
 pub fn run_test_io<P: MachineProver<BabyBearPoseidon2, RiscvAir<BabyBear>>>(
-    program: Program,
+    mut program: Program,
     inputs: SP1Stdin,
 ) -> Result<SP1PublicValues, MachineVerificationError<BabyBearPoseidon2>> {
+    let shape_config = CoreShapeConfig::<BabyBear>::default();
+    shape_config.fix_preprocessed_shape(&mut program).unwrap();
     let runtime = tracing::debug_span!("runtime.run(...)").in_scope(|| {
         let mut runtime = Executor::new(program, SP1CoreOpts::default());
+        runtime.maximal_shapes =
+            Some(shape_config.maximal_core_shapes().into_iter().map(|s| s.inner).collect());
         runtime.write_vecs(&inputs.buffer);
         runtime.run().unwrap();
         runtime
     });
     let public_values = SP1PublicValues::from(&runtime.state.public_values_stream);
 
-    let _ = run_test_core::<P>(runtime, inputs, None)?;
+    let _ = run_test_core::<P>(runtime, inputs, Some(&shape_config))?;
     Ok(public_values)
 }
 
