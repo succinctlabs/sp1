@@ -1347,13 +1347,13 @@ impl<'a> Executor<'a> {
                             lt_norm = {}",
                             shape_idx,
                             l_infinity,
-                            addsub_count,
-                            mul_count,
-                            bitwise_count,
-                            shift_left_count,
-                            shift_right_count,
-                            divrem_count,
-                            lt_count,
+                            addsub_distance,
+                            mul_distance,
+                            bitwise_distance,
+                            shift_left_distance,
+                            shift_right_distance,
+                            divrem_distance,
+                            lt_distance,
                         );
                     }
 
