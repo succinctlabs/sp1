@@ -9,7 +9,6 @@ use crate::{
     Prover, SP1Context, SP1ProofKind, SP1ProofWithPublicValues, SP1ProvingKey, SP1VerifyingKey,
 };
 use anyhow::Result;
-use serde::de::DeserializeOwned;
 use sp1_core_machine::io::SP1Stdin;
 use sp1_prover::{components::DefaultProverComponents, SP1Prover, SP1_CIRCUIT_VERSION};
 use sp1_stark::SP1ProverOpts;
@@ -74,11 +73,11 @@ impl NetworkProver {
 
     /// Waits for a proof to be generated and returns the proof. If a timeout is supplied, the
     /// function will return an error if the proof is not generated within the timeout.
-    pub async fn wait_proof<P: DeserializeOwned>(
+    pub async fn wait_proof(
         &self,
         proof_id: &str,
         timeout: Option<Duration>,
-    ) -> Result<P> {
+    ) -> Result<SP1ProofWithPublicValues> {
         let client = &self.client;
         let mut is_claimed = false;
         let start_time = Instant::now();
@@ -90,7 +89,7 @@ impl NetworkProver {
                 }
             }
 
-            let result = client.get_proof_status::<P>(proof_id).await;
+            let result = client.get_proof_status(proof_id).await;
 
             if let Err(e) = result {
                 errors += 1;
