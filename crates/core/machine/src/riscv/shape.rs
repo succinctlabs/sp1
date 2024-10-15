@@ -124,16 +124,14 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
                 if let Some(shape) =
                     Self::find_shape_from_allowed_heights(&heights, allowed_log_heights)
                 {
-                    log::info!("Record Lifted: Index={}", record.public_values.shard);
+                    tracing::debug!("Shard Lifted: Index={}", record.public_values.shard);
                     for (air, height) in heights.iter() {
                         if shape.inner.contains_key(&air.name()) {
-                            log::info!(
-                                "{:<20}: {:<3} -> {:<3} ({:.2}% Utilization)",
+                            tracing::debug!(
+                                "Chip {:<20}: {:<3} -> {:<3}",
                                 air.name(),
                                 log2_ceil_usize(*height),
                                 shape.inner[&air.name()],
-                                ((*height as f64 / (1 << shape.inner[&air.name()]) as f64) * 100.0)
-                                    .round()
                             );
                         }
                     }
