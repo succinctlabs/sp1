@@ -1277,24 +1277,45 @@ impl<'a> Executor<'a> {
 
                     for (shape_idx, shape) in maximal_shapes.iter().enumerate() {
                         let addsub_threshold = 1 << shape["AddSub"];
+                        if addsub_count > addsub_threshold {
+                            continue;
+                        }
                         let addsub_distance = addsub_threshold - addsub_count;
 
                         let mul_threshold = 1 << shape["Mul"];
+                        if mul_count > mul_threshold {
+                            continue;
+                        }
                         let mul_distance = mul_threshold - mul_count;
 
                         let bitwise_threshold = 1 << shape["Bitwise"];
+                        if bitwise_count > bitwise_threshold {
+                            continue;
+                        }
                         let bitwise_distance = bitwise_threshold - bitwise_count;
 
                         let shift_left_threshold = 1 << shape["ShiftLeft"];
+                        if shift_left_count > shift_left_threshold {
+                            continue;
+                        }
                         let shift_left_distance = shift_left_threshold - shift_left_count;
 
                         let shift_right_threshold = 1 << shape["ShiftRight"];
+                        if shift_right_count > shift_right_threshold {
+                            continue;
+                        }
                         let shift_right_distance = shift_right_threshold - shift_right_count;
 
                         let divrem_threshold = 1 << shape["DivRem"];
+                        if divrem_count > divrem_threshold {
+                            continue;
+                        }
                         let divrem_distance = divrem_threshold - divrem_count;
 
                         let lt_threshold = 1 << shape["Lt"];
+                        if lt_count > lt_threshold {
+                            continue;
+                        }
                         let lt_distance = lt_threshold - lt_count;
 
                         let l_infinity = vec![
