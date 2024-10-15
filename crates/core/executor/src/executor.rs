@@ -1238,111 +1238,129 @@ impl<'a> Executor<'a> {
         // Increment the clock.
         self.state.global_clk += 1;
 
-        let addsub_count = (self.report.event_counts[Opcode::ADD]
-            + self.report.event_counts[Opcode::SUB]) as usize;
-        let mul_count = (self.report.event_counts[Opcode::MUL]
-            + self.report.event_counts[Opcode::MULH]
-            + self.report.event_counts[Opcode::MULHU]
-            + self.report.event_counts[Opcode::MULHSU]) as usize;
-        let bitwise_count = (self.report.event_counts[Opcode::XOR]
-            + self.report.event_counts[Opcode::OR]
-            + self.report.event_counts[Opcode::AND]) as usize;
-        let shift_left_count = self.report.event_counts[Opcode::SLL] as usize;
-        let shift_right_count = (self.report.event_counts[Opcode::SRL]
-            + self.report.event_counts[Opcode::SRA]) as usize;
-        let divrem_count = (self.report.event_counts[Opcode::DIV]
-            + self.report.event_counts[Opcode::DIVU]
-            + self.report.event_counts[Opcode::REM]
-            + self.report.event_counts[Opcode::REMU]) as usize;
-        let lt_count = (self.report.event_counts[Opcode::SLT]
-            + self.report.event_counts[Opcode::SLTU]) as usize;
-
         if !self.unconstrained {
             // If there's not enough cycles left for another instruction, move to the next shard.
             let cpu_exit = self.max_syscall_cycles + self.state.clk >= self.shard_size;
 
-            // Check if the L-infinity norm between the maximal shapes and the current shapes is
-            // within some threshold.
-            let mut shape_match_found = false;
-            if let Some(maximal_shapes) = &self.maximal_shapes {
-                for shape in maximal_shapes {
-                    let addsub_threshold = 1 << shape["AddSub"];
-                    if addsub_count > addsub_threshold {
-                        continue;
+            // Every N cycles, check if there exists at least one shape that fits.
+            //
+            // If we're close to not fitting, early stop the shard to ensure we don't OOM.
+            let mut shape_match_found = true;
+            if self.state.global_clk % 16 == 0 {
+                let addsub_count = (self.report.event_counts[Opcode::ADD]
+                    + self.report.event_counts[Opcode::SUB])
+                    as usize;
+                let mul_count = (self.report.event_counts[Opcode::MUL]
+                    + self.report.event_counts[Opcode::MULH]
+                    + self.report.event_counts[Opcode::MULHU]
+                    + self.report.event_counts[Opcode::MULHSU])
+                    as usize;
+                let bitwise_count = (self.report.event_counts[Opcode::XOR]
+                    + self.report.event_counts[Opcode::OR]
+                    + self.report.event_counts[Opcode::AND])
+                    as usize;
+                let shift_left_count = self.report.event_counts[Opcode::SLL] as usize;
+                let shift_right_count = (self.report.event_counts[Opcode::SRL]
+                    + self.report.event_counts[Opcode::SRA])
+                    as usize;
+                let divrem_count = (self.report.event_counts[Opcode::DIV]
+                    + self.report.event_counts[Opcode::DIVU]
+                    + self.report.event_counts[Opcode::REM]
+                    + self.report.event_counts[Opcode::REMU])
+                    as usize;
+                let lt_count = (self.report.event_counts[Opcode::SLT]
+                    + self.report.event_counts[Opcode::SLTU])
+                    as usize;
+
+                if let Some(maximal_shapes) = &self.maximal_shapes {
+                    shape_match_found = false;
+
+                    for shape in maximal_shapes {
+                        let addsub_threshold = 1 << shape["AddSub"];
+                        if addsub_count > addsub_threshold {
+                            continue;
+                        }
+                        let addsub_distance = addsub_threshold - addsub_count;
+
+                        let mul_threshold = 1 << shape["Mul"];
+                        if mul_count > mul_threshold {
+                            continue;
+                        }
+                        let mul_distance = mul_threshold - mul_count;
+
+                        let bitwise_threshold = 1 << shape["Bitwise"];
+                        if bitwise_count > bitwise_threshold {
+                            continue;
+                        }
+                        let bitwise_distance = bitwise_threshold - bitwise_count;
+
+                        let shift_left_threshold = 1 << shape["ShiftLeft"];
+                        if shift_left_count > shift_left_threshold {
+                            continue;
+                        }
+                        let shift_left_distance = shift_left_threshold - shift_left_count;
+
+                        let shift_right_threshold = 1 << shape["ShiftRight"];
+                        if shift_right_count > shift_right_threshold {
+                            continue;
+                        }
+                        let shift_right_distance = shift_right_threshold - shift_right_count;
+
+                        let divrem_threshold = 1 << shape["DivRem"];
+                        if divrem_count > divrem_threshold {
+                            continue;
+                        }
+                        let divrem_distance = divrem_threshold - divrem_count;
+
+                        let lt_threshold = 1 << shape["Lt"];
+                        if lt_count > lt_threshold {
+                            continue;
+                        }
+                        let lt_distance = lt_threshold - lt_count;
+
+                        let l_infinity = vec![
+                            addsub_distance,
+                            mul_distance,
+                            bitwise_distance,
+                            shift_left_distance,
+                            shift_right_distance,
+                            divrem_distance,
+                            lt_distance,
+                        ]
+                        .into_iter()
+                        .min()
+                        .unwrap();
+
+                        if l_infinity > 32 {
+                            shape_match_found = true;
+                            break;
+                        }
                     }
-                    let addsub_distance = addsub_threshold - addsub_count;
 
-                    let mul_threshold = 1 << shape["Mul"];
-                    if mul_count > mul_threshold {
-                        continue;
-                    }
-                    let mul_distance = mul_threshold - mul_count;
-
-                    let bitwise_threshold = 1 << shape["Bitwise"];
-                    if bitwise_count > bitwise_threshold {
-                        continue;
-                    }
-                    let bitwise_distance = bitwise_threshold - bitwise_count;
-
-                    let shift_left_threshold = 1 << shape["ShiftLeft"];
-                    if shift_left_count > shift_left_threshold {
-                        continue;
-                    }
-                    let shift_left_distance = shift_left_threshold - shift_left_count;
-
-                    let shift_right_threshold = 1 << shape["ShiftRight"];
-                    if shift_right_count > shift_right_threshold {
-                        continue;
-                    }
-                    let shift_right_distance = shift_right_threshold - shift_right_count;
-
-                    let divrem_threshold = 1 << shape["DivRem"];
-                    if divrem_count > divrem_threshold {
-                        continue;
-                    }
-                    let divrem_distance = divrem_threshold - divrem_count;
-
-                    let lt_threshold = 1 << shape["Lt"];
-                    if lt_count > lt_threshold {
-                        continue;
-                    }
-                    let lt_distance = lt_threshold - lt_count;
-
-                    let l_infinity = vec![
-                        addsub_distance,
-                        mul_distance,
-                        bitwise_distance,
-                        shift_left_distance,
-                        shift_right_distance,
-                        divrem_distance,
-                        lt_distance,
-                    ]
-                    .into_iter()
-                    .min()
-                    .unwrap();
-
-                    if l_infinity >= 8 {
-                        shape_match_found = true;
-                        break;
+                    if !shape_match_found {
+                        log::warn!(
+                            "stopping shard early due to no shapes fitting: \
+                            opcode_counts={:?}, \
+                            nb_cycles={}, \
+                            addsub_count={}, \
+                            mul_count={}, \
+                            bitwise_count={}, \
+                            shift_left_count={}, \
+                            shift_right_count={}, \
+                            divrem_count={}, \
+                            lt_count={}",
+                            self.report.event_counts,
+                            self.state.clk / 4,
+                            log2_ceil_usize(addsub_count),
+                            log2_ceil_usize(mul_count),
+                            log2_ceil_usize(bitwise_count),
+                            log2_ceil_usize(shift_left_count),
+                            log2_ceil_usize(shift_right_count),
+                            log2_ceil_usize(divrem_count),
+                            log2_ceil_usize(lt_count),
+                        );
                     }
                 }
-            } else {
-                shape_match_found = true;
-            }
-
-            if !shape_match_found {
-                log::warn!(
-                    "dropping shard due to no shapes fitting: opcode_counts={:?}, nb_cycles={}, addsub_count={}, mul_count={}, bitwise_count={}, shift_left_count={}, shift_right_count={}, divrem_count={}, lt_count={}",
-                    self.report.event_counts,
-                    self.state.clk / 4,
-                    log2_ceil_usize(addsub_count),
-                    log2_ceil_usize(mul_count),
-                    log2_ceil_usize(bitwise_count),
-                    log2_ceil_usize(shift_left_count),
-                    log2_ceil_usize(shift_right_count),
-                    log2_ceil_usize(divrem_count),
-                    log2_ceil_usize(lt_count),
-                );
             }
 
             if cpu_exit || !shape_match_found {
