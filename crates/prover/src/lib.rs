@@ -215,10 +215,6 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         let allowed_vk_map: BTreeMap<[BabyBear; DIGEST_SIZE], usize> = if vk_verification {
             bincode::deserialize(include_bytes!("../vk_map.bin")).unwrap()
         } else {
-            // TODO: FIX
-            //
-            // let vk_dummy_map_bytes =
-            //     std::fs::read(Self::shapes_dir().join("dummy_vk_map.bin")).unwrap();
             bincode::deserialize(include_bytes!("../dummy_vk_map.bin")).unwrap()
         };
 
