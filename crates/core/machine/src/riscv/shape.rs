@@ -124,7 +124,7 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
                 if let Some(shape) =
                     Self::find_shape_from_allowed_heights(&heights, allowed_log_heights)
                 {
-                    log::info!("Shape Lifted:\n");
+                    log::info!("Record Lifted: Index={}", record.public_values.shard);
                     for (air, height) in heights.iter() {
                         if shape.inner.contains_key(&air.name()) {
                             log::info!(
