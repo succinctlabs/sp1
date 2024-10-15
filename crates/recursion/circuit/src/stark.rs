@@ -41,7 +41,6 @@ pub struct ShardProofVariable<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConf
     pub opened_values: ShardOpenedValues<Ext<C::F, C::EF>>,
     pub opening_proof: TwoAdicPcsProofVariable<C, SC>,
     pub chip_ordering: HashMap<String, usize>,
-    pub chip_scopes: Vec<InteractionScope>,
     pub public_values: Vec<Felt<C::F>>,
 }
 
@@ -180,14 +179,8 @@ pub fn dummy_vk_and_shard_proof<A: MachineAir<BabyBear>>(
         chip_ordering: preprocessed_chip_ordering,
     };
 
-    let shard_proof = ShardProof {
-        commitment,
-        opened_values,
-        opening_proof,
-        chip_ordering,
-        chip_scopes,
-        public_values,
-    };
+    let shard_proof =
+        ShardProof { commitment, opened_values, opening_proof, chip_ordering, public_values };
 
     (vk, shard_proof)
 }
@@ -277,15 +270,15 @@ where
         A: for<'a> Air<RecursiveVerifierConstraintFolder<'a, C>>,
     {
         let chips = machine.shard_chips_ordered(&proof.chip_ordering).collect::<Vec<_>>();
+        let chip_scopes = chips.iter().map(|chip| chip.commit_scope()).collect::<Vec<_>>();
 
-        let has_global_main_commit = proof.contains_global_main_commitment();
+        let has_global_main_commit = chip_scopes.contains(&InteractionScope::Global);
 
         let ShardProofVariable {
             commitment,
             opened_values,
             opening_proof,
             chip_ordering,
-            chip_scopes,
             public_values,
         } = proof;
 
@@ -526,10 +519,6 @@ impl<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVariable<C>> ShardProof
 
     pub fn contains_memory_finalize(&self) -> bool {
         self.chip_ordering.contains_key("MemoryGlobalFinalize")
-    }
-
-    pub fn contains_global_main_commitment(&self) -> bool {
-        self.chip_scopes.contains(&InteractionScope::Global)
     }
 }
 

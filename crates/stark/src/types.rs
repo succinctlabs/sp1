@@ -83,7 +83,6 @@ pub struct ShardProof<SC: StarkGenericConfig> {
     pub opened_values: ShardOpenedValues<Challenge<SC>>,
     pub opening_proof: OpeningProof<SC>,
     pub chip_ordering: HashMap<String, usize>,
-    pub chip_scopes: Vec<InteractionScope>,
     pub public_values: Vec<Val<SC>>,
 }
 
@@ -150,10 +149,6 @@ impl<SC: StarkGenericConfig> ShardProof<SC> {
 
     pub fn contains_global_memory_finalize(&self) -> bool {
         self.chip_ordering.contains_key("MemoryGlobalFinalize")
-    }
-
-    pub fn contains_global_main_commitment(&self) -> bool {
-        self.chip_scopes.contains(&InteractionScope::Global)
     }
 }
 
