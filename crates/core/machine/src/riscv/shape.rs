@@ -82,19 +82,22 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
         let shape: Option<HashMap<String, usize>> = heights
             .iter()
             .map(|(air, height)| {
-                for allowed_log_height in
-                    allowed_log_heights.get(air).into_iter().flatten().flatten()
-                {
-                    let allowed_height = 1 << allowed_log_height;
+                for maybe_allowed_log_height in allowed_log_heights.get(air).into_iter().flatten() {
+                    let allowed_log_height = maybe_allowed_log_height.unwrap_or_default();
+                    let allowed_height =
+                        if allowed_log_height != 0 { 1 << allowed_log_height } else { 0 };
                     if *height <= allowed_height {
-                        return Some((air.name(), *allowed_log_height));
+                        return Some((air.name(), allowed_log_height));
                     }
                 }
                 None
             })
             .collect();
 
-        let shape = CoreShape { inner: shape? };
+        let mut inner = shape?;
+        inner.retain(|_, &mut value| value != 0);
+
+        let shape = CoreShape { inner };
         Some(shape)
     }
 
@@ -119,11 +122,15 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
             let heights = RiscvAir::<F>::core_heights(record);
 
             // Try to find a shape within the included shapes.
-            for allowed_log_heights in self.allowed_core_log_heights.iter() {
+            for (i, allowed_log_heights) in self.allowed_core_log_heights.iter().enumerate() {
                 if let Some(shape) =
                     Self::find_shape_from_allowed_heights(&heights, allowed_log_heights)
                 {
-                    tracing::debug!("Shard Lifted: Index={}", record.public_values.shard);
+                    tracing::debug!(
+                        "Shard Lifted: Index={}, Cluster={}",
+                        record.public_values.shard,
+                        i
+                    );
                     for (air, height) in heights.iter() {
                         if shape.inner.contains_key(&air.name()) {
                             tracing::debug!(
@@ -131,15 +138,6 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
                                 air.name(),
                                 log2_ceil_usize(*height),
                                 shape.inner[&air.name()],
-                            );
-                        } else if *height > 0 {
-                            unreachable!(
-                                "shape covering mismatch: heights={:?}, shape={:?}",
-                                heights
-                                    .iter()
-                                    .map(|(air, height)| (air.name(), *height))
-                                    .collect::<Vec<_>>(),
-                                shape
                             );
                         }
                     }
@@ -463,13 +461,13 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
                 cpu_height: vec![Some(21)],
                 add_sub_height: vec![Some(21)],
                 lt_height: vec![Some(20)],
-                bitwise_height: vec![Some(18), Some(19)],
-                shift_right_height: vec![Some(16), Some(17)],
-                shift_left_height: vec![Some(16), Some(17)],
+                bitwise_height: vec![None, Some(18), Some(19)],
+                shift_right_height: vec![None, Some(16), Some(17)],
+                shift_left_height: vec![None, Some(16), Some(17)],
                 syscall_core_height: vec![Some(16), Some(17)],
                 memory_local_height: vec![Some(16), Some(18), Some(18)],
-                mul_height: vec![Some(10), Some(16), Some(18)],
-                divrem_height: vec![Some(10), Some(16), Some(17)],
+                mul_height: vec![None, Some(10), Some(16), Some(18)],
+                divrem_height: vec![None, Some(10), Some(16), Some(17)],
                 is_potentially_maximal: true,
             },
             CoreShapeSpec {
