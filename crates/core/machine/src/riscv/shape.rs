@@ -132,7 +132,7 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
                                 air.name(),
                                 log2_ceil_usize(*height),
                                 shape.inner[&air.name()],
-                                ((*height as f64 / shape.inner[&air.name()] as f64) * 100.0)
+                                ((*height as f64 / (1 << shape.inner[&air.name()]) as f64) * 100.0)
                                     .round()
                             );
                         }
