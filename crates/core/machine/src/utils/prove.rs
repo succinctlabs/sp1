@@ -726,14 +726,18 @@ pub fn run_test_io<P: MachineProver<BabyBearPoseidon2, RiscvAir<BabyBear>>>(
 }
 
 pub fn run_test<P: MachineProver<BabyBearPoseidon2, RiscvAir<BabyBear>>>(
-    program: Program,
+    mut program: Program,
 ) -> Result<MachineProof<BabyBearPoseidon2>, MachineVerificationError<BabyBearPoseidon2>> {
+    let shape_config = CoreShapeConfig::default();
+    shape_config.fix_preprocessed_shape(&mut program).unwrap();
     let runtime = tracing::debug_span!("runtime.run(...)").in_scope(|| {
         let mut runtime = Executor::new(program, SP1CoreOpts::default());
+        runtime.maximal_shapes =
+            Some(shape_config.maximal_core_shapes().into_iter().map(|s| s.inner).collect());
         runtime.run().unwrap();
         runtime
     });
-    run_test_core::<P>(runtime, SP1Stdin::new(), None)
+    run_test_core::<P>(runtime, SP1Stdin::new(), Some(&shape_config))
 }
 
 #[allow(unused_variables)]
