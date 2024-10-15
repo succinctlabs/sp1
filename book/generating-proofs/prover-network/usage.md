@@ -38,26 +38,32 @@ To skip the simulation step and directly submit the program for proof generation
 
 ### Use NetworkProver directly
 
-By using the `sp1_sdk::NetworkProver` struct directly, you can call async functions directly and have programmatic access to the proof ID.
+By using the `sp1_sdk::NetworkProver` struct directly, you can call async functions directly and have programmatic access to the proof ID and download proofs by ID.
 
 ```rust,noplayground
 impl NetworkProver {
     /// Creates a new [NetworkProver] with the private key set in `SP1_PRIVATE_KEY`.
-    pub fn new() -> Self;
-
-    /// Creates a new [NetworkProver] with the given private key.
-    pub fn new_from_key(private_key: &str) -> Self;
+    pub fn new(private_key: &str) -> Self;
 
     /// Requests a proof from the prover network, returning the proof ID.
-    pub async fn request_proof(
+    /// Creates a proof request for the given ELF and stdin.
+    pub async fn create_proof(
         &self,
         elf: &[u8],
-        stdin: SP1Stdin,
+        stdin: &SP1Stdin,
         mode: ProofMode,
+        circuit_version: &str,
     ) -> Result<String>;
 
     /// Waits for a proof to be generated and returns the proof.
-    pub async fn wait_proof<P: DeserializeOwned>(&self, proof_id: &str) -> Result<P>;
+    pub async fn wait_proof(&self, proof_id: &str) -> Result<SP1ProofWithPublicValues>;
+
+    /// Get the status and the proof if available of a given proof request. The proof is returned
+    /// only if the status is Fulfilled.
+    pub async fn get_proof_status(
+        &self,
+        proof_id: &str,
+    ) -> Result<(GetProofStatusResponse, Option<SP1ProofWithPublicValues>)>;
 
     /// Requests a proof from the prover network and waits for it to be generated.
     pub async fn prove<P: ProofType>(&self, elf: &[u8], stdin: SP1Stdin) -> Result<P>;

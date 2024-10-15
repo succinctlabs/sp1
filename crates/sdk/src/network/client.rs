@@ -1,16 +1,18 @@
 use std::{env, time::Duration};
 
 use crate::{
-    network::auth::NetworkAuth,
-    network::proto::network::{
-        ModifyCpuCyclesRequest, ModifyCpuCyclesResponse, UnclaimProofRequest, UnclaimReason,
+    network::{
+        auth::NetworkAuth,
+        proto::network::{
+            ModifyCpuCyclesRequest, ModifyCpuCyclesResponse, UnclaimProofRequest, UnclaimReason,
+        },
     },
+    SP1ProofWithPublicValues,
 };
 use anyhow::{Context, Ok, Result};
 use futures::{future::join_all, Future};
 use reqwest::{Client as HttpClient, Url};
 use reqwest_middleware::ClientWithMiddleware as HttpClientWithMiddleware;
-use serde::de::DeserializeOwned;
 use sp1_core_machine::io::SP1Stdin;
 use std::{
     result::Result::Ok as StdOk,
@@ -85,12 +87,12 @@ impl NetworkClient {
         Ok(())
     }
 
-    /// Get the status of a given proof. If the status is ProofFulfilled, the proof is also
-    /// returned.
-    pub async fn get_proof_status<P: DeserializeOwned>(
+    /// Get the status and the proof if available of a given proof request. The proof is returned
+    /// only if the status is Fulfilled.
+    pub async fn get_proof_status(
         &self,
         proof_id: &str,
-    ) -> Result<(GetProofStatusResponse, Option<P>)> {
+    ) -> Result<(GetProofStatusResponse, Option<SP1ProofWithPublicValues>)> {
         let res = self
             .with_error_handling(
                 self.rpc.get_proof_status(GetProofStatusRequest { proof_id: proof_id.to_string() }),
