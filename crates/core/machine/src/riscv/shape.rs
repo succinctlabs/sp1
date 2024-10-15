@@ -647,6 +647,20 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
                 divrem_height: vec![Some(10), Some(16)],
                 is_potentially_maximal: true,
             },
+            // Shards that do lots of hashing.
+            CoreShapeSpec {
+                cpu_height: vec![Some(21)],
+                add_sub_height: vec![Some(21)],
+                lt_height: vec![Some(20)],
+                bitwise_height: vec![Some(11)],
+                shift_right_height: vec![Some(10)],
+                shift_left_height: vec![Some(10)],
+                syscall_core_height: vec![Some(6)],
+                memory_local_height: vec![Some(6)],
+                mul_height: vec![Some(6)],
+                divrem_height: vec![Some(6)],
+                is_potentially_maximal: true,
+            },
         ];
 
         let mut allowed_core_log_heights = vec![];
