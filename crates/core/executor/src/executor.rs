@@ -1275,7 +1275,7 @@ impl<'a> Executor<'a> {
                 if let Some(maximal_shapes) = &self.maximal_shapes {
                     shape_match_found = false;
 
-                    for (shape_idx, shape) in maximal_shapes.iter().enumerate() {
+                    for shape in maximal_shapes.iter() {
                         let addsub_threshold = 1 << shape["AddSub"];
                         if addsub_count > addsub_threshold {
                             continue;
