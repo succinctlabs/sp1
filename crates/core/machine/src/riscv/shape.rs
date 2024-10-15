@@ -124,19 +124,20 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
                 if let Some(shape) =
                     Self::find_shape_from_allowed_heights(&heights, allowed_log_heights)
                 {
-                    let mut msg = "Shape Lifted:\n".to_string();
+                    log::info!("Shape Lifted:\n");
                     for (air, height) in heights.iter() {
                         if shape.inner.contains_key(&air.name()) {
-                            msg += &format!(
-                                "{:<10}: {:<10} -> {:<10}\n",
+                            log::info!(
+                                "{:<20}: {:<10} -> {:<10} ({:.2}% ↑)",
                                 air.name(),
                                 log2_ceil_usize(*height),
-                                shape.inner[&air.name()]
-                            )
-                            .to_string();
+                                shape.inner[&air.name()],
+                                ((1.0 - (*height as f64 / shape.inner[&air.name()] as f64))
+                                    * 100.0)
+                                    .round()
+                            );
                         }
                     }
-                    tracing::info!("{}", msg);
 
                     record.shape.as_mut().unwrap().extend(shape);
                     return Ok(());
