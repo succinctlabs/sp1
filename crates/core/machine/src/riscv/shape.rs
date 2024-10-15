@@ -133,6 +133,15 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
                                 log2_ceil_usize(*height),
                                 shape.inner[&air.name()],
                             );
+                        } else {
+                            unreachable!(
+                                "shape covering mismatch: heights={:?}, shape={:?}",
+                                heights
+                                    .iter()
+                                    .map(|(air, height)| (air.name(), *height))
+                                    .collect::<Vec<_>>(),
+                                shape
+                            );
                         }
                     }
 

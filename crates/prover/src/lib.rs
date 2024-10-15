@@ -161,46 +161,8 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
     /// Initializes a new [SP1Prover].
     #[instrument(name = "initialize prover", level = "debug", skip_all)]
     pub fn new() -> Self {
-        // TODO: Enable
-        //
-        // Initialize the shapes (only once).
-        // SHAPES_INIT.call_once(|| {
-        //     let shapes_dir = Self::shapes_dir();
-        //     if !shapes_dir.exists() {
-        //         std::fs::create_dir_all(&shapes_dir).expect("failed to create shapes directory");
-
-        //         let url = format!("{}-{}/allowed_vk_map.bin", SHAPES_URL_PREFIX, SHAPES_VERSION);
-        //         let allowed_vk_map_bytes = reqwest::blocking::get(url)
-        //             .expect("failed to download allowed_vk_map.bin")
-        //             .bytes()
-        //             .expect("failed to read response body");
-        //         let allowed_vk_map_bytes = allowed_vk_map_bytes.as_ref().to_vec();
-        //         std::fs::write(shapes_dir.join("allowed_vk_map.bin"), allowed_vk_map_bytes)
-        //             .unwrap();
-
-        //         let url = format!("{}-{}/dummy_vk_map.bin", SHAPES_URL_PREFIX, SHAPES_VERSION);
-        //         let dummy_vk_map_bytes = reqwest::blocking::get(url)
-        //             .expect("failed to download dummy_vk_map.bin")
-        //             .bytes()
-        //             .expect("failed to read response body");
-        //         let dummy_vk_map_bytes = dummy_vk_map_bytes.as_ref().to_vec();
-        //         std::fs::write(shapes_dir.join("dummy_vk_map.bin"), dummy_vk_map_bytes).unwrap();
-        //     }
-        // });
-
         Self::uninitialized()
     }
-
-    // TODO: FIX
-    //
-    // Get the shapes directory.
-    // pub fn shapes_dir() -> PathBuf {
-    //     dirs::home_dir()
-    //         .expect("failed to get home directory")
-    //         .join(".sp1")
-    //         .join("shapes")
-    //         .join(SHAPES_VERSION)
-    // }
 
     /// Creates a new [SP1Prover] with lazily initialized components.
     pub fn uninitialized() -> Self {
