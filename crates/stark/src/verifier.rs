@@ -45,7 +45,6 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
             opened_values,
             opening_proof,
             chip_ordering,
-            chip_scopes,
             public_values,
             ..
         } = proof;
@@ -55,6 +54,8 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
         if chips.len() != opened_values.chips.len() {
             return Err(VerificationError::ChipOpeningLengthMismatch);
         }
+
+        let chip_scopes = chips.iter().map(|chip| chip.commit_scope()).collect::<Vec<_>>();
 
         // Assert that the byte multiplicities don't overflow.
         let mut max_byte_lookup_mult = 0u64;

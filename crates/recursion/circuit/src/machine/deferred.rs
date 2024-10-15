@@ -168,8 +168,6 @@ where
                 shard_proof.public_values[0..machine.num_pv_elts()].iter().copied(),
             );
 
-            assert!(!shard_proof.contains_global_main_commitment());
-
             let zero_ext: Ext<C::F, C::EF> = builder.eval(C::F::zero());
             StarkVerifier::verify_shard(
                 builder,

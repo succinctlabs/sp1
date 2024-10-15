@@ -752,7 +752,6 @@ where
             opened_values: ShardOpenedValues { chips: opened_values },
             opening_proof,
             chip_ordering: all_chips_ordering,
-            chip_scopes: all_chip_scopes,
             public_values: local_public_values,
         })
     }
