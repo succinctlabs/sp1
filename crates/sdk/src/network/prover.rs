@@ -19,8 +19,8 @@ use {crate::block_on, tokio::time::sleep};
 
 use crate::provers::{CpuProver, ProofOpts, ProverType};
 
-/// Number of errors to tolerate before returning an error while polling proof status.
-const MAX_ERRORS: usize = 10;
+/// Number of consecutive errors to tolerate before returning an error while polling proof status.
+const MAX_CONSECUTIVE_ERRORS: usize = 10;
 
 /// An implementation of [crate::ProverClient] that can generate proofs on a remote RPC server.
 pub struct NetworkProver {
@@ -83,7 +83,7 @@ impl NetworkProver {
         let client = &self.client;
         let mut is_claimed = false;
         let start_time = Instant::now();
-        let mut errors = 0;
+        let mut consecutive_errors = 0;
         loop {
             if let Some(timeout) = timeout {
                 if start_time.elapsed() > timeout {
@@ -94,13 +94,22 @@ impl NetworkProver {
             let result = client.get_proof_status(proof_id).await;
 
             if let Err(e) = result {
-                errors += 1;
-                log::warn!("Failed to get proof status ({}/{}): {:?}", errors, MAX_ERRORS, e);
-                if errors == MAX_ERRORS {
-                    return Err(anyhow::anyhow!("Proof generation failed."));
+                consecutive_errors += 1;
+                log::warn!(
+                    "Failed to get proof status ({}/{}): {:?}",
+                    consecutive_errors,
+                    MAX_CONSECUTIVE_ERRORS,
+                    e
+                );
+                if consecutive_errors == MAX_CONSECUTIVE_ERRORS {
+                    return Err(anyhow::anyhow!(
+                        "Proof generation failed: {} consecutive errors.",
+                        MAX_CONSECUTIVE_ERRORS
+                    ));
                 }
                 continue;
             }
+            consecutive_errors = 0;
 
             let (status, maybe_proof) = result.unwrap();
 
@@ -182,7 +191,6 @@ impl Default for NetworkProver {
 
 /// Warns if `opts` or `context` are not default values, since they are currently unsupported.
 fn warn_if_not_default(opts: &SP1ProverOpts, context: &SP1Context) {
-    let _guard = tracing::warn_span!("network_prover").entered();
     if opts != &SP1ProverOpts::default() {
         tracing::warn!("non-default opts will be ignored: {:?}", opts.core_opts);
         tracing::warn!("custom SP1ProverOpts are currently unsupported by the network prover");
