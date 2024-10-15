@@ -128,12 +128,11 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
                     for (air, height) in heights.iter() {
                         if shape.inner.contains_key(&air.name()) {
                             log::info!(
-                                "{:<20}: {:<3} -> {:<3} ({:.2}% ↑)",
+                                "{:<20}: {:<3} -> {:<3} ({:.2}% Utilization)",
                                 air.name(),
                                 log2_ceil_usize(*height),
                                 shape.inner[&air.name()],
-                                ((1.0 - (*height as f64 / shape.inner[&air.name()] as f64))
-                                    * 100.0)
+                                ((*height as f64 / shape.inner[&air.name()] as f64) * 100.0)
                                     .round()
                             );
                         }
