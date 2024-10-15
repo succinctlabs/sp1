@@ -1331,30 +1331,10 @@ impl<'a> Executor<'a> {
                         .min()
                         .unwrap();
 
-                        if l_infinity > 32 {
+                        if l_infinity >= 32 {
                             shape_match_found = true;
                             break;
                         }
-
-                        log::debug!(
-                            "maximal shape does not fit: shape_idx = {}, l_infinity = {}, \
-                            addsub_norm = {}, \
-                            mul_norm = {}, \
-                            bitwise_norm = {}, \
-                            shift_left_norm = {}, \
-                            shift_right_norm = {}, \
-                            divrem_norm = {}, \
-                            lt_norm = {}",
-                            shape_idx,
-                            l_infinity,
-                            addsub_distance,
-                            mul_distance,
-                            bitwise_distance,
-                            shift_left_distance,
-                            shift_right_distance,
-                            divrem_distance,
-                            lt_distance,
-                        );
                     }
 
                     if !shape_match_found {

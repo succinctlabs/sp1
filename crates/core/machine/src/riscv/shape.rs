@@ -630,7 +630,7 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
                 syscall_core_height: vec![Some(6)],
                 memory_local_height: vec![Some(16)],
                 mul_height: vec![Some(19)],
-                divrem_height: vec![Some(5)],
+                divrem_height: vec![Some(6)],
                 is_potentially_maximal: true,
             },
             // Shards with many mul events.
