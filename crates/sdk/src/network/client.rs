@@ -33,8 +33,8 @@ pub const DEFAULT_PROVER_NETWORK_RPC: &str = "https://rpc.succinct.xyz/";
 /// The timeout for a proof request to be fulfilled.
 const PROOF_TIMEOUT: Duration = Duration::from_secs(60 * 60);
 
-/// The timeout for a single RPC request to be fulfilled.
-const REQUEST_TIMEOUT: Duration = Duration::from_secs(15);
+/// The timeout for a single RPC request.
+const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 
 pub struct NetworkClient {
     pub rpc: TwirpClient,
@@ -53,6 +53,7 @@ impl NetworkClient {
         let auth = NetworkAuth::new(private_key);
 
         let twirp_http_client = HttpClient::builder()
+            .timeout(REQUEST_TIMEOUT)
             .pool_max_idle_per_host(0)
             .pool_idle_timeout(Duration::from_secs(240))
             .build()
@@ -63,6 +64,7 @@ impl NetworkClient {
             TwirpClient::new(Url::parse(&rpc_url).unwrap(), twirp_http_client, vec![]).unwrap();
 
         let http_client = HttpClient::builder()
+            .timeout(REQUEST_TIMEOUT)
             .pool_max_idle_per_host(0)
             .pool_idle_timeout(Duration::from_secs(240))
             .build()
@@ -106,7 +108,7 @@ impl NetworkClient {
                 let proof_bytes = self
                     .http
                     .get(res.proof_url.as_ref().expect("no proof url"))
-                    .timeout(REQUEST_TIMEOUT)
+                    .timeout(Duration::from_secs(120))
                     .send()
                     .await
                     .context("Failed to send HTTP request for proof")?
