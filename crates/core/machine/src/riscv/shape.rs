@@ -133,7 +133,7 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
                                 log2_ceil_usize(*height),
                                 shape.inner[&air.name()],
                             );
-                        } else {
+                        } else if *height > 0 {
                             unreachable!(
                                 "shape covering mismatch: heights={:?}, shape={:?}",
                                 heights
@@ -443,6 +443,20 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
                 divrem_height: vec![Some(19)],
                 is_potentially_maximal: false,
             },
+            // Shards that do lots of hashing.
+            CoreShapeSpec {
+                cpu_height: vec![Some(21)],
+                add_sub_height: vec![Some(21)],
+                lt_height: vec![Some(20)],
+                bitwise_height: vec![Some(11)],
+                shift_right_height: vec![Some(10)],
+                shift_left_height: vec![Some(10)],
+                syscall_core_height: vec![Some(6)],
+                memory_local_height: vec![Some(6)],
+                mul_height: vec![Some(6)],
+                divrem_height: vec![Some(6)],
+                is_potentially_maximal: true,
+            },
             // All no-add chips in <= 1<<19.
             //
             // Most shapes should be included in this cluster.
@@ -654,20 +668,6 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
                 memory_local_height: vec![Some(16)],
                 mul_height: vec![Some(19), Some(20)],
                 divrem_height: vec![Some(10), Some(16)],
-                is_potentially_maximal: true,
-            },
-            // Shards that do lots of hashing.
-            CoreShapeSpec {
-                cpu_height: vec![Some(21)],
-                add_sub_height: vec![Some(21)],
-                lt_height: vec![Some(20)],
-                bitwise_height: vec![Some(11)],
-                shift_right_height: vec![Some(10)],
-                shift_left_height: vec![Some(10)],
-                syscall_core_height: vec![Some(6)],
-                memory_local_height: vec![Some(6)],
-                mul_height: vec![Some(6)],
-                divrem_height: vec![Some(6)],
                 is_potentially_maximal: true,
             },
         ];
