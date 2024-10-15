@@ -29,7 +29,10 @@ use crate::network::proto::network::{
 pub const DEFAULT_PROVER_NETWORK_RPC: &str = "https://rpc.succinct.xyz/";
 
 /// The timeout for a proof request to be fulfilled.
-const TIMEOUT: Duration = Duration::from_secs(60 * 60);
+const PROOF_TIMEOUT: Duration = Duration::from_secs(60 * 60);
+
+/// The timeout for a single RPC request to be fulfilled.
+const REQUEST_TIMEOUT: Duration = Duration::from_secs(15);
 
 pub struct NetworkClient {
     pub rpc: TwirpClient,
@@ -101,6 +104,7 @@ impl NetworkClient {
                 let proof_bytes = self
                     .http
                     .get(res.proof_url.as_ref().expect("no proof url"))
+                    .timeout(REQUEST_TIMEOUT)
                     .send()
                     .await
                     .context("Failed to send HTTP request for proof")?
@@ -139,7 +143,7 @@ impl NetworkClient {
     ) -> Result<String> {
         let start = SystemTime::now();
         let since_the_epoch = start.duration_since(UNIX_EPOCH).expect("Invalid start time");
-        let deadline = since_the_epoch.as_secs() + TIMEOUT.as_secs();
+        let deadline = since_the_epoch.as_secs() + PROOF_TIMEOUT.as_secs();
 
         let nonce = self.get_nonce().await?;
         let create_proof_signature = self

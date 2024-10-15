@@ -18,6 +18,9 @@ use {crate::block_on, tokio::time::sleep};
 
 use crate::provers::{CpuProver, ProofOpts, ProverType};
 
+/// Number of errors to tolerate before returning an error while polling proof status.
+const MAX_ERRORS: usize = 10;
+
 /// An implementation of [crate::ProverClient] that can generate proofs on a remote RPC server.
 pub struct NetworkProver {
     client: NetworkClient,
@@ -79,6 +82,7 @@ impl NetworkProver {
         let client = &self.client;
         let mut is_claimed = false;
         let start_time = Instant::now();
+        let mut errors = 0;
         loop {
             if let Some(timeout) = timeout {
                 if start_time.elapsed() > timeout {
@@ -86,7 +90,18 @@ impl NetworkProver {
                 }
             }
 
-            let (status, maybe_proof) = client.get_proof_status::<P>(proof_id).await?;
+            let result = client.get_proof_status::<P>(proof_id).await;
+
+            if let Err(e) = result {
+                errors += 1;
+                log::warn!("Failed to get proof status ({}/{}): {:?}", errors, MAX_ERRORS, e);
+                if errors == MAX_ERRORS {
+                    return Err(anyhow::anyhow!("Proof generation failed."));
+                }
+                continue;
+            }
+
+            let (status, maybe_proof) = result.unwrap();
 
             match status.status() {
                 ProofStatus::ProofFulfilled => {
