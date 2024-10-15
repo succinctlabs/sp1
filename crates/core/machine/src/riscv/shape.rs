@@ -81,7 +81,6 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
     ) -> Option<CoreShape> {
         let shape: Option<HashMap<String, usize>> = heights
             .iter()
-            .filter(|(_, height)| *height != 0)
             .map(|(air, height)| {
                 for allowed_log_height in
                     allowed_log_heights.get(air).into_iter().flatten().flatten()
@@ -338,7 +337,7 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
         ]);
 
         let core_shapes = [
-            // Small program shapes.
+            // Small program shapes: 2^14 -> 2^18.
             CoreShapeSpec {
                 cpu_height: vec![Some(14)],
                 add_sub_height: vec![Some(14)],
@@ -404,6 +403,7 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
                 divrem_height: vec![Some(18)],
                 is_potentially_maximal: false,
             },
+            // Small 2^19 shape variants.
             CoreShapeSpec {
                 cpu_height: vec![Some(19)],
                 add_sub_height: vec![Some(21)],
@@ -442,20 +442,6 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
                 mul_height: vec![Some(19)],
                 divrem_height: vec![Some(19)],
                 is_potentially_maximal: false,
-            },
-            // Shards that do lots of hashing.
-            CoreShapeSpec {
-                cpu_height: vec![Some(21)],
-                add_sub_height: vec![Some(21)],
-                lt_height: vec![Some(20)],
-                bitwise_height: vec![Some(11)],
-                shift_right_height: vec![Some(10)],
-                shift_left_height: vec![Some(10)],
-                syscall_core_height: vec![Some(6)],
-                memory_local_height: vec![Some(6)],
-                mul_height: vec![Some(6)],
-                divrem_height: vec![Some(6)],
-                is_potentially_maximal: true,
             },
             // All no-add chips in <= 1<<19.
             //
