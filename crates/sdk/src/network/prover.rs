@@ -13,6 +13,8 @@ use sp1_core_machine::io::SP1Stdin;
 use sp1_prover::{components::DefaultProverComponents, SP1Prover, SP1_CIRCUIT_VERSION};
 use sp1_stark::SP1ProverOpts;
 
+use super::proto::network::GetProofStatusResponse;
+
 use {crate::block_on, tokio::time::sleep};
 
 use crate::provers::{CpuProver, ProofOpts, ProverType};
@@ -122,6 +124,15 @@ impl NetworkProver {
             }
             sleep(Duration::from_secs(2)).await;
         }
+    }
+
+    /// Get the status and the proof if available of a given proof request. The proof is returned
+    /// only if the status is Fulfilled.
+    pub async fn get_proof_status(
+        &self,
+        proof_id: &str,
+    ) -> Result<(GetProofStatusResponse, Option<SP1ProofWithPublicValues>)> {
+        self.client.get_proof_status(proof_id).await
     }
 
     /// Requests a proof from the prover network and waits for it to be generated.
