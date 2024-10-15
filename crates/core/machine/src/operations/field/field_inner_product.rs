@@ -94,14 +94,14 @@ where
     pub fn eval<AB: SP1AirBuilder<Var = V>>(
         &self,
         builder: &mut AB,
-        a: &[Limbs<AB::Var, P::Limbs>],
-        b: &[Limbs<AB::Var, P::Limbs>],
+        a: &[impl Into<Polynomial<AB::Expr>> + Clone],
+        b: &[impl Into<Polynomial<AB::Expr>> + Clone],
         is_real: impl Into<AB::Expr> + Clone,
     ) where
         V: Into<AB::Expr>,
     {
-        let p_a_vec: Vec<Polynomial<AB::Expr>> = a.iter().map(|x| (*x).into()).collect();
-        let p_b_vec: Vec<Polynomial<AB::Expr>> = b.iter().map(|x| (*x).into()).collect();
+        let p_a_vec: Vec<Polynomial<AB::Expr>> = a.iter().cloned().map(|x| x.into()).collect();
+        let p_b_vec: Vec<Polynomial<AB::Expr>> = b.iter().cloned().map(|x| x.into()).collect();
         let p_result: Polynomial<<AB as AirBuilder>::Expr> = self.result.into();
         let p_carry: Polynomial<<AB as AirBuilder>::Expr> = self.carry.into();
 

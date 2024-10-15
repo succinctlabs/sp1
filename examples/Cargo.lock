@@ -1739,7 +1739,7 @@ dependencies = [
 name = "cycle-tracking-program"
 version = "1.1.0"
 dependencies = [
- "sp1-derive",
+ "sp1-derive 2.0.0",
  "sp1-zkvm",
 ]
 
@@ -2019,7 +2019,7 @@ checksum = "0d6ef0072f8a535281e4876be788938b528e9a1d43900b82c2569af7da799125"
 [[package]]
 name = "ecdsa"
 version = "0.16.8"
-source = "git+https://github.com/sp1-patches/signatures?branch=umadayal/secp256r1#ec3502ed27aeb35756a64f501d28c68346f783b4"
+source = "git+https://github.com/sp1-patches/signatures?branch=umadayal/secp256r1#71b9101d6ab709583f868e3dec32343b7cc43e0b"
 dependencies = [
  "anyhow",
  "cfg-if",
@@ -2029,6 +2029,7 @@ dependencies = [
  "hex-literal",
  "rfc6979",
  "signature",
+ "sp1-derive 2.0.0 (git+https://github.com/succinctlabs/sp1.git?branch=secp256r1)",
  "sp1-lib 2.0.0 (git+https://github.com/succinctlabs/sp1.git?branch=secp256r1)",
  "spki 0.7.3",
 ]
@@ -5762,7 +5763,7 @@ dependencies = [
 [[package]]
 name = "rfc6979"
 version = "0.4.0"
-source = "git+https://github.com/sp1-patches/signatures?branch=umadayal/secp256r1#ec3502ed27aeb35756a64f501d28c68346f783b4"
+source = "git+https://github.com/sp1-patches/signatures?branch=umadayal/secp256r1#71b9101d6ab709583f868e3dec32343b7cc43e0b"
 dependencies = [
  "hmac",
  "subtle",
@@ -6760,7 +6761,7 @@ dependencies = [
  "serde",
  "serde_with",
  "sp1-curves",
- "sp1-derive",
+ "sp1-derive 2.0.0",
  "sp1-primitives",
  "sp1-stark",
  "strum",
@@ -6821,7 +6822,7 @@ dependencies = [
  "snowbridge-amcl",
  "sp1-core-executor",
  "sp1-curves",
- "sp1-derive",
+ "sp1-derive 2.0.0",
  "sp1-primitives",
  "sp1-stark",
  "static_assertions",
@@ -6886,6 +6887,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "sp1-derive"
+version = "2.0.0"
+source = "git+https://github.com/succinctlabs/sp1.git?branch=secp256r1#1dec7e97cc34075063221731470479ef2fdb4ff0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
+]
+
+[[package]]
 name = "sp1-lib"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6923,7 +6934,7 @@ dependencies = [
 [[package]]
 name = "sp1-lib"
 version = "2.0.0"
-source = "git+https://github.com/succinctlabs/sp1.git?branch=secp256r1#fc98467912b8fa076800ef8c03d92f7838678964"
+source = "git+https://github.com/succinctlabs/sp1.git?branch=secp256r1#1dec7e97cc34075063221731470479ef2fdb4ff0"
 dependencies = [
  "bincode",
  "serde",
@@ -7012,7 +7023,7 @@ dependencies = [
  "serde",
  "sp1-core-executor",
  "sp1-core-machine",
- "sp1-derive",
+ "sp1-derive 2.0.0",
  "sp1-primitives",
  "sp1-recursion-compiler",
  "sp1-recursion-core",
@@ -7078,7 +7089,7 @@ dependencies = [
  "serde_with",
  "sp1-core-executor",
  "sp1-core-machine",
- "sp1-derive",
+ "sp1-derive 2.0.0",
  "sp1-primitives",
  "sp1-stark",
  "static_assertions",
@@ -7194,7 +7205,7 @@ dependencies = [
  "p3-util",
  "rayon-scan",
  "serde",
- "sp1-derive",
+ "sp1-derive 2.0.0",
  "sp1-primitives",
  "strum",
  "strum_macros",

@@ -6,7 +6,7 @@ use std::fmt::Debug;
 
 use crate::{air::MemoryAirBuilder, utils::zeroed_f_vec};
 use generic_array::GenericArray;
-use num::{BigUint, Zero};
+use num::{BigUint, One, Zero};
 use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
@@ -24,13 +24,16 @@ use sp1_curves::{
     CurveType, EllipticCurve,
 };
 use sp1_derive::AlignedBorrow;
-use sp1_stark::air::{BaseAirBuilder, InteractionScope, MachineAir, SP1AirBuilder};
+use sp1_stark::air::{BaseAirBuilder, InteractionScope, MachineAir, Polynomial, SP1AirBuilder};
 use std::marker::PhantomData;
 use typenum::Unsigned;
 
 use crate::{
     memory::{MemoryReadCols, MemoryReadWriteCols},
-    operations::field::{field_op::FieldOpCols, field_sqrt::FieldSqrtCols, range::FieldLtCols},
+    operations::field::{
+        field_inner_product::FieldInnerProductCols, field_op::FieldOpCols,
+        field_sqrt::FieldSqrtCols, range::FieldLtCols,
+    },
     utils::{bytes_to_words_le_vec, limbs_from_access, limbs_from_prev_access, pad_rows_fixed},
 };
 
@@ -54,9 +57,11 @@ pub struct WeierstrassDecompressCols<T, P: FieldParameters + NumWords> {
     pub(crate) range_x: FieldLtCols<T, P>,
     pub(crate) x_2: FieldOpCols<T, P>,
     pub(crate) x_3: FieldOpCols<T, P>,
-    pub(crate) x_3_plus_b: FieldOpCols<T, P>,
-    pub(crate) a_mul_x: FieldOpCols<T, P>,
-    pub(crate) x_3_plus_b_plus_a_mul_x: FieldOpCols<T, P>,
+    // pub(crate) x_3_plus_b: FieldOpCols<T, P>,
+    // pub(crate) a_mul_x: FieldOpCols<T, P>,
+    // pub(crate) x_3_plus_b_plus_a_mul_x: FieldOpCols<T, P>,
+    pub(crate) ax_plus_b: FieldInnerProductCols<T, P>,
+    pub(crate) x_3_plus_b_plus_ax: FieldOpCols<T, P>,
     pub(crate) y: FieldSqrtCols<T, P>,
     pub(crate) neg_y: FieldOpCols<T, P>,
 }
@@ -117,16 +122,21 @@ impl<E: EllipticCurve + WeierstrassParameters> WeierstrassDecompressChip<E> {
         let x_2 = cols.x_2.populate(record, shard, &x.clone(), &x.clone(), FieldOperation::Mul);
         let x_3 = cols.x_3.populate(record, shard, &x_2, &x, FieldOperation::Mul);
         let b = E::b_int();
-        let x_3_plus_b = cols.x_3_plus_b.populate(record, shard, &x_3, &b, FieldOperation::Add);
+        // let x_3_plus_b = cols.x_3_plus_b.populate(record, shard, &x_3, &b, FieldOperation::Add);
         let a = E::a_int();
-        let a_mul_x = cols.a_mul_x.populate(record, shard, &a, &x, FieldOperation::Mul);
-        let x_3_plus_b_plus_a_mul_x = cols.x_3_plus_b_plus_a_mul_x.populate(
-            record,
-            shard,
-            &x_3_plus_b,
-            &a_mul_x,
-            FieldOperation::Add,
-        );
+        // let a_mul_x = cols.a_mul_x.populate(record, shard, &a, &x, FieldOperation::Mul);
+        let param_vec = vec![a, b];
+        let x_vec = vec![x, BigUint::one()];
+        let ax_plus_b = cols.ax_plus_b.populate(record, shard, &param_vec, &x_vec);
+        // let x_3_plus_b_plus_a_mul_x = cols.x_3_plus_b_plus_a_mul_x.populate(
+        //     record,
+        //     shard,
+        //     &x_3_plus_b,
+        //     &a_mul_x,
+        //     FieldOperation::Add,
+        // );
+        let x_3_plus_b_plus_ax =
+            cols.x_3_plus_b_plus_ax.populate(record, shard, &x_3, &ax_plus_b, FieldOperation::Add);
 
         let sqrt_fn = match E::CURVE_TYPE {
             CurveType::Secp256k1 => secp256k1_sqrt,
@@ -134,8 +144,8 @@ impl<E: EllipticCurve + WeierstrassParameters> WeierstrassDecompressChip<E> {
             CurveType::Bls12381 => bls12381_sqrt,
             _ => panic!("Unsupported curve"),
         };
-        let y = cols.y.populate(record, shard, &x_3_plus_b_plus_a_mul_x, sqrt_fn);
-
+        // let y = cols.y.populate(record, shard, &x_3_plus_b_plus_a_mul_x, sqrt_fn);
+        let y = cols.y.populate(record, shard, &x_3_plus_b_plus_ax, sqrt_fn);
         let zero = BigUint::zero();
         cols.neg_y.populate(record, shard, &zero, &y, FieldOperation::Sub);
     }
@@ -358,21 +368,35 @@ where
         local.x_3.eval(builder, &local.x_2.result, &x, FieldOperation::Mul, local.is_real);
         let b = E::b_int();
         let b_const = E::BaseField::to_limbs_field::<AB::F, _>(&b);
-        local.x_3_plus_b.eval(
-            builder,
-            &local.x_3.result,
-            &b_const,
-            FieldOperation::Add,
-            local.is_real,
-        );
         let a = E::a_int();
         let a_const = E::BaseField::to_limbs_field::<AB::F, _>(&a);
-        local.a_mul_x.eval(builder, &a_const, &x, FieldOperation::Mul, local.is_real);
+        // local.x_3_plus_b.eval(
+        //     builder,
+        //     &local.x_3.result,
+        //     &b_const,
+        //     FieldOperation::Add,
+        //     local.is_real,
+        // );
+        let params = [a_const, b_const];
+        let one = E::BaseField::to_limbs_field::<AB::F, _>(&BigUint::one());
+        let p_x: Polynomial<AB::Expr> = x.into();
+        let p_one: Polynomial<AB::Expr> = one.into();
+        local.ax_plus_b.eval::<AB>(builder, &params, &[p_x, p_one], local.is_real);
+        // let a = E::a_int();
+        // let a_const = E::BaseField::to_limbs_field::<AB::F, _>(&a);
+        // local.a_mul_x.eval(builder, &a_const, &x, FieldOperation::Mul, local.is_real);
 
-        local.x_3_plus_b_plus_a_mul_x.eval(
+        // local.x_3_plus_b_plus_a_mul_x.eval(
+        //     builder,
+        //     &local.x_3_plus_b.result,
+        //     &local.a_mul_x.result,
+        //     FieldOperation::Add,
+        //     local.is_real,
+        // );
+        local.x_3_plus_b_plus_ax.eval(
             builder,
-            &local.x_3_plus_b.result,
-            &local.a_mul_x.result,
+            &local.x_3.result,
+            &local.ax_plus_b.result,
             FieldOperation::Add,
             local.is_real,
         );
@@ -385,7 +409,8 @@ where
             local.is_real,
         );
 
-        local.y.eval(builder, &local.x_3_plus_b_plus_a_mul_x.result, local.y.lsb, local.is_real);
+        // local.y.eval(builder, &local.x_3_plus_b_plus_a_mul_x.result, local.y.lsb, local.is_real);
+        local.y.eval(builder, &local.x_3_plus_b_plus_ax.result, local.y.lsb, local.is_real);
 
         let y_limbs: Limbs<AB::Var, <E::BaseField as NumLimbs>::Limbs> =
             limbs_from_access(&local.y_access);
