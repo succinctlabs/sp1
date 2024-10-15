@@ -128,7 +128,7 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
                     for (air, height) in heights.iter() {
                         if shape.inner.contains_key(&air.name()) {
                             log::info!(
-                                "{:<20}: {:<10} -> {:<10} ({:.2}% ↑)",
+                                "{:<20}: {:<3} -> {:<3} ({:.2}% ↑)",
                                 air.name(),
                                 log2_ceil_usize(*height),
                                 shape.inner[&air.name()],
