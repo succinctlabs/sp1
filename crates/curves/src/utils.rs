@@ -26,3 +26,20 @@ pub fn biguint_to_limbs<const N: usize>(integer: &BigUint) -> [u8; N] {
 pub fn biguint_from_limbs(limbs: &[u8]) -> BigUint {
     BigUint::from_bytes_le(limbs)
 }
+
+cfg_if::cfg_if! {
+    if #[cfg(feature = "bigint-rug")] {
+        pub fn biguint_to_rug(integer: &BigUint) -> rug::Integer {
+            let mut int = rug::Integer::new();
+            unsafe {
+                int.assign_bytes_radix_unchecked(integer.to_bytes_be().as_slice(), 256, false);
+            }
+            int
+        }
+
+        pub fn rug_to_biguint(integer: &rug::Integer) -> BigUint {
+            let be_bytes = integer.to_digits::<u8>(rug::integer::Order::MsfBe);
+            BigUint::from_bytes_be(&be_bytes)
+        }
+    }
+}

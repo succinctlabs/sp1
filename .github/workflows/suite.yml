@@ -1,0 +1,159 @@
+name: Testing Suite
+
+on:
+  workflow_dispatch:
+    inputs:
+      cpu_workloads:
+        description: "list of cpu workloads to run"
+        required: true
+      cuda_workloads:
+        description: "list of cuda workloads to run"
+        required: true
+      network_workloads:
+        description: "list of network workloads to run"
+        required: true
+  merge_group:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}-
+  cancel-in-progress: false
+
+jobs:
+  test-cpu:
+    if: ${{ fromJSON(github.event.inputs.cpu_workloads)[0] != null }}
+    strategy:
+      fail-fast: false
+      matrix:
+        workload: ${{ fromJSON(github.event.inputs.cpu_workloads) }}
+    name: ${{ matrix.workload }} (cpu)
+    runs-on: ["runs-on", "runner=64cpu-linux-x64", "spot=false", "run-id=${{ github.run_id }}"]
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+
+      - name: Setup CI
+        uses: ./.github/actions/setup
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_S3 }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_S3 }}
+          aws-region: us-west-2
+
+      - name: Copy files from S3
+        run: |
+          mkdir -p workdir
+          aws s3 cp s3://sp1-testing-suite/${{ matrix.workload }}/program.bin workdir/program.bin
+          aws s3 cp s3://sp1-testing-suite/${{ matrix.workload }}/stdin.bin workdir/stdin.bin
+
+      - name: Clean Cargo cache
+        uses: actions-rs/cargo@v1
+        with:
+          command: clean
+          toolchain: 1.81.0
+
+      - name: Run sp1-perf
+        uses: actions-rs/cargo@v1
+        with:
+          command: run
+          toolchain: 1.81.0
+          args: --release -p sp1-perf -- --program workdir/program.bin --stdin workdir/stdin.bin --mode cpu
+        env:
+          RUST_LOG: info
+          RUSTFLAGS: -Copt-level=3 -Ctarget-cpu=native
+          RUST_BACKTRACE: 1
+
+  test-cuda:
+    if: ${{ fromJSON(github.event.inputs.cuda_workloads)[0] != null }}
+    strategy:
+      fail-fast: false
+      matrix:
+        workload: ${{ fromJSON(github.event.inputs.cuda_workloads) }}
+    name: ${{ matrix.workload }} (gpu)
+    runs-on: ["runs-on", "family=g6.4xlarge", "hdd=200", "ami=ami-0a63dc9cb9e934ba3", "spot=false", "run-id=${{ github.run_id }}"]
+    steps:
+    - name: Checkout sources
+      uses: actions/checkout@v4
+
+    - name: Setup CI
+      uses: ./.github/actions/setup
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_S3 }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_S3 }}
+        aws-region: us-west-2
+
+    - name: Copy files from S3
+      run: |
+        mkdir -p workdir
+        aws s3 cp s3://sp1-testing-suite/${{ matrix.workload }}/program.bin workdir/program.bin
+        aws s3 cp s3://sp1-testing-suite/${{ matrix.workload }}/stdin.bin workdir/stdin.bin
+
+    - name: Clean Cargo cache
+      uses: actions-rs/cargo@v1
+      with:
+        command: clean
+        toolchain: 1.81.0
+
+    - name: Run sp1-perf
+      uses: actions-rs/cargo@v1
+      with:
+        command: run
+        toolchain: 1.81.0
+        args: --release -p sp1-perf -- --program workdir/program.bin --stdin workdir/stdin.bin --mode cuda
+      env:
+        RUST_LOG: debug
+        RUSTFLAGS: -Copt-level=3 -Ctarget-cpu=native
+        RUST_BACKTRACE: 1
+        SP1_PROVER: cuda
+
+  test-network:
+    if: ${{ fromJSON(github.event.inputs.network_workloads)[0] != null }}
+    strategy:
+      fail-fast: false
+      matrix:
+        workload: ${{ fromJSON(github.event.inputs.network_workloads) }}
+    name: ${{ matrix.workload }} (network)
+    runs-on: ["runs-on", "runner=16cpu-linux-x64", "spot=false", "run-id=${{ github.run_id }}"]
+    steps:
+    - name: Checkout sources
+      uses: actions/checkout@v4
+
+    - name: Setup CI
+      uses: ./.github/actions/setup
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_S3 }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_S3 }}
+        aws-region: us-west-2
+
+    - name: Copy files from S3
+      run: |
+        mkdir -p workdir
+        aws s3 cp s3://sp1-testing-suite/${{ matrix.workload }}/program.bin workdir/program.bin
+        aws s3 cp s3://sp1-testing-suite/${{ matrix.workload }}/stdin.bin workdir/stdin.bin
+
+    - name: Clean Cargo cache
+      uses: actions-rs/cargo@v1
+      with:
+        command: clean
+        toolchain: 1.81.0
+
+    - name: Run sp1-perf
+      uses: actions-rs/cargo@v1
+      with:
+        command: run
+        toolchain: 1.81.0
+        args: --release -p sp1-perf --features native-gnark -- --program workdir/program.bin --stdin workdir/stdin.bin --mode network
+      env:
+        RUST_LOG: info
+        RUSTFLAGS: -Copt-level=3 -Ctarget-cpu=native
+        RUST_BACKTRACE: 1
+        SP1_PROVER: network
+        SP1_PRIVATE_KEY: ${{ secrets.SP1_PRIVATE_KEY }}
+        PROVER_NETWORK_RPC: https://rpc-staging.succinct.xyz

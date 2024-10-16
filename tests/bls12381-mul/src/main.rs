@@ -1,8 +1,8 @@
 #![no_main]
 sp1_zkvm::entrypoint!(main);
 
-use sp1_zkvm::lib::bls12381::Bls12381AffinePoint;
-use sp1_zkvm::lib::utils::AffinePoint;
+use sp1_lib::bls12381::Bls12381Point;
+use sp1_lib::utils::AffinePoint;
 
 #[sp1_derive::cycle_tracker]
 pub fn main() {
@@ -19,15 +19,15 @@ pub fn main() {
             179, 8,
         ];
 
-        let mut a_point = Bls12381AffinePoint::from_le_bytes(&a);
+        let mut a_point = Bls12381Point::from_le_bytes(&a);
 
         // scalar.
         // 3
         let scalar: [u32; 12] = [3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
 
-        println!("cycle-tracker-start: bls12381_mul");
+        println!("cycle-tracker-start: bn254_mul");
         a_point.mul_assign(&scalar).unwrap();
-        println!("cycle-tracker-end: bls12381_mul");
+        println!("cycle-tracker-end: bn254_mul");
 
         // 3 * generator.
         // 1527649530533633684281386512094328299672026648504329745640827351945739272160755686119065091946435084697047221031460

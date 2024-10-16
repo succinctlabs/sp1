@@ -59,7 +59,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Preprocessing + recursion ([#450](https://github.com/succinctlabs/sp1/pull/450))
 - _(precompile)_ add bn254 precompile ([#384](https://github.com/succinctlabs/sp1/pull/384))
 - verify shard ([#444](https://github.com/succinctlabs/sp1/pull/444))
-- _(WIP)_ end-to-end verfier ([#439](https://github.com/succinctlabs/sp1/pull/439))
+- _(WIP)_ end-to-end verifier ([#439](https://github.com/succinctlabs/sp1/pull/439))
 - working two adic pcs verifier in recursive zkvm ([#434](https://github.com/succinctlabs/sp1/pull/434))
 - num2bits ([#426](https://github.com/succinctlabs/sp1/pull/426))
 - plonky3 update ([#428](https://github.com/succinctlabs/sp1/pull/428))
@@ -122,7 +122,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Version of exp_rev_precompile
 - circuit poseidon2 babybear ([#870](https://github.com/succinctlabs/sp1/pull/870))
 - fixes ([#821](https://github.com/succinctlabs/sp1/pull/821))
-- remove unecessary todos in recursion
+- remove unnecessary todos in recursion
 - Make some functions const ([#774](https://github.com/succinctlabs/sp1/pull/774))
 - remove unused deps ([#794](https://github.com/succinctlabs/sp1/pull/794))
 - Clean up TOML files ([#796](https://github.com/succinctlabs/sp1/pull/796))

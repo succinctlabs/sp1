@@ -4,7 +4,10 @@ use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::AbstractField;
 use p3_matrix::Matrix;
 use sp1_core_executor::syscalls::SyscallCode;
-use sp1_stark::{air::SP1AirBuilder, Word};
+use sp1_stark::{
+    air::{InteractionScope, SP1AirBuilder},
+    Word,
+};
 
 use super::{
     columns::{ShaCompressCols, NUM_SHA_COMPRESS_COLS},
@@ -51,13 +54,13 @@ where
         builder.assert_eq(local.start, local.is_real * local.octet[0] * local.octet_num[0]);
         builder.receive_syscall(
             local.shard,
-            local.channel,
             local.clk,
             local.nonce,
             AB::F::from_canonical_u32(SyscallCode::SHA_COMPRESS.syscall_id()),
             local.w_ptr,
             local.h_ptr,
             local.start,
+            InteractionScope::Local,
         );
     }
 }
@@ -174,10 +177,6 @@ impl ShaCompressChip {
             .assert_eq(local.clk, next.clk);
         builder
             .when_transition()
-            .when_not(local.is_last_row)
-            .assert_eq(local.channel, next.channel);
-        builder
-            .when_transition()
             .when(local.is_real)
             .when_not(local.is_last_row)
             .assert_eq(local.w_ptr, next.w_ptr);
@@ -209,7 +208,6 @@ impl ShaCompressChip {
     fn eval_memory<AB: SP1AirBuilder>(&self, builder: &mut AB, local: &ShaCompressCols<AB::Var>) {
         builder.eval_memory_access(
             local.shard,
-            local.channel,
             local.clk + local.is_finalize,
             local.mem_addr,
             &local.mem,
@@ -296,8 +294,6 @@ impl ShaCompressChip {
             local.e,
             6,
             local.e_rr_6,
-            local.shard,
-            local.channel,
             local.is_compression,
         );
         // Calculate e rightrotate 11.
@@ -306,8 +302,6 @@ impl ShaCompressChip {
             local.e,
             11,
             local.e_rr_11,
-            local.shard,
-            local.channel,
             local.is_compression,
         );
         // Calculate e rightrotate 25.
@@ -316,8 +310,6 @@ impl ShaCompressChip {
             local.e,
             25,
             local.e_rr_25,
-            local.shard,
-            local.channel,
             local.is_compression,
         );
         // Calculate (e rightrotate 6) xor (e rightrotate 11).
@@ -326,8 +318,6 @@ impl ShaCompressChip {
             local.e_rr_6.value,
             local.e_rr_11.value,
             local.s1_intermediate,
-            local.shard,
-            local.channel,
             local.is_compression,
         );
         // Calculate S1 := ((e rightrotate 6) xor (e rightrotate 11)) xor (e rightrotate 25).
@@ -336,39 +326,20 @@ impl ShaCompressChip {
             local.s1_intermediate.value,
             local.e_rr_25.value,
             local.s1,
-            local.shard,
-            local.channel,
             local.is_compression,
         );
 
         // Calculate ch := (e and f) xor ((not e) and g).
         // Calculate e and f.
-        AndOperation::<AB::F>::eval(
-            builder,
-            local.e,
-            local.f,
-            local.e_and_f,
-            local.shard,
-            local.channel,
-            local.is_compression,
-        );
+        AndOperation::<AB::F>::eval(builder, local.e, local.f, local.e_and_f, local.is_compression);
         // Calculate not e.
-        NotOperation::<AB::F>::eval(
-            builder,
-            local.e,
-            local.e_not,
-            local.shard,
-            local.channel,
-            local.is_compression,
-        );
+        NotOperation::<AB::F>::eval(builder, local.e, local.e_not, local.is_compression);
         // Calculate (not e) and g.
         AndOperation::<AB::F>::eval(
             builder,
             local.e_not.value,
             local.g,
             local.e_not_and_g,
-            local.shard,
-            local.channel,
             local.is_compression,
         );
         // Calculate ch := (e and f) xor ((not e) and g).
@@ -377,8 +348,6 @@ impl ShaCompressChip {
             local.e_and_f.value,
             local.e_not_and_g.value,
             local.ch,
-            local.shard,
-            local.channel,
             local.is_compression,
         );
 
@@ -386,8 +355,6 @@ impl ShaCompressChip {
         Add5Operation::<AB::F>::eval(
             builder,
             &[local.h, local.s1.value, local.ch.value, local.k, local.mem.access.value],
-            local.shard,
-            local.channel,
             local.is_compression,
             local.temp1,
         );
@@ -399,8 +366,6 @@ impl ShaCompressChip {
             local.a,
             2,
             local.a_rr_2,
-            local.shard,
-            local.channel,
             local.is_compression,
         );
         // Calculate a rightrotate 13.
@@ -409,8 +374,6 @@ impl ShaCompressChip {
             local.a,
             13,
             local.a_rr_13,
-            local.shard,
-            local.channel,
             local.is_compression,
         );
         // Calculate a rightrotate 22.
@@ -419,8 +382,6 @@ impl ShaCompressChip {
             local.a,
             22,
             local.a_rr_22,
-            local.shard,
-            local.channel,
             local.is_compression,
         );
         // Calculate (a rightrotate 2) xor (a rightrotate 13).
@@ -429,8 +390,6 @@ impl ShaCompressChip {
             local.a_rr_2.value,
             local.a_rr_13.value,
             local.s0_intermediate,
-            local.shard,
-            local.channel,
             local.is_compression,
         );
         // Calculate S0 := ((a rightrotate 2) xor (a rightrotate 13)) xor (a rightrotate 22).
@@ -439,50 +398,22 @@ impl ShaCompressChip {
             local.s0_intermediate.value,
             local.a_rr_22.value,
             local.s0,
-            local.shard,
-            local.channel,
             local.is_compression,
         );
 
         // Calculate maj := (a and b) xor (a and c) xor (b and c).
         // Calculate a and b.
-        AndOperation::<AB::F>::eval(
-            builder,
-            local.a,
-            local.b,
-            local.a_and_b,
-            local.shard,
-            local.channel,
-            local.is_compression,
-        );
+        AndOperation::<AB::F>::eval(builder, local.a, local.b, local.a_and_b, local.is_compression);
         // Calculate a and c.
-        AndOperation::<AB::F>::eval(
-            builder,
-            local.a,
-            local.c,
-            local.a_and_c,
-            local.shard,
-            local.channel,
-            local.is_compression,
-        );
+        AndOperation::<AB::F>::eval(builder, local.a, local.c, local.a_and_c, local.is_compression);
         // Calculate b and c.
-        AndOperation::<AB::F>::eval(
-            builder,
-            local.b,
-            local.c,
-            local.b_and_c,
-            local.shard,
-            local.channel,
-            local.is_compression,
-        );
+        AndOperation::<AB::F>::eval(builder, local.b, local.c, local.b_and_c, local.is_compression);
         // Calculate (a and b) xor (a and c).
         XorOperation::<AB::F>::eval(
             builder,
             local.a_and_b.value,
             local.a_and_c.value,
             local.maj_intermediate,
-            local.shard,
-            local.channel,
             local.is_compression,
         );
         // Calculate maj := ((a and b) xor (a and c)) xor (b and c).
@@ -491,8 +422,6 @@ impl ShaCompressChip {
             local.maj_intermediate.value,
             local.b_and_c.value,
             local.maj,
-            local.shard,
-            local.channel,
             local.is_compression,
         );
 
@@ -502,8 +431,6 @@ impl ShaCompressChip {
             local.s0.value,
             local.maj.value,
             local.temp2,
-            local.shard,
-            local.channel,
             local.is_compression.into(),
         );
 
@@ -513,8 +440,6 @@ impl ShaCompressChip {
             local.d,
             local.temp1.value,
             local.d_add_temp1,
-            local.shard,
-            local.channel,
             local.is_compression.into(),
         );
 
@@ -524,8 +449,6 @@ impl ShaCompressChip {
             local.temp1.value,
             local.temp2.value,
             local.temp1_add_temp2,
-            local.shard,
-            local.channel,
             local.is_compression.into(),
         );
 
@@ -581,8 +504,6 @@ impl ShaCompressChip {
             local.mem.prev_value,
             local.finalized_operand,
             local.finalize_add,
-            local.shard,
-            local.channel,
             local.is_finalize.into(),
         );
 

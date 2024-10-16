@@ -40,7 +40,6 @@ impl<F: Field> Add5Operation<F> {
         &mut self,
         record: &mut impl ByteRecord,
         shard: u32,
-        channel: u8,
         a_u32: u32,
         b_u32: u32,
         c_u32: u32,
@@ -78,12 +77,12 @@ impl<F: Field> Add5Operation<F> {
 
         // Range check.
         {
-            record.add_u8_range_checks(shard, channel, &a);
-            record.add_u8_range_checks(shard, channel, &b);
-            record.add_u8_range_checks(shard, channel, &c);
-            record.add_u8_range_checks(shard, channel, &d);
-            record.add_u8_range_checks(shard, channel, &e);
-            record.add_u8_range_checks(shard, channel, &expected.to_le_bytes());
+            record.add_u8_range_checks(shard, &a);
+            record.add_u8_range_checks(shard, &b);
+            record.add_u8_range_checks(shard, &c);
+            record.add_u8_range_checks(shard, &d);
+            record.add_u8_range_checks(shard, &e);
+            record.add_u8_range_checks(shard, &expected.to_le_bytes());
         }
 
         expected
@@ -92,18 +91,14 @@ impl<F: Field> Add5Operation<F> {
     pub fn eval<AB: SP1AirBuilder>(
         builder: &mut AB,
         words: &[Word<AB::Var>; 5],
-        shard: AB::Var,
-        channel: impl Into<AB::Expr> + Copy,
         is_real: AB::Var,
         cols: Add5Operation<AB::Var>,
     ) {
         builder.assert_bool(is_real);
         // Range check each byte.
         {
-            words
-                .iter()
-                .for_each(|word| builder.slice_range_check_u8(&word.0, shard, channel, is_real));
-            builder.slice_range_check_u8(&cols.value.0, shard, channel, is_real);
+            words.iter().for_each(|word| builder.slice_range_check_u8(&word.0, is_real));
+            builder.slice_range_check_u8(&cols.value.0, is_real);
         }
         let mut builder_is_real = builder.when(is_real);
 

@@ -5,5 +5,7 @@ edition = "2021"
 publish = false
 
 [dependencies]
+common-test-utils = { path = "../common" }
 sp1-zkvm = { path = "../../crates/zkvm/entrypoint" }
-num = { version = "0.4.1", default-features = false }
+sp1-lib = { path = "../../crates/zkvm/lib" }
+sp1-curves = { path = "../../crates/curves" }

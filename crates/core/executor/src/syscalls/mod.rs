@@ -57,7 +57,13 @@ pub trait Syscall: Send + Sync {
     /// X10 and X11, respectively. While not a hard requirement, the convention is that the return
     /// value is only for system calls such as `HALT`. Most precompiles use `arg1` and `arg2` to
     /// denote the addresses of the input data, and write the result to the memory at `arg1`.
-    fn execute(&self, ctx: &mut SyscallContext, arg1: u32, arg2: u32) -> Option<u32>;
+    fn execute(
+        &self,
+        ctx: &mut SyscallContext,
+        syscall_code: SyscallCode,
+        arg1: u32,
+        arg2: u32,
+    ) -> Option<u32>;
 
     /// The number of extra cycles that the syscall takes to execute.
     ///
@@ -69,6 +75,7 @@ pub trait Syscall: Send + Sync {
 
 /// Creates the default syscall map.
 #[must_use]
+#[allow(clippy::too_many_lines)]
 pub fn default_syscall_map() -> HashMap<SyscallCode, Arc<dyn Syscall>> {
     let mut syscall_map = HashMap::<SyscallCode, Arc<dyn Syscall>>::default();
 

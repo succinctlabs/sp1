@@ -1,15 +1,23 @@
 mod block;
 mod builder;
 mod extension;
+mod instruction;
 mod is_ext_zero;
 mod is_zero;
+mod memory;
 mod multi_builder;
+mod opcode;
 mod public_values;
+mod range_check;
 
 pub use block::*;
 pub use builder::*;
 pub use extension::*;
+pub use instruction::*;
 pub use is_ext_zero::*;
 pub use is_zero::*;
+pub use memory::*;
 pub use multi_builder::*;
+pub use opcode::*;
 pub use public_values::*;
+pub use range_check::*;

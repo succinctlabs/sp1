@@ -37,7 +37,7 @@ pub struct ProofRequest {
     /// The status of the proof request.
     #[prost(enumeration = "ProofStatus", tag = "10")]
     pub status: i32,
-    /// The requestor address.
+    /// The requester address.
     #[prost(bytes = "vec", tag = "11")]
     pub requester: ::prost::alloc::vec::Vec<u8>,
 }

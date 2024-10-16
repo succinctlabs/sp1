@@ -72,7 +72,7 @@ fn main() {
         // witnessed by the prover during the recursive aggregation process inside SP1 itself.
         for input in inputs {
             let SP1Proof::Compressed(proof) = input.proof.proof else { panic!() };
-            stdin.write_proof(proof, input.vk.vk);
+            stdin.write_proof(*proof, input.vk.vk);
         }
 
         // Generate the plonk bn254 proof.

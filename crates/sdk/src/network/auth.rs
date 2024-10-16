@@ -85,7 +85,7 @@ impl NetworkAuth {
         Ok(signature.to_vec())
     }
 
-    /// Signs a message to to request ot create a proof.
+    /// Signs a message to to request to create a proof.
     pub async fn sign_create_proof_message(
         &self,
         nonce: u64,

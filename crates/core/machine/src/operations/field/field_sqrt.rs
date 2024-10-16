@@ -43,7 +43,6 @@ impl<F: PrimeField32, P: FieldParameters> FieldSqrtCols<F, P> {
         &mut self,
         record: &mut impl ByteRecord,
         shard: u32,
-        channel: u8,
         a: &BigUint,
         sqrt_fn: impl Fn(&BigUint) -> BigUint,
     ) -> BigUint {
@@ -53,7 +52,7 @@ impl<F: PrimeField32, P: FieldParameters> FieldSqrtCols<F, P> {
 
         // Use FieldOpCols to compute result * result.
         let sqrt_squared =
-            self.multiplication.populate(record, shard, channel, &sqrt, &sqrt, FieldOperation::Mul);
+            self.multiplication.populate(record, shard, &sqrt, &sqrt, FieldOperation::Mul);
 
         // If the result is indeed the square root of a, then result * result = a.
         assert_eq!(sqrt_squared, a.clone());
@@ -63,14 +62,13 @@ impl<F: PrimeField32, P: FieldParameters> FieldSqrtCols<F, P> {
         self.multiplication.result = P::to_limbs_field::<F, _>(&sqrt);
 
         // Populate the range columns.
-        self.range.populate(record, shard, channel, &sqrt, &modulus);
+        self.range.populate(record, shard, &sqrt, &modulus);
 
         let sqrt_bytes = P::to_limbs(&sqrt);
         self.lsb = F::from_canonical_u8(sqrt_bytes[0] & 1);
 
         let and_event = ByteLookupEvent {
             shard,
-            channel,
             opcode: ByteOpcode::AND,
             a1: self.lsb.as_canonical_u32() as u16,
             a2: 0,
@@ -82,7 +80,6 @@ impl<F: PrimeField32, P: FieldParameters> FieldSqrtCols<F, P> {
         // Add the byte range check for `sqrt`.
         record.add_u8_range_checks(
             shard,
-            channel,
             self.multiplication
                 .result
                 .0
@@ -107,8 +104,6 @@ where
         builder: &mut AB,
         a: &Limbs<AB::Var, P::Limbs>,
         is_odd: impl Into<AB::Expr>,
-        shard: impl Into<AB::Expr> + Clone,
-        channel: impl Into<AB::Expr> + Clone,
         is_real: impl Into<AB::Expr> + Clone,
     ) where
         V: Into<AB::Expr>,
@@ -121,33 +116,18 @@ where
         multiplication.result = *a;
 
         // Compute sqrt * sqrt. We pass in P since we want its BaseField to be the mod.
-        multiplication.eval(
-            builder,
-            &sqrt,
-            &sqrt,
-            FieldOperation::Mul,
-            shard.clone(),
-            channel.clone(),
-            is_real.clone(),
-        );
+        multiplication.eval(builder, &sqrt, &sqrt, FieldOperation::Mul, is_real.clone());
 
         let modulus_limbs = P::to_limbs_field_vec(&P::modulus());
         self.range.eval(
             builder,
             &sqrt,
             &limbs_from_vec::<AB::Expr, P::Limbs, AB::F>(modulus_limbs),
-            shard.clone(),
-            channel.clone(),
             is_real.clone(),
         );
 
         // Range check that `sqrt` limbs are bytes.
-        builder.slice_range_check_u8(
-            sqrt.0.as_slice(),
-            shard.clone(),
-            channel.clone(),
-            is_real.clone(),
-        );
+        builder.slice_range_check_u8(sqrt.0.as_slice(), is_real.clone());
 
         // Assert that the square root is the positive one, i.e., with least significant bit 0.
         // This is done by computing LSB = least_significant_byte & 1.
@@ -158,8 +138,6 @@ where
             self.lsb,
             sqrt[0],
             AB::F::one(),
-            shard,
-            channel,
             is_real,
         );
     }
@@ -246,7 +224,7 @@ mod tests {
                     let mut row = [F::zero(); NUM_TEST_COLS];
                     let cols: &mut TestCols<F, P> = row.as_mut_slice().borrow_mut();
                     cols.a = P::to_limbs_field::<F, _>(a);
-                    cols.sqrt.populate(&mut blu_events, 1, 0, a, ed25519_sqrt);
+                    cols.sqrt.populate(&mut blu_events, 1, a, ed25519_sqrt);
                     output.add_byte_lookup_events(blu_events);
                     row
                 })
@@ -283,14 +261,7 @@ mod tests {
             let local: &TestCols<AB::Var, P> = (*local).borrow();
 
             // eval verifies that local.sqrt.result is indeed the square root of local.a.
-            local.sqrt.eval(
-                builder,
-                &local.a,
-                AB::F::zero(),
-                AB::F::one(),
-                AB::F::zero(),
-                AB::F::one(),
-            );
+            local.sqrt.eval(builder, &local.a, AB::F::zero(), AB::F::one());
         }
     }
 

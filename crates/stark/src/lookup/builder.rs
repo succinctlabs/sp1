@@ -4,7 +4,7 @@ use p3_matrix::dense::RowMajorMatrix;
 use p3_uni_stark::{Entry, SymbolicExpression, SymbolicVariable};
 
 use crate::{
-    air::{AirInteraction, MessageBuilder},
+    air::{AirInteraction, InteractionScope, MessageBuilder},
     PROOF_MAX_NUM_PVS,
 };
 
@@ -93,22 +93,22 @@ impl<F: Field> PairBuilder for InteractionBuilder<F> {
 }
 
 impl<F: Field> MessageBuilder<AirInteraction<SymbolicExpression<F>>> for InteractionBuilder<F> {
-    fn send(&mut self, message: AirInteraction<SymbolicExpression<F>>) {
+    fn send(&mut self, message: AirInteraction<SymbolicExpression<F>>, scope: InteractionScope) {
         let values =
             message.values.into_iter().map(|v| symbolic_to_virtual_pair(&v)).collect::<Vec<_>>();
 
         let multiplicity = symbolic_to_virtual_pair(&message.multiplicity);
 
-        self.sends.push(Interaction::new(values, multiplicity, message.kind));
+        self.sends.push(Interaction::new(values, multiplicity, message.kind, scope));
     }
 
-    fn receive(&mut self, message: AirInteraction<SymbolicExpression<F>>) {
+    fn receive(&mut self, message: AirInteraction<SymbolicExpression<F>>, scope: InteractionScope) {
         let values =
             message.values.into_iter().map(|v| symbolic_to_virtual_pair(&v)).collect::<Vec<_>>();
 
         let multiplicity = symbolic_to_virtual_pair(&message.multiplicity);
 
-        self.receives.push(Interaction::new(values, multiplicity, message.kind));
+        self.receives.push(Interaction::new(values, multiplicity, message.kind, scope));
     }
 }
 
@@ -240,18 +240,27 @@ mod tests {
             let y = local[1];
             let z = local[2];
 
-            builder.send(AirInteraction::new(
-                vec![x.into(), y.into()],
-                AB::F::from_canonical_u32(3).into(),
-                InteractionKind::Alu,
-            ));
-            builder.send(AirInteraction::new(
-                vec![x + y, z.into()],
-                AB::F::from_canonical_u32(5).into(),
-                InteractionKind::Alu,
-            ));
+            builder.send(
+                AirInteraction::new(
+                    vec![x.into(), y.into()],
+                    AB::F::from_canonical_u32(3).into(),
+                    InteractionKind::Alu,
+                ),
+                InteractionScope::Local,
+            );
+            builder.send(
+                AirInteraction::new(
+                    vec![x + y, z.into()],
+                    AB::F::from_canonical_u32(5).into(),
+                    InteractionKind::Alu,
+                ),
+                InteractionScope::Local,
+            );
 
-            builder.receive(AirInteraction::new(vec![x.into()], y.into(), InteractionKind::Byte));
+            builder.receive(
+                AirInteraction::new(vec![x.into()], y.into(), InteractionKind::Byte),
+                InteractionScope::Local,
+            );
         }
     }
 

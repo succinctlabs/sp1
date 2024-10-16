@@ -145,12 +145,12 @@ mod tests {
     #[test]
     fn test_bigint_ed_add() {
         type E = Ed25519;
-        let netural = E::neutral();
+        let neutral = E::neutral();
         let base = E::ec_generator();
 
-        assert_eq!(&base + &netural, base);
-        assert_eq!(&netural + &base, base);
-        assert_eq!(&netural + &netural, netural);
+        assert_eq!(&base + &neutral, base);
+        assert_eq!(&neutral + &base, base);
+        assert_eq!(&neutral + &neutral, neutral);
     }
 
     #[test]

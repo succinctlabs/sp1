@@ -2,6 +2,7 @@ use core::{
     borrow::{Borrow, BorrowMut},
     mem::size_of,
 };
+use itertools::Itertools;
 use p3_air::{Air, AirBuilder, AirBuilderWithPublicValues, BaseAir, PairBuilder};
 use p3_field::{AbstractField, PrimeField};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
@@ -9,11 +10,14 @@ use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use sp1_core_executor::{ExecutionRecord, Program};
 use sp1_derive::AlignedBorrow;
 use sp1_stark::{
-    air::{AirInteraction, MachineAir, PublicValues, SP1AirBuilder, SP1_PROOF_NUM_PV_ELTS},
+    air::{
+        AirInteraction, InteractionScope, MachineAir, PublicValues, SP1AirBuilder,
+        SP1_PROOF_NUM_PV_ELTS,
+    },
     InteractionKind, Word,
 };
 
-use crate::{operations::IsZeroOperation, utils::pad_to_power_of_two};
+use crate::{operations::IsZeroOperation, utils::pad_rows_fixed};
 
 pub const NUM_MEMORY_PROGRAM_PREPROCESSED_COLS: usize =
     size_of::<MemoryProgramPreprocessedCols<u8>>();
@@ -67,12 +71,13 @@ impl<F: PrimeField> MachineAir<F> for MemoryProgramChip {
     }
 
     fn generate_preprocessed_trace(&self, program: &Self::Program) -> Option<RowMajorMatrix<F>> {
-        let program_memory = program.memory_image.clone();
+        let program_memory = &program.memory_image;
         // Note that BTreeMap is guaranteed to be sorted by key. This makes the row order
         // deterministic.
-        let rows = program_memory
-            .into_iter()
-            .map(|(addr, word)| {
+        let mut rows = program_memory
+            .iter()
+            .sorted()
+            .map(|(&addr, &word)| {
                 let mut row = [F::zero(); NUM_MEMORY_PROGRAM_PREPROCESSED_COLS];
                 let cols: &mut MemoryProgramPreprocessedCols<F> = row.as_mut_slice().borrow_mut();
                 cols.addr = F::from_canonical_u32(addr);
@@ -82,15 +87,18 @@ impl<F: PrimeField> MachineAir<F> for MemoryProgramChip {
             })
             .collect::<Vec<_>>();
 
+        // Pad the trace to a power of two depending on the proof shape in `input`.
+        pad_rows_fixed(
+            &mut rows,
+            || [F::zero(); NUM_MEMORY_PROGRAM_PREPROCESSED_COLS],
+            program.fixed_log2_rows::<F, _>(self),
+        );
+
         // Convert the trace to a row major matrix.
-        let mut trace = RowMajorMatrix::new(
+        let trace = RowMajorMatrix::new(
             rows.into_iter().flatten().collect::<Vec<_>>(),
             NUM_MEMORY_PROGRAM_PREPROCESSED_COLS,
         );
-
-        // Pad the trace to a power of two.
-        pad_to_power_of_two::<NUM_MEMORY_PROGRAM_PREPROCESSED_COLS, F>(&mut trace.values);
-
         Some(trace)
     }
 
@@ -103,12 +111,12 @@ impl<F: PrimeField> MachineAir<F> for MemoryProgramChip {
         input: &ExecutionRecord,
         _output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
-        let program_memory_addrs = input.program.memory_image.keys().copied().collect::<Vec<_>>();
+        let program_memory_addrs = input.program.memory_image.keys().copied().sorted();
 
         let mult = if input.public_values.shard == 1 { F::one() } else { F::zero() };
 
         // Generate the trace rows for each event.
-        let rows = program_memory_addrs
+        let mut rows = program_memory_addrs
             .into_iter()
             .map(|_| {
                 let mut row = [F::zero(); NUM_MEMORY_PROGRAM_MULT_COLS];
@@ -119,20 +127,27 @@ impl<F: PrimeField> MachineAir<F> for MemoryProgramChip {
             })
             .collect::<Vec<_>>();
 
-        // Convert the trace to a row major matrix.
-        let mut trace = RowMajorMatrix::new(
-            rows.into_iter().flatten().collect::<Vec<_>>(),
-            NUM_MEMORY_PROGRAM_MULT_COLS,
+        // Pad the trace to a power of two depending on the proof shape in `input`.
+        pad_rows_fixed(
+            &mut rows,
+            || [F::zero(); NUM_MEMORY_PROGRAM_MULT_COLS],
+            input.fixed_log2_rows::<F, _>(self),
         );
 
-        // Pad the trace to a power of two.
-        pad_to_power_of_two::<NUM_MEMORY_PROGRAM_MULT_COLS, F>(&mut trace.values);
+        // Convert the trace to a row major matrix.
 
-        trace
+        RowMajorMatrix::new(
+            rows.into_iter().flatten().collect::<Vec<_>>(),
+            NUM_MEMORY_PROGRAM_MULT_COLS,
+        )
     }
 
     fn included(&self, _: &Self::Record) -> bool {
         true
+    }
+
+    fn commit_scope(&self) -> InteractionScope {
+        InteractionScope::Global
     }
 }
 
@@ -183,10 +198,9 @@ where
 
         let mut values = vec![AB::Expr::zero(), AB::Expr::zero(), prep_local.addr.into()];
         values.extend(prep_local.value.map(Into::into));
-        builder.receive(AirInteraction::new(
-            values,
-            mult_local.multiplicity.into(),
-            InteractionKind::Memory,
-        ));
+        builder.send(
+            AirInteraction::new(values, mult_local.multiplicity.into(), InteractionKind::Memory),
+            InteractionScope::Global,
+        );
     }
 }
