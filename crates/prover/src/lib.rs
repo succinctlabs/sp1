@@ -1059,14 +1059,6 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             tracing::debug!("wrap verifier key set");
         }
 
-        // Setup the wrap program.
-        let (wrap_pk, wrap_vk) =
-            tracing::debug_span!("Setup wrap").in_scope(|| self.wrap_prover.setup(&program));
-
-        if self.wrap_vk.set(wrap_vk.clone()).is_ok() {
-            tracing::debug!("wrap verifier key set");
-        }
-
         // Prove the wrap program.
         let mut wrap_challenger = self.wrap_prover.config().challenger();
         let time = std::time::Instant::now();

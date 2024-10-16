@@ -6,7 +6,7 @@ pub fn eval_field_operation<AB: SP1AirBuilder, P: FieldParameters>(
     builder: &mut AB,
     p_vanishing: &Polynomial<AB::Expr>,
     p_witness_low: &Polynomial<AB::Expr>,
-    p_witness_high: &Polynomial<AB::Expr>, // is_real: impl Into<AB::Expr>,
+    p_witness_high: &Polynomial<AB::Expr>,
 ) {
     // Reconstruct and shift back the witness polynomial
     let limb: AB::Expr = AB::F::from_canonical_u32(2u32.pow(P::NB_BITS_PER_LIMB as u32)).into();
