@@ -21,6 +21,7 @@ use sha2_v0_10_6::{Digest as Digest_10_6, Sha256 as Sha256_10_6};
 use secp256k1::{
     ecdsa::{
         RecoverableSignature as Secp256k1RecoverableSignature, RecoveryId as Secp256k1RecoveryId,
+        Signature as Secp256k1Signature,
     },
     Message as Secp256k1Message,
 };
@@ -179,6 +180,44 @@ fn test_k256_patch() {
 }
 
 /// Emits SECP256K1_ADD, SECP256K1_DOUBLE, and SECP256K1_DECOMPRESS syscalls.
+// fn test_secp256k1_verify() {
+//     let secp = Secp256k1::new();
+
+//     let seckey = [
+//         59, 148, 11, 85, 134, 130, 61, 253, 2, 174, 59, 70, 27, 180, 51, 107, 94, 203, 174, 253,
+//         102, 39, 170, 146, 46, 252, 4, 143, 236, 12, 136, 28,
+//     ];
+//     let pubkey = [
+//         2, 29, 21, 35, 7, 198, 183, 43, 14, 208, 65, 139, 14, 112, 205, 128, 231, 245, 41, 91, 141,
+//         134, 245, 114, 45, 63, 82, 19, 251, 210, 57, 79, 54,
+//     ];
+
+//     let seckey = [
+//         59, 148, 11, 85, 134, 130, 61, 253, 2, 174, 59, 70, 27, 180, 51, 107, 94, 203, 174, 253,
+//         102, 39, 170, 146, 46, 252, 4, 143, 236, 12, 136, 28,
+//     ];
+
+//     let secret_key = SecretKey::from_slice(&seckey).unwrap();
+//     let msg = b"This is some message";
+
+//     let signature = secp.sign_ecdsa(&msg, &secret_key);
+
+//     let serialize_sig = signature.serialize_compact();
+
+//     let msg = sha256::Hash::hash(msg);
+//     let message = Secp256k1Message::from_digest_slice(msg.as_ref()).unwrap();
+
+//     let sig = Secp256k1Signature::from_compact(&serialize_sig).unwrap();
+//     let public_key = PublicKey::from_slice(&pubkey).unwrap();
+
+//     println!("cycle-tracker-start: secp256k1 verify_ecdsa");
+//     let result = secp.verify_ecdsa(&message, &sig, &public_key);
+//     println!("cycle-tracker-end: secp256k1 verify_ecdsa");
+
+//     assert!(result.is_ok());
+// }
+
+/// Emits SECP256K1_ADD, SECP256K1_DOUBLE, and SECP256K1_DECOMPRESS syscalls.
 fn test_secp256k1_patch() {
     let secp = secp256k1::Secp256k1::new();
     let recovery_id = Secp256k1RecoveryId::from_i32(1).unwrap();
@@ -202,6 +241,13 @@ fn test_secp256k1_patch() {
 
     let serialized_key = public_key.serialize_uncompressed();
 
+    let sig = Secp256k1Signature::from_compact(&hex!("80AEBD912F05D302BA8000A3C5D6E604333AAF34E22CC1BA14BE1737213EAED5040D67D6E9FA5FBDFE6E3457893839631B87A41D90508B7C92991ED7824E962D")).unwrap();
+    println!("cycle-tracker-start: secp256k1 verify_ecdsa");
+    let result = secp.verify_ecdsa(&message, &sig, &public_key);
+    println!("cycle-tracker-end: secp256k1 verify_ecdsa");
+
+    assert!(result.is_ok());
+
     // Use the message in the recover_ecdsa call
     assert_eq!(hex::encode(serialized_key), expected);
 }
@@ -221,5 +267,6 @@ pub fn main() {
 
     test_k256_patch();
     test_secp256k1_patch();
+    // test_secp256k1_verify();
     test_p256_patch();
 }
