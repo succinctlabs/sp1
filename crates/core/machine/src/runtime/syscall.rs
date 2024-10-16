@@ -169,7 +169,7 @@ impl SyscallCode {
             0x00_00_01_0B => SyscallCode::SECP256K1_DOUBLE,
             0x00_00_01_0C => SyscallCode::SECP256K1_DECOMPRESS,
             0x00_01_01_2C => SyscallCode::SECP256R1_ADD,
-            0x00_01_01_2D => SyscallCode::SECP256R1_DOUBLE,
+            0x00_00_01_2D => SyscallCode::SECP256R1_DOUBLE,
             0x00_01_01_2E => SyscallCode::SECP256R1_DECOMPRESS,
             0x00_01_01_0E => SyscallCode::BN254_ADD,
             0x00_00_01_0F => SyscallCode::BN254_DOUBLE,

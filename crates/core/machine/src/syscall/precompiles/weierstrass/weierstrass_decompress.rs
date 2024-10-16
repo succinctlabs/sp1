@@ -57,9 +57,6 @@ pub struct WeierstrassDecompressCols<T, P: FieldParameters + NumWords> {
     pub(crate) range_x: FieldLtCols<T, P>,
     pub(crate) x_2: FieldOpCols<T, P>,
     pub(crate) x_3: FieldOpCols<T, P>,
-    // pub(crate) x_3_plus_b: FieldOpCols<T, P>,
-    // pub(crate) a_mul_x: FieldOpCols<T, P>,
-    // pub(crate) x_3_plus_b_plus_a_mul_x: FieldOpCols<T, P>,
     pub(crate) ax_plus_b: FieldInnerProductCols<T, P>,
     pub(crate) x_3_plus_b_plus_ax: FieldOpCols<T, P>,
     pub(crate) y: FieldSqrtCols<T, P>,
@@ -122,19 +119,10 @@ impl<E: EllipticCurve + WeierstrassParameters> WeierstrassDecompressChip<E> {
         let x_2 = cols.x_2.populate(record, shard, &x.clone(), &x.clone(), FieldOperation::Mul);
         let x_3 = cols.x_3.populate(record, shard, &x_2, &x, FieldOperation::Mul);
         let b = E::b_int();
-        // let x_3_plus_b = cols.x_3_plus_b.populate(record, shard, &x_3, &b, FieldOperation::Add);
         let a = E::a_int();
-        // let a_mul_x = cols.a_mul_x.populate(record, shard, &a, &x, FieldOperation::Mul);
         let param_vec = vec![a, b];
         let x_vec = vec![x, BigUint::one()];
         let ax_plus_b = cols.ax_plus_b.populate(record, shard, &param_vec, &x_vec);
-        // let x_3_plus_b_plus_a_mul_x = cols.x_3_plus_b_plus_a_mul_x.populate(
-        //     record,
-        //     shard,
-        //     &x_3_plus_b,
-        //     &a_mul_x,
-        //     FieldOperation::Add,
-        // );
         let x_3_plus_b_plus_ax =
             cols.x_3_plus_b_plus_ax.populate(record, shard, &x_3, &ax_plus_b, FieldOperation::Add);
 
@@ -370,29 +358,11 @@ where
         let b_const = E::BaseField::to_limbs_field::<AB::F, _>(&b);
         let a = E::a_int();
         let a_const = E::BaseField::to_limbs_field::<AB::F, _>(&a);
-        // local.x_3_plus_b.eval(
-        //     builder,
-        //     &local.x_3.result,
-        //     &b_const,
-        //     FieldOperation::Add,
-        //     local.is_real,
-        // );
         let params = [a_const, b_const];
         let one = E::BaseField::to_limbs_field::<AB::F, _>(&BigUint::one());
         let p_x: Polynomial<AB::Expr> = x.into();
         let p_one: Polynomial<AB::Expr> = one.into();
         local.ax_plus_b.eval::<AB>(builder, &params, &[p_x, p_one], local.is_real);
-        // let a = E::a_int();
-        // let a_const = E::BaseField::to_limbs_field::<AB::F, _>(&a);
-        // local.a_mul_x.eval(builder, &a_const, &x, FieldOperation::Mul, local.is_real);
-
-        // local.x_3_plus_b_plus_a_mul_x.eval(
-        //     builder,
-        //     &local.x_3_plus_b.result,
-        //     &local.a_mul_x.result,
-        //     FieldOperation::Add,
-        //     local.is_real,
-        // );
         local.x_3_plus_b_plus_ax.eval(
             builder,
             &local.x_3.result,
