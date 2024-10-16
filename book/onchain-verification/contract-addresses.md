@@ -16,9 +16,28 @@ To verify SP1 proofs on-chain, we recommend using our deployed verifier gateways
 | 534351   | Scroll Sepolia   | [0x3B6041173B80E77f038f3F2C0f9744f04837185e](https://sepolia.scrollscan.com/address/0x3B6041173B80E77f038f3F2C0f9744f04837185e)         |
 | 534352   | Scroll           | [0x3B6041173B80E77f038f3F2C0f9744f04837185e](https://scrollscan.com/address/0x3B6041173B80E77f038f3F2C0f9744f04837185e)                 |
 
-A complete reference for all of the SP1Verifier contract addresses can be also be found in the [SP1 Contracts Repo](https://github.com/succinctlabs/sp1-contracts/blob/main/contracts/deployments).
+A complete reference for all of the `SP1Verifier` contract addresses can be also be found in the [SP1 Contracts Repo](https://github.com/succinctlabs/sp1-contracts/blob/main/contracts/deployments).
 
-Whenever a verifier for a new SP1 version is deployed, the gateway contract will be updated to support it with [addRoute()](https://github.com/succinctlabs/sp1-contracts/blob/main/contracts/src/ISP1VerifierGateway.sol#L65). If a verifier for an SP1 version has an issue, the route will be frozen with [freezeRoute()](https://github.com/succinctlabs/sp1-contracts/blob/main/contracts/src/ISP1VerifierGateway.sol#L71).
+Whenever a verifier for a new SP1 version is deployed, the gateway contract will be updated to
+support it with
+[addRoute()](https://github.com/succinctlabs/sp1-contracts/blob/main/contracts/src/ISP1VerifierGateway.sol#L65).
+If a verifier for an SP1 version has an issue, the route will be frozen with
+[freezeRoute()](https://github.com/succinctlabs/sp1-contracts/blob/main/contracts/src/ISP1VerifierGateway.sol#L71).
+
+## Deploying to a new chain
+
+In the case that you need to use a chain that is not listed above, you can deploy your own
+verifier contract by following the instructions in the
+[SP1 Contracts Repo](https://github.com/succinctlabs/sp1-contracts/blob/main/README.md#deployments).
+
+Since both the `SP1VerifierGateway` and each `SP1Verifier` implement the [ISP1Verifier
+interface](./contract-usage.md#isp1verifier-interface), you can choose to either:
+
+* Deploy the `SP1VerifierGateway` and add `SP1Verifier` contracts to it. Then point to the
+  SP1VerifierGateway addressin your contracts.
+* Deploy just the `SP1Verifier` contract that you want to use. Then point to the `SP1Verifier`
+  address in
+  your contracts.
 
 ## ISP1Verifier Interface
 
