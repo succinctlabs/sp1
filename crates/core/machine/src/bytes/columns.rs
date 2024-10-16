@@ -49,6 +49,6 @@ pub struct BytePreprocessedCols<T> {
 #[derive(Debug, Clone, Copy, AlignedBorrow)]
 #[repr(C)]
 pub struct ByteMultCols<T> {
-    /// The multiplicites of each byte operation.
+    /// The multiplicities of each byte operation.
     pub multiplicities: [T; NUM_BYTE_OPS],
 }

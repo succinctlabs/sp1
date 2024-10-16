@@ -276,7 +276,11 @@ impl<F: PrimeField> MachineAir<F> for MulChip {
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
-        !shard.mul_events.is_empty()
+        if let Some(shape) = shard.shape.as_ref() {
+            shape.included::<F, _>(self)
+        } else {
+            !shard.mul_events.is_empty()
+        }
     }
 }
 

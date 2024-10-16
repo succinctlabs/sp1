@@ -220,7 +220,11 @@ impl<F: PrimeField> MachineAir<F> for ShiftRightChip {
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
-        !shard.shift_right_events.is_empty()
+        if let Some(shape) = shard.shape.as_ref() {
+            shape.included::<F, _>(self)
+        } else {
+            !shard.shift_right_events.is_empty()
+        }
     }
 }
 

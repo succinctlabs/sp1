@@ -162,7 +162,11 @@ impl<F: PrimeField32> MachineAir<F> for LtChip {
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
-        !shard.lt_events.is_empty()
+        if let Some(shape) = shard.shape.as_ref() {
+            shape.included::<F, _>(self)
+        } else {
+            !shard.lt_events.is_empty()
+        }
     }
 }
 

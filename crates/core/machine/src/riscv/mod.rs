@@ -68,7 +68,7 @@ pub(crate) mod riscv_chips {
 #[derive(sp1_derive::MachineAir, EnumDiscriminants)]
 #[strum_discriminants(derive(Hash, EnumIter))]
 pub enum RiscvAir<F: PrimeField32> {
-    /// An AIR that containts a preprocessed program table and a lookup for the instructions.
+    /// An AIR that contains a preprocessed program table and a lookup for the instructions.
     Program(ProgramChip),
     /// An AIR for the RISC-V CPU. Each row represents a cpu cycle.
     Cpu(CpuChip),
@@ -726,7 +726,7 @@ pub mod tests {
         let mut opts = SP1CoreOpts::default();
         opts.shard_size = 1024;
         opts.shard_batch_size = 2;
-        prove::<_, CpuProver<_, _>>(program, &stdin, BabyBearPoseidon2::new(), opts).unwrap();
+        prove::<_, CpuProver<_, _>>(program, &stdin, BabyBearPoseidon2::new(), opts, None).unwrap();
     }
 
     #[test]
@@ -739,6 +739,7 @@ pub mod tests {
             &stdin,
             BabyBearPoseidon2::new(),
             SP1CoreOpts::default(),
+            None,
         )
         .unwrap();
     }

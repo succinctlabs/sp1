@@ -3,9 +3,10 @@ use sp1_core_executor::SP1Context;
 use sp1_core_machine::io::SP1Stdin;
 use sp1_prover::{components::DefaultProverComponents, SP1Prover};
 
+use crate::install::try_install_circuit_artifacts;
 use crate::{
-    install::try_install_circuit_artifacts, provers::ProofOpts, Prover, SP1Proof, SP1ProofKind,
-    SP1ProofWithPublicValues, SP1ProvingKey, SP1VerifyingKey,
+    provers::ProofOpts, Prover, SP1Proof, SP1ProofKind, SP1ProofWithPublicValues, SP1ProvingKey,
+    SP1VerifyingKey,
 };
 
 use super::ProverType;
@@ -84,15 +85,15 @@ impl Prover<DefaultProverComponents> for CpuProver {
         let outer_proof = self.prover.wrap_bn254(compress_proof, opts.sp1_prover_opts)?;
 
         if kind == SP1ProofKind::Plonk {
-            let plonk_bn254_aritfacts = if sp1_prover::build::sp1_dev_mode() {
+            let plonk_bn254_artifacts = if sp1_prover::build::sp1_dev_mode() {
                 sp1_prover::build::try_build_plonk_bn254_artifacts_dev(
                     &outer_proof.vk,
                     &outer_proof.proof,
                 )
             } else {
-                try_install_circuit_artifacts()
+                try_install_circuit_artifacts("plonk")
             };
-            let proof = self.prover.wrap_plonk_bn254(outer_proof, &plonk_bn254_aritfacts);
+            let proof = self.prover.wrap_plonk_bn254(outer_proof, &plonk_bn254_artifacts);
 
             return Ok(SP1ProofWithPublicValues {
                 proof: SP1Proof::Plonk(proof),
@@ -107,7 +108,7 @@ impl Prover<DefaultProverComponents> for CpuProver {
                     &outer_proof.proof,
                 )
             } else {
-                try_install_circuit_artifacts()
+                try_install_circuit_artifacts("groth16")
             };
 
             let proof = self.prover.wrap_groth16_bn254(outer_proof, &groth16_bn254_artifacts);

@@ -87,18 +87,19 @@ where
     ///
     /// The compression verifier can aggregate proofs of different kinds:
     /// - Core proofs: proofs which are recursive proof of a batch of SP1 shard proofs. The
-    ///   implementation in this function assumes a fixed recursive verifier speicified by
+    ///   implementation in this function assumes a fixed recursive verifier specified by
     ///   `recursive_vk`.
     /// - Deferred proofs: proofs which are recursive proof of a batch of deferred proofs. The
     ///   implementation in this function assumes a fixed deferred verification program specified by
     ///   `deferred_vk`.
     /// - Compress proofs: these are proofs which refer to a prove of this program. The key for it
-    ///   is part of public values will be propagated accross all levels of recursion and will be
+    ///   is part of public values will be propagated across all levels of recursion and will be
     ///   checked against itself as in [sp1_prover::Prover] or as in [super::SP1RootVerifier].
     pub fn verify(
         builder: &mut Builder<C>,
         machine: &StarkMachine<SC, A>,
         input: SP1CompressWitnessVariable<C, SC>,
+        vk_root: [Felt<C::F>; DIGEST_SIZE],
         kind: PublicValuesOutputDigest,
     ) {
         // Read input.
@@ -172,8 +173,6 @@ where
                 shard_proof.public_values[0..machine.num_pv_elts()].iter().copied(),
             );
 
-            assert!(!shard_proof.contains_global_main_commitment());
-
             let zero_ext: Ext<C::F, C::EF> = builder.eval(C::F::zero());
             StarkVerifier::verify_shard(
                 builder,
@@ -189,6 +188,10 @@ where
                 shard_proof.public_values.as_slice().borrow();
             // Assert that the public values are valid.
             assert_recursion_public_values_valid::<C, SC>(builder, current_public_values);
+            // Assert that the vk root is the same as the witnessed one.
+            for (expected, actual) in vk_root.iter().zip(current_public_values.vk_root.iter()) {
+                builder.assert_felt_eq(*expected, *actual);
+            }
 
             // Set the exit code, it is already constrained to be zero in the previous proof.
             exit_code = current_public_values.exit_code;
@@ -256,7 +259,7 @@ where
                     current_public_values.start_reconstruct_challenger;
                 reconstruct_challenger_values = current_public_values.start_reconstruct_challenger;
 
-                // Assign the commited values and deferred proof digests.
+                // Assign the committed values and deferred proof digests.
                 for (word, current_word) in committed_value_digest
                     .iter_mut()
                     .zip_eq(current_public_values.committed_value_digest.iter())
@@ -368,10 +371,10 @@ where
 
             // Digest constraints.
             {
-                // If `commited_value_digest` is not zero, then `public_values.commited_value_digest
+                // If `committed_value_digest` is not zero, then `public_values.committed_value_digest
                 // should be the current.
 
-                // Set a flags to indicate whether `commited_value_digest` is non-zero. The flags
+                // Set a flags to indicate whether `committed_value_digest` is non-zero. The flags
                 // are given by the elements of the array, and they will be used as filters to
                 // constrain the equality.
                 let mut is_non_zero_flags = vec![];
@@ -530,6 +533,8 @@ where
         compress_public_values.contains_execution_shard = contains_execution_shard;
         // Set the exit code.
         compress_public_values.exit_code = exit_code;
+        // Reflect the vk root.
+        compress_public_values.vk_root = vk_root;
         // Set the digest according to the previous values.
         compress_public_values.digest = match kind {
             PublicValuesOutputDigest::Reduce => {

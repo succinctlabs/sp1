@@ -29,16 +29,16 @@ func (p *Poseidon2BabyBearChip) PermuteMut(state *[BABYBEAR_WIDTH]babybear.Varia
 
 	// The first half of the external rounds.
 	rounds := babybearNumExternalRounds + babybearNumInternalRounds
-	roundsFBeggining := babybearNumExternalRounds / 2
-	for r := 0; r < roundsFBeggining; r++ {
+	roundsFBeginning := babybearNumExternalRounds / 2
+	for r := 0; r < roundsFBeginning; r++ {
 		p.addRc(state, rc16[r])
 		p.sbox(state)
 		p.externalLinearLayer(state)
 	}
 
 	// The internal rounds.
-	p_end := roundsFBeggining + babybearNumInternalRounds
-	for r := roundsFBeggining; r < p_end; r++ {
+	p_end := roundsFBeginning + babybearNumInternalRounds
+	for r := roundsFBeginning; r < p_end; r++ {
 		state[0] = p.fieldApi.AddF(state[0], rc16[r][0])
 		state[0] = p.sboxP(state[0])
 		p.diffusionPermuteMut(state)

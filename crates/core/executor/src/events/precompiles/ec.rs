@@ -50,7 +50,7 @@ pub struct EllipticCurveAddEvent {
 /// This event is emitted when an elliptic curve doubling operation is performed.
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
 pub struct EllipticCurveDoubleEvent {
-    /// The lookup identifer.
+    /// The lookup identifier.
     pub lookup_id: LookupId,
     /// The shard number.
     pub shard: u32,
@@ -71,7 +71,7 @@ pub struct EllipticCurveDoubleEvent {
 /// This event is emitted when an elliptic curve point decompression operation is performed.
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
 pub struct EllipticCurveDecompressEvent {
-    /// The lookup identifer.
+    /// The lookup identifier.
     pub lookup_id: LookupId,
     /// The shard number.
     pub shard: u32,

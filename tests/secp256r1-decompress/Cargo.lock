@@ -101,12 +101,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4ec2a862134d2a7d32d7983ddcdd1c4923530833c9f2ea1a44fc5fa473989058"
 
 [[package]]
-name = "once_cell"
-version = "1.20.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1261fe7e33c73b354eab43b1273a57c8f967d0391e80353e51f764ac02cf6775"
-
-[[package]]
 name = "ppv-lite86"
 version = "0.2.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -203,7 +197,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-lib"
-version = "2.0.0"
+version = "3.0.0-rc4"
 dependencies = [
  "bincode",
  "serde",
@@ -211,16 +205,13 @@ dependencies = [
 
 [[package]]
 name = "sp1-zkvm"
-version = "2.0.0"
+version = "3.0.0-rc4"
 dependencies = [
- "bincode",
  "cfg-if",
  "getrandom",
  "lazy_static",
  "libm",
- "once_cell",
  "rand",
- "serde",
  "sha2",
  "sp1-lib",
 ]

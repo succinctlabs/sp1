@@ -45,5 +45,6 @@ fn main() {
         num_setup_workers,
         range_start,
         range_end,
-    );
+    )
+    .unwrap();
 }

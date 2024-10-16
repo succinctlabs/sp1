@@ -27,7 +27,7 @@ use crate::utils::ec::weierstrass::{bn254::Bn254, secp256k1::Secp256k1};
 use crate::{runtime::ExecutionRecord, runtime::MemoryReadRecord, runtime::MemoryWriteRecord};
 
 /// A system call is invoked by the the `ecall` instruction with a specific value in register t0.
-/// The syscall number is a 32-bit integer, with the following layout (in litte-endian format)
+/// The syscall number is a 32-bit integer, with the following layout (in little-endian format)
 /// - The first byte is the syscall id.
 /// - The second byte is 0/1 depending on whether the syscall has a separate table. This is used
 /// in the CPU table to determine whether to lookup the syscall using the syscall interaction.
@@ -77,7 +77,7 @@ pub enum SyscallCode {
     SECP256R1_ADD = 0x00_01_01_2C,
 
     /// Executes the `SECP256R1_DOUBLE` precompile.
-    SECP256R1_DOUBLE = 0x00_01_01_2D,
+    SECP256R1_DOUBLE = 0x00_00_01_2D,
 
     /// Executes the `SECP256R1_DECOMPRESS` precompile.
     SECP256R1_DECOMPRESS = 0x00_00_01_2E,

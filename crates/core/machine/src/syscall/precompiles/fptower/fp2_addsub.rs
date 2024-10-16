@@ -201,10 +201,16 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for Fp2AddSubAssignChip<P> {
                 && shard.get_precompile_events(SyscallCode::BLS12381_FP_SUB).is_empty()
         );
 
-        match P::FIELD_TYPE {
-            FieldType::Bn254 => !shard.get_precompile_events(SyscallCode::BN254_FP2_ADD).is_empty(),
-            FieldType::Bls12381 => {
-                !shard.get_precompile_events(SyscallCode::BLS12381_FP2_ADD).is_empty()
+        if let Some(shape) = shard.shape.as_ref() {
+            shape.included::<F, _>(self)
+        } else {
+            match P::FIELD_TYPE {
+                FieldType::Bn254 => {
+                    !shard.get_precompile_events(SyscallCode::BN254_FP2_ADD).is_empty()
+                }
+                FieldType::Bls12381 => {
+                    !shard.get_precompile_events(SyscallCode::BLS12381_FP2_ADD).is_empty()
+                }
             }
         }
     }

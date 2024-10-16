@@ -24,7 +24,6 @@ pub fn test_weierstrass_add<P: AffinePoint<N> + WeierstrassAffinePoint<N>, const
     let mut b = orig_infinity.clone();
     let b2 = orig_infinity.clone();
     b.complete_add_assign(&b2);
-
     assert!(b.is_infinity(), "Adding two infinity points should result in infinity");
 
     // Case 2: First point is infinity

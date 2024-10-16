@@ -6,7 +6,7 @@ use tendermint_light_client_verifier::{
     options::Options, types::LightBlock, ProdVerifier, Verdict, Verifier,
 };
 
-fn main() {
+pub fn main() {
     // Normally we could just do this to read in the LightBlocks, but bincode doesn't work with LightBlock.
     // This is likely a bug in tendermint-rs.
     // let light_block_1 = sp1_zkvm::io::read::<LightBlock>();

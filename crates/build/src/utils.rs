@@ -4,39 +4,14 @@ use anyhow::Result;
 use cargo_metadata::{camino::Utf8PathBuf, Metadata};
 use chrono::Local;
 
-use crate::{BuildArgs, BUILD_TARGET, HELPER_TARGET_SUBDIR};
+use crate::{BuildArgs, BUILD_TARGET};
 
 /// Copy the ELF to the specified output directory.
 pub(crate) fn copy_elf_to_output_dir(
     args: &BuildArgs,
     program_metadata: &cargo_metadata::Metadata,
+    elf_path: &Utf8PathBuf,
 ) -> Result<Utf8PathBuf> {
-    let root_package = program_metadata.root_package();
-    let root_package_name = root_package.as_ref().map(|p| &p.name);
-
-    // The ELF is written to a target folder specified by the program's package. If built with
-    // Docker, includes /docker after HELPER_TARGET_SUBDIR.
-    let target_dir_suffix = if args.docker {
-        format!("{}/{}", HELPER_TARGET_SUBDIR, "docker")
-    } else {
-        HELPER_TARGET_SUBDIR.to_string()
-    };
-
-    // The ELF's file name is the binary name if it's specified. Otherwise, it is the root package
-    // name.
-    let original_elf_file_name = if !args.binary.is_empty() {
-        args.binary.clone()
-    } else {
-        root_package_name.unwrap().clone()
-    };
-
-    let original_elf_path = program_metadata
-        .target_directory
-        .join(target_dir_suffix)
-        .join(BUILD_TARGET)
-        .join("release")
-        .join(original_elf_file_name);
-
     // The order of precedence for the ELF name is:
     // 1. --elf_name flag
     // 2. --binary flag + -elf suffix (defaults to riscv32im-succinct-zkvm-elf)
@@ -55,7 +30,7 @@ pub(crate) fn copy_elf_to_output_dir(
     let result_elf_path = elf_dir.join(elf_name);
 
     // Copy the ELF to the specified output directory.
-    fs::copy(original_elf_path, &result_elf_path)?;
+    fs::copy(elf_path, &result_elf_path)?;
 
     Ok(result_elf_path)
 }

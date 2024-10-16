@@ -4,10 +4,10 @@ use sp1_cuda::SP1CudaProver;
 use sp1_prover::{components::DefaultProverComponents, SP1Prover};
 
 use super::ProverType;
+use crate::install::try_install_circuit_artifacts;
 use crate::{
-    provers::{try_install_circuit_artifacts, ProofOpts},
-    Prover, SP1Context, SP1Proof, SP1ProofKind, SP1ProofWithPublicValues, SP1ProvingKey,
-    SP1VerifyingKey,
+    provers::ProofOpts, Prover, SP1Context, SP1Proof, SP1ProofKind, SP1ProofWithPublicValues,
+    SP1ProvingKey, SP1VerifyingKey,
 };
 
 /// An implementation of [crate::ProverClient] that can generate proofs locally using CUDA.
@@ -80,15 +80,15 @@ impl Prover<DefaultProverComponents> for CudaProver {
         let outer_proof = self.cuda_prover.wrap_bn254(compress_proof)?;
 
         if kind == SP1ProofKind::Plonk {
-            let plonk_bn254_aritfacts = if sp1_prover::build::sp1_dev_mode() {
+            let plonk_bn254_artifacts = if sp1_prover::build::sp1_dev_mode() {
                 sp1_prover::build::try_build_plonk_bn254_artifacts_dev(
                     &outer_proof.vk,
                     &outer_proof.proof,
                 )
             } else {
-                try_install_circuit_artifacts()
+                try_install_circuit_artifacts("plonk")
             };
-            let proof = self.prover.wrap_plonk_bn254(outer_proof, &plonk_bn254_aritfacts);
+            let proof = self.prover.wrap_plonk_bn254(outer_proof, &plonk_bn254_artifacts);
             return Ok(SP1ProofWithPublicValues {
                 proof: SP1Proof::Plonk(proof),
                 stdin,
@@ -102,7 +102,7 @@ impl Prover<DefaultProverComponents> for CudaProver {
                     &outer_proof.proof,
                 )
             } else {
-                try_install_circuit_artifacts()
+                try_install_circuit_artifacts("groth16")
             };
 
             let proof = self.prover.wrap_groth16_bn254(outer_proof, &groth16_bn254_artifacts);

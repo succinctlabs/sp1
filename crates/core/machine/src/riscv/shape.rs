@@ -1,10 +1,11 @@
 use itertools::Itertools;
 
-use hashbrown::{HashMap, HashSet};
+use hashbrown::HashMap;
 use num::Integer;
 use p3_field::PrimeField32;
+use p3_util::log2_ceil_usize;
 use sp1_core_executor::{CoreShape, ExecutionRecord, Program};
-use sp1_stark::{air::MachineAir, ProofShape};
+use sp1_stark::{air::MachineAir, MachineRecord, ProofShape};
 use thiserror::Error;
 
 use crate::{
@@ -23,25 +24,38 @@ pub enum CoreShapeError {
     PreprocessedShapeError,
     #[error("Preprocessed shape already fixed")]
     PreprocessedShapeAlreadyFixed,
-    #[error("no shape found")]
-    ShapeError,
+    #[error("no shape found {0:?}")]
+    ShapeError(HashMap<String, usize>),
     #[error("Preprocessed shape missing")]
     PrepcocessedShapeMissing,
     #[error("Shape already fixed")]
     ShapeAlreadyFixed,
-    #[error("Precompile not included in allowed shapes")]
-    PrecompileNotIncluded,
+    #[error("Precompile not included in allowed shapes {0:?}")]
+    PrecompileNotIncluded(HashMap<String, usize>),
 }
 
 /// A structure that enables fixing the shape of an executionrecord.
 pub struct CoreShapeConfig<F: PrimeField32> {
     included_shapes: Vec<HashMap<String, usize>>,
     allowed_preprocessed_log_heights: HashMap<RiscvAir<F>, Vec<Option<usize>>>,
-    short_core_allowed_log_heights: HashMap<RiscvAir<F>, Vec<Option<usize>>>,
-    medium_core_allowed_log_heights: HashMap<RiscvAir<F>, Vec<Option<usize>>>,
-    long_core_allowed_log_heights: HashMap<RiscvAir<F>, Vec<Option<usize>>>,
+    allowed_core_log_heights: Vec<HashMap<RiscvAir<F>, Vec<Option<usize>>>>,
+    maximal_core_log_heights_mask: Vec<bool>,
     memory_allowed_log_heights: HashMap<RiscvAir<F>, Vec<Option<usize>>>,
     precompile_allowed_log_heights: HashMap<RiscvAir<F>, (usize, Vec<usize>)>,
+}
+
+struct CoreShapeSpec {
+    cpu_height: Vec<Option<usize>>,
+    add_sub_height: Vec<Option<usize>>,
+    divrem_height: Vec<Option<usize>>,
+    bitwise_height: Vec<Option<usize>>,
+    mul_height: Vec<Option<usize>>,
+    shift_right_height: Vec<Option<usize>>,
+    shift_left_height: Vec<Option<usize>>,
+    lt_height: Vec<Option<usize>>,
+    memory_local_height: Vec<Option<usize>>,
+    syscall_core_height: Vec<Option<usize>>,
+    is_potentially_maximal: bool,
 }
 
 impl<F: PrimeField32> CoreShapeConfig<F> {
@@ -67,21 +81,23 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
     ) -> Option<CoreShape> {
         let shape: Option<HashMap<String, usize>> = heights
             .iter()
-            .filter(|(_, height)| *height != 0)
             .map(|(air, height)| {
-                for allowed_log_height in
-                    allowed_log_heights.get(air).into_iter().flatten().flatten()
-                {
-                    let allowed_height = 1 << allowed_log_height;
+                for maybe_allowed_log_height in allowed_log_heights.get(air).into_iter().flatten() {
+                    let allowed_log_height = maybe_allowed_log_height.unwrap_or_default();
+                    let allowed_height =
+                        if allowed_log_height != 0 { 1 << allowed_log_height } else { 0 };
                     if *height <= allowed_height {
-                        return Some((air.name(), *allowed_log_height));
+                        return Some((air.name(), allowed_log_height));
                     }
                 }
                 None
             })
             .collect();
 
-        let shape = CoreShape { inner: shape? };
+        let mut inner = shape?;
+        inner.retain(|_, &mut value| value != 0);
+
+        let shape = CoreShape { inner };
         Some(shape)
     }
 
@@ -106,34 +122,33 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
             let heights = RiscvAir::<F>::core_heights(record);
 
             // Try to find a shape within the included shapes.
+            for (i, allowed_log_heights) in self.allowed_core_log_heights.iter().enumerate() {
+                if let Some(shape) =
+                    Self::find_shape_from_allowed_heights(&heights, allowed_log_heights)
+                {
+                    tracing::debug!(
+                        "Shard Lifted: Index={}, Cluster={}",
+                        record.public_values.shard,
+                        i
+                    );
+                    for (air, height) in heights.iter() {
+                        if shape.inner.contains_key(&air.name()) {
+                            tracing::debug!(
+                                "Chip {:<20}: {:<3} -> {:<3}",
+                                air.name(),
+                                log2_ceil_usize(*height),
+                                shape.inner[&air.name()],
+                            );
+                        }
+                    }
 
-            // Try to find a shape within the short shape cluster.
-            if let Some(shape) = Self::find_shape_from_allowed_heights(
-                &heights,
-                &self.short_core_allowed_log_heights,
-            ) {
-                record.shape.as_mut().unwrap().extend(shape);
-                return Ok(());
+                    record.shape.as_mut().unwrap().extend(shape);
+                    return Ok(());
+                }
             }
 
-            // Try to find a shape within the medium shape cluster.
-            if let Some(shape) = Self::find_shape_from_allowed_heights(
-                &heights,
-                &self.medium_core_allowed_log_heights,
-            ) {
-                record.shape.as_mut().unwrap().extend(shape);
-                return Ok(());
-            }
-
-            // Try to find a shape within the long shape cluster.
-            if let Some(shape) =
-                Self::find_shape_from_allowed_heights(&heights, &self.long_core_allowed_log_heights)
-            {
-                record.shape.as_mut().unwrap().extend(shape);
-                return Ok(());
-            }
             // No shape found, so return an error.
-            return Err(CoreShapeError::ShapeError);
+            return Err(CoreShapeError::ShapeError(record.stats()));
         }
 
         // If the record is a global memory init/finalize record, try to fix the shape as such.
@@ -143,12 +158,12 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
             let heights = RiscvAir::<F>::get_memory_init_final_heights(record);
             let shape =
                 Self::find_shape_from_allowed_heights(&heights, &self.memory_allowed_log_heights)
-                    .ok_or(CoreShapeError::ShapeError)?;
+                    .ok_or(CoreShapeError::ShapeError(record.stats()))?;
             record.shape.as_mut().unwrap().extend(shape);
             return Ok(());
         }
 
-        // Try to fix the shape as a precompile record. Since we allow all possible
+        // Try to fix the shape as a precompile record.
         for (air, (mem_events_per_row, allowed_log_heights)) in
             self.precompile_allowed_log_heights.iter()
         {
@@ -171,14 +186,16 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
                         return Ok(());
                     }
                 }
+                tracing::warn!(
+                    "Cannot find shape for precompile {:?}, height {:?}, and mem events {:?}",
+                    air.name(),
+                    height,
+                    mem_events
+                );
+                return Err(CoreShapeError::ShapeError(record.stats()));
             }
         }
-        tracing::warn!(
-            "No shape found for the record with syscall events {:?}",
-            record.syscall_events
-        );
-
-        Err(CoreShapeError::PrecompileNotIncluded)
+        Err(CoreShapeError::PrecompileNotIncluded(record.stats()))
     }
 
     fn get_precompile_shapes(
@@ -236,27 +253,6 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
             .iter()
             .map(|(air, heights)| (air.name(), heights.clone()));
 
-        let mut short_heights = self
-            .short_core_allowed_log_heights
-            .iter()
-            .map(|(air, heights)| (air.name(), heights.clone()))
-            .collect::<HashMap<_, _>>();
-        short_heights.extend(preprocessed_heights.clone());
-
-        let mut medium_heights = self
-            .medium_core_allowed_log_heights
-            .iter()
-            .map(|(air, heights)| (air.name(), heights.clone()))
-            .collect::<HashMap<_, _>>();
-        medium_heights.extend(preprocessed_heights.clone());
-
-        let mut long_heights = self
-            .long_core_allowed_log_heights
-            .iter()
-            .map(|(air, heights)| (air.name(), heights.clone()))
-            .collect::<HashMap<_, _>>();
-        long_heights.extend(preprocessed_heights.clone());
-
         let mut memory_heights = self
             .memory_allowed_log_heights
             .iter()
@@ -264,46 +260,8 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
             .collect::<HashMap<_, _>>();
         memory_heights.extend(preprocessed_heights.clone());
 
-        let included_shapes = self.included_shapes.iter().map(ProofShape::from_map);
-
-        let cpu_name = || RiscvAir::<F>::Cpu(CpuChip::default()).name();
-        let memory_local_name = || RiscvAir::<F>::MemoryLocal(MemoryLocalChip::new()).name();
-        let syscall_name = || RiscvAir::<F>::SyscallCore(SyscallChip::core()).name();
-        let core_filter = move |shape: &ProofShape| {
-            let core_airs = RiscvAir::<F>::get_all_core_airs()
-                .into_iter()
-                .map(|air| air.name())
-                .filter(|name| name != &memory_local_name() && name != &syscall_name())
-                .collect::<HashSet<_>>();
-            let core_chips_and_heights = shape
-                .chip_information
-                .iter()
-                .filter(|(name, _)| core_airs.contains(name))
-                .cloned()
-                .collect::<Vec<_>>();
-
-            let cpu_name = cpu_name();
-
-            if core_chips_and_heights.first().unwrap().0 != cpu_name {
-                return false;
-            }
-
-            let cpu_height = core_chips_and_heights.first().unwrap().1;
-
-            let sum_of_heights =
-                core_chips_and_heights.iter().map(|(_, height)| *height).sum::<usize>();
-
-            let mut max_possible_sum_of_heights = cpu_height;
-
-            let num_core_chips = core_chips_and_heights.len();
-
-            if num_core_chips > 1 {
-                max_possible_sum_of_heights =
-                    2 * cpu_height + (cpu_height >> 1) * (num_core_chips - 2);
-            }
-
-            sum_of_heights <= max_possible_sum_of_heights
-        };
+        let included_shapes =
+            self.included_shapes.iter().cloned().map(|map| map.into_iter().collect::<ProofShape>());
 
         let precompile_only_shapes = self.precompile_allowed_log_heights.iter().flat_map(
             move |(air, (mem_events_per_row, allowed_log_heights))| {
@@ -326,30 +284,49 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
                 });
 
         included_shapes
-            .chain(
-                Self::generate_all_shapes_from_allowed_log_heights(short_heights)
-                    .filter(core_filter),
-            )
-            .chain(
-                Self::generate_all_shapes_from_allowed_log_heights(medium_heights)
-                    .filter(core_filter),
-            )
-            .chain(
-                Self::generate_all_shapes_from_allowed_log_heights(long_heights)
-                    .filter(core_filter),
-            )
+            .chain(self.allowed_core_log_heights.iter().flat_map(move |allowed_log_heights| {
+                Self::generate_all_shapes_from_allowed_log_heights({
+                    let mut log_heights = allowed_log_heights
+                        .iter()
+                        .map(|(air, heights)| (air.name(), heights.clone()))
+                        .collect::<HashMap<_, _>>();
+                    log_heights.extend(preprocessed_heights.clone());
+                    log_heights
+                })
+            }))
             .chain(Self::generate_all_shapes_from_allowed_log_heights(memory_heights))
             .chain(precompile_shapes)
+    }
+
+    pub fn maximal_core_shapes(&self) -> Vec<CoreShape> {
+        let max_preprocessed = self
+            .allowed_preprocessed_log_heights
+            .iter()
+            .map(|(air, allowed_heights)| (air.name(), allowed_heights.last().unwrap().unwrap()));
+
+        let max_core_shapes = self
+            .allowed_core_log_heights
+            .iter()
+            .zip(self.maximal_core_log_heights_mask.iter())
+            .filter(|(_, mask)| **mask)
+            .map(|(allowed_log_heights, _)| {
+                max_preprocessed
+                    .clone()
+                    .chain(allowed_log_heights.iter().map(|(air, allowed_heights)| {
+                        (air.name(), allowed_heights.last().unwrap().unwrap())
+                    }))
+                    .collect::<CoreShape>()
+            });
+
+        max_core_shapes.collect()
     }
 }
 
 impl<F: PrimeField32> Default for CoreShapeConfig<F> {
     fn default() -> Self {
-        let included_shapes = vec![];
-
         // Preprocessed chip heights.
-        let program_heights = vec![Some(16), Some(19), Some(20), Some(21), Some(22)];
-        let program_memory_heights = vec![Some(16), Some(19), Some(20), Some(21), Some(22)];
+        let program_heights = vec![Some(19), Some(20), Some(21), Some(22)];
+        let program_memory_heights = vec![Some(19), Some(20), Some(21), Some(22)];
 
         let allowed_preprocessed_log_heights = HashMap::from([
             (RiscvAir::Program(ProgramChip::default()), program_heights),
@@ -357,122 +334,481 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
             (RiscvAir::ByteLookup(ByteChip::default()), vec![Some(16)]),
         ]);
 
-        // Get the heights for the short shape cluster (for small shards).
-        let cpu_heights = vec![Some(16), Some(19)];
-        let divrem_heights = vec![None, Some(10), Some(16), Some(19)];
-        let add_sub_heights = vec![None, Some(10), Some(16), Some(19)];
-        let bitwise_heights = vec![None, Some(10), Some(16), Some(19)];
-        let mul_heights = vec![None, Some(10), Some(16), Some(19)];
-        let shift_right_heights = vec![None, Some(10), Some(16), Some(19)];
-        let shift_left_heights = vec![None, Some(10), Some(16), Some(19)];
-        let lt_heights = vec![None, Some(10), Some(16), Some(19)];
-        let memory_local_heights = vec![Some(16), Some(19)];
-        let syscall_heights = vec![None, Some(19)];
+        let core_shapes = [
+            // Small program shapes: 2^14 -> 2^18.
+            CoreShapeSpec {
+                cpu_height: vec![Some(14)],
+                add_sub_height: vec![Some(14)],
+                lt_height: vec![Some(14)],
+                bitwise_height: vec![Some(14)],
+                shift_right_height: vec![Some(14)],
+                shift_left_height: vec![Some(14)],
+                syscall_core_height: vec![Some(14)],
+                memory_local_height: vec![Some(14)],
+                mul_height: vec![Some(14)],
+                divrem_height: vec![Some(14)],
+                is_potentially_maximal: false,
+            },
+            CoreShapeSpec {
+                cpu_height: vec![Some(15)],
+                add_sub_height: vec![Some(15)],
+                lt_height: vec![Some(15)],
+                bitwise_height: vec![Some(15)],
+                shift_right_height: vec![Some(15)],
+                shift_left_height: vec![Some(15)],
+                syscall_core_height: vec![Some(15)],
+                memory_local_height: vec![Some(15)],
+                mul_height: vec![Some(15)],
+                divrem_height: vec![Some(15)],
+                is_potentially_maximal: false,
+            },
+            CoreShapeSpec {
+                cpu_height: vec![Some(16)],
+                add_sub_height: vec![Some(16)],
+                lt_height: vec![Some(16)],
+                bitwise_height: vec![Some(16)],
+                shift_right_height: vec![Some(16)],
+                shift_left_height: vec![Some(16)],
+                syscall_core_height: vec![Some(16)],
+                memory_local_height: vec![Some(16)],
+                mul_height: vec![Some(16)],
+                divrem_height: vec![Some(16)],
+                is_potentially_maximal: false,
+            },
+            CoreShapeSpec {
+                cpu_height: vec![Some(17)],
+                add_sub_height: vec![Some(17)],
+                lt_height: vec![Some(17)],
+                bitwise_height: vec![Some(17)],
+                shift_right_height: vec![Some(17)],
+                shift_left_height: vec![Some(17)],
+                syscall_core_height: vec![Some(17)],
+                memory_local_height: vec![Some(17)],
+                mul_height: vec![Some(17)],
+                divrem_height: vec![Some(17)],
+                is_potentially_maximal: false,
+            },
+            CoreShapeSpec {
+                cpu_height: vec![Some(18)],
+                add_sub_height: vec![Some(18)],
+                lt_height: vec![Some(18)],
+                bitwise_height: vec![Some(18)],
+                shift_right_height: vec![Some(18)],
+                shift_left_height: vec![Some(18)],
+                syscall_core_height: vec![Some(18)],
+                memory_local_height: vec![Some(18)],
+                mul_height: vec![Some(18)],
+                divrem_height: vec![Some(18)],
+                is_potentially_maximal: false,
+            },
+            // Small 2^19 shape variants.
+            CoreShapeSpec {
+                cpu_height: vec![Some(19)],
+                add_sub_height: vec![Some(21)],
+                lt_height: vec![Some(16)],
+                bitwise_height: vec![Some(16)],
+                shift_right_height: vec![Some(16)],
+                shift_left_height: vec![Some(16)],
+                syscall_core_height: vec![Some(16)],
+                memory_local_height: vec![Some(16)],
+                mul_height: vec![Some(16)],
+                divrem_height: vec![Some(16)],
+                is_potentially_maximal: false,
+            },
+            CoreShapeSpec {
+                cpu_height: vec![Some(19)],
+                add_sub_height: vec![Some(20)],
+                lt_height: vec![Some(20)],
+                bitwise_height: vec![Some(16)],
+                shift_right_height: vec![Some(16)],
+                shift_left_height: vec![Some(16)],
+                syscall_core_height: vec![Some(16)],
+                memory_local_height: vec![Some(16)],
+                mul_height: vec![Some(16)],
+                divrem_height: vec![Some(16)],
+                is_potentially_maximal: false,
+            },
+            CoreShapeSpec {
+                cpu_height: vec![Some(19)],
+                add_sub_height: vec![Some(19)],
+                lt_height: vec![Some(19)],
+                bitwise_height: vec![Some(19)],
+                shift_right_height: vec![Some(19)],
+                shift_left_height: vec![Some(19)],
+                syscall_core_height: vec![Some(19)],
+                memory_local_height: vec![Some(19)],
+                mul_height: vec![Some(19)],
+                divrem_height: vec![Some(19)],
+                is_potentially_maximal: false,
+            },
+            // All no-add chips in <= 1<<19.
+            //
+            // Most shapes should be included in this cluster.
+            CoreShapeSpec {
+                cpu_height: vec![Some(21)],
+                add_sub_height: vec![Some(21)],
+                lt_height: vec![Some(19)],
+                bitwise_height: vec![Some(18), Some(19)],
+                shift_right_height: vec![Some(16), Some(17), Some(18), Some(19)],
+                shift_left_height: vec![Some(16), Some(17), Some(18), Some(19)],
+                syscall_core_height: vec![Some(16), Some(17), Some(18)],
+                memory_local_height: vec![Some(16), Some(18), Some(18)],
+                mul_height: vec![Some(10), Some(16), Some(18)],
+                divrem_height: vec![Some(10), Some(16), Some(17)],
+                is_potentially_maximal: true,
+            },
+            CoreShapeSpec {
+                cpu_height: vec![Some(21)],
+                add_sub_height: vec![Some(21)],
+                lt_height: vec![Some(20)],
+                bitwise_height: vec![None, Some(18), Some(19)],
+                shift_right_height: vec![None, Some(16), Some(17)],
+                shift_left_height: vec![None, Some(16), Some(17)],
+                syscall_core_height: vec![Some(16), Some(17)],
+                memory_local_height: vec![Some(16), Some(18), Some(18)],
+                mul_height: vec![None, Some(10), Some(16), Some(18)],
+                divrem_height: vec![None, Some(10), Some(16), Some(17)],
+                is_potentially_maximal: true,
+            },
+            CoreShapeSpec {
+                cpu_height: vec![Some(21)],
+                add_sub_height: vec![Some(21)],
+                lt_height: vec![Some(19)],
+                bitwise_height: vec![Some(17), Some(18)],
+                shift_right_height: vec![Some(16), Some(17), Some(18), Some(19)],
+                shift_left_height: vec![Some(16), Some(17), Some(18), Some(19)],
+                syscall_core_height: vec![Some(16), Some(17), Some(19)],
+                memory_local_height: vec![Some(16), Some(18), Some(19)],
+                mul_height: vec![Some(10), Some(16), Some(18)],
+                divrem_height: vec![Some(10), Some(16), Some(17)],
+                is_potentially_maximal: true,
+            },
+            CoreShapeSpec {
+                cpu_height: vec![Some(21)],
+                add_sub_height: vec![Some(21)],
+                lt_height: vec![Some(19)],
+                bitwise_height: vec![Some(17), Some(18)],
+                shift_right_height: vec![Some(16), Some(17), Some(18), Some(19)],
+                shift_left_height: vec![Some(16), Some(17), Some(18), Some(19)],
+                syscall_core_height: vec![Some(16), Some(17), Some(19)],
+                memory_local_height: vec![Some(16), Some(18), Some(19)],
+                mul_height: vec![Some(10), Some(16), Some(18)],
+                divrem_height: vec![Some(10), Some(16), Some(17)],
+                is_potentially_maximal: true,
+            },
+            CoreShapeSpec {
+                cpu_height: vec![Some(21)],
+                add_sub_height: vec![Some(19), Some(20)],
+                lt_height: vec![Some(19)],
+                bitwise_height: vec![Some(20)],
+                shift_right_height: vec![Some(16), Some(17), Some(18), Some(19)],
+                shift_left_height: vec![Some(16), Some(17), Some(18), Some(19)],
+                syscall_core_height: vec![Some(16), Some(17), Some(19)],
+                memory_local_height: vec![Some(16), Some(18), Some(19)],
+                mul_height: vec![Some(10), Some(16), Some(18)],
+                divrem_height: vec![Some(10), Some(16), Some(17)],
+                is_potentially_maximal: true,
+            },
+            // LT in <= 1<<20
+            //
+            // For records with a lot of `LT` instructions, but less than 1<<20, this cluster is
+            // appropriate.
+            CoreShapeSpec {
+                cpu_height: vec![Some(21)],
+                add_sub_height: vec![Some(21)],
+                lt_height: vec![Some(20)],
+                bitwise_height: vec![Some(17), Some(18)],
+                shift_right_height: vec![Some(17), Some(18)],
+                shift_left_height: vec![Some(17), Some(18)],
+                syscall_core_height: vec![Some(17), Some(18)],
+                memory_local_height: vec![Some(16), Some(18), Some(19)],
+                mul_height: vec![Some(10), Some(16), Some(18)],
+                divrem_height: vec![Some(10), Some(16), Some(17)],
+                is_potentially_maximal: true,
+            },
+            CoreShapeSpec {
+                cpu_height: vec![Some(21)],
+                add_sub_height: vec![Some(20)],
+                lt_height: vec![Some(20)],
+                bitwise_height: vec![Some(17), Some(18), Some(19)],
+                shift_right_height: vec![Some(17), Some(18)],
+                shift_left_height: vec![Some(17), Some(18)],
+                syscall_core_height: vec![Some(17), Some(18)],
+                memory_local_height: vec![Some(16), Some(18), Some(19)],
+                mul_height: vec![Some(10), Some(16), Some(18)],
+                divrem_height: vec![Some(10), Some(16), Some(17)],
+                is_potentially_maximal: true,
+            },
+            // LT in <= 1<<21
+            //
+            // For records with a lot of `LT` instructions, and more than 1<<20, this cluster is
+            // appropriate.
+            CoreShapeSpec {
+                cpu_height: vec![Some(21)],
+                add_sub_height: vec![Some(21)],
+                lt_height: vec![Some(21)],
+                bitwise_height: vec![Some(17)],
+                shift_right_height: vec![Some(17)],
+                shift_left_height: vec![Some(17)],
+                syscall_core_height: vec![Some(17)],
+                memory_local_height: vec![Some(16), Some(18)],
+                mul_height: vec![Some(10), Some(16), Some(18)],
+                divrem_height: vec![Some(10), Some(16), Some(17)],
+                is_potentially_maximal: true,
+            },
+            // Bitwise in <= 1<<20
+            CoreShapeSpec {
+                cpu_height: vec![Some(21)],
+                add_sub_height: vec![Some(21)],
+                lt_height: vec![Some(19)],
+                bitwise_height: vec![Some(20)],
+                shift_right_height: vec![Some(19)],
+                shift_left_height: vec![Some(19)],
+                syscall_core_height: vec![Some(18)],
+                memory_local_height: vec![Some(16), Some(18)],
+                mul_height: vec![Some(10), Some(16), Some(18)],
+                divrem_height: vec![Some(10), Some(16)],
+                is_potentially_maximal: true,
+            },
+            // Bitwise in <= 1<<21
+            CoreShapeSpec {
+                cpu_height: vec![Some(21)],
+                add_sub_height: vec![Some(21)],
+                lt_height: vec![Some(17)],
+                bitwise_height: vec![Some(21)],
+                shift_right_height: vec![Some(17)],
+                shift_left_height: vec![Some(17)],
+                syscall_core_height: vec![Some(16), Some(17)],
+                memory_local_height: vec![Some(16), Some(18)],
+                mul_height: vec![Some(10), Some(16), Some(18)],
+                divrem_height: vec![Some(10), Some(16), Some(17)],
+                is_potentially_maximal: true,
+            },
+            // SLL in <= 1<<20
+            CoreShapeSpec {
+                cpu_height: vec![Some(21)],
+                add_sub_height: vec![Some(18)],
+                lt_height: vec![Some(20)],
+                bitwise_height: vec![Some(18)],
+                shift_right_height: vec![Some(18)],
+                shift_left_height: vec![Some(20)],
+                syscall_core_height: vec![Some(16), Some(18)],
+                memory_local_height: vec![Some(16), Some(18), Some(19)],
+                mul_height: vec![Some(10), Some(16), Some(18)],
+                divrem_height: vec![Some(10), Some(16), Some(17)],
+                is_potentially_maximal: true,
+            },
+            // SLL in <= 1<<21
+            CoreShapeSpec {
+                cpu_height: vec![Some(21)],
+                add_sub_height: vec![Some(21)],
+                lt_height: vec![Some(17)],
+                bitwise_height: vec![Some(17)],
+                shift_right_height: vec![Some(17)],
+                shift_left_height: vec![Some(21)],
+                syscall_core_height: vec![Some(17)],
+                memory_local_height: vec![Some(16), Some(18)],
+                mul_height: vec![Some(10), Some(16), Some(18)],
+                divrem_height: vec![Some(10), Some(16), Some(17)],
+                is_potentially_maximal: true,
+            },
+            // SRL in <= 1<<20
+            CoreShapeSpec {
+                cpu_height: vec![Some(21)],
+                add_sub_height: vec![Some(18)],
+                lt_height: vec![Some(20)],
+                bitwise_height: vec![Some(18)],
+                shift_right_height: vec![Some(20)],
+                shift_left_height: vec![Some(19)],
+                syscall_core_height: vec![Some(18)],
+                memory_local_height: vec![Some(16), Some(18), Some(19)],
+                mul_height: vec![Some(10), Some(16), Some(18)],
+                divrem_height: vec![Some(10), Some(16), Some(17)],
+                is_potentially_maximal: true,
+            },
+            // Shards with basic arithmetic and branching.
+            CoreShapeSpec {
+                cpu_height: vec![Some(21)],
+                add_sub_height: vec![Some(21)],
+                lt_height: vec![Some(19)],
+                bitwise_height: vec![Some(6)],
+                shift_right_height: vec![Some(19)],
+                shift_left_height: vec![Some(6)],
+                syscall_core_height: vec![Some(6)],
+                memory_local_height: vec![Some(16)],
+                mul_height: vec![Some(19)],
+                divrem_height: vec![Some(6)],
+                is_potentially_maximal: true,
+            },
+            // Shards with many mul events.
+            CoreShapeSpec {
+                cpu_height: vec![Some(21)],
+                add_sub_height: vec![Some(21)],
+                lt_height: vec![Some(20)],
+                bitwise_height: vec![Some(17), Some(18)],
+                shift_right_height: vec![Some(17)],
+                shift_left_height: vec![Some(17)],
+                syscall_core_height: vec![Some(16)],
+                memory_local_height: vec![Some(16)],
+                mul_height: vec![Some(19), Some(20)],
+                divrem_height: vec![Some(10), Some(16)],
+                is_potentially_maximal: true,
+            },
+        ];
 
-        let short_allowed_log_heights = HashMap::from([
-            (RiscvAir::Cpu(CpuChip::default()), cpu_heights),
-            (RiscvAir::DivRem(DivRemChip::default()), divrem_heights),
-            (RiscvAir::Add(AddSubChip::default()), add_sub_heights),
-            (RiscvAir::Bitwise(BitwiseChip::default()), bitwise_heights),
-            (RiscvAir::Mul(MulChip::default()), mul_heights),
-            (RiscvAir::ShiftRight(ShiftRightChip::default()), shift_right_heights),
-            (RiscvAir::ShiftLeft(ShiftLeft::default()), shift_left_heights),
-            (RiscvAir::Lt(LtChip::default()), lt_heights),
-            (RiscvAir::MemoryLocal(MemoryLocalChip::new()), memory_local_heights),
-            (RiscvAir::SyscallCore(SyscallChip::core()), syscall_heights),
-        ]);
-
-        // Get the heights for the medium shape cluster.
-        let cpu_heights = vec![Some(20), Some(21)];
-        let divrem_heights = vec![None, Some(19), Some(20), Some(21)];
-        let add_sub_heights = vec![None, Some(19), Some(20), Some(21)];
-        let bitwise_heights = vec![None, Some(19), Some(20), Some(21)];
-        let mul_heights = vec![None, Some(19), Some(20), Some(21)];
-        let shift_right_heights = vec![None, Some(19), Some(20), Some(21)];
-        let shift_left_heights = vec![None, Some(19), Some(20), Some(21)];
-        let lt_heights = vec![None, Some(19), Some(20), Some(21)];
-        let memory_local_heights = vec![Some(19), Some(20), Some(21)];
-        let syscall_heights = vec![None, Some(19)];
-
-        let medium_allowed_log_heights = HashMap::from([
-            (RiscvAir::Cpu(CpuChip::default()), cpu_heights),
-            (RiscvAir::DivRem(DivRemChip::default()), divrem_heights),
-            (RiscvAir::Add(AddSubChip::default()), add_sub_heights),
-            (RiscvAir::Bitwise(BitwiseChip::default()), bitwise_heights),
-            (RiscvAir::Mul(MulChip::default()), mul_heights),
-            (RiscvAir::ShiftRight(ShiftRightChip::default()), shift_right_heights),
-            (RiscvAir::ShiftLeft(ShiftLeft::default()), shift_left_heights),
-            (RiscvAir::Lt(LtChip::default()), lt_heights),
-            (RiscvAir::MemoryLocal(MemoryLocalChip::new()), memory_local_heights),
-            (RiscvAir::SyscallCore(SyscallChip::core()), syscall_heights),
-        ]);
-
-        // Core chip heights for the long shape cluster.
-        let cpu_heights = vec![Some(21), Some(22)];
-        let divrem_heights = vec![None, Some(20), Some(21), Some(22)];
-        let add_sub_heights = vec![None, Some(20), Some(21), Some(22)];
-        let bitwise_heights = vec![None, Some(20), Some(21), Some(22)];
-        let mul_heights = vec![None, Some(20), Some(21), Some(22)];
-        let shift_right_heights = vec![None, Some(20), Some(21), Some(22)];
-        let shift_left_heights = vec![None, Some(20), Some(21), Some(22)];
-        let lt_heights = vec![None, Some(20), Some(21), Some(22)];
-        let memory_local_heights = vec![Some(21), Some(22)];
-        let syscall_heights = vec![None, Some(20)];
-
-        let long_allowed_log_heights = HashMap::from([
-            (RiscvAir::Cpu(CpuChip::default()), cpu_heights),
-            (RiscvAir::DivRem(DivRemChip::default()), divrem_heights),
-            (RiscvAir::Add(AddSubChip::default()), add_sub_heights),
-            (RiscvAir::Bitwise(BitwiseChip::default()), bitwise_heights),
-            (RiscvAir::Mul(MulChip::default()), mul_heights),
-            (RiscvAir::ShiftRight(ShiftRightChip::default()), shift_right_heights),
-            (RiscvAir::ShiftLeft(ShiftLeft::default()), shift_left_heights),
-            (RiscvAir::Lt(LtChip::default()), lt_heights),
-            (RiscvAir::MemoryLocal(MemoryLocalChip::new()), memory_local_heights),
-            (RiscvAir::SyscallCore(SyscallChip::core()), syscall_heights),
-        ]);
+        let mut allowed_core_log_heights = vec![];
+        let mut maximal_core_log_heights_mask = vec![];
+        for spec in core_shapes {
+            let short_allowed_log_heights = HashMap::from([
+                (RiscvAir::Cpu(CpuChip::default()), spec.cpu_height),
+                (RiscvAir::Add(AddSubChip::default()), spec.add_sub_height),
+                (RiscvAir::Bitwise(BitwiseChip::default()), spec.bitwise_height),
+                (RiscvAir::DivRem(DivRemChip::default()), spec.divrem_height),
+                (RiscvAir::Mul(MulChip::default()), spec.mul_height),
+                (RiscvAir::ShiftRight(ShiftRightChip::default()), spec.shift_right_height),
+                (RiscvAir::ShiftLeft(ShiftLeft::default()), spec.shift_left_height),
+                (RiscvAir::Lt(LtChip::default()), spec.lt_height),
+                (RiscvAir::MemoryLocal(MemoryLocalChip::new()), spec.memory_local_height),
+                (RiscvAir::SyscallCore(SyscallChip::core()), spec.syscall_core_height),
+            ]);
+            allowed_core_log_heights.push(short_allowed_log_heights);
+            maximal_core_log_heights_mask.push(spec.is_potentially_maximal);
+        }
 
         // Set the memory init and finalize heights.
         let memory_init_heights =
-            vec![Some(10), Some(16), Some(18), Some(19), Some(20), Some(21), Some(22)];
+            vec![None, Some(10), Some(16), Some(18), Some(19), Some(20), Some(21)];
         let memory_finalize_heights =
-            vec![Some(10), Some(16), Some(18), Some(19), Some(20), Some(21), Some(22)];
+            vec![None, Some(10), Some(16), Some(18), Some(19), Some(20), Some(21)];
         let memory_allowed_log_heights = HashMap::from([
             (RiscvAir::MemoryGlobalInit(MemoryGlobalChip::new(Initialize)), memory_init_heights),
             (RiscvAir::MemoryGlobalFinal(MemoryGlobalChip::new(Finalize)), memory_finalize_heights),
         ]);
 
         let mut precompile_allowed_log_heights = HashMap::new();
-        let precompile_heights = (1..22).collect::<Vec<_>>();
+        let precompile_heights = (3..19).collect::<Vec<_>>();
         for (air, mem_events_per_row) in RiscvAir::<F>::get_all_precompile_airs() {
             precompile_allowed_log_heights
                 .insert(air, (mem_events_per_row, precompile_heights.clone()));
         }
 
         Self {
-            included_shapes,
+            included_shapes: vec![],
             allowed_preprocessed_log_heights,
-            short_core_allowed_log_heights: short_allowed_log_heights,
-            medium_core_allowed_log_heights: medium_allowed_log_heights,
-            long_core_allowed_log_heights: long_allowed_log_heights,
+            allowed_core_log_heights,
+            maximal_core_log_heights_mask,
             memory_allowed_log_heights,
             precompile_allowed_log_heights,
         }
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use p3_baby_bear::BabyBear;
+#[cfg(any(test, feature = "programs"))]
+pub mod tests {
+    use std::fmt::Debug;
+
+    use p3_challenger::{CanObserve, FieldChallenger};
+    use sp1_stark::{air::InteractionScope, Dom, MachineProver, StarkGenericConfig};
 
     use super::*;
+
+    pub fn try_generate_dummy_proof<
+        SC: StarkGenericConfig,
+        P: MachineProver<SC, RiscvAir<SC::Val>>,
+    >(
+        prover: &P,
+        shape: &CoreShape,
+    ) where
+        SC::Val: PrimeField32,
+        Dom<SC>: Debug,
+    {
+        let program = shape.dummy_program();
+        let record = shape.dummy_record();
+
+        // Try doing setup.
+        let (pk, _) = prover.setup(&program);
+
+        // Try to generate traces.
+        let global_traces = prover.generate_traces(&record, InteractionScope::Global);
+        let local_traces = prover.generate_traces(&record, InteractionScope::Local);
+
+        // Try to commit the traces.
+        let global_data = prover.commit(&record, global_traces);
+        let local_data = prover.commit(&record, local_traces);
+
+        let mut challenger = prover.machine().config().challenger();
+        challenger.observe(global_data.main_commit.clone());
+        challenger.observe(local_data.main_commit.clone());
+
+        let global_permutation_challenges: [<SC as StarkGenericConfig>::Challenge; 2] =
+            [challenger.sample_ext_element(), challenger.sample_ext_element()];
+
+        // Try to "open".
+        prover
+            .open(
+                &pk,
+                Some(global_data),
+                local_data,
+                &mut challenger,
+                &global_permutation_challenges,
+            )
+            .unwrap();
+    }
 
     #[test]
     #[ignore]
     fn test_making_shapes() {
+        use p3_baby_bear::BabyBear;
         let shape_config = CoreShapeConfig::<BabyBear>::default();
         let num_shapes = shape_config.generate_all_allowed_shapes().count();
         println!("There are {} core shapes", num_shapes);
         assert!(num_shapes < 1 << 24);
+    }
+
+    #[test]
+    fn test_dummy_record() {
+        use crate::utils::setup_logger;
+        use p3_baby_bear::BabyBear;
+        use sp1_stark::baby_bear_poseidon2::BabyBearPoseidon2;
+        use sp1_stark::CpuProver;
+
+        type SC = BabyBearPoseidon2;
+        type A = RiscvAir<BabyBear>;
+
+        setup_logger();
+
+        let preprocessed_log_heights = [
+            (RiscvAir::<BabyBear>::Program(ProgramChip::default()), 10),
+            (RiscvAir::<BabyBear>::ProgramMemory(MemoryProgramChip::default()), 10),
+            (RiscvAir::<BabyBear>::ByteLookup(ByteChip::default()), 16),
+        ];
+
+        let core_log_heights = [
+            (RiscvAir::<BabyBear>::Cpu(CpuChip::default()), 11),
+            (RiscvAir::<BabyBear>::DivRem(DivRemChip::default()), 11),
+            (RiscvAir::<BabyBear>::Add(AddSubChip::default()), 10),
+            (RiscvAir::<BabyBear>::Bitwise(BitwiseChip::default()), 10),
+            (RiscvAir::<BabyBear>::Mul(MulChip::default()), 10),
+            (RiscvAir::<BabyBear>::ShiftRight(ShiftRightChip::default()), 10),
+            (RiscvAir::<BabyBear>::ShiftLeft(ShiftLeft::default()), 10),
+            (RiscvAir::<BabyBear>::Lt(LtChip::default()), 10),
+            (RiscvAir::<BabyBear>::MemoryLocal(MemoryLocalChip::new()), 10),
+            (RiscvAir::<BabyBear>::SyscallCore(SyscallChip::core()), 10),
+        ];
+
+        let height_map = preprocessed_log_heights
+            .into_iter()
+            .chain(core_log_heights)
+            .map(|(air, log_height)| (air.name(), log_height))
+            .collect::<HashMap<_, _>>();
+
+        let shape = CoreShape { inner: height_map };
+
+        // Try generating preprocessed traces.
+        let config = SC::default();
+        let machine = A::machine(config);
+        let prover = CpuProver::new(machine);
+
+        try_generate_dummy_proof(&prover, &shape);
     }
 }

@@ -110,6 +110,9 @@ pub struct Executor<'a> {
 
     /// Registry of hooks, to be invoked by writing to certain file descriptors.
     pub hook_registry: HookRegistry<'a>,
+
+    /// The maximal shapes for the program.
+    pub maximal_shapes: Option<Vec<HashMap<String, usize>>>,
 }
 
 /// The different modes the executor can run in.
@@ -228,6 +231,7 @@ impl<'a> Executor<'a> {
             memory_checkpoint: PagedMemory::new_preallocated(),
             uninitialized_memory_checkpoint: PagedMemory::new_preallocated(),
             local_memory_access: HashMap::new(),
+            maximal_shapes: None,
         }
     }
 
@@ -808,8 +812,32 @@ impl<'a> Executor<'a> {
             LookupId::default()
         };
 
-        if self.print_report && !self.unconstrained {
+        if !self.unconstrained {
             self.report.opcode_counts[instruction.opcode] += 1;
+            self.report.event_counts[instruction.opcode] += 1;
+            match instruction.opcode {
+                Opcode::LB | Opcode::LH | Opcode::LW | Opcode::LBU | Opcode::LHU => {
+                    self.report.event_counts[Opcode::ADD] += 2;
+                }
+                Opcode::JAL | Opcode::JALR | Opcode::AUIPC => {
+                    self.report.event_counts[Opcode::ADD] += 1;
+                }
+                Opcode::BEQ
+                | Opcode::BNE
+                | Opcode::BLT
+                | Opcode::BGE
+                | Opcode::BLTU
+                | Opcode::BGEU => {
+                    self.report.event_counts[Opcode::ADD] += 1;
+                    self.report.event_counts[Opcode::SLTU] += 2;
+                }
+                Opcode::DIVU | Opcode::REMU | Opcode::DIV | Opcode::REM => {
+                    self.report.event_counts[Opcode::MUL] += 2;
+                    self.report.event_counts[Opcode::ADD] += 2;
+                    self.report.event_counts[Opcode::SLTU] += 1;
+                }
+                _ => {}
+            };
         }
 
         match instruction.opcode {
@@ -1195,6 +1223,7 @@ impl<'a> Executor<'a> {
 
     /// Executes one cycle of the program, returning whether the program has finished.
     #[inline]
+    #[allow(clippy::too_many_lines)]
     fn execute_cycle(&mut self) -> Result<bool, ExecutionError> {
         // Fetch the instruction at the current program counter.
         let instruction = self.fetch();
@@ -1209,13 +1238,135 @@ impl<'a> Executor<'a> {
         // Increment the clock.
         self.state.global_clk += 1;
 
-        // If there's not enough cycles left for another instruction, move to the next shard.
-        // We multiply by 4 because clk is incremented by 4 for each normal instruction.
-        if !self.unconstrained && self.max_syscall_cycles + self.state.clk >= self.shard_size {
-            self.state.current_shard += 1;
-            self.state.clk = 0;
+        if !self.unconstrained {
+            // If there's not enough cycles left for another instruction, move to the next shard.
+            let cpu_exit = self.max_syscall_cycles + self.state.clk >= self.shard_size;
 
-            self.bump_record();
+            // Every N cycles, check if there exists at least one shape that fits.
+            //
+            // If we're close to not fitting, early stop the shard to ensure we don't OOM.
+            let mut shape_match_found = true;
+            if self.state.global_clk % 16 == 0 {
+                let addsub_count = (self.report.event_counts[Opcode::ADD]
+                    + self.report.event_counts[Opcode::SUB])
+                    as usize;
+                let mul_count = (self.report.event_counts[Opcode::MUL]
+                    + self.report.event_counts[Opcode::MULH]
+                    + self.report.event_counts[Opcode::MULHU]
+                    + self.report.event_counts[Opcode::MULHSU])
+                    as usize;
+                let bitwise_count = (self.report.event_counts[Opcode::XOR]
+                    + self.report.event_counts[Opcode::OR]
+                    + self.report.event_counts[Opcode::AND])
+                    as usize;
+                let shift_left_count = self.report.event_counts[Opcode::SLL] as usize;
+                let shift_right_count = (self.report.event_counts[Opcode::SRL]
+                    + self.report.event_counts[Opcode::SRA])
+                    as usize;
+                let divrem_count = (self.report.event_counts[Opcode::DIV]
+                    + self.report.event_counts[Opcode::DIVU]
+                    + self.report.event_counts[Opcode::REM]
+                    + self.report.event_counts[Opcode::REMU])
+                    as usize;
+                let lt_count = (self.report.event_counts[Opcode::SLT]
+                    + self.report.event_counts[Opcode::SLTU])
+                    as usize;
+
+                if let Some(maximal_shapes) = &self.maximal_shapes {
+                    shape_match_found = false;
+
+                    for shape in maximal_shapes.iter() {
+                        let addsub_threshold = 1 << shape["AddSub"];
+                        if addsub_count > addsub_threshold {
+                            continue;
+                        }
+                        let addsub_distance = addsub_threshold - addsub_count;
+
+                        let mul_threshold = 1 << shape["Mul"];
+                        if mul_count > mul_threshold {
+                            continue;
+                        }
+                        let mul_distance = mul_threshold - mul_count;
+
+                        let bitwise_threshold = 1 << shape["Bitwise"];
+                        if bitwise_count > bitwise_threshold {
+                            continue;
+                        }
+                        let bitwise_distance = bitwise_threshold - bitwise_count;
+
+                        let shift_left_threshold = 1 << shape["ShiftLeft"];
+                        if shift_left_count > shift_left_threshold {
+                            continue;
+                        }
+                        let shift_left_distance = shift_left_threshold - shift_left_count;
+
+                        let shift_right_threshold = 1 << shape["ShiftRight"];
+                        if shift_right_count > shift_right_threshold {
+                            continue;
+                        }
+                        let shift_right_distance = shift_right_threshold - shift_right_count;
+
+                        let divrem_threshold = 1 << shape["DivRem"];
+                        if divrem_count > divrem_threshold {
+                            continue;
+                        }
+                        let divrem_distance = divrem_threshold - divrem_count;
+
+                        let lt_threshold = 1 << shape["Lt"];
+                        if lt_count > lt_threshold {
+                            continue;
+                        }
+                        let lt_distance = lt_threshold - lt_count;
+
+                        let l_infinity = vec![
+                            addsub_distance,
+                            mul_distance,
+                            bitwise_distance,
+                            shift_left_distance,
+                            shift_right_distance,
+                            divrem_distance,
+                            lt_distance,
+                        ]
+                        .into_iter()
+                        .min()
+                        .unwrap();
+
+                        if l_infinity >= 32 {
+                            shape_match_found = true;
+                            break;
+                        }
+                    }
+
+                    if !shape_match_found {
+                        log::warn!(
+                            "stopping shard early due to no shapes fitting: \
+                            nb_cycles={}, \
+                            addsub_count={}, \
+                            mul_count={}, \
+                            bitwise_count={}, \
+                            shift_left_count={}, \
+                            shift_right_count={}, \
+                            divrem_count={}, \
+                            lt_count={}",
+                            self.state.clk / 4,
+                            log2_ceil_usize(addsub_count),
+                            log2_ceil_usize(mul_count),
+                            log2_ceil_usize(bitwise_count),
+                            log2_ceil_usize(shift_left_count),
+                            log2_ceil_usize(shift_right_count),
+                            log2_ceil_usize(divrem_count),
+                            log2_ceil_usize(lt_count),
+                        );
+                    }
+                }
+            }
+
+            if cpu_exit || !shape_match_found {
+                self.state.current_shard += 1;
+                self.state.clk = 0;
+                self.report.event_counts = Box::default();
+                self.bump_record();
+            }
         }
 
         // If the cycle limit is exceeded, return an error.
@@ -1536,6 +1687,10 @@ impl Default for ExecutorMode {
 #[must_use]
 pub const fn align(addr: u32) -> u32 {
     addr - addr % 4
+}
+
+fn log2_ceil_usize(n: usize) -> usize {
+    (usize::BITS - n.saturating_sub(1).leading_zeros()) as usize
 }
 
 #[cfg(test)]

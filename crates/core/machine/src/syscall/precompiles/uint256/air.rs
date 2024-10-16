@@ -221,7 +221,11 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
-        !shard.get_precompile_events(SyscallCode::UINT256_MUL).is_empty()
+        if let Some(shape) = shard.shape.as_ref() {
+            shape.included::<F, _>(self)
+        } else {
+            !shard.get_precompile_events(SyscallCode::UINT256_MUL).is_empty()
+        }
     }
 }
 

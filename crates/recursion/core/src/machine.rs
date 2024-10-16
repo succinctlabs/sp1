@@ -140,10 +140,10 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAi
     pub fn shrink_shape() -> RecursionShape {
         let shape = HashMap::from(
             [
-                (Self::MemoryConst(MemoryConstChip::default()), 16),
+                (Self::MemoryConst(MemoryConstChip::default()), 17),
                 (Self::MemoryVar(MemoryVarChip::default()), 18),
                 (Self::BaseAlu(BaseAluChip), 20),
-                (Self::ExtAlu(ExtAluChip), 22),
+                (Self::ExtAlu(ExtAluChip), 18),
                 (Self::Poseidon2Wide(Poseidon2WideChip::<DEGREE>), 16),
                 (Self::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE>), 16),
                 (Self::PublicValues(PublicValuesChip), PUB_VALUES_LOG_HEIGHT),

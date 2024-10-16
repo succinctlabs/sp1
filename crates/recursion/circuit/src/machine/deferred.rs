@@ -43,6 +43,7 @@ pub struct SP1DeferredVerifier<C, SC, A> {
     _phantom: std::marker::PhantomData<(C, SC, A)>,
 }
 
+#[derive(Debug, Clone)]
 pub struct SP1DeferredShape {
     inner: SP1CompressShape,
     height: usize,
@@ -133,6 +134,7 @@ where
         } = input;
 
         // First, verify the merkle tree proofs.
+        let vk_root = vk_merkle_data.root;
         let values = vks_and_proofs.iter().map(|(vk, _)| vk.hash(builder)).collect::<Vec<_>>();
         SP1MerkleProofVerifier::verify(builder, values, vk_merkle_data, value_assertions);
 
@@ -165,8 +167,6 @@ where
                 builder,
                 shard_proof.public_values[0..machine.num_pv_elts()].iter().copied(),
             );
-
-            assert!(!shard_proof.contains_global_main_commitment());
 
             let zero_ext: Ext<C::F, C::EF> = builder.eval(C::F::zero());
             StarkVerifier::verify_shard(
@@ -235,7 +235,7 @@ where
         deferred_public_values.end_reconstruct_challenger = values;
         // Set the exit code to be zero for now.
         deferred_public_values.exit_code = builder.eval(C::F::zero());
-        // Assign the deffered proof digests.
+        // Assign the deferred proof digests.
         deferred_public_values.end_reconstruct_deferred_digest = reconstruct_deferred_digest;
         // Set the is_complete flag.
         deferred_public_values.is_complete = is_complete;
@@ -243,6 +243,8 @@ where
         deferred_public_values.contains_execution_shard = builder.eval(C::F::zero());
         // Set the cumulative sum to zero.
         deferred_public_values.cumulative_sum = array::from_fn(|_| builder.eval(C::F::zero()));
+        // Set the vk root from the witness.
+        deferred_public_values.vk_root = vk_root;
         // Set the digest according to the previous values.
         deferred_public_values.digest =
             recursion_public_values_digest::<C, SC>(builder, deferred_public_values);

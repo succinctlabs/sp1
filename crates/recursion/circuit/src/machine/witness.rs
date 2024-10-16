@@ -113,6 +113,7 @@ where
         let initial_reconstruct_challenger = self.initial_reconstruct_challenger.read(builder);
         let is_complete = InnerVal::from_bool(self.is_complete).read(builder);
         let is_first_shard = InnerVal::from_bool(self.is_first_shard).read(builder);
+        let vk_root = self.vk_root.read(builder);
         SP1RecursionWitnessVariable {
             vk,
             shard_proofs,
@@ -120,6 +121,7 @@ where
             initial_reconstruct_challenger,
             is_complete,
             is_first_shard,
+            vk_root,
         }
     }
 
@@ -130,6 +132,7 @@ where
         self.initial_reconstruct_challenger.write(witness);
         self.is_complete.write(witness);
         self.is_first_shard.write(witness);
+        self.vk_root.write(witness);
     }
 }
 

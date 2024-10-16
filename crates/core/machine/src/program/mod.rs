@@ -61,7 +61,10 @@ impl<F: PrimeField> MachineAir<F> for ProgramChip {
     }
 
     fn generate_preprocessed_trace(&self, program: &Self::Program) -> Option<RowMajorMatrix<F>> {
-        debug_assert!(!program.instructions.is_empty(), "empty program");
+        debug_assert!(
+            !program.instructions.is_empty() || program.preprocessed_shape.is_some(),
+            "empty program"
+        );
         let mut rows = program
             .instructions
             .iter()
@@ -164,7 +167,7 @@ where
         let mult_local = main.row_slice(0);
         let mult_local: &ProgramMultiplicityCols<AB::Var> = (*mult_local).borrow();
 
-        // Contrain the interaction with CPU table
+        // Constrain the interaction with CPU table
         builder.receive_program(
             prep_local.pc,
             prep_local.instruction,

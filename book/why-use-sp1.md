@@ -22,8 +22,6 @@ SP1 is used by protocols in production today:
 
 - [SP1 Blobstream](https://github.com/succinctlabs/sp1-blobstream): A bridge that verifies [Celestia](https://celestia.org/) “data roots” (a commitment to all data blobs posted in a range of Celestia blocks) on Ethereum and other EVM chains.
 - [SP1 Vector](https://github.com/succinctlabs/sp1-vector): A bridge that relays [Avail's](https://www.availproject.org/) merkle root to Ethereum and also functions as a token bridge from Avail to Ethereum.
-- [SP1 Helios](https://github.com/succinctlabs/sp1-helios): A light client bridge of Ethereum's sync committee. This bridge will soon be used by Avail.
-
 
 
 ## 100x developer productivity
@@ -32,13 +30,13 @@ SP1 enables teams to use ZKPs in production with minimal overhead and fast timel
 
 **Maintainable:** With SP1, you can reuse existing Rust crates, like `revm`, `reth`, `tendermint-rs`, `serde` and more, to write your ZKP logic in maintainable, Rust code.
 
-**Go to market faster:** By reusing existng crates and expressing ZKP logic in regular code, SP1 significantly reduces audit surface area and complexity, enabling teams to go to market with ZKPs faster.
+**Go to market faster:** By reusing existing crates and expressing ZKP logic in regular code, SP1 significantly reduces audit surface area and complexity, enabling teams to go to market with ZKPs faster.
 
 ## Blazing Fast Performance
 
 SP1 is the fastest zkVM and has blazing fast performance on a variety of realistic blockchain workloads, including light clients and rollups. With SP1, ZKP proving costs are an order of magnitude less than alternative zkVMs or even circuits, making it cost-effective and fast for practical use.
 
-Read more about our benchmarking results [here](https://blog.succinct.xyz/sp1-production-benchmarks).
+Read more about our benchmarking results [here](https://blog.succinct.xyz/sp1-benchmarks-8-6-24).
 
 ## Open Source 
 

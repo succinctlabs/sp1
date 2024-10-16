@@ -1,5 +1,6 @@
 #![allow(missing_docs)]
 
+use core::fmt;
 use std::{cmp::Reverse, collections::BTreeSet, fmt::Debug};
 
 use hashbrown::HashMap;
@@ -73,7 +74,7 @@ pub struct ShardOpenedValues<T> {
 /// The maximum number of elements that can be stored in the public values vec.  Both SP1 and
 /// recursive proofs need to pad their public values vec to this length.  This is required since the
 /// recursion verification program expects the public values vec to be fixed length.
-pub const PROOF_MAX_NUM_PVS: usize = 363;
+pub const PROOF_MAX_NUM_PVS: usize = 371;
 
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(bound = "")]
@@ -82,7 +83,6 @@ pub struct ShardProof<SC: StarkGenericConfig> {
     pub opened_values: ShardOpenedValues<Challenge<SC>>,
     pub opening_proof: OpeningProof<SC>,
     pub chip_ordering: HashMap<String, usize>,
-    pub chip_scopes: Vec<InteractionScope>,
     pub public_values: Vec<Val<SC>>,
 }
 
@@ -150,10 +150,6 @@ impl<SC: StarkGenericConfig> ShardProof<SC> {
     pub fn contains_global_memory_finalize(&self) -> bool {
         self.chip_ordering.contains_key("MemoryGlobalFinalize")
     }
-
-    pub fn contains_global_main_commitment(&self) -> bool {
-        self.chip_scopes.contains(&InteractionScope::Global)
-    }
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -208,18 +204,6 @@ impl<SC: StarkGenericConfig> ShardProof<SC> {
     }
 }
 
-impl ProofShape {
-    #[must_use]
-    pub fn from_map(map: &HashMap<String, usize>) -> Self {
-        Self {
-            chip_information: map
-                .iter()
-                .map(|(name, log_degree)| (name.clone(), *log_degree))
-                .collect(),
-        }
-    }
-}
-
 impl FromIterator<(String, usize)> for ProofShape {
     fn from_iter<T: IntoIterator<Item = (String, usize)>>(iter: T) -> Self {
         let set = iter
@@ -242,5 +226,16 @@ impl IntoIterator for ProofShape {
 
     fn into_iter(self) -> Self::IntoIter {
         self.chip_information.into_iter()
+    }
+}
+
+impl fmt::Display for ProofShape {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // Print the proof shapes in a human-readable format
+        writeln!(f, "Proofshape:")?;
+        for (name, log_degree) in &self.chip_information {
+            writeln!(f, "{name}: {}", 1 << log_degree)?;
+        }
+        Ok(())
     }
 }

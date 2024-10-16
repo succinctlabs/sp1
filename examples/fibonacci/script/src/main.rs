@@ -1,7 +1,7 @@
-use sp1_sdk::{utils, ProverClient, SP1ProofWithPublicValues, SP1Stdin};
+use sp1_sdk::{include_elf, utils, ProverClient, SP1ProofWithPublicValues, SP1Stdin};
 
 /// The ELF we want to execute inside the zkVM.
-const ELF: &[u8] = include_bytes!("../../program/elf/riscv32im-succinct-zkvm-elf");
+const ELF: &[u8] = include_elf!("fibonacci-program");
 
 fn main() {
     // Setup logging.
@@ -30,7 +30,7 @@ fn main() {
 
     // Read and verify the output.
     //
-    // Note that this output is read from values commited to in the program using
+    // Note that this output is read from values committed to in the program using
     // `sp1_zkvm::io::commit`.
     let _ = proof.public_values.read::<u32>();
     let a = proof.public_values.read::<u32>();

@@ -81,7 +81,9 @@ pub fn assert_recursion_public_values_valid(
 }
 
 /// Get the committed values Bn Poseidon2 digest this reduce proof is representing.
-pub fn sp1_commited_values_digest_bn254(proof: &SP1ReduceProof<BabyBearPoseidon2Outer>) -> Bn254Fr {
+pub fn sp1_committed_values_digest_bn254(
+    proof: &SP1ReduceProof<BabyBearPoseidon2Outer>,
+) -> Bn254Fr {
     let proof = &proof.proof;
     let pv: &RecursionPublicValues<BabyBear> = proof.public_values.as_slice().borrow();
     let committed_values_digest_bytes: [BabyBear; 32] =

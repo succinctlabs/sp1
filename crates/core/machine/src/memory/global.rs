@@ -133,9 +133,13 @@ impl<F: PrimeField32> MachineAir<F> for MemoryGlobalChip {
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
-        match self.kind {
-            MemoryChipType::Initialize => !shard.global_memory_initialize_events.is_empty(),
-            MemoryChipType::Finalize => !shard.global_memory_finalize_events.is_empty(),
+        if let Some(shape) = shard.shape.as_ref() {
+            shape.included::<F, _>(self)
+        } else {
+            match self.kind {
+                MemoryChipType::Initialize => !shard.global_memory_initialize_events.is_empty(),
+                MemoryChipType::Finalize => !shard.global_memory_finalize_events.is_empty(),
+            }
         }
     }
 
@@ -174,10 +178,10 @@ pub struct MemoryInitCols<T> {
     /// A witness to assert whether or not we the previous address is zero.
     pub is_prev_addr_zero: IsZeroOperation<T>,
 
-    /// Auxilary column, equal to `(1 - is_prev_addr_zero.result) * is_first_row`.
+    /// Auxiliary column, equal to `(1 - is_prev_addr_zero.result) * is_first_row`.
     pub is_first_comp: T,
 
-    /// A flag to inidicate the last non-padded address. An auxiliary column needed for degree 3.
+    /// A flag to indicate the last non-padded address. An auxiliary column needed for degree 3.
     pub is_last_addr: T,
 }
 
@@ -236,7 +240,7 @@ where
         );
 
         // Assertion for increasing address. We need to make two types of less-than assertions,
-        // first we ned to assert that the addr < addr' when the next row is real. Then we need to
+        // first we need to assert that the addr < addr' when the next row is real. Then we need to
         // make assertions with regards to public values.
         //
         // If the chip is a `MemoryInit`:
@@ -318,7 +322,7 @@ where
         // Constraints related to register %x0.
 
         // Register %x0 should always be 0. See 2.6 Load and Store Instruction on
-        // P.18 of the RISC-V spec.  To ensure that, we will constain that the value is zero
+        // P.18 of the RISC-V spec.  To ensure that, we will constrain that the value is zero
         // whenever the `is_first_comp` flag is set to to zero as well. This guarantees that the
         // presence of this flag asserts the initialization/finalization of %x0 to zero.
         //
@@ -330,7 +334,7 @@ where
         }
 
         // Make assertions for the final value. We need to connect the final valid address to the
-        // correspinding `last_addr` value.
+        // corresponding `last_addr` value.
         let last_addr_bits = match self.kind {
             MemoryChipType::Initialize => &public_values.last_init_addr_bits,
             MemoryChipType::Finalize => &public_values.last_finalize_addr_bits,

@@ -1,7 +1,23 @@
 use anyhow::Result;
-use clap::Parser;
-use std::{fs, path::Path, process::Command};
+use clap::{Args, Parser};
+use std::{
+    fs,
+    path::Path,
+    process::{Command, Stdio},
+};
 use yansi::Paint;
+
+#[derive(Args)]
+#[group(required = true, multiple = false)]
+struct TemplateType {
+    /// Use the `bare` template which includes just a program and script.
+    #[arg(long)]
+    bare: bool,
+
+    /// Use the `evm` template which includes Solidity smart contracts for onchain integration.
+    #[arg(long)]
+    evm: bool,
+}
 
 #[derive(Parser)]
 #[command(name = "new", about = "Setup a new project that runs inside the SP1.")]
@@ -9,9 +25,9 @@ pub struct NewCmd {
     /// The name of the project.
     name: String,
 
-    /// Whether to create the project with template EVM contracts.
-    #[arg(long, action)]
-    evm: bool,
+    /// The template to use for the project.
+    #[command(flatten)]
+    template: TemplateType,
 
     /// Version of sp1-project-template to use (branch or tag).
     #[arg(long, default_value = "main")]
@@ -32,16 +48,24 @@ impl NewCmd {
         println!("     \x1b[1m{}\x1b[0m {}", Paint::green("Cloning"), TEMPLATE_REPOSITORY_URL);
 
         // Clone the repository with the specified version.
-        let output = Command::new("git")
+        let mut command = Command::new("git");
+
+        command
             .arg("clone")
             .arg("--branch")
             .arg(&self.version)
             .arg(TEMPLATE_REPOSITORY_URL)
             .arg(root.as_os_str())
-            .arg("--recurse-submodules")
-            .arg("--depth=1")
-            .output()
-            .expect("failed to execute command");
+            .arg("--depth=1");
+
+        if self.template.evm {
+            command.arg("--recurse-submodules").arg("--shallow-submodules");
+        }
+
+        // Stream output to stdout.
+        command.stdout(Stdio::inherit()).stderr(Stdio::inherit());
+
+        let output = command.output().expect("failed to execute command");
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
             return Err(anyhow::anyhow!("failed to clone repository: {}", stderr));
@@ -50,7 +74,7 @@ impl NewCmd {
         // Remove the .git directory.
         fs::remove_dir_all(root.join(".git"))?;
 
-        if self.evm {
+        if self.template.evm {
             // Check if the user has `foundry` installed.
             if Command::new("foundry").arg("--version").output().is_err() {
                 println!(

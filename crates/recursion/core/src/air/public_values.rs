@@ -128,6 +128,9 @@ pub struct RecursionPublicValues<T> {
     /// The commitment to the sp1 program being proven.
     pub sp1_vk_digest: [T; DIGEST_SIZE],
 
+    /// The root of the vk merkle tree.
+    pub vk_root: [T; DIGEST_SIZE],
+
     /// The leaf challenger containing the entropy from the main trace commitment.
     pub leaf_challenger: ChallengerPublicValues<T>,
 

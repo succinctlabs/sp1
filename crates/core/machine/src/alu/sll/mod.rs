@@ -184,7 +184,11 @@ impl<F: PrimeField> MachineAir<F> for ShiftLeft {
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
-        !shard.shift_left_events.is_empty()
+        if let Some(shape) = shard.shape.as_ref() {
+            shape.included::<F, _>(self)
+        } else {
+            !shard.shift_left_events.is_empty()
+        }
     }
 }
 

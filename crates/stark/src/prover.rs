@@ -608,7 +608,7 @@ where
                     .collect::<Vec<_>>()
             });
 
-        // Compute quotient openning points, open every chunk at zeta.
+        // Compute quotient opening points, open every chunk at zeta.
         let quotient_opening_points =
             (0..num_quotient_chunks).map(|_| vec![zeta]).collect::<Vec<_>>();
 
@@ -752,7 +752,6 @@ where
             opened_values: ShardOpenedValues { chips: opened_values },
             opening_proof,
             chip_ordering: all_chips_ordering,
-            chip_scopes: all_chip_scopes,
             public_values: local_public_values,
         })
     }

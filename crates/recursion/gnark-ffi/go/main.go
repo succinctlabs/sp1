@@ -65,13 +65,13 @@ func BuildPlonkBn254(dataDir *C.char) {
 }
 
 //export VerifyPlonkBn254
-func VerifyPlonkBn254(dataDir *C.char, proof *C.char, vkeyHash *C.char, commitedValuesDigest *C.char) *C.char {
+func VerifyPlonkBn254(dataDir *C.char, proof *C.char, vkeyHash *C.char, committedValuesDigest *C.char) *C.char {
 	dataDirString := C.GoString(dataDir)
 	proofString := C.GoString(proof)
 	vkeyHashString := C.GoString(vkeyHash)
-	commitedValuesDigestString := C.GoString(commitedValuesDigest)
+	committedValuesDigestString := C.GoString(committedValuesDigest)
 
-	err := sp1.VerifyPlonk(dataDirString, proofString, vkeyHashString, commitedValuesDigestString)
+	err := sp1.VerifyPlonk(dataDirString, proofString, vkeyHashString, committedValuesDigestString)
 	if err != nil {
 		return C.CString(err.Error())
 	}

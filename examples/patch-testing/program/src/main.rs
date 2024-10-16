@@ -10,12 +10,14 @@ use ed25519_consensus::{
     Signature as Ed25519ConsensusSignature, VerificationKey as Ed25519ConsensusVerificationKey,
 };
 use ed25519_dalek::{
-    Signature as Ed25519DalekSignature, Verifier, VerifyingKey as Ed25519DalekVerifiyingKey,
+    Signature as Ed25519DalekSignature, Verifier, VerifyingKey as Ed25519DalekVerifyingKey,
 };
 
 use sha2_v0_10_6::{Digest as Digest_10_6, Sha256 as Sha256_10_6};
 // use sha2_v0_10_8::{Digest as Digest_10_8, Sha256 as Sha256_10_8};
-// use hex::FromHex;
+// use sha2_v0_9_8::{Digest as Digest_9_8, Sha256 as Sha256_9_8};
+// use tiny_keccak::{Hasher, Keccak};
+
 use secp256k1::{
     ecdsa::{
         RecoverableSignature as Secp256k1RecoverableSignature, RecoveryId as Secp256k1RecoveryId,
@@ -43,7 +45,7 @@ fn test_ed25519_dalek() {
     let msg = hex!("656432353531392d636f6e73656e7375732074657374206d657373616765");
     let sig = hex!("69261ea5df799b20fc6eeb49aa79f572c8f1e2ba88b37dff184cc55d4e3653d876419bffcc47e5343cdd5fd78121bb32f1c377a5ed505106ad37f19980218f0d");
 
-    let vk = Ed25519DalekVerifiyingKey::from_bytes(&vk).unwrap();
+    let vk = Ed25519DalekVerifyingKey::from_bytes(&vk).unwrap();
     let sig = Ed25519DalekSignature::from_bytes(&sig);
 
     println!("cycle-tracker-start: ed25519-dalek verify");
@@ -177,14 +179,6 @@ fn test_k256_patch() {
 }
 
 /// Emits SECP256K1_ADD, SECP256K1_DOUBLE, and SECP256K1_DECOMPRESS syscalls.
-///
-fn test_secp256k1_patch_verify() {
-    let secp = secp256k1::Secp256k1::new();
-    let msg = sha256::Hash::hash(msg);
-    let msg = Secp256k1Message::from_digest_slice(msg.as_ref())?;
-    let sig = Secp256k1RecoverableSignature::from_compact(&sig)?;
-    let pubkey = PublicKey::from_slice(&pubkey)?;
-}
 fn test_secp256k1_patch() {
     let secp = secp256k1::Secp256k1::new();
     let recovery_id = Secp256k1RecoveryId::from_i32(1).unwrap();
@@ -213,7 +207,7 @@ fn test_secp256k1_patch() {
 }
 
 /// To add testing for a new patch, add a new case to the function below.
-fn main() {
+pub fn main() {
     // TODO: Specify which syscalls are linked to each function invocation, iterate
     // over this list that is shared between the program and script.
     test_keccak();

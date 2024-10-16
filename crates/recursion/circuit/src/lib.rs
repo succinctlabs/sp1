@@ -582,7 +582,7 @@ impl<C: CircuitConfig<F = BabyBear, N = Bn254Fr, Bit = Var<Bn254Fr>>> BabyBearFr
             words_to_bytes(&public_values.committed_value_digest).try_into().unwrap();
         let committed_values_digest_bytes: Var<_> =
             felt_bytes_to_bn254_var(builder, &committed_values_digest_bytes_felts);
-        builder.commit_commited_values_digest_circuit(committed_values_digest_bytes);
+        builder.commit_committed_values_digest_circuit(committed_values_digest_bytes);
 
         let vkey_hash = felts_to_bn254_var(builder, &public_values.sp1_vk_digest);
         builder.commit_vkey_hash_circuit(vkey_hash);

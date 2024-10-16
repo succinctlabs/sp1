@@ -9,7 +9,7 @@ import (
 // Poseidon2 round constants for a state consisting of three BN254 field elements.
 var rc3 [numExternalRounds + numInternalRounds][width]frontend.Variable
 
-// Poseidon2 round constaints for a state consisting of 16 BabyBear field elements.
+// Poseidon2 round constraints for a state consisting of 16 BabyBear field elements.
 
 var rc16 [30][BABYBEAR_WIDTH]babybear.Variable
 
