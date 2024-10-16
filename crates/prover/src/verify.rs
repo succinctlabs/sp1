@@ -238,7 +238,8 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         // - If it's not a shard with "CPU", then `deferred_proofs_digest` should not change from
         //   the
         //  previous shard.
-        let zero_committed_value_digest = [Word([BabyBear::zero(); WORD_SIZE]); PV_DIGEST_NUM_WORDS];
+        let zero_committed_value_digest =
+            [Word([BabyBear::zero(); WORD_SIZE]); PV_DIGEST_NUM_WORDS];
         let zero_deferred_proofs_digest = [BabyBear::zero(); POSEIDON_NUM_WORDS];
         let mut committed_value_digest_prev = zero_committed_value_digest;
         let mut deferred_proofs_digest_prev = zero_deferred_proofs_digest;

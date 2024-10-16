@@ -107,7 +107,8 @@ pub trait Prover<C: SP1ProverComponents>: Send + Sync {
                     .collect_vec();
 
                 // Make sure the committed value digest matches the public values hash.
-                for (a, b) in committed_value_digest_bytes.iter().zip_eq(bundle.public_values.hash())
+                for (a, b) in
+                    committed_value_digest_bytes.iter().zip_eq(bundle.public_values.hash())
                 {
                     if *a != b {
                         return Err(SP1VerificationError::InvalidPublicValues);
@@ -131,7 +132,8 @@ pub trait Prover<C: SP1ProverComponents>: Send + Sync {
                     .collect_vec();
 
                 // Make sure the committed value digest matches the public values hash.
-                for (a, b) in committed_value_digest_bytes.iter().zip_eq(bundle.public_values.hash())
+                for (a, b) in
+                    committed_value_digest_bytes.iter().zip_eq(bundle.public_values.hash())
                 {
                     if *a != b {
                         return Err(SP1VerificationError::InvalidPublicValues);
