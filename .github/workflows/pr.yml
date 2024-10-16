@@ -131,7 +131,13 @@ jobs:
 
   examples:
     name: Examples
-    runs-on: [runs-on, runner=64cpu-linux-x64, spot=false, "run-id=${{ github.run_id }}"]
+    runs-on:
+      [
+        runs-on,
+        runner=64cpu-linux-x64,
+        spot=false,
+        "run-id=${{ github.run_id }}",
+      ]
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
@@ -266,7 +272,7 @@ jobs:
 
   # low-memory:
   #   name: Low Memory
-  #   strategy: 
+  #   strategy:
   #     matrix:
   #       mem_limit: [16, 32, 64]
   #   runs-on:
@@ -289,7 +295,7 @@ jobs:
   #     - name: Install SP1 toolchain
   #       run: |
   #         curl -L https://sp1.succinct.xyz | bash
-  #         ~/.sp1/bin/sp1up 
+  #         ~/.sp1/bin/sp1up
   #         ~/.sp1/bin/cargo-prove prove --version
 
   #     - name: Install SP1 CLI
@@ -382,3 +388,19 @@ jobs:
   #     AWS_SUBNET_ID: "${{ secrets.AWS_SUBNET_ID }}"
   #     AWS_SG_ID: "${{ secrets.AWS_SG_ID }}"
   #     GH_PAT: "${{ secrets.GH_PAT }}"
+
+  typos:
+    name: Spell Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Actions Repository
+        uses: actions/checkout@v4
+
+      - name: Check all typos
+        uses: crate-ci/typos@master
+        with:
+          write_changes: true
+
+      - uses: getsentry/action-git-diff-suggestions@main
+        with:
+          message: typos
