@@ -8,7 +8,10 @@
 use crate::{Groth16Bn254Proof, PlonkBn254Proof};
 use cfg_if::cfg_if;
 use sp1_core_machine::SP1_CIRCUIT_VERSION;
-use std::ffi::{c_char, CString};
+use std::{
+    ffi::{c_char, CStr, CString},
+    mem::forget,
+};
 
 #[allow(warnings, clippy::all)]
 mod bind {
@@ -22,8 +25,8 @@ enum ProofSystem {
 }
 
 enum ProofResult {
-    Plonk(C_PlonkBn254Proof),
-    Groth16(C_Groth16Bn254Proof),
+    Plonk(*mut C_PlonkBn254Proof),
+    Groth16(*mut C_Groth16Bn254Proof),
 }
 
 impl ProofSystem {
@@ -80,12 +83,12 @@ fn prove(system: ProofSystem, data_dir: &str, witness_path: &str) -> ProofResult
             ProveFunction::Plonk(func) => {
                 let proof =
                     func(data_dir.as_ptr() as *mut c_char, witness_path.as_ptr() as *mut c_char);
-                ProofResult::Plonk(*proof)
+                ProofResult::Plonk(proof)
             }
             ProveFunction::Groth16(func) => {
                 let proof =
                     func(data_dir.as_ptr() as *mut c_char, witness_path.as_ptr() as *mut c_char);
-                ProofResult::Groth16(*proof)
+                ProofResult::Groth16(proof)
             }
         }
     }
@@ -115,9 +118,10 @@ fn verify(
     if err_ptr.is_null() {
         Ok(())
     } else {
-        // Safety: The error message is returned from the go code and is guaranteed to be valid.
-        let err = unsafe { CString::from_raw(err_ptr) };
-        Err(err.into_string().unwrap())
+        unsafe {
+            // Safety: The error message is returned from the go code and is guaranteed to be valid.
+            Err(ptr_to_string_freed(err_ptr))
+        }
     }
 }
 
@@ -131,8 +135,7 @@ fn test(system: ProofSystem, witness_json: &str, constraints_json: &str) {
         );
         if !err_ptr.is_null() {
             // Safety: The error message is returned from the go code and is guaranteed to be valid.
-            let err = CString::from_raw(err_ptr);
-            panic!("Test failed: {}", err.into_string().unwrap());
+            panic!("Test failed: {:?}", ptr_to_string_freed(err_ptr));
         }
     }
 }
@@ -145,7 +148,7 @@ pub fn build_plonk_bn254(data_dir: &str) {
 
 pub fn prove_plonk_bn254(data_dir: &str, witness_path: &str) -> PlonkBn254Proof {
     match prove(ProofSystem::Plonk, data_dir, witness_path) {
-        ProofResult::Plonk(proof) => proof.into(),
+        ProofResult::Plonk(proof) => unsafe { PlonkBn254Proof::from_raw(proof) },
         _ => unreachable!(),
     }
 }
@@ -169,7 +172,7 @@ pub fn build_groth16_bn254(data_dir: &str) {
 
 pub fn prove_groth16_bn254(data_dir: &str, witness_path: &str) -> Groth16Bn254Proof {
     match prove(ProofSystem::Groth16, data_dir, witness_path) {
-        ProofResult::Groth16(proof) => proof.into(),
+        ProofResult::Groth16(proof) => unsafe { Groth16Bn254Proof::from_raw(proof) },
         _ => unreachable!(),
     }
 }
@@ -192,8 +195,7 @@ pub fn test_babybear_poseidon2() {
         let err_ptr = bind::TestPoseidonBabyBear2();
         if !err_ptr.is_null() {
             // Safety: The error message is returned from the go code and is guaranteed to be valid.
-            let err = CString::from_raw(err_ptr);
-            panic!("TestPoseidonBabyBear2 failed: {}", err.into_string().unwrap());
+            panic!("TestPoseidonBabyBear2 failed: {}", ptr_to_string_freed(err_ptr));
         }
     }
 }
@@ -201,43 +203,52 @@ pub fn test_babybear_poseidon2() {
 /// Converts a C string into a Rust String.
 ///
 /// # Safety
-/// This function frees the string memory, so the caller must ensure that the pointer is not used
-/// after this function is called.
-unsafe fn c_char_ptr_to_string(input: *mut c_char) -> String {
-    CString::from_raw(input).into_string().expect("CString::into_string failed")
+/// This function does not free the pointer, so the caller must ensure that the pointer is handled
+/// correctly.
+unsafe fn ptr_to_string_cloned(input: *mut c_char) -> String {
+    CStr::from_ptr(input).to_owned().into_string().expect("CStr::into_string failed")
 }
 
-impl From<C_PlonkBn254Proof> for PlonkBn254Proof {
-    fn from(c_proof: C_PlonkBn254Proof) -> Self {
-        // Safety: The raw pointers are not used anymore after converted into Rust strings.
-        unsafe {
-            PlonkBn254Proof {
-                public_inputs: [
-                    c_char_ptr_to_string(c_proof.PublicInputs[0]),
-                    c_char_ptr_to_string(c_proof.PublicInputs[1]),
-                ],
-                encoded_proof: c_char_ptr_to_string(c_proof.EncodedProof),
-                raw_proof: c_char_ptr_to_string(c_proof.RawProof),
-                plonk_vkey_hash: [0; 32],
-            }
-        }
+/// Converts a C string into a Rust String.
+///
+/// # Safety
+/// This function frees the pointer, so the caller must ensure that the pointer is not used
+/// after this function is called.
+unsafe fn ptr_to_string_freed(input: *mut c_char) -> String {
+    let string = ptr_to_string_cloned(input);
+    bind::FreeString(input);
+    string
+}
+
+impl PlonkBn254Proof {
+    unsafe fn from_raw(c_proof: *mut C_PlonkBn254Proof) -> Self {
+        let proof = PlonkBn254Proof {
+            public_inputs: [
+                ptr_to_string_cloned((*c_proof).PublicInputs[0]),
+                ptr_to_string_cloned((*c_proof).PublicInputs[1]),
+            ],
+            encoded_proof: ptr_to_string_cloned((*c_proof).EncodedProof),
+            raw_proof: ptr_to_string_cloned((*c_proof).RawProof),
+            plonk_vkey_hash: [0; 32],
+        };
+        bind::FreePlonkBn254Proof(c_proof);
+        proof
     }
 }
 
-impl From<C_Groth16Bn254Proof> for Groth16Bn254Proof {
-    fn from(c_proof: C_Groth16Bn254Proof) -> Self {
-        // Safety: The raw pointers are not used anymore after converted into Rust strings.
-        unsafe {
-            Groth16Bn254Proof {
-                public_inputs: [
-                    c_char_ptr_to_string(c_proof.PublicInputs[0]),
-                    c_char_ptr_to_string(c_proof.PublicInputs[1]),
-                ],
-                encoded_proof: c_char_ptr_to_string(c_proof.EncodedProof),
-                raw_proof: c_char_ptr_to_string(c_proof.RawProof),
-                groth16_vkey_hash: [0; 32],
-            }
-        }
+impl Groth16Bn254Proof {
+    unsafe fn from_raw(c_proof: *mut C_Groth16Bn254Proof) -> Self {
+        let proof = Groth16Bn254Proof {
+            public_inputs: [
+                ptr_to_string_cloned((*c_proof).PublicInputs[0]),
+                ptr_to_string_cloned((*c_proof).PublicInputs[1]),
+            ],
+            encoded_proof: ptr_to_string_cloned((*c_proof).EncodedProof),
+            raw_proof: ptr_to_string_cloned((*c_proof).RawProof),
+            groth16_vkey_hash: [0; 32],
+        };
+        bind::FreeGroth16Bn254Proof(c_proof);
+        proof
     }
 }
 
