@@ -85,7 +85,7 @@ pub(crate) fn create_docker_command(
         "-e".to_string(),
         "RUSTC_BOOTSTRAP=1".to_string(), // allows trim-paths.
         "-e".to_string(),
-        format!("CARGO_ENCODED_RUSTFLAGS={}", get_rust_compiler_flags()),
+        format!("CARGO_ENCODED_RUSTFLAGS={}", get_rust_compiler_flags(args)),
         "--entrypoint".to_string(),
         "".to_string(),
         image,
