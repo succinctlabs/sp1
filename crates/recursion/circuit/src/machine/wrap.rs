@@ -35,13 +35,13 @@ where
     ///
     /// The compression verifier can aggregate proofs of different kinds:
     /// - Core proofs: proofs which are recursive proof of a batch of SP1 shard proofs. The
-    ///   implementation in this function assumes a fixed recursive verifier speicified by
+    ///   implementation in this function assumes a fixed recursive verifier specified by
     ///   `recursive_vk`.
     /// - Deferred proofs: proofs which are recursive proof of a batch of deferred proofs. The
     ///   implementation in this function assumes a fixed deferred verification program specified by
     ///   `deferred_vk`.
     /// - Compress proofs: these are proofs which refer to a prove of this program. The key for it
-    ///   is part of public values will be propagated accross all levels of recursion and will be
+    ///   is part of public values will be propagated across all levels of recursion and will be
     ///   checked against itself as in [sp1_prover::Prover] or as in [super::SP1RootVerifier].
     pub fn verify(
         builder: &mut Builder<C>,

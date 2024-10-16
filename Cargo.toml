@@ -132,3 +132,8 @@ p3-bn254-fr = "0.1.4-succinct"
 # p3-uni-stark = { path = "../Plonky3/uni-stark" }
 # p3-maybe-rayon = { path = "../Plonky3/maybe-rayon" }
 # p3-bn254-fr = { path = "../Plonky3/bn254-fr" }
+
+[workspace.metadata.typos]
+# TODO: Fix in next version since CommitCommitedValuesDigest is retained since it's present in constraints.json
+default.extend-ignore-re = ["Jo-Philipp Wich", "SubEIN", "DivEIN", "CommitCommitedValuesDigest"]
+default.extend-ignore-words-re = ["(?i)groth", "TRE"]

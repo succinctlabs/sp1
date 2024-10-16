@@ -12,7 +12,7 @@ use {
 
 use crate::SP1_CIRCUIT_VERSION;
 
-/// The base URL for the S3 bucket containing the ciruit artifacts.
+/// The base URL for the S3 bucket containing the circuit artifacts.
 pub const CIRCUIT_ARTIFACTS_URL_BASE: &str = "https://sp1-circuits.s3-us-east-2.amazonaws.com";
 
 /// The directory where the groth16 circuit artifacts will be stored.

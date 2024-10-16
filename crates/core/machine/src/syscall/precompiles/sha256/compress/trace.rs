@@ -53,7 +53,7 @@ impl<F: PrimeField32> MachineAir<F> for ShaCompressChip {
             input.fixed_log2_rows::<F, _>(self),
         );
 
-        // Set the octet_num and octect columns for the padded rows.
+        // Set the octet_num and octet columns for the padded rows.
         let mut octet_num = 0;
         let mut octet = 0;
         for row in rows[num_real_rows..].iter_mut() {

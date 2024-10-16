@@ -228,28 +228,29 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         // - `deferred_proofs_digest` should be zero.
         //
         // Transition:
-        // - If `commited_value_digest_prev` is not zero, then `committed_value_digest` should equal
-        //  `commited_value_digest_prev`. Otherwise, `committed_value_digest` should equal zero.
+        // - If `committed_value_digest_prev` is not zero, then `committed_value_digest` should equal
+        //  `committed_value_digest_prev`. Otherwise, `committed_value_digest` should equal zero.
         // - If `deferred_proofs_digest_prev` is not zero, then `deferred_proofs_digest` should
         //   equal
         //  `deferred_proofs_digest_prev`. Otherwise, `deferred_proofs_digest` should equal zero.
-        // - If it's not a shard with "CPU", then `commited_value_digest` should not change from the
+        // - If it's not a shard with "CPU", then `committed_value_digest` should not change from the
         //  previous shard.
         // - If it's not a shard with "CPU", then `deferred_proofs_digest` should not change from
         //   the
         //  previous shard.
-        let zero_commited_value_digest = [Word([BabyBear::zero(); WORD_SIZE]); PV_DIGEST_NUM_WORDS];
+        let zero_committed_value_digest =
+            [Word([BabyBear::zero(); WORD_SIZE]); PV_DIGEST_NUM_WORDS];
         let zero_deferred_proofs_digest = [BabyBear::zero(); POSEIDON_NUM_WORDS];
-        let mut commited_value_digest_prev = zero_commited_value_digest;
+        let mut committed_value_digest_prev = zero_committed_value_digest;
         let mut deferred_proofs_digest_prev = zero_deferred_proofs_digest;
         for shard_proof in proof.0.iter() {
             let public_values: &PublicValues<Word<_>, _> =
                 shard_proof.public_values.as_slice().borrow();
-            if commited_value_digest_prev != zero_commited_value_digest
-                && public_values.committed_value_digest != commited_value_digest_prev
+            if committed_value_digest_prev != zero_committed_value_digest
+                && public_values.committed_value_digest != committed_value_digest_prev
             {
                 return Err(MachineVerificationError::InvalidPublicValues(
-                    "committed_value_digest != commited_value_digest_prev",
+                    "committed_value_digest != committed_value_digest_prev",
                 ));
             } else if deferred_proofs_digest_prev != zero_deferred_proofs_digest
                 && public_values.deferred_proofs_digest != deferred_proofs_digest_prev
@@ -258,10 +259,10 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                     "deferred_proofs_digest != deferred_proofs_digest_prev",
                 ));
             } else if !shard_proof.contains_cpu()
-                && public_values.committed_value_digest != commited_value_digest_prev
+                && public_values.committed_value_digest != committed_value_digest_prev
             {
                 return Err(MachineVerificationError::InvalidPublicValues(
-                    "committed_value_digest != commited_value_digest_prev",
+                    "committed_value_digest != committed_value_digest_prev",
                 ));
             } else if !shard_proof.contains_cpu()
                 && public_values.deferred_proofs_digest != deferred_proofs_digest_prev
@@ -270,7 +271,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                     "deferred_proofs_digest != deferred_proofs_digest_prev",
                 ));
             }
-            commited_value_digest_prev = public_values.committed_value_digest;
+            committed_value_digest_prev = public_values.committed_value_digest;
             deferred_proofs_digest_prev = public_values.deferred_proofs_digest;
         }
 

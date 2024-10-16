@@ -93,9 +93,9 @@ pub fn build_plonk_bn254_artifacts_with_dummy(build_dir: impl Into<PathBuf>) {
     let wrap_vk_bytes = bincode::serialize(&wrap_vk).unwrap();
     let wrapped_proof_bytes = bincode::serialize(&wrapped_proof).unwrap();
     std::fs::write("wrap_vk.bin", wrap_vk_bytes).unwrap();
-    std::fs::write("wraped_proof.bin", wrapped_proof_bytes).unwrap();
+    std::fs::write("wrapped_proof.bin", wrapped_proof_bytes).unwrap();
     let wrap_vk_bytes = std::fs::read("wrap_vk.bin").unwrap();
-    let wrapped_proof_bytes = std::fs::read("wraped_proof.bin").unwrap();
+    let wrapped_proof_bytes = std::fs::read("wrapped_proof.bin").unwrap();
     let wrap_vk = bincode::deserialize(&wrap_vk_bytes).unwrap();
     let wrapped_proof = bincode::deserialize(&wrapped_proof_bytes).unwrap();
     crate::build::build_plonk_bn254_artifacts(&wrap_vk, &wrapped_proof, build_dir.into());
@@ -110,9 +110,9 @@ pub fn build_groth16_bn254_artifacts_with_dummy(build_dir: impl Into<PathBuf>) {
     let wrap_vk_bytes = bincode::serialize(&wrap_vk).unwrap();
     let wrapped_proof_bytes = bincode::serialize(&wrapped_proof).unwrap();
     std::fs::write("wrap_vk.bin", wrap_vk_bytes).unwrap();
-    std::fs::write("wraped_proof.bin", wrapped_proof_bytes).unwrap();
+    std::fs::write("wrapped_proof.bin", wrapped_proof_bytes).unwrap();
     let wrap_vk_bytes = std::fs::read("wrap_vk.bin").unwrap();
-    let wrapped_proof_bytes = std::fs::read("wraped_proof.bin").unwrap();
+    let wrapped_proof_bytes = std::fs::read("wrapped_proof.bin").unwrap();
     let wrap_vk = bincode::deserialize(&wrap_vk_bytes).unwrap();
     let wrapped_proof = bincode::deserialize(&wrapped_proof_bytes).unwrap();
     crate::build::build_groth16_bn254_artifacts(&wrap_vk, &wrapped_proof, build_dir.into());
@@ -140,7 +140,7 @@ pub fn build_constraints_and_witness(
     tracing::info!("building template witness");
     let mut witness = OuterWitness::default();
     template_input.write(&mut witness);
-    witness.write_commited_values_digest(committed_values_digest);
+    witness.write_committed_values_digest(committed_values_digest);
     witness.write_vkey_hash(vkey_hash);
 
     (constraints, witness)

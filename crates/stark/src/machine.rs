@@ -511,7 +511,7 @@ pub enum MachineVerificationError<SC: StarkGenericConfig> {
     /// The number of shards is too large.
     TooManyShards,
     /// The chip occurrence is invalid.
-    InvalidChipOccurence(String),
+    InvalidChipOccurrence(String),
     /// The CPU is missing in the first shard.
     MissingCpuInFirstShard,
     /// The CPU log degree is too large.
@@ -548,8 +548,8 @@ impl<SC: StarkGenericConfig> Debug for MachineVerificationError<SC> {
             MachineVerificationError::TooManyShards => {
                 write!(f, "Too many shards")
             }
-            MachineVerificationError::InvalidChipOccurence(s) => {
-                write!(f, "Invalid chip occurence: {}", s)
+            MachineVerificationError::InvalidChipOccurrence(s) => {
+                write!(f, "Invalid chip occurrence: {}", s)
             }
             MachineVerificationError::MissingCpuInFirstShard => {
                 write!(f, "Missing CPU in first shard")

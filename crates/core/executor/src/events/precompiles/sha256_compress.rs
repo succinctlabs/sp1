@@ -10,7 +10,7 @@ use crate::events::{
 /// This event is emitted when a SHA-256 compress operation is performed.
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
 pub struct ShaCompressEvent {
-    /// The lookup identifer.   
+    /// The lookup identifier.   
     pub lookup_id: LookupId,
     /// The shard number.
     pub shard: u32,

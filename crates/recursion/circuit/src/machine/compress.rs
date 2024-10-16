@@ -87,13 +87,13 @@ where
     ///
     /// The compression verifier can aggregate proofs of different kinds:
     /// - Core proofs: proofs which are recursive proof of a batch of SP1 shard proofs. The
-    ///   implementation in this function assumes a fixed recursive verifier speicified by
+    ///   implementation in this function assumes a fixed recursive verifier specified by
     ///   `recursive_vk`.
     /// - Deferred proofs: proofs which are recursive proof of a batch of deferred proofs. The
     ///   implementation in this function assumes a fixed deferred verification program specified by
     ///   `deferred_vk`.
     /// - Compress proofs: these are proofs which refer to a prove of this program. The key for it
-    ///   is part of public values will be propagated accross all levels of recursion and will be
+    ///   is part of public values will be propagated across all levels of recursion and will be
     ///   checked against itself as in [sp1_prover::Prover] or as in [super::SP1RootVerifier].
     pub fn verify(
         builder: &mut Builder<C>,
@@ -259,7 +259,7 @@ where
                     current_public_values.start_reconstruct_challenger;
                 reconstruct_challenger_values = current_public_values.start_reconstruct_challenger;
 
-                // Assign the commited values and deferred proof digests.
+                // Assign the committed values and deferred proof digests.
                 for (word, current_word) in committed_value_digest
                     .iter_mut()
                     .zip_eq(current_public_values.committed_value_digest.iter())
@@ -371,10 +371,10 @@ where
 
             // Digest constraints.
             {
-                // If `commited_value_digest` is not zero, then `public_values.commited_value_digest
+                // If `committed_value_digest` is not zero, then `public_values.committed_value_digest
                 // should be the current.
 
-                // Set a flags to indicate whether `commited_value_digest` is non-zero. The flags
+                // Set a flags to indicate whether `committed_value_digest` is non-zero. The flags
                 // are given by the elements of the array, and they will be used as filters to
                 // constrain the equality.
                 let mut is_non_zero_flags = vec![];
@@ -533,7 +533,7 @@ where
         compress_public_values.contains_execution_shard = contains_execution_shard;
         // Set the exit code.
         compress_public_values.exit_code = exit_code;
-        // Refelct the vk root.
+        // Reflect the vk root.
         compress_public_values.vk_root = vk_root;
         // Set the digest according to the previous values.
         compress_public_values.digest = match kind {

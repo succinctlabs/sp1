@@ -47,7 +47,7 @@ pub trait AffinePoint<const N: usize>: Clone + Sized {
     /// Adds the given [`AffinePoint`] to `self`.
     fn add_assign(&mut self, other: &Self);
 
-    /// Adds the given [`AffinePoint`] to `self`. Can be optionally overriden to use a different
+    /// Adds the given [`AffinePoint`] to `self`. Can be optionally overridden to use a different
     /// implementation of addition in multi-scalar multiplication, which is used in secp256k1 recovery.
     fn complete_add_assign(&mut self, other: &Self) {
         self.add_assign(other);
@@ -190,7 +190,7 @@ pub trait WeierstrassAffinePoint<const N: usize>: AffinePoint<N> {
         // Case 4: p1 is the negation of p2.
         // Note: If p1 and p2 are valid elliptic curve points, and p1.x == p2.x, that means that
         // either p1.y == p2.y or p1.y + p2.y == p. Because we are past Case 4, we know that p1.y !=
-        // p2.y, so we can just check if p1.x == p2.x. Therefore, this implictly checks that
+        // p2.y, so we can just check if p1.x == p2.x. Therefore, this implicitly checks that
         // p1.x == p2.x AND p1.y + p2.y == p without modular negation.
         if p1[..N / 2] == p2[..N / 2] {
             *self = Self::infinity();
