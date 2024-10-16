@@ -269,7 +269,7 @@ pub enum DslIr<C: Config> {
     CircuitCommitVkeyHash(Var<C::N>),
     /// Asserts that the inputted var is equal the circuit's committed values digest public input.
     /// Should only be used when target is a gnark circuit.
-    CircuitCommitCommitedValuesDigest(Var<C::N>),
+    CircuitCommitCommittedValuesDigest(Var<C::N>),
 
     // FRI specific instructions.
     /// Executes a FRI fold operation. 1st field is the size of the fri fold input array.  2nd

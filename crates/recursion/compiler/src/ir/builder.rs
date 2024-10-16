@@ -486,7 +486,7 @@ impl<C: Config> Builder<C> {
     }
 
     pub fn commit_committed_values_digest_circuit(&mut self, var: Var<C::N>) {
-        self.push_op(DslIr::CircuitCommitCommitedValuesDigest(var));
+        self.push_op(DslIr::CircuitCommitCommittedValuesDigest(var));
     }
 
     pub fn reduce_e(&mut self, ext: Ext<C::F, C::EF>) {

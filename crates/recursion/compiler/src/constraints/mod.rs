@@ -377,8 +377,8 @@ impl<C: Config + Debug> ConstraintCompiler<C> {
                     opcode: ConstraintOpcode::CommitVkeyHash,
                     args: vec![vec![a.id()]],
                 }),
-                DslIr::CircuitCommitCommitedValuesDigest(a) => constraints.push(Constraint {
-                    opcode: ConstraintOpcode::CommitCommittedValuesDigest,
+                DslIr::CircuitCommitCommittedValuesDigest(a) => constraints.push(Constraint {
+                    opcode: ConstraintOpcode::CommitCommitedValuesDigest,
                     args: vec![vec![a.id()]],
                 }),
                 DslIr::CircuitFelts2Ext(a, b) => constraints.push(Constraint {
