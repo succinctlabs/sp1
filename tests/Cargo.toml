@@ -1,5 +1,6 @@
 [workspace]
 members = [
+  "common",
   "bls12381-add",
   "bls12381-decompress",
   "bls12381-double",

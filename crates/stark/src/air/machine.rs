@@ -6,6 +6,8 @@ use crate::MachineRecord;
 
 pub use sp1_derive::MachineAir;
 
+use super::InteractionScope;
+
 /// An AIR that is part of a multi table AIR arithmetization.
 pub trait MachineAir<F: Field>: BaseAir<F> + 'static + Send + Sync {
     /// The execution record containing events for producing the air trace.
@@ -40,6 +42,11 @@ pub trait MachineAir<F: Field>: BaseAir<F> + 'static + Send + Sync {
     /// Generate the preprocessed trace given a specific program.
     fn generate_preprocessed_trace(&self, _program: &Self::Program) -> Option<RowMajorMatrix<F>> {
         None
+    }
+
+    /// Specifies whether it's trace should be part of either the global or local commit.
+    fn commit_scope(&self) -> InteractionScope {
+        InteractionScope::Local
     }
 }
 

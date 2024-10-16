@@ -9,6 +9,9 @@ use crate::{
     AffinePoint, EllipticCurve, EllipticCurveParameters,
 };
 
+#[cfg(feature = "bigint-rug")]
+use crate::utils::{biguint_to_rug, rug_to_biguint};
+
 pub mod bls12_381;
 pub mod bn254;
 pub mod secp256k1;
@@ -173,44 +176,105 @@ impl<E: WeierstrassParameters> AffinePoint<SwCurve<E>> {
             panic!("Error: Points are the same. Use sw_double instead.");
         }
 
-        let p = biguint_to_dashu(&E::BaseField::modulus());
-        let self_x = biguint_to_dashu(&self.x);
-        let self_y = biguint_to_dashu(&self.y);
-        let other_x = biguint_to_dashu(&other.x);
-        let other_y = biguint_to_dashu(&other.y);
+        cfg_if::cfg_if! {
+            if #[cfg(feature = "bigint-rug")] {
+                self.sw_add_rug(other)
+            } else {
+                let p = biguint_to_dashu(&E::BaseField::modulus());
+                let self_x = biguint_to_dashu(&self.x);
+                let self_y = biguint_to_dashu(&self.y);
+                let other_x = biguint_to_dashu(&other.x);
+                let other_y = biguint_to_dashu(&other.y);
 
-        let slope_numerator = (&p + &other_y - &self_y) % &p;
-        let slope_denominator = (&p + &other_x - &self_x) % &p;
-        let slope_denom_inverse =
-            dashu_modpow(&slope_denominator, &(&p - &dashu::integer::UBig::from(2u32)), &p);
-        let slope = (slope_numerator * &slope_denom_inverse) % &p;
+                let slope_numerator = (&p + &other_y - &self_y) % &p;
+                let slope_denominator = (&p + &other_x - &self_x) % &p;
+                let slope_denom_inverse =
+                    dashu_modpow(&slope_denominator, &(&p - &dashu::integer::UBig::from(2u32)), &p);
+                let slope = (slope_numerator * &slope_denom_inverse) % &p;
 
-        let x_3n = (&slope * &slope + &p + &p - &self_x - &other_x) % &p;
-        let y_3n = (&slope * &(&p + &self_x - &x_3n) + &p - &self_y) % &p;
+                let x_3n = (&slope * &slope + &p + &p - &self_x - &other_x) % &p;
+                let y_3n = (&slope * &(&p + &self_x - &x_3n) + &p - &self_y) % &p;
 
-        AffinePoint::new(dashu_to_biguint(&x_3n), dashu_to_biguint(&y_3n))
+                AffinePoint::new(dashu_to_biguint(&x_3n), dashu_to_biguint(&y_3n))
+            }
+        }
     }
 
     pub fn sw_double(&self) -> AffinePoint<SwCurve<E>> {
-        let p = biguint_to_dashu(&E::BaseField::modulus());
-        let a = biguint_to_dashu(&E::a_int());
+        cfg_if::cfg_if! {
+            if #[cfg(feature = "bigint-rug")] {
+                self.sw_double_rug()
+            } else {
+                let p = biguint_to_dashu(&E::BaseField::modulus());
+                let a = biguint_to_dashu(&E::a_int());
 
-        let self_x = biguint_to_dashu(&self.x);
-        let self_y = biguint_to_dashu(&self.y);
+                let self_x = biguint_to_dashu(&self.x);
+                let self_y = biguint_to_dashu(&self.y);
 
-        let slope_numerator = (&a + &(&self_x * &self_x) * 3u32) % &p;
+                let slope_numerator = (&a + &(&self_x * &self_x) * 3u32) % &p;
 
-        let slope_denominator = (&self_y * 2u32) % &p;
-        let slope_denom_inverse =
-            dashu_modpow(&slope_denominator, &(&p - &dashu::integer::UBig::from(2u32)), &p);
-        // let slope_denom_inverse = slope_denominator.modpow(&(&p - 2u32), &p);
+                let slope_denominator = (&self_y * 2u32) % &p;
+                let slope_denom_inverse =
+                    dashu_modpow(&slope_denominator, &(&p - &dashu::integer::UBig::from(2u32)), &p);
+                // let slope_denom_inverse = slope_denominator.modpow(&(&p - 2u32), &p);
+                let slope = (slope_numerator * &slope_denom_inverse) % &p;
+
+                let x_3n = (&slope * &slope + &p + &p - &self_x - &self_x) % &p;
+
+                let y_3n = (&slope * &(&p + &self_x - &x_3n) + &p - &self_y) % &p;
+
+                AffinePoint::new(dashu_to_biguint(&x_3n), dashu_to_biguint(&y_3n))
+            }
+        }
+    }
+
+    #[cfg(feature = "bigint-rug")]
+    pub fn sw_add_rug(&self, other: &AffinePoint<SwCurve<E>>) -> AffinePoint<SwCurve<E>> {
+        use rug::Complete;
+        let p = biguint_to_rug(&E::BaseField::modulus());
+        let self_x = biguint_to_rug(&self.x);
+        let self_y = biguint_to_rug(&self.y);
+        let other_x = biguint_to_rug(&other.x);
+        let other_y = biguint_to_rug(&other.y);
+
+        let slope_numerator = ((&p + &other_y).complete() - &self_y) % &p;
+        let slope_denominator = ((&p + &other_x).complete() - &self_x) % &p;
+        let slope_denom_inverse = slope_denominator
+            .pow_mod_ref(&(&p - &rug::Integer::from(2u32)).complete(), &p)
+            .unwrap()
+            .complete();
         let slope = (slope_numerator * &slope_denom_inverse) % &p;
 
-        let x_3n = (&slope * &slope + &p + &p - &self_x - &self_x) % &p;
+        let x_3n = ((&slope * &slope + &p).complete() + &p - &self_x - &other_x) % &p;
+        let y_3n = ((&slope * &((&p + &self_x).complete() - &x_3n) + &p).complete() - &self_y) % &p;
 
-        let y_3n = (&slope * &(&p + &self_x - &x_3n) + &p - &self_y) % &p;
+        AffinePoint::new(rug_to_biguint(&x_3n), rug_to_biguint(&y_3n))
+    }
 
-        AffinePoint::new(dashu_to_biguint(&x_3n), dashu_to_biguint(&y_3n))
+    #[cfg(feature = "bigint-rug")]
+    pub fn sw_double_rug(&self) -> AffinePoint<SwCurve<E>> {
+        use rug::Complete;
+        let p = biguint_to_rug(&E::BaseField::modulus());
+        let a = biguint_to_rug(&E::a_int());
+
+        let self_x = biguint_to_rug(&self.x);
+        let self_y = biguint_to_rug(&self.y);
+
+        let slope_numerator = (&a + &(&self_x * &self_x).complete() * 3u32).complete() % &p;
+
+        let slope_denominator = (&self_y * 2u32).complete() % &p;
+        let slope_denom_inverse = slope_denominator
+            .pow_mod_ref(&(&p - &rug::Integer::from(2u32)).complete(), &p)
+            .unwrap()
+            .complete();
+
+        let slope = (slope_numerator * &slope_denom_inverse) % &p;
+
+        let x_3n = ((&slope * &slope + &p).complete() + ((&p - &self_x).complete() - &self_x)) % &p;
+
+        let y_3n = ((&slope * &((&p + &self_x).complete() - &x_3n) + &p).complete() - &self_y) % &p;
+
+        AffinePoint::new(rug_to_biguint(&x_3n), rug_to_biguint(&y_3n))
     }
 }
 

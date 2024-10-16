@@ -8,7 +8,6 @@ publish = false
 sp1-zkvm = { path = "../../../crates/zkvm/entrypoint" }
 hex-literal = "0.4.1"
 ssz_rs = { version = "0.9.0", features = ["serde"] }
-serde_json = "1.0.111"
 hex = "0.4.3"
 serde_with = { version = "3.4.0", features = ["hex"] }
 serde = { version = "1.0.195", features = ["derive"] }

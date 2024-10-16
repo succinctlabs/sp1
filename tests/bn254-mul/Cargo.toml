@@ -6,4 +6,5 @@ publish = false
 
 [dependencies]
 sp1-zkvm = { path = "../../crates/zkvm/entrypoint" }
+sp1-lib = { path = "../../crates/zkvm/lib" }
 sp1-derive = { path = "../../crates/derive" }

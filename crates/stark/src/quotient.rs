@@ -18,7 +18,7 @@ use super::{
 #[allow(clippy::too_many_lines)]
 pub fn quotient_values<SC, A, Mat>(
     chip: &Chip<Val<SC>, A>,
-    cumulative_sum: SC::Challenge,
+    cumulative_sums: &[SC::Challenge],
     trace_domain: Domain<SC>,
     quotient_domain: Domain<SC>,
     preprocessed_trace_on_quotient_domain: Option<Mat>,
@@ -126,6 +126,12 @@ where
                 .collect();
 
             let accumulator = PackedChallenge::<SC>::zero();
+
+            let packed_cumulative_sums = cumulative_sums
+                .iter()
+                .map(|c| PackedChallenge::<SC>::from_f(*c))
+                .collect::<Vec<_>>();
+
             let mut folder = ProverConstraintFolder {
                 preprocessed: VerticalPair::new(
                     RowMajorMatrixView::new_row(&prep_local),
@@ -140,7 +146,7 @@ where
                     RowMajorMatrixView::new_row(&perm_next),
                 ),
                 perm_challenges,
-                cumulative_sum,
+                cumulative_sums: &packed_cumulative_sums,
                 is_first_row,
                 is_last_row,
                 is_transition,

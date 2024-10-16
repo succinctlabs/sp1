@@ -14,7 +14,7 @@ use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use p3_maybe_rayon::prelude::{IntoParallelRefIterator, ParallelIterator, ParallelSlice};
 use sp1_core_executor::{
-    events::{ByteLookupEvent, ByteRecord, EllipticCurveAddEvent, FieldOperation},
+    events::{ByteLookupEvent, ByteRecord, EllipticCurveAddEvent, FieldOperation, PrecompileEvent},
     syscalls::SyscallCode,
     ExecutionRecord, Program,
 };
@@ -24,14 +24,14 @@ use sp1_curves::{
     AffinePoint, EllipticCurve,
 };
 use sp1_derive::AlignedBorrow;
-use sp1_stark::air::{BaseAirBuilder, MachineAir, SP1AirBuilder};
+use sp1_stark::air::{BaseAirBuilder, InteractionScope, MachineAir, SP1AirBuilder};
 
 use crate::{
     memory::{value_as_limbs, MemoryReadCols, MemoryWriteCols},
     operations::field::{
         field_den::FieldDenCols, field_inner_product::FieldInnerProductCols, field_op::FieldOpCols,
     },
-    utils::{limbs_from_prev_access, pad_rows},
+    utils::{limbs_from_prev_access, pad_rows_fixed},
 };
 
 pub const NUM_ED_ADD_COLS: usize = size_of::<EdAddAssignCols<u8>>();
@@ -44,7 +44,6 @@ pub const NUM_ED_ADD_COLS: usize = size_of::<EdAddAssignCols<u8>>();
 pub struct EdAddAssignCols<T> {
     pub is_real: T,
     pub shard: T,
-    pub channel: T,
     pub clk: T,
     pub nonce: T,
     pub p_ptr: T,
@@ -75,7 +74,6 @@ impl<E: EllipticCurve + EdwardsParameters> EdAddAssignChip<E> {
     fn populate_field_ops<F: PrimeField32>(
         record: &mut impl ByteRecord,
         shard: u32,
-        channel: u8,
         cols: &mut EdAddAssignCols<F>,
         p_x: BigUint,
         p_y: BigUint,
@@ -85,29 +83,24 @@ impl<E: EllipticCurve + EdwardsParameters> EdAddAssignChip<E> {
         let x3_numerator = cols.x3_numerator.populate(
             record,
             shard,
-            channel,
             &[p_x.clone(), q_x.clone()],
             &[q_y.clone(), p_y.clone()],
         );
         let y3_numerator = cols.y3_numerator.populate(
             record,
             shard,
-            channel,
             &[p_y.clone(), p_x.clone()],
             &[q_y.clone(), q_x.clone()],
         );
-        let x1_mul_y1 =
-            cols.x1_mul_y1.populate(record, shard, channel, &p_x, &p_y, FieldOperation::Mul);
-        let x2_mul_y2 =
-            cols.x2_mul_y2.populate(record, shard, channel, &q_x, &q_y, FieldOperation::Mul);
-        let f =
-            cols.f.populate(record, shard, channel, &x1_mul_y1, &x2_mul_y2, FieldOperation::Mul);
+        let x1_mul_y1 = cols.x1_mul_y1.populate(record, shard, &p_x, &p_y, FieldOperation::Mul);
+        let x2_mul_y2 = cols.x2_mul_y2.populate(record, shard, &q_x, &q_y, FieldOperation::Mul);
+        let f = cols.f.populate(record, shard, &x1_mul_y1, &x2_mul_y2, FieldOperation::Mul);
 
         let d = E::d_biguint();
-        let d_mul_f = cols.d_mul_f.populate(record, shard, channel, &f, &d, FieldOperation::Mul);
+        let d_mul_f = cols.d_mul_f.populate(record, shard, &f, &d, FieldOperation::Mul);
 
-        cols.x3_ins.populate(record, shard, channel, &x3_numerator, &d_mul_f, true);
-        cols.y3_ins.populate(record, shard, channel, &y3_numerator, &d_mul_f, false);
+        cols.x3_ins.populate(record, shard, &x3_numerator, &d_mul_f, true);
+        cols.y3_ins.populate(record, shard, &y3_numerator, &d_mul_f, false);
     }
 }
 
@@ -125,10 +118,17 @@ impl<F: PrimeField32, E: EllipticCurve + EdwardsParameters> MachineAir<F> for Ed
         input: &ExecutionRecord,
         _: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
-        let mut rows = input
-            .ed_add_events
+        let events = input.get_precompile_events(SyscallCode::ED_ADD);
+
+        let mut rows = events
             .par_iter()
-            .map(|event| {
+            .map(|(_, event)| {
+                let event = if let PrecompileEvent::EdAdd(event) = event {
+                    event
+                } else {
+                    unreachable!();
+                };
+
                 let mut row = [F::zero(); NUM_ED_ADD_COLS];
                 let cols: &mut EdAddAssignCols<F> = row.as_mut_slice().borrow_mut();
                 let mut blu = Vec::new();
@@ -137,22 +137,25 @@ impl<F: PrimeField32, E: EllipticCurve + EdwardsParameters> MachineAir<F> for Ed
             })
             .collect::<Vec<_>>();
 
-        pad_rows(&mut rows, || {
-            let mut row = [F::zero(); NUM_ED_ADD_COLS];
-            let cols: &mut EdAddAssignCols<F> = row.as_mut_slice().borrow_mut();
-            let zero = BigUint::zero();
-            Self::populate_field_ops(
-                &mut vec![],
-                0,
-                0,
-                cols,
-                zero.clone(),
-                zero.clone(),
-                zero.clone(),
-                zero,
-            );
-            row
-        });
+        pad_rows_fixed(
+            &mut rows,
+            || {
+                let mut row = [F::zero(); NUM_ED_ADD_COLS];
+                let cols: &mut EdAddAssignCols<F> = row.as_mut_slice().borrow_mut();
+                let zero = BigUint::zero();
+                Self::populate_field_ops(
+                    &mut vec![],
+                    0,
+                    cols,
+                    zero.clone(),
+                    zero.clone(),
+                    zero.clone(),
+                    zero,
+                );
+                row
+            },
+            input.fixed_log2_rows::<F, _>(self),
+        );
 
         // Convert the trace to a row major matrix.
         let mut trace =
@@ -169,14 +172,20 @@ impl<F: PrimeField32, E: EllipticCurve + EdwardsParameters> MachineAir<F> for Ed
     }
 
     fn generate_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
-        let chunk_size = std::cmp::max(input.ed_add_events.len() / num_cpus::get(), 1);
+        let events = input.get_precompile_events(SyscallCode::ED_ADD);
+        let chunk_size = std::cmp::max(events.len() / num_cpus::get(), 1);
 
-        let blu_batches = input
-            .ed_add_events
+        let blu_batches = events
             .par_chunks(chunk_size)
             .map(|events| {
                 let mut blu: HashMap<u32, HashMap<ByteLookupEvent, usize>> = HashMap::new();
-                events.iter().for_each(|event| {
+                events.iter().for_each(|(_, event)| {
+                    let event = if let PrecompileEvent::EdAdd(event) = event {
+                        event
+                    } else {
+                        unreachable!();
+                    };
+
                     let mut row = [F::zero(); NUM_ED_ADD_COLS];
                     let cols: &mut EdAddAssignCols<F> = row.as_mut_slice().borrow_mut();
                     self.event_to_row(event, cols, &mut blu);
@@ -189,7 +198,11 @@ impl<F: PrimeField32, E: EllipticCurve + EdwardsParameters> MachineAir<F> for Ed
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
-        !shard.ed_add_events.is_empty()
+        if let Some(shape) = shard.shape.as_ref() {
+            shape.included::<F, _>(self)
+        } else {
+            !shard.get_precompile_events(SyscallCode::ED_ADD).is_empty()
+        }
     }
 }
 
@@ -212,19 +225,18 @@ impl<E: EllipticCurve + EdwardsParameters> EdAddAssignChip<E> {
         // Populate basic columns.
         cols.is_real = F::one();
         cols.shard = F::from_canonical_u32(event.shard);
-        cols.channel = F::from_canonical_u8(event.channel);
         cols.clk = F::from_canonical_u32(event.clk);
         cols.p_ptr = F::from_canonical_u32(event.p_ptr);
         cols.q_ptr = F::from_canonical_u32(event.q_ptr);
 
-        Self::populate_field_ops(blu, event.shard, event.channel, cols, p_x, p_y, q_x, q_y);
+        Self::populate_field_ops(blu, event.shard, cols, p_x, p_y, q_x, q_y);
 
         // Populate the memory access columns.
         for i in 0..WORDS_CURVE_POINT {
-            cols.q_access[i].populate(event.channel, event.q_memory_records[i], blu);
+            cols.q_access[i].populate(event.q_memory_records[i], blu);
         }
         for i in 0..WORDS_CURVE_POINT {
-            cols.p_access[i].populate(event.channel, event.p_memory_records[i], blu);
+            cols.p_access[i].populate(event.p_memory_records[i], blu);
         }
     }
 }
@@ -256,94 +268,32 @@ where
         let y2 = limbs_from_prev_access(&local.q_access[8..16]);
 
         // x3_numerator = x1 * y2 + x2 * y1.
-        local.x3_numerator.eval(
-            builder,
-            &[x1, x2],
-            &[y2, y1],
-            local.shard,
-            local.channel,
-            local.is_real,
-        );
+        local.x3_numerator.eval(builder, &[x1, x2], &[y2, y1], local.is_real);
 
         // y3_numerator = y1 * y2 + x1 * x2.
-        local.y3_numerator.eval(
-            builder,
-            &[y1, x1],
-            &[y2, x2],
-            local.shard,
-            local.channel,
-            local.is_real,
-        );
+        local.y3_numerator.eval(builder, &[y1, x1], &[y2, x2], local.is_real);
 
         // f = x1 * x2 * y1 * y2.
-        local.x1_mul_y1.eval(
-            builder,
-            &x1,
-            &y1,
-            FieldOperation::Mul,
-            local.shard,
-            local.channel,
-            local.is_real,
-        );
-        local.x2_mul_y2.eval(
-            builder,
-            &x2,
-            &y2,
-            FieldOperation::Mul,
-            local.shard,
-            local.channel,
-            local.is_real,
-        );
+        local.x1_mul_y1.eval(builder, &x1, &y1, FieldOperation::Mul, local.is_real);
+        local.x2_mul_y2.eval(builder, &x2, &y2, FieldOperation::Mul, local.is_real);
 
         let x1_mul_y1 = local.x1_mul_y1.result;
         let x2_mul_y2 = local.x2_mul_y2.result;
-        local.f.eval(
-            builder,
-            &x1_mul_y1,
-            &x2_mul_y2,
-            FieldOperation::Mul,
-            local.shard,
-            local.channel,
-            local.is_real,
-        );
+        local.f.eval(builder, &x1_mul_y1, &x2_mul_y2, FieldOperation::Mul, local.is_real);
 
         // d * f.
         let f = local.f.result;
         let d_biguint = E::d_biguint();
         let d_const = E::BaseField::to_limbs_field::<AB::Expr, _>(&d_biguint);
-        local.d_mul_f.eval(
-            builder,
-            &f,
-            &d_const,
-            FieldOperation::Mul,
-            local.shard,
-            local.channel,
-            local.is_real,
-        );
+        local.d_mul_f.eval(builder, &f, &d_const, FieldOperation::Mul, local.is_real);
 
         let d_mul_f = local.d_mul_f.result;
 
         // x3 = x3_numerator / (1 + d * f).
-        local.x3_ins.eval(
-            builder,
-            &local.x3_numerator.result,
-            &d_mul_f,
-            true,
-            local.shard,
-            local.channel,
-            local.is_real,
-        );
+        local.x3_ins.eval(builder, &local.x3_numerator.result, &d_mul_f, true, local.is_real);
 
         // y3 = y3_numerator / (1 - d * f).
-        local.y3_ins.eval(
-            builder,
-            &local.y3_numerator.result,
-            &d_mul_f,
-            false,
-            local.shard,
-            local.channel,
-            local.is_real,
-        );
+        local.y3_ins.eval(builder, &local.y3_numerator.result, &d_mul_f, false, local.is_real);
 
         // Constraint self.p_access.value = [self.x3_ins.result, self.y3_ins.result]
         // This is to ensure that p_access is updated with the new value.
@@ -357,7 +307,6 @@ where
 
         builder.eval_memory_access_slice(
             local.shard,
-            local.channel,
             local.clk.into(),
             local.q_ptr,
             &local.q_access,
@@ -366,7 +315,6 @@ where
 
         builder.eval_memory_access_slice(
             local.shard,
-            local.channel,
             local.clk + AB::F::from_canonical_u32(1),
             local.p_ptr,
             &local.p_access,
@@ -375,13 +323,13 @@ where
 
         builder.receive_syscall(
             local.shard,
-            local.channel,
             local.clk,
             local.nonce,
             AB::F::from_canonical_u32(SyscallCode::ED_ADD.syscall_id()),
             local.p_ptr,
             local.q_ptr,
             local.is_real,
+            InteractionScope::Local,
         );
     }
 }

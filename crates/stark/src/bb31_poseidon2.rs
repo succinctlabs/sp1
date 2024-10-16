@@ -1,11 +1,11 @@
 #![allow(missing_docs)]
 
-use crate::StarkGenericConfig;
+use crate::{Com, StarkGenericConfig, ZeroCommitment};
 use p3_baby_bear::{BabyBear, DiffusionMatrixBabyBear};
 use p3_challenger::DuplexChallenger;
 use p3_commit::ExtensionMmcs;
 use p3_dft::Radix2DitParallel;
-use p3_field::{extension::BinomialExtensionField, Field};
+use p3_field::{extension::BinomialExtensionField, AbstractField, Field};
 use p3_fri::{
     BatchOpening, CommitPhaseProofStep, FriConfig, FriProof, QueryProof, TwoAdicFriPcs,
     TwoAdicFriPcsProof,
@@ -23,7 +23,7 @@ pub type InnerVal = BabyBear;
 pub type InnerChallenge = BinomialExtensionField<InnerVal, 4>;
 pub type InnerPerm =
     Poseidon2<InnerVal, Poseidon2ExternalMatrixGeneral, DiffusionMatrixBabyBear, 16, 7>;
-pub type InnerHash = PaddingFreeSponge<InnerPerm, 16, 8, 8>;
+pub type InnerHash = PaddingFreeSponge<InnerPerm, 16, 8, DIGEST_SIZE>;
 pub type InnerDigestHash = Hash<InnerVal, InnerVal, DIGEST_SIZE>;
 pub type InnerDigest = [InnerVal; DIGEST_SIZE];
 pub type InnerCompress = TruncatedPermutation<InnerPerm, 2, 8, 16>;
@@ -144,27 +144,34 @@ impl StarkGenericConfig for BabyBearPoseidon2Inner {
     }
 }
 
+impl ZeroCommitment<BabyBearPoseidon2Inner> for InnerPcs {
+    fn zero_commitment(&self) -> Com<BabyBearPoseidon2Inner> {
+        InnerDigestHash::from([InnerVal::zero(); DIGEST_SIZE])
+    }
+}
+
 pub mod baby_bear_poseidon2 {
 
     use p3_baby_bear::{BabyBear, DiffusionMatrixBabyBear};
     use p3_challenger::DuplexChallenger;
     use p3_commit::ExtensionMmcs;
     use p3_dft::Radix2DitParallel;
-    use p3_field::{extension::BinomialExtensionField, Field};
+    use p3_field::{extension::BinomialExtensionField, AbstractField, Field};
     use p3_fri::{FriConfig, TwoAdicFriPcs};
     use p3_merkle_tree::FieldMerkleTreeMmcs;
     use p3_poseidon2::{Poseidon2, Poseidon2ExternalMatrixGeneral};
-    use p3_symmetric::{PaddingFreeSponge, TruncatedPermutation};
+    use p3_symmetric::{Hash, PaddingFreeSponge, TruncatedPermutation};
     use serde::{Deserialize, Serialize};
     use sp1_primitives::RC_16_30;
 
-    use crate::StarkGenericConfig;
+    use crate::{Com, StarkGenericConfig, ZeroCommitment, DIGEST_SIZE};
 
     pub type Val = BabyBear;
     pub type Challenge = BinomialExtensionField<Val, 4>;
 
     pub type Perm = Poseidon2<Val, Poseidon2ExternalMatrixGeneral, DiffusionMatrixBabyBear, 16, 7>;
-    pub type MyHash = PaddingFreeSponge<Perm, 16, 8, 8>;
+    pub type MyHash = PaddingFreeSponge<Perm, 16, 8, DIGEST_SIZE>;
+    pub type DigestHash = Hash<Val, Val, DIGEST_SIZE>;
     pub type MyCompress = TruncatedPermutation<Perm, 2, 8, 16>;
     pub type ValMmcs = FieldMerkleTreeMmcs<
         <Val as Field>::Packing,
@@ -221,6 +228,19 @@ pub mod baby_bear_poseidon2 {
         let challenge_mmcs = ChallengeMmcs::new(ValMmcs::new(hash, compress));
         let num_queries = match std::env::var("FRI_QUERIES") {
             Ok(value) => value.parse().unwrap(),
+            Err(_) => 50,
+        };
+        FriConfig { log_blowup: 2, num_queries, proof_of_work_bits: 16, mmcs: challenge_mmcs }
+    }
+
+    #[must_use]
+    pub fn ultra_compressed_fri_config() -> FriConfig<ChallengeMmcs> {
+        let perm = my_perm();
+        let hash = MyHash::new(perm.clone());
+        let compress = MyCompress::new(perm.clone());
+        let challenge_mmcs = ChallengeMmcs::new(ValMmcs::new(hash, compress));
+        let num_queries = match std::env::var("FRI_QUERIES") {
+            Ok(value) => value.parse().unwrap(),
             Err(_) => 33,
         };
         FriConfig { log_blowup: 3, num_queries, proof_of_work_bits: 16, mmcs: challenge_mmcs }
@@ -260,6 +280,18 @@ pub mod baby_bear_poseidon2 {
             let val_mmcs = ValMmcs::new(hash, compress);
             let dft = Dft {};
             let fri_config = compressed_fri_config();
+            let pcs = Pcs::new(27, dft, val_mmcs, fri_config);
+            Self { pcs, perm, config_type: BabyBearPoseidon2Type::Compressed }
+        }
+
+        #[must_use]
+        pub fn ultra_compressed() -> Self {
+            let perm = my_perm();
+            let hash = MyHash::new(perm.clone());
+            let compress = MyCompress::new(perm.clone());
+            let val_mmcs = ValMmcs::new(hash, compress);
+            let dft = Dft {};
+            let fri_config = ultra_compressed_fri_config();
             let pcs = Pcs::new(27, dft, val_mmcs, fri_config);
             Self { pcs, perm, config_type: BabyBearPoseidon2Type::Compressed }
         }
@@ -309,6 +341,12 @@ pub mod baby_bear_poseidon2 {
 
         fn challenger(&self) -> Self::Challenger {
             Challenger::new(self.perm.clone())
+        }
+    }
+
+    impl ZeroCommitment<BabyBearPoseidon2> for Pcs {
+        fn zero_commitment(&self) -> Com<BabyBearPoseidon2> {
+            DigestHash::from([Val::zero(); DIGEST_SIZE])
         }
     }
 }

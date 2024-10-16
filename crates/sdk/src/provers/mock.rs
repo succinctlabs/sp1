@@ -1,8 +1,8 @@
 #![allow(unused_variables)]
 use hashbrown::HashMap;
-use sp1_core_executor::SP1Context;
+use sp1_core_executor::{SP1Context, SP1ReduceProof};
 use sp1_core_machine::io::SP1Stdin;
-use sp1_stark::{ShardCommitment, ShardOpenedValues, ShardProof};
+use sp1_stark::{ShardCommitment, ShardOpenedValues, ShardProof, StarkVerifyingKey};
 
 use crate::{
     Prover, SP1Proof, SP1ProofKind, SP1ProofWithPublicValues, SP1ProvingKey, SP1VerificationError,
@@ -66,26 +66,42 @@ impl Prover<DefaultProverComponents> for MockProver {
             }
             SP1ProofKind::Compressed => {
                 let (public_values, _) = self.prover.execute(&pk.elf, &stdin, context)?;
+
+                let shard_proof = ShardProof {
+                    commitment: ShardCommitment {
+                        global_main_commit: [BabyBear::zero(); 8].into(),
+                        local_main_commit: [BabyBear::zero(); 8].into(),
+                        permutation_commit: [BabyBear::zero(); 8].into(),
+                        quotient_commit: [BabyBear::zero(); 8].into(),
+                    },
+                    opened_values: ShardOpenedValues { chips: vec![] },
+                    opening_proof: TwoAdicFriPcsProof {
+                        fri_proof: FriProof {
+                            commit_phase_commits: vec![],
+                            query_proofs: vec![],
+                            final_poly: Default::default(),
+                            pow_witness: BabyBear::zero(),
+                        },
+                        query_openings: vec![],
+                    },
+                    chip_ordering: HashMap::new(),
+                    public_values: vec![],
+                };
+
+                let reduce_vk = StarkVerifyingKey {
+                    commit: [BabyBear::zero(); 8].into(),
+                    pc_start: BabyBear::zero(),
+                    chip_information: vec![],
+                    chip_ordering: HashMap::new(),
+                };
+
+                let proof = SP1Proof::Compressed(Box::new(SP1ReduceProof {
+                    vk: reduce_vk,
+                    proof: shard_proof,
+                }));
+
                 Ok(SP1ProofWithPublicValues {
-                    proof: SP1Proof::Compressed(ShardProof {
-                        commitment: ShardCommitment {
-                            main_commit: [BabyBear::zero(); 8].into(),
-                            permutation_commit: [BabyBear::zero(); 8].into(),
-                            quotient_commit: [BabyBear::zero(); 8].into(),
-                        },
-                        opened_values: ShardOpenedValues { chips: vec![] },
-                        opening_proof: TwoAdicFriPcsProof {
-                            fri_proof: FriProof {
-                                commit_phase_commits: vec![],
-                                query_proofs: vec![],
-                                final_poly: Default::default(),
-                                pow_witness: BabyBear::zero(),
-                            },
-                            query_openings: vec![],
-                        },
-                        chip_ordering: HashMap::new(),
-                        public_values: vec![],
-                    }),
+                    proof,
                     stdin,
                     public_values,
                     sp1_version: self.version().to_string(),

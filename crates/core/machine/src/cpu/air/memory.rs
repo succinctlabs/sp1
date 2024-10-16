@@ -72,7 +72,6 @@ impl CpuChip {
             local.op_b_val(),
             local.op_c_val(),
             local.shard,
-            local.channel,
             memory_columns.addr_word_nonce,
             is_memory_instruction.clone(),
         );
@@ -86,12 +85,7 @@ impl CpuChip {
         );
 
         // Check that each addr_word element is a byte.
-        builder.slice_range_check_u8(
-            &memory_columns.addr_word.0,
-            local.shard,
-            local.channel,
-            is_memory_instruction.clone(),
-        );
+        builder.slice_range_check_u8(&memory_columns.addr_word.0, is_memory_instruction.clone());
 
         // Evaluate the addr_offset column and offset flags.
         self.eval_offset_value_flags(builder, memory_columns, local);
@@ -129,7 +123,6 @@ impl CpuChip {
         // value into the memory columns.
         builder.eval_memory_access(
             local.shard,
-            local.channel,
             local.clk + AB::F::from_canonical_u32(MemoryAccessPosition::Memory as u32),
             memory_columns.addr_aligned,
             &memory_columns.memory_access,
@@ -181,7 +174,6 @@ impl CpuChip {
             local.unsigned_mem_val,
             signed_value,
             local.shard,
-            local.channel,
             local.unsigned_mem_val_nonce,
             local.mem_value_is_neg_not_x0,
         );

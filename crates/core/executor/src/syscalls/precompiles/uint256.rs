@@ -4,14 +4,20 @@ use sp1_curves::edwards::WORDS_FIELD_ELEMENT;
 use sp1_primitives::consts::{bytes_to_words_le, words_to_bytes_le_vec, WORD_SIZE};
 
 use crate::{
-    events::Uint256MulEvent,
-    syscalls::{Syscall, SyscallContext},
+    events::{PrecompileEvent, Uint256MulEvent},
+    syscalls::{Syscall, SyscallCode, SyscallContext},
 };
 
 pub(crate) struct Uint256MulSyscall;
 
 impl Syscall for Uint256MulSyscall {
-    fn execute(&self, rt: &mut SyscallContext, arg1: u32, arg2: u32) -> Option<u32> {
+    fn execute(
+        &self,
+        rt: &mut SyscallContext,
+        syscall_code: SyscallCode,
+        arg1: u32,
+        arg2: u32,
+    ) -> Option<u32> {
         let clk = rt.clk;
 
         let x_ptr = arg1;
@@ -60,11 +66,9 @@ impl Syscall for Uint256MulSyscall {
 
         let lookup_id = rt.syscall_lookup_id;
         let shard = rt.current_shard();
-        let channel = rt.current_channel();
-        rt.record_mut().uint256_mul_events.push(Uint256MulEvent {
+        let event = PrecompileEvent::Uint256Mul(Uint256MulEvent {
             lookup_id,
             shard,
-            channel,
             clk,
             x_ptr,
             x,
@@ -74,7 +78,11 @@ impl Syscall for Uint256MulSyscall {
             x_memory_records,
             y_memory_records,
             modulus_memory_records,
+            local_mem_access: rt.postprocess(),
         });
+        let sycall_event =
+            rt.rt.syscall_event(clk, syscall_code.syscall_id(), arg1, arg2, lookup_id);
+        rt.record_mut().add_precompile_event(syscall_code, sycall_event, event);
 
         None
     }

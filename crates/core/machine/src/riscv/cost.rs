@@ -127,6 +127,15 @@ impl CostEstimator for ExecutionReport {
             (bls12381_decompress_events as u64) * costs[&RiscvAirDiscriminants::Bls12381Decompress];
         total_chips += 1;
 
+        let syscall_events = self.syscall_counts.values().sum::<u64>();
+        total_area += (syscall_events as u64) * costs[&RiscvAirDiscriminants::SyscallCore];
+        total_chips += 1;
+
+        let syscall_precompile_events = self.syscall_counts.len();
+        total_area +=
+            (syscall_precompile_events as u64) * costs[&RiscvAirDiscriminants::SyscallPrecompile];
+        total_chips += 1;
+
         let divrem_events = self.opcode_counts[Opcode::DIV]
             + self.opcode_counts[Opcode::REM]
             + self.opcode_counts[Opcode::DIVU]
@@ -163,12 +172,19 @@ impl CostEstimator for ExecutionReport {
         total_area += (lt_events as u64) * costs[&RiscvAirDiscriminants::Lt];
         total_chips += 1;
 
-        let memory_initialize_events = self.touched_memory_addresses;
-        total_area += (memory_initialize_events as u64) * costs[&RiscvAirDiscriminants::MemoryInit];
+        let memory_global_initialize_events = self.touched_memory_addresses;
+        total_area += (memory_global_initialize_events as u64)
+            * costs[&RiscvAirDiscriminants::MemoryGlobalInit];
         total_chips += 1;
 
-        let memory_finalize_events = self.touched_memory_addresses;
-        total_area += (memory_finalize_events as u64) * costs[&RiscvAirDiscriminants::MemoryFinal];
+        let memory_global_finalize_events = self.touched_memory_addresses;
+        total_area += (memory_global_finalize_events as u64)
+            * costs[&RiscvAirDiscriminants::MemoryGlobalFinal];
+        total_chips += 1;
+
+        let memory_local_initialize_events = self.touched_memory_addresses;
+        total_area +=
+            (memory_local_initialize_events as u64) * costs[&RiscvAirDiscriminants::MemoryLocal];
         total_chips += 1;
 
         assert_eq!(total_chips, chips.len(), "chip count mismatch");

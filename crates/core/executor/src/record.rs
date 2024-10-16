@@ -1,18 +1,23 @@
 use hashbrown::HashMap;
 use itertools::{EitherOrBoth, Itertools};
-use p3_field::AbstractField;
-use sp1_stark::{air::PublicValues, MachineRecord, SP1CoreOpts, SplitOpts};
-use std::sync::Arc;
+use p3_field::{AbstractField, PrimeField};
+use sp1_stark::{
+    air::{MachineAir, PublicValues},
+    MachineRecord, SP1CoreOpts, SplitOpts,
+};
+use std::{mem::take, sync::Arc};
 
 use serde::{Deserialize, Serialize};
 
 use super::{program::Program, Opcode};
-use crate::events::{
-    add_sharded_byte_lookup_events, AluEvent, ByteLookupEvent, ByteRecord, CpuEvent,
-    EdDecompressEvent, EllipticCurveAddEvent, EllipticCurveDecompressEvent,
-    EllipticCurveDoubleEvent, Fp2AddSubEvent, Fp2MulEvent, FpOpEvent, KeccakPermuteEvent, LookupId,
-    MemoryInitializeFinalizeEvent, MemoryRecordEnum, ShaCompressEvent, ShaExtendEvent,
-    Uint256MulEvent,
+use crate::{
+    events::{
+        add_sharded_byte_lookup_events, AluEvent, ByteLookupEvent, ByteRecord, CpuEvent, LookupId,
+        MemoryInitializeFinalizeEvent, MemoryLocalEvent, MemoryRecordEnum, PrecompileEvent,
+        PrecompileEvents, SyscallEvent,
+    },
+    syscalls::SyscallCode,
+    CoreShape,
 };
 
 /// A record of the execution of a program.
@@ -42,54 +47,22 @@ pub struct ExecutionRecord {
     pub lt_events: Vec<AluEvent>,
     /// A trace of the byte lookups that are needed.
     pub byte_lookups: HashMap<u32, HashMap<ByteLookupEvent, usize>>,
-    /// A trace of the sha256 extend events.
-    pub sha_extend_events: Vec<ShaExtendEvent>,
-    /// A trace of the sha256 compress events.
-    pub sha_compress_events: Vec<ShaCompressEvent>,
-    /// A trace of the keccak256 permute events.
-    pub keccak_permute_events: Vec<KeccakPermuteEvent>,
-    /// A trace of the edwards add events.
-    pub ed_add_events: Vec<EllipticCurveAddEvent>,
-    /// A trace of the edwards decompress events.
-    pub ed_decompress_events: Vec<EdDecompressEvent>,
-    /// A trace of the secp256k1 add events.
-    pub secp256k1_add_events: Vec<EllipticCurveAddEvent>,
-    /// A trace of the secp256k1 double events.
-    pub secp256k1_double_events: Vec<EllipticCurveDoubleEvent>,
-    /// A trace of the bn254 add events.
-    pub bn254_add_events: Vec<EllipticCurveAddEvent>,
-    /// A trace of the bn254 double events.
-    pub bn254_double_events: Vec<EllipticCurveDoubleEvent>,
-    /// A trace of the k256 decompress events.
-    pub k256_decompress_events: Vec<EllipticCurveDecompressEvent>,
-    /// A trace of the bls12381 add events.
-    pub bls12381_add_events: Vec<EllipticCurveAddEvent>,
-    /// A trace of the bls12381 double events.
-    pub bls12381_double_events: Vec<EllipticCurveDoubleEvent>,
-    /// A trace of the uint256 mul events.
-    pub uint256_mul_events: Vec<Uint256MulEvent>,
-    /// A trace of the memory initialize events.
-    pub memory_initialize_events: Vec<MemoryInitializeFinalizeEvent>,
-    /// A trace of the memory finalize events.
-    pub memory_finalize_events: Vec<MemoryInitializeFinalizeEvent>,
-    /// A trace of the bls12381 decompress events.
-    pub bls12381_decompress_events: Vec<EllipticCurveDecompressEvent>,
-    /// A trace of the bls12381 fp events.
-    pub bls12381_fp_events: Vec<FpOpEvent>,
-    /// A trace of the bls12381 fp2 add/sub events.
-    pub bls12381_fp2_addsub_events: Vec<Fp2AddSubEvent>,
-    /// A trace of the bls12381 fp2 mul events.
-    pub bls12381_fp2_mul_events: Vec<Fp2MulEvent>,
-    /// A trace of the bn254 fp events.
-    pub bn254_fp_events: Vec<FpOpEvent>,
-    /// A trace of the bn254 fp2 add/sub events.
-    pub bn254_fp2_addsub_events: Vec<Fp2AddSubEvent>,
-    /// A trace of the bn254 fp2 mul events.
-    pub bn254_fp2_mul_events: Vec<Fp2MulEvent>,
+    /// A trace of the precompile events.
+    pub precompile_events: PrecompileEvents,
+    /// A trace of the global memory initialize events.
+    pub global_memory_initialize_events: Vec<MemoryInitializeFinalizeEvent>,
+    /// A trace of the global memory finalize events.
+    pub global_memory_finalize_events: Vec<MemoryInitializeFinalizeEvent>,
+    /// A trace of all the shard's local memory events.
+    pub cpu_local_memory_access: Vec<MemoryLocalEvent>,
+    /// A trace of all the syscall events.
+    pub syscall_events: Vec<SyscallEvent>,
     /// The public values.
     pub public_values: PublicValues<u32, u32>,
     /// The nonce lookup.
     pub nonce_lookup: HashMap<LookupId, u32>,
+    /// The shape of the proof.
+    pub shape: Option<CoreShape>,
 }
 
 impl ExecutionRecord {
@@ -147,31 +120,13 @@ impl ExecutionRecord {
     /// included in every shard.
     #[must_use]
     pub fn defer(&mut self) -> ExecutionRecord {
-        ExecutionRecord {
-            keccak_permute_events: std::mem::take(&mut self.keccak_permute_events),
-            secp256k1_add_events: std::mem::take(&mut self.secp256k1_add_events),
-            secp256k1_double_events: std::mem::take(&mut self.secp256k1_double_events),
-            bn254_fp_events: std::mem::take(&mut self.bn254_fp_events),
-            bn254_fp2_addsub_events: std::mem::take(&mut self.bn254_fp2_addsub_events),
-            bn254_fp2_mul_events: std::mem::take(&mut self.bn254_fp2_mul_events),
-            bn254_add_events: std::mem::take(&mut self.bn254_add_events),
-            bn254_double_events: std::mem::take(&mut self.bn254_double_events),
-            bls12381_add_events: std::mem::take(&mut self.bls12381_add_events),
-            bls12381_double_events: std::mem::take(&mut self.bls12381_double_events),
-            sha_extend_events: std::mem::take(&mut self.sha_extend_events),
-            sha_compress_events: std::mem::take(&mut self.sha_compress_events),
-            ed_add_events: std::mem::take(&mut self.ed_add_events),
-            ed_decompress_events: std::mem::take(&mut self.ed_decompress_events),
-            k256_decompress_events: std::mem::take(&mut self.k256_decompress_events),
-            uint256_mul_events: std::mem::take(&mut self.uint256_mul_events),
-            bls12381_fp_events: std::mem::take(&mut self.bls12381_fp_events),
-            bls12381_fp2_addsub_events: std::mem::take(&mut self.bls12381_fp2_addsub_events),
-            bls12381_fp2_mul_events: std::mem::take(&mut self.bls12381_fp2_mul_events),
-            bls12381_decompress_events: std::mem::take(&mut self.bls12381_decompress_events),
-            memory_initialize_events: std::mem::take(&mut self.memory_initialize_events),
-            memory_finalize_events: std::mem::take(&mut self.memory_finalize_events),
-            ..Default::default()
-        }
+        let mut execution_record = ExecutionRecord::new(self.program.clone());
+        execution_record.precompile_events = std::mem::take(&mut self.precompile_events);
+        execution_record.global_memory_initialize_events =
+            std::mem::take(&mut self.global_memory_initialize_events);
+        execution_record.global_memory_finalize_events =
+            std::mem::take(&mut self.global_memory_finalize_events);
+        execution_record
     }
 
     /// Splits the deferred [`ExecutionRecord`] into multiple [`ExecutionRecord`]s, each which
@@ -179,67 +134,47 @@ impl ExecutionRecord {
     pub fn split(&mut self, last: bool, opts: SplitOpts) -> Vec<ExecutionRecord> {
         let mut shards = Vec::new();
 
-        macro_rules! split_events {
-            ($self:ident, $events:ident, $shards:ident, $threshold:expr, $exact:expr) => {
-                let events = std::mem::take(&mut $self.$events);
-                let chunks = events.chunks_exact($threshold);
-                if !$exact {
-                    $self.$events = chunks.remainder().to_vec();
-                } else {
-                    let remainder = chunks.remainder().to_vec();
-                    if !remainder.is_empty() {
-                        $shards.push(ExecutionRecord {
-                            $events: chunks.remainder().to_vec(),
-                            program: self.program.clone(),
-                            ..Default::default()
-                        });
-                    }
-                }
-                let mut event_shards = chunks
-                    .map(|chunk| ExecutionRecord {
-                        $events: chunk.to_vec(),
-                        program: self.program.clone(),
-                        ..Default::default()
-                    })
-                    .collect::<Vec<_>>();
-                $shards.append(&mut event_shards);
+        let precompile_events = take(&mut self.precompile_events);
+
+        for (syscall_code, events) in precompile_events.into_iter() {
+            let threshold = match syscall_code {
+                SyscallCode::KECCAK_PERMUTE => opts.keccak,
+                SyscallCode::SHA_EXTEND => opts.sha_extend,
+                SyscallCode::SHA_COMPRESS => opts.sha_compress,
+                _ => opts.deferred,
             };
+
+            let chunks = events.chunks_exact(threshold);
+            if last {
+                let remainder = chunks.remainder().to_vec();
+                if !remainder.is_empty() {
+                    let mut execution_record = ExecutionRecord::new(self.program.clone());
+                    execution_record.precompile_events.insert(syscall_code, remainder);
+                    shards.push(execution_record);
+                }
+            } else {
+                self.precompile_events.insert(syscall_code, chunks.remainder().to_vec());
+            }
+            let mut event_shards = chunks
+                .map(|chunk| {
+                    let mut execution_record = ExecutionRecord::new(self.program.clone());
+                    execution_record.precompile_events.insert(syscall_code, chunk.to_vec());
+                    execution_record
+                })
+                .collect::<Vec<_>>();
+            shards.append(&mut event_shards);
         }
 
-        split_events!(self, keccak_permute_events, shards, opts.keccak, last);
-        split_events!(self, secp256k1_add_events, shards, opts.deferred, last);
-        split_events!(self, secp256k1_double_events, shards, opts.deferred, last);
-        split_events!(self, bn254_add_events, shards, opts.deferred, last);
-        split_events!(self, bn254_double_events, shards, opts.deferred, last);
-        split_events!(self, bls12381_add_events, shards, opts.deferred, last);
-        split_events!(self, bls12381_double_events, shards, opts.deferred, last);
-        split_events!(self, sha_extend_events, shards, opts.sha_extend, last);
-        split_events!(self, sha_compress_events, shards, opts.sha_compress, last);
-        split_events!(self, ed_add_events, shards, opts.deferred, last);
-        split_events!(self, ed_decompress_events, shards, opts.deferred, last);
-        split_events!(self, k256_decompress_events, shards, opts.deferred, last);
-        split_events!(self, uint256_mul_events, shards, opts.deferred, last);
-        split_events!(self, bls12381_decompress_events, shards, opts.deferred, last);
-        split_events!(self, bls12381_fp_events, shards, opts.deferred, last);
-        split_events!(self, bls12381_fp2_addsub_events, shards, opts.deferred, last);
-        split_events!(self, bls12381_fp2_mul_events, shards, opts.deferred, last);
-        split_events!(self, bn254_fp_events, shards, opts.deferred, last);
-        split_events!(self, bn254_fp2_addsub_events, shards, opts.deferred, last);
-        split_events!(self, bn254_fp2_mul_events, shards, opts.deferred, last);
-        // _ = last_pct;
-
         if last {
-            // shards.push(last_shard);
-
-            self.memory_initialize_events.sort_by_key(|event| event.addr);
-            self.memory_finalize_events.sort_by_key(|event| event.addr);
+            self.global_memory_initialize_events.sort_by_key(|event| event.addr);
+            self.global_memory_finalize_events.sort_by_key(|event| event.addr);
 
             let mut init_addr_bits = [0; 32];
             let mut finalize_addr_bits = [0; 32];
             for mem_chunks in self
-                .memory_initialize_events
+                .global_memory_initialize_events
                 .chunks(opts.memory)
-                .zip_longest(self.memory_finalize_events.chunks(opts.memory))
+                .zip_longest(self.global_memory_finalize_events.chunks(opts.memory))
             {
                 let (mem_init_chunk, mem_finalize_chunk) = match mem_chunks {
                     EitherOrBoth::Both(mem_init_chunk, mem_finalize_chunk) => {
@@ -248,9 +183,8 @@ impl ExecutionRecord {
                     EitherOrBoth::Left(mem_init_chunk) => (mem_init_chunk, [].as_slice()),
                     EitherOrBoth::Right(mem_finalize_chunk) => ([].as_slice(), mem_finalize_chunk),
                 };
-                let mut shard = ExecutionRecord::default();
-                shard.program = self.program.clone();
-                shard.memory_initialize_events.extend_from_slice(mem_init_chunk);
+                let mut shard = ExecutionRecord::new(self.program.clone());
+                shard.global_memory_initialize_events.extend_from_slice(mem_init_chunk);
                 shard.public_values.previous_init_addr_bits = init_addr_bits;
                 if let Some(last_event) = mem_init_chunk.last() {
                     let last_init_addr_bits = core::array::from_fn(|i| (last_event.addr >> i) & 1);
@@ -258,7 +192,7 @@ impl ExecutionRecord {
                 }
                 shard.public_values.last_init_addr_bits = init_addr_bits;
 
-                shard.memory_finalize_events.extend_from_slice(mem_finalize_chunk);
+                shard.global_memory_finalize_events.extend_from_slice(mem_finalize_chunk);
                 shard.public_values.previous_finalize_addr_bits = finalize_addr_bits;
                 if let Some(last_event) = mem_finalize_chunk.last() {
                     let last_finalize_addr_bits =
@@ -272,6 +206,54 @@ impl ExecutionRecord {
         }
 
         shards
+    }
+
+    /// Return the number of rows needed for a chip, according to the proof shape specified in the
+    /// struct.
+    pub fn fixed_log2_rows<F: PrimeField, A: MachineAir<F>>(&self, air: &A) -> Option<usize> {
+        self.shape
+            .as_ref()
+            .map(|shape| {
+                shape
+                    .inner
+                    .get(&air.name())
+                    .unwrap_or_else(|| panic!("Chip {} not found in specified shape", air.name()))
+            })
+            .copied()
+    }
+
+    /// Determines whether the execution record contains CPU events.
+    #[must_use]
+    pub fn contains_cpu(&self) -> bool {
+        !self.cpu_events.is_empty()
+    }
+
+    #[inline]
+    /// Add a precompile event to the execution record.
+    pub fn add_precompile_event(
+        &mut self,
+        syscall_code: SyscallCode,
+        syscall_event: SyscallEvent,
+        event: PrecompileEvent,
+    ) {
+        self.precompile_events.add_event(syscall_code, syscall_event, event);
+    }
+
+    /// Get all the precompile events for a syscall code.
+    #[inline]
+    #[must_use]
+    pub fn get_precompile_events(
+        &self,
+        syscall_code: SyscallCode,
+    ) -> &Vec<(SyscallEvent, PrecompileEvent)> {
+        self.precompile_events.get_events(syscall_code).expect("Precompile events not found")
+    }
+
+    /// Get all the local memory events.
+    #[inline]
+    pub fn get_local_mem_events(&self) -> impl Iterator<Item = &MemoryLocalEvent> {
+        let precompile_local_mem_events = self.precompile_events.get_local_mem_events();
+        precompile_local_mem_events.chain(self.cpu_local_memory_access.iter())
     }
 }
 
@@ -302,34 +284,20 @@ impl MachineRecord for ExecutionRecord {
         stats.insert("shift_right_events".to_string(), self.shift_right_events.len());
         stats.insert("divrem_events".to_string(), self.divrem_events.len());
         stats.insert("lt_events".to_string(), self.lt_events.len());
-        stats.insert("sha_extend_events".to_string(), self.sha_extend_events.len());
-        stats.insert("sha_compress_events".to_string(), self.sha_compress_events.len());
-        stats.insert("keccak_permute_events".to_string(), self.keccak_permute_events.len());
-        stats.insert("ed_add_events".to_string(), self.ed_add_events.len());
-        stats.insert("ed_decompress_events".to_string(), self.ed_decompress_events.len());
-        stats.insert("secp256k1_add_events".to_string(), self.secp256k1_add_events.len());
-        stats.insert("secp256k1_double_events".to_string(), self.secp256k1_double_events.len());
-        stats.insert("bn254_add_events".to_string(), self.bn254_add_events.len());
-        stats.insert("bn254_double_events".to_string(), self.bn254_double_events.len());
-        stats.insert("k256_decompress_events".to_string(), self.k256_decompress_events.len());
-        stats.insert("bls12381_add_events".to_string(), self.bls12381_add_events.len());
-        stats.insert("bls12381_double_events".to_string(), self.bls12381_double_events.len());
-        stats.insert("uint256_mul_events".to_string(), self.uint256_mul_events.len());
-        stats.insert("bls12381_fp_event".to_string(), self.bls12381_fp_events.len());
+
+        for (syscall_code, events) in self.precompile_events.iter() {
+            stats.insert(format!("syscall {syscall_code:?}"), events.len());
+        }
+
         stats.insert(
-            "bls12381_fp2_addsub_events".to_string(),
-            self.bls12381_fp2_addsub_events.len(),
+            "global_memory_initialize_events".to_string(),
+            self.global_memory_initialize_events.len(),
         );
-        stats.insert("bls12381_fp2_mul_events".to_string(), self.bls12381_fp2_mul_events.len());
-        stats.insert("bn254_fp_events".to_string(), self.bn254_fp_events.len());
-        stats.insert("bn254_fp2_addsub_events".to_string(), self.bn254_fp2_addsub_events.len());
-        stats.insert("bn254_fp2_mul_events".to_string(), self.bn254_fp2_mul_events.len());
         stats.insert(
-            "bls12381_decompress_events".to_string(),
-            self.bls12381_decompress_events.len(),
+            "global_memory_finalize_events".to_string(),
+            self.global_memory_finalize_events.len(),
         );
-        stats.insert("memory_initialize_events".to_string(), self.memory_initialize_events.len());
-        stats.insert("memory_finalize_events".to_string(), self.memory_finalize_events.len());
+        stats.insert("local_memory_access_events".to_string(), self.cpu_local_memory_access.len());
         if !self.cpu_events.is_empty() {
             let shard = self.cpu_events[0].shard;
             stats.insert(
@@ -352,28 +320,9 @@ impl MachineRecord for ExecutionRecord {
         self.shift_right_events.append(&mut other.shift_right_events);
         self.divrem_events.append(&mut other.divrem_events);
         self.lt_events.append(&mut other.lt_events);
-        self.sha_extend_events.append(&mut other.sha_extend_events);
-        self.sha_compress_events.append(&mut other.sha_compress_events);
-        self.keccak_permute_events.append(&mut other.keccak_permute_events);
-        self.ed_add_events.append(&mut other.ed_add_events);
-        self.ed_decompress_events.append(&mut other.ed_decompress_events);
-        self.secp256k1_add_events.append(&mut other.secp256k1_add_events);
-        self.secp256k1_double_events.append(&mut other.secp256k1_double_events);
-        self.bn254_add_events.append(&mut other.bn254_add_events);
-        self.bn254_double_events.append(&mut other.bn254_double_events);
-        self.k256_decompress_events.append(&mut other.k256_decompress_events);
-        self.bls12381_add_events.append(&mut other.bls12381_add_events);
-        self.bls12381_double_events.append(&mut other.bls12381_double_events);
-        self.uint256_mul_events.append(&mut other.uint256_mul_events);
-        self.bls12381_fp_events.append(&mut other.bls12381_fp_events);
-        self.bls12381_fp2_addsub_events.append(&mut other.bls12381_fp2_addsub_events);
-        self.bls12381_fp2_mul_events.append(&mut other.bls12381_fp2_mul_events);
-        self.bn254_fp_events.append(&mut other.bn254_fp_events);
-        self.bn254_fp2_addsub_events.append(&mut other.bn254_fp2_addsub_events);
-        self.bn254_fp2_mul_events.append(&mut other.bn254_fp2_mul_events);
-        self.bls12381_decompress_events.append(&mut other.bls12381_decompress_events);
+        self.syscall_events.append(&mut other.syscall_events);
 
-        self.bls12381_decompress_events.append(&mut other.bls12381_decompress_events);
+        self.precompile_events.append(&mut other.precompile_events);
 
         if self.byte_lookups.is_empty() {
             self.byte_lookups = std::mem::take(&mut other.byte_lookups);
@@ -381,8 +330,9 @@ impl MachineRecord for ExecutionRecord {
             self.add_sharded_byte_lookup_events(vec![&other.byte_lookups]);
         }
 
-        self.memory_initialize_events.append(&mut other.memory_initialize_events);
-        self.memory_finalize_events.append(&mut other.memory_finalize_events);
+        self.global_memory_initialize_events.append(&mut other.global_memory_initialize_events);
+        self.global_memory_finalize_events.append(&mut other.global_memory_finalize_events);
+        self.cpu_local_memory_access.append(&mut other.cpu_local_memory_access);
     }
 
     fn register_nonces(&mut self, _opts: &Self::Config) {
