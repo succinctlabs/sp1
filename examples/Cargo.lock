@@ -1569,7 +1569,7 @@ dependencies = [
 name = "cycle-tracking-program"
 version = "1.1.0"
 dependencies = [
- "sp1-derive",
+ "sp1-derive 3.0.0-rc4",
  "sp1-zkvm",
 ]
 
@@ -1834,15 +1834,19 @@ checksum = "0d6ef0072f8a535281e4876be788938b528e9a1d43900b82c2569af7da799125"
 
 [[package]]
 name = "ecdsa"
-version = "0.16.9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ee27f32b5c5292967d2d4a9d7f1e0b0aed2c15daded5a60300e4abb9d8020bca"
+version = "0.16.8"
+source = "git+https://github.com/sp1-patches/signatures?branch=umadayal/secp256r1#b5b654261aff86efde4ea644551704a4fd082a06"
 dependencies = [
+ "anyhow",
+ "cfg-if",
  "der 0.7.9",
  "digest 0.10.7",
  "elliptic-curve",
+ "hex-literal",
  "rfc6979",
  "signature",
+ "sp1-derive 3.0.0-rc4 (git+https://github.com/succinctlabs/sp1.git?branch=secp256r1)",
+ "sp1-lib 3.0.0-rc4 (git+https://github.com/succinctlabs/sp1.git?branch=secp256r1)",
  "spki 0.7.3",
 ]
 
@@ -3294,7 +3298,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f6e3919bbaa2945715f0bb6d3934a173d1e9a59ac23767fbaaef277265a7411b"
 dependencies = [
  "cfg-if",
- "ecdsa 0.16.9 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ecdsa 0.16.8",
  "elliptic-curve",
  "once_cell",
  "sha2 0.10.8",
@@ -3936,7 +3940,7 @@ version = "0.13.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c9863ad85fa8f4460f9c48cb909d38a0d689dba1f6f6988a5e3e0d31071bcd4b"
 dependencies = [
- "ecdsa 0.16.9 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ecdsa 0.16.8",
  "elliptic-curve",
  "primeorder",
  "sha2 0.10.8",
@@ -5565,8 +5569,7 @@ dependencies = [
 [[package]]
 name = "rfc6979"
 version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f8dd2a808d456c4a54e300a23e9f5a67e122c3024119acbfd73e3bf664491cb2"
+source = "git+https://github.com/sp1-patches/signatures?branch=umadayal/secp256r1#b5b654261aff86efde4ea644551704a4fd082a06"
 dependencies = [
  "hmac",
  "subtle",
@@ -6085,7 +6088,7 @@ version = "0.29.0"
 source = "git+https://github.com/sp1-patches/rust-secp256k1?branch=patch-secp256k1-v0.29.0#13910d476dbdaf436312a9f096ee312593028557"
 dependencies = [
  "cfg-if",
- "ecdsa 0.16.9 (git+https://github.com/sp1-patches/signatures?branch=patch-ecdsa-v0.16.9)",
+ "ecdsa 0.16.9",
  "elliptic-curve",
  "k256",
  "rand 0.8.5",
@@ -6391,9 +6394,9 @@ dependencies = [
 
 [[package]]
 name = "signature"
-version = "2.2.0"
+version = "2.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "77549399552de45a898a580c1b41d445bf730df867cc44e6c0233bbc4b8329de"
+checksum = "5e1788eed21689f9cf370582dfc467ef36ed9c707f073528ddafa8d83e3b8500"
 dependencies = [
  "digest 0.10.7",
  "rand_core 0.6.4",
@@ -6530,7 +6533,7 @@ dependencies = [
  "snowbridge-amcl",
  "sp1-core-executor",
  "sp1-curves",
- "sp1-derive",
+ "sp1-derive 3.0.0-rc4",
  "sp1-primitives",
  "sp1-stark",
  "static_assertions",
@@ -6590,6 +6593,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "sp1-derive"
+version = "3.0.0-rc4"
+source = "git+https://github.com/succinctlabs/sp1.git?branch=secp256r1#5b68d20df691824b06e834373fbaed50cfcdfd5d"
+dependencies = [
+ "quote",
+ "syn 1.0.109",
+]
+
+[[package]]
 name = "sp1-lib"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6614,7 +6626,16 @@ dependencies = [
 [[package]]
 name = "sp1-lib"
 version = "3.0.0-rc4"
-source = "git+https://github.com/succinctlabs/sp1.git?branch=dev#8f1749e31f92d2587fdf9e6f708708a10947d41f"
+source = "git+https://github.com/succinctlabs/sp1.git?branch=dev#ca71f2d22151f98dbb9ab2d3836cb4016fee891e"
+dependencies = [
+ "bincode",
+ "serde",
+]
+
+[[package]]
+name = "sp1-lib"
+version = "3.0.0-rc4"
+source = "git+https://github.com/succinctlabs/sp1.git?branch=secp256r1#5b68d20df691824b06e834373fbaed50cfcdfd5d"
 dependencies = [
  "bincode",
  "serde",
@@ -6699,7 +6720,7 @@ dependencies = [
  "serde",
  "sp1-core-executor",
  "sp1-core-machine",
- "sp1-derive",
+ "sp1-derive 3.0.0-rc4",
  "sp1-primitives",
  "sp1-recursion-compiler",
  "sp1-recursion-core",
@@ -6752,7 +6773,7 @@ dependencies = [
  "p3-util",
  "serde",
  "sp1-core-machine",
- "sp1-derive",
+ "sp1-derive 3.0.0-rc4",
  "sp1-primitives",
  "sp1-stark",
  "static_assertions",
@@ -6859,7 +6880,7 @@ dependencies = [
  "p3-util",
  "rayon-scan",
  "serde",
- "sp1-derive",
+ "sp1-derive 3.0.0-rc4",
  "sp1-primitives",
  "strum",
  "strum_macros",
@@ -8301,11 +8322,6 @@ dependencies = [
  "sha3",
  "subtle",
 ]
-
-[[patch.unused]]
-name = "ecdsa"
-version = "0.16.8"
-source = "git+https://github.com/sp1-patches/signatures?branch=umadayal/secp256r1#71b9101d6ab709583f868e3dec32343b7cc43e0b"
 
 [[patch.unused]]
 name = "sha2"
