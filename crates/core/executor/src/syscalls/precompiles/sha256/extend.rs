@@ -1,6 +1,6 @@
 use crate::{
-    events::ShaExtendEvent,
-    syscalls::{Syscall, SyscallContext},
+    events::{PrecompileEvent, ShaExtendEvent},
+    syscalls::{Syscall, SyscallCode, SyscallContext},
 };
 
 pub(crate) struct Sha256ExtendSyscall;
@@ -10,7 +10,13 @@ impl Syscall for Sha256ExtendSyscall {
         48
     }
 
-    fn execute(&self, rt: &mut SyscallContext, arg1: u32, arg2: u32) -> Option<u32> {
+    fn execute(
+        &self,
+        rt: &mut SyscallContext,
+        syscall_code: SyscallCode,
+        arg1: u32,
+        arg2: u32,
+    ) -> Option<u32> {
         let clk_init = rt.clk;
         let w_ptr = arg1;
         assert!(arg2 == 0, "arg2 must be 0");
@@ -57,11 +63,9 @@ impl Syscall for Sha256ExtendSyscall {
         // Push the SHA extend event.
         let lookup_id = rt.syscall_lookup_id;
         let shard = rt.current_shard();
-        let channel = rt.current_channel();
-        rt.record_mut().sha_extend_events.push(ShaExtendEvent {
+        let event = PrecompileEvent::ShaExtend(ShaExtendEvent {
             lookup_id,
             shard,
-            channel,
             clk: clk_init,
             w_ptr: w_ptr_init,
             w_i_minus_15_reads,
@@ -69,7 +73,11 @@ impl Syscall for Sha256ExtendSyscall {
             w_i_minus_16_reads,
             w_i_minus_7_reads,
             w_i_writes,
+            local_mem_access: rt.postprocess(),
         });
+        let syscall_event =
+            rt.rt.syscall_event(clk_init, syscall_code.syscall_id(), arg1, arg2, lookup_id);
+        rt.record_mut().add_precompile_event(syscall_code, syscall_event, event);
 
         None
     }

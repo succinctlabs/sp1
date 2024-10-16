@@ -11,7 +11,7 @@ use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use sp1_core_executor::{
-    events::{ByteLookupEvent, ByteRecord, EdDecompressEvent, FieldOperation},
+    events::{ByteLookupEvent, ByteRecord, EdDecompressEvent, FieldOperation, PrecompileEvent},
     syscalls::SyscallCode,
     ExecutionRecord, Program,
 };
@@ -23,13 +23,13 @@ use sp1_curves::{
     params::{limbs_from_vec, FieldParameters, Limbs},
 };
 use sp1_derive::AlignedBorrow;
-use sp1_stark::air::{BaseAirBuilder, MachineAir, SP1AirBuilder};
+use sp1_stark::air::{BaseAirBuilder, InteractionScope, MachineAir, SP1AirBuilder};
 use typenum::U32;
 
 use crate::{
     memory::{MemoryReadCols, MemoryWriteCols},
     operations::field::{field_op::FieldOpCols, field_sqrt::FieldSqrtCols, range::FieldLtCols},
-    utils::{limbs_from_access, limbs_from_prev_access, pad_rows},
+    utils::{limbs_from_access, limbs_from_prev_access, pad_rows_fixed},
 };
 
 pub const NUM_ED_DECOMPRESS_COLS: usize = size_of::<EdDecompressCols<u8>>();
@@ -44,7 +44,6 @@ pub const NUM_ED_DECOMPRESS_COLS: usize = size_of::<EdDecompressCols<u8>>();
 pub struct EdDecompressCols<T> {
     pub is_real: T,
     pub shard: T,
-    pub channel: T,
     pub clk: T,
     pub nonce: T,
     pub ptr: T,
@@ -70,7 +69,6 @@ impl<F: PrimeField32> EdDecompressCols<F> {
         let mut new_byte_lookup_events = Vec::new();
         self.is_real = F::from_bool(true);
         self.shard = F::from_canonical_u32(event.shard);
-        self.channel = F::from_canonical_u8(event.channel);
         self.clk = F::from_canonical_u32(event.clk);
         self.ptr = F::from_canonical_u32(event.ptr);
         self.nonce = F::from_canonical_u32(
@@ -78,20 +76,12 @@ impl<F: PrimeField32> EdDecompressCols<F> {
         );
         self.sign = F::from_bool(event.sign);
         for i in 0..8 {
-            self.x_access[i].populate(
-                event.channel,
-                event.x_memory_records[i],
-                &mut new_byte_lookup_events,
-            );
-            self.y_access[i].populate(
-                event.channel,
-                event.y_memory_records[i],
-                &mut new_byte_lookup_events,
-            );
+            self.x_access[i].populate(event.x_memory_records[i], &mut new_byte_lookup_events);
+            self.y_access[i].populate(event.y_memory_records[i], &mut new_byte_lookup_events);
         }
 
         let y = &BigUint::from_bytes_le(&event.y_bytes);
-        self.populate_field_ops::<E>(&mut new_byte_lookup_events, event.shard, event.channel, y);
+        self.populate_field_ops::<E>(&mut new_byte_lookup_events, event.shard, y);
 
         record.add_byte_lookup_events(new_byte_lookup_events);
     }
@@ -100,26 +90,17 @@ impl<F: PrimeField32> EdDecompressCols<F> {
         &mut self,
         blu_events: &mut Vec<ByteLookupEvent>,
         shard: u32,
-        channel: u8,
         y: &BigUint,
     ) {
         let one = BigUint::one();
-        self.y_range.populate(blu_events, shard, channel, y, &Ed25519BaseField::modulus());
-        let yy = self.yy.populate(blu_events, shard, channel, y, y, FieldOperation::Mul);
-        let u = self.u.populate(blu_events, shard, channel, &yy, &one, FieldOperation::Sub);
-        let dyy = self.dyy.populate(
-            blu_events,
-            shard,
-            channel,
-            &E::d_biguint(),
-            &yy,
-            FieldOperation::Mul,
-        );
-        let v = self.v.populate(blu_events, shard, channel, &one, &dyy, FieldOperation::Add);
-        let u_div_v =
-            self.u_div_v.populate(blu_events, shard, channel, &u, &v, FieldOperation::Div);
-        let x = self.x.populate(blu_events, shard, channel, &u_div_v, ed25519_sqrt);
-        self.neg_x.populate(blu_events, shard, channel, &BigUint::zero(), &x, FieldOperation::Sub);
+        self.y_range.populate(blu_events, shard, y, &Ed25519BaseField::modulus());
+        let yy = self.yy.populate(blu_events, shard, y, y, FieldOperation::Mul);
+        let u = self.u.populate(blu_events, shard, &yy, &one, FieldOperation::Sub);
+        let dyy = self.dyy.populate(blu_events, shard, &E::d_biguint(), &yy, FieldOperation::Mul);
+        let v = self.v.populate(blu_events, shard, &one, &dyy, FieldOperation::Add);
+        let u_div_v = self.u_div_v.populate(blu_events, shard, &u, &v, FieldOperation::Div);
+        let x = self.x.populate(blu_events, shard, &u_div_v, ed25519_sqrt);
+        self.neg_x.populate(blu_events, shard, &BigUint::zero(), &x, FieldOperation::Sub);
     }
 }
 
@@ -138,38 +119,24 @@ impl<V: Copy> EdDecompressCols<V> {
             builder,
             &y,
             &limbs_from_vec::<AB::Expr, P::Limbs, AB::F>(max_num_limbs),
-            self.shard,
-            self.channel,
             self.is_real,
         );
-        self.yy.eval(builder, &y, &y, FieldOperation::Mul, self.shard, self.channel, self.is_real);
+        self.yy.eval(builder, &y, &y, FieldOperation::Mul, self.is_real);
         self.u.eval(
             builder,
             &self.yy.result,
             &[AB::Expr::one()].iter(),
             FieldOperation::Sub,
-            self.shard,
-            self.channel,
             self.is_real,
         );
         let d_biguint = E::d_biguint();
         let d_const = E::BaseField::to_limbs_field::<AB::F, _>(&d_biguint);
-        self.dyy.eval(
-            builder,
-            &d_const,
-            &self.yy.result,
-            FieldOperation::Mul,
-            self.shard,
-            self.channel,
-            self.is_real,
-        );
+        self.dyy.eval(builder, &d_const, &self.yy.result, FieldOperation::Mul, self.is_real);
         self.v.eval(
             builder,
             &[AB::Expr::one()].iter(),
             &self.dyy.result,
             FieldOperation::Add,
-            self.shard,
-            self.channel,
             self.is_real,
         );
         self.u_div_v.eval(
@@ -177,31 +144,19 @@ impl<V: Copy> EdDecompressCols<V> {
             &self.u.result,
             &self.v.result,
             FieldOperation::Div,
-            self.shard,
-            self.channel,
             self.is_real,
         );
-        self.x.eval(
-            builder,
-            &self.u_div_v.result,
-            AB::F::zero(),
-            self.shard,
-            self.channel,
-            self.is_real,
-        );
+        self.x.eval(builder, &self.u_div_v.result, AB::F::zero(), self.is_real);
         self.neg_x.eval(
             builder,
             &[AB::Expr::zero()].iter(),
             &self.x.multiplication.result,
             FieldOperation::Sub,
-            self.shard,
-            self.channel,
             self.is_real,
         );
 
         builder.eval_memory_access_slice(
             self.shard,
-            self.channel,
             self.clk,
             self.ptr,
             &self.x_access,
@@ -209,7 +164,6 @@ impl<V: Copy> EdDecompressCols<V> {
         );
         builder.eval_memory_access_slice(
             self.shard,
-            self.channel,
             self.clk,
             self.ptr.into() + AB::F::from_canonical_u32(32),
             &self.y_access,
@@ -226,13 +180,13 @@ impl<V: Copy> EdDecompressCols<V> {
 
         builder.receive_syscall(
             self.shard,
-            self.channel,
             self.clk,
             self.nonce,
             AB::F::from_canonical_u32(SyscallCode::ED_DECOMPRESS.syscall_id()),
             self.ptr,
             self.sign,
             self.is_real,
+            InteractionScope::Local,
         );
     }
 }
@@ -263,9 +217,14 @@ impl<F: PrimeField32, E: EdwardsParameters> MachineAir<F> for EdDecompressChip<E
         output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
         let mut rows = Vec::new();
+        let events = input.get_precompile_events(SyscallCode::ED_DECOMPRESS);
 
-        for i in 0..input.ed_decompress_events.len() {
-            let event = &input.ed_decompress_events[i];
+        for (_, event) in events {
+            let event = if let PrecompileEvent::EdDecompress(event) = event {
+                event
+            } else {
+                unreachable!();
+            };
             let mut row = [F::zero(); NUM_ED_DECOMPRESS_COLS];
             let cols: &mut EdDecompressCols<F> = row.as_mut_slice().borrow_mut();
             cols.populate::<E::BaseField, E>(event.clone(), output);
@@ -273,13 +232,17 @@ impl<F: PrimeField32, E: EdwardsParameters> MachineAir<F> for EdDecompressChip<E
             rows.push(row);
         }
 
-        pad_rows(&mut rows, || {
-            let mut row = [F::zero(); NUM_ED_DECOMPRESS_COLS];
-            let cols: &mut EdDecompressCols<F> = row.as_mut_slice().borrow_mut();
-            let zero = BigUint::zero();
-            cols.populate_field_ops::<E>(&mut vec![], 0, 0, &zero);
-            row
-        });
+        pad_rows_fixed(
+            &mut rows,
+            || {
+                let mut row = [F::zero(); NUM_ED_DECOMPRESS_COLS];
+                let cols: &mut EdDecompressCols<F> = row.as_mut_slice().borrow_mut();
+                let zero = BigUint::zero();
+                cols.populate_field_ops::<E>(&mut vec![], 0, &zero);
+                row
+            },
+            input.fixed_log2_rows::<F, _>(self),
+        );
 
         let mut trace = RowMajorMatrix::new(
             rows.into_iter().flatten().collect::<Vec<_>>(),
@@ -298,7 +261,11 @@ impl<F: PrimeField32, E: EdwardsParameters> MachineAir<F> for EdDecompressChip<E
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
-        !shard.ed_decompress_events.is_empty()
+        if let Some(shape) = shard.shape.as_ref() {
+            shape.included::<F, _>(self)
+        } else {
+            !shard.get_precompile_events(SyscallCode::ED_DECOMPRESS).is_empty()
+        }
     }
 }
 

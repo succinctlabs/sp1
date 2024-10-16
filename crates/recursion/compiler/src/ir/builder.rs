@@ -1,4 +1,4 @@
-use std::{iter::Zip, vec::IntoIter};
+use std::{cell::UnsafeCell, iter::Zip, ptr, vec::IntoIter};
 
 use backtrace::Backtrace;
 use p3_field::AbstractField;
@@ -6,8 +6,9 @@ use sp1_core_machine::utils::sp1_debug_mode;
 use sp1_primitives::types::RecursionProgramType;
 
 use super::{
-    Array, Config, DslIr, Ext, Felt, FromConstant, SymbolicExt, SymbolicFelt, SymbolicUsize,
-    SymbolicVar, Usize, Var, Variable,
+    Array, Config, DslIr, Ext, ExtHandle, ExtOperations, Felt, FeltHandle, FeltOperations,
+    FromConstant, SymbolicExt, SymbolicFelt, SymbolicUsize, SymbolicVar, Usize, Var, VarHandle,
+    VarOperations, Variable,
 };
 
 /// TracedVec is a Vec wrapper that records a trace whenever an element is pushed. When extending
@@ -76,17 +77,25 @@ impl<T> IntoIterator for TracedVec<T> {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct InnerBuilder<C: Config> {
+    pub(crate) variable_count: u32,
+    pub operations: TracedVec<DslIr<C>>,
+}
+
 /// A builder for the DSL.
 ///
 /// Can compile to both assembly and a set of constraints.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Builder<C: Config> {
-    pub(crate) variable_count: u32,
-    pub operations: TracedVec<DslIr<C>>,
+    pub(crate) inner: Box<UnsafeCell<InnerBuilder<C>>>,
     pub(crate) nb_public_values: Option<Var<C::N>>,
     pub(crate) witness_var_count: u32,
     pub(crate) witness_felt_count: u32,
     pub(crate) witness_ext_count: u32,
+    pub(crate) var_handle: Box<VarHandle<C::N>>,
+    pub(crate) felt_handle: Box<FeltHandle<C::F>>,
+    pub(crate) ext_handle: Box<ExtHandle<C::F, C::EF>>,
     pub(crate) p2_hash_num: Var<C::N>,
     pub(crate) debug: bool,
     pub(crate) is_sub_builder: bool,
@@ -102,15 +111,29 @@ impl<C: Config> Default for Builder<C> {
 impl<C: Config> Builder<C> {
     pub fn new(program_type: RecursionProgramType) -> Self {
         // We need to create a temporary placeholder for the p2_hash_num variable.
-        let placeholder_p2_hash_num = Var::new(0);
+        let placeholder_p2_hash_num = Var::new(0, ptr::null_mut());
+
+        let mut inner = Box::new(UnsafeCell::new(InnerBuilder {
+            variable_count: 0,
+            operations: Default::default(),
+        }));
+
+        let var_handle = Box::new(VarOperations::var_handle(&mut inner));
+        let mut ext_handle = Box::new(ExtOperations::ext_handle(&mut inner));
+        let felt_handle = Box::new(FeltOperations::felt_handle(
+            &mut inner,
+            ext_handle.as_mut() as *mut _ as *mut (),
+        ));
 
         let mut new_builder = Self {
-            variable_count: 0,
+            inner,
             witness_var_count: 0,
             witness_felt_count: 0,
             witness_ext_count: 0,
-            operations: Default::default(),
             nb_public_values: None,
+            var_handle,
+            felt_handle,
+            ext_handle,
             p2_hash_num: placeholder_p2_hash_num,
             debug: false,
             is_sub_builder: false,
@@ -129,31 +152,35 @@ impl<C: Config> Builder<C> {
         debug: bool,
         program_type: RecursionProgramType,
     ) -> Self {
-        Self {
-            variable_count,
-            // Witness counts are only used when the target is a gnark circuit.  And sub-builders
-            // are not used when the target is a gnark circuit, so it's fine to set the
-            // witness counts to 0.
-            witness_var_count: 0,
-            witness_felt_count: 0,
-            witness_ext_count: 0,
-            operations: Default::default(),
-            nb_public_values,
-            p2_hash_num,
-            debug,
-            is_sub_builder: true,
-            program_type,
-        }
+        let mut builder = Self::new(program_type);
+        builder.inner.get_mut().variable_count = variable_count;
+        builder.nb_public_values = nb_public_values;
+        builder.p2_hash_num = p2_hash_num;
+        builder.debug = debug;
+
+        builder
     }
 
     /// Pushes an operation to the builder.
-    pub fn push(&mut self, op: DslIr<C>) {
-        self.operations.push(op);
+    pub fn push_op(&mut self, op: DslIr<C>) {
+        self.inner.get_mut().operations.push(op);
+    }
+
+    pub fn extend_ops(&mut self, ops: impl IntoIterator<Item = (DslIr<C>, Option<Backtrace>)>) {
+        self.inner.get_mut().operations.extend(ops);
     }
 
     /// Pushes an operation to the builder and records a trace if SP1_DEBUG.
     pub fn trace_push(&mut self, op: DslIr<C>) {
-        self.operations.trace_push(op);
+        self.inner.get_mut().operations.trace_push(op);
+    }
+
+    pub fn variable_count(&self) -> u32 {
+        unsafe { (*self.inner.get()).variable_count }
+    }
+
+    pub fn into_operations(self) -> TracedVec<DslIr<C>> {
+        self.inner.into_inner().operations
     }
 
     /// Creates an uninitialized variable.
@@ -279,7 +306,7 @@ impl<C: Config> Builder<C> {
 
     pub fn lt(&mut self, lhs: Var<C::N>, rhs: Var<C::N>) -> Var<C::N> {
         let result = self.uninit();
-        self.operations.push(DslIr::LessThan(result, lhs, rhs));
+        self.push_op(DslIr::LessThan(result, lhs, rhs));
         result
     }
 
@@ -312,7 +339,7 @@ impl<C: Config> Builder<C> {
 
     /// Break out of a loop.
     pub fn break_loop(&mut self) {
-        self.operations.push(DslIr::Break);
+        self.push_op(DslIr::Break);
     }
 
     pub fn print_debug(&mut self, val: usize) {
@@ -322,23 +349,23 @@ impl<C: Config> Builder<C> {
 
     /// Print a variable.
     pub fn print_v(&mut self, dst: Var<C::N>) {
-        self.operations.push(DslIr::PrintV(dst));
+        self.push_op(DslIr::PrintV(dst));
     }
 
     /// Print a felt.
     pub fn print_f(&mut self, dst: Felt<C::F>) {
-        self.operations.push(DslIr::PrintF(dst));
+        self.push_op(DslIr::PrintF(dst));
     }
 
     /// Print an ext.
     pub fn print_e(&mut self, dst: Ext<C::F, C::EF>) {
-        self.operations.push(DslIr::PrintE(dst));
+        self.push_op(DslIr::PrintE(dst));
     }
 
     /// Hint the length of the next vector of variables.
     pub fn hint_len(&mut self) -> Var<C::N> {
         let len = self.uninit();
-        self.operations.push(DslIr::HintLen(len));
+        self.push_op(DslIr::HintLen(len));
         len
     }
 
@@ -346,7 +373,7 @@ impl<C: Config> Builder<C> {
     pub fn hint_var(&mut self) -> Var<C::N> {
         let len = self.hint_len();
         let arr = self.dyn_array(len);
-        self.operations.push(DslIr::HintVars(arr.clone()));
+        self.push_op(DslIr::HintVars(arr.clone()));
         self.get(&arr, 0)
     }
 
@@ -354,7 +381,7 @@ impl<C: Config> Builder<C> {
     pub fn hint_felt(&mut self) -> Felt<C::F> {
         let len = self.hint_len();
         let arr = self.dyn_array(len);
-        self.operations.push(DslIr::HintFelts(arr.clone()));
+        self.push_op(DslIr::HintFelts(arr.clone()));
         self.get(&arr, 0)
     }
 
@@ -362,7 +389,7 @@ impl<C: Config> Builder<C> {
     pub fn hint_ext(&mut self) -> Ext<C::F, C::EF> {
         let len = self.hint_len();
         let arr = self.dyn_array(len);
-        self.operations.push(DslIr::HintExts(arr.clone()));
+        self.push_op(DslIr::HintExts(arr.clone()));
         self.get(&arr, 0)
     }
 
@@ -370,7 +397,7 @@ impl<C: Config> Builder<C> {
     pub fn hint_vars(&mut self) -> Array<C, Var<C::N>> {
         let len = self.hint_len();
         let arr = self.dyn_array(len);
-        self.operations.push(DslIr::HintVars(arr.clone()));
+        self.push_op(DslIr::HintVars(arr.clone()));
         arr
     }
 
@@ -378,7 +405,7 @@ impl<C: Config> Builder<C> {
     pub fn hint_felts(&mut self) -> Array<C, Felt<C::F>> {
         let len = self.hint_len();
         let arr = self.dyn_array(len);
-        self.operations.push(DslIr::HintFelts(arr.clone()));
+        self.push_op(DslIr::HintFelts(arr.clone()));
         arr
     }
 
@@ -386,14 +413,14 @@ impl<C: Config> Builder<C> {
     pub fn hint_exts(&mut self) -> Array<C, Ext<C::F, C::EF>> {
         let len = self.hint_len();
         let arr = self.dyn_array(len);
-        self.operations.push(DslIr::HintExts(arr.clone()));
+        self.push_op(DslIr::HintExts(arr.clone()));
         arr
     }
 
     pub fn witness_var(&mut self) -> Var<C::N> {
         assert!(!self.is_sub_builder, "Cannot create a witness var with a sub builder");
         let witness = self.uninit();
-        self.operations.push(DslIr::WitnessVar(witness, self.witness_var_count));
+        self.push_op(DslIr::WitnessVar(witness, self.witness_var_count));
         self.witness_var_count += 1;
         witness
     }
@@ -401,7 +428,7 @@ impl<C: Config> Builder<C> {
     pub fn witness_felt(&mut self) -> Felt<C::F> {
         assert!(!self.is_sub_builder, "Cannot create a witness felt with a sub builder");
         let witness = self.uninit();
-        self.operations.push(DslIr::WitnessFelt(witness, self.witness_felt_count));
+        self.push_op(DslIr::WitnessFelt(witness, self.witness_felt_count));
         self.witness_felt_count += 1;
         witness
     }
@@ -409,14 +436,14 @@ impl<C: Config> Builder<C> {
     pub fn witness_ext(&mut self) -> Ext<C::F, C::EF> {
         assert!(!self.is_sub_builder, "Cannot create a witness ext with a sub builder");
         let witness = self.uninit();
-        self.operations.push(DslIr::WitnessExt(witness, self.witness_ext_count));
+        self.push_op(DslIr::WitnessExt(witness, self.witness_ext_count));
         self.witness_ext_count += 1;
         witness
     }
 
     /// Throws an error.
     pub fn error(&mut self) {
-        self.operations.trace_push(DslIr::Error());
+        self.trace_push(DslIr::Error());
     }
 
     /// Materializes a usize into a variable.
@@ -429,7 +456,7 @@ impl<C: Config> Builder<C> {
 
     /// Register a felt as public value.  This is append to the proof's public values buffer.
     pub fn register_public_value(&mut self, val: Felt<C::F>) {
-        self.operations.push(DslIr::RegisterPublicValue(val));
+        self.push_op(DslIr::RegisterPublicValue(val));
     }
 
     /// Register and commits a felt as public value.  This value will be constrained when verified.
@@ -440,7 +467,7 @@ impl<C: Config> Builder<C> {
         }
         let nb_public_values = *self.nb_public_values.as_ref().unwrap();
 
-        self.operations.push(DslIr::Commit(val, nb_public_values));
+        self.push_op(DslIr::Commit(val, nb_public_values));
         self.assign(nb_public_values, nb_public_values + C::N::one());
     }
 
@@ -455,33 +482,34 @@ impl<C: Config> Builder<C> {
     }
 
     pub fn commit_vkey_hash_circuit(&mut self, var: Var<C::N>) {
-        self.operations.push(DslIr::CircuitCommitVkeyHash(var));
+        self.push_op(DslIr::CircuitCommitVkeyHash(var));
     }
 
-    pub fn commit_commited_values_digest_circuit(&mut self, var: Var<C::N>) {
-        self.operations.push(DslIr::CircuitCommitCommitedValuesDigest(var));
+    pub fn commit_committed_values_digest_circuit(&mut self, var: Var<C::N>) {
+        self.push_op(DslIr::CircuitCommitCommittedValuesDigest(var));
     }
 
     pub fn reduce_e(&mut self, ext: Ext<C::F, C::EF>) {
-        self.operations.push(DslIr::ReduceE(ext));
+        self.push_op(DslIr::ReduceE(ext));
     }
 
     pub fn felt2var_circuit(&mut self, felt: Felt<C::F>) -> Var<C::N> {
         let var = self.uninit();
-        self.operations.push(DslIr::CircuitFelt2Var(felt, var));
+        self.push_op(DslIr::CircuitFelt2Var(felt, var));
         var
     }
 
     pub fn cycle_tracker(&mut self, name: &str) {
-        self.operations.push(DslIr::CycleTracker(name.to_string()));
+        self.push_op(DslIr::CycleTracker(name.to_string()));
     }
 
     pub fn halt(&mut self) {
-        self.operations.push(DslIr::Halt);
+        self.push_op(DslIr::Halt);
     }
 }
 
 /// A builder for the DSL that handles if statements.
+#[allow(dead_code)]
 pub struct IfBuilder<'a, C: Config> {
     lhs: SymbolicVar<C::N>,
     rhs: SymbolicVar<C::N>,
@@ -490,6 +518,7 @@ pub struct IfBuilder<'a, C: Config> {
 }
 
 /// A set of conditions that if statements can be based on.
+#[allow(dead_code)]
 enum IfCondition<N> {
     EqConst(N, N),
     NeConst(N, N),
@@ -506,7 +535,7 @@ impl<'a, C: Config> IfBuilder<'a, C> {
 
         // Execute the `then` block and collect the instructions.
         let mut f_builder = Builder::<C>::new_sub_builder(
-            self.builder.variable_count,
+            self.builder.variable_count(),
             self.builder.nb_public_values,
             self.builder.p2_hash_num,
             self.builder.debug,
@@ -515,35 +544,35 @@ impl<'a, C: Config> IfBuilder<'a, C> {
         f(&mut f_builder);
         self.builder.p2_hash_num = f_builder.p2_hash_num;
 
-        let then_instructions = f_builder.operations;
+        let then_instructions = f_builder.into_operations();
 
         // Dispatch instructions to the correct conditional block.
         match condition {
             IfCondition::EqConst(lhs, rhs) => {
                 if lhs == rhs {
-                    self.builder.operations.extend(then_instructions);
+                    self.builder.extend_ops(then_instructions);
                 }
             }
             IfCondition::NeConst(lhs, rhs) => {
                 if lhs != rhs {
-                    self.builder.operations.extend(then_instructions);
+                    self.builder.extend_ops(then_instructions);
                 }
             }
             IfCondition::Eq(lhs, rhs) => {
                 let op = DslIr::IfEq(Box::new((lhs, rhs, then_instructions, Default::default())));
-                self.builder.operations.push(op);
+                self.builder.push_op(op);
             }
             IfCondition::EqI(lhs, rhs) => {
                 let op = DslIr::IfEqI(Box::new((lhs, rhs, then_instructions, Default::default())));
-                self.builder.operations.push(op);
+                self.builder.push_op(op);
             }
             IfCondition::Ne(lhs, rhs) => {
                 let op = DslIr::IfNe(Box::new((lhs, rhs, then_instructions, Default::default())));
-                self.builder.operations.push(op);
+                self.builder.push_op(op);
             }
             IfCondition::NeI(lhs, rhs) => {
                 let op = DslIr::IfNeI(Box::new((lhs, rhs, then_instructions, Default::default())));
-                self.builder.operations.push(op);
+                self.builder.push_op(op);
             }
         }
     }
@@ -556,7 +585,7 @@ impl<'a, C: Config> IfBuilder<'a, C> {
         // Get the condition reduced from the expressions for lhs and rhs.
         let condition = self.condition();
         let mut then_builder = Builder::<C>::new_sub_builder(
-            self.builder.variable_count,
+            self.builder.variable_count(),
             self.builder.nb_public_values,
             self.builder.p2_hash_num,
             self.builder.debug,
@@ -567,10 +596,10 @@ impl<'a, C: Config> IfBuilder<'a, C> {
         then_f(&mut then_builder);
         self.builder.p2_hash_num = then_builder.p2_hash_num;
 
-        let then_instructions = then_builder.operations;
+        let then_instructions = then_builder.into_operations();
 
         let mut else_builder = Builder::<C>::new_sub_builder(
-            self.builder.variable_count,
+            self.builder.variable_count(),
             self.builder.nb_public_values,
             self.builder.p2_hash_num,
             self.builder.debug,
@@ -579,112 +608,113 @@ impl<'a, C: Config> IfBuilder<'a, C> {
         else_f(&mut else_builder);
         self.builder.p2_hash_num = else_builder.p2_hash_num;
 
-        let else_instructions = else_builder.operations;
+        let else_instructions = else_builder.into_operations();
 
         // Dispatch instructions to the correct conditional block.
         match condition {
             IfCondition::EqConst(lhs, rhs) => {
                 if lhs == rhs {
-                    self.builder.operations.extend(then_instructions);
+                    self.builder.extend_ops(then_instructions);
                 } else {
-                    self.builder.operations.extend(else_instructions);
+                    self.builder.extend_ops(else_instructions);
                 }
             }
             IfCondition::NeConst(lhs, rhs) => {
                 if lhs != rhs {
-                    self.builder.operations.extend(then_instructions);
+                    self.builder.extend_ops(then_instructions);
                 } else {
-                    self.builder.operations.extend(else_instructions);
+                    self.builder.extend_ops(else_instructions);
                 }
             }
             IfCondition::Eq(lhs, rhs) => {
                 let op = DslIr::IfEq(Box::new((lhs, rhs, then_instructions, else_instructions)));
-                self.builder.operations.push(op);
+                self.builder.push_op(op);
             }
             IfCondition::EqI(lhs, rhs) => {
                 let op = DslIr::IfEqI(Box::new((lhs, rhs, then_instructions, else_instructions)));
-                self.builder.operations.push(op);
+                self.builder.push_op(op);
             }
             IfCondition::Ne(lhs, rhs) => {
                 let op = DslIr::IfNe(Box::new((lhs, rhs, then_instructions, else_instructions)));
-                self.builder.operations.push(op);
+                self.builder.push_op(op);
             }
             IfCondition::NeI(lhs, rhs) => {
                 let op = DslIr::IfNeI(Box::new((lhs, rhs, then_instructions, else_instructions)));
-                self.builder.operations.push(op);
+                self.builder.push_op(op);
             }
         }
     }
 
     fn condition(&mut self) -> IfCondition<C::N> {
-        match (self.lhs.clone(), self.rhs.clone(), self.is_eq) {
-            (SymbolicVar::Const(lhs, _), SymbolicVar::Const(rhs, _), true) => {
-                IfCondition::EqConst(lhs, rhs)
-            }
-            (SymbolicVar::Const(lhs, _), SymbolicVar::Const(rhs, _), false) => {
-                IfCondition::NeConst(lhs, rhs)
-            }
-            (SymbolicVar::Const(lhs, _), SymbolicVar::Val(rhs, _), true) => {
-                IfCondition::EqI(rhs, lhs)
-            }
-            (SymbolicVar::Const(lhs, _), SymbolicVar::Val(rhs, _), false) => {
-                IfCondition::NeI(rhs, lhs)
-            }
-            (SymbolicVar::Const(lhs, _), rhs, true) => {
-                let rhs: Var<C::N> = self.builder.eval(rhs);
-                IfCondition::EqI(rhs, lhs)
-            }
-            (SymbolicVar::Const(lhs, _), rhs, false) => {
-                let rhs: Var<C::N> = self.builder.eval(rhs);
-                IfCondition::NeI(rhs, lhs)
-            }
-            (SymbolicVar::Val(lhs, _), SymbolicVar::Const(rhs, _), true) => {
-                let lhs: Var<C::N> = self.builder.eval(lhs);
-                IfCondition::EqI(lhs, rhs)
-            }
-            (SymbolicVar::Val(lhs, _), SymbolicVar::Const(rhs, _), false) => {
-                let lhs: Var<C::N> = self.builder.eval(lhs);
-                IfCondition::NeI(lhs, rhs)
-            }
-            (lhs, SymbolicVar::Const(rhs, _), true) => {
-                let lhs: Var<C::N> = self.builder.eval(lhs);
-                IfCondition::EqI(lhs, rhs)
-            }
-            (lhs, SymbolicVar::Const(rhs, _), false) => {
-                let lhs: Var<C::N> = self.builder.eval(lhs);
-                IfCondition::NeI(lhs, rhs)
-            }
-            (SymbolicVar::Val(lhs, _), SymbolicVar::Val(rhs, _), true) => IfCondition::Eq(lhs, rhs),
-            (SymbolicVar::Val(lhs, _), SymbolicVar::Val(rhs, _), false) => {
-                IfCondition::Ne(lhs, rhs)
-            }
-            (SymbolicVar::Val(lhs, _), rhs, true) => {
-                let rhs: Var<C::N> = self.builder.eval(rhs);
-                IfCondition::Eq(lhs, rhs)
-            }
-            (SymbolicVar::Val(lhs, _), rhs, false) => {
-                let rhs: Var<C::N> = self.builder.eval(rhs);
-                IfCondition::Ne(lhs, rhs)
-            }
-            (lhs, SymbolicVar::Val(rhs, _), true) => {
-                let lhs: Var<C::N> = self.builder.eval(lhs);
-                IfCondition::Eq(lhs, rhs)
-            }
-            (lhs, SymbolicVar::Val(rhs, _), false) => {
-                let lhs: Var<C::N> = self.builder.eval(lhs);
-                IfCondition::Ne(lhs, rhs)
-            }
-            (lhs, rhs, true) => {
-                let lhs: Var<C::N> = self.builder.eval(lhs);
-                let rhs: Var<C::N> = self.builder.eval(rhs);
-                IfCondition::Eq(lhs, rhs)
-            }
-            (lhs, rhs, false) => {
-                let lhs: Var<C::N> = self.builder.eval(lhs);
-                let rhs: Var<C::N> = self.builder.eval(rhs);
-                IfCondition::Ne(lhs, rhs)
-            }
-        }
+        unimplemented!("Deprecated")
+        // match (self.lhs.clone(), self.rhs.clone(), self.is_eq) {
+        //     (SymbolicVar::Const(lhs, _), SymbolicVar::Const(rhs, _), true) => {
+        //         IfCondition::EqConst(lhs, rhs)
+        //     }
+        //     (SymbolicVar::Const(lhs, _), SymbolicVar::Const(rhs, _), false) => {
+        //         IfCondition::NeConst(lhs, rhs)
+        //     }
+        //     (SymbolicVar::Const(lhs, _), SymbolicVar::Val(rhs, _), true) => {
+        //         IfCondition::EqI(rhs, lhs)
+        //     }
+        //     (SymbolicVar::Const(lhs, _), SymbolicVar::Val(rhs, _), false) => {
+        //         IfCondition::NeI(rhs, lhs)
+        //     }
+        //     (SymbolicVar::Const(lhs, _), rhs, true) => {
+        //         let rhs: Var<C::N> = self.builder.eval(rhs);
+        //         IfCondition::EqI(rhs, lhs)
+        //     }
+        //     (SymbolicVar::Const(lhs, _), rhs, false) => {
+        //         let rhs: Var<C::N> = self.builder.eval(rhs);
+        //         IfCondition::NeI(rhs, lhs)
+        //     }
+        //     (SymbolicVar::Val(lhs, _), SymbolicVar::Const(rhs, _), true) => {
+        //         let lhs: Var<C::N> = self.builder.eval(lhs);
+        //         IfCondition::EqI(lhs, rhs)
+        //     }
+        //     (SymbolicVar::Val(lhs, _), SymbolicVar::Const(rhs, _), false) => {
+        //         let lhs: Var<C::N> = self.builder.eval(lhs);
+        //         IfCondition::NeI(lhs, rhs)
+        //     }
+        //     (lhs, SymbolicVar::Const(rhs, _), true) => {
+        //         let lhs: Var<C::N> = self.builder.eval(lhs);
+        //         IfCondition::EqI(lhs, rhs)
+        //     }
+        //     (lhs, SymbolicVar::Const(rhs, _), false) => {
+        //         let lhs: Var<C::N> = self.builder.eval(lhs);
+        //         IfCondition::NeI(lhs, rhs)
+        //     }
+        //     (SymbolicVar::Val(lhs, _), SymbolicVar::Val(rhs, _), true) => IfCondition::Eq(lhs, rhs),
+        //     (SymbolicVar::Val(lhs, _), SymbolicVar::Val(rhs, _), false) => {
+        //         IfCondition::Ne(lhs, rhs)
+        //     }
+        //     (SymbolicVar::Val(lhs, _), rhs, true) => {
+        //         let rhs: Var<C::N> = self.builder.eval(rhs);
+        //         IfCondition::Eq(lhs, rhs)
+        //     }
+        //     (SymbolicVar::Val(lhs, _), rhs, false) => {
+        //         let rhs: Var<C::N> = self.builder.eval(rhs);
+        //         IfCondition::Ne(lhs, rhs)
+        //     }
+        //     (lhs, SymbolicVar::Val(rhs, _), true) => {
+        //         let lhs: Var<C::N> = self.builder.eval(lhs);
+        //         IfCondition::Eq(lhs, rhs)
+        //     }
+        //     (lhs, SymbolicVar::Val(rhs, _), false) => {
+        //         let lhs: Var<C::N> = self.builder.eval(lhs);
+        //         IfCondition::Ne(lhs, rhs)
+        //     }
+        //     (lhs, rhs, true) => {
+        //         let lhs: Var<C::N> = self.builder.eval(lhs);
+        //         let rhs: Var<C::N> = self.builder.eval(rhs);
+        //         IfCondition::Eq(lhs, rhs)
+        //     }
+        //     (lhs, rhs, false) => {
+        //         let lhs: Var<C::N> = self.builder.eval(lhs);
+        //         let rhs: Var<C::N> = self.builder.eval(rhs);
+        //         IfCondition::Ne(lhs, rhs)
+        //     }
+        // }
     }
 }
 
@@ -706,7 +736,7 @@ impl<'a, C: Config> RangeBuilder<'a, C> {
         let step_size = C::N::from_canonical_usize(self.step_size);
         let loop_variable: Var<C::N> = self.builder.uninit();
         let mut loop_body_builder = Builder::<C>::new_sub_builder(
-            self.builder.variable_count,
+            self.builder.variable_count(),
             self.builder.nb_public_values,
             self.builder.p2_hash_num,
             self.builder.debug,
@@ -716,7 +746,7 @@ impl<'a, C: Config> RangeBuilder<'a, C> {
         f(loop_variable, &mut loop_body_builder);
         self.builder.p2_hash_num = loop_body_builder.p2_hash_num;
 
-        let loop_instructions = loop_body_builder.operations;
+        let loop_instructions = loop_body_builder.into_operations();
 
         let op = DslIr::For(Box::new((
             self.start,
@@ -725,6 +755,6 @@ impl<'a, C: Config> RangeBuilder<'a, C> {
             loop_variable,
             loop_instructions,
         )));
-        self.builder.operations.push(op);
+        self.builder.push_op(op);
     }
 }

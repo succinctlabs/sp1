@@ -2,7 +2,7 @@ use std::iter::once;
 
 use p3_air::AirBuilder;
 use sp1_stark::{
-    air::{AirInteraction, BaseAirBuilder},
+    air::{AirInteraction, BaseAirBuilder, InteractionScope},
     InteractionKind,
 };
 
@@ -26,7 +26,10 @@ pub trait ProgramAirBuilder: BaseAirBuilder {
             .chain(once(shard.into()))
             .collect();
 
-        self.send(AirInteraction::new(values, multiplicity.into(), InteractionKind::Program));
+        self.send(
+            AirInteraction::new(values, multiplicity.into(), InteractionKind::Program),
+            InteractionScope::Local,
+        );
     }
 
     /// Receives an instruction.
@@ -45,6 +48,9 @@ pub trait ProgramAirBuilder: BaseAirBuilder {
             .chain(once(shard.into()))
             .collect();
 
-        self.receive(AirInteraction::new(values, multiplicity.into(), InteractionKind::Program));
+        self.receive(
+            AirInteraction::new(values, multiplicity.into(), InteractionKind::Program),
+            InteractionScope::Local,
+        );
     }
 }

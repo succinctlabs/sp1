@@ -11,7 +11,7 @@ pub struct GnarkWitness {
     pub felts: Vec<String>,
     pub exts: Vec<Vec<String>>,
     pub vkey_hash: String,
-    pub commited_values_digest: String,
+    pub committed_values_digest: String,
 }
 
 impl GnarkWitness {
@@ -35,8 +35,8 @@ impl GnarkWitness {
                 })
                 .collect(),
             vkey_hash: witness.vkey_hash.as_canonical_biguint().to_string(),
-            commited_values_digest: witness
-                .commited_values_digest
+            committed_values_digest: witness
+                .committed_values_digest
                 .as_canonical_biguint()
                 .to_string(),
         }

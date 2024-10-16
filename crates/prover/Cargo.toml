@@ -11,13 +11,13 @@ categories = { workspace = true }
 
 [dependencies]
 p3-matrix = { workspace = true }
-sp1-recursion-program = { workspace = true }
-sp1-recursion-circuit = { workspace = true }
 sp1-recursion-compiler = { workspace = true }
 sp1-recursion-core = { workspace = true }
+sp1-recursion-circuit = { workspace = true }
 sp1-recursion-gnark-ffi = { workspace = true }
 sp1-core-machine = { workspace = true }
 sp1-stark = { workspace = true }
+p3-symmetric = { workspace = true }
 sp1-core-executor = { workspace = true }
 sp1-primitives = { workspace = true }
 p3-field = { workspace = true }
@@ -33,7 +33,6 @@ tracing = "0.1.40"
 tracing-subscriber = "0.3.18"
 serde_json = "1.0.121"
 clap = { version = "4.5.9", features = ["derive", "env"] }
-hex = "0.4.3"
 anyhow = "1.0.83"
 dirs = "5.0.1"
 tempfile = "3.10.1"
@@ -41,7 +40,10 @@ subtle-encoding = "0.5.1"
 serial_test = "3.1.1"
 num-bigint = "0.4.6"
 thiserror = "1.0.63"
-oneshot = "0.1.8"
+lru = "0.12.4"
+eyre = "0.6.12"
+reqwest = { version = "0.11", features = ["blocking"] }
+lazy_static = "1.5.0"
 
 [[bin]]
 name = "build_plonk_bn254"
@@ -52,6 +54,14 @@ name = "build_groth16_bn254"
 path = "scripts/build_groth16_bn254.rs"
 
 [[bin]]
+name = "build_compress_vks"
+path = "scripts/build_compress_vks.rs"
+
+[[bin]]
+name = "post_trusted_setup"
+path = "scripts/post_trusted_setup.rs"
+
+[[bin]]
 name = "e2e"
 path = "scripts/e2e.rs"
 
@@ -59,3 +69,4 @@ path = "scripts/e2e.rs"
 neon = ["sp1-core-machine/neon"]
 native-gnark = ["sp1-recursion-gnark-ffi/native"]
 export-tests = []
+debug = ["sp1-core-machine/debug"]

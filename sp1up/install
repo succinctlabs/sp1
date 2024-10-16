@@ -52,7 +52,7 @@ if [[ "$OSTYPE" =~ ^darwin ]] && [[ ! -f /usr/local/opt/libusb/lib/libusb-1.0.0.
     echo && echo "warning: libusb not found. You may need to install it manually on MacOS via Homebrew (brew install libusb)."
 fi
 
-# Warn MacOS users that they may need to manually install opensll via Homebrew:
+# Warn MacOS users that they may need to manually install openssl via Homebrew:
 if [[ "$OSTYPE" =~ ^darwin ]] && [[ ! -f /usr/local/opt/openssl/lib/libssl.3.dylib && ! -f /opt/homebrew/opt/openssl/lib/libssl.3.dylib ]]; then
     echo && echo "warning: libusb not found. You may need to install it manually on MacOS via Homebrew (brew install openssl)."
 fi

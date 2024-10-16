@@ -17,7 +17,6 @@ pub const NUM_SHA_EXTEND_COLS: usize = size_of::<ShaExtendCols<u8>>();
 pub struct ShaExtendCols<T> {
     /// Inputs.
     pub shard: T,
-    pub channel: T,
     pub nonce: T,
     pub clk: T,
     pub w_ptr: T,

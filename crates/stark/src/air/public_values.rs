@@ -10,7 +10,7 @@ use crate::{Word, PROOF_MAX_NUM_PVS};
 /// The number of non padded elements in the SP1 proofs public values vec.
 pub const SP1_PROOF_NUM_PV_ELTS: usize = size_of::<PublicValues<Word<u8>, u8>>();
 
-/// The number of 32 bit words in the SP1 proof's commited value digest.
+/// The number of 32 bit words in the SP1 proof's committed value digest.
 pub const PV_DIGEST_NUM_WORDS: usize = 8;
 
 /// The number of field elements in the poseidon2 digest.
@@ -54,6 +54,9 @@ pub struct PublicValues<W, T> {
 
     /// The bits of the largest address that is witnessed for finalization in the current shard.
     pub last_finalize_addr_bits: [T; 32],
+
+    /// This field is here to ensure that the size of the public values struct is a multiple of 8.
+    pub empty: [T; 3],
 }
 
 impl PublicValues<u32, u32> {
@@ -133,6 +136,7 @@ impl<F: AbstractField> From<PublicValues<u32, u32>> for PublicValues<Word<F>, F>
             last_init_addr_bits,
             previous_finalize_addr_bits,
             last_finalize_addr_bits,
+            ..
         } = value;
 
         let committed_value_digest: [_; PV_DIGEST_NUM_WORDS] =
@@ -163,6 +167,7 @@ impl<F: AbstractField> From<PublicValues<u32, u32>> for PublicValues<Word<F>, F>
             last_init_addr_bits,
             previous_finalize_addr_bits,
             last_finalize_addr_bits,
+            empty: [F::zero(), F::zero(), F::zero()],
         }
     }
 }

@@ -1,8 +1,8 @@
 use serde::{Deserialize, Serialize};
-use sp1_sdk::{utils, ProverClient, SP1ProofWithPublicValues, SP1Stdin};
+use sp1_sdk::{include_elf, utils, ProverClient, SP1ProofWithPublicValues, SP1Stdin};
 
 /// The ELF we want to execute inside the zkVM.
-const ELF: &[u8] = include_bytes!("../../program/elf/riscv32im-succinct-zkvm-elf");
+const ELF: &[u8] = include_elf!("io-program");
 
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
 struct MyPointUnaligned {
@@ -17,16 +17,8 @@ fn main() {
 
     // Create an input stream.
     let mut stdin = SP1Stdin::new();
-    let p = MyPointUnaligned {
-        x: 1,
-        y: 2,
-        b: true,
-    };
-    let q = MyPointUnaligned {
-        x: 3,
-        y: 4,
-        b: false,
-    };
+    let p = MyPointUnaligned { x: 1, y: 2, b: true };
+    let q = MyPointUnaligned { x: 3, y: 4, b: false };
     stdin.write(&p);
     stdin.write(&q);
 
@@ -43,16 +35,12 @@ fn main() {
     client.verify(&proof, &vk).expect("verification failed");
 
     // Test a round trip of proof serialization and deserialization.
-    proof
-        .save("proof-with-pis.bin")
-        .expect("saving proof failed");
+    proof.save("proof-with-pis.bin").expect("saving proof failed");
     let deserialized_proof =
         SP1ProofWithPublicValues::load("proof-with-pis.bin").expect("loading proof failed");
 
     // Verify the deserialized proof.
-    client
-        .verify(&deserialized_proof, &vk)
-        .expect("verification failed");
+    client.verify(&deserialized_proof, &vk).expect("verification failed");
 
     println!("successfully generated and verified proof for the program!")
 }

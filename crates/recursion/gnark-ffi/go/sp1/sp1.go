@@ -26,11 +26,11 @@ var plonkWitnessPath string = "plonk_witness.json"
 var groth16WitnessPath string = "groth16_witness.json"
 
 type Circuit struct {
-	VkeyHash             frontend.Variable `gnark:",public"`
-	CommitedValuesDigest frontend.Variable `gnark:",public"`
-	Vars                 []frontend.Variable
-	Felts                []babybear.Variable
-	Exts                 []babybear.ExtensionVariable
+	VkeyHash              frontend.Variable `gnark:",public"`
+	CommittedValuesDigest frontend.Variable `gnark:",public"`
+	Vars                  []frontend.Variable
+	Felts                 []babybear.Variable
+	Exts                  []babybear.ExtensionVariable
 }
 
 type Constraint struct {
@@ -39,11 +39,11 @@ type Constraint struct {
 }
 
 type WitnessInput struct {
-	Vars                 []string   `json:"vars"`
-	Felts                []string   `json:"felts"`
-	Exts                 [][]string `json:"exts"`
-	VkeyHash             string     `json:"vkey_hash"`
-	CommitedValuesDigest string     `json:"commited_values_digest"`
+	Vars                  []string   `json:"vars"`
+	Felts                 []string   `json:"felts"`
+	Exts                  [][]string `json:"exts"`
+	VkeyHash              string     `json:"vkey_hash"`
+	CommittedValuesDigest string     `json:"committed_values_digest"`
 }
 
 type Proof struct {
@@ -134,6 +134,8 @@ func (circuit *Circuit) Define(api frontend.API) error {
 			exts[cs.Args[0][0]] = fieldAPI.MulEF(exts[cs.Args[1][0]], felts[cs.Args[2][0]])
 		case "DivE":
 			exts[cs.Args[0][0]] = fieldAPI.DivE(exts[cs.Args[1][0]], exts[cs.Args[2][0]])
+		case "DivEF":
+			exts[cs.Args[0][0]] = fieldAPI.DivEF(exts[cs.Args[1][0]], felts[cs.Args[2][0]])
 		case "NegE":
 			exts[cs.Args[0][0]] = fieldAPI.NegE(exts[cs.Args[1][0]])
 		case "InvE":
@@ -182,6 +184,8 @@ func (circuit *Circuit) Define(api frontend.API) error {
 			api.AssertIsEqual(vars[cs.Args[0][0]], vars[cs.Args[1][0]])
 		case "AssertEqF":
 			fieldAPI.AssertIsEqualF(felts[cs.Args[0][0]], felts[cs.Args[1][0]])
+		case "AssertNeF":
+			fieldAPI.AssertNotEqualF(felts[cs.Args[0][0]], felts[cs.Args[1][0]])
 		case "AssertEqE":
 			fieldAPI.AssertIsEqualE(exts[cs.Args[0][0]], exts[cs.Args[1][0]])
 		case "PrintV":
@@ -218,7 +222,7 @@ func (circuit *Circuit) Define(api frontend.API) error {
 			api.AssertIsEqual(circuit.VkeyHash, element)
 		case "CommitCommitedValuesDigest":
 			element := vars[cs.Args[0][0]]
-			api.AssertIsEqual(circuit.CommitedValuesDigest, element)
+			api.AssertIsEqual(circuit.CommittedValuesDigest, element)
 		case "CircuitFelts2Ext":
 			exts[cs.Args[0][0]] = babybear.Felts2Ext(felts[cs.Args[1][0]], felts[cs.Args[2][0]], felts[cs.Args[3][0]], felts[cs.Args[4][0]])
 		case "CircuitFelt2Var":

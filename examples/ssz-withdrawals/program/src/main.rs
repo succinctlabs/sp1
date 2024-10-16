@@ -14,11 +14,10 @@ use hex_literal::hex;
 use ssz_rs::prelude::*;
 use std::collections::HashMap;
 
-fn main() {
+pub fn main() {
     // Get inputs.
-    let beacon_block_root = node_from_bytes(hex!(
-        "d00c4da1a3ad4d42bd35f128544227d19e163194569d69d54a3d14112e3c897c"
-    ));
+    let beacon_block_root =
+        node_from_bytes(hex!("d00c4da1a3ad4d42bd35f128544227d19e163194569d69d54a3d14112e3c897c"));
     let start_slot = 7855804;
     let end_slot = 7855807;
     let eigenpod_address =
@@ -52,9 +51,7 @@ fn main() {
         for index in withdrawal_indexes {
             let withdrawal = prove::withdrawal(historical_block_root, withdrawals_root, index);
 
-            let withdrawable_epoch = withdrawable_epochs
-                .get(&withdrawal.validator_index)
-                .unwrap();
+            let withdrawable_epoch = withdrawable_epochs.get(&withdrawal.validator_index).unwrap();
             if epoch < *withdrawable_epoch {
                 sum += withdrawal.amount;
             }

@@ -11,9 +11,9 @@ Note that to verify an SP1 proof inside SP1, you must generate a "compressed" SP
 
 ### When to use aggregation
 
-Note that by itself, SP1 can already prove arbitarily large programs by chunking the program's execution into multiple "shards" (contiguous batches of cycles) and generating proofs for each shard in parallel, and then recursively aggregating the proofs. Thus, aggregation is generally **not necessary** for most use-cases, as SP1's proving for large programs is already parallelized. However, aggregation can be useful for aggregating computations that require more than the zkVM's limited (~2GB) memory or for aggregating multiple SP1 proofs from different parties into a single proof to save on onchain verification costs.
+Note that by itself, SP1 can already prove arbitrarily large programs by chunking the program's execution into multiple "shards" (contiguous batches of cycles) and generating proofs for each shard in parallel, and then recursively aggregating the proofs. Thus, aggregation is generally **not necessary** for most use-cases, as SP1's proving for large programs is already parallelized. However, aggregation can be useful for aggregating computations that require more than the zkVM's limited (~2GB) memory or for aggregating multiple SP1 proofs from different parties into a single proof to save on onchain verification costs.
 
-## Verifying Proofs inside the zkVM 
+## Verifying Proofs inside the zkVM
 
 To verify a proof inside the zkVM, you can use the `sp1_zkvm::lib::verify::verify_proof` function.
 
@@ -48,7 +48,7 @@ let input_proof = client
 let mut stdin = SP1Stdin::new();
 stdin.write_proof(input_proof, input_vk);
 
-// Generate a proof that will recusively verify / aggregate the input proof.
+// Generate a proof that will recursively verify / aggregate the input proof.
 let aggregation_proof = client
     .prove(&aggregation_pk, stdin)
     .compressed()
@@ -56,4 +56,3 @@ let aggregation_proof = client
     .expect("proving failed");
 
 ```
-

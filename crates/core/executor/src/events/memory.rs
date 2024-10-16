@@ -85,6 +85,42 @@ pub enum MemoryRecordEnum {
     Write(MemoryWriteRecord),
 }
 
+impl MemoryRecordEnum {
+    /// Retrieve the current memory record.
+    #[must_use]
+    pub fn current_record(&self) -> MemoryRecord {
+        match self {
+            MemoryRecordEnum::Read(record) => MemoryRecord {
+                shard: record.shard,
+                timestamp: record.timestamp,
+                value: record.value,
+            },
+            MemoryRecordEnum::Write(record) => MemoryRecord {
+                shard: record.shard,
+                timestamp: record.timestamp,
+                value: record.value,
+            },
+        }
+    }
+
+    /// Retrieve the previous memory record.
+    #[must_use]
+    pub fn previous_record(&self) -> MemoryRecord {
+        match self {
+            MemoryRecordEnum::Read(record) => MemoryRecord {
+                shard: record.prev_shard,
+                timestamp: record.prev_timestamp,
+                value: record.value,
+            },
+            MemoryRecordEnum::Write(record) => MemoryRecord {
+                shard: record.prev_shard,
+                timestamp: record.prev_timestamp,
+                value: record.prev_value,
+            },
+        }
+    }
+}
+
 /// Memory Initialize/Finalize Event.
 ///
 /// This object encapsulates the information needed to prove a memory initialize or finalize
@@ -176,4 +212,19 @@ impl From<MemoryWriteRecord> for MemoryRecordEnum {
     fn from(write_record: MemoryWriteRecord) -> Self {
         MemoryRecordEnum::Write(write_record)
     }
+}
+
+/// Memory Local Event.
+///
+/// This object encapsulates the information needed to prove a memory access operation within a
+/// shard. This includes the address, initial memory access, and final memory access within a
+/// shard.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MemoryLocalEvent {
+    /// The address.
+    pub addr: u32,
+    /// The initial memory access.
+    pub initial_mem_access: MemoryRecord,
+    /// The final memory access.
+    pub final_mem_access: MemoryRecord,
 }

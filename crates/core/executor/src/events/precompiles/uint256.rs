@@ -2,20 +2,18 @@ use serde::{Deserialize, Serialize};
 
 use crate::events::{
     memory::{MemoryReadRecord, MemoryWriteRecord},
-    LookupId,
+    LookupId, MemoryLocalEvent,
 };
 
 /// Uint256 Mul Event.
 ///
 /// This event is emitted when a uint256 mul operation is performed.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize)]
 pub struct Uint256MulEvent {
-    /// The lookup identifer.
+    /// The lookup identifier.
     pub lookup_id: LookupId,
     /// The shard number.
     pub shard: u32,
-    /// The channel number.
-    pub channel: u8,
     /// The clock cycle.
     pub clk: u32,
     /// The pointer to the x value.
@@ -34,4 +32,6 @@ pub struct Uint256MulEvent {
     pub y_memory_records: Vec<MemoryReadRecord>,
     /// The memory records for the modulus.
     pub modulus_memory_records: Vec<MemoryReadRecord>,
+    /// The local memory access records.
+    pub local_mem_access: Vec<MemoryLocalEvent>,
 }

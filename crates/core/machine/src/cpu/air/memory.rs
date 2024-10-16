@@ -72,7 +72,6 @@ impl CpuChip {
             local.op_b_val(),
             local.op_c_val(),
             local.shard,
-            local.channel,
             memory_columns.addr_word_nonce,
             is_memory_instruction.clone(),
         );
@@ -86,12 +85,7 @@ impl CpuChip {
         );
 
         // Check that each addr_word element is a byte.
-        builder.slice_range_check_u8(
-            &memory_columns.addr_word.0,
-            local.shard,
-            local.channel,
-            is_memory_instruction.clone(),
-        );
+        builder.slice_range_check_u8(&memory_columns.addr_word.0, is_memory_instruction.clone());
 
         // Evaluate the addr_offset column and offset flags.
         self.eval_offset_value_flags(builder, memory_columns, local);
@@ -129,7 +123,6 @@ impl CpuChip {
         // value into the memory columns.
         builder.eval_memory_access(
             local.shard,
-            local.channel,
             local.clk + AB::F::from_canonical_u32(MemoryAccessPosition::Memory as u32),
             memory_columns.addr_aligned,
             &memory_columns.memory_access,
@@ -181,7 +174,6 @@ impl CpuChip {
             local.unsigned_mem_val,
             signed_value,
             local.shard,
-            local.channel,
             local.unsigned_mem_val_nonce,
             local.mem_value_is_neg_not_x0,
         );
@@ -214,7 +206,7 @@ impl CpuChip {
 
         // Get the memory offset flags.
         self.eval_offset_value_flags(builder, memory_columns, local);
-        // Compute the offset_is_zero flag.  The other offset flags are already contrained by the
+        // Compute the offset_is_zero flag.  The other offset flags are already constrained by the
         // method `eval_memory_address_and_access`, which is called in
         // `eval_memory_address_and_access`.
         let offset_is_zero = AB::Expr::one()
@@ -279,7 +271,7 @@ impl CpuChip {
     ) {
         let mem_val = *memory_columns.memory_access.value();
 
-        // Compute the offset_is_zero flag.  The other offset flags are already contrained by the
+        // Compute the offset_is_zero flag.  The other offset flags are already constrained by the
         // method `eval_memory_address_and_access`, which is called in
         // `eval_memory_address_and_access`.
         let offset_is_zero = AB::Expr::one()
@@ -294,7 +286,7 @@ impl CpuChip {
             + mem_val[3] * memory_columns.offset_is_three;
         let byte_value = Word::extend_expr::<AB>(mem_byte.clone());
 
-        // When the instruciton is LB or LBU, just use the lower byte.
+        // When the instruction is LB or LBU, just use the lower byte.
         builder
             .when(local.selectors.is_lb + local.selectors.is_lbu)
             .assert_word_eq(byte_value, local.unsigned_mem_val.map(|x| x.into()));

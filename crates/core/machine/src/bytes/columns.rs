@@ -1,7 +1,7 @@
 use sp1_derive::AlignedBorrow;
 use std::mem::size_of;
 
-use super::{NUM_BYTE_LOOKUP_CHANNELS, NUM_BYTE_OPS};
+use super::NUM_BYTE_OPS;
 
 /// The number of main trace columns for `ByteChip`.
 pub const NUM_BYTE_PREPROCESSED_COLS: usize = size_of::<BytePreprocessedCols<u8>>();
@@ -48,18 +48,7 @@ pub struct BytePreprocessedCols<T> {
 /// number of times the operation is used.
 #[derive(Debug, Clone, Copy, AlignedBorrow)]
 #[repr(C)]
-pub struct MultiplicitiesCols<T> {
-    pub multiplicities: [T; NUM_BYTE_OPS],
-}
-
-/// For each byte operation in the preprocessed table, a corresponding ByteMultCols row tracks the
-/// number of times the operation is used.
-#[derive(Debug, Clone, Copy, AlignedBorrow)]
-#[repr(C)]
 pub struct ByteMultCols<T> {
-    /// Shard number is tracked so that the multiplicities do not overflow.
-    pub shard: T,
-
-    /// The multiplicites of each byte operation.
-    pub mult_channels: [MultiplicitiesCols<T>; NUM_BYTE_LOOKUP_CHANNELS as usize],
+    /// The multiplicities of each byte operation.
+    pub multiplicities: [T; NUM_BYTE_OPS],
 }

@@ -7,7 +7,7 @@ use ethers::{
     types::H256,
 };
 
-use crate::proto::network::UnclaimReason;
+use crate::network::proto::network::UnclaimReason;
 
 sol! {
     struct CreateProof {
@@ -32,6 +32,12 @@ sol! {
         string proof_id;
         uint8 reason;
         string description;
+    }
+
+    struct ModifyCpuCycles {
+        uint64 nonce;
+        string proof_id;
+        uint64 cycles;
     }
 
     struct FulfillProof {
@@ -79,7 +85,7 @@ impl NetworkAuth {
         Ok(signature.to_vec())
     }
 
-    /// Signs a message to to request ot create a proof.
+    /// Signs a message to to request to create a proof.
     pub async fn sign_create_proof_message(
         &self,
         nonce: u64,
@@ -113,6 +119,18 @@ impl NetworkAuth {
         description: String,
     ) -> Result<Vec<u8>> {
         let type_struct = UnclaimProof { nonce, proof_id, reason: reason as u8, description };
+        self.sign_message(type_struct).await
+    }
+
+    /// Signs a message to modify the CPU cycles for a proof. The proof must have been previously
+    /// claimed by the signer first.
+    pub async fn sign_modify_cpu_cycles_message(
+        &self,
+        nonce: u64,
+        proof_id: &str,
+        cycles: u64,
+    ) -> Result<Vec<u8>> {
+        let type_struct = ModifyCpuCycles { nonce, proof_id: proof_id.to_string(), cycles };
         self.sign_message(type_struct).await
     }
 

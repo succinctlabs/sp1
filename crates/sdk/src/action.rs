@@ -1,5 +1,6 @@
 use sp1_core_executor::{ExecutionReport, HookEnv, SP1ContextBuilder};
-use sp1_core_machine::io::{SP1PublicValues, SP1Stdin};
+use sp1_core_machine::io::SP1Stdin;
+use sp1_primitives::io::SP1PublicValues;
 use sp1_prover::{components::DefaultProverComponents, SP1ProvingKey};
 
 use anyhow::{Ok, Result};
@@ -120,6 +121,17 @@ impl<'a> Prove<'a> {
         let opts = SP1ProverOpts { core_opts, recursion_opts };
         let proof_opts = ProofOpts { sp1_prover_opts: opts, timeout };
         let context = context_builder.build();
+
+        // Dump the program and stdin to files for debugging if `SP1_DUMP` is set.
+        if std::env::var("SP1_DUMP")
+            .map(|v| v == "1" || v.to_lowercase() == "true")
+            .unwrap_or(false)
+        {
+            let program = pk.elf.clone();
+            std::fs::write("program.bin", program).unwrap();
+            let stdin = bincode::serialize(&stdin).unwrap();
+            std::fs::write("stdin.bin", stdin.clone()).unwrap();
+        }
 
         prover.prove(pk, stdin, proof_opts, context, kind)
     }

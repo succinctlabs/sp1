@@ -38,7 +38,7 @@ To skip the simulation step and directly submit the program for proof generation
 
 ### Use NetworkProver directly
 
-By using the `sp1_sdk::NetworkProver` struct directly, you can call async functions directly and have programmatic access to the proof ID.
+By using the `sp1_sdk::NetworkProver` struct directly, you can call async functions directly and have programmatic access to the proof ID and download proofs by ID.
 
 ```rust,noplayground
 impl NetworkProver {
@@ -46,7 +46,7 @@ impl NetworkProver {
     pub fn new() -> Self;
 
     /// Creates a new [NetworkProver] with the given private key.
-    pub fn new_from_key(private_key: &str) -> Self;
+    pub fn new_from_key(private_key: &str);
 
     /// Requests a proof from the prover network, returning the proof ID.
     pub async fn request_proof(
@@ -56,10 +56,28 @@ impl NetworkProver {
         mode: ProofMode,
     ) -> Result<String>;
 
-    /// Waits for a proof to be generated and returns the proof.
-    pub async fn wait_proof<P: DeserializeOwned>(&self, proof_id: &str) -> Result<P>;
+    /// Waits for a proof to be generated and returns the proof. If a timeout is supplied, the
+    /// function will return an error if the proof is not generated within the timeout.
+    pub async fn wait_proof(
+        &self,
+        proof_id: &str,
+        timeout: Option<Duration>,
+    ) -> Result<SP1ProofWithPublicValues>;
+
+    /// Get the status and the proof if available of a given proof request. The proof is returned
+    /// only if the status is Fulfilled.
+    pub async fn get_proof_status(
+        &self,
+        proof_id: &str,
+    ) -> Result<(GetProofStatusResponse, Option<SP1ProofWithPublicValues>)>;
 
     /// Requests a proof from the prover network and waits for it to be generated.
-    pub async fn prove<P: ProofType>(&self, elf: &[u8], stdin: SP1Stdin) -> Result<P>;
+    pub async fn prove(
+        &self,
+        elf: &[u8],
+        stdin: SP1Stdin,
+        mode: ProofMode,
+        timeout: Option<Duration>,
+    ) -> Result<SP1ProofWithPublicValues>;
 }
 ```

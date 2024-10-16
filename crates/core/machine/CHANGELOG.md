@@ -210,7 +210,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - implement `isEqualWordOperation` and use it in `DivRemChip` ([#103](https://github.com/succinctlabs/sp1/pull/103))
 - Implement `MSB` byte lookup op and use it in ALU tables ([#100](https://github.com/succinctlabs/sp1/pull/100))
 - `IsZero` Operation ([#92](https://github.com/succinctlabs/sp1/pull/92))
-- sha256 compress contraints ([#94](https://github.com/succinctlabs/sp1/pull/94))
+- sha256 compress constraints ([#94](https://github.com/succinctlabs/sp1/pull/94))
 - add4 operations ([#91](https://github.com/succinctlabs/sp1/pull/91))
 - tracing, profiling, benchmarking ([#99](https://github.com/succinctlabs/sp1/pull/99))
 - fix all cargo tests + add ci + rename curta to succinct ([#97](https://github.com/succinctlabs/sp1/pull/97))
@@ -370,7 +370,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Merge branch 'dev' into john/fix-main-regression
 - fix program and permutation trace exports ([#887](https://github.com/succinctlabs/sp1/pull/887))
 - refactor derive, serialize bounds ([#869](https://github.com/succinctlabs/sp1/pull/869))
-- increase byte lookup channes ([#876](https://github.com/succinctlabs/sp1/pull/876))
+- increase byte lookup channels ([#876](https://github.com/succinctlabs/sp1/pull/876))
 - constraint selectors when is_real zero ([#873](https://github.com/succinctlabs/sp1/pull/873))
 - state_mem validity ([#871](https://github.com/succinctlabs/sp1/pull/871))
 - fixes ([#821](https://github.com/succinctlabs/sp1/pull/821))
