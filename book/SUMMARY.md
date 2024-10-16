@@ -6,6 +6,8 @@
 
 [What is a zkVM?](./what-is-a-zkvm.md)
 
+[Example Projects](./examples.md)
+
 # Getting Started
 
 - [Install](./getting-started/install.md)
