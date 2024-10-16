@@ -177,6 +177,14 @@ fn test_k256_patch() {
 }
 
 /// Emits SECP256K1_ADD, SECP256K1_DOUBLE, and SECP256K1_DECOMPRESS syscalls.
+///
+fn test_secp256k1_patch_verify() {
+    let secp = secp256k1::Secp256k1::new();
+    let msg = sha256::Hash::hash(msg);
+    let msg = Secp256k1Message::from_digest_slice(msg.as_ref())?;
+    let sig = Secp256k1RecoverableSignature::from_compact(&sig)?;
+    let pubkey = PublicKey::from_slice(&pubkey)?;
+}
 fn test_secp256k1_patch() {
     let secp = secp256k1::Secp256k1::new();
     let recovery_id = Secp256k1RecoveryId::from_i32(1).unwrap();
