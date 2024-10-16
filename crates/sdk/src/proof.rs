@@ -2,6 +2,7 @@ use std::{fmt::Debug, fs::File, path::Path};
 
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
+use sp1_core_executor::SP1ReduceProof;
 use sp1_core_machine::io::SP1Stdin;
 use sp1_primitives::io::SP1PublicValues;
 use strum_macros::{EnumDiscriminants, EnumTryAs};
@@ -16,7 +17,7 @@ use sp1_stark::{MachineVerificationError, ShardProof};
 pub enum SP1Proof {
     #[strum_discriminants(default)]
     Core(Vec<ShardProof<CoreSC>>),
-    Compressed(ShardProof<InnerSC>),
+    Compressed(Box<SP1ReduceProof<InnerSC>>),
     Plonk(PlonkBn254Proof),
     Groth16(Groth16Bn254Proof),
 }

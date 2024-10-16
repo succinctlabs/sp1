@@ -8,8 +8,8 @@ use sp1_curves::{
 use typenum::Unsigned;
 
 use crate::{
-    events::Fp2MulEvent,
-    syscalls::{Syscall, SyscallContext},
+    events::{Fp2MulEvent, PrecompileEvent},
+    syscalls::{Syscall, SyscallCode, SyscallContext},
 };
 
 pub struct Fp2MulSyscall<P> {
@@ -23,7 +23,13 @@ impl<P> Fp2MulSyscall<P> {
 }
 
 impl<P: FpOpField> Syscall for Fp2MulSyscall<P> {
-    fn execute(&self, rt: &mut SyscallContext, arg1: u32, arg2: u32) -> Option<u32> {
+    fn execute(
+        &self,
+        rt: &mut SyscallContext,
+        syscall_code: SyscallCode,
+        arg1: u32,
+        arg2: u32,
+    ) -> Option<u32> {
         let clk = rt.clk;
         let x_ptr = arg1;
         if x_ptr % 4 != 0 {
@@ -64,32 +70,31 @@ impl<P: FpOpField> Syscall for Fp2MulSyscall<P> {
 
         let lookup_id = rt.syscall_lookup_id;
         let shard = rt.current_shard();
-        let channel = rt.current_channel();
+        let event = Fp2MulEvent {
+            lookup_id,
+            shard,
+            clk,
+            x_ptr,
+            x,
+            y_ptr,
+            y,
+            x_memory_records,
+            y_memory_records,
+            local_mem_access: rt.postprocess(),
+        };
+        let syscall_event =
+            rt.rt.syscall_event(clk, syscall_code.syscall_id(), arg1, arg2, event.lookup_id);
         match P::FIELD_TYPE {
-            FieldType::Bn254 => rt.record_mut().bn254_fp2_mul_events.push(Fp2MulEvent {
-                lookup_id,
-                shard,
-                channel,
-                clk,
-                x_ptr,
-                x,
-                y_ptr,
-                y,
-                x_memory_records,
-                y_memory_records,
-            }),
-            FieldType::Bls12381 => rt.record_mut().bls12381_fp2_mul_events.push(Fp2MulEvent {
-                lookup_id,
-                shard,
-                channel,
-                clk,
-                x_ptr,
-                x,
-                y_ptr,
-                y,
-                x_memory_records,
-                y_memory_records,
-            }),
+            FieldType::Bn254 => rt.record_mut().add_precompile_event(
+                syscall_code,
+                syscall_event,
+                PrecompileEvent::Bn254Fp2Mul(event),
+            ),
+            FieldType::Bls12381 => rt.record_mut().add_precompile_event(
+                syscall_code,
+                syscall_event,
+                PrecompileEvent::Bls12381Fp2Mul(event),
+            ),
         };
         None
     }

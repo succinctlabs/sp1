@@ -1,22 +1,19 @@
 use chips::poseidon2_skinny::WIDTH;
 use core::fmt::Debug;
 use instruction::{FieldEltType, HintBitsInstr, HintExt2FeltsInstr, HintInstr, PrintInstr};
+use itertools::Itertools;
 use p3_field::{
     AbstractExtensionField, AbstractField, Field, PrimeField, PrimeField64, TwoAdicField,
 };
 use sp1_core_machine::utils::{sp1_debug_mode, SpanBuilder};
-use sp1_recursion_core::air::{Block, RecursionPublicValues, RECURSIVE_PROOF_NUM_PV_ELTS};
-use sp1_recursion_core_v2::{BaseAluInstr, BaseAluOpcode};
-use std::{
-    borrow::Borrow,
-    cmp::Ordering,
-    collections::BTreeMap,
-    iter::repeat,
-    mem::{take, transmute},
+use sp1_recursion_core::{
+    air::{Block, RecursionPublicValues, RECURSIVE_PROOF_NUM_PV_ELTS},
+    BaseAluInstr, BaseAluOpcode,
 };
+use std::{borrow::Borrow, collections::HashMap, iter::repeat, mem::transmute};
 use vec_map::VecMap;
 
-use sp1_recursion_core_v2::*;
+use sp1_recursion_core::*;
 
 use crate::prelude::*;
 
@@ -27,7 +24,7 @@ pub struct AsmCompiler<C: Config> {
     /// Map the frame pointers of the variables to the "physical" addresses.
     pub virtual_to_physical: VecMap<Address<C::F>>,
     /// Map base or extension field constants to "physical" addresses and mults.
-    pub consts: BTreeMap<Imm<C::F, C::EF>, Address<C::F>>,
+    pub consts: HashMap<Imm<C::F, C::EF>, (Address<C::F>, C::F)>,
     /// Map each "physical" address to its read count.
     pub addr_to_mult: VecMap<C::F>,
 }
@@ -38,11 +35,12 @@ where
 {
     /// Allocate a fresh address. Checks that the address space is not full.
     pub fn alloc(next_addr: &mut C::F) -> Address<C::F> {
+        let id = Address(*next_addr);
         *next_addr += C::F::one();
         if next_addr.is_zero() {
             panic!("out of address space");
         }
-        Address(*next_addr)
+        id
     }
 
     /// Map `fp` to its existing address without changing its mult.
@@ -107,7 +105,7 @@ where
     ///
     /// Ensures that `addr` has already been assigned a `mult`.
     pub fn read_ghost_addr(&mut self, addr: Address<C::F>) -> &mut C::F {
-        self.read_addr_internal(addr, false)
+        self.read_addr_internal(addr, true)
     }
 
     fn read_addr_internal(&mut self, addr: Address<C::F>, increment_mult: bool) -> &mut C::F {
@@ -142,36 +140,27 @@ where
     ///
     /// Increments the mult, first creating an entry if it does not yet exist.
     pub fn read_const(&mut self, imm: Imm<C::F, C::EF>) -> Address<C::F> {
-        use vec_map::Entry;
-        let addr = *self.consts.entry(imm).or_insert_with(|| Self::alloc(&mut self.next_addr));
-        match self.addr_to_mult.entry(addr.as_usize()) {
-            Entry::Vacant(entry) => drop(entry.insert(C::F::one())),
-            Entry::Occupied(mut entry) => *entry.get_mut() += C::F::one(),
-        }
-        addr
+        self.consts
+            .entry(imm)
+            .and_modify(|(_, x)| *x += C::F::one())
+            .or_insert_with(|| (Self::alloc(&mut self.next_addr), C::F::one()))
+            .0
     }
 
     /// Read a constant (a.k.a. immediate).
     ///    
     /// Does not increment the mult. Creates an entry if it does not yet exist.
     pub fn read_ghost_const(&mut self, imm: Imm<C::F, C::EF>) -> Address<C::F> {
-        let addr = *self.consts.entry(imm).or_insert_with(|| Self::alloc(&mut self.next_addr));
-        self.addr_to_mult.entry(addr.as_usize()).or_insert_with(C::F::zero);
-        addr
+        self.consts.entry(imm).or_insert_with(|| (Self::alloc(&mut self.next_addr), C::F::zero())).0
     }
 
-    /// Turn `dst` into an alias for the constant `src`.
-    fn mem_write_const(&mut self, dst: impl HasVirtualAddress, src: Imm<C::F, C::EF>) {
-        use vec_map::Entry;
-        let src_addr = src.read_ghost(self);
-        match self.virtual_to_physical.entry(dst.vaddr()) {
-            Entry::Vacant(entry) => drop(entry.insert(src_addr)),
-            Entry::Occupied(entry) => panic!(
-                "unexpected entry: virtual_to_physical[{:?}] = {:?}",
-                dst.vaddr(),
-                entry.get()
-            ),
-        }
+    fn mem_write_const(&mut self, dst: impl Reg<C>, src: Imm<C::F, C::EF>) -> Instruction<C::F> {
+        Instruction::Mem(MemInstr {
+            addrs: MemIo { inner: dst.write(self) },
+            vals: MemIo { inner: src.as_block() },
+            mult: C::F::zero(),
+            kind: MemAccessKind::Write,
+        })
     }
 
     fn base_alu(
@@ -211,7 +200,7 @@ where
         use BaseAluOpcode::*;
         let [diff, out] = core::array::from_fn(|_| Self::alloc(&mut self.next_addr));
         f(self.base_alu(SubF, diff, lhs, rhs));
-        f(self.base_alu(DivF, out, diff, Imm::f(C::F::zero())));
+        f(self.base_alu(DivF, out, diff, Imm::F(C::F::zero())));
     }
 
     fn base_assert_ne(
@@ -224,7 +213,7 @@ where
         let [diff, out] = core::array::from_fn(|_| Self::alloc(&mut self.next_addr));
 
         f(self.base_alu(SubF, diff, lhs, rhs));
-        f(self.base_alu(DivF, out, Imm::f(C::F::one()), diff));
+        f(self.base_alu(DivF, out, Imm::F(C::F::one()), diff));
     }
 
     fn ext_assert_eq(
@@ -237,7 +226,7 @@ where
         let [diff, out] = core::array::from_fn(|_| Self::alloc(&mut self.next_addr));
 
         f(self.ext_alu(SubE, diff, lhs, rhs));
-        f(self.ext_alu(DivE, out, diff, Imm::ef(C::EF::zero())));
+        f(self.ext_alu(DivE, out, diff, Imm::EF(C::EF::zero())));
     }
 
     fn ext_assert_ne(
@@ -250,7 +239,7 @@ where
         let [diff, out] = core::array::from_fn(|_| Self::alloc(&mut self.next_addr));
 
         f(self.ext_alu(SubE, diff, lhs, rhs));
-        f(self.ext_alu(DivE, out, Imm::ef(C::EF::one()), diff));
+        f(self.ext_alu(DivE, out, Imm::EF(C::EF::one()), diff));
     }
 
     fn poseidon2_permute(
@@ -392,71 +381,71 @@ where
 
         let mut f = |instr| consumer(Ok(instr));
         match ir_instr {
-            DslIr::ImmV(dst, src) => self.mem_write_const(dst, Imm::f(src)),
-            DslIr::ImmF(dst, src) => self.mem_write_const(dst, Imm::f(src)),
-            DslIr::ImmE(dst, src) => self.mem_write_const(dst, Imm::ef(src)),
+            DslIr::ImmV(dst, src) => f(self.mem_write_const(dst, Imm::F(src))),
+            DslIr::ImmF(dst, src) => f(self.mem_write_const(dst, Imm::F(src))),
+            DslIr::ImmE(dst, src) => f(self.mem_write_const(dst, Imm::EF(src))),
 
             DslIr::AddV(dst, lhs, rhs) => f(self.base_alu(AddF, dst, lhs, rhs)),
-            DslIr::AddVI(dst, lhs, rhs) => f(self.base_alu(AddF, dst, lhs, Imm::f(rhs))),
+            DslIr::AddVI(dst, lhs, rhs) => f(self.base_alu(AddF, dst, lhs, Imm::F(rhs))),
             DslIr::AddF(dst, lhs, rhs) => f(self.base_alu(AddF, dst, lhs, rhs)),
-            DslIr::AddFI(dst, lhs, rhs) => f(self.base_alu(AddF, dst, lhs, Imm::f(rhs))),
+            DslIr::AddFI(dst, lhs, rhs) => f(self.base_alu(AddF, dst, lhs, Imm::F(rhs))),
             DslIr::AddE(dst, lhs, rhs) => f(self.ext_alu(AddE, dst, lhs, rhs)),
-            DslIr::AddEI(dst, lhs, rhs) => f(self.ext_alu(AddE, dst, lhs, Imm::ef(rhs))),
+            DslIr::AddEI(dst, lhs, rhs) => f(self.ext_alu(AddE, dst, lhs, Imm::EF(rhs))),
             DslIr::AddEF(dst, lhs, rhs) => f(self.ext_alu(AddE, dst, lhs, rhs)),
-            DslIr::AddEFI(dst, lhs, rhs) => f(self.ext_alu(AddE, dst, lhs, Imm::f(rhs))),
-            DslIr::AddEFFI(dst, lhs, rhs) => f(self.ext_alu(AddE, dst, lhs, Imm::ef(rhs))),
+            DslIr::AddEFI(dst, lhs, rhs) => f(self.ext_alu(AddE, dst, lhs, Imm::F(rhs))),
+            DslIr::AddEFFI(dst, lhs, rhs) => f(self.ext_alu(AddE, dst, lhs, Imm::EF(rhs))),
 
             DslIr::SubV(dst, lhs, rhs) => f(self.base_alu(SubF, dst, lhs, rhs)),
-            DslIr::SubVI(dst, lhs, rhs) => f(self.base_alu(SubF, dst, lhs, Imm::f(rhs))),
-            DslIr::SubVIN(dst, lhs, rhs) => f(self.base_alu(SubF, dst, Imm::f(lhs), rhs)),
+            DslIr::SubVI(dst, lhs, rhs) => f(self.base_alu(SubF, dst, lhs, Imm::F(rhs))),
+            DslIr::SubVIN(dst, lhs, rhs) => f(self.base_alu(SubF, dst, Imm::F(lhs), rhs)),
             DslIr::SubF(dst, lhs, rhs) => f(self.base_alu(SubF, dst, lhs, rhs)),
-            DslIr::SubFI(dst, lhs, rhs) => f(self.base_alu(SubF, dst, lhs, Imm::f(rhs))),
-            DslIr::SubFIN(dst, lhs, rhs) => f(self.base_alu(SubF, dst, Imm::f(lhs), rhs)),
+            DslIr::SubFI(dst, lhs, rhs) => f(self.base_alu(SubF, dst, lhs, Imm::F(rhs))),
+            DslIr::SubFIN(dst, lhs, rhs) => f(self.base_alu(SubF, dst, Imm::F(lhs), rhs)),
             DslIr::SubE(dst, lhs, rhs) => f(self.ext_alu(SubE, dst, lhs, rhs)),
-            DslIr::SubEI(dst, lhs, rhs) => f(self.ext_alu(SubE, dst, lhs, Imm::ef(rhs))),
-            DslIr::SubEIN(dst, lhs, rhs) => f(self.ext_alu(SubE, dst, Imm::ef(lhs), rhs)),
-            DslIr::SubEFI(dst, lhs, rhs) => f(self.ext_alu(SubE, dst, lhs, Imm::f(rhs))),
+            DslIr::SubEI(dst, lhs, rhs) => f(self.ext_alu(SubE, dst, lhs, Imm::EF(rhs))),
+            DslIr::SubEIN(dst, lhs, rhs) => f(self.ext_alu(SubE, dst, Imm::EF(lhs), rhs)),
+            DslIr::SubEFI(dst, lhs, rhs) => f(self.ext_alu(SubE, dst, lhs, Imm::F(rhs))),
             DslIr::SubEF(dst, lhs, rhs) => f(self.ext_alu(SubE, dst, lhs, rhs)),
 
             DslIr::MulV(dst, lhs, rhs) => f(self.base_alu(MulF, dst, lhs, rhs)),
-            DslIr::MulVI(dst, lhs, rhs) => f(self.base_alu(MulF, dst, lhs, Imm::f(rhs))),
+            DslIr::MulVI(dst, lhs, rhs) => f(self.base_alu(MulF, dst, lhs, Imm::F(rhs))),
             DslIr::MulF(dst, lhs, rhs) => f(self.base_alu(MulF, dst, lhs, rhs)),
-            DslIr::MulFI(dst, lhs, rhs) => f(self.base_alu(MulF, dst, lhs, Imm::f(rhs))),
+            DslIr::MulFI(dst, lhs, rhs) => f(self.base_alu(MulF, dst, lhs, Imm::F(rhs))),
             DslIr::MulE(dst, lhs, rhs) => f(self.ext_alu(MulE, dst, lhs, rhs)),
-            DslIr::MulEI(dst, lhs, rhs) => f(self.ext_alu(MulE, dst, lhs, Imm::ef(rhs))),
-            DslIr::MulEFI(dst, lhs, rhs) => f(self.ext_alu(MulE, dst, lhs, Imm::f(rhs))),
+            DslIr::MulEI(dst, lhs, rhs) => f(self.ext_alu(MulE, dst, lhs, Imm::EF(rhs))),
+            DslIr::MulEFI(dst, lhs, rhs) => f(self.ext_alu(MulE, dst, lhs, Imm::F(rhs))),
             DslIr::MulEF(dst, lhs, rhs) => f(self.ext_alu(MulE, dst, lhs, rhs)),
 
             DslIr::DivF(dst, lhs, rhs) => f(self.base_alu(DivF, dst, lhs, rhs)),
-            DslIr::DivFI(dst, lhs, rhs) => f(self.base_alu(DivF, dst, lhs, Imm::f(rhs))),
-            DslIr::DivFIN(dst, lhs, rhs) => f(self.base_alu(DivF, dst, Imm::f(lhs), rhs)),
+            DslIr::DivFI(dst, lhs, rhs) => f(self.base_alu(DivF, dst, lhs, Imm::F(rhs))),
+            DslIr::DivFIN(dst, lhs, rhs) => f(self.base_alu(DivF, dst, Imm::F(lhs), rhs)),
             DslIr::DivE(dst, lhs, rhs) => f(self.ext_alu(DivE, dst, lhs, rhs)),
-            DslIr::DivEI(dst, lhs, rhs) => f(self.ext_alu(DivE, dst, lhs, Imm::ef(rhs))),
-            DslIr::DivEIN(dst, lhs, rhs) => f(self.ext_alu(DivE, dst, Imm::ef(lhs), rhs)),
-            DslIr::DivEFI(dst, lhs, rhs) => f(self.ext_alu(DivE, dst, lhs, Imm::f(rhs))),
-            DslIr::DivEFIN(dst, lhs, rhs) => f(self.ext_alu(DivE, dst, Imm::f(lhs), rhs)),
+            DslIr::DivEI(dst, lhs, rhs) => f(self.ext_alu(DivE, dst, lhs, Imm::EF(rhs))),
+            DslIr::DivEIN(dst, lhs, rhs) => f(self.ext_alu(DivE, dst, Imm::EF(lhs), rhs)),
+            DslIr::DivEFI(dst, lhs, rhs) => f(self.ext_alu(DivE, dst, lhs, Imm::F(rhs))),
+            DslIr::DivEFIN(dst, lhs, rhs) => f(self.ext_alu(DivE, dst, Imm::F(lhs), rhs)),
             DslIr::DivEF(dst, lhs, rhs) => f(self.ext_alu(DivE, dst, lhs, rhs)),
 
-            DslIr::NegV(dst, src) => f(self.base_alu(SubF, dst, Imm::f(C::F::zero()), src)),
-            DslIr::NegF(dst, src) => f(self.base_alu(SubF, dst, Imm::f(C::F::zero()), src)),
-            DslIr::NegE(dst, src) => f(self.ext_alu(SubE, dst, Imm::ef(C::EF::zero()), src)),
-            DslIr::InvV(dst, src) => f(self.base_alu(DivF, dst, Imm::f(C::F::one()), src)),
-            DslIr::InvF(dst, src) => f(self.base_alu(DivF, dst, Imm::f(C::F::one()), src)),
-            DslIr::InvE(dst, src) => f(self.ext_alu(DivE, dst, Imm::f(C::F::one()), src)),
+            DslIr::NegV(dst, src) => f(self.base_alu(SubF, dst, Imm::F(C::F::zero()), src)),
+            DslIr::NegF(dst, src) => f(self.base_alu(SubF, dst, Imm::F(C::F::zero()), src)),
+            DslIr::NegE(dst, src) => f(self.ext_alu(SubE, dst, Imm::EF(C::EF::zero()), src)),
+            DslIr::InvV(dst, src) => f(self.base_alu(DivF, dst, Imm::F(C::F::one()), src)),
+            DslIr::InvF(dst, src) => f(self.base_alu(DivF, dst, Imm::F(C::F::one()), src)),
+            DslIr::InvE(dst, src) => f(self.ext_alu(DivE, dst, Imm::F(C::F::one()), src)),
 
             DslIr::AssertEqV(lhs, rhs) => self.base_assert_eq(lhs, rhs, f),
             DslIr::AssertEqF(lhs, rhs) => self.base_assert_eq(lhs, rhs, f),
             DslIr::AssertEqE(lhs, rhs) => self.ext_assert_eq(lhs, rhs, f),
-            DslIr::AssertEqVI(lhs, rhs) => self.base_assert_eq(lhs, Imm::f(rhs), f),
-            DslIr::AssertEqFI(lhs, rhs) => self.base_assert_eq(lhs, Imm::f(rhs), f),
-            DslIr::AssertEqEI(lhs, rhs) => self.ext_assert_eq(lhs, Imm::ef(rhs), f),
+            DslIr::AssertEqVI(lhs, rhs) => self.base_assert_eq(lhs, Imm::F(rhs), f),
+            DslIr::AssertEqFI(lhs, rhs) => self.base_assert_eq(lhs, Imm::F(rhs), f),
+            DslIr::AssertEqEI(lhs, rhs) => self.ext_assert_eq(lhs, Imm::EF(rhs), f),
 
             DslIr::AssertNeV(lhs, rhs) => self.base_assert_ne(lhs, rhs, f),
             DslIr::AssertNeF(lhs, rhs) => self.base_assert_ne(lhs, rhs, f),
             DslIr::AssertNeE(lhs, rhs) => self.ext_assert_ne(lhs, rhs, f),
-            DslIr::AssertNeVI(lhs, rhs) => self.base_assert_ne(lhs, Imm::f(rhs), f),
-            DslIr::AssertNeFI(lhs, rhs) => self.base_assert_ne(lhs, Imm::f(rhs), f),
-            DslIr::AssertNeEI(lhs, rhs) => self.ext_assert_ne(lhs, Imm::ef(rhs), f),
+            DslIr::AssertNeVI(lhs, rhs) => self.base_assert_ne(lhs, Imm::F(rhs), f),
+            DslIr::AssertNeFI(lhs, rhs) => self.base_assert_ne(lhs, Imm::F(rhs), f),
+            DslIr::AssertNeEI(lhs, rhs) => self.ext_assert_ne(lhs, Imm::EF(rhs), f),
 
             DslIr::CircuitV2Poseidon2PermuteBabyBear(data) => {
                 f(self.poseidon2_permute(data.0, data.1))
@@ -544,7 +533,7 @@ where
 
         // Replace the mults using the address count data gathered in this previous.
         // Exhaustive match for refactoring purposes.
-        let total_memory = self.addr_to_mult.len();
+        let total_memory = self.addr_to_mult.len() + self.consts.len();
         let mut backfill = |(mult, addr): (&mut F, &Address<F>)| {
             *mult = self.addr_to_mult.remove(addr.as_usize()).unwrap()
         };
@@ -559,6 +548,12 @@ where
                     Instruction::ExtAlu(ExtAluInstr {
                         mult,
                         addrs: ExtAluIo { out: ref addr, .. },
+                        ..
+                    }) => backfill((mult, addr)),
+                    Instruction::Mem(MemInstr {
+                        addrs: MemIo { inner: ref addr },
+                        mult,
+                        kind: MemAccessKind::Write,
                         ..
                     }) => backfill((mult, addr)),
                     Instruction::Poseidon2(instr) => {
@@ -597,24 +592,25 @@ where
                             .iter_mut()
                             .for_each(|(addr, mult)| backfill((mult, addr)));
                     }
-                    Instruction::Mem(_) => {
-                        panic!("mem instructions should be produced through the `consts` map")
-                    }
                     // Instructions that do not write to memory.
-                    Instruction::CommitPublicValues(_) | Instruction::Print(_) => (),
+                    Instruction::Mem(MemInstr { kind: MemAccessKind::Read, .. })
+                    | Instruction::CommitPublicValues(_)
+                    | Instruction::Print(_) => (),
                 }
             }
         });
+        debug_assert!(self.addr_to_mult.is_empty());
         // Initialize constants.
         let total_consts = self.consts.len();
-        let instrs_consts = take(&mut self.consts).into_iter().map(|(imm, addr)| {
-            Instruction::Mem(MemInstr {
-                addrs: MemIo { inner: addr },
-                vals: MemIo { inner: imm.as_block() },
-                mult: self.addr_to_mult.remove(addr.as_usize()).unwrap(),
-                kind: MemAccessKind::Write,
-            })
-        });
+        let instrs_consts =
+            self.consts.drain().sorted_by_key(|x| x.1 .0 .0).map(|(imm, (addr, mult))| {
+                Instruction::Mem(MemInstr {
+                    addrs: MemIo { inner: addr },
+                    vals: MemIo { inner: imm.as_block() },
+                    mult,
+                    kind: MemAccessKind::Write,
+                })
+            });
         tracing::debug!("number of consts to initialize: {}", instrs_consts.len());
         // Reset the other fields.
         self.next_addr = Default::default();
@@ -629,8 +625,7 @@ where
                 (instrs_consts.chain(instrs).collect(), traces)
             }
         });
-        debug_assert!(self.addr_to_mult.is_empty());
-        RecursionProgram { instructions, total_memory, traces }
+        RecursionProgram { instructions, total_memory, traces, shape: None }
     }
 }
 
@@ -672,57 +667,6 @@ pub enum Imm<F, EF> {
 
 impl<F, EF> Imm<F, EF>
 where
-    F: Field,
-    EF: AbstractExtensionField<F>,
-{
-    /// Wraps its argument in `Self::F`.
-    pub fn f(f: F) -> Self {
-        Self::F(f)
-    }
-
-    /// If `ef` lives in the base field, then we encode it as `Self::F`.
-    /// Otherwise, we encode it as `Self::EF`.
-    pub fn ef(ef: EF) -> Self {
-        if ef.as_base_slice()[1..].iter().all(Field::is_zero) {
-            Self::F(ef.as_base_slice()[0])
-        } else {
-            Self::EF(ef)
-        }
-    }
-}
-
-impl<F, EF> PartialOrd for Imm<F, EF>
-where
-    F: PartialEq + AbstractField + PartialOrd,
-    EF: PartialEq + AbstractExtensionField<F>,
-{
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        match (self, other) {
-            (Imm::F(a), Imm::F(b)) => a.partial_cmp(b),
-            (Imm::F(_), Imm::EF(_)) => Some(Ordering::Less),
-            (Imm::EF(_), Imm::F(_)) => Some(Ordering::Greater),
-            (Imm::EF(a), Imm::EF(b)) => a.as_base_slice().partial_cmp(b.as_base_slice()),
-        }
-    }
-}
-
-impl<F, EF> Ord for Imm<F, EF>
-where
-    F: Eq + AbstractField + Ord,
-    EF: Eq + AbstractExtensionField<F>,
-{
-    fn cmp(&self, other: &Self) -> Ordering {
-        match (self, other) {
-            (Imm::F(a), Imm::F(b)) => a.cmp(b),
-            (Imm::F(_), Imm::EF(_)) => Ordering::Less,
-            (Imm::EF(_), Imm::F(_)) => Ordering::Greater,
-            (Imm::EF(a), Imm::EF(b)) => a.as_base_slice().cmp(b.as_base_slice()),
-        }
-    }
-}
-
-impl<F, EF> Imm<F, EF>
-where
     F: AbstractField + Copy,
     EF: AbstractExtensionField<F>,
 {
@@ -734,25 +678,6 @@ where
         }
     }
 }
-
-/// Expose the "virtual address" counter of the variable types.
-trait HasVirtualAddress {
-    fn vaddr(&self) -> usize;
-}
-
-macro_rules! impl_has_virtual_address {
-    ($type:ident<$($gen:ident),*>) => {
-        impl<$($gen),*> HasVirtualAddress for $type<$($gen),*> {
-            fn vaddr(&self) -> usize {
-                self.0 as usize
-            }
-        }
-    };
-}
-
-impl_has_virtual_address!(Var<N>);
-impl_has_virtual_address!(Felt<F>);
-impl_has_virtual_address!(Ext<F, EF>);
 
 /// Utility functions for various register types.
 trait Reg<C: Config> {
@@ -766,19 +691,53 @@ trait Reg<C: Config> {
     fn write(&self, compiler: &mut AsmCompiler<C>) -> Address<C::F>;
 }
 
-impl<C: Config<F: PrimeField64>, T: HasVirtualAddress> Reg<C> for T {
-    fn read(&self, compiler: &mut AsmCompiler<C>) -> Address<C::F> {
-        compiler.read_vaddr(self.vaddr())
-    }
+macro_rules! impl_reg_borrowed {
+    ($a:ty) => {
+        impl<C, T> Reg<C> for $a
+        where
+            C: Config,
+            T: Reg<C> + ?Sized,
+        {
+            fn read(&self, compiler: &mut AsmCompiler<C>) -> Address<C::F> {
+                (**self).read(compiler)
+            }
 
-    fn read_ghost(&self, compiler: &mut AsmCompiler<C>) -> Address<C::F> {
-        compiler.read_ghost_vaddr(self.vaddr())
-    }
+            fn read_ghost(&self, compiler: &mut AsmCompiler<C>) -> Address<C::F> {
+                (**self).read_ghost(compiler)
+            }
 
-    fn write(&self, compiler: &mut AsmCompiler<C>) -> Address<C::F> {
-        compiler.write_fp(self.vaddr())
-    }
+            fn write(&self, compiler: &mut AsmCompiler<C>) -> Address<C::F> {
+                (**self).write(compiler)
+            }
+        }
+    };
 }
+
+// Allow for more flexibility in arguments.
+impl_reg_borrowed!(&T);
+impl_reg_borrowed!(&mut T);
+impl_reg_borrowed!(Box<T>);
+
+macro_rules! impl_reg_vaddr {
+    ($a:ty) => {
+        impl<C: Config<F: PrimeField64>> Reg<C> for $a {
+            fn read(&self, compiler: &mut AsmCompiler<C>) -> Address<C::F> {
+                compiler.read_vaddr(self.idx as usize)
+            }
+            fn read_ghost(&self, compiler: &mut AsmCompiler<C>) -> Address<C::F> {
+                compiler.read_ghost_vaddr(self.idx as usize)
+            }
+            fn write(&self, compiler: &mut AsmCompiler<C>) -> Address<C::F> {
+                compiler.write_fp(self.idx as usize)
+            }
+        }
+    };
+}
+
+// These three types wrap a `u32` but they don't share a trait.
+impl_reg_vaddr!(Var<C::F>);
+impl_reg_vaddr!(Felt<C::F>);
+impl_reg_vaddr!(Ext<C::F, C::EF>);
 
 impl<C: Config<F: PrimeField64>> Reg<C> for Imm<C::F, C::EF> {
     fn read(&self, compiler: &mut AsmCompiler<C>) -> Address<C::F> {
@@ -821,16 +780,13 @@ mod tests {
     use rand::{rngs::StdRng, Rng, SeedableRng};
 
     use sp1_core_machine::utils::{run_test_machine, setup_logger};
-    use sp1_recursion_core_v2::{machine::RecursionAir, RecursionProgram, Runtime};
+    use sp1_recursion_core::{machine::RecursionAir, RecursionProgram, Runtime};
     use sp1_stark::{
         baby_bear_poseidon2::BabyBearPoseidon2, inner_perm, BabyBearPoseidon2Inner, InnerHash,
         StarkGenericConfig,
     };
 
-    use crate::{
-        asm::{AsmBuilder, AsmConfig},
-        circuit::CircuitV2Builder,
-    };
+    use crate::circuit::{AsmBuilder, AsmConfig, CircuitV2Builder};
 
     use super::*;
 
@@ -857,7 +813,8 @@ mod tests {
         let record = run(program.clone());
 
         // Run with the poseidon2 wide chip.
-        let wide_machine = RecursionAir::<_, 3, 0>::machine_wide(BabyBearPoseidon2::default());
+        let wide_machine =
+            RecursionAir::<_, 3>::machine_wide_with_all_chips(BabyBearPoseidon2::default());
         let (pk, vk) = wide_machine.setup(&program);
         let result = run_test_machine(vec![record.clone()], wide_machine, pk, vk);
         if let Err(e) = result {
@@ -865,7 +822,9 @@ mod tests {
         }
 
         // Run with the poseidon2 skinny chip.
-        let skinny_machine = RecursionAir::<_, 9, 0>::machine(BabyBearPoseidon2::compressed());
+        let skinny_machine = RecursionAir::<_, 9>::machine_skinny_with_all_chips(
+            BabyBearPoseidon2::ultra_compressed(),
+        );
         let (pk, vk) = skinny_machine.setup(&program);
         let result = run_test_machine(vec![record.clone()], skinny_machine, pk, vk);
         if let Err(e) = result {
@@ -892,7 +851,7 @@ mod tests {
             }
         }
 
-        test_operations(builder.operations);
+        test_operations(builder.into_operations());
     }
 
     #[test]
@@ -972,7 +931,7 @@ mod tests {
             let expected_felt: Felt<_> = builder.eval(expected);
             builder.assert_felt_eq(result_felt, expected_felt);
         }
-        test_operations(builder.operations);
+        test_operations(builder.into_operations());
     }
 
     #[test]
@@ -1027,7 +986,7 @@ mod tests {
             }
         }
 
-        test_operations(builder.operations);
+        test_operations(builder.into_operations());
     }
 
     #[test]
@@ -1050,7 +1009,7 @@ mod tests {
                 builder.assert_felt_eq(lhs, rhs);
             }
         }
-        test_operations(builder.operations);
+        test_operations(builder.into_operations());
     }
 
     #[test]
@@ -1091,7 +1050,7 @@ mod tests {
         }
         builder.cycle_tracker_v2_exit();
 
-        test_operations_with_runner(builder.operations, |program| {
+        test_operations_with_runner(builder.into_operations(), |program| {
             let mut runtime = Runtime::<F, EF, DiffusionMatrixBabyBear>::new(
                 program,
                 BabyBearPoseidon2Inner::new().perm,
@@ -1130,7 +1089,7 @@ mod tests {
                 builder.assert_felt_eq(lhs, rhs);
             }
         }
-        test_operations(builder.operations);
+        test_operations(builder.into_operations());
     }
 
     macro_rules! test_assert_fixture {
@@ -1140,7 +1099,7 @@ mod tests {
                 let mut builder = AsmBuilder::<F, EF>::default();
                 test_assert_fixture!(builder, identity, F, Felt<_>, 0xDEADBEEF, $assert_felt, $should_offset);
                 test_assert_fixture!(builder, EF::cons, EF, Ext<_, _>, 0xABADCAFE, $assert_ext, $should_offset);
-                test_operations(builder.operations);
+                test_operations(builder.into_operations());
             }
         };
         ($builder:ident, $wrap:path, $t:ty, $u:ty, $seed:expr, $assert:ident, $should_offset:expr) => {

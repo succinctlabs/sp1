@@ -7,8 +7,8 @@ use std::marker::PhantomData;
 use typenum::Unsigned;
 
 use crate::{
-    events::{FieldOperation, Fp2AddSubEvent},
-    syscalls::{Syscall, SyscallContext},
+    events::{FieldOperation, Fp2AddSubEvent, PrecompileEvent},
+    syscalls::{Syscall, SyscallCode, SyscallContext},
 };
 
 pub struct Fp2AddSubSyscall<P> {
@@ -23,7 +23,13 @@ impl<P> Fp2AddSubSyscall<P> {
 }
 
 impl<P: FpOpField> Syscall for Fp2AddSubSyscall<P> {
-    fn execute(&self, rt: &mut SyscallContext, arg1: u32, arg2: u32) -> Option<u32> {
+    fn execute(
+        &self,
+        rt: &mut SyscallContext,
+        syscall_code: SyscallCode,
+        arg1: u32,
+        arg2: u32,
+    ) -> Option<u32> {
         let clk = rt.clk;
         let x_ptr = arg1;
         if x_ptr % 4 != 0 {
@@ -65,38 +71,65 @@ impl<P: FpOpField> Syscall for Fp2AddSubSyscall<P> {
 
         let lookup_id = rt.syscall_lookup_id;
         let shard = rt.current_shard();
-        let channel = rt.current_channel();
         let op = self.op;
+        let event = Fp2AddSubEvent {
+            lookup_id,
+            shard,
+            clk,
+            op,
+            x_ptr,
+            x,
+            y_ptr,
+            y,
+            x_memory_records,
+            y_memory_records,
+            local_mem_access: rt.postprocess(),
+        };
         match P::FIELD_TYPE {
+            // All the fp2 add and sub events for a given curve are coalesced to the curve's fp2 add operation.  Only check for
+            // that operation.
+            // TODO:  Fix this.
             FieldType::Bn254 => {
-                rt.record_mut().bn254_fp2_addsub_events.push(Fp2AddSubEvent {
-                    lookup_id,
-                    shard,
-                    channel,
+                let syscall_code_key = match syscall_code {
+                    SyscallCode::BN254_FP2_ADD | SyscallCode::BN254_FP2_SUB => {
+                        SyscallCode::BN254_FP2_ADD
+                    }
+                    _ => unreachable!(),
+                };
+
+                let syscall_event = rt.rt.syscall_event(
                     clk,
-                    op,
-                    x_ptr,
-                    x,
-                    y_ptr,
-                    y,
-                    x_memory_records,
-                    y_memory_records,
-                });
+                    syscall_code.syscall_id(),
+                    arg1,
+                    arg2,
+                    event.lookup_id,
+                );
+                rt.record_mut().add_precompile_event(
+                    syscall_code_key,
+                    syscall_event,
+                    PrecompileEvent::Bn254Fp2AddSub(event),
+                );
             }
             FieldType::Bls12381 => {
-                rt.record_mut().bls12381_fp2_addsub_events.push(Fp2AddSubEvent {
-                    lookup_id,
-                    shard,
-                    channel,
+                let syscall_code_key = match syscall_code {
+                    SyscallCode::BLS12381_FP2_ADD | SyscallCode::BLS12381_FP2_SUB => {
+                        SyscallCode::BLS12381_FP2_ADD
+                    }
+                    _ => unreachable!(),
+                };
+
+                let syscall_event = rt.rt.syscall_event(
                     clk,
-                    op,
-                    x_ptr,
-                    x,
-                    y_ptr,
-                    y,
-                    x_memory_records,
-                    y_memory_records,
-                });
+                    syscall_code.syscall_id(),
+                    arg1,
+                    arg2,
+                    event.lookup_id,
+                );
+                rt.record_mut().add_precompile_event(
+                    syscall_code_key,
+                    syscall_event,
+                    PrecompileEvent::Bls12381Fp2AddSub(event),
+                );
             }
         }
         None

@@ -1,17 +1,15 @@
-use crate::{
-    cpu::{InstructionCols, OpcodeSelectorCols},
-    memory::{MemoryAccessTimestampCols, MemoryCols},
-    range_check::RangeCheckOpcode,
-};
 use core::iter::{once, repeat};
 use p3_air::{AirBuilder, AirBuilderWithPublicValues};
 use p3_field::AbstractField;
 use sp1_stark::{
-    air::{AirInteraction, BaseAirBuilder, MachineAirBuilder},
+    air::{AirInteraction, BaseAirBuilder, InteractionScope, MachineAirBuilder},
     InteractionKind,
 };
 
-use super::Block;
+use super::{
+    Block, InstructionCols, MemoryAccessTimestampCols, MemoryCols, OpcodeSelectorCols,
+    RangeCheckOpcode,
+};
 
 /// A trait which contains all helper methods for building SP1 recursion machine AIRs.
 pub trait SP1RecursionAirBuilder:
@@ -50,8 +48,14 @@ pub trait RecursionMemoryAirBuilder: RecursionInteractionAirBuilder {
             .chain(memory_access.value().clone().map(Into::into))
             .collect();
 
-        self.receive(AirInteraction::new(prev_values, is_real.clone(), InteractionKind::Memory));
-        self.send(AirInteraction::new(current_values, is_real, InteractionKind::Memory));
+        self.receive(
+            AirInteraction::new(prev_values, is_real.clone(), InteractionKind::Memory),
+            InteractionScope::Local,
+        );
+        self.send(
+            AirInteraction::new(current_values, is_real, InteractionKind::Memory),
+            InteractionScope::Local,
+        );
     }
 
     fn recursion_eval_memory_access_single<E: Into<Self::Expr> + Clone>(
@@ -82,8 +86,14 @@ pub trait RecursionMemoryAirBuilder: RecursionInteractionAirBuilder {
             .chain(repeat(Self::Expr::zero()).take(3))
             .collect();
 
-        self.receive(AirInteraction::new(prev_values, is_real.clone(), InteractionKind::Memory));
-        self.send(AirInteraction::new(current_values, is_real, InteractionKind::Memory));
+        self.receive(
+            AirInteraction::new(prev_values, is_real.clone(), InteractionKind::Memory),
+            InteractionScope::Local,
+        );
+        self.send(
+            AirInteraction::new(current_values, is_real, InteractionKind::Memory),
+            InteractionScope::Local,
+        );
     }
 
     /// Verifies that the memory access happens after the previous memory access.
@@ -151,11 +161,14 @@ pub trait RecursionInteractionAirBuilder: BaseAirBuilder {
         val: impl Into<Self::Expr>,
         is_real: impl Into<Self::Expr>,
     ) {
-        self.send(AirInteraction::new(
-            vec![range_check_opcode.into(), val.into()],
-            is_real.into(),
-            InteractionKind::Range,
-        ));
+        self.send(
+            AirInteraction::new(
+                vec![range_check_opcode.into(), val.into()],
+                is_real.into(),
+                InteractionKind::Range,
+            ),
+            InteractionScope::Global,
+        );
     }
 
     /// Receives a range check operation to be processed.
@@ -165,11 +178,14 @@ pub trait RecursionInteractionAirBuilder: BaseAirBuilder {
         val: impl Into<Self::Expr>,
         is_real: impl Into<Self::Expr>,
     ) {
-        self.receive(AirInteraction::new(
-            vec![range_check_opcode.into(), val.into()],
-            is_real.into(),
-            InteractionKind::Range,
-        ));
+        self.receive(
+            AirInteraction::new(
+                vec![range_check_opcode.into(), val.into()],
+                is_real.into(),
+                InteractionKind::Range,
+            ),
+            InteractionScope::Global,
+        );
     }
 
     fn send_program<E: Into<Self::Expr> + Copy>(
@@ -183,11 +199,10 @@ pub trait RecursionInteractionAirBuilder: BaseAirBuilder {
             .chain(instruction.into_iter().map(|x| x.into()))
             .chain(selectors.into_iter().map(|x| x.into()))
             .collect::<Vec<_>>();
-        self.send(AirInteraction::new(
-            program_interaction_vals,
-            is_real.into(),
-            InteractionKind::Program,
-        ));
+        self.send(
+            AirInteraction::new(program_interaction_vals, is_real.into(), InteractionKind::Program),
+            InteractionScope::Global,
+        );
     }
 
     fn receive_program<E: Into<Self::Expr> + Copy>(
@@ -201,11 +216,10 @@ pub trait RecursionInteractionAirBuilder: BaseAirBuilder {
             .chain(instruction.into_iter().map(|x| x.into()))
             .chain(selectors.into_iter().map(|x| x.into()))
             .collect::<Vec<_>>();
-        self.receive(AirInteraction::new(
-            program_interaction_vals,
-            is_real.into(),
-            InteractionKind::Program,
-        ));
+        self.receive(
+            AirInteraction::new(program_interaction_vals, is_real.into(), InteractionKind::Program),
+            InteractionScope::Global,
+        );
     }
 
     fn send_table<E: Into<Self::Expr> + Clone>(
@@ -216,7 +230,10 @@ pub trait RecursionInteractionAirBuilder: BaseAirBuilder {
     ) {
         let table_interaction_vals = table.iter().map(|x| x.clone().into());
         let values = once(opcode.into()).chain(table_interaction_vals).collect();
-        self.send(AirInteraction::new(values, is_real.into(), InteractionKind::Syscall));
+        self.send(
+            AirInteraction::new(values, is_real.into(), InteractionKind::Syscall),
+            InteractionScope::Local,
+        );
     }
 
     fn receive_table<E: Into<Self::Expr> + Clone>(
@@ -227,6 +244,9 @@ pub trait RecursionInteractionAirBuilder: BaseAirBuilder {
     ) {
         let table_interaction_vals = table.iter().map(|x| x.clone().into());
         let values = once(opcode.into()).chain(table_interaction_vals).collect();
-        self.receive(AirInteraction::new(values, is_real.into(), InteractionKind::Syscall));
+        self.receive(
+            AirInteraction::new(values, is_real.into(), InteractionKind::Syscall),
+            InteractionScope::Local,
+        );
     }
 }

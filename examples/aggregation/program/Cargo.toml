@@ -5,6 +5,5 @@ edition = "2021"
 publish = false
 
 [dependencies]
-hex = "0.4.3"
 sha2 = "0.10.8"
 sp1-zkvm = { path = "../../../crates/zkvm/entrypoint", features = ["verify"] }

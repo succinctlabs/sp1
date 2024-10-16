@@ -1,10 +1,16 @@
-use super::{Syscall, SyscallContext};
+use super::{Syscall, SyscallCode, SyscallContext};
 
 pub(crate) struct VerifySyscall;
 
 impl Syscall for VerifySyscall {
     #[allow(clippy::mut_mut)]
-    fn execute(&self, ctx: &mut SyscallContext, vkey_ptr: u32, pv_digest_ptr: u32) -> Option<u32> {
+    fn execute(
+        &self,
+        ctx: &mut SyscallContext,
+        _: SyscallCode,
+        vkey_ptr: u32,
+        pv_digest_ptr: u32,
+    ) -> Option<u32> {
         let rt = &mut ctx.rt;
 
         // vkey_ptr is a pointer to [u32; 8] which contains the verification key.

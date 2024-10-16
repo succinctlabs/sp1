@@ -2,7 +2,7 @@ SHELL := /bin/bash
 
 all:
 	@for dir in */ ; do \
-		if [ "$${dir}" == "target/" ]; then \
+		if [ "$${dir}" == "target/" ] || [ "$${dir}" == "common/" ]; then \
 		    continue; \
 		fi; \
 		echo "Building in $${dir}..."; \

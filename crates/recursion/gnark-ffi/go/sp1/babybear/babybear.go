@@ -17,6 +17,7 @@ import (
 )
 
 var modulus = new(big.Int).SetUint64(2013265921)
+var modulus_sub_1 = new(big.Int).SetUint64(2013265920)
 
 func init() {
 	// These functions must be public so Gnark's hint system can access them.
@@ -27,8 +28,8 @@ func init() {
 }
 
 type Variable struct {
-	Value  frontend.Variable
-	NbBits uint
+	Value      frontend.Variable
+	UpperBound *big.Int
 }
 
 type ExtensionVariable struct {
@@ -49,22 +50,33 @@ func NewChip(api frontend.API) *Chip {
 
 func Zero() Variable {
 	return Variable{
-		Value:  frontend.Variable("0"),
-		NbBits: 32,
+		Value:      frontend.Variable("0"),
+		UpperBound: new(big.Int).SetUint64(0),
 	}
 }
 
 func One() Variable {
 	return Variable{
-		Value:  frontend.Variable("1"),
-		NbBits: 32,
+		Value:      frontend.Variable("1"),
+		UpperBound: new(big.Int).SetUint64(1),
+	}
+}
+
+func NewFConst(value string) Variable {
+	int_value, success := new(big.Int).SetString(value, 10)
+	if !success {
+		panic("string to int conversion failed")
+	}
+	return Variable{
+		Value:      frontend.Variable(value),
+		UpperBound: int_value,
 	}
 }
 
 func NewF(value string) Variable {
 	return Variable{
-		Value:  frontend.Variable(value),
-		NbBits: 32,
+		Value:      frontend.Variable(value),
+		UpperBound: new(big.Int).SetUint64(uint64(math.Pow(2, 32))),
 	}
 }
 
@@ -76,21 +88,27 @@ func NewE(value []string) ExtensionVariable {
 	return ExtensionVariable{Value: [4]Variable{a, b, c, d}}
 }
 
+func NewEConst(value []string) ExtensionVariable {
+	a := NewFConst(value[0])
+	b := NewFConst(value[1])
+	c := NewFConst(value[2])
+	d := NewFConst(value[3])
+	return ExtensionVariable{Value: [4]Variable{a, b, c, d}}
+}
+
 func Felts2Ext(a, b, c, d Variable) ExtensionVariable {
 	return ExtensionVariable{Value: [4]Variable{a, b, c, d}}
 }
 
-func (c *Chip) AddF(a, b Variable) Variable {
-	var maxBits uint
-	if a.NbBits > b.NbBits {
-		maxBits = a.NbBits
-	} else {
-		maxBits = b.NbBits
+func (c *Chip) AddF(a, b Variable, forceReduce ...bool) Variable {
+	result := Variable{
+		Value:      c.api.Add(a.Value, b.Value),
+		UpperBound: new(big.Int).Add(a.UpperBound, b.UpperBound),
 	}
-	return c.reduceFast(Variable{
-		Value:  c.api.Add(a.Value, b.Value),
-		NbBits: maxBits + 1,
-	})
+	if len(forceReduce) > 0 && !forceReduce[0] {
+		return result
+	}
+	return c.reduceFast(result)
 }
 
 func (c *Chip) SubF(a, b Variable) Variable {
@@ -98,46 +116,48 @@ func (c *Chip) SubF(a, b Variable) Variable {
 	return c.AddF(a, negB)
 }
 
-func (c *Chip) MulF(a, b Variable) Variable {
-	return c.reduceFast(Variable{
-		Value:  c.api.Mul(a.Value, b.Value),
-		NbBits: a.NbBits + b.NbBits,
-	})
+func (c *Chip) MulF(a, b Variable, forceReduce ...bool) Variable {
+	result := Variable{
+		Value:      c.api.Mul(a.Value, b.Value),
+		UpperBound: new(big.Int).Mul(a.UpperBound, b.UpperBound),
+	}
+	if len(forceReduce) > 0 && !forceReduce[0] {
+		return result
+	}
+	return c.reduceFast(result)
 }
 
-func (c *Chip) MulFConst(a Variable, b int) Variable {
-	return c.reduceFast(Variable{
-		Value:  c.api.Mul(a.Value, b),
-		NbBits: a.NbBits + 4,
-	})
+func (c *Chip) MulFConst(a Variable, b int, forceReduce ...bool) Variable {
+	result := Variable{
+		Value:      c.api.Mul(a.Value, b),
+		UpperBound: new(big.Int).Mul(a.UpperBound, new(big.Int).SetUint64(uint64(b))),
+	}
+	if len(forceReduce) > 0 && !forceReduce[0] {
+		return result
+	}
+	return c.reduceFast(result)
 }
 
 func (c *Chip) negF(a Variable) Variable {
-	if a.NbBits <= 30 {
-		return Variable{Value: c.api.Sub(modulus, a.Value), NbBits: 31}
-	}
-
-	ub := new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(a.NbBits)), big.NewInt(0))
-	divisor := new(big.Int).Div(ub, modulus)
+	divisor := new(big.Int).Div(a.UpperBound, modulus)
 	divisorPlusOne := new(big.Int).Add(divisor, big.NewInt(1))
 	liftedModulus := new(big.Int).Mul(divisorPlusOne, modulus)
 
 	return c.reduceFast(Variable{
-		Value:  c.api.Sub(liftedModulus, a.Value),
-		NbBits: a.NbBits + 1,
+		Value:      c.api.Sub(liftedModulus, a.Value),
+		UpperBound: liftedModulus,
 	})
 }
 
 func (c *Chip) invF(in Variable) Variable {
-	in = c.ReduceSlow(in)
 	result, err := c.api.Compiler().NewHint(InvFHint, 1, in.Value)
 	if err != nil {
 		panic(err)
 	}
 
 	xinv := Variable{
-		Value:  result[0],
-		NbBits: 31,
+		Value:      result[0],
+		UpperBound: new(big.Int).SetUint64(2147483648),
 	}
 	if os.Getenv("GROTH16") != "1" {
 		c.RangeChecker.Check(result[0], 31)
@@ -145,7 +165,7 @@ func (c *Chip) invF(in Variable) Variable {
 		c.api.ToBinary(result[0], 31)
 	}
 	product := c.MulF(in, xinv)
-	c.AssertIsEqualF(product, NewF("1"))
+	c.AssertIsEqualF(product, NewFConst("1"))
 
 	return xinv
 }
@@ -161,6 +181,12 @@ func (c *Chip) AssertIsEqualF(a, b Variable) {
 	c.api.AssertIsEqual(a2.Value, b2.Value)
 }
 
+func (c *Chip) AssertNotEqualF(a, b Variable) {
+	a2 := c.ReduceSlow(a)
+	b2 := c.ReduceSlow(b)
+	c.api.AssertIsDifferent(a2.Value, b2.Value)
+}
+
 func (c *Chip) AssertIsEqualE(a, b ExtensionVariable) {
 	c.AssertIsEqualF(a.Value[0], b.Value[0])
 	c.AssertIsEqualF(a.Value[1], b.Value[1])
@@ -169,15 +195,15 @@ func (c *Chip) AssertIsEqualE(a, b ExtensionVariable) {
 }
 
 func (c *Chip) SelectF(cond frontend.Variable, a, b Variable) Variable {
-	var nbBits uint
-	if a.NbBits > b.NbBits {
-		nbBits = a.NbBits
+	var UpperBound *big.Int
+	if a.UpperBound.Cmp(b.UpperBound) == -1 {
+		UpperBound = b.UpperBound
 	} else {
-		nbBits = b.NbBits
+		UpperBound = a.UpperBound
 	}
 	return Variable{
-		Value:  c.api.Select(cond, a.Value, b.Value),
-		NbBits: nbBits,
+		Value:      c.api.Select(cond, a.Value, b.Value),
+		UpperBound: UpperBound,
 	}
 }
 
@@ -229,13 +255,16 @@ func (c *Chip) MulE(a, b ExtensionVariable) ExtensionVariable {
 	for i := 0; i < 4; i++ {
 		for j := 0; j < 4; j++ {
 			if i+j >= 4 {
-				v2[i+j-4] = c.AddF(v2[i+j-4], c.MulFConst(c.MulF(a.Value[i], b.Value[j]), 11))
+				v2[i+j-4] = c.AddF(v2[i+j-4], c.MulFConst(c.MulF(a.Value[i], b.Value[j], false), 11, false), false)
 			} else {
-				v2[i+j] = c.AddF(v2[i+j], c.MulF(a.Value[i], b.Value[j]))
+				v2[i+j] = c.AddF(v2[i+j], c.MulF(a.Value[i], b.Value[j], false), false)
 			}
 		}
 	}
-
+	v2[0] = c.reduceFast(v2[0])
+	v2[1] = c.reduceFast(v2[1])
+	v2[2] = c.reduceFast(v2[2])
+	v2[3] = c.reduceFast(v2[3])
 	return ExtensionVariable{Value: v2}
 }
 
@@ -248,19 +277,15 @@ func (c *Chip) MulEF(a ExtensionVariable, b Variable) ExtensionVariable {
 }
 
 func (c *Chip) InvE(in ExtensionVariable) ExtensionVariable {
-	in.Value[0] = c.ReduceSlow(in.Value[0])
-	in.Value[1] = c.ReduceSlow(in.Value[1])
-	in.Value[2] = c.ReduceSlow(in.Value[2])
-	in.Value[3] = c.ReduceSlow(in.Value[3])
 	result, err := c.api.Compiler().NewHint(InvEHint, 4, in.Value[0].Value, in.Value[1].Value, in.Value[2].Value, in.Value[3].Value)
 	if err != nil {
 		panic(err)
 	}
 
-	xinv := Variable{Value: result[0], NbBits: 31}
-	yinv := Variable{Value: result[1], NbBits: 31}
-	zinv := Variable{Value: result[2], NbBits: 31}
-	linv := Variable{Value: result[3], NbBits: 31}
+	xinv := Variable{Value: result[0], UpperBound: new(big.Int).SetUint64(2147483648)}
+	yinv := Variable{Value: result[1], UpperBound: new(big.Int).SetUint64(2147483648)}
+	zinv := Variable{Value: result[2], UpperBound: new(big.Int).SetUint64(2147483648)}
+	linv := Variable{Value: result[3], UpperBound: new(big.Int).SetUint64(2147483648)}
 	if os.Getenv("GROTH16") != "1" {
 		c.RangeChecker.Check(result[0], 31)
 		c.RangeChecker.Check(result[1], 31)
@@ -275,7 +300,7 @@ func (c *Chip) InvE(in ExtensionVariable) ExtensionVariable {
 	out := ExtensionVariable{Value: [4]Variable{xinv, yinv, zinv, linv}}
 
 	product := c.MulE(in, out)
-	c.AssertIsEqualE(product, NewE([]string{"1", "0", "0", "0"}))
+	c.AssertIsEqualE(product, NewEConst([]string{"1", "0", "0", "0"}))
 
 	return out
 }
@@ -289,6 +314,11 @@ func (c *Chip) DivE(a, b ExtensionVariable) ExtensionVariable {
 	return c.MulE(a, bInv)
 }
 
+func (c *Chip) DivEF(a ExtensionVariable, b Variable) ExtensionVariable {
+	bInv := c.invF(b)
+	return c.MulEF(a, bInv)
+}
+
 func (c *Chip) NegE(a ExtensionVariable) ExtensionVariable {
 	v1 := c.negF(a.Value[0])
 	v2 := c.negF(a.Value[1])
@@ -298,26 +328,26 @@ func (c *Chip) NegE(a ExtensionVariable) ExtensionVariable {
 }
 
 func (c *Chip) ToBinary(in Variable) []frontend.Variable {
-	return c.api.ToBinary(c.ReduceSlow(in).Value, 32)
+	return c.api.ToBinary(c.ReduceSlow(in).Value, 31)
 }
 
 func (p *Chip) reduceFast(x Variable) Variable {
-	if x.NbBits >= uint(126) {
+	if x.UpperBound.BitLen() >= 120 {
 		return Variable{
-			Value:  p.reduceWithMaxBits(x.Value, uint64(x.NbBits)),
-			NbBits: 31,
+			Value:      p.reduceWithMaxBits(x.Value, uint64(x.UpperBound.BitLen())),
+			UpperBound: modulus_sub_1,
 		}
 	}
 	return x
 }
 
 func (p *Chip) ReduceSlow(x Variable) Variable {
-	if x.NbBits <= 30 {
+	if x.UpperBound.Cmp(modulus) == -1 {
 		return x
 	}
 	return Variable{
-		Value:  p.reduceWithMaxBits(x.Value, uint64(x.NbBits)),
-		NbBits: 31,
+		Value:      p.reduceWithMaxBits(x.Value, uint64(x.UpperBound.BitLen())),
+		UpperBound: modulus_sub_1,
 	}
 }
 
@@ -338,6 +368,7 @@ func (p *Chip) reduceWithMaxBits(x frontend.Variable, maxNbBits uint64) frontend
 	} else {
 		p.api.ToBinary(quotient, int(maxNbBits-30))
 	}
+
 	// Check that the remainder has size less than the BabyBear modulus, by decomposing it into a 27
 	// bit limb and a 4 bit limb.
 	new_result, new_err := p.api.Compiler().NewHint(SplitLimbsHint, 2, remainder)
@@ -369,10 +400,9 @@ func (p *Chip) reduceWithMaxBits(x frontend.Variable, maxNbBits uint64) frontend
 	// need to do any checks, since we already know that the element is less than the BabyBear modulus.
 	shouldCheck := p.api.IsZero(p.api.Sub(highLimb, uint64(math.Pow(2, 4))-1))
 	p.api.AssertIsEqual(
-		p.api.Select(
+		p.api.Mul(
 			shouldCheck,
 			lowLimb,
-			frontend.Variable(0),
 		),
 		frontend.Variable(0),
 	)
@@ -403,7 +433,7 @@ func (p *Chip) ReduceE(x ExtensionVariable) ExtensionVariable {
 }
 
 func InvFHint(_ *big.Int, inputs []*big.Int, results []*big.Int) error {
-	a := C.uint(inputs[0].Uint64())
+	a := C.uint(new(big.Int).Mod(inputs[0], modulus).Uint64())
 	ainv := C.babybearinv(a)
 	results[0].SetUint64(uint64(ainv))
 	return nil
@@ -434,10 +464,10 @@ func SplitLimbsHint(_ *big.Int, inputs []*big.Int, results []*big.Int) error {
 }
 
 func InvEHint(_ *big.Int, inputs []*big.Int, results []*big.Int) error {
-	a := C.uint(inputs[0].Uint64())
-	b := C.uint(inputs[1].Uint64())
-	c := C.uint(inputs[2].Uint64())
-	d := C.uint(inputs[3].Uint64())
+	a := C.uint(new(big.Int).Mod(inputs[0], modulus).Uint64())
+	b := C.uint(new(big.Int).Mod(inputs[1], modulus).Uint64())
+	c := C.uint(new(big.Int).Mod(inputs[2], modulus).Uint64())
+	d := C.uint(new(big.Int).Mod(inputs[3], modulus).Uint64())
 	ainv := C.babybearextinv(a, b, c, d, 0)
 	binv := C.babybearextinv(a, b, c, d, 1)
 	cinv := C.babybearextinv(a, b, c, d, 2)

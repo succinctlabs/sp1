@@ -1,8 +1,8 @@
 #![no_main]
 sp1_zkvm::entrypoint!(main);
 
-use sp1_zkvm::lib::bn254::Bn254AffinePoint;
-use sp1_zkvm::lib::utils::AffinePoint;
+use sp1_lib::bn254::Bn254Point;
+use sp1_lib::utils::AffinePoint;
 
 #[sp1_derive::cycle_tracker]
 pub fn main() {
@@ -16,7 +16,7 @@ pub fn main() {
             0, 0, 0, 0, 0, 0,
         ];
 
-        let mut a_point = Bn254AffinePoint::from_le_bytes(&a);
+        let mut a_point = Bn254Point::from_le_bytes(&a);
 
         // scalar.
         // 3

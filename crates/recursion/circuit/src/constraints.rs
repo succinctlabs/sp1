@@ -1,50 +1,91 @@
-use p3_air::Air;
-use p3_commit::LagrangeSelectors;
-use p3_field::{AbstractExtensionField, AbstractField, TwoAdicField};
-use sp1_recursion_compiler::{
-    ir::{Array, Builder, Config, Ext, ExtensionOperand, Felt, SymbolicFelt},
-    prelude::SymbolicExt,
-};
-use sp1_recursion_program::commit::PolynomialSpaceVariable;
+use p3_air::{Air, BaseAir};
+use p3_baby_bear::BabyBear;
+use p3_commit::{LagrangeSelectors, Mmcs, PolynomialSpace, TwoAdicMultiplicativeCoset};
+use p3_field::{AbstractExtensionField, AbstractField, Field, TwoAdicField};
+use p3_matrix::dense::RowMajorMatrix;
 
-use sp1_recursion_program::stark::RecursiveVerifierConstraintFolder;
+use sp1_recursion_compiler::ir::{
+    Builder, Config, Ext, ExtConst, ExtensionOperand, Felt, SymbolicExt, SymbolicFelt,
+};
 use sp1_stark::{
-    air::MachineAir, AirOpenedValues, MachineChip, StarkGenericConfig, PROOF_MAX_NUM_PVS,
+    air::MachineAir, AirOpenedValues, ChipOpenedValues, GenericVerifierConstraintFolder,
+    MachineChip, OpeningShapeError,
 };
 
 use crate::{
-    domain::TwoAdicMultiplicativeCosetVariable,
-    stark::StarkVerifierCircuit,
-    types::{ChipOpenedValuesVariable, ChipOpening},
+    domain::PolynomialSpaceVariable, stark::StarkVerifier, BabyBearFriConfigVariable, CircuitConfig,
 };
 
-impl<C: Config, SC: StarkGenericConfig> StarkVerifierCircuit<C, SC>
+pub type RecursiveVerifierConstraintFolder<'a, C> = GenericVerifierConstraintFolder<
+    'a,
+    <C as Config>::F,
+    <C as Config>::EF,
+    Felt<<C as Config>::F>,
+    Ext<<C as Config>::F, <C as Config>::EF>,
+    SymbolicExt<<C as Config>::F, <C as Config>::EF>,
+>;
+
+impl<C, SC, A> StarkVerifier<C, SC, A>
 where
-    SC: StarkGenericConfig<Val = C::F, Challenge = C::EF>,
     C::F: TwoAdicField,
+    SC: BabyBearFriConfigVariable<C>,
+    C: CircuitConfig<F = SC::Val>,
+    <SC::ValMmcs as Mmcs<BabyBear>>::ProverData<RowMajorMatrix<BabyBear>>: Clone,
+    A: MachineAir<C::F> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, C>>,
 {
-    fn eval_constraints<A>(
+    #[allow(clippy::too_many_arguments)]
+    pub fn verify_constraints(
         builder: &mut Builder<C>,
         chip: &MachineChip<SC, A>,
-        opening: &ChipOpening<C>,
-        public_values: Array<C, Felt<C::F>>,
+        opening: &ChipOpenedValues<Ext<C::F, C::EF>>,
+        trace_domain: TwoAdicMultiplicativeCoset<C::F>,
+        qc_domains: Vec<TwoAdicMultiplicativeCoset<C::F>>,
+        zeta: Ext<C::F, C::EF>,
+        alpha: Ext<C::F, C::EF>,
+        permutation_challenges: &[Ext<C::F, C::EF>],
+        public_values: &[Felt<C::F>],
+    ) {
+        let sels = trace_domain.selectors_at_point_variable(builder, zeta);
+
+        // Recompute the quotient at zeta from the chunks.
+        let quotient = Self::recompute_quotient(builder, opening, &qc_domains, zeta);
+
+        // Calculate the evaluations of the constraints at zeta.
+        let folded_constraints = Self::eval_constraints(
+            builder,
+            chip,
+            opening,
+            &sels,
+            alpha,
+            permutation_challenges,
+            public_values,
+        );
+
+        // Assert that the quotient times the zerofier is equal to the folded constraints.
+        builder.assert_ext_eq(folded_constraints * sels.inv_zeroifier, quotient);
+    }
+
+    pub fn eval_constraints(
+        builder: &mut Builder<C>,
+        chip: &MachineChip<SC, A>,
+        opening: &ChipOpenedValues<Ext<C::F, C::EF>>,
         selectors: &LagrangeSelectors<Ext<C::F, C::EF>>,
         alpha: Ext<C::F, C::EF>,
         permutation_challenges: &[Ext<C::F, C::EF>],
-    ) -> Ext<C::F, C::EF>
-    where
-        A: for<'b> Air<RecursiveVerifierConstraintFolder<'b, C>>,
-    {
+        public_values: &[Felt<C::F>],
+    ) -> Ext<C::F, C::EF> {
         let mut unflatten = |v: &[Ext<C::F, C::EF>]| {
-            v.chunks_exact(SC::Challenge::D)
+            v.chunks_exact(<SC::Challenge as AbstractExtensionField<C::F>>::D)
                 .map(|chunk| {
                     builder.eval(
                         chunk
                             .iter()
                             .enumerate()
-                            .map(|(e_i, &x)| {
-                                x * SymbolicExt::<C::F, C::EF>::from_f(C::EF::monomial(e_i))
-                            })
+                            .map(
+                                |(e_i, x): (usize, &Ext<C::F, C::EF>)| -> SymbolicExt<C::F, C::EF> {
+                                    SymbolicExt::from(*x) * C::EF::monomial(e_i)
+                                },
+                            )
                             .sum::<SymbolicExt<_, _>>(),
                     )
                 })
@@ -55,18 +96,13 @@ where
             next: unflatten(&opening.permutation.next),
         };
 
-        let mut folder_pv = Vec::new();
-        for i in 0..PROOF_MAX_NUM_PVS {
-            folder_pv.push(builder.get(&public_values, i));
-        }
-
         let mut folder = RecursiveVerifierConstraintFolder::<C> {
             preprocessed: opening.preprocessed.view(),
             main: opening.main.view(),
             perm: perm_opening.view(),
             perm_challenges: permutation_challenges,
-            cumulative_sum: opening.cumulative_sum,
-            public_values: &folder_pv,
+            cumulative_sums: &[opening.global_cumulative_sum, opening.local_cumulative_sum],
+            public_values,
             is_first_row: selectors.is_first_row,
             is_last_row: selectors.is_last_row,
             is_transition: selectors.is_transition,
@@ -79,12 +115,23 @@ where
         builder.eval(folder.accumulator)
     }
 
-    fn recompute_quotient(
+    pub fn recompute_quotient(
         builder: &mut Builder<C>,
-        opening: &ChipOpening<C>,
-        qc_domains: Vec<TwoAdicMultiplicativeCosetVariable<C>>,
+        opening: &ChipOpenedValues<Ext<C::F, C::EF>>,
+        qc_domains: &[TwoAdicMultiplicativeCoset<C::F>],
         zeta: Ext<C::F, C::EF>,
     ) -> Ext<C::F, C::EF> {
+        // Compute the maximum power of zeta we will need.
+        let max_domain_log_n = qc_domains.iter().map(|d| d.log_n).max().unwrap();
+
+        // Compute all powers of zeta of the form zeta^(2^i) up to `zeta^(2^max_domain_log_n)`.
+        let mut zetas: Vec<Ext<_, _>> = vec![zeta];
+        for _ in 1..max_domain_log_n + 1 {
+            let last_zeta = zetas.last().unwrap();
+            let new_zeta = builder.eval(*last_zeta * *last_zeta);
+            builder.reduce_e(new_zeta);
+            zetas.push(new_zeta);
+        }
         let zps = qc_domains
             .iter()
             .enumerate()
@@ -94,24 +141,37 @@ where
                     .enumerate()
                     .filter(|(j, _)| *j != i)
                     .map(|(_, other_domain)| {
-                        // Calculate: other_domain.zp_at_point(zeta)
-                        //     * other_domain.zp_at_point(domain.first_point()).inverse()
-                        let first_point = domain.first_point(builder);
-                        let z = other_domain.zp_at_point_f(builder, first_point);
+                        // `shift_power` is used in the computation of
+                        let shift_power =
+                            other_domain.shift.exp_power_of_2(other_domain.log_n).inverse();
+                        // This is `other_domain.zp_at_point_f(builder, domain.first_point())`.
+                        // We compute it as a constant here.
+                        let z_f = domain.first_point().exp_power_of_2(other_domain.log_n)
+                            * shift_power
+                            - C::F::one();
                         (
-                            other_domain.zp_at_point(builder, zeta).to_operand().symbolic(),
-                            z.inverse(),
+                            {
+                                // We use the precomputed powers of zeta to compute (inline) the value of
+                                // `other_domain.zp_at_point_variable(builder, zeta)`.
+                                let z: Ext<_, _> = builder.eval(
+                                    zetas[other_domain.log_n] * SymbolicFelt::from_f(shift_power)
+                                        - SymbolicExt::from_f(C::EF::one()),
+                                );
+                                z.to_operand().symbolic()
+                            },
+                            builder.constant::<Felt<_>>(z_f),
                         )
                     })
-                    .unzip::<_, _, Vec<_>, Vec<_>>();
-                zs.into_iter().product::<SymbolicExt<_, _>>()
-                    * zinvs.into_iter().product::<SymbolicFelt<_>>()
+                    .unzip::<_, _, Vec<SymbolicExt<C::F, C::EF>>, Vec<Felt<_>>>();
+                let symbolic_prod: SymbolicFelt<_> =
+                    zinvs.into_iter().map(|x| x.into()).product::<SymbolicFelt<_>>();
+                (zs.into_iter().product::<SymbolicExt<_, _>>(), symbolic_prod)
             })
-            .collect::<Vec<SymbolicExt<_, _>>>()
+            .collect::<Vec<(SymbolicExt<_, _>, SymbolicFelt<_>)>>()
             .into_iter()
-            .map(|x| builder.eval(x))
+            .map(|(x, y)| builder.eval(x / y))
             .collect::<Vec<Ext<_, _>>>();
-
+        zps.iter().for_each(|zp| builder.reduce_e(*zp));
         builder.eval(
             opening
                 .quotient
@@ -119,223 +179,84 @@ where
                 .enumerate()
                 .map(|(ch_i, ch)| {
                     assert_eq!(ch.len(), C::EF::D);
-                    ch.iter()
-                        .enumerate()
-                        .map(|(e_i, &c)| zps[ch_i] * C::EF::monomial(e_i) * c)
-                        .sum::<SymbolicExt<_, _>>()
+                    zps[ch_i].to_operand().symbolic()
+                        * ch.iter()
+                            .enumerate()
+                            .map(|(e_i, &c)| C::EF::monomial(e_i).cons() * SymbolicExt::from(c))
+                            .sum::<SymbolicExt<_, _>>()
                 })
                 .sum::<SymbolicExt<_, _>>(),
         )
     }
 
-    pub fn verify_constraints<A>(
-        builder: &mut Builder<C>,
+    pub fn verify_opening_shape(
         chip: &MachineChip<SC, A>,
-        opening: &ChipOpenedValuesVariable<C>,
-        public_values: Array<C, Felt<C::F>>,
-        trace_domain: TwoAdicMultiplicativeCosetVariable<C>,
-        qc_domains: Vec<TwoAdicMultiplicativeCosetVariable<C>>,
-        zeta: Ext<C::F, C::EF>,
-        alpha: Ext<C::F, C::EF>,
-        permutation_challenges: &[Ext<C::F, C::EF>],
-    ) where
-        A: MachineAir<C::F> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, C>>,
-    {
-        builder.cycle_tracker("verify constraints");
+        opening: &ChipOpenedValues<Ext<C::F, C::EF>>,
+    ) -> Result<(), OpeningShapeError> {
+        // Verify that the preprocessed width matches the expected value for the chip.
+        if opening.preprocessed.local.len() != chip.preprocessed_width() {
+            return Err(OpeningShapeError::PreprocessedWidthMismatch(
+                chip.preprocessed_width(),
+                opening.preprocessed.local.len(),
+            ));
+        }
+        if opening.preprocessed.next.len() != chip.preprocessed_width() {
+            return Err(OpeningShapeError::PreprocessedWidthMismatch(
+                chip.preprocessed_width(),
+                opening.preprocessed.next.len(),
+            ));
+        }
 
-        let opening = ChipOpening::from_variable(builder, chip, opening);
-        let sels = trace_domain.selectors_at_point(builder, zeta);
+        // Verify that the main width matches the expected value for the chip.
+        if opening.main.local.len() != chip.width() {
+            return Err(OpeningShapeError::MainWidthMismatch(
+                chip.width(),
+                opening.main.local.len(),
+            ));
+        }
+        if opening.main.next.len() != chip.width() {
+            return Err(OpeningShapeError::MainWidthMismatch(
+                chip.width(),
+                opening.main.next.len(),
+            ));
+        }
 
-        let folded_constraints = Self::eval_constraints(
-            builder,
-            chip,
-            &opening,
-            public_values,
-            &sels,
-            alpha,
-            permutation_challenges,
-        );
+        // Verify that the permutation width matches the expected value for the chip.
+        if opening.permutation.local.len()
+            != chip.permutation_width() * <SC::Challenge as AbstractExtensionField<C::F>>::D
+        {
+            return Err(OpeningShapeError::PermutationWidthMismatch(
+                chip.permutation_width(),
+                opening.permutation.local.len(),
+            ));
+        }
+        if opening.permutation.next.len()
+            != chip.permutation_width() * <SC::Challenge as AbstractExtensionField<C::F>>::D
+        {
+            return Err(OpeningShapeError::PermutationWidthMismatch(
+                chip.permutation_width(),
+                opening.permutation.next.len(),
+            ));
+        }
 
-        let quotient: Ext<_, _> = Self::recompute_quotient(builder, &opening, qc_domains, zeta);
-
-        builder.assert_ext_eq(folded_constraints * sels.inv_zeroifier, quotient);
-
-        builder.cycle_tracker("verify constraints");
-    }
-}
-
-#[cfg(test)]
-mod tests {
-
-    use itertools::{izip, Itertools};
-    use p3_baby_bear::DiffusionMatrixBabyBear;
-    use p3_challenger::{CanObserve, FieldChallenger};
-    use p3_commit::{Pcs, PolynomialSpace};
-    use sp1_recursion_compiler::{
-        config::OuterConfig,
-        constraints::ConstraintCompiler,
-        ir::{Builder, Witness},
-        prelude::ExtConst,
-    };
-    use sp1_recursion_core::{
-        runtime::Runtime,
-        stark::{config::BabyBearPoseidon2Outer, RecursionAirWideDeg3},
-    };
-    use sp1_recursion_gnark_ffi::PlonkBn254Prover;
-    use sp1_stark::{
-        Chip, Com, CpuProver, Dom, MachineProver, OpeningProof, PcsProverData, SP1CoreOpts,
-        ShardCommitment, ShardProof, StarkGenericConfig, StarkMachine,
-    };
-
-    use crate::stark::{tests::basic_program, StarkVerifierCircuit};
-
-    #[allow(clippy::type_complexity)]
-    fn get_shard_data<'a, SC>(
-        machine: &'a StarkMachine<SC, RecursionAirWideDeg3<SC::Val>>,
-        proof: &'a ShardProof<SC>,
-        challenger: &mut SC::Challenger,
-    ) -> (
-        Vec<&'a Chip<SC::Val, RecursionAirWideDeg3<SC::Val>>>,
-        Vec<Dom<SC>>,
-        Vec<Vec<Dom<SC>>>,
-        Vec<SC::Challenge>,
-        SC::Challenge,
-        SC::Challenge,
-    )
-    where
-        SC: StarkGenericConfig + Default,
-        SC::Challenger: Clone,
-        OpeningProof<SC>: Send + Sync,
-        Com<SC>: Send + Sync,
-        PcsProverData<SC>: Send + Sync,
-        SC::Val: p3_field::PrimeField32,
-        <SC as sp1_stark::StarkGenericConfig>::Val: p3_field::extension::BinomiallyExtendable<4>,
-    {
-        let ShardProof { commitment, opened_values, .. } = proof;
-
-        let ShardCommitment { permutation_commit, quotient_commit, .. } = commitment;
-
-        // Extract verification metadata.
-        let pcs = machine.config().pcs();
-
-        let permutation_challenges =
-            (0..2).map(|_| challenger.sample_ext_element::<SC::Challenge>()).collect::<Vec<_>>();
-
-        challenger.observe(permutation_commit.clone());
-
-        let alpha = challenger.sample_ext_element::<SC::Challenge>();
-
-        // Observe the quotient commitments.
-        challenger.observe(quotient_commit.clone());
-
-        let zeta = challenger.sample_ext_element::<SC::Challenge>();
-
-        let chips = machine.shard_chips_ordered(&proof.chip_ordering).collect::<Vec<_>>();
-
-        let log_degrees = opened_values.chips.iter().map(|val| val.log_degree).collect::<Vec<_>>();
-
-        let log_quotient_degrees =
-            chips.iter().map(|chip| chip.log_quotient_degree()).collect::<Vec<_>>();
-
-        let trace_domains = log_degrees
-            .iter()
-            .map(|log_degree| pcs.natural_domain_for_degree(1 << log_degree))
-            .collect::<Vec<_>>();
-
-        let quotient_chunk_domains = trace_domains
-            .iter()
-            .zip_eq(log_degrees)
-            .zip_eq(log_quotient_degrees)
-            .map(|((domain, log_degree), log_quotient_degree)| {
-                let quotient_degree = 1 << log_quotient_degree;
-                let quotient_domain =
-                    domain.create_disjoint_domain(1 << (log_degree + log_quotient_degree));
-                quotient_domain.split_domains(quotient_degree)
-            })
-            .collect::<Vec<_>>();
-
-        (chips, trace_domains, quotient_chunk_domains, permutation_challenges, alpha, zeta)
-    }
-
-    #[test]
-    fn test_verify_constraints_whole() {
-        type SC = BabyBearPoseidon2Outer;
-        type F = <SC as StarkGenericConfig>::Val;
-        type EF = <SC as StarkGenericConfig>::Challenge;
-        type A = RecursionAirWideDeg3<F>;
-
-        sp1_core_machine::utils::setup_logger();
-        let program = basic_program::<F>();
-        let config = SC::new();
-        let mut runtime = Runtime::<F, EF, DiffusionMatrixBabyBear>::new_no_perm(&program);
-        runtime.run().unwrap();
-        let machine = A::machine(config);
-        let prover = CpuProver::new(machine);
-        let (pk, vk) = prover.setup(&program);
-        let mut challenger = prover.config().challenger();
-        let proof = prover
-            .prove(&pk, vec![runtime.record], &mut challenger, SP1CoreOpts::recursion())
-            .unwrap();
-
-        let mut challenger = prover.config().challenger();
-        vk.observe_into(&mut challenger);
-        proof.shard_proofs.iter().for_each(|proof| {
-            challenger.observe(proof.commitment.main_commit);
-            challenger.observe_slice(&proof.public_values[0..prover.num_pv_elts()]);
-        });
-
-        // Run the verify inside the DSL and compare it to the calculated value.
-        let mut builder = Builder::<OuterConfig>::default();
-
-        for proof in proof.shard_proofs.into_iter().take(1) {
-            let (
-                chips,
-                trace_domains_vals,
-                quotient_chunk_domains_vals,
-                permutation_challenges,
-                alpha_val,
-                zeta_val,
-            ) = get_shard_data(prover.machine(), &proof, &mut challenger);
-
-            for (chip, trace_domain_val, qc_domains_vals, values_vals) in izip!(
-                chips.iter(),
-                trace_domains_vals,
-                quotient_chunk_domains_vals,
-                proof.opened_values.chips.iter(),
-            ) {
-                let opening = builder.constant(values_vals.clone());
-                let alpha = builder.eval(alpha_val.cons());
-                let zeta = builder.eval(zeta_val.cons());
-                let trace_domain = builder.constant(trace_domain_val);
-                let pv_felts =
-                    proof.public_values.iter().map(|v| builder.constant(*v)).collect_vec();
-                let public_values = builder.vec(pv_felts);
-                let qc_domains = qc_domains_vals
-                    .iter()
-                    .map(|domain| builder.constant(*domain))
-                    .collect::<Vec<_>>();
-
-                let permutation_challenges = permutation_challenges
-                    .iter()
-                    .map(|c| builder.eval(c.cons()))
-                    .collect::<Vec<_>>();
-
-                StarkVerifierCircuit::<_, SC>::verify_constraints::<A>(
-                    &mut builder,
-                    chip,
-                    &opening,
-                    public_values,
-                    trace_domain,
-                    qc_domains,
-                    zeta,
-                    alpha,
-                    &permutation_challenges,
-                )
+        // Verift that the number of quotient chunks matches the expected value for the chip.
+        if opening.quotient.len() != chip.quotient_width() {
+            return Err(OpeningShapeError::QuotientWidthMismatch(
+                chip.quotient_width(),
+                opening.quotient.len(),
+            ));
+        }
+        // For each quotient chunk, verify that the number of elements is equal to the degree of the
+        // challenge extension field over the value field.
+        for slice in &opening.quotient {
+            if slice.len() != <SC::Challenge as AbstractExtensionField<C::F>>::D {
+                return Err(OpeningShapeError::QuotientChunkSizeMismatch(
+                    <SC::Challenge as AbstractExtensionField<C::F>>::D,
+                    slice.len(),
+                ));
             }
         }
 
-        let mut backend = ConstraintCompiler::<OuterConfig>::default();
-        let constraints = backend.emit(builder.operations);
-        PlonkBn254Prover::test::<OuterConfig>(constraints.clone(), Witness::default());
+        Ok(())
     }
 }

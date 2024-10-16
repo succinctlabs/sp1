@@ -27,8 +27,8 @@ pub struct ProverConstraintFolder<'a, SC: StarkGenericConfig> {
     >,
     /// The challenges for the permutation.
     pub perm_challenges: &'a [PackedChallenge<SC>],
-    /// The cumulative sum of the permutation.
-    pub cumulative_sum: SC::Challenge,
+    /// The cumulative sums for the permutation.
+    pub cumulative_sums: &'a [PackedChallenge<SC>],
     /// The selector for the first row.
     pub is_first_row: PackedVal<SC>,
     /// The selector for the last row.
@@ -111,11 +111,11 @@ impl<'a, SC: StarkGenericConfig> PermutationAirBuilder for ProverConstraintFolde
     }
 }
 
-impl<'a, SC: StarkGenericConfig> MultiTableAirBuilder for ProverConstraintFolder<'a, SC> {
+impl<'a, SC: StarkGenericConfig> MultiTableAirBuilder<'a> for ProverConstraintFolder<'a, SC> {
     type Sum = PackedChallenge<SC>;
 
-    fn cumulative_sum(&self) -> Self::Sum {
-        PackedChallenge::<SC>::from_f(self.cumulative_sum)
+    fn cumulative_sums(&self) -> &'a [Self::Sum] {
+        self.cumulative_sums
     }
 }
 
@@ -155,8 +155,8 @@ pub struct GenericVerifierConstraintFolder<'a, F, EF, PubVar, Var, Expr> {
     pub perm: VerticalPair<RowMajorMatrixView<'a, Var>, RowMajorMatrixView<'a, Var>>,
     /// The challenges for the permutation.
     pub perm_challenges: &'a [Var],
-    /// The cumulative sum of the permutation.
-    pub cumulative_sum: Var,
+    /// The cumulative sums of the permutation.
+    pub cumulative_sums: &'a [Var],
     /// The selector for the first row.
     pub is_first_row: Var,
     /// The selector for the last row.
@@ -316,7 +316,7 @@ where
     }
 }
 
-impl<'a, F, EF, PubVar, Var, Expr> MultiTableAirBuilder
+impl<'a, F, EF, PubVar, Var, Expr> MultiTableAirBuilder<'a>
     for GenericVerifierConstraintFolder<'a, F, EF, PubVar, Var, Expr>
 where
     F: Field,
@@ -347,8 +347,8 @@ where
 {
     type Sum = Var;
 
-    fn cumulative_sum(&self) -> Self::Sum {
-        self.cumulative_sum
+    fn cumulative_sums(&self) -> &'a [Self::Sum] {
+        self.cumulative_sums
     }
 }
 

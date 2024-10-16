@@ -35,7 +35,6 @@ impl<F: PrimeField32, P: FieldParameters> FieldDenCols<F, P> {
         &mut self,
         record: &mut impl ByteRecord,
         shard: u32,
-        channel: u8,
         a: &BigUint,
         b: &BigUint,
         sign: bool,
@@ -83,10 +82,10 @@ impl<F: PrimeField32, P: FieldParameters> FieldDenCols<F, P> {
         self.witness_high = Limbs(p_witness_high.try_into().unwrap());
 
         // Range checks
-        record.add_u8_range_checks_field(shard, channel, &self.result.0);
-        record.add_u8_range_checks_field(shard, channel, &self.carry.0);
-        record.add_u8_range_checks_field(shard, channel, &self.witness_low.0);
-        record.add_u8_range_checks_field(shard, channel, &self.witness_high.0);
+        record.add_u8_range_checks_field(shard, &self.result.0);
+        record.add_u8_range_checks_field(shard, &self.carry.0);
+        record.add_u8_range_checks_field(shard, &self.witness_low.0);
+        record.add_u8_range_checks_field(shard, &self.witness_high.0);
 
         result
     }
@@ -103,8 +102,6 @@ where
         a: &Limbs<AB::Var, P::Limbs>,
         b: &Limbs<AB::Var, P::Limbs>,
         sign: bool,
-        shard: impl Into<AB::Expr> + Clone,
-        channel: impl Into<AB::Expr> + Clone,
         is_real: impl Into<AB::Expr> + Clone,
     ) where
         V: Into<AB::Expr>,
@@ -133,25 +130,10 @@ where
         eval_field_operation::<AB, P>(builder, &p_vanishing, &p_witness_low, &p_witness_high);
 
         // Range checks for the result, carry, and witness columns.
-        builder.slice_range_check_u8(
-            &self.result.0,
-            shard.clone(),
-            channel.clone(),
-            is_real.clone(),
-        );
-        builder.slice_range_check_u8(
-            &self.carry.0,
-            shard.clone(),
-            channel.clone(),
-            is_real.clone(),
-        );
-        builder.slice_range_check_u8(
-            &self.witness_low.0,
-            shard.clone(),
-            channel.clone(),
-            is_real.clone(),
-        );
-        builder.slice_range_check_u8(&self.witness_high.0, shard, channel.clone(), is_real);
+        builder.slice_range_check_u8(&self.result.0, is_real.clone());
+        builder.slice_range_check_u8(&self.carry.0, is_real.clone());
+        builder.slice_range_check_u8(&self.witness_low.0, is_real.clone());
+        builder.slice_range_check_u8(&self.witness_high.0, is_real);
     }
 }
 
@@ -245,7 +227,7 @@ mod tests {
                     let cols: &mut TestCols<F, P> = row.as_mut_slice().borrow_mut();
                     cols.a = P::to_limbs_field::<F, _>(a);
                     cols.b = P::to_limbs_field::<F, _>(b);
-                    cols.a_den_b.populate(output, 1, 0, a, b, self.sign);
+                    cols.a_den_b.populate(output, 0, a, b, self.sign);
                     row
                 })
                 .collect::<Vec<_>>();
@@ -276,15 +258,7 @@ mod tests {
             let main = builder.main();
             let local = main.row_slice(0);
             let local: &TestCols<AB::Var, P> = (*local).borrow();
-            local.a_den_b.eval(
-                builder,
-                &local.a,
-                &local.b,
-                self.sign,
-                AB::F::one(),
-                AB::F::zero(),
-                AB::F::one(),
-            );
+            local.a_den_b.eval(builder, &local.a, &local.b, self.sign, AB::F::zero());
         }
     }
 

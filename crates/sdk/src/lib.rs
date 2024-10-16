@@ -316,7 +316,7 @@ macro_rules! include_elf {
 #[cfg(test)]
 mod tests {
 
-    use sp1_prover::init::SP1PublicValues;
+    use sp1_primitives::io::SP1PublicValues;
 
     use crate::{utils, CostEstimator, ProverClient, SP1Stdin};
 

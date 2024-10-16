@@ -7,8 +7,8 @@ use std::marker::PhantomData;
 use typenum::Unsigned;
 
 use crate::{
-    events::{FieldOperation, FpOpEvent},
-    syscalls::{Syscall, SyscallContext},
+    events::{FieldOperation, FpOpEvent, PrecompileEvent},
+    syscalls::{Syscall, SyscallCode, SyscallContext},
 };
 
 pub struct FpOpSyscall<P> {
@@ -23,7 +23,13 @@ impl<P> FpOpSyscall<P> {
 }
 
 impl<P: FpOpField> Syscall for FpOpSyscall<P> {
-    fn execute(&self, rt: &mut SyscallContext, arg1: u32, arg2: u32) -> Option<u32> {
+    fn execute(
+        &self,
+        rt: &mut SyscallContext,
+        syscall_code: SyscallCode,
+        arg1: u32,
+        arg2: u32,
+    ) -> Option<u32> {
         let clk = rt.clk;
         let x_ptr = arg1;
         if x_ptr % 4 != 0 {
@@ -57,37 +63,67 @@ impl<P: FpOpField> Syscall for FpOpSyscall<P> {
 
         let lookup_id = rt.syscall_lookup_id;
         let shard = rt.current_shard();
-        let channel = rt.current_channel();
+        let event = FpOpEvent {
+            lookup_id,
+            shard,
+            clk,
+            x_ptr,
+            x,
+            y_ptr,
+            y,
+            op: self.op,
+            x_memory_records,
+            y_memory_records,
+            local_mem_access: rt.postprocess(),
+        };
+
+        // Since all the Fp events are on the same table, we need to preserve the ordering of the
+        // events b/c of the nonce.  In this table's trace_gen, the nonce is simply the row number.
+        // Group all of the events for a specific curve into the same syscall code key.
+        // TODO:  FIX THIS.
+
         match P::FIELD_TYPE {
             FieldType::Bn254 => {
-                rt.record_mut().bn254_fp_events.push(FpOpEvent {
-                    lookup_id,
-                    shard,
-                    channel,
+                let syscall_code_key = match syscall_code {
+                    SyscallCode::BN254_FP_ADD
+                    | SyscallCode::BN254_FP_SUB
+                    | SyscallCode::BN254_FP_MUL => SyscallCode::BN254_FP_ADD,
+                    _ => unreachable!(),
+                };
+
+                let syscall_event = rt.rt.syscall_event(
                     clk,
-                    x_ptr,
-                    x,
-                    y_ptr,
-                    y,
-                    op: self.op,
-                    x_memory_records,
-                    y_memory_records,
-                });
+                    syscall_code.syscall_id(),
+                    arg1,
+                    arg2,
+                    event.lookup_id,
+                );
+                rt.record_mut().add_precompile_event(
+                    syscall_code_key,
+                    syscall_event,
+                    PrecompileEvent::Bn254Fp(event),
+                );
             }
             FieldType::Bls12381 => {
-                rt.record_mut().bls12381_fp_events.push(FpOpEvent {
-                    lookup_id,
-                    shard,
-                    channel,
+                let syscall_code_key = match syscall_code {
+                    SyscallCode::BLS12381_FP_ADD
+                    | SyscallCode::BLS12381_FP_SUB
+                    | SyscallCode::BLS12381_FP_MUL => SyscallCode::BLS12381_FP_ADD,
+                    _ => unreachable!(),
+                };
+
+                let syscall_event = rt.rt.syscall_event(
                     clk,
-                    x_ptr,
-                    x,
-                    y_ptr,
-                    y,
-                    op: self.op,
-                    x_memory_records,
-                    y_memory_records,
-                });
+                    syscall_code.syscall_id(),
+                    arg1,
+                    arg2,
+                    event.lookup_id,
+                );
+                rt.record_mut().add_precompile_event(
+                    syscall_code_key,
+                    syscall_event,
+                    PrecompileEvent::Bls12381Fp(event),
+                );
             }
         }
 
