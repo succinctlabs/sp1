@@ -52,7 +52,7 @@ pub struct Executor<'a> {
     /// The maximum size of each shard.
     pub shard_size: u32,
 
-    /// The maximimum number of shards to execute at once.
+    /// The maximum number of shards to execute at once.
     pub shard_batch_size: u32,
 
     /// The maximum number of cycles for a syscall.

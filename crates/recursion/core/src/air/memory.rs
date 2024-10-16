@@ -15,7 +15,7 @@ pub struct MemoryInitCols<T> {
     /// This column is the least significant 16 bit limb of next_address - current_address.
     pub diff_16bit_limb: T,
 
-    /// This column is the most signficant 8 bit limb of next_address - current_addres.
+    /// This column is the most significant 8 bit limb of next_address - current_address.
     pub diff_12bit_limb: T,
 
     /// Same for the address column.
@@ -99,7 +99,7 @@ pub struct MemoryAccessCols<T, TValue> {
     /// timestamp.
     pub diff_16bit_limb: T,
 
-    /// This column is the most signficant 12 bit limb of current access timestamp - prev access
+    /// This column is the most significant 12 bit limb of current access timestamp - prev access
     /// timestamp.
     pub diff_12bit_limb: T,
 }

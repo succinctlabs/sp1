@@ -10,7 +10,7 @@ use ed25519_consensus::{
     Signature as Ed25519ConsensusSignature, VerificationKey as Ed25519ConsensusVerificationKey,
 };
 use ed25519_dalek::{
-    Signature as Ed25519DalekSignature, Verifier, VerifyingKey as Ed25519DalekVerifiyingKey,
+    Signature as Ed25519DalekSignature, Verifier, VerifyingKey as Ed25519DalekVerifyingKey,
 };
 
 use sha2_v0_10_6::{Digest as Digest_10_6, Sha256 as Sha256_10_6};
@@ -43,7 +43,7 @@ fn test_ed25519_dalek() {
     let msg = hex!("656432353531392d636f6e73656e7375732074657374206d657373616765");
     let sig = hex!("69261ea5df799b20fc6eeb49aa79f572c8f1e2ba88b37dff184cc55d4e3653d876419bffcc47e5343cdd5fd78121bb32f1c377a5ed505106ad37f19980218f0d");
 
-    let vk = Ed25519DalekVerifiyingKey::from_bytes(&vk).unwrap();
+    let vk = Ed25519DalekVerifyingKey::from_bytes(&vk).unwrap();
     let sig = Ed25519DalekSignature::from_bytes(&sig);
 
     println!("cycle-tracker-start: ed25519-dalek verify");

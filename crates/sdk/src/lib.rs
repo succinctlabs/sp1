@@ -55,7 +55,7 @@ pub struct ProverClient {
 impl ProverClient {
     /// Creates a new [ProverClient].
     ///
-    /// Setting the `SP1_PROVER` enviroment variable can change the prover used under the hood.
+    /// Setting the `SP1_PROVER` environment variable can change the prover used under the hood.
     /// - `local` (default): Uses [CpuProver] or [CudaProver] if the `cuda` feature is enabled.
     ///   Recommended for proving end-to-end locally.
     /// - `mock`: Uses [MockProver]. Recommended for testing and development.
@@ -98,7 +98,7 @@ impl ProverClient {
                 }
             }
             _ => panic!(
-                "invalid value for SP1_PROVER enviroment variable: expected 'local', 'mock', or 'network'"
+                "invalid value for SP1_PROVER environment variable: expected 'local', 'mock', or 'network'"
             ),
         }
     }
@@ -106,7 +106,7 @@ impl ProverClient {
     /// Creates a new [ProverClient] with the mock prover.
     ///
     /// Recommended for testing and development. You can also use [ProverClient::new] to set the
-    /// prover to `mock` with the `SP1_PROVER` enviroment variable.
+    /// prover to `mock` with the `SP1_PROVER` environment variable.
     ///
     /// ### Examples
     ///
@@ -122,7 +122,7 @@ impl ProverClient {
     /// Creates a new [ProverClient] with the local prover.
     ///
     /// Recommended for proving end-to-end locally. You can also use [ProverClient::new] to set the
-    /// prover to `local` with the `SP1_PROVER` enviroment variable.
+    /// prover to `local` with the `SP1_PROVER` environment variable.
     ///
     /// ### Examples
     ///
@@ -138,7 +138,7 @@ impl ProverClient {
     /// Creates a new [ProverClient] with the network prover.
     ///
     /// Recommended for outsourcing proof generation to an RPC. You can also use [ProverClient::new]
-    /// to set the prover to `network` with the `SP1_PROVER` enviroment variable.
+    /// to set the prover to `network` with the `SP1_PROVER` environment variable.
     ///
     /// ### Examples
     ///

@@ -68,7 +68,7 @@ pub(crate) mod riscv_chips {
 #[derive(sp1_derive::MachineAir, EnumDiscriminants)]
 #[strum_discriminants(derive(Hash, EnumIter))]
 pub enum RiscvAir<F: PrimeField32> {
-    /// An AIR that containts a preprocessed program table and a lookup for the instructions.
+    /// An AIR that contains a preprocessed program table and a lookup for the instructions.
     Program(ProgramChip),
     /// An AIR for the RISC-V CPU. Each row represents a cpu cycle.
     Cpu(CpuChip),

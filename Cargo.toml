@@ -134,5 +134,5 @@ p3-bn254-fr = "0.1.4-succinct"
 # p3-bn254-fr = { path = "../Plonky3/bn254-fr" }
 
 [workspace.metadata.typos]
-default.extend-ignore-re = ["Jo-Philipp Wich", "SubEIN", "DivEIN"]
+default.extend-ignore-re = ["Jo-Philipp Wich", "SubEIN", "DivEIN", "CommitCommitedValuesDigest"]
 default.extend-ignore-words-re = ["(?i)groth", "TRE"]

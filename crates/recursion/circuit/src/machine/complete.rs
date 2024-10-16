@@ -55,12 +55,12 @@ pub(crate) fn assert_complete<C: Config>(
         builder.assert_felt_eq(is_complete * (end_challenger_d - leaf_challenger_d), C::F::zero());
     }
 
-    // The start reconstruct deffered digest should be zero.
+    // The start reconstruct deferred digest should be zero.
     for start_digest_word in start_reconstruct_deferred_digest {
         builder.assert_felt_eq(is_complete * *start_digest_word, C::F::zero());
     }
 
-    // The end reconstruct deffered digest should be equal to the deferred proofs digest.
+    // The end reconstruct deferred digest should be equal to the deferred proofs digest.
     for (end_digest_word, deferred_digest_word) in
         end_reconstruct_deferred_digest.iter().zip_eq(deferred_proofs_digest.iter())
     {

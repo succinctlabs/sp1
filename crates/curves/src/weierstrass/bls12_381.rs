@@ -14,7 +14,7 @@ use crate::{
 use crate::{AffinePoint, EllipticCurve};
 
 // Serialization flags
-const COMPRESION_FLAG: u8 = 0b_1000_0000;
+const COMPRESSION_FLAG: u8 = 0b_1000_0000;
 const Y_IS_ODD_FLAG: u8 = 0b_0010_0000;
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -113,7 +113,7 @@ impl WeierstrassParameters for Bls12381Parameters {
 
 pub fn bls12381_decompress<E: EllipticCurve>(bytes_be: &[u8], sign_bit: u32) -> AffinePoint<E> {
     let mut g1_bytes_be: [u8; 48] = bytes_be.try_into().unwrap();
-    let mut flags = COMPRESION_FLAG;
+    let mut flags = COMPRESSION_FLAG;
     if sign_bit == 1 {
         flags |= Y_IS_ODD_FLAG;
     };
@@ -181,7 +181,7 @@ mod tests {
                     result[0] += Y_IS_ODD_FLAG;
                     is_odd = 1;
                 }
-                result[0] += COMPRESION_FLAG;
+                result[0] += COMPRESSION_FLAG;
 
                 (result, is_odd)
             };

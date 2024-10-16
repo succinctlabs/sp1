@@ -1,6 +1,6 @@
 //! An end-to-end-prover implementation for the SP1 RISC-V zkVM.
 //!
-//! Seperates the proof generation process into multiple stages:
+//! Separates the proof generation process into multiple stages:
 //!
 //! 1. Generate shard proofs which split up and prove the valid execution of a RISC-V program.
 //! 2. Compress shard proofs into a single shard proof.
@@ -82,7 +82,7 @@ use sp1_stark::{
 };
 
 pub use types::*;
-use utils::{sp1_commited_values_digest_bn254, sp1_vkey_digest_bn254, words_to_bytes};
+use utils::{sp1_committed_values_digest_bn254, sp1_vkey_digest_bn254, words_to_bytes};
 
 use components::{DefaultProverComponents, SP1ProverComponents};
 
@@ -1087,11 +1087,11 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             is_complete: true,
         };
         let vkey_hash = sp1_vkey_digest_bn254(&proof);
-        let committed_values_digest = sp1_commited_values_digest_bn254(&proof);
+        let committed_values_digest = sp1_committed_values_digest_bn254(&proof);
 
         let mut witness = Witness::default();
         input.write(&mut witness);
-        witness.write_commited_values_digest(committed_values_digest);
+        witness.write_committed_values_digest(committed_values_digest);
         witness.write_vkey_hash(vkey_hash);
 
         let prover = PlonkBn254Prover::new();
@@ -1120,11 +1120,11 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             is_complete: true,
         };
         let vkey_hash = sp1_vkey_digest_bn254(&proof);
-        let committed_values_digest = sp1_commited_values_digest_bn254(&proof);
+        let committed_values_digest = sp1_committed_values_digest_bn254(&proof);
 
         let mut witness = Witness::default();
         input.write(&mut witness);
-        witness.write_commited_values_digest(committed_values_digest);
+        witness.write_committed_values_digest(committed_values_digest);
         witness.write_vkey_hash(vkey_hash);
 
         let prover = Groth16Bn254Prover::new();
@@ -1369,7 +1369,7 @@ pub mod tests {
         let (constraints, witness) =
             build_constraints_and_witness(&wrapped_bn254_proof.vk, &wrapped_bn254_proof.proof);
         PlonkBn254Prover::test(constraints, witness);
-        tracing::info!("Circuit test succedded");
+        tracing::info!("Circuit test succeeded");
 
         if test_kind == Test::CircuitTest {
             return Ok(());

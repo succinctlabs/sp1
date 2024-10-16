@@ -29,7 +29,7 @@ pub struct ExecutionState {
     /// + timestamp that each memory address was accessed.
     pub memory: PagedMemory<MemoryRecord>,
 
-    /// The global clock keeps track of how many instrutions have been executed through all shards.
+    /// The global clock keeps track of how many instructions have been executed through all shards.
     pub global_clk: u64,
 
     /// The clock increments by 4 (possibly more in syscalls) for each instruction that has been

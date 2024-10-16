@@ -225,7 +225,7 @@ where
                 // Exit code.
                 exit_code = public_values.exit_code;
 
-                // Commited public values digests.
+                // Committed public values digests.
                 for (word, first_word) in committed_value_digest
                     .iter_mut()
                     .zip_eq(public_values.committed_value_digest.iter())
@@ -426,10 +426,10 @@ where
 
             // Digest constraints.
             {
-                // // If `commited_value_digest` is not zero, then the current value should be equal
-                // to `public_values.commited_value_digest`.
+                // // If `committed_value_digest` is not zero, then the current value should be equal
+                // to `public_values.committed_value_digest`.
 
-                // Set flags to indicate whether `commited_value_digest` is non-zero. The flags are
+                // Set flags to indicate whether `committed_value_digest` is non-zero. The flags are
                 // given by the elements of the array, and they will be used as filters to constrain
                 // the equality.
                 let mut is_non_zero_flags = vec![];

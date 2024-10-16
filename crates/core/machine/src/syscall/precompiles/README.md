@@ -205,8 +205,8 @@ rand = "0.8.5"
 ```
 Then implement the tests and run `cargo prove build` to generate an ELF file. 
 
-### Include teh ELF File in `program.rs`
-In your main SP1 project, include teh generated ELF file by updating `program.rs`. 
+### Include the ELF File in `program.rs`
+In your main SP1 project, include the generated ELF file by updating `program.rs`. 
 ```rust
 pub const CUSTOM_PRECOMPILE_ELF: &[u8] =
     include_bytes!("path/to/generated/elf/file");

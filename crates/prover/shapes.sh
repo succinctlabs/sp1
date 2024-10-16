@@ -20,7 +20,7 @@ aws s3 cp dummy_vk_map.bin "s3://${S3_BUCKET}/shapes-${GIT_REF}/dummy_vk_map.bin
 
 # Print the uploaded shapes.
 echo "\n"
-echo "Succesfully uploaded shapes to s3:"
+echo "Successfully uploaded shapes to s3:"
 echo "- https://${S3_BUCKET}.s3.us-east-2.amazonaws.com/shapes-${GIT_REF}/allowed_vk_map.bin"
 echo "- https://${S3_BUCKET}.s3.us-east-2.amazonaws.com/shapes-${GIT_REF}/dummy_vk_map.bin"
 echo "Shape Version: ${GIT_REF}"

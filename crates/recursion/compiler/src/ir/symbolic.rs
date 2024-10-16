@@ -1221,38 +1221,38 @@ impl<F: Field, EF: ExtensionField<F>, E: Any> ExtensionOperand<F, EF> for E {
     fn to_operand(self) -> ExtOperand<F, EF> {
         match self.type_id() {
             ty if ty == TypeId::of::<F>() => {
-                // *Saftey*: We know that E is a F and we can transmute it to F which implements
+                // *Safety*: We know that E is a F and we can transmute it to F which implements
                 // the Copy trait.
                 let value = unsafe { mem::transmute_copy::<E, F>(&self) };
                 ExtOperand::<F, EF>::Base(value)
             }
             ty if ty == TypeId::of::<EF>() => {
-                // *Saftey*: We know that E is a EF and we can transmute it to EF which implements
+                // *Safety*: We know that E is a EF and we can transmute it to EF which implements
                 // the Copy trait.
                 let value = unsafe { mem::transmute_copy::<E, EF>(&self) };
                 ExtOperand::<F, EF>::Const(value)
             }
             ty if ty == TypeId::of::<Felt<F>>() => {
-                // *Saftey*: We know that E is a Felt<F> and we can transmute it to Felt<F> which
+                // *Safety*: We know that E is a Felt<F> and we can transmute it to Felt<F> which
                 // implements the Copy trait.
                 let value = unsafe { mem::transmute_copy::<E, Felt<F>>(&self) };
                 ExtOperand::<F, EF>::Felt(value)
             }
             ty if ty == TypeId::of::<Ext<F, EF>>() => {
-                // *Saftey*: We know that E is a Ext<F, EF> and we can transmute it to Ext<F, EF>
+                // *Safety*: We know that E is a Ext<F, EF> and we can transmute it to Ext<F, EF>
                 // which implements the Copy trait.
                 let value = unsafe { mem::transmute_copy::<E, Ext<F, EF>>(&self) };
                 ExtOperand::<F, EF>::Ext(value)
             }
             ty if ty == TypeId::of::<SymbolicFelt<F>>() => {
-                // *Saftey*: We know that E is a Symbolic Felt<F> and we can transmute it to
+                // *Safety*: We know that E is a Symbolic Felt<F> and we can transmute it to
                 // SymbolicFelt<F> but we need to clone the pointer.
                 let value_ref = unsafe { mem::transmute::<&E, &SymbolicFelt<F>>(&self) };
                 let value = *value_ref;
                 ExtOperand::<F, EF>::SymFelt(value)
             }
             ty if ty == TypeId::of::<SymbolicExt<F, EF>>() => {
-                // *Saftey*: We know that E is a SymbolicExt<F, EF> and we can transmute it to
+                // *Safety*: We know that E is a SymbolicExt<F, EF> and we can transmute it to
                 // SymbolicExt<F, EF> but we need to clone the pointer.
                 let value_ref = unsafe { mem::transmute::<&E, &SymbolicExt<F, EF>>(&self) };
                 let value = *value_ref;

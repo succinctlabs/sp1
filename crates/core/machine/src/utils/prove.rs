@@ -274,7 +274,7 @@ where
                                 deferred.append(&mut record.defer());
                             }
 
-                            // See if any deferred shards are ready to be commited to.
+                            // See if any deferred shards are ready to be committed to.
                             let mut deferred = deferred.split(done, opts.split_opts);
                             log::info!("deferred {} records", deferred.len());
 
@@ -508,7 +508,7 @@ where
                                 deferred.append(&mut record.defer());
                             }
 
-                            // See if any deferred shards are ready to be commited to.
+                            // See if any deferred shards are ready to be committed to.
                             let mut deferred = deferred.split(done, opts.split_opts);
                             log::info!("deferred {} records", deferred.len());
 
