@@ -636,7 +636,7 @@ mod tests {
             let compressed = encoded_compressed.as_bytes();
             println!("compressed: {:?}", compressed);
 
-            let inputs = SP1Stdin::from(&compressed);
+            let inputs = SP1Stdin::from(compressed);
 
             let mut public_values = run_test_io::<CpuProver<_, _>>(
                 Program::from(SECP256R1_DECOMPRESS_ELF).unwrap(),

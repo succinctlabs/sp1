@@ -61,7 +61,7 @@ pub fn test_weierstrass_add<P: AffinePoint<N> + WeierstrassAffinePoint<N>, const
     // Create a point that is the negation of a_point.
     let a_point_le_bytes = a_point.to_le_bytes();
     let y_biguint = BigUint::from_bytes_le(&a_point_le_bytes[N * 2..]);
-    let modulus_biguint = BigUint::from_bytes_le(&modulus);
+    let modulus_biguint = BigUint::from_bytes_le(modulus);
 
     // Negate y.
     let negated_y_biguint = (&modulus_biguint - &y_biguint) % &modulus_biguint;
