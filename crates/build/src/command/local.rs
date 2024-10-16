@@ -36,6 +36,8 @@ pub(crate) fn create_local_command(
     // 4. Remove the rustc configuration, otherwise in a build script it will attempt to compile the
     //    program with the toolchain of the normal build process, rather than the Succinct
     //    toolchain.
+    // 5. Remove all the environment variables related to cargo activated features and configuration
+    //    options.
     command
         .current_dir(canonicalized_program_dir)
         .env("RUSTUP_TOOLCHAIN", "succinct")
@@ -45,5 +47,9 @@ pub(crate) fn create_local_command(
         // TODO: remove once trim-paths is supported - https://github.com/rust-lang/rust/issues/111540
         .env("RUSTC_BOOTSTRAP", "1") // allows trim-paths.
         .args(get_program_build_args(args));
+    env::vars()
+        .map(|v| v.0)
+        .filter(|v| v.starts_with("CARGO_FEATURE_") || v.starts_with("CARGO_CFG_"))
+        .fold(&mut command, Command::env_remove);
     command
 }
