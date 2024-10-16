@@ -128,6 +128,22 @@ impl SP1CudaProver {
             .spawn()
             .map_err(|e| format!("Failed to start Docker container: {}. Please check your Docker installation and permissions.", e))?;
 
+        let stderr = child.stderr.take().unwrap();
+        std::thread::spawn(move || {
+            let mut reader = BufReader::new(stderr);
+            let mut buffer = [0; 1024];
+            loop {
+                match reader.read(&mut buffer) {
+                    Ok(0) => break,
+                    Ok(n) => {
+                        std::io::stderr().write_all(&buffer[..n]).unwrap();
+                        std::io::stderr().flush().unwrap();
+                    }
+                    Err(_) => break,
+                }
+            }
+        });
+
         let stdout = child.stdout.take().unwrap();
         std::thread::spawn(move || {
             let mut reader = BufReader::new(stdout);

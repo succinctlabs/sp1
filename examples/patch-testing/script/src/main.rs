@@ -1,6 +1,6 @@
-use sp1_sdk::{utils, ProverClient, SP1Stdin};
+use sp1_sdk::{include_elf, utils, ProverClient, SP1Stdin};
 
-const PATCH_TEST_ELF: &[u8] = include_bytes!("../../program/elf/riscv32im-succinct-zkvm-elf");
+const PATCH_TEST_ELF: &[u8] = include_elf!("patch-testing-program");
 
 /// This script is used to test that SP1 patches are correctly applied and syscalls are triggered.
 pub fn main() {
