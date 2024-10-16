@@ -36,7 +36,7 @@ SP1 enables teams to use ZKPs in production with minimal overhead and fast timel
 
 SP1 is the fastest zkVM and has blazing fast performance on a variety of realistic blockchain workloads, including light clients and rollups. With SP1, ZKP proving costs are an order of magnitude less than alternative zkVMs or even circuits, making it cost-effective and fast for practical use.
 
-Read more about our benchmarking results [here](https://blog.succinct.xyz/sp1-production-benchmarks).
+Read more about our benchmarking results [here](https://blog.succinct.xyz/sp1-benchmarks-8-6-24).
 
 ## Open Source 
 
