@@ -70,18 +70,19 @@ impl ProverClient {
     /// let client = ProverClient::new();
     /// ```
     pub fn new() -> Self {
-        #[cfg(debug_assertions)]
-        panic!("sp1-sdk must be built in release mode. please compile with the --release flag.");
-
         #[allow(unreachable_code)]
         match env::var("SP1_PROVER").unwrap_or("local".to_string()).to_lowercase().as_str() {
             "mock" => Self { prover: Box::new(MockProver::new()) },
-            "local" => Self {
-                #[cfg(not(feature = "cuda"))]
-                prover: Box::new(CpuProver::new()),
-                #[cfg(feature = "cuda")]
-                prover: Box::new(CudaProver::new(SP1Prover::new())),
-            },
+            "local" => {
+                #[cfg(debug_assertions)]
+                tracing::warn!("Local prover in debug mode not recommended. Proof generation may be slow.");
+                Self {
+                    #[cfg(not(feature = "cuda"))]
+                    prover: Box::new(CpuProver::new()),
+                    #[cfg(feature = "cuda")]
+                    prover: Box::new(CudaProver::new(SP1Prover::new())),
+                }
+            }
             "network" => {
                 cfg_if! {
                     if #[cfg(feature = "network-v2")] {
