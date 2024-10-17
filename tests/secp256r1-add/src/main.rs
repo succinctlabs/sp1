@@ -1,17 +1,8 @@
 #![no_main]
 sp1_zkvm::entrypoint!(main);
 
-// use p256::elliptic_curve::group::prime::PrimeCurveAffine;
-// use p256::elliptic_curve::group::GroupEncoding;
-// use p256::elliptic_curve::{CurveArithmetic, PrimeCurveArithmetic};
-// use p256::primeorder::{point_arithmetic, PrimeCurveParams};
-// use hex_literal::hex;
-// use p256::elliptic_curve::sec1::{FromEncodedPoint, ToCompactEncodedPoint, ToEncodedPoint};
-// use p256::{AffinePoint, EncodedPoint};
-// use p256::{Scalar, U256};
 use sp1_curves::params::FieldParameters;
 use sp1_zkvm::lib::secp256r1::Secp256r1Point;
-// use sp1_zkvm::syscalls::syscall_secp256r1_add;
 
 pub fn main() {
     // generator.
