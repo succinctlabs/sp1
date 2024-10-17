@@ -6,9 +6,8 @@ use std::hint::black_box;
 
 /// Returns the beaacon block's withdrawals root and a corresponding SSZ merkle proof.
 pub fn withdrawals_root_proof(_block_root: Node) -> (Node, Vec<Node>) {
-    let leaf = node_from_bytes(hex!(
-        "5cc52fb136d9ff526f071f8f87d44c3f35ff5dc973371a2c3613d8ecc53bfcd4"
-    ));
+    let leaf =
+        node_from_bytes(hex!("5cc52fb136d9ff526f071f8f87d44c3f35ff5dc973371a2c3613d8ecc53bfcd4"));
     let branch = branch_from_bytes(
         [
             hex!("0000000000000000000000000000000000000000000000000000000000000000"),
@@ -163,9 +162,8 @@ pub fn validator_proof(_block_root: Node, _index: u64) -> (Validator, Vec<Node>)
 /// The target slot must be at most (source_slot - 8192).
 pub fn historical_far_slot_proof(_block_root: Node, _target_slot: u64) -> (Node, Vec<Node>) {
     // Block root -> historical summary root
-    let leaf = node_from_bytes(hex!(
-        "1d52ab18adbab483661ee3dd7ebc62691abe30c1ac619a120a4d3050ec0f7c4b"
-    ));
+    let leaf =
+        node_from_bytes(hex!("1d52ab18adbab483661ee3dd7ebc62691abe30c1ac619a120a4d3050ec0f7c4b"));
     let branch = branch_from_bytes(
         [
             hex!("71d67d25484adcd645fc49c83f48a44b2f95c6215356a6f858549ef5ce0fd141"),
@@ -214,9 +212,8 @@ pub fn historical_far_slot_blockroot_proof(
     _block_root: Node,
     _target_slot: u64,
 ) -> (Node, Vec<Node>) {
-    let leaf = node_from_bytes(hex!(
-        "baa0d6d6383b6c227a59bd739d6adda29db2bbebc7db7a1d33f76d713c25be92"
-    ));
+    let leaf =
+        node_from_bytes(hex!("baa0d6d6383b6c227a59bd739d6adda29db2bbebc7db7a1d33f76d713c25be92"));
     let branch = branch_from_bytes(
         [
             hex!("c1335f53786cb473466d9e876f516e6fcf0c92fc584f1b04e382d5ff97a079a1"),
@@ -249,18 +246,9 @@ pub fn withdrawals_range(
 ) -> (Vec<(u64, Vec<u32>)>, Vec<u64>) {
     (
         vec![
-            (
-                7855804,
-                vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
-            ),
-            (
-                7855805,
-                vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
-            ),
-            (
-                7855806,
-                vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
-            ),
+            (7855804, vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]),
+            (7855805, vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]),
+            (7855806, vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]),
         ],
         vec![795049, 795050, 795051],
     )

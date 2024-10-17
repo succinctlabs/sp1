@@ -2,7 +2,9 @@ use std::{fmt::Debug, fs::File, path::Path};
 
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
-use sp1_core_machine::io::{SP1PublicValues, SP1Stdin};
+use sp1_core_executor::SP1ReduceProof;
+use sp1_core_machine::io::SP1Stdin;
+use sp1_primitives::io::SP1PublicValues;
 use strum_macros::{EnumDiscriminants, EnumTryAs};
 
 use sp1_prover::{CoreSC, Groth16Bn254Proof, InnerSC, PlonkBn254Proof};
@@ -15,7 +17,7 @@ use sp1_stark::{MachineVerificationError, ShardProof};
 pub enum SP1Proof {
     #[strum_discriminants(default)]
     Core(Vec<ShardProof<CoreSC>>),
-    Compressed(ShardProof<InnerSC>),
+    Compressed(Box<SP1ReduceProof<InnerSC>>),
     Plonk(PlonkBn254Proof),
     Groth16(Groth16Bn254Proof),
 }
@@ -46,6 +48,7 @@ impl SP1ProofWithPublicValues {
     pub fn raw(&self) -> String {
         match &self.proof {
             SP1Proof::Plonk(plonk) => plonk.raw_proof.clone(),
+            SP1Proof::Groth16(groth16) => groth16.raw_proof.clone(),
             _ => unimplemented!(),
         }
     }
@@ -56,6 +59,13 @@ impl SP1ProofWithPublicValues {
     pub fn bytes(&self) -> Vec<u8> {
         match &self.proof {
             SP1Proof::Plonk(plonk_proof) => {
+                if plonk_proof.encoded_proof.is_empty() {
+                    // If the proof is empty, then we are working with a mock proof.
+                    // The mock SP1 verifier expects an empty byte array for verification,
+                    // so we return empty bytes for compatibility with the mock verifier.
+                    return Vec::new();
+                }
+
                 let mut bytes = Vec::with_capacity(4 + plonk_proof.encoded_proof.len());
                 bytes.extend_from_slice(&plonk_proof.plonk_vkey_hash[..4]);
                 bytes.extend_from_slice(

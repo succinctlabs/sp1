@@ -19,7 +19,7 @@ use sp1_stark::{
     Word,
 };
 
-use crate::utils::pad_to_power_of_two;
+use crate::utils::pad_rows_fixed;
 
 /// The number of main trace columns for `BitwiseChip`.
 pub const NUM_BITWISE_COLS: usize = size_of::<BitwiseCols<u8>>();
@@ -34,9 +34,6 @@ pub struct BitwiseChip;
 pub struct BitwiseCols<T> {
     /// The shard number, used for byte lookup table.
     pub shard: T,
-
-    /// The channel number, used for byte lookup table.
-    pub channel: T,
 
     /// The nonce of the operation.
     pub nonce: T,
@@ -74,7 +71,7 @@ impl<F: PrimeField> MachineAir<F> for BitwiseChip {
         input: &ExecutionRecord,
         _: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
-        let rows = input
+        let mut rows = input
             .bitwise_events
             .par_iter()
             .map(|event| {
@@ -86,12 +83,16 @@ impl<F: PrimeField> MachineAir<F> for BitwiseChip {
             })
             .collect::<Vec<_>>();
 
+        // Pad the trace to a power of two.
+        pad_rows_fixed(
+            &mut rows,
+            || [F::zero(); NUM_BITWISE_COLS],
+            input.fixed_log2_rows::<F, _>(self),
+        );
+
         // Convert the trace to a row major matrix.
         let mut trace =
             RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_BITWISE_COLS);
-
-        // Pad the trace to a power of two.
-        pad_to_power_of_two::<NUM_BITWISE_COLS, F>(&mut trace.values);
 
         for i in 0..trace.height() {
             let cols: &mut BitwiseCols<F> =
@@ -123,7 +124,11 @@ impl<F: PrimeField> MachineAir<F> for BitwiseChip {
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
-        !shard.bitwise_events.is_empty()
+        if let Some(shape) = shard.shape.as_ref() {
+            shape.included::<F, _>(self)
+        } else {
+            !shard.bitwise_events.is_empty()
+        }
     }
 }
 
@@ -140,7 +145,6 @@ impl BitwiseChip {
         let c = event.c.to_le_bytes();
 
         cols.shard = F::from_canonical_u32(event.shard);
-        cols.channel = F::from_canonical_u8(event.channel);
         cols.a = Word::from(event.a);
         cols.b = Word::from(event.b);
         cols.c = Word::from(event.c);
@@ -152,7 +156,6 @@ impl BitwiseChip {
         for ((b_a, b_b), b_c) in a.into_iter().zip(b).zip(c) {
             let byte_event = ByteLookupEvent {
                 shard: event.shard,
-                channel: event.channel,
                 opcode: ByteOpcode::from(event.opcode),
                 a1: b_a as u16,
                 a2: 0,
@@ -193,7 +196,7 @@ where
         // Get a multiplicity of `1` only for a true row.
         let mult = local.is_xor + local.is_or + local.is_and;
         for ((a, b), c) in local.a.into_iter().zip(local.b).zip(local.c) {
-            builder.send_byte(opcode.clone(), a, b, c, local.shard, local.channel, mult.clone());
+            builder.send_byte(opcode.clone(), a, b, c, mult.clone());
         }
 
         // Get the cpu opcode, which corresponds to the opcode being sent in the CPU table.
@@ -208,7 +211,6 @@ where
             local.b,
             local.c,
             local.shard,
-            local.channel,
             local.nonce,
             local.is_xor + local.is_or + local.is_and,
         );
@@ -235,7 +237,7 @@ mod tests {
     #[test]
     fn generate_trace() {
         let mut shard = ExecutionRecord::default();
-        shard.bitwise_events = vec![AluEvent::new(0, 0, 0, Opcode::XOR, 25, 10, 19)];
+        shard.bitwise_events = vec![AluEvent::new(0, 0, Opcode::XOR, 25, 10, 19)];
         let chip = BitwiseChip::default();
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&shard, &mut ExecutionRecord::default());
@@ -249,9 +251,9 @@ mod tests {
 
         let mut shard = ExecutionRecord::default();
         shard.bitwise_events = [
-            AluEvent::new(0, 0, 0, Opcode::XOR, 25, 10, 19),
-            AluEvent::new(0, 1, 0, Opcode::OR, 27, 10, 19),
-            AluEvent::new(0, 0, 0, Opcode::AND, 2, 10, 19),
+            AluEvent::new(0, 0, Opcode::XOR, 25, 10, 19),
+            AluEvent::new(0, 0, Opcode::OR, 27, 10, 19),
+            AluEvent::new(0, 0, Opcode::AND, 2, 10, 19),
         ]
         .repeat(1000);
         let chip = BitwiseChip::default();

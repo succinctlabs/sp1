@@ -19,7 +19,7 @@ func NewSP1PlonkBn254Proof(proof *plonk.Proof, witnessInput WitnessInput) Proof 
 
 	var publicInputs [2]string
 	publicInputs[0] = witnessInput.VkeyHash
-	publicInputs[1] = witnessInput.CommitedValuesDigest
+	publicInputs[1] = witnessInput.CommittedValuesDigest
 
 	// Cast plonk proof into plonk_bn254 proof so we can call MarshalSolidity.
 	p := (*proof).(*plonk_bn254.Proof)
@@ -40,7 +40,7 @@ func NewSP1Groth16Proof(proof *groth16.Proof, witnessInput WitnessInput) Proof {
 
 	var publicInputs [2]string
 	publicInputs[0] = witnessInput.VkeyHash
-	publicInputs[1] = witnessInput.CommitedValuesDigest
+	publicInputs[1] = witnessInput.CommittedValuesDigest
 
 	// Cast groth16 proof into groth16_bn254 proof so we can call MarshalSolidity.
 	p := (*proof).(*groth16_bn254.Proof)
@@ -69,7 +69,7 @@ func NewCircuit(witnessInput WitnessInput) Circuit {
 	}
 	return Circuit{
 		VkeyHash:             witnessInput.VkeyHash,
-		CommitedValuesDigest: witnessInput.CommitedValuesDigest,
+		CommittedValuesDigest: witnessInput.CommittedValuesDigest,
 		Vars:                 vars,
 		Felts:                felts,
 		Exts:                 exts,

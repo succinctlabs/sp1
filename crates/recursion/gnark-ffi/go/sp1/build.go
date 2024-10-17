@@ -19,7 +19,7 @@ import (
 )
 
 func BuildPlonk(dataDir string) {
-	// Set the enviroment variable for the constraints file.
+	// Set the environment variable for the constraints file.
 	//
 	// TODO: There might be some non-determinism if a single process is running this command
 	// multiple times.
@@ -292,7 +292,7 @@ func BuildGroth16(dataDir string) {
 		panic(err)
 	}
 	defer pkFile.Close()
-	_, err = pk.WriteTo(pkFile)
+	err = pk.WriteDump(pkFile)
 	if err != nil {
 		panic(err)
 	}

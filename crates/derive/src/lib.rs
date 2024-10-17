@@ -184,6 +184,13 @@ pub fn machine_air_derive(input: TokenStream) -> TokenStream {
                 }
             });
 
+            let commit_scope_arms = variants.iter().map(|(variant_name, field)| {
+                let field_ty = &field.ty;
+                quote! {
+                    #name::#variant_name(x) => <#field_ty as sp1_stark::air::MachineAir<F>>::commit_scope(x)
+                }
+            });
+
             let machine_air = quote! {
                 impl #impl_generics sp1_stark::air::MachineAir<F> for #name #ty_generics #where_clause {
                     type Record = #execution_record_path;
@@ -234,6 +241,12 @@ pub fn machine_air_derive(input: TokenStream) -> TokenStream {
                     fn included(&self, shard: &Self::Record) -> bool {
                         match self {
                             #(#included_arms,)*
+                        }
+                    }
+
+                    fn commit_scope(&self) -> InteractionScope {
+                        match self {
+                            #(#commit_scope_arms,)*
                         }
                     }
                 }

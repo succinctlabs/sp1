@@ -10,9 +10,13 @@ keywords = { workspace = true }
 categories = { workspace = true }
 
 [dependencies]
+bincode = "1.3.3"
+hex = "0.4.3"
 lazy_static = "1.5.0"
+num-bigint = { version = "0.4.6", default-features = false }
 p3-field = { workspace = true }
 p3-baby-bear = { workspace = true }
 p3-poseidon2 = { workspace = true }
 p3-symmetric = { workspace = true }
-itertools = "0.13.0"
+serde = { version = "1.0.207", features = ["derive"] }
+sha2 = "0.10.8"

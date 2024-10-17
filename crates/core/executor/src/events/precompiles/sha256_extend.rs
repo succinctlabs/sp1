@@ -1,19 +1,19 @@
 use serde::{Deserialize, Serialize};
 
-use crate::events::memory::{MemoryReadRecord, MemoryWriteRecord};
-use crate::events::LookupId;
+use crate::events::{
+    memory::{MemoryReadRecord, MemoryWriteRecord},
+    LookupId, MemoryLocalEvent,
+};
 
 /// SHA-256 Extend Event.
 ///
 /// This event is emitted when a SHA-256 extend operation is performed.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize)]
 pub struct ShaExtendEvent {
-    /// The lookup identifer.
+    /// The lookup identifier.
     pub lookup_id: LookupId,
     /// The shard number.
     pub shard: u32,
-    /// The channel number.
-    pub channel: u8,
     /// The clock cycle.
     pub clk: u32,
     /// The pointer to the word.
@@ -28,4 +28,6 @@ pub struct ShaExtendEvent {
     pub w_i_minus_7_reads: Vec<MemoryReadRecord>,
     /// The memory writes of w[i].
     pub w_i_writes: Vec<MemoryWriteRecord>,
+    /// The local memory accesses.
+    pub local_mem_access: Vec<MemoryLocalEvent>,
 }

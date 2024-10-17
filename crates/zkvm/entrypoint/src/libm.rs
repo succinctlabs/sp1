@@ -424,16 +424,6 @@ pub fn remquo(x: f64, y: f64) -> (f64, i32) {
 }
 
 #[no_mangle]
-pub extern "C" fn rint(arg: f64) -> f64 {
-    libm::rint(arg)
-}
-
-#[no_mangle]
-pub extern "C" fn rintf(arg: f32) -> f32 {
-    libm::rintf(arg)
-}
-
-#[no_mangle]
 pub fn remquof(x: f32, y: f32) -> (f32, i32) {
     libm::remquof(x, y)
 }

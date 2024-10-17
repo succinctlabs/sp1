@@ -15,8 +15,7 @@ impl<C: Config> Builder<C> {
             }
             Array::Dyn(_, len) => self.array::<Felt<C::F>>(*len),
         };
-        self.operations
-            .push(DslIr::Poseidon2PermuteBabyBear(Box::new((output.clone(), array.clone()))));
+        self.push_op(DslIr::Poseidon2PermuteBabyBear(Box::new((output.clone(), array.clone()))));
         output
     }
 
@@ -24,8 +23,7 @@ impl<C: Config> Builder<C> {
     ///
     /// Reference: [p3_poseidon2::Poseidon2]
     pub fn poseidon2_permute_mut(&mut self, array: &Array<C, Felt<C::F>>) {
-        self.operations
-            .push(DslIr::Poseidon2PermuteBabyBear(Box::new((array.clone(), array.clone()))));
+        self.push_op(DslIr::Poseidon2PermuteBabyBear(Box::new((array.clone(), array.clone()))));
     }
 
     /// Applies the Poseidon2 absorb function to the given array.
@@ -36,7 +34,7 @@ impl<C: Config> Builder<C> {
         p2_hash_and_absorb_num: Var<C::N>,
         input: &Array<C, Felt<C::F>>,
     ) {
-        self.operations.push(DslIr::Poseidon2AbsorbBabyBear(p2_hash_and_absorb_num, input.clone()));
+        self.push_op(DslIr::Poseidon2AbsorbBabyBear(p2_hash_and_absorb_num, input.clone()));
     }
 
     /// Applies the Poseidon2 finalize to the given hash number.
@@ -47,7 +45,7 @@ impl<C: Config> Builder<C> {
         p2_hash_num: Var<C::N>,
         output: &Array<C, Felt<C::F>>,
     ) {
-        self.operations.push(DslIr::Poseidon2FinalizeBabyBear(p2_hash_num, output.clone()));
+        self.push_op(DslIr::Poseidon2FinalizeBabyBear(p2_hash_num, output.clone()));
     }
 
     /// Applies the Poseidon2 compression function to the given array.
@@ -78,7 +76,7 @@ impl<C: Config> Builder<C> {
         left: &Array<C, Felt<C::F>>,
         right: &Array<C, Felt<C::F>>,
     ) {
-        self.operations.push(DslIr::Poseidon2CompressBabyBear(Box::new((
+        self.push_op(DslIr::Poseidon2CompressBabyBear(Box::new((
             result.clone(),
             left.clone(),
             right.clone(),

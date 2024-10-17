@@ -11,17 +11,21 @@ use std::{
 };
 
 use crate::proto::api::ProverServiceClient;
-
+use async_trait::async_trait;
 use proto::api::ReadyRequest;
+use reqwest::{Request, Response};
 use serde::{Deserialize, Serialize};
-use sp1_core_machine::{io::SP1Stdin, utils::SP1CoreProverError};
+use sp1_core_machine::{io::SP1Stdin, reduce::SP1ReduceProof, utils::SP1CoreProverError};
 use sp1_prover::{
-    types::SP1ProvingKey, InnerSC, OuterSC, SP1CoreProof, SP1RecursionProverError, SP1ReduceProof,
-    SP1VerifyingKey,
+    types::SP1ProvingKey, InnerSC, OuterSC, SP1CoreProof, SP1RecursionProverError, SP1VerifyingKey,
 };
-use sp1_stark::ShardProof;
 use tokio::task::block_in_place;
-use twirp::{url::Url, Client};
+use twirp::{
+    async_trait,
+    reqwest::{self},
+    url::Url,
+    Client, ClientError, Middleware, Next,
+};
 
 #[rustfmt::skip]
 pub mod proto {
@@ -63,7 +67,7 @@ pub struct CompressRequestPayload {
     /// The core proof.
     pub proof: SP1CoreProof,
     /// The deferred proofs.
-    pub deferred_proofs: Vec<ShardProof<InnerSC>>,
+    pub deferred_proofs: Vec<SP1ReduceProof<InnerSC>>,
 }
 
 /// The payload for the [sp1_prover::SP1Prover::shrink] method.
@@ -87,7 +91,7 @@ impl SP1CudaProver {
     /// [SP1ProverClient] that can be used to communicate with the container.
     pub fn new() -> Result<Self, Box<dyn StdError>> {
         let container_name = "sp1-gpu";
-        let image_name = "succinctlabs/sp1-gpu:v1.2.0-rc2";
+        let image_name = "public.ecr.aws/succinct-labs/sp1-gpu:445c33b";
 
         let cleaned_up = Arc::new(AtomicBool::new(false));
         let cleanup_name = container_name;
@@ -123,6 +127,22 @@ impl SP1CudaProver {
             .stderr(Stdio::piped())
             .spawn()
             .map_err(|e| format!("Failed to start Docker container: {}. Please check your Docker installation and permissions.", e))?;
+
+        let stderr = child.stderr.take().unwrap();
+        std::thread::spawn(move || {
+            let mut reader = BufReader::new(stderr);
+            let mut buffer = [0; 1024];
+            loop {
+                match reader.read(&mut buffer) {
+                    Ok(0) => break,
+                    Ok(n) => {
+                        std::io::stderr().write_all(&buffer[..n]).unwrap();
+                        std::io::stderr().flush().unwrap();
+                    }
+                    Err(_) => break,
+                }
+            }
+        });
 
         let stdout = child.stdout.take().unwrap();
         std::thread::spawn(move || {
@@ -160,7 +180,7 @@ impl SP1CudaProver {
         )
         .expect("failed to create client");
 
-        let timeout = Duration::from_secs(60); // Set a 60-second timeout
+        let timeout = Duration::from_secs(300);
         let start_time = Instant::now();
 
         block_on(async {
@@ -188,11 +208,15 @@ impl SP1CudaProver {
             Ok(())
         })?;
 
+        let client = Client::new(
+            Url::parse("http://localhost:3000/twirp/").expect("failed to parse url"),
+            reqwest::Client::new(),
+            vec![Box::new(LoggingMiddleware) as Box<dyn Middleware>],
+        )
+        .expect("failed to create client");
+
         Ok(SP1CudaProver {
-            client: Client::from_base_url(
-                Url::parse("http://localhost:3000/twirp/").expect("failed to parse url"),
-            )
-            .expect("failed to create client"),
+            client,
             container_name: container_name.to_string(),
             cleaned_up: cleaned_up.clone(),
         })
@@ -232,7 +256,7 @@ impl SP1CudaProver {
         &self,
         vk: &SP1VerifyingKey,
         proof: SP1CoreProof,
-        deferred_proofs: Vec<ShardProof<InnerSC>>,
+        deferred_proofs: Vec<SP1ReduceProof<InnerSC>>,
     ) -> Result<SP1ReduceProof<InnerSC>, SP1RecursionProverError> {
         let payload = CompressRequestPayload { vk: vk.clone(), proof, deferred_proofs };
         let request =
@@ -299,7 +323,10 @@ impl Drop for SP1CudaProver {
 /// Cleans up the a docker container with the given name.
 fn cleanup_container(container_name: &str) {
     if let Err(e) = Command::new("docker").args(["rm", "-f", container_name]).output() {
-        eprintln!("Failed to remove container: {}. You may need to manually remove it using 'docker rm -f {}'", e, container_name);
+        eprintln!(
+            "Failed to remove container: {}. You may need to manually remove it using 'docker rm -f {}'",
+            e, container_name
+        );
     }
 }
 
@@ -318,13 +345,32 @@ pub fn block_on<T>(fut: impl Future<Output = T>) -> T {
     }
 }
 
+struct LoggingMiddleware;
+
+pub type Result<T, E = ClientError> = std::result::Result<T, E>;
+
+#[async_trait]
+impl Middleware for LoggingMiddleware {
+    async fn handle(&self, req: Request, next: Next<'_>) -> Result<Response> {
+        let response = next.run(req).await;
+        match response {
+            Ok(response) => {
+                tracing::info!("{:?}", response);
+                Ok(response)
+            }
+            Err(e) => Err(e),
+        }
+    }
+}
+
 #[cfg(feature = "protobuf")]
 #[cfg(test)]
 mod tests {
-    use sp1_core_machine::utils::{setup_logger, tests::FIBONACCI_ELF};
-    use sp1_prover::{
-        components::DefaultProverComponents, InnerSC, SP1CoreProof, SP1Prover, SP1ReduceProof,
+    use sp1_core_machine::{
+        reduce::SP1ReduceProof,
+        utils::{setup_logger, tests::FIBONACCI_ELF},
     };
+    use sp1_prover::{components::DefaultProverComponents, InnerSC, SP1CoreProof, SP1Prover};
     use twirp::{url::Url, Client};
 
     use crate::{

@@ -1,10 +1,11 @@
 use std::borrow::BorrowMut;
 
-use hashbrown::HashMap;
 use p3_field::Field;
 use p3_matrix::dense::RowMajorMatrix;
 use sp1_core_executor::{ByteOpcode, ExecutionRecord, Program};
 use sp1_stark::air::MachineAir;
+
+use crate::utils::zeroed_f_vec;
 
 use super::{
     columns::{ByteMultCols, NUM_BYTE_MULT_COLS, NUM_BYTE_PREPROCESSED_COLS},
@@ -41,21 +42,20 @@ impl<F: Field> MachineAir<F> for ByteChip<F> {
         _output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
         let mut trace =
-            RowMajorMatrix::new(vec![F::zero(); NUM_BYTE_MULT_COLS * NUM_ROWS], NUM_BYTE_MULT_COLS);
+            RowMajorMatrix::new(zeroed_f_vec(NUM_BYTE_MULT_COLS * NUM_ROWS), NUM_BYTE_MULT_COLS);
 
-        let shard = input.public_values.execution_shard;
-        for (lookup, mult) in input.byte_lookups.get(&shard).unwrap_or(&HashMap::new()).iter() {
-            let row = if lookup.opcode != ByteOpcode::U16Range {
-                (((lookup.b as u16) << 8) + lookup.c as u16) as usize
-            } else {
-                lookup.a1 as usize
-            };
-            let index = lookup.opcode as usize;
-            let channel = lookup.channel as usize;
+        for (_, blu) in input.byte_lookups.iter() {
+            for (lookup, mult) in blu.iter() {
+                let row = if lookup.opcode != ByteOpcode::U16Range {
+                    (((lookup.b as u16) << 8) + lookup.c as u16) as usize
+                } else {
+                    lookup.a1 as usize
+                };
+                let index = lookup.opcode as usize;
 
-            let cols: &mut ByteMultCols<F> = trace.row_mut(row).borrow_mut();
-            cols.mult_channels[channel].multiplicities[index] += F::from_canonical_usize(*mult);
-            cols.shard = F::from_canonical_u32(shard);
+                let cols: &mut ByteMultCols<F> = trace.row_mut(row).borrow_mut();
+                cols.multiplicities[index] += F::from_canonical_usize(*mult);
+            }
         }
 
         trace

@@ -18,10 +18,10 @@ use super::{
 #[allow(clippy::too_many_lines)]
 pub fn quotient_values<SC, A, Mat>(
     chip: &Chip<Val<SC>, A>,
-    cumulative_sum: SC::Challenge,
+    cumulative_sums: &[SC::Challenge],
     trace_domain: Domain<SC>,
     quotient_domain: Domain<SC>,
-    preprocessed_trace_on_quotient_domain: Mat,
+    preprocessed_trace_on_quotient_domain: Option<Mat>,
     main_trace_on_quotient_domain: Mat,
     permutation_trace_on_quotient_domain: Mat,
     perm_challenges: &[PackedChallenge<SC>],
@@ -34,7 +34,8 @@ where
     Mat: Matrix<Val<SC>> + Sync,
 {
     let quotient_size = quotient_domain.size();
-    let prep_width = preprocessed_trace_on_quotient_domain.width();
+    let prep_width =
+        preprocessed_trace_on_quotient_domain.as_ref().map_or(1, p3_matrix::Matrix::width);
     let main_width = main_trace_on_quotient_domain.width();
     let perm_width = permutation_trace_on_quotient_domain.width();
     let sels = trace_domain.selectors_on_coset(quotient_domain);
@@ -67,7 +68,9 @@ where
             let prep_local: Vec<_> = (0..prep_width)
                 .map(|col| {
                     PackedVal::<SC>::from_fn(|offset| {
-                        preprocessed_trace_on_quotient_domain.get(wrap(i_start + offset), col)
+                        preprocessed_trace_on_quotient_domain
+                            .as_ref()
+                            .map_or(Val::<SC>::zero(), |x| x.get(wrap(i_start + offset), col))
                     })
                 })
                 .collect();
@@ -75,7 +78,10 @@ where
                 .map(|col| {
                     PackedVal::<SC>::from_fn(|offset| {
                         preprocessed_trace_on_quotient_domain
-                            .get(wrap(i_start + next_step + offset), col)
+                            .as_ref()
+                            .map_or(Val::<SC>::zero(), |x| {
+                                x.get(wrap(i_start + next_step + offset), col)
+                            })
                     })
                 })
                 .collect();
@@ -120,6 +126,12 @@ where
                 .collect();
 
             let accumulator = PackedChallenge::<SC>::zero();
+
+            let packed_cumulative_sums = cumulative_sums
+                .iter()
+                .map(|c| PackedChallenge::<SC>::from_f(*c))
+                .collect::<Vec<_>>();
+
             let mut folder = ProverConstraintFolder {
                 preprocessed: VerticalPair::new(
                     RowMajorMatrixView::new_row(&prep_local),
@@ -134,7 +146,7 @@ where
                     RowMajorMatrixView::new_row(&perm_next),
                 ),
                 perm_challenges,
-                cumulative_sum,
+                cumulative_sums: &packed_cumulative_sums,
                 is_first_row,
                 is_last_row,
                 is_transition,

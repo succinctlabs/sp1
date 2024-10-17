@@ -55,8 +55,6 @@ pub trait WordAirBuilder: ByteAirBuilder {
     fn slice_range_check_u8(
         &mut self,
         input: &[impl Into<Self::Expr> + Clone],
-        shard: impl Into<Self::Expr> + Clone,
-        channel: impl Into<Self::Expr> + Clone,
         mult: impl Into<Self::Expr> + Clone,
     ) {
         let mut index = 0;
@@ -66,8 +64,6 @@ pub trait WordAirBuilder: ByteAirBuilder {
                 Self::Expr::zero(),
                 input[index].clone(),
                 input[index + 1].clone(),
-                shard.clone(),
-                channel.clone(),
                 mult.clone(),
             );
             index += 2;
@@ -78,8 +74,6 @@ pub trait WordAirBuilder: ByteAirBuilder {
                 Self::Expr::zero(),
                 input[index].clone(),
                 Self::Expr::zero(),
-                shard.clone(),
-                channel.clone(),
                 mult.clone(),
             );
         }
@@ -89,8 +83,6 @@ pub trait WordAirBuilder: ByteAirBuilder {
     fn slice_range_check_u16(
         &mut self,
         input: &[impl Into<Self::Expr> + Copy],
-        shard: impl Into<Self::Expr> + Clone,
-        channel: impl Into<Self::Expr> + Clone,
         mult: impl Into<Self::Expr> + Clone,
     ) {
         input.iter().for_each(|limb| {
@@ -99,8 +91,6 @@ pub trait WordAirBuilder: ByteAirBuilder {
                 *limb,
                 Self::Expr::zero(),
                 Self::Expr::zero(),
-                shard.clone(),
-                channel.clone(),
                 mult.clone(),
             );
         });

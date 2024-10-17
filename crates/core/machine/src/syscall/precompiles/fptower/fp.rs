@@ -4,7 +4,7 @@ use std::{
     mem::size_of,
 };
 
-use crate::air::MemoryAirBuilder;
+use crate::{air::MemoryAirBuilder, utils::zeroed_f_vec};
 use generic_array::GenericArray;
 use itertools::Itertools;
 use num::{BigUint, Zero};
@@ -12,7 +12,7 @@ use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use sp1_core_executor::{
-    events::{ByteLookupEvent, ByteRecord, FieldOperation},
+    events::{ByteLookupEvent, ByteRecord, FieldOperation, PrecompileEvent},
     syscalls::SyscallCode,
     ExecutionRecord, Program,
 };
@@ -21,12 +21,12 @@ use sp1_curves::{
     weierstrass::{FieldType, FpOpField},
 };
 use sp1_derive::AlignedBorrow;
-use sp1_stark::air::{BaseAirBuilder, MachineAir, Polynomial, SP1AirBuilder};
+use sp1_stark::air::{BaseAirBuilder, InteractionScope, MachineAir, Polynomial, SP1AirBuilder};
 
 use crate::{
     memory::{value_as_limbs, MemoryReadCols, MemoryWriteCols},
     operations::field::field_op::FieldOpCols,
-    utils::{limbs_from_prev_access, pad_rows, words_to_bytes_le_vec},
+    utils::{limbs_from_prev_access, pad_rows_fixed, words_to_bytes_le_vec},
 };
 
 pub const fn num_fp_cols<P: FpOpField>() -> usize {
@@ -43,7 +43,6 @@ pub struct FpOpChip<P> {
 pub struct FpOpCols<T, P: FpOpField> {
     pub is_real: T,
     pub shard: T,
-    pub channel: T,
     pub nonce: T,
     pub clk: T,
     pub is_add: T,
@@ -65,7 +64,6 @@ impl<P: FpOpField> FpOpChip<P> {
     fn populate_field_ops<F: PrimeField32>(
         blu_events: &mut Vec<ByteLookupEvent>,
         shard: u32,
-        channel: u8,
         cols: &mut FpOpCols<F, P>,
         p: BigUint,
         q: BigUint,
@@ -73,7 +71,7 @@ impl<P: FpOpField> FpOpChip<P> {
     ) {
         let modulus_bytes = P::MODULUS;
         let modulus = BigUint::from_bytes_le(modulus_bytes);
-        cols.output.populate_with_modulus(blu_events, shard, channel, &p, &q, &modulus, op);
+        cols.output.populate_with_modulus(blu_events, shard, &p, &q, &modulus, op);
     }
 }
 
@@ -90,18 +88,26 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for FpOpChip<P> {
     }
 
     fn generate_trace(&self, input: &Self::Record, output: &mut Self::Record) -> RowMajorMatrix<F> {
+        // All the fp events for a given curve are coalesce to the curve's Add operation.  Only retrieve
+        // precompile events for that operation.
+        // TODO:  Fix this.
+
         let events = match P::FIELD_TYPE {
-            FieldType::Bn254 => &input.bn254_fp_events,
-            FieldType::Bls12381 => &input.bls12381_fp_events,
+            FieldType::Bn254 => input.get_precompile_events(SyscallCode::BN254_FP_ADD).iter(),
+            FieldType::Bls12381 => input.get_precompile_events(SyscallCode::BLS12381_FP_ADD).iter(),
         };
 
         let mut rows = Vec::new();
         let mut new_byte_lookup_events = Vec::new();
 
-        for i in 0..events.len() {
-            let event = &events[i];
+        for (_, event) in events {
+            let event = match (P::FIELD_TYPE, event) {
+                (FieldType::Bn254, PrecompileEvent::Bn254Fp(event)) => event,
+                (FieldType::Bls12381, PrecompileEvent::Bls12381Fp(event)) => event,
+                _ => unreachable!(),
+            };
 
-            let mut row = vec![F::zero(); num_fp_cols::<P>()];
+            let mut row = zeroed_f_vec(num_fp_cols::<P>());
             let cols: &mut FpOpCols<F, P> = row.as_mut_slice().borrow_mut();
 
             let modulus = &BigUint::from_bytes_le(P::MODULUS);
@@ -113,7 +119,6 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for FpOpChip<P> {
             cols.is_mul = F::from_canonical_u8((event.op == FieldOperation::Mul) as u8);
             cols.is_real = F::one();
             cols.shard = F::from_canonical_u32(event.shard);
-            cols.channel = F::from_canonical_u8(event.channel);
             cols.clk = F::from_canonical_u32(event.clk);
             cols.x_ptr = F::from_canonical_u32(event.x_ptr);
             cols.y_ptr = F::from_canonical_u32(event.y_ptr);
@@ -121,7 +126,6 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for FpOpChip<P> {
             Self::populate_field_ops(
                 &mut new_byte_lookup_events,
                 event.shard,
-                event.channel,
                 cols,
                 p,
                 q,
@@ -130,40 +134,35 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for FpOpChip<P> {
 
             // Populate the memory access columns.
             for i in 0..cols.y_access.len() {
-                cols.y_access[i].populate(
-                    event.channel,
-                    event.y_memory_records[i],
-                    &mut new_byte_lookup_events,
-                );
+                cols.y_access[i].populate(event.y_memory_records[i], &mut new_byte_lookup_events);
             }
             for i in 0..cols.x_access.len() {
-                cols.x_access[i].populate(
-                    event.channel,
-                    event.x_memory_records[i],
-                    &mut new_byte_lookup_events,
-                );
+                cols.x_access[i].populate(event.x_memory_records[i], &mut new_byte_lookup_events);
             }
-            rows.push(row)
+            rows.push(row);
         }
 
         output.add_byte_lookup_events(new_byte_lookup_events);
 
-        pad_rows(&mut rows, || {
-            let mut row = vec![F::zero(); num_fp_cols::<P>()];
-            let cols: &mut FpOpCols<F, P> = row.as_mut_slice().borrow_mut();
-            let zero = BigUint::zero();
-            cols.is_add = F::from_canonical_u8(1);
-            Self::populate_field_ops(
-                &mut vec![],
-                0,
-                0,
-                cols,
-                zero.clone(),
-                zero,
-                FieldOperation::Add,
-            );
-            row
-        });
+        pad_rows_fixed(
+            &mut rows,
+            || {
+                let mut row = zeroed_f_vec(num_fp_cols::<P>());
+                let cols: &mut FpOpCols<F, P> = row.as_mut_slice().borrow_mut();
+                let zero = BigUint::zero();
+                cols.is_add = F::from_canonical_u8(1);
+                Self::populate_field_ops(
+                    &mut vec![],
+                    0,
+                    cols,
+                    zero.clone(),
+                    zero,
+                    FieldOperation::Add,
+                );
+                row
+            },
+            input.fixed_log2_rows::<F, _>(self),
+        );
 
         // Convert the trace to a row major matrix.
         let mut trace =
@@ -180,9 +179,27 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for FpOpChip<P> {
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
-        match P::FIELD_TYPE {
-            FieldType::Bn254 => !shard.bn254_fp_events.is_empty(),
-            FieldType::Bls12381 => !shard.bls12381_fp_events.is_empty(),
+        // All the fp events for a given curve are coalesce to the curve's Add operation. Only
+        // check for that operation.
+
+        assert!(
+            shard.get_precompile_events(SyscallCode::BN254_FP_SUB).is_empty()
+                && shard.get_precompile_events(SyscallCode::BN254_FP_MUL).is_empty()
+                && shard.get_precompile_events(SyscallCode::BLS12381_FP_SUB).is_empty()
+                && shard.get_precompile_events(SyscallCode::BLS12381_FP_MUL).is_empty()
+        );
+
+        if let Some(shape) = shard.shape.as_ref() {
+            shape.included::<F, _>(self)
+        } else {
+            match P::FIELD_TYPE {
+                FieldType::Bn254 => {
+                    !shard.get_precompile_events(SyscallCode::BN254_FP_ADD).is_empty()
+                }
+                FieldType::Bls12381 => {
+                    !shard.get_precompile_events(SyscallCode::BLS12381_FP_ADD).is_empty()
+                }
+            }
         }
     }
 }
@@ -233,8 +250,6 @@ where
             local.is_sub,
             local.is_mul,
             AB::F::zero(),
-            local.shard,
-            local.channel,
             local.is_real,
         );
 
@@ -244,7 +259,6 @@ where
 
         builder.eval_memory_access_slice(
             local.shard,
-            local.channel,
             local.clk.into(),
             local.y_ptr,
             &local.y_access,
@@ -252,7 +266,6 @@ where
         );
         builder.eval_memory_access_slice(
             local.shard,
-            local.channel,
             local.clk + AB::F::from_canonical_u32(1), /* We read p at +1 since p, q could be the
                                                        * same. */
             local.x_ptr,
@@ -281,13 +294,13 @@ where
 
         builder.receive_syscall(
             local.shard,
-            local.channel,
             local.clk,
             local.nonce,
             syscall_id_felt,
             local.x_ptr,
             local.y_ptr,
             local.is_real,
+            InteractionScope::Local,
         );
     }
 }

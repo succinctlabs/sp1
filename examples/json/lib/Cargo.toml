@@ -1,5 +1,5 @@
 [package]
-name = "lib"
+name = "json-lib"
 version = { workspace = true }
 edition = { workspace = true }
 publish = false

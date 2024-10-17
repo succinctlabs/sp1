@@ -12,21 +12,17 @@ categories = { workspace = true }
 [dependencies]
 sp1-core-machine = { workspace = true }
 sp1-prover = { workspace = true }
-sp1-stark = { workspace = true }
-prost = "0.12"
-prost-types = "0.12"
+prost = "0.13"
 bincode = "1.3.3"
 serde = { version = "1.0.197", features = ["derive"] }
-serde_json = "1.0.114"
 tokio = { version = "^1.38.0", features = ["full"] }
 tracing = "0.1.40"
-tracing-subscriber = "0.3.18"
-twirp = { package = "twirp-rs", version = "0.3.0-succinct" }
+twirp = { package = "twirp-rs", version = "0.13.0-succinct" }
 ctrlc = "3.4.4"
 
 [build-dependencies]
-prost-build = { version = "0.12", optional = true }
-twirp-build = { package = "twirp-build-rs", version = "0.3.0-succinct", optional = true }
+prost-build = { version = "0.13", optional = true }
+twirp-build = { package = "twirp-build-rs", version = "0.13.0-succinct", optional = true }
 
 [dev-dependencies]
 sp1-core-machine = { workspace = true, features = ["programs"] }

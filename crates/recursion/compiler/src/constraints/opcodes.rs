@@ -30,6 +30,7 @@ pub enum ConstraintOpcode {
     AssertEqV,
     AssertEqF,
     AssertEqE,
+    AssertNeF,
     Permute,
     Num2BitsV,
     Num2BitsF,
