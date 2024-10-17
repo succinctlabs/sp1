@@ -66,7 +66,7 @@ contract Fibonacci {
 
 ### Finding your program vkey
 
-The program vkey (`fibonacciProgramVKey` in the example above) is passed into the `ISP1Verifer` along with the public values and proof bytes. You
+The program vkey (`fibonacciProgramVKey` in the example above) is passed into the `ISP1Verifier` along with the public values and proof bytes. You
 can find your program vkey by going through the following steps:
 
 1. Find what version of SP1 crates you are using.
