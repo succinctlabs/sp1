@@ -11,48 +11,50 @@ categories = { workspace = true }
 
 [dependencies]
 prost = { version = "0.13", optional = true }
-serde = { version = "1.0.204", features = ["derive"] }
+serde = { version = "1.0.204", features = ["derive"], default-features = false }
 twirp = { package = "twirp-rs", version = "0.13.0-succinct", optional = true }
-async-trait = "0.1.81"
+async-trait = { version = "0.1.81", optional = true }
 reqwest-middleware = { version = "0.3.2", optional = true }
 reqwest = { version = "0.12.4", features = [
   "rustls-tls",
   "trust-dns",
   "stream",
 ], optional = true }
-anyhow = "1.0.83"
-sp1-prover = { workspace = true }
-sp1-core-machine = { workspace = true }
+anyhow = { version = "1.0.83", default-features = false }
+sp1-prover = { workspace = true, optional = true }
+sp1-core-machine = { workspace = true, optional = true }
 sp1-cuda = { workspace = true, optional = true }
-futures = "0.3.30"
-bincode = "1.3.3"
+futures = { version = "0.3.30", optional = true }
+bincode = { version = "1.3", optional = true }
 tokio = { version = "1.39.2", features = ["full"], optional = true }
-p3-field = { workspace = true }
-p3-baby-bear = { workspace = true }
-p3-fri = { workspace = true }
-indicatif = "0.17.8"
-tracing = "0.1.40"
-hex = "0.4.3"
-log = "0.4.22"
+indicatif = { version = "0.17.8", optional = true }
+tracing = { version = "0.1.40", optional = true }
+hex = { version = "0.4.3", optional = true }
+log = { version = "0.4.22", default-features = false }
 alloy-sol-types = { version = "0.7.7", optional = true }
-dirs = "5.0.1"
-tempfile = "3.10.1"
+dirs = { version = "5.0.1", optional = true }
+tempfile = { version = "3.10.1", optional = true }
 cfg-if = "1.0"
 ethers = { version = "2", default-features = false, optional = true }
-strum = "0.26.3"
-strum_macros = "0.26.4"
-thiserror = "1.0.63"
-hashbrown = "0.14.5"
-sp1-core-executor = { workspace = true }
-sp1-stark = { workspace = true }
-sp1-primitives = { workspace = true }
-itertools = "0.13.0"
+strum = { version = "0.26.3", optional = true }
+strum_macros = { version = "0.26.4", optional = true }
+thiserror = { version = "1.0.63", optional = true }
+hashbrown = { version = "0.14.5", optional = true }
+itertools = { version = "0.13.0", optional = true }
 tonic = { version = "0.12", features = ["tls", "tls-roots"], optional = true }
 alloy-signer = { version = "0.3.6", optional = true }
 alloy-signer-local = { version = "0.3.6", optional = true }
 alloy-primitives = { version = "0.8.7", optional = true }
 aws-sdk-s3 = { version = "1.53.0", optional = true }
 aws-config = { version = "1.5.7", optional = true }
+
+sp1-core-executor = { workspace = true, optional = true }
+sp1-stark = { workspace = true, optional = true }
+sp1-primitives = { workspace = true, optional = true }
+
+p3-field = { workspace = true, optional = true }
+p3-baby-bear = { workspace = true, optional = true }
+p3-fri = { workspace = true, optional = true }
 
 [features]
 default = ["network"]
@@ -68,6 +70,7 @@ network = [
   "dep:reqwest",
   "dep:twirp",
   "dep:reqwest-middleware",
+  "std"
 ]
 network-v2 = [
   "dep:prost",
@@ -83,8 +86,30 @@ network-v2 = [
   "dep:tonic",
   "dep:aws-sdk-s3",
   "dep:aws-config",
+  "std"
 ]
 cuda = ["sp1-cuda"]
+std = [
+  "dep:async-trait",
+  "dep:futures",
+  "dep:indicatif",
+  "dep:tracing",
+  "dep:hex",
+  "dep:dirs",
+  "dep:tempfile",
+  "dep:itertools",
+  "dep:hashbrown",
+  "dep:strum",
+  "dep:strum_macros",
+  "dep:thiserror",
+  "dep:bincode", 
+  "dep:sp1-core-executor",
+  "dep:sp1-stark",
+  "dep:sp1-primitives",
+  "dep:p3-field",
+  "dep:p3-baby-bear",
+  "dep:p3-fri",
+]
 
 [build-dependencies]
 vergen = { version = "8", default-features = false, features = [

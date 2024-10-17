@@ -11,6 +11,7 @@ pub use mock::MockProver;
 use itertools::Itertools;
 use p3_field::PrimeField32;
 use std::borrow::Borrow;
+use std::string::String;
 use std::time::Duration;
 
 use anyhow::Result;

@@ -68,26 +68,26 @@ sp1-lib = { path = "crates/zkvm/lib", version = "=3.0.0-rc4", default-features =
 sp1-zkvm = { path = "crates/zkvm/entrypoint", version = "=3.0.0-rc4", default-features = false }
 
 # p3
-p3-air = "0.1.4-succinct"
-p3-field = "0.1.4-succinct"
-p3-commit = "0.1.4-succinct"
-p3-matrix = "0.1.4-succinct"
-p3-baby-bear = { version = "0.1.4-succinct", features = ["nightly-features"] }
-p3-util = "0.1.4-succinct"
-p3-challenger = "0.1.4-succinct"
-p3-dft = "0.1.4-succinct"
-p3-fri = "0.1.4-succinct"
-p3-goldilocks = "0.1.4-succinct"
-p3-keccak = "0.1.4-succinct"
-p3-keccak-air = "0.1.4-succinct"
-p3-blake3 = "0.1.4-succinct"
-p3-mds = "0.1.4-succinct"
-p3-merkle-tree = "0.1.4-succinct"
-p3-poseidon2 = "0.1.4-succinct"
-p3-symmetric = "0.1.4-succinct"
-p3-uni-stark = "0.1.4-succinct"
-p3-maybe-rayon = "0.1.4-succinct"
-p3-bn254-fr = "0.1.4-succinct"
+p3-air = { version = "0.1.4-succinct", default-features = false }
+p3-field = { version = "0.1.4-succinct", default-features = false }
+p3-commit = { version = "0.1.4-succinct", default-features = false }
+p3-matrix = { version = "0.1.4-succinct", default-features = false }
+p3-baby-bear = { version = "0.1.4-succinct", default-features = false }
+p3-util = { version = "0.1.4-succinct", default-features = false }
+p3-challenger = { version = "0.1.4-succinct", default-features = false }
+p3-dft = { version   = "0.1.4-succinct", default-features = false }
+p3-fri = { version = "0.1.4-succinct", default-features = false }
+p3-goldilocks = { version = "0.1.4-succinct", default-features = false }
+p3-keccak = { version = "0.1.4-succinct", default-features = false }
+p3-keccak-air = { version = "0.1.4-succinct", default-features = false }
+p3-blake3 = { version = "0.1.4-succinct", default-features = false }
+p3-mds = { version = "0.1.4-succinct", default-features = false }
+p3-merkle-tree = { version = "0.1.4-succinct", default-features = false }
+p3-poseidon2 = { version = "0.1.4-succinct", default-features = false }
+p3-symmetric = { version = "0.1.4-succinct", default-features = false }
+p3-uni-stark = { version = "0.1.4-succinct", default-features = false }
+p3-maybe-rayon = { version = "0.1.4-succinct", default-features = false }
+p3-bn254-fr = { version = "0.1.4-succinct", default-features = false }
 
 # For local development. 
 
