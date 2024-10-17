@@ -491,11 +491,15 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         let operations = builder.into_operations();
         operations_span.exit();
 
-        // Compile the program.
-        tracing::debug_span!("compile compress program").in_scope(|| {
-            let mut compiler = AsmCompiler::<InnerConfig>::default();
-            Arc::new(compiler.compile(operations))
-        })
+        let compiler_span = tracing::debug_span!("compile deferred program").entered();
+        let mut compiler = AsmCompiler::<InnerConfig>::default();
+        let mut program = compiler.compile(operations);
+        if let Some(recursion_shape_config) = &self.recursion_shape_config {
+            recursion_shape_config.fix_shape(&mut program);
+        }
+        let program = Arc::new(program);
+        compiler_span.exit();
+        program
     }
 
     pub fn get_recursion_core_inputs(
