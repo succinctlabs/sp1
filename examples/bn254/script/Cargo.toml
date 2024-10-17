@@ -4,8 +4,8 @@ name = "bn254-script"
 edition = "2021"
 
 [dependencies]
-sp1-sdk = { path = "../../../../sp1/crates/sdk" }
+sp1-sdk = { path = "../../../crates/sdk" }
 
 
 [build-dependencies]
-sp1-build = { path = "../../../../sp1/crates/build" }
+sp1-build = { path = "../../../crates/build" }
