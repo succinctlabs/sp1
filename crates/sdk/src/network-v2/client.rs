@@ -16,7 +16,6 @@ use tokio::sync::OnceCell;
 use tokio::try_join;
 use tonic::transport::channel::ClientTlsConfig;
 use tonic::transport::Channel;
-use tonic::transport::Endpoint;
 
 use crate::network_v2::proto::artifact::{
     artifact_store_client::ArtifactStoreClient, CreateArtifactRequest,
@@ -62,7 +61,7 @@ impl NetworkClient {
         let rpc_url = Self::rpc_url();
         let mut endpoint = Channel::from_shared(rpc_url.clone())?;
 
-        // Check if the URL scheme is HTTPS and configure TLS
+        // Check if the URL scheme is HTTPS and configure TLS.
         if rpc_url.starts_with("https://") {
             println!("Using TLS");
             let tls_config = ClientTlsConfig::new().with_enabled_roots();
@@ -78,7 +77,7 @@ impl NetworkClient {
         let rpc_url = Self::rpc_url();
         let mut endpoint = Channel::from_shared(rpc_url.clone())?;
 
-        // Check if the URL scheme is HTTPS and configure TLS
+        // Check if the URL scheme is HTTPS and configure TLS.
         if rpc_url.starts_with("https://") {
             println!("Using TLS");
             let tls_config = ClientTlsConfig::new().with_enabled_roots();
