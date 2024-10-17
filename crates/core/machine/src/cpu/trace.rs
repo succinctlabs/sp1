@@ -398,7 +398,7 @@ impl CpuChip {
             let next_pc = event.pc.wrapping_add(event.c);
             branch_columns.pc = Word::from(event.pc);
             branch_columns.next_pc = Word::from(next_pc);
-            branch_columns.pc_range_checker.populate(event.pc);
+            branch_columns.pc_range_checker = F::from_bool((event.pc >> 24) < 120);
             branch_columns.next_pc_range_checker.populate(next_pc);
 
             if branching {
@@ -427,7 +427,7 @@ impl CpuChip {
                     let next_pc = event.pc.wrapping_add(event.b);
                     jump_columns.op_a_range_checker.populate(event.a);
                     jump_columns.pc = Word::from(event.pc);
-                    jump_columns.pc_range_checker.populate(event.pc);
+                    jump_columns.pc_range_checker = F::from_bool((event.pc >> 24) < 120);
                     jump_columns.next_pc = Word::from(next_pc);
                     jump_columns.next_pc_range_checker.populate(next_pc);
                     jump_columns.jal_nonce = F::from_canonical_u32(
@@ -459,7 +459,7 @@ impl CpuChip {
             let auipc_columns = cols.opcode_specific_columns.auipc_mut();
 
             auipc_columns.pc = Word::from(event.pc);
-            auipc_columns.pc_range_checker.populate(event.pc);
+            auipc_columns.pc_range_checker = F::from_bool((event.pc >> 24) < 120);
             auipc_columns.auipc_nonce = F::from_canonical_u32(
                 nonce_lookup.get(&event.auipc_lookup_id).copied().unwrap_or_default(),
             );
@@ -534,14 +534,14 @@ impl CpuChip {
             // it's operands.
             if is_halt {
                 ecall_cols.operand_to_check = event.b.into();
-                ecall_cols.operand_range_check_cols.populate(event.b);
+                ecall_cols.operand_range_check_cols = F::from_bool((event.b >> 24) < 120);
                 cols.ecall_range_check_operand = F::one();
             }
 
             if syscall_id == F::from_canonical_u32(SyscallCode::COMMIT_DEFERRED_PROOFS.syscall_id())
             {
                 ecall_cols.operand_to_check = event.c.into();
-                ecall_cols.operand_range_check_cols.populate(event.c);
+                ecall_cols.operand_range_check_cols = F::from_bool((event.c >> 24) < 120);
                 cols.ecall_range_check_operand = F::one();
             }
         }

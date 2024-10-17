@@ -67,13 +67,6 @@ impl CpuChip {
                 .when(local.branching)
                 .assert_eq(branch_cols.next_pc.reduce::<AB>(), local.next_pc);
 
-            // Range check branch_cols.pc and branch_cols.next_pc.
-            BabyBearWordRangeChecker::<AB::F>::range_check(
-                builder,
-                branch_cols.pc,
-                branch_cols.pc_range_checker,
-                is_branch_instruction.clone(),
-            );
             BabyBearWordRangeChecker::<AB::F>::range_check(
                 builder,
                 branch_cols.next_pc,

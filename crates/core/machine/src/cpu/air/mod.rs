@@ -55,6 +55,25 @@ where
         let is_branch_instruction: AB::Expr = self.is_branch_instruction::<AB>(&local.selectors);
         let is_alu_instruction: AB::Expr = self.is_alu_instruction::<AB>(&local.selectors);
 
+        // Range check the addr_word to be a valid babybear word.
+        builder.send_byte(
+            AB::Expr::from_canonical_u32(ByteOpcode::LTU as u32),
+            local.opcode_specific_columns.range_check_bit(),
+            local.opcode_specific_columns.most_significant_byte(),
+            AB::Expr::from_canonical_u8(120),
+            local.is_real,
+        );
+
+        builder.when_not(local.opcode_specific_columns.range_check_bit()).assert_eq(
+            local.opcode_specific_columns.most_significant_byte(),
+            AB::Expr::from_canonical_u8(120),
+        );
+
+        let range_check_word = local.opcode_specific_columns.word_for_range_check();
+        builder
+            .when_not(local.opcode_specific_columns.range_check_bit())
+            .assert_zero(range_check_word[0] + range_check_word[1] + range_check_word[2]);
+
         // Register constraints.
         self.eval_registers::<AB>(builder, local, is_branch_instruction.clone());
 
@@ -176,12 +195,7 @@ impl CpuChip {
             jump_columns.op_a_range_checker,
             is_jump_instruction.clone(),
         );
-        BabyBearWordRangeChecker::<AB::F>::range_check(
-            builder,
-            jump_columns.pc,
-            jump_columns.pc_range_checker,
-            local.selectors.is_jal.into(),
-        );
+
         BabyBearWordRangeChecker::<AB::F>::range_check(
             builder,
             jump_columns.next_pc,
@@ -219,14 +233,6 @@ impl CpuChip {
 
         // Verify that the word form of local.pc is correct.
         builder.when(local.selectors.is_auipc).assert_eq(auipc_columns.pc.reduce::<AB>(), local.pc);
-
-        // Range check the pc.
-        BabyBearWordRangeChecker::<AB::F>::range_check(
-            builder,
-            auipc_columns.pc,
-            auipc_columns.pc_range_checker,
-            local.selectors.is_auipc.into(),
-        );
 
         // Verify that op_a == pc + op_b.
         builder.send_alu(
