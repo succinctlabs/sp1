@@ -71,8 +71,16 @@ fn main() {
             let (_, verify_core_duration) =
                 time_operation(|| prover.verify(&core_proof.proof, &vk));
 
-            let (compress_proof, compress_duration) =
-                time_operation(|| prover.compress(&vk, core_proof, vec![], opts).unwrap());
+            let (compress_proof, compress_duration) = time_operation(|| {
+                prover
+                    .compress(
+                        &vk,
+                        core_proof,
+                        stdin.proofs.iter().map(|(proof, _)| proof.clone()).collect(),
+                        opts,
+                    )
+                    .unwrap()
+            });
 
             let (_, verify_compressed_duration) =
                 time_operation(|| prover.verify_compressed(&compress_proof, &vk));
@@ -118,8 +126,15 @@ fn main() {
                 prover.verify(&core_proof.proof, &vk).expect("Proof verification failed")
             });
 
-            let (compress_proof, compress_duration) =
-                time_operation(|| server.compress(&vk, core_proof, vec![]).unwrap());
+            let (compress_proof, compress_duration) = time_operation(|| {
+                server
+                    .compress(
+                        &vk,
+                        core_proof,
+                        stdin.proofs.iter().map(|(proof, _)| proof.clone()).collect(),
+                    )
+                    .unwrap()
+            });
 
             let (_, verify_compressed_duration) =
                 time_operation(|| prover.verify_compressed(&compress_proof, &vk));
