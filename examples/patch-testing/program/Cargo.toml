@@ -16,7 +16,8 @@ ed25519-consensus = "2.1.0"
 ed25519-dalek-1-0-1 = { version = "1.0.1", package = "ed25519-dalek" }
 ed25519-dalek = { version = "2.1.0", package = "ed25519-dalek" }
 tiny-keccak = { version = "2.0.2", features = ["keccak"] }
-curve25519-dalek = { version = "3.2.0", default-features = false, features = ["alloc"] }
+curve25519-dalek = { version = "4.1.3", default-features = false, features = ["alloc"] }
+curve25519-dalek-v3 = { version = "3.2.0", package = "curve25519-dalek", default-features = false, features = ["alloc"] }
 curve25519-dalek-ng = { version = "4.1", default-features = false, features = ["u32_backend", "alloc"] }
 alloy-primitives = { version = "0.8", features = ["k256"] }
 secp256k1 = { version = "0.29", features = ["recovery", "global-context"] }
