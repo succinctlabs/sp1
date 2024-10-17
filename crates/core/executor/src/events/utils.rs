@@ -11,7 +11,6 @@ use rand::{thread_rng, Rng};
 ///
 /// We use 4 u32s instead of a u128 to make it compatible with C.
 #[derive(Deserialize, Serialize, Debug, Clone, Copy, Default, Eq, Hash, PartialEq)]
-
 pub struct LookupId {
     /// First part of the id.
     pub a: u32,

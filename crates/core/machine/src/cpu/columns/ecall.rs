@@ -15,7 +15,7 @@ pub struct EcallCols<T> {
 
     /// Important that this be the first field after the Word<T> field, in order for the
     /// `get_range_check_bit` function on `OpcodeSelectorCols` to be correct.
-    pub operand_range_check_cols: T,
+    pub operand_range_check_col: T,
 
     /// Whether the current ecall is ENTER_UNCONSTRAINED.
     pub is_enter_unconstrained: IsZeroOperation<T>,

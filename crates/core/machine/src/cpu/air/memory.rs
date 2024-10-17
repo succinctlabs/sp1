@@ -10,7 +10,7 @@ use crate::{
     },
     memory::MemoryCols,
 };
-use sp1_core_executor::{events::MemoryAccessPosition, ByteOpcode, Opcode};
+use sp1_core_executor::{events::MemoryAccessPosition, Opcode};
 
 impl CpuChip {
     /// Computes whether the opcode is a memory instruction.
@@ -74,29 +74,6 @@ impl CpuChip {
             memory_columns.addr_word_nonce,
             is_memory_instruction.clone(),
         );
-
-        // Range check the addr_word to be a valid babybear word.
-        builder.send_byte(
-            AB::Expr::from_canonical_u32(ByteOpcode::LTU as u32),
-            memory_columns.addr_word_range_checker,
-            memory_columns.addr_word[3],
-            AB::Expr::from_canonical_u8(120),
-            is_memory_instruction.clone(),
-        );
-
-        builder
-            .when_not(memory_columns.addr_word_range_checker)
-            .when(is_memory_instruction.clone())
-            .assert_eq(memory_columns.addr_word[3], AB::Expr::from_canonical_u8(120));
-
-        builder
-            .when_not(memory_columns.addr_word_range_checker)
-            .when(is_memory_instruction.clone())
-            .assert_zero(
-                memory_columns.addr_word[0]
-                    + memory_columns.addr_word[1]
-                    + memory_columns.addr_word[2],
-            );
 
         // Check that each addr_word element is a byte.
         builder.slice_range_check_u8(&memory_columns.addr_word.0, is_memory_instruction.clone());
