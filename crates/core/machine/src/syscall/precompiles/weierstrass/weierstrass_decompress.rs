@@ -132,7 +132,7 @@ impl<E: EllipticCurve + WeierstrassParameters> WeierstrassDecompressChip<E> {
             CurveType::Bls12381 => bls12381_sqrt,
             _ => panic!("Unsupported curve"),
         };
-        // let y = cols.y.populate(record, shard, &x_3_plus_b_plus_a_mul_x, sqrt_fn);
+
         let y = cols.y.populate(record, shard, &x_3_plus_b_plus_ax, sqrt_fn);
         let zero = BigUint::zero();
         cols.neg_y.populate(record, shard, &zero, &y, FieldOperation::Sub);
@@ -379,7 +379,6 @@ where
             local.is_real,
         );
 
-        // local.y.eval(builder, &local.x_3_plus_b_plus_a_mul_x.result, local.y.lsb, local.is_real);
         local.y.eval(builder, &local.x_3_plus_b_plus_ax.result, local.y.lsb, local.is_real);
 
         let y_limbs: Limbs<AB::Var, <E::BaseField as NumLimbs>::Limbs> =

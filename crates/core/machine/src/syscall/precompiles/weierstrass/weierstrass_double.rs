@@ -357,7 +357,6 @@ where
         let p_x = limbs_from_prev_access(&local.p_access[0..num_words_field_element]);
         let p_y = limbs_from_prev_access(&local.p_access[num_words_field_element..]);
 
-        builder.when_not(local.is_real).assert_one(p_y[0]);
         // `a` in the Weierstrass form: y^2 = x^3 + a * x + b.
         let a = E::BaseField::to_limbs_field::<AB::Expr, _>(&E::a_int());
 
