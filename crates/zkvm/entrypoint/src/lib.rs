@@ -91,14 +91,12 @@ mod zkvm {
 #[macro_export]
 macro_rules! entrypoint {
     ($path:path) => {
-        const ZKVM_ENTRY: fn() = $path;
-
-        use $crate::heap::SimpleAlloc;
-
-        #[global_allocator]
-        static HEAP: SimpleAlloc = SimpleAlloc;
-
+        #[cfg(target_os = "zkvm")]
         mod zkvm_generated_main {
+            use $crate::heap::SimpleAlloc;
+
+            #[global_allocator]
+            static HEAP: SimpleAlloc = SimpleAlloc;
 
             #[no_mangle]
             fn main() {
@@ -109,8 +107,22 @@ macro_rules! entrypoint {
                 // programs against the host target. This just makes it such that doing so wouldn't
                 // result in an error, which can happen when building a Cargo workspace containing
                 // zkVM program crates.
-                #[cfg(target_os = "zkvm")]
-                super::ZKVM_ENTRY()
+                $path()
+            }
+        }
+
+        /// If we compile the entrypoint for the host target, we need to provide a dummy `main`
+        /// so the test harness doesnt get confused.
+        ///
+        /// Returning `()` is not sufficient, as the test harness expects a `i32` return value.
+        ///
+        /// Also a #[no_mangle] main function must be present otherwise rustc will fail.
+        /// see: https://github.com/rust-lang/rust/issues/59162
+        #[cfg(not(target_os = "zkvm"))]
+        mod not_zkvm {
+            #[no_mangle]
+            fn main() -> i32 {
+                0
             }
         }
     };
