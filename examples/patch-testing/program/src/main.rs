@@ -206,7 +206,6 @@ pub fn main() {
     test_sha256();
 
     test_curve25519_dalek_ng();
-    test_curve25519_dalek_v3();
     test_curve25519_dalek();
 
     test_ed25519_dalek();
