@@ -135,17 +135,15 @@ impl CpuChip {
         builder.send_byte(
             ByteOpcode::MSB.as_field::<AB::F>(),
             memory_columns.most_sig_bit,
-            local.unsigned_mem_val[0],
+            local.unsigned_mem_val_superposition,
             AB::Expr::zero(),
-            local.selectors.is_lb,
+            local.selectors.is_lb + local.selectors.is_lh,
         );
 
-        builder.send_byte(
-            ByteOpcode::MSB.as_field::<AB::F>(),
-            memory_columns.most_sig_bit,
-            local.unsigned_mem_val[1],
-            AB::Expr::zero(),
-            local.selectors.is_lh,
+        builder.assert_eq(
+            local.unsigned_mem_val_superposition,
+            local.selectors.is_lb * local.unsigned_mem_val[0]
+                + local.selectors.is_lh * local.unsigned_mem_val[1],
         );
 
         // When the memory value is negative and not writing to x0, use the SUB opcode to compute

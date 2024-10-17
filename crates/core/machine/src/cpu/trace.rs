@@ -328,6 +328,8 @@ impl CpuChip {
                     );
                 }
 
+                cols.unsigned_mem_val_superposition = F::from_canonical_u8(most_sig_mem_value_byte);
+
                 blu_events.add_byte_lookup_event(ByteLookupEvent {
                     shard: event.shard,
                     opcode: ByteOpcode::MSB,
