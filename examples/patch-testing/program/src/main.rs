@@ -21,6 +21,7 @@ use tiny_keccak::{Hasher, Keccak};
 use secp256k1::{
     ecdsa::{
         RecoverableSignature as Secp256k1RecoverableSignature, RecoveryId as Secp256k1RecoveryId,
+        Signature as Secp256k1Signature,
     },
     Message as Secp256k1Message,
 };
@@ -122,6 +123,26 @@ fn test_sha256() {
     // let output_10_8 = sha256_10_8.finalize();
 }
 
+fn test_p256_patch() {
+    // A valid signature.
+    let precompile_input = bytes!("b5a77e7a90aa14e0bf5f337f06f597148676424fae26e175c6e5621c34351955289f319789da424845c9eac935245fcddd805950e2f02506d09be7e411199556d262144475b1fa46ad85250728c600c53dfd10f8b3f4adf140e27241aec3c2da3a81046703fccf468b48b145f939efdbb96c3786db712b3113bb2488ef286cdcef8afe82d200a5bb36b5462166e8ce77f2d831a52ef2135b2af188110beaefb1");
+
+    println!("cycle-tracker-start: p256 verify");
+    let result = revm_precompile::secp256r1::verify_impl(&precompile_input);
+    println!("cycle-tracker-end: p256 verify");
+
+    assert!(result.is_some());
+
+    // An invalid signature.
+    let false_input = bytes!("b5a77e7a90aa14e0bf5f337f06f597148676424fae26e175c6e5621c34351955289f319789da424845c9eac935245fcddd805950e2f02506d09be7e411199556d262144475b1fa46ad85250728c600c53dfd10f8b3f4adf140e27241aec3c2daaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaef8afe82d200a5bb36b5462166e8ce77f2d831a52ef2135b2af188110beaefb1");
+
+    println!("cycle-tracker-start: p256 verify false");
+    let result = revm_precompile::secp256r1::verify_impl(&false_input);
+    println!("cycle-tracker-end: p256 verify false");
+
+    assert!(result.is_none());
+}
+
 /// Emits SECP256K1_ADD, SECP256K1_DOUBLE, and SECP256K1_DECOMPRESS syscalls.
 /// Source: https://github.com/alloy-rs/core/blob/adcf7adfa1f35c56e6331bab85b8c56d32a465f1/crates/primitives/src/signature/sig.rs#L620-L631
 fn test_k256_patch() {
@@ -180,6 +201,13 @@ fn test_secp256k1_patch() {
 
     let serialized_key = public_key.serialize_uncompressed();
 
+    let sig = Secp256k1Signature::from_compact(&hex!("80AEBD912F05D302BA8000A3C5D6E604333AAF34E22CC1BA14BE1737213EAED5040D67D6E9FA5FBDFE6E3457893839631B87A41D90508B7C92991ED7824E962D")).unwrap();
+    println!("cycle-tracker-start: secp256k1 verify_ecdsa");
+    let result = secp.verify_ecdsa(&message, &sig, &public_key);
+    println!("cycle-tracker-end: secp256k1 verify_ecdsa");
+
+    assert!(result.is_ok());
+
     // Use the message in the recover_ecdsa call
     assert_eq!(hex::encode(serialized_key), expected);
 }
@@ -199,4 +227,5 @@ pub fn main() {
 
     test_k256_patch();
     test_secp256k1_patch();
+    test_p256_patch();
 }

@@ -47,6 +47,11 @@ impl<E: EllipticCurve> Syscall for WeierstrassAddAssignSyscall<E> {
                 syscall_event,
                 PrecompileEvent::Bls12381Add(event),
             ),
+            CurveType::Secp256r1 => rt.record_mut().add_precompile_event(
+                syscall_code,
+                syscall_event,
+                PrecompileEvent::Secp256r1Add(event),
+            ),
             _ => panic!("Unsupported curve"),
         }
         None

@@ -1,6 +1,7 @@
 use std::fmt::Debug;
 
 use num::{BigUint, Zero};
+use p3_air::AirBuilder;
 use p3_field::{AbstractField, PrimeField32};
 use sp1_core_executor::events::ByteRecord;
 use sp1_curves::params::{FieldParameters, Limbs};
@@ -93,16 +94,16 @@ where
     pub fn eval<AB: SP1AirBuilder<Var = V>>(
         &self,
         builder: &mut AB,
-        a: &[Limbs<AB::Var, P::Limbs>],
-        b: &[Limbs<AB::Var, P::Limbs>],
+        a: &[impl Into<Polynomial<AB::Expr>> + Clone],
+        b: &[impl Into<Polynomial<AB::Expr>> + Clone],
         is_real: impl Into<AB::Expr> + Clone,
     ) where
         V: Into<AB::Expr>,
     {
-        let p_a_vec: Vec<Polynomial<AB::Expr>> = a.iter().map(|x| (*x).into()).collect();
-        let p_b_vec: Vec<Polynomial<AB::Expr>> = b.iter().map(|x| (*x).into()).collect();
-        let p_result = self.result.into();
-        let p_carry = self.carry.into();
+        let p_a_vec: Vec<Polynomial<AB::Expr>> = a.iter().cloned().map(|x| x.into()).collect();
+        let p_b_vec: Vec<Polynomial<AB::Expr>> = b.iter().cloned().map(|x| x.into()).collect();
+        let p_result: Polynomial<<AB as AirBuilder>::Expr> = self.result.into();
+        let p_carry: Polynomial<<AB as AirBuilder>::Expr> = self.carry.into();
 
         let p_zero = Polynomial::<AB::Expr>::new(vec![AB::Expr::zero()]);
 
