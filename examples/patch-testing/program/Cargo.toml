@@ -13,13 +13,11 @@ sha2-v0-10-6 = { version = "0.10.6", package = "sha2" }
 # sha2-v0-10-8 = { version = "0.10.8", package = "sha2" }
 
 ed25519-consensus = "2.1.0"
-# ed25519-dalek-1-0-1 = { version = "1.0.1", package = "ed25519-dalek" }
+# We need this because we needed to change the rand version to be compatible with sp1-zkvm's getrandom.
 ed25519-dalek-1-0-1 = { git = "https://github.com/sp1-patches/ed25519-dalek.git", branch = "patch-ed25519-v1.0.1", package = "ed25519-dalek", version = "1.0.1"}
 ed25519-dalek = { version = "2.1.0", package = "ed25519-dalek" }
 tiny-keccak = { version = "2.0.2", features = ["keccak"] }
 curve25519-dalek = { git = "https://github.com/sp1-patches/curve25519-dalek", branch = "patch-curve25519-v4.1.3", package = "curve25519-dalek", version = "4.1.3", default-features = false, features = ["alloc"]}
-# curve25519-dalek-v3 = { version = "3.2.0", package = "curve25519-dalek", default-features = false, features = ["alloc"] }
-curve25519-dalek-v3 = { git = "https://github.com/sp1-patches/curve25519-dalek", branch = "patch-curve25519-v3.2.0", package = "curve25519-dalek", version = "3.2.0", default-features = false, features = ["alloc"]}
 curve25519-dalek-ng = { git = "https://github.com/sp1-patches/curve25519-dalek-ng", branch = "patch-v4.1.1" ,  default-features = false, features = ["u32_backend", "alloc"]}
 alloy-primitives = { version = "0.8", features = ["k256"] }
 secp256k1 = { version = "0.29", features = ["recovery", "global-context"] }
