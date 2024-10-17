@@ -71,8 +71,9 @@ fn main() {
             let (_, verify_core_duration) =
                 time_operation(|| prover.verify(&core_proof.proof, &vk));
 
+            let proofs = stdin.proofs.into_iter().map(|(proof, _)| proof).collect::<Vec<_>>();
             let (compress_proof, compress_duration) =
-                time_operation(|| prover.compress(&vk, core_proof, vec![], opts).unwrap());
+                time_operation(|| prover.compress(&vk, core_proof, proofs, opts).unwrap());
 
             let (_, verify_compressed_duration) =
                 time_operation(|| prover.verify_compressed(&compress_proof, &vk));
@@ -118,8 +119,9 @@ fn main() {
                 prover.verify(&core_proof.proof, &vk).expect("Proof verification failed")
             });
 
+            let proofs = stdin.proofs.into_iter().map(|(proof, _)| proof).collect::<Vec<_>>();
             let (compress_proof, compress_duration) =
-                time_operation(|| server.compress(&vk, core_proof, vec![]).unwrap());
+                time_operation(|| server.compress(&vk, core_proof, proofs).unwrap());
 
             let (_, verify_compressed_duration) =
                 time_operation(|| prover.verify_compressed(&compress_proof, &vk));
