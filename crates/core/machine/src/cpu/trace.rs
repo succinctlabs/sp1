@@ -181,12 +181,14 @@ impl CpuChip {
                 && !is_halt,
         );
 
+        // Extract the most significant byte of the word we are range-checking, and cast it as a u8.
         let ms_byte_u8 =
             cols.opcode_specific_columns.most_significant_byte().as_canonical_u32().to_le_bytes()
-                [3];
+                [0];
 
         cols.opcode_specific_columns.set_range_check_bit(F::from_bool(ms_byte_u8 < 120));
 
+        // Add the byte lookup for the range check bit.
         blu_events.add_byte_lookup_event(ByteLookupEvent {
             shard: event.shard,
             opcode: ByteOpcode::LTU,

@@ -55,7 +55,8 @@ where
         let is_branch_instruction: AB::Expr = self.is_branch_instruction::<AB>(&local.selectors);
         let is_alu_instruction: AB::Expr = self.is_alu_instruction::<AB>(&local.selectors);
 
-        // Range check the addr_word to be a valid babybear word.
+        // Range check local.opcode_specific_columns.range_check_word to be a valid babybear word.
+        // The range check bit is on if and only ifthe most significant byte of the word is < 120.
         builder.send_byte(
             AB::Expr::from_canonical_u32(ByteOpcode::LTU as u32),
             local.opcode_specific_columns.range_check_bit(),
@@ -64,6 +65,8 @@ where
             local.is_real,
         );
 
+        // If the range check bit is off, the most significant byte is >=120, so to be a valid BabyBear
+        // word we need the most significant byte to be =120.
         builder
             .when_not(local.opcode_specific_columns.range_check_bit())
             .when(local.is_real)
@@ -73,6 +76,7 @@ where
             );
 
         let range_check_word = local.opcode_specific_columns.word_for_range_check();
+        // Moreover, if the most significant byte =120, then the 3 other bytes must all be zero.s
         builder
             .when_not(local.opcode_specific_columns.range_check_bit())
             .when(local.is_real)
