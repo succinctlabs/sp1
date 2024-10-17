@@ -2,7 +2,12 @@ use sp1_derive::AlignedBorrow;
 use sp1_stark::Word;
 use std::mem::size_of;
 
-use crate::{memory::MemoryReadWriteCols, operations::BabyBearWordRangeChecker};
+use crate::{
+    memory::MemoryReadWriteCols,
+    operations::{BabyBearWordRangeChecker, IsEqualWordOperation, IsZeroOperation},
+};
+
+use super::MaximalByteCol;
 
 pub const NUM_MEMORY_COLUMNS: usize = size_of::<MemoryColumns<u8>>();
 
@@ -18,7 +23,9 @@ pub struct MemoryColumns<T> {
     // addr_offset = addr_word % 4
     // Note that this all needs to be verified in the AIR
     pub addr_word: Word<T>,
-    pub addr_word_range_checker: BabyBearWordRangeChecker<T>,
+
+    /// A flag indicating whether the most significant byte of the address less than 120.
+    pub addr_word_range_checker: T,
 
     pub addr_aligned: T,
     /// The LE bit decomp of the least significant byte of address aligned.
@@ -36,4 +43,10 @@ pub struct MemoryColumns<T> {
 
     pub addr_word_nonce: T,
     pub unsigned_mem_val_nonce: T,
+}
+
+impl<T: Copy> MaximalByteCol<T> for MemoryColumns<T> {
+    fn most_significant_byte(&self) -> T {
+        self.addr_word[3]
+    }
 }

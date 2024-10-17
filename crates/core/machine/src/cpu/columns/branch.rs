@@ -4,6 +4,8 @@ use std::mem::size_of;
 
 use crate::operations::BabyBearWordRangeChecker;
 
+use super::MaximalByteCol;
+
 pub const NUM_BRANCH_COLS: usize = size_of::<BranchCols<u8>>();
 
 /// The column layout for branching.
@@ -35,4 +37,10 @@ pub struct BranchCols<T> {
 
     /// The nonce of the operation to compute `next_pc`.
     pub next_pc_nonce: T,
+}
+
+impl<T: Copy> MaximalByteCol<T> for BranchCols<T> {
+    fn most_significant_byte(&self) -> T {
+        self.pc[3]
+    }
 }

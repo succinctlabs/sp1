@@ -24,9 +24,9 @@ pub union OpcodeSpecificCols<T: Copy> {
 impl<T: Copy + Default> Default for OpcodeSpecificCols<T> {
     fn default() -> Self {
         // We must use the largest field to avoid uninitialized padding bytes.
-        const_assert!(size_of::<MemoryColumns<u8>>() == size_of::<OpcodeSpecificCols<u8>>());
+        const_assert!(size_of::<JumpCols<u8>>() == size_of::<OpcodeSpecificCols<u8>>());
 
-        OpcodeSpecificCols { memory: MemoryColumns::default() }
+        OpcodeSpecificCols { jump: JumpCols::default() }
     }
 }
 
@@ -36,6 +36,10 @@ impl<T: Copy + Debug> Debug for OpcodeSpecificCols<T> {
         let self_arr: &[T; NUM_OPCODE_SPECIFIC_COLS] = unsafe { transmute(self) };
         Debug::fmt(self_arr, f)
     }
+}
+
+pub trait MaximalByteCol<T> {
+    fn most_significant_byte(&self) -> T;
 }
 
 // SAFETY: Each view is a valid interpretation of the underlying array.

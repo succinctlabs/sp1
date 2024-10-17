@@ -253,7 +253,7 @@ impl CpuChip {
         let memory_addr = event.b.wrapping_add(event.c);
         let aligned_addr = memory_addr - memory_addr % WORD_SIZE as u32;
         memory_columns.addr_word = memory_addr.into();
-        memory_columns.addr_word_range_checker.populate(memory_addr);
+        memory_columns.addr_word_range_checker = F::from_bool((memory_addr >> 24) < 120);
         memory_columns.addr_aligned = F::from_canonical_u32(aligned_addr);
 
         // Populate the aa_least_sig_byte_decomp columns.
@@ -339,6 +339,14 @@ impl CpuChip {
                 c: byte_pair[1],
             });
         }
+        blu_events.add_byte_lookup_event(ByteLookupEvent {
+            shard: event.shard,
+            opcode: ByteOpcode::LTU,
+            a1: if addr_bytes[3] < 120 { 1 } else { 0 },
+            a2: 0,
+            b: addr_bytes[3],
+            c: 120,
+        });
     }
 
     /// Populates columns related to branching.

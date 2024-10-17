@@ -4,6 +4,8 @@ use std::mem::size_of;
 
 use crate::operations::{BabyBearWordRangeChecker, IsZeroOperation};
 
+use super::MaximalByteCol;
+
 pub const NUM_ECALL_COLS: usize = size_of::<EcallCols<u8>>();
 
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
@@ -36,4 +38,10 @@ pub struct EcallCols<T> {
 
     /// The operand value to babybear range check.
     pub operand_to_check: Word<T>,
+}
+
+impl<T: Copy> MaximalByteCol<T> for EcallCols<T> {
+    fn most_significant_byte(&self) -> T {
+        self.operand_to_check[3]
+    }
 }

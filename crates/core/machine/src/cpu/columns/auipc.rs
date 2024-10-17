@@ -4,6 +4,8 @@ use std::mem::size_of;
 
 use crate::operations::BabyBearWordRangeChecker;
 
+use super::MaximalByteCol;
+
 pub const NUM_AUIPC_COLS: usize = size_of::<AuipcCols<u8>>();
 
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
@@ -13,4 +15,10 @@ pub struct AuipcCols<T> {
     pub pc: Word<T>,
     pub pc_range_checker: BabyBearWordRangeChecker<T>,
     pub auipc_nonce: T,
+}
+
+impl<T: Copy> MaximalByteCol<T> for AuipcCols<T> {
+    fn most_significant_byte(&self) -> T {
+        self.pc[3]
+    }
 }
