@@ -10,6 +10,8 @@ members = [
   "chess/script",
   "cycle-tracking/program",
   "cycle-tracking/script",
+  "ecdsa/program",
+  "ecdsa/script",
   "fibonacci/program",
   "fibonacci/script",
   "io/program",
