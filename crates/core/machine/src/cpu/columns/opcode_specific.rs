@@ -81,4 +81,7 @@ impl<T: Copy> OpcodeSpecificCols<T> {
     pub fn range_check_bit(&self) -> T {
         self.memory().range_check_bit()
     }
+    pub fn set_range_check_bit(&mut self, new_val: T) {
+        self.memory_mut().addr_word_range_checker = new_val;
+    }
 }

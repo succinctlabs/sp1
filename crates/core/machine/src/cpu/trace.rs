@@ -181,6 +181,21 @@ impl CpuChip {
                 && !is_halt,
         );
 
+        let ms_byte_u8 =
+            cols.opcode_specific_columns.most_significant_byte().as_canonical_u32().to_le_bytes()
+                [3];
+
+        cols.opcode_specific_columns.set_range_check_bit(F::from_bool(ms_byte_u8 < 120));
+
+        blu_events.add_byte_lookup_event(ByteLookupEvent {
+            shard: event.shard,
+            opcode: ByteOpcode::LTU,
+            a1: if ms_byte_u8 < 120 { 1 } else { 0 },
+            a2: 0,
+            b: ms_byte_u8,
+            c: 120,
+        });
+
         // Assert that the instruction is not a no-op.
         cols.is_real = F::one();
     }
@@ -339,14 +354,6 @@ impl CpuChip {
                 c: byte_pair[1],
             });
         }
-        blu_events.add_byte_lookup_event(ByteLookupEvent {
-            shard: event.shard,
-            opcode: ByteOpcode::LTU,
-            a1: if addr_bytes[3] < 120 { 1 } else { 0 },
-            a2: 0,
-            b: addr_bytes[3],
-            c: 120,
-        });
     }
 
     /// Populates columns related to branching.
@@ -437,6 +444,7 @@ impl CpuChip {
                 Opcode::JALR => {
                     let next_pc = event.b.wrapping_add(event.c);
                     jump_columns.op_a_range_checker.populate(event.a);
+                    jump_columns.pc_range_checker = F::from_bool(true);
                     jump_columns.next_pc = Word::from(next_pc);
                     jump_columns.next_pc_range_checker.populate(next_pc);
                     jump_columns.jalr_nonce = F::from_canonical_u32(

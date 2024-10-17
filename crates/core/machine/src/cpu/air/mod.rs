@@ -64,14 +64,18 @@ where
             local.is_real,
         );
 
-        builder.when_not(local.opcode_specific_columns.range_check_bit()).assert_eq(
-            local.opcode_specific_columns.most_significant_byte(),
-            AB::Expr::from_canonical_u8(120),
-        );
+        builder
+            .when_not(local.opcode_specific_columns.range_check_bit())
+            .when(local.is_real)
+            .assert_eq(
+                local.opcode_specific_columns.most_significant_byte(),
+                AB::Expr::from_canonical_u8(120),
+            );
 
         let range_check_word = local.opcode_specific_columns.word_for_range_check();
         builder
             .when_not(local.opcode_specific_columns.range_check_bit())
+            .when(local.is_real)
             .assert_zero(range_check_word[0] + range_check_word[1] + range_check_word[2]);
 
         // Register constraints.
