@@ -67,11 +67,29 @@ contract Fibonacci {
 ### Finding your program vkey
 
 The program vkey (`fibonacciProgramVKey` in the example above) is passed into the `ISP1Verifer` along with the public values and proof bytes. You
-can find your program vkey by going through the following steps:
+can find your program vkey by going through either of the following steps.
 
 1. Find what version of SP1 crates you are using.
 2. Use the version from step to run this command: `sp1up --version <version>`
 3. Use the vkey command to get the program vkey: `cargo prove vkey -elf <path/to/elf>`
+
+Alternatively, you can set up a simple script to do this using the `sp1-sdk` crate:
+
+```rust
+fn main() {
+    // Setup the logger.
+    sp1_sdk::utils::setup_logger();
+
+    // Setup the prover client.
+    let client = ProverClient::new();
+
+    // Setup the program.
+    let (_, vk) = client.setup(FIBONACCI_ELF);
+
+    // Print the verification key.
+    println!("Program Verification Key: {}", vk.bytes32());
+}
+```
 
 ### Testing
 

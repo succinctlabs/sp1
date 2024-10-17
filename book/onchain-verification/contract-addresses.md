@@ -1,6 +1,8 @@
 # Contract Addresses
 
-To verify SP1 proofs on-chain, we recommend using our deployed canonical verifier gateways. The [SP1VerifierGateway](https://github.com/succinctlabs/sp1-contracts/blob/main/contracts/src/ISP1VerifierGateway.sol) will automatically route your SP1 proof to the correct verifier based on the SP1 version.
+To verify SP1 proofs on-chain, we recommend using our deployed canonical verifier gateways. The
+[SP1VerifierGateway](https://github.com/succinctlabs/sp1-contracts/blob/main/contracts/src/ISP1VerifierGateway.sol)
+will automatically route your SP1 proof to the correct verifier based on the SP1 version used.
 
 ## Canonical Verifier Gateways
 
@@ -14,17 +16,25 @@ To verify SP1 proofs on-chain, we recommend using our deployed canonical verifie
 | 8453     | Base             | [0x3B6041173B80E77f038f3F2C0f9744f04837185e](https://basescan.org/address/0x3B6041173B80E77f038f3F2C0f9744f04837185e)                   |
 | 84532    | Base Sepolia     | [0x3B6041173B80E77f038f3F2C0f9744f04837185e](https://sepolia.basescan.org/address/0x3B6041173B80E77f038f3F2C0f9744f04837185e)           |
 | 10       | Optimism         | [0x3B6041173B80E77f038f3F2C0f9744f04837185e](https://optimistic.etherscan.io/address/0x3b6041173b80e77f038f3f2c0f9744f04837185e)        |
-| 11155420 | Optimism Sepolia | [0x3B6041173B80E77f038f3F2C0f9744f04837185e](hhttps://sepolia-optimism.etherscan.io/address/0x3B6041173B80E77f038f3F2C0f9744f04837185e) |
+| 11155420 | Optimism Sepolia | [0x3B6041173B80E77f038f3F2C0f9744f04837185e](https://sepolia-optimism.etherscan.io/address/0x3B6041173B80E77f038f3F2C0f9744f04837185e) |
 | 534351   | Scroll Sepolia   | [0x3B6041173B80E77f038f3F2C0f9744f04837185e](https://sepolia.scrollscan.com/address/0x3B6041173B80E77f038f3F2C0f9744f04837185e)         |
 | 534352   | Scroll           | [0x3B6041173B80E77f038f3F2C0f9744f04837185e](https://scrollscan.com/address/0x3B6041173B80E77f038f3F2C0f9744f04837185e)                 |
 
-A complete reference for all of the `SP1Verifier` contract addresses can be also be found in the [SP1 Contracts Repo](https://github.com/succinctlabs/sp1-contracts/blob/main/contracts/deployments).
+The most up-to-date reference on each chain can be found in the
+[deployments](https://github.com/succinctlabs/sp1-contracts/blob/main/contracts/deployments)
+directory in the
+SP1 contracts repository, where each chain has a dedicated JSON file with each verifier's address.
+
+## Versioning Policy
 
 Whenever a verifier for a new SP1 version is deployed, the gateway contract will be updated to
 support it with
 [addRoute()](https://github.com/succinctlabs/sp1-contracts/blob/main/contracts/src/ISP1VerifierGateway.sol#L65).
 If a verifier for an SP1 version has an issue, the route will be frozen with
 [freezeRoute()](https://github.com/succinctlabs/sp1-contracts/blob/main/contracts/src/ISP1VerifierGateway.sol#L71).
+
+On mainnets, only official versioned releases are deployed and added to the gateway. Testnets have
+`rc` versions of the verifier deployed supported in addition to the official versions.
 
 ## Deploying to other Chains
 
@@ -36,7 +46,7 @@ Since both the `SP1VerifierGateway` and each `SP1Verifier` implement the [ISP1Ve
 interface](./contract-usage.md#isp1verifier-interface), you can choose to either:
 
 * Deploy the `SP1VerifierGateway` and add `SP1Verifier` contracts to it. Then point to the
-  SP1VerifierGateway addressin your contracts.
+  SP1VerifierGateway address in your contracts.
 * Deploy just the `SP1Verifier` contract that you want to use. Then point to the `SP1Verifier`
   address in
   your contracts.
