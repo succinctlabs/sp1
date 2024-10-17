@@ -289,18 +289,24 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
-        match E::CURVE_TYPE {
-            CurveType::Secp256k1 => {
-                !shard.get_precompile_events(SyscallCode::SECP256K1_DOUBLE).is_empty()
+        if let Some(shape) = shard.shape.as_ref() {
+            shape.included::<F, _>(self)
+        } else {
+            match E::CURVE_TYPE {
+                CurveType::Secp256k1 => {
+                    !shard.get_precompile_events(SyscallCode::SECP256K1_DOUBLE).is_empty()
+                }
+                CurveType::Secp256r1 => {
+                    !shard.get_precompile_events(SyscallCode::SECP256R1_DOUBLE).is_empty()
+                }
+                CurveType::Bn254 => {
+                    !shard.get_precompile_events(SyscallCode::BN254_DOUBLE).is_empty()
+                }
+                CurveType::Bls12381 => {
+                    !shard.get_precompile_events(SyscallCode::BLS12381_DOUBLE).is_empty()
+                }
+                _ => panic!("Unsupported curve"),
             }
-            CurveType::Secp256r1 => {
-                !shard.get_precompile_events(SyscallCode::SECP256R1_DOUBLE).is_empty()
-            }
-            CurveType::Bn254 => !shard.get_precompile_events(SyscallCode::BN254_DOUBLE).is_empty(),
-            CurveType::Bls12381 => {
-                !shard.get_precompile_events(SyscallCode::BLS12381_DOUBLE).is_empty()
-            }
-            _ => panic!("Unsupported curve"),
         }
     }
 }
