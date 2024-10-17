@@ -14,7 +14,7 @@ pub struct InstructionCols<T> {
     pub opcode: T,
 
     /// The first operand for this instruction.
-    pub op_a: Word<T>,
+    pub op_a: T,
 
     /// The second operand for this instruction.
     pub op_b: Word<T>,
@@ -29,7 +29,7 @@ pub struct InstructionCols<T> {
 impl<F: PrimeField> InstructionCols<F> {
     pub fn populate(&mut self, instruction: Instruction) {
         self.opcode = instruction.opcode.as_field::<F>();
-        self.op_a = instruction.op_a.into();
+        self.op_a = F::from_canonical_u32(instruction.op_a);
         self.op_b = instruction.op_b.into();
         self.op_c = instruction.op_c.into();
 
@@ -43,7 +43,7 @@ impl<T> IntoIterator for InstructionCols<T> {
 
     fn into_iter(self) -> Self::IntoIter {
         once(self.opcode)
-            .chain(self.op_a)
+            .chain(once(self.op_a))
             .chain(self.op_b)
             .chain(self.op_c)
             .chain(once(self.op_a_0))

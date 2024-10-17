@@ -49,7 +49,7 @@ impl CpuChip {
         builder.eval_memory_access(
             local.shard,
             local.clk + AB::F::from_canonical_u32(MemoryAccessPosition::A as u32),
-            local.instruction.op_a[0],
+            local.instruction.op_a,
             &local.op_a_access,
             local.is_real,
         );
