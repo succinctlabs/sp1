@@ -15,8 +15,8 @@ use ed25519_dalek::{
 
 use sha2_v0_10_6::{Digest as Digest_10_6, Sha256 as Sha256_10_6};
 // use sha2_v0_10_8::{Digest as Digest_10_8, Sha256 as Sha256_10_8};
-// use sha2_v0_9_8::{Digest as Digest_9_8, Sha256 as Sha256_9_8};
-// use tiny_keccak::{Hasher, Keccak};
+use sha2_v0_9_8::{Digest as Digest_9_8, Sha256 as Sha256_9_8};
+use tiny_keccak::{Hasher, Keccak};
 
 use secp256k1::{
     ecdsa::{
@@ -25,8 +25,6 @@ use secp256k1::{
     },
     Message as Secp256k1Message,
 };
-use sha2_v0_9_8::{Digest as Digest_9_8, Sha256 as Sha256_9_8};
-use tiny_keccak::{Hasher, Keccak};
 
 /// Simple interface to the [`keccak256`] hash function.
 ///

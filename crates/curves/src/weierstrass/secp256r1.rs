@@ -1,11 +1,10 @@
 //! Modulo defining the Secp256r1 curve and its base field. The constants are all taken from
-//! https://en.bitcoin.it/wiki/Secp256k1.
+//! https://neuromancer.sk/std/secg/secp256r1
 
 use std::str::FromStr;
 
 use elliptic_curve::{sec1::ToEncodedPoint, subtle::Choice};
 use generic_array::GenericArray;
-// use k256::{elliptic_curve::point::DecompressPoint, FieldElement};
 use num::{
     traits::{FromBytes, ToBytes},
     BigUint,
@@ -21,17 +20,16 @@ use crate::{
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
-/// Secp256k1 curve parameter
+/// Secp256r1 curve parameter
 pub struct Secp256r1Parameters;
 
 pub type Secp256r1 = SwCurve<Secp256r1Parameters>;
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Serialize, Deserialize)]
-/// Secp256k1 base field parameter
+/// Secp256r1 base field parameter
 pub struct Secp256r1BaseField;
 
 impl FieldParameters for Secp256r1BaseField {
-    //0xffffffff00000001000000000000000000000000ffffffffffffffffffffffff
     const MODULUS: &'static [u8] = &[
         0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00,
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0xff, 0xff,
@@ -77,7 +75,7 @@ impl WeierstrassParameters for Secp256r1Parameters {
         .unwrap();
         (x, y)
     }
-    //0xffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551
+
     fn prime_group_order() -> num::BigUint {
         BigUint::from_slice(&[
             0xFC632551, 0xF3B9CAC2, 0xA7179E84, 0xBCE6FAAD, 0xFFFFFFFF, 0xFFFFFFFF, 0x00000000,
@@ -111,7 +109,6 @@ pub fn secp256r1_decompress<E: EllipticCurve>(bytes_be: &[u8], sign: u32) -> Aff
 }
 
 pub fn secp256r1_sqrt(n: &BigUint) -> BigUint {
-    // println!("n: {}", n);
     let be_bytes = n.to_be_bytes();
     let mut bytes = [0_u8; 32];
     bytes[32 - be_bytes.len()..].copy_from_slice(&be_bytes);

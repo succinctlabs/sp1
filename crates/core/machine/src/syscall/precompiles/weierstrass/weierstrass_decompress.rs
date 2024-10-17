@@ -601,9 +601,7 @@ mod tests {
             let public_key = secret_key.public_key();
             let encoded = public_key.to_encoded_point(false);
             let decompressed = encoded.as_bytes();
-            println!("decompressed: {:?}", decompressed);
             let compressed = public_key.to_sec1_bytes();
-            println!("compressed: {:?}", compressed);
 
             let inputs = SP1Stdin::from(&compressed);
 
@@ -632,9 +630,7 @@ mod tests {
             let encoded = public_key.to_encoded_point(false);
             let decompressed = encoded.as_bytes();
             let encoded_compressed = public_key.to_encoded_point(true);
-            println!("decompressed: {:?}", decompressed);
             let compressed = encoded_compressed.as_bytes();
-            println!("compressed: {:?}", compressed);
 
             let inputs = SP1Stdin::from(compressed);
 

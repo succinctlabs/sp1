@@ -1,8 +1,7 @@
 use std::fmt::Debug;
 
 use crate::air::WordAirBuilder;
-use num::BigUint;
-use num::Zero;
+use num::{BigUint, Zero};
 
 use p3_air::AirBuilder;
 use p3_field::PrimeField32;
