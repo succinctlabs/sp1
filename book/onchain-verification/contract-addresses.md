@@ -46,7 +46,7 @@ Since both the `SP1VerifierGateway` and each `SP1Verifier` implement the [ISP1Ve
 interface](./contract-usage.md#isp1verifier-interface), you can choose to either:
 
 * Deploy the `SP1VerifierGateway` and add `SP1Verifier` contracts to it. Then point to the
-  SP1VerifierGateway address in your contracts.
+  `SP1VerifierGateway` address in your contracts.
 * Deploy just the `SP1Verifier` contract that you want to use. Then point to the `SP1Verifier`
   address in
   your contracts.
