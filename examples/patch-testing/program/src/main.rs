@@ -6,7 +6,6 @@ use alloy_primitives::{address, bytes, hex};
 use alloy_primitives::{B256, B512};
 use curve25519_dalek::edwards::CompressedEdwardsY as CompressedEdwardsY_dalek;
 use curve25519_dalek_ng::edwards::CompressedEdwardsY as CompressedEdwardsY_dalek_ng;
-// use curve25519_dalek_v3::edwards::CompressedEdwardsY as CompressedEdwardsY_dalek_v3;
 use ed25519_consensus::{
     Signature as Ed25519ConsensusSignature, VerificationKey as Ed25519ConsensusVerificationKey,
 };
