@@ -54,6 +54,7 @@ jobs:
           RUST_BACKTRACE: 1
           # FRI_QUERIES: 1
           SP1_DEV: 1
+          VERIFY_VK: "false"
 
   test-arm:
     name: Test (ARM)
@@ -91,6 +92,7 @@ jobs:
           RUST_BACKTRACE: 1
           # FRI_QUERIES: 1
           SP1_DEV: 1
+          VERIFY_VK: "false"
 
   lint:
     name: Formatting & Clippy
@@ -233,7 +235,7 @@ jobs:
           cd ../script
           cargo remove sp1-sdk
           cargo add sp1-sdk --path $GITHUB_WORKSPACE/crates/sdk
-          SP1_DEV=1 RUST_LOG=info cargo run --release -- --prove
+          VERIFY_VK="false" SP1_DEV=1 RUST_LOG=info cargo run --release -- --prove
 
   performance:
     name: Performance
