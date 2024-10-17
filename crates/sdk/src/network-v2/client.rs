@@ -14,7 +14,9 @@ use std::str::FromStr;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::OnceCell;
 use tokio::try_join;
+use tonic::transport::channel::ClientTlsConfig;
 use tonic::transport::Channel;
+use tonic::transport::Endpoint;
 
 use crate::network_v2::proto::artifact::{
     artifact_store_client::ArtifactStoreClient, CreateArtifactRequest,
@@ -58,14 +60,32 @@ impl NetworkClient {
     /// Get a connected RPC client.
     async fn get_rpc(&self) -> Result<ProverNetworkClient<Channel>> {
         let rpc_url = Self::rpc_url();
-        let channel = Channel::from_shared(rpc_url)?.connect().await?;
-        Ok(ProverNetworkClient::new(channel.clone()))
+        let mut endpoint = Channel::from_shared(rpc_url.clone())?;
+
+        // Check if the URL scheme is HTTPS and configure TLS
+        if rpc_url.starts_with("https://") {
+            println!("Using TLS");
+            let tls_config = ClientTlsConfig::new().with_enabled_roots();
+            endpoint = endpoint.tls_config(tls_config)?;
+        }
+
+        let channel = endpoint.connect().await?;
+        Ok(ProverNetworkClient::new(channel))
     }
 
     /// Get a connected artifact store client.
     async fn get_store(&self) -> Result<ArtifactStoreClient<Channel>> {
         let rpc_url = Self::rpc_url();
-        let channel = Channel::from_shared(rpc_url)?.connect().await?;
+        let mut endpoint = Channel::from_shared(rpc_url.clone())?;
+
+        // Check if the URL scheme is HTTPS and configure TLS
+        if rpc_url.starts_with("https://") {
+            println!("Using TLS");
+            let tls_config = ClientTlsConfig::new().with_enabled_roots();
+            endpoint = endpoint.tls_config(tls_config)?;
+        }
+
+        let channel = endpoint.connect().await?;
         Ok(ArtifactStoreClient::new(channel.clone()))
     }
 
@@ -203,6 +223,9 @@ impl NetworkClient {
         let response =
             self.http.put(&presigned_url).body(bincode::serialize::<T>(item)?).send().await?;
 
+        if !response.status().is_success() {
+            log::debug!("Artifact upload failed with status: {}", response.status());
+        }
         assert!(response.status().is_success());
 
         Ok(uri)
