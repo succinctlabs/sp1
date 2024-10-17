@@ -18,15 +18,14 @@ use sp1_core_executor::SP1Context;
 use sp1_core_machine::{io::SP1Stdin, SP1_CIRCUIT_VERSION};
 use sp1_prover::{
     components::SP1ProverComponents, CoreSC, InnerSC, SP1CoreProofData, SP1Prover, SP1ProvingKey,
-    SP1ReduceProof, SP1VerifyingKey,
+    SP1VerifyingKey,
 };
 use sp1_stark::{air::PublicValues, MachineVerificationError, SP1ProverOpts, Word};
 use strum_macros::EnumString;
 use thiserror::Error;
 
-use crate::{
-    install::try_install_circuit_artifacts, SP1Proof, SP1ProofKind, SP1ProofWithPublicValues,
-};
+use crate::install::try_install_circuit_artifacts;
+use crate::{SP1Proof, SP1ProofKind, SP1ProofWithPublicValues};
 
 /// The type of prover.
 #[derive(Debug, PartialEq, EnumString)]
@@ -100,15 +99,16 @@ pub trait Prover<C: SP1ProverComponents>: Send + Sync {
                 let public_values: &PublicValues<Word<_>, _> =
                     proof.last().unwrap().public_values.as_slice().borrow();
 
-                // Get the commited value digest bytes.
-                let commited_value_digest_bytes = public_values
+                // Get the committed value digest bytes.
+                let committed_value_digest_bytes = public_values
                     .committed_value_digest
                     .iter()
                     .flat_map(|w| w.0.iter().map(|x| x.as_canonical_u32() as u8))
                     .collect_vec();
 
-                // Make sure the commited value digest matches the public values hash.
-                for (a, b) in commited_value_digest_bytes.iter().zip_eq(bundle.public_values.hash())
+                // Make sure the committed value digest matches the public values hash.
+                for (a, b) in
+                    committed_value_digest_bytes.iter().zip_eq(bundle.public_values.hash())
                 {
                     if *a != b {
                         return Err(SP1VerificationError::InvalidPublicValues);
@@ -122,17 +122,18 @@ pub trait Prover<C: SP1ProverComponents>: Send + Sync {
             }
             SP1Proof::Compressed(proof) => {
                 let public_values: &PublicValues<Word<_>, _> =
-                    proof.public_values.as_slice().borrow();
+                    proof.proof.public_values.as_slice().borrow();
 
-                // Get the commited value digest bytes.
-                let commited_value_digest_bytes = public_values
+                // Get the committed value digest bytes.
+                let committed_value_digest_bytes = public_values
                     .committed_value_digest
                     .iter()
                     .flat_map(|w| w.0.iter().map(|x| x.as_canonical_u32() as u8))
                     .collect_vec();
 
-                // Make sure the commited value digest matches the public values hash.
-                for (a, b) in commited_value_digest_bytes.iter().zip_eq(bundle.public_values.hash())
+                // Make sure the committed value digest matches the public values hash.
+                for (a, b) in
+                    committed_value_digest_bytes.iter().zip_eq(bundle.public_values.hash())
                 {
                     if *a != b {
                         return Err(SP1VerificationError::InvalidPublicValues);
@@ -140,7 +141,7 @@ pub trait Prover<C: SP1ProverComponents>: Send + Sync {
                 }
 
                 self.sp1_prover()
-                    .verify_compressed(&SP1ReduceProof { proof: proof.clone() }, vkey)
+                    .verify_compressed(proof, vkey)
                     .map_err(SP1VerificationError::Recursion)
             }
             SP1Proof::Plonk(proof) => self
@@ -152,7 +153,7 @@ pub trait Prover<C: SP1ProverComponents>: Send + Sync {
                     &if sp1_prover::build::sp1_dev_mode() {
                         sp1_prover::build::plonk_bn254_artifacts_dev_dir()
                     } else {
-                        try_install_circuit_artifacts()
+                        try_install_circuit_artifacts("plonk")
                     },
                 )
                 .map_err(SP1VerificationError::Plonk),
@@ -165,7 +166,7 @@ pub trait Prover<C: SP1ProverComponents>: Send + Sync {
                     &if sp1_prover::build::sp1_dev_mode() {
                         sp1_prover::build::groth16_bn254_artifacts_dev_dir()
                     } else {
-                        try_install_circuit_artifacts()
+                        try_install_circuit_artifacts("groth16")
                     },
                 )
                 .map_err(SP1VerificationError::Groth16),

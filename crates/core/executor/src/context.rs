@@ -11,7 +11,7 @@ use crate::{
 /// Context to run a program inside SP1.
 #[derive(Clone, Default)]
 pub struct SP1Context<'a> {
-    /// The registry of hooks invokable from inside SP1.
+    /// The registry of hooks invocable from inside SP1.
     ///
     /// Note: `None` denotes the default list of hooks.
     pub hook_registry: Option<HookRegistry<'a>>,

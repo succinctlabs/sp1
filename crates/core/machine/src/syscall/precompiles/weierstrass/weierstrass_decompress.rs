@@ -4,14 +4,14 @@ use core::{
 };
 use std::fmt::Debug;
 
-use crate::air::MemoryAirBuilder;
+use crate::{air::MemoryAirBuilder, utils::zeroed_f_vec};
 use generic_array::GenericArray;
 use num::{BigUint, Zero};
 use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use sp1_core_executor::{
-    events::{ByteRecord, FieldOperation},
+    events::{ByteRecord, FieldOperation, PrecompileEvent},
     syscalls::SyscallCode,
     ExecutionRecord, Program,
 };
@@ -21,14 +21,14 @@ use sp1_curves::{
     CurveType, EllipticCurve,
 };
 use sp1_derive::AlignedBorrow;
-use sp1_stark::air::{BaseAirBuilder, MachineAir, SP1AirBuilder};
+use sp1_stark::air::{BaseAirBuilder, InteractionScope, MachineAir, SP1AirBuilder};
 use std::marker::PhantomData;
 use typenum::Unsigned;
 
 use crate::{
     memory::{MemoryReadCols, MemoryReadWriteCols},
     operations::field::{field_op::FieldOpCols, field_sqrt::FieldSqrtCols, range::FieldLtCols},
-    utils::{bytes_to_words_le_vec, limbs_from_access, limbs_from_prev_access, pad_rows},
+    utils::{bytes_to_words_le_vec, limbs_from_access, limbs_from_prev_access, pad_rows_fixed},
 };
 
 pub const fn num_weierstrass_decompress_cols<P: FieldParameters + NumWords>() -> usize {
@@ -42,7 +42,6 @@ pub const fn num_weierstrass_decompress_cols<P: FieldParameters + NumWords>() ->
 pub struct WeierstrassDecompressCols<T, P: FieldParameters + NumWords> {
     pub is_real: T,
     pub shard: T,
-    pub channel: T,
     pub clk: T,
     pub nonce: T,
     pub ptr: T,
@@ -105,28 +104,25 @@ impl<E: EllipticCurve + WeierstrassParameters> WeierstrassDecompressChip<E> {
     fn populate_field_ops<F: PrimeField32>(
         record: &mut impl ByteRecord,
         shard: u32,
-        channel: u8,
         cols: &mut WeierstrassDecompressCols<F, E::BaseField>,
         x: BigUint,
     ) {
         // Y = sqrt(x^3 + b)
-        cols.range_x.populate(record, shard, channel, &x, &E::BaseField::modulus());
-        let x_2 =
-            cols.x_2.populate(record, shard, channel, &x.clone(), &x.clone(), FieldOperation::Mul);
-        let x_3 = cols.x_3.populate(record, shard, channel, &x_2, &x, FieldOperation::Mul);
+        cols.range_x.populate(record, shard, &x, &E::BaseField::modulus());
+        let x_2 = cols.x_2.populate(record, shard, &x.clone(), &x.clone(), FieldOperation::Mul);
+        let x_3 = cols.x_3.populate(record, shard, &x_2, &x, FieldOperation::Mul);
         let b = E::b_int();
-        let x_3_plus_b =
-            cols.x_3_plus_b.populate(record, shard, channel, &x_3, &b, FieldOperation::Add);
+        let x_3_plus_b = cols.x_3_plus_b.populate(record, shard, &x_3, &b, FieldOperation::Add);
 
         let sqrt_fn = match E::CURVE_TYPE {
             CurveType::Secp256k1 => secp256k1_sqrt,
             CurveType::Bls12381 => bls12381_sqrt,
             _ => panic!("Unsupported curve"),
         };
-        let y = cols.y.populate(record, shard, channel, &x_3_plus_b, sqrt_fn);
+        let y = cols.y.populate(record, shard, &x_3_plus_b, sqrt_fn);
 
         let zero = BigUint::zero();
-        cols.neg_y.populate(record, shard, channel, &zero, &y, FieldOperation::Sub);
+        cols.neg_y.populate(record, shard, &zero, &y, FieldOperation::Sub);
     }
 }
 
@@ -150,8 +146,8 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
         output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
         let events = match E::CURVE_TYPE {
-            CurveType::Secp256k1 => &input.k256_decompress_events,
-            CurveType::Bls12381 => &input.bls12381_decompress_events,
+            CurveType::Secp256k1 => input.get_precompile_events(SyscallCode::SECP256K1_DECOMPRESS),
+            CurveType::Bls12381 => input.get_precompile_events(SyscallCode::BLS12381_DECOMPRESS),
             _ => panic!("Unsupported curve"),
         };
 
@@ -163,42 +159,32 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
 
         let modulus = E::BaseField::modulus();
 
-        for i in 0..events.len() {
-            let event = events[i].clone();
-            let mut row = vec![F::zero(); width];
+        for (_, event) in events {
+            let event = match (E::CURVE_TYPE, event) {
+                (CurveType::Secp256k1, PrecompileEvent::Secp256k1Decompress(event)) => event,
+                (CurveType::Bls12381, PrecompileEvent::Bls12381Decompress(event)) => event,
+                _ => panic!("Unsupported curve"),
+            };
+
+            let mut row = zeroed_f_vec(width);
             let cols: &mut WeierstrassDecompressCols<F, E::BaseField> =
                 row[0..weierstrass_width].borrow_mut();
 
             cols.is_real = F::from_bool(true);
             cols.shard = F::from_canonical_u32(event.shard);
-            cols.channel = F::from_canonical_u8(event.channel);
-            cols.channel = F::from_canonical_u8(event.channel);
             cols.clk = F::from_canonical_u32(event.clk);
             cols.ptr = F::from_canonical_u32(event.ptr);
             cols.sign_bit = F::from_bool(event.sign_bit);
 
             let x = BigUint::from_bytes_le(&event.x_bytes);
-            Self::populate_field_ops(
-                &mut new_byte_lookup_events,
-                event.shard,
-                event.channel,
-                cols,
-                x,
-            );
+            Self::populate_field_ops(&mut new_byte_lookup_events, event.shard, cols, x);
 
             for i in 0..cols.x_access.len() {
-                cols.x_access[i].populate(
-                    event.channel,
-                    event.x_memory_records[i],
-                    &mut new_byte_lookup_events,
-                );
+                cols.x_access[i].populate(event.x_memory_records[i], &mut new_byte_lookup_events);
             }
             for i in 0..cols.y_access.len() {
-                cols.y_access[i].populate_write(
-                    event.channel,
-                    event.y_memory_records[i],
-                    &mut new_byte_lookup_events,
-                );
+                cols.y_access[i]
+                    .populate_write(event.y_memory_records[i], &mut new_byte_lookup_events);
             }
 
             if matches!(self.sign_rule, SignChoiceRule::Lexicographic) {
@@ -217,7 +203,6 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
                     choice_cols.neg_y_range_check.populate(
                         &mut new_byte_lookup_events,
                         event.shard,
-                        event.channel,
                         &neg_y,
                         &modulus,
                     );
@@ -225,7 +210,6 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
                     choice_cols.neg_y_range_check.populate(
                         &mut new_byte_lookup_events,
                         event.shard,
-                        event.channel,
                         &decompressed_y,
                         &modulus,
                     );
@@ -237,7 +221,6 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
                     choice_cols.comparison_lt_cols.populate(
                         &mut new_byte_lookup_events,
                         event.shard,
-                        event.channel,
                         &neg_y,
                         &decompressed_y,
                     );
@@ -248,7 +231,6 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
                     choice_cols.comparison_lt_cols.populate(
                         &mut new_byte_lookup_events,
                         event.shard,
-                        event.channel,
                         &decompressed_y,
                         &neg_y,
                     );
@@ -259,22 +241,26 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
         }
         output.add_byte_lookup_events(new_byte_lookup_events);
 
-        pad_rows(&mut rows, || {
-            let mut row = vec![F::zero(); width];
-            let cols: &mut WeierstrassDecompressCols<F, E::BaseField> =
-                row.as_mut_slice()[0..weierstrass_width].borrow_mut();
+        pad_rows_fixed(
+            &mut rows,
+            || {
+                let mut row = zeroed_f_vec(width);
+                let cols: &mut WeierstrassDecompressCols<F, E::BaseField> =
+                    row.as_mut_slice()[0..weierstrass_width].borrow_mut();
 
-            // take X of the generator as a dummy value to make sure Y^2 = X^3 + b holds
-            let dummy_value = E::generator().0;
-            let dummy_bytes = dummy_value.to_bytes_le();
-            let words = bytes_to_words_le_vec(&dummy_bytes);
-            for i in 0..cols.x_access.len() {
-                cols.x_access[i].access.value = words[i].into();
-            }
+                // take X of the generator as a dummy value to make sure Y^2 = X^3 + b holds
+                let dummy_value = E::generator().0;
+                let dummy_bytes = dummy_value.to_bytes_le();
+                let words = bytes_to_words_le_vec(&dummy_bytes);
+                for i in 0..cols.x_access.len() {
+                    cols.x_access[i].access.value = words[i].into();
+                }
 
-            Self::populate_field_ops(&mut vec![], 0, 0, cols, dummy_value);
-            row
-        });
+                Self::populate_field_ops(&mut vec![], 0, cols, dummy_value);
+                row
+            },
+            input.fixed_log2_rows::<F, _>(self),
+        );
 
         let mut trace = RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), width);
 
@@ -289,10 +275,18 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
-        match E::CURVE_TYPE {
-            CurveType::Secp256k1 => !shard.k256_decompress_events.is_empty(),
-            CurveType::Bls12381 => !shard.bls12381_decompress_events.is_empty(),
-            _ => panic!("Unsupported curve"),
+        if let Some(shape) = shard.shape.as_ref() {
+            shape.included::<F, _>(self)
+        } else {
+            match E::CURVE_TYPE {
+                CurveType::Secp256k1 => {
+                    !shard.get_precompile_events(SyscallCode::SECP256K1_DECOMPRESS).is_empty()
+                }
+                CurveType::Bls12381 => {
+                    !shard.get_precompile_events(SyscallCode::BLS12381_DECOMPRESS).is_empty()
+                }
+                _ => panic!("Unsupported curve"),
+            }
         }
     }
 }
@@ -341,28 +335,10 @@ where
             builder,
             &x,
             &limbs_from_vec::<AB::Expr, <E::BaseField as NumLimbs>::Limbs, AB::F>(max_num_limbs),
-            local.shard,
-            local.channel,
             local.is_real,
         );
-        local.x_2.eval(
-            builder,
-            &x,
-            &x,
-            FieldOperation::Mul,
-            local.shard,
-            local.channel,
-            local.is_real,
-        );
-        local.x_3.eval(
-            builder,
-            &local.x_2.result,
-            &x,
-            FieldOperation::Mul,
-            local.shard,
-            local.channel,
-            local.is_real,
-        );
+        local.x_2.eval(builder, &x, &x, FieldOperation::Mul, local.is_real);
+        local.x_3.eval(builder, &local.x_2.result, &x, FieldOperation::Mul, local.is_real);
         let b = E::b_int();
         let b_const = E::BaseField::to_limbs_field::<AB::F, _>(&b);
         local.x_3_plus_b.eval(
@@ -370,8 +346,6 @@ where
             &local.x_3.result,
             &b_const,
             FieldOperation::Add,
-            local.shard,
-            local.channel,
             local.is_real,
         );
 
@@ -380,19 +354,10 @@ where
             &[AB::Expr::zero()].iter(),
             &local.y.multiplication.result,
             FieldOperation::Sub,
-            local.shard,
-            local.channel,
             local.is_real,
         );
 
-        local.y.eval(
-            builder,
-            &local.x_3_plus_b.result,
-            local.y.lsb,
-            local.shard,
-            local.channel,
-            local.is_real,
-        );
+        local.y.eval(builder, &local.x_3_plus_b.result, local.y.lsb, local.is_real);
 
         let y_limbs: Limbs<AB::Var, <E::BaseField as NumLimbs>::Limbs> =
             limbs_from_access(&local.y_access);
@@ -419,7 +384,7 @@ where
                 // the result is greater than or less its negative with respect to the lexicographic
                 // ordering, embedding prime field values as integers.
                 //
-                // In order to endorce these constraints, we will use the auxillary choice columns.
+                // In order to endorce these constraints, we will use the auxiliary choice columns.
 
                 // Get the choice columns from the row slice
                 let choice_cols: &LexicographicChoiceCols<AB::Var, E::BaseField> = (*local_slice)
@@ -438,8 +403,6 @@ where
                     builder,
                     &local.neg_y.result,
                     &modulus_limbs,
-                    local.shard,
-                    local.channel,
                     local.is_real,
                 );
 
@@ -494,8 +457,6 @@ where
                     builder,
                     &local.y.multiplication.result,
                     &local.neg_y.result,
-                    local.shard,
-                    local.channel,
                     choice_cols.when_sqrt_y_res_is_lt,
                 );
 
@@ -503,8 +464,6 @@ where
                     builder,
                     &local.neg_y.result,
                     &local.y.multiplication.result,
-                    local.shard,
-                    local.channel,
                     choice_cols.when_neg_y_res_is_lt,
                 );
             }
@@ -513,7 +472,6 @@ where
         for i in 0..num_words_field_element {
             builder.eval_memory_access(
                 local.shard,
-                local.channel,
                 local.clk,
                 local.ptr.into() + AB::F::from_canonical_u32((i as u32) * 4 + num_limbs as u32),
                 &local.x_access[i],
@@ -523,7 +481,6 @@ where
         for i in 0..num_words_field_element {
             builder.eval_memory_access(
                 local.shard,
-                local.channel,
                 local.clk,
                 local.ptr.into() + AB::F::from_canonical_u32((i as u32) * 4),
                 &local.y_access[i],
@@ -543,13 +500,13 @@ where
 
         builder.receive_syscall(
             local.shard,
-            local.channel,
             local.clk,
             local.nonce,
             syscall_id,
             local.ptr,
             local.sign_bit,
             local.is_real,
+            InteractionScope::Local,
         );
     }
 }

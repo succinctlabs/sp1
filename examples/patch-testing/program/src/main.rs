@@ -1,20 +1,21 @@
 #![no_main]
 sp1_zkvm::entrypoint!(main);
 
-use alloy_primitives::{address, hex, Signature};
+use alloy_primitives::Bytes;
+use alloy_primitives::{address, bytes, hex};
+use alloy_primitives::{B256, B512};
 use curve25519_dalek::edwards::CompressedEdwardsY as CompressedEdwardsY_dalek;
 use curve25519_dalek_ng::edwards::CompressedEdwardsY as CompressedEdwardsY_dalek_ng;
 use ed25519_consensus::{
     Signature as Ed25519ConsensusSignature, VerificationKey as Ed25519ConsensusVerificationKey,
 };
 use ed25519_dalek::{
-    Signature as Ed25519DalekSignature, Verifier, VerifyingKey as Ed25519DalekVerifiyingKey,
+    Signature as Ed25519DalekSignature, Verifier, VerifyingKey as Ed25519DalekVerifyingKey,
 };
 
 use sha2_v0_10_6::{Digest as Digest_10_6, Sha256 as Sha256_10_6};
 // use sha2_v0_10_8::{Digest as Digest_10_8, Sha256 as Sha256_10_8};
 use sha2_v0_9_8::{Digest as Digest_9_8, Sha256 as Sha256_9_8};
-use std::str::FromStr;
 use tiny_keccak::{Hasher, Keccak};
 
 use secp256k1::{
@@ -42,7 +43,7 @@ fn test_ed25519_dalek() {
     let msg = hex!("656432353531392d636f6e73656e7375732074657374206d657373616765");
     let sig = hex!("69261ea5df799b20fc6eeb49aa79f572c8f1e2ba88b37dff184cc55d4e3653d876419bffcc47e5343cdd5fd78121bb32f1c377a5ed505106ad37f19980218f0d");
 
-    let vk = Ed25519DalekVerifiyingKey::from_bytes(&vk).unwrap();
+    let vk = Ed25519DalekVerifyingKey::from_bytes(&vk).unwrap();
     let sig = Ed25519DalekSignature::from_bytes(&sig);
 
     println!("cycle-tracker-start: ed25519-dalek verify");
@@ -124,16 +125,35 @@ fn test_sha256() {
 /// Emits SECP256K1_ADD, SECP256K1_DOUBLE, and SECP256K1_DECOMPRESS syscalls.
 /// Source: https://github.com/alloy-rs/core/blob/adcf7adfa1f35c56e6331bab85b8c56d32a465f1/crates/primitives/src/signature/sig.rs#L620-L631
 fn test_k256_patch() {
-    let sig = Signature::from_str(
-        "b91467e570a6466aa9e9876cbcd013baba02900b8979d43fe208a4a4f339f5fd6007e74cd82e037b800186422fc2da167c747ef045e5d18a5f5d4300f8e1a0291c"
-    ).expect("could not parse signature");
-    let expected = address!("2c7536E3605D9C16a7a3D7b1898e529396a65c23");
+    // A valid signature.
+    let precompile_input = bytes!("a79c77e94d0cd778e606e61130d9065e718eced9408e63df3a71919d5830d82d000000000000000000000000000000000000000000000000000000000000001cd685e79fb0b7ff849cbc6283dd1174b4a06f2aa556f019169a99396fc052b42e2c0ff35d08662f2685929c20ce8eaab568a404d61cf2aa837f1f431e2aef6211");
+
+    let msg = <&B256>::try_from(&precompile_input[0..32]).unwrap();
+    let recid = precompile_input[63] - 27;
+    let sig = <&B512>::try_from(&precompile_input[64..128]).unwrap();
 
     println!("cycle-tracker-start: k256 verify");
-    let recovered_address = sig.recover_address_from_msg("Some data").expect("could not recover address");
+    let _: Bytes = revm_precompile::secp256k1::ecrecover(sig, recid, msg)
+        .map(|o| o.to_vec().into())
+        .unwrap_or_default();
     println!("cycle-tracker-end: k256 verify");
 
-    assert_eq!(recovered_address, expected);
+    // Signature by the 0x1 private key. Confirms that multi_scalar_multiplication works as intended.
+    let precompile_input = bytes!("15499a876f0d57fdc360c760aec98245eba1902610140c14d5f0c3c0284e28a7000000000000000000000000000000000000000000000000000000000000001c2106219ec2e5ef9f7d5ffb303fac05c4066e66db6d501d2e5b1626f2cc8fbe1c316d4e90b09819db9c261017f18e1b5b105855922ec962fd58e83c943e4c4ba3");
+
+    let msg = <&B256>::try_from(&precompile_input[0..32]).unwrap();
+    let recid = precompile_input[63] - 27;
+    let sig = <&B512>::try_from(&precompile_input[64..128]).unwrap();
+
+    println!("cycle-tracker-start: k256 verify");
+    let recovered_address: Bytes = revm_precompile::secp256k1::ecrecover(sig, recid, msg)
+        .map(|o| o.to_vec().into())
+        .unwrap_or_default();
+    println!("cycle-tracker-end: k256 verify");
+
+    println!("recovered_address: {:?}", recovered_address);
+
+    let _ = address!("ea532f4122fb1152b506b545c67e110d276e3448");
 }
 
 /// Emits SECP256K1_ADD, SECP256K1_DOUBLE, and SECP256K1_DECOMPRESS syscalls.
@@ -158,15 +178,14 @@ fn test_secp256k1_patch() {
         .expect("could not recover public key");
     println!("cycle-tracker-end: secp256k1 verify");
 
-    let serialized_key = public_key
-        .serialize_uncompressed();
+    let serialized_key = public_key.serialize_uncompressed();
 
     // Use the message in the recover_ecdsa call
     assert_eq!(hex::encode(serialized_key), expected);
 }
 
 /// To add testing for a new patch, add a new case to the function below.
-fn main() {
+pub fn main() {
     // TODO: Specify which syscalls are linked to each function invocation, iterate
     // over this list that is shared between the program and script.
     test_keccak();

@@ -5,7 +5,10 @@ use p3_field::{AbstractField, Field, PrimeField32, PrimeField64};
 use p3_matrix::Matrix;
 
 use super::InteractionKind;
-use crate::{air::MachineAir, MachineChip, StarkGenericConfig, StarkMachine, StarkProvingKey, Val};
+use crate::{
+    air::{InteractionScope, MachineAir},
+    MachineChip, StarkGenericConfig, StarkMachine, StarkProvingKey, Val,
+};
 
 /// The data for an interaction.
 #[derive(Debug)]
@@ -61,6 +64,7 @@ pub fn debug_interactions<SC: StarkGenericConfig, A: MachineAir<Val<SC>>>(
     pkey: &StarkProvingKey<SC>,
     record: &A::Record,
     interaction_kinds: Vec<InteractionKind>,
+    scope: InteractionScope,
 ) -> (BTreeMap<String, Vec<InteractionData<Val<SC>>>>, BTreeMap<String, Val<SC>>) {
     let mut key_to_vec_data = BTreeMap::new();
     let mut key_to_count = BTreeMap::new();
@@ -72,9 +76,12 @@ pub fn debug_interactions<SC: StarkGenericConfig, A: MachineAir<Val<SC>>>(
     let mut main = trace.clone();
     let height = trace.clone().height();
 
-    let nb_send_interactions = chip.sends().len();
+    let sends = chip.sends().iter().filter(|s| s.scope == scope).collect::<Vec<_>>();
+    let receives = chip.receives().iter().filter(|r| r.scope == scope).collect::<Vec<_>>();
+
+    let nb_send_interactions = sends.len();
     for row in 0..height {
-        for (m, interaction) in chip.sends().iter().chain(chip.receives().iter()).enumerate() {
+        for (m, interaction) in sends.iter().chain(receives.iter()).enumerate() {
             if !interaction_kinds.contains(&interaction.kind) {
                 continue;
             }
@@ -94,7 +101,12 @@ pub fn debug_interactions<SC: StarkGenericConfig, A: MachineAir<Val<SC>>>(
                     let expr: Val<SC> = value.apply(preprocessed_row, main.row_mut(row));
                     values.push(expr);
                 }
-                let key = format!("{} {}", &interaction.kind.to_string(), vec_to_string(values));
+                let key = format!(
+                    "{} {} {}",
+                    &interaction.scope.to_string(),
+                    &interaction.kind.to_string(),
+                    vec_to_string(values)
+                );
                 key_to_vec_data.entry(key.clone()).or_insert_with(Vec::new).push(InteractionData {
                     chip_name: chip.name(),
                     kind: interaction.kind,
@@ -124,12 +136,17 @@ pub fn debug_interactions_with_all_chips<SC, A>(
     pkey: &StarkProvingKey<SC>,
     shards: &[A::Record],
     interaction_kinds: Vec<InteractionKind>,
+    scope: InteractionScope,
 ) -> bool
 where
     SC: StarkGenericConfig,
     SC::Val: PrimeField32,
     A: MachineAir<SC::Val>,
 {
+    if scope == InteractionScope::Local {
+        assert!(shards.len() == 1);
+    }
+
     let mut final_map = BTreeMap::new();
     let mut total = SC::Val::zero();
 
@@ -137,8 +154,11 @@ where
     for chip in chips.iter() {
         let mut total_events = 0;
         for shard in shards {
+            if !chip.included(shard) {
+                continue;
+            }
             let (_, count) =
-                debug_interactions::<SC, A>(chip, pkey, shard, interaction_kinds.clone());
+                debug_interactions::<SC, A>(chip, pkey, shard, interaction_kinds.clone(), scope);
             total_events += count.len();
             for (key, value) in count.iter() {
                 let entry =

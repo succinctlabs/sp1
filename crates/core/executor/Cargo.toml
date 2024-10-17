@@ -14,10 +14,8 @@ categories = { workspace = true }
 sp1-primitives = { workspace = true }
 sp1-curves = { workspace = true }
 sp1-stark = { workspace = true }
-sp1-derive = { workspace = true }
 
 # p3
-p3-keccak-air = { workspace = true }
 p3-field = { workspace = true }
 p3-maybe-rayon = { workspace = true, features = ["parallel"] }
 
@@ -26,19 +24,17 @@ serde = { version = "1.0.205", features = ["derive", "rc"] }
 elf = "0.7.4"
 rrs_lib = { package = "rrs-succinct", version = "0.1.0" }
 eyre = "0.6.12"
-serde_with = "3.9.0"
 bincode = "1.3.3"
 hashbrown = { version = "0.14.5", features = ["serde", "inline-more"] }
 itertools = "0.13.0"
 rand = "0.8.5"
-generic-array = { version = "1.1.0", features = ["alloc", "serde"] }
 num = { version = "0.4.3" }
 typenum = "1.17.0"
 nohash-hasher = "0.2.0"
 thiserror = "1.0.63"
 tracing = "0.1.40"
 strum_macros = "0.26.4"
-strum = "0.26.3"
+strum = { version = "0.26.3", features = ["derive"] }
 log = "0.4.22"
 hex = "0.4.3"
 bytemuck = "1.16.3"
@@ -51,3 +47,4 @@ sp1-zkvm = { workspace = true }
 
 [features]
 programs = []
+bigint-rug = ["sp1-curves/bigint-rug"]

@@ -22,14 +22,7 @@ pub struct AssertLtColsBytes<T, const N: usize> {
 }
 
 impl<F: PrimeField32, const N: usize> AssertLtColsBytes<F, N> {
-    pub fn populate(
-        &mut self,
-        record: &mut impl ByteRecord,
-        shard: u32,
-        channel: u8,
-        a: &[u8],
-        b: &[u8],
-    ) {
+    pub fn populate(&mut self, record: &mut impl ByteRecord, shard: u32, a: &[u8], b: &[u8]) {
         let mut byte_flags = vec![0u8; N];
 
         for (a_byte, b_byte, flag) in
@@ -43,7 +36,6 @@ impl<F: PrimeField32, const N: usize> AssertLtColsBytes<F, N> {
                 record.add_byte_lookup_event(ByteLookupEvent {
                     opcode: ByteOpcode::LTU,
                     shard,
-                    channel,
                     a1: 1,
                     a2: 0,
                     b: *a_byte,
@@ -69,8 +61,6 @@ impl<V: Copy, const N: usize> AssertLtColsBytes<V, N> {
         builder: &mut AB,
         a: &[Ea],
         b: &[Eb],
-        shard: impl Into<AB::Expr> + Clone,
-        channel: impl Into<AB::Expr> + Clone,
         is_real: impl Into<AB::Expr> + Clone,
     ) where
         V: Into<AB::Expr>,
@@ -134,8 +124,6 @@ impl<V: Copy, const N: usize> AssertLtColsBytes<V, N> {
             AB::F::one(),
             self.a_comparison_byte,
             self.b_comparison_byte,
-            shard,
-            channel,
             is_real,
         )
     }

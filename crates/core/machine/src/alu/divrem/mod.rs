@@ -60,20 +60,18 @@
 //!    # b = 0 * quotient + b is satisfied by any quotient.
 //!    assert quotient = 0xffffffff
 
-mod utils;
-
 use core::{
     borrow::{Borrow, BorrowMut},
     mem::size_of,
 };
-use hashbrown::HashMap;
 
 use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::{AbstractField, PrimeField};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use sp1_core_executor::{
-    events::{create_alu_lookups, AluEvent, ByteLookupEvent, ByteRecord},
-    ByteOpcode, ExecutionRecord, Opcode, Program,
+    events::{ByteLookupEvent, ByteRecord},
+    get_msb, get_quotient_and_remainder, is_signed_operation, ByteOpcode, ExecutionRecord, Opcode,
+    Program,
 };
 use sp1_derive::AlignedBorrow;
 use sp1_primitives::consts::WORD_SIZE;
@@ -81,9 +79,8 @@ use sp1_stark::{air::MachineAir, Word};
 
 use crate::{
     air::SP1CoreAirBuilder,
-    alu::divrem::utils::{get_msb, get_quotient_and_remainder, is_signed_operation},
     operations::{IsEqualWordOperation, IsZeroWordOperation},
-    utils::pad_to_power_of_two,
+    utils::pad_rows_fixed,
 };
 
 /// The number of main trace columns for `DivRemChip`.
@@ -105,9 +102,6 @@ pub struct DivRemChip;
 pub struct DivRemCols<T> {
     /// The shard number, used for byte lookup table.
     pub shard: T,
-
-    /// The channel number, used for byte lookup table.
-    pub channel: T,
 
     /// The nonce of the operation.
     pub nonce: T,
@@ -248,7 +242,6 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
                 cols.b = Word::from(event.b);
                 cols.c = Word::from(event.c);
                 cols.shard = F::from_canonical_u32(event.shard);
-                cols.channel = F::from_canonical_u8(event.channel);
                 cols.is_real = F::one();
                 cols.is_divu = F::from_bool(event.opcode == Opcode::DIVU);
                 cols.is_remu = F::from_bool(event.opcode == Opcode::REMU);
@@ -301,7 +294,6 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
                         let most_significant_byte = word.to_le_bytes()[WORD_SIZE - 1];
                         blu_events.push(ByteLookupEvent {
                             shard: event.shard,
-                            channel: event.channel,
                             opcode: ByteOpcode::MSB,
                             a1: get_msb(*word) as u16,
                             a2: 0,
@@ -350,93 +342,14 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
                 }
 
                 // Insert the necessary multiplication & LT events.
-                //
-                // This generate_trace for div must be executed _before_ calling generate_trace for
-                // mul and LT upon which div depends. This ordering is critical as mul and LT
-                // require all the mul and LT events be added before we can call generate_trace.
                 {
-                    // Insert the absolute value computation events.
-                    {
-                        let mut add_events: Vec<AluEvent> = vec![];
-                        if cols.abs_c_alu_event == F::one() {
-                            add_events.push(AluEvent {
-                                lookup_id: event.sub_lookups[4],
-                                shard: event.shard,
-                                channel: event.channel,
-                                clk: event.clk,
-                                opcode: Opcode::ADD,
-                                a: 0,
-                                b: event.c,
-                                c: (event.c as i32).abs() as u32,
-                                sub_lookups: create_alu_lookups(),
-                            })
-                        }
-                        if cols.abs_rem_alu_event == F::one() {
-                            add_events.push(AluEvent {
-                                lookup_id: event.sub_lookups[5],
-                                shard: event.shard,
-                                channel: event.channel,
-                                clk: event.clk,
-                                opcode: Opcode::ADD,
-                                a: 0,
-                                b: remainder,
-                                c: (remainder as i32).abs() as u32,
-                                sub_lookups: create_alu_lookups(),
-                            })
-                        }
-                        let mut alu_events = HashMap::new();
-                        alu_events.insert(Opcode::ADD, add_events);
-                        output.add_alu_events(alu_events);
-                    }
-
-                    let mut lower_word = 0;
-                    for i in 0..WORD_SIZE {
-                        lower_word += (c_times_quotient[i] as u32) << (i * BYTE_SIZE);
-                    }
-
-                    let mut upper_word = 0;
-                    for i in 0..WORD_SIZE {
-                        upper_word += (c_times_quotient[WORD_SIZE + i] as u32) << (i * BYTE_SIZE);
-                    }
-
-                    let lower_multiplication = AluEvent {
-                        lookup_id: event.sub_lookups[0],
-                        shard: event.shard,
-                        channel: event.channel,
-                        clk: event.clk,
-                        opcode: Opcode::MUL,
-                        a: lower_word,
-                        c: event.c,
-                        b: quotient,
-                        sub_lookups: create_alu_lookups(),
-                    };
                     cols.lower_nonce = F::from_canonical_u32(
                         input.nonce_lookup.get(&event.sub_lookups[0]).copied().unwrap_or_default(),
                     );
-                    output.add_mul_event(lower_multiplication);
-
-                    let upper_multiplication = AluEvent {
-                        lookup_id: event.sub_lookups[1],
-                        shard: event.shard,
-                        channel: event.channel,
-                        clk: event.clk,
-                        opcode: {
-                            if is_signed_operation(event.opcode) {
-                                Opcode::MULH
-                            } else {
-                                Opcode::MULHU
-                            }
-                        },
-                        a: upper_word,
-                        c: event.c,
-                        b: quotient,
-                        sub_lookups: create_alu_lookups(),
-                    };
                     cols.upper_nonce = F::from_canonical_u32(
                         input.nonce_lookup.get(&event.sub_lookups[1]).copied().unwrap_or_default(),
                     );
-                    output.add_mul_event(upper_multiplication);
-                    let lt_event = if is_signed_operation(event.opcode) {
+                    if is_signed_operation(event.opcode) {
                         cols.abs_nonce = F::from_canonical_u32(
                             input
                                 .nonce_lookup
@@ -444,17 +357,6 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
                                 .copied()
                                 .unwrap_or_default(),
                         );
-                        AluEvent {
-                            lookup_id: event.sub_lookups[2],
-                            shard: event.shard,
-                            channel: event.channel,
-                            opcode: Opcode::SLTU,
-                            a: 1,
-                            b: (remainder as i32).abs() as u32,
-                            c: u32::max(1, (event.c as i32).abs() as u32),
-                            clk: event.clk,
-                            sub_lookups: create_alu_lookups(),
-                        }
                     } else {
                         cols.abs_nonce = F::from_canonical_u32(
                             input
@@ -463,45 +365,30 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
                                 .copied()
                                 .unwrap_or_default(),
                         );
-                        AluEvent {
-                            lookup_id: event.sub_lookups[3],
-                            shard: event.shard,
-                            channel: event.channel,
-                            opcode: Opcode::SLTU,
-                            a: 1,
-                            b: remainder,
-                            c: u32::max(1, event.c),
-                            clk: event.clk,
-                            sub_lookups: create_alu_lookups(),
-                        }
                     };
-
-                    if cols.remainder_check_multiplicity == F::one() {
-                        output.add_lt_event(lt_event);
-                    }
                 }
 
                 // Range check.
                 {
-                    output.add_u8_range_checks(event.shard, event.channel, &quotient.to_le_bytes());
-                    output.add_u8_range_checks(
-                        event.shard,
-                        event.channel,
-                        &remainder.to_le_bytes(),
-                    );
-                    output.add_u8_range_checks(event.shard, event.channel, &c_times_quotient);
+                    output.add_u8_range_checks(event.shard, &quotient.to_le_bytes());
+                    output.add_u8_range_checks(event.shard, &remainder.to_le_bytes());
+                    output.add_u8_range_checks(event.shard, &c_times_quotient);
                 }
             }
 
             rows.push(row);
         }
 
+        // Pad the trace to a power of two depending on the proof shape in `input`.
+        pad_rows_fixed(
+            &mut rows,
+            || [F::zero(); NUM_DIVREM_COLS],
+            input.fixed_log2_rows::<F, _>(self),
+        );
+
         // Convert the trace to a row major matrix.
         let mut trace =
             RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_DIVREM_COLS);
-
-        // Pad the trace to a power of two.
-        pad_to_power_of_two::<NUM_DIVREM_COLS, F>(&mut trace.values);
 
         // Create the template for the padded rows. These are fake rows that don't fail on some
         // sanity checks.
@@ -534,7 +421,11 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
-        !shard.divrem_events.is_empty()
+        if let Some(shape) = shard.shape.as_ref() {
+            shape.included::<F, _>(self)
+        } else {
+            !shard.divrem_events.is_empty()
+        }
     }
 }
 
@@ -595,7 +486,6 @@ where
                 local.quotient,
                 local.c,
                 local.shard,
-                local.channel,
                 local.lower_nonce,
                 local.is_real,
             );
@@ -621,7 +511,6 @@ where
                 local.quotient,
                 local.c,
                 local.shard,
-                local.channel,
                 local.upper_nonce,
                 local.is_real,
             );
@@ -776,7 +665,6 @@ where
                 local.c,
                 local.abs_c,
                 local.shard,
-                local.channel,
                 local.abs_c_alu_event_nonce,
                 local.abs_c_alu_event,
             );
@@ -786,7 +674,6 @@ where
                 local.remainder,
                 local.abs_remainder,
                 local.shard,
-                local.channel,
                 local.abs_rem_alu_event_nonce,
                 local.abs_rem_alu_event,
             );
@@ -833,7 +720,6 @@ where
                 local.abs_remainder,
                 local.max_abs_c_or_1,
                 local.shard,
-                local.channel,
                 local.abs_nonce,
                 local.remainder_check_multiplicity,
             );
@@ -850,43 +736,20 @@ where
             for msb_pair in msb_pairs.iter() {
                 let msb = msb_pair.0;
                 let byte = msb_pair.1;
-                builder.send_byte(
-                    opcode,
-                    msb,
-                    byte,
-                    zero.clone(),
-                    local.shard,
-                    local.channel,
-                    local.is_real,
-                );
+                builder.send_byte(opcode, msb, byte, zero.clone(), local.is_real);
             }
         }
 
         // Range check all the bytes.
         {
-            builder.slice_range_check_u8(
-                &local.quotient.0,
-                local.shard,
-                local.channel,
-                local.is_real,
-            );
-            builder.slice_range_check_u8(
-                &local.remainder.0,
-                local.shard,
-                local.channel,
-                local.is_real,
-            );
+            builder.slice_range_check_u8(&local.quotient.0, local.is_real);
+            builder.slice_range_check_u8(&local.remainder.0, local.is_real);
 
             local.carry.iter().for_each(|carry| {
                 builder.assert_bool(*carry);
             });
 
-            builder.slice_range_check_u8(
-                &local.c_times_quotient,
-                local.shard,
-                local.channel,
-                local.is_real,
-            );
+            builder.slice_range_check_u8(&local.c_times_quotient, local.is_real);
         }
 
         // Check that the flags are boolean.
@@ -939,7 +802,6 @@ where
                 local.b,
                 local.c,
                 local.shard,
-                local.channel,
                 local.nonce,
                 local.is_real,
             );
@@ -961,7 +823,7 @@ mod tests {
     #[test]
     fn generate_trace() {
         let mut shard = ExecutionRecord::default();
-        shard.divrem_events = vec![AluEvent::new(0, 0, 0, Opcode::DIVU, 2, 17, 3)];
+        shard.divrem_events = vec![AluEvent::new(0, 0, Opcode::DIVU, 2, 17, 3)];
         let chip = DivRemChip::default();
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&shard, &mut ExecutionRecord::default());
@@ -1014,12 +876,12 @@ mod tests {
             (Opcode::REM, 0, 1 << 31, neg(1)),
         ];
         for t in divrems.iter() {
-            divrem_events.push(AluEvent::new(0, 9, 0, t.0, t.1, t.2, t.3));
+            divrem_events.push(AluEvent::new(0, 0, t.0, t.1, t.2, t.3));
         }
 
         // Append more events until we have 1000 tests.
         for _ in 0..(1000 - divrems.len()) {
-            divrem_events.push(AluEvent::new(0, 0, 0, Opcode::DIVU, 1, 1, 1));
+            divrem_events.push(AluEvent::new(0, 0, Opcode::DIVU, 1, 1, 1));
         }
 
         let mut shard = ExecutionRecord::default();

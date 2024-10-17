@@ -8,7 +8,8 @@ use core::arch::asm;
 /// ### Safety
 ///
 /// The caller must ensure that `p` and `q` are valid pointers to data that is aligned along a four
-/// byte boundary.
+/// byte boundary. Additionally, the caller must ensure that `p` and `q` are valid points on the
+/// secp256k1 curve, and that `p` and `q` are not equal to each other.
 #[allow(unused_variables)]
 #[no_mangle]
 pub extern "C" fn syscall_secp256k1_add(p: *mut [u32; 16], q: *mut [u32; 16]) {

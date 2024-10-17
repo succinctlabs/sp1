@@ -1,180 +1,40 @@
-use alloc::rc::Rc;
 use core::{
     any::Any,
     ops::{Add, Div, Mul, Neg, Sub},
 };
 use std::{
     any::TypeId,
-    hash::Hash,
     iter::{Product, Sum},
-    mem,
+    mem::{self, ManuallyDrop},
     ops::{AddAssign, DivAssign, MulAssign, SubAssign},
 };
 
-use p3_field::{AbstractField, ExtensionField, Field, FieldArray};
+use p3_field::{AbstractField, ExtensionField, Field};
+
+use crate::ir::ExtHandle;
 
 use super::{Ext, Felt, Usize, Var};
 
-const NUM_RANDOM_ELEMENTS: usize = 4;
-
-pub type Digest<T> = FieldArray<T, NUM_RANDOM_ELEMENTS>;
-
-pub fn elements<F: Field>() -> Digest<F> {
-    let powers = [1671541671, 1254988180, 442438744, 1716490559];
-    let generator = F::generator();
-
-    Digest::from(powers.map(|p| generator.exp_u64(p)))
-}
-
-pub fn ext_elements<F: Field, EF: ExtensionField<F>>() -> Digest<EF> {
-    let powers = [1021539871, 1430550064, 447478069, 1248903325];
-    let generator = EF::generator();
-
-    Digest::from(powers.map(|p| generator.exp_u64(p)))
-}
-
-fn digest_id<F: Field>(id: u32) -> Digest<F> {
-    let elements = elements();
-    Digest::from(
-        elements.0.map(|e: F| (e + F::from_canonical_u32(id)).try_inverse().unwrap_or(F::one())),
-    )
-}
-
-fn digest_id_ext<F: Field, EF: ExtensionField<F>>(id: u32) -> Digest<EF> {
-    let elements = ext_elements();
-    Digest::from(
-        elements.0.map(|e: EF| (e + EF::from_canonical_u32(id)).try_inverse().unwrap_or(EF::one())),
-    )
-}
-
-fn div_digests<F: Field>(a: Digest<F>, b: Digest<F>) -> Digest<F> {
-    Digest::from(core::array::from_fn(|i| a.0[i] / b.0[i]))
-}
-
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum SymbolicVar<N: Field> {
-    Const(N, Digest<N>),
-    Val(Var<N>, Digest<N>),
-    Add(Rc<SymbolicVar<N>>, Rc<SymbolicVar<N>>, Digest<N>),
-    Mul(Rc<SymbolicVar<N>>, Rc<SymbolicVar<N>>, Digest<N>),
-    Sub(Rc<SymbolicVar<N>>, Rc<SymbolicVar<N>>, Digest<N>),
-    Neg(Rc<SymbolicVar<N>>, Digest<N>),
+    Const(N),
+    Val(Var<N>),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum SymbolicFelt<F: Field> {
-    Const(F, Digest<F>),
-    Val(Felt<F>, Digest<F>),
-    Add(Rc<SymbolicFelt<F>>, Rc<SymbolicFelt<F>>, Digest<F>),
-    Mul(Rc<SymbolicFelt<F>>, Rc<SymbolicFelt<F>>, Digest<F>),
-    Sub(Rc<SymbolicFelt<F>>, Rc<SymbolicFelt<F>>, Digest<F>),
-    Div(Rc<SymbolicFelt<F>>, Rc<SymbolicFelt<F>>, Digest<F>),
-    Neg(Rc<SymbolicFelt<F>>, Digest<F>),
+    Const(F),
+    Val(Felt<F>),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum SymbolicExt<F: Field, EF: Field> {
-    Const(EF, Digest<EF>),
-    Base(Rc<SymbolicFelt<F>>, Digest<EF>),
-    Val(Ext<F, EF>, Digest<EF>),
-    Add(Rc<SymbolicExt<F, EF>>, Rc<SymbolicExt<F, EF>>, Digest<EF>),
-    Mul(Rc<SymbolicExt<F, EF>>, Rc<SymbolicExt<F, EF>>, Digest<EF>),
-    Sub(Rc<SymbolicExt<F, EF>>, Rc<SymbolicExt<F, EF>>, Digest<EF>),
-    Div(Rc<SymbolicExt<F, EF>>, Rc<SymbolicExt<F, EF>>, Digest<EF>),
-    Neg(Rc<SymbolicExt<F, EF>>, Digest<EF>),
+    Const(EF),
+    Base(SymbolicFelt<F>),
+    Val(Ext<F, EF>),
 }
 
-impl<N: Field> Hash for SymbolicVar<N> {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        for elem in self.digest().0.iter() {
-            elem.hash(state);
-        }
-    }
-}
-
-impl<N: Field> PartialEq for SymbolicVar<N> {
-    fn eq(&self, other: &Self) -> bool {
-        self.digest() == other.digest()
-    }
-}
-
-impl<N: Field> Eq for SymbolicVar<N> {}
-
-impl<F: Field> Hash for SymbolicFelt<F> {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        for elem in self.digest().0.iter() {
-            elem.hash(state);
-        }
-    }
-}
-
-impl<F: Field> PartialEq for SymbolicFelt<F> {
-    fn eq(&self, other: &Self) -> bool {
-        self.digest() == other.digest()
-    }
-}
-
-impl<F: Field> Eq for SymbolicFelt<F> {}
-
-impl<F: Field, EF: Field> Hash for SymbolicExt<F, EF> {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        for elem in self.digest().0.iter() {
-            elem.hash(state);
-        }
-    }
-}
-
-impl<F: Field, EF: Field> PartialEq for SymbolicExt<F, EF> {
-    fn eq(&self, other: &Self) -> bool {
-        self.digest() == other.digest()
-    }
-}
-
-impl<F: Field, EF: Field> Eq for SymbolicExt<F, EF> {}
-
-impl<N: Field> SymbolicVar<N> {
-    pub(crate) const fn digest(&self) -> Digest<N> {
-        match self {
-            SymbolicVar::Const(_, d) => *d,
-            SymbolicVar::Val(_, d) => *d,
-            SymbolicVar::Add(_, _, d) => *d,
-            SymbolicVar::Mul(_, _, d) => *d,
-            SymbolicVar::Sub(_, _, d) => *d,
-            SymbolicVar::Neg(_, d) => *d,
-        }
-    }
-}
-
-impl<F: Field> SymbolicFelt<F> {
-    pub(crate) const fn digest(&self) -> Digest<F> {
-        match self {
-            SymbolicFelt::Const(_, d) => *d,
-            SymbolicFelt::Val(_, d) => *d,
-            SymbolicFelt::Add(_, _, d) => *d,
-            SymbolicFelt::Mul(_, _, d) => *d,
-            SymbolicFelt::Sub(_, _, d) => *d,
-            SymbolicFelt::Div(_, _, d) => *d,
-            SymbolicFelt::Neg(_, d) => *d,
-        }
-    }
-}
-
-impl<F: Field, EF: Field> SymbolicExt<F, EF> {
-    pub(crate) const fn digest(&self) -> Digest<EF> {
-        match self {
-            SymbolicExt::Const(_, d) => *d,
-            SymbolicExt::Base(_, d) => *d,
-            SymbolicExt::Val(_, d) => *d,
-            SymbolicExt::Add(_, _, d) => *d,
-            SymbolicExt::Mul(_, _, d) => *d,
-            SymbolicExt::Sub(_, _, d) => *d,
-            SymbolicExt::Div(_, _, d) => *d,
-            SymbolicExt::Neg(_, d) => *d,
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy)]
 pub enum SymbolicUsize<N: Field> {
     Const(usize),
     Var(SymbolicVar<N>),
@@ -191,25 +51,13 @@ pub enum ExtOperand<F: Field, EF: ExtensionField<F>> {
 }
 
 impl<F: Field, EF: ExtensionField<F>> ExtOperand<F, EF> {
-    pub fn digest(&self) -> Digest<EF> {
-        match self {
-            ExtOperand::Base(f) => SymbolicFelt::from(*f).digest().0.map(EF::from_base).into(),
-            ExtOperand::Const(ef) => (*ef).into(),
-            ExtOperand::Felt(f) => SymbolicFelt::from(*f).digest().0.map(EF::from_base).into(),
-            ExtOperand::Ext(e) => digest_id_ext::<F, EF>(e.0),
-            ExtOperand::SymFelt(f) => f.digest().0.map(EF::from_base).into(),
-            ExtOperand::Sym(e) => e.digest(),
-        }
-    }
-
     pub fn symbolic(self) -> SymbolicExt<F, EF> {
-        let digest = self.digest();
         match self {
-            ExtOperand::Base(f) => SymbolicExt::Base(Rc::new(SymbolicFelt::from(f)), digest),
-            ExtOperand::Const(ef) => SymbolicExt::Const(ef, digest),
-            ExtOperand::Felt(f) => SymbolicExt::Base(Rc::new(SymbolicFelt::from(f)), digest),
-            ExtOperand::Ext(e) => SymbolicExt::Val(e, digest),
-            ExtOperand::SymFelt(f) => SymbolicExt::Base(Rc::new(f), digest),
+            ExtOperand::Base(f) => SymbolicExt::Base(SymbolicFelt::from(f)),
+            ExtOperand::Const(ef) => SymbolicExt::Const(ef),
+            ExtOperand::Felt(f) => SymbolicExt::Base(SymbolicFelt::from(f)),
+            ExtOperand::Ext(e) => SymbolicExt::Val(e),
+            ExtOperand::SymFelt(f) => SymbolicExt::Base(f),
             ExtOperand::Sym(e) => e,
         }
     }
@@ -221,7 +69,7 @@ pub trait ExtConst<F: Field, EF: ExtensionField<F>> {
 
 impl<F: Field, EF: ExtensionField<F>> ExtConst<F, EF> for EF {
     fn cons(self) -> SymbolicExt<F, EF> {
-        SymbolicExt::Const(self, self.into())
+        SymbolicExt::Const(self)
     }
 }
 
@@ -357,7 +205,7 @@ impl<F: Field, EF: ExtensionField<F>> AbstractField for SymbolicExt<F, EF> {
     }
 
     fn from_f(f: Self::F) -> Self {
-        SymbolicExt::Const(f, f.into())
+        SymbolicExt::Const(f)
     }
     fn from_bool(b: bool) -> Self {
         SymbolicExt::from_f(EF::from_bool(b))
@@ -395,13 +243,13 @@ impl<F: Field, EF: ExtensionField<F>> AbstractField for SymbolicExt<F, EF> {
 
 impl<N: Field> From<N> for SymbolicVar<N> {
     fn from(n: N) -> Self {
-        SymbolicVar::Const(n, n.into())
+        SymbolicVar::Const(n)
     }
 }
 
 impl<F: Field> From<F> for SymbolicFelt<F> {
     fn from(f: F) -> Self {
-        SymbolicFelt::Const(f, f.into())
+        SymbolicFelt::Const(f)
     }
 }
 
@@ -415,13 +263,13 @@ impl<F: Field, EF: ExtensionField<F>> From<F> for SymbolicExt<F, EF> {
 
 impl<N: Field> From<Var<N>> for SymbolicVar<N> {
     fn from(v: Var<N>) -> Self {
-        SymbolicVar::Val(v, digest_id(v.0))
+        SymbolicVar::Val(v)
     }
 }
 
 impl<F: Field> From<Felt<F>> for SymbolicFelt<F> {
     fn from(f: Felt<F>) -> Self {
-        SymbolicFelt::Val(f, digest_id(f.0))
+        SymbolicFelt::Val(f)
     }
 }
 
@@ -437,8 +285,21 @@ impl<N: Field> Add for SymbolicVar<N> {
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self::Output {
-        let digest = self.digest() + rhs.digest();
-        SymbolicVar::Add(Rc::new(self), Rc::new(rhs), digest)
+        match (self, rhs) {
+            (Self::Const(lhs), Self::Const(rhs)) => Self::Const(lhs + rhs),
+            (Self::Val(lhs), Self::Const(rhs)) => {
+                let res = unsafe { (*lhs.handle).add_const_v(lhs, rhs) };
+                Self::Val(res)
+            }
+            (Self::Const(lhs), Self::Val(rhs)) => {
+                let res = unsafe { (*rhs.handle).add_v_const(lhs, rhs) };
+                Self::Val(res)
+            }
+            (Self::Val(lhs), Self::Val(rhs)) => {
+                let res = unsafe { (*lhs.handle).add_v(lhs, rhs) };
+                Self::Val(res)
+            }
+        }
     }
 }
 
@@ -446,8 +307,21 @@ impl<F: Field> Add for SymbolicFelt<F> {
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self::Output {
-        let digest = self.digest() + rhs.digest();
-        SymbolicFelt::Add(Rc::new(self), Rc::new(rhs), digest)
+        match (self, rhs) {
+            (Self::Const(lhs), Self::Const(rhs)) => Self::Const(lhs + rhs),
+            (Self::Val(lhs), Self::Const(rhs)) => {
+                let res = unsafe { (*lhs.handle).add_const_f(lhs, rhs) };
+                Self::Val(res)
+            }
+            (Self::Const(lhs), Self::Val(rhs)) => {
+                let res = unsafe { (*rhs.handle).add_f_const(lhs, rhs) };
+                Self::Val(res)
+            }
+            (Self::Val(lhs), Self::Val(rhs)) => {
+                let res = unsafe { (*lhs.handle).add_f(lhs, rhs) };
+                Self::Val(res)
+            }
+        }
     }
 }
 
@@ -456,8 +330,66 @@ impl<F: Field, EF: ExtensionField<F>, E: ExtensionOperand<F, EF>> Add<E> for Sym
 
     fn add(self, rhs: E) -> Self::Output {
         let rhs = rhs.to_operand().symbolic();
-        let digest = self.digest() + rhs.digest();
-        SymbolicExt::Add(Rc::new(self), Rc::new(rhs), digest)
+
+        match (self, rhs) {
+            (Self::Const(lhs), Self::Const(rhs)) => Self::Const(lhs + rhs),
+            (Self::Val(lhs), Self::Const(rhs)) => {
+                let res = unsafe { (*lhs.handle).add_const_e(lhs, rhs) };
+                Self::Val(res)
+            }
+            (Self::Const(lhs), Self::Val(rhs)) => {
+                let res = unsafe { (*rhs.handle).add_e_const(lhs, rhs) };
+                Self::Val(res)
+            }
+            (Self::Const(lhs), Self::Base(rhs)) => match rhs {
+                SymbolicFelt::Const(rhs) => Self::Const(lhs + rhs),
+                SymbolicFelt::Val(rhs) => {
+                    let ext_handle_ptr =
+                        unsafe { (*rhs.handle).ext_handle_ptr as *mut ExtHandle<F, EF> };
+                    let ext_handle: ManuallyDrop<_> =
+                        unsafe { ManuallyDrop::new(Box::from_raw(ext_handle_ptr)) };
+                    let res = ext_handle.add_const_e_f(lhs, rhs, ext_handle_ptr);
+                    Self::Val(res)
+                }
+            },
+            (Self::Base(lhs), Self::Const(rhs)) => match lhs {
+                SymbolicFelt::Const(lhs) => Self::Const(rhs + lhs),
+                SymbolicFelt::Val(lhs) => {
+                    let ext_handle_ptr =
+                        unsafe { (*lhs.handle).ext_handle_ptr as *mut ExtHandle<F, EF> };
+                    let ext_handle: ManuallyDrop<_> =
+                        unsafe { ManuallyDrop::new(Box::from_raw(ext_handle_ptr)) };
+                    let res = ext_handle.add_f_const_e(lhs, rhs, ext_handle_ptr);
+                    Self::Val(res)
+                }
+            },
+
+            (Self::Val(lhs), Self::Val(rhs)) => {
+                let res = unsafe { (*lhs.handle).add_e(lhs, rhs) };
+                Self::Val(res)
+            }
+            (Self::Base(lhs), Self::Base(rhs)) => Self::Base(lhs + rhs),
+            (Self::Base(lhs), Self::Val(rhs)) => match lhs {
+                SymbolicFelt::Const(lhs) => {
+                    let res = unsafe { (*rhs.handle).add_e_const(EF::from_base(lhs), rhs) };
+                    Self::Val(res)
+                }
+                SymbolicFelt::Val(lhs) => {
+                    let res = unsafe { (*rhs.handle).add_f_e(lhs, rhs) };
+                    Self::Val(res)
+                }
+            },
+            (Self::Val(lhs), Self::Base(rhs)) => match rhs {
+                SymbolicFelt::Const(rhs) => {
+                    let res = unsafe { (*lhs.handle).add_const_e(lhs, EF::from_base(rhs)) };
+                    Self::Val(res)
+                }
+                SymbolicFelt::Val(rhs) => {
+                    let res = unsafe { (*lhs.handle).add_e_f(lhs, rhs) };
+                    Self::Val(res)
+                }
+            },
+        }
     }
 }
 
@@ -465,8 +397,21 @@ impl<N: Field> Mul for SymbolicVar<N> {
     type Output = Self;
 
     fn mul(self, rhs: Self) -> Self::Output {
-        let digest = self.digest() * rhs.digest();
-        SymbolicVar::Mul(Rc::new(self), Rc::new(rhs), digest)
+        match (self, rhs) {
+            (Self::Const(lhs), Self::Const(rhs)) => Self::Const(lhs * rhs),
+            (Self::Val(lhs), Self::Const(rhs)) => {
+                let res = unsafe { (*lhs.handle).mul_const_v(lhs, rhs) };
+                Self::Val(res)
+            }
+            (Self::Const(lhs), Self::Val(rhs)) => {
+                let res = unsafe { (*rhs.handle).mul_v_const(lhs, rhs) };
+                Self::Val(res)
+            }
+            (Self::Val(lhs), Self::Val(rhs)) => {
+                let res = unsafe { (*lhs.handle).mul_v(lhs, rhs) };
+                Self::Val(res)
+            }
+        }
     }
 }
 
@@ -474,8 +419,21 @@ impl<F: Field> Mul for SymbolicFelt<F> {
     type Output = Self;
 
     fn mul(self, rhs: Self) -> Self::Output {
-        let digest = self.digest() * rhs.digest();
-        SymbolicFelt::Mul(Rc::new(self), Rc::new(rhs), digest)
+        match (self, rhs) {
+            (Self::Const(lhs), Self::Const(rhs)) => Self::Const(lhs * rhs),
+            (Self::Val(lhs), Self::Const(rhs)) => {
+                let res = unsafe { (*lhs.handle).mul_const_f(lhs, rhs) };
+                Self::Val(res)
+            }
+            (Self::Const(lhs), Self::Val(rhs)) => {
+                let res = unsafe { (*rhs.handle).mul_f_const(lhs, rhs) };
+                Self::Val(res)
+            }
+            (Self::Val(lhs), Self::Val(rhs)) => {
+                let res = unsafe { (*lhs.handle).mul_f(lhs, rhs) };
+                Self::Val(res)
+            }
+        }
     }
 }
 
@@ -483,36 +441,66 @@ impl<F: Field, EF: ExtensionField<F>, E: Any> Mul<E> for SymbolicExt<F, EF> {
     type Output = Self;
 
     fn mul(self, rhs: E) -> Self::Output {
-        let rhs = rhs.to_operand();
-        let rhs_digest = rhs.digest();
-        let prod_digest = self.digest() * rhs_digest;
-        match rhs {
-            ExtOperand::Base(f) => SymbolicExt::Mul(
-                Rc::new(self),
-                Rc::new(SymbolicExt::Base(Rc::new(SymbolicFelt::from(f)), rhs_digest)),
-                prod_digest,
-            ),
-            ExtOperand::Const(ef) => SymbolicExt::Mul(
-                Rc::new(self),
-                Rc::new(SymbolicExt::Const(ef, rhs_digest)),
-                prod_digest,
-            ),
-            ExtOperand::Felt(f) => SymbolicExt::Mul(
-                Rc::new(self),
-                Rc::new(SymbolicExt::Base(Rc::new(SymbolicFelt::from(f)), rhs_digest)),
-                prod_digest,
-            ),
-            ExtOperand::Ext(e) => SymbolicExt::Mul(
-                Rc::new(self),
-                Rc::new(SymbolicExt::Val(e, rhs_digest)),
-                prod_digest,
-            ),
-            ExtOperand::SymFelt(f) => SymbolicExt::Mul(
-                Rc::new(self),
-                Rc::new(SymbolicExt::Base(Rc::new(f), rhs_digest)),
-                prod_digest,
-            ),
-            ExtOperand::Sym(e) => SymbolicExt::Mul(Rc::new(self), Rc::new(e), prod_digest),
+        let rhs = rhs.to_operand().symbolic();
+
+        match (self, rhs) {
+            (Self::Const(lhs), Self::Const(rhs)) => Self::Const(lhs * rhs),
+            (Self::Val(lhs), Self::Const(rhs)) => {
+                let res = unsafe { (*lhs.handle).mul_const_e(lhs, rhs) };
+                Self::Val(res)
+            }
+            (Self::Const(lhs), Self::Val(rhs)) => {
+                let res = unsafe { (*rhs.handle).mul_e_const(lhs, rhs) };
+                Self::Val(res)
+            }
+            (Self::Const(lhs), Self::Base(rhs)) => match rhs {
+                SymbolicFelt::Const(rhs) => Self::Const(lhs * rhs),
+                SymbolicFelt::Val(rhs) => {
+                    let ext_handle_ptr =
+                        unsafe { (*rhs.handle).ext_handle_ptr as *mut ExtHandle<F, EF> };
+                    let ext_handle: ManuallyDrop<_> =
+                        unsafe { ManuallyDrop::new(Box::from_raw(ext_handle_ptr)) };
+                    let res = ext_handle.mul_const_e_f(lhs, rhs, ext_handle_ptr);
+                    Self::Val(res)
+                }
+            },
+            (Self::Base(lhs), Self::Const(rhs)) => match lhs {
+                SymbolicFelt::Const(lhs) => Self::Const(EF::from_base(lhs) * rhs),
+                SymbolicFelt::Val(lhs) => {
+                    let ext_handle_ptr =
+                        unsafe { (*lhs.handle).ext_handle_ptr as *mut ExtHandle<F, EF> };
+                    let ext_handle: ManuallyDrop<_> =
+                        unsafe { ManuallyDrop::new(Box::from_raw(ext_handle_ptr)) };
+                    let res = ext_handle.mul_f_const_e(lhs, rhs, ext_handle_ptr);
+                    Self::Val(res)
+                }
+            },
+
+            (Self::Val(lhs), Self::Val(rhs)) => {
+                let res = unsafe { (*lhs.handle).mul_e(lhs, rhs) };
+                Self::Val(res)
+            }
+            (Self::Base(lhs), Self::Base(rhs)) => Self::Base(lhs * rhs),
+            (Self::Base(lhs), Self::Val(rhs)) => match lhs {
+                SymbolicFelt::Const(lhs) => {
+                    let res = unsafe { (*rhs.handle).mul_e_const(EF::from_base(lhs), rhs) };
+                    Self::Val(res)
+                }
+                SymbolicFelt::Val(lhs) => {
+                    let res = unsafe { (*rhs.handle).mul_f_e(lhs, rhs) };
+                    Self::Val(res)
+                }
+            },
+            (Self::Val(lhs), Self::Base(rhs)) => match rhs {
+                SymbolicFelt::Const(rhs) => {
+                    let res = unsafe { (*lhs.handle).mul_const_e(lhs, EF::from_base(rhs)) };
+                    Self::Val(res)
+                }
+                SymbolicFelt::Val(rhs) => {
+                    let res = unsafe { (*lhs.handle).mul_e_f(lhs, rhs) };
+                    Self::Val(res)
+                }
+            },
         }
     }
 }
@@ -521,8 +509,21 @@ impl<N: Field> Sub for SymbolicVar<N> {
     type Output = Self;
 
     fn sub(self, rhs: Self) -> Self::Output {
-        let digest = self.digest() - rhs.digest();
-        SymbolicVar::Sub(Rc::new(self), Rc::new(rhs), digest)
+        match (self, rhs) {
+            (Self::Const(lhs), Self::Const(rhs)) => Self::Const(lhs - rhs),
+            (Self::Val(lhs), Self::Const(rhs)) => {
+                let res = unsafe { (*lhs.handle).sub_v_const(lhs, rhs) };
+                Self::Val(res)
+            }
+            (Self::Const(lhs), Self::Val(rhs)) => {
+                let res = unsafe { (*rhs.handle).sub_const_v(lhs, rhs) };
+                Self::Val(res)
+            }
+            (Self::Val(lhs), Self::Val(rhs)) => {
+                let res = unsafe { (*lhs.handle).sub_v(lhs, rhs) };
+                Self::Val(res)
+            }
+        }
     }
 }
 
@@ -530,8 +531,21 @@ impl<F: Field> Sub for SymbolicFelt<F> {
     type Output = Self;
 
     fn sub(self, rhs: Self) -> Self::Output {
-        let digest = self.digest() - rhs.digest();
-        SymbolicFelt::Sub(Rc::new(self), Rc::new(rhs), digest)
+        match (self, rhs) {
+            (Self::Const(lhs), Self::Const(rhs)) => Self::Const(lhs - rhs),
+            (Self::Val(lhs), Self::Const(rhs)) => {
+                let res = unsafe { (*lhs.handle).sub_f_const(lhs, rhs) };
+                Self::Val(res)
+            }
+            (Self::Const(lhs), Self::Val(rhs)) => {
+                let res = unsafe { (*rhs.handle).sub_const_f(lhs, rhs) };
+                Self::Val(res)
+            }
+            (Self::Val(lhs), Self::Val(rhs)) => {
+                let res = unsafe { (*lhs.handle).sub_f(lhs, rhs) };
+                Self::Val(res)
+            }
+        }
     }
 }
 
@@ -539,32 +553,66 @@ impl<F: Field, EF: ExtensionField<F>, E: Any> Sub<E> for SymbolicExt<F, EF> {
     type Output = Self;
 
     fn sub(self, rhs: E) -> Self::Output {
-        let rhs = rhs.to_operand();
-        let rhs_digest = rhs.digest();
-        let digest = self.digest() - rhs_digest;
-        match rhs {
-            ExtOperand::Base(f) => SymbolicExt::Sub(
-                Rc::new(self),
-                Rc::new(SymbolicExt::Base(Rc::new(SymbolicFelt::from(f)), rhs_digest)),
-                digest,
-            ),
-            ExtOperand::Const(ef) => {
-                SymbolicExt::Sub(Rc::new(self), Rc::new(SymbolicExt::Const(ef, rhs_digest)), digest)
+        let rhs = rhs.to_operand().symbolic();
+
+        match (self, rhs) {
+            (Self::Const(lhs), Self::Const(rhs)) => Self::Const(lhs - rhs),
+            (Self::Val(lhs), Self::Const(rhs)) => {
+                let res = unsafe { (*lhs.handle).sub_const_e(lhs, rhs) };
+                Self::Val(res)
             }
-            ExtOperand::Felt(f) => SymbolicExt::Sub(
-                Rc::new(self),
-                Rc::new(SymbolicExt::Base(Rc::new(SymbolicFelt::from(f)), rhs_digest)),
-                digest,
-            ),
-            ExtOperand::Ext(e) => {
-                SymbolicExt::Sub(Rc::new(self), Rc::new(SymbolicExt::Val(e, rhs_digest)), digest)
+            (Self::Const(lhs), Self::Val(rhs)) => {
+                let res = unsafe { (*rhs.handle).sub_e_const(lhs, rhs) };
+                Self::Val(res)
             }
-            ExtOperand::SymFelt(f) => SymbolicExt::Sub(
-                Rc::new(self),
-                Rc::new(SymbolicExt::Base(Rc::new(f), rhs_digest)),
-                digest,
-            ),
-            ExtOperand::Sym(e) => SymbolicExt::Sub(Rc::new(self), Rc::new(e), digest),
+            (Self::Const(lhs), Self::Base(rhs)) => match rhs {
+                SymbolicFelt::Const(rhs) => Self::Const(lhs - rhs),
+                SymbolicFelt::Val(rhs) => {
+                    let ext_handle_ptr =
+                        unsafe { (*rhs.handle).ext_handle_ptr as *mut ExtHandle<F, EF> };
+                    let ext_handle: ManuallyDrop<_> =
+                        unsafe { ManuallyDrop::new(Box::from_raw(ext_handle_ptr)) };
+                    let res = ext_handle.sub_const_e_f(lhs, rhs, ext_handle_ptr);
+                    Self::Val(res)
+                }
+            },
+            (Self::Base(lhs), Self::Const(rhs)) => match lhs {
+                SymbolicFelt::Const(lhs) => Self::Const(EF::from_base(lhs) - rhs),
+                SymbolicFelt::Val(lhs) => {
+                    let ext_handle_ptr =
+                        unsafe { (*lhs.handle).ext_handle_ptr as *mut ExtHandle<F, EF> };
+                    let ext_handle: ManuallyDrop<_> =
+                        unsafe { ManuallyDrop::new(Box::from_raw(ext_handle_ptr)) };
+                    let res = ext_handle.sub_f_const_e(lhs, rhs, ext_handle_ptr);
+                    Self::Val(res)
+                }
+            },
+
+            (Self::Val(lhs), Self::Val(rhs)) => {
+                let res = unsafe { (*lhs.handle).sub_e(lhs, rhs) };
+                Self::Val(res)
+            }
+            (Self::Base(lhs), Self::Base(rhs)) => Self::Base(lhs - rhs),
+            (Self::Base(lhs), Self::Val(rhs)) => match lhs {
+                SymbolicFelt::Const(lhs) => {
+                    let res = unsafe { (*rhs.handle).sub_e_const(EF::from_base(lhs), rhs) };
+                    Self::Val(res)
+                }
+                SymbolicFelt::Val(lhs) => {
+                    let res = unsafe { (*rhs.handle).sub_f_e(lhs, rhs) };
+                    Self::Val(res)
+                }
+            },
+            (Self::Val(lhs), Self::Base(rhs)) => match rhs {
+                SymbolicFelt::Const(rhs) => {
+                    let res = unsafe { (*lhs.handle).sub_const_e(lhs, EF::from_base(rhs)) };
+                    Self::Val(res)
+                }
+                SymbolicFelt::Val(rhs) => {
+                    let res = unsafe { (*lhs.handle).sub_e_f(lhs, rhs) };
+                    Self::Val(res)
+                }
+            },
         }
     }
 }
@@ -573,10 +621,21 @@ impl<F: Field> Div for SymbolicFelt<F> {
     type Output = Self;
 
     fn div(self, rhs: Self) -> Self::Output {
-        let self_digest = self.digest();
-        let rhs_digest = rhs.digest();
-        let digest = div_digests(self_digest, rhs_digest);
-        SymbolicFelt::Div(Rc::new(self), Rc::new(rhs), digest)
+        match (self, rhs) {
+            (Self::Const(lhs), Self::Const(rhs)) => Self::Const(lhs / rhs),
+            (Self::Val(lhs), Self::Const(rhs)) => {
+                let res = unsafe { (*lhs.handle).div_f_const(lhs, rhs) };
+                Self::Val(res)
+            }
+            (Self::Const(lhs), Self::Val(rhs)) => {
+                let res = unsafe { (*rhs.handle).div_const_f(lhs, rhs) };
+                Self::Val(res)
+            }
+            (Self::Val(lhs), Self::Val(rhs)) => {
+                let res = unsafe { (*lhs.handle).div_f(lhs, rhs) };
+                Self::Val(res)
+            }
+        }
     }
 }
 
@@ -584,32 +643,71 @@ impl<F: Field, EF: ExtensionField<F>, E: Any> Div<E> for SymbolicExt<F, EF> {
     type Output = Self;
 
     fn div(self, rhs: E) -> Self::Output {
-        let rhs = rhs.to_operand();
-        let rhs_digest = rhs.digest();
-        let digest = div_digests(self.digest(), rhs_digest);
-        match rhs {
-            ExtOperand::Base(f) => SymbolicExt::Div(
-                Rc::new(self),
-                Rc::new(SymbolicExt::Base(Rc::new(SymbolicFelt::from(f)), rhs_digest)),
-                digest,
-            ),
-            ExtOperand::Const(ef) => {
-                SymbolicExt::Div(Rc::new(self), Rc::new(SymbolicExt::Const(ef, rhs_digest)), digest)
+        let rhs = rhs.to_operand().symbolic();
+
+        match (self, rhs) {
+            (Self::Const(lhs), Self::Const(rhs)) => Self::Const(lhs / rhs),
+            (Self::Val(lhs), Self::Const(rhs)) => {
+                let res = unsafe { (*lhs.handle).div_const_e(lhs, rhs) };
+                Self::Val(res)
             }
-            ExtOperand::Felt(f) => SymbolicExt::Div(
-                Rc::new(self),
-                Rc::new(SymbolicExt::Base(Rc::new(SymbolicFelt::from(f)), rhs_digest)),
-                digest,
-            ),
-            ExtOperand::Ext(e) => {
-                SymbolicExt::Div(Rc::new(self), Rc::new(SymbolicExt::Val(e, rhs_digest)), digest)
+            (Self::Const(lhs), Self::Val(rhs)) => {
+                let res = unsafe { (*rhs.handle).div_e_const(lhs, rhs) };
+                Self::Val(res)
             }
-            ExtOperand::SymFelt(f) => SymbolicExt::Div(
-                Rc::new(self),
-                Rc::new(SymbolicExt::Base(Rc::new(f), rhs_digest)),
-                digest,
-            ),
-            ExtOperand::Sym(e) => SymbolicExt::Div(Rc::new(self), Rc::new(e), digest),
+            (Self::Const(lhs), Self::Base(rhs)) => match rhs {
+                SymbolicFelt::Const(rhs) => Self::Const(lhs / EF::from_base(rhs)),
+                SymbolicFelt::Val(rhs) => {
+                    let ext_handle_ptr =
+                        unsafe { (*rhs.handle).ext_handle_ptr as *mut ExtHandle<F, EF> };
+                    let ext_handle: ManuallyDrop<_> =
+                        unsafe { ManuallyDrop::new(Box::from_raw(ext_handle_ptr)) };
+                    let rhs = rhs.inverse();
+                    if let SymbolicFelt::Val(rhs) = rhs {
+                        let res = ext_handle.mul_const_e_f(lhs, rhs, ext_handle_ptr);
+                        Self::Val(res)
+                    } else {
+                        unreachable!()
+                    }
+                }
+            },
+            (Self::Base(lhs), Self::Const(rhs)) => match lhs {
+                SymbolicFelt::Const(lhs) => Self::Const(EF::from_base(lhs) / rhs),
+                SymbolicFelt::Val(lhs) => {
+                    let ext_handle_ptr =
+                        unsafe { (*lhs.handle).ext_handle_ptr as *mut ExtHandle<F, EF> };
+                    let ext_handle: ManuallyDrop<_> =
+                        unsafe { ManuallyDrop::new(Box::from_raw(ext_handle_ptr)) };
+                    let res = ext_handle.div_f_const_e(lhs, rhs, ext_handle_ptr);
+                    Self::Val(res)
+                }
+            },
+
+            (Self::Val(lhs), Self::Val(rhs)) => {
+                let res = unsafe { (*lhs.handle).div_e(lhs, rhs) };
+                Self::Val(res)
+            }
+            (Self::Base(lhs), Self::Base(rhs)) => Self::Base(lhs / rhs),
+            (Self::Base(lhs), Self::Val(rhs)) => match lhs {
+                SymbolicFelt::Const(lhs) => {
+                    let res = unsafe { (*rhs.handle).div_e_const(EF::from_base(lhs), rhs) };
+                    Self::Val(res)
+                }
+                SymbolicFelt::Val(lhs) => {
+                    let res = unsafe { (*rhs.handle).div_f_e(lhs, rhs) };
+                    Self::Val(res)
+                }
+            },
+            (Self::Val(lhs), Self::Base(rhs)) => match rhs {
+                SymbolicFelt::Const(rhs) => {
+                    let res = unsafe { (*lhs.handle).div_const_e(lhs, EF::from_base(rhs)) };
+                    Self::Val(res)
+                }
+                SymbolicFelt::Val(rhs) => {
+                    let res = unsafe { (*lhs.handle).div_e_f(lhs, rhs) };
+                    Self::Val(res)
+                }
+            },
         }
     }
 }
@@ -618,8 +716,13 @@ impl<N: Field> Neg for SymbolicVar<N> {
     type Output = Self;
 
     fn neg(self) -> Self::Output {
-        let digest = -self.digest();
-        SymbolicVar::Neg(Rc::new(self), digest)
+        match self {
+            SymbolicVar::Const(n) => SymbolicVar::Const(-n),
+            SymbolicVar::Val(n) => {
+                let res = unsafe { (*n.handle).neg_v(n) };
+                SymbolicVar::Val(res)
+            }
+        }
     }
 }
 
@@ -627,8 +730,13 @@ impl<F: Field> Neg for SymbolicFelt<F> {
     type Output = Self;
 
     fn neg(self) -> Self::Output {
-        let digest = -self.digest();
-        SymbolicFelt::Neg(Rc::new(self), digest)
+        match self {
+            SymbolicFelt::Const(f) => SymbolicFelt::Const(-f),
+            SymbolicFelt::Val(f) => {
+                let res = unsafe { (*f.handle).neg_f(f) };
+                SymbolicFelt::Val(res)
+            }
+        }
     }
 }
 
@@ -636,8 +744,14 @@ impl<F: Field, EF: ExtensionField<F>> Neg for SymbolicExt<F, EF> {
     type Output = Self;
 
     fn neg(self) -> Self::Output {
-        let digest = -self.digest();
-        SymbolicExt::Neg(Rc::new(self), digest)
+        match self {
+            SymbolicExt::Const(ef) => SymbolicExt::Const(-ef),
+            SymbolicExt::Base(f) => SymbolicExt::Base(-f),
+            SymbolicExt::Val(ef) => {
+                let res = unsafe { (*ef.handle).neg_e(ef) };
+                SymbolicExt::Val(res)
+            }
+        }
     }
 }
 
@@ -680,8 +794,7 @@ impl<N: Field> Sub<N> for SymbolicVar<N> {
     type Output = Self;
 
     fn sub(self, rhs: N) -> Self::Output {
-        let digest = self.digest() - rhs;
-        SymbolicVar::Sub(Rc::new(self), Rc::new(SymbolicVar::from_f(rhs)), digest)
+        self - SymbolicVar::from(rhs)
     }
 }
 
@@ -996,19 +1109,19 @@ impl<N: Field> Sum for SymbolicVar<N> {
 
 impl<N: Field> AddAssign for SymbolicVar<N> {
     fn add_assign(&mut self, rhs: Self) {
-        *self = self.clone() + rhs;
+        *self = *self + rhs;
     }
 }
 
 impl<N: Field> SubAssign for SymbolicVar<N> {
     fn sub_assign(&mut self, rhs: Self) {
-        *self = self.clone() - rhs;
+        *self = *self - rhs;
     }
 }
 
 impl<N: Field> MulAssign for SymbolicVar<N> {
     fn mul_assign(&mut self, rhs: Self) {
-        *self = self.clone() * rhs;
+        *self = *self * rhs;
     }
 }
 
@@ -1032,19 +1145,19 @@ impl<F: Field> Product for SymbolicFelt<F> {
 
 impl<F: Field> AddAssign for SymbolicFelt<F> {
     fn add_assign(&mut self, rhs: Self) {
-        *self = self.clone() + rhs;
+        *self = *self + rhs;
     }
 }
 
 impl<F: Field> SubAssign for SymbolicFelt<F> {
     fn sub_assign(&mut self, rhs: Self) {
-        *self = self.clone() - rhs;
+        *self = *self - rhs;
     }
 }
 
 impl<F: Field> MulAssign for SymbolicFelt<F> {
     fn mul_assign(&mut self, rhs: Self) {
-        *self = self.clone() * rhs;
+        *self = *self * rhs;
     }
 }
 
@@ -1074,25 +1187,25 @@ impl<F: Field, EF: ExtensionField<F>> Default for SymbolicExt<F, EF> {
 
 impl<F: Field, EF: ExtensionField<F>, E: Any> AddAssign<E> for SymbolicExt<F, EF> {
     fn add_assign(&mut self, rhs: E) {
-        *self = self.clone() + rhs;
+        *self = *self + rhs;
     }
 }
 
 impl<F: Field, EF: ExtensionField<F>, E: Any> SubAssign<E> for SymbolicExt<F, EF> {
     fn sub_assign(&mut self, rhs: E) {
-        *self = self.clone() - rhs;
+        *self = *self - rhs;
     }
 }
 
 impl<F: Field, EF: ExtensionField<F>, E: Any> MulAssign<E> for SymbolicExt<F, EF> {
     fn mul_assign(&mut self, rhs: E) {
-        *self = self.clone() * rhs;
+        *self = *self * rhs;
     }
 }
 
 impl<F: Field, EF: ExtensionField<F>, E: Any> DivAssign<E> for SymbolicExt<F, EF> {
     fn div_assign(&mut self, rhs: E) {
-        *self = self.clone() / rhs;
+        *self = *self / rhs;
     }
 }
 
@@ -1108,41 +1221,41 @@ impl<F: Field, EF: ExtensionField<F>, E: Any> ExtensionOperand<F, EF> for E {
     fn to_operand(self) -> ExtOperand<F, EF> {
         match self.type_id() {
             ty if ty == TypeId::of::<F>() => {
-                // *Saftey*: We know that E is a F and we can transmute it to F which implements
+                // *Safety*: We know that E is a F and we can transmute it to F which implements
                 // the Copy trait.
                 let value = unsafe { mem::transmute_copy::<E, F>(&self) };
                 ExtOperand::<F, EF>::Base(value)
             }
             ty if ty == TypeId::of::<EF>() => {
-                // *Saftey*: We know that E is a EF and we can transmute it to EF which implements
+                // *Safety*: We know that E is a EF and we can transmute it to EF which implements
                 // the Copy trait.
                 let value = unsafe { mem::transmute_copy::<E, EF>(&self) };
                 ExtOperand::<F, EF>::Const(value)
             }
             ty if ty == TypeId::of::<Felt<F>>() => {
-                // *Saftey*: We know that E is a Felt<F> and we can transmute it to Felt<F> which
+                // *Safety*: We know that E is a Felt<F> and we can transmute it to Felt<F> which
                 // implements the Copy trait.
                 let value = unsafe { mem::transmute_copy::<E, Felt<F>>(&self) };
                 ExtOperand::<F, EF>::Felt(value)
             }
             ty if ty == TypeId::of::<Ext<F, EF>>() => {
-                // *Saftey*: We know that E is a Ext<F, EF> and we can transmute it to Ext<F, EF>
+                // *Safety*: We know that E is a Ext<F, EF> and we can transmute it to Ext<F, EF>
                 // which implements the Copy trait.
                 let value = unsafe { mem::transmute_copy::<E, Ext<F, EF>>(&self) };
                 ExtOperand::<F, EF>::Ext(value)
             }
             ty if ty == TypeId::of::<SymbolicFelt<F>>() => {
-                // *Saftey*: We know that E is a Symbolic Felt<F> and we can transmute it to
+                // *Safety*: We know that E is a Symbolic Felt<F> and we can transmute it to
                 // SymbolicFelt<F> but we need to clone the pointer.
                 let value_ref = unsafe { mem::transmute::<&E, &SymbolicFelt<F>>(&self) };
-                let value = value_ref.clone();
+                let value = *value_ref;
                 ExtOperand::<F, EF>::SymFelt(value)
             }
             ty if ty == TypeId::of::<SymbolicExt<F, EF>>() => {
-                // *Saftey*: We know that E is a SymbolicExt<F, EF> and we can transmute it to
+                // *Safety*: We know that E is a SymbolicExt<F, EF> and we can transmute it to
                 // SymbolicExt<F, EF> but we need to clone the pointer.
                 let value_ref = unsafe { mem::transmute::<&E, &SymbolicExt<F, EF>>(&self) };
-                let value = value_ref.clone();
+                let value = *value_ref;
                 ExtOperand::<F, EF>::Sym(value)
             }
             ty if ty == TypeId::of::<ExtOperand<F, EF>>() => {
@@ -1324,7 +1437,7 @@ impl<N: Field> Sub<Usize<N>> for Usize<N> {
 
 impl<F: Field> MulAssign<Felt<F>> for SymbolicFelt<F> {
     fn mul_assign(&mut self, rhs: Felt<F>) {
-        *self = self.clone() * Self::from(rhs);
+        *self = *self * Self::from(rhs);
     }
 }
 

@@ -11,7 +11,7 @@ use typenum::Unsigned;
 use crate::{
     events::{
         memory::{MemoryReadRecord, MemoryWriteRecord},
-        LookupId,
+        LookupId, MemoryLocalEvent,
     },
     syscalls::SyscallContext,
 };
@@ -19,13 +19,11 @@ use crate::{
 /// Elliptic Curve Add Event.
 ///
 /// This event is emitted when an elliptic curve addition operation is performed.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize)]
 pub struct EllipticCurveAddEvent {
     pub(crate) lookup_id: LookupId,
     /// The shard number.
     pub shard: u32,
-    /// The channel number.
-    pub channel: u8,
     /// The clock cycle.
     pub clk: u32,
     /// The pointer to the first point.
@@ -40,19 +38,19 @@ pub struct EllipticCurveAddEvent {
     pub p_memory_records: Vec<MemoryWriteRecord>,
     /// The memory records for the second point.
     pub q_memory_records: Vec<MemoryReadRecord>,
+    /// The local memory access records.
+    pub local_mem_access: Vec<MemoryLocalEvent>,
 }
 
 /// Elliptic Curve Double Event.
 ///
 /// This event is emitted when an elliptic curve doubling operation is performed.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize)]
 pub struct EllipticCurveDoubleEvent {
-    /// The lookup identifer.
+    /// The lookup identifier.
     pub lookup_id: LookupId,
     /// The shard number.
     pub shard: u32,
-    /// The channel number.
-    pub channel: u8,
     /// The clock cycle.
     pub clk: u32,
     /// The pointer to the point.
@@ -61,19 +59,19 @@ pub struct EllipticCurveDoubleEvent {
     pub p: Vec<u32>,
     /// The memory records for the point.
     pub p_memory_records: Vec<MemoryWriteRecord>,
+    /// The local memory access records.
+    pub local_mem_access: Vec<MemoryLocalEvent>,
 }
 
 /// Elliptic Curve Point Decompress Event.
 ///
 /// This event is emitted when an elliptic curve point decompression operation is performed.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize)]
 pub struct EllipticCurveDecompressEvent {
-    /// The lookup identifer.
+    /// The lookup identifier.
     pub lookup_id: LookupId,
     /// The shard number.
     pub shard: u32,
-    /// The channel number.
-    pub channel: u8,
     /// The clock cycle.
     pub clk: u32,
     /// The pointer to the point.
@@ -88,6 +86,8 @@ pub struct EllipticCurveDecompressEvent {
     pub x_memory_records: Vec<MemoryReadRecord>,
     /// The memory records for the y coordinate.
     pub y_memory_records: Vec<MemoryWriteRecord>,
+    /// The local memory access records.
+    pub local_mem_access: Vec<MemoryLocalEvent>,
 }
 
 /// Create an elliptic curve add event. It takes two pointers to memory locations, reads the points
@@ -130,7 +130,6 @@ pub fn create_ec_add_event<E: EllipticCurve>(
     EllipticCurveAddEvent {
         lookup_id: rt.syscall_lookup_id,
         shard: rt.current_shard(),
-        channel: rt.current_channel(),
         clk: start_clk,
         p_ptr,
         p,
@@ -138,6 +137,7 @@ pub fn create_ec_add_event<E: EllipticCurve>(
         q,
         p_memory_records,
         q_memory_records,
+        local_mem_access: rt.postprocess(),
     }
 }
 
@@ -171,11 +171,11 @@ pub fn create_ec_double_event<E: EllipticCurve>(
     EllipticCurveDoubleEvent {
         lookup_id: rt.syscall_lookup_id,
         shard: rt.current_shard(),
-        channel: rt.current_channel(),
         clk: start_clk,
         p_ptr,
         p,
         p_memory_records,
+        local_mem_access: rt.postprocess(),
     }
 }
 
@@ -219,7 +219,6 @@ pub fn create_ec_decompress_event<E: EllipticCurve>(
     EllipticCurveDecompressEvent {
         lookup_id: rt.syscall_lookup_id,
         shard: rt.current_shard(),
-        channel: rt.current_channel(),
         clk: start_clk,
         ptr: slice_ptr,
         sign_bit: sign_bit != 0,
@@ -227,5 +226,6 @@ pub fn create_ec_decompress_event<E: EllipticCurve>(
         decompressed_y_bytes,
         x_memory_records,
         y_memory_records,
+        local_mem_access: rt.postprocess(),
     }
 }

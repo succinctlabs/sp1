@@ -1,12 +1,11 @@
-[workspace]
 [package]
 version = "0.1.0"
 name = "bls12381-script"
 edition = "2021"
 
 [dependencies]
-sp1-sdk = { path = "../../../../sp1/crates/sdk" }
+sp1-sdk = { path = "../../../crates/sdk" }
 
 
 [build-dependencies]
-sp1-helper = { path = "../../../../sp1/crates/helper" }
+sp1-build = { workspace = true }

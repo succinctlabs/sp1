@@ -3,20 +3,18 @@ use sp1_curves::{edwards::WORDS_FIELD_ELEMENT, COMPRESSED_POINT_BYTES, NUM_BYTES
 
 use crate::events::{
     memory::{MemoryReadRecord, MemoryWriteRecord},
-    LookupId,
+    LookupId, MemoryLocalEvent,
 };
 
 /// Edwards Decompress Event.
 ///
 /// This event is emitted when an edwards decompression operation is performed.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize)]
 pub struct EdDecompressEvent {
-    /// The lookup identifer.
+    /// The lookup identifier.
     pub lookup_id: LookupId,
     /// The shard number.
     pub shard: u32,
-    /// The channel number.
-    pub channel: u8,
     /// The clock cycle.
     pub clk: u32,
     /// The pointer to the point.
@@ -31,4 +29,6 @@ pub struct EdDecompressEvent {
     pub x_memory_records: [MemoryWriteRecord; WORDS_FIELD_ELEMENT],
     /// The memory records for the y coordinate.
     pub y_memory_records: [MemoryReadRecord; WORDS_FIELD_ELEMENT],
+    /// The local memory access events.
+    pub local_mem_access: Vec<MemoryLocalEvent>,
 }

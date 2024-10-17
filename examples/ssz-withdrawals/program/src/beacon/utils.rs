@@ -34,9 +34,7 @@ pub fn is_valid_merkle_big_branch<'a>(
 }
 
 pub fn branch_from_bytes(s: &[[u8; 32]]) -> Vec<Node> {
-    s.iter()
-        .map(|hex| node_from_bytes(*hex))
-        .collect::<Vec<Node>>()
+    s.iter().map(|hex| node_from_bytes(*hex)).collect::<Vec<Node>>()
 }
 
 pub fn node_from_bytes(s: [u8; 32]) -> Node {

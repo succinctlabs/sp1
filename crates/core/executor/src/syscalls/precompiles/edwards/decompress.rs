@@ -8,8 +8,8 @@ use sp1_curves::{
 use sp1_primitives::consts::{bytes_to_words_le, words_to_bytes_le};
 
 use crate::{
-    events::{EdDecompressEvent, MemoryReadRecord, MemoryWriteRecord},
-    syscalls::{Syscall, SyscallContext},
+    events::{EdDecompressEvent, MemoryReadRecord, MemoryWriteRecord, PrecompileEvent},
+    syscalls::{Syscall, SyscallCode, SyscallContext},
 };
 
 pub(crate) struct EdwardsDecompressSyscall<E: EdwardsParameters> {
@@ -24,7 +24,13 @@ impl<E: EdwardsParameters> EdwardsDecompressSyscall<E> {
 }
 
 impl<E: EdwardsParameters> Syscall for EdwardsDecompressSyscall<E> {
-    fn execute(&self, rt: &mut SyscallContext, arg1: u32, sign: u32) -> Option<u32> {
+    fn execute(
+        &self,
+        rt: &mut SyscallContext,
+        syscall_code: SyscallCode,
+        arg1: u32,
+        sign: u32,
+    ) -> Option<u32> {
         let start_clk = rt.clk;
         let slice_ptr = arg1;
         assert!(slice_ptr % 4 == 0, "Pointer must be 4-byte aligned.");
@@ -60,11 +66,9 @@ impl<E: EdwardsParameters> Syscall for EdwardsDecompressSyscall<E> {
 
         let lookup_id = rt.syscall_lookup_id;
         let shard = rt.current_shard();
-        let channel = rt.current_channel();
-        rt.record_mut().ed_decompress_events.push(EdDecompressEvent {
+        let event = EdDecompressEvent {
             lookup_id,
             shard,
-            channel,
             clk: start_clk,
             ptr: slice_ptr,
             sign: sign_bool,
@@ -72,7 +76,15 @@ impl<E: EdwardsParameters> Syscall for EdwardsDecompressSyscall<E> {
             decompressed_x_bytes: decompressed_x_bytes.try_into().unwrap(),
             x_memory_records,
             y_memory_records,
-        });
+            local_mem_access: rt.postprocess(),
+        };
+        let syscall_event =
+            rt.rt.syscall_event(start_clk, syscall_code.syscall_id(), arg1, sign, event.lookup_id);
+        rt.record_mut().add_precompile_event(
+            syscall_code,
+            syscall_event,
+            PrecompileEvent::EdDecompress(event),
+        );
         None
     }
 

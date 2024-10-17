@@ -1,6 +1,6 @@
 use crate::{
-    events::ShaCompressEvent,
-    syscalls::{Syscall, SyscallContext},
+    events::{PrecompileEvent, ShaCompressEvent},
+    syscalls::{Syscall, SyscallCode, SyscallContext},
 };
 
 pub const SHA_COMPRESS_K: [u32; 64] = [
@@ -21,8 +21,15 @@ impl Syscall for Sha256CompressSyscall {
         1
     }
 
+    #[allow(clippy::too_many_lines)]
     #[allow(clippy::many_single_char_names)]
-    fn execute(&self, rt: &mut SyscallContext, arg1: u32, arg2: u32) -> Option<u32> {
+    fn execute(
+        &self,
+        rt: &mut SyscallContext,
+        syscall_code: SyscallCode,
+        arg1: u32,
+        arg2: u32,
+    ) -> Option<u32> {
         let w_ptr = arg1;
         let h_ptr = arg2;
         assert_ne!(w_ptr, h_ptr);
@@ -88,11 +95,9 @@ impl Syscall for Sha256CompressSyscall {
         // Push the SHA extend event.
         let lookup_id = rt.syscall_lookup_id;
         let shard = rt.current_shard();
-        let channel = rt.current_channel();
-        rt.record_mut().sha_compress_events.push(ShaCompressEvent {
+        let event = PrecompileEvent::ShaCompress(ShaCompressEvent {
             lookup_id,
             shard,
-            channel,
             clk: start_clk,
             w_ptr,
             h_ptr,
@@ -101,7 +106,11 @@ impl Syscall for Sha256CompressSyscall {
             h_read_records: h_read_records.try_into().unwrap(),
             w_i_read_records,
             h_write_records: h_write_records.try_into().unwrap(),
+            local_mem_access: rt.postprocess(),
         });
+        let syscall_event =
+            rt.rt.syscall_event(start_clk, syscall_code.syscall_id(), arg1, arg2, lookup_id);
+        rt.record_mut().add_precompile_event(syscall_code, syscall_event, event);
 
         None
     }
