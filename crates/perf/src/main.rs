@@ -72,7 +72,7 @@ fn main() {
                 time_operation(|| prover.verify(&core_proof.proof, &vk));
 
             let (compress_proof, compress_duration) =
-                time_operation(|| prover.compress(&vk, core_proof, vec![], opts).unwrap());
+                time_operation(|| prover.compress(&vk, core_proof, stdin.proofs, opts).unwrap());
 
             let (_, verify_compressed_duration) =
                 time_operation(|| prover.verify_compressed(&compress_proof, &vk));
@@ -119,7 +119,7 @@ fn main() {
             });
 
             let (compress_proof, compress_duration) =
-                time_operation(|| server.compress(&vk, core_proof, vec![]).unwrap());
+                time_operation(|| server.compress(&vk, core_proof, stdin.proofs).unwrap());
 
             let (_, verify_compressed_duration) =
                 time_operation(|| prover.verify_compressed(&compress_proof, &vk));
