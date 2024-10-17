@@ -1546,10 +1546,26 @@ checksum = "97fb8b7c4503de7d6ae7b42ab72a5a59857b4c937ec27a3d4539dba95b5ab2be"
 dependencies = [
  "cfg-if",
  "cpufeatures",
- "curve25519-dalek-derive",
+ "curve25519-dalek-derive 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "digest 0.10.7",
  "fiat-crypto",
  "rustc_version 0.4.1",
+ "subtle",
+ "zeroize",
+]
+
+[[package]]
+name = "curve25519-dalek"
+version = "4.1.3"
+source = "git+https://github.com/sp1-patches/curve25519-dalek?branch=patch-curve25519-v4.1.3#1d73fd95f1a76bee8f46643cf78bbccc1fb06ede"
+dependencies = [
+ "anyhow",
+ "cfg-if",
+ "cpufeatures",
+ "curve25519-dalek-derive 0.1.1 (git+https://github.com/sp1-patches/curve25519-dalek?branch=patch-curve25519-v4.1.3)",
+ "fiat-crypto",
+ "rustc_version 0.4.1",
+ "sp1-lib 1.2.0",
  "subtle",
  "zeroize",
 ]
@@ -1559,6 +1575,16 @@ name = "curve25519-dalek-derive"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f46882e17999c6cc590af592290432be3bce0428cb0d5f8b6715e4dc7b383eb3"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.79",
+]
+
+[[package]]
+name = "curve25519-dalek-derive"
+version = "0.1.1"
+source = "git+https://github.com/sp1-patches/curve25519-dalek?branch=patch-curve25519-v4.1.3#1d73fd95f1a76bee8f46643cf78bbccc1fb06ede"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1928,7 +1954,7 @@ version = "2.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4a3daa8e81a3963a60642bcc1f90a670680bd4a77535faa384e9d1c79d620871"
 dependencies = [
- "curve25519-dalek 4.1.3",
+ "curve25519-dalek 4.1.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "ed25519 2.2.3",
  "serde",
  "sha2 0.10.8",
@@ -4345,7 +4371,7 @@ name = "patch-testing-program"
 version = "1.1.0"
 dependencies = [
  "alloy-primitives 0.8.8",
- "curve25519-dalek 3.2.0",
+ "curve25519-dalek 4.1.3 (git+https://github.com/sp1-patches/curve25519-dalek?branch=patch-curve25519-v4.1.3)",
  "curve25519-dalek-ng",
  "ed25519-consensus",
  "ed25519-dalek 1.0.1",
@@ -6605,7 +6631,7 @@ name = "sp1-curves"
 version = "3.0.0-rc4"
 dependencies = [
  "cfg-if",
- "curve25519-dalek 4.1.3",
+ "curve25519-dalek 4.1.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "dashu",
  "elliptic-curve",
  "generic-array 1.1.0",

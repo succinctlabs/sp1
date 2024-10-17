@@ -59,9 +59,6 @@ sp1-lib = { path = "../crates/zkvm/lib", default-features = false }
 sp1-zkvm = { path = "../crates/zkvm/entrypoint", default-features = false }
 
 [patch.crates-io]
-ed25519-dalek = { git = "https://github.com/sp1-patches/ed25519-dalek.git", branch = "patch-ed25519-v1.0.1"}
-curve25519-dalek = { git = "https://github.com/sp1-patches/curve25519-dalek", branch = "patch-curve25519-v3.2.0"}
-curve25519-dalek-ng = { git = "https://github.com/sp1-patches/curve25519-dalek-ng", branch = "patch-v4.1.1" }
 # ecdsa-core = { git = "https://github.com/sp1-patches/signatures", package = "ecdsa", branch = "patch-ecdsa-v0.16.8" }
 # Note: This branch of ecdsa-core points to SP1 branch ratan/impl-add-assign-fixes
 ecdsa-core = { git = "https://github.com/sp1-patches/signatures", package = "ecdsa", branch = "ratan/secp256k1-add-fixes-v0.16.8" }
