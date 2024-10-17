@@ -1,6 +1,8 @@
 # Contract Addresses
 
-To verify SP1 proofs on-chain, we recommend using our deployed verifier gateways. For the chains listed below, an [SP1VerifierGateway](https://github.com/succinctlabs/sp1-contracts/blob/main/contracts/src/ISP1VerifierGateway.sol) can automatically route your SP1 proof to the correct verifier based on the SP1 version.
+To verify SP1 proofs on-chain, we recommend using our deployed canonical verifier gateways. The [SP1VerifierGateway](https://github.com/succinctlabs/sp1-contracts/blob/main/contracts/src/ISP1VerifierGateway.sol) will automatically route your SP1 proof to the correct verifier based on the SP1 version.
+
+## Canonical Verifier Gateways
 
 | Chain ID | Chain            | Gateway                                                                                                                                 |
 | -------- | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
@@ -24,7 +26,7 @@ support it with
 If a verifier for an SP1 version has an issue, the route will be frozen with
 [freezeRoute()](https://github.com/succinctlabs/sp1-contracts/blob/main/contracts/src/ISP1VerifierGateway.sol#L71).
 
-## Deploying to a new chain
+## Deploying to other Chains
 
 In the case that you need to use a chain that is not listed above, you can deploy your own
 verifier contract by following the instructions in the
@@ -38,6 +40,8 @@ interface](./contract-usage.md#isp1verifier-interface), you can choose to either
 * Deploy just the `SP1Verifier` contract that you want to use. Then point to the `SP1Verifier`
   address in
   your contracts.
+
+If you want support for a canonical verifier on your chain, contact us [here](https://t.me/+AzG4ws-kD24yMGYx). We often deploy canonical verifiers on new chains if there's enough demand.
 
 ## ISP1Verifier Interface
 
