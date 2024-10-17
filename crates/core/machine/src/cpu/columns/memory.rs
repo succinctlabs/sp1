@@ -28,8 +28,7 @@ pub struct MemoryColumns<T> {
 
     pub addr_aligned: T,
     /// The LE bit decomp of the least significant byte of address aligned.
-    pub aa_least_sig_byte_decomp: [T; 6],
-    pub addr_offset: T,
+    pub addr_ls_two_bits: T,
     pub memory_access: MemoryReadWriteCols<T>,
 
     pub offset_is_one: T,
@@ -38,7 +37,7 @@ pub struct MemoryColumns<T> {
 
     // LE bit decomposition for the most significant byte of memory value.  This is used to
     // determine the sign for that value (used for LB and LH).
-    pub most_sig_byte_decomp: [T; 8],
+    pub most_sig_bit: T,
 
     pub addr_word_nonce: T,
     pub unsigned_mem_val_nonce: T,

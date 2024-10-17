@@ -197,12 +197,28 @@ impl CpuChip {
             .assert_eq(jump_columns.next_pc.reduce::<AB>(), local.next_pc);
 
         // Range check op_a, pc, and next_pc.
-        BabyBearWordRangeChecker::<AB::F>::range_check(
-            builder,
-            local.op_a_val(),
-            jump_columns.op_a_range_checker,
+        // Range check local.opcode_specific_columns.range_check_word to be a valid babybear word.
+        // The range check bit is on if and only ifthe most significant byte of the word is < 120.
+        builder.send_byte(
+            AB::Expr::from_canonical_u32(ByteOpcode::LTU as u32),
+            jump_columns.op_a_range_check_bit,
+            local.op_a_val()[3],
+            AB::Expr::from_canonical_u8(120),
             is_jump_instruction.clone(),
         );
+
+        // If the range check bit is off, the most significant byte is >=120, so to be a valid BabyBear
+        // word we need the most significant byte to be =120.
+        builder
+            .when_not(jump_columns.op_a_range_check_bit)
+            .when(is_jump_instruction.clone())
+            .assert_eq(local.op_a_val()[3], AB::Expr::from_canonical_u8(120));
+
+        // Moreover, if the most significant byte =120, then the 3 other bytes must all be zero.s
+        builder
+            .when_not(jump_columns.op_a_range_check_bit)
+            .when(is_jump_instruction.clone())
+            .assert_zero(local.op_a_val()[0] + local.op_a_val()[1] + local.op_a_val()[2]);
 
         BabyBearWordRangeChecker::<AB::F>::range_check(
             builder,

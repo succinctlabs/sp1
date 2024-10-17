@@ -9,7 +9,7 @@ use sp1_core_executor::{
 };
 use sp1_primitives::consts::WORD_SIZE;
 use sp1_stark::{air::MachineAir, Word};
-use std::{array, borrow::BorrowMut};
+use std::borrow::BorrowMut;
 
 use p3_field::{PrimeField, PrimeField32};
 use p3_matrix::dense::RowMajorMatrix;
@@ -171,7 +171,7 @@ impl CpuChip {
         // Populate memory, branch, jump, and auipc specific fields.
         self.populate_memory(cols, event, blu_events, nonce_lookup);
         self.populate_branch(cols, event, nonce_lookup);
-        self.populate_jump(cols, event, nonce_lookup);
+        self.populate_jump(cols, event, blu_events, nonce_lookup);
         self.populate_auipc(cols, event, nonce_lookup);
         let is_halt = self.populate_ecall(cols, event, nonce_lookup);
 
@@ -244,7 +244,7 @@ impl CpuChip {
     }
 
     /// Populates columns related to memory.
-    fn populate_memory<F: PrimeField>(
+    fn populate_memory<F: PrimeField32>(
         &self,
         cols: &mut CpuCols<F>,
         event: &CpuEvent,
@@ -274,16 +274,13 @@ impl CpuChip {
 
         // Populate the aa_least_sig_byte_decomp columns.
         assert!(aligned_addr % 4 == 0);
-        let aligned_addr_ls_byte = (aligned_addr & 0x000000FF) as u8;
-        let bits: [bool; 8] = array::from_fn(|i| aligned_addr_ls_byte & (1 << i) != 0);
-        memory_columns.aa_least_sig_byte_decomp = array::from_fn(|i| F::from_bool(bits[i + 2]));
         memory_columns.addr_word_nonce = F::from_canonical_u32(
             nonce_lookup.get(&event.memory_add_lookup_id).copied().unwrap_or_default(),
         );
 
         // Populate memory offsets.
         let addr_offset = (memory_addr % WORD_SIZE as u32) as u8;
-        memory_columns.addr_offset = F::from_canonical_u8(addr_offset);
+        memory_columns.addr_ls_two_bits = F::from_canonical_u8(addr_offset);
         memory_columns.offset_is_one = F::from_bool(addr_offset == 1);
         memory_columns.offset_is_two = F::from_bool(addr_offset == 2);
         memory_columns.offset_is_three = F::from_bool(addr_offset == 3);
@@ -320,28 +317,44 @@ impl CpuChip {
                 } else {
                     cols.unsigned_mem_val.to_u32().to_le_bytes()[1]
                 };
+                let most_sig_bit: u16 = ((most_sig_mem_value_byte >> 7) & 1) as u16;
 
-                for i in (0..8).rev() {
-                    memory_columns.most_sig_byte_decomp[i] =
-                        F::from_canonical_u8(most_sig_mem_value_byte >> i & 0x01);
-                }
-                if memory_columns.most_sig_byte_decomp[7] == F::one() {
+                memory_columns.most_sig_bit = F::from_canonical_u16(most_sig_bit);
+                if memory_columns.most_sig_bit == F::one() {
                     cols.mem_value_is_neg_not_x0 =
                         F::from_bool(event.instruction.op_a != (X0 as u32));
                     cols.unsigned_mem_val_nonce = F::from_canonical_u32(
                         nonce_lookup.get(&event.memory_sub_lookup_id).copied().unwrap_or_default(),
                     );
                 }
+
+                blu_events.add_byte_lookup_event(ByteLookupEvent {
+                    shard: event.shard,
+                    opcode: ByteOpcode::MSB,
+                    a1: most_sig_bit,
+                    a2: 0,
+                    b: most_sig_mem_value_byte,
+                    c: 0,
+                });
             }
 
             // Set the `mem_value_is_pos_not_x0` composite flag.
             cols.mem_value_is_pos_not_x0 = F::from_bool(
                 ((matches!(event.instruction.opcode, Opcode::LB | Opcode::LH)
-                    && (memory_columns.most_sig_byte_decomp[7] == F::zero()))
+                    && (memory_columns.most_sig_bit == F::zero()))
                     || matches!(event.instruction.opcode, Opcode::LBU | Opcode::LHU | Opcode::LW))
                     && event.instruction.op_a != (X0 as u32),
             );
         }
+
+        blu_events.add_byte_lookup_event(ByteLookupEvent {
+            shard: event.shard,
+            opcode: ByteOpcode::AND,
+            a1: memory_columns.addr_ls_two_bits.as_canonical_u32() as u16,
+            a2: 0,
+            b: memory_columns.addr_word[0].as_canonical_u32() as u8,
+            c: 0b11,
+        });
 
         // Add event to byte lookup for byte range checking each byte in the memory addr
         let addr_bytes = memory_addr.to_le_bytes();
@@ -425,15 +438,18 @@ impl CpuChip {
         &self,
         cols: &mut CpuCols<F>,
         event: &CpuEvent,
+        blu_events: &mut impl ByteRecord,
         nonce_lookup: &HashMap<LookupId, u32>,
     ) {
         if event.instruction.is_jump_instruction() {
             let jump_columns = cols.opcode_specific_columns.jump_mut();
+            let a_ms_byte = event.a.to_le_bytes()[3];
+            let range_check_bit = a_ms_byte < 120;
 
             match event.instruction.opcode {
                 Opcode::JAL => {
                     let next_pc = event.pc.wrapping_add(event.b);
-                    jump_columns.op_a_range_checker.populate(event.a);
+                    jump_columns.op_a_range_check_bit = F::from_bool(range_check_bit);
                     jump_columns.pc = Word::from(event.pc);
                     // jump_columns.pc_range_checker = F::from_bool((event.pc >> 24) < 120);
                     jump_columns.next_pc = Word::from(next_pc);
@@ -444,7 +460,7 @@ impl CpuChip {
                 }
                 Opcode::JALR => {
                     let next_pc = event.b.wrapping_add(event.c);
-                    jump_columns.op_a_range_checker.populate(event.a);
+                    jump_columns.op_a_range_check_bit = F::from_bool(range_check_bit);
                     // jump_columns.pc_range_checker = F::from_bool(true);
                     jump_columns.next_pc = Word::from(next_pc);
                     jump_columns.next_pc_range_checker.populate(next_pc);
@@ -454,6 +470,15 @@ impl CpuChip {
                 }
                 _ => unreachable!(),
             }
+
+            blu_events.add_byte_lookup_event(ByteLookupEvent {
+                shard: event.shard,
+                opcode: ByteOpcode::LTU,
+                a1: if range_check_bit { 1 } else { 0 },
+                a2: 0,
+                b: a_ms_byte,
+                c: 120,
+            });
         }
     }
 

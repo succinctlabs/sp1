@@ -22,7 +22,7 @@ pub struct JumpCols<T> {
     pub next_pc_range_checker: BabyBearWordRangeChecker<T>,
 
     // A range checker for `op_a` which may contain `pc + 4`.
-    pub op_a_range_checker: BabyBearWordRangeChecker<T>,
+    pub op_a_range_check_bit: T,
 
     pub jal_nonce: T,
     pub jalr_nonce: T,
