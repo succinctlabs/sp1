@@ -101,6 +101,8 @@ pub struct CpuCols<T: Copy> {
     /// memory opcodes (i.e. LB, LH, LW, LBU, and LHU).
     pub unsigned_mem_val: Word<T>,
 
+    /// The combination: is_lb * unsigned_mem_val[0] + is_lh * unsigned_mem_val[1], which gets used
+    /// as a multiplicity for a byte lookup.
     pub unsigned_mem_val_superposition: T,
 
     pub unsigned_mem_val_nonce: T,
