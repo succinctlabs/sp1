@@ -6916,6 +6916,7 @@ dependencies = [
  "serde",
  "serde_json",
  "slack-rust-rs",
+ "sp1-core-executor",
  "sp1-cuda",
  "sp1-prover",
  "sp1-sdk",
