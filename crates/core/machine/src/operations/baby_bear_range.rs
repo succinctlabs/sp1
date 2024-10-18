@@ -32,12 +32,14 @@ impl<F: Field> BabyBearBitDecomposition<F> {
             self.and_most_sig_byte_decomp_3_to_6 * most_sig_byte_decomp[6];
     }
 
-    pub fn range_check<AB: SP1AirBuilder>(
+    pub fn range_check<AB>(
         builder: &mut AB,
         value: AB::Var,
         cols: BabyBearBitDecomposition<AB::Var>,
         is_real: AB::Expr,
-    ) {
+    ) where
+        AB: SP1AirBuilder<F = F>,
+    {
         let mut reconstructed_value = AB::Expr::zero();
         for (i, bit) in cols.bits.iter().enumerate() {
             builder.when(is_real.clone()).assert_bool(*bit);

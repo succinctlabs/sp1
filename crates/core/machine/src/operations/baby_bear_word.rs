@@ -33,12 +33,14 @@ impl<F: Field> BabyBearWordRangeChecker<F> {
             self.and_most_sig_byte_decomp_3_to_6 * self.most_sig_byte_decomp[6];
     }
 
-    pub fn range_check<AB: SP1AirBuilder>(
+    pub fn range_check<AB>(
         builder: &mut AB,
         value: Word<AB::Var>,
         cols: BabyBearWordRangeChecker<AB::Var>,
         is_real: AB::Expr,
-    ) {
+    ) where
+        AB: SP1AirBuilder<F = F>,
+    {
         let mut recomposed_byte = AB::Expr::zero();
         cols.most_sig_byte_decomp.iter().enumerate().for_each(|(i, value)| {
             builder.when(is_real.clone()).assert_bool(*value);

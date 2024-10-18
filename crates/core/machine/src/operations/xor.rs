@@ -1,4 +1,4 @@
-use p3_field::{AbstractField, Field};
+use p3_field::Field;
 use sp1_core_executor::{
     events::{ByteLookupEvent, ByteRecord},
     ByteOpcode,
@@ -38,13 +38,15 @@ impl<F: Field> XorOperation<F> {
     }
 
     #[allow(unused_variables)]
-    pub fn eval<AB: SP1AirBuilder>(
+    pub fn eval<AB>(
         builder: &mut AB,
         a: Word<AB::Var>,
         b: Word<AB::Var>,
         cols: XorOperation<AB::Var>,
         is_real: AB::Var,
-    ) {
+    ) where
+        AB: SP1AirBuilder<F = F>,
+    {
         for i in 0..WORD_SIZE {
             builder.send_byte(
                 AB::F::from_canonical_u32(ByteOpcode::XOR as u32),

@@ -289,7 +289,7 @@ where
 
         // Constrain the is_prev_addr_zero operation only in the first row.
         let is_first_row = builder.is_first_row();
-        IsZeroOperation::<AB::F>::eval(builder, prev_addr, local.is_prev_addr_zero, is_first_row);
+        IsZeroOperation::eval(builder, prev_addr, local.is_prev_addr_zero, is_first_row);
 
         // Constrain the is_first_comp column.
         builder.assert_bool(local.is_first_comp);

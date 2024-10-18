@@ -1,5 +1,5 @@
 use p3_air::AirBuilder;
-use p3_field::{AbstractField, Field};
+use p3_field::Field;
 use sp1_core_executor::{events::ByteRecord, ByteOpcode};
 use sp1_derive::AlignedBorrow;
 use sp1_primitives::consts::WORD_SIZE;
@@ -25,12 +25,14 @@ impl<F: Field> NotOperation<F> {
     }
 
     #[allow(unused_variables)]
-    pub fn eval<AB: SP1AirBuilder>(
+    pub fn eval<AB>(
         builder: &mut AB,
         a: Word<AB::Var>,
         cols: NotOperation<AB::Var>,
         is_real: impl Into<AB::Expr> + Copy,
-    ) {
+    ) where
+        AB: SP1AirBuilder<F = F>,
+    {
         for i in (0..WORD_SIZE).step_by(2) {
             builder.send_byte_pair(
                 AB::F::from_canonical_u32(ByteOpcode::U8Range as u32),

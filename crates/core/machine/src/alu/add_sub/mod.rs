@@ -197,7 +197,7 @@ where
         builder.when_transition().assert_eq(local.nonce + AB::Expr::one(), next.nonce);
 
         // Evaluate the addition operation.
-        AddOperation::<AB::F>::eval(
+        AddOperation::eval(
             builder,
             local.operand_1,
             local.operand_2,

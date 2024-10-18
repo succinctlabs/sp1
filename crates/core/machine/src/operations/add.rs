@@ -58,13 +58,15 @@ impl<F: Field> AddOperation<F> {
         expected
     }
 
-    pub fn eval<AB: SP1AirBuilder>(
+    pub fn eval<AB>(
         builder: &mut AB,
         a: Word<AB::Var>,
         b: Word<AB::Var>,
         cols: AddOperation<AB::Var>,
         is_real: AB::Expr,
-    ) {
+    ) where
+        AB: SP1AirBuilder<F = F>,
+    {
         let one = AB::Expr::one();
         let base = AB::F::from_canonical_u32(256);
 

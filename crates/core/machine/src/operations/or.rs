@@ -1,4 +1,4 @@
-use p3_field::{AbstractField, Field};
+use p3_field::Field;
 use sp1_core_executor::{events::ByteRecord, ByteOpcode, ExecutionRecord};
 use sp1_derive::AlignedBorrow;
 use sp1_primitives::consts::WORD_SIZE;
@@ -24,13 +24,15 @@ impl<F: Field> OrOperation<F> {
         expected
     }
 
-    pub fn eval<AB: SP1AirBuilder>(
+    pub fn eval<AB>(
         builder: &mut AB,
         a: Word<AB::Var>,
         b: Word<AB::Var>,
         cols: OrOperation<AB::Var>,
         is_real: AB::Var,
-    ) {
+    ) where
+        AB: SP1AirBuilder<F = F>,
+    {
         for i in 0..WORD_SIZE {
             builder.send_byte(
                 AB::F::from_canonical_u32(ByteOpcode::OR as u32),

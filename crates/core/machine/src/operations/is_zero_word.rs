@@ -46,15 +46,17 @@ impl<F: Field> IsZeroWordOperation<F> {
         is_zero as u32
     }
 
-    pub fn eval<AB: SP1AirBuilder>(
+    pub fn eval<AB>(
         builder: &mut AB,
         a: Word<AB::Expr>,
         cols: IsZeroWordOperation<AB::Var>,
         is_real: AB::Expr,
-    ) {
+    ) where
+        AB: SP1AirBuilder<F = F>,
+    {
         // Calculate whether each byte is 0.
         for i in 0..WORD_SIZE {
-            IsZeroOperation::<AB::F>::eval(
+            IsZeroOperation::eval(
                 builder,
                 a[i].clone(),
                 cols.is_zero_byte[i],

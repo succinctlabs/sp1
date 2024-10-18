@@ -79,7 +79,7 @@ impl<F: Field> Add4Operation<F> {
     }
 
     #[allow(clippy::too_many_arguments)]
-    pub fn eval<AB: SP1AirBuilder>(
+    pub fn eval<AB>(
         builder: &mut AB,
         a: Word<AB::Var>,
         b: Word<AB::Var>,
@@ -87,7 +87,9 @@ impl<F: Field> Add4Operation<F> {
         d: Word<AB::Var>,
         is_real: AB::Var,
         cols: Add4Operation<AB::Var>,
-    ) {
+    ) where
+        AB: SP1AirBuilder<F = F>,
+    {
         // Range check each byte.
         {
             builder.slice_range_check_u8(&a.0, is_real);

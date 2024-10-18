@@ -5,7 +5,7 @@
 //! The idea is that 1 - input * inverse is exactly the boolean value indicating whether the input
 //! is 0.
 use p3_air::AirBuilder;
-use p3_field::{AbstractField, Field};
+use p3_field::Field;
 use sp1_derive::AlignedBorrow;
 
 use sp1_stark::air::SP1AirBuilder;
@@ -39,12 +39,14 @@ impl<F: Field> IsZeroOperation<F> {
         (a == F::zero()) as u32
     }
 
-    pub fn eval<AB: SP1AirBuilder>(
+    pub fn eval<AB>(
         builder: &mut AB,
         a: AB::Expr,
         cols: IsZeroOperation<AB::Var>,
         is_real: AB::Expr,
-    ) {
+    ) where
+        AB: SP1AirBuilder<F = F>,
+    {
         let one: AB::Expr = AB::F::one().into();
 
         // 1. Input == 0 => is_zero = 1 regardless of the inverse.

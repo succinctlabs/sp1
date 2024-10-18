@@ -102,13 +102,15 @@ impl<F: Field> FixedShiftRightOperation<F> {
         expected
     }
 
-    pub fn eval<AB: SP1AirBuilder>(
+    pub fn eval<AB>(
         builder: &mut AB,
         input: Word<AB::Var>,
         rotation: usize,
         cols: FixedShiftRightOperation<AB::Var>,
         is_real: AB::Var,
-    ) {
+    ) where
+        AB: SP1AirBuilder<F = F>,
+    {
         // Compute some constants with respect to the rotation needed for the rotation.
         let nb_bytes_to_shift = Self::nb_bytes_to_shift(rotation);
         let nb_bits_to_shift = Self::nb_bits_to_shift(rotation);

@@ -56,7 +56,7 @@ impl ShaExtendChip {
         builder.when_transition().assert_eq(local.cycle_16 * g, next.cycle_16);
 
         // Constrain `cycle_16_start.result` to be `cycle_16 - g == 0`.
-        IsZeroOperation::<AB::F>::eval(
+        IsZeroOperation::eval(
             builder,
             local.cycle_16 - AB::Expr::from(g),
             local.cycle_16_start,
@@ -64,7 +64,7 @@ impl ShaExtendChip {
         );
 
         // Constrain `cycle_16_end.result` to be `cycle_16 - 1 == 0`. Intuitively g^16 is 1.
-        IsZeroOperation::<AB::F>::eval(
+        IsZeroOperation::eval(
             builder,
             local.cycle_16 - AB::Expr::one(),
             local.cycle_16_end,

@@ -64,7 +64,7 @@ impl CpuChip {
 
         // Compute whether this ecall is ENTER_UNCONSTRAINED.
         let is_enter_unconstrained = {
-            IsZeroOperation::<AB::F>::eval(
+            IsZeroOperation::eval(
                 builder,
                 syscall_id
                     - AB::Expr::from_canonical_u32(SyscallCode::ENTER_UNCONSTRAINED.syscall_id()),
@@ -76,7 +76,7 @@ impl CpuChip {
 
         // Compute whether this ecall is HINT_LEN.
         let is_hint_len = {
-            IsZeroOperation::<AB::F>::eval(
+            IsZeroOperation::eval(
                 builder,
                 syscall_id - AB::Expr::from_canonical_u32(SyscallCode::HINT_LEN.syscall_id()),
                 ecall_cols.is_hint_len,
@@ -238,7 +238,7 @@ impl CpuChip {
 
         // Compute whether this ecall is HALT.
         let is_halt = {
-            IsZeroOperation::<AB::F>::eval(
+            IsZeroOperation::eval(
                 builder,
                 syscall_id - AB::Expr::from_canonical_u32(SyscallCode::HALT.syscall_id()),
                 ecall_cols.is_halt,
@@ -268,7 +268,7 @@ impl CpuChip {
 
         // Compute whether this ecall is COMMIT.
         let is_commit = {
-            IsZeroOperation::<AB::F>::eval(
+            IsZeroOperation::eval(
                 builder,
                 syscall_id - AB::Expr::from_canonical_u32(SyscallCode::COMMIT.syscall_id()),
                 ecall_cols.is_commit,
@@ -279,7 +279,7 @@ impl CpuChip {
 
         // Compute whether this ecall is COMMIT_DEFERRED_PROOFS.
         let is_commit_deferred_proofs = {
-            IsZeroOperation::<AB::F>::eval(
+            IsZeroOperation::eval(
                 builder,
                 syscall_id
                     - AB::Expr::from_canonical_u32(

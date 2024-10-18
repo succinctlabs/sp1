@@ -518,7 +518,7 @@ where
 
         // Calculate is_overflow. is_overflow = is_equal(b, -2^{31}) * is_equal(c, -1) * is_signed
         {
-            IsEqualWordOperation::<AB::F>::eval(
+            IsEqualWordOperation::eval(
                 builder,
                 local.b.map(|x| x.into()),
                 Word::from(i32::MIN as u32).map(|x: AB::F| x.into()),
@@ -526,7 +526,7 @@ where
                 local.is_real.into(),
             );
 
-            IsEqualWordOperation::<AB::F>::eval(
+            IsEqualWordOperation::eval(
                 builder,
                 local.c.map(|x| x.into()),
                 Word::from(-1i32 as u32).map(|x: AB::F| x.into()),
@@ -631,7 +631,7 @@ where
         // When division by 0, quotient must be 0xffffffff per RISC-V spec.
         {
             // Calculate whether c is 0.
-            IsZeroWordOperation::<AB::F>::eval(
+            IsZeroWordOperation::eval(
                 builder,
                 local.c.map(|x| x.into()),
                 local.is_c_0,

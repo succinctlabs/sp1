@@ -178,7 +178,7 @@ where
             public_values_slice.as_slice().borrow();
 
         // Constrain `is_first_shard` to be 1 if and only if the shard is the first shard.
-        IsZeroOperation::<AB::F>::eval(
+        IsZeroOperation::eval(
             builder,
             public_values.shard.clone() - AB::F::one(),
             mult_local.is_first_shard,

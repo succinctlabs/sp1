@@ -28,13 +28,15 @@ impl<F: Field> IsEqualWordOperation<F> {
         (a_u32 == b_u32) as u32
     }
 
-    pub fn eval<AB: SP1AirBuilder>(
+    pub fn eval<AB>(
         builder: &mut AB,
         a: Word<AB::Expr>,
         b: Word<AB::Expr>,
         cols: IsEqualWordOperation<AB::Var>,
         is_real: AB::Expr,
-    ) {
+    ) where
+        AB: SP1AirBuilder<F = F>,
+    {
         builder.assert_bool(is_real.clone());
 
         // Calculate differences in limbs.
@@ -46,6 +48,6 @@ impl<F: Field> IsEqualWordOperation<F> {
         ]);
 
         // Check if the difference is 0.
-        IsZeroWordOperation::<AB::F>::eval(builder, diff, cols.is_diff_zero, is_real.clone());
+        IsZeroWordOperation::eval(builder, diff, cols.is_diff_zero, is_real.clone());
     }
 }
