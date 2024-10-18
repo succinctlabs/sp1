@@ -19,9 +19,14 @@ pub struct ProfileCmd {
     #[arg(long, required = true)]
     trace: PathBuf,
 
-    /// The output file to write the gecko profile to
+    /// The output file to write the gecko profile to, should be a json
     #[arg(short = 'o', long)]
     output: PathBuf,
+
+    /// The sample rate to use for the profile.
+    /// This is the number of instructions to between samples.
+    #[arg(long, default_value = "10")]
+    sample_rate: u64,
 }
 
 pub struct Sample {
@@ -31,9 +36,9 @@ pub struct Sample {
 
 impl ProfileCmd {
     pub fn run(&self) -> anyhow::Result<()> {
-        let samples = collect_samples(&self.elf, &self.trace)?;
+        let samples = collect_samples(&self.elf, &self.trace, self.sample_rate)?;
 
-        println!("Profiled samples len: {}", samples.len());
+        println!("Got {} samples", samples.len());
 
         let start_time = std::time::Instant::now();
         let mut profile_builder = ProfileBuilder::new(
@@ -57,15 +62,16 @@ impl ProfileCmd {
                 last_known_time,
                 frames.into_iter(),
                 // this is actually in instructions but
-                std::time::Duration::from_micros(1),
+                std::time::Duration::from_micros(self.sample_rate),
             );
 
-            last_known_time += std::time::Duration::from_micros(1);
+            last_known_time += std::time::Duration::from_micros(self.sample_rate);
         }
 
         profile_builder.add_thread(thread_builder);
 
-        let mut file = std::fs::File::create(&self.output)?;
+        let canon_path = crate::util::canon_path(&self.output)?;
+        let mut file = std::fs::File::create(&canon_path)?;
         serde_json::to_writer(&mut file, &profile_builder.to_serializable())?;
 
         Ok(())
@@ -73,9 +79,9 @@ impl ProfileCmd {
 }
 
 fn build_goblin_lookups(
-    start_lookup: &mut HashMap<u64, String>,
-    end_lookup: &mut HashMap<u64, String>,
-    func_range_lookup: &mut HashMap<String, (u64, u64)>,
+    start_lookup: &mut HashMap<u64, Rc<str>>,
+    end_lookup: &mut HashMap<u64, Rc<str>>,
+    func_range_lookup: &mut HashMap<Rc<str>, (u64, u64)>,
     elf_name: &str,
 ) -> std::io::Result<()> {
     let buffer = std::fs::read(elf_name).unwrap();
@@ -88,9 +94,11 @@ fn build_goblin_lookups(
             let size = sym.st_size;
             let start_address = sym.st_value;
             let end_address = start_address + size - 4;
-            start_lookup.insert(start_address, demangled_name.to_string());
-            end_lookup.insert(end_address, demangled_name.to_string());
-            func_range_lookup.insert(demangled_name.to_string(), (start_address, end_address));
+            let demangled: Rc<str> = demangled_name.to_string().into();
+
+            start_lookup.insert(start_address, demangled.clone());
+            end_lookup.insert(end_address, demangled.clone());
+            func_range_lookup.insert(demangled, (start_address, end_address));
         }
     }
     Ok(())
@@ -99,6 +107,7 @@ fn build_goblin_lookups(
 pub fn collect_samples(
     elf_path: impl AsRef<Path>,
     trace_path: impl AsRef<Path>,
+    sample_rate: u64,
 ) -> Result<Vec<Sample>> {
     let elf_path = elf_path.as_ref();
     let trace_path = trace_path.as_ref();
@@ -114,7 +123,7 @@ pub fn collect_samples(
     )
     .unwrap();
 
-    let mut function_ranges: Vec<(u64, u64, String)> =
+    let mut function_ranges: Vec<(u64, u64, Rc<str>)> =
         func_range_lookup.iter().map(|(f, &(start, end))| (start, end, f.clone())).collect();
 
     function_ranges.sort_by_key(|&(start, _, _)| start);
@@ -128,7 +137,11 @@ pub fn collect_samples(
 
     // unsafe on 32 bit systems but ...
     let mut samples = Vec::with_capacity(total_lines as usize);
-    for _ in 0..total_lines {
+    for i in 0..total_lines {
+        if i % sample_rate > 0 {
+            continue;
+        }
+
         // Parse pc from hex.
         let mut pc_bytes = [0u8; 4];
         buf.read_exact(&mut pc_bytes).unwrap();
@@ -146,8 +159,8 @@ pub fn collect_samples(
             samples.push(Sample { stack: function_stack.clone() });
 
             // Jump to a new function (not recursive).
-            if !function_stack.iter().any(|stack_item| &**stack_item == f.as_str()) {
-                function_stack.push(f.clone().into());
+            if !function_stack.contains(f) {
+                function_stack.push(f.clone());
                 current_function_range = *func_range_lookup.get(f).unwrap();
             }
         } else {
@@ -162,7 +175,7 @@ pub fn collect_samples(
             let mut unwind_point = 0;
             let mut unwind_found = false;
             for (c, f) in function_stack.iter().enumerate() {
-                let (s, e) = func_range_lookup.get(&**f).unwrap();
+                let (s, e) = func_range_lookup.get(f).unwrap();
                 if pc > *s && pc <= *e {
                     unwind_point = c;
                     unwind_found = true;
