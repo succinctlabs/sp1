@@ -45,7 +45,7 @@ pub struct LtCols<T> {
     pub is_sltu: T,
 
     /// The output operand.
-    pub a: Word<T>,
+    pub a: T,
 
     /// The first input operand.
     pub b: Word<T>,
@@ -183,7 +183,7 @@ impl LtChip {
         let c = event.c.to_le_bytes();
 
         cols.shard = F::from_canonical_u32(event.shard);
-        cols.a = Word(a.map(F::from_canonical_u8));
+        cols.a = F::from_canonical_u8(a[0]);
         cols.b = Word(b.map(F::from_canonical_u8));
         cols.c = Word(c.map(F::from_canonical_u8));
 
@@ -249,7 +249,7 @@ impl LtChip {
         cols.bit_b = cols.msb_b * cols.is_slt;
         cols.bit_c = cols.msb_c * cols.is_slt;
 
-        assert_eq!(cols.a[0], cols.bit_b * (F::one() - cols.bit_c) + cols.is_sign_eq * cols.sltu);
+        assert_eq!(cols.a, cols.bit_b * (F::one() - cols.bit_c) + cols.is_sign_eq * cols.sltu);
 
         blu.add_byte_lookup_event(ByteLookupEvent {
             shard: event.shard,
@@ -351,13 +351,9 @@ where
 
         // Check that `a[0]` is set correctly.
         builder.assert_eq(
-            local.a[0],
+            local.a,
             local.bit_b * (AB::Expr::one() - local.bit_c) + local.is_sign_eq * local.sltu,
         );
-        // Check the 3 most significant bytes of 'a' are zero.
-        builder.assert_zero(local.a[1]);
-        builder.assert_zero(local.a[2]);
-        builder.assert_zero(local.a[3]);
 
         // Verify that the byte equality flags are set correctly, i.e. all are boolean and only
         // at most a single byte flag is set.
@@ -451,7 +447,7 @@ where
         builder.receive_alu(
             local.is_slt * AB::F::from_canonical_u32(Opcode::SLT as u32)
                 + local.is_sltu * AB::F::from_canonical_u32(Opcode::SLTU as u32),
-            local.a,
+            Word([local.a.into(), AB::Expr::zero(), AB::Expr::zero(), AB::Expr::zero()]),
             local.b,
             local.c,
             local.shard,
