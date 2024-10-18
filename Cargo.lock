@@ -2433,11 +2433,11 @@ checksum = "1d758ba1b47b00caf47f24925c0074ecb20d6dfcffe7f6d53395c0465674841a"
 [[package]]
 name = "gecko_profile"
 version = "0.4.0"
-source = "git+https://github.com/mstange/samply#8d4648c7d5b2287fdfa37ece29fbf9af9aa0c9f7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "890852c7e1e02bc6758e325d6b1e0236e4fbf21b492f585ce4d4715be54b4c6a"
 dependencies = [
  "debugid",
  "serde",
- "serde_derive",
  "serde_json",
 ]
 

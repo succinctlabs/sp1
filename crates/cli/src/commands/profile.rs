@@ -53,6 +53,8 @@ impl ProfileCmd {
             samples.len() * self.sample_rate
         );
 
+        check_samples(&samples);
+
         let start_time = std::time::Instant::now();
         let mut profile_builder = ProfileBuilder::new(
             start_time,
@@ -214,6 +216,25 @@ pub fn collect_samples(
     }
 
     Ok(samples)
+}
+
+/// ensure the samples collected appear valid
+/// for now, we just make sure that the `main` function is present
+/// for at least 90% of the samples
+///
+/// Panics if the samples are invalid
+fn check_samples(samples: &Vec<Sample>) {
+    let mut main_count = 0;
+    for sample in samples {
+        if sample.stack.iter().any(|f| &**f == "main") {
+            main_count += 1;
+        }
+    }
+
+    let main_ratio = main_count as f64 / samples.len() as f64;
+    if main_ratio < 0.9 {
+        panic!("This trace appears to be invalid. The `main` function is present in only {:.2}% of the samples", main_ratio * 100.0);
+    }
 }
 
 /// Check if samply is installed otherwise install it.
