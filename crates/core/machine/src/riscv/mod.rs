@@ -543,8 +543,7 @@ pub mod tests {
     use crate::{
         io::SP1Stdin,
         riscv::RiscvAir,
-        utils,
-        utils::{prove, run_test, setup_logger},
+        utils::{self, prove, run_test, setup_logger, tests::load_const_to_register},
     };
 
     use sp1_core_executor::{
@@ -573,11 +572,10 @@ pub mod tests {
             [(1, 1), (1234, 5678), (0xffff, 0xffff - 1), (u32::MAX - 1, u32::MAX), (u32::MAX, 0)];
         for shift_op in shift_ops.iter() {
             for op in operands.iter() {
-                let instructions = vec![
-                    Instruction::new(Opcode::ADD, 29, 0, op.0, false, true),
-                    Instruction::new(Opcode::ADD, 30, 0, op.1, false, true),
-                    Instruction::new(*shift_op, 31, 29, 3, false, false),
-                ];
+                let mut instructions = vec![];
+                instructions.extend(load_const_to_register(29, op.0));
+                instructions.extend(load_const_to_register(30, op.1));
+                instructions.extend(vec![Instruction::new(*shift_op, 31, 29, 30, false, false)]);
                 let program = Program::new(instructions, 0, 0);
                 run_test::<CpuProver<_, _>>(program).unwrap();
             }
@@ -616,11 +614,10 @@ pub mod tests {
             [(1, 1), (1234, 5678), (8765, 4321), (0xffff, 0xffff - 1), (u32::MAX - 1, u32::MAX)];
         for mul_op in mul_ops.iter() {
             for operand in operands.iter() {
-                let instructions = vec![
-                    Instruction::new(Opcode::ADD, 29, 0, operand.0, false, true),
-                    Instruction::new(Opcode::ADD, 30, 0, operand.1, false, true),
-                    Instruction::new(*mul_op, 31, 30, 29, false, false),
-                ];
+                let mut instructions = vec![];
+                instructions.extend(load_const_to_register(29, operand.0));
+                instructions.extend(load_const_to_register(30, operand.1));
+                instructions.extend(vec![Instruction::new(*mul_op, 31, 29, 30, false, false)]);
                 let program = Program::new(instructions, 0, 0);
                 run_test::<CpuProver<_, _>>(program).unwrap();
             }
@@ -671,11 +668,10 @@ pub mod tests {
         ];
         for div_rem_op in div_rem_ops.iter() {
             for op in operands.iter() {
-                let instructions = vec![
-                    Instruction::new(Opcode::ADD, 29, 0, op.0, false, true),
-                    Instruction::new(Opcode::ADD, 30, 0, op.1, false, true),
-                    Instruction::new(*div_rem_op, 31, 29, 30, false, false),
-                ];
+                let mut instructions = vec![];
+                instructions.extend(load_const_to_register(29, op.0));
+                instructions.extend(load_const_to_register(30, op.1));
+                instructions.extend(vec![Instruction::new(*div_rem_op, 31, 29, 30, false, false)]);
                 let program = Program::new(instructions, 0, 0);
                 run_test::<CpuProver<_, _>>(program).unwrap();
             }
