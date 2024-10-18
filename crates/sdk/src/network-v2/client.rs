@@ -63,7 +63,6 @@ impl NetworkClient {
 
         // Check if the URL scheme is HTTPS and configure TLS.
         if rpc_url.starts_with("https://") {
-            println!("Using TLS");
             let tls_config = ClientTlsConfig::new().with_enabled_roots();
             endpoint = endpoint.tls_config(tls_config)?;
         }
@@ -79,7 +78,6 @@ impl NetworkClient {
 
         // Check if the URL scheme is HTTPS and configure TLS.
         if rpc_url.starts_with("https://") {
-            println!("Using TLS");
             let tls_config = ClientTlsConfig::new().with_enabled_roots();
             endpoint = endpoint.tls_config(tls_config)?;
         }
@@ -118,7 +116,7 @@ impl NetworkClient {
             })
             .await?
             .into_inner();
-        let status = ProofStatus::try_from(res.status)?;
+        let status = ProofStatus::try_from(res.proof_status)?;
         let proof = match status {
             ProofStatus::Fulfilled => {
                 log::info!("Proof request fulfilled");
@@ -138,14 +136,18 @@ impl NetworkClient {
     /// Get all the proof requests for a given status. Also filter by version if provided.
     pub async fn get_filtered_proof_requests(
         &self,
-        status: ProofStatus,
-        version: Option<&str>,
+        version: Option<String>,
+        proof_status: Option<i32>,
+        execution_status: Option<i32>,
+        limit: Option<u32>,
     ) -> Result<GetFilteredProofRequestsResponse> {
         let mut rpc = self.get_rpc().await?;
         let res = rpc
             .get_filtered_proof_requests(GetFilteredProofRequestsRequest {
-                status: status.into(),
-                version: version.map(|v| v.to_string()).unwrap_or_default(),
+                version,
+                proof_status,
+                execution_status,
+                limit,
             })
             .await?
             .into_inner();
