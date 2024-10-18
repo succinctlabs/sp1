@@ -273,7 +273,9 @@ impl CpuChip {
         );
 
         // Verify that the first row has a clk value of 0.
-        builder.when_first_row().assert_zero(local.clk);
+        builder.when_first_row().assert_zero(
+            local.clk_16bit_limb + AB::Expr::from_canonical_u32(1 << 16) * local.clk_8bit_limb,
+        );
 
         // Verify that the clk increments are correct.  Most clk increment should be 4, but for some
         // precompiles, there are additional cycles.
@@ -281,14 +283,19 @@ impl CpuChip {
 
         // We already assert that `local.clk < 2^24`. `num_extra_cycles` is an entry of a word and
         // therefore less than `2^8`, this means that the sum cannot overflow in a 31 bit field.
-        let expected_next_clk =
-            local.clk + AB::Expr::from_canonical_u32(4) + num_extra_cycles.clone();
+        let expected_next_clk = local.clk_16bit_limb
+            + AB::Expr::from_canonical_u32(1 << 16) * local.clk_8bit_limb
+            + AB::Expr::from_canonical_u32(4)
+            + num_extra_cycles.clone();
 
-        builder.when_transition().when(next.is_real).assert_eq(expected_next_clk.clone(), next.clk);
+        builder.when_transition().when(next.is_real).assert_eq(
+            expected_next_clk.clone(),
+            next.clk_16bit_limb + AB::Expr::from_canonical_u32(1 << 16) * next.clk_8bit_limb,
+        );
 
         // Range check that the clk is within 24 bits using it's limb values.
         builder.eval_range_check_24bits(
-            local.clk,
+            local.clk_16bit_limb + AB::Expr::from_canonical_u32(1 << 16) * local.clk_8bit_limb,
             local.clk_16bit_limb,
             local.clk_8bit_limb,
             local.is_real,

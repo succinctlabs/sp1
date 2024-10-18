@@ -53,7 +53,7 @@ impl CpuChip {
 
         builder.send_syscall(
             local.shard,
-            local.clk,
+            local.clk_16bit_limb + AB::Expr::from_canonical_u32(1 << 16) * local.clk_8bit_limb,
             ecall_cols.syscall_nonce,
             syscall_id,
             local.op_b_val().reduce::<AB>(),

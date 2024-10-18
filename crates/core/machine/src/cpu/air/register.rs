@@ -27,7 +27,9 @@ impl CpuChip {
         // If they are not immediates, read `b` and `c` from memory.
         builder.eval_memory_access(
             local.shard,
-            local.clk + AB::F::from_canonical_u32(MemoryAccessPosition::B as u32),
+            local.clk_16bit_limb
+                + AB::Expr::from_canonical_u32(1 << 16) * local.clk_8bit_limb
+                + AB::F::from_canonical_u32(MemoryAccessPosition::B as u32),
             local.instruction.op_b[0],
             &local.op_b_access,
             AB::Expr::one() - local.selectors.imm_b,
@@ -35,7 +37,9 @@ impl CpuChip {
 
         builder.eval_memory_access(
             local.shard,
-            local.clk + AB::F::from_canonical_u32(MemoryAccessPosition::C as u32),
+            local.clk_16bit_limb
+                + AB::Expr::from_canonical_u32(1 << 16) * local.clk_8bit_limb
+                + AB::F::from_canonical_u32(MemoryAccessPosition::C as u32),
             local.instruction.op_c[0],
             &local.op_c_access,
             AB::Expr::one() - local.selectors.imm_c,
@@ -48,7 +52,9 @@ impl CpuChip {
         // we are performing a branch or a store.
         builder.eval_memory_access(
             local.shard,
-            local.clk + AB::F::from_canonical_u32(MemoryAccessPosition::A as u32),
+            local.clk_16bit_limb
+                + AB::Expr::from_canonical_u32(1 << 16) * local.clk_8bit_limb
+                + AB::F::from_canonical_u32(MemoryAccessPosition::A as u32),
             local.instruction.op_a[0],
             &local.op_a_access,
             local.is_real,

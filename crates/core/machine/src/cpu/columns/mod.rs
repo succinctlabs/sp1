@@ -37,7 +37,6 @@ pub struct CpuCols<T: Copy> {
     pub nonce: T,
 
     /// The clock cycle value.  This should be within 24 bits.
-    pub clk: T,
     /// The least significant 16 bit limb of clk.
     pub clk_16bit_limb: T,
     /// The most significant 8 bit limb of clk.
