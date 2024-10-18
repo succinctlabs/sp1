@@ -12,7 +12,7 @@ use sp1_stark::{
 use crate::{
     air::WordAirBuilder,
     cpu::{
-        columns::{CpuCols, OpcodeSelectorCols},
+        columns::{reconstruct_clk, CpuCols, OpcodeSelectorCols},
         CpuChip,
     },
     memory::MemoryCols,
@@ -53,7 +53,7 @@ impl CpuChip {
 
         builder.send_syscall(
             local.shard,
-            local.clk_16bit_limb + AB::Expr::from_canonical_u32(1 << 16) * local.clk_8bit_limb,
+            reconstruct_clk::<AB>(local),
             ecall_cols.syscall_nonce,
             syscall_id,
             local.op_b_val().reduce::<AB>(),

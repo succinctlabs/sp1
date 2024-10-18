@@ -16,9 +16,10 @@ pub use memory::*;
 pub use opcode::*;
 pub use opcode_specific::*;
 
+use p3_field::AbstractField;
 use p3_util::indices_arr;
 use sp1_derive::AlignedBorrow;
-use sp1_stark::Word;
+use sp1_stark::{air::SP1AirBuilder, Word};
 use std::mem::{size_of, transmute};
 
 use crate::memory::{MemoryCols, MemoryReadCols, MemoryReadWriteCols};
@@ -132,6 +133,10 @@ impl<T: Copy> CpuCols<T> {
     pub fn op_c_val(&self) -> Word<T> {
         *self.op_c_access.value()
     }
+}
+
+pub fn reconstruct_clk<AB: SP1AirBuilder>(cols: &CpuCols<AB::Var>) -> AB::Expr {
+    cols.clk_16bit_limb + AB::Expr::from_canonical_u32(1 << 16) * cols.clk_8bit_limb
 }
 
 /// Creates the column map for the CPU.

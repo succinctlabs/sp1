@@ -3,7 +3,10 @@ use sp1_stark::air::SP1AirBuilder;
 
 use crate::{
     air::{MemoryAirBuilder, WordAirBuilder},
-    cpu::{columns::CpuCols, CpuChip},
+    cpu::{
+        columns::{reconstruct_clk, CpuCols},
+        CpuChip,
+    },
     memory::MemoryCols,
 };
 use sp1_core_executor::events::MemoryAccessPosition;
@@ -27,8 +30,7 @@ impl CpuChip {
         // If they are not immediates, read `b` and `c` from memory.
         builder.eval_memory_access(
             local.shard,
-            local.clk_16bit_limb
-                + AB::Expr::from_canonical_u32(1 << 16) * local.clk_8bit_limb
+            reconstruct_clk::<AB>(local)
                 + AB::F::from_canonical_u32(MemoryAccessPosition::B as u32),
             local.instruction.op_b[0],
             &local.op_b_access,
@@ -37,8 +39,7 @@ impl CpuChip {
 
         builder.eval_memory_access(
             local.shard,
-            local.clk_16bit_limb
-                + AB::Expr::from_canonical_u32(1 << 16) * local.clk_8bit_limb
+            reconstruct_clk::<AB>(local)
                 + AB::F::from_canonical_u32(MemoryAccessPosition::C as u32),
             local.instruction.op_c[0],
             &local.op_c_access,
@@ -52,8 +53,7 @@ impl CpuChip {
         // we are performing a branch or a store.
         builder.eval_memory_access(
             local.shard,
-            local.clk_16bit_limb
-                + AB::Expr::from_canonical_u32(1 << 16) * local.clk_8bit_limb
+            reconstruct_clk::<AB>(local)
                 + AB::F::from_canonical_u32(MemoryAccessPosition::A as u32),
             local.instruction.op_a[0],
             &local.op_a_access,

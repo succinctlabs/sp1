@@ -5,7 +5,7 @@ use sp1_stark::{air::SP1AirBuilder, Word};
 use crate::{
     air::{SP1CoreAirBuilder, WordAirBuilder},
     cpu::{
-        columns::{CpuCols, MemoryColumns, OpcodeSelectorCols},
+        columns::{reconstruct_clk, CpuCols, MemoryColumns, OpcodeSelectorCols},
         CpuChip,
     },
     memory::MemoryCols,
@@ -99,8 +99,7 @@ impl CpuChip {
         // value into the memory columns.
         builder.eval_memory_access(
             local.shard,
-            local.clk_16bit_limb
-                + AB::Expr::from_canonical_u32(1 << 16) * local.clk_8bit_limb
+            reconstruct_clk::<AB>(local)
                 + AB::F::from_canonical_u32(MemoryAccessPosition::Memory as u32),
             memory_columns.addr_aligned,
             &memory_columns.memory_access,
