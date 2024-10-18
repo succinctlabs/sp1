@@ -35,7 +35,9 @@ pub mod compress_tests {
     use sp1_core_executor::{syscalls::SyscallCode, Instruction, Opcode, Program};
     use sp1_stark::CpuProver;
 
-    use crate::utils::{run_test, setup_logger, tests::SHA_COMPRESS_ELF};
+    use crate::utils::{
+        run_test, setup_logger, tests::load_const_to_register, tests::SHA_COMPRESS_ELF,
+    };
 
     pub fn sha_compress_program() -> Program {
         let w_ptr = 100;
@@ -53,8 +55,9 @@ pub mod compress_tests {
                 Instruction::new(Opcode::SW, 29, 30, 0, false, true),
             ]);
         }
+
+        instructions.extend(load_const_to_register(5, SyscallCode::SHA_COMPRESS as u32));
         instructions.extend(vec![
-            Instruction::new(Opcode::ADD, 5, 0, SyscallCode::SHA_COMPRESS as u32, false, true),
             Instruction::new(Opcode::ADD, 10, 0, w_ptr, false, true),
             Instruction::new(Opcode::ADD, 11, 0, h_ptr, false, true),
             Instruction::new(Opcode::ECALL, 5, 10, 11, false, false),
