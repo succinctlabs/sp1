@@ -2,14 +2,14 @@
 
 You may want to use SP1 in your [Github Actions](https://docs.github.com/en/actions) CI workflow.
 
-You first need have Rust installed, and you can use
+You first need to have Rust installed, and you can use
 [actions-rs/toolchain](https://github.com/actions-rs/toolchain) for this:
 
 ```yaml
 - name: Install Rust Toolchain
   uses: actions-rs/toolchain@v1
   with:
-    toolchain: 1.79.0
+    toolchain: 1.81.0
     profile: default
     override: true
     default: true

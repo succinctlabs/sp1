@@ -3,6 +3,14 @@ inputs:
   pull_token:
     description: "Token to use for private repo access"
     required: true
+  setup_gcc:
+    description: "Whether to setup GCC or not"
+    required: false
+    default: 'true'
+  setup_aws_cli:
+    description: "Whether to install AWS CLI or not"
+    required: false
+    default: 'true'
 runs:
   using: "composite"
   steps:
@@ -22,10 +30,40 @@ runs:
       shell: bash
       run: go version
 
+    - name: Check GCC version
+      id: check-gcc
+      shell: bash
+      run: |
+        if command -v gcc &> /dev/null; then
+          echo "gcc_exists=true" >> $GITHUB_OUTPUT
+          echo "gcc_version=$(gcc --version | head -n1 | awk '{print $NF}')" >> $GITHUB_OUTPUT
+        else
+          echo "gcc_exists=false" >> $GITHUB_OUTPUT
+        fi
+
     - name: Setup GCC
       uses: Dup4/actions-setup-gcc@v1
+      if: inputs.setup_gcc == 'true' && steps.check-gcc.outputs.gcc_exists != 'true'
       with:
         version: latest
+
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.10' 
+
+    - name: Install AWS CLI v2
+      if: inputs.setup_aws_cli == 'true'
+      shell: bash
+      run: |
+        if ! command -v aws &> /dev/null; then
+          echo "AWS CLI not found. Installing..."
+          python3 -m pip install --user awscli
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+        else
+          echo "AWS CLI is already installed."
+        fi
+        export PATH="$HOME/.local/bin:$PATH"
+        aws --version
 
     - name: rust-cache
       uses: actions/cache@v3
@@ -37,11 +75,28 @@ runs:
           ~/.cargo/git/db/
           target/
           ~/.rustup/
-        key: rust-1.79.0-${{ hashFiles('**/Cargo.toml') }}
-        restore-keys: rust-1.79.0-
+        key: rust-1.81.0-${{ hashFiles('**/Cargo.toml') }}
+        restore-keys: rust-1.81.0-
 
     - name: Setup toolchain
       id: rustc-toolchain
       shell: bash
       run: |
-        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --default-toolchain 1.79.0 -y
+        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --default-toolchain 1.81.0 -y
+        . "$HOME/.cargo/env" 
+        echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+    # install pkg-config and openssl
+    - name: Install pkg-config and openssl
+      shell: bash
+      run: |
+        if ! dpkg -s pkg-config libssl-dev &> /dev/null; then
+          echo "pkg-config and/or libssl-dev not found. Installing..."
+          sudo apt-get update
+          sudo apt-get install -y pkg-config libssl-dev
+        else
+          echo "pkg-config and libssl-dev are already installed."
+        fi
+      
+    - name: Set up Docker
+      uses: docker/setup-buildx-action@v3

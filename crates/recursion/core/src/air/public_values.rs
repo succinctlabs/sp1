@@ -11,12 +11,12 @@ use sp1_stark::{air::POSEIDON_NUM_WORDS, Word, PROOF_MAX_NUM_PVS};
 use static_assertions::const_assert_eq;
 use std::{
     borrow::BorrowMut,
-    mem::{size_of, transmute},
+    mem::{size_of, transmute, MaybeUninit},
 };
 
 pub const PV_DIGEST_NUM_WORDS: usize = 8;
 
-pub const CHALLENGER_STATE_NUM_ELTS: usize = 50;
+pub const CHALLENGER_STATE_NUM_ELTS: usize = size_of::<ChallengerPublicValues<u8>>();
 
 pub const RECURSIVE_PROOF_NUM_PV_ELTS: usize = size_of::<RecursionPublicValues<u8>>();
 
@@ -46,7 +46,7 @@ pub struct ChallengerPublicValues<T> {
     pub output_buffer: [T; PERMUTATION_WIDTH],
 }
 
-impl<T: Clone + Debug> ChallengerPublicValues<T> {
+impl<T: Clone> ChallengerPublicValues<T> {
     pub fn set_challenger<P: CryptographicPermutation<[T; PERMUTATION_WIDTH]>>(
         &self,
         challenger: &mut DuplexChallenger<T, P, PERMUTATION_WIDTH, HASH_RATE>,
@@ -58,6 +58,18 @@ impl<T: Clone + Debug> ChallengerPublicValues<T> {
         challenger.input_buffer = self.input_buffer[..num_inputs].to_vec();
         let num_outputs = self.num_outputs.as_canonical_u32() as usize;
         challenger.output_buffer = self.output_buffer[..num_outputs].to_vec();
+    }
+
+    pub fn as_array(&self) -> [T; CHALLENGER_STATE_NUM_ELTS]
+    where
+        T: Copy,
+    {
+        unsafe {
+            let mut ret = [MaybeUninit::<T>::zeroed().assume_init(); CHALLENGER_STATE_NUM_ELTS];
+            let pv: &mut ChallengerPublicValues<T> = ret.as_mut_slice().borrow_mut();
+            *pv = *self;
+            ret
+        }
     }
 }
 
@@ -116,33 +128,57 @@ pub struct RecursionPublicValues<T> {
     /// The commitment to the sp1 program being proven.
     pub sp1_vk_digest: [T; DIGEST_SIZE],
 
-    /// The commitment to the compress key being used in recursive verification.
-    pub compress_vk_digest: [T; DIGEST_SIZE],
+    /// The root of the vk merkle tree.
+    pub vk_root: [T; DIGEST_SIZE],
 
     /// The leaf challenger containing the entropy from the main trace commitment.
     pub leaf_challenger: ChallengerPublicValues<T>,
 
-    /// Current cumulative sum of lookup bus.
+    /// Current cumulative sum of lookup bus.  Note that for recursive proofs for core proofs, this
+    /// contains the global cumulative sum.  For all other proofs, it's the local cumulative sum.
     pub cumulative_sum: [T; 4],
 
     /// Whether the proof completely proves the program execution.
     pub is_complete: T,
 
-    /// The digest of all the previous public values elements.
-    pub digest: [T; DIGEST_SIZE],
+    /// Whether the proof represents a collection of shards which contain at least one execution
+    /// shard, i.e. a shard that contains the `cpu` chip.
+    pub contains_execution_shard: T,
 
     /// The exit code of the program.  Note that this is not part of the public values digest,
     /// since it's value will be individually constrained.
     pub exit_code: T,
+
+    /// The digest of all the previous public values elements.
+    pub digest: [T; DIGEST_SIZE],
 }
 
 /// Converts the public values to an array of elements.
-impl<F: Default + Copy> RecursionPublicValues<F> {
-    pub fn to_vec(&self) -> [F; RECURSIVE_PROOF_NUM_PV_ELTS] {
-        let mut ret = [F::default(); RECURSIVE_PROOF_NUM_PV_ELTS];
-        let pv: &mut RecursionPublicValues<F> = ret.as_mut_slice().borrow_mut();
+impl<F: Copy> RecursionPublicValues<F> {
+    pub fn as_array(&self) -> [F; RECURSIVE_PROOF_NUM_PV_ELTS] {
+        unsafe {
+            let mut ret = [MaybeUninit::<F>::zeroed().assume_init(); RECURSIVE_PROOF_NUM_PV_ELTS];
+            let pv: &mut RecursionPublicValues<F> = ret.as_mut_slice().borrow_mut();
+            *pv = *self;
+            ret
+        }
+    }
+}
 
-        *pv = *self;
-        ret
+impl<T: Copy> IntoIterator for RecursionPublicValues<T> {
+    type Item = T;
+    type IntoIter = std::array::IntoIter<T, RECURSIVE_PROOF_NUM_PV_ELTS>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.as_array().into_iter()
+    }
+}
+
+impl<T: Copy> IntoIterator for ChallengerPublicValues<T> {
+    type Item = T;
+    type IntoIter = std::array::IntoIter<T, CHALLENGER_STATE_NUM_ELTS>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.as_array().into_iter()
     }
 }

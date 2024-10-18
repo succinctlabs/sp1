@@ -1,0 +1,43 @@
+[workspace]
+members = [
+  "common",
+  "bls12381-add",
+  "bls12381-decompress",
+  "bls12381-double",
+  "bls12381-fp",
+  "bls12381-fp2-addsub",
+  "bls12381-fp2-mul",
+  "bls12381-mul",
+  "bn254-add",
+  "bn254-double",
+  "bn254-fp",
+  "bn254-fp2-addsub",
+  "bn254-fp2-mul",
+  "bn254-mul",
+  "cycle-tracker",
+  "ed-add",
+  "ed-decompress",
+  "ed25519",
+  "fibonacci",
+  "hint-io",
+  "keccak-permute",
+  "keccak256",
+  "panic",
+  "rand",
+  "secp256k1-add",
+  "secp256k1-decompress",
+  "secp256k1-double",
+  "secp256k1-mul",
+  "sha-compress",
+  "sha-extend",
+  "sha2",
+  "tendermint-benchmark",
+  "uint256-arith",
+  "uint256-mul",
+  "verify-proof",
+]
+resolver = "2"
+
+[patch.crates-io]
+sha2-v0-9-8 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", package = "sha2", branch = "patch-v0.9.8" }
+ed25519-consensus = { git = "https://github.com/sp1-patches/ed25519-consensus", branch = "patch-v2.1.0" }

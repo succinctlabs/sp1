@@ -2,7 +2,10 @@ use p3_air::AirBuilder;
 use p3_field::AbstractField;
 use sp1_core_executor::syscalls::SyscallCode;
 use sp1_stark::{
-    air::{BaseAirBuilder, PublicValues, SP1AirBuilder, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS},
+    air::{
+        BaseAirBuilder, InteractionScope, PublicValues, SP1AirBuilder, POSEIDON_NUM_WORDS,
+        PV_DIGEST_NUM_WORDS,
+    },
     Word,
 };
 
@@ -50,13 +53,13 @@ impl CpuChip {
 
         builder.send_syscall(
             local.shard,
-            local.channel,
             local.clk,
             ecall_cols.syscall_nonce,
             syscall_id,
             local.op_b_val().reduce::<AB>(),
             local.op_c_val().reduce::<AB>(),
             local.ecall_mul_send_to_table,
+            InteractionScope::Local,
         );
 
         // Compute whether this ecall is ENTER_UNCONSTRAINED.

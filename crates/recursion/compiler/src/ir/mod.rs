@@ -1,5 +1,6 @@
-use p3_field::{ExtensionField, PrimeField, TwoAdicField};
+use p3_field::{ExtensionField, PrimeField, PrimeField32, TwoAdicField};
 
+mod arithmetic;
 mod bits;
 mod builder;
 mod collections;
@@ -12,6 +13,7 @@ mod types;
 mod utils;
 mod var;
 
+pub use arithmetic::*;
 pub use builder::*;
 pub use collections::*;
 pub use fold::*;
@@ -23,6 +25,6 @@ pub use var::*;
 
 pub trait Config: Clone + Default {
     type N: PrimeField;
-    type F: PrimeField + TwoAdicField;
+    type F: PrimeField32 + TwoAdicField;
     type EF: ExtensionField<Self::F> + TwoAdicField;
 }

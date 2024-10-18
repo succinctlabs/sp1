@@ -47,7 +47,7 @@ use sp1_derive::AlignedBorrow;
 use sp1_primitives::consts::WORD_SIZE;
 use sp1_stark::{air::MachineAir, MachineRecord, Word};
 
-use crate::{air::SP1CoreAirBuilder, alu::mul::utils::get_msb, utils::pad_to_power_of_two};
+use crate::{air::SP1CoreAirBuilder, alu::mul::utils::get_msb, utils::pad_rows_fixed};
 
 /// The number of main trace columns for `MulChip`.
 pub const NUM_MUL_COLS: usize = size_of::<MulCols<u8>>();
@@ -72,9 +72,6 @@ pub struct MulChip;
 pub struct MulCols<T> {
     /// The shard number, used for byte lookup table.
     pub shard: T,
-
-    /// The channel number, used for byte lookup table.
-    pub channel: T,
 
     /// The nonce of the operation.
     pub nonce: T,
@@ -194,7 +191,6 @@ impl<F: PrimeField> MachineAir<F> for MulChip {
                                     let most_significant_byte = word[WORD_SIZE - 1];
                                     blu_events.push(ByteLookupEvent {
                                         shard: event.shard,
-                                        channel: event.channel,
                                         opcode: ByteOpcode::MSB,
                                         a1: get_msb(*word) as u16,
                                         a2: 0,
@@ -238,20 +234,11 @@ impl<F: PrimeField> MachineAir<F> for MulChip {
                         cols.is_mulhu = F::from_bool(event.opcode == Opcode::MULHU);
                         cols.is_mulhsu = F::from_bool(event.opcode == Opcode::MULHSU);
                         cols.shard = F::from_canonical_u32(event.shard);
-                        cols.channel = F::from_canonical_u8(event.channel);
 
                         // Range check.
                         {
-                            record.add_u16_range_checks(
-                                event.shard,
-                                event.channel,
-                                &carry.map(|x| x as u16),
-                            );
-                            record.add_u8_range_checks(
-                                event.shard,
-                                event.channel,
-                                &product.map(|x| x as u8),
-                            );
+                            record.add_u16_range_checks(event.shard, &carry.map(|x| x as u16));
+                            record.add_u8_range_checks(event.shard, &product.map(|x| x as u8));
                         }
                         row
                     })
@@ -267,12 +254,16 @@ impl<F: PrimeField> MachineAir<F> for MulChip {
             output.append(&mut row_and_record.1);
         }
 
+        // Pad the trace to a power of two depending on the proof shape in `input`.
+        pad_rows_fixed(
+            &mut rows,
+            || [F::zero(); NUM_MUL_COLS],
+            input.fixed_log2_rows::<F, _>(self),
+        );
+
         // Convert the trace to a row major matrix.
         let mut trace =
             RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_MUL_COLS);
-
-        // Pad the trace to a power of two.
-        pad_to_power_of_two::<NUM_MUL_COLS, F>(&mut trace.values);
 
         // Write the nonces to the trace.
         for i in 0..trace.height() {
@@ -285,7 +276,11 @@ impl<F: PrimeField> MachineAir<F> for MulChip {
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
-        !shard.mul_events.is_empty()
+        if let Some(shape) = shard.shape.as_ref() {
+            shape.included::<F, _>(self)
+        } else {
+            !shard.mul_events.is_empty()
+        }
     }
 }
 
@@ -323,15 +318,7 @@ where
             for msb_pair in msb_pairs.iter() {
                 let msb = msb_pair.0;
                 let byte = msb_pair.1;
-                builder.send_byte(
-                    opcode,
-                    msb,
-                    byte,
-                    zero.clone(),
-                    local.shard,
-                    local.channel,
-                    local.is_real,
-                );
+                builder.send_byte(opcode, msb, byte, zero.clone(), local.is_real);
             }
             (local.b_msb, local.c_msb)
         };
@@ -443,9 +430,9 @@ where
             // Ensure that the carry is at most 2^16. This ensures that
             // product_before_carry_propagation - carry * base + last_carry never overflows or
             // underflows enough to "wrap" around to create a second solution.
-            builder.slice_range_check_u16(&local.carry, local.shard, local.channel, local.is_real);
+            builder.slice_range_check_u16(&local.carry, local.is_real);
 
-            builder.slice_range_check_u8(&local.product, local.shard, local.channel, local.is_real);
+            builder.slice_range_check_u8(&local.product, local.is_real);
         }
 
         // Receive the arguments.
@@ -455,7 +442,6 @@ where
             local.b,
             local.c,
             local.shard,
-            local.channel,
             local.nonce,
             local.is_real,
         );
@@ -481,7 +467,6 @@ mod tests {
         let mut mul_events: Vec<AluEvent> = Vec::new();
         for _ in 0..10i32.pow(7) {
             mul_events.push(AluEvent::new(
-                0,
                 0,
                 0,
                 Opcode::MULHSU,
@@ -557,12 +542,12 @@ mod tests {
             (Opcode::MULH, 0xffffffff, 0x00000001, 0xffffffff),
         ];
         for t in mul_instructions.iter() {
-            mul_events.push(AluEvent::new(0, 0, 0, t.0, t.1, t.2, t.3));
+            mul_events.push(AluEvent::new(0, 0, t.0, t.1, t.2, t.3));
         }
 
         // Append more events until we have 1000 tests.
         for _ in 0..(1000 - mul_instructions.len()) {
-            mul_events.push(AluEvent::new(0, 0, 0, Opcode::MUL, 1, 1, 1));
+            mul_events.push(AluEvent::new(0, 0, Opcode::MUL, 1, 1, 1));
         }
 
         shard.mul_events = mul_events;

@@ -159,6 +159,13 @@ impl<C: Config + Debug> ConstraintCompiler<C> {
                         args: vec![vec![a.id()], vec![b.id()], vec![tmp]],
                     });
                 }
+                DslIr::SubFIN(a, b, c) => {
+                    let temp = self.alloc_f(&mut constraints, b);
+                    constraints.push(Constraint {
+                        opcode: ConstraintOpcode::SubF,
+                        args: vec![vec![a.id()], vec![temp], vec![c.id()]],
+                    });
+                }
                 DslIr::SubE(a, b, c) => constraints.push(Constraint {
                     opcode: ConstraintOpcode::SubE,
                     args: vec![vec![a.id()], vec![b.id()], vec![c.id()]],
@@ -225,6 +232,14 @@ impl<C: Config + Debug> ConstraintCompiler<C> {
                         args: vec![vec![a.id()], vec![tmp], vec![c.id()]],
                     });
                 }
+                DslIr::DivF(a, b, c) => constraints.push(Constraint {
+                    opcode: ConstraintOpcode::DivF,
+                    args: vec![vec![a.id()], vec![b.id()], vec![c.id()]],
+                }),
+                DslIr::DivEF(a, b, c) => constraints.push(Constraint {
+                    opcode: ConstraintOpcode::DivEF,
+                    args: vec![vec![a.id()], vec![b.id()], vec![c.id()]],
+                }),
                 DslIr::DivE(a, b, c) => constraints.push(Constraint {
                     opcode: ConstraintOpcode::DivE,
                     args: vec![vec![a.id()], vec![b.id()], vec![c.id()]],
@@ -316,6 +331,17 @@ impl<C: Config + Debug> ConstraintCompiler<C> {
                     opcode: ConstraintOpcode::AssertEqE,
                     args: vec![vec![a.id()], vec![b.id()]],
                 }),
+                DslIr::AssertNeF(a, b) => constraints.push(Constraint {
+                    opcode: ConstraintOpcode::AssertNeF,
+                    args: vec![vec![a.id()], vec![b.id()]],
+                }),
+                DslIr::AssertNeFI(a, b) => {
+                    let tmp = self.alloc_f(&mut constraints, b);
+                    constraints.push(Constraint {
+                        opcode: ConstraintOpcode::AssertNeF,
+                        args: vec![vec![a.id()], vec![tmp]],
+                    });
+                }
                 DslIr::AssertEqEI(a, b) => {
                     let tmp = self.alloc_e(&mut constraints, b);
                     constraints.push(Constraint {
@@ -351,7 +377,7 @@ impl<C: Config + Debug> ConstraintCompiler<C> {
                     opcode: ConstraintOpcode::CommitVkeyHash,
                     args: vec![vec![a.id()]],
                 }),
-                DslIr::CircuitCommitCommitedValuesDigest(a) => constraints.push(Constraint {
+                DslIr::CircuitCommitCommittedValuesDigest(a) => constraints.push(Constraint {
                     opcode: ConstraintOpcode::CommitCommitedValuesDigest,
                     args: vec![vec![a.id()]],
                 }),

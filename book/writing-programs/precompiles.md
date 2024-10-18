@@ -19,5 +19,5 @@ If you are an advanced user you can interact with the precompiles directly using
 Here is a list of all available system calls & precompiles.
 
 ```rust,noplayground
-{{#include ../../zkvm/lib/src/lib.rs}}
+{{#include ../../crates/zkvm/lib/src/lib.rs}}
 ```

@@ -25,6 +25,7 @@ fn main() {
                 .env("CGO_ENABLED", "1")
                 .args([
                     "build",
+                    "-tags=debug",
                     "-o",
                     dest.to_str().unwrap(),
                     "-buildmode=c-archive",
@@ -45,7 +46,6 @@ fn main() {
             let header_path = dest_path.join(format!("lib{}.h", lib_name));
             let bindings = bindgen::Builder::default()
                 .header(header_path.to_str().unwrap())
-                .parse_callbacks(Box::new(CargoCallbacks::new()))
                 .generate()
                 .expect("Unable to generate bindings");
 

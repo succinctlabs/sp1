@@ -49,7 +49,7 @@ use sp1_derive::AlignedBorrow;
 use sp1_primitives::consts::WORD_SIZE;
 use sp1_stark::{air::MachineAir, Word};
 
-use crate::{air::SP1CoreAirBuilder, utils::pad_to_power_of_two};
+use crate::{air::SP1CoreAirBuilder, utils::pad_rows_fixed};
 
 /// The number of main trace columns for `ShiftLeft`.
 pub const NUM_SHIFT_LEFT_COLS: usize = size_of::<ShiftLeftCols<u8>>();
@@ -67,9 +67,6 @@ pub struct ShiftLeft;
 pub struct ShiftLeftCols<T> {
     /// The shard number, used for byte lookup table.
     pub shard: T,
-
-    /// The channel number, used for byte lookup table.
-    pub channel: T,
 
     /// The nonce of the operation.
     pub nonce: T,
@@ -129,14 +126,18 @@ impl<F: PrimeField> MachineAir<F> for ShiftLeft {
             rows.push(row);
         }
 
+        // Pad the trace to a power of two depending on the proof shape in `input`.
+        pad_rows_fixed(
+            &mut rows,
+            || [F::zero(); NUM_SHIFT_LEFT_COLS],
+            input.fixed_log2_rows::<F, _>(self),
+        );
+
         // Convert the trace to a row major matrix.
         let mut trace = RowMajorMatrix::new(
             rows.into_iter().flatten().collect::<Vec<_>>(),
             NUM_SHIFT_LEFT_COLS,
         );
-
-        // Pad the trace to a power of two.
-        pad_to_power_of_two::<NUM_SHIFT_LEFT_COLS, F>(&mut trace.values);
 
         // Create the template for the padded rows. These are fake rows that don't fail on some
         // sanity checks.
@@ -183,7 +184,11 @@ impl<F: PrimeField> MachineAir<F> for ShiftLeft {
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
-        !shard.shift_left_events.is_empty()
+        if let Some(shape) = shard.shape.as_ref() {
+            shape.included::<F, _>(self)
+        } else {
+            !shard.shift_left_events.is_empty()
+        }
     }
 }
 
@@ -199,7 +204,6 @@ impl ShiftLeft {
         let b = event.b.to_le_bytes();
         let c = event.c.to_le_bytes();
         cols.shard = F::from_canonical_u32(event.shard);
-        cols.channel = F::from_canonical_u8(event.channel);
         cols.a = Word(a.map(F::from_canonical_u8));
         cols.b = Word(b.map(F::from_canonical_u8));
         cols.c = Word(c.map(F::from_canonical_u8));
@@ -238,8 +242,8 @@ impl ShiftLeft {
 
         // Range checks.
         {
-            blu.add_u8_range_checks(event.shard, event.channel, &bit_shift_result);
-            blu.add_u8_range_checks(event.shard, event.channel, &bit_shift_result_carry);
+            blu.add_u8_range_checks(event.shard, &bit_shift_result);
+            blu.add_u8_range_checks(event.shard, &bit_shift_result_carry);
         }
 
         // Sanity check.
@@ -365,18 +369,8 @@ where
 
         // Range check.
         {
-            builder.slice_range_check_u8(
-                &local.bit_shift_result,
-                local.shard,
-                local.channel,
-                local.is_real,
-            );
-            builder.slice_range_check_u8(
-                &local.bit_shift_result_carry,
-                local.shard,
-                local.channel,
-                local.is_real,
-            );
+            builder.slice_range_check_u8(&local.bit_shift_result, local.is_real);
+            builder.slice_range_check_u8(&local.bit_shift_result_carry, local.is_real);
         }
 
         for shift in local.shift_by_n_bytes.iter() {
@@ -397,7 +391,6 @@ where
             local.b,
             local.c,
             local.shard,
-            local.channel,
             local.nonce,
             local.is_real,
         );
@@ -418,7 +411,7 @@ mod tests {
     #[test]
     fn generate_trace() {
         let mut shard = ExecutionRecord::default();
-        shard.shift_left_events = vec![AluEvent::new(0, 0, 0, Opcode::SLL, 16, 8, 1)];
+        shard.shift_left_events = vec![AluEvent::new(0, 0, Opcode::SLL, 16, 8, 1)];
         let chip = ShiftLeft::default();
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&shard, &mut ExecutionRecord::default());
@@ -453,7 +446,7 @@ mod tests {
             (Opcode::SLL, 0x00000000, 0x21212120, 0xffffffff),
         ];
         for t in shift_instructions.iter() {
-            shift_events.push(AluEvent::new(0, 0, 0, t.0, t.1, t.2, t.3));
+            shift_events.push(AluEvent::new(0, 0, t.0, t.1, t.2, t.3));
         }
 
         // Append more events until we have 1000 tests.

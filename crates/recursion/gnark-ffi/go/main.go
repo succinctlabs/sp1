@@ -2,6 +2,7 @@ package main
 
 /*
 #include "./babybear.h"
+#include <stdlib.h>
 
 typedef struct {
 	char *PublicInputs[2];
@@ -21,6 +22,7 @@ import (
 	"fmt"
 	"os"
 	"sync"
+	"unsafe"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend/groth16"
@@ -56,6 +58,15 @@ func ProvePlonkBn254(dataDir *C.char, witnessPath *C.char) *C.C_PlonkBn254Proof 
 	return structPtr
 }
 
+//export FreePlonkBn254Proof
+func FreePlonkBn254Proof(proof *C.C_PlonkBn254Proof) {
+	C.free(unsafe.Pointer(proof.EncodedProof))
+	C.free(unsafe.Pointer(proof.RawProof))
+	C.free(unsafe.Pointer(proof.PublicInputs[0]))
+	C.free(unsafe.Pointer(proof.PublicInputs[1]))
+	C.free(unsafe.Pointer(proof))
+}
+
 //export BuildPlonkBn254
 func BuildPlonkBn254(dataDir *C.char) {
 	// Sanity check the required arguments have been provided.
@@ -65,13 +76,13 @@ func BuildPlonkBn254(dataDir *C.char) {
 }
 
 //export VerifyPlonkBn254
-func VerifyPlonkBn254(dataDir *C.char, proof *C.char, vkeyHash *C.char, commitedValuesDigest *C.char) *C.char {
+func VerifyPlonkBn254(dataDir *C.char, proof *C.char, vkeyHash *C.char, committedValuesDigest *C.char) *C.char {
 	dataDirString := C.GoString(dataDir)
 	proofString := C.GoString(proof)
 	vkeyHashString := C.GoString(vkeyHash)
-	commitedValuesDigestString := C.GoString(commitedValuesDigest)
+	committedValuesDigestString := C.GoString(committedValuesDigest)
 
-	err := sp1.VerifyPlonk(dataDirString, proofString, vkeyHashString, commitedValuesDigestString)
+	err := sp1.VerifyPlonk(dataDirString, proofString, vkeyHashString, committedValuesDigestString)
 	if err != nil {
 		return C.CString(err.Error())
 	}
@@ -114,6 +125,15 @@ func ProveGroth16Bn254(dataDir *C.char, witnessPath *C.char) *C.C_Groth16Bn254Pr
 	structPtr.EncodedProof = C.CString(sp1Groth16Bn254Proof.EncodedProof)
 	structPtr.RawProof = C.CString(sp1Groth16Bn254Proof.RawProof)
 	return structPtr
+}
+
+//export FreeGroth16Bn254Proof
+func FreeGroth16Bn254Proof(proof *C.C_Groth16Bn254Proof) {
+	C.free(unsafe.Pointer(proof.EncodedProof))
+	C.free(unsafe.Pointer(proof.RawProof))
+	C.free(unsafe.Pointer(proof.PublicInputs[0]))
+	C.free(unsafe.Pointer(proof.PublicInputs[1]))
+	C.free(unsafe.Pointer(proof))
 }
 
 //export BuildGroth16Bn254
@@ -279,4 +299,9 @@ func TestPoseidonBabyBear2() *C.char {
 	}
 
 	return nil
+}
+
+//export FreeString
+func FreeString(s *C.char) {
+	C.free(unsafe.Pointer(s))
 }

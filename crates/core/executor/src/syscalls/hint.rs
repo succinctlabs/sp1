@@ -1,9 +1,15 @@
-use super::{Syscall, SyscallContext};
+use super::{Syscall, SyscallCode, SyscallContext};
 
 pub(crate) struct HintLenSyscall;
 
 impl Syscall for HintLenSyscall {
-    fn execute(&self, ctx: &mut SyscallContext, _arg1: u32, _arg2: u32) -> Option<u32> {
+    fn execute(
+        &self,
+        ctx: &mut SyscallContext,
+        _: SyscallCode,
+        _arg1: u32,
+        _arg2: u32,
+    ) -> Option<u32> {
         if ctx.rt.state.input_stream_ptr >= ctx.rt.state.input_stream.len() {
             panic!(
                 "failed reading stdin due to insufficient input data: input_stream_ptr={}, input_stream_len={}",
@@ -18,7 +24,7 @@ impl Syscall for HintLenSyscall {
 pub(crate) struct HintReadSyscall;
 
 impl Syscall for HintReadSyscall {
-    fn execute(&self, ctx: &mut SyscallContext, ptr: u32, len: u32) -> Option<u32> {
+    fn execute(&self, ctx: &mut SyscallContext, _: SyscallCode, ptr: u32, len: u32) -> Option<u32> {
         if ctx.rt.state.input_stream_ptr >= ctx.rt.state.input_stream.len() {
             panic!(
                 "failed reading stdin due to insufficient input data: input_stream_ptr={}, input_stream_len={}",
@@ -44,6 +50,7 @@ impl Syscall for HintReadSyscall {
 
             // Save the data into runtime state so the runtime will use the desired data instead of
             // 0 when first reading/writing from this address.
+            ctx.rt.uninitialized_memory_checkpoint.entry(ptr + i).or_insert_with(|| false);
             ctx.rt
                 .state
                 .uninitialized_memory

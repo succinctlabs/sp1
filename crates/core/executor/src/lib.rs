@@ -20,6 +20,7 @@
 #![warn(missing_docs)]
 
 mod context;
+mod dependencies;
 mod disassembler;
 pub mod events;
 mod executor;
@@ -32,8 +33,10 @@ mod program;
 #[cfg(any(test, feature = "programs"))]
 pub mod programs;
 mod record;
+mod reduce;
 mod register;
 mod report;
+mod shape;
 mod state;
 pub mod subproof;
 pub mod syscalls;
@@ -46,6 +49,9 @@ pub use instruction::*;
 pub use opcode::*;
 pub use program::*;
 pub use record::*;
+pub use reduce::*;
 pub use register::*;
 pub use report::*;
+pub use shape::*;
 pub use state::*;
+pub use utils::*;

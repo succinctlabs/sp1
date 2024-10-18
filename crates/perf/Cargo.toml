@@ -1,0 +1,32 @@
+[package]
+name = "sp1-perf"
+description = "A performance evaluation tool for SP1 programs."
+readme = "../../README.md"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+keywords = { workspace = true }
+categories = { workspace = true }
+
+[dependencies]
+sp1-prover = { workspace = true }
+sp1-core-executor = { workspace = true, features = ["programs"] }
+sp1-sdk = { workspace = true }
+p3-baby-bear = { workspace = true }
+sp1-stark = { workspace = true }
+sp1-cuda = { workspace = true }
+
+anyhow = "1.0.83"
+clap = { version = "4.5.9", features = ["derive"] }
+csv = "1.3.0"
+serde = "1.0.204"
+bincode = "1.3.3"
+time = "0.3.26"
+slack-rust = { package = "slack-rust-rs", version = "0.0.1" }
+tokio = { version = "1.39.0", features = ["full"] }
+reqwest = { version = "0.12.4", features = ["json"] }
+serde_json = "1.0.104"
+
+[features]
+native-gnark = ["sp1-sdk/native-gnark"]
