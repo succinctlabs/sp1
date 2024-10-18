@@ -26,11 +26,9 @@ let client = ProverClient::new();
 client.prove(&pk, stdin).compressed().run().unwrap();
 ```
 
-## Groth16
+## Groth16 (Recommended)
 
-> WARNING: The Groth16 prover requires around 64GB of RAM and only has prebuilt circuit artifacts on official releases of SP1. We recommend using the prover network to generate these proofs.
-
-The Groth16 prover mode generate a SNARK proof that is ~260 bytes large and can be verified onchain for around ~270k gas. Groth16 proofs take about ~30s longer to generate over a compressed proof.
+The Groth16 prover mode generate a SNARK proof that is ~260 bytes large and can be verified onchain for around ~270k gas. 
 
 The trusted setup for the Groth16 circuit keys uses the [Aztec Ignition ceremony](https://github.com/AztecProtocol/ignition-verification) + entropy contributions from members of the Succinct team.
 
@@ -40,8 +38,6 @@ client.prove(&pk, stdin).groth16().run().unwrap();
 ```
 
 ## PLONK
-
-> WARNING: The PLONK prover requires around 64GB of RAM and only has prebuilt circuit artifacts on official releases of SP1. We recommend using the prover network to generate these proofs.
 
 The PLONK prover mode generate a SNARK proof that is ~868 bytes large and can also be verified onchain for around ~300k gas. Plonk proofs take about ~1m30s longer to generate over a compressed proof.
 
