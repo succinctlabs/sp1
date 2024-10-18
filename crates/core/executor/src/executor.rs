@@ -101,6 +101,9 @@ pub struct Executor<'a> {
     /// A buffer for writing trace events to a file.
     pub trace_buf: Option<BufWriter<File>>,
 
+    /// The sample rate for writing trace instructions.
+    pub sample_rate: u32,
+
     /// The state of the runtime when in unconstrained mode.
     pub unconstrained_state: ForkState,
 
@@ -192,11 +195,17 @@ impl<'a> Executor<'a> {
         let record = ExecutionRecord::new(program.clone());
 
         // If `TRACE_FILE`` is set, initialize the trace buffer.
-        let trace_buf = if let Ok(trace_file) = std::env::var("TRACE_FILE") {
-            let file = File::create(trace_file).unwrap();
-            Some(BufWriter::new(file))
-        } else {
-            None
+        let (trace_buf, sample_rate) = match std::env::var("TRACE_FILE").ok() {
+            Some(file) => {
+                let file = File::create(file).unwrap();
+                let sample_rate = std::env::var("TRACE_SAMPLE_RATE")
+                    .unwrap_or_else(|_| "1".to_string())
+                    .parse::<u32>()
+                    .unwrap();
+
+                (Some(BufWriter::new(file)), sample_rate)
+            }
+            None => (None, 1),
         };
 
         // Determine the maximum number of cycles for any syscall.
@@ -219,6 +228,7 @@ impl<'a> Executor<'a> {
             cycle_tracker: HashMap::new(),
             io_buf: HashMap::new(),
             trace_buf,
+            sample_rate,
             unconstrained: false,
             unconstrained_state: ForkState::default(),
             syscall_map,
@@ -1631,8 +1641,11 @@ impl<'a> Executor<'a> {
     }
 
     #[inline]
-    #[cfg(debug_assertions)]
     fn log(&mut self, _: &Instruction) {
+        if self.state.pc % self.sample_rate > 0 {
+            return;
+        }
+
         // Write the current program counter to the trace buffer for the cycle tracer.
         if let Some(ref mut buf) = self.trace_buf {
             if !self.unconstrained {
