@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use anyhow::Result;
 use goblin::elf::{sym::STT_FUNC, Elf};
 use rustc_demangle::demangle;
-use std::{cmp::Ordering, collections::HashMap, io::Read, path::Path, rc::Rc, str};
+use std::{collections::HashMap, io::Read, path::Path, rc::Rc, str};
 
 #[derive(Parser, Debug)]
 #[command(name = "profile", about = "Create a gecko profile from a trace file.")]
@@ -123,7 +123,6 @@ pub fn collect_samples(
     let file_size = file.metadata().unwrap().len();
     let mut buf = std::io::BufReader::new(file);
     let mut function_stack: Vec<Rc<str>> = Vec::new();
-    let mut counts_without_callgraph: HashMap<String, usize> = HashMap::new();
     let total_lines = file_size / 4;
     let mut current_function_range: (u64, u64) = (0, 0);
 
@@ -134,31 +133,6 @@ pub fn collect_samples(
         let mut pc_bytes = [0u8; 4];
         buf.read_exact(&mut pc_bytes).unwrap();
         let pc = u32::from_be_bytes(pc_bytes) as u64;
-
-        // Only 1 instruction per opcode.
-        let num_instructions = 1;
-
-        // Raw counts without considering the callgraph at all we're just checking if the PC
-        // belongs to a function if so we're incrementing. This would ignore the call stack
-        // so for example "main" would only have a hundred instructions or so.
-        if let Ok(index) = function_ranges.binary_search_by(|&(start, end, _)| {
-            if pc < start {
-                Ordering::Greater
-            } else if pc > end {
-                Ordering::Less
-            } else {
-                Ordering::Equal
-            }
-        }) {
-            let (_, _, fname) = &function_ranges[index];
-            *counts_without_callgraph.entry(fname.clone()).or_insert(0) += num_instructions
-        } else {
-            *counts_without_callgraph.entry("anonymous".to_string()).or_insert(0) +=
-                num_instructions;
-        }
-
-        // The next section considers the callstack. We build a callstack and maintain it based
-        // on some rules. Functions lower in the stack get their counts incremented.
 
         // We are still in the current function.
         if pc > current_function_range.0 && pc <= current_function_range.1 {
