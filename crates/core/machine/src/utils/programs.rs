@@ -1,4 +1,6 @@
 pub mod tests {
+    use sp1_core_executor::{Instruction, Opcode};
+
     /// Demos.
 
     pub const CHESS_ELF: &[u8] =
@@ -100,4 +102,16 @@ pub mod tests {
 
     pub const PANIC_ELF: &[u8] =
         include_bytes!("../../../../../tests/panic/elf/riscv32im-succinct-zkvm-elf");
+
+    pub fn load_const_to_register(register: u32, value: u32) -> Vec<Instruction> {
+        vec![
+            Instruction::new(Opcode::ADD, register, 0, value >> 24, false, true),
+            Instruction::new(Opcode::MUL, register, register, 256, false, true),
+            Instruction::new(Opcode::ADD, register, register, (value >> 16) & 255, false, true),
+            Instruction::new(Opcode::MUL, register, register, 256, false, true),
+            Instruction::new(Opcode::ADD, register, register, (value >> 8) & 255, false, true),
+            Instruction::new(Opcode::MUL, register, register, 256, false, true),
+            Instruction::new(Opcode::ADD, register, register, value & 255, false, true),
+        ]
+    }
 }
