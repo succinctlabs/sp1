@@ -1865,6 +1865,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "debugid"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bef552e6f588e446098f6ba40d89ac146c8c7b64aade83c051ee00bb5d2bc18d"
+dependencies = [
+ "uuid 1.11.0",
+]
+
+[[package]]
 name = "der"
 version = "0.7.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2420,6 +2429,17 @@ name = "gcd"
 version = "2.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1d758ba1b47b00caf47f24925c0074ecb20d6dfcffe7f6d53395c0465674841a"
+
+[[package]]
+name = "gecko_profile"
+version = "0.4.0"
+source = "git+https://github.com/mstange/samply#8d4648c7d5b2287fdfa37ece29fbf9af9aa0c9f7"
+dependencies = [
+ "debugid",
+ "serde",
+ "serde_derive",
+ "serde_json",
+]
 
 [[package]]
 name = "generic-array"
@@ -5519,6 +5539,7 @@ dependencies = [
  "clap",
  "ctrlc",
  "dirs",
+ "gecko_profile",
  "goblin",
  "hex",
  "indicatif",
