@@ -10,9 +10,13 @@ pub const NUM_BRANCH_COLS: usize = size_of::<BranchCols<u8>>();
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct BranchCols<T> {
-    /// The current program counter.
+    /// The current program counter. Important that this field be the first one in the struct, for
+    /// the `get_most_significant_byte` function on `OpcodeSelectorCols` to be correct.
     pub pc: Word<T>,
-    pub pc_range_checker: BabyBearWordRangeChecker<T>,
+
+    /// Important that this be the first field after the Word<T> field, in order for the
+    /// `get_range_check_bit` function on `OpcodeSelectorCols` to be correct.
+    pub pc_range_checker: T,
 
     /// The next program counter.
     pub next_pc: Word<T>,

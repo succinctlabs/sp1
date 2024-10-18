@@ -4,6 +4,8 @@ use std::{
     mem::{size_of, transmute},
 };
 
+use sp1_derive::AlignedBorrow;
+use sp1_stark::Word;
 use static_assertions::const_assert;
 
 use super::ecall::EcallCols;
@@ -11,7 +13,7 @@ use super::ecall::EcallCols;
 pub const NUM_OPCODE_SPECIFIC_COLS: usize = size_of::<OpcodeSpecificCols<u8>>();
 
 /// Shared columns whose interpretation depends on the instruction being executed.
-#[derive(Clone, Copy)]
+#[derive(AlignedBorrow, Clone, Copy)]
 #[repr(C)]
 pub union OpcodeSpecificCols<T: Copy> {
     memory: MemoryColumns<T>,
@@ -69,5 +71,27 @@ impl<T: Copy> OpcodeSpecificCols<T> {
     }
     pub fn ecall_mut(&mut self) -> &mut EcallCols<T> {
         unsafe { &mut self.ecall }
+    }
+
+    /// All variants of the union trait perform at least one BabyBear range check. We put the relevant
+    /// fields at the beginning of each union variant, and this function extracts the top byte in the
+    /// word to be range checked.
+    pub fn most_significant_byte(&self) -> T {
+        self.memory().most_significant_byte()
+    }
+
+    /// This function extracts the whole word to be range-checked relative to the BabyBear modulus.
+    pub fn word_for_range_check(&self) -> Word<T> {
+        self.memory().addr_word
+    }
+
+    /// A bit that flags whether the most significant byte is less than 120.
+    pub fn range_check_bit(&self) -> T {
+        self.memory().range_check_bit()
+    }
+
+    /// Setter method for the range check bit.
+    pub fn set_range_check_bit(&mut self, new_val: T) {
+        self.memory_mut().addr_word_range_checker = new_val;
     }
 }

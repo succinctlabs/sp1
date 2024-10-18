@@ -9,9 +9,8 @@ use crate::{
         CpuChip,
     },
     memory::MemoryCols,
-    operations::BabyBearWordRangeChecker,
 };
-use sp1_core_executor::{events::MemoryAccessPosition, Opcode};
+use sp1_core_executor::{events::MemoryAccessPosition, ByteOpcode, Opcode};
 
 impl CpuChip {
     /// Computes whether the opcode is a memory instruction.
@@ -76,14 +75,6 @@ impl CpuChip {
             is_memory_instruction.clone(),
         );
 
-        // Range check the addr_word to be a valid babybear word.
-        BabyBearWordRangeChecker::<AB::F>::range_check(
-            builder,
-            memory_columns.addr_word,
-            memory_columns.addr_word_range_checker,
-            is_memory_instruction.clone(),
-        );
-
         // Check that each addr_word element is a byte.
         builder.slice_range_check_u8(&memory_columns.addr_word.0, is_memory_instruction.clone());
 
@@ -92,32 +83,17 @@ impl CpuChip {
 
         // Assert that reduce(addr_word) == addr_aligned + addr_offset.
         builder.when(is_memory_instruction.clone()).assert_eq::<AB::Expr, AB::Expr>(
-            memory_columns.addr_aligned + memory_columns.addr_offset,
+            memory_columns.addr_aligned + memory_columns.addr_ls_two_bits,
             memory_columns.addr_word.reduce::<AB>(),
         );
 
-        // Verify that the least significant byte of addr_word - addr_offset is divisible by 4.
-        let offset = [
-            memory_columns.offset_is_one,
-            memory_columns.offset_is_two,
-            memory_columns.offset_is_three,
-        ]
-        .iter()
-        .enumerate()
-        .fold(AB::Expr::zero(), |acc, (index, &value)| {
-            acc + AB::Expr::from_canonical_usize(index + 1) * value
-        });
-        let mut recomposed_byte = AB::Expr::zero();
-        memory_columns.aa_least_sig_byte_decomp.iter().enumerate().for_each(|(i, value)| {
-            builder.when(is_memory_instruction.clone()).assert_bool(*value);
-
-            recomposed_byte =
-                recomposed_byte.clone() + AB::Expr::from_canonical_usize(1 << (i + 2)) * *value;
-        });
-
-        builder
-            .when(is_memory_instruction.clone())
-            .assert_eq(memory_columns.addr_word[0] - offset, recomposed_byte);
+        builder.send_byte(
+            ByteOpcode::AND.as_field::<AB::F>(),
+            memory_columns.addr_ls_two_bits,
+            memory_columns.addr_word[0],
+            AB::Expr::from_canonical_u8(0b11),
+            is_memory_instruction.clone(),
+        );
 
         // For operations that require reading from memory (not registers), we need to read the
         // value into the memory columns.
@@ -148,16 +124,26 @@ impl CpuChip {
         // Verify the unsigned_mem_value column.
         self.eval_unsigned_mem_value(builder, memory_columns, local);
 
-        // If it's a signed operation (such as LB or LH), then we need verify the bit decomposition
-        // of the most significant byte to get it's sign.
-        self.eval_most_sig_byte_bit_decomp(builder, memory_columns, local, &local.unsigned_mem_val);
-
         // Assert that correct value of `mem_value_is_neg_not_x0`.
         builder.assert_eq(
             local.mem_value_is_neg_not_x0,
             (local.selectors.is_lb + local.selectors.is_lh)
-                * memory_columns.most_sig_byte_decomp[7]
+                * memory_columns.most_sig_bit
                 * (AB::Expr::one() - local.instruction.op_a_0),
+        );
+
+        builder.send_byte(
+            ByteOpcode::MSB.as_field::<AB::F>(),
+            memory_columns.most_sig_bit,
+            local.unsigned_mem_val_superposition,
+            AB::Expr::zero(),
+            local.selectors.is_lb + local.selectors.is_lh,
+        );
+
+        builder.assert_eq(
+            local.unsigned_mem_val_superposition,
+            local.selectors.is_lb * local.unsigned_mem_val[0]
+                + local.selectors.is_lh * local.unsigned_mem_val[1],
         );
 
         // When the memory value is negative and not writing to x0, use the SUB opcode to compute
@@ -180,7 +166,7 @@ impl CpuChip {
 
         // Assert that correct value of `mem_value_is_pos_not_x0`.
         let mem_value_is_pos = (local.selectors.is_lb + local.selectors.is_lh)
-            * (AB::Expr::one() - memory_columns.most_sig_byte_decomp[7])
+            * (AB::Expr::one() - memory_columns.most_sig_bit)
             + local.selectors.is_lbu
             + local.selectors.is_lhu
             + local.selectors.is_lw;
@@ -315,25 +301,6 @@ impl CpuChip {
         builder.when(local.selectors.is_lw).assert_word_eq(mem_val, local.unsigned_mem_val);
     }
 
-    /// Evaluates the decomposition of the most significant byte of the memory value.
-    pub(crate) fn eval_most_sig_byte_bit_decomp<AB: SP1AirBuilder>(
-        &self,
-        builder: &mut AB,
-        memory_columns: &MemoryColumns<AB::Var>,
-        local: &CpuCols<AB::Var>,
-        unsigned_mem_val: &Word<AB::Var>,
-    ) {
-        let is_mem = self.is_memory_instruction::<AB>(&local.selectors);
-        let mut recomposed_byte = AB::Expr::zero();
-        for i in 0..8 {
-            builder.when(is_mem.clone()).assert_bool(memory_columns.most_sig_byte_decomp[i]);
-            recomposed_byte +=
-                memory_columns.most_sig_byte_decomp[i] * AB::Expr::from_canonical_u8(1 << i);
-        }
-        builder.when(local.selectors.is_lb).assert_eq(recomposed_byte.clone(), unsigned_mem_val[0]);
-        builder.when(local.selectors.is_lh).assert_eq(recomposed_byte, unsigned_mem_val[1]);
-    }
-
     /// Evaluates the offset value flags.
     pub(crate) fn eval_offset_value_flags<AB: SP1AirBuilder>(
         &self,
@@ -363,13 +330,15 @@ impl CpuChip {
         );
 
         // Assert that the correct value flag is set
-        filtered_builder.when(offset_is_zero).assert_zero(memory_columns.addr_offset);
-        filtered_builder.when(memory_columns.offset_is_one).assert_one(memory_columns.addr_offset);
+        filtered_builder.when(offset_is_zero).assert_zero(memory_columns.addr_ls_two_bits);
+        filtered_builder
+            .when(memory_columns.offset_is_one)
+            .assert_one(memory_columns.addr_ls_two_bits);
         filtered_builder
             .when(memory_columns.offset_is_two)
-            .assert_eq(memory_columns.addr_offset, AB::Expr::two());
+            .assert_eq(memory_columns.addr_ls_two_bits, AB::Expr::two());
         filtered_builder
             .when(memory_columns.offset_is_three)
-            .assert_eq(memory_columns.addr_offset, AB::Expr::from_canonical_u8(3));
+            .assert_eq(memory_columns.addr_ls_two_bits, AB::Expr::from_canonical_u8(3));
     }
 }

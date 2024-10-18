@@ -55,6 +55,20 @@ where
         let is_branch_instruction: AB::Expr = self.is_branch_instruction::<AB>(&local.selectors);
         let is_alu_instruction: AB::Expr = self.is_alu_instruction::<AB>(&local.selectors);
 
+        // Range check local.opcode_specific_columns.range_check_word to be a valid babybear word.
+        // The range check bit is on if and only ifthe most significant byte of the word is < 120.
+        self.eval_baby_bear_bit_range_check(
+            builder,
+            local.opcode_specific_columns.most_significant_byte().into(),
+            [
+                local.opcode_specific_columns.word_for_range_check()[0].into(),
+                local.opcode_specific_columns.word_for_range_check()[1].into(),
+                local.opcode_specific_columns.word_for_range_check()[2].into(),
+            ],
+            local.opcode_specific_columns.range_check_bit().into(),
+            local.is_real.into(),
+        );
+
         // Register constraints.
         self.eval_registers::<AB>(builder, local, is_branch_instruction.clone());
 
@@ -170,18 +184,19 @@ impl CpuChip {
             .assert_eq(jump_columns.next_pc.reduce::<AB>(), local.next_pc);
 
         // Range check op_a, pc, and next_pc.
-        BabyBearWordRangeChecker::<AB::F>::range_check(
+        // Range check local.opcode_specific_columns.range_check_word to be a valid babybear word.
+        self.eval_baby_bear_bit_range_check(
             builder,
-            local.op_a_val(),
-            jump_columns.op_a_range_checker,
+            local.op_a_val()[3].into().clone(),
+            [
+                local.op_a_val()[0].into().clone(),
+                local.op_a_val()[1].into().clone(),
+                local.op_a_val()[2].into().clone(),
+            ],
+            jump_columns.op_a_range_check_bit.into().clone(),
             is_jump_instruction.clone(),
         );
-        BabyBearWordRangeChecker::<AB::F>::range_check(
-            builder,
-            jump_columns.pc,
-            jump_columns.pc_range_checker,
-            local.selectors.is_jal.into(),
-        );
+
         BabyBearWordRangeChecker::<AB::F>::range_check(
             builder,
             jump_columns.next_pc,
@@ -219,14 +234,6 @@ impl CpuChip {
 
         // Verify that the word form of local.pc is correct.
         builder.when(local.selectors.is_auipc).assert_eq(auipc_columns.pc.reduce::<AB>(), local.pc);
-
-        // Range check the pc.
-        BabyBearWordRangeChecker::<AB::F>::range_check(
-            builder,
-            auipc_columns.pc,
-            auipc_columns.pc_range_checker,
-            local.selectors.is_auipc.into(),
-        );
 
         // Verify that op_a == pc + op_b.
         builder.send_alu(
@@ -375,6 +382,36 @@ impl CpuChip {
         builder.assert_bool(local.is_real);
         builder.when_first_row().assert_one(local.is_real);
         builder.when_transition().when_not(local.is_real).assert_zero(next.is_real);
+    }
+
+    fn eval_baby_bear_bit_range_check<AB: SP1AirBuilder>(
+        &self,
+        builder: &mut AB,
+        ms_byte: AB::Expr,
+        range_check_word: [AB::Expr; 3],
+        bit: AB::Expr,
+        multiplicity: AB::Expr,
+    ) {
+        // The range check bit is on if and only ifthe most significant byte of the word is < 120.
+        builder.send_byte(
+            AB::Expr::from_canonical_u32(ByteOpcode::LTU as u32),
+            bit.clone(),
+            ms_byte.clone(),
+            AB::Expr::from_canonical_u8(120),
+            multiplicity.clone(),
+        );
+
+        // If the range check bit is off, the most significant byte is >=120, so to be a valid BabyBear
+        // word we need the most significant byte to be =120.
+        builder
+            .when_not(bit.clone())
+            .when(multiplicity.clone())
+            .assert_eq(ms_byte, AB::Expr::from_canonical_u8(120));
+
+        // Moreover, if the most significant byte =120, then the 3 other bytes must all be zero.s
+        builder.when_not(bit).when(multiplicity).assert_zero(
+            range_check_word[0].clone() + range_check_word[1].clone() + range_check_word[2].clone(),
+        );
     }
 }
 
