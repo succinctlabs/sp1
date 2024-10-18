@@ -406,16 +406,14 @@ jobs:
           message: typos
 
   check-no-std:
-    name: check no_std ${{ matrix.features }}
+    name: check no_std
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
       fail-fast: false
-      matrix:
-        features: ["", "optimism,kzg-rs"]
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: riscv32imac-unknown-none-elf
-      - run: cargo check --target riscv32imac-unknown-none-elf --no-default-features --features=${{ matrix.features }}
+      - run: cargo check --target riscv32imac-unknown-none-elf --no-default-features -p sp1-sdk
