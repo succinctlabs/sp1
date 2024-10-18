@@ -123,7 +123,7 @@ impl NetworkProver {
             let (status, maybe_proof) =
                 self.client.get_proof_request_status::<P>(request_id).await?;
 
-            match status.status() {
+            match status.proof_status() {
                 ProofStatus::Fulfilled => {
                     return Ok(maybe_proof.unwrap());
                 }

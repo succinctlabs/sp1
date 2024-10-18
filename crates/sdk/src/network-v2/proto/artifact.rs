@@ -98,7 +98,7 @@ pub mod artifact_store_client {
             self.inner = self.inner.max_encoding_message_size(limit);
             self
         }
-        /// / Creates an artifact that can be used for proof requests.
+        /// Creates an artifact that can be used for proof requests.
         pub async fn create_artifact(
             &mut self,
             request: impl tonic::IntoRequest<super::CreateArtifactRequest>,
@@ -127,7 +127,7 @@ pub mod artifact_store_server {
     /// Generated trait containing gRPC methods that should be implemented for use with ArtifactStoreServer.
     #[async_trait]
     pub trait ArtifactStore: std::marker::Send + std::marker::Sync + 'static {
-        /// / Creates an artifact that can be used for proof requests.
+        /// Creates an artifact that can be used for proof requests.
         async fn create_artifact(
             &self,
             request: tonic::Request<super::CreateArtifactRequest>,
