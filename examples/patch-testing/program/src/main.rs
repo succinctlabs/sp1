@@ -16,7 +16,6 @@ use ed25519_dalek_1_0_1::{
     PublicKey as Ed25519DalekPublicKey_1_0_1, Signature as Ed25519DalekSignature_1_0_1,
     Verifier as Ed25519DalekVerifier_1_0_1,
 };
-// use rand::rngs::OsRng;
 
 use sha2_v0_10_6::{Digest as Digest_10_6, Sha256 as Sha256_10_6};
 // use sha2_v0_10_8::{Digest as Digest_10_8, Sha256 as Sha256_10_8};
