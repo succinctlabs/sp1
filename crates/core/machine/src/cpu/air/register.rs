@@ -1,5 +1,5 @@
 use p3_field::AbstractField;
-use sp1_stark::air::SP1AirBuilder;
+use sp1_stark::{air::SP1AirBuilder, Word};
 
 use crate::{
     air::{MemoryAirBuilder, WordAirBuilder},
@@ -16,19 +16,56 @@ impl CpuChip {
         local: &CpuCols<AB::Var>,
         is_branch_instruction: AB::Expr,
     ) {
-        // Load immediates into b and c, if the immediate flags are on.
-        builder
-            .when(local.selectors.imm_b)
-            .assert_word_eq(local.op_b_val(), local.instruction.op_b);
-        builder
-            .when(local.selectors.imm_c)
-            .assert_word_eq(local.op_c_val(), local.instruction.op_c);
+        // We connect op_b_val and op_c_val with op_bc in the case where they are immediates.
+        // We constrain op_b_val and op_c_val for the JAL opcode.
+        {
+            builder
+                .when(local.selectors.is_jal)
+                .assert_word_eq(local.op_b_val(), local.instruction.op_bc);
+            builder
+                .when(local.selectors.is_jal)
+                .assert_word_eq(local.op_c_val(), Word::<AB::F>::from(0));
+        }
+
+        // We constrain op_b_val and op_c_val for the AUIPC opcode.
+        {
+            builder
+                .when(local.selectors.is_auipc)
+                .assert_word_eq(local.op_b_val(), local.instruction.op_bc);
+            builder
+                .when(local.selectors.is_auipc)
+                .assert_word_eq(local.op_c_val(), local.instruction.op_bc);
+        }
+
+        // We constrain op_b_val and op_c_val for the LUI opcode.
+        // The only case where an ALU opcode has immediate for op_b is the LUI opcode.
+        {
+            builder
+                .when(local.selectors.is_alu * local.selectors.imm_b)
+                .assert_word_eq(local.op_b_val(), Word::<AB::F>::from(0));
+            builder
+                .when(local.selectors.is_alu * local.selectors.imm_b)
+                .assert_word_eq(local.op_c_val(), local.instruction.op_bc);
+        }
+
+        // We constrain op_c_val for other types with immediate value for op_c.
+        {
+            let unpacked_op_c = Word([
+                local.instruction.op_bc[1],
+                local.instruction.op_bc[2],
+                local.instruction.op_bc[3],
+                local.instruction.op_bc[3],
+            ]);
+            builder
+                .when((AB::Expr::one() - local.selectors.imm_b) * local.selectors.imm_c)
+                .assert_word_eq(local.op_c_val(), unpacked_op_c);
+        }
 
         // If they are not immediates, read `b` and `c` from memory.
         builder.eval_memory_access(
             local.shard,
             local.clk + AB::F::from_canonical_u32(MemoryAccessPosition::B as u32),
-            local.instruction.op_b[0],
+            local.instruction.op_bc[0],
             &local.op_b_access,
             AB::Expr::one() - local.selectors.imm_b,
         );
@@ -36,7 +73,7 @@ impl CpuChip {
         builder.eval_memory_access(
             local.shard,
             local.clk + AB::F::from_canonical_u32(MemoryAccessPosition::C as u32),
-            local.instruction.op_c[0],
+            local.instruction.op_bc[1],
             &local.op_c_access,
             AB::Expr::one() - local.selectors.imm_c,
         );
