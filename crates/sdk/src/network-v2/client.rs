@@ -136,17 +136,17 @@ impl NetworkClient {
     /// Get all the proof requests for a given status. Also filter by version if provided.
     pub async fn get_filtered_proof_requests(
         &self,
-        version: Option<&str>,
-        proof_status: ProofStatus,
-        execution_status: ExecutionStatus,
+        version: Option<String>,
+        proof_status: Option<i32>,
+        execution_status: Option<i32>,
         limit: Option<u32>,
     ) -> Result<GetFilteredProofRequestsResponse> {
         let mut rpc = self.get_rpc().await?;
         let res = rpc
             .get_filtered_proof_requests(GetFilteredProofRequestsRequest {
-                version: version.map(|v| v.to_string()).unwrap_or_default(),
-                proof_status: proof_status as i32,
-                execution_status: execution_status as i32,
+                version,
+                proof_status,
+                execution_status,
                 limit,
             })
             .await?
