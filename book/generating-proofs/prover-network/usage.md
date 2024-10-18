@@ -19,8 +19,8 @@ SP1_PROVER=network SP1_PRIVATE_KEY=... RUST_LOG=info cargo run --release
 
 - `SP1_PROVER` should be set to `network` when using the prover network.
 
-- `SP1_PRIVATE_KEY` should be set to your [private key](../prover-network.md#key-setup). You will need
-  to be using a [whitelisted](../prover-network.md#get-access) key to use the network.
+- `SP1_PRIVATE_KEY` should be set to your [private key](./key-setup.md). You will need
+  to be using a [whitelisted](./key-setup.md) key to use the network.
 
 When you call any of the prove functions in ProverClient now, it will first simulate your program, then wait for it to be proven through the network and finally return the proof.
 
