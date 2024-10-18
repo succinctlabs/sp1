@@ -4,14 +4,17 @@ use std::sync::{Arc, RwLock, RwLockWriteGuard};
 
 use hashbrown::HashMap;
 use sp1_curves::k256::{Invert, RecoveryId, Signature, VerifyingKey};
+use sp1_curves::p256::{Signature as p256Signature, VerifyingKey as p256VerifyingKey};
 
 use crate::Executor;
 
 /// A runtime hook, wrapped in a smart pointer.
 pub type BoxedHook<'a> = Arc<RwLock<dyn Hook + Send + Sync + 'a>>;
 
-/// The file descriptor through which to access `hook_ecrecover`.
-pub const FD_ECRECOVER_HOOK: u32 = 5;
+/// The file descriptor through which to access `hook_k1_ecrecover`.
+pub const K1_ECRECOVER_HOOK: u32 = 5;
+/// The file descriptor through which to access `hook_r1_ecrecover`.
+pub const R1_ECRECOVER_HOOK: u32 = 6;
 
 /// A runtime hook. May be called during execution by writing to a specified file descriptor,
 /// accepting and returning arbitrary data.
@@ -75,7 +78,8 @@ impl<'a> Default for HookRegistry<'a> {
         let table = HashMap::from([
             // Note: To ensure any `fd` value is synced with `zkvm/precompiles/src/io.rs`,
             // add an assertion to the test `hook_fds_match` below.
-            (FD_ECRECOVER_HOOK, hookify(hook_ecrecover)),
+            (K1_ECRECOVER_HOOK, hookify(hook_k1_ecrecover)),
+            (R1_ECRECOVER_HOOK, hookify(hook_r1_ecrecover)),
         ]);
 
         Self { table }
@@ -117,7 +121,7 @@ pub struct HookEnv<'a, 'b: 'a> {
 /// WARNING: This function is used to recover the public key outside of the zkVM context. These
 /// values must be constrained by the zkVM for correctness.
 #[must_use]
-pub fn hook_ecrecover(_: HookEnv, buf: &[u8]) -> Vec<Vec<u8>> {
+pub fn hook_k1_ecrecover(_: HookEnv, buf: &[u8]) -> Vec<Vec<u8>> {
     assert_eq!(buf.len(), 65 + 32, "ecrecover input should have length 65 + 32");
     let (sig, msg_hash) = buf.split_at(65);
     let sig: &[u8; 65] = sig.try_into().unwrap();
@@ -141,6 +145,47 @@ pub fn hook_ecrecover(_: HookEnv, buf: &[u8]) -> Vec<Vec<u8>> {
     vec![bytes.to_vec(), s_inverse.to_bytes().to_vec()]
 }
 
+/// Recovers the public key from the signature and message hash using the secp256r1 crate.
+///
+/// # Arguments
+///
+/// * `env` - The environment in which the hook is invoked.
+/// * `buf` - The buffer containing the signature and message hash.
+///     - The signature is 65 bytes, the first 64 bytes are the signature and the last byte is the
+///       recovery ID.
+///     - The message hash is 32 bytes.
+///
+/// The result is returned as a pair of bytes, where the first 32 bytes are the X coordinate
+/// and the second 32 bytes are the Y coordinate of the decompressed point.
+///
+/// WARNING: This function is used to recover the public key outside of the zkVM context. These
+/// values must be constrained by the zkVM for correctness.
+#[must_use]
+pub fn hook_r1_ecrecover(_: HookEnv, buf: &[u8]) -> Vec<Vec<u8>> {
+    assert_eq!(buf.len(), 65 + 32, "ecrecover input should have length 65 + 32");
+    let (sig, msg_hash) = buf.split_at(65);
+    let sig: &[u8; 65] = sig.try_into().unwrap();
+    let msg_hash: &[u8; 32] = msg_hash.try_into().unwrap();
+
+    let mut recovery_id = sig[64];
+    let mut sig = p256Signature::from_slice(&sig[..64]).unwrap();
+
+    if let Some(sig_normalized) = sig.normalize_s() {
+        sig = sig_normalized;
+        recovery_id ^= 1;
+    };
+    let recid = RecoveryId::from_byte(recovery_id).expect("Computed recovery ID is invalid!");
+
+    let recovered_key = p256VerifyingKey::recover_from_prehash(&msg_hash[..], &sig, recid).unwrap();
+    let recovered_key_compressed = recovered_key.to_encoded_point(true);
+    let bytes = recovered_key_compressed.as_bytes();
+
+    let (_, s) = sig.split_scalars();
+    let s_inverse = s.invert();
+
+    vec![bytes.to_vec(), s_inverse.to_bytes().to_vec()]
+}
+
 #[cfg(test)]
 pub mod tests {
     use super::*;
@@ -148,7 +193,8 @@ pub mod tests {
     #[test]
     pub fn hook_fds_match() {
         use sp1_zkvm::lib::io;
-        assert_eq!(FD_ECRECOVER_HOOK, io::FD_ECRECOVER_HOOK);
+        assert_eq!(K1_ECRECOVER_HOOK, io::K1_ECRECOVER_HOOK);
+        assert_eq!(R1_ECRECOVER_HOOK, io::R1_ECRECOVER_HOOK);
     }
 
     #[test]

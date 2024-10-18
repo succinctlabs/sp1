@@ -1,6 +1,7 @@
 use std::fmt::Debug;
 
 use num::BigUint;
+use p3_air::AirBuilder;
 use p3_field::PrimeField32;
 use sp1_core_executor::events::ByteRecord;
 use sp1_curves::params::{FieldParameters, Limbs};
@@ -106,10 +107,10 @@ where
     ) where
         V: Into<AB::Expr>,
     {
-        let p_a = Polynomial::from(*a);
-        let p_b = (*b).into();
-        let p_result = self.result.into();
-        let p_carry = self.carry.into();
+        let p_a: Polynomial<<AB as AirBuilder>::Expr> = (*a).into();
+        let p_b: Polynomial<<AB as AirBuilder>::Expr> = (*b).into();
+        let p_result: Polynomial<<AB as AirBuilder>::Expr> = self.result.into();
+        let p_carry: Polynomial<<AB as AirBuilder>::Expr> = self.carry.into();
 
         // Compute the vanishing polynomial:
         //      lhs(x) = sign * (b(x) * result(x) + result(x)) + (1 - sign) * (b(x) * result(x) +
@@ -120,9 +121,11 @@ where
         let p_equation_rhs = if sign { p_a } else { p_result };
 
         let p_lhs_minus_rhs = &p_equation_lhs - &p_equation_rhs;
-        let p_limbs = Polynomial::from_iter(P::modulus_field_iter::<AB::F>().map(AB::Expr::from));
+        let p_limbs: Polynomial<<AB as AirBuilder>::Expr> =
+            Polynomial::from_iter(P::modulus_field_iter::<AB::F>().map(AB::Expr::from));
 
-        let p_vanishing = p_lhs_minus_rhs - &p_carry * &p_limbs;
+        let p_vanishing: Polynomial<<AB as AirBuilder>::Expr> =
+            p_lhs_minus_rhs - &p_carry * &p_limbs;
 
         let p_witness_low = self.witness_low.0.iter().into();
         let p_witness_high = self.witness_high.0.iter().into();

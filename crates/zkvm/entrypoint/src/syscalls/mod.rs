@@ -8,6 +8,7 @@ mod io;
 mod keccak_permute;
 mod memory;
 mod secp256k1;
+mod secp256r1;
 mod sha_compress;
 mod sha_extend;
 mod sys;
@@ -26,6 +27,7 @@ pub use io::*;
 pub use keccak_permute::*;
 pub use memory::*;
 pub use secp256k1::*;
+pub use secp256r1::*;
 pub use sha_compress::*;
 pub use sha_extend::*;
 pub use sys::*;
@@ -72,6 +74,15 @@ pub const SECP256K1_DOUBLE: u32 = 0x00_00_01_0B;
 
 /// Executes `K256_DECOMPRESS`.
 pub const SECP256K1_DECOMPRESS: u32 = 0x00_00_01_0C;
+
+/// Executes `SECP256R1_ADD`.
+pub const SECP256R1_ADD: u32 = 0x00_01_01_2C;
+
+/// Executes `SECP256R1_DOUBLE`.
+pub const SECP256R1_DOUBLE: u32 = 0x00_00_01_2D;
+
+/// Executes `SECP256R1_DECOMPRESS`.
+pub const SECP256R1_DECOMPRESS: u32 = 0x00_00_01_2E;
 
 /// Executes `BN254_ADD`.
 pub const BN254_ADD: u32 = 0x00_01_01_0E;
