@@ -4,5 +4,4 @@ pub mod install_toolchain;
 pub mod new;
 pub mod profile;
 pub mod prove;
-pub mod trace;
 pub mod vkey;
