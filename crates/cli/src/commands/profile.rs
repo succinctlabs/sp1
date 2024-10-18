@@ -1,6 +1,7 @@
 use clap::Parser;
 use gecko_profile::{Frame, ProfileBuilder, ThreadBuilder};
 use std::path::PathBuf;
+use std::process::Stdio;
 
 use anyhow::Result;
 use goblin::elf::{sym::STT_FUNC, Elf};
@@ -16,7 +17,7 @@ pub struct ProfileCmd {
 
     /// Path to the trace file. Simply run the program with `TRACE_FILE=trace.log` environment
     /// variable. File must be one u64 program counter per line
-    #[arg(long, required = true)]
+    #[arg(short = 't', long, required = true)]
     trace: PathBuf,
 
     /// The output file to write the gecko profile to, should be a json
@@ -25,8 +26,16 @@ pub struct ProfileCmd {
 
     /// The sample rate to use for the profile.
     /// This is the number of instructions to between samples.
-    #[arg(long, default_value = "10")]
-    sample_rate: u64,
+    #[arg(short = 'r', long, default_value = "10")]
+    sample_rate: usize,
+
+    /// Name the circuit, this will be displayed in the UI
+    #[arg(short = 'n', long, default_value = "sp1")]
+    name: String,
+
+    /// Do not open the profiler visualizer after creating the profile.
+    #[arg(long)]
+    no_open: bool,
 }
 
 pub struct Sample {
@@ -36,15 +45,19 @@ pub struct Sample {
 
 impl ProfileCmd {
     pub fn run(&self) -> anyhow::Result<()> {
-        let samples = collect_samples(&self.elf, &self.trace, self.sample_rate)?;
+        let samples = collect_samples(&self.elf, &self.trace, self.sample_rate as u64)?;
 
-        println!("Got {} samples", samples.len());
+        println!(
+            "Collected {} samples from {} instructions",
+            samples.len(),
+            samples.len() * self.sample_rate
+        );
 
         let start_time = std::time::Instant::now();
         let mut profile_builder = ProfileBuilder::new(
             start_time,
             std::time::SystemTime::now(),
-            "sp1",
+            &self.name,
             0,
             std::time::Duration::from_micros(1),
         );
@@ -62,10 +75,10 @@ impl ProfileCmd {
                 last_known_time,
                 frames.into_iter(),
                 // this is actually in instructions but
-                std::time::Duration::from_micros(self.sample_rate),
+                std::time::Duration::from_micros(self.sample_rate as u64),
             );
 
-            last_known_time += std::time::Duration::from_micros(self.sample_rate);
+            last_known_time += std::time::Duration::from_micros(self.sample_rate as u64);
         }
 
         profile_builder.add_thread(thread_builder);
@@ -73,6 +86,10 @@ impl ProfileCmd {
         let canon_path = crate::util::canon_path(&self.output)?;
         let mut file = std::fs::File::create(&canon_path)?;
         serde_json::to_writer(&mut file, &profile_builder.to_serializable())?;
+
+        if !self.no_open && has_samply() {
+            samply_load(&canon_path);
+        }
 
         Ok(())
     }
@@ -197,4 +214,34 @@ pub fn collect_samples(
     }
 
     Ok(samples)
+}
+
+/// Check if samply is installed otherwise install it.
+fn has_samply() -> bool {
+    let samply = std::process::Command::new("samply")
+        .stdout(Stdio::null())
+        .arg("--version")
+        .status()
+        .is_ok();
+
+    if !samply {
+        println!("Samply not found. Please install it to view the profile in your browser.");
+        println!("cargo install --locked samply");
+    }
+
+    samply
+}
+
+fn samply_load(file: impl AsRef<Path>) {
+    println!("Loading profile with samply");
+    let status = std::process::Command::new("samply")
+        .arg("load")
+        .arg(file.as_ref())
+        .stdin(Stdio::inherit())
+        .stdout(Stdio::inherit())
+        .status();
+
+    if let Err(e) = status {
+        eprintln!("Failed to load samply profile: {}", e);
+    }
 }
