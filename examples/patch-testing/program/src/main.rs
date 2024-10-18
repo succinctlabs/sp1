@@ -6,13 +6,17 @@ use alloy_primitives::{address, bytes, hex};
 use alloy_primitives::{B256, B512};
 use curve25519_dalek::edwards::CompressedEdwardsY as CompressedEdwardsY_dalek;
 use curve25519_dalek_ng::edwards::CompressedEdwardsY as CompressedEdwardsY_dalek_ng;
-use curve25519_dalek_v3::edwards::CompressedEdwardsY as CompressedEdwardsY_dalek_v3;
 use ed25519_consensus::{
     Signature as Ed25519ConsensusSignature, VerificationKey as Ed25519ConsensusVerificationKey,
 };
 use ed25519_dalek::{
     Signature as Ed25519DalekSignature, Verifier, VerifyingKey as Ed25519DalekVerifyingKey,
 };
+use ed25519_dalek_1_0_1::{
+    PublicKey as Ed25519DalekPublicKey_1_0_1, Signature as Ed25519DalekSignature_1_0_1,
+    Verifier as Ed25519DalekVerifier_1_0_1,
+};
+// use rand::rngs::OsRng;
 
 use sha2_v0_10_6::{Digest as Digest_10_6, Sha256 as Sha256_10_6};
 // use sha2_v0_10_8::{Digest as Digest_10_8, Sha256 as Sha256_10_8};
@@ -52,6 +56,20 @@ fn test_ed25519_dalek() {
     println!("cycle-tracker-end: ed25519-dalek verify");
 }
 
+/// Emits ED_ADD and ED_DECOMPRESS syscalls. Tests the patch for curve25519 v3.
+fn test_ed25519_dalek_1_0_1() {
+    let vk = hex!("9194c3ead03f5848111db696fe1196fbbeffc69342d51c7cf5e91c502de91eb4");
+    let msg = hex!("656432353531392d636f6e73656e7375732074657374206d657373616765");
+    let sig = hex!("69261ea5df799b20fc6eeb49aa79f572c8f1e2ba88b37dff184cc55d4e3653d876419bffcc47e5343cdd5fd78121bb32f1c377a5ed505106ad37f19980218f0d");
+
+    let vk = Ed25519DalekPublicKey_1_0_1::from_bytes(&vk).unwrap();
+    let sig = Ed25519DalekSignature_1_0_1::from_bytes(&sig).unwrap();
+
+    println!("cycle-tracker-start: ed25519-dalek-1-0-1 verify");
+    vk.verify(&msg, &sig).unwrap();
+    println!("cycle-tracker-end: ed25519-dalek-1-0-1 verify");
+}
+
 /// Emits ED_ADD and ED_DECOMPRESS syscalls.
 fn test_ed25519_consensus() {
     // Example signature and message.
@@ -75,19 +93,6 @@ fn test_curve25519_dalek_ng() {
     println!("cycle-tracker-start: curve25519-dalek-ng decompress");
     let decompressed_key = y.decompress();
     println!("cycle-tracker-end: curve25519-dalek-ng decompress");
-
-    let compressed_key = decompressed_key.unwrap().compress();
-    assert_eq!(compressed_key, y);
-}
-
-/// Emits ED_DECOMPRESS syscall.
-fn test_curve25519_dalek_v3() {
-    let input = [1u8; 32];
-    let y = CompressedEdwardsY_dalek_v3(input);
-
-    println!("cycle-tracker-start: curve25519-dalek-v3 decompress");
-    let decompressed_key = y.decompress();
-    println!("cycle-tracker-end: curve25519-dalek-v3 decompress");
 
     let compressed_key = decompressed_key.unwrap().compress();
     assert_eq!(compressed_key, y);
@@ -207,9 +212,9 @@ pub fn main() {
 
     test_curve25519_dalek_ng();
     test_curve25519_dalek();
-    test_curve25519_dalek_v3();
 
     test_ed25519_dalek();
+    test_ed25519_dalek_1_0_1();
     test_ed25519_consensus();
 
     test_k256_patch();

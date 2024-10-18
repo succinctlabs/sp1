@@ -21,5 +21,5 @@ curve25519-dalek = { git = "https://github.com/sp1-patches/curve25519-dalek", br
 curve25519-dalek-ng = { git = "https://github.com/sp1-patches/curve25519-dalek-ng", branch = "patch-v4.1.1" ,  default-features = false, features = ["u32_backend", "alloc"]}
 alloy-primitives = { version = "0.8", features = ["k256"] }
 secp256k1 = { version = "0.29", features = ["recovery", "global-context"] }
-
+rand = { version = "0.8", features = ["std_rng"] }
 revm-precompile = { version = "11.0.1", default-features = false, features = ["kzg-rs"] }
