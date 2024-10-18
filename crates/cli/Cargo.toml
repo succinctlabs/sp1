@@ -18,6 +18,7 @@ vergen = { version = "8", default-features = false, features = [
 
 [dependencies]
 
+gecko_profile = { git = "https://github.com/mstange/samply" }
 anyhow = { version = "1.0.83", features = ["backtrace"] }
 clap = { version = "4.5.9", features = ["derive", "env"] }
 sp1-build = { workspace = true }
