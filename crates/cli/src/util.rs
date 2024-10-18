@@ -48,5 +48,5 @@ pub(crate) fn canon_path(path: impl AsRef<Path>) -> Result<PathBuf, std::io::Err
 
     // we didnt have a parent, and we have root
     // so this can only be the root dir
-    return Ok(path.to_path_buf());
+    Ok(path.to_path_buf())
 }
