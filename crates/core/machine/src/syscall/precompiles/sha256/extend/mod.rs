@@ -40,7 +40,7 @@ pub mod extend_tests {
 
     use crate::utils::{
         self, run_test,
-        tests::{SHA2_ELF, SHA_EXTEND_ELF},
+        tests::{load_const_to_register, SHA2_ELF, SHA_EXTEND_ELF},
     };
 
     use super::ShaExtendChip;
@@ -54,8 +54,8 @@ pub mod extend_tests {
                 Instruction::new(Opcode::SW, 29, 30, 0, false, true),
             ]);
         }
+        instructions.extend(load_const_to_register(5, SyscallCode::SHA_EXTEND as u32));
         instructions.extend(vec![
-            Instruction::new(Opcode::ADD, 5, 0, SyscallCode::SHA_EXTEND as u32, false, true),
             Instruction::new(Opcode::ADD, 10, 0, w_ptr, false, true),
             Instruction::new(Opcode::ADD, 11, 0, 0, false, true),
             Instruction::new(Opcode::ECALL, 5, 10, 11, false, false),
