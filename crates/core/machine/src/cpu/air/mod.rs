@@ -288,7 +288,7 @@ impl CpuChip {
         builder
             .when_transition()
             .when(next.is_real)
-            .assert_eq(expected_next_clk.clone(), reconstruct_clk::<AB>(local));
+            .assert_eq(expected_next_clk.clone(), reconstruct_clk::<AB>(next));
 
         // Range check that the clk is within 24 bits using it's limb values.
         builder.eval_range_check_24bits(
