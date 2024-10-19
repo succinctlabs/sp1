@@ -24,7 +24,10 @@ pub mod permute_tests {
     use sp1_core_executor::{syscalls::SyscallCode, Executor, Instruction, Opcode, Program};
     use sp1_stark::{CpuProver, SP1CoreOpts};
 
-    use crate::utils::{self, run_test, tests::KECCAK_PERMUTE_ELF};
+    use crate::utils::{
+        self, run_test,
+        tests::{load_const_to_register, KECCAK_PERMUTE_ELF},
+    };
 
     pub fn keccak_permute_program() -> Program {
         let digest_ptr = 100;
@@ -35,8 +38,8 @@ pub mod permute_tests {
                 Instruction::new(Opcode::SW, 29, 30, 0, false, true),
             ]);
         }
+        instructions.extend(load_const_to_register(5, SyscallCode::KECCAK_PERMUTE as u32));
         instructions.extend(vec![
-            Instruction::new(Opcode::ADD, 5, 0, SyscallCode::KECCAK_PERMUTE as u32, false, true),
             Instruction::new(Opcode::ADD, 10, 0, digest_ptr, false, true),
             Instruction::new(Opcode::ECALL, 5, 10, 11, false, false),
         ]);
