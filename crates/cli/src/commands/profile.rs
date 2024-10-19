@@ -45,7 +45,7 @@ pub struct ProfileCmd {
     output: PathBuf,
 
     /// The sample rate to use for the profile.
-    /// This is the number of instructions to between samples.
+    /// This is the number of instructions in between samples.
     #[arg(short = 'r', long, default_value = "10")]
     sample_rate: usize,
 
@@ -257,7 +257,6 @@ fn check_samples(samples: &Vec<Sample>) {
     }
 }
 
-/// Check if samply is installed otherwise install it.
 fn has_samply() -> bool {
     let samply = std::process::Command::new("samply")
         .stdout(Stdio::null())
