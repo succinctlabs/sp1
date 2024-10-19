@@ -6,7 +6,7 @@ In this section, we will show you how to create a simple Fibonacci program using
 
 ### Option 1: Cargo Prove New CLI (Recommended)
 
-You can use the `cargo prove` CLI to create a new project using the `cargo prove new <--bare|--evm> <name>` command. This command will create a new folder in your current directory which includes solidity smart contracts for onchain integration
+You can use the `cargo prove` CLI to create a new project using the `cargo prove new <--bare|--evm> <name>` command. This command will create a new folder in your current directory which includes solidity smart contracts for onchain integration.
 
 ```bash
 cargo prove new --evm fibonacci
