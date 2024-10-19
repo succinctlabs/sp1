@@ -210,7 +210,6 @@ impl CpuChip {
         blu_events: &mut impl ByteRecord,
     ) {
         cols.shard = F::from_canonical_u32(event.shard);
-        cols.clk = F::from_canonical_u32(event.clk);
 
         let clk_16bit_limb = (event.clk & 0xffff) as u16;
         let clk_8bit_limb = ((event.clk >> 16) & 0xff) as u8;
