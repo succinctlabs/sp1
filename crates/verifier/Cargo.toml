@@ -1,0 +1,27 @@
+[package]
+name = "sp1-verifier"
+description = "SP1 is a performant, 100% open-source, contributor-friendly zkVM."
+readme = "../../README.md"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+keywords = { workspace = true }
+categories = { workspace = true }
+
+[dependencies]
+# bn = { git = "https://github.com/sp1-patches/bn", branch = "patch-v0.7.0", package = "substrate-bn" }
+bn = { path = "../../../bn", package = "substrate-bn"}
+sha2 = { version = "0.10.8", default-features = false }
+thiserror-no-std = "2.0.2"
+rand = { version = "0.8.5", default-features = false }
+
+[dev-dependencies]
+hex = "0.4.3"
+sp1-sdk = { path = "../../crates/sdk" }
+num-bigint = "0.4.6"
+num-traits = "0.2.19"
+
+[features]
+default = ["getrandom"]
+getrandom = ["rand/getrandom"]
