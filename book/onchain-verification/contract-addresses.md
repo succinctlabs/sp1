@@ -43,7 +43,7 @@ verifier contract by following the instructions in the
 [SP1 Contracts Repo](https://github.com/succinctlabs/sp1-contracts/blob/main/README.md#deployments).
 
 Since both the `SP1VerifierGateway` and each `SP1Verifier` implement the [ISP1Verifier
-interface](./contract-usage.md#isp1verifier-interface), you can choose to either:
+interface](https://github.com/succinctlabs/sp1-contracts/blob/main/contracts/src/ISP1Verifier.sol), you can choose to either:
 
 * Deploy the `SP1VerifierGateway` and add `SP1Verifier` contracts to it. Then point to the
   `SP1VerifierGateway` address in your contracts.
