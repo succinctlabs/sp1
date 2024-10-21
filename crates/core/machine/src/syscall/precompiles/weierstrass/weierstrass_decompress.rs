@@ -358,14 +358,12 @@ where
         );
         local.x_2.eval(builder, &x, &x, FieldOperation::Mul, local.is_real);
         local.x_3.eval(builder, &local.x_2.result, &x, FieldOperation::Mul, local.is_real);
-        let b = E::b_int();
-        let b_const = E::BaseField::to_limbs_field::<AB::F, _>(&b);
-        let a = E::a_int();
-        let a_const = E::BaseField::to_limbs_field::<AB::F, _>(&a);
+        let b_const = E::BaseField::to_limbs_field::<AB::F, _>(&E::b_int());
+        let a_const = E::BaseField::to_limbs_field::<AB::F, _>(&E::a_int());
         let params = [a_const, b_const];
-        let one = E::BaseField::to_limbs_field::<AB::F, _>(&BigUint::one());
         let p_x: Polynomial<AB::Expr> = x.into();
-        let p_one: Polynomial<AB::Expr> = one.into();
+        let p_one: Polynomial<AB::Expr> =
+            E::BaseField::to_limbs_field::<AB::F, _>(&BigUint::one()).into();
         local.ax_plus_b.eval::<AB>(builder, &params, &[p_x, p_one], local.is_real);
         local.x_3_plus_b_plus_ax.eval(
             builder,

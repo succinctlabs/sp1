@@ -4,7 +4,7 @@ use std::sync::{Arc, RwLock, RwLockWriteGuard};
 
 use hashbrown::HashMap;
 use sp1_curves::k256::{Invert, RecoveryId, Signature, VerifyingKey};
-use sp1_curves::p256::{Signature as p256Signature, VerifyingKey as p256VerifyingKey};
+use sp1_curves::p256::Signature as p256Signature;
 
 use crate::Executor;
 
