@@ -1096,9 +1096,9 @@ checksum = "1fd0f2584146f6f2ef48085050886acf353beff7305ebd1ae69500e27c67f64b"
 
 [[package]]
 name = "bytes"
-version = "1.7.2"
+version = "1.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "428d9aa8fbc0670b7b8d6030a7fadd0f86151cae55e4dbbece15f3780a3dfaf3"
+checksum = "9ac0150caa2ae65ca5bd83f25c7de183dea78d4d366469f148435e2acfbad0da"
 dependencies = [
  "serde",
 ]
@@ -1569,7 +1569,7 @@ dependencies = [
 name = "cycle-tracking-program"
 version = "1.1.0"
 dependencies = [
- "sp1-derive 3.0.0-rc4",
+ "sp1-derive",
  "sp1-zkvm",
 ]
 
@@ -1835,7 +1835,7 @@ checksum = "0d6ef0072f8a535281e4876be788938b528e9a1d43900b82c2569af7da799125"
 [[package]]
 name = "ecdsa"
 version = "0.16.8"
-source = "git+https://github.com/sp1-patches/signatures?branch=umadayal/secp256r1-testing#c716446386725e4abe03b017590ef6d5957c156e"
+source = "git+https://github.com/sp1-patches/signatures?branch=umadayal/secp256r1#5b2ccc3ff98414f3d371e9b6670d16f1de84903f"
 dependencies = [
  "anyhow",
  "cfg-if",
@@ -1845,7 +1845,6 @@ dependencies = [
  "hex-literal",
  "rfc6979",
  "signature",
- "sp1-derive 3.0.0-rc4 (git+https://github.com/succinctlabs/sp1.git?branch=secp256r1)",
  "sp1-lib 3.0.0-rc4 (git+https://github.com/succinctlabs/sp1.git?branch=secp256r1)",
  "spki 0.7.3",
 ]
@@ -5554,7 +5553,7 @@ dependencies = [
 [[package]]
 name = "rfc6979"
 version = "0.4.0"
-source = "git+https://github.com/sp1-patches/signatures?branch=umadayal/secp256r1-testing#c716446386725e4abe03b017590ef6d5957c156e"
+source = "git+https://github.com/sp1-patches/signatures?branch=umadayal/secp256r1#5b2ccc3ff98414f3d371e9b6670d16f1de84903f"
 dependencies = [
  "hmac",
  "subtle",
@@ -6070,7 +6069,7 @@ dependencies = [
 [[package]]
 name = "secp256k1"
 version = "0.29.0"
-source = "git+https://github.com/sp1-patches/rust-secp256k1?branch=umadayal/testing#dcb752b2b0605ecc2e1b714c1e685deda11c3e7e"
+source = "git+https://github.com/sp1-patches/rust-secp256k1?branch=umadayal/patch-verify-ecdsa#ec5a715b5fb7723f7bea3c79c9202cd6f20970d0"
 dependencies = [
  "cfg-if",
  "ecdsa",
@@ -6083,7 +6082,7 @@ dependencies = [
 [[package]]
 name = "secp256k1-sys"
 version = "0.10.0"
-source = "git+https://github.com/sp1-patches/rust-secp256k1?branch=umadayal/testing#dcb752b2b0605ecc2e1b714c1e685deda11c3e7e"
+source = "git+https://github.com/sp1-patches/rust-secp256k1?branch=umadayal/patch-verify-ecdsa#ec5a715b5fb7723f7bea3c79c9202cd6f20970d0"
 dependencies = [
  "cc",
 ]
@@ -6518,7 +6517,7 @@ dependencies = [
  "snowbridge-amcl",
  "sp1-core-executor",
  "sp1-curves",
- "sp1-derive 3.0.0-rc4",
+ "sp1-derive",
  "sp1-primitives",
  "sp1-stark",
  "static_assertions",
@@ -6578,15 +6577,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "sp1-derive"
-version = "3.0.0-rc4"
-source = "git+https://github.com/succinctlabs/sp1.git?branch=secp256r1#9af1686c3a07bfe2edd0119b8cb2175729f467fe"
-dependencies = [
- "quote",
- "syn 1.0.109",
-]
-
-[[package]]
 name = "sp1-lib"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6611,7 +6601,7 @@ dependencies = [
 [[package]]
 name = "sp1-lib"
 version = "3.0.0-rc4"
-source = "git+https://github.com/succinctlabs/sp1.git?branch=secp256r1#9af1686c3a07bfe2edd0119b8cb2175729f467fe"
+source = "git+https://github.com/succinctlabs/sp1.git?branch=secp256r1#a8eb9cda925d32b73112c4b1792183aad46d67f8"
 dependencies = [
  "bincode",
  "serde",
@@ -6705,7 +6695,7 @@ dependencies = [
  "serde",
  "sp1-core-executor",
  "sp1-core-machine",
- "sp1-derive 3.0.0-rc4",
+ "sp1-derive",
  "sp1-primitives",
  "sp1-recursion-compiler",
  "sp1-recursion-core",
@@ -6758,7 +6748,7 @@ dependencies = [
  "p3-util",
  "serde",
  "sp1-core-machine",
- "sp1-derive 3.0.0-rc4",
+ "sp1-derive",
  "sp1-primitives",
  "sp1-stark",
  "static_assertions",
@@ -6865,7 +6855,7 @@ dependencies = [
  "p3-util",
  "rayon-scan",
  "serde",
- "sp1-derive 3.0.0-rc4",
+ "sp1-derive",
  "sp1-primitives",
  "strum",
  "strum_macros",

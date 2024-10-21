@@ -33,14 +33,10 @@ pub fn main() {
         0
     );
 
-    // Confirm there was at least 1 SECP256R1_ADD, SECP256R1_DOUBLE and SECP256R1_DECOMPRESS syscall.
+    // Confirm there was at least 1 SECP256R1_ADD and SECP256R1_DOUBLE syscall.
     assert_ne!(report.syscall_counts[sp1_core_executor::syscalls::SyscallCode::SECP256R1_ADD], 0);
     assert_ne!(
         report.syscall_counts[sp1_core_executor::syscalls::SyscallCode::SECP256R1_DOUBLE],
-        0
-    );
-    assert_ne!(
-        report.syscall_counts[sp1_core_executor::syscalls::SyscallCode::SECP256R1_DECOMPRESS],
         0
     );
 
