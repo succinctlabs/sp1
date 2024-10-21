@@ -126,7 +126,8 @@ fn test_sha256() {
 fn test_p256_patch() {
     // A valid signature.
     let precompile_input = bytes!("b5a77e7a90aa14e0bf5f337f06f597148676424fae26e175c6e5621c34351955289f319789da424845c9eac935245fcddd805950e2f02506d09be7e411199556d262144475b1fa46ad85250728c600c53dfd10f8b3f4adf140e27241aec3c2da3a81046703fccf468b48b145f939efdbb96c3786db712b3113bb2488ef286cdcef8afe82d200a5bb36b5462166e8ce77f2d831a52ef2135b2af188110beaefb1");
-
+    // let recid = precompile_input[63] - 27;
+    // println!("recid: {}", recid);
     println!("cycle-tracker-start: p256 verify");
     let result = revm_precompile::secp256r1::verify_impl(&precompile_input);
     println!("cycle-tracker-end: p256 verify");
@@ -134,13 +135,19 @@ fn test_p256_patch() {
     assert!(result.is_some());
 
     // An invalid signature.
-    let false_input = bytes!("b5a77e7a90aa14e0bf5f337f06f597148676424fae26e175c6e5621c34351955289f319789da424845c9eac935245fcddd805950e2f02506d09be7e411199556d262144475b1fa46ad85250728c600c53dfd10f8b3f4adf140e27241aec3c2daaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaef8afe82d200a5bb36b5462166e8ce77f2d831a52ef2135b2af188110beaefb1");
-
+    // let false_input = bytes!("b5a77e7a90aa14e0bf5f337f06f597148676424fae26e175c6e5621c34351955289f319789da424845c9eac935245fcddd805950e2f02506d09be7e411199556d262144475b1fa46ad85250728c600c53dfd10f8b3f4adf140e27241aec3c2daaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaef8afe82d200a5bb36b5462166e8ce77f2d831a52ef2135b2af188110beaefb1");
+    // let false_input =bytes!("958b991cfd78f16537fe6d1f4afd10273384db08bdfc843562a22b0626766686f6aec8247599f40bfe01bec0e0ecf17b4319559022d4d9bf007fe929943004eb4866760dedf31b7c691f5ce665f8aae0bda895c23595c834fecc2390a5bcc203b04afcacbb4280713287a2d0c37e23f7513fab898f2c1fefa00ec09a924c335d9b629f1d4fb71901c3e59611afbfea354d101324e894c788d1c01f00b3c251b2");
+    let false_input = bytes!("afec5769b5cf4e310a7d150508e82fb8e3eda1c2c94c61492d3bd8aea99e06c9e22466e928fdccef0de49e3503d2657d00494a00e764fd437bdafa05f5922b1fbbb77c6817ccf50748419477e843d5bac67e6a70e97dde5a57e0c983b777e1ad31a80482dadf89de6302b1988c82c29544c9c07bb910596158f6062517eb089a2f54c9a0f348752950094d3228d3b940258c75fe2a413cb70baa21dc2e352fc5");
     println!("cycle-tracker-start: p256 verify false");
     let result = revm_precompile::secp256r1::verify_impl(&false_input);
     println!("cycle-tracker-end: p256 verify false");
-
+    // let false_recid = false_input[63] - 27;
+    // println!("false_recid: {}", false_recid);
     assert!(result.is_none());
+    match result {
+        Some(_) => assert!(false, "Expected verification to fail, but it succeeded."),
+        None => println!("Verification failed as expected."),
+    }
 }
 
 /// Emits SECP256K1_ADD, SECP256K1_DOUBLE, and SECP256K1_DECOMPRESS syscalls.
@@ -151,6 +158,7 @@ fn test_k256_patch() {
 
     let msg = <&B256>::try_from(&precompile_input[0..32]).unwrap();
     let recid = precompile_input[63] - 27;
+    println!("recid: {}", recid);
     let sig = <&B512>::try_from(&precompile_input[64..128]).unwrap();
 
     println!("cycle-tracker-start: k256 verify");
