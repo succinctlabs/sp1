@@ -60,9 +60,8 @@ impl SP1ProofWithPublicValues {
         match &self.proof {
             SP1Proof::Plonk(plonk_proof) => {
                 if plonk_proof.encoded_proof.is_empty() {
-                    // If the proof is empty, then we are working with a mock proof.
-                    // The mock SP1 verifier expects an empty byte array for verification,
-                    // so we return empty bytes for compatibility with the mock verifier.
+                    // If the proof is empty, then this is a mock proof. The mock SP1 verifier
+                    // expects an empty byte array for verification, so return an empty byte array.
                     return Vec::new();
                 }
 
@@ -74,6 +73,12 @@ impl SP1ProofWithPublicValues {
                 bytes
             }
             SP1Proof::Groth16(groth16_proof) => {
+                if groth16_proof.encoded_proof.is_empty() {
+                    // If the proof is empty, then this is a mock proof. The mock SP1 verifier
+                    // expects an empty byte array for verification, so return an empty byte array.
+                    return Vec::new();
+                }
+
                 let mut bytes = Vec::with_capacity(4 + groth16_proof.encoded_proof.len());
                 bytes.extend_from_slice(&groth16_proof.groth16_vkey_hash[..4]);
                 bytes.extend_from_slice(
