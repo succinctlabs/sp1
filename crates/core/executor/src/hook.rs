@@ -145,45 +145,25 @@ pub fn hook_k1_ecrecover(_: HookEnv, buf: &[u8]) -> Vec<Vec<u8>> {
     vec![bytes.to_vec(), s_inverse.to_bytes().to_vec()]
 }
 
-/// Recovers the public key from the signature and message hash using the secp256r1 crate.
+/// Recovers s inverse from the signature using the secp256r1 crate.
 ///
 /// # Arguments
 ///
 /// * `env` - The environment in which the hook is invoked.
-/// * `buf` - The buffer containing the signature and message hash.
-///     - The signature is 65 bytes, the first 64 bytes are the signature and the last byte is the
-///       recovery ID.
-///     - The message hash is 32 bytes.
+/// * `buf` - The buffer containing the signature.
+///     - The signature is 64 bytes.
 ///
-/// The result is returned as a pair of bytes, where the first 32 bytes are the X coordinate
-/// and the second 32 bytes are the Y coordinate of the decompressed point.
-///
-/// WARNING: This function is used to recover the public key outside of the zkVM context. These
-/// values must be constrained by the zkVM for correctness.
+/// The result is a single 32 byte vector containing s inverse.
 #[must_use]
 pub fn hook_r1_ecrecover(_: HookEnv, buf: &[u8]) -> Vec<Vec<u8>> {
-    assert_eq!(buf.len(), 65 + 32, "ecrecover input should have length 65 + 32");
-    let (sig, msg_hash) = buf.split_at(65);
-    let sig: &[u8; 65] = sig.try_into().unwrap();
-    let msg_hash: &[u8; 32] = msg_hash.try_into().unwrap();
-
-    let mut recovery_id = sig[64];
-    let mut sig = p256Signature::from_slice(&sig[..64]).unwrap();
-
-    if let Some(sig_normalized) = sig.normalize_s() {
-        sig = sig_normalized;
-        recovery_id ^= 1;
-    };
-    let recid = RecoveryId::from_byte(recovery_id).expect("Computed recovery ID is invalid!");
-
-    let recovered_key = p256VerifyingKey::recover_from_prehash(&msg_hash[..], &sig, recid).unwrap();
-    let recovered_key_compressed = recovered_key.to_encoded_point(true);
-    let bytes = recovered_key_compressed.as_bytes();
+    assert_eq!(buf.len(), 64, "ecrecover input should have length 64");
+    let sig: &[u8; 64] = buf.try_into().unwrap();
+    let sig = p256Signature::from_slice(sig).unwrap();
 
     let (_, s) = sig.split_scalars();
     let s_inverse = s.invert();
 
-    vec![bytes.to_vec(), s_inverse.to_bytes().to_vec()]
+    vec![s_inverse.to_bytes().to_vec()]
 }
 
 #[cfg(test)]
