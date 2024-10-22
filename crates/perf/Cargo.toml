@@ -12,7 +12,7 @@ categories = { workspace = true }
 [dependencies]
 sp1-prover = { workspace = true }
 sp1-core-executor = { workspace = true, features = ["programs"] }
-sp1-sdk = { workspace = true, features = ["network-v2"] }
+sp1-sdk = { workspace = true }
 p3-baby-bear = { workspace = true }
 sp1-stark = { workspace = true }
 sp1-cuda = { workspace = true }
@@ -30,3 +30,4 @@ serde_json = "1.0.104"
 
 [features]
 native-gnark = ["sp1-sdk/native-gnark"]
+network-v2 = ["sp1-sdk/network-v2"]
