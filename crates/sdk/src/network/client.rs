@@ -101,7 +101,6 @@ impl NetworkClient {
             )
             .await
             .context("Failed to get proof status")?;
-
         let proof = match res.status() {
             ProofStatus::ProofFulfilled => {
                 log::info!("Proof request fulfilled");
