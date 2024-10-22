@@ -6,7 +6,6 @@ pub(crate) use converter::{load_groth16_proof_from_bytes, load_groth16_verifying
 use sha2::{Digest, Sha256};
 pub(crate) use verify::*;
 
-use bn::Fr;
 use error::Groth16Error;
 
 use crate::{bn254_public_values, decode_sp1_vkey_hash};
@@ -15,6 +14,7 @@ use crate::{bn254_public_values, decode_sp1_vkey_hash};
 #[derive(Debug)]
 pub struct Groth16Verifier;
 
+extern crate std;
 impl Groth16Verifier {
     /// Verifies a Groth16 proof.
     ///
@@ -34,9 +34,6 @@ impl Groth16Verifier {
         sp1_vkey_hash: &str,
         groth16_vk: &[u8],
     ) -> Result<bool, Groth16Error> {
-        let proof = load_groth16_proof_from_bytes(&proof[4..]).unwrap();
-        let groth16_vk = load_groth16_verifying_key_from_bytes(groth16_vk).unwrap();
-
         // Hash the vk and get the first 4 bytes.
         let groth16_vk_hash: [u8; 4] = Sha256::digest(groth16_vk)[..4].try_into().unwrap();
 
@@ -52,6 +49,10 @@ impl Groth16Verifier {
         let sp1_vkey_hash = decode_sp1_vkey_hash(sp1_vkey_hash)?;
         let public_inputs = bn254_public_values(&sp1_vkey_hash, sp1_public_inputs);
 
-        verify_groth16(&groth16_vk, &proof, public_inputs)
+        let proof = load_groth16_proof_from_bytes(&proof[4..]).unwrap();
+        let groth16_vk = load_groth16_verifying_key_from_bytes(groth16_vk).unwrap();
+
+        std::println!("public_inputs: {:?}", public_inputs);
+        verify_groth16(&groth16_vk, &proof, &public_inputs)
     }
 }

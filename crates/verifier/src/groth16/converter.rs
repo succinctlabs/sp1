@@ -6,7 +6,7 @@ use crate::{
         unchecked_compressed_x_to_g1_point, unchecked_compressed_x_to_g2_point,
         uncompressed_bytes_to_g1_point, uncompressed_bytes_to_g2_point,
     },
-    groth16::{Groth16G1, Groth16G2, Groth16Proof, Groth16VerifyingKey, PedersenVerifyingKey},
+    groth16::{Groth16G1, Groth16G2, Groth16Proof, Groth16VerifyingKey},
 };
 
 use super::error::Groth16Error;
@@ -58,17 +58,9 @@ pub(crate) fn load_groth16_verifying_key_from_bytes(
         }
     }
 
-    let commitment_key_g = unchecked_compressed_x_to_g2_point(&buffer[offset..offset + 64])?;
-    let commitment_key_g_root_sigma_neg =
-        unchecked_compressed_x_to_g2_point(&buffer[offset + 64..offset + 128])?;
-
     Ok(Groth16VerifyingKey {
         g1: Groth16G1 { alpha: g1_alpha, beta: -g1_beta, delta: g1_delta, k },
         g2: Groth16G2 { beta: -g2_beta, gamma: g2_gamma, delta: g2_delta },
-        commitment_key: PedersenVerifyingKey {
-            g: commitment_key_g,
-            g_root_sigma_neg: commitment_key_g_root_sigma_neg,
-        },
         public_and_commitment_committed: vec![vec![0u32; 0]],
     })
 }

@@ -19,16 +19,9 @@ pub struct Groth16G2 {
 }
 
 #[derive(Clone, PartialEq)]
-pub struct PedersenVerifyingKey {
-    pub g: AffineG2,
-    pub g_root_sigma_neg: AffineG2,
-}
-
-#[derive(Clone, PartialEq)]
 pub struct Groth16VerifyingKey {
     pub g1: Groth16G1,
     pub g2: Groth16G2,
-    pub commitment_key: PedersenVerifyingKey,
     pub public_and_commitment_committed: Vec<Vec<u32>>,
 }
 
