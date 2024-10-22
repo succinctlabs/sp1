@@ -7,7 +7,9 @@ fn main() {
     let stdin = SP1Stdin::new();
 
     let client = ProverClient::new();
-    let (_public_values, _) = client.execute(ELF, stdin.clone()).run().expect("failed to prove");
+    let (_public_values, report) =
+        client.execute(ELF, stdin.clone()).run().expect("failed to prove");
+    println!("report: {:?}", report.total_instruction_count());
 
     let (pk, vk) = client.setup(ELF);
     let mut proof = client.prove(&pk, stdin).compressed().run().unwrap();
