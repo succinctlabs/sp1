@@ -30,3 +30,4 @@ serde_json = "1.0.104"
 
 [features]
 native-gnark = ["sp1-sdk/native-gnark"]
+network-v2 = ["sp1-sdk/network-v2"]
