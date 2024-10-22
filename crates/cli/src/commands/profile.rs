@@ -23,7 +23,7 @@ use gecko_profile::{Frame, ProfileBuilder, ThreadBuilder};
 use std::path::PathBuf;
 use std::process::Stdio;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use goblin::elf::{sym::STT_FUNC, Elf};
 use rustc_demangle::demangle;
 use std::{collections::HashMap, io::Read, path::Path, rc::Rc, str};
@@ -73,7 +73,7 @@ impl ProfileCmd {
             samples.len() * self.sample_rate
         );
 
-        check_samples(&samples);
+        check_samples(&samples)?;
 
         let start_time = std::time::Instant::now();
         let mut profile_builder = ProfileBuilder::new(
@@ -121,10 +121,10 @@ fn build_goblin_lookups(
     start_lookup: &mut HashMap<u64, Rc<str>>,
     end_lookup: &mut HashMap<u64, Rc<str>>,
     func_range_lookup: &mut HashMap<Rc<str>, (u64, u64)>,
-    elf_name: &str,
-) -> std::io::Result<()> {
-    let buffer = std::fs::read(elf_name).unwrap();
-    let elf = Elf::parse(&buffer).unwrap();
+    elf_name: impl AsRef<Path>,
+) -> Result<()> {
+    let buffer = std::fs::read(elf_name).context("Failed to open elf file")?;
+    let elf = Elf::parse(&buffer).context("Failed to parse elf file")?;
 
     for sym in &elf.syms {
         if sym.st_type() == STT_FUNC {
@@ -148,26 +148,19 @@ pub fn collect_samples(
     trace_path: impl AsRef<Path>,
     sample_rate: u64,
 ) -> Result<Vec<Sample>> {
-    let elf_path = elf_path.as_ref();
     let trace_path = trace_path.as_ref();
 
     let mut start_lookup = HashMap::new();
     let mut end_lookup = HashMap::new();
     let mut func_range_lookup = HashMap::new();
-    build_goblin_lookups(
-        &mut start_lookup,
-        &mut end_lookup,
-        &mut func_range_lookup,
-        &elf_path.to_string_lossy(),
-    )
-    .unwrap();
+    build_goblin_lookups(&mut start_lookup, &mut end_lookup, &mut func_range_lookup, elf_path)?;
 
     let mut function_ranges: Vec<(u64, u64, Rc<str>)> =
         func_range_lookup.iter().map(|(f, &(start, end))| (start, end, f.clone())).collect();
 
     function_ranges.sort_by_key(|&(start, _, _)| start);
 
-    let file = std::fs::File::open(trace_path).unwrap();
+    let file = std::fs::File::open(trace_path).context("Failed to open trace path file")?;
     let file_size = file.metadata().unwrap().len();
     let mut buf = std::io::BufReader::new(file);
     let mut function_stack: Vec<Rc<str>> = Vec::new();
@@ -243,18 +236,15 @@ pub fn collect_samples(
 /// for at least 90% of the samples
 ///
 /// Panics if the samples are invalid
-fn check_samples(samples: &Vec<Sample>) {
-    let mut main_count = 0;
-    for sample in samples {
-        if sample.stack.iter().any(|f| &**f == "main") {
-            main_count += 1;
-        }
-    }
+fn check_samples(samples: &[Sample]) -> Result<()> {
+    let main_count = samples.iter().filter(|s| s.stack.iter().any(|f| &**f == "main")).count();
 
     let main_ratio = main_count as f64 / samples.len() as f64;
     if main_ratio < 0.9 {
-        panic!("This trace appears to be invalid. The `main` function is present in only {:.2}% of the samples", main_ratio * 100.0);
+        return Err(anyhow::anyhow!("This trace appears to be invalid. The `main` function is present in only {:.2}% of the samples, this is likely caused by the using the wrong Elf file", main_ratio * 100.0));
     }
+
+    Ok(())
 }
 
 fn has_samply() -> bool {
