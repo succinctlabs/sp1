@@ -106,8 +106,6 @@ impl NetworkClient {
             ProofStatus::ProofFulfilled => {
                 log::info!("Proof request fulfilled");
 
-                // log s3 url
-                log::info!("downloading from Proof URL: {}", res.proof_url.as_ref().unwrap());
                 let proof_bytes = self
                     .http
                     .get(res.proof_url.as_ref().expect("no proof url"))
