@@ -10,8 +10,11 @@ mod constants;
 mod converter;
 mod error;
 mod groth16;
+mod utils;
 
 pub use groth16::Groth16Verifier;
+pub use utils::*;
+
 #[cfg(feature = "getrandom")]
 mod plonk;
 #[cfg(feature = "getrandom")]
@@ -37,26 +40,18 @@ mod tests {
         // Load the saved proof and convert it to the specified proof mode
         let (raw_proof, public_inputs) = SP1ProofWithPublicValues::load(proof_file)
             .map(|sp1_proof_with_public_values| {
+                let public_inputs = sp1_proof_with_public_values.public_values;
                 let proof = sp1_proof_with_public_values.proof.try_as_groth_16().unwrap();
-                (hex::decode(proof.raw_proof).unwrap(), proof.public_inputs)
+                (hex::decode(proof.raw_proof).unwrap(), public_inputs.to_vec())
             })
             .expect("Failed to load proof");
 
         // Convert public inputs to byte representations
-        let vkey_hash = BigUint::from_str_radix(&public_inputs[0], 10).unwrap().to_bytes_be();
-        let committed_values_digest =
-            BigUint::from_str_radix(&public_inputs[1], 10).unwrap().to_bytes_be();
+        let vkey_hash = "0xSOMETHIGN";
 
-        let vkey_hash = Fr::from_slice(&vkey_hash).expect("Unable to read vkey_hash");
-        let committed_values_digest = Fr::from_slice(&committed_values_digest)
-            .expect("Unable to read committed_values_digest");
-
-        let is_valid = Groth16Verifier::verify(
-            &raw_proof,
-            GROTH16_VK_BYTES,
-            &[vkey_hash, committed_values_digest],
-        )
-        .expect("Groth16 proof is invalid");
+        let is_valid =
+            Groth16Verifier::verify(&raw_proof, GROTH16_VK_BYTES, vkey_hash, &public_inputs)
+                .expect("Groth16 proof is invalid");
 
         if !is_valid {
             panic!("Groth16 proof is invalid");
@@ -78,6 +73,7 @@ mod tests {
 
         // Convert public inputs to byte representations
         let vkey_hash = BigUint::from_str_radix(&public_inputs[0], 10).unwrap().to_bytes_be();
+        println!("len vkey_hash: {}", vkey_hash.len());
         let committed_values_digest =
             BigUint::from_str_radix(&public_inputs[1], 10).unwrap().to_bytes_be();
 

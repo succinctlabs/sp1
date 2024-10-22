@@ -12,4 +12,6 @@ pub enum Groth16Error {
     UnexpectedIdentity,
     #[error("General error")]
     GeneralError(#[from] crate::error::Error),
+    #[error("Groth16 vkey hash mismatch")]
+    Groth16VkeyHashMismatch,
 }

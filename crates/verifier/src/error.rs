@@ -56,4 +56,8 @@ pub enum Error {
     Group(GroupError),
     #[error("BN254 Curve Error")]
     Curve(CurveError),
+
+    // SP1 Errors
+    #[error("Invalid program vkey hash")]
+    InvalidProgramVkeyHash,
 }
