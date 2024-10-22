@@ -3,8 +3,6 @@ use std::{env, time::Duration};
 use alloy_signer::SignerSync;
 use alloy_signer_local::PrivateKeySigner;
 use anyhow::{Context, Ok, Result};
-use aws_config::BehaviorVersion;
-use aws_sdk_s3::Client as S3Client;
 use reqwest_middleware::ClientWithMiddleware as HttpClientWithMiddleware;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -12,7 +10,6 @@ use sp1_core_machine::io::SP1Stdin;
 use sp1_prover::SP1VerifyingKey;
 use std::str::FromStr;
 use std::time::{SystemTime, UNIX_EPOCH};
-use tokio::sync::OnceCell;
 use tokio::try_join;
 use tonic::transport::channel::ClientTlsConfig;
 use tonic::transport::Channel;
@@ -34,7 +31,6 @@ pub const DEFAULT_PROVER_NETWORK_RPC: &str = "http://127.0.0.1:50051";
 pub struct NetworkClient {
     signer: PrivateKeySigner,
     http: HttpClientWithMiddleware,
-    s3: OnceCell<S3Client>,
 }
 
 impl NetworkClient {
@@ -48,7 +44,7 @@ impl NetworkClient {
             .build()
             .unwrap();
 
-        Self { signer, http: http_client.into(), s3: OnceCell::new() }
+        Self { signer, http: http_client.into() }
     }
 
     /// Returns the currently configured RPC endpoint for the Succinct prover network.
@@ -88,16 +84,6 @@ impl NetworkClient {
         Ok(ArtifactStoreClient::new(channel.clone()))
     }
 
-    /// Get the S3 client.
-    async fn get_s3_client(&self) -> &S3Client {
-        self.s3
-            .get_or_init(|| async {
-                let config = aws_config::load_defaults(BehaviorVersion::latest()).await;
-                S3Client::new(&config)
-            })
-            .await
-    }
-
     /// Get the latest nonce for this account's address.
     pub async fn get_nonce(&self) -> Result<u64> {
         let mut rpc = self.get_rpc().await?;
@@ -118,14 +104,14 @@ impl NetworkClient {
             })
             .await?
             .into_inner();
-        let status = ProofStatus::try_from(res.status)?;
+
+        let status = ProofStatus::try_from(res.proof_status)?;
         let proof = match status {
             ProofStatus::Fulfilled => {
-                log::info!("Proof request fulfilled");
                 let proof_uri = res
                     .proof_uri
                     .as_ref()
-                    .ok_or_else(|| anyhow::anyhow!("No proof URL provided"))?;
+                    .ok_or_else(|| anyhow::anyhow!("No proof URI provided"))?;
                 let proof_bytes = self.download_artifact(proof_uri).await?;
                 Some(bincode::deserialize(&proof_bytes).context("Failed to deserialize proof")?)
             }
@@ -230,21 +216,14 @@ impl NetworkClient {
         Ok(uri)
     }
 
-    /// Download an artifact from S3.
+    /// Download an artifact from a URI.
     async fn download_artifact(&self, uri: &str) -> Result<Vec<u8>> {
-        let s3_client = self.get_s3_client().await;
-        let uri = uri.strip_prefix("s3://").context("Invalid S3 URI")?;
-        let (bucket, key) = uri.split_once('/').context("Invalid S3 URI format")?;
+        let response = self.http.get(uri).send().await.context("Failed to download from URI")?;
 
-        let resp = s3_client
-            .get_object()
-            .bucket(bucket)
-            .key(key)
-            .send()
-            .await
-            .context("Failed to get object from S3")?;
+        if !response.status().is_success() {
+            return Err(anyhow::anyhow!("Failed to download artifact: HTTP {}", response.status()));
+        }
 
-        let data = resp.body.collect().await.context("Failed to read S3 object body")?;
-        Ok(data.into_bytes().to_vec())
+        Ok(response.bytes().await.context("Failed to read response body")?.to_vec())
     }
 }
