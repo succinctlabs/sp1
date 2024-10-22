@@ -4,7 +4,7 @@ This is a guide with helpful information for developers who want to contribute t
 
 ## Getting started
 
-You can run the test suite in SP1 core by running the following command:
+To build SP1, you must install [Go](https://go.dev/doc/install). You can run the test suite in SP1 core by running the following command:
 
 ```bash
 cd core

@@ -845,7 +845,7 @@ where
     let mut reader = std::io::BufReader::new(file);
     let state: ExecutionState =
         bincode::deserialize_from(&mut reader).expect("failed to deserialize state");
-    let mut runtime = Executor::recover(program.clone(), state.clone(), opts);
+    let mut runtime = Executor::recover(program, state, opts);
     runtime.maximal_shapes = Some(maximal_shapes.into_iter().map(|s| s.inner).collect());
 
     // We already passed the deferred proof verifier when creating checkpoints, so the proofs were
