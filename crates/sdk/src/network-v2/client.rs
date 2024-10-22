@@ -26,7 +26,7 @@ use crate::network_v2::proto::network::{
 use crate::network_v2::Signable;
 
 /// The default RPC endpoint for the Succinct prover network.
-pub const DEFAULT_PROVER_NETWORK_RPC: &str = "https://rpc.dev.succinct.tools";
+pub const DEFAULT_PROVER_NETWORK_RPC: &str = "https://rpc.dev.succinct.tools/";
 
 pub struct NetworkClient {
     signer: PrivateKeySigner,
