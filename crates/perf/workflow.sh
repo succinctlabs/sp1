@@ -43,7 +43,7 @@ CUDA_WORKLOADS=(
 
 # Define the list of network workloads.
 NETWORK_WORKLOADS=(
-    # "fibonacci-17k"
+    "fibonacci-17k"
     # "ssz-withdrawals"
     # "tendermint"
     # "rsp-20526624"
