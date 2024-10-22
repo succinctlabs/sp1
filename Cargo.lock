@@ -7201,7 +7201,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-zkvm"
-version = "3.0.0"
+version = "3.0.1"
 dependencies = [
  "cfg-if",
  "getrandom 0.2.15",

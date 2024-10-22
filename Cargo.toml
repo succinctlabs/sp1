@@ -65,7 +65,9 @@ sp1-sdk = { path = "crates/sdk", version = "3.0.0" }
 sp1-cuda = { path = "crates/cuda", version = "3.0.0" }
 sp1-stark = { path = "crates/stark", version = "3.0.0" }
 sp1-lib = { path = "crates/zkvm/lib", version = "3.0.0", default-features = false }
-sp1-zkvm = { path = "crates/zkvm/entrypoint", version = "3.0.0", default-features = false }
+
+# On next release, don't forget to bump the version in crates/zkvm/entrypoint/Cargo.toml
+sp1-zkvm = { path = "crates/zkvm/entrypoint", version = "3.0.1", default-features = false }
 
 # p3
 p3-air = "0.1.4-succinct"
