@@ -60,14 +60,7 @@ pub fn main() {
     {
         let lhs = G1Projective::random(&mut rand::thread_rng());
         let rhs = G1Projective::random(&mut rand::thread_rng());
-        println!("cycle-tracker-start: bls12_381-add-g1");
-        let _ = lhs + rhs;
-        println!("cycle-tracker-end: bls12_381-add-g1");
-        // println!("cycle-tracker-start: bls12_381-mul-g1");
-        // let _ = lhs * Scalar::random(&mut rand::thread_rng());
-        // println!("cycle-tracker-end: bls12_381-mul-g1");
-
-        for i in 0..32 {
+        for i in 0..4096 {
             let _ = lhs + rhs;
         }
     }

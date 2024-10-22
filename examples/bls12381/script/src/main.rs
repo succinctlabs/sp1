@@ -10,7 +10,7 @@ fn main() {
     let (_public_values, _) = client.execute(ELF, stdin.clone()).run().expect("failed to prove");
 
     let (pk, vk) = client.setup(ELF);
-    let mut proof = client.prove(&pk, stdin).run().unwrap();
+    let mut proof = client.prove(&pk, stdin).compressed().run().unwrap();
 
     client.verify(&proof, &vk).unwrap();
 }
