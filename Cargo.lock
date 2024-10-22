@@ -6911,17 +6911,21 @@ dependencies = [
 
 [[package]]
 name = "sp1-lib"
-version = "3.0.0"
+version = "1.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bea7811abd2d3a991007fcb284f41152840b8388c171288d0c52c6793956609c"
 dependencies = [
+ "anyhow",
  "bincode",
+ "cfg-if",
+ "hex",
  "serde",
+ "snowbridge-amcl",
 ]
 
 [[package]]
 name = "sp1-lib"
 version = "3.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9c372b16988e765af85ccf958b18b26d89c05886f2592d313a285415dcc769cb"
 dependencies = [
  "bincode",
  "serde",
@@ -7395,6 +7399,7 @@ dependencies = [
 [[package]]
 name = "substrate-bn"
 version = "0.7.0"
+source = "git+https://github.com/sp1-patches/bn?branch=patch-v0.7.0#3c53d2561492f26b9428c1d37d134031d0156152"
 dependencies = [
  "bytemuck",
  "byteorder",
@@ -7404,7 +7409,7 @@ dependencies = [
  "num-bigint 0.4.6",
  "rand 0.8.5",
  "rustc-hex",
- "sp1-lib 3.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sp1-lib 1.2.0",
 ]
 
 [[package]]

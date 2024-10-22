@@ -35,7 +35,9 @@ impl PlonkVerifier {
     ///
     /// A `Result` containing a boolean indicating whether the proof is valid,
     /// or a `PlonkError` if verification fails.
-    pub fn verify(proof: &[u8], vk: &[u8], public_inputs: &[Fr]) -> Result<bool, PlonkError> {
+    ///
+    /// Who cares
+    pub fn verify_old(proof: &[u8], vk: &[u8], public_inputs: &[Fr]) -> Result<bool, PlonkError> {
         let proof = load_plonk_proof_from_bytes(proof).unwrap();
         let vk = load_plonk_verifying_key_from_bytes(vk).unwrap();
 

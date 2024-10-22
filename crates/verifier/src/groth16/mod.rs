@@ -55,4 +55,16 @@ impl Groth16Verifier {
         std::println!("public_inputs: {:?}", public_inputs);
         verify_groth16(&groth16_vk, &proof, &public_inputs)
     }
+
+    /// whatever
+    pub fn verify_old(
+        proof: &[u8],
+        vk: &[u8],
+        public_inputs: &[bn::Fr],
+    ) -> Result<bool, Groth16Error> {
+        let proof = load_groth16_proof_from_bytes(proof).unwrap();
+        let vk = load_groth16_verifying_key_from_bytes(vk).unwrap();
+
+        verify_groth16(&vk, &proof, public_inputs)
+    }
 }
