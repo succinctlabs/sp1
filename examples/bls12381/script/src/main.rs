@@ -7,5 +7,10 @@ fn main() {
     let stdin = SP1Stdin::new();
 
     let client = ProverClient::new();
-    let (_public_values, _) = client.execute(ELF, stdin).run().expect("failed to prove");
+    let (_public_values, _) = client.execute(ELF, stdin.clone()).run().expect("failed to prove");
+
+    let (pk, vk) = client.setup(ELF);
+    let mut proof = client.prove(&pk, stdin).run().unwrap();
+
+    client.verify(&proof, &vk).unwrap();
 }
