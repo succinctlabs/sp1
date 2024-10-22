@@ -55,7 +55,7 @@ pub(crate) mod riscv_chips {
         edwards::{ed25519::Ed25519Parameters, EdwardsCurve},
         weierstrass::{
             bls12_381::Bls12381Parameters, bn254::Bn254Parameters, secp256k1::Secp256k1Parameters,
-            SwCurve,
+            secp256r1::Secp256r1Parameters, SwCurve,
         },
     };
 }
@@ -110,10 +110,16 @@ pub enum RiscvAir<F: PrimeField32> {
     Ed25519Decompress(EdDecompressChip<Ed25519Parameters>),
     /// A precompile for decompressing a point on the K256 curve.
     K256Decompress(WeierstrassDecompressChip<SwCurve<Secp256k1Parameters>>),
+    /// A precompile for decompressing a point on the P256 curve.
+    P256Decompress(WeierstrassDecompressChip<SwCurve<Secp256r1Parameters>>),
     /// A precompile for addition on the Elliptic curve secp256k1.
     Secp256k1Add(WeierstrassAddAssignChip<SwCurve<Secp256k1Parameters>>),
     /// A precompile for doubling a point on the Elliptic curve secp256k1.
     Secp256k1Double(WeierstrassDoubleAssignChip<SwCurve<Secp256k1Parameters>>),
+    /// A precompile for addition on the Elliptic curve secp256r1.
+    Secp256r1Add(WeierstrassAddAssignChip<SwCurve<Secp256r1Parameters>>),
+    /// A precompile for doubling a point on the Elliptic curve secp256r1.
+    Secp256r1Double(WeierstrassDoubleAssignChip<SwCurve<Secp256r1Parameters>>),
     /// A precompile for the Keccak permutation.
     KeccakP(KeccakPermuteChip),
     /// A precompile for addition on the Elliptic curve bn254.
@@ -217,6 +223,25 @@ impl<F: PrimeField32> RiscvAir<F> {
             >::new()));
         costs.insert(RiscvAirDiscriminants::Secp256k1Double, secp256k1_double_assign.cost());
         chips.push(secp256k1_double_assign);
+
+        let p256_decompress = Chip::new(RiscvAir::P256Decompress(WeierstrassDecompressChip::<
+            SwCurve<Secp256r1Parameters>,
+        >::with_lsb_rule()));
+        costs.insert(RiscvAirDiscriminants::P256Decompress, p256_decompress.cost());
+        chips.push(p256_decompress);
+
+        let secp256r1_add_assign = Chip::new(RiscvAir::Secp256r1Add(WeierstrassAddAssignChip::<
+            SwCurve<Secp256r1Parameters>,
+        >::new()));
+        costs.insert(RiscvAirDiscriminants::Secp256r1Add, secp256r1_add_assign.cost());
+        chips.push(secp256r1_add_assign);
+
+        let secp256r1_double_assign =
+            Chip::new(RiscvAir::Secp256r1Double(WeierstrassDoubleAssignChip::<
+                SwCurve<Secp256r1Parameters>,
+            >::new()));
+        costs.insert(RiscvAirDiscriminants::Secp256r1Double, secp256r1_double_assign.cost());
+        chips.push(secp256r1_double_assign);
 
         let keccak_permute = Chip::new(RiscvAir::KeccakP(KeccakPermuteChip::new()));
         costs.insert(RiscvAirDiscriminants::KeccakP, 24 * keccak_permute.cost());
@@ -472,11 +497,14 @@ impl<F: PrimeField32> RiscvAir<F> {
             Self::KeccakP(_) => SyscallCode::KECCAK_PERMUTE,
             Self::Secp256k1Add(_) => SyscallCode::SECP256K1_ADD,
             Self::Secp256k1Double(_) => SyscallCode::SECP256K1_DOUBLE,
+            Self::Secp256r1Add(_) => SyscallCode::SECP256R1_ADD,
+            Self::Secp256r1Double(_) => SyscallCode::SECP256R1_DOUBLE,
             Self::Sha256Compress(_) => SyscallCode::SHA_COMPRESS,
             Self::Sha256Extend(_) => SyscallCode::SHA_EXTEND,
             Self::Uint256Mul(_) => SyscallCode::UINT256_MUL,
             Self::Bls12381Decompress(_) => SyscallCode::BLS12381_DECOMPRESS,
             Self::K256Decompress(_) => SyscallCode::SECP256K1_DECOMPRESS,
+            Self::P256Decompress(_) => SyscallCode::SECP256R1_DECOMPRESS,
             Self::Bls12381Double(_) => SyscallCode::BLS12381_DOUBLE,
             Self::Bls12381Fp(_) => SyscallCode::BLS12381_FP_ADD,
             Self::Bls12381Fp2Mul(_) => SyscallCode::BLS12381_FP2_MUL,

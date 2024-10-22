@@ -20,7 +20,7 @@ use sp1_core_executor::{
 };
 use sp1_curves::{
     edwards::{ed25519::Ed25519BaseField, EdwardsParameters, NUM_LIMBS, WORDS_CURVE_POINT},
-    params::FieldParameters,
+    params::{FieldParameters, Limbs, NumLimbs},
     AffinePoint, EllipticCurve,
 };
 use sp1_derive::AlignedBorrow;
@@ -262,10 +262,14 @@ where
         builder.when_first_row().assert_zero(local.nonce);
         builder.when_transition().assert_eq(local.nonce + AB::Expr::one(), next.nonce);
 
-        let x1 = limbs_from_prev_access(&local.p_access[0..8]);
-        let x2 = limbs_from_prev_access(&local.q_access[0..8]);
-        let y1 = limbs_from_prev_access(&local.p_access[8..16]);
-        let y2 = limbs_from_prev_access(&local.q_access[8..16]);
+        let x1: Limbs<AB::Var, <Ed25519BaseField as NumLimbs>::Limbs> =
+            limbs_from_prev_access(&local.p_access[0..8]);
+        let x2: Limbs<AB::Var, <Ed25519BaseField as NumLimbs>::Limbs> =
+            limbs_from_prev_access(&local.q_access[0..8]);
+        let y1: Limbs<AB::Var, <Ed25519BaseField as NumLimbs>::Limbs> =
+            limbs_from_prev_access(&local.p_access[8..16]);
+        let y2: Limbs<AB::Var, <Ed25519BaseField as NumLimbs>::Limbs> =
+            limbs_from_prev_access(&local.q_access[8..16]);
 
         // x3_numerator = x1 * y2 + x2 * y1.
         local.x3_numerator.eval(builder, &[x1, x2], &[y2, y1], local.is_real);
