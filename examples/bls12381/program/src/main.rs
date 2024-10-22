@@ -60,7 +60,7 @@ pub fn main() {
     {
         let lhs = G1Projective::random(&mut rand::thread_rng());
         let rhs = G1Projective::random(&mut rand::thread_rng());
-        for i in 0..4096 {
+        for i in 0..16384 {
             let _ = lhs + rhs;
         }
     }
