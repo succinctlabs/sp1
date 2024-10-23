@@ -28,7 +28,19 @@ pub(crate) fn create_docker_command(
         .expect("Failed to canonicalize program directory")
         .try_into()
         .unwrap();
-    let workspace_root = &program_metadata.workspace_root;
+
+    let workspace_root: &Utf8PathBuf = &args
+        .workspace_directory
+        .as_deref()
+        .map(|workspace_path| {
+            std::path::Path::new(workspace_path)
+                .to_path_buf()
+                .canonicalize()
+                .expect("Failed to canonicalize workspace directory")
+                .try_into()
+                .unwrap()
+        })
+        .unwrap_or_else(|| program_metadata.workspace_root.clone());
 
     // Check if docker is installed and running.
     let docker_check = Command::new("docker")

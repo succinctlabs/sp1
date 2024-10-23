@@ -68,6 +68,14 @@ pub struct BuildArgs {
         default_value = DEFAULT_OUTPUT_DIR
     )]
     pub output_directory: String,
+    #[clap(
+        alias = "workspace-dir",
+        long,
+        action,
+        help = "Optional workspace directory to be used",
+        default_value = None
+    )]
+    pub workspace_directory: Option<String>,
 }
 
 // Implement default args to match clap defaults.
@@ -84,6 +92,7 @@ impl Default for BuildArgs {
             output_directory: DEFAULT_OUTPUT_DIR.to_string(),
             locked: false,
             no_default_features: false,
+            workspace_directory: None,
         }
     }
 }
