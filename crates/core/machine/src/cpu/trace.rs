@@ -311,7 +311,7 @@ impl CpuChip {
                 }
                 if memory_columns.most_sig_byte_decomp[7] == F::one() {
                     cols.mem_value_is_neg_not_x0 =
-                        F::from_bool(event.instruction.op_a != (X0 as u32));
+                        F::from_bool(event.instruction.op_a != (X0 as u8));
                     cols.unsigned_mem_val_nonce = F::from_canonical_u32(
                         nonce_lookup.get(&event.memory_sub_lookup_id).copied().unwrap_or_default(),
                     );
@@ -323,7 +323,7 @@ impl CpuChip {
                 ((matches!(event.instruction.opcode, Opcode::LB | Opcode::LH)
                     && (memory_columns.most_sig_byte_decomp[7] == F::zero()))
                     || matches!(event.instruction.opcode, Opcode::LBU | Opcode::LHU | Opcode::LW))
-                    && event.instruction.op_a != (X0 as u32),
+                    && event.instruction.op_a != (X0 as u8),
             );
         }
 

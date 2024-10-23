@@ -269,7 +269,7 @@ impl<'a> Executor<'a> {
     pub fn registers(&mut self) -> [u32; 32] {
         let mut registers = [0; 32];
         for i in 0..32 {
-            let addr = Register::from_u32(i as u32) as u32;
+            let addr = Register::from_u8(i as u8) as u32;
             let record = self.state.memory.get(addr);
 
             // Only add the previous memory state to checkpoint map if we're in checkpoint mode,
@@ -727,7 +727,7 @@ impl<'a> Executor<'a> {
         } else {
             debug_assert!(instruction.imm_b && instruction.imm_c);
             let (rd, b, c) =
-                (Register::from_u32(instruction.op_a), instruction.op_b, instruction.op_c);
+                (Register::from_u8(instruction.op_a), instruction.op_b, instruction.op_c);
             (rd, b, c)
         }
     }
