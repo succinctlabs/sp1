@@ -6,21 +6,21 @@ In this section, we will show you how to create a simple Fibonacci program using
 
 ### Option 1: Cargo Prove New CLI (Recommended)
 
-You can use the `cargo prove` CLI to create a new project using the `cargo prove new <name>` command. This command will create a new folder in your current directory.
+You can use the `cargo prove` CLI to create a new project using the `cargo prove new --bare <name>` command. This command will create a new folder in your current directory.
 
 ```bash
-cargo prove new fibonacci
+cargo prove new --bare fibonacci
 cd fibonacci
 ```
 
-### Option 2: Project Template (Solidity Contracts for Onchain Verification)
+### Option 2: EVM Template (Solidity Contracts for Onchain Verification)
 
-If you want to use SP1 to generate proofs that will eventually be verified on an EVM chain, you should use the [SP1 project template](https://github.com/succinctlabs/sp1-project-template/tree/main). This Github template is scaffolded with a SP1 program, a script to generate proofs, and also a contracts folder that contains a Solidity contract that can verify SP1 proofs on any EVM chain.
-
-Either fork the project template repository or clone it:
+If you want to use SP1 to generate proofs that will eventually be verified on an EVM chain, you should use `cargo prove new --evm <name>`.
+This template is scaffolded with a SP1 program, a script to generate proofs, and also a contracts folder that contains a Solidity contract that can verify SP1 proofs on any EVM chain.
 
 ```bash
-git clone https://github.com/succinctlabs/sp1-project-template.git
+cargo prove new --evm fibonacci
+cd fibonacci
 ```
 
 ### Project Overview
