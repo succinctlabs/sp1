@@ -50,8 +50,7 @@ impl<V: Copy> PagedMemory<V> {
     /// The number of registers in the virtual machine.
     const NUM_REGISTERS: usize = 32;
     /// The offset subtracted from the main address space to make it contiguous.
-    const ADDR_COMPRESS_OFFSET: usize =
-        Self::NUM_REGISTERS - (Self::NUM_REGISTERS >> Self::NUM_IGNORED_LOWER_BITS);
+    const ADDR_COMPRESS_OFFSET: usize = Self::NUM_REGISTERS;
 
     /// Create a `PagedMemory` with capacity `MAX_PAGE_COUNT`.
     pub fn new_preallocated() -> Self {
