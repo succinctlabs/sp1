@@ -154,11 +154,13 @@ impl NetworkClient {
         timeout_secs: u64,
         cycle_limit: u64,
     ) -> Result<RequestProofResponse> {
+        println!("Requesting proof with timeout: {} at rpc: {}", timeout_secs, Self::rpc_url());
         // Calculate the deadline.
         let start = SystemTime::now();
         let since_the_epoch = start.duration_since(UNIX_EPOCH).expect("Invalid start time");
         let deadline = since_the_epoch.as_secs() + timeout_secs;
 
+        println!("Creating artifacts");
         // Create the program and stdin artifacts.
         let mut store = self.get_store().await?;
         let mut store_clone = store.clone();
@@ -169,9 +171,11 @@ impl NetworkClient {
         // Serialize the vkey.
         let vkey = bincode::serialize(&vk)?;
 
+        println!("Sending request");
         // Send the request.
         let mut rpc = self.get_rpc().await?;
         let nonce = self.get_nonce().await?;
+        println!("Nonce: {}", nonce);
         let request_body = RequestProofRequestBody {
             nonce,
             version: format!("sp1-{}", version),
