@@ -184,7 +184,7 @@ fn main() {
             let (_, _) = time_operation(|| prover.execute(&elf, stdin.clone()));
 
             let (proof, _) =
-                time_operation(|| prover.prove(&pk, stdin.clone()).groth16().run().unwrap());
+                time_operation(|| prover.prove(&pk, stdin.clone()).compressed().run().unwrap());
 
             let (_, _) = time_operation(|| prover.verify(&proof, &vk));
 
