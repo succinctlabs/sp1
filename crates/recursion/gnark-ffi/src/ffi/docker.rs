@@ -1,9 +1,7 @@
 use crate::ProofBn254;
-use crate::{Groth16Bn254Proof, PlonkBn254Proof};
+use crate::{Groth16Bn254Proof, PlonkBn254Proof, SP1_CIRCUIT_VERSION};
 use anyhow::{anyhow, Result};
 use std::{io::Write, process::Command};
-
-const SP1_CIRCUIT_VERSION: &str = include_str!("../../../../SP1_CIRCUIT_VERSION");
 
 /// Represents the proof system being used
 enum ProofSystem {
