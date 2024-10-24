@@ -7,7 +7,6 @@ pub use build::{execute_build_program, generate_elf_paths};
 use clap::Parser;
 
 const SP1_CIRCUIT_VERSION: &str = include_str!("../../SP1_CIRCUIT_VERSION");
-
 const BUILD_TARGET: &str = "riscv32im-succinct-zkvm-elf";
 const DEFAULT_OUTPUT_DIR: &str = "elf";
 const HELPER_TARGET_SUBDIR: &str = "elf-compilation";
