@@ -28,8 +28,6 @@ pub struct CpuEvent {
     pub c: u32,
     /// The third operand memory record.
     pub c_record: Option<MemoryRecordEnum>,
-    /// The memory value.
-    pub memory: Option<u32>,
     /// The memory record.
     pub memory_record: Option<MemoryRecordEnum>,
     /// The exit code.

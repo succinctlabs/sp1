@@ -171,7 +171,6 @@ impl CpuChip {
         });
 
         // Populate memory accesses for reading from memory.
-        assert_eq!(event.memory_record.is_some(), event.memory.is_some());
         let memory_columns = cols.opcode_specific_columns.memory_mut();
         if let Some(record) = event.memory_record {
             memory_columns.memory_access.populate(record, blu_events)
