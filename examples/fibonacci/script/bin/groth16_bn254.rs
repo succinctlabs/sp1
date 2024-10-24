@@ -1,4 +1,3 @@
-use sp1_sdk::HashableKey;
 use sp1_sdk::{utils, ProverClient, SP1Stdin};
 
 /// The ELF we want to execute inside the zkVM.
@@ -17,7 +16,6 @@ fn main() {
     // Generate the proof for the given program and input.
     let client = ProverClient::new();
     let (pk, vk) = client.setup(ELF);
-    println!("vkey bytes: {:?}", vk.bytes32());
     let proof = client.prove(&pk, stdin).groth16().run().unwrap();
 
     println!("generated proof");
@@ -34,7 +32,7 @@ fn main() {
     client.verify(&proof, &vk).expect("verification failed");
 
     // Save the proof.
-    proof.save("fib_groth_300.bin").expect("saving proof failed");
+    proof.save("proof-with-pis.bin").expect("saving proof failed");
 
     println!("successfully generated and verified proof for the program!")
 }

@@ -15,7 +15,8 @@ bn = { git = "https://github.com/yuwen01/bn", rev = "7d8394cd1d57a7d4e5a235a7176
 sha2 = { version = "0.10.8", default-features = false }
 thiserror-no-std = "2.0.2"
 rand = { version = "0.8.5", default-features = false }
-hex = { version = "0.4.3", default-features = false }
+hex = { version = "0.4.3", default-features = false, features = ["alloc"] }
+lazy_static = { version = "1.5.0", default-features = false }
 
 [dev-dependencies]
 sp1-sdk = { path = "../../crates/sdk" }

@@ -3,7 +3,6 @@ use sha2::{Digest, Sha256};
 
 use crate::error::Error;
 
-extern crate std;
 /// Hashes the public inputs in the same format as the BN254 verifier.
 pub fn hash_public_inputs(public_inputs: &[u8]) -> [u8; 32] {
     let mut result = Sha256::digest(public_inputs);

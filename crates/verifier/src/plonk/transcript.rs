@@ -37,25 +37,14 @@ impl Transcript {
                 );
             }
 
-            Ok(Transcript {
-                h,
-                challenges,
-                previous_challenge: None,
-            })
+            Ok(Transcript { h, challenges, previous_challenge: None })
         } else {
-            Ok(Transcript {
-                h,
-                challenges: BTreeMap::new(),
-                previous_challenge: None,
-            })
+            Ok(Transcript { h, challenges: BTreeMap::new(), previous_challenge: None })
         }
     }
 
     pub(crate) fn bind(&mut self, id: &str, binding: &[u8]) -> Result<(), Error> {
-        let current_challenge = self
-            .challenges
-            .get_mut(id)
-            .ok_or(Error::ChallengeNotFound)?;
+        let current_challenge = self.challenges.get_mut(id).ok_or(Error::ChallengeNotFound)?;
         if current_challenge.is_computed {
             return Err(Error::ChallengeAlreadyComputed);
         }
@@ -66,10 +55,7 @@ impl Transcript {
     }
 
     pub(crate) fn compute_challenge(&mut self, challenge_id: &str) -> Result<Vec<u8>, Error> {
-        let challenge = self
-            .challenges
-            .get_mut(challenge_id)
-            .ok_or(Error::ChallengeNotFound)?;
+        let challenge = self.challenges.get_mut(challenge_id).ok_or(Error::ChallengeNotFound)?;
 
         if challenge.is_computed {
             return Ok(challenge.value.clone());

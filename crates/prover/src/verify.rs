@@ -415,8 +415,6 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         let vkey_hash = BigUint::from_str(&proof.public_inputs[0])?;
         let committed_values_digest = BigUint::from_str(&proof.public_inputs[1])?;
 
-        println!("SDK CRATE PROOF: {:?}", proof);
-
         // Verify the proof with the corresponding public inputs.
         prover.verify(proof, &vkey_hash, &committed_values_digest, build_dir);
 

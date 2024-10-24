@@ -12,3 +12,7 @@ TODO:
 * Should you really be verifying SP1 plonk proofs within sp1? If SP1's randomness is from fiat shamir,
 I guess it should be fine ... but this seems like a subtle, bug-prone use case.
 
+# Acknowledgements
+
+Adapted from [@Bisht13's](https://github.com/Bisht13/gnark-bn254-verifier) `gnark-bn254-verifier` crate.
+

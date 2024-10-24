@@ -7228,6 +7228,7 @@ name = "sp1-verifier"
 version = "3.0.0"
 dependencies = [
  "hex",
+ "lazy_static",
  "num-bigint 0.4.6",
  "num-traits",
  "rand 0.8.5",

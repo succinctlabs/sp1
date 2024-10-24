@@ -25,19 +25,26 @@ use crate::{bn254_public_values, decode_sp1_vkey_hash};
 pub struct PlonkVerifier;
 
 impl PlonkVerifier {
-    /// Verifies a Plonk proof.
-    ///
     /// # Arguments
     ///
     /// * `proof` - The proof bytes.
-    /// * `vk` - The verification key bytes.
-    /// * `public_inputs` - The public inputs.
+    /// * `public_inputs` - The SP1 public inputs.
+    /// * `sp1_vkey_hash` - The SP1 vkey hash.
+    ///   This is generated in the following manner:
+    ///
+    /// ```no_run
+    /// use sp1_sdk::ProverClient;
+    /// let client = ProverClient::new();
+    /// let (pk, vk) = client.setup(ELF);
+    /// let sp1_vkey_hash = vk.bytes32();
+    /// ```
+    /// * `plonk_vk` - The Plonk verifying key bytes.
+    ///   Usually this will be the [`crate::PLONK_VK_BYTES`] constant.
     ///
     /// # Returns
     ///
     /// A `Result` containing a boolean indicating whether the proof is valid,
-    /// or a `PlonkError` if verification fails.
-    ///
+    /// or a [`PlonkError`] if verification fails.
     pub fn verify(
         proof: &[u8],
         sp1_public_inputs: &[u8],

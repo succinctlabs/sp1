@@ -1,5 +1,4 @@
-use alloc::{vec, vec::Vec};
-use bn::AffineG1;
+use alloc::vec::Vec;
 
 use crate::{
     converter::{
@@ -16,7 +15,7 @@ pub(crate) fn load_groth16_proof_from_bytes(buffer: &[u8]) -> Result<Groth16Proo
     let bs = uncompressed_bytes_to_g2_point(&buffer[64..192])?;
     let krs = uncompressed_bytes_to_g1_point(&buffer[192..256])?;
 
-    Ok(Groth16Proof { ar, bs, krs, commitments: Vec::new(), commitment_pok: AffineG1::one() })
+    Ok(Groth16Proof { ar, bs, krs })
 }
 
 pub(crate) fn load_groth16_verifying_key_from_bytes(
@@ -38,29 +37,8 @@ pub(crate) fn load_groth16_verifying_key_from_bytes(
         offset += 32;
     }
 
-    let num_of_array_of_public_and_commitment_committed = u32::from_be_bytes([
-        buffer[offset],
-        buffer[offset + 1],
-        buffer[offset + 2],
-        buffer[offset + 3],
-    ]);
-    offset += 4;
-    for _ in 0..num_of_array_of_public_and_commitment_committed {
-        let num = u32::from_be_bytes([
-            buffer[offset],
-            buffer[offset + 1],
-            buffer[offset + 2],
-            buffer[offset + 3],
-        ]);
-        offset += 4;
-        for _ in 0..num {
-            offset += 4;
-        }
-    }
-
     Ok(Groth16VerifyingKey {
         g1: Groth16G1 { alpha: g1_alpha, beta: -g1_beta, delta: g1_delta, k },
         g2: Groth16G2 { beta: -g2_beta, gamma: g2_gamma, delta: g2_delta },
-        public_and_commitment_committed: vec![vec![0u32; 0]],
     })
 }

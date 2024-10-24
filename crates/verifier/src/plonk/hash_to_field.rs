@@ -5,7 +5,6 @@ use sha2::Digest;
 
 use crate::error::Error;
 
-#[allow(dead_code)]
 pub(crate) struct WrappedHashToField {
     domain: Vec<u8>,
     to_hash: Vec<u8>,
@@ -14,10 +13,7 @@ pub(crate) struct WrappedHashToField {
 impl WrappedHashToField {
     // Creates a new instance with a domain separator
     pub(crate) fn new(domain_separator: &[u8]) -> Result<Self, Error> {
-        Ok(Self {
-            domain: domain_separator.to_vec(),
-            to_hash: Vec::new(),
-        })
+        Ok(Self { domain: domain_separator.to_vec(), to_hash: Vec::new() })
     }
 
     // Hashes the bytes to a field element and returns the byte representation
