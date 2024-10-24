@@ -53,7 +53,10 @@ impl SP1ProofWithPublicValues {
         }
     }
 
-    /// Returns the raw proof as a string.
+    /// Returns the raw proof as bytes, prepended with the first 4 bytes of the vkey hash.
+    ///
+    /// This is the format expected by the `sp1-verifier` crate. The extra 4 bytes are used to
+    /// ensure that the proof will eventually be verified by the correct vkey.
     pub fn raw_with_checksum(&self) -> Vec<u8> {
         match &self.proof {
             SP1Proof::Plonk(plonk) => {

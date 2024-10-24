@@ -12,7 +12,6 @@ mod verify;
 
 pub(crate) mod error;
 
-use bn::Fr;
 pub(crate) use converter::{load_plonk_proof_from_bytes, load_plonk_verifying_key_from_bytes};
 pub(crate) use proof::PlonkProof;
 use sha2::{Digest, Sha256};
@@ -52,7 +51,7 @@ impl PlonkVerifier {
         // the given groth16_vk.
         //
         // SP1 prepends the raw Groth16 proof with the first 4 bytes of the groth16 vkey to
-        // faciliate this check.
+        // facilitate this check.
         if plonk_vk_hash != proof[..4] {
             return Err(PlonkError::PlonkVkeyHashMismatch);
         }
@@ -64,13 +63,5 @@ impl PlonkVerifier {
         let plonk_vk = load_plonk_verifying_key_from_bytes(plonk_vk).unwrap();
 
         verify_plonk(&plonk_vk, &proof, &public_inputs)
-    }
-
-    /// DEPRECATED: Will delete this in a future commit.
-    pub fn verify_old(proof: &[u8], vk: &[u8], public_inputs: &[Fr]) -> Result<bool, PlonkError> {
-        let proof = load_plonk_proof_from_bytes(proof).unwrap();
-        let vk = load_plonk_verifying_key_from_bytes(vk).unwrap();
-
-        verify_plonk(&vk, &proof, public_inputs)
     }
 }
