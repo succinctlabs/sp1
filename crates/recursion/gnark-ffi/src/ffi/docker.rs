@@ -1,7 +1,7 @@
 use crate::ProofBn254;
 use crate::{Groth16Bn254Proof, PlonkBn254Proof};
 use anyhow::{anyhow, Result};
-use sp1_core_machine::SP1_CIRCUIT_VERSION;
+use sp1_build::SP1_CIRCUIT_VERSION;
 use std::{io::Write, process::Command};
 
 /// Represents the proof system being used
