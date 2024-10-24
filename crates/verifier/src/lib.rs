@@ -48,7 +48,7 @@ mod tests {
     #[test]
     fn test_verify_groth16() {
         // Location of the serialized SP1ProofWithPublicValues
-        let proof_file = "test_binaries/uniswap_groth_200.bin";
+        let proof_file = "test_binaries/fib_groth_300.bin";
 
         // Load the saved proof and convert it to the specified proof mode
         let (raw_proof, public_inputs) = SP1ProofWithPublicValues::load(proof_file)
@@ -60,15 +60,11 @@ mod tests {
             .expect("Failed to load proof");
 
         // Convert public inputs to byte representations
-        let vkey_hash = "0x0074c204fb91f930a7682f8dc45bd5b3b7f3cff7e7991e0b8cd8dba10d2fbbcd";
+        let vkey_hash = "0x0051835c0ba4b1ce3e6c5f4c5ab88a41e3eb1bc725d383f12255028ed76bd9a7";
 
-        let is_valid = Groth16Verifier::verify(
-            &raw_proof,
-            &public_inputs,
-            vkey_hash,
-            crate::GROTH16_VK_BYTES_200,
-        )
-        .expect("Groth16 proof is invalid");
+        let is_valid =
+            Groth16Verifier::verify(&raw_proof, &public_inputs, vkey_hash, crate::GROTH16_VK_BYTES)
+                .expect("Groth16 proof is invalid");
 
         if !is_valid {
             panic!("Groth16 proof is invalid");
@@ -118,7 +114,7 @@ mod tests {
     #[test]
     fn test_verify_plonk_300() {
         // Location of the serialized SP1ProofWithPublicValues
-        let proof_file = "test_binaries/fibonacci_plonk_proof.bin";
+        let proof_file = "test_binaries/fib_plonk_300.bin";
 
         // Load the saved proof and convert it to the specified proof mode
         let (proof, public_inputs) = SP1ProofWithPublicValues::load(proof_file)
@@ -134,10 +130,10 @@ mod tests {
             .expect("Failed to load proof");
 
         // Convert public inputs to byte representations
-        let vkey_hash = "0x00b035538bc8fd01407c818abd1df791eed161f3c40cccea454db4ec8fa37948";
+        let vkey_hash = "0x0051835c0ba4b1ce3e6c5f4c5ab88a41e3eb1bc725d383f12255028ed76bd9a7";
 
         let is_valid =
-            PlonkVerifier::verify(&proof, &public_inputs, vkey_hash, crate::PLONK_VK_BYTES_200)
+            PlonkVerifier::verify(&proof, &public_inputs, vkey_hash, crate::PLONK_VK_BYTES)
                 .expect("Plonk proof is invalid");
 
         if !is_valid {
