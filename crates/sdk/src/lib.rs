@@ -194,12 +194,12 @@ impl ProverClient {
 
     /// Prepare to prove the execution of the given program with the given input in the default
     /// mode. The returned [action::Prove] may be configured via its methods before running.
-    /// For example, calling [action::Prove::compress] sets the mode to compressed mode.
+    /// For example, calling [action::Prove::compressed] sets the mode to compressed mode.
     ///
     /// To prove, call [action::Prove::run], which returns a proof of the program's execution.
     /// By default the proof generated will not be compressed to constant size.
-    /// To create a more succinct proof, use the [Self::prove_compressed],
-    /// [Self::prove_plonk], or [Self::prove_plonk] methods.
+    /// To create a more succinct proof, use the [action::Prove::compressed],
+    /// [action::Prove::plonk], or [action::Prove::groth16] methods.
     ///
     /// ### Examples
     /// ```no_run
