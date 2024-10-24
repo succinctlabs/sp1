@@ -7,7 +7,7 @@
 
 use crate::{Groth16Bn254Proof, PlonkBn254Proof};
 use cfg_if::cfg_if;
-use sp1_core_machine::SP1_CIRCUIT_VERSION;
+use sp1_build::SP1_CIRCUIT_VERSION;
 use std::{
     ffi::{c_char, CStr, CString},
     mem::forget,

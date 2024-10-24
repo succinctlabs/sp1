@@ -83,7 +83,7 @@ use utils::{sp1_committed_values_digest_bn254, sp1_vkey_digest_bn254, words_to_b
 
 use components::{CpuProverComponents, SP1ProverComponents};
 
-pub use sp1_core_machine::SP1_CIRCUIT_VERSION;
+pub use sp1_build::SP1_CIRCUIT_VERSION;
 
 /// The configuration for the core prover.
 pub type CoreSC = BabyBearPoseidon2;

@@ -12,7 +12,7 @@ use crate::{
 
 use num_bigint::BigUint;
 use sha2::{Digest, Sha256};
-use sp1_core_machine::SP1_CIRCUIT_VERSION;
+use sp1_build::SP1_CIRCUIT_VERSION;
 use sp1_recursion_compiler::{
     constraints::Constraint,
     ir::{Config, Witness},

@@ -6,8 +6,14 @@ pub use build::{execute_build_program, generate_elf_paths};
 
 use clap::Parser;
 
+/// The global version for all components of SP1.
+///
+/// This string should be updated whenever any step in verifying an SP1 proof changes, including
+/// core, recursion, and plonk-bn254. This string is used to download SP1 artifacts and the gnark
+/// docker image.
+pub const SP1_CIRCUIT_VERSION: &str = "v3.0.0";
+
 const BUILD_TARGET: &str = "riscv32im-succinct-zkvm-elf";
-const DEFAULT_TAG: &str = "main";
 const DEFAULT_OUTPUT_DIR: &str = "elf";
 const HELPER_TARGET_SUBDIR: &str = "elf-compilation";
 
@@ -27,7 +33,7 @@ pub struct BuildArgs {
     #[clap(
         long,
         help = "The ghcr.io/succinctlabs/sp1 image tag to use when building with Docker.",
-        default_value = DEFAULT_TAG
+        default_value = SP1_CIRCUIT_VERSION
     )]
     pub tag: String,
     #[clap(
@@ -83,7 +89,7 @@ impl Default for BuildArgs {
     fn default() -> Self {
         Self {
             docker: false,
-            tag: DEFAULT_TAG.to_string(),
+            tag: SP1_CIRCUIT_VERSION.to_string(),
             features: vec![],
             rustflags: vec![],
             ignore_rust_version: false,
