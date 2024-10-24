@@ -7,11 +7,12 @@
 
 use crate::{Groth16Bn254Proof, PlonkBn254Proof};
 use cfg_if::cfg_if;
-use sp1_build::SP1_CIRCUIT_VERSION;
 use std::{
     ffi::{c_char, CStr, CString},
     mem::forget,
 };
+
+const SP1_CIRCUIT_VERSION: &str = include_str!("../../../../SP1_CIRCUIT_VERSION");
 
 #[allow(warnings, clippy::all)]
 mod bind {

@@ -7,12 +7,11 @@ use std::{
 use crate::{
     ffi::{build_groth16_bn254, prove_groth16_bn254, test_groth16_bn254, verify_groth16_bn254},
     witness::GnarkWitness,
-    Groth16Bn254Proof,
+    Groth16Bn254Proof, SP1_CIRCUIT_VERSION,
 };
 
 use num_bigint::BigUint;
 use sha2::{Digest, Sha256};
-use sp1_build::SP1_CIRCUIT_VERSION;
 use sp1_recursion_compiler::{
     constraints::Constraint,
     ir::{Config, Witness},
