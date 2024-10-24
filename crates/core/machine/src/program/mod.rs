@@ -69,7 +69,7 @@ impl<F: PrimeField> MachineAir<F> for ProgramChip {
             .instructions
             .iter()
             .enumerate()
-            .map(|(i, &instruction)| {
+            .map(|(i, instruction)| {
                 let pc = program.pc_base + (i as u32 * 4);
                 let mut row = [F::zero(); NUM_PROGRAM_PREPROCESSED_COLS];
                 let cols: &mut ProgramPreprocessedCols<F> = row.as_mut_slice().borrow_mut();
