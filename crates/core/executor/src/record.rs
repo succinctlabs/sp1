@@ -6,6 +6,7 @@ use sp1_stark::{
     MachineRecord, SP1CoreOpts, SplitOpts,
 };
 use std::{mem::take, sync::Arc};
+use vec_map::VecMap;
 
 use serde::{Deserialize, Serialize};
 
@@ -60,7 +61,7 @@ pub struct ExecutionRecord {
     /// The public values.
     pub public_values: PublicValues<u32, u32>,
     /// The nonce lookup.
-    pub nonce_lookup: Vec<u32>,
+    pub nonce_lookup: VecMap<u32>,
     /// The shape of the proof.
     pub shape: Option<CoreShape>,
 }
@@ -75,7 +76,7 @@ impl ExecutionRecord {
     /// Create a lookup id for an event.
     pub fn create_lookup_id(&mut self) -> LookupId {
         let id = self.nonce_lookup.len() as u64;
-        self.nonce_lookup.push(0);
+        self.nonce_lookup.insert(id as usize, 0);
         LookupId(id)
     }
 

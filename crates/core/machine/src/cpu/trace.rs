@@ -10,6 +10,7 @@ use sp1_core_executor::{
 use sp1_primitives::consts::WORD_SIZE;
 use sp1_stark::{air::MachineAir, Word};
 use std::{array, borrow::BorrowMut};
+use vec_map::VecMap;
 
 use p3_field::{PrimeField, PrimeField32};
 use p3_matrix::dense::RowMajorMatrix;
@@ -87,7 +88,14 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
                     let mut row = [F::zero(); NUM_CPU_COLS];
                     let cols: &mut CpuCols<F> = row.as_mut_slice().borrow_mut();
                     let instruction = &input.program.fetch(op.pc);
-                    self.event_to_row::<F>(op, &Vec::new(), cols, &mut blu, shard, instruction);
+                    self.event_to_row::<F>(
+                        op,
+                        &input.nonce_lookup,
+                        cols,
+                        &mut blu,
+                        shard,
+                        instruction,
+                    );
                 });
                 blu
             })
@@ -110,7 +118,7 @@ impl CpuChip {
     fn event_to_row<F: PrimeField32>(
         &self,
         event: &CpuEvent,
-        nonce_lookup: &[u32],
+        nonce_lookup: &VecMap<u32>,
         cols: &mut CpuCols<F>,
         blu_events: &mut impl ByteRecord,
         shard: u32,
@@ -239,7 +247,7 @@ impl CpuChip {
         cols: &mut CpuCols<F>,
         event: &CpuEvent,
         blu_events: &mut impl ByteRecord,
-        nonce_lookup: &[u32],
+        nonce_lookup: &VecMap<u32>,
         shard: u32,
         instruction: &Instruction,
     ) {
@@ -357,7 +365,7 @@ impl CpuChip {
         &self,
         cols: &mut CpuCols<F>,
         event: &CpuEvent,
-        nonce_lookup: &[u32],
+        nonce_lookup: &VecMap<u32>,
         instruction: &Instruction,
     ) {
         if instruction.is_branch_instruction() {
@@ -423,7 +431,7 @@ impl CpuChip {
         &self,
         cols: &mut CpuCols<F>,
         event: &CpuEvent,
-        nonce_lookup: &[u32],
+        nonce_lookup: &VecMap<u32>,
         instruction: &Instruction,
     ) {
         if instruction.is_jump_instruction() {
@@ -466,7 +474,7 @@ impl CpuChip {
         &self,
         cols: &mut CpuCols<F>,
         event: &CpuEvent,
-        nonce_lookup: &[u32],
+        nonce_lookup: &VecMap<u32>,
         instruction: &Instruction,
     ) {
         if matches!(instruction.opcode, Opcode::AUIPC) {
@@ -485,7 +493,7 @@ impl CpuChip {
         &self,
         cols: &mut CpuCols<F>,
         event: &CpuEvent,
-        nonce_lookup: &[u32],
+        nonce_lookup: &VecMap<u32>,
     ) -> bool {
         let mut is_halt = false;
 
