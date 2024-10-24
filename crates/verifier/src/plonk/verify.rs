@@ -39,7 +39,7 @@ pub(crate) struct PlonkVerifyingKey {
 /// # Returns
 ///
 /// * `Result<bool, PlonkError>` - Returns true if the proof is valid, or an error if verification fails
-pub fn verify_plonk(
+pub(crate) fn verify_plonk_raw(
     vk: &PlonkVerifyingKey,
     proof: &PlonkProof,
     public_inputs: &[Fr],

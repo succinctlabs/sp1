@@ -23,7 +23,7 @@ impl WrappedHashToField {
         Ok(res[0].clone())
     }
 
-    pub fn hash(msg: Vec<u8>, dst: Vec<u8>, count: usize) -> Result<Vec<Vec<u8>>, Error> {
+    pub(crate) fn hash(msg: Vec<u8>, dst: Vec<u8>, count: usize) -> Result<Vec<Vec<u8>>, Error> {
         let bytes = 32;
         let l = 16 + bytes;
 

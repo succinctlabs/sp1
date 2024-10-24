@@ -7,19 +7,24 @@ use crate::{
     error::Error,
 };
 
-pub(crate) fn is_zeroed(first_byte: u8, buf: &[u8]) -> Result<bool, Error> {
+/// Checks if the first byte is zero and the rest of the bytes are zero.
+pub(crate) fn is_zeroed(first_byte: u8, buf: &[u8]) -> bool {
     if first_byte != 0 {
-        return Ok(false);
+        return false;
     }
     for &b in buf {
         if b != 0 {
-            return Ok(false);
+            return false;
         }
     }
 
-    Ok(true)
+    true
 }
 
+/// Deserializes an Fq element from a buffer.
+///
+/// If this Fq element is part of a compressed point, the flag that indicates the sign of the
+/// y coordinate is also returned.
 pub(crate) fn deserialize_with_flags(buf: &[u8]) -> Result<(Fq, CompressedPointFlag), Error> {
     if buf.len() != 32 {
         return Err(Error::InvalidXLength);
@@ -27,7 +32,7 @@ pub(crate) fn deserialize_with_flags(buf: &[u8]) -> Result<(Fq, CompressedPointF
 
     let m_data = buf[0] & MASK;
     if m_data == u8::from(CompressedPointFlag::Infinity) {
-        if !is_zeroed(buf[0] & !MASK, &buf[1..32]).map_err(|_| Error::InvalidPoint)? {
+        if !is_zeroed(buf[0] & !MASK, &buf[1..32]) {
             return Err(Error::InvalidPoint);
         }
         Ok((Fq::zero(), CompressedPointFlag::Infinity))
@@ -42,6 +47,10 @@ pub(crate) fn deserialize_with_flags(buf: &[u8]) -> Result<(Fq, CompressedPointF
     }
 }
 
+/// Converts a compressed G1 point to an AffineG1 point.
+///
+/// Asserts that the compressed point is represented as a single fq element: the x coordinate
+/// of the point. The y coordinate is then computed from the x coordinate.
 pub(crate) fn unchecked_compressed_x_to_g1_point(buf: &[u8]) -> Result<AffineG1, Error> {
     let (x, m_data) = deserialize_with_flags(buf)?;
     let (y, neg_y) = AffineG1::get_ys_from_x_unchecked(x).ok_or(Error::InvalidPoint)?;
@@ -58,6 +67,9 @@ pub(crate) fn unchecked_compressed_x_to_g1_point(buf: &[u8]) -> Result<AffineG1,
     Ok(AffineG1::new_unchecked(x, final_y))
 }
 
+/// Converts an uncompressed G1 point to an AffineG1 point.
+///
+/// Asserts that the affine point is represented as two fq elements.
 pub(crate) fn uncompressed_bytes_to_g1_point(buf: &[u8]) -> Result<AffineG1, Error> {
     if buf.len() != 64 {
         return Err(Error::InvalidXLength);
@@ -70,6 +82,11 @@ pub(crate) fn uncompressed_bytes_to_g1_point(buf: &[u8]) -> Result<AffineG1, Err
     AffineG1::new(x, y).map_err(Error::Group)
 }
 
+/// Converts a compressed G2 point to an AffineG2 point.
+///
+/// Asserts that the compressed point is represented as a single fq2 element: the x coordinate
+/// of the point.
+/// Then, gets the y coordinate from the x coordinate.
 pub(crate) fn unchecked_compressed_x_to_g2_point(buf: &[u8]) -> Result<AffineG2, Error> {
     if buf.len() != 64 {
         return Err(Error::InvalidXLength);
@@ -92,6 +109,9 @@ pub(crate) fn unchecked_compressed_x_to_g2_point(buf: &[u8]) -> Result<AffineG2,
     }
 }
 
+/// Converts an uncompressed G2 point to an AffineG2 point.
+///
+/// Asserts that the affine point is represented as two fq2 elements.
 pub(crate) fn uncompressed_bytes_to_g2_point(buf: &[u8]) -> Result<AffineG2, Error> {
     if buf.len() != 128 {
         return Err(Error::InvalidXLength);

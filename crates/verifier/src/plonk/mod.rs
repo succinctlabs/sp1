@@ -14,10 +14,10 @@ pub(crate) mod error;
 
 pub(crate) use converter::{load_plonk_proof_from_bytes, load_plonk_verifying_key_from_bytes};
 pub(crate) use proof::PlonkProof;
-use sha2::{Digest, Sha256};
-pub(crate) use verify::verify_plonk;
+pub(crate) use verify::verify_plonk_raw;
 
 use error::PlonkError;
+use sha2::{Digest, Sha256};
 
 use crate::{bn254_public_values, decode_sp1_vkey_hash};
 /// A verifier for Plonk zero-knowledge proofs.
@@ -32,7 +32,7 @@ impl PlonkVerifier {
     /// * `sp1_vkey_hash` - The SP1 vkey hash.
     ///   This is generated in the following manner:
     ///
-    /// ```no_run
+    /// ```ignore
     /// use sp1_sdk::ProverClient;
     /// let client = ProverClient::new();
     /// let (pk, vk) = client.setup(ELF);
@@ -69,6 +69,6 @@ impl PlonkVerifier {
         let proof = load_plonk_proof_from_bytes(&proof[4..]).unwrap();
         let plonk_vk = load_plonk_verifying_key_from_bytes(plonk_vk).unwrap();
 
-        verify_plonk(&plonk_vk, &proof, &public_inputs)
+        verify_plonk_raw(&plonk_vk, &proof, &public_inputs)
     }
 }

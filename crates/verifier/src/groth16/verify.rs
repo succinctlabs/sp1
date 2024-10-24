@@ -5,29 +5,27 @@ use super::error::Groth16Error;
 
 #[derive(Clone, PartialEq)]
 pub(crate) struct Groth16G1 {
-    pub alpha: AffineG1,
-    pub beta: AffineG1,
-    pub delta: AffineG1,
-    pub k: Vec<AffineG1>,
+    pub(crate) alpha: AffineG1,
+    pub(crate) k: Vec<AffineG1>,
 }
 
 #[derive(Clone, PartialEq)]
 pub(crate) struct Groth16G2 {
-    pub beta: AffineG2,
-    pub delta: AffineG2,
-    pub gamma: AffineG2,
+    pub(crate) beta: AffineG2,
+    pub(crate) delta: AffineG2,
+    pub(crate) gamma: AffineG2,
 }
 
 #[derive(Clone, PartialEq)]
 pub(crate) struct Groth16VerifyingKey {
-    pub g1: Groth16G1,
-    pub g2: Groth16G2,
+    pub(crate) g1: Groth16G1,
+    pub(crate) g2: Groth16G2,
 }
 
 pub(crate) struct Groth16Proof {
-    pub ar: AffineG1,
-    pub krs: AffineG1,
-    pub bs: AffineG2,
+    pub(crate) ar: AffineG1,
+    pub(crate) krs: AffineG1,
+    pub(crate) bs: AffineG2,
 }
 
 // Prepare the inputs for the Groth16 verification by combining the public inputs with the corresponding elements of the verification key.
@@ -43,7 +41,7 @@ fn prepare_inputs(vk: Groth16VerifyingKey, public_inputs: &[Fr]) -> Result<G1, G
         .into())
 }
 
-pub fn verify_groth16(
+pub(crate) fn verify_groth16_raw(
     vk: &Groth16VerifyingKey,
     proof: &Groth16Proof,
     public_inputs: &[Fr],

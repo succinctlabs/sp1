@@ -22,10 +22,8 @@ pub(crate) fn load_groth16_verifying_key_from_bytes(
     buffer: &[u8],
 ) -> Result<Groth16VerifyingKey, Groth16Error> {
     let g1_alpha = unchecked_compressed_x_to_g1_point(&buffer[..32])?;
-    let g1_beta = unchecked_compressed_x_to_g1_point(&buffer[32..64])?;
     let g2_beta = unchecked_compressed_x_to_g2_point(&buffer[64..128])?;
     let g2_gamma = unchecked_compressed_x_to_g2_point(&buffer[128..192])?;
-    let g1_delta = unchecked_compressed_x_to_g1_point(&buffer[192..224])?;
     let g2_delta = unchecked_compressed_x_to_g2_point(&buffer[224..288])?;
 
     let num_k = u32::from_be_bytes([buffer[288], buffer[289], buffer[290], buffer[291]]);
@@ -38,7 +36,7 @@ pub(crate) fn load_groth16_verifying_key_from_bytes(
     }
 
     Ok(Groth16VerifyingKey {
-        g1: Groth16G1 { alpha: g1_alpha, beta: -g1_beta, delta: g1_delta, k },
+        g1: Groth16G1 { alpha: g1_alpha, k },
         g2: Groth16G2 { beta: -g2_beta, gamma: g2_gamma, delta: g2_delta },
     })
 }

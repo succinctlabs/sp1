@@ -24,7 +24,7 @@ impl Groth16Verifier {
     /// * `sp1_vkey_hash` - The SP1 vkey hash.
     ///   This is generated in the following manner:
     ///
-    /// ```no_run
+    /// ```ignore
     /// use sp1_sdk::ProverClient;
     /// let client = ProverClient::new();
     /// let (pk, vk) = client.setup(ELF);
@@ -61,6 +61,6 @@ impl Groth16Verifier {
         let proof = load_groth16_proof_from_bytes(&proof[4..]).unwrap();
         let groth16_vk = load_groth16_verifying_key_from_bytes(groth16_vk).unwrap();
 
-        verify_groth16(&groth16_vk, &proof, &public_inputs)
+        verify_groth16_raw(&groth16_vk, &proof, &public_inputs)
     }
 }
