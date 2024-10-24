@@ -55,7 +55,7 @@ impl<'a> Execute<'a> {
     /// Avoid registering the default hooks in the runtime.
     ///
     /// It is not necessary to call this to override hooks --- instead, simply
-    /// register a hook with the same value of `fd` by calling [`Self::hook`].
+    /// register a hook with the same value of `fd` by calling [`Self::with_hook`].
     pub fn without_default_hooks(mut self) -> Self {
         self.context_builder.without_default_hooks();
         self
@@ -64,7 +64,7 @@ impl<'a> Execute<'a> {
     /// Set the maximum number of cpu cycles to use for execution.
     ///
     /// If the cycle limit is exceeded, execution will return
-    /// [sp1_core_machine::runtime::ExecutionError::ExceededCycleLimit].
+    /// [`sp1_core_executor::ExecutionError::ExceededCycleLimit`].
     pub fn max_cycles(mut self, max_cycles: u64) -> Self {
         self.context_builder.max_cycles(max_cycles);
         self
@@ -177,7 +177,7 @@ impl<'a> Prove<'a> {
     /// Avoid registering the default hooks in the runtime.
     ///
     /// It is not necessary to call this to override hooks --- instead, simply
-    /// register a hook with the same value of `fd` by calling [`Self::hook`].
+    /// register a hook with the same value of `fd` by calling [`Self::with_hook`].
     pub fn without_default_hooks(mut self) -> Self {
         self.context_builder.without_default_hooks();
         self
@@ -204,7 +204,7 @@ impl<'a> Prove<'a> {
     /// Set the maximum number of cpu cycles to use for execution.
     ///
     /// If the cycle limit is exceeded, execution will return
-    /// [sp1_core_machine::runtime::ExecutionError::ExceededCycleLimit].
+    /// [`sp1_core_executor::ExecutionError::ExceededCycleLimit`].
     pub fn cycle_limit(mut self, cycle_limit: u64) -> Self {
         self.context_builder.max_cycles(cycle_limit);
         self

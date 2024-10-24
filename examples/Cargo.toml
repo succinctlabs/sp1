@@ -71,3 +71,5 @@ sha2-v0-10-6 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", packa
 sha2-v0-9-9 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", package = "sha2", branch = "patch-sha2-v0.9.9" }
 sha2-v0-9-8 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", package = "sha2", branch = "patch-sha2-v0.9.8" }
 tiny-keccak = { git = "https://github.com/sp1-patches/tiny-keccak", branch = "patch-v2.0.2" }
+substrate-bn = { git = "https://github.com/sp1-patches/bn", rev = "43d854d45b5727b1ff2b9f346d728e785bb8395c"}
+bls12_381 = { git = "https://github.com/sp1-patches/bls12_381", branch = "patch-v0.8.0" }
