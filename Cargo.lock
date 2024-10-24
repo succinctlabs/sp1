@@ -7394,8 +7394,8 @@ dependencies = [
 
 [[package]]
 name = "substrate-bn"
-version = "0.7.0"
-source = "git+https://github.com/yuwen01/bn?rev=2df992c5b82aa1d4919c31cdc424de5244fea223#2df992c5b82aa1d4919c31cdc424de5244fea223"
+version = "0.7.1"
+source = "git+https://github.com/yuwen01/bn?rev=7d8394cd1d57a7d4e5a235a71762cc3dee82e67b#7d8394cd1d57a7d4e5a235a71762cc3dee82e67b"
 dependencies = [
  "bytemuck",
  "byteorder",

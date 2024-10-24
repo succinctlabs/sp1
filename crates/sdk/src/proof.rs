@@ -53,6 +53,29 @@ impl SP1ProofWithPublicValues {
         }
     }
 
+    /// Returns the raw proof as a string.
+    pub fn raw_with_checksum(&self) -> Vec<u8> {
+        match &self.proof {
+            SP1Proof::Plonk(plonk) => {
+                let mut bytes = Vec::with_capacity(4 + (plonk.raw_proof.len()) / 2);
+                bytes.extend_from_slice(&plonk.plonk_vkey_hash[..4]);
+                bytes.extend_from_slice(
+                    &hex::decode(&plonk.raw_proof).expect("Invalid Plonk proof"),
+                );
+                bytes
+            }
+            SP1Proof::Groth16(groth16) => {
+                let mut bytes = Vec::with_capacity(4 + (groth16.raw_proof.len()) / 2);
+                bytes.extend_from_slice(&groth16.groth16_vkey_hash[..4]);
+                bytes.extend_from_slice(
+                    &hex::decode(&groth16.raw_proof).expect("Invalid Groth16 proof"),
+                );
+                bytes
+            }
+            _ => unimplemented!(),
+        }
+    }
+
     /// For Plonk or Groth16 proofs, returns the proof in a byte encoding the onchain verifier
     /// accepts. The bytes consist of the first four bytes of Plonk vkey hash followed by the
     /// encoded proof.

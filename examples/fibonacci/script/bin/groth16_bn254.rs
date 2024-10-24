@@ -34,7 +34,7 @@ fn main() {
     client.verify(&proof, &vk).expect("verification failed");
 
     // Save the proof.
-    proof.save("fib-plonk.bin").expect("saving proof failed");
+    proof.save("fib_plonk_300.bin").expect("saving proof failed");
 
     println!("successfully generated and verified proof for the program!")
 }

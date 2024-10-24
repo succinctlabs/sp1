@@ -2,6 +2,7 @@ mod converter;
 pub(crate) mod error;
 mod verify;
 
+use bn::Fr;
 pub(crate) use converter::{load_groth16_proof_from_bytes, load_groth16_verifying_key_from_bytes};
 use sha2::{Digest, Sha256};
 pub(crate) use verify::*;
@@ -52,5 +53,13 @@ impl Groth16Verifier {
         let groth16_vk = load_groth16_verifying_key_from_bytes(groth16_vk).unwrap();
 
         verify_groth16(&groth16_vk, &proof, &public_inputs)
+    }
+
+    /// DEPRECATED: Will delete this in a future commit.
+    pub fn verify_old(proof: &[u8], vk: &[u8], public_inputs: &[Fr]) -> Result<bool, Groth16Error> {
+        let proof = load_groth16_proof_from_bytes(proof).unwrap();
+        let vk = load_groth16_verifying_key_from_bytes(vk).unwrap();
+
+        verify_groth16(&vk, &proof, public_inputs)
     }
 }
