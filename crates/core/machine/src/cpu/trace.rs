@@ -1,7 +1,7 @@
 use hashbrown::HashMap;
 use itertools::Itertools;
 use sp1_core_executor::{
-    events::{ByteLookupEvent, ByteRecord, CpuEvent, LookupId, MemoryRecordEnum},
+    events::{ByteLookupEvent, ByteRecord, CpuEvent, MemoryRecordEnum},
     syscalls::SyscallCode,
     ByteOpcode::{self, U16Range},
     CoreShape, ExecutionRecord, Opcode, Program,
@@ -80,7 +80,7 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
                 ops.iter().for_each(|op| {
                     let mut row = [F::zero(); NUM_CPU_COLS];
                     let cols: &mut CpuCols<F> = row.as_mut_slice().borrow_mut();
-                    self.event_to_row::<F>(op, &HashMap::new(), cols, &mut blu);
+                    self.event_to_row::<F>(op, &Vec::new(), cols, &mut blu);
                 });
                 blu
             })
@@ -103,7 +103,7 @@ impl CpuChip {
     fn event_to_row<F: PrimeField32>(
         &self,
         event: &CpuEvent,
-        nonce_lookup: &HashMap<LookupId, u32>,
+        nonce_lookup: &Vec<u32>,
         cols: &mut CpuCols<F>,
         blu_events: &mut impl ByteRecord,
     ) {
@@ -112,7 +112,7 @@ impl CpuChip {
 
         // Populate the nonce.
         cols.nonce = F::from_canonical_u32(
-            nonce_lookup.get(&event.alu_lookup_id).copied().unwrap_or_default(),
+            nonce_lookup.get(event.alu_lookup_id.0 as usize).copied().unwrap_or_default(),
         );
 
         // Populate basic fields.
@@ -232,7 +232,7 @@ impl CpuChip {
         cols: &mut CpuCols<F>,
         event: &CpuEvent,
         blu_events: &mut impl ByteRecord,
-        nonce_lookup: &HashMap<LookupId, u32>,
+        nonce_lookup: &Vec<u32>,
     ) {
         if !matches!(
             event.instruction.opcode,
@@ -262,7 +262,7 @@ impl CpuChip {
         let bits: [bool; 8] = array::from_fn(|i| aligned_addr_ls_byte & (1 << i) != 0);
         memory_columns.aa_least_sig_byte_decomp = array::from_fn(|i| F::from_bool(bits[i + 2]));
         memory_columns.addr_word_nonce = F::from_canonical_u32(
-            nonce_lookup.get(&event.memory_add_lookup_id).copied().unwrap_or_default(),
+            nonce_lookup.get(event.memory_add_lookup_id.0 as usize).copied().unwrap_or_default(),
         );
 
         // Populate memory offsets.
@@ -313,7 +313,10 @@ impl CpuChip {
                     cols.mem_value_is_neg_not_x0 =
                         F::from_bool(event.instruction.op_a != (X0 as u8));
                     cols.unsigned_mem_val_nonce = F::from_canonical_u32(
-                        nonce_lookup.get(&event.memory_sub_lookup_id).copied().unwrap_or_default(),
+                        nonce_lookup
+                            .get(event.memory_sub_lookup_id.0 as usize)
+                            .copied()
+                            .unwrap_or_default(),
                     );
                 }
             }
@@ -346,7 +349,7 @@ impl CpuChip {
         &self,
         cols: &mut CpuCols<F>,
         event: &CpuEvent,
-        nonce_lookup: &HashMap<LookupId, u32>,
+        nonce_lookup: &Vec<u32>,
     ) {
         if event.instruction.is_branch_instruction() {
             let branch_columns = cols.opcode_specific_columns.branch_mut();
@@ -368,11 +371,11 @@ impl CpuChip {
             };
 
             branch_columns.a_lt_b_nonce = F::from_canonical_u32(
-                nonce_lookup.get(&event.branch_lt_lookup_id).copied().unwrap_or_default(),
+                nonce_lookup.get(event.branch_lt_lookup_id.0 as usize).copied().unwrap_or_default(),
             );
 
             branch_columns.a_gt_b_nonce = F::from_canonical_u32(
-                nonce_lookup.get(&event.branch_gt_lookup_id).copied().unwrap_or_default(),
+                nonce_lookup.get(event.branch_gt_lookup_id.0 as usize).copied().unwrap_or_default(),
             );
 
             branch_columns.a_eq_b = F::from_bool(a_eq_b);
@@ -396,7 +399,10 @@ impl CpuChip {
             if branching {
                 cols.branching = F::one();
                 branch_columns.next_pc_nonce = F::from_canonical_u32(
-                    nonce_lookup.get(&event.branch_add_lookup_id).copied().unwrap_or_default(),
+                    nonce_lookup
+                        .get(event.branch_add_lookup_id.0 as usize)
+                        .copied()
+                        .unwrap_or_default(),
                 );
             } else {
                 cols.not_branching = F::one();
@@ -409,7 +415,7 @@ impl CpuChip {
         &self,
         cols: &mut CpuCols<F>,
         event: &CpuEvent,
-        nonce_lookup: &HashMap<LookupId, u32>,
+        nonce_lookup: &Vec<u32>,
     ) {
         if event.instruction.is_jump_instruction() {
             let jump_columns = cols.opcode_specific_columns.jump_mut();
@@ -423,7 +429,10 @@ impl CpuChip {
                     jump_columns.next_pc = Word::from(next_pc);
                     jump_columns.next_pc_range_checker.populate(next_pc);
                     jump_columns.jal_nonce = F::from_canonical_u32(
-                        nonce_lookup.get(&event.jump_jal_lookup_id).copied().unwrap_or_default(),
+                        nonce_lookup
+                            .get(event.jump_jal_lookup_id.0 as usize)
+                            .copied()
+                            .unwrap_or_default(),
                     );
                 }
                 Opcode::JALR => {
@@ -432,7 +441,10 @@ impl CpuChip {
                     jump_columns.next_pc = Word::from(next_pc);
                     jump_columns.next_pc_range_checker.populate(next_pc);
                     jump_columns.jalr_nonce = F::from_canonical_u32(
-                        nonce_lookup.get(&event.jump_jalr_lookup_id).copied().unwrap_or_default(),
+                        nonce_lookup
+                            .get(event.jump_jalr_lookup_id.0 as usize)
+                            .copied()
+                            .unwrap_or_default(),
                     );
                 }
                 _ => unreachable!(),
@@ -445,7 +457,7 @@ impl CpuChip {
         &self,
         cols: &mut CpuCols<F>,
         event: &CpuEvent,
-        nonce_lookup: &HashMap<LookupId, u32>,
+        nonce_lookup: &Vec<u32>,
     ) {
         if matches!(event.instruction.opcode, Opcode::AUIPC) {
             let auipc_columns = cols.opcode_specific_columns.auipc_mut();
@@ -453,7 +465,7 @@ impl CpuChip {
             auipc_columns.pc = Word::from(event.pc);
             auipc_columns.pc_range_checker.populate(event.pc);
             auipc_columns.auipc_nonce = F::from_canonical_u32(
-                nonce_lookup.get(&event.auipc_lookup_id).copied().unwrap_or_default(),
+                nonce_lookup.get(event.auipc_lookup_id.0 as usize).copied().unwrap_or_default(),
             );
         }
     }
@@ -463,7 +475,7 @@ impl CpuChip {
         &self,
         cols: &mut CpuCols<F>,
         event: &CpuEvent,
-        nonce_lookup: &HashMap<LookupId, u32>,
+        nonce_lookup: &Vec<u32>,
     ) -> bool {
         let mut is_halt = false;
 
@@ -517,7 +529,7 @@ impl CpuChip {
 
             // Write the syscall nonce.
             ecall_cols.syscall_nonce = F::from_canonical_u32(
-                nonce_lookup.get(&event.syscall_lookup_id).copied().unwrap_or_default(),
+                nonce_lookup.get(event.syscall_lookup_id.0 as usize).copied().unwrap_or_default(),
             );
 
             is_halt = syscall_id == F::from_canonical_u32(SyscallCode::HALT.syscall_id());

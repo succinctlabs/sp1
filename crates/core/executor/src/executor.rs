@@ -13,9 +13,8 @@ use crate::{
     context::SP1Context,
     dependencies::{emit_cpu_dependencies, emit_divrem_dependencies},
     events::{
-        create_alu_lookup_id, create_alu_lookups, AluEvent, CpuEvent, LookupId,
-        MemoryAccessPosition, MemoryInitializeFinalizeEvent, MemoryLocalEvent, MemoryReadRecord,
-        MemoryRecord, MemoryWriteRecord, SyscallEvent,
+        AluEvent, CpuEvent, LookupId, MemoryAccessPosition, MemoryInitializeFinalizeEvent,
+        MemoryLocalEvent, MemoryReadRecord, MemoryRecord, MemoryWriteRecord, SyscallEvent,
     },
     hook::{HookEnv, HookRegistry},
     memory::{Entry, PagedMemory},
@@ -624,14 +623,14 @@ impl<'a> Executor<'a> {
             exit_code,
             alu_lookup_id: lookup_id,
             syscall_lookup_id,
-            memory_add_lookup_id: create_alu_lookup_id(),
-            memory_sub_lookup_id: create_alu_lookup_id(),
-            branch_lt_lookup_id: create_alu_lookup_id(),
-            branch_gt_lookup_id: create_alu_lookup_id(),
-            branch_add_lookup_id: create_alu_lookup_id(),
-            jump_jal_lookup_id: create_alu_lookup_id(),
-            jump_jalr_lookup_id: create_alu_lookup_id(),
-            auipc_lookup_id: create_alu_lookup_id(),
+            memory_add_lookup_id: self.record.create_lookup_id(),
+            memory_sub_lookup_id: self.record.create_lookup_id(),
+            branch_lt_lookup_id: self.record.create_lookup_id(),
+            branch_gt_lookup_id: self.record.create_lookup_id(),
+            branch_add_lookup_id: self.record.create_lookup_id(),
+            jump_jal_lookup_id: self.record.create_lookup_id(),
+            jump_jalr_lookup_id: self.record.create_lookup_id(),
+            auipc_lookup_id: self.record.create_lookup_id(),
         };
 
         self.record.cpu_events.push(cpu_event);
@@ -648,7 +647,7 @@ impl<'a> Executor<'a> {
             a,
             b,
             c,
-            sub_lookups: create_alu_lookups(),
+            sub_lookups: self.record.create_lookup_ids(),
         };
         match opcode {
             Opcode::ADD => {
@@ -696,7 +695,7 @@ impl<'a> Executor<'a> {
             arg1,
             arg2,
             lookup_id,
-            nonce: self.record.nonce_lookup[&lookup_id],
+            nonce: self.record.nonce_lookup[lookup_id.0 as usize],
         }
     }
 
@@ -793,21 +792,19 @@ impl<'a> Executor<'a> {
 
         let mut next_pc = self.state.pc.wrapping_add(4);
 
-        let rd: Register;
         let (a, b, c): (u32, u32, u32);
-        let (addr, memory_read_value): (u32, u32);
         let mut memory_store_value: Option<u32> = None;
 
         if self.executor_mode == ExecutorMode::Trace {
             self.memory_accesses = MemoryAccessRecord::default();
         }
         let lookup_id = if self.executor_mode == ExecutorMode::Trace {
-            create_alu_lookup_id()
+            self.record.create_lookup_id()
         } else {
             LookupId::default()
         };
         let syscall_lookup_id = if self.executor_mode == ExecutorMode::Trace {
-            create_alu_lookup_id()
+            self.record.create_lookup_id()
         } else {
             LookupId::default()
         };
@@ -939,7 +936,7 @@ impl<'a> Executor<'a> {
                     _ => (self.opts.split_opts.deferred, 1),
                 };
                 let nonce = (((*syscall_count as usize) % threshold) * multiplier) as u32;
-                self.record.nonce_lookup.insert(syscall_lookup_id, nonce);
+                self.record.nonce_lookup[syscall_lookup_id.0 as usize] = nonce;
                 *syscall_count += 1;
 
                 let syscall_impl = self.get_syscall(syscall).cloned();

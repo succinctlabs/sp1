@@ -60,7 +60,7 @@ pub struct ExecutionRecord {
     /// The public values.
     pub public_values: PublicValues<u32, u32>,
     /// The nonce lookup.
-    pub nonce_lookup: HashMap<LookupId, u32>,
+    pub nonce_lookup: Vec<u32>,
     /// The shape of the proof.
     pub shape: Option<CoreShape>,
 }
@@ -70,6 +70,18 @@ impl ExecutionRecord {
     #[must_use]
     pub fn new(program: Arc<Program>) -> Self {
         Self { program, ..Default::default() }
+    }
+
+    /// Create a lookup id for an event.
+    pub fn create_lookup_id(&mut self) -> LookupId {
+        let id = self.nonce_lookup.len() as u64;
+        self.nonce_lookup.push(0);
+        LookupId(id)
+    }
+
+    /// Create 6 lookup ids for an ALU event.
+    pub fn create_lookup_ids(&mut self) -> [LookupId; 6] {
+        std::array::from_fn(|_| self.create_lookup_id())
     }
 
     /// Add a mul event to the execution record.
@@ -337,35 +349,35 @@ impl MachineRecord for ExecutionRecord {
 
     fn register_nonces(&mut self, _opts: &Self::Config) {
         self.add_events.iter().enumerate().for_each(|(i, event)| {
-            self.nonce_lookup.insert(event.lookup_id, i as u32);
+            self.nonce_lookup[event.lookup_id.0 as usize] = i as u32;
         });
 
         self.sub_events.iter().enumerate().for_each(|(i, event)| {
-            self.nonce_lookup.insert(event.lookup_id, (self.add_events.len() + i) as u32);
+            self.nonce_lookup[event.lookup_id.0 as usize] = (self.add_events.len() + i) as u32;
         });
 
         self.mul_events.iter().enumerate().for_each(|(i, event)| {
-            self.nonce_lookup.insert(event.lookup_id, i as u32);
+            self.nonce_lookup[event.lookup_id.0 as usize] = i as u32;
         });
 
         self.bitwise_events.iter().enumerate().for_each(|(i, event)| {
-            self.nonce_lookup.insert(event.lookup_id, i as u32);
+            self.nonce_lookup[event.lookup_id.0 as usize] = i as u32;
         });
 
         self.shift_left_events.iter().enumerate().for_each(|(i, event)| {
-            self.nonce_lookup.insert(event.lookup_id, i as u32);
+            self.nonce_lookup[event.lookup_id.0 as usize] = i as u32;
         });
 
         self.shift_right_events.iter().enumerate().for_each(|(i, event)| {
-            self.nonce_lookup.insert(event.lookup_id, i as u32);
+            self.nonce_lookup[event.lookup_id.0 as usize] = i as u32;
         });
 
         self.divrem_events.iter().enumerate().for_each(|(i, event)| {
-            self.nonce_lookup.insert(event.lookup_id, i as u32);
+            self.nonce_lookup[event.lookup_id.0 as usize] = i as u32;
         });
 
         self.lt_events.iter().enumerate().for_each(|(i, event)| {
-            self.nonce_lookup.insert(event.lookup_id, i as u32);
+            self.nonce_lookup[event.lookup_id.0 as usize] = i as u32;
         });
     }
 

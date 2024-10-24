@@ -1,5 +1,5 @@
 use crate::{
-    events::{create_alu_lookups, AluEvent, CpuEvent},
+    events::{AluEvent, CpuEvent},
     utils::{get_msb, get_quotient_and_remainder, is_signed_operation},
     Executor, Opcode,
 };
@@ -19,6 +19,7 @@ pub fn emit_divrem_dependencies(executor: &mut Executor, event: AluEvent) {
     }
 
     if c_neg == 1 {
+        let ids = executor.record.create_lookup_ids();
         executor.record.add_events.push(AluEvent {
             lookup_id: event.sub_lookups[4],
             shard: event.shard,
@@ -27,10 +28,11 @@ pub fn emit_divrem_dependencies(executor: &mut Executor, event: AluEvent) {
             a: 0,
             b: event.c,
             c: (event.c as i32).unsigned_abs(),
-            sub_lookups: create_alu_lookups(),
+            sub_lookups: ids,
         });
     }
     if rem_neg == 1 {
+        let ids = executor.record.create_lookup_ids();
         executor.record.add_events.push(AluEvent {
             lookup_id: event.sub_lookups[5],
             shard: event.shard,
@@ -39,7 +41,7 @@ pub fn emit_divrem_dependencies(executor: &mut Executor, event: AluEvent) {
             a: 0,
             b: remainder,
             c: (remainder as i32).unsigned_abs(),
-            sub_lookups: create_alu_lookups(),
+            sub_lookups: ids,
         });
     }
 
@@ -61,7 +63,7 @@ pub fn emit_divrem_dependencies(executor: &mut Executor, event: AluEvent) {
         a: lower_word,
         c: event.c,
         b: quotient,
-        sub_lookups: create_alu_lookups(),
+        sub_lookups: executor.record.create_lookup_ids(),
     };
     executor.record.mul_events.push(lower_multiplication);
 
@@ -79,7 +81,7 @@ pub fn emit_divrem_dependencies(executor: &mut Executor, event: AluEvent) {
         a: upper_word,
         c: event.c,
         b: quotient,
-        sub_lookups: create_alu_lookups(),
+        sub_lookups: executor.record.create_lookup_ids(),
     };
     executor.record.mul_events.push(upper_multiplication);
 
@@ -92,7 +94,7 @@ pub fn emit_divrem_dependencies(executor: &mut Executor, event: AluEvent) {
             b: (remainder as i32).unsigned_abs(),
             c: u32::max(1, (event.c as i32).unsigned_abs()),
             clk: event.clk,
-            sub_lookups: create_alu_lookups(),
+            sub_lookups: executor.record.create_lookup_ids(),
         }
     } else {
         AluEvent {
@@ -103,7 +105,7 @@ pub fn emit_divrem_dependencies(executor: &mut Executor, event: AluEvent) {
             b: remainder,
             c: u32::max(1, event.c),
             clk: event.clk,
-            sub_lookups: create_alu_lookups(),
+            sub_lookups: executor.record.create_lookup_ids(),
         }
     };
 
@@ -136,7 +138,7 @@ pub fn emit_cpu_dependencies(executor: &mut Executor, event: &CpuEvent) {
             a: memory_addr,
             b: event.b,
             c: event.c,
-            sub_lookups: create_alu_lookups(),
+            sub_lookups: executor.record.create_lookup_ids(),
         };
         executor.record.add_events.push(add_event);
         let addr_offset = (memory_addr % 4_u32) as u8;
@@ -172,7 +174,7 @@ pub fn emit_cpu_dependencies(executor: &mut Executor, event: &CpuEvent) {
                     a: event.a,
                     b: unsigned_mem_val,
                     c: sign_value,
-                    sub_lookups: create_alu_lookups(),
+                    sub_lookups: executor.record.create_lookup_ids(),
                 };
                 executor.record.add_events.push(sub_event);
             }
@@ -203,7 +205,7 @@ pub fn emit_cpu_dependencies(executor: &mut Executor, event: &CpuEvent) {
             a: a_lt_b as u32,
             b: event.a,
             c: event.b,
-            sub_lookups: create_alu_lookups(),
+            sub_lookups: executor.record.create_lookup_ids(),
         };
         let gt_comp_event = AluEvent {
             lookup_id: event.branch_gt_lookup_id,
@@ -213,7 +215,7 @@ pub fn emit_cpu_dependencies(executor: &mut Executor, event: &CpuEvent) {
             a: a_gt_b as u32,
             b: event.b,
             c: event.a,
-            sub_lookups: create_alu_lookups(),
+            sub_lookups: executor.record.create_lookup_ids(),
         };
         executor.record.lt_events.push(lt_comp_event);
         executor.record.lt_events.push(gt_comp_event);
@@ -234,7 +236,7 @@ pub fn emit_cpu_dependencies(executor: &mut Executor, event: &CpuEvent) {
                 a: next_pc,
                 b: event.pc,
                 c: event.c,
-                sub_lookups: create_alu_lookups(),
+                sub_lookups: executor.record.create_lookup_ids(),
             };
             executor.record.add_events.push(add_event);
         }
@@ -252,7 +254,7 @@ pub fn emit_cpu_dependencies(executor: &mut Executor, event: &CpuEvent) {
                     a: next_pc,
                     b: event.pc,
                     c: event.b,
-                    sub_lookups: create_alu_lookups(),
+                    sub_lookups: executor.record.create_lookup_ids(),
                 };
                 executor.record.add_events.push(add_event);
             }
@@ -266,7 +268,7 @@ pub fn emit_cpu_dependencies(executor: &mut Executor, event: &CpuEvent) {
                     a: next_pc,
                     b: event.b,
                     c: event.c,
-                    sub_lookups: create_alu_lookups(),
+                    sub_lookups: executor.record.create_lookup_ids(),
                 };
                 executor.record.add_events.push(add_event);
             }
@@ -283,7 +285,7 @@ pub fn emit_cpu_dependencies(executor: &mut Executor, event: &CpuEvent) {
             a: event.a,
             b: event.pc,
             c: event.b,
-            sub_lookups: create_alu_lookups(),
+            sub_lookups: executor.record.create_lookup_ids(),
         };
         executor.record.add_events.push(add_event);
     }
