@@ -174,7 +174,7 @@ pub fn emit_cpu_dependencies(executor: &mut Executor, index: usize) {
                     shard,
                     clk: event.clk,
                     opcode: Opcode::SUB,
-                    a: event.a as u32,
+                    a: event.a,
                     b: unsigned_mem_val,
                     c: sign_value,
                     sub_lookups: executor.record.create_lookup_ids(),
@@ -185,17 +185,17 @@ pub fn emit_cpu_dependencies(executor: &mut Executor, index: usize) {
     }
 
     if instruction.is_branch_instruction() {
-        let a_eq_b = event.a as u32 == event.b;
+        let a_eq_b = event.a == event.b;
         let use_signed_comparison = matches!(instruction.opcode, Opcode::BLT | Opcode::BGE);
         let a_lt_b = if use_signed_comparison {
             (event.a as i32) < (event.b as i32)
         } else {
-            (event.a as u32) < event.b
+            event.a < event.b
         };
         let a_gt_b = if use_signed_comparison {
             (event.a as i32) > (event.b as i32)
         } else {
-            event.a as u32 > event.b
+            event.a > event.b
         };
 
         let alu_op_code = if use_signed_comparison { Opcode::SLT } else { Opcode::SLTU };
@@ -206,7 +206,7 @@ pub fn emit_cpu_dependencies(executor: &mut Executor, index: usize) {
             clk: event.clk,
             opcode: alu_op_code,
             a: a_lt_b as u32,
-            b: event.a as u32,
+            b: event.a,
             c: event.b,
             sub_lookups: executor.record.create_lookup_ids(),
         };
@@ -217,7 +217,7 @@ pub fn emit_cpu_dependencies(executor: &mut Executor, index: usize) {
             opcode: alu_op_code,
             a: a_gt_b as u32,
             b: event.b,
-            c: event.a as u32,
+            c: event.a,
             sub_lookups: executor.record.create_lookup_ids(),
         };
         executor.record.lt_events.push(lt_comp_event);
@@ -285,7 +285,7 @@ pub fn emit_cpu_dependencies(executor: &mut Executor, index: usize) {
             shard,
             clk: event.clk,
             opcode: Opcode::ADD,
-            a: event.a as u32,
+            a: event.a,
             b: event.pc,
             c: event.b,
             sub_lookups: executor.record.create_lookup_ids(),

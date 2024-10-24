@@ -137,7 +137,7 @@ impl CpuChip {
         cols.next_pc = F::from_canonical_u32(event.next_pc);
         cols.instruction.populate(instruction);
         cols.selectors.populate(instruction);
-        *cols.op_a_access.value_mut() = (event.a as u32).into();
+        *cols.op_a_access.value_mut() = event.a.into();
         *cols.op_b_access.value_mut() = event.b.into();
         *cols.op_c_access.value_mut() = event.c.into();
 
@@ -371,19 +371,19 @@ impl CpuChip {
         if instruction.is_branch_instruction() {
             let branch_columns = cols.opcode_specific_columns.branch_mut();
 
-            let a_eq_b = event.a as u32 == event.b;
+            let a_eq_b = event.a == event.b;
 
             let use_signed_comparison = matches!(instruction.opcode, Opcode::BLT | Opcode::BGE);
 
             let a_lt_b = if use_signed_comparison {
                 (event.a as i32) < (event.b as i32)
             } else {
-                (event.a as u32) < event.b
+                event.a < event.b
             };
             let a_gt_b = if use_signed_comparison {
                 (event.a as i32) > (event.b as i32)
             } else {
-                event.a as u32 > event.b
+                event.a > event.b
             };
 
             branch_columns.a_lt_b_nonce = F::from_canonical_u32(
