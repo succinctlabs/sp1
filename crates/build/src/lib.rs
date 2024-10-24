@@ -6,12 +6,7 @@ pub use build::{execute_build_program, generate_elf_paths};
 
 use clap::Parser;
 
-/// The global version for all components of SP1.
-///
-/// This string should be updated whenever any step in verifying an SP1 proof changes, including
-/// core, recursion, and plonk-bn254. This string is used to download SP1 artifacts and the gnark
-/// docker image.
-pub const SP1_CIRCUIT_VERSION: &str = include_str!("../../SP1_CIRCUIT_VERSION");
+const SP1_CIRCUIT_VERSION: &str = include_str!("../../SP1_CIRCUIT_VERSION");
 
 const BUILD_TARGET: &str = "riscv32im-succinct-zkvm-elf";
 const DEFAULT_OUTPUT_DIR: &str = "elf";
