@@ -1,7 +1,5 @@
 use serde::{Deserialize, Serialize};
 
-use crate::Instruction;
-
 use super::{memory::MemoryRecordEnum, LookupId};
 
 /// CPU Event.

@@ -10,7 +10,7 @@ use std::{
 
 pub struct LookupId(pub u64);
 
-/// Create a random lookup id. This is slower than record.create_lookup_id() but is useful for
+/// Create a random lookup id. This is slower than `record.create_lookup_id()` but is useful for
 /// testing.
 #[must_use]
 pub(crate) fn create_random_lookup_ids() -> [LookupId; 6] {

@@ -780,8 +780,7 @@ impl<'a> Executor<'a> {
     /// Fetch the instruction at the current program counter.
     #[inline]
     fn fetch(&self) -> Instruction {
-        let idx = ((self.state.pc - self.program.pc_base) / 4) as usize;
-        self.program.instructions[idx]
+        *self.program.fetch(self.state.pc)
     }
 
     /// Execute the given instruction over the current state of the runtime.
@@ -794,7 +793,6 @@ impl<'a> Executor<'a> {
         let mut next_pc = self.state.pc.wrapping_add(4);
 
         let (a, b, c): (u32, u32, u32);
-        let mut memory_store_value: Option<u32> = None;
 
         if self.executor_mode == ExecutorMode::Trace {
             self.memory_accesses = MemoryAccessRecord::default();
@@ -864,12 +862,11 @@ impl<'a> Executor<'a> {
             // Load instructions.
             Opcode::LB | Opcode::LH | Opcode::LW | Opcode::LBU | Opcode::LHU => {
                 (a, b, c) = self.execute_load(instruction)?;
-                memory_store_value = Some(a);
             }
 
             // Store instructions.
             Opcode::SB | Opcode::SH | Opcode::SW => {
-                (a, b, c, memory_store_value) = self.execute_store(instruction)?;
+                (a, b, c) = self.execute_store(instruction)?;
             }
 
             // Branch instructions.
@@ -1115,7 +1112,7 @@ impl<'a> Executor<'a> {
     fn execute_store(
         &mut self,
         instruction: &Instruction,
-    ) -> Result<(u32, u32, u32, Option<u32>), ExecutionError> {
+    ) -> Result<(u32, u32, u32), ExecutionError> {
         let (a, b, c, addr, memory_read_value) = self.store_rr(instruction);
         let memory_store_value = match instruction.opcode {
             Opcode::SB => {
@@ -1138,7 +1135,7 @@ impl<'a> Executor<'a> {
             _ => unreachable!(),
         };
         self.mw_cpu(align(addr), memory_store_value, MemoryAccessPosition::Memory);
-        Ok((a, b, c, Some(memory_store_value)))
+        Ok((a, b, c))
     }
 
     fn execute_branch(
