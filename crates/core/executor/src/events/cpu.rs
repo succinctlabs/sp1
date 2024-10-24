@@ -10,8 +10,6 @@ use super::{memory::MemoryRecordEnum, LookupId};
 /// shard, opcode, operands, and other relevant information.
 #[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 pub struct CpuEvent {
-    /// The shard number.
-    pub shard: u32,
     /// The clock cycle.
     pub clk: u32,
     /// The program counter.
@@ -21,7 +19,7 @@ pub struct CpuEvent {
     /// The instruction.
     pub instruction: Instruction,
     /// The first operand.
-    pub a: u32,
+    pub a: u8,
     /// The first operand memory record.
     pub a_record: Option<MemoryRecordEnum>,
     /// The second operand.

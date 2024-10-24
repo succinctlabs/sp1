@@ -39,6 +39,7 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
         _: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
         let mut values = zeroed_f_vec(input.cpu_events.len() * NUM_CPU_COLS);
+        let shard = input.public_values.shard;
 
         let chunk_size = std::cmp::max(input.cpu_events.len() / num_cpus::get(), 1);
         values.chunks_mut(chunk_size * NUM_CPU_COLS).enumerate().par_bridge().for_each(
@@ -52,6 +53,7 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
                         &input.nonce_lookup,
                         cols,
                         &mut byte_lookup_events,
+                        shard,
                     );
                 });
             },
@@ -70,6 +72,7 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
     fn generate_dependencies(&self, input: &ExecutionRecord, output: &mut ExecutionRecord) {
         // Generate the trace rows for each event.
         let chunk_size = std::cmp::max(input.cpu_events.len() / num_cpus::get(), 1);
+        let shard = input.public_values.shard;
 
         let blu_events: Vec<_> = input
             .cpu_events
@@ -80,7 +83,7 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
                 ops.iter().for_each(|op| {
                     let mut row = [F::zero(); NUM_CPU_COLS];
                     let cols: &mut CpuCols<F> = row.as_mut_slice().borrow_mut();
-                    self.event_to_row::<F>(op, &Vec::new(), cols, &mut blu);
+                    self.event_to_row::<F>(op, &Vec::new(), cols, &mut blu, shard);
                 });
                 blu
             })
@@ -106,9 +109,10 @@ impl CpuChip {
         nonce_lookup: &Vec<u32>,
         cols: &mut CpuCols<F>,
         blu_events: &mut impl ByteRecord,
+        shard: u32,
     ) {
         // Populate shard and clk columns.
-        self.populate_shard_clk(cols, event, blu_events);
+        self.populate_shard_clk(cols, event, blu_events, shard);
 
         // Populate the nonce.
         cols.nonce = F::from_canonical_u32(
@@ -120,7 +124,7 @@ impl CpuChip {
         cols.next_pc = F::from_canonical_u32(event.next_pc);
         cols.instruction.populate(event.instruction);
         cols.selectors.populate(event.instruction);
-        *cols.op_a_access.value_mut() = event.a.into();
+        *cols.op_a_access.value_mut() = (event.a as u32).into();
         *cols.op_b_access.value_mut() = event.b.into();
         *cols.op_c_access.value_mut() = event.c.into();
 
@@ -145,7 +149,7 @@ impl CpuChip {
             .map(|x| x.as_canonical_u32())
             .collect::<Vec<_>>();
         blu_events.add_byte_lookup_event(ByteLookupEvent {
-            shard: event.shard,
+            shard,
             opcode: ByteOpcode::U8Range,
             a1: 0,
             a2: 0,
@@ -153,7 +157,7 @@ impl CpuChip {
             c: a_bytes[1] as u8,
         });
         blu_events.add_byte_lookup_event(ByteLookupEvent {
-            shard: event.shard,
+            shard,
             opcode: ByteOpcode::U8Range,
             a1: 0,
             a2: 0,
@@ -169,7 +173,7 @@ impl CpuChip {
         }
 
         // Populate memory, branch, jump, and auipc specific fields.
-        self.populate_memory(cols, event, blu_events, nonce_lookup);
+        self.populate_memory(cols, event, blu_events, nonce_lookup, shard);
         self.populate_branch(cols, event, nonce_lookup);
         self.populate_jump(cols, event, nonce_lookup);
         self.populate_auipc(cols, event, nonce_lookup);
@@ -191,8 +195,9 @@ impl CpuChip {
         cols: &mut CpuCols<F>,
         event: &CpuEvent,
         blu_events: &mut impl ByteRecord,
+        shard: u32,
     ) {
-        cols.shard = F::from_canonical_u32(event.shard);
+        cols.shard = F::from_canonical_u32(shard);
         cols.clk = F::from_canonical_u32(event.clk);
 
         let clk_16bit_limb = (event.clk & 0xffff) as u16;
@@ -201,15 +206,15 @@ impl CpuChip {
         cols.clk_8bit_limb = F::from_canonical_u8(clk_8bit_limb);
 
         blu_events.add_byte_lookup_event(ByteLookupEvent::new(
-            event.shard,
+            shard,
             U16Range,
-            event.shard as u16,
+            shard as u16,
             0,
             0,
             0,
         ));
         blu_events.add_byte_lookup_event(ByteLookupEvent::new(
-            event.shard,
+            shard,
             U16Range,
             clk_16bit_limb,
             0,
@@ -217,7 +222,7 @@ impl CpuChip {
             0,
         ));
         blu_events.add_byte_lookup_event(ByteLookupEvent::new(
-            event.shard,
+            shard,
             ByteOpcode::U8Range,
             0,
             0,
@@ -233,6 +238,7 @@ impl CpuChip {
         event: &CpuEvent,
         blu_events: &mut impl ByteRecord,
         nonce_lookup: &Vec<u32>,
+        shard: u32,
     ) {
         if !matches!(
             event.instruction.opcode,
@@ -334,7 +340,7 @@ impl CpuChip {
         let addr_bytes = memory_addr.to_le_bytes();
         for byte_pair in addr_bytes.chunks_exact(2) {
             blu_events.add_byte_lookup_event(ByteLookupEvent {
-                shard: event.shard,
+                shard,
                 opcode: ByteOpcode::U8Range,
                 a1: 0,
                 a2: 0,
@@ -354,7 +360,7 @@ impl CpuChip {
         if event.instruction.is_branch_instruction() {
             let branch_columns = cols.opcode_specific_columns.branch_mut();
 
-            let a_eq_b = event.a == event.b;
+            let a_eq_b = event.a as u32 == event.b;
 
             let use_signed_comparison =
                 matches!(event.instruction.opcode, Opcode::BLT | Opcode::BGE);
@@ -362,12 +368,12 @@ impl CpuChip {
             let a_lt_b = if use_signed_comparison {
                 (event.a as i32) < (event.b as i32)
             } else {
-                event.a < event.b
+                (event.a as u32) < event.b
             };
             let a_gt_b = if use_signed_comparison {
                 (event.a as i32) > (event.b as i32)
             } else {
-                event.a > event.b
+                event.a as u32 > event.b
             };
 
             branch_columns.a_lt_b_nonce = F::from_canonical_u32(
@@ -423,7 +429,7 @@ impl CpuChip {
             match event.instruction.opcode {
                 Opcode::JAL => {
                     let next_pc = event.pc.wrapping_add(event.b);
-                    jump_columns.op_a_range_checker.populate(event.a);
+                    jump_columns.op_a_range_checker.populate(event.a.into());
                     jump_columns.pc = Word::from(event.pc);
                     jump_columns.pc_range_checker.populate(event.pc);
                     jump_columns.next_pc = Word::from(next_pc);
@@ -437,7 +443,7 @@ impl CpuChip {
                 }
                 Opcode::JALR => {
                     let next_pc = event.b.wrapping_add(event.c);
-                    jump_columns.op_a_range_checker.populate(event.a);
+                    jump_columns.op_a_range_checker.populate(event.a.into());
                     jump_columns.next_pc = Word::from(next_pc);
                     jump_columns.next_pc_range_checker.populate(next_pc);
                     jump_columns.jalr_nonce = F::from_canonical_u32(

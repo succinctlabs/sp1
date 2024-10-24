@@ -592,12 +592,11 @@ impl<'a> Executor<'a> {
     #[allow(clippy::too_many_arguments)]
     fn emit_cpu(
         &mut self,
-        shard: u32,
         clk: u32,
         pc: u32,
         next_pc: u32,
         instruction: Instruction,
-        a: u32,
+        a: u8,
         b: u32,
         c: u32,
         memory_store_value: Option<u32>,
@@ -606,8 +605,15 @@ impl<'a> Executor<'a> {
         lookup_id: LookupId,
         syscall_lookup_id: LookupId,
     ) {
-        let cpu_event = CpuEvent {
-            shard,
+        let memory_add_lookup_id = self.record.create_lookup_id();
+        let memory_sub_lookup_id = self.record.create_lookup_id();
+        let branch_lt_lookup_id = self.record.create_lookup_id();
+        let branch_gt_lookup_id = self.record.create_lookup_id();
+        let branch_add_lookup_id = self.record.create_lookup_id();
+        let jump_jal_lookup_id = self.record.create_lookup_id();
+        let jump_jalr_lookup_id = self.record.create_lookup_id();
+        let auipc_lookup_id = self.record.create_lookup_id();
+        self.record.cpu_events.push(CpuEvent {
             clk,
             pc,
             next_pc,
@@ -623,18 +629,17 @@ impl<'a> Executor<'a> {
             exit_code,
             alu_lookup_id: lookup_id,
             syscall_lookup_id,
-            memory_add_lookup_id: self.record.create_lookup_id(),
-            memory_sub_lookup_id: self.record.create_lookup_id(),
-            branch_lt_lookup_id: self.record.create_lookup_id(),
-            branch_gt_lookup_id: self.record.create_lookup_id(),
-            branch_add_lookup_id: self.record.create_lookup_id(),
-            jump_jal_lookup_id: self.record.create_lookup_id(),
-            jump_jalr_lookup_id: self.record.create_lookup_id(),
-            auipc_lookup_id: self.record.create_lookup_id(),
-        };
+            memory_add_lookup_id,
+            memory_sub_lookup_id,
+            branch_lt_lookup_id,
+            branch_gt_lookup_id,
+            branch_add_lookup_id,
+            jump_jal_lookup_id,
+            jump_jalr_lookup_id,
+            auipc_lookup_id,
+        });
 
-        self.record.cpu_events.push(cpu_event);
-        emit_cpu_dependencies(self, &cpu_event);
+        emit_cpu_dependencies(self, self.record.cpu_events.len() - 1);
     }
 
     /// Emit an ALU event.
@@ -1001,12 +1006,11 @@ impl<'a> Executor<'a> {
         // Emit the CPU event for this cycle.
         if self.executor_mode == ExecutorMode::Trace {
             self.emit_cpu(
-                self.shard(),
                 clk,
                 pc,
                 next_pc,
                 *instruction,
-                a,
+                a as u8,
                 b,
                 c,
                 memory_store_value,
