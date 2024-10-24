@@ -34,6 +34,7 @@ use std::{
 
 use lru::LruCache;
 
+use shapes::SP1CompressProgramShape;
 use tracing::instrument;
 
 use p3_baby_bear::BabyBear;
@@ -356,8 +357,15 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         input: &SP1CompressWithVKeyWitnessValues<InnerSC>,
     ) -> Arc<RecursionProgram<BabyBear>> {
         let mut cache = self.compress_programs.lock().unwrap_or_else(|e| e.into_inner());
+        let shape = input.shape();
         cache
-            .get_or_insert(input.shape(), || {
+            .get_or_insert(shape.clone(), || {
+                let hash = SP1CompressProgramShape::Compress(shape).hash_u64();
+                let program_from_disk = self.get_cached_program(hash);
+                if let Some(program) = program_from_disk {
+                    return program;
+                }
+
                 let misses = self.compress_cache_misses.fetch_add(1, Ordering::Relaxed);
                 tracing::debug!("compress cache miss, misses: {}", misses);
                 // Get the operations.

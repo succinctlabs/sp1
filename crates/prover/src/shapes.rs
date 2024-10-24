@@ -1,17 +1,20 @@
 use std::{
     collections::{BTreeMap, BTreeSet, HashSet},
     fs::File,
+    hash::{DefaultHasher, Hash, Hasher},
     panic::{catch_unwind, AssertUnwindSafe},
     path::PathBuf,
     sync::{Arc, Mutex},
 };
 
+use dirs::home_dir;
+use eyre::Result;
 use thiserror::Error;
 
 use p3_baby_bear::BabyBear;
 use p3_field::AbstractField;
 use serde::{Deserialize, Serialize};
-use sp1_core_machine::riscv::CoreShapeConfig;
+use sp1_core_machine::{riscv::CoreShapeConfig, SP1_CIRCUIT_VERSION};
 use sp1_recursion_circuit::machine::{
     SP1CompressWithVKeyWitnessValues, SP1CompressWithVkeyShape, SP1DeferredShape,
     SP1DeferredWitnessValues, SP1RecursionShape, SP1RecursionWitnessValues,
@@ -19,7 +22,9 @@ use sp1_recursion_circuit::machine::{
 use sp1_recursion_core::{shape::RecursionShapeConfig, RecursionProgram};
 use sp1_stark::{MachineProver, ProofShape, DIGEST_SIZE};
 
-use crate::{components::SP1ProverComponents, CompressAir, HashableKey, SP1Prover};
+use crate::{
+    components::SP1ProverComponents, CompressAir, HashableKey, SP1Prover, REDUCE_BATCH_SIZE,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum SP1ProofShape {
@@ -29,12 +34,20 @@ pub enum SP1ProofShape {
     Shrink(ProofShape),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Hash)]
 pub enum SP1CompressProgramShape {
     Recursion(SP1RecursionShape),
     Compress(SP1CompressWithVkeyShape),
     Deferred(SP1DeferredShape),
     Shrink(SP1CompressWithVkeyShape),
+}
+
+impl SP1CompressProgramShape {
+    pub fn hash_u64(&self) -> u64 {
+        let mut hasher = DefaultHasher::new();
+        Hash::hash(&self, &mut hasher);
+        hasher.finish()
+    }
 }
 
 #[derive(Debug, Error)]
@@ -231,6 +244,15 @@ impl SP1ProofShape {
             )
     }
 
+    pub fn generate_compress_shapes(
+        recursion_shape_config: &'_ RecursionShapeConfig<BabyBear, CompressAir<BabyBear>>,
+        reduce_batch_size: usize,
+    ) -> impl Iterator<Item = Self> + '_ {
+        (1..=reduce_batch_size).flat_map(|batch_size| {
+            recursion_shape_config.get_all_shape_combinations(batch_size).map(Self::Compress)
+        })
+    }
+
     pub fn dummy_vk_map<'a>(
         core_shape_config: &'a CoreShapeConfig<BabyBear>,
         recursion_shape_config: &'a RecursionShapeConfig<BabyBear, CompressAir<BabyBear>>,
@@ -287,6 +309,47 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                 self.shrink_program(&input)
             }
         }
+    }
+
+    pub fn build_program_cache(&self) -> Result<()> {
+        let compress_shapes = SP1ProofShape::generate_compress_shapes(
+            self.recursion_shape_config.as_ref().unwrap(),
+            REDUCE_BATCH_SIZE,
+        );
+        let folder = home_dir().unwrap().join(".sp1").join("cache").join(SP1_CIRCUIT_VERSION);
+        std::fs::create_dir_all(&folder)?;
+        for compress_shape in compress_shapes {
+            let compress_shape = SP1CompressProgramShape::from_proof_shape(
+                compress_shape,
+                self.allowed_vk_map.len().next_power_of_two().ilog2() as usize,
+            );
+
+            let hash = compress_shape.hash_u64();
+            println!("program hash: {}", hash);
+
+            let file = folder.join(format!("{:x}.bin", hash));
+            if file.exists() {
+                continue;
+            }
+
+            // Save into temp file first and then move so there's no race conditions with partial files.
+            let temp_file = file.with_extension("tmp");
+            let program = self.program_from_shape(compress_shape);
+            std::fs::write(&temp_file, bincode::serialize(&program).unwrap())?;
+            std::fs::rename(&temp_file, &file)?;
+        }
+        tracing::info!("done building program cache");
+        Ok(())
+    }
+
+    pub fn get_cached_program(&self, hash: u64) -> Option<Arc<RecursionProgram<BabyBear>>> {
+        let folder = home_dir().unwrap().join(".sp1").join("cache").join(SP1_CIRCUIT_VERSION);
+        let file = folder.join(format!("{:x}.bin", hash));
+        if !file.exists() {
+            return None;
+        }
+        let bytes = std::fs::read(&file).unwrap();
+        Some(Arc::new(bincode::deserialize(&bytes).unwrap()))
     }
 }
 
