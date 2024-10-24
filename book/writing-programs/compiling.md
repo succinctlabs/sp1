@@ -61,7 +61,7 @@ The path passed in to `build_program` should point to the directory containing t
 
 ```toml
 [build-dependencies]
-sp1-build = "2.0.0"
+sp1-build = "3.0.0"
 ```
 
 You will see output like the following from the build script if the program has changed, indicating that the program was rebuilt:

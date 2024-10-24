@@ -15,10 +15,10 @@ use std::time::Duration;
 
 use anyhow::Result;
 use sp1_core_executor::SP1Context;
-use sp1_core_machine::{io::SP1Stdin, SP1_CIRCUIT_VERSION};
+use sp1_core_machine::io::SP1Stdin;
 use sp1_prover::{
     components::SP1ProverComponents, CoreSC, InnerSC, SP1CoreProofData, SP1Prover, SP1ProvingKey,
-    SP1VerifyingKey,
+    SP1VerifyingKey, SP1_CIRCUIT_VERSION,
 };
 use sp1_stark::{air::PublicValues, MachineVerificationError, SP1ProverOpts, Word};
 use strum_macros::EnumString;
