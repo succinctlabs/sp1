@@ -24,7 +24,7 @@ use crate::{
 /// A record of the execution of a program.
 ///
 /// The trace of the execution is represented as a list of "events" that occur every cycle.
-#[derive(Default, Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ExecutionRecord {
     /// The program.
     pub program: Arc<Program>,
@@ -64,6 +64,34 @@ pub struct ExecutionRecord {
     pub nonce_lookup: VecMap<u32>,
     /// The shape of the proof.
     pub shape: Option<CoreShape>,
+}
+
+impl Default for ExecutionRecord {
+    fn default() -> Self {
+        let mut res = Self {
+            program: Default::default(),
+            cpu_events: Default::default(),
+            add_events: Default::default(),
+            mul_events: Default::default(),
+            sub_events: Default::default(),
+            bitwise_events: Default::default(),
+            shift_left_events: Default::default(),
+            shift_right_events: Default::default(),
+            divrem_events: Default::default(),
+            lt_events: Default::default(),
+            byte_lookups: Default::default(),
+            precompile_events: Default::default(),
+            global_memory_initialize_events: Default::default(),
+            global_memory_finalize_events: Default::default(),
+            cpu_local_memory_access: Default::default(),
+            syscall_events: Default::default(),
+            public_values: Default::default(),
+            nonce_lookup: Default::default(),
+            shape: None,
+        };
+        res.nonce_lookup.insert(0, 0);
+        res
+    }
 }
 
 impl ExecutionRecord {
