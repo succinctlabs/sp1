@@ -1,5 +1,5 @@
 use alloc::vec::Vec;
-use bn::{pairing, pairing_batch, AffineG1, AffineG2, Fr, Gt, G1, G2};
+use bn::{pairing_batch, AffineG1, AffineG2, Fr, Gt, G1, G2};
 
 use super::error::Groth16Error;
 
@@ -60,12 +60,12 @@ pub fn verify_groth16(
     proof: &Groth16Proof,
     public_inputs: &[Fr],
 ) -> Result<bool, Groth16Error> {
-    let alpha_g1_beta_g2 = pairing(vk.g1.alpha.into(), vk.g2.beta.into());
     let prepared_inputs = prepare_inputs(vk.clone(), public_inputs)?;
 
     Ok(pairing_batch(&[
-        (proof.ar.into(), proof.bs.into()),
+        (-Into::<G1>::into(proof.ar), proof.bs.into()),
         (prepared_inputs, vk.g2.gamma.into()),
-        (proof.krs.into(), -Into::<G2>::into(vk.g2.delta)),
-    ]) == alpha_g1_beta_g2)
+        (proof.krs.into(), vk.g2.delta.into()),
+        (vk.g1.alpha.into(), -Into::<G2>::into(vk.g2.beta)),
+    ]) == Gt::one())
 }

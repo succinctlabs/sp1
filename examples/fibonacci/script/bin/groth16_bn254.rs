@@ -18,7 +18,7 @@ fn main() {
     let client = ProverClient::new();
     let (pk, vk) = client.setup(ELF);
     println!("vkey bytes: {:?}", vk.bytes32());
-    let proof = client.prove(&pk, stdin).groth16().run().unwrap();
+    let proof = client.prove(&pk, stdin).plonk().run().unwrap();
 
     println!("generated proof");
 
@@ -34,7 +34,7 @@ fn main() {
     client.verify(&proof, &vk).expect("verification failed");
 
     // Save the proof.
-    proof.save("proof-with-pis.bin").expect("saving proof failed");
+    proof.save("fib-plonk.bin").expect("saving proof failed");
 
     println!("successfully generated and verified proof for the program!")
 }

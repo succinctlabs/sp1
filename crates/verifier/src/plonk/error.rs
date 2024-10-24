@@ -42,6 +42,8 @@ pub enum PlonkError {
     TranscriptError,
     #[error("Hash to field initialization failed")]
     HashToFieldInitializationFailed,
+    #[error("Plonk vkey hash mismatch")]
+    PlonkVkeyHashMismatch,
     #[error("General error")]
     GeneralError(#[from] crate::error::Error),
 }

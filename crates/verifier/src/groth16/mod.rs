@@ -14,7 +14,6 @@ use crate::{bn254_public_values, decode_sp1_vkey_hash};
 #[derive(Debug)]
 pub struct Groth16Verifier;
 
-extern crate std;
 impl Groth16Verifier {
     /// Verifies a Groth16 proof.
     ///
@@ -52,19 +51,6 @@ impl Groth16Verifier {
         let proof = load_groth16_proof_from_bytes(&proof[4..]).unwrap();
         let groth16_vk = load_groth16_verifying_key_from_bytes(groth16_vk).unwrap();
 
-        std::println!("public_inputs: {:?}", public_inputs);
         verify_groth16(&groth16_vk, &proof, &public_inputs)
-    }
-
-    /// whatever
-    pub fn verify_old(
-        proof: &[u8],
-        vk: &[u8],
-        public_inputs: &[bn::Fr],
-    ) -> Result<bool, Groth16Error> {
-        let proof = load_groth16_proof_from_bytes(proof).unwrap();
-        let vk = load_groth16_verifying_key_from_bytes(vk).unwrap();
-
-        verify_groth16(&vk, &proof, public_inputs)
     }
 }
