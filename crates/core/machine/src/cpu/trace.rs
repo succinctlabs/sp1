@@ -440,7 +440,7 @@ impl CpuChip {
             match instruction.opcode {
                 Opcode::JAL => {
                     let next_pc = event.pc.wrapping_add(event.b);
-                    jump_columns.op_a_range_checker.populate(event.a.into());
+                    jump_columns.op_a_range_checker.populate(event.a);
                     jump_columns.pc = Word::from(event.pc);
                     jump_columns.pc_range_checker.populate(event.pc);
                     jump_columns.next_pc = Word::from(next_pc);
@@ -454,7 +454,7 @@ impl CpuChip {
                 }
                 Opcode::JALR => {
                     let next_pc = event.b.wrapping_add(event.c);
-                    jump_columns.op_a_range_checker.populate(event.a.into());
+                    jump_columns.op_a_range_checker.populate(event.a);
                     jump_columns.next_pc = Word::from(next_pc);
                     jump_columns.next_pc_range_checker.populate(next_pc);
                     jump_columns.jalr_nonce = F::from_canonical_u32(
