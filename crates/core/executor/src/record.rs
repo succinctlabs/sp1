@@ -70,7 +70,9 @@ impl ExecutionRecord {
     /// Create a new [`ExecutionRecord`].
     #[must_use]
     pub fn new(program: Arc<Program>) -> Self {
-        Self { program, ..Default::default() }
+        let mut res = Self { program, ..Default::default() };
+        res.nonce_lookup.insert(0, 0);
+        res
     }
 
     /// Create a lookup id for an event.
