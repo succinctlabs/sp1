@@ -4,7 +4,7 @@ use sp1_core_executor::{
     events::{ByteLookupEvent, ByteRecord, CpuEvent, MemoryRecordEnum},
     syscalls::SyscallCode,
     ByteOpcode::{self, U16Range},
-    CoreShape, ExecutionRecord, Opcode, Program,
+    CoreShape, ExecutionRecord, Instruction, Opcode, Program,
     Register::X0,
 };
 use sp1_primitives::consts::WORD_SIZE;
@@ -48,12 +48,15 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
                     let idx = i * chunk_size + j;
                     let cols: &mut CpuCols<F> = row.borrow_mut();
                     let mut byte_lookup_events = Vec::new();
+                    let event = &input.cpu_events[idx];
+                    let instruction = &input.program.fetch(event.pc);
                     self.event_to_row(
-                        &input.cpu_events[idx],
+                        event,
                         &input.nonce_lookup,
                         cols,
                         &mut byte_lookup_events,
                         shard,
+                        instruction,
                     );
                 });
             },
@@ -83,7 +86,8 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
                 ops.iter().for_each(|op| {
                     let mut row = [F::zero(); NUM_CPU_COLS];
                     let cols: &mut CpuCols<F> = row.as_mut_slice().borrow_mut();
-                    self.event_to_row::<F>(op, &Vec::new(), cols, &mut blu, shard);
+                    let instruction = &input.program.fetch(op.pc);
+                    self.event_to_row::<F>(op, &Vec::new(), cols, &mut blu, shard, instruction);
                 });
                 blu
             })
@@ -110,6 +114,7 @@ impl CpuChip {
         cols: &mut CpuCols<F>,
         blu_events: &mut impl ByteRecord,
         shard: u32,
+        instruction: &Instruction,
     ) {
         // Populate shard and clk columns.
         self.populate_shard_clk(cols, event, blu_events, shard);
@@ -122,8 +127,8 @@ impl CpuChip {
         // Populate basic fields.
         cols.pc = F::from_canonical_u32(event.pc);
         cols.next_pc = F::from_canonical_u32(event.next_pc);
-        cols.instruction.populate(event.instruction);
-        cols.selectors.populate(event.instruction);
+        cols.instruction.populate(instruction);
+        cols.selectors.populate(instruction);
         *cols.op_a_access.value_mut() = (event.a as u32).into();
         *cols.op_b_access.value_mut() = event.b.into();
         *cols.op_c_access.value_mut() = event.c.into();
@@ -173,16 +178,14 @@ impl CpuChip {
         }
 
         // Populate memory, branch, jump, and auipc specific fields.
-        self.populate_memory(cols, event, blu_events, nonce_lookup, shard);
-        self.populate_branch(cols, event, nonce_lookup);
-        self.populate_jump(cols, event, nonce_lookup);
-        self.populate_auipc(cols, event, nonce_lookup);
+        self.populate_memory(cols, event, blu_events, nonce_lookup, shard, instruction);
+        self.populate_branch(cols, event, nonce_lookup, instruction);
+        self.populate_jump(cols, event, nonce_lookup, instruction);
+        self.populate_auipc(cols, event, nonce_lookup, instruction);
         let is_halt = self.populate_ecall(cols, event, nonce_lookup);
 
         cols.is_sequential_instr = F::from_bool(
-            !event.instruction.is_branch_instruction()
-                && !event.instruction.is_jump_instruction()
-                && !is_halt,
+            !instruction.is_branch_instruction() && !instruction.is_jump_instruction() && !is_halt,
         );
 
         // Assert that the instruction is not a no-op.
@@ -239,9 +242,10 @@ impl CpuChip {
         blu_events: &mut impl ByteRecord,
         nonce_lookup: &Vec<u32>,
         shard: u32,
+        instruction: &Instruction,
     ) {
         if !matches!(
-            event.instruction.opcode,
+            instruction.opcode,
             Opcode::LB
                 | Opcode::LH
                 | Opcode::LW
@@ -281,10 +285,10 @@ impl CpuChip {
         // If it is a load instruction, set the unsigned_mem_val column.
         let mem_value = event.memory_record.unwrap().value();
         if matches!(
-            event.instruction.opcode,
+            instruction.opcode,
             Opcode::LB | Opcode::LBU | Opcode::LH | Opcode::LHU | Opcode::LW
         ) {
-            match event.instruction.opcode {
+            match instruction.opcode {
                 Opcode::LB | Opcode::LBU => {
                     cols.unsigned_mem_val =
                         (mem_value.to_le_bytes()[addr_offset as usize] as u32).into();
@@ -304,8 +308,8 @@ impl CpuChip {
             }
 
             // For the signed load instructions, we need to check if the loaded value is negative.
-            if matches!(event.instruction.opcode, Opcode::LB | Opcode::LH) {
-                let most_sig_mem_value_byte = if matches!(event.instruction.opcode, Opcode::LB) {
+            if matches!(instruction.opcode, Opcode::LB | Opcode::LH) {
+                let most_sig_mem_value_byte = if matches!(instruction.opcode, Opcode::LB) {
                     cols.unsigned_mem_val.to_u32().to_le_bytes()[0]
                 } else {
                     cols.unsigned_mem_val.to_u32().to_le_bytes()[1]
@@ -316,8 +320,7 @@ impl CpuChip {
                         F::from_canonical_u8(most_sig_mem_value_byte >> i & 0x01);
                 }
                 if memory_columns.most_sig_byte_decomp[7] == F::one() {
-                    cols.mem_value_is_neg_not_x0 =
-                        F::from_bool(event.instruction.op_a != (X0 as u8));
+                    cols.mem_value_is_neg_not_x0 = F::from_bool(instruction.op_a != (X0 as u8));
                     cols.unsigned_mem_val_nonce = F::from_canonical_u32(
                         nonce_lookup
                             .get(event.memory_sub_lookup_id.0 as usize)
@@ -329,10 +332,10 @@ impl CpuChip {
 
             // Set the `mem_value_is_pos_not_x0` composite flag.
             cols.mem_value_is_pos_not_x0 = F::from_bool(
-                ((matches!(event.instruction.opcode, Opcode::LB | Opcode::LH)
+                ((matches!(instruction.opcode, Opcode::LB | Opcode::LH)
                     && (memory_columns.most_sig_byte_decomp[7] == F::zero()))
-                    || matches!(event.instruction.opcode, Opcode::LBU | Opcode::LHU | Opcode::LW))
-                    && event.instruction.op_a != (X0 as u8),
+                    || matches!(instruction.opcode, Opcode::LBU | Opcode::LHU | Opcode::LW))
+                    && instruction.op_a != (X0 as u8),
             );
         }
 
@@ -356,14 +359,14 @@ impl CpuChip {
         cols: &mut CpuCols<F>,
         event: &CpuEvent,
         nonce_lookup: &Vec<u32>,
+        instruction: &Instruction,
     ) {
-        if event.instruction.is_branch_instruction() {
+        if instruction.is_branch_instruction() {
             let branch_columns = cols.opcode_specific_columns.branch_mut();
 
             let a_eq_b = event.a as u32 == event.b;
 
-            let use_signed_comparison =
-                matches!(event.instruction.opcode, Opcode::BLT | Opcode::BGE);
+            let use_signed_comparison = matches!(instruction.opcode, Opcode::BLT | Opcode::BGE);
 
             let a_lt_b = if use_signed_comparison {
                 (event.a as i32) < (event.b as i32)
@@ -388,7 +391,7 @@ impl CpuChip {
             branch_columns.a_lt_b = F::from_bool(a_lt_b);
             branch_columns.a_gt_b = F::from_bool(a_gt_b);
 
-            let branching = match event.instruction.opcode {
+            let branching = match instruction.opcode {
                 Opcode::BEQ => a_eq_b,
                 Opcode::BNE => !a_eq_b,
                 Opcode::BLT | Opcode::BLTU => a_lt_b,
@@ -422,11 +425,12 @@ impl CpuChip {
         cols: &mut CpuCols<F>,
         event: &CpuEvent,
         nonce_lookup: &Vec<u32>,
+        instruction: &Instruction,
     ) {
-        if event.instruction.is_jump_instruction() {
+        if instruction.is_jump_instruction() {
             let jump_columns = cols.opcode_specific_columns.jump_mut();
 
-            match event.instruction.opcode {
+            match instruction.opcode {
                 Opcode::JAL => {
                     let next_pc = event.pc.wrapping_add(event.b);
                     jump_columns.op_a_range_checker.populate(event.a.into());
@@ -464,8 +468,9 @@ impl CpuChip {
         cols: &mut CpuCols<F>,
         event: &CpuEvent,
         nonce_lookup: &Vec<u32>,
+        instruction: &Instruction,
     ) {
-        if matches!(event.instruction.opcode, Opcode::AUIPC) {
+        if matches!(instruction.opcode, Opcode::AUIPC) {
             let auipc_columns = cols.opcode_specific_columns.auipc_mut();
 
             auipc_columns.pc = Word::from(event.pc);

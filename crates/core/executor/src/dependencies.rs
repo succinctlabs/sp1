@@ -1,5 +1,5 @@
 use crate::{
-    events::{AluEvent, CpuEvent},
+    events::AluEvent,
     utils::{get_msb, get_quotient_and_remainder, is_signed_operation},
     Executor, Opcode,
 };
@@ -120,8 +120,9 @@ pub fn emit_divrem_dependencies(executor: &mut Executor, event: AluEvent) {
 pub fn emit_cpu_dependencies(executor: &mut Executor, index: usize) {
     let event = executor.record.cpu_events[index];
     let shard = executor.shard();
+    let instruction = &executor.program.fetch(event.pc);
     if matches!(
-        event.instruction.opcode,
+        instruction.opcode,
         Opcode::LB
             | Opcode::LH
             | Opcode::LW
@@ -147,26 +148,25 @@ pub fn emit_cpu_dependencies(executor: &mut Executor, index: usize) {
         let addr_offset = (memory_addr % 4_u32) as u8;
         let mem_value = event.memory_record.unwrap().value();
 
-        if matches!(event.instruction.opcode, Opcode::LB | Opcode::LH) {
-            let (unsigned_mem_val, most_sig_mem_value_byte, sign_value) =
-                match event.instruction.opcode {
-                    Opcode::LB => {
-                        let most_sig_mem_value_byte = mem_value.to_le_bytes()[addr_offset as usize];
-                        let sign_value = 256;
-                        (most_sig_mem_value_byte as u32, most_sig_mem_value_byte, sign_value)
-                    }
-                    Opcode::LH => {
-                        let sign_value = 65536;
-                        let unsigned_mem_val = match (addr_offset >> 1) % 2 {
-                            0 => mem_value & 0x0000FFFF,
-                            1 => (mem_value & 0xFFFF0000) >> 16,
-                            _ => unreachable!(),
-                        };
-                        let most_sig_mem_value_byte = unsigned_mem_val.to_le_bytes()[1];
-                        (unsigned_mem_val, most_sig_mem_value_byte, sign_value)
-                    }
-                    _ => unreachable!(),
-                };
+        if matches!(instruction.opcode, Opcode::LB | Opcode::LH) {
+            let (unsigned_mem_val, most_sig_mem_value_byte, sign_value) = match instruction.opcode {
+                Opcode::LB => {
+                    let most_sig_mem_value_byte = mem_value.to_le_bytes()[addr_offset as usize];
+                    let sign_value = 256;
+                    (most_sig_mem_value_byte as u32, most_sig_mem_value_byte, sign_value)
+                }
+                Opcode::LH => {
+                    let sign_value = 65536;
+                    let unsigned_mem_val = match (addr_offset >> 1) % 2 {
+                        0 => mem_value & 0x0000FFFF,
+                        1 => (mem_value & 0xFFFF0000) >> 16,
+                        _ => unreachable!(),
+                    };
+                    let most_sig_mem_value_byte = unsigned_mem_val.to_le_bytes()[1];
+                    (unsigned_mem_val, most_sig_mem_value_byte, sign_value)
+                }
+                _ => unreachable!(),
+            };
 
             if most_sig_mem_value_byte >> 7 & 0x01 == 1 {
                 let sub_event = AluEvent {
@@ -184,9 +184,9 @@ pub fn emit_cpu_dependencies(executor: &mut Executor, index: usize) {
         }
     }
 
-    if event.instruction.is_branch_instruction() {
+    if instruction.is_branch_instruction() {
         let a_eq_b = event.a as u32 == event.b;
-        let use_signed_comparison = matches!(event.instruction.opcode, Opcode::BLT | Opcode::BGE);
+        let use_signed_comparison = matches!(instruction.opcode, Opcode::BLT | Opcode::BGE);
         let a_lt_b = if use_signed_comparison {
             (event.a as i32) < (event.b as i32)
         } else {
@@ -222,7 +222,7 @@ pub fn emit_cpu_dependencies(executor: &mut Executor, index: usize) {
         };
         executor.record.lt_events.push(lt_comp_event);
         executor.record.lt_events.push(gt_comp_event);
-        let branching = match event.instruction.opcode {
+        let branching = match instruction.opcode {
             Opcode::BEQ => a_eq_b,
             Opcode::BNE => !a_eq_b,
             Opcode::BLT | Opcode::BLTU => a_lt_b,
@@ -245,8 +245,8 @@ pub fn emit_cpu_dependencies(executor: &mut Executor, index: usize) {
         }
     }
 
-    if event.instruction.is_jump_instruction() {
-        match event.instruction.opcode {
+    if instruction.is_jump_instruction() {
+        match instruction.opcode {
             Opcode::JAL => {
                 let next_pc = event.pc.wrapping_add(event.b);
                 let add_event = AluEvent {
@@ -279,7 +279,7 @@ pub fn emit_cpu_dependencies(executor: &mut Executor, index: usize) {
         }
     }
 
-    if matches!(event.instruction.opcode, Opcode::AUIPC) {
+    if matches!(instruction.opcode, Opcode::AUIPC) {
         let add_event = AluEvent {
             lookup_id: event.auipc_lookup_id,
             shard,

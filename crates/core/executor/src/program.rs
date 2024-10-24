@@ -89,6 +89,11 @@ impl Program {
             })
             .copied()
     }
+
+    pub fn fetch(&self, pc: u32) -> &Instruction {
+        let idx = ((pc - self.pc_base) / 4) as usize;
+        &self.instructions[idx]
+    }
 }
 
 impl<F: Field> MachineProgram<F> for Program {
