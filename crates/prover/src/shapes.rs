@@ -358,9 +358,8 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         let bytes = tracing::info_span!("read from disk")
             .in_scope(|| std::fs::read(&file).expect("failed to read file"));
         let len = bytes.len();
-        let cursor = std::io::Cursor::new(bytes);
-        let deserialized = tracing::info_span!("load from disk", bytes = len)
-            .in_scope(|| Arc::new(bincode::deserialize_from(cursor).unwrap()));
+        let deserialized = tracing::info_span!("deserialize", bytes = len)
+            .in_scope(|| Arc::new(bincode::deserialize(&bytes).unwrap()));
         Some(deserialized)
     }
 }
