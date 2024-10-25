@@ -31,11 +31,12 @@ impl Groth16Verifier {
     /// let sp1_vkey_hash = vk.bytes32();
     /// ```
     /// * `groth16_vk` - The Groth16 verifying key bytes.
-    ///   Usually this will be the [`crate::GROTH16_VK_BYTES`] constant.
+    ///   Usually this will be the [`crate::GROTH16_VK_BYTES`] constant, which is the Groth16
+    ///   verifying key for the current SP1 version.
     ///
     /// # Returns
     ///
-    /// A `Result` containing a boolean indicating whether the proof is valid,
+    /// A [`Result`] containing a boolean indicating whether the proof is valid,
     /// or a [`Groth16Error`] if verification fails.
     pub fn verify(
         proof: &[u8],

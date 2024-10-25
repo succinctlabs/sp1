@@ -21,6 +21,9 @@ pub(crate) fn load_groth16_proof_from_bytes(buffer: &[u8]) -> Result<Groth16Proo
 pub(crate) fn load_groth16_verifying_key_from_bytes(
     buffer: &[u8],
 ) -> Result<Groth16VerifyingKey, Groth16Error> {
+    // We don't need to check each compressed point because the Groth16 vkey is a public constant
+    // that doesn't usually change. The party using the Groth16 vkey will usually clearly know
+    // how the vkey was generated.
     let g1_alpha = unchecked_compressed_x_to_g1_point(&buffer[..32])?;
     let g2_beta = unchecked_compressed_x_to_g2_point(&buffer[64..128])?;
     let g2_gamma = unchecked_compressed_x_to_g2_point(&buffer[128..192])?;

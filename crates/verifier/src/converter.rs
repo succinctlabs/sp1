@@ -87,6 +87,7 @@ pub(crate) fn uncompressed_bytes_to_g1_point(buf: &[u8]) -> Result<AffineG1, Err
 /// Asserts that the compressed point is represented as a single fq2 element: the x coordinate
 /// of the point.
 /// Then, gets the y coordinate from the x coordinate.
+/// For efficiency, this function does not check that the final point is on the curve.
 pub(crate) fn unchecked_compressed_x_to_g2_point(buf: &[u8]) -> Result<AffineG2, Error> {
     if buf.len() != 64 {
         return Err(Error::InvalidXLength);
