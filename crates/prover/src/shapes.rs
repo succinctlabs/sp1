@@ -23,7 +23,6 @@ use sp1_recursion_circuit::machine::{
 };
 use sp1_recursion_core::{shape::RecursionShapeConfig, RecursionProgram};
 use sp1_stark::{MachineProver, ProofShape, DIGEST_SIZE};
-use tracing::instrument;
 
 use crate::{
     components::SP1ProverComponents, CompressAir, HashableKey, SP1Prover, REDUCE_BATCH_SIZE,
@@ -354,8 +353,10 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         }
 
         let deserialized = tracing::info_span!("load from disk").in_scope(|| {
-            let bytes = std::fs::read(&file).unwrap();
-            Arc::new(bincode::deserialize(&bytes).unwrap())
+            let file = std::fs::File::open(&file).unwrap();
+            let bytes = unsafe { memmap2::Mmap::map(&file).unwrap() };
+            let cursor = std::io::Cursor::new(bytes);
+            Arc::new(bincode::deserialize_from(cursor).unwrap())
         });
         Some(deserialized)
     }
