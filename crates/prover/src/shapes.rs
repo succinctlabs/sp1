@@ -352,12 +352,12 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             return None;
         }
 
-        let deserialized = tracing::info_span!("load from disk").in_scope(|| {
-            let file = std::fs::File::open(&file).unwrap();
-            let bytes = unsafe { memmap2::Mmap::map(&file).unwrap() };
-            let cursor = std::io::Cursor::new(bytes);
-            Arc::new(bincode::deserialize_from(cursor).unwrap())
-        });
+        let file = std::fs::File::open(&file).unwrap();
+        let bytes = unsafe { memmap2::Mmap::map(&file).unwrap() };
+        let len = bytes.len();
+        let cursor = std::io::Cursor::new(bytes);
+        let deserialized = tracing::info_span!("load from disk", bytes = len)
+            .in_scope(|| Arc::new(bincode::deserialize_from(cursor).unwrap()));
         Some(deserialized)
     }
 }
