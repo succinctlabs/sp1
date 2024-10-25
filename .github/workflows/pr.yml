@@ -408,12 +408,16 @@ jobs:
   check-verifier-no-std:
     name: check verifier no_std
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 10
     strategy:
       fail-fast: false
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - name: Checkout Actions Repository
+        uses: actions/checkout@v4
+       
+      - name: Set up no-std target
+        uses: dtolnay/rust-toolchain@stable
         with:
           targets: riscv32imac-unknown-none-elf
+
       - run: cargo check --target riscv32imac-unknown-none-elf --no-default-features -p sp1-verifier
