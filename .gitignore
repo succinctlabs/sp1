@@ -34,3 +34,6 @@ crates/prover/powersOfTau28_hez_final.ptau
 crates/prover/semaphore-gnark-11
 crates/prover/trusted-setup
 crates/prover/vk
+
+# Example legacy elf
+examples/elf 
