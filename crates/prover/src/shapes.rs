@@ -5,10 +5,12 @@ use std::{
     panic::{catch_unwind, AssertUnwindSafe},
     path::PathBuf,
     sync::{Arc, Mutex},
+    time::Instant,
 };
 
 use dirs::home_dir;
 use eyre::Result;
+use rayon::iter::{ParallelBridge, ParallelIterator};
 use thiserror::Error;
 
 use p3_baby_bear::BabyBear;
@@ -21,6 +23,7 @@ use sp1_recursion_circuit::machine::{
 };
 use sp1_recursion_core::{shape::RecursionShapeConfig, RecursionProgram};
 use sp1_stark::{MachineProver, ProofShape, DIGEST_SIZE};
+use tracing::instrument;
 
 use crate::{
     components::SP1ProverComponents, CompressAir, HashableKey, SP1Prover, REDUCE_BATCH_SIZE,
@@ -311,14 +314,15 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         }
     }
 
-    pub fn build_program_cache(&self) -> Result<()> {
+    pub fn build_program_cache(&self) {
+        let start = Instant::now();
         let compress_shapes = SP1ProofShape::generate_compress_shapes(
             self.recursion_shape_config.as_ref().unwrap(),
             REDUCE_BATCH_SIZE,
         );
         let folder = home_dir().unwrap().join(".sp1").join("cache").join(SP1_CIRCUIT_VERSION);
-        std::fs::create_dir_all(&folder)?;
-        for compress_shape in compress_shapes {
+        std::fs::create_dir_all(&folder).expect("failed to create dirs");
+        compress_shapes.par_bridge().for_each(|compress_shape| {
             let compress_shape = SP1CompressProgramShape::from_proof_shape(
                 compress_shape,
                 self.allowed_vk_map.len().next_power_of_two().ilog2() as usize,
@@ -329,17 +333,17 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 
             let file = folder.join(format!("{:x}.bin", hash));
             if file.exists() {
-                continue;
+                return;
             }
 
             // Save into temp file first and then move so there's no race conditions with partial files.
             let temp_file = file.with_extension("tmp");
             let program = self.program_from_shape(compress_shape);
-            std::fs::write(&temp_file, bincode::serialize(&program).unwrap())?;
-            std::fs::rename(&temp_file, &file)?;
-        }
-        tracing::info!("done building program cache");
-        Ok(())
+            std::fs::write(&temp_file, bincode::serialize(&program).unwrap())
+                .expect("failed to write file");
+            std::fs::rename(&temp_file, &file).expect("failed to rename file");
+        });
+        println!("done building program cache after {:?}", start.elapsed());
     }
 
     pub fn get_cached_program(&self, hash: u64) -> Option<Arc<RecursionProgram<BabyBear>>> {
@@ -348,8 +352,12 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         if !file.exists() {
             return None;
         }
-        let bytes = std::fs::read(&file).unwrap();
-        Some(Arc::new(bincode::deserialize(&bytes).unwrap()))
+
+        let deserialized = tracing::info_span!("load from disk").in_scope(|| {
+            let bytes = std::fs::read(&file).unwrap();
+            Arc::new(bincode::deserialize(&bytes).unwrap())
+        });
+        Some(deserialized)
     }
 }
 
