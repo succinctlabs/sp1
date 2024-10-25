@@ -414,10 +414,15 @@ jobs:
     steps:
       - name: Checkout Actions Repository
         uses: actions/checkout@v4
-       
-      - name: Set up no-std target
+  
+      - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: riscv32imac-unknown-none-elf
-
-      - run: cargo check --target riscv32imac-unknown-none-elf --no-default-features -p sp1-verifier
+          
+      - name: Install target support
+        run: rustup target add riscv32imac-unknown-none-elf
+        
+      - name: Check build
+        run: cargo check --target riscv32imac-unknown-none-elf --no-default-features -p sp1-verifier
+       
