@@ -89,7 +89,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryLocalChip {
     ) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
         let events = input.get_local_mem_events().collect::<Vec<_>>();
-        let nb_rows = events.len();
+        let nb_rows = (events.len() + 3) / 4;
         let size_log2 = input.fixed_log2_rows::<F, _>(self);
         let padded_nb_rows = next_power_of_two(nb_rows, size_log2);
         let mut values = zeroed_f_vec(padded_nb_rows * NUM_MEMORY_LOCAL_INIT_COLS);
