@@ -383,7 +383,8 @@ impl MachineRecord for ExecutionRecord {
     }
 
     fn register_nonces(&mut self, _opts: &Self::Config) {
-        self.nonce_lookup = vec![0; (self.next_nonce - 1) as usize];
+        println!("next nonce: {}", self.next_nonce);
+        self.nonce_lookup = vec![0; self.next_nonce as usize];
 
         self.add_events.iter().enumerate().for_each(|(i, event)| {
             self.nonce_lookup[event.lookup_id.0 as usize] = i as u32;
