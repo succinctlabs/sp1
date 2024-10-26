@@ -6912,7 +6912,7 @@ dependencies = [
  "lazy_static",
  "rand 0.8.5",
  "sha2 0.10.8",
- "substrate-bn 0.6.0",
+ "substrate-bn 0.7.1",
  "thiserror-no-std",
 ]
 
@@ -7066,21 +7066,6 @@ dependencies = [
 [[package]]
 name = "substrate-bn"
 version = "0.6.0"
-dependencies = [
- "bytemuck",
- "byteorder",
- "cfg-if",
- "crunchy",
- "lazy_static",
- "num-bigint 0.4.6",
- "rand 0.8.5",
- "rustc-hex",
- "sp1-lib 3.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
-name = "substrate-bn"
-version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "72b5bbfa79abbae15dd642ea8176a21a635ff3c00059961d1ea27ad04e5b441c"
 dependencies = [
@@ -7104,6 +7089,22 @@ dependencies = [
  "rand 0.8.5",
  "rustc-hex",
  "sp1-lib 3.0.0 (git+https://github.com/succinctlabs/sp1.git?branch=dev)",
+]
+
+[[package]]
+name = "substrate-bn"
+version = "0.7.1"
+source = "git+https://github.com/yuwen01/bn?rev=7d8394cd1d57a7d4e5a235a71762cc3dee82e67b#7d8394cd1d57a7d4e5a235a71762cc3dee82e67b"
+dependencies = [
+ "bytemuck",
+ "byteorder",
+ "cfg-if",
+ "crunchy",
+ "lazy_static",
+ "num-bigint 0.4.6",
+ "rand 0.8.5",
+ "rustc-hex",
+ "sp1-lib 3.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]

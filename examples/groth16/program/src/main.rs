@@ -10,7 +10,7 @@ pub fn main() {
     let proof = sp1_zkvm::io::read_vec();
     let sp1_public_values = sp1_zkvm::io::read_vec();
     let sp1_vkey_hash: String = sp1_zkvm::io::read();
-    
+
     // Verify the groth16 proof.
     let groth16_vk = &sp1_verifier::GROTH16_VK_BYTES;
     println!("cycle-tracker-start: verify");
