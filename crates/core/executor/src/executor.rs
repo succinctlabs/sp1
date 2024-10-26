@@ -1365,6 +1365,11 @@ impl<'a> Executor<'a> {
                 self.state.current_shard += 1;
                 self.state.clk = 0;
                 self.report.event_counts = Box::default();
+
+                println!("shard number: {}", self.state.current_shard);
+                println!("touched addresses in shard: {}", self.local_memory_access.len());
+                println!("number of ecalls: {}", self.report.total_syscall_count());
+
                 self.bump_record();
             }
         }

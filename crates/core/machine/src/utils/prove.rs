@@ -142,6 +142,7 @@ where
 {
     // Setup the runtime.
     let mut runtime = Executor::with_context(program.clone(), opts, context);
+    runtime.print_report = true;
     let maximal_shapes = match shape_config.as_ref() {
         Some(shape_config) => shape_config.maximal_core_shapes(),
         None => vec![],
@@ -155,6 +156,10 @@ where
 
     #[cfg(feature = "debug")]
     let (all_records_tx, all_records_rx) = std::sync::mpsc::channel::<Vec<ExecutionRecord>>();
+
+    #[cfg(feature = "tracing")]
+    let (all_records_tracing_tx, all_records_tracing_rx) =
+        std::sync::mpsc::channel::<Vec<ExecutionRecord>>();
 
     // Record the start of the process.
     let proving_start = Instant::now();
@@ -192,6 +197,8 @@ where
 
                         // If we've reached the final checkpoint, break out of the loop.
                         if done {
+                            println!("Executor report: {:?}", runtime.report.syscall_counts);
+                            // println!("{:?}", runtime.record.syscall_events);
                             break Ok(runtime.state.public_values_stream);
                         }
 
@@ -416,7 +423,6 @@ where
 
         // Wait until the checkpoint generator handle has fully finished.
         let public_values_stream = checkpoint_generator_handle.join().unwrap().unwrap();
-
         // Wait until the records and traces have been fully generated.
         p1_record_and_trace_gen_handles.into_iter().for_each(|handle| handle.join().unwrap());
 
@@ -462,6 +468,9 @@ where
 
             #[cfg(feature = "debug")]
             let all_records_tx = all_records_tx.clone();
+
+            #[cfg(feature = "tracing")]
+            let all_records_tracing_tx = all_records_tracing_tx.clone();
 
             let handle = s.spawn(move || {
                 let _span = span.enter();
@@ -550,6 +559,9 @@ where
                             #[cfg(feature = "debug")]
                             all_records_tx.send(records.clone()).unwrap();
 
+                            #[cfg(feature = "tracing")]
+                            all_records_tracing_tx.send(records.clone()).unwrap();
+
                             // Generate the traces.
                             let mut local_traces = Vec::new();
                             tracing::debug_span!("generate local traces", index).in_scope(|| {
@@ -603,6 +615,9 @@ where
         drop(p2_records_and_traces_tx);
         #[cfg(feature = "debug")]
         drop(all_records_tx);
+
+        #[cfg(feature = "tracing")]
+        drop(all_records_tracing_tx);
 
         // Spawn the phase 2 prover thread.
         let p2_prover_span = tracing::Span::current().clone();
@@ -689,6 +704,42 @@ where
             (cycles as f64 / (proving_time * 1000.0) as f64),
             bincode::serialize(&proof).unwrap().len(),
         );
+
+        #[cfg(feature = "tracing")]
+        {
+            let all_records = all_records_tracing_rx.iter().flatten().collect::<Vec<_>>();
+
+            let mut keccak_map = std::collections::HashMap::new();
+            let mut secp_double_map = std::collections::HashMap::new();
+            let mut secp_add_map = std::collections::HashMap::new();
+
+            for record in all_records.iter() {
+                for event in record.syscall_events.iter() {
+                    match event.syscall_id {
+                        10 => {
+                            let key = event.shard;
+                            let value = secp_add_map.get(&key).unwrap_or(&0) + 1;
+                            secp_add_map.insert(key, value);
+                        }
+                        11 => {
+                            let key = event.shard;
+                            let value = secp_double_map.get(&key).unwrap_or(&0) + 1;
+                            secp_double_map.insert(key, value);
+                        }
+                        9 => {
+                            let key = event.shard;
+                            let value = secp_double_map.get(&key).unwrap_or(&0) + 1;
+                            keccak_map.insert(key, value);
+                        }
+                        _ => {}
+                    }
+                }
+            }
+
+            println!("secp_add_map: {:?}", secp_add_map);
+            println!("secp_double_map: {:?}", secp_double_map);
+            println!("keccak_map: {:?}", keccak_map);
+        }
 
         #[cfg(feature = "debug")]
         {
