@@ -62,9 +62,10 @@ impl<T: Add<Output = T> + Mul<Output = T> + AbstractField> Mul for BinomialExten
         for i in 0..D {
             for j in 0..D {
                 if i + j >= D {
-                    result[i + j - D] += w.clone() * self.0[i].clone() * rhs.0[j].clone();
+                    result[i + j - D] = result[i + j - D].clone()
+                        + w.clone() * self.0[i].clone() * rhs.0[j].clone();
                 } else {
-                    result[i + j] += self.0[i].clone() * rhs.0[j].clone();
+                    result[i + j] = result[i + j].clone() + self.0[i].clone() * rhs.0[j].clone();
                 }
             }
         }

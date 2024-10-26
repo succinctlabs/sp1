@@ -71,26 +71,26 @@ sp1-lib = { path = "crates/zkvm/lib", version = "3.0.0", default-features = fals
 sp1-zkvm = { path = "crates/zkvm/entrypoint", version = "3.0.1", default-features = false }
 
 # p3
-p3-air = "0.1.4-succinct"
-p3-field = "0.1.4-succinct"
-p3-commit = "0.1.4-succinct"
-p3-matrix = "0.1.4-succinct"
-p3-baby-bear = { version = "0.1.4-succinct", features = ["nightly-features"] }
-p3-util = "0.1.4-succinct"
-p3-challenger = "0.1.4-succinct"
-p3-dft = "0.1.4-succinct"
-p3-fri = "0.1.4-succinct"
-p3-goldilocks = "0.1.4-succinct"
-p3-keccak = "0.1.4-succinct"
-p3-keccak-air = "0.1.4-succinct"
-p3-blake3 = "0.1.4-succinct"
-p3-mds = "0.1.4-succinct"
-p3-merkle-tree = "0.1.4-succinct"
-p3-poseidon2 = "0.1.4-succinct"
-p3-symmetric = "0.1.4-succinct"
-p3-uni-stark = "0.1.4-succinct"
-p3-maybe-rayon = "0.1.4-succinct"
-p3-bn254-fr = "0.1.4-succinct"
+# p3-air = "0.1.4-succinct"
+# p3-field = "0.1.4-succinct"
+# p3-commit = "0.1.4-succinct"
+# p3-matrix = "0.1.4-succinct"
+# p3-baby-bear = { version = "0.1.4-succinct", features = ["nightly-features"] }
+# p3-util = "0.1.4-succinct"
+# p3-challenger = "0.1.4-succinct"
+# p3-dft = "0.1.4-succinct"
+# p3-fri = "0.1.4-succinct"
+# p3-goldilocks = "0.1.4-succinct"
+# p3-keccak = "0.1.4-succinct"
+# p3-keccak-air = "0.1.4-succinct"
+# p3-blake3 = "0.1.4-succinct"
+# p3-mds = "0.1.4-succinct"
+# p3-merkle-tree = "0.1.4-succinct"
+# p3-poseidon2 = "0.1.4-succinct"
+# p3-symmetric = "0.1.4-succinct"
+# p3-uni-stark = "0.1.4-succinct"
+# p3-maybe-rayon = "0.1.4-succinct"
+# p3-bn254-fr = "0.1.4-succinct"
 
 # For local development. 
 
@@ -115,26 +115,26 @@ p3-bn254-fr = "0.1.4-succinct"
 # p3-maybe-rayon = { git = "https://github.com/Plonky3/Plonky3", branch = "sp1-v3" }
 # p3-bn254-fr = { git = "https://github.com/Plonky3/Plonky3", branch = "sp1-v3" }
 
-# p3-air = { path = "../Plonky3/air" }
-# p3-field = { path = "../Plonky3/field" }
-# p3-commit = { path = "../Plonky3/commit" }
-# p3-matrix = { path = "../Plonky3/matrix" }
-# p3-baby-bear = { path = "../Plonky3/baby-bear" }
-# p3-util = { path = "../Plonky3/util" }
-# p3-challenger = { path = "../Plonky3/challenger" }
-# p3-dft = { path = "../Plonky3/dft" }
-# p3-fri = { path = "../Plonky3/fri" }
-# p3-goldilocks = { path = "../Plonky3/goldilocks" }
-# p3-keccak = { path = "../Plonky3/keccak" }
-# p3-keccak-air = { path = "../Plonky3/keccak-air" }
-# p3-blake3 = { path = "../Plonky3/blake3" }
-# p3-mds = { path = "../Plonky3/mds" }
-# p3-merkle-tree = { path = "../Plonky3/merkle-tree" }
-# p3-poseidon2 = { path = "../Plonky3/poseidon2" }
-# p3-symmetric = { path = "../Plonky3/symmetric" }
-# p3-uni-stark = { path = "../Plonky3/uni-stark" }
-# p3-maybe-rayon = { path = "../Plonky3/maybe-rayon" }
-# p3-bn254-fr = { path = "../Plonky3/bn254-fr" }
+p3-air = { path = "../Plonky3/air" }
+p3-field = { path = "../Plonky3/field" }
+p3-commit = { path = "../Plonky3/commit" }
+p3-matrix = { path = "../Plonky3/matrix" }
+p3-baby-bear = { path = "../Plonky3/baby-bear" }
+p3-util = { path = "../Plonky3/util" }
+p3-challenger = { path = "../Plonky3/challenger" }
+p3-dft = { path = "../Plonky3/dft" }
+p3-fri = { path = "../Plonky3/fri" }
+p3-goldilocks = { path = "../Plonky3/goldilocks" }
+p3-keccak = { path = "../Plonky3/keccak" }
+p3-keccak-air = { path = "../Plonky3/keccak-air" }
+p3-blake3 = { path = "../Plonky3/blake3" }
+p3-mds = { path = "../Plonky3/mds" }
+p3-merkle-tree = { path = "../Plonky3/merkle-tree" }
+p3-poseidon2 = { path = "../Plonky3/poseidon2" }
+p3-symmetric = { path = "../Plonky3/symmetric" }
+p3-uni-stark = { path = "../Plonky3/uni-stark" }
+p3-maybe-rayon = { path = "../Plonky3/maybe-rayon" }
+p3-bn254-fr = { path = "../Plonky3/bn254-fr" }
 
 [workspace.metadata.typos]
 # TODO: Fix in next version since CommitCommitedValuesDigest is retained since it's present in constraints.json

@@ -36,10 +36,6 @@ where
         let (local, next) = (main.row_slice(0), main.row_slice(1));
         let local: &CpuCols<AB::Var> = (*local).borrow();
         let next: &CpuCols<AB::Var> = (*next).borrow();
-        let public_values_slice: [AB::Expr; SP1_PROOF_NUM_PV_ELTS] =
-            core::array::from_fn(|i| builder.public_values()[i].into());
-        let public_values: &PublicValues<Word<AB::Expr>, AB::Expr> =
-            public_values_slice.as_slice().borrow();
 
         // Program constraints.
         builder.send_program(
@@ -87,6 +83,10 @@ where
         self.eval_ecall(builder, local);
 
         // COMMIT/COMMIT_DEFERRED_PROOFS ecall instruction.
+        let public_values_slice: [AB::PublicVar; SP1_PROOF_NUM_PV_ELTS] =
+            core::array::from_fn(|i| builder.public_values()[i]);
+        let public_values: &PublicValues<Word<AB::PublicVar>, AB::PublicVar> =
+            public_values_slice.as_slice().borrow();
         self.eval_commit(
             builder,
             local,
@@ -335,7 +335,7 @@ impl CpuChip {
         builder: &mut AB,
         local: &CpuCols<AB::Var>,
         next: &CpuCols<AB::Var>,
-        public_values: &PublicValues<Word<AB::Expr>, AB::Expr>,
+        public_values: &PublicValues<Word<AB::PublicVar>, AB::PublicVar>,
     ) {
         // Verify the public value's shard.
         builder.when(local.is_real).assert_eq(public_values.execution_shard.clone(), local.shard);
