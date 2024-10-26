@@ -75,7 +75,7 @@ Note: the `build.rs` file in the `script` directory will use run the above comma
 To test your program, you can first execute your program without generating a proof. In general this is helpful for iterating on your program and verifying that it is correct. 
 
 ```bash
-cd script
+cd ../script
 RUST_LOG=info cargo run --release -- --execute
 ```
 
@@ -84,7 +84,7 @@ RUST_LOG=info cargo run --release -- --execute
 When you are ready to generate a proof, you should run the script with the `--prove` flag that will generate a proof.
 
 ```bash
-cd script
+cd ../script
 RUST_LOG=info cargo run --release -- --prove
 ```
 
