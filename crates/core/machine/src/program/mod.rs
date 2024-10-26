@@ -4,10 +4,14 @@ use core::{
 };
 use std::collections::HashMap;
 
-use crate::{air::ProgramAirBuilder, utils::pad_rows_fixed};
+use crate::{
+    air::ProgramAirBuilder,
+    utils::{next_power_of_two, pad_rows_fixed, zeroed_f_vec},
+};
 use p3_air::{Air, BaseAir, PairBuilder};
 use p3_field::PrimeField;
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
+use p3_maybe_rayon::prelude::{ParallelBridge, ParallelIterator};
 use sp1_core_executor::{ExecutionRecord, Program};
 use sp1_derive::AlignedBorrow;
 use sp1_stark::air::{MachineAir, SP1AirBuilder};
@@ -65,36 +69,34 @@ impl<F: PrimeField> MachineAir<F> for ProgramChip {
             !program.instructions.is_empty() || program.preprocessed_shape.is_some(),
             "empty program"
         );
-        let mut rows = program
-            .instructions
-            .iter()
+        // Generate the trace rows for each event.
+        let nb_rows = program.instructions.len();
+        let size_log2 = program.fixed_log2_rows::<F, _>(self);
+        let padded_nb_rows = next_power_of_two(nb_rows, size_log2);
+        let mut values = zeroed_f_vec(padded_nb_rows * NUM_PROGRAM_PREPROCESSED_COLS);
+        let chunk_size = std::cmp::max((nb_rows + 1) / num_cpus::get(), 1);
+
+        values
+            .chunks_mut(chunk_size * NUM_PROGRAM_PREPROCESSED_COLS)
             .enumerate()
-            .map(|(i, instruction)| {
-                let pc = program.pc_base + (i as u32 * 4);
-                let mut row = [F::zero(); NUM_PROGRAM_PREPROCESSED_COLS];
-                let cols: &mut ProgramPreprocessedCols<F> = row.as_mut_slice().borrow_mut();
-                cols.pc = F::from_canonical_u32(pc);
-                cols.instruction.populate(instruction);
-                cols.selectors.populate(instruction);
+            .par_bridge()
+            .for_each(|(i, rows)| {
+                rows.chunks_mut(NUM_PROGRAM_PREPROCESSED_COLS).enumerate().for_each(|(j, row)| {
+                    let idx = i * chunk_size + j;
 
-                row
-            })
-            .collect::<Vec<_>>();
-
-        // Pad the trace to a power of two depending on the proof shape in `input`.
-        pad_rows_fixed(
-            &mut rows,
-            || [F::zero(); NUM_PROGRAM_PREPROCESSED_COLS],
-            program.fixed_log2_rows::<F, _>(self),
-        );
+                    if idx < nb_rows {
+                        let cols: &mut ProgramPreprocessedCols<F> = row.borrow_mut();
+                        let instruction = &program.instructions[idx];
+                        let pc = program.pc_base + (idx as u32 * 4);
+                        cols.pc = F::from_canonical_u32(pc);
+                        cols.instruction.populate(instruction);
+                        cols.selectors.populate(instruction);
+                    }
+                });
+            });
 
         // Convert the trace to a row major matrix.
-        let trace = RowMajorMatrix::new(
-            rows.into_iter().flatten().collect::<Vec<_>>(),
-            NUM_PROGRAM_PREPROCESSED_COLS,
-        );
-
-        Some(trace)
+        Some(RowMajorMatrix::new(values, NUM_PROGRAM_PREPROCESSED_COLS))
     }
 
     fn generate_dependencies(&self, _input: &ExecutionRecord, _output: &mut ExecutionRecord) {

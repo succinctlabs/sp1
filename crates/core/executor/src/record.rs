@@ -61,7 +61,8 @@ pub struct ExecutionRecord {
     /// The public values.
     pub public_values: PublicValues<u32, u32>,
     /// The nonce lookup.
-    pub nonce_lookup: VecMap<u32>,
+    pub nonce_lookup: Vec<u32>,
+    pub next_nonce: u64,
     /// The shape of the proof.
     pub shape: Option<CoreShape>,
 }
@@ -86,7 +87,8 @@ impl Default for ExecutionRecord {
             cpu_local_memory_access: Vec::default(),
             syscall_events: Vec::default(),
             public_values: PublicValues::default(),
-            nonce_lookup: VecMap::default(),
+            nonce_lookup: Vec::default(),
+            next_nonce: 0,
             shape: None,
         };
         res.nonce_lookup.insert(0, 0);
@@ -105,8 +107,10 @@ impl ExecutionRecord {
 
     /// Create a lookup id for an event.
     pub fn create_lookup_id(&mut self) -> LookupId {
-        let id = self.nonce_lookup.len() as u64;
-        self.nonce_lookup.insert(id as usize, 0);
+        // let id = self.nonce_lookup.len() as u64;
+        let id = self.next_nonce;
+        self.next_nonce += 1;
+        // self.nonce_lookup.insert(id as usize, 0);
         LookupId(id)
     }
 
@@ -379,6 +383,8 @@ impl MachineRecord for ExecutionRecord {
     }
 
     fn register_nonces(&mut self, _opts: &Self::Config) {
+        self.nonce_lookup = vec![0; (self.next_nonce - 1) as usize];
+
         self.add_events.iter().enumerate().for_each(|(i, event)| {
             self.nonce_lookup[event.lookup_id.0 as usize] = i as u32;
         });

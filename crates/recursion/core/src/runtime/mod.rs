@@ -12,6 +12,8 @@ use memory::*;
 pub use opcode::*;
 pub use program::*;
 pub use record::*;
+use sp1_core_executor::memory::PagedMemory;
+use sp1_stark::MachineRecord;
 
 use std::{
     array,
@@ -102,7 +104,8 @@ pub struct Runtime<'a, F: PrimeField32, EF: ExtensionField<F>, Diffusion> {
     pub program: Arc<RecursionProgram<F>>,
 
     /// Memory. From canonical usize of an Address to a MemoryEntry.
-    pub memory: MemVecMap<F>,
+    // pub memory: MemVecMap<F>,
+    pub memory: PagedMemory<MemoryEntry<F>>,
 
     /// The execution record.
     pub record: ExecutionRecord<F>,
@@ -246,6 +249,14 @@ where
     pub fn run(&mut self) -> Result<(), RuntimeError<F, EF>> {
         let early_exit_ts = std::env::var("RECURSION_EARLY_EXIT_TS")
             .map_or(usize::MAX, |ts: String| ts.parse().unwrap());
+        // {"ext_alu_events": 1096902, "poseidon2_events": 86556, "fri_fold_events": 0, "base_alu_events": 4037514, "mem_var_events": 668215, "exp_reverse_bits_events": 7200}
+        // recursion program shape: Some(RecursionShape { inner: {"MemoryVar": 19, "PublicValues": 4, "BaseAlu": 20, "ExtAlu": 19, "ExpReverseBitsLen": 17, "Poseidon2WideDeg3": 17, "MemoryConst": 17} })
+        self.record.ext_alu_events.reserve(4037514);
+        self.record.poseidon2_events.reserve(86556);
+        self.record.fri_fold_events.reserve(0);
+        self.record.base_alu_events.reserve(4037514);
+        self.record.mem_var_events.reserve(668215);
+        self.record.exp_reverse_bits_len_events.reserve(7200);
         while self.pc < F::from_canonical_u32(self.program.instructions.len() as u32) {
             let idx = self.pc.as_canonical_u32() as usize;
             let instruction = self.program.instructions[idx].clone();
@@ -518,6 +529,7 @@ where
                 break;
             }
         }
+        println!("record stats: {:?}", self.record.stats());
         Ok(())
     }
 }

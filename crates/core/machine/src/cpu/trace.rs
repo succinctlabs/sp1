@@ -39,7 +39,15 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
         input: &ExecutionRecord,
         _: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
-        let mut values = zeroed_f_vec(input.cpu_events.len() * NUM_CPU_COLS);
+        let n_real_rows = input.cpu_events.len();
+        let padded_nb_rows = if let Some(shape) = &input.shape {
+            1 << shape.inner[&MachineAir::<F>::name(self)]
+        } else if n_real_rows < 16 {
+            16
+        } else {
+            n_real_rows.next_power_of_two()
+        };
+        let mut values = zeroed_f_vec(padded_nb_rows * NUM_CPU_COLS);
         let shard = input.public_values.shard;
 
         let chunk_size = std::cmp::max(input.cpu_events.len() / num_cpus::get(), 1);
@@ -48,28 +56,29 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
                 rows.chunks_mut(NUM_CPU_COLS).enumerate().for_each(|(j, row)| {
                     let idx = i * chunk_size + j;
                     let cols: &mut CpuCols<F> = row.borrow_mut();
-                    let mut byte_lookup_events = Vec::new();
-                    let event = &input.cpu_events[idx];
-                    let instruction = &input.program.fetch(event.pc);
-                    self.event_to_row(
-                        event,
-                        &input.nonce_lookup,
-                        cols,
-                        &mut byte_lookup_events,
-                        shard,
-                        instruction,
-                    );
+
+                    if idx >= input.cpu_events.len() {
+                        cols.selectors.imm_b = F::one();
+                        cols.selectors.imm_c = F::one();
+                    } else {
+                        let mut byte_lookup_events = Vec::new();
+                        let event = &input.cpu_events[idx];
+                        let instruction = &input.program.fetch(event.pc);
+                        self.event_to_row(
+                            event,
+                            &input.nonce_lookup,
+                            cols,
+                            &mut byte_lookup_events,
+                            shard,
+                            instruction,
+                        );
+                    }
                 });
             },
         );
 
         // Convert the trace to a row major matrix.
-        let mut trace = RowMajorMatrix::new(values, NUM_CPU_COLS);
-
-        // Pad the trace to a power of two.
-        Self::pad_to_power_of_two::<F>(self, &input.shape, &mut trace.values);
-
-        trace
+        RowMajorMatrix::new(values, NUM_CPU_COLS)
     }
 
     #[instrument(name = "generate cpu dependencies", level = "debug", skip_all)]
@@ -118,7 +127,7 @@ impl CpuChip {
     fn event_to_row<F: PrimeField32>(
         &self,
         event: &CpuEvent,
-        nonce_lookup: &VecMap<u32>,
+        nonce_lookup: &[u32],
         cols: &mut CpuCols<F>,
         blu_events: &mut impl ByteRecord,
         shard: u32,
@@ -247,7 +256,7 @@ impl CpuChip {
         cols: &mut CpuCols<F>,
         event: &CpuEvent,
         blu_events: &mut impl ByteRecord,
-        nonce_lookup: &VecMap<u32>,
+        nonce_lookup: &[u32],
         shard: u32,
         instruction: &Instruction,
     ) {
@@ -365,7 +374,7 @@ impl CpuChip {
         &self,
         cols: &mut CpuCols<F>,
         event: &CpuEvent,
-        nonce_lookup: &VecMap<u32>,
+        nonce_lookup: &[u32],
         instruction: &Instruction,
     ) {
         if instruction.is_branch_instruction() {
@@ -431,7 +440,7 @@ impl CpuChip {
         &self,
         cols: &mut CpuCols<F>,
         event: &CpuEvent,
-        nonce_lookup: &VecMap<u32>,
+        nonce_lookup: &[u32],
         instruction: &Instruction,
     ) {
         if instruction.is_jump_instruction() {
@@ -474,7 +483,7 @@ impl CpuChip {
         &self,
         cols: &mut CpuCols<F>,
         event: &CpuEvent,
-        nonce_lookup: &VecMap<u32>,
+        nonce_lookup: &[u32],
         instruction: &Instruction,
     ) {
         if matches!(instruction.opcode, Opcode::AUIPC) {
@@ -493,7 +502,7 @@ impl CpuChip {
         &self,
         cols: &mut CpuCols<F>,
         event: &CpuEvent,
-        nonce_lookup: &VecMap<u32>,
+        nonce_lookup: &[u32],
     ) -> bool {
         let mut is_halt = false;
 
@@ -569,30 +578,5 @@ impl CpuChip {
         }
 
         is_halt
-    }
-
-    fn pad_to_power_of_two<F: PrimeField32>(&self, shape: &Option<CoreShape>, values: &mut Vec<F>) {
-        let n_real_rows = values.len() / NUM_CPU_COLS;
-        let padded_nb_rows = if let Some(shape) = shape {
-            1 << shape.inner[&MachineAir::<F>::name(self)]
-        } else if n_real_rows < 16 {
-            16
-        } else {
-            n_real_rows.next_power_of_two()
-        };
-        values.resize(padded_nb_rows * NUM_CPU_COLS, F::zero());
-
-        // Interpret values as a slice of arrays of length `NUM_CPU_COLS`
-        let rows = unsafe {
-            core::slice::from_raw_parts_mut(
-                values.as_mut_ptr() as *mut [F; NUM_CPU_COLS],
-                values.len() / NUM_CPU_COLS,
-            )
-        };
-
-        rows[n_real_rows..].par_iter_mut().for_each(|padded_row| {
-            padded_row[CPU_COL_MAP.selectors.imm_b] = F::one();
-            padded_row[CPU_COL_MAP.selectors.imm_c] = F::one();
-        });
     }
 }

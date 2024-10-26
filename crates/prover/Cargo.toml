@@ -59,6 +59,10 @@ name = "build_compress_vks"
 path = "scripts/build_compress_vks.rs"
 
 [[bin]]
+name = "build_compress_programs"
+path = "scripts/build_compress_programs.rs"
+
+[[bin]]
 name = "post_trusted_setup"
 path = "scripts/post_trusted_setup.rs"
 

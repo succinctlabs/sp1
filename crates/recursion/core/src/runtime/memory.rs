@@ -1,11 +1,12 @@
 use std::iter::repeat;
 
 use p3_field::PrimeField64;
+use sp1_core_executor::memory::{Entry as PagedEntry, PagedMemory};
 use vec_map::{Entry, VecMap};
 
 use crate::{air::Block, Address};
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Copy)]
 pub struct MemoryEntry<F> {
     pub val: Block<F>,
     pub mult: F,
@@ -102,6 +103,38 @@ impl<F: PrimeField64> Memory<F> for MemVec<F> {
                 backtrace::Backtrace::new()
             ),
             entry @ None => entry.insert(MemoryEntry { val, mult }),
+        }
+    }
+}
+
+impl<F: PrimeField64> Memory<F> for PagedMemory<MemoryEntry<F>> {
+    fn with_capacity(capacity: usize) -> Self {
+        Self::new_preallocated()
+    }
+
+    fn mr(&mut self, addr: Address<F>) -> &mut MemoryEntry<F> {
+        self.mr_mult(addr, F::one())
+    }
+
+    fn mr_mult(&mut self, addr: Address<F>, mult: F) -> &mut MemoryEntry<F> {
+        let index = addr.as_usize();
+        match self.entry(index as u32) {
+            PagedEntry::Occupied(mut entry) => {
+                let entry_mult = &mut entry.get_mut().mult;
+                *entry_mult -= mult;
+                entry.into_mut()
+            }
+            PagedEntry::Vacant(_) => panic!("tried to read from unassigned address: {addr:?}",),
+        }
+    }
+
+    fn mw(&mut self, addr: Address<F>, val: Block<F>, mult: F) -> &mut MemoryEntry<F> {
+        let index = addr.as_usize();
+        match self.entry(index as u32) {
+            PagedEntry::Occupied(entry) => {
+                panic!("tried to write to assigned address {}: {:?}", index, entry.get())
+            }
+            PagedEntry::Vacant(entry) => entry.insert(MemoryEntry { val, mult }),
         }
     }
 }

@@ -19,7 +19,10 @@ use sp1_stark::{
     Word,
 };
 
-use crate::{operations::AddOperation, utils::pad_rows_fixed};
+use crate::{
+    operations::AddOperation,
+    utils::{next_power_of_two, pad_rows_fixed, zeroed_f_vec},
+};
 
 /// The number of main trace columns for `AddSubChip`.
 pub const NUM_ADD_SUB_COLS: usize = size_of::<AddSubCols<u8>>();
@@ -79,46 +82,29 @@ impl<F: PrimeField> MachineAir<F> for AddSubChip {
             std::cmp::max((input.add_events.len() + input.sub_events.len()) / num_cpus::get(), 1);
         let merged_events =
             input.add_events.iter().chain(input.sub_events.iter()).collect::<Vec<_>>();
+        let nb_rows = merged_events.len();
+        let size_log2 = input.fixed_log2_rows::<F, _>(self);
+        let padded_nb_rows = next_power_of_two(nb_rows, size_log2);
+        let mut values = zeroed_f_vec(padded_nb_rows * NUM_ADD_SUB_COLS);
 
-        let row_batches = merged_events
-            .par_chunks(chunk_size)
-            .map(|events| {
-                let rows = events
-                    .iter()
-                    .map(|event| {
-                        let mut row = [F::zero(); NUM_ADD_SUB_COLS];
-                        let cols: &mut AddSubCols<F> = row.as_mut_slice().borrow_mut();
-                        let mut blu = Vec::new();
-                        self.event_to_row(event, cols, &mut blu);
-                        row
-                    })
-                    .collect::<Vec<_>>();
-                rows
-            })
-            .collect::<Vec<_>>();
+        values.chunks_mut(chunk_size * NUM_ADD_SUB_COLS).enumerate().par_bridge().for_each(
+            |(i, rows)| {
+                rows.chunks_mut(NUM_ADD_SUB_COLS).enumerate().for_each(|(j, row)| {
+                    let idx = i * chunk_size + j;
+                    let cols: &mut AddSubCols<F> = row.borrow_mut();
 
-        let mut rows: Vec<[F; NUM_ADD_SUB_COLS]> = vec![];
-        for row_batch in row_batches {
-            rows.extend(row_batch);
-        }
-
-        pad_rows_fixed(
-            &mut rows,
-            || [F::zero(); NUM_ADD_SUB_COLS],
-            input.fixed_log2_rows::<F, _>(self),
+                    if idx < merged_events.len() {
+                        let mut byte_lookup_events = Vec::new();
+                        let event = &merged_events[idx];
+                        self.event_to_row(event, cols, &mut byte_lookup_events);
+                    }
+                    cols.nonce = F::from_canonical_usize(idx);
+                });
+            },
         );
+
         // Convert the trace to a row major matrix.
-        let mut trace =
-            RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_ADD_SUB_COLS);
-
-        // Write the nonces to the trace.
-        for i in 0..trace.height() {
-            let cols: &mut AddSubCols<F> =
-                trace.values[i * NUM_ADD_SUB_COLS..(i + 1) * NUM_ADD_SUB_COLS].borrow_mut();
-            cols.nonce = F::from_canonical_usize(i);
-        }
-
-        trace
+        RowMajorMatrix::new(values, NUM_ADD_SUB_COLS)
     }
 
     fn generate_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {

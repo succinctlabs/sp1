@@ -27,7 +27,7 @@ mod executor;
 mod hook;
 mod instruction;
 mod io;
-mod memory;
+pub mod memory;
 mod opcode;
 mod program;
 #[cfg(any(test, feature = "programs"))]
