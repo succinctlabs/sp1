@@ -106,7 +106,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryLocalChip {
                     let cols: &mut MemoryLocalCols<F> = row.borrow_mut();
                     for k in 0..NUM_LOCAL_MEMORY_ENTRIES_PER_ROW {
                         let cols = &mut cols.memory_local_entries[k];
-                        if idx < nb_rows && idx + k < events.len() {
+                        if idx + k < events.len() {
                             let event = &events[idx + k];
                             cols.addr = F::from_canonical_u32(event.addr);
                             cols.initial_shard =

@@ -1338,6 +1338,7 @@ impl<'a> Executor<'a> {
         let public_values = removed_record.public_values;
         self.record.public_values = public_values;
         self.records.push(removed_record);
+        self.record.nonce_lookup = vec![0; self.opts.shard_size * 32];
     }
 
     /// Execute up to `self.shard_batch_size` cycles, returning the events emitted and whether the
