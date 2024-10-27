@@ -21,7 +21,7 @@ fn test_verify_groth16() {
         &proof,
         &public_inputs,
         &vkey_hash,
-        &crate::GROTH16_VK_BYTES,
+        *crate::GROTH16_VK_BYTES,
     )
     .expect("Groth16 proof is invalid");
 
@@ -49,7 +49,7 @@ fn test_verify_plonk() {
     let vkey_hash = vk.bytes32();
 
     let is_valid =
-        crate::PlonkVerifier::verify(&proof, &public_inputs, &vkey_hash, &crate::PLONK_VK_BYTES)
+        crate::PlonkVerifier::verify(&proof, &public_inputs, &vkey_hash, *crate::PLONK_VK_BYTES)
             .expect("Plonk proof is invalid");
 
     if !is_valid {
