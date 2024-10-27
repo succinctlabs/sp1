@@ -9,6 +9,7 @@ use crate::{
     Prover, SP1Context, SP1ProofKind, SP1ProofWithPublicValues, SP1ProvingKey, SP1VerifyingKey,
 };
 use anyhow::Result;
+use backoff::{future::retry, ExponentialBackoff};
 use serde::de::DeserializeOwned;
 use sp1_core_machine::io::SP1Stdin;
 use sp1_prover::{components::DefaultProverComponents, SP1Prover, SP1_CIRCUIT_VERSION};
@@ -113,6 +114,15 @@ impl NetworkProver {
     ) -> Result<P> {
         let mut is_assigned = false;
         let start_time = Instant::now();
+
+        // Configure retries with exponential backoff.
+        let backoff = ExponentialBackoff {
+            initial_interval: Duration::from_secs(1),
+            max_interval: Duration::from_secs(30),
+            max_elapsed_time: timeout,
+            ..Default::default()
+        };
+
         loop {
             if let Some(timeout) = timeout {
                 if start_time.elapsed() > timeout {
@@ -120,21 +130,45 @@ impl NetworkProver {
                 }
             }
 
-            let (status, maybe_proof) =
-                self.client.get_proof_request_status::<P>(request_id).await?;
-
-            match status.proof_status() {
-                ProofStatus::Fulfilled => {
-                    return Ok(maybe_proof.unwrap());
-                }
-                ProofStatus::Assigned => {
-                    if !is_assigned {
-                        log::info!("Proof request assigned, proving...");
-                        is_assigned = true;
+            let status_result = retry(backoff.clone(), || async {
+                match self.client.get_proof_request_status::<P>(request_id).await {
+                    Ok(result) => Ok(result),
+                    Err(e) => {
+                        if let Some(status) = e.downcast_ref::<tonic::Status>() {
+                            if status.code() == tonic::Code::Unavailable {
+                                // Retry on unavailable.
+                                Err(backoff::Error::transient(e))
+                            } else {
+                                // Don't retry on other errors.
+                                Err(backoff::Error::permanent(e))
+                            }
+                        } else {
+                            // Don't retry on non-tonic errors.
+                            Err(backoff::Error::permanent(e))
+                        }
                     }
                 }
-                _ => {}
+            })
+            .await;
+
+            match status_result {
+                Ok((status, maybe_proof)) => match status.proof_status() {
+                    ProofStatus::Fulfilled => {
+                        return Ok(maybe_proof.unwrap());
+                    }
+                    ProofStatus::Assigned => {
+                        if !is_assigned {
+                            log::info!("Proof request assigned, proving...");
+                            is_assigned = true;
+                        }
+                    }
+                    _ => {}
+                },
+                Err(e) => {
+                    log::warn!("Retrying get proof status due to error: {}", e);
+                }
             }
+
             sleep(Duration::from_secs(2)).await;
         }
     }
