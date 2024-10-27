@@ -23,6 +23,7 @@ fn generate_fibonacci_proof() -> (SP1ProofWithPublicValues, String) {
 
     // Generate the proof for the fibonacci program..
     let (pk, vk) = client.setup(FIBONACCI_ELF);
+    println!("vk: {:?}", vk.bytes32());
     (client.prove(&pk, stdin).groth16().run().unwrap(), vk.bytes32())
 }
 
@@ -39,7 +40,7 @@ fn main() {
     stdin.write_vec(fibonacci_proof.public_values.to_vec());
     stdin.write(&vk);
 
-    // Create a `ProverClient` method.
+    // Create a `ProverClient`.
     let client = ProverClient::new();
 
     // Execute the program using the `ProverClient.execute` method, without generating a proof.
