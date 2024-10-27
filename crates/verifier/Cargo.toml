@@ -10,7 +10,7 @@ keywords = { workspace = true }
 categories = { workspace = true }
 
 [dependencies]
-bn = "0.6.0"
+bn = { version = "0.6.0", package = "substrate-bn" }
 sha2 = { version = "0.10.8", default-features = false }
 thiserror-no-std = "2.0.2"
 rand = { version = "0.8.5", default-features = false }
@@ -25,8 +25,3 @@ num-traits = "0.2.19"
 [features]
 default = ["getrandom"]
 getrandom = ["rand/getrandom"]
-
-[patch.crates-io]
-# bn = { git = "https://github.com/sp1-patches/bn", branch = "patch-v0.7.0", package = "substrate-bn" }
-bn = { git = "https://github.com/yuwen01/bn", branch = "yuwen/sp1-flag", package = "substrate-bn" }
-# bn = { path = "../../../bn", package = "substrate-bn" }
