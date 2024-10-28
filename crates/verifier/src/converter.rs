@@ -50,7 +50,8 @@ pub(crate) fn deserialize_with_flags(buf: &[u8]) -> Result<(Fq, CompressedPointF
 /// Converts a compressed G1 point to an AffineG1 point.
 ///
 /// Asserts that the compressed point is represented as a single fq element: the x coordinate
-/// of the point. The y coordinate is then computed from the x coordinate.
+/// of the point. The y coordinate is then computed from the x coordinate. The final point
+/// is not checked to be on the curve for efficiency.
 pub(crate) fn unchecked_compressed_x_to_g1_point(buf: &[u8]) -> Result<AffineG1, Error> {
     let (x, m_data) = deserialize_with_flags(buf)?;
     let (y, neg_y) = AffineG1::get_ys_from_x_unchecked(x).ok_or(Error::InvalidPoint)?;
