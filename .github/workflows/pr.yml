@@ -48,7 +48,7 @@ jobs:
         with:
           command: test
           toolchain: 1.81.0
-          args: --release --features native-gnark
+          args: --release
         env:
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
           RUST_BACKTRACE: 1
@@ -90,7 +90,7 @@ jobs:
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
           RUST_BACKTRACE: 1
           # FRI_QUERIES: 1
-          # SP1_DEV: 1
+          SP1_DEV: 1
 
   lint:
     name: Formatting & Clippy

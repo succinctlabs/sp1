@@ -1,6 +1,6 @@
 [package]
 name = "sp1-verifier"
-description = "SP1 is a performant, 100% open-source, contributor-friendly zkVM."
+description = "Verifier for SP1 Groth16 and Plonk proofs."
 readme = "../../README.md"
 version = { workspace = true }
 edition = { workspace = true }
