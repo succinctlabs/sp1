@@ -363,7 +363,6 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                 let hash = SP1CompressProgramShape::Compress(shape).hash_u64();
                 let program_from_disk = self.get_cached_program(hash);
                 if let Some(program) = program_from_disk {
-                    println!("loaded from disk");
                     return program;
                 }
 

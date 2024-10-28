@@ -44,7 +44,6 @@ lru = "0.12.4"
 eyre = "0.6.12"
 reqwest = { version = "0.11", features = ["blocking"] }
 lazy_static = "1.5.0"
-memmap2 = "0.9.5"
 
 [[bin]]
 name = "build_plonk_bn254"
@@ -57,10 +56,6 @@ path = "scripts/build_groth16_bn254.rs"
 [[bin]]
 name = "build_compress_vks"
 path = "scripts/build_compress_vks.rs"
-
-[[bin]]
-name = "build_compress_programs"
-path = "scripts/build_compress_programs.rs"
 
 [[bin]]
 name = "post_trusted_setup"

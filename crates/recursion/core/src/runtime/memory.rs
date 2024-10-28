@@ -261,7 +261,7 @@ impl<V: Copy> PagedMemory<V> {
                 .0
                 .iter()
                 .enumerate()
-                .filter_map(move |(lower, v)| v.map(|_| Self::decompress_addr(upper + lower)))
+                .filter_map(move |(lower, v)| v.map(|_| (upper + lower) as u32))
         })
     }
 
@@ -274,20 +274,7 @@ impl<V: Copy> PagedMemory<V> {
     /// Break apart an address into an upper and lower index.
     #[inline]
     const fn indices(addr: u32) -> (usize, usize) {
-        let index = Self::compress_addr(addr);
-        (index >> LOG_PAGE_LEN, index & PAGE_MASK)
-    }
-
-    /// Compress an address from the sparse address space to a contiguous space.
-    #[inline]
-    const fn compress_addr(addr: u32) -> usize {
-        addr as usize
-    }
-
-    /// Decompress an address from a contiguous space to the sparse address space.
-    #[inline]
-    const fn decompress_addr(addr: usize) -> u32 {
-        addr as u32
+        ((addr >> LOG_PAGE_LEN) as usize, addr as usize & PAGE_MASK)
     }
 }
 
@@ -402,9 +389,7 @@ impl<V: Copy + 'static> IntoIterator for PagedMemory<V> {
                     .0
                     .into_iter()
                     .enumerate()
-                    .filter_map(move |(lower, v)| {
-                        v.map(|v| (Self::decompress_addr(upper + lower), v))
-                    })
+                    .filter_map(move |(lower, v)| v.map(|v| ((upper + lower) as u32, v)))
             },
         ))
     }

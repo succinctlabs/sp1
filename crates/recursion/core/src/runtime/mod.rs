@@ -8,6 +8,7 @@ mod record;
 use backtrace::Backtrace as Trace;
 pub use instruction::Instruction;
 use instruction::{FieldEltType, HintBitsInstr, HintExt2FeltsInstr, HintInstr, PrintInstr};
+use machine::RecursionAirEventCount;
 use memory::*;
 pub use opcode::*;
 pub use program::*;
@@ -248,14 +249,7 @@ where
     pub fn run(&mut self) -> Result<(), RuntimeError<F, EF>> {
         let early_exit_ts = std::env::var("RECURSION_EARLY_EXIT_TS")
             .map_or(usize::MAX, |ts: String| ts.parse().unwrap());
-        // {"ext_alu_events": 1096902, "poseidon2_events": 86556, "fri_fold_events": 0, "base_alu_events": 4037514, "mem_var_events": 668215, "exp_reverse_bits_events": 7200}
-        // recursion program shape: Some(RecursionShape { inner: {"MemoryVar": 19, "PublicValues": 4, "BaseAlu": 20, "ExtAlu": 19, "ExpReverseBitsLen": 17, "Poseidon2WideDeg3": 17, "MemoryConst": 17} })
-        self.record.ext_alu_events.reserve(4037514);
-        self.record.poseidon2_events.reserve(86556);
-        self.record.fri_fold_events.reserve(0);
-        self.record.base_alu_events.reserve(4037514);
-        self.record.mem_var_events.reserve(668215);
-        self.record.exp_reverse_bits_len_events.reserve(7200);
+        self.preallocate_record();
         while self.pc < F::from_canonical_u32(self.program.instructions.len() as u32) {
             let idx = self.pc.as_canonical_u32() as usize;
             let instruction = self.program.instructions[idx].clone();
@@ -530,5 +524,18 @@ where
         }
         println!("record stats: {:?}", self.record.stats());
         Ok(())
+    }
+
+    pub fn preallocate_record(&mut self) {
+        let event_counts = self
+            .program
+            .instructions
+            .iter()
+            .fold(RecursionAirEventCount::default(), |heights, instruction| heights + instruction);
+        self.record.poseidon2_events.reserve(event_counts.poseidon2_wide_events);
+        self.record.mem_var_events.reserve(event_counts.mem_var_events);
+        self.record.base_alu_events.reserve(event_counts.base_alu_events);
+        self.record.ext_alu_events.reserve(event_counts.ext_alu_events);
+        self.record.exp_reverse_bits_len_events.reserve(event_counts.exp_reverse_bits_len_events);
     }
 }

@@ -125,40 +125,6 @@ impl<F: PrimeField32> MachineAir<F> for MemoryLocalChip {
 
         // Convert the trace to a row major matrix.
         RowMajorMatrix::new(values, NUM_MEMORY_LOCAL_INIT_COLS)
-
-        // let mut rows = Vec::<[F; NUM_MEMORY_LOCAL_INIT_COLS]>::new();
-
-        // for local_mem_events in
-        //     &input.get_local_mem_events().chunks(NUM_LOCAL_MEMORY_ENTRIES_PER_ROW)
-        // {
-        //     let mut row = [F::zero(); NUM_MEMORY_LOCAL_INIT_COLS];
-        //     let cols: &mut MemoryLocalCols<F> = row.as_mut_slice().borrow_mut();
-
-        //     for (cols, event) in cols.memory_local_entries.iter_mut().zip(local_mem_events) {
-        //         cols.addr = F::from_canonical_u32(event.addr);
-        //         cols.initial_shard = F::from_canonical_u32(event.initial_mem_access.shard);
-        //         cols.final_shard = F::from_canonical_u32(event.final_mem_access.shard);
-        //         cols.initial_clk = F::from_canonical_u32(event.initial_mem_access.timestamp);
-        //         cols.final_clk = F::from_canonical_u32(event.final_mem_access.timestamp);
-        //         cols.initial_value = event.initial_mem_access.value.into();
-        //         cols.final_value = event.final_mem_access.value.into();
-        //         cols.is_real = F::one();
-        //     }
-
-        //     rows.push(row);
-        // }
-
-        // // Pad the trace to a power of two depending on the proof shape in `input`.
-        // pad_rows_fixed(
-        //     &mut rows,
-        //     || [F::zero(); NUM_MEMORY_LOCAL_INIT_COLS],
-        //     input.fixed_log2_rows::<F, _>(self),
-        // );
-
-        // RowMajorMatrix::new(
-        //     rows.into_iter().flatten().collect::<Vec<_>>(),
-        //     NUM_MEMORY_LOCAL_INIT_COLS,
-        // )
     }
 
     fn included(&self, shard: &Self::Record) -> bool {

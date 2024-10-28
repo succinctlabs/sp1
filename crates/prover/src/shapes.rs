@@ -328,7 +328,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             );
 
             let hash = compress_shape.hash_u64();
-            println!("program hash: {}", hash);
+            tracing::info!("cacheing program with hash: {}", hash);
 
             let file = folder.join(format!("{:x}.bin", hash));
             if file.exists() {
@@ -342,7 +342,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                 .expect("failed to write file");
             std::fs::rename(&temp_file, &file).expect("failed to rename file");
         });
-        println!("done building program cache after {:?}", start.elapsed());
+        tracing::info!("done building program cache after {:?}", start.elapsed());
     }
 
     pub fn get_cached_program(&self, hash: u64) -> Option<Arc<RecursionProgram<BabyBear>>> {
@@ -352,13 +352,10 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             return None;
         }
 
-        // let file = std::fs::File::open(&file).unwrap();
-        // let bytes = unsafe { memmap2::Mmap::map(&file).unwrap() };
-        // let len = bytes.len();
-        let bytes = tracing::info_span!("read from disk")
+        let bytes = tracing::debug_span!("read from disk")
             .in_scope(|| std::fs::read(&file).expect("failed to read file"));
         let len = bytes.len();
-        let deserialized = tracing::info_span!("deserialize", bytes = len)
+        let deserialized = tracing::debug_span!("deserialize", bytes = len)
             .in_scope(|| Arc::new(bincode::deserialize(&bytes).unwrap()));
         Some(deserialized)
     }

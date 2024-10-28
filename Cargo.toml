@@ -35,7 +35,6 @@ resolver = "2"
 
 [profile.release]
 opt-level = 3
-debug = true
 
 [profile.bench]
 opt-level = 3
@@ -43,7 +42,7 @@ opt-level = 3
 [profile.fast]
 inherits = "release"
 debug = true
-# debug-assertions = true
+debug-assertions = true
 
 [workspace.dependencies]
 # sp1
