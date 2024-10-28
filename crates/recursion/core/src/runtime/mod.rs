@@ -13,7 +13,6 @@ use memory::*;
 pub use opcode::*;
 pub use program::*;
 pub use record::*;
-use sp1_stark::MachineRecord;
 
 use std::{
     array,

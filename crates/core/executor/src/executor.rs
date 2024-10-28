@@ -1448,8 +1448,8 @@ impl<'a> Executor<'a> {
     /// Executes up to `self.shard_batch_size` cycles of the program, returning whether the program
     /// has finished.
     pub fn execute(&mut self) -> Result<bool, ExecutionError> {
-        // Initialize the nonce lookup table if it's empty.
-        if self.record.nonce_lookup.len() <= 1 {
+        // Initialize the nonce lookup table if it's uninitialized.
+        if self.record.nonce_lookup.len() <= 2 {
             self.record.nonce_lookup = vec![0; self.opts.shard_size * 32];
         }
 
