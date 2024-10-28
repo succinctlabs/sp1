@@ -13,7 +13,7 @@ use crate::{bn254_public_values, decode_sp1_vkey_hash};
 /// A verifier for Groth16 zero-knowledge proofs.
 #[derive(Debug)]
 pub struct Groth16Verifier;
-
+extern crate std;
 impl Groth16Verifier {
     /// Verifies a Groth16 proof.
     ///
@@ -53,6 +53,8 @@ impl Groth16Verifier {
         // SP1 prepends the raw Groth16 proof with the first 4 bytes of the groth16 vkey to
         // facilitate this check.
         if groth16_vk_hash != proof[..4] {
+            std::eprintln!("groth16_vk_hash: {:?}", groth16_vk_hash);
+            std::eprintln!("proof[..4]: {:?}", &proof[..4]);
             return Err(Groth16Error::Groth16VkeyHashMismatch);
         }
 
