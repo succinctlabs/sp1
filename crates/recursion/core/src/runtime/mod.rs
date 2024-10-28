@@ -104,8 +104,7 @@ pub struct Runtime<'a, F: PrimeField32, EF: ExtensionField<F>, Diffusion> {
     pub program: Arc<RecursionProgram<F>>,
 
     /// Memory. From canonical usize of an Address to a MemoryEntry.
-    // pub memory: MemVecMap<F>,
-    pub memory: PagedMemory<MemoryEntry<F>>,
+    pub memory: MemVecMap<F>,
 
     /// The execution record.
     pub record: ExecutionRecord<F>,
