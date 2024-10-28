@@ -328,7 +328,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             );
 
             let hash = compress_shape.hash_u64();
-            tracing::info!("cacheing program with hash: {}", hash);
+            tracing::info!("caching program with hash: {}", hash);
 
             let file = folder.join(format!("{:x}.bin", hash));
             if file.exists() {
