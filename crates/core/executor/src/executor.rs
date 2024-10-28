@@ -1338,7 +1338,6 @@ impl<'a> Executor<'a> {
         let public_values = removed_record.public_values;
         self.record.public_values = public_values;
         self.records.push(removed_record);
-        self.record.nonce_lookup = vec![0; self.opts.shard_size * 32];
     }
 
     /// Execute up to `self.shard_batch_size` cycles, returning the events emitted and whether the
@@ -1449,6 +1448,11 @@ impl<'a> Executor<'a> {
     /// Executes up to `self.shard_batch_size` cycles of the program, returning whether the program
     /// has finished.
     pub fn execute(&mut self) -> Result<bool, ExecutionError> {
+        // Initialize the nonce lookup table if it's empty.
+        if self.record.nonce_lookup.len() <= 1 {
+            self.record.nonce_lookup = vec![0; self.opts.shard_size * 32];
+        }
+
         // Get the program.
         let program = self.program.clone();
 
