@@ -1412,6 +1412,8 @@ impl<'a> Executor<'a> {
     }
 
     fn initialize(&mut self) {
+        self.record.nonce_lookup = vec![0; self.opts.shard_size * 32];
+
         self.state.clk = 0;
 
         tracing::debug!("loading memory image");
@@ -1447,10 +1449,6 @@ impl<'a> Executor<'a> {
     /// Executes up to `self.shard_batch_size` cycles of the program, returning whether the program
     /// has finished.
     pub fn execute(&mut self) -> Result<bool, ExecutionError> {
-        if self.record.nonce_lookup.len() < 10 {
-            self.record.nonce_lookup = vec![0; self.opts.shard_size * 32];
-        }
-
         // Get the program.
         let program = self.program.clone();
 
