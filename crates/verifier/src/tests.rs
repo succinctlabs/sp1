@@ -1,4 +1,4 @@
-use sp1_sdk::SP1ProofWithPublicValues;
+use sp1_sdk::{install::try_install_circuit_artifacts, SP1ProofWithPublicValues};
 
 extern crate std;
 
@@ -47,4 +47,19 @@ fn test_verify_plonk() {
     if !is_valid {
         panic!("Plonk proof is invalid");
     }
+}
+
+#[test]
+fn test_vkeys() {
+    let groth16_path = try_install_circuit_artifacts("groth16");
+    println!("groth16_path: {:?}", groth16_path);
+    let s3_vkey_path = groth16_path.join("groth16_vk.bin");
+    let s3_vkey_bytes = std::fs::read(s3_vkey_path).unwrap();
+    assert_eq!(s3_vkey_bytes, *crate::GROTH16_VK_BYTES);
+
+    let plonk_path = try_install_circuit_artifacts("plonk");
+    println!("plonk_path: {:?}", plonk_path);
+    let s3_vkey_path = plonk_path.join("plonk_vk.bin");
+    let s3_vkey_bytes = std::fs::read(s3_vkey_path).unwrap();
+    assert_eq!(s3_vkey_bytes, *crate::PLONK_VK_BYTES);
 }
