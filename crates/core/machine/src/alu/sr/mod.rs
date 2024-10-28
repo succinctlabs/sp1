@@ -65,7 +65,7 @@ use crate::{
     air::SP1CoreAirBuilder,
     alu::sr::utils::{nb_bits_to_shift, nb_bytes_to_shift},
     bytes::utils::shr_carry,
-    utils::{next_power_of_two, pad_rows_fixed, zeroed_f_vec},
+    utils::{next_power_of_two, zeroed_f_vec},
 };
 
 /// The number of main trace columns for `ShiftRightChip`.

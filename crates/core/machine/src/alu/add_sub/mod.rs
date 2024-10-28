@@ -8,7 +8,7 @@ use itertools::Itertools;
 use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::{AbstractField, PrimeField};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
-use p3_maybe_rayon::prelude::{ParallelBridge, ParallelIterator, ParallelSlice};
+use p3_maybe_rayon::prelude::{ParallelBridge, ParallelIterator};
 use sp1_core_executor::{
     events::{AluEvent, ByteLookupEvent, ByteRecord},
     ExecutionRecord, Opcode, Program,
@@ -21,7 +21,7 @@ use sp1_stark::{
 
 use crate::{
     operations::AddOperation,
-    utils::{next_power_of_two, pad_rows_fixed, zeroed_f_vec},
+    utils::{next_power_of_two, zeroed_f_vec},
 };
 
 /// The number of main trace columns for `AddSubChip`.

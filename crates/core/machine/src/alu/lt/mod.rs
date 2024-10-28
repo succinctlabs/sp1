@@ -19,7 +19,7 @@ use sp1_stark::{
     Word,
 };
 
-use crate::utils::{next_power_of_two, pad_rows_fixed, zeroed_f_vec};
+use crate::utils::{next_power_of_two, zeroed_f_vec};
 
 /// The number of main trace columns for `LtChip`.
 pub const NUM_LT_COLS: usize = size_of::<LtCols<u8>>();

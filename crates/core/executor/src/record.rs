@@ -6,7 +6,6 @@ use sp1_stark::{
     MachineRecord, SP1CoreOpts, SplitOpts,
 };
 use std::{mem::take, sync::Arc};
-use vec_map::VecMap;
 
 use serde::{Deserialize, Serialize};
 
@@ -62,6 +61,7 @@ pub struct ExecutionRecord {
     pub public_values: PublicValues<u32, u32>,
     /// The nonce lookup.
     pub nonce_lookup: Vec<u32>,
+    /// The next nonce to use for a new lookup.
     pub next_nonce: u64,
     /// The shape of the proof.
     pub shape: Option<CoreShape>,

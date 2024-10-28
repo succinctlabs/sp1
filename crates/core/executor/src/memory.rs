@@ -148,24 +148,22 @@ impl<V: Copy> PagedMemory<V> {
     /// Compress an address from the sparse address space to a contiguous space.
     #[inline]
     const fn compress_addr(addr: u32) -> usize {
-        // let addr = addr as usize;
-        // if addr < Self::NUM_REGISTERS {
-        //     addr
-        // } else {
-        //     (addr >> Self::NUM_IGNORED_LOWER_BITS) + Self::ADDR_COMPRESS_OFFSET
-        // }
-        addr as usize
+        let addr = addr as usize;
+        if addr < Self::NUM_REGISTERS {
+            addr
+        } else {
+            (addr >> Self::NUM_IGNORED_LOWER_BITS) + Self::ADDR_COMPRESS_OFFSET
+        }
     }
 
     /// Decompress an address from a contiguous space to the sparse address space.
     #[inline]
     const fn decompress_addr(addr: usize) -> u32 {
-        // if addr < Self::NUM_REGISTERS {
-        //     addr as u32
-        // } else {
-        //     ((addr - Self::ADDR_COMPRESS_OFFSET) << Self::NUM_IGNORED_LOWER_BITS) as u32
-        // }
-        addr as u32
+        if addr < Self::NUM_REGISTERS {
+            addr as u32
+        } else {
+            ((addr - Self::ADDR_COMPRESS_OFFSET) << Self::NUM_IGNORED_LOWER_BITS) as u32
+        }
     }
 }
 

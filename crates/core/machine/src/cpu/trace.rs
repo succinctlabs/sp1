@@ -4,25 +4,19 @@ use sp1_core_executor::{
     events::{ByteLookupEvent, ByteRecord, CpuEvent, MemoryRecordEnum},
     syscalls::SyscallCode,
     ByteOpcode::{self, U16Range},
-    CoreShape, ExecutionRecord, Instruction, Opcode, Program,
+    ExecutionRecord, Instruction, Opcode, Program,
     Register::X0,
 };
 use sp1_primitives::consts::WORD_SIZE;
 use sp1_stark::{air::MachineAir, Word};
 use std::{array, borrow::BorrowMut};
-use vec_map::VecMap;
 
 use p3_field::{PrimeField, PrimeField32};
 use p3_matrix::dense::RowMajorMatrix;
-use p3_maybe_rayon::prelude::{
-    IntoParallelRefMutIterator, ParallelBridge, ParallelIterator, ParallelSlice,
-};
+use p3_maybe_rayon::prelude::{ParallelBridge, ParallelIterator, ParallelSlice};
 use tracing::instrument;
 
-use super::{
-    columns::{CPU_COL_MAP, NUM_CPU_COLS},
-    CpuChip,
-};
+use super::{columns::NUM_CPU_COLS, CpuChip};
 use crate::{cpu::columns::CpuCols, memory::MemoryCols, utils::zeroed_f_vec};
 
 impl<F: PrimeField32> MachineAir<F> for CpuChip {

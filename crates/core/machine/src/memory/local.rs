@@ -3,8 +3,7 @@ use std::{
     mem::size_of,
 };
 
-use crate::utils::{next_power_of_two, pad_rows_fixed, zeroed_f_vec};
-use itertools::Itertools;
+use crate::utils::{next_power_of_two, zeroed_f_vec};
 use p3_air::{Air, BaseAir};
 use p3_field::PrimeField32;
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
