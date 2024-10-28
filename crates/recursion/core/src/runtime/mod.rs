@@ -521,7 +521,6 @@ where
                 break;
             }
         }
-        println!("record stats: {:?}", self.record.stats());
         Ok(())
     }
 
