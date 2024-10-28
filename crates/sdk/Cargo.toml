@@ -51,6 +51,7 @@ tonic = { version = "0.12", features = ["tls", "tls-roots"], optional = true }
 alloy-signer = { version = "0.3.6", optional = true }
 alloy-signer-local = { version = "0.3.6", optional = true }
 alloy-primitives = { version = "0.8.7", optional = true }
+backoff = { version = "0.4", features = ["tokio"], optional = true }
 
 [features]
 default = ["network"]
@@ -79,6 +80,7 @@ network-v2 = [
   "dep:twirp",
   "dep:reqwest-middleware",
   "dep:tonic",
+  "dep:backoff",
 ]
 cuda = ["sp1-cuda"]
 
