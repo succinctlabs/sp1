@@ -17,6 +17,10 @@ pgo-data.profdata
 **/program.bin
 **/stdin.bin
 
+# Example fibonacci groth16 / plonk proofs
+examples/fibonacci/fibonacci-groth16.bin
+examples/fibonacci/fibonacci-plonk.bin
+
 # Benchmark
 benchmark.csv
 

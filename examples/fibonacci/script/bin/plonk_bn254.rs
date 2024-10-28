@@ -18,8 +18,8 @@ fn main() {
     let (pk, vk) = client.setup(ELF);
     println!("vk: {:?}", vk.bytes32());
 
-    // Generate the Groth16 proof.
-    let proof = client.prove(&pk, stdin).groth16().run().unwrap();
+    // Generate the Plonk proof.
+    let proof = client.prove(&pk, stdin).plonk().run().unwrap();
     println!("generated proof");
 
     // Get the public values as bytes.
@@ -34,7 +34,7 @@ fn main() {
     client.verify(&proof, &vk).expect("verification failed");
 
     // Save the proof.
-    proof.save("fibonacci-groth16.bin").expect("saving proof failed");
+    proof.save("fibonacci-plonk.bin").expect("saving proof failed");
 
     println!("successfully generated and verified proof for the program!")
 }
