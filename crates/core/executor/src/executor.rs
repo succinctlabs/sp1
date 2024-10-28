@@ -1337,6 +1337,7 @@ impl<'a> Executor<'a> {
             std::mem::replace(&mut self.record, ExecutionRecord::new(self.program.clone()));
         let public_values = removed_record.public_values;
         self.record.public_values = public_values;
+        self.record.nonce_lookup = vec![0; self.opts.shard_size * 32];
         self.records.push(removed_record);
     }
 
