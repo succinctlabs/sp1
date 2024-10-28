@@ -85,7 +85,7 @@ jobs:
         with:
           command: test
           toolchain: 1.81.0
-          args: --release --package sp1-verifier
+          args: --release --features native-gnark
         env:
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
           RUST_BACKTRACE: 1
