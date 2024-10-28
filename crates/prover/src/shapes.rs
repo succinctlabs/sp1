@@ -5,18 +5,15 @@ use std::{
     panic::{catch_unwind, AssertUnwindSafe},
     path::PathBuf,
     sync::{Arc, Mutex},
-    time::Instant,
 };
 
-use dirs::home_dir;
 use eyre::Result;
-use rayon::iter::{ParallelBridge, ParallelIterator};
 use thiserror::Error;
 
 use p3_baby_bear::BabyBear;
 use p3_field::AbstractField;
 use serde::{Deserialize, Serialize};
-use sp1_core_machine::{riscv::CoreShapeConfig, SP1_CIRCUIT_VERSION};
+use sp1_core_machine::riscv::CoreShapeConfig;
 use sp1_recursion_circuit::machine::{
     SP1CompressWithVKeyWitnessValues, SP1CompressWithVkeyShape, SP1DeferredShape,
     SP1DeferredWitnessValues, SP1RecursionShape, SP1RecursionWitnessValues,
@@ -24,9 +21,7 @@ use sp1_recursion_circuit::machine::{
 use sp1_recursion_core::{shape::RecursionShapeConfig, RecursionProgram};
 use sp1_stark::{MachineProver, ProofShape, DIGEST_SIZE};
 
-use crate::{
-    components::SP1ProverComponents, CompressAir, HashableKey, SP1Prover, REDUCE_BATCH_SIZE,
-};
+use crate::{components::SP1ProverComponents, CompressAir, HashableKey, SP1Prover};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum SP1ProofShape {
@@ -311,53 +306,6 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                 self.shrink_program(&input)
             }
         }
-    }
-
-    pub fn build_program_cache(&self) {
-        let start = Instant::now();
-        let compress_shapes = SP1ProofShape::generate_compress_shapes(
-            self.recursion_shape_config.as_ref().unwrap(),
-            REDUCE_BATCH_SIZE,
-        );
-        let folder = home_dir().unwrap().join(".sp1").join("cache").join(SP1_CIRCUIT_VERSION);
-        std::fs::create_dir_all(&folder).expect("failed to create dirs");
-        compress_shapes.par_bridge().for_each(|compress_shape| {
-            let compress_shape = SP1CompressProgramShape::from_proof_shape(
-                compress_shape,
-                self.allowed_vk_map.len().next_power_of_two().ilog2() as usize,
-            );
-
-            let hash = compress_shape.hash_u64();
-            tracing::info!("caching program with hash: {}", hash);
-
-            let file = folder.join(format!("{:x}.bin", hash));
-            if file.exists() {
-                return;
-            }
-
-            // Save into temp file first and then move so there's no race conditions with partial files.
-            let temp_file = file.with_extension("tmp");
-            let program = self.program_from_shape(compress_shape);
-            std::fs::write(&temp_file, bincode::serialize(&program).unwrap())
-                .expect("failed to write file");
-            std::fs::rename(&temp_file, &file).expect("failed to rename file");
-        });
-        tracing::info!("done building program cache after {:?}", start.elapsed());
-    }
-
-    pub fn get_cached_program(&self, hash: u64) -> Option<Arc<RecursionProgram<BabyBear>>> {
-        let folder = home_dir().unwrap().join(".sp1").join("cache").join(SP1_CIRCUIT_VERSION);
-        let file = folder.join(format!("{:x}.bin", hash));
-        if !file.exists() {
-            return None;
-        }
-
-        let bytes = tracing::debug_span!("read from disk")
-            .in_scope(|| std::fs::read(&file).expect("failed to read file"));
-        let len = bytes.len();
-        let deserialized = tracing::debug_span!("deserialize", bytes = len)
-            .in_scope(|| Arc::new(bincode::deserialize(&bytes).unwrap()));
-        Some(deserialized)
     }
 }
 

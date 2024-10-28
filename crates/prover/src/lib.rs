@@ -33,12 +33,7 @@ use std::{
 };
 
 use lru::LruCache;
-
-use shapes::SP1CompressProgramShape;
-use tracing::instrument;
-
 use p3_baby_bear::BabyBear;
-
 use p3_challenger::CanObserve;
 use p3_field::{AbstractField, PrimeField, PrimeField32};
 use p3_matrix::dense::RowMajorMatrix;
@@ -81,6 +76,7 @@ use sp1_stark::{
     MachineProver, SP1CoreOpts, SP1ProverOpts, ShardProof, StarkGenericConfig, StarkVerifyingKey,
     Val, Word, DIGEST_SIZE,
 };
+use tracing::instrument;
 
 pub use types::*;
 use utils::{sp1_committed_values_digest_bn254, sp1_vkey_digest_bn254, words_to_bytes};
@@ -360,12 +356,6 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         let shape = input.shape();
         cache
             .get_or_insert(shape.clone(), || {
-                let hash = SP1CompressProgramShape::Compress(shape).hash_u64();
-                let program_from_disk = self.get_cached_program(hash);
-                if let Some(program) = program_from_disk {
-                    return program;
-                }
-
                 let misses = self.compress_cache_misses.fetch_add(1, Ordering::Relaxed);
                 tracing::debug!("compress cache miss, misses: {}", misses);
                 // Get the operations.
