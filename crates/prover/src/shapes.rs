@@ -1,11 +1,13 @@
 use std::{
     collections::{BTreeMap, BTreeSet, HashSet},
     fs::File,
+    hash::{DefaultHasher, Hash, Hasher},
     panic::{catch_unwind, AssertUnwindSafe},
     path::PathBuf,
     sync::{Arc, Mutex},
 };
 
+use eyre::Result;
 use thiserror::Error;
 
 use p3_baby_bear::BabyBear;
@@ -29,12 +31,20 @@ pub enum SP1ProofShape {
     Shrink(ProofShape),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Hash)]
 pub enum SP1CompressProgramShape {
     Recursion(SP1RecursionShape),
     Compress(SP1CompressWithVkeyShape),
     Deferred(SP1DeferredShape),
     Shrink(SP1CompressWithVkeyShape),
+}
+
+impl SP1CompressProgramShape {
+    pub fn hash_u64(&self) -> u64 {
+        let mut hasher = DefaultHasher::new();
+        Hash::hash(&self, &mut hasher);
+        hasher.finish()
+    }
 }
 
 #[derive(Debug, Error)]
@@ -229,6 +239,15 @@ impl SP1ProofShape {
                     .get_all_shape_combinations(1)
                     .map(|mut x| Self::Shrink(x.pop().unwrap())),
             )
+    }
+
+    pub fn generate_compress_shapes(
+        recursion_shape_config: &'_ RecursionShapeConfig<BabyBear, CompressAir<BabyBear>>,
+        reduce_batch_size: usize,
+    ) -> impl Iterator<Item = Self> + '_ {
+        (1..=reduce_batch_size).flat_map(|batch_size| {
+            recursion_shape_config.get_all_shape_combinations(batch_size).map(Self::Compress)
+        })
     }
 
     pub fn dummy_vk_map<'a>(
