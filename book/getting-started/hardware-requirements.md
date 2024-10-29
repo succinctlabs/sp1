@@ -4,8 +4,6 @@
 
 We recommend that for any production benchmarking, you use the prover network to estimate latency and costs of proof generation.
 
-</div>
-
 ## Local Proving
 
 If you want to generate SP1 proofs locally, this section has an overview of the hardware requirements required. These requires depend on which [types of proofs](../generating-proofs/proof-types.md) you want to generate and can also change over time as the design of the zKVM evolves.

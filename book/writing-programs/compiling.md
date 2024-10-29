@@ -6,7 +6,7 @@ Once you have written an SP1 program, you must compile it to an ELF file that ca
 
 > WARNING: This may not generate a reproducible ELF which is necessary for verifying that your binary corresponds to given source code.
 >
-> Use the [reproducible build system](#advanced-build-options-sp1-build) for production builds.
+> Use the [reproducible build system](#production-builds) for production builds.
 
 To build a program while developing, simply run the following command in the crate that contains your SP1 program:
 
@@ -61,7 +61,7 @@ The path passed in to `build_program` should point to the directory containing t
 
 ```toml
 [build-dependencies]
-sp1-build = "2.0.0"
+sp1-build = "3.0.0"
 ```
 
 You will see output like the following from the build script if the program has changed, indicating that the program was rebuilt:
