@@ -4,7 +4,7 @@ The prover network uses Secp256k1 keypairs for authentication, similar to Ethere
 
 > **You do not need to hold any funds in this account, it is used solely for access control.**
 
-### Generate a Public Key
+## Generate a Public Key
 
 Prover network keypair credentials can be generated using the
 [cast](https://book.getfoundry.sh/cast/) CLI tool.
@@ -31,7 +31,7 @@ The "Address" what you should submit in the [form](https://forms.gle/rTUvhstS8PF
 secure. When interacting with the network, you will set your `SP1_PRIVATE_KEY` environment variable
 to this value.
 
-### Retrieve an Existing Key
+## Retrieve an Existing Key
 
 If you already have an existing key you would like to use, you can also use `cast` retrieve your address:
 

@@ -1,9 +1,6 @@
 # CUDA
 
-<div class="warning">
-WARNING: CUDA proving is still an experimental feature and may be buggy.
-</div>
-
+> WARNING: CUDA proving is still an experimental feature and may be buggy.
 
 SP1 supports CUDA acceleration, which can provide dramatically better latency and cost performance
 compared to using the CPU prover, even with AVX acceleration.

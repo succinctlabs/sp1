@@ -12,8 +12,6 @@ To make this more concrete, let's walk through a simple example of generating a 
 
 You can run the above script in the `script` directory with `RUST_LOG=info cargo run --release`. Note that running the above script will generate a proof locally.
 
-<div class="warning">
-WARNING: Local proving often is much slower than the prover network and for certain proof types (e.g. Groth16, PLONK) require a significant amount of RAM and will likely not work on a laptop.
-</div>
+> WARNING: Local proving often is much slower than the prover network and for certain proof types (e.g. Groth16, PLONK) require a significant amount of RAM and will likely not work on a laptop.
 
 We recommend using the [prover network](./prover-network.md) to generate proofs. Read more about the [recommended workflow](./recommended-workflow.md) for developing with SP1.

@@ -9,7 +9,7 @@ SP1 supports proof aggregation and recursion, which allows you to verify an SP1 
 
 Note that to verify an SP1 proof inside SP1, you must generate a "compressed" SP1 proof (see [Proof Types](../generating-proofs/proof-types.md) for more details).
 
-### When to use aggregation
+## When to use aggregation
 
 Note that by itself, SP1 can already prove arbitrarily large programs by chunking the program's execution into multiple "shards" (contiguous batches of cycles) and generating proofs for each shard in parallel, and then recursively aggregating the proofs. Thus, aggregation is generally **not necessary** for most use-cases, as SP1's proving for large programs is already parallelized. However, aggregation can be useful for aggregating computations that require more than the zkVM's limited (~2GB) memory or for aggregating multiple SP1 proofs from different parties into a single proof to save on onchain verification costs.
 

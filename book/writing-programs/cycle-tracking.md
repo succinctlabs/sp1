@@ -19,7 +19,7 @@ sp1-derive = "2.0.0"
 
 In the script for proof generation, setup the logger with `utils::setup_logger()` and run the script with `RUST_LOG=info cargo run --release`. You should see the following output:
 
-```
+```console
 $ RUST_LOG=info cargo run --release
     Finished release [optimized] target(s) in 0.21s
      Running `target/release/cycle-tracking-script`
@@ -76,7 +76,7 @@ cargo prove trace --elf <path_to_program_elf> --trace <path_to_trace_file>
 
 The `trace` command will generate a table of instruction counts, sorted by the number of cycles spent in each function. The output will look something like this:
 
-```
+```console
   [00:00:00] [########################################] 17053/17053 (0s)
 
 Total instructions in trace: 17053

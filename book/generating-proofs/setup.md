@@ -20,7 +20,7 @@ cargo new script
 cd script
 ```
 
-#### Cargo Manifest
+### Cargo Manifest
 
 Inside this crate, add the `sp1-sdk` crate as a dependency. Your `Cargo.toml` should look like as follows:
 

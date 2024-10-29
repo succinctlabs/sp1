@@ -41,6 +41,7 @@ You can check the version of the Succinct Rust toolchain by running:
 ```bash
 RUSTUP_TOOLCHAIN=succinct cargo --version
 ```
+
 or equivalently:
 
 ```bash
@@ -75,12 +76,9 @@ Or, you can remove the `cargo-prove` that was installed through `sp1up`:
 rm ~/.sp1/bin/cargo-prove
 ```
 
-
 ## Option 2: Building from Source
 
-<div class="warning">
-Warning: This option will take a long time to build and is only recommended for advanced users. 
-</div>
+> WARNING: This option will take a long time to build and is only recommended for advanced users.
 
 Make sure you have installed the [dependencies](https://github.com/rust-lang/rust/blob/master/INSTALL.md#dependencies) needed to build the rust toolchain from source.
 

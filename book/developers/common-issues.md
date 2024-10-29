@@ -8,7 +8,7 @@ If you are using a library that has an MSRV specified, you may encounter an erro
 package `alloy v0.1.1 cannot be built because it requires rustc 1.76 or newer, while the currently active rustc version is 1.75.0-nightly`
 ```
 
-This is due to the fact that your current Succinct Rust toolchain has been built with a lower version than the MSRV of the crates you are using. 
+This is due to the fact that your current Succinct Rust toolchain has been built with a lower version than the MSRV of the crates you are using.
 
 You can check the version of your local Succinct Rust toolchain by running `cargo +succinct --version`. The latest release of the Succinct Rust toolchain is **1.81**. You can update to the latest version by running [`sp1up`](../getting-started/install.md).
 

@@ -29,7 +29,7 @@ git clone https://github.com/succinctlabs/sp1-project-template.git
 
 Your new project will have the following structure (ignoring the `contracts` folder, if you are using the project template):
 
-```
+```console
 .
 ├── program
 │   ├── Cargo.lock
@@ -51,7 +51,8 @@ Your new project will have the following structure (ignoring the `contracts` fol
 6 directories, 4 files
 ```
 
-There are 2 directories (each a crate) in the project: 
+There are 2 directories (each a crate) in the project:
+
 - `program`: the source code that will be proven inside the zkVM.
 - `script`: code that contains proof generation and verification code.
 
@@ -62,17 +63,17 @@ Note that if you use `cargo prove new` inside a monorepo, you will need to add t
 
 Before we can run the program inside the zkVM, it must be compiled to a RISC-V executable using the `succinct` Rust toolchain. This is called an [ELF (Executable and Linkable Format)](https://en.wikipedia.org/wiki/Executable_and_Linkable_Format). To compile the program, you can run the following command:
 
-```
+```bash
 cd program && cargo prove build
 ```
 
-which will output the compiled ELF to the file `program/elf/riscv32im-succinct-zkvm-elf`. 
+which will output the compiled ELF to the file `program/elf/riscv32im-succinct-zkvm-elf`.
 
 Note: the `build.rs` file in the `script` directory will use run the above command automatically to build the ELF, meaning you don't have to manually run `cargo prove build` every time you make a change to the program!
 
 ## Execute
 
-To test your program, you can first execute your program without generating a proof. In general this is helpful for iterating on your program and verifying that it is correct. 
+To test your program, you can first execute your program without generating a proof. In general this is helpful for iterating on your program and verifying that it is correct.
 
 ```bash
 cd ../script
@@ -89,7 +90,8 @@ RUST_LOG=info cargo run --release -- --prove
 ```
 
 The output should show something like this:
-```
+
+```console
 n: 20
 2024-07-23T17:07:07.874856Z  INFO prove_core:collect_checkpoints: clk = 0 pc = 0x2017e8
 2024-07-23T17:07:07.876264Z  INFO prove_core:collect_checkpoints: close time.busy=2.00ms time.idle=1.50µs
@@ -110,7 +112,7 @@ Successfully generated proof!
 fib(n): 10946
 ```
 
-The program by default is quite small, so proof generation will only take a few seconds locally. After it generates, the proof will be verified for correctness. 
+The program by default is quite small, so proof generation will only take a few seconds locally. After it generates, the proof will be verified for correctness.
 
 **Note:** When benchmarking proof generation times locally, it is important to note that there is a fixed overhead for proving, which means that the proof generation time for programs with a small number of cycles is not representative of the performance of larger programs (which often have better performance characteristics as the overhead is amortized across many cycles).
 
@@ -121,4 +123,3 @@ Please see the [Recommended Workflow](../generating-proofs/recommended-workflow.
 We *strongly recommend* that developers who want to use SP1 for non-trivial programs generate proofs on the beta version of our [Prover Network](../generating-proofs/prover-network.md). The prover network generates SP1 proofs across multiple machines, reducing latency and also runs SP1 on optimized hardware instances that result in faster + cheaper proof generation times.
 
 We recommend that for any production benchmarking, you use the prover network to estimate latency and costs of proof generation. We also would love to chat with your team directly to help you get started with the prover network--please fill out this [form](https://partner.succinct.xyz/).
-
