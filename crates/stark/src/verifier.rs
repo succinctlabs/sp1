@@ -150,14 +150,19 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
         let main_domains_points_and_opens = trace_domains
             .iter()
             .zip_eq(opened_values.chips.iter())
-            .map(|(domain, values)| {
-                (
-                    *domain,
-                    vec![
-                        (zeta, values.main.local.clone()),
-                        (domain.next_point(zeta).unwrap(), values.main.next.clone()),
-                    ],
-                )
+            .zip_eq(chips.iter())
+            .map(|((domain, values), chip)| {
+                if !chip.local_only() {
+                    (
+                        *domain,
+                        vec![
+                            (zeta, values.main.local.clone()),
+                            (domain.next_point(zeta).unwrap(), values.main.next.clone()),
+                        ],
+                    )
+                } else {
+                    (*domain, vec![(zeta, values.main.local.clone())])
+                }
             })
             .collect::<Vec<_>>();
 

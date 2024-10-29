@@ -369,10 +369,21 @@ where
         let main_domains_points_and_opens = trace_domains
             .iter()
             .zip_eq(opened_values.chips.iter())
-            .map(|(domain, values)| TwoAdicPcsMatsVariable::<C> {
-                domain: *domain,
-                points: vec![zeta, domain.next_point_variable(builder, zeta)],
-                values: vec![values.main.local.clone(), values.main.next.clone()],
+            .zip_eq(chips.iter())
+            .map(|((domain, values), chip)| {
+                if !chip.local_only() {
+                    TwoAdicPcsMatsVariable::<C> {
+                        domain: *domain,
+                        points: vec![zeta, domain.next_point_variable(builder, zeta)],
+                        values: vec![values.main.local.clone(), values.main.next.clone()],
+                    }
+                } else {
+                    TwoAdicPcsMatsVariable::<C> {
+                        domain: *domain,
+                        points: vec![zeta],
+                        values: vec![values.main.local.clone()],
+                    }
+                }
             })
             .collect::<Vec<_>>();
 

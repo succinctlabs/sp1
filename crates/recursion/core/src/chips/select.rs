@@ -119,6 +119,10 @@ impl<F: PrimeField32> MachineAir<F> for SelectChip {
     fn included(&self, _record: &Self::Record) -> bool {
         true
     }
+
+    fn local_only(&self) -> bool {
+        true
+    }
 }
 
 impl<AB> Air<AB> for SelectChip
