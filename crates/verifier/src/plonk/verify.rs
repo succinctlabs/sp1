@@ -294,7 +294,11 @@ pub(crate) fn verify_plonk_raw(
     )?;
 
     // Derives the final randomness U.
-    let u = derive_randomness(&mut fs, U, Some(vec![folded_digest, proof.z]))?;
+    let u = derive_randomness(
+        &mut fs,
+        U,
+        Some(vec![folded_digest, proof.z, folded_proof.h, proof.z_shifted_opening.h]),
+    )?;
 
     let shifted_zeta = zeta * vk.generator;
 
@@ -312,6 +316,7 @@ pub(crate) fn verify_plonk_raw(
     Ok(true)
 }
 
+/// Binds all plonk public data to the transcript.
 fn bind_public_data(
     transcript: &mut Transcript,
     challenge: &str,
@@ -339,6 +344,10 @@ fn bind_public_data(
     Ok(())
 }
 
+/// Derives the randomness from the transcript.
+///
+/// If you want to include some data for a challenge that isn't an affine g1 point, use
+/// [`Transcript::bind`] to bind the data to the transcript before deriving the randomness.
 fn derive_randomness(
     transcript: &mut Transcript,
     challenge: &str,
@@ -357,16 +366,19 @@ fn derive_randomness(
     Ok(x)
 }
 
+/// Wrapper for [`batch_inversion`].
 fn batch_invert(elements: &[Fr]) -> Result<Vec<Fr>, PlonkError> {
     let mut elements = elements.to_vec();
     batch_inversion(&mut elements);
     Ok(elements)
 }
 
+/// Inverts a batch of Fr elements.
 fn batch_inversion(v: &mut [Fr]) {
     batch_inversion_and_mul(v, &Fr::one());
 }
 
+/// Inverts a batch of Fr elements and multiplies them by a given coefficient.
 fn batch_inversion_and_mul(v: &mut [Fr], coeff: &Fr) {
     let mut prod = Vec::with_capacity(v.len());
     let mut tmp = Fr::one();

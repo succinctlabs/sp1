@@ -17,7 +17,7 @@ pub enum Error {
     #[error("Invalid point in subgroup check")]
     InvalidPoint,
 
-    // Mathematical Errors
+    // Arithmetic Errors
     #[error("Beyond the modulus")]
     BeyondTheModulus,
     #[error("Ell too large")]

@@ -3,12 +3,14 @@ use bn::{pairing_batch, AffineG1, AffineG2, Fr, Gt, G1, G2};
 
 use super::error::Groth16Error;
 
+/// G1 elements of the verification key.
 #[derive(Clone, PartialEq)]
 pub(crate) struct Groth16G1 {
     pub(crate) alpha: AffineG1,
     pub(crate) k: Vec<AffineG1>,
 }
 
+/// G2 elements of the verification key.
 #[derive(Clone, PartialEq)]
 pub(crate) struct Groth16G2 {
     pub(crate) beta: AffineG2,
@@ -16,20 +18,22 @@ pub(crate) struct Groth16G2 {
     pub(crate) gamma: AffineG2,
 }
 
+/// Verification key for the Groth16 proof.
 #[derive(Clone, PartialEq)]
 pub(crate) struct Groth16VerifyingKey {
     pub(crate) g1: Groth16G1,
     pub(crate) g2: Groth16G2,
 }
 
+/// Proof for the Groth16 verification.
 pub(crate) struct Groth16Proof {
     pub(crate) ar: AffineG1,
     pub(crate) krs: AffineG1,
     pub(crate) bs: AffineG2,
 }
 
-// Prepare the inputs for the Groth16 verification by combining the public inputs with the
-// corresponding elements of the verification key.
+/// Prepare the inputs for the Groth16 verification by combining the public inputs with the
+/// corresponding elements of the verification key.
 fn prepare_inputs(vk: Groth16VerifyingKey, public_inputs: &[Fr]) -> Result<G1, Groth16Error> {
     if (public_inputs.len() + 1) != vk.g1.k.len() {
         return Err(Groth16Error::PrepareInputsFailed);
@@ -42,6 +46,8 @@ fn prepare_inputs(vk: Groth16VerifyingKey, public_inputs: &[Fr]) -> Result<G1, G
         .into())
 }
 
+/// Verify the Groth16 proof by preparing the public inputs by folding them with the verification key.
+/// Then, verify the proof by checking the pairing equation.
 pub(crate) fn verify_groth16_raw(
     vk: &Groth16VerifyingKey,
     proof: &Groth16Proof,

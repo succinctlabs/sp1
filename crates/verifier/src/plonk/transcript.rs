@@ -3,6 +3,8 @@ use sha2::{Digest, Sha256};
 
 use crate::error::Error;
 
+/// A challenge in the transcript, derived with randomness from `bindings` and the previous
+/// challenge.
 #[derive(Clone, Debug)]
 pub(crate) struct Challenge {
     position: usize,
@@ -11,6 +13,7 @@ pub(crate) struct Challenge {
     is_computed: bool,
 }
 
+/// A Fiat-Shamir transcript.
 #[derive(Clone, Debug)]
 pub(crate) struct Transcript {
     pub(crate) h: Sha256,
@@ -20,6 +23,7 @@ pub(crate) struct Transcript {
 }
 
 impl Transcript {
+    /// Creates a new transcript.
     pub(crate) fn new(challenges_id: Option<Vec<String>>) -> Result<Self, Error> {
         let h = Sha256::new();
 
@@ -43,6 +47,7 @@ impl Transcript {
         }
     }
 
+    /// Binds some data to a challenge.
     pub(crate) fn bind(&mut self, id: &str, binding: &[u8]) -> Result<(), Error> {
         let current_challenge = self.challenges.get_mut(id).ok_or(Error::ChallengeNotFound)?;
         if current_challenge.is_computed {
@@ -54,6 +59,10 @@ impl Transcript {
         Ok(())
     }
 
+    /// Computes a challenge and returns its value.
+    ///
+    /// Challenges must be computed in order. The previous challenge is automatically fed into the
+    /// challenge currently being computed.
     pub(crate) fn compute_challenge(&mut self, challenge_id: &str) -> Result<Vec<u8>, Error> {
         let challenge = self.challenges.get_mut(challenge_id).ok_or(Error::ChallengeNotFound)?;
 

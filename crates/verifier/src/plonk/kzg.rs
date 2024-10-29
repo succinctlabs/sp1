@@ -42,6 +42,9 @@ pub(crate) struct OpeningProof {
     pub(crate) claimed_value: Fr,
 }
 
+/// Derives the folding factor for the batched opening proof.
+/// 
+/// Uses a separate transcript than the main transcript used for 
 fn derive_gamma(
     point: &Fr,
     digests: Vec<Digest>,

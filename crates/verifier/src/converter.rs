@@ -7,20 +7,6 @@ use crate::{
     error::Error,
 };
 
-/// Checks if the first byte is zero and the rest of the bytes are zero.
-pub(crate) fn is_zeroed(first_byte: u8, buf: &[u8]) -> bool {
-    if first_byte != 0 {
-        return false;
-    }
-    for &b in buf {
-        if b != 0 {
-            return false;
-        }
-    }
-
-    true
-}
-
 /// Deserializes an Fq element from a buffer.
 ///
 /// If this Fq element is part of a compressed point, the flag that indicates the sign of the
@@ -32,7 +18,8 @@ pub(crate) fn deserialize_with_flags(buf: &[u8]) -> Result<(Fq, CompressedPointF
 
     let m_data = buf[0] & MASK;
     if m_data == u8::from(CompressedPointFlag::Infinity) {
-        if !is_zeroed(buf[0] & !MASK, &buf[1..32]) {
+        // Checks if the first byte is zero after masking AND the rest of the bytes are zero.
+        if buf[0] & !MASK == 0 && buf[1..].iter().all(|&b| b == 0) {
             return Err(Error::InvalidPoint);
         }
         Ok((Fq::zero(), CompressedPointFlag::Infinity))

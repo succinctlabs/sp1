@@ -60,22 +60,12 @@ impl SP1ProofWithPublicValues {
     pub fn raw_with_checksum(&self) -> Vec<u8> {
         match &self.proof {
             SP1Proof::Plonk(plonk) => {
-                // Divide the length of the raw proof by 2 because it is hex encoded. Each hex
-                // character represents 4 bits, so each byte is represented by 2 hex characters.
-                let mut bytes = Vec::with_capacity(4 + (plonk.raw_proof.len()) / 2);
-                bytes.extend_from_slice(&plonk.plonk_vkey_hash[..4]);
-                bytes.extend_from_slice(
-                    &hex::decode(&plonk.raw_proof).expect("Invalid Plonk proof"),
-                );
-                bytes
+                let proof_bytes = hex::decode(&plonk.raw_proof).expect("Invalid Plonk proof");
+                [plonk.plonk_vkey_hash[..4].to_vec(), proof_bytes].concat()
             }
             SP1Proof::Groth16(groth16) => {
-                let mut bytes = Vec::with_capacity(4 + (groth16.raw_proof.len()) / 2);
-                bytes.extend_from_slice(&groth16.groth16_vkey_hash[..4]);
-                bytes.extend_from_slice(
-                    &hex::decode(&groth16.raw_proof).expect("Invalid Groth16 proof"),
-                );
-                bytes
+                let proof_bytes = hex::decode(&groth16.raw_proof).expect("Invalid Groth16 proof");
+                [groth16.groth16_vkey_hash[..4].to_vec(), proof_bytes].concat()
             }
             _ => unimplemented!(),
         }
@@ -94,20 +84,14 @@ impl SP1ProofWithPublicValues {
                     return Vec::new();
                 }
 
-                let mut bytes = Vec::with_capacity(4 + plonk_proof.encoded_proof.len());
-                bytes.extend_from_slice(&plonk_proof.plonk_vkey_hash[..4]);
-                bytes.extend_from_slice(
-                    &hex::decode(&plonk_proof.encoded_proof).expect("Invalid Plonk proof"),
-                );
-                bytes
+                let proof_bytes =
+                    hex::decode(&plonk_proof.encoded_proof).expect("Invalid Plonk proof");
+                [plonk_proof.plonk_vkey_hash[..4].to_vec(), proof_bytes].concat()
             }
             SP1Proof::Groth16(groth16_proof) => {
-                let mut bytes = Vec::with_capacity(4 + groth16_proof.encoded_proof.len());
-                bytes.extend_from_slice(&groth16_proof.groth16_vkey_hash[..4]);
-                bytes.extend_from_slice(
-                    &hex::decode(&groth16_proof.encoded_proof).expect("Invalid Groth16 proof"),
-                );
-                bytes
+                let proof_bytes =
+                    hex::decode(&groth16_proof.encoded_proof).expect("Invalid Groth16 proof");
+                [groth16_proof.groth16_vkey_hash[..4].to_vec(), proof_bytes].concat()
             }
             _ => unimplemented!("only Plonk and Groth16 proofs are verifiable onchain"),
         }

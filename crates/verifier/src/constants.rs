@@ -1,4 +1,6 @@
-/// Gnark (and arkworks) use the 2 most significant bits to encode the flag for a compressed point.
+/// Gnark (and arkworks) use the 2 most significant bits to encode the flag for a compressed
+/// G1 point.
+/// https://github.com/Consensys/gnark-crypto/blob/a7d721497f2a98b1f292886bb685fd3c5a90f930/ecc/bn254/marshal.go#L32-L42
 pub(crate) const MASK: u8 = 0b11 << 6;
 
 /// The flags for a positive, negative, or infinity compressed point.

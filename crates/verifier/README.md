@@ -5,7 +5,7 @@ to be generated using the [SP1 SDK](../sdk).
 
 ## Features
 
-Groth16 and Plonk proof verification are supported in completely no-std environments.
+Groth16 and Plonk proof verification are supported in `no-std` environments.
 
 ## Tests
 
