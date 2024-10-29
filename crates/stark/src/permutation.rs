@@ -18,7 +18,11 @@ use crate::{
 #[inline]
 #[must_use]
 pub const fn permutation_trace_width(num_interactions: usize, batch_size: usize) -> usize {
-    if num_interactions == 0 { 0 } else { num_interactions.div_ceil(batch_size) + 1 }
+    if num_interactions == 0 {
+        0
+    } else {
+        num_interactions.div_ceil(batch_size) + 1
+    }
 }
 
 /// Populates a permutation row.
