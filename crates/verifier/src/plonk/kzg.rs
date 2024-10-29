@@ -3,7 +3,7 @@ use bn::{pairing_batch, AffineG1, Fr, G1, G2};
 
 use crate::{error::Error, plonk::transcript::Transcript};
 
-use super::{converter::g1_to_bytes, error::PlonkError, GAMMA, V};
+use super::{converter::g1_to_bytes, error::PlonkError, GAMMA, U};
 
 pub(crate) type Digest = AffineG1;
 
@@ -47,31 +47,23 @@ fn derive_gamma(
     digests: Vec<Digest>,
     claimed_values: Vec<Fr>,
     data_transcript: Option<Vec<u8>>,
-    global_transcript: &mut Transcript,
 ) -> Result<Fr, PlonkError> {
     let mut transcript = Transcript::new(Some([GAMMA.to_string()].to_vec()))?;
     transcript.bind(GAMMA, &point.into_u256().to_bytes_be())?;
-    global_transcript.bind(V, &point.into_u256().to_bytes_be())?;
 
     for digest in digests.iter() {
         transcript.bind(GAMMA, &g1_to_bytes(digest)?)?;
-        global_transcript.bind(V, &g1_to_bytes(digest)?)?;
     }
 
     for claimed_value in claimed_values.iter() {
         transcript.bind(GAMMA, &claimed_value.into_u256().to_bytes_be())?;
-        global_transcript.bind(V, &claimed_value.into_u256().to_bytes_be())?;
     }
 
     if let Some(data_transcript) = data_transcript {
         transcript.bind(GAMMA, &data_transcript)?;
-        global_transcript.bind(V, &data_transcript)?;
     }
 
     let gamma_byte = transcript.compute_challenge(GAMMA)?;
-    // As I understand, it's good practice (maybe even absolutely necessary) to associate a unique
-    // name with every fs challenge. Should I just get a dummy challenge here?
-    let _ = global_transcript.compute_challenge(V)?;
 
     let x = Fr::from_bytes_be_mod_order(gamma_byte.as_slice())
         .map_err(|e| PlonkError::GeneralError(Error::Field(e)))?;
@@ -110,8 +102,10 @@ pub(crate) fn fold_proof(
         digests.clone(),
         batch_opening_proof.claimed_values.clone(),
         data_transcript,
-        global_transcript,
     )?;
+
+    // Bind gamma to the transcript to challenge U.
+    global_transcript.bind(U, &gamma.into_u256().to_bytes_be())?;
 
     let mut gammai = vec![Fr::zero(); nb_digests];
     gammai[0] = Fr::one();
