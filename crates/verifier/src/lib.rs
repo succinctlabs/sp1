@@ -27,9 +27,7 @@ mod utils;
 pub use groth16::Groth16Verifier;
 pub use utils::*;
 
-#[cfg(feature = "getrandom")]
 mod plonk;
-#[cfg(feature = "getrandom")]
 pub use plonk::PlonkVerifier;
 
 #[cfg(test)]

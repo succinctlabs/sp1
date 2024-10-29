@@ -25,7 +25,6 @@ fn test_verify_groth16() {
     }
 }
 
-#[cfg(feature = "getrandom")]
 #[test]
 fn test_verify_plonk() {
     // Location of the serialized SP1ProofWithPublicValues. See README.md for more information.
