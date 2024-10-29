@@ -98,7 +98,7 @@ impl<V: Copy, P: FieldParameters> FieldLtCols<V, P> {
             // Assert that the flag is boolean.
             builder.when(is_real.clone()).assert_bool(flag);
             // Add the flag to the sum.
-            sum_flags += flag.into();
+            sum_flags = sum_flags.clone() + flag.into();
         }
         // Assert that the sum is equal to one.
         builder.when(is_real.clone()).assert_one(sum_flags);
@@ -121,10 +121,10 @@ impl<V: Copy, P: FieldParameters> FieldLtCols<V, P> {
         ) {
             // Once the byte flag was set to one, we turn off the quality check flag.
             // We can do this by calculating the sum of the flags since only `1` is set to `1`.
-            is_inequality_visited += flag.into();
+            is_inequality_visited = is_inequality_visited.clone() + flag.into();
 
-            lhs_comparison_byte += lhs_byte.clone() * flag;
-            rhs_comparison_byte += flag.into() * rhs_byte.clone();
+            lhs_comparison_byte = lhs_comparison_byte.clone() + lhs_byte.clone() * flag;
+            rhs_comparison_byte = rhs_comparison_byte.clone() + flag.into() * rhs_byte.clone();
 
             builder
                 .when(is_real.clone())

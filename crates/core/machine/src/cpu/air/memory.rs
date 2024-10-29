@@ -327,8 +327,8 @@ impl CpuChip {
         let mut recomposed_byte = AB::Expr::zero();
         for i in 0..8 {
             builder.when(is_mem.clone()).assert_bool(memory_columns.most_sig_byte_decomp[i]);
-            recomposed_byte +=
-                memory_columns.most_sig_byte_decomp[i] * AB::Expr::from_canonical_u8(1 << i);
+            recomposed_byte = recomposed_byte.clone()
+                + memory_columns.most_sig_byte_decomp[i] * AB::Expr::from_canonical_u8(1 << i);
         }
         builder.when(local.selectors.is_lb).assert_eq(recomposed_byte.clone(), unsigned_mem_val[0]);
         builder.when(local.selectors.is_lh).assert_eq(recomposed_byte, unsigned_mem_val[1]);

@@ -397,10 +397,10 @@ where
         {
             // Once the byte flag was set to one, we turn off the quality check flag.
             // We can do this by calculating the sum of the flags since only `1` is set to `1`.
-            is_inequality_visited += flag.into();
+            is_inequality_visited = is_inequality_visited.clone() + flag.into();
 
-            b_comparison_byte += b_byte.clone() * flag;
-            c_comparison_byte += c_byte.clone() * flag;
+            b_comparison_byte = b_comparison_byte.clone() + b_byte.clone() * flag;
+            c_comparison_byte = c_comparison_byte.clone() + c_byte.clone() * flag;
 
             // If inequality is not visited, assert that the bytes are equal.
             builder
