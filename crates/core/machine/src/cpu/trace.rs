@@ -1,10 +1,10 @@
 use hashbrown::HashMap;
 use itertools::Itertools;
 use sp1_core_executor::{
-    events::{ByteLookupEvent, ByteRecord, CpuEvent, LookupId, MemoryRecordEnum},
+    events::{ByteLookupEvent, ByteRecord, CpuEvent, MemoryRecordEnum},
     syscalls::SyscallCode,
     ByteOpcode::{self, U16Range},
-    CoreShape, ExecutionRecord, Opcode, Program,
+    ExecutionRecord, Instruction, Opcode, Program,
     Register::X0,
 };
 use sp1_primitives::consts::WORD_SIZE;
@@ -13,15 +13,10 @@ use std::{array, borrow::BorrowMut};
 
 use p3_field::{PrimeField, PrimeField32};
 use p3_matrix::dense::RowMajorMatrix;
-use p3_maybe_rayon::prelude::{
-    IntoParallelRefMutIterator, ParallelBridge, ParallelIterator, ParallelSlice,
-};
+use p3_maybe_rayon::prelude::{ParallelBridge, ParallelIterator, ParallelSlice};
 use tracing::instrument;
 
-use super::{
-    columns::{CPU_COL_MAP, NUM_CPU_COLS},
-    CpuChip,
-};
+use super::{columns::NUM_CPU_COLS, CpuChip};
 use crate::{cpu::columns::CpuCols, memory::MemoryCols, utils::zeroed_f_vec};
 
 impl<F: PrimeField32> MachineAir<F> for CpuChip {
@@ -38,7 +33,16 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
         input: &ExecutionRecord,
         _: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
-        let mut values = zeroed_f_vec(input.cpu_events.len() * NUM_CPU_COLS);
+        let n_real_rows = input.cpu_events.len();
+        let padded_nb_rows = if let Some(shape) = &input.shape {
+            1 << shape.inner[&MachineAir::<F>::name(self)]
+        } else if n_real_rows < 16 {
+            16
+        } else {
+            n_real_rows.next_power_of_two()
+        };
+        let mut values = zeroed_f_vec(padded_nb_rows * NUM_CPU_COLS);
+        let shard = input.public_values.shard;
 
         let chunk_size = std::cmp::max(input.cpu_events.len() / num_cpus::get(), 1);
         values.chunks_mut(chunk_size * NUM_CPU_COLS).enumerate().par_bridge().for_each(
@@ -46,30 +50,36 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
                 rows.chunks_mut(NUM_CPU_COLS).enumerate().for_each(|(j, row)| {
                     let idx = i * chunk_size + j;
                     let cols: &mut CpuCols<F> = row.borrow_mut();
-                    let mut byte_lookup_events = Vec::new();
-                    self.event_to_row(
-                        &input.cpu_events[idx],
-                        &input.nonce_lookup,
-                        cols,
-                        &mut byte_lookup_events,
-                    );
+
+                    if idx >= input.cpu_events.len() {
+                        cols.selectors.imm_b = F::one();
+                        cols.selectors.imm_c = F::one();
+                    } else {
+                        let mut byte_lookup_events = Vec::new();
+                        let event = &input.cpu_events[idx];
+                        let instruction = &input.program.fetch(event.pc);
+                        self.event_to_row(
+                            event,
+                            &input.nonce_lookup,
+                            cols,
+                            &mut byte_lookup_events,
+                            shard,
+                            instruction,
+                        );
+                    }
                 });
             },
         );
 
         // Convert the trace to a row major matrix.
-        let mut trace = RowMajorMatrix::new(values, NUM_CPU_COLS);
-
-        // Pad the trace to a power of two.
-        Self::pad_to_power_of_two::<F>(self, &input.shape, &mut trace.values);
-
-        trace
+        RowMajorMatrix::new(values, NUM_CPU_COLS)
     }
 
     #[instrument(name = "generate cpu dependencies", level = "debug", skip_all)]
     fn generate_dependencies(&self, input: &ExecutionRecord, output: &mut ExecutionRecord) {
         // Generate the trace rows for each event.
         let chunk_size = std::cmp::max(input.cpu_events.len() / num_cpus::get(), 1);
+        let shard = input.public_values.shard;
 
         let blu_events: Vec<_> = input
             .cpu_events
@@ -80,7 +90,15 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
                 ops.iter().for_each(|op| {
                     let mut row = [F::zero(); NUM_CPU_COLS];
                     let cols: &mut CpuCols<F> = row.as_mut_slice().borrow_mut();
-                    self.event_to_row::<F>(op, &HashMap::new(), cols, &mut blu);
+                    let instruction = &input.program.fetch(op.pc);
+                    self.event_to_row::<F>(
+                        op,
+                        &input.nonce_lookup,
+                        cols,
+                        &mut blu,
+                        shard,
+                        instruction,
+                    );
                 });
                 blu
             })
@@ -103,23 +121,25 @@ impl CpuChip {
     fn event_to_row<F: PrimeField32>(
         &self,
         event: &CpuEvent,
-        nonce_lookup: &HashMap<LookupId, u32>,
+        nonce_lookup: &[u32],
         cols: &mut CpuCols<F>,
         blu_events: &mut impl ByteRecord,
+        shard: u32,
+        instruction: &Instruction,
     ) {
         // Populate shard and clk columns.
-        self.populate_shard_clk(cols, event, blu_events);
+        self.populate_shard_clk(cols, event, blu_events, shard);
 
         // Populate the nonce.
         cols.nonce = F::from_canonical_u32(
-            nonce_lookup.get(&event.alu_lookup_id).copied().unwrap_or_default(),
+            nonce_lookup.get(event.alu_lookup_id.0 as usize).copied().unwrap_or_default(),
         );
 
         // Populate basic fields.
         cols.pc = F::from_canonical_u32(event.pc);
         cols.next_pc = F::from_canonical_u32(event.next_pc);
-        cols.instruction.populate(event.instruction);
-        cols.selectors.populate(event.instruction);
+        cols.instruction.populate(instruction);
+        cols.selectors.populate(instruction);
         *cols.op_a_access.value_mut() = event.a.into();
         *cols.op_b_access.value_mut() = event.b.into();
         *cols.op_c_access.value_mut() = event.c.into();
@@ -145,7 +165,7 @@ impl CpuChip {
             .map(|x| x.as_canonical_u32())
             .collect::<Vec<_>>();
         blu_events.add_byte_lookup_event(ByteLookupEvent {
-            shard: event.shard,
+            shard,
             opcode: ByteOpcode::U8Range,
             a1: 0,
             a2: 0,
@@ -153,7 +173,7 @@ impl CpuChip {
             c: a_bytes[1] as u8,
         });
         blu_events.add_byte_lookup_event(ByteLookupEvent {
-            shard: event.shard,
+            shard,
             opcode: ByteOpcode::U8Range,
             a1: 0,
             a2: 0,
@@ -162,23 +182,20 @@ impl CpuChip {
         });
 
         // Populate memory accesses for reading from memory.
-        assert_eq!(event.memory_record.is_some(), event.memory.is_some());
         let memory_columns = cols.opcode_specific_columns.memory_mut();
         if let Some(record) = event.memory_record {
             memory_columns.memory_access.populate(record, blu_events)
         }
 
         // Populate memory, branch, jump, and auipc specific fields.
-        self.populate_memory(cols, event, blu_events, nonce_lookup);
-        self.populate_branch(cols, event, nonce_lookup);
-        self.populate_jump(cols, event, nonce_lookup);
-        self.populate_auipc(cols, event, nonce_lookup);
+        self.populate_memory(cols, event, blu_events, nonce_lookup, shard, instruction);
+        self.populate_branch(cols, event, nonce_lookup, instruction);
+        self.populate_jump(cols, event, nonce_lookup, instruction);
+        self.populate_auipc(cols, event, nonce_lookup, instruction);
         let is_halt = self.populate_ecall(cols, event, nonce_lookup);
 
         cols.is_sequential_instr = F::from_bool(
-            !event.instruction.is_branch_instruction()
-                && !event.instruction.is_jump_instruction()
-                && !is_halt,
+            !instruction.is_branch_instruction() && !instruction.is_jump_instruction() && !is_halt,
         );
 
         // Assert that the instruction is not a no-op.
@@ -191,8 +208,9 @@ impl CpuChip {
         cols: &mut CpuCols<F>,
         event: &CpuEvent,
         blu_events: &mut impl ByteRecord,
+        shard: u32,
     ) {
-        cols.shard = F::from_canonical_u32(event.shard);
+        cols.shard = F::from_canonical_u32(shard);
         cols.clk = F::from_canonical_u32(event.clk);
 
         let clk_16bit_limb = (event.clk & 0xffff) as u16;
@@ -201,15 +219,15 @@ impl CpuChip {
         cols.clk_8bit_limb = F::from_canonical_u8(clk_8bit_limb);
 
         blu_events.add_byte_lookup_event(ByteLookupEvent::new(
-            event.shard,
+            shard,
             U16Range,
-            event.shard as u16,
+            shard as u16,
             0,
             0,
             0,
         ));
         blu_events.add_byte_lookup_event(ByteLookupEvent::new(
-            event.shard,
+            shard,
             U16Range,
             clk_16bit_limb,
             0,
@@ -217,7 +235,7 @@ impl CpuChip {
             0,
         ));
         blu_events.add_byte_lookup_event(ByteLookupEvent::new(
-            event.shard,
+            shard,
             ByteOpcode::U8Range,
             0,
             0,
@@ -232,10 +250,12 @@ impl CpuChip {
         cols: &mut CpuCols<F>,
         event: &CpuEvent,
         blu_events: &mut impl ByteRecord,
-        nonce_lookup: &HashMap<LookupId, u32>,
+        nonce_lookup: &[u32],
+        shard: u32,
+        instruction: &Instruction,
     ) {
         if !matches!(
-            event.instruction.opcode,
+            instruction.opcode,
             Opcode::LB
                 | Opcode::LH
                 | Opcode::LW
@@ -262,7 +282,7 @@ impl CpuChip {
         let bits: [bool; 8] = array::from_fn(|i| aligned_addr_ls_byte & (1 << i) != 0);
         memory_columns.aa_least_sig_byte_decomp = array::from_fn(|i| F::from_bool(bits[i + 2]));
         memory_columns.addr_word_nonce = F::from_canonical_u32(
-            nonce_lookup.get(&event.memory_add_lookup_id).copied().unwrap_or_default(),
+            nonce_lookup.get(event.memory_add_lookup_id.0 as usize).copied().unwrap_or_default(),
         );
 
         // Populate memory offsets.
@@ -275,10 +295,10 @@ impl CpuChip {
         // If it is a load instruction, set the unsigned_mem_val column.
         let mem_value = event.memory_record.unwrap().value();
         if matches!(
-            event.instruction.opcode,
+            instruction.opcode,
             Opcode::LB | Opcode::LBU | Opcode::LH | Opcode::LHU | Opcode::LW
         ) {
-            match event.instruction.opcode {
+            match instruction.opcode {
                 Opcode::LB | Opcode::LBU => {
                     cols.unsigned_mem_val =
                         (mem_value.to_le_bytes()[addr_offset as usize] as u32).into();
@@ -298,8 +318,8 @@ impl CpuChip {
             }
 
             // For the signed load instructions, we need to check if the loaded value is negative.
-            if matches!(event.instruction.opcode, Opcode::LB | Opcode::LH) {
-                let most_sig_mem_value_byte = if matches!(event.instruction.opcode, Opcode::LB) {
+            if matches!(instruction.opcode, Opcode::LB | Opcode::LH) {
+                let most_sig_mem_value_byte = if matches!(instruction.opcode, Opcode::LB) {
                     cols.unsigned_mem_val.to_u32().to_le_bytes()[0]
                 } else {
                     cols.unsigned_mem_val.to_u32().to_le_bytes()[1]
@@ -310,20 +330,22 @@ impl CpuChip {
                         F::from_canonical_u8(most_sig_mem_value_byte >> i & 0x01);
                 }
                 if memory_columns.most_sig_byte_decomp[7] == F::one() {
-                    cols.mem_value_is_neg_not_x0 =
-                        F::from_bool(event.instruction.op_a != (X0 as u32));
+                    cols.mem_value_is_neg_not_x0 = F::from_bool(instruction.op_a != (X0 as u8));
                     cols.unsigned_mem_val_nonce = F::from_canonical_u32(
-                        nonce_lookup.get(&event.memory_sub_lookup_id).copied().unwrap_or_default(),
+                        nonce_lookup
+                            .get(event.memory_sub_lookup_id.0 as usize)
+                            .copied()
+                            .unwrap_or_default(),
                     );
                 }
             }
 
             // Set the `mem_value_is_pos_not_x0` composite flag.
             cols.mem_value_is_pos_not_x0 = F::from_bool(
-                ((matches!(event.instruction.opcode, Opcode::LB | Opcode::LH)
+                ((matches!(instruction.opcode, Opcode::LB | Opcode::LH)
                     && (memory_columns.most_sig_byte_decomp[7] == F::zero()))
-                    || matches!(event.instruction.opcode, Opcode::LBU | Opcode::LHU | Opcode::LW))
-                    && event.instruction.op_a != (X0 as u32),
+                    || matches!(instruction.opcode, Opcode::LBU | Opcode::LHU | Opcode::LW))
+                    && instruction.op_a != (X0 as u8),
             );
         }
 
@@ -331,7 +353,7 @@ impl CpuChip {
         let addr_bytes = memory_addr.to_le_bytes();
         for byte_pair in addr_bytes.chunks_exact(2) {
             blu_events.add_byte_lookup_event(ByteLookupEvent {
-                shard: event.shard,
+                shard,
                 opcode: ByteOpcode::U8Range,
                 a1: 0,
                 a2: 0,
@@ -346,15 +368,15 @@ impl CpuChip {
         &self,
         cols: &mut CpuCols<F>,
         event: &CpuEvent,
-        nonce_lookup: &HashMap<LookupId, u32>,
+        nonce_lookup: &[u32],
+        instruction: &Instruction,
     ) {
-        if event.instruction.is_branch_instruction() {
+        if instruction.is_branch_instruction() {
             let branch_columns = cols.opcode_specific_columns.branch_mut();
 
             let a_eq_b = event.a == event.b;
 
-            let use_signed_comparison =
-                matches!(event.instruction.opcode, Opcode::BLT | Opcode::BGE);
+            let use_signed_comparison = matches!(instruction.opcode, Opcode::BLT | Opcode::BGE);
 
             let a_lt_b = if use_signed_comparison {
                 (event.a as i32) < (event.b as i32)
@@ -368,18 +390,18 @@ impl CpuChip {
             };
 
             branch_columns.a_lt_b_nonce = F::from_canonical_u32(
-                nonce_lookup.get(&event.branch_lt_lookup_id).copied().unwrap_or_default(),
+                nonce_lookup.get(event.branch_lt_lookup_id.0 as usize).copied().unwrap_or_default(),
             );
 
             branch_columns.a_gt_b_nonce = F::from_canonical_u32(
-                nonce_lookup.get(&event.branch_gt_lookup_id).copied().unwrap_or_default(),
+                nonce_lookup.get(event.branch_gt_lookup_id.0 as usize).copied().unwrap_or_default(),
             );
 
             branch_columns.a_eq_b = F::from_bool(a_eq_b);
             branch_columns.a_lt_b = F::from_bool(a_lt_b);
             branch_columns.a_gt_b = F::from_bool(a_gt_b);
 
-            let branching = match event.instruction.opcode {
+            let branching = match instruction.opcode {
                 Opcode::BEQ => a_eq_b,
                 Opcode::BNE => !a_eq_b,
                 Opcode::BLT | Opcode::BLTU => a_lt_b,
@@ -396,7 +418,10 @@ impl CpuChip {
             if branching {
                 cols.branching = F::one();
                 branch_columns.next_pc_nonce = F::from_canonical_u32(
-                    nonce_lookup.get(&event.branch_add_lookup_id).copied().unwrap_or_default(),
+                    nonce_lookup
+                        .get(event.branch_add_lookup_id.0 as usize)
+                        .copied()
+                        .unwrap_or_default(),
                 );
             } else {
                 cols.not_branching = F::one();
@@ -409,12 +434,13 @@ impl CpuChip {
         &self,
         cols: &mut CpuCols<F>,
         event: &CpuEvent,
-        nonce_lookup: &HashMap<LookupId, u32>,
+        nonce_lookup: &[u32],
+        instruction: &Instruction,
     ) {
-        if event.instruction.is_jump_instruction() {
+        if instruction.is_jump_instruction() {
             let jump_columns = cols.opcode_specific_columns.jump_mut();
 
-            match event.instruction.opcode {
+            match instruction.opcode {
                 Opcode::JAL => {
                     let next_pc = event.pc.wrapping_add(event.b);
                     jump_columns.op_a_range_checker.populate(event.a);
@@ -423,7 +449,10 @@ impl CpuChip {
                     jump_columns.next_pc = Word::from(next_pc);
                     jump_columns.next_pc_range_checker.populate(next_pc);
                     jump_columns.jal_nonce = F::from_canonical_u32(
-                        nonce_lookup.get(&event.jump_jal_lookup_id).copied().unwrap_or_default(),
+                        nonce_lookup
+                            .get(event.jump_jal_lookup_id.0 as usize)
+                            .copied()
+                            .unwrap_or_default(),
                     );
                 }
                 Opcode::JALR => {
@@ -432,7 +461,10 @@ impl CpuChip {
                     jump_columns.next_pc = Word::from(next_pc);
                     jump_columns.next_pc_range_checker.populate(next_pc);
                     jump_columns.jalr_nonce = F::from_canonical_u32(
-                        nonce_lookup.get(&event.jump_jalr_lookup_id).copied().unwrap_or_default(),
+                        nonce_lookup
+                            .get(event.jump_jalr_lookup_id.0 as usize)
+                            .copied()
+                            .unwrap_or_default(),
                     );
                 }
                 _ => unreachable!(),
@@ -445,15 +477,16 @@ impl CpuChip {
         &self,
         cols: &mut CpuCols<F>,
         event: &CpuEvent,
-        nonce_lookup: &HashMap<LookupId, u32>,
+        nonce_lookup: &[u32],
+        instruction: &Instruction,
     ) {
-        if matches!(event.instruction.opcode, Opcode::AUIPC) {
+        if matches!(instruction.opcode, Opcode::AUIPC) {
             let auipc_columns = cols.opcode_specific_columns.auipc_mut();
 
             auipc_columns.pc = Word::from(event.pc);
             auipc_columns.pc_range_checker.populate(event.pc);
             auipc_columns.auipc_nonce = F::from_canonical_u32(
-                nonce_lookup.get(&event.auipc_lookup_id).copied().unwrap_or_default(),
+                nonce_lookup.get(event.auipc_lookup_id.0 as usize).copied().unwrap_or_default(),
             );
         }
     }
@@ -463,7 +496,7 @@ impl CpuChip {
         &self,
         cols: &mut CpuCols<F>,
         event: &CpuEvent,
-        nonce_lookup: &HashMap<LookupId, u32>,
+        nonce_lookup: &[u32],
     ) -> bool {
         let mut is_halt = false;
 
@@ -516,9 +549,8 @@ impl CpuChip {
             }
 
             // Write the syscall nonce.
-            ecall_cols.syscall_nonce = F::from_canonical_u32(
-                nonce_lookup.get(&event.syscall_lookup_id).copied().unwrap_or_default(),
-            );
+            ecall_cols.syscall_nonce =
+                F::from_canonical_u32(nonce_lookup[event.syscall_lookup_id.0 as usize]);
 
             is_halt = syscall_id == F::from_canonical_u32(SyscallCode::HALT.syscall_id());
 
@@ -539,30 +571,5 @@ impl CpuChip {
         }
 
         is_halt
-    }
-
-    fn pad_to_power_of_two<F: PrimeField32>(&self, shape: &Option<CoreShape>, values: &mut Vec<F>) {
-        let n_real_rows = values.len() / NUM_CPU_COLS;
-        let padded_nb_rows = if let Some(shape) = shape {
-            1 << shape.inner[&MachineAir::<F>::name(self)]
-        } else if n_real_rows < 16 {
-            16
-        } else {
-            n_real_rows.next_power_of_two()
-        };
-        values.resize(padded_nb_rows * NUM_CPU_COLS, F::zero());
-
-        // Interpret values as a slice of arrays of length `NUM_CPU_COLS`
-        let rows = unsafe {
-            core::slice::from_raw_parts_mut(
-                values.as_mut_ptr() as *mut [F; NUM_CPU_COLS],
-                values.len() / NUM_CPU_COLS,
-            )
-        };
-
-        rows[n_real_rows..].par_iter_mut().for_each(|padded_row| {
-            padded_row[CPU_COL_MAP.selectors.imm_b] = F::one();
-            padded_row[CPU_COL_MAP.selectors.imm_c] = F::one();
-        });
     }
 }

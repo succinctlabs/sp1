@@ -19,7 +19,7 @@ use sp1_stark::inner_perm;
 
 use crate::{
     challenger::{reduce_32, POSEIDON_2_BB_RATE},
-    select_chain, CircuitConfig,
+    CircuitConfig,
 };
 
 pub trait FieldHasher<F: Field> {
@@ -129,14 +129,20 @@ impl<C: CircuitConfig<F = BabyBear, Bit = Felt<BabyBear>>> FieldHasherVariable<C
         should_swap: <C as CircuitConfig>::Bit,
         input: [Self::DigestVariable; 2],
     ) -> [Self::DigestVariable; 2] {
-        let err_msg = "select_chain's return value should have length the sum of its inputs";
-        let mut selected = select_chain(builder, should_swap, input[0], input[1]);
-        let ret = [
-            core::array::from_fn(|_| selected.next().expect(err_msg)),
-            core::array::from_fn(|_| selected.next().expect(err_msg)),
-        ];
-        assert_eq!(selected.next(), None, "{}", err_msg);
-        ret
+        let result0: [Felt<BabyBear>; DIGEST_SIZE] = core::array::from_fn(|_| builder.uninit());
+        let result1: [Felt<BabyBear>; DIGEST_SIZE] = core::array::from_fn(|_| builder.uninit());
+
+        (0..DIGEST_SIZE).for_each(|i| {
+            builder.push_op(DslIr::Select(
+                should_swap,
+                result0[i],
+                result1[i],
+                input[0][i],
+                input[1][i],
+            ));
+        });
+
+        [result0, result1]
     }
 
     fn print_digest(builder: &mut Builder<C>, digest: Self::DigestVariable) {

@@ -8,6 +8,7 @@ mod record;
 use backtrace::Backtrace as Trace;
 pub use instruction::Instruction;
 use instruction::{FieldEltType, HintBitsInstr, HintExt2FeltsInstr, HintInstr, PrintInstr};
+use machine::RecursionAirEventCount;
 use memory::*;
 pub use opcode::*;
 pub use program::*;
@@ -83,6 +84,8 @@ pub struct Runtime<'a, F: PrimeField32, EF: ExtensionField<F>, Diffusion> {
     pub nb_memory_ops: usize,
 
     pub nb_branch_ops: usize,
+
+    pub nb_select: usize,
 
     pub nb_exp_reverse_bits: usize,
 
@@ -187,6 +190,7 @@ where
             nb_poseidons: 0,
             nb_wide_poseidons: 0,
             nb_bit_decompositions: 0,
+            nb_select: 0,
             nb_exp_reverse_bits: 0,
             nb_ext_ops: 0,
             nb_base_ops: 0,
@@ -246,6 +250,7 @@ where
     pub fn run(&mut self) -> Result<(), RuntimeError<F, EF>> {
         let early_exit_ts = std::env::var("RECURSION_EARLY_EXIT_TS")
             .map_or(usize::MAX, |ts: String| ts.parse().unwrap());
+        self.preallocate_record();
         while self.pc < F::from_canonical_u32(self.program.instructions.len() as u32) {
             let idx = self.pc.as_canonical_u32() as usize;
             let instruction = self.program.instructions[idx].clone();
@@ -349,6 +354,27 @@ where
                     self.record
                         .poseidon2_events
                         .push(Poseidon2Event { input: in_vals, output: perm_output });
+                }
+                Instruction::Select(SelectInstr {
+                    addrs: SelectIo { bit, out1, out2, in1, in2 },
+                    mult1,
+                    mult2,
+                }) => {
+                    self.nb_select += 1;
+                    let bit = self.memory.mr(bit).val[0];
+                    let in1 = self.memory.mr(in1).val[0];
+                    let in2 = self.memory.mr(in2).val[0];
+                    let out1_val = bit * in2 + (F::one() - bit) * in1;
+                    let out2_val = bit * in1 + (F::one() - bit) * in2;
+                    self.memory.mw(out1, Block::from(out1_val), mult1);
+                    self.memory.mw(out2, Block::from(out2_val), mult2);
+                    self.record.select_events.push(SelectEvent {
+                        bit,
+                        out1: out1_val,
+                        out2: out2_val,
+                        in1,
+                        in2,
+                    })
                 }
                 Instruction::ExpReverseBitsLen(ExpReverseBitsInstr {
                     addrs: ExpReverseBitsIo { base, exp, result },
@@ -519,5 +545,18 @@ where
             }
         }
         Ok(())
+    }
+
+    pub fn preallocate_record(&mut self) {
+        let event_counts = self
+            .program
+            .instructions
+            .iter()
+            .fold(RecursionAirEventCount::default(), |heights, instruction| heights + instruction);
+        self.record.poseidon2_events.reserve(event_counts.poseidon2_wide_events);
+        self.record.mem_var_events.reserve(event_counts.mem_var_events);
+        self.record.base_alu_events.reserve(event_counts.base_alu_events);
+        self.record.ext_alu_events.reserve(event_counts.ext_alu_events);
+        self.record.exp_reverse_bits_len_events.reserve(event_counts.exp_reverse_bits_len_events);
     }
 }
