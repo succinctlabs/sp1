@@ -133,7 +133,7 @@ impl<C: CircuitConfig<F = BabyBear, Bit = Felt<BabyBear>>> FieldHasherVariable<C
         let result1: [Felt<BabyBear>; DIGEST_SIZE] = core::array::from_fn(|_| builder.uninit());
 
         (0..DIGEST_SIZE).for_each(|i| {
-            builder.push_op(DslIr::SelectDigest(
+            builder.push_op(DslIr::Select(
                 should_swap,
                 result0[i],
                 result1[i],

@@ -259,7 +259,7 @@ where
         }))
     }
 
-    fn select_digest(
+    fn select(
         &mut self,
         bit: impl Reg<C>,
         dst1: impl Reg<C>,
@@ -267,8 +267,8 @@ where
         lhs: impl Reg<C>,
         rhs: impl Reg<C>,
     ) -> Instruction<C::F> {
-        Instruction::SelectDigest(SelectDigestInstr {
-            addrs: SelectDigestIo {
+        Instruction::Select(SelectInstr {
+            addrs: SelectIo {
                 bit: bit.read(self),
                 out1: dst1.write(self),
                 out2: dst2.write(self),
@@ -457,9 +457,7 @@ where
             DslIr::InvF(dst, src) => f(self.base_alu(DivF, dst, Imm::F(C::F::one()), src)),
             DslIr::InvE(dst, src) => f(self.ext_alu(DivE, dst, Imm::F(C::F::one()), src)),
 
-            DslIr::SelectDigest(bit, dst1, dst2, lhs, rhs) => {
-                f(self.select_digest(bit, dst1, dst2, lhs, rhs))
-            }
+            DslIr::Select(bit, dst1, dst2, lhs, rhs) => f(self.select(bit, dst1, dst2, lhs, rhs)),
 
             DslIr::AssertEqV(lhs, rhs) => self.base_assert_eq(lhs, rhs, f),
             DslIr::AssertEqF(lhs, rhs) => self.base_assert_eq(lhs, rhs, f),
@@ -591,8 +589,8 @@ where
                         } = instr.as_mut();
                         mults.iter_mut().zip(addrs).for_each(&mut backfill);
                     }
-                    Instruction::SelectDigest(SelectDigestInstr {
-                        addrs: SelectDigestIo { out1: ref addr1, out2: ref addr2, .. },
+                    Instruction::Select(SelectInstr {
+                        addrs: SelectIo { out1: ref addr1, out2: ref addr2, .. },
                         mult1,
                         mult2,
                     }) => {
@@ -672,7 +670,7 @@ const fn instr_name<F>(instr: &Instruction<F>) -> &'static str {
         Instruction::ExtAlu(_) => "ExtAlu",
         Instruction::Mem(_) => "Mem",
         Instruction::Poseidon2(_) => "Poseidon2",
-        Instruction::SelectDigest(_) => "SelectDigest",
+        Instruction::Select(_) => "Select",
         Instruction::ExpReverseBitsLen(_) => "ExpReverseBitsLen",
         Instruction::HintBits(_) => "HintBits",
         Instruction::FriFold(_) => "FriFold",

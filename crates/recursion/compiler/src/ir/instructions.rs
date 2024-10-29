@@ -122,7 +122,7 @@ pub enum DslIr<C: Config> {
 
     // Selecting Digest.
     /// Selects the digest based on a bit (should_swap, first result, second result, first input, second input)
-    SelectDigest(Felt<C::F>, Felt<C::F>, Felt<C::F>, Felt<C::F>, Felt<C::F>),
+    Select(Felt<C::F>, Felt<C::F>, Felt<C::F>, Felt<C::F>, Felt<C::F>),
 
     // Control flow.
     /// Executes a for loop with the parameters (start step value, end step value, step size, step

@@ -11,7 +11,7 @@ pub enum Instruction<F> {
     ExtAlu(ExtAluInstr<F>),
     Mem(MemInstr<F>),
     Poseidon2(Box<Poseidon2Instr<F>>),
-    SelectDigest(SelectDigestInstr<F>),
+    Select(SelectInstr<F>),
     ExpReverseBitsLen(ExpReverseBitsInstr<F>),
     HintBits(HintBitsInstr<F>),
     FriFold(Box<FriFoldInstr<F>>),
@@ -147,7 +147,7 @@ pub fn poseidon2<F: AbstractField>(
 }
 
 #[allow(clippy::too_many_arguments)]
-pub fn select_digest<F: AbstractField>(
+pub fn select<F: AbstractField>(
     mult1: u32,
     mult2: u32,
     bit: u32,
@@ -156,10 +156,10 @@ pub fn select_digest<F: AbstractField>(
     in1: u32,
     in2: u32,
 ) -> Instruction<F> {
-    Instruction::SelectDigest(SelectDigestInstr {
+    Instruction::Select(SelectInstr {
         mult1: F::from_canonical_u32(mult1),
         mult2: F::from_canonical_u32(mult2),
-        addrs: SelectDigestIo {
+        addrs: SelectIo {
             bit: Address(F::from_canonical_u32(bit)),
             out1: Address(F::from_canonical_u32(out1)),
             out2: Address(F::from_canonical_u32(out2)),

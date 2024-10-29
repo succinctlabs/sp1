@@ -118,7 +118,7 @@ pub type Poseidon2Event<F> = Poseidon2Io<F>;
 
 /// The inputs and outputs to a select digest operation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct SelectDigestIo<V> {
+pub struct SelectIo<V> {
     pub bit: V,
     pub out1: V,
     pub out2: V,
@@ -128,14 +128,14 @@ pub struct SelectDigestIo<V> {
 
 /// An instruction invoking the select digest operation.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
-pub struct SelectDigestInstr<F> {
-    pub addrs: SelectDigestIo<Address<F>>,
+pub struct SelectInstr<F> {
+    pub addrs: SelectIo<Address<F>>,
     pub mult1: F,
     pub mult2: F,
 }
 
 /// The event encoding the inputs and outputs of a select digest operation.
-pub type SelectDigestEvent<F> = SelectDigestIo<F>;
+pub type SelectEvent<F> = SelectIo<F>;
 
 /// The inputs and outputs to an exp-reverse-bits operation.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

@@ -12,45 +12,44 @@ use std::borrow::BorrowMut;
 use crate::{builder::SP1RecursionAirBuilder, *};
 
 #[derive(Default)]
-pub struct SelectDigestChip;
+pub struct SelectChip;
 
-pub const SELECT_DIGEST_COLS: usize = core::mem::size_of::<SelectDigestCols<u8>>();
+pub const SELECT_COLS: usize = core::mem::size_of::<SelectCols<u8>>();
 
 #[derive(AlignedBorrow, Debug, Clone, Copy)]
 #[repr(C)]
-pub struct SelectDigestCols<F: Copy> {
-    pub vals: SelectDigestIo<F>,
+pub struct SelectCols<F: Copy> {
+    pub vals: SelectIo<F>,
 }
 
-pub const SELECT_DIGEST_PREPROCESSED_COLS: usize =
-    core::mem::size_of::<SelectDigestPreprocessedCols<u8>>();
+pub const SELECT_PREPROCESSED_COLS: usize = core::mem::size_of::<SelectPreprocessedCols<u8>>();
 
 #[derive(AlignedBorrow, Debug, Clone, Copy)]
 #[repr(C)]
-pub struct SelectDigestPreprocessedCols<F: Copy> {
+pub struct SelectPreprocessedCols<F: Copy> {
     pub is_real: F,
-    pub addrs: SelectDigestIo<Address<F>>,
+    pub addrs: SelectIo<Address<F>>,
     pub mult1: F,
     pub mult2: F,
 }
 
-impl<F: Field> BaseAir<F> for SelectDigestChip {
+impl<F: Field> BaseAir<F> for SelectChip {
     fn width(&self) -> usize {
-        SELECT_DIGEST_COLS
+        SELECT_COLS
     }
 }
 
-impl<F: PrimeField32> MachineAir<F> for SelectDigestChip {
+impl<F: PrimeField32> MachineAir<F> for SelectChip {
     type Record = ExecutionRecord<F>;
 
     type Program = crate::RecursionProgram<F>;
 
     fn name(&self) -> String {
-        "SelectDigest".to_string()
+        "Select".to_string()
     }
 
     fn preprocessed_width(&self) -> usize {
-        SELECT_DIGEST_PREPROCESSED_COLS
+        SELECT_PREPROCESSED_COLS
     }
 
     fn generate_preprocessed_trace(&self, program: &Self::Program) -> Option<RowMajorMatrix<F>> {
@@ -58,7 +57,7 @@ impl<F: PrimeField32> MachineAir<F> for SelectDigestChip {
             .instructions
             .iter()
             .filter_map(|instruction| match instruction {
-                Instruction::SelectDigest(x) => Some(x),
+                Instruction::Select(x) => Some(x),
                 _ => None,
             })
             .collect::<Vec<_>>();
@@ -69,26 +68,25 @@ impl<F: PrimeField32> MachineAir<F> for SelectDigestChip {
             Some(log2_rows) => 1 << log2_rows,
             None => next_power_of_two(nb_rows, None),
         };
-        let mut values = vec![F::zero(); padded_nb_rows * SELECT_DIGEST_PREPROCESSED_COLS];
+        let mut values = vec![F::zero(); padded_nb_rows * SELECT_PREPROCESSED_COLS];
 
         // Generate the trace rows & corresponding records for each chunk of events in parallel.
-        let populate_len = instrs.len() * SELECT_DIGEST_PREPROCESSED_COLS;
-        values[..populate_len]
-            .par_chunks_mut(SELECT_DIGEST_PREPROCESSED_COLS)
-            .zip_eq(instrs)
-            .for_each(|(row, instr)| {
-                let SelectDigestInstr { addrs, mult1, mult2 } = instr;
-                let access: &mut SelectDigestPreprocessedCols<_> = row.borrow_mut();
-                *access = SelectDigestPreprocessedCols {
+        let populate_len = instrs.len() * SELECT_PREPROCESSED_COLS;
+        values[..populate_len].par_chunks_mut(SELECT_PREPROCESSED_COLS).zip_eq(instrs).for_each(
+            |(row, instr)| {
+                let SelectInstr { addrs, mult1, mult2 } = instr;
+                let access: &mut SelectPreprocessedCols<_> = row.borrow_mut();
+                *access = SelectPreprocessedCols {
                     is_real: F::one(),
                     addrs: addrs.to_owned(),
                     mult1: mult1.to_owned(),
                     mult2: mult2.to_owned(),
                 };
-            });
+            },
+        );
 
         // Convert the trace to a row major matrix.
-        Some(RowMajorMatrix::new(values, SELECT_DIGEST_PREPROCESSED_COLS))
+        Some(RowMajorMatrix::new(values, SELECT_PREPROCESSED_COLS))
     }
 
     fn generate_dependencies(&self, _: &Self::Record, _: &mut Self::Record) {
@@ -96,26 +94,26 @@ impl<F: PrimeField32> MachineAir<F> for SelectDigestChip {
     }
 
     fn generate_trace(&self, input: &Self::Record, _: &mut Self::Record) -> RowMajorMatrix<F> {
-        let events = &input.select_digest_events;
+        let events = &input.select_events;
         let nb_rows = events.len();
         let fixed_log2_rows = input.fixed_log2_rows(self);
         let padded_nb_rows = match fixed_log2_rows {
             Some(log2_rows) => 1 << log2_rows,
             None => next_power_of_two(nb_rows, None),
         };
-        let mut values = vec![F::zero(); padded_nb_rows * SELECT_DIGEST_COLS];
+        let mut values = vec![F::zero(); padded_nb_rows * SELECT_COLS];
 
         // Generate the trace rows & corresponding records for each chunk of events in parallel.
-        let populate_len = events.len() * SELECT_DIGEST_COLS;
-        values[..populate_len].par_chunks_mut(SELECT_DIGEST_COLS).zip_eq(events).for_each(
+        let populate_len = events.len() * SELECT_COLS;
+        values[..populate_len].par_chunks_mut(SELECT_COLS).zip_eq(events).for_each(
             |(row, &vals)| {
-                let cols: &mut SelectDigestCols<_> = row.borrow_mut();
-                *cols = SelectDigestCols { vals };
+                let cols: &mut SelectCols<_> = row.borrow_mut();
+                *cols = SelectCols { vals };
             },
         );
 
         // Convert the trace to a row major matrix.
-        RowMajorMatrix::new(values, SELECT_DIGEST_COLS)
+        RowMajorMatrix::new(values, SELECT_COLS)
     }
 
     fn included(&self, _record: &Self::Record) -> bool {
@@ -123,17 +121,17 @@ impl<F: PrimeField32> MachineAir<F> for SelectDigestChip {
     }
 }
 
-impl<AB> Air<AB> for SelectDigestChip
+impl<AB> Air<AB> for SelectChip
 where
     AB: SP1RecursionAirBuilder + PairBuilder,
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
         let local = main.row_slice(0);
-        let local: &SelectDigestCols<AB::Var> = (*local).borrow();
+        let local: &SelectCols<AB::Var> = (*local).borrow();
         let prep = builder.preprocessed();
         let prep_local = prep.row_slice(0);
-        let prep_local: &SelectDigestPreprocessedCols<AB::Var> = (*prep_local).borrow();
+        let prep_local: &SelectPreprocessedCols<AB::Var> = (*prep_local).borrow();
 
         builder.receive_single(prep_local.addrs.bit, local.vals.bit, prep_local.is_real);
         builder.receive_single(prep_local.addrs.in1, local.vals.in1, prep_local.is_real);
@@ -170,15 +168,15 @@ mod tests {
         type F = BabyBear;
 
         let shard = ExecutionRecord {
-            select_digest_events: vec![
-                SelectDigestIo {
+            select_events: vec![
+                SelectIo {
                     bit: F::one(),
                     out1: F::from_canonical_u32(5),
                     out2: F::from_canonical_u32(3),
                     in1: F::from_canonical_u32(3),
                     in2: F::from_canonical_u32(5),
                 },
-                SelectDigestIo {
+                SelectIo {
                     bit: F::zero(),
                     out1: F::from_canonical_u32(5),
                     out2: F::from_canonical_u32(3),
@@ -188,13 +186,13 @@ mod tests {
             ],
             ..Default::default()
         };
-        let chip = SelectDigestChip;
+        let chip = SelectChip;
         let trace: RowMajorMatrix<F> = chip.generate_trace(&shard, &mut ExecutionRecord::default());
         println!("{:?}", trace.values)
     }
 
     #[test]
-    pub fn prove_select_digest() {
+    pub fn prove_select() {
         type SC = BabyBearPoseidon2;
         type F = <SC as StarkGenericConfig>::Val;
 
@@ -216,7 +214,7 @@ mod tests {
                     instr::mem_single(MemAccessKind::Write, 1, a[0], bit),
                     instr::mem_single(MemAccessKind::Write, 1, a[3], in1),
                     instr::mem_single(MemAccessKind::Write, 1, a[4], in2),
-                    instr::select_digest(1, 1, a[0], a[1], a[2], a[3], a[4]),
+                    instr::select(1, 1, a[0], a[1], a[2], a[3], a[4]),
                     instr::mem_single(MemAccessKind::Read, 1, a[1], out1),
                     instr::mem_single(MemAccessKind::Read, 1, a[2], out2),
                 ]
