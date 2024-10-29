@@ -17,10 +17,6 @@ hex = { version = "0.4.3", default-features = false, features = ["alloc"] }
 lazy_static = { version = "1.5.0", default-features = false }
 sp1-sdk = { workspace = true, optional = true }
 
-[[bin]]
-name = "load_bn254_vks"
-path = "scripts/load_bn254_vks.rs"
-
 [dev-dependencies]
 sp1-sdk = { workspace = true }
 num-bigint = "0.4.6"

@@ -7,6 +7,15 @@ to be generated using the [SP1 SDK](../sdk).
 
 Groth16 and Plonk proof verification are supported in `no-std` environments.
 
+### Pre-generated verification keys
+
+Verification keys for Groth16 and Plonk are stored in the [`bn254-vk`](./bn254-vk/) directory. These
+vkeys are used to verify all SP1 proofs.
+
+These vkeys are the same as those found locally in
+`~/.sp1/circuits/<circuit_name>/<version>/<circuit_name>_vk.bin`, and should be automatically
+updated after every release.
+
 ## Tests
 
 Run tests with the following command:
