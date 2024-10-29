@@ -2,6 +2,7 @@
 
 use sp1_curves::params::FieldParameters;
 use sp1_lib::bn254::Bn254Point;
+use sp1_lib::bn254::Bn254Scalar;
 sp1_zkvm::entrypoint!(main);
 
 // generator.
@@ -31,7 +32,10 @@ const C: [u8; 64] = [
     91, 156, 11, 180, 99, 158, 49, 117, 100, 8, 141, 124, 219, 79, 85, 41, 148, 72, 224, 190, 153,
     183, 42,
 ];
-
+pub fn scalar_mult(point: &Bn254Point, scalar: &[u8; 32]) -> Bn254Point {
+    let scalar_value = Bn254Scalar::from_bytes(scalar).expect("Valid scalar bytes");
+    point * scalar_value
+}
 pub fn main() {
     common_test_utils::weierstrass_add::test_weierstrass_add::<Bn254Point, { sp1_lib::bn254::N }>(
         &A,
