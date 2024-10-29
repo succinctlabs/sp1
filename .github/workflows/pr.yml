@@ -52,7 +52,6 @@ jobs:
         env:
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
           RUST_BACKTRACE: 1
-          # FRI_QUERIES: 1
           SP1_DEV: 1
 
   test-arm:
@@ -89,7 +88,6 @@ jobs:
         env:
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
           RUST_BACKTRACE: 1
-          # FRI_QUERIES: 1
           SP1_DEV: 1
 
   lint:
@@ -406,7 +404,7 @@ jobs:
           message: typos
 
   check-verifier-no-std:
-    name: check verifier no_std
+    name: Check Verifier `no_std`
     runs-on: ubuntu-latest
     timeout-minutes: 10
     strategy:

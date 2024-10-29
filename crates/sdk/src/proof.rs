@@ -78,9 +78,8 @@ impl SP1ProofWithPublicValues {
         match &self.proof {
             SP1Proof::Plonk(plonk_proof) => {
                 if plonk_proof.encoded_proof.is_empty() {
-                    // If the proof is empty, then we are working with a mock proof.
-                    // The mock SP1 verifier expects an empty byte array for verification,
-                    // so we return empty bytes for compatibility with the mock verifier.
+                    // If the proof is empty, then this is a mock proof. The mock SP1 verifier
+                    // expects an empty byte array for verification, so return an empty byte array.
                     return Vec::new();
                 }
 
