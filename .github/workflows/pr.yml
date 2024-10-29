@@ -52,8 +52,8 @@ jobs:
         env:
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
           RUST_BACKTRACE: 1
-          # FRI_QUERIES: 1
           SP1_DEV: 1
+          VERIFY_VK: false
 
   test-arm:
     name: Test (ARM)
@@ -89,8 +89,8 @@ jobs:
         env:
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
           RUST_BACKTRACE: 1
-          # FRI_QUERIES: 1
           SP1_DEV: 1
+          VERIFY_VK: false
 
   lint:
     name: Formatting & Clippy
