@@ -1,10 +1,9 @@
 use alloc::{string::ToString, vec, vec::Vec};
 use bn::{pairing_batch, AffineG1, Fr, G1, G2};
-use rand::rngs::OsRng;
 
 use crate::{error::Error, plonk::transcript::Transcript};
 
-use super::{converter::g1_to_bytes, error::PlonkError, GAMMA};
+use super::{converter::g1_to_bytes, error::PlonkError, GAMMA, V};
 
 pub(crate) type Digest = AffineG1;
 
@@ -48,23 +47,32 @@ fn derive_gamma(
     digests: Vec<Digest>,
     claimed_values: Vec<Fr>,
     data_transcript: Option<Vec<u8>>,
+    global_transcript: &mut Transcript,
 ) -> Result<Fr, PlonkError> {
     let mut transcript = Transcript::new(Some([GAMMA.to_string()].to_vec()))?;
     transcript.bind(GAMMA, &point.into_u256().to_bytes_be())?;
+    global_transcript.bind(V, &point.into_u256().to_bytes_be())?;
 
     for digest in digests.iter() {
         transcript.bind(GAMMA, &g1_to_bytes(digest)?)?;
+        global_transcript.bind(V, &g1_to_bytes(digest)?)?;
     }
 
     for claimed_value in claimed_values.iter() {
         transcript.bind(GAMMA, &claimed_value.into_u256().to_bytes_be())?;
+        global_transcript.bind(V, &claimed_value.into_u256().to_bytes_be())?;
     }
 
     if let Some(data_transcript) = data_transcript {
         transcript.bind(GAMMA, &data_transcript)?;
+        global_transcript.bind(V, &data_transcript)?;
     }
 
     let gamma_byte = transcript.compute_challenge(GAMMA)?;
+    // As I understand, it's good practice (maybe even absolutely necessary) to associate a unique
+    // name with every fs challenge. Should I just get a dummy challenge here?
+    let _ = global_transcript.compute_challenge(V)?;
+
     let x = Fr::from_bytes_be_mod_order(gamma_byte.as_slice())
         .map_err(|e| PlonkError::GeneralError(Error::Field(e)))?;
 
@@ -89,6 +97,7 @@ pub(crate) fn fold_proof(
     batch_opening_proof: &BatchOpeningProof,
     point: &Fr,
     data_transcript: Option<Vec<u8>>,
+    global_transcript: &mut Transcript,
 ) -> Result<(OpeningProof, AffineG1), PlonkError> {
     let nb_digests = digests.len();
 
@@ -101,6 +110,7 @@ pub(crate) fn fold_proof(
         digests.clone(),
         batch_opening_proof.claimed_values.clone(),
         data_transcript,
+        global_transcript,
     )?;
 
     let mut gammai = vec![Fr::zero(); nb_digests];
@@ -126,6 +136,7 @@ pub(crate) fn batch_verify_multi_points(
     digests: Vec<Digest>,
     proofs: Vec<OpeningProof>,
     points: Vec<Fr>,
+    u: Fr,
     vk: &KZGVerifyingKey,
 ) -> Result<(), PlonkError> {
     let nb_digests = digests.len();
@@ -143,11 +154,11 @@ pub(crate) fn batch_verify_multi_points(
     if nb_digests == 1 {
         todo!();
     }
-    let mut rng = OsRng;
+
     let mut random_numbers = Vec::with_capacity(nb_digests);
     random_numbers.push(Fr::one());
-    for _ in 1..nb_digests {
-        random_numbers.push(Fr::random(&mut rng));
+    for i in 1..nb_digests {
+        random_numbers.push(u * random_numbers[i - 1]);
     }
 
     let mut quotients = Vec::with_capacity(nb_proofs);

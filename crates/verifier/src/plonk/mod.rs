@@ -2,6 +2,8 @@ pub(crate) const GAMMA: &str = "gamma";
 pub(crate) const BETA: &str = "beta";
 pub(crate) const ALPHA: &str = "alpha";
 pub(crate) const ZETA: &str = "zeta";
+pub(crate) const U: &str = "u";
+pub(crate) const V: &str = "v";
 
 mod converter;
 mod hash_to_field;

@@ -4,7 +4,9 @@ use core::hash::Hasher;
 
 use crate::{error::Error, plonk::transcript::Transcript};
 
-use super::{converter::g1_to_bytes, error::PlonkError, kzg, PlonkProof, ALPHA, BETA, GAMMA, ZETA};
+use super::{
+    converter::g1_to_bytes, error::PlonkError, kzg, PlonkProof, ALPHA, BETA, GAMMA, U, V, ZETA,
+};
 #[derive(Debug)]
 pub(crate) struct PlonkVerifyingKey {
     pub(crate) size: usize,
@@ -56,7 +58,15 @@ pub(crate) fn verify_plonk_raw(
 
     // Initialize the Fiat-Shamir transcript
     let mut fs = Transcript::new(Some(
-        [GAMMA.to_string(), BETA.to_string(), ALPHA.to_string(), ZETA.to_string()].to_vec(),
+        [
+            GAMMA.to_string(),
+            BETA.to_string(),
+            ALPHA.to_string(),
+            ZETA.to_string(),
+            V.to_string(),
+            U.to_string(),
+        ]
+        .to_vec(),
     ))?;
 
     // Bind public data to the transcript
@@ -281,12 +291,16 @@ pub(crate) fn verify_plonk_raw(
     digests_to_fold[5] = vk.s[1];
 
     // Fold the proof
+    // Internally derives V.
     let (folded_proof, folded_digest) = kzg::fold_proof(
         digests_to_fold,
         &proof.batched_proof,
         &zeta,
         Some(zu.into_u256().to_bytes_be().to_vec()),
+        &mut fs,
     )?;
+
+    let u = derive_randomness(&mut fs, U, Some(vec![folded_digest, proof.z]))?;
 
     let shifted_zeta = zeta * vk.generator;
 
@@ -297,6 +311,7 @@ pub(crate) fn verify_plonk_raw(
         [folded_digest, proof.z].to_vec(),
         [folded_proof, proof.z_shifted_opening].to_vec(),
         [zeta, shifted_zeta].to_vec(),
+        u,
         &vk.kzg,
     )?;
 
