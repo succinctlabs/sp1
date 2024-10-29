@@ -680,8 +680,13 @@ where
             permutation_values,
             mut quotient_values,
         ) = if global_main_data.is_some() {
-            let [preprocessed_values, global_main_values, local_main_values, permutation_values, quotient_values] =
-                openings.try_into().unwrap();
+            let [
+                preprocessed_values,
+                global_main_values,
+                local_main_values,
+                permutation_values,
+                quotient_values,
+            ] = openings.try_into().unwrap();
             (
                 preprocessed_values,
                 Some(global_main_values),
@@ -839,23 +844,24 @@ where
         // Observe the challenges for each segment.
         tracing::debug_span!("observing all challenges").in_scope(|| {
             global_data.iter().zip_eq(records.iter()).for_each(|(global_data, record)| {
-                if contains_global_bus {
-                    challenger.observe(
-                        global_data
-                            .as_ref()
-                            .expect("must have a global commitment")
-                            .main_commit
-                            .clone(),
-                    );
-                }
-                challenger.observe_slice(&record.public_values::<SC::Val>()[0..self.num_pv_elts()]);
+                // if contains_global_bus {
+                //     challenger.observe(
+                //         global_data
+                //             .as_ref()
+                //             .expect("must have a global commitment")
+                //             .main_commit
+                //             .clone(),
+                //     );
+                // }
+                // challenger.observe_slice(&record.public_values::<SC::Val>()[0..self.num_pv_elts()]);
             });
         });
 
         // Obtain the challenges used for the global permutation argument.
         let global_permutation_challenges: [SC::Challenge; 2] = array::from_fn(|_| {
             if contains_global_bus {
-                challenger.sample_ext_element()
+                SC::Challenge::zero()
+                // challenger.sample_ext_element()
             } else {
                 SC::Challenge::zero()
             }
