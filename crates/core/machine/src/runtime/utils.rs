@@ -19,7 +19,7 @@ macro_rules! assert_valid_memory_access {
                     assert!($addr > 40);
                 }
                 _ => {
-                    Register::from_u8($addr);
+                    Register::from_u32($addr);
                 }
             };
         }
@@ -69,7 +69,11 @@ impl<'a> Runtime<'a> {
         );
 
         if !self.unconstrained && self.state.global_clk % 10_000_000 == 0 {
-            log::info!("clk = {} pc = 0x{:x?}", self.state.global_clk, self.state.pc);
+            log::info!(
+                "clk = {} pc = 0x{:x?}",
+                self.state.global_clk,
+                self.state.pc
+            );
         }
     }
 }

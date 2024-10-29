@@ -6221,7 +6221,6 @@ dependencies = [
  "tracing-forest",
  "tracing-subscriber",
  "typenum",
- "vec_map",
  "web-time",
 ]
 

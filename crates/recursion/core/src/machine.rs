@@ -48,14 +48,14 @@ pub enum RecursionAir<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: u
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct RecursionAirEventCount {
-    pub mem_const_events: usize,
-    pub mem_var_events: usize,
-    pub base_alu_events: usize,
-    pub ext_alu_events: usize,
-    pub poseidon2_wide_events: usize,
-    pub fri_fold_events: usize,
-    pub select_events: usize,
-    pub exp_reverse_bits_len_events: usize,
+    mem_const_events: usize,
+    mem_var_events: usize,
+    base_alu_events: usize,
+    ext_alu_events: usize,
+    poseidon2_wide_events: usize,
+    fri_fold_events: usize,
+    select_events: usize,
+    exp_reverse_bits_len_events: usize,
 }
 
 impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAir<F, DEGREE> {

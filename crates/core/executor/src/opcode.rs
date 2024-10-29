@@ -100,7 +100,7 @@ pub enum Opcode {
     /// rd ← rs1 % rs2 (unsigned), pc ← pc + 4
     REMU = 37,
     /// Unimplemented instruction.
-    UNIMP = 38,
+    UNIMP = 39,
 }
 
 /// Byte Opcode.

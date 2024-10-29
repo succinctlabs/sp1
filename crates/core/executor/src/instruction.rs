@@ -15,7 +15,7 @@ pub struct Instruction {
     /// The operation to execute.
     pub opcode: Opcode,
     /// The first operand.
-    pub op_a: u8,
+    pub op_a: u32,
     /// The second operand.
     pub op_b: u32,
     /// The third operand.
@@ -31,7 +31,7 @@ impl Instruction {
     #[must_use]
     pub const fn new(
         opcode: Opcode,
-        op_a: u8,
+        op_a: u32,
         op_b: u32,
         op_c: u32,
         imm_b: bool,

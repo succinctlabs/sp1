@@ -43,7 +43,7 @@ pub struct SP1DeferredVerifier<C, SC, A> {
     _phantom: std::marker::PhantomData<(C, SC, A)>,
 }
 
-#[derive(Debug, Clone, Hash)]
+#[derive(Debug, Clone)]
 pub struct SP1DeferredShape {
     inner: SP1CompressShape,
     height: usize,

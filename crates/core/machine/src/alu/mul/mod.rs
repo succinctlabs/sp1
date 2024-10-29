@@ -35,24 +35,19 @@ use core::{
     mem::size_of,
 };
 
-use hashbrown::HashMap;
 use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::{AbstractField, PrimeField};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
-use p3_maybe_rayon::prelude::{ParallelBridge, ParallelIterator, ParallelSlice};
+use p3_maybe_rayon::prelude::{ParallelIterator, ParallelSlice};
 use sp1_core_executor::{
-    events::{AluEvent, ByteLookupEvent, ByteRecord},
+    events::{ByteLookupEvent, ByteRecord},
     ByteOpcode, ExecutionRecord, Opcode, Program,
 };
 use sp1_derive::AlignedBorrow;
 use sp1_primitives::consts::WORD_SIZE;
-use sp1_stark::{air::MachineAir, Word};
+use sp1_stark::{air::MachineAir, MachineRecord, Word};
 
-use crate::{
-    air::SP1CoreAirBuilder,
-    alu::mul::utils::get_msb,
-    utils::{next_power_of_two, zeroed_f_vec},
-};
+use crate::{air::SP1CoreAirBuilder, alu::mul::utils::get_msb, utils::pad_rows_fixed};
 
 /// The number of main trace columns for `MulChip`.
 pub const NUM_MUL_COLS: usize = size_of::<MulCols<u8>>();
@@ -136,54 +131,148 @@ impl<F: PrimeField> MachineAir<F> for MulChip {
     fn generate_trace(
         &self,
         input: &ExecutionRecord,
-        _: &mut ExecutionRecord,
+        output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
-        // Generate the trace rows for each event.
-        let nb_rows = input.mul_events.len();
-        let size_log2 = input.fixed_log2_rows::<F, _>(self);
-        let padded_nb_rows = next_power_of_two(nb_rows, size_log2);
-        let mut values = zeroed_f_vec(padded_nb_rows * NUM_MUL_COLS);
-        let chunk_size = std::cmp::max((nb_rows + 1) / num_cpus::get(), 1);
+        let mul_events = input.mul_events.clone();
+        // Compute the chunk size based on the number of events and the number of CPUs.
+        let chunk_size = std::cmp::max(mul_events.len() / num_cpus::get(), 1);
 
-        values.chunks_mut(chunk_size * NUM_MUL_COLS).enumerate().par_bridge().for_each(
-            |(i, rows)| {
-                rows.chunks_mut(NUM_MUL_COLS).enumerate().for_each(|(j, row)| {
-                    let idx = i * chunk_size + j;
-                    let cols: &mut MulCols<F> = row.borrow_mut();
-
-                    if idx < nb_rows {
-                        let mut byte_lookup_events = Vec::new();
-                        let event = &input.mul_events[idx];
-                        self.event_to_row(event, cols, &mut byte_lookup_events);
-                    }
-                    cols.nonce = F::from_canonical_usize(idx);
-                });
-            },
-        );
-
-        // Convert the trace to a row major matrix.
-
-        RowMajorMatrix::new(values, NUM_MUL_COLS)
-    }
-
-    fn generate_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
-        let chunk_size = std::cmp::max(input.mul_events.len() / num_cpus::get(), 1);
-
-        let blu_batches = input
-            .mul_events
+        // Generate the trace rows & corresponding records for each chunk of events in parallel.
+        let rows_and_records = mul_events
             .par_chunks(chunk_size)
             .map(|events| {
-                let mut blu: HashMap<u32, HashMap<ByteLookupEvent, usize>> = HashMap::new();
-                events.iter().for_each(|event| {
-                    let mut row = [F::zero(); NUM_MUL_COLS];
-                    let cols: &mut MulCols<F> = row.as_mut_slice().borrow_mut();
-                    self.event_to_row(event, cols, &mut blu);
-                });
-                blu
+                let mut record = ExecutionRecord::default();
+                let rows = events
+                    .iter()
+                    .map(|event| {
+                        // Ensure that the opcode is MUL, MULHU, MULH, or MULHSU.
+                        assert!(
+                            event.opcode == Opcode::MUL
+                                || event.opcode == Opcode::MULHU
+                                || event.opcode == Opcode::MULH
+                                || event.opcode == Opcode::MULHSU
+                        );
+                        let mut row = [F::zero(); NUM_MUL_COLS];
+                        let cols: &mut MulCols<F> = row.as_mut_slice().borrow_mut();
+
+                        let a_word = event.a.to_le_bytes();
+                        let b_word = event.b.to_le_bytes();
+                        let c_word = event.c.to_le_bytes();
+
+                        let mut b = b_word.to_vec();
+                        let mut c = c_word.to_vec();
+
+                        // Handle b and c's signs.
+                        {
+                            let b_msb = get_msb(b_word);
+                            cols.b_msb = F::from_canonical_u8(b_msb);
+                            let c_msb = get_msb(c_word);
+                            cols.c_msb = F::from_canonical_u8(c_msb);
+
+                            // If b is signed and it is negative, sign extend b.
+                            if (event.opcode == Opcode::MULH || event.opcode == Opcode::MULHSU)
+                                && b_msb == 1
+                            {
+                                cols.b_sign_extend = F::one();
+                                b.resize(PRODUCT_SIZE, BYTE_MASK);
+                            }
+
+                            // If c is signed and it is negative, sign extend c.
+                            if event.opcode == Opcode::MULH && c_msb == 1 {
+                                cols.c_sign_extend = F::one();
+                                c.resize(PRODUCT_SIZE, BYTE_MASK);
+                            }
+
+                            // Insert the MSB lookup events.
+                            {
+                                let words = [b_word, c_word];
+                                let mut blu_events: Vec<ByteLookupEvent> = vec![];
+                                for word in words.iter() {
+                                    let most_significant_byte = word[WORD_SIZE - 1];
+                                    blu_events.push(ByteLookupEvent {
+                                        shard: event.shard,
+                                        opcode: ByteOpcode::MSB,
+                                        a1: get_msb(*word) as u16,
+                                        a2: 0,
+                                        b: most_significant_byte,
+                                        c: 0,
+                                    });
+                                }
+                                record.add_byte_lookup_events(blu_events);
+                            }
+                        }
+
+                        let mut product = [0u32; PRODUCT_SIZE];
+                        for i in 0..b.len() {
+                            for j in 0..c.len() {
+                                if i + j < PRODUCT_SIZE {
+                                    product[i + j] += (b[i] as u32) * (c[j] as u32);
+                                }
+                            }
+                        }
+
+                        // Calculate the correct product using the `product` array. We store the
+                        // correct carry value for verification.
+                        let base = (1 << BYTE_SIZE) as u32;
+                        let mut carry = [0u32; PRODUCT_SIZE];
+                        for i in 0..PRODUCT_SIZE {
+                            carry[i] = product[i] / base;
+                            product[i] %= base;
+                            if i + 1 < PRODUCT_SIZE {
+                                product[i + 1] += carry[i];
+                            }
+                            cols.carry[i] = F::from_canonical_u32(carry[i]);
+                        }
+
+                        cols.product = product.map(F::from_canonical_u32);
+                        cols.a = Word(a_word.map(F::from_canonical_u8));
+                        cols.b = Word(b_word.map(F::from_canonical_u8));
+                        cols.c = Word(c_word.map(F::from_canonical_u8));
+                        cols.is_real = F::one();
+                        cols.is_mul = F::from_bool(event.opcode == Opcode::MUL);
+                        cols.is_mulh = F::from_bool(event.opcode == Opcode::MULH);
+                        cols.is_mulhu = F::from_bool(event.opcode == Opcode::MULHU);
+                        cols.is_mulhsu = F::from_bool(event.opcode == Opcode::MULHSU);
+                        cols.shard = F::from_canonical_u32(event.shard);
+
+                        // Range check.
+                        {
+                            record.add_u16_range_checks(event.shard, &carry.map(|x| x as u16));
+                            record.add_u8_range_checks(event.shard, &product.map(|x| x as u8));
+                        }
+                        row
+                    })
+                    .collect::<Vec<_>>();
+                (rows, record)
             })
             .collect::<Vec<_>>();
 
-        output.add_sharded_byte_lookup_events(blu_batches.iter().collect::<Vec<_>>());
+        // Generate the trace rows for each event.
+        let mut rows: Vec<[F; NUM_MUL_COLS]> = vec![];
+        for mut row_and_record in rows_and_records {
+            rows.extend(row_and_record.0);
+            output.append(&mut row_and_record.1);
+        }
+
+        // Pad the trace to a power of two depending on the proof shape in `input`.
+        pad_rows_fixed(
+            &mut rows,
+            || [F::zero(); NUM_MUL_COLS],
+            input.fixed_log2_rows::<F, _>(self),
+        );
+
+        // Convert the trace to a row major matrix.
+        let mut trace =
+            RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_MUL_COLS);
+
+        // Write the nonces to the trace.
+        for i in 0..trace.height() {
+            let cols: &mut MulCols<F> =
+                trace.values[i * NUM_MUL_COLS..(i + 1) * NUM_MUL_COLS].borrow_mut();
+            cols.nonce = F::from_canonical_usize(i);
+        }
+
+        trace
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
@@ -191,100 +280,6 @@ impl<F: PrimeField> MachineAir<F> for MulChip {
             shape.included::<F, _>(self)
         } else {
             !shard.mul_events.is_empty()
-        }
-    }
-}
-
-impl MulChip {
-    /// Create a row from an event.
-    fn event_to_row<F: PrimeField>(
-        &self,
-        event: &AluEvent,
-        cols: &mut MulCols<F>,
-        blu: &mut impl ByteRecord,
-    ) {
-        let a_word = event.a.to_le_bytes();
-        let b_word = event.b.to_le_bytes();
-        let c_word = event.c.to_le_bytes();
-
-        let mut b = b_word.to_vec();
-        let mut c = c_word.to_vec();
-
-        // Handle b and c's signs.
-        {
-            let b_msb = get_msb(b_word);
-            cols.b_msb = F::from_canonical_u8(b_msb);
-            let c_msb = get_msb(c_word);
-            cols.c_msb = F::from_canonical_u8(c_msb);
-
-            // If b is signed and it is negative, sign extend b.
-            if (event.opcode == Opcode::MULH || event.opcode == Opcode::MULHSU) && b_msb == 1 {
-                cols.b_sign_extend = F::one();
-                b.resize(PRODUCT_SIZE, BYTE_MASK);
-            }
-
-            // If c is signed and it is negative, sign extend c.
-            if event.opcode == Opcode::MULH && c_msb == 1 {
-                cols.c_sign_extend = F::one();
-                c.resize(PRODUCT_SIZE, BYTE_MASK);
-            }
-
-            // Insert the MSB lookup events.
-            {
-                let words = [b_word, c_word];
-                let mut blu_events: Vec<ByteLookupEvent> = vec![];
-                for word in words.iter() {
-                    let most_significant_byte = word[WORD_SIZE - 1];
-                    blu_events.push(ByteLookupEvent {
-                        shard: event.shard,
-                        opcode: ByteOpcode::MSB,
-                        a1: get_msb(*word) as u16,
-                        a2: 0,
-                        b: most_significant_byte,
-                        c: 0,
-                    });
-                }
-                blu.add_byte_lookup_events(blu_events);
-            }
-        }
-
-        let mut product = [0u32; PRODUCT_SIZE];
-        for i in 0..b.len() {
-            for j in 0..c.len() {
-                if i + j < PRODUCT_SIZE {
-                    product[i + j] += (b[i] as u32) * (c[j] as u32);
-                }
-            }
-        }
-
-        // Calculate the correct product using the `product` array. We store the
-        // correct carry value for verification.
-        let base = (1 << BYTE_SIZE) as u32;
-        let mut carry = [0u32; PRODUCT_SIZE];
-        for i in 0..PRODUCT_SIZE {
-            carry[i] = product[i] / base;
-            product[i] %= base;
-            if i + 1 < PRODUCT_SIZE {
-                product[i + 1] += carry[i];
-            }
-            cols.carry[i] = F::from_canonical_u32(carry[i]);
-        }
-
-        cols.product = product.map(F::from_canonical_u32);
-        cols.a = Word(a_word.map(F::from_canonical_u8));
-        cols.b = Word(b_word.map(F::from_canonical_u8));
-        cols.c = Word(c_word.map(F::from_canonical_u8));
-        cols.is_real = F::one();
-        cols.is_mul = F::from_bool(event.opcode == Opcode::MUL);
-        cols.is_mulh = F::from_bool(event.opcode == Opcode::MULH);
-        cols.is_mulhu = F::from_bool(event.opcode == Opcode::MULHU);
-        cols.is_mulhsu = F::from_bool(event.opcode == Opcode::MULHSU);
-        cols.shard = F::from_canonical_u32(event.shard);
-
-        // Range check.
-        {
-            blu.add_u16_range_checks(event.shard, &carry.map(|x| x as u16));
-            blu.add_u8_range_checks(event.shard, &product.map(|x| x as u8));
         }
     }
 }

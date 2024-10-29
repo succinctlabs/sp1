@@ -17,9 +17,6 @@ use sp1_recursion_core::*;
 
 use crate::prelude::*;
 
-/// The number of instructions to preallocate in a recursion program
-const PREALLOC_INSTRUCTIONS: usize = 10000000;
-
 /// The backend for the circuit compiler.
 #[derive(Debug, Clone, Default)]
 pub struct AsmCompiler<C: Config> {
@@ -514,7 +511,7 @@ where
         // Compile each IR instruction into a list of ASM instructions, then combine them.
         // This step also counts the number of times each address is read from.
         let (mut instrs, traces) = tracing::debug_span!("compile_one loop").in_scope(|| {
-            let mut instrs = Vec::with_capacity(PREALLOC_INSTRUCTIONS);
+            let mut instrs = Vec::with_capacity(operations.vec.len());
             let mut traces = vec![];
             if debug_mode {
                 let mut span_builder =
