@@ -70,14 +70,14 @@ pub enum Register {
 }
 
 impl Register {
-    /// Create a new register from a u8.
+    /// Create a new register from a u32.
     ///
     /// # Panics
     ///
     /// This function will panic if the register is invalid.
     #[inline]
     #[must_use]
-    pub fn from_u8(value: u8) -> Self {
+    pub fn from_u32(value: u32) -> Self {
         match value {
             0 => Register::X0,
             1 => Register::X1,

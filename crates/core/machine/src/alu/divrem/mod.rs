@@ -279,19 +279,11 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
                 // Set the `alu_event` flags.
                 cols.abs_c_alu_event = cols.c_neg * cols.is_real;
                 cols.abs_c_alu_event_nonce = F::from_canonical_u32(
-                    input
-                        .nonce_lookup
-                        .get(event.sub_lookups[4].0 as usize)
-                        .copied()
-                        .unwrap_or_default(),
+                    input.nonce_lookup.get(&event.sub_lookups[4]).copied().unwrap_or_default(),
                 );
                 cols.abs_rem_alu_event = cols.rem_neg * cols.is_real;
                 cols.abs_rem_alu_event_nonce = F::from_canonical_u32(
-                    input
-                        .nonce_lookup
-                        .get(event.sub_lookups[5].0 as usize)
-                        .copied()
-                        .unwrap_or_default(),
+                    input.nonce_lookup.get(&event.sub_lookups[5]).copied().unwrap_or_default(),
                 );
 
                 // Insert the MSB lookup events.
@@ -352,24 +344,16 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
                 // Insert the necessary multiplication & LT events.
                 {
                     cols.lower_nonce = F::from_canonical_u32(
-                        input
-                            .nonce_lookup
-                            .get(event.sub_lookups[0].0 as usize)
-                            .copied()
-                            .unwrap_or_default(),
+                        input.nonce_lookup.get(&event.sub_lookups[0]).copied().unwrap_or_default(),
                     );
                     cols.upper_nonce = F::from_canonical_u32(
-                        input
-                            .nonce_lookup
-                            .get(event.sub_lookups[1].0 as usize)
-                            .copied()
-                            .unwrap_or_default(),
+                        input.nonce_lookup.get(&event.sub_lookups[1]).copied().unwrap_or_default(),
                     );
                     if is_signed_operation(event.opcode) {
                         cols.abs_nonce = F::from_canonical_u32(
                             input
                                 .nonce_lookup
-                                .get(event.sub_lookups[2].0 as usize)
+                                .get(&event.sub_lookups[2])
                                 .copied()
                                 .unwrap_or_default(),
                         );
@@ -377,7 +361,7 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
                         cols.abs_nonce = F::from_canonical_u32(
                             input
                                 .nonce_lookup
-                                .get(event.sub_lookups[3].0 as usize)
+                                .get(&event.sub_lookups[3])
                                 .copied()
                                 .unwrap_or_default(),
                         );
