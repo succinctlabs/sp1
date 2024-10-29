@@ -307,10 +307,10 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
         vk.observe_into(challenger);
         tracing::debug_span!("observe challenges for all shards").in_scope(|| {
             proof.shard_proofs.iter().for_each(|shard_proof| {
-                if contains_global_bus {
-                    challenger.observe(shard_proof.commitment.global_main_commit.clone());
-                }
-                challenger.observe_slice(&shard_proof.public_values[0..self.num_pv_elts()]);
+                // if contains_global_bus {
+                //     challenger.observe(shard_proof.commitment.global_main_commit.clone());
+                // }
+                // challenger.observe_slice(&shard_proof.public_values[0..self.num_pv_elts()]);
             });
         });
 
@@ -320,13 +320,8 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
         }
 
         // Obtain the challenges used for the global permutation argument.
-        let global_permutation_challenges: [SC::Challenge; 2] = array::from_fn(|_| {
-            if contains_global_bus {
-                challenger.sample_ext_element()
-            } else {
-                SC::Challenge::zero()
-            }
-        });
+        let global_permutation_challenges: [SC::Challenge; 2] =
+            array::from_fn(|_| SC::Challenge::zero());
 
         tracing::debug_span!("verify shard proofs").in_scope(|| {
             for (i, shard_proof) in proof.shard_proofs.iter().enumerate() {

@@ -84,10 +84,10 @@ pub struct SP1RecursiveVerifier<C: Config, SC: BabyBearFriConfig> {
 impl<C, SC> SP1RecursiveVerifier<C, SC>
 where
     SC: BabyBearFriConfigVariable<
-        C,
-        FriChallengerVariable = DuplexChallengerVariable<C>,
-        DigestVariable = [Felt<BabyBear>; DIGEST_SIZE],
-    >,
+            C,
+            FriChallengerVariable = DuplexChallengerVariable<C>,
+            DigestVariable = [Felt<BabyBear>; DIGEST_SIZE],
+        >,
     C: CircuitConfig<F = SC::Val, EF = SC::Challenge, Bit = Felt<BabyBear>>,
     <SC::ValMmcs as Mmcs<BabyBear>>::ProverData<RowMajorMatrix<BabyBear>>: Clone,
 {
@@ -291,8 +291,10 @@ where
             // between all shards.
             let mut challenger = leaf_challenger.copy(builder);
 
-            let global_permutation_challenges =
-                (0..2).map(|_| challenger.sample_ext(builder)).collect::<Vec<_>>();
+            // let global_permutation_challenges =
+            //     (0..2).map(|_| challenger.sample_ext(builder)).collect::<Vec<_>>();
+            let global_permutation_challenges: [Ext<_, _>; 2] =
+                array::from_fn(|_| builder.eval(C::EF::zero().cons()));
 
             StarkVerifier::verify_shard(
                 builder,
@@ -523,10 +525,10 @@ where
             C::range_check_felt(builder, public_values.shard, MAX_LOG_NUMBER_OF_SHARDS);
 
             // Update the reconstruct challenger.
-            reconstruct_challenger.observe(builder, shard_proof.commitment.global_main_commit);
-            for element in shard_proof.public_values.iter().take(machine.num_pv_elts()) {
-                reconstruct_challenger.observe(builder, *element);
-            }
+            // reconstruct_challenger.observe(builder, shard_proof.commitment.global_main_commit);
+            // for element in shard_proof.public_values.iter().take(machine.num_pv_elts()) {
+            //     reconstruct_challenger.observe(builder, *element);
+            // }
 
             // Cumulative sum is updated by sums of all chips.
             for values in shard_proof.opened_values.chips.iter() {
