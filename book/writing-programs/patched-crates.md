@@ -78,17 +78,33 @@ Apply the following patches based on what crates are in your dependencies.
 
 - `ed25519-dalek`
 
+  If using `ed25519-dalek` version `2.0` or later, you can patch it with the following:
+
   ```toml
-  ed25519-dalek = { git = "https://github.com/sp1-patches/curve25519-dalek", tag = "ed25519_dalek" }
+  curve25519-dalek = { git = "https://github.com/sp1-patches/curve25519-dalek", tag = "curve25519_dalek-v4.1.3-patch-v1" }
   ```
 
-  Note: The curve operations occur inside of the `curve25519-dalek` crate.
+  If using `ed25519-dalek` version `1.0`, you can patch it with the following:
+
+  ```toml
+  curve25519-dalek = { git = "https://github.com/sp1-patches/curve25519-dalek", tag = "curve25519_dalek-v3.2.0-patch-v1" }
+  ```
+
+  Note: We need to patch the underlying Ed25519 curve operations in the `curve25519-dalek` crate. `ed25519-dalek` 
+  version `2.0` and later use `curve25519-dalek` version `4.1.3`, while `1.0` uses `3.2.0`.
 
 - `curve25519-dalek`
 
   ```toml
-  curve25519-dalek = { git = "https://github.com/sp1-patches/curve25519-dalek-ng", branch = "patch-v4.1.3" }
+  curve25519-dalek = { git = "https://github.com/sp1-patches/curve25519-dalek", tag = "curve25519_dalek-v4.1.3-patch-v1" }
   ```
+
+- `curve25519-dalek-ng`
+
+  ```toml
+  curve25519-dalek-ng = { git = "https://github.com/sp1-patches/curve25519-dalek-ng", tag = "curve25519_dalek_ng-v4.1.1-patch-v1" }
+  ```
+
 
 ## Secp256k1 Acceleration
 
@@ -138,7 +154,7 @@ Note: The operations `run-add`, `run-mul`, and `run-pair` are from the `revm` cr
 
 To accelerate [revm](https://github.com/bluealloy/revm) in SP1 using the BN254 patched crate, replace the `substrate-bn` crate with the patched crate by adding the following to `crates/precompile/Cargo.toml`:
 
-```rust
+```toml
 bn = { git = "https://github.com/sp1-patches/bn", package = "substrate-bn", tag = "substrate_bn-v0.6.0-patch-v1" }
 ```
 
