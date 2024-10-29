@@ -8,6 +8,7 @@
     clippy::unnecessary_unwrap,
     clippy::default_constructed_unit_structs,
     clippy::box_default,
+    clippy::assign_op_pattern,
     deprecated,
     incomplete_features
 )]

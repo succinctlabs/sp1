@@ -6,3 +6,4 @@ pub mod mem;
 pub mod poseidon2_skinny;
 pub mod poseidon2_wide;
 pub mod public_values;
+pub mod select;

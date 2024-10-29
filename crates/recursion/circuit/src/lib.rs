@@ -1,9 +1,6 @@
 //! Copied from [`sp1_recursion_program`].
 
-use std::{
-    iter::{repeat, zip},
-    ops::{Add, Mul},
-};
+use std::iter::{repeat, zip};
 
 use challenger::{
     CanCopyChallenger, CanObserveVariable, DuplexChallengerVariable, FieldChallengerVariable,
@@ -587,29 +584,4 @@ impl<C: CircuitConfig<F = BabyBear, N = Bn254Fr, Bit = Var<Bn254Fr>>> BabyBearFr
         let vkey_hash = felts_to_bn254_var(builder, &public_values.sp1_vk_digest);
         builder.commit_vkey_hash_circuit(vkey_hash);
     }
-}
-
-pub fn select_chain<'a, C, R, S>(
-    builder: &'a mut Builder<C>,
-    should_swap: R,
-    first: impl IntoIterator<Item = S> + Clone + 'a,
-    second: impl IntoIterator<Item = S> + Clone + 'a,
-) -> impl Iterator<Item = S> + 'a
-where
-    C: Config,
-    R: Variable<C> + 'a,
-    S: Variable<C> + 'a,
-    <R as Variable<C>>::Expression: AbstractField
-        + Mul<<S as Variable<C>>::Expression, Output = <S as Variable<C>>::Expression>,
-    <S as Variable<C>>::Expression: Add<Output = <S as Variable<C>>::Expression>,
-{
-    let should_swap: <R as Variable<C>>::Expression = should_swap.into();
-    let one = <R as Variable<C>>::Expression::one();
-    let shouldnt_swap = one - should_swap.clone();
-
-    let id_branch =
-        first.clone().into_iter().chain(second.clone()).map(<S as Variable<C>>::Expression::from);
-    let swap_branch = second.into_iter().chain(first).map(<S as Variable<C>>::Expression::from);
-    zip(zip(id_branch, swap_branch), zip(repeat(shouldnt_swap), repeat(should_swap)))
-        .map(|((id_v, sw_v), (id_c, sw_c))| builder.eval(id_c * id_v + sw_c * sw_v))
 }

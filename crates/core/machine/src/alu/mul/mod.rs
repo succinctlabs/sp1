@@ -356,7 +356,7 @@ where
         for i in 0..PRODUCT_SIZE {
             for j in 0..PRODUCT_SIZE {
                 if i + j < PRODUCT_SIZE {
-                    m[i + j] += b[i].clone() * c[j].clone();
+                    m[i + j] = m[i + j].clone() + b[i].clone() * c[j].clone();
                 }
             }
         }

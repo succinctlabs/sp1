@@ -7,19 +7,20 @@ Under the hood, we use [precompiles](./precompiles.md) to achieve tremendous per
 
 ## Supported Libraries
 
-| Crate Name          | Repository                                                                            | Notes                                               |
-| ------------------- | ------------------------------------------------------------------------------------- | --------------------------------------------------- |
-| sha2                | [sp1-patches/RustCrypto-hashes](https://github.com/sp1-patches/RustCrypto-hashes)     | sha256                                              |
-| sha3                | [sp1-patches/RustCrypto-hashes](https://github.com/sp1-patches/RustCrypto-hashes)     | keccak256                                           |
-| bigint              | [sp1-patches/RustCrypto-bigint](https://github.com/sp1-patches/RustCrypto-bigint)     | bigint                                              |
-| tiny-keccak         | [sp1-patches/tiny-keccak](https://github.com/sp1-patches/tiny-keccak)                 | keccak256                                           |
-| ed25519-consensus   | [sp1-patches/ed25519-consensus](http://github.com/sp1-patches/ed25519-consensus)      | ed25519 verify                                      |
-| curve25519-dalek-ng | [sp1-patches/curve25519-dalek-ng](https://github.com/sp1-patches/curve25519-dalek-ng) | ed25519 verify                                      |
-| curve25519-dalek    | [sp1-patches/curve25519-dalek](https://github.com/sp1-patches/curve25519-dalek)       | ed25519 verify                                      |
-| ecdsa-core          | [sp1-patches/signatures](http://github.com/sp1-patches/signatures)                    | secp256k1 verify                                    |
-| secp256k1           | [sp1-patches/rust-secp256k1](http://github.com/sp1-patches/rust-secp256k1)            | secp256k1 verify                                    |
-| substrate-bn        | [sp1-patches/bn](https://github.com/sp1-patches/bn)                                   | BN254                                               |
-| substrate-bls12_381 | [sp1-patches/bls12_381](https://github.com/sp1-patches/bls12_381)                     | BLS12-381                                           |
+| Crate Name          | Repository                                                                            | Notes            | Versions              |
+|---------------------|---------------------------------------------------------------------------------------|------------------|-----------------------|
+| sha2                | [sp1-patches/RustCrypto-hashes](https://github.com/sp1-patches/RustCrypto-hashes)     | sha256           | 0.9.8, 0.10.6, 0.10.8 |
+| sha3                | [sp1-patches/RustCrypto-hashes](https://github.com/sp1-patches/RustCrypto-hashes)     | keccak256        | 0.9.8, 0.10.6, 0.10.8 |
+| bigint              | [sp1-patches/RustCrypto-bigint](https://github.com/sp1-patches/RustCrypto-bigint)     | bigint           | 0.5.5                 |
+| tiny-keccak         | [sp1-patches/tiny-keccak](https://github.com/sp1-patches/tiny-keccak)                 | keccak256        | 2.0.2                 |
+| curve25519-dalek    | [sp1-patches/curve25519-dalek](https://github.com/sp1-patches/curve25519-dalek)       | ed25519 verify   | 4.1.3, 3.2.0          |
+| curve25519-dalek-ng | [sp1-patches/curve25519-dalek-ng](https://github.com/sp1-patches/curve25519-dalek-ng) | ed25519 verify   | 4.1.1                 |
+| ed25519-consensus   | [sp1-patches/ed25519-consensus](http://github.com/sp1-patches/ed25519-consensus)      | ed25519 verify   | 2.1.0                 |
+| ed25519-dalek       | [sp1-patches/ed25519-dalek](http://github.com/sp1-patches/ed25519-dalek)              | ed25519 verify   | 1.0.1                 |
+| ecdsa-core          | [sp1-patches/signatures](http://github.com/sp1-patches/signatures)                    | secp256k1 verify | 0.16.8, 0.16.9        |
+| secp256k1           | [sp1-patches/rust-secp256k1](http://github.com/sp1-patches/rust-secp256k1)            | secp256k1 verify | 0.29.0, 0.29.1        |
+| substrate-bn        | [sp1-patches/bn](https://github.com/sp1-patches/bn)                                   | BN254            | 0.6.0                 |
+| bls12_381           | [sp1-patches/bls12_381](https://github.com/sp1-patches/bls12_381)                     | BLS12-381        | 0.8.0                 |
 
 ## Using Patched Crates
 
@@ -27,21 +28,21 @@ To use the patched libraries, you can use corresponding patch entries in your pr
 
 ```toml
 [patch.crates-io]
-sha2-v0-9-8 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", package = "sha2", branch = "patch-sha2-v0.9.8" }
-sha2-v0-10-6 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", package = "sha2", branch = "patch-sha2-v0.10.6" }
-sha2-v0-10-8 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", package = "sha2", branch = "patch-sha2-v0.10.8" }
-sha3-v0-9-8 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", package = "sha3", branch = "patch-sha3-v0.9.8" }
-sha3-v0-10-6 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", package = "sha3", branch = "patch-sha3-v0.10.6" }
-sha3-v0-10-8 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", package = "sha3", branch = "patch-sha3-v0.10.8" }
-crypto-bigint = { git = "https://github.com/sp1-patches/RustCrypto-bigint", branch = "patch-v0.5.5" }
-tiny-keccak = { git = "https://github.com/sp1-patches/tiny-keccak", branch = "patch-v2.0.2" }
-curve25519-dalek = { git = "https://github.com/sp1-patches/curve25519-dalek", branch = "patch-curve25519-v4.1.3" }
-curve25519-dalek-ng = { git = "https://github.com/sp1-patches/curve25519-dalek-ng", branch = "patch-v4.1.1" }
-ed25519-consensus = { git = "https://github.com/sp1-patches/ed25519-consensus", branch = "patch-v2.1.0" }
-ecdsa-core = { git = "https://github.com/sp1-patches/signatures", package = "ecdsa", branch = "patch-ecdsa-v0.16.9" }
-secp256k1 = { git = "https://github.com/sp1-patches/rust-secp256k1", branch = "patch-secp256k1-v0.29.0" }
-substrate-bn = { git = "https://github.com/sp1-patches/bn", branch = "patch-v0.6.0" }
-bls12_381 = { git = "https://github.com/sp1-patches/bls12_381", branch = "patch-v0.8.0" }
+sha2-v0-9-8 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", package = "sha2", tag = "sha2-v0.9.8-patch-v1" }
+sha2-v0-10-6 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", package = "sha2", tag = "sha2-v0.10.6-patch-v1" }
+sha2-v0-10-8 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", package = "sha2", tag = "sha2-v0.10.8-patch-v1" }
+sha3-v0-9-8 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", package = "sha3", tag = "sha3-v0.9.8-patch-v1" }
+sha3-v0-10-6 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", package = "sha3", tag = "sha3-v0.10.6-patch-v1" }
+sha3-v0-10-8 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", package = "sha3", tag = "sha3-v0.10.8-patch-v1" }
+crypto-bigint = { git = "https://github.com/sp1-patches/RustCrypto-bigint", tag = "crypto_bigint-v0.5.5-patch-v1" }
+tiny-keccak = { git = "https://github.com/sp1-patches/tiny-keccak", tag = "tiny_keccak-v2.0.2-patch-v1" }
+curve25519-dalek = { git = "https://github.com/sp1-patches/curve25519-dalek", tag = "curve25519_dalek-v4.1.3-patch-v1" }
+curve25519-dalek-ng = { git = "https://github.com/sp1-patches/curve25519-dalek-ng", tag = "curve25519_dalek_ng-v4.1.1-patch-v1" }
+ed25519-consensus = { git = "https://github.com/sp1-patches/ed25519-consensus", tag = "ed25519_consensus-v2.1.0-patch-v1" }
+ecdsa-core = { git = "https://github.com/sp1-patches/signatures", package = "ecdsa", tag = "ecdsa-v0.16.9-patch-v1" }
+secp256k1 = { git = "https://github.com/sp1-patches/rust-secp256k1", tag = "secp256k1-v0.29.0-patch-v1" }
+substrate-bn = { git = "https://github.com/sp1-patches/bn", tag = "substrate_bn-v0.6.0-patch-v1" }
+bls12_381 = { git = "https://github.com/sp1-patches/bls12_381", tag = "bls12_381-v0.8.0-patch-v1" }
 
 ```
 
@@ -50,7 +51,7 @@ repository in the patch section. For example:
 
 ```toml
 [patch."https://github.com/RustCrypto/hashes"]
-sha3 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", package = "sha3", branch = "patch-sha3-v0.10.8" }
+sha3 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", package = "sha3", tag = "sha3-v0.10.8-patch-v1"  }
 ```
 
 An example of using patched crates is available in our [Tendermint Example](https://github.com/succinctlabs/sp1/blob/main/examples/tendermint/program/Cargo.toml#L22-L25).
@@ -68,7 +69,7 @@ Apply the following patches based on what crates are in your dependencies.
 - `ed25519-consensus`
 
   ```toml
-  ed25519-consensus = { git = "https://github.com/sp1-patches/ed25519-consensus", branch = "patch-v2.1.0" }
+  ed25519-consensus = { git = "https://github.com/sp1-patches/ed25519-consensus", tag = "ed25519_consensus-v2.1.0-patch-v1" }
   ```
 
   Note: The curve operations for Ed25519 occur mainly inside of `curve25519-dalek-ng`, but the crate also exposes
@@ -77,15 +78,32 @@ Apply the following patches based on what crates are in your dependencies.
 
 - `ed25519-dalek`
 
+  If using `ed25519-dalek` version `2.1`, you can patch it with the following:
+
   ```toml
-  curve25519-dalek = { git = "https://github.com/sp1-patches/curve25519-dalek", branch = "patch-curve25519-v4.1.3" }
+  curve25519-dalek = { git = "https://github.com/sp1-patches/curve25519-dalek", tag = "curve25519_dalek-v4.1.3-patch-v1" }
   ```
 
-  Note: The curve operations occur inside of the `curve25519-dalek` crate.
+  If using `ed25519-dalek` version `1.0.1`, you can patch it with the following:
+
+  ```toml
+  ed25519-dalek = { git = "https://github.com/sp1-patches/ed25519-dalek", tag = "ed25519_dalek-v1.0.1-patch-v1" }
+  ```
+
+  Note: We need to patch the underlying Ed25519 curve operations in the `curve25519-dalek` crate. `ed25519-dalek`
+  version `2.1` uses `curve25519-dalek` version `4.1.3`, while `1.0.1` uses `3.2.0`. For version `2.1`, we patch
+  `curve25519-dalek` directly, while for version `1.0.1`, we patch `ed25519-dalek`.
 
 - `curve25519-dalek`
+
   ```toml
-  curve25519-dalek = { git = "https://github.com/sp1-patches/curve25519-dalek-ng", branch = "patch-v4.1.3" }
+  curve25519-dalek = { git = "https://github.com/sp1-patches/curve25519-dalek", tag = "curve25519_dalek-v4.1.3-patch-v1" }
+  ```
+
+- `curve25519-dalek-ng`
+
+  ```toml
+  curve25519-dalek-ng = { git = "https://github.com/sp1-patches/curve25519-dalek-ng", tag = "curve25519_dalek_ng-v4.1.1-patch-v1" }
   ```
 
 ## Secp256k1 Acceleration
@@ -101,24 +119,27 @@ Apply the following patches based on what crates are in your dependencies.
 - `k256`
 
   ```toml
-  ecdsa-core = { git = "https://github.com/sp1-patches/signatures", package = "ecdsa", branch = "patch-ecdsa-v0.16.9" }
+  ecdsa-core = { git = "https://github.com/sp1-patches/signatures", package = "ecdsa", tag = "ecdsa-v0.16.9-patch-v1" }
   ```
 
   Note: The curve operations for `k256` are inside of the `ecdsa-core` crate, so you don't need to patch `k256` itself, and just patching `ecdsa-core` is enough.
 
 - `secp256k1`
+
   ```toml
-  secp256k1 = { git = "https://github.com/sp1-patches/rust-secp256k1", branch = "patch-v0.29.0" }
+  secp256k1 = { git = "https://github.com/sp1-patches/rust-secp256k1", tag = "secp256k1-v0.29.0-patch-v1" }
   ```
 
 ## BN254 Acceleration
-To accelerate BN254 (Also known as BN128 and Alt-BN128), you will need to patch the `substrate-bn` crate. 
+
+To accelerate BN254 (Also known as BN128 and Alt-BN128), you will need to patch the `substrate-bn` crate.
 
 ### Patches
 
 Apply the patch by adding the following to your list of dependencies:
+
 ```rust
-substrate-bn = { git = "https://github.com/sp1-patches/bn", branch = "patch-v0.6.0" }
+substrate-bn = { git = "https://github.com/sp1-patches/bn", tag = "substrate_bn-v0.6.0-patch-v1" }
 ```
 
 ### Performance Benchmarks for Patched `substrate-bn` in `revm`
@@ -131,19 +152,24 @@ substrate-bn = { git = "https://github.com/sp1-patches/bn", branch = "patch-v0.6
 
 Note: The operations `run-add`, `run-mul`, and `run-pair` are from the `revm` crate, specifically from the file `crates/precompile/src/bn128.rs` on GitHub. In the patched version of the `substrate-bn` crate, these functions utilize SP1's BN254 Fp precompiles.
 
-To accelerate [revm](https://github.com/bluealloy/revm) in SP1 using the BN254 patched crate, replace the `substrate-bn` crate with the patched crate by adding the following to `crates/precompile/Cargo.toml`:   
-```rust
-bn = { git = "https://github.com/sp1-patches/bn", package = "substrate-bn", branch = "patch-v0.6.0" }
+To accelerate [revm](https://github.com/bluealloy/revm) in SP1 using the BN254 patched crate, replace the `substrate-bn` crate with the patched crate by adding the following to `crates/precompile/Cargo.toml`:
+
+```toml
+bn = { git = "https://github.com/sp1-patches/bn", package = "substrate-bn", tag = "substrate_bn-v0.6.0-patch-v1" }
 ```
 
 ## BLS12-381 Acceleration
+
 To accelerate BLS12-381 operations, you'll need to patch the `bls12_381` crate. Apply the following patch by adding the following to your list of dependencies:
+
 ```toml
-blst = { git = "https://github.com/sp1-patches/bls12_381", branch = "patch-v0.8.0" }
+bls12_381 = { git = "https://github.com/sp1-patches/bls12_381", tag = "bls12_381-v0.8.0-patch-v1" }
 ```
+
 This patch significantly improves the performance of BLS12-381 operations, making it essential for applications that rely heavily on these cryptographic primitives.
 
 ### Performance Benchmarks for Patched `bls12_381` in [`kzg-rs`](https://github.com/succinctlabs/kzg-rs)
+
 | Test                                   | Unpatched Cycles | Patched Cycles | Improvement (x faster) |
 | -------------------------------------- | ---------------- | -------------- | ---------------------- |
 | Verify blob KZG proof                  | 265,322,934      | 27,166,173     | 9.77x                  |
@@ -166,7 +192,7 @@ Next to the package name, it should have a link to the Github repository that yo
 
 Ex.
 
-```
+```text
 sha2 v0.9.8 (https://github.com/sp1-patches/RustCrypto-hashes?branch=patch-sha2-v0.9.8#afdbfb09)
 ├── ...
 ```

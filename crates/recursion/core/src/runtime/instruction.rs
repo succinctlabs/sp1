@@ -11,6 +11,7 @@ pub enum Instruction<F> {
     ExtAlu(ExtAluInstr<F>),
     Mem(MemInstr<F>),
     Poseidon2(Box<Poseidon2Instr<F>>),
+    Select(SelectInstr<F>),
     ExpReverseBitsLen(ExpReverseBitsInstr<F>),
     HintBits(HintBitsInstr<F>),
     FriFold(Box<FriFoldInstr<F>>),
@@ -143,6 +144,29 @@ pub fn poseidon2<F: AbstractField>(
             input: input.map(F::from_canonical_u32).map(Address),
         },
     }))
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn select<F: AbstractField>(
+    mult1: u32,
+    mult2: u32,
+    bit: u32,
+    out1: u32,
+    out2: u32,
+    in1: u32,
+    in2: u32,
+) -> Instruction<F> {
+    Instruction::Select(SelectInstr {
+        mult1: F::from_canonical_u32(mult1),
+        mult2: F::from_canonical_u32(mult2),
+        addrs: SelectIo {
+            bit: Address(F::from_canonical_u32(bit)),
+            out1: Address(F::from_canonical_u32(out1)),
+            out2: Address(F::from_canonical_u32(out2)),
+            in1: Address(F::from_canonical_u32(in1)),
+            in2: Address(F::from_canonical_u32(in2)),
+        },
+    })
 }
 
 pub fn exp_reverse_bits_len<F: AbstractField>(

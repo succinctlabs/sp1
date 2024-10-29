@@ -373,7 +373,7 @@ where
             let mut c_byte_sum = AB::Expr::zero();
             for i in 0..BYTE_SIZE {
                 let val: AB::Expr = AB::F::from_canonical_u32(1 << i).into();
-                c_byte_sum += val * local.c_least_sig_byte[i];
+                c_byte_sum = c_byte_sum.clone() + val * local.c_least_sig_byte[i];
             }
             builder.assert_eq(c_byte_sum, local.c[0]);
 
@@ -383,7 +383,8 @@ where
             // of bits to shift.
             let mut num_bits_to_shift = AB::Expr::zero();
             for i in 0..3 {
-                num_bits_to_shift += local.c_least_sig_byte[i] * AB::F::from_canonical_u32(1 << i);
+                num_bits_to_shift = num_bits_to_shift.clone()
+                    + local.c_least_sig_byte[i] * AB::F::from_canonical_u32(1 << i);
             }
             for i in 0..BYTE_SIZE {
                 builder
@@ -444,15 +445,16 @@ where
             // The carry multiplier is 2^(8 - num_bits_to_shift).
             let mut carry_multiplier = AB::Expr::from_canonical_u8(0);
             for i in 0..BYTE_SIZE {
-                carry_multiplier +=
-                    AB::Expr::from_canonical_u32(1u32 << (8 - i)) * local.shift_by_n_bits[i];
+                carry_multiplier = carry_multiplier.clone()
+                    + AB::Expr::from_canonical_u32(1u32 << (8 - i)) * local.shift_by_n_bits[i];
             }
 
             // The 3-bit number represented by the 3 least significant bits of c equals the number
             // of bits to shift.
             let mut num_bits_to_shift = AB::Expr::zero();
             for i in 0..3 {
-                num_bits_to_shift += local.c_least_sig_byte[i] * AB::F::from_canonical_u32(1 << i);
+                num_bits_to_shift = num_bits_to_shift.clone()
+                    + local.c_least_sig_byte[i] * AB::F::from_canonical_u32(1 << i);
             }
 
             // Calculate ShrCarry.
@@ -471,7 +473,7 @@ where
             for i in (0..LONG_WORD_SIZE).rev() {
                 let mut v: AB::Expr = local.shr_carry_output_shifted_byte[i].into();
                 if i + 1 < LONG_WORD_SIZE {
-                    v += local.shr_carry_output_carry[i + 1] * carry_multiplier.clone();
+                    v = v.clone() + local.shr_carry_output_carry[i + 1] * carry_multiplier.clone();
                 }
                 builder.assert_eq(v, local.bit_shift_result[i]);
             }
