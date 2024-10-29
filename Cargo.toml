@@ -47,13 +47,10 @@ debug-assertions = true
 [workspace.dependencies]
 # sp1
 sp1-build = { path = "crates/build", version = "3.0.0" }
-sp1-cli = { path = "crates/cli", version = "3.0.0", default-features = false }
 sp1-core-machine = { path = "crates/core/machine", version = "3.0.0" }
 sp1-core-executor = { path = "crates/core/executor", version = "3.0.0" }
 sp1-curves = { path = "crates/curves", version = "3.0.0" }
 sp1-derive = { path = "crates/derive", version = "3.0.0" }
-sp1-eval = { path = "crates/eval", version = "3.0.0" }
-sp1-helper = { path = "crates/helper", version = "3.0.0", default-features = false }
 sp1-primitives = { path = "crates/primitives", version = "3.0.0" }
 sp1-prover = { path = "crates/prover", version = "3.0.0" }
 sp1-recursion-compiler = { path = "crates/recursion/compiler", version = "3.0.0" }
@@ -80,11 +77,8 @@ p3-util = "0.1.4-succinct"
 p3-challenger = "0.1.4-succinct"
 p3-dft = "0.1.4-succinct"
 p3-fri = "0.1.4-succinct"
-p3-goldilocks = "0.1.4-succinct"
-p3-keccak = "0.1.4-succinct"
 p3-keccak-air = "0.1.4-succinct"
 p3-blake3 = "0.1.4-succinct"
-p3-mds = "0.1.4-succinct"
 p3-merkle-tree = "0.1.4-succinct"
 p3-poseidon2 = "0.1.4-succinct"
 p3-symmetric = "0.1.4-succinct"
