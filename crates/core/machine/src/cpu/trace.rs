@@ -549,9 +549,8 @@ impl CpuChip {
             }
 
             // Write the syscall nonce.
-            ecall_cols.syscall_nonce = F::from_canonical_u32(
-                nonce_lookup.get(event.syscall_lookup_id.0 as usize).copied().unwrap_or_default(),
-            );
+            ecall_cols.syscall_nonce =
+                F::from_canonical_u32(nonce_lookup[event.syscall_lookup_id.0 as usize]);
 
             is_halt = syscall_id == F::from_canonical_u32(SyscallCode::HALT.syscall_id());
 
