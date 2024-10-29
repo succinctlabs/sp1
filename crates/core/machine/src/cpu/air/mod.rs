@@ -36,10 +36,6 @@ where
         let (local, next) = (main.row_slice(0), main.row_slice(1));
         let local: &CpuCols<AB::Var> = (*local).borrow();
         let next: &CpuCols<AB::Var> = (*next).borrow();
-        let public_values_slice: [AB::Expr; SP1_PROOF_NUM_PV_ELTS] =
-            core::array::from_fn(|i| builder.public_values()[i].into());
-        let public_values: &PublicValues<Word<AB::Expr>, AB::Expr> =
-            public_values_slice.as_slice().borrow();
 
         // Program constraints.
         builder.send_program(
@@ -87,11 +83,15 @@ where
         self.eval_ecall(builder, local);
 
         // COMMIT/COMMIT_DEFERRED_PROOFS ecall instruction.
+        let public_values_slice: [AB::PublicVar; SP1_PROOF_NUM_PV_ELTS] =
+            core::array::from_fn(|i| builder.public_values()[i]);
+        let public_values: &PublicValues<Word<AB::PublicVar>, AB::PublicVar> =
+            public_values_slice.as_slice().borrow();
         self.eval_commit(
             builder,
             local,
-            public_values.committed_value_digest.clone(),
-            public_values.deferred_proofs_digest.clone(),
+            public_values.committed_value_digest,
+            public_values.deferred_proofs_digest,
         );
 
         // HALT ecall and UNIMPL instruction.
@@ -335,13 +335,13 @@ impl CpuChip {
         builder: &mut AB,
         local: &CpuCols<AB::Var>,
         next: &CpuCols<AB::Var>,
-        public_values: &PublicValues<Word<AB::Expr>, AB::Expr>,
+        public_values: &PublicValues<Word<AB::PublicVar>, AB::PublicVar>,
     ) {
         // Verify the public value's shard.
-        builder.when(local.is_real).assert_eq(public_values.execution_shard.clone(), local.shard);
+        builder.when(local.is_real).assert_eq(public_values.execution_shard, local.shard);
 
         // Verify the public value's start pc.
-        builder.when_first_row().assert_eq(public_values.start_pc.clone(), local.pc);
+        builder.when_first_row().assert_eq(public_values.start_pc, local.pc);
 
         // Verify the public value's next pc.  We need to handle two cases:
         // 1. The last real row is a transition row.
@@ -351,13 +351,10 @@ impl CpuChip {
         builder
             .when_transition()
             .when(local.is_real - next.is_real)
-            .assert_eq(public_values.next_pc.clone(), local.next_pc);
+            .assert_eq(public_values.next_pc, local.next_pc);
 
         // If the last real row is the last row, verify the public value's next pc.
-        builder
-            .when_last_row()
-            .when(local.is_real)
-            .assert_eq(public_values.next_pc.clone(), local.next_pc);
+        builder.when_last_row().when(local.is_real).assert_eq(public_values.next_pc, local.next_pc);
     }
 
     /// Constraints related to the is_real column.
