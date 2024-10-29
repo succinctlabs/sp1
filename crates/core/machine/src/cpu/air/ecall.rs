@@ -219,7 +219,7 @@ impl CpuChip {
 
         builder
             .when(is_halt.clone())
-            .assert_eq(local.op_b_access.value().reduce::<AB>(), public_values.exit_code.clone());
+            .assert_eq(local.op_b_access.value().reduce::<AB>(), public_values.exit_code);
     }
 
     /// Returns a boolean expression indicating whether the instruction is a HALT instruction.

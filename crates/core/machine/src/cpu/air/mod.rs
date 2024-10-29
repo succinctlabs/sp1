@@ -90,8 +90,8 @@ where
         self.eval_commit(
             builder,
             local,
-            public_values.committed_value_digest.clone(),
-            public_values.deferred_proofs_digest.clone(),
+            public_values.committed_value_digest,
+            public_values.deferred_proofs_digest,
         );
 
         // HALT ecall and UNIMPL instruction.
@@ -338,10 +338,10 @@ impl CpuChip {
         public_values: &PublicValues<Word<AB::PublicVar>, AB::PublicVar>,
     ) {
         // Verify the public value's shard.
-        builder.when(local.is_real).assert_eq(public_values.execution_shard.clone(), local.shard);
+        builder.when(local.is_real).assert_eq(public_values.execution_shard, local.shard);
 
         // Verify the public value's start pc.
-        builder.when_first_row().assert_eq(public_values.start_pc.clone(), local.pc);
+        builder.when_first_row().assert_eq(public_values.start_pc, local.pc);
 
         // Verify the public value's next pc.  We need to handle two cases:
         // 1. The last real row is a transition row.
@@ -351,13 +351,10 @@ impl CpuChip {
         builder
             .when_transition()
             .when(local.is_real - next.is_real)
-            .assert_eq(public_values.next_pc.clone(), local.next_pc);
+            .assert_eq(public_values.next_pc, local.next_pc);
 
         // If the last real row is the last row, verify the public value's next pc.
-        builder
-            .when_last_row()
-            .when(local.is_real)
-            .assert_eq(public_values.next_pc.clone(), local.next_pc);
+        builder.when_last_row().when(local.is_real).assert_eq(public_values.next_pc, local.next_pc);
     }
 
     /// Constraints related to the is_real column.
