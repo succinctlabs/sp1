@@ -934,28 +934,28 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                                 }
                             }
 
-                            // If we're at the last input of a layer, we need to only include the
-                            // first input, otherwise we include all inputs.
-                            let inputs = if is_last { vec![] } else { batch.clone() };
-                            let next_input_index = batch[0].1 + 1;
-                            let vks_and_proofs = inputs
-                                .into_iter()
-                                .map(|(_, _, vk, proof)| (vk, proof))
-                                .collect::<Vec<_>>();
+                            // Skip sending input if this is the last input of a layer
+                            if !is_last {
+                                let next_input_index = batch[0].1 + 1;
+                                let vks_and_proofs = batch
+                                    .iter()
+                                    .map(|(_, _, vk, proof)| (vk.clone(), proof.clone()))
+                                    .collect();
 
-                            let input = SP1CircuitWitness::Compress(SP1CompressWitnessValues {
-                                vks_and_proofs,
-                                is_complete,
-                            });
+                                let input = SP1CircuitWitness::Compress(SP1CompressWitnessValues {
+                                    vks_and_proofs,
+                                    is_complete,
+                                });
 
-                            input_sync.wait_for_turn(count);
-                            input_tx
-                                .lock()
-                                .unwrap()
-                                .send((count, next_input_index, input))
-                                .unwrap();
-                            input_sync.advance_turn();
-                            count += 1;
+                                input_sync.wait_for_turn(count);
+                                input_tx
+                                    .lock()
+                                    .unwrap()
+                                    .send((count, next_input_index, input))
+                                    .unwrap();
+                                input_sync.advance_turn();
+                                count += 1;
+                            }
 
                             // If we're at the root of the tree, stop generating inputs.
                             if is_complete {
