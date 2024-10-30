@@ -16,7 +16,7 @@ Under the hood, we use [precompiles](./precompiles.md) to achieve tremendous per
 | ed25519-consensus   | [sp1-patches/ed25519-consensus](http://github.com/sp1-patches/ed25519-consensus)      | ed25519 verify                                      |
 | curve25519-dalek-ng | [sp1-patches/curve25519-dalek-ng](https://github.com/sp1-patches/curve25519-dalek-ng) | ed25519 verify                                      |
 | curve25519-dalek    | [sp1-patches/curve25519-dalek](https://github.com/sp1-patches/curve25519-dalek)       | ed25519 verify                                      |
-| ecdsa-core          | [sp1-patches/signatures](http://github.com/sp1-patches/signatures)                    | secp256k1 verify                                    |
+| ecdsa-core          | [sp1-patches/signatures](http://github.com/sp1-patches/signatures)                    | secp256k1 and secp256r1 verify                                    |
 | secp256k1           | [sp1-patches/rust-secp256k1](http://github.com/sp1-patches/rust-secp256k1)            | secp256k1 verify                                    |
 | substrate-bn        | [sp1-patches/bn](https://github.com/sp1-patches/bn)                                   | BN254                                               |
 | substrate-bls12_381 | [sp1-patches/bls12_381](https://github.com/sp1-patches/bls12_381)                     | BLS12-381                                           |
@@ -38,7 +38,7 @@ tiny-keccak = { git = "https://github.com/sp1-patches/tiny-keccak", branch = "pa
 curve25519-dalek = { git = "https://github.com/sp1-patches/curve25519-dalek", branch = "patch-curve25519-v4.1.3" }
 curve25519-dalek-ng = { git = "https://github.com/sp1-patches/curve25519-dalek-ng", branch = "patch-v4.1.1" }
 ed25519-consensus = { git = "https://github.com/sp1-patches/ed25519-consensus", branch = "patch-v2.1.0" }
-ecdsa-core = { git = "https://github.com/sp1-patches/signatures", package = "ecdsa", branch = "patch-ecdsa-v0.16.9" }
+ecdsa-core = { git = "https://github.com/sp1-patches/signatures", package = "ecdsa", branch = "umadayal/secp256r1" }
 secp256k1 = { git = "https://github.com/sp1-patches/rust-secp256k1", branch = "patch-secp256k1-v0.29.0" }
 substrate-bn = { git = "https://github.com/sp1-patches/bn", branch = "patch-v0.6.0" }
 bls12_381 = { git = "https://github.com/sp1-patches/bls12_381", branch = "patch-v0.8.0" }
@@ -110,6 +110,11 @@ Apply the following patches based on what crates are in your dependencies.
   ```toml
   secp256k1 = { git = "https://github.com/sp1-patches/rust-secp256k1", branch = "patch-v0.29.0" }
   ```
+- `secp256r1`
+  ```toml
+  ecdsa-core = { git = "https://github.com/sp1-patches/signatures", package = "ecdsa", branch = "umadayal/secp256r1" }
+  ```
+  Note: The curve operations for `p256` are inside of the `ecdsa-core` crate, so you don't need to patch `secp256r1` itself, and just patching `ecdsa-core` is enough.
 
 ## BN254 Acceleration
 To accelerate BN254 (Also known as BN128 and Alt-BN128), you will need to patch the `substrate-bn` crate. 
