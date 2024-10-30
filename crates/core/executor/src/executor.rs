@@ -1644,7 +1644,7 @@ impl<'a> Executor<'a> {
     fn log(&mut self, _: &Instruction) {
         // Write the current program counter to the trace buffer for the cycle tracer.
         if let Some(ref mut buf) = self.trace_buf
-            && self.state.global_clk % self.sample_rate == 0
+            && self.state.global_clk as u32 % self.sample_rate == 0
         {
             if !self.unconstrained {
                 buf.write_all(&u32::to_be_bytes(self.state.pc)).unwrap();
