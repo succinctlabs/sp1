@@ -231,6 +231,14 @@ impl SP1ProofShape {
             )
     }
 
+    pub fn generate_compress_shapes(
+        recursion_shape_config: &RecursionShapeConfig<BabyBear, CompressAir<BabyBear>>,
+        reduce_batch_size: usize,
+    ) -> impl Iterator<Item = Vec<ProofShape>> + '_ {
+        (1..=reduce_batch_size)
+            .flat_map(|batch_size| recursion_shape_config.get_all_shape_combinations(batch_size))
+    }
+
     pub fn dummy_vk_map<'a>(
         core_shape_config: &'a CoreShapeConfig<BabyBear>,
         recursion_shape_config: &'a RecursionShapeConfig<BabyBear, CompressAir<BabyBear>>,
