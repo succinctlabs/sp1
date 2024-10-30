@@ -5448,7 +5448,11 @@ dependencies = [
 
 [[package]]
 name = "sp1-build"
+<<<<<<< HEAD
 version = "3.4.0"
+=======
+version = "3.1.0"
+>>>>>>> 4451903ac (fix: remove stdin from SP1ProofWithPublicValues (#1714))
 dependencies = [
  "anyhow",
  "cargo_metadata",
@@ -5459,7 +5463,11 @@ dependencies = [
 
 [[package]]
 name = "sp1-cli"
+<<<<<<< HEAD
 version = "3.4.0"
+=======
+version = "3.1.0"
+>>>>>>> 4451903ac (fix: remove stdin from SP1ProofWithPublicValues (#1714))
 dependencies = [
  "anstyle",
  "anyhow",
@@ -5488,7 +5496,11 @@ dependencies = [
 
 [[package]]
 name = "sp1-core-executor"
+<<<<<<< HEAD
 version = "3.4.0"
+=======
+version = "3.1.0"
+>>>>>>> 4451903ac (fix: remove stdin from SP1ProofWithPublicValues (#1714))
 dependencies = [
  "bincode",
  "bytemuck",
@@ -5527,7 +5539,11 @@ dependencies = [
 
 [[package]]
 name = "sp1-core-machine"
+<<<<<<< HEAD
 version = "3.4.0"
+=======
+version = "3.1.0"
+>>>>>>> 4451903ac (fix: remove stdin from SP1ProofWithPublicValues (#1714))
 dependencies = [
  "bincode",
  "cfg-if",
@@ -5577,7 +5593,11 @@ dependencies = [
 
 [[package]]
 name = "sp1-cuda"
+<<<<<<< HEAD
 version = "3.4.0"
+=======
+version = "3.1.0"
+>>>>>>> 4451903ac (fix: remove stdin from SP1ProofWithPublicValues (#1714))
 dependencies = [
  "bincode",
  "ctrlc",
@@ -5595,7 +5615,11 @@ dependencies = [
 
 [[package]]
 name = "sp1-curves"
+<<<<<<< HEAD
 version = "3.4.0"
+=======
+version = "3.1.0"
+>>>>>>> 4451903ac (fix: remove stdin from SP1ProofWithPublicValues (#1714))
 dependencies = [
  "cfg-if",
  "dashu",
@@ -5617,7 +5641,11 @@ dependencies = [
 
 [[package]]
 name = "sp1-derive"
+<<<<<<< HEAD
 version = "3.4.0"
+=======
+version = "3.1.0"
+>>>>>>> 4451903ac (fix: remove stdin from SP1ProofWithPublicValues (#1714))
 dependencies = [
  "quote",
  "syn 1.0.109",
@@ -5625,7 +5653,11 @@ dependencies = [
 
 [[package]]
 name = "sp1-eval"
+<<<<<<< HEAD
 version = "3.4.0"
+=======
+version = "3.1.0"
+>>>>>>> 4451903ac (fix: remove stdin from SP1ProofWithPublicValues (#1714))
 dependencies = [
  "anyhow",
  "bincode",
@@ -5643,13 +5675,18 @@ dependencies = [
 
 [[package]]
 name = "sp1-helper"
+<<<<<<< HEAD
 version = "3.4.0"
+=======
+version = "3.1.0"
+>>>>>>> 4451903ac (fix: remove stdin from SP1ProofWithPublicValues (#1714))
 dependencies = [
  "sp1-build",
 ]
 
 [[package]]
 name = "sp1-lib"
+<<<<<<< HEAD
 version = "3.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1c8744af050832df5ca44fcd63979a83b93ca3010b2d5a5ce2a2b91f7438065c"
@@ -5661,6 +5698,9 @@ dependencies = [
 [[package]]
 name = "sp1-lib"
 version = "3.4.0"
+=======
+version = "3.1.0"
+>>>>>>> 4451903ac (fix: remove stdin from SP1ProofWithPublicValues (#1714))
 dependencies = [
  "bincode",
  "serde",
@@ -5668,7 +5708,11 @@ dependencies = [
 
 [[package]]
 name = "sp1-perf"
+<<<<<<< HEAD
 version = "3.4.0"
+=======
+version = "3.1.0"
+>>>>>>> 4451903ac (fix: remove stdin from SP1ProofWithPublicValues (#1714))
 dependencies = [
  "bincode",
  "clap",
@@ -5684,7 +5728,11 @@ dependencies = [
 
 [[package]]
 name = "sp1-primitives"
+<<<<<<< HEAD
 version = "3.4.0"
+=======
+version = "3.1.0"
+>>>>>>> 4451903ac (fix: remove stdin from SP1ProofWithPublicValues (#1714))
 dependencies = [
  "bincode",
  "hex",
@@ -5700,7 +5748,11 @@ dependencies = [
 
 [[package]]
 name = "sp1-prover"
+<<<<<<< HEAD
 version = "3.4.0"
+=======
+version = "3.1.0"
+>>>>>>> 4451903ac (fix: remove stdin from SP1ProofWithPublicValues (#1714))
 dependencies = [
  "anyhow",
  "bincode",
@@ -5737,7 +5789,11 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-circuit"
+<<<<<<< HEAD
 version = "3.4.0"
+=======
+version = "3.1.0"
+>>>>>>> 4451903ac (fix: remove stdin from SP1ProofWithPublicValues (#1714))
 dependencies = [
  "ff 0.13.0",
  "hashbrown 0.14.5",
@@ -5774,7 +5830,11 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-compiler"
+<<<<<<< HEAD
 version = "3.4.0"
+=======
+version = "3.1.0"
+>>>>>>> 4451903ac (fix: remove stdin from SP1ProofWithPublicValues (#1714))
 dependencies = [
  "backtrace",
  "criterion",
@@ -5799,7 +5859,11 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-core"
+<<<<<<< HEAD
 version = "3.4.0"
+=======
+version = "3.1.0"
+>>>>>>> 4451903ac (fix: remove stdin from SP1ProofWithPublicValues (#1714))
 dependencies = [
  "backtrace",
  "ff 0.13.0",
@@ -5834,7 +5898,11 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-derive"
+<<<<<<< HEAD
 version = "3.4.0"
+=======
+version = "3.1.0"
+>>>>>>> 4451903ac (fix: remove stdin from SP1ProofWithPublicValues (#1714))
 dependencies = [
  "quote",
  "syn 1.0.109",
@@ -5842,7 +5910,11 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-gnark-cli"
+<<<<<<< HEAD
 version = "3.4.0"
+=======
+version = "3.1.0"
+>>>>>>> 4451903ac (fix: remove stdin from SP1ProofWithPublicValues (#1714))
 dependencies = [
  "bincode",
  "clap",
@@ -5851,7 +5923,11 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-gnark-ffi"
+<<<<<<< HEAD
 version = "3.4.0"
+=======
+version = "3.1.0"
+>>>>>>> 4451903ac (fix: remove stdin from SP1ProofWithPublicValues (#1714))
 dependencies = [
  "anyhow",
  "bincode",
@@ -5875,7 +5951,11 @@ dependencies = [
 
 [[package]]
 name = "sp1-sdk"
+<<<<<<< HEAD
 version = "3.4.0"
+=======
+version = "3.1.0"
+>>>>>>> 4451903ac (fix: remove stdin from SP1ProofWithPublicValues (#1714))
 dependencies = [
  "alloy-primitives",
  "alloy-signer",
@@ -5923,7 +6003,11 @@ dependencies = [
 
 [[package]]
 name = "sp1-stark"
+<<<<<<< HEAD
 version = "3.4.0"
+=======
+version = "3.1.0"
+>>>>>>> 4451903ac (fix: remove stdin from SP1ProofWithPublicValues (#1714))
 dependencies = [
  "arrayref",
  "hashbrown 0.14.5",
@@ -5970,7 +6054,11 @@ dependencies = [
 
 [[package]]
 name = "sp1-zkvm"
+<<<<<<< HEAD
 version = "3.4.0"
+=======
+version = "3.1.0"
+>>>>>>> 4451903ac (fix: remove stdin from SP1ProofWithPublicValues (#1714))
 dependencies = [
  "cfg-if",
  "getrandom 0.2.15",
