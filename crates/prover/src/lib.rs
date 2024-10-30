@@ -103,7 +103,6 @@ const SHRINK_DEGREE: usize = 3;
 const WRAP_DEGREE: usize = 9;
 
 const CORE_CACHE_SIZE: usize = 5;
-const COMPRESS_CACHE_SIZE: usize = 3;
 pub const REDUCE_BATCH_SIZE: usize = 2;
 
 // TODO: FIX
@@ -223,26 +222,13 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                     compress_prover.machine(),
                     &compress_shape,
                 );
-                let mut builder = Builder::<InnerConfig>::default();
-                // read the input.
-                let input = input.read(&mut builder);
-                // Verify the proof.
-                SP1CompressWithVKeyVerifier::verify(
-                    &mut builder,
-                    compress_prover.machine(),
-                    input,
+                let program = compress_program_from_input::<C>(
+                    recursion_shape_config.as_ref(),
+                    &compress_prover,
                     vk_verification,
-                    PublicValuesOutputDigest::Reduce,
+                    &input,
                 );
-                let operations = builder.into_operations();
-
-                // Compile the program.
-                let compiler_span = tracing::debug_span!("compile compress program").entered();
-                let mut compiler = AsmCompiler::<InnerConfig>::default();
-                let mut program = compiler.compile(operations);
-                config.fix_shape(&mut program);
                 let program = Arc::new(program);
-                compiler_span.exit();
                 compress_programs.insert(compress_shape, program);
             });
         }
@@ -386,32 +372,12 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             let misses = self.compress_cache_misses.fetch_add(1, Ordering::Relaxed);
             tracing::debug!("compress cache miss, misses: {}", misses);
             // Get the operations.
-            let builder_span = tracing::debug_span!("build compress program").entered();
-            let mut builder = Builder::<InnerConfig>::default();
-
-            // read the input.
-            let input = input.read(&mut builder);
-            // Verify the proof.
-            SP1CompressWithVKeyVerifier::verify(
-                &mut builder,
-                self.compress_prover.machine(),
-                input,
+            Arc::new(compress_program_from_input::<C>(
+                self.recursion_shape_config.as_ref(),
+                &self.compress_prover,
                 self.vk_verification,
-                PublicValuesOutputDigest::Reduce,
-            );
-            let operations = builder.into_operations();
-            builder_span.exit();
-
-            // Compile the program.
-            let compiler_span = tracing::debug_span!("compile compress program").entered();
-            let mut compiler = AsmCompiler::<InnerConfig>::default();
-            let mut program = compiler.compile(operations);
-            if let Some(recursion_shape_config) = &self.recursion_shape_config {
-                recursion_shape_config.fix_shape(&mut program);
-            }
-            let program = Arc::new(program);
-            compiler_span.exit();
-            program
+                input,
+            ))
         })
     }
 
@@ -1241,6 +1207,33 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
     }
 }
 
+pub fn compress_program_from_input<C: SP1ProverComponents>(
+    config: Option<&RecursionShapeConfig<BabyBear, CompressAir<BabyBear>>>,
+    compress_prover: &C::CompressProver,
+    vk_verification: bool,
+    input: &SP1CompressWithVKeyWitnessValues<BabyBearPoseidon2>,
+) -> RecursionProgram<BabyBear> {
+    let mut builder = Builder::<InnerConfig>::default();
+    // read the input.
+    let input = input.read(&mut builder);
+    // Verify the proof.
+    SP1CompressWithVKeyVerifier::verify(
+        &mut builder,
+        compress_prover.machine(),
+        input,
+        vk_verification,
+        PublicValuesOutputDigest::Reduce,
+    );
+    let operations = builder.into_operations();
+
+    // Compile the program.
+    let mut compiler = AsmCompiler::<InnerConfig>::default();
+    let mut program = compiler.compile(operations);
+    if let Some(config) = config {
+        config.fix_shape(&mut program);
+    }
+    program
+}
 #[cfg(any(test, feature = "export-tests"))]
 pub mod tests {
 
