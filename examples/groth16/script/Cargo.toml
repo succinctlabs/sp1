@@ -1,0 +1,15 @@
+[package]
+name = "groth16-verifier-script"
+version = { workspace = true }
+edition = { workspace = true }
+publish = false
+
+[dependencies]
+hex = "0.4.3"
+sp1-sdk = { workspace = true }
+
+[build-dependencies]
+sp1-build = { workspace = true }
+
+[features]
+cuda = ["sp1-sdk/cuda"]
