@@ -4,7 +4,7 @@
 
 ## Sending a proof request
 
-To use the prover network to generate a proof, you can run your script that uses `sp1_sdk::ProverClient` as you would normally but with additional environment variables set:
+To use the prover network to generate a proof, you can run the script that uses `sp1_sdk::ProverClient` as you would normally but with additional environment variables set:
 
 ```rust,noplayground
 // Generate the proof for the given program.
@@ -34,7 +34,7 @@ You can view your proof and other running proofs on the [explorer](https://explo
 
 ### Skip simulation
 
-To skip the simulation step and directly submit the program for proof generation, you can set the `SKIP_SIMULATION` environment variable to `true`. This will save some time if you are sure that your program is correct. If your program panics, the proof will fail and ProverClient will panic.
+To skip the simulation step and directly submit the program for proof generation, you can set the `SKIP_SIMULATION` environment variable to `true`. This will save some time, if you are sure that your program is correct. If your program panics, the proof will fail, and ProverClient will also panic.
 
 ### Use NetworkProver directly
 
