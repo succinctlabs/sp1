@@ -20,8 +20,9 @@
 
 use clap::Parser;
 use gecko_profile::{Frame, ProfileBuilder, ThreadBuilder};
-use std::path::PathBuf;
+use std::io::SeekFrom;
 use std::process::Stdio;
+use std::{io::Seek, path::PathBuf};
 
 use anyhow::{Context, Result};
 use goblin::elf::{sym::STT_FUNC, Elf};
@@ -87,7 +88,7 @@ impl ProfileCmd {
         let mut thread_builder = ThreadBuilder::new(1, 0, start_time, false, false);
 
         let mut last_known_time = std::time::Instant::now();
-        for sample in samples {
+        for sample in samples.into_iter() {
             let mut frames = Vec::new();
             for frame in sample.stack {
                 frames.push(Frame::Label(thread_builder.intern_string(&frame)))
@@ -118,9 +119,9 @@ impl ProfileCmd {
 }
 
 fn build_goblin_lookups(
-    start_lookup: &mut HashMap<u64, Rc<str>>,
-    end_lookup: &mut HashMap<u64, Rc<str>>,
-    func_range_lookup: &mut HashMap<Rc<str>, (u64, u64)>,
+    start_lookup: &mut HashMap<u64, usize>,
+    end_lookup: &mut HashMap<u64, usize>,
+    func_range_lookup: &mut Vec<(u64, u64, Rc<str>)>,
     elf_name: impl AsRef<Path>,
 ) -> Result<()> {
     let buffer = std::fs::read(elf_name).context("Failed to open elf file")?;
@@ -135,9 +136,10 @@ fn build_goblin_lookups(
             let end_address = start_address + size - 4;
             let demangled: Rc<str> = demangled_name.to_string().into();
 
-            start_lookup.insert(start_address, demangled.clone());
-            end_lookup.insert(end_address, demangled.clone());
-            func_range_lookup.insert(demangled, (start_address, end_address));
+            let index = func_range_lookup.len();
+            func_range_lookup.push((start_address, end_address, demangled));
+            start_lookup.insert(start_address, index);
+            end_lookup.insert(end_address, index);
         }
     }
     Ok(())
@@ -152,26 +154,23 @@ pub fn collect_samples(
 
     let mut start_lookup = HashMap::new();
     let mut end_lookup = HashMap::new();
-    let mut func_range_lookup = HashMap::new();
-    build_goblin_lookups(&mut start_lookup, &mut end_lookup, &mut func_range_lookup, elf_path)?;
-
-    let mut function_ranges: Vec<(u64, u64, Rc<str>)> =
-        func_range_lookup.iter().map(|(f, &(start, end))| (start, end, f.clone())).collect();
-
-    function_ranges.sort_by_key(|&(start, _, _)| start);
+    let mut function_ranges = Vec::new();
+    build_goblin_lookups(&mut start_lookup, &mut end_lookup, &mut function_ranges, elf_path)?;
 
     let file = std::fs::File::open(trace_path).context("Failed to open trace path file")?;
     let file_size = file.metadata().unwrap().len();
     let mut buf = std::io::BufReader::new(file);
     let mut function_stack: Vec<Rc<str>> = Vec::new();
+    let mut function_stack_indices: Vec<usize> = Vec::new();
+    let mut function_stack_ranges: Vec<(u64, u64)> = Vec::new();
     let total_lines = file_size / 4;
     let mut current_function_range: (u64, u64) = (0, 0);
 
     // unsafe on 32 bit systems but ...
     let mut samples = Vec::with_capacity(total_lines as usize);
     for i in 0..total_lines {
-        if i % sample_rate > 0 {
-            continue;
+        if i % 1000000 == 0 {
+            println!("Processed {} cycles ({:.2}%)", i, i as f64 / total_lines as f64 * 100.0);
         }
 
         // Parse pc from hex.
@@ -181,19 +180,26 @@ pub fn collect_samples(
 
         // We are still in the current function.
         if pc > current_function_range.0 && pc <= current_function_range.1 {
-            samples.push(Sample { stack: function_stack.clone() });
+            if i % sample_rate == 0 {
+                samples.push(Sample { stack: function_stack.clone() });
+            }
 
             continue;
         }
 
         // Jump to a new function (or the same one).
         if let Some(f) = start_lookup.get(&pc) {
-            samples.push(Sample { stack: function_stack.clone() });
+            if i % sample_rate == 0 {
+                samples.push(Sample { stack: function_stack.clone() });
+            }
 
             // Jump to a new function (not recursive).
-            if !function_stack.contains(f) {
-                function_stack.push(f.clone());
-                current_function_range = *func_range_lookup.get(f).unwrap();
+            if !function_stack_indices.contains(f) {
+                function_stack_indices.push(f.clone());
+                let (start, end, name) = function_ranges.get(*f).unwrap();
+                current_function_range = (*start, *end);
+                function_stack_ranges.push((*start, *end));
+                function_stack.push(name.clone());
             }
         } else {
             // This means pc now points to an instruction that is
@@ -206,8 +212,9 @@ pub fn collect_samples(
             // functions in the stack due to some optimizations that the compiler can make.
             let mut unwind_point = 0;
             let mut unwind_found = false;
-            for (c, f) in function_stack.iter().enumerate() {
-                let (s, e) = func_range_lookup.get(f).unwrap();
+            for (c, (f, (s, e))) in
+                function_stack_indices.iter().zip(function_stack_ranges.iter()).enumerate()
+            {
                 if pc > *s && pc <= *e {
                     unwind_point = c;
                     unwind_found = true;
@@ -218,13 +225,19 @@ pub fn collect_samples(
             // Unwinding until the parent.
             if unwind_found {
                 function_stack.truncate(unwind_point + 1);
-                samples.push(Sample { stack: function_stack.clone() });
+                function_stack_ranges.truncate(unwind_point + 1);
+                function_stack_indices.truncate(unwind_point + 1);
+                if i % sample_rate == 0 {
+                    samples.push(Sample { stack: function_stack.clone() });
+                }
                 continue;
             }
 
             // If no unwind point has been found, that means we jumped to some random location
             // so we'll just increment the counts for everything in the stack.
-            samples.push(Sample { stack: function_stack.clone() });
+            if i % sample_rate == 0 {
+                samples.push(Sample { stack: function_stack.clone() });
+            }
         }
     }
 
@@ -241,7 +254,7 @@ fn check_samples(samples: &[Sample]) -> Result<()> {
 
     let main_ratio = main_count as f64 / samples.len() as f64;
     if main_ratio < 0.9 {
-        return Err(anyhow::anyhow!("This trace appears to be invalid. The `main` function is present in only {:.2}% of the samples, this is likely caused by the using the wrong Elf file", main_ratio * 100.0));
+        println!("Warning: This trace appears to be invalid. The `main` function is present in only {:.2}% of the samples, this is likely caused by the using the wrong Elf file", main_ratio * 100.0);
     }
 
     Ok(())
