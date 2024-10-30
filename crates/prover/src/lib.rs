@@ -368,7 +368,9 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         &self,
         input: &SP1CompressWithVKeyWitnessValues<InnerSC>,
     ) -> Arc<RecursionProgram<BabyBear>> {
-        self.compress_programs.get(&input.shape()).map(Clone::clone).unwrap_or_else(|| {
+        if self.recursion_shape_config.is_some() {
+            self.compress_programs.get(&input.shape()).map(Clone::clone).unwrap()
+        } else {
             let misses = self.compress_cache_misses.fetch_add(1, Ordering::Relaxed);
             tracing::debug!("compress cache miss, misses: {}", misses);
             // Get the operations.
@@ -378,7 +380,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                 self.vk_verification,
                 input,
             ))
-        })
+        }
     }
 
     pub fn shrink_program(
@@ -1213,6 +1215,7 @@ pub fn compress_program_from_input<C: SP1ProverComponents>(
     vk_verification: bool,
     input: &SP1CompressWithVKeyWitnessValues<BabyBearPoseidon2>,
 ) -> RecursionProgram<BabyBear> {
+    let builder_span = tracing::debug_span!("build compress program").entered();
     let mut builder = Builder::<InnerConfig>::default();
     // read the input.
     let input = input.read(&mut builder);
@@ -1225,13 +1228,17 @@ pub fn compress_program_from_input<C: SP1ProverComponents>(
         PublicValuesOutputDigest::Reduce,
     );
     let operations = builder.into_operations();
+    builder_span.exit();
 
     // Compile the program.
+    let compiler_span = tracing::debug_span!("compile compress program").entered();
     let mut compiler = AsmCompiler::<InnerConfig>::default();
     let mut program = compiler.compile(operations);
     if let Some(config) = config {
         config.fix_shape(&mut program);
     }
+    compiler_span.exit();
+
     program
 }
 #[cfg(any(test, feature = "export-tests"))]
