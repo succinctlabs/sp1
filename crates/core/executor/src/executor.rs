@@ -40,7 +40,6 @@ pub enum DeferredProofVerification {
 ///
 /// The exeuctor is responsible for executing a user program and tracing important events which
 /// occur during execution (i.e., memory reads, alu operations, etc).
-#[repr(C)]
 pub struct Executor<'a> {
     /// The program.
     pub program: Arc<Program>,
@@ -57,6 +56,10 @@ pub struct Executor<'a> {
 
     /// Whether we should write to the report.
     pub print_report: bool,
+
+    /// Whether we should emit memory init and finalize events. This can be enabled in Checkpoint
+    /// mode and disabled in Trace mode.
+    pub emit_memory_events: bool,
 
     /// The maximum size of each shard.
     pub shard_size: u32,
@@ -233,6 +236,7 @@ impl<'a> Executor<'a> {
             unconstrained_state: ForkState::default(),
             syscall_map,
             executor_mode: ExecutorMode::Trace,
+            emit_memory_events: true,
             max_syscall_cycles,
             report: ExecutionReport::default(),
             print_report: false,
@@ -1423,8 +1427,12 @@ impl<'a> Executor<'a> {
     /// # Errors
     ///
     /// This function will return an error if the program execution fails.
-    pub fn execute_record(&mut self) -> Result<(Vec<ExecutionRecord>, bool), ExecutionError> {
+    pub fn execute_record(
+        &mut self,
+        emit_memory_events: bool,
+    ) -> Result<(Vec<ExecutionRecord>, bool), ExecutionError> {
         self.executor_mode = ExecutorMode::Trace;
+        self.emit_memory_events = emit_memory_events;
         self.print_report = true;
         let done = self.execute()?;
         Ok((std::mem::take(&mut self.records), done))
@@ -1436,27 +1444,32 @@ impl<'a> Executor<'a> {
     /// # Errors
     ///
     /// This function will return an error if the program execution fails.
-    pub fn execute_state(&mut self) -> Result<(ExecutionState, bool), ExecutionError> {
+    pub fn execute_state(
+        &mut self,
+        emit_memory_events: bool,
+    ) -> Result<(ExecutionState, bool), ExecutionError> {
         self.memory_checkpoint.clear();
         self.executor_mode = ExecutorMode::Checkpoint;
+        self.emit_memory_events = emit_memory_events;
 
         // Clone self.state without memory and uninitialized_memory in it so it's faster.
         let memory = std::mem::take(&mut self.state.memory);
         let uninitialized_memory = std::mem::take(&mut self.state.uninitialized_memory);
-        let mut checkpoint = tracing::info_span!("clone").in_scope(|| self.state.clone());
+        let mut checkpoint = tracing::debug_span!("clone").in_scope(|| self.state.clone());
         self.state.memory = memory;
         self.state.uninitialized_memory = uninitialized_memory;
 
-        let done = tracing::info_span!("execute").in_scope(|| self.execute())?;
+        let done = tracing::debug_span!("execute").in_scope(|| self.execute())?;
         // Create a checkpoint using `memory_checkpoint`. Just include all memory if `done` since we
         // need it all for MemoryFinalize.
-        tracing::info_span!("create memory checkpoint").in_scope(|| {
+        tracing::debug_span!("create memory checkpoint").in_scope(|| {
             let memory_checkpoint = std::mem::take(&mut self.memory_checkpoint);
             let uninitialized_memory_checkpoint =
                 std::mem::take(&mut self.uninitialized_memory_checkpoint);
-            if done {
-                // If we're done, we need to include all memory. But we need to reset any modified
-                // memory to as it was before the execution.
+            if done && !self.emit_memory_events {
+                // If it's the last shard, and we're not emitting memory events, we need to include
+                // all memory so that memory events can be emitted from the checkpoint. But we need
+                // to first reset any modified memory to as it was before the execution.
                 checkpoint.memory.clone_from(&self.state.memory);
                 memory_checkpoint.into_iter().for_each(|(addr, record)| {
                     if let Some(record) = record {
@@ -1616,16 +1629,20 @@ impl<'a> Executor<'a> {
         }
 
         // Ensure that all proofs and input bytes were read, otherwise warn the user.
-        // if self.state.proof_stream_ptr != self.state.proof_stream.len() {
-        //     panic!(
-        //         "Not all proofs were read. Proving will fail during recursion. Did you pass too
-        // many proofs in or forget to call verify_sp1_proof?"     );
-        // }
+        if self.state.proof_stream_ptr != self.state.proof_stream.len() {
+            tracing::warn!(
+                "Not all proofs were read. Proving will fail during recursion. Did you pass too
+        many proofs in or forget to call verify_sp1_proof?"
+            );
+        }
         if self.state.input_stream_ptr != self.state.input_stream.len() {
             tracing::warn!("Not all input bytes were read.");
         }
 
-        if self.executor_mode == ExecutorMode::Trace {
+        if self.emit_memory_events
+            && (self.executor_mode == ExecutorMode::Trace
+                || self.executor_mode == ExecutorMode::Checkpoint)
+        {
             // SECTION: Set up all MemoryInitializeFinalizeEvents needed for memory argument.
             let memory_finalize_events = &mut self.record.global_memory_finalize_events;
 
