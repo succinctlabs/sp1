@@ -20,7 +20,7 @@ pub mod verify;
 
 use std::{
     borrow::Borrow,
-    collections::BTreeMap,
+    collections::{BTreeMap, HashMap},
     env,
     num::NonZeroUsize,
     path::Path,
@@ -34,6 +34,7 @@ use std::{
 
 use lru::LruCache;
 
+use shapes::SP1ProofShape;
 use tracing::instrument;
 
 use p3_baby_bear::BabyBear;
@@ -135,8 +136,7 @@ pub struct SP1Prover<C: SP1ProverComponents = DefaultProverComponents> {
 
     pub recursion_cache_misses: AtomicUsize,
 
-    pub compress_programs:
-        Mutex<LruCache<SP1CompressWithVkeyShape, Arc<RecursionProgram<BabyBear>>>>,
+    pub compress_programs: HashMap<SP1CompressWithVkeyShape, Arc<RecursionProgram<BabyBear>>>,
 
     pub compress_cache_misses: AtomicUsize,
 
@@ -188,14 +188,6 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         )
         .expect("PROVER_CORE_CACHE_SIZE must be a non-zero usize");
 
-        let compress_cache_size = NonZeroUsize::new(
-            env::var("PROVER_COMPRESS_CACHE_SIZE")
-                .unwrap_or_else(|_| CORE_CACHE_SIZE.to_string())
-                .parse()
-                .unwrap_or(COMPRESS_CACHE_SIZE),
-        )
-        .expect("PROVER_COMPRESS_CACHE_SIZE must be a non-zero usize");
-
         let core_shape_config = env::var("FIX_CORE_SHAPES")
             .map(|v| v.eq_ignore_ascii_case("true"))
             .unwrap_or(true)
@@ -220,6 +212,41 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 
         let (root, merkle_tree) = MerkleTree::commit(allowed_vk_map.keys().copied().collect());
 
+        let mut compress_programs = HashMap::new();
+        if let Some(config) = &recursion_shape_config {
+            SP1ProofShape::generate_compress_shapes(config, 2).for_each(|shape| {
+                let compress_shape = SP1CompressWithVkeyShape {
+                    compress_shape: SP1CompressShape { proof_shapes: shape },
+                    merkle_tree_height: merkle_tree.height,
+                };
+                let input = SP1CompressWithVKeyWitnessValues::dummy(
+                    compress_prover.machine(),
+                    &compress_shape,
+                );
+                let mut builder = Builder::<InnerConfig>::default();
+                // read the input.
+                let input = input.read(&mut builder);
+                // Verify the proof.
+                SP1CompressWithVKeyVerifier::verify(
+                    &mut builder,
+                    compress_prover.machine(),
+                    input,
+                    vk_verification,
+                    PublicValuesOutputDigest::Reduce,
+                );
+                let operations = builder.into_operations();
+
+                // Compile the program.
+                let compiler_span = tracing::debug_span!("compile compress program").entered();
+                let mut compiler = AsmCompiler::<InnerConfig>::default();
+                let mut program = compiler.compile(operations);
+                config.fix_shape(&mut program);
+                let program = Arc::new(program);
+                compiler_span.exit();
+                compress_programs.insert(compress_shape, program);
+            });
+        }
+
         Self {
             core_prover,
             compress_prover,
@@ -227,7 +254,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             wrap_prover,
             recursion_programs: Mutex::new(LruCache::new(core_cache_size)),
             recursion_cache_misses: AtomicUsize::new(0),
-            compress_programs: Mutex::new(LruCache::new(compress_cache_size)),
+            compress_programs,
             compress_cache_misses: AtomicUsize::new(0),
             vk_root: root,
             vk_merkle_tree: merkle_tree,
@@ -355,40 +382,37 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         &self,
         input: &SP1CompressWithVKeyWitnessValues<InnerSC>,
     ) -> Arc<RecursionProgram<BabyBear>> {
-        let mut cache = self.compress_programs.lock().unwrap_or_else(|e| e.into_inner());
-        cache
-            .get_or_insert(input.shape(), || {
-                let misses = self.compress_cache_misses.fetch_add(1, Ordering::Relaxed);
-                tracing::debug!("compress cache miss, misses: {}", misses);
-                // Get the operations.
-                let builder_span = tracing::debug_span!("build compress program").entered();
-                let mut builder = Builder::<InnerConfig>::default();
+        self.compress_programs.get(&input.shape()).map(Clone::clone).unwrap_or_else(|| {
+            let misses = self.compress_cache_misses.fetch_add(1, Ordering::Relaxed);
+            tracing::debug!("compress cache miss, misses: {}", misses);
+            // Get the operations.
+            let builder_span = tracing::debug_span!("build compress program").entered();
+            let mut builder = Builder::<InnerConfig>::default();
 
-                // read the input.
-                let input = input.read(&mut builder);
-                // Verify the proof.
-                SP1CompressWithVKeyVerifier::verify(
-                    &mut builder,
-                    self.compress_prover.machine(),
-                    input,
-                    self.vk_verification,
-                    PublicValuesOutputDigest::Reduce,
-                );
-                let operations = builder.into_operations();
-                builder_span.exit();
+            // read the input.
+            let input = input.read(&mut builder);
+            // Verify the proof.
+            SP1CompressWithVKeyVerifier::verify(
+                &mut builder,
+                self.compress_prover.machine(),
+                input,
+                self.vk_verification,
+                PublicValuesOutputDigest::Reduce,
+            );
+            let operations = builder.into_operations();
+            builder_span.exit();
 
-                // Compile the program.
-                let compiler_span = tracing::debug_span!("compile compress program").entered();
-                let mut compiler = AsmCompiler::<InnerConfig>::default();
-                let mut program = compiler.compile(operations);
-                if let Some(recursion_shape_config) = &self.recursion_shape_config {
-                    recursion_shape_config.fix_shape(&mut program);
-                }
-                let program = Arc::new(program);
-                compiler_span.exit();
-                program
-            })
-            .clone()
+            // Compile the program.
+            let compiler_span = tracing::debug_span!("compile compress program").entered();
+            let mut compiler = AsmCompiler::<InnerConfig>::default();
+            let mut program = compiler.compile(operations);
+            if let Some(recursion_shape_config) = &self.recursion_shape_config {
+                recursion_shape_config.fix_shape(&mut program);
+            }
+            let program = Arc::new(program);
+            compiler_span.exit();
+            program
+        })
     }
 
     pub fn shrink_program(
