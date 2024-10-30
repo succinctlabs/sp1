@@ -20,7 +20,7 @@ pub mod verify;
 
 use std::{
     borrow::Borrow,
-    collections::{BTreeMap, HashMap},
+    collections::BTreeMap,
     env,
     num::NonZeroUsize,
     path::Path,
@@ -135,7 +135,7 @@ pub struct SP1Prover<C: SP1ProverComponents = DefaultProverComponents> {
 
     pub recursion_cache_misses: AtomicUsize,
 
-    pub compress_programs: HashMap<SP1CompressWithVkeyShape, Arc<RecursionProgram<BabyBear>>>,
+    pub compress_programs: BTreeMap<SP1CompressWithVkeyShape, Arc<RecursionProgram<BabyBear>>>,
 
     pub compress_cache_misses: AtomicUsize,
 
@@ -211,7 +211,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 
         let (root, merkle_tree) = MerkleTree::commit(allowed_vk_map.keys().copied().collect());
 
-        let mut compress_programs = HashMap::new();
+        let mut compress_programs = BTreeMap::new();
         if let Some(config) = &recursion_shape_config {
             SP1ProofShape::generate_compress_shapes(config, 2).for_each(|shape| {
                 let compress_shape = SP1CompressWithVkeyShape {
