@@ -52,7 +52,6 @@ impl Prover<DefaultProverComponents> for CudaProver {
         if kind == SP1ProofKind::Core {
             return Ok(SP1ProofWithPublicValues {
                 proof: SP1Proof::Core(proof.proof.0),
-                stdin: proof.stdin,
                 public_values: proof.public_values,
                 sp1_version: self.version().to_string(),
             });
@@ -67,7 +66,6 @@ impl Prover<DefaultProverComponents> for CudaProver {
         if kind == SP1ProofKind::Compressed {
             return Ok(SP1ProofWithPublicValues {
                 proof: SP1Proof::Compressed(Box::new(reduce_proof)),
-                stdin,
                 public_values,
                 sp1_version: self.version().to_string(),
             });
@@ -91,7 +89,6 @@ impl Prover<DefaultProverComponents> for CudaProver {
             let proof = self.prover.wrap_plonk_bn254(outer_proof, &plonk_bn254_artifacts);
             return Ok(SP1ProofWithPublicValues {
                 proof: SP1Proof::Plonk(proof),
-                stdin,
                 public_values,
                 sp1_version: self.version().to_string(),
             });
@@ -108,7 +105,6 @@ impl Prover<DefaultProverComponents> for CudaProver {
             let proof = self.prover.wrap_groth16_bn254(outer_proof, &groth16_bn254_artifacts);
             return Ok(SP1ProofWithPublicValues {
                 proof: SP1Proof::Groth16(proof),
-                stdin,
                 public_values,
                 sp1_version: self.version().to_string(),
             });
