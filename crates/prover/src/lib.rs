@@ -889,8 +889,23 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                         StarkVerifyingKey<InnerSC>,
                         ShardProof<InnerSC>,
                     )> = Vec::new();
+                    let mut last_proof: Option<(
+                        usize,
+                        usize,
+                        StarkVerifyingKey<InnerSC>,
+                        ShardProof<InnerSC>,
+                    )> = None;
+
                     loop {
-                        let received = { proofs_rx.lock().unwrap().recv() };
+                        let received = if batch.is_empty() && last_proof.is_some() {
+                            // If we have a stored last proof and no current batch, use it
+                            Ok(last_proof.clone().unwrap())
+                        } else {
+                            {
+                                proofs_rx.lock().unwrap().recv()
+                            }
+                        };
+
                         if let Ok((index, height, vk, proof)) = received {
                             batch.push((index, height, vk, proof));
 
@@ -898,27 +913,36 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                             let is_complete = height == expected_height;
 
                             // If it's not complete, and we haven't reached the batch size,
-                            // continue.
+                            // continue collecting proofs
                             if !is_complete && batch.len() < batch_size {
                                 continue;
                             }
 
-                            // Compute whether we're at the last input of a layer.
+                            // Compute whether we're at the last input of a layer
                             let mut is_last = false;
                             if let Some(first) = batch.first() {
                                 is_last = first.1 != height;
                             }
 
+                            // Handle odd number of proofs at the same height
+                            if !is_last && !is_complete && batch.len() % 2 == 1 {
+                                // Store the last proof for the next iteration
+                                last_proof = Some(batch.pop().unwrap());
+                                // If we now have an empty batch, continue to collect more proofs
+                                if batch.is_empty() {
+                                    continue;
+                                }
+                            }
+
                             // If we're at the last input of a layer, we need to only include the
                             // first input, otherwise we include all inputs.
-                            let inputs =
-                                if is_last { vec![batch[0].clone()] } else { batch.clone() };
-
-                            let next_input_index = inputs[0].1 + 1;
+                            let inputs = if is_last { vec![] } else { batch.clone() };
+                            let next_input_index = batch[0].1 + 1;
                             let vks_and_proofs = inputs
                                 .into_iter()
                                 .map(|(_, _, vk, proof)| (vk, proof))
                                 .collect::<Vec<_>>();
+
                             let input = SP1CircuitWitness::Compress(SP1CompressWitnessValues {
                                 vks_and_proofs,
                                 is_complete,
@@ -946,6 +970,28 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                                 batch = Vec::new();
                             }
                         } else {
+                            // If we have a last proof when the channel closes, we need to process it
+                            if let Some(final_proof) = &last_proof {
+                                batch.push(final_proof.clone());
+                                let next_input_index = batch[0].1 + 1;
+                                let vks_and_proofs = batch
+                                    .iter()
+                                    .map(|(_, _, vk, proof)| (vk.clone(), proof.clone()))
+                                    .collect();
+
+                                let input = SP1CircuitWitness::Compress(SP1CompressWitnessValues {
+                                    vks_and_proofs,
+                                    is_complete: true, // Force complete since we're at the end
+                                });
+
+                                input_sync.wait_for_turn(count);
+                                input_tx
+                                    .lock()
+                                    .unwrap()
+                                    .send((count, next_input_index, input))
+                                    .unwrap();
+                                input_sync.advance_turn();
+                            }
                             break;
                         }
                     }
