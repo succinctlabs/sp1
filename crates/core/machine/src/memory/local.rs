@@ -3,11 +3,11 @@ use std::{
     mem::size_of,
 };
 
-use crate::utils::{next_power_of_two, zeroed_f_vec};
+use crate::utils::pad_rows_fixed;
+use itertools::Itertools;
 use p3_air::{Air, BaseAir};
 use p3_field::PrimeField32;
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
-use p3_maybe_rayon::prelude::{ParallelBridge, ParallelIterator};
 use sp1_core_executor::{ExecutionRecord, Program};
 use sp1_derive::AlignedBorrow;
 use sp1_stark::{
@@ -86,45 +86,39 @@ impl<F: PrimeField32> MachineAir<F> for MemoryLocalChip {
         input: &ExecutionRecord,
         _output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
-        // Generate the trace rows for each event.
-        let events = input.get_local_mem_events().collect::<Vec<_>>();
-        let nb_rows = (events.len() + 3) / 4;
-        let size_log2 = input.fixed_log2_rows::<F, _>(self);
-        let padded_nb_rows = next_power_of_two(nb_rows, size_log2);
-        let mut values = zeroed_f_vec(padded_nb_rows * NUM_MEMORY_LOCAL_INIT_COLS);
-        let chunk_size = std::cmp::max((nb_rows + 1) / num_cpus::get(), 1);
+        let mut rows = Vec::<[F; NUM_MEMORY_LOCAL_INIT_COLS]>::new();
 
-        values
-            .chunks_mut(chunk_size * NUM_MEMORY_LOCAL_INIT_COLS)
-            .enumerate()
-            .par_bridge()
-            .for_each(|(i, rows)| {
-                rows.chunks_mut(NUM_MEMORY_LOCAL_INIT_COLS).enumerate().for_each(|(j, row)| {
-                    let idx = (i * chunk_size + j) * NUM_LOCAL_MEMORY_ENTRIES_PER_ROW;
+        for local_mem_events in
+            &input.get_local_mem_events().chunks(NUM_LOCAL_MEMORY_ENTRIES_PER_ROW)
+        {
+            let mut row = [F::zero(); NUM_MEMORY_LOCAL_INIT_COLS];
+            let cols: &mut MemoryLocalCols<F> = row.as_mut_slice().borrow_mut();
 
-                    let cols: &mut MemoryLocalCols<F> = row.borrow_mut();
-                    for k in 0..NUM_LOCAL_MEMORY_ENTRIES_PER_ROW {
-                        let cols = &mut cols.memory_local_entries[k];
-                        if idx + k < events.len() {
-                            let event = &events[idx + k];
-                            cols.addr = F::from_canonical_u32(event.addr);
-                            cols.initial_shard =
-                                F::from_canonical_u32(event.initial_mem_access.shard);
-                            cols.final_shard = F::from_canonical_u32(event.final_mem_access.shard);
-                            cols.initial_clk =
-                                F::from_canonical_u32(event.initial_mem_access.timestamp);
-                            cols.final_clk =
-                                F::from_canonical_u32(event.final_mem_access.timestamp);
-                            cols.initial_value = event.initial_mem_access.value.into();
-                            cols.final_value = event.final_mem_access.value.into();
-                            cols.is_real = F::one();
-                        }
-                    }
-                });
-            });
+            for (cols, event) in cols.memory_local_entries.iter_mut().zip(local_mem_events) {
+                cols.addr = F::from_canonical_u32(event.addr);
+                cols.initial_shard = F::from_canonical_u32(event.initial_mem_access.shard);
+                cols.final_shard = F::from_canonical_u32(event.final_mem_access.shard);
+                cols.initial_clk = F::from_canonical_u32(event.initial_mem_access.timestamp);
+                cols.final_clk = F::from_canonical_u32(event.final_mem_access.timestamp);
+                cols.initial_value = event.initial_mem_access.value.into();
+                cols.final_value = event.final_mem_access.value.into();
+                cols.is_real = F::one();
+            }
 
-        // Convert the trace to a row major matrix.
-        RowMajorMatrix::new(values, NUM_MEMORY_LOCAL_INIT_COLS)
+            rows.push(row);
+        }
+
+        // Pad the trace to a power of two depending on the proof shape in `input`.
+        pad_rows_fixed(
+            &mut rows,
+            || [F::zero(); NUM_MEMORY_LOCAL_INIT_COLS],
+            input.fixed_log2_rows::<F, _>(self),
+        );
+
+        RowMajorMatrix::new(
+            rows.into_iter().flatten().collect::<Vec<_>>(),
+            NUM_MEMORY_LOCAL_INIT_COLS,
+        )
     }
 
     fn included(&self, shard: &Self::Record) -> bool {

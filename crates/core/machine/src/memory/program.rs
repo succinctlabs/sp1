@@ -7,7 +7,6 @@ use p3_air::{Air, AirBuilder, AirBuilderWithPublicValues, BaseAir, PairBuilder};
 use p3_field::{AbstractField, PrimeField};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 
-use p3_maybe_rayon::prelude::{ParallelBridge, ParallelIterator};
 use sp1_core_executor::{ExecutionRecord, Program};
 use sp1_derive::AlignedBorrow;
 use sp1_stark::{
@@ -18,10 +17,7 @@ use sp1_stark::{
     InteractionKind, Word,
 };
 
-use crate::{
-    operations::IsZeroOperation,
-    utils::{next_power_of_two, pad_rows_fixed, zeroed_f_vec},
-};
+use crate::{operations::IsZeroOperation, utils::pad_rows_fixed};
 
 pub const NUM_MEMORY_PROGRAM_PREPROCESSED_COLS: usize =
     size_of::<MemoryProgramPreprocessedCols<u8>>();
@@ -75,36 +71,35 @@ impl<F: PrimeField> MachineAir<F> for MemoryProgramChip {
     }
 
     fn generate_preprocessed_trace(&self, program: &Self::Program) -> Option<RowMajorMatrix<F>> {
-        // Generate the trace rows for each event.
-        let nb_rows = program.memory_image.len();
-        let size_log2 = program.fixed_log2_rows::<F, _>(self);
-        let padded_nb_rows = next_power_of_two(nb_rows, size_log2);
-        let mut values = zeroed_f_vec(padded_nb_rows * NUM_MEMORY_PROGRAM_PREPROCESSED_COLS);
-        let chunk_size = std::cmp::max((nb_rows + 1) / num_cpus::get(), 1);
+        let program_memory = &program.memory_image;
+        // Note that BTreeMap is guaranteed to be sorted by key. This makes the row order
+        // deterministic.
+        let mut rows = program_memory
+            .iter()
+            .sorted()
+            .map(|(&addr, &word)| {
+                let mut row = [F::zero(); NUM_MEMORY_PROGRAM_PREPROCESSED_COLS];
+                let cols: &mut MemoryProgramPreprocessedCols<F> = row.as_mut_slice().borrow_mut();
+                cols.addr = F::from_canonical_u32(addr);
+                cols.value = Word::from(word);
+                cols.is_real = F::one();
+                row
+            })
+            .collect::<Vec<_>>();
 
-        let memory = program.memory_image.iter().collect::<Vec<_>>();
-        values
-            .chunks_mut(chunk_size * NUM_MEMORY_PROGRAM_PREPROCESSED_COLS)
-            .enumerate()
-            .par_bridge()
-            .for_each(|(i, rows)| {
-                rows.chunks_mut(NUM_MEMORY_PROGRAM_PREPROCESSED_COLS).enumerate().for_each(
-                    |(j, row)| {
-                        let idx = i * chunk_size + j;
-
-                        if idx < nb_rows {
-                            let (addr, word) = memory[idx];
-                            let cols: &mut MemoryProgramPreprocessedCols<F> = row.borrow_mut();
-                            cols.addr = F::from_canonical_u32(*addr);
-                            cols.value = Word::from(*word);
-                            cols.is_real = F::one();
-                        }
-                    },
-                );
-            });
+        // Pad the trace to a power of two depending on the proof shape in `input`.
+        pad_rows_fixed(
+            &mut rows,
+            || [F::zero(); NUM_MEMORY_PROGRAM_PREPROCESSED_COLS],
+            program.fixed_log2_rows::<F, _>(self),
+        );
 
         // Convert the trace to a row major matrix.
-        Some(RowMajorMatrix::new(values, NUM_MEMORY_PROGRAM_PREPROCESSED_COLS))
+        let trace = RowMajorMatrix::new(
+            rows.into_iter().flatten().collect::<Vec<_>>(),
+            NUM_MEMORY_PROGRAM_PREPROCESSED_COLS,
+        );
+        Some(trace)
     }
 
     fn generate_dependencies(&self, _input: &ExecutionRecord, _output: &mut ExecutionRecord) {

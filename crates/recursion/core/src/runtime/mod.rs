@@ -8,7 +8,6 @@ mod record;
 use backtrace::Backtrace as Trace;
 pub use instruction::Instruction;
 use instruction::{FieldEltType, HintBitsInstr, HintExt2FeltsInstr, HintInstr, PrintInstr};
-use machine::RecursionAirEventCount;
 use memory::*;
 pub use opcode::*;
 pub use program::*;
@@ -250,7 +249,6 @@ where
     pub fn run(&mut self) -> Result<(), RuntimeError<F, EF>> {
         let early_exit_ts = std::env::var("RECURSION_EARLY_EXIT_TS")
             .map_or(usize::MAX, |ts: String| ts.parse().unwrap());
-        self.preallocate_record();
         while self.pc < F::from_canonical_u32(self.program.instructions.len() as u32) {
             let idx = self.pc.as_canonical_u32() as usize;
             let instruction = self.program.instructions[idx].clone();
@@ -545,19 +543,5 @@ where
             }
         }
         Ok(())
-    }
-
-    pub fn preallocate_record(&mut self) {
-        let event_counts = self
-            .program
-            .instructions
-            .iter()
-            .fold(RecursionAirEventCount::default(), |heights, instruction| heights + instruction);
-        self.record.poseidon2_events.reserve(event_counts.poseidon2_wide_events);
-        self.record.mem_var_events.reserve(event_counts.mem_var_events);
-        self.record.base_alu_events.reserve(event_counts.base_alu_events);
-        self.record.ext_alu_events.reserve(event_counts.ext_alu_events);
-        self.record.exp_reverse_bits_len_events.reserve(event_counts.exp_reverse_bits_len_events);
-        self.record.select_events.reserve(event_counts.select_events);
     }
 }
