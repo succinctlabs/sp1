@@ -43,8 +43,8 @@ pub(crate) struct OpeningProof {
 }
 
 /// Derives the folding factor for the batched opening proof.
-/// 
-/// Uses a separate transcript than the main transcript used for 
+///
+/// Uses a separate transcript than the main transcript used for the other fiat shamir randomness.
 fn derive_gamma(
     point: &Fr,
     digests: Vec<Digest>,
