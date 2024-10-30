@@ -5,7 +5,7 @@
 If you are using a library that has an MSRV specified, you may encounter an error like this when building your program.
 
 ```txt
-package `alloy v0.1.1 cannot be built because it requires rustc 1.76 or newer, while the currently active rustc version is 1.75.0-nightly`
+package `alloy v0.1.1` cannot be built because it requires rustc 1.76 or newer, while the currently active rustc version is 1.75.0-nightly`
 ```
 
 This is due to the fact that your current Succinct Rust toolchain has been built with a lower version than the MSRV of the crates you are using. 
@@ -18,7 +18,7 @@ You can check the version of your local Succinct Rust toolchain by running `carg
 cargo 1.81.0-dev (2dbb1af80 2024-08-20)
 ```
 
-A Succinct Rust toolchain with version **1.81** should work for all crates that have an MSRV of **1.81** or lower.
+The Succinct Rust toolchain with version **1.81** should work for all crates that have an MSRV of **1.81** or lower.
 
 If the MSRV of your crate is higher than **1.81**, try the following:
 
@@ -144,4 +144,5 @@ After confirming the version of `sp1-sdk` in your lockfile, you can downgrade to
 %  cargo update -p sp1-build -p sp1-sdk -p sp1-recursion-derive -p sp1-recursion-gnark-ffi -p sp1-zkvm --precise 3.0.0-rc1
 ```
 
-This command will update the `Cargo.lock` file to specify the lower RC version, resolving any version conflicts and allowing you to continue development.
+This command will update the `Cargo.lock` file to specify the lower RC version, resolving any version conflicts and thus allowing you to continue development.
+
