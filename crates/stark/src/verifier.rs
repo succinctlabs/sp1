@@ -140,10 +140,14 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
             .map(|(name, domain, _)| {
                 let i = chip_ordering[name];
                 let values = opened_values.chips[i].preprocessed.clone();
-                (
-                    *domain,
-                    vec![(zeta, values.local), (domain.next_point(zeta).unwrap(), values.next)],
-                )
+                if !chips[i].local_only() {
+                    (
+                        *domain,
+                        vec![(zeta, values.local), (domain.next_point(zeta).unwrap(), values.next)],
+                    )
+                } else {
+                    (*domain, vec![(zeta, values.local)])
+                }
             })
             .collect::<Vec<_>>();
 

@@ -593,9 +593,14 @@ where
             tracing::debug_span!("compute preprocessed opening points").in_scope(|| {
                 pk.traces
                     .iter()
-                    .map(|trace| {
+                    .zip(pk.local_only.iter())
+                    .map(|(trace, local_only)| {
                         let domain = pcs.natural_domain_for_degree(trace.height());
-                        vec![zeta, domain.next_point(zeta).unwrap()]
+                        if !local_only {
+                            vec![zeta, domain.next_point(zeta).unwrap()]
+                        } else {
+                            vec![zeta]
+                        }
                     })
                     .collect::<Vec<_>>()
             });
@@ -684,9 +689,16 @@ where
 
         let preprocessed_opened_values = preprocessed_values
             .into_iter()
-            .map(|op| {
-                let [local, next] = op.try_into().unwrap();
-                AirOpenedValues { local, next }
+            .zip(pk.local_only.iter())
+            .map(|(op, local_only)| {
+                if !local_only {
+                    let [local, next] = op.try_into().unwrap();
+                    AirOpenedValues { local, next }
+                } else {
+                    let [local] = op.try_into().unwrap();
+                    let width = local.len();
+                    AirOpenedValues { local, next: vec![SC::Challenge::zero(); width] }
+                }
             })
             .collect::<Vec<_>>();
 

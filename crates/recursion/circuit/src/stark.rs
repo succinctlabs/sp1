@@ -358,10 +358,18 @@ where
             .map(|(name, domain, _)| {
                 let i = chip_ordering[name];
                 let values = opened_values.chips[i].preprocessed.clone();
-                TwoAdicPcsMatsVariable::<C> {
-                    domain: *domain,
-                    points: vec![zeta, domain.next_point_variable(builder, zeta)],
-                    values: vec![values.local, values.next],
+                if !chips[i].local_only() {
+                    TwoAdicPcsMatsVariable::<C> {
+                        domain: *domain,
+                        points: vec![zeta, domain.next_point_variable(builder, zeta)],
+                        values: vec![values.local, values.next],
+                    }
+                } else {
+                    TwoAdicPcsMatsVariable::<C> {
+                        domain: *domain,
+                        points: vec![zeta],
+                        values: vec![values.local],
+                    }
                 }
             })
             .collect::<Vec<_>>();
