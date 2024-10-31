@@ -47,7 +47,7 @@ pub struct ProofRequest {
     /// The execution status of the proof request.
     #[prost(enumeration = "ExecutionStatus", tag = "11")]
     pub execution_status: i32,
-    /// The requester address.
+    /// The requestor address.
     #[prost(bytes = "vec", tag = "12")]
     pub requester: ::prost::alloc::vec::Vec<u8>,
 }
@@ -183,6 +183,18 @@ pub struct ExecuteProofResponse {
 }
 #[derive(serde::Serialize, serde::Deserialize, Clone, Copy, PartialEq, ::prost::Message)]
 pub struct ExecuteProofResponseBody {}
+#[derive(serde::Serialize, serde::Deserialize, Clone, Copy, PartialEq, ::prost::Message)]
+pub struct GetLatestBridgeBlockRequest {
+    /// The chain ID of the bridge.
+    #[prost(uint32, tag = "1")]
+    pub chain_id: u32,
+}
+#[derive(serde::Serialize, serde::Deserialize, Clone, Copy, PartialEq, ::prost::Message)]
+pub struct GetLatestBridgeBlockResponse {
+    /// The latest processed block in the bridge.
+    #[prost(uint64, tag = "1")]
+    pub block_number: u64,
+}
 #[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
 pub struct GetBalanceRequest {
     /// The address of the account.
@@ -447,8 +459,7 @@ impl ExecutionStatus {
 /// Generated client implementations.
 pub mod prover_network_client {
     #![allow(unused_variables, dead_code, missing_docs, clippy::let_unit_value)]
-    use tonic::codegen::http::Uri;
-    use tonic::codegen::*;
+    use tonic::codegen::{http::Uri, *};
     #[derive(Debug, Clone)]
     pub struct ProverNetworkClient<T> {
         inner: tonic::client::Grpc<T>,
@@ -626,6 +637,26 @@ pub mod prover_network_client {
                 .insert(GrpcMethod::new("network.ProverNetwork", "GetProofRequestStatus"));
             self.inner.unary(req, path, codec).await
         }
+        /// Get the latest processed block in the bridge.
+        pub async fn get_latest_bridge_block(
+            &mut self,
+            request: impl tonic::IntoRequest<super::GetLatestBridgeBlockRequest>,
+        ) -> std::result::Result<tonic::Response<super::GetLatestBridgeBlockResponse>, tonic::Status>
+        {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path =
+                http::uri::PathAndQuery::from_static("/network.ProverNetwork/GetLatestBridgeBlock");
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("network.ProverNetwork", "GetLatestBridgeBlock"));
+            self.inner.unary(req, path, codec).await
+        }
         /// Get the balance of an account.
         pub async fn get_balance(
             &mut self,
@@ -684,7 +715,8 @@ pub mod prover_network_client {
 pub mod prover_network_server {
     #![allow(unused_variables, dead_code, missing_docs, clippy::let_unit_value)]
     use tonic::codegen::*;
-    /// Generated trait containing gRPC methods that should be implemented for use with ProverNetworkServer.
+    /// Generated trait containing gRPC methods that should be implemented for use with
+    /// ProverNetworkServer.
     #[async_trait]
     pub trait ProverNetwork: std::marker::Send + std::marker::Sync + 'static {
         /// Creates a proof.
@@ -715,6 +747,11 @@ pub mod prover_network_server {
             &self,
             request: tonic::Request<super::GetProofRequestStatusRequest>,
         ) -> std::result::Result<tonic::Response<super::GetProofRequestStatusResponse>, tonic::Status>;
+        /// Get the latest processed block in the bridge.
+        async fn get_latest_bridge_block(
+            &self,
+            request: tonic::Request<super::GetLatestBridgeBlockRequest>,
+        ) -> std::result::Result<tonic::Response<super::GetLatestBridgeBlockResponse>, tonic::Status>;
         /// Get the balance of an account.
         async fn get_balance(
             &self,
@@ -998,6 +1035,48 @@ pub mod prover_network_server {
                     let inner = self.inner.clone();
                     let fut = async move {
                         let method = GetProofRequestStatusSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/network.ProverNetwork/GetLatestBridgeBlock" => {
+                    #[allow(non_camel_case_types)]
+                    struct GetLatestBridgeBlockSvc<T: ProverNetwork>(pub Arc<T>);
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<super::GetLatestBridgeBlockRequest>
+                        for GetLatestBridgeBlockSvc<T>
+                    {
+                        type Response = super::GetLatestBridgeBlockResponse;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::GetLatestBridgeBlockRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as ProverNetwork>::get_latest_bridge_block(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = GetLatestBridgeBlockSvc(inner);
                         let codec = tonic::codec::ProstCodec::default();
                         let mut grpc = tonic::server::Grpc::new(codec)
                             .apply_compression_config(
