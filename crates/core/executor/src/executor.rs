@@ -6,7 +6,7 @@ use std::{
 
 use hashbrown::HashMap;
 use serde::{Deserialize, Serialize};
-use sp1_stark::{MachineRecord, SP1CoreOpts};
+use sp1_stark::SP1CoreOpts;
 use thiserror::Error;
 
 use crate::{
