@@ -416,6 +416,26 @@ mod tests {
     }
 
     #[test]
+    fn test_e2e_prove_groth16() {
+        utils::setup_logger();
+        let client = ProverClient::local();
+        let elf = include_bytes!("../../../tests/fibonacci/elf/riscv32im-succinct-zkvm-elf");
+        let (pk, vk) = client.setup(elf);
+        let mut stdin = SP1Stdin::new();
+        stdin.write(&10usize);
+
+        // Generate proof & verify.
+        let mut proof = client.prove(&pk, stdin).groth16().run().unwrap();
+        client.verify(&proof, &vk).unwrap();
+
+        // Test invalid public values.
+        proof.public_values = SP1PublicValues::from(&[255, 4, 84]);
+        if client.verify(&proof, &vk).is_ok() {
+            panic!("verified proof with invalid public values")
+        }
+    }
+
+    #[test]
     fn test_e2e_prove_plonk_mock() {
         utils::setup_logger();
         let client = ProverClient::mock();

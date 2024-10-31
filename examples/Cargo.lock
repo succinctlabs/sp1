@@ -1020,14 +1020,14 @@ dependencies = [
 [[package]]
 name = "bls12_381"
 version = "0.8.0"
-source = "git+https://github.com/sp1-patches/bls12_381?branch=patch-v0.8.0#12f049691dc9165ccb1a0930327d2316976450a3"
+source = "git+https://github.com/sp1-patches/bls12_381?tag=bls12_381-v0.8.0-patch-v1#444e109287eb3adc581425e160ed6041622dda35"
 dependencies = [
  "cfg-if",
  "ff 0.13.0",
  "group 0.13.0",
  "pairing 0.23.0",
  "rand_core 0.6.4",
- "sp1-lib 1.2.0",
+ "sp1-lib 3.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "subtle",
 ]
 
@@ -1049,7 +1049,7 @@ version = "1.1.0"
 dependencies = [
  "rand 0.8.5",
  "sp1-zkvm",
- "substrate-bn 0.6.0 (git+https://github.com/sp1-patches/bn?rev=43d854d45b5727b1ff2b9f346d728e785bb8395c)",
+ "substrate-bn 0.6.0 (git+https://github.com/sp1-patches/bn?tag=substrate_bn-v0.6.0-patch-v1)",
 ]
 
 [[package]]
@@ -1540,7 +1540,7 @@ dependencies = [
 [[package]]
 name = "curve25519-dalek"
 version = "4.1.3"
-source = "git+https://github.com/sp1-patches/curve25519-dalek?branch=patch-curve25519-v4.1.3#1d73fd95f1a76bee8f46643cf78bbccc1fb06ede"
+source = "git+https://github.com/sp1-patches/curve25519-dalek?tag=curve25519_dalek-v4.1.3-patch-v1#dbdd0ffeea0ff767affc3f6765d1edbdaa9e2cb9"
 dependencies = [
  "anyhow",
  "cfg-if",
@@ -1549,7 +1549,7 @@ dependencies = [
  "digest 0.10.7",
  "fiat-crypto",
  "rustc_version 0.4.1",
- "sp1-lib 1.2.0",
+ "sp1-lib 3.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "subtle",
  "zeroize",
 ]
@@ -1557,11 +1557,26 @@ dependencies = [
 [[package]]
 name = "curve25519-dalek-derive"
 version = "0.1.1"
-source = "git+https://github.com/sp1-patches/curve25519-dalek?branch=patch-curve25519-v4.1.3#1d73fd95f1a76bee8f46643cf78bbccc1fb06ede"
+source = "git+https://github.com/sp1-patches/curve25519-dalek?tag=curve25519_dalek-v4.1.3-patch-v1#dbdd0ffeea0ff767affc3f6765d1edbdaa9e2cb9"
 dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.85",
+]
+
+[[package]]
+name = "curve25519-dalek-ng"
+version = "4.1.1"
+source = "git+https://github.com/sp1-patches/curve25519-dalek-ng?tag=curve25519_dalek_ng-v4.1.1-patch-v1#3fb3e7f6047ddeef0f0c9212f4604bd30d64bd28"
+dependencies = [
+ "anyhow",
+ "byteorder",
+ "cfg-if",
+ "digest 0.9.0",
+ "rand_core 0.6.4",
+ "sp1-lib 3.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "subtle-ng",
+ "zeroize",
 ]
 
 [[package]]
@@ -1888,9 +1903,9 @@ dependencies = [
 [[package]]
 name = "ed25519-consensus"
 version = "2.1.0"
-source = "git+https://github.com/sp1-patches/ed25519-consensus?branch=patch-v2.1.0#2b2c4b43344bc4daf5b1326f367f2d9d661eeabb"
+source = "git+https://github.com/sp1-patches/ed25519-consensus?tag=ed25519_consensus-v2.1.0-patch-v1#2b2c4b43344bc4daf5b1326f367f2d9d661eeabb"
 dependencies = [
- "curve25519-dalek-ng",
+ "curve25519-dalek-ng 4.1.1 (git+https://github.com/sp1-patches/curve25519-dalek-ng?branch=patch-v4.1.1)",
  "hex",
  "rand_core 0.6.4",
  "serde",
@@ -3974,9 +3989,8 @@ dependencies = [
 
 [[package]]
 name = "p3-air"
-version = "0.1.4-succinct"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "066f571b2e645505ed5972dd0e1e252ba03352150830c9566769ca711c0f1e9b"
+version = "0.1.0"
+source = "git+https://github.com/Plonky3/Plonky3?branch=sp1-v4#db3d45d4ec899efaf8f7234a8573f285fbdda5db"
 dependencies = [
  "p3-field",
  "p3-matrix",
@@ -3984,9 +3998,8 @@ dependencies = [
 
 [[package]]
 name = "p3-baby-bear"
-version = "0.1.4-succinct"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ff00f571044d299310d9659c6e51c98422de3bf94b8577f7f30cf59cf2043e40"
+version = "0.1.0"
+source = "git+https://github.com/Plonky3/Plonky3?branch=sp1-v4#db3d45d4ec899efaf8f7234a8573f285fbdda5db"
 dependencies = [
  "num-bigint 0.4.6",
  "p3-field",
@@ -3999,9 +4012,8 @@ dependencies = [
 
 [[package]]
 name = "p3-blake3"
-version = "0.1.4-succinct"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cc4cb69ae54a279bbbd477566d1bdb71aa879b528fd658d0fcfc36f54b00217c"
+version = "0.1.0"
+source = "git+https://github.com/Plonky3/Plonky3?branch=sp1-v4#db3d45d4ec899efaf8f7234a8573f285fbdda5db"
 dependencies = [
  "blake3",
  "p3-symmetric",
@@ -4009,9 +4021,8 @@ dependencies = [
 
 [[package]]
 name = "p3-bn254-fr"
-version = "0.1.4-succinct"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bf19917f986d45e9abb6d177e875824ced6eed096480d574fce16f2c45c721ea"
+version = "0.1.0"
+source = "git+https://github.com/Plonky3/Plonky3?branch=sp1-v4#db3d45d4ec899efaf8f7234a8573f285fbdda5db"
 dependencies = [
  "ff 0.13.0",
  "num-bigint 0.4.6",
@@ -4024,9 +4035,8 @@ dependencies = [
 
 [[package]]
 name = "p3-challenger"
-version = "0.1.4-succinct"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3be7e4fbce4566a93091107eadfafa0b5374bd1ffd3e0f6b850da3ff72eb183f"
+version = "0.1.0"
+source = "git+https://github.com/Plonky3/Plonky3?branch=sp1-v4#db3d45d4ec899efaf8f7234a8573f285fbdda5db"
 dependencies = [
  "p3-field",
  "p3-maybe-rayon",
@@ -4038,13 +4048,11 @@ dependencies = [
 
 [[package]]
 name = "p3-commit"
-version = "0.1.4-succinct"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7a03eb0f99d68a712c41e658e9a7782a0705d4ffcfb6232a43bd3f1ef9591002"
+version = "0.1.0"
+source = "git+https://github.com/Plonky3/Plonky3?branch=sp1-v4#db3d45d4ec899efaf8f7234a8573f285fbdda5db"
 dependencies = [
  "itertools 0.12.1",
  "p3-challenger",
- "p3-dft",
  "p3-field",
  "p3-matrix",
  "p3-util",
@@ -4053,9 +4061,8 @@ dependencies = [
 
 [[package]]
 name = "p3-dft"
-version = "0.1.4-succinct"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1556de968523fbe5d804ab50600ea306fcceea3500cfd7601e40882480524664"
+version = "0.1.0"
+source = "git+https://github.com/Plonky3/Plonky3?branch=sp1-v4#db3d45d4ec899efaf8f7234a8573f285fbdda5db"
 dependencies = [
  "p3-field",
  "p3-matrix",
@@ -4066,9 +4073,8 @@ dependencies = [
 
 [[package]]
 name = "p3-field"
-version = "0.1.4-succinct"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cec2af6e1ac47a2035af5165e668d64612c4b9ccabd06df37fc1fd381fdf8a71"
+version = "0.1.0"
+source = "git+https://github.com/Plonky3/Plonky3?branch=sp1-v4#db3d45d4ec899efaf8f7234a8573f285fbdda5db"
 dependencies = [
  "itertools 0.12.1",
  "num-bigint 0.4.6",
@@ -4080,9 +4086,8 @@ dependencies = [
 
 [[package]]
 name = "p3-fri"
-version = "0.1.4-succinct"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f351ee9f9d4256455164565cd91e3e6d2487cc2a5355515fa2b6d479269188dd"
+version = "0.1.0"
+source = "git+https://github.com/Plonky3/Plonky3?branch=sp1-v4#db3d45d4ec899efaf8f7234a8573f285fbdda5db"
 dependencies = [
  "itertools 0.12.1",
  "p3-challenger",
@@ -4099,9 +4104,8 @@ dependencies = [
 
 [[package]]
 name = "p3-interpolation"
-version = "0.1.4-succinct"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d24d0f2907a374ebe4545fcff3120d6376d9630cf0bef30feedcfc5908ea2c37"
+version = "0.1.0"
+source = "git+https://github.com/Plonky3/Plonky3?branch=sp1-v4#db3d45d4ec899efaf8f7234a8573f285fbdda5db"
 dependencies = [
  "p3-field",
  "p3-matrix",
@@ -4110,9 +4114,8 @@ dependencies = [
 
 [[package]]
 name = "p3-keccak-air"
-version = "0.1.4-succinct"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e66badd47cedf6570e91a0cabc389b80dfd53ba1a6e9a45a3923fd54b86122ff"
+version = "0.1.0"
+source = "git+https://github.com/Plonky3/Plonky3?branch=sp1-v4#db3d45d4ec899efaf8f7234a8573f285fbdda5db"
 dependencies = [
  "p3-air",
  "p3-field",
@@ -4124,9 +4127,8 @@ dependencies = [
 
 [[package]]
 name = "p3-matrix"
-version = "0.1.4-succinct"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fa272f3ae77ed8d73478aa7c89e712efb15bda3ff4aff10fadfe11a012cd5389"
+version = "0.1.0"
+source = "git+https://github.com/Plonky3/Plonky3?branch=sp1-v4#db3d45d4ec899efaf8f7234a8573f285fbdda5db"
 dependencies = [
  "itertools 0.12.1",
  "p3-field",
@@ -4139,18 +4141,16 @@ dependencies = [
 
 [[package]]
 name = "p3-maybe-rayon"
-version = "0.1.4-succinct"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3eecad6292021858f282d643d9d1284ab112a200494d589863a9c4080e578ef0"
+version = "0.1.0"
+source = "git+https://github.com/Plonky3/Plonky3?branch=sp1-v4#db3d45d4ec899efaf8f7234a8573f285fbdda5db"
 dependencies = [
  "rayon",
 ]
 
 [[package]]
 name = "p3-mds"
-version = "0.1.4-succinct"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "716c4dbe68a02f1541eb09149d07b8663a3a5951b1864a31cd67ff3bb0826e57"
+version = "0.1.0"
+source = "git+https://github.com/Plonky3/Plonky3?branch=sp1-v4#db3d45d4ec899efaf8f7234a8573f285fbdda5db"
 dependencies = [
  "itertools 0.12.1",
  "p3-dft",
@@ -4163,9 +4163,8 @@ dependencies = [
 
 [[package]]
 name = "p3-merkle-tree"
-version = "0.1.4-succinct"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ad7ebab52a03c26025988663a135aed62f5084a2e2ea262176dc8748efb593e5"
+version = "0.1.0"
+source = "git+https://github.com/Plonky3/Plonky3?branch=sp1-v4#db3d45d4ec899efaf8f7234a8573f285fbdda5db"
 dependencies = [
  "itertools 0.12.1",
  "p3-commit",
@@ -4180,9 +4179,8 @@ dependencies = [
 
 [[package]]
 name = "p3-poseidon2"
-version = "0.1.4-succinct"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "39c042efa15beab7a8c4d0ca9b9e4cbda7582be0c08e121e830fec45f082935b"
+version = "0.1.0"
+source = "git+https://github.com/Plonky3/Plonky3?branch=sp1-v4#db3d45d4ec899efaf8f7234a8573f285fbdda5db"
 dependencies = [
  "gcd",
  "p3-field",
@@ -4194,9 +4192,8 @@ dependencies = [
 
 [[package]]
 name = "p3-symmetric"
-version = "0.1.4-succinct"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b9896a831f5b688adc13f6fbe1dcf66ecfaa4622a500f81aa745610e777acb72"
+version = "0.1.0"
+source = "git+https://github.com/Plonky3/Plonky3?branch=sp1-v4#db3d45d4ec899efaf8f7234a8573f285fbdda5db"
 dependencies = [
  "itertools 0.12.1",
  "p3-field",
@@ -4205,9 +4202,8 @@ dependencies = [
 
 [[package]]
 name = "p3-uni-stark"
-version = "0.1.4-succinct"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8437ebcd060c8a5479898030b114a93da8a86eb4c2e5f313d9eeaaf40c6e6f61"
+version = "0.1.0"
+source = "git+https://github.com/Plonky3/Plonky3?branch=sp1-v4#db3d45d4ec899efaf8f7234a8573f285fbdda5db"
 dependencies = [
  "itertools 0.12.1",
  "p3-air",
@@ -4224,9 +4220,8 @@ dependencies = [
 
 [[package]]
 name = "p3-util"
-version = "0.1.4-succinct"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dedb9d27ba47ac314c6fac4ca54e55c3e486c864d51ec5ba55dbe47b75121157"
+version = "0.1.0"
+source = "git+https://github.com/Plonky3/Plonky3?branch=sp1-v4#db3d45d4ec899efaf8f7234a8573f285fbdda5db"
 dependencies = [
  "serde",
 ]
@@ -4340,7 +4335,7 @@ version = "1.1.0"
 dependencies = [
  "alloy-primitives 0.8.9",
  "curve25519-dalek",
- "curve25519-dalek-ng",
+ "curve25519-dalek-ng 4.1.1 (git+https://github.com/sp1-patches/curve25519-dalek-ng?tag=curve25519_dalek_ng-v4.1.1-patch-v1)",
  "ed25519-consensus",
  "ed25519-dalek",
  "revm-precompile",
@@ -5566,7 +5561,7 @@ dependencies = [
  "ripemd",
  "secp256k1",
  "sha2 0.10.8",
- "substrate-bn 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "substrate-bn 0.6.0 (git+https://github.com/sp1-patches/bn?tag=substrate_bn-v0.6.0-patch-v1)",
 ]
 
 [[package]]
@@ -6110,7 +6105,7 @@ dependencies = [
 [[package]]
 name = "secp256k1"
 version = "0.29.0"
-source = "git+https://github.com/sp1-patches/rust-secp256k1?branch=patch-secp256k1-v0.29.0#13910d476dbdaf436312a9f096ee312593028557"
+source = "git+https://github.com/sp1-patches/rust-secp256k1?tag=secp256k1-v0.29.0-patch-v1#13910d476dbdaf436312a9f096ee312593028557"
 dependencies = [
  "cfg-if",
  "ecdsa 0.16.9 (git+https://github.com/sp1-patches/signatures?branch=patch-ecdsa-v0.16.9)",
@@ -6123,7 +6118,7 @@ dependencies = [
 [[package]]
 name = "secp256k1-sys"
 version = "0.10.0"
-source = "git+https://github.com/sp1-patches/rust-secp256k1?branch=patch-secp256k1-v0.29.0#13910d476dbdaf436312a9f096ee312593028557"
+source = "git+https://github.com/sp1-patches/rust-secp256k1?tag=secp256k1-v0.29.0-patch-v1#13910d476dbdaf436312a9f096ee312593028557"
 dependencies = [
  "cc",
 ]
@@ -6354,7 +6349,7 @@ dependencies = [
 [[package]]
 name = "sha2"
 version = "0.9.9"
-source = "git+https://github.com/sp1-patches/RustCrypto-hashes?branch=patch-sha2-v0.9.9#db82a4848f8d033eab544255e1efa036cc06f054"
+source = "git+https://github.com/sp1-patches/RustCrypto-hashes?tag=sha2-v0.9.9-patch-v1#db82a4848f8d033eab544255e1efa036cc06f054"
 dependencies = [
  "block-buffer 0.9.0",
  "cfg-if",
@@ -6366,7 +6361,7 @@ dependencies = [
 [[package]]
 name = "sha2"
 version = "0.10.8"
-source = "git+https://github.com/sp1-patches/RustCrypto-hashes?branch=patch-v0.10.8#1f224388fdede7cef649bce0d63876d1a9e3f515"
+source = "git+https://github.com/sp1-patches/RustCrypto-hashes?tag=sha2-v0.10.8-patch-v1#1f224388fdede7cef649bce0d63876d1a9e3f515"
 dependencies = [
  "cfg-if",
  "cpufeatures",
@@ -6648,15 +6643,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "sp1-lib"
-version = "3.0.0"
-source = "git+https://github.com/succinctlabs/sp1.git?branch=dev#b5c6a41816db138a84371178a84538356cd9addd"
-dependencies = [
- "bincode",
- "serde",
-]
-
-[[package]]
 name = "sp1-primitives"
 version = "3.0.0"
 dependencies = [
@@ -6705,6 +6691,7 @@ dependencies = [
  "sp1-recursion-core",
  "sp1-recursion-gnark-ffi",
  "sp1-stark",
+ "sp1-verifier",
  "subtle-encoding",
  "tempfile",
  "thiserror",
@@ -6911,13 +6898,13 @@ dependencies = [
  "hex",
  "lazy_static",
  "sha2 0.10.8",
- "substrate-bn 0.6.0 (git+https://github.com/yuwen01/bn?branch=yuwen/sp1-flag)",
+ "substrate-bn 0.6.0 (git+https://github.com/sp1-patches/bn?tag=substrate_bn-v0.6.0-patch-v2)",
  "thiserror-no-std",
 ]
 
 [[package]]
 name = "sp1-zkvm"
-version = "3.0.0"
+version = "3.0.1"
 dependencies = [
  "cfg-if",
  "getrandom",
@@ -7065,20 +7052,22 @@ dependencies = [
 [[package]]
 name = "substrate-bn"
 version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "72b5bbfa79abbae15dd642ea8176a21a635ff3c00059961d1ea27ad04e5b441c"
+source = "git+https://github.com/sp1-patches/bn?tag=substrate_bn-v0.6.0-patch-v1#9b0e986d32ea128a08cebfe90767072beccdb45f"
 dependencies = [
+ "bytemuck",
  "byteorder",
+ "cfg-if",
  "crunchy",
  "lazy_static",
  "rand 0.8.5",
  "rustc-hex",
+ "sp1-lib 3.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "substrate-bn"
 version = "0.6.0"
-source = "git+https://github.com/yuwen01/bn?branch=yuwen/sp1-flag#d5c1270f612fcaa7107e5b3a5686df8fed78cc3b"
+source = "git+https://github.com/sp1-patches/bn?tag=substrate_bn-v0.6.0-patch-v2#a1974dba1f3b75c16b48a84037edc12b36bba1cf"
 dependencies = [
  "bytemuck",
  "byteorder",
@@ -7089,21 +7078,6 @@ dependencies = [
  "rand 0.8.5",
  "rustc-hex",
  "sp1-lib 3.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
-name = "substrate-bn"
-version = "0.6.0"
-source = "git+https://github.com/sp1-patches/bn?rev=43d854d45b5727b1ff2b9f346d728e785bb8395c#43d854d45b5727b1ff2b9f346d728e785bb8395c"
-dependencies = [
- "bytemuck",
- "byteorder",
- "cfg-if",
- "crunchy",
- "lazy_static",
- "rand 0.8.5",
- "rustc-hex",
- "sp1-lib 3.0.0 (git+https://github.com/succinctlabs/sp1.git?branch=dev)",
 ]
 
 [[package]]
@@ -7452,7 +7426,7 @@ dependencies = [
 [[package]]
 name = "tiny-keccak"
 version = "2.0.2"
-source = "git+https://github.com/sp1-patches/tiny-keccak?branch=patch-v2.0.2#bf0b28f63510a90c7b6c21ac6ff461c93ecd2331"
+source = "git+https://github.com/sp1-patches/tiny-keccak?tag=tiny_keccak-v2.0.2-patch-v1#bf0b28f63510a90c7b6c21ac6ff461c93ecd2331"
 dependencies = [
  "cfg-if",
  "crunchy",
@@ -8368,14 +8342,14 @@ dependencies = [
 [[patch.unused]]
 name = "ecdsa"
 version = "0.16.8"
-source = "git+https://github.com/sp1-patches/signatures?branch=ratan/secp256k1-add-fixes-v0.16.8#cdeab4f0ed0d715ceae3fc6d09d16ec3ae41ead7"
+source = "git+https://github.com/sp1-patches/signatures?tag=ecdsa-v0.16.8-patch-v1#aad9626d51e830729969220eee44de082ff97d53"
 
 [[patch.unused]]
 name = "sha2"
 version = "0.10.6"
-source = "git+https://github.com/sp1-patches/RustCrypto-hashes?branch=patch-sha2-v0.10.6#e5f8b7eaaa9801503bd998932a52b65848eee234"
+source = "git+https://github.com/sp1-patches/RustCrypto-hashes?tag=sha2-v0.10.6-patch-v1#e5f8b7eaaa9801503bd998932a52b65848eee234"
 
 [[patch.unused]]
 name = "sha2"
 version = "0.9.8"
-source = "git+https://github.com/sp1-patches/RustCrypto-hashes?branch=patch-sha2-v0.9.8#afdbfb09c325f8a69c01d540ec9a261e3637725d"
+source = "git+https://github.com/sp1-patches/RustCrypto-hashes?tag=sha2-v0.9.8-patch-v1#afdbfb09c325f8a69c01d540ec9a261e3637725d"

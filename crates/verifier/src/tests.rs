@@ -16,13 +16,8 @@ fn test_verify_groth16() {
     // This vkey hash was derived by calling `vk.bytes32()` on the verifying key.
     let vkey_hash = "0x00e60860c07bfc6e4c480286c0ddbb879674eb47f84b4ef041cf858b17aa0ed1";
 
-    let is_valid =
-        crate::Groth16Verifier::verify(&proof, &public_inputs, vkey_hash, &crate::GROTH16_VK_BYTES)
-            .expect("Groth16 proof is invalid");
-
-    if !is_valid {
-        panic!("Groth16 proof is invalid");
-    }
+    crate::Groth16Verifier::verify(&proof, &public_inputs, vkey_hash, &crate::GROTH16_VK_BYTES)
+        .expect("Groth16 proof is invalid");
 }
 
 #[test]
@@ -39,13 +34,8 @@ fn test_verify_plonk() {
     // This vkey hash was derived by calling `vk.bytes32()` on the verifying key.
     let vkey_hash = "0x00e60860c07bfc6e4c480286c0ddbb879674eb47f84b4ef041cf858b17aa0ed1";
 
-    let is_valid =
-        crate::PlonkVerifier::verify(&proof, &public_inputs, vkey_hash, &crate::PLONK_VK_BYTES)
-            .expect("Plonk proof is invalid");
-
-    if !is_valid {
-        panic!("Plonk proof is invalid");
-    }
+    crate::PlonkVerifier::verify(&proof, &public_inputs, vkey_hash, &crate::PLONK_VK_BYTES)
+        .expect("Plonk proof is invalid");
 }
 
 #[test]

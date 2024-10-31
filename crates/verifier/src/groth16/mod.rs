@@ -42,7 +42,7 @@ impl Groth16Verifier {
         sp1_public_inputs: &[u8],
         sp1_vkey_hash: &str,
         groth16_vk: &[u8],
-    ) -> Result<bool, Groth16Error> {
+    ) -> Result<(), Groth16Error> {
         // Hash the vk and get the first 4 bytes.
         let groth16_vk_hash: [u8; 4] = Sha256::digest(groth16_vk)[..4].try_into().unwrap();
 

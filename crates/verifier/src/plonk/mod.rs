@@ -51,7 +51,7 @@ impl PlonkVerifier {
         sp1_public_inputs: &[u8],
         sp1_vkey_hash: &str,
         plonk_vk: &[u8],
-    ) -> Result<bool, PlonkError> {
+    ) -> Result<(), PlonkError> {
         // Hash the vk and get the first 4 bytes.
         let plonk_vk_hash: [u8; 4] = Sha256::digest(plonk_vk)[..4].try_into().unwrap();
 

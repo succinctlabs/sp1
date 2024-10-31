@@ -65,6 +65,7 @@ sp1-recursion-circuit = { path = "crates/recursion/circuit", version = "3.0.0", 
 sp1-sdk = { path = "crates/sdk", version = "3.0.0" }
 sp1-cuda = { path = "crates/cuda", version = "3.0.0" }
 sp1-stark = { path = "crates/stark", version = "3.0.0" }
+sp1-verifier = { path = "crates/verifier", version = "3.0.0" }
 sp1-lib = { path = "crates/zkvm/lib", version = "3.0.0", default-features = false }
 
 # NOTE: The version in this crate is manually set to 3.0.1 right now. When upgrading SP1 versions,
@@ -139,5 +140,10 @@ p3-bn254-fr = { git = "https://github.com/Plonky3/Plonky3", branch = "sp1-v4" }
 
 [workspace.metadata.typos]
 # TODO: Fix in next version since CommitCommitedValuesDigest is retained since it's present in constraints.json
-default.extend-ignore-re = ["Jo-Philipp Wich", "SubEIN", "DivEIN", "CommitCommitedValuesDigest"]
+default.extend-ignore-re = [
+  "Jo-Philipp Wich",
+  "SubEIN",
+  "DivEIN",
+  "CommitCommitedValuesDigest",
+]
 default.extend-ignore-words-re = ["(?i)groth", "TRE"]

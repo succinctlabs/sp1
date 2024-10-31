@@ -10,14 +10,13 @@ use sp1_primitives::{consts::WORD_SIZE, io::SP1PublicValues};
 
 use sp1_recursion_circuit::machine::RootPublicValues;
 use sp1_recursion_core::{air::RecursionPublicValues, stark::BabyBearPoseidon2Outer};
-use sp1_recursion_gnark_ffi::{
-    Groth16Bn254Proof, Groth16Bn254Prover, PlonkBn254Proof, PlonkBn254Prover,
-};
+use sp1_recursion_gnark_ffi::{Groth16Bn254Proof, PlonkBn254Proof};
 use sp1_stark::{
     air::{PublicValues, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS},
     baby_bear_poseidon2::BabyBearPoseidon2,
     MachineProof, MachineProver, MachineVerificationError, StarkGenericConfig, Word,
 };
+use sp1_verifier::{Groth16Verifier, PlonkVerifier};
 use thiserror::Error;
 
 use crate::{
@@ -387,19 +386,15 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         proof: &PlonkBn254Proof,
         vk: &SP1VerifyingKey,
         public_values: &SP1PublicValues,
-        build_dir: &Path,
+        _build_dir: &Path,
     ) -> Result<()> {
-        let prover = PlonkBn254Prover::new();
-
-        let vkey_hash = BigUint::from_str(&proof.public_inputs[0])?;
-        let committed_values_digest = BigUint::from_str(&proof.public_inputs[1])?;
-
-        // Verify the proof with the corresponding public inputs.
-        prover.verify(proof, &vkey_hash, &committed_values_digest, build_dir);
-
-        verify_plonk_bn254_public_inputs(vk, public_values, &proof.public_inputs)?;
-
-        Ok(())
+        PlonkVerifier::verify(
+            &proof.raw_with_checksum()?,
+            &public_values.to_vec(),
+            &vk.bytes32(),
+            *sp1_verifier::PLONK_VK_BYTES,
+        )
+        .map_err(|_| anyhow::anyhow!("Plonk proof verification failed"))
     }
 
     /// Verifies a Groth16 proof using the circuit artifacts in the build directory.
@@ -408,19 +403,15 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         proof: &Groth16Bn254Proof,
         vk: &SP1VerifyingKey,
         public_values: &SP1PublicValues,
-        build_dir: &Path,
+        _build_dir: &Path,
     ) -> Result<()> {
-        let prover = Groth16Bn254Prover::new();
-
-        let vkey_hash = BigUint::from_str(&proof.public_inputs[0])?;
-        let committed_values_digest = BigUint::from_str(&proof.public_inputs[1])?;
-
-        // Verify the proof with the corresponding public inputs.
-        prover.verify(proof, &vkey_hash, &committed_values_digest, build_dir);
-
-        verify_groth16_bn254_public_inputs(vk, public_values, &proof.public_inputs)?;
-
-        Ok(())
+        Groth16Verifier::verify(
+            &proof.raw_with_checksum()?,
+            &public_values.to_vec(),
+            &vk.bytes32(),
+            *sp1_verifier::GROTH16_VK_BYTES,
+        )
+        .map_err(|_| anyhow::anyhow!("Groth16 proof verification failed"))
     }
 }
 

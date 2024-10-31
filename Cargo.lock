@@ -6381,6 +6381,7 @@ dependencies = [
  "sp1-recursion-core",
  "sp1-recursion-gnark-ffi",
  "sp1-stark",
+ "sp1-verifier",
  "subtle-encoding",
  "tempfile",
  "thiserror",
