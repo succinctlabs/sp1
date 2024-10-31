@@ -98,7 +98,7 @@ impl<P: FpOpField> Syscall for FpOpSyscall<P> {
                     arg2,
                     event.lookup_id,
                 );
-                rt.record_mut().add_precompile_event(
+                rt.add_precompile_event(
                     syscall_code_key,
                     syscall_event,
                     PrecompileEvent::Bn254Fp(event),
@@ -119,7 +119,7 @@ impl<P: FpOpField> Syscall for FpOpSyscall<P> {
                     arg2,
                     event.lookup_id,
                 );
-                rt.record_mut().add_precompile_event(
+                rt.add_precompile_event(
                     syscall_code_key,
                     syscall_event,
                     PrecompileEvent::Bls12381Fp(event),

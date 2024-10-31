@@ -6,7 +6,7 @@ use std::{
 
 use hashbrown::HashMap;
 use serde::{Deserialize, Serialize};
-use sp1_stark::SP1CoreOpts;
+use sp1_stark::{MachineRecord, SP1CoreOpts};
 use thiserror::Error;
 
 use crate::{
@@ -48,9 +48,9 @@ pub struct Executor<'a> {
     /// Whether we should write to the report.
     pub print_report: bool,
 
-    /// Whether we should emit memory init and finalize events. This can be enabled in Checkpoint
-    /// mode and disabled in Trace mode.
-    pub emit_memory_events: bool,
+    /// Whether we should emit global memory init and finalize events. This can be enabled in
+    /// Checkpoint mode and disabled in Trace mode.
+    pub emit_global_memory_events: bool,
 
     /// The maximum size of each shard.
     pub shard_size: u32,
@@ -224,7 +224,7 @@ impl<'a> Executor<'a> {
             unconstrained_state: ForkState::default(),
             syscall_map,
             executor_mode: ExecutorMode::Trace,
-            emit_memory_events: true,
+            emit_global_memory_events: true,
             max_syscall_cycles,
             report: ExecutionReport::default(),
             print_report: false,
@@ -411,7 +411,7 @@ impl<'a> Executor<'a> {
         record.shard = shard;
         record.timestamp = timestamp;
 
-        if !self.unconstrained {
+        if !self.unconstrained && self.executor_mode == ExecutorMode::Trace {
             let local_memory_access = if let Some(local_memory_access) = local_memory_access {
                 local_memory_access
             } else {
@@ -490,7 +490,7 @@ impl<'a> Executor<'a> {
         record.shard = shard;
         record.timestamp = timestamp;
 
-        if !self.unconstrained {
+        if !self.unconstrained && self.executor_mode == ExecutorMode::Trace {
             let local_memory_access = if let Some(local_memory_access) = local_memory_access {
                 local_memory_access
             } else {
@@ -1088,7 +1088,7 @@ impl<'a> Executor<'a> {
                 *syscall_count += 1;
 
                 let syscall_impl = self.get_syscall(syscall).cloned();
-                if syscall.should_send() != 0 {
+                if syscall.should_send() != 0 && self.executor_mode == ExecutorMode::Trace {
                     self.emit_syscall(clk, syscall.syscall_id(), b, c, syscall_lookup_id);
                 }
                 let mut precompile_rt = SyscallContext::new(self);
@@ -1393,8 +1393,10 @@ impl<'a> Executor<'a> {
     /// Bump the record.
     pub fn bump_record(&mut self) {
         // Copy all of the existing local memory accesses to the record's local_memory_access vec.
-        for (_, event) in self.local_memory_access.drain() {
-            self.record.cpu_local_memory_access.push(event);
+        if self.executor_mode == ExecutorMode::Trace {
+            for (_, event) in self.local_memory_access.drain() {
+                self.record.cpu_local_memory_access.push(event);
+            }
         }
 
         let removed_record =
@@ -1412,10 +1414,10 @@ impl<'a> Executor<'a> {
     /// This function will return an error if the program execution fails.
     pub fn execute_record(
         &mut self,
-        emit_memory_events: bool,
+        emit_global_memory_events: bool,
     ) -> Result<(Vec<ExecutionRecord>, bool), ExecutionError> {
         self.executor_mode = ExecutorMode::Trace;
-        self.emit_memory_events = emit_memory_events;
+        self.emit_global_memory_events = emit_global_memory_events;
         self.print_report = true;
         let done = self.execute()?;
         Ok((std::mem::take(&mut self.records), done))
@@ -1429,11 +1431,11 @@ impl<'a> Executor<'a> {
     /// This function will return an error if the program execution fails.
     pub fn execute_state(
         &mut self,
-        emit_memory_events: bool,
+        emit_global_memory_events: bool,
     ) -> Result<(ExecutionState, bool), ExecutionError> {
         self.memory_checkpoint.clear();
         self.executor_mode = ExecutorMode::Checkpoint;
-        self.emit_memory_events = emit_memory_events;
+        self.emit_global_memory_events = emit_global_memory_events;
 
         // Clone self.state without memory and uninitialized_memory in it so it's faster.
         let memory = std::mem::take(&mut self.state.memory);
@@ -1449,7 +1451,7 @@ impl<'a> Executor<'a> {
             let memory_checkpoint = std::mem::take(&mut self.memory_checkpoint);
             let uninitialized_memory_checkpoint =
                 std::mem::take(&mut self.uninitialized_memory_checkpoint);
-            if done && !self.emit_memory_events {
+            if done && !self.emit_global_memory_events {
                 // If it's the last shard, and we're not emitting memory events, we need to include
                 // all memory so that memory events can be emitted from the checkpoint. But we need
                 // to first reset any modified memory to as it was before the execution.
@@ -1480,6 +1482,9 @@ impl<'a> Executor<'a> {
                     .collect();
             }
         });
+        if !done {
+            self.records.clear();
+        }
         Ok((checkpoint, done))
     }
 
@@ -1622,7 +1627,7 @@ impl<'a> Executor<'a> {
             tracing::warn!("Not all input bytes were read.");
         }
 
-        if self.emit_memory_events
+        if self.emit_global_memory_events
             && (self.executor_mode == ExecutorMode::Trace
                 || self.executor_mode == ExecutorMode::Checkpoint)
         {
