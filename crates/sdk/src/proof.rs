@@ -63,7 +63,7 @@ impl SP1ProofWithPublicValues {
                 let proof_bytes = hex::decode(&plonk.raw_proof).expect("Invalid Plonk proof");
                 [plonk.plonk_vkey_hash[..4].to_vec(), proof_bytes].concat()
             }
-            SP1Proof::Groth16(groth16) => {
+            SP1Proof::Groth16(groth16, _) => {
                 let proof_bytes = hex::decode(&groth16.raw_proof).expect("Invalid Groth16 proof");
                 [groth16.groth16_vkey_hash[..4].to_vec(), proof_bytes].concat()
             }
