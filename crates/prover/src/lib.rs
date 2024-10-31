@@ -373,7 +373,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         } else {
             let misses = self.compress_cache_misses.fetch_add(1, Ordering::Relaxed);
             tracing::debug!("compress cache miss, misses: {}", misses);
-            // Get the operations.
+            // Compile the program if the recursion shape config is None.
             Arc::new(compress_program_from_input::<C>(
                 self.recursion_shape_config.as_ref(),
                 &self.compress_prover,
