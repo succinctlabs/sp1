@@ -212,26 +212,28 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         let (root, merkle_tree) = MerkleTree::commit(allowed_vk_map.keys().copied().collect());
 
         let mut compress_programs = BTreeMap::new();
-        if let Some(config) = &recursion_shape_config {
-            SP1ProofShape::generate_compress_shapes(config, 2).for_each(|shape| {
-                let compress_shape = SP1CompressWithVkeyShape {
-                    compress_shape: SP1CompressShape { proof_shapes: shape },
-                    merkle_tree_height: merkle_tree.height,
-                };
-                let input = SP1CompressWithVKeyWitnessValues::dummy(
-                    compress_prover.machine(),
-                    &compress_shape,
-                );
-                let program = compress_program_from_input::<C>(
-                    recursion_shape_config.as_ref(),
-                    &compress_prover,
-                    vk_verification,
-                    &input,
-                );
-                let program = Arc::new(program);
-                compress_programs.insert(compress_shape, program);
-            });
-        }
+        tracing::info_span!("compile compress programs:").in_scope(|| {
+            if let Some(config) = &recursion_shape_config {
+                SP1ProofShape::generate_compress_shapes(config, 2).for_each(|shape| {
+                    let compress_shape = SP1CompressWithVkeyShape {
+                        compress_shape: SP1CompressShape { proof_shapes: shape },
+                        merkle_tree_height: merkle_tree.height,
+                    };
+                    let input = SP1CompressWithVKeyWitnessValues::dummy(
+                        compress_prover.machine(),
+                        &compress_shape,
+                    );
+                    let program = compress_program_from_input::<C>(
+                        recursion_shape_config.as_ref(),
+                        &compress_prover,
+                        vk_verification,
+                        &input,
+                    );
+                    let program = Arc::new(program);
+                    compress_programs.insert(compress_shape, program);
+                });
+            }
+        });
 
         Self {
             core_prover,
@@ -700,12 +702,6 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                     loop {
                         let received = { input_rx.lock().unwrap().recv() };
                         if let Ok((index, height, input)) = received {
-                            tracing::info!("Inputs: index {}, height {}", index, height);
-                            tracing::info!("Total Expected height {}", expected_height);
-                            // Get the program and witness stream.
-                            // if height > expected_height {
-                            //     break;
-                            // }
                             let (program, witness_stream) = tracing::debug_span!(
                                 "get program and witness stream"
                             )
@@ -780,10 +776,6 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 
                             // Advance the turn.
                             record_and_trace_sync.advance_turn();
-
-                            // if height == expected_height {
-                            //     break;
-                            // }
                         } else {
                             break;
                         }
@@ -810,9 +802,6 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                     loop {
                         let received = { record_and_trace_rx.lock().unwrap().recv() };
                         if let Ok((index, height, program, record, traces)) = received {
-
-                            tracing::info!("Proofs: index {}, height {}", index, height);
-
                             tracing::debug_span!("batch").in_scope(|| {
 
                                 // Get the keys.
@@ -882,9 +871,6 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                                 prover_sync.advance_turn();
 
                             });
-                            //                                 if height == expected_height {
-                            //     break;
-                            // }
                         } else {
                             break;
                         }
@@ -915,16 +901,9 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                                 break;
                             }
 
-                            tracing::info!("Compressor: At index {}, height {}", index, height);
-
-                            // Compute whether we've reached the root of the tree.
-                            let is_complete = height == expected_height;
-
-                            tracing::info!("At expected height: {}", is_complete);
-
                             // If it's not complete, and we haven't reached the batch size,
                             // continue.
-                            if !is_complete && batch.len() < batch_size {
+                            if batch.len() < batch_size {
                                 continue;
                             }
 
@@ -938,8 +917,6 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                             // first input, otherwise we include all inputs.
                             let inputs =
                                 if is_last { vec![batch[0].clone()] } else { batch.clone() };
-
-                            // let is_complete = height == expected_height - 1;
 
                             let next_input_index = inputs[0].1 + 1;
                             let vks_and_proofs = inputs
