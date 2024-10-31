@@ -290,7 +290,7 @@ where
         let mut c_byte_sum = zero.clone();
         for i in 0..BYTE_SIZE {
             let val: AB::Expr = AB::F::from_canonical_u32(1 << i).into();
-            c_byte_sum += val * local.c_least_sig_byte[i];
+            c_byte_sum = c_byte_sum.clone() + val * local.c_least_sig_byte[i];
         }
         builder.assert_eq(c_byte_sum, local.c[0]);
 
@@ -300,7 +300,8 @@ where
         // 3 is the maximum number of bits necessary to represent num_bits_to_shift as
         // num_bits_to_shift is in [0, 7].
         for i in 0..3 {
-            num_bits_to_shift += local.c_least_sig_byte[i] * AB::F::from_canonical_u32(1 << i);
+            num_bits_to_shift = num_bits_to_shift.clone()
+                + local.c_least_sig_byte[i] * AB::F::from_canonical_u32(1 << i);
         }
         for i in 0..BYTE_SIZE {
             builder
@@ -321,7 +322,7 @@ where
             let mut v = local.b[i] * local.bit_shift_multiplier
                 - local.bit_shift_result_carry[i] * base.clone();
             if i > 0 {
-                v += local.bit_shift_result_carry[i - 1].into();
+                v = v.clone() + local.bit_shift_result_carry[i - 1].into();
             }
             builder.assert_eq(local.bit_shift_result[i], v);
         }

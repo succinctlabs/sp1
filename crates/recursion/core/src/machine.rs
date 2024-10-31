@@ -20,6 +20,7 @@ use crate::{
         poseidon2_skinny::Poseidon2SkinnyChip,
         poseidon2_wide::Poseidon2WideChip,
         public_values::{PublicValuesChip, PUB_VALUES_LOG_HEIGHT},
+        select::SelectChip,
     },
     instruction::{HintBitsInstr, HintExt2FeltsInstr, HintInstr},
     shape::RecursionShape,
@@ -39,6 +40,7 @@ pub enum RecursionAir<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: u
     ExtAlu(ExtAluChip),
     Poseidon2Skinny(Poseidon2SkinnyChip<DEGREE>),
     Poseidon2Wide(Poseidon2WideChip<DEGREE>),
+    Select(SelectChip),
     FriFold(FriFoldChip<DEGREE>),
     ExpReverseBitsLen(ExpReverseBitsLenChip<DEGREE>),
     PublicValues(PublicValuesChip),
@@ -52,6 +54,7 @@ pub struct RecursionAirEventCount {
     ext_alu_events: usize,
     poseidon2_wide_events: usize,
     fri_fold_events: usize,
+    select_events: usize,
     exp_reverse_bits_len_events: usize,
 }
 
@@ -67,6 +70,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAi
             RecursionAir::ExtAlu(ExtAluChip),
             RecursionAir::Poseidon2Wide(Poseidon2WideChip::<DEGREE>),
             RecursionAir::FriFold(FriFoldChip::<DEGREE>::default()),
+            RecursionAir::Select(SelectChip),
             RecursionAir::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE>),
             RecursionAir::PublicValues(PublicValuesChip),
         ]
@@ -87,6 +91,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAi
             RecursionAir::ExtAlu(ExtAluChip),
             RecursionAir::Poseidon2Skinny(Poseidon2SkinnyChip::<DEGREE>::default()),
             RecursionAir::FriFold(FriFoldChip::<DEGREE>::default()),
+            RecursionAir::Select(SelectChip),
             RecursionAir::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE>),
             RecursionAir::PublicValues(PublicValuesChip),
         ]
@@ -104,6 +109,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAi
             RecursionAir::BaseAlu(BaseAluChip),
             RecursionAir::ExtAlu(ExtAluChip),
             RecursionAir::Poseidon2Wide(Poseidon2WideChip::<DEGREE>),
+            RecursionAir::Select(SelectChip),
             RecursionAir::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE>),
             RecursionAir::PublicValues(PublicValuesChip),
         ]
@@ -128,6 +134,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAi
             RecursionAir::BaseAlu(BaseAluChip),
             RecursionAir::ExtAlu(ExtAluChip),
             RecursionAir::Poseidon2Skinny(Poseidon2SkinnyChip::<DEGREE>::default()),
+            RecursionAir::Select(SelectChip),
             // RecursionAir::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE>),
             RecursionAir::PublicValues(PublicValuesChip),
         ]
@@ -145,7 +152,8 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAi
                 (Self::BaseAlu(BaseAluChip), 20),
                 (Self::ExtAlu(ExtAluChip), 18),
                 (Self::Poseidon2Wide(Poseidon2WideChip::<DEGREE>), 16),
-                (Self::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE>), 16),
+                (Self::Select(SelectChip), 18),
+                (Self::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE>), 17),
                 (Self::PublicValues(PublicValuesChip), PUB_VALUES_LOG_HEIGHT),
             ]
             .map(|(chip, log_height)| (chip.name(), log_height)),
@@ -177,6 +185,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAi
                 heights.ext_alu_events.div_ceil(NUM_EXT_ALU_ENTRIES_PER_ROW),
             ),
             (Self::Poseidon2Wide(Poseidon2WideChip::<DEGREE>), heights.poseidon2_wide_events),
+            (Self::Select(SelectChip), heights.select_events),
             (
                 Self::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE>),
                 heights.exp_reverse_bits_len_events,
@@ -196,6 +205,7 @@ impl<F> AddAssign<&Instruction<F>> for RecursionAirEventCount {
             Instruction::ExtAlu(_) => self.ext_alu_events += 1,
             Instruction::Mem(_) => self.mem_const_events += 1,
             Instruction::Poseidon2(_) => self.poseidon2_wide_events += 1,
+            Instruction::Select(_) => self.select_events += 1,
             Instruction::ExpReverseBitsLen(ExpReverseBitsInstr { addrs, .. }) => {
                 self.exp_reverse_bits_len_events += addrs.exp.len()
             }

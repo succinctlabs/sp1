@@ -1,46 +1,28 @@
 # Common Issues
 
-## Bus Error
-
-If you are running a executable that uses the `sp1-sdk` crate, you may encounter a bus error like this:
-
-```txt
-zsh: bus error
-```
-
-This is fixed by running with the `--release` flag, as the `sp1-sdk` crate only supports release builds as of right now.
-
-## Alloy Errors
-
-If you are using a library that depends on `alloy_sol_types`, and encounter an error like this:
-
-```txt
-perhaps two different versions of crate `alloy_sol_types` are being used?
-```
-
-This is likely due to two different versions of `alloy_sol_types` being used. To fix this, you can set `default-features` to `false` for the `sp1-sdk` dependency in your `Cargo.toml`.
-
-```toml
-[dependencies]
-sp1-sdk = { version = "2.0.0", default-features = false }
-```
-
-This will configure out the `network` feature which will remove the dependency on `alloy_sol_types` and configure out the `NetworkProver`.
-
 ## Rust Version Errors
 
-If you are using a library that has an MSRV (minimum supported rust version) of 1.76.0
-or higher, you may encounter an error like this when building your program.
+If you are using a library that has an MSRV specified, you may encounter an error like this when building your program.
 
 ```txt
 package `alloy v0.1.1 cannot be built because it requires rustc 1.76 or newer, while the currently active rustc version is 1.75.0-nightly`
 ```
 
-This is due to the fact that the Succinct Rust toolchain might be built with a lower version than the MSRV of the crates you are using. You can check the version of the Succinct Rust toolchain by running `cargo +succinct --version`. The Succinct Rust toolchain's latest version is 1.79, and you can update to the latest version by running [`sp1up`](../getting-started/install.md).
+This is due to the fact that your current Succinct Rust toolchain has been built with a lower version than the MSRV of the crates you are using. 
 
-If that doesn't work (i.e. the MSRV of the crates you are using is still higher than the version of the Succinct Rust toolchain), you can try the following:
+You can check the version of your local Succinct Rust toolchain by running `cargo +succinct --version`. The latest release of the Succinct Rust toolchain is **1.81**. You can update to the latest version by running [`sp1up`](../getting-started/install.md).
 
-- If you're using `cargo prove build` directly, pass the `--ignore-rust-version` flag:
+```shell
+% sp1up
+% cargo +succinct --version
+cargo 1.81.0-dev (2dbb1af80 2024-08-20)
+```
+
+A Succinct Rust toolchain with version **1.81** should work for all crates that have an MSRV of **1.81** or lower.
+
+If the MSRV of your crate is higher than **1.81**, try the following:
+
+- If using `cargo prove build` directly, pass the `--ignore-rust-version` flag:
 
   ```bash
   cargo prove build --ignore-rust-version
@@ -57,22 +39,41 @@ If that doesn't work (i.e. the MSRV of the crates you are using is still higher 
   build_program_with_args("path/to/program", args);
   ```
 
-## Stack Overflow Errors
+## `alloy_sol_types` Errors
 
-If you encounter the following in a script using `sp1-sdk`:
+If you are using a library that depends on `alloy_sol_types`, and encounter an error like this:
 
 ```txt
-thread 'main' has overflowed its stack
-fatal runtime error: stack overflow
+perhaps two different versions of crate `alloy_sol_types` are being used?
 ```
 
-```txt
+This is likely due to two different versions of `alloy_sol_types` being used. To fix this, you can set `default-features` to `false` for the `sp1-sdk` dependency in your `Cargo.toml`.
+
+```toml
+[dependencies]
+sp1-sdk = { version = "2.0.0", default-features = false }
+```
+
+This will configure out the `network` feature which will remove the dependency on `alloy_sol_types` and configure out the `NetworkProver`.
+
+## Stack Overflow Errors + Bus Errors
+
+If you encounter any of the following errors in a script using `sp1-sdk`:
+
+```shell
+# Stack Overflow Error
+thread 'main' has overflowed its stack
+fatal runtime error: stack overflow
+
+# Bus Error
+zsh: bus error
+
+# Segmentation Fault
 Segmentation fault (core dumped)
 ```
 
-Re-run your script with `--release`.
-
-Note that the core `sp1-core` library and `sp1-recursion` require being compiled with the `release` profile.
+Run your script with the `--release` flag. SP1 currently only supports release builds. This is because
+the `sp1-core` library and `sp1-recursion` require being compiled with the `release` profile.
 
 ## C Binding Errors
 
@@ -120,3 +121,27 @@ To resolve this, ensure that you're importing both `sp1-lib` and `sp1-zkvm` with
 sp1-lib = { version = "<VERSION>", features = ["verify"] }
 sp1-zkvm = { version = "<VERSION>", features = ["verify"] }
 ```
+
+## `sp1-sdk` `rc` Version Semver Errors
+
+When using release candidate (RC) versions of `sp1-sdk` (such as `3.0.0-rc1`), you might face compilation errors if you upgrade to a newer RC version (like `3.0.0-rc4`) and then try to downgrade back to an earlier RC version (such as `3.0.0-rc1`).
+
+This issue arises because some RC releases introduce breaking changes that aren't reflected in their version numbers according to Semantic Versioning (SemVer) rules. To fix this, you need to explicitly downgrade all related crates in your `Cargo.lock` file to match the desired RC version.
+
+To start, verify that the `sp1-sdk` version in your `Cargo.lock` file differs from the version specified in your `Cargo.toml` file:
+
+```shell
+% cargo tree -i sp1-sdk
+sp1-sdk v3.0.0-rc4 (/Users/sp1/crates/sdk)
+├── sp1-cli v3.0.0-rc4 (/Users/sp1/crates/cli)
+├── sp1-eval v3.0.0-rc4 (/Users/sp1/crates/eval)
+└── sp1-perf v3.0.0-rc4 (/Users/sp1/crates/perf)
+```
+
+After confirming the version of `sp1-sdk` in your lockfile, you can downgrade to a specific RC version using the following command. Replace `3.0.0-rc1` with the desired version number:
+
+```shell
+%  cargo update -p sp1-build -p sp1-sdk -p sp1-recursion-derive -p sp1-recursion-gnark-ffi -p sp1-zkvm --precise 3.0.0-rc1
+```
+
+This command will update the `Cargo.lock` file to specify the lower RC version, resolving any version conflicts and allowing you to continue development.

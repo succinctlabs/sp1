@@ -95,6 +95,7 @@ macro_rules! entrypoint {
 
         use $crate::heap::SimpleAlloc;
 
+        #[cfg(target_os = "zkvm")]
         #[global_allocator]
         static HEAP: SimpleAlloc = SimpleAlloc;
 
@@ -102,15 +103,19 @@ macro_rules! entrypoint {
 
             #[no_mangle]
             fn main() {
-                // Link to the actual entrypoint only when compiling for zkVM. Doing this avoids
-                // compilation errors when building for the host target.
+                // Link to the actual entrypoint only when compiling for zkVM, otherwise run a
+                // simple noop. Doing this avoids compilation errors when building for the host
+                // target.
                 //
                 // Note that, however, it's generally considered wasted effort compiling zkVM
                 // programs against the host target. This just makes it such that doing so wouldn't
                 // result in an error, which can happen when building a Cargo workspace containing
                 // zkVM program crates.
-                #[cfg(target_os = "zkvm")]
-                super::ZKVM_ENTRY()
+                if cfg!(target_os = "zkvm") {
+                    super::ZKVM_ENTRY()
+                } else {
+                    println!("Not running in zkVM, skipping entrypoint");
+                }
             }
         }
     };
