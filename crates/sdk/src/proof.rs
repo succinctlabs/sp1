@@ -19,7 +19,7 @@ pub enum SP1Proof {
     Core(Vec<ShardProof<CoreSC>>),
     Compressed(Box<SP1ReduceProof<InnerSC>>),
     Plonk(PlonkBn254Proof),
-    Groth16(Groth16Bn254Proof),
+    Groth16(Groth16Bn254Proof, Option<Box<SP1ReduceProof<InnerSC>>>),
 }
 
 /// A proof generated with SP1, bundled together with stdin, public values, and the SP1 version.
@@ -48,7 +48,7 @@ impl SP1ProofWithPublicValues {
     pub fn raw(&self) -> String {
         match &self.proof {
             SP1Proof::Plonk(plonk) => plonk.raw_proof.clone(),
-            SP1Proof::Groth16(groth16) => groth16.raw_proof.clone(),
+            SP1Proof::Groth16(groth16, None) => groth16.raw_proof.clone(),
             _ => unimplemented!(),
         }
     }
@@ -73,7 +73,7 @@ impl SP1ProofWithPublicValues {
                 );
                 bytes
             }
-            SP1Proof::Groth16(groth16_proof) => {
+            SP1Proof::Groth16(groth16_proof, None) => {
                 let mut bytes = Vec::with_capacity(4 + groth16_proof.encoded_proof.len());
                 bytes.extend_from_slice(&groth16_proof.groth16_vkey_hash[..4]);
                 bytes.extend_from_slice(

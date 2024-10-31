@@ -82,7 +82,7 @@ impl Prover<DefaultProverComponents> for CpuProver {
         let compress_proof = self.prover.shrink(reduce_proof, opts.sp1_prover_opts)?;
 
         // Genenerate the wrap proof.
-        let outer_proof = self.prover.wrap_bn254(compress_proof, opts.sp1_prover_opts)?;
+        let outer_proof = self.prover.wrap_bn254(compress_proof.clone(), opts.sp1_prover_opts)?;
 
         if kind == SP1ProofKind::Plonk {
             let plonk_bn254_artifacts = if sp1_prover::build::sp1_dev_mode() {
@@ -113,7 +113,7 @@ impl Prover<DefaultProverComponents> for CpuProver {
 
             let proof = self.prover.wrap_groth16_bn254(outer_proof, &groth16_bn254_artifacts);
             return Ok(SP1ProofWithPublicValues {
-                proof: SP1Proof::Groth16(proof),
+                proof: SP1Proof::Groth16(proof, Some(Box::new(compress_proof))),
                 stdin,
                 public_values,
                 sp1_version: self.version().to_string(),

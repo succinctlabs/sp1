@@ -135,7 +135,7 @@ impl Prover<DefaultProverComponents> for MockProver {
                         encoded_proof: "".to_string(),
                         raw_proof: "".to_string(),
                         groth16_vkey_hash: [0; 32],
-                    }),
+                    }, None),
                     stdin,
                     public_values,
                     sp1_version: self.version().to_string(),
@@ -154,7 +154,7 @@ impl Prover<DefaultProverComponents> for MockProver {
                 verify_plonk_bn254_public_inputs(vkey, &bundle.public_values, public_inputs)
                     .map_err(SP1VerificationError::Plonk)
             }
-            SP1Proof::Groth16(Groth16Bn254Proof { public_inputs, .. }) => {
+            SP1Proof::Groth16(Groth16Bn254Proof { public_inputs, .. }, None) => {
                 verify_groth16_bn254_public_inputs(vkey, &bundle.public_values, public_inputs)
                     .map_err(SP1VerificationError::Groth16)
             }
