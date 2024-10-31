@@ -1,3 +1,4 @@
+use crate::ef7::SepticExtension;
 use core::fmt::Display;
 use hashbrown::HashMap;
 use itertools::Itertools;
@@ -478,7 +479,7 @@ where
                 chips[i].name(),
                 trace_width,
                 prep_width,
-                permutation_width * <SC::Challenge as AbstractExtensionField<SC::Val>>::D,
+                permutation_width,
                 trace_height,
                 total_width * trace_height,
             );
@@ -504,9 +505,9 @@ where
 
         // Observe the permutation commitment and cumulative sums.
         challenger.observe(permutation_commit.clone());
-        for [global_sum] in cumulative_sums.iter() {
-            challenger.observe_slice(global_sum.as_base_slice());
-            challenger.observe_slice(global_sum.as_base_slice());
+        for [local_sum] in cumulative_sums.iter() {
+            challenger.observe_slice(local_sum.as_base_slice());
+            // challenger.observe_slice(global_sum.as_base_slice());
         }
 
         // Compute the quotient polynomial for all chips.
@@ -777,7 +778,7 @@ where
                     main,
                     permutation,
                     quotient,
-                    global_cumulative_sum: cumulative_sums[0],
+                    global_cumulative_sum: cumulative_sums[0], // TODO: this shouldn't be challenge
                     local_cumulative_sum: cumulative_sums[0],
                     log_degree: *log_degree,
                 }

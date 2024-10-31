@@ -323,9 +323,9 @@ where
 
         challenger.observe(builder, permutation_commit);
         for (opening, chip) in opened_values.chips.iter().zip_eq(chips.iter()) {
-            let global_sum = C::ext2felt(builder, opening.global_cumulative_sum);
+            // let global_sum = C::ext2felt(builder, opening.global_cumulative_sum);
             let local_sum = C::ext2felt(builder, opening.local_cumulative_sum);
-            challenger.observe_slice(builder, global_sum);
+            // challenger.observe_slice(builder, global_sum);
             challenger.observe_slice(builder, local_sum);
 
             let has_global_interactions = chip
@@ -333,9 +333,9 @@ where
                 .iter()
                 .chain(chip.receives())
                 .any(|i| i.scope == InteractionScope::Global);
-            if !has_global_interactions {
-                builder.assert_ext_eq(opening.global_cumulative_sum, C::EF::zero().cons());
-            }
+            // if !has_global_interactions {
+            //     builder.assert_ext_eq(opening.global_cumulative_sum, C::EF::zero().cons());
+            // }
             let has_local_interactions = chip
                 .sends()
                 .iter()

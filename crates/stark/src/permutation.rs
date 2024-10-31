@@ -11,7 +11,7 @@ use strum::IntoEnumIterator;
 
 use crate::{
     air::{InteractionScope, MultiTableAirBuilder},
-    ef7::EF7,
+    ef7::SepticExtension,
     lookup::Interaction,
 };
 
@@ -28,7 +28,7 @@ pub const fn local_permutation_trace_width(nb_interactions: usize, batch_size: u
 /// Computes the width of the global permutation trace in terms of base field elements.
 ///
 /// For every interaction:
-/// `| am+b (7 cols) | extractY(am+b) (7 cols) | padding (1 col) | acc_x, acc_y (14 cols) |`
+/// `| X=am+b (7 cols) | Y=decompress(X) (7 cols) | Padding (1 col) | (AccX, AccY) (14 cols) |`
 #[must_use]
 pub const fn global_permutation_trace_width(nb_interactions: usize) -> usize {
     if nb_interactions == 0 {
@@ -95,65 +95,67 @@ pub fn populate_global_permutation_row<F: PrimeField, EF: ExtensionField<F>>(
     sends: &[Interaction<F>],
     receives: &[Interaction<F>],
 ) {
-    // let mut global_cumulative_sum_x = EF::zero();
-    // let mut global_cumulative_sum_y = EF::zero();
-    // let interactions = sends
-    //     .iter()
-    //     .map(|int| (int, true))
-    //     .chain(receives.iter().map(|int| (int, false)))
-    //     .collect_vec();
+    let mut global_cumulative_sum_x = EF::zero();
+    let mut global_cumulative_sum_y = EF::zero();
+    let interactions = sends
+        .iter()
+        .map(|int| (int, true))
+        .chain(receives.iter().map(|int| (int, false)))
+        .collect_vec();
 
-    // // Create a row to write to the global permutation trace.
-    // let mut data: Vec<F> = Vec::new();
+    // Create a row to write to the global permutation trace.
+    let mut data: Vec<F> = Vec::new();
 
-    // for (interaction, is_send) in interactions.iter() {
-    //     // Construct the message as a Fp7 element.
-    //     // let message = EF::from_base_slice(
-    //     //     &interaction
-    //     //         .values
-    //     //         .iter()
-    //     //         .map(|pair| pair.apply::<F, F>(preprocessed_row, main_row))
-    //     //         .collect::<Vec<_>>(),
-    //     // );
-    //     let message = EF::zero();
+    for (interaction, is_send) in interactions.iter() {
+        // Construct the message as a Fp7 element.
+        let mut elements = interaction
+            .values
+            .iter()
+            .map(|pair| pair.apply::<F, F>(preprocessed_row, main_row))
+            .collect::<Vec<_>>();
+        if elements.len() < EF::D {
+            let padding = EF::D - elements.len();
+            elements.extend(std::iter::repeat(F::zero()).take(padding));
+        }
+        let message = EF::from_base_slice(&elements);
+        let message = EF::zero();
 
-    //     // Mix the message with the random elements.
-    //     //
-    //     // TODO: Use actually random elements.
-    //     // let mixed_message = EF::from_base(F::two()) * message + EF::from_base(F::one());
-    //     let mixed_message = message;
+        // Mix the message with the random elements.
+        //
+        // TODO: Use actually random elements.
+        let mixed_message = message;
 
-    //     // Update the cumulative sums based on the elliptic curve addition formulas.
-    //     //
-    //     // TODO: Actually use the elliptic curve addition formulas instead of
-    //     // vectorized addition/subtraction.
-    //     if *is_send {
-    //         global_cumulative_sum_x += mixed_message;
-    //         global_cumulative_sum_y += mixed_message;
-    //     } else {
-    //         global_cumulative_sum_x -= mixed_message;
-    //         global_cumulative_sum_y -= mixed_message;
-    //     }
+        // Update the cumulative sums based on the elliptic curve addition formulas.
+        //
+        // TODO: Actually use the elliptic curve addition formulas instead of
+        // vectorized addition/subtraction.
+        if *is_send {
+            global_cumulative_sum_x += mixed_message;
+            global_cumulative_sum_y += mixed_message;
+        } else {
+            global_cumulative_sum_x -= mixed_message;
+            global_cumulative_sum_y -= mixed_message;
+        }
 
-    //     // Write the x-coordinate.
-    //     data.extend(mixed_message.as_base_slice());
+        // Write the x-coordinate.
+        data.extend(mixed_message.as_base_slice());
 
-    //     // Write the y-coordinate.
-    //     data.extend(mixed_message.as_base_slice());
+        // Write the y-coordinate.
+        data.extend(mixed_message.as_base_slice());
 
-    //     // Write the padding.
-    //     data.push(F::zero());
+        // Write the padding.
+        data.push(F::zero());
 
-    //     // Write the accumulated x-coordinate.
-    //     data.extend(global_cumulative_sum_x.as_base_slice());
+        // Write the accumulated x-coordinate.
+        data.extend(global_cumulative_sum_x.as_base_slice());
 
-    //     // Write the accumulated y-coordinate.
-    //     data.extend(global_cumulative_sum_y.as_base_slice());
-    // }
+        // Write the accumulated y-coordinate.
+        data.extend(global_cumulative_sum_y.as_base_slice());
+    }
 
-    // // Copy the row to the global permutation trace.
-    // assert_eq!(row.len(), data.len(), "number of interactions: {}", interactions.len());
-    // row.copy_from_slice(&data);
+    // Copy the row to the global permutation trace.
+    assert_eq!(row.len(), data.len(), "number of interactions: {}", interactions.len());
+    row.copy_from_slice(&data);
 }
 
 /// Returns the sends, receives, and permutation trace width grouped by scope.

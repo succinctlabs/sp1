@@ -8,7 +8,7 @@ use p3_util::log2_ceil_usize;
 
 use crate::{
     air::{InteractionScope, MachineAir, MultiTableAirBuilder, SP1AirBuilder},
-    ef7::EF7,
+    ef7::SepticExtension,
     global_permutation_trace_width, local_permutation_trace_width,
     lookup::{Interaction, InteractionBuilder, InteractionKind},
 };
@@ -122,13 +122,13 @@ where
         preprocessed: Option<&RowMajorMatrix<F>>,
         main: &RowMajorMatrix<F>,
         random_elements: &[EF],
-    ) -> (RowMajorMatrix<F>, EF, EF7<F>)
+    ) -> (RowMajorMatrix<F>, EF, SepticExtension<F>)
     where
         F: PrimeField,
         A: MachineAir<F>,
     {
         let batch_size = self.logup_batch_size();
-        generate_permutation_trace::<F, EF, EF7<F>>(
+        generate_permutation_trace::<F, EF, SepticExtension<F>>(
             &self.sends,
             &self.receives,
             preprocessed,
