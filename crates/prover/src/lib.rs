@@ -698,10 +698,6 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                     let _span = span.enter();
                     loop {
                         let received = { input_rx.lock().unwrap().recv() };
-                        if let Ok((index, height, input)) = received {
-                            if index == 2 * num_first_layer_inputs - 2 {
-                                break;
-                            }
                             // Get the program and witness stream.
                             let (program, witness_stream) = tracing::debug_span!(
                                 "get program and witness stream"
@@ -788,7 +784,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             let proofs_sync = Arc::new(TurnBasedSync::new());
             let (proofs_tx, proofs_rx) =
                 sync_channel::<(usize, usize, StarkVerifyingKey<InnerSC>, ShardProof<InnerSC>)>(
-                    num_first_layer_inputs * 2 - 1,
+                    num_first_layer_inputs * 2  ,
                 );
             let proofs_tx = Arc::new(Mutex::new(proofs_tx));
             let proofs_rx = Arc::new(Mutex::new(proofs_rx));
