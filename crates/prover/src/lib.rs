@@ -1388,7 +1388,7 @@ pub mod tests {
             prover.wrap_plonk_bn254(wrapped_bn254_proof.clone(), &artifacts_dir);
         println!("{:?}", plonk_bn254_proof);
 
-        prover.verify_plonk_bn254(&plonk_bn254_proof, &vk, &public_values, &artifacts_dir)?;
+        prover.verify_plonk_bn254(&plonk_bn254_proof, &vk, &public_values)?;
 
         tracing::info!("generate groth16 bn254 proof");
         let artifacts_dir = try_build_groth16_bn254_artifacts_dev(
@@ -1399,12 +1399,7 @@ pub mod tests {
         println!("{:?}", groth16_bn254_proof);
 
         if verify {
-            prover.verify_groth16_bn254(
-                &groth16_bn254_proof,
-                &vk,
-                &public_values,
-                &artifacts_dir,
-            )?;
+            prover.verify_groth16_bn254(&groth16_bn254_proof, &vk, &public_values)?;
         }
 
         Ok(())

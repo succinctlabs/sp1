@@ -24,7 +24,6 @@ use sp1_stark::{air::PublicValues, MachineVerificationError, SP1ProverOpts, Word
 use strum_macros::EnumString;
 use thiserror::Error;
 
-use crate::install::try_install_circuit_artifacts;
 use crate::{SP1Proof, SP1ProofKind, SP1ProofWithPublicValues};
 
 /// The type of prover.
@@ -146,29 +145,11 @@ pub trait Prover<C: SP1ProverComponents>: Send + Sync {
             }
             SP1Proof::Plonk(proof) => self
                 .sp1_prover()
-                .verify_plonk_bn254(
-                    proof,
-                    vkey,
-                    &bundle.public_values,
-                    &if sp1_prover::build::sp1_dev_mode() {
-                        sp1_prover::build::plonk_bn254_artifacts_dev_dir()
-                    } else {
-                        try_install_circuit_artifacts("plonk")
-                    },
-                )
+                .verify_plonk_bn254(proof, vkey, &bundle.public_values)
                 .map_err(SP1VerificationError::Plonk),
             SP1Proof::Groth16(proof) => self
                 .sp1_prover()
-                .verify_groth16_bn254(
-                    proof,
-                    vkey,
-                    &bundle.public_values,
-                    &if sp1_prover::build::sp1_dev_mode() {
-                        sp1_prover::build::groth16_bn254_artifacts_dev_dir()
-                    } else {
-                        try_install_circuit_artifacts("groth16")
-                    },
-                )
+                .verify_groth16_bn254(proof, vkey, &bundle.public_values)
                 .map_err(SP1VerificationError::Groth16),
         }
     }

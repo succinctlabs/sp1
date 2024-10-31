@@ -1,4 +1,4 @@
-use std::{borrow::Borrow, path::Path, str::FromStr};
+use std::{borrow::Borrow, str::FromStr};
 
 use anyhow::Result;
 use num_bigint::BigUint;
@@ -386,7 +386,6 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         proof: &PlonkBn254Proof,
         vk: &SP1VerifyingKey,
         public_values: &SP1PublicValues,
-        _build_dir: &Path,
     ) -> Result<()> {
         PlonkVerifier::verify(
             &proof.raw_with_checksum()?,
@@ -394,7 +393,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             &vk.bytes32(),
             *sp1_verifier::PLONK_VK_BYTES,
         )
-        .map_err(|_| anyhow::anyhow!("Plonk proof verification failed"))
+        .map_err(|err| anyhow::anyhow!("Plonk proof verification failed: {err}"))
     }
 
     /// Verifies a Groth16 proof using the circuit artifacts in the build directory.
@@ -403,7 +402,6 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         proof: &Groth16Bn254Proof,
         vk: &SP1VerifyingKey,
         public_values: &SP1PublicValues,
-        _build_dir: &Path,
     ) -> Result<()> {
         Groth16Verifier::verify(
             &proof.raw_with_checksum()?,
@@ -411,7 +409,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             &vk.bytes32(),
             *sp1_verifier::GROTH16_VK_BYTES,
         )
-        .map_err(|_| anyhow::anyhow!("Groth16 proof verification failed"))
+        .map_err(|err| anyhow::anyhow!("Groth16 proof verification failed: {err}"))
     }
 }
 
