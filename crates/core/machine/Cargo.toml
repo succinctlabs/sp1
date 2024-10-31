@@ -19,7 +19,6 @@ p3-air = { workspace = true }
 p3-baby-bear = { workspace = true }
 p3-challenger = { workspace = true }
 p3-field = { workspace = true }
-p3-blake3 = { workspace = true }
 p3-keccak-air = { workspace = true }
 p3-matrix = { workspace = true }
 p3-maybe-rayon = { workspace = true, features = ["parallel"] }
@@ -65,7 +64,6 @@ sp1-zkvm = { workspace = true }
 sp1-core-executor = { workspace = true, features = ["programs"] }
 
 [features]
-neon = ["p3-blake3/neon"]
 programs = []
 debug = []
 bigint-rug = ["sp1-curves/bigint-rug"]

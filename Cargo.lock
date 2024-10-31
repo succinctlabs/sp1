@@ -1145,19 +1145,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "blake3"
-version = "1.5.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d82033247fd8e890df8f740e407ad4d038debb9eb1f40533fffb32e7d17dc6f7"
-dependencies = [
- "arrayref",
- "arrayvec",
- "cc",
- "cfg-if",
- "constant_time_eq",
-]
-
-[[package]]
 name = "block-buffer"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3320,19 +3307,6 @@ dependencies = [
 
 [[package]]
 name = "hyper-tls"
-version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d6183ddfa99b85da61a140bea0efc93fdf56ceaa041b37d553518030827f9905"
-dependencies = [
- "bytes 1.7.2",
- "hyper 0.14.31",
- "native-tls",
- "tokio",
- "tokio-native-tls",
-]
-
-[[package]]
-name = "hyper-tls"
 version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "70206fc6890eaca9fde8a0bf71caa2ddfc9fe045ac9e5c70df101a7dbde866e0"
@@ -4227,15 +4201,6 @@ dependencies = [
  "p3-symmetric",
  "rand 0.8.5",
  "serde",
-]
-
-[[package]]
-name = "p3-blake3"
-version = "0.1.0"
-source = "git+https://github.com/Plonky3/Plonky3?branch=sp1-v4#db3d45d4ec899efaf8f7234a8573f285fbdda5db"
-dependencies = [
- "blake3",
- "p3-symmetric",
 ]
 
 [[package]]
@@ -5199,23 +5164,19 @@ dependencies = [
  "http 0.2.12",
  "http-body 0.4.6",
  "hyper 0.14.31",
- "hyper-tls 0.5.0",
  "ipnet",
  "js-sys",
  "log",
  "mime",
- "native-tls",
  "once_cell",
  "percent-encoding",
  "pin-project-lite",
- "rustls-pemfile 1.0.4",
  "serde",
  "serde_json",
  "serde_urlencoded",
  "sync_wrapper 0.1.2",
  "system-configuration 0.5.1",
  "tokio",
- "tokio-native-tls",
  "tower-service",
  "url",
  "wasm-bindgen",
@@ -5241,7 +5202,7 @@ dependencies = [
  "http-body-util",
  "hyper 1.5.0",
  "hyper-rustls",
- "hyper-tls 0.6.0",
+ "hyper-tls",
  "hyper-util",
  "ipnet",
  "js-sys",
@@ -5253,7 +5214,7 @@ dependencies = [
  "pin-project-lite",
  "quinn",
  "rustls 0.23.15",
- "rustls-pemfile 2.2.0",
+ "rustls-pemfile",
  "rustls-pki-types",
  "serde",
  "serde_json",
@@ -5512,19 +5473,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fcaf18a4f2be7326cd874a5fa579fae794320a0f388d365dca7e480e55f83f8a"
 dependencies = [
  "openssl-probe",
- "rustls-pemfile 2.2.0",
+ "rustls-pemfile",
  "rustls-pki-types",
  "schannel",
  "security-framework",
-]
-
-[[package]]
-name = "rustls-pemfile"
-version = "1.0.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1c74cae0a4cf6ccbbf5f359f08efdf8ee7e1dc532573bf0db71968cb56b1448c"
-dependencies = [
- "base64 0.21.7",
 ]
 
 [[package]]
@@ -6187,7 +6139,6 @@ dependencies = [
  "num_cpus",
  "p3-air",
  "p3-baby-bear",
- "p3-blake3",
  "p3-challenger",
  "p3-field",
  "p3-keccak-air",
@@ -6273,8 +6224,6 @@ dependencies = [
  "anyhow",
  "bincode",
  "clap",
- "csv",
- "p3-baby-bear",
  "reqwest 0.12.8",
  "serde",
  "serde_json",
@@ -6315,22 +6264,15 @@ dependencies = [
 name = "sp1-perf"
 version = "3.0.0"
 dependencies = [
- "anyhow",
  "bincode",
  "clap",
- "csv",
  "p3-baby-bear",
- "reqwest 0.12.8",
- "serde",
- "serde_json",
- "slack-rust-rs",
  "sp1-core-executor",
  "sp1-cuda",
  "sp1-prover",
  "sp1-sdk",
  "sp1-stark",
  "time 0.3.36",
- "tokio",
 ]
 
 [[package]]
@@ -6359,7 +6301,6 @@ dependencies = [
  "dirs",
  "eyre",
  "itertools 0.13.0",
- "lazy_static",
  "lru",
  "num-bigint 0.4.6",
  "p3-baby-bear",
@@ -6369,8 +6310,6 @@ dependencies = [
  "p3-field",
  "p3-matrix",
  "p3-symmetric",
- "rayon",
- "reqwest 0.11.27",
  "serde",
  "serde_json",
  "serial_test",
@@ -6382,8 +6321,6 @@ dependencies = [
  "sp1-recursion-core",
  "sp1-recursion-gnark-ffi",
  "sp1-stark",
- "subtle-encoding",
- "tempfile",
  "thiserror",
  "tracing",
  "tracing-subscriber",
@@ -6576,7 +6513,6 @@ name = "sp1-stark"
 version = "3.0.0"
 dependencies = [
  "arrayref",
- "getrandom 0.2.15",
  "hashbrown 0.14.5",
  "itertools 0.13.0",
  "num-traits",
@@ -6602,7 +6538,6 @@ dependencies = [
  "strum",
  "strum_macros",
  "sysinfo",
- "thiserror",
  "tracing",
 ]
 
@@ -6786,15 +6721,6 @@ name = "subtle"
 version = "2.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
-
-[[package]]
-name = "subtle-encoding"
-version = "0.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7dcb1ed7b8330c5eed5441052651dd7a12c75e2ed88f2ec024ae1fa3a5e59945"
-dependencies = [
- "zeroize",
-]
 
 [[package]]
 name = "surf"
@@ -7289,7 +7215,7 @@ dependencies = [
  "pin-project",
  "prost",
  "rustls-native-certs",
- "rustls-pemfile 2.2.0",
+ "rustls-pemfile",
  "socket2",
  "tokio",
  "tokio-rustls",

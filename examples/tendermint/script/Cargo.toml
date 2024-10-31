@@ -6,7 +6,6 @@ publish = false
 
 [dependencies]
 sp1-sdk = { workspace = true }
-serde = { version = "1.0", default-features = false, features = ["derive"] }
 serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
 tendermint-light-client-verifier = { version = "0.35.0", default-features = false, features = [
   "rust-crypto",
