@@ -1,4 +1,4 @@
-use crate::ef7::SepticExtension;
+use crate::septic_extension::SepticExtension;
 use core::fmt::Display;
 use hashbrown::HashMap;
 use itertools::Itertools;

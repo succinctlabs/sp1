@@ -11,8 +11,8 @@ use strum::IntoEnumIterator;
 
 use crate::{
     air::{InteractionScope, MultiTableAirBuilder},
-    ef7::SepticExtension,
     lookup::Interaction,
+    septic_extension::SepticExtension,
 };
 
 /// Computes the width of the local permutation trace in terms of extension field elements.

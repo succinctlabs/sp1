@@ -13,7 +13,7 @@ use p3_matrix::{
 use serde::{Deserialize, Serialize};
 
 use super::{Challenge, Com, OpeningProof, StarkGenericConfig, Val};
-use crate::{air::InteractionScope, ef7::SepticExtension};
+use crate::{air::InteractionScope, septic_extension::SepticExtension};
 
 pub type QuotientOpenedValues<T> = Vec<T>;
 

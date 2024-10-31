@@ -8,9 +8,9 @@ use p3_util::log2_ceil_usize;
 
 use crate::{
     air::{InteractionScope, MachineAir, MultiTableAirBuilder, SP1AirBuilder},
-    ef7::SepticExtension,
     global_permutation_trace_width, local_permutation_trace_width,
     lookup::{Interaction, InteractionBuilder, InteractionKind},
+    septic_extension::SepticExtension,
 };
 
 use super::{
