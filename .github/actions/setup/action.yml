@@ -75,6 +75,8 @@ runs:
           ~/.cargo/git/db/
           target/
           ~/.rustup/
+          ~/.sp1/circuits/plonk/
+          ~/.sp1/circuits/groth16/
         key: rust-1.81.0-${{ hashFiles('**/Cargo.toml') }}
         restore-keys: rust-1.81.0-
 

@@ -12,6 +12,8 @@ members = [
   "cycle-tracking/script",
   "fibonacci/program",
   "fibonacci/script",
+  "groth16/program",
+  "groth16/script",
   "io/program",
   "io/script",
   "is-prime/program",
