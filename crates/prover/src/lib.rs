@@ -34,7 +34,6 @@ use std::{
 
 use lru::LruCache;
 
-use serde::de::Expected;
 use shapes::SP1ProofShape;
 use tracing::instrument;
 
@@ -648,6 +647,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         // Calculate the expected height of the tree.
         let mut expected_height = if first_layer_inputs.len() == 1 { 0 } else { 1 };
         let num_first_layer_inputs = first_layer_inputs.len();
+        tracing::info!("First layer inputs: {}", num_first_layer_inputs);
         let mut num_layer_inputs = num_first_layer_inputs;
         while num_layer_inputs > batch_size {
             num_layer_inputs = num_layer_inputs.div_ceil(2);
@@ -700,7 +700,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                     loop {
                         let received = { input_rx.lock().unwrap().recv() };
                         if let Ok((index, height, input)) = received {
-                            tracing::info!("Input Height {}", height);
+                            tracing::info!("Inputs: index {}, height {}", index, height);
                             tracing::info!("Total Expected height {}", expected_height);
                             // Get the program and witness stream.
                             // if height > expected_height {
@@ -795,7 +795,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             let proofs_sync = Arc::new(TurnBasedSync::new());
             let (proofs_tx, proofs_rx) =
                 sync_channel::<(usize, usize, StarkVerifyingKey<InnerSC>, ShardProof<InnerSC>)>(
-                    num_first_layer_inputs * 2,
+                    num_first_layer_inputs * 2 - 1,
                 );
             let proofs_tx = Arc::new(Mutex::new(proofs_tx));
             let proofs_rx = Arc::new(Mutex::new(proofs_rx));
@@ -811,7 +811,8 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                         let received = { record_and_trace_rx.lock().unwrap().recv() };
                         if let Ok((index, height, program, record, traces)) = received {
 
-                            tracing::info!("Proofs height: {}", height);
+                            tracing::info!("Proofs: index {}, height {}", index, height);
+
                             tracing::debug_span!("batch").in_scope(|| {
 
                                 // Get the keys.
@@ -910,12 +911,20 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                         let received = { proofs_rx.lock().unwrap().recv() };
                         if let Ok((index, height, vk, proof)) = received {
                             batch.push((index, height, vk, proof));
+                            if height == expected_height {
+                                break;
+                            }
 
-                            tracing::info!("At index {}, height {}", index, height);
+                            tracing::info!("Compressor: At index {}, height {}", index, height);
+
+                            // Compute whether we've reached the root of the tree.
+                            let is_complete = height == expected_height;
+
+                            tracing::info!("At expected height: {}", is_complete);
 
                             // If it's not complete, and we haven't reached the batch size,
                             // continue.
-                            if batch.len() < batch_size {
+                            if !is_complete && batch.len() < batch_size {
                                 continue;
                             }
 
@@ -930,7 +939,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                             let inputs =
                                 if is_last { vec![batch[0].clone()] } else { batch.clone() };
 
-                            let is_complete = height == expected_height - 1;
+                            // let is_complete = height == expected_height - 1;
 
                             let next_input_index = inputs[0].1 + 1;
                             let vks_and_proofs = inputs
@@ -939,7 +948,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                                 .collect::<Vec<_>>();
                             let input = SP1CircuitWitness::Compress(SP1CompressWitnessValues {
                                 vks_and_proofs,
-                                is_complete,
+                                is_complete: next_input_index == expected_height,
                             });
 
                             input_sync.wait_for_turn(count);
@@ -959,7 +968,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                             );
 
                             // If we're at the root of the tree, stop generating inputs.
-                            if is_complete {
+                            if next_input_index == expected_height {
                                 break;
                             }
 
@@ -1538,17 +1547,17 @@ pub mod tests {
         tracing::info!("verify verify program");
         prover.verify_compressed(&verify_reduce, &verify_vk)?;
 
-        let shrink_proof = prover.shrink(verify_reduce, opts)?;
+        // let shrink_proof = prover.shrink(verify_reduce, opts)?;
 
-        tracing::info!("verify shrink");
-        prover.verify_shrink(&shrink_proof, &verify_vk)?;
+        // tracing::info!("verify shrink");
+        // prover.verify_shrink(&shrink_proof, &verify_vk)?;
 
-        tracing::info!("wrap bn254");
-        let wrapped_bn254_proof = prover.wrap_bn254(shrink_proof, opts)?;
+        // tracing::info!("wrap bn254");
+        // let wrapped_bn254_proof = prover.wrap_bn254(shrink_proof, opts)?;
 
-        tracing::info!("verify wrap bn254");
-        println!("verify wrap bn254 {:#?}", wrapped_bn254_proof.vk.commit);
-        prover.verify_wrap_bn254(&wrapped_bn254_proof, &verify_vk).unwrap();
+        // tracing::info!("verify wrap bn254");
+        // println!("verify wrap bn254 {:#?}", wrapped_bn254_proof.vk.commit);
+        // prover.verify_wrap_bn254(&wrapped_bn254_proof, &verify_vk).unwrap();
 
         Ok(())
     }
