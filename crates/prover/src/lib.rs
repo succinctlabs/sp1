@@ -870,16 +870,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                                 // Generate the proof.
                                 let proof = tracing::debug_span!("open").in_scope(|| {
                                     self.compress_prover
-                                        .open(
-                                            &pk,
-                                            None,
-                                            local_data,
-                                            &mut challenger,
-                                            &[
-                                                <BabyBearPoseidon2 as StarkGenericConfig>::Challenge::zero(),
-                                                <BabyBearPoseidon2 as StarkGenericConfig>::Challenge::zero(),
-                                            ],
-                                        )
+                                        .open(&pk, None, local_data, &mut challenger)
                                         .unwrap()
                                 });
 

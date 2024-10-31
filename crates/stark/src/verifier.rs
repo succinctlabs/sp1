@@ -33,7 +33,6 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
         chips: &[&MachineChip<SC, A>],
         challenger: &mut SC::Challenger,
         proof: &ShardProof<SC>,
-        global_permutation_challenges: &[SC::Challenge],
     ) -> Result<(), VerificationError<SC>>
     where
         A: for<'a> Air<VerifierConstraintFolder<'a, SC>>,
@@ -246,11 +245,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
             .verify(rounds, opening_proof, challenger)
             .map_err(|e| VerificationError::InvalidopeningArgument(e))?;
 
-        let permutation_challenges = global_permutation_challenges
-            .iter()
-            .chain(local_permutation_challenges.iter())
-            .copied()
-            .collect::<Vec<_>>();
+        let permutation_challenges = local_permutation_challenges;
 
         // Verify the constrtaint evaluations.
         for (chip, trace_domain, qc_domains, values) in
@@ -314,13 +309,13 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
         }
 
         // Verify that the permutation width matches the expected value for the chip.
-        if opening.permutation.local.len() != chip.permutation_width() * SC::Challenge::D {
+        if opening.permutation.local.len() != chip.permutation_width() {
             return Err(OpeningShapeError::PermutationWidthMismatch(
                 chip.permutation_width(),
                 opening.permutation.local.len(),
             ));
         }
-        if opening.permutation.next.len() != chip.permutation_width() * SC::Challenge::D {
+        if opening.permutation.next.len() != chip.permutation_width() {
             return Err(OpeningShapeError::PermutationWidthMismatch(
                 chip.permutation_width(),
                 opening.permutation.next.len(),

@@ -25,6 +25,7 @@ mod bb31_poseidon2;
 mod chip;
 mod config;
 mod debug;
+pub mod ef7;
 mod folder;
 mod lookup;
 mod machine;

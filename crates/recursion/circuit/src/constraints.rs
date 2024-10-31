@@ -222,17 +222,13 @@ where
         }
 
         // Verify that the permutation width matches the expected value for the chip.
-        if opening.permutation.local.len()
-            != chip.permutation_width() * <SC::Challenge as AbstractExtensionField<C::F>>::D
-        {
+        if opening.permutation.local.len() != chip.permutation_width() {
             return Err(OpeningShapeError::PermutationWidthMismatch(
                 chip.permutation_width(),
                 opening.permutation.local.len(),
             ));
         }
-        if opening.permutation.next.len()
-            != chip.permutation_width() * <SC::Challenge as AbstractExtensionField<C::F>>::D
-        {
+        if opening.permutation.next.len() != chip.permutation_width() {
             return Err(OpeningShapeError::PermutationWidthMismatch(
                 chip.permutation_width(),
                 opening.permutation.next.len(),

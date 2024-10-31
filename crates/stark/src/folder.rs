@@ -21,10 +21,8 @@ pub struct ProverConstraintFolder<'a, SC: StarkGenericConfig> {
     pub main:
         VerticalPair<RowMajorMatrixView<'a, PackedVal<SC>>, RowMajorMatrixView<'a, PackedVal<SC>>>,
     /// The permutation trace.
-    pub perm: VerticalPair<
-        RowMajorMatrixView<'a, PackedChallenge<SC>>,
-        RowMajorMatrixView<'a, PackedChallenge<SC>>,
-    >,
+    pub perm:
+        VerticalPair<RowMajorMatrixView<'a, PackedVal<SC>>, RowMajorMatrixView<'a, PackedVal<SC>>>,
     /// The challenges for the permutation.
     pub perm_challenges: &'a [PackedChallenge<SC>],
     /// The cumulative sums for the permutation.
@@ -103,7 +101,7 @@ impl<'a, SC: StarkGenericConfig> PermutationAirBuilder for ProverConstraintFolde
     type RandomVar = PackedChallenge<SC>;
 
     fn permutation(&self) -> Self::MP {
-        self.perm
+        todo!()
     }
 
     fn permutation_randomness(&self) -> &[Self::RandomVar] {

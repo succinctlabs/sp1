@@ -7,12 +7,15 @@ use p3_uni_stark::{get_max_constraint_degree, SymbolicAirBuilder};
 use p3_util::log2_ceil_usize;
 
 use crate::{
-    air::{MachineAir, MultiTableAirBuilder, SP1AirBuilder},
+    air::{InteractionScope, MachineAir, MultiTableAirBuilder, SP1AirBuilder},
+    ef7::EF7,
+    global_permutation_trace_width, local_permutation_trace_width,
     lookup::{Interaction, InteractionBuilder, InteractionKind},
 };
 
 use super::{
-    eval_permutation_constraints, generate_permutation_trace, get_grouped_maps, PROOF_MAX_NUM_PVS,
+    eval_permutation_constraints, generate_permutation_trace, scoped_interactions,
+    PROOF_MAX_NUM_PVS,
 };
 
 /// An Air that encodes lookups based on interactions.
@@ -119,13 +122,13 @@ where
         preprocessed: Option<&RowMajorMatrix<F>>,
         main: &RowMajorMatrix<F>,
         random_elements: &[EF],
-    ) -> (RowMajorMatrix<EF>, EF, EF)
+    ) -> (RowMajorMatrix<F>, EF, EF7<F>)
     where
         F: PrimeField,
         A: MachineAir<F>,
     {
         let batch_size = self.logup_batch_size();
-        generate_permutation_trace(
+        generate_permutation_trace::<F, EF, EF7<F>>(
             &self.sends,
             &self.receives,
             preprocessed,
@@ -138,10 +141,21 @@ where
     /// Returns the width of the permutation trace.
     #[inline]
     pub fn permutation_width(&self) -> usize {
-        let (_, _, grouped_widths) =
-            get_grouped_maps(self.sends(), self.receives(), self.logup_batch_size());
+        let (scoped_sends, scoped_receives) = scoped_interactions(self.sends(), self.receives());
+        let empty = Vec::new();
+        let local_sends = scoped_sends.get(&InteractionScope::Local).unwrap_or(&empty);
+        let local_receives = scoped_receives.get(&InteractionScope::Local).unwrap_or(&empty);
+        let global_sends = scoped_sends.get(&InteractionScope::Global).unwrap_or(&empty);
+        let global_receives = scoped_receives.get(&InteractionScope::Global).unwrap_or(&empty);
 
-        grouped_widths.values().sum()
+        let local_permutation_width = local_permutation_trace_width(
+            local_sends.len() + local_receives.len(),
+            self.logup_batch_size(),
+        );
+        let global_permutation_width =
+            global_permutation_trace_width(global_sends.len() + global_receives.len());
+
+        local_permutation_width + global_permutation_width
     }
 
     /// Returns the cost of a row in the chip.

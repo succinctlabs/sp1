@@ -204,13 +204,6 @@ where
         // Wait until the checkpoint generator handle has fully finished.
         let public_values_stream = checkpoint_generator_handle.join().unwrap().unwrap();
 
-        // Sample for the global permutation challenges.
-        // Obtain the challenges used for the global permutation argument.
-        let mut global_permutation_challenges: Vec<SC::Challenge> = Vec::new();
-        for _ in 0..2 {
-            global_permutation_challenges.push(SC::Challenge::zero());
-        }
-
         // Spawn the phase 2 record generator thread.
         let p2_record_gen_sync = Arc::new(TurnBasedSync::new());
         let p2_trace_gen_sync = Arc::new(TurnBasedSync::new());
@@ -416,7 +409,6 @@ where
                                             Some(global_data),
                                             local_data,
                                             &mut challenger.clone(),
-                                            &global_permutation_challenges,
                                         )
                                         .unwrap();
                                     opening_span.exit();

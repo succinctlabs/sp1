@@ -484,11 +484,7 @@ where
 
         // Verify the constrtaint evaluations.
         builder.cycle_tracker_v2_enter("stage-e-verify-constraints".to_string());
-        let permutation_challenges = global_permutation_challenges
-            .iter()
-            .chain(local_permutation_challenges.iter())
-            .copied()
-            .collect::<Vec<_>>();
+        let permutation_challenges = local_permutation_challenges;
 
         for (chip, trace_domain, qc_domains, values) in
             izip!(chips.iter(), trace_domains, quotient_chunk_domains, opened_values.chips.iter(),)
