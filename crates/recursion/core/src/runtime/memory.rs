@@ -5,7 +5,7 @@ use vec_map::{Entry, VecMap};
 
 use crate::{air::Block, Address};
 
-#[derive(Debug, Clone, Default, Copy)]
+#[derive(Debug, Clone, Default)]
 pub struct MemoryEntry<F> {
     pub val: Block<F>,
     pub mult: F,

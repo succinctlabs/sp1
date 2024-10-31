@@ -9,31 +9,52 @@ impl Instruction {
     /// Create a new [`Instruction`] from an R-type instruction.
     #[must_use]
     pub const fn from_r_type(opcode: Opcode, dec_insn: &RType) -> Self {
-        Self::new(opcode, dec_insn.rd as u8, dec_insn.rs1 as u32, dec_insn.rs2 as u32, false, false)
+        Self::new(
+            opcode,
+            dec_insn.rd as u32,
+            dec_insn.rs1 as u32,
+            dec_insn.rs2 as u32,
+            false,
+            false,
+        )
     }
 
     /// Create a new [`Instruction`] from an I-type instruction.
     #[must_use]
     pub const fn from_i_type(opcode: Opcode, dec_insn: &IType) -> Self {
-        Self::new(opcode, dec_insn.rd as u8, dec_insn.rs1 as u32, dec_insn.imm as u32, false, true)
+        Self::new(opcode, dec_insn.rd as u32, dec_insn.rs1 as u32, dec_insn.imm as u32, false, true)
     }
 
     /// Create a new [`Instruction`] from an I-type instruction with a shamt.
     #[must_use]
     pub const fn from_i_type_shamt(opcode: Opcode, dec_insn: &ITypeShamt) -> Self {
-        Self::new(opcode, dec_insn.rd as u8, dec_insn.rs1 as u32, dec_insn.shamt, false, true)
+        Self::new(opcode, dec_insn.rd as u32, dec_insn.rs1 as u32, dec_insn.shamt, false, true)
     }
 
     /// Create a new [`Instruction`] from an S-type instruction.
     #[must_use]
     pub const fn from_s_type(opcode: Opcode, dec_insn: &SType) -> Self {
-        Self::new(opcode, dec_insn.rs2 as u8, dec_insn.rs1 as u32, dec_insn.imm as u32, false, true)
+        Self::new(
+            opcode,
+            dec_insn.rs2 as u32,
+            dec_insn.rs1 as u32,
+            dec_insn.imm as u32,
+            false,
+            true,
+        )
     }
 
     /// Create a new [`Instruction`] from a B-type instruction.
     #[must_use]
     pub const fn from_b_type(opcode: Opcode, dec_insn: &BType) -> Self {
-        Self::new(opcode, dec_insn.rs1 as u8, dec_insn.rs2 as u32, dec_insn.imm as u32, false, true)
+        Self::new(
+            opcode,
+            dec_insn.rs1 as u32,
+            dec_insn.rs2 as u32,
+            dec_insn.imm as u32,
+            false,
+            true,
+        )
     }
 
     /// Create a new [`Instruction`] that is not implemented.
@@ -61,9 +82,9 @@ impl Instruction {
     #[must_use]
     pub fn r_type(&self) -> (Register, Register, Register) {
         (
-            Register::from_u8(self.op_a),
-            Register::from_u8(self.op_b as u8),
-            Register::from_u8(self.op_c as u8),
+            Register::from_u32(self.op_a),
+            Register::from_u32(self.op_b),
+            Register::from_u32(self.op_c),
         )
     }
 
@@ -71,35 +92,35 @@ impl Instruction {
     #[inline]
     #[must_use]
     pub fn i_type(&self) -> (Register, Register, u32) {
-        (Register::from_u8(self.op_a), Register::from_u8(self.op_b as u8), self.op_c)
+        (Register::from_u32(self.op_a), Register::from_u32(self.op_b), self.op_c)
     }
 
     /// Decode the [`Instruction`] in the S-type format.
     #[inline]
     #[must_use]
     pub fn s_type(&self) -> (Register, Register, u32) {
-        (Register::from_u8(self.op_a), Register::from_u8(self.op_b as u8), self.op_c)
+        (Register::from_u32(self.op_a), Register::from_u32(self.op_b), self.op_c)
     }
 
     /// Decode the [`Instruction`] in the B-type format.
     #[inline]
     #[must_use]
     pub fn b_type(&self) -> (Register, Register, u32) {
-        (Register::from_u8(self.op_a), Register::from_u8(self.op_b as u8), self.op_c)
+        (Register::from_u32(self.op_a), Register::from_u32(self.op_b), self.op_c)
     }
 
     /// Decode the [`Instruction`] in the J-type format.
     #[inline]
     #[must_use]
     pub fn j_type(&self) -> (Register, u32) {
-        (Register::from_u8(self.op_a), self.op_b)
+        (Register::from_u32(self.op_a), self.op_b)
     }
 
     /// Decode the [`Instruction`] in the U-type format.
     #[inline]
     #[must_use]
     pub fn u_type(&self) -> (Register, u32) {
-        (Register::from_u8(self.op_a), self.op_b)
+        (Register::from_u32(self.op_a), self.op_b)
     }
 }
 
@@ -242,13 +263,13 @@ impl InstructionProcessor for InstructionTranspiler {
     }
 
     fn process_jal(&mut self, dec_insn: JType) -> Self::InstructionResult {
-        Instruction::new(Opcode::JAL, dec_insn.rd as u8, dec_insn.imm as u32, 0, true, true)
+        Instruction::new(Opcode::JAL, dec_insn.rd as u32, dec_insn.imm as u32, 0, true, true)
     }
 
     fn process_jalr(&mut self, dec_insn: IType) -> Self::InstructionResult {
         Instruction::new(
             Opcode::JALR,
-            dec_insn.rd as u8,
+            dec_insn.rd as u32,
             dec_insn.rs1 as u32,
             dec_insn.imm as u32,
             false,
@@ -261,14 +282,14 @@ impl InstructionProcessor for InstructionTranspiler {
         //
         // Notably, LUI instructions are converted to an SLL instruction with `imm_b` and `imm_c`
         // turned on. Additionally the `op_c` should be set to 12.
-        Instruction::new(Opcode::ADD, dec_insn.rd as u8, 0, dec_insn.imm as u32, true, true)
+        Instruction::new(Opcode::ADD, dec_insn.rd as u32, 0, dec_insn.imm as u32, true, true)
     }
 
     /// AUIPC instructions have the third operand set to imm << 12.
     fn process_auipc(&mut self, dec_insn: UType) -> Self::InstructionResult {
         Instruction::new(
             Opcode::AUIPC,
-            dec_insn.rd as u8,
+            dec_insn.rd as u32,
             dec_insn.imm as u32,
             dec_insn.imm as u32,
             true,
@@ -279,7 +300,7 @@ impl InstructionProcessor for InstructionTranspiler {
     fn process_ecall(&mut self) -> Self::InstructionResult {
         Instruction::new(
             Opcode::ECALL,
-            Register::X5 as u8,
+            Register::X5 as u32,
             Register::X10 as u32,
             Register::X11 as u32,
             false,

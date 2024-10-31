@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use crate::Instruction;
+
 use super::{memory::MemoryRecordEnum, LookupId};
 
 /// CPU Event.
@@ -8,12 +10,16 @@ use super::{memory::MemoryRecordEnum, LookupId};
 /// shard, opcode, operands, and other relevant information.
 #[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 pub struct CpuEvent {
+    /// The shard number.
+    pub shard: u32,
     /// The clock cycle.
     pub clk: u32,
     /// The program counter.
     pub pc: u32,
     /// The next program counter.
     pub next_pc: u32,
+    /// The instruction.
+    pub instruction: Instruction,
     /// The first operand.
     pub a: u32,
     /// The first operand memory record.
@@ -26,6 +32,8 @@ pub struct CpuEvent {
     pub c: u32,
     /// The third operand memory record.
     pub c_record: Option<MemoryRecordEnum>,
+    /// The memory value.
+    pub memory: Option<u32>,
     /// The memory record.
     pub memory_record: Option<MemoryRecordEnum>,
     /// The exit code.

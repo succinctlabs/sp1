@@ -13,8 +13,9 @@ use crate::{
     context::SP1Context,
     dependencies::{emit_cpu_dependencies, emit_divrem_dependencies},
     events::{
-        AluEvent, CpuEvent, LookupId, MemoryAccessPosition, MemoryInitializeFinalizeEvent,
-        MemoryLocalEvent, MemoryReadRecord, MemoryRecord, MemoryWriteRecord, SyscallEvent,
+        create_alu_lookup_id, create_alu_lookups, AluEvent, CpuEvent, LookupId,
+        MemoryAccessPosition, MemoryInitializeFinalizeEvent, MemoryLocalEvent, MemoryReadRecord,
+        MemoryRecord, MemoryWriteRecord, SyscallEvent,
     },
     hook::{HookEnv, HookRegistry},
     memory::{Entry, PagedMemory},
@@ -268,7 +269,7 @@ impl<'a> Executor<'a> {
     pub fn registers(&mut self) -> [u32; 32] {
         let mut registers = [0; 32];
         for i in 0..32 {
-            let addr = Register::from_u8(i as u8) as u32;
+            let addr = Register::from_u32(i as u32) as u32;
             let record = self.state.memory.get(addr);
 
             // Only add the previous memory state to checkpoint map if we're in checkpoint mode,
@@ -406,7 +407,7 @@ impl<'a> Executor<'a> {
         record.shard = shard;
         record.timestamp = timestamp;
 
-        if !self.unconstrained && self.executor_mode == ExecutorMode::Trace {
+        if !self.unconstrained {
             let local_memory_access = if let Some(local_memory_access) = local_memory_access {
                 local_memory_access
             } else {
@@ -485,7 +486,7 @@ impl<'a> Executor<'a> {
         record.shard = shard;
         record.timestamp = timestamp;
 
-        if !self.unconstrained && self.executor_mode == ExecutorMode::Trace {
+        if !self.unconstrained {
             let local_memory_access = if let Some(local_memory_access) = local_memory_access {
                 local_memory_access
             } else {
@@ -552,19 +553,19 @@ impl<'a> Executor<'a> {
         if !self.unconstrained && self.executor_mode == ExecutorMode::Trace {
             match position {
                 MemoryAccessPosition::A => {
-                    debug_assert!(self.memory_accesses.a.is_none());
+                    assert!(self.memory_accesses.a.is_none());
                     self.memory_accesses.a = Some(record.into());
                 }
                 MemoryAccessPosition::B => {
-                    debug_assert!(self.memory_accesses.b.is_none());
+                    assert!(self.memory_accesses.b.is_none());
                     self.memory_accesses.b = Some(record.into());
                 }
                 MemoryAccessPosition::C => {
-                    debug_assert!(self.memory_accesses.c.is_none());
+                    assert!(self.memory_accesses.c.is_none());
                     self.memory_accesses.c = Some(record.into());
                 }
                 MemoryAccessPosition::Memory => {
-                    debug_assert!(self.memory_accesses.memory.is_none());
+                    assert!(self.memory_accesses.memory.is_none());
                     self.memory_accesses.memory = Some(record.into());
                 }
             }
@@ -592,50 +593,49 @@ impl<'a> Executor<'a> {
     #[allow(clippy::too_many_arguments)]
     fn emit_cpu(
         &mut self,
+        shard: u32,
         clk: u32,
         pc: u32,
         next_pc: u32,
+        instruction: Instruction,
         a: u32,
         b: u32,
         c: u32,
+        memory_store_value: Option<u32>,
         record: MemoryAccessRecord,
         exit_code: u32,
         lookup_id: LookupId,
         syscall_lookup_id: LookupId,
     ) {
-        let memory_add_lookup_id = self.record.create_lookup_id();
-        let memory_sub_lookup_id = self.record.create_lookup_id();
-        let branch_lt_lookup_id = self.record.create_lookup_id();
-        let branch_gt_lookup_id = self.record.create_lookup_id();
-        let branch_add_lookup_id = self.record.create_lookup_id();
-        let jump_jal_lookup_id = self.record.create_lookup_id();
-        let jump_jalr_lookup_id = self.record.create_lookup_id();
-        let auipc_lookup_id = self.record.create_lookup_id();
-        self.record.cpu_events.push(CpuEvent {
+        let cpu_event = CpuEvent {
+            shard,
             clk,
             pc,
             next_pc,
+            instruction,
             a,
             a_record: record.a,
             b,
             b_record: record.b,
             c,
             c_record: record.c,
+            memory: memory_store_value,
             memory_record: record.memory,
             exit_code,
             alu_lookup_id: lookup_id,
             syscall_lookup_id,
-            memory_add_lookup_id,
-            memory_sub_lookup_id,
-            branch_lt_lookup_id,
-            branch_gt_lookup_id,
-            branch_add_lookup_id,
-            jump_jal_lookup_id,
-            jump_jalr_lookup_id,
-            auipc_lookup_id,
-        });
+            memory_add_lookup_id: create_alu_lookup_id(),
+            memory_sub_lookup_id: create_alu_lookup_id(),
+            branch_lt_lookup_id: create_alu_lookup_id(),
+            branch_gt_lookup_id: create_alu_lookup_id(),
+            branch_add_lookup_id: create_alu_lookup_id(),
+            jump_jal_lookup_id: create_alu_lookup_id(),
+            jump_jalr_lookup_id: create_alu_lookup_id(),
+            auipc_lookup_id: create_alu_lookup_id(),
+        };
 
-        emit_cpu_dependencies(self, self.record.cpu_events.len() - 1);
+        self.record.cpu_events.push(cpu_event);
+        emit_cpu_dependencies(self, &cpu_event);
     }
 
     /// Emit an ALU event.
@@ -648,7 +648,7 @@ impl<'a> Executor<'a> {
             a,
             b,
             c,
-            sub_lookups: self.record.create_lookup_ids(),
+            sub_lookups: create_alu_lookups(),
         };
         match opcode {
             Opcode::ADD => {
@@ -696,7 +696,7 @@ impl<'a> Executor<'a> {
             arg1,
             arg2,
             lookup_id,
-            nonce: self.record.nonce_lookup[lookup_id.0 as usize],
+            nonce: self.record.nonce_lookup[&lookup_id],
         }
     }
 
@@ -725,9 +725,9 @@ impl<'a> Executor<'a> {
             let (rd, b, c) = (rd, self.rr(rs1, MemoryAccessPosition::B), imm);
             (rd, b, c)
         } else {
-            debug_assert!(instruction.imm_b && instruction.imm_c);
+            assert!(instruction.imm_b && instruction.imm_c);
             let (rd, b, c) =
-                (Register::from_u8(instruction.op_a), instruction.op_b, instruction.op_c);
+                (Register::from_u32(instruction.op_a), instruction.op_b, instruction.op_c);
             (rd, b, c)
         }
     }
@@ -780,7 +780,8 @@ impl<'a> Executor<'a> {
     /// Fetch the instruction at the current program counter.
     #[inline]
     fn fetch(&self) -> Instruction {
-        *self.program.fetch(self.state.pc)
+        let idx = ((self.state.pc - self.program.pc_base) / 4) as usize;
+        self.program.instructions[idx]
     }
 
     /// Execute the given instruction over the current state of the runtime.
@@ -792,18 +793,21 @@ impl<'a> Executor<'a> {
 
         let mut next_pc = self.state.pc.wrapping_add(4);
 
+        let rd: Register;
         let (a, b, c): (u32, u32, u32);
+        let (addr, memory_read_value): (u32, u32);
+        let mut memory_store_value: Option<u32> = None;
 
         if self.executor_mode == ExecutorMode::Trace {
             self.memory_accesses = MemoryAccessRecord::default();
         }
         let lookup_id = if self.executor_mode == ExecutorMode::Trace {
-            self.record.create_lookup_id()
+            create_alu_lookup_id()
         } else {
             LookupId::default()
         };
         let syscall_lookup_id = if self.executor_mode == ExecutorMode::Trace {
-            self.record.create_lookup_id()
+            create_alu_lookup_id()
         } else {
             LookupId::default()
         };
@@ -838,40 +842,182 @@ impl<'a> Executor<'a> {
 
         match instruction.opcode {
             // Arithmetic instructions.
-            Opcode::ADD
-            | Opcode::SUB
-            | Opcode::XOR
-            | Opcode::OR
-            | Opcode::AND
-            | Opcode::SLL
-            | Opcode::SRL
-            | Opcode::SRA
-            | Opcode::SLT
-            | Opcode::SLTU
-            | Opcode::MUL
-            | Opcode::MULH
-            | Opcode::MULHU
-            | Opcode::MULHSU
-            | Opcode::DIV
-            | Opcode::DIVU
-            | Opcode::REM
-            | Opcode::REMU => {
-                (a, b, c) = self.execute_alu(instruction, lookup_id);
+            Opcode::ADD => {
+                (rd, b, c) = self.alu_rr(instruction);
+                a = b.wrapping_add(c);
+                self.alu_rw(instruction, rd, a, b, c, lookup_id);
+            }
+            Opcode::SUB => {
+                (rd, b, c) = self.alu_rr(instruction);
+                a = b.wrapping_sub(c);
+                self.alu_rw(instruction, rd, a, b, c, lookup_id);
+            }
+            Opcode::XOR => {
+                (rd, b, c) = self.alu_rr(instruction);
+                a = b ^ c;
+                self.alu_rw(instruction, rd, a, b, c, lookup_id);
+            }
+            Opcode::OR => {
+                (rd, b, c) = self.alu_rr(instruction);
+                a = b | c;
+                self.alu_rw(instruction, rd, a, b, c, lookup_id);
+            }
+            Opcode::AND => {
+                (rd, b, c) = self.alu_rr(instruction);
+                a = b & c;
+                self.alu_rw(instruction, rd, a, b, c, lookup_id);
+            }
+            Opcode::SLL => {
+                (rd, b, c) = self.alu_rr(instruction);
+                a = b.wrapping_shl(c);
+                self.alu_rw(instruction, rd, a, b, c, lookup_id);
+            }
+            Opcode::SRL => {
+                (rd, b, c) = self.alu_rr(instruction);
+                a = b.wrapping_shr(c);
+                self.alu_rw(instruction, rd, a, b, c, lookup_id);
+            }
+            Opcode::SRA => {
+                (rd, b, c) = self.alu_rr(instruction);
+                a = (b as i32).wrapping_shr(c) as u32;
+                self.alu_rw(instruction, rd, a, b, c, lookup_id);
+            }
+            Opcode::SLT => {
+                (rd, b, c) = self.alu_rr(instruction);
+                a = if (b as i32) < (c as i32) { 1 } else { 0 };
+                self.alu_rw(instruction, rd, a, b, c, lookup_id);
+            }
+            Opcode::SLTU => {
+                (rd, b, c) = self.alu_rr(instruction);
+                a = if b < c { 1 } else { 0 };
+                self.alu_rw(instruction, rd, a, b, c, lookup_id);
             }
 
             // Load instructions.
-            Opcode::LB | Opcode::LH | Opcode::LW | Opcode::LBU | Opcode::LHU => {
-                (a, b, c) = self.execute_load(instruction)?;
+            Opcode::LB => {
+                (rd, b, c, addr, memory_read_value) = self.load_rr(instruction);
+                let value = (memory_read_value).to_le_bytes()[(addr % 4) as usize];
+                a = ((value as i8) as i32) as u32;
+                memory_store_value = Some(memory_read_value);
+                self.rw(rd, a);
+            }
+            Opcode::LH => {
+                (rd, b, c, addr, memory_read_value) = self.load_rr(instruction);
+                if addr % 2 != 0 {
+                    return Err(ExecutionError::InvalidMemoryAccess(Opcode::LH, addr));
+                }
+                let value = match (addr >> 1) % 2 {
+                    0 => memory_read_value & 0x0000_FFFF,
+                    1 => (memory_read_value & 0xFFFF_0000) >> 16,
+                    _ => unreachable!(),
+                };
+                a = ((value as i16) as i32) as u32;
+                memory_store_value = Some(memory_read_value);
+                self.rw(rd, a);
+            }
+            Opcode::LW => {
+                (rd, b, c, addr, memory_read_value) = self.load_rr(instruction);
+                if addr % 4 != 0 {
+                    return Err(ExecutionError::InvalidMemoryAccess(Opcode::LW, addr));
+                }
+                a = memory_read_value;
+                memory_store_value = Some(memory_read_value);
+                self.rw(rd, a);
+            }
+            Opcode::LBU => {
+                (rd, b, c, addr, memory_read_value) = self.load_rr(instruction);
+                let value = (memory_read_value).to_le_bytes()[(addr % 4) as usize];
+                a = value as u32;
+                memory_store_value = Some(memory_read_value);
+                self.rw(rd, a);
+            }
+            Opcode::LHU => {
+                (rd, b, c, addr, memory_read_value) = self.load_rr(instruction);
+                if addr % 2 != 0 {
+                    return Err(ExecutionError::InvalidMemoryAccess(Opcode::LHU, addr));
+                }
+                let value = match (addr >> 1) % 2 {
+                    0 => memory_read_value & 0x0000_FFFF,
+                    1 => (memory_read_value & 0xFFFF_0000) >> 16,
+                    _ => unreachable!(),
+                };
+                a = (value as u16) as u32;
+                memory_store_value = Some(memory_read_value);
+                self.rw(rd, a);
             }
 
             // Store instructions.
-            Opcode::SB | Opcode::SH | Opcode::SW => {
-                (a, b, c) = self.execute_store(instruction)?;
+            Opcode::SB => {
+                (a, b, c, addr, memory_read_value) = self.store_rr(instruction);
+                let value = match addr % 4 {
+                    0 => (a & 0x0000_00FF) + (memory_read_value & 0xFFFF_FF00),
+                    1 => ((a & 0x0000_00FF) << 8) + (memory_read_value & 0xFFFF_00FF),
+                    2 => ((a & 0x0000_00FF) << 16) + (memory_read_value & 0xFF00_FFFF),
+                    3 => ((a & 0x0000_00FF) << 24) + (memory_read_value & 0x00FF_FFFF),
+                    _ => unreachable!(),
+                };
+                memory_store_value = Some(value);
+                self.mw_cpu(align(addr), value, MemoryAccessPosition::Memory);
+            }
+            Opcode::SH => {
+                (a, b, c, addr, memory_read_value) = self.store_rr(instruction);
+                if addr % 2 != 0 {
+                    return Err(ExecutionError::InvalidMemoryAccess(Opcode::SH, addr));
+                }
+                let value = match (addr >> 1) % 2 {
+                    0 => (a & 0x0000_FFFF) + (memory_read_value & 0xFFFF_0000),
+                    1 => ((a & 0x0000_FFFF) << 16) + (memory_read_value & 0x0000_FFFF),
+                    _ => unreachable!(),
+                };
+                memory_store_value = Some(value);
+                self.mw_cpu(align(addr), value, MemoryAccessPosition::Memory);
+            }
+            Opcode::SW => {
+                (a, b, c, addr, _) = self.store_rr(instruction);
+                if addr % 4 != 0 {
+                    return Err(ExecutionError::InvalidMemoryAccess(Opcode::SW, addr));
+                }
+                let value = a;
+                memory_store_value = Some(value);
+                self.mw_cpu(align(addr), value, MemoryAccessPosition::Memory);
             }
 
-            // Branch instructions.
-            Opcode::BEQ | Opcode::BNE | Opcode::BLT | Opcode::BGE | Opcode::BLTU | Opcode::BGEU => {
-                (a, b, c, next_pc) = self.execute_branch(instruction, next_pc);
+            // B-type instructions.
+            Opcode::BEQ => {
+                (a, b, c) = self.branch_rr(instruction);
+                if a == b {
+                    next_pc = self.state.pc.wrapping_add(c);
+                }
+            }
+            Opcode::BNE => {
+                (a, b, c) = self.branch_rr(instruction);
+                if a != b {
+                    next_pc = self.state.pc.wrapping_add(c);
+                }
+            }
+            Opcode::BLT => {
+                (a, b, c) = self.branch_rr(instruction);
+                if (a as i32) < (b as i32) {
+                    next_pc = self.state.pc.wrapping_add(c);
+                }
+            }
+            Opcode::BGE => {
+                (a, b, c) = self.branch_rr(instruction);
+                if (a as i32) >= (b as i32) {
+                    next_pc = self.state.pc.wrapping_add(c);
+                }
+            }
+            Opcode::BLTU => {
+                (a, b, c) = self.branch_rr(instruction);
+                if a < b {
+                    next_pc = self.state.pc.wrapping_add(c);
+                }
+            }
+            Opcode::BGEU => {
+                (a, b, c) = self.branch_rr(instruction);
+                if a >= b {
+                    next_pc = self.state.pc.wrapping_add(c);
+                }
             }
 
             // Jump instructions.
@@ -934,7 +1080,7 @@ impl<'a> Executor<'a> {
                     _ => (self.opts.split_opts.deferred, 1),
                 };
                 let nonce = (((*syscall_count as usize) % threshold) * multiplier) as u32;
-                self.record.nonce_lookup[syscall_lookup_id.0 as usize] = nonce;
+                self.record.nonce_lookup.insert(syscall_lookup_id, nonce);
                 *syscall_count += 1;
 
                 let syscall_impl = self.get_syscall(syscall).cloned();
@@ -984,6 +1130,64 @@ impl<'a> Executor<'a> {
                 return Err(ExecutionError::Breakpoint());
             }
 
+            // Multiply instructions.
+            Opcode::MUL => {
+                (rd, b, c) = self.alu_rr(instruction);
+                a = b.wrapping_mul(c);
+                self.alu_rw(instruction, rd, a, b, c, lookup_id);
+            }
+            Opcode::MULH => {
+                (rd, b, c) = self.alu_rr(instruction);
+                a = (((b as i32) as i64).wrapping_mul((c as i32) as i64) >> 32) as u32;
+                self.alu_rw(instruction, rd, a, b, c, lookup_id);
+            }
+            Opcode::MULHU => {
+                (rd, b, c) = self.alu_rr(instruction);
+                a = ((b as u64).wrapping_mul(c as u64) >> 32) as u32;
+                self.alu_rw(instruction, rd, a, b, c, lookup_id);
+            }
+            Opcode::MULHSU => {
+                (rd, b, c) = self.alu_rr(instruction);
+                a = (((b as i32) as i64).wrapping_mul(c as i64) >> 32) as u32;
+                self.alu_rw(instruction, rd, a, b, c, lookup_id);
+            }
+            Opcode::DIV => {
+                (rd, b, c) = self.alu_rr(instruction);
+                if c == 0 {
+                    a = u32::MAX;
+                } else {
+                    a = (b as i32).wrapping_div(c as i32) as u32;
+                }
+                self.alu_rw(instruction, rd, a, b, c, lookup_id);
+            }
+            Opcode::DIVU => {
+                (rd, b, c) = self.alu_rr(instruction);
+                if c == 0 {
+                    a = u32::MAX;
+                } else {
+                    a = b.wrapping_div(c);
+                }
+                self.alu_rw(instruction, rd, a, b, c, lookup_id);
+            }
+            Opcode::REM => {
+                (rd, b, c) = self.alu_rr(instruction);
+                if c == 0 {
+                    a = b;
+                } else {
+                    a = (b as i32).wrapping_rem(c as i32) as u32;
+                }
+                self.alu_rw(instruction, rd, a, b, c, lookup_id);
+            }
+            Opcode::REMU => {
+                (rd, b, c) = self.alu_rr(instruction);
+                if c == 0 {
+                    a = b;
+                } else {
+                    a = b.wrapping_rem(c);
+                }
+                self.alu_rw(instruction, rd, a, b, c, lookup_id);
+            }
+
             // See https://github.com/riscv-non-isa/riscv-asm-manual/blob/master/riscv-asm.md#instruction-aliases
             Opcode::UNIMP => {
                 return Err(ExecutionError::Unimplemented());
@@ -999,12 +1203,15 @@ impl<'a> Executor<'a> {
         // Emit the CPU event for this cycle.
         if self.executor_mode == ExecutorMode::Trace {
             self.emit_cpu(
+                self.shard(),
                 clk,
                 pc,
                 next_pc,
+                *instruction,
                 a,
                 b,
                 c,
+                memory_store_value,
                 self.memory_accesses,
                 exit_code,
                 lookup_id,
@@ -1012,153 +1219,6 @@ impl<'a> Executor<'a> {
             );
         };
         Ok(())
-    }
-
-    fn execute_alu(&mut self, instruction: &Instruction, lookup_id: LookupId) -> (u32, u32, u32) {
-        let (rd, b, c) = self.alu_rr(instruction);
-        let a = match instruction.opcode {
-            Opcode::ADD => b.wrapping_add(c),
-            Opcode::SUB => b.wrapping_sub(c),
-            Opcode::XOR => b ^ c,
-            Opcode::OR => b | c,
-            Opcode::AND => b & c,
-            Opcode::SLL => b.wrapping_shl(c),
-            Opcode::SRL => b.wrapping_shr(c),
-            Opcode::SRA => (b as i32).wrapping_shr(c) as u32,
-            Opcode::SLT => {
-                if (b as i32) < (c as i32) {
-                    1
-                } else {
-                    0
-                }
-            }
-            Opcode::SLTU => {
-                if b < c {
-                    1
-                } else {
-                    0
-                }
-            }
-            Opcode::MUL => b.wrapping_mul(c),
-            Opcode::MULH => (((b as i32) as i64).wrapping_mul((c as i32) as i64) >> 32) as u32,
-            Opcode::MULHU => ((b as u64).wrapping_mul(c as u64) >> 32) as u32,
-            Opcode::MULHSU => (((b as i32) as i64).wrapping_mul(c as i64) >> 32) as u32,
-            Opcode::DIV => {
-                if c == 0 {
-                    u32::MAX
-                } else {
-                    (b as i32).wrapping_div(c as i32) as u32
-                }
-            }
-            Opcode::DIVU => {
-                if c == 0 {
-                    u32::MAX
-                } else {
-                    b.wrapping_div(c)
-                }
-            }
-            Opcode::REM => {
-                if c == 0 {
-                    b
-                } else {
-                    (b as i32).wrapping_rem(c as i32) as u32
-                }
-            }
-            Opcode::REMU => {
-                if c == 0 {
-                    b
-                } else {
-                    b.wrapping_rem(c)
-                }
-            }
-            _ => unreachable!(),
-        };
-        self.alu_rw(instruction, rd, a, b, c, lookup_id);
-        (a, b, c)
-    }
-
-    fn execute_load(
-        &mut self,
-        instruction: &Instruction,
-    ) -> Result<(u32, u32, u32), ExecutionError> {
-        let (rd, b, c, addr, memory_read_value) = self.load_rr(instruction);
-        let a = match instruction.opcode {
-            Opcode::LB => ((memory_read_value >> ((addr % 4) * 8)) & 0xFF) as i8 as i32 as u32,
-            Opcode::LH => {
-                if addr % 2 != 0 {
-                    return Err(ExecutionError::InvalidMemoryAccess(Opcode::LH, addr));
-                }
-                ((memory_read_value >> (((addr / 2) % 2) * 16)) & 0xFFFF) as i16 as i32 as u32
-            }
-            Opcode::LW => {
-                if addr % 4 != 0 {
-                    return Err(ExecutionError::InvalidMemoryAccess(Opcode::LW, addr));
-                }
-                memory_read_value
-            }
-            Opcode::LBU => (memory_read_value >> ((addr % 4) * 8)) & 0xFF,
-            Opcode::LHU => {
-                if addr % 2 != 0 {
-                    return Err(ExecutionError::InvalidMemoryAccess(Opcode::LHU, addr));
-                }
-                (memory_read_value >> (((addr / 2) % 2) * 16)) & 0xFFFF
-            }
-            _ => unreachable!(),
-        };
-        self.rw(rd, a);
-        Ok((a, b, c))
-    }
-
-    fn execute_store(
-        &mut self,
-        instruction: &Instruction,
-    ) -> Result<(u32, u32, u32), ExecutionError> {
-        let (a, b, c, addr, memory_read_value) = self.store_rr(instruction);
-        let memory_store_value = match instruction.opcode {
-            Opcode::SB => {
-                let shift = (addr % 4) * 8;
-                ((a & 0xFF) << shift) | (memory_read_value & !(0xFF << shift))
-            }
-            Opcode::SH => {
-                if addr % 2 != 0 {
-                    return Err(ExecutionError::InvalidMemoryAccess(Opcode::SH, addr));
-                }
-                let shift = ((addr / 2) % 2) * 16;
-                ((a & 0xFFFF) << shift) | (memory_read_value & !(0xFFFF << shift))
-            }
-            Opcode::SW => {
-                if addr % 4 != 0 {
-                    return Err(ExecutionError::InvalidMemoryAccess(Opcode::SW, addr));
-                }
-                a
-            }
-            _ => unreachable!(),
-        };
-        self.mw_cpu(align(addr), memory_store_value, MemoryAccessPosition::Memory);
-        Ok((a, b, c))
-    }
-
-    fn execute_branch(
-        &mut self,
-        instruction: &Instruction,
-        mut next_pc: u32,
-    ) -> (u32, u32, u32, u32) {
-        let (a, b, c) = self.branch_rr(instruction);
-        let branch = match instruction.opcode {
-            Opcode::BEQ => a == b,
-            Opcode::BNE => a != b,
-            Opcode::BLT => (a as i32) < (b as i32),
-            Opcode::BGE => (a as i32) >= (b as i32),
-            Opcode::BLTU => a < b,
-            Opcode::BGEU => a >= b,
-            _ => {
-                unreachable!()
-            }
-        };
-        if branch {
-            next_pc = self.state.pc.wrapping_add(c);
-        }
-        (a, b, c, next_pc)
     }
 
     /// Executes one cycle of the program, returning whether the program has finished.
@@ -1337,7 +1397,6 @@ impl<'a> Executor<'a> {
             std::mem::replace(&mut self.record, ExecutionRecord::new(self.program.clone()));
         let public_values = removed_record.public_values;
         self.record.public_values = public_values;
-        self.record.nonce_lookup = vec![0; self.opts.shard_size * 32];
         self.records.push(removed_record);
     }
 
@@ -1412,8 +1471,6 @@ impl<'a> Executor<'a> {
     }
 
     fn initialize(&mut self) {
-        self.record.nonce_lookup = vec![0; self.opts.shard_size * 32];
-
         self.state.clk = 0;
 
         tracing::debug!("loading memory image");
@@ -1449,11 +1506,6 @@ impl<'a> Executor<'a> {
     /// Executes up to `self.shard_batch_size` cycles of the program, returning whether the program
     /// has finished.
     pub fn execute(&mut self) -> Result<bool, ExecutionError> {
-        // Initialize the nonce lookup table if it's uninitialized.
-        if self.record.nonce_lookup.len() <= 2 {
-            self.record.nonce_lookup = vec![0; self.opts.shard_size * 32];
-        }
-
         // Get the program.
         let program = self.program.clone();
 

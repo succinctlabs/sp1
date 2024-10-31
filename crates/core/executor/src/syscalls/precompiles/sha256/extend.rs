@@ -22,11 +22,11 @@ impl Syscall for Sha256ExtendSyscall {
         assert!(arg2 == 0, "arg2 must be 0");
 
         let w_ptr_init = w_ptr;
-        let mut w_i_minus_15_reads = Vec::with_capacity(48);
-        let mut w_i_minus_2_reads = Vec::with_capacity(48);
-        let mut w_i_minus_16_reads = Vec::with_capacity(48);
-        let mut w_i_minus_7_reads = Vec::with_capacity(48);
-        let mut w_i_writes = Vec::with_capacity(48);
+        let mut w_i_minus_15_reads = Vec::new();
+        let mut w_i_minus_2_reads = Vec::new();
+        let mut w_i_minus_16_reads = Vec::new();
+        let mut w_i_minus_7_reads = Vec::new();
+        let mut w_i_writes = Vec::new();
         for i in 16..64 {
             // Read w[i-15].
             let (record, w_i_minus_15) = rt.mr(w_ptr + (i - 15) * 4);
