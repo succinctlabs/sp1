@@ -34,6 +34,7 @@ use std::{
 
 use lru::LruCache;
 
+use serde::de::Expected;
 use shapes::SP1ProofShape;
 use tracing::instrument;
 
@@ -699,7 +700,12 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                     loop {
                         let received = { input_rx.lock().unwrap().recv() };
                         if let Ok((index, height, input)) = received {
+                            tracing::info!("Input Height {}", height);
+                            tracing::info!("Total Expected height {}", expected_height);
                             // Get the program and witness stream.
+                            // if height > expected_height {
+                            //     break;
+                            // }
                             let (program, witness_stream) = tracing::debug_span!(
                                 "get program and witness stream"
                             )
@@ -774,6 +780,10 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 
                             // Advance the turn.
                             record_and_trace_sync.advance_turn();
+
+                            // if height == expected_height {
+                            //     break;
+                            // }
                         } else {
                             break;
                         }
@@ -800,7 +810,10 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                     loop {
                         let received = { record_and_trace_rx.lock().unwrap().recv() };
                         if let Ok((index, height, program, record, traces)) = received {
+
+                            tracing::info!("Proofs height: {}", height);
                             tracing::debug_span!("batch").in_scope(|| {
+
                                 // Get the keys.
                                 let (pk, vk) = tracing::debug_span!("Setup compress program")
                                     .in_scope(|| self.compress_prover.setup(&program));
@@ -866,7 +879,11 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 
                                 // Advance the turn.
                                 prover_sync.advance_turn();
+
                             });
+                            //                                 if height == expected_height {
+                            //     break;
+                            // }
                         } else {
                             break;
                         }
@@ -894,12 +911,11 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                         if let Ok((index, height, vk, proof)) = received {
                             batch.push((index, height, vk, proof));
 
-                            // Compute whether we've reached the root of the tree.
-                            let is_complete = height == expected_height;
+                            tracing::info!("At index {}, height {}", index, height);
 
                             // If it's not complete, and we haven't reached the batch size,
                             // continue.
-                            if !is_complete && batch.len() < batch_size {
+                            if batch.len() < batch_size {
                                 continue;
                             }
 
@@ -914,6 +930,8 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                             let inputs =
                                 if is_last { vec![batch[0].clone()] } else { batch.clone() };
 
+                            let is_complete = height == expected_height - 1;
+
                             let next_input_index = inputs[0].1 + 1;
                             let vks_and_proofs = inputs
                                 .into_iter()
@@ -925,6 +943,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                             });
 
                             input_sync.wait_for_turn(count);
+
                             input_tx
                                 .lock()
                                 .unwrap()
@@ -932,6 +951,12 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                                 .unwrap();
                             input_sync.advance_turn();
                             count += 1;
+
+                            tracing::info!(
+                                "Sent to input channel index {} and height {}",
+                                count - 1,
+                                next_input_index
+                            );
 
                             // If we're at the root of the tree, stop generating inputs.
                             if is_complete {
