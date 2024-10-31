@@ -618,9 +618,16 @@ where
                                 |(record, (global_traces, local_traces))| {
                                     let _span = span.enter();
 
+                                    let global_commit_span =
+                                        tracing::debug_span!("commit to global traces").entered();
                                     let global_data = prover.commit(&record, global_traces);
+                                    global_commit_span.exit();
+                                    let local_commit_span =
+                                        tracing::debug_span!("commit to local traces").entered();
                                     let local_data = prover.commit(&record, local_traces);
+                                    local_commit_span.exit();
 
+                                    let opening_span = tracing::debug_span!("opening").entered();
                                     let proof = prover
                                         .open(
                                             pk,
@@ -630,6 +637,7 @@ where
                                             &global_permutation_challenges,
                                         )
                                         .unwrap();
+                                    opening_span.exit();
 
                                     #[cfg(debug_assertions)]
                                     {
