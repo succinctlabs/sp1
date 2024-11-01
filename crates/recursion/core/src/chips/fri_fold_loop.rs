@@ -103,7 +103,6 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for FriFoldLoopChip<DEG
             });
 
         // Pad the trace to a power of two.
-
         pad_rows_fixed(
             &mut rows,
             || [F::zero(); NUM_FRI_FOLD_LOOP_PREPROCESSED_COLS],
