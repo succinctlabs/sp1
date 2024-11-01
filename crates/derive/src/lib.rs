@@ -191,6 +191,13 @@ pub fn machine_air_derive(input: TokenStream) -> TokenStream {
                 }
             });
 
+            let local_only_arms = variants.iter().map(|(variant_name, field)| {
+                let field_ty = &field.ty;
+                quote! {
+                    #name::#variant_name(x) => <#field_ty as sp1_stark::air::MachineAir<F>>::local_only(x)
+                }
+            });
+
             let machine_air = quote! {
                 impl #impl_generics sp1_stark::air::MachineAir<F> for #name #ty_generics #where_clause {
                     type Record = #execution_record_path;
@@ -247,6 +254,12 @@ pub fn machine_air_derive(input: TokenStream) -> TokenStream {
                     fn commit_scope(&self) -> InteractionScope {
                         match self {
                             #(#commit_scope_arms,)*
+                        }
+                    }
+
+                    fn local_only(&self) -> bool {
+                        match self {
+                            #(#local_only_arms,)*
                         }
                     }
                 }

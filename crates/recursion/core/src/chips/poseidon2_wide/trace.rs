@@ -82,6 +82,10 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
         true
     }
 
+    fn local_only(&self) -> bool {
+        true
+    }
+
     fn preprocessed_width(&self) -> usize {
         PREPROCESSED_POSEIDON2_WIDTH
     }
