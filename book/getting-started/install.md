@@ -11,15 +11,15 @@ build the Succinct [Rust toolchain](https://rust-lang.github.io/rustup/concepts/
 
 ## Option 1: Prebuilt Binaries (Recommended)
 
-`sp1up` is the SP1 toolchain installer. Open your terminal and run the following command and follow the instructions:
+`sp1up` is the SP1 toolchain installer. Open your terminal, run the following command, and follow the instructions:
 
 ```bash
 curl -L https://sp1.succinct.xyz | bash
 ```
 
-Then simply follow the instructions on-screen, which will make the `sp1up` command available in your CLI.
+Then, simply follow the instructions on-screen, which will make the `sp1up` command available in your CLI.
 
-After following the instructions, you can run `sp1up` to install the toolchain and the `cargo prove` CLI:
+After following the instructions, run `sp1up` to install the toolchain and the `cargo prove` CLI:
 
 ```bash
 sp1up
@@ -27,7 +27,7 @@ sp1up
 
 This will install two things:
 
-1. The `succinct` Rust toolchain which has support for the `riscv32im-succinct-zkvm-elf` compilation target.
+1. The `succinct` Rust toolchain, which has support for the `riscv32im-succinct-zkvm-elf` compilation target.
 2. `cargo prove` CLI tool that provides convenient commands for compiling SP1 programs and other helper functionality.
 
 You can verify the installation of the CLI by running `cargo prove --version`:
@@ -41,7 +41,7 @@ You can check the version of the Succinct Rust toolchain by running:
 ```bash
 RUSTUP_TOOLCHAIN=succinct cargo --version
 ```
-or equivalently:
+Or equivalently:
 
 ```bash
 cargo +succinct --version
@@ -53,13 +53,13 @@ If this works, go to the [next section](./quickstart.md) to compile and prove a 
 
 #### Rate-limiting
 
-If you experience [rate-limiting](https://docs.github.com/en/rest/using-the-rest-api/getting-started-with-the-rest-api?apiVersion=2022-11-28#rate-limiting) when using the `sp1up` command, you can resolve this by using the `--token` flag and providing your GitHub token. To create a Github token, follow the instructions [here](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens#creating-a-personal-access-token-classic).
+If you experience [rate-limiting](https://docs.github.com/en/rest/using-the-rest-api/getting-started-with-the-rest-api?apiVersion=2022-11-28#rate-limiting) when using the `sp1up` command, you can resolve this by using the `--token` flag and providing your GitHub token. To create a GitHub token, follow the instructions [here](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens#creating-a-personal-access-token-classic).
 
 <!-- TODO: We should add an example command here -->
 
 #### Unsupported OS Architectures
 
-Currently our prebuilt binaries are built on Ubuntu 20.04 (22.04 on ARM) and macOS. If your OS uses an older GLIBC version, it's possible these may not work and you will need to [build the toolchain from source](#option-2-building-from-source).
+Currently, our prebuilt binaries are built on Ubuntu 20.04 (22.04 on ARM) and macOS. If your OS uses an older GLIBC version, it's possible these may not work, and you will need to [build the toolchain from source](#option-2-building-from-source).
 
 #### Conflicting `cargo-prove` installations
 
@@ -108,7 +108,7 @@ To verify the installation of the toolchain, run and make sure you see `succinct
 rustup toolchain list
 ```
 
-You can delete your existing installation of the toolchain with:
+To delete your existing installation of the toolchain, run this:
 
 ```bash
 rustup toolchain remove succinct
