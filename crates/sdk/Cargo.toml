@@ -15,7 +15,7 @@ serde = { version = "1.0.204", features = ["derive"] }
 twirp = { package = "twirp-rs", version = "0.13.0-succinct", optional = true }
 async-trait = "0.1.81"
 reqwest-middleware = { version = "0.3.2", optional = true }
-reqwest = { version = "0.12.4", features = [
+reqwest = { version = "0.12.4", default-features = false, features = [
   "rustls-tls",
   "trust-dns",
   "stream",
@@ -38,7 +38,6 @@ alloy-sol-types = { version = "0.7.7", optional = true }
 dirs = "5.0.1"
 tempfile = "3.10.1"
 cfg-if = "1.0"
-ethers = { version = "2", default-features = false, optional = true }
 strum = "0.26.3"
 strum_macros = "0.26.4"
 thiserror = "1.0.63"
@@ -62,7 +61,8 @@ network = [
   "dep:prost",
   "dep:alloy-sol-types",
   "dep:tokio",
-  "dep:ethers",
+  "dep:alloy-signer",
+  "dep:alloy-signer-local",
   "dep:reqwest",
   "dep:twirp",
   "dep:reqwest-middleware",
@@ -74,7 +74,7 @@ network-v2 = [
   "dep:alloy-signer-local",
   "dep:alloy-primitives",
   "dep:tokio",
-  "dep:ethers",
+  "dep:alloy-signer",
   "dep:reqwest",
   "dep:twirp",
   "dep:reqwest-middleware",

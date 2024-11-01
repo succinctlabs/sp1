@@ -1,11 +1,9 @@
 use std::{borrow::Cow, str::FromStr};
 
+use alloy_signer::Signer;
+use alloy_signer_local::PrivateKeySigner;
 use alloy_sol_types::{sol, Eip712Domain, SolStruct};
 use anyhow::Result;
-use ethers::{
-    signers::{LocalWallet, Signer},
-    types::H256,
-};
 
 use crate::network::proto::network::UnclaimReason;
 
@@ -54,12 +52,12 @@ sol! {
 /// https://eips.ethereum.org/EIPS/eip-712
 pub struct NetworkAuth {
     // Holds a secp256k1 private key.
-    wallet: LocalWallet,
+    wallet: PrivateKeySigner,
 }
 
 impl NetworkAuth {
     pub fn new(private_key: &str) -> Self {
-        let wallet = LocalWallet::from_str(private_key).unwrap();
+        let wallet = PrivateKeySigner::from_str(private_key).unwrap();
         Self { wallet }
     }
 
@@ -74,15 +72,15 @@ impl NetworkAuth {
 
     /// Gets the address of the auth's account, derived from the secp256k1 private key.
     pub fn get_address(&self) -> [u8; 20] {
-        self.wallet.address().0
+        self.wallet.address().into()
     }
 
     // Generic function to sign a message based on the SolStruct.
     async fn sign_message<T: SolStruct>(&self, type_struct: T) -> Result<Vec<u8>> {
         let domain_separator = Self::get_domain_separator();
         let message_hash = type_struct.eip712_signing_hash(&domain_separator);
-        let signature = self.wallet.sign_hash(H256(message_hash.0))?;
-        Ok(signature.to_vec())
+        let signature = self.wallet.sign_message(message_hash.as_slice()).await?;
+        Ok(signature.as_bytes().to_vec())
     }
 
     /// Signs a message to to request to create a proof.
