@@ -1,12 +1,11 @@
 //! Copied from [`sp1_recursion_program`].
 
-use std::iter::{repeat, zip};
-
 use challenger::{
     CanCopyChallenger, CanObserveVariable, DuplexChallengerVariable, FieldChallengerVariable,
     MultiField32ChallengerVariable, SpongeChallengerShape,
 };
 use hash::{FieldHasherVariable, Posedion2BabyBearHasherVariable};
+use itertools::izip;
 use p3_bn254_fr::Bn254Fr;
 use p3_field::AbstractField;
 use p3_matrix::dense::RowMajorMatrix;
@@ -15,6 +14,7 @@ use sp1_recursion_compiler::{
     config::{InnerConfig, OuterConfig},
     ir::{Builder, Config, DslIr, Ext, Felt, SymbolicFelt, Var, Variable},
 };
+use std::iter::{repeat, zip};
 
 mod types;
 
@@ -137,6 +137,13 @@ pub trait CircuitConfig: Config {
         two_adic_powers_of_x: &[Felt<Self::F>],
     ) -> Felt<Self::F>;
 
+    fn fri_fold_loop(
+        builder: &mut Builder<Self>,
+        alpha_pows: Vec<Ext<Self::F, Self::EF>>,
+        p_at_zs: Vec<Ext<Self::F, Self::EF>>,
+        p_at_xs: Vec<Felt<Self::F>>,
+    ) -> Ext<Self::F, Self::EF>;
+
     fn num2bits(
         builder: &mut Builder<Self>,
         num: Felt<<Self as Config>::F>,
@@ -208,6 +215,15 @@ impl CircuitConfig for InnerConfig {
         power_bits: Vec<Felt<<Self as Config>::F>>,
     ) -> Felt<<Self as Config>::F> {
         builder.exp_reverse_bits_v2(input, power_bits)
+    }
+
+    fn fri_fold_loop(
+        builder: &mut Builder<Self>,
+        alpha_pows: Vec<Ext<<Self as Config>::F, <Self as Config>::EF>>,
+        p_at_zs: Vec<Ext<<Self as Config>::F, <Self as Config>::EF>>,
+        p_at_xs: Vec<Felt<<Self as Config>::F>>,
+    ) -> Ext<<Self as Config>::F, <Self as Config>::EF> {
+        builder.fri_fold_loop_v2(alpha_pows, p_at_zs, p_at_xs)
     }
 
     fn num2bits(
@@ -329,6 +345,15 @@ impl CircuitConfig for WrapConfig {
         result
     }
 
+    fn fri_fold_loop(
+        builder: &mut Builder<Self>,
+        alpha_pows: Vec<Ext<<Self as Config>::F, <Self as Config>::EF>>,
+        p_at_zs: Vec<Ext<<Self as Config>::F, <Self as Config>::EF>>,
+        p_at_xs: Vec<Felt<<Self as Config>::F>>,
+    ) -> Ext<<Self as Config>::F, <Self as Config>::EF> {
+        builder.fri_fold_loop_v2(alpha_pows, p_at_zs, p_at_xs)
+    }
+
     fn num2bits(
         builder: &mut Builder<Self>,
         num: Felt<<Self as Config>::F>,
@@ -438,6 +463,26 @@ impl CircuitConfig for OuterConfig {
             builder.assign(power_f, power_f * power_f);
         }
         result
+    }
+
+    fn fri_fold_loop(
+        builder: &mut Builder<Self>,
+        alpha_pows: Vec<Ext<<Self as Config>::F, <Self as Config>::EF>>,
+        p_at_zs: Vec<Ext<<Self as Config>::F, <Self as Config>::EF>>,
+        p_at_xs: Vec<Felt<<Self as Config>::F>>,
+    ) -> Ext<<Self as Config>::F, <Self as Config>::EF> {
+        let mut acc: Ext<_, _> = builder.uninit();
+        builder.push_op(DslIr::ImmE(acc, <Self as Config>::EF::zero()));
+        for (alpha_pow, p_at_z, p_at_x) in izip!(alpha_pows, p_at_zs, p_at_xs) {
+            let temp_1: Ext<_, _> = builder.uninit();
+            builder.push_op(DslIr::SubEF(temp_1, p_at_z, p_at_x));
+            let temp_2: Ext<_, _> = builder.uninit();
+            builder.push_op(DslIr::MulE(temp_2, alpha_pow, temp_1));
+            let temp_3: Ext<_, _> = builder.uninit();
+            builder.push_op(DslIr::AddE(temp_3, acc, temp_2));
+            acc = temp_3;
+        }
+        acc
     }
 
     fn num2bits(

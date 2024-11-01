@@ -13,6 +13,7 @@ use crate::{
         alu_ext::{ExtAluChip, NUM_EXT_ALU_ENTRIES_PER_ROW},
         exp_reverse_bits::ExpReverseBitsLenChip,
         fri_fold::FriFoldChip,
+        fri_fold_loop::FriFoldLoopChip,
         mem::{
             constant::NUM_CONST_MEM_ENTRIES_PER_ROW, variable::NUM_VAR_MEM_ENTRIES_PER_ROW,
             MemoryConstChip, MemoryVarChip,
@@ -42,6 +43,7 @@ pub enum RecursionAir<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: u
     Poseidon2Wide(Poseidon2WideChip<DEGREE>),
     Select(SelectChip),
     FriFold(FriFoldChip<DEGREE>),
+    FriFoldLoop(FriFoldLoopChip<DEGREE>),
     ExpReverseBitsLen(ExpReverseBitsLenChip<DEGREE>),
     PublicValues(PublicValuesChip),
 }
@@ -54,6 +56,7 @@ pub struct RecursionAirEventCount {
     ext_alu_events: usize,
     poseidon2_wide_events: usize,
     fri_fold_events: usize,
+    fri_fold_loop_events: usize,
     select_events: usize,
     exp_reverse_bits_len_events: usize,
 }
@@ -70,6 +73,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAi
             RecursionAir::ExtAlu(ExtAluChip),
             RecursionAir::Poseidon2Wide(Poseidon2WideChip::<DEGREE>),
             RecursionAir::FriFold(FriFoldChip::<DEGREE>::default()),
+            RecursionAir::FriFoldLoop(FriFoldLoopChip::<DEGREE>),
             RecursionAir::Select(SelectChip),
             RecursionAir::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE>),
             RecursionAir::PublicValues(PublicValuesChip),
@@ -91,6 +95,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAi
             RecursionAir::ExtAlu(ExtAluChip),
             RecursionAir::Poseidon2Skinny(Poseidon2SkinnyChip::<DEGREE>::default()),
             RecursionAir::FriFold(FriFoldChip::<DEGREE>::default()),
+            RecursionAir::FriFoldLoop(FriFoldLoopChip::<DEGREE>),
             RecursionAir::Select(SelectChip),
             RecursionAir::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE>),
             RecursionAir::PublicValues(PublicValuesChip),
@@ -109,6 +114,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAi
             RecursionAir::BaseAlu(BaseAluChip),
             RecursionAir::ExtAlu(ExtAluChip),
             RecursionAir::Poseidon2Wide(Poseidon2WideChip::<DEGREE>),
+            RecursionAir::FriFoldLoop(FriFoldLoopChip::<DEGREE>),
             RecursionAir::Select(SelectChip),
             RecursionAir::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE>),
             RecursionAir::PublicValues(PublicValuesChip),
@@ -134,6 +140,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAi
             RecursionAir::BaseAlu(BaseAluChip),
             RecursionAir::ExtAlu(ExtAluChip),
             RecursionAir::Poseidon2Skinny(Poseidon2SkinnyChip::<DEGREE>::default()),
+            RecursionAir::FriFoldLoop(FriFoldLoopChip::<DEGREE>),
             RecursionAir::Select(SelectChip),
             // RecursionAir::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE>),
             RecursionAir::PublicValues(PublicValuesChip),
@@ -152,6 +159,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAi
                 (Self::BaseAlu(BaseAluChip), 20),
                 (Self::ExtAlu(ExtAluChip), 18),
                 (Self::Poseidon2Wide(Poseidon2WideChip::<DEGREE>), 16),
+                (Self::FriFoldLoop(FriFoldLoopChip::<DEGREE>), 18),
                 (Self::Select(SelectChip), 18),
                 (Self::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE>), 17),
                 (Self::PublicValues(PublicValuesChip), PUB_VALUES_LOG_HEIGHT),
@@ -185,6 +193,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAi
                 heights.ext_alu_events.div_ceil(NUM_EXT_ALU_ENTRIES_PER_ROW),
             ),
             (Self::Poseidon2Wide(Poseidon2WideChip::<DEGREE>), heights.poseidon2_wide_events),
+            (Self::FriFoldLoop(FriFoldLoopChip::<DEGREE>), heights.fri_fold_loop_events),
             (Self::Select(SelectChip), heights.select_events),
             (
                 Self::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE>),
@@ -219,6 +228,9 @@ impl<F> AddAssign<&Instruction<F>> for RecursionAirEventCount {
                 input_addr: _, // No receive interaction for the hint operation
             }) => self.mem_var_events += output_addrs_mults.len(),
             Instruction::FriFold(_) => self.fri_fold_events += 1,
+            Instruction::FriFoldLoop(instr) => {
+                self.fri_fold_loop_events += instr.base_vec_addrs.p_at_x.len()
+            }
             Instruction::CommitPublicValues(_) => {}
             Instruction::Print(_) => {}
         }

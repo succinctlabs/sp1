@@ -2,6 +2,7 @@ pub mod alu_base;
 pub mod alu_ext;
 pub mod exp_reverse_bits;
 pub mod fri_fold;
+pub mod fri_fold_loop;
 pub mod mem;
 pub mod poseidon2_skinny;
 pub mod poseidon2_wide;

@@ -6,7 +6,8 @@ use sp1_stark::{air::MachineAir, MachineRecord, SP1CoreOpts, PROOF_MAX_NUM_PVS};
 
 use super::{
     BaseAluEvent, CommitPublicValuesEvent, ExpReverseBitsEvent, ExtAluEvent, FriFoldEvent,
-    MemEvent, Poseidon2Event, RecursionProgram, RecursionPublicValues, SelectEvent,
+    FriFoldLoopEvent, MemEvent, Poseidon2Event, RecursionProgram, RecursionPublicValues,
+    SelectEvent,
 };
 
 #[derive(Clone, Default, Debug)]
@@ -26,6 +27,7 @@ pub struct ExecutionRecord<F> {
     pub select_events: Vec<SelectEvent<F>>,
     pub exp_reverse_bits_len_events: Vec<ExpReverseBitsEvent<F>>,
     pub fri_fold_events: Vec<FriFoldEvent<F>>,
+    pub fri_fold_loop_events: Vec<FriFoldLoopEvent<F>>,
     pub commit_pv_hash_events: Vec<CommitPublicValuesEvent<F>>,
 }
 
@@ -59,6 +61,7 @@ impl<F: PrimeField32> MachineRecord for ExecutionRecord<F> {
             select_events,
             exp_reverse_bits_len_events,
             fri_fold_events,
+            fri_fold_loop_events,
             commit_pv_hash_events,
         } = self;
         base_alu_events.append(&mut other.base_alu_events);
@@ -69,6 +72,7 @@ impl<F: PrimeField32> MachineRecord for ExecutionRecord<F> {
         select_events.append(&mut other.select_events);
         exp_reverse_bits_len_events.append(&mut other.exp_reverse_bits_len_events);
         fri_fold_events.append(&mut other.fri_fold_events);
+        fri_fold_loop_events.append(&mut other.fri_fold_loop_events);
         commit_pv_hash_events.append(&mut other.commit_pv_hash_events);
     }
 

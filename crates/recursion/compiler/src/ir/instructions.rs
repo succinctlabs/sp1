@@ -283,6 +283,11 @@ pub enum DslIr<C: Config> {
     /// Executes a FRI fold operation. Input is the fri fold input array.  See [`FriFoldInput`] for
     /// more details.
     CircuitV2FriFold(Box<(CircuitV2FriFoldOutput<C>, CircuitV2FriFoldInput<C>)>),
+    // FRI specific instructions.
+    /// Executes a FRI fold loop. Input is the power of alphas, evaluations at z, and evaluations at x.
+    CircuitV2FriFoldLoop(
+        Box<(Ext<C::F, C::EF>, Vec<Ext<C::F, C::EF>>, Vec<Ext<C::F, C::EF>>, Vec<Felt<C::F>>)>,
+    ),
     /// Select's a variable based on a condition. (select(cond, true_val, false_val) => output).
     /// Should only be used when target is a gnark circuit.
     CircuitSelectV(Var<C::N>, Var<C::N>, Var<C::N>, Var<C::N>),

@@ -12,6 +12,7 @@ use crate::{
         alu_base::BaseAluChip,
         alu_ext::ExtAluChip,
         exp_reverse_bits::ExpReverseBitsLenChip,
+        fri_fold_loop::FriFoldLoopChip,
         mem::{MemoryConstChip, MemoryVarChip},
         poseidon2_wide::Poseidon2WideChip,
         public_values::{PublicValuesChip, PUB_VALUES_LOG_HEIGHT},
@@ -93,6 +94,8 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> Default
         let ext_alu = RecursionAir::<F, DEGREE>::ExtAlu(ExtAluChip).name();
         let poseidon2_wide =
             RecursionAir::<F, DEGREE>::Poseidon2Wide(Poseidon2WideChip::<DEGREE>).name();
+        let fri_fold_loop =
+            RecursionAir::<F, DEGREE>::FriFoldLoop(FriFoldLoopChip::<DEGREE>::default()).name();
         let select = RecursionAir::<F, DEGREE>::Select(SelectChip).name();
         let exp_reverse_bits_len =
             RecursionAir::<F, DEGREE>::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE>).name();
@@ -107,6 +110,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> Default
                 (exp_reverse_bits_len.clone(), 17),
                 (mem_const.clone(), 17),
                 (poseidon2_wide.clone(), 16),
+                (fri_fold_loop.clone(), 18),
                 (select.clone(), 18),
                 (public_values.clone(), PUB_VALUES_LOG_HEIGHT),
             ],
@@ -117,6 +121,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> Default
                 (exp_reverse_bits_len.clone(), 17),
                 (mem_const.clone(), 16),
                 (poseidon2_wide.clone(), 16),
+                (fri_fold_loop.clone(), 18),
                 (select.clone(), 18),
                 (public_values.clone(), PUB_VALUES_LOG_HEIGHT),
             ],
@@ -127,6 +132,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> Default
                 (poseidon2_wide.clone(), 17),
                 (mem_const.clone(), 16),
                 (exp_reverse_bits_len.clone(), 16),
+                (fri_fold_loop.clone(), 20),
                 (select.clone(), 18),
                 (public_values.clone(), PUB_VALUES_LOG_HEIGHT),
             ],
@@ -137,6 +143,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> Default
                 (exp_reverse_bits_len.clone(), 17),
                 (mem_const.clone(), 16),
                 (poseidon2_wide.clone(), 16),
+                (fri_fold_loop.clone(), 18),
                 (select.clone(), 18),
                 (public_values.clone(), PUB_VALUES_LOG_HEIGHT),
             ],
@@ -147,6 +154,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> Default
                 (exp_reverse_bits_len.clone(), 16),
                 (mem_const.clone(), 16),
                 (poseidon2_wide.clone(), 16),
+                (fri_fold_loop.clone(), 18),
                 (select.clone(), 18),
                 (public_values.clone(), PUB_VALUES_LOG_HEIGHT),
             ],
@@ -157,6 +165,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> Default
                 (exp_reverse_bits_len.clone(), 17),
                 (mem_const.clone(), 17),
                 (poseidon2_wide.clone(), 17),
+                (fri_fold_loop.clone(), 19),
                 (select.clone(), 19),
                 (public_values.clone(), PUB_VALUES_LOG_HEIGHT),
             ],
@@ -167,6 +176,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> Default
                 (exp_reverse_bits_len.clone(), 18),
                 (mem_const.clone(), 18),
                 (poseidon2_wide.clone(), 17),
+                (fri_fold_loop.clone(), 19),
                 (select.clone(), 19),
                 (public_values.clone(), PUB_VALUES_LOG_HEIGHT),
             ],
@@ -177,6 +187,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> Default
                 (exp_reverse_bits_len.clone(), 18),
                 (mem_const.clone(), 17),
                 (poseidon2_wide.clone(), 17),
+                (fri_fold_loop.clone(), 19),
                 (select.clone(), 19),
                 (public_values.clone(), PUB_VALUES_LOG_HEIGHT),
             ],
@@ -187,6 +198,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> Default
                 (poseidon2_wide.clone(), 18),
                 (mem_const.clone(), 17),
                 (exp_reverse_bits_len.clone(), 17),
+                (fri_fold_loop.clone(), 21),
                 (select.clone(), 19),
                 (public_values.clone(), PUB_VALUES_LOG_HEIGHT),
             ],
@@ -197,6 +209,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> Default
                 (exp_reverse_bits_len.clone(), 18),
                 (mem_const.clone(), 17),
                 (poseidon2_wide.clone(), 17),
+                (fri_fold_loop.clone(), 19),
                 (select.clone(), 19),
                 (public_values.clone(), PUB_VALUES_LOG_HEIGHT),
             ],
@@ -207,6 +220,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> Default
                 (exp_reverse_bits_len.clone(), 17),
                 (mem_const.clone(), 17),
                 (poseidon2_wide.clone(), 17),
+                (fri_fold_loop.clone(), 19),
                 (select.clone(), 19),
                 (public_values.clone(), PUB_VALUES_LOG_HEIGHT),
             ],
@@ -217,6 +231,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> Default
                 (exp_reverse_bits_len.clone(), 18),
                 (mem_const.clone(), 18),
                 (poseidon2_wide.clone(), 18),
+                (fri_fold_loop.clone(), 20),
                 (select.clone(), 19),
                 (public_values.clone(), PUB_VALUES_LOG_HEIGHT),
             ],

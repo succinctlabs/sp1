@@ -217,6 +217,52 @@ pub struct FriFoldEvent<F> {
     pub ext_vec: FriFoldExtVecIo<Block<F>>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FriFoldLoopIo<V> {
+    pub ext_single: FriFoldLoopExtSingleIo<Block<V>>,
+    pub ext_vec: FriFoldLoopExtVecIo<Vec<Block<V>>>,
+    pub base_vec: FriFoldLoopBaseVecIo<V>,
+}
+
+/// The extension-field-valued single inputs to the FRI fold loop operation.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FriFoldLoopExtSingleIo<V> {
+    pub acc: V,
+}
+
+/// The extension-field-valued vector inputs to the FRI fold loop operation.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FriFoldLoopExtVecIo<V> {
+    pub p_at_z: V,
+    pub alpha_pow: V,
+}
+
+/// The base-field-valued vector inputs to the FRI fold loop operation.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FriFoldLoopBaseVecIo<V> {
+    pub p_at_x: V,
+}
+
+/// An instruction invoking the FRI fold loop operation. Addresses for extension field elements are of
+/// the same type as for base field elements.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FriFoldLoopInstr<F> {
+    pub base_vec_addrs: FriFoldLoopBaseVecIo<Vec<Address<F>>>,
+    pub ext_single_addrs: FriFoldLoopExtSingleIo<Address<F>>,
+    pub ext_vec_addrs: FriFoldLoopExtVecIo<Vec<Address<F>>>,
+    pub acc_mult: F,
+}
+
+/// The event encoding the data of a single iteration within the FRI fold loop operation.
+/// For any given event, we are accessing a single element of the `Vec` inputs, so that the event
+/// is not a type alias for `FriFoldLoopIo` like many of the other events.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FriFoldLoopEvent<F> {
+    pub base_vec: FriFoldLoopBaseVecIo<F>,
+    pub ext_single: FriFoldLoopExtSingleIo<Block<F>>,
+    pub ext_vec: FriFoldLoopExtVecIo<Block<F>>,
+}
+
 /// An instruction that will save the public values to the execution record and will commit to
 /// it's digest.
 #[derive(Clone, Debug, Serialize, Deserialize)]
