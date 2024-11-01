@@ -78,7 +78,7 @@ impl Syscall for Keccak256PermuteSyscall {
         });
         let syscall_event =
             rt.rt.syscall_event(start_clk, syscall_code.syscall_id(), arg1, arg2, lookup_id);
-        rt.record_mut().add_precompile_event(syscall_code, syscall_event, event);
+        rt.add_precompile_event(syscall_code, syscall_event, event);
 
         None
     }

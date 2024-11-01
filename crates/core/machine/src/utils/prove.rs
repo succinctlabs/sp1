@@ -174,8 +174,9 @@ where
                         let _span = span.enter();
 
                         // Execute the runtime until we reach a checkpoint.
-                        let (checkpoint, done) =
-                            runtime.execute_state().map_err(SP1CoreProverError::ExecutionError)?;
+                        let (checkpoint, done) = runtime
+                            .execute_state(false)
+                            .map_err(SP1CoreProverError::ExecutionError)?;
 
                         // Save the checkpoint to a temp file.
                         let mut checkpoint_file =
@@ -860,7 +861,7 @@ where
     runtime.subproof_verifier = Arc::new(NoOpSubproofVerifier);
 
     // Execute from the checkpoint.
-    let (records, _) = runtime.execute_record().unwrap();
+    let (records, _) = runtime.execute_record(true).unwrap();
 
     (records, runtime.report)
 }
