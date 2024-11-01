@@ -223,6 +223,7 @@ where
         tracing::debug!("Exp Reverse Bits Operations: {}", self.nb_exp_reverse_bits);
         tracing::debug!("FriFold Operations: {}", self.nb_fri_fold);
         tracing::debug!("Field Operations: {}", self.nb_base_ops);
+        tracing::debug!("Select Operations: {}", self.nb_select);
         tracing::debug!("Extension Operations: {}", self.nb_ext_ops);
         tracing::debug!("BatchFRI Operations: {}", self.nb_batch_fri);
         tracing::debug!("Memory Operations: {}", self.nb_memory_ops);
