@@ -142,11 +142,13 @@ where
 {
     // Setup the runtime.
     let mut runtime = Executor::with_context(program.clone(), opts, context);
-    let maximal_shapes = match shape_config.as_ref() {
-        Some(shape_config) => shape_config.maximal_core_shapes(),
-        None => vec![],
-    };
-    runtime.maximal_shapes = Some(maximal_shapes.into_iter().map(|s| s.inner).collect());
+    // let maximal_shapes = match shape_config.as_ref() {
+    //     Some(shape_config) => shape_config.maximal_core_shapes(),
+    //     None => vec![],
+    // };
+    // let shapes_maximal = shape_config.map(|config| config.maximal_core_shapes().into_iter().map(|s| s.inner).collect())
+    runtime.maximal_shapes = shape_config
+        .map(|config| config.maximal_core_shapes().into_iter().map(|s| s.inner).collect());
     runtime.write_vecs(&stdin.buffer);
     for proof in stdin.proofs.iter() {
         let (proof, vk) = proof.clone();
