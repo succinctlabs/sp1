@@ -95,7 +95,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> Default
         let poseidon2_wide =
             RecursionAir::<F, DEGREE>::Poseidon2Wide(Poseidon2WideChip::<DEGREE>).name();
         let fri_fold_loop =
-            RecursionAir::<F, DEGREE>::FriFoldLoop(FriFoldLoopChip::<DEGREE>::default()).name();
+            RecursionAir::<F, DEGREE>::FriFoldLoop(FriFoldLoopChip::<DEGREE>).name();
         let select = RecursionAir::<F, DEGREE>::Select(SelectChip).name();
         let exp_reverse_bits_len =
             RecursionAir::<F, DEGREE>::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE>).name();

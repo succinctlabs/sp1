@@ -514,7 +514,7 @@ where
 
                     self.nb_fri_fold_loop += p_at_zs.len();
                     for m in 0..p_at_zs.len() {
-                        acc = acc + alpha_pows[m] * (p_at_zs[m] - EF::from_base(p_at_xs[m]));
+                        acc += alpha_pows[m] * (p_at_zs[m] - EF::from_base(p_at_xs[m]));
                         self.record.fri_fold_loop_events.push(FriFoldLoopEvent {
                             base_vec: FriFoldLoopBaseVecIo { p_at_x: p_at_xs[m] },
                             ext_single: FriFoldLoopExtSingleIo {
