@@ -5,7 +5,10 @@ use std::{
 };
 
 use crate::{
-    ffi::{build_plonk_bn254, prove_plonk_bn254, test_plonk_bn254, verify_plonk_bn254},
+    ffi::{
+        build_plonk_bn254, prove_plonk_bn254, test_plonk_bn254,
+        verify_plonk_bn254 as verify_plonk_bn254_ffi,
+    },
     witness::GnarkWitness,
     PlonkBn254Proof,
 };
@@ -102,7 +105,9 @@ impl PlonkBn254Prover {
 
     /// Verify a PLONK proof and verify that the supplied vkey_hash and committed_values_digest
     /// match.
-    pub fn verify(
+    ///
+    /// Consider using the verifier crate instead for native rust verification.
+    pub fn verify_ffi(
         &self,
         proof: &PlonkBn254Proof,
         vkey_hash: &BigUint,
@@ -114,7 +119,7 @@ impl PlonkBn254Prover {
                 "Proof vkey hash does not match circuit vkey hash, it was generated with a different circuit."
             );
         }
-        verify_plonk_bn254(
+        verify_plonk_bn254_ffi(
             build_dir.to_str().unwrap(),
             &proof.raw_proof,
             &vkey_hash.to_string(),

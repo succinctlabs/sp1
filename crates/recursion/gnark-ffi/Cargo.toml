@@ -10,12 +10,18 @@ keywords = { workspace = true }
 categories = { workspace = true }
 
 [dependencies]
-p3-field = { workspace = true }
-p3-symmetric = { workspace = true }
-p3-baby-bear = { workspace = true }
+# sp1
 sp1-recursion-compiler = { workspace = true }
 sp1-core-machine = { workspace = true }
 sp1-stark = { workspace = true }
+sp1-verifier = { workspace = true }
+
+# p3
+p3-field = { workspace = true }
+p3-symmetric = { workspace = true }
+p3-baby-bear = { workspace = true }
+
+# misc
 serde = "1.0.204"
 serde_json = "1.0.121"
 tempfile = "3.10.1"
@@ -25,7 +31,7 @@ cfg-if = "1.0"
 bincode = "1.3.3"
 anyhow = "1.0.86"
 sha2 = "0.10.8"
-hex = { version = "0.4.3", features = ["alloc"] }
+hex = "0.4.3"
 
 [build-dependencies]
 bindgen = "0.70.1"

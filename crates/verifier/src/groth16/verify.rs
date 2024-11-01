@@ -50,7 +50,7 @@ fn prepare_inputs(vk: Groth16VerifyingKey, public_inputs: &[Fr]) -> Result<G1, G
 ///
 /// First, prepare the public inputs by folding them with the verification key.
 /// Then, verify the proof by checking the pairing equation.
-pub(crate) fn verify_groth16_raw(
+pub(crate) fn verify_groth16_field(
     vk: &Groth16VerifyingKey,
     proof: &Groth16Proof,
     public_inputs: &[Fr],

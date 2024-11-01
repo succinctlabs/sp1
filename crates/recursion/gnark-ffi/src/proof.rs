@@ -17,6 +17,12 @@ pub struct PlonkBn254Proof {
 }
 
 impl PlonkBn254Proof {
+    /// Returns the raw proof as bytes.
+    pub fn raw_bytes(&self) -> Result<Vec<u8>> {
+        hex::decode(&self.raw_proof).map_err(|_| anyhow::anyhow!("Invalid raw proof"))
+    }
+
+    /// Returns the raw proof as bytes, prepended with the first 4 bytes of the plonk vkey hash.
     pub fn raw_with_checksum(&self) -> Result<Vec<u8>> {
         Ok([self.plonk_vkey_hash[..4].to_vec(), hex::decode(&self.raw_proof)?].concat())
     }
@@ -33,6 +39,12 @@ pub struct Groth16Bn254Proof {
 }
 
 impl Groth16Bn254Proof {
+    /// Returns the raw proof as bytes.
+    pub fn raw_bytes(&self) -> Result<Vec<u8>> {
+        hex::decode(&self.raw_proof).map_err(|_| anyhow::anyhow!("Invalid raw proof"))
+    }
+
+    /// Returns the raw proof as bytes, prepended with the first 4 bytes of the groth16 vkey hash.
     pub fn raw_with_checksum(&self) -> Result<Vec<u8>> {
         Ok([self.groth16_vkey_hash[..4].to_vec(), hex::decode(&self.raw_proof)?].concat())
     }

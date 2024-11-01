@@ -13,14 +13,15 @@ mod verify;
 
 pub(crate) mod error;
 
+use bn::Fr;
 pub(crate) use converter::{load_plonk_proof_from_bytes, load_plonk_verifying_key_from_bytes};
 pub(crate) use proof::PlonkProof;
-pub(crate) use verify::verify_plonk_raw;
+pub(crate) use verify::verify_plonk_field;
 
 use error::PlonkError;
 use sha2::{Digest, Sha256};
 
-use crate::{bn254_public_values, decode_sp1_vkey_hash};
+use crate::{decode_sp1_vkey_hash, hash_public_inputs};
 /// A verifier for Plonk zero-knowledge proofs.
 #[derive(Debug)]
 pub struct PlonkVerifier;
@@ -65,11 +66,26 @@ impl PlonkVerifier {
         }
 
         let sp1_vkey_hash = decode_sp1_vkey_hash(sp1_vkey_hash)?;
-        let public_inputs = bn254_public_values(&sp1_vkey_hash, sp1_public_inputs);
 
-        let proof = load_plonk_proof_from_bytes(&proof[4..]).unwrap();
+        Self::verify_bytes(
+            &proof[4..],
+            &sp1_vkey_hash,
+            &hash_public_inputs(sp1_public_inputs),
+            plonk_vk,
+        )
+    }
+
+    pub fn verify_bytes(
+        proof: &[u8],
+        sp1_vkey_hash: &[u8; 32],
+        public_inputs_hash: &[u8; 32],
+        plonk_vk: &[u8],
+    ) -> Result<(), PlonkError> {
+        let proof = load_plonk_proof_from_bytes(proof).unwrap();
         let plonk_vk = load_plonk_verifying_key_from_bytes(plonk_vk).unwrap();
 
-        verify_plonk_raw(&plonk_vk, &proof, &public_inputs)
+        let public_inputs = Fr::from_slice(public_inputs_hash).unwrap();
+        let sp1_vkey_hash = Fr::from_slice(sp1_vkey_hash).unwrap();
+        verify_plonk_field(&plonk_vk, &proof, &[sp1_vkey_hash, public_inputs])
     }
 }

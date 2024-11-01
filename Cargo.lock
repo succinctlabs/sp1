@@ -6523,6 +6523,7 @@ dependencies = [
  "sp1-core-machine",
  "sp1-recursion-compiler",
  "sp1-stark",
+ "sp1-verifier",
  "tempfile",
 ]
 

@@ -80,6 +80,7 @@ use sp1_stark::{
     MachineProver, SP1CoreOpts, SP1ProverOpts, ShardProof, StarkGenericConfig, StarkVerifyingKey,
     Val, Word, DIGEST_SIZE,
 };
+use sp1_verifier::{Groth16Verifier, PlonkVerifier, GROTH16_VK_BYTES, PLONK_VK_BYTES};
 
 pub use types::*;
 use utils::{sp1_committed_values_digest_bn254, sp1_vkey_digest_bn254, words_to_bytes};
@@ -1101,13 +1102,21 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         let prover = PlonkBn254Prover::new();
         let proof = prover.prove(witness, build_dir.to_path_buf());
 
-        // Verify the proof.
-        prover.verify(
-            &proof,
-            &vkey_hash.as_canonical_biguint(),
-            &committed_values_digest.as_canonical_biguint(),
-            build_dir,
-        );
+        // // Verify the proof.
+        // prover.verify_ffi(
+        //     &proof,
+        //     &vkey_hash.as_canonical_biguint(),
+        //     &committed_values_digest.as_canonical_biguint(),
+        //     build_dir,
+        // );
+
+        PlonkVerifier::verify_bytes(
+            &proof.raw_bytes().expect("Invalid raw proof"),
+            &vkey_hash.as_canonical_biguint().to_bytes_be().try_into().unwrap(),
+            &committed_values_digest.as_canonical_biguint().to_bytes_be().try_into().unwrap(),
+            *PLONK_VK_BYTES,
+        )
+        .expect("Invalid plonk proof");
 
         proof
     }
@@ -1135,12 +1144,20 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         let proof = prover.prove(witness, build_dir.to_path_buf());
 
         // Verify the proof.
-        prover.verify(
+        prover.verify_ffi(
             &proof,
             &vkey_hash.as_canonical_biguint(),
             &committed_values_digest.as_canonical_biguint(),
             build_dir,
         );
+
+        Groth16Verifier::verify_bytes(
+            &proof.raw_bytes().expect("Invalid raw proof"),
+            &vkey_hash.as_canonical_biguint().to_bytes_be().try_into().unwrap(),
+            &committed_values_digest.as_canonical_biguint().to_bytes_be().try_into().unwrap(),
+            *GROTH16_VK_BYTES,
+        )
+        .expect("Invalid plonk proof");
 
         proof
     }
