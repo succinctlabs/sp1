@@ -23,8 +23,15 @@ fn generate_fibonacci_proof() -> (SP1ProofWithPublicValues, String) {
 
     // Generate the proof for the fibonacci program..
     let (pk, vk) = client.setup(FIBONACCI_ELF);
-    println!("vk: {:?}", vk.bytes32());
-    (client.prove(&pk, stdin).groth16().run().unwrap(), vk.bytes32())
+    // println!("vk: {:?}", vk.bytes32());
+    // (client.prove(&pk, stdin).groth16().run().unwrap(), vk.bytes32())
+    (
+        SP1ProofWithPublicValues::load(
+            "../../../crates/verifier/test_binaries/fibonacci-groth16.bin",
+        )
+        .unwrap(),
+        vk.bytes32(),
+    )
 }
 
 fn main() {

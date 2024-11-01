@@ -20,6 +20,11 @@ pub fn main() {
         println!("cycle-tracker-start: bn254-mul-fp");
         let _ = lhs * rhs;
         println!("cycle-tracker-end: bn254-mul-fp");
+
+        let n = lhs * lhs;
+        println!("cycle-tracker-start: bn254-sqrt-fp");
+        let _ = n.sqrt();
+        println!("cycle-tracker-end: bn254-sqrt-fp");
     }
 
     {

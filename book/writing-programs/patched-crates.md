@@ -41,7 +41,7 @@ curve25519-dalek-ng = { git = "https://github.com/sp1-patches/curve25519-dalek-n
 ed25519-consensus = { git = "https://github.com/sp1-patches/ed25519-consensus", tag = "ed25519_consensus-v2.1.0-patch-v1" }
 ecdsa-core = { git = "https://github.com/sp1-patches/signatures", package = "ecdsa", tag = "ecdsa-v0.16.9-patch-v1" }
 secp256k1 = { git = "https://github.com/sp1-patches/rust-secp256k1", tag = "secp256k1-v0.29.0-patch-v1" }
-substrate-bn = { git = "https://github.com/sp1-patches/bn", tag = "substrate_bn-v0.6.0-patch-v1" }
+substrate-bn = { git = "https://github.com/sp1-patches/bn", tag = "substrate_bn-v0.6.0-patch-v2" }
 bls12_381 = { git = "https://github.com/sp1-patches/bls12_381", tag = "bls12_381-v0.8.0-patch-v1" }
 
 ```
@@ -139,7 +139,7 @@ To accelerate BN254 (Also known as BN128 and Alt-BN128), you will need to patch 
 Apply the patch by adding the following to your list of dependencies:
 
 ```rust
-substrate-bn = { git = "https://github.com/sp1-patches/bn", tag = "substrate_bn-v0.6.0-patch-v1" }
+substrate-bn = { git = "https://github.com/sp1-patches/bn", tag = "substrate_bn-v0.6.0-patch-v2" }
 ```
 
 ### Performance Benchmarks for Patched `substrate-bn` in `revm`
@@ -155,7 +155,7 @@ Note: The operations `run-add`, `run-mul`, and `run-pair` are from the `revm` cr
 To accelerate [revm](https://github.com/bluealloy/revm) in SP1 using the BN254 patched crate, replace the `substrate-bn` crate with the patched crate by adding the following to `crates/precompile/Cargo.toml`:
 
 ```toml
-bn = { git = "https://github.com/sp1-patches/bn", package = "substrate-bn", tag = "substrate_bn-v0.6.0-patch-v1" }
+bn = { git = "https://github.com/sp1-patches/bn", package = "substrate-bn", tag = "substrate_bn-v0.6.0-patch-v2" }
 ```
 
 ## BLS12-381 Acceleration
