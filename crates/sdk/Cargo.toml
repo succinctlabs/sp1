@@ -52,8 +52,6 @@ alloy-signer-local = { version = "0.5", optional = true }
 alloy-primitives = { version = "0.8", optional = true }
 backoff = { version = "0.4", features = ["tokio"], optional = true }
 
-ethers = { version = "2", optional = true }
-
 [features]
 default = ["network"]
 native-gnark = ["sp1-prover/native-gnark"]
@@ -68,7 +66,6 @@ network = [
   "dep:reqwest",
   "dep:twirp",
   "dep:reqwest-middleware",
-  "dep:ethers",
 ]
 network-v2 = [
   "dep:prost",
