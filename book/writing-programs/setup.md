@@ -4,7 +4,7 @@ In this section, we will teach you how to setup a self-contained crate which can
 
 ## Create Project with CLI (Recommended)
 
-The recommended way to setup your first program to prove inside the zkVM is using the method described in [Quickstart](../getting-started/quickstart.md) which will create a program folder.
+The recommended way to setup your first program to prove inside the zkVM is to use the method described in [Quickstart](../getting-started/quickstart.md), which will create a program folder.
 
 ```bash
 cargo prove new <name>
@@ -13,7 +13,7 @@ cd program
 
 ## Manual Project Setup
 
-You can also manually setup a project. First create a new Rust project using `cargo`:
+You can also manually setup a project. First, create a new Rust project using `cargo`:
 
 ```bash
 cargo new program
@@ -40,7 +40,7 @@ precompiles, patches, and more.
 
 ### main.rs
 
-Inside the `src/main.rs` file, you must make sure to include these two lines to ensure that your program properly compiles to a valid SP1 program.
+Inside the `src/main.rs` file, you must include these two lines to ensure that your program compiles properly to a valid SP1 program.
 
 ```rust,noplayground
 #![no_main]
