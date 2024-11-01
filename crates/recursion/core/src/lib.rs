@@ -217,6 +217,52 @@ pub struct FriFoldEvent<F> {
     pub ext_vec: FriFoldExtVecIo<Block<F>>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BatchFRIIo<V> {
+    pub ext_single: BatchFRIExtSingleIo<Block<V>>,
+    pub ext_vec: BatchFRIExtVecIo<Vec<Block<V>>>,
+    pub base_vec: BatchFRIBaseVecIo<V>,
+}
+
+/// The extension-field-valued single inputs to the batch FRI operation.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BatchFRIExtSingleIo<V> {
+    pub acc: V,
+}
+
+/// The extension-field-valued vector inputs to the batch FRI operation.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BatchFRIExtVecIo<V> {
+    pub p_at_z: V,
+    pub alpha_pow: V,
+}
+
+/// The base-field-valued vector inputs to the batch FRI operation.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BatchFRIBaseVecIo<V> {
+    pub p_at_x: V,
+}
+
+/// An instruction invoking the batch FRI operation. Addresses for extension field elements are of
+/// the same type as for base field elements.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BatchFRIInstr<F> {
+    pub base_vec_addrs: BatchFRIBaseVecIo<Vec<Address<F>>>,
+    pub ext_single_addrs: BatchFRIExtSingleIo<Address<F>>,
+    pub ext_vec_addrs: BatchFRIExtVecIo<Vec<Address<F>>>,
+    pub acc_mult: F,
+}
+
+/// The event encoding the data of a single iteration within the batch FRI operation.
+/// For any given event, we are accessing a single element of the `Vec` inputs, so that the event
+/// is not a type alias for `BatchFRIIo` like many of the other events.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BatchFRIEvent<F> {
+    pub base_vec: BatchFRIBaseVecIo<F>,
+    pub ext_single: BatchFRIExtSingleIo<Block<F>>,
+    pub ext_vec: BatchFRIExtVecIo<Block<F>>,
+}
+
 /// An instruction that will save the public values to the execution record and will commit to
 /// it's digest.
 #[derive(Clone, Debug, Serialize, Deserialize)]
