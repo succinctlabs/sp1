@@ -34,7 +34,6 @@ indicatif = "0.17.8"
 tracing = "0.1.40"
 hex = "0.4.3"
 log = "0.4.22"
-alloy-sol-types = { version = "0.7.7", optional = true }
 dirs = "5.0.1"
 tempfile = "3.10.1"
 cfg-if = "1.0"
@@ -47,10 +46,13 @@ sp1-stark = { workspace = true }
 sp1-primitives = { workspace = true }
 itertools = "0.13.0"
 tonic = { version = "0.12", features = ["tls", "tls-roots"], optional = true }
-alloy-signer = { version = "0.3.6", optional = true }
-alloy-signer-local = { version = "0.3.6", optional = true }
-alloy-primitives = { version = "0.8.7", optional = true }
+alloy-sol-types = { version = "0.8", optional = true }
+alloy-signer = { version = "0.5", optional = true }
+alloy-signer-local = { version = "0.5", optional = true }
+alloy-primitives = { version = "0.8", optional = true }
 backoff = { version = "0.4", features = ["tokio"], optional = true }
+
+ethers = { version = "2", optional = true }
 
 [features]
 default = ["network"]
@@ -66,6 +68,7 @@ network = [
   "dep:reqwest",
   "dep:twirp",
   "dep:reqwest-middleware",
+  "dep:ethers",
 ]
 network-v2 = [
   "dep:prost",

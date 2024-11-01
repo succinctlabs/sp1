@@ -1,7 +1,8 @@
 use std::{borrow::Cow, str::FromStr};
 
-use alloy_signer::Signer;
+use alloy_signer::SignerSync;
 use alloy_signer_local::PrivateKeySigner;
+
 use alloy_sol_types::{sol, Eip712Domain, SolStruct};
 use anyhow::Result;
 
@@ -79,7 +80,7 @@ impl NetworkAuth {
     async fn sign_message<T: SolStruct>(&self, type_struct: T) -> Result<Vec<u8>> {
         let domain_separator = Self::get_domain_separator();
         let message_hash = type_struct.eip712_signing_hash(&domain_separator);
-        let signature = self.wallet.sign_message(message_hash.as_slice()).await?;
+        let signature = self.wallet.sign_hash_sync(&message_hash)?;
         Ok(signature.as_bytes().to_vec())
     }
 
