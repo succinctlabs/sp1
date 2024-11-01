@@ -1,18 +1,13 @@
-use std::borrow::Borrow;
-
 use hashbrown::HashMap;
 use itertools::Itertools;
-use p3_air::{ExtensionBuilder, PairBuilder};
-use p3_field::{AbstractExtensionField, AbstractField, ExtensionField, Field, PrimeField};
+use p3_air::PairBuilder;
+use p3_field::{ExtensionField, Field, PrimeField};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use p3_maybe_rayon::prelude::*;
-use rayon_scan::ScanParallelIterator;
-use strum::IntoEnumIterator;
 
 use crate::{
     air::{InteractionScope, MultiTableAirBuilder},
     lookup::Interaction,
-    septic_extension::SepticExtension,
 };
 
 /// Computes the width of the local permutation trace in terms of extension field elements.
@@ -118,30 +113,34 @@ pub fn populate_global_permutation_row<F: PrimeField, EF: ExtensionField<F>>(
             elements.extend(std::iter::repeat(F::zero()).take(padding));
         }
         let message = EF::from_base_slice(&elements);
-        let message = EF::zero();
 
-        // Mix the message with the random elements.
+        // Mix the message with the random elements to get the x-coordinate.
         //
         // TODO: Use actually random elements.
-        let mixed_message = message;
+        let x = EF::from_canonical_u32(2) * message + EF::from_canonical_u32(1);
+
+        // Decompress the elliptic curve point to get the y-coordinate.
+        //
+        // TODO: Implement the decompression.
+        let y = x;
 
         // Update the cumulative sums based on the elliptic curve addition formulas.
         //
         // TODO: Actually use the elliptic curve addition formulas instead of
         // vectorized addition/subtraction.
         if *is_send {
-            global_cumulative_sum_x += mixed_message;
-            global_cumulative_sum_y += mixed_message;
+            global_cumulative_sum_x += x;
+            global_cumulative_sum_y += y;
         } else {
-            global_cumulative_sum_x -= mixed_message;
-            global_cumulative_sum_y -= mixed_message;
+            global_cumulative_sum_x -= x;
+            global_cumulative_sum_y -= y;
         }
 
         // Write the x-coordinate.
-        data.extend(mixed_message.as_base_slice());
+        data.extend(x.as_base_slice());
 
         // Write the y-coordinate.
-        data.extend(mixed_message.as_base_slice());
+        data.extend(x.as_base_slice());
 
         // Write the padding.
         data.push(F::zero());
