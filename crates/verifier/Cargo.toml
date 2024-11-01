@@ -23,4 +23,4 @@ num-traits = "0.2.19"
 
 [features]
 default = ["std"]
-std = []
+std = ["thiserror-no-std/std"]
