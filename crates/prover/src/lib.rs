@@ -1422,10 +1422,10 @@ pub mod tests {
         let plonk_bn254_proof =
             prover.wrap_plonk_bn254(wrapped_bn254_proof.clone(), &artifacts_dir);
 
-        tracing::info!("artifacts_dir: {:?}", artifacts_dir);
+        println!("artifacts_dir: {:?}", artifacts_dir);
 
         let plonk_vk = std::fs::read(artifacts_dir.join("plonk_vk.bin")).unwrap();
-        tracing::info!("plonk_vk: {:?}", plonk_vk.len());
+        println!("plonk_vk: {:?}", plonk_vk.len());
 
         prover.verify_plonk_bn254(&plonk_bn254_proof, &vk, &public_values, &plonk_vk)?;
 
