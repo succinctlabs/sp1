@@ -335,19 +335,19 @@ where
         }))
     }
 
-    fn fri_fold_loop(
+    fn batch_fri(
         &mut self,
         acc: Ext<C::F, C::EF>,
         alpha_pows: Vec<Ext<C::F, C::EF>>,
         p_at_zs: Vec<Ext<C::F, C::EF>>,
         p_at_xs: Vec<Felt<C::F>>,
     ) -> Instruction<C::F> {
-        Instruction::FriFoldLoop(Box::new(FriFoldLoopInstr {
-            base_vec_addrs: FriFoldLoopBaseVecIo {
+        Instruction::BatchFRI(Box::new(BatchFRIInstr {
+            base_vec_addrs: BatchFRIBaseVecIo {
                 p_at_x: p_at_xs.into_iter().map(|e| e.read(self)).collect(),
             },
-            ext_single_addrs: FriFoldLoopExtSingleIo { acc: acc.write(self) },
-            ext_vec_addrs: FriFoldLoopExtVecIo {
+            ext_single_addrs: BatchFRIExtSingleIo { acc: acc.write(self) },
+            ext_vec_addrs: BatchFRIExtVecIo {
                 p_at_z: p_at_zs.into_iter().map(|e| e.read(self)).collect(),
                 alpha_pow: alpha_pows.into_iter().map(|e| e.read(self)).collect(),
             },
@@ -500,8 +500,8 @@ where
                 f(self.hint_bit_decomposition(value, output))
             }
             DslIr::CircuitV2FriFold(data) => f(self.fri_fold(data.0, data.1)),
-            DslIr::CircuitV2FriFoldLoop(data) => {
-                f(self.fri_fold_loop(data.0, data.1, data.2, data.3))
+            DslIr::CircuitV2BatchFRI(data) => {
+                f(self.batch_fri(data.0, data.1, data.2, data.3))
             }
             DslIr::CircuitV2CommitPublicValues(public_values) => {
                 f(self.commit_public_values(&public_values))
@@ -639,9 +639,9 @@ where
                         alpha_pow_mults.iter_mut().zip(alpha_pow_output).for_each(&mut backfill);
                         ro_mults.iter_mut().zip(ro_output).for_each(&mut backfill);
                     }
-                    Instruction::FriFoldLoop(instr) => {
-                        let FriFoldLoopInstr {
-                            ext_single_addrs: FriFoldLoopExtSingleIo { ref acc },
+                    Instruction::BatchFRI(instr) => {
+                        let BatchFRIInstr {
+                            ext_single_addrs: BatchFRIExtSingleIo { ref acc },
                             acc_mult,
                             ..
                         } = instr.as_mut();
@@ -702,7 +702,7 @@ const fn instr_name<F>(instr: &Instruction<F>) -> &'static str {
         Instruction::ExpReverseBitsLen(_) => "ExpReverseBitsLen",
         Instruction::HintBits(_) => "HintBits",
         Instruction::FriFold(_) => "FriFold",
-        Instruction::FriFoldLoop(_) => "FriFoldLoop",
+        Instruction::BatchFRI(_) => "BatchFRI",
         Instruction::Print(_) => "Print",
         Instruction::HintExt2Felts(_) => "HintExt2Felts",
         Instruction::Hint(_) => "Hint",

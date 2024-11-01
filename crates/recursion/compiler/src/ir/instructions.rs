@@ -284,8 +284,8 @@ pub enum DslIr<C: Config> {
     /// more details.
     CircuitV2FriFold(Box<(CircuitV2FriFoldOutput<C>, CircuitV2FriFoldInput<C>)>),
     // FRI specific instructions.
-    /// Executes a FRI fold loop. Input is the power of alphas, evaluations at z, and evaluations at x.
-    CircuitV2FriFoldLoop(
+    /// Executes a Batch FRI loop. Input is the power of alphas, evaluations at z, and evaluations at x.
+    CircuitV2BatchFRI(
         Box<(Ext<C::F, C::EF>, Vec<Ext<C::F, C::EF>>, Vec<Ext<C::F, C::EF>>, Vec<Felt<C::F>>)>,
     ),
     /// Select's a variable based on a condition. (select(cond, true_val, false_val) => output).

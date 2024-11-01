@@ -90,7 +90,7 @@ pub struct Runtime<'a, F: PrimeField32, EF: ExtensionField<F>, Diffusion> {
 
     pub nb_fri_fold: usize,
 
-    pub nb_fri_fold_loop: usize,
+    pub nb_batch_fri: usize,
 
     pub nb_print_f: usize,
 
@@ -198,7 +198,7 @@ where
             nb_memory_ops: 0,
             nb_branch_ops: 0,
             nb_fri_fold: 0,
-            nb_fri_fold_loop: 0,
+            nb_batch_fri: 0,
             nb_print_f: 0,
             nb_print_e: 0,
             clk: F::zero(),
@@ -223,7 +223,7 @@ where
         tracing::debug!("FriFold Operations: {}", self.nb_fri_fold);
         tracing::debug!("Field Operations: {}", self.nb_base_ops);
         tracing::debug!("Extension Operations: {}", self.nb_ext_ops);
-        tracing::debug!("FriFoldLoop Operations: {}", self.nb_fri_fold_loop);
+        tracing::debug!("BatchFRI Operations: {}", self.nb_batch_fri);
         tracing::debug!("Memory Operations: {}", self.nb_memory_ops);
         tracing::debug!("Branch Operations: {}", self.nb_branch_ops);
         for (name, entry) in self.cycle_tracker.iter().sorted_by_key(|(name, _)| *name) {
@@ -487,13 +487,9 @@ where
                         });
                     }
                 }
-                Instruction::FriFoldLoop(instr) => {
-                    let FriFoldLoopInstr {
-                        base_vec_addrs,
-                        ext_single_addrs,
-                        ext_vec_addrs,
-                        acc_mult,
-                    } = *instr;
+                Instruction::BatchFRI(instr) => {
+                    let BatchFRIInstr { base_vec_addrs, ext_single_addrs, ext_vec_addrs, acc_mult } =
+                        *instr;
 
                     let mut acc = EF::zero();
                     let p_at_xs = base_vec_addrs
@@ -512,15 +508,15 @@ where
                         .map(|addr| self.memory.mr(*addr).val.ext::<EF>())
                         .collect_vec();
 
-                    self.nb_fri_fold_loop += p_at_zs.len();
+                    self.nb_batch_fri += p_at_zs.len();
                     for m in 0..p_at_zs.len() {
                         acc += alpha_pows[m] * (p_at_zs[m] - EF::from_base(p_at_xs[m]));
-                        self.record.fri_fold_loop_events.push(FriFoldLoopEvent {
-                            base_vec: FriFoldLoopBaseVecIo { p_at_x: p_at_xs[m] },
-                            ext_single: FriFoldLoopExtSingleIo {
+                        self.record.batch_fri_events.push(BatchFRIEvent {
+                            base_vec: BatchFRIBaseVecIo { p_at_x: p_at_xs[m] },
+                            ext_single: BatchFRIExtSingleIo {
                                 acc: Block::from(acc.as_base_slice()),
                             },
-                            ext_vec: FriFoldLoopExtVecIo {
+                            ext_vec: BatchFRIExtVecIo {
                                 p_at_z: Block::from(p_at_zs[m].as_base_slice()),
                                 alpha_pow: Block::from(alpha_pows[m].as_base_slice()),
                             },

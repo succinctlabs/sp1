@@ -180,7 +180,7 @@ pub fn verify_two_adic_pcs<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigV
                         }
 
                         // acc = sum(alpha_pows[pow] * (p_at_z - p_at_x[0]));
-                        let acc = C::fri_fold_loop(builder, alphas, p_at_zs, p_at_xs);
+                        let acc = C::batch_fri(builder, alphas, p_at_zs, p_at_xs);
 
                         // Unroll this calculation to avoid symbolic expression overhead
                         // ro[log_height] = builder.eval(ro[log_height] + acc / (z - x));

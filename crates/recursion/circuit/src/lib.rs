@@ -137,7 +137,7 @@ pub trait CircuitConfig: Config {
         two_adic_powers_of_x: &[Felt<Self::F>],
     ) -> Felt<Self::F>;
 
-    fn fri_fold_loop(
+    fn batch_fri(
         builder: &mut Builder<Self>,
         alpha_pows: Vec<Ext<Self::F, Self::EF>>,
         p_at_zs: Vec<Ext<Self::F, Self::EF>>,
@@ -217,13 +217,13 @@ impl CircuitConfig for InnerConfig {
         builder.exp_reverse_bits_v2(input, power_bits)
     }
 
-    fn fri_fold_loop(
+    fn batch_fri(
         builder: &mut Builder<Self>,
         alpha_pows: Vec<Ext<<Self as Config>::F, <Self as Config>::EF>>,
         p_at_zs: Vec<Ext<<Self as Config>::F, <Self as Config>::EF>>,
         p_at_xs: Vec<Felt<<Self as Config>::F>>,
     ) -> Ext<<Self as Config>::F, <Self as Config>::EF> {
-        builder.fri_fold_loop_v2(alpha_pows, p_at_zs, p_at_xs)
+        builder.batch_fri_v2(alpha_pows, p_at_zs, p_at_xs)
     }
 
     fn num2bits(
@@ -345,13 +345,13 @@ impl CircuitConfig for WrapConfig {
         result
     }
 
-    fn fri_fold_loop(
+    fn batch_fri(
         builder: &mut Builder<Self>,
         alpha_pows: Vec<Ext<<Self as Config>::F, <Self as Config>::EF>>,
         p_at_zs: Vec<Ext<<Self as Config>::F, <Self as Config>::EF>>,
         p_at_xs: Vec<Felt<<Self as Config>::F>>,
     ) -> Ext<<Self as Config>::F, <Self as Config>::EF> {
-        builder.fri_fold_loop_v2(alpha_pows, p_at_zs, p_at_xs)
+        builder.batch_fri_v2(alpha_pows, p_at_zs, p_at_xs)
     }
 
     fn num2bits(
@@ -465,7 +465,7 @@ impl CircuitConfig for OuterConfig {
         result
     }
 
-    fn fri_fold_loop(
+    fn batch_fri(
         builder: &mut Builder<Self>,
         alpha_pows: Vec<Ext<<Self as Config>::F, <Self as Config>::EF>>,
         p_at_zs: Vec<Ext<<Self as Config>::F, <Self as Config>::EF>>,

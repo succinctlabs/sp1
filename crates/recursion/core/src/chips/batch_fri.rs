@@ -18,20 +18,20 @@ use crate::{
     air::Block,
     builder::SP1RecursionAirBuilder,
     runtime::{Instruction, RecursionProgram},
-    Address, ExecutionRecord, FriFoldLoopInstr,
+    Address, BatchFRIInstr, ExecutionRecord,
 };
 
-pub const NUM_FRI_FOLD_LOOP_COLS: usize = core::mem::size_of::<FriFoldLoopCols<u8>>();
-pub const NUM_FRI_FOLD_LOOP_PREPROCESSED_COLS: usize =
-    core::mem::size_of::<FriFoldLoopPreprocessedCols<u8>>();
+pub const NUM_BATCH_FRI_COLS: usize = core::mem::size_of::<BatchFRICols<u8>>();
+pub const NUM_BATCH_FRI_PREPROCESSED_COLS: usize =
+    core::mem::size_of::<BatchFRIPreprocessedCols<u8>>();
 
 #[derive(Clone, Debug, Copy, Default)]
-pub struct FriFoldLoopChip<const DEGREE: usize>;
+pub struct BatchFRIChip<const DEGREE: usize>;
 
-/// The preprocessed columns for a FRI fold loop invocation.
+/// The preprocessed columns for a batch FRI invocation.
 #[derive(AlignedBorrow, Debug, Clone, Copy)]
 #[repr(C)]
-pub struct FriFoldLoopPreprocessedCols<T: Copy> {
+pub struct BatchFRIPreprocessedCols<T: Copy> {
     pub is_real: T,
     pub is_end: T,
     pub acc_addr: Address<T>,
@@ -40,28 +40,29 @@ pub struct FriFoldLoopPreprocessedCols<T: Copy> {
     pub p_at_x_addr: Address<T>,
 }
 
+/// The main columns for a batch FRI invocation.
 #[derive(AlignedBorrow, Debug, Clone, Copy)]
 #[repr(C)]
-pub struct FriFoldLoopCols<T: Copy> {
+pub struct BatchFRICols<T: Copy> {
     pub acc: Block<T>,
     pub alpha_pow: Block<T>,
     pub p_at_z: Block<T>,
     pub p_at_x: T,
 }
 
-impl<F, const DEGREE: usize> BaseAir<F> for FriFoldLoopChip<DEGREE> {
+impl<F, const DEGREE: usize> BaseAir<F> for BatchFRIChip<DEGREE> {
     fn width(&self) -> usize {
-        NUM_FRI_FOLD_LOOP_COLS
+        NUM_BATCH_FRI_COLS
     }
 }
 
-impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for FriFoldLoopChip<DEGREE> {
+impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for BatchFRIChip<DEGREE> {
     type Record = ExecutionRecord<F>;
 
     type Program = RecursionProgram<F>;
 
     fn name(&self) -> String {
-        "FriFoldLoop".to_string()
+        "BatchFRI".to_string()
     }
 
     fn generate_dependencies(&self, _: &Self::Record, _: &mut Self::Record) {
@@ -69,29 +70,29 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for FriFoldLoopChip<DEG
     }
 
     fn preprocessed_width(&self) -> usize {
-        NUM_FRI_FOLD_LOOP_PREPROCESSED_COLS
+        NUM_BATCH_FRI_PREPROCESSED_COLS
     }
     fn generate_preprocessed_trace(&self, program: &Self::Program) -> Option<RowMajorMatrix<F>> {
-        let mut rows: Vec<[F; NUM_FRI_FOLD_LOOP_PREPROCESSED_COLS]> = Vec::new();
+        let mut rows: Vec<[F; NUM_BATCH_FRI_PREPROCESSED_COLS]> = Vec::new();
         program
             .instructions
             .iter()
             .filter_map(|instruction| {
-                if let Instruction::FriFoldLoop(instr) = instruction {
+                if let Instruction::BatchFRI(instr) = instruction {
                     Some(instr)
                 } else {
                     None
                 }
             })
             .for_each(|instruction| {
-                let FriFoldLoopInstr { base_vec_addrs, ext_single_addrs, ext_vec_addrs, acc_mult } =
+                let BatchFRIInstr { base_vec_addrs, ext_single_addrs, ext_vec_addrs, acc_mult } =
                     instruction.as_ref();
                 let len = ext_vec_addrs.p_at_z.len();
-                let mut row_add = vec![[F::zero(); NUM_FRI_FOLD_LOOP_PREPROCESSED_COLS]; len];
+                let mut row_add = vec![[F::zero(); NUM_BATCH_FRI_PREPROCESSED_COLS]; len];
                 debug_assert_eq!(*acc_mult, F::one());
 
                 row_add.iter_mut().enumerate().for_each(|(i, row)| {
-                    let row: &mut FriFoldLoopPreprocessedCols<F> = row.as_mut_slice().borrow_mut();
+                    let row: &mut BatchFRIPreprocessedCols<F> = row.as_mut_slice().borrow_mut();
                     row.is_real = F::one();
                     row.is_end = F::from_bool(i == len - 1);
                     row.acc_addr = ext_single_addrs.acc;
@@ -105,29 +106,29 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for FriFoldLoopChip<DEG
         // Pad the trace to a power of two.
         pad_rows_fixed(
             &mut rows,
-            || [F::zero(); NUM_FRI_FOLD_LOOP_PREPROCESSED_COLS],
+            || [F::zero(); NUM_BATCH_FRI_PREPROCESSED_COLS],
             program.fixed_log2_rows(self),
         );
 
         let trace = RowMajorMatrix::new(
             rows.into_iter().flatten().collect(),
-            NUM_FRI_FOLD_LOOP_PREPROCESSED_COLS,
+            NUM_BATCH_FRI_PREPROCESSED_COLS,
         );
         Some(trace)
     }
 
-    #[instrument(name = "generate fri fold trace", level = "debug", skip_all, fields(rows = input.fri_fold_loop_events.len()))]
+    #[instrument(name = "generate batch fri trace", level = "debug", skip_all, fields(rows = input.batch_fri_events.len()))]
     fn generate_trace(
         &self,
         input: &ExecutionRecord<F>,
         _: &mut ExecutionRecord<F>,
     ) -> RowMajorMatrix<F> {
         let mut rows = input
-            .fri_fold_loop_events
+            .batch_fri_events
             .iter()
             .map(|event| {
-                let mut row = [F::zero(); NUM_FRI_FOLD_LOOP_COLS];
-                let cols: &mut FriFoldLoopCols<F> = row.as_mut_slice().borrow_mut();
+                let mut row = [F::zero(); NUM_BATCH_FRI_COLS];
+                let cols: &mut BatchFRICols<F> = row.as_mut_slice().borrow_mut();
                 cols.acc = event.ext_single.acc;
                 cols.alpha_pow = event.ext_vec.alpha_pow;
                 cols.p_at_z = event.ext_vec.p_at_z;
@@ -137,18 +138,17 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for FriFoldLoopChip<DEG
             .collect_vec();
 
         // Pad the trace to a power of two.
-        pad_rows_fixed(
-            &mut rows,
-            || [F::zero(); NUM_FRI_FOLD_LOOP_COLS],
-            input.fixed_log2_rows(self),
-        );
+        pad_rows_fixed(&mut rows, || [F::zero(); NUM_BATCH_FRI_COLS], input.fixed_log2_rows(self));
 
         // Convert the trace to a row major matrix.
-        let trace =
-            RowMajorMatrix::new(rows.into_iter().flatten().collect(), NUM_FRI_FOLD_LOOP_COLS);
+        let trace = RowMajorMatrix::new(rows.into_iter().flatten().collect(), NUM_BATCH_FRI_COLS);
 
         #[cfg(debug_assertions)]
-        println!("fri fold trace dims is width: {:?}, height: {:?}", trace.width(), trace.height());
+        println!(
+            "batch fri trace dims is width: {:?}, height: {:?}",
+            trace.width(),
+            trace.height()
+        );
 
         trace
     }
@@ -158,14 +158,14 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for FriFoldLoopChip<DEG
     }
 }
 
-impl<const DEGREE: usize> FriFoldLoopChip<DEGREE> {
-    pub fn eval_fri_fold_loop<AB: SP1RecursionAirBuilder>(
+impl<const DEGREE: usize> BatchFRIChip<DEGREE> {
+    pub fn eval_batch_fri<AB: SP1RecursionAirBuilder>(
         &self,
         builder: &mut AB,
-        local: &FriFoldLoopCols<AB::Var>,
-        next: &FriFoldLoopCols<AB::Var>,
-        local_prepr: &FriFoldLoopPreprocessedCols<AB::Var>,
-        _next_prepr: &FriFoldLoopPreprocessedCols<AB::Var>,
+        local: &BatchFRICols<AB::Var>,
+        next: &BatchFRICols<AB::Var>,
+        local_prepr: &BatchFRIPreprocessedCols<AB::Var>,
+        _next_prepr: &BatchFRIPreprocessedCols<AB::Var>,
     ) {
         // Constrain memory read for alpha_pow, p_at_z, and p_at_x.
         builder.receive_block(local_prepr.alpha_pow_addr, local.alpha_pow, local_prepr.is_real);
@@ -202,30 +202,30 @@ impl<const DEGREE: usize> FriFoldLoopChip<DEGREE> {
         );
     }
 
-    pub const fn do_memory_access<T: Copy>(local: &FriFoldLoopPreprocessedCols<T>) -> T {
+    pub const fn do_memory_access<T: Copy>(local: &BatchFRIPreprocessedCols<T>) -> T {
         local.is_real
     }
 }
 
-impl<AB, const DEGREE: usize> Air<AB> for FriFoldLoopChip<DEGREE>
+impl<AB, const DEGREE: usize> Air<AB> for BatchFRIChip<DEGREE>
 where
     AB: SP1RecursionAirBuilder + PairBuilder,
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
         let (local, next) = (main.row_slice(0), main.row_slice(1));
-        let local: &FriFoldLoopCols<AB::Var> = (*local).borrow();
-        let next: &FriFoldLoopCols<AB::Var> = (*next).borrow();
+        let local: &BatchFRICols<AB::Var> = (*local).borrow();
+        let next: &BatchFRICols<AB::Var> = (*next).borrow();
         let prepr = builder.preprocessed();
         let (prepr_local, prepr_next) = (prepr.row_slice(0), prepr.row_slice(1));
-        let prepr_local: &FriFoldLoopPreprocessedCols<AB::Var> = (*prepr_local).borrow();
-        let prepr_next: &FriFoldLoopPreprocessedCols<AB::Var> = (*prepr_next).borrow();
+        let prepr_local: &BatchFRIPreprocessedCols<AB::Var> = (*prepr_local).borrow();
+        let prepr_next: &BatchFRIPreprocessedCols<AB::Var> = (*prepr_next).borrow();
 
         // Dummy constraints to normalize to DEGREE.
         let lhs = (0..DEGREE).map(|_| prepr_local.is_real.into()).product::<AB::Expr>();
         let rhs = (0..DEGREE).map(|_| prepr_local.is_real.into()).product::<AB::Expr>();
         builder.assert_eq(lhs, rhs);
 
-        self.eval_fri_fold_loop::<AB>(builder, local, next, prepr_local, prepr_next);
+        self.eval_batch_fri::<AB>(builder, local, next, prepr_local, prepr_next);
     }
 }
