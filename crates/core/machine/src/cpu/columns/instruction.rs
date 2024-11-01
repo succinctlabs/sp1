@@ -27,13 +27,13 @@ pub struct InstructionCols<T> {
 }
 
 impl<F: PrimeField> InstructionCols<F> {
-    pub fn populate(&mut self, instruction: &Instruction) {
+    pub fn populate(&mut self, instruction: Instruction) {
         self.opcode = instruction.opcode.as_field::<F>();
-        self.op_a = (instruction.op_a as u32).into();
+        self.op_a = instruction.op_a.into();
         self.op_b = instruction.op_b.into();
         self.op_c = instruction.op_c.into();
 
-        self.op_a_0 = F::from_bool(instruction.op_a == Register::X0 as u8);
+        self.op_a_0 = F::from_bool(instruction.op_a == Register::X0 as u32);
     }
 }
 

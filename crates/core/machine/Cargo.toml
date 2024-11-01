@@ -53,7 +53,6 @@ static_assertions = "1.1.0"
 sp1-stark = { workspace = true }
 sp1-core-executor = { workspace = true }
 sp1-curves = { workspace = true }
-vec_map = "0.8.2"
 
 [dev-dependencies]
 tiny-keccak = { version = "2.0.2", features = ["keccak"] }

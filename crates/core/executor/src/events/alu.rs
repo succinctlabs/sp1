@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::Opcode;
 
-use super::{create_random_lookup_ids, LookupId};
+use super::{create_alu_lookups, LookupId};
 
 /// Arithmetic Logic Unit (ALU) Event.
 ///
@@ -40,7 +40,7 @@ impl AluEvent {
             a,
             b,
             c,
-            sub_lookups: create_random_lookup_ids(),
+            sub_lookups: create_alu_lookups(),
         }
     }
 }

@@ -5,16 +5,43 @@ use std::{
     iter::{Map, Peekable},
 };
 
+use rand::{thread_rng, Rng};
+
 /// A unique identifier for lookups.
+///
+/// We use 4 u32s instead of a u128 to make it compatible with C.
 #[derive(Deserialize, Serialize, Debug, Clone, Copy, Default, Eq, Hash, PartialEq)]
 
-pub struct LookupId(pub u64);
+pub struct LookupId {
+    /// First part of the id.
+    pub a: u32,
+    /// Second part of the id.
+    pub b: u32,
+    /// Third part of the id.
+    pub c: u32,
+    /// Fourth part of the id.
+    pub d: u32,
+}
 
-/// Create a random lookup id. This is slower than `record.create_lookup_id()` but is useful for
-/// testing.
+/// Creates a new ALU lookup id with ``LookupId``
 #[must_use]
-pub(crate) fn create_random_lookup_ids() -> [LookupId; 6] {
-    std::array::from_fn(|_| LookupId(rand::random()))
+pub fn create_alu_lookup_id() -> LookupId {
+    let mut rng = thread_rng();
+    LookupId { a: rng.gen(), b: rng.gen(), c: rng.gen(), d: rng.gen() }
+}
+
+/// Creates a new ALU lookup id with ``LookupId``
+#[must_use]
+pub fn create_alu_lookups() -> [LookupId; 6] {
+    let mut rng = thread_rng();
+    [
+        LookupId { a: rng.gen(), b: rng.gen(), c: rng.gen(), d: rng.gen() },
+        LookupId { a: rng.gen(), b: rng.gen(), c: rng.gen(), d: rng.gen() },
+        LookupId { a: rng.gen(), b: rng.gen(), c: rng.gen(), d: rng.gen() },
+        LookupId { a: rng.gen(), b: rng.gen(), c: rng.gen(), d: rng.gen() },
+        LookupId { a: rng.gen(), b: rng.gen(), c: rng.gen(), d: rng.gen() },
+        LookupId { a: rng.gen(), b: rng.gen(), c: rng.gen(), d: rng.gen() },
+    ]
 }
 
 /// Returns sorted and formatted rows of a table of counts (e.g. `opcode_counts`).

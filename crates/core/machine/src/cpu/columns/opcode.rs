@@ -63,7 +63,7 @@ pub struct OpcodeSelectorCols<T> {
 }
 
 impl<F: PrimeField> OpcodeSelectorCols<F> {
-    pub fn populate(&mut self, instruction: &Instruction) {
+    pub fn populate(&mut self, instruction: Instruction) {
         self.imm_b = F::from_bool(instruction.imm_b);
         self.imm_c = F::from_bool(instruction.imm_c);
 

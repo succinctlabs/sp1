@@ -5613,7 +5613,6 @@ dependencies = [
  "tracing-forest",
  "tracing-subscriber",
  "typenum",
- "vec_map",
  "web-time",
 ]
 
@@ -6104,7 +6103,7 @@ dependencies = [
 [[package]]
 name = "substrate-bn"
 version = "0.6.0"
-source = "git+https://github.com/sp1-patches/bn?tag=substrate_bn-v0.6.0-patch-v2#a1974dba1f3b75c16b48a84037edc12b36bba1cf"
+source = "git+https://github.com/sp1-patches/bn?tag=substrate_bn-v0.6.0-patch-v2#201cc196da216656044e61fea7f68707b6896662"
 dependencies = [
  "bytemuck",
  "byteorder",
