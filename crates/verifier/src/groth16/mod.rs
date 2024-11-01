@@ -15,7 +15,7 @@ use crate::{decode_sp1_vkey_hash, hash_public_inputs};
 #[derive(Debug)]
 pub struct Groth16Verifier;
 impl Groth16Verifier {
-    /// Verifies a Groth16 proof.
+    /// Verifies a Groth16 proof using SP1 native inputs.
     ///
     /// # Arguments
     ///
@@ -66,6 +66,28 @@ impl Groth16Verifier {
         )
     }
 
+    /// Verifies a Groth16 proof using raw byte inputs.
+    ///
+    /// This is a lower-level verification method that works directly with raw bytes rather than
+    /// SP1 native inputs. It's used internally by [`verify`] but can also be called directly
+    /// if you already have the required byte arrays.
+    ///
+    /// # Arguments
+    ///
+    /// * `proof` - The raw Groth16 proof bytes (without the 4-byte vkey hash prefix)
+    /// * `sp1_vkey_hash` - The 32-byte SP1 verification key hash
+    /// * `public_inputs_hash` - The 32-byte hash of the public inputs
+    /// * `groth16_vk` - The Groth16 verifying key bytes
+    ///
+    /// # Returns
+    ///
+    /// A [`Result`] containing unit `()` if the proof is valid,
+    /// or a [`Groth16Error`] if verification fails.
+    ///
+    /// # Note
+    ///
+    /// This method expects the raw proof bytes without the 4-byte vkey hash prefix that
+    /// [`verify`] checks. If you have a complete proof with the prefix, use [`verify`] instead.    
     pub fn verify_bytes(
         proof: &[u8],
         sp1_vkey_hash: &[u8; 32],
@@ -77,6 +99,6 @@ impl Groth16Verifier {
 
         let public_inputs = Fr::from_slice(public_inputs_hash).unwrap();
         let sp1_vkey_hash = Fr::from_slice(sp1_vkey_hash).unwrap();
-        verify_groth16_field(&groth16_vk, &proof, &[sp1_vkey_hash, public_inputs])
+        verify_groth16_algebraic(&groth16_vk, &proof, &[sp1_vkey_hash, public_inputs])
     }
 }

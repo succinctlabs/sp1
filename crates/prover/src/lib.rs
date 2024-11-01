@@ -1112,10 +1112,17 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 
         let plonk_vk = std::fs::read(build_dir.join("plonk_vk.bin")).unwrap();
 
+        let vkey_hash_bytes: [u8; 32] = [vec![0u8], vkey_hash.as_canonical_biguint().to_bytes_be()]
+            .concat()
+            .try_into()
+            .unwrap();
+        let committed_values_digest_bytes: [u8; 32] =
+            committed_values_digest.as_canonical_biguint().to_bytes_be().try_into().unwrap();
+
         PlonkVerifier::verify_bytes(
             &proof.raw_bytes().expect("Invalid raw proof"),
-            &vkey_hash.as_canonical_biguint().to_bytes_be().try_into().unwrap(),
-            &committed_values_digest.as_canonical_biguint().to_bytes_be().try_into().unwrap(),
+            &vkey_hash_bytes,
+            &committed_values_digest_bytes,
             &plonk_vk,
         )
         .expect("Invalid plonk proof");
@@ -1155,10 +1162,17 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 
         let groth16_vk = std::fs::read(build_dir.join("groth16_vk.bin")).unwrap();
 
+        let vkey_hash_bytes: [u8; 32] = [vec![0u8], vkey_hash.as_canonical_biguint().to_bytes_be()]
+            .concat()
+            .try_into()
+            .unwrap();
+        let committed_values_digest_bytes: [u8; 32] =
+            committed_values_digest.as_canonical_biguint().to_bytes_be().try_into().unwrap();
+
         Groth16Verifier::verify_bytes(
             &proof.raw_bytes().expect("Invalid raw proof"),
-            &vkey_hash.as_canonical_biguint().to_bytes_be().try_into().unwrap(),
-            &committed_values_digest.as_canonical_biguint().to_bytes_be().try_into().unwrap(),
+            &vkey_hash_bytes,
+            &committed_values_digest_bytes,
             &groth16_vk,
         )
         .expect("Invalid groth16 proof");

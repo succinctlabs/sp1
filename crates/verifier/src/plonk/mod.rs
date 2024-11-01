@@ -16,7 +16,7 @@ pub(crate) mod error;
 use bn::Fr;
 pub(crate) use converter::{load_plonk_proof_from_bytes, load_plonk_verifying_key_from_bytes};
 pub(crate) use proof::PlonkProof;
-pub(crate) use verify::verify_plonk_field;
+pub(crate) use verify::verify_plonk_algebraic;
 
 use error::PlonkError;
 use sha2::{Digest, Sha256};
@@ -75,6 +75,23 @@ impl PlonkVerifier {
         )
     }
 
+    /// Verifies a PLONK proof using raw byte inputs.
+    ///
+    /// This is a lower-level verification method that works directly with raw bytes rather than
+    /// SP1 native inputs. It's used internally by [`verify`] but can also be called directly
+    /// if you already have the required byte arrays.
+    ///
+    /// # Arguments
+    ///
+    /// * `proof` - The raw PLONK proof bytes (without the 4-byte vkey hash prefix)
+    /// * `sp1_vkey_hash` - The 32-byte SP1 verification key hash
+    /// * `public_inputs_hash` - The 32-byte hash of the public inputs
+    /// * `plonk_vk` - The PLONK verifying key bytes
+    ///
+    /// # Returns
+    ///
+    /// A [`Result`] containing unit `()` if the proof is valid,
+    /// or a [`PlonkError`] if verification fails.
     pub fn verify_bytes(
         proof: &[u8],
         sp1_vkey_hash: &[u8; 32],
@@ -86,6 +103,6 @@ impl PlonkVerifier {
 
         let public_inputs = Fr::from_slice(public_inputs_hash).unwrap();
         let sp1_vkey_hash = Fr::from_slice(sp1_vkey_hash).unwrap();
-        verify_plonk_field(&plonk_vk, &proof, &[sp1_vkey_hash, public_inputs])
+        verify_plonk_algebraic(&plonk_vk, &proof, &[sp1_vkey_hash, public_inputs])
     }
 }
