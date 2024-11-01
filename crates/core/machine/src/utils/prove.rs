@@ -142,11 +142,6 @@ where
 {
     // Setup the runtime.
     let mut runtime = Executor::with_context(program.clone(), opts, context);
-    // let maximal_shapes = match shape_config.as_ref() {
-    //     Some(shape_config) => shape_config.maximal_core_shapes(),
-    //     None => vec![],
-    // };
-    // let shapes_maximal = shape_config.map(|config| config.maximal_core_shapes().into_iter().map(|s| s.inner).collect())
     runtime.maximal_shapes = shape_config
         .map(|config| config.maximal_core_shapes().into_iter().map(|s| s.inner).collect());
     runtime.write_vecs(&stdin.buffer);
@@ -848,15 +843,12 @@ fn trace_checkpoint<SC: StarkGenericConfig>(
 where
     <SC as StarkGenericConfig>::Val: PrimeField32,
 {
-    let maximal_shapes = match shape_config {
-        Some(shape_config) => shape_config.maximal_core_shapes(),
-        None => vec![],
-    };
     let mut reader = std::io::BufReader::new(file);
     let state: ExecutionState =
         bincode::deserialize_from(&mut reader).expect("failed to deserialize state");
     let mut runtime = Executor::recover(program.clone(), state.clone(), opts);
-    runtime.maximal_shapes = Some(maximal_shapes.into_iter().map(|s| s.inner).collect());
+    runtime.maximal_shapes = shape_config
+        .map(|config| config.maximal_core_shapes().into_iter().map(|s| s.inner).collect());
 
     // We already passed the deferred proof verifier when creating checkpoints, so the proofs were
     // already verified. So here we use a noop verifier to not print any warnings.
