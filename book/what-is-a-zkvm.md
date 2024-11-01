@@ -1,6 +1,6 @@
 # What is a zkVM?
 
-A zero-knowledge virtual machine (zkVM) is zero-knowledge proof system that allows developers to prove the execution of arbitrary Rust (or other LLVM-compiled language) programs.
+A zero-knowledge virtual machine (zkVM) is a zero-knowledge proof system that allows developers to prove the execution of arbitrary Rust (or other LLVM-compiled language) programs.
 
 Conceptually, you can think of the SP1 zkVM as proving the evaluation of a function `f(x) = y` by following the steps below:
 
@@ -22,7 +22,7 @@ At a high level, SP1 works with the following steps:
 * SP1 will prove the correct execution of arbitrary RISC-V programs by generating a STARK proof of execution.
 * Developers can leverage the `sp1-sdk` crate to generate proofs with their ELF and input data. Under the hood the `sp1-sdk` will either generate proofs locally or use a beta version of Succinct's prover network to generate proofs.
 
-SP1 leverages performant STARK recursion that allows us to prove the execution of arbitrarily long programs and also has a STARK -> SNARK "wrapping system" that allows us to generate small SNARK proofs that can be efficiently verified on EVM chains.
+SP1 leverages performant STARK recursion, which allows us to prove the execution of arbitrarily long programs. It also has a STARK -> SNARK "wrapping system" that allows us to generate small SNARK proofs that can be efficiently verified on EVM chains.
 
 ## Proof System 
 
