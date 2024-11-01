@@ -307,7 +307,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             stdin,
             opts.core_opts,
             context,
-            None,
+            self.core_shape_config.as_ref(),
         )?;
         Self::check_for_high_cycles(cycles);
         let public_values = SP1PublicValues::from(&public_values_stream);
