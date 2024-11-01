@@ -120,7 +120,6 @@ pub enum DslIr<C: Config> {
     /// Inverts an extension field element (ext = 1 / ext).
     InvE(Ext<C::F, C::EF>, Ext<C::F, C::EF>),
 
-    // Selects.
     /// Selects order of felts based on a bit (should_swap, first result, second result, first input, second input)
     Select(Felt<C::F>, Felt<C::F>, Felt<C::F>, Felt<C::F>, Felt<C::F>),
 
