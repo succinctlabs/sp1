@@ -145,7 +145,7 @@ pub trait Prover<C: SP1ProverComponents>: Send + Sync {
             }
             SP1Proof::Plonk(proof) => self
                 .sp1_prover()
-                .verify_plonk_bn254(proof, vkey, &bundle.public_values)
+                .verify_plonk_bn254(proof, vkey, &bundle.public_values, *PLONK_VK_BYTES)
                 .map_err(SP1VerificationError::Plonk),
             SP1Proof::Groth16(proof) => self
                 .sp1_prover()

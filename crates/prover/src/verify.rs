@@ -386,12 +386,13 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         proof: &PlonkBn254Proof,
         vk: &SP1VerifyingKey,
         public_values: &SP1PublicValues,
+        plonk_vk: &[u8],
     ) -> Result<()> {
         PlonkVerifier::verify(
             &proof.raw_with_checksum()?,
             &public_values.to_vec(),
             &vk.bytes32(),
-            *sp1_verifier::PLONK_VK_BYTES,
+            plonk_vk,
         )
         .map_err(|err| anyhow::anyhow!("Plonk proof verification failed: {err}"))
     }
@@ -402,12 +403,13 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         proof: &Groth16Bn254Proof,
         vk: &SP1VerifyingKey,
         public_values: &SP1PublicValues,
+        groth16_vk: &[u8],
     ) -> Result<()> {
         Groth16Verifier::verify(
             &proof.raw_with_checksum()?,
             &public_values.to_vec(),
             &vk.bytes32(),
-            *sp1_verifier::GROTH16_VK_BYTES,
+            groth16_vk,
         )
         .map_err(|err| anyhow::anyhow!("Groth16 proof verification failed: {err}"))
     }

@@ -80,7 +80,7 @@ use sp1_stark::{
     MachineProver, SP1CoreOpts, SP1ProverOpts, ShardProof, StarkGenericConfig, StarkVerifyingKey,
     Val, Word, DIGEST_SIZE,
 };
-use sp1_verifier::{Groth16Verifier, PlonkVerifier, GROTH16_VK_BYTES, PLONK_VK_BYTES};
+use sp1_verifier::{Groth16Verifier, PlonkVerifier};
 
 pub use types::*;
 use utils::{sp1_committed_values_digest_bn254, sp1_vkey_digest_bn254, words_to_bytes};
@@ -1102,7 +1102,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         let prover = PlonkBn254Prover::new();
         let proof = prover.prove(witness, build_dir.to_path_buf());
 
-        // // Verify the proof.
+        // Verify the proof.
         // prover.verify_ffi(
         //     &proof,
         //     &vkey_hash.as_canonical_biguint(),
@@ -1110,11 +1110,13 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         //     build_dir,
         // );
 
+        let plonk_vk = std::fs::read(build_dir.join("plonk_vk.bin")).unwrap();
+
         PlonkVerifier::verify_bytes(
             &proof.raw_bytes().expect("Invalid raw proof"),
             &vkey_hash.as_canonical_biguint().to_bytes_be().try_into().unwrap(),
             &committed_values_digest.as_canonical_biguint().to_bytes_be().try_into().unwrap(),
-            *PLONK_VK_BYTES,
+            &plonk_vk,
         )
         .expect("Invalid plonk proof");
 
@@ -1143,21 +1145,23 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         let prover = Groth16Bn254Prover::new();
         let proof = prover.prove(witness, build_dir.to_path_buf());
 
-        // Verify the proof.
-        prover.verify_ffi(
-            &proof,
-            &vkey_hash.as_canonical_biguint(),
-            &committed_values_digest.as_canonical_biguint(),
-            build_dir,
-        );
+        // // Verify the proof.
+        // prover.verify_ffi(
+        //     &proof,
+        //     &vkey_hash.as_canonical_biguint(),
+        //     &committed_values_digest.as_canonical_biguint(),
+        //     build_dir,
+        // );
+
+        let groth16_vk = std::fs::read(build_dir.join("groth16_vk.bin")).unwrap();
 
         Groth16Verifier::verify_bytes(
             &proof.raw_bytes().expect("Invalid raw proof"),
             &vkey_hash.as_canonical_biguint().to_bytes_be().try_into().unwrap(),
             &committed_values_digest.as_canonical_biguint().to_bytes_be().try_into().unwrap(),
-            *GROTH16_VK_BYTES,
+            &groth16_vk,
         )
-        .expect("Invalid plonk proof");
+        .expect("Invalid groth16 proof");
 
         proof
     }
@@ -1403,9 +1407,10 @@ pub mod tests {
         );
         let plonk_bn254_proof =
             prover.wrap_plonk_bn254(wrapped_bn254_proof.clone(), &artifacts_dir);
-        println!("{:?}", plonk_bn254_proof);
 
-        prover.verify_plonk_bn254(&plonk_bn254_proof, &vk, &public_values)?;
+        let plonk_vk = std::fs::read(artifacts_dir.join("plonk_vk.bin")).unwrap();
+
+        prover.verify_plonk_bn254(&plonk_bn254_proof, &vk, &public_values, &plonk_vk)?;
 
         tracing::info!("generate groth16 bn254 proof");
         let artifacts_dir = try_build_groth16_bn254_artifacts_dev(
@@ -1413,10 +1418,11 @@ pub mod tests {
             &wrapped_bn254_proof.proof,
         );
         let groth16_bn254_proof = prover.wrap_groth16_bn254(wrapped_bn254_proof, &artifacts_dir);
-        println!("{:?}", groth16_bn254_proof);
+
+        let groth16_vk = std::fs::read(artifacts_dir.join("groth16_vk.bin")).unwrap();
 
         if verify {
-            prover.verify_groth16_bn254(&groth16_bn254_proof, &vk, &public_values)?;
+            prover.verify_groth16_bn254(&groth16_bn254_proof, &vk, &public_values, &groth16_vk)?;
         }
 
         Ok(())
