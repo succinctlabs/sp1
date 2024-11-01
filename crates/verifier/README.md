@@ -3,6 +3,9 @@
 This crate provides verifiers for SP1 Groth16 and Plonk zero-knowledge proofs. These proofs are expected
 to be generated using the [SP1 SDK](../sdk).
 
+Check out [this wasm verification example](https://github.com/succinctlabs/example-sp1-wasm-verifier)
+for a complete example of how to verify SP1 proofs in JavaScript.
+
 ## Features
 
 Groth16 and Plonk proof verification are supported in `no-std` environments. Verification in the

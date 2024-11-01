@@ -125,6 +125,7 @@ jobs:
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
           RUST_BACKTRACE: 1
           SP1_DEV: 1
+          RUST_LOG: info
 
   lint:
     name: Formatting & Clippy
