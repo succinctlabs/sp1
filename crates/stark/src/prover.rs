@@ -57,10 +57,10 @@ pub trait MachineProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>>:
     /// Setup the preprocessed data into a proving and verifying key.
     fn setup(&self, program: &A::Program) -> (Self::DeviceProvingKey, StarkVerifyingKey<SC>);
 
-    /// Copy the pk from host to device.
+    /// Copy the proving key from the host to the device.
     fn pk_to_device(&self, pk: &StarkProvingKey<SC>) -> Self::DeviceProvingKey;
 
-    /// Copy the pk from device to the host.
+    /// Copy the proving key from the device to the host.
     fn pk_to_host(&self, pk: &Self::DeviceProvingKey) -> StarkProvingKey<SC>;
 
     /// Generate the main traces.
