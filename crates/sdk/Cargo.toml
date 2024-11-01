@@ -10,6 +10,19 @@ keywords = { workspace = true }
 categories = { workspace = true }
 
 [dependencies]
+# p3
+p3-field = { workspace = true }
+p3-baby-bear = { workspace = true }
+p3-fri = { workspace = true }
+sp1-prover = { workspace = true }
+
+# sp1
+sp1-core-machine = { workspace = true }
+sp1-core-executor = { workspace = true }
+sp1-stark = { workspace = true }
+sp1-primitives = { workspace = true }
+sp1-cuda = { workspace = true, optional = true }
+
 prost = { version = "0.13", optional = true }
 serde = { version = "1.0.204", features = ["derive"] }
 twirp = { package = "twirp-rs", version = "0.13.0-succinct", optional = true }
@@ -21,15 +34,9 @@ reqwest = { version = "0.12.4", features = [
   "stream",
 ], optional = true }
 anyhow = "1.0.83"
-sp1-prover = { workspace = true }
-sp1-core-machine = { workspace = true }
-sp1-cuda = { workspace = true, optional = true }
 futures = "0.3.30"
 bincode = "1.3.3"
 tokio = { version = "1.39.2", features = ["full"], optional = true }
-p3-field = { workspace = true }
-p3-baby-bear = { workspace = true }
-p3-fri = { workspace = true }
 indicatif = "0.17.8"
 tracing = "0.1.40"
 hex = "0.4.3"
@@ -43,9 +50,6 @@ strum = "0.26.3"
 strum_macros = "0.26.4"
 thiserror = "1.0.63"
 hashbrown = "0.14.5"
-sp1-core-executor = { workspace = true }
-sp1-stark = { workspace = true }
-sp1-primitives = { workspace = true }
 itertools = "0.13.0"
 tonic = { version = "0.12", features = ["tls", "tls-roots"], optional = true }
 alloy-signer = { version = "0.3.6", optional = true }
