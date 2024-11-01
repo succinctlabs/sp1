@@ -57,6 +57,12 @@ pub trait MachineProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>>:
     /// Setup the preprocessed data into a proving and verifying key.
     fn setup(&self, program: &A::Program) -> (Self::DeviceProvingKey, StarkVerifyingKey<SC>);
 
+    /// Copy the pk from host to device.
+    fn pk_to_device(&self, pk: &StarkProvingKey<SC>) -> Self::DeviceProvingKey;
+
+    /// Copy the pk from device to the host.
+    fn pk_to_host(&self, pk: &Self::DeviceProvingKey) -> StarkProvingKey<SC>;
+
     /// Generate the main traces.
     fn generate_traces(
         &self,
@@ -273,12 +279,6 @@ pub trait MachineProvingKey<SC: StarkGenericConfig>: Send + Sync {
     /// The start pc.
     fn pc_start(&self) -> Val<SC>;
 
-    /// The proving key on the host.
-    fn to_host(&self) -> StarkProvingKey<SC>;
-
-    /// The proving key on the device.
-    fn from_host(host: &StarkProvingKey<SC>) -> Self;
-
     /// Observe itself in the challenger.
     fn observe_into(&self, challenger: &mut Challenger<SC>);
 }
@@ -321,6 +321,14 @@ where
 
     fn setup(&self, program: &A::Program) -> (Self::DeviceProvingKey, StarkVerifyingKey<SC>) {
         self.machine().setup(program)
+    }
+
+    fn pk_to_device(&self, pk: &StarkProvingKey<SC>) -> Self::DeviceProvingKey {
+        pk.clone()
+    }
+
+    fn pk_to_host(&self, pk: &Self::DeviceProvingKey) -> StarkProvingKey<SC> {
+        pk.clone()
     }
 
     fn commit(
@@ -854,14 +862,6 @@ where
 
     fn pc_start(&self) -> Val<SC> {
         self.pc_start
-    }
-
-    fn to_host(&self) -> StarkProvingKey<SC> {
-        self.clone()
-    }
-
-    fn from_host(host: &StarkProvingKey<SC>) -> Self {
-        host.clone()
     }
 
     fn observe_into(&self, challenger: &mut Challenger<SC>) {
