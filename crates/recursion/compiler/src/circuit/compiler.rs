@@ -500,9 +500,7 @@ where
                 f(self.hint_bit_decomposition(value, output))
             }
             DslIr::CircuitV2FriFold(data) => f(self.fri_fold(data.0, data.1)),
-            DslIr::CircuitV2BatchFRI(data) => {
-                f(self.batch_fri(data.0, data.1, data.2, data.3))
-            }
+            DslIr::CircuitV2BatchFRI(data) => f(self.batch_fri(data.0, data.1, data.2, data.3)),
             DslIr::CircuitV2CommitPublicValues(public_values) => {
                 f(self.commit_public_values(&public_values))
             }
