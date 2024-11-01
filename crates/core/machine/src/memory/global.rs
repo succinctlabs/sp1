@@ -208,10 +208,10 @@ where
         let mut byte3 = AB::Expr::zero();
         let mut byte4 = AB::Expr::zero();
         for i in 0..8 {
-            byte1 += local.value[i].into() * AB::F::from_canonical_u8(1 << i);
-            byte2 += local.value[i + 8].into() * AB::F::from_canonical_u8(1 << i);
-            byte3 += local.value[i + 16].into() * AB::F::from_canonical_u8(1 << i);
-            byte4 += local.value[i + 24].into() * AB::F::from_canonical_u8(1 << i);
+            byte1 = byte1.clone() + local.value[i].into() * AB::F::from_canonical_u8(1 << i);
+            byte2 = byte2.clone() + local.value[i + 8].into() * AB::F::from_canonical_u8(1 << i);
+            byte3 = byte3.clone() + local.value[i + 16].into() * AB::F::from_canonical_u8(1 << i);
+            byte4 = byte4.clone() + local.value[i + 24].into() * AB::F::from_canonical_u8(1 << i);
         }
         let value = [byte1, byte2, byte3, byte4];
 

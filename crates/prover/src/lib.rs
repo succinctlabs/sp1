@@ -207,7 +207,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             .then_some(RecursionShapeConfig::default());
 
         let vk_verification =
-            env::var("VERIFY_VK").map(|v| v.eq_ignore_ascii_case("true")).unwrap_or(true);
+            env::var("VERIFY_VK").map(|v| v.eq_ignore_ascii_case("true")).unwrap_or(false);
 
         tracing::info!("vk verification: {}", vk_verification);
 
@@ -902,12 +902,8 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                         if let Ok((index, height, vk, proof)) = received {
                             batch.push((index, height, vk, proof));
 
-                            // Compute whether we've reached the root of the tree.
-                            let is_complete = height == expected_height;
-
-                            // If it's not complete, and we haven't reached the batch size,
-                            // continue.
-                            if !is_complete && batch.len() < batch_size {
+                            // If we haven't reached the batch size, continue.
+                            if batch.len() < batch_size {
                                 continue;
                             }
 
@@ -922,7 +918,10 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                             let inputs =
                                 if is_last { vec![batch[0].clone()] } else { batch.clone() };
 
-                            let next_input_index = inputs[0].1 + 1;
+                            let next_input_height = inputs[0].1 + 1;
+
+                            let is_complete = next_input_height == expected_height;
+
                             let vks_and_proofs = inputs
                                 .into_iter()
                                 .map(|(_, _, vk, proof)| (vk, proof))
@@ -936,7 +935,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                             input_tx
                                 .lock()
                                 .unwrap()
-                                .send((count, next_input_index, input))
+                                .send((count, next_input_height, input))
                                 .unwrap();
                             input_sync.advance_turn();
                             count += 1;

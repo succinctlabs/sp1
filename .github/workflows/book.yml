@@ -5,9 +5,9 @@ name: book
 
 on:
   push:
-    branches: [main]
+    branches: [dev]
   pull_request:
-    branches: [main]
+    branches: [dev]
     paths:
       - "book/**"
   merge_group:
@@ -117,7 +117,7 @@ jobs:
 
   deploy:
     # Only deploy if a push to main
-    if: github.ref_name == 'main' && github.event_name == 'push'
+    if: github.ref_name == 'dev' && github.event_name == 'push'
     runs-on: ubuntu-latest
     needs: [lint, build]
 

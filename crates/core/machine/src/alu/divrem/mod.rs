@@ -556,16 +556,20 @@ where
 
                 // Add remainder.
                 if i < WORD_SIZE {
-                    c_times_quotient_plus_remainder[i] += local.remainder[i].into();
+                    c_times_quotient_plus_remainder[i] =
+                        c_times_quotient_plus_remainder[i].clone() + local.remainder[i].into();
                 } else {
                     // If rem is negative, add 0xff to the upper 4 bytes.
-                    c_times_quotient_plus_remainder[i] += sign_extension.clone();
+                    c_times_quotient_plus_remainder[i] =
+                        c_times_quotient_plus_remainder[i].clone() + sign_extension.clone();
                 }
 
                 // Propagate carry.
-                c_times_quotient_plus_remainder[i] -= local.carry[i] * base;
+                c_times_quotient_plus_remainder[i] =
+                    c_times_quotient_plus_remainder[i].clone() - local.carry[i] * base;
                 if i > 0 {
-                    c_times_quotient_plus_remainder[i] += local.carry[i - 1].into();
+                    c_times_quotient_plus_remainder[i] =
+                        c_times_quotient_plus_remainder[i].clone() + local.carry[i - 1].into();
                 }
             }
 
@@ -612,8 +616,8 @@ where
             let mut rem_byte_sum = zero.clone();
             let mut b_byte_sum = zero.clone();
             for i in 0..WORD_SIZE {
-                rem_byte_sum += local.remainder[i].into();
-                b_byte_sum += local.b[i].into();
+                rem_byte_sum = rem_byte_sum.clone() + local.remainder[i].into();
+                b_byte_sum = b_byte_sum + local.b[i].into();
             }
 
             // 1. If remainder < 0, then b < 0.
