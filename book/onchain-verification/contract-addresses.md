@@ -6,6 +6,27 @@ will automatically route your SP1 proof to the correct verifier based on the SP1
 
 ## Canonical Verifier Gateways
 
+There are different verifier gateway for each proof system: Groth16 and PLONK. This means that you
+must use the correct verifier gateway depending on if you are verifying a Groth16 or PLONK proof.
+
+### Groth16
+
+| Chain ID | Chain            | Gateway                                                                                                                                 |
+| -------- | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| 1        | Mainnet          | [0x397A5f7f3dBd538f23DE225B51f532c34448dA9B](https://etherscan.io/address/0x397A5f7f3dBd538f23DE225B51f532c34448dA9B)                   |
+| 11155111 | Sepolia          | [0x397A5f7f3dBd538f23DE225B51f532c34448dA9B](https://sepolia.etherscan.io/address/0x397A5f7f3dBd538f23DE225B51f532c34448dA9B)           |
+| 17000    | Holesky          | [0x397A5f7f3dBd538f23DE225B51f532c34448dA9B](https://holesky.etherscan.io/address/0x397A5f7f3dBd538f23DE225B51f532c34448dA9B)           |
+| 42161    | Arbitrum One     | [0x397A5f7f3dBd538f23DE225B51f532c34448dA9B](https://arbiscan.io/address/0x397A5f7f3dBd538f23DE225B51f532c34448dA9B)                    |
+| 421614   | Arbitrum Sepolia | [0x397A5f7f3dBd538f23DE225B51f532c34448dA9B](https://sepolia.arbiscan.io/address/0x397A5f7f3dBd538f23DE225B51f532c34448dA9B)            |
+| 8453     | Base             | [0x397A5f7f3dBd538f23DE225B51f532c34448dA9B](https://basescan.org/address/0x397A5f7f3dBd538f23DE225B51f532c34448dA9B)                   |
+| 84532    | Base Sepolia     | [0x397A5f7f3dBd538f23DE225B51f532c34448dA9B](https://sepolia.basescan.org/address/0x397A5f7f3dBd538f23DE225B51f532c34448dA9B)           |
+| 10       | Optimism         | [0x397A5f7f3dBd538f23DE225B51f532c34448dA9B](https://optimistic.etherscan.io/address/0x397A5f7f3dBd538f23DE225B51f532c34448dA9B)        |
+| 11155420 | Optimism Sepolia | [0x397A5f7f3dBd538f23DE225B51f532c34448dA9B](https://sepolia-optimism.etherscan.io/address/0x397A5f7f3dBd538f23DE225B51f532c34448dA9B)  |
+| 534351   | Scroll Sepolia   | [0x397A5f7f3dBd538f23DE225B51f532c34448dA9B](https://sepolia.scrollscan.com/address/0x397A5f7f3dBd538f23DE225B51f532c34448dA9B)         |
+| 534352   | Scroll           | [0x397A5f7f3dBd538f23DE225B51f532c34448dA9B](https://scrollscan.com/address/0x397A5f7f3dBd538f23DE225B51f532c34448dA9B)                 |
+
+### PLONK
+
 | Chain ID | Chain            | Gateway                                                                                                                                 |
 | -------- | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
 | 1        | Mainnet          | [0x3B6041173B80E77f038f3F2C0f9744f04837185e](https://etherscan.io/address/0x3B6041173B80E77f038f3F2C0f9744f04837185e)                   |
@@ -16,7 +37,7 @@ will automatically route your SP1 proof to the correct verifier based on the SP1
 | 8453     | Base             | [0x3B6041173B80E77f038f3F2C0f9744f04837185e](https://basescan.org/address/0x3B6041173B80E77f038f3F2C0f9744f04837185e)                   |
 | 84532    | Base Sepolia     | [0x3B6041173B80E77f038f3F2C0f9744f04837185e](https://sepolia.basescan.org/address/0x3B6041173B80E77f038f3F2C0f9744f04837185e)           |
 | 10       | Optimism         | [0x3B6041173B80E77f038f3F2C0f9744f04837185e](https://optimistic.etherscan.io/address/0x3b6041173b80e77f038f3f2c0f9744f04837185e)        |
-| 11155420 | Optimism Sepolia | [0x3B6041173B80E77f038f3F2C0f9744f04837185e](https://sepolia-optimism.etherscan.io/address/0x3B6041173B80E77f038f3F2C0f9744f04837185e) |
+| 11155420 | Optimism Sepolia | [0x3B6041173B80E77f038f3F2C0f9744f04837185e](https://sepolia-optimism.etherscan.io/address/0x3B6041173B80E77f038f3F2C0f9744f04837185e)  |
 | 534351   | Scroll Sepolia   | [0x3B6041173B80E77f038f3F2C0f9744f04837185e](https://sepolia.scrollscan.com/address/0x3B6041173B80E77f038f3F2C0f9744f04837185e)         |
 | 534352   | Scroll           | [0x3B6041173B80E77f038f3F2C0f9744f04837185e](https://scrollscan.com/address/0x3B6041173B80E77f038f3F2C0f9744f04837185e)                 |
 
