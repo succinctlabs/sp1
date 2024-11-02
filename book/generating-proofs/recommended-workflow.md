@@ -20,7 +20,7 @@ After you have iterated on your program and finalized that it works correctly, y
 
 ### Generating proofs on the prover network (recommended)
 
-Using Succinct's prover prover network will generally be faster and cheaper than local proving, as it parallelizes proof generation amongst multiple machines and also uses SP1's GPU prover that is not yet available for local proving. Follow the [setup instructions](./prover-network.md) to get started with the prover network. Using the prover network only requires adding 1 environment variable from a regular SP1 proof generation script with the `ProverClient`.
+Using Succinct's prover network will generally be faster and cheaper than local proving, as it parallelizes proof generation amongst multiple machines and also uses SP1's GPU prover that is not yet available for local proving. Follow the [setup instructions](./prover-network.md) to get started with the prover network. Using the prover network only requires adding 1 environment variable from a regular SP1 proof generation script with the `ProverClient`.
 
 There are a few things to keep in mind when using the prover network.
 
