@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeMap, BTreeSet, HashSet},
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     fs::File,
     hash::{DefaultHasher, Hash, Hasher},
     panic::{catch_unwind, AssertUnwindSafe},
@@ -18,10 +18,12 @@ use sp1_recursion_circuit::machine::{
     SP1CompressWithVKeyWitnessValues, SP1CompressWithVkeyShape, SP1DeferredShape,
     SP1DeferredWitnessValues, SP1RecursionShape, SP1RecursionWitnessValues,
 };
-use sp1_recursion_core::{shape::RecursionShapeConfig, RecursionProgram};
+use sp1_recursion_core::{machine::RecursionAir, shape::RecursionShapeConfig, RecursionProgram};
 use sp1_stark::{MachineProver, ProofShape, DIGEST_SIZE};
 
-use crate::{components::SP1ProverComponents, CompressAir, HashableKey, SP1Prover};
+use crate::{
+    components::SP1ProverComponents, CompressAir, HashableKey, SP1Prover, COMPRESS_DEGREE,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum SP1ProofShape {
@@ -55,9 +57,80 @@ pub enum VkBuildError {
     Bincode(#[from] bincode::Error),
 }
 
+pub fn check_shapes<C: SP1ProverComponents>(
+    reduce_batch_size: usize,
+    only_maximal: bool,
+    num_compiler_workers: usize,
+    prover: &SP1Prover<C>,
+) -> bool {
+    let (shape_tx, shape_rx) =
+        std::sync::mpsc::sync_channel::<SP1CompressProgramShape>(num_compiler_workers);
+    let (panic_tx, panic_rx) = std::sync::mpsc::channel();
+    let core_shape_config = prover.core_shape_config.as_ref().expect("core shape config not found");
+    let recursion_shape_config =
+        prover.recursion_shape_config.as_ref().expect("recursion shape config not found");
+
+    let shape_rx = Mutex::new(shape_rx);
+
+    let all_shapes = if only_maximal {
+        SP1ProofShape::generate_maximal_shapes(
+            core_shape_config,
+            recursion_shape_config,
+            reduce_batch_size,
+        )
+        .collect::<BTreeSet<SP1ProofShape>>()
+    } else {
+        SP1ProofShape::generate(core_shape_config, recursion_shape_config, reduce_batch_size)
+            .collect::<BTreeSet<SP1ProofShape>>()
+    };
+    let num_shapes = all_shapes.len();
+    tracing::info!("number of shapes: {}", num_shapes);
+    let height = num_shapes.next_power_of_two().ilog2() as usize;
+
+    std::thread::scope(|s| {
+        // Initialize compiler workers.
+        for _ in 0..num_compiler_workers {
+            let shape_rx = &shape_rx;
+            let prover = &prover;
+            let panic_tx = panic_tx.clone();
+            s.spawn(move || {
+                while let Ok(shape) = shape_rx.lock().unwrap().recv() {
+                    tracing::info!("shape is {:?}", shape);
+                    let program =
+                        catch_unwind(AssertUnwindSafe(|| prover.program_from_shape(shape.clone())));
+                    match program {
+                        Ok(_) => {}
+                        Err(e) => {
+                            tracing::warn!(
+                                "Program generation failed for shape {:?}, with error: {:?}",
+                                shape,
+                                e
+                            );
+                            panic_tx.send(true).unwrap();
+                        }
+                    }
+                }
+            });
+        }
+
+        // Generate shapes and send them to the compiler workers.
+        all_shapes.into_iter().for_each(|program_shape| {
+            shape_tx
+                .send(SP1CompressProgramShape::from_proof_shape(program_shape, height))
+                .unwrap();
+        });
+
+        drop(shape_tx);
+        drop(panic_tx);
+
+        panic_rx.iter().next().is_none()
+    })
+}
+
 pub fn build_vk_map<C: SP1ProverComponents>(
     reduce_batch_size: usize,
     dummy: bool,
+    only_maximal: bool,
     num_compiler_workers: usize,
     num_setup_workers: usize,
     indices: Option<Vec<usize>>,
@@ -91,9 +164,17 @@ pub fn build_vk_map<C: SP1ProverComponents>(
         let program_rx = Mutex::new(program_rx);
 
         let indices_set = indices.map(|indices| indices.into_iter().collect::<HashSet<_>>());
-        let all_shapes =
+        let all_shapes = if only_maximal {
+            SP1ProofShape::generate_maximal_shapes(
+                core_shape_config,
+                recursion_shape_config,
+                reduce_batch_size,
+            )
+            .collect::<BTreeSet<_>>()
+        } else {
             SP1ProofShape::generate(core_shape_config, recursion_shape_config, reduce_batch_size)
-                .collect::<BTreeSet<_>>();
+                .collect::<BTreeSet<_>>()
+        };
         let num_shapes = all_shapes.len();
         tracing::info!("number of shapes: {}", num_shapes);
 
@@ -201,6 +282,7 @@ pub fn build_vk_map_to_file<C: SP1ProverComponents>(
     let (vk_set, _, _) = build_vk_map::<C>(
         reduce_batch_size,
         dummy,
+        false,
         num_compiler_workers,
         num_setup_workers,
         range_start.and_then(|start| range_end.map(|end| (start..end).collect())),
@@ -248,6 +330,34 @@ impl SP1ProofShape {
         (1..=reduce_batch_size).flat_map(|batch_size| {
             recursion_shape_config.get_all_shape_combinations(batch_size).map(Self::Compress)
         })
+    }
+
+    pub fn generate_maximal_shapes<'a>(
+        core_shape_config: &'a CoreShapeConfig<BabyBear>,
+        recursion_shape_config: &'a RecursionShapeConfig<BabyBear, CompressAir<BabyBear>>,
+        reduce_batch_size: usize,
+    ) -> impl Iterator<Item = Self> + 'a {
+        core_shape_config
+            .maximal_core_shapes()
+            .into_iter()
+            .map(|core_shape| {
+                Self::Recursion(ProofShape {
+                    chip_information: core_shape.inner.into_iter().collect(),
+                })
+            })
+            .chain((1..=reduce_batch_size).flat_map(|batch_size| {
+                recursion_shape_config.get_all_shape_combinations(batch_size).map(Self::Compress)
+            }))
+            .chain(
+                recursion_shape_config
+                    .get_all_shape_combinations(1)
+                    .map(|mut x| Self::Deferred(x.pop().unwrap())),
+            )
+            .chain(
+                recursion_shape_config
+                    .get_all_shape_combinations(1)
+                    .map(|mut x| Self::Shrink(x.pop().unwrap())),
+            )
     }
 
     pub fn dummy_vk_map<'a>(
