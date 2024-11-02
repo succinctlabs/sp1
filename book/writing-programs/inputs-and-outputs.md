@@ -56,7 +56,7 @@ struct MyStruct {
 }
 ```
 
-For more complex usecases, refer to the [Serde docs](https://serde.rs/).
+For more complex use cases, refer to the [Serde docs](https://serde.rs/).
 
 ## Example
 
