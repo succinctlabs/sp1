@@ -124,12 +124,12 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> Default
         // Specify allowed shapes.
         let allowed_shapes = [
             [
-                (ext_alu.clone(), 18),
+                (ext_alu.clone(), 16),
                 (base_alu.clone(), 16),
                 (mem_var.clone(), 19),
                 (poseidon2_wide.clone(), 17),
                 (mem_const.clone(), 18),
-                (batch_fri.clone(), 19),
+                (batch_fri.clone(), 18),
                 (exp_reverse_bits_len.clone(), 18),
                 (select.clone(), 20),
                 (public_values.clone(), PUB_VALUES_LOG_HEIGHT),
