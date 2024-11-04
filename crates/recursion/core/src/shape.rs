@@ -24,11 +24,11 @@ use crate::{
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct RecursionShape {
-    pub(crate) inner: HashMap<String, usize>,
+    pub inner: HashMap<String, usize>,
 }
 
 pub struct RecursionShapeConfig<F, A> {
-    pub allowed_shapes: Vec<HashMap<String, usize>>,
+    allowed_shapes: Vec<HashMap<String, usize>>,
     _marker: PhantomData<(F, A)>,
 }
 

@@ -15,14 +15,19 @@ use p3_field::AbstractField;
 use serde::{Deserialize, Serialize};
 use sp1_core_machine::riscv::CoreShapeConfig;
 use sp1_recursion_circuit::machine::{
-    SP1CompressWithVKeyWitnessValues, SP1CompressWithVkeyShape, SP1DeferredShape,
+    SP1CompressShape, SP1CompressWithVKeyWitnessValues, SP1CompressWithVkeyShape, SP1DeferredShape,
     SP1DeferredWitnessValues, SP1RecursionShape, SP1RecursionWitnessValues,
 };
-use sp1_recursion_core::{machine::RecursionAir, shape::RecursionShapeConfig, RecursionProgram};
+use sp1_recursion_core::{
+    machine::RecursionAir,
+    shape::{RecursionShape, RecursionShapeConfig},
+    RecursionProgram,
+};
 use sp1_stark::{MachineProver, ProofShape, DIGEST_SIZE};
 
 use crate::{
-    components::SP1ProverComponents, CompressAir, HashableKey, SP1Prover, COMPRESS_DEGREE,
+    components::SP1ProverComponents, CompressAir, HashableKey, SP1Prover, ShrinkAir,
+    COMPRESS_DEGREE,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -62,6 +67,7 @@ pub fn check_shapes<C: SP1ProverComponents>(
     only_maximal: bool,
     num_compiler_workers: usize,
     prover: &SP1Prover<C>,
+    shrink_shape: RecursionShape,
 ) -> bool {
     let (shape_tx, shape_rx) =
         std::sync::mpsc::sync_channel::<SP1CompressProgramShape>(num_compiler_workers);
@@ -126,15 +132,22 @@ pub fn check_shapes<C: SP1ProverComponents>(
         panic_rx.iter().next().is_none()
     });
 
-    for shape in recursion_shape_config.allowed_shapes {
+    let mut shrink_ok = true;
+
+    for shape in recursion_shape_config.get_all_shape_combinations(1) {
         let compress_input = SP1CompressWithVKeyWitnessValues::dummy(
             prover.compress_prover.machine(),
-            ,
+            &SP1CompressWithVkeyShape { compress_shape: shape.into(), merkle_tree_height: height },
         );
-        prover.shrink_program(&compress_input)
+        let program = catch_unwind(AssertUnwindSafe(|| {
+            prover.shrink_program(shrink_shape.clone(), &compress_input)
+        }));
+        if program.is_err() {
+            shrink_ok = false;
+        }
     }
 
-    compress_ok
+    compress_ok && shrink_ok
 }
 
 pub fn build_vk_map<C: SP1ProverComponents>(
@@ -423,7 +436,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             SP1CompressProgramShape::Shrink(shape) => {
                 let input =
                     SP1CompressWithVKeyWitnessValues::dummy(self.compress_prover.machine(), &shape);
-                self.shrink_program(&input)
+                self.shrink_program(ShrinkAir::<BabyBear>::shrink_shape(), &input)
             }
         }
     }

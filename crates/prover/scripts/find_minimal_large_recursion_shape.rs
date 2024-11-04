@@ -1,13 +1,14 @@
 use std::{collections::HashMap, path::PathBuf};
 
 use clap::Parser;
+use p3_baby_bear::BabyBear;
 use sp1_core_machine::utils::setup_logger;
 use sp1_prover::{
     components::DefaultProverComponents,
     shapes::{build_vk_map_to_file, check_shapes},
-    SP1Prover, REDUCE_BATCH_SIZE,
+    SP1Prover, ShrinkAir, REDUCE_BATCH_SIZE,
 };
-use sp1_recursion_core::shape::RecursionShapeConfig;
+use sp1_recursion_core::{machine::RecursionAir, shape::RecursionShapeConfig};
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
@@ -46,7 +47,15 @@ fn main() {
 
     prover.recursion_shape_config = Some(RecursionShapeConfig::from_hash_map(&candidate));
 
-    assert!(check_shapes(reduce_batch_size, true, num_compiler_workers, &prover));
+    let mut shrink_shape = ShrinkAir::<BabyBear>::shrink_shape();
+
+    assert!(check_shapes(
+        reduce_batch_size,
+        true,
+        num_compiler_workers,
+        &prover,
+        shrink_shape.clone()
+    ));
 
     let mut answer = candidate.clone();
 
@@ -58,10 +67,38 @@ fn main() {
                 new_val -= 1;
                 answer.insert(key.clone(), new_val);
                 prover.recursion_shape_config = Some(RecursionShapeConfig::from_hash_map(&answer));
-                done = !check_shapes(reduce_batch_size, true, num_compiler_workers, &prover);
+                done = !check_shapes(
+                    reduce_batch_size,
+                    true,
+                    num_compiler_workers,
+                    &prover,
+                    shrink_shape.clone(),
+                );
             }
             answer.insert(key.clone(), new_val + 1);
         }
     }
-    println!("Final shape: {:?}", answer);
+
+    let mut shrink_shape = shrink_shape.inner;
+
+    for (key, value) in shrink_shape.clone().iter() {
+        if key != "PublicValues" {
+            let mut done = false;
+            let mut new_val = *value;
+            while !done {
+                new_val -= 1;
+                shrink_shape.insert(key.clone(), new_val);
+                prover.recursion_shape_config = Some(RecursionShapeConfig::from_hash_map(&answer));
+                done = !check_shapes(
+                    reduce_batch_size,
+                    true,
+                    num_compiler_workers,
+                    &prover,
+                    shrink_shape.clone(),
+                );
+            }
+            answer.insert(key.clone(), new_val + 1);
+        }
+    }
+    println!("Final compress shape: {:?}", answer);
 }

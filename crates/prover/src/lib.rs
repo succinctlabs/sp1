@@ -64,9 +64,12 @@ use sp1_recursion_compiler::{
     ir::{Builder, Witness},
 };
 use sp1_recursion_core::{
-    air::RecursionPublicValues, machine::RecursionAir, runtime::ExecutionRecord,
-    shape::RecursionShapeConfig, stark::BabyBearPoseidon2Outer, RecursionProgram,
-    Runtime as RecursionRuntime,
+    air::RecursionPublicValues,
+    machine::RecursionAir,
+    runtime::ExecutionRecord,
+    shape::{RecursionShape, RecursionShapeConfig},
+    stark::BabyBearPoseidon2Outer,
+    RecursionProgram, Runtime as RecursionRuntime,
 };
 pub use sp1_recursion_gnark_ffi::proof::{Groth16Bn254Proof, PlonkBn254Proof};
 use sp1_recursion_gnark_ffi::{groth16_bn254::Groth16Bn254Prover, plonk_bn254::PlonkBn254Prover};
@@ -392,6 +395,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 
     pub fn shrink_program(
         &self,
+        shrink_shape: RecursionShape,
         input: &SP1CompressWithVKeyWitnessValues<InnerSC>,
     ) -> Arc<RecursionProgram<BabyBear>> {
         // Get the operations.
@@ -413,7 +417,8 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         let compiler_span = tracing::debug_span!("compile shrink program").entered();
         let mut compiler = AsmCompiler::<InnerConfig>::default();
         let mut program = compiler.compile(operations);
-        program.shape = Some(ShrinkAir::<BabyBear>::shrink_shape());
+
+        program.shape = Some(shrink_shape);
         let program = Arc::new(program);
         compiler_span.exit();
         program
@@ -990,7 +995,8 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 
         let input_with_merkle = self.make_merkle_proofs(input);
 
-        let program = self.shrink_program(&input_with_merkle);
+        let program =
+            self.shrink_program(ShrinkAir::<BabyBear>::shrink_shape(), &input_with_merkle);
 
         // Run the compress program.
         let mut runtime = RecursionRuntime::<Val<InnerSC>, Challenge<InnerSC>, _>::new(
