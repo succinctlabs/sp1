@@ -2,6 +2,7 @@ use std::{
     collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     fs::File,
     hash::{DefaultHasher, Hash, Hasher},
+    iter::once,
     panic::{catch_unwind, AssertUnwindSafe},
     path::PathBuf,
     sync::{Arc, Mutex},
@@ -83,6 +84,7 @@ pub fn check_shapes<C: SP1ProverComponents>(
             core_shape_config,
             recursion_shape_config,
             reduce_batch_size,
+            ProofShape { chip_information: shrink_shape.clone().inner.into_iter().collect() },
         )
         .collect::<BTreeSet<SP1ProofShape>>()
     } else {
@@ -102,8 +104,9 @@ pub fn check_shapes<C: SP1ProverComponents>(
             s.spawn(move || {
                 while let Ok(shape) = shape_rx.lock().unwrap().recv() {
                     tracing::info!("shape is {:?}", shape);
-                    let program =
-                        catch_unwind(AssertUnwindSafe(|| prover.program_from_shape(shape.clone())));
+                    let program = catch_unwind(AssertUnwindSafe(|| {
+                        prover.program_from_shape(shape.clone(), None)
+                    }));
                     match program {
                         Ok(_) => {}
                         Err(e) => {
@@ -132,22 +135,7 @@ pub fn check_shapes<C: SP1ProverComponents>(
         panic_rx.iter().next().is_none()
     });
 
-    let mut shrink_ok = true;
-
-    for shape in recursion_shape_config.get_all_shape_combinations(1) {
-        let compress_input = SP1CompressWithVKeyWitnessValues::dummy(
-            prover.compress_prover.machine(),
-            &SP1CompressWithVkeyShape { compress_shape: shape.into(), merkle_tree_height: height },
-        );
-        let program = catch_unwind(AssertUnwindSafe(|| {
-            prover.shrink_program(shrink_shape.clone(), &compress_input)
-        }));
-        if program.is_err() {
-            shrink_ok = false;
-        }
-    }
-
-    compress_ok && shrink_ok
+    compress_ok
 }
 
 pub fn build_vk_map<C: SP1ProverComponents>(
@@ -192,6 +180,12 @@ pub fn build_vk_map<C: SP1ProverComponents>(
                 core_shape_config,
                 recursion_shape_config,
                 reduce_batch_size,
+                ProofShape {
+                    chip_information: ShrinkAir::<BabyBear>::shrink_shape()
+                        .inner
+                        .into_iter()
+                        .collect(),
+                },
             )
             .collect::<BTreeSet<_>>()
         } else {
@@ -215,7 +209,7 @@ pub fn build_vk_map<C: SP1ProverComponents>(
                     while let Ok((i, shape)) = shape_rx.lock().unwrap().recv() {
                         println!("shape {} is {:?}", i, shape);
                         let program = catch_unwind(AssertUnwindSafe(|| {
-                            prover.program_from_shape(shape.clone())
+                            prover.program_from_shape(shape.clone(), None)
                         }));
                         let is_shrink = matches!(shape, SP1CompressProgramShape::Shrink(_));
                         match program {
@@ -359,6 +353,7 @@ impl SP1ProofShape {
         core_shape_config: &'a CoreShapeConfig<BabyBear>,
         recursion_shape_config: &'a RecursionShapeConfig<BabyBear, CompressAir<BabyBear>>,
         reduce_batch_size: usize,
+        shrink_shape: ProofShape,
     ) -> impl Iterator<Item = Self> + 'a {
         core_shape_config
             .maximal_core_shapes()
@@ -376,11 +371,7 @@ impl SP1ProofShape {
                     .get_all_shape_combinations(1)
                     .map(|mut x| Self::Deferred(x.pop().unwrap())),
             )
-            .chain(
-                recursion_shape_config
-                    .get_all_shape_combinations(1)
-                    .map(|mut x| Self::Shrink(x.pop().unwrap())),
-            )
+            .chain(once(SP1ProofShape::Shrink(shrink_shape)))
     }
 
     pub fn dummy_vk_map<'a>(
@@ -418,6 +409,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
     pub fn program_from_shape(
         &self,
         shape: SP1CompressProgramShape,
+        shrink_shape: Option<&RecursionShape>,
     ) -> Arc<RecursionProgram<BabyBear>> {
         match shape {
             SP1CompressProgramShape::Recursion(shape) => {
@@ -436,7 +428,12 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             SP1CompressProgramShape::Shrink(shape) => {
                 let input =
                     SP1CompressWithVKeyWitnessValues::dummy(self.compress_prover.machine(), &shape);
-                self.shrink_program(ShrinkAir::<BabyBear>::shrink_shape(), &input)
+                let new_shrink_shape = if let Some(shape) = shrink_shape {
+                    shape.clone()
+                } else {
+                    ShrinkAir::<BabyBear>::shrink_shape()
+                };
+                self.shrink_program(new_shrink_shape, &input)
             }
         }
     }

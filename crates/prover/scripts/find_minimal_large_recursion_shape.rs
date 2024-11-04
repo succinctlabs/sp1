@@ -47,7 +47,7 @@ fn main() {
 
     prover.recursion_shape_config = Some(RecursionShapeConfig::from_hash_map(&candidate));
 
-    let mut shrink_shape = ShrinkAir::<BabyBear>::shrink_shape();
+    let shrink_shape = ShrinkAir::<BabyBear>::shrink_shape();
 
     assert!(check_shapes(
         reduce_batch_size,
@@ -79,16 +79,19 @@ fn main() {
         }
     }
 
-    let mut shrink_shape = shrink_shape.inner;
+    let mut shrink_shape = shrink_shape;
 
-    for (key, value) in shrink_shape.clone().iter() {
+    println!("Tuning shrink shape.");
+
+    for (key, value) in shrink_shape.inner.clone().iter() {
         if key != "PublicValues" {
             let mut done = false;
             let mut new_val = *value;
             while !done {
                 new_val -= 1;
-                shrink_shape.insert(key.clone(), new_val);
+                shrink_shape.inner.insert(key.clone(), new_val);
                 prover.recursion_shape_config = Some(RecursionShapeConfig::from_hash_map(&answer));
+                println!("Checking shrink shape: {:?}", shrink_shape);
                 done = !check_shapes(
                     reduce_batch_size,
                     true,
@@ -100,5 +103,7 @@ fn main() {
             answer.insert(key.clone(), new_val + 1);
         }
     }
+
+    println!("Final shrink shape: {:?}", shrink_shape.inner);
     println!("Final compress shape: {:?}", answer);
 }
