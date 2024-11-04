@@ -23,7 +23,7 @@ and [KALOS](https://kalos.xyz/) and is recommended for production use. The audit
 
 ## For Contributors
 
-Open-source is a core part of SP1's ethos and key to its advantages. We wish to cultivate a vibrant community of open-source contributors that span individuals, teams and geographies. If you want to contribute, or follow along with contributor discussion, you can use our main Telegram to chat with us. Our contributor guidelines can be found in [CONTRIBUTING.md](./CONTRIBUTING.md). A quick overview of development tips can be found in [DEVELOPMENT.md](./DEVELOPMENT.md).
+Open-source is a core part of SP1's ethos and key to its advantages. We wish to cultivate a vibrant community of open-source contributors that span individuals, teams and geographies. If you want to contribute, or follow along with contributor discussion, you can use our main Telegram to chat with us. Our contributor guidelines can be found in the [CONTRIBUTING.md](./CONTRIBUTING.md). A quick overview of development tips can be found in [DEVELOPMENT.md](./DEVELOPMENT.md).
 
 We are always looking for contributors interested in tasks big and small, including minor chores across the codebase, optimizing performance, adding precompiles for commonly used cryptographic operations, adding documentation, creating new example programs and more. Please reach out in the Telegram chat if interested!
 
