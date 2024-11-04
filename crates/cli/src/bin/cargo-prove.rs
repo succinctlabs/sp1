@@ -16,7 +16,13 @@ pub enum Cargo {
 }
 
 #[derive(clap::Args)]
-#[command(author, about, long_about = None, args_conflicts_with_subcommands = true, version = SP1_VERSION_MESSAGE)]
+#[command(
+    author,
+    about,
+    long_about = None,
+    args_conflicts_with_subcommands = true,
+    version = SP1_VERSION_MESSAGE
+)]
 pub struct ProveCli {
     #[clap(subcommand)]
     pub command: Option<ProveCliCommands>,
@@ -37,15 +43,18 @@ pub enum ProveCliCommands {
 }
 
 fn main() -> Result<()> {
-    let Cargo::Prove(args) = Cargo::parse();
-    let command = args.command.unwrap_or(ProveCliCommands::Prove(args.prove));
-    match command {
-        ProveCliCommands::New(cmd) => cmd.run(),
-        ProveCliCommands::Build(cmd) => cmd.run(),
-        ProveCliCommands::Prove(cmd) => cmd.run(),
-        ProveCliCommands::BuildToolchain(cmd) => cmd.run(),
-        ProveCliCommands::InstallToolchain(cmd) => cmd.run(),
-        ProveCliCommands::Trace(cmd) => cmd.run(),
-        ProveCliCommands::Vkey(cmd) => cmd.run(),
+    match Cargo::parse() {
+        Cargo::Prove(args) => {
+            let command = args.command.unwrap_or(ProveCliCommands::Prove(args.prove));
+            match command {
+                ProveCliCommands::New(cmd) => cmd.run(),
+                ProveCliCommands::Build(cmd) => cmd.run(),
+                ProveCliCommands::Prove(cmd) => cmd.run(),
+                ProveCliCommands::BuildToolchain(cmd) => cmd.run(),
+                ProveCliCommands::InstallToolchain(cmd) => cmd.run(),
+                ProveCliCommands::Trace(cmd) => cmd.run(),
+                ProveCliCommands::Vkey(cmd) => cmd.run(),
+            }
+        }
     }
 }
