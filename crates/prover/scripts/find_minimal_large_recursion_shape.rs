@@ -1,14 +1,15 @@
-use std::{collections::HashMap, path::PathBuf};
+use std::panic::{catch_unwind, AssertUnwindSafe};
 
 use clap::Parser;
 use p3_baby_bear::BabyBear;
 use sp1_core_machine::utils::setup_logger;
 use sp1_prover::{
     components::DefaultProverComponents,
-    shapes::{build_vk_map_to_file, check_shapes},
+    shapes::{check_shapes, SP1ProofShape},
     SP1Prover, ShrinkAir, REDUCE_BATCH_SIZE,
 };
-use sp1_recursion_core::{machine::RecursionAir, shape::RecursionShapeConfig};
+use sp1_recursion_core::shape::{RecursionShape, RecursionShapeConfig};
+use sp1_stark::{MachineProver, ProofShape};
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
@@ -41,21 +42,13 @@ fn main() {
     let recursion_shape_config =
         prover.recursion_shape_config.as_ref().expect("recursion shape config not found");
 
-    let recursion_shape_config = recursion_shape_config.union_config_with_extra_room();
+    // let recursion_shape_config = recursion_shape_config.union_config_with_extra_room();
 
     let candidate = recursion_shape_config.first().unwrap().clone();
 
     prover.recursion_shape_config = Some(RecursionShapeConfig::from_hash_map(&candidate));
 
-    let shrink_shape = ShrinkAir::<BabyBear>::shrink_shape();
-
-    assert!(check_shapes(
-        reduce_batch_size,
-        true,
-        num_compiler_workers,
-        &prover,
-        shrink_shape.clone()
-    ));
+    assert!(check_shapes(reduce_batch_size, true, num_compiler_workers, &prover,));
 
     let mut answer = candidate.clone();
 
@@ -67,43 +60,56 @@ fn main() {
                 new_val -= 1;
                 answer.insert(key.clone(), new_val);
                 prover.recursion_shape_config = Some(RecursionShapeConfig::from_hash_map(&answer));
-                done = !check_shapes(
-                    reduce_batch_size,
-                    true,
-                    num_compiler_workers,
-                    &prover,
-                    shrink_shape.clone(),
-                );
+                done = !check_shapes(reduce_batch_size, true, num_compiler_workers, &prover);
             }
             answer.insert(key.clone(), new_val + 1);
         }
     }
 
-    let mut shrink_shape = shrink_shape;
+    // Check that the shrink shape is compatible with the final compress shape choice.
+    let mut shrink_shape = ShrinkAir::<BabyBear>::shrink_shape().inner;
 
-    println!("Tuning shrink shape.");
+    assert!({
+        prover.recursion_shape_config = Some(RecursionShapeConfig::from_hash_map(&answer));
+        catch_unwind(AssertUnwindSafe(|| {
+            prover.shrink_prover.setup(&prover.program_from_shape(
+                sp1_prover::shapes::SP1CompressProgramShape::from_proof_shape(
+                    SP1ProofShape::Shrink(ProofShape {
+                        chip_information: answer.clone().into_iter().collect::<Vec<_>>(),
+                    }),
+                    5,
+                ),
+                Some(RecursionShape { inner: shrink_shape.clone() }),
+            ))
+        }))
+        .is_ok()
+    });
 
-    for (key, value) in shrink_shape.inner.clone().iter() {
+    for (key, value) in shrink_shape.clone().iter() {
         if key != "PublicValues" {
             let mut done = false;
-            let mut new_val = *value;
+            let mut new_val = *value + 1;
             while !done {
                 new_val -= 1;
-                shrink_shape.inner.insert(key.clone(), new_val);
+                shrink_shape.insert(key.clone(), new_val);
                 prover.recursion_shape_config = Some(RecursionShapeConfig::from_hash_map(&answer));
-                println!("Checking shrink shape: {:?}", shrink_shape);
-                done = !check_shapes(
-                    reduce_batch_size,
-                    true,
-                    num_compiler_workers,
-                    &prover,
-                    shrink_shape.clone(),
-                );
+                done = catch_unwind(AssertUnwindSafe(|| {
+                    prover.shrink_prover.setup(&prover.program_from_shape(
+                        sp1_prover::shapes::SP1CompressProgramShape::from_proof_shape(
+                            SP1ProofShape::Shrink(ProofShape {
+                                chip_information: answer.clone().into_iter().collect::<Vec<_>>(),
+                            }),
+                            5,
+                        ),
+                        Some(RecursionShape { inner: shrink_shape.clone() }),
+                    ))
+                }))
+                .is_err();
             }
-            answer.insert(key.clone(), new_val + 1);
+            shrink_shape.insert(key.clone(), new_val + 1);
         }
     }
 
-    println!("Final shrink shape: {:?}", shrink_shape.inner);
     println!("Final compress shape: {:?}", answer);
+    println!("Final shrink shape: {:?}", shrink_shape);
 }

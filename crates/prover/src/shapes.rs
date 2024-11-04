@@ -1,35 +1,30 @@
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
+    collections::{BTreeMap, BTreeSet, HashSet},
     fs::File,
     hash::{DefaultHasher, Hash, Hasher},
-    iter::once,
     panic::{catch_unwind, AssertUnwindSafe},
     path::PathBuf,
     sync::{Arc, Mutex},
 };
 
 use eyre::Result;
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use p3_baby_bear::BabyBear;
 use p3_field::AbstractField;
-use serde::{Deserialize, Serialize};
 use sp1_core_machine::riscv::CoreShapeConfig;
 use sp1_recursion_circuit::machine::{
-    SP1CompressShape, SP1CompressWithVKeyWitnessValues, SP1CompressWithVkeyShape, SP1DeferredShape,
+    SP1CompressWithVKeyWitnessValues, SP1CompressWithVkeyShape, SP1DeferredShape,
     SP1DeferredWitnessValues, SP1RecursionShape, SP1RecursionWitnessValues,
 };
 use sp1_recursion_core::{
-    machine::RecursionAir,
     shape::{RecursionShape, RecursionShapeConfig},
     RecursionProgram,
 };
 use sp1_stark::{MachineProver, ProofShape, DIGEST_SIZE};
 
-use crate::{
-    components::SP1ProverComponents, CompressAir, HashableKey, SP1Prover, ShrinkAir,
-    COMPRESS_DEGREE,
-};
+use crate::{components::SP1ProverComponents, CompressAir, HashableKey, SP1Prover, ShrinkAir};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum SP1ProofShape {
@@ -68,7 +63,6 @@ pub fn check_shapes<C: SP1ProverComponents>(
     only_maximal: bool,
     num_compiler_workers: usize,
     prover: &SP1Prover<C>,
-    shrink_shape: RecursionShape,
 ) -> bool {
     let (shape_tx, shape_rx) =
         std::sync::mpsc::sync_channel::<SP1CompressProgramShape>(num_compiler_workers);
@@ -84,7 +78,6 @@ pub fn check_shapes<C: SP1ProverComponents>(
             core_shape_config,
             recursion_shape_config,
             reduce_batch_size,
-            ProofShape { chip_information: shrink_shape.clone().inner.into_iter().collect() },
         )
         .collect::<BTreeSet<SP1ProofShape>>()
     } else {
@@ -180,12 +173,6 @@ pub fn build_vk_map<C: SP1ProverComponents>(
                 core_shape_config,
                 recursion_shape_config,
                 reduce_batch_size,
-                ProofShape {
-                    chip_information: ShrinkAir::<BabyBear>::shrink_shape()
-                        .inner
-                        .into_iter()
-                        .collect(),
-                },
             )
             .collect::<BTreeSet<_>>()
         } else {
@@ -353,7 +340,6 @@ impl SP1ProofShape {
         core_shape_config: &'a CoreShapeConfig<BabyBear>,
         recursion_shape_config: &'a RecursionShapeConfig<BabyBear, CompressAir<BabyBear>>,
         reduce_batch_size: usize,
-        shrink_shape: ProofShape,
     ) -> impl Iterator<Item = Self> + 'a {
         core_shape_config
             .maximal_core_shapes()
@@ -371,7 +357,11 @@ impl SP1ProofShape {
                     .get_all_shape_combinations(1)
                     .map(|mut x| Self::Deferred(x.pop().unwrap())),
             )
-            .chain(once(SP1ProofShape::Shrink(shrink_shape)))
+            .chain(
+                recursion_shape_config
+                    .get_all_shape_combinations(1)
+                    .map(|mut x| Self::Shrink(x.pop().unwrap())),
+            )
     }
 
     pub fn dummy_vk_map<'a>(
@@ -409,7 +399,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
     pub fn program_from_shape(
         &self,
         shape: SP1CompressProgramShape,
-        shrink_shape: Option<&RecursionShape>,
+        shrink_shape: Option<RecursionShape>,
     ) -> Arc<RecursionProgram<BabyBear>> {
         match shape {
             SP1CompressProgramShape::Recursion(shape) => {
@@ -428,12 +418,10 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             SP1CompressProgramShape::Shrink(shape) => {
                 let input =
                     SP1CompressWithVKeyWitnessValues::dummy(self.compress_prover.machine(), &shape);
-                let new_shrink_shape = if let Some(shape) = shrink_shape {
-                    shape.clone()
-                } else {
-                    ShrinkAir::<BabyBear>::shrink_shape()
-                };
-                self.shrink_program(new_shrink_shape, &input)
+                self.shrink_program(
+                    shrink_shape.unwrap_or_else(ShrinkAir::<BabyBear>::shrink_shape),
+                    &input,
+                )
             }
         }
     }
