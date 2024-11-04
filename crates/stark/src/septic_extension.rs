@@ -2,6 +2,7 @@ use num_bigint::BigUint;
 use num_traits::One;
 use p3_field::{AbstractExtensionField, AbstractField, ExtensionField, Field, Packable};
 use serde::{Deserialize, Serialize};
+use std::array;
 use std::fmt::Display;
 use std::iter::{Product, Sum};
 use std::ops::{Add, AddAssign, Div, Mul, MulAssign, Neg, Sub, SubAssign};
@@ -180,11 +181,14 @@ impl<F: Field> Field for SepticExtension<F> {
     type Packing = Self;
 
     fn try_inverse(&self) -> Option<Self> {
-        todo!()
+        if self.is_zero() {
+            return None;
+        }
+        Some(self.inv())
     }
 
     fn order() -> BigUint {
-        F::order().pow(7 as u32)
+        F::order().pow(7)
     }
 }
 
@@ -207,8 +211,8 @@ impl<F: AbstractField> AbstractExtensionField<F> for SepticExtension<F> {
         ])
     }
 
-    fn from_base_fn<G: FnMut(usize) -> F>(_: G) -> Self {
-        todo!()
+    fn from_base_fn<G: FnMut(usize) -> F>(f: G) -> Self {
+        Self(array::from_fn(f))
     }
 
     fn as_base_slice(&self) -> &[F] {
@@ -306,14 +310,16 @@ impl<F: AbstractField> MulAssign for SepticExtension<F> {
 }
 
 impl<F: AbstractField> Product for SepticExtension<F> {
-    fn product<I: Iterator<Item = Self>>(_: I) -> Self {
-        todo!()
+    fn product<I: Iterator<Item = Self>>(iter: I) -> Self {
+        let one = Self::one();
+        iter.fold(one, |acc, x| acc * x)
     }
 }
 
 impl<F: AbstractField> Sum for SepticExtension<F> {
-    fn sum<I: Iterator<Item = Self>>(_: I) -> Self {
-        todo!()
+    fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
+        let zero = Self::zero();
+        iter.fold(zero, |acc, x| acc + x)
     }
 }
 
@@ -363,21 +369,32 @@ impl<F: AbstractField> Mul<F> for SepticExtension<F> {
     type Output = Self;
 
     fn mul(self, rhs: F) -> Self::Output {
-        todo!()
+        SepticExtension([
+            self.0[0].clone() * rhs.clone(),
+            self.0[1].clone() * rhs.clone(),
+            self.0[2].clone() * rhs.clone(),
+            self.0[3].clone() * rhs.clone(),
+            self.0[4].clone() * rhs.clone(),
+            self.0[5].clone() * rhs.clone(),
+            self.0[6].clone() * rhs.clone(),
+        ])
     }
 }
 
 impl<F: AbstractField> MulAssign<F> for SepticExtension<F> {
     fn mul_assign(&mut self, rhs: F) {
-        todo!()
+        for i in 0..7 {
+            self.0[i] *= rhs.clone();
+        }
     }
 }
 
-impl<F: AbstractField> Div for SepticExtension<F> {
+impl<F: Field> Div for SepticExtension<F> {
     type Output = Self;
 
+    #[allow(clippy::suspicious_arithmetic_impl)]
     fn div(self, rhs: Self) -> Self::Output {
-        todo!()
+        self * rhs.inverse()
     }
 }
 
@@ -388,27 +405,124 @@ impl<F: AbstractField> Display for SepticExtension<F> {
 }
 
 impl<F: Field> SepticExtension<F> {
-    #[must_use]
-    pub fn pow(&self, power: &BigUint) -> Self {
-        let mut result = Self::one();
-        let mut base = *self;
-        let bits = power.bits();
-
-        for i in 0..bits {
-            if power.bit(i) {
-                result *= base;
-            }
-            base = base * base;
+    fn z_pow_p(index: u32) -> Self {
+        // The constants written below are specifically for the BabyBear field.
+        debug_assert_eq!(F::order(), BigUint::from(2013265921u32));
+        if index == 0 {
+            return Self::one();
         }
+        if index == 1 {
+            return SepticExtension([
+                F::from_canonical_u32(954599710),
+                F::from_canonical_u32(1359279693),
+                F::from_canonical_u32(566669999),
+                F::from_canonical_u32(1982781815),
+                F::from_canonical_u32(1735718361),
+                F::from_canonical_u32(1174868538),
+                F::from_canonical_u32(1120871770),
+            ]);
+        }
+        if index == 2 {
+            return SepticExtension([
+                F::from_canonical_u32(862825265),
+                F::from_canonical_u32(597046311),
+                F::from_canonical_u32(978840770),
+                F::from_canonical_u32(1790138282),
+                F::from_canonical_u32(1044777201),
+                F::from_canonical_u32(835869808),
+                F::from_canonical_u32(1342179023),
+            ]);
+        }
+        if index == 3 {
+            return SepticExtension([
+                F::from_canonical_u32(596273169),
+                F::from_canonical_u32(658837454),
+                F::from_canonical_u32(1515468261),
+                F::from_canonical_u32(367059247),
+                F::from_canonical_u32(781278880),
+                F::from_canonical_u32(1544222616),
+                F::from_canonical_u32(155490465),
+            ]);
+        }
+        if index == 4 {
+            return SepticExtension([
+                F::from_canonical_u32(557608863),
+                F::from_canonical_u32(1173670028),
+                F::from_canonical_u32(1749546888),
+                F::from_canonical_u32(1086464137),
+                F::from_canonical_u32(803900099),
+                F::from_canonical_u32(1288818584),
+                F::from_canonical_u32(1184677604),
+            ]);
+        }
+        if index == 5 {
+            return SepticExtension([
+                F::from_canonical_u32(763416381),
+                F::from_canonical_u32(1252567168),
+                F::from_canonical_u32(628856225),
+                F::from_canonical_u32(1771903394),
+                F::from_canonical_u32(650712211),
+                F::from_canonical_u32(19417363),
+                F::from_canonical_u32(57990258),
+            ]);
+        }
+        if index == 6 {
+            return SepticExtension([
+                F::from_canonical_u32(1734711039),
+                F::from_canonical_u32(1749813853),
+                F::from_canonical_u32(1227235221),
+                F::from_canonical_u32(1707730636),
+                F::from_canonical_u32(424560395),
+                F::from_canonical_u32(1007029514),
+                F::from_canonical_u32(498034669),
+            ]);
+        }
+        unreachable!();
+    }
 
+    #[must_use]
+    fn frobenius(&self) -> Self {
+        let mut result = Self::zero();
+        result += self.0[0];
+        result += Self::z_pow_p(1) * self.0[1];
+        result += Self::z_pow_p(2) * self.0[2];
+        result += Self::z_pow_p(3) * self.0[3];
+        result += Self::z_pow_p(4) * self.0[4];
+        result += Self::z_pow_p(5) * self.0[5];
+        result += Self::z_pow_p(6) * self.0[6];
         result
     }
 
-    pub fn legendre(&self) -> Self {
-        let power = (SepticExtension::<F>::order() - BigUint::one()) / BigUint::from(2u8);
-        self.pow(&power)
+    #[must_use]
+    fn pow_r_1(&self) -> Self {
+        let mut vp = self.frobenius();
+        let mut result = vp;
+        for _ in 2..7 {
+            vp = vp.frobenius();
+            result *= vp;
+        }
+        result
     }
 
+    #[must_use]
+    fn inv(&self) -> Self {
+        let pow_r_1 = self.pow_r_1();
+        let pow_r = pow_r_1 * *self;
+        pow_r_1 * pow_r.0[0].inverse()
+    }
+
+    /// Returns whether or not a septic field extension element is a square.
+    pub fn is_square(&self) -> bool {
+        let pow_r_1 = self.pow_r_1();
+        let pow_r = pow_r_1 * *self;
+        let exp = (F::order() - BigUint::one()) / BigUint::from(2u8);
+        let exp = exp.to_u64_digits()[0];
+
+        pow_r.0[0].exp_u64(exp) == F::one()
+    }
+
+    /// Computes the square root of the septic field extension element.
+    /// Returns None if the element is not a square, and Some(result) if it is a square.
     pub fn sqrt(&self) -> Option<Self> {
         let n = *self;
 
@@ -420,29 +534,49 @@ impl<F: Field> SepticExtension<F> {
             return None;
         }
 
-        // TODO: Optimize for the case where x mod 4 == 3.
-
-        let g = Self::generator();
-        let mut a = Self::one();
-        let mut nonresidue = Self::one() - n;
-        while nonresidue.is_square() {
-            a *= g;
-            nonresidue = a.square() - n;
+        let mut n_iter = n;
+        let mut n_power = n;
+        for i in 1..30 {
+            n_iter *= n_iter;
+            if i >= 26 {
+                n_power *= n_iter;
+            }
         }
 
-        let order = Self::order();
+        let mut n_frobenius = n_power.frobenius();
+        let mut denominator = n_frobenius;
+        for i in 2..6 {
+            n_frobenius = n_frobenius.frobenius();
+            if i % 2 == 1 {
+                denominator *= n_frobenius;
+            }
+        }
+
+        let mut numerator = n;
+        numerator *= denominator;
+        numerator *= denominator;
+
+        let base = numerator.0[0];
+        let g = F::generator();
+        let mut a = F::one();
+        let mut nonresidue = F::one() - base;
+        let legendre_exp = (F::order() - BigUint::one()) / BigUint::from(2u8);
+
+        while nonresidue.exp_u64(legendre_exp.to_u64_digits()[0]) == F::one() {
+            a *= g;
+            nonresidue = a.square() - base;
+        }
+
+        let order = F::order();
         let cipolla_pow = (&order + BigUint::one()) / BigUint::from(2u8);
-        let mut x = CipollaExtension::new(a, Self::one());
-        x = x.pow(cipolla_pow, nonresidue);
+        let mut x = CipollaExtension::new(a, F::one());
+        x = x.pow(&cipolla_pow, nonresidue);
 
-        Some(x.real)
-    }
-
-    pub fn is_square(&self) -> bool {
-        self.legendre() == Self::one()
+        Some(denominator.inv() * x.real)
     }
 }
 
+/// Extension field for Cipolla's algorithm, taken from <https://github.com/Plonky3/Plonky3/pull/439/files>.
 #[derive(Clone, Copy, Debug)]
 struct CipollaExtension<F: Field> {
     real: F,
@@ -458,24 +592,23 @@ impl<F: Field> CipollaExtension<F> {
         Self::new(F::one(), F::zero())
     }
 
-    fn mul(&self, other: Self, nonresidue: F) -> Self {
+    fn mul_ext(&self, other: Self, nonresidue: F) -> Self {
         Self::new(
             self.real * other.real + nonresidue * self.imag * other.imag,
             self.real * other.imag + self.imag * other.real,
         )
     }
 
-    fn pow(&self, exp: BigUint, nonresidue: F) -> Self {
+    fn pow(&self, exp: &BigUint, nonresidue: F) -> Self {
         let mut result = Self::one();
         let mut base = *self;
         let bits = exp.bits();
 
         for i in 0..bits {
             if exp.bit(i) {
-                result = result.mul(base, nonresidue);
+                result = result.mul_ext(base, nonresidue);
             }
-
-            base = base.mul(base, nonresidue);
+            base = base.mul_ext(base, nonresidue);
         }
         result
     }
@@ -492,16 +625,64 @@ mod tests {
         let a: SepticExtension<BabyBear> = SepticExtension::from_canonical_u32(1);
         let b: SepticExtension<BabyBear> = SepticExtension::from_canonical_u32(2);
         let c = a * b;
-        println!("{:?}", c);
+        println!("{c}");
+    }
+
+    #[test]
+    fn test_inv() {
+        for i in 0..256 {
+            let a: SepticExtension<BabyBear> = SepticExtension([
+                BabyBear::from_canonical_u32(i + 3),
+                BabyBear::from_canonical_u32(2 * i + 6),
+                BabyBear::from_canonical_u32(5 * i + 17),
+                BabyBear::from_canonical_u32(6 * i + 91),
+                BabyBear::from_canonical_u32(8 * i + 37),
+                BabyBear::from_canonical_u32(11 * i + 35),
+                BabyBear::from_canonical_u32(14 * i + 33),
+            ]);
+            let b = a.inv();
+            assert_eq!(a * b, SepticExtension::<BabyBear>::one());
+        }
+    }
+
+    #[test]
+    fn test_legendre() {
+        let a: SepticExtension<BabyBear> = SepticExtension::generator();
+        let mut b = SepticExtension::<BabyBear>::one();
+        for i in 1..256 {
+            b *= a;
+            let c = b.is_square();
+            assert!(c == (i % 2 == 0));
+        }
     }
 
     #[test]
     fn test_sqrt() {
-        println!("order: {}", SepticExtension::<BabyBear>::order());
-        let a: SepticExtension<BabyBear> = SepticExtension::from_canonical_u32(16);
-        let b = a.sqrt().unwrap();
-        assert_eq!(b * b, a);
-        println!("{:?}", b);
-        println!("{:?}", -b);
+        for i in 0..256 {
+            let a: SepticExtension<BabyBear> = SepticExtension([
+                BabyBear::from_canonical_u32(i + 3),
+                BabyBear::from_canonical_u32(2 * i + 6),
+                BabyBear::from_canonical_u32(5 * i + 17),
+                BabyBear::from_canonical_u32(6 * i + 91),
+                BabyBear::from_canonical_u32(8 * i + 37),
+                BabyBear::from_canonical_u32(11 * i + 35),
+                BabyBear::from_canonical_u32(14 * i + 33),
+            ]);
+            let b = a * a;
+            let recovered_a = b.sqrt().unwrap();
+            assert_eq!(recovered_a * recovered_a, b);
+        }
+        let mut b = SepticExtension::<BabyBear>::one();
+        for i in 1..256 {
+            let a: SepticExtension<BabyBear> = SepticExtension::generator();
+            b *= a;
+            let c = b.sqrt();
+            if i % 2 == 1 {
+                assert!(c.is_none());
+            } else {
+                let c = c.unwrap();
+                assert_eq!(c * c, b);
+            }
+        }
     }
 }
