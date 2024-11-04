@@ -87,7 +87,7 @@ pub fn check_shapes<C: SP1ProverComponents>(
     tracing::info!("number of shapes: {}", num_shapes);
     let height = num_shapes.next_power_of_two().ilog2() as usize;
 
-    std::thread::scope(|s| {
+    let compress_ok = std::thread::scope(|s| {
         // Initialize compiler workers.
         for _ in 0..num_compiler_workers {
             let shape_rx = &shape_rx;
@@ -124,7 +124,17 @@ pub fn check_shapes<C: SP1ProverComponents>(
         drop(panic_tx);
 
         panic_rx.iter().next().is_none()
-    })
+    });
+
+    for shape in recursion_shape_config.allowed_shapes {
+        let compress_input = SP1CompressWithVKeyWitnessValues::dummy(
+            prover.compress_prover.machine(),
+            ,
+        );
+        prover.shrink_program(&compress_input)
+    }
+
+    compress_ok
 }
 
 pub fn build_vk_map<C: SP1ProverComponents>(

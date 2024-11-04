@@ -28,7 +28,7 @@ pub struct RecursionShape {
 }
 
 pub struct RecursionShapeConfig<F, A> {
-    allowed_shapes: Vec<HashMap<String, usize>>,
+    pub allowed_shapes: Vec<HashMap<String, usize>>,
     _marker: PhantomData<(F, A)>,
 }
 
