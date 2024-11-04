@@ -66,6 +66,8 @@ pub struct StarkProvingKey<SC: StarkGenericConfig> {
     pub data: PcsProverData<SC>,
     /// The preprocessed chip ordering.
     pub chip_ordering: HashMap<String, usize>,
+    /// The preprocessed chip local only information.
+    pub local_only: Vec<bool>,
 }
 
 impl<SC: StarkGenericConfig> StarkProvingKey<SC> {
@@ -196,19 +198,19 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
                         chip.preprocessed_width(),
                         "Incorrect number of preprocessed columns for chip {chip_name}"
                     );
-                    prep_trace.map(move |t| (chip_name, t))
+                    prep_trace.map(move |t| (chip_name, chip.local_only(), t))
                 })
                 .collect::<Vec<_>>()
         });
 
         // Order the chips and traces by trace size (biggest first), and get the ordering map.
         named_preprocessed_traces
-            .sort_by_key(|(name, trace)| (Reverse(trace.height()), name.clone()));
+            .sort_by_key(|(name, _, trace)| (Reverse(trace.height()), name.clone()));
 
         let pcs = self.config.pcs();
         let (chip_information, domains_and_traces): (Vec<_>, Vec<_>) = named_preprocessed_traces
             .iter()
-            .map(|(name, trace)| {
+            .map(|(name, _, trace)| {
                 let domain = pcs.natural_domain_for_degree(trace.height());
                 ((name.to_owned(), domain, trace.dimensions()), (domain, trace.to_owned()))
             })
@@ -222,12 +224,17 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
         let chip_ordering = named_preprocessed_traces
             .iter()
             .enumerate()
-            .map(|(i, (name, _))| (name.to_owned(), i))
+            .map(|(i, (name, _, _))| (name.to_owned(), i))
             .collect::<HashMap<_, _>>();
+
+        let local_only = named_preprocessed_traces
+            .iter()
+            .map(|(_, local_only, _)| local_only.to_owned())
+            .collect::<Vec<_>>();
 
         // Get the preprocessed traces
         let traces =
-            named_preprocessed_traces.into_iter().map(|(_, trace)| trace).collect::<Vec<_>>();
+            named_preprocessed_traces.into_iter().map(|(_, _, trace)| trace).collect::<Vec<_>>();
 
         let pc_start = program.pc_start();
 
@@ -238,6 +245,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
                 traces,
                 data,
                 chip_ordering: chip_ordering.clone(),
+                local_only,
             },
             StarkVerifyingKey { commit, pc_start, chip_information, chip_ordering },
         )

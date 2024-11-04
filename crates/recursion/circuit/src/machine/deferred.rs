@@ -43,7 +43,7 @@ pub struct SP1DeferredVerifier<C, SC, A> {
     _phantom: std::marker::PhantomData<(C, SC, A)>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Hash)]
 pub struct SP1DeferredShape {
     inner: SP1CompressShape,
     height: usize,
@@ -181,6 +181,10 @@ where
             // Get the current public values.
             let current_public_values: &RecursionPublicValues<Felt<C::F>> =
                 shard_proof.public_values.as_slice().borrow();
+            // Assert that the `vk_root` is the same as the witnessed one.
+            for (elem, expected) in current_public_values.vk_root.iter().zip(vk_root.iter()) {
+                builder.assert_felt_eq(*elem, *expected);
+            }
             // Assert that the public values are valid.
             assert_recursion_public_values_valid::<C, SC>(builder, current_public_values);
 

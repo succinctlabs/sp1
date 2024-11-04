@@ -773,6 +773,7 @@ pub mod tests {
         assert_eq!(pk.traces, deserialized_pk.traces);
         assert_eq!(pk.data.root(), deserialized_pk.data.root());
         assert_eq!(pk.chip_ordering, deserialized_pk.chip_ordering);
+        assert_eq!(pk.local_only, deserialized_pk.local_only);
 
         let serialized_vk = bincode::serialize(&vk).unwrap();
         let deserialized_vk: StarkVerifyingKey<BabyBearPoseidon2> =

@@ -52,7 +52,7 @@ use itertools::Itertools;
 use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::{AbstractField, PrimeField};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
-use p3_maybe_rayon::prelude::{ParallelIterator, ParallelSlice};
+use p3_maybe_rayon::prelude::{ParallelBridge, ParallelIterator, ParallelSlice};
 use sp1_core_executor::{
     events::{AluEvent, ByteLookupEvent, ByteRecord},
     ByteOpcode, ExecutionRecord, Opcode, Program,
@@ -65,7 +65,7 @@ use crate::{
     air::SP1CoreAirBuilder,
     alu::sr::utils::{nb_bits_to_shift, nb_bytes_to_shift},
     bytes::utils::shr_carry,
-    utils::pad_rows_fixed,
+    utils::{next_power_of_two, zeroed_f_vec},
 };
 
 /// The number of main trace columns for `ShiftRightChip`.
@@ -149,54 +149,33 @@ impl<F: PrimeField> MachineAir<F> for ShiftRightChip {
         _: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
-        let mut rows: Vec<[F; NUM_SHIFT_RIGHT_COLS]> = Vec::new();
-        let sr_events = input.shift_right_events.clone();
-        for event in sr_events.iter() {
-            assert!(event.opcode == Opcode::SRL || event.opcode == Opcode::SRA);
-            let mut row = [F::zero(); NUM_SHIFT_RIGHT_COLS];
-            let cols: &mut ShiftRightCols<F> = row.as_mut_slice().borrow_mut();
-            let mut blu = Vec::new();
-            self.event_to_row(event, cols, &mut blu);
-            rows.push(row);
-        }
+        let nb_rows = input.shift_right_events.len();
+        let size_log2 = input.fixed_log2_rows::<F, _>(self);
+        let padded_nb_rows = next_power_of_two(nb_rows, size_log2);
+        let mut values = zeroed_f_vec(padded_nb_rows * NUM_SHIFT_RIGHT_COLS);
+        let chunk_size = std::cmp::max((nb_rows + 1) / num_cpus::get(), 1);
 
-        // Pad the trace to a power of two depending on the proof shape in `input`.
-        pad_rows_fixed(
-            &mut rows,
-            || [F::zero(); NUM_SHIFT_RIGHT_COLS],
-            input.fixed_log2_rows::<F, _>(self),
+        values.chunks_mut(chunk_size * NUM_SHIFT_RIGHT_COLS).enumerate().par_bridge().for_each(
+            |(i, rows)| {
+                rows.chunks_mut(NUM_SHIFT_RIGHT_COLS).enumerate().for_each(|(j, row)| {
+                    let idx = i * chunk_size + j;
+                    let cols: &mut ShiftRightCols<F> = row.borrow_mut();
+
+                    if idx < nb_rows {
+                        let mut byte_lookup_events = Vec::new();
+                        let event = &input.shift_right_events[idx];
+                        self.event_to_row(event, cols, &mut byte_lookup_events);
+                    } else {
+                        cols.shift_by_n_bits[0] = F::one();
+                        cols.shift_by_n_bytes[0] = F::one();
+                    }
+                    cols.nonce = F::from_canonical_usize(idx);
+                });
+            },
         );
 
         // Convert the trace to a row major matrix.
-        let mut trace = RowMajorMatrix::new(
-            rows.into_iter().flatten().collect::<Vec<_>>(),
-            NUM_SHIFT_RIGHT_COLS,
-        );
-
-        // Create the template for the padded rows. These are fake rows that don't fail on some
-        // sanity checks.
-        let padded_row_template = {
-            let mut row = [F::zero(); NUM_SHIFT_RIGHT_COLS];
-            let cols: &mut ShiftRightCols<F> = row.as_mut_slice().borrow_mut();
-            // Shift 0 by 0 bits and 0 bytes.
-            // cols.is_srl = F::one();
-            cols.shift_by_n_bits[0] = F::one();
-            cols.shift_by_n_bytes[0] = F::one();
-            row
-        };
-        debug_assert!(padded_row_template.len() == NUM_SHIFT_RIGHT_COLS);
-        for i in input.shift_right_events.len() * NUM_SHIFT_RIGHT_COLS..trace.values.len() {
-            trace.values[i] = padded_row_template[i % NUM_SHIFT_RIGHT_COLS];
-        }
-
-        // Write the nonces to the trace.
-        for i in 0..trace.height() {
-            let cols: &mut ShiftRightCols<F> =
-                trace.values[i * NUM_SHIFT_RIGHT_COLS..(i + 1) * NUM_SHIFT_RIGHT_COLS].borrow_mut();
-            cols.nonce = F::from_canonical_usize(i);
-        }
-
-        trace
+        RowMajorMatrix::new(values, NUM_SHIFT_RIGHT_COLS)
     }
 
     fn generate_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
@@ -373,7 +352,7 @@ where
             let mut c_byte_sum = AB::Expr::zero();
             for i in 0..BYTE_SIZE {
                 let val: AB::Expr = AB::F::from_canonical_u32(1 << i).into();
-                c_byte_sum += val * local.c_least_sig_byte[i];
+                c_byte_sum = c_byte_sum.clone() + val * local.c_least_sig_byte[i];
             }
             builder.assert_eq(c_byte_sum, local.c[0]);
 
@@ -383,7 +362,8 @@ where
             // of bits to shift.
             let mut num_bits_to_shift = AB::Expr::zero();
             for i in 0..3 {
-                num_bits_to_shift += local.c_least_sig_byte[i] * AB::F::from_canonical_u32(1 << i);
+                num_bits_to_shift = num_bits_to_shift.clone()
+                    + local.c_least_sig_byte[i] * AB::F::from_canonical_u32(1 << i);
             }
             for i in 0..BYTE_SIZE {
                 builder
@@ -444,15 +424,16 @@ where
             // The carry multiplier is 2^(8 - num_bits_to_shift).
             let mut carry_multiplier = AB::Expr::from_canonical_u8(0);
             for i in 0..BYTE_SIZE {
-                carry_multiplier +=
-                    AB::Expr::from_canonical_u32(1u32 << (8 - i)) * local.shift_by_n_bits[i];
+                carry_multiplier = carry_multiplier.clone()
+                    + AB::Expr::from_canonical_u32(1u32 << (8 - i)) * local.shift_by_n_bits[i];
             }
 
             // The 3-bit number represented by the 3 least significant bits of c equals the number
             // of bits to shift.
             let mut num_bits_to_shift = AB::Expr::zero();
             for i in 0..3 {
-                num_bits_to_shift += local.c_least_sig_byte[i] * AB::F::from_canonical_u32(1 << i);
+                num_bits_to_shift = num_bits_to_shift.clone()
+                    + local.c_least_sig_byte[i] * AB::F::from_canonical_u32(1 << i);
             }
 
             // Calculate ShrCarry.
@@ -471,7 +452,7 @@ where
             for i in (0..LONG_WORD_SIZE).rev() {
                 let mut v: AB::Expr = local.shr_carry_output_shifted_byte[i].into();
                 if i + 1 < LONG_WORD_SIZE {
-                    v += local.shr_carry_output_carry[i + 1] * carry_multiplier.clone();
+                    v = v.clone() + local.shr_carry_output_carry[i + 1] * carry_multiplier.clone();
                 }
                 builder.assert_eq(v, local.bit_shift_result[i]);
             }

@@ -37,7 +37,7 @@ contract Fibonacci {
     /// @dev This can either be a specific SP1Verifier for a specific version, or the
     ///      SP1VerifierGateway which can be used to verify proofs for any version of SP1.
     ///      For the list of supported verifiers on each chain, see:
-    ///      https://github.com/succinctlabs/sp1-contracts/tree/main/contracts/deployments
+    ///      https://docs.succinct.xyz/onchain-verification/contract-addresses
     address public verifier;
 
     /// @notice The verification key for the fibonacci program.
@@ -64,7 +64,32 @@ contract Fibonacci {
 
 ```
 
-For more details on the contracts, refer to the [sp1-contracts](https://github.com/succinctlabs/sp1-contracts) repo.
+### Finding your program vkey
+
+The program vkey (`fibonacciProgramVKey` in the example above) is passed into the `ISP1Verifier` along with the public values and proof bytes. You
+can find your program vkey by going through the following steps:
+
+1. Find what version of SP1 crates you are using.
+2. Use the version from step to run this command: `sp1up --version <version>`
+3. Use the vkey command to get the program vkey: `cargo prove vkey -elf <path/to/elf>`
+
+Alternatively, you can set up a simple script to do this using the `sp1-sdk` crate:
+
+```rust
+fn main() {
+    // Setup the logger.
+    sp1_sdk::utils::setup_logger();
+
+    // Setup the prover client.
+    let client = ProverClient::new();
+
+    // Setup the program.
+    let (_, vk) = client.setup(FIBONACCI_ELF);
+
+    // Print the verification key.
+    println!("Program Verification Key: {}", vk.bytes32());
+}
+```
 
 ### Testing
 

@@ -70,18 +70,19 @@ impl ProverClient {
     /// let client = ProverClient::new();
     /// ```
     pub fn new() -> Self {
-        #[cfg(debug_assertions)]
-        panic!("sp1-sdk must be built in release mode. please compile with the --release flag.");
-
         #[allow(unreachable_code)]
         match env::var("SP1_PROVER").unwrap_or("local".to_string()).to_lowercase().as_str() {
             "mock" => Self { prover: Box::new(MockProver::new()) },
-            "local" => Self {
-                #[cfg(not(feature = "cuda"))]
-                prover: Box::new(CpuProver::new()),
-                #[cfg(feature = "cuda")]
-                prover: Box::new(CudaProver::new(SP1Prover::new())),
-            },
+            "local" => {
+                #[cfg(debug_assertions)]
+                println!("Warning: Local prover in dev mode is not recommended. Proof generation may be slow.");
+                Self {
+                    #[cfg(not(feature = "cuda"))]
+                    prover: Box::new(CpuProver::new()),
+                    #[cfg(feature = "cuda")]
+                    prover: Box::new(CudaProver::new(SP1Prover::new())),
+                }
+            }
             "network" => {
                 cfg_if! {
                     if #[cfg(feature = "network-v2")] {
@@ -193,12 +194,12 @@ impl ProverClient {
 
     /// Prepare to prove the execution of the given program with the given input in the default
     /// mode. The returned [action::Prove] may be configured via its methods before running.
-    /// For example, calling [action::Prove::compress] sets the mode to compressed mode.
+    /// For example, calling [action::Prove::compressed] sets the mode to compressed mode.
     ///
     /// To prove, call [action::Prove::run], which returns a proof of the program's execution.
     /// By default the proof generated will not be compressed to constant size.
-    /// To create a more succinct proof, use the [Self::prove_compressed],
-    /// [Self::prove_plonk], or [Self::prove_plonk] methods.
+    /// To create a more succinct proof, use the [action::Prove::compressed],
+    /// [action::Prove::plonk], or [action::Prove::groth16] methods.
     ///
     /// ### Examples
     /// ```no_run
@@ -358,8 +359,7 @@ mod tests {
     fn test_e2e_core() {
         utils::setup_logger();
         let client = ProverClient::local();
-        let elf =
-            include_bytes!("../../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
+        let elf = include_bytes!("../../../tests/fibonacci/elf/riscv32im-succinct-zkvm-elf");
         let (pk, vk) = client.setup(elf);
         let mut stdin = SP1Stdin::new();
         stdin.write(&10usize);
@@ -379,8 +379,7 @@ mod tests {
     fn test_e2e_compressed() {
         utils::setup_logger();
         let client = ProverClient::local();
-        let elf =
-            include_bytes!("../../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
+        let elf = include_bytes!("../../../tests/fibonacci/elf/riscv32im-succinct-zkvm-elf");
         let (pk, vk) = client.setup(elf);
         let mut stdin = SP1Stdin::new();
         stdin.write(&10usize);
@@ -400,8 +399,7 @@ mod tests {
     fn test_e2e_prove_plonk() {
         utils::setup_logger();
         let client = ProverClient::local();
-        let elf =
-            include_bytes!("../../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
+        let elf = include_bytes!("../../../tests/fibonacci/elf/riscv32im-succinct-zkvm-elf");
         let (pk, vk) = client.setup(elf);
         let mut stdin = SP1Stdin::new();
         stdin.write(&10usize);
@@ -421,8 +419,7 @@ mod tests {
     fn test_e2e_prove_plonk_mock() {
         utils::setup_logger();
         let client = ProverClient::mock();
-        let elf =
-            include_bytes!("../../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
+        let elf = include_bytes!("../../../tests/fibonacci/elf/riscv32im-succinct-zkvm-elf");
         let (pk, vk) = client.setup(elf);
         let mut stdin = SP1Stdin::new();
         stdin.write(&10usize);

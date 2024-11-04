@@ -1,4 +1,4 @@
-use sp1_sdk::{utils, ProverClient, SP1Stdin};
+use sp1_sdk::{utils, HashableKey, ProverClient, SP1Stdin};
 
 /// The ELF we want to execute inside the zkVM.
 const ELF: &[u8] = include_bytes!("../../program/elf/riscv32im-succinct-zkvm-elf");
@@ -13,11 +13,13 @@ fn main() {
     let mut stdin = SP1Stdin::new();
     stdin.write(&n);
 
-    // Generate the proof for the given program and input.
+    // Set up the pk and vk.
     let client = ProverClient::new();
     let (pk, vk) = client.setup(ELF);
-    let proof = client.prove(&pk, stdin).groth16().run().unwrap();
+    println!("vk: {:?}", vk.bytes32());
 
+    // Generate the Groth16 proof.
+    let proof = client.prove(&pk, stdin).groth16().run().unwrap();
     println!("generated proof");
 
     // Get the public values as bytes.
@@ -32,7 +34,7 @@ fn main() {
     client.verify(&proof, &vk).expect("verification failed");
 
     // Save the proof.
-    proof.save("proof-with-pis.bin").expect("saving proof failed");
+    proof.save("fibonacci-groth16.bin").expect("saving proof failed");
 
     println!("successfully generated and verified proof for the program!")
 }

@@ -11,9 +11,11 @@ pub enum Instruction<F> {
     ExtAlu(ExtAluInstr<F>),
     Mem(MemInstr<F>),
     Poseidon2(Box<Poseidon2Instr<F>>),
+    Select(SelectInstr<F>),
     ExpReverseBitsLen(ExpReverseBitsInstr<F>),
     HintBits(HintBitsInstr<F>),
     FriFold(Box<FriFoldInstr<F>>),
+    BatchFRI(Box<BatchFRIInstr<F>>),
     Print(PrintInstr<F>),
     HintExt2Felts(HintExt2FeltsInstr<F>),
     CommitPublicValues(Box<CommitPublicValuesInstr<F>>),
@@ -145,6 +147,29 @@ pub fn poseidon2<F: AbstractField>(
     }))
 }
 
+#[allow(clippy::too_many_arguments)]
+pub fn select<F: AbstractField>(
+    mult1: u32,
+    mult2: u32,
+    bit: u32,
+    out1: u32,
+    out2: u32,
+    in1: u32,
+    in2: u32,
+) -> Instruction<F> {
+    Instruction::Select(SelectInstr {
+        mult1: F::from_canonical_u32(mult1),
+        mult2: F::from_canonical_u32(mult2),
+        addrs: SelectIo {
+            bit: Address(F::from_canonical_u32(bit)),
+            out1: Address(F::from_canonical_u32(out1)),
+            out2: Address(F::from_canonical_u32(out2)),
+            in1: Address(F::from_canonical_u32(in1)),
+            in2: Address(F::from_canonical_u32(in2)),
+        },
+    })
+}
+
 pub fn exp_reverse_bits_len<F: AbstractField>(
     mult: u32,
     base: F,
@@ -200,6 +225,27 @@ pub fn fri_fold<F: AbstractField>(
         },
         alpha_pow_mults: alpha_mults.iter().map(|mult| F::from_canonical_u32(*mult)).collect(),
         ro_mults: ro_mults.iter().map(|mult| F::from_canonical_u32(*mult)).collect(),
+    }))
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn batch_fri<F: AbstractField>(
+    acc: u32,
+    alpha_pows: Vec<u32>,
+    p_at_zs: Vec<u32>,
+    p_at_xs: Vec<u32>,
+    acc_mult: u32,
+) -> Instruction<F> {
+    Instruction::BatchFRI(Box::new(BatchFRIInstr {
+        base_vec_addrs: BatchFRIBaseVecIo {
+            p_at_x: p_at_xs.iter().map(|elm| Address(F::from_canonical_u32(*elm))).collect(),
+        },
+        ext_single_addrs: BatchFRIExtSingleIo { acc: Address(F::from_canonical_u32(acc)) },
+        ext_vec_addrs: BatchFRIExtVecIo {
+            p_at_z: p_at_zs.iter().map(|elm| Address(F::from_canonical_u32(*elm))).collect(),
+            alpha_pow: alpha_pows.iter().map(|elm| Address(F::from_canonical_u32(*elm))).collect(),
+        },
+        acc_mult: F::from_canonical_u32(acc_mult),
     }))
 }
 

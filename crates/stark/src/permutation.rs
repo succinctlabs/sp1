@@ -335,11 +335,12 @@ pub fn eval_permutation_constraints<'a, F, AB>(
                 let mut rlc = alpha.clone();
                 let mut betas = beta.powers();
 
-                rlc += betas.next().unwrap()
-                    * AB::ExprEF::from_canonical_usize(interaction.argument_index());
+                rlc = rlc.clone()
+                    + betas.next().unwrap()
+                        * AB::ExprEF::from_canonical_usize(interaction.argument_index());
                 for (field, beta) in interaction.values.iter().zip(betas.clone()) {
                     let elem = field.apply::<AB::Expr, AB::Var>(&preprocessed_local, main_local);
-                    rlc += beta * elem;
+                    rlc = rlc.clone() + beta * elem;
                 }
                 rlcs.push(rlc);
 
@@ -357,16 +358,16 @@ pub fn eval_permutation_constraints<'a, F, AB>(
             let mut numerator = AB::ExprEF::zero();
             for (i, (m, rlc)) in multiplicities.into_iter().zip(rlcs.iter()).enumerate() {
                 // Calculate the running product of all rlcs.
-                product *= rlc.clone();
+                product = product.clone() * rlc.clone();
 
                 // Calculate the product of all but the current rlc.
                 let mut all_but_current = AB::ExprEF::one();
                 for other_rlc in
                     rlcs.iter().enumerate().filter(|(j, _)| i != *j).map(|(_, rlc)| rlc)
                 {
-                    all_but_current *= other_rlc.clone();
+                    all_but_current = all_but_current.clone() * other_rlc.clone();
                 }
-                numerator += AB::ExprEF::from_base(m) * all_but_current;
+                numerator = numerator.clone() + AB::ExprEF::from_base(m) * all_but_current;
             }
 
             // Finally, assert that the entry is equal to the numerator divided by the product.

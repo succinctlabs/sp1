@@ -33,11 +33,7 @@ use std::{
 };
 
 use lru::LruCache;
-
-use tracing::instrument;
-
 use p3_baby_bear::BabyBear;
-
 use p3_challenger::CanObserve;
 use p3_field::{AbstractField, PrimeField, PrimeField32};
 use p3_matrix::dense::RowMajorMatrix;
@@ -80,6 +76,7 @@ use sp1_stark::{
     MachineProver, SP1CoreOpts, SP1ProverOpts, ShardProof, StarkGenericConfig, StarkVerifyingKey,
     Val, Word, DIGEST_SIZE,
 };
+use tracing::instrument;
 
 pub use types::*;
 use utils::{sp1_committed_values_digest_bn254, sp1_vkey_digest_bn254, words_to_bytes};
@@ -207,7 +204,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             .then_some(RecursionShapeConfig::default());
 
         let vk_verification =
-            env::var("VERIFY_VK").map(|v| v.eq_ignore_ascii_case("true")).unwrap_or(true);
+            env::var("VERIFY_VK").map(|v| v.eq_ignore_ascii_case("true")).unwrap_or(false);
 
         tracing::info!("vk verification: {}", vk_verification);
 
@@ -356,8 +353,9 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         input: &SP1CompressWithVKeyWitnessValues<InnerSC>,
     ) -> Arc<RecursionProgram<BabyBear>> {
         let mut cache = self.compress_programs.lock().unwrap_or_else(|e| e.into_inner());
+        let shape = input.shape();
         cache
-            .get_or_insert(input.shape(), || {
+            .get_or_insert(shape.clone(), || {
                 let misses = self.compress_cache_misses.fetch_add(1, Ordering::Relaxed);
                 tracing::debug!("compress cache miss, misses: {}", misses);
                 // Get the operations.
@@ -491,11 +489,15 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         let operations = builder.into_operations();
         operations_span.exit();
 
-        // Compile the program.
-        tracing::debug_span!("compile compress program").in_scope(|| {
-            let mut compiler = AsmCompiler::<InnerConfig>::default();
-            Arc::new(compiler.compile(operations))
-        })
+        let compiler_span = tracing::debug_span!("compile deferred program").entered();
+        let mut compiler = AsmCompiler::<InnerConfig>::default();
+        let mut program = compiler.compile(operations);
+        if let Some(recursion_shape_config) = &self.recursion_shape_config {
+            recursion_shape_config.fix_shape(&mut program);
+        }
+        let program = Arc::new(program);
+        compiler_span.exit();
+        program
     }
 
     pub fn get_recursion_core_inputs(
@@ -898,12 +900,8 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                         if let Ok((index, height, vk, proof)) = received {
                             batch.push((index, height, vk, proof));
 
-                            // Compute whether we've reached the root of the tree.
-                            let is_complete = height == expected_height;
-
-                            // If it's not complete, and we haven't reached the batch size,
-                            // continue.
-                            if !is_complete && batch.len() < batch_size {
+                            // If we haven't reached the batch size, continue.
+                            if batch.len() < batch_size {
                                 continue;
                             }
 
@@ -918,7 +916,10 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                             let inputs =
                                 if is_last { vec![batch[0].clone()] } else { batch.clone() };
 
-                            let next_input_index = inputs[0].1 + 1;
+                            let next_input_height = inputs[0].1 + 1;
+
+                            let is_complete = next_input_height == expected_height;
+
                             let vks_and_proofs = inputs
                                 .into_iter()
                                 .map(|(_, _, vk, proof)| (vk, proof))
@@ -932,7 +933,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                             input_tx
                                 .lock()
                                 .unwrap()
-                                .send((count, next_input_index, input))
+                                .send((count, next_input_height, input))
                                 .unwrap();
                             input_sync.advance_turn();
                             count += 1;

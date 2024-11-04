@@ -8,6 +8,7 @@
     clippy::unnecessary_unwrap,
     clippy::default_constructed_unit_structs,
     clippy::box_default,
+    clippy::assign_op_pattern,
     deprecated,
     incomplete_features
 )]
@@ -30,7 +31,7 @@ pub mod utils;
 /// This string should be updated whenever any step in verifying an SP1 proof changes, including
 /// core, recursion, and plonk-bn254. This string is used to download SP1 artifacts and the gnark
 /// docker image.
-pub const SP1_CIRCUIT_VERSION: &str = "v3.0.0-rc4";
+pub const SP1_CIRCUIT_VERSION: &str = "v3.0.0";
 
 // Re-export the `SP1ReduceProof` struct from sp1_core_machine.
 //

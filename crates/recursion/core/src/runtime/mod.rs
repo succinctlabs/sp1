@@ -8,6 +8,7 @@ mod record;
 use backtrace::Backtrace as Trace;
 pub use instruction::Instruction;
 use instruction::{FieldEltType, HintBitsInstr, HintExt2FeltsInstr, HintInstr, PrintInstr};
+use machine::RecursionAirEventCount;
 use memory::*;
 pub use opcode::*;
 pub use program::*;
@@ -84,9 +85,13 @@ pub struct Runtime<'a, F: PrimeField32, EF: ExtensionField<F>, Diffusion> {
 
     pub nb_branch_ops: usize,
 
+    pub nb_select: usize,
+
     pub nb_exp_reverse_bits: usize,
 
     pub nb_fri_fold: usize,
+
+    pub nb_batch_fri: usize,
 
     pub nb_print_f: usize,
 
@@ -187,12 +192,14 @@ where
             nb_poseidons: 0,
             nb_wide_poseidons: 0,
             nb_bit_decompositions: 0,
+            nb_select: 0,
             nb_exp_reverse_bits: 0,
             nb_ext_ops: 0,
             nb_base_ops: 0,
             nb_memory_ops: 0,
             nb_branch_ops: 0,
             nb_fri_fold: 0,
+            nb_batch_fri: 0,
             nb_print_f: 0,
             nb_print_e: 0,
             clk: F::zero(),
@@ -216,7 +223,9 @@ where
         tracing::debug!("Exp Reverse Bits Operations: {}", self.nb_exp_reverse_bits);
         tracing::debug!("FriFold Operations: {}", self.nb_fri_fold);
         tracing::debug!("Field Operations: {}", self.nb_base_ops);
+        tracing::debug!("Select Operations: {}", self.nb_select);
         tracing::debug!("Extension Operations: {}", self.nb_ext_ops);
+        tracing::debug!("BatchFRI Operations: {}", self.nb_batch_fri);
         tracing::debug!("Memory Operations: {}", self.nb_memory_ops);
         tracing::debug!("Branch Operations: {}", self.nb_branch_ops);
         for (name, entry) in self.cycle_tracker.iter().sorted_by_key(|(name, _)| *name) {
@@ -246,6 +255,7 @@ where
     pub fn run(&mut self) -> Result<(), RuntimeError<F, EF>> {
         let early_exit_ts = std::env::var("RECURSION_EARLY_EXIT_TS")
             .map_or(usize::MAX, |ts: String| ts.parse().unwrap());
+        self.preallocate_record();
         while self.pc < F::from_canonical_u32(self.program.instructions.len() as u32) {
             let idx = self.pc.as_canonical_u32() as usize;
             let instruction = self.program.instructions[idx].clone();
@@ -349,6 +359,27 @@ where
                     self.record
                         .poseidon2_events
                         .push(Poseidon2Event { input: in_vals, output: perm_output });
+                }
+                Instruction::Select(SelectInstr {
+                    addrs: SelectIo { bit, out1, out2, in1, in2 },
+                    mult1,
+                    mult2,
+                }) => {
+                    self.nb_select += 1;
+                    let bit = self.memory.mr(bit).val[0];
+                    let in1 = self.memory.mr(in1).val[0];
+                    let in2 = self.memory.mr(in2).val[0];
+                    let out1_val = bit * in2 + (F::one() - bit) * in1;
+                    let out2_val = bit * in1 + (F::one() - bit) * in2;
+                    self.memory.mw(out1, Block::from(out1_val), mult1);
+                    self.memory.mw(out2, Block::from(out2_val), mult2);
+                    self.record.select_events.push(SelectEvent {
+                        bit,
+                        out1: out1_val,
+                        out2: out2_val,
+                        in1,
+                        in2,
+                    })
                 }
                 Instruction::ExpReverseBitsLen(ExpReverseBitsInstr {
                     addrs: ExpReverseBitsIo { base, exp, result },
@@ -459,7 +490,48 @@ where
                         });
                     }
                 }
+                Instruction::BatchFRI(instr) => {
+                    let BatchFRIInstr { base_vec_addrs, ext_single_addrs, ext_vec_addrs, acc_mult } =
+                        *instr;
 
+                    let mut acc = EF::zero();
+                    let p_at_xs = base_vec_addrs
+                        .p_at_x
+                        .iter()
+                        .map(|addr| self.memory.mr(*addr).val[0])
+                        .collect_vec();
+                    let p_at_zs = ext_vec_addrs
+                        .p_at_z
+                        .iter()
+                        .map(|addr| self.memory.mr(*addr).val.ext::<EF>())
+                        .collect_vec();
+                    let alpha_pows: Vec<_> = ext_vec_addrs
+                        .alpha_pow
+                        .iter()
+                        .map(|addr| self.memory.mr(*addr).val.ext::<EF>())
+                        .collect_vec();
+
+                    self.nb_batch_fri += p_at_zs.len();
+                    for m in 0..p_at_zs.len() {
+                        acc += alpha_pows[m] * (p_at_zs[m] - EF::from_base(p_at_xs[m]));
+                        self.record.batch_fri_events.push(BatchFRIEvent {
+                            base_vec: BatchFRIBaseVecIo { p_at_x: p_at_xs[m] },
+                            ext_single: BatchFRIExtSingleIo {
+                                acc: Block::from(acc.as_base_slice()),
+                            },
+                            ext_vec: BatchFRIExtVecIo {
+                                p_at_z: Block::from(p_at_zs[m].as_base_slice()),
+                                alpha_pow: Block::from(alpha_pows[m].as_base_slice()),
+                            },
+                        });
+                    }
+
+                    let _ = self.memory.mw(
+                        ext_single_addrs.acc,
+                        Block::from(acc.as_base_slice()),
+                        acc_mult,
+                    );
+                }
                 Instruction::CommitPublicValues(instr) => {
                     let pv_addrs = instr.pv_addrs.as_array();
                     let pv_values: [F; RECURSIVE_PROOF_NUM_PV_ELTS] =
@@ -519,5 +591,19 @@ where
             }
         }
         Ok(())
+    }
+
+    pub fn preallocate_record(&mut self) {
+        let event_counts = self
+            .program
+            .instructions
+            .iter()
+            .fold(RecursionAirEventCount::default(), |heights, instruction| heights + instruction);
+        self.record.poseidon2_events.reserve(event_counts.poseidon2_wide_events);
+        self.record.mem_var_events.reserve(event_counts.mem_var_events);
+        self.record.base_alu_events.reserve(event_counts.base_alu_events);
+        self.record.ext_alu_events.reserve(event_counts.ext_alu_events);
+        self.record.exp_reverse_bits_len_events.reserve(event_counts.exp_reverse_bits_len_events);
+        self.record.select_events.reserve(event_counts.select_events);
     }
 }

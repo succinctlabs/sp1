@@ -120,6 +120,10 @@ impl<F: PrimeField32> MachineAir<F> for MemoryChip<F> {
     fn included(&self, _record: &Self::Record) -> bool {
         true
     }
+
+    fn local_only(&self) -> bool {
+        true
+    }
 }
 
 impl<AB> Air<AB> for MemoryChip<AB::F>
