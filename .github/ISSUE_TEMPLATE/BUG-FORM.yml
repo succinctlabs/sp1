@@ -1,0 +1,56 @@
+name: Bug report
+description: File a bug report
+labels: ["T-bug", "T-needs-triage"]
+body:
+    - type: markdown
+      attributes:
+          value: |
+              Please ensure that the bug has not already been filed in the issue tracker.
+
+              Thanks for taking the time to report this bug in SP1!
+    - type: dropdown
+      attributes:
+          label: Component
+          description: What component is the bug in?
+          multiple: true
+          options:
+              - sp1-sdk
+              - sp1-zkvm
+              - cargo prove CLI/sp1up
+              - Other (please describe)
+      validations:
+          required: true
+    - type: checkboxes
+      attributes:
+          label: Have you ensured that all of these are up to date?
+          options:
+              - label: SP1 SDK
+              - label: cargo prove CLI/sp1up
+    - type: input
+      attributes:
+          label: What version of SP1 SDK are you on?
+          description: Leave empty if not relevant
+          placeholder: "Add the version from the Cargo.toml file here"
+    - type: input
+      attributes:
+          label: What version of the cargo prove CLI are you on?
+          description: Leave empty if not relevant
+          placeholder: "Run cargo prove --version and paste the output here"
+    - type: dropdown
+      attributes:
+          label: Operating System
+          description: What operating system are you on?
+          options:
+              - Windows
+              - macOS (Intel)
+              - macOS (Apple Silicon)
+              - Linux (Arch)
+              - Linux (Debian)
+              - Linux (Ubuntu)
+              - Linux (Other)
+    - type: textarea
+      attributes:
+          label: Describe the bug
+          description: Please include relevant Rust snippets/CLI commands as well if relevant.
+      validations:
+          required: true
