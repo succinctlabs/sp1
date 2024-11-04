@@ -37,6 +37,10 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
         format!("Poseidon2WideDeg{}", DEGREE)
     }
 
+    fn generate_dependencies(&self, _: &Self::Record, _: &mut Self::Record) {
+        // This is a no-op.
+    }
+
     #[instrument(name = "generate poseidon2 wide trace", level = "debug", skip_all, fields(rows = input.poseidon2_events.len()))]
     fn generate_trace(
         &self,
@@ -75,6 +79,10 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
     }
 
     fn included(&self, _record: &Self::Record) -> bool {
+        true
+    }
+
+    fn local_only(&self) -> bool {
         true
     }
 

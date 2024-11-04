@@ -4,7 +4,7 @@ use std::{
 };
 
 use crate::{
-    network_v2::client::{NetworkClient, DEFAULT_PROVER_NETWORK_RPC},
+    network_v2::client::NetworkClient,
     network_v2::proto::network::{ProofMode, ProofStatus, ProofStrategy},
     Prover, SP1Context, SP1ProofKind, SP1ProofWithPublicValues, SP1ProvingKey, SP1VerifyingKey,
 };
@@ -23,8 +23,8 @@ use crate::provers::{CpuProver, ProofOpts, ProverType};
 /// The timeout for a proof request to be fulfilled.
 const TIMEOUT_SECS: u64 = 14400;
 
-/// The default cycle limit for a proof request.
-const DEFAULT_CYCLE_LIMIT: u64 = 1_000_000_000;
+/// The default cycle limit for a proof request if simulation is skipped.
+const DEFAULT_CYCLE_LIMIT: u64 = 100_000_000;
 
 /// An implementation of [crate::ProverClient] that can generate proofs on a remote RPC server.
 pub struct NetworkProver {
@@ -98,10 +98,6 @@ impl NetworkProver {
         let request_id = response.body.unwrap().request_id;
         let request_id_hex = "0x".to_string() + &hex::encode(request_id.clone());
         log::info!("Created request {} in transaction {}", request_id_hex, tx_hash_hex);
-
-        if NetworkClient::rpc_url() == DEFAULT_PROVER_NETWORK_RPC {
-            log::info!("View in explorer: https://explorer-v2.succinct.xyz/{}", request_id_hex);
-        }
 
         Ok(request_id)
     }

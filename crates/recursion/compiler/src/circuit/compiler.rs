@@ -17,6 +17,9 @@ use sp1_recursion_core::*;
 
 use crate::prelude::*;
 
+/// The number of instructions to preallocate in a recursion program
+const PREALLOC_INSTRUCTIONS: usize = 10000000;
+
 /// The backend for the circuit compiler.
 #[derive(Debug, Clone, Default)]
 pub struct AsmCompiler<C: Config> {
@@ -335,6 +338,26 @@ where
         }))
     }
 
+    fn batch_fri(
+        &mut self,
+        acc: Ext<C::F, C::EF>,
+        alpha_pows: Vec<Ext<C::F, C::EF>>,
+        p_at_zs: Vec<Ext<C::F, C::EF>>,
+        p_at_xs: Vec<Felt<C::F>>,
+    ) -> Instruction<C::F> {
+        Instruction::BatchFRI(Box::new(BatchFRIInstr {
+            base_vec_addrs: BatchFRIBaseVecIo {
+                p_at_x: p_at_xs.into_iter().map(|e| e.read(self)).collect(),
+            },
+            ext_single_addrs: BatchFRIExtSingleIo { acc: acc.write(self) },
+            ext_vec_addrs: BatchFRIExtVecIo {
+                p_at_z: p_at_zs.into_iter().map(|e| e.read(self)).collect(),
+                alpha_pow: alpha_pows.into_iter().map(|e| e.read(self)).collect(),
+            },
+            acc_mult: C::F::zero(),
+        }))
+    }
+
     fn commit_public_values(
         &mut self,
         public_values: &RecursionPublicValues<Felt<C::F>>,
@@ -480,6 +503,7 @@ where
                 f(self.hint_bit_decomposition(value, output))
             }
             DslIr::CircuitV2FriFold(data) => f(self.fri_fold(data.0, data.1)),
+            DslIr::CircuitV2BatchFRI(data) => f(self.batch_fri(data.0, data.1, data.2, data.3)),
             DslIr::CircuitV2CommitPublicValues(public_values) => {
                 f(self.commit_public_values(&public_values))
             }
@@ -511,7 +535,7 @@ where
         // Compile each IR instruction into a list of ASM instructions, then combine them.
         // This step also counts the number of times each address is read from.
         let (mut instrs, traces) = tracing::debug_span!("compile_one loop").in_scope(|| {
-            let mut instrs = Vec::with_capacity(operations.vec.len());
+            let mut instrs = Vec::with_capacity(PREALLOC_INSTRUCTIONS);
             let mut traces = vec![];
             if debug_mode {
                 let mut span_builder =
@@ -616,6 +640,14 @@ where
                         alpha_pow_mults.iter_mut().zip(alpha_pow_output).for_each(&mut backfill);
                         ro_mults.iter_mut().zip(ro_output).for_each(&mut backfill);
                     }
+                    Instruction::BatchFRI(instr) => {
+                        let BatchFRIInstr {
+                            ext_single_addrs: BatchFRIExtSingleIo { ref acc },
+                            acc_mult,
+                            ..
+                        } = instr.as_mut();
+                        backfill((acc_mult, acc));
+                    }
                     Instruction::HintExt2Felts(HintExt2FeltsInstr {
                         output_addrs_mults, ..
                     }) => {
@@ -671,6 +703,7 @@ const fn instr_name<F>(instr: &Instruction<F>) -> &'static str {
         Instruction::ExpReverseBitsLen(_) => "ExpReverseBitsLen",
         Instruction::HintBits(_) => "HintBits",
         Instruction::FriFold(_) => "FriFold",
+        Instruction::BatchFRI(_) => "BatchFRI",
         Instruction::Print(_) => "Print",
         Instruction::HintExt2Felts(_) => "HintExt2Felts",
         Instruction::Hint(_) => "Hint",

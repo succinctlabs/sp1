@@ -359,8 +359,7 @@ mod tests {
     fn test_e2e_core() {
         utils::setup_logger();
         let client = ProverClient::local();
-        let elf =
-            include_bytes!("../../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
+        let elf = include_bytes!("../../../tests/fibonacci/elf/riscv32im-succinct-zkvm-elf");
         let (pk, vk) = client.setup(elf);
         let mut stdin = SP1Stdin::new();
         stdin.write(&10usize);
@@ -380,8 +379,7 @@ mod tests {
     fn test_e2e_compressed() {
         utils::setup_logger();
         let client = ProverClient::local();
-        let elf =
-            include_bytes!("../../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
+        let elf = include_bytes!("../../../tests/fibonacci/elf/riscv32im-succinct-zkvm-elf");
         let (pk, vk) = client.setup(elf);
         let mut stdin = SP1Stdin::new();
         stdin.write(&10usize);
@@ -401,8 +399,7 @@ mod tests {
     fn test_e2e_prove_plonk() {
         utils::setup_logger();
         let client = ProverClient::local();
-        let elf =
-            include_bytes!("../../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
+        let elf = include_bytes!("../../../tests/fibonacci/elf/riscv32im-succinct-zkvm-elf");
         let (pk, vk) = client.setup(elf);
         let mut stdin = SP1Stdin::new();
         stdin.write(&10usize);
@@ -422,8 +419,7 @@ mod tests {
     fn test_e2e_prove_plonk_mock() {
         utils::setup_logger();
         let client = ProverClient::mock();
-        let elf =
-            include_bytes!("../../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
+        let elf = include_bytes!("../../../tests/fibonacci/elf/riscv32im-succinct-zkvm-elf");
         let (pk, vk) = client.setup(elf);
         let mut stdin = SP1Stdin::new();
         stdin.write(&10usize);
