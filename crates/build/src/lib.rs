@@ -55,7 +55,6 @@ pub struct BuildArgs {
         long,
         action,
         help = "Build only the specified binaries",
-        default_value = "",
         num_args = 0..
     )]
     pub binaries: Vec<String>,
