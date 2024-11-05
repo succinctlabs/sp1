@@ -86,7 +86,7 @@ jobs:
           # `platform` and `arch`: Used in tarball names
           # `svm`: target platform to use for the Solc binary: https://github.com/roynalnaruto/svm-rs/blob/84cbe0ac705becabdc13168bae28a45ad2299749/svm-builds/build.rs#L4-L24
           - runner: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
+            target: x86_64-unknown-linux-musl
             svm_target_platform: linux-amd64
             platform: linux
             arch: amd64
@@ -128,11 +128,13 @@ jobs:
           cache-on-failure: true
 
       - name: Install go
+        if: matrix.target != 'x86_64-unknown-linux-musl'
         uses: actions/setup-go@v5
         with:
           go-version: "^1.22.1"
 
       - name: Check go installation
+        if: matrix.target != 'x86_64-unknown-linux-musl'
         run: |
           go version
 
@@ -155,6 +157,7 @@ jobs:
           echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
 
       - name: Build binaries
+        if: matrix.target != 'x86_64-unknown-linux-musl'
         env:
           SVM_TARGET_PLATFORM: ${{ matrix.svm_target_platform }}
         shell: bash
@@ -174,6 +177,23 @@ jobs:
             ldd "$bin" || true
             $bin --version || true
           done
+      
+      - name: Cross build amd64 Linux binaries with Musl
+        if: matrix.target == 'x86_64-unknown-linux-musl'
+        shell: bash
+        run: |
+          target="${{ matrix.target }}"
+          flags=()
+
+          docker run --rm -t \
+            -v "$(pwd)":/volume \
+            clux/muslrust:1.81.0-stable \
+            cargo build --release -p sp1-cli --target "$target" "${flags[@]}"
+
+          bin=./target/$target/release/$name$exe
+          file "$bin" || true
+          ldd "$bin" || true
+          $bin --version || true
 
       - name: Archive binaries
         id: artifacts
