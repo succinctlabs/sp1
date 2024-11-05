@@ -6,5 +6,4 @@ publish = false
 
 [dependencies]
 sp1-zkvm = { path = "../../crates/zkvm/entrypoint" }
-sp1-derive = { path = "../../crates/derive" }
 rand = "0.8.5"

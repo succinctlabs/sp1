@@ -15,7 +15,7 @@ serde = { version = "1.0.204", features = ["derive"] }
 twirp = { package = "twirp-rs", version = "0.13.0-succinct", optional = true }
 async-trait = "0.1.81"
 reqwest-middleware = { version = "0.3.2", optional = true }
-reqwest = { version = "0.12.4", features = [
+reqwest = { version = "0.12.4", default-features = false, features = [
   "rustls-tls",
   "trust-dns",
   "stream",
@@ -34,11 +34,9 @@ indicatif = "0.17.8"
 tracing = "0.1.40"
 hex = "0.4.3"
 log = "0.4.22"
-alloy-sol-types = { version = "0.7.7", optional = true }
 dirs = "5.0.1"
 tempfile = "3.10.1"
 cfg-if = "1.0"
-ethers = { version = "2", default-features = false, optional = true }
 strum = "0.26.3"
 strum_macros = "0.26.4"
 thiserror = "1.0.63"
@@ -48,14 +46,14 @@ sp1-stark = { workspace = true }
 sp1-primitives = { workspace = true }
 itertools = "0.13.0"
 tonic = { version = "0.12", features = ["tls", "tls-roots"], optional = true }
-alloy-signer = { version = "0.3.6", optional = true }
-alloy-signer-local = { version = "0.3.6", optional = true }
-alloy-primitives = { version = "0.8.7", optional = true }
+alloy-sol-types = { version = "0.8", optional = true }
+alloy-signer = { version = "0.5", optional = true }
+alloy-signer-local = { version = "0.5", optional = true }
+alloy-primitives = { version = "0.8", optional = true }
 backoff = { version = "0.4", features = ["tokio"], optional = true }
 
 [features]
 default = ["network"]
-neon = ["sp1-core-machine/neon"]
 native-gnark = ["sp1-prover/native-gnark"]
 # TODO: Once alloy has a 1.* release, we can likely remove this feature flag, as there will be less 
 # dependency resolution issues.
@@ -63,7 +61,8 @@ network = [
   "dep:prost",
   "dep:alloy-sol-types",
   "dep:tokio",
-  "dep:ethers",
+  "dep:alloy-signer",
+  "dep:alloy-signer-local",
   "dep:reqwest",
   "dep:twirp",
   "dep:reqwest-middleware",
@@ -75,7 +74,7 @@ network-v2 = [
   "dep:alloy-signer-local",
   "dep:alloy-primitives",
   "dep:tokio",
-  "dep:ethers",
+  "dep:alloy-signer",
   "dep:reqwest",
   "dep:twirp",
   "dep:reqwest-middleware",
