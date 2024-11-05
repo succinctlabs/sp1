@@ -10,11 +10,6 @@ pub struct SP1PublicValues {
 }
 
 impl SP1PublicValues {
-    /// Create a new `SP1PublicValues`.
-    pub const fn new() -> Self {
-        Self { buffer: Buffer::new() }
-    }
-
     pub fn raw(&self) -> String {
         format!("0x{}", hex::encode(self.buffer.data.clone()))
     }
@@ -32,7 +27,7 @@ impl SP1PublicValues {
         self.buffer.data.clone()
     }
 
-    /// Read a value from the buffer.    
+    /// Read a value from the buffer.
     pub fn read<T: Serialize + DeserializeOwned>(&mut self) -> T {
         self.buffer.read()
     }
@@ -89,13 +84,84 @@ impl AsRef<[u8]> for SP1PublicValues {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde::{Deserialize, Serialize};
+
+    #[derive(Debug, Serialize, Deserialize, PartialEq)]
+    struct TestStruct {
+        a: u32,
+        b: String,
+    }
+
+    #[test]
+    fn test_new() {
+        let public_values = SP1PublicValues::default();
+        assert!(public_values.buffer.data.is_empty());
+    }
+
+    #[test]
+    fn test_from_slice() {
+        let data = b"test data";
+        let public_values = SP1PublicValues::from(data.as_ref());
+        assert_eq!(public_values.buffer.data, data);
+    }
+
+    #[test]
+    fn test_raw() {
+        let data = b"test raw data";
+        let public_values = SP1PublicValues::from(data.as_ref());
+        let expected_hex = format!("0x{}", hex::encode(data));
+        assert_eq!(public_values.raw(), expected_hex);
+    }
+
+    #[test]
+    fn test_as_slice() {
+        let data = b"test slice data";
+        let public_values = SP1PublicValues::from(data.as_ref());
+        assert_eq!(public_values.as_slice(), data);
+    }
+
+    #[test]
+    fn test_to_vec() {
+        let data = b"test vec data";
+        let public_values = SP1PublicValues::from(data.as_ref());
+        assert_eq!(public_values.to_vec(), data.to_vec());
+    }
+
+    #[test]
+    fn test_write_and_read() {
+        let mut public_values = SP1PublicValues::default();
+        let obj = TestStruct { a: 123, b: "test".to_string() };
+
+        public_values.write(&obj);
+        let read_obj: TestStruct = public_values.read();
+        assert_eq!(read_obj, obj);
+    }
+
+    #[test]
+    fn test_write_slice_and_read_slice() {
+        let mut public_values = SP1PublicValues::default();
+        let slice = [1, 2, 3, 4, 5];
+        public_values.write_slice(&slice);
+
+        let mut read_slice = [0; 5];
+        public_values.read_slice(&mut read_slice);
+        assert_eq!(read_slice, slice);
+    }
+
+    #[test]
+    fn test_hash() {
+        let data = b"some data to hash";
+        let public_values = SP1PublicValues::from(data.as_ref());
+        let expected_hash = Sha256::digest(data).to_vec();
+        assert_eq!(public_values.hash(), expected_hash);
+    }
 
     #[test]
     fn test_hash_public_values() {
         let test_hex = "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
         let test_bytes = hex::decode(test_hex).unwrap();
 
-        let mut public_values = SP1PublicValues::new();
+        let mut public_values = SP1PublicValues::default();
         public_values.write_slice(&test_bytes);
         let hash = public_values.hash_bn254();
 
