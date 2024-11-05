@@ -26,6 +26,7 @@ members = [
   "crates/recursion/gnark-cli",
   "crates/recursion/gnark-ffi",
   "crates/sdk",
+  "crates/sp1-core",
   "crates/cuda",
   "crates/verifier",
   "crates/stark",
@@ -66,6 +67,9 @@ sp1-sdk = { path = "crates/sdk", version = "3.0.1" }
 sp1-cuda = { path = "crates/cuda", version = "3.0.1" }
 sp1-stark = { path = "crates/stark", version = "3.0.1" }
 sp1-lib = { path = "crates/zkvm/lib", version = "3.0.1", default-features = false }
+rayon = "1.8"
+hashbrown = "0.14"
+
 
 # NOTE: The version in this crate is manually set to 3.0.1 right now. When upgrading SP1 versions,
 # make sure to update this crate.
