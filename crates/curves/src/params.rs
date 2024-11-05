@@ -164,3 +164,13 @@ impl<'a, T: Debug + Default + Clone, N: ArrayLength> From<Iter<'a, T>> for Limbs
         Self(inner)
     }
 }
+
+impl<T, N: ArrayLength> FromIterator<T> for Limbs<T, N> {
+    #[inline]
+    fn from_iter<I>(iter: I) -> Limbs<T, N>
+    where
+        I: IntoIterator<Item = T>,
+    {
+        Limbs(GenericArray::from_iter(iter))
+    }
+}
