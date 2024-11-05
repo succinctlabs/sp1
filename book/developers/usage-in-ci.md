@@ -25,3 +25,23 @@ And then you can install the SP1 toolchain:
     ~/.sp1/bin/sp1up 
     ~/.sp1/bin/cargo-prove prove --version
 ```
+
+To speed up your CI workflow, you can cache the Rust toolchain and SP1 toolchain. See this example
+from SP1's CI workflow.
+
+```yaml
+- name: rust-cache
+  uses: actions/cache@v3
+  with:
+    path: |
+      ~/.cargo/bin/
+      ~/.cargo/registry/index/
+      ~/.cargo/registry/cache/
+      ~/.cargo/git/db/
+      target/
+      ~/.rustup/
+      ~/.sp1/circuits/plonk/ # Cache these if you're generating plonk proofs with docker in CI.
+      ~/.sp1/circuits/groth16/ # Cache these if you're generating groth16 proofs with docker in CI.
+    key: rust-1.81.0-${{ hashFiles('**/Cargo.toml') }}
+        restore-keys: rust-1.81.0-
+```
