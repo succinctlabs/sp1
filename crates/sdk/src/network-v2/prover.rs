@@ -175,7 +175,7 @@ impl NetworkProver {
             .await;
 
             match status_result {
-                Ok((status, maybe_proof)) => match status.status() {
+                Ok((status, maybe_proof)) => match status.proof_status() {
                     ProofStatus::Fulfilled => {
                         return Ok(maybe_proof.unwrap());
                     }
