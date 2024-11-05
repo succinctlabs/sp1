@@ -342,6 +342,7 @@ impl SP1ProofShape {
         reduce_batch_size: usize,
     ) -> impl Iterator<Item = Self> + 'a {
         core_shape_config
+            // .maximal_core_plus_precompile_shapes()
             .maximal_core_shapes()
             .into_iter()
             .map(|core_shape| {

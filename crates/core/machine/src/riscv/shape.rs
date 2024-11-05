@@ -1,3 +1,5 @@
+use std::iter::once;
+
 use itertools::Itertools;
 
 use hashbrown::HashMap;
@@ -319,6 +321,41 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
             });
 
         max_core_shapes.collect()
+    }
+    pub fn maximal_core_plus_precompile_shapes(&self) -> Vec<CoreShape> {
+        let max_preprocessed = self
+            .allowed_preprocessed_log_heights
+            .iter()
+            .map(|(air, allowed_heights)| (air.name(), allowed_heights.last().unwrap().unwrap()));
+
+        let max_core_shapes = self
+            .allowed_core_log_heights
+            .iter()
+            .zip(self.maximal_core_log_heights_mask.iter())
+            .filter(|(_, mask)| **mask)
+            .map(|(allowed_log_heights, _)| {
+                max_preprocessed
+                    .clone()
+                    .chain(allowed_log_heights.iter().map(|(air, allowed_heights)| {
+                        (air.name(), allowed_heights.last().unwrap().unwrap())
+                    }))
+                    .collect::<CoreShape>()
+            });
+
+        let precompile_only_shapes = self.precompile_allowed_log_heights.iter().flat_map(
+            move |(air, (mem_events_per_row, allowed_log_heights))| {
+                self.get_precompile_shapes(
+                    air,
+                    *mem_events_per_row,
+                    *allowed_log_heights.last().unwrap(),
+                )
+            },
+        );
+
+        let precompile_shapes = precompile_only_shapes
+            .map(|x| max_preprocessed.clone().chain(x).collect::<CoreShape>());
+
+        max_core_shapes.chain(precompile_shapes).collect()
     }
 }
 

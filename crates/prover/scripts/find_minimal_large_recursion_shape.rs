@@ -42,8 +42,6 @@ fn main() {
     let recursion_shape_config =
         prover.recursion_shape_config.as_ref().expect("recursion shape config not found");
 
-    // let recursion_shape_config = recursion_shape_config.union_config_with_extra_room();
-
     let candidate = recursion_shape_config.first().unwrap().clone();
 
     prover.recursion_shape_config = Some(RecursionShapeConfig::from_hash_map(&candidate));
