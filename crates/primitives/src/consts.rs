@@ -11,7 +11,7 @@ pub fn words_to_bytes_le_vec(words: &[u32]) -> Vec<u8> {
 
 /// Converts a slice of words to a slice of bytes in little endian.
 pub fn words_to_bytes_le<const B: usize>(words: &[u32]) -> [u8; B] {
-    debug_assert_eq!(words.len() * 4, B);
+    debug_assert_eq!(words.len() * WORD_SIZE, B);
     let mut bytes = [0u8; B];
     words.iter().enumerate().for_each(|(i, &word)| {
         bytes[i * WORD_SIZE..(i + 1) * WORD_SIZE].copy_from_slice(&word.to_le_bytes());
@@ -21,7 +21,7 @@ pub fn words_to_bytes_le<const B: usize>(words: &[u32]) -> [u8; B] {
 
 /// Converts a byte array in little endian to a slice of words.
 pub fn bytes_to_words_le<const W: usize>(bytes: &[u8]) -> [u32; W] {
-    debug_assert_eq!(bytes.len(), W * 4);
+    debug_assert_eq!(bytes.len(), W * WORD_SIZE);
     let mut words = [0u32; W];
     bytes.chunks_exact(WORD_SIZE).enumerate().for_each(|(i, chunk)| {
         words[i] = u32::from_le_bytes(chunk.try_into().unwrap());
@@ -31,7 +31,10 @@ pub fn bytes_to_words_le<const W: usize>(bytes: &[u8]) -> [u32; W] {
 
 /// Converts a byte array in little endian to a vector of words.
 pub fn bytes_to_words_le_vec(bytes: &[u8]) -> Vec<u32> {
-    bytes.chunks_exact(4).map(|chunk| u32::from_le_bytes(chunk.try_into().unwrap())).collect()
+    bytes
+        .chunks_exact(WORD_SIZE)
+        .map(|chunk| u32::from_le_bytes(chunk.try_into().unwrap()))
+        .collect()
 }
 
 // Converts a num to a string with commas every 3 digits.
