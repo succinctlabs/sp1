@@ -287,6 +287,7 @@ pub(crate) fn verify_plonk_raw(
     digests_to_fold[4] = vk.s[0];
     digests_to_fold[5] = vk.s[1];
 
+    // Prepend the constant term of the linearization polynomial to the claimed values.
     let claimed_values = [vec![const_lin], proof.batched_proof.claimed_values.clone()].concat();
     let batch_opening_proof = BatchOpeningProof { h: proof.batched_proof.h, claimed_values };
 

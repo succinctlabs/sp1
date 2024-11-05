@@ -112,6 +112,8 @@ pub(crate) fn load_plonk_verifying_key_from_bytes(
     Ok(result)
 }
 
+/// See https://github.com/jtguibas/gnark/blob/26e3df73fc223292be8b7fc0b7451caa4059a649/backend/plonk/bn254/solidity.go
+/// for how the proof is serialized.
 pub(crate) fn load_plonk_proof_from_bytes(
     buffer: &[u8],
     num_bsb22_commitments: usize,
@@ -123,7 +125,7 @@ pub(crate) fn load_plonk_proof_from_bytes(
     let h1 = uncompressed_bytes_to_g1_point(&buffer[256..320])?;
     let h2 = uncompressed_bytes_to_g1_point(&buffer[320..384])?;
 
-    // l_at_zeta, r_at_zeta, o_at_zeta, s 1_at_zeta, s2_at_zeta, bsb22_commitments
+    // Stores l_at_zeta, r_at_zeta, o_at_zeta, s 1_at_zeta, s2_at_zeta, bsb22_commitments
     let mut claimed_values = Vec::with_capacity(5 + num_bsb22_commitments);
     let mut offset = 384;
     for _ in 1..6 {

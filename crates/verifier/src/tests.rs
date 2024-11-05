@@ -22,7 +22,7 @@ fn test_verify_groth16() {
 
     if !is_valid {
         panic!("Groth16 proof is invalid");
-    } 
+    }
 }
 
 #[test]
