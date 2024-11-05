@@ -22,7 +22,7 @@ fn test_verify_groth16() {
 
     if !is_valid {
         panic!("Groth16 proof is invalid");
-    }
+    } 
 }
 
 #[test]
@@ -33,7 +33,7 @@ fn test_verify_plonk() {
     // Load the saved proof and extract the proof and public inputs.
     let sp1_proof_with_public_values = SP1ProofWithPublicValues::load(proof_file).unwrap();
 
-    let proof = sp1_proof_with_public_values.raw_with_checksum();
+    let proof = sp1_proof_with_public_values.bytes();
     let public_inputs = sp1_proof_with_public_values.public_values.to_vec();
 
     // This vkey hash was derived by calling `vk.bytes32()` on the verifying key.

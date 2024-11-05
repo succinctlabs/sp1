@@ -112,41 +112,44 @@ pub(crate) fn load_plonk_verifying_key_from_bytes(
     Ok(result)
 }
 
-pub(crate) fn load_plonk_proof_from_bytes(buffer: &[u8]) -> Result<PlonkProof, PlonkError> {
+pub(crate) fn load_plonk_proof_from_bytes(
+    buffer: &[u8],
+    num_bsb22_commitments: usize,
+) -> Result<PlonkProof, PlonkError> {
     let lro0 = uncompressed_bytes_to_g1_point(&buffer[..64])?;
     let lro1 = uncompressed_bytes_to_g1_point(&buffer[64..128])?;
     let lro2 = uncompressed_bytes_to_g1_point(&buffer[128..192])?;
-    let z = uncompressed_bytes_to_g1_point(&buffer[192..256])?;
-    let h0 = uncompressed_bytes_to_g1_point(&buffer[256..320])?;
-    let h1 = uncompressed_bytes_to_g1_point(&buffer[320..384])?;
-    let h2 = uncompressed_bytes_to_g1_point(&buffer[384..448])?;
-    let batched_proof_h = uncompressed_bytes_to_g1_point(&buffer[448..512])?;
+    let h0 = uncompressed_bytes_to_g1_point(&buffer[192..256])?;
+    let h1 = uncompressed_bytes_to_g1_point(&buffer[256..320])?;
+    let h2 = uncompressed_bytes_to_g1_point(&buffer[320..384])?;
 
-    let num_claimed_values =
-        u32::from_be_bytes([buffer[512], buffer[513], buffer[514], buffer[515]]) as usize;
-
-    let mut claimed_values = Vec::new();
-    let mut offset = 516;
-    for _ in 0..num_claimed_values {
+    // l_at_zeta, r_at_zeta, o_at_zeta, s 1_at_zeta, s2_at_zeta, bsb22_commitments
+    let mut claimed_values = Vec::with_capacity(5 + num_bsb22_commitments);
+    let mut offset = 384;
+    for _ in 1..6 {
         let value = Fr::from_slice(&buffer[offset..offset + 32])
             .map_err(|e| PlonkError::GeneralError(Error::Field(e)))?;
         claimed_values.push(value);
         offset += 32;
     }
 
-    let z_shifted_opening_h = uncompressed_bytes_to_g1_point(&buffer[offset..offset + 64])?;
+    let z = uncompressed_bytes_to_g1_point(&buffer[offset..offset + 64])?;
     let z_shifted_opening_value = Fr::from_slice(&buffer[offset + 64..offset + 96])
         .map_err(|e| PlonkError::GeneralError(Error::Field(e)))?;
+    offset += 96;
 
-    let num_bsb22_commitments = u32::from_be_bytes([
-        buffer[offset + 96],
-        buffer[offset + 97],
-        buffer[offset + 98],
-        buffer[offset + 99],
-    ]) as usize;
+    let batched_proof_h = uncompressed_bytes_to_g1_point(&buffer[offset..offset + 64])?;
+    let z_shifted_opening_h = uncompressed_bytes_to_g1_point(&buffer[offset + 64..offset + 128])?;
+    offset += 128;
 
-    let mut bsb22_commitments = Vec::new();
-    offset += 100;
+    for _ in 0..num_bsb22_commitments {
+        let commitment = Fr::from_slice(&buffer[offset..offset + 32])
+            .map_err(|e| PlonkError::GeneralError(Error::Field(e)))?;
+        claimed_values.push(commitment);
+        offset += 32;
+    }
+
+    let mut bsb22_commitments = Vec::with_capacity(num_bsb22_commitments);
     for _ in 0..num_bsb22_commitments {
         let commitment = uncompressed_bytes_to_g1_point(&buffer[offset..offset + 64])?;
         bsb22_commitments.push(commitment);

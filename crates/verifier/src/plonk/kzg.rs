@@ -149,7 +149,7 @@ pub(crate) fn batch_verify_multi_points(
     }
 
     if nb_digests == 1 {
-        todo!();
+        unimplemented!();
     }
 
     let mut random_numbers = Vec::with_capacity(nb_digests);

@@ -2,7 +2,10 @@ use alloc::{string::ToString, vec, vec::Vec};
 use bn::{arith::U256, AffineG1, Fr};
 use core::hash::Hasher;
 
-use crate::{error::Error, plonk::transcript::Transcript};
+use crate::{
+    error::Error,
+    plonk::{kzg::BatchOpeningProof, transcript::Transcript},
+};
 
 use super::{
     converter::g1_to_bytes, error::PlonkError, kzg, PlonkProof, ALPHA, BETA, GAMMA, U, ZETA,
@@ -153,11 +156,11 @@ pub(crate) fn verify_plonk_raw(
     }
 
     // Extract claimed values from the proof
-    let l = proof.batched_proof.claimed_values[1];
-    let r = proof.batched_proof.claimed_values[2];
-    let o = proof.batched_proof.claimed_values[3];
-    let s1 = proof.batched_proof.claimed_values[4];
-    let s2 = proof.batched_proof.claimed_values[5];
+    let l = proof.batched_proof.claimed_values[0];
+    let r = proof.batched_proof.claimed_values[1];
+    let o = proof.batched_proof.claimed_values[2];
+    let s1 = proof.batched_proof.claimed_values[3];
+    let s2 = proof.batched_proof.claimed_values[4];
 
     let zu = proof.z_shifted_opening.claimed_value;
 
@@ -171,6 +174,7 @@ pub(crate) fn verify_plonk_raw(
 
     // Compute the constant term of the linearization polynomial:
     // -[PI(ζ) - α²*L₁(ζ) + α(l(ζ)+β*s1(ζ)+γ)(r(ζ)+β*s2(ζ)+γ)(o(ζ)+γ)*z(ωζ)]
+
     let mut tmp = beta;
     tmp *= s1;
     tmp += gamma;
@@ -196,12 +200,12 @@ pub(crate) fn verify_plonk_raw(
 
     const_lin = -const_lin;
 
-    // Check if the opening of the linearized polynomial is equal to -const_lin
-    let opening_lin_pol = proof.batched_proof.claimed_values[0];
+    // // Check if the opening of the linearized polynomial is equal to -const_lin
+    // let opening_lin_pol = proof.batched_proof.claimed_values[0];
 
-    if const_lin != opening_lin_pol {
-        return Err(Error::OpeningPolyMismatch.into());
-    }
+    // if const_lin != opening_lin_pol {
+    //     return Err(Error::OpeningPolyMismatch.into());
+    // }
 
     // Compute coefficients for the linearized polynomial
     // _s1 = α*(l(ζ)+β*s1(ζ)+γ)*(r(ζ)+β*s2(ζ)+γ)*β*Z(ωζ)
@@ -253,7 +257,7 @@ pub(crate) fn verify_plonk_raw(
     points.push(proof.h[1]);
     points.push(proof.h[2]);
 
-    let qc = proof.batched_proof.claimed_values[6..].to_vec();
+    let qc = proof.batched_proof.claimed_values[5..].to_vec();
 
     let mut scalars = Vec::new();
     scalars.extend_from_slice(&qc);
@@ -283,11 +287,14 @@ pub(crate) fn verify_plonk_raw(
     digests_to_fold[4] = vk.s[0];
     digests_to_fold[5] = vk.s[1];
 
+    let claimed_values = [vec![const_lin], proof.batched_proof.claimed_values.clone()].concat();
+    let batch_opening_proof = BatchOpeningProof { h: proof.batched_proof.h, claimed_values };
+
     // Fold the proof
     // Internally derives V, and binds it to the transcript to challenge U.
     let (folded_proof, folded_digest) = kzg::fold_proof(
         digests_to_fold,
-        &proof.batched_proof,
+        &batch_opening_proof,
         &zeta,
         Some(zu.into_u256().to_bytes_be().to_vec()),
         &mut fs,
