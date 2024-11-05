@@ -15,6 +15,7 @@ pub enum Instruction<F> {
     ExpReverseBitsLen(ExpReverseBitsInstr<F>),
     HintBits(HintBitsInstr<F>),
     FriFold(Box<FriFoldInstr<F>>),
+    BatchFRI(Box<BatchFRIInstr<F>>),
     Print(PrintInstr<F>),
     HintExt2Felts(HintExt2FeltsInstr<F>),
     CommitPublicValues(Box<CommitPublicValuesInstr<F>>),
@@ -224,6 +225,27 @@ pub fn fri_fold<F: AbstractField>(
         },
         alpha_pow_mults: alpha_mults.iter().map(|mult| F::from_canonical_u32(*mult)).collect(),
         ro_mults: ro_mults.iter().map(|mult| F::from_canonical_u32(*mult)).collect(),
+    }))
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn batch_fri<F: AbstractField>(
+    acc: u32,
+    alpha_pows: Vec<u32>,
+    p_at_zs: Vec<u32>,
+    p_at_xs: Vec<u32>,
+    acc_mult: u32,
+) -> Instruction<F> {
+    Instruction::BatchFRI(Box::new(BatchFRIInstr {
+        base_vec_addrs: BatchFRIBaseVecIo {
+            p_at_x: p_at_xs.iter().map(|elm| Address(F::from_canonical_u32(*elm))).collect(),
+        },
+        ext_single_addrs: BatchFRIExtSingleIo { acc: Address(F::from_canonical_u32(acc)) },
+        ext_vec_addrs: BatchFRIExtVecIo {
+            p_at_z: p_at_zs.iter().map(|elm| Address(F::from_canonical_u32(*elm))).collect(),
+            alpha_pow: alpha_pows.iter().map(|elm| Address(F::from_canonical_u32(*elm))).collect(),
+        },
+        acc_mult: F::from_canonical_u32(acc_mult),
     }))
 }
 

@@ -57,6 +57,12 @@ pub trait MachineProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>>:
     /// Setup the preprocessed data into a proving and verifying key.
     fn setup(&self, program: &A::Program) -> (Self::DeviceProvingKey, StarkVerifyingKey<SC>);
 
+    /// Copy the proving key from the host to the device.
+    fn pk_to_device(&self, pk: &StarkProvingKey<SC>) -> Self::DeviceProvingKey;
+
+    /// Copy the proving key from the device to the host.
+    fn pk_to_host(&self, pk: &Self::DeviceProvingKey) -> StarkProvingKey<SC>;
+
     /// Generate the main traces.
     fn generate_traces(
         &self,
@@ -273,12 +279,6 @@ pub trait MachineProvingKey<SC: StarkGenericConfig>: Send + Sync {
     /// The start pc.
     fn pc_start(&self) -> Val<SC>;
 
-    /// The proving key on the host.
-    fn to_host(&self) -> StarkProvingKey<SC>;
-
-    /// The proving key on the device.
-    fn from_host(host: &StarkProvingKey<SC>) -> Self;
-
     /// Observe itself in the challenger.
     fn observe_into(&self, challenger: &mut Challenger<SC>);
 }
@@ -321,6 +321,14 @@ where
 
     fn setup(&self, program: &A::Program) -> (Self::DeviceProvingKey, StarkVerifyingKey<SC>) {
         self.machine().setup(program)
+    }
+
+    fn pk_to_device(&self, pk: &StarkProvingKey<SC>) -> Self::DeviceProvingKey {
+        pk.clone()
+    }
+
+    fn pk_to_host(&self, pk: &Self::DeviceProvingKey) -> StarkProvingKey<SC> {
+        pk.clone()
     }
 
     fn commit(
@@ -593,15 +601,35 @@ where
             tracing::debug_span!("compute preprocessed opening points").in_scope(|| {
                 pk.traces
                     .iter()
-                    .map(|trace| {
+                    .zip(pk.local_only.iter())
+                    .map(|(trace, local_only)| {
                         let domain = pcs.natural_domain_for_degree(trace.height());
-                        vec![zeta, domain.next_point(zeta).unwrap()]
+                        if !local_only {
+                            vec![zeta, domain.next_point(zeta).unwrap()]
+                        } else {
+                            vec![zeta]
+                        }
                     })
                     .collect::<Vec<_>>()
             });
 
-        let trace_opening_points =
-            tracing::debug_span!("compute trace opening points").in_scope(|| {
+        let main_trace_opening_points = tracing::debug_span!("compute main trace opening points")
+            .in_scope(|| {
+                trace_domains
+                    .iter()
+                    .zip(chips.iter())
+                    .map(|(domain, chip)| {
+                        if !chip.local_only() {
+                            vec![zeta, domain.next_point(zeta).unwrap()]
+                        } else {
+                            vec![zeta]
+                        }
+                    })
+                    .collect::<Vec<_>>()
+            });
+
+        let permutation_trace_opening_points =
+            tracing::debug_span!("compute permutation trace opening points").in_scope(|| {
                 trace_domains
                     .iter()
                     .map(|domain| vec![zeta, domain.next_point(zeta).unwrap()])
@@ -615,7 +643,7 @@ where
         // Split the trace_opening_points to the global and local chips.
         let mut global_trace_opening_points = Vec::with_capacity(global_chip_ordering.len());
         let mut local_trace_opening_points = Vec::with_capacity(local_chip_ordering.len());
-        for (i, trace_opening_point) in trace_opening_points.clone().into_iter().enumerate() {
+        for (i, trace_opening_point) in main_trace_opening_points.clone().into_iter().enumerate() {
             let scope = all_chip_scopes[i];
             if scope == InteractionScope::Global {
                 global_trace_opening_points.push(trace_opening_point);
@@ -629,14 +657,14 @@ where
                 (&pk.data, preprocessed_opening_points),
                 (global_main_data, global_trace_opening_points),
                 (&local_main_data, local_trace_opening_points),
-                (&permutation_data, trace_opening_points),
+                (&permutation_data, permutation_trace_opening_points),
                 (&quotient_data, quotient_opening_points),
             ]
         } else {
             vec![
                 (&pk.data, preprocessed_opening_points),
                 (&local_main_data, local_trace_opening_points),
-                (&permutation_data, trace_opening_points),
+                (&permutation_data, permutation_trace_opening_points),
                 (&quotient_data, quotient_opening_points),
             ]
         };
@@ -669,9 +697,16 @@ where
 
         let preprocessed_opened_values = preprocessed_values
             .into_iter()
-            .map(|op| {
-                let [local, next] = op.try_into().unwrap();
-                AirOpenedValues { local, next }
+            .zip(pk.local_only.iter())
+            .map(|(op, local_only)| {
+                if !local_only {
+                    let [local, next] = op.try_into().unwrap();
+                    AirOpenedValues { local, next }
+                } else {
+                    let [local] = op.try_into().unwrap();
+                    let width = local.len();
+                    AirOpenedValues { local, next: vec![SC::Challenge::zero(); width] }
+                }
             })
             .collect::<Vec<_>>();
 
@@ -685,10 +720,10 @@ where
                 (Some(&global_order), None) => {
                     let global_main_values =
                         global_main_values.as_ref().expect("Global main values should be Some");
-                    main_values.push(global_main_values[global_order].clone());
+                    main_values.push((global_main_values[global_order].clone(), chip.local_only()));
                 }
                 (None, Some(&local_order)) => {
-                    main_values.push(local_main_values[local_order].clone());
+                    main_values.push((local_main_values[local_order].clone(), chip.local_only()));
                 }
                 _ => unreachable!(),
             }
@@ -697,9 +732,15 @@ where
 
         let main_opened_values = main_values
             .into_iter()
-            .map(|op| {
-                let [local, next] = op.try_into().unwrap();
-                AirOpenedValues { local, next }
+            .map(|(op, local_only)| {
+                if !local_only {
+                    let [local, next] = op.try_into().unwrap();
+                    AirOpenedValues { local, next }
+                } else {
+                    let [local] = op.try_into().unwrap();
+                    let width = local.len();
+                    AirOpenedValues { local, next: vec![SC::Challenge::zero(); width] }
+                }
             })
             .collect::<Vec<_>>();
         let permutation_opened_values = permutation_values
@@ -854,14 +895,6 @@ where
 
     fn pc_start(&self) -> Val<SC> {
         self.pc_start
-    }
-
-    fn to_host(&self) -> StarkProvingKey<SC> {
-        self.clone()
-    }
-
-    fn from_host(host: &StarkProvingKey<SC>) -> Self {
-        host.clone()
     }
 
     fn observe_into(&self, challenger: &mut Challenger<SC>) {

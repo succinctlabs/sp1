@@ -91,6 +91,8 @@ pub struct Runtime<'a, F: PrimeField32, EF: ExtensionField<F>, Diffusion> {
 
     pub nb_fri_fold: usize,
 
+    pub nb_batch_fri: usize,
+
     pub nb_print_f: usize,
 
     pub nb_print_e: usize,
@@ -197,6 +199,7 @@ where
             nb_memory_ops: 0,
             nb_branch_ops: 0,
             nb_fri_fold: 0,
+            nb_batch_fri: 0,
             nb_print_f: 0,
             nb_print_e: 0,
             clk: F::zero(),
@@ -220,7 +223,9 @@ where
         tracing::debug!("Exp Reverse Bits Operations: {}", self.nb_exp_reverse_bits);
         tracing::debug!("FriFold Operations: {}", self.nb_fri_fold);
         tracing::debug!("Field Operations: {}", self.nb_base_ops);
+        tracing::debug!("Select Operations: {}", self.nb_select);
         tracing::debug!("Extension Operations: {}", self.nb_ext_ops);
+        tracing::debug!("BatchFRI Operations: {}", self.nb_batch_fri);
         tracing::debug!("Memory Operations: {}", self.nb_memory_ops);
         tracing::debug!("Branch Operations: {}", self.nb_branch_ops);
         for (name, entry) in self.cycle_tracker.iter().sorted_by_key(|(name, _)| *name) {
@@ -485,7 +490,48 @@ where
                         });
                     }
                 }
+                Instruction::BatchFRI(instr) => {
+                    let BatchFRIInstr { base_vec_addrs, ext_single_addrs, ext_vec_addrs, acc_mult } =
+                        *instr;
 
+                    let mut acc = EF::zero();
+                    let p_at_xs = base_vec_addrs
+                        .p_at_x
+                        .iter()
+                        .map(|addr| self.memory.mr(*addr).val[0])
+                        .collect_vec();
+                    let p_at_zs = ext_vec_addrs
+                        .p_at_z
+                        .iter()
+                        .map(|addr| self.memory.mr(*addr).val.ext::<EF>())
+                        .collect_vec();
+                    let alpha_pows: Vec<_> = ext_vec_addrs
+                        .alpha_pow
+                        .iter()
+                        .map(|addr| self.memory.mr(*addr).val.ext::<EF>())
+                        .collect_vec();
+
+                    self.nb_batch_fri += p_at_zs.len();
+                    for m in 0..p_at_zs.len() {
+                        acc += alpha_pows[m] * (p_at_zs[m] - EF::from_base(p_at_xs[m]));
+                        self.record.batch_fri_events.push(BatchFRIEvent {
+                            base_vec: BatchFRIBaseVecIo { p_at_x: p_at_xs[m] },
+                            ext_single: BatchFRIExtSingleIo {
+                                acc: Block::from(acc.as_base_slice()),
+                            },
+                            ext_vec: BatchFRIExtVecIo {
+                                p_at_z: Block::from(p_at_zs[m].as_base_slice()),
+                                alpha_pow: Block::from(alpha_pows[m].as_base_slice()),
+                            },
+                        });
+                    }
+
+                    let _ = self.memory.mw(
+                        ext_single_addrs.acc,
+                        Block::from(acc.as_base_slice()),
+                        acc_mult,
+                    );
+                }
                 Instruction::CommitPublicValues(instr) => {
                     let pv_addrs = instr.pv_addrs.as_array();
                     let pv_values: [F; RECURSIVE_PROOF_NUM_PV_ELTS] =
@@ -558,5 +604,6 @@ where
         self.record.base_alu_events.reserve(event_counts.base_alu_events);
         self.record.ext_alu_events.reserve(event_counts.ext_alu_events);
         self.record.exp_reverse_bits_len_events.reserve(event_counts.exp_reverse_bits_len_events);
+        self.record.select_events.reserve(event_counts.select_events);
     }
 }

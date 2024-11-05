@@ -247,7 +247,11 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         let program = self.get_program(elf).unwrap();
         let (pk, vk) = self.core_prover.setup(&program);
         let vk = SP1VerifyingKey { vk };
-        let pk = SP1ProvingKey { pk: pk.to_host(), elf: elf.to_vec(), vk: vk.clone() };
+        let pk = SP1ProvingKey {
+            pk: self.core_prover.pk_to_host(&pk),
+            elf: elf.to_vec(),
+            vk: vk.clone(),
+        };
         (pk, vk)
     }
 
@@ -292,20 +296,17 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
     ) -> Result<SP1CoreProof, SP1CoreProverError> {
         context.subproof_verifier.replace(Arc::new(self));
         let program = self.get_program(&pk.elf).unwrap();
-        let (proof, public_values_stream, cycles) = sp1_core_machine::utils::prove_with_context::<
-            _,
-            C::CoreProver,
-        >(
-            &self.core_prover,
-            &<C::CoreProver as MachineProver<BabyBearPoseidon2, RiscvAir<BabyBear>>>::DeviceProvingKey::from_host(
-                &pk.pk,
-            ),
-            program,
-            stdin,
-            opts.core_opts,
-            context,
-            self.core_shape_config.as_ref(),
-        )?;
+        let pk = self.core_prover.pk_to_device(&pk.pk);
+        let (proof, public_values_stream, cycles) =
+            sp1_core_machine::utils::prove_with_context::<_, C::CoreProver>(
+                &self.core_prover,
+                &pk,
+                program,
+                stdin,
+                opts.core_opts,
+                context,
+                self.core_shape_config.as_ref(),
+            )?;
         Self::check_for_high_cycles(cycles);
         let public_values = SP1PublicValues::from(&public_values_stream);
         Ok(SP1CoreProof {
@@ -819,7 +820,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 
                                 #[cfg(feature = "debug")]
                                 self.compress_prover.debug_constraints(
-                                    &pk.to_host(),
+                                    &self.compress_prover.pk_to_host(&pk),
                                     vec![record.clone()],
                                     &mut challenger.clone(),
                                 );
@@ -900,12 +901,8 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                         if let Ok((index, height, vk, proof)) = received {
                             batch.push((index, height, vk, proof));
 
-                            // Compute whether we've reached the root of the tree.
-                            let is_complete = height == expected_height;
-
-                            // If it's not complete, and we haven't reached the batch size,
-                            // continue.
-                            if !is_complete && batch.len() < batch_size {
+                            // If we haven't reached the batch size, continue.
+                            if batch.len() < batch_size {
                                 continue;
                             }
 
@@ -920,7 +917,10 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                             let inputs =
                                 if is_last { vec![batch[0].clone()] } else { batch.clone() };
 
-                            let next_input_index = inputs[0].1 + 1;
+                            let next_input_height = inputs[0].1 + 1;
+
+                            let is_complete = next_input_height == expected_height;
+
                             let vks_and_proofs = inputs
                                 .into_iter()
                                 .map(|(_, _, vk, proof)| (vk, proof))
@@ -934,7 +934,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                             input_tx
                                 .lock()
                                 .unwrap()
-                                .send((count, next_input_index, input))
+                                .send((count, next_input_height, input))
                                 .unwrap();
                             input_sync.advance_turn();
                             count += 1;

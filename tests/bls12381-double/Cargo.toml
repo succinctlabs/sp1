@@ -6,4 +6,3 @@ publish = false
 
 [dependencies]
 sp1-zkvm = { path = "../../crates/zkvm/entrypoint" }
-num = { version = "0.4.1", default-features = false }

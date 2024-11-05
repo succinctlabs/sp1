@@ -118,15 +118,6 @@ jobs:
         env:
           CARGO_INCREMENTAL: 1
 
-      - name: Add wasm target
-        run: rustup target add wasm32-unknown-unknown
-
-      - name: Check wasm compatibility for sdk
-        uses: actions-rs/cargo@v1
-        with:
-          command: check
-          args: -p sp1-sdk --target wasm32-unknown-unknown --no-default-features
-
   examples:
     name: Examples
     runs-on:
@@ -402,3 +393,25 @@ jobs:
       - uses: getsentry/action-git-diff-suggestions@main
         with:
           message: typos
+
+  check-verifier-no-std:
+    name: Check Verifier `no_std`
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+    steps:
+      - name: Checkout Actions Repository
+        uses: actions/checkout@v4
+  
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: riscv32imac-unknown-none-elf
+          
+      - name: Install target support
+        run: rustup target add riscv32imac-unknown-none-elf
+        
+      - name: Check build
+        run: cargo check --target riscv32imac-unknown-none-elf --no-default-features -p sp1-verifier
+       

@@ -42,7 +42,7 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
             n_real_rows.next_power_of_two()
         };
         let mut values = zeroed_f_vec(padded_nb_rows * NUM_CPU_COLS);
-        let shard = input.public_values.shard;
+        let shard = input.public_values.execution_shard;
 
         let chunk_size = std::cmp::max(input.cpu_events.len() / num_cpus::get(), 1);
         values.chunks_mut(chunk_size * NUM_CPU_COLS).enumerate().par_bridge().for_each(
@@ -79,7 +79,7 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
     fn generate_dependencies(&self, input: &ExecutionRecord, output: &mut ExecutionRecord) {
         // Generate the trace rows for each event.
         let chunk_size = std::cmp::max(input.cpu_events.len() / num_cpus::get(), 1);
-        let shard = input.public_values.shard;
+        let shard = input.public_values.execution_shard;
 
         let blu_events: Vec<_> = input
             .cpu_events

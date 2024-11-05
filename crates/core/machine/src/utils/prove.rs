@@ -142,11 +142,8 @@ where
 {
     // Setup the runtime.
     let mut runtime = Executor::with_context(program.clone(), opts, context);
-    let maximal_shapes = match shape_config.as_ref() {
-        Some(shape_config) => shape_config.maximal_core_shapes(),
-        None => vec![],
-    };
-    runtime.maximal_shapes = Some(maximal_shapes.into_iter().map(|s| s.inner).collect());
+    runtime.maximal_shapes = shape_config
+        .map(|config| config.maximal_core_shapes().into_iter().map(|s| s.inner).collect());
     runtime.write_vecs(&stdin.buffer);
     for proof in stdin.proofs.iter() {
         let (proof, vk) = proof.clone();
@@ -177,8 +174,9 @@ where
                         let _span = span.enter();
 
                         // Execute the runtime until we reach a checkpoint.
-                        let (checkpoint, done) =
-                            runtime.execute_state().map_err(SP1CoreProverError::ExecutionError)?;
+                        let (checkpoint, done) = runtime
+                            .execute_state(false)
+                            .map_err(SP1CoreProverError::ExecutionError)?;
 
                         // Save the checkpoint to a temp file.
                         let mut checkpoint_file =
@@ -618,9 +616,16 @@ where
                                 |(record, (global_traces, local_traces))| {
                                     let _span = span.enter();
 
+                                    let global_commit_span =
+                                        tracing::debug_span!("commit to global traces").entered();
                                     let global_data = prover.commit(&record, global_traces);
+                                    global_commit_span.exit();
+                                    let local_commit_span =
+                                        tracing::debug_span!("commit to local traces").entered();
                                     let local_data = prover.commit(&record, local_traces);
+                                    local_commit_span.exit();
 
+                                    let opening_span = tracing::debug_span!("opening").entered();
                                     let proof = prover
                                         .open(
                                             pk,
@@ -630,6 +635,7 @@ where
                                             &global_permutation_challenges,
                                         )
                                         .unwrap();
+                                    opening_span.exit();
 
                                     #[cfg(debug_assertions)]
                                     {
@@ -694,7 +700,8 @@ where
         {
             let all_records = all_records_rx.iter().flatten().collect::<Vec<_>>();
             let mut challenger = prover.machine().config().challenger();
-            prover.machine().debug_constraints(&pk.to_host(), all_records, &mut challenger);
+            let pk_host = prover.pk_to_host(pk);
+            prover.machine().debug_constraints(&pk_host, all_records, &mut challenger);
         }
 
         Ok((proof, public_values_stream, cycles))
@@ -792,7 +799,11 @@ where
     let prove_span = tracing::debug_span!("prove").entered();
 
     #[cfg(feature = "debug")]
-    prover.machine().debug_constraints(&pk.to_host(), records.clone(), &mut challenger.clone());
+    prover.machine().debug_constraints(
+        &prover.pk_to_host(&pk),
+        records.clone(),
+        &mut challenger.clone(),
+    );
 
     let proof = prover.prove(&pk, records, &mut challenger, SP1CoreOpts::default()).unwrap();
     prove_span.exit();
@@ -838,22 +849,19 @@ fn trace_checkpoint<SC: StarkGenericConfig>(
 where
     <SC as StarkGenericConfig>::Val: PrimeField32,
 {
-    let maximal_shapes = match shape_config {
-        Some(shape_config) => shape_config.maximal_core_shapes(),
-        None => vec![],
-    };
     let mut reader = std::io::BufReader::new(file);
     let state: ExecutionState =
         bincode::deserialize_from(&mut reader).expect("failed to deserialize state");
     let mut runtime = Executor::recover(program.clone(), state.clone(), opts);
-    runtime.maximal_shapes = Some(maximal_shapes.into_iter().map(|s| s.inner).collect());
+    runtime.maximal_shapes = shape_config
+        .map(|config| config.maximal_core_shapes().into_iter().map(|s| s.inner).collect());
 
     // We already passed the deferred proof verifier when creating checkpoints, so the proofs were
     // already verified. So here we use a noop verifier to not print any warnings.
     runtime.subproof_verifier = Arc::new(NoOpSubproofVerifier);
 
     // Execute from the checkpoint.
-    let (records, _) = runtime.execute_record().unwrap();
+    let (records, _) = runtime.execute_record(true).unwrap();
 
     (records, runtime.report)
 }
