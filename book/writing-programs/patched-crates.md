@@ -129,11 +129,6 @@ Apply the following patches based on what crates are in your dependencies.
   ```toml
   secp256k1 = { git = "https://github.com/sp1-patches/rust-secp256k1", tag = "secp256k1-v0.29.0-patch-v1" }
   ```
-- `secp256r1`
-  ```toml
-  ecdsa-core = { git = "https://github.com/sp1-patches/signatures", package = "ecdsa", branch = "umadayal/secp256r1" }
-  ```
-  Note: The curve operations for `p256` are inside of the `ecdsa-core` crate, so you don't need to patch `secp256r1` itself, and just patching `ecdsa-core` is enough.
 
 ## BN254 Acceleration
 
