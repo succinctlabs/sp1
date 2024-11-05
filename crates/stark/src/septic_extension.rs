@@ -1,17 +1,21 @@
+//! A septic extension with an irreducible polynomial `z^7 - 2z - 5`.
 use num_bigint::BigUint;
 use num_traits::One;
+use p3_field::PrimeField32;
 use p3_field::{AbstractExtensionField, AbstractField, ExtensionField, Field, Packable};
 use serde::{Deserialize, Serialize};
 use std::array;
 use std::fmt::Display;
 use std::iter::{Product, Sum};
-use std::ops::{Add, AddAssign, Div, Mul, MulAssign, Neg, Sub, SubAssign};
+use std::ops::{Add, AddAssign, Div, Index, IndexMut, Mul, MulAssign, Neg, Sub, SubAssign};
+
+use crate::air::{SP1AirBuilder, SepticExtensionAirBuilder};
 
 /// A septic extension with an irreducible polynomial `z^7 - 2z - 5`.
 ///
 /// The field can be constructed as `F_{p^7} = F_p[z]/(z^7 - 2z - 5)`.
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq, Hash)]
-pub struct SepticExtension<F>([F; 7]);
+pub struct SepticExtension<F>(pub [F; 7]);
 
 impl<F: AbstractField> AbstractField for SepticExtension<F> {
     type F = SepticExtension<F::F>;
@@ -576,6 +580,23 @@ impl<F: Field> SepticExtension<F> {
     }
 }
 
+impl<F: PrimeField32> SepticExtension<F> {
+    /// Returns whether the extension field element viewed as an y-coordinate of a digest represents a receive interaction.
+    pub fn is_receive(&self) -> bool {
+        self.0[6].as_canonical_u32() < (F::ORDER_U32 - 1) / 2
+    }
+
+    /// Returns whether the extension field element viewed as an y-coordinate of a digest represents a send interaction.
+    pub fn is_send(&self) -> bool {
+        self.0[6].as_canonical_u32() > (F::ORDER_U32 - 1) / 2
+    }
+
+    /// Returns whether the extension field element viewed as an y-coordinate of a digest cannot represent anything.
+    pub fn is_exception(&self) -> bool {
+        self.0[6].as_canonical_u32() == (F::ORDER_U32 - 1) / 2
+    }
+}
+
 /// Extension field for Cipolla's algorithm, taken from <https://github.com/Plonky3/Plonky3/pull/439/files>.
 #[derive(Clone, Copy, Debug)]
 struct CipollaExtension<F: Field> {
@@ -611,6 +632,82 @@ impl<F: Field> CipollaExtension<F> {
             base = base.mul_ext(base, nonresidue);
         }
         result
+    }
+}
+
+/// A block of columns for septic extension.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[repr(C)]
+pub struct SepticBlock<T>(pub [T; 7]);
+
+impl<T: Clone> SepticBlock<T> {
+    /// Takes a `SepticBlock` into a `SepticExtension` of expressions.
+    pub fn as_extension<AB: SepticExtensionAirBuilder<Var = T>>(
+        &self,
+    ) -> SepticExtension<AB::Expr> {
+        let arr: [AB::Expr; 7] = self.0.clone().map(|x| AB::Expr::zero() + x);
+        SepticExtension(arr)
+    }
+
+    /// Takes a single expression into a `SepticExtension` of expressions.
+    pub fn as_extension_from_base<AB: SP1AirBuilder<Var = T>>(
+        &self,
+        base: AB::Expr,
+    ) -> SepticExtension<AB::Expr> {
+        let mut arr: [AB::Expr; 7] = self.0.clone().map(|_| AB::Expr::zero());
+        arr[0] = base;
+
+        SepticExtension(arr)
+    }
+}
+
+impl<T> From<[T; 7]> for SepticBlock<T> {
+    fn from(arr: [T; 7]) -> Self {
+        Self(arr)
+    }
+}
+
+impl<T: AbstractField> From<T> for SepticBlock<T> {
+    fn from(value: T) -> Self {
+        Self([value, T::zero(), T::zero(), T::zero(), T::zero(), T::zero(), T::zero()])
+    }
+}
+
+impl<T: Copy> From<&[T]> for SepticBlock<T> {
+    fn from(slice: &[T]) -> Self {
+        let arr: [T; 7] = slice.try_into().unwrap();
+        Self(arr)
+    }
+}
+
+impl<T, I> Index<I> for SepticBlock<T>
+where
+    [T]: Index<I>,
+{
+    type Output = <[T] as Index<I>>::Output;
+
+    #[inline]
+    fn index(&self, index: I) -> &Self::Output {
+        Index::index(&self.0, index)
+    }
+}
+
+impl<T, I> IndexMut<I> for SepticBlock<T>
+where
+    [T]: IndexMut<I>,
+{
+    #[inline]
+    fn index_mut(&mut self, index: I) -> &mut Self::Output {
+        IndexMut::index_mut(&mut self.0, index)
+    }
+}
+
+impl<T> IntoIterator for SepticBlock<T> {
+    type Item = T;
+    type IntoIter = std::array::IntoIter<T, 7>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
     }
 }
 
