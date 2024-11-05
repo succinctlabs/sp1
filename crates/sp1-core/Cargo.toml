@@ -1,0 +1,8 @@
+[package]
+name = "sp1-core"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+rayon = { workspace = true }
+hashbrown = { workspace = true }
