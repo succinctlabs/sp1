@@ -139,5 +139,10 @@ p3-bn254-fr = { git = "https://github.com/Plonky3/Plonky3", branch = "sp1-v4" }
 
 [workspace.metadata.typos]
 # TODO: Fix in next version since CommitCommitedValuesDigest is retained since it's present in constraints.json
-default.extend-ignore-re = ["Jo-Philipp Wich", "SubEIN", "DivEIN", "CommitCommitedValuesDigest"]
+default.extend-ignore-re = [
+  "Jo-Philipp Wich",
+  "SubEIN",
+  "DivEIN",
+  "CommitCommitedValuesDigest",
+]
 default.extend-ignore-words-re = ["(?i)groth", "TRE"]
