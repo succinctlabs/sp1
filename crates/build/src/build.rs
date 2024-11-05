@@ -48,10 +48,13 @@ pub fn execute_build_program(
 
     let target_elf_paths = generate_elf_paths(&program_metadata, Some(args))?;
 
-    // Temporary backward compatibility with the deprecated behavior of copying the ELF file.
-    // TODO: add option to turn off this behavior
-    if target_elf_paths.len() == 1 {
-        copy_elf_to_output_dir(args, &program_metadata, &target_elf_paths[0].1)?;
+    if args.binaries.is_empty() && !target_elf_paths.is_empty() {
+        // Backward compatibility: if the --bin arg is not set, default to riscv32im-succinct-zkvm-elf
+        copy_elf_to_output_dir(args, &program_metadata, BUILD_TARGET, &target_elf_paths[0].1)?;
+    } else {
+        for (bin_target_name, elf_path) in &target_elf_paths {
+            copy_elf_to_output_dir(args, &program_metadata, bin_target_name, elf_path)?;
+        }
     }
 
     Ok(target_elf_paths)
@@ -133,7 +136,7 @@ fn generate_elf_paths(
         }) {
             // Filter out irrelevant targets if `--bin` is used.
             if let Some(args) = args {
-                if !args.binary.is_empty() && bin_target.name != args.binary {
+                if !args.binaries.is_empty() && !args.binaries.contains(&bin_target.name) {
                     continue;
                 }
             }

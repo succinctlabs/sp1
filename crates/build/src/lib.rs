@@ -54,10 +54,11 @@ pub struct BuildArgs {
         alias = "bin",
         long,
         action,
-        help = "Build only the specified binary",
-        default_value = ""
+        help = "Build only the specified binaries",
+        default_value = "",
+        num_args = 0..
     )]
-    pub binary: String,
+    pub binaries: Vec<String>,
     #[clap(long, action, help = "ELF binary name", default_value = "")]
     pub elf_name: String,
     #[clap(
@@ -79,7 +80,7 @@ impl Default for BuildArgs {
             features: vec![],
             rustflags: vec![],
             ignore_rust_version: false,
-            binary: "".to_string(),
+            binaries: vec![],
             elf_name: "".to_string(),
             output_directory: DEFAULT_OUTPUT_DIR.to_string(),
             locked: false,
