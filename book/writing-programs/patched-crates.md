@@ -106,17 +106,18 @@ Apply the following patches based on what crates are in your dependencies.
 
   Note: The curve operations for `k256` are inside of the `ecdsa-core` crate, so you don't need to patch `k256` itself, and just patching `ecdsa-core` is enough.
 
+- `p256`
+```toml
+ecdsa-core = { git = "https://github.com/sp1-patches/signatures", package = "ecdsa", branch = "umadayal/secp256r1" }
+```
+
+Note: The curve operations for `p256` are inside of the `ecdsa-core` crate, so you don't need to patch `secp256r1` itself, and just patching `ecdsa-core` is enough.
+
 - `secp256k1`
   ```toml
   secp256k1 = { git = "https://github.com/sp1-patches/rust-secp256k1", branch = "patch-v0.29.0" }
   ```
 
-- `secp256r1`
-  ```toml
-  ecdsa-core = { git = "https://github.com/sp1-patches/signatures", package = "ecdsa", branch = "umadayal/secp256r1" }
-  ```
-
-  Note: The curve operations for `p256` are inside of the `ecdsa-core` crate, so you don't need to patch `secp256r1` itself, and just patching `ecdsa-core` is enough.
 
 ## BN254 Acceleration
 To accelerate BN254 (Also known as BN128 and Alt-BN128), you will need to patch the `substrate-bn` crate. 
