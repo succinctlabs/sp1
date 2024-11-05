@@ -200,13 +200,6 @@ pub(crate) fn verify_plonk_raw(
 
     const_lin = -const_lin;
 
-    // // Check if the opening of the linearized polynomial is equal to -const_lin
-    // let opening_lin_pol = proof.batched_proof.claimed_values[0];
-
-    // if const_lin != opening_lin_pol {
-    //     return Err(Error::OpeningPolyMismatch.into());
-    // }
-
     // Compute coefficients for the linearized polynomial
     // _s1 = α*(l(ζ)+β*s1(ζ)+γ)*(r(ζ)+β*s2(ζ)+γ)*β*Z(ωζ)
     let mut _s1 = beta * s1 + l + gamma;
