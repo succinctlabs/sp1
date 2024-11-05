@@ -2,12 +2,14 @@ use std::time::{Duration, Instant};
 
 use crate::{
     network_v2::client::NetworkClient,
-    network_v2::proto::network::{ProofMode, ProofStatus, ProofStrategy},
+    network_v2::proto::network::{
+        ExecutionStatus, FulfillmentStatus, FulfillmentStrategy, ProofMode,
+    },
     NetworkProverBuilder, Prover, SP1Context, SP1ProofKind, SP1ProofWithPublicValues,
     SP1ProvingKey, SP1VerifyingKey,
 };
 use anyhow::Result;
-use backoff::{future::retry, ExponentialBackoff};
+use backoff::{future::retry, Error as BackoffError, ExponentialBackoff};
 use serde::de::DeserializeOwned;
 use sp1_core_machine::io::SP1Stdin;
 use sp1_prover::{components::DefaultProverComponents, SP1Prover, SP1_CIRCUIT_VERSION};
@@ -29,6 +31,7 @@ pub struct NetworkProver {
     client: NetworkClient,
     local_prover: CpuProver,
     skip_simulation: bool,
+    strategy: FulfillmentStrategy,
 }
 
 impl NetworkProver {
@@ -38,8 +41,12 @@ impl NetworkProver {
         log::info!("Client circuit version: {}", version);
         let local_prover = CpuProver::new();
         let client = NetworkClient::new(private_key, rpc_url);
-        Self { client, local_prover, skip_simulation }
+        Self { client, local_prover, skip_simulation, strategy: FulfillmentStrategy::Hosted }
     }
+
+    /// Sets the fulfillment strategy for the client. By default, the strategy is set to `Hosted`.
+    pub fn with_strategy(&mut self, strategy: FulfillmentStrategy) {
+        self.strategy = strategy;
 
     /// Creates a new network prover builder. See [`NetworkProverBuilder`] for more details.
     pub fn builder() -> NetworkProverBuilder {
@@ -74,26 +81,36 @@ impl NetworkProver {
 
         log::info!("Requesting proof with cycle limit: {}", cycle_limit);
 
-        // Request the proof.
-        let response = self
-            .client
-            .request_proof(
-                elf,
-                &stdin,
-                &vk,
-                mode,
-                SP1_CIRCUIT_VERSION,
-                ProofStrategy::Hosted,
-                timeout_secs,
-                cycle_limit,
-            )
-            .await?;
+        // Request the proof with retries.
+        let response = with_retry(
+            || async {
+                self.client
+                    .request_proof(
+                        elf,
+                        &stdin,
+                        &vk,
+                        mode,
+                        SP1_CIRCUIT_VERSION,
+                        self.strategy,
+                        timeout_secs,
+                        cycle_limit,
+                    )
+                    .await
+            },
+            timeout,
+            "requesting proof",
+        )
+        .await?;
 
         // Log the request ID and transaction hash.
         let tx_hash_hex = "0x".to_string() + &hex::encode(response.tx_hash);
         let request_id = response.body.unwrap().request_id;
         let request_id_hex = "0x".to_string() + &hex::encode(request_id.clone());
         log::info!("Created request {} in transaction {}", request_id_hex, tx_hash_hex);
+
+        if NetworkClient::rpc_url() == DEFAULT_PROVER_NETWORK_RPC {
+            log::info!("View in explorer: https://network.succinct.xyz/request/{}", request_id_hex);
+        }
 
         Ok(request_id)
     }
@@ -108,80 +125,50 @@ impl NetworkProver {
         let mut is_assigned = false;
         let start_time = Instant::now();
 
-        // Configure retries with exponential backoff.
-        let backoff = ExponentialBackoff {
-            initial_interval: Duration::from_secs(1),
-            max_interval: Duration::from_secs(30),
-            max_elapsed_time: timeout,
-            ..Default::default()
-        };
-
         loop {
+            // Calculate the remaining timeout.
             if let Some(timeout) = timeout {
                 if start_time.elapsed() > timeout {
                     return Err(anyhow::anyhow!("Proof request timed out."));
                 }
             }
+            let remaining_timeout = timeout.map(|t| {
+                let elapsed = start_time.elapsed();
+                if elapsed < t {
+                    t - elapsed
+                } else {
+                    Duration::from_secs(0)
+                }
+            });
 
-            // Try to get proof status with retries.
-            let status_result = retry(backoff.clone(), || async {
-                match self.client.get_proof_request_status::<P>(request_id).await {
-                    Ok(result) => Ok(result),
-                    Err(e) => {
-                        if let Some(status) = e.downcast_ref::<tonic::Status>() {
-                            match status.code() {
-                                Code::NotFound => {
-                                    log::error!("Proof request not found: {}", status.message());
-                                    Err(backoff::Error::permanent(e))
-                                }
-                                Code::Unavailable => {
-                                    log::warn!(
-                                        "Network temporarily unavailable, retrying: {}",
-                                        status.message()
-                                    );
-                                    Err(backoff::Error::transient(e))
-                                }
-                                Code::DeadlineExceeded => {
-                                    log::warn!(
-                                        "Request deadline exceeded, retrying: {}",
-                                        status.message()
-                                    );
-                                    Err(backoff::Error::transient(e))
-                                }
-                                _ => {
-                                    log::error!(
-                                        "Permanent error encountered: {} ({})",
-                                        status.message(),
-                                        status.code()
-                                    );
-                                    Err(backoff::Error::permanent(e))
-                                }
-                            }
-                        } else {
-                            log::error!("Unexpected error type: {}", e);
-                            Err(backoff::Error::permanent(e))
-                        }
+            // Get status with retries.
+            let (status, maybe_proof) = with_retry(
+                || async { self.client.get_proof_request_status::<P>(request_id).await },
+                remaining_timeout,
+                "getting proof request status",
+            )
+            .await?;
+
+            // Check the execution status.
+            if status.execution_status == ExecutionStatus::Unexecutable as i32 {
+                return Err(anyhow::anyhow!("Proof request is unexecutable"));
+            }
+
+            // Check the fulfillment status.
+            match FulfillmentStatus::try_from(status.fulfillment_proof_status) {
+                Ok(FulfillmentStatus::Fulfilled) => {
+                    return Ok(maybe_proof.unwrap());
+                }
+                Ok(FulfillmentStatus::Assigned) => {
+                    if !is_assigned {
+                        log::info!("Proof request assigned, proving...");
+                        is_assigned = true;
                     }
                 }
-            })
-            .await;
-
-            match status_result {
-                Ok((status, maybe_proof)) => match status.proof_status() {
-                    ProofStatus::Fulfilled => {
-                        return Ok(maybe_proof.unwrap());
-                    }
-                    ProofStatus::Assigned => {
-                        if !is_assigned {
-                            log::info!("Proof request assigned, proving...");
-                            is_assigned = true;
-                        }
-                    }
-                    _ => {}
-                },
-                Err(e) => {
-                    return Err(e);
+                Ok(FulfillmentStatus::Unfulfillable) => {
+                    return Err(anyhow::anyhow!("Proof request is unfulfillable"));
                 }
+                _ => {}
             }
 
             sleep(Duration::from_secs(2)).await;
@@ -256,4 +243,82 @@ impl From<SP1ProofKind> for ProofMode {
             SP1ProofKind::Groth16 => Self::Groth16,
         }
     }
+}
+
+/// Execute an async operation with exponential backoff retries.
+pub async fn with_retry<T, F, Fut>(
+    operation: F,
+    timeout: Option<Duration>,
+    operation_name: &str,
+) -> Result<T>
+where
+    F: Fn() -> Fut,
+    Fut: std::future::Future<Output = Result<T>>,
+{
+    let backoff = ExponentialBackoff {
+        initial_interval: Duration::from_secs(1),
+        max_interval: Duration::from_secs(120),
+        max_elapsed_time: timeout,
+        ..Default::default()
+    };
+
+    retry(backoff, || async {
+        match operation().await {
+            Ok(result) => Ok(result),
+            Err(e) => {
+                // Check for tonic status errors.
+                if let Some(status) = e.downcast_ref::<tonic::Status>() {
+                    match status.code() {
+                        Code::Unavailable => {
+                            log::warn!(
+                                "Network temporarily unavailable when {} due to {}, retrying...",
+                                operation_name,
+                                status.message(),
+                            );
+                            Err(BackoffError::transient(e))
+                        }
+                        Code::NotFound => {
+                            log::error!(
+                                "{} not found due to {}",
+                                operation_name,
+                                status.message(),
+                            );
+                            Err(BackoffError::permanent(e))
+                        }
+                        _ => {
+                            log::error!(
+                                "Permanent error encountered when {}: {} ({})",
+                                operation_name,
+                                status.message(),
+                                status.code()
+                            );
+                            Err(BackoffError::permanent(e))
+                        }
+                    }
+                } else {
+                    // Check for common transport errors.
+                    let error_msg = e.to_string().to_lowercase();
+                    let is_transient = error_msg.contains("tls handshake") ||
+                        error_msg.contains("dns error") ||
+                        error_msg.contains("connection reset") ||
+                        error_msg.contains("broken pipe") ||
+                        error_msg.contains("transport error") ||
+                        error_msg.contains("failed to lookup");
+                    
+                    if is_transient {
+                        log::warn!(
+                            "Transient transport error when {}: {}, retrying...",
+                            operation_name,
+                            error_msg
+                        );
+                        Err(BackoffError::transient(e))
+                    } else {
+                        log::error!("Permanent error when {}: {}", operation_name, error_msg);
+                        Err(BackoffError::permanent(e))
+                    }
+                }
+            }
+        }
+    })
+    .await
 }

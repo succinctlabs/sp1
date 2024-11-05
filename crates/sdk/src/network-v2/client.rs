@@ -18,10 +18,9 @@ use crate::network_v2::proto::artifact::{
     artifact_store_client::ArtifactStoreClient, CreateArtifactRequest,
 };
 use crate::network_v2::proto::network::{
-    prover_network_client::ProverNetworkClient, GetFilteredProofRequestsRequest,
-    GetFilteredProofRequestsResponse, GetNonceRequest, GetProofRequestStatusRequest,
-    GetProofRequestStatusResponse, ProofMode, ProofStatus, ProofStrategy, RequestProofRequest,
-    RequestProofRequestBody, RequestProofResponse,
+    prover_network_client::ProverNetworkClient, FulfillmentStatus, FulfillmentStrategy,
+    GetNonceRequest, GetProofRequestStatusRequest, GetProofRequestStatusResponse, ProofMode,
+    RequestProofRequest, RequestProofRequestBody, RequestProofResponse,
 };
 use crate::network_v2::Signable;
 
@@ -108,9 +107,9 @@ impl NetworkClient {
             .await?
             .into_inner();
 
-        let status = ProofStatus::try_from(res.proof_status)?;
+        let status = FulfillmentStatus::try_from(res.fulfillment_status)?;
         let proof = match status {
-            ProofStatus::Fulfilled => {
+            FulfillmentStatus::Fulfilled => {
                 let proof_uri = res
                     .proof_uri
                     .as_ref()
@@ -124,28 +123,6 @@ impl NetworkClient {
         Ok((res, proof))
     }
 
-    /// Get all the proof requests for a given status. Also filter by version if provided.
-    pub async fn get_filtered_proof_requests(
-        &self,
-        version: Option<String>,
-        proof_status: Option<i32>,
-        execution_status: Option<i32>,
-        limit: Option<u32>,
-    ) -> Result<GetFilteredProofRequestsResponse> {
-        let mut rpc = self.get_rpc().await?;
-        let res = rpc
-            .get_filtered_proof_requests(GetFilteredProofRequestsRequest {
-                version,
-                proof_status,
-                execution_status,
-                limit,
-            })
-            .await?
-            .into_inner();
-
-        Ok(res)
-    }
-
     /// Creates a proof request with the given ELF and stdin.
     #[allow(clippy::too_many_arguments)]
     pub async fn request_proof(
@@ -155,7 +132,7 @@ impl NetworkClient {
         vk: &SP1VerifyingKey,
         mode: ProofMode,
         version: &str,
-        strategy: ProofStrategy,
+        strategy: FulfillmentStrategy,
         timeout_secs: u64,
         cycle_limit: u64,
     ) -> Result<RequestProofResponse> {
