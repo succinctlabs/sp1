@@ -40,18 +40,17 @@ impl PlonkVerifier {
     /// let sp1_vkey_hash = vk.bytes32();
     /// ```
     /// * `plonk_vk` - The Plonk verifying key bytes.
-    ///   Usually this will be the [`crate::PLONK_VK_BYTES`] constant.
+    ///   Usually this will be the [`static@crate::PLONK_VK_BYTES`] constant.
     ///
     /// # Returns
     ///
-    /// A `Result` containing a boolean indicating whether the proof is valid,
-    /// or a [`PlonkError`] if verification fails.
+    /// A success [`Result`] if verification succeeds, or a [`PlonkError`] if verification fails.
     pub fn verify(
         proof: &[u8],
         sp1_public_inputs: &[u8],
         sp1_vkey_hash: &str,
         plonk_vk: &[u8],
-    ) -> Result<bool, PlonkError> {
+    ) -> Result<(), PlonkError> {
         // Hash the vk and get the first 4 bytes.
         let plonk_vk_hash: [u8; 4] = Sha256::digest(plonk_vk)[..4]
             .try_into()

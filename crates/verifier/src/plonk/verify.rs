@@ -48,15 +48,15 @@ pub(crate) fn verify_plonk_raw(
     vk: &PlonkVerifyingKey,
     proof: &PlonkProof,
     public_inputs: &[Fr],
-) -> Result<bool, PlonkError> {
+) -> Result<(), PlonkError> {
     // Check if the number of BSB22 commitments matches the number of Qcp in the verifying key
     if proof.bsb22_commitments.len() != vk.qcp.len() {
-        return Err(PlonkError::GeneralError(Error::Bsb22CommitmentMismatch));
+        return Err(PlonkError::Bsb22CommitmentMismatch);
     }
 
     // Check if the number of public inputs matches the number of public variables in the verifying key
     if public_inputs.len() != vk.nb_public_variables {
-        return Err(PlonkError::GeneralError(Error::InvalidWitness));
+        return Err(PlonkError::InvalidWitness);
     }
 
     // Initialize the Fiat-Shamir transcript
@@ -96,7 +96,7 @@ pub(crate) fn verify_plonk_raw(
     let zh_zeta = zeta_power_n - one;
 
     // Compute Lagrange polynomial at ζ: L₁(ζ) = (ζⁿ - 1) / (n * (ζ - 1))
-    let mut lagrange_one = (zeta - one).inverse().ok_or(Error::InverseNotFound)?;
+    let mut lagrange_one = (zeta - one).inverse().ok_or(PlonkError::InverseNotFound)?;
     lagrange_one *= zh_zeta;
     lagrange_one *= vk.size_inv;
 
@@ -141,7 +141,7 @@ pub(crate) fn verify_plonk_raw(
 
         let exponent =
             U256::from((vk.nb_public_variables + vk.commitment_constraint_indexes[i]) as u64);
-        let exponent = Fr::new(exponent).ok_or(Error::BeyondTheModulus)?;
+        let exponent = Fr::new(exponent).ok_or(PlonkError::BeyondTheModulus)?;
         let w_pow_i = vk.generator.pow(exponent);
         let mut den = zeta;
         den -= w_pow_i;
@@ -314,7 +314,7 @@ pub(crate) fn verify_plonk_raw(
         &vk.kzg,
     )?;
 
-    Ok(true)
+    Ok(())
 }
 
 /// Binds all plonk public data to the transcript.

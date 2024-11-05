@@ -1,5 +1,5 @@
 mod converter;
-pub(crate) mod error;
+pub mod error;
 mod verify;
 
 pub(crate) use converter::{load_groth16_proof_from_bytes, load_groth16_verifying_key_from_bytes};
@@ -30,19 +30,18 @@ impl Groth16Verifier {
     /// let sp1_vkey_hash = vk.bytes32();
     /// ```
     /// * `groth16_vk` - The Groth16 verifying key bytes.
-    ///   Usually this will be the [`crate::GROTH16_VK_BYTES`] constant, which is the Groth16
+    ///   Usually this will be the [`static@crate::GROTH16_VK_BYTES`] constant, which is the Groth16
     ///   verifying key for the current SP1 version.
     ///
     /// # Returns
     ///
-    /// A [`Result`] containing a boolean indicating whether the proof is valid,
-    /// or a [`Groth16Error`] if verification fails.
+    /// A success [`Result`] if verification succeeds, or a [`Groth16Error`] if verification fails.
     pub fn verify(
         proof: &[u8],
         sp1_public_inputs: &[u8],
         sp1_vkey_hash: &str,
         groth16_vk: &[u8],
-    ) -> Result<bool, Groth16Error> {
+    ) -> Result<(), Groth16Error> {
         // Hash the vk and get the first 4 bytes.
         let groth16_vk_hash: [u8; 4] = Sha256::digest(groth16_vk)[..4]
             .try_into()
