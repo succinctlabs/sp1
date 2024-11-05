@@ -61,6 +61,7 @@ pub enum VkBuildError {
 pub fn check_shapes<C: SP1ProverComponents>(
     reduce_batch_size: usize,
     only_maximal: bool,
+    no_precompiles: bool,
     num_compiler_workers: usize,
     prover: &SP1Prover<C>,
 ) -> bool {
@@ -78,6 +79,7 @@ pub fn check_shapes<C: SP1ProverComponents>(
             core_shape_config,
             recursion_shape_config,
             reduce_batch_size,
+            no_precompiles,
         )
         .collect::<BTreeSet<SP1ProofShape>>()
     } else {
@@ -173,6 +175,7 @@ pub fn build_vk_map<C: SP1ProverComponents>(
                 core_shape_config,
                 recursion_shape_config,
                 reduce_batch_size,
+                false,
             )
             .collect::<BTreeSet<_>>()
         } else {
@@ -340,11 +343,14 @@ impl SP1ProofShape {
         core_shape_config: &'a CoreShapeConfig<BabyBear>,
         recursion_shape_config: &'a RecursionShapeConfig<BabyBear, CompressAir<BabyBear>>,
         reduce_batch_size: usize,
+        no_precompiles: bool,
     ) -> impl Iterator<Item = Self> + 'a {
-        core_shape_config
-            // .maximal_core_plus_precompile_shapes()
-            .maximal_core_shapes()
-            .into_iter()
+        let core_shape_iter = if no_precompiles {
+            core_shape_config.maximal_core_shapes().into_iter()
+        } else {
+            core_shape_config.maximal_core_plus_precompile_shapes().into_iter()
+        };
+        core_shape_iter
             .map(|core_shape| {
                 Self::Recursion(ProofShape {
                     chip_information: core_shape.inner.into_iter().collect(),

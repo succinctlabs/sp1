@@ -46,7 +46,7 @@ fn main() {
 
     prover.recursion_shape_config = Some(RecursionShapeConfig::from_hash_map(&candidate));
 
-    assert!(check_shapes(reduce_batch_size, true, num_compiler_workers, &prover,));
+    assert!(check_shapes(reduce_batch_size, true, false, num_compiler_workers, &prover,));
 
     let mut answer = candidate.clone();
 
@@ -58,9 +58,26 @@ fn main() {
                 new_val -= 1;
                 answer.insert(key.clone(), new_val);
                 prover.recursion_shape_config = Some(RecursionShapeConfig::from_hash_map(&answer));
-                done = !check_shapes(reduce_batch_size, true, num_compiler_workers, &prover);
+                done = !check_shapes(reduce_batch_size, true, false, num_compiler_workers, &prover);
             }
             answer.insert(key.clone(), new_val + 1);
+        }
+    }
+
+    let mut no_precompile_answer = answer.clone();
+
+    for (key, value) in answer.iter() {
+        if key != "PublicValues" {
+            let mut done = false;
+            let mut new_val = *value;
+            while !done {
+                new_val -= 1;
+                no_precompile_answer.insert(key.clone(), new_val);
+                prover.recursion_shape_config =
+                    Some(RecursionShapeConfig::from_hash_map(&no_precompile_answer));
+                done = !check_shapes(reduce_batch_size, true, true, num_compiler_workers, &prover);
+            }
+            no_precompile_answer.insert(key.clone(), new_val + 1);
         }
     }
 
@@ -109,5 +126,6 @@ fn main() {
     }
 
     println!("Final compress shape: {:?}", answer);
+    println!("Final compress shape with no precompiles: {:?}", no_precompile_answer);
     println!("Final shrink shape: {:?}", shrink_shape);
 }
