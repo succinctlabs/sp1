@@ -414,4 +414,32 @@ jobs:
         
       - name: Check build
         run: cargo check --target riscv32imac-unknown-none-elf --no-default-features -p sp1-verifier
-       
+
+  lock-files:
+    name: "Check lock files"
+    runs-on: ["runs-on", "runner=8cpu-linux-x64", "hdd=150", "run-id=${{ github.run_id }}"]
+    env:
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+    steps:
+      - name: "Checkout sources"
+        uses: "actions/checkout@v4"
+
+      - name: Setup CI
+        uses: ./.github/actions/setup
+
+      - name: "Remove lock files"
+        run: |
+          find -name Cargo.lock -type f -exec rm {} \;
+
+      - name: "Build SP1 without lock files"
+        run: |
+          cargo build --all --all-targets
+
+      - name: Install SP1 toolchain
+        run: |
+          cargo run -p sp1-cli -- prove install-toolchain
+          
+      - name: "Build examples without lock files"
+        run: |
+          cd examples
+          cargo build --all --all-targets
