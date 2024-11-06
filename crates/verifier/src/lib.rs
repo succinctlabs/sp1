@@ -19,14 +19,17 @@ lazy_static! {
 mod constants;
 mod converter;
 mod error;
-mod groth16;
-mod utils;
 
-pub use groth16::Groth16Verifier;
+mod utils;
 pub use utils::*;
 
-mod plonk;
+pub use groth16::error::Groth16Error;
+pub use groth16::Groth16Verifier;
+mod groth16;
+
+pub use plonk::error::PlonkError;
 pub use plonk::PlonkVerifier;
+mod plonk;
 
 #[cfg(test)]
 mod tests;

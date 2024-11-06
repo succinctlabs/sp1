@@ -97,7 +97,7 @@ pub(crate) fn fold_proof(
     let nb_digests = digests.len();
 
     if nb_digests != batch_opening_proof.claimed_values.len() {
-        return Err(Error::InvalidNumberOfDigests.into());
+        return Err(PlonkError::InvalidNumberOfDigests);
     }
 
     let gamma = derive_gamma(
@@ -141,15 +141,15 @@ pub(crate) fn batch_verify_multi_points(
     let nb_points = points.len();
 
     if nb_digests != nb_proofs {
-        return Err(Error::InvalidNumberOfDigests.into());
+        return Err(PlonkError::InvalidNumberOfDigests);
     }
 
     if nb_digests != nb_points {
-        return Err(Error::InvalidNumberOfDigests.into());
+        return Err(PlonkError::InvalidNumberOfDigests);
     }
 
     if nb_digests == 1 {
-        todo!();
+        unimplemented!();
     }
 
     let mut random_numbers = Vec::with_capacity(nb_digests);
@@ -186,7 +186,7 @@ pub(crate) fn batch_verify_multi_points(
         pairing_batch(&[(folded_digests.into(), vk.g2[0]), (folded_quotients.into(), vk.g2[1])]);
 
     if !pairing_result.is_one() {
-        return Err(Error::PairingCheckFailed.into());
+        return Err(PlonkError::PairingCheckFailed);
     }
 
     Ok(())
