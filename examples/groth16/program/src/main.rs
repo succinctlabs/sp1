@@ -18,7 +18,7 @@ pub fn main() {
     println!("cycle-tracker-end: verify");
 
     match result {
-        Ok(())) => {
+        Ok(()) => {
             println!("Proof is valid");
         }
         Err(e) => {
