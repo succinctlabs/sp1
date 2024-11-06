@@ -54,13 +54,18 @@ pub(crate) fn verify_groth16_raw(
     vk: &Groth16VerifyingKey,
     proof: &Groth16Proof,
     public_inputs: &[Fr],
-) -> Result<bool, Groth16Error> {
+) -> Result<(), Groth16Error> {
     let prepared_inputs = prepare_inputs(vk.clone(), public_inputs)?;
 
-    Ok(pairing_batch(&[
+    if pairing_batch(&[
         (-Into::<G1>::into(proof.ar), proof.bs.into()),
         (prepared_inputs, vk.g2.gamma.into()),
         (proof.krs.into(), vk.g2.delta.into()),
         (vk.g1.alpha.into(), -Into::<G2>::into(vk.g2.beta)),
-    ]) == Gt::one())
+    ]) == Gt::one()
+    {
+        Ok(())
+    } else {
+        Err(Groth16Error::ProofVerificationFailed)
+    }
 }
