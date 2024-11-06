@@ -435,6 +435,10 @@ jobs:
         run: |
           cargo build --all --all-targets
 
+      - name: Install SP1 toolchain
+        run: |
+          cargo run -p sp1-cli -- prove install-toolchain
+          
       - name: "Build examples without lock files"
         run: |
           cd examples
