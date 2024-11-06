@@ -29,7 +29,7 @@ using docker or the prover network.
 First, generate your groth16/plonk proof with the SP1 SDK. See [here](./onchain/getting-started.md#generating-sp1-proofs-for-onchain-verification)
 for more information -- `sp1-verifier` and the solidity verifier expect inputs in the same format.
 
-Next, verify the proof with `sp1-verifier`. The following snippet is from the [Groth16 example program](https://github.com/succinctlabs/sp1/tree/dev/examples/groth16/).
+Next, verify the proof with `sp1-verifier`. The following snippet is from the [Groth16 example program](https://github.com/succinctlabs/sp1/tree/dev/examples/groth16/), which verifies a Groth16 proof within SP1 using `sp1-verifier`.
 
 ```rust,noplayground
 {{#include ../../examples/groth16/program/src/main.rs}}
