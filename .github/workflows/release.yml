@@ -156,8 +156,12 @@ jobs:
           sudo apt-get install -y gcc-aarch64-linux-gnu
           echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
 
+      - name: Musl setup
+        if: matrix.target == 'x86_64-unknown-linux-musl'
+        run: |
+          rustup target add x86_64-unknown-linux-musl
+
       - name: Build binaries
-        if: matrix.target != 'x86_64-unknown-linux-musl'
         env:
           SVM_TARGET_PLATFORM: ${{ matrix.svm_target_platform }}
         shell: bash
@@ -177,24 +181,6 @@ jobs:
             ldd "$bin" || true
             $bin --version || true
           done
-      
-      - name: Cross build amd64 Linux binaries with Musl
-        if: matrix.target == 'x86_64-unknown-linux-musl'
-        shell: bash
-        run: |
-          target="${{ matrix.target }}"
-          flags=()
-
-          docker run --rm -t \
-            -v "$(pwd)":/volume \
-            clux/muslrust:1.81.0-stable \
-            cargo build --release -p sp1-cli --target "$target" "${flags[@]}"
-
-          bin=./target/$target/release/$name$exe
-          file "$bin" || true
-          ldd "$bin" || true
-          $bin --version || true
-
       - name: Archive binaries
         id: artifacts
         env:
