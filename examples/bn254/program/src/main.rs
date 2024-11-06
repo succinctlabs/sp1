@@ -1,6 +1,6 @@
 #![no_main]
 
-use substrate_bn::{pairing, pairing_batch, Fq, Fq2, Fr, Group, G1, G2};
+use bn::{pairing, pairing_batch, Fq, Fq2, Fr, Group, G1, G2};
 
 sp1_zkvm::entrypoint!(main);
 
