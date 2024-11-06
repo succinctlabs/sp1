@@ -25,7 +25,7 @@ fn generate_fibonacci_proof() -> (Vec<u8>, Vec<u8>, String) {
     // Create a `ProverClient`.
     let client = ProverClient::new();
 
-    // Generate the proof for the fibonacci program.
+    // Generate the groth16 proof for the Fibonacci program.
     let (pk, vk) = client.setup(FIBONACCI_ELF);
     println!("vk: {:?}", vk.bytes32());
     let proof = client.prove(&pk, stdin).groth16().run().unwrap();

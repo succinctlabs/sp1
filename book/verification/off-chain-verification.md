@@ -38,7 +38,7 @@ Next, verify the proof with `sp1-verifier`. The following snippet is from the [G
 Here, the proof, public inputs, and vkey hash are read from stdin. See the following snippet to see how these values are generated.
 
 ```rust,noplayground
-{{#include ../../examples/groth16/script/src/main.rs}}
+{{#include ../../examples/groth16/script/src/main.rs:12:34}}
 ```
 
 > Note that the SP1 SDK itself is *not* `no_std` compatible.
