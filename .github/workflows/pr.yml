@@ -414,4 +414,25 @@ jobs:
         
       - name: Check build
         run: cargo check --target riscv32imac-unknown-none-elf --no-default-features -p sp1-verifier
-       
+
+  lock-files:
+    name: "Check lock files"
+    runs-on: ["runs-on", "runner=8cpu-linux-x64", "run-id=${{ github.run_id }}"]
+    env:
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+    steps:
+      - name: "Checkout sources"
+        uses: "actions/checkout@v4"
+
+      - name: "Update lock files"
+        run: |
+          cargo tree
+          (cd ./examples && cargo tree)
+
+      - name: "Assert no changes"
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then 
+            echo "Lock files not up to date"
+            exit 1
+          fi
+          
