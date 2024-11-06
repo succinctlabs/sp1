@@ -424,15 +424,15 @@ jobs:
       - name: "Checkout sources"
         uses: "actions/checkout@v4"
 
-      - name: "Update lock files"
+      - name: "Remove lock files"
         run: |
-          cargo tree
-          (cd ./examples && cargo tree)
+          find -name Cargo.lock -type f -exec rm {} \;
 
-      - name: "Assert no changes"
+      - name: "Build SP1 without lock files"
         run: |
-          if [ -n "$(git status --porcelain)" ]; then 
-            echo "Lock files not up to date"
-            exit 1
-          fi
-          
+          cargo build --all --all-targets
+
+      - name: "Build examples without lock files"
+        run: |
+          cd examples
+          cargo build --all --all-targets
