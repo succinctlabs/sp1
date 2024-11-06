@@ -424,6 +424,9 @@ jobs:
       - name: "Checkout sources"
         uses: "actions/checkout@v4"
 
+      - name: Setup CI
+        uses: ./.github/actions/setup
+
       - name: "Remove lock files"
         run: |
           find -name Cargo.lock -type f -exec rm {} \;
