@@ -55,8 +55,7 @@ impl SP1ProofWithPublicValues {
 
     /// For Plonk or Groth16 proofs, returns the proof in a byte encoding the onchain verifier
     /// accepts. The bytes consist of the first four bytes of Plonk vkey hash followed by the
-    /// solidity encoded proof. This proof is *not* abi encoded -- simply optimized for onchain
-    /// usage.
+    /// encoded proof, in a form optimized for onchain verification.
     pub fn bytes(&self) -> Vec<u8> {
         match &self.proof {
             SP1Proof::Plonk(plonk_proof) => {
