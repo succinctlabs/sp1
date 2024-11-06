@@ -8,7 +8,7 @@ You can verify SP1 Groth16 and Plonk proofs in `no_std` environments with [`sp1-
 [bn254](https://blog.succinct.xyz/succinctshipsprecompiles/) precompiles. For an example of this, see
 the [Groth16 Example](https://github.com/succinctlabs/sp1/tree/main/examples/groth16/).
 
-### Instafllation
+### Installation
 
 Import the following dependency in your `Cargo.toml`:
 
@@ -29,35 +29,21 @@ using docker or the prover network.
 First, generate your groth16/plonk proof with the SP1 SDK. See [here](./onchain/getting-started.md#generating-sp1-proofs-for-onchain-verification)
 for more information -- `sp1-verifier` and the solidity verifier expect inputs in the same format.
 
-Next, verify the proof with `sp1-verifier`. The following snippet is from the `sp1-verifier` tests, which use
-proofs generated from the Fibonacci example.
+Next, verify the proof with `sp1-verifier`. The following snippet is from the [Groth16 example program](https://github.com/succinctlabs/sp1/tree/dev/examples/groth16/).
 
 ```rust,noplayground
-// Load the saved proof and extract the proof and public inputs.
-let sp1_proof_with_public_values = SP1ProofWithPublicValues::load(proof_file).unwrap();
-
-let proof = sp1_proof_with_public_values.bytes();
-let public_inputs = sp1_proof_with_public_values.public_values.to_vec();
-
-// This vkey hash was derived by calling `vk.bytes32()` on the verifying key.
-let vkey_hash = "0x00e60860c07bfc6e4c480286c0ddbb879674eb47f84b4ef041cf858b17aa0ed1";
-
-let is_valid =
-    crate::Groth16Verifier::verify(&proof, &public_inputs, vkey_hash, &crate::GROTH16_VK_BYTES)
-        .expect("Groth16 proof is invalid");
+{{#include ../../examples/groth16/program/src/main.rs}}
 ```
 
-Note that the SP1 SDK itself is *not* `no_std` compatible. To use the verifier crate in fully `no_std` environments,
-you must input the `sp1_proof_with_public_values.bytes()`, `sp1_proof_with_public_values.public_values.to_vec()`,
-and the vkey hash manually. For an example of how to do this, see [Wasm Verification](#wasm-verification).
+Here, the proof, public inputs, and vkey hash are read from stdin. See the following snippet to see how these values are generated.
+
+```rust,noplayground
+{{#include ../../examples/groth16/script/src/main.rs}}
+```
+
+> Note that the SP1 SDK itself is *not* `no_std` compatible.
 
 ## Wasm Verification
 
 The [`example-sp1-wasm-verifier`](https://github.com/succinctlabs/example-sp1-wasm-verifier) demonstrates how to
 verify SP1 proofs in wasm. For a more detailed explanation of the process, please see the [README](https://github.com/succinctlabs/example-sp1-wasm-verifier/blob/main/README.md).
-
-At a high level, the process is as follows:
-
-1. Create wasm bindings for `sp1-verifier`, using tools like `wasm-bindgen` and `wasm-pack`.
-2. Serialize proof bytes and `SP1ProofWithPublicValues` structs to JSON.
-3. Load the JSON proof in your wasm runtime and verify it with your wasm bindings.
