@@ -45,3 +45,6 @@ from SP1's CI workflow.
     key: rust-1.81.0-${{ hashFiles('**/Cargo.toml') }}
         restore-keys: rust-1.81.0-
 ```
+
+Since SP1 is a fairly large repository, it might be useful to use [`runs-on`](https://github.com/runs-on/runs-on)
+to specify a larger instance type.
