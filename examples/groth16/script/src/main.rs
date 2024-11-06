@@ -1,7 +1,7 @@
 //! A script that generates a Groth16 proof for the Fibonacci program, and verifies the
 //! Groth16 proof in SP1.
 
-use sp1_sdk::{include_elf, utils, HashableKey, ProverClient, SP1ProofWithPublicValues, SP1Stdin};
+use sp1_sdk::{include_elf, utils, HashableKey, ProverClient, SP1Stdin};
 
 /// The ELF for the Groth16 verifier program.
 const GROTH16_ELF: &[u8] = include_elf!("groth16-verifier-program");
