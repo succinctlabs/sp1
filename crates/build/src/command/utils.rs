@@ -22,6 +22,11 @@ pub(crate) fn get_program_build_args(args: &BuildArgs) -> Vec<String> {
 
     build_args.push("-Ztrim-paths".to_string());
 
+    if !args.packages.is_empty() {
+        build_args.push("-p".to_string());
+        build_args.extend_from_slice(&args.packages);
+    }
+
     if !args.binaries.is_empty() {
         build_args.push("--bin".to_string());
         build_args.extend_from_slice(&args.binaries);

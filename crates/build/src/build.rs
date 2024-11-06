@@ -124,11 +124,17 @@ fn generate_elf_paths(
 ) -> Result<Vec<(String, Utf8PathBuf)>> {
     let mut target_elf_paths = vec![];
 
-    for program_crate in metadata.workspace_default_members.iter() {
+    let packages_to_iterate = args
+        // Iterate over the specified --packages if any
+        .and_then(|args| if args.packages.is_empty() { None } else { Some(args.packages.clone()) })
+        // Otherwise fallback to workspace default members
+        .unwrap_or(metadata.workspace_default_members.iter().map(|p| p.to_string()).collect());
+
+    for program_crate in packages_to_iterate {
         let program = metadata
             .packages
             .iter()
-            .find(|p| &p.id == program_crate)
+            .find(|p| p.id.to_string() == program_crate)
             .ok_or_else(|| anyhow::anyhow!("cannot find package for {}", program_crate))?;
 
         for bin_target in program.targets.iter().filter(|t| {

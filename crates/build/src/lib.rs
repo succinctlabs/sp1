@@ -51,11 +51,18 @@ pub struct BuildArgs {
     #[clap(long, action, help = "Assert that `Cargo.lock` will remain unchanged")]
     pub locked: bool,
     #[clap(
+        long,
+        action,
+        help = "Build only the specified packages",
+        num_args = 1..
+    )]
+    pub packages: Vec<String>,
+    #[clap(
         alias = "bin",
         long,
         action,
         help = "Build only the specified binaries",
-        num_args = 0..
+        num_args = 1..
     )]
     pub binaries: Vec<String>,
     #[clap(long, action, help = "ELF binary name", default_value = "")]
@@ -79,6 +86,7 @@ impl Default for BuildArgs {
             features: vec![],
             rustflags: vec![],
             ignore_rust_version: false,
+            packages: vec![],
             binaries: vec![],
             elf_name: "".to_string(),
             output_directory: DEFAULT_OUTPUT_DIR.to_string(),
