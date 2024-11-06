@@ -3,7 +3,7 @@ use alloc::vec::Vec;
 use core::hash::Hasher;
 use sha2::Digest;
 
-use crate::error::Error;
+use crate::PlonkError;
 
 pub(crate) struct WrappedHashToField {
     domain: Vec<u8>,
@@ -12,18 +12,22 @@ pub(crate) struct WrappedHashToField {
 
 impl WrappedHashToField {
     // Creates a new instance with a domain separator
-    pub(crate) fn new(domain_separator: &[u8]) -> Result<Self, Error> {
+    pub(crate) fn new(domain_separator: &[u8]) -> Result<Self, PlonkError> {
         Ok(Self { domain: domain_separator.to_vec(), to_hash: Vec::new() })
     }
 
     // Hashes the bytes to a field element and returns the byte representation
-    pub(crate) fn sum(&self) -> Result<Vec<u8>, Error> {
+    pub(crate) fn sum(&self) -> Result<Vec<u8>, PlonkError> {
         let res = Self::hash(self.to_hash.clone(), self.domain.clone(), 1)?;
 
         Ok(res[0].clone())
     }
 
-    pub(crate) fn hash(msg: Vec<u8>, dst: Vec<u8>, count: usize) -> Result<Vec<Vec<u8>>, Error> {
+    pub(crate) fn hash(
+        msg: Vec<u8>,
+        dst: Vec<u8>,
+        count: usize,
+    ) -> Result<Vec<Vec<u8>>, PlonkError> {
         let bytes = 32;
         let l = 16 + bytes;
 
@@ -38,16 +42,16 @@ impl WrappedHashToField {
         Ok(res)
     }
 
-    fn expand_msg_xmd(msg: Vec<u8>, dst: Vec<u8>, len: usize) -> Result<Vec<u8>, Error> {
+    fn expand_msg_xmd(msg: Vec<u8>, dst: Vec<u8>, len: usize) -> Result<Vec<u8>, PlonkError> {
         let mut h = sha2::Sha256::new();
 
         let ell = (len + 32 - 1) / 32;
 
         if ell > 255 {
-            Err(Error::EllTooLarge)?;
+            Err(PlonkError::EllTooLarge)?;
         }
         if dst.len() > 255 {
-            Err(Error::DSTTooLarge)?;
+            Err(PlonkError::DSTTooLarge)?;
         }
 
         let size_domain = dst.len();
