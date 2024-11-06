@@ -59,6 +59,7 @@ impl Prover<DefaultProverComponents> for MockProver {
                 let (public_values, _) = self.prover.execute(&pk.elf, &stdin, context)?;
                 Ok(SP1ProofWithPublicValues {
                     proof: SP1Proof::Core(vec![]),
+                    stdin,
                     public_values,
                     sp1_version: self.version().to_string(),
                 })
@@ -101,6 +102,7 @@ impl Prover<DefaultProverComponents> for MockProver {
 
                 Ok(SP1ProofWithPublicValues {
                     proof,
+                    stdin,
                     public_values,
                     sp1_version: self.version().to_string(),
                 })
@@ -117,6 +119,7 @@ impl Prover<DefaultProverComponents> for MockProver {
                         raw_proof: "".to_string(),
                         plonk_vkey_hash: [0; 32],
                     }),
+                    stdin,
                     public_values,
                     sp1_version: self.version().to_string(),
                 })
@@ -133,6 +136,7 @@ impl Prover<DefaultProverComponents> for MockProver {
                         raw_proof: "".to_string(),
                         groth16_vkey_hash: [0; 32],
                     }),
+                    stdin,
                     public_values,
                     sp1_version: self.version().to_string(),
                 })
