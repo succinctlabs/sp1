@@ -1,7 +1,7 @@
 use alloc::{collections::btree_map::BTreeMap, string::String, vec::Vec};
 use sha2::{Digest, Sha256};
 
-use crate::error::Error;
+use crate::PlonkError;
 
 /// A challenge in the transcript, derived with randomness from `bindings` and the previous
 /// challenge.
@@ -24,7 +24,7 @@ pub(crate) struct Transcript {
 
 impl Transcript {
     /// Creates a new transcript.
-    pub(crate) fn new(challenges_id: Option<Vec<String>>) -> Result<Self, Error> {
+    pub(crate) fn new(challenges_id: Option<Vec<String>>) -> Result<Self, PlonkError> {
         let h = Sha256::new();
 
         if let Some(challenges_id) = challenges_id {
@@ -48,10 +48,10 @@ impl Transcript {
     }
 
     /// Binds some data to a challenge.
-    pub(crate) fn bind(&mut self, id: &str, binding: &[u8]) -> Result<(), Error> {
-        let current_challenge = self.challenges.get_mut(id).ok_or(Error::ChallengeNotFound)?;
+    pub(crate) fn bind(&mut self, id: &str, binding: &[u8]) -> Result<(), PlonkError> {
+        let current_challenge = self.challenges.get_mut(id).ok_or(PlonkError::ChallengeNotFound)?;
         if current_challenge.is_computed {
-            return Err(Error::ChallengeAlreadyComputed);
+            return Err(PlonkError::ChallengeAlreadyComputed);
         }
 
         current_challenge.bindings.push(binding.to_vec());
@@ -63,8 +63,9 @@ impl Transcript {
     ///
     /// Challenges must be computed in order. The previous challenge is automatically fed into the
     /// challenge currently being computed.
-    pub(crate) fn compute_challenge(&mut self, challenge_id: &str) -> Result<Vec<u8>, Error> {
-        let challenge = self.challenges.get_mut(challenge_id).ok_or(Error::ChallengeNotFound)?;
+    pub(crate) fn compute_challenge(&mut self, challenge_id: &str) -> Result<Vec<u8>, PlonkError> {
+        let challenge =
+            self.challenges.get_mut(challenge_id).ok_or(PlonkError::ChallengeNotFound)?;
 
         if challenge.is_computed {
             return Ok(challenge.value.clone());
@@ -78,11 +79,11 @@ impl Transcript {
         if challenge.position != 0 {
             if let Some(previous_challenge) = &self.previous_challenge {
                 if previous_challenge.position != challenge.position - 1 {
-                    return Err(Error::PreviousChallengeNotComputed);
+                    return Err(PlonkError::PreviousChallengeNotComputed);
                 }
                 self.h.update(&previous_challenge.value)
             } else {
-                return Err(Error::PreviousChallengeNotComputed);
+                return Err(PlonkError::PreviousChallengeNotComputed);
             }
         }
 

@@ -53,27 +53,9 @@ impl SP1ProofWithPublicValues {
         }
     }
 
-    /// Returns the *raw* proof as bytes, prepended with the first 4 bytes of the vkey hash.
-    ///
-    /// This is the format expected by the `sp1-verifier` crate. The extra 4 bytes are used to
-    /// ensure that the proof will eventually be verified by the correct vkey.
-    pub fn raw_with_checksum(&self) -> Vec<u8> {
-        match &self.proof {
-            SP1Proof::Plonk(plonk) => {
-                let proof_bytes = hex::decode(&plonk.raw_proof).expect("Invalid Plonk proof");
-                [plonk.plonk_vkey_hash[..4].to_vec(), proof_bytes].concat()
-            }
-            SP1Proof::Groth16(groth16) => {
-                let proof_bytes = hex::decode(&groth16.raw_proof).expect("Invalid Groth16 proof");
-                [groth16.groth16_vkey_hash[..4].to_vec(), proof_bytes].concat()
-            }
-            _ => unimplemented!(),
-        }
-    }
-
     /// For Plonk or Groth16 proofs, returns the proof in a byte encoding the onchain verifier
     /// accepts. The bytes consist of the first four bytes of Plonk vkey hash followed by the
-    /// *encoded* proof.
+    /// encoded proof, in a form optimized for onchain verification.
     pub fn bytes(&self) -> Vec<u8> {
         match &self.proof {
             SP1Proof::Plonk(plonk_proof) => {
