@@ -5,7 +5,9 @@ use std::{
 
 use crate::{
     network_v2::client::{NetworkClient, DEFAULT_PROVER_NETWORK_RPC},
-    network_v2::proto::network::{ProofMode, ProofStatus, ProofStrategy},
+    network_v2::proto::network::{
+        ExecutionStatus, FulfillmentStatus, FulfillmentStrategy, ProofMode,
+    },
     Prover, SP1Context, SP1ProofKind, SP1ProofWithPublicValues, SP1ProvingKey, SP1VerifyingKey,
 };
 use anyhow::Result;
@@ -87,7 +89,7 @@ impl NetworkProver {
                 &vk,
                 mode,
                 SP1_CIRCUIT_VERSION,
-                ProofStrategy::Hosted,
+                FulfillmentStrategy::Hosted,
                 timeout_secs,
                 cycle_limit,
             )
@@ -175,18 +177,27 @@ impl NetworkProver {
             .await;
 
             match status_result {
-                Ok((status, maybe_proof)) => match status.proof_status() {
-                    ProofStatus::Fulfilled => {
-                        return Ok(maybe_proof.unwrap());
+                Ok((status, maybe_proof)) => {
+                    if status.execution_status == ExecutionStatus::Unexecutable as i32 {
+                        return Err(anyhow::anyhow!("Proof request is unexecutable"));
                     }
-                    ProofStatus::Assigned => {
-                        if !is_assigned {
-                            log::info!("Proof request assigned, proving...");
-                            is_assigned = true;
+
+                    match FulfillmentStatus::try_from(status.fulfillment_status) {
+                        Ok(FulfillmentStatus::Fulfilled) => {
+                            return Ok(maybe_proof.unwrap());
                         }
+                        Ok(FulfillmentStatus::Assigned) => {
+                            if !is_assigned {
+                                log::info!("Proof request assigned, proving...");
+                                is_assigned = true;
+                            }
+                        }
+                        Ok(FulfillmentStatus::Unfulfillable) => {
+                            return Err(anyhow::anyhow!("Proof request is unfulfillable"));
+                        }
+                        _ => {}
                     }
-                    _ => {}
-                },
+                }
                 Err(e) => {
                     return Err(e);
                 }

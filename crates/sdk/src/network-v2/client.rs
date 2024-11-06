@@ -18,9 +18,9 @@ use crate::network_v2::proto::artifact::{
     artifact_store_client::ArtifactStoreClient, CreateArtifactRequest,
 };
 use crate::network_v2::proto::network::{
-    prover_network_client::ProverNetworkClient, GetFilteredProofRequestsRequest,
-    GetFilteredProofRequestsResponse, GetNonceRequest, GetProofRequestStatusRequest,
-    GetProofRequestStatusResponse, ProofMode, ProofStatus, ProofStrategy, RequestProofRequest,
+    prover_network_client::ProverNetworkClient, FulfillmentStatus, FulfillmentStrategy,
+    GetFilteredProofRequestsRequest, GetFilteredProofRequestsResponse, GetNonceRequest,
+    GetProofRequestStatusRequest, GetProofRequestStatusResponse, ProofMode, RequestProofRequest,
     RequestProofRequestBody, RequestProofResponse,
 };
 use crate::network_v2::Signable;
@@ -103,9 +103,9 @@ impl NetworkClient {
             .await?
             .into_inner();
 
-        let status = ProofStatus::try_from(res.proof_status)?;
+        let status = FulfillmentStatus::try_from(res.fulfillment_status)?;
         let proof = match status {
-            ProofStatus::Fulfilled => {
+            FulfillmentStatus::Fulfilled => {
                 let proof_uri = res
                     .proof_uri
                     .as_ref()
@@ -123,7 +123,7 @@ impl NetworkClient {
     pub async fn get_filtered_proof_requests(
         &self,
         version: Option<String>,
-        proof_status: Option<i32>,
+        fulfillment_status: Option<i32>,
         execution_status: Option<i32>,
         limit: Option<u32>,
     ) -> Result<GetFilteredProofRequestsResponse> {
@@ -131,7 +131,7 @@ impl NetworkClient {
         let res = rpc
             .get_filtered_proof_requests(GetFilteredProofRequestsRequest {
                 version,
-                proof_status,
+                fulfillment_status,
                 execution_status,
                 limit,
             })
@@ -150,7 +150,7 @@ impl NetworkClient {
         vk: &SP1VerifyingKey,
         mode: ProofMode,
         version: &str,
-        strategy: ProofStrategy,
+        strategy: FulfillmentStrategy,
         timeout_secs: u64,
         cycle_limit: u64,
     ) -> Result<RequestProofResponse> {
