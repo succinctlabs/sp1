@@ -7,5 +7,7 @@ fn main() {
     let stdin = SP1Stdin::new();
 
     let client = ProverClient::new();
-    let (_public_values, _) = client.execute(ELF, stdin).run().expect("failed to prove");
+    let (_public_values, report) = client.execute(ELF, stdin).run().expect("failed to prove");
+
+    println!("executed: {}", report);
 }

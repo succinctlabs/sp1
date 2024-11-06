@@ -15,10 +15,10 @@ Note that by itself, SP1 can already prove arbitrarily large programs by chunkin
 
 ## Verifying Proofs inside the zkVM
 
-To verify a proof inside the zkVM, you can use the `sp1_zkvm::lib::verify::verify_proof` function.
+To verify a proof inside the zkVM, you can use the `sp1_zkvm::lib::verify::verify_sp1_proof` function.
 
 ```rust,noplayground
-sp1_zkvm::lib::verify::verify_proof(vkey, public_values_digest);
+sp1_zkvm::lib::verify::verify_sp1_proof(vkey, public_values_digest);
 ```
 
 **You do not need to pass in the proof as input into the syscall, as the proof will automatically be read for the proof input stream by the prover.**
