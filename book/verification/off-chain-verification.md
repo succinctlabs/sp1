@@ -8,7 +8,7 @@ You can verify SP1 Groth16 and Plonk proofs in `no_std` environments with [`sp1-
 [bn254](https://blog.succinct.xyz/succinctshipsprecompiles/) precompiles. For an example of this, see
 the [Groth16 Example](https://github.com/succinctlabs/sp1/tree/main/examples/groth16/).
 
-### Installation
+### Instafllation
 
 Import the following dependency in your `Cargo.toml`:
 
@@ -18,18 +18,18 @@ sp1-verifier = {version = "3.0.0", default-features = false}
 
 ### Usage
 
-The verifier crate's interface is very similar to the solidity verifier's. It exposes two public functions:
+`sp1-verifier`'s interface is very similar to the solidity verifier's. It exposes two public functions:
 [`Groth16Verifier::verify_proof`](https://docs.rs/sp1-verifier/latest/src/sp1_verifier/groth16.rs.html)
 and [`PlonkVerifier::verify_proof`](https://docs.rs/sp1-verifier/latest/src/sp1_verifier/plonk.rs.html).
 
-The verifier crate also contains the Groth16 and Plonk verifying keys as constants, `GROTH16_VK_BYTES` and `PLONK_VK_BYTES`. These
+`sp1-verifier` also exposes the Groth16 and Plonk verifying keys as constants, `GROTH16_VK_BYTES` and `PLONK_VK_BYTES`. These
 keys correspond to the current SP1 version's official Groth16 and Plonk verifying keys, which are used for verifying proofs generated
 using docker or the prover network.
 
 First, generate your groth16/plonk proof with the SP1 SDK. See [here](./onchain/getting-started.md#generating-sp1-proofs-for-onchain-verification)
-for more information -- the verifier crate and solidity verifier expect inputs in the same format.
+for more information -- `sp1-verifier` and the solidity verifier expect inputs in the same format.
 
-Next, verify the proof with the verifier crate. The following snippet is from the verifier crate tests, which uses
+Next, verify the proof with `sp1-verifier`. The following snippet is from the `sp1-verifier` tests, which use
 proofs generated from the Fibonacci example.
 
 ```rust,noplayground
@@ -58,6 +58,6 @@ verify SP1 proofs in wasm. For a more detailed explanation of the process, pleas
 
 At a high level, the process is as follows:
 
-1. Create wasm bindings for the verifier crate, using tools like `wasm-bindgen` and `wasm-pack`.
-2. Serialize proof bytes and SP1ProofWithPublicValues structs to JSON.
-3. Load the JSON proof in your wasm runtime and verify it with the verifier crate's wasm bindings.
+1. Create wasm bindings for `sp1-verifier`, using tools like `wasm-bindgen` and `wasm-pack`.
+2. Serialize proof bytes and `SP1ProofWithPublicValues` structs to JSON.
+3. Load the JSON proof in your wasm runtime and verify it with your wasm bindings.
