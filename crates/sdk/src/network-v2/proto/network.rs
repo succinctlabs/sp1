@@ -4,9 +4,9 @@ pub struct GetFilteredProofRequestsRequest {
     /// The optional version of the proof requests to filter for.
     #[prost(string, optional, tag = "1")]
     pub version: ::core::option::Option<::prost::alloc::string::String>,
-    /// The optional proof status of the proof requests to filter for.
-    #[prost(enumeration = "ProofStatus", optional, tag = "2")]
-    pub proof_status: ::core::option::Option<i32>,
+    /// The optional fulfillment status of the proof requests to filter for.
+    #[prost(enumeration = "FulfillmentStatus", optional, tag = "2")]
+    pub fulfillment_status: ::core::option::Option<i32>,
     /// The optional execution status of the proof requests to filter for.
     #[prost(enumeration = "ExecutionStatus", optional, tag = "3")]
     pub execution_status: ::core::option::Option<i32>,
@@ -20,14 +20,17 @@ pub struct ProofRequest {
     /// The request identifier.
     #[prost(string, tag = "1")]
     pub request_id: ::prost::alloc::string::String,
-    /// The version of the prover to use.
+    /// The program identifier.
     #[prost(string, tag = "2")]
+    pub program_id: ::prost::alloc::string::String,
+    /// The version of the prover to use.
+    #[prost(string, tag = "3")]
     pub version: ::prost::alloc::string::String,
     /// The mode for the proof.
     #[prost(enumeration = "ProofMode", tag = "4")]
     pub mode: i32,
-    /// The strategy for prover assignment.
-    #[prost(enumeration = "ProofStrategy", tag = "5")]
+    /// The strategy for fulfiller assignment.
+    #[prost(enumeration = "FulfillmentStrategy", tag = "5")]
     pub strategy: i32,
     /// The program resource identifier.
     #[prost(string, tag = "6")]
@@ -35,20 +38,23 @@ pub struct ProofRequest {
     /// The stdin resource identifier.
     #[prost(string, tag = "7")]
     pub stdin_uri: ::prost::alloc::string::String,
-    /// The deadline for the proof.
+    /// The deadline for the proof request.
     #[prost(uint64, tag = "8")]
     pub deadline: u64,
-    /// The cycle limit for the proof.
+    /// The cycle limit for the proof request.
     #[prost(uint64, tag = "9")]
     pub cycle_limit: u64,
-    /// The proof status of the proof request.
-    #[prost(enumeration = "ProofStatus", tag = "10")]
-    pub proof_status: i32,
+    /// The gas price for the proof request.
+    #[prost(uint64, tag = "10")]
+    pub gas_price: u64,
+    /// The fulfillment status of the proof request.
+    #[prost(enumeration = "FulfillmentStatus", tag = "11")]
+    pub fulfillment_status: i32,
     /// The execution status of the proof request.
-    #[prost(enumeration = "ExecutionStatus", tag = "11")]
+    #[prost(enumeration = "ExecutionStatus", tag = "12")]
     pub execution_status: i32,
-    /// The requester address.
-    #[prost(bytes = "vec", tag = "12")]
+    /// The requester address that signed the proof request.
+    #[prost(bytes = "vec", tag = "13")]
     pub requester: ::prost::alloc::vec::Vec<u8>,
 }
 #[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
@@ -77,11 +83,11 @@ pub struct RequestProofRequestBody {
     /// The verification key.
     #[prost(bytes = "vec", tag = "3")]
     pub vkey: ::prost::alloc::vec::Vec<u8>,
-    /// The mode for the proof.
+    /// The mode for the proof request.
     #[prost(enumeration = "ProofMode", tag = "4")]
     pub mode: i32,
-    /// The strategy for prover assignment.
-    #[prost(enumeration = "ProofStrategy", tag = "5")]
+    /// The strategy for fulfiller assignment.
+    #[prost(enumeration = "FulfillmentStrategy", tag = "5")]
     pub strategy: i32,
     /// The program resource identifier.
     #[prost(string, tag = "6")]
@@ -89,10 +95,10 @@ pub struct RequestProofRequestBody {
     /// The stdin resource identifier.
     #[prost(string, tag = "7")]
     pub stdin_uri: ::prost::alloc::string::String,
-    /// The deadline for the proof.
+    /// The deadline for the proof request.
     #[prost(uint64, tag = "8")]
     pub deadline: u64,
-    /// The cycle limit for the proof.
+    /// The cycle limit for the proof request.
     #[prost(uint64, tag = "9")]
     pub cycle_limit: u64,
 }
@@ -184,6 +190,76 @@ pub struct ExecuteProofResponse {
 #[derive(serde::Serialize, serde::Deserialize, Clone, Copy, PartialEq, ::prost::Message)]
 pub struct ExecuteProofResponseBody {}
 #[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct FailFulfillmentRequest {
+    /// The signature of the sender.
+    #[prost(bytes = "vec", tag = "1")]
+    pub signature: ::prost::alloc::vec::Vec<u8>,
+    /// The body of the request.
+    #[prost(message, optional, tag = "3")]
+    pub body: ::core::option::Option<FailFulfillmentRequestBody>,
+}
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct FailFulfillmentRequestBody {
+    /// The nonce of the request.
+    #[prost(uint64, tag = "1")]
+    pub nonce: u64,
+    /// The identifier for the proof request.
+    #[prost(bytes = "vec", tag = "2")]
+    pub request_id: ::prost::alloc::vec::Vec<u8>,
+}
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct FailFulfillmentResponse {
+    /// The transaction hash.
+    #[prost(bytes = "vec", tag = "1")]
+    pub tx_hash: ::prost::alloc::vec::Vec<u8>,
+    /// The body of the response.
+    #[prost(message, optional, tag = "2")]
+    pub body: ::core::option::Option<FailFulfillmentResponseBody>,
+}
+#[derive(serde::Serialize, serde::Deserialize, Clone, Copy, PartialEq, ::prost::Message)]
+pub struct FailFulfillmentResponseBody {}
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct FailExecutionRequest {
+    /// The signature of the sender.
+    #[prost(bytes = "vec", tag = "1")]
+    pub signature: ::prost::alloc::vec::Vec<u8>,
+    /// The body of the request.
+    #[prost(message, optional, tag = "3")]
+    pub body: ::core::option::Option<FailExecutionRequestBody>,
+}
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct FailExecutionRequestBody {
+    /// The nonce of the request.
+    #[prost(uint64, tag = "1")]
+    pub nonce: u64,
+    /// The identifier for the proof request.
+    #[prost(bytes = "vec", tag = "2")]
+    pub request_id: ::prost::alloc::vec::Vec<u8>,
+}
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct FailExecutionResponse {
+    /// The transaction hash.
+    #[prost(bytes = "vec", tag = "1")]
+    pub tx_hash: ::prost::alloc::vec::Vec<u8>,
+    /// The body of the response.
+    #[prost(message, optional, tag = "2")]
+    pub body: ::core::option::Option<FailExecutionResponseBody>,
+}
+#[derive(serde::Serialize, serde::Deserialize, Clone, Copy, PartialEq, ::prost::Message)]
+pub struct FailExecutionResponseBody {}
+#[derive(serde::Serialize, serde::Deserialize, Clone, Copy, PartialEq, ::prost::Message)]
+pub struct GetLatestBridgeBlockRequest {
+    /// The chain ID of the bridge.
+    #[prost(uint32, tag = "1")]
+    pub chain_id: u32,
+}
+#[derive(serde::Serialize, serde::Deserialize, Clone, Copy, PartialEq, ::prost::Message)]
+pub struct GetLatestBridgeBlockResponse {
+    /// The latest processed block in the bridge.
+    #[prost(uint64, tag = "1")]
+    pub block_number: u64,
+}
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
 pub struct GetBalanceRequest {
     /// The address of the account.
     #[prost(bytes = "vec", tag = "1")]
@@ -247,9 +323,9 @@ pub struct GetProofRequestStatusRequest {
 }
 #[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
 pub struct GetProofRequestStatusResponse {
-    /// The status of the proof request.
-    #[prost(enumeration = "ProofStatus", tag = "1")]
-    pub proof_status: i32,
+    /// The fulfillment status of the proof request.
+    #[prost(enumeration = "FulfillmentStatus", tag = "1")]
+    pub fulfillment_status: i32,
     /// The execution status of the proof request.
     #[prost(enumeration = "ExecutionStatus", tag = "2")]
     pub execution_status: i32,
@@ -264,12 +340,6 @@ pub struct GetProofRequestStatusResponse {
     /// request. Only included if the proof has a status of FULFILLED.
     #[prost(string, optional, tag = "5")]
     pub proof_uri: ::core::option::Option<::prost::alloc::string::String>,
-    /// The optional error status code, if the request failed.
-    #[prost(uint32, optional, tag = "6")]
-    pub error_code: ::core::option::Option<u32>,
-    /// The optional error description details, if the request failed.
-    #[prost(string, optional, tag = "7")]
-    pub error_description: ::core::option::Option<::prost::alloc::string::String>,
 }
 #[derive(
     serde::Serialize,
@@ -286,7 +356,7 @@ pub struct GetProofRequestStatusResponse {
 )]
 #[repr(i32)]
 pub enum ProofMode {
-    UnspecifiedMode = 0,
+    UnspecifiedProofMode = 0,
     Core = 1,
     Compressed = 2,
     Plonk = 3,
@@ -299,7 +369,7 @@ impl ProofMode {
     /// (if the ProtoBuf definition does not change) and safe for programmatic use.
     pub fn as_str_name(&self) -> &'static str {
         match self {
-            Self::UnspecifiedMode => "UNSPECIFIED_MODE",
+            Self::UnspecifiedProofMode => "UNSPECIFIED_PROOF_MODE",
             Self::Core => "CORE",
             Self::Compressed => "COMPRESSED",
             Self::Plonk => "PLONK",
@@ -309,7 +379,7 @@ impl ProofMode {
     /// Creates an enum from field names used in the ProtoBuf definition.
     pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
         match value {
-            "UNSPECIFIED_MODE" => Some(Self::UnspecifiedMode),
+            "UNSPECIFIED_PROOF_MODE" => Some(Self::UnspecifiedProofMode),
             "CORE" => Some(Self::Core),
             "COMPRESSED" => Some(Self::Compressed),
             "PLONK" => Some(Self::Plonk),
@@ -332,25 +402,25 @@ impl ProofMode {
     ::prost::Enumeration,
 )]
 #[repr(i32)]
-pub enum ProofStrategy {
-    UnspecifiedStrategy = 0,
+pub enum FulfillmentStrategy {
+    UnspecifiedFulfillmentStrategy = 0,
     Hosted = 1,
 }
-impl ProofStrategy {
+impl FulfillmentStrategy {
     /// String value of the enum field names used in the ProtoBuf definition.
     ///
     /// The values are not transformed in any way and thus are considered stable
     /// (if the ProtoBuf definition does not change) and safe for programmatic use.
     pub fn as_str_name(&self) -> &'static str {
         match self {
-            Self::UnspecifiedStrategy => "UNSPECIFIED_STRATEGY",
+            Self::UnspecifiedFulfillmentStrategy => "UNSPECIFIED_FULFILLMENT_STRATEGY",
             Self::Hosted => "HOSTED",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
     pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
         match value {
-            "UNSPECIFIED_STRATEGY" => Some(Self::UnspecifiedStrategy),
+            "UNSPECIFIED_FULFILLMENT_STRATEGY" => Some(Self::UnspecifiedFulfillmentStrategy),
             "HOSTED" => Some(Self::Hosted),
             _ => None,
         }
@@ -370,32 +440,35 @@ impl ProofStrategy {
     ::prost::Enumeration,
 )]
 #[repr(i32)]
-pub enum ProofStatus {
-    UnspecifiedProofStatus = 0,
+pub enum FulfillmentStatus {
+    UnspecifiedFulfillmentStatus = 0,
     Requested = 1,
     Assigned = 2,
     Fulfilled = 3,
+    Unfulfillable = 4,
 }
-impl ProofStatus {
+impl FulfillmentStatus {
     /// String value of the enum field names used in the ProtoBuf definition.
     ///
     /// The values are not transformed in any way and thus are considered stable
     /// (if the ProtoBuf definition does not change) and safe for programmatic use.
     pub fn as_str_name(&self) -> &'static str {
         match self {
-            Self::UnspecifiedProofStatus => "UNSPECIFIED_PROOF_STATUS",
+            Self::UnspecifiedFulfillmentStatus => "UNSPECIFIED_FULFILLMENT_STATUS",
             Self::Requested => "REQUESTED",
             Self::Assigned => "ASSIGNED",
             Self::Fulfilled => "FULFILLED",
+            Self::Unfulfillable => "UNFULFILLABLE",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
     pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
         match value {
-            "UNSPECIFIED_PROOF_STATUS" => Some(Self::UnspecifiedProofStatus),
+            "UNSPECIFIED_FULFILLMENT_STATUS" => Some(Self::UnspecifiedFulfillmentStatus),
             "REQUESTED" => Some(Self::Requested),
             "ASSIGNED" => Some(Self::Assigned),
             "FULFILLED" => Some(Self::Fulfilled),
+            "UNFULFILLABLE" => Some(Self::Unfulfillable),
             _ => None,
         }
     }
@@ -418,7 +491,7 @@ pub enum ExecutionStatus {
     UnspecifiedExecutionStatus = 0,
     Unexecuted = 1,
     Executed = 2,
-    Failed = 3,
+    Unexecutable = 3,
 }
 impl ExecutionStatus {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -430,7 +503,7 @@ impl ExecutionStatus {
             Self::UnspecifiedExecutionStatus => "UNSPECIFIED_EXECUTION_STATUS",
             Self::Unexecuted => "UNEXECUTED",
             Self::Executed => "EXECUTED",
-            Self::Failed => "FAILED",
+            Self::Unexecutable => "UNEXECUTABLE",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -439,7 +512,7 @@ impl ExecutionStatus {
             "UNSPECIFIED_EXECUTION_STATUS" => Some(Self::UnspecifiedExecutionStatus),
             "UNEXECUTED" => Some(Self::Unexecuted),
             "EXECUTED" => Some(Self::Executed),
-            "FAILED" => Some(Self::Failed),
+            "UNEXECUTABLE" => Some(Self::Unexecutable),
             _ => None,
         }
     }
@@ -447,8 +520,7 @@ impl ExecutionStatus {
 /// Generated client implementations.
 pub mod prover_network_client {
     #![allow(unused_variables, dead_code, missing_docs, clippy::let_unit_value)]
-    use tonic::codegen::http::Uri;
-    use tonic::codegen::*;
+    use tonic::codegen::{http::Uri, *};
     #[derive(Debug, Clone)]
     pub struct ProverNetworkClient<T> {
         inner: tonic::client::Grpc<T>,
@@ -582,6 +654,44 @@ pub mod prover_network_client {
             req.extensions_mut().insert(GrpcMethod::new("network.ProverNetwork", "ExecuteProof"));
             self.inner.unary(req, path, codec).await
         }
+        /// Fails fulfillment.
+        pub async fn fail_fulfillment(
+            &mut self,
+            request: impl tonic::IntoRequest<super::FailFulfillmentRequest>,
+        ) -> std::result::Result<tonic::Response<super::FailFulfillmentResponse>, tonic::Status>
+        {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path =
+                http::uri::PathAndQuery::from_static("/network.ProverNetwork/FailFulfillment");
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("network.ProverNetwork", "FailFulfillment"));
+            self.inner.unary(req, path, codec).await
+        }
+        /// Fails execution.
+        pub async fn fail_execution(
+            &mut self,
+            request: impl tonic::IntoRequest<super::FailExecutionRequest>,
+        ) -> std::result::Result<tonic::Response<super::FailExecutionResponse>, tonic::Status>
+        {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static("/network.ProverNetwork/FailExecution");
+            let mut req = request.into_request();
+            req.extensions_mut().insert(GrpcMethod::new("network.ProverNetwork", "FailExecution"));
+            self.inner.unary(req, path, codec).await
+        }
         /// Get the proof requests the meet the filter criteria.
         pub async fn get_filtered_proof_requests(
             &mut self,
@@ -624,6 +734,26 @@ pub mod prover_network_client {
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(GrpcMethod::new("network.ProverNetwork", "GetProofRequestStatus"));
+            self.inner.unary(req, path, codec).await
+        }
+        /// Get the latest processed block in the bridge.
+        pub async fn get_latest_bridge_block(
+            &mut self,
+            request: impl tonic::IntoRequest<super::GetLatestBridgeBlockRequest>,
+        ) -> std::result::Result<tonic::Response<super::GetLatestBridgeBlockResponse>, tonic::Status>
+        {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path =
+                http::uri::PathAndQuery::from_static("/network.ProverNetwork/GetLatestBridgeBlock");
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("network.ProverNetwork", "GetLatestBridgeBlock"));
             self.inner.unary(req, path, codec).await
         }
         /// Get the balance of an account.
@@ -684,7 +814,8 @@ pub mod prover_network_client {
 pub mod prover_network_server {
     #![allow(unused_variables, dead_code, missing_docs, clippy::let_unit_value)]
     use tonic::codegen::*;
-    /// Generated trait containing gRPC methods that should be implemented for use with ProverNetworkServer.
+    /// Generated trait containing gRPC methods that should be implemented for use with
+    /// ProverNetworkServer.
     #[async_trait]
     pub trait ProverNetwork: std::marker::Send + std::marker::Sync + 'static {
         /// Creates a proof.
@@ -702,6 +833,16 @@ pub mod prover_network_server {
             &self,
             request: tonic::Request<super::ExecuteProofRequest>,
         ) -> std::result::Result<tonic::Response<super::ExecuteProofResponse>, tonic::Status>;
+        /// Fails fulfillment.
+        async fn fail_fulfillment(
+            &self,
+            request: tonic::Request<super::FailFulfillmentRequest>,
+        ) -> std::result::Result<tonic::Response<super::FailFulfillmentResponse>, tonic::Status>;
+        /// Fails execution.
+        async fn fail_execution(
+            &self,
+            request: tonic::Request<super::FailExecutionRequest>,
+        ) -> std::result::Result<tonic::Response<super::FailExecutionResponse>, tonic::Status>;
         /// Get the proof requests the meet the filter criteria.
         async fn get_filtered_proof_requests(
             &self,
@@ -715,6 +856,11 @@ pub mod prover_network_server {
             &self,
             request: tonic::Request<super::GetProofRequestStatusRequest>,
         ) -> std::result::Result<tonic::Response<super::GetProofRequestStatusResponse>, tonic::Status>;
+        /// Get the latest processed block in the bridge.
+        async fn get_latest_bridge_block(
+            &self,
+            request: tonic::Request<super::GetLatestBridgeBlockRequest>,
+        ) -> std::result::Result<tonic::Response<super::GetLatestBridgeBlockResponse>, tonic::Status>;
         /// Get the balance of an account.
         async fn get_balance(
             &self,
@@ -927,6 +1073,89 @@ pub mod prover_network_server {
                     };
                     Box::pin(fut)
                 }
+                "/network.ProverNetwork/FailFulfillment" => {
+                    #[allow(non_camel_case_types)]
+                    struct FailFulfillmentSvc<T: ProverNetwork>(pub Arc<T>);
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<super::FailFulfillmentRequest>
+                        for FailFulfillmentSvc<T>
+                    {
+                        type Response = super::FailFulfillmentResponse;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::FailFulfillmentRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as ProverNetwork>::fail_fulfillment(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = FailFulfillmentSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/network.ProverNetwork/FailExecution" => {
+                    #[allow(non_camel_case_types)]
+                    struct FailExecutionSvc<T: ProverNetwork>(pub Arc<T>);
+                    impl<T: ProverNetwork> tonic::server::UnaryService<super::FailExecutionRequest>
+                        for FailExecutionSvc<T>
+                    {
+                        type Response = super::FailExecutionResponse;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::FailExecutionRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as ProverNetwork>::fail_execution(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = FailExecutionSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
                 "/network.ProverNetwork/GetFilteredProofRequests" => {
                     #[allow(non_camel_case_types)]
                     struct GetFilteredProofRequestsSvc<T: ProverNetwork>(pub Arc<T>);
@@ -998,6 +1227,48 @@ pub mod prover_network_server {
                     let inner = self.inner.clone();
                     let fut = async move {
                         let method = GetProofRequestStatusSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/network.ProverNetwork/GetLatestBridgeBlock" => {
+                    #[allow(non_camel_case_types)]
+                    struct GetLatestBridgeBlockSvc<T: ProverNetwork>(pub Arc<T>);
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<super::GetLatestBridgeBlockRequest>
+                        for GetLatestBridgeBlockSvc<T>
+                    {
+                        type Response = super::GetLatestBridgeBlockResponse;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::GetLatestBridgeBlockRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as ProverNetwork>::get_latest_bridge_block(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = GetLatestBridgeBlockSvc(inner);
                         let codec = tonic::codec::ProstCodec::default();
                         let mut grpc = tonic::server::Grpc::new(codec)
                             .apply_compression_config(
