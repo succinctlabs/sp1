@@ -3,7 +3,6 @@ use std::{fmt::Debug, fs::File, path::Path};
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use sp1_core_executor::SP1ReduceProof;
-use sp1_core_machine::io::SP1Stdin;
 use sp1_primitives::io::SP1PublicValues;
 use strum_macros::{EnumDiscriminants, EnumTryAs};
 
@@ -26,7 +25,6 @@ pub enum SP1Proof {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SP1ProofWithPublicValues {
     pub proof: SP1Proof,
-    pub stdin: SP1Stdin,
     pub public_values: SP1PublicValues,
     pub sp1_version: String,
 }
