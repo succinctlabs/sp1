@@ -10,7 +10,7 @@ keywords = { workspace = true }
 categories = { workspace = true }
 
 [dependencies]
-bn = { git = "https://github.com/sp1-patches/bn", tag = "substrate_bn-v0.6.0-patch-v2", package = "substrate-bn" }
+bn = { git = "https://github.com/sp1-patches/bn", version = "0.6.0", tag = "substrate_bn-v0.6.0-patch-v2", package = "substrate-bn" }
 sha2 = { version = "0.10.8", default-features = false }
 thiserror-no-std = "2.0.2"
 hex = { version = "0.4.3", default-features = false, features = ["alloc"] }
