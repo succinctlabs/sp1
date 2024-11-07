@@ -99,6 +99,9 @@ pub mod tests {
     pub const UINT256_MUL_ELF: &[u8] =
         include_bytes!("../../../../tests/uint256-mul/elf/riscv32im-succinct-zkvm-elf");
 
+    pub const U256XU2048_MUL_ELF: &[u8] =
+        include_bytes!("../../../../tests/u256x2048-mul/elf/riscv32im-succinct-zkvm-elf");
+
     pub const BLS12381_DECOMPRESS_ELF: &[u8] =
         include_bytes!("../../../../tests/bls12381-decompress/elf/riscv32im-succinct-zkvm-elf");
 
@@ -164,6 +167,16 @@ pub mod tests {
     #[must_use]
     pub fn secp256r1_double_program() -> Program {
         Program::from(SECP256R1_DOUBLE_ELF).unwrap()
+    }
+
+    /// Get the u256x2048 mul program.
+    ///
+    /// # Panics
+    ///
+    /// This function will panic if the program fails to load.
+    #[must_use]
+    pub fn u256xu2048_mul_program() -> Program {
+        Program::from(U256XU2048_MUL_ELF).unwrap()
     }
 
     /// Get the SSZ withdrawals program.

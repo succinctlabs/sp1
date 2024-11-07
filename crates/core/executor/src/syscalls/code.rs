@@ -137,6 +137,9 @@ pub enum SyscallCode {
 
     /// Executes the `SECP256R1_DECOMPRESS` precompile.
     SECP256R1_DECOMPRESS = 0x00_00_01_2E,
+
+    /// Executes the `U256XU2048_MUL` precompile.
+    U256XU2048_MUL = 0x00_01_01_2F,
 }
 
 impl SyscallCode {
@@ -182,6 +185,7 @@ impl SyscallCode {
             0x00_01_01_2C => SyscallCode::SECP256R1_ADD,
             0x00_00_01_2D => SyscallCode::SECP256R1_DOUBLE,
             0x00_00_01_2E => SyscallCode::SECP256R1_DECOMPRESS,
+            0x00_01_01_2F => SyscallCode::U256XU2048_MUL,
             _ => panic!("invalid syscall number: {value}"),
         }
     }
