@@ -41,8 +41,8 @@ fn fp2_mul(
     rhs_c0: &[u64; 6],
     rhs_c1: &[u64; 6],
 ) -> ([u64; 6], [u64; 6]) {
-    let lhs = [lhs_c0.clone(), lhs_c1.clone()].concat();
-    let rhs = [rhs_c0.clone(), rhs_c1.clone()].concat();
+    let lhs = [*lhs_c0, *lhs_c1].concat();
+    let rhs = [*rhs_c0, *rhs_c1].concat();
 
     let mut lhs_transmuted: [u32; 24] =
         unsafe { transmute::<[u64; 12], [u32; 24]>(lhs.try_into().unwrap()) };

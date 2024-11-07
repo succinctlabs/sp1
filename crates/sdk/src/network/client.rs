@@ -1,16 +1,18 @@
 use std::{env, time::Duration};
 
 use crate::{
-    network::auth::NetworkAuth,
-    proto::network::{
-        ModifyCpuCyclesRequest, ModifyCpuCyclesResponse, UnclaimProofRequest, UnclaimReason,
+    network::{
+        auth::NetworkAuth,
+        proto::network::{
+            ModifyCpuCyclesRequest, ModifyCpuCyclesResponse, UnclaimProofRequest, UnclaimReason,
+        },
     },
+    SP1ProofWithPublicValues,
 };
 use anyhow::{Context, Ok, Result};
 use futures::{future::join_all, Future};
 use reqwest::{Client as HttpClient, Url};
 use reqwest_middleware::ClientWithMiddleware as HttpClientWithMiddleware;
-use serde::de::DeserializeOwned;
 use sp1_core_machine::io::SP1Stdin;
 use std::{
     result::Result::Ok as StdOk,
@@ -18,7 +20,7 @@ use std::{
 };
 use twirp::{Client as TwirpClient, ClientError};
 
-use crate::proto::network::{
+use crate::network::proto::network::{
     ClaimProofRequest, ClaimProofResponse, CreateProofRequest, FulfillProofRequest,
     FulfillProofResponse, GetNonceRequest, GetProofRequestsRequest, GetProofRequestsResponse,
     GetProofStatusRequest, GetProofStatusResponse, NetworkServiceClient, ProofMode, ProofStatus,
@@ -29,7 +31,10 @@ use crate::proto::network::{
 pub const DEFAULT_PROVER_NETWORK_RPC: &str = "https://rpc.succinct.xyz/";
 
 /// The timeout for a proof request to be fulfilled.
-const TIMEOUT: Duration = Duration::from_secs(60 * 60);
+const PROOF_TIMEOUT: Duration = Duration::from_secs(60 * 60);
+
+/// The timeout for a single RPC request.
+const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 
 pub struct NetworkClient {
     pub rpc: TwirpClient,
@@ -48,6 +53,7 @@ impl NetworkClient {
         let auth = NetworkAuth::new(private_key);
 
         let twirp_http_client = HttpClient::builder()
+            .timeout(REQUEST_TIMEOUT)
             .pool_max_idle_per_host(0)
             .pool_idle_timeout(Duration::from_secs(240))
             .build()
@@ -58,6 +64,7 @@ impl NetworkClient {
             TwirpClient::new(Url::parse(&rpc_url).unwrap(), twirp_http_client, vec![]).unwrap();
 
         let http_client = HttpClient::builder()
+            .timeout(REQUEST_TIMEOUT)
             .pool_max_idle_per_host(0)
             .pool_idle_timeout(Duration::from_secs(240))
             .build()
@@ -82,12 +89,12 @@ impl NetworkClient {
         Ok(())
     }
 
-    /// Get the status of a given proof. If the status is ProofFulfilled, the proof is also
-    /// returned.
-    pub async fn get_proof_status<P: DeserializeOwned>(
+    /// Get the status and the proof if available of a given proof request. The proof is returned
+    /// only if the status is Fulfilled.
+    pub async fn get_proof_status(
         &self,
         proof_id: &str,
-    ) -> Result<(GetProofStatusResponse, Option<P>)> {
+    ) -> Result<(GetProofStatusResponse, Option<SP1ProofWithPublicValues>)> {
         let res = self
             .with_error_handling(
                 self.rpc.get_proof_status(GetProofStatusRequest { proof_id: proof_id.to_string() }),
@@ -101,6 +108,7 @@ impl NetworkClient {
                 let proof_bytes = self
                     .http
                     .get(res.proof_url.as_ref().expect("no proof url"))
+                    .timeout(Duration::from_secs(120))
                     .send()
                     .await
                     .context("Failed to send HTTP request for proof")?
@@ -139,7 +147,7 @@ impl NetworkClient {
     ) -> Result<String> {
         let start = SystemTime::now();
         let since_the_epoch = start.duration_since(UNIX_EPOCH).expect("Invalid start time");
-        let deadline = since_the_epoch.as_secs() + TIMEOUT.as_secs();
+        let deadline = since_the_epoch.as_secs() + PROOF_TIMEOUT.as_secs();
 
         let nonce = self.get_nonce().await?;
         let create_proof_signature = self

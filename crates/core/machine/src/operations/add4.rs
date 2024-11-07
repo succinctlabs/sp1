@@ -141,7 +141,7 @@ impl<F: Field> Add4Operation<F> {
             for i in 0..WORD_SIZE {
                 let mut overflow = a[i] + b[i] + c[i] + d[i] - cols.value[i];
                 if i > 0 {
-                    overflow += cols.carry[i - 1].into();
+                    overflow = overflow.clone() + cols.carry[i - 1].into();
                 }
                 builder_is_real.assert_eq(cols.carry[i] * base, overflow.clone());
             }

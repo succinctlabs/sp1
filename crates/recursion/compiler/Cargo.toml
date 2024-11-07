@@ -10,21 +10,14 @@ keywords = { workspace = true }
 categories = { workspace = true }
 
 [dependencies]
-p3-air = { workspace = true }
 p3-bn254-fr = { workspace = true }
 p3-baby-bear = { workspace = true }
-p3-commit = { workspace = true }
 p3-field = { workspace = true }
-p3-fri = { workspace = true }
-p3-matrix = { workspace = true }
-p3-poseidon2 = { workspace = true }
 p3-symmetric = { workspace = true }
-p3-util = { workspace = true }
 
 sp1-core-machine = { workspace = true }
 sp1-primitives = { workspace = true }
 sp1-recursion-core = { workspace = true }
-sp1-recursion-core-v2 = { workspace = true }
 sp1-recursion-derive = { workspace = true }
 sp1-stark = { workspace = true }
 
@@ -32,7 +25,6 @@ itertools = "0.13.0"
 serde = { version = "1.0.204", features = ["derive"] }
 backtrace = "0.3.71"
 tracing = "0.1.40"
-rayon = "1.10.0"
 vec_map = "0.8.2"
 
 [dev-dependencies]
@@ -41,7 +33,3 @@ p3-dft = { workspace = true }
 p3-merkle-tree = { workspace = true }
 rand = "0.8.5"
 criterion = { version = "0.5.1", features = ["html_reports"] }
-
-[[bench]]
-name = "circuit"
-harness = false

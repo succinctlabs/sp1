@@ -5,6 +5,8 @@ use p3_matrix::dense::RowMajorMatrix;
 use sp1_core_executor::{ByteOpcode, ExecutionRecord, Program};
 use sp1_stark::air::MachineAir;
 
+use crate::utils::zeroed_f_vec;
+
 use super::{
     columns::{ByteMultCols, NUM_BYTE_MULT_COLS, NUM_BYTE_PREPROCESSED_COLS},
     ByteChip,
@@ -40,7 +42,7 @@ impl<F: Field> MachineAir<F> for ByteChip<F> {
         _output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
         let mut trace =
-            RowMajorMatrix::new(vec![F::zero(); NUM_BYTE_MULT_COLS * NUM_ROWS], NUM_BYTE_MULT_COLS);
+            RowMajorMatrix::new(zeroed_f_vec(NUM_BYTE_MULT_COLS * NUM_ROWS), NUM_BYTE_MULT_COLS);
 
         for (_, blu) in input.byte_lookups.iter() {
             for (lookup, mult) in blu.iter() {

@@ -2,14 +2,21 @@ SHELL := /bin/bash
 .SHELLFLAGS = -e
 
 all:
-	@for dir in */ ; do \
-		if [ -d "$${dir}script" ]; then \
-			echo "Building in $${dir}script..."; \
-			cd $${dir}script && cargo check || { echo "Failed at command: cd $${dir}script && cargo check"; exit 1; }; \
-			cd ../../; \
-		else \
-			echo "No program directory in $${dir}, skipping..."; \
-		fi; \
-	done
+	@cargo build --all \
+	  --exclude aggregation-program \
+	  --exclude bls12381-program \
+	  --exclude bn254-program \
+	  --exclude chess-program \
+	  --exclude cycle-tracking-program \
+	  --exclude fibonacci-program \
+	  --exclude io-program \
+	  --exclude is-prime-program \
+	  --exclude json-program \
+	  --exclude patch-testing-program \
+	  --exclude regex-program \
+	  --exclude rsa-program \
+	  --exclude rsp-program \
+	  --exclude ssz-withdrawals-program \
+	  --exclude tendermint-program
 
-.PHONY: all
+.PHONY: all examples

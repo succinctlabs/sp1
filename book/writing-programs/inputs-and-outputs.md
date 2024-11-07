@@ -34,7 +34,7 @@ sp1_zkvm::io::commit::<u64>(&b);
 sp1_zkvm::io::commit::<String>(&c);
 ```
 
-Note that `T` must implement the `Serialize` and `Deserialize` trait. If you want to write bytes directly, you can also use `sp1_zkvm::io::write_slice` method:
+Note that `T` must implement the `Serialize` and `Deserialize` trait. If you want to write bytes directly, you can also use `sp1_zkvm::io::commit_slice` method:
 
 ```rust,noplayground
 let mut my_slice = [0_u8; 32];
@@ -46,7 +46,7 @@ sp1_zkvm::io::commit_slice(&my_slice);
 Typically, you can implement the `Serialize` and `Deserialize` traits using a simple derive macro on a struct.
 
 ```rust,noplayground
-use serde::{Serialize, de::Deserialize};
+use serde::{Serialize, Deserialize};
 
 #[derive(Serialize, Deserialize)]
 struct MyStruct {

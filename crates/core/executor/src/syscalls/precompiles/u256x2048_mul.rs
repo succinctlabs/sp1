@@ -78,7 +78,9 @@ impl Syscall for U256xU2048MulSyscall {
             local_mem_access: rt.postprocess(),
         });
 
-        rt.record_mut().add_precompile_event(syscall_code, event);
+        let sycall_event =
+            rt.rt.syscall_event(clk, syscall_code.syscall_id(), arg1, arg2, lookup_id);
+        rt.add_precompile_event(syscall_code, sycall_event, event);
 
         None
     }

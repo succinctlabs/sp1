@@ -85,7 +85,10 @@ impl Prover<DefaultProverComponents> for MockProver {
                         query_openings: vec![],
                     },
                     chip_ordering: HashMap::new(),
+<<<<<<< HEAD
                     chip_scopes: vec![],
+=======
+>>>>>>> 1a25bc4b17fd5a123519e29d91b17f89d5f735ee
                     public_values: vec![],
                 };
 

@@ -29,7 +29,7 @@ use crate::{
     riscv::cost::CostEstimator,
     utils::{chunk_vec, concurrency::TurnBasedSync},
 };
-use sp1_core_executor::events::sorted_table_lines;
+use sp1_core_executor::{events::sorted_table_lines, ExecutionState};
 use sp1_primitives::io::SP1PublicValues;
 
 use sp1_core_executor::{
@@ -101,6 +101,7 @@ pub fn prove<SC: StarkGenericConfig, P: MachineProver<SC, RiscvAir<SC::Val>>>(
     stdin: &SP1Stdin,
     config: SC,
     opts: SP1CoreOpts,
+    shape_config: Option<&CoreShapeConfig<SC::Val>>,
 ) -> Result<(MachineProof<SC>, Vec<u8>, u64), SP1CoreProverError>
 where
     SC::Challenger: 'static + Clone + Send,
@@ -112,7 +113,15 @@ where
     let machine = RiscvAir::machine(config);
     let prover = P::new(machine);
     let (pk, _) = prover.setup(&program);
-    prove_with_context::<SC, _>(&prover, &pk, program, stdin, opts, Default::default(), None)
+    prove_with_context::<SC, _>(
+        &prover,
+        &pk,
+        program,
+        stdin,
+        opts,
+        Default::default(),
+        shape_config,
+    )
 }
 
 pub fn prove_with_context<SC: StarkGenericConfig, P: MachineProver<SC, RiscvAir<SC::Val>>>(
@@ -133,6 +142,8 @@ where
 {
     // Setup the runtime.
     let mut runtime = Executor::with_context(program.clone(), opts, context);
+    runtime.maximal_shapes = shape_config
+        .map(|config| config.maximal_core_shapes().into_iter().map(|s| s.inner).collect());
     runtime.write_vecs(&stdin.buffer);
     for proof in stdin.proofs.iter() {
         let (proof, vk) = proof.clone();
@@ -163,8 +174,9 @@ where
                         let _span = span.enter();
 
                         // Execute the runtime until we reach a checkpoint.
-                        let (checkpoint, done) =
-                            runtime.execute_state().map_err(SP1CoreProverError::ExecutionError)?;
+                        let (checkpoint, done) = runtime
+                            .execute_state(false)
+                            .map_err(SP1CoreProverError::ExecutionError)?;
 
                         // Save the checkpoint to a temp file.
                         let mut checkpoint_file =
@@ -224,10 +236,19 @@ where
                         if let Ok((index, mut checkpoint, done)) = received {
                             // Trace the checkpoint and reconstruct the execution records.
                             let (mut records, _) = tracing::debug_span!("trace checkpoint")
-                                .in_scope(|| trace_checkpoint(program.clone(), &checkpoint, opts));
+                                .in_scope(|| {
+                                    trace_checkpoint::<SC>(
+                                        program.clone(),
+                                        &checkpoint,
+                                        opts,
+                                        shape_config,
+                                    )
+                                });
+                            log::info!("generated {} records", records.len());
                             reset_seek(&mut checkpoint);
 
                             // Wait for our turn to update the state.
+                            log::info!("waiting for turn {}", index);
                             record_gen_sync.wait_for_turn(index);
 
                             // Update the public values & prover state for the shards which contain
@@ -251,8 +272,9 @@ where
                                 deferred.append(&mut record.defer());
                             }
 
-                            // See if any deferred shards are ready to be commited to.
+                            // See if any deferred shards are ready to be committed to.
                             let mut deferred = deferred.split(done, opts.split_opts);
+                            log::info!("deferred {} records", deferred.len());
 
                             // Update the public values & prover state for the shards which do not
                             // contain "cpu events" before committing to them.
@@ -275,6 +297,7 @@ where
                             records.append(&mut deferred);
 
                             // Collect the checkpoints to be used again in the phase 2 prover.
+                            log::info!("collecting checkpoints");
                             let mut checkpoints = checkpoints.lock().unwrap();
                             checkpoints.push_back((index, checkpoint, done));
 
@@ -284,6 +307,7 @@ where
                             // Fix the shape of the records.
                             if let Some(shape_config) = shape_config {
                                 for record in records.iter_mut() {
+                                    tracing::info!("fixing shape");
                                     shape_config.fix_shape(record).unwrap();
                                 }
                             }
@@ -446,7 +470,15 @@ where
                         if let Some((index, mut checkpoint, done)) = received {
                             // Trace the checkpoint and reconstruct the execution records.
                             let (mut records, report) = tracing::debug_span!("trace checkpoint")
-                                .in_scope(|| trace_checkpoint(program.clone(), &checkpoint, opts));
+                                .in_scope(|| {
+                                    trace_checkpoint::<SC>(
+                                        program.clone(),
+                                        &checkpoint,
+                                        opts,
+                                        shape_config,
+                                    )
+                                });
+                            log::info!("generated {} records", records.len());
                             *report_aggregate.lock().unwrap() += report;
                             reset_seek(&mut checkpoint);
 
@@ -474,8 +506,9 @@ where
                                 deferred.append(&mut record.defer());
                             }
 
-                            // See if any deferred shards are ready to be commited to.
+                            // See if any deferred shards are ready to be committed to.
                             let mut deferred = deferred.split(done, opts.split_opts);
+                            log::info!("deferred {} records", deferred.len());
 
                             // Update the public values & prover state for the shards which do not
                             // contain "cpu events" before committing to them.
@@ -583,10 +616,17 @@ where
                                 |(record, (global_traces, local_traces))| {
                                     let _span = span.enter();
 
+                                    let global_commit_span =
+                                        tracing::debug_span!("commit to global traces").entered();
                                     let global_data = prover.commit(&record, global_traces);
+                                    global_commit_span.exit();
+                                    let local_commit_span =
+                                        tracing::debug_span!("commit to local traces").entered();
                                     let local_data = prover.commit(&record, local_traces);
+                                    local_commit_span.exit();
 
-                                    prover
+                                    let opening_span = tracing::debug_span!("opening").entered();
+                                    let proof = prover
                                         .open(
                                             pk,
                                             Some(global_data),
@@ -594,7 +634,19 @@ where
                                             &mut challenger.clone(),
                                             &global_permutation_challenges,
                                         )
-                                        .unwrap()
+                                        .unwrap();
+                                    opening_span.exit();
+
+                                    #[cfg(debug_assertions)]
+                                    {
+                                        if let Some(shape) = record.shape {
+                                            assert_eq!(
+                                                proof.shape(),
+                                                shape.clone().into_iter().collect(),
+                                            );
+                                        }
+                                    }
+                                    proof
                                 },
                             ),
                         );
@@ -648,7 +700,8 @@ where
         {
             let all_records = all_records_rx.iter().flatten().collect::<Vec<_>>();
             let mut challenger = prover.machine().config().challenger();
-            prover.machine().debug_constraints(&pk.to_host(), all_records, &mut challenger);
+            let pk_host = prover.pk_to_host(pk);
+            prover.machine().debug_constraints(&pk_host, all_records, &mut challenger);
         }
 
         Ok((proof, public_values_stream, cycles))
@@ -657,39 +710,50 @@ where
 
 /// Runs a program and returns the public values stream.
 pub fn run_test_io<P: MachineProver<BabyBearPoseidon2, RiscvAir<BabyBear>>>(
-    program: Program,
+    mut program: Program,
     inputs: SP1Stdin,
 ) -> Result<SP1PublicValues, MachineVerificationError<BabyBearPoseidon2>> {
+    let shape_config = CoreShapeConfig::<BabyBear>::default();
+    shape_config.fix_preprocessed_shape(&mut program).unwrap();
     let runtime = tracing::debug_span!("runtime.run(...)").in_scope(|| {
         let mut runtime = Executor::new(program, SP1CoreOpts::default());
+        runtime.maximal_shapes =
+            Some(shape_config.maximal_core_shapes().into_iter().map(|s| s.inner).collect());
         runtime.write_vecs(&inputs.buffer);
         runtime.run().unwrap();
         runtime
     });
     let public_values = SP1PublicValues::from(&runtime.state.public_values_stream);
-    let _ = run_test_core::<P>(runtime, inputs)?;
+
+    let _ = run_test_core::<P>(runtime, inputs, Some(&shape_config))?;
     Ok(public_values)
 }
 
 pub fn run_test<P: MachineProver<BabyBearPoseidon2, RiscvAir<BabyBear>>>(
-    program: Program,
+    mut program: Program,
 ) -> Result<MachineProof<BabyBearPoseidon2>, MachineVerificationError<BabyBearPoseidon2>> {
+    let shape_config = CoreShapeConfig::default();
+    shape_config.fix_preprocessed_shape(&mut program).unwrap();
     let runtime = tracing::debug_span!("runtime.run(...)").in_scope(|| {
         let mut runtime = Executor::new(program, SP1CoreOpts::default());
+        runtime.maximal_shapes =
+            Some(shape_config.maximal_core_shapes().into_iter().map(|s| s.inner).collect());
         runtime.run().unwrap();
         runtime
     });
-    run_test_core::<P>(runtime, SP1Stdin::new())
+    run_test_core::<P>(runtime, SP1Stdin::new(), Some(&shape_config))
 }
 
 #[allow(unused_variables)]
 pub fn run_test_core<P: MachineProver<BabyBearPoseidon2, RiscvAir<BabyBear>>>(
     runtime: Executor,
     inputs: SP1Stdin,
+    shape_config: Option<&CoreShapeConfig<BabyBear>>,
 ) -> Result<MachineProof<BabyBearPoseidon2>, MachineVerificationError<BabyBearPoseidon2>> {
     let config = BabyBearPoseidon2::new();
     let machine = RiscvAir::machine(config);
     let prover = P::new(machine);
+
     let (pk, _) = prover.setup(runtime.program.as_ref());
     let (proof, output, _) = prove_with_context(
         &prover,
@@ -698,7 +762,7 @@ pub fn run_test_core<P: MachineProver<BabyBearPoseidon2, RiscvAir<BabyBear>>>(
         &inputs,
         SP1CoreOpts::default(),
         SP1Context::default(),
-        None,
+        shape_config,
     )
     .unwrap();
 
@@ -735,7 +799,11 @@ where
     let prove_span = tracing::debug_span!("prove").entered();
 
     #[cfg(feature = "debug")]
-    prover.machine().debug_constraints(&pk.to_host(), records.clone(), &mut challenger.clone());
+    prover.machine().debug_constraints(
+        &prover.pk_to_host(&pk),
+        records.clone(),
+        &mut challenger.clone(),
+    );
 
     let proof = prover.prove(&pk, records, &mut challenger, SP1CoreOpts::default()).unwrap();
     prove_span.exit();
@@ -772,19 +840,30 @@ where
     run_test_machine_with_prover::<SC, A, CpuProver<_, _>>(&prover, records, pk, vk)
 }
 
-fn trace_checkpoint(
+fn trace_checkpoint<SC: StarkGenericConfig>(
     program: Program,
     file: &File,
     opts: SP1CoreOpts,
-) -> (Vec<ExecutionRecord>, ExecutionReport) {
+    shape_config: Option<&CoreShapeConfig<SC::Val>>,
+) -> (Vec<ExecutionRecord>, ExecutionReport)
+where
+    <SC as StarkGenericConfig>::Val: PrimeField32,
+{
     let mut reader = std::io::BufReader::new(file);
-    let state = bincode::deserialize_from(&mut reader).expect("failed to deserialize state");
-    let mut runtime = Executor::recover(program.clone(), state, opts);
+    let state: ExecutionState =
+        bincode::deserialize_from(&mut reader).expect("failed to deserialize state");
+    let mut runtime = Executor::recover(program.clone(), state.clone(), opts);
+    runtime.maximal_shapes = shape_config
+        .map(|config| config.maximal_core_shapes().into_iter().map(|s| s.inner).collect());
+
     // We already passed the deferred proof verifier when creating checkpoints, so the proofs were
     // already verified. So here we use a noop verifier to not print any warnings.
     runtime.subproof_verifier = Arc::new(NoOpSubproofVerifier);
-    let (events, _) = runtime.execute_record().unwrap();
-    (events, runtime.report)
+
+    // Execute from the checkpoint.
+    let (records, _) = runtime.execute_record(true).unwrap();
+
+    (records, runtime.report)
 }
 
 fn reset_seek(file: &mut File) {

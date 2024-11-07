@@ -21,7 +21,7 @@ mod tests {
     use crate::utils;
 
     #[test]
-    fn test_bls12381_fp() {
+    fn test_bls12381_fp_ops() {
         utils::setup_logger();
         let program = Program::from(BLS12381_FP_ELF).unwrap();
         utils::run_test::<CpuProver<_, _>>(program).unwrap();
@@ -42,7 +42,7 @@ mod tests {
     }
 
     #[test]
-    fn test_bn254_fp() {
+    fn test_bn254_fp_ops() {
         utils::setup_logger();
         let program = Program::from(BN254_FP_ELF).unwrap();
         utils::run_test::<CpuProver<_, _>>(program).unwrap();

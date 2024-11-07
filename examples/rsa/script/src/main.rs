@@ -2,11 +2,11 @@ use rsa::{
     pkcs8::{DecodePrivateKey, DecodePublicKey},
     RsaPrivateKey, RsaPublicKey,
 };
-use sp1_sdk::{utils, ProverClient, SP1ProofWithPublicValues, SP1Stdin};
+use sp1_sdk::{include_elf, utils, ProverClient, SP1ProofWithPublicValues, SP1Stdin};
 use std::vec;
 
 /// The ELF we want to execute inside the zkVM.
-const RSA_ELF: &[u8] = include_bytes!("../../program/elf/riscv32im-succinct-zkvm-elf");
+const RSA_ELF: &[u8] = include_elf!("rsa-program");
 
 const RSA_2048_PRIV_DER: &[u8] = include_bytes!("rsa2048-priv.der");
 const RSA_2048_PUB_DER: &[u8] = include_bytes!("rsa2048-pub.der");
@@ -65,9 +65,7 @@ fn main() {
         SP1ProofWithPublicValues::load("proof-with-pis").expect("loading proof failed");
 
     // Verify the deserialized proof.
-    client
-        .verify(&deserialized_proof, &vk)
-        .expect("verification failed");
+    client.verify(&deserialized_proof, &vk).expect("verification failed");
 
     println!("successfully generated and verified proof for the program!")
 }

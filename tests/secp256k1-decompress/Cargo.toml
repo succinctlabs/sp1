@@ -1,4 +1,3 @@
-[workspace]
 [package]
 name = "secp256k1-decompress-test"
 version = "1.1.0"
@@ -6,4 +5,4 @@ edition = "2021"
 publish = false
 
 [dependencies]
-sp1-zkvm = { path = "../../zkvm/entrypoint" }
+sp1-zkvm = { path = "../../crates/zkvm/entrypoint" }

@@ -14,7 +14,13 @@ use p3_symmetric::{Hash, MultiField32PaddingFreeSponge, TruncatedPermutation};
 use serde::{Deserialize, Serialize};
 use sp1_stark::{Com, StarkGenericConfig, ZeroCommitment};
 
-use super::{poseidon2::bn254_poseidon2_rc3, utils};
+use super::{poseidon2::bn254_poseidon2_rc3, sp1_dev_mode};
+
+pub const DIGEST_SIZE: usize = 1;
+
+pub const OUTER_MULTI_FIELD_CHALLENGER_WIDTH: usize = 3;
+pub const OUTER_MULTI_FIELD_CHALLENGER_RATE: usize = 2;
+pub const OUTER_MULTI_FIELD_CHALLENGER_DIGEST_SIZE: usize = 1;
 
 pub const DIGEST_SIZE: usize = 1;
 
@@ -30,7 +36,13 @@ pub type OuterCompress = TruncatedPermutation<OuterPerm, 2, 1, 3>;
 pub type OuterValMmcs = FieldMerkleTreeMmcs<BabyBear, Bn254Fr, OuterHash, OuterCompress, 1>;
 pub type OuterChallengeMmcs = ExtensionMmcs<OuterVal, OuterChallenge, OuterValMmcs>;
 pub type OuterDft = Radix2DitParallel;
-pub type OuterChallenger = MultiField32Challenger<OuterVal, Bn254Fr, OuterPerm, 3>;
+pub type OuterChallenger = MultiField32Challenger<
+    OuterVal,
+    Bn254Fr,
+    OuterPerm,
+    OUTER_MULTI_FIELD_CHALLENGER_WIDTH,
+    OUTER_MULTI_FIELD_CHALLENGER_RATE,
+>;
 pub type OuterPcs = TwoAdicFriPcs<OuterVal, OuterDft, OuterValMmcs, OuterChallengeMmcs>;
 
 pub type OuterQueryProof = QueryProof<OuterChallenge, OuterChallengeMmcs>;
@@ -66,7 +78,7 @@ pub fn outer_fri_config() -> FriConfig<OuterChallengeMmcs> {
     let hash = OuterHash::new(perm.clone()).unwrap();
     let compress = OuterCompress::new(perm.clone());
     let challenge_mmcs = OuterChallengeMmcs::new(OuterValMmcs::new(hash, compress));
-    let num_queries = if utils::sp1_dev_mode() {
+    let num_queries = if sp1_dev_mode() {
         1
     } else {
         match std::env::var("FRI_QUERIES") {
@@ -83,7 +95,7 @@ pub fn outer_fri_config_with_blowup(log_blowup: usize) -> FriConfig<OuterChallen
     let hash = OuterHash::new(perm.clone()).unwrap();
     let compress = OuterCompress::new(perm.clone());
     let challenge_mmcs = OuterChallengeMmcs::new(OuterValMmcs::new(hash, compress));
-    let num_queries = if utils::sp1_dev_mode() {
+    let num_queries = if sp1_dev_mode() {
         1
     } else {
         match std::env::var("FRI_QUERIES") {

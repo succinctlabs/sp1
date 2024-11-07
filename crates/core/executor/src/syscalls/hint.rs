@@ -50,6 +50,7 @@ impl Syscall for HintReadSyscall {
 
             // Save the data into runtime state so the runtime will use the desired data instead of
             // 0 when first reading/writing from this address.
+            ctx.rt.uninitialized_memory_checkpoint.entry(ptr + i).or_insert_with(|| false);
             ctx.rt
                 .state
                 .uninitialized_memory

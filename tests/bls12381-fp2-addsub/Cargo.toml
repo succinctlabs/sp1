@@ -1,4 +1,3 @@
-[workspace]
 [package]
 name = "bls12381-fp2-addsub-test"
 version = "1.1.1"
@@ -7,7 +6,6 @@ publish = false
 
 
 [dependencies]
-sp1-zkvm = { path = "../../zkvm/entrypoint" }
-sp1-derive = { path = "../../derive" }
+sp1-zkvm = { path = "../../crates/zkvm/entrypoint" }
 num-bigint = "0.4.6"
 rand = "0.8.5"

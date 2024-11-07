@@ -5,19 +5,22 @@ use std::{
 
 use crate::{
     network::client::{NetworkClient, DEFAULT_PROVER_NETWORK_RPC},
-    proto::network::{ProofMode, ProofStatus},
+    network::proto::network::{ProofMode, ProofStatus},
     Prover, SP1Context, SP1ProofKind, SP1ProofWithPublicValues, SP1ProvingKey, SP1VerifyingKey,
 };
 use anyhow::Result;
-use serde::de::DeserializeOwned;
 use sp1_core_machine::io::SP1Stdin;
 use sp1_prover::{components::DefaultProverComponents, SP1Prover, SP1_CIRCUIT_VERSION};
 use sp1_stark::SP1ProverOpts;
 
-#[cfg(feature = "network")]
+use super::proto::network::GetProofStatusResponse;
+
 use {crate::block_on, tokio::time::sleep};
 
 use crate::provers::{CpuProver, ProofOpts, ProverType};
+
+/// Number of consecutive errors to tolerate before returning an error while polling proof status.
+const MAX_CONSECUTIVE_ERRORS: usize = 10;
 
 /// An implementation of [crate::ProverClient] that can generate proofs on a remote RPC server.
 pub struct NetworkProver {
@@ -72,14 +75,15 @@ impl NetworkProver {
 
     /// Waits for a proof to be generated and returns the proof. If a timeout is supplied, the
     /// function will return an error if the proof is not generated within the timeout.
-    pub async fn wait_proof<P: DeserializeOwned>(
+    pub async fn wait_proof(
         &self,
         proof_id: &str,
         timeout: Option<Duration>,
-    ) -> Result<P> {
+    ) -> Result<SP1ProofWithPublicValues> {
         let client = &self.client;
         let mut is_claimed = false;
         let start_time = Instant::now();
+        let mut consecutive_errors = 0;
         loop {
             if let Some(timeout) = timeout {
                 if start_time.elapsed() > timeout {
@@ -87,7 +91,27 @@ impl NetworkProver {
                 }
             }
 
-            let (status, maybe_proof) = client.get_proof_status::<P>(proof_id).await?;
+            let result = client.get_proof_status(proof_id).await;
+
+            if let Err(e) = result {
+                consecutive_errors += 1;
+                log::warn!(
+                    "Failed to get proof status ({}/{}): {:?}",
+                    consecutive_errors,
+                    MAX_CONSECUTIVE_ERRORS,
+                    e
+                );
+                if consecutive_errors == MAX_CONSECUTIVE_ERRORS {
+                    return Err(anyhow::anyhow!(
+                        "Proof generation failed: {} consecutive errors.",
+                        MAX_CONSECUTIVE_ERRORS
+                    ));
+                }
+                continue;
+            }
+            consecutive_errors = 0;
+
+            let (status, maybe_proof) = result.unwrap();
 
             match status.status() {
                 ProofStatus::ProofFulfilled => {
@@ -109,6 +133,15 @@ impl NetworkProver {
             }
             sleep(Duration::from_secs(2)).await;
         }
+    }
+
+    /// Get the status and the proof if available of a given proof request. The proof is returned
+    /// only if the status is Fulfilled.
+    pub async fn get_proof_status(
+        &self,
+        proof_id: &str,
+    ) -> Result<(GetProofStatusResponse, Option<SP1ProofWithPublicValues>)> {
+        self.client.get_proof_status(proof_id).await
     }
 
     /// Requests a proof from the prover network and waits for it to be generated.
@@ -158,7 +191,6 @@ impl Default for NetworkProver {
 
 /// Warns if `opts` or `context` are not default values, since they are currently unsupported.
 fn warn_if_not_default(opts: &SP1ProverOpts, context: &SP1Context) {
-    let _guard = tracing::warn_span!("network_prover").entered();
     if opts != &SP1ProverOpts::default() {
         tracing::warn!("non-default opts will be ignored: {:?}", opts.core_opts);
         tracing::warn!("custom SP1ProverOpts are currently unsupported by the network prover");

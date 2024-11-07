@@ -13,7 +13,7 @@ If you submit a proof request to the prover network and you are not using a supp
 
 ## Changing versions
 
-You must switch to a supported version before submitting a proof. To do so, replace the `sp1-zkvm` version in your progam's `Cargo.toml`:
+You must switch to a supported version before submitting a proof. To do so, replace the `sp1-zkvm` version in your program's `Cargo.toml`:
 
 ```toml
 [dependencies]

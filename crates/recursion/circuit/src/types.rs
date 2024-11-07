@@ -1,201 +1,116 @@
-use p3_air::BaseAir;
+use hashbrown::HashMap;
 use p3_commit::TwoAdicMultiplicativeCoset;
-use p3_field::AbstractExtensionField;
-use p3_matrix::{dense::RowMajorMatrixView, stack::VerticalPair};
-use sp1_recursion_compiler::ir::{Array, Builder, Config, Ext, ExtConst, Felt, FromConstant, Var};
-use sp1_stark::{air::MachineAir, AirOpenedValues, Chip, ChipOpenedValues, ShardCommitment};
+use p3_field::{AbstractField, TwoAdicField};
+use p3_matrix::Dimensions;
 
-use crate::DIGEST_SIZE;
+use sp1_recursion_compiler::ir::{Builder, Ext, Felt};
 
-pub type OuterDigestVariable<C: Config> = [Var<C::N>; DIGEST_SIZE];
+use sp1_recursion_core::DIGEST_SIZE;
 
-pub struct RecursionShardProofVariable<C: Config> {
-    pub commitment: ShardCommitment<OuterDigestVariable<C>>,
-    pub opened_values: RecursionShardOpenedValuesVariable<C>,
-    pub opening_proof: TwoAdicPcsProofVariable<C>,
-    pub public_values: Array<C, Felt<C::F>>,
+use crate::{
+    challenger::CanObserveVariable, hash::FieldHasherVariable, BabyBearFriConfigVariable,
+    CircuitConfig,
+};
+
+/// Reference: [sp1_core::stark::StarkVerifyingKey]
+#[derive(Clone)]
+pub struct VerifyingKeyVariable<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVariable<C>> {
+    pub commitment: SC::DigestVariable,
+    pub pc_start: Felt<C::F>,
+    pub chip_information: Vec<(String, TwoAdicMultiplicativeCoset<C::F>, Dimensions)>,
+    pub chip_ordering: HashMap<String, usize>,
 }
 
 #[derive(Clone)]
-pub struct RecursionShardOpenedValuesVariable<C: Config> {
-    pub chips: Vec<ChipOpenedValuesVariable<C>>,
-}
-
-/// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/fri/src/proof.rs#L12
-#[derive(Clone)]
-pub struct FriProofVariable<C: Config> {
-    pub commit_phase_commits: Vec<OuterDigestVariable<C>>,
-    pub query_proofs: Vec<FriQueryProofVariable<C>>,
+pub struct FriProofVariable<C: CircuitConfig, H: FieldHasherVariable<C>> {
+    pub commit_phase_commits: Vec<H::DigestVariable>,
+    pub query_proofs: Vec<FriQueryProofVariable<C, H>>,
     pub final_poly: Ext<C::F, C::EF>,
     pub pow_witness: Felt<C::F>,
 }
 
 /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/fri/src/proof.rs#L32
 #[derive(Clone)]
-pub struct FriCommitPhaseProofStepVariable<C: Config> {
+pub struct FriCommitPhaseProofStepVariable<C: CircuitConfig, H: FieldHasherVariable<C>> {
     pub sibling_value: Ext<C::F, C::EF>,
-    pub opening_proof: Vec<OuterDigestVariable<C>>,
+    pub opening_proof: Vec<H::DigestVariable>,
 }
 
 /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/fri/src/proof.rs#L23
 #[derive(Clone)]
-pub struct FriQueryProofVariable<C: Config> {
-    pub commit_phase_openings: Vec<FriCommitPhaseProofStepVariable<C>>,
+pub struct FriQueryProofVariable<C: CircuitConfig, H: FieldHasherVariable<C>> {
+    pub commit_phase_openings: Vec<FriCommitPhaseProofStepVariable<C, H>>,
 }
 
 /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/fri/src/verifier.rs#L22
 #[derive(Clone)]
-pub struct FriChallenges<C: Config> {
-    pub query_indices: Vec<Var<C::N>>,
+pub struct FriChallenges<C: CircuitConfig> {
+    pub query_indices: Vec<Vec<C::Bit>>,
     pub betas: Vec<Ext<C::F, C::EF>>,
 }
 
 #[derive(Clone)]
-pub struct BatchOpeningVariable<C: Config> {
+pub struct TwoAdicPcsProofVariable<C: CircuitConfig, H: FieldHasherVariable<C>> {
+    pub fri_proof: FriProofVariable<C, H>,
+    pub query_openings: Vec<Vec<BatchOpeningVariable<C, H>>>,
+}
+
+#[derive(Clone)]
+pub struct BatchOpeningVariable<C: CircuitConfig, H: FieldHasherVariable<C>> {
     pub opened_values: Vec<Vec<Vec<Felt<C::F>>>>,
-    pub opening_proof: Vec<OuterDigestVariable<C>>,
+    pub opening_proof: Vec<H::DigestVariable>,
 }
 
 #[derive(Clone)]
-pub struct TwoAdicPcsProofVariable<C: Config> {
-    pub fri_proof: FriProofVariable<C>,
-    pub query_openings: Vec<Vec<BatchOpeningVariable<C>>>,
+pub struct TwoAdicPcsRoundVariable<C: CircuitConfig, H: FieldHasherVariable<C>> {
+    pub batch_commit: H::DigestVariable,
+    pub domains_points_and_opens: Vec<TwoAdicPcsMatsVariable<C>>,
 }
 
 #[derive(Clone)]
-pub struct TwoAdicPcsRoundVariable<C: Config> {
-    pub batch_commit: OuterDigestVariable<C>,
-    pub mats: Vec<TwoAdicPcsMatsVariable<C>>,
-}
-
-#[allow(clippy::type_complexity)]
-#[derive(Clone)]
-pub struct TwoAdicPcsMatsVariable<C: Config> {
+pub struct TwoAdicPcsMatsVariable<C: CircuitConfig> {
     pub domain: TwoAdicMultiplicativeCoset<C::F>,
     pub points: Vec<Ext<C::F, C::EF>>,
     pub values: Vec<Vec<Ext<C::F, C::EF>>>,
 }
 
-#[derive(Debug, Clone)]
-pub struct ChipOpenedValuesVariable<C: Config> {
-    pub preprocessed: AirOpenedValuesVariable<C>,
-    pub main: AirOpenedValuesVariable<C>,
-    pub permutation: AirOpenedValuesVariable<C>,
-    pub quotient: Vec<Vec<Ext<C::F, C::EF>>>,
-    pub cumulative_sum: Ext<C::F, C::EF>,
-    pub log_degree: usize,
-}
-
-#[derive(Debug, Clone)]
-pub struct AirOpenedValuesVariable<C: Config> {
-    pub local: Vec<Ext<C::F, C::EF>>,
-    pub next: Vec<Ext<C::F, C::EF>>,
-}
-
-impl<C: Config> FromConstant<C> for AirOpenedValuesVariable<C> {
-    type Constant = AirOpenedValues<C::EF>;
-
-    fn constant(value: Self::Constant, builder: &mut Builder<C>) -> Self {
-        AirOpenedValuesVariable {
-            local: value.local.iter().map(|x| builder.constant(*x)).collect(),
-            next: value.next.iter().map(|x| builder.constant(*x)).collect(),
-        }
-    }
-}
-
-impl<C: Config> AirOpenedValuesVariable<C> {
-    pub fn view(
-        &self,
-    ) -> VerticalPair<
-        RowMajorMatrixView<'_, Ext<C::F, C::EF>>,
-        RowMajorMatrixView<'_, Ext<C::F, C::EF>>,
-    > {
-        let a = RowMajorMatrixView::new_row(&self.local);
-        let b = RowMajorMatrixView::new_row(&self.next);
-        VerticalPair::new(a, b)
-    }
-}
-
-impl<C: Config> FromConstant<C> for ChipOpenedValuesVariable<C> {
-    type Constant = ChipOpenedValues<C::EF>;
-
-    fn constant(value: Self::Constant, builder: &mut Builder<C>) -> Self {
-        ChipOpenedValuesVariable {
-            preprocessed: builder.constant(value.preprocessed),
-            main: builder.constant(value.main),
-            permutation: builder.constant(value.permutation),
-            quotient: value
-                .quotient
-                .iter()
-                .map(|x| x.iter().map(|y| builder.constant(*y)).collect())
-                .collect(),
-            cumulative_sum: builder.eval(value.cumulative_sum.cons()),
-            log_degree: value.log_degree,
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct ChipOpening<C: Config> {
-    pub preprocessed: AirOpenedValues<Ext<C::F, C::EF>>,
-    pub main: AirOpenedValues<Ext<C::F, C::EF>>,
-    pub permutation: AirOpenedValues<Ext<C::F, C::EF>>,
-    pub quotient: Vec<Vec<Ext<C::F, C::EF>>>,
-    pub cumulative_sum: Ext<C::F, C::EF>,
-    pub log_degree: usize,
-}
-
-impl<C: Config> ChipOpening<C> {
-    pub fn from_variable<A>(
-        _: &mut Builder<C>,
-        chip: &Chip<C::F, A>,
-        opening: &ChipOpenedValuesVariable<C>,
-    ) -> Self
+impl<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVariable<C>> VerifyingKeyVariable<C, SC> {
+    pub fn observe_into<Challenger>(&self, builder: &mut Builder<C>, challenger: &mut Challenger)
     where
-        A: MachineAir<C::F>,
+        Challenger: CanObserveVariable<C, Felt<C::F>> + CanObserveVariable<C, SC::DigestVariable>,
     {
-        let mut preprocessed = AirOpenedValues { local: vec![], next: vec![] };
-        let preprocess_width = chip.preprocessed_width();
-        for i in 0..preprocess_width {
-            preprocessed.local.push(opening.preprocessed.local[i]);
-            preprocessed.next.push(opening.preprocessed.next[i]);
+        // Observe the commitment.
+        challenger.observe(builder, self.commitment);
+        // Observe the pc_start.
+        challenger.observe(builder, self.pc_start);
+        // Observe the padding.
+        let zero: Felt<_> = builder.eval(C::F::zero());
+        for _ in 0..7 {
+            challenger.observe(builder, zero);
+        }
+    }
+
+    /// Hash the verifying key + prep domains into a single digest.
+    /// poseidon2( commit[0..8] || pc_start || prep_domains[N].{log_n, .size, .shift, .g})
+    pub fn hash(&self, builder: &mut Builder<C>) -> SC::DigestVariable
+    where
+        C::F: TwoAdicField,
+        SC::DigestVariable: IntoIterator<Item = Felt<C::F>>,
+    {
+        let prep_domains = self.chip_information.iter().map(|(_, domain, _)| domain);
+        let num_inputs = DIGEST_SIZE + 1 + (4 * prep_domains.len());
+        let mut inputs = Vec::with_capacity(num_inputs);
+        inputs.extend(self.commitment);
+        inputs.push(self.pc_start);
+        for domain in prep_domains {
+            inputs.push(builder.eval(C::F::from_canonical_usize(domain.log_n)));
+            let size = 1 << domain.log_n;
+            inputs.push(builder.eval(C::F::from_canonical_usize(size)));
+            let g = C::F::two_adic_generator(domain.log_n);
+            inputs.push(builder.eval(domain.shift));
+            inputs.push(builder.eval(g));
         }
 
-        let mut main = AirOpenedValues { local: vec![], next: vec![] };
-        let main_width = chip.width();
-        for i in 0..main_width {
-            main.local.push(opening.main.local[i]);
-            main.next.push(opening.main.next[i]);
-        }
-
-        let mut permutation = AirOpenedValues { local: vec![], next: vec![] };
-        let permutation_width = C::EF::D * chip.permutation_width();
-
-        for i in 0..permutation_width {
-            permutation.local.push(opening.permutation.local[i]);
-            permutation.next.push(opening.permutation.next[i]);
-        }
-
-        let num_quotient_chunks = 1 << chip.log_quotient_degree();
-
-        let mut quotient = vec![];
-        for i in 0..num_quotient_chunks {
-            let chunk = &opening.quotient[i];
-            let mut quotient_vals = vec![];
-            for j in 0..C::EF::D {
-                let value = &chunk[j];
-                quotient_vals.push(*value);
-            }
-            quotient.push(quotient_vals);
-        }
-
-        ChipOpening {
-            preprocessed,
-            main,
-            permutation,
-            quotient,
-            cumulative_sum: opening.cumulative_sum,
-            log_degree: opening.log_degree,
-        }
+        SC::hash(builder, &inputs)
     }
 }

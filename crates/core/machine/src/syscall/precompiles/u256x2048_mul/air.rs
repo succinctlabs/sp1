@@ -112,7 +112,7 @@ impl<F: PrimeField32> MachineAir<F> for U256x2048MulChip {
 
                 let rows = events
                     .iter()
-                    .map(|event| {
+                    .map(|(_, event)| {
                         let event = if let PrecompileEvent::U256xU2048Mul(event) = event {
                             event
                         } else {
@@ -246,8 +246,11 @@ impl<F: PrimeField32> MachineAir<F> for U256x2048MulChip {
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
-        // Implement logic to determine if this chip should be included
-        !shard.get_precompile_events(SyscallCode::U256XU2048_MUL).is_empty()
+        if let Some(shape) = shard.shape.as_ref() {
+            shape.included::<F, _>(self)
+        } else {
+            !shard.get_precompile_events(SyscallCode::U256XU2048_MUL).is_empty()
+        }
     }
 }
 
@@ -280,10 +283,10 @@ where
             local.a_ptr,
             local.b_ptr,
             local.is_real,
-            InteractionScope::Global,
+            InteractionScope::Local,
         );
 
-        // constraint memory access
+        // constrain memory access
         builder.eval_memory_access(
             local.shard,
             local.clk.into(),

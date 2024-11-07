@@ -1,0 +1,17 @@
+images:
+  nvidia-linux:
+    platform: "linux"
+    arch: "x64"
+    ami: "ami-0a63dc9cb9e934ba3"
+    owner: "421253708207"
+
+  dlami-x64:
+    platform: "linux"
+    arch: "x64"
+    owner: "898082745236" # AWS
+    name: "Deep Learning Base OSS Nvidia Driver GPU AMI (Ubuntu 22.04)*"
+
+runners:
+  gpu-nvidia:
+    family: ["g6.4xlarge"]
+    image: dlami-x64

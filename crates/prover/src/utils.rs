@@ -12,10 +12,10 @@ use p3_field::{AbstractField, PrimeField32};
 use p3_symmetric::CryptographicHasher;
 use sp1_core_executor::{Executor, Program};
 use sp1_core_machine::{io::SP1Stdin, reduce::SP1ReduceProof};
-use sp1_recursion_circuit_v2::machine::RootPublicValues;
-use sp1_recursion_core_v2::{
+use sp1_recursion_circuit::machine::RootPublicValues;
+use sp1_recursion_core::{
     air::{RecursionPublicValues, NUM_PV_ELMS_TO_HASH},
-    stark::config::BabyBearPoseidon2Outer,
+    stark::BabyBearPoseidon2Outer,
 };
 use sp1_stark::{baby_bear_poseidon2::MyHash as InnerHash, SP1CoreOpts, Word};
 
@@ -81,7 +81,9 @@ pub fn assert_recursion_public_values_valid(
 }
 
 /// Get the committed values Bn Poseidon2 digest this reduce proof is representing.
-pub fn sp1_commited_values_digest_bn254(proof: &SP1ReduceProof<BabyBearPoseidon2Outer>) -> Bn254Fr {
+pub fn sp1_committed_values_digest_bn254(
+    proof: &SP1ReduceProof<BabyBearPoseidon2Outer>,
+) -> Bn254Fr {
     let proof = &proof.proof;
     let pv: &RecursionPublicValues<BabyBear> = proof.public_values.as_slice().borrow();
     let committed_values_digest_bytes: [BabyBear; 32] =

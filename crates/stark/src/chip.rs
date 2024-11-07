@@ -213,6 +213,10 @@ where
     fn commit_scope(&self) -> crate::air::InteractionScope {
         self.air.commit_scope()
     }
+
+    fn local_only(&self) -> bool {
+        self.air.local_only()
+    }
 }
 
 // Implement AIR directly on Chip, evaluating both execution and permutation constraints.

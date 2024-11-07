@@ -64,7 +64,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - fix release-plz ([#1088](https://github.com/succinctlabs/sp1/pull/1088))
 - add release-plz ([#1086](https://github.com/succinctlabs/sp1/pull/1086))
 - _(deps)_ bump serde from 1.0.203 to 1.0.204 ([#1063](https://github.com/succinctlabs/sp1/pull/1063))
-- clenaup zkvm
+- cleanup zkvm
 - hm
 - cleanup zkvm/lib
 - _(deps)_ bump lazy_static from 1.4.0 to 1.5.0

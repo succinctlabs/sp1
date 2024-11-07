@@ -37,8 +37,8 @@ fn mul(lhs: &[u32; NUM_LIMBS], rhs: &[u32; NUM_LIMBS]) -> [u32; NUM_LIMBS] {
 fn random_u32_8() -> [u32; NUM_LIMBS] {
     let mut rng = rand::thread_rng();
     let mut arr = [0u32; NUM_LIMBS];
-    for i in 0..NUM_LIMBS {
-        arr[i] = rng.gen();
+    for item in arr.iter_mut() {
+        *item = rng.gen();
     }
     arr
 }
@@ -104,10 +104,7 @@ pub fn main() {
         } else {
             (a_bigint.clone() - b_bigint.clone()) % &modulus
         };
-        assert_eq!(
-            expected_sub,
-            u32_8_to_biguint(&sub(&a_reduced, &b_reduced)) % &modulus
-        );
+        assert_eq!(expected_sub, u32_8_to_biguint(&sub(&a_reduced, &b_reduced)) % &modulus);
 
         // Test subtraction with zero
         assert_eq!(

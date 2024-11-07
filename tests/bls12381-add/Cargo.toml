@@ -1,4 +1,3 @@
-[workspace]
 [package]
 name = "bls12381-add-test"
 version = "1.1.0"
@@ -6,5 +5,7 @@ edition = "2021"
 publish = false
 
 [dependencies]
-sp1-zkvm = { path = "../../zkvm/entrypoint" }
-num = { version = "0.4.1", default-features = false }
+common-test-utils = { path = "../common" }
+sp1-zkvm = { path = "../../crates/zkvm/entrypoint" }
+sp1-lib = { path = "../../crates/zkvm/lib" }
+sp1-curves = { path = "../../crates/curves" }

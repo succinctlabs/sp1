@@ -1,6 +1,6 @@
-use sp1_sdk::{ProverClient, SP1ProofWithPublicValues, SP1Stdin};
+use sp1_sdk::{include_elf, ProverClient, SP1ProofWithPublicValues, SP1Stdin};
 
-const ELF: &[u8] = include_bytes!("../../program/elf/riscv32im-succinct-zkvm-elf");
+const ELF: &[u8] = include_elf!("chess-program");
 
 fn main() {
     let mut stdin = SP1Stdin::new();
@@ -25,16 +25,12 @@ fn main() {
     client.verify(&proof, &vk).expect("verification failed");
 
     // Test a round trip of proof serialization and deserialization.
-    proof
-        .save("proof-with-io.bin")
-        .expect("saving proof failed");
+    proof.save("proof-with-io.bin").expect("saving proof failed");
     let deserialized_proof =
         SP1ProofWithPublicValues::load("proof-with-io.bin").expect("loading proof failed");
 
     // Verify the deserialized proof.
-    client
-        .verify(&deserialized_proof, &vk)
-        .expect("verification failed");
+    client.verify(&deserialized_proof, &vk).expect("verification failed");
 
     println!("successfully generated and verified proof for the program!")
 }

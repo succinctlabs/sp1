@@ -14,6 +14,8 @@ use p3_matrix::{
     stack::VerticalPair,
     Matrix,
 };
+use p3_maybe_rayon::prelude::ParallelBridge;
+use p3_maybe_rayon::prelude::ParallelIterator;
 
 use super::{MachineChip, StarkGenericConfig, Val};
 use crate::air::{EmptyMessageBuilder, MachineAir, MultiTableAirBuilder};
@@ -42,7 +44,7 @@ pub fn debug_constraints<SC, A>(
     }
 
     // Check that constraints are satisfied.
-    (0..height).for_each(|i| {
+    (0..height).par_bridge().for_each(|i| {
         let i_next = (i + 1) % height;
 
         let main_local = main.row_slice(i);

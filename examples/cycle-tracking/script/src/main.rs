@@ -1,8 +1,8 @@
-use sp1_sdk::{utils, ProverClient, SP1Stdin};
+use sp1_sdk::{include_elf, utils, ProverClient, SP1Stdin};
 
 /// The ELF we want to execute inside the zkVM.
-const REPORT_ELF: &[u8] = include_bytes!("../../program/elf/report");
-const NORMAL_ELF: &[u8] = include_bytes!("../../program/elf/normal");
+const REPORT_ELF: &[u8] = include_elf!("report");
+const NORMAL_ELF: &[u8] = include_elf!("normal");
 
 fn main() {
     // Setup a tracer for logging.

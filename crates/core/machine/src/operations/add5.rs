@@ -147,12 +147,12 @@ impl<F: Field> Add5Operation<F> {
             for i in 0..WORD_SIZE {
                 let mut overflow: AB::Expr = AB::F::zero().into();
                 for word in words {
-                    overflow += word[i].into();
+                    overflow = overflow.clone() + word[i].into();
                 }
-                overflow -= cols.value[i].into();
+                overflow = overflow.clone() - cols.value[i].into();
 
                 if i > 0 {
-                    overflow += cols.carry[i - 1].into();
+                    overflow = overflow.clone() + cols.carry[i - 1].into();
                 }
                 builder_is_real.assert_eq(cols.carry[i] * base, overflow.clone());
             }

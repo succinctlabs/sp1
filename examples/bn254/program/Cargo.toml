@@ -1,14 +1,10 @@
-[workspace]
 [package]
-name = "bn254"
+name = "bn254-program"
 version = "1.1.0"
 edition = "2021"
 publish = false
 
 [dependencies]
 sp1-zkvm = { path = "../../../crates/zkvm/entrypoint" }
-num = { version = "0.4.1", default-features = false }
-serde_yaml = "0.9.34"
-bn = { git = "https://github.com/sp1-patches/bn", package = "substrate-bn", branch = "bhargav/bn-optimizations"}
-# bn = { git = "https://github.com/sp1-patches/bn", package = "substrate-bn", branch = "patch-v0.6.0"}
+substrate-bn = "0.6.0"
 rand = "0.8.5"

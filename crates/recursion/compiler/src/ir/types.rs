@@ -56,7 +56,7 @@ pub struct Witness<C: Config> {
     pub felts: Vec<C::F>,
     pub exts: Vec<C::EF>,
     pub vkey_hash: C::N,
-    pub commited_values_digest: C::N,
+    pub committed_values_digest: C::N,
 }
 
 impl<C: Config> Witness<C> {
@@ -69,9 +69,9 @@ impl<C: Config> Witness<C> {
         self.vkey_hash = vkey_hash;
     }
 
-    pub fn write_commited_values_digest(&mut self, commited_values_digest: C::N) {
-        self.vars.push(commited_values_digest);
-        self.commited_values_digest = commited_values_digest
+    pub fn write_committed_values_digest(&mut self, committed_values_digest: C::N) {
+        self.vars.push(committed_values_digest);
+        self.committed_values_digest = committed_values_digest
     }
 }
 

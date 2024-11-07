@@ -9,7 +9,7 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use sp1_core_machine::{io::SP1Stdin, reduce::SP1ReduceProof};
 use sp1_primitives::{io::SP1PublicValues, poseidon2_hash};
 
-use sp1_recursion_circuit_v2::machine::{
+use sp1_recursion_circuit::machine::{
     SP1CompressWitnessValues, SP1DeferredWitnessValues, SP1RecursionWitnessValues,
 };
 

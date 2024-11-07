@@ -3,7 +3,7 @@ use std::{
     marker::PhantomData,
 };
 
-use crate::air::MemoryAirBuilder;
+use crate::{air::MemoryAirBuilder, utils::zeroed_f_vec};
 use generic_array::GenericArray;
 use itertools::Itertools;
 use num::{BigUint, Zero};
@@ -148,14 +148,14 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for Fp2MulAssignChip<P> {
         let mut rows = Vec::new();
         let mut new_byte_lookup_events = Vec::new();
 
-        for event in events {
+        for (_, event) in events {
             let event = match (P::FIELD_TYPE, event) {
                 (FieldType::Bn254, PrecompileEvent::Bn254Fp2Mul(event)) => event,
                 (FieldType::Bls12381, PrecompileEvent::Bls12381Fp2Mul(event)) => event,
                 _ => unreachable!(),
             };
 
-            let mut row = vec![F::zero(); num_fp2_mul_cols::<P>()];
+            let mut row = zeroed_f_vec(num_fp2_mul_cols::<P>());
             let cols: &mut Fp2MulAssignCols<F, P> = row.as_mut_slice().borrow_mut();
 
             let p = &event.x;
@@ -196,7 +196,7 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for Fp2MulAssignChip<P> {
         pad_rows_fixed(
             &mut rows,
             || {
-                let mut row = vec![F::zero(); num_fp2_mul_cols::<P>()];
+                let mut row = zeroed_f_vec(num_fp2_mul_cols::<P>());
                 let cols: &mut Fp2MulAssignCols<F, P> = row.as_mut_slice().borrow_mut();
                 let zero = BigUint::zero();
                 Self::populate_field_ops(
@@ -231,10 +231,16 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for Fp2MulAssignChip<P> {
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
-        match P::FIELD_TYPE {
-            FieldType::Bn254 => !shard.get_precompile_events(SyscallCode::BN254_FP2_MUL).is_empty(),
-            FieldType::Bls12381 => {
-                !shard.get_precompile_events(SyscallCode::BLS12381_FP2_MUL).is_empty()
+        if let Some(shape) = shard.shape.as_ref() {
+            shape.included::<F, _>(self)
+        } else {
+            match P::FIELD_TYPE {
+                FieldType::Bn254 => {
+                    !shard.get_precompile_events(SyscallCode::BN254_FP2_MUL).is_empty()
+                }
+                FieldType::Bls12381 => {
+                    !shard.get_precompile_events(SyscallCode::BLS12381_FP2_MUL).is_empty()
+                }
             }
         }
     }
@@ -370,7 +376,7 @@ where
             local.x_ptr,
             local.y_ptr,
             local.is_real,
-            InteractionScope::Global,
+            InteractionScope::Local,
         );
     }
 }

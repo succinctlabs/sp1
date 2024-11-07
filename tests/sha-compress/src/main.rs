@@ -8,7 +8,7 @@ pub fn main() {
     let mut state = [1u32; 8];
 
     for _ in 0..4 {
-        syscall_sha256_compress(w.as_mut_ptr(), state.as_mut_ptr());
+        syscall_sha256_compress(&mut w, &mut state);
     }
 
     println!("{:?}", state);

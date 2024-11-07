@@ -38,8 +38,7 @@ tracing = "0.1.40"
 rayon-scan = "0.1.1"
 arrayref = "0.3.8"
 strum = "0.26.3"
-strum_macros = "0.26.4" 
-getrandom = { version = "0.2.15", features = ["custom"] }
+strum_macros = "0.26.4"
 sysinfo = "0.30.13"
 num-traits = "0.2.19"
 

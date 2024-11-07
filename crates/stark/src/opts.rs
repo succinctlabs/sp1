@@ -3,11 +3,15 @@ use std::env;
 use serde::{Deserialize, Serialize};
 use sysinfo::System;
 
-const MAX_SHARD_SIZE: usize = 1 << 22;
+const MAX_SHARD_SIZE: usize = 1 << 21;
+const RECURSION_MAX_SHARD_SIZE: usize = 1 << 22;
 const MAX_SHARD_BATCH_SIZE: usize = 8;
 const DEFAULT_TRACE_GEN_WORKERS: usize = 1;
 const DEFAULT_CHECKPOINTS_CHANNEL_CAPACITY: usize = 128;
 const DEFAULT_RECORDS_AND_TRACES_CHANNEL_CAPACITY: usize = 1;
+
+/// The threshold for splitting deferred events.
+pub const MAX_DEFERRED_SPLIT_THRESHOLD: usize = 1 << 18;
 
 /// Options to configure the SP1 prover for core and recursive proofs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -53,8 +57,8 @@ pub struct SP1CoreOpts {
 #[allow(clippy::cast_precision_loss)]
 fn shard_size(total_available_mem: u64) -> usize {
     let log_shard_size = match total_available_mem {
-        0..=14 => 18,
-        m => (((m as f64).log2() * 0.619) + 17.2).floor() as usize,
+        0..=14 => 17,
+        m => (((m as f64).log2() * 0.619) + 16.2).floor() as usize,
     };
     std::cmp::min(1 << log_shard_size, MAX_SHARD_SIZE)
 }
@@ -77,8 +81,9 @@ fn shard_batch_size(total_available_mem: u64) -> usize {
 impl Default for SP1CoreOpts {
     fn default() -> Self {
         let split_threshold = env::var("SPLIT_THRESHOLD")
-            .map(|s| s.parse::<usize>().unwrap_or(DEFERRED_SPLIT_THRESHOLD))
-            .unwrap_or(DEFERRED_SPLIT_THRESHOLD);
+            .map(|s| s.parse::<usize>().unwrap_or(MAX_DEFERRED_SPLIT_THRESHOLD))
+            .unwrap_or(MAX_DEFERRED_SPLIT_THRESHOLD)
+            .max(MAX_DEFERRED_SPLIT_THRESHOLD);
 
         let sys = System::new_all();
         let total_available_mem = sys.total_memory() / (1024 * 1024 * 1024);
@@ -120,8 +125,8 @@ impl SP1CoreOpts {
         let mut opts = Self::default();
         opts.reconstruct_commitments = false;
 
-        // Recursion only supports 1 << 22 shard size.
-        opts.shard_size = MAX_SHARD_SIZE;
+        // Recursion only supports [RECURSION_MAX_SHARD_SIZE] shard size.
+        opts.shard_size = RECURSION_MAX_SHARD_SIZE;
         opts
     }
 }
@@ -154,6 +159,3 @@ impl SplitOpts {
         }
     }
 }
-
-/// The threshold for splitting deferred events.
-pub const DEFERRED_SPLIT_THRESHOLD: usize = 1 << 19;

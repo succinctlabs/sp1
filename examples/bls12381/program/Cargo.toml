@@ -1,15 +1,12 @@
-[workspace]
 [package]
-name = "bls12381"
+name = "bls12381-program"
 version = "1.1.0"
 edition = "2021"
 publish = false
 
 [dependencies]
 sp1-zkvm = { path = "../../../crates/zkvm/entrypoint" }
-num = { version = "0.4.1", default-features = false }
-serde_yaml = "0.9.34"
-bls12_381 = { git = "https://github.com/sp1-patches/bls12_381", branch = "patch-v0.8.0" }
+bls12_381 = "0.8.0"
 ff = "0.13.0"
 rand = "0.8.5"
 group = "0.13.0"

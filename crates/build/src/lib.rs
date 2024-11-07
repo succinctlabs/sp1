@@ -7,7 +7,7 @@ pub use build::execute_build_program;
 use clap::Parser;
 
 const BUILD_TARGET: &str = "riscv32im-succinct-zkvm-elf";
-const DEFAULT_TAG: &str = "v1.1.0";
+const DEFAULT_TAG: &str = "latest";
 const DEFAULT_OUTPUT_DIR: &str = "elf";
 const HELPER_TARGET_SUBDIR: &str = "elf-compilation";
 
@@ -37,6 +37,13 @@ pub struct BuildArgs {
         help = "Space or comma separated list of features to activate"
     )]
     pub features: Vec<String>,
+    #[clap(
+        long,
+        action,
+        value_delimiter = ',',
+        help = "Space or comma separated list of extra flags to invokes `rustc` with"
+    )]
+    pub rustflags: Vec<String>,
     #[clap(long, action, help = "Do not activate the `default` feature")]
     pub no_default_features: bool,
     #[clap(long, action, help = "Ignore `rust-version` specification in packages")]
@@ -70,6 +77,7 @@ impl Default for BuildArgs {
             docker: false,
             tag: DEFAULT_TAG.to_string(),
             features: vec![],
+            rustflags: vec![],
             ignore_rust_version: false,
             binary: "".to_string(),
             elf_name: "".to_string(),

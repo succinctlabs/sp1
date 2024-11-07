@@ -1,7 +1,8 @@
-pub mod config;
-pub mod poseidon2;
-pub mod utils;
+mod config;
+mod poseidon2;
+mod utils;
 
+<<<<<<< HEAD
 use crate::{
     cpu::CpuChip, exp_reverse_bits::ExpReverseBitsLenChip, fri_fold::FriFoldChip,
     memory::MemoryGlobalChip, multi::MultiChip, poseidon2_wide::Poseidon2WideChip,
@@ -105,3 +106,8 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAi
             .collect()
     }
 }
+=======
+pub use config::*;
+pub use poseidon2::*;
+pub use utils::*;
+>>>>>>> 1a25bc4b17fd5a123519e29d91b17f89d5f735ee

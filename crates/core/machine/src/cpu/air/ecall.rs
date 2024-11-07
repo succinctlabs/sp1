@@ -118,8 +118,8 @@ impl CpuChip {
         &self,
         builder: &mut AB,
         local: &CpuCols<AB::Var>,
-        commit_digest: [Word<AB::Expr>; PV_DIGEST_NUM_WORDS],
-        deferred_proofs_digest: [AB::Expr; POSEIDON_NUM_WORDS],
+        commit_digest: [Word<AB::PublicVar>; PV_DIGEST_NUM_WORDS],
+        deferred_proofs_digest: [AB::PublicVar; POSEIDON_NUM_WORDS],
     ) {
         let (is_commit, is_commit_deferred_proofs) =
             self.get_is_commit_related_syscall(builder, local);
@@ -132,7 +132,7 @@ impl CpuChip {
         // They should all be bools.
         for bit in ecall_columns.index_bitmap.iter() {
             builder.when(local.selectors.is_ecall).assert_bool(*bit);
-            bitmap_sum += (*bit).into();
+            bitmap_sum = bitmap_sum.clone() + (*bit).into();
         }
         // When the syscall is COMMIT or COMMIT_DEFERRED_PROOFS, there should be one set bit.
         builder
@@ -199,7 +199,7 @@ impl CpuChip {
         builder: &mut AB,
         local: &CpuCols<AB::Var>,
         next: &CpuCols<AB::Var>,
-        public_values: &PublicValues<Word<AB::Expr>, AB::Expr>,
+        public_values: &PublicValues<Word<AB::PublicVar>, AB::PublicVar>,
     ) {
         let is_halt = self.get_is_halt_syscall(builder, local);
 
@@ -219,7 +219,7 @@ impl CpuChip {
 
         builder
             .when(is_halt.clone())
-            .assert_eq(local.op_b_access.value().reduce::<AB>(), public_values.exit_code.clone());
+            .assert_eq(local.op_b_access.value().reduce::<AB>(), public_values.exit_code);
     }
 
     /// Returns a boolean expression indicating whether the instruction is a HALT instruction.

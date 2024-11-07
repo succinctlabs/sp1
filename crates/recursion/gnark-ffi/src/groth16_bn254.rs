@@ -55,6 +55,21 @@ impl Groth16Bn254Prover {
         )
     }
 
+    pub fn build_contracts(build_dir: PathBuf) {
+        // Write the corresponding asset files to the build dir.
+        let sp1_verifier_path = build_dir.join("SP1VerifierGroth16.sol");
+        let vkey_hash = Self::get_vkey_hash(&build_dir);
+        let sp1_verifier_str = include_str!("../assets/SP1VerifierGroth16.txt")
+            .replace("{SP1_CIRCUIT_VERSION}", SP1_CIRCUIT_VERSION)
+            .replace("{VERIFIER_HASH}", format!("0x{}", hex::encode(vkey_hash)).as_str())
+            .replace("{PROOF_SYSTEM}", "Groth16");
+        let mut sp1_verifier_file = File::create(sp1_verifier_path).unwrap();
+        sp1_verifier_file.write_all(sp1_verifier_str.as_bytes()).unwrap();
+
+        let groth16_verifier_path = build_dir.join("Groth16Verifier.sol");
+        Self::modify_groth16_verifier(&groth16_verifier_path);
+    }
+
     /// Builds the Groth16 circuit locally.
     pub fn build<C: Config>(constraints: Vec<Constraint>, witness: Witness<C>, build_dir: PathBuf) {
         let serialized = serde_json::to_string(&constraints).unwrap();
@@ -71,20 +86,11 @@ impl Groth16Bn254Prover {
         let serialized = serde_json::to_string(&gnark_witness).unwrap();
         file.write_all(serialized.as_bytes()).unwrap();
 
+        // Build the circuit.
         build_groth16_bn254(build_dir.to_str().unwrap());
 
-        // Write the corresponding asset files to the build dir.
-        let sp1_verifier_path = build_dir.join("SP1VerifierGroth16.sol");
-        let vkey_hash = Self::get_vkey_hash(&build_dir);
-        let sp1_verifier_str = include_str!("../assets/SP1VerifierGroth16.txt")
-            .replace("{SP1_CIRCUIT_VERSION}", SP1_CIRCUIT_VERSION)
-            .replace("{VERIFIER_HASH}", format!("0x{}", hex::encode(vkey_hash)).as_str())
-            .replace("{PROOF_SYSTEM}", "Groth16");
-        let mut sp1_verifier_file = File::create(sp1_verifier_path).unwrap();
-        sp1_verifier_file.write_all(sp1_verifier_str.as_bytes()).unwrap();
-
-        let groth16_verifier_path = build_dir.join("Groth16Verifier.sol");
-        Self::modify_groth16_verifier(&groth16_verifier_path);
+        // Build the contracts.
+        Self::build_contracts(build_dir);
     }
 
     /// Generates a Groth16 proof given a witness.

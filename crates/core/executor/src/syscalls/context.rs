@@ -1,10 +1,15 @@
 use hashbrown::HashMap;
 
 use crate::{
-    events::{LookupId, MemoryLocalEvent, MemoryReadRecord, MemoryWriteRecord},
+    events::{
+        LookupId, MemoryLocalEvent, MemoryReadRecord, MemoryWriteRecord, PrecompileEvent,
+        SyscallEvent,
+    },
     record::ExecutionRecord,
-    Executor, Register,
+    Executor, ExecutorMode, Register,
 };
+
+use super::SyscallCode;
 
 /// A runtime for syscalls that is protected so that developers cannot arbitrarily modify the
 /// runtime.
@@ -45,6 +50,19 @@ impl<'a, 'b> SyscallContext<'a, 'b> {
     /// Get a mutable reference to the execution record.
     pub fn record_mut(&mut self) -> &mut ExecutionRecord {
         &mut self.rt.record
+    }
+
+    #[inline]
+    /// Add a precompile event to the execution record.
+    pub fn add_precompile_event(
+        &mut self,
+        syscall_code: SyscallCode,
+        syscall_event: SyscallEvent,
+        event: PrecompileEvent,
+    ) {
+        if self.rt.executor_mode == ExecutorMode::Trace {
+            self.record_mut().precompile_events.add_event(syscall_code, syscall_event, event);
+        }
     }
 
     /// Get the current shard.
@@ -91,7 +109,7 @@ impl<'a, 'b> SyscallContext<'a, 'b> {
     pub fn postprocess(&mut self) -> Vec<MemoryLocalEvent> {
         let mut syscall_local_mem_events = Vec::new();
 
-        if !self.rt.unconstrained {
+        if !self.rt.unconstrained && self.rt.executor_mode == ExecutorMode::Trace {
             // Will need to transfer the existing memory local events in the executor to it's record,
             // and return all the syscall memory local events.  This is similar to what
             // `bump_record` does.

@@ -68,7 +68,7 @@
 
 //     let mut witness = Witness::default();
 //     wrapped_proof.proof.write(&mut witness);
-//     witness.write_commited_values_digest(committed_values_digest);
+//     witness.write_committed_values_digest(committed_values_digest);
 //     witness.write_vkey_hash(vkey_hash);
 
 //     tracing::info!("sanity check plonk test");

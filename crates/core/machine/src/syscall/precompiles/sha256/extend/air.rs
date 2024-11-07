@@ -208,7 +208,7 @@ where
             local.w_ptr,
             AB::Expr::zero(),
             local.cycle_48_start,
-            InteractionScope::Global,
+            InteractionScope::Local,
         );
 
         // Assert that is_real is a bool.

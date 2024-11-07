@@ -86,7 +86,7 @@ fn strip_hash(name_with_hash: &str) -> String {
     result
 }
 
-fn print_intruction_counts(
+fn print_instruction_counts(
     first_header: &str,
     count_vec: Vec<(String, usize)>,
     top_n: usize,
@@ -377,7 +377,7 @@ impl TraceCmd {
         println!("\n\nTotal instructions in trace: {}", total_lines);
         if !no_stack_counts {
             println!("\n\n Instruction counts considering call graph");
-            print_intruction_counts(
+            print_instruction_counts(
                 "Function Name",
                 raw_counts,
                 top_n,
@@ -391,7 +391,7 @@ impl TraceCmd {
         raw_counts.sort_by(|a, b| b.1.cmp(&a.1));
         if !no_raw_counts {
             println!("\n\n Instruction counts ignoring call graph");
-            print_intruction_counts(
+            print_instruction_counts(
                 "Function Name",
                 raw_counts,
                 top_n,
@@ -421,7 +421,7 @@ impl TraceCmd {
         raw_counts.sort_by(|a, b| b.1.cmp(&a.1));
         if let Some(f) = function_name {
             println!("\n\n Stack patterns for function '{f}' ");
-            print_intruction_counts("Function Stack", raw_counts, top_n, strip_hashes, None);
+            print_instruction_counts("Function Stack", raw_counts, top_n, strip_hashes, None);
         }
         Ok(())
     }

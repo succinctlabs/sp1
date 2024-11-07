@@ -1,15 +1,15 @@
 //! A simple example showing how to aggregate proofs of multiple programs with SP1.
 
 use sp1_sdk::{
-    HashableKey, ProverClient, SP1Proof, SP1ProofWithPublicValues, SP1Stdin, SP1VerifyingKey,
+    include_elf, HashableKey, ProverClient, SP1Proof, SP1ProofWithPublicValues, SP1Stdin,
+    SP1VerifyingKey,
 };
 
 /// A program that aggregates the proofs of the simple program.
-const AGGREGATION_ELF: &[u8] = include_bytes!("../../program/elf/riscv32im-succinct-zkvm-elf");
+const AGGREGATION_ELF: &[u8] = include_elf!("aggregation-program");
 
 /// A program that just runs a simple computation.
-const FIBONACCI_ELF: &[u8] =
-    include_bytes!("../../../fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
+const FIBONACCI_ELF: &[u8] = include_elf!("fibonacci-program");
 
 /// An input to the aggregation program.
 ///

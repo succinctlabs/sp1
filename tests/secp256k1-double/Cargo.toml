@@ -1,4 +1,3 @@
-[workspace]
 [package]
 name = "secp256k1-double-test"
 version = "1.1.0"
@@ -6,6 +5,4 @@ edition = "2021"
 publish = false
 
 [dependencies]
-sp1-zkvm = { path = "../../zkvm/entrypoint" }
-hex-literal = "0.4.1"
-num = { version = "0.4.1", default-features = false }
+sp1-zkvm = { path = "../../crates/zkvm/entrypoint" }

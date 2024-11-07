@@ -167,6 +167,7 @@ func ProveGroth16(dataDir string, witnessPath string) Proof {
 	// Generate the proof.
 	proof, err := groth16.Prove(globalR1cs, globalPk, witness)
 	if err != nil {
+		fmt.Printf("Error: %v\n", err)
 		panic(err)
 	}
 	fmt.Printf("Generating proof took %s\n", time.Since(start))

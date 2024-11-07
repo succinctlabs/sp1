@@ -45,7 +45,6 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
             opened_values,
             opening_proof,
             chip_ordering,
-            chip_scopes,
             public_values,
             ..
         } = proof;
@@ -55,6 +54,8 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
         if chips.len() != opened_values.chips.len() {
             return Err(VerificationError::ChipOpeningLengthMismatch);
         }
+
+        let chip_scopes = chips.iter().map(|chip| chip.commit_scope()).collect::<Vec<_>>();
 
         // Assert that the byte multiplicities don't overflow.
         let mut max_byte_lookup_mult = 0u64;
@@ -139,24 +140,33 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
             .map(|(name, domain, _)| {
                 let i = chip_ordering[name];
                 let values = opened_values.chips[i].preprocessed.clone();
-                (
-                    *domain,
-                    vec![(zeta, values.local), (domain.next_point(zeta).unwrap(), values.next)],
-                )
+                if !chips[i].local_only() {
+                    (
+                        *domain,
+                        vec![(zeta, values.local), (domain.next_point(zeta).unwrap(), values.next)],
+                    )
+                } else {
+                    (*domain, vec![(zeta, values.local)])
+                }
             })
             .collect::<Vec<_>>();
 
         let main_domains_points_and_opens = trace_domains
             .iter()
             .zip_eq(opened_values.chips.iter())
-            .map(|(domain, values)| {
-                (
-                    *domain,
-                    vec![
-                        (zeta, values.main.local.clone()),
-                        (domain.next_point(zeta).unwrap(), values.main.next.clone()),
-                    ],
-                )
+            .zip_eq(chips.iter())
+            .map(|((domain, values), chip)| {
+                if !chip.local_only() {
+                    (
+                        *domain,
+                        vec![
+                            (zeta, values.main.local.clone()),
+                            (domain.next_point(zeta).unwrap(), values.main.next.clone()),
+                        ],
+                    )
+                } else {
+                    (*domain, vec![(zeta, values.main.local.clone())])
+                }
             })
             .collect::<Vec<_>>();
 
@@ -261,6 +271,11 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
                 public_values,
             )
             .map_err(|_| VerificationError::OodEvaluationMismatch(chip.name()))?;
+        }
+        // Verify that the local cumulative sum is zero.
+        let local_cumulative_sum = proof.cumulative_sum(InteractionScope::Local);
+        if local_cumulative_sum != SC::Challenge::zero() {
+            return Err(VerificationError::CumulativeSumsError("local cumulative sum is not zero"));
         }
 
         Ok(())
@@ -383,7 +398,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
     where
         A: for<'a> Air<VerifierConstraintFolder<'a, SC>>,
     {
-        // Reconstruct the prmutation opening values as extention elements.
+        // Reconstruct the prmutation opening values as extension elements.
         let unflatten = |v: &[SC::Challenge]| {
             v.chunks_exact(SC::Challenge::D)
                 .map(|chunk| {

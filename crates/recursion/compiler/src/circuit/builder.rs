@@ -7,7 +7,7 @@ use p3_field::{AbstractExtensionField, AbstractField};
 use sp1_recursion_core::air::RecursionPublicValues;
 
 use crate::prelude::*;
-use sp1_recursion_core_v2::{chips::poseidon2_skinny::WIDTH, D, DIGEST_SIZE, HASH_RATE};
+use sp1_recursion_core::{chips::poseidon2_skinny::WIDTH, D, DIGEST_SIZE, HASH_RATE};
 
 pub trait CircuitV2Builder<C: Config> {
     fn bits2num_v2_f(
@@ -17,6 +17,12 @@ pub trait CircuitV2Builder<C: Config> {
     fn num2bits_v2_f(&mut self, num: Felt<C::F>, num_bits: usize) -> Vec<Felt<C::F>>;
     fn exp_reverse_bits_v2(&mut self, input: Felt<C::F>, power_bits: Vec<Felt<C::F>>)
         -> Felt<C::F>;
+    fn batch_fri_v2(
+        &mut self,
+        alphas: Vec<Ext<C::F, C::EF>>,
+        p_at_zs: Vec<Ext<C::F, C::EF>>,
+        p_at_xs: Vec<Felt<C::F>>,
+    ) -> Ext<C::F, C::EF>;
     fn poseidon2_permute_v2(&mut self, state: [Felt<C::F>; WIDTH]) -> [Felt<C::F>; WIDTH];
     fn poseidon2_hash_v2(&mut self, array: &[Felt<C::F>]) -> [Felt<C::F>; DIGEST_SIZE];
     fn poseidon2_compress_v2(
@@ -103,6 +109,21 @@ impl<C: Config<F = BabyBear>> CircuitV2Builder<C> for Builder<C> {
     ) -> Felt<C::F> {
         let output: Felt<_> = self.uninit();
         self.push_op(DslIr::CircuitV2ExpReverseBits(output, input, power_bits));
+<<<<<<< HEAD
+=======
+        output
+    }
+
+    /// A version of the `batch_fri` that uses the BatchFRI precompile.
+    fn batch_fri_v2(
+        &mut self,
+        alpha_pows: Vec<Ext<C::F, C::EF>>,
+        p_at_zs: Vec<Ext<C::F, C::EF>>,
+        p_at_xs: Vec<Felt<C::F>>,
+    ) -> Ext<C::F, C::EF> {
+        let output: Ext<_, _> = self.uninit();
+        self.push_op(DslIr::CircuitV2BatchFRI(Box::new((output, alpha_pows, p_at_zs, p_at_xs))));
+>>>>>>> 1a25bc4b17fd5a123519e29d91b17f89d5f735ee
         output
     }
 

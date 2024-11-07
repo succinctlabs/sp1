@@ -15,7 +15,7 @@ pub fn main() {
             0, 0, 0, 0, 0, 0,
         ];
 
-        syscall_bn254_double(a.as_mut_ptr() as *mut u32);
+        syscall_bn254_double(a.as_mut_ptr() as *mut [u32; 16]);
 
         // 2 * generator.
         // 1368015179489954701390400359078579693043519447331113978918064868415326638035

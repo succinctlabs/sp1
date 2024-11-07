@@ -55,7 +55,7 @@ impl<'a> Execute<'a> {
     /// Avoid registering the default hooks in the runtime.
     ///
     /// It is not necessary to call this to override hooks --- instead, simply
-    /// register a hook with the same value of `fd` by calling [`Self::hook`].
+    /// register a hook with the same value of `fd` by calling [`Self::with_hook`].
     pub fn without_default_hooks(mut self) -> Self {
         self.context_builder.without_default_hooks();
         self
@@ -64,7 +64,7 @@ impl<'a> Execute<'a> {
     /// Set the maximum number of cpu cycles to use for execution.
     ///
     /// If the cycle limit is exceeded, execution will return
-    /// [sp1_core_machine::runtime::ExecutionError::ExceededCycleLimit].
+    /// [`sp1_core_executor::ExecutionError::ExceededCycleLimit`].
     pub fn max_cycles(mut self, max_cycles: u64) -> Self {
         self.context_builder.max_cycles(max_cycles);
         self
@@ -122,6 +122,17 @@ impl<'a> Prove<'a> {
         let proof_opts = ProofOpts { sp1_prover_opts: opts, timeout };
         let context = context_builder.build();
 
+        // Dump the program and stdin to files for debugging if `SP1_DUMP` is set.
+        if std::env::var("SP1_DUMP")
+            .map(|v| v == "1" || v.to_lowercase() == "true")
+            .unwrap_or(false)
+        {
+            let program = pk.elf.clone();
+            std::fs::write("program.bin", program).unwrap();
+            let stdin = bincode::serialize(&stdin).unwrap();
+            std::fs::write("stdin.bin", stdin.clone()).unwrap();
+        }
+
         prover.prove(pk, stdin, proof_opts, context, kind)
     }
 
@@ -166,7 +177,7 @@ impl<'a> Prove<'a> {
     /// Avoid registering the default hooks in the runtime.
     ///
     /// It is not necessary to call this to override hooks --- instead, simply
-    /// register a hook with the same value of `fd` by calling [`Self::hook`].
+    /// register a hook with the same value of `fd` by calling [`Self::with_hook`].
     pub fn without_default_hooks(mut self) -> Self {
         self.context_builder.without_default_hooks();
         self
@@ -193,7 +204,7 @@ impl<'a> Prove<'a> {
     /// Set the maximum number of cpu cycles to use for execution.
     ///
     /// If the cycle limit is exceeded, execution will return
-    /// [sp1_core_machine::runtime::ExecutionError::ExceededCycleLimit].
+    /// [`sp1_core_executor::ExecutionError::ExceededCycleLimit`].
     pub fn cycle_limit(mut self, cycle_limit: u64) -> Self {
         self.context_builder.max_cycles(cycle_limit);
         self

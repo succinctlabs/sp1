@@ -1,29 +1,52 @@
-use crate::{syscall_bn254_add, syscall_bn254_double, utils::AffinePoint};
+use crate::{
+    syscall_bn254_add, syscall_bn254_double,
+    utils::{AffinePoint, WeierstrassAffinePoint, WeierstrassPoint},
+};
 
 /// The number of limbs in [Bn254AffinePoint].
 pub const N: usize = 16;
 
-/// An affine point on the Bn254 curve.
+/// A point on the Bn254 curve.
 #[derive(Copy, Clone)]
 #[repr(align(4))]
-pub struct Bn254AffinePoint(pub [u32; N]);
+pub struct Bn254Point(pub WeierstrassPoint<N>);
 
-impl AffinePoint<N> for Bn254AffinePoint {
+impl WeierstrassAffinePoint<N> for Bn254Point {
+    fn infinity() -> Self {
+        Self(WeierstrassPoint::Infinity)
+    }
+
+    fn is_infinity(&self) -> bool {
+        matches!(self.0, WeierstrassPoint::Infinity)
+    }
+}
+
+impl AffinePoint<N> for Bn254Point {
     /// The generator has been taken from py_pairing python library by the Ethereum Foundation:
     ///
     /// https://github.com/ethereum/py_pairing/blob/5f609da/py_ecc/bn128/bn128_field_elements.py
     const GENERATOR: [u32; N] = [1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0];
 
     fn new(limbs: [u32; N]) -> Self {
-        Self(limbs)
+        Self(WeierstrassPoint::Affine(limbs))
     }
 
     fn limbs_ref(&self) -> &[u32; N] {
-        &self.0
+        match &self.0 {
+            WeierstrassPoint::Infinity => panic!("Infinity point has no limbs"),
+            WeierstrassPoint::Affine(limbs) => limbs,
+        }
     }
 
     fn limbs_mut(&mut self) -> &mut [u32; N] {
-        &mut self.0
+        match &mut self.0 {
+            WeierstrassPoint::Infinity => panic!("Infinity point has no limbs"),
+            WeierstrassPoint::Affine(limbs) => limbs,
+        }
+    }
+
+    fn complete_add_assign(&mut self, other: &Self) {
+        self.weierstrass_add_assign(other);
     }
 
     fn add_assign(&mut self, other: &Self) {

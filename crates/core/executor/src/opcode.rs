@@ -6,7 +6,7 @@ use enum_map::Enum;
 use p3_field::Field;
 use serde::{Deserialize, Serialize};
 
-/// An opcode (short for "operation code") specifies the operation to be perfomed by the processor.
+/// An opcode (short for "operation code") specifies the operation to be performed by the processor.
 ///
 /// In the context of the RISC-V ISA, an opcode specifies which operation (i.e., addition,
 /// subtraction, multiplication, etc.) to perform on up to three operands such as registers,
@@ -100,7 +100,7 @@ pub enum Opcode {
     /// rd ← rs1 % rs2 (unsigned), pc ← pc + 4
     REMU = 37,
     /// Unimplemented instruction.
-    UNIMP = 39,
+    UNIMP = 38,
 }
 
 /// Byte Opcode.

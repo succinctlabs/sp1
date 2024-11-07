@@ -40,8 +40,8 @@ fn fp2_add(
     rhs_c0: &[u64; 4],
     rhs_c1: &[u64; 4],
 ) -> ([u64; 4], [u64; 4]) {
-    let lhs = [lhs_c0.clone(), lhs_c1.clone()].concat();
-    let rhs = [rhs_c0.clone(), rhs_c1.clone()].concat();
+    let lhs = [*lhs_c0, *lhs_c1].concat();
+    let rhs = [*rhs_c0, *rhs_c1].concat();
 
     let mut lhs_transmuted: [u32; 16] =
         unsafe { transmute::<[u64; 8], [u32; 16]>(lhs.try_into().unwrap()) };
@@ -64,8 +64,8 @@ fn fp2_sub(
     rhs_c0: &[u64; 4],
     rhs_c1: &[u64; 4],
 ) -> ([u64; 4], [u64; 4]) {
-    let lhs = [lhs_c0.clone(), lhs_c1.clone()].concat();
-    let rhs = [rhs_c0.clone(), rhs_c1.clone()].concat();
+    let lhs = [*lhs_c0, *lhs_c1].concat();
+    let rhs = [*rhs_c0, *rhs_c1].concat();
 
     let mut lhs_transmuted: [u32; 16] =
         unsafe { transmute::<[u64; 8], [u32; 16]>(lhs.try_into().unwrap()) };

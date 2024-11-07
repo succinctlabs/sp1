@@ -1,8 +1,8 @@
 #![no_main]
 sp1_zkvm::entrypoint!(main);
 
-use sp1_zkvm::lib::bn254::Bn254;
-use sp1_zkvm::lib::utils::AffinePoint;
+use sp1_lib::bn254::Bn254Point;
+use sp1_lib::utils::AffinePoint;
 
 #[sp1_derive::cycle_tracker]
 pub fn main() {
@@ -16,14 +16,14 @@ pub fn main() {
             0, 0, 0, 0, 0, 0,
         ];
 
-        let mut a_point = AffinePoint::<Bn254, 16>::from_le_bytes(&a);
+        let mut a_point = Bn254Point::from_le_bytes(&a);
 
         // scalar.
         // 3
         let scalar: [u32; 8] = [3, 0, 0, 0, 0, 0, 0, 0];
 
         println!("cycle-tracker-start: bn254_mul");
-        a_point.mul_assign(&scalar);
+        a_point.mul_assign(&scalar).unwrap();
         println!("cycle-tracker-end: bn254_mul");
 
         // 3 * generator.

@@ -72,7 +72,7 @@ impl<F: PrimeField32> EdDecompressCols<F> {
         self.clk = F::from_canonical_u32(event.clk);
         self.ptr = F::from_canonical_u32(event.ptr);
         self.nonce = F::from_canonical_u32(
-            record.nonce_lookup.get(&event.lookup_id).copied().unwrap_or_default(),
+            record.nonce_lookup.get(event.lookup_id.0 as usize).copied().unwrap_or_default(),
         );
         self.sign = F::from_bool(event.sign);
         for i in 0..8 {
@@ -186,7 +186,7 @@ impl<V: Copy> EdDecompressCols<V> {
             self.ptr,
             self.sign,
             self.is_real,
-            InteractionScope::Global,
+            InteractionScope::Local,
         );
     }
 }
@@ -219,7 +219,7 @@ impl<F: PrimeField32, E: EdwardsParameters> MachineAir<F> for EdDecompressChip<E
         let mut rows = Vec::new();
         let events = input.get_precompile_events(SyscallCode::ED_DECOMPRESS);
 
-        for event in events {
+        for (_, event) in events {
             let event = if let PrecompileEvent::EdDecompress(event) = event {
                 event
             } else {
@@ -261,7 +261,11 @@ impl<F: PrimeField32, E: EdwardsParameters> MachineAir<F> for EdDecompressChip<E
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
-        !shard.get_precompile_events(SyscallCode::ED_DECOMPRESS).is_empty()
+        if let Some(shape) = shard.shape.as_ref() {
+            shape.included::<F, _>(self)
+        } else {
+            !shard.get_precompile_events(SyscallCode::ED_DECOMPRESS).is_empty()
+        }
     }
 }
 

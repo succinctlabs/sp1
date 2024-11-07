@@ -7,7 +7,7 @@ use p3_field::{AbstractExtensionField, AbstractField, Field, PrimeField32};
 use p3_matrix::{dense::RowMajorMatrix, Dimensions, Matrix};
 use p3_maybe_rayon::prelude::*;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use std::{array, cmp::Reverse, fmt::Debug, time::Instant};
+use std::{array, cmp::Reverse, env, fmt::Debug, time::Instant};
 use tracing::instrument;
 
 use super::{debug_constraints, Dom};
@@ -66,6 +66,8 @@ pub struct StarkProvingKey<SC: StarkGenericConfig> {
     pub data: PcsProverData<SC>,
     /// The preprocessed chip ordering.
     pub chip_ordering: HashMap<String, usize>,
+    /// The preprocessed chip local only information.
+    pub local_only: Vec<bool>,
 }
 
 impl<SC: StarkGenericConfig> StarkProvingKey<SC> {
@@ -196,19 +198,19 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
                         chip.preprocessed_width(),
                         "Incorrect number of preprocessed columns for chip {chip_name}"
                     );
-                    prep_trace.map(move |t| (chip_name, t))
+                    prep_trace.map(move |t| (chip_name, chip.local_only(), t))
                 })
                 .collect::<Vec<_>>()
         });
 
         // Order the chips and traces by trace size (biggest first), and get the ordering map.
         named_preprocessed_traces
-            .sort_by_key(|(name, trace)| (Reverse(trace.height()), name.clone()));
+            .sort_by_key(|(name, _, trace)| (Reverse(trace.height()), name.clone()));
 
         let pcs = self.config.pcs();
         let (chip_information, domains_and_traces): (Vec<_>, Vec<_>) = named_preprocessed_traces
             .iter()
-            .map(|(name, trace)| {
+            .map(|(name, _, trace)| {
                 let domain = pcs.natural_domain_for_degree(trace.height());
                 ((name.to_owned(), domain, trace.dimensions()), (domain, trace.to_owned()))
             })
@@ -222,12 +224,17 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
         let chip_ordering = named_preprocessed_traces
             .iter()
             .enumerate()
-            .map(|(i, (name, _))| (name.to_owned(), i))
+            .map(|(i, (name, _, _))| (name.to_owned(), i))
             .collect::<HashMap<_, _>>();
+
+        let local_only = named_preprocessed_traces
+            .iter()
+            .map(|(_, local_only, _)| local_only.to_owned())
+            .collect::<Vec<_>>();
 
         // Get the preprocessed traces
         let traces =
-            named_preprocessed_traces.into_iter().map(|(_, trace)| trace).collect::<Vec<_>>();
+            named_preprocessed_traces.into_iter().map(|(_, _, trace)| trace).collect::<Vec<_>>();
 
         let pc_start = program.pc_start();
 
@@ -238,6 +245,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
                 traces,
                 data,
                 chip_ordering: chip_ordering.clone(),
+                local_only,
             },
             StarkVerifyingKey { commit, pc_start, chip_information, chip_ordering },
         )
@@ -341,23 +349,12 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
         })?;
 
         // Verify the cumulative sum is 0.
-        tracing::debug_span!("verify cumulative sum is 0").in_scope(|| {
-            let mut sum = SC::Challenge::zero();
-            let mut local_err = None;
-            for (shard_num, proof) in proof.shard_proofs.iter().enumerate() {
-                sum += proof.cumulative_sum(InteractionScope::Global);
-                if !proof.cumulative_sum(InteractionScope::Local).is_zero() {
-                    local_err = Some(MachineVerificationError::NonZeroCumulativeSum(
-                        InteractionScope::Local,
-                        shard_num + 1,
-                    ));
-                    break;
-                }
-            }
-
-            if let Some(err) = local_err {
-                return Err(err);
-            }
+        tracing::debug_span!("verify global cumulative sum is 0").in_scope(|| {
+            let sum = proof
+                .shard_proofs
+                .iter()
+                .map(|proof| proof.cumulative_sum(InteractionScope::Global))
+                .sum::<SC::Challenge>();
 
             if !sum.is_zero() {
                 return Err(MachineVerificationError::NonZeroCumulativeSum(
@@ -434,13 +431,16 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
             let local_cumulative_sum =
                 cumulative_sums.iter().map(|sum| sum[1]).sum::<SC::Challenge>();
             if !local_cumulative_sum.is_zero() {
-                debug_interactions_with_all_chips::<SC, A>(
-                    self,
-                    pk,
-                    &[shard.clone()],
-                    InteractionKind::all_kinds(),
-                    InteractionScope::Local,
-                );
+                tracing::warn!("Local cumulative sum is not zero");
+                tracing::debug_span!("debug local interactions").in_scope(|| {
+                    debug_interactions_with_all_chips::<SC, A>(
+                        self,
+                        pk,
+                        &[shard.clone()],
+                        InteractionKind::all_kinds(),
+                        InteractionScope::Local,
+                    )
+                });
                 panic!("Local cumulative sum is not zero");
             }
 
@@ -462,34 +462,39 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
                 );
             }
 
-            tracing::info_span!("debug constraints").in_scope(|| {
-                for i in 0..chips.len() {
-                    let preprocessed_trace =
-                        pk.chip_ordering.get(&chips[i].name()).map(|index| &pk.traces[*index]);
-                    debug_constraints::<SC, A>(
-                        chips[i],
-                        preprocessed_trace,
-                        &traces[i].0,
-                        &permutation_traces[i],
-                        &permutation_challenges,
-                        &shard.public_values(),
-                        &cumulative_sums[i],
-                    );
-                }
-            });
+            if env::var("SKIP_CONSTRAINTS").is_err() {
+                tracing::info_span!("debug constraints").in_scope(|| {
+                    for i in 0..chips.len() {
+                        let preprocessed_trace =
+                            pk.chip_ordering.get(&chips[i].name()).map(|index| &pk.traces[*index]);
+                        debug_constraints::<SC, A>(
+                            chips[i],
+                            preprocessed_trace,
+                            &traces[i].0,
+                            &permutation_traces[i],
+                            &permutation_challenges,
+                            &shard.public_values(),
+                            &cumulative_sums[i],
+                        );
+                    }
+                });
+            }
         }
 
         tracing::info!("Constraints verified successfully");
 
         // If the global cumulative sum is not zero, debug the interactions.
         if !global_cumulative_sum.is_zero() {
-            debug_interactions_with_all_chips::<SC, A>(
-                self,
-                pk,
-                &records,
-                InteractionKind::all_kinds(),
-                InteractionScope::Global,
-            );
+            tracing::warn!("Global cumulative sum is not zero");
+            tracing::debug_span!("debug global interactions").in_scope(|| {
+                debug_interactions_with_all_chips::<SC, A>(
+                    self,
+                    pk,
+                    &records,
+                    InteractionKind::all_kinds(),
+                    InteractionScope::Global,
+                )
+            });
             panic!("Global cumulative sum is not zero");
         }
     }
@@ -514,7 +519,7 @@ pub enum MachineVerificationError<SC: StarkGenericConfig> {
     /// The number of shards is too large.
     TooManyShards,
     /// The chip occurrence is invalid.
-    InvalidChipOccurence(String),
+    InvalidChipOccurrence(String),
     /// The CPU is missing in the first shard.
     MissingCpuInFirstShard,
     /// The CPU log degree is too large.
@@ -551,8 +556,8 @@ impl<SC: StarkGenericConfig> Debug for MachineVerificationError<SC> {
             MachineVerificationError::TooManyShards => {
                 write!(f, "Too many shards")
             }
-            MachineVerificationError::InvalidChipOccurence(s) => {
-                write!(f, "Invalid chip occurence: {}", s)
+            MachineVerificationError::InvalidChipOccurrence(s) => {
+                write!(f, "Invalid chip occurrence: {}", s)
             }
             MachineVerificationError::MissingCpuInFirstShard => {
                 write!(f, "Missing CPU in first shard")

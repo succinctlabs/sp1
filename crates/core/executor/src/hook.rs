@@ -4,14 +4,17 @@ use std::sync::{Arc, RwLock, RwLockWriteGuard};
 
 use hashbrown::HashMap;
 use sp1_curves::k256::{Invert, RecoveryId, Signature, VerifyingKey};
+use sp1_curves::p256::Signature as p256Signature;
 
 use crate::Executor;
 
 /// A runtime hook, wrapped in a smart pointer.
 pub type BoxedHook<'a> = Arc<RwLock<dyn Hook + Send + Sync + 'a>>;
 
-/// The file descriptor through which to access `hook_ecrecover`.
-pub const FD_ECRECOVER_HOOK: u32 = 5;
+/// The file descriptor through which to access `hook_k1_ecrecover`.
+pub const K1_ECRECOVER_HOOK: u32 = 5;
+/// The file descriptor through which to access `hook_r1_ecrecover`.
+pub const R1_ECRECOVER_HOOK: u32 = 6;
 
 /// A runtime hook. May be called during execution by writing to a specified file descriptor,
 /// accepting and returning arbitrary data.
@@ -75,7 +78,8 @@ impl<'a> Default for HookRegistry<'a> {
         let table = HashMap::from([
             // Note: To ensure any `fd` value is synced with `zkvm/precompiles/src/io.rs`,
             // add an assertion to the test `hook_fds_match` below.
-            (FD_ECRECOVER_HOOK, hookify(hook_ecrecover)),
+            (K1_ECRECOVER_HOOK, hookify(hook_k1_ecrecover)),
+            (R1_ECRECOVER_HOOK, hookify(hook_r1_ecrecover)),
         ]);
 
         Self { table }
@@ -117,7 +121,7 @@ pub struct HookEnv<'a, 'b: 'a> {
 /// WARNING: This function is used to recover the public key outside of the zkVM context. These
 /// values must be constrained by the zkVM for correctness.
 #[must_use]
-pub fn hook_ecrecover(_: HookEnv, buf: &[u8]) -> Vec<Vec<u8>> {
+pub fn hook_k1_ecrecover(_: HookEnv, buf: &[u8]) -> Vec<Vec<u8>> {
     assert_eq!(buf.len(), 65 + 32, "ecrecover input should have length 65 + 32");
     let (sig, msg_hash) = buf.split_at(65);
     let sig: &[u8; 65] = sig.try_into().unwrap();
@@ -141,6 +145,27 @@ pub fn hook_ecrecover(_: HookEnv, buf: &[u8]) -> Vec<Vec<u8>> {
     vec![bytes.to_vec(), s_inverse.to_bytes().to_vec()]
 }
 
+/// Recovers s inverse from the signature using the secp256r1 crate.
+///
+/// # Arguments
+///
+/// * `env` - The environment in which the hook is invoked.
+/// * `buf` - The buffer containing the signature.
+///     - The signature is 64 bytes.
+///
+/// The result is a single 32 byte vector containing s inverse.
+#[must_use]
+pub fn hook_r1_ecrecover(_: HookEnv, buf: &[u8]) -> Vec<Vec<u8>> {
+    assert_eq!(buf.len(), 64, "ecrecover input should have length 64");
+    let sig: &[u8; 64] = buf.try_into().unwrap();
+    let sig = p256Signature::from_slice(sig).unwrap();
+
+    let (_, s) = sig.split_scalars();
+    let s_inverse = s.invert();
+
+    vec![s_inverse.to_bytes().to_vec()]
+}
+
 #[cfg(test)]
 pub mod tests {
     use super::*;
@@ -148,7 +173,8 @@ pub mod tests {
     #[test]
     pub fn hook_fds_match() {
         use sp1_zkvm::lib::io;
-        assert_eq!(FD_ECRECOVER_HOOK, io::FD_ECRECOVER_HOOK);
+        assert_eq!(K1_ECRECOVER_HOOK, io::K1_ECRECOVER_HOOK);
+        assert_eq!(R1_ECRECOVER_HOOK, io::R1_ECRECOVER_HOOK);
     }
 
     #[test]

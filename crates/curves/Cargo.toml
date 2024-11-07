@@ -15,6 +15,7 @@ serde = { version = "1.0.207", features = ["derive"] }
 typenum = "1.17.0"
 curve25519-dalek = { version = "4.1.2" }
 k256 = { version = "0.13.3", features = ["expose-field"] }
+p256 = { version = "0.13.2", features = ["expose-field"] }
 generic-array = { version = "1.1.0", features = ["alloc", "serde"] }
 amcl = { package = "snowbridge-amcl", version = "1.0.2", default-features = false, features = [
   "bls381",
@@ -27,6 +28,12 @@ sp1-stark = { workspace = true }
 sp1-primitives = { workspace = true }
 p3-field = { workspace = true }
 itertools = "0.13.0"
+rug = { version = "1.26.1", optional = true }
+cfg-if = "1.0.0"
 
 [dev-dependencies]
 rand = "0.8.5"
+num = { version = "0.4.3", features = ["rand"] }
+
+[features]
+bigint-rug = ["rug"]

@@ -18,7 +18,7 @@ use self::{
     columns::{BytePreprocessedCols, NUM_BYTE_PREPROCESSED_COLS},
     utils::shr_carry,
 };
-use crate::bytes::trace::NUM_ROWS;
+use crate::{bytes::trace::NUM_ROWS, utils::zeroed_f_vec};
 
 /// The number of different byte operations.
 pub const NUM_BYTE_OPS: usize = 9;
@@ -37,7 +37,7 @@ impl<F: Field> ByteChip<F> {
     pub fn trace() -> RowMajorMatrix<F> {
         // The trace containing all values, with all multiplicities set to zero.
         let mut initial_trace = RowMajorMatrix::new(
-            vec![F::zero(); NUM_ROWS * NUM_BYTE_PREPROCESSED_COLS],
+            zeroed_f_vec(NUM_ROWS * NUM_BYTE_PREPROCESSED_COLS),
             NUM_BYTE_PREPROCESSED_COLS,
         );
 

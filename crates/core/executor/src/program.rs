@@ -1,7 +1,8 @@
 //! Programs that can be executed by the SP1 zkVM.
 
-use std::{collections::BTreeMap, fs::File, io::Read};
+use std::{fs::File, io::Read};
 
+use hashbrown::HashMap;
 use p3_field::Field;
 use serde::{Deserialize, Serialize};
 use sp1_stark::air::{MachineAir, MachineProgram};
@@ -25,7 +26,7 @@ pub struct Program {
     /// The base address of the program.
     pub pc_base: u32,
     /// The initial memory image, useful for global constants.
-    pub memory_image: BTreeMap<u32, u32>,
+    pub memory_image: HashMap<u32, u32>,
     /// The shape for the preprocessed tables.
     pub preprocessed_shape: Option<CoreShape>,
 }
@@ -33,12 +34,12 @@ pub struct Program {
 impl Program {
     /// Create a new [Program].
     #[must_use]
-    pub const fn new(instructions: Vec<Instruction>, pc_start: u32, pc_base: u32) -> Self {
+    pub fn new(instructions: Vec<Instruction>, pc_start: u32, pc_base: u32) -> Self {
         Self {
             instructions,
             pc_start,
             pc_base,
-            memory_image: BTreeMap::new(),
+            memory_image: HashMap::new(),
             preprocessed_shape: None,
         }
     }
@@ -87,6 +88,13 @@ impl Program {
                     .unwrap_or_else(|| panic!("Chip {} not found in specified shape", air.name()))
             })
             .copied()
+    }
+
+    #[must_use]
+    /// Fetch the instruction at the given program counter.
+    pub fn fetch(&self, pc: u32) -> &Instruction {
+        let idx = ((pc - self.pc_base) / 4) as usize;
+        &self.instructions[idx]
     }
 }
 

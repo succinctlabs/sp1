@@ -20,6 +20,8 @@ pub(crate) fn get_program_build_args(args: &BuildArgs) -> Vec<String> {
         build_args.push("--ignore-rust-version".to_string());
     }
 
+    build_args.push("-Ztrim-paths".to_string());
+
     if !args.binary.is_empty() {
         build_args.push("--bin".to_string());
         build_args.push(args.binary.clone());
@@ -42,15 +44,11 @@ pub(crate) fn get_program_build_args(args: &BuildArgs) -> Vec<String> {
 }
 
 /// Rust flags for compilation of C libraries.
-pub(crate) fn get_rust_compiler_flags() -> String {
-    let rust_flags = [
-        "-C".to_string(),
-        "passes=loweratomic".to_string(),
-        "-C".to_string(),
-        "link-arg=-Ttext=0x00200800".to_string(),
-        "-C".to_string(),
-        "panic=abort".to_string(),
-    ];
+pub(crate) fn get_rust_compiler_flags(args: &BuildArgs) -> String {
+    let rust_flags =
+        ["-C", "passes=loweratomic", "-C", "link-arg=-Ttext=0x00200800", "-C", "panic=abort"];
+    let rust_flags: Vec<_> =
+        rust_flags.into_iter().chain(args.rustflags.iter().map(String::as_str)).collect();
     rust_flags.join("\x1f")
 }
 

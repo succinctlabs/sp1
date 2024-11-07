@@ -1,4 +1,3 @@
-[workspace]
 [package]
 name = "rsp-program"
 version = "1.1.0"
@@ -8,4 +7,4 @@ publish = false
 [dependencies]
 sp1-zkvm = { path = "../../../crates/zkvm/entrypoint" }
 bincode = "1.3.3"
-rsp-client-executor = { git = "https://github.com/succinctlabs/rsp/", rev = "792efd0" }
+rsp-client-executor = { git = "https://github.com/succinctlabs/rsp/", rev = "3647076" }

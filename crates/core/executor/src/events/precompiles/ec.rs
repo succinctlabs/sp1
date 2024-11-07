@@ -2,7 +2,10 @@ use serde::{Deserialize, Serialize};
 
 use sp1_curves::{
     params::{NumLimbs, NumWords},
-    weierstrass::{bls12_381::bls12381_decompress, secp256k1::secp256k1_decompress},
+    weierstrass::{
+        bls12_381::bls12381_decompress, secp256k1::secp256k1_decompress,
+        secp256r1::secp256r1_decompress,
+    },
     AffinePoint, CurveType, EllipticCurve,
 };
 use sp1_primitives::consts::{bytes_to_words_le_vec, words_to_bytes_le_vec};
@@ -47,7 +50,7 @@ pub struct EllipticCurveAddEvent {
 /// This event is emitted when an elliptic curve doubling operation is performed.
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
 pub struct EllipticCurveDoubleEvent {
-    /// The lookup identifer.
+    /// The lookup identifier.
     pub lookup_id: LookupId,
     /// The shard number.
     pub shard: u32,
@@ -68,7 +71,7 @@ pub struct EllipticCurveDoubleEvent {
 /// This event is emitted when an elliptic curve point decompression operation is performed.
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
 pub struct EllipticCurveDecompressEvent {
-    /// The lookup identifer.
+    /// The lookup identifier.
     pub lookup_id: LookupId,
     /// The shard number.
     pub shard: u32,
@@ -204,6 +207,7 @@ pub fn create_ec_decompress_event<E: EllipticCurve>(
 
     let decompress_fn = match E::CURVE_TYPE {
         CurveType::Secp256k1 => secp256k1_decompress::<E>,
+        CurveType::Secp256r1 => secp256r1_decompress::<E>,
         CurveType::Bls12381 => bls12381_decompress::<E>,
         _ => panic!("Unsupported curve"),
     };

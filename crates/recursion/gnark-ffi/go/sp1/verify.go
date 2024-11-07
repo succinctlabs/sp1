@@ -12,7 +12,7 @@ import (
 	"github.com/succinctlabs/sp1-recursion-gnark/sp1/babybear"
 )
 
-func VerifyPlonk(verifyCmdDataDir string, verifyCmdProof string, verifyCmdVkeyHash string, verifyCmdCommitedValuesDigest string) error {
+func VerifyPlonk(verifyCmdDataDir string, verifyCmdProof string, verifyCmdVkeyHash string, verifyCmdCommittedValuesDigest string) error {
 	// Sanity check the required arguments have been provided.
 	if verifyCmdDataDir == "" {
 		panic("--data is required")
@@ -42,7 +42,7 @@ func VerifyPlonk(verifyCmdDataDir string, verifyCmdProof string, verifyCmdVkeyHa
 		Felts:                []babybear.Variable{},
 		Exts:                 []babybear.ExtensionVariable{},
 		VkeyHash:             verifyCmdVkeyHash,
-		CommitedValuesDigest: verifyCmdCommitedValuesDigest,
+		CommittedValuesDigest: verifyCmdCommittedValuesDigest,
 	}
 	witness, err := frontend.NewWitness(&circuit, ecc.BN254.ScalarField())
 	if err != nil {
@@ -58,7 +58,7 @@ func VerifyPlonk(verifyCmdDataDir string, verifyCmdProof string, verifyCmdVkeyHa
 	return err
 }
 
-func VerifyGroth16(verifyCmdDataDir string, verifyCmdProof string, verifyCmdVkeyHash string, verifyCmdCommitedValuesDigest string) error {
+func VerifyGroth16(verifyCmdDataDir string, verifyCmdProof string, verifyCmdVkeyHash string, verifyCmdCommittedValuesDigest string) error {
 	// Sanity check the required arguments have been provided.
 	if verifyCmdDataDir == "" {
 		panic("--data is required")
@@ -88,7 +88,7 @@ func VerifyGroth16(verifyCmdDataDir string, verifyCmdProof string, verifyCmdVkey
 		Felts:                []babybear.Variable{},
 		Exts:                 []babybear.ExtensionVariable{},
 		VkeyHash:             verifyCmdVkeyHash,
-		CommitedValuesDigest: verifyCmdCommitedValuesDigest,
+		CommittedValuesDigest: verifyCmdCommittedValuesDigest,
 	}
 	witness, err := frontend.NewWitness(&circuit, ecc.BN254.ScalarField())
 	if err != nil {

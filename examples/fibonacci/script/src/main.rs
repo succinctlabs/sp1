@@ -1,7 +1,7 @@
-use sp1_sdk::{utils, ProverClient, SP1ProofWithPublicValues, SP1Stdin};
+use sp1_sdk::{include_elf, utils, ProverClient, SP1ProofWithPublicValues, SP1Stdin};
 
 /// The ELF we want to execute inside the zkVM.
-const ELF: &[u8] = include_bytes!("../../program/elf/riscv32im-succinct-zkvm-elf");
+const ELF: &[u8] = include_elf!("fibonacci-program");
 
 fn main() {
     // Setup logging.
@@ -20,10 +20,7 @@ fn main() {
 
     // Execute the program using the `ProverClient.execute` method, without generating a proof.
     let (_, report) = client.execute(ELF, stdin.clone()).run().unwrap();
-    println!(
-        "executed program with {} cycles",
-        report.total_instruction_count()
-    );
+    println!("executed program with {} cycles", report.total_instruction_count());
 
     // Generate the proof for the given program and input.
     let (pk, vk) = client.setup(ELF);
@@ -33,7 +30,7 @@ fn main() {
 
     // Read and verify the output.
     //
-    // Note that this output is read from values commited to in the program using
+    // Note that this output is read from values committed to in the program using
     // `sp1_zkvm::io::commit`.
     let _ = proof.public_values.read::<u32>();
     let a = proof.public_values.read::<u32>();
@@ -46,16 +43,12 @@ fn main() {
     client.verify(&proof, &vk).expect("verification failed");
 
     // Test a round trip of proof serialization and deserialization.
-    proof
-        .save("proof-with-pis.bin")
-        .expect("saving proof failed");
+    proof.save("proof-with-pis.bin").expect("saving proof failed");
     let deserialized_proof =
         SP1ProofWithPublicValues::load("proof-with-pis.bin").expect("loading proof failed");
 
     // Verify the deserialized proof.
-    client
-        .verify(&deserialized_proof, &vk)
-        .expect("verification failed");
+    client.verify(&deserialized_proof, &vk).expect("verification failed");
 
     println!("successfully generated and verified proof for the program!")
 }

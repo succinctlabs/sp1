@@ -3,7 +3,7 @@ use std::{borrow::Borrow, path::PathBuf};
 use p3_baby_bear::BabyBear;
 use sp1_core_executor::SP1Context;
 use sp1_core_machine::io::SP1Stdin;
-use sp1_recursion_circuit_v2::{
+use sp1_recursion_circuit::{
     hash::FieldHasherVariable,
     machine::{SP1CompressWitnessValues, SP1WrapVerifier},
 };
@@ -13,10 +13,10 @@ use sp1_recursion_compiler::{
     ir::Builder,
 };
 
-use sp1_recursion_core_v2::air::RecursionPublicValues;
-pub use sp1_recursion_core_v2::stark::utils::sp1_dev_mode;
+use sp1_recursion_core::air::RecursionPublicValues;
+pub use sp1_recursion_core::stark::sp1_dev_mode;
 
-pub use sp1_recursion_circuit_v2::witness::{OuterWitness, Witnessable};
+pub use sp1_recursion_circuit::witness::{OuterWitness, Witnessable};
 
 use sp1_recursion_gnark_ffi::{Groth16Bn254Prover, PlonkBn254Prover};
 use sp1_stark::{SP1ProverOpts, ShardProof, StarkVerifyingKey};
@@ -93,9 +93,9 @@ pub fn build_plonk_bn254_artifacts_with_dummy(build_dir: impl Into<PathBuf>) {
     let wrap_vk_bytes = bincode::serialize(&wrap_vk).unwrap();
     let wrapped_proof_bytes = bincode::serialize(&wrapped_proof).unwrap();
     std::fs::write("wrap_vk.bin", wrap_vk_bytes).unwrap();
-    std::fs::write("wraped_proof.bin", wrapped_proof_bytes).unwrap();
+    std::fs::write("wrapped_proof.bin", wrapped_proof_bytes).unwrap();
     let wrap_vk_bytes = std::fs::read("wrap_vk.bin").unwrap();
-    let wrapped_proof_bytes = std::fs::read("wraped_proof.bin").unwrap();
+    let wrapped_proof_bytes = std::fs::read("wrapped_proof.bin").unwrap();
     let wrap_vk = bincode::deserialize(&wrap_vk_bytes).unwrap();
     let wrapped_proof = bincode::deserialize(&wrapped_proof_bytes).unwrap();
     crate::build::build_plonk_bn254_artifacts(&wrap_vk, &wrapped_proof, build_dir.into());
@@ -110,9 +110,9 @@ pub fn build_groth16_bn254_artifacts_with_dummy(build_dir: impl Into<PathBuf>) {
     let wrap_vk_bytes = bincode::serialize(&wrap_vk).unwrap();
     let wrapped_proof_bytes = bincode::serialize(&wrapped_proof).unwrap();
     std::fs::write("wrap_vk.bin", wrap_vk_bytes).unwrap();
-    std::fs::write("wraped_proof.bin", wrapped_proof_bytes).unwrap();
+    std::fs::write("wrapped_proof.bin", wrapped_proof_bytes).unwrap();
     let wrap_vk_bytes = std::fs::read("wrap_vk.bin").unwrap();
-    let wrapped_proof_bytes = std::fs::read("wraped_proof.bin").unwrap();
+    let wrapped_proof_bytes = std::fs::read("wrapped_proof.bin").unwrap();
     let wrap_vk = bincode::deserialize(&wrap_vk_bytes).unwrap();
     let wrapped_proof = bincode::deserialize(&wrapped_proof_bytes).unwrap();
     crate::build::build_groth16_bn254_artifacts(&wrap_vk, &wrapped_proof, build_dir.into());
@@ -140,7 +140,7 @@ pub fn build_constraints_and_witness(
     tracing::info!("building template witness");
     let mut witness = OuterWitness::default();
     template_input.write(&mut witness);
-    witness.write_commited_values_digest(committed_values_digest);
+    witness.write_committed_values_digest(committed_values_digest);
     witness.write_vkey_hash(vkey_hash);
 
     (constraints, witness)

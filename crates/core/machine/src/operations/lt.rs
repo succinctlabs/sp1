@@ -81,7 +81,7 @@ impl<V: Copy, const N: usize> AssertLtColsBytes<V, N> {
             // Assert that the flag is boolean.
             builder.assert_bool(flag);
             // Add the flag to the sum.
-            sum_flags += flag.into();
+            sum_flags = sum_flags.clone() + flag.into();
         }
         // Assert that the sum is equal to one.
         builder.when(is_real.clone()).assert_one(sum_flags);
@@ -104,10 +104,10 @@ impl<V: Copy, const N: usize> AssertLtColsBytes<V, N> {
         {
             // Once the byte flag was set to one, we turn off the quality check flag.
             // We can do this by calculating the sum of the flags since only `1` is set to `1`.
-            is_inequality_visited += flag.into();
+            is_inequality_visited = is_inequality_visited.clone() + flag.into();
 
-            first_lt_byte += a_byte.clone() * flag;
-            b_comparison_byte += b_byte.clone() * flag;
+            first_lt_byte = first_lt_byte.clone() + a_byte.clone() * flag;
+            b_comparison_byte = b_comparison_byte.clone() + b_byte.clone() * flag;
 
             builder
                 .when_not(is_inequality_visited.clone())
@@ -189,7 +189,7 @@ impl<V: Copy, const N: usize> AssertLtColsBits<V, N> {
             // Assert that the flag is boolean.
             builder.assert_bool(flag);
             // Add the flag to the sum.
-            sum_flags += flag.into();
+            sum_flags = sum_flags.clone() + flag.into();
         }
         // Assert that the sum is equal to one.
         builder.when(is_real.clone()).assert_one(sum_flags);
@@ -212,10 +212,10 @@ impl<V: Copy, const N: usize> AssertLtColsBits<V, N> {
         {
             // Once the bit flag was set to one, we turn off the quality check flag.
             // We can do this by calculating the sum of the flags since only `1` is set to `1`.
-            is_inequality_visited += flag.into();
+            is_inequality_visited = is_inequality_visited.clone() + flag.into();
 
-            a_comparison_bit += a_bit.clone() * flag;
-            b_comparison_bit += b_bit.clone() * flag;
+            a_comparison_bit = a_comparison_bit.clone() + a_bit.clone() * flag;
+            b_comparison_bit = b_comparison_bit.clone() + b_bit.clone() * flag;
 
             builder
                 .when(is_real.clone())

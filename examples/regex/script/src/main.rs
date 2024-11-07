@@ -1,7 +1,7 @@
-use sp1_sdk::{utils, ProverClient, SP1ProofWithPublicValues, SP1Stdin};
+use sp1_sdk::{include_elf, utils, ProverClient, SP1ProofWithPublicValues, SP1Stdin};
 
 /// The ELF we want to execute inside the zkVM.
-const REGEX_IO_ELF: &[u8] = include_bytes!("../../program/elf/riscv32im-succinct-zkvm-elf");
+const REGEX_IO_ELF: &[u8] = include_elf!("regex-program");
 
 fn main() {
     // Setup a tracer for logging.
@@ -30,16 +30,12 @@ fn main() {
     client.verify(&proof, &vk).expect("verification failed");
 
     // Test a round trip of proof serialization and deserialization.
-    proof
-        .save("proof-with-pis.bin")
-        .expect("saving proof failed");
+    proof.save("proof-with-pis.bin").expect("saving proof failed");
     let deserialized_proof =
         SP1ProofWithPublicValues::load("proof-with-pis.bin").expect("loading proof failed");
 
     // Verify the deserialized proof.
-    client
-        .verify(&deserialized_proof, &vk)
-        .expect("verification failed");
+    client.verify(&deserialized_proof, &vk).expect("verification failed");
 
     println!("successfully generated and verified proof for the program!")
 }

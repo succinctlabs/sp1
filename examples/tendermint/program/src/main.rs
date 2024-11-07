@@ -6,7 +6,7 @@ use tendermint_light_client_verifier::{
     options::Options, types::LightBlock, ProdVerifier, Verdict, Verifier,
 };
 
-fn main() {
+pub fn main() {
     // Normally we could just do this to read in the LightBlocks, but bincode doesn't work with LightBlock.
     // This is likely a bug in tendermint-rs.
     // let light_block_1 = sp1_zkvm::io::read::<LightBlock>();
@@ -26,14 +26,8 @@ fn main() {
     println!("cycle-tracker-end: serde");
     println!("cycle-tracker-end: io");
 
-    println!(
-        "LightBlock1 number of validators: {}",
-        light_block_1.validators.validators().len()
-    );
-    println!(
-        "LightBlock2 number of validators: {}",
-        light_block_2.validators.validators().len()
-    );
+    println!("LightBlock1 number of validators: {}", light_block_1.validators.validators().len());
+    println!("LightBlock2 number of validators: {}", light_block_2.validators.validators().len());
 
     println!("cycle-tracker-start: header hash");
     let header_hash_1 = light_block_1.signed_header.header.hash();

@@ -4,7 +4,7 @@ sp1_zkvm::entrypoint!(main);
 use lib::{Account, Transaction}; // Custom structs.
 use serde_json::Value; // Generic JSON.
 
-fn main() {
+pub fn main() {
     // read generic JSON example inputs.
     let data_str = sp1_zkvm::io::read::<String>();
     let key = sp1_zkvm::io::read::<String>();

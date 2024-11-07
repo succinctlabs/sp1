@@ -191,66 +191,82 @@ pub fn machine_air_derive(input: TokenStream) -> TokenStream {
                 }
             });
 
-            let machine_air = quote! {
-                impl #impl_generics sp1_stark::air::MachineAir<F> for #name #ty_generics #where_clause {
-                    type Record = #execution_record_path;
-
-                    type Program = #program_path;
-
-                    fn name(&self) -> String {
-                        match self {
-                            #(#name_arms,)*
-                        }
-                    }
-
-                    fn preprocessed_width(&self) -> usize {
-                        match self {
-                            #(#preprocessed_width_arms,)*
-                        }
-                    }
-
-                    fn generate_preprocessed_trace(
-                        &self,
-                        program: &#program_path,
-                    ) -> Option<p3_matrix::dense::RowMajorMatrix<F>> {
-                        match self {
-                            #(#generate_preprocessed_trace_arms,)*
-                        }
-                    }
-
-                    fn generate_trace(
-                        &self,
-                        input: &#execution_record_path,
-                        output: &mut #execution_record_path,
-                    ) -> p3_matrix::dense::RowMajorMatrix<F> {
-                        match self {
-                            #(#generate_trace_arms,)*
-                        }
-                    }
-
-                    fn generate_dependencies(
-                        &self,
-                        input: &#execution_record_path,
-                        output: &mut #execution_record_path,
-                    ) {
-                        match self {
-                            #(#generate_dependencies_arms,)*
-                        }
-                    }
-
-                    fn included(&self, shard: &Self::Record) -> bool {
-                        match self {
-                            #(#included_arms,)*
-                        }
-                    }
-
-                    fn commit_scope(&self) -> InteractionScope {
-                        match self {
-                            #(#commit_scope_arms,)*
-                        }
-                    }
+            let local_only_arms = variants.iter().map(|(variant_name, field)| {
+                let field_ty = &field.ty;
+                quote! {
+                    #name::#variant_name(x) => <#field_ty as sp1_stark::air::MachineAir<F>>::local_only(x)
                 }
-            };
+            });
+
+            let machine_air = quote! {
+                            impl #impl_generics sp1_stark::air::MachineAir<F> for #name #ty_generics #where_clause {
+                                type Record = #execution_record_path;
+
+                                type Program = #program_path;
+
+                                fn name(&self) -> String {
+                                    match self {
+                                        #(#name_arms,)*
+                                    }
+                                }
+
+                                fn preprocessed_width(&self) -> usize {
+                                    match self {
+                                        #(#preprocessed_width_arms,)*
+                                    }
+                                }
+
+                                fn generate_preprocessed_trace(
+                                    &self,
+                                    program: &#program_path,
+                                ) -> Option<p3_matrix::dense::RowMajorMatrix<F>> {
+                                    match self {
+                                        #(#generate_preprocessed_trace_arms,)*
+                                    }
+                                }
+
+                                fn generate_trace(
+                                    &self,
+                                    input: &#execution_record_path,
+                                    output: &mut #execution_record_path,
+                                ) -> p3_matrix::dense::RowMajorMatrix<F> {
+                                    match self {
+                                        #(#generate_trace_arms,)*
+                                    }
+                                }
+
+                                fn generate_dependencies(
+                                    &self,
+                                    input: &#execution_record_path,
+                                    output: &mut #execution_record_path,
+                                ) {
+                                    match self {
+                                        #(#generate_dependencies_arms,)*
+                                    }
+                                }
+
+                                fn included(&self, shard: &Self::Record) -> bool {
+                                    match self {
+                                        #(#included_arms,)*
+                                    }
+                                }
+
+                                fn commit_scope(&self) -> InteractionScope {
+                                    match self {
+                                        #(#commit_scope_arms,)*
+                                    }
+                                }
+            <<<<<<< HEAD
+            =======
+
+                                fn local_only(&self) -> bool {
+                                    match self {
+                                        #(#local_only_arms,)*
+                                    }
+                                }
+            >>>>>>> 1a25bc4b17fd5a123519e29d91b17f89d5f735ee
+                            }
+                        };
 
             let eval_arms = variants.iter().map(|(variant_name, field)| {
                 let field_ty = &field.ty;

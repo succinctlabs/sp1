@@ -1,6 +1,8 @@
 package poseidon2
 
 import (
+	"math/big"
+
 	"github.com/consensys/gnark/frontend"
 	"github.com/succinctlabs/sp1-recursion-gnark/sp1/babybear"
 )
@@ -27,16 +29,16 @@ func (p *Poseidon2BabyBearChip) PermuteMut(state *[BABYBEAR_WIDTH]babybear.Varia
 
 	// The first half of the external rounds.
 	rounds := babybearNumExternalRounds + babybearNumInternalRounds
-	roundsFBeggining := babybearNumExternalRounds / 2
-	for r := 0; r < roundsFBeggining; r++ {
+	roundsFBeginning := babybearNumExternalRounds / 2
+	for r := 0; r < roundsFBeginning; r++ {
 		p.addRc(state, rc16[r])
 		p.sbox(state)
 		p.externalLinearLayer(state)
 	}
 
 	// The internal rounds.
-	p_end := roundsFBeggining + babybearNumInternalRounds
-	for r := roundsFBeggining; r < p_end; r++ {
+	p_end := roundsFBeginning + babybearNumInternalRounds
+	for r := roundsFBeginning; r < p_end; r++ {
 		state[0] = p.fieldApi.AddF(state[0], rc16[r][0])
 		state[0] = p.sboxP(state[0])
 		p.diffusionPermuteMut(state)
@@ -57,7 +59,7 @@ func (p *Poseidon2BabyBearChip) addRc(state *[BABYBEAR_WIDTH]babybear.Variable, 
 }
 
 func (p *Poseidon2BabyBearChip) sboxP(input babybear.Variable) babybear.Variable {
-	zero := babybear.NewF("0")
+	zero := babybear.NewFConst("0")
 	inputCpy := p.fieldApi.AddF(input, zero)
 	inputCpy = p.fieldApi.ReduceSlow(inputCpy)
 	inputValue := inputCpy.Value
@@ -66,8 +68,8 @@ func (p *Poseidon2BabyBearChip) sboxP(input babybear.Variable) babybear.Variable
 	i6 := p.api.Mul(i4, i2)
 	i7 := p.api.Mul(i6, inputValue)
 	i7bb := p.fieldApi.ReduceSlow(babybear.Variable{
-		Value:  i7,
-		NbBits: 31 * 7,
+		Value:      i7,
+		UpperBound: new(big.Int).Exp(new(big.Int).SetUint64(2013265921), new(big.Int).SetUint64(7), new(big.Int).SetUint64(0)),
 	})
 	return i7bb
 }
@@ -115,24 +117,24 @@ func (p *Poseidon2BabyBearChip) externalLinearLayer(state *[BABYBEAR_WIDTH]babyb
 
 func (p *Poseidon2BabyBearChip) diffusionPermuteMut(state *[BABYBEAR_WIDTH]babybear.Variable) {
 	matInternalDiagM1 := [BABYBEAR_WIDTH]babybear.Variable{
-		babybear.NewF("2013265919"),
-		babybear.NewF("1"),
-		babybear.NewF("2"),
-		babybear.NewF("4"),
-		babybear.NewF("8"),
-		babybear.NewF("16"),
-		babybear.NewF("32"),
-		babybear.NewF("64"),
-		babybear.NewF("128"),
-		babybear.NewF("256"),
-		babybear.NewF("512"),
-		babybear.NewF("1024"),
-		babybear.NewF("2048"),
-		babybear.NewF("4096"),
-		babybear.NewF("8192"),
-		babybear.NewF("32768"),
+		babybear.NewFConst("2013265919"),
+		babybear.NewFConst("1"),
+		babybear.NewFConst("2"),
+		babybear.NewFConst("4"),
+		babybear.NewFConst("8"),
+		babybear.NewFConst("16"),
+		babybear.NewFConst("32"),
+		babybear.NewFConst("64"),
+		babybear.NewFConst("128"),
+		babybear.NewFConst("256"),
+		babybear.NewFConst("512"),
+		babybear.NewFConst("1024"),
+		babybear.NewFConst("2048"),
+		babybear.NewFConst("4096"),
+		babybear.NewFConst("8192"),
+		babybear.NewFConst("32768"),
 	}
-	montyInverse := babybear.NewF("943718400")
+	montyInverse := babybear.NewFConst("943718400")
 	p.matmulInternal(state, &matInternalDiagM1)
 	for i := 0; i < BABYBEAR_WIDTH; i++ {
 		state[i] = p.fieldApi.MulF(state[i], montyInverse)
@@ -144,7 +146,7 @@ func (p *Poseidon2BabyBearChip) matmulInternal(
 	state *[BABYBEAR_WIDTH]babybear.Variable,
 	matInternalDiagM1 *[BABYBEAR_WIDTH]babybear.Variable,
 ) {
-	sum := babybear.NewF("0")
+	sum := babybear.NewFConst("0")
 	for i := 0; i < BABYBEAR_WIDTH; i++ {
 		sum = p.fieldApi.AddF(sum, state[i])
 	}

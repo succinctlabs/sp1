@@ -14,13 +14,8 @@ pub fn withdrawals_root(block_root: Node) -> Node {
     let depth = 11;
     let index = alloy_primitives::U256::from(3230);
 
-    let valid = black_box(is_valid_merkle_big_branch(
-        &leaf,
-        branch.iter(),
-        depth,
-        index,
-        &block_root,
-    ));
+    let valid =
+        black_box(is_valid_merkle_big_branch(&leaf, branch.iter(), depth, index, &block_root));
     println!("withdrawals root valid: {}", valid);
     leaf
 }
@@ -46,13 +41,8 @@ pub fn validators_root(block_root: Node) -> Node {
     let (leaf, branch) = black_box(hints::validators_root_proof(block_root));
     let depth = 8;
     let index = alloy_primitives::U256::from(363);
-    let valid = black_box(is_valid_merkle_big_branch(
-        &leaf,
-        branch.iter(),
-        depth,
-        index,
-        &block_root,
-    ));
+    let valid =
+        black_box(is_valid_merkle_big_branch(&leaf, branch.iter(), depth, index, &block_root));
     println!("validators root valid: {}", valid);
     leaf
 }
@@ -65,13 +55,8 @@ pub fn validator(block_root: Node, validators_root: Node, validator_index: u64) 
     let index = alloy_primitives::U256::from_str("2199023255552")
         .unwrap()
         .wrapping_add(alloy_primitives::U256::from(validator_index));
-    let valid = black_box(is_valid_merkle_big_branch(
-        &leaf,
-        branch.iter(),
-        depth,
-        index,
-        &validators_root,
-    ));
+    let valid =
+        black_box(is_valid_merkle_big_branch(&leaf, branch.iter(), depth, index, &validators_root));
     println!("validator valid: {}", valid);
     validator
 }
@@ -84,33 +69,21 @@ pub fn historical_far_slot(block_root: Node, target_slot: u64) -> Node {
         .unwrap()
         .wrapping_add(alloy_primitives::U256::from(array_index));
 
-    let valid = black_box(is_valid_merkle_big_branch(
-        &leaf,
-        branch.iter(),
-        depth,
-        index,
-        &block_root,
-    ));
+    let valid =
+        black_box(is_valid_merkle_big_branch(&leaf, branch.iter(), depth, index, &block_root));
     println!("historical far slot valid: {}", valid);
     leaf
 }
 
 fn historical_far_slot_blockroot(block_root: Node, summary_root: Node, target_slot: u64) -> Node {
-    let (leaf, branch) = black_box(hints::historical_far_slot_blockroot_proof(
-        block_root,
-        target_slot,
-    ));
+    let (leaf, branch) =
+        black_box(hints::historical_far_slot_blockroot_proof(block_root, target_slot));
     let depth = 14;
     let array_index = (target_slot) % 8192;
     let index = alloy_primitives::U256::from(16384 + array_index);
 
-    let valid = black_box(is_valid_merkle_big_branch(
-        &leaf,
-        branch.iter(),
-        depth,
-        index,
-        &summary_root,
-    ));
+    let valid =
+        black_box(is_valid_merkle_big_branch(&leaf, branch.iter(), depth, index, &summary_root));
     println!("historical far slot blockroot valid: {}", valid);
     leaf
 }

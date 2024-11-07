@@ -1,7 +1,7 @@
 #![no_main]
 sp1_zkvm::entrypoint!(main);
 
-use sp1_zkvm::lib::secp256k1::Secp256k1Operations;
+use sp1_zkvm::lib::secp256k1::Secp256k1Point;
 use sp1_zkvm::lib::utils::AffinePoint;
 
 #[sp1_derive::cycle_tracker]
@@ -17,14 +17,14 @@ pub fn main() {
             101, 196, 163, 38, 119, 218, 58, 72,
         ];
 
-        let mut a_point = AffinePoint::<Secp256k1Operations, 16>::from_le_bytes(&a);
+        let mut a_point = Secp256k1Point::from_le_bytes(&a);
 
         // scalar.
         // 3
         let scalar: [u32; 8] = [3, 0, 0, 0, 0, 0, 0, 0];
 
         println!("cycle-tracker-start: secp256k1_mul");
-        a_point.mul_assign(&scalar);
+        a_point.mul_assign(&scalar).unwrap();
         println!("cycle-tracker-end: secp256k1_mul");
 
         // 3 * generator.

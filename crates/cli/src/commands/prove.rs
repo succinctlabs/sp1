@@ -70,7 +70,7 @@ pub struct ProveCmd {
 
 impl ProveCmd {
     pub fn run(&self) -> Result<()> {
-        let elf_path = execute_build_program(&self.build_args, None)?;
+        let elf_paths = execute_build_program(&self.build_args, None)?;
 
         if !self.profile {
             match env::var("RUST_LOG") {
@@ -85,6 +85,14 @@ impl ProveCmd {
             }
             setup_tracer();
         }
+
+        // The command predates multi-target build support. This allows the command to continue to
+        // work when only one package is built, preserving backward compatibility.
+        let elf_path = if elf_paths.len() == 1 {
+            elf_paths[0].1.to_owned()
+        } else {
+            anyhow::bail!("the prove command does not work with multi-target builds");
+        };
 
         let mut elf = Vec::new();
         File::open(elf_path.as_path().as_str())

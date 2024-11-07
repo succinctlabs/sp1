@@ -124,7 +124,11 @@ impl<F: PrimeField> MachineAir<F> for BitwiseChip {
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
-        !shard.bitwise_events.is_empty()
+        if let Some(shape) = shard.shape.as_ref() {
+            shape.included::<F, _>(self)
+        } else {
+            !shard.bitwise_events.is_empty()
+        }
     }
 }
 

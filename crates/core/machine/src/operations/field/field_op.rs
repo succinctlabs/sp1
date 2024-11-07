@@ -190,9 +190,21 @@ impl<F: PrimeField32, P: FieldParameters> FieldOpCols<F, P> {
             FieldOperation::Div => {
                 // As modulus is prime, we can use Fermat's little theorem to compute the
                 // inverse.
-                let result =
-                    (a * b.modpow(&(modulus.clone() - 2u32), &modulus.clone())) % modulus.clone();
-
+                cfg_if::cfg_if! {
+                    if #[cfg(feature = "bigint-rug")] {
+                        use sp1_curves::utils::{biguint_to_rug, rug_to_biguint};
+                        let rug_a = biguint_to_rug(a);
+                        let rug_b = biguint_to_rug(b);
+                        let rug_modulus = biguint_to_rug(modulus);
+                        let rug_result = (rug_a
+                            * rug_b.pow_mod(&(rug_modulus.clone() - 2u32), &rug_modulus.clone()).unwrap())
+                            % rug_modulus.clone();
+                        let result = rug_to_biguint(&rug_result);
+                    } else {
+                        let result =
+                            (a * b.modpow(&(modulus.clone() - 2u32), &modulus.clone())) % modulus.clone();
+                    }
+                }
                 // We populate the carry, witness_low, witness_high as if we were doing a
                 // multiplication with result * b. But we populate `result` with the
                 // actual result of the multiplication because those columns are
@@ -264,29 +276,6 @@ impl<V: Copy, P: FieldParameters> FieldOpCols<V, P> {
         let p_mul = p_a_param.clone() * p_b.clone();
         let p_div = p_res_param * p_b.clone();
         let p_op = p_add * is_add + p_sub * is_sub + p_mul * is_mul + p_div * is_div;
-
-        self.eval_with_polynomials(builder, p_op, modulus.clone(), p_result, is_real);
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    pub fn eval_mul_and_carry<AB: SP1AirBuilder<Var = V>>(
-        &self,
-        builder: &mut AB,
-        a: &(impl Into<Polynomial<AB::Expr>> + Clone),
-        b: &(impl Into<Polynomial<AB::Expr>> + Clone),
-        c: &(impl Into<Polynomial<AB::Expr>> + Clone),
-        modulus: &(impl Into<Polynomial<AB::Expr>> + Clone),
-        is_real: impl Into<AB::Expr> + Clone,
-    ) where
-        V: Into<AB::Expr>,
-        Limbs<V, P::Limbs>: Copy,
-    {
-        let p_a: Polynomial<AB::Expr> = (a).clone().into();
-        let p_b: Polynomial<AB::Expr> = (b).clone().into();
-        let p_c: Polynomial<AB::Expr> = (c).clone().into();
-
-        let p_result: Polynomial<_> = self.result.into();
-        let p_op = p_a * p_b + p_c;
 
         self.eval_with_polynomials(builder, p_op, modulus.clone(), p_result, is_real);
     }

@@ -4,10 +4,14 @@ use core::{
 };
 use std::collections::HashMap;
 
-use crate::{air::ProgramAirBuilder, utils::pad_rows_fixed};
+use crate::{
+    air::ProgramAirBuilder,
+    utils::{next_power_of_two, pad_rows_fixed, zeroed_f_vec},
+};
 use p3_air::{Air, BaseAir, PairBuilder};
 use p3_field::PrimeField;
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
+use p3_maybe_rayon::prelude::{ParallelBridge, ParallelIterator};
 use sp1_core_executor::{ExecutionRecord, Program};
 use sp1_derive::AlignedBorrow;
 use sp1_stark::air::{MachineAir, SP1AirBuilder};
@@ -61,37 +65,38 @@ impl<F: PrimeField> MachineAir<F> for ProgramChip {
     }
 
     fn generate_preprocessed_trace(&self, program: &Self::Program) -> Option<RowMajorMatrix<F>> {
-        debug_assert!(!program.instructions.is_empty(), "empty program");
-        let mut rows = program
-            .instructions
-            .iter()
-            .enumerate()
-            .map(|(i, &instruction)| {
-                let pc = program.pc_base + (i as u32 * 4);
-                let mut row = [F::zero(); NUM_PROGRAM_PREPROCESSED_COLS];
-                let cols: &mut ProgramPreprocessedCols<F> = row.as_mut_slice().borrow_mut();
-                cols.pc = F::from_canonical_u32(pc);
-                cols.instruction.populate(instruction);
-                cols.selectors.populate(instruction);
-
-                row
-            })
-            .collect::<Vec<_>>();
-
-        // Pad the trace to a power of two depending on the proof shape in `input`.
-        pad_rows_fixed(
-            &mut rows,
-            || [F::zero(); NUM_PROGRAM_PREPROCESSED_COLS],
-            program.fixed_log2_rows::<F, _>(self),
+        debug_assert!(
+            !program.instructions.is_empty() || program.preprocessed_shape.is_some(),
+            "empty program"
         );
+        // Generate the trace rows for each event.
+        let nb_rows = program.instructions.len();
+        let size_log2 = program.fixed_log2_rows::<F, _>(self);
+        let padded_nb_rows = next_power_of_two(nb_rows, size_log2);
+        let mut values = zeroed_f_vec(padded_nb_rows * NUM_PROGRAM_PREPROCESSED_COLS);
+        let chunk_size = std::cmp::max((nb_rows + 1) / num_cpus::get(), 1);
+
+        values
+            .chunks_mut(chunk_size * NUM_PROGRAM_PREPROCESSED_COLS)
+            .enumerate()
+            .par_bridge()
+            .for_each(|(i, rows)| {
+                rows.chunks_mut(NUM_PROGRAM_PREPROCESSED_COLS).enumerate().for_each(|(j, row)| {
+                    let idx = i * chunk_size + j;
+
+                    if idx < nb_rows {
+                        let cols: &mut ProgramPreprocessedCols<F> = row.borrow_mut();
+                        let instruction = &program.instructions[idx];
+                        let pc = program.pc_base + (idx as u32 * 4);
+                        cols.pc = F::from_canonical_u32(pc);
+                        cols.instruction.populate(instruction);
+                        cols.selectors.populate(instruction);
+                    }
+                });
+            });
 
         // Convert the trace to a row major matrix.
-        let trace = RowMajorMatrix::new(
-            rows.into_iter().flatten().collect::<Vec<_>>(),
-            NUM_PROGRAM_PREPROCESSED_COLS,
-        );
-
-        Some(trace)
+        Some(RowMajorMatrix::new(values, NUM_PROGRAM_PREPROCESSED_COLS))
     }
 
     fn generate_dependencies(&self, _input: &ExecutionRecord, _output: &mut ExecutionRecord) {
@@ -164,7 +169,7 @@ where
         let mult_local = main.row_slice(0);
         let mult_local: &ProgramMultiplicityCols<AB::Var> = (*mult_local).borrow();
 
-        // Contrain the interaction with CPU table
+        // Constrain the interaction with CPU table
         builder.receive_program(
             prep_local.pc,
             prep_local.instruction,
@@ -178,8 +183,9 @@ where
 #[cfg(test)]
 mod tests {
 
-    use std::{collections::BTreeMap, sync::Arc};
+    use std::sync::Arc;
 
+    use hashbrown::HashMap;
     use p3_baby_bear::BabyBear;
 
     use p3_matrix::dense::RowMajorMatrix;
@@ -204,7 +210,7 @@ mod tests {
                 instructions,
                 pc_start: 0,
                 pc_base: 0,
-                memory_image: BTreeMap::new(),
+                memory_image: HashMap::new(),
                 preprocessed_shape: None,
             }),
             ..Default::default()

@@ -15,9 +15,9 @@ If you want to generate SP1 proofs locally, this section has an overview of the 
 
 |                | Mock / Network               | Core / Compress                    | Groth16 and PLONK (EVM) |
 | -------------- | ---------------------------- | ---------------------------------- | ----------------------- |
-| CPU            | 1+, single-core perf matters | 16+, more is better                | 32+, more is better     |
-| Memory         | 8GB+, more is better         | 32GB+, more if you have more cores | 64GB+, more is better   |
-| Disk           | 20GB+                        | 20GB+                              | 12GB+                   |
+| CPU            | 1+, single-core perf matters | 16+, more is better                | 16+, more is better     |
+| Memory         | 8GB+, more is better         | 16GB+, more if you have more cores | 16GB+, more is better   |
+| Disk           | 10GB+                        | 10GB+                              | 10GB+                   |
 | EVM Compatible | ✅                           | ❌                                 | ✅                      |
 
 ### CPU
@@ -31,8 +31,7 @@ which can be parallelized with multiple cores.
 Our prover requires keeping large matrices (i.e., traces) in memory to generate the proofs. Certain steps of the prover
 have a minimum memory requirement, meaning that if you have less than this amount of memory, the process will OOM.
 
-This effect is most noticeable when using the Groth16 or PLONK provers, which requires around 128GB
-of RAM to generate a proof.
+This effect is most noticeable when using the Groth16 or PLONK provers.
 
 ### Disk
 

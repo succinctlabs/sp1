@@ -1,4 +1,4 @@
-use sp1_sdk::SP1ProofWithPublicValues;
+use sp1_sdk::{include_elf, SP1ProofWithPublicValues};
 use std::time::Duration;
 
 use sp1_sdk::{utils, ProverClient, SP1Stdin};
@@ -9,7 +9,7 @@ use tendermint_light_client_verifier::{
 
 use crate::util::load_light_block;
 
-const TENDERMINT_ELF: &[u8] = include_bytes!("../../program/elf/riscv32im-succinct-zkvm-elf");
+const TENDERMINT_ELF: &[u8] = include_elf!("tendermint-program");
 
 mod util;
 
@@ -19,7 +19,7 @@ fn get_light_blocks() -> (LightBlock, LightBlock) {
     (light_block_1, light_block_2)
 }
 
-fn main() {
+pub fn main() {
     // Generate proof.
     utils::setup_logger();
 
@@ -44,7 +44,7 @@ fn main() {
     let client = ProverClient::new();
     let (pk, vk) = client.setup(TENDERMINT_ELF);
 
-    let execute = client.execute(TENDERMINT_ELF, stdin.clone()).run().expect("proving failed");
+    client.execute(TENDERMINT_ELF, stdin.clone()).run().expect("proving failed");
 
     let proof = client.prove(&pk, stdin).run().expect("proving failed");
 

@@ -154,6 +154,9 @@ where
     for chip in chips.iter() {
         let mut total_events = 0;
         for shard in shards {
+            if !chip.included(shard) {
+                continue;
+            }
             let (_, count) =
                 debug_interactions::<SC, A>(chip, pkey, shard, interaction_kinds.clone(), scope);
             total_events += count.len();

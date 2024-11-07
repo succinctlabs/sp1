@@ -1,4 +1,4 @@
-use std::{cmp::min, collections::BTreeMap};
+use std::cmp::min;
 
 use elf::{
     abi::{EM_RISCV, ET_EXEC, PF_X, PT_LOAD},
@@ -6,6 +6,7 @@ use elf::{
     file::Class,
     ElfBytes,
 };
+use hashbrown::HashMap;
 use sp1_primitives::consts::{MAXIMUM_MEMORY_SIZE, WORD_SIZE};
 
 /// RISC-V 32IM ELF (Executable and Linkable Format) File.
@@ -26,7 +27,7 @@ pub(crate) struct Elf {
     /// The base address of the program.
     pub(crate) pc_base: u32,
     /// The initial memory image, useful for global constants.
-    pub(crate) memory_image: BTreeMap<u32, u32>,
+    pub(crate) memory_image: HashMap<u32, u32>,
 }
 
 impl Elf {
@@ -36,7 +37,7 @@ impl Elf {
         instructions: Vec<u32>,
         pc_start: u32,
         pc_base: u32,
-        memory_image: BTreeMap<u32, u32>,
+        memory_image: HashMap<u32, u32>,
     ) -> Self {
         Self { instructions, pc_start, pc_base, memory_image }
     }
@@ -50,7 +51,7 @@ impl Elf {
     ///
     /// Reference: [Executable and Linkable Format](https://en.wikipedia.org/wiki/Executable_and_Linkable_Format)
     pub(crate) fn decode(input: &[u8]) -> eyre::Result<Self> {
-        let mut image: BTreeMap<u32, u32> = BTreeMap::new();
+        let mut image: HashMap<u32, u32> = HashMap::new();
 
         // Parse the ELF file assuming that it is little-endian..
         let elf = ElfBytes::<LittleEndian>::minimal_parse(input)?;

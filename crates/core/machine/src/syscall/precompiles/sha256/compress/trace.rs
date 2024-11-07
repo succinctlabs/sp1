@@ -35,7 +35,7 @@ impl<F: PrimeField32> MachineAir<F> for ShaCompressChip {
         let rows = Vec::new();
 
         let mut wrapped_rows = Some(rows);
-        for event in input.get_precompile_events(SyscallCode::SHA_COMPRESS) {
+        for (_, event) in input.get_precompile_events(SyscallCode::SHA_COMPRESS) {
             let event = if let PrecompileEvent::ShaCompress(event) = event {
                 event
             } else {
@@ -53,7 +53,7 @@ impl<F: PrimeField32> MachineAir<F> for ShaCompressChip {
             input.fixed_log2_rows::<F, _>(self),
         );
 
-        // Set the octet_num and octect columns for the padded rows.
+        // Set the octet_num and octet columns for the padded rows.
         let mut octet_num = 0;
         let mut octet = 0;
         for row in rows[num_real_rows..].iter_mut() {
@@ -101,7 +101,7 @@ impl<F: PrimeField32> MachineAir<F> for ShaCompressChip {
             .par_chunks(chunk_size)
             .map(|events| {
                 let mut blu: HashMap<u32, HashMap<ByteLookupEvent, usize>> = HashMap::new();
-                events.iter().for_each(|event| {
+                events.iter().for_each(|(_, event)| {
                     let event = if let PrecompileEvent::ShaCompress(event) = event {
                         event
                     } else {
@@ -117,7 +117,11 @@ impl<F: PrimeField32> MachineAir<F> for ShaCompressChip {
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
-        !shard.get_precompile_events(SyscallCode::SHA_COMPRESS).is_empty()
+        if let Some(shape) = shard.shape.as_ref() {
+            shape.included::<F, _>(self)
+        } else {
+            !shard.get_precompile_events(SyscallCode::SHA_COMPRESS).is_empty()
+        }
     }
 }
 

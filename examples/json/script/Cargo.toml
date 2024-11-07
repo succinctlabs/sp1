@@ -5,10 +5,9 @@ edition = { workspace = true }
 publish = false
 
 [dependencies]
-serde = "1.0.197"
 serde_json = "1.0.114"
 sp1-sdk = { workspace = true }
-lib = { path = "../lib" }
+lib = { path = "../lib", package = "json-lib" }
 
 [build-dependencies]
 sp1-build = { workspace = true }

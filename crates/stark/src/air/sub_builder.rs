@@ -23,7 +23,10 @@ impl<M: Matrix<T>, T: Send + Sync> SubMatrixRowSlices<M, T> {
 
 /// Implement `Matrix` for `SubMatrixRowSlices`.
 impl<M: Matrix<T>, T: Send + Sync> Matrix<T> for SubMatrixRowSlices<M, T> {
-    type Row<'a> = Skip<Take<M::Row<'a>>> where Self: 'a;
+    type Row<'a>
+        = Skip<Take<M::Row<'a>>>
+    where
+        Self: 'a;
 
     #[inline]
     fn row(&self, r: usize) -> Self::Row<'_> {

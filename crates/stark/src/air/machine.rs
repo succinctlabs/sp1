@@ -48,6 +48,11 @@ pub trait MachineAir<F: Field>: BaseAir<F> + 'static + Send + Sync {
     fn commit_scope(&self) -> InteractionScope {
         InteractionScope::Local
     }
+
+    /// Specifies whether the air only uses the local row, and not the next row.
+    fn local_only(&self) -> bool {
+        false
+    }
 }
 
 /// A program that defines the control flow of a machine through a program counter.
