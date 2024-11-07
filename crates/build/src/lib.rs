@@ -51,6 +51,7 @@ pub struct BuildArgs {
     #[clap(long, action, help = "Assert that `Cargo.lock` will remain unchanged")]
     pub locked: bool,
     #[clap(
+        short,
         long,
         action,
         help = "Build only the specified packages",

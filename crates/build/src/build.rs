@@ -123,23 +123,42 @@ fn generate_elf_paths(
     args: Option<&BuildArgs>,
 ) -> Result<Vec<(String, Utf8PathBuf)>> {
     let mut target_elf_paths = vec![];
-
-    let packages_to_iterate = args
-        // Iterate over the specified --packages if any
-        .and_then(|args| if args.packages.is_empty() { None } else { Some(args.packages.clone()) })
-        // Otherwise fallback to workspace default members
-        .unwrap_or(metadata.workspace_default_members.iter().map(|p| p.to_string()).collect());
+    let packages_to_iterate = if let Some(args) = args {
+        if !args.packages.is_empty() {
+            args.packages
+                .iter()
+                .map(|wanted_package| {
+                    metadata
+                        .packages
+                        .iter()
+                        .find(|p| p.name == *wanted_package)
+                        .ok_or_else(|| {
+                            anyhow::anyhow!("cannot find package named {}", wanted_package)
+                        })
+                        .map(|p| p.id.clone())
+                })
+                .collect::<anyhow::Result<Vec<_>>>()?
+        } else {
+            metadata.workspace_default_members.to_vec()
+        }
+    } else {
+        metadata.workspace_default_members.to_vec()
+    };
 
     for program_crate in packages_to_iterate {
         let program = metadata
             .packages
             .iter()
-            .find(|p| p.id.to_string() == program_crate)
+            .find(|p| p.id == program_crate)
             .ok_or_else(|| anyhow::anyhow!("cannot find package for {}", program_crate))?;
+
+        println!("MEMBER: {}", program_crate);
 
         for bin_target in program.targets.iter().filter(|t| {
             t.kind.contains(&"bin".to_owned()) && t.crate_types.contains(&"bin".to_owned())
         }) {
+            println!("TARGET: {}", bin_target.name);
+
             // Filter out irrelevant targets if `--bin` is used.
             if let Some(args) = args {
                 if !args.binaries.is_empty() && !args.binaries.contains(&bin_target.name) {
