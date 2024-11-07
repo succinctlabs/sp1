@@ -126,6 +126,7 @@ impl NetworkClient {
         fulfillment_status: Option<i32>,
         execution_status: Option<i32>,
         limit: Option<u32>,
+        page: Option<u32>,
     ) -> Result<GetFilteredProofRequestsResponse> {
         let mut rpc = self.get_rpc().await?;
         let res = rpc
@@ -134,6 +135,7 @@ impl NetworkClient {
                 fulfillment_status,
                 execution_status,
                 limit,
+                page,
             })
             .await?
             .into_inner();
