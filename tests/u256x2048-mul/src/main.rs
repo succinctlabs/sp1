@@ -1,8 +1,7 @@
 #![no_main]
 sp1_zkvm::entrypoint!(main);
 
-use num::{BigUint, One};
-use rand::Rng;
+use num::BigUint;
 use sp1_zkvm::syscalls::syscall_u256x2048_mul;
 
 fn u256_to_bytes_le(x: &BigUint) -> [u8; 32] {
