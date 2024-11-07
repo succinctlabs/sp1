@@ -181,6 +181,7 @@ jobs:
             ldd "$bin" || true
             $bin --version || true
           done
+
       - name: Archive binaries
         id: artifacts
         env:
