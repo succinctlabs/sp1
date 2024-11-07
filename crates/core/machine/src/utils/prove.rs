@@ -126,7 +126,7 @@ where
                         let _span = span.enter();
 
                         // Execute the runtime until we reach a checkpoint.
-                        let (checkpoint, done) = runtime
+                        let (checkpoint, _, done) = runtime
                             .execute_state(false)
                             .map_err(SP1CoreProverError::ExecutionError)?;
 

@@ -6,7 +6,7 @@ use std::{
 
 use hashbrown::HashMap;
 use serde::{Deserialize, Serialize};
-use sp1_stark::SP1CoreOpts;
+use sp1_stark::{air::PublicValues, SP1CoreOpts};
 use thiserror::Error;
 
 use crate::{
@@ -1374,7 +1374,7 @@ impl<'a> Executor<'a> {
     pub fn execute_state(
         &mut self,
         emit_global_memory_events: bool,
-    ) -> Result<(ExecutionState, bool), ExecutionError> {
+    ) -> Result<(ExecutionState, PublicValues<u32, u32>, bool), ExecutionError> {
         self.memory_checkpoint.clear();
         self.executor_mode = ExecutorMode::Checkpoint;
         self.emit_global_memory_events = emit_global_memory_events;
@@ -1424,10 +1424,12 @@ impl<'a> Executor<'a> {
                     .collect();
             }
         });
+        let public_values = self.records.last().as_ref().unwrap().public_values;
+        println!("public values: {public_values:?}");
         if !done {
             self.records.clear();
         }
-        Ok((checkpoint, done))
+        Ok((checkpoint, public_values, done))
     }
 
     fn initialize(&mut self) {
