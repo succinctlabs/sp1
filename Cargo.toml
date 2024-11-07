@@ -2,6 +2,7 @@
 version = "3.0.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
+rust-version = "1.79"
 repository = "https://github.com/succinctlabs/sp1"
 keywords = ["sp1", "succinct", "zero-knowledge", "zkvm"]
 categories = ["cryptography"]
