@@ -267,12 +267,12 @@ jobs:
 
       - name: "Create SP1 project from template"
         run: |
-          $HOME/.sp1/bin/cargo-prove new hello
+          $HOME/.sp1/bin/cargo-prove prove new hello
 
       - name: "Build SP1 project"
         run: |
           cd ./hello/program
-          $HOME/.sp1/bin/cargo-prove build
+          $HOME/.sp1/bin/cargo-prove prove build
 
   cleanup:
     name: Release cleanup
