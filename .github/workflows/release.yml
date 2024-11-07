@@ -157,7 +157,8 @@ jobs:
       - name: Musl setup
         if: matrix.target == 'x86_64-unknown-linux-musl'
         run: |
-          sudo apt-get install -y musl-gcc
+          sudo apt-get update -y
+          sudo apt-get install -y musl-tools musl-dev
           rustup target add x86_64-unknown-linux-musl
 
       - name: Build binaries
