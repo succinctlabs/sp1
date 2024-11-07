@@ -128,13 +128,11 @@ jobs:
           cache-on-failure: true
 
       - name: Install go
-        if: matrix.target != 'x86_64-unknown-linux-musl'
         uses: actions/setup-go@v5
         with:
           go-version: "^1.22.1"
 
       - name: Check go installation
-        if: matrix.target != 'x86_64-unknown-linux-musl'
         run: |
           go version
 
