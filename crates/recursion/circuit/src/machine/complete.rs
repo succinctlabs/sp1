@@ -2,7 +2,11 @@ use itertools::Itertools;
 use p3_field::AbstractField;
 
 use sp1_recursion_compiler::ir::{Builder, Config, Felt};
+<<<<<<< HEAD:crates/recursion/circuit-v2/src/machine/complete.rs
+use sp1_recursion_core_v2::air::RecursionPublicValues;
+=======
 use sp1_recursion_core::air::RecursionPublicValues;
+>>>>>>> 1a25bc4b17fd5a123519e29d91b17f89d5f735ee:crates/recursion/circuit/src/machine/complete.rs
 
 /// Assertions on recursion public values which represent a complete proof.
 ///
@@ -55,12 +59,20 @@ pub(crate) fn assert_complete<C: Config>(
         builder.assert_felt_eq(is_complete * (end_challenger_d - leaf_challenger_d), C::F::zero());
     }
 
+<<<<<<< HEAD:crates/recursion/circuit-v2/src/machine/complete.rs
+    // The start reconstruct deffered digest should be zero.
+=======
     // The start reconstruct deferred digest should be zero.
+>>>>>>> 1a25bc4b17fd5a123519e29d91b17f89d5f735ee:crates/recursion/circuit/src/machine/complete.rs
     for start_digest_word in start_reconstruct_deferred_digest {
         builder.assert_felt_eq(is_complete * *start_digest_word, C::F::zero());
     }
 
+<<<<<<< HEAD:crates/recursion/circuit-v2/src/machine/complete.rs
+    // The end reconstruct deffered digest should be equal to the deferred proofs digest.
+=======
     // The end reconstruct deferred digest should be equal to the deferred proofs digest.
+>>>>>>> 1a25bc4b17fd5a123519e29d91b17f89d5f735ee:crates/recursion/circuit/src/machine/complete.rs
     for (end_digest_word, deferred_digest_word) in
         end_reconstruct_deferred_digest.iter().zip_eq(deferred_proofs_digest.iter())
     {

@@ -80,15 +80,25 @@ impl Prover<DefaultProverComponents> for CudaProver {
         let outer_proof = self.cuda_prover.wrap_bn254(compress_proof)?;
 
         if kind == SP1ProofKind::Plonk {
+<<<<<<< HEAD
+            let plonk_bn254_aritfacts = if sp1_prover::build::sp1_dev_mode() {
+=======
             let plonk_bn254_artifacts = if sp1_prover::build::sp1_dev_mode() {
+>>>>>>> 1a25bc4b17fd5a123519e29d91b17f89d5f735ee
                 sp1_prover::build::try_build_plonk_bn254_artifacts_dev(
                     &outer_proof.vk,
                     &outer_proof.proof,
                 )
             } else {
+<<<<<<< HEAD
+                try_install_circuit_artifacts()
+            };
+            let proof = self.prover.wrap_plonk_bn254(outer_proof, &plonk_bn254_aritfacts);
+=======
                 try_install_circuit_artifacts("plonk")
             };
             let proof = self.prover.wrap_plonk_bn254(outer_proof, &plonk_bn254_artifacts);
+>>>>>>> 1a25bc4b17fd5a123519e29d91b17f89d5f735ee
             return Ok(SP1ProofWithPublicValues {
                 proof: SP1Proof::Plonk(proof),
                 stdin,
@@ -102,7 +112,11 @@ impl Prover<DefaultProverComponents> for CudaProver {
                     &outer_proof.proof,
                 )
             } else {
+<<<<<<< HEAD
+                try_install_circuit_artifacts()
+=======
                 try_install_circuit_artifacts("groth16")
+>>>>>>> 1a25bc4b17fd5a123519e29d91b17f89d5f735ee
             };
 
             let proof = self.prover.wrap_groth16_bn254(outer_proof, &groth16_bn254_artifacts);

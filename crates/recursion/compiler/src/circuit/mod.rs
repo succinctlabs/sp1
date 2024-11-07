@@ -14,7 +14,11 @@ mod tests {
     use p3_field::AbstractField;
 
     use sp1_core_machine::utils::run_test_machine;
+<<<<<<< HEAD
+    use sp1_recursion_core_v2::{machine::RecursionAir, Runtime, RuntimeError};
+=======
     use sp1_recursion_core::{machine::RecursionAir, Runtime, RuntimeError};
+>>>>>>> 1a25bc4b17fd5a123519e29d91b17f89d5f735ee
     use sp1_stark::{BabyBearPoseidon2Inner, StarkGenericConfig};
 
     use crate::{
@@ -27,7 +31,11 @@ mod tests {
     type SC = BabyBearPoseidon2Inner;
     type F = <SC as StarkGenericConfig>::Val;
     type EF = <SC as StarkGenericConfig>::Challenge;
+<<<<<<< HEAD
+    type A = RecursionAir<F, DEGREE, 0>;
+=======
     type A = RecursionAir<F, DEGREE>;
+>>>>>>> 1a25bc4b17fd5a123519e29d91b17f89d5f735ee
 
     #[test]
     fn test_io() {

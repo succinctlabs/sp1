@@ -257,6 +257,12 @@ where
             }
         }
 
+<<<<<<< HEAD
+        let mut backend = ConstraintCompiler::<OuterConfig>::default();
+        let constraints = backend.emit(builder.into_operations());
+        PlonkBn254Prover::test::<OuterConfig>(constraints.clone(), Witness::default());
+=======
         Ok(())
+>>>>>>> 1a25bc4b17fd5a123519e29d91b17f89d5f735ee
     }
 }

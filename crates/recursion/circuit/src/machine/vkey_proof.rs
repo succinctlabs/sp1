@@ -5,9 +5,14 @@ use p3_baby_bear::BabyBear;
 use p3_commit::Mmcs;
 use p3_field::AbstractField;
 use p3_matrix::dense::RowMajorMatrix;
+<<<<<<< HEAD:crates/recursion/circuit-v2/src/machine/vkey_proof.rs
+use sp1_recursion_compiler::ir::{Builder, Felt};
+use sp1_recursion_core_v2::DIGEST_SIZE;
+=======
 use serde::{Deserialize, Serialize};
 use sp1_recursion_compiler::ir::{Builder, Felt};
 use sp1_recursion_core::DIGEST_SIZE;
+>>>>>>> 1a25bc4b17fd5a123519e29d91b17f89d5f735ee:crates/recursion/circuit/src/machine/vkey_proof.rs
 use sp1_stark::{
     air::MachineAir, baby_bear_poseidon2::BabyBearPoseidon2, Com, InnerChallenge, OpeningProof,
     StarkGenericConfig, StarkMachine,
@@ -55,9 +60,12 @@ pub struct SP1MerkleProofWitnessVariable<
 }
 
 /// An input layout for the reduce verifier.
+<<<<<<< HEAD:crates/recursion/circuit-v2/src/machine/vkey_proof.rs
+=======
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(bound(serialize = "SC::Digest: Serialize"))]
 #[serde(bound(deserialize = "SC::Digest: Deserialize<'de>"))]
+>>>>>>> 1a25bc4b17fd5a123519e29d91b17f89d5f735ee:crates/recursion/circuit/src/machine/vkey_proof.rs
 pub struct SP1MerkleProofWitnessValues<SC: FieldHasher<BabyBear>> {
     pub vk_merkle_proofs: Vec<MerkleProof<BabyBear, SC>>,
     pub values: Vec<SC::Digest>,
@@ -136,9 +144,14 @@ where
             .iter()
             .map(|(vk, _)| vk.hash(builder))
             .collect::<Vec<_>>();
+<<<<<<< HEAD:crates/recursion/circuit-v2/src/machine/vkey_proof.rs
+        SP1MerkleProofVerifier::verify(builder, values, input.merkle_var, value_assertions);
+        SP1CompressVerifier::verify(builder, machine, input.compress_var, kind);
+=======
         let vk_root = input.merkle_var.root.map(|x| builder.eval(x));
         SP1MerkleProofVerifier::verify(builder, values, input.merkle_var, value_assertions);
         SP1CompressVerifier::verify(builder, machine, input.compress_var, vk_root, kind);
+>>>>>>> 1a25bc4b17fd5a123519e29d91b17f89d5f735ee:crates/recursion/circuit/src/machine/vkey_proof.rs
     }
 }
 

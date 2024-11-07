@@ -556,10 +556,16 @@ pub(crate) mod tests {
             builder.assert_var_eq(expected_bit, *bit);
         }
 
+<<<<<<< HEAD
+        let mut backend = ConstraintCompiler::<OuterConfig>::default();
+        let constraints = backend.emit(builder.into_operations());
+        PlonkBn254Prover::test::<OuterConfig>(constraints.clone(), Witness::default());
+=======
         let mut backend = ConstraintCompiler::<C>::default();
         let constraints = backend.emit(builder.into_operations());
         let witness = OuterWitness::default();
         PlonkBn254Prover::test::<C>(constraints, witness);
+>>>>>>> 1a25bc4b17fd5a123519e29d91b17f89d5f735ee
     }
 
     #[test]
@@ -568,6 +574,33 @@ pub(crate) mod tests {
 
         let mut builder = Builder::<C>::default();
 
+<<<<<<< HEAD
+        let mut backend = ConstraintCompiler::<OuterConfig>::default();
+        let constraints = backend.emit(builder.into_operations());
+        PlonkBn254Prover::test::<OuterConfig>(constraints.clone(), Witness::default());
+    }
+
+    #[test]
+    fn test_split_32() {
+        let value = Bn254Fr::from_canonical_u32(1345237507);
+        let gt: Vec<BabyBear> = split_32_gt(value, 3);
+
+        let mut builder = Builder::<OuterConfig>::default();
+        let value = builder.eval(value);
+        let result = split_32(&mut builder, value, 3);
+
+        builder.assert_felt_eq(result[0], gt[0]);
+        builder.assert_felt_eq(result[1], gt[1]);
+        builder.assert_felt_eq(result[2], gt[2]);
+
+        let mut backend = ConstraintCompiler::<OuterConfig>::default();
+        let constraints = backend.emit(builder.into_operations());
+        PlonkBn254Prover::test::<OuterConfig>(constraints.clone(), Witness::default());
+    }
+
+    #[test]
+    fn test_challenger() {
+=======
         let one: Var<_> = builder.eval(N::one());
         let two: Var<_> = builder.eval(N::two());
 
@@ -585,6 +618,7 @@ pub(crate) mod tests {
 
     #[test]
     fn test_p2_hash() {
+>>>>>>> 1a25bc4b17fd5a123519e29d91b17f89d5f735ee
         let perm = outer_perm();
         let hasher = OuterHash::new(perm.clone()).unwrap();
 
@@ -599,6 +633,11 @@ pub(crate) mod tests {
         ];
         let output = hasher.hash_iter(input);
 
+<<<<<<< HEAD
+        let mut backend = ConstraintCompiler::<OuterConfig>::default();
+        let constraints = backend.emit(builder.into_operations());
+        PlonkBn254Prover::test::<OuterConfig>(constraints.clone(), Witness::default());
+=======
         let mut builder = Builder::<C>::default();
         let a: Felt<_> = builder.eval(input[0]);
         let b: Felt<_> = builder.eval(input[1]);
@@ -614,6 +653,7 @@ pub(crate) mod tests {
         let mut backend = ConstraintCompiler::<C>::default();
         let constraints = backend.emit(builder.into_operations());
         PlonkBn254Prover::test::<C>(constraints.clone(), OuterWitness::default());
+>>>>>>> 1a25bc4b17fd5a123519e29d91b17f89d5f735ee
     }
 
     #[test]
@@ -632,8 +672,14 @@ pub(crate) mod tests {
         let result = BabyBearPoseidon2Outer::compress(&mut builder, [a, b]);
         builder.assert_var_eq(result[0], gt[0]);
 
+<<<<<<< HEAD
+        let mut backend = ConstraintCompiler::<OuterConfig>::default();
+        let constraints = backend.emit(builder.into_operations());
+        PlonkBn254Prover::test::<OuterConfig>(constraints.clone(), Witness::default());
+=======
         let mut backend = ConstraintCompiler::<C>::default();
         let constraints = backend.emit(builder.into_operations());
         PlonkBn254Prover::test::<C>(constraints.clone(), OuterWitness::default());
+>>>>>>> 1a25bc4b17fd5a123519e29d91b17f89d5f735ee
     }
 }

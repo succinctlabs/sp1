@@ -143,6 +143,7 @@ where
         let opening_proof = self.opening_proof.read(builder);
         let public_values = self.public_values.read(builder);
         let chip_ordering = self.chip_ordering.clone();
+        let chip_scopes = self.chip_scopes.clone();
 
         ShardProofVariable {
             commitment,
@@ -150,6 +151,7 @@ where
             opening_proof,
             public_values,
             chip_ordering,
+            chip_scopes,
         }
     }
 

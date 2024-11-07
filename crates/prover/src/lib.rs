@@ -110,9 +110,17 @@ pub const REDUCE_BATCH_SIZE: usize = 2;
 //     static ref SHAPES_INIT: Once = Once::new();
 // }
 
-pub type CompressAir<F> = RecursionAir<F, COMPRESS_DEGREE>;
-pub type ShrinkAir<F> = RecursionAir<F, SHRINK_DEGREE>;
-pub type WrapAir<F> = RecursionAir<F, WRAP_DEGREE>;
+const CORE_CACHE_SIZE: usize = 5;
+const COMPRESS_CACHE_SIZE: usize = 3;
+
+pub const REDUCE_BATCH_SIZE: usize = 2;
+
+const VK_MAP_BYTES: &[u8] = include_bytes!("../vk_map.bin");
+const MERKLE_TREE_BYTES: &[u8] = include_bytes!("../merkle_tree.bin");
+
+pub type CompressAir<F> = RecursionAir<F, COMPRESS_DEGREE, 0>;
+pub type ShrinkAir<F> = RecursionAir<F, SHRINK_DEGREE, 0>;
+pub type WrapAir<F> = RecursionAir<F, WRAP_DEGREE, 0>;
 
 /// A end-to-end prover implementation for the SP1 RISC-V zkVM.
 pub struct SP1Prover<C: SP1ProverComponents = DefaultProverComponents> {
@@ -1056,6 +1064,14 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         // Setup the wrap program.
         let (wrap_pk, wrap_vk) =
             tracing::debug_span!("setup wrap").in_scope(|| self.wrap_prover.setup(&program));
+
+        if self.wrap_vk.set(wrap_vk.clone()).is_ok() {
+            tracing::debug!("wrap verifier key set");
+        }
+
+        // Setup the wrap program.
+        let (wrap_pk, wrap_vk) =
+            tracing::debug_span!("Setup wrap").in_scope(|| self.wrap_prover.setup(&program));
 
         if self.wrap_vk.set(wrap_vk.clone()).is_ok() {
             tracing::debug!("wrap verifier key set");

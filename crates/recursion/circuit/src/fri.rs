@@ -659,7 +659,13 @@ mod tests {
             );
         }
 
+<<<<<<< HEAD
+        let mut backend = ConstraintCompiler::<OuterConfig>::default();
+        let constraints = backend.emit(builder.into_operations());
+        PlonkBn254Prover::test::<OuterConfig>(constraints.clone(), Witness::default());
+=======
         run_test_recursion(builder.into_operations(), None);
+>>>>>>> 1a25bc4b17fd5a123519e29d91b17f89d5f735ee
     }
 
     #[test]
@@ -717,6 +723,11 @@ mod tests {
                 .collect(),
         }];
 
+<<<<<<< HEAD
+        let mut backend = ConstraintCompiler::<OuterConfig>::default();
+        let constraints = backend.emit(builder.into_operations());
+        PlonkBn254Prover::test::<OuterConfig>(constraints.clone(), Witness::default());
+=======
         let dummy_proof = dummy_pcs_proof(
             inner_fri_config().num_queries,
             &batch_shapes,
@@ -793,5 +804,6 @@ mod tests {
         }
 
         run_test_recursion(builder.into_operations(), witness_stream);
+>>>>>>> 1a25bc4b17fd5a123519e29d91b17f89d5f735ee
     }
 }

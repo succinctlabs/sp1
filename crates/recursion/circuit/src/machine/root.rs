@@ -15,7 +15,11 @@ use crate::{
     BabyBearFriConfigVariable, CircuitConfig,
 };
 use sp1_recursion_compiler::ir::{Builder, Felt};
+<<<<<<< HEAD:crates/recursion/circuit-v2/src/machine/root.rs
+use sp1_recursion_core_v2::DIGEST_SIZE;
+=======
 use sp1_recursion_core::DIGEST_SIZE;
+>>>>>>> 1a25bc4b17fd5a123519e29d91b17f89d5f735ee:crates/recursion/circuit/src/machine/root.rs
 use sp1_stark::{air::MachineAir, StarkMachine};
 
 /// A program to verify a single recursive proof representing a complete proof of program execution.
@@ -47,11 +51,17 @@ where
         builder: &mut Builder<C>,
         machine: &StarkMachine<SC, A>,
         input: SP1CompressWitnessVariable<C, SC>,
+<<<<<<< HEAD:crates/recursion/circuit-v2/src/machine/root.rs
+=======
         vk_root: [Felt<C::F>; DIGEST_SIZE],
+>>>>>>> 1a25bc4b17fd5a123519e29d91b17f89d5f735ee:crates/recursion/circuit/src/machine/root.rs
     ) {
         // Assert that the program is complete.
         builder.assert_felt_eq(input.is_complete, C::F::one());
         // Verify the proof, as a compress proof.
+<<<<<<< HEAD:crates/recursion/circuit-v2/src/machine/root.rs
+        SP1CompressVerifier::verify(builder, machine, input, PublicValuesOutputDigest::Root);
+=======
         SP1CompressVerifier::verify(
             builder,
             machine,
@@ -59,6 +69,7 @@ where
             vk_root,
             PublicValuesOutputDigest::Root,
         );
+>>>>>>> 1a25bc4b17fd5a123519e29d91b17f89d5f735ee:crates/recursion/circuit/src/machine/root.rs
     }
 }
 

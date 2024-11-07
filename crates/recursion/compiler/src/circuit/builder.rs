@@ -109,6 +109,8 @@ impl<C: Config<F = BabyBear>> CircuitV2Builder<C> for Builder<C> {
     ) -> Felt<C::F> {
         let output: Felt<_> = self.uninit();
         self.push_op(DslIr::CircuitV2ExpReverseBits(output, input, power_bits));
+<<<<<<< HEAD
+=======
         output
     }
 
@@ -121,6 +123,7 @@ impl<C: Config<F = BabyBear>> CircuitV2Builder<C> for Builder<C> {
     ) -> Ext<C::F, C::EF> {
         let output: Ext<_, _> = self.uninit();
         self.push_op(DslIr::CircuitV2BatchFRI(Box::new((output, alpha_pows, p_at_zs, p_at_xs))));
+>>>>>>> 1a25bc4b17fd5a123519e29d91b17f89d5f735ee
         output
     }
 

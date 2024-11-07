@@ -485,8 +485,13 @@ impl<C: Config> Builder<C> {
         self.push_op(DslIr::CircuitCommitVkeyHash(var));
     }
 
+<<<<<<< HEAD
+    pub fn commit_commited_values_digest_circuit(&mut self, var: Var<C::N>) {
+        self.push_op(DslIr::CircuitCommitCommitedValuesDigest(var));
+=======
     pub fn commit_committed_values_digest_circuit(&mut self, var: Var<C::N>) {
         self.push_op(DslIr::CircuitCommitCommittedValuesDigest(var));
+>>>>>>> 1a25bc4b17fd5a123519e29d91b17f89d5f735ee
     }
 
     pub fn reduce_e(&mut self, ext: Ext<C::F, C::EF>) {

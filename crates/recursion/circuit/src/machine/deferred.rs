@@ -3,8 +3,11 @@ use std::{
     borrow::{Borrow, BorrowMut},
 };
 
+<<<<<<< HEAD:crates/recursion/circuit-v2/src/machine/deferred.rs
+=======
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
+>>>>>>> 1a25bc4b17fd5a123519e29d91b17f89d5f735ee:crates/recursion/circuit/src/machine/deferred.rs
 use p3_air::Air;
 use p3_baby_bear::BabyBear;
 use p3_commit::Mmcs;
@@ -17,10 +20,17 @@ use sp1_recursion_compiler::ir::{Builder, Ext, Felt};
 use sp1_stark::{
     air::{MachineAir, POSEIDON_NUM_WORDS},
     baby_bear_poseidon2::BabyBearPoseidon2,
+<<<<<<< HEAD:crates/recursion/circuit-v2/src/machine/deferred.rs
+    ShardProof, StarkMachine, StarkVerifyingKey, Word,
+};
+
+use sp1_recursion_core_v2::{
+=======
     Dom, ShardProof, StarkMachine, StarkVerifyingKey, Word,
 };
 
 use sp1_recursion_core::{
+>>>>>>> 1a25bc4b17fd5a123519e29d91b17f89d5f735ee:crates/recursion/circuit/src/machine/deferred.rs
     air::{RecursionPublicValues, PV_DIGEST_NUM_WORDS, RECURSIVE_PROOF_NUM_PV_ELTS},
     DIGEST_SIZE,
 };
@@ -43,12 +53,17 @@ pub struct SP1DeferredVerifier<C, SC, A> {
     _phantom: std::marker::PhantomData<(C, SC, A)>,
 }
 
+<<<<<<< HEAD:crates/recursion/circuit-v2/src/machine/deferred.rs
+=======
 #[derive(Debug, Clone, Hash)]
+>>>>>>> 1a25bc4b17fd5a123519e29d91b17f89d5f735ee:crates/recursion/circuit/src/machine/deferred.rs
 pub struct SP1DeferredShape {
     inner: SP1CompressShape,
     height: usize,
 }
 
+<<<<<<< HEAD:crates/recursion/circuit-v2/src/machine/deferred.rs
+=======
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(bound(
     serialize = "SC::Challenger: Serialize, ShardProof<SC>: Serialize, Dom<SC>: Serialize, [SC::Val; DIGEST_SIZE]: Serialize, SC::Digest: Serialize"
@@ -56,6 +71,7 @@ pub struct SP1DeferredShape {
 #[serde(bound(
     deserialize = "SC::Challenger: Deserialize<'de>, ShardProof<SC>: Deserialize<'de>, Dom<SC>: DeserializeOwned, [SC::Val; DIGEST_SIZE]: Deserialize<'de>, SC::Digest: Deserialize<'de>"
 ))]
+>>>>>>> 1a25bc4b17fd5a123519e29d91b17f89d5f735ee:crates/recursion/circuit/src/machine/deferred.rs
 pub struct SP1DeferredWitnessValues<SC: BabyBearFriConfig + FieldHasher<BabyBear>> {
     pub vks_and_proofs: Vec<(StarkVerifyingKey<SC>, ShardProof<SC>)>,
     pub vk_merkle_data: SP1MerkleProofWitnessValues<SC>,
@@ -134,7 +150,10 @@ where
         } = input;
 
         // First, verify the merkle tree proofs.
+<<<<<<< HEAD:crates/recursion/circuit-v2/src/machine/deferred.rs
+=======
         let vk_root = vk_merkle_data.root;
+>>>>>>> 1a25bc4b17fd5a123519e29d91b17f89d5f735ee:crates/recursion/circuit/src/machine/deferred.rs
         let values = vks_and_proofs.iter().map(|(vk, _)| vk.hash(builder)).collect::<Vec<_>>();
         SP1MerkleProofVerifier::verify(builder, values, vk_merkle_data, value_assertions);
 
@@ -168,6 +187,11 @@ where
                 shard_proof.public_values[0..machine.num_pv_elts()].iter().copied(),
             );
 
+<<<<<<< HEAD:crates/recursion/circuit-v2/src/machine/deferred.rs
+            assert!(!shard_proof.contains_global_main_commitment());
+
+=======
+>>>>>>> 1a25bc4b17fd5a123519e29d91b17f89d5f735ee:crates/recursion/circuit/src/machine/deferred.rs
             let zero_ext: Ext<C::F, C::EF> = builder.eval(C::F::zero());
             StarkVerifier::verify_shard(
                 builder,
@@ -181,10 +205,13 @@ where
             // Get the current public values.
             let current_public_values: &RecursionPublicValues<Felt<C::F>> =
                 shard_proof.public_values.as_slice().borrow();
+<<<<<<< HEAD:crates/recursion/circuit-v2/src/machine/deferred.rs
+=======
             // Assert that the `vk_root` is the same as the witnessed one.
             for (elem, expected) in current_public_values.vk_root.iter().zip(vk_root.iter()) {
                 builder.assert_felt_eq(*elem, *expected);
             }
+>>>>>>> 1a25bc4b17fd5a123519e29d91b17f89d5f735ee:crates/recursion/circuit/src/machine/deferred.rs
             // Assert that the public values are valid.
             assert_recursion_public_values_valid::<C, SC>(builder, current_public_values);
 
@@ -239,7 +266,11 @@ where
         deferred_public_values.end_reconstruct_challenger = values;
         // Set the exit code to be zero for now.
         deferred_public_values.exit_code = builder.eval(C::F::zero());
+<<<<<<< HEAD:crates/recursion/circuit-v2/src/machine/deferred.rs
+        // Assign the deffered proof digests.
+=======
         // Assign the deferred proof digests.
+>>>>>>> 1a25bc4b17fd5a123519e29d91b17f89d5f735ee:crates/recursion/circuit/src/machine/deferred.rs
         deferred_public_values.end_reconstruct_deferred_digest = reconstruct_deferred_digest;
         // Set the is_complete flag.
         deferred_public_values.is_complete = is_complete;
@@ -247,8 +278,11 @@ where
         deferred_public_values.contains_execution_shard = builder.eval(C::F::zero());
         // Set the cumulative sum to zero.
         deferred_public_values.cumulative_sum = array::from_fn(|_| builder.eval(C::F::zero()));
+<<<<<<< HEAD:crates/recursion/circuit-v2/src/machine/deferred.rs
+=======
         // Set the vk root from the witness.
         deferred_public_values.vk_root = vk_root;
+>>>>>>> 1a25bc4b17fd5a123519e29d91b17f89d5f735ee:crates/recursion/circuit/src/machine/deferred.rs
         // Set the digest according to the previous values.
         deferred_public_values.digest =
             recursion_public_values_digest::<C, SC>(builder, deferred_public_values);

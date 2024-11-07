@@ -103,6 +103,13 @@ impl<F: PrimeField> MachineAir<F> for MemoryProgramChip {
                 );
             });
 
+        // Pad the trace to a power of two depending on the proof shape in `input`.
+        pad_rows_fixed(
+            &mut rows,
+            || [F::zero(); NUM_MEMORY_PROGRAM_PREPROCESSED_COLS],
+            program.fixed_log2_rows::<F, _>(self),
+        );
+
         // Convert the trace to a row major matrix.
         Some(RowMajorMatrix::new(values, NUM_MEMORY_PROGRAM_PREPROCESSED_COLS))
     }

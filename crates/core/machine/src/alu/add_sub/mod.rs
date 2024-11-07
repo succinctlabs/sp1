@@ -103,6 +103,11 @@ impl<F: PrimeField> MachineAir<F> for AddSubChip {
             },
         );
 
+        pad_rows_fixed(
+            &mut rows,
+            || [F::zero(); NUM_ADD_SUB_COLS],
+            input.fixed_log2_rows::<F, _>(self),
+        );
         // Convert the trace to a row major matrix.
         RowMajorMatrix::new(values, NUM_ADD_SUB_COLS)
     }

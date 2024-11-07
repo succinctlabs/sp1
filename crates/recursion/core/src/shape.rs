@@ -11,12 +11,18 @@ use crate::{
     chips::{
         alu_base::BaseAluChip,
         alu_ext::ExtAluChip,
+<<<<<<< HEAD:crates/recursion/core-v2/src/shape.rs
+=======
         batch_fri::BatchFRIChip,
+>>>>>>> 1a25bc4b17fd5a123519e29d91b17f89d5f735ee:crates/recursion/core/src/shape.rs
         exp_reverse_bits::ExpReverseBitsLenChip,
         mem::{MemoryConstChip, MemoryVarChip},
         poseidon2_wide::Poseidon2WideChip,
         public_values::{PublicValuesChip, PUB_VALUES_LOG_HEIGHT},
+<<<<<<< HEAD:crates/recursion/core-v2/src/shape.rs
+=======
         select::SelectChip,
+>>>>>>> 1a25bc4b17fd5a123519e29d91b17f89d5f735ee:crates/recursion/core/src/shape.rs
     },
     machine::RecursionAir,
     RecursionProgram, D,
@@ -32,11 +38,19 @@ pub struct RecursionShapeConfig<F, A> {
     _marker: PhantomData<(F, A)>,
 }
 
+<<<<<<< HEAD:crates/recursion/core-v2/src/shape.rs
+impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize, const COL_PADDING: usize>
+    RecursionShapeConfig<F, RecursionAir<F, DEGREE, COL_PADDING>>
+{
+    pub fn fix_shape(&self, program: &mut RecursionProgram<F>) {
+        let heights = RecursionAir::<F, DEGREE, COL_PADDING>::heights(program);
+=======
 impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize>
     RecursionShapeConfig<F, RecursionAir<F, DEGREE>>
 {
     pub fn fix_shape(&self, program: &mut RecursionProgram<F>) {
         let heights = RecursionAir::<F, DEGREE>::heights(program);
+>>>>>>> 1a25bc4b17fd5a123519e29d91b17f89d5f735ee:crates/recursion/core/src/shape.rs
         // Get the allowed shape with a minimal hamming distance from the current shape.
         let mut min_distance = usize::MAX;
         let mut closest_shape = None;
@@ -73,16 +87,42 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize>
         batch_size: usize,
     ) -> impl Iterator<Item = Vec<ProofShape>> + '_ {
         (0..batch_size)
+<<<<<<< HEAD:crates/recursion/core-v2/src/shape.rs
+            .map(|_| self.allowed_shapes.iter().map(ProofShape::from_map))
+=======
             .map(|_| {
                 self.allowed_shapes
                     .iter()
                     .cloned()
                     .map(|map| map.into_iter().collect::<ProofShape>())
             })
+>>>>>>> 1a25bc4b17fd5a123519e29d91b17f89d5f735ee:crates/recursion/core/src/shape.rs
             .multi_cartesian_product()
     }
 }
 
+<<<<<<< HEAD:crates/recursion/core-v2/src/shape.rs
+impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize, const COL_PADDING: usize>
+    Default for RecursionShapeConfig<F, RecursionAir<F, DEGREE, COL_PADDING>>
+{
+    fn default() -> Self {
+        // Get the names of all the recursion airs to make the shape specification more readable.
+        let mem_const =
+            RecursionAir::<F, DEGREE, COL_PADDING>::MemoryConst(MemoryConstChip::default()).name();
+        let mem_var =
+            RecursionAir::<F, DEGREE, COL_PADDING>::MemoryVar(MemoryVarChip::default()).name();
+        let base_alu = RecursionAir::<F, DEGREE, COL_PADDING>::BaseAlu(BaseAluChip).name();
+        let ext_alu = RecursionAir::<F, DEGREE, COL_PADDING>::ExtAlu(ExtAluChip).name();
+        let poseidon2_wide =
+            RecursionAir::<F, DEGREE, COL_PADDING>::Poseidon2Wide(Poseidon2WideChip::<DEGREE>)
+                .name();
+        let exp_reverse_bits_len = RecursionAir::<F, DEGREE, COL_PADDING>::ExpReverseBitsLen(
+            ExpReverseBitsLenChip::<DEGREE>,
+        )
+        .name();
+        let public_values =
+            RecursionAir::<F, DEGREE, COL_PADDING>::PublicValues(PublicValuesChip).name();
+=======
 impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> Default
     for RecursionShapeConfig<F, RecursionAir<F, DEGREE>>
 {
@@ -99,6 +139,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> Default
         let exp_reverse_bits_len =
             RecursionAir::<F, DEGREE>::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE>).name();
         let public_values = RecursionAir::<F, DEGREE>::PublicValues(PublicValuesChip).name();
+>>>>>>> 1a25bc4b17fd5a123519e29d91b17f89d5f735ee:crates/recursion/core/src/shape.rs
 
         // Specify allowed shapes.
         let allowed_shapes = [
@@ -109,8 +150,11 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> Default
                 (exp_reverse_bits_len.clone(), 17),
                 (mem_const.clone(), 17),
                 (poseidon2_wide.clone(), 16),
+<<<<<<< HEAD:crates/recursion/core-v2/src/shape.rs
+=======
                 (batch_fri.clone(), 18),
                 (select.clone(), 18),
+>>>>>>> 1a25bc4b17fd5a123519e29d91b17f89d5f735ee:crates/recursion/core/src/shape.rs
                 (public_values.clone(), PUB_VALUES_LOG_HEIGHT),
             ],
             [
@@ -120,8 +164,11 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> Default
                 (exp_reverse_bits_len.clone(), 17),
                 (mem_const.clone(), 16),
                 (poseidon2_wide.clone(), 16),
+<<<<<<< HEAD:crates/recursion/core-v2/src/shape.rs
+=======
                 (batch_fri.clone(), 18),
                 (select.clone(), 18),
+>>>>>>> 1a25bc4b17fd5a123519e29d91b17f89d5f735ee:crates/recursion/core/src/shape.rs
                 (public_values.clone(), PUB_VALUES_LOG_HEIGHT),
             ],
             [
@@ -131,8 +178,11 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> Default
                 (poseidon2_wide.clone(), 17),
                 (mem_const.clone(), 16),
                 (exp_reverse_bits_len.clone(), 16),
+<<<<<<< HEAD:crates/recursion/core-v2/src/shape.rs
+=======
                 (batch_fri.clone(), 20),
                 (select.clone(), 18),
+>>>>>>> 1a25bc4b17fd5a123519e29d91b17f89d5f735ee:crates/recursion/core/src/shape.rs
                 (public_values.clone(), PUB_VALUES_LOG_HEIGHT),
             ],
             [
@@ -142,8 +192,11 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> Default
                 (exp_reverse_bits_len.clone(), 17),
                 (mem_const.clone(), 16),
                 (poseidon2_wide.clone(), 16),
+<<<<<<< HEAD:crates/recursion/core-v2/src/shape.rs
+=======
                 (batch_fri.clone(), 18),
                 (select.clone(), 18),
+>>>>>>> 1a25bc4b17fd5a123519e29d91b17f89d5f735ee:crates/recursion/core/src/shape.rs
                 (public_values.clone(), PUB_VALUES_LOG_HEIGHT),
             ],
             [
@@ -153,8 +206,11 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> Default
                 (exp_reverse_bits_len.clone(), 16),
                 (mem_const.clone(), 16),
                 (poseidon2_wide.clone(), 16),
+<<<<<<< HEAD:crates/recursion/core-v2/src/shape.rs
+=======
                 (batch_fri.clone(), 18),
                 (select.clone(), 18),
+>>>>>>> 1a25bc4b17fd5a123519e29d91b17f89d5f735ee:crates/recursion/core/src/shape.rs
                 (public_values.clone(), PUB_VALUES_LOG_HEIGHT),
             ],
             [
@@ -164,8 +220,11 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> Default
                 (exp_reverse_bits_len.clone(), 17),
                 (mem_const.clone(), 17),
                 (poseidon2_wide.clone(), 17),
+<<<<<<< HEAD:crates/recursion/core-v2/src/shape.rs
+=======
                 (batch_fri.clone(), 19),
                 (select.clone(), 19),
+>>>>>>> 1a25bc4b17fd5a123519e29d91b17f89d5f735ee:crates/recursion/core/src/shape.rs
                 (public_values.clone(), PUB_VALUES_LOG_HEIGHT),
             ],
             [
@@ -175,8 +234,11 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> Default
                 (exp_reverse_bits_len.clone(), 18),
                 (mem_const.clone(), 18),
                 (poseidon2_wide.clone(), 17),
+<<<<<<< HEAD:crates/recursion/core-v2/src/shape.rs
+=======
                 (batch_fri.clone(), 19),
                 (select.clone(), 19),
+>>>>>>> 1a25bc4b17fd5a123519e29d91b17f89d5f735ee:crates/recursion/core/src/shape.rs
                 (public_values.clone(), PUB_VALUES_LOG_HEIGHT),
             ],
             [
@@ -186,8 +248,11 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> Default
                 (exp_reverse_bits_len.clone(), 18),
                 (mem_const.clone(), 17),
                 (poseidon2_wide.clone(), 17),
+<<<<<<< HEAD:crates/recursion/core-v2/src/shape.rs
+=======
                 (batch_fri.clone(), 19),
                 (select.clone(), 19),
+>>>>>>> 1a25bc4b17fd5a123519e29d91b17f89d5f735ee:crates/recursion/core/src/shape.rs
                 (public_values.clone(), PUB_VALUES_LOG_HEIGHT),
             ],
             [
@@ -197,8 +262,11 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> Default
                 (poseidon2_wide.clone(), 18),
                 (mem_const.clone(), 17),
                 (exp_reverse_bits_len.clone(), 17),
+<<<<<<< HEAD:crates/recursion/core-v2/src/shape.rs
+=======
                 (batch_fri.clone(), 21),
                 (select.clone(), 19),
+>>>>>>> 1a25bc4b17fd5a123519e29d91b17f89d5f735ee:crates/recursion/core/src/shape.rs
                 (public_values.clone(), PUB_VALUES_LOG_HEIGHT),
             ],
             [
@@ -208,8 +276,11 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> Default
                 (exp_reverse_bits_len.clone(), 18),
                 (mem_const.clone(), 17),
                 (poseidon2_wide.clone(), 17),
+<<<<<<< HEAD:crates/recursion/core-v2/src/shape.rs
+=======
                 (batch_fri.clone(), 19),
                 (select.clone(), 19),
+>>>>>>> 1a25bc4b17fd5a123519e29d91b17f89d5f735ee:crates/recursion/core/src/shape.rs
                 (public_values.clone(), PUB_VALUES_LOG_HEIGHT),
             ],
             [
@@ -219,8 +290,11 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> Default
                 (exp_reverse_bits_len.clone(), 17),
                 (mem_const.clone(), 17),
                 (poseidon2_wide.clone(), 17),
+<<<<<<< HEAD:crates/recursion/core-v2/src/shape.rs
+=======
                 (batch_fri.clone(), 19),
                 (select.clone(), 19),
+>>>>>>> 1a25bc4b17fd5a123519e29d91b17f89d5f735ee:crates/recursion/core/src/shape.rs
                 (public_values.clone(), PUB_VALUES_LOG_HEIGHT),
             ],
             [
@@ -230,8 +304,11 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> Default
                 (exp_reverse_bits_len.clone(), 18),
                 (mem_const.clone(), 18),
                 (poseidon2_wide.clone(), 18),
+<<<<<<< HEAD:crates/recursion/core-v2/src/shape.rs
+=======
                 (batch_fri.clone(), 20),
                 (select.clone(), 19),
+>>>>>>> 1a25bc4b17fd5a123519e29d91b17f89d5f735ee:crates/recursion/core/src/shape.rs
                 (public_values.clone(), PUB_VALUES_LOG_HEIGHT),
             ],
         ]

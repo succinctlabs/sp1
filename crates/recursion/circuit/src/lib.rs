@@ -84,7 +84,12 @@ pub trait BabyBearFriConfig:
         + GrindingChallenger<Witness = BabyBear>
         + FieldChallenger<BabyBear>;
 
+<<<<<<< HEAD
+        let mut backend = ConstraintCompiler::<OuterConfig>::default();
+        let constraints = backend.emit(builder.into_operations());
+=======
     fn fri_config(&self) -> &FriConfig<FriMmcs<Self>>;
+>>>>>>> 1a25bc4b17fd5a123519e29d91b17f89d5f735ee
 
     fn challenger_shape(challenger: &Self::FriChallenger) -> SpongeChallengerShape;
 }
@@ -118,10 +123,15 @@ pub trait CircuitConfig: Config {
 
     fn assert_bit_one(builder: &mut Builder<Self>, bit: Self::Bit);
 
+<<<<<<< HEAD
+        let mut backend = ConstraintCompiler::<OuterConfig>::default();
+        let constraints = backend.emit(builder.into_operations());
+=======
     fn ext2felt(
         builder: &mut Builder<Self>,
         ext: Ext<<Self as Config>::F, <Self as Config>::EF>,
     ) -> [Felt<<Self as Config>::F>; D];
+>>>>>>> 1a25bc4b17fd5a123519e29d91b17f89d5f735ee
 
     fn exp_reverse_bits(
         builder: &mut Builder<Self>,
@@ -137,12 +147,17 @@ pub trait CircuitConfig: Config {
         two_adic_powers_of_x: &[Felt<Self::F>],
     ) -> Felt<Self::F>;
 
+<<<<<<< HEAD
+        let mut backend = ConstraintCompiler::<OuterConfig>::default();
+        let constraints = backend.emit(builder.into_operations());
+=======
     fn batch_fri(
         builder: &mut Builder<Self>,
         alpha_pows: Vec<Ext<Self::F, Self::EF>>,
         p_at_zs: Vec<Ext<Self::F, Self::EF>>,
         p_at_xs: Vec<Felt<Self::F>>,
     ) -> Ext<Self::F, Self::EF>;
+>>>>>>> 1a25bc4b17fd5a123519e29d91b17f89d5f735ee
 
     fn num2bits(
         builder: &mut Builder<Self>,
@@ -163,6 +178,35 @@ pub trait CircuitConfig: Config {
         second: impl IntoIterator<Item = Felt<<Self as Config>::F>> + Clone,
     ) -> Vec<Felt<<Self as Config>::F>>;
 
+<<<<<<< HEAD
+        let mut backend = ConstraintCompiler::<OuterConfig>::default();
+        let constraints = backend.emit(builder.into_operations());
+
+        let mut witness = Witness::default();
+        witness.write_commited_values_digest(commited_values_digest_bn254);
+
+        PlonkBn254Prover::test::<OuterConfig>(constraints.clone(), witness);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_commit_commited_values_digest_fail() {
+        let mut builder = Builder::<OuterConfig>::default();
+        let vkey_hash_bn254 = Bn254Fr::from_canonical_u32(1345237507);
+        let commited_values_digest_bn254 = Bn254Fr::from_canonical_u32(102);
+        let vkey_hash = builder.eval(vkey_hash_bn254);
+        let commited_values_digest = builder.eval(commited_values_digest_bn254);
+        builder.commit_vkey_hash_circuit(vkey_hash);
+        builder.commit_commited_values_digest_circuit(commited_values_digest);
+
+        let mut backend = ConstraintCompiler::<OuterConfig>::default();
+        let constraints = backend.emit(builder.into_operations());
+
+        let mut witness = Witness::default();
+        witness.write_vkey_hash(vkey_hash_bn254);
+
+        PlonkBn254Prover::test::<OuterConfig>(constraints.clone(), witness);
+=======
     #[allow(clippy::type_complexity)]
     fn select_chain_ef(
         builder: &mut Builder<Self>,
@@ -628,5 +672,6 @@ impl<C: CircuitConfig<F = BabyBear, N = Bn254Fr, Bit = Var<Bn254Fr>>> BabyBearFr
 
         let vkey_hash = felts_to_bn254_var(builder, &public_values.sp1_vk_digest);
         builder.commit_vkey_hash_circuit(vkey_hash);
+>>>>>>> 1a25bc4b17fd5a123519e29d91b17f89d5f735ee
     }
 }

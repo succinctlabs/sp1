@@ -129,6 +129,13 @@ impl<F: PrimeField32> MachineAir<F> for LtChip {
             },
         );
 
+        // Pad the trace to a power of two depending on the proof shape in `input`.
+        pad_rows_fixed(
+            &mut rows,
+            || [F::zero(); NUM_LT_COLS],
+            input.fixed_log2_rows::<F, Self>(self),
+        );
+
         // Convert the trace to a row major matrix.
 
         RowMajorMatrix::new(values, NUM_LT_COLS)

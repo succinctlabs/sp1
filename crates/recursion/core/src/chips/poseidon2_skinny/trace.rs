@@ -7,6 +7,10 @@ use std::{
 use itertools::Itertools;
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
+<<<<<<< HEAD:crates/recursion/core-v2/src/chips/poseidon2_skinny/trace.rs
+use p3_matrix::Matrix;
+=======
+>>>>>>> 1a25bc4b17fd5a123519e29d91b17f89d5f735ee:crates/recursion/core/src/chips/poseidon2_skinny/trace.rs
 use sp1_core_machine::utils::pad_rows_fixed;
 use sp1_primitives::RC_16_30_U32;
 use sp1_stark::air::MachineAir;

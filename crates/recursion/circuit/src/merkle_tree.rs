@@ -1,7 +1,11 @@
 use std::fmt::Debug;
 
+<<<<<<< HEAD:crates/recursion/circuit-v2/src/merkle_tree.rs
+use itertools::Itertools;
+=======
 use rayon::prelude::*;
 
+>>>>>>> 1a25bc4b17fd5a123519e29d91b17f89d5f735ee:crates/recursion/circuit/src/merkle_tree.rs
 use p3_field::Field;
 use p3_util::{reverse_bits_len, reverse_slice_index_bits};
 use serde::{Deserialize, Serialize};
@@ -28,9 +32,13 @@ pub struct MerkleTree<F: Field, HV: FieldHasher<F>> {
 }
 pub struct VcsError;
 
+<<<<<<< HEAD:crates/recursion/circuit-v2/src/merkle_tree.rs
+#[derive(Debug, Clone)]
+=======
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(bound(serialize = "HV::Digest: Serialize"))]
 #[serde(bound(deserialize = "HV::Digest: Deserialize<'de>"))]
+>>>>>>> 1a25bc4b17fd5a123519e29d91b17f89d5f735ee:crates/recursion/circuit/src/merkle_tree.rs
 pub struct MerkleProof<F: Field, HV: FieldHasher<F>> {
     pub index: usize,
     pub path: Vec<HV::Digest>,
@@ -66,6 +74,11 @@ impl<F: Field, HV: FieldHasher<F>> MerkleTree<F, HV> {
         // Compute the rest of the layers.
         for _ in 0..height - 1 {
             let mut next_layer = Vec::with_capacity(last_layer.len() / 2);
+<<<<<<< HEAD:crates/recursion/circuit-v2/src/merkle_tree.rs
+            for (a, b) in last_layer.iter().tuples() {
+                next_layer.push(HV::constant_compress([*a, *b]));
+            }
+=======
             last_layer
                 .par_chunks_exact(2)
                 .map(|chunk| {
@@ -73,6 +86,7 @@ impl<F: Field, HV: FieldHasher<F>> MerkleTree<F, HV> {
                     HV::constant_compress([left, right])
                 })
                 .collect_into_vec(&mut next_layer);
+>>>>>>> 1a25bc4b17fd5a123519e29d91b17f89d5f735ee:crates/recursion/circuit/src/merkle_tree.rs
             digest_layers.extend(next_layer.iter());
 
             last_layer = next_layer;
@@ -160,7 +174,11 @@ mod tests {
         config::InnerConfig,
         ir::{Builder, Felt},
     };
+<<<<<<< HEAD:crates/recursion/circuit-v2/src/merkle_tree.rs
+    use sp1_recursion_core_v2::DIGEST_SIZE;
+=======
     use sp1_recursion_core::DIGEST_SIZE;
+>>>>>>> 1a25bc4b17fd5a123519e29d91b17f89d5f735ee:crates/recursion/circuit/src/merkle_tree.rs
     use sp1_stark::baby_bear_poseidon2::BabyBearPoseidon2;
     use zkhash::ark_ff::UniformRand;
 

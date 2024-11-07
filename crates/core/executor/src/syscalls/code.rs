@@ -129,6 +129,8 @@ pub enum SyscallCode {
     /// Executes the `BN254_FP2_MUL` precompile.
     BN254_FP2_MUL = 0x00_01_01_2B,
 
+    /// Executes the `U256XU2048_MUL` precompile.
+    U256XU2048_MUL = 0x00_01_01_2F,
     /// Executes the `SECP256R1_ADD` precompile.
     SECP256R1_ADD = 0x00_01_01_2C,
 
@@ -179,6 +181,7 @@ impl SyscallCode {
             0x00_01_01_2A => SyscallCode::BN254_FP2_SUB,
             0x00_01_01_2B => SyscallCode::BN254_FP2_MUL,
             0x00_00_01_1C => SyscallCode::BLS12381_DECOMPRESS,
+            0x00_01_01_2F => SyscallCode::U256XU2048_MUL,
             0x00_01_01_2C => SyscallCode::SECP256R1_ADD,
             0x00_00_01_2D => SyscallCode::SECP256R1_DOUBLE,
             0x00_00_01_2E => SyscallCode::SECP256R1_DECOMPRESS,

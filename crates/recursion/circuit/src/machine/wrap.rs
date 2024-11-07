@@ -35,13 +35,21 @@ where
     ///
     /// The compression verifier can aggregate proofs of different kinds:
     /// - Core proofs: proofs which are recursive proof of a batch of SP1 shard proofs. The
+<<<<<<< HEAD:crates/recursion/circuit-v2/src/machine/wrap.rs
+    ///   implementation in this function assumes a fixed recursive verifier speicified by
+=======
     ///   implementation in this function assumes a fixed recursive verifier specified by
+>>>>>>> 1a25bc4b17fd5a123519e29d91b17f89d5f735ee:crates/recursion/circuit/src/machine/wrap.rs
     ///   `recursive_vk`.
     /// - Deferred proofs: proofs which are recursive proof of a batch of deferred proofs. The
     ///   implementation in this function assumes a fixed deferred verification program specified by
     ///   `deferred_vk`.
     /// - Compress proofs: these are proofs which refer to a prove of this program. The key for it
+<<<<<<< HEAD:crates/recursion/circuit-v2/src/machine/wrap.rs
+    ///   is part of public values will be propagated accross all levels of recursion and will be
+=======
     ///   is part of public values will be propagated across all levels of recursion and will be
+>>>>>>> 1a25bc4b17fd5a123519e29d91b17f89d5f735ee:crates/recursion/circuit/src/machine/wrap.rs
     ///   checked against itself as in [sp1_prover::Prover] or as in [super::SP1RootVerifier].
     pub fn verify(
         builder: &mut Builder<C>,
@@ -71,6 +79,11 @@ where
         challenger
             .observe_slice(builder, proof.public_values[0..machine.num_pv_elts()].iter().copied());
 
+<<<<<<< HEAD:crates/recursion/circuit-v2/src/machine/wrap.rs
+        assert!(!proof.contains_global_main_commitment());
+
+=======
+>>>>>>> 1a25bc4b17fd5a123519e29d91b17f89d5f735ee:crates/recursion/circuit/src/machine/wrap.rs
         let zero_ext: Ext<C::F, C::EF> = builder.eval(C::F::zero());
         StarkVerifier::verify_shard(
             builder,

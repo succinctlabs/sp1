@@ -6,10 +6,15 @@ use p3_field::{
     AbstractExtensionField, AbstractField, Field, PrimeField, PrimeField64, TwoAdicField,
 };
 use sp1_core_machine::utils::{sp1_debug_mode, SpanBuilder};
+<<<<<<< HEAD
+use sp1_recursion_core::air::{Block, RecursionPublicValues, RECURSIVE_PROOF_NUM_PV_ELTS};
+use sp1_recursion_core_v2::{BaseAluInstr, BaseAluOpcode};
+=======
 use sp1_recursion_core::{
     air::{Block, RecursionPublicValues, RECURSIVE_PROOF_NUM_PV_ELTS},
     BaseAluInstr, BaseAluOpcode,
 };
+>>>>>>> 1a25bc4b17fd5a123519e29d91b17f89d5f735ee
 use std::{borrow::Borrow, collections::HashMap, iter::repeat, mem::transmute};
 use vec_map::VecMap;
 
@@ -476,8 +481,11 @@ where
             DslIr::InvV(dst, src) => f(self.base_alu(DivF, dst, Imm::F(C::F::one()), src)),
             DslIr::InvF(dst, src) => f(self.base_alu(DivF, dst, Imm::F(C::F::one()), src)),
             DslIr::InvE(dst, src) => f(self.ext_alu(DivE, dst, Imm::F(C::F::one()), src)),
+<<<<<<< HEAD
+=======
 
             DslIr::Select(bit, dst1, dst2, lhs, rhs) => f(self.select(bit, dst1, dst2, lhs, rhs)),
+>>>>>>> 1a25bc4b17fd5a123519e29d91b17f89d5f735ee
 
             DslIr::AssertEqV(lhs, rhs) => self.base_assert_eq(lhs, rhs, f),
             DslIr::AssertEqF(lhs, rhs) => self.base_assert_eq(lhs, rhs, f),
@@ -879,7 +887,11 @@ mod tests {
 
         // Run with the poseidon2 wide chip.
         let wide_machine =
+<<<<<<< HEAD
+            RecursionAir::<_, 3, 0>::machine_wide_with_all_chips(BabyBearPoseidon2::default());
+=======
             RecursionAir::<_, 3>::machine_wide_with_all_chips(BabyBearPoseidon2::default());
+>>>>>>> 1a25bc4b17fd5a123519e29d91b17f89d5f735ee
         let (pk, vk) = wide_machine.setup(&program);
         let result = run_test_machine(vec![record.clone()], wide_machine, pk, vk);
         if let Err(e) = result {
@@ -887,7 +899,11 @@ mod tests {
         }
 
         // Run with the poseidon2 skinny chip.
+<<<<<<< HEAD
+        let skinny_machine = RecursionAir::<_, 9, 0>::machine_skinny_with_all_chips(
+=======
         let skinny_machine = RecursionAir::<_, 9>::machine_skinny_with_all_chips(
+>>>>>>> 1a25bc4b17fd5a123519e29d91b17f89d5f735ee
             BabyBearPoseidon2::ultra_compressed(),
         );
         let (pk, vk) = skinny_machine.setup(&program);
