@@ -232,6 +232,48 @@ jobs:
             ${{ steps.artifacts.outputs.file_name }}
             ${{ steps.man.outputs.cargo_prove_man }}
 
+  toolchain-test:
+    name: "Test toolchain installation (${{ matrix.name }})"
+    needs: release
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: "Ubuntu 24.04 (x86_64)"
+            runner: "ubuntu-24.04"
+          - name: "Ubuntu 22.04 (x86_64)"
+            runner: "ubuntu-22.04"
+          - name: "Ubuntu 20.04 (x86_64)"
+            runner: "ubuntu-20.04"
+          - name: "macOS Monterey (x86_64)"
+            runner: "macos-12"
+          - name: "macOS Ventura (x86_64)"
+            runner: "macos-13"
+          - name: "macOS Sonoma (ARM64)"
+            runner: "macos-14"
+
+    runs-on: "${{ matrix.runner }}"
+    steps:
+      - name: "Checkout source code"
+        uses: "actions/checkout@v4"
+
+      - name: "Install SP1"
+        env:
+          SP1UP_VERSION: ${{ github.ref_name }}
+        run: |
+          cd sp1up
+          chmod +x sp1up
+          ./sp1up
+
+      - name: "Create SP1 project from template"
+        run: |
+          cargo prove new hello
+
+      - name: "Build SP1 project"
+        run: |
+          cd ./hello/program
+          cargo prove build
+
   cleanup:
     name: Release cleanup
     runs-on: ubuntu-latest
