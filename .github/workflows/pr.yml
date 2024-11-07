@@ -417,7 +417,14 @@ jobs:
 
   lock-files:
     name: "Check lock files"
-    runs-on: ["runs-on", "runner=8cpu-linux-x64", "hdd=150", "run-id=${{ github.run_id }}"]
+    runs-on:
+      [
+        runs-on,
+        runner=64cpu-linux-x64,
+        spot=false,
+        hdd=150,
+        "run-id=${{ github.run_id }}",
+      ]    
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
