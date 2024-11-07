@@ -48,7 +48,7 @@ pub fn execute_build_program(
 
     let target_elf_paths = generate_elf_paths(&program_metadata, Some(args))?;
 
-    if args.binaries.is_empty() && args.packages.is_empty() && !target_elf_paths.is_empty() {
+    if args.binaries.is_empty() && args.packages.is_empty() && target_elf_paths.len() == 1 {
         // Backward compatibility: if the --bin and -p args are not set, default to riscv32im-succinct-zkvm-elf
         copy_elf_to_output_dir(args, &program_metadata, BUILD_TARGET, &target_elf_paths[0].1)?;
     } else {
