@@ -37,6 +37,11 @@ impl<E: EllipticCurve> Syscall for WeierstrassDoubleAssignSyscall<E> {
                     PrecompileEvent::Secp256k1Double(event),
                 );
             }
+            CurveType::Secp256r1 => rt.record_mut().add_precompile_event(
+                syscall_code,
+                syscall_event,
+                PrecompileEvent::Secp256r1Double(event),
+            ),
             CurveType::Bn254 => {
                 rt.add_precompile_event(
                     syscall_code,

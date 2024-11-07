@@ -36,6 +36,8 @@ typenum = "1.17.0"
 elliptic-curve = "0.13.8"
 hex = "0.4.3"
 k256 = { version = "0.13.3", features = ["expose-field"] }
+p256 = { version = "0.13.2", features = ["expose-field"] }
+
 num_cpus = "1.16.0"
 size = "0.4.1"
 tempfile = "3.10.1"
