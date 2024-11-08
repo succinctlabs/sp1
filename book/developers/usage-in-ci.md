@@ -45,8 +45,8 @@ Try setting a github actions secret to your PAT, and then passing it into the `s
 
 ### Caching
 
-To speed up your CI workflow, you can cache the Rust toolchain and SP1 toolchain. See this example
-from SP1's CI workflow, which caches
+To speed up your CI workflow, you can cache the Rust toolchain and Succinct toolchain. See this example
+from SP1's CI workflow, which caches the `~/.cargo` and parts of the `~/.sp1` directories.
 
 ```yaml
 - name: rust-cache
