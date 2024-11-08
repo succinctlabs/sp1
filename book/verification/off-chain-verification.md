@@ -10,17 +10,17 @@ the [Groth16 Example](https://github.com/succinctlabs/sp1/tree/main/examples/gro
 
 ### Installation
 
-Import the following dependency in your `Cargo.toml`:
+Import the following dependency in your `Cargo.toml`. Note that the `sp1-verifier` crate was added in version `3.2.1`.
 
 ```toml
-sp1-verifier = {version = "3.0.0", default-features = false}
+sp1-verifier = {version = "3.2.1", default-features = false}
 ```
 
 ### Usage
 
 `sp1-verifier`'s interface is very similar to the solidity verifier's. It exposes two public functions:
-[`Groth16Verifier::verify_proof`](https://docs.rs/sp1-verifier/latest/src/sp1_verifier/groth16.rs.html)
-and [`PlonkVerifier::verify_proof`](https://docs.rs/sp1-verifier/latest/src/sp1_verifier/plonk.rs.html).
+[`Groth16Verifier::verify_proof`](https://docs.rs/sp1-verifier/latest/sp1_verifier/struct.Groth16Verifier.html)
+and [`PlonkVerifier::verify_proof`](https://docs.rs/sp1-verifier/latest/sp1_verifier/struct.PlonkVerifier.html).
 
 `sp1-verifier` also exposes the Groth16 and Plonk verifying keys as constants, `GROTH16_VK_BYTES` and `PLONK_VK_BYTES`. These
 keys correspond to the current SP1 version's official Groth16 and Plonk verifying keys, which are used for verifying proofs generated
