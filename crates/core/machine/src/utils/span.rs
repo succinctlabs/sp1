@@ -109,7 +109,8 @@ where
 
     /// Calculate the total number of items counted by this span and its children.
     pub fn total(&self) -> usize {
-        self.cts.values().cloned().chain(self.children.iter().map(|x| x.total())).sum()
+        // Counts are already added from children.
+        self.cts.values().cloned().sum()
     }
 
     /// Format and yield lines describing this span. Appropriate for logging.
