@@ -39,6 +39,7 @@ num-bigint = "0.4.6"
 thiserror = "1.0.63"
 lru = "0.12.4"
 eyre = "0.6.12"
+test-artifacts = { workspace = true, optional = true }
 
 [dev-dependencies]
 test-artifacts = { workspace = true }
@@ -65,5 +66,5 @@ path = "scripts/e2e.rs"
 
 [features]
 native-gnark = ["sp1-recursion-gnark-ffi/native"]
-export-tests = []
+export-tests = ["dep:test-artifacts"]
 debug = ["sp1-core-machine/debug"]

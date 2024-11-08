@@ -1215,7 +1215,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
     }
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "export-tests"))]
 pub mod tests {
 
     use std::{

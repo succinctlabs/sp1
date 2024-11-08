@@ -50,6 +50,7 @@ p3-merkle-tree = { workspace = true }
 p3-poseidon2 = { workspace = true }
 zkhash = "0.2.0"
 rand = "0.8.5"
+test-artifacts = { workspace = true }
 
 [features]
 native-gnark = ["sp1-recursion-gnark-ffi/native"]
