@@ -1,6 +1,6 @@
 use std::{
-    fs::File,
-    io::{self, Read, Write},
+    fs::{self, File},
+    io::{self, Write},
     path::{Path, PathBuf},
 };
 
@@ -126,15 +126,13 @@ impl PlonkBn254Prover {
 
     /// Modify the PlonkVerifier so that it works with the SP1Verifier.
     fn modify_plonk_verifier(file_path: &Path) -> io::Result<()> {
-        let mut file = File::options().read(true).write(true).open(file_path)?;
-        let mut content = String::new();
-        file.read_to_string(&mut content)?;
+        let mut content = fs::read_to_string(file_path)?;
 
         // Update the pragma version
         content = content.replace("pragma solidity ^0.8.0;", "pragma solidity ^0.8.20;");
 
         // Write back to file
-        file.write_all(content.as_bytes())?;
+        fs::write(file_path, content)?;
 
         Ok(())
     }
