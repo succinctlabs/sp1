@@ -274,6 +274,34 @@ jobs:
           cd ./hello/program
           $HOME/.sp1/bin/cargo-prove prove build
 
+  toolchain-test-ec2:
+    name: "Test toolchain installation (${{ matrix.name }})"
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # AMI from `us-east-1`
+          - name: "Debian 12 (x86_64)"
+            ec2-instance: "c5.2xlarge"
+            ami: "ami-064519b8c76274859"
+            volume: "/dev/xvda"
+          - name: "Debian 12 (ARM64)"
+            ec2-instance: "c6g.2xlarge"
+            ami: "ami-0789039e34e739d67"
+            volume: "/dev/xvda"
+    uses: "./.github/workflows/toolchain-ec2.yml"
+    with:
+      image-id: "${{ matrix.ami }}"
+      instance-type: "${{ matrix.ec2-instance }}"
+      root-volume: "${{ matrix.volume }}"
+    secrets:
+      AWS_REGION: "${{ secrets.AWS_REGION }}"
+      AWS_ACCESS_KEY_ID: "${{ secrets.AWS_ACCESS_KEY_ID }}"
+      AWS_SECRET_ACCESS_KEY: "${{ secrets.AWS_SECRET_ACCESS_KEY }}"
+      AWS_SUBNET_ID: "${{ secrets.AWS_SUBNET_ID }}"
+      AWS_SG_ID: "${{ secrets.AWS_SG_ID }}"
+      GH_PAT: "${{ secrets.GH_PAT }}"
+
   cleanup:
     name: Release cleanup
     runs-on: ubuntu-latest
