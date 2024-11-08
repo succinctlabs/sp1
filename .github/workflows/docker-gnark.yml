@@ -7,9 +7,10 @@ on:
     branches:
       - "**"
     paths:
-      - "recursion/gnark-ffi/**"
-      - "recursion/gnark-cli/**"
-      - "!recursion/gnark-ffi/assets/**"
+      - "crates/**"
+      - "examples/**"
+      - "Cargo.toml"
+      - ".github/workflows/**"
   merge_group:
 
 jobs:
