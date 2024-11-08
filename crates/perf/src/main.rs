@@ -17,6 +17,8 @@ struct PerfArgs {
     pub stdin: String,
     #[arg(short, long)]
     pub mode: ProverMode,
+    #[arg(short, long, default_value = "prove")]
+    pub stage: Stage,
 }
 
 #[derive(Default, Debug, Clone)]
@@ -41,6 +43,12 @@ enum ProverMode {
     Network,
 }
 
+#[derive(Debug, Clone, ValueEnum, PartialEq, Eq)]
+enum Stage {
+    Execute,
+    Prove,
+}
+
 pub fn time_operation<T, F: FnOnce() -> T>(operation: F) -> (T, std::time::Duration) {
     let start = Instant::now();
     let result = operation();
@@ -59,6 +67,11 @@ fn main() {
     let prover = SP1Prover::<DefaultProverComponents>::new();
     let (pk, vk) = prover.setup(&elf);
     let cycles = sp1_prover::utils::get_cycles(&elf, &stdin);
+    let stage = args.stage;
+    if stage == Stage::Execute {
+        println!("Program executed successfully, number of cycles: {}", cycles);
+        return;
+    }
     let opts = SP1ProverOpts::default();
 
     match args.mode {
