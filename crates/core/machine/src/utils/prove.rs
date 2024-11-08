@@ -639,13 +639,18 @@ where
 
                                     #[cfg(debug_assertions)]
                                     {
-                                        if let Some(shape) = record.shape {
+                                        if let Some(shape) = record.shape.as_ref() {
                                             assert_eq!(
                                                 proof.shape(),
                                                 shape.clone().into_iter().collect(),
                                             );
                                         }
                                     }
+
+                                    rayon::spawn(move || {
+                                        drop(record);
+                                    });
+
                                     proof
                                 },
                             ),

@@ -5473,6 +5473,7 @@ dependencies = [
  "p3-uni-stark",
  "p3-util",
  "rand 0.8.5",
+ "rayon",
  "serde",
  "size",
  "snowbridge-amcl",
