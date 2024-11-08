@@ -534,6 +534,5 @@ where
         self.record.base_alu_events.reserve(event_counts.base_alu_events);
         self.record.ext_alu_events.reserve(event_counts.ext_alu_events);
         self.record.exp_reverse_bits_len_events.reserve(event_counts.exp_reverse_bits_len_events);
-        self.record.select_events.reserve(event_counts.select_events);
     }
 }
