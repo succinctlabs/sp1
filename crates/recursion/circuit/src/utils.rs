@@ -107,7 +107,6 @@ pub(crate) mod tests {
     use sp1_recursion_core::{machine::RecursionAir, Runtime};
     use sp1_stark::{
         baby_bear_poseidon2::BabyBearPoseidon2, CpuProver, InnerChallenge, InnerVal, MachineProver,
-        MachineProvingKey,
     };
 
     use crate::witness::WitnessBlock;
@@ -145,8 +144,8 @@ pub(crate) mod tests {
         let proof_wide_span = tracing::debug_span!("Run test with wide machine").entered();
         let wide_machine = RecursionAir::<_, 3>::compress_machine(SC::default());
         let (pk, vk) = wide_machine.setup(&program);
-        let pk = P::DeviceProvingKey::from_host(&pk);
         let prover = P::new(wide_machine);
+        let pk = prover.pk_to_device(&pk);
         let result = run_test_machine_with_prover::<_, _, P>(&prover, records.clone(), pk, vk);
         proof_wide_span.exit();
 

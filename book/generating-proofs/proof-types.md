@@ -28,9 +28,9 @@ client.prove(&pk, stdin).compressed().run().unwrap();
 
 ## Groth16 (Recommended)
 
-The Groth16 prover mode generate a SNARK proof that is ~260 bytes large and can be verified onchain for around ~270k gas. 
+The Groth16 prover mode generates a SNARK proof that is ~260 bytes large and can be verified onchain for around ~270k gas. 
 
-The trusted setup for the Groth16 circuit keys uses the [Aztec Ignition ceremony](https://github.com/AztecProtocol/ignition-verification) + entropy contributions from members of the Succinct team.
+The trusted setup for the Groth16 circuit keys uses the [Aztec Ignition ceremony](https://github.com/AztecProtocol/ignition-verification) + entropy contributions from members of the Succinct team. If you are uncomfortable with the security assumptions of the ceremony, you can use the PLONK proof type instead.
 
 ```rust,noplayground
 let client = ProverClient::new();
@@ -39,9 +39,9 @@ client.prove(&pk, stdin).groth16().run().unwrap();
 
 ## PLONK
 
-The PLONK prover mode generate a SNARK proof that is ~868 bytes large and can also be verified onchain for around ~300k gas. Plonk proofs take about ~1m30s longer to generate over a compressed proof.
+The PLONK prover mode generates a SNARK proof that is ~868 bytes large and can also be verified onchain for around ~300k gas. Plonk proofs take about ~1m30s longer to generate over a compressed proof.
 
-PLONK does not require a trusted setup.
+PLONK does not require a trusted setup and reuses contributions from the Aztec Ignition ceremony.
 
 ```rust,noplayground
 let client = ProverClient::new();

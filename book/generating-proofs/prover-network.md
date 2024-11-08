@@ -7,3 +7,5 @@ Succinct [has been building](https://blog.succinct.xyz/succinct-network/) the Su
 To get started, **[FILL OUT THIS FORM](https://forms.gle/rTUvhstS8PFfv9B3A)** to gain access to the Succinct
 Network. Completing this form requires you to complete the [key
 setup](./prover-network/key-setup.md) steps below.
+
+**Note:** The Succinct Prover Network requires access to your program and entire input, so that provers can generate a proof, meaning your input does not remain private to provers on the network. If you are using SP1 for its zero-knowledge properties, you should either run proof generation on a local machine (recommended), or understand the honesty assumptions required of provers of the network.
