@@ -39,6 +39,8 @@ num-bigint = "0.4.6"
 thiserror = "1.0.63"
 lru = "0.12.4"
 eyre = "0.6.12"
+
+[dev-dependencies]
 test-artifacts = { workspace = true }
 
 [[bin]]
