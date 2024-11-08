@@ -460,6 +460,9 @@ jobs:
       - name: Checkout sources
         uses: actions/checkout@v4
 
+      - name: Setup CI
+        uses: ./.github/actions/setup
+
       - name: Run cargo test
         uses: actions-rs/cargo@v1
         with:
