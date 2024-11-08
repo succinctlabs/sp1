@@ -63,8 +63,7 @@ impl Groth16Bn254Prover {
             .replace("{SP1_CIRCUIT_VERSION}", SP1_CIRCUIT_VERSION)
             .replace("{VERIFIER_HASH}", format!("0x{}", hex::encode(vkey_hash)).as_str())
             .replace("{PROOF_SYSTEM}", "Groth16");
-        let mut sp1_verifier_file = File::create(sp1_verifier_path).unwrap();
-        sp1_verifier_file.write_all(sp1_verifier_str.as_bytes()).unwrap();
+        fs::write(sp1_verifier_path, sp1_verifier_str).unwrap();
 
         let groth16_verifier_path = build_dir.join("Groth16Verifier.sol");
         Self::modify_groth16_verifier(&groth16_verifier_path).unwrap();
