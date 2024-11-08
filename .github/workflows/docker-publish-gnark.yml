@@ -1,4 +1,4 @@
-name: docker-gnark
+name: Docker Publish Gnark
 
 on:
   push:
