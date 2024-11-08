@@ -295,7 +295,7 @@ impl<F: AbstractField> Mul for SepticExtension<F> {
                 if k < 7 {
                     res[k] += self.0[i].clone() * rhs.0[j].clone();
                 } else {
-                    let rem = k % 7;
+                    let rem = k - 7;
                     let prod = self.0[i].clone() * rhs.0[j].clone();
                     res[rem] += prod.clone() * F::from_canonical_u32(5);
                     res[rem + 1] += prod.clone() * F::from_canonical_u32(2);
@@ -583,17 +583,18 @@ impl<F: Field> SepticExtension<F> {
 impl<F: PrimeField32> SepticExtension<F> {
     /// Returns whether the extension field element viewed as an y-coordinate of a digest represents a receive interaction.
     pub fn is_receive(&self) -> bool {
-        self.0[6].as_canonical_u32() < (F::ORDER_U32 - 1) / 2
+        1 <= self.0[6].as_canonical_u32() && self.0[6].as_canonical_u32() <= (F::ORDER_U32 - 1) / 2
     }
 
     /// Returns whether the extension field element viewed as an y-coordinate of a digest represents a send interaction.
     pub fn is_send(&self) -> bool {
-        self.0[6].as_canonical_u32() > (F::ORDER_U32 - 1) / 2
+        (F::ORDER_U32 + 1) / 2 <= self.0[6].as_canonical_u32()
+            && self.0[6].as_canonical_u32() <= (F::ORDER_U32 - 1)
     }
 
     /// Returns whether the extension field element viewed as an y-coordinate of a digest cannot represent anything.
     pub fn is_exception(&self) -> bool {
-        self.0[6].as_canonical_u32() == (F::ORDER_U32 - 1) / 2
+        self.0[6].as_canonical_u32() == 0
     }
 }
 
@@ -639,6 +640,21 @@ impl<F: Field> CipollaExtension<F> {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[repr(C)]
 pub struct SepticBlock<T>(pub [T; 7]);
+
+impl<T> SepticBlock<T> {
+    /// Maps a `SepticBlock<T>` to `SepticBlock<U>` based on a map from `T` to `U`.
+    pub fn map<F, U>(self, f: F) -> SepticBlock<U>
+    where
+        F: FnMut(T) -> U,
+    {
+        SepticBlock(self.0.map(f))
+    }
+
+    /// A function similar to `core:array::from_fn`.
+    pub fn from_base_fn<G: FnMut(usize) -> T>(f: G) -> Self {
+        Self(array::from_fn(f))
+    }
+}
 
 impl<T: Clone> SepticBlock<T> {
     /// Takes a `SepticBlock` into a `SepticExtension` of expressions.

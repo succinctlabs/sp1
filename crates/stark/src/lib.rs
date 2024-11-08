@@ -34,6 +34,7 @@ mod prover;
 mod quotient;
 mod record;
 pub mod septic_curve;
+pub mod septic_digest;
 pub mod septic_extension;
 mod types;
 mod util;

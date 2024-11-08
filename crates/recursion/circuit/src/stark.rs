@@ -33,12 +33,13 @@ use crate::{
     domain::PolynomialSpaceVariable, fri::verify_two_adic_pcs, BabyBearFriConfigVariable,
     TwoAdicPcsRoundVariable, VerifyingKeyVariable,
 };
+use sp1_stark::septic_digest::SepticDigest;
 
 /// Reference: [sp1_core::stark::ShardProof]
 #[derive(Clone)]
 pub struct ShardProofVariable<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVariable<C>> {
     pub commitment: ShardCommitment<SC::DigestVariable>,
-    pub opened_values: ShardOpenedValues<Ext<C::F, C::EF>>,
+    pub opened_values: ShardOpenedValues<Felt<C::F>, Ext<C::F, C::EF>>,
     pub opening_proof: TwoAdicPcsProofVariable<C, SC>,
     pub chip_ordering: HashMap<String, usize>,
     pub public_values: Vec<Felt<C::F>>,
@@ -59,8 +60,7 @@ pub fn dummy_vk_and_shard_proof<A: MachineAir<BabyBear>>(
 ) -> (StarkVerifyingKey<BabyBearPoseidon2>, ShardProof<BabyBearPoseidon2>) {
     // Make a dummy commitment.
     let commitment = ShardCommitment {
-        global_main_commit: dummy_hash(),
-        local_main_commit: dummy_hash(),
+        main_commit: dummy_hash(),
         permutation_commit: dummy_hash(),
         quotient_commit: dummy_hash(),
     };
@@ -188,7 +188,7 @@ pub fn dummy_vk_and_shard_proof<A: MachineAir<BabyBear>>(
 fn dummy_opened_values<F: Field, EF: ExtensionField<F>, A: MachineAir<F>>(
     chip: &Chip<F, A>,
     log_degree: usize,
-) -> ChipOpenedValues<EF> {
+) -> ChipOpenedValues<F, EF> {
     let preprocessed_width = chip.preprocessed_width();
     let preprocessed = AirOpenedValues {
         local: vec![EF::zero(); preprocessed_width],
@@ -211,7 +211,7 @@ fn dummy_opened_values<F: Field, EF: ExtensionField<F>, A: MachineAir<F>>(
         main,
         permutation,
         quotient,
-        global_cumulative_sum: EF::zero(),
+        global_cumulative_sum: SepticDigest::<F>::zero(),
         local_cumulative_sum: EF::zero(),
         log_degree,
     }
@@ -309,14 +309,9 @@ where
             .map(|log_degree| Self::natural_domain_for_degree(machine.config(), 1 << log_degree))
             .collect::<Vec<_>>();
 
-        let ShardCommitment {
-            global_main_commit,
-            local_main_commit,
-            permutation_commit,
-            quotient_commit,
-        } = *commitment;
+        let ShardCommitment { main_commit, permutation_commit, quotient_commit } = *commitment;
 
-        challenger.observe(builder, local_main_commit);
+        challenger.observe(builder, main_commit);
 
         let local_permutation_challenges =
             (0..2).map(|_| challenger.sample_ext(builder)).collect::<Vec<_>>();
@@ -433,33 +428,15 @@ where
             })
             .collect::<Vec<_>>();
 
-        // Split the main_domains_points_and_opens to the global and local chips.
-        let mut global_trace_points_and_openings = Vec::new();
-        let mut local_trace_points_and_openings = Vec::new();
-        for (i, points_and_openings) in
-            main_domains_points_and_opens.clone().into_iter().enumerate()
-        {
-            let scope = chip_scopes[i];
-            if scope == InteractionScope::Global {
-                global_trace_points_and_openings.push(points_and_openings);
-            } else {
-                local_trace_points_and_openings.push(points_and_openings);
-            }
-        }
-
         // Create the pcs rounds.
         let prep_commit = vk.commitment;
         let prep_round = TwoAdicPcsRoundVariable {
             batch_commit: prep_commit,
             domains_points_and_opens: preprocessed_domains_points_and_opens,
         };
-        let global_main_round = TwoAdicPcsRoundVariable {
-            batch_commit: global_main_commit,
-            domains_points_and_opens: global_trace_points_and_openings,
-        };
-        let local_main_round = TwoAdicPcsRoundVariable {
-            batch_commit: local_main_commit,
-            domains_points_and_opens: local_trace_points_and_openings,
+        let main_round = TwoAdicPcsRoundVariable {
+            batch_commit: main_commit,
+            domains_points_and_opens: main_domains_points_and_opens,
         };
         let perm_round = TwoAdicPcsRoundVariable {
             batch_commit: permutation_commit,
@@ -470,11 +447,7 @@ where
             domains_points_and_opens: quotient_domains_points_and_opens,
         };
 
-        let rounds = if has_global_main_commit {
-            vec![prep_round, global_main_round, local_main_round, perm_round, quotient_round]
-        } else {
-            vec![prep_round, local_main_round, perm_round, quotient_round]
-        };
+        let rounds = vec![prep_round, main_round, perm_round, quotient_round];
 
         // Verify the pcs proof
         builder.cycle_tracker_v2_enter("stage-d-verify-pcs".to_string());

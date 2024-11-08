@@ -5,7 +5,7 @@ use p3_matrix::{dense::RowMajorMatrixView, stack::VerticalPair, Matrix};
 use p3_maybe_rayon::prelude::*;
 use p3_util::log2_strict_usize;
 
-use crate::air::MachineAir;
+use crate::{air::MachineAir, septic_digest::SepticDigest};
 
 use super::{
     folder::ProverConstraintFolder, Chip, Domain, PackedChallenge, PackedVal, StarkGenericConfig,
@@ -18,7 +18,8 @@ use super::{
 #[allow(clippy::too_many_lines)]
 pub fn quotient_values<SC, A, Mat>(
     chip: &Chip<Val<SC>, A>,
-    cumulative_sums: &[SC::Challenge],
+    local_cumulative_sum: &SC::Challenge,
+    global_cumulative_sum: &SepticDigest<Val<SC>>,
     trace_domain: Domain<SC>,
     quotient_domain: Domain<SC>,
     preprocessed_trace_on_quotient_domain: Option<Mat>,
@@ -102,28 +103,32 @@ where
                 .collect();
 
             let perm_local: Vec<_> = (0..perm_width)
+                .step_by(ext_degree)
                 .map(|col| {
-                    PackedVal::<SC>::from_fn(|offset| {
-                        permutation_trace_on_quotient_domain.get(wrap(i_start + offset), col)
+                    PackedChallenge::<SC>::from_base_fn(|i| {
+                        PackedVal::<SC>::from_fn(|offset| {
+                            permutation_trace_on_quotient_domain
+                                .get(wrap(i_start + offset), col + i)
+                        })
                     })
                 })
                 .collect();
 
             let perm_next: Vec<_> = (0..perm_width)
+                .step_by(ext_degree)
                 .map(|col| {
-                    PackedVal::<SC>::from_fn(|offset| {
-                        permutation_trace_on_quotient_domain
-                            .get(wrap(i_start + next_step + offset), col)
+                    PackedChallenge::<SC>::from_base_fn(|i| {
+                        PackedVal::<SC>::from_fn(|offset| {
+                            permutation_trace_on_quotient_domain
+                                .get(wrap(i_start + next_step + offset), col + i)
+                        })
                     })
                 })
                 .collect();
 
             let accumulator = PackedChallenge::<SC>::zero();
 
-            let packed_cumulative_sums = cumulative_sums
-                .iter()
-                .map(|c| PackedChallenge::<SC>::from_f(*c))
-                .collect::<Vec<_>>();
+            let packed_local_cumulative_sum = PackedChallenge::<SC>::from_f(*local_cumulative_sum);
 
             let mut folder = ProverConstraintFolder {
                 preprocessed: VerticalPair::new(
@@ -139,7 +144,8 @@ where
                     RowMajorMatrixView::new_row(&perm_next),
                 ),
                 perm_challenges,
-                cumulative_sums: &packed_cumulative_sums,
+                local_cumulative_sum: &packed_local_cumulative_sum,
+                global_cumulative_sum,
                 is_first_row,
                 is_last_row,
                 is_transition,

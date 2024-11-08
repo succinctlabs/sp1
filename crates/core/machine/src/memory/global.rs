@@ -4,26 +4,35 @@ use core::{
 };
 use std::array;
 
-use p3_air::{Air, AirBuilder, BaseAir};
-use p3_field::{AbstractField, PrimeField32};
-use p3_matrix::{dense::RowMajorMatrix, Matrix};
-use sp1_core_executor::{events::MemoryInitializeFinalizeEvent, ExecutionRecord, Program};
-use sp1_derive::AlignedBorrow;
-use sp1_stark::{
-    air::{
-        AirInteraction, BaseAirBuilder, InteractionScope, MachineAir, PublicValues, SP1AirBuilder,
-        SP1_PROOF_NUM_PV_ELTS,
-    },
-    InteractionKind, Word,
-};
-
+use super::MemoryChipType;
 use crate::{
+    operations::GlobalAccumulationOperation,
+    operations::GlobalInteractionOperation,
     operations::{AssertLtColsBits, BabyBearBitDecomposition, IsZeroOperation},
     utils::pad_rows_fixed,
 };
-
-use super::MemoryChipType;
-
+use hashbrown::HashMap;
+use p3_air::{Air, AirBuilder, BaseAir};
+use p3_field::AbstractExtensionField;
+use p3_field::{AbstractField, PrimeField32};
+use p3_matrix::{dense::RowMajorMatrix, Matrix};
+use sp1_core_executor::events::ByteLookupEvent;
+use sp1_core_executor::{
+    events::{ByteRecord, MemoryInitializeFinalizeEvent},
+    ExecutionRecord, Program,
+};
+use sp1_derive::AlignedBorrow;
+use sp1_stark::septic_curve::SepticCurve;
+use sp1_stark::septic_extension::SepticExtension;
+use sp1_stark::{
+    air::{
+        BaseAirBuilder, InteractionScope, MachineAir, PublicValues, SP1AirBuilder,
+        SP1_PROOF_NUM_PV_ELTS,
+    },
+    septic_digest::CURVE_CUMULATIVE_SUM_START_X,
+    septic_digest::CURVE_CUMULATIVE_SUM_START_Y,
+    InteractionKind, Word,
+};
 /// A memory chip that can initialize or finalize values in memory.
 pub struct MemoryGlobalChip {
     pub kind: MemoryChipType,
@@ -54,8 +63,40 @@ impl<F: PrimeField32> MachineAir<F> for MemoryGlobalChip {
         }
     }
 
-    fn generate_dependencies(&self, _input: &ExecutionRecord, _output: &mut ExecutionRecord) {
-        // Do nothing since this chip has no dependencies.
+    fn generate_dependencies(&self, input: &ExecutionRecord, output: &mut ExecutionRecord) {
+        let mut memory_events = match self.kind {
+            MemoryChipType::Initialize => input.global_memory_initialize_events.clone(),
+            MemoryChipType::Finalize => input.global_memory_finalize_events.clone(),
+        };
+
+        let is_receive = match self.kind {
+            MemoryChipType::Initialize => false,
+            MemoryChipType::Finalize => true,
+        };
+
+        memory_events.sort_by_key(|event| event.addr);
+
+        let mut blu: HashMap<u32, HashMap<ByteLookupEvent, usize>> = HashMap::new();
+        (0..memory_events.len()) // OPT: change this to par_iter
+            .for_each(|i| {
+                let MemoryInitializeFinalizeEvent { addr, value, shard, timestamp, used } =
+                    memory_events[i];
+                let interaction_shard = if is_receive { shard } else { 0 };
+                let interaction_clk = if is_receive { timestamp } else { 0 };
+
+                let mut row = [F::zero(); NUM_MEMORY_INIT_COLS];
+                let cols: &mut MemoryInitCols<F> = row.as_mut_slice().borrow_mut();
+                cols.global_interaction_cols.populate_memory(
+                    interaction_shard,
+                    interaction_clk,
+                    addr,
+                    value,
+                    is_receive,
+                    used != 0,
+                    &mut blu,
+                );
+            });
+        output.add_sharded_byte_lookup_events(vec![&blu]);
     }
 
     fn generate_trace(
@@ -71,6 +112,20 @@ impl<F: PrimeField32> MachineAir<F> for MemoryGlobalChip {
         let previous_addr_bits = match self.kind {
             MemoryChipType::Initialize => input.public_values.previous_init_addr_bits,
             MemoryChipType::Finalize => input.public_values.previous_finalize_addr_bits,
+        };
+
+        let is_receive = match self.kind {
+            MemoryChipType::Initialize => false,
+            MemoryChipType::Finalize => true,
+        };
+
+        let mut global_cumulative_sum = SepticCurve {
+            x: SepticExtension::<F>::from_base_fn(|i| {
+                F::from_canonical_u32(CURVE_CUMULATIVE_SUM_START_X[i])
+            }),
+            y: SepticExtension::<F>::from_base_fn(|i| {
+                F::from_canonical_u32(CURVE_CUMULATIVE_SUM_START_Y[i])
+            }),
         };
 
         memory_events.sort_by_key(|event| event.addr);
@@ -118,6 +173,26 @@ impl<F: PrimeField32> MachineAir<F> for MemoryGlobalChip {
                     cols.is_last_addr = F::one();
                 }
 
+                let mut blu = Vec::new();
+                let interaction_shard = if is_receive { shard } else { 0 };
+                let interaction_clk = if is_receive { timestamp } else { 0 };
+
+                cols.global_interaction_cols.populate_memory(
+                    interaction_shard,
+                    interaction_clk,
+                    addr,
+                    value,
+                    is_receive,
+                    used != 0,
+                    &mut blu,
+                );
+
+                cols.global_accumulation_cols.populate(
+                    &mut global_cumulative_sum,
+                    [cols.global_interaction_cols],
+                    [cols.is_real],
+                );
+
                 row
             })
             .collect::<Vec<_>>();
@@ -129,7 +204,23 @@ impl<F: PrimeField32> MachineAir<F> for MemoryGlobalChip {
             input.fixed_log2_rows::<F, Self>(self),
         );
 
-        RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_MEMORY_INIT_COLS)
+        let mut trace = RowMajorMatrix::new(
+            rows.into_iter().flatten().collect::<Vec<_>>(),
+            NUM_MEMORY_INIT_COLS,
+        );
+
+        for i in memory_events.len()..trace.height() {
+            let cols: &mut MemoryInitCols<F> =
+                trace.values[i * NUM_MEMORY_INIT_COLS..(i + 1) * NUM_MEMORY_INIT_COLS].borrow_mut();
+            cols.global_interaction_cols.populate_dummy();
+            cols.global_accumulation_cols.populate(
+                &mut global_cumulative_sum,
+                [cols.global_interaction_cols],
+                [cols.is_real],
+            );
+        }
+
+        trace
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
@@ -172,6 +263,9 @@ pub struct MemoryInitCols<T> {
     /// Whether the memory access is a real access.
     pub is_real: T,
 
+    /// The columns for sending a global interaction.
+    pub global_interaction_cols: GlobalInteractionOperation<T>,
+
     /// Whether or not we are making the assertion `addr < addr_next`.
     pub is_next_comp: T,
 
@@ -183,6 +277,9 @@ pub struct MemoryInitCols<T> {
 
     /// A flag to indicate the last non-padded address. An auxiliary column needed for degree 3.
     pub is_last_addr: T,
+
+    /// The columns for accumulating the elliptic curve digests.
+    pub global_accumulation_cols: GlobalAccumulationOperation<T, 1>,
 }
 
 pub(crate) const NUM_MEMORY_INIT_COLS: usize = size_of::<MemoryInitCols<u8>>();
@@ -218,18 +315,35 @@ where
         if self.kind == MemoryChipType::Initialize {
             let mut values = vec![AB::Expr::zero(), AB::Expr::zero(), local.addr.into()];
             values.extend(value.map(Into::into));
-            builder.send(
-                AirInteraction::new(values, local.is_real.into(), InteractionKind::Memory),
-                InteractionScope::Global,
+            GlobalInteractionOperation::<AB::F>::eval_single_digest(
+                builder,
+                values,
+                local.global_interaction_cols,
+                false,
+                local.is_real.clone(),
+                InteractionKind::Memory,
             );
         } else {
             let mut values = vec![local.shard.into(), local.timestamp.into(), local.addr.into()];
             values.extend(value);
-            builder.receive(
-                AirInteraction::new(values, local.is_real.into(), InteractionKind::Memory),
-                InteractionScope::Global,
+            GlobalInteractionOperation::<AB::F>::eval_single_digest(
+                builder,
+                values,
+                local.global_interaction_cols,
+                true,
+                local.is_real.clone(),
+                InteractionKind::Memory,
             );
         }
+
+        GlobalAccumulationOperation::<AB::F, 1>::eval_accumulation(
+            builder,
+            [local.global_interaction_cols],
+            [local.is_real],
+            [next.is_real],
+            local.global_accumulation_cols,
+            next.global_accumulation_cols,
+        );
 
         // Canonically decompose the address into bits so we can do comparisons.
         BabyBearBitDecomposition::<AB::F>::range_check(

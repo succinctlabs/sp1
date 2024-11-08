@@ -10,7 +10,9 @@ use serde::{Deserialize, Serialize};
 use strum_macros::{Display, EnumIter};
 
 use super::{interaction::AirInteraction, BinomialExtension};
-use crate::{lookup::InteractionKind, septic_extension::SepticExtension, Word};
+use crate::{
+    lookup::InteractionKind, septic_digest::SepticDigest, septic_extension::SepticExtension, Word,
+};
 
 /// The scope of an interaction.
 #[derive(
@@ -344,11 +346,17 @@ pub trait SepticExtensionAirBuilder: BaseAirBuilder {
 
 /// A builder that implements a permutation argument.
 pub trait MultiTableAirBuilder<'a>: PermutationAirBuilder {
-    /// The type of the cumulative sum.
-    type Sum: Into<Self::ExprEF> + Copy;
+    /// The type of the local cumulative sum.
+    type LocalSum: Into<Self::ExprEF> + Copy;
 
-    /// Returns the cumulative sum of the permutation.
-    fn cumulative_sums(&self) -> &'a [Self::Sum];
+    /// The type of the global cumulative sum;
+    type GlobalSum: Into<Self::Expr> + Copy;
+
+    /// Returns the local cumulative sum of the permutation.
+    fn local_cumulative_sum(&self) -> &'a Self::LocalSum;
+
+    /// Returns the global cumulative sum of the permutation.
+    fn global_cumulative_sum(&self) -> &'a SepticDigest<Self::GlobalSum>;
 }
 
 /// A trait that contains the common helper methods for building `SP1 recursion` and SP1 machine

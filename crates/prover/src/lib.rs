@@ -772,10 +772,8 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 
                             // Generate the traces.
                             let record = records.into_iter().next().unwrap();
-                            let traces = tracing::debug_span!("generate traces").in_scope(|| {
-                                self.compress_prover
-                                    .generate_traces(&record, InteractionScope::Local)
-                            });
+                            let traces = tracing::debug_span!("generate traces")
+                                .in_scope(|| self.compress_prover.generate_traces(&record));
 
                             // Wait for our turn to update the state.
                             record_and_trace_sync.wait_for_turn(index);
@@ -836,7 +834,9 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                     let _span = span.enter();
                     loop {
                         let received = { record_and_trace_rx.lock().unwrap().recv() };
-                        if let Ok((index, height, TracesOrInput::ProgramRecordTraces(boxed_prt))) = received {
+                        if let Ok((index, height, TracesOrInput::ProgramRecordTraces(boxed_prt))) =
+                            received
+                        {
                             let (program, record, traces) = *boxed_prt;
                             tracing::debug_span!("batch").in_scope(|| {
                                 // Get the keys.
@@ -857,7 +857,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                                 );
 
                                 // Commit to the record and traces.
-                                let local_data = tracing::debug_span!("commit")
+                                let data = tracing::debug_span!("commit")
                                     .in_scope(|| self.compress_prover.commit(&record, traces));
 
                                 // Observe the commitment.
@@ -869,9 +869,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 
                                 // Generate the proof.
                                 let proof = tracing::debug_span!("open").in_scope(|| {
-                                    self.compress_prover
-                                        .open(&pk, None, local_data, &mut challenger)
-                                        .unwrap()
+                                    self.compress_prover.open(&pk, data, &mut challenger).unwrap()
                                 });
 
                                 // Verify the proof.
@@ -896,22 +894,32 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                                 // Advance the turn.
                                 prover_sync.advance_turn();
                             });
-                        } else if let Ok((index, height, TracesOrInput::CircuitWitness(witness_box))) = received {
+                        } else if let Ok((
+                            index,
+                            height,
+                            TracesOrInput::CircuitWitness(witness_box),
+                        )) = received
+                        {
                             let witness = *witness_box;
                             if let SP1CircuitWitness::Compress(inner_witness) = witness {
-                                let SP1CompressWitnessValues { vks_and_proofs, is_complete: _ } = inner_witness;
-                                assert!(vks_and_proofs.len()==1);
+                                let SP1CompressWitnessValues { vks_and_proofs, is_complete: _ } =
+                                    inner_witness;
+                                assert!(vks_and_proofs.len() == 1);
                                 let (vk, proof) = vks_and_proofs.last().unwrap();
-                        // Wait for our turn to update the state.
-                        prover_sync.wait_for_turn(index);
+                                // Wait for our turn to update the state.
+                                prover_sync.wait_for_turn(index);
 
-                        // Send the proof.
-                        proofs_tx.lock().unwrap().send((index, height, vk.clone(), proof.clone())).unwrap();
+                                // Send the proof.
+                                proofs_tx
+                                    .lock()
+                                    .unwrap()
+                                    .send((index, height, vk.clone(), proof.clone()))
+                                    .unwrap();
 
-                        // Advance the turn.
-                        prover_sync.advance_turn();
-                        }
-                    } else {
+                                // Advance the turn.
+                                prover_sync.advance_turn();
+                            }
+                        } else {
                             break;
                         }
                     }

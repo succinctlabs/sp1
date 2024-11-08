@@ -4,17 +4,26 @@ use std::{
 };
 
 use crate::utils::{next_power_of_two, zeroed_f_vec};
+use crate::{operations::GlobalAccumulationOperation, operations::GlobalInteractionOperation};
+use hashbrown::HashMap;
+use itertools::Itertools;
 use p3_air::{Air, BaseAir};
+use p3_field::AbstractExtensionField;
 use p3_field::PrimeField32;
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use p3_maybe_rayon::prelude::{ParallelBridge, ParallelIterator};
+use sp1_core_executor::events::ByteLookupEvent;
+use sp1_core_executor::events::ByteRecord;
 use sp1_core_executor::{ExecutionRecord, Program};
 use sp1_derive::AlignedBorrow;
+use sp1_stark::septic_curve::SepticCurve;
+use sp1_stark::septic_extension::SepticExtension;
 use sp1_stark::{
     air::{AirInteraction, InteractionScope, MachineAir, SP1AirBuilder},
+    septic_digest::CURVE_CUMULATIVE_SUM_START_X,
+    septic_digest::CURVE_CUMULATIVE_SUM_START_Y,
     InteractionKind, Word,
 };
-
 pub const NUM_LOCAL_MEMORY_ENTRIES_PER_ROW: usize = 4;
 
 pub(crate) const NUM_MEMORY_LOCAL_INIT_COLS: usize = size_of::<MemoryLocalCols<u8>>();
@@ -43,6 +52,12 @@ struct SingleMemoryLocal<T> {
     /// The final value of the memory access.
     pub final_value: Word<T>,
 
+    /// The global interaction columns for initial access.
+    pub initial_global_interaction_cols: GlobalInteractionOperation<T>,
+
+    /// The global interaction columns for final access.
+    pub final_global_interaction_cols: GlobalInteractionOperation<T>,
+
     /// Whether the memory access is a real access.
     pub is_real: T,
 }
@@ -51,6 +66,7 @@ struct SingleMemoryLocal<T> {
 #[repr(C)]
 pub struct MemoryLocalCols<T> {
     memory_local_entries: [SingleMemoryLocal<T>; NUM_LOCAL_MEMORY_ENTRIES_PER_ROW],
+    pub global_accumulation_cols: GlobalAccumulationOperation<T, 8>,
 }
 
 pub struct MemoryLocalChip {}
@@ -77,8 +93,36 @@ impl<F: PrimeField32> MachineAir<F> for MemoryLocalChip {
         "MemoryLocal".to_string()
     }
 
-    fn generate_dependencies(&self, _input: &ExecutionRecord, _output: &mut ExecutionRecord) {
-        // Do nothing since this chip has no dependencies.
+    fn generate_dependencies(&self, input: &ExecutionRecord, output: &mut ExecutionRecord) {
+        let mut blu: HashMap<u32, HashMap<ByteLookupEvent, usize>> = HashMap::new();
+        for local_mem_events in
+            &input.get_local_mem_events().chunks(NUM_LOCAL_MEMORY_ENTRIES_PER_ROW)
+        {
+            let mut row = [F::zero(); NUM_MEMORY_LOCAL_INIT_COLS];
+            let cols: &mut MemoryLocalCols<F> = row.as_mut_slice().borrow_mut();
+
+            for (cols, event) in cols.memory_local_entries.iter_mut().zip(local_mem_events) {
+                cols.initial_global_interaction_cols.populate_memory(
+                    event.initial_mem_access.shard,
+                    event.initial_mem_access.timestamp,
+                    event.addr,
+                    event.initial_mem_access.value,
+                    true,
+                    true,
+                    &mut blu,
+                );
+                cols.final_global_interaction_cols.populate_memory(
+                    event.final_mem_access.shard,
+                    event.final_mem_access.timestamp,
+                    event.addr,
+                    event.final_mem_access.value,
+                    false,
+                    true,
+                    &mut blu,
+                );
+            }
+        }
+        output.add_sharded_byte_lookup_events(vec![&blu]);
     }
 
     fn generate_trace(
@@ -118,13 +162,80 @@ impl<F: PrimeField32> MachineAir<F> for MemoryLocalChip {
                             cols.initial_value = event.initial_mem_access.value.into();
                             cols.final_value = event.final_mem_access.value.into();
                             cols.is_real = F::one();
+                            let mut blu = Vec::new();
+                            cols.initial_global_interaction_cols.populate_memory(
+                                event.initial_mem_access.shard,
+                                event.initial_mem_access.timestamp,
+                                event.addr,
+                                event.initial_mem_access.value,
+                                true,
+                                true,
+                                &mut blu,
+                            );
+                            cols.final_global_interaction_cols.populate_memory(
+                                event.final_mem_access.shard,
+                                event.final_mem_access.timestamp,
+                                event.addr,
+                                event.final_mem_access.value,
+                                false,
+                                true,
+                                &mut blu,
+                            );
                         }
                     }
                 });
             });
 
         // Convert the trace to a row major matrix.
-        RowMajorMatrix::new(values, NUM_MEMORY_LOCAL_INIT_COLS)
+        let mut trace = RowMajorMatrix::new(values, NUM_MEMORY_LOCAL_INIT_COLS);
+
+        for i in 0..trace.height() {
+            if (i + 1) * NUM_LOCAL_MEMORY_ENTRIES_PER_ROW < events.len() {
+                continue;
+            }
+            let cols: &mut MemoryLocalCols<F> = trace.values
+                [i * NUM_MEMORY_LOCAL_INIT_COLS..(i + 1) * NUM_MEMORY_LOCAL_INIT_COLS]
+                .borrow_mut();
+            for (idx, cols) in cols.memory_local_entries.iter_mut().enumerate() {
+                if i * NUM_LOCAL_MEMORY_ENTRIES_PER_ROW + idx >= events.len() {
+                    cols.initial_global_interaction_cols.populate_dummy();
+                    cols.final_global_interaction_cols.populate_dummy();
+                }
+            }
+        }
+
+        let mut global_cumulative_sum = SepticCurve {
+            x: SepticExtension::<F>::from_base_fn(|i| {
+                F::from_canonical_u32(CURVE_CUMULATIVE_SUM_START_X[i])
+            }),
+            y: SepticExtension::<F>::from_base_fn(|i| {
+                F::from_canonical_u32(CURVE_CUMULATIVE_SUM_START_Y[i])
+            }),
+        };
+
+        for i in 0..trace.height() {
+            let cols: &mut MemoryLocalCols<F> = trace.values
+                [i * NUM_MEMORY_LOCAL_INIT_COLS..(i + 1) * NUM_MEMORY_LOCAL_INIT_COLS]
+                .borrow_mut();
+            let mut global_interaction_cols = Vec::new();
+            let mut is_reals = Vec::new();
+            for idx in 0..NUM_LOCAL_MEMORY_ENTRIES_PER_ROW {
+                global_interaction_cols
+                    .push(cols.memory_local_entries[idx].initial_global_interaction_cols);
+                global_interaction_cols
+                    .push(cols.memory_local_entries[idx].final_global_interaction_cols);
+                is_reals.push(cols.memory_local_entries[idx].is_real);
+                is_reals.push(cols.memory_local_entries[idx].is_real);
+            }
+
+            cols.global_accumulation_cols.populate(
+                &mut global_cumulative_sum,
+                global_interaction_cols.try_into().unwrap(),
+                is_reals.try_into().unwrap(),
+            );
+        }
+
+        trace
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
@@ -148,6 +259,12 @@ where
         let main = builder.main();
         let local = main.row_slice(0);
         let local: &MemoryLocalCols<AB::Var> = (*local).borrow();
+        let next = main.row_slice(1);
+        let next: &MemoryLocalCols<AB::Var> = (*next).borrow();
+
+        let mut global_interaction_cols = Vec::new();
+        let mut local_is_reals = Vec::new();
+        let mut next_is_reals = Vec::new();
 
         for local in local.memory_local_entries.iter() {
             builder.assert_eq(
@@ -155,32 +272,62 @@ where
                 local.is_real * local.is_real * local.is_real,
             );
 
-            for scope in [InteractionScope::Global, InteractionScope::Local] {
-                let mut values =
-                    vec![local.initial_shard.into(), local.initial_clk.into(), local.addr.into()];
-                values.extend(local.initial_value.map(Into::into));
-                builder.receive(
-                    AirInteraction::new(
-                        values.clone(),
-                        local.is_real.into(),
-                        InteractionKind::Memory,
-                    ),
-                    scope,
-                );
+            let mut values =
+                vec![local.initial_shard.into(), local.initial_clk.into(), local.addr.into()];
+            values.extend(local.initial_value.map(Into::into));
+            builder.receive(
+                AirInteraction::new(values.clone(), local.is_real.into(), InteractionKind::Memory),
+                InteractionScope::Local,
+            );
 
-                let mut values =
-                    vec![local.final_shard.into(), local.final_clk.into(), local.addr.into()];
-                values.extend(local.final_value.map(Into::into));
-                builder.send(
-                    AirInteraction::new(
-                        values.clone(),
-                        local.is_real.into(),
-                        InteractionKind::Memory,
-                    ),
-                    scope,
-                );
-            }
+            GlobalInteractionOperation::<AB::F>::eval_single_digest(
+                builder,
+                values,
+                local.initial_global_interaction_cols,
+                true,
+                local.is_real.clone(),
+                InteractionKind::Memory,
+            );
+
+            global_interaction_cols.push(local.initial_global_interaction_cols);
+            local_is_reals.push(local.is_real);
+
+            let mut values =
+                vec![local.final_shard.into(), local.final_clk.into(), local.addr.into()];
+            values.extend(local.final_value.map(Into::into));
+            builder.send(
+                AirInteraction::new(values.clone(), local.is_real.into(), InteractionKind::Memory),
+                InteractionScope::Local,
+            );
+
+            GlobalInteractionOperation::<AB::F>::eval_single_digest(
+                builder,
+                values,
+                local.final_global_interaction_cols,
+                false,
+                local.is_real.clone(),
+                InteractionKind::Memory,
+            );
+
+            global_interaction_cols.push(local.final_global_interaction_cols);
+            local_is_reals.push(local.is_real);
         }
+
+        for next in next.memory_local_entries.iter() {
+            next_is_reals.push(next.is_real);
+            next_is_reals.push(next.is_real);
+        }
+
+        GlobalAccumulationOperation::<AB::F, 8>::eval_accumulation(
+            builder,
+            global_interaction_cols
+                .try_into()
+                .unwrap_or_else(|_| panic!("There should be 8 interactions")),
+            local_is_reals.try_into().unwrap_or_else(|_| panic!("There should be 8 interactions")),
+            next_is_reals.try_into().unwrap_or_else(|_| panic!("There should be 8 interactions")),
+            local.global_accumulation_cols,
+            next.global_accumulation_cols,
+        );
     }
 }
 

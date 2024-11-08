@@ -2,19 +2,25 @@ use core::{
     borrow::{Borrow, BorrowMut},
     mem::size_of,
 };
-use itertools::Itertools;
 use p3_air::{Air, AirBuilder, AirBuilderWithPublicValues, BaseAir, PairBuilder};
-use p3_field::{AbstractField, PrimeField};
+use p3_field::AbstractField;
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 
+use crate::{operations::GlobalAccumulationOperation, operations::GlobalInteractionOperation};
+use hashbrown::HashMap;
+use p3_field::AbstractExtensionField;
+use p3_field::PrimeField32;
 use p3_maybe_rayon::prelude::{ParallelBridge, ParallelIterator};
+use sp1_core_executor::events::ByteLookupEvent;
+use sp1_core_executor::events::ByteRecord;
 use sp1_core_executor::{ExecutionRecord, Program};
 use sp1_derive::AlignedBorrow;
+use sp1_stark::septic_curve::SepticCurve;
+use sp1_stark::septic_extension::SepticExtension;
 use sp1_stark::{
-    air::{
-        AirInteraction, InteractionScope, MachineAir, PublicValues, SP1AirBuilder,
-        SP1_PROOF_NUM_PV_ELTS,
-    },
+    air::{InteractionScope, MachineAir, PublicValues, SP1AirBuilder, SP1_PROOF_NUM_PV_ELTS},
+    septic_digest::CURVE_CUMULATIVE_SUM_START_X,
+    septic_digest::CURVE_CUMULATIVE_SUM_START_Y,
     InteractionKind, Word,
 };
 
@@ -47,6 +53,12 @@ pub struct MemoryProgramMultCols<T> {
 
     /// Whether the shard is the first shard.
     pub is_first_shard: IsZeroOperation<T>,
+
+    /// The columns for the global interaction.
+    pub global_interaction_cols: GlobalInteractionOperation<T>,
+
+    /// The columns for accumulating the elliptic curve digests.
+    pub global_accumulation_cols: GlobalAccumulationOperation<T, 1>,
 }
 
 /// Chip that initializes memory that is provided from the program. The table is preprocessed and
@@ -61,7 +73,7 @@ impl MemoryProgramChip {
     }
 }
 
-impl<F: PrimeField> MachineAir<F> for MemoryProgramChip {
+impl<F: PrimeField32> MachineAir<F> for MemoryProgramChip {
     type Record = ExecutionRecord;
 
     type Program = Program;
@@ -82,7 +94,7 @@ impl<F: PrimeField> MachineAir<F> for MemoryProgramChip {
         let mut values = zeroed_f_vec(padded_nb_rows * NUM_MEMORY_PROGRAM_PREPROCESSED_COLS);
         let chunk_size = std::cmp::max((nb_rows + 1) / num_cpus::get(), 1);
 
-        let memory = program.memory_image.iter().collect::<Vec<_>>();
+        let mut memory = program.memory_image.iter().collect::<Vec<_>>();
         values
             .chunks_mut(chunk_size * NUM_MEMORY_PROGRAM_PREPROCESSED_COLS)
             .enumerate()
@@ -107,8 +119,21 @@ impl<F: PrimeField> MachineAir<F> for MemoryProgramChip {
         Some(RowMajorMatrix::new(values, NUM_MEMORY_PROGRAM_PREPROCESSED_COLS))
     }
 
-    fn generate_dependencies(&self, _input: &ExecutionRecord, _output: &mut ExecutionRecord) {
-        // Do nothing since this chip has no dependencies.
+    fn generate_dependencies(&self, input: &ExecutionRecord, output: &mut ExecutionRecord) {
+        let program_memory = &input.program.memory_image;
+
+        let mult_bool = input.public_values.shard == 1;
+
+        let mut blu: HashMap<u32, HashMap<ByteLookupEvent, usize>> = HashMap::new();
+
+        program_memory.iter().for_each(|(&addr, &word)| {
+            let mut row = [F::zero(); NUM_MEMORY_PROGRAM_MULT_COLS];
+            let cols: &mut MemoryProgramMultCols<F> = row.as_mut_slice().borrow_mut();
+            cols.global_interaction_cols
+                .populate_memory(0, 0, addr, word, false, mult_bool, &mut blu);
+        });
+
+        output.add_sharded_byte_lookup_events(vec![&blu]);
     }
 
     fn generate_trace(
@@ -116,18 +141,36 @@ impl<F: PrimeField> MachineAir<F> for MemoryProgramChip {
         input: &ExecutionRecord,
         _output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
-        let program_memory_addrs = input.program.memory_image.keys().copied().sorted();
+        let program_memory = &input.program.memory_image;
 
-        let mult = if input.public_values.shard == 1 { F::one() } else { F::zero() };
+        let mult_bool = input.public_values.shard == 1;
+        let mult = F::from_bool(mult_bool);
+
+        let mut global_cumulative_sum = SepticCurve {
+            x: SepticExtension::<F>::from_base_fn(|i| {
+                F::from_canonical_u32(CURVE_CUMULATIVE_SUM_START_X[i])
+            }),
+            y: SepticExtension::<F>::from_base_fn(|i| {
+                F::from_canonical_u32(CURVE_CUMULATIVE_SUM_START_Y[i])
+            }),
+        };
 
         // Generate the trace rows for each event.
-        let mut rows = program_memory_addrs
-            .into_iter()
-            .map(|_| {
+        let mut rows = program_memory
+            .iter()
+            .map(|(&addr, &word)| {
                 let mut row = [F::zero(); NUM_MEMORY_PROGRAM_MULT_COLS];
                 let cols: &mut MemoryProgramMultCols<F> = row.as_mut_slice().borrow_mut();
+                let mut blu = Vec::new();
                 cols.multiplicity = mult;
                 cols.is_first_shard.populate(input.public_values.shard - 1);
+                cols.global_interaction_cols
+                    .populate_memory(0, 0, addr, word, false, mult_bool, &mut blu);
+                cols.global_accumulation_cols.populate(
+                    &mut global_cumulative_sum,
+                    [cols.global_interaction_cols],
+                    [cols.multiplicity],
+                );
                 row
             })
             .collect::<Vec<_>>();
@@ -140,11 +183,25 @@ impl<F: PrimeField> MachineAir<F> for MemoryProgramChip {
         );
 
         // Convert the trace to a row major matrix.
-
-        RowMajorMatrix::new(
+        let mut trace = RowMajorMatrix::new(
             rows.into_iter().flatten().collect::<Vec<_>>(),
             NUM_MEMORY_PROGRAM_MULT_COLS,
-        )
+        );
+
+        let len = input.program.memory_image.len();
+        for i in len..trace.height() {
+            let cols: &mut MemoryProgramMultCols<F> = trace.values
+                [i * NUM_MEMORY_PROGRAM_MULT_COLS..(i + 1) * NUM_MEMORY_PROGRAM_MULT_COLS]
+                .borrow_mut();
+            cols.global_interaction_cols.populate_dummy();
+            cols.global_accumulation_cols.populate(
+                &mut global_cumulative_sum,
+                [cols.global_interaction_cols],
+                [cols.multiplicity],
+            );
+        }
+
+        trace
     }
 
     fn included(&self, _: &Self::Record) -> bool {
@@ -176,6 +233,9 @@ where
         let mult_local = main.row_slice(0);
         let mult_local: &MemoryProgramMultCols<AB::Var> = (*mult_local).borrow();
 
+        let mult_next = main.row_slice(1);
+        let mult_next: &MemoryProgramMultCols<AB::Var> = (*mult_next).borrow();
+
         // Get shard from public values and evaluate whether it is the first shard.
         let public_values_slice: [AB::Expr; SP1_PROOF_NUM_PV_ELTS] =
             core::array::from_fn(|i| builder.public_values()[i].into());
@@ -203,9 +263,22 @@ where
 
         let mut values = vec![AB::Expr::zero(), AB::Expr::zero(), prep_local.addr.into()];
         values.extend(prep_local.value.map(Into::into));
-        builder.send(
-            AirInteraction::new(values, mult_local.multiplicity.into(), InteractionKind::Memory),
-            InteractionScope::Global,
+        GlobalInteractionOperation::<AB::F>::eval_single_digest(
+            builder,
+            values,
+            mult_local.global_interaction_cols,
+            false,
+            mult_local.multiplicity,
+            InteractionKind::Memory,
+        );
+
+        GlobalAccumulationOperation::<AB::F, 1>::eval_accumulation(
+            builder,
+            [mult_local.global_interaction_cols],
+            [mult_local.multiplicity],
+            [mult_next.multiplicity],
+            mult_local.global_accumulation_cols,
+            mult_next.global_accumulation_cols,
         );
     }
 }

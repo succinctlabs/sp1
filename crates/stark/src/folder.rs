@@ -7,7 +7,10 @@ use p3_field::{AbstractField, ExtensionField, Field};
 use p3_matrix::{dense::RowMajorMatrixView, stack::VerticalPair};
 
 use super::{Challenge, PackedChallenge, PackedVal, StarkGenericConfig, Val};
-use crate::air::{EmptyMessageBuilder, MultiTableAirBuilder};
+use crate::{
+    air::{EmptyMessageBuilder, MultiTableAirBuilder},
+    septic_digest::SepticDigest,
+};
 use p3_air::{
     AirBuilder, AirBuilderWithPublicValues, ExtensionBuilder, PairBuilder, PermutationAirBuilder,
 };
@@ -21,12 +24,16 @@ pub struct ProverConstraintFolder<'a, SC: StarkGenericConfig> {
     pub main:
         VerticalPair<RowMajorMatrixView<'a, PackedVal<SC>>, RowMajorMatrixView<'a, PackedVal<SC>>>,
     /// The permutation trace.
-    pub perm:
-        VerticalPair<RowMajorMatrixView<'a, PackedVal<SC>>, RowMajorMatrixView<'a, PackedVal<SC>>>,
+    pub perm: VerticalPair<
+        RowMajorMatrixView<'a, PackedChallenge<SC>>,
+        RowMajorMatrixView<'a, PackedChallenge<SC>>,
+    >,
     /// The challenges for the permutation.
     pub perm_challenges: &'a [PackedChallenge<SC>],
-    /// The cumulative sums for the permutation.
-    pub cumulative_sums: &'a [PackedChallenge<SC>],
+    /// The local cumulative sum for the permutation.
+    pub local_cumulative_sum: &'a PackedChallenge<SC>,
+    /// The global cumulative sum for the permutation.
+    pub global_cumulative_sum: &'a SepticDigest<Val<SC>>,
     /// The selector for the first row.
     pub is_first_row: PackedVal<SC>,
     /// The selector for the last row.
@@ -101,7 +108,7 @@ impl<'a, SC: StarkGenericConfig> PermutationAirBuilder for ProverConstraintFolde
     type RandomVar = PackedChallenge<SC>;
 
     fn permutation(&self) -> Self::MP {
-        todo!()
+        self.perm
     }
 
     fn permutation_randomness(&self) -> &[Self::RandomVar] {
@@ -110,10 +117,15 @@ impl<'a, SC: StarkGenericConfig> PermutationAirBuilder for ProverConstraintFolde
 }
 
 impl<'a, SC: StarkGenericConfig> MultiTableAirBuilder<'a> for ProverConstraintFolder<'a, SC> {
-    type Sum = PackedChallenge<SC>;
+    type LocalSum = PackedChallenge<SC>;
+    type GlobalSum = Val<SC>;
 
-    fn cumulative_sums(&self) -> &'a [Self::Sum] {
-        self.cumulative_sums
+    fn local_cumulative_sum(&self) -> &'a Self::LocalSum {
+        self.local_cumulative_sum
+    }
+
+    fn global_cumulative_sum(&self) -> &'a SepticDigest<Self::GlobalSum> {
+        self.global_cumulative_sum
     }
 }
 
@@ -153,8 +165,10 @@ pub struct GenericVerifierConstraintFolder<'a, F, EF, PubVar, Var, Expr> {
     pub perm: VerticalPair<RowMajorMatrixView<'a, Var>, RowMajorMatrixView<'a, Var>>,
     /// The challenges for the permutation.
     pub perm_challenges: &'a [Var],
-    /// The cumulative sums of the permutation.
-    pub cumulative_sums: &'a [Var],
+    /// The local cumulative sum of the permutation.
+    pub local_cumulative_sum: &'a Var,
+    /// The global cumulative sum of the permutation.
+    pub global_cumulative_sum: &'a SepticDigest<PubVar>,
     /// The selector for the first row.
     pub is_first_row: Var,
     /// The selector for the last row.
@@ -343,10 +357,15 @@ where
         + Sync,
     PubVar: Into<Expr> + Copy,
 {
-    type Sum = Var;
+    type LocalSum = Var;
+    type GlobalSum = PubVar;
 
-    fn cumulative_sums(&self) -> &'a [Self::Sum] {
-        self.cumulative_sums
+    fn local_cumulative_sum(&self) -> &'a Self::LocalSum {
+        self.local_cumulative_sum
+    }
+
+    fn global_cumulative_sum(&self) -> &'a SepticDigest<Self::GlobalSum> {
+        self.global_cumulative_sum
     }
 }
 

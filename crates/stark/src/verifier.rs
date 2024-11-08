@@ -54,8 +54,6 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
             return Err(VerificationError::ChipOpeningLengthMismatch);
         }
 
-        let chip_scopes = chips.iter().map(|chip| chip.commit_scope()).collect::<Vec<_>>();
-
         // Assert that the byte multiplicities don't overflow.
         let mut max_byte_lookup_mult = 0u64;
         chips.iter().zip(opened_values.chips.iter()).for_each(|(chip, val)| {
@@ -83,14 +81,9 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
             .map(|log_degree| pcs.natural_domain_for_degree(1 << log_degree))
             .collect::<Vec<_>>();
 
-        let ShardCommitment {
-            global_main_commit,
-            local_main_commit,
-            permutation_commit,
-            quotient_commit,
-        } = commitment;
+        let ShardCommitment { main_commit, permutation_commit, quotient_commit } = commitment;
 
-        challenger.observe(local_main_commit.clone());
+        challenger.observe(main_commit.clone());
 
         let local_permutation_challenges =
             (0..2).map(|_| challenger.sample_ext_element::<SC::Challenge>()).collect::<Vec<_>>();
@@ -99,23 +92,19 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
         // Observe the cumulative sums and constrain any sum without a corresponding scope to be
         // zero.
         for (opening, chip) in opened_values.chips.iter().zip_eq(chips.iter()) {
-            let global_sum = opening.global_cumulative_sum;
             let local_sum = opening.local_cumulative_sum;
-            // challenger.observe_slice(global_sum.as_base_slice()); // TODO: FIX
+            let global_sum = opening.global_cumulative_sum;
+
             challenger.observe_slice(local_sum.as_base_slice());
+            challenger.observe_slice(&global_sum.0.x.0);
+            challenger.observe_slice(&global_sum.0.y.0);
 
-            let has_global_interactions = chip
-                .sends()
-                .iter()
-                .chain(chip.receives())
-                .any(|i| i.scope == InteractionScope::Global);
+            if chip.commit_scope() == InteractionScope::Local && !global_sum.is_zero() {
+                return Err(VerificationError::CumulativeSumsError(
+                    "global cumulative sum is non-zero, but chip is Local",
+                ));
+            }
 
-            // TODO: FIX
-            // if !has_global_interactions && !global_sum.is_zero() {
-            //     return Err(VerificationError::CumulativeSumsError(
-            //         "global cumulative sum is non-zero, but no global interactions",
-            //     ));
-            // }
             let has_local_interactions = chip
                 .sends()
                 .iter()
@@ -211,36 +200,12 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
             })
             .collect::<Vec<_>>();
 
-        // Split the main_domains_points_and_opens to the global and local chips.
-        let mut global_trace_points_and_openings = Vec::new();
-        let mut local_trace_points_and_openings = Vec::new();
-        for (i, points_and_openings) in
-            main_domains_points_and_opens.clone().into_iter().enumerate()
-        {
-            let scope = chip_scopes[i];
-            if scope == InteractionScope::Global {
-                global_trace_points_and_openings.push(points_and_openings);
-            } else {
-                local_trace_points_and_openings.push(points_and_openings);
-            }
-        }
-
-        let rounds = if !global_trace_points_and_openings.is_empty() {
-            vec![
-                (vk.commit.clone(), preprocessed_domains_points_and_opens),
-                (global_main_commit.clone(), global_trace_points_and_openings),
-                (local_main_commit.clone(), local_trace_points_and_openings),
-                (permutation_commit.clone(), perm_domains_points_and_opens),
-                (quotient_commit.clone(), quotient_domains_points_and_opens),
-            ]
-        } else {
-            vec![
-                (vk.commit.clone(), preprocessed_domains_points_and_opens),
-                (local_main_commit.clone(), local_trace_points_and_openings),
-                (permutation_commit.clone(), perm_domains_points_and_opens),
-                (quotient_commit.clone(), quotient_domains_points_and_opens),
-            ]
-        };
+        let rounds = vec![
+            (vk.commit.clone(), preprocessed_domains_points_and_opens),
+            (main_commit.clone(), main_domains_points_and_opens),
+            (permutation_commit.clone(), perm_domains_points_and_opens),
+            (quotient_commit.clone(), quotient_domains_points_and_opens),
+        ];
 
         config
             .pcs()
@@ -270,7 +235,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
             .map_err(|_| VerificationError::OodEvaluationMismatch(chip.name()))?;
         }
         // Verify that the local cumulative sum is zero.
-        let local_cumulative_sum = proof.cumulative_sum(InteractionScope::Local);
+        let local_cumulative_sum = proof.local_cumulative_sum();
         if local_cumulative_sum != SC::Challenge::zero() {
             return Err(VerificationError::CumulativeSumsError("local cumulative sum is not zero"));
         }
@@ -280,7 +245,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
 
     fn verify_opening_shape(
         chip: &MachineChip<SC, A>,
-        opening: &ChipOpenedValues<SC::Challenge>,
+        opening: &ChipOpenedValues<Val<SC>, SC::Challenge>,
     ) -> Result<(), OpeningShapeError> {
         // Verify that the preprocessed width matches the expected value for the chip.
         if opening.preprocessed.local.len() != chip.preprocessed_width() {
@@ -311,19 +276,18 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
         }
 
         // Verify that the permutation width matches the expected value for the chip.
-        if opening.permutation.local.len() != chip.permutation_width() {
+        if opening.permutation.local.len() != chip.permutation_width() * SC::Challenge::D {
             return Err(OpeningShapeError::PermutationWidthMismatch(
                 chip.permutation_width(),
                 opening.permutation.local.len(),
             ));
         }
-        if opening.permutation.next.len() != chip.permutation_width() {
+        if opening.permutation.next.len() != chip.permutation_width() * SC::Challenge::D {
             return Err(OpeningShapeError::PermutationWidthMismatch(
                 chip.permutation_width(),
                 opening.permutation.next.len(),
             ));
         }
-
         // Verift that the number of quotient chunks matches the expected value for the chip.
         if opening.quotient.len() != chip.quotient_width() {
             return Err(OpeningShapeError::QuotientWidthMismatch(
@@ -349,7 +313,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
     #[allow(clippy::needless_pass_by_value)]
     fn verify_constraints(
         chip: &MachineChip<SC, A>,
-        opening: &ChipOpenedValues<SC::Challenge>,
+        opening: &ChipOpenedValues<Val<SC>, SC::Challenge>,
         trace_domain: Domain<SC>,
         qc_domains: Vec<Domain<SC>>,
         zeta: SC::Challenge,
@@ -386,7 +350,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
     /// Evaluates the constraints for a chip and opening.
     pub fn eval_constraints(
         chip: &MachineChip<SC, A>,
-        opening: &ChipOpenedValues<SC::Challenge>,
+        opening: &ChipOpenedValues<Val<SC>, SC::Challenge>,
         selectors: &LagrangeSelectors<SC::Challenge>,
         alpha: SC::Challenge,
         permutation_challenges: &[SC::Challenge],
@@ -409,14 +373,13 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
             next: unflatten(&opening.permutation.next),
         };
 
-        let cumulative_sums = [opening.local_cumulative_sum, opening.local_cumulative_sum]; // TODO: FIX
-        let cumulative_sums = cumulative_sums.as_slice();
         let mut folder = VerifierConstraintFolder::<SC> {
             preprocessed: opening.preprocessed.view(),
             main: opening.main.view(),
             perm: perm_opening.view(),
             perm_challenges: permutation_challenges,
-            cumulative_sums,
+            local_cumulative_sum: &opening.local_cumulative_sum,
+            global_cumulative_sum: &opening.global_cumulative_sum,
             is_first_row: selectors.is_first_row,
             is_last_row: selectors.is_last_row,
             is_transition: selectors.is_transition,
@@ -433,7 +396,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
 
     /// Recomputes the quotient for a chip and opening.
     pub fn recompute_quotient(
-        opening: &ChipOpenedValues<SC::Challenge>,
+        opening: &ChipOpenedValues<Val<SC>, SC::Challenge>,
         qc_domains: &[Domain<SC>],
         zeta: SC::Challenge,
     ) -> SC::Challenge {

@@ -8,13 +8,11 @@ use std::{
 use web_time::Instant;
 
 use crate::riscv::{CoreShapeConfig, RiscvAir};
-use p3_field::AbstractField;
 use p3_maybe_rayon::prelude::*;
 use serde::{de::DeserializeOwned, Serialize};
 use size::Size;
 use sp1_stark::{
-    air::InteractionScope, baby_bear_poseidon2::BabyBearPoseidon2, MachineProvingKey,
-    MachineVerificationError,
+    baby_bear_poseidon2::BabyBearPoseidon2, MachineProvingKey, MachineVerificationError,
 };
 use std::thread::ScopedJoinHandle;
 use thiserror::Error;
@@ -208,13 +206,9 @@ where
         let p2_record_gen_sync = Arc::new(TurnBasedSync::new());
         let p2_trace_gen_sync = Arc::new(TurnBasedSync::new());
         let (p2_records_and_traces_tx, p2_records_and_traces_rx) =
-            sync_channel::<(
-                Vec<ExecutionRecord>,
-                (
-                    Vec<Vec<(String, RowMajorMatrix<Val<SC>>)>>,
-                    Vec<Vec<(String, RowMajorMatrix<Val<SC>>)>>,
-                ),
-            )>(opts.records_and_traces_channel_capacity);
+            sync_channel::<(Vec<ExecutionRecord>, Vec<Vec<(String, RowMajorMatrix<Val<SC>>)>>)>(
+                opts.records_and_traces_channel_capacity,
+            );
         let p2_records_and_traces_tx = Arc::new(Mutex::new(p2_records_and_traces_tx));
 
         let report_aggregate = Arc::new(Mutex::new(ExecutionReport::default()));
@@ -325,24 +319,11 @@ where
                             #[cfg(feature = "debug")]
                             all_records_tx.send(records.clone()).unwrap();
 
-                            // Generate the traces.
-                            let mut local_traces = Vec::new();
-                            tracing::debug_span!("generate local traces", index).in_scope(|| {
-                                local_traces = records
+                            let mut main_traces = Vec::new();
+                            tracing::debug_span!("generate main traces", index).in_scope(|| {
+                                main_traces = records
                                     .par_iter()
-                                    .map(|record| {
-                                        prover.generate_traces(record, InteractionScope::Local)
-                                    })
-                                    .collect::<Vec<_>>();
-                            });
-
-                            let mut global_traces = Vec::new();
-                            tracing::debug_span!("generate global traces", index).in_scope(|| {
-                                global_traces = records
-                                    .par_iter()
-                                    .map(|record| {
-                                        prover.generate_traces(record, InteractionScope::Global)
-                                    })
+                                    .map(|record| prover.generate_traces(record))
                                     .collect::<Vec<_>>();
                             });
 
@@ -350,19 +331,15 @@ where
 
                             // Send the records to the phase 2 prover.
                             let chunked_records = chunk_vec(records, opts.shard_batch_size);
-                            let chunked_global_traces =
-                                chunk_vec(global_traces, opts.shard_batch_size);
-                            let chunked_local_traces =
-                                chunk_vec(local_traces, opts.shard_batch_size);
+                            let chunked_main_traces = chunk_vec(main_traces, opts.shard_batch_size);
                             chunked_records
                                 .into_iter()
-                                .zip(chunked_global_traces.into_iter())
-                                .zip(chunked_local_traces.into_iter())
-                                .for_each(|((records, global_traces), local_traces)| {
+                                .zip(chunked_main_traces.into_iter())
+                                .for_each(|(records, main_traces)| {
                                     records_and_traces_tx
                                         .lock()
                                         .unwrap()
-                                        .send((records, (global_traces, local_traces)))
+                                        .send((records, main_traces))
                                         .unwrap();
                                 });
 
@@ -390,26 +367,14 @@ where
                         let span = tracing::Span::current().clone();
                         shard_proofs.par_extend(
                             records.into_par_iter().zip(traces.into_par_iter()).map(
-                                |(record, (global_traces, local_traces))| {
+                                |(record, main_traces)| {
                                     let _span = span.enter();
 
-                                    let global_commit_span =
-                                        tracing::debug_span!("commit to global traces").entered();
-                                    let global_data = prover.commit(&record, global_traces);
-                                    global_commit_span.exit();
-                                    let local_commit_span =
-                                        tracing::debug_span!("commit to local traces").entered();
-                                    let local_data = prover.commit(&record, local_traces);
-                                    local_commit_span.exit();
+                                    let main_data = prover.commit(&record, main_traces);
 
                                     let opening_span = tracing::debug_span!("opening").entered();
                                     let proof = prover
-                                        .open(
-                                            pk,
-                                            Some(global_data),
-                                            local_data,
-                                            &mut challenger.clone(),
-                                        )
+                                        .open(pk, main_data, &mut challenger.clone())
                                         .unwrap();
                                     opening_span.exit();
 

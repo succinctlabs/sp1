@@ -8,9 +8,8 @@ use p3_util::log2_ceil_usize;
 
 use crate::{
     air::{InteractionScope, MachineAir, MultiTableAirBuilder, SP1AirBuilder},
-    global_permutation_trace_width, local_permutation_trace_width,
+    local_permutation_trace_width,
     lookup::{Interaction, InteractionBuilder, InteractionKind},
-    septic_extension::SepticExtension,
 };
 
 use super::{
@@ -122,13 +121,13 @@ where
         preprocessed: Option<&RowMajorMatrix<F>>,
         main: &RowMajorMatrix<F>,
         random_elements: &[EF],
-    ) -> (RowMajorMatrix<F>, EF, SepticExtension<F>)
+    ) -> (RowMajorMatrix<EF>, EF)
     where
         F: PrimeField,
         A: MachineAir<F>,
     {
         let batch_size = self.logup_batch_size();
-        generate_permutation_trace::<F, EF, SepticExtension<F>>(
+        generate_permutation_trace::<F, EF>(
             &self.sends,
             &self.receives,
             preprocessed,
@@ -145,17 +144,16 @@ where
         let empty = Vec::new();
         let local_sends = scoped_sends.get(&InteractionScope::Local).unwrap_or(&empty);
         let local_receives = scoped_receives.get(&InteractionScope::Local).unwrap_or(&empty);
-        let global_sends = scoped_sends.get(&InteractionScope::Global).unwrap_or(&empty);
-        let global_receives = scoped_receives.get(&InteractionScope::Global).unwrap_or(&empty);
+        // let global_sends = scoped_sends.get(&InteractionScope::Global).unwrap_or(&empty);
+        // let global_receives = scoped_receives.get(&InteractionScope::Global).unwrap_or(&empty);
 
-        let local_permutation_width = local_permutation_trace_width(
+        // let global_permutation_width =
+        //     global_permutation_trace_width(global_sends.len() + global_receives.len());
+
+        local_permutation_trace_width(
             local_sends.len() + local_receives.len(),
             self.logup_batch_size(),
-        );
-        let global_permutation_width =
-            global_permutation_trace_width(global_sends.len() + global_receives.len());
-
-        local_permutation_width + global_permutation_width
+        )
     }
 
     /// Returns the cost of a row in the chip.
@@ -237,7 +235,7 @@ where
 impl<'a, F, A, AB> Air<AB> for Chip<F, A>
 where
     F: Field,
-    A: Air<AB>,
+    A: Air<AB> + MachineAir<F>,
     AB: SP1AirBuilder<F = F> + MultiTableAirBuilder<'a> + PairBuilder + 'a,
 {
     fn eval(&self, builder: &mut AB) {
@@ -245,7 +243,13 @@ where
         self.air.eval(builder);
         // Evaluate permutation constraints.
         let batch_size = self.logup_batch_size();
-        eval_permutation_constraints(&self.sends, &self.receives, batch_size, builder);
+        eval_permutation_constraints(
+            &self.sends,
+            &self.receives,
+            batch_size,
+            self.air.commit_scope(),
+            builder,
+        );
     }
 }
 
