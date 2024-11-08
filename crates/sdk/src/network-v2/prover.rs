@@ -97,7 +97,7 @@ impl NetworkProver {
                     .await
             },
             timeout,
-            "request proof",
+            "requesting proof",
         )
         .await?;
 
@@ -144,7 +144,7 @@ impl NetworkProver {
             let (status, maybe_proof) = with_retry(
                 || async { self.client.get_proof_request_status::<P>(request_id).await },
                 remaining_timeout,
-                "get proof request status",
+                "getting proof request status",
             )
             .await?;
 
@@ -275,19 +275,23 @@ where
                     match status.code() {
                         Code::Unavailable => {
                             log::warn!(
-                                "Network temporarily unavailable for {}, retrying: {}",
+                                "Network temporarily unavailable when {} due to {}, retrying...",
                                 operation_name,
-                                status.message()
+                                status.message(),
                             );
                             Err(BackoffError::transient(e))
                         }
                         Code::NotFound => {
-                            log::error!("{} not found: {}", operation_name, status.message());
+                            log::error!(
+                                "{} not found due to {}",
+                                operation_name,
+                                status.message(),
+                            );
                             Err(BackoffError::permanent(e))
                         }
                         _ => {
                             log::error!(
-                                "Permanent error encountered in {}: {} ({})",
+                                "Permanent error encountered when {}: {} ({})",
                                 operation_name,
                                 status.message(),
                                 status.code()
@@ -296,7 +300,7 @@ where
                         }
                     }
                 } else {
-                    log::error!("Unexpected error type in {}: {}", operation_name, e);
+                    log::error!("Unexpected error type when {}: {}", operation_name, e);
                     Err(BackoffError::permanent(e))
                 }
             }
