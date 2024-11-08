@@ -51,7 +51,8 @@ pub fn main() {
     for _ in 0..10 {
         // Loop to generate 10 random pairs of a and b
         let a: [u8; 32] = rng.gen(); // Generate random a
-        let b: [u8; 256] = rng.gen(); // Generate random b
+        let mut b = [0u8; 256]; // Initialize an array of zeros
+        rng.fill(&mut b); // Fill it with random bytes
 
         let a_big = BigUint::from_bytes_le(&a);
         let b_big = BigUint::from_bytes_le(&b);
