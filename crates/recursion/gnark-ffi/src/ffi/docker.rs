@@ -162,9 +162,9 @@ pub fn verify_groth16_bn254(
 }
 
 fn test(system: ProofSystem, witness_json: &str, constraints_json: &str) -> Result<()> {
-    let mounts = [(constraints_json, "/constraints"), (witness_json, "/witness")];
+    let mounts = [(witness_json, "/witness"), (constraints_json, "/constraints")];
     assert_docker();
-    call_docker(&["test", "--system", system.as_str(), "/constraints", "/witness"], &mounts)
+    call_docker(&["test", "--system", system.as_str(), "/witness", "/constraints"], &mounts)
 }
 
 pub fn test_plonk_bn254(witness_json: &str, constraints_json: &str) {

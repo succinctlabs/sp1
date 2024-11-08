@@ -8,7 +8,6 @@ on:
       - "**"
     paths:
       - "crates/**"
-      - "examples/**"
       - "Cargo.toml"
       - ".github/workflows/**"
   merge_group:
@@ -40,7 +39,8 @@ jobs:
         uses: actions-rs/cargo@v1
         env:
           SP1_GNARK_IMAGE: sp1-gnark
+          RUST_LOG: info
         with:
           command: test
           toolchain: 1.81.0
-          args: --release -p sp1-prover -- --exact tests::test_e2e
+          args: --release -p sp1-prover -- --exact tests::test_e2e --nocapture

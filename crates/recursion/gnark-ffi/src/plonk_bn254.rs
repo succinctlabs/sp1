@@ -1,6 +1,6 @@
 use std::{
     fs::File,
-    io::{Read, Write},
+    io::{self, Read, Write},
     path::{Path, PathBuf},
 };
 
@@ -83,7 +83,7 @@ impl PlonkBn254Prover {
         sp1_verifier_file.write_all(sp1_verifier_str.as_bytes()).unwrap();
 
         let plonk_verifier_path = build_dir.join("PlonkVerifier.sol");
-        Self::modify_plonk_verifier(&plonk_verifier_path);
+        Self::modify_plonk_verifier(&plonk_verifier_path).unwrap();
     }
 
     /// Generates a PLONK proof given a witness.
@@ -125,14 +125,18 @@ impl PlonkBn254Prover {
     }
 
     /// Modify the PlonkVerifier so that it works with the SP1Verifier.
-    fn modify_plonk_verifier(file_path: &Path) {
+    fn modify_plonk_verifier(file_path: &Path) -> io::Result<()> {
+        let mut file = File::open(file_path)?;
         let mut content = String::new();
-        File::open(file_path).unwrap().read_to_string(&mut content).unwrap();
+        file.read_to_string(&mut content)?;
 
-        content = content.replace("pragma solidity ^0.8.19;", "pragma solidity ^0.8.20;");
+        // Update the pragma version
+        content = content.replace("pragma solidity ^0.8.0;", "pragma solidity ^0.8.20;");
 
-        let mut file = File::create(file_path).unwrap();
-        file.write_all(content.as_bytes()).unwrap();
+        // Write back to file
+        file.write_all(content.as_bytes())?;
+
+        Ok(())
     }
 }
 

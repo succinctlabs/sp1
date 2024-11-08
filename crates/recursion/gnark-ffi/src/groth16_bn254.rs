@@ -1,6 +1,6 @@
 use std::{
     fs::File,
-    io::{Read, Write},
+    io::{self, Read, Write},
     path::{Path, PathBuf},
 };
 
@@ -67,7 +67,7 @@ impl Groth16Bn254Prover {
         sp1_verifier_file.write_all(sp1_verifier_str.as_bytes()).unwrap();
 
         let groth16_verifier_path = build_dir.join("Groth16Verifier.sol");
-        Self::modify_groth16_verifier(&groth16_verifier_path);
+        Self::modify_groth16_verifier(&groth16_verifier_path).unwrap();
     }
 
     /// Builds the Groth16 circuit locally.
@@ -131,17 +131,19 @@ impl Groth16Bn254Prover {
     }
 
     /// Modify the Groth16Verifier so that it works with the SP1Verifier.
-    fn modify_groth16_verifier(file_path: &Path) {
+    fn modify_groth16_verifier(file_path: &Path) -> io::Result<()> {
+        let mut file = File::open(file_path)?;
         let mut content = String::new();
-        File::open(file_path).unwrap().read_to_string(&mut content).unwrap();
+        file.read_to_string(&mut content)?;
 
         content = content
             .replace("pragma solidity ^0.8.0;", "pragma solidity ^0.8.20;")
             .replace("contract Verifier {", "contract Groth16Verifier {")
             .replace("function verifyProof(", "function Verify(");
 
-        let mut file = File::create(file_path).unwrap();
-        file.write_all(content.as_bytes()).unwrap();
+        file.write_all(content.as_bytes())?;
+
+        Ok(())
     }
 }
 
