@@ -2,6 +2,7 @@
 version = "3.0.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
+rust-version = "1.79"
 repository = "https://github.com/succinctlabs/sp1"
 keywords = ["sp1", "succinct", "zero-knowledge", "zkvm"]
 categories = ["cryptography"]
@@ -139,5 +140,10 @@ p3-bn254-fr = { git = "https://github.com/Plonky3/Plonky3", branch = "sp1-v4" }
 
 [workspace.metadata.typos]
 # TODO: Fix in next version since CommitCommitedValuesDigest is retained since it's present in constraints.json
-default.extend-ignore-re = ["Jo-Philipp Wich", "SubEIN", "DivEIN", "CommitCommitedValuesDigest"]
+default.extend-ignore-re = [
+  "Jo-Philipp Wich",
+  "SubEIN",
+  "DivEIN",
+  "CommitCommitedValuesDigest",
+]
 default.extend-ignore-words-re = ["(?i)groth", "TRE"]
