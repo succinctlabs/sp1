@@ -3,7 +3,7 @@ use crate::{
     utils::{limbs_from_access, pad_rows_fixed, words_to_bytes_le},
 };
 use crate::{
-    memory::{value_as_limbs, MemoryReadCols, MemoryWriteCols},
+    memory::{value_as_limbs, MemoryCols, MemoryReadCols, MemoryWriteCols},
     operations::field::field_op::FieldOpCols,
 };
 
@@ -403,5 +403,15 @@ where
                 ),
             );
         }
+
+        // Constrain that the lo_ptr is the value of lo_ptr_memory.
+        builder
+            .when(local.is_real)
+            .assert_eq(local.lo_ptr, local.lo_ptr_memory.value().reduce::<AB>());
+
+        // Constrain that the hi_ptr is the value of hi_ptr_memory.
+        builder
+            .when(local.is_real)
+            .assert_eq(local.hi_ptr, local.hi_ptr_memory.value().reduce::<AB>());
     }
 }
