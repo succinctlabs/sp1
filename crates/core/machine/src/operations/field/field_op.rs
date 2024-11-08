@@ -57,8 +57,9 @@ impl<F: PrimeField32, P: FieldParameters> FieldOpCols<F, P> {
         let p_b: Polynomial<F> = P::to_limbs_field::<F, _>(b).into();
         let p_c: Polynomial<F> = P::to_limbs_field::<F, _>(c).into();
 
-        let (result, carry) =
-            ((a * b + c) % modulus, (a * b + c - (a * b + c) % modulus) / modulus);
+        let mul_add = a * b + c;
+        let result = &mul_add % modulus;
+        let carry = (mul_add - &result) / modulus;
         debug_assert!(&result < modulus);
         debug_assert!(&carry < modulus);
         debug_assert_eq!(&carry * modulus, a * b + c - &result);

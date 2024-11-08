@@ -14,7 +14,7 @@ use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use sp1_core_executor::{
     events::{ByteRecord, FieldOperation, PrecompileEvent},
     syscalls::SyscallCode,
-    ExecutionRecord, Program,
+    ExecutionRecord, Program, Register,
 };
 use sp1_curves::{
     params::{NumLimbs, NumWords},
@@ -44,8 +44,8 @@ impl U256x2048MulChip {
 }
 type WordsFieldElement = <U256Field as NumWords>::WordsFieldElement;
 const WORDS_FIELD_ELEMENT: usize = WordsFieldElement::USIZE;
-const LO_REGISTER: u32 = 12;
-const HI_REGISTER: u32 = 13;
+const LO_REGISTER: u32 = Register::X12 as u32;
+const HI_REGISTER: u32 = Register::X13 as u32;
 
 /// A set of columns for the U256x2048Mul operation.
 #[derive(Debug, Clone, AlignedBorrow)]
@@ -217,6 +217,7 @@ impl<F: PrimeField32> MachineAir<F> for U256x2048MulChip {
                 let z = BigUint::zero();
                 let modulus = BigUint::one() << 256;
 
+                // Populate all the mul and carry columns with zero values.
                 cols.a_mul_b1.populate(&mut vec![], 0, &x, &y, FieldOperation::Mul);
                 cols.ab2_plus_carry.populate_mul_and_carry(&mut vec![], 0, &x, &y, &z, &modulus);
                 cols.ab3_plus_carry.populate_mul_and_carry(&mut vec![], 0, &x, &y, &z, &modulus);
@@ -271,10 +272,10 @@ where
         let next = main.row_slice(1);
         let next: &U256x2048MulCols<AB::Var> = (*next).borrow();
 
-        // simple constraint
+        // Assert that is_real is a boolean.
         builder.assert_bool(local.is_real);
 
-        // receive the arguments.
+        // Receive the arguments.
         builder.receive_syscall(
             local.shard,
             local.clk,
@@ -286,7 +287,7 @@ where
             InteractionScope::Local,
         );
 
-        // constraint memory access
+        // Evaluate that the lo_ptr and hi_ptr are read from the correct memory locations.
         builder.eval_memory_access(
             local.shard,
             local.clk.into(),
@@ -303,6 +304,7 @@ where
             local.is_real,
         );
 
+        // Evaluate the memory accesses for a_memory and b_memory.
         builder.eval_memory_access_slice(
             local.shard,
             local.clk.into(),
@@ -319,6 +321,7 @@ where
             local.is_real,
         );
 
+        // Evaluate the memory accesses for lo_memory and hi_memory.
         builder.eval_memory_access_slice(
             local.shard,
             local.clk.into() + AB::Expr::one(),
@@ -339,7 +342,6 @@ where
         builder.when_first_row().assert_zero(local.nonce);
         builder.when_transition().assert_eq(local.nonce + AB::Expr::one(), next.nonce);
 
-        // Eval each of mul and carries
         let a_limbs =
             limbs_from_access::<AB::Var, <U256Field as NumLimbs>::Limbs, _>(&local.a_memory);
 
@@ -355,6 +357,7 @@ where
         coeff_2_256.push(AB::Expr::one());
         let modulus_polynomial: Polynomial<AB::Expr> = Polynomial::from_coefficients(&coeff_2_256);
 
+        // Evaluate that each of the mul and carry columns are valid.
         let outputs = [
             &local.a_mul_b1,
             &local.ab2_plus_carry,

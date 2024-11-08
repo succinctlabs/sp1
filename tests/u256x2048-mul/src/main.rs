@@ -2,6 +2,7 @@
 sp1_zkvm::entrypoint!(main);
 
 use num::BigUint;
+use rand::Rng;
 use sp1_zkvm::syscalls::syscall_u256x2048_mul;
 
 fn u256_to_bytes_le(x: &BigUint) -> [u8; 32] {
@@ -44,6 +45,40 @@ pub fn main() {
     let result_max_syscall = (hi_max_big << 2048) + lo_max_big;
     let result_max = a_max_big * b_max_big;
     assert_eq!(result_max, result_max_syscall);
+
+    let mut rng = rand::thread_rng(); // Initialize the random number generator
+
+    for _ in 0..10 {
+        // Loop to generate 10 random pairs of a and b
+        let a: [u8; 32] = rng.gen(); // Generate random a
+        let b: [u8; 256] = rng.gen(); // Generate random b
+
+        let a_big = BigUint::from_bytes_le(&a);
+        let b_big = BigUint::from_bytes_le(&b);
+
+        let a = u256_to_bytes_le(&a_big);
+        let b = u2048_to_bytes_le(&b_big);
+
+        let mut lo: [u32; 64] = [0; 64];
+        let mut hi: [u32; 8] = [0; 8];
+
+        syscall_u256x2048_mul(
+            a.as_ptr() as *const [u32; 8],
+            b.as_ptr() as *const [u32; 64],
+            lo.as_mut_ptr() as *mut [u32; 64],
+            hi.as_mut_ptr() as *mut [u32; 8],
+        );
+
+        let lo_bytes: [u8; 256] = bytemuck::cast::<[u32; 64], [u8; 256]>(lo);
+        let hi_bytes: [u8; 32] = bytemuck::cast::<[u32; 8], [u8; 32]>(hi);
+
+        let lo_big = BigUint::from_bytes_le(&lo_bytes);
+        let hi_big = BigUint::from_bytes_le(&hi_bytes);
+
+        let result_syscall = (hi_big << 2048) + lo_big;
+        let result = a_big * b_big;
+        assert_eq!(result, result_syscall);
+    }
 
     println!("All tests passed successfully!");
 }
