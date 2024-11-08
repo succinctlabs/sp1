@@ -1,5 +1,7 @@
 # Usage in CI
 
+## Getting started
+
 You may want to use SP1 in your [Github Actions](https://docs.github.com/en/actions) CI workflow.
 
 You first need to have Rust installed, and you can use
@@ -26,8 +28,25 @@ And then you can install the SP1 toolchain:
     ~/.sp1/bin/cargo-prove prove --version
 ```
 
+You might experience rate limiting from sp1up. Using a Github
+[Personal Access Token (PAT)](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens#creating-a-fine-grained-personal-access-token) will help.
+
+Try setting a github actions secret to your PAT, and then passing it into the `sp1up` command:
+
+```yaml
+- name: Install SP1 toolchain
+  run: |
+    curl -L https://sp1.succinct.xyz | bash
+    ~/.sp1/bin/sp1up --token "${{ secrets.GH_PAT }}"
+    ~/.sp1/bin/cargo-prove prove --version
+```
+
+## Speeding up your CI workflow
+
+### Caching
+
 To speed up your CI workflow, you can cache the Rust toolchain and SP1 toolchain. See this example
-from SP1's CI workflow.
+from SP1's CI workflow, which caches
 
 ```yaml
 - name: rust-cache
@@ -45,6 +64,8 @@ from SP1's CI workflow.
     key: rust-1.81.0-${{ hashFiles('**/Cargo.toml') }}
         restore-keys: rust-1.81.0-
 ```
+
+### `runs-on` for bigger instances
 
 Since SP1 is a fairly large repository, it might be useful to use [`runs-on`](https://github.com/runs-on/runs-on)
 to specify a larger instance type.
