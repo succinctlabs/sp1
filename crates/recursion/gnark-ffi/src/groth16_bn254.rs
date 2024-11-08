@@ -132,7 +132,7 @@ impl Groth16Bn254Prover {
 
     /// Modify the Groth16Verifier so that it works with the SP1Verifier.
     fn modify_groth16_verifier(file_path: &Path) -> io::Result<()> {
-        let mut file = File::open(file_path)?;
+        let mut file = File::options().read(true).write(true).open(file_path)?;
         let mut content = String::new();
         file.read_to_string(&mut content)?;
 
