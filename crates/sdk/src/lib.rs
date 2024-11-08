@@ -338,7 +338,7 @@ mod tests {
     fn test_execute_panic() {
         utils::setup_logger();
         let client = ProverClient::local();
-        let elf = include_bytes!("../../../tests/panic/elf/riscv32im-succinct-zkvm-elf");
+        let elf = test_artifacts::PANIC_ELF;
         let mut stdin = SP1Stdin::new();
         stdin.write(&10usize);
         client.execute(elf, stdin).run().unwrap();
@@ -349,7 +349,7 @@ mod tests {
     fn test_cycle_limit_fail() {
         utils::setup_logger();
         let client = ProverClient::local();
-        let elf = include_bytes!("../../../tests/panic/elf/riscv32im-succinct-zkvm-elf");
+        let elf = test_artifacts::PANIC_ELF;
         let mut stdin = SP1Stdin::new();
         stdin.write(&10usize);
         client.execute(elf, stdin).max_cycles(1).run().unwrap();
@@ -359,7 +359,7 @@ mod tests {
     fn test_e2e_core() {
         utils::setup_logger();
         let client = ProverClient::local();
-        let elf = include_bytes!("../../../tests/fibonacci/elf/riscv32im-succinct-zkvm-elf");
+        let elf = test_artifacts::FIBONACCI_ELF;
         let (pk, vk) = client.setup(elf);
         let mut stdin = SP1Stdin::new();
         stdin.write(&10usize);
@@ -379,7 +379,7 @@ mod tests {
     fn test_e2e_compressed() {
         utils::setup_logger();
         let client = ProverClient::local();
-        let elf = include_bytes!("../../../tests/fibonacci/elf/riscv32im-succinct-zkvm-elf");
+        let elf = test_artifacts::FIBONACCI_ELF;
         let (pk, vk) = client.setup(elf);
         let mut stdin = SP1Stdin::new();
         stdin.write(&10usize);
@@ -399,7 +399,7 @@ mod tests {
     fn test_e2e_prove_plonk() {
         utils::setup_logger();
         let client = ProverClient::local();
-        let elf = include_bytes!("../../../tests/fibonacci/elf/riscv32im-succinct-zkvm-elf");
+        let elf = test_artifacts::FIBONACCI_ELF;
         let (pk, vk) = client.setup(elf);
         let mut stdin = SP1Stdin::new();
         stdin.write(&10usize);
@@ -419,7 +419,7 @@ mod tests {
     fn test_e2e_prove_plonk_mock() {
         utils::setup_logger();
         let client = ProverClient::mock();
-        let elf = include_bytes!("../../../tests/fibonacci/elf/riscv32im-succinct-zkvm-elf");
+        let elf = test_artifacts::FIBONACCI_ELF;
         let (pk, vk) = client.setup(elf);
         let mut stdin = SP1Stdin::new();
         stdin.write(&10usize);

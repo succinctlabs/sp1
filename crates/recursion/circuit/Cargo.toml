@@ -38,6 +38,7 @@ tracing = "0.1.40"
 hashbrown = { version = "0.14.5", features = ["serde", "inline-more"] }
 num-traits = "0.2.19"
 rayon = "1.10.0"
+test-artifacts = { workspace = true, optional = true }
 
 [dev-dependencies]
 sp1-core-executor = { workspace = true, features = ["programs"] }
@@ -52,5 +53,5 @@ rand = "0.8.5"
 
 [features]
 native-gnark = ["sp1-recursion-gnark-ffi/native"]
-export-tests = []
+export-tests = ["dep:test-artifacts"]
 debug = ["sp1-core-machine/debug"]

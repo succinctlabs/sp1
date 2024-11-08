@@ -53,6 +53,9 @@ alloy-signer-local = { version = "0.3.6", optional = true }
 alloy-primitives = { version = "0.8.7", optional = true }
 backoff = { version = "0.4", features = ["tokio"], optional = true }
 
+[dev-dependencies]
+test-artifacts = { workspace = true }
+
 [features]
 default = ["network"]
 neon = ["sp1-core-machine/neon"]

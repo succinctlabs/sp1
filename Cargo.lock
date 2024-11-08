@@ -6162,6 +6162,7 @@ dependencies = [
  "sp1-zkvm",
  "strum",
  "strum_macros",
+ "test-artifacts",
  "thiserror",
  "tiny-keccak",
  "tracing",
@@ -6209,6 +6210,7 @@ dependencies = [
  "strum",
  "strum_macros",
  "tempfile",
+ "test-artifacts",
  "thiserror",
  "tiny-keccak",
  "tracing",
@@ -6230,6 +6232,7 @@ dependencies = [
  "serde",
  "sp1-core-machine",
  "sp1-prover",
+ "test-artifacts",
  "tokio",
  "tracing",
  "twirp-build-rs",
@@ -6329,6 +6332,7 @@ dependencies = [
  "sp1-prover",
  "sp1-sdk",
  "sp1-stark",
+ "test-artifacts",
  "time 0.3.36",
  "tokio",
 ]
@@ -6384,6 +6388,7 @@ dependencies = [
  "sp1-stark",
  "subtle-encoding",
  "tempfile",
+ "test-artifacts",
  "thiserror",
  "tracing",
  "tracing-subscriber",
@@ -6421,6 +6426,7 @@ dependencies = [
  "sp1-recursion-core",
  "sp1-recursion-gnark-ffi",
  "sp1-stark",
+ "test-artifacts",
  "tracing",
  "zkhash",
 ]
@@ -6563,6 +6569,7 @@ dependencies = [
  "strum",
  "strum_macros",
  "tempfile",
+ "test-artifacts",
  "thiserror",
  "tokio",
  "tonic",
@@ -6971,6 +6978,13 @@ dependencies = [
  "dirs-next",
  "rustversion",
  "winapi",
+]
+
+[[package]]
+name = "test-artifacts"
+version = "3.0.0"
+dependencies = [
+ "sp1-build",
 ]
 
 [[package]]
