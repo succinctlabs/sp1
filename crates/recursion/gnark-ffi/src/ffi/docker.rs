@@ -45,10 +45,10 @@ fn call_docker(args: &[&str], mounts: &[(&str, &str)]) -> Result<()> {
     for (src, dest) in mounts {
         cmd.arg("-v").arg(format!("{}:{}", src, dest));
     }
-    cmd.arg(get_docker_image());
-    cmd.args(args);
-    if !cmd.status()?.success() {
+    let result = cmd.status()?;
+    if !result.success() {
         log::error!("Failed to run `docker run`: {:?}", cmd);
+        log::error!("Execution result: {:?}", result);
         return Err(anyhow!("docker command failed"));
     }
     Ok(())
