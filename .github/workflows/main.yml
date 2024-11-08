@@ -80,13 +80,7 @@ jobs:
 
   plonk-docker-mac:
     name: Plonk Docker Mac
-    runs-on:
-      [
-        runs-on,
-        macos-latest,
-        spot=false,
-        "run-id=${{ github.run_id }}",
-      ]
+    runs-on: macos-latest
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
