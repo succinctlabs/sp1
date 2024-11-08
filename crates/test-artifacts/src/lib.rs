@@ -1,89 +1,70 @@
 #![warn(clippy::pedantic)]
+
+use sp1_build::include_elf;
 /// Compiled test programs. TODO elaborate.
 
-pub const FIBONACCI_ELF: &[u8] =
-    include_bytes!("../programs/fibonacci/elf/riscv32im-succinct-zkvm-elf");
+pub const FIBONACCI_ELF: &[u8] = include_elf!("fibonacci-program-tests");
 
-pub const ED25519_ELF: &[u8] =
-    include_bytes!("../programs/ed25519/elf/riscv32im-succinct-zkvm-elf");
+pub const ED25519_ELF: &[u8] = include_elf!("ed25519-program");
 
-pub const CYCLE_TRACKER_ELF: &[u8] =
-    include_bytes!("../programs/cycle-tracker/elf/riscv32im-succinct-zkvm-elf");
+pub const CYCLE_TRACKER_ELF: &[u8] = include_elf!("cycle-tracker-test");
 
-pub const ED_ADD_ELF: &[u8] = include_bytes!("../programs/ed-add/elf/riscv32im-succinct-zkvm-elf");
+pub const ED_ADD_ELF: &[u8] = include_elf!("ed-add-test");
 
-pub const ED_DECOMPRESS_ELF: &[u8] =
-    include_bytes!("../programs/ed-decompress/elf/riscv32im-succinct-zkvm-elf");
+pub const ED_DECOMPRESS_ELF: &[u8] = include_elf!("ed-decompress-test");
 
-pub const KECCAK_PERMUTE_ELF: &[u8] =
-    include_bytes!("../programs/keccak-permute/elf/riscv32im-succinct-zkvm-elf");
+pub const KECCAK_PERMUTE_ELF: &[u8] = include_elf!("keccak-permute-test");
 
-pub const KECCAK256_ELF: &[u8] =
-    include_bytes!("../programs/keccak256/elf/riscv32im-succinct-zkvm-elf");
+pub const KECCAK256_ELF: &[u8] = include_elf!("keccak256-test");
 
-pub const SECP256K1_ADD_ELF: &[u8] =
-    include_bytes!("../programs/secp256k1-add/elf/riscv32im-succinct-zkvm-elf");
+pub const SECP256K1_ADD_ELF: &[u8] = include_elf!("secp256k1-add-test");
 
-pub const SECP256K1_DECOMPRESS_ELF: &[u8] =
-    include_bytes!("../programs/secp256k1-decompress/elf/riscv32im-succinct-zkvm-elf");
+pub const SECP256K1_DECOMPRESS_ELF: &[u8] = include_elf!("secp256k1-decompress-test");
 
-pub const SECP256K1_DOUBLE_ELF: &[u8] =
-    include_bytes!("../programs/secp256k1-double/elf/riscv32im-succinct-zkvm-elf");
+pub const SECP256K1_DOUBLE_ELF: &[u8] = include_elf!("secp256k1-double-test");
 
-pub const SHA_COMPRESS_ELF: &[u8] =
-    include_bytes!("../programs/sha-compress/elf/riscv32im-succinct-zkvm-elf");
+pub const SECP256R1_ADD_ELF: &[u8] = include_elf!("secp256r1-add-test");
 
-pub const SHA_EXTEND_ELF: &[u8] =
-    include_bytes!("../programs/sha-extend/elf/riscv32im-succinct-zkvm-elf");
+pub const SECP256R1_DECOMPRESS_ELF: &[u8] = include_elf!("secp256r1-decompress-test");
 
-pub const SHA2_ELF: &[u8] = include_bytes!("../programs/sha2/elf/riscv32im-succinct-zkvm-elf");
+pub const SECP256R1_DOUBLE_ELF: &[u8] = include_elf!("secp256r1-double-test");
 
-pub const BN254_ADD_ELF: &[u8] =
-    include_bytes!("../programs/bn254-add/elf/riscv32im-succinct-zkvm-elf");
+pub const SHA_COMPRESS_ELF: &[u8] = include_elf!("sha-compress-test");
 
-pub const BN254_DOUBLE_ELF: &[u8] =
-    include_bytes!("../programs/bn254-double/elf/riscv32im-succinct-zkvm-elf");
+pub const SHA_EXTEND_ELF: &[u8] = include_elf!("sha-extend-test");
 
-pub const BN254_MUL_ELF: &[u8] =
-    include_bytes!("../programs/bn254-mul/elf/riscv32im-succinct-zkvm-elf");
+pub const SHA2_ELF: &[u8] = include_elf!("sha2-test");
 
-pub const SECP256K1_MUL_ELF: &[u8] =
-    include_bytes!("../programs/secp256k1-mul/elf/riscv32im-succinct-zkvm-elf");
+pub const BN254_ADD_ELF: &[u8] = include_elf!("bn254-add-test");
 
-pub const BLS12381_ADD_ELF: &[u8] =
-    include_bytes!("../programs/bls12381-add/elf/riscv32im-succinct-zkvm-elf");
+pub const BN254_DOUBLE_ELF: &[u8] = include_elf!("bn254-double-test");
 
-pub const BLS12381_DOUBLE_ELF: &[u8] =
-    include_bytes!("../programs/bls12381-double/elf/riscv32im-succinct-zkvm-elf");
+pub const BN254_MUL_ELF: &[u8] = include_elf!("bn254-mul-test");
 
-pub const BLS12381_MUL_ELF: &[u8] =
-    include_bytes!("../programs/bls12381-mul/elf/riscv32im-succinct-zkvm-elf");
+pub const SECP256K1_MUL_ELF: &[u8] = include_elf!("secp256k1-mul-test");
 
-pub const UINT256_MUL_ELF: &[u8] =
-    include_bytes!("../programs/uint256-mul/elf/riscv32im-succinct-zkvm-elf");
+pub const BLS12381_ADD_ELF: &[u8] = include_elf!("bls12381-add-test");
 
-pub const BLS12381_DECOMPRESS_ELF: &[u8] =
-    include_bytes!("../programs/bls12381-decompress/elf/riscv32im-succinct-zkvm-elf");
+pub const BLS12381_DOUBLE_ELF: &[u8] = include_elf!("bls12381-double-test");
 
-pub const VERIFY_PROOF_ELF: &[u8] =
-    include_bytes!("../programs/verify-proof/elf/riscv32im-succinct-zkvm-elf");
+pub const BLS12381_MUL_ELF: &[u8] = include_elf!("bls12381-mul-test");
 
-pub const PANIC_ELF: &[u8] = include_bytes!("../programs/panic/elf/riscv32im-succinct-zkvm-elf");
+pub const UINT256_MUL_ELF: &[u8] = include_elf!("biguint-mul-test");
 
-pub const BLS12381_FP_ELF: &[u8] =
-    include_bytes!("../programs/bls12381-fp/elf/riscv32im-succinct-zkvm-elf");
+pub const BLS12381_DECOMPRESS_ELF: &[u8] = include_elf!("bls-decompress-test");
 
-pub const BLS12381_FP2_MUL_ELF: &[u8] =
-    include_bytes!("../programs/bls12381-fp2-mul/elf/riscv32im-succinct-zkvm-elf");
+pub const VERIFY_PROOF_ELF: &[u8] = include_elf!("verify-proof");
 
-pub const BLS12381_FP2_ADDSUB_ELF: &[u8] =
-    include_bytes!("../programs/bls12381-fp2-addsub/elf/riscv32im-succinct-zkvm-elf");
+pub const PANIC_ELF: &[u8] = include_elf!("panic-test");
 
-pub const BN254_FP_ELF: &[u8] =
-    include_bytes!("../programs/bn254-fp/elf/riscv32im-succinct-zkvm-elf");
+pub const BLS12381_FP_ELF: &[u8] = include_elf!("bls12381-fp-test");
 
-pub const BN254_FP2_ADDSUB_ELF: &[u8] =
-    include_bytes!("../programs/bn254-fp2-addsub/elf/riscv32im-succinct-zkvm-elf");
+pub const BLS12381_FP2_MUL_ELF: &[u8] = include_elf!("bls12381-fp2-mul-test");
 
-pub const BN254_FP2_MUL_ELF: &[u8] =
-    include_bytes!("../programs/bn254-fp2-mul/elf/riscv32im-succinct-zkvm-elf");
+pub const BLS12381_FP2_ADDSUB_ELF: &[u8] = include_elf!("bls12381-fp2-addsub-test");
+
+pub const BN254_FP_ELF: &[u8] = include_elf!("bn254-fp-test");
+
+pub const BN254_FP2_ADDSUB_ELF: &[u8] = include_elf!("bn254-fp2-addsub-test");
+
+pub const BN254_FP2_MUL_ELF: &[u8] = include_elf!("bn254-fp2-mul-test");

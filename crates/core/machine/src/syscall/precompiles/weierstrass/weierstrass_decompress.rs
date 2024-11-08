@@ -549,7 +549,9 @@ mod tests {
     use rand::{thread_rng, Rng};
     use sp1_core_executor::Program;
     use sp1_stark::CpuProver;
-    use test_artifacts::{BLS12381_DECOMPRESS_ELF, SECP256K1_DECOMPRESS_ELF};
+    use test_artifacts::{
+        BLS12381_DECOMPRESS_ELF, SECP256K1_DECOMPRESS_ELF, SECP256R1_DECOMPRESS_ELF,
+    };
 
     use crate::utils::run_test_io;
 

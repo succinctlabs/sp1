@@ -468,7 +468,7 @@ mod tests {
     use sp1_stark::CpuProver;
     use test_artifacts::{
         BLS12381_ADD_ELF, BLS12381_DOUBLE_ELF, BLS12381_MUL_ELF, BN254_ADD_ELF, BN254_MUL_ELF,
-        SECP256K1_ADD_ELF, SECP256K1_MUL_ELF,
+        SECP256K1_ADD_ELF, SECP256K1_MUL_ELF, SECP256R1_ADD_ELF,
     };
 
     use crate::utils::{run_test, setup_logger};

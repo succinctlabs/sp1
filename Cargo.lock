@@ -5822,6 +5822,7 @@ dependencies = [
  "reqwest",
  "reqwest-middleware",
  "serde",
+ "sp1-build",
  "sp1-core-executor",
  "sp1-core-machine",
  "sp1-cuda",

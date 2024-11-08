@@ -38,6 +38,7 @@ use {std::future::Future, tokio::task::block_in_place};
 
 pub use provers::{CpuProver, MockProver, Prover};
 
+pub use sp1_build::include_elf;
 pub use sp1_core_executor::{ExecutionReport, HookEnv, SP1Context, SP1ContextBuilder};
 pub use sp1_core_machine::{io::SP1Stdin, riscv::cost::CostEstimator, SP1_CIRCUIT_VERSION};
 pub use sp1_primitives::io::SP1PublicValues;
@@ -296,22 +297,6 @@ pub fn block_on<T>(fut: impl Future<Output = T>) -> T {
         let rt = tokio::runtime::Runtime::new().expect("Failed to create a new runtime");
         rt.block_on(fut)
     }
-}
-
-/// Returns the raw ELF bytes by the zkVM program target name.
-///
-/// Note that this only works when using `sp1_build::build_program` or
-/// `sp1_build::build_program_with_args` in a build script.
-///
-/// By default, the program target name is the same as the program crate name. However, this might
-/// not be the case for non-standard project structures. For example, placing the entrypoint source
-/// file at `src/bin/my_entry.rs` would result in the program target being named `my_entry`, in
-/// which case the invocation should be `include_elf!("my_entry")` instead.
-#[macro_export]
-macro_rules! include_elf {
-    ($arg:tt) => {{
-        include_bytes!(env!(concat!("SP1_ELF_", $arg)))
-    }};
 }
 
 #[cfg(test)]

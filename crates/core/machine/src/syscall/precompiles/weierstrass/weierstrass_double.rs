@@ -494,7 +494,9 @@ where
 pub mod tests {
     use sp1_core_executor::Program;
     use sp1_stark::CpuProver;
-    use test_artifacts::{BLS12381_DOUBLE_ELF, BN254_DOUBLE_ELF, SECP256K1_DOUBLE_ELF};
+    use test_artifacts::{
+        BLS12381_DOUBLE_ELF, BN254_DOUBLE_ELF, SECP256K1_DOUBLE_ELF, SECP256R1_DOUBLE_ELF,
+    };
 
     use crate::utils::{run_test, setup_logger};
 
