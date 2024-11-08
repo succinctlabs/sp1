@@ -10,7 +10,7 @@ the [Groth16 Example](https://github.com/succinctlabs/sp1/tree/main/examples/gro
 
 ### Installation
 
-Import the following dependency in your `Cargo.toml`:
+Import the following dependency in your `Cargo.toml`. Note that the `sp1-verifier` crate was added in version `3.2.1`.
 
 ```toml
 sp1-verifier = {version = "3.2.1", default-features = false}
