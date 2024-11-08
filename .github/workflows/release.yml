@@ -267,7 +267,7 @@ jobs:
 
       - name: "Create SP1 project from template"
         run: |
-          $HOME/.sp1/bin/cargo-prove prove new hello
+          $HOME/.sp1/bin/cargo-prove prove new --bare hello
 
       - name: "Build SP1 project"
         run: |
