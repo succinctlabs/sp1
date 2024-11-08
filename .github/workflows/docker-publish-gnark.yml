@@ -1,3 +1,4 @@
+# This workflow publishes the docker image for groth16 and plonk proving to ghcr.io.
 name: Docker Publish Gnark
 
 on:

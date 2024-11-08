@@ -1,3 +1,5 @@
+# This workflow generates and tests the docker image for groth16 and plonk proving. 
+
 name: Docker Gnark
 
 on:
