@@ -1,6 +1,6 @@
 use std::{
     fs::{self, File},
-    io::{self, Write},
+    io::Write,
     path::{Path, PathBuf},
 };
 
@@ -80,9 +80,6 @@ impl PlonkBn254Prover {
             .replace("{VERIFIER_HASH}", format!("0x{}", hex::encode(vkey_hash)).as_str())
             .replace("{PROOF_SYSTEM}", "Plonk");
         fs::write(sp1_verifier_path, sp1_verifier_str).unwrap();
-
-        let plonk_verifier_path = build_dir.join("PlonkVerifier.sol");
-        Self::modify_plonk_verifier(&plonk_verifier_path).unwrap();
     }
 
     /// Generates a PLONK proof given a witness.
@@ -121,19 +118,6 @@ impl PlonkBn254Prover {
             &committed_values_digest.to_string(),
         )
         .expect("failed to verify proof")
-    }
-
-    /// Modify the PlonkVerifier so that it works with the SP1Verifier.
-    fn modify_plonk_verifier(file_path: &Path) -> io::Result<()> {
-        let mut content = fs::read_to_string(file_path)?;
-
-        // Update the pragma version
-        content = content.replace("pragma solidity ^0.8.0;", "pragma solidity ^0.8.20;");
-
-        // Write back to file
-        fs::write(file_path, content)?;
-
-        Ok(())
     }
 }
 

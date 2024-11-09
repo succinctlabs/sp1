@@ -18,6 +18,50 @@ import (
 	"github.com/succinctlabs/sp1-recursion-gnark/sp1/trusted_setup"
 )
 
+// Modify the PlonkVerifier so that it works with the SP1Verifier.
+func modifyPlonkVerifier(file *os.File) {
+	// Read the entire file
+	content, err := os.ReadFile(file.Name())
+	if err != nil {
+		panic(err)
+	}
+
+	// Replace the pragma version
+	modifiedContent := strings.Replace(
+		string(content),
+		"pragma solidity ^0.8.0;",
+		"pragma solidity ^0.8.20;",
+		1,
+	)
+
+	// Write the modified content back to the file
+	err = os.WriteFile(file.Name(), []byte(modifiedContent), 0644)
+	if err != nil {
+		panic(err)
+	}
+}
+
+// Modify the Groth16Verifier so that it works with the SP1Verifier.
+func modifyGroth16Verifier(file *os.File) {
+	// Read the entire file
+	content, err := os.ReadFile(file.Name())
+	if err != nil {
+		panic(err)
+	}
+
+	// Perform all replacements
+	modifiedContent := string(content)
+	modifiedContent = strings.Replace(modifiedContent, "pragma solidity ^0.8.0;", "pragma solidity ^0.8.20;", 1)
+	modifiedContent = strings.Replace(modifiedContent, "contract Verifier {", "contract Groth16Verifier {", 1)
+	modifiedContent = strings.Replace(modifiedContent, "function verifyProof(", "function Verify(", 1)
+
+	// Write the modified content back to the file
+	err = os.WriteFile(file.Name(), []byte(modifiedContent), 0644)
+	if err != nil {
+		panic(err)
+	}
+}
+
 func BuildPlonk(dataDir string) {
 	// Set the environment variable for the constraints file.
 	//
@@ -159,6 +203,9 @@ func BuildPlonk(dataDir string) {
 		panic(err)
 	}
 	vk.ExportSolidity(solidityVerifierFile)
+
+	// Modify the solidity verifier.
+	modifyPlonkVerifier(solidityVerifierFile)
 	defer solidityVerifierFile.Close()
 
 	// Write the R1CS.
@@ -262,6 +309,9 @@ func BuildGroth16(dataDir string) {
 		panic(err)
 	}
 	vk.ExportSolidity(solidityVerifierFile)
+
+	// Modify the solidity verifier.
+	modifyGroth16Verifier(solidityVerifierFile)
 	defer solidityVerifierFile.Close()
 
 	// Write the R1CS.

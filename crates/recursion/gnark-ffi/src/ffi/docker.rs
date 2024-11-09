@@ -38,6 +38,9 @@ fn get_docker_image() -> String {
 }
 
 /// Calls `docker run` with the given arguments and bind mounts.
+///
+/// Note: files created here by `call_docker` are read-only for after the process exits.
+/// To fix this, manually set the docker user to the current user by supplying a `-u` flag.
 fn call_docker(args: &[&str], mounts: &[(&str, &str)]) -> Result<()> {
     log::info!("Running {} in docker", args[0]);
     let mut cmd = Command::new("docker");
