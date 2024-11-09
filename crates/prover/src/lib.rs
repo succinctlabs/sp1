@@ -34,7 +34,6 @@ use std::{
 
 use lru::LruCache;
 use p3_baby_bear::BabyBear;
-use p3_challenger::CanObserve;
 use p3_field::{AbstractField, PrimeField, PrimeField32};
 use p3_matrix::dense::RowMajorMatrix;
 use sp1_core_executor::{ExecutionError, ExecutionReport, Executor, Program, SP1Context};
@@ -70,12 +69,12 @@ use sp1_recursion_core::{
 };
 pub use sp1_recursion_gnark_ffi::proof::{Groth16Bn254Proof, PlonkBn254Proof};
 use sp1_recursion_gnark_ffi::{groth16_bn254::Groth16Bn254Prover, plonk_bn254::PlonkBn254Prover};
-use sp1_stark::{air::InteractionScope, MachineProvingKey, ProofShape};
 use sp1_stark::{
-    air::PublicValues, baby_bear_poseidon2::BabyBearPoseidon2, Challenge, Challenger,
-    MachineProver, SP1CoreOpts, SP1ProverOpts, ShardProof, StarkGenericConfig, StarkVerifyingKey,
-    Val, Word, DIGEST_SIZE,
+    air::PublicValues, baby_bear_poseidon2::BabyBearPoseidon2, Challenge, MachineProver,
+    SP1CoreOpts, SP1ProverOpts, ShardProof, StarkGenericConfig, StarkVerifyingKey, Val, Word,
+    DIGEST_SIZE,
 };
+use sp1_stark::{MachineProvingKey, ProofShape};
 use tracing::instrument;
 
 pub use types::*;
@@ -516,14 +515,11 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
     pub fn get_recursion_core_inputs(
         &self,
         vk: &StarkVerifyingKey<CoreSC>,
-        leaf_challenger: &Challenger<CoreSC>,
         shard_proofs: &[ShardProof<CoreSC>],
         batch_size: usize,
         is_complete: bool,
     ) -> Vec<SP1RecursionWitnessValues<CoreSC>> {
         let mut core_inputs = Vec::new();
-        let mut reconstruct_challenger = self.core_prover.config().challenger();
-        vk.observe_into(&mut reconstruct_challenger);
 
         // Prepare the inputs for the recursion programs.
         for (batch_idx, batch) in shard_proofs.chunks(batch_size).enumerate() {
@@ -532,34 +528,18 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             core_inputs.push(SP1RecursionWitnessValues {
                 vk: vk.clone(),
                 shard_proofs: proofs.clone(),
-                leaf_challenger: leaf_challenger.clone(),
-                initial_reconstruct_challenger: reconstruct_challenger.clone(),
                 is_complete,
                 is_first_shard: batch_idx == 0,
                 vk_root: self.vk_root,
             });
-            assert_eq!(reconstruct_challenger.input_buffer.len(), 0);
-            assert_eq!(reconstruct_challenger.sponge_state.len(), 16);
-            assert_eq!(reconstruct_challenger.output_buffer.len(), 16);
-
-            for proof in batch.iter() {
-                // reconstruct_challenger.observe(proof.commitment.global_main_commit);
-                // reconstruct_challenger
-                //     .observe_slice(&proof.public_values[0..self.core_prover.num_pv_elts()]);
-            }
         }
 
-        // Check that the leaf challenger is the same as the reconstruct challenger.
-        assert_eq!(reconstruct_challenger.sponge_state, leaf_challenger.sponge_state);
-        assert_eq!(reconstruct_challenger.input_buffer, leaf_challenger.input_buffer);
-        assert_eq!(reconstruct_challenger.output_buffer, leaf_challenger.output_buffer);
         core_inputs
     }
 
     pub fn get_recursion_deferred_inputs<'a>(
         &'a self,
         vk: &'a StarkVerifyingKey<CoreSC>,
-        leaf_challenger: &'a Challenger<InnerSC>,
         last_proof_pv: &PublicValues<Word<BabyBear>, BabyBear>,
         deferred_proofs: &[SP1ReduceProof<InnerSC>],
         batch_size: usize,
@@ -587,7 +567,6 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                 end_execution_shard: last_proof_pv.execution_shard,
                 init_addr_bits: last_proof_pv.last_init_addr_bits,
                 finalize_addr_bits: last_proof_pv.last_finalize_addr_bits,
-                leaf_challenger: leaf_challenger.clone(),
                 committed_value_digest: last_proof_pv.committed_value_digest,
                 deferred_proofs_digest: last_proof_pv.deferred_proofs_digest,
             });
@@ -602,27 +581,16 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
     pub fn get_first_layer_inputs<'a>(
         &'a self,
         vk: &'a SP1VerifyingKey,
-        leaf_challenger: &'a Challenger<InnerSC>,
         shard_proofs: &[ShardProof<InnerSC>],
         deferred_proofs: &[SP1ReduceProof<InnerSC>],
         batch_size: usize,
     ) -> Vec<SP1CircuitWitness> {
         let is_complete = shard_proofs.len() == 1 && deferred_proofs.is_empty();
-        let core_inputs = self.get_recursion_core_inputs(
-            &vk.vk,
-            leaf_challenger,
-            shard_proofs,
-            batch_size,
-            is_complete,
-        );
+        let core_inputs =
+            self.get_recursion_core_inputs(&vk.vk, shard_proofs, batch_size, is_complete);
         let last_proof_pv = shard_proofs.last().unwrap().public_values.as_slice().borrow();
-        let deferred_inputs = self.get_recursion_deferred_inputs(
-            &vk.vk,
-            leaf_challenger,
-            last_proof_pv,
-            deferred_proofs,
-            batch_size,
-        );
+        let deferred_inputs =
+            self.get_recursion_deferred_inputs(&vk.vk, last_proof_pv, deferred_proofs, batch_size);
 
         let mut inputs = Vec::new();
         inputs.extend(core_inputs.into_iter().map(SP1CircuitWitness::Core));
@@ -646,22 +614,9 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 
         let shard_proofs = &proof.proof.0;
 
-        // Get the leaf challenger.
-        let mut leaf_challenger = self.core_prover.config().challenger();
-        vk.vk.observe_into(&mut leaf_challenger);
-        // shard_proofs.iter().for_each(|proof| {
-        //     leaf_challenger.observe(proof.commitment.global_main_commit);
-        //     leaf_challenger.observe_slice(&proof.public_values[0..self.core_prover.num_pv_elts()]);
-        // });
-
         // Generate the first layer inputs.
-        let first_layer_inputs = self.get_first_layer_inputs(
-            vk,
-            &leaf_challenger,
-            shard_proofs,
-            &deferred_proofs,
-            first_layer_batch_size,
-        );
+        let first_layer_inputs =
+            self.get_first_layer_inputs(vk, shard_proofs, &deferred_proofs, first_layer_batch_size);
 
         // Calculate the expected height of the tree.
         let mut expected_height = if first_layer_inputs.len() == 1 { 0 } else { 1 };
@@ -859,13 +814,6 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                                 // Commit to the record and traces.
                                 let data = tracing::debug_span!("commit")
                                     .in_scope(|| self.compress_prover.commit(&record, traces));
-
-                                // Observe the commitment.
-                                // tracing::debug_span!("observe public values").in_scope(|| {
-                                //     challenger.observe_slice(
-                                //         &local_data.public_values[0..self.compress_prover.num_pv_elts()],
-                                //     );
-                                // });
 
                                 // Generate the proof.
                                 let proof = tracing::debug_span!("open").in_scope(|| {

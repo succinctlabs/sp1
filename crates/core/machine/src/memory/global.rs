@@ -320,7 +320,7 @@ where
                 values,
                 local.global_interaction_cols,
                 false,
-                local.is_real.clone(),
+                local.is_real,
                 InteractionKind::Memory,
             );
         } else {
@@ -331,7 +331,7 @@ where
                 values,
                 local.global_interaction_cols,
                 true,
-                local.is_real.clone(),
+                local.is_real,
                 InteractionKind::Memory,
             );
         }

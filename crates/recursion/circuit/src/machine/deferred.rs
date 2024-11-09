@@ -10,10 +10,13 @@ use p3_baby_bear::BabyBear;
 use p3_commit::Mmcs;
 use p3_field::AbstractField;
 use p3_matrix::dense::RowMajorMatrix;
-
 use sp1_primitives::consts::WORD_SIZE;
-use sp1_recursion_compiler::ir::{Builder, Ext, Felt};
-
+use sp1_recursion_compiler::ir::{Builder, Felt};
+use sp1_stark::septic_curve::SepticCurve;
+use sp1_stark::septic_digest::{
+    SepticDigest, CURVE_CUMULATIVE_SUM_START_X, CURVE_CUMULATIVE_SUM_START_Y,
+};
+use sp1_stark::septic_extension::SepticExtension;
 use sp1_stark::{
     air::{MachineAir, POSEIDON_NUM_WORDS},
     baby_bear_poseidon2::BabyBearPoseidon2,
@@ -30,7 +33,7 @@ use crate::{
     constraints::RecursiveVerifierConstraintFolder,
     hash::{FieldHasher, FieldHasherVariable},
     machine::assert_recursion_public_values_valid,
-    stark::{dummy_challenger, ShardProofVariable, StarkVerifier},
+    stark::{ShardProofVariable, StarkVerifier},
     BabyBearFriConfig, BabyBearFriConfigVariable, CircuitConfig, VerifyingKeyVariable,
 };
 
@@ -61,7 +64,6 @@ pub struct SP1DeferredWitnessValues<SC: BabyBearFriConfig + FieldHasher<BabyBear
     pub vk_merkle_data: SP1MerkleProofWitnessValues<SC>,
     pub start_reconstruct_deferred_digest: [SC::Val; POSEIDON_NUM_WORDS],
     pub sp1_vk_digest: [SC::Val; DIGEST_SIZE],
-    pub leaf_challenger: SC::Challenger,
     pub committed_value_digest: [Word<SC::Val>; PV_DIGEST_NUM_WORDS],
     pub deferred_proofs_digest: [SC::Val; POSEIDON_NUM_WORDS],
     pub end_pc: SC::Val,
@@ -80,7 +82,6 @@ pub struct SP1DeferredWitnessVariable<
     pub vk_merkle_data: SP1MerkleProofWitnessVariable<C, SC>,
     pub start_reconstruct_deferred_digest: [Felt<C::F>; POSEIDON_NUM_WORDS],
     pub sp1_vk_digest: [Felt<C::F>; DIGEST_SIZE],
-    pub leaf_challenger: SC::FriChallengerVariable,
     pub committed_value_digest: [Word<Felt<C::F>>; PV_DIGEST_NUM_WORDS],
     pub deferred_proofs_digest: [Felt<C::F>; POSEIDON_NUM_WORDS],
     pub end_pc: Felt<C::F>,
@@ -122,7 +123,6 @@ where
             vk_merkle_data,
             start_reconstruct_deferred_digest,
             sp1_vk_digest,
-            leaf_challenger,
             committed_value_digest,
             deferred_proofs_digest,
             end_pc,
@@ -168,15 +168,7 @@ where
                 shard_proof.public_values[0..machine.num_pv_elts()].iter().copied(),
             );
 
-            let zero_ext: Ext<C::F, C::EF> = builder.eval(C::F::zero());
-            StarkVerifier::verify_shard(
-                builder,
-                &vk,
-                machine,
-                &mut challenger,
-                &shard_proof,
-                &[zero_ext, zero_ext],
-            );
+            StarkVerifier::verify_shard(builder, &vk, machine, &mut challenger, &shard_proof);
 
             // Get the current public values.
             let current_public_values: &RecursionPublicValues<Felt<C::F>> =
@@ -232,11 +224,6 @@ where
         // Set the deferred proof digest to be the hitned value.
         deferred_public_values.deferred_proofs_digest = deferred_proofs_digest;
 
-        // Set the initial, end, and leaf challenger to be the hitned values.
-        let values = leaf_challenger.public_values(builder);
-        deferred_public_values.leaf_challenger = values;
-        deferred_public_values.start_reconstruct_challenger = values;
-        deferred_public_values.end_reconstruct_challenger = values;
         // Set the exit code to be zero for now.
         deferred_public_values.exit_code = builder.eval(C::F::zero());
         // Assign the deferred proof digests.
@@ -246,7 +233,14 @@ where
         // Set the `contains_execution_shard` flag.
         deferred_public_values.contains_execution_shard = builder.eval(C::F::zero());
         // Set the cumulative sum to zero.
-        deferred_public_values.cumulative_sum = array::from_fn(|_| builder.eval(C::F::zero()));
+        deferred_public_values.global_cumulative_sum = SepticDigest(SepticCurve {
+            x: SepticExtension(core::array::from_fn(|i| {
+                builder.eval(C::F::from_canonical_u32(CURVE_CUMULATIVE_SUM_START_X[i]))
+            })),
+            y: SepticExtension(core::array::from_fn(|i| {
+                builder.eval(C::F::from_canonical_u32(CURVE_CUMULATIVE_SUM_START_Y[i]))
+            })),
+        });
         // Set the vk root from the witness.
         deferred_public_values.vk_root = vk_root;
         // Set the digest according to the previous values.
@@ -271,7 +265,6 @@ impl SP1DeferredWitnessValues<BabyBearPoseidon2> {
         Self {
             vks_and_proofs,
             vk_merkle_data,
-            leaf_challenger: dummy_challenger(machine.config()),
             is_complete: true,
             sp1_vk_digest: [BabyBear::zero(); DIGEST_SIZE],
             start_reconstruct_deferred_digest: [BabyBear::zero(); POSEIDON_NUM_WORDS],

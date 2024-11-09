@@ -28,7 +28,7 @@ pub struct SepticDigest<F>(pub SepticCurve<F>);
 
 impl<F: AbstractField> SepticDigest<F> {
     #[must_use]
-    /// The zero digest, the starting point of the accumulation.
+    /// The zero digest, the starting point of the accumulation of curve points derived from the scheme.
     pub fn zero() -> Self {
         SepticDigest(SepticCurve {
             x: SepticExtension::<F>::from_base_fn(|i| {
@@ -37,6 +37,15 @@ impl<F: AbstractField> SepticDigest<F> {
             y: SepticExtension::<F>::from_base_fn(|i| {
                 F::from_canonical_u32(CURVE_CUMULATIVE_SUM_START_Y[i])
             }),
+        })
+    }
+
+    #[must_use]
+    /// The digest used for starting the accumulation of digests.
+    pub fn starting_digest() -> Self {
+        SepticDigest(SepticCurve {
+            x: SepticExtension::<F>::from_base_fn(|i| F::from_canonical_u32(DIGEST_SUM_START_X[i])),
+            y: SepticExtension::<F>::from_base_fn(|i| F::from_canonical_u32(DIGEST_SUM_START_Y[i])),
         })
     }
 }

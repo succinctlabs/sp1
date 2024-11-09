@@ -94,7 +94,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryProgramChip {
         let mut values = zeroed_f_vec(padded_nb_rows * NUM_MEMORY_PROGRAM_PREPROCESSED_COLS);
         let chunk_size = std::cmp::max((nb_rows + 1) / num_cpus::get(), 1);
 
-        let mut memory = program.memory_image.iter().collect::<Vec<_>>();
+        let memory = program.memory_image.iter().collect::<Vec<_>>();
         values
             .chunks_mut(chunk_size * NUM_MEMORY_PROGRAM_PREPROCESSED_COLS)
             .enumerate()

@@ -23,7 +23,7 @@ use crate::{
         public_values::{PublicValuesChip, PUB_VALUES_LOG_HEIGHT},
         select::SelectChip,
     },
-    instruction::{HintBitsInstr, HintExt2FeltsInstr, HintInstr},
+    instruction::{HintAddCurveInstr, HintBitsInstr, HintExt2FeltsInstr, HintInstr},
     shape::RecursionShape,
     ExpReverseBitsInstr, Instruction, RecursionProgram, D,
 };
@@ -230,6 +230,14 @@ impl<F> AddAssign<&Instruction<F>> for RecursionAirEventCount {
             Instruction::FriFold(_) => self.fri_fold_events += 1,
             Instruction::BatchFRI(instr) => {
                 self.batch_fri_events += instr.base_vec_addrs.p_at_x.len()
+            }
+            Instruction::HintAddCurve(HintAddCurveInstr {
+                output_x_addrs_mults,
+                output_y_addrs_mults,
+                ..
+            }) => {
+                self.mem_var_events += output_x_addrs_mults.len();
+                self.mem_var_events += output_y_addrs_mults.len();
             }
             Instruction::CommitPublicValues(_) => {}
             Instruction::Print(_) => {}

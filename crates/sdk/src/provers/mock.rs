@@ -69,8 +69,7 @@ impl Prover<DefaultProverComponents> for MockProver {
 
                 let shard_proof = ShardProof {
                     commitment: ShardCommitment {
-                        global_main_commit: [BabyBear::zero(); 8].into(),
-                        local_main_commit: [BabyBear::zero(); 8].into(),
+                        main_commit: [BabyBear::zero(); 8].into(),
                         permutation_commit: [BabyBear::zero(); 8].into(),
                         quotient_commit: [BabyBear::zero(); 8].into(),
                     },

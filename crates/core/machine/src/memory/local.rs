@@ -285,7 +285,7 @@ where
                 values,
                 local.initial_global_interaction_cols,
                 true,
-                local.is_real.clone(),
+                local.is_real,
                 InteractionKind::Memory,
             );
 
@@ -305,7 +305,7 @@ where
                 values,
                 local.final_global_interaction_cols,
                 false,
-                local.is_real.clone(),
+                local.is_real,
                 InteractionKind::Memory,
             );
 

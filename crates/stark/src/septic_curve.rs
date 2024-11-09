@@ -137,6 +137,16 @@ impl<F: AbstractField> SepticCurve<F> {
     }
 }
 
+impl<T> SepticCurve<T> {
+    /// Convert a `SepticCurve<S>` into `SepticCurve<T>`, when `S` implements `Copy` and `Into<T>`.
+    pub fn convert<S: Copy + Into<T>>(point: SepticCurve<S>) -> Self {
+        SepticCurve {
+            x: SepticExtension(core::array::from_fn(|i| point.x.0[i].into())),
+            y: SepticExtension(core::array::from_fn(|i| point.y.0[i].into())),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use p3_baby_bear::BabyBear;

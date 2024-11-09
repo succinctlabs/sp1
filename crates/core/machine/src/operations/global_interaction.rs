@@ -78,6 +78,7 @@ impl<F: PrimeField32> GlobalInteractionOperation<F> {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn populate_memory(
         &mut self,
         shard: u32,
@@ -105,6 +106,7 @@ impl<F: PrimeField32> GlobalInteractionOperation<F> {
         );
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn populate_syscall(
         &mut self,
         shard: u32,
@@ -158,7 +160,7 @@ impl<F: Field> GlobalInteractionOperation<F> {
             AB::Expr::zero(),
             cols.offset,
             AB::Expr::zero(),
-            is_real.clone(),
+            is_real,
         );
 
         // Compute the message. The first entry is value (shard) || offset || InteractionKind.
@@ -225,7 +227,7 @@ impl<F: Field> GlobalInteractionOperation<F> {
             AB::Expr::one(),
             cols.y6_byte_decomp[3],
             AB::Expr::from_canonical_u32(60),
-            is_real.clone(),
+            is_real,
         );
     }
 }

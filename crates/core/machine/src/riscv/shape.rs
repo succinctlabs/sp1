@@ -707,8 +707,7 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
 pub mod tests {
     use std::fmt::Debug;
 
-    use p3_challenger::{CanObserve, FieldChallenger};
-    use sp1_stark::{air::InteractionScope, Dom, MachineProver, StarkGenericConfig};
+    use sp1_stark::{Dom, MachineProver, StarkGenericConfig};
 
     use super::*;
 

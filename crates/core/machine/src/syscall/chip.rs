@@ -290,7 +290,7 @@ where
                     values,
                     local.global_interaction_cols,
                     false,
-                    local.is_real.clone(),
+                    local.is_real,
                     InteractionKind::Syscall,
                 );
             }
@@ -311,7 +311,7 @@ where
                     values,
                     local.global_interaction_cols,
                     true,
-                    local.is_real.clone(),
+                    local.is_real,
                     InteractionKind::Syscall,
                 );
             }

@@ -5,7 +5,7 @@ use p3_baby_bear::BabyBear;
 use p3_commit::Mmcs;
 use p3_field::AbstractField;
 use p3_matrix::dense::RowMajorMatrix;
-use sp1_recursion_compiler::ir::{Builder, Ext, Felt};
+use sp1_recursion_compiler::ir::{Builder, Felt};
 use sp1_stark::{air::MachineAir, StarkMachine};
 
 use crate::{
@@ -71,15 +71,7 @@ where
         challenger
             .observe_slice(builder, proof.public_values[0..machine.num_pv_elts()].iter().copied());
 
-        let zero_ext: Ext<C::F, C::EF> = builder.eval(C::F::zero());
-        StarkVerifier::verify_shard(
-            builder,
-            &vk,
-            machine,
-            &mut challenger,
-            &proof,
-            &[zero_ext, zero_ext],
-        );
+        StarkVerifier::verify_shard(builder, &vk, machine, &mut challenger, &proof);
 
         // Get the public values, and assert that they are valid.
         let public_values: &RootPublicValues<Felt<C::F>> = proof.public_values.as_slice().borrow();
