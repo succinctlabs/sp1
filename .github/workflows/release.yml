@@ -263,7 +263,7 @@ jobs:
         run: |
           cd sp1up
           chmod +x sp1up
-          ./sp1up
+          ./sp1up --token ${{ secrets.GITHUB_TOKEN }}
 
       - name: "Create SP1 project from template"
         run: |

@@ -97,11 +97,10 @@ jobs:
       - name: "Install SP1"
         env:
           SP1UP_VERSION: ${{ github.ref_name }}
-          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
         run: |
           cd sp1up
           chmod +x sp1up
-          ./sp1up
+          ./sp1up --token ${{ secrets.GH_PAT }}
 
       - name: "Create SP1 project from template"
         run: |
