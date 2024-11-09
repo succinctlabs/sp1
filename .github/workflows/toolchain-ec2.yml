@@ -24,7 +24,7 @@ on:
         required: true
       AWS_SG_ID:
         required: true
-      GITHUB_TOKEN:
+      GH_PAT:
         required: true
 
 jobs:
@@ -59,7 +59,7 @@ jobs:
           # - Contents: Read and write
           # - Metadata: Read-only
           # - Workflows: Read and write
-          github-token: "${{ secrets.GITHUB_TOKEN }}"
+          github-token: "${{ secrets.GH_PAT }}"
           ec2-image-id: "${{ inputs.image-id }}"
           ec2-instance-type: "${{ inputs.instance-type }}"
           subnet-id: "${{ secrets.AWS_SUBNET_ID }}"
@@ -97,7 +97,7 @@ jobs:
       - name: "Install SP1"
         env:
           SP1UP_VERSION: ${{ github.ref_name }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
         run: |
           cd sp1up
           chmod +x sp1up
@@ -132,6 +132,6 @@ jobs:
         uses: "xJonathanLEI/ec2-github-runner@main"
         with:
           mode: "stop"
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ secrets.GH_PAT }}
           label: "${{ needs.start-runner.outputs.label }}"
           ec2-instance-id: "${{ needs.start-runner.outputs.ec2-instance-id }}"

@@ -301,7 +301,7 @@ jobs:
       AWS_SECRET_ACCESS_KEY: "${{ secrets.AWS_SECRET_ACCESS_KEY }}"
       AWS_SUBNET_ID: "${{ secrets.AWS_SUBNET_ID }}"
       AWS_SG_ID: "${{ secrets.AWS_SG_ID }}"
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_PAT: ${{ secrets.GITHUB_TOKEN }}
 
   cleanup:
     name: Release cleanup
