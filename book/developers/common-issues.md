@@ -95,7 +95,7 @@ sp1up --c-toolchain
 
 This will install the C++ toolchain for RISC-V and set the `CC_riscv32im_succinct_zkvm_elf` environment
 variable to the path of the installed `riscv32-unknown-elf-gcc` binary. You can also use your own
-C++ toolchain be setting this variable manually:
+C++ toolchain by setting this variable manually:
 
 ```bash
 export CC_riscv32im_succinct_zkvm_elf=/path/to/toolchain
