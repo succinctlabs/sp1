@@ -29,5 +29,5 @@ You can run the above script with `RUST_LOG=info cargo run --bin groth16_bn254 -
 If you would like to run the Groth16 or PLONK prover directly without Docker, you must have Go 1.22 installed and enable the `native-gnark` feature in `sp1-sdk`. This path is not recommended and may require additional native dependencies.
 
 ```toml
-sp1-sdk = { version = "2.0.0", features = ["native-gnark"] }
+sp1-sdk = { version = "3.0.0", features = ["native-gnark"] }
 ```
