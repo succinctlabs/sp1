@@ -88,7 +88,6 @@ impl PlonkBn254Prover {
         let mut witness_file = tempfile::NamedTempFile::new().unwrap();
         let gnark_witness = GnarkWitness::new(witness);
         let serialized = serde_json::to_string(&gnark_witness).unwrap();
-        println!("serialized = {}", serialized);
         witness_file.write_all(serialized.as_bytes()).unwrap();
 
         let mut proof =
