@@ -48,4 +48,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - readme cleanup ([#196](https://github.com/succinctlabs/sp1/pull/196))
 - rename succinct to curta ([#192](https://github.com/succinctlabs/sp1/pull/192))
 - better curta graphic ([#184](https://github.com/succinctlabs/sp1/pull/184))
-- Initial commits
+- Initial commit
