@@ -92,7 +92,7 @@ impl SP1CudaProver {
     pub fn new() -> Result<Self, Box<dyn StdError>> {
         let container_name = "sp1-gpu";
         let image_name = std::env::var("SP1_GPU_IMAGE")
-            .unwrap_or_else(|_| "public.ecr.aws/succinct-labs/sp1-gpu:7e66232".to_string());
+            .unwrap_or_else(|_| "public.ecr.aws/succinct-labs/sp1-gpu:bfe21cf".to_string());
 
         let cleaned_up = Arc::new(AtomicBool::new(false));
         let cleanup_name = container_name;
