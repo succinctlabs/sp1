@@ -104,7 +104,7 @@ impl SP1CudaProver {
         }
 
         // Pull the docker image if it's not present
-        if let Err(e) = Command::new("docker").args(["pull", image_name]).output() {
+        if let Err(e) = Command::new("docker").args(["pull", &image_name]).output() {
             return Err(format!("Failed to pull Docker image: {}. Please check your internet connection and Docker permissions.", e).into());
         }
 
@@ -122,7 +122,7 @@ impl SP1CudaProver {
                 "all",
                 "--name",
                 container_name,
-                image_name,
+                &image_name,
             ])
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
