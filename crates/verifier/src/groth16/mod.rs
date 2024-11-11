@@ -10,6 +10,9 @@ use error::Groth16Error;
 
 use crate::{bn254_public_values, decode_sp1_vkey_hash, error::Error};
 
+#[cfg(feature = "ark")]
+pub mod ark_converter;
+
 /// A verifier for Groth16 zero-knowledge proofs.
 #[derive(Debug)]
 pub struct Groth16Verifier;

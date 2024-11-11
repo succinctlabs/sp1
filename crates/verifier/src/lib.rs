@@ -27,6 +27,9 @@ pub use groth16::error::Groth16Error;
 pub use groth16::Groth16Verifier;
 mod groth16;
 
+#[cfg(feature = "ark")]
+pub use groth16::ark_converter::*;
+
 pub use plonk::error::PlonkError;
 pub use plonk::PlonkVerifier;
 mod plonk;
