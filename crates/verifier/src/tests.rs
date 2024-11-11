@@ -1,5 +1,3 @@
-use ark_bn254::Bn254;
-use ark_groth16::{r1cs_to_qap::LibsnarkReduction, Groth16};
 use sp1_sdk::{install::try_install_circuit_artifacts, SP1ProofWithPublicValues};
 
 use crate::hash_public_inputs;
@@ -54,7 +52,10 @@ fn test_vkeys() {
 }
 
 #[test]
+#[cfg(feature = "ark")]
 fn test_ark_groth16() {
+    use ark_bn254::Bn254;
+    use ark_groth16::{r1cs_to_qap::LibsnarkReduction, Groth16};
     // Location of the serialized SP1ProofWithPublicValues. See README.md for more information.
 
     use crate::decode_sp1_vkey_hash;

@@ -29,6 +29,6 @@ num-bigint = "0.4.6"
 num-traits = "0.2.19"
 
 [features]
-default = ["std", "ark"]
+default = ["std"]
 std = ["thiserror/std"]
 ark = ["ark-bn254", "ark-serialize", "ark-ff", "ark-groth16", "ark-ec"]
