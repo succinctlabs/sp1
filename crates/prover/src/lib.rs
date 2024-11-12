@@ -37,6 +37,7 @@ use p3_baby_bear::BabyBear;
 use p3_challenger::CanObserve;
 use p3_field::{AbstractField, PrimeField, PrimeField32};
 use p3_matrix::dense::RowMajorMatrix;
+use shapes::SP1ProofShape;
 use sp1_core_executor::{ExecutionError, ExecutionReport, Executor, Program, SP1Context};
 use sp1_core_machine::{
     io::SP1Stdin,
@@ -64,9 +65,12 @@ use sp1_recursion_compiler::{
     ir::{Builder, Witness},
 };
 use sp1_recursion_core::{
-    air::RecursionPublicValues, machine::RecursionAir, runtime::ExecutionRecord,
-    shape::RecursionShapeConfig, stark::BabyBearPoseidon2Outer, RecursionProgram,
-    Runtime as RecursionRuntime,
+    air::RecursionPublicValues,
+    machine::RecursionAir,
+    runtime::ExecutionRecord,
+    shape::{RecursionShape, RecursionShapeConfig},
+    stark::BabyBearPoseidon2Outer,
+    RecursionProgram, Runtime as RecursionRuntime,
 };
 pub use sp1_recursion_gnark_ffi::proof::{Groth16Bn254Proof, PlonkBn254Proof};
 use sp1_recursion_gnark_ffi::{groth16_bn254::Groth16Bn254Prover, plonk_bn254::PlonkBn254Prover};
@@ -99,7 +103,6 @@ const SHRINK_DEGREE: usize = 3;
 const WRAP_DEGREE: usize = 9;
 
 const CORE_CACHE_SIZE: usize = 5;
-const COMPRESS_CACHE_SIZE: usize = 3;
 pub const REDUCE_BATCH_SIZE: usize = 2;
 
 // TODO: FIX
@@ -113,6 +116,18 @@ pub const REDUCE_BATCH_SIZE: usize = 2;
 pub type CompressAir<F> = RecursionAir<F, COMPRESS_DEGREE>;
 pub type ShrinkAir<F> = RecursionAir<F, SHRINK_DEGREE>;
 pub type WrapAir<F> = RecursionAir<F, WRAP_DEGREE>;
+
+#[allow(clippy::type_complexity)]
+enum TracesOrInput {
+    ProgramRecordTraces(
+        Box<(
+            Arc<RecursionProgram<BabyBear>>,
+            ExecutionRecord<BabyBear>,
+            Vec<(String, RowMajorMatrix<BabyBear>)>,
+        )>,
+    ),
+    CircuitWitness(Box<SP1CircuitWitness>),
+}
 
 /// A end-to-end prover implementation for the SP1 RISC-V zkVM.
 pub struct SP1Prover<C: SP1ProverComponents = DefaultProverComponents> {
@@ -132,8 +147,7 @@ pub struct SP1Prover<C: SP1ProverComponents = DefaultProverComponents> {
 
     pub recursion_cache_misses: AtomicUsize,
 
-    pub compress_programs:
-        Mutex<LruCache<SP1CompressWithVkeyShape, Arc<RecursionProgram<BabyBear>>>>,
+    pub compress_programs: BTreeMap<SP1CompressWithVkeyShape, Arc<RecursionProgram<BabyBear>>>,
 
     pub compress_cache_misses: AtomicUsize,
 
@@ -185,14 +199,6 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         )
         .expect("PROVER_CORE_CACHE_SIZE must be a non-zero usize");
 
-        let compress_cache_size = NonZeroUsize::new(
-            env::var("PROVER_COMPRESS_CACHE_SIZE")
-                .unwrap_or_else(|_| CORE_CACHE_SIZE.to_string())
-                .parse()
-                .unwrap_or(COMPRESS_CACHE_SIZE),
-        )
-        .expect("PROVER_COMPRESS_CACHE_SIZE must be a non-zero usize");
-
         let core_shape_config = env::var("FIX_CORE_SHAPES")
             .map(|v| v.eq_ignore_ascii_case("true"))
             .unwrap_or(true)
@@ -217,6 +223,28 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 
         let (root, merkle_tree) = MerkleTree::commit(allowed_vk_map.keys().copied().collect());
 
+        let mut compress_programs = BTreeMap::new();
+        if let Some(config) = &recursion_shape_config {
+            SP1ProofShape::generate_compress_shapes(config, REDUCE_BATCH_SIZE).for_each(|shape| {
+                let compress_shape = SP1CompressWithVkeyShape {
+                    compress_shape: shape.into(),
+                    merkle_tree_height: merkle_tree.height,
+                };
+                let input = SP1CompressWithVKeyWitnessValues::dummy(
+                    compress_prover.machine(),
+                    &compress_shape,
+                );
+                let program = compress_program_from_input::<C>(
+                    recursion_shape_config.as_ref(),
+                    &compress_prover,
+                    vk_verification,
+                    &input,
+                );
+                let program = Arc::new(program);
+                compress_programs.insert(compress_shape, program);
+            });
+        }
+
         Self {
             core_prover,
             compress_prover,
@@ -224,7 +252,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             wrap_prover,
             recursion_programs: Mutex::new(LruCache::new(core_cache_size)),
             recursion_cache_misses: AtomicUsize::new(0),
-            compress_programs: Mutex::new(LruCache::new(compress_cache_size)),
+            compress_programs,
             compress_cache_misses: AtomicUsize::new(0),
             vk_root: root,
             vk_merkle_tree: merkle_tree,
@@ -351,47 +379,25 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 
     pub fn compress_program(
         &self,
+        shape_tuning: bool,
         input: &SP1CompressWithVKeyWitnessValues<InnerSC>,
     ) -> Arc<RecursionProgram<BabyBear>> {
-        let mut cache = self.compress_programs.lock().unwrap_or_else(|e| e.into_inner());
-        let shape = input.shape();
-        cache
-            .get_or_insert(shape.clone(), || {
-                let misses = self.compress_cache_misses.fetch_add(1, Ordering::Relaxed);
-                tracing::debug!("compress cache miss, misses: {}", misses);
-                // Get the operations.
-                let builder_span = tracing::debug_span!("build compress program").entered();
-                let mut builder = Builder::<InnerConfig>::default();
-
-                // read the input.
-                let input = input.read(&mut builder);
-                // Verify the proof.
-                SP1CompressWithVKeyVerifier::verify(
-                    &mut builder,
-                    self.compress_prover.machine(),
-                    input,
-                    self.vk_verification,
-                    PublicValuesOutputDigest::Reduce,
-                );
-                let operations = builder.into_operations();
-                builder_span.exit();
-
-                // Compile the program.
-                let compiler_span = tracing::debug_span!("compile compress program").entered();
-                let mut compiler = AsmCompiler::<InnerConfig>::default();
-                let mut program = compiler.compile(operations);
-                if let Some(recursion_shape_config) = &self.recursion_shape_config {
-                    recursion_shape_config.fix_shape(&mut program);
-                }
-                let program = Arc::new(program);
-                compiler_span.exit();
-                program
-            })
-            .clone()
+        if self.recursion_shape_config.is_some() && !shape_tuning {
+            self.compress_programs.get(&input.shape()).map(Clone::clone).unwrap()
+        } else {
+            // Get the operations.
+            Arc::new(compress_program_from_input::<C>(
+                self.recursion_shape_config.as_ref(),
+                &self.compress_prover,
+                self.vk_verification,
+                input,
+            ))
+        }
     }
 
     pub fn shrink_program(
         &self,
+        shrink_shape: RecursionShape,
         input: &SP1CompressWithVKeyWitnessValues<InnerSC>,
     ) -> Arc<RecursionProgram<BabyBear>> {
         // Get the operations.
@@ -413,7 +419,8 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         let compiler_span = tracing::debug_span!("compile shrink program").entered();
         let mut compiler = AsmCompiler::<InnerConfig>::default();
         let mut program = compiler.compile(operations);
-        program.shape = Some(ShrinkAir::<BabyBear>::shrink_shape());
+
+        program.shape = Some(shrink_shape);
         let program = Arc::new(program);
         compiler_span.exit();
         program
@@ -667,7 +674,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 
             // Spawn a worker that sends the first layer inputs to a bounded channel.
             let input_sync = Arc::new(TurnBasedSync::new());
-            let (input_tx, input_rx) = sync_channel::<(usize, usize, SP1CircuitWitness)>(
+            let (input_tx, input_rx) = sync_channel::<(usize, usize, SP1CircuitWitness, bool)>(
                 opts.recursion_opts.checkpoints_channel_capacity,
             );
             let input_tx = Arc::new(Mutex::new(input_tx));
@@ -677,7 +684,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                 s.spawn(move || {
                     for (index, input) in first_layer_inputs.into_iter().enumerate() {
                         input_sync.wait_for_turn(index);
-                        input_tx.lock().unwrap().send((index, 0, input)).unwrap();
+                        input_tx.lock().unwrap().send((index, 0, input, false)).unwrap();
                         input_sync.advance_turn();
                     }
                 });
@@ -686,13 +693,9 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             // Spawn workers who generate the records and traces.
             let record_and_trace_sync = Arc::new(TurnBasedSync::new());
             let (record_and_trace_tx, record_and_trace_rx) =
-                sync_channel::<(
-                    usize,
-                    usize,
-                    Arc<RecursionProgram<BabyBear>>,
-                    ExecutionRecord<BabyBear>,
-                    Vec<(String, RowMajorMatrix<BabyBear>)>,
-                )>(opts.recursion_opts.records_and_traces_channel_capacity);
+                sync_channel::<(usize, usize, TracesOrInput)>(
+                    opts.recursion_opts.records_and_traces_channel_capacity,
+                );
             let record_and_trace_tx = Arc::new(Mutex::new(record_and_trace_tx));
             let record_and_trace_rx = Arc::new(Mutex::new(record_and_trace_rx));
             let input_rx = Arc::new(Mutex::new(input_rx));
@@ -705,7 +708,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                     let _span = span.enter();
                     loop {
                         let received = { input_rx.lock().unwrap().recv() };
-                        if let Ok((index, height, input)) = received {
+                        if let Ok((index, height, input, false)) = received {
                             // Get the program and witness stream.
                             let (program, witness_stream) = tracing::debug_span!(
                                 "get program and witness stream"
@@ -731,7 +734,10 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                                         &mut witness_stream,
                                     );
 
-                                    (self.compress_program(&input_with_merkle), witness_stream)
+                                    (
+                                        self.compress_program(false, &input_with_merkle),
+                                        witness_stream,
+                                    )
                                 }
                             });
 
@@ -776,7 +782,29 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                             record_and_trace_tx
                                 .lock()
                                 .unwrap()
-                                .send((index, height, program, record, traces))
+                                .send((
+                                    index,
+                                    height,
+                                    TracesOrInput::ProgramRecordTraces(Box::new((
+                                        program, record, traces,
+                                    ))),
+                                ))
+                                .unwrap();
+
+                            // Advance the turn.
+                            record_and_trace_sync.advance_turn();
+                        } else if let Ok((index, height, input, true)) = received {
+                            record_and_trace_sync.wait_for_turn(index);
+
+                            // Send the record and traces to the worker.
+                            record_and_trace_tx
+                                .lock()
+                                .unwrap()
+                                .send((
+                                    index,
+                                    height,
+                                    TracesOrInput::CircuitWitness(Box::new(input)),
+                                ))
                                 .unwrap();
 
                             // Advance the turn.
@@ -806,7 +834,8 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                     let _span = span.enter();
                     loop {
                         let received = { record_and_trace_rx.lock().unwrap().recv() };
-                        if let Ok((index, height, program, record, traces)) = received {
+                        if let Ok((index, height, TracesOrInput::ProgramRecordTraces(boxed_prt))) = received {
+                            let (program, record, traces) = *boxed_prt;
                             tracing::debug_span!("batch").in_scope(|| {
                                 // Get the keys.
                                 let (pk, vk) = tracing::debug_span!("Setup compress program")
@@ -874,7 +903,22 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                                 // Advance the turn.
                                 prover_sync.advance_turn();
                             });
-                        } else {
+                        } else if let Ok((index, height, TracesOrInput::CircuitWitness(witness_box))) = received {
+                            let witness = *witness_box;
+                            if let SP1CircuitWitness::Compress(inner_witness) = witness {
+                                let SP1CompressWitnessValues { vks_and_proofs, is_complete: _ } = inner_witness;
+                                assert!(vks_and_proofs.len()==1);
+                                let (vk, proof) = vks_and_proofs.last().unwrap();
+                        // Wait for our turn to update the state.
+                        prover_sync.wait_for_turn(index);
+
+                        // Send the proof.
+                        proofs_tx.lock().unwrap().send((index, height, vk.clone(), proof.clone())).unwrap();
+
+                        // Advance the turn.
+                        prover_sync.advance_turn();
+                        }
+                    } else {
                             break;
                         }
                     }
@@ -934,7 +978,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                             input_tx
                                 .lock()
                                 .unwrap()
-                                .send((count, next_input_height, input))
+                                .send((count, next_input_height, input, is_last))
                                 .unwrap();
                             input_sync.advance_turn();
                             count += 1;
@@ -990,7 +1034,8 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 
         let input_with_merkle = self.make_merkle_proofs(input);
 
-        let program = self.shrink_program(&input_with_merkle);
+        let program =
+            self.shrink_program(ShrinkAir::<BabyBear>::shrink_shape(), &input_with_merkle);
 
         // Run the compress program.
         let mut runtime = RecursionRuntime::<Val<InnerSC>, Challenge<InnerSC>, _>::new(
@@ -1213,6 +1258,39 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             );
         }
     }
+}
+
+pub fn compress_program_from_input<C: SP1ProverComponents>(
+    config: Option<&RecursionShapeConfig<BabyBear, CompressAir<BabyBear>>>,
+    compress_prover: &C::CompressProver,
+    vk_verification: bool,
+    input: &SP1CompressWithVKeyWitnessValues<BabyBearPoseidon2>,
+) -> RecursionProgram<BabyBear> {
+    let builder_span = tracing::debug_span!("build compress program").entered();
+    let mut builder = Builder::<InnerConfig>::default();
+    // read the input.
+    let input = input.read(&mut builder);
+    // Verify the proof.
+    SP1CompressWithVKeyVerifier::verify(
+        &mut builder,
+        compress_prover.machine(),
+        input,
+        vk_verification,
+        PublicValuesOutputDigest::Reduce,
+    );
+    let operations = builder.into_operations();
+    builder_span.exit();
+
+    // Compile the program.
+    let compiler_span = tracing::debug_span!("compile compress program").entered();
+    let mut compiler = AsmCompiler::<InnerConfig>::default();
+    let mut program = compiler.compile(operations);
+    if let Some(config) = config {
+        config.fix_shape(&mut program);
+    }
+    compiler_span.exit();
+
+    program
 }
 
 #[cfg(any(test, feature = "export-tests"))]

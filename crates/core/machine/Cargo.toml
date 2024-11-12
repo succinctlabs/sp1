@@ -27,6 +27,8 @@ p3-util = { workspace = true }
 sp1-derive = { workspace = true }
 sp1-primitives = { workspace = true }
 
+rayon = "1.10.0"
+
 amcl = { package = "snowbridge-amcl", version = "1.0.2", default-features = false, features = [
   "bls381",
 ] }

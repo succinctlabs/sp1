@@ -26,7 +26,6 @@ use p3_matrix::Matrix;
 
 use crate::{
     io::SP1Stdin,
-    riscv::cost::CostEstimator,
     utils::{chunk_vec, concurrency::TurnBasedSync},
 };
 use sp1_core_executor::{events::sorted_table_lines, ExecutionState};
@@ -639,13 +638,18 @@ where
 
                                     #[cfg(debug_assertions)]
                                     {
-                                        if let Some(shape) = record.shape {
+                                        if let Some(shape) = record.shape.as_ref() {
                                             assert_eq!(
                                                 proof.shape(),
                                                 shape.clone().into_iter().collect(),
                                             );
                                         }
                                     }
+
+                                    rayon::spawn(move || {
+                                        drop(record);
+                                    });
+
                                     proof
                                 },
                             ),
@@ -688,9 +692,8 @@ where
         // Print the summary.
         let proving_time = proving_start.elapsed().as_secs_f64();
         tracing::info!(
-            "summary: cycles={}, gas={}, e2e={}s, khz={:.2}, proofSize={}",
+            "summary: cycles={}, e2e={}s, khz={:.2}, proofSize={}",
             cycles,
-            report_aggregate.estimate_gas(),
             proving_time,
             (cycles as f64 / (proving_time * 1000.0) as f64),
             bincode::serialize(&proof).unwrap().len(),
