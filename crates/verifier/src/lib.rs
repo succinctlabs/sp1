@@ -1,5 +1,5 @@
 //! This crate provides verifiers for SP1 Groth16 and Plonk BN254 proofs in a no-std environment.
-//! It is patched for efficient verification within the SP1 ZKVM context.
+//! It is patched for efficient verification within the SP1 zkVM context.
 
 #![cfg_attr(not(feature = "std"), no_std)]
 extern crate alloc;
