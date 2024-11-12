@@ -450,25 +450,3 @@ jobs:
         run: |
           cd examples
           cargo build --all --all-targets
-
-  plonk-docker-mac:
-    name: Plonk Docker Mac
-    runs-on: macos-latest
-    env:
-      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
-    steps:
-      - name: Checkout sources
-        uses: actions/checkout@v4
-
-      - name: Setup CI
-        uses: ./.github/actions/setup
-
-      - name: Run cargo test
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          toolchain: 1.81.0
-          args: --release -p sp1-sdk -- test_e2e_prove_plonk --nocapture
-        env:
-          RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
-          RUST_BACKTRACE: 1
