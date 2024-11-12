@@ -66,7 +66,6 @@ sp1-core-executor = { workspace = true, features = ["programs"] }
 test-artifacts = { workspace = true }
 
 [features]
-programs = []
 debug = []
 bigint-rug = ["sp1-curves/bigint-rug"]
 

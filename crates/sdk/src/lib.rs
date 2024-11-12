@@ -310,8 +310,7 @@ mod tests {
     fn test_execute() {
         utils::setup_logger();
         let client = ProverClient::local();
-        let elf =
-            include_bytes!("../../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
+        let elf = test_artifacts::FIBONACCI_ELF;
         let mut stdin = SP1Stdin::new();
         stdin.write(&10usize);
         let (_, report) = client.execute(elf, stdin).run().unwrap();
