@@ -43,6 +43,45 @@ Here, the proof, public inputs, and vkey hash are read from stdin. See the follo
 
 > Note that the SP1 SDK itself is *not* `no_std` compatible.
 
+### Advanced: `verify_bytes`
+
+`sp1-verifier` also exposes [`Groth16Verifier::verify_bytes`](https://docs.rs/sp1-verifier/latest/sp1_verifier/struct.Groth16Verifier.html#method.verify_bytes) and [`PlonkVerifier::verify_bytes`](https://docs.rs/sp1-verifier/latest/sp1_verifier/struct.PlonkVerifier.html#method.verify_bytes),
+which verifies any Groth16 or Plonk proof from gnark. This is especially useful for verifying custom Groth16 and Plonk proofs
+efficiently in the SP1 ZKVM.
+
+The following snippet demonstrates how you might serialize a gnark proof in a way that `sp1-verifier` can use.
+
+```go
+// Write the verifier key.
+vkFile, err := os.Create("vk.bin")
+if err != nil {
+    panic(err)
+}
+defer vkFile.Close()
+
+// Here, `vk` is a `groth16_bn254.VerifyingKey` or `plonk_bn254.VerifyingKey`.
+_, err = vk.WriteTo(vkFile)
+if err != nil {
+    panic(err)
+}
+
+// Write the proof.
+proofFile, err := os.Create("proof.bin")
+if err != nil {
+    panic(err)
+}
+defer proofFile.Close()
+
+// Here, `proof` is a `groth16_bn254.Proof` or `plonk_bn254.Proof`.
+_, err = proof.WriteTo(proofFile)
+if err != nil {
+    panic(err)
+}
+```
+
+Public values are serialized as big-endian `Fr` values. The default gnark serialization will work
+out of the box.
+
 ## Wasm Verification
 
 The [`example-sp1-wasm-verifier`](https://github.com/succinctlabs/example-sp1-wasm-verifier) demonstrates how to
