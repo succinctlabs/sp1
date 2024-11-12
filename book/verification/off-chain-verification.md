@@ -43,13 +43,13 @@ Here, the proof, public inputs, and vkey hash are read from stdin. See the follo
 
 > Note that the SP1 SDK itself is *not* `no_std` compatible.
 
-### Advanced: `verify_bytes`
+### Advanced: `verify_gnark_proof`
 
-`sp1-verifier` also exposes [`Groth16Verifier::verify_bytes`](https://docs.rs/sp1-verifier/latest/sp1_verifier/struct.Groth16Verifier.html#method.verify_bytes) and [`PlonkVerifier::verify_bytes`](https://docs.rs/sp1-verifier/latest/sp1_verifier/struct.PlonkVerifier.html#method.verify_bytes),
-which verifies any Groth16 or Plonk proof from gnark. This is especially useful for verifying custom Groth16 and Plonk proofs
+`sp1-verifier` also exposes [`Groth16Verifier::verify_gnark_proof`](https://docs.rs/sp1-verifier/latest/sp1_verifier/struct.Groth16Verifier.html#method.verify_gnark_proof) and [`PlonkVerifier::verify_gnark_proof`](https://docs.rs/sp1-verifier/latest/sp1_verifier/struct.PlonkVerifier.html#method.verify_gnark_proof),
+which verifies any Groth16 or Plonk proof from Gnark. This is especially useful for verifying custom Groth16 and Plonk proofs
 efficiently in the SP1 ZKVM.
 
-The following snippet demonstrates how you might serialize a gnark proof in a way that `sp1-verifier` can use.
+The following snippet demonstrates how you might serialize a Gnark proof in a way that `sp1-verifier` can use.
 
 ```go
 // Write the verifier key.
@@ -79,7 +79,7 @@ if err != nil {
 }
 ```
 
-Public values are serialized as big-endian `Fr` values. The default gnark serialization will work
+Public values are serialized as big-endian `Fr` values. The default Gnark serialization will work
 out of the box.
 
 ## Wasm Verification
