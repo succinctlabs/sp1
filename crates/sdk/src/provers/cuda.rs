@@ -48,7 +48,7 @@ impl Prover<DefaultProverComponents> for CudaProver {
         tracing::warn!("opts and context are ignored for the cuda prover");
 
         // Generate the core proof.
-        let proof = self.cuda_prover.prove_core(pk, &stdin)?;
+        let proof = self.cuda_prover.prove_core(&pk.elf, &stdin)?;
         if kind == SP1ProofKind::Core {
             return Ok(SP1ProofWithPublicValues {
                 proof: SP1Proof::Core(proof.proof.0),

@@ -16,9 +16,7 @@ use proto::api::ReadyRequest;
 use reqwest::{Request, Response};
 use serde::{Deserialize, Serialize};
 use sp1_core_machine::{io::SP1Stdin, reduce::SP1ReduceProof, utils::SP1CoreProverError};
-use sp1_prover::{
-    types::SP1ProvingKey, InnerSC, OuterSC, SP1CoreProof, SP1RecursionProverError, SP1VerifyingKey,
-};
+use sp1_prover::{InnerSC, OuterSC, SP1CoreProof, SP1RecursionProverError, SP1VerifyingKey};
 use tokio::task::block_in_place;
 use twirp::{
     async_trait,
@@ -51,8 +49,8 @@ pub struct SP1CudaProver {
 /// We use this object to serialize and deserialize the payload from the client to the server.
 #[derive(Serialize, Deserialize)]
 pub struct ProveCoreRequestPayload {
-    /// The proving key.
-    pub pk: SP1ProvingKey,
+    /// The program.
+    pub elf: Vec<u8>,
     /// The input stream.
     pub stdin: SP1Stdin,
 }
@@ -237,10 +235,10 @@ impl SP1CudaProver {
     /// **WARNING**: This is an experimental feature and may not work as expected.
     pub fn prove_core(
         &self,
-        pk: &SP1ProvingKey,
+        elf: &[u8],
         stdin: &SP1Stdin,
     ) -> Result<SP1CoreProof, SP1CoreProverError> {
-        let payload = ProveCoreRequestPayload { pk: pk.clone(), stdin: stdin.clone() };
+        let payload = ProveCoreRequestPayload { elf: elf.to_vec(), stdin: stdin.clone() };
         let request =
             crate::proto::api::ProveCoreRequest { data: bincode::serialize(&payload).unwrap() };
         let response = block_on(async { self.client.prove_core(request).await }).unwrap();
@@ -385,10 +383,10 @@ mod tests {
 
         let prover = SP1Prover::<DefaultProverComponents>::new();
         let client = SP1CudaProver::new().expect("Failed to create SP1CudaProver");
-        let (pk, vk) = prover.setup(FIBONACCI_ELF);
+        let (_, vk) = prover.setup(FIBONACCI_ELF);
 
         println!("proving core");
-        let proof = client.prove_core(&pk, &SP1Stdin::new()).unwrap();
+        let proof = client.prove_core(FIBONACCI_ELF, &SP1Stdin::new()).unwrap();
 
         println!("verifying core");
         prover.verify(&proof.proof, &vk).unwrap();
@@ -418,8 +416,9 @@ mod tests {
             Client::from_base_url(Url::parse("http://localhost:3000/twirp/").unwrap()).unwrap();
 
         let prover = SP1Prover::<DefaultProverComponents>::new();
-        let (pk, vk) = prover.setup(FIBONACCI_ELF);
-        let payload = ProveCoreRequestPayload { pk, stdin: SP1Stdin::new() };
+        let (_, vk) = prover.setup(FIBONACCI_ELF);
+        let payload =
+            ProveCoreRequestPayload { elf: FIBONACCI_ELF.to_vec(), stdin: SP1Stdin::new() };
         let request =
             crate::proto::api::ProveCoreRequest { data: bincode::serialize(&payload).unwrap() };
         let proof = client.prove_core(request).await.unwrap();

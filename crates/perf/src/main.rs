@@ -152,7 +152,7 @@ fn main() {
                 time_operation(|| prover.execute(&elf, &stdin, context.clone()));
 
             let (core_proof, prove_core_duration) =
-                time_operation(|| server.prove_core(&pk, &stdin).unwrap());
+                time_operation(|| server.prove_core(&pk.elf, &stdin).unwrap());
 
             let (_, verify_core_duration) = time_operation(|| {
                 prover.verify(&core_proof.proof, &vk).expect("Proof verification failed")
