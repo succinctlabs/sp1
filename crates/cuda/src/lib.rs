@@ -246,13 +246,13 @@ impl SP1CudaProver {
     }
 
     /// Executes the [sp1_prover::SP1Prover::setup] method inside the container.
-    pub fn setup(&self, elf: &[u8]) -> Result<SetupResponsePayload, Box<dyn StdError>> {
+    pub fn setup(&self, elf: &[u8]) -> Result<(SP1ProvingKey, SP1VerifyingKey), Box<dyn StdError>> {
         let payload = SetupRequestPayload { elf: elf.to_vec() };
         let request =
             crate::proto::api::SetupRequest { data: bincode::serialize(&payload).unwrap() };
         let response = block_on(async { self.client.setup(request).await }).unwrap();
         let payload: SetupResponsePayload = bincode::deserialize(&response.result).unwrap();
-        Ok(payload)
+        Ok((payload.pk, payload.vk))
     }
 
     /// Executes the [sp1_prover::SP1Prover::prove_core] method inside the container.
