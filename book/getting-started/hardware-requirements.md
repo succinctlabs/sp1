@@ -31,7 +31,9 @@ which can be parallelized with multiple cores.
 Our prover requires keeping large matrices (i.e., traces) in memory to generate the proofs. Certain steps of the prover
 have a minimum memory requirement, meaning that if you have less than this amount of memory, the process will OOM.
 
-This effect is most noticeable when using the Groth16 or PLONK provers.
+This effect is most noticeable when using the Groth16 or PLONK provers. If you're running the Groth16 or Plonk provers locally
+on Mac or Windows using docker, you might need to increase the memory limit for
+[docker desktop](https://docs.docker.com/desktop/settings-and-maintenance/settings/#resources).
 
 ### Disk
 
