@@ -222,10 +222,11 @@ impl ExecutionRecord {
         if last {
             self.global_memory_initialize_events.sort_by_key(|event| event.addr);
             self.global_memory_finalize_events.sort_by_key(|event| event.addr);
-            let last_record_is_some = last_record.is_some();
+            let last_record_is_some = last_record.is_some() && shards.is_empty();
             let mut blank_record = ExecutionRecord::new(self.program.clone());
-            let last_record_ref =
-                if last_record_is_some { last_record.unwrap() } else { &mut blank_record };
+            let mut last_shard = shards.pop();
+            let last_record = last_shard.as_mut().or(last_record);
+            let last_record_ref = last_record.unwrap_or(&mut blank_record);
 
             let mut init_addr_bits = [0; 32];
             let mut finalize_addr_bits = [0; 32];
