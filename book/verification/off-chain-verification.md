@@ -4,7 +4,7 @@
 
 You can verify SP1 Groth16 and Plonk proofs in `no_std` environments with [`sp1-verifier`](https://docs.rs/sp1-verifier/latest/sp1_verifier/).
 
-`sp1-verifier` is also patched to verify Groth16 and Plonk proofs within the SP1 ZKVM, using
+`sp1-verifier` is also patched to verify Groth16 and Plonk proofs within the SP1 zkVM, using
 [bn254](https://blog.succinct.xyz/succinctshipsprecompiles/) precompiles. For an example of this, see
 the [Groth16 Example](https://github.com/succinctlabs/sp1/tree/main/examples/groth16/).
 
@@ -47,7 +47,7 @@ Here, the proof, public inputs, and vkey hash are read from stdin. See the follo
 
 `sp1-verifier` also exposes [`Groth16Verifier::verify_gnark_proof`](https://docs.rs/sp1-verifier/latest/sp1_verifier/struct.Groth16Verifier.html#method.verify_gnark_proof) and [`PlonkVerifier::verify_gnark_proof`](https://docs.rs/sp1-verifier/latest/sp1_verifier/struct.PlonkVerifier.html#method.verify_gnark_proof),
 which verifies any Groth16 or Plonk proof from Gnark. This is especially useful for verifying custom Groth16 and Plonk proofs
-efficiently in the SP1 ZKVM.
+efficiently in the SP1 zkVM.
 
 The following snippet demonstrates how you might serialize a Gnark proof in a way that `sp1-verifier` can use.
 
