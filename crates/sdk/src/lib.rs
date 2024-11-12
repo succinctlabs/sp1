@@ -177,7 +177,7 @@ impl ProverClient {
     /// use sp1_sdk::{ProverClient, SP1Context, SP1Stdin};
     ///
     /// // Load the program.
-    /// let elf = test_artifact::FIBONACCI_ELF;
+    /// let elf = test_artifacts::FIBONACCI_ELF;
     ///
     /// // Initialize the prover client.
     /// let client = ProverClient::new();
@@ -207,7 +207,7 @@ impl ProverClient {
     /// use sp1_sdk::{ProverClient, SP1Context, SP1Stdin};
     ///
     /// // Load the program.
-    /// let elf = test_artifact::FIBONACCI_ELF;
+    /// let elf = test_artifacts::FIBONACCI_ELF;
     ///
     /// // Initialize the prover client.
     /// let client = ProverClient::new();
@@ -233,7 +233,7 @@ impl ProverClient {
     /// ```no_run
     /// use sp1_sdk::{ProverClient, SP1Stdin};
     ///
-    /// let elf = test_artifact::FIBONACCI_ELF;
+    /// let elf = test_artifacts::FIBONACCI_ELF;
     /// let client = ProverClient::new();
     /// let (pk, vk) = client.setup(elf);
     /// let mut stdin = SP1Stdin::new();
@@ -266,7 +266,7 @@ impl ProverClient {
     /// ```no_run
     /// use sp1_sdk::{ProverClient, SP1Stdin};
     ///
-    /// let elf = test_artifact::FIBONACCI_ELF;
+    /// let elf = test_artifacts::FIBONACCI_ELF;
     /// let client = ProverClient::new();
     /// let mut stdin = SP1Stdin::new();
     /// stdin.write(&10usize);
