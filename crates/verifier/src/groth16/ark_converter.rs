@@ -185,6 +185,9 @@ pub fn load_ark_groth16_verifying_key_from_bytes(
     Ok(VerifyingKey { alpha_g1, beta_g2, gamma_g2, delta_g2, gamma_abc_g1: k })
 }
 
+/// Load the public inputs from the bytes in the arkworks format.
+///
+/// This reads the vkey hash and the committed values digest as big endian Fr elements.
 pub fn load_ark_public_inputs_from_bytes(
     vkey_hash: &[u8; 32],
     committed_values_digest: &[u8; 32],
