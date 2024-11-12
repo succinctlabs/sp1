@@ -222,10 +222,8 @@ impl ExecutionRecord {
         if last {
             self.global_memory_initialize_events.sort_by_key(|event| event.addr);
             self.global_memory_finalize_events.sort_by_key(|event| event.addr);
-            let last_record_is_some = last_record.is_some() && shards.is_empty();
+            let pack_memory_events_into_last_record = last_record.is_some() && shards.is_empty();
             let mut blank_record = ExecutionRecord::new(self.program.clone());
-            let mut last_shard = shards.pop();
-            let last_record = last_shard.as_mut().or(last_record);
             let last_record_ref = last_record.unwrap_or(&mut blank_record);
 
             let mut init_addr_bits = [0; 32];
@@ -260,7 +258,7 @@ impl ExecutionRecord {
                 }
                 last_record_ref.public_values.last_finalize_addr_bits = finalize_addr_bits;
 
-                if !last_record_is_some {
+                if !pack_memory_events_into_last_record {
                     shards.push(take(last_record_ref));
                 }
             }
