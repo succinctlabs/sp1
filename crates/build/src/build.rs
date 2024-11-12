@@ -5,7 +5,7 @@ use cargo_metadata::camino::Utf8PathBuf;
 
 use crate::{
     command::{docker::create_docker_command, local::create_local_command, utils::execute_command},
-    utils::{cargo_rerun_if_changed, copy_elf_to_output_dir, current_datetime},
+    utils::{cargo_rerun_if_changed, current_datetime},
     BuildArgs, BUILD_TARGET, HELPER_TARGET_SUBDIR,
 };
 
@@ -47,15 +47,6 @@ pub fn execute_build_program(
     execute_command(cmd, args.docker)?;
 
     let target_elf_paths = generate_elf_paths(&program_metadata, Some(args))?;
-
-    if args.binaries.is_empty() && args.packages.is_empty() && target_elf_paths.len() == 1 {
-        // Backward compatibility: if the --bin and -p args are not set, default to riscv32im-succinct-zkvm-elf
-        copy_elf_to_output_dir(args, &program_metadata, BUILD_TARGET, &target_elf_paths[0].1)?;
-    } else {
-        for (bin_target_name, elf_path) in &target_elf_paths {
-            copy_elf_to_output_dir(args, &program_metadata, bin_target_name, elf_path)?;
-        }
-    }
 
     Ok(target_elf_paths)
 }
