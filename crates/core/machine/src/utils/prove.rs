@@ -512,8 +512,15 @@ where
                                 deferred.append(&mut record.defer());
                             }
 
+                            let mut deferred = if done {
+                                records.last_mut().unwrap().append(&mut deferred);
+                                vec![]
+                            } else {
+                                deferred.split(done, opts.split_opts)
+                            };
+
                             // See if any deferred shards are ready to be committed to.
-                            let mut deferred = deferred.split(done, opts.split_opts);
+                            // let mut deferred = deferred.split(done, opts.split_opts);
                             log::info!("deferred {} records", deferred.len());
 
                             // Update the public values & prover state for the shards which do not
