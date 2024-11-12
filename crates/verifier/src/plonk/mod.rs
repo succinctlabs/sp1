@@ -13,11 +13,12 @@ mod verify;
 
 pub(crate) mod error;
 
-use bn::Fr;
 pub(crate) use converter::{load_plonk_proof_from_bytes, load_plonk_verifying_key_from_bytes};
 pub(crate) use proof::PlonkProof;
 pub(crate) use verify::verify_plonk_algebraic;
 
+use alloc::vec::Vec;
+use bn::Fr;
 use error::PlonkError;
 use sha2::{Digest, Sha256};
 

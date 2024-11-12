@@ -4,12 +4,14 @@ mod verify;
 
 use bn::Fr;
 pub(crate) use converter::{load_groth16_proof_from_bytes, load_groth16_verifying_key_from_bytes};
-use sha2::{Digest, Sha256};
 pub(crate) use verify::*;
 
 use error::Groth16Error;
 
 use crate::{decode_sp1_vkey_hash, error::Error, hash_public_inputs};
+
+use alloc::vec::Vec;
+use sha2::{Digest, Sha256};
 
 /// A verifier for Groth16 zero-knowledge proofs.
 #[derive(Debug)]
