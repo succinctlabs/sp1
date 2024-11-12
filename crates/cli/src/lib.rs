@@ -50,7 +50,7 @@ pub fn is_supported_target() -> bool {
 pub fn get_target() -> String {
     let mut target: target_lexicon::Triple = target_lexicon::HOST;
 
-    // We don't want to operate on the musl toolchain even if the CLI was compiled with musl
+    // We don't want to operate on the musl toolchain, even if the CLI was compiled with musl
     if target.environment == target_lexicon::Environment::Musl {
         target.environment = target_lexicon::Environment::Gnu;
     }
