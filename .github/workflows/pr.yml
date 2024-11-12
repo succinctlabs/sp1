@@ -434,13 +434,14 @@ jobs:
         run: |
           find -name Cargo.lock -type f -exec rm {} \;
 
-      - name: "Build SP1 without lock files"
-        run: |
-          cargo build --all --all-targets
-
+      # We need cargo-prove to be installed in order to build test-artifacts
       - name: Install SP1 toolchain
         run: |
           cargo run -p sp1-cli -- prove install-toolchain
+
+      - name: "Build SP1 without lock files"
+        run: |
+          cargo build --all --all-targets
           
       - name: "Build examples without lock files"
         run: |
