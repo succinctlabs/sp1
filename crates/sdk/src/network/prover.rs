@@ -20,7 +20,7 @@ use {crate::block_on, tokio::time::sleep};
 use crate::provers::{CpuProver, ProofOpts, ProverType};
 
 /// Number of consecutive errors to tolerate before returning an error while polling proof status.
-const MAX_CONSECUTIVE_ERRORS: usize = 10;
+const MAX_CONSECUTIVE_ERRORS: usize = 5;
 
 /// An implementation of [crate::ProverClient] that can generate proofs on a remote RPC server.
 pub struct NetworkProver {

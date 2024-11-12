@@ -13,6 +13,7 @@ use anyhow::{Context, Ok, Result};
 use futures::{future::join_all, Future};
 use reqwest::{Client as HttpClient, Url};
 use reqwest_middleware::ClientWithMiddleware as HttpClientWithMiddleware;
+use reqwest_retry::{policies::ExponentialBackoff, RetryTransientMiddleware};
 use sp1_core_machine::io::SP1Stdin;
 use std::{
     result::Result::Ok as StdOk,
@@ -26,6 +27,7 @@ use crate::network::proto::network::{
     GetProofStatusRequest, GetProofStatusResponse, NetworkServiceClient, ProofMode, ProofStatus,
     SubmitProofRequest,
 };
+use reqwest_middleware::ClientBuilder;
 
 /// The default RPC endpoint for the Succinct prover network.
 pub const DEFAULT_PROVER_NETWORK_RPC: &str = "https://rpc.succinct.xyz/";
@@ -70,7 +72,12 @@ impl NetworkClient {
             .build()
             .unwrap();
 
-        Self { auth, rpc, http: http_client.into() }
+        let retry_policy = ExponentialBackoff::builder().build_with_max_retries(3);
+        let client = ClientBuilder::new(http_client)
+            .with(RetryTransientMiddleware::new_with_policy(retry_policy))
+            .build();
+
+        Self { auth, rpc, http: client }
     }
 
     /// Gets the latest nonce for this auth's account.
