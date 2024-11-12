@@ -4,8 +4,7 @@ The prover network currently only supports specific versions of SP1:
 
 | Version | Description                                                                                                                                              |
 | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| v2.X.X  | Audited, production ready version.                                                                                                                       |
-| v3.X.X  | Pre-release version with enhanced performance, currently being audited. **Recommended for benchmarking or testing, not recommended for production use.** |
+| v3.X.X  | V3 Release. Latest performant & production ready version.                                                                                                |
 
 `X` denotes that any minor and patch version is supported (e.g. `v2.1.0`, `v2.1.1`).
 
@@ -17,14 +16,14 @@ You must switch to a supported version before submitting a proof. To do so, repl
 
 ```toml
 [dependencies]
-sp1-zkvm = "2.0.0"
+sp1-zkvm = "3.0.0"
 ```
 
 replace the `sp1-sdk` version in your script's `Cargo.toml`:
 
 ```toml
 [dependencies]
-sp1-sdk = "2.0.0"
+sp1-sdk = "3.0.0"
 ```
 
 Re-build your program and script, and then try again.

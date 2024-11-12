@@ -1,5 +1,9 @@
 # Contract Addresses
 
+> The current officially supported version of SP1 is **V3.0.0**. 
+>
+> All previous versions are deprecated and may not work as expected on the gateways.
+
 To verify SP1 proofs on-chain, we recommend using our deployed canonical verifier gateways. The
 [SP1VerifierGateway](https://github.com/succinctlabs/sp1-contracts/blob/main/contracts/src/ISP1VerifierGateway.sol)
 will automatically route your SP1 proof to the correct verifier based on the SP1 version used.
