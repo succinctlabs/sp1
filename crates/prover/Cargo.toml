@@ -30,6 +30,7 @@ serde = { version = "1.0", features = ["derive", "rc"] }
 itertools = "0.13.0"
 tracing = "0.1.40"
 tracing-subscriber = "0.3.18"
+tracing-appender = "0.2.3"
 serde_json = "1.0.121"
 clap = { version = "4.5.9", features = ["derive", "env"] }
 anyhow = "1.0.83"
@@ -63,6 +64,22 @@ path = "scripts/post_trusted_setup.rs"
 [[bin]]
 name = "e2e"
 path = "scripts/e2e.rs"
+
+[[bin]]
+name = "fibonacci_groth16"
+path = "scripts/fibonacci_groth16.rs"
+required-features = ["export-tests"]
+
+[[bin]]
+name = "fibonacci_sweep"
+path = "scripts/fibonacci_sweep.rs"
+required-features = ["export-tests"]
+
+[[bin]]
+name = "tendermint_sweep"
+path = "scripts/tendermint_sweep.rs"
+required-features = ["export-tests"]
+
 
 [features]
 native-gnark = ["sp1-recursion-gnark-ffi/native"]
