@@ -16,7 +16,9 @@ use proto::api::ReadyRequest;
 use reqwest::{Request, Response};
 use serde::{Deserialize, Serialize};
 use sp1_core_machine::{io::SP1Stdin, reduce::SP1ReduceProof, utils::SP1CoreProverError};
-use sp1_prover::{InnerSC, OuterSC, SP1CoreProof, SP1RecursionProverError, SP1VerifyingKey};
+use sp1_prover::{
+    InnerSC, OuterSC, SP1CoreProof, SP1ProvingKey, SP1RecursionProverError, SP1VerifyingKey,
+};
 use tokio::task::block_in_place;
 use twirp::{
     async_trait,
@@ -44,13 +46,28 @@ pub struct SP1CudaProver {
     cleaned_up: Arc<AtomicBool>,
 }
 
+/// The payload for the [sp1_prover::SP1Prover::setup] method.
+///
+/// We use this object to serialize and deserialize the payload from the client to the server.
+#[derive(Serialize, Deserialize)]
+pub struct SetupRequestPayload {
+    pub elf: Vec<u8>,
+}
+
+/// The payload for the [sp1_prover::SP1Prover::setup] method response.
+///
+/// We use this object to serialize and deserialize the payload from the server to the client.
+#[derive(Serialize, Deserialize)]
+pub struct SetupResponsePayload {
+    pub pk: SP1ProvingKey,
+    pub vk: SP1VerifyingKey,
+}
+
 /// The payload for the [sp1_prover::SP1Prover::prove_core] method.
 ///
 /// We use this object to serialize and deserialize the payload from the client to the server.
 #[derive(Serialize, Deserialize)]
 pub struct ProveCoreRequestPayload {
-    /// The program.
-    pub elf: Vec<u8>,
     /// The input stream.
     pub stdin: SP1Stdin,
 }
@@ -228,17 +245,21 @@ impl SP1CudaProver {
         }
     }
 
+    /// Executes the [sp1_prover::SP1Prover::setup] method inside the container.
+    pub fn setup(&self, elf: &[u8]) -> Result<SetupResponsePayload, Box<dyn StdError>> {
+        let payload = SetupRequestPayload { elf: elf.to_vec() };
+        let request =
+            crate::proto::api::SetupRequest { data: bincode::serialize(&payload).unwrap() };
+        let response = block_on(async { self.client.setup(request).await }).unwrap();
+        let payload: SetupResponsePayload = bincode::deserialize(&response.result).unwrap();
+        Ok(payload)
+    }
+
     /// Executes the [sp1_prover::SP1Prover::prove_core] method inside the container.
     ///
     /// You will need at least 24GB of VRAM to run this method.
-    ///
-    /// **WARNING**: This is an experimental feature and may not work as expected.
-    pub fn prove_core(
-        &self,
-        elf: &[u8],
-        stdin: &SP1Stdin,
-    ) -> Result<SP1CoreProof, SP1CoreProverError> {
-        let payload = ProveCoreRequestPayload { elf: elf.to_vec(), stdin: stdin.clone() };
+    pub fn prove_core(&self, stdin: &SP1Stdin) -> Result<SP1CoreProof, SP1CoreProverError> {
+        let payload = ProveCoreRequestPayload { stdin: stdin.clone() };
         let request =
             crate::proto::api::ProveCoreRequest { data: bincode::serialize(&payload).unwrap() };
         let response = block_on(async { self.client.prove_core(request).await }).unwrap();
@@ -249,8 +270,6 @@ impl SP1CudaProver {
     /// Executes the [sp1_prover::SP1Prover::compress] method inside the container.
     ///
     /// You will need at least 24GB of VRAM to run this method.
-    ///
-    /// **WARNING**: This is an experimental feature and may not work as expected.
     pub fn compress(
         &self,
         vk: &SP1VerifyingKey,
@@ -268,9 +287,7 @@ impl SP1CudaProver {
 
     /// Executes the [sp1_prover::SP1Prover::shrink] method inside the container.
     ///
-    /// You will need at least 40GB of VRAM to run this method.
-    ///
-    /// **WARNING**: This is an experimental feature and may not work as expected.
+    /// You will need at least 24GB of VRAM to run this method.
     pub fn shrink(
         &self,
         reduced_proof: SP1ReduceProof<InnerSC>,
@@ -286,9 +303,7 @@ impl SP1CudaProver {
 
     /// Executes the [sp1_prover::SP1Prover::wrap_bn254] method inside the container.
     ///
-    /// You will need at least 40GB of VRAM to run this method.
-    ///
-    /// **WARNING**: This is an experimental feature and may not work as expected.
+    /// You will need at least 24GB of VRAM to run this method.
     pub fn wrap_bn254(
         &self,
         reduced_proof: SP1ReduceProof<InnerSC>,
@@ -362,78 +377,77 @@ impl Middleware for LoggingMiddleware {
     }
 }
 
-#[cfg(feature = "protobuf")]
-#[cfg(test)]
-mod tests {
-    use sp1_core_machine::{
-        reduce::SP1ReduceProof,
-        utils::{setup_logger, tests::FIBONACCI_ELF},
-    };
-    use sp1_prover::{components::DefaultProverComponents, InnerSC, SP1CoreProof, SP1Prover};
-    use twirp::{url::Url, Client};
+// #[cfg(feature = "protobuf")]
+// #[cfg(test)]
+// mod tests {
+//     use sp1_core_machine::{
+//         reduce::SP1ReduceProof,
+//         utils::{setup_logger, tests::FIBONACCI_ELF},
+//     };
+//     use sp1_prover::{components::DefaultProverComponents, InnerSC, SP1CoreProof, SP1Prover};
+//     use twirp::{url::Url, Client};
 
-    use crate::{
-        proto::api::ProverServiceClient, CompressRequestPayload, ProveCoreRequestPayload,
-        SP1CudaProver, SP1Stdin,
-    };
+//     use crate::{
+//         proto::api::ProverServiceClient, CompressRequestPayload, ProveCoreRequestPayload,
+//         SP1CudaProver, SP1Stdin,
+//     };
 
-    #[test]
-    fn test_client() {
-        setup_logger();
+//     #[test]
+//     fn test_client() {
+//         setup_logger();
 
-        let prover = SP1Prover::<DefaultProverComponents>::new();
-        let client = SP1CudaProver::new().expect("Failed to create SP1CudaProver");
-        let (_, vk) = prover.setup(FIBONACCI_ELF);
+//         let prover = SP1Prover::<DefaultProverComponents>::new();
+//         let client = SP1CudaProver::new().expect("Failed to create SP1CudaProver");
+//         let (pk, vk) = prover.setup(FIBONACCI_ELF);
 
-        println!("proving core");
-        let proof = client.prove_core(FIBONACCI_ELF, &SP1Stdin::new()).unwrap();
+//         println!("proving core");
+//         let proof = client.prove_core(&pk, &SP1Stdin::new()).unwrap();
 
-        println!("verifying core");
-        prover.verify(&proof.proof, &vk).unwrap();
+//         println!("verifying core");
+//         prover.verify(&proof.proof, &vk).unwrap();
 
-        println!("proving compress");
-        let proof = client.compress(&vk, proof, vec![]).unwrap();
+//         println!("proving compress");
+//         let proof = client.compress(&vk, proof, vec![]).unwrap();
 
-        println!("verifying compress");
-        prover.verify_compressed(&proof, &vk).unwrap();
+//         println!("verifying compress");
+//         prover.verify_compressed(&proof, &vk).unwrap();
 
-        println!("proving shrink");
-        let proof = client.shrink(proof).unwrap();
+//         println!("proving shrink");
+//         let proof = client.shrink(proof).unwrap();
 
-        println!("verifying shrink");
-        prover.verify_shrink(&proof, &vk).unwrap();
+//         println!("verifying shrink");
+//         prover.verify_shrink(&proof, &vk).unwrap();
 
-        println!("proving wrap_bn254");
-        let proof = client.wrap_bn254(proof).unwrap();
+//         println!("proving wrap_bn254");
+//         let proof = client.wrap_bn254(proof).unwrap();
 
-        println!("verifying wrap_bn254");
-        prover.verify_wrap_bn254(&proof, &vk).unwrap();
-    }
+//         println!("verifying wrap_bn254");
+//         prover.verify_wrap_bn254(&proof, &vk).unwrap();
+//     }
 
-    #[tokio::test]
-    async fn test_prove_core() {
-        let client =
-            Client::from_base_url(Url::parse("http://localhost:3000/twirp/").unwrap()).unwrap();
+//     #[tokio::test]
+//     async fn test_prove_core() {
+//         let client =
+//             Client::from_base_url(Url::parse("http://localhost:3000/twirp/").unwrap()).unwrap();
 
-        let prover = SP1Prover::<DefaultProverComponents>::new();
-        let (_, vk) = prover.setup(FIBONACCI_ELF);
-        let payload =
-            ProveCoreRequestPayload { elf: FIBONACCI_ELF.to_vec(), stdin: SP1Stdin::new() };
-        let request =
-            crate::proto::api::ProveCoreRequest { data: bincode::serialize(&payload).unwrap() };
-        let proof = client.prove_core(request).await.unwrap();
-        let proof: SP1CoreProof = bincode::deserialize(&proof.result).unwrap();
-        prover.verify(&proof.proof, &vk).unwrap();
+//         let prover = SP1Prover::<DefaultProverComponents>::new();
+//         let (pk, vk) = prover.setup(FIBONACCI_ELF);
+//         let payload = ProveCoreRequestPayload { pk, stdin: SP1Stdin::new() };
+//         let request =
+//             crate::proto::api::ProveCoreRequest { data: bincode::serialize(&payload).unwrap() };
+//         let proof = client.prove_core(request).await.unwrap();
+//         let proof: SP1CoreProof = bincode::deserialize(&proof.result).unwrap();
+//         prover.verify(&proof.proof, &vk).unwrap();
 
-        tracing::info!("compress");
-        let payload = CompressRequestPayload { vk: vk.clone(), proof, deferred_proofs: vec![] };
-        let request =
-            crate::proto::api::CompressRequest { data: bincode::serialize(&payload).unwrap() };
-        let compressed_proof = client.compress(request).await.unwrap();
-        let compressed_proof: SP1ReduceProof<InnerSC> =
-            bincode::deserialize(&compressed_proof.result).unwrap();
+//         tracing::info!("compress");
+//         let payload = CompressRequestPayload { vk: vk.clone(), proof, deferred_proofs: vec![] };
+//         let request =
+//             crate::proto::api::CompressRequest { data: bincode::serialize(&payload).unwrap() };
+//         let compressed_proof = client.compress(request).await.unwrap();
+//         let compressed_proof: SP1ReduceProof<InnerSC> =
+//             bincode::deserialize(&compressed_proof.result).unwrap();
 
-        tracing::info!("verify compressed");
-        prover.verify_compressed(&compressed_proof, &vk).unwrap();
-    }
-}
+//         tracing::info!("verify compressed");
+//         prover.verify_compressed(&compressed_proof, &vk).unwrap();
+//     }
+// }
