@@ -181,7 +181,7 @@ impl ExecutionRecord {
     pub fn split(
         &mut self,
         last: bool,
-        last_record: Option<&ExecutionRecord>,
+        last_record: Option<&mut ExecutionRecord>,
         opts: SplitOpts,
     ) -> Vec<ExecutionRecord> {
         let mut shards = Vec::new();
@@ -222,6 +222,10 @@ impl ExecutionRecord {
         if last {
             self.global_memory_initialize_events.sort_by_key(|event| event.addr);
             self.global_memory_finalize_events.sort_by_key(|event| event.addr);
+            let last_record_is_some = last_record.is_some();
+            let mut blank_record = ExecutionRecord::new(self.program.clone());
+            let last_record_ref =
+                if last_record_is_some { last_record.unwrap() } else { &mut blank_record };
 
             let mut init_addr_bits = [0; 32];
             let mut finalize_addr_bits = [0; 32];
@@ -238,34 +242,28 @@ impl ExecutionRecord {
                     EitherOrBoth::Left(mem_init_chunk) => (mem_init_chunk, [].as_slice()),
                     EitherOrBoth::Right(mem_finalize_chunk) => ([].as_slice(), mem_finalize_chunk),
                 };
-                let mut shard = if let Some(record) = last_record {
-                    tracing::info!("Last record is some, cloning it.");
-                    record.clone()
-                } else {
-                    tracing::info!("Last record is none, creating a new one.");
-                    ExecutionRecord::new(self.program.clone())
-                };
-                shard.global_memory_initialize_events.extend_from_slice(mem_init_chunk);
-                shard.public_values.previous_init_addr_bits = init_addr_bits;
+                last_record_ref.global_memory_initialize_events.extend_from_slice(mem_init_chunk);
+                last_record_ref.public_values.previous_init_addr_bits = init_addr_bits;
                 if let Some(last_event) = mem_init_chunk.last() {
                     let last_init_addr_bits = core::array::from_fn(|i| (last_event.addr >> i) & 1);
                     init_addr_bits = last_init_addr_bits;
                 }
-                shard.public_values.last_init_addr_bits = init_addr_bits;
+                last_record_ref.public_values.last_init_addr_bits = init_addr_bits;
 
-                shard.global_memory_finalize_events.extend_from_slice(mem_finalize_chunk);
-                shard.public_values.previous_finalize_addr_bits = finalize_addr_bits;
+                last_record_ref.global_memory_finalize_events.extend_from_slice(mem_finalize_chunk);
+                last_record_ref.public_values.previous_finalize_addr_bits = finalize_addr_bits;
                 if let Some(last_event) = mem_finalize_chunk.last() {
                     let last_finalize_addr_bits =
                         core::array::from_fn(|i| (last_event.addr >> i) & 1);
                     finalize_addr_bits = last_finalize_addr_bits;
                 }
-                shard.public_values.last_finalize_addr_bits = finalize_addr_bits;
+                last_record_ref.public_values.last_finalize_addr_bits = finalize_addr_bits;
 
-                shards.push(shard);
+                if !last_record_is_some {
+                    shards.push(take(last_record_ref));
+                }
             }
         }
-
         shards
     }
 

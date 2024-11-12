@@ -281,18 +281,12 @@ where
                             );
 
                             // IF DONE & DEFERRED IS "SMALL", then just combine into the most recent shard.
-                            let last_record = if done {
-                                // records.last_mut().unwrap().append(&mut deferred.clone());
-                                records.pop()
-                            } else {
-                                None
-                            };
+                            let last_record = if done { records.last_mut() } else { None };
 
                             tracing::info!("Last record is some: {:?}", last_record.is_some());
 
                             // See if any deferred shards are ready to be committed to.
-                            let mut deferred =
-                                deferred.split(done, last_record.as_ref(), opts.split_opts);
+                            let mut deferred = deferred.split(done, last_record, opts.split_opts);
                             log::info!("deferred {} records", deferred.len());
                             log::info!("Records length:{}, done: {}", records.len(), done);
 
@@ -532,11 +526,10 @@ where
 
                             // tracing::info!("Deferred length: {}", deferred.len());
 
-                            let last_record = if done { records.pop() } else { None };
+                            let last_record = if done { records.last_mut() } else { None };
 
                             // See if any deferred shards are ready to be committed to.
-                            let mut deferred =
-                                deferred.split(done, last_record.as_ref(), opts.split_opts);
+                            let mut deferred = deferred.split(done, last_record, opts.split_opts);
                             log::info!("deferred {} records", deferred.len());
 
                             // Update the public values & prover state for the shards which do not
