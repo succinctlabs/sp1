@@ -4,8 +4,7 @@ The prover network currently only supports specific versions of SP1:
 
 | Version | Description                                                                                                                                              |
 | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| v2.X.X  | Audited, production ready version.                                                                                                                       |
-| v3.X.X  | Pre-release version with enhanced performance, currently being audited. **Recommended for benchmarking or testing, not recommended for production use.** |
+| v3.X.X  | V3 Release. Latest performant & production ready version.                                                                                                |
 
 `X` denotes that any minor and patch version is supported (e.g. `v2.1.0`, `v2.1.1`).
 
