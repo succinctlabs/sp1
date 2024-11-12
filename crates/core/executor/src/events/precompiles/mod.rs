@@ -172,7 +172,7 @@ impl PrecompileEvents {
 
     #[inline]
     /// Add a precompile event for a given syscall code.
-    pub(crate) fn add_event(
+    pub fn add_event(
         &mut self,
         syscall_code: SyscallCode,
         syscall_event: SyscallEvent,
