@@ -178,8 +178,15 @@ impl ExecutionRecord {
 
     /// Splits the deferred [`ExecutionRecord`] into multiple [`ExecutionRecord`]s, each which
     /// contain a "reasonable" number of deferred events.
-    pub fn split(&mut self, last: bool, opts: SplitOpts) -> Vec<ExecutionRecord> {
+    pub fn split(
+        &mut self,
+        last: bool,
+        last_record: Option<&ExecutionRecord>,
+        opts: SplitOpts,
+    ) -> Vec<ExecutionRecord> {
         let mut shards = Vec::new();
+
+        tracing::info!("Last: {}", last);
 
         let precompile_events = take(&mut self.precompile_events);
 
@@ -223,6 +230,7 @@ impl ExecutionRecord {
                 .chunks(opts.memory)
                 .zip_longest(self.global_memory_finalize_events.chunks(opts.memory))
             {
+                tracing::info!("In memory chunks loop");
                 let (mem_init_chunk, mem_finalize_chunk) = match mem_chunks {
                     EitherOrBoth::Both(mem_init_chunk, mem_finalize_chunk) => {
                         (mem_init_chunk, mem_finalize_chunk)
@@ -230,7 +238,13 @@ impl ExecutionRecord {
                     EitherOrBoth::Left(mem_init_chunk) => (mem_init_chunk, [].as_slice()),
                     EitherOrBoth::Right(mem_finalize_chunk) => ([].as_slice(), mem_finalize_chunk),
                 };
-                let mut shard = ExecutionRecord::new(self.program.clone());
+                let mut shard = if let Some(record) = last_record {
+                    tracing::info!("Last record is some, cloning it.");
+                    record.clone()
+                } else {
+                    tracing::info!("Last record is none, creating a new one.");
+                    ExecutionRecord::new(self.program.clone())
+                };
                 shard.global_memory_initialize_events.extend_from_slice(mem_init_chunk);
                 shard.public_values.previous_init_addr_bits = init_addr_bits;
                 if let Some(last_event) = mem_init_chunk.last() {

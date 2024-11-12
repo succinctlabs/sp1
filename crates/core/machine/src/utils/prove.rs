@@ -271,36 +271,52 @@ where
                                 deferred.append(&mut record.defer());
                             }
 
+                            tracing::info!(
+                                "Defereed has {} memory initialize events",
+                                deferred.global_memory_initialize_events.len()
+                            );
+                            tracing::info!(
+                                "Defereed has {} memory finalize events",
+                                deferred.global_memory_finalize_events.len()
+                            );
+
                             // IF DONE & DEFERRED IS "SMALL", then just combine into the most recent shard.
-                            let mut deferred = if done {
-                                records.last_mut().unwrap().append(&mut deferred);
-                                vec![]
+                            let last_record = if done {
+                                // records.last_mut().unwrap().append(&mut deferred.clone());
+                                records.pop()
                             } else {
-                                deferred.split(done, opts.split_opts)
+                                None
                             };
+
+                            tracing::info!("Last record is some: {:?}", last_record.is_some());
+
                             // See if any deferred shards are ready to be committed to.
-                            // let mut deferred = deferred.split(done, opts.split_opts);
+                            let mut deferred =
+                                deferred.split(done, last_record.as_ref(), opts.split_opts);
                             log::info!("deferred {} records", deferred.len());
+                            log::info!("Records length:{}, done: {}", records.len(), done);
 
                             // Update the public values & prover state for the shards which do not
                             // contain "cpu events" before committing to them.
                             if !done {
                                 state.execution_shard += 1;
-                            }
-                            for record in deferred.iter_mut() {
-                                state.shard += 1;
-                                state.previous_init_addr_bits =
-                                    record.public_values.previous_init_addr_bits;
-                                state.last_init_addr_bits =
-                                    record.public_values.last_init_addr_bits;
-                                state.previous_finalize_addr_bits =
-                                    record.public_values.previous_finalize_addr_bits;
-                                state.last_finalize_addr_bits =
-                                    record.public_values.last_finalize_addr_bits;
-                                state.start_pc = state.next_pc;
-                                record.public_values = *state;
+
+                                for record in deferred.iter_mut() {
+                                    state.shard += 1;
+                                    state.previous_init_addr_bits =
+                                        record.public_values.previous_init_addr_bits;
+                                    state.last_init_addr_bits =
+                                        record.public_values.last_init_addr_bits;
+                                    state.previous_finalize_addr_bits =
+                                        record.public_values.previous_finalize_addr_bits;
+                                    state.last_finalize_addr_bits =
+                                        record.public_values.last_finalize_addr_bits;
+                                    state.start_pc = state.next_pc;
+                                    record.public_values = *state;
+                                }
                             }
                             records.append(&mut deferred);
+                            tracing::info!("Records length:{}, done: {}", records.len(), done);
 
                             // Collect the checkpoints to be used again in the phase 2 prover.
                             log::info!("collecting checkpoints");
@@ -506,40 +522,41 @@ where
                                 record.public_values = *state;
                             }
 
+                            tracing::info!("Records length:{}, done: {}", records.len(), done);
+
                             // Defer events that are too expensive to include in every shard.
                             let mut deferred = deferred.lock().unwrap();
                             for record in records.iter_mut() {
                                 deferred.append(&mut record.defer());
                             }
 
-                            let mut deferred = if done {
-                                records.last_mut().unwrap().append(&mut deferred);
-                                vec![]
-                            } else {
-                                deferred.split(done, opts.split_opts)
-                            };
+                            // tracing::info!("Deferred length: {}", deferred.len());
+
+                            let last_record = if done { records.pop() } else { None };
 
                             // See if any deferred shards are ready to be committed to.
-                            // let mut deferred = deferred.split(done, opts.split_opts);
+                            let mut deferred =
+                                deferred.split(done, last_record.as_ref(), opts.split_opts);
                             log::info!("deferred {} records", deferred.len());
 
                             // Update the public values & prover state for the shards which do not
                             // contain "cpu events" before committing to them.
                             if !done {
                                 state.execution_shard += 1;
-                            }
-                            for record in deferred.iter_mut() {
-                                state.shard += 1;
-                                state.previous_init_addr_bits =
-                                    record.public_values.previous_init_addr_bits;
-                                state.last_init_addr_bits =
-                                    record.public_values.last_init_addr_bits;
-                                state.previous_finalize_addr_bits =
-                                    record.public_values.previous_finalize_addr_bits;
-                                state.last_finalize_addr_bits =
-                                    record.public_values.last_finalize_addr_bits;
-                                state.start_pc = state.next_pc;
-                                record.public_values = *state;
+
+                                for record in deferred.iter_mut() {
+                                    state.shard += 1;
+                                    state.previous_init_addr_bits =
+                                        record.public_values.previous_init_addr_bits;
+                                    state.last_init_addr_bits =
+                                        record.public_values.last_init_addr_bits;
+                                    state.previous_finalize_addr_bits =
+                                        record.public_values.previous_finalize_addr_bits;
+                                    state.last_finalize_addr_bits =
+                                        record.public_values.last_finalize_addr_bits;
+                                    state.start_pc = state.next_pc;
+                                    record.public_values = *state;
+                                }
                             }
                             records.append(&mut deferred);
 
