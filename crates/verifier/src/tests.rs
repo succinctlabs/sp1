@@ -1,7 +1,5 @@
 use sp1_sdk::{install::try_install_circuit_artifacts, SP1ProofWithPublicValues};
 
-use crate::hash_public_inputs;
-
 #[test]
 fn test_verify_groth16() {
     // Location of the serialized SP1ProofWithPublicValues. See README.md for more information.
@@ -57,10 +55,9 @@ fn test_ark_groth16() {
     use ark_bn254::Bn254;
     use ark_groth16::{r1cs_to_qap::LibsnarkReduction, Groth16};
 
-    use crate::groth16::ark_converter::*;
-    // Location of the serialized SP1ProofWithPublicValues. See README.md for more information.
+    use crate::{decode_sp1_vkey_hash, groth16::ark_converter::*, hash_public_inputs};
 
-    use crate::decode_sp1_vkey_hash;
+    // Location of the serialized SP1ProofWithPublicValues. See README.md for more information.
     let proof_file = "test_binaries/fibonacci-groth16.bin";
 
     // Load the saved proof and extract the proof and public inputs.
