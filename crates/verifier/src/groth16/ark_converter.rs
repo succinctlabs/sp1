@@ -5,6 +5,16 @@ use ark_groth16::{Proof, VerifyingKey};
 use ark_serialize::{CanonicalDeserialize, Compress, Validate};
 use thiserror::Error;
 
+const GNARK_MASK: u8 = 0b11 << 6;
+const GNARK_COMPRESSED_POSITVE: u8 = 0b10 << 6;
+const GNARK_COMPRESSED_NEGATIVE: u8 = 0b11 << 6;
+const GNARK_COMPRESSED_INFINITY: u8 = 0b01 << 6;
+
+const ARK_MASK: u8 = 0b11 << 6;
+const ARK_COMPRESSED_POSITVE: u8 = 0b00 << 6;
+const ARK_COMPRESSED_NEGATIVE: u8 = 0b10 << 6;
+const ARK_COMPRESSED_INFINITY: u8 = 0b01 << 6;
+
 #[derive(Error, Debug)]
 pub enum ArkGroth16Error {
     #[error("G1 compression error")]
@@ -61,16 +71,6 @@ fn decompress_g2(g2_bytes: &[u8; 64]) -> Result<G2Affine, ArkGroth16Error> {
     .map_err(|_| ArkGroth16Error::G2CompressionError)?;
     Ok(decompressed_g2)
 }
-
-const GNARK_MASK: u8 = 0b11 << 6;
-const GNARK_COMPRESSED_POSITVE: u8 = 0b10 << 6;
-const GNARK_COMPRESSED_NEGATIVE: u8 = 0b11 << 6;
-const GNARK_COMPRESSED_INFINITY: u8 = 0b01 << 6;
-
-const ARK_MASK: u8 = 0b11 << 6;
-const ARK_COMPRESSED_POSITVE: u8 = 0b00 << 6;
-const ARK_COMPRESSED_NEGATIVE: u8 = 0b10 << 6;
-const ARK_COMPRESSED_INFINITY: u8 = 0b01 << 6;
 
 fn gnark_flag_to_ark_flag(msb: u8) -> Result<u8, ArkGroth16Error> {
     let gnark_flag = msb & GNARK_MASK;

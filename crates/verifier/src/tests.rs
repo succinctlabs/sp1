@@ -56,6 +56,8 @@ fn test_vkeys() {
 fn test_ark_groth16() {
     use ark_bn254::Bn254;
     use ark_groth16::{r1cs_to_qap::LibsnarkReduction, Groth16};
+
+    use crate::groth16::ark_converter::*;
     // Location of the serialized SP1ProofWithPublicValues. See README.md for more information.
 
     use crate::decode_sp1_vkey_hash;
@@ -70,13 +72,10 @@ fn test_ark_groth16() {
     // This vkey hash was derived by calling `vk.bytes32()` on the verifying key.
     let vkey_hash = "0x00e60860c07bfc6e4c480286c0ddbb879674eb47f84b4ef041cf858b17aa0ed1";
 
-    let proof = crate::groth16::ark_converter::load_ark_proof_from_bytes(&proof[4..]).unwrap();
-    let vkey = crate::groth16::ark_converter::load_ark_groth16_verifying_key_from_bytes(
-        &crate::GROTH16_VK_BYTES,
-    )
-    .unwrap();
+    let proof = load_ark_proof_from_bytes(&proof[4..]).unwrap();
+    let vkey = load_ark_groth16_verifying_key_from_bytes(&crate::GROTH16_VK_BYTES).unwrap();
 
-    let public_inputs = crate::groth16::ark_converter::load_ark_public_inputs_from_bytes(
+    let public_inputs = load_ark_public_inputs_from_bytes(
         &decode_sp1_vkey_hash(vkey_hash).unwrap(),
         &hash_public_inputs(&public_inputs),
     );
