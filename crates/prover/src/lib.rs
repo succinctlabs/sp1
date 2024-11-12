@@ -941,6 +941,9 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                         ShardProof<InnerSC>,
                     )> = Vec::new();
                     loop {
+                        if expected_height == 0 {
+                            break;
+                        }
                         let received = { proofs_rx.lock().unwrap().recv() };
                         if let Ok((index, height, vk, proof)) = received {
                             batch.push((index, height, vk, proof));
