@@ -532,6 +532,7 @@ where
                                     < opts.split_opts.memory
                                 && deferred.global_memory_initialize_events.len()
                                     < opts.split_opts.memory
+                                && !already_started_finalization
                             {
                                 already_started_finalization = true;
                                 records.last_mut()
