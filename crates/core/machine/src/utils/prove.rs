@@ -229,7 +229,6 @@ where
 
             let handle = s.spawn(move || {
                 let _span = span.enter();
-                let mut already_finalized = false;
                 tracing::debug_span!("phase 1 trace generation").in_scope(|| {
                     loop {
                         // Receive the latest checkpoint.
@@ -275,7 +274,7 @@ where
                             }
 
                             // IF DONE & DEFERRED IS "SMALL", then just combine into the most recent shard.
-                            let last_record = if done && num_cycles < 1 << 14 {
+                            let last_record = if done && num_cycles < 1 << 26 {
                                 records.last_mut()
                             } else {
                                 None
@@ -474,7 +473,6 @@ where
 
             let handle = s.spawn(move || {
                 let _span = span.enter();
-                let mut already_finalized = false;
                 tracing::debug_span!("phase 2 trace generation").in_scope(|| {
                     loop {
                         // Receive the latest checkpoint.
@@ -522,7 +520,7 @@ where
 
                             // tracing::info!("Deferred length: {}", deferred.len());
 
-                            let last_record = if done && num_cycles < 1 << 14 {
+                            let last_record = if done && num_cycles < 1 << 26 {
                                 records.last_mut()
                             } else {
                                 None
