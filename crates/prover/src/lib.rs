@@ -314,16 +314,22 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 
         // Launch two threads to simultaneously prove the core and compile the first few
         // recursion programs in parallel.
+        let span = tracing::Span::current().clone();
         std::thread::scope(|s| {
+            let _span = span.enter();
             let (proof_tx, proof_rx) = channel();
             let (shape_tx, shape_rx) = channel();
 
+            let span = tracing::Span::current().clone();
             let handle = s.spawn(move || {
+                let _span = span.enter();
+
                 // Fix the program shape.
                 let program = self.get_program(&pk.elf).unwrap();
 
                 // Copy the proving key to the device.
-                let pk = self.core_prover.pk_to_device(&pk.pk);
+                let pk =
+                tracing::info_span!("pk_to_device").in_scope(|| self.core_prover.pk_to_device(&pk.pk));
 
                 // Prove the core and stream the proofs and shapes.
                 sp1_core_machine::utils::prove_core_stream::<_, C::CoreProver>(
@@ -344,7 +350,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                 if let Ok(shape) = shape_rx.recv() {
                     let compress_shape = SP1CompressProgramShape::Recursion(SP1RecursionShape {
                         proof_shapes: vec![shape],
-                        is_complete: false,
+                        is_complete: true,
                     });
 
                     // Insert the program into the cache.
