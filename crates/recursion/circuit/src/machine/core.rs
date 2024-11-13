@@ -84,10 +84,10 @@ pub struct SP1RecursiveVerifier<C: Config, SC: BabyBearFriConfig> {
 impl<C, SC> SP1RecursiveVerifier<C, SC>
 where
     SC: BabyBearFriConfigVariable<
-        C,
-        FriChallengerVariable = DuplexChallengerVariable<C>,
-        DigestVariable = [Felt<BabyBear>; DIGEST_SIZE],
-    >,
+            C,
+            FriChallengerVariable = DuplexChallengerVariable<C>,
+            DigestVariable = [Felt<BabyBear>; DIGEST_SIZE],
+        >,
     C: CircuitConfig<F = SC::Val, EF = SC::Challenge, Bit = Felt<BabyBear>>,
     <SC::ValMmcs as Mmcs<BabyBear>>::ProverData<RowMajorMatrix<BabyBear>>: Clone,
 {
@@ -426,8 +426,8 @@ where
 
             // Digest constraints.
             {
-                // // If `committed_value_digest` is not zero, then the current value should be equal
-                // to `public_values.committed_value_digest`.
+                // // If `committed_value_digest` is not zero, then the current value should be
+                // equal to `public_values.committed_value_digest`.
 
                 // Set flags to indicate whether `committed_value_digest` is non-zero. The flags are
                 // given by the elements of the array, and they will be used as filters to constrain

@@ -790,8 +790,7 @@ pub mod tests {
     fn test_dummy_record() {
         use crate::utils::setup_logger;
         use p3_baby_bear::BabyBear;
-        use sp1_stark::baby_bear_poseidon2::BabyBearPoseidon2;
-        use sp1_stark::CpuProver;
+        use sp1_stark::{baby_bear_poseidon2::BabyBearPoseidon2, CpuProver};
 
         type SC = BabyBearPoseidon2;
         type A = RiscvAir<BabyBear>;
