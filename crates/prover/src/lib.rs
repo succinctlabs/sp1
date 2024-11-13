@@ -358,6 +358,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 
             // Cache the first proof recursion program.
             prover.program_from_shape(false, compress_shape, None);
+            println!("cached program");
 
             // Collect the shard proofs and the public values stream.
             let shard_proofs: Vec<ShardProof<_>> = proof_rx.iter().collect();
@@ -978,7 +979,9 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         &self,
         input: &SP1RecursionWitnessValues<CoreSC>,
     ) -> Arc<RecursionProgram<BabyBear>> {
+        println!("getting recursion program");
         let mut cache = self.recursion_programs.lock().unwrap_or_else(|e| e.into_inner());
+        println!("inserting to cache");
         cache
             .get_or_insert(input.shape(), || {
                 let misses = self.recursion_cache_misses.fetch_add(1, Ordering::Relaxed);
