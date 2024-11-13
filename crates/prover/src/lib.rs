@@ -350,27 +350,20 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                 )
             });
 
-            let first_proof_shape = shape_rx.recv().unwrap();
-            println!("received first proof shape: {:?}", first_proof_shape);
-            let compress_shape = SP1CompressProgramShape::Recursion(SP1RecursionShape {
-                proof_shapes: vec![first_proof_shape],
-                is_complete: false,
-            });
+            // Only receive up to 3 shapes
+            for i in 0..3 {
+                if let Ok(shape) = shape_rx.recv() {
+                    println!("received shape {}: {:?}", i + 1, shape);
+                    let compress_shape = SP1CompressProgramShape::Recursion(SP1RecursionShape {
+                        proof_shapes: vec![shape],
+                        is_complete: false,
+                    });
 
-            // Cache the first proof recursion program.
-            prover.program_from_shape(false, compress_shape, None);
-            println!("cached program");
-
-            let second_proof_shape = shape_rx.recv().unwrap();
-            println!("received second proof shape: {:?}", second_proof_shape);
-            let compress_shape = SP1CompressProgramShape::Recursion(SP1RecursionShape {
-                proof_shapes: vec![second_proof_shape],
-                is_complete: false,
-            });
-
-            // Cache the first proof recursion program.
-            prover.program_from_shape(false, compress_shape, None);
-            println!("cached program");
+                    // Cache the proof recursion program.
+                    prover.program_from_shape(false, compress_shape, None);
+                    println!("cached program {}", i + 1);
+                }
+            }
 
             // Collect the shard proofs and the public values stream.
             let shard_proofs: Vec<ShardProof<_>> = proof_rx.iter().collect();
