@@ -46,7 +46,7 @@ pub fn main() {
     let result_max = a_max_big * b_max_big;
     assert_eq!(result_max, result_max_syscall);
 
-    /// Test 10 random pairs of a and b.
+    // Test 10 random pairs of a and b.
     let mut rng = rand::thread_rng();
     for _ in 0..10 {
         let a: [u8; 32] = rng.gen();
