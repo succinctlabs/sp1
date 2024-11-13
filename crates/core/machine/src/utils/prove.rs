@@ -153,12 +153,17 @@ where
         let p1_record_gen_sync = Arc::new(TurnBasedSync::new());
         let p1_trace_gen_sync = Arc::new(TurnBasedSync::new());
         let (p1_records_and_traces_tx, p1_records_and_traces_rx) =
-            sync_channel::<(Vec<ExecutionRecord>, Vec<Vec<(String, RowMajorMatrix<Val<SC>>)>>)>(
-                opts.records_and_traces_channel_capacity,
-            );
+            sync_channel::<(
+                Vec<ExecutionRecord>,
+                Vec<Vec<(String, RowMajorMatrix<Val<SC>>)>>,
+                bool,
+                u64,
+                ExecutionReport,
+            )>(opts.records_and_traces_channel_capacity);
         let p1_records_and_traces_tx = Arc::new(Mutex::new(p1_records_and_traces_tx));
         let checkpoints_rx = Arc::new(Mutex::new(checkpoints_rx));
 
+        let cached_records = Arc::new(Mutex::new(None));
         let checkpoints = Arc::new(Mutex::new(VecDeque::new()));
         let state = Arc::new(Mutex::new(PublicValues::<u32, u32>::default().reset()));
         let deferred = Arc::new(Mutex::new(ExecutionRecord::new(program.clone().into())));
@@ -185,7 +190,7 @@ where
 
                         if let Ok((index, mut checkpoint, done, num_cycles)) = received {
                             // Trace the checkpoint and reconstruct the execution records.
-                            let (mut records, _) = tracing::debug_span!("trace checkpoint")
+                            let (mut records, report) = tracing::debug_span!("trace checkpoint")
                                 .in_scope(|| {
                                     trace_checkpoint::<SC>(
                                         program.clone(),
@@ -194,6 +199,7 @@ where
                                         shape_config,
                                     )
                                 });
+
                             log::info!("generated {} records", records.len());
                             checkpoint
                                 .seek(SeekFrom::Start(0))
@@ -302,7 +308,7 @@ where
                                     records_and_traces_tx
                                         .lock()
                                         .unwrap()
-                                        .send((records, traces))
+                                        .send((records, traces, done, num_cycles, report.clone()))
                                         .unwrap();
                                 },
                             );
@@ -324,10 +330,11 @@ where
 
         // Spawn the phase 1 prover thread.
         let phase_1_prover_span = tracing::Span::current().clone();
+        let phase_1_cached_records = Arc::clone(&cached_records);
         let phase_1_prover_handle = s.spawn(move || {
             let _span = phase_1_prover_span.enter();
             tracing::debug_span!("phase 1 prover").in_scope(|| {
-                for (records, traces) in p1_records_and_traces_rx.iter() {
+                for (records, traces, done, num_cycles, report) in p1_records_and_traces_rx.iter() {
                     tracing::debug_span!("batch").in_scope(|| {
                         let span = tracing::Span::current().clone();
 
@@ -342,7 +349,7 @@ where
 
                         // Commit to each shard.
                         let commitments = records
-                            .into_par_iter()
+                            .par_iter()
                             .zip(traces.into_par_iter())
                             .map(|(record, traces)| {
                                 let _span = span.enter();
@@ -360,12 +367,16 @@ where
 
                                 }
 
-                                let data = prover.commit(&record, traces);
-                                let phase1_main_commit = data.main_commit.clone();
-                                drop(data);
-                                phase1_main_commit
+                                let data = prover.commit(record, traces);
+                                data.main_commit.clone()
                             })
                             .collect::<Vec<_>>();
+
+                            if done && num_cycles < (opts.shard_size as u64) * 2 {
+                                let mut cached_records = phase_1_cached_records.lock().unwrap();
+                                *cached_records = tracing::debug_span!("clone records")
+                                    .in_scope(|| Some((records, report)));
+                            }
 
                         //  the commitments.
                         for (commit, public_values) in
@@ -425,8 +436,8 @@ where
             let state = Arc::clone(&state);
             let deferred = Arc::clone(&deferred);
             let program = program.clone();
-
             let span = tracing::Span::current().clone();
+            let cached_records = Arc::clone(&cached_records);
 
             #[cfg(feature = "debug")]
             let all_records_tx = all_records_tx.clone();
@@ -438,16 +449,26 @@ where
                         // Receive the latest checkpoint.
                         let received = { checkpoints.lock().unwrap().pop_front() };
                         if let Some((index, mut checkpoint, done, num_cycles)) = received {
+                            let (mut records, report) =
+                                if done && num_cycles < (opts.shard_size as u64) * 2 {
+                                    let mut cached_records = cached_records.lock().unwrap();
+                                    let (mut records, report) = cached_records.take().unwrap();
+                                    for record in records.iter_mut() {
+                                        record.shape = None;
+                                    }
+                                    (records, report)
+                                } else {
+                                    tracing::debug_span!("trace checkpoint").in_scope(|| {
+                                        trace_checkpoint::<SC>(
+                                            program.clone(),
+                                            &checkpoint,
+                                            opts,
+                                            shape_config,
+                                        )
+                                    })
+                                };
+
                             // Trace the checkpoint and reconstruct the execution records.
-                            let (mut records, report) = tracing::debug_span!("trace checkpoint")
-                                .in_scope(|| {
-                                    trace_checkpoint::<SC>(
-                                        program.clone(),
-                                        &checkpoint,
-                                        opts,
-                                        shape_config,
-                                    )
-                                });
                             log::info!("generated {} records", records.len());
                             *report_aggregate.lock().unwrap() += report;
                             checkpoint
