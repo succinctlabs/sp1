@@ -271,22 +271,17 @@ where
                                 deferred.append(&mut record.defer());
                             }
 
-                            tracing::info!(
-                                "Defereed has {} memory initialize events",
-                                deferred.global_memory_initialize_events.len()
-                            );
-                            tracing::info!(
-                                "Defereed has {} memory finalize events",
-                                deferred.global_memory_finalize_events.len()
-                            );
-
                             // IF DONE & DEFERRED IS "SMALL", then just combine into the most recent shard.
-                            let last_record =
-                                if done && deferred.global_memory_finalize_events.len() < 1 << 15 {
-                                    records.last_mut()
-                                } else {
-                                    None
-                                };
+                            let last_record = if done
+                                && deferred.global_memory_finalize_events.len()
+                                    < opts.split_opts.memory
+                                && deferred.global_memory_initialize_events.len()
+                                    < opts.split_opts.memory
+                            {
+                                records.last_mut()
+                            } else {
+                                None
+                            };
 
                             tracing::info!("Last record is some: {:?}", last_record.is_some());
 
@@ -528,12 +523,16 @@ where
 
                             // tracing::info!("Deferred length: {}", deferred.len());
 
-                            let last_record =
-                                if done && deferred.global_memory_finalize_events.len() < 1 << 15 {
-                                    records.last_mut()
-                                } else {
-                                    None
-                                };
+                            let last_record = if done
+                                && deferred.global_memory_finalize_events.len()
+                                    < opts.split_opts.memory
+                                && deferred.global_memory_initialize_events.len()
+                                    < opts.split_opts.memory
+                            {
+                                records.last_mut()
+                            } else {
+                                None
+                            };
 
                             // See if any deferred shards are ready to be committed to.
                             let mut deferred = deferred.split(done, last_record, opts.split_opts);
