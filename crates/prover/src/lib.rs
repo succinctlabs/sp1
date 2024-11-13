@@ -341,7 +341,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                 if let Ok(shape) = shape_rx.recv() {
                     let compress_shape = SP1CompressProgramShape::Recursion(SP1RecursionShape {
                         proof_shapes: vec![shape],
-                        is_complete: false,
+                        is_complete: true, // TODO FIX
                     });
 
                     // Insert the program into the cache.
