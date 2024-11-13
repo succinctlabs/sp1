@@ -508,6 +508,7 @@ where
                                             .iter()
                                             .map(|(chip, height)| (chip.clone(), *height))
                                             .sorted_by_key(|(_, height)| *height)
+                                            .rev()
                                             .collect(),
                                     };
                                     shape_tx.lock().unwrap().send(shape).unwrap();
