@@ -930,11 +930,15 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         &self,
         input: &SP1RecursionWitnessValues<CoreSC>,
     ) -> Arc<RecursionProgram<BabyBear>> {
-        println!("getting recursion program: {:?}", input.shape());
+        let mut shape = input.shape();
+        shape.proof_shapes.iter_mut().for_each(|shape| {
+            shape.chip_information.sort_by_key(|chip| chip.0.clone());
+        });
+        println!("getting recursion program: {:?}", shape);
         let mut cache = self.recursion_programs.lock().unwrap_or_else(|e| e.into_inner());
         println!("inserting to cache");
         cache
-            .get_or_insert(input.shape(), || {
+            .get_or_insert(shape, || {
                 let misses = self.recursion_cache_misses.fetch_add(1, Ordering::Relaxed);
                 tracing::debug!("core cache miss, misses: {}", misses);
                 // Get the operations.
