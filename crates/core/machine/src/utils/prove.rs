@@ -161,7 +161,7 @@ where
         // Spawn the checkpoint generator thread.
         let checkpoint_generator_span = tracing::Span::current().clone();
         let (checkpoints_tx, checkpoints_rx) =
-            sync_channel::<(usize, File, bool)>(opts.checkpoints_channel_capacity);
+            sync_channel::<(usize, File, bool, u64)>(opts.checkpoints_channel_capacity);
         let checkpoint_generator_handle: ScopedJoinHandle<Result<_, SP1CoreProverError>> =
             s.spawn(move || {
                 let _span = checkpoint_generator_span.enter();
@@ -185,7 +185,9 @@ where
                             .map_err(SP1CoreProverError::IoError)?;
 
                         // Send the checkpoint.
-                        checkpoints_tx.send((index, checkpoint_file, done)).unwrap();
+                        checkpoints_tx
+                            .send((index, checkpoint_file, done, runtime.state.global_clk))
+                            .unwrap();
 
                         // If we've reached the final checkpoint, break out of the loop.
                         if done {
@@ -233,7 +235,7 @@ where
                         // Receive the latest checkpoint.
                         let received = { checkpoints_rx.lock().unwrap().recv() };
 
-                        if let Ok((index, mut checkpoint, done)) = received {
+                        if let Ok((index, mut checkpoint, done, num_cycles)) = received {
                             // Trace the checkpoint and reconstruct the execution records.
                             let (mut records, _) = tracing::debug_span!("trace checkpoint")
                                 .in_scope(|| {
@@ -273,15 +275,7 @@ where
                             }
 
                             // IF DONE & DEFERRED IS "SMALL", then just combine into the most recent shard.
-                            let last_record = if done
-                                && deferred.precompile_events.is_empty()
-                                && deferred.global_memory_finalize_events.len()
-                                    <= opts.split_opts.memory
-                                && deferred.global_memory_initialize_events.len()
-                                    <= opts.split_opts.memory
-                                && !already_finalized
-                            {
-                                already_finalized = true;
+                            let last_record = if done && num_cycles < 1 << 14 {
                                 records.last_mut()
                             } else {
                                 None
@@ -316,7 +310,7 @@ where
                             // Collect the checkpoints to be used again in the phase 2 prover.
                             log::info!("collecting checkpoints");
                             let mut checkpoints = checkpoints.lock().unwrap();
-                            checkpoints.push_back((index, checkpoint, done));
+                            checkpoints.push_back((index, checkpoint, done, num_cycles));
 
                             // Let another worker update the state.
                             record_gen_sync.advance_turn();
@@ -485,7 +479,7 @@ where
                     loop {
                         // Receive the latest checkpoint.
                         let received = { checkpoints.lock().unwrap().pop_front() };
-                        if let Some((index, mut checkpoint, done)) = received {
+                        if let Some((index, mut checkpoint, done, num_cycles)) = received {
                             // Trace the checkpoint and reconstruct the execution records.
                             let (mut records, report) = tracing::debug_span!("trace checkpoint")
                                 .in_scope(|| {
@@ -528,15 +522,7 @@ where
 
                             // tracing::info!("Deferred length: {}", deferred.len());
 
-                            let last_record = if done
-                                && deferred.precompile_events.is_empty()
-                                && deferred.global_memory_finalize_events.len()
-                                    <= opts.split_opts.memory
-                                && deferred.global_memory_initialize_events.len()
-                                    <= opts.split_opts.memory
-                                && !already_finalized
-                            {
-                                already_finalized = true;
+                            let last_record = if done && num_cycles < 1 << 14 {
                                 records.last_mut()
                             } else {
                                 None
