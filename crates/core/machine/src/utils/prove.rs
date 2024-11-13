@@ -274,7 +274,13 @@ where
                             }
 
                             // IF DONE & DEFERRED IS "SMALL", then just combine into the most recent shard.
-                            let last_record = if done && num_cycles < 1 << 24 {
+                            let last_record = if done
+                                && num_cycles < 1 << 26
+                                && deferred.global_memory_initialize_events.len()
+                                    < opts.split_opts.memory / 4
+                                && deferred.global_memory_finalize_events.len()
+                                    < opts.split_opts.memory / 4
+                            {
                                 tracing::info!("Number of cycles: {}", num_cycles);
                                 records.last_mut()
                             } else {
@@ -521,7 +527,13 @@ where
 
                             // tracing::info!("Deferred length: {}", deferred.len());
 
-                            let last_record = if done && num_cycles < 1 << 24 {
+                            let last_record = if done
+                                && num_cycles < 1 << 26
+                                && deferred.global_memory_initialize_events.len()
+                                    < opts.split_opts.memory / 4
+                                && deferred.global_memory_finalize_events.len()
+                                    < opts.split_opts.memory / 4
+                            {
                                 tracing::info!("Number of cycles: {}", num_cycles);
                                 records.last_mut()
                             } else {
