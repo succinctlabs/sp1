@@ -480,6 +480,7 @@ where
             let handle = s.spawn(move || {
                 let _span = span.enter();
                 tracing::debug_span!("phase 2 trace generation").in_scope(|| {
+                    let mut already_started_finalization = false;
                     loop {
                         // Receive the latest checkpoint.
                         let received = { checkpoints.lock().unwrap().pop_front() };
@@ -532,6 +533,7 @@ where
                                 && deferred.global_memory_initialize_events.len()
                                     < opts.split_opts.memory
                             {
+                                already_started_finalization = true;
                                 records.last_mut()
                             } else {
                                 None
