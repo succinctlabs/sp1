@@ -65,6 +65,7 @@ jobs:
       ]
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+      CARGO_TERM_COLOR: always
     steps:
       - name: Checkout sources
         uses: actions/checkout@v4
@@ -84,16 +85,12 @@ jobs:
           args: --all-targets --all-features
 
       - name: Run cargo nextest
-        uses: actions-rs/cargo@v1
-        with:
-          command: nextest
-          toolchain: 1.81.0
-          args: run --release --features native-gnark
+        run: |
+          cargo nextest run --release --features native-gnark
         env:
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
           RUST_BACKTRACE: 1
           SP1_DEV: 1
-          CARGO_TERM_COLOR: always
 
   test-arm:
     name: Test (ARM)
