@@ -281,14 +281,17 @@ where
                             );
 
                             // IF DONE & DEFERRED IS "SMALL", then just combine into the most recent shard.
-                            let last_record = if done { records.last_mut() } else { None };
+                            let last_record =
+                                if done && deferred.global_memory_finalize_events.len() < 1 << 15 {
+                                    records.last_mut()
+                                } else {
+                                    None
+                                };
 
                             tracing::info!("Last record is some: {:?}", last_record.is_some());
 
                             // See if any deferred shards are ready to be committed to.
                             let mut deferred = deferred.split(done, last_record, opts.split_opts);
-                            log::info!("deferred {} records", deferred.len());
-                            log::info!("Records length:{}, done: {}", records.len(), done);
 
                             // Update the public values & prover state for the shards which do not
                             // contain "cpu events" before committing to them.
@@ -310,7 +313,6 @@ where
                                 record.public_values = *state;
                             }
                             records.append(&mut deferred);
-                            tracing::info!("Records length:{}, done: {}", records.len(), done);
 
                             // Collect the checkpoints to be used again in the phase 2 prover.
                             log::info!("collecting checkpoints");
