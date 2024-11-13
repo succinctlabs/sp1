@@ -612,7 +612,6 @@ where
             tracing::debug_span!("phase 2 prover").in_scope(|| {
                 for (records, traces) in p2_records_and_traces_rx.into_iter() {
                     tracing::debug_span!("batch").in_scope(|| {
-                        tracing::info!("Proving shard {}", shard_proofs.len());
                         let span = tracing::Span::current().clone();
                         let proofs = records
                             .into_par_iter()
