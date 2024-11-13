@@ -20,9 +20,8 @@
 
 use clap::Parser;
 use gecko_profile::{Frame, ProfileBuilder, ThreadBuilder};
-use std::io::SeekFrom;
+use std::path::PathBuf;
 use std::process::Stdio;
-use std::{io::Seek, path::PathBuf};
 
 use anyhow::{Context, Result};
 use goblin::elf::{sym::STT_FUNC, Elf};
@@ -41,7 +40,7 @@ pub struct ProfileCmd {
     #[arg(short = 't', long, required = true)]
     trace: PathBuf,
 
-    /// The output file to write the gecko profile to, should be a json
+    /// The output file to write the gecko profile to, in JSON format
     #[arg(short = 'o', long)]
     output: PathBuf,
 
@@ -166,7 +165,6 @@ pub fn collect_samples(
     let total_lines = file_size / 4;
     let mut current_function_range: (u64, u64) = (0, 0);
 
-    // unsafe on 32 bit systems but ...
     let mut samples = Vec::with_capacity(total_lines as usize);
     for i in 0..total_lines {
         if i % 1000000 == 0 {
@@ -195,7 +193,7 @@ pub fn collect_samples(
 
             // Jump to a new function (not recursive).
             if !function_stack_indices.contains(f) {
-                function_stack_indices.push(f.clone());
+                function_stack_indices.push(*f);
                 let (start, end, name) = function_ranges.get(*f).unwrap();
                 current_function_range = (*start, *end);
                 function_stack_ranges.push((*start, *end));
@@ -212,7 +210,7 @@ pub fn collect_samples(
             // functions in the stack due to some optimizations that the compiler can make.
             let mut unwind_point = 0;
             let mut unwind_found = false;
-            for (c, (f, (s, e))) in
+            for (c, (_f, (s, e))) in
                 function_stack_indices.iter().zip(function_stack_ranges.iter()).enumerate()
             {
                 if pc > *s && pc <= *e {

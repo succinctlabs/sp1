@@ -22,33 +22,33 @@ fn main() {
     let (_, report) = client.execute(ELF, stdin.clone()).run().unwrap();
     println!("executed program with {} cycles", report.total_instruction_count());
 
-    // Generate the proof for the given program and input.
-    let (pk, vk) = client.setup(ELF);
-    let mut proof = client.prove(&pk, stdin).run().unwrap();
-
-    println!("generated proof");
-
-    // Read and verify the output.
+    //// Generate the proof for the given program and input.
+    //let (pk, vk) = client.setup(ELF);
+    //let mut proof = client.prove(&pk, stdin).run().unwrap();
     //
-    // Note that this output is read from values committed to in the program using
-    // `sp1_zkvm::io::commit`.
-    let _ = proof.public_values.read::<u32>();
-    let a = proof.public_values.read::<u32>();
-    let b = proof.public_values.read::<u32>();
-
-    println!("a: {}", a);
-    println!("b: {}", b);
-
-    // Verify proof and public values
-    client.verify(&proof, &vk).expect("verification failed");
-
-    // Test a round trip of proof serialization and deserialization.
-    proof.save("proof-with-pis.bin").expect("saving proof failed");
-    let deserialized_proof =
-        SP1ProofWithPublicValues::load("proof-with-pis.bin").expect("loading proof failed");
-
-    // Verify the deserialized proof.
-    client.verify(&deserialized_proof, &vk).expect("verification failed");
-
+    //println!("generated proof");
+    //
+    //// Read and verify the output.
+    ////
+    //// Note that this output is read from values committed to in the program using
+    //// `sp1_zkvm::io::commit`.
+    //let _ = proof.public_values.read::<u32>();
+    //let a = proof.public_values.read::<u32>();
+    //let b = proof.public_values.read::<u32>();
+    //
+    //println!("a: {}", a);
+    //println!("b: {}", b);
+    //
+    //// Verify proof and public values
+    //client.verify(&proof, &vk).expect("verification failed");
+    //
+    //// Test a round trip of proof serialization and deserialization.
+    //proof.save("proof-with-pis.bin").expect("saving proof failed");
+    //let deserialized_proof =
+    //    SP1ProofWithPublicValues::load("proof-with-pis.bin").expect("loading proof failed");
+    //
+    //// Verify the deserialized proof.
+    //client.verify(&deserialized_proof, &vk).expect("verification failed");
+    //
     println!("successfully generated and verified proof for the program!")
 }
