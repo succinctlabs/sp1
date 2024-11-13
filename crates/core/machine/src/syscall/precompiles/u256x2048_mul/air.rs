@@ -345,7 +345,7 @@ where
         let a_limbs =
             limbs_from_access::<AB::Var, <U256Field as NumLimbs>::Limbs, _>(&local.a_memory);
 
-        // Iterate through chunks of 8 for b_memory and convert each chunk to its limbs
+        // Iterate through chunks of 8 for b_memory and convert each chunk to its limbs.
         let b_limb_array = local
             .b_memory
             .chunks(8)

@@ -46,13 +46,12 @@ pub fn main() {
     let result_max = a_max_big * b_max_big;
     assert_eq!(result_max, result_max_syscall);
 
-    let mut rng = rand::thread_rng(); // Initialize the random number generator
-
+    /// Test 10 random pairs of a and b.
+    let mut rng = rand::thread_rng();
     for _ in 0..10 {
-        // Loop to generate 10 random pairs of a and b
-        let a: [u8; 32] = rng.gen(); // Generate random a
-        let mut b = [0u8; 256]; // Initialize an array of zeros
-        rng.fill(&mut b); // Fill it with random bytes
+        let a: [u8; 32] = rng.gen();
+        let mut b = [0u8; 256];
+        rng.fill(&mut b);
 
         let a_big = BigUint::from_bytes_le(&a);
         let b_big = BigUint::from_bytes_le(&b);

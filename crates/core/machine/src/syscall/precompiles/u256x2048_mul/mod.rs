@@ -184,7 +184,6 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
     fn test_u256x2048_mul_failure() {
         for _ in 0..10 {
             let config = BabyBearPoseidon2::new();
@@ -194,7 +193,8 @@ mod tests {
                 chip.generate_trace(&execution_record, &mut ExecutionRecord::default());
             let proof =
                 prove::<BabyBearPoseidon2, _>(&config, &chip, &mut config.challenger(), trace);
-            verify(&config, &chip, &mut config.challenger(), &proof).unwrap();
+            let result = verify(&config, &chip, &mut config.challenger(), &proof);
+            assert!(result.is_err());
         }
     }
 }
