@@ -528,6 +528,8 @@ where
                                 None
                             };
 
+                            tracing::info!("Last record is some: {:?}", last_record.is_some());
+
                             // See if any deferred shards are ready to be committed to.
                             let mut deferred = deferred.split(done, last_record, opts.split_opts);
                             log::info!("deferred {} records", deferred.len());
