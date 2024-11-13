@@ -130,7 +130,7 @@ impl<F: PrimeField32> MachineAir<F> for U256x2048MulChip {
                         cols.lo_ptr = F::from_canonical_u32(event.lo_ptr);
                         cols.hi_ptr = F::from_canonical_u32(event.hi_ptr);
 
-                        // Populating the memory accesses for lo_ptr and hi_ptr
+                        // Populate the memory accesses for lo_ptr and hi_ptr
                         cols.lo_ptr_memory
                             .populate(event.lo_ptr_memory, &mut new_byte_lookup_events);
                         cols.hi_ptr_memory
