@@ -680,8 +680,13 @@ where
             permutation_values,
             mut quotient_values,
         ) = if global_main_data.is_some() {
-            let [preprocessed_values, global_main_values, local_main_values, permutation_values, quotient_values] =
-                openings.try_into().unwrap();
+            let [
+                preprocessed_values,
+                global_main_values,
+                local_main_values,
+                permutation_values,
+                quotient_values,
+            ] = openings.try_into().unwrap();
             (
                 preprocessed_values,
                 Some(global_main_values),

@@ -395,11 +395,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         shrink_shape: Option<RecursionShape>,
     ) -> Arc<RecursionProgram<BabyBear>> {
         match shape {
-            SP1CompressProgramShape::Recursion(mut shape) => {
-                // Sort the chip information to have deterministic keys.
-                shape.proof_shapes.iter_mut().for_each(|shape| {
-                    shape.chip_information.sort_by_key(|chip| chip.0.clone());
-                });
+            SP1CompressProgramShape::Recursion(shape) => {
                 let input = SP1RecursionWitnessValues::dummy(self.core_prover.machine(), &shape);
                 self.recursion_program(&input)
             }
