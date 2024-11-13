@@ -28,6 +28,8 @@ use goblin::elf::{sym::STT_FUNC, Elf};
 use rustc_demangle::demangle;
 use std::{collections::HashMap, io::Read, path::Path, rc::Rc, str};
 
+use indicatif::{ProgressBar, ProgressStyle};
+
 #[derive(Parser, Debug)]
 #[command(name = "profile", about = "Create a gecko profile from a trace file.")]
 pub struct ProfileCmd {
@@ -87,7 +89,8 @@ impl ProfileCmd {
             thread_builder.add_sample(
                 last_known_time,
                 frames.into_iter(),
-                // this is actually in instructions but
+                // We don't have a way to know the duration of each sample, so we just use 1us for
+                // all instructions
                 std::time::Duration::from_micros(1),
             );
 
@@ -155,11 +158,21 @@ pub fn collect_samples(
     let total_lines = file_size / 4;
     let mut current_function_range: (u64, u64) = (0, 0);
 
+    let pb = ProgressBar::new(total_lines);
+    pb.set_style(
+        ProgressStyle::default_bar()
+            .template(
+                "{msg} \n {spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} ({eta})",
+            )
+            .unwrap()
+            .progress_chars("#>-"),
+    );
+
+    pb.set_message("Collecting stack trace samples");
+
     let mut samples = Vec::with_capacity(total_lines as usize);
     for i in 0..total_lines {
-        if i % 1000000 == 0 {
-            println!("Processed {} cycles ({:.2}%)", i, i as f64 / total_lines as f64 * 100.0);
-        }
+        pb.inc(1);
 
         // Parse pc from hex.
         let mut pc_bytes = [0u8; 4];
@@ -221,6 +234,8 @@ pub fn collect_samples(
             samples.push(Sample { stack: function_stack.clone() });
         }
     }
+
+    pb.finish();
 
     Ok(samples)
 }
