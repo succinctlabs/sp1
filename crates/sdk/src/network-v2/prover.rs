@@ -271,6 +271,7 @@ where
         match operation().await {
             Ok(result) => Ok(result),
             Err(e) => {
+                // Check for tonic status errors.
                 if let Some(status) = e.downcast_ref::<tonic::Status>() {
                     match status.code() {
                         Code::Unavailable => {
@@ -300,8 +301,26 @@ where
                         }
                     }
                 } else {
-                    log::error!("Unexpected error type when {}: {}", operation_name, e);
-                    Err(BackoffError::permanent(e))
+                    // Check for common transport errors.
+                    let error_msg = e.to_string().to_lowercase();
+                    let is_transient = error_msg.contains("tls handshake") ||
+                        error_msg.contains("dns error") ||
+                        error_msg.contains("connection reset") ||
+                        error_msg.contains("broken pipe") ||
+                        error_msg.contains("transport error") ||
+                        error_msg.contains("failed to lookup");
+                    
+                    if is_transient {
+                        log::warn!(
+                            "Transient transport error when {}: {}, retrying...",
+                            operation_name,
+                            error_msg
+                        );
+                        Err(BackoffError::transient(e))
+                    } else {
+                        log::error!("Permanent error when {}: {}", operation_name, error_msg);
+                        Err(BackoffError::permanent(e))
+                    }
                 }
             }
         }
