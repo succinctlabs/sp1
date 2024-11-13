@@ -290,6 +290,10 @@ jobs:
             ec2-instance: "c6g.2xlarge"
             ami: "ami-0789039e34e739d67"
             volume: "/dev/xvda"
+          - name: "Fedora 41 (x86_64)"
+            ec2-instance: "c5.2xlarge"
+            ami: "ami-03b46dbc4b4708c7b"
+            volume: "/dev/xvda"
     uses: "./.github/workflows/toolchain-ec2.yml"
     with:
       image-id: "${{ matrix.ami }}"
