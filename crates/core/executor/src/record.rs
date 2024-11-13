@@ -237,6 +237,7 @@ impl ExecutionRecord {
                 .chunks(opts.memory)
                 .zip_longest(self.global_memory_finalize_events.chunks(opts.memory))
             {
+                tracing::info!("In memory chunks loop");
                 let (mem_init_chunk, mem_finalize_chunk) = match mem_chunks {
                     EitherOrBoth::Both(mem_init_chunk, mem_finalize_chunk) => {
                         (mem_init_chunk, mem_finalize_chunk)

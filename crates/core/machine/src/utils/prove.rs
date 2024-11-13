@@ -522,6 +522,7 @@ where
                             // tracing::info!("Deferred length: {}", deferred.len());
 
                             let last_record = if done && num_cycles < 1 << 24 {
+                                tracing::info!("Number of cycles: {}", num_cycles);
                                 records.last_mut()
                             } else {
                                 None
