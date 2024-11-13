@@ -1,3 +1,4 @@
+use itertools::Itertools;
 use std::{
     collections::VecDeque,
     fs::File,
@@ -501,31 +502,14 @@ where
 
                             for record in records.iter() {
                                 if let Some(shape) = record.shape.as_ref() {
-                                    let chips = prover.shard_chips(record);
-                                    let mut chip_information = Vec::new();
-                                    for chip in chips {
-                                        if chip.commit_scope() == InteractionScope::Global
-                                            && shape.inner.contains_key(&chip.name())
-                                        {
-                                            chip_information.push((
-                                                chip.name().clone(),
-                                                shape.inner[&chip.name()],
-                                            ));
-                                        }
-                                    }
-                                    let chips = prover.shard_chips(record);
-                                    for chip in chips {
-                                        if chip.commit_scope() == InteractionScope::Local
-                                            && shape.inner.contains_key(&chip.name())
-                                        {
-                                            chip_information.push((
-                                                chip.name().clone(),
-                                                shape.inner[&chip.name()],
-                                            ));
-                                        }
-                                    }
-
-                                    let shape = ProofShape { chip_information };
+                                    let shape = ProofShape {
+                                        chip_information: shape
+                                            .inner
+                                            .iter()
+                                            .map(|(chip, height)| (chip.clone(), *height))
+                                            .sorted_by_key(|(_, height)| *height)
+                                            .collect(),
+                                    };
                                     shape_tx.lock().unwrap().send(shape).unwrap();
                                 };
                             }
