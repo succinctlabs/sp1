@@ -980,7 +980,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         &self,
         input: &SP1RecursionWitnessValues<CoreSC>,
     ) -> Arc<RecursionProgram<BabyBear>> {
-        println!("getting recursion program");
+        println!("getting recursion program: {:?}", input.shape());
         let mut cache = self.recursion_programs.lock().unwrap_or_else(|e| e.into_inner());
         println!("inserting to cache");
         cache
