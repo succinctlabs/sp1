@@ -4,8 +4,10 @@ use std::{
 };
 
 use crate::{
-    network_v2::client::NetworkClient,
-    network_v2::proto::network::{ProofMode, ProofStatus, ProofStrategy},
+    network_v2::{
+        client::NetworkClient,
+        proto::network::{ProofMode, ProofStatus, ProofStrategy},
+    },
     Prover, SP1Context, SP1ProofKind, SP1ProofWithPublicValues, SP1ProvingKey, SP1VerifyingKey,
 };
 use anyhow::Result;
@@ -16,7 +18,8 @@ use sp1_prover::{components::DefaultProverComponents, SP1Prover, SP1_CIRCUIT_VER
 use sp1_stark::SP1ProverOpts;
 use tonic::Code;
 
-use {crate::block_on, tokio::time::sleep};
+use crate::block_on;
+use tokio::time::sleep;
 
 use crate::provers::{CpuProver, ProofOpts, ProverType};
 

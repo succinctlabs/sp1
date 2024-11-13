@@ -14,8 +14,7 @@ use p3_matrix::{
     stack::VerticalPair,
     Matrix,
 };
-use p3_maybe_rayon::prelude::ParallelBridge;
-use p3_maybe_rayon::prelude::ParallelIterator;
+use p3_maybe_rayon::prelude::{ParallelBridge, ParallelIterator};
 
 use super::{MachineChip, StarkGenericConfig, Val};
 use crate::air::{EmptyMessageBuilder, MachineAir, MultiTableAirBuilder};

@@ -344,21 +344,26 @@ mod tests {
     use sp1_stark::CpuProver;
 
     use crate::{
-        utils,
-        utils::tests::{ED25519_ELF, ED_ADD_ELF},
+        io::SP1Stdin,
+        utils::{
+            self,
+            tests::{ED25519_ELF, ED_ADD_ELF},
+        },
     };
 
     #[test]
     fn test_ed_add_simple() {
         utils::setup_logger();
         let program = Program::from(ED_ADD_ELF).unwrap();
-        utils::run_test::<CpuProver<_, _>>(program).unwrap();
+        let stdin = SP1Stdin::new();
+        utils::run_test::<CpuProver<_, _>>(program, stdin).unwrap();
     }
 
     #[test]
     fn test_ed25519_program() {
         utils::setup_logger();
         let program = Program::from(ED25519_ELF).unwrap();
-        utils::run_test::<CpuProver<_, _>>(program).unwrap();
+        let stdin = SP1Stdin::new();
+        utils::run_test::<CpuProver<_, _>>(program, stdin).unwrap();
     }
 }

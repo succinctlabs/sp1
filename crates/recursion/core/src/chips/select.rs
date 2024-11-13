@@ -1,7 +1,6 @@
 use core::borrow::Borrow;
 use p3_air::{Air, BaseAir, PairBuilder};
-use p3_field::AbstractField;
-use p3_field::{Field, PrimeField32};
+use p3_field::{AbstractField, Field, PrimeField32};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use p3_maybe_rayon::prelude::*;
 use sp1_core_machine::utils::next_power_of_two;
