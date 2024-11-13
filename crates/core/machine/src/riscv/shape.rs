@@ -37,6 +37,7 @@ pub enum CoreShapeError {
 /// A structure that enables fixing the shape of an executionrecord.
 pub struct CoreShapeConfig<F: PrimeField32> {
     included_shapes: Vec<HashMap<String, usize>>,
+    shapes_with_cpu_and_memory_finalize: Vec<HashMap<RiscvAir<F>, Vec<Option<usize>>>>,
     allowed_preprocessed_log_heights: HashMap<RiscvAir<F>, Vec<Option<usize>>>,
     allowed_core_log_heights: Vec<HashMap<RiscvAir<F>, Vec<Option<usize>>>>,
     maximal_core_log_heights_mask: Vec<bool>,
@@ -119,10 +120,34 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
             // If cpu is included, try to fix the shape as a core.
 
             // Get the heights of the core airs in the record.
-            let heights = RiscvAir::<F>::core_heights(record);
+            let mut heights = RiscvAir::<F>::core_heights(record);
+
+            let mut shape_candidates = self.allowed_core_log_heights.iter().collect::<Vec<_>>();
+
+            if !record.global_memory_finalize_events.is_empty()
+                || !record.global_memory_initialize_events.is_empty()
+            {
+                tracing::info!("We have a global memory event on this record.");
+                heights.extend(RiscvAir::<F>::get_memory_init_final_heights(record));
+                shape_candidates = self.shapes_with_cpu_and_memory_finalize.iter().collect();
+                println!(
+                    "Shape candidates: {:?}",
+                    shape_candidates
+                        .iter()
+                        .map(|x| x.iter().map(|(k, v)| (k.name(), v)).collect::<HashMap<_, _>>())
+                        .collect::<Vec<_>>()
+                );
+                println!(
+                    "Heights: {:?}",
+                    heights
+                        .iter()
+                        .map(|(air, height)| (air.name(), height))
+                        .collect::<HashMap<_, _>>()
+                );
+            }
 
             // Try to find a shape within the included shapes.
-            for (i, allowed_log_heights) in self.allowed_core_log_heights.iter().enumerate() {
+            for (i, allowed_log_heights) in shape_candidates.iter().enumerate() {
                 if let Some(shape) =
                     Self::find_shape_from_allowed_heights(&heights, allowed_log_heights)
                 {
@@ -713,6 +738,51 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
                 .insert(air, (mem_events_per_row, precompile_heights.clone()));
         }
 
+        let shapes_with_cpu_and_memory_finalize = vec![
+            HashMap::from([
+                (RiscvAir::<F>::Cpu(CpuChip::default()), vec![Some(14)]),
+                (RiscvAir::<F>::Add(AddSubChip::default()), vec![Some(14)]),
+                (RiscvAir::<F>::Bitwise(BitwiseChip::default()), vec![Some(11)]),
+                (RiscvAir::<F>::Mul(MulChip::default()), vec![Some(4)]),
+                (RiscvAir::<F>::ShiftRight(ShiftRightChip::default()), vec![Some(10)]),
+                (RiscvAir::<F>::ShiftLeft(ShiftLeft::default()), vec![Some(10)]),
+                (RiscvAir::<F>::Lt(LtChip::default()), vec![Some(13)]),
+                (RiscvAir::<F>::MemoryLocal(MemoryLocalChip::new()), vec![Some(6)]),
+                (RiscvAir::<F>::SyscallCore(SyscallChip::core()), vec![Some(2)]),
+                (RiscvAir::<F>::DivRem(DivRemChip::default()), vec![Some(2)]),
+                (RiscvAir::<F>::MemoryGlobalInit(MemoryGlobalChip::new(Initialize)), vec![Some(8)]),
+                (RiscvAir::<F>::MemoryGlobalFinal(MemoryGlobalChip::new(Finalize)), vec![Some(15)]),
+            ]),
+            HashMap::from([
+                (RiscvAir::<F>::Cpu(CpuChip::default()), vec![Some(17)]),
+                (RiscvAir::<F>::Add(AddSubChip::default()), vec![Some(17)]),
+                (RiscvAir::<F>::Bitwise(BitwiseChip::default()), vec![Some(11)]),
+                (RiscvAir::<F>::Mul(MulChip::default()), vec![Some(4)]),
+                (RiscvAir::<F>::ShiftRight(ShiftRightChip::default()), vec![Some(10)]),
+                (RiscvAir::<F>::ShiftLeft(ShiftLeft::default()), vec![Some(10)]),
+                (RiscvAir::<F>::Lt(LtChip::default()), vec![Some(16)]),
+                (RiscvAir::<F>::MemoryLocal(MemoryLocalChip::new()), vec![Some(6)]),
+                (RiscvAir::<F>::SyscallCore(SyscallChip::core()), vec![Some(2)]),
+                (RiscvAir::<F>::DivRem(DivRemChip::default()), vec![Some(2)]),
+                (RiscvAir::<F>::MemoryGlobalInit(MemoryGlobalChip::new(Initialize)), vec![Some(8)]),
+                (RiscvAir::<F>::MemoryGlobalFinal(MemoryGlobalChip::new(Finalize)), vec![Some(15)]),
+            ]),
+            HashMap::from([
+                (RiscvAir::<F>::Cpu(CpuChip::default()), vec![Some(20)]),
+                (RiscvAir::<F>::Add(AddSubChip::default()), vec![Some(20)]),
+                (RiscvAir::<F>::Bitwise(BitwiseChip::default()), vec![Some(11)]),
+                (RiscvAir::<F>::Mul(MulChip::default()), vec![Some(4)]),
+                (RiscvAir::<F>::ShiftRight(ShiftRightChip::default()), vec![Some(10)]),
+                (RiscvAir::<F>::ShiftLeft(ShiftLeft::default()), vec![Some(10)]),
+                (RiscvAir::<F>::Lt(LtChip::default()), vec![Some(19)]),
+                (RiscvAir::<F>::MemoryLocal(MemoryLocalChip::new()), vec![Some(6)]),
+                (RiscvAir::<F>::SyscallCore(SyscallChip::core()), vec![Some(2)]),
+                (RiscvAir::<F>::DivRem(DivRemChip::default()), vec![Some(2)]),
+                (RiscvAir::<F>::MemoryGlobalInit(MemoryGlobalChip::new(Initialize)), vec![Some(8)]),
+                (RiscvAir::<F>::MemoryGlobalFinal(MemoryGlobalChip::new(Finalize)), vec![Some(15)]),
+            ]),
+        ];
+
         Self {
             included_shapes: vec![],
             allowed_preprocessed_log_heights,
@@ -720,6 +790,7 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
             maximal_core_log_heights_mask,
             memory_allowed_log_heights,
             precompile_allowed_log_heights,
+            shapes_with_cpu_and_memory_finalize,
         }
     }
 }
