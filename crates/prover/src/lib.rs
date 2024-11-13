@@ -357,7 +357,12 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                 is_complete: false,
             });
 
+            // Cache the first proof recursion program.
+            prover.program_from_shape(false, compress_shape, None);
+            println!("cached program");
+
             let second_proof_shape = shape_rx.recv().unwrap();
+            println!("received second proof shape: {:?}", second_proof_shape);
             let compress_shape = SP1CompressProgramShape::Recursion(SP1RecursionShape {
                 proof_shapes: vec![second_proof_shape],
                 is_complete: false,
