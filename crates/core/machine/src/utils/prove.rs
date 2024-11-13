@@ -528,7 +528,12 @@ where
 
                             // tracing::info!("Deferred length: {}", deferred.len());
 
-                            let last_record = if done { records.last_mut() } else { None };
+                            let last_record =
+                                if done && deferred.global_memory_finalize_events.len() < 1 << 15 {
+                                    records.last_mut()
+                                } else {
+                                    None
+                                };
 
                             // See if any deferred shards are ready to be committed to.
                             let mut deferred = deferred.split(done, last_record, opts.split_opts);
