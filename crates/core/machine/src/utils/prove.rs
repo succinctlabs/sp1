@@ -227,7 +227,7 @@ where
 
             let handle = s.spawn(move || {
                 let _span = span.enter();
-                let mut already_started_finalization = false;
+                let mut already_finalized = false;
                 tracing::debug_span!("phase 1 trace generation").in_scope(|| {
                     loop {
                         // Receive the latest checkpoint.
@@ -274,13 +274,14 @@ where
 
                             // IF DONE & DEFERRED IS "SMALL", then just combine into the most recent shard.
                             let last_record = if done
+                                && deferred.precompile_events.is_empty()
                                 && deferred.global_memory_finalize_events.len()
-                                    < opts.split_opts.memory
+                                    <= opts.split_opts.memory
                                 && deferred.global_memory_initialize_events.len()
-                                    < opts.split_opts.memory
-                                && !already_started_finalization
+                                    <= opts.split_opts.memory
+                                && !already_finalized
                             {
-                                already_started_finalization = true;
+                                already_finalized = true;
                                 records.last_mut()
                             } else {
                                 None
@@ -479,8 +480,8 @@ where
 
             let handle = s.spawn(move || {
                 let _span = span.enter();
+                let mut already_finalized = false;
                 tracing::debug_span!("phase 2 trace generation").in_scope(|| {
-                    let mut already_started_finalization = false;
                     loop {
                         // Receive the latest checkpoint.
                         let received = { checkpoints.lock().unwrap().pop_front() };
@@ -528,13 +529,14 @@ where
                             // tracing::info!("Deferred length: {}", deferred.len());
 
                             let last_record = if done
+                                && deferred.precompile_events.is_empty()
                                 && deferred.global_memory_finalize_events.len()
-                                    < opts.split_opts.memory
+                                    <= opts.split_opts.memory
                                 && deferred.global_memory_initialize_events.len()
-                                    < opts.split_opts.memory
-                                && !already_started_finalization
+                                    <= opts.split_opts.memory
+                                && !already_finalized
                             {
-                                already_started_finalization = true;
+                                already_finalized = true;
                                 records.last_mut()
                             } else {
                                 None
