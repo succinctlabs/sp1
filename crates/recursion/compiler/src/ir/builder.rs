@@ -684,8 +684,8 @@ impl<'a, C: Config> IfBuilder<'a, C> {
         //         let lhs: Var<C::N> = self.builder.eval(lhs);
         //         IfCondition::NeI(lhs, rhs)
         //     }
-        //     (SymbolicVar::Val(lhs, _), SymbolicVar::Val(rhs, _), true) => IfCondition::Eq(lhs, rhs),
-        //     (SymbolicVar::Val(lhs, _), SymbolicVar::Val(rhs, _), false) => {
+        //     (SymbolicVar::Val(lhs, _), SymbolicVar::Val(rhs, _), true) => IfCondition::Eq(lhs,
+        // rhs),     (SymbolicVar::Val(lhs, _), SymbolicVar::Val(rhs, _), false) => {
         //         IfCondition::Ne(lhs, rhs)
         //     }
         //     (SymbolicVar::Val(lhs, _), rhs, true) => {

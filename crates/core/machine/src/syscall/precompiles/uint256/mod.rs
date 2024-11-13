@@ -11,14 +11,14 @@ mod tests {
 
     use crate::{
         io::SP1Stdin,
-        utils::{self, run_test_io, tests::UINT256_MUL_ELF},
+        utils::{self, run_test, tests::UINT256_MUL_ELF},
     };
 
     #[test]
     fn test_uint256_mul() {
         utils::setup_logger();
         let program = Program::from(UINT256_MUL_ELF).unwrap();
-        run_test_io::<CpuProver<_, _>>(program, SP1Stdin::new()).unwrap();
+        run_test::<CpuProver<_, _>>(program, SP1Stdin::new()).unwrap();
     }
 
     #[test]

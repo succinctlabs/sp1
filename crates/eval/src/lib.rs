@@ -3,8 +3,10 @@ use clap::{command, Parser};
 use reqwest::Client;
 use serde::Serialize;
 use serde_json::json;
-use slack_rust::chat::post_message::{post_message, PostMessageRequest};
-use slack_rust::http_client::default_client;
+use slack_rust::{
+    chat::post_message::{post_message, PostMessageRequest},
+    http_client::default_client,
+};
 use sp1_prover::{components::SP1ProverComponents, utils::get_cycles, SP1Prover};
 use sp1_sdk::{SP1Context, SP1Stdin};
 use sp1_stark::SP1ProverOpts;
@@ -19,7 +21,8 @@ mod program;
 #[derive(Parser, Clone)]
 #[command(about = "Evaluate the performance of SP1 on programs.")]
 struct EvalArgs {
-    /// The programs to evaluate, specified by name. If not specified, all programs will be evaluated.
+    /// The programs to evaluate, specified by name. If not specified, all programs will be
+    /// evaluated.
     #[arg(long, use_value_delimiter = true, value_delimiter = ',')]
     pub programs: Vec<String>,
 

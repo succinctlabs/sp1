@@ -3,8 +3,7 @@ use std::time::{Duration, Instant};
 use clap::{command, Parser, ValueEnum};
 use sp1_core_executor::programs::tests::VERIFY_PROOF_ELF;
 use sp1_cuda::SP1CudaProver;
-use sp1_prover::components::DefaultProverComponents;
-use sp1_prover::HashableKey;
+use sp1_prover::{components::DefaultProverComponents, HashableKey};
 use sp1_sdk::{self, ProverClient, SP1Context, SP1Prover, SP1Stdin};
 use sp1_stark::SP1ProverOpts;
 
@@ -152,7 +151,7 @@ fn main() {
                 time_operation(|| prover.execute(&elf, &stdin, context.clone()));
 
             let (core_proof, prove_core_duration) =
-                time_operation(|| server.prove_core(&pk, &stdin).unwrap());
+                time_operation(|| server.prove_core(&stdin).unwrap());
 
             let (_, verify_core_duration) = time_operation(|| {
                 prover.verify(&core_proof.proof, &vk).expect("Proof verification failed")

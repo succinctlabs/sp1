@@ -310,7 +310,7 @@ where
                 );
                 // A flag to indicate whether the first execution shard has been seen. We have:
                 // - `is_first_execution_shard_seen`  = current_contains_execution_shard &&
-                //                                     !execution_shard_seen_before.
+                //   !execution_shard_seen_before.
                 // Since `contains_execution_shard` is the boolean flag used to denote if we have
                 // seen an execution shard, we can use it to denote if we have seen an execution
                 // shard before.
@@ -371,8 +371,8 @@ where
 
             // Digest constraints.
             {
-                // If `committed_value_digest` is not zero, then `public_values.committed_value_digest
-                // should be the current.
+                // If `committed_value_digest` is not zero, then
+                // `public_values.committed_value_digest should be the current.
 
                 // Set a flags to indicate whether `committed_value_digest` is non-zero. The flags
                 // are given by the elements of the array, and they will be used as filters to
@@ -442,8 +442,8 @@ where
 
             // If the current shard has an execution shard, then we update the flag in case it was
             // not already set. That is:
-            // - If the current shard has an execution shard and the flag is set to zero, it will
-            //   be set to one.
+            // - If the current shard has an execution shard and the flag is set to zero, it will be
+            //   set to one.
             // - If the current shard has an execution shard and the flag is set to one, it will
             //   remain set to one.
             contains_execution_shard = builder.eval(

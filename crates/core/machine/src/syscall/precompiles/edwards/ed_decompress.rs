@@ -299,12 +299,16 @@ pub mod tests {
     use sp1_core_executor::Program;
     use sp1_stark::CpuProver;
 
-    use crate::utils::{self, tests::ED_DECOMPRESS_ELF};
+    use crate::{
+        io::SP1Stdin,
+        utils::{self, tests::ED_DECOMPRESS_ELF},
+    };
 
     #[test]
     fn test_ed_decompress() {
         utils::setup_logger();
         let program = Program::from(ED_DECOMPRESS_ELF).unwrap();
-        utils::run_test::<CpuProver<_, _>>(program).unwrap();
+        let stdin = SP1Stdin::new();
+        utils::run_test::<CpuProver<_, _>>(program, stdin).unwrap();
     }
 }

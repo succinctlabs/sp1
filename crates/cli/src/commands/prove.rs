@@ -2,10 +2,7 @@ use anstyle::*;
 use anyhow::Result;
 use clap::Parser;
 use sp1_build::{execute_build_program, BuildArgs};
-use sp1_core_machine::{
-    io::SP1Stdin,
-    utils::{setup_logger, setup_tracer},
-};
+use sp1_core_machine::{io::SP1Stdin, utils::setup_logger};
 use sp1_sdk::ProverClient;
 use std::{env, fs::File, io::Read, path::PathBuf, str::FromStr, time::Instant};
 
@@ -78,12 +75,6 @@ impl ProveCmd {
                 Err(_) => env::set_var("RUST_LOG", "info"),
             }
             setup_logger();
-        } else {
-            match env::var("RUST_TRACER") {
-                Ok(_) => {}
-                Err(_) => env::set_var("RUST_TRACER", "info"),
-            }
-            setup_tracer();
         }
 
         // The command predates multi-target build support. This allows the command to continue to

@@ -4,10 +4,9 @@ use sp1_cuda::SP1CudaProver;
 use sp1_prover::{components::DefaultProverComponents, SP1Prover};
 
 use super::ProverType;
-use crate::install::try_install_circuit_artifacts;
 use crate::{
-    provers::ProofOpts, Prover, SP1Context, SP1Proof, SP1ProofKind, SP1ProofWithPublicValues,
-    SP1ProvingKey, SP1VerifyingKey,
+    install::try_install_circuit_artifacts, provers::ProofOpts, Prover, SP1Context, SP1Proof,
+    SP1ProofKind, SP1ProofWithPublicValues, SP1ProvingKey, SP1VerifyingKey,
 };
 
 /// An implementation of [crate::ProverClient] that can generate proofs locally using CUDA.
@@ -48,7 +47,8 @@ impl Prover<DefaultProverComponents> for CudaProver {
         tracing::warn!("opts and context are ignored for the cuda prover");
 
         // Generate the core proof.
-        let proof = self.cuda_prover.prove_core(pk, &stdin)?;
+        let (_, _) = self.cuda_prover.setup(&pk.elf).unwrap();
+        let proof = self.cuda_prover.prove_core(&stdin)?;
         if kind == SP1ProofKind::Core {
             return Ok(SP1ProofWithPublicValues {
                 proof: SP1Proof::Core(proof.proof.0),

@@ -4,8 +4,10 @@ use std::{
 };
 
 use crate::{
-    network::client::{NetworkClient, DEFAULT_PROVER_NETWORK_RPC},
-    network::proto::network::{ProofMode, ProofStatus},
+    network::{
+        client::{NetworkClient, DEFAULT_PROVER_NETWORK_RPC},
+        proto::network::{ProofMode, ProofStatus},
+    },
     Prover, SP1Context, SP1ProofKind, SP1ProofWithPublicValues, SP1ProvingKey, SP1VerifyingKey,
 };
 use anyhow::Result;
@@ -15,7 +17,8 @@ use sp1_stark::SP1ProverOpts;
 
 use super::proto::network::GetProofStatusResponse;
 
-use {crate::block_on, tokio::time::sleep};
+use crate::block_on;
+use tokio::time::sleep;
 
 use crate::provers::{CpuProver, ProofOpts, ProverType};
 
