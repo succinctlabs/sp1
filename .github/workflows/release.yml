@@ -292,7 +292,7 @@ jobs:
             volume: "/dev/xvda"
           - name: "Fedora 41 (x86_64)"
             ec2-instance: "c5.2xlarge"
-            ami: "ami-03b46dbc4b4708c7b"
+            ami: "ami-046a6af96ef510bb6"
             volume: "/dev/xvda"
     uses: "./.github/workflows/toolchain-ec2.yml"
     with:
