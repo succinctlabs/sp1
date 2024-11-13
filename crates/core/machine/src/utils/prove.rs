@@ -501,9 +501,9 @@ where
 
                             for record in records.iter() {
                                 if let Some(shape) = record.shape.as_ref() {
-                                    let chips = prover.machine().chips();
+                                    let chips = prover.shard_chips(record);
                                     let mut chip_information = Vec::new();
-                                    for chip in chips.iter() {
+                                    for chip in chips {
                                         if chip.commit_scope() == InteractionScope::Global
                                             && shape.inner.contains_key(&chip.name())
                                         {
@@ -513,7 +513,8 @@ where
                                             ));
                                         }
                                     }
-                                    for chip in chips.iter() {
+                                    let chips = prover.shard_chips(record);
+                                    for chip in chips {
                                         if chip.commit_scope() == InteractionScope::Local
                                             && shape.inner.contains_key(&chip.name())
                                         {
