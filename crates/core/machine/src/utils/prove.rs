@@ -27,7 +27,7 @@ use sp1_core_executor::{
     ExecutionReport, ExecutionState, Executor, Program, SP1Context,
 };
 use sp1_stark::{
-    air::{InteractionScope, PublicValues},
+    air::{InteractionScope, MachineAir, PublicValues},
     Com, MachineProof, MachineProver, MachineProvingKey, MachineRecord, OpeningProof,
     PcsProverData, ProofShape, SP1CoreOpts, ShardProof, StarkGenericConfig, Val,
 };
@@ -501,14 +501,31 @@ where
 
                             for record in records.iter() {
                                 if let Some(shape) = record.shape.as_ref() {
-                                    let x = ProofShape {
-                                        chip_information: shape
-                                            .inner
-                                            .iter()
-                                            .map(|(chip, height)| (chip.clone(), *height))
-                                            .collect(),
-                                    };
-                                    shape_tx.lock().unwrap().send(x).unwrap();
+                                    let chips = prover.machine().chips();
+                                    let mut chip_information = Vec::new();
+                                    for chip in chips.iter() {
+                                        if chip.commit_scope() == InteractionScope::Global
+                                            && shape.inner.contains_key(&chip.name())
+                                        {
+                                            chip_information.push((
+                                                chip.name().clone(),
+                                                shape.inner[&chip.name()],
+                                            ));
+                                        }
+                                    }
+                                    for chip in chips.iter() {
+                                        if chip.commit_scope() == InteractionScope::Local
+                                            && shape.inner.contains_key(&chip.name())
+                                        {
+                                            chip_information.push((
+                                                chip.name().clone(),
+                                                shape.inner[&chip.name()],
+                                            ));
+                                        }
+                                    }
+
+                                    let shape = ProofShape { chip_information };
+                                    shape_tx.lock().unwrap().send(shape).unwrap();
                                 };
                             }
 
