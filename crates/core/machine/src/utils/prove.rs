@@ -507,7 +507,9 @@ where
                                             .inner
                                             .iter()
                                             .map(|(chip, height)| (chip.clone(), *height))
-                                            .sorted_by_key(|(_, height)| *height)
+                                            .sorted_by(|(name_a, height_a), (name_b, height_b)| {
+                                                height_a.cmp(height_b).then(name_a.cmp(name_b))
+                                            })
                                             .rev()
                                             .collect(),
                                     };

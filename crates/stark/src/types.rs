@@ -102,7 +102,9 @@ impl ProofShape {
             .flatten()
             .chain(local_traces.iter())
             .map(|(name, trace)| (name.clone(), trace.height().ilog2() as usize))
-            .sorted_by_key(|(_, height)| *height)
+            .sorted_by(|(name_a, height_a), (name_b, height_b)| {
+                height_a.cmp(height_b).then(name_a.cmp(name_b))
+            })
             .collect()
     }
 }
