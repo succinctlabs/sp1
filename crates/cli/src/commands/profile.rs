@@ -44,11 +44,6 @@ pub struct ProfileCmd {
     #[arg(short = 'o', long)]
     output: PathBuf,
 
-    /// The sample rate to use for the profile.
-    /// This is the number of instructions in between samples.
-    #[arg(short = 'r', long, default_value = "10")]
-    sample_rate: usize,
-
     /// Name the circuit, this will be displayed in the UI
     #[arg(short = 'n', long, default_value = "sp1")]
     name: String,
@@ -65,13 +60,9 @@ pub struct Sample {
 
 impl ProfileCmd {
     pub fn run(&self) -> anyhow::Result<()> {
-        let samples = collect_samples(&self.elf, &self.trace, self.sample_rate as u64)?;
+        let samples = collect_samples(&self.elf, &self.trace)?;
 
-        println!(
-            "Collected {} samples from {} instructions",
-            samples.len(),
-            samples.len() * self.sample_rate
-        );
+        println!("Collected {} stack samples", samples.len());
 
         check_samples(&samples)?;
 
@@ -97,10 +88,10 @@ impl ProfileCmd {
                 last_known_time,
                 frames.into_iter(),
                 // this is actually in instructions but
-                std::time::Duration::from_micros(self.sample_rate as u64),
+                std::time::Duration::from_micros(1),
             );
 
-            last_known_time += std::time::Duration::from_micros(self.sample_rate as u64);
+            last_known_time += std::time::Duration::from_micros(1);
         }
 
         profile_builder.add_thread(thread_builder);
@@ -147,7 +138,6 @@ fn build_goblin_lookups(
 pub fn collect_samples(
     elf_path: impl AsRef<Path>,
     trace_path: impl AsRef<Path>,
-    sample_rate: u64,
 ) -> Result<Vec<Sample>> {
     let trace_path = trace_path.as_ref();
 
@@ -178,18 +168,14 @@ pub fn collect_samples(
 
         // We are still in the current function.
         if pc > current_function_range.0 && pc <= current_function_range.1 {
-            if i % sample_rate == 0 {
-                samples.push(Sample { stack: function_stack.clone() });
-            }
+            samples.push(Sample { stack: function_stack.clone() });
 
             continue;
         }
 
         // Jump to a new function (or the same one).
         if let Some(f) = start_lookup.get(&pc) {
-            if i % sample_rate == 0 {
-                samples.push(Sample { stack: function_stack.clone() });
-            }
+            samples.push(Sample { stack: function_stack.clone() });
 
             // Jump to a new function (not recursive).
             if !function_stack_indices.contains(f) {
@@ -225,17 +211,14 @@ pub fn collect_samples(
                 function_stack.truncate(unwind_point + 1);
                 function_stack_ranges.truncate(unwind_point + 1);
                 function_stack_indices.truncate(unwind_point + 1);
-                if i % sample_rate == 0 {
-                    samples.push(Sample { stack: function_stack.clone() });
-                }
+                samples.push(Sample { stack: function_stack.clone() });
+
                 continue;
             }
 
             // If no unwind point has been found, that means we jumped to some random location
             // so we'll just increment the counts for everything in the stack.
-            if i % sample_rate == 0 {
-                samples.push(Sample { stack: function_stack.clone() });
-            }
+            samples.push(Sample { stack: function_stack.clone() });
         }
     }
 
