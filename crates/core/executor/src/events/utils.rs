@@ -53,3 +53,26 @@ where
 {
     format!("{count:>width$} {label}")
 }
+
+/// Returns sorted and formatted rows of a table of counts (e.g. `opcode_counts`).
+///
+/// The table is sorted first by count (descending) and then by label (ascending).
+/// The first column consists of the counts, is right-justified, and is padded precisely
+/// enough to fit all the numbers. The second column consists of the labels (e.g. `OpCode`s).
+/// The columns are separated by a single space character.
+///
+/// It's possible to hide rows with 0 count by setting `hide_zeros` to true.
+pub fn generate_execution_report<'a, K, V>(
+    table: impl IntoIterator<Item = (K, &'a V)> + 'a,
+    hide_zeros: bool,
+) -> impl Iterator<Item = String> + 'a
+where
+    K: Ord + Display + 'a,
+    V: Ord + PartialEq<u64> + Display + 'a,
+{
+    let (width, lines) = sorted_table_lines(table);
+
+    lines
+        .filter(move |(_, count)| !hide_zeros || **count != 0_u64)
+        .map(move |(label, count)| format!("  {}", format_table_line(&width, &label, count)))
+}
