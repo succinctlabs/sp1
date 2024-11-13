@@ -33,6 +33,7 @@ use std::{
 };
 
 use crate::shapes::SP1CompressProgramShape;
+use components::{DefaultProverComponents, SP1ProverComponents};
 use lru::LruCache;
 use p3_baby_bear::BabyBear;
 use p3_challenger::CanObserve;
@@ -40,6 +41,7 @@ use p3_field::{AbstractField, PrimeField, PrimeField32};
 use p3_matrix::dense::RowMajorMatrix;
 use shapes::SP1ProofShape;
 use sp1_core_executor::{ExecutionError, ExecutionReport, Executor, Program, SP1Context};
+pub use sp1_core_machine::SP1_CIRCUIT_VERSION;
 use sp1_core_machine::{
     io::SP1Stdin,
     reduce::SP1ReduceProof,
@@ -82,13 +84,8 @@ use sp1_stark::{
     SP1ProverOpts, ShardProof, StarkGenericConfig, StarkVerifyingKey, Val, Word, DIGEST_SIZE,
 };
 use tracing::instrument;
-
 pub use types::*;
 use utils::{sp1_committed_values_digest_bn254, sp1_vkey_digest_bn254, words_to_bytes};
-
-use components::{DefaultProverComponents, SP1ProverComponents};
-
-pub use sp1_core_machine::SP1_CIRCUIT_VERSION;
 
 /// The configuration for the core prover.
 pub type CoreSC = BabyBearPoseidon2;
