@@ -274,7 +274,8 @@ where
                             }
 
                             // IF DONE & DEFERRED IS "SMALL", then just combine into the most recent shard.
-                            let last_record = if done && num_cycles < 1 << 26 {
+                            let last_record = if done && num_cycles < 1 << 24 {
+                                tracing::info!("Number of cycles: {}", num_cycles);
                                 records.last_mut()
                             } else {
                                 None
@@ -520,7 +521,7 @@ where
 
                             // tracing::info!("Deferred length: {}", deferred.len());
 
-                            let last_record = if done && num_cycles < 1 << 26 {
+                            let last_record = if done && num_cycles < 1 << 24 {
                                 records.last_mut()
                             } else {
                                 None
