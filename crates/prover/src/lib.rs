@@ -75,7 +75,6 @@ use sp1_recursion_core::{
 };
 pub use sp1_recursion_gnark_ffi::proof::{Groth16Bn254Proof, PlonkBn254Proof};
 use sp1_recursion_gnark_ffi::{groth16_bn254::Groth16Bn254Prover, plonk_bn254::PlonkBn254Prover};
-use sp1_stark::MachineProof;
 use sp1_stark::{
     air::{InteractionScope, PublicValues},
     baby_bear_poseidon2::BabyBearPoseidon2,
@@ -106,14 +105,6 @@ const WRAP_DEGREE: usize = 9;
 
 const CORE_CACHE_SIZE: usize = 5;
 pub const REDUCE_BATCH_SIZE: usize = 2;
-
-// TODO: FIX
-//
-// const SHAPES_URL_PREFIX: &str = "https://sp1-circuits.s3.us-east-2.amazonaws.com/shapes";
-// const SHAPES_VERSION: &str = "146079e0e";
-// lazy_static! {
-//     static ref SHAPES_INIT: Once = Once::new();
-// }
 
 pub type CompressAir<F> = RecursionAir<F, COMPRESS_DEGREE>;
 pub type ShrinkAir<F> = RecursionAir<F, SHRINK_DEGREE>;
@@ -213,7 +204,6 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 
         let vk_verification =
             env::var("VERIFY_VK").map(|v| v.eq_ignore_ascii_case("true")).unwrap_or(false);
-
         tracing::info!("vk verification: {}", vk_verification);
 
         // Read the shapes from the shapes directory and deserialize them into memory.
@@ -267,10 +257,6 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         }
     }
 
-    /// Fully initializes the programs, proving keys, and verifying keys that are normally
-    /// lazily initialized. TODO: remove this.
-    pub fn initialize(&mut self) {}
-
     /// Creates a proving key and a verifying key for a given RISC-V ELF.
     #[instrument(name = "setup", level = "debug", skip_all)]
     pub fn setup(&self, elf: &[u8]) -> (SP1ProvingKey, SP1VerifyingKey) {
@@ -314,70 +300,6 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         Ok((SP1PublicValues::from(&runtime.state.public_values_stream), runtime.report))
     }
 
-    fn dgx<'a>(
-        prover: &'a Self,
-        pk: &SP1ProvingKey,
-        stdin: &SP1Stdin,
-        opts: SP1ProverOpts,
-        mut context: SP1Context<'a>,
-    ) -> Result<SP1CoreProof, SP1CoreProverError> {
-        context.subproof_verifier.replace(Arc::new(prover));
-
-        // Launch two threads to simultaneously prove the core and generate the first proof
-        // recursion program.
-        std::thread::scope(|s| {
-            let (proof_tx, proof_rx) = channel();
-            let (shape_tx, shape_rx) = channel();
-
-            let handle = s.spawn(move || {
-                // Fix the program shape.
-                let program = prover.get_program(&pk.elf).unwrap();
-
-                // Copy the proving key to the device.
-                let pk = prover.core_prover.pk_to_device(&pk.pk);
-
-                // Prove the core and stream the proofs and shapes.
-                sp1_core_machine::utils::prove_core_stream::<_, C::CoreProver>(
-                    &prover.core_prover,
-                    &pk,
-                    program,
-                    stdin,
-                    opts.core_opts,
-                    context,
-                    prover.core_shape_config.as_ref(),
-                    proof_tx,
-                    shape_tx,
-                )
-            });
-
-            // Only receive up to 3 shapes
-            for i in 0..3 {
-                if let Ok(shape) = shape_rx.recv() {
-                    println!("received shape {}: {:?}", i + 1, shape);
-                    let compress_shape = SP1CompressProgramShape::Recursion(SP1RecursionShape {
-                        proof_shapes: vec![shape],
-                        is_complete: false,
-                    });
-
-                    // Cache the proof recursion program.
-                    prover.program_from_shape(false, compress_shape, None);
-                    println!("cached program {}", i + 1);
-                }
-            }
-
-            // Collect the shard proofs and the public values stream.
-            let shard_proofs: Vec<ShardProof<_>> = proof_rx.iter().collect();
-            let (public_values_stream, cycles) = handle.join().unwrap().unwrap();
-            let public_values = SP1PublicValues::from(&public_values_stream);
-            Ok(SP1CoreProof {
-                proof: SP1CoreProofData(shard_proofs),
-                stdin: stdin.clone(),
-                public_values,
-                cycles,
-            })
-        })
-    }
-
     /// Generate shard proofs which split up and prove the valid execution of a RISC-V program with
     /// the core prover. Uses the provided context.
     #[instrument(name = "prove_core", level = "info", skip_all)]
@@ -388,30 +310,60 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         opts: SP1ProverOpts,
         mut context: SP1Context<'a>,
     ) -> Result<SP1CoreProof, SP1CoreProverError> {
-        // context.subproof_verifier.replace(Arc::new(self));
-        // let program = self.get_program(&pk.elf).unwrap();
-        // let pk = self.core_prover.pk_to_device(&pk.pk);
+        context.subproof_verifier.replace(Arc::new(self));
 
-        // let (proof, public_values_stream, cycles) =
-        //     sp1_core_machine::utils::prove_core::<_, C::CoreProver>(
-        //         &self.core_prover,
-        //         &pk,
-        //         program,
-        //         stdin,
-        //         opts.core_opts,
-        //         context,
-        //         self.core_shape_config.as_ref(),
-        //     )?;
+        // Launch two threads to simultaneously prove the core and compile the first few
+        // recursion programs in parallel.
+        std::thread::scope(|s| {
+            let (proof_tx, proof_rx) = channel();
+            let (shape_tx, shape_rx) = channel();
 
-        // Self::check_for_high_cycles(cycles);
-        // let public_values = SP1PublicValues::from(&public_values_stream);
-        // Ok(SP1CoreProof {
-        //     proof: SP1CoreProofData(proof.shard_proofs),
-        //     stdin: stdin.clone(),
-        //     public_values,
-        //     cycles,
-        // })
-        Self::dgx(self, pk, stdin, opts, context)
+            let handle = s.spawn(move || {
+                // Fix the program shape.
+                let program = self.get_program(&pk.elf).unwrap();
+
+                // Copy the proving key to the device.
+                let pk = self.core_prover.pk_to_device(&pk.pk);
+
+                // Prove the core and stream the proofs and shapes.
+                sp1_core_machine::utils::prove_core_stream::<_, C::CoreProver>(
+                    &self.core_prover,
+                    &pk,
+                    program,
+                    stdin,
+                    opts.core_opts,
+                    context,
+                    self.core_shape_config.as_ref(),
+                    proof_tx,
+                    shape_tx,
+                )
+            });
+
+            // Only receive up to first three shapes, since having more would just not be cached.
+            for _ in 0..3 {
+                if let Ok(shape) = shape_rx.recv() {
+                    let compress_shape = SP1CompressProgramShape::Recursion(SP1RecursionShape {
+                        proof_shapes: vec![shape],
+                        is_complete: false,
+                    });
+
+                    // Insert the program into the cache.
+                    self.program_from_shape(false, compress_shape, None);
+                }
+            }
+
+            // Collect the shard proofs and the public values stream.
+            let shard_proofs: Vec<ShardProof<_>> = proof_rx.iter().collect();
+            let (public_values_stream, cycles) = handle.join().unwrap().unwrap();
+            let public_values = SP1PublicValues::from(&public_values_stream);
+            Self::check_for_high_cycles(cycles);
+            Ok(SP1CoreProof {
+                proof: SP1CoreProofData(shard_proofs),
+                stdin: stdin.clone(),
+                public_values,
+                cycles,
+            })
+        })
     }
 
     /// Reduce shards proofs to a single shard proof using the recursion prover.
