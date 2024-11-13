@@ -499,6 +499,19 @@ where
                                 }
                             }
 
+                            for record in records.iter() {
+                                if let Some(shape) = record.shape.as_ref() {
+                                    let x = ProofShape {
+                                        chip_information: shape
+                                            .inner
+                                            .iter()
+                                            .map(|(chip, height)| (chip.clone(), *height))
+                                            .collect(),
+                                    };
+                                    shape_tx.lock().unwrap().send(x).unwrap();
+                                };
+                            }
+
                             #[cfg(feature = "debug")]
                             all_records_tx.send(records.clone()).unwrap();
 
@@ -526,15 +539,15 @@ where
                             trace_gen_sync.wait_for_turn(index);
 
                             // Send the shapes to the channel, if necessary.
-                            for (global_trace, local_trace) in
-                                global_traces.iter().zip(local_traces.iter())
-                            {
-                                shape_tx
-                                    .lock()
-                                    .unwrap()
-                                    .send(ProofShape::from_traces(Some(global_trace), local_trace))
-                                    .unwrap();
-                            }
+                            // for (global_trace, local_trace) in
+                            //     global_traces.iter().zip(local_traces.iter())
+                            // {
+                            //     shape_tx
+                            //         .lock()
+                            //         .unwrap()
+                            //         .send(ProofShape::from_traces(Some(global_trace), local_trace))
+                            //         .unwrap();
+                            // }
 
                             // Send the records to the phase 2 prover.
                             let chunked_records = chunk_vec(records, opts.shard_batch_size);
