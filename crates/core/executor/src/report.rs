@@ -6,7 +6,11 @@ use std::{
 use enum_map::{EnumArray, EnumMap};
 use hashbrown::HashMap;
 
-use crate::{events::sorted_table_lines, syscalls::SyscallCode, Opcode};
+use crate::{
+    events::{format_table_line, sorted_table_lines},
+    syscalls::SyscallCode,
+    Opcode,
+};
 
 /// An execution report.
 #[derive(Default, Debug, Clone, PartialEq, Eq)]
@@ -68,13 +72,19 @@ impl Add for ExecutionReport {
 impl Display for ExecutionReport {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         writeln!(f, "opcode counts ({} total instructions):", self.total_instruction_count())?;
-        for line in sorted_table_lines(self.opcode_counts.as_ref()) {
-            writeln!(f, "  {line}")?;
+        let (width, lines) = sorted_table_lines(self.opcode_counts.as_ref());
+        for (label, count) in lines {
+            writeln!(f, "  {}", format_table_line(&width, &label, count))?;
         }
 
         writeln!(f, "syscall counts ({} total syscall instructions):", self.total_syscall_count())?;
-        for line in sorted_table_lines(self.syscall_counts.as_ref()) {
-            writeln!(f, "  {line}")?;
+        let (width, lines) = sorted_table_lines(self.syscall_counts.as_ref());
+        for (label, count) in lines {
+            if *count == 0 {
+                break;
+            }
+
+            writeln!(f, "  {}", format_table_line(&width, &label, count))?;
         }
 
         Ok(())
