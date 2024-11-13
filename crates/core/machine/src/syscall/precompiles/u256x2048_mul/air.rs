@@ -1,10 +1,8 @@
 use crate::{
     air::MemoryAirBuilder,
-    utils::{limbs_from_access, pad_rows_fixed, words_to_bytes_le},
-};
-use crate::{
     memory::{value_as_limbs, MemoryCols, MemoryReadCols, MemoryWriteCols},
     operations::field::field_op::FieldOpCols,
+    utils::{limbs_from_access, pad_rows_fixed, words_to_bytes_le},
 };
 
 use num::{BigUint, One, Zero};
@@ -131,7 +129,7 @@ impl<F: PrimeField32> MachineAir<F> for U256x2048MulChip {
                         cols.lo_ptr = F::from_canonical_u32(event.lo_ptr);
                         cols.hi_ptr = F::from_canonical_u32(event.hi_ptr);
 
-                        // Populate the memory accesses for lo_ptr and hi_ptr
+                        // Populate memory accesses for lo_ptr and hi_ptr.
                         cols.lo_ptr_memory
                             .populate(event.lo_ptr_memory, &mut new_byte_lookup_events);
                         cols.hi_ptr_memory
