@@ -14,7 +14,7 @@ sp1-core-machine = { workspace = true }
 sp1-prover = { workspace = true }
 prost = "0.13"
 bincode = "1.3.3"
-serde = { version = "1.0.197", features = ["derive"] }
+serde = { workspace = true, features = ["derive"] }
 tokio = { version = "^1.38.0", features = ["full"] }
 tracing = "0.1.40"
 twirp = { package = "twirp-rs", version = "0.13.0-succinct" }

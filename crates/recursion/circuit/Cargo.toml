@@ -32,7 +32,7 @@ sp1-primitives = { workspace = true }
 sp1-recursion-gnark-ffi = { workspace = true }
 
 itertools = { workspace = true }
-serde = { version = "1.0", features = ["derive"] }
+serde = { workspace = true, features = ["derive"] }
 rand = "0.8.5"
 tracing = "0.1.40"
 hashbrown = { workspace = true, features = ["serde", "inline-more"] }

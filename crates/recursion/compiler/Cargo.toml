@@ -22,7 +22,7 @@ sp1-recursion-derive = { workspace = true }
 sp1-stark = { workspace = true }
 
 itertools = { workspace = true }
-serde = { version = "1.0.204", features = ["derive"] }
+serde = { workspace = true, features = ["derive"] }
 backtrace = "0.3.71"
 tracing = "0.1.40"
 vec_map = "0.8.2"

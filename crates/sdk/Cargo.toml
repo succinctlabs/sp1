@@ -11,7 +11,7 @@ categories = { workspace = true }
 
 [dependencies]
 prost = { version = "0.13", optional = true }
-serde = { version = "1.0.204", features = ["derive"] }
+serde = { workspace = true, features = ["derive"] }
 twirp = { package = "twirp-rs", version = "0.13.0-succinct", optional = true }
 async-trait = "0.1.81"
 reqwest-middleware = { version = "0.3.2", optional = true }
