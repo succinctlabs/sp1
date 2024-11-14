@@ -37,6 +37,7 @@ pub enum CoreShapeError {
 /// A structure that enables fixing the shape of an executionrecord.
 pub struct CoreShapeConfig<F: PrimeField32> {
     included_shapes: Vec<HashMap<String, usize>>,
+    // Shapes for shards with a CPU chip and memory initialize/finalize events.
     shapes_with_cpu_and_memory_finalize: Vec<HashMap<RiscvAir<F>, Vec<Option<usize>>>>,
     allowed_preprocessed_log_heights: HashMap<RiscvAir<F>, Vec<Option<usize>>>,
     allowed_core_log_heights: Vec<HashMap<RiscvAir<F>, Vec<Option<usize>>>>,
@@ -124,29 +125,16 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
 
             let mut shape_candidates = self.allowed_core_log_heights.iter().collect::<Vec<_>>();
 
+            // If the record has global memory init/finalize events, replace the candidates with
+            // shapes that include the memory initialize/finalize chip.
             if !record.global_memory_finalize_events.is_empty()
                 || !record.global_memory_initialize_events.is_empty()
             {
-                tracing::info!("We have a global memory event on this record.");
                 heights.extend(RiscvAir::<F>::get_memory_init_final_heights(record));
                 shape_candidates = self.shapes_with_cpu_and_memory_finalize.iter().collect();
-                println!(
-                    "Shape candidates: {:?}",
-                    shape_candidates
-                        .iter()
-                        .map(|x| x.iter().map(|(k, v)| (k.name(), v)).collect::<HashMap<_, _>>())
-                        .collect::<Vec<_>>()
-                );
-                println!(
-                    "Heights: {:?}",
-                    heights
-                        .iter()
-                        .map(|(air, height)| (air.name(), height))
-                        .collect::<HashMap<_, _>>()
-                );
             }
 
-            // Try to find a shape within the included shapes.
+            // Try to find a shape fitting within at least one of the candidate shapes.
             for (i, allowed_log_heights) in shape_candidates.iter().enumerate() {
                 if let Some(shape) =
                     Self::find_shape_from_allowed_heights(&heights, allowed_log_heights)
@@ -176,7 +164,8 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
             return Err(CoreShapeError::ShapeError(record.stats()));
         }
 
-        // If the record is a global memory init/finalize record, try to fix the shape as such.
+        // If the record is a does not have the CPU chip and is a global memory init/finalize
+        // record, try to fix the shape as such.
         if !record.global_memory_initialize_events.is_empty()
             || !record.global_memory_finalize_events.is_empty()
         {
@@ -385,14 +374,14 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
             CoreShapeSpec {
                 cpu_height: vec![Some(14)],
                 add_sub_height: vec![Some(14)],
-                lt_height: vec![Some(10)],
-                bitwise_height: vec![Some(10)],
-                shift_right_height: vec![Some(10)],
-                shift_left_height: vec![Some(10)],
-                syscall_core_height: vec![Some(10)],
-                memory_local_height: vec![Some(10)],
-                mul_height: vec![Some(10)],
-                divrem_height: vec![Some(10)],
+                lt_height: vec![Some(14)],
+                bitwise_height: vec![Some(14)],
+                shift_right_height: vec![Some(14)],
+                shift_left_height: vec![Some(14)],
+                syscall_core_height: vec![Some(14)],
+                memory_local_height: vec![Some(14)],
+                mul_height: vec![Some(14)],
+                divrem_height: vec![Some(14)],
                 is_potentially_maximal: false,
             },
             CoreShapeSpec {
@@ -738,6 +727,7 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
                 .insert(air, (mem_events_per_row, precompile_heights.clone()));
         }
 
+        // Shapes for shards with a CPU chip and memory initialize/finalize events.
         let shapes_with_cpu_and_memory_finalize = vec![
             HashMap::from([
                 (RiscvAir::<F>::Cpu(CpuChip::default()), vec![Some(14)]),

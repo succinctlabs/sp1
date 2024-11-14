@@ -178,6 +178,9 @@ impl ExecutionRecord {
 
     /// Splits the deferred [`ExecutionRecord`] into multiple [`ExecutionRecord`]s, each which
     /// contain a "reasonable" number of deferred events.
+    ///
+    /// The optional `last_record` will be provided if there are few enough deferred events that
+    /// they can all be packed into the already existing last record.
     pub fn split(
         &mut self,
         last: bool,
@@ -185,8 +188,6 @@ impl ExecutionRecord {
         opts: SplitOpts,
     ) -> Vec<ExecutionRecord> {
         let mut shards = Vec::new();
-
-        tracing::info!("Last: {}", last);
 
         let precompile_events = take(&mut self.precompile_events);
 
@@ -222,8 +223,13 @@ impl ExecutionRecord {
         if last {
             self.global_memory_initialize_events.sort_by_key(|event| event.addr);
             self.global_memory_finalize_events.sort_by_key(|event| event.addr);
+
+            // If there are no precompile shards, and `last_record` is Some, pack the memory events
+            // into the last record.
             let pack_memory_events_into_last_record = last_record.is_some() && shards.is_empty();
             let mut blank_record = ExecutionRecord::new(self.program.clone());
+
+            // If `last_record` is None, use a blank record to store the memory events.
             let last_record_ref = last_record.unwrap_or(&mut blank_record);
 
             let mut init_addr_bits = [0; 32];
@@ -233,7 +239,6 @@ impl ExecutionRecord {
                 .chunks(opts.memory)
                 .zip_longest(self.global_memory_finalize_events.chunks(opts.memory))
             {
-                tracing::info!("In memory chunks loop");
                 let (mem_init_chunk, mem_finalize_chunk) = match mem_chunks {
                     EitherOrBoth::Both(mem_init_chunk, mem_finalize_chunk) => {
                         (mem_init_chunk, mem_finalize_chunk)
@@ -259,7 +264,12 @@ impl ExecutionRecord {
                 last_record_ref.public_values.last_finalize_addr_bits = finalize_addr_bits;
 
                 if !pack_memory_events_into_last_record {
+                    // If not packing memory events into the last record, add 'last_record_ref'
+                    // to the returned records. `take` replaces `blank_program` with the default.
                     shards.push(take(last_record_ref));
+
+                    // Reset the last record so its program is the correct one. (The default program
+                    // provided by `take` contains no instructions.)
                     last_record_ref.program = self.program.clone();
                 }
             }
