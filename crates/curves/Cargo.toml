@@ -27,7 +27,7 @@ sp1-stark = { workspace = true }
 
 sp1-primitives = { workspace = true }
 p3-field = { workspace = true }
-itertools = "0.13.0"
+itertools = { workspace = true }
 rug = { version = "1.26.1", optional = true }
 cfg-if = "1.0.0"
 
