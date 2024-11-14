@@ -43,6 +43,13 @@ vec_map = { version = "0.8.2", features = ["serde"] }
 enum-map = { version = "2.7.3", features = ["serde"] }
 test-artifacts = { workspace = true, optional = true }
 
+# profiling
+goblin = "0.8"
+rustc-demangle = "0.1.18"
+gecko_profile = "0.4.0"
+indicatif = "0.17.8"
+serde_json = "1.0.121"
+
 [dev-dependencies]
 sp1-zkvm = { workspace = true }
 

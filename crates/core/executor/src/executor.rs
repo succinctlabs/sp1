@@ -1,6 +1,6 @@
 use std::{
     fs::File,
-    io::{BufWriter, Write},
+    io::BufWriter,
     sync::Arc,
 };
 
@@ -18,6 +18,7 @@ use crate::{
     },
     hook::{HookEnv, HookRegistry},
     memory::{Entry, PagedMemory},
+    profiler::Profiler,
     record::{ExecutionRecord, MemoryAccessRecord},
     report::ExecutionReport,
     state::{ExecutionState, ForkState},
@@ -97,12 +98,9 @@ pub struct Executor<'a> {
 
     /// A buffer for stdout and stderr IO.
     pub io_buf: HashMap<u32, String>,
-
-    /// A buffer for writing trace events to a file.
-    pub trace_buf: Option<BufWriter<File>>,
-
-    /// The sample rate for writing trace instructions.
-    pub sample_rate: u32,
+    
+    /// The ZKVM profiler. This is only available in debug mode.
+    pub profiler: Option<(Profiler, BufWriter<File>)>,
 
     /// The state of the runtime when in unconstrained mode.
     pub unconstrained_state: ForkState,
@@ -180,6 +178,41 @@ impl<'a> Executor<'a> {
     pub fn new(program: Program, opts: SP1CoreOpts) -> Self {
         Self::with_context(program, opts, SP1Context::default())
     }
+    
+    /// Crete a new runtime for the program, and setup the profiler if `TRACE_FILE` is set.
+    #[cfg(debug_assertions)]
+    #[must_use]
+    pub fn with_context_and_elf(
+        program: Program,
+        opts: SP1CoreOpts,
+        context: SP1Context<'a>,
+        elf_bytes: &[u8],
+    ) -> Self {
+        let mut this = Self::with_context(program, opts, context);
+
+        let trace_buf = std::env::var("TRACE_FILE").ok().map(|file| {
+            let file = File::create(file).unwrap();
+            BufWriter::new(file)
+        });
+
+        if let Some(trace_buf) = trace_buf {
+            println!("Profiling enabled");
+
+            let sample_rate = std::env::var("TRACE_SAMPLE_RATE")
+                .ok()
+                .and_then(|rate| {
+                    println!("Profiling sample rate: {rate}");
+                    rate.parse::<u64>().ok()
+                })
+                .unwrap_or(1);
+
+            this.profiler = Some(
+                (Profiler::new(elf_bytes, sample_rate).expect("Failed to create profiler"), trace_buf)
+            );
+        }
+
+        this
+    }
 
     /// Create a new runtime from a program, options, and a context.
     ///
@@ -193,20 +226,6 @@ impl<'a> Executor<'a> {
 
         // Create a default record with the program.
         let record = ExecutionRecord::new(program.clone());
-
-        // If `TRACE_FILE`` is set, initialize the trace buffer.
-        let (trace_buf, sample_rate) = match std::env::var("TRACE_FILE").ok() {
-            Some(file) => {
-                let file = File::create(file).unwrap();
-                let sample_rate = std::env::var("TRACE_SAMPLE_RATE")
-                    .unwrap_or_else(|_| "1".to_string())
-                    .parse::<u32>()
-                    .unwrap();
-
-                (Some(BufWriter::new(file)), sample_rate)
-            }
-            None => (None, 1),
-        };
 
         // Determine the maximum number of cycles for any syscall.
         let syscall_map = default_syscall_map();
@@ -227,8 +246,7 @@ impl<'a> Executor<'a> {
             shard_batch_size: opts.shard_batch_size as u32,
             cycle_tracker: HashMap::new(),
             io_buf: HashMap::new(),
-            trace_buf,
-            sample_rate,
+            profiler: None,
             unconstrained: false,
             unconstrained_state: ForkState::default(),
             syscall_map,
@@ -1459,6 +1477,15 @@ impl<'a> Executor<'a> {
         self.executor_mode = ExecutorMode::Simple;
         self.print_report = true;
         while !self.execute()? {}
+
+        #[cfg(debug_assertions)]
+        {
+            if let Some((profiler, writer)) = self.profiler.take() {
+                profiler.write(writer).expect("Failed to write profile to output file");
+            }
+        }
+
+        
         Ok(())
     }
 
@@ -1471,6 +1498,14 @@ impl<'a> Executor<'a> {
         self.executor_mode = ExecutorMode::Trace;
         self.print_report = true;
         while !self.execute()? {}
+        
+        #[cfg(debug_assertions)]
+        {
+            if let Some((profiler, writer)) = self.profiler.take() {
+                profiler.write(writer).expect("Failed to write profile to output file");
+            }
+        }
+
         Ok(())
     }
 
@@ -1569,11 +1604,6 @@ impl<'a> Executor<'a> {
             }
         }
 
-        // Flush trace buf
-        if let Some(ref mut buf) = self.trace_buf {
-            buf.flush().unwrap();
-        }
-
         // Ensure that all proofs and input bytes were read, otherwise warn the user.
         if self.state.proof_stream_ptr != self.state.proof_stream.len() {
             tracing::warn!(
@@ -1642,11 +1672,9 @@ impl<'a> Executor<'a> {
 
     #[inline]
     fn log(&mut self, _: &Instruction) {
-        // Write the current program counter to the trace buffer for the cycle tracer.
-        if let Some(ref mut buf) = self.trace_buf
-        {
-            if !self.unconstrained && self.state.global_clk as u32 % self.sample_rate == 0 {
-                buf.write_all(&u32::to_be_bytes(self.state.pc)).unwrap();
+        if let Some((ref mut profiler, _)) = self.profiler {
+            if !self.unconstrained {
+                profiler.record(self.state.pc.into());
             }
         }
 

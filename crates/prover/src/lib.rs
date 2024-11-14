@@ -275,7 +275,12 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         context.subproof_verifier.replace(Arc::new(self));
         let program = self.get_program(elf).unwrap();
         let opts = SP1CoreOpts::default();
-        let mut runtime = Executor::with_context(program, opts, context);
+        let mut runtime =  if cfg!(debug_assertions) {
+            Executor::with_context_and_elf(program, opts, context, elf)
+        } else {
+            Executor::with_context(program, opts, context)
+        }; 
+
         runtime.write_vecs(&stdin.buffer);
         for (proof, vkey) in stdin.proofs.iter() {
             runtime.write_proof(proof.clone(), vkey.clone());
