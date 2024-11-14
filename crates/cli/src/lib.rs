@@ -1,5 +1,4 @@
 pub mod commands;
-mod util;
 
 use anyhow::{Context, Result};
 use reqwest::Client;
