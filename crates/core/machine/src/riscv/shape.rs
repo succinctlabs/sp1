@@ -781,6 +781,37 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
                 (RiscvAir::<F>::MemoryGlobalInit(MemoryGlobalChip::new(Initialize)), vec![Some(8)]),
                 (RiscvAir::<F>::MemoryGlobalFinal(MemoryGlobalChip::new(Finalize)), vec![Some(15)]),
             ]),
+            HashMap::from([
+                (RiscvAir::<F>::Cpu(CpuChip::default()), vec![Some(20)]),
+                (RiscvAir::<F>::Add(AddSubChip::default()), vec![Some(20)]),
+                (RiscvAir::<F>::Bitwise(BitwiseChip::default()), vec![Some(11)]),
+                (RiscvAir::<F>::Mul(MulChip::default()), vec![Some(4)]),
+                (RiscvAir::<F>::ShiftRight(ShiftRightChip::default()), vec![Some(11)]),
+                (RiscvAir::<F>::ShiftLeft(ShiftLeft::default()), vec![Some(10)]),
+                (RiscvAir::<F>::Lt(LtChip::default()), vec![Some(19)]),
+                (RiscvAir::<F>::MemoryLocal(MemoryLocalChip::new()), vec![Some(6)]),
+                (RiscvAir::<F>::SyscallCore(SyscallChip::core()), vec![None]),
+                (RiscvAir::<F>::DivRem(DivRemChip::default()), vec![None]),
+                (RiscvAir::<F>::MemoryGlobalInit(MemoryGlobalChip::new(Initialize)), vec![Some(8)]),
+                (RiscvAir::<F>::MemoryGlobalFinal(MemoryGlobalChip::new(Finalize)), vec![Some(15)]),
+            ]),
+            HashMap::from([
+                (RiscvAir::<F>::Cpu(CpuChip::default()), vec![Some(21)]),
+                (RiscvAir::<F>::Add(AddSubChip::default()), vec![Some(21)]),
+                (RiscvAir::<F>::Bitwise(BitwiseChip::default()), vec![Some(19)]),
+                (RiscvAir::<F>::Mul(MulChip::default()), vec![Some(19)]),
+                (RiscvAir::<F>::ShiftRight(ShiftRightChip::default()), vec![Some(19)]),
+                (RiscvAir::<F>::ShiftLeft(ShiftLeft::default()), vec![Some(19)]),
+                (RiscvAir::<F>::Lt(LtChip::default()), vec![Some(20)]),
+                (RiscvAir::<F>::MemoryLocal(MemoryLocalChip::new()), vec![Some(19)]),
+                (RiscvAir::<F>::SyscallCore(SyscallChip::core()), vec![None]),
+                (RiscvAir::<F>::DivRem(DivRemChip::default()), vec![None]),
+                (
+                    RiscvAir::<F>::MemoryGlobalInit(MemoryGlobalChip::new(Initialize)),
+                    vec![Some(19)],
+                ),
+                (RiscvAir::<F>::MemoryGlobalFinal(MemoryGlobalChip::new(Finalize)), vec![Some(19)]),
+            ]),
         ];
 
         Self {
