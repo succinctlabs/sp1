@@ -89,7 +89,7 @@ impl ProverClient {
                 let rpc_url = env::var("PROVER_NETWORK_RPC").ok();
                 let skip_simulation =
                     env::var("SKIP_SIMULATION").map(|val| val == "true").unwrap_or_default();
- 
+
                 cfg_if! {
                     if #[cfg(feature = "network-v2")] {
                         Self {
@@ -276,7 +276,6 @@ impl Default for ProverClient {
         Self::new()
     }
 }
-
 
 /// Builder type for [`ProverClient`] with the network prover.
 #[derive(Debug, Default)]
