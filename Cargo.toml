@@ -143,6 +143,8 @@ hashbrown = "0.14.5"
 itertools = "0.13.0"
 serde = "1.0.215"
 serde_json = "1.0.132"
+tracing = "0.1.40"
+tracing-subscriber = "0.3.18"
 thiserror = "2.0.3"
 
 [workspace.metadata.typos]

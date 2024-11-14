@@ -34,7 +34,7 @@ sp1-recursion-gnark-ffi = { workspace = true }
 itertools = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 rand = "0.8.5"
-tracing = "0.1.40"
+tracing = { workspace = true }
 hashbrown = { workspace = true, features = ["serde", "inline-more"] }
 num-traits = "0.2.19"
 rayon = "1.10.0"

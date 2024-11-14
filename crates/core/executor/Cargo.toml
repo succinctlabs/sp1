@@ -32,7 +32,7 @@ num = { version = "0.4.3" }
 typenum = "1.17.0"
 nohash-hasher = "0.2.0"
 thiserror = { workspace = true }
-tracing = "0.1.40"
+tracing = { workspace = true }
 strum_macros = "0.26.4"
 strum = { version = "0.26.3", features = ["derive"] }
 log = "0.4.22"

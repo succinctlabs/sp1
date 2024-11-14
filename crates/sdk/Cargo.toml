@@ -31,7 +31,7 @@ p3-field = { workspace = true }
 p3-baby-bear = { workspace = true }
 p3-fri = { workspace = true }
 indicatif = "0.17.8"
-tracing = "0.1.40"
+tracing = { workspace = true }
 hex = "0.4.3"
 log = "0.4.22"
 dirs = "5.0.1"
