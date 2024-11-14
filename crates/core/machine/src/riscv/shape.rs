@@ -802,6 +802,20 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
                 ),
                 (RiscvAir::<F>::MemoryGlobalFinal(MemoryGlobalChip::new(Finalize)), vec![Some(19)]),
             ]),
+            HashMap::from([
+                (RiscvAir::<F>::Cpu(CpuChip::default()), vec![Some(15)]),
+                (RiscvAir::<F>::Add(AddSubChip::default()), vec![Some(14)]),
+                (RiscvAir::<F>::Bitwise(BitwiseChip::default()), vec![Some(11)]),
+                (RiscvAir::<F>::Mul(MulChip::default()), vec![Some(12)]),
+                (RiscvAir::<F>::ShiftRight(ShiftRightChip::default()), vec![Some(12)]),
+                (RiscvAir::<F>::ShiftLeft(ShiftLeft::default()), vec![Some(10)]),
+                (RiscvAir::<F>::Lt(LtChip::default()), vec![Some(12)]),
+                (RiscvAir::<F>::MemoryLocal(MemoryLocalChip::new()), vec![Some(7)]),
+                (RiscvAir::<F>::SyscallCore(SyscallChip::core()), vec![None]),
+                (RiscvAir::<F>::DivRem(DivRemChip::default()), vec![None]),
+                (RiscvAir::<F>::MemoryGlobalInit(MemoryGlobalChip::new(Initialize)), vec![Some(8)]),
+                (RiscvAir::<F>::MemoryGlobalFinal(MemoryGlobalChip::new(Finalize)), vec![Some(15)]),
+            ]),
         ];
 
         Self {
