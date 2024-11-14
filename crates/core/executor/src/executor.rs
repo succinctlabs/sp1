@@ -1,5 +1,4 @@
-use std::{fs::File, io::BufWriter, sync::Arc};
-
+use std::sync::Arc;
 use hashbrown::HashMap;
 use serde::{Deserialize, Serialize};
 use sp1_stark::SP1CoreOpts;
@@ -24,6 +23,9 @@ use crate::{
 
 #[cfg(debug_assertions)]
 use crate::profiler::Profiler;
+
+#[cfg(debug_assertions)]
+use std::{fs::File, io::BufWriter};
 
 /// An executor for the SP1 RISC-V zkVM.
 ///
@@ -246,6 +248,7 @@ impl<'a> Executor<'a> {
             shard_batch_size: opts.shard_batch_size as u32,
             cycle_tracker: HashMap::new(),
             io_buf: HashMap::new(),
+            #[cfg(debug_assertions)]
             profiler: None,
             unconstrained: false,
             unconstrained_state: ForkState::default(),
@@ -1670,6 +1673,7 @@ impl<'a> Executor<'a> {
     }
 
     #[inline]
+    #[cfg(debug_assertions)]
     fn log(&mut self, _: &Instruction) {
         if let Some((ref mut profiler, _)) = self.profiler {
             if !self.unconstrained {

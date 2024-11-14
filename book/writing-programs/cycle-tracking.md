@@ -56,69 +56,38 @@ fn main() {
 
 This will log the cycle count for `block name` and include it in the `ExecutionReport` in the `cycle_tracker` map.
 
-## Tracking Cycles with Tracing
+# Profiling the ZKVM 
 
-The `cycle-tracker` annotation is a convenient way to track cycles for specific sections of code. However, sometimes it can also be useful to track what functions are taking the most cycles across the entire program, without having to annotate every function individually.
+Profiling the ZKVM can only be done with debug assertions enabled, and special care must be taken to ensure correctness, only one program may be profiled at a time.
 
-First, we need to generate a trace file of the program counter at each cycle while the program is executing. This can be done by simply setting the `TRACE_FILE` environment variable with the path of the file you want to write the trace to. For example, you can run the following command in the `script` directory for any example program:
-
-```bash
-TRACE_FILE=trace.log RUST_LOG=info cargo run --release
+To profile a program, you have to setup a script to execute the program, many examples can be found in the repo, such as this ('fibonacci')[../../examples/fibonacci/script/src/main.rs] script.
+Once you have your script it should contain the following code:
+```rs 
+    // Execute the program using the `ProverClient.execute` method, without generating a proof.
+    let (_, report) = client.execute(ELF, stdin.clone()).run().unwrap();
 ```
 
-When the `TRACE_FILE` environment variable is set, as SP1's RISC-V runtime is executing, it will write a log of the program counter to the file specified by `TRACE_FILE`.
+The data captured by the profiler can be quite large, you can set the sample rate using the `TRACE_SAMPLE_RATE` env var.
+To enable profiling, set the `TRACE_FILE` env var to the path where you want the profile to be saved.
 
-Next, we can use the `cargo prove` CLI with the `trace` command to analyze the trace file and generate a table of instruction counts. This can be done with the following command:
-
-```bash
-cargo prove trace --elf <path_to_program_elf> --trace <path_to_trace_file>
+The full command to profile should look something like this
+```sh
+    TRACE_FILE=output.json TRACE_SAMPLE_RATE=100 cargo run ...
 ```
 
-The `trace` command will generate a table of instruction counts, sorted by the number of cycles spent in each function. The output will look something like this:
-
+To view these profiles, we recommend (Samply)[https://github.com/mstange/samply].
+```sh
+    cargo install --locked samply
+    samply load output.json
 ```
-  [00:00:00] [########################################] 17053/17053 (0s)
 
-Total instructions in trace: 17053
-
-
- Instruction counts considering call graph
-+----------------------------------------+-------------------+
-| Function Name                          | Instruction Count |
-| __start                                | 17045             |
-| main                                   | 12492             |
-| sp1_zkvm::syscalls::halt::syscall_halt | 4445              |
-| sha2::sha256::compress256              | 4072              |
-| sp1_lib::io::commit                    | 258               |
-| sp1_lib::io::SyscallWriter::write      | 255               |
-| syscall_write                          | 195               |
-| memcpy                                 | 176               |
-| memset                                 | 109               |
-| sp1_lib::io::read_vec                  | 71                |
-| __rust_alloc                           | 29                |
-| sp1_zkvm::heap::SimpleAlloc::alloc     | 22                |
-| syscall_hint_len                       | 3                 |
-| syscall_hint_read                      | 2                 |
-+----------------------------------------+-------------------+
-
-
- Instruction counts ignoring call graph
-+----------------------------------------+-------------------+
-| Function Name                          | Instruction Count |
-| main                                   | 12075             |
-| sha2::sha256::compress256              | 4073              |
-| sp1_zkvm::syscalls::halt::syscall_halt | 219               |
-| memcpy                                 | 180               |
-| syscall_write                          | 123               |
-| memset                                 | 111               |
-| sp1_lib::io::commit                    | 88                |
-| sp1_lib::io::SyscallWriter::write      | 60                |
-| __start                                | 45                |
-| sp1_lib::io::read_vec                  | 35                |
-| sp1_zkvm::heap::SimpleAlloc::alloc     | 23                |
-| anonymous                              | 7                 |
-| __rust_alloc                           | 7                 |
-| syscall_hint_len                       | 4                 |
-| syscall_hint_read                      | 3                 |
-+----------------------------------------+-------------------+
+To profile in release mode you can use the following setup in your `Cargo.toml`
+```toml
+    [profile.zkvm-profiling]
+    inherits = "release"
+    debug-assertions = true
 ```
+
+and then you can do:
+
+`cargo run --profile zkvm-profiling --bin your_program`
