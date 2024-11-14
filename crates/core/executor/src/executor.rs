@@ -197,7 +197,7 @@ impl<'a> Executor<'a> {
                 .ok()
                 .and_then(|rate| {
                     println!("Profiling sample rate: {rate}");
-                    rate.parse::<u64>().ok()
+                    rate.parse::<u32>().ok()
                 })
                 .unwrap_or(1);
 
@@ -1662,7 +1662,7 @@ impl<'a> Executor<'a> {
     fn log(&mut self, _: &Instruction) {
         if let Some((ref mut profiler, _)) = self.profiler {
             if !self.unconstrained {
-                profiler.record(self.state.pc.into());
+                profiler.record(self.state.clk, self.state.pc as u64);
             }
         }
 
