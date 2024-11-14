@@ -1,4 +1,4 @@
-use std::{env, time::Duration};
+use std::time::Duration;
 
 use alloy_signer::SignerSync;
 use alloy_signer_local::PrivateKeySigner;
@@ -31,11 +31,12 @@ pub const DEFAULT_PROVER_NETWORK_RPC: &str = "https://rpc.production.succinct.to
 pub struct NetworkClient {
     signer: PrivateKeySigner,
     http: HttpClientWithMiddleware,
+    rpc_url: String,
 }
 
 impl NetworkClient {
     /// Create a new network client with the given private key.
-    pub fn new(private_key: &str) -> Self {
+    pub fn new(private_key: &str, rpc_url: Option<String>) -> Self {
         let signer = PrivateKeySigner::from_str(private_key).unwrap();
 
         let http_client = reqwest::Client::builder()
@@ -44,17 +45,21 @@ impl NetworkClient {
             .build()
             .unwrap();
 
-        Self { signer, http: http_client.into() }
+        Self {
+            signer,
+            http: http_client.into(),
+            rpc_url: rpc_url.unwrap_or_else(|| DEFAULT_PROVER_NETWORK_RPC.to_string()),
+        }
     }
 
     /// Returns the currently configured RPC endpoint for the Succinct prover network.
-    pub fn rpc_url() -> String {
-        env::var("PROVER_NETWORK_RPC").unwrap_or_else(|_| DEFAULT_PROVER_NETWORK_RPC.to_string())
+    pub fn rpc_url(&self) -> String {
+        self.rpc_url.clone()
     }
 
     /// Get a connected RPC client.
     async fn get_rpc(&self) -> Result<ProverNetworkClient<Channel>> {
-        let rpc_url = Self::rpc_url();
+        let rpc_url = self.rpc_url();
         let mut endpoint = Channel::from_shared(rpc_url.clone())?;
 
         // Check if the URL scheme is HTTPS and configure TLS.
@@ -69,7 +74,7 @@ impl NetworkClient {
 
     /// Get a connected artifact store client.
     async fn get_store(&self) -> Result<ArtifactStoreClient<Channel>> {
-        let rpc_url = Self::rpc_url();
+        let rpc_url = self.rpc_url();
         let mut endpoint = Channel::from_shared(rpc_url.clone())?;
 
         // Check if the URL scheme is HTTPS and configure TLS.

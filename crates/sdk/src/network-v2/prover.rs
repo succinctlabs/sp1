@@ -1,7 +1,4 @@
-use std::{
-    env,
-    time::{Duration, Instant},
-};
+use std::time::{Duration, Instant};
 
 use crate::{
     network_v2::client::NetworkClient,
@@ -30,23 +27,17 @@ const DEFAULT_CYCLE_LIMIT: u64 = 100_000_000;
 pub struct NetworkProver {
     client: NetworkClient,
     local_prover: CpuProver,
+    skip_simulation: bool,
 }
 
 impl NetworkProver {
-    /// Creates a new [NetworkProver] with the private key set in `SP1_PRIVATE_KEY`.
-    pub fn new() -> Self {
-        let private_key = env::var("SP1_PRIVATE_KEY")
-            .unwrap_or_else(|_| panic!("SP1_PRIVATE_KEY must be set for remote proving"));
-        Self::new_from_key(&private_key)
-    }
-
     /// Creates a new [NetworkProver] with the given private key.
-    pub fn new_from_key(private_key: &str) -> Self {
+    pub fn new(private_key: &str, rpc_url: Option<String>, skip_simulation: bool) -> Self {
         let version = SP1_CIRCUIT_VERSION;
         log::info!("Client circuit version: {}", version);
         let local_prover = CpuProver::new();
-        let client = NetworkClient::new(private_key);
-        Self { client, local_prover }
+        let client = NetworkClient::new(private_key, rpc_url);
+        Self { client, local_prover, skip_simulation }
     }
 
     /// Requests a proof from the prover network, returning the request ID.
@@ -58,8 +49,7 @@ impl NetworkProver {
         timeout: Option<Duration>,
     ) -> Result<Vec<u8>> {
         // Simulate and get the cycle limit.
-        let skip_simulation = env::var("SKIP_SIMULATION").map(|val| val == "true").unwrap_or(false);
-        let cycle_limit = if !skip_simulation {
+        let cycle_limit = if !self.skip_simulation {
             let (_, report) =
                 self.local_prover.sp1_prover().execute(elf, &stdin, Default::default())?;
             let cycles = report.total_instruction_count();
@@ -228,12 +218,6 @@ impl Prover<DefaultProverComponents> for NetworkProver {
     ) -> Result<SP1ProofWithPublicValues> {
         warn_if_not_default(&opts.sp1_prover_opts, &context);
         block_on(self.prove(&pk.elf, stdin, kind.into(), opts.timeout))
-    }
-}
-
-impl Default for NetworkProver {
-    fn default() -> Self {
-        Self::new()
     }
 }
 

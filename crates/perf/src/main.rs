@@ -1,4 +1,7 @@
-use std::time::{Duration, Instant};
+use std::{
+    env,
+    time::{Duration, Instant},
+};
 
 use clap::{command, Parser, ValueEnum};
 use sp1_core_executor::programs::tests::VERIFY_PROOF_ELF;
@@ -180,7 +183,23 @@ fn main() {
             println!("{:?}", result);
         }
         ProverMode::Network => {
-            let prover = ProverClient::network();
+            let private_key = env::var("SP1_PRIVATE_KEY")
+                .expect("SP1_PRIVATE_KEY must be set for remote proving");
+            let rpc_url = env::var("PROVER_NETWORK_RPC").ok();
+            let skip_simulation =
+                env::var("SKIP_SIMULATION").map(|val| val == "true").unwrap_or_default();
+
+            let mut prover_builder = ProverClient::network();
+
+            if let Some(rpc_url) = rpc_url {
+                prover_builder = prover_builder.with_rpc_url(rpc_url);
+            }
+
+            if skip_simulation {
+                prover_builder = prover_builder.without_simulation();
+            }
+
+            let prover = prover_builder.build_with_private_key(&private_key);
             let (_, _) = time_operation(|| prover.execute(&elf, stdin.clone()));
 
             let (proof, _) =

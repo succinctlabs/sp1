@@ -1,4 +1,4 @@
-use std::{env, time::Duration};
+use std::time::Duration;
 
 use crate::{
     network::{
@@ -40,16 +40,12 @@ pub struct NetworkClient {
     pub rpc: TwirpClient,
     pub http: HttpClientWithMiddleware,
     pub auth: NetworkAuth,
+    pub is_using_prover_network: bool,
 }
 
 impl NetworkClient {
-    /// Returns the currently configured RPC endpoint for the Succinct prover network.
-    pub fn rpc_url() -> String {
-        env::var("PROVER_NETWORK_RPC").unwrap_or_else(|_| DEFAULT_PROVER_NETWORK_RPC.to_string())
-    }
-
     /// Create a new NetworkClient with the given private key for authentication.
-    pub fn new(private_key: &str) -> Self {
+    pub fn new(private_key: &str, rpc_url: Option<String>) -> Self {
         let auth = NetworkAuth::new(private_key);
 
         let twirp_http_client = HttpClient::builder()
@@ -59,7 +55,7 @@ impl NetworkClient {
             .build()
             .unwrap();
 
-        let rpc_url = Self::rpc_url();
+        let rpc_url = rpc_url.unwrap_or_else(|| DEFAULT_PROVER_NETWORK_RPC.to_string());
         let rpc =
             TwirpClient::new(Url::parse(&rpc_url).unwrap(), twirp_http_client, vec![]).unwrap();
 
@@ -70,7 +66,12 @@ impl NetworkClient {
             .build()
             .unwrap();
 
-        Self { auth, rpc, http: http_client.into() }
+        Self {
+            auth,
+            rpc,
+            http: http_client.into(),
+            is_using_prover_network: rpc_url == DEFAULT_PROVER_NETWORK_RPC,
+        }
     }
 
     /// Gets the latest nonce for this auth's account.

@@ -13,6 +13,8 @@ pub mod network;
 #[cfg(feature = "network-v2")]
 #[path = "network-v2/mod.rs"]
 pub mod network_v2;
+use std::env;
+
 #[cfg(feature = "network")]
 pub use crate::network::prover::NetworkProver as NetworkProverV1;
 #[cfg(feature = "network-v2")]
@@ -30,8 +32,6 @@ use cfg_if::cfg_if;
 pub use proof::*;
 pub use provers::SP1VerificationError;
 use sp1_prover::components::DefaultProverComponents;
-
-use std::env;
 
 #[cfg(any(feature = "network", feature = "network-v2"))]
 use {std::future::Future, tokio::task::block_in_place};
@@ -84,14 +84,20 @@ impl ProverClient {
                 }
             }
             "network" => {
+                let private_key = env::var("SP1_PRIVATE_KEY")
+                    .expect("SP1_PRIVATE_KEY must be set for remote proving");
+                let rpc_url = env::var("PROVER_NETWORK_RPC").ok();
+                let skip_simulation =
+                    env::var("SKIP_SIMULATION").map(|val| val == "true").unwrap_or_default();
+ 
                 cfg_if! {
                     if #[cfg(feature = "network-v2")] {
                         Self {
-                            prover: Box::new(NetworkProverV2::new()),
+                            prover: Box::new(NetworkProverV2::new(&private_key, rpc_url, skip_simulation)),
                         }
                     } else if #[cfg(feature = "network")] {
                         Self {
-                            prover: Box::new(NetworkProverV1::new()),
+                            prover: Box::new(NetworkProverV1::new(&private_key, rpc_url, skip_simulation)),
                         }
                     } else {
                         panic!("network feature is not enabled")
@@ -136,7 +142,8 @@ impl ProverClient {
         Self { prover: Box::new(CpuProver::new()) }
     }
 
-    /// Creates a new [ProverClient] with the network prover.
+    /// Returns a [NetworkProverClientBuilder] that can be used to build a new [ProverClient] with
+    /// the network prover.
     ///
     /// Recommended for outsourcing proof generation to an RPC. You can also use [ProverClient::new]
     /// to set the prover to `network` with the `SP1_PROVER` environment variable.
@@ -148,20 +155,8 @@ impl ProverClient {
     ///
     /// let client = ProverClient::network();
     /// ```
-    pub fn network() -> Self {
-        cfg_if! {
-            if #[cfg(feature = "network-v2")] {
-                Self {
-                    prover: Box::new(NetworkProverV2::new()),
-                }
-            } else if #[cfg(feature = "network")] {
-                Self {
-                    prover: Box::new(NetworkProverV1::new()),
-                }
-            } else {
-                panic!("network feature is not enabled")
-            }
-        }
+    pub fn network() -> NetworkProverClientBuilder {
+        NetworkProverClientBuilder::default()
     }
 
     /// Prepare to execute the given program on the given input (without generating a proof).
@@ -279,6 +274,47 @@ impl ProverClient {
 impl Default for ProverClient {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+
+/// Builder type for [`ProverClient`] with the network prover.
+#[derive(Debug, Default)]
+pub struct NetworkProverClientBuilder {
+    rpc_url: Option<String>,
+    skip_simulation: bool,
+}
+
+impl NetworkProverClientBuilder {
+    /// Sets the RPC URL.
+    pub fn with_rpc_url(mut self, rpc_url: String) -> Self {
+        self.rpc_url = Some(rpc_url);
+
+        self
+    }
+
+    /// Skips simulation.
+    pub fn without_simulation(mut self) -> Self {
+        self.skip_simulation = true;
+
+        self
+    }
+
+    /// Builds a [ProverClient], using the provided private key.
+    pub fn build_with_private_key(self, private_key: &str) -> ProverClient {
+        cfg_if! {
+            if #[cfg(feature = "network-v2")] {
+                ProverClient {
+                    prover: Box::new(NetworkProverV2::new(private_key, self.rpc_url, self.skip_simulation)),
+                }
+            } else if #[cfg(feature = "network")] {
+                ProverClient {
+                    prover: Box::new(NetworkProverV1::new(private_key, self.rpc_url, self.skip_simulation)),
+                }
+            } else {
+                panic!("network feature is not enabled")
+            }
+        }
     }
 }
 
