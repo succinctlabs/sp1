@@ -4999,7 +4999,7 @@ dependencies = [
 [[package]]
 name = "rsa"
 version = "0.9.6"
-source = "git+https://github.com/sp1-patches/RustCrypto-RSA?branch=umadayal/patch-rsa-v0.9.6#0a522bd7f9d9772b943d222c83e25a13a0e230aa"
+source = "git+https://github.com/sp1-patches/RustCrypto-RSA?branch=patch-rsa-v0.9.6#7ad3ca72fb9055e1d9f07bc1c99fcec6806ffea6"
 dependencies = [
  "bytemuck",
  "cfg-if",
@@ -5837,7 +5837,7 @@ dependencies = [
 [[package]]
 name = "sp1-lib"
 version = "3.0.0"
-source = "git+https://github.com/succinctlabs/sp1.git?branch=dev#0c08cafd4adeb0d246b21411d8422611b3861337"
+source = "git+https://github.com/succinctlabs/sp1.git?branch=dev#588286b6c7ecc6c2aa8a668951c64b47dece8b67"
 dependencies = [
  "bincode",
  "serde",
