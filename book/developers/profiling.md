@@ -17,7 +17,7 @@ The full command to profile should look something like this
     TRACE_FILE=output.json TRACE_SAMPLE_RATE=100 cargo run ...
 ```
 
-To view these profiles, we reccomened Samply.
+To view these profiles, we reccomend Samply.
 ```sh
     cargo install --locked samply
     samply load output.json

@@ -1879,7 +1879,7 @@ version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bef552e6f588e446098f6ba40d89ac146c8c7b64aade83c051ee00bb5d2bc18d"
 dependencies = [
- "uuid 1.11.0",
+ "uuid",
 ]
 
 [[package]]
@@ -5549,7 +5549,6 @@ dependencies = [
  "clap",
  "ctrlc",
  "dirs",
- "gecko_profile",
  "goblin",
  "hex",
  "indicatif",
@@ -5578,8 +5577,11 @@ dependencies = [
  "elf",
  "enum-map",
  "eyre",
+ "gecko_profile",
+ "goblin",
  "hashbrown 0.14.5",
  "hex",
+ "indicatif",
  "itertools 0.13.0",
  "log",
  "nohash-hasher",
@@ -5588,7 +5590,9 @@ dependencies = [
  "p3-maybe-rayon",
  "rand 0.8.5",
  "rrs-succinct",
+ "rustc-demangle",
  "serde",
+ "serde_json",
  "sp1-curves",
  "sp1-primitives",
  "sp1-stark",
@@ -7039,6 +7043,12 @@ name = "utf8parse"
 version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "06abde3611657adf66d383f00b093d7faecc7fa57071cce2578660c9f1010821"
+
+[[package]]
+name = "uuid"
+version = "1.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f8c5f0a0af699448548ad1a2fbf920fb4bee257eae39953ba95cb84891a0446a"
 
 [[package]]
 name = "valuable"

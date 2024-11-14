@@ -1,8 +1,4 @@
-use std::{
-    fs::File,
-    io::BufWriter,
-    sync::Arc,
-};
+use std::{fs::File, io::BufWriter, sync::Arc};
 
 use hashbrown::HashMap;
 use serde::{Deserialize, Serialize};
@@ -98,7 +94,7 @@ pub struct Executor<'a> {
 
     /// A buffer for stdout and stderr IO.
     pub io_buf: HashMap<u32, String>,
-    
+
     /// The ZKVM profiler. This is only available in debug mode.
     pub profiler: Option<(Profiler, BufWriter<File>)>,
 
@@ -178,7 +174,7 @@ impl<'a> Executor<'a> {
     pub fn new(program: Program, opts: SP1CoreOpts) -> Self {
         Self::with_context(program, opts, SP1Context::default())
     }
-    
+
     /// Crete a new runtime for the program, and setup the profiler if `TRACE_FILE` is set.
     #[cfg(debug_assertions)]
     #[must_use]
@@ -206,9 +202,10 @@ impl<'a> Executor<'a> {
                 })
                 .unwrap_or(1);
 
-            this.profiler = Some(
-                (Profiler::new(elf_bytes, sample_rate).expect("Failed to create profiler"), trace_buf)
-            );
+            this.profiler = Some((
+                Profiler::new(elf_bytes, sample_rate).expect("Failed to create profiler"),
+                trace_buf,
+            ));
         }
 
         this
@@ -1485,7 +1482,6 @@ impl<'a> Executor<'a> {
             }
         }
 
-        
         Ok(())
     }
 
@@ -1498,7 +1494,7 @@ impl<'a> Executor<'a> {
         self.executor_mode = ExecutorMode::Trace;
         self.print_report = true;
         while !self.execute()? {}
-        
+
         #[cfg(debug_assertions)]
         {
             if let Some((profiler, writer)) = self.profiler.take() {
