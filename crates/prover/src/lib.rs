@@ -99,7 +99,7 @@ pub type InnerSC = BabyBearPoseidon2;
 /// The configuration for the outer prover.
 pub type OuterSC = BabyBearPoseidon2Outer;
 
-type DeviceProvingKey<C> = <<C as SP1ProverComponents>::CoreProver as MachineProver<
+pub type DeviceProvingKey<C> = <<C as SP1ProverComponents>::CoreProver as MachineProver<
     BabyBearPoseidon2,
     RiscvAir<BabyBear>,
 >>::DeviceProvingKey;
