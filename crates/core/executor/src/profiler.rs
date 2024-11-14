@@ -19,7 +19,7 @@ pub enum ProfilerError {
 /// During exeuction, the profiler always keeps track of the callstack
 /// and will occasionally save the stack according to the sample rate.
 pub struct Profiler {
-    sample_rate: u32,
+    sample_rate: u64,
     /// `start_address`-> index in `function_ranges`
     start_lookup: HashMap<u64, usize>,
     /// the start and end of the function
@@ -44,7 +44,7 @@ struct Sample {
 }
 
 impl Profiler {
-    pub(super) fn new(elf_bytes: &[u8], sample_rate: u32) -> Result<Self, ProfilerError> {
+    pub(super) fn new(elf_bytes: &[u8], sample_rate: u64) -> Result<Self, ProfilerError> {
         let elf = Elf::parse(elf_bytes)?;
 
         let mut start_lookup = HashMap::new();
@@ -91,7 +91,7 @@ impl Profiler {
         })
     }
 
-    pub(super) fn record(&mut self, clk: u32, pc: u64) {
+    pub(super) fn record(&mut self, clk: u64, pc: u64) {
         // We are still in the current function.
         if pc > self.current_function_range.0 && pc <= self.current_function_range.1 {
             if clk % self.sample_rate == 0 {
@@ -181,10 +181,10 @@ impl Profiler {
                 sample.stack.into_iter(),
                 // We don't have a way to know the duration of each sample, so we just use 1us for
                 // all instructions
-                std::time::Duration::from_micros(self.sample_rate as u64),
+                std::time::Duration::from_micros(self.sample_rate),
             );
 
-            last_known_time += std::time::Duration::from_micros(self.sample_rate as u64);
+            last_known_time += std::time::Duration::from_micros(self.sample_rate);
         }
 
         profile_builder.add_thread(self.builder);

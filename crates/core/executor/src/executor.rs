@@ -202,7 +202,7 @@ impl<'a> Executor<'a> {
                 .unwrap_or(1);
 
             this.profiler = Some((
-                Profiler::new(elf_bytes, sample_rate).expect("Failed to create profiler"),
+                Profiler::new(elf_bytes, sample_rate as u64).expect("Failed to create profiler"),
                 trace_buf,
             ));
         }
@@ -1662,7 +1662,7 @@ impl<'a> Executor<'a> {
     fn log(&mut self, _: &Instruction) {
         if let Some((ref mut profiler, _)) = self.profiler {
             if !self.unconstrained {
-                profiler.record(self.state.clk, self.state.pc as u64);
+                profiler.record(self.state.global_clk, self.state.pc as u64);
             }
         }
 
