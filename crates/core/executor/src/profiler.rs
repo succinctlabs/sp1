@@ -1,4 +1,4 @@
-use gecko_profile::{Frame, ProfileBuilder, ThreadBuilder};
+use gecko_profile::{Frame, ProfileBuilder, StringIndex, ThreadBuilder};
 use goblin::elf::{sym::STT_FUNC, Elf};
 use indicatif::{ProgressBar, ProgressStyle};
 use rustc_demangle::demangle;
@@ -18,18 +18,20 @@ pub enum ProfilerError {
 pub struct Profiler {
     sample_rate: u64,
     start_lookup: HashMap<u64, usize>,
-    function_ranges: Vec<(u64, u64, Arc<str>)>,
+    function_ranges: Vec<(u64, u64, Frame)>,
 
-    function_stack: Vec<Arc<str>>,
+    function_stack: Vec<Frame>,
     function_stack_indices: Vec<usize>,
     function_stack_ranges: Vec<(u64, u64)>,
     current_function_range: (u64, u64),
 
+    main_idx: Option<StringIndex>,
+    builder: ThreadBuilder,
     samples: Vec<Sample>,
 }
 
 struct Sample {
-    stack: Vec<Arc<str>>,
+    stack: Vec<Frame>,
 }
 
 impl Profiler {
@@ -38,7 +40,9 @@ impl Profiler {
 
         let mut start_lookup = HashMap::new();
         let mut function_ranges = Vec::new();
+        let mut builder = ThreadBuilder::new(1, 0, std::time::Instant::now(), false, false);
 
+        let mut main_idx = None;
         for sym in &elf.syms {
             if sym.st_type() == STT_FUNC {
                 let name = elf.strtab.get_at(sym.st_name).unwrap_or("");
@@ -46,15 +50,22 @@ impl Profiler {
                 let size = sym.st_size;
                 let start_address = sym.st_value;
                 let end_address = start_address + size - 4;
-                let demangled: Arc<str> = demangled_name.to_string().into();
 
-                let index = function_ranges.len();
-                function_ranges.push((start_address, end_address, demangled));
-                start_lookup.insert(start_address, index);
+                let demangled_name = demangled_name.to_string();
+                let string_idx = builder.intern_string(&demangled_name);
+                if main_idx.is_none() && demangled_name == "main" {
+                    main_idx = Some(string_idx);
+                }
+
+                let start_idx = function_ranges.len();
+                function_ranges.push((start_address, end_address, Frame::Label(string_idx)));
+                start_lookup.insert(start_address, start_idx);
             }
         }
 
         Ok(Self {
+            builder,
+            main_idx,
             sample_rate,
             samples: Vec::new(),
             start_lookup,
@@ -145,19 +156,13 @@ impl Profiler {
 
         pb.set_message("Creating profile");
 
-        let mut thread_builder = ThreadBuilder::new(1, 0, start_time, false, false);
-
         let mut last_known_time = std::time::Instant::now();
         for sample in self.samples.drain(..) {
             pb.inc(1);
-            let mut frames = Vec::new();
-            for frame in sample.stack {
-                frames.push(Frame::Label(thread_builder.intern_string(&frame)));
-            }
 
-            thread_builder.add_sample(
+            self.builder.add_sample(
                 last_known_time,
-                frames.into_iter(),
+                sample.stack.into_iter(),
                 // We don't have a way to know the duration of each sample, so we just use 1us for
                 // all instructions
                 std::time::Duration::from_micros(self.sample_rate),
@@ -166,9 +171,9 @@ impl Profiler {
             last_known_time += std::time::Duration::from_micros(self.sample_rate);
         }
 
-        pb.finish();
+        profile_builder.add_thread(self.builder);
 
-        profile_builder.add_thread(thread_builder);
+        pb.finish();
 
         println!("Writing profile, this can take awhile");
         serde_json::to_writer(writer, &profile_builder.to_serializable())?;
@@ -177,9 +182,27 @@ impl Profiler {
         Ok(())
     }
 
+    /// Simple Check to makes sure we have valid main function that lasts for most of the exeuction
+    /// time
     fn check_samples(&self) {
+        let Some(main_idx) = self.main_idx else {
+            eprintln!("Warning: The `main` function is not present in the Elf file, this is likely caused by using the wrong Elf file");
+            return;
+        };
+
         let main_count =
-            self.samples.iter().filter(|s| s.stack.iter().any(|f| &**f == "main")).count();
+            self.samples
+                .iter()
+                .filter(|s| {
+                    s.stack.iter().any(|f| {
+                        if let Frame::Label(idx) = f {
+                            *idx == main_idx
+                        } else {
+                            false
+                        }
+                    })
+                })
+                .count();
 
         #[allow(clippy::cast_precision_loss)]
         let main_ratio = main_count as f64 / self.samples.len() as f64;
