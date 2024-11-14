@@ -95,7 +95,7 @@ pub struct Executor<'a> {
     /// A buffer for stdout and stderr IO.
     pub io_buf: HashMap<u32, String>,
 
-    /// The ZKVM profiler. 
+    /// The ZKVM profiler.
     pub profiler: Option<(Profiler, BufWriter<File>)>,
 
     /// The state of the runtime when in unconstrained mode.

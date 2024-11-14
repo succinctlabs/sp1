@@ -24,7 +24,7 @@ pub struct Profiler {
     start_lookup: HashMap<u64, usize>,
     /// the start and end of the function
     function_ranges: Vec<(u64, u64, Frame)>,
-    
+
     /// the current known call stack
     function_stack: Vec<Frame>,
     /// useful for quick search as to not count recursive calls
@@ -50,19 +50,19 @@ impl Profiler {
         let mut start_lookup = HashMap::new();
         let mut function_ranges = Vec::new();
         let mut builder = ThreadBuilder::new(1, 0, std::time::Instant::now(), false, false);
-        
+
         // we need to extract all the functions from the elf file
         // and thier corresponding PC ranges.
         let mut main_idx = None;
         for sym in &elf.syms {
-            // check if its a function 
+            // check if its a function
             if sym.st_type() == STT_FUNC {
                 let name = elf.strtab.get_at(sym.st_name).unwrap_or("");
                 let demangled_name = demangle(name);
                 let size = sym.st_size;
                 let start_address = sym.st_value;
                 let end_address = start_address + size - 4;
-                
+
                 // now that we have the name lets immeidalty intern it so we only need to copy
                 // around a usize
                 let demangled_name = demangled_name.to_string();
