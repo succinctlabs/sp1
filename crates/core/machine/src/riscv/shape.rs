@@ -804,8 +804,8 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
                 (RiscvAir::<F>::ShiftLeft(ShiftLeft::default()), vec![Some(19)]),
                 (RiscvAir::<F>::Lt(LtChip::default()), vec![Some(20)]),
                 (RiscvAir::<F>::MemoryLocal(MemoryLocalChip::new()), vec![Some(19)]),
-                (RiscvAir::<F>::SyscallCore(SyscallChip::core()), vec![None]),
-                (RiscvAir::<F>::DivRem(DivRemChip::default()), vec![None]),
+                (RiscvAir::<F>::SyscallCore(SyscallChip::core()), vec![Some(19)]),
+                (RiscvAir::<F>::DivRem(DivRemChip::default()), vec![Some(21)]),
                 (
                     RiscvAir::<F>::MemoryGlobalInit(MemoryGlobalChip::new(Initialize)),
                     vec![Some(19)],
