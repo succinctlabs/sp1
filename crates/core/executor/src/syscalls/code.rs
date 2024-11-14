@@ -87,6 +87,9 @@ pub enum SyscallCode {
     /// Executes the `UINT256_MUL` precompile.
     UINT256_MUL = 0x00_01_01_1D,
 
+    /// Executes the `U256XU2048_MUL` precompile.
+    U256XU2048_MUL = 0x00_01_01_2F,
+
     /// Executes the `BLS12381_ADD` precompile.
     BLS12381_ADD = 0x00_01_01_1E,
 
@@ -166,6 +169,7 @@ impl SyscallCode {
             0x00_00_00_F0 => SyscallCode::HINT_LEN,
             0x00_00_00_F1 => SyscallCode::HINT_READ,
             0x00_01_01_1D => SyscallCode::UINT256_MUL,
+            0x00_01_01_2F => SyscallCode::U256XU2048_MUL,
             0x00_01_01_20 => SyscallCode::BLS12381_FP_ADD,
             0x00_01_01_21 => SyscallCode::BLS12381_FP_SUB,
             0x00_01_01_22 => SyscallCode::BLS12381_FP_MUL,

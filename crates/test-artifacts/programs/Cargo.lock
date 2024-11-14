@@ -404,7 +404,7 @@ dependencies = [
  "cfg-if",
  "digest 0.9.0",
  "rand_core",
- "sp1-lib 3.2.1",
+ "sp1-lib 3.2.0",
  "subtle-ng",
  "zeroize",
 ]
@@ -1883,9 +1883,9 @@ dependencies = [
 
 [[package]]
 name = "sp1-lib"
-version = "3.2.1"
+version = "3.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1c8744af050832df5ca44fcd63979a83b93ca3010b2d5a5ce2a2b91f7438065c"
+checksum = "c1aa18834c58df127706eb2fb2ea6e2892dbf0361d6b2485bf7b3fbd5f8b8c3c"
 dependencies = [
  "bincode",
  "serde",
@@ -2210,6 +2210,18 @@ name = "typenum"
 version = "1.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "42ff0bf0c66b8238c6f3b578df37d0b7848e55df8577b3f74f92a69acceeb825"
+
+[[package]]
+name = "u256x2048-mul"
+version = "1.0.0"
+dependencies = [
+ "bytemuck",
+ "num",
+ "num-bigint",
+ "rand",
+ "sp1-derive",
+ "sp1-zkvm",
+]
 
 [[package]]
 name = "uint256-arith-program"

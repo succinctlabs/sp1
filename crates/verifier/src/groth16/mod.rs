@@ -13,6 +13,9 @@ use crate::{decode_sp1_vkey_hash, error::Error, hash_public_inputs};
 use alloc::vec::Vec;
 use sha2::{Digest, Sha256};
 
+#[cfg(feature = "ark")]
+pub mod ark_converter;
+
 /// A verifier for Groth16 zero-knowledge proofs.
 #[derive(Debug)]
 pub struct Groth16Verifier;

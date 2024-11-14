@@ -418,7 +418,7 @@ jobs:
         runs-on,
         runner=64cpu-linux-x64,
         spot=false,
-        hdd=150,
+        hdd=80,
         "run-id=${{ github.run_id }}",
       ]    
     env:

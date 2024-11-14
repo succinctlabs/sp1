@@ -49,6 +49,16 @@ pub mod tests {
         Program::from(SECP256R1_DOUBLE_ELF).unwrap()
     }
 
+    /// Get the u256x2048 mul program.
+    ///
+    /// # Panics
+    ///
+    /// This function will panic if the program fails to load.
+    #[must_use]
+    pub fn u256xu2048_mul_program() -> Program {
+        Program::from(U256XU2048_MUL_ELF).unwrap()
+    }
+
     /// Get the SSZ withdrawals program.
     ///
     /// # Panics

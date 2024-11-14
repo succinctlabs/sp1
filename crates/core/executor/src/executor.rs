@@ -1670,7 +1670,7 @@ mod tests {
 
     use crate::programs::tests::{
         fibonacci_program, panic_program, secp256r1_add_program, secp256r1_double_program,
-        simple_memory_program, simple_program, ssz_withdrawals_program,
+        simple_memory_program, simple_program, ssz_withdrawals_program, u256xu2048_mul_program,
     };
 
     use crate::Register;
@@ -1709,6 +1709,13 @@ mod tests {
     #[test]
     fn test_secp256r1_double_program_run() {
         let program = secp256r1_double_program();
+        let mut runtime = Executor::new(program, SP1CoreOpts::default());
+        runtime.run().unwrap();
+    }
+
+    #[test]
+    fn test_u256xu2048_mul() {
+        let program = u256xu2048_mul_program();
         let mut runtime = Executor::new(program, SP1CoreOpts::default());
         runtime.run().unwrap();
     }
