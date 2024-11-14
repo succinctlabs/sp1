@@ -128,7 +128,7 @@ jobs:
         env:
           CARGO_INCREMENTAL: 1
 
-      - name: Build test-artifacts
+      - name: Check test-artifacts
         uses: actions-rs/cargo@v1
         with:
           command: check

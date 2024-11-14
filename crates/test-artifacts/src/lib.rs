@@ -1,7 +1,12 @@
 #![warn(clippy::pedantic)]
 
+//! This crate goal is to compile all programs in the `programs` folders to ELFs files,
+//! and give an easy access to these ELFs from other crates, using the constants below.
+//!
+//! **Note:** If you added a new program, don't forget to add it to the workspace in the
+//! `programs` folder to have if compiled to an ELF file.
+
 use sp1_build::include_elf;
-/// Compiled test programs. TODO elaborate.
 
 pub const FIBONACCI_ELF: &[u8] = include_elf!("fibonacci-program-tests");
 

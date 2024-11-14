@@ -188,9 +188,9 @@ pub fn default_syscall_map() -> HashMap<SyscallCode, Arc<dyn Syscall>> {
 
 ## Write Unit Tests for the New Precompile
 ### Create a New SP1 Test Package
-Create a new SP1 crate for your custom precompile test package inside the directory `sp1/crates/test-artifacts`. An example `Cargo.toml` for this may look like
+Create a new SP1 crate for your custom precompile test package inside the directory
+`sp1/crates/test-artifacts/programs`. An example `Cargo.toml` for this may look like:
 ```toml
-[workspace]
 [package]
 name = "custom-precompile-test"
 version = "1.0.0"
@@ -203,10 +203,10 @@ sp1-derive = { path = "../../../../derive" }
 num-bigint = "0.4.6"
 rand = "0.8.5"
 ```
-Then implement the tests and run `cargo prove build` to generate an ELF file. 
+Don't forget to include your crate to the workspace at `crates/test-artifacts/programs/Cargo.toml`. Then implement the tests and run `cargo prove build` to generate an ELF file. 
 
-### Include the ELF File in `program.rs`
-In your main SP1 project, include the generated ELF file by updating `program.rs`. 
+### Include the ELF File in `test-artifacts` crate `lib.rs`
+In your main SP1 project, include the generated ELF file by updating `crates/test-artifacts/src/lib.rs`. 
 ```rust
 pub const CUSTOM_PRECOMPILE_ELF: &[u8] = include_elf!("your-test-crate-name");
 // Other ELF files...
