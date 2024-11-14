@@ -2,6 +2,7 @@ use anyhow::Result;
 use sp1_core_executor::SP1Context;
 use sp1_core_machine::io::SP1Stdin;
 use sp1_prover::{components::DefaultProverComponents, SP1Prover};
+use sp1_stark::MachineProver;
 
 use crate::{
     install::try_install_circuit_artifacts, provers::ProofOpts, Prover, SP1Proof, SP1ProofKind,
@@ -34,7 +35,8 @@ impl Prover<DefaultProverComponents> for CpuProver {
     }
 
     fn setup(&self, elf: &[u8]) -> (SP1ProvingKey, SP1VerifyingKey) {
-        self.prover.setup(elf)
+        let (pkey, _, _, vk) = self.prover.setup(elf);
+        (pkey, vk)
     }
 
     fn sp1_prover(&self) -> &SP1Prover<DefaultProverComponents> {
@@ -50,8 +52,11 @@ impl Prover<DefaultProverComponents> for CpuProver {
         kind: SP1ProofKind,
     ) -> Result<SP1ProofWithPublicValues> {
         // Generate the core proof.
+        let program = self.prover.get_program(&pk.elf).unwrap();
+        let pk_d = self.prover.core_prover.pk_to_device(&pk.pk);
+
         let proof: sp1_prover::SP1ProofWithMetadata<sp1_prover::SP1CoreProofData> =
-            self.prover.prove_core(pk, &stdin, opts.sp1_prover_opts, context)?;
+            self.prover.prove_core(&pk_d, program, &stdin, opts.sp1_prover_opts, context)?;
         if kind == SP1ProofKind::Core {
             return Ok(SP1ProofWithPublicValues {
                 proof: SP1Proof::Core(proof.proof.0),

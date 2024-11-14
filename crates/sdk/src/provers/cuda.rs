@@ -29,7 +29,8 @@ impl Prover<DefaultProverComponents> for CudaProver {
     }
 
     fn setup(&self, elf: &[u8]) -> (SP1ProvingKey, SP1VerifyingKey) {
-        self.prover.setup(elf)
+        let (pk, _, _, vk) = self.prover.setup(elf);
+        (pk, vk)
     }
 
     fn sp1_prover(&self) -> &SP1Prover<DefaultProverComponents> {

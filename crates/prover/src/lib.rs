@@ -99,6 +99,11 @@ pub type InnerSC = BabyBearPoseidon2;
 /// The configuration for the outer prover.
 pub type OuterSC = BabyBearPoseidon2Outer;
 
+type DeviceProvingKey<C> = <<C as SP1ProverComponents>::CoreProver as MachineProver<
+    BabyBearPoseidon2,
+    RiscvAir<BabyBear>,
+>>::DeviceProvingKey;
+
 const COMPRESS_DEGREE: usize = 3;
 const SHRINK_DEGREE: usize = 3;
 const WRAP_DEGREE: usize = 9;
@@ -259,7 +264,10 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 
     /// Creates a proving key and a verifying key for a given RISC-V ELF.
     #[instrument(name = "setup", level = "debug", skip_all)]
-    pub fn setup(&self, elf: &[u8]) -> (SP1ProvingKey, SP1VerifyingKey) {
+    pub fn setup(
+        &self,
+        elf: &[u8],
+    ) -> (SP1ProvingKey, DeviceProvingKey<C>, Program, SP1VerifyingKey) {
         let program = self.get_program(elf).unwrap();
         let (pk, vk) = self.core_prover.setup(&program);
         let vk = SP1VerifyingKey { vk };
@@ -268,7 +276,8 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             elf: elf.to_vec(),
             vk: vk.clone(),
         };
-        (pk, vk)
+        let pk_d = self.core_prover.pk_to_device(&pk.pk);
+        (pk, pk_d, program, vk)
     }
 
     /// Get a program with an allowed preprocessed shape.
@@ -305,7 +314,11 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
     #[instrument(name = "prove_core", level = "info", skip_all)]
     pub fn prove_core<'a>(
         &'a self,
-        pk: &SP1ProvingKey,
+        pk_d: &<<C as SP1ProverComponents>::CoreProver as MachineProver<
+            BabyBearPoseidon2,
+            RiscvAir<BabyBear>,
+        >>::DeviceProvingKey,
+        program: Program,
         stdin: &SP1Stdin,
         opts: SP1ProverOpts,
         mut context: SP1Context<'a>,
@@ -324,17 +337,13 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             let handle = s.spawn(move || {
                 let _span = span.enter();
 
-                // Fix the program shape.
-                let program = self.get_program(&pk.elf).unwrap();
-
                 // Copy the proving key to the device.
-                let pk =
-                tracing::info_span!("pk_to_device").in_scope(|| self.core_prover.pk_to_device(&pk.pk));
+                let pk = pk_d;
 
                 // Prove the core and stream the proofs and shapes.
                 sp1_core_machine::utils::prove_core_stream::<_, C::CoreProver>(
                     &self.core_prover,
-                    &pk,
+                    pk,
                     program,
                     stdin,
                     opts.core_opts,
@@ -1392,10 +1401,10 @@ pub mod tests {
         let context = SP1Context::default();
 
         tracing::info!("setup elf");
-        let (pk, vk) = prover.setup(elf);
+        let (_, pk_d, program, vk) = prover.setup(elf);
 
         tracing::info!("prove core");
-        let core_proof = prover.prove_core(&pk, &stdin, opts, context)?;
+        let core_proof = prover.prove_core(&pk_d, program, &stdin, opts, context)?;
         let public_values = core_proof.public_values.clone();
 
         if env::var("COLLECT_SHAPES").is_ok() {
@@ -1532,16 +1541,22 @@ pub mod tests {
         let prover = SP1Prover::<C>::new();
 
         tracing::info!("setup keccak elf");
-        let (keccak_pk, keccak_vk) = prover.setup(keccak_elf);
+        let (_, keccak_pk_d, keccak_program, keccak_vk) = prover.setup(keccak_elf);
 
         tracing::info!("setup verify elf");
-        let (verify_pk, verify_vk) = prover.setup(verify_elf);
+        let (_, verify_pk_d, verify_program, verify_vk) = prover.setup(verify_elf);
 
         tracing::info!("prove subproof 1");
         let mut stdin = SP1Stdin::new();
         stdin.write(&1usize);
         stdin.write(&vec![0u8, 0, 0]);
-        let deferred_proof_1 = prover.prove_core(&keccak_pk, &stdin, opts, Default::default())?;
+        let deferred_proof_1 = prover.prove_core(
+            &keccak_pk_d,
+            keccak_program.clone(),
+            &stdin,
+            opts,
+            Default::default(),
+        )?;
         let pv_1 = deferred_proof_1.public_values.as_slice().to_vec().clone();
 
         // Generate a second proof of keccak of various inputs.
@@ -1551,7 +1566,8 @@ pub mod tests {
         stdin.write(&vec![0u8, 1, 2]);
         stdin.write(&vec![2, 3, 4]);
         stdin.write(&vec![5, 6, 7]);
-        let deferred_proof_2 = prover.prove_core(&keccak_pk, &stdin, opts, Default::default())?;
+        let deferred_proof_2 =
+            prover.prove_core(&keccak_pk_d, keccak_program, &stdin, opts, Default::default())?;
         let pv_2 = deferred_proof_2.public_values.as_slice().to_vec().clone();
 
         // Generate recursive proof of first subproof.
@@ -1578,7 +1594,8 @@ pub mod tests {
         stdin.write_proof(deferred_reduce_2.clone(), keccak_vk.vk.clone());
 
         tracing::info!("proving verify program (core)");
-        let verify_proof = prover.prove_core(&verify_pk, &stdin, opts, Default::default())?;
+        let verify_proof =
+            prover.prove_core(&verify_pk_d, verify_program, &stdin, opts, Default::default())?;
         // let public_values = verify_proof.public_values.clone();
 
         // Generate recursive proof of verify program

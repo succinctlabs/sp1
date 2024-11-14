@@ -172,14 +172,14 @@ fn run_evaluation<C: SP1ProverComponents>(
     let cycles = get_cycles(elf, stdin);
 
     let prover = SP1Prover::<C>::new();
-    let (pk, vk) = prover.setup(elf);
+    let (_, pk_d, program, vk) = prover.setup(elf);
 
     let context = SP1Context::default();
 
     let (_, exec_duration) = time_operation(|| prover.execute(elf, stdin, context.clone()));
 
     let (core_proof, core_duration) =
-        time_operation(|| prover.prove_core(&pk, stdin, opts, context).unwrap());
+        time_operation(|| prover.prove_core(&pk_d, program, stdin, opts, context).unwrap());
 
     let (_, compress_duration) =
         time_operation(|| prover.compress(&vk, core_proof, vec![], opts).unwrap());
