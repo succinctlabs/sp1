@@ -198,7 +198,7 @@ fn verify_locked_version(program_dir: impl AsRef<Path>) -> Result<()> {
         version: String,
     }
 
-    // This might be a workspace, so we need optinally search parent dirs for lock files
+    // This might be a workspace, so we need optionally search parent dirs for lock files
     let canon = program_dir.as_ref().canonicalize()?;
     let mut lock_path = canon.join("Cargo.lock");
     if !lock_path.is_file() {
@@ -221,7 +221,7 @@ fn verify_locked_version(program_dir: impl AsRef<Path>) -> Result<()> {
     }
 
     println!("cargo:warning=Found Cargo.lock at {}", lock_path.display());
-    
+
     // strip any comments for serialization and the rust compiler header
     let reader = BufReader::new(std::fs::File::open(&lock_path)?).lines();
     let toml_string = reader
@@ -237,13 +237,13 @@ fn verify_locked_version(program_dir: impl AsRef<Path>) -> Result<()> {
         .iter()
         .find(|p| p.name == "sp1-zkvm")
         .ok_or_else(|| anyhow::anyhow!("sp1-zkvm not found in lock file!"))?;
-    
+
     // print these just to be useful
     let toolchain_version = env!("CARGO_PKG_VERSION");
     println!("cargo:warning=Locked version of sp1-zkvm is {}", vm_package.version);
     println!("cargo:warning=Current toolchain version = {}", toolchain_version);
 
-   let vm_version = semver::Version::parse(&vm_package.version)?;
+    let vm_version = semver::Version::parse(&vm_package.version)?;
     let toolchain_version = semver::Version::parse(toolchain_version)?;
 
     if vm_version.major != toolchain_version.major || vm_version.minor != toolchain_version.minor {
