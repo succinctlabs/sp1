@@ -230,7 +230,11 @@ impl ExecutionRecord {
             let mut blank_record = ExecutionRecord::new(self.program.clone());
 
             // If `last_record` is None, use a blank record to store the memory events.
-            let last_record_ref = last_record.unwrap_or(&mut blank_record);
+            let last_record_ref = if pack_memory_events_into_last_record {
+                last_record.unwrap()
+            } else {
+                &mut blank_record
+            };
 
             let mut init_addr_bits = [0; 32];
             let mut finalize_addr_bits = [0; 32];
