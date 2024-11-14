@@ -36,7 +36,7 @@ ff = { version = "0.13", features = ["derive", "derive_bits"] }
 serde = { workspace = true, features = ["derive", "rc"] }
 backtrace = { version = "0.3.71", features = ["serde"] }
 static_assertions = "1.1.0"
-thiserror = "1.0.60"
+thiserror = { workspace = true }
 vec_map = "0.8.2"
 
 [dev-dependencies]

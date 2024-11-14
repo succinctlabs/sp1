@@ -36,7 +36,7 @@ anyhow = "1.0.83"
 dirs = "5.0.1"
 serial_test = "3.1.1"
 num-bigint = "0.4.6"
-thiserror = "1.0.63"
+thiserror = { workspace = true }
 lru = "0.12.4"
 eyre = "0.6.12"
 

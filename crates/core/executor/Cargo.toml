@@ -31,7 +31,7 @@ rand = "0.8.5"
 num = { version = "0.4.3" }
 typenum = "1.17.0"
 nohash-hasher = "0.2.0"
-thiserror = "1.0.63"
+thiserror = { workspace = true }
 tracing = "0.1.40"
 strum_macros = "0.26.4"
 strum = { version = "0.26.3", features = ["derive"] }

@@ -39,7 +39,7 @@ tempfile = "3.10.1"
 cfg-if = "1.0"
 strum = "0.26.3"
 strum_macros = "0.26.4"
-thiserror = "1.0.63"
+thiserror = { workspace = true }
 hashbrown = { workspace = true }
 sp1-core-executor = { workspace = true }
 sp1-stark = { workspace = true }

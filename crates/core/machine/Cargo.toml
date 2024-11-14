@@ -47,7 +47,7 @@ tracing-subscriber = { version = "0.3.18", features = ["std", "env-filter"] }
 strum_macros = "0.26"
 strum = "0.26"
 web-time = "1.1.0"
-thiserror = "1.0.63"
+thiserror = { workspace = true }
 rand = "0.8.5"
 hashbrown = { workspace = true, features = ["serde", "inline-more"] }
 static_assertions = "1.1.0"
