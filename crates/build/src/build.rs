@@ -1,6 +1,9 @@
-use std::path::PathBuf;
+use std::{
+    io::{BufRead, BufReader},
+    path::{Path, PathBuf},
+};
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use cargo_metadata::camino::Utf8PathBuf;
 
 use crate::{
@@ -57,6 +60,8 @@ pub fn execute_build_program(
 pub(crate) fn build_program_internal(path: &str, args: Option<BuildArgs>) {
     // Get the root package name and metadata.
     let program_dir = std::path::Path::new(path);
+    verify_locked_version(program_dir).expect("locked version mismatch");
+
     let metadata_file = program_dir.join("Cargo.toml");
     let mut metadata_cmd = cargo_metadata::MetadataCommand::new();
     let metadata = metadata_cmd.manifest_path(metadata_file).exec().unwrap();
@@ -179,4 +184,73 @@ fn print_elf_paths_cargo_directives(target_elf_paths: &[(String, Utf8PathBuf)]) 
     for (target_name, elf_path) in target_elf_paths.iter() {
         println!("cargo:rustc-env=SP1_ELF_{}={}", target_name, elf_path);
     }
+}
+
+fn verify_locked_version(program_dir: impl AsRef<Path>) -> Result<()> {
+    #[derive(serde::Deserialize)]
+    struct LockFile {
+        package: Vec<Package>,
+    }
+
+    #[derive(serde::Deserialize)]
+    struct Package {
+        name: String,
+        version: String,
+    }
+
+    // This might be a workspace, so we need optinally search parent dirs for lock files
+    let canon = program_dir.as_ref().canonicalize()?;
+    let mut lock_path = canon.join("Cargo.lock");
+    if !lock_path.is_file() {
+        let mut curr_path: &Path = canon.as_ref();
+
+        while let Some(parent) = curr_path.parent() {
+            let maybe_lock_path = parent.join("Cargo.lock");
+
+            if maybe_lock_path.is_file() {
+                lock_path = maybe_lock_path;
+                break;
+            } else {
+                curr_path = parent;
+            }
+        }
+
+        if !lock_path.is_file() {
+            return Err(anyhow::anyhow!("Cargo.lock not found"));
+        }
+    }
+
+    println!("cargo:warning=Found Cargo.lock at {}", lock_path.display());
+    
+    // strip any comments for serialization and the rust compiler header
+    let reader = BufReader::new(std::fs::File::open(&lock_path)?).lines();
+    let toml_string = reader
+        .skip(4)
+        .map(|line| line.context("Failed to readline from cargo lock file"))
+        .map(|line| line.map(|line| line + "\n"))
+        .collect::<Result<String>>()?;
+
+    let locked = toml::from_str::<LockFile>(&toml_string)?;
+
+    let vm_package = locked
+        .package
+        .iter()
+        .find(|p| p.name == "sp1-zkvm")
+        .ok_or_else(|| anyhow::anyhow!("sp1-zkvm not found in lock file!"))?;
+    
+    // print these just to be useful
+    let toolchain_version = env!("CARGO_PKG_VERSION");
+    println!("cargo:warning=Locked version of sp1-zkvm is {}", vm_package.version);
+    println!("cargo:warning=Current toolchain version = {}", toolchain_version);
+
+   let vm_version = semver::Version::parse(&vm_package.version)?;
+    let toolchain_version = semver::Version::parse(toolchain_version)?;
+
+    if vm_version.major != toolchain_version.major || vm_version.minor != toolchain_version.minor {
+        return Err(anyhow::anyhow!(
+            "Locked version of sp1-zkvm is incompatible with the current toolchain version"
+        ));
+    }
+
+    Ok(())
 }
