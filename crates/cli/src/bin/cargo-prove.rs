@@ -3,8 +3,7 @@ use clap::{Parser, Subcommand};
 use sp1_cli::{
     commands::{
         build::BuildCmd, build_toolchain::BuildToolchainCmd,
-        install_toolchain::InstallToolchainCmd, new::NewCmd, trace::TraceCmd,
-        vkey::VkeyCmd,
+        install_toolchain::InstallToolchainCmd, new::NewCmd, trace::TraceCmd, vkey::VkeyCmd,
     },
     SP1_VERSION_MESSAGE,
 };
