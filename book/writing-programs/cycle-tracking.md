@@ -58,7 +58,7 @@ This will log the cycle count for `block name` and include it in the `ExecutionR
 
 # Profiling the ZKVM 
 
-Profiling the ZKVM can only be done with debug assertions enabled, and special care must be taken to ensure correctness, only one program may be profiled at a time.
+Profiling the VM is a good way to get an understanding of what is bottlenecking your program, and special care must be taken to ensure correctness, only one program may be profiled at a time.
 
 To profile a program, you have to setup a script to execute the program, many examples can be found in the repo, such as this ('fibonacci')[../../examples/fibonacci/script/src/main.rs] script.
 Once you have your script it should contain the following code:

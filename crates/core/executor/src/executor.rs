@@ -1,4 +1,3 @@
-use std::sync::Arc;
 use hashbrown::HashMap;
 use serde::{Deserialize, Serialize};
 use sp1_stark::SP1CoreOpts;
@@ -13,6 +12,7 @@ use crate::{
     },
     hook::{HookEnv, HookRegistry},
     memory::{Entry, PagedMemory},
+    profiler::Profiler,
     record::{ExecutionRecord, MemoryAccessRecord},
     report::ExecutionReport,
     state::{ExecutionState, ForkState},
@@ -21,11 +21,7 @@ use crate::{
     Instruction, Opcode, Program, Register,
 };
 
-#[cfg(debug_assertions)]
-use crate::profiler::Profiler;
-
-#[cfg(debug_assertions)]
-use std::{fs::File, io::BufWriter};
+use std::{fs::File, io::BufWriter, sync::Arc};
 
 /// An executor for the SP1 RISC-V zkVM.
 ///
@@ -99,8 +95,7 @@ pub struct Executor<'a> {
     /// A buffer for stdout and stderr IO.
     pub io_buf: HashMap<u32, String>,
 
-    /// The ZKVM profiler. This is only available in debug mode.
-    #[cfg(debug_assertions)]
+    /// The ZKVM profiler. 
     pub profiler: Option<(Profiler, BufWriter<File>)>,
 
     /// The state of the runtime when in unconstrained mode.
@@ -181,7 +176,6 @@ impl<'a> Executor<'a> {
     }
 
     /// Crete a new runtime for the program, and setup the profiler if `TRACE_FILE` is set.
-    #[cfg(debug_assertions)]
     #[must_use]
     pub fn with_context_and_elf(
         program: Program,
@@ -248,7 +242,6 @@ impl<'a> Executor<'a> {
             shard_batch_size: opts.shard_batch_size as u32,
             cycle_tracker: HashMap::new(),
             io_buf: HashMap::new(),
-            #[cfg(debug_assertions)]
             profiler: None,
             unconstrained: false,
             unconstrained_state: ForkState::default(),
@@ -1204,7 +1197,6 @@ impl<'a> Executor<'a> {
         let instruction = self.fetch();
 
         // Log the current state of the runtime.
-        #[cfg(debug_assertions)]
         self.log(&instruction);
 
         // Execute the instruction.
@@ -1481,11 +1473,8 @@ impl<'a> Executor<'a> {
         self.print_report = true;
         while !self.execute()? {}
 
-        #[cfg(debug_assertions)]
-        {
-            if let Some((profiler, writer)) = self.profiler.take() {
-                profiler.write(writer).expect("Failed to write profile to output file");
-            }
+        if let Some((profiler, writer)) = self.profiler.take() {
+            profiler.write(writer).expect("Failed to write profile to output file");
         }
 
         Ok(())
@@ -1501,11 +1490,8 @@ impl<'a> Executor<'a> {
         self.print_report = true;
         while !self.execute()? {}
 
-        #[cfg(debug_assertions)]
-        {
-            if let Some((profiler, writer)) = self.profiler.take() {
-                profiler.write(writer).expect("Failed to write profile to output file");
-            }
+        if let Some((profiler, writer)) = self.profiler.take() {
+            profiler.write(writer).expect("Failed to write profile to output file");
         }
 
         Ok(())
@@ -1673,7 +1659,6 @@ impl<'a> Executor<'a> {
     }
 
     #[inline]
-    #[cfg(debug_assertions)]
     fn log(&mut self, _: &Instruction) {
         if let Some((ref mut profiler, _)) = self.profiler {
             if !self.unconstrained {

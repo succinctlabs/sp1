@@ -20,7 +20,7 @@ pub enum ProfilerError {
 /// and will occasionally save the stack according to the sample rate.
 pub struct Profiler {
     sample_rate: u64,
-    /// start_address -> index in function_ranges
+    /// `start_address`-> index in `function_ranges`
     start_lookup: HashMap<u64, usize>,
     /// the start and end of the function
     function_ranges: Vec<(u64, u64, Frame)>,
@@ -146,7 +146,7 @@ impl Profiler {
         }
     }
 
-    /// Write the captured samples so far to the [std::io::Write]. This will output a JSON gecko
+    /// Write the captured samples so far to the `std::io::Write`. This will output a JSON gecko
     /// profile.
     pub(super) fn write(mut self, writer: impl std::io::Write) -> Result<(), ProfilerError> {
         self.check_samples();
