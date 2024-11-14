@@ -7,6 +7,7 @@ pub mod tests {
 
     use test_artifacts::{
         FIBONACCI_ELF, KECCAK_PERMUTE_ELF, PANIC_ELF, SECP256R1_ADD_ELF, SECP256R1_DOUBLE_ELF,
+        U256XU2048_MUL_ELF,
     };
 
     #[must_use]

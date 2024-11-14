@@ -70,3 +70,5 @@ pub const BN254_FP2_ADDSUB_ELF: &[u8] = include_elf!("bn254-fp2-addsub-test");
 pub const BN254_FP2_MUL_ELF: &[u8] = include_elf!("bn254-fp2-mul-test");
 
 pub const TENDERMINT_BENCHMARK_ELF: &[u8] = include_elf!("tendermint-benchmark-program");
+
+pub const U256XU2048_MUL_ELF: &[u8] = include_elf!("u256x2048-mul");
