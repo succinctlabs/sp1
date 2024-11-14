@@ -14,7 +14,6 @@ use crate::{
     },
     hook::{HookEnv, HookRegistry},
     memory::{Entry, PagedMemory},
-    profiler::Profiler,
     record::{ExecutionRecord, MemoryAccessRecord},
     report::ExecutionReport,
     state::{ExecutionState, ForkState},
@@ -22,6 +21,9 @@ use crate::{
     syscalls::{default_syscall_map, Syscall, SyscallCode, SyscallContext},
     Instruction, Opcode, Program, Register,
 };
+
+#[cfg(debug_assertions)]
+use crate::profiler::Profiler;
 
 /// An executor for the SP1 RISC-V zkVM.
 ///
@@ -96,6 +98,7 @@ pub struct Executor<'a> {
     pub io_buf: HashMap<u32, String>,
 
     /// The ZKVM profiler. This is only available in debug mode.
+    #[cfg(debug_assertions)]
     pub profiler: Option<(Profiler, BufWriter<File>)>,
 
     /// The state of the runtime when in unconstrained mode.

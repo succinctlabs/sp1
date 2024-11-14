@@ -3,7 +3,6 @@ use goblin::elf::{sym::STT_FUNC, Elf};
 use indicatif::{ProgressBar, ProgressStyle};
 use rustc_demangle::demangle;
 use std::collections::HashMap;
-use std::sync::Arc;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ProfilerError {
