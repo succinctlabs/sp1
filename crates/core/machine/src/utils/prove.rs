@@ -480,7 +480,8 @@ where
 
                             // Update the public values & prover state for the shards which contain
                             // "cpu events".
-                            let mut state = state.lock().unwrap();
+                            let mut state = tracing::debug_span!("acquiring public values lock")
+                                .in_scope(|| state.lock().unwrap());
                             for record in records.iter_mut() {
                                 state.shard += 1;
                                 state.execution_shard = record.public_values.execution_shard;
@@ -496,12 +497,11 @@ where
                             tracing::info!("Records length:{}, done: {}", records.len(), done);
 
                             // Defer events that are too expensive to include in every shard.
-                            let mut deferred = deferred.lock().unwrap();
+                            let mut deferred = tracing::debug_span!("getting lock on deferred")
+                                .in_scope(|| deferred.lock().unwrap());
                             for record in records.iter_mut() {
                                 deferred.append(&mut record.defer());
                             }
-
-                            // tracing::info!("Deferred length: {}", deferred.len());
 
                             let last_record = if done
                                 && num_cycles < 1 << 26
@@ -519,7 +519,11 @@ where
                             tracing::info!("Last record is some: {:?}", last_record.is_some());
 
                             // See if any deferred shards are ready to be committed to.
-                            let mut deferred = deferred.split(done, last_record, opts.split_opts);
+                            let mut deferred = tracing::debug_span!("split").in_scope(|| {
+                                let result = deferred.split(done, last_record, opts.split_opts);
+                                drop(deferred);
+                                result
+                            });
                             log::info!("deferred {} records", deferred.len());
 
                             // Update the public values & prover state for the shards which do not
@@ -540,7 +544,13 @@ where
                                 state.start_pc = state.next_pc;
                                 record.public_values = *state;
                             }
-                            records.append(&mut deferred);
+                            tracing::debug_span!("append deferred")
+                                .in_scope(|| records.append(&mut deferred));
+
+                            // We need to make sure to drop these, as these hold mutex's on state
+                            // accessed by other threads.
+                            drop(deferred);
+                            drop(state);
 
                             // Let another worker update the state.
                             record_gen_sync.advance_turn();
