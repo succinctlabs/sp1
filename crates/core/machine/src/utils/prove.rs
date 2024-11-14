@@ -542,13 +542,13 @@ where
                             }
                             records.append(&mut deferred);
 
+                            // Let another worker update the state.
+                            record_gen_sync.advance_turn();
+
                             // Generate the dependencies.
                             tracing::debug_span!("generate dependencies", index).in_scope(|| {
                                 prover.machine().generate_dependencies(&mut records, &opts, None);
                             });
-
-                            // Let another worker update the state.
-                            record_gen_sync.advance_turn();
 
                             // Fix the shape of the records.
                             if let Some(shape_config) = shape_config {
