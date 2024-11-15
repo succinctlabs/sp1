@@ -57,6 +57,9 @@ pub fn execute_build_program(
 }
 
 /// Internal helper function to build the program with or without arguments.
+///
+/// Note: This function is not intended to be used by the CLI, as it looks for the sp1-sdk,
+/// which is probably in the same crate lockfile as this function is only called by build scipr
 pub(crate) fn build_program_internal(path: &str, args: Option<BuildArgs>) {
     // Get the root package name and metadata.
     let program_dir = std::path::Path::new(path);
@@ -186,6 +189,15 @@ fn print_elf_paths_cargo_directives(target_elf_paths: &[(String, Utf8PathBuf)]) 
     }
 }
 
+/// Verify that the locked version of `sp1-zkvm` in the Cargo.lock file is compatible with the
+/// current version of this crate.
+///
+/// This also checks to ensure that `sp1-sdk` is also the correct version.
+///
+/// ## Note: This function assumes that version compatibility is given by matching major and minor
+/// semver.
+///
+/// This is also correct if future releases sharing the workspace version, which should be the case.
 fn verify_locked_version(program_dir: impl AsRef<Path>) -> Result<()> {
     #[derive(serde::Deserialize)]
     struct LockFile {
@@ -238,17 +250,29 @@ fn verify_locked_version(program_dir: impl AsRef<Path>) -> Result<()> {
         .find(|p| p.name == "sp1-zkvm")
         .ok_or_else(|| anyhow::anyhow!("sp1-zkvm not found in lock file!"))?;
 
+    let sp1_sdk = locked
+        .package
+        .iter()
+        .find(|p| p.name == "sp1-sdk")
+        .ok_or_else(|| anyhow::anyhow!("sp1-sdk not found in lock file!"))?;
+
     // print these just to be useful
     let toolchain_version = env!("CARGO_PKG_VERSION");
     println!("cargo:warning=Locked version of sp1-zkvm is {}", vm_package.version);
+    println!("cargo:warning=Locked version of sp1-sdk is {}", sp1_sdk.version);
     println!("cargo:warning=Current toolchain version = {}", toolchain_version);
 
     let vm_version = semver::Version::parse(&vm_package.version)?;
     let toolchain_version = semver::Version::parse(toolchain_version)?;
+    let sp1_sdk_version = semver::Version::parse(&sp1_sdk.version)?;
 
-    if vm_version.major != toolchain_version.major || vm_version.minor != toolchain_version.minor {
+    if vm_version.major != toolchain_version.major
+        || vm_version.minor != toolchain_version.minor
+        || sp1_sdk_version.major != toolchain_version.major
+        || sp1_sdk_version.minor != toolchain_version.minor
+    {
         return Err(anyhow::anyhow!(
-            "Locked version of sp1-zkvm is incompatible with the current toolchain version"
+            "Locked version of sp1-zkvm or sp1-sdk is incompatible with the current toolchain version"
         ));
     }
 
