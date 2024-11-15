@@ -111,6 +111,7 @@ impl ProverClient {
         }
     }
 
+    /// Returns a [ProverClientBuilder] to easily creating a [ProverClient].
     pub fn builder() -> ProverClientBuilder {
         ProverClientBuilder::default()
     }
@@ -317,7 +318,7 @@ impl Default for ProverClient {
     }
 }
 
-/// Builder type for [`ProverClient`] with the network prover.
+/// Builder type for [`ProverClient`].
 #[derive(Debug, Default)]
 pub struct ProverClientBuilder {
     mode: Option<ProverMode>,
@@ -327,6 +328,7 @@ pub struct ProverClientBuilder {
 }
 
 impl ProverClientBuilder {
+    /// Sets the mode of the prover client being created.
     pub fn mode(mut self, mode: ProverMode) -> Self {
         self.mode = Some(mode);
         self
@@ -344,6 +346,7 @@ impl ProverClientBuilder {
         self
     }
 
+    ///  Sets the private key.
     pub fn private_key(mut self, private_key: String) -> Self {
         self.private_key = Some(private_key);
         self
