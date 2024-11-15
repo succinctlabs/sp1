@@ -56,11 +56,11 @@ fn main() {
 
 This will log the cycle count for `block name` and include it in the `ExecutionReport` in the `cycle_tracker` map.
 
-# Profiling the ZKVM 
+### Profiling the ZKVM 
 
-Profiling the VM is a good way to get an understanding of what is bottlenecking your program, and special care must be taken to ensure correctness, only one program may be profiled at a time.
+Profiling the VM is a good way to get an understanding of what is bottlenecking your program, note only one program may be profiled at a time.
 
-To profile a program, you have to setup a script to execute the program, many examples can be found in the repo, such as this ('fibonacci')[../../examples/fibonacci/script/src/main.rs] script.
+To profile a program, you have to setup a script to execute the program, many examples can be found in the repo, such as this ['fibonacci'](https://github.com/succinctlabs/sp1/blob/12f212e386ae4c2da30cf6a61a7d87615d56bdac/examples/fibonacci/script/src/main.rs#L22) script.
 Once you have your script it should contain the following code:
 ```rs 
     // Execute the program using the `ProverClient.execute` method, without generating a proof.
@@ -70,24 +70,15 @@ Once you have your script it should contain the following code:
 The data captured by the profiler can be quite large, you can set the sample rate using the `TRACE_SAMPLE_RATE` env var.
 To enable profiling, set the `TRACE_FILE` env var to the path where you want the profile to be saved.
 
+A larger sample rate will give you a smaller profile, it is the number of instructions in between each sample.
+
 The full command to profile should look something like this
 ```sh
     TRACE_FILE=output.json TRACE_SAMPLE_RATE=100 cargo run ...
 ```
 
-To view these profiles, we recommend (Samply)[https://github.com/mstange/samply].
+To view these profiles, we recommend [Samply](https://github.com/mstange/samply).
 ```sh
     cargo install --locked samply
     samply load output.json
 ```
-
-To profile in release mode you can use the following setup in your `Cargo.toml`
-```toml
-    [profile.zkvm-profiling]
-    inherits = "release"
-    debug-assertions = true
-```
-
-and then you can do:
-
-`cargo run --profile zkvm-profiling --bin your_program`

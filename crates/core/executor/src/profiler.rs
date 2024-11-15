@@ -16,7 +16,7 @@ pub enum ProfilerError {
 
 /// The ZKVM Profiler.
 ///
-/// During exeuction, the profiler always keeps track of the callstack
+/// During execution, the profiler always keeps track of the callstack
 /// and will occasionally save the stack according to the sample rate.
 pub struct Profiler {
     sample_rate: u64,
@@ -51,7 +51,7 @@ impl Profiler {
         let mut function_ranges = Vec::new();
         let mut builder = ThreadBuilder::new(1, 0, std::time::Instant::now(), false, false);
 
-        // we need to extract all the functions from the elf file
+        // We need to extract all the functions from the elf file
         // and thier corresponding PC ranges.
         let mut main_idx = None;
         for sym in &elf.syms {
@@ -63,7 +63,7 @@ impl Profiler {
                 let start_address = sym.st_value;
                 let end_address = start_address + size - 4;
 
-                // now that we have the name lets immeidalty intern it so we only need to copy
+                // Now that we have the name lets immediately intern it so we only need to copy
                 // around a usize
                 let demangled_name = demangled_name.to_string();
                 let string_idx = builder.intern_string(&demangled_name);
