@@ -42,6 +42,10 @@ members = [
 ]
 resolver = "2"
 
+[workspace.dependencies]
+serde = "1.0.215"
+serde_json = "1.0.132"
+
 [patch.crates-io]
 sha2-v0-9-8 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", package = "sha2", branch = "patch-v0.9.8" }
 ed25519-consensus = { git = "https://github.com/sp1-patches/ed25519-consensus", branch = "patch-v2.1.0" }
