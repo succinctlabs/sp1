@@ -1,12 +1,12 @@
 use std::time::{Duration, Instant};
 
 use clap::{command, Parser, ValueEnum};
-use sp1_core_executor::programs::tests::VERIFY_PROOF_ELF;
 use sp1_cuda::SP1CudaProver;
 use sp1_prover::components::DefaultProverComponents;
 use sp1_prover::HashableKey;
 use sp1_sdk::{self, ProverClient, SP1Context, SP1Prover, SP1Stdin};
 use sp1_stark::SP1ProverOpts;
+use test_artifacts::VERIFY_PROOF_ELF;
 
 #[derive(Parser, Clone)]
 #[command(about = "Evaluate the performance of SP1 on programs.")]

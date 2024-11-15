@@ -30,6 +30,7 @@ serde = { workspace = true, features = ["derive", "rc"] }
 itertools = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
+tracing-appender = "0.2.3"
 serde_json = { workspace = true }
 clap = { version = "4.5.9", features = ["derive", "env"] }
 anyhow = "1.0.83"
@@ -39,6 +40,10 @@ num-bigint = "0.4.6"
 thiserror = "1.0.63"
 lru = "0.12.4"
 eyre = "0.6.12"
+test-artifacts = { workspace = true, optional = true }
+
+[dev-dependencies]
+test-artifacts = { workspace = true }
 
 [[bin]]
 name = "build_plonk_bn254"
@@ -60,7 +65,23 @@ path = "scripts/post_trusted_setup.rs"
 name = "e2e"
 path = "scripts/e2e.rs"
 
+[[bin]]
+name = "fibonacci_groth16"
+path = "scripts/fibonacci_groth16.rs"
+required-features = ["export-tests"]
+
+[[bin]]
+name = "fibonacci_sweep"
+path = "scripts/fibonacci_sweep.rs"
+required-features = ["export-tests"]
+
+[[bin]]
+name = "tendermint_sweep"
+path = "scripts/tendermint_sweep.rs"
+required-features = ["export-tests"]
+
+
 [features]
 native-gnark = ["sp1-recursion-gnark-ffi/native"]
-export-tests = []
+export-tests = ["dep:test-artifacts"]
 debug = ["sp1-core-machine/debug"]
