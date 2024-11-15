@@ -13,6 +13,7 @@ pub mod network;
 #[cfg(feature = "network-v2")]
 #[path = "network-v2/mod.rs"]
 pub mod network_v2;
+
 use std::env;
 
 #[cfg(feature = "network")]
@@ -31,7 +32,7 @@ pub mod utils {
 use cfg_if::cfg_if;
 pub use proof::*;
 pub use provers::SP1VerificationError;
-use sp1_prover::components::DefaultProverComponents;
+use sp1_prover::{components::DefaultProverComponents, ProverMode};
 
 #[cfg(any(feature = "network", feature = "network-v2"))]
 use {std::future::Future, tokio::task::block_in_place};
@@ -110,10 +111,11 @@ impl ProverClient {
         }
     }
 
+    pub fn builder() -> ProverClientBuilder {
+        ProverClientBuilder::default()
+    }
+
     /// Creates a new [ProverClient] with the mock prover.
-    ///
-    /// Recommended for testing and development. You can also use [ProverClient::new] to set the
-    /// prover to `mock` with the `SP1_PROVER` environment variable.
     ///
     /// ### Examples
     ///
@@ -126,10 +128,7 @@ impl ProverClient {
         Self { prover: Box::new(MockProver::new()) }
     }
 
-    /// Creates a new [ProverClient] with the local prover.
-    ///
-    /// Recommended for proving end-to-end locally. You can also use [ProverClient::new] to set the
-    /// prover to `local` with the `SP1_PROVER` environment variable.
+    /// Creates a new [ProverClient] with the local prover, using the CPU.
     ///
     /// ### Examples
     ///
@@ -138,15 +137,39 @@ impl ProverClient {
     ///
     /// let client = ProverClient::local();
     /// ```
+    #[deprecated(note = "Please use `cpu` instead")]
     pub fn local() -> Self {
         Self { prover: Box::new(CpuProver::new()) }
     }
 
-    /// Returns a [NetworkProverClientBuilder] that can be used to build a new [ProverClient] with
-    /// the network prover.
+    /// Creates a new [ProverClient] with the local prover, using the CPU.
     ///
-    /// Recommended for outsourcing proof generation to an RPC. You can also use [ProverClient::new]
-    /// to set the prover to `network` with the `SP1_PROVER` environment variable.
+    /// ### Examples
+    ///
+    /// ```no_run
+    /// use sp1_sdk::ProverClient;
+    ///
+    /// let client = ProverClient::cpu();
+    /// ```
+    pub fn cpu() -> Self {
+        Self { prover: Box::new(CpuProver::new()) }
+    }
+
+    /// Creates a new [ProverClient] with the local prover, using the GPU.
+    ///
+    /// ### Examples
+    ///
+    /// ```no_run
+    /// use sp1_sdk::ProverClient;
+    ///
+    /// let client = ProverClient::cuda();
+    /// ```
+    #[cfg(feature = "cuda")]
+    pub fn cuda() -> Self {
+        Self { prover: Box::new(CudaProver::new(SP1Prover::new())) }
+    }
+
+    /// Creates a new [ProverClient] with the network prover.
     ///
     /// ### Examples
     ///
@@ -155,8 +178,20 @@ impl ProverClient {
     ///
     /// let client = ProverClient::network();
     /// ```
-    pub fn network() -> NetworkProverClientBuilder {
-        NetworkProverClientBuilder::default()
+    pub fn network(private_key: String, rpc_url: Option<String>, skip_simulation: bool) -> Self {
+        cfg_if! {
+            if #[cfg(feature = "network-v2")] {
+                Self {
+                    prover: Box::new(NetworkProverV2::new(&private_key, rpc_url, skip_simulation)),
+                }
+            } else if #[cfg(feature = "network")] {
+                Self {
+                    prover: Box::new(NetworkProverV1::new(&private_key, rpc_url, skip_simulation)),
+                }
+            } else {
+                panic!("network feature is not enabled")
+            }
+        }
     }
 
     /// Prepare to execute the given program on the given input (without generating a proof).
@@ -279,40 +314,67 @@ impl Default for ProverClient {
 
 /// Builder type for [`ProverClient`] with the network prover.
 #[derive(Debug, Default)]
-pub struct NetworkProverClientBuilder {
+pub struct ProverClientBuilder {
+    mode: Option<ProverMode>,
+    private_key: Option<String>,
     rpc_url: Option<String>,
     skip_simulation: bool,
 }
 
-impl NetworkProverClientBuilder {
-    /// Sets the RPC URL.
-    pub fn with_rpc_url(mut self, rpc_url: String) -> Self {
-        self.rpc_url = Some(rpc_url);
+impl ProverClientBuilder {
+    pub fn mode(mut self, mode: ProverMode) -> Self {
+        self.mode = Some(mode);
+        self
+    }
 
+    /// Sets the RPC URL.
+    pub fn rpc_url(mut self, rpc_url: String) -> Self {
+        self.rpc_url = Some(rpc_url);
         self
     }
 
     /// Skips simulation.
-    pub fn without_simulation(mut self) -> Self {
+    pub fn skip_simulation(mut self) -> Self {
         self.skip_simulation = true;
+        self
+    }
 
+    pub fn private_key(mut self, private_key: String) -> Self {
+        self.private_key = Some(private_key);
         self
     }
 
     /// Builds a [ProverClient], using the provided private key.
-    pub fn build_with_private_key(self, private_key: &str) -> ProverClient {
-        cfg_if! {
-            if #[cfg(feature = "network-v2")] {
-                ProverClient {
-                    prover: Box::new(NetworkProverV2::new(private_key, self.rpc_url, self.skip_simulation)),
+    pub fn build(self) -> ProverClient {
+        match self.mode.expect("The prover mode is required") {
+            ProverMode::Cpu => ProverClient::cpu(),
+            ProverMode::Cuda => {
+                cfg_if! {
+                    if #[cfg(feature = "cuda")] {
+                        ProverClient::cuda()
+                    } else {
+                        panic!("cuda feature is not enabled")
+                    }
                 }
-            } else if #[cfg(feature = "network")] {
-                ProverClient {
-                    prover: Box::new(NetworkProverV1::new(private_key, self.rpc_url, self.skip_simulation)),
-                }
-            } else {
-                panic!("network feature is not enabled")
             }
+            ProverMode::Network => {
+                let private_key = self.private_key.expect("The private key is required");
+
+                cfg_if! {
+                    if #[cfg(feature = "network-v2")] {
+                        ProverClient {
+                            prover: Box::new(NetworkProverV2::new(&private_key, self.rpc_url, self.skip_simulation)),
+                        }
+                    } else if #[cfg(feature = "network")] {
+                        ProverClient {
+                            prover: Box::new(NetworkProverV1::new(&private_key, self.rpc_url, self.skip_simulation)),
+                        }
+                    } else {
+                        panic!("network feature is not enabled")
+                    }
+                }
+            }
+            ProverMode::Mock => ProverClient::mock(),
         }
     }
 }
@@ -359,7 +421,7 @@ mod tests {
     #[test]
     fn test_execute() {
         utils::setup_logger();
-        let client = ProverClient::local();
+        let client = ProverClient::cpu();
         let elf =
             include_bytes!("../../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
         let mut stdin = SP1Stdin::new();
@@ -372,7 +434,7 @@ mod tests {
     #[should_panic]
     fn test_execute_panic() {
         utils::setup_logger();
-        let client = ProverClient::local();
+        let client = ProverClient::cpu();
         let elf = include_bytes!("../../../tests/panic/elf/riscv32im-succinct-zkvm-elf");
         let mut stdin = SP1Stdin::new();
         stdin.write(&10usize);
@@ -383,7 +445,7 @@ mod tests {
     #[test]
     fn test_cycle_limit_fail() {
         utils::setup_logger();
-        let client = ProverClient::local();
+        let client = ProverClient::cpu();
         let elf = include_bytes!("../../../tests/panic/elf/riscv32im-succinct-zkvm-elf");
         let mut stdin = SP1Stdin::new();
         stdin.write(&10usize);
@@ -393,7 +455,7 @@ mod tests {
     #[test]
     fn test_e2e_core() {
         utils::setup_logger();
-        let client = ProverClient::local();
+        let client = ProverClient::cpu();
         let elf = include_bytes!("../../../tests/fibonacci/elf/riscv32im-succinct-zkvm-elf");
         let (pk, vk) = client.setup(elf);
         let mut stdin = SP1Stdin::new();
@@ -413,7 +475,7 @@ mod tests {
     #[test]
     fn test_e2e_compressed() {
         utils::setup_logger();
-        let client = ProverClient::local();
+        let client = ProverClient::cpu();
         let elf = include_bytes!("../../../tests/fibonacci/elf/riscv32im-succinct-zkvm-elf");
         let (pk, vk) = client.setup(elf);
         let mut stdin = SP1Stdin::new();
@@ -433,7 +495,7 @@ mod tests {
     #[test]
     fn test_e2e_prove_plonk() {
         utils::setup_logger();
-        let client = ProverClient::local();
+        let client = ProverClient::cpu();
         let elf = include_bytes!("../../../tests/fibonacci/elf/riscv32im-succinct-zkvm-elf");
         let (pk, vk) = client.setup(elf);
         let mut stdin = SP1Stdin::new();
