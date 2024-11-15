@@ -31,11 +31,11 @@ sp1-recursion-compiler = { workspace = true }
 sp1-primitives = { workspace = true }
 sp1-recursion-gnark-ffi = { workspace = true }
 
-itertools = "0.13.0"
-serde = { version = "1.0", features = ["derive"] }
+itertools = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
 rand = "0.8.5"
-tracing = "0.1.40"
-hashbrown = { version = "0.14.5", features = ["serde", "inline-more"] }
+tracing = { workspace = true }
+hashbrown = { workspace = true, features = ["serde", "inline-more"] }
 num-traits = "0.2.19"
 rayon = "1.10.0"
 test-artifacts = { workspace = true, optional = true }

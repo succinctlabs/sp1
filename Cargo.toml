@@ -142,6 +142,14 @@ p3-bn254-fr = { git = "https://github.com/Plonky3/Plonky3", branch = "sp1-v4" }
 # p3-maybe-rayon = { path = "../Plonky3/maybe-rayon" }
 # p3-bn254-fr = { path = "../Plonky3/bn254-fr" }
 
+# misc
+hashbrown = "0.14.5"
+itertools = "0.13.0"
+serde = "1.0.204"
+serde_json = "1.0.132"
+tracing = "0.1.40"
+tracing-subscriber = "0.3.18"
+
 [workspace.metadata.typos]
 # TODO: Fix in next version since CommitCommitedValuesDigest is retained since it's present in constraints.json
 default.extend-ignore-re = [

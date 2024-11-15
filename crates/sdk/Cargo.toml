@@ -11,7 +11,7 @@ categories = { workspace = true }
 
 [dependencies]
 prost = { version = "0.13", optional = true }
-serde = { version = "1.0.204", features = ["derive"] }
+serde = { workspace = true, features = ["derive"] }
 twirp = { package = "twirp-rs", version = "0.13.0-succinct", optional = true }
 async-trait = "0.1.81"
 reqwest-middleware = { version = "0.3.2", optional = true }
@@ -32,7 +32,7 @@ p3-field = { workspace = true }
 p3-baby-bear = { workspace = true }
 p3-fri = { workspace = true }
 indicatif = "0.17.8"
-tracing = "0.1.40"
+tracing = { workspace = true }
 hex = "0.4.3"
 log = "0.4.22"
 dirs = "5.0.1"
@@ -41,11 +41,11 @@ cfg-if = "1.0"
 strum = "0.26.3"
 strum_macros = "0.26.4"
 thiserror = "1.0.63"
-hashbrown = "0.14.5"
+hashbrown = { workspace = true }
 sp1-core-executor = { workspace = true }
 sp1-stark = { workspace = true }
 sp1-primitives = { workspace = true }
-itertools = "0.13.0"
+itertools = { workspace = true }
 tonic = { version = "0.12", features = ["tls", "tls-roots"], optional = true }
 alloy-sol-types = { version = "0.8", optional = true }
 alloy-signer = { version = "0.5", optional = true }

@@ -31,10 +31,10 @@ p3-symmetric = { workspace = true }
 p3-poseidon2 = { workspace = true }
 
 # misc
-serde = { version = "1.0.207", features = ["derive"] }
+serde = { workspace = true, features = ["derive"] }
 hashbrown = { version = "0.14.5", features = ["serde", "inline-more"] }
-itertools = "0.13.0"
-tracing = "0.1.40"
+itertools = { workspace = true }
+tracing = { workspace = true }
 rayon-scan = "0.1.1"
 arrayref = "0.3.8"
 strum = "0.26.3"
