@@ -61,7 +61,7 @@ sp1-lib = { path = "../crates/zkvm/lib", default-features = false }
 sp1-zkvm = { path = "../crates/zkvm/entrypoint", default-features = false }
 
 # misc
-serde = "1.0.215"
+serde = "1.0.204"
 serde_json = "1.0.132"
 tracing = "0.1.40"
 
