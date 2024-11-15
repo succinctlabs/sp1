@@ -157,6 +157,7 @@ pub fn dummy_vk_and_shard_proof<A: MachineAir<BabyBear>>(
     let vk = StarkVerifyingKey {
         commit: dummy_hash(),
         pc_start: BabyBear::zero(),
+        initial_global_cumulative_sum: SepticDigest::<BabyBear>::zero(),
         chip_information: preprocessed_chip_information,
         chip_ordering: preprocessed_chip_ordering,
     };

@@ -10,7 +10,7 @@ use p3_field::{AbstractExtensionField, AbstractField, Field, PrimeField32};
 use p3_matrix::{dense::RowMajorMatrix, Dimensions, Matrix};
 use p3_maybe_rayon::prelude::*;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use std::{cmp::Reverse, env, fmt::Debug, time::Instant};
+use std::{cmp::Reverse, env, fmt::Debug, iter::once, time::Instant};
 use tracing::instrument;
 
 use super::{debug_constraints, Dom};
@@ -63,6 +63,8 @@ pub struct StarkProvingKey<SC: StarkGenericConfig> {
     pub commit: Com<SC>,
     /// The start pc of the program.
     pub pc_start: Val<SC>,
+    /// The starting global digest of the program, after incorporating the initial memory.
+    pub initial_global_cumulative_sum: SepticDigest<Val<SC>>,
     /// The preprocessed traces.
     pub traces: Vec<RowMajorMatrix<Val<SC>>>,
     /// The pcs data for the preprocessed traces.
@@ -78,9 +80,10 @@ impl<SC: StarkGenericConfig> StarkProvingKey<SC> {
     pub fn observe_into(&self, challenger: &mut SC::Challenger) {
         challenger.observe(self.commit.clone());
         challenger.observe(self.pc_start);
-        for _ in 0..7 {
-            challenger.observe(Val::<SC>::zero());
-        }
+        challenger.observe_slice(&self.initial_global_cumulative_sum.0.x.0);
+        challenger.observe_slice(&self.initial_global_cumulative_sum.0.y.0);
+        // Observe the padding.
+        challenger.observe(Val::<SC>::zero());
     }
 }
 
@@ -93,6 +96,8 @@ pub struct StarkVerifyingKey<SC: StarkGenericConfig> {
     pub commit: Com<SC>,
     /// The start pc of the program.
     pub pc_start: Val<SC>,
+    /// The starting global digest of the program, after incorporating the initial memory.
+    pub initial_global_cumulative_sum: SepticDigest<Val<SC>>,
     /// The chip information.
     pub chip_information: Vec<(String, Dom<SC>, Dimensions)>,
     /// The chip ordering.
@@ -104,9 +109,10 @@ impl<SC: StarkGenericConfig> StarkVerifyingKey<SC> {
     pub fn observe_into(&self, challenger: &mut SC::Challenger) {
         challenger.observe(self.commit.clone());
         challenger.observe(self.pc_start);
-        for _ in 0..7 {
-            challenger.observe(Val::<SC>::zero());
-        }
+        challenger.observe_slice(&self.initial_global_cumulative_sum.0.x.0);
+        challenger.observe_slice(&self.initial_global_cumulative_sum.0.y.0);
+        // Observe the padding.
+        challenger.observe(Val::<SC>::zero());
     }
 }
 
@@ -240,17 +246,25 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
             named_preprocessed_traces.into_iter().map(|(_, _, trace)| trace).collect::<Vec<_>>();
 
         let pc_start = program.pc_start();
+        let initial_global_cumulative_sum = program.initial_global_cumulative_sum();
 
         (
             StarkProvingKey {
                 commit: commit.clone(),
                 pc_start,
+                initial_global_cumulative_sum,
                 traces,
                 data,
                 chip_ordering: chip_ordering.clone(),
                 local_only,
             },
-            StarkVerifyingKey { commit, pc_start, chip_information, chip_ordering },
+            StarkVerifyingKey {
+                commit,
+                pc_start,
+                initial_global_cumulative_sum,
+                chip_information,
+                chip_ordering,
+            },
         )
     }
 
@@ -340,6 +354,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
                 .shard_proofs
                 .iter()
                 .map(ShardProof::global_cumulative_sum)
+                .chain(once(vk.initial_global_cumulative_sum))
                 .sum::<SepticDigest<Val<SC>>>();
 
             if !sum.is_zero() {
@@ -373,6 +388,8 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
         }
 
         let mut global_cumulative_sums = Vec::new();
+        global_cumulative_sums.push(pk.initial_global_cumulative_sum);
+
         for shard in records.iter() {
             // Filter the chips based on what is used.
             let chips = self.shard_chips(shard).collect::<Vec<_>>();

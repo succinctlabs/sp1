@@ -66,7 +66,6 @@ where
             local.op_b_val(),
             local.op_c_val(),
             local.shard,
-            local.nonce,
             is_alu_instruction,
         );
 
@@ -196,7 +195,6 @@ impl CpuChip {
             jump_columns.pc,
             local.op_b_val(),
             local.shard,
-            jump_columns.jal_nonce,
             local.selectors.is_jal,
         );
 
@@ -207,7 +205,6 @@ impl CpuChip {
             local.op_b_val(),
             local.op_c_val(),
             local.shard,
-            jump_columns.jalr_nonce,
             local.selectors.is_jalr,
         );
     }
@@ -235,7 +232,6 @@ impl CpuChip {
             auipc_columns.pc,
             local.op_b_val(),
             local.shard,
-            auipc_columns.auipc_nonce,
             local.selectors.is_auipc,
         );
     }

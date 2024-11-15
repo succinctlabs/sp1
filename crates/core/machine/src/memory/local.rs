@@ -8,20 +8,16 @@ use crate::{operations::GlobalAccumulationOperation, operations::GlobalInteracti
 use hashbrown::HashMap;
 use itertools::Itertools;
 use p3_air::{Air, BaseAir};
-use p3_field::AbstractExtensionField;
 use p3_field::PrimeField32;
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
-use p3_maybe_rayon::prelude::{ParallelBridge, ParallelIterator};
+use p3_maybe_rayon::prelude::{ParallelBridge, ParallelIterator, ParallelSlice};
 use sp1_core_executor::events::ByteLookupEvent;
 use sp1_core_executor::events::ByteRecord;
 use sp1_core_executor::{ExecutionRecord, Program};
 use sp1_derive::AlignedBorrow;
-use sp1_stark::septic_curve::SepticCurve;
-use sp1_stark::septic_extension::SepticExtension;
 use sp1_stark::{
     air::{AirInteraction, InteractionScope, MachineAir, SP1AirBuilder},
-    septic_digest::CURVE_CUMULATIVE_SUM_START_X,
-    septic_digest::CURVE_CUMULATIVE_SUM_START_Y,
+    septic_digest::SepticDigest,
     InteractionKind, Word,
 };
 pub const NUM_LOCAL_MEMORY_ENTRIES_PER_ROW: usize = 4;
@@ -94,35 +90,46 @@ impl<F: PrimeField32> MachineAir<F> for MemoryLocalChip {
     }
 
     fn generate_dependencies(&self, input: &ExecutionRecord, output: &mut ExecutionRecord) {
-        let mut blu: HashMap<u32, HashMap<ByteLookupEvent, usize>> = HashMap::new();
-        for local_mem_events in
-            &input.get_local_mem_events().chunks(NUM_LOCAL_MEMORY_ENTRIES_PER_ROW)
-        {
-            let mut row = [F::zero(); NUM_MEMORY_LOCAL_INIT_COLS];
-            let cols: &mut MemoryLocalCols<F> = row.as_mut_slice().borrow_mut();
+        let events = input.get_local_mem_events().collect::<Vec<_>>();
+        let nb_rows = (events.len() + 3) / 4;
+        let chunk_size = std::cmp::max((nb_rows + 1) / num_cpus::get(), 1);
 
-            for (cols, event) in cols.memory_local_entries.iter_mut().zip(local_mem_events) {
-                cols.initial_global_interaction_cols.populate_memory(
-                    event.initial_mem_access.shard,
-                    event.initial_mem_access.timestamp,
-                    event.addr,
-                    event.initial_mem_access.value,
-                    true,
-                    true,
-                    &mut blu,
-                );
-                cols.final_global_interaction_cols.populate_memory(
-                    event.final_mem_access.shard,
-                    event.final_mem_access.timestamp,
-                    event.addr,
-                    event.final_mem_access.value,
-                    false,
-                    true,
-                    &mut blu,
-                );
-            }
-        }
-        output.add_sharded_byte_lookup_events(vec![&blu]);
+        let blu_batches = events
+            .par_chunks(chunk_size * NUM_LOCAL_MEMORY_ENTRIES_PER_ROW)
+            .map(|events| {
+                let mut blu: HashMap<u32, HashMap<ByteLookupEvent, usize>> = HashMap::new();
+                events.chunks(NUM_LOCAL_MEMORY_ENTRIES_PER_ROW).for_each(|events| {
+                    let mut row = [F::zero(); NUM_MEMORY_LOCAL_INIT_COLS];
+                    let cols: &mut MemoryLocalCols<F> = row.as_mut_slice().borrow_mut();
+                    for k in 0..NUM_LOCAL_MEMORY_ENTRIES_PER_ROW {
+                        let cols = &mut cols.memory_local_entries[k];
+                        if k < events.len() {
+                            let event = events[k];
+                            cols.initial_global_interaction_cols.populate_memory(
+                                event.initial_mem_access.shard,
+                                event.initial_mem_access.timestamp,
+                                event.addr,
+                                event.initial_mem_access.value,
+                                true,
+                                true,
+                                &mut blu,
+                            );
+                            cols.final_global_interaction_cols.populate_memory(
+                                event.final_mem_access.shard,
+                                event.final_mem_access.timestamp,
+                                event.addr,
+                                event.final_mem_access.value,
+                                false,
+                                true,
+                                &mut blu,
+                            );
+                        }
+                    }
+                });
+                blu
+            })
+            .collect::<Vec<_>>();
+        output.add_sharded_byte_lookup_events(blu_batches.iter().collect_vec());
     }
 
     fn generate_trace(
@@ -204,14 +211,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryLocalChip {
             }
         }
 
-        let mut global_cumulative_sum = SepticCurve {
-            x: SepticExtension::<F>::from_base_fn(|i| {
-                F::from_canonical_u32(CURVE_CUMULATIVE_SUM_START_X[i])
-            }),
-            y: SepticExtension::<F>::from_base_fn(|i| {
-                F::from_canonical_u32(CURVE_CUMULATIVE_SUM_START_Y[i])
-            }),
-        };
+        let mut global_cumulative_sum = SepticDigest::<F>::zero().0;
 
         for i in 0..trace.height() {
             let cols: &mut MemoryLocalCols<F> = trace.values
@@ -280,13 +280,15 @@ where
                 InteractionScope::Local,
             );
 
-            GlobalInteractionOperation::<AB::F>::eval_single_digest(
+            GlobalInteractionOperation::<AB::F>::eval_single_digest_memory(
                 builder,
-                values,
+                local.initial_shard.into(),
+                local.initial_clk.into(),
+                local.addr.into(),
+                local.initial_value.map(Into::into).0,
                 local.initial_global_interaction_cols,
                 true,
                 local.is_real,
-                InteractionKind::Memory,
             );
 
             global_interaction_cols.push(local.initial_global_interaction_cols);
@@ -300,13 +302,15 @@ where
                 InteractionScope::Local,
             );
 
-            GlobalInteractionOperation::<AB::F>::eval_single_digest(
+            GlobalInteractionOperation::<AB::F>::eval_single_digest_memory(
                 builder,
-                values,
+                local.final_shard.into(),
+                local.final_clk.into(),
+                local.addr.into(),
+                local.final_value.map(Into::into).0,
                 local.final_global_interaction_cols,
                 false,
                 local.is_real,
-                InteractionKind::Memory,
             );
 
             global_interaction_cols.push(local.final_global_interaction_cols);

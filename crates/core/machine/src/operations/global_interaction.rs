@@ -10,10 +10,7 @@ use sp1_derive::AlignedBorrow;
 use sp1_stark::air::SepticExtensionAirBuilder;
 use sp1_stark::{
     air::SP1AirBuilder,
-    septic_curve::{
-        SepticCurve, A_EC_LOGUP, B_EC_LOGUP, CURVE_WITNESS_DUMMY_POINT_X,
-        CURVE_WITNESS_DUMMY_POINT_Y,
-    },
+    septic_curve::{SepticCurve, CURVE_WITNESS_DUMMY_POINT_X, CURVE_WITNESS_DUMMY_POINT_Y},
     septic_extension::{SepticBlock, SepticExtension},
     InteractionKind, Word,
 };
@@ -29,6 +26,20 @@ pub struct GlobalInteractionOperation<T> {
 }
 
 impl<F: PrimeField32> GlobalInteractionOperation<F> {
+    pub fn get_digest(
+        values: SepticBlock<u32>,
+        is_receive: bool,
+        kind: InteractionKind,
+    ) -> (SepticCurve<F>, u8) {
+        let x_start = SepticExtension::<F>::from_base_fn(|i| F::from_canonical_u32(values.0[i]))
+            + SepticExtension::from_base(F::from_canonical_u32((kind as u32) << 24));
+        let (point, offset) = SepticCurve::<F>::lift_x(x_start);
+        if !is_receive {
+            return (point.neg(), offset);
+        }
+        (point, offset)
+    }
+
     pub fn populate(
         &mut self,
         values: SepticBlock<u32>,
@@ -38,22 +49,14 @@ impl<F: PrimeField32> GlobalInteractionOperation<F> {
         blu: &mut impl ByteRecord,
     ) {
         if is_real {
-            let x_start =
-                SepticExtension::<F>::from_base_fn(|i| F::from_canonical_u32(values.0[i]))
-                    + SepticExtension::from_base(F::from_canonical_u32((kind as u32) << 24));
-            let (point, offset) = SepticCurve::<F>::lift_x(x_start);
-            let x_coordinate = point.x;
-            let mut y_coordinate = point.y;
+            let (point, offset) = Self::get_digest(values, is_receive, kind);
             self.offset = F::from_canonical_u8(offset);
-            self.x_coordinate = SepticBlock::<F>::from(x_coordinate.0);
-            if !is_receive {
-                y_coordinate = -y_coordinate;
-            }
-            self.y_coordinate = SepticBlock::<F>::from(y_coordinate.0);
+            self.x_coordinate = SepticBlock::<F>::from(point.x.0);
+            self.y_coordinate = SepticBlock::<F>::from(point.y.0);
             let range_check_value = if is_receive {
-                y_coordinate.0[6].as_canonical_u32() - 1
+                point.y.0[6].as_canonical_u32() - 1
             } else {
-                y_coordinate.0[6].as_canonical_u32() - (F::ORDER_U32 + 1) / 2
+                point.y.0[6].as_canonical_u32() - (F::ORDER_U32 + 1) / 2
             };
             self.y6_byte_decomp = Word::from(range_check_value);
             blu.add_byte_lookup_event(ByteLookupEvent {
@@ -104,14 +107,18 @@ impl<F: PrimeField32> GlobalInteractionOperation<F> {
             InteractionKind::Memory,
             blu,
         );
+        if is_real {
+            blu.add_u8_range_checks(shard, &value.to_le_bytes());
+            blu.add_u16_range_check(shard, shard as u16);
+        }
     }
 
     #[allow(clippy::too_many_arguments)]
     pub fn populate_syscall(
         &mut self,
         shard: u32,
-        clk: u32,
-        nonce: u32,
+        clk_16: u16,
+        clk_8: u8,
         syscall_id: u32,
         arg1: u32,
         arg2: u32,
@@ -120,12 +127,16 @@ impl<F: PrimeField32> GlobalInteractionOperation<F> {
         blu: &mut impl ByteRecord,
     ) {
         self.populate(
-            SepticBlock([shard, clk, nonce, syscall_id, arg1, arg2, 0]),
+            SepticBlock([shard, clk_16.into(), clk_8.into(), syscall_id, arg1, arg2, 0]),
             is_receive,
             is_real,
             InteractionKind::Syscall,
             blu,
         );
+        if is_real {
+            blu.add_u16_range_checks(shard, &[shard as u16, clk_16]);
+            blu.add_u8_range_checks(shard, &[clk_8, syscall_id as u8]);
+        }
     }
 
     pub fn populate_dummy(&mut self) {
@@ -142,10 +153,10 @@ impl<F: PrimeField32> GlobalInteractionOperation<F> {
 
 impl<F: Field> GlobalInteractionOperation<F> {
     /// Constrain that the y coordinate is correct decompression, and send the resulting digest coordinate to the permutation trace.
-    /// In this function, `values` should have length 7 with first value being the `shard`.
-    pub fn eval_single_digest<AB: SP1AirBuilder>(
+    /// The first value in `values` must be a value range checked to u16.
+    fn eval_single_digest<AB: SP1AirBuilder>(
         builder: &mut AB,
-        values: Vec<AB::Expr>,
+        values: [AB::Expr; 7],
         cols: GlobalInteractionOperation<AB::Var>,
         is_receive: bool,
         is_real: AB::Var,
@@ -163,23 +174,15 @@ impl<F: Field> GlobalInteractionOperation<F> {
             is_real,
         );
 
-        // Compute the message. The first entry is value (shard) || offset || InteractionKind.
-        let message = SepticExtension::<AB::Expr>::from_base_fn(|i| values[i].clone())
+        // Compute the message.
+        let message = SepticExtension(values)
             + SepticExtension::<AB::Expr>::from_base(
                 cols.offset.into() * AB::F::from_canonical_u32(1 << 16)
                     + AB::F::from_canonical_u32(kind as u32) * AB::F::from_canonical_u32(1 << 24),
             );
 
-        let a_ec_logup = SepticExtension::<AB::Expr>::from_base_fn(|i| {
-            AB::Expr::from_canonical_u32(A_EC_LOGUP[i])
-        });
-
-        let b_ec_logup = SepticExtension::<AB::Expr>::from_base_fn(|i| {
-            AB::Expr::from_canonical_u32(B_EC_LOGUP[i])
-        });
-
         // Compute a * m + b.
-        let am_plus_b = a_ec_logup * message + b_ec_logup;
+        let am_plus_b = SepticCurve::<AB::Expr>::universal_hash(message);
 
         let x = SepticExtension::<AB::Expr>::from_base_fn(|i| cols.x_coordinate[i].into());
 
@@ -191,17 +194,7 @@ impl<F: Field> GlobalInteractionOperation<F> {
 
         // Constrain that `(x, y)` is a valid point on the curve.
         let y2 = y.square();
-        let x3_2x_26z5 = x.cube()
-            + x.clone() * AB::Expr::two()
-            + SepticExtension::<AB::Expr>::from_base_slice(&[
-                AB::Expr::zero(),
-                AB::Expr::zero(),
-                AB::Expr::zero(),
-                AB::Expr::zero(),
-                AB::Expr::zero(),
-                AB::Expr::from_canonical_u32(26),
-                AB::Expr::zero(),
-            ]);
+        let x3_2x_26z5 = SepticCurve::<AB::Expr>::curve_formula(x);
 
         builder.assert_septic_ext_eq(y2, x3_2x_26z5);
 
@@ -227,6 +220,104 @@ impl<F: Field> GlobalInteractionOperation<F> {
             AB::Expr::one(),
             cols.y6_byte_decomp[3],
             AB::Expr::from_canonical_u32(60),
+            is_real,
+        );
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn eval_single_digest_memory<AB: SP1AirBuilder>(
+        builder: &mut AB,
+        shard: AB::Expr,
+        clk: AB::Expr,
+        addr: AB::Expr,
+        value: [AB::Expr; 4],
+        cols: GlobalInteractionOperation<AB::Var>,
+        is_receive: bool,
+        is_real: AB::Var,
+    ) {
+        let values = [
+            shard.clone(),
+            clk.clone(),
+            addr.clone(),
+            value[0].clone(),
+            value[1].clone(),
+            value[2].clone(),
+            value[3].clone(),
+        ];
+
+        Self::eval_single_digest(
+            builder,
+            values,
+            cols,
+            is_receive,
+            is_real,
+            InteractionKind::Memory,
+        );
+
+        // Range check for message space.
+        // Range check shard to be a valid u16.
+        builder.send_byte(
+            AB::Expr::from_canonical_u8(ByteOpcode::U16Range as u8),
+            shard,
+            AB::Expr::zero(),
+            AB::Expr::zero(),
+            is_real,
+        );
+        // Range check the word value to be valid u8 word.
+        builder.slice_range_check_u8(&value, is_real);
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn eval_single_digest_syscall<AB: SP1AirBuilder>(
+        builder: &mut AB,
+        shard: AB::Expr,
+        clk_16: AB::Expr,
+        clk_8: AB::Expr,
+        syscall_id: AB::Expr,
+        arg1: AB::Expr,
+        arg2: AB::Expr,
+        cols: GlobalInteractionOperation<AB::Var>,
+        is_receive: bool,
+        is_real: AB::Var,
+    ) {
+        let values = [
+            shard.clone(),
+            clk_16.clone(),
+            clk_8.clone(),
+            syscall_id.clone(),
+            arg1.clone(),
+            arg2.clone(),
+            AB::Expr::zero(),
+        ];
+
+        Self::eval_single_digest(
+            builder,
+            values,
+            cols,
+            is_receive,
+            is_real,
+            InteractionKind::Syscall,
+        );
+
+        // Range check for message space.
+        // Range check shard to be a valid u16.
+        builder.send_byte(
+            AB::Expr::from_canonical_u8(ByteOpcode::U16Range as u8),
+            shard,
+            AB::Expr::zero(),
+            AB::Expr::zero(),
+            is_real,
+        );
+
+        // Range check clk_8 and syscall_id to be u8.
+        builder.slice_range_check_u8(&[clk_8, syscall_id], is_real);
+
+        // Range check clk_16 to be u16.
+        builder.send_byte(
+            AB::Expr::from_canonical_u8(ByteOpcode::U16Range as u8),
+            clk_16,
+            AB::Expr::zero(),
+            AB::Expr::zero(),
             is_real,
         );
     }

@@ -8,20 +8,16 @@ use p3_matrix::{dense::RowMajorMatrix, Matrix};
 
 use crate::{operations::GlobalAccumulationOperation, operations::GlobalInteractionOperation};
 use hashbrown::HashMap;
-use p3_field::AbstractExtensionField;
 use p3_field::PrimeField32;
 use p3_maybe_rayon::prelude::{ParallelBridge, ParallelIterator};
 use sp1_core_executor::events::ByteLookupEvent;
 use sp1_core_executor::events::ByteRecord;
 use sp1_core_executor::{ExecutionRecord, Program};
 use sp1_derive::AlignedBorrow;
-use sp1_stark::septic_curve::SepticCurve;
-use sp1_stark::septic_extension::SepticExtension;
 use sp1_stark::{
     air::{InteractionScope, MachineAir, PublicValues, SP1AirBuilder, SP1_PROOF_NUM_PV_ELTS},
-    septic_digest::CURVE_CUMULATIVE_SUM_START_X,
-    septic_digest::CURVE_CUMULATIVE_SUM_START_Y,
-    InteractionKind, Word,
+    septic_digest::SepticDigest,
+    Word,
 };
 
 use crate::{
@@ -146,15 +142,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryProgramChip {
         let mult_bool = input.public_values.shard == 1;
         let mult = F::from_bool(mult_bool);
 
-        let mut global_cumulative_sum = SepticCurve {
-            x: SepticExtension::<F>::from_base_fn(|i| {
-                F::from_canonical_u32(CURVE_CUMULATIVE_SUM_START_X[i])
-            }),
-            y: SepticExtension::<F>::from_base_fn(|i| {
-                F::from_canonical_u32(CURVE_CUMULATIVE_SUM_START_Y[i])
-            }),
-        };
-
+        let mut global_cumulative_sum = SepticDigest::<F>::zero().0;
         // Generate the trace rows for each event.
         let mut rows = program_memory
             .iter()
@@ -205,7 +193,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryProgramChip {
     }
 
     fn included(&self, _: &Self::Record) -> bool {
-        true
+        false
     }
 
     fn commit_scope(&self) -> InteractionScope {
@@ -263,13 +251,15 @@ where
 
         let mut values = vec![AB::Expr::zero(), AB::Expr::zero(), prep_local.addr.into()];
         values.extend(prep_local.value.map(Into::into));
-        GlobalInteractionOperation::<AB::F>::eval_single_digest(
+        GlobalInteractionOperation::<AB::F>::eval_single_digest_memory(
             builder,
-            values,
+            AB::Expr::zero(),
+            AB::Expr::zero(),
+            prep_local.addr.into(),
+            prep_local.value.map(Into::into).0,
             mult_local.global_interaction_cols,
             false,
             mult_local.multiplicity,
-            InteractionKind::Memory,
         );
 
         GlobalAccumulationOperation::<AB::F, 1>::eval_accumulation(

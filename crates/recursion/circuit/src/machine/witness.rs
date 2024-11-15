@@ -89,14 +89,22 @@ where
     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
         let commitment = self.commit.read(builder);
         let pc_start = self.pc_start.read(builder);
+        let initial_global_cumulative_sum = self.initial_global_cumulative_sum.read(builder);
         let chip_information = self.chip_information.clone();
         let chip_ordering = self.chip_ordering.clone();
-        VerifyingKeyVariable { commitment, pc_start, chip_information, chip_ordering }
+        VerifyingKeyVariable {
+            commitment,
+            pc_start,
+            initial_global_cumulative_sum,
+            chip_information,
+            chip_ordering,
+        }
     }
 
     fn write(&self, witness: &mut impl WitnessWriter<C>) {
         self.commit.write(witness);
         self.pc_start.write(witness);
+        self.initial_global_cumulative_sum.write(witness);
     }
 }
 

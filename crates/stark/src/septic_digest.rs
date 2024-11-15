@@ -59,10 +59,7 @@ impl<F: Field> SepticDigest<F> {
 
 impl<F: Field> Sum for SepticDigest<F> {
     fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
-        let start = SepticCurve {
-            x: SepticExtension::<F>::from_base_fn(|i| F::from_canonical_u32(DIGEST_SUM_START_X[i])),
-            y: SepticExtension::<F>::from_base_fn(|i| F::from_canonical_u32(DIGEST_SUM_START_Y[i])),
-        };
+        let start = SepticDigest::<F>::starting_digest().0;
 
         // Computation order is start + (digest1 - offset) + (digest2 - offset) + ... + (digestN - offset) + offset - start.
         let mut ret = iter.fold(start, |acc, x| {

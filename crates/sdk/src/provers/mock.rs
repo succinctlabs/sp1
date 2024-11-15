@@ -2,7 +2,9 @@
 use hashbrown::HashMap;
 use sp1_core_executor::{SP1Context, SP1ReduceProof};
 use sp1_core_machine::io::SP1Stdin;
-use sp1_stark::{ShardCommitment, ShardOpenedValues, ShardProof, StarkVerifyingKey};
+use sp1_stark::{
+    septic_digest::SepticDigest, ShardCommitment, ShardOpenedValues, ShardProof, StarkVerifyingKey,
+};
 
 use crate::{
     Prover, SP1Proof, SP1ProofKind, SP1ProofWithPublicValues, SP1ProvingKey, SP1VerificationError,
@@ -90,6 +92,7 @@ impl Prover<DefaultProverComponents> for MockProver {
                 let reduce_vk = StarkVerifyingKey {
                     commit: [BabyBear::zero(); 8].into(),
                     pc_start: BabyBear::zero(),
+                    initial_global_cumulative_sum: SepticDigest::<BabyBear>::zero(),
                     chip_information: vec![],
                     chip_ordering: HashMap::new(),
                 };

@@ -9,9 +9,7 @@ use sp1_core_executor::{
 };
 
 use crate::{
-    memory::{
-        MemoryChipType, MemoryLocalChip, MemoryProgramChip, NUM_LOCAL_MEMORY_ENTRIES_PER_ROW,
-    },
+    memory::{MemoryChipType, MemoryLocalChip, NUM_LOCAL_MEMORY_ENTRIES_PER_ROW},
     riscv::MemoryChipType::{Finalize, Initialize},
     syscall::precompiles::fptower::{Fp2AddSubAssignChip, Fp2MulAssignChip, FpOpChip},
 };
@@ -95,7 +93,7 @@ pub enum RiscvAir<F: PrimeField32> {
     /// A table for the local memory state.
     MemoryLocal(MemoryLocalChip),
     /// A table for initializing the program memory.
-    ProgramMemory(MemoryProgramChip),
+    // ProgramMemory(MemoryProgramChip),
     /// A table for all the syscall invocations.
     SyscallCore(SyscallChip),
     /// A table for all the precompile invocations.
@@ -361,9 +359,9 @@ impl<F: PrimeField32> RiscvAir<F> {
         costs.insert(RiscvAirDiscriminants::MemoryLocal, memory_local.cost());
         chips.push(memory_local);
 
-        let memory_program = Chip::new(RiscvAir::ProgramMemory(MemoryProgramChip::default()));
-        costs.insert(RiscvAirDiscriminants::ProgramMemory, memory_program.cost());
-        chips.push(memory_program);
+        // let memory_program = Chip::new(RiscvAir::ProgramMemory(MemoryProgramChip::default()));
+        // costs.insert(RiscvAirDiscriminants::ProgramMemory, memory_program.cost());
+        // chips.push(memory_program);
 
         let byte = Chip::new(RiscvAir::ByteLookup(ByteChip::default()));
         costs.insert(RiscvAirDiscriminants::ByteLookup, byte.cost());
@@ -376,7 +374,7 @@ impl<F: PrimeField32> RiscvAir<F> {
     pub(crate) fn preprocessed_heights(program: &Program) -> Vec<(Self, usize)> {
         vec![
             (RiscvAir::Program(ProgramChip::default()), program.instructions.len()),
-            (RiscvAir::ProgramMemory(MemoryProgramChip::default()), program.memory_image.len()),
+            // (RiscvAir::ProgramMemory(MemoryProgramChip::default()), program.memory_image.len()),
             (RiscvAir::ByteLookup(ByteChip::default()), 1 << 16),
         ]
     }
@@ -454,7 +452,7 @@ impl<F: PrimeField32> RiscvAir<F> {
 
         // Remove the preprocessed chips.
         airs.remove(&Self::Program(ProgramChip::default()));
-        airs.remove(&Self::ProgramMemory(MemoryProgramChip::default()));
+        // airs.remove(&Self::ProgramMemory(MemoryProgramChip::default()));
         airs.remove(&Self::ByteLookup(ByteChip::default()));
 
         airs.into_iter()
@@ -516,7 +514,7 @@ impl<F: PrimeField32> RiscvAir<F> {
             Self::MemoryGlobalInit(_) => unreachable!("Invalid for memory init/final"),
             Self::MemoryGlobalFinal(_) => unreachable!("Invalid for memory init/final"),
             Self::MemoryLocal(_) => unreachable!("Invalid for memory local"),
-            Self::ProgramMemory(_) => unreachable!("Invalid for memory program"),
+            // Self::ProgramMemory(_) => unreachable!("Invalid for memory program"),
             Self::Program(_) => unreachable!("Invalid for core chip"),
             Self::Mul(_) => unreachable!("Invalid for core chip"),
             Self::Lt(_) => unreachable!("Invalid for core chip"),

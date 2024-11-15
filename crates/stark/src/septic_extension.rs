@@ -1,7 +1,7 @@
 //! A septic extension with an irreducible polynomial `z^7 - 2z - 5`.
 use num_bigint::BigUint;
 use num_traits::One;
-use p3_field::PrimeField32;
+use p3_field::PrimeField;
 use p3_field::{AbstractExtensionField, AbstractField, ExtensionField, Field, Packable};
 use serde::{Deserialize, Serialize};
 use std::array;
@@ -236,7 +236,7 @@ impl<F: AbstractField> Add for SepticExtension<F> {
     fn add(self, rhs: Self) -> Self::Output {
         let mut res = self.0;
         for (r, rhs_val) in res.iter_mut().zip(rhs.0) {
-            *r += rhs_val;
+            *r = (*r).clone() + rhs_val;
         }
         Self(res)
     }
@@ -288,21 +288,18 @@ impl<F: AbstractField> Mul for SepticExtension<F> {
     type Output = Self;
 
     fn mul(self, rhs: Self) -> Self::Output {
-        let mut res = [F::zero(), F::zero(), F::zero(), F::zero(), F::zero(), F::zero(), F::zero()];
+        let mut res: [F; 13] = core::array::from_fn(|_| F::zero());
         for i in 0..7 {
             for j in 0..7 {
-                let k = i + j;
-                if k < 7 {
-                    res[k] += self.0[i].clone() * rhs.0[j].clone();
-                } else {
-                    let rem = k - 7;
-                    let prod = self.0[i].clone() * rhs.0[j].clone();
-                    res[rem] += prod.clone() * F::from_canonical_u32(5);
-                    res[rem + 1] += prod.clone() * F::from_canonical_u32(2);
-                }
+                res[i + j] = res[i + j].clone() + self.0[i].clone() * rhs.0[j].clone();
             }
         }
-        Self(res)
+        let mut ret: [F; 7] = core::array::from_fn(|i| res[i].clone());
+        for i in 7..13 {
+            ret[i - 7] = ret[i - 7].clone() + res[i].clone() * F::from_canonical_u32(5);
+            ret[i - 6] = ret[i - 6].clone() + res[i].clone() * F::from_canonical_u32(2);
+        }
+        Self(ret)
     }
 }
 
@@ -484,6 +481,81 @@ impl<F: Field> SepticExtension<F> {
         unreachable!();
     }
 
+    fn z_pow_p2(index: u32) -> Self {
+        // The constants written below are specifically for the BabyBear field.
+        debug_assert_eq!(F::order(), BigUint::from(2013265921u32));
+        if index == 0 {
+            return Self::one();
+        }
+        if index == 1 {
+            return SepticExtension([
+                F::from_canonical_u32(1013489358),
+                F::from_canonical_u32(1619071628),
+                F::from_canonical_u32(304593143),
+                F::from_canonical_u32(1949397349),
+                F::from_canonical_u32(1564307636),
+                F::from_canonical_u32(327761151),
+                F::from_canonical_u32(415430835),
+            ]);
+        }
+        if index == 2 {
+            return SepticExtension([
+                F::from_canonical_u32(209824426),
+                F::from_canonical_u32(1313900768),
+                F::from_canonical_u32(38410482),
+                F::from_canonical_u32(256593180),
+                F::from_canonical_u32(1708830551),
+                F::from_canonical_u32(1244995038),
+                F::from_canonical_u32(1555324019),
+            ]);
+        }
+        if index == 3 {
+            return SepticExtension([
+                F::from_canonical_u32(1475628651),
+                F::from_canonical_u32(777565847),
+                F::from_canonical_u32(704492386),
+                F::from_canonical_u32(1218528120),
+                F::from_canonical_u32(1245363405),
+                F::from_canonical_u32(475884575),
+                F::from_canonical_u32(649166061),
+            ]);
+        }
+        if index == 4 {
+            return SepticExtension([
+                F::from_canonical_u32(550038364),
+                F::from_canonical_u32(948935655),
+                F::from_canonical_u32(68722023),
+                F::from_canonical_u32(1251345762),
+                F::from_canonical_u32(1692456177),
+                F::from_canonical_u32(1177958698),
+                F::from_canonical_u32(350232928),
+            ]);
+        }
+        if index == 5 {
+            return SepticExtension([
+                F::from_canonical_u32(882720258),
+                F::from_canonical_u32(821925756),
+                F::from_canonical_u32(199955840),
+                F::from_canonical_u32(812002876),
+                F::from_canonical_u32(1484951277),
+                F::from_canonical_u32(1063138035),
+                F::from_canonical_u32(491712810),
+            ]);
+        }
+        if index == 6 {
+            return SepticExtension([
+                F::from_canonical_u32(738287111),
+                F::from_canonical_u32(1955364991),
+                F::from_canonical_u32(552724293),
+                F::from_canonical_u32(1175775744),
+                F::from_canonical_u32(341623997),
+                F::from_canonical_u32(1454022463),
+                F::from_canonical_u32(408193320),
+            ]);
+        }
+        unreachable!();
+    }
+
     #[must_use]
     fn frobenius(&self) -> Self {
         let mut result = Self::zero();
@@ -498,14 +570,24 @@ impl<F: Field> SepticExtension<F> {
     }
 
     #[must_use]
-    fn pow_r_1(&self) -> Self {
-        let mut vp = self.frobenius();
-        let mut result = vp;
-        for _ in 2..7 {
-            vp = vp.frobenius();
-            result *= vp;
-        }
+    fn double_frobenius(&self) -> Self {
+        let mut result = Self::zero();
+        result += self.0[0];
+        result += Self::z_pow_p2(1) * self.0[1];
+        result += Self::z_pow_p2(2) * self.0[2];
+        result += Self::z_pow_p2(3) * self.0[3];
+        result += Self::z_pow_p2(4) * self.0[4];
+        result += Self::z_pow_p2(5) * self.0[5];
+        result += Self::z_pow_p2(6) * self.0[6];
         result
+    }
+
+    #[must_use]
+    fn pow_r_1(&self) -> Self {
+        let base = self.frobenius() * self.double_frobenius();
+        let base_p2 = base.double_frobenius();
+        let base_p4 = base_p2.double_frobenius();
+        base * base_p2 * base_p4
     }
 
     #[must_use]
@@ -515,14 +597,13 @@ impl<F: Field> SepticExtension<F> {
         pow_r_1 * pow_r.0[0].inverse()
     }
 
-    /// Returns whether or not a septic field extension element is a square.
-    pub fn is_square(&self) -> bool {
+    fn is_square(&self) -> (F, bool) {
         let pow_r_1 = self.pow_r_1();
         let pow_r = pow_r_1 * *self;
         let exp = (F::order() - BigUint::one()) / BigUint::from(2u8);
         let exp = exp.to_u64_digits()[0];
 
-        pow_r.0[0].exp_u64(exp) == F::one()
+        (pow_r.0[0], pow_r.0[0].exp_u64(exp) == F::one())
     }
 
     /// Computes the square root of the septic field extension element.
@@ -534,7 +615,9 @@ impl<F: Field> SepticExtension<F> {
             return Some(n);
         }
 
-        if !n.is_square() {
+        let (numerator, is_square) = n.is_square();
+
+        if !is_square {
             return None;
         }
 
@@ -549,18 +632,14 @@ impl<F: Field> SepticExtension<F> {
 
         let mut n_frobenius = n_power.frobenius();
         let mut denominator = n_frobenius;
-        for i in 2..6 {
-            n_frobenius = n_frobenius.frobenius();
-            if i % 2 == 1 {
-                denominator *= n_frobenius;
-            }
-        }
 
-        let mut numerator = n;
-        numerator *= denominator;
-        numerator *= denominator;
+        n_frobenius = n_frobenius.double_frobenius();
+        denominator *= n_frobenius;
+        n_frobenius = n_frobenius.double_frobenius();
+        denominator *= n_frobenius;
+        denominator *= n;
 
-        let base = numerator.0[0];
+        let base = numerator.inverse();
         let g = F::generator();
         let mut a = F::one();
         let mut nonresidue = F::one() - base;
@@ -576,25 +655,27 @@ impl<F: Field> SepticExtension<F> {
         let mut x = CipollaExtension::new(a, F::one());
         x = x.pow(&cipolla_pow, nonresidue);
 
-        Some(denominator.inv() * x.real)
+        Some(denominator * x.real)
     }
 }
 
-impl<F: PrimeField32> SepticExtension<F> {
+impl<F: PrimeField> SepticExtension<F> {
     /// Returns whether the extension field element viewed as an y-coordinate of a digest represents a receive interaction.
     pub fn is_receive(&self) -> bool {
-        1 <= self.0[6].as_canonical_u32() && self.0[6].as_canonical_u32() <= (F::ORDER_U32 - 1) / 2
+        BigUint::from(1u32) <= self.0[6].as_canonical_biguint()
+            && self.0[6].as_canonical_biguint()
+                <= (F::order() - BigUint::from(1u32)) / BigUint::from(2u32)
     }
 
     /// Returns whether the extension field element viewed as an y-coordinate of a digest represents a send interaction.
     pub fn is_send(&self) -> bool {
-        (F::ORDER_U32 + 1) / 2 <= self.0[6].as_canonical_u32()
-            && self.0[6].as_canonical_u32() <= (F::ORDER_U32 - 1)
+        (F::order() + BigUint::from(1u32)) / BigUint::from(2u32) <= self.0[6].as_canonical_biguint()
+            && self.0[6].as_canonical_biguint() <= (F::order() - BigUint::from(1u32))
     }
 
     /// Returns whether the extension field element viewed as an y-coordinate of a digest cannot represent anything.
     pub fn is_exception(&self) -> bool {
-        self.0[6].as_canonical_u32() == 0
+        self.0[6].as_canonical_biguint() == BigUint::from(0u32)
     }
 }
 
@@ -764,7 +845,7 @@ mod tests {
         let mut b = SepticExtension::<BabyBear>::one();
         for i in 1..256 {
             b *= a;
-            let c = b.is_square();
+            let (_, c) = b.is_square();
             assert!(c == (i % 2 == 0));
         }
     }

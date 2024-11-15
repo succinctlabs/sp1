@@ -1,6 +1,6 @@
 //! Elliptic Curve `y^2 = x^3 + 2x + 26z^5` over the `F_{p^7} = F_p[z]/(z^7 - 2z - 5)` extension field.
 use crate::septic_extension::SepticExtension;
-use p3_field::{AbstractExtensionField, AbstractField, Field, PrimeField32};
+use p3_field::{AbstractExtensionField, AbstractField, Field, PrimeField};
 use serde::{Deserialize, Serialize};
 /// A septic elliptic curve point on y^2 = x^3 + 2x + 26z^5 over field `F_{p^7} = F_p[z]/(z^7 - 2z - 5)`.
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq, Hash)]
@@ -28,21 +28,6 @@ pub const CURVE_WITNESS_DUMMY_POINT_Y: [u32; 7] =
     [48041908, 550064556, 415267377, 1726976249, 1253299140, 209439863, 1302309485];
 
 impl<F: Field> SepticCurve<F> {
-    /// Evaluates the curve formula x^3 + 2x + 26z^5
-    pub fn curve_formula(x: SepticExtension<F>) -> SepticExtension<F> {
-        x.cube()
-            + x * F::two()
-            + SepticExtension::from_base_slice(&[
-                F::zero(),
-                F::zero(),
-                F::zero(),
-                F::zero(),
-                F::zero(),
-                F::from_canonical_u32(26),
-                F::zero(),
-            ])
-    }
-
     /// Check if a `SepticCurve` struct is on the elliptic curve.
     pub fn check_on_point(&self) -> bool {
         self.y.square() == Self::curve_formula(self.x)
@@ -84,29 +69,49 @@ impl<F: Field> SepticCurve<F> {
     }
 }
 
-impl<F: PrimeField32> SepticCurve<F> {
-    /// Lift an x coordinate into an elliptic curve.
-    /// As an x-coordinate may not be a valid one, we allow additions of [0, 256) * 2^16 to the first entry of the x-coordinate.
-    /// Also, we always return the curve point with y-coordinate within [0, (p-1)/2), where p is the characteristic.
-    /// The returned values are the curve point and the offset used.
-    pub fn lift_x(x: SepticExtension<F>) -> (Self, u8) {
+impl<F: AbstractField> SepticCurve<F> {
+    /// Convert a message into an x-coordinate by a pairwise independent hash `am + b`.
+    pub fn universal_hash(m: SepticExtension<F>) -> SepticExtension<F> {
         let a_ec_logup =
             SepticExtension::<F>::from_base_fn(|i| F::from_canonical_u32(A_EC_LOGUP[i]));
         let b_ec_logup =
             SepticExtension::<F>::from_base_fn(|i| F::from_canonical_u32(B_EC_LOGUP[i]));
+        a_ec_logup * m + b_ec_logup
+    }
 
+    /// Evaluates the curve formula x^3 + 2x + 26z^5
+    pub fn curve_formula(x: SepticExtension<F>) -> SepticExtension<F> {
+        x.cube()
+            + x * F::two()
+            + SepticExtension::from_base_slice(&[
+                F::zero(),
+                F::zero(),
+                F::zero(),
+                F::zero(),
+                F::zero(),
+                F::from_canonical_u32(26),
+                F::zero(),
+            ])
+    }
+}
+
+impl<F: PrimeField> SepticCurve<F> {
+    /// Lift an x coordinate into an elliptic curve.
+    /// As an x-coordinate may not be a valid one, we allow additions of [0, 256) * 2^16 to the first entry of the x-coordinate.
+    /// Also, we always return the curve point with y-coordinate within [0, (p-1)/2), where p is the characteristic.
+    /// The returned values are the curve point and the offset used.
+    pub fn lift_x(m: SepticExtension<F>) -> (Self, u8) {
         for offset in 0..=255 {
-            let x_trial =
-                x + SepticExtension::from_base(F::from_canonical_u32((offset as u32) << 16));
-            let x_trial = a_ec_logup * x_trial + b_ec_logup;
+            let m_trial =
+                m + SepticExtension::from_base(F::from_canonical_u32((offset as u32) << 16));
+            let x_trial = Self::universal_hash(m_trial);
             let y_sq = Self::curve_formula(x_trial);
-            if y_sq.is_square() {
-                let mut y = y_sq.sqrt().unwrap();
+            if let Some(y) = y_sq.sqrt() {
                 if y.is_exception() {
                     continue;
                 }
                 if y.is_send() {
-                    y = -y;
+                    return (Self { x: x_trial, y: -y }, offset);
                 }
                 return (Self { x: x_trial, y }, offset);
             }
@@ -122,8 +127,8 @@ impl<F: AbstractField> SepticCurve<F> {
         p2: SepticCurve<F>,
         p3: SepticCurve<F>,
     ) -> SepticExtension<F> {
-        p3.x * (p2.x.clone() - p1.x.clone()).square() - (p2.y.clone() - p1.y.clone()).square()
-            + (p1.x.clone() + p2.x.clone()) * (p2.x - p1.x).square()
+        (p1.x.clone() + p2.x.clone() + p3.x) * (p2.x.clone() - p1.x.clone()).square()
+            - (p2.y - p1.y).square()
     }
 
     /// Given three points p1, p2, p3, the function is zero if and only if p3.y == (p1 + p2).y assuming that p1 != p2.
@@ -138,11 +143,11 @@ impl<F: AbstractField> SepticCurve<F> {
 }
 
 impl<T> SepticCurve<T> {
-    /// Convert a `SepticCurve<S>` into `SepticCurve<T>`, when `S` implements `Copy` and `Into<T>`.
-    pub fn convert<S: Copy + Into<T>>(point: SepticCurve<S>) -> Self {
+    /// Convert a `SepticCurve<S>` into `SepticCurve<T>`, with a map that implements `FnMut(S) -> T`.
+    pub fn convert<S: Copy, G: FnMut(S) -> T>(point: SepticCurve<S>, mut f: G) -> Self {
         SepticCurve {
-            x: SepticExtension(core::array::from_fn(|i| point.x.0[i].into())),
-            y: SepticExtension(core::array::from_fn(|i| point.y.0[i].into())),
+            x: SepticExtension(point.x.0.map(&mut f)),
+            y: SepticExtension(point.y.0.map(&mut f)),
         }
     }
 }
@@ -174,7 +179,8 @@ mod tests {
     #[ignore]
     fn test_simple_bench() {
         const D: u32 = 1 << 16;
-        let mut vec = Vec::new();
+        let mut vec = Vec::with_capacity(D as usize);
+        let mut sum = Vec::with_capacity(D as usize);
         let start = Instant::now();
         for i in 0..D {
             let x: SepticExtension<BabyBear> = SepticExtension::from_base_slice(&[
@@ -192,7 +198,19 @@ mod tests {
         println!("Time elapsed: {:?}", start.elapsed());
         let start = Instant::now();
         for i in 0..D {
-            let _ = vec[i as usize].add_incomplete(vec[((i + 1) % D) as usize]);
+            sum.push(vec[i as usize].add_incomplete(vec[((i + 1) % D) as usize]));
+        }
+        println!("Time elapsed: {:?}", start.elapsed());
+        let start = Instant::now();
+        for i in 0..(D as usize) {
+            assert!(
+                SepticCurve::<BabyBear>::sum_checker_x(vec[i], vec[(i + 1) % D as usize], sum[i])
+                    == SepticExtension::<BabyBear>::zero()
+            );
+            assert!(
+                SepticCurve::<BabyBear>::sum_checker_y(vec[i], vec[(i + 1) % D as usize], sum[i])
+                    == SepticExtension::<BabyBear>::zero()
+            );
         }
         println!("Time elapsed: {:?}", start.elapsed());
     }

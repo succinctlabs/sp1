@@ -5,8 +5,8 @@ use core::{
 
 use hashbrown::HashMap;
 use itertools::Itertools;
-use p3_air::{Air, AirBuilder, BaseAir};
-use p3_field::{AbstractField, PrimeField};
+use p3_air::{Air, BaseAir};
+use p3_field::PrimeField;
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use p3_maybe_rayon::prelude::{ParallelBridge, ParallelIterator};
 use sp1_core_executor::{
@@ -42,9 +42,6 @@ pub struct AddSubChip;
 pub struct AddSubCols<T> {
     /// The shard number, used for byte lookup table.
     pub shard: T,
-
-    /// The nonce of the operation.
-    pub nonce: T,
 
     /// Instance of `AddOperation` to handle addition logic in `AddSubChip`'s ALU operations.
     /// It's result will be `a` for the add operation and `b` for the sub operation.
@@ -98,7 +95,6 @@ impl<F: PrimeField> MachineAir<F> for AddSubChip {
                         let event = &merged_events[idx];
                         self.event_to_row(event, cols, &mut byte_lookup_events);
                     }
-                    cols.nonce = F::from_canonical_usize(idx);
                 });
             },
         );
@@ -136,6 +132,10 @@ impl<F: PrimeField> MachineAir<F> for AddSubChip {
         } else {
             !shard.add_events.is_empty()
         }
+    }
+
+    fn local_only(&self) -> bool {
+        true
     }
 }
 
@@ -175,12 +175,6 @@ where
         let main = builder.main();
         let local = main.row_slice(0);
         let local: &AddSubCols<AB::Var> = (*local).borrow();
-        let next = main.row_slice(1);
-        let next: &AddSubCols<AB::Var> = (*next).borrow();
-
-        // Constrain the incrementing nonce.
-        builder.when_first_row().assert_zero(local.nonce);
-        builder.when_transition().assert_eq(local.nonce + AB::Expr::one(), next.nonce);
 
         // Evaluate the addition operation.
         AddOperation::<AB::F>::eval(
@@ -199,7 +193,6 @@ where
             local.operand_1,
             local.operand_2,
             local.shard,
-            local.nonce,
             local.is_add,
         );
 
@@ -210,7 +203,6 @@ where
             local.add_operation.value,
             local.operand_2,
             local.shard,
-            local.nonce,
             local.is_sub,
         );
 

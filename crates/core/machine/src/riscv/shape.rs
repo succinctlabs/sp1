@@ -9,7 +9,7 @@ use sp1_stark::{air::MachineAir, MachineRecord, ProofShape};
 use thiserror::Error;
 
 use crate::{
-    memory::{MemoryLocalChip, MemoryProgramChip, NUM_LOCAL_MEMORY_ENTRIES_PER_ROW},
+    memory::{MemoryLocalChip, NUM_LOCAL_MEMORY_ENTRIES_PER_ROW},
     riscv::MemoryChipType::{Finalize, Initialize},
 };
 
@@ -326,11 +326,11 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
     fn default() -> Self {
         // Preprocessed chip heights.
         let program_heights = vec![Some(19), Some(20), Some(21), Some(22)];
-        let program_memory_heights = vec![Some(19), Some(20), Some(21), Some(22)];
+        // let program_memory_heights = vec![Some(19), Some(20), Some(21), Some(22)];
 
         let allowed_preprocessed_log_heights = HashMap::from([
             (RiscvAir::Program(ProgramChip::default()), program_heights),
-            (RiscvAir::ProgramMemory(MemoryProgramChip::default()), program_memory_heights),
+            //    (RiscvAir::ProgramMemory(MemoryProgramChip::default()), program_memory_heights),
             (RiscvAir::ByteLookup(ByteChip::default()), vec![Some(16)]),
         ]);
 
@@ -763,7 +763,7 @@ pub mod tests {
 
         let preprocessed_log_heights = [
             (RiscvAir::<BabyBear>::Program(ProgramChip::default()), 10),
-            (RiscvAir::<BabyBear>::ProgramMemory(MemoryProgramChip::default()), 10),
+            //    (RiscvAir::<BabyBear>::ProgramMemory(MemoryProgramChip::default()), 10),
             (RiscvAir::<BabyBear>::ByteLookup(ByteChip::default()), 16),
         ];
 

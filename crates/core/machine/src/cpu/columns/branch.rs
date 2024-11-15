@@ -26,13 +26,4 @@ pub struct BranchCols<T> {
 
     /// Whether a is less than b.
     pub a_lt_b: T,
-
-    /// The nonce of the operation to compute `a_lt_b`.
-    pub a_lt_b_nonce: T,
-
-    /// The nonce of the operation to compute `a_gt_b`.
-    pub a_gt_b_nonce: T,
-
-    /// The nonce of the operation to compute `next_pc`.
-    pub next_pc_nonce: T,
 }

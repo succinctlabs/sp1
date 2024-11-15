@@ -188,7 +188,6 @@ pub trait AluAirBuilder: BaseAirBuilder {
         b: Word<impl Into<Self::Expr>>,
         c: Word<impl Into<Self::Expr>>,
         shard: impl Into<Self::Expr>,
-        nonce: impl Into<Self::Expr>,
         multiplicity: impl Into<Self::Expr>,
     ) {
         let values = once(opcode.into())
@@ -196,7 +195,6 @@ pub trait AluAirBuilder: BaseAirBuilder {
             .chain(b.0.into_iter().map(Into::into))
             .chain(c.0.into_iter().map(Into::into))
             .chain(once(shard.into()))
-            .chain(once(nonce.into()))
             .collect();
 
         self.send(
@@ -214,7 +212,6 @@ pub trait AluAirBuilder: BaseAirBuilder {
         b: Word<impl Into<Self::Expr>>,
         c: Word<impl Into<Self::Expr>>,
         shard: impl Into<Self::Expr>,
-        nonce: impl Into<Self::Expr>,
         multiplicity: impl Into<Self::Expr>,
     ) {
         let values = once(opcode.into())
@@ -222,7 +219,6 @@ pub trait AluAirBuilder: BaseAirBuilder {
             .chain(b.0.into_iter().map(Into::into))
             .chain(c.0.into_iter().map(Into::into))
             .chain(once(shard.into()))
-            .chain(once(nonce.into()))
             .collect();
 
         self.receive(
@@ -237,7 +233,6 @@ pub trait AluAirBuilder: BaseAirBuilder {
         &mut self,
         shard: impl Into<Self::Expr> + Clone,
         clk: impl Into<Self::Expr> + Clone,
-        nonce: impl Into<Self::Expr> + Clone,
         syscall_id: impl Into<Self::Expr> + Clone,
         arg1: impl Into<Self::Expr> + Clone,
         arg2: impl Into<Self::Expr> + Clone,
@@ -249,7 +244,6 @@ pub trait AluAirBuilder: BaseAirBuilder {
                 vec![
                     shard.clone().into(),
                     clk.clone().into(),
-                    nonce.clone().into(),
                     syscall_id.clone().into(),
                     arg1.clone().into(),
                     arg2.clone().into(),
@@ -267,7 +261,6 @@ pub trait AluAirBuilder: BaseAirBuilder {
         &mut self,
         shard: impl Into<Self::Expr> + Clone,
         clk: impl Into<Self::Expr> + Clone,
-        nonce: impl Into<Self::Expr> + Clone,
         syscall_id: impl Into<Self::Expr> + Clone,
         arg1: impl Into<Self::Expr> + Clone,
         arg2: impl Into<Self::Expr> + Clone,
@@ -279,7 +272,6 @@ pub trait AluAirBuilder: BaseAirBuilder {
                 vec![
                     shard.clone().into(),
                     clk.clone().into(),
-                    nonce.clone().into(),
                     syscall_id.clone().into(),
                     arg1.clone().into(),
                     arg2.clone().into(),

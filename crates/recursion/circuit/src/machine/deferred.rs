@@ -13,10 +13,7 @@ use p3_matrix::dense::RowMajorMatrix;
 use sp1_primitives::consts::WORD_SIZE;
 use sp1_recursion_compiler::ir::{Builder, Felt};
 use sp1_stark::septic_curve::SepticCurve;
-use sp1_stark::septic_digest::{
-    SepticDigest, CURVE_CUMULATIVE_SUM_START_X, CURVE_CUMULATIVE_SUM_START_Y,
-};
-use sp1_stark::septic_extension::SepticExtension;
+use sp1_stark::septic_digest::SepticDigest;
 use sp1_stark::{
     air::{MachineAir, POSEIDON_NUM_WORDS},
     baby_bear_poseidon2::BabyBearPoseidon2,
@@ -157,10 +154,11 @@ where
             // Observe the vk and start pc.
             challenger.observe(builder, vk.commitment);
             challenger.observe(builder, vk.pc_start);
+            challenger.observe_slice(builder, vk.initial_global_cumulative_sum.0.x.0);
+            challenger.observe_slice(builder, vk.initial_global_cumulative_sum.0.y.0);
+            // Observe the padding.
             let zero: Felt<_> = builder.eval(C::F::zero());
-            for _ in 0..7 {
-                challenger.observe(builder, zero);
-            }
+            challenger.observe(builder, zero);
 
             // Observe the and public values.
             challenger.observe_slice(
@@ -233,14 +231,10 @@ where
         // Set the `contains_execution_shard` flag.
         deferred_public_values.contains_execution_shard = builder.eval(C::F::zero());
         // Set the cumulative sum to zero.
-        deferred_public_values.global_cumulative_sum = SepticDigest(SepticCurve {
-            x: SepticExtension(core::array::from_fn(|i| {
-                builder.eval(C::F::from_canonical_u32(CURVE_CUMULATIVE_SUM_START_X[i]))
-            })),
-            y: SepticExtension(core::array::from_fn(|i| {
-                builder.eval(C::F::from_canonical_u32(CURVE_CUMULATIVE_SUM_START_Y[i]))
-            })),
-        });
+        deferred_public_values.global_cumulative_sum =
+            SepticDigest(SepticCurve::convert(SepticDigest::<C::F>::zero().0, |value| {
+                builder.eval(value)
+            }));
         // Set the vk root from the witness.
         deferred_public_values.vk_root = vk_root;
         // Set the digest according to the previous values.

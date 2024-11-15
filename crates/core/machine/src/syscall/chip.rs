@@ -9,23 +9,21 @@ use crate::{
     utils::pad_rows_fixed,
 };
 use hashbrown::HashMap;
+use itertools::Itertools;
 use p3_air::{Air, BaseAir};
-use p3_field::AbstractExtensionField;
 use p3_field::AbstractField;
 use p3_field::PrimeField32;
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
+use p3_maybe_rayon::prelude::IntoParallelRefIterator;
+use p3_maybe_rayon::prelude::ParallelBridge;
+use p3_maybe_rayon::prelude::ParallelIterator;
+use p3_maybe_rayon::prelude::ParallelSlice;
 use sp1_core_executor::events::ByteLookupEvent;
 use sp1_core_executor::events::ByteRecord;
 use sp1_core_executor::{events::SyscallEvent, ExecutionRecord, Program};
 use sp1_derive::AlignedBorrow;
 use sp1_stark::air::{InteractionScope, MachineAir, SP1AirBuilder};
-use sp1_stark::septic_curve::SepticCurve;
-use sp1_stark::septic_extension::SepticExtension;
-use sp1_stark::InteractionKind;
-use sp1_stark::{
-    septic_digest::CURVE_CUMULATIVE_SUM_START_X, septic_digest::CURVE_CUMULATIVE_SUM_START_Y,
-};
-
+use sp1_stark::septic_digest::SepticDigest;
 /// The number of main trace columns for `SyscallChip`.
 pub const NUM_SYSCALL_COLS: usize = size_of::<SyscallCols<u8>>();
 
@@ -61,10 +59,11 @@ pub struct SyscallCols<T> {
     /// The shard number of the syscall.
     pub shard: T,
 
-    /// The clk of the syscall.
-    pub clk: T,
+    /// The bottom 16 bits of clk of the syscall.
+    pub clk_16: T,
 
-    pub nonce: T,
+    /// The top 8 bits of clk of the syscall.
+    pub clk_8: T,
 
     /// The syscall_id of the syscall.
     pub syscall_id: T,
@@ -94,44 +93,44 @@ impl<F: PrimeField32> MachineAir<F> for SyscallChip {
     }
 
     fn generate_dependencies(&self, input: &ExecutionRecord, output: &mut ExecutionRecord) {
-        let mut blu: HashMap<u32, HashMap<ByteLookupEvent, usize>> = HashMap::new();
-        match self.shard_kind {
-            SyscallShardKind::Core => {
-                for event in input.syscall_events.iter() {
-                    let mut row = [F::zero(); NUM_SYSCALL_COLS];
-                    let cols: &mut SyscallCols<F> = row.as_mut_slice().borrow_mut();
-                    cols.global_interaction_cols.populate_syscall(
-                        event.shard,
-                        event.clk,
-                        event.nonce,
-                        event.syscall_id,
-                        event.arg1,
-                        event.arg2,
-                        false,
-                        true,
-                        &mut blu,
-                    );
-                }
-            }
-            SyscallShardKind::Precompile => {
-                for event in input.precompile_events.all_events().map(|(event, _)| event) {
-                    let mut row = [F::zero(); NUM_SYSCALL_COLS];
-                    let cols: &mut SyscallCols<F> = row.as_mut_slice().borrow_mut();
-                    cols.global_interaction_cols.populate_syscall(
-                        event.shard,
-                        event.clk,
-                        event.nonce,
-                        event.syscall_id,
-                        event.arg1,
-                        event.arg2,
-                        true,
-                        true,
-                        &mut blu,
-                    );
-                }
-            }
+        let events = match self.shard_kind {
+            SyscallShardKind::Core => &input.syscall_events,
+            SyscallShardKind::Precompile => &input
+                .precompile_events
+                .all_events()
+                .map(|(event, _)| event.to_owned())
+                .collect::<Vec<_>>(),
         };
-        output.add_sharded_byte_lookup_events(vec![&blu]);
+        let is_receive = match self.shard_kind {
+            SyscallShardKind::Core => false,
+            SyscallShardKind::Precompile => true,
+        };
+        let chunk_size = std::cmp::max(events.len() / num_cpus::get(), 1);
+        let blu_batches = events
+            .par_chunks(chunk_size)
+            .map(|events| {
+                let mut blu: HashMap<u32, HashMap<ByteLookupEvent, usize>> = HashMap::new();
+                events.iter().for_each(|event| {
+                    let mut row = [F::zero(); NUM_SYSCALL_COLS];
+                    let cols: &mut SyscallCols<F> = row.as_mut_slice().borrow_mut();
+                    let clk_16 = (event.clk & 65535) as u16;
+                    let clk_8 = (event.clk >> 16) as u8;
+                    cols.global_interaction_cols.populate_syscall(
+                        event.shard,
+                        clk_16,
+                        clk_8,
+                        event.syscall_id,
+                        event.arg1,
+                        event.arg2,
+                        is_receive,
+                        true,
+                        &mut blu,
+                    );
+                });
+                blu
+            })
+            .collect::<Vec<_>>();
+        output.add_sharded_byte_lookup_events(blu_batches.iter().collect_vec());
     }
 
     fn generate_trace(
@@ -139,34 +138,28 @@ impl<F: PrimeField32> MachineAir<F> for SyscallChip {
         input: &ExecutionRecord,
         _output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
-        let mut rows = Vec::new();
+        let mut global_cumulative_sum = SepticDigest::<F>::zero().0;
 
-        let mut global_cumulative_sum = SepticCurve {
-            x: SepticExtension::<F>::from_base_fn(|i| {
-                F::from_canonical_u32(CURVE_CUMULATIVE_SUM_START_X[i])
-            }),
-            y: SepticExtension::<F>::from_base_fn(|i| {
-                F::from_canonical_u32(CURVE_CUMULATIVE_SUM_START_Y[i])
-            }),
-        };
-
-        let mut row_fn = |syscall_event: &SyscallEvent, is_receive: bool| {
+        let row_fn = |syscall_event: &SyscallEvent, is_receive: bool| {
             let mut row = [F::zero(); NUM_SYSCALL_COLS];
             let cols: &mut SyscallCols<F> = row.as_mut_slice().borrow_mut();
 
             let mut blu = Vec::new();
+            assert!(syscall_event.clk < (1 << 24));
+            let clk_16 = (syscall_event.clk & 65535) as u16;
+            let clk_8 = (syscall_event.clk >> 16) as u8;
 
             cols.shard = F::from_canonical_u32(syscall_event.shard);
-            cols.clk = F::from_canonical_u32(syscall_event.clk);
+            cols.clk_16 = F::from_canonical_u16(clk_16);
+            cols.clk_8 = F::from_canonical_u8(clk_8);
             cols.syscall_id = F::from_canonical_u32(syscall_event.syscall_id);
-            cols.nonce = F::from_canonical_u32(syscall_event.nonce);
             cols.arg1 = F::from_canonical_u32(syscall_event.arg1);
             cols.arg2 = F::from_canonical_u32(syscall_event.arg2);
             cols.is_real = F::one();
             cols.global_interaction_cols.populate_syscall(
                 syscall_event.shard,
-                syscall_event.clk,
-                syscall_event.nonce,
+                clk_16,
+                clk_8,
                 syscall_event.syscall_id,
                 syscall_event.arg1,
                 syscall_event.arg2,
@@ -174,31 +167,34 @@ impl<F: PrimeField32> MachineAir<F> for SyscallChip {
                 true,
                 &mut blu,
             );
+            row
+        };
+
+        let mut rows = match self.shard_kind {
+            SyscallShardKind::Core => input
+                .syscall_events
+                .par_iter()
+                .map(|event| row_fn(event, false))
+                .collect::<Vec<_>>(),
+            SyscallShardKind::Precompile => input
+                .precompile_events
+                .all_events()
+                .map(|(event, _)| event)
+                .par_bridge()
+                .map(|event| row_fn(event, true))
+                .collect::<Vec<_>>(),
+        };
+
+        let num_events = rows.len();
+
+        for i in 0..num_events {
+            let cols: &mut SyscallCols<F> = rows[i].as_mut_slice().borrow_mut();
             cols.global_accumulation_cols.populate(
                 &mut global_cumulative_sum,
                 [cols.global_interaction_cols],
                 [cols.is_real],
             );
-            row
-        };
-
-        let mut num_events = 0;
-        match self.shard_kind {
-            SyscallShardKind::Core => {
-                for event in input.syscall_events.iter() {
-                    let row = row_fn(event, false);
-                    rows.push(row);
-                    num_events += 1;
-                }
-            }
-            SyscallShardKind::Precompile => {
-                for event in input.precompile_events.all_events().map(|(event, _)| event) {
-                    let row = row_fn(event, true);
-                    rows.push(row);
-                    num_events += 1;
-                }
-            }
-        };
+        }
 
         // Pad the trace to a power of two depending on the proof shape in `input`.
         pad_rows_fixed(
@@ -261,22 +257,11 @@ where
             local.is_real * local.is_real * local.is_real,
         );
 
-        let values = vec![
-            local.shard.into(),
-            local.clk.into(),
-            local.nonce.into(),
-            local.syscall_id.into(),
-            local.arg1.into(),
-            local.arg2.into(),
-            AB::Expr::zero(),
-        ];
-
         match self.shard_kind {
             SyscallShardKind::Core => {
                 builder.receive_syscall(
                     local.shard,
-                    local.clk,
-                    local.nonce,
+                    local.clk_16 + local.clk_8 * AB::Expr::from_canonical_u32(1 << 16),
                     local.syscall_id,
                     local.arg1,
                     local.arg2,
@@ -285,20 +270,23 @@ where
                 );
 
                 // Send the call to the global bus to/from the precompile chips.
-                GlobalInteractionOperation::<AB::F>::eval_single_digest(
+                GlobalInteractionOperation::<AB::F>::eval_single_digest_syscall(
                     builder,
-                    values,
+                    local.shard.into(),
+                    local.clk_16.into(),
+                    local.clk_8.into(),
+                    local.syscall_id.into(),
+                    local.arg1.into(),
+                    local.arg2.into(),
                     local.global_interaction_cols,
                     false,
                     local.is_real,
-                    InteractionKind::Syscall,
                 );
             }
             SyscallShardKind::Precompile => {
                 builder.send_syscall(
                     local.shard,
-                    local.clk,
-                    local.nonce,
+                    local.clk_16 + local.clk_8 * AB::Expr::from_canonical_u32(1 << 16),
                     local.syscall_id,
                     local.arg1,
                     local.arg2,
@@ -306,13 +294,17 @@ where
                     InteractionScope::Local,
                 );
 
-                GlobalInteractionOperation::<AB::F>::eval_single_digest(
+                GlobalInteractionOperation::<AB::F>::eval_single_digest_syscall(
                     builder,
-                    values,
+                    local.shard.into(),
+                    local.clk_16.into(),
+                    local.clk_8.into(),
+                    local.syscall_id.into(),
+                    local.arg1.into(),
+                    local.arg2.into(),
                     local.global_interaction_cols,
                     true,
                     local.is_real,
-                    InteractionKind::Syscall,
                 );
             }
         }

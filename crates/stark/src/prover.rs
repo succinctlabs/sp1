@@ -655,10 +655,10 @@ where
     fn observe_into(&self, challenger: &mut Challenger<SC>) {
         challenger.observe(self.commit.clone());
         challenger.observe(self.pc_start);
+        challenger.observe_slice(&self.initial_global_cumulative_sum.0.x.0);
+        challenger.observe_slice(&self.initial_global_cumulative_sum.0.y.0);
         let zero = Val::<SC>::zero();
-        for _ in 0..7 {
-            challenger.observe(zero);
-        }
+        challenger.observe(zero);
     }
 }
 

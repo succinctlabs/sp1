@@ -78,9 +78,6 @@ pub struct MulCols<T> {
     /// The shard number, used for byte lookup table.
     pub shard: T,
 
-    /// The nonce of the operation.
-    pub nonce: T,
-
     /// The output operand.
     pub a: Word<T>,
 
@@ -156,13 +153,11 @@ impl<F: PrimeField> MachineAir<F> for MulChip {
                         let event = &input.mul_events[idx];
                         self.event_to_row(event, cols, &mut byte_lookup_events);
                     }
-                    cols.nonce = F::from_canonical_usize(idx);
                 });
             },
         );
 
         // Convert the trace to a row major matrix.
-
         RowMajorMatrix::new(values, NUM_MUL_COLS)
     }
 
@@ -192,6 +187,10 @@ impl<F: PrimeField> MachineAir<F> for MulChip {
         } else {
             !shard.mul_events.is_empty()
         }
+    }
+
+    fn local_only(&self) -> bool {
+        true
     }
 }
 
@@ -303,17 +302,11 @@ where
         let main = builder.main();
         let local = main.row_slice(0);
         let local: &MulCols<AB::Var> = (*local).borrow();
-        let next = main.row_slice(1);
-        let next: &MulCols<AB::Var> = (*next).borrow();
         let base = AB::F::from_canonical_u32(1 << 8);
 
         let zero: AB::Expr = AB::F::zero().into();
         let one: AB::Expr = AB::F::one().into();
         let byte_mask = AB::F::from_canonical_u8(BYTE_MASK);
-
-        // Constrain the incrementing nonce.
-        builder.when_first_row().assert_zero(local.nonce);
-        builder.when_transition().assert_eq(local.nonce + AB::Expr::one(), next.nonce);
 
         // Calculate the MSBs.
         let (b_msb, c_msb) = {
@@ -441,15 +434,7 @@ where
         }
 
         // Receive the arguments.
-        builder.receive_alu(
-            opcode,
-            local.a,
-            local.b,
-            local.c,
-            local.shard,
-            local.nonce,
-            local.is_real,
-        );
+        builder.receive_alu(opcode, local.a, local.b, local.c, local.shard, local.is_real);
     }
 }
 

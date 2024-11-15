@@ -62,10 +62,11 @@ where
         // Observe the vk and start pc.
         challenger.observe(builder, vk.commitment);
         challenger.observe(builder, vk.pc_start);
+        challenger.observe_slice(builder, vk.initial_global_cumulative_sum.0.x.0);
+        challenger.observe_slice(builder, vk.initial_global_cumulative_sum.0.y.0);
+        // Observe the padding.
         let zero: Felt<_> = builder.eval(C::F::zero());
-        for _ in 0..7 {
-            challenger.observe(builder, zero);
-        }
+        challenger.observe(builder, zero);
 
         // Observe the main commitment and public values.
         challenger

@@ -10,7 +10,7 @@ use sp1_stark::air::SepticExtensionAirBuilder;
 use sp1_stark::{
     air::SP1AirBuilder,
     septic_curve::SepticCurve,
-    septic_digest::{CURVE_CUMULATIVE_SUM_START_X, CURVE_CUMULATIVE_SUM_START_Y},
+    septic_digest::SepticDigest,
     septic_extension::{SepticBlock, SepticExtension},
 };
 
@@ -58,8 +58,11 @@ impl<F: PrimeField32, const N: usize> GlobalAccumulationOperation<F, N> {
             } else {
                 *initial_digest
             };
-            let sum_checker =
-                SepticCurve::<F>::sum_checker_x(*initial_digest, point_cur, sum_point);
+            let sum_checker = if is_real[i] == F::one() {
+                SepticExtension::<F>::zero()
+            } else {
+                SepticCurve::<F>::sum_checker_x(*initial_digest, point_cur, sum_point)
+            };
             self.sum_checker[i] = SepticBlock::from(sum_checker.0);
             self.cumulative_sum[i][0] = SepticBlock::from(sum_point.x.0);
             self.cumulative_sum[i][1] = SepticBlock::from(sum_point.y.0);
@@ -121,14 +124,7 @@ impl<F: Field, const N: usize> GlobalAccumulationOperation<F, N> {
             }),
         };
 
-        let starting_digest = SepticCurve::<AB::Expr> {
-            x: SepticExtension::<AB::Expr>::from_base_fn(|i| {
-                AB::Expr::from_canonical_u32(CURVE_CUMULATIVE_SUM_START_X[i])
-            }),
-            y: SepticExtension::<AB::Expr>::from_base_fn(|i| {
-                AB::Expr::from_canonical_u32(CURVE_CUMULATIVE_SUM_START_Y[i])
-            }),
-        };
+        let starting_digest = SepticDigest::<AB::Expr>::zero().0;
 
         builder.when_first_row().assert_septic_ext_eq(initial_digest.x.clone(), starting_digest.x);
         builder.when_first_row().assert_septic_ext_eq(initial_digest.y.clone(), starting_digest.y);

@@ -248,6 +248,11 @@ where
                 // If it's the first shard (which is the first execution shard), then the `start_pc`
                 // should be vk.pc_start.
                 builder.assert_felt_eq(is_first_shard * (start_pc - vk.pc_start), C::F::zero());
+                // If it's the first shard, we add the vk's `initial_global_cumulative_sum` to the digest.
+                global_cumulative_sums.push(builder.select_global_cumulative_sum(
+                    is_first_shard,
+                    vk.initial_global_cumulative_sum,
+                ));
 
                 // Assert that `init_addr_bits` and `finalize_addr_bits` are zero for the first
                 for bit in current_init_addr_bits.iter() {
@@ -269,10 +274,11 @@ where
             // Observe the vk and start pc.
             challenger.observe(builder, vk.commitment);
             challenger.observe(builder, vk.pc_start);
+            challenger.observe_slice(builder, vk.initial_global_cumulative_sum.0.x.0);
+            challenger.observe_slice(builder, vk.initial_global_cumulative_sum.0.y.0);
+            // Observe the padding.
             let zero: Felt<_> = builder.eval(C::F::zero());
-            for _ in 0..7 {
-                challenger.observe(builder, zero);
-            }
+            challenger.observe(builder, zero);
 
             challenger.observe_slice(
                 builder,
