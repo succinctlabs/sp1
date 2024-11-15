@@ -176,7 +176,12 @@ impl ProverClient {
     /// ```no_run
     /// use sp1_sdk::ProverClient;
     ///
-    /// let client = ProverClient::network();
+    /// let private_key = env::var("SP1_PRIVATE_KEY").unwrap();
+    /// let rpc_url = env::var("PROVER_NETWORK_RPC").ok();
+    /// let skip_simulation =
+    ///     env::var("SKIP_SIMULATION").map(|val| val == "true").unwrap_or_default();
+    ///
+    /// let client = ProverClient::network(private_key, rpc_url, skip_simulation);
     /// ```
     pub fn network(private_key: String, rpc_url: Option<String>, skip_simulation: bool) -> Self {
         cfg_if! {
