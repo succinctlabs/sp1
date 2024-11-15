@@ -5525,6 +5525,7 @@ version = "3.0.0"
 dependencies = [
  "anstyle",
  "anyhow",
+ "cargo_metadata",
  "clap",
  "ctrlc",
  "dirs",
