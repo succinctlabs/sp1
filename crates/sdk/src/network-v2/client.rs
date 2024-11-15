@@ -125,6 +125,7 @@ impl NetworkClient {
         version: Option<String>,
         fulfillment_status: Option<i32>,
         execution_status: Option<i32>,
+        minimum_deadline: Option<u64>,
         limit: Option<u32>,
         page: Option<u32>,
     ) -> Result<GetFilteredProofRequestsResponse> {
@@ -134,6 +135,7 @@ impl NetworkClient {
                 version,
                 fulfillment_status,
                 execution_status,
+                minimum_deadline,
                 limit,
                 page,
             })
