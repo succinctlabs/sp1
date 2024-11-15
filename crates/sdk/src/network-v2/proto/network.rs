@@ -5,7 +5,7 @@ pub struct RequestProofRequest {
     #[prost(bytes = "vec", tag = "1")]
     pub signature: ::prost::alloc::vec::Vec<u8>,
     /// The body of the request.
-    #[prost(message, optional, tag = "3")]
+    #[prost(message, optional, tag = "2")]
     pub body: ::core::option::Option<RequestProofRequestBody>,
 }
 #[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
@@ -59,7 +59,7 @@ pub struct FulfillProofRequest {
     #[prost(bytes = "vec", tag = "1")]
     pub signature: ::prost::alloc::vec::Vec<u8>,
     /// The body of the request.
-    #[prost(message, optional, tag = "3")]
+    #[prost(message, optional, tag = "2")]
     pub body: ::core::option::Option<FulfillProofRequestBody>,
 }
 #[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
@@ -91,7 +91,7 @@ pub struct ExecuteProofRequest {
     #[prost(bytes = "vec", tag = "1")]
     pub signature: ::prost::alloc::vec::Vec<u8>,
     /// The body of the request.
-    #[prost(message, optional, tag = "3")]
+    #[prost(message, optional, tag = "2")]
     pub body: ::core::option::Option<ExecuteProofRequestBody>,
 }
 #[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
@@ -109,8 +109,8 @@ pub struct ExecuteProofRequestBody {
     /// the request is valid.
     #[prost(bytes = "vec", optional, tag = "4")]
     pub public_values_hash: ::core::option::Option<::prost::alloc::vec::Vec<u8>>,
-    /// The optional cycles of the request execution, only included if the request
-    /// is valid.
+    /// The optional cycles used when executing the request, only included if the
+    /// request is valid.
     #[prost(uint64, optional, tag = "5")]
     pub cycles: ::core::option::Option<u64>,
 }
@@ -131,7 +131,7 @@ pub struct FailFulfillmentRequest {
     #[prost(bytes = "vec", tag = "1")]
     pub signature: ::prost::alloc::vec::Vec<u8>,
     /// The body of the request.
-    #[prost(message, optional, tag = "3")]
+    #[prost(message, optional, tag = "2")]
     pub body: ::core::option::Option<FailFulfillmentRequestBody>,
 }
 #[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
@@ -160,7 +160,7 @@ pub struct FailExecutionRequest {
     #[prost(bytes = "vec", tag = "1")]
     pub signature: ::prost::alloc::vec::Vec<u8>,
     /// The body of the request.
-    #[prost(message, optional, tag = "3")]
+    #[prost(message, optional, tag = "2")]
     pub body: ::core::option::Option<FailExecutionRequestBody>,
 }
 #[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
@@ -280,12 +280,16 @@ pub struct GetFilteredProofRequestsRequest {
     /// The optional execution status of the requests to filter for.
     #[prost(enumeration = "ExecutionStatus", optional, tag = "3")]
     pub execution_status: ::core::option::Option<i32>,
+    /// The optional minimum deadline of the requests to filter for. Only returns
+    /// requests with deadlines after this timestamp.
+    #[prost(uint64, optional, tag = "4")]
+    pub minimum_deadline: ::core::option::Option<u64>,
     /// The optional maximum number of requests to return (default is 10,
     /// maximum is 100).
-    #[prost(uint32, optional, tag = "4")]
+    #[prost(uint32, optional, tag = "5")]
     pub limit: ::core::option::Option<u32>,
     /// The optional page number to return (default is 1).
-    #[prost(uint32, optional, tag = "5")]
+    #[prost(uint32, optional, tag = "6")]
     pub page: ::core::option::Option<u32>,
 }
 #[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
@@ -307,6 +311,72 @@ pub struct GetNonceResponse {
     pub nonce: u64,
 }
 #[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct SetAccountNameRequest {
+    /// The signature of the sender.
+    #[prost(bytes = "vec", tag = "1")]
+    pub signature: ::prost::alloc::vec::Vec<u8>,
+    /// The body of the request.
+    #[prost(message, optional, tag = "2")]
+    pub body: ::core::option::Option<SetAccountNameRequestBody>,
+}
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct SetAccountNameRequestBody {
+    /// The account nonce of the sender.
+    #[prost(uint64, tag = "1")]
+    pub nonce: u64,
+    /// The address of the account to update the name of. Only the sender can
+    /// update the name unless authorized.
+    #[prost(bytes = "vec", tag = "2")]
+    pub address: ::prost::alloc::vec::Vec<u8>,
+    /// The name of the account. Must be unique.
+    #[prost(string, tag = "3")]
+    pub name: ::prost::alloc::string::String,
+}
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct SetAccountNameResponse {
+    /// The transaction hash.
+    #[prost(bytes = "vec", tag = "1")]
+    pub tx_hash: ::prost::alloc::vec::Vec<u8>,
+    /// The body of the response.
+    #[prost(message, optional, tag = "2")]
+    pub body: ::core::option::Option<SetAccountNameResponseBody>,
+}
+#[derive(serde::Serialize, serde::Deserialize, Clone, Copy, PartialEq, ::prost::Message)]
+pub struct SetAccountNameResponseBody {}
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct SetProgramNameRequest {
+    /// The signature of the sender.
+    #[prost(bytes = "vec", tag = "1")]
+    pub signature: ::prost::alloc::vec::Vec<u8>,
+    /// The body of the request.
+    #[prost(message, optional, tag = "2")]
+    pub body: ::core::option::Option<SetProgramNameRequestBody>,
+}
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct SetProgramNameRequestBody {
+    /// The account nonce of the sender.
+    #[prost(uint64, tag = "1")]
+    pub nonce: u64,
+    /// The identifier of the program to update the name of. Only the original
+    /// program creator can update the name unless authorized.
+    #[prost(bytes = "vec", tag = "2")]
+    pub program_id: ::prost::alloc::vec::Vec<u8>,
+    /// The name of the program. Must be unique.
+    #[prost(string, tag = "3")]
+    pub name: ::prost::alloc::string::String,
+}
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct SetProgramNameResponse {
+    /// The transaction hash.
+    #[prost(bytes = "vec", tag = "1")]
+    pub tx_hash: ::prost::alloc::vec::Vec<u8>,
+    /// The body of the response.
+    #[prost(message, optional, tag = "2")]
+    pub body: ::core::option::Option<SetProgramNameResponseBody>,
+}
+#[derive(serde::Serialize, serde::Deserialize, Clone, Copy, PartialEq, ::prost::Message)]
+pub struct SetProgramNameResponseBody {}
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
 pub struct GetBalanceRequest {
     /// The address of the account.
     #[prost(bytes = "vec", tag = "1")]
@@ -324,7 +394,7 @@ pub struct AddCreditRequest {
     #[prost(bytes = "vec", tag = "1")]
     pub signature: ::prost::alloc::vec::Vec<u8>,
     /// The body of the request.
-    #[prost(message, optional, tag = "3")]
+    #[prost(message, optional, tag = "2")]
     pub body: ::core::option::Option<AddCreditRequestBody>,
 }
 #[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
@@ -541,7 +611,8 @@ impl ExecutionStatus {
 /// Generated client implementations.
 pub mod prover_network_client {
     #![allow(unused_variables, dead_code, missing_docs, clippy::let_unit_value)]
-    use tonic::codegen::{http::Uri, *};
+    use tonic::codegen::http::Uri;
+    use tonic::codegen::*;
     #[derive(Debug, Clone)]
     pub struct ProverNetworkClient<T> {
         inner: tonic::client::Grpc<T>,
@@ -757,7 +828,7 @@ pub mod prover_network_client {
                 .insert(GrpcMethod::new("network.ProverNetwork", "GetProofRequestDetails"));
             self.inner.unary(req, path, codec).await
         }
-        /// Get the proof requests that meet the filter criteria.
+        /// Get the requests that meet the filter criteria.
         pub async fn get_filtered_proof_requests(
             &mut self,
             request: impl tonic::IntoRequest<super::GetFilteredProofRequestsRequest>,
@@ -795,6 +866,44 @@ pub mod prover_network_client {
             let path = http::uri::PathAndQuery::from_static("/network.ProverNetwork/GetNonce");
             let mut req = request.into_request();
             req.extensions_mut().insert(GrpcMethod::new("network.ProverNetwork", "GetNonce"));
+            self.inner.unary(req, path, codec).await
+        }
+        /// Set the name of the account.
+        pub async fn set_account_name(
+            &mut self,
+            request: impl tonic::IntoRequest<super::SetAccountNameRequest>,
+        ) -> std::result::Result<tonic::Response<super::SetAccountNameResponse>, tonic::Status>
+        {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path =
+                http::uri::PathAndQuery::from_static("/network.ProverNetwork/SetAccountName");
+            let mut req = request.into_request();
+            req.extensions_mut().insert(GrpcMethod::new("network.ProverNetwork", "SetAccountName"));
+            self.inner.unary(req, path, codec).await
+        }
+        /// Set the name of the program.
+        pub async fn set_program_name(
+            &mut self,
+            request: impl tonic::IntoRequest<super::SetProgramNameRequest>,
+        ) -> std::result::Result<tonic::Response<super::SetProgramNameResponse>, tonic::Status>
+        {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path =
+                http::uri::PathAndQuery::from_static("/network.ProverNetwork/SetProgramName");
+            let mut req = request.into_request();
+            req.extensions_mut().insert(GrpcMethod::new("network.ProverNetwork", "SetProgramName"));
             self.inner.unary(req, path, codec).await
         }
         /// Get the balance of an account.
@@ -858,8 +967,7 @@ pub mod prover_network_client {
 pub mod prover_network_server {
     #![allow(unused_variables, dead_code, missing_docs, clippy::let_unit_value)]
     use tonic::codegen::*;
-    /// Generated trait containing gRPC methods that should be implemented for use with
-    /// ProverNetworkServer.
+    /// Generated trait containing gRPC methods that should be implemented for use with ProverNetworkServer.
     #[async_trait]
     pub trait ProverNetwork: std::marker::Send + std::marker::Sync + 'static {
         /// Creates a proof.
@@ -900,7 +1008,7 @@ pub mod prover_network_server {
             tonic::Response<super::GetProofRequestDetailsResponse>,
             tonic::Status,
         >;
-        /// Get the proof requests that meet the filter criteria.
+        /// Get the requests that meet the filter criteria.
         async fn get_filtered_proof_requests(
             &self,
             request: tonic::Request<super::GetFilteredProofRequestsRequest>,
@@ -913,6 +1021,16 @@ pub mod prover_network_server {
             &self,
             request: tonic::Request<super::GetNonceRequest>,
         ) -> std::result::Result<tonic::Response<super::GetNonceResponse>, tonic::Status>;
+        /// Set the name of the account.
+        async fn set_account_name(
+            &self,
+            request: tonic::Request<super::SetAccountNameRequest>,
+        ) -> std::result::Result<tonic::Response<super::SetAccountNameResponse>, tonic::Status>;
+        /// Set the name of the program.
+        async fn set_program_name(
+            &self,
+            request: tonic::Request<super::SetProgramNameRequest>,
+        ) -> std::result::Result<tonic::Response<super::SetProgramNameResponse>, tonic::Status>;
         /// Get the balance of an account.
         async fn get_balance(
             &self,
@@ -1361,6 +1479,88 @@ pub mod prover_network_server {
                     let inner = self.inner.clone();
                     let fut = async move {
                         let method = GetNonceSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/network.ProverNetwork/SetAccountName" => {
+                    #[allow(non_camel_case_types)]
+                    struct SetAccountNameSvc<T: ProverNetwork>(pub Arc<T>);
+                    impl<T: ProverNetwork> tonic::server::UnaryService<super::SetAccountNameRequest>
+                        for SetAccountNameSvc<T>
+                    {
+                        type Response = super::SetAccountNameResponse;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::SetAccountNameRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as ProverNetwork>::set_account_name(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = SetAccountNameSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/network.ProverNetwork/SetProgramName" => {
+                    #[allow(non_camel_case_types)]
+                    struct SetProgramNameSvc<T: ProverNetwork>(pub Arc<T>);
+                    impl<T: ProverNetwork> tonic::server::UnaryService<super::SetProgramNameRequest>
+                        for SetProgramNameSvc<T>
+                    {
+                        type Response = super::SetProgramNameResponse;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::SetProgramNameRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as ProverNetwork>::set_program_name(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = SetProgramNameSvc(inner);
                         let codec = tonic::codec::ProstCodec::default();
                         let mut grpc = tonic::server::Grpc::new(codec)
                             .apply_compression_config(
