@@ -5549,6 +5549,7 @@ dependencies = [
  "clap",
  "ctrlc",
  "dirs",
+ "gecko_profile",
  "goblin",
  "hex",
  "indicatif",
