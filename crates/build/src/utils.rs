@@ -1,39 +1,7 @@
-use std::{fs, path::Path};
+use std::path::Path;
 
-use anyhow::Result;
-use cargo_metadata::{camino::Utf8PathBuf, Metadata};
+use cargo_metadata::Metadata;
 use chrono::Local;
-
-use crate::{BuildArgs, BUILD_TARGET};
-
-/// Copy the ELF to the specified output directory.
-pub(crate) fn copy_elf_to_output_dir(
-    args: &BuildArgs,
-    program_metadata: &cargo_metadata::Metadata,
-    elf_path: &Utf8PathBuf,
-) -> Result<Utf8PathBuf> {
-    // The order of precedence for the ELF name is:
-    // 1. --elf_name flag
-    // 2. --binary flag + -elf suffix (defaults to riscv32im-succinct-zkvm-elf)
-    let elf_name = if !args.elf_name.is_empty() {
-        args.elf_name.clone()
-    } else if !args.binary.is_empty() {
-        // TODO: In the future, change this to default to the package name. Will require updating
-        // docs and examples.
-        args.binary.clone()
-    } else {
-        BUILD_TARGET.to_string()
-    };
-
-    let elf_dir = program_metadata.target_directory.parent().unwrap().join(&args.output_directory);
-    fs::create_dir_all(&elf_dir)?;
-    let result_elf_path = elf_dir.join(elf_name);
-
-    // Copy the ELF to the specified output directory.
-    fs::copy(elf_path, &result_elf_path)?;
-
-    Ok(result_elf_path)
-}
 
 pub(crate) fn current_datetime() -> String {
     let now = Local::now();

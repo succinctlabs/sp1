@@ -48,7 +48,14 @@ pub fn is_supported_target() -> bool {
 }
 
 pub fn get_target() -> String {
-    target_lexicon::HOST.to_string()
+    let mut target: target_lexicon::Triple = target_lexicon::HOST;
+
+    // We don't want to operate on the musl toolchain, even if the CLI was compiled with musl
+    if target.environment == target_lexicon::Environment::Musl {
+        target.environment = target_lexicon::Environment::Gnu;
+    }
+
+    target.to_string()
 }
 
 pub async fn get_toolchain_download_url(client: &Client, target: String) -> String {

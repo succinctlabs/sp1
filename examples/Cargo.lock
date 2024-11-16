@@ -1053,7 +1053,7 @@ version = "1.1.0"
 dependencies = [
  "rand 0.8.5",
  "sp1-zkvm",
- "substrate-bn 0.6.0 (git+https://github.com/sp1-patches/bn?tag=substrate_bn-v0.6.0-patch-v1)",
+ "substrate-bn",
 ]
 
 [[package]]
@@ -4891,7 +4891,7 @@ dependencies = [
  "ripemd",
  "secp256k1",
  "sha2 0.10.8",
- "substrate-bn 0.6.0 (git+https://github.com/sp1-patches/bn?tag=substrate_bn-v0.6.0-patch-v1)",
+ "substrate-bn",
 ]
 
 [[package]]
@@ -6036,6 +6036,7 @@ dependencies = [
  "reqwest",
  "reqwest-middleware",
  "serde",
+ "sp1-build",
  "sp1-core-executor",
  "sp1-core-machine",
  "sp1-cuda",
@@ -6091,7 +6092,7 @@ dependencies = [
  "hex",
  "lazy_static",
  "sha2 0.10.8",
- "substrate-bn 0.6.0 (git+https://github.com/sp1-patches/bn?tag=substrate_bn-v0.6.0-patch-v2)",
+ "substrate-bn-succinct",
  "thiserror-no-std",
 ]
 
@@ -6258,9 +6259,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "substrate-bn"
+name = "substrate-bn-succinct"
 version = "0.6.0"
-source = "git+https://github.com/sp1-patches/bn?tag=substrate_bn-v0.6.0-patch-v2#8ef05d3969312eca34fa9f1f566a469022badda6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "114c855c26ad0594c830129cb868552fb41415603a6133276c2ecdd9e5ef4255"
 dependencies = [
  "bytemuck",
  "byteorder",

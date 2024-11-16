@@ -140,7 +140,7 @@ mod test {
     use crate::{
         io::SP1Stdin,
         riscv::RiscvAir,
-        utils::{prove, setup_logger, tests::KECCAK256_ELF},
+        utils::{prove, setup_logger},
     };
     use sp1_primitives::io::SP1PublicValues;
 
@@ -149,6 +149,7 @@ mod test {
     use sp1_stark::{
         baby_bear_poseidon2::BabyBearPoseidon2, CpuProver, SP1CoreOpts, StarkGenericConfig,
     };
+    use test_artifacts::KECCAK256_ELF;
     use tiny_keccak::Hasher;
 
     const NUM_TEST_CASES: usize = 45;

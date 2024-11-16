@@ -39,6 +39,7 @@ use {std::future::Future, tokio::task::block_in_place};
 
 pub use provers::{CpuProver, MockProver, Prover};
 
+pub use sp1_build::include_elf;
 pub use sp1_core_executor::{ExecutionReport, HookEnv, SP1Context, SP1ContextBuilder};
 pub use sp1_core_machine::{io::SP1Stdin, riscv::cost::CostEstimator, SP1_CIRCUIT_VERSION};
 pub use sp1_primitives::io::SP1PublicValues;
@@ -212,7 +213,7 @@ impl ProverClient {
     /// use sp1_sdk::{ProverClient, SP1Context, SP1Stdin};
     ///
     /// // Load the program.
-    /// let elf = include_bytes!("../../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
+    /// let elf = test_artifacts::FIBONACCI_ELF;
     ///
     /// // Initialize the prover client.
     /// let client = ProverClient::new();
@@ -242,7 +243,7 @@ impl ProverClient {
     /// use sp1_sdk::{ProverClient, SP1Context, SP1Stdin};
     ///
     /// // Load the program.
-    /// let elf = include_bytes!("../../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
+    /// let elf = test_artifacts::FIBONACCI_ELF;
     ///
     /// // Initialize the prover client.
     /// let client = ProverClient::new();
@@ -268,7 +269,7 @@ impl ProverClient {
     /// ```no_run
     /// use sp1_sdk::{ProverClient, SP1Stdin};
     ///
-    /// let elf = include_bytes!("../../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
+    /// let elf = test_artifacts::FIBONACCI_ELF;
     /// let client = ProverClient::new();
     /// let (pk, vk) = client.setup(elf);
     /// let mut stdin = SP1Stdin::new();
@@ -301,7 +302,7 @@ impl ProverClient {
     /// ```no_run
     /// use sp1_sdk::{ProverClient, SP1Stdin};
     ///
-    /// let elf = include_bytes!("../../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
+    /// let elf = test_artifacts::FIBONACCI_ELF;
     /// let client = ProverClient::new();
     /// let mut stdin = SP1Stdin::new();
     /// stdin.write(&10usize);
@@ -403,22 +404,6 @@ pub fn block_on<T>(fut: impl Future<Output = T>) -> T {
     }
 }
 
-/// Returns the raw ELF bytes by the zkVM program target name.
-///
-/// Note that this only works when using `sp1_build::build_program` or
-/// `sp1_build::build_program_with_args` in a build script.
-///
-/// By default, the program target name is the same as the program crate name. However, this might
-/// not be the case for non-standard project structures. For example, placing the entrypoint source
-/// file at `src/bin/my_entry.rs` would result in the program target being named `my_entry`, in
-/// which case the invocation should be `include_elf!("my_entry")` instead.
-#[macro_export]
-macro_rules! include_elf {
-    ($arg:tt) => {{
-        include_bytes!(env!(concat!("SP1_ELF_", $arg)))
-    }};
-}
-
 #[cfg(test)]
 mod tests {
 
@@ -430,8 +415,7 @@ mod tests {
     fn test_execute() {
         utils::setup_logger();
         let client = ProverClient::cpu();
-        let elf =
-            include_bytes!("../../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
+        let elf = test_artifacts::FIBONACCI_ELF;
         let mut stdin = SP1Stdin::new();
         stdin.write(&10usize);
         let (_, report) = client.execute(elf, stdin).run().unwrap();
@@ -443,7 +427,7 @@ mod tests {
     fn test_execute_panic() {
         utils::setup_logger();
         let client = ProverClient::cpu();
-        let elf = include_bytes!("../../../tests/panic/elf/riscv32im-succinct-zkvm-elf");
+        let elf = test_artifacts::PANIC_ELF;
         let mut stdin = SP1Stdin::new();
         stdin.write(&10usize);
         client.execute(elf, stdin).run().unwrap();
@@ -454,7 +438,7 @@ mod tests {
     fn test_cycle_limit_fail() {
         utils::setup_logger();
         let client = ProverClient::cpu();
-        let elf = include_bytes!("../../../tests/panic/elf/riscv32im-succinct-zkvm-elf");
+        let elf = test_artifacts::PANIC_ELF;
         let mut stdin = SP1Stdin::new();
         stdin.write(&10usize);
         client.execute(elf, stdin).max_cycles(1).run().unwrap();
@@ -464,7 +448,7 @@ mod tests {
     fn test_e2e_core() {
         utils::setup_logger();
         let client = ProverClient::cpu();
-        let elf = include_bytes!("../../../tests/fibonacci/elf/riscv32im-succinct-zkvm-elf");
+        let elf = test_artifacts::FIBONACCI_ELF;
         let (pk, vk) = client.setup(elf);
         let mut stdin = SP1Stdin::new();
         stdin.write(&10usize);
@@ -484,7 +468,7 @@ mod tests {
     fn test_e2e_compressed() {
         utils::setup_logger();
         let client = ProverClient::cpu();
-        let elf = include_bytes!("../../../tests/fibonacci/elf/riscv32im-succinct-zkvm-elf");
+        let elf = test_artifacts::FIBONACCI_ELF;
         let (pk, vk) = client.setup(elf);
         let mut stdin = SP1Stdin::new();
         stdin.write(&10usize);
@@ -504,7 +488,7 @@ mod tests {
     fn test_e2e_prove_plonk() {
         utils::setup_logger();
         let client = ProverClient::cpu();
-        let elf = include_bytes!("../../../tests/fibonacci/elf/riscv32im-succinct-zkvm-elf");
+        let elf = test_artifacts::FIBONACCI_ELF;
         let (pk, vk) = client.setup(elf);
         let mut stdin = SP1Stdin::new();
         stdin.write(&10usize);
@@ -524,7 +508,7 @@ mod tests {
     fn test_e2e_prove_plonk_mock() {
         utils::setup_logger();
         let client = ProverClient::mock();
-        let elf = include_bytes!("../../../tests/fibonacci/elf/riscv32im-succinct-zkvm-elf");
+        let elf = test_artifacts::FIBONACCI_ELF;
         let (pk, vk) = client.setup(elf);
         let mut stdin = SP1Stdin::new();
         stdin.write(&10usize);

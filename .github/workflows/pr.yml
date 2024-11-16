@@ -36,6 +36,12 @@ jobs:
       - name: Setup CI
         uses: ./.github/actions/setup
 
+      - name: Install SP1 toolchain
+        run: |
+          curl -L https://sp1.succinct.xyz | bash
+          ~/.sp1/bin/sp1up 
+          ~/.sp1/bin/cargo-prove prove --version
+
       - name: Run cargo check
         uses: actions-rs/cargo@v1
         with:
@@ -72,6 +78,12 @@ jobs:
       - name: Setup CI
         uses: ./.github/actions/setup
 
+      - name: Install SP1 toolchain
+        run: |
+          curl -L https://sp1.succinct.xyz | bash
+          ~/.sp1/bin/sp1up 
+          ~/.sp1/bin/cargo-prove prove --version
+
       - name: Run cargo check
         uses: actions-rs/cargo@v1
         with:
@@ -102,11 +114,25 @@ jobs:
       - name: Setup CI
         uses: ./.github/actions/setup
 
+      - name: Install SP1 toolchain
+        run: |
+          curl -L https://sp1.succinct.xyz | bash
+          ~/.sp1/bin/sp1up 
+          ~/.sp1/bin/cargo-prove prove --version
+
       - name: Run cargo fmt
         uses: actions-rs/cargo@v1
         with:
           command: fmt
           args: --all -- --check
+        env:
+          CARGO_INCREMENTAL: 1
+
+      - name: Check test-artifacts
+        uses: actions-rs/cargo@v1
+        with:
+          command: check
+          args: -p test-artifacts
         env:
           CARGO_INCREMENTAL: 1
 
@@ -154,36 +180,6 @@ jobs:
         run: |
           cd ./examples/
           cargo clippy --all-targets --all-features -- -D warnings -A incomplete-features
-
-  tests:
-    name: Tests
-    runs-on: [runs-on, runner=64cpu-linux-x64, "run-id=${{ github.run_id }}"]
-    steps:
-      - name: Checkout sources
-        uses: actions/checkout@v4
-
-      - name: Setup CI
-        uses: ./.github/actions/setup
-
-      - name: Install SP1 toolchain
-        run: |
-          cargo install --locked --force --path crates/cli
-          cargo prove install-toolchain
-
-      - name: Run cargo fmt
-        run: |
-          cd ./tests/
-          cargo fmt --all -- --check
-
-      - name: Run cargo clippy
-        run: |
-          cd ./tests/
-          cargo clippy --all-targets --all-features -- -D warnings -A incomplete-features
-
-      - name: Build test ELF files
-        run: |
-          cd ./tests/
-          make
 
   cli:
     name: CLI
@@ -438,13 +434,14 @@ jobs:
         run: |
           find -name Cargo.lock -type f -exec rm {} \;
 
-      - name: "Build SP1 without lock files"
-        run: |
-          cargo build --all --all-targets
-
+      # We need the SP1 toolchain to be installed in order to build test-artifacts
       - name: Install SP1 toolchain
         run: |
           cargo run -p sp1-cli -- prove install-toolchain
+
+      - name: "Build SP1 without lock files"
+        run: |
+          cargo build --all --all-targets
           
       - name: "Build examples without lock files"
         run: |
