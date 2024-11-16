@@ -244,11 +244,11 @@ where
                                         shape_config,
                                     )
                                 });
-                            log::info!("generated {} records", records.len());
+                            tracing::debug!("generated {} records", records.len());
                             reset_seek(&mut checkpoint);
 
                             // Wait for our turn to update the state.
-                            log::info!("waiting for turn {}", index);
+                            tracing::debug!("waiting for turn {}", index);
                             record_gen_sync.wait_for_turn(index);
 
                             // Update the public values & prover state for the shards which contain
@@ -274,7 +274,7 @@ where
 
                             // See if any deferred shards are ready to be committed to.
                             let mut deferred = deferred.split(done, opts.split_opts);
-                            log::info!("deferred {} records", deferred.len());
+                            tracing::debug!("deferred {} records", deferred.len());
 
                             // Update the public values & prover state for the shards which do not
                             // contain "cpu events" before committing to them.
@@ -297,7 +297,7 @@ where
                             records.append(&mut deferred);
 
                             // Collect the checkpoints to be used again in the phase 2 prover.
-                            log::info!("collecting checkpoints");
+                            tracing::debug!("collecting checkpoints");
                             let mut checkpoints = checkpoints.lock().unwrap();
                             checkpoints.push_back((index, checkpoint, done));
 
@@ -307,7 +307,7 @@ where
                             // Fix the shape of the records.
                             if let Some(shape_config) = shape_config {
                                 for record in records.iter_mut() {
-                                    tracing::info!("fixing shape");
+                                    tracing::debug!("fixing shape");
                                     shape_config.fix_shape(record).unwrap();
                                 }
                             }
@@ -478,7 +478,7 @@ where
                                         shape_config,
                                     )
                                 });
-                            log::info!("generated {} records", records.len());
+                            log::debug!("generated {} records", records.len());
                             *report_aggregate.lock().unwrap() += report;
                             reset_seek(&mut checkpoint);
 
@@ -508,7 +508,7 @@ where
 
                             // See if any deferred shards are ready to be committed to.
                             let mut deferred = deferred.split(done, opts.split_opts);
-                            log::info!("deferred {} records", deferred.len());
+                            log::debug!("deferred {} records", deferred.len());
 
                             // Update the public values & prover state for the shards which do not
                             // contain "cpu events" before committing to them.
