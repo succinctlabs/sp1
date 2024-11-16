@@ -59,7 +59,7 @@ pub fn execute_build_program(
 /// Internal helper function to build the program with or without arguments.
 ///
 /// Note: This function is not intended to be used by the CLI, as it looks for the sp1-sdk,
-/// which is probably in the same crate lockfile as this function is only called by build scipr
+/// which is probably in the same crate lockfile as this function is only called by build script.
 pub(crate) fn build_program_internal(path: &str, args: Option<BuildArgs>) {
     // Get the root package name and metadata.
     let program_dir = std::path::Path::new(path);
@@ -208,6 +208,11 @@ fn verify_locked_version(program_dir: impl AsRef<Path>) -> Result<()> {
     struct Package {
         name: String,
         version: String,
+    }
+
+    // we need an exception for our test fixtures
+    if env!("CARGO_PKG_NAME") != "test-artifacts" {
+        return Ok(());
     }
 
     // This might be a workspace, so we need optionally search parent dirs for lock files
