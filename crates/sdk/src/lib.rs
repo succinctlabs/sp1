@@ -32,7 +32,7 @@ pub mod utils {
 use cfg_if::cfg_if;
 pub use proof::*;
 pub use provers::SP1VerificationError;
-use sp1_prover::{components::DefaultProverComponents, ProverMode};
+use sp1_prover::components::DefaultProverComponents;
 
 #[cfg(any(feature = "network", feature = "network-v2"))]
 use {std::future::Future, tokio::task::block_in_place};
@@ -44,7 +44,7 @@ pub use sp1_core_executor::{ExecutionReport, HookEnv, SP1Context, SP1ContextBuil
 pub use sp1_core_machine::{io::SP1Stdin, riscv::cost::CostEstimator, SP1_CIRCUIT_VERSION};
 pub use sp1_primitives::io::SP1PublicValues;
 pub use sp1_prover::{
-    CoreSC, HashableKey, InnerSC, OuterSC, PlonkBn254Proof, SP1Prover, SP1ProvingKey,
+    CoreSC, HashableKey, InnerSC, OuterSC, PlonkBn254Proof, ProverMode, SP1Prover, SP1ProvingKey,
     SP1VerifyingKey,
 };
 
@@ -178,10 +178,10 @@ impl ProverClient {
     /// ```no_run
     /// use sp1_sdk::ProverClient;
     ///
-    /// let private_key = env::var("SP1_PRIVATE_KEY").unwrap();
-    /// let rpc_url = env::var("PROVER_NETWORK_RPC").ok();
+    /// let private_key = std::env::var("SP1_PRIVATE_KEY").unwrap();
+    /// let rpc_url = std::env::var("PROVER_NETWORK_RPC").ok();
     /// let skip_simulation =
-    ///     env::var("SKIP_SIMULATION").map(|val| val == "true").unwrap_or_default();
+    ///     std::env::var("SKIP_SIMULATION").map(|val| val == "true").unwrap_or_default();
     ///
     /// let client = ProverClient::network(private_key, rpc_url, skip_simulation);
     /// ```
@@ -335,6 +335,12 @@ impl ProverClientBuilder {
         self
     }
 
+    ///  Sets the private key.
+    pub fn private_key(mut self, private_key: String) -> Self {
+        self.private_key = Some(private_key);
+        self
+    }
+
     /// Sets the RPC URL.
     pub fn rpc_url(mut self, rpc_url: String) -> Self {
         self.rpc_url = Some(rpc_url);
@@ -344,12 +350,6 @@ impl ProverClientBuilder {
     /// Skips simulation.
     pub fn skip_simulation(mut self) -> Self {
         self.skip_simulation = true;
-        self
-    }
-
-    ///  Sets the private key.
-    pub fn private_key(mut self, private_key: String) -> Self {
-        self.private_key = Some(private_key);
         self
     }
 
@@ -385,6 +385,51 @@ impl ProverClientBuilder {
             }
             ProverMode::Mock => ProverClient::mock(),
         }
+    }
+}
+
+/// Builder type for network prover.
+#[cfg(any(feature = "network", feature = "network-v2"))]
+#[derive(Debug, Default)]
+pub struct NetworkProverBuilder {
+    private_key: Option<String>,
+    rpc_url: Option<String>,
+    skip_simulation: bool,
+}
+
+impl NetworkProverBuilder {
+    ///  Sets the private key.
+    pub fn private_key(mut self, private_key: String) -> Self {
+        self.private_key = Some(private_key);
+        self
+    }
+
+    /// Sets the RPC URL.
+    pub fn rpc_url(mut self, rpc_url: String) -> Self {
+        self.rpc_url = Some(rpc_url);
+        self
+    }
+
+    /// Skips simulation.
+    pub fn skip_simulation(mut self) -> Self {
+        self.skip_simulation = true;
+        self
+    }
+
+    /// Creates a new [NetworkProverV1].
+    #[cfg(feature = "network")]
+    pub fn build(self) -> NetworkProverV1 {
+        let private_key = self.private_key.expect("The private key is required");
+
+        NetworkProverV1::new(&private_key, self.rpc_url, self.skip_simulation)
+    }
+
+    /// Creates a new [NetworkProverV2].
+    #[cfg(feature = "network-v2")]
+    pub fn build_v2(self) -> NetworkProverV2 {
+        let private_key = self.private_key.expect("The private key is required");
+
+        NetworkProverV2::new(&private_key, self.rpc_url, self.skip_simulation)
     }
 }
 

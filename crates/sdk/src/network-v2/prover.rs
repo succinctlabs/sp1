@@ -3,7 +3,8 @@ use std::time::{Duration, Instant};
 use crate::{
     network_v2::client::NetworkClient,
     network_v2::proto::network::{ProofMode, ProofStatus, ProofStrategy},
-    Prover, SP1Context, SP1ProofKind, SP1ProofWithPublicValues, SP1ProvingKey, SP1VerifyingKey,
+    NetworkProverBuilder, Prover, SP1Context, SP1ProofKind, SP1ProofWithPublicValues,
+    SP1ProvingKey, SP1VerifyingKey,
 };
 use anyhow::Result;
 use backoff::{future::retry, ExponentialBackoff};
@@ -38,6 +39,11 @@ impl NetworkProver {
         let local_prover = CpuProver::new();
         let client = NetworkClient::new(private_key, rpc_url);
         Self { client, local_prover, skip_simulation }
+    }
+
+    /// Creates a new network prover builder. See [`NetworkProverBuilder`] for more details.
+    pub fn builder() -> NetworkProverBuilder {
+        NetworkProverBuilder::default()
     }
 
     /// Requests a proof from the prover network, returning the request ID.

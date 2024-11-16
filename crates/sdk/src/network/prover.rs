@@ -1,9 +1,12 @@
 use std::time::{Duration, Instant};
 
 use crate::{
-    network::client::NetworkClient,
-    network::proto::network::{ProofMode, ProofStatus},
-    Prover, SP1Context, SP1ProofKind, SP1ProofWithPublicValues, SP1ProvingKey, SP1VerifyingKey,
+    network::{
+        client::NetworkClient,
+        proto::network::{ProofMode, ProofStatus},
+    },
+    NetworkProverBuilder, Prover, SP1Context, SP1ProofKind, SP1ProofWithPublicValues,
+    SP1ProvingKey, SP1VerifyingKey,
 };
 use anyhow::Result;
 use sp1_core_machine::io::SP1Stdin;
@@ -34,6 +37,11 @@ impl NetworkProver {
 
         let local_prover = CpuProver::new();
         Self { client: NetworkClient::new(private_key, rpc_url), local_prover, skip_simulation }
+    }
+
+    /// Creates a new network prover builder. See [`NetworkProverBuilder`] for more details.
+    pub fn builder() -> NetworkProverBuilder {
+        NetworkProverBuilder::default()
     }
 
     /// Requests a proof from the prover network, returning the proof ID.
