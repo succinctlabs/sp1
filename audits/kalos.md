@@ -55,7 +55,7 @@ zkvm
 
 # Findings
 
-## 1. [Critical] `poseidon2/external` is allows memory write at arbitrary location, and hash value is also underconstrained
+## 1. [Critical] `poseidon2/external` allows memory write at arbitrary location, and hash value is also underconstrained
 
 `Poseidon2Chip` evaluates the Poseidon2 hash in-circuit, with SBOX $x^7$, 8 external rounds and 13 internal rounds. There are several underconstrains in the codebase which lead to a break of soundness of the hash function evaluation and the memory state in general.
 
@@ -75,7 +75,7 @@ The computation of `is_external_layer` is incorrect. The range of the iteration 
         .sum::<AB::Expr>();
 ```
 
-The memory read from `left_input` and `right_input` doesn't constrain that the memory value doesn't change. This allows the memory to be overwritten with arbitrary value.
+The memory read from `left_input` and `right_input` doesn't constrain that the memory value doesn't change. This allows the memory to be overwritten with an arbitrary value.
 
 The syscall is received at the row where `local.rounds[0]` is true, so the ground source of truth for `dst_input` should be at this row. However, in `eval_mem`, the actually used address to write the hash value is the `dst_input` value at the row where `is_memory_write = local.rounds[23]` is true. As there is no check that `dst_input` is equal over the 24-cycle, one can write the hash value at an arbitrary location regardless of the actual syscall.
 
@@ -83,7 +83,7 @@ We recommend checking `clk, dst_input, left_input, right_input` to be equal acro
 
 ### Fix Notes
 
-This vulnerability is fixed in [PR #747](https://github.com/succinctlabs/sp1/pull/747), [this commit of PR #821](https://github.com/succinctlabs/sp1/pull/821/commits/0f0a010d11c8473a03169146628990347f694856), [this commit of PR #821](https://github.com/succinctlabs/sp1/pull/821/commits/0ef836cd9c5efcd1600da833ce79f70a54d521b6), and [this commit of PR #821](https://github.com/succinctlabs/sp1/pull/821/commits/38c93b2a5cee3748b063249b10dda32a45288043#diff-c35de0a3834bcf7574826b1c21c18c50db81122f0682d41e1dc8647bb2c3e145). We summarize the fixes below, going over each vulnerability.
+This vulnerability has been fixed in [PR #747](https://github.com/succinctlabs/sp1/pull/747), [this commit of PR #821](https://github.com/succinctlabs/sp1/pull/821/commits/0f0a010d11c8473a03169146628990347f694856), [this commit of PR #821](https://github.com/succinctlabs/sp1/pull/821/commits/0ef836cd9c5efcd1600da833ce79f70a54d521b6), and [this commit of PR #821](https://github.com/succinctlabs/sp1/pull/821/commits/38c93b2a5cee3748b063249b10dda32a45288043#diff-c35de0a3834bcf7574826b1c21c18c50db81122f0682d41e1dc8647bb2c3e145). We summarize the fixes below, going over each vulnerability.
 
 The computation of `is_external_layer` is fixed. Also, the row 24-cycle is constrained regardless of `is_real`, starting with `rounds[0]` being true and shifting by one per each row. Also, `clk, dst_input, left_input, right_input` are held equal over the 24-cycle.
 
