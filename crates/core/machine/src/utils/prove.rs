@@ -853,7 +853,7 @@ where
     let mut reader = std::io::BufReader::new(file);
     let state: ExecutionState =
         bincode::deserialize_from(&mut reader).expect("failed to deserialize state");
-    let mut runtime = Executor::recover(program.clone(), state.clone(), opts);
+    let mut runtime = Executor::recover(program, state, opts);
     runtime.maximal_shapes = shape_config
         .map(|config| config.maximal_core_shapes().into_iter().map(|s| s.inner).collect());
 
