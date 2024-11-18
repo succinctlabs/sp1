@@ -29,7 +29,10 @@ use crate::{
     riscv::cost::CostEstimator,
     utils::{chunk_vec, concurrency::TurnBasedSync},
 };
-use sp1_core_executor::{events::generate_execution_report, ExecutionState};
+use sp1_core_executor::{
+    events::{format_table_line, sorted_table_lines},
+    ExecutionState,
+};
 use sp1_primitives::io::SP1PublicValues;
 
 use sp1_core_executor::{
@@ -674,13 +677,23 @@ where
         // Print the opcode and syscall count tables like `du`: sorted by count (descending) and
         // with the count in the first column.
         tracing::info!("execution report (opcode counts):");
-        for line in generate_execution_report(report_aggregate.opcode_counts.as_ref(), false) {
-            tracing::info!("  {line}");
+        let (width, lines) = sorted_table_lines(report_aggregate.opcode_counts.as_ref());
+        for (label, count) in lines {
+            if *count > 0 {
+                tracing::info!("  {}", format_table_line(&width, &label, count));
+            } else {
+                tracing::debug!("  {}", format_table_line(&width, &label, count));
+            }
         }
 
         tracing::info!("execution report (syscall counts):");
-        for line in generate_execution_report(report_aggregate.syscall_counts.as_ref(), true) {
-            tracing::info!("  {line}");
+        let (width, lines) = sorted_table_lines(report_aggregate.syscall_counts.as_ref());
+        for (label, count) in lines {
+            if *count > 0 {
+                tracing::info!("  {}", format_table_line(&width, &label, count));
+            } else {
+                tracing::debug!("  {}", format_table_line(&width, &label, count));
+            }
         }
 
         let proof = MachineProof::<SC> { shard_proofs };
