@@ -118,10 +118,15 @@ pub struct HookEnv<'a, 'b: 'a> {
 /// values must be constrained by the zkVM for correctness.
 #[must_use]
 pub fn hook_ecrecover(_: HookEnv, buf: &[u8]) -> Vec<Vec<u8>> {
+    println!("ecrecover hook called with buf: {:?}", buf);
     assert_eq!(buf.len(), 65 + 32, "ecrecover input should have length 65 + 32");
     let (sig, msg_hash) = buf.split_at(65);
     let sig: &[u8; 65] = sig.try_into().unwrap();
     let msg_hash: &[u8; 32] = msg_hash.try_into().unwrap();
+
+    println!("sig: {:?}", &sig[..64]);
+    println!("recid: {:?}", sig[64]);
+    println!("msg_hash: {:?}", msg_hash);
 
     let mut recovery_id = sig[64];
     let mut sig = Signature::from_slice(&sig[..64]).unwrap();

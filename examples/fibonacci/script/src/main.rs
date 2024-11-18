@@ -3,8 +3,8 @@ use sp1_sdk::{include_elf, utils, ProverClient, SP1ProofWithPublicValues, SP1Std
 use sp1_stark::SP1CoreOpts;
 /// The ELF we want to execute inside the zkVM.
 const ELF: &[u8] = include_elf!("fibonacci-program");
-const PROGRAM: &[u8] = include_bytes!("../../program_taiko");
-const STDIN: &[u8] = include_bytes!("../../stdin_taiko");
+const PROGRAM: &[u8] = include_bytes!("../real_program_taiko");
+const STDIN: &[u8] = include_bytes!("../real_stdin_taiko");
 
 fn main() {
     // Setup logging.
@@ -28,7 +28,7 @@ fn main() {
 
     let mut runtime = Executor::new(program, SP1CoreOpts::default());
     runtime.write_vecs(&stdin.buffer);
-    runtime.run().unwrap();
+    runtime.run_fast().unwrap();
 
     // // Execute the program using the `ProverClient.execute` method, without generating a proof.
     // let (_, report) = client.execute(ELF, stdin.clone()).run().unwrap();
