@@ -54,6 +54,7 @@ sp1-recursion-derive = { path = "../crates/recursion/derive", default-features =
 sp1-recursion-gnark-ffi = { path = "../crates/recursion/gnark-ffi", default-features = false }
 sp1-recursion-program = { path = "../crates/recursion/program", default-features = false }
 sp1-recursion-circuit = { path = "../crates/recursion/circuit", default-features = false }
+sp1-stark = { path = "../crates/stark" }
 sp1-sdk = { path = "../crates/sdk" }
 sp1-lib = { path = "../crates/zkvm/lib", default-features = false }
 sp1-zkvm = { path = "../crates/zkvm/entrypoint", default-features = false }

@@ -7,7 +7,10 @@ publish = false
 
 [dependencies]
 hex = "0.4.3"
+bincode = "1.3.3"
 sp1-sdk = { workspace = true }
+sp1-core-executor = { workspace = true }
+sp1-stark = { workspace = true }
 
 [build-dependencies]
 sp1-build = { workspace = true }
