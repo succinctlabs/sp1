@@ -26,6 +26,7 @@ const MAX_CONSECUTIVE_ERRORS: usize = 10;
 pub struct NetworkProver {
     client: NetworkClient,
     local_prover: CpuProver,
+    skip_simulation: bool,
 }
 
 impl NetworkProver {
@@ -35,14 +36,18 @@ impl NetworkProver {
             .unwrap_or_else(|_| panic!("SP1_PRIVATE_KEY must be set for remote proving"));
         Self::new_from_key(&private_key)
     }
-
     /// Creates a new [NetworkProver] with the given private key.
     pub fn new_from_key(private_key: &str) -> Self {
         let version = SP1_CIRCUIT_VERSION;
         log::info!("Client circuit version: {}", version);
 
         let local_prover = CpuProver::new();
-        Self { client: NetworkClient::new(private_key), local_prover }
+        Self { client: NetworkClient::new(private_key), local_prover, skip_simulation: false }
+    }
+
+    /// Skip simulation when running `prove`.
+    pub fn set_skip_simulation(&mut self, skip: bool) {
+        self.skip_simulation = skip;
     }
 
     /// Requests a proof from the prover network, returning the proof ID.
@@ -52,11 +57,7 @@ impl NetworkProver {
         stdin: SP1Stdin,
         mode: ProofMode,
     ) -> Result<String> {
-        let client = &self.client;
-
-        let skip_simulation = env::var("SKIP_SIMULATION").map(|val| val == "true").unwrap_or(false);
-
-        if !skip_simulation {
+        if !self.skip_simulation {
             let (_, report) =
                 self.local_prover.sp1_prover().execute(elf, &stdin, Default::default())?;
             log::info!("Simulation complete, cycles: {}", report.total_instruction_count());
@@ -64,7 +65,7 @@ impl NetworkProver {
             log::info!("Skipping simulation");
         }
 
-        let proof_id = client.create_proof(elf, &stdin, mode, SP1_CIRCUIT_VERSION).await?;
+        let proof_id = self.client.create_proof(elf, &stdin, mode, SP1_CIRCUIT_VERSION).await?;
         log::info!("Created {}", proof_id);
 
         if NetworkClient::rpc_url() == DEFAULT_PROVER_NETWORK_RPC {
