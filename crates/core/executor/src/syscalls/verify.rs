@@ -32,16 +32,19 @@ impl Syscall for VerifySyscall {
         let vkey_bytes: [u32; 8] = vkey.try_into().unwrap();
         let pv_digest_bytes: [u32; 8] = pv_digest.try_into().unwrap();
 
-        ctx.rt
-            .subproof_verifier
-            .verify_deferred_proof(proof, proof_vk, vkey_bytes, pv_digest_bytes)
-            .unwrap_or_else(|e| {
-                panic!(
-                    "Failed to verify proof {proof_index} with digest {}: {}",
-                    hex::encode(bytemuck::cast_slice(&pv_digest_bytes)),
-                    e
-                )
-            });
+        // Skip deferred proof verification if the corresponding runtime flag is set.
+        if !ctx.rt.skip_deferred_proof_verification {
+            ctx.rt
+                .subproof_verifier
+                .verify_deferred_proof(proof, proof_vk, vkey_bytes, pv_digest_bytes)
+                .unwrap_or_else(|e| {
+                    panic!(
+                        "Failed to verify proof {proof_index} with digest {}: {}",
+                        hex::encode(bytemuck::cast_slice(&pv_digest_bytes)),
+                        e
+                    )
+                });
+        }
 
         None
     }

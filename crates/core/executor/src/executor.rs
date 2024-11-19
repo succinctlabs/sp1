@@ -80,6 +80,9 @@ pub struct Executor<'a> {
     /// The maximum number of cpu cycles to use for execution.
     pub max_cycles: Option<u64>,
 
+    /// Skip deferred proof verification.
+    pub skip_deferred_proof_verification: bool,
+
     /// The state of the execution.
     pub state: ExecutionState,
 
@@ -231,6 +234,7 @@ impl<'a> Executor<'a> {
             hook_registry,
             opts,
             max_cycles: context.max_cycles,
+            skip_deferred_proof_verification: context.skip_deferred_proof_verification,
             memory_checkpoint: PagedMemory::new_preallocated(),
             uninitialized_memory_checkpoint: PagedMemory::new_preallocated(),
             local_memory_access: HashMap::new(),
