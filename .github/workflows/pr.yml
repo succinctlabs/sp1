@@ -416,9 +416,12 @@ jobs:
     runs-on:
       [
         runs-on,
-        runner=64cpu-linux-x64,
+        cpu=64,
+        ram=256,
+        family=m7i+m7a,
+        disk=large,
+        image=ubuntu22-full-x64,
         spot=false,
-        hdd=80,
         "run-id=${{ github.run_id }}",
       ]    
     env:
