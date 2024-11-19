@@ -69,6 +69,13 @@ extern void fri_fold_event_to_row_babybear(const sp1_recursion_core_sys::FriFold
         *reinterpret_cast<const sp1_recursion_core_sys::FriFoldEvent<BabyBear>*>(io),
         *reinterpret_cast<sp1_recursion_core_sys::FriFoldCols<BabyBear>*>(cols));
 }
+extern void fri_fold_instr_to_row_babybear(const sp1_recursion_core_sys::FriFoldInstrC<BabyBearP3>* instr, size_t i, size_t len, sp1_recursion_core_sys::FriFoldPreprocessedCols<BabyBearP3>* cols) {
+    recursion::fri_fold::instr_to_row<BabyBear>(
+        *reinterpret_cast<const sp1_recursion_core_sys::FriFoldInstrC<BabyBear>*>(instr),
+        i,
+        len,
+        *reinterpret_cast<sp1_recursion_core_sys::FriFoldPreprocessedCols<BabyBear>*>(cols));
+}
 
 extern void public_values_event_to_row_babybear(const sp1_recursion_core_sys::CommitPublicValuesEvent<BabyBearP3>* io, size_t digest_idx, sp1_recursion_core_sys::PublicValuesCols<BabyBearP3>* cols) {
     recursion::public_values::event_to_row<BabyBear>(

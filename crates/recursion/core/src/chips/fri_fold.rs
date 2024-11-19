@@ -21,7 +21,7 @@ use crate::{
     ExecutionRecord, FriFoldInstr,
 };
 
-use super::mem::MemoryAccessCols;
+use super::mem::{MemoryAccessCols, MemoryAccessColsChips};
 
 pub const NUM_FRI_FOLD_COLS: usize = core::mem::size_of::<FriFoldCols<u8>>();
 pub const NUM_FRI_FOLD_PREPROCESSED_COLS: usize =
@@ -45,19 +45,19 @@ pub struct FriFoldPreprocessedCols<T: Copy> {
     pub is_first: T,
 
     // Memory accesses for the single fields.
-    pub z_mem: MemoryAccessCols<T>,
-    pub alpha_mem: MemoryAccessCols<T>,
-    pub x_mem: MemoryAccessCols<T>,
+    pub z_mem: MemoryAccessColsChips<T>,
+    pub alpha_mem: MemoryAccessColsChips<T>,
+    pub x_mem: MemoryAccessColsChips<T>,
 
     // Memory accesses for the vector field inputs.
-    pub alpha_pow_input_mem: MemoryAccessCols<T>,
-    pub ro_input_mem: MemoryAccessCols<T>,
-    pub p_at_x_mem: MemoryAccessCols<T>,
-    pub p_at_z_mem: MemoryAccessCols<T>,
+    pub alpha_pow_input_mem: MemoryAccessColsChips<T>,
+    pub ro_input_mem: MemoryAccessColsChips<T>,
+    pub p_at_x_mem: MemoryAccessColsChips<T>,
+    pub p_at_z_mem: MemoryAccessColsChips<T>,
 
     // Memory accesses for the vector field outputs.
-    pub ro_output_mem: MemoryAccessCols<T>,
-    pub alpha_pow_output_mem: MemoryAccessCols<T>,
+    pub ro_output_mem: MemoryAccessColsChips<T>,
+    pub alpha_pow_output_mem: MemoryAccessColsChips<T>,
 
     pub is_real: T,
 }
@@ -100,6 +100,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for FriFoldChip<DEGREE>
     fn preprocessed_width(&self) -> usize {
         NUM_FRI_FOLD_PREPROCESSED_COLS
     }
+
     fn generate_preprocessed_trace(&self, program: &Self::Program) -> Option<RowMajorMatrix<F>> {
         let mut rows: Vec<[F; NUM_FRI_FOLD_PREPROCESSED_COLS]> = Vec::new();
         program

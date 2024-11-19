@@ -256,6 +256,60 @@ pub struct FriFoldInstr<F> {
     pub ro_mults: Vec<F>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[repr(C)]
+pub struct FriFoldInstrC<'a, F> {
+    pub base_single_addrs: &'a FriFoldBaseIo<Address<F>>,
+    pub ext_single_addrs: &'a FriFoldExtSingleIo<Address<F>>,
+
+    pub ext_vec_addrs_mat_opening_ptr: *const Address<F>,
+    pub ext_vec_addrs_mat_opening_len: usize,
+    pub ext_vec_addrs_ps_at_z_ptr: *const Address<F>,
+    pub ext_vec_addrs_ps_at_z_len: usize,
+    pub ext_vec_addrs_alpha_pow_input_ptr: *const Address<F>,
+    pub ext_vec_addrs_alpha_pow_input_len: usize,
+    pub ext_vec_addrs_ro_input_ptr: *const Address<F>,
+    pub ext_vec_addrs_ro_input_len: usize,
+    pub ext_vec_addrs_alpha_pow_output_ptr: *const Address<F>,
+    pub ext_vec_addrs_alpha_pow_output_len: usize,
+    pub ext_vec_addrs_ro_output_ptr: *const Address<F>,
+    pub ext_vec_addrs_ro_output_len: usize,
+
+    pub alpha_pow_mults_ptr: *const F,
+    pub alpha_pow_mults_len: usize,
+
+    pub ro_mults_ptr: *const F,
+    pub ro_mults_len: usize,
+}
+
+impl<F> FriFoldInstr<F> {
+    pub fn to_c(&self) -> FriFoldInstrC<'_, F> {
+        FriFoldInstrC {
+            base_single_addrs: &self.base_single_addrs,
+            ext_single_addrs: &self.ext_single_addrs,
+
+            ext_vec_addrs_mat_opening_ptr: self.ext_vec_addrs.mat_opening.as_ptr(),
+            ext_vec_addrs_mat_opening_len: self.ext_vec_addrs.mat_opening.len(),
+            ext_vec_addrs_ps_at_z_ptr: self.ext_vec_addrs.ps_at_z.as_ptr(),
+            ext_vec_addrs_ps_at_z_len: self.ext_vec_addrs.ps_at_z.len(),
+            ext_vec_addrs_alpha_pow_input_ptr: self.ext_vec_addrs.alpha_pow_input.as_ptr(),
+            ext_vec_addrs_alpha_pow_input_len: self.ext_vec_addrs.alpha_pow_input.len(),
+            ext_vec_addrs_ro_input_ptr: self.ext_vec_addrs.ro_input.as_ptr(),
+            ext_vec_addrs_ro_input_len: self.ext_vec_addrs.ro_input.len(),
+            ext_vec_addrs_alpha_pow_output_ptr: self.ext_vec_addrs.alpha_pow_output.as_ptr(),
+            ext_vec_addrs_alpha_pow_output_len: self.ext_vec_addrs.alpha_pow_output.len(),
+            ext_vec_addrs_ro_output_ptr: self.ext_vec_addrs.ro_output.as_ptr(),
+            ext_vec_addrs_ro_output_len: self.ext_vec_addrs.ro_output.len(),
+
+            alpha_pow_mults_ptr: self.alpha_pow_mults.as_ptr(),
+            alpha_pow_mults_len: self.alpha_pow_mults.len(),
+
+            ro_mults_ptr: self.ro_mults.as_ptr(),
+            ro_mults_len: self.ro_mults.len(),
+        }
+    }
+}
+
 /// The event encoding the data of a single iteration within the FRI fold operation.
 /// For any given event, we are accessing a single element of the `Vec` inputs, so that the event
 /// is not a type alias for `FriFoldIo` like many of the other events.
@@ -312,11 +366,14 @@ pub struct BatchFRIInstr<F> {
 pub struct BatchFRIInstrC<'a, F> {
     pub base_vec_addrs_p_at_x_ptr: *const Address<F>,
     pub base_vec_addrs_p_at_x_len: usize,
-    pub ext_single_addrs: *const BatchFRIExtSingleIo<Address<F>>,
+
+    pub ext_single_addrs: &'a BatchFRIExtSingleIo<Address<F>>,
+
     pub ext_vec_addrs_p_at_z_ptr: *const Address<F>,
     pub ext_vec_addrs_p_at_z_len: usize,
     pub ext_vec_addrs_alpha_pow_ptr: *const Address<F>,
     pub ext_vec_addrs_alpha_pow_len: usize,
+
     pub acc_mult: &'a F,
 }
 
@@ -325,11 +382,14 @@ impl<F> BatchFRIInstr<F> {
         BatchFRIInstrC {
             base_vec_addrs_p_at_x_ptr: self.base_vec_addrs.p_at_x.as_ptr(),
             base_vec_addrs_p_at_x_len: self.base_vec_addrs.p_at_x.len(),
+
             ext_single_addrs: &self.ext_single_addrs,
+
             ext_vec_addrs_p_at_z_ptr: self.ext_vec_addrs.p_at_z.as_ptr(),
             ext_vec_addrs_p_at_z_len: self.ext_vec_addrs.p_at_z.len(),
             ext_vec_addrs_alpha_pow_ptr: self.ext_vec_addrs.alpha_pow.as_ptr(),
             ext_vec_addrs_alpha_pow_len: self.ext_vec_addrs.alpha_pow.len(),
+
             acc_mult: &self.acc_mult,
         }
     }

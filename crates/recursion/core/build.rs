@@ -119,6 +119,8 @@ mod sys {
             .include_item("ExpReverseBitsLenPreprocessedCols")
             .include_item("FriFoldEvent")
             .include_item("FriFoldCols")
+            .include_item("FriFoldInstrC")
+            .include_item("FriFoldPreprocessedCols")
             .include_item("SelectEvent")
             .include_item("SelectCols")
             .include_item("CommitPublicValuesEvent")
