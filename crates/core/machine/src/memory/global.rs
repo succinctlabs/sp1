@@ -1,28 +1,35 @@
+use super::MemoryChipType;
+use crate::{
+    operations::GlobalAccumulationOperation,
+    operations::GlobalInteractionOperation,
+    operations::{AssertLtColsBits, BabyBearBitDecomposition, IsZeroOperation},
+    utils::pad_rows_fixed,
+};
 use core::{
     borrow::{Borrow, BorrowMut},
     mem::size_of,
 };
-use std::array;
-
+use hashbrown::HashMap;
+use itertools::Itertools;
 use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
-use sp1_core_executor::{events::MemoryInitializeFinalizeEvent, ExecutionRecord, Program};
+use p3_maybe_rayon::prelude::{IntoParallelRefIterator, ParallelIterator, ParallelSlice};
+use sp1_core_executor::events::ByteLookupEvent;
+use sp1_core_executor::{
+    events::{ByteRecord, MemoryInitializeFinalizeEvent},
+    ExecutionRecord, Program,
+};
 use sp1_derive::AlignedBorrow;
 use sp1_stark::{
     air::{
-        AirInteraction, BaseAirBuilder, InteractionScope, MachineAir, PublicValues, SP1AirBuilder,
+        BaseAirBuilder, InteractionScope, MachineAir, PublicValues, SP1AirBuilder,
         SP1_PROOF_NUM_PV_ELTS,
     },
-    InteractionKind, Word,
+    septic_digest::SepticDigest,
+    Word,
 };
-
-use crate::{
-    operations::{AssertLtColsBits, BabyBearBitDecomposition, IsZeroOperation},
-    utils::pad_rows_fixed,
-};
-
-use super::MemoryChipType;
+use std::array;
 
 /// A memory chip that can initialize or finalize values in memory.
 pub struct MemoryGlobalChip {
@@ -54,8 +61,45 @@ impl<F: PrimeField32> MachineAir<F> for MemoryGlobalChip {
         }
     }
 
-    fn generate_dependencies(&self, _input: &ExecutionRecord, _output: &mut ExecutionRecord) {
-        // Do nothing since this chip has no dependencies.
+    fn generate_dependencies(&self, input: &ExecutionRecord, output: &mut ExecutionRecord) {
+        let mut memory_events = match self.kind {
+            MemoryChipType::Initialize => input.global_memory_initialize_events.clone(),
+            MemoryChipType::Finalize => input.global_memory_finalize_events.clone(),
+        };
+
+        let is_receive = match self.kind {
+            MemoryChipType::Initialize => false,
+            MemoryChipType::Finalize => true,
+        };
+
+        memory_events.sort_by_key(|event| event.addr);
+        let chunk_size = std::cmp::max(memory_events.len() / num_cpus::get(), 1);
+
+        let blu_batches = memory_events
+            .par_chunks(chunk_size)
+            .map(|events| {
+                let mut blu: HashMap<u32, HashMap<ByteLookupEvent, usize>> = HashMap::new();
+                events.iter().for_each(|event| {
+                    let MemoryInitializeFinalizeEvent { addr, value, shard, timestamp, used } =
+                        event.to_owned();
+                    let interaction_shard = if is_receive { shard } else { 0 };
+                    let interaction_clk = if is_receive { timestamp } else { 0 };
+                    let mut row = [F::zero(); NUM_MEMORY_INIT_COLS];
+                    let cols: &mut MemoryInitCols<F> = row.as_mut_slice().borrow_mut();
+                    cols.global_interaction_cols.populate_memory(
+                        interaction_shard,
+                        interaction_clk,
+                        addr,
+                        value,
+                        is_receive,
+                        used != 0,
+                        &mut blu,
+                    );
+                });
+                blu
+            })
+            .collect::<Vec<_>>();
+        output.add_sharded_byte_lookup_events(blu_batches.iter().collect_vec());
     }
 
     fn generate_trace(
@@ -73,11 +117,19 @@ impl<F: PrimeField32> MachineAir<F> for MemoryGlobalChip {
             MemoryChipType::Finalize => input.public_values.previous_finalize_addr_bits,
         };
 
+        let is_receive = match self.kind {
+            MemoryChipType::Initialize => false,
+            MemoryChipType::Finalize => true,
+        };
+
+        let mut global_cumulative_sum = SepticDigest::<F>::zero().0;
+
         memory_events.sort_by_key(|event| event.addr);
-        let mut rows: Vec<[F; NUM_MEMORY_INIT_COLS]> = (0..memory_events.len()) // OPT: change this to par_iter
-            .map(|i| {
+        let mut rows: Vec<[F; NUM_MEMORY_INIT_COLS]> = memory_events
+            .par_iter()
+            .map(|event| {
                 let MemoryInitializeFinalizeEvent { addr, value, shard, timestamp, used } =
-                    memory_events[i];
+                    event.to_owned();
 
                 let mut row = [F::zero(); NUM_MEMORY_INIT_COLS];
                 let cols: &mut MemoryInitCols<F> = row.as_mut_slice().borrow_mut();
@@ -88,39 +140,62 @@ impl<F: PrimeField32> MachineAir<F> for MemoryGlobalChip {
                 cols.value = array::from_fn(|i| F::from_canonical_u32((value >> i) & 1));
                 cols.is_real = F::from_canonical_u32(used);
 
-                if i == 0 {
-                    let prev_addr = previous_addr_bits
-                        .iter()
-                        .enumerate()
-                        .map(|(j, bit)| bit * (1 << j))
-                        .sum::<u32>();
-                    cols.is_prev_addr_zero.populate(prev_addr);
-                    cols.is_first_comp = F::from_bool(prev_addr != 0);
-                    if prev_addr != 0 {
-                        debug_assert!(prev_addr < addr, "prev_addr {} < addr {}", prev_addr, addr);
-                        let addr_bits: [_; 32] = array::from_fn(|i| (addr >> i) & 1);
-                        cols.lt_cols.populate(&previous_addr_bits, &addr_bits);
-                    }
-                }
+                let mut blu = Vec::new();
+                let interaction_shard = if is_receive { shard } else { 0 };
+                let interaction_clk = if is_receive { timestamp } else { 0 };
 
-                if i != 0 {
-                    let prev_is_real = memory_events[i - 1].used;
-                    cols.is_next_comp = F::from_canonical_u32(prev_is_real);
-                    let previous_addr = memory_events[i - 1].addr;
-                    assert_ne!(previous_addr, addr);
-
-                    let addr_bits: [_; 32] = array::from_fn(|i| (addr >> i) & 1);
-                    let prev_addr_bits: [_; 32] = array::from_fn(|i| (previous_addr >> i) & 1);
-                    cols.lt_cols.populate(&prev_addr_bits, &addr_bits);
-                }
-
-                if i == memory_events.len() - 1 {
-                    cols.is_last_addr = F::one();
-                }
+                cols.global_interaction_cols.populate_memory(
+                    interaction_shard,
+                    interaction_clk,
+                    addr,
+                    value,
+                    is_receive,
+                    used != 0,
+                    &mut blu,
+                );
 
                 row
             })
             .collect::<Vec<_>>();
+
+        for i in 0..memory_events.len() {
+            let addr = memory_events[i].addr;
+            let cols: &mut MemoryInitCols<F> = rows[i].as_mut_slice().borrow_mut();
+            if i == 0 {
+                let prev_addr = previous_addr_bits
+                    .iter()
+                    .enumerate()
+                    .map(|(j, bit)| bit * (1 << j))
+                    .sum::<u32>();
+                cols.is_prev_addr_zero.populate(prev_addr);
+                cols.is_first_comp = F::from_bool(prev_addr != 0);
+                if prev_addr != 0 {
+                    debug_assert!(prev_addr < addr, "prev_addr {} < addr {}", prev_addr, addr);
+                    let addr_bits: [_; 32] = array::from_fn(|i| (addr >> i) & 1);
+                    cols.lt_cols.populate(&previous_addr_bits, &addr_bits);
+                }
+            }
+            if i != 0 {
+                let prev_is_real = memory_events[i - 1].used;
+                cols.is_next_comp = F::from_canonical_u32(prev_is_real);
+                let previous_addr = memory_events[i - 1].addr;
+                assert_ne!(previous_addr, addr);
+
+                let addr_bits: [_; 32] = array::from_fn(|i| (addr >> i) & 1);
+                let prev_addr_bits: [_; 32] = array::from_fn(|i| (previous_addr >> i) & 1);
+                cols.lt_cols.populate(&prev_addr_bits, &addr_bits);
+            }
+
+            if i == memory_events.len() - 1 {
+                cols.is_last_addr = F::one();
+            }
+
+            cols.global_accumulation_cols.populate(
+                &mut global_cumulative_sum,
+                [cols.global_interaction_cols],
+                [cols.is_real],
+            );
+        }
 
         // Pad the trace to a power of two depending on the proof shape in `input`.
         pad_rows_fixed(
@@ -129,7 +204,23 @@ impl<F: PrimeField32> MachineAir<F> for MemoryGlobalChip {
             input.fixed_log2_rows::<F, Self>(self),
         );
 
-        RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_MEMORY_INIT_COLS)
+        let mut trace = RowMajorMatrix::new(
+            rows.into_iter().flatten().collect::<Vec<_>>(),
+            NUM_MEMORY_INIT_COLS,
+        );
+
+        for i in memory_events.len()..trace.height() {
+            let cols: &mut MemoryInitCols<F> =
+                trace.values[i * NUM_MEMORY_INIT_COLS..(i + 1) * NUM_MEMORY_INIT_COLS].borrow_mut();
+            cols.global_interaction_cols.populate_dummy();
+            cols.global_accumulation_cols.populate(
+                &mut global_cumulative_sum,
+                [cols.global_interaction_cols],
+                [cols.is_real],
+            );
+        }
+
+        trace
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
@@ -172,6 +263,9 @@ pub struct MemoryInitCols<T> {
     /// Whether the memory access is a real access.
     pub is_real: T,
 
+    /// The columns for sending a global interaction.
+    pub global_interaction_cols: GlobalInteractionOperation<T>,
+
     /// Whether or not we are making the assertion `addr < addr_next`.
     pub is_next_comp: T,
 
@@ -183,6 +277,9 @@ pub struct MemoryInitCols<T> {
 
     /// A flag to indicate the last non-padded address. An auxiliary column needed for degree 3.
     pub is_last_addr: T,
+
+    /// The columns for accumulating the elliptic curve digests.
+    pub global_accumulation_cols: GlobalAccumulationOperation<T, 1>,
 }
 
 pub(crate) const NUM_MEMORY_INIT_COLS: usize = size_of::<MemoryInitCols<u8>>();
@@ -217,19 +314,40 @@ where
 
         if self.kind == MemoryChipType::Initialize {
             let mut values = vec![AB::Expr::zero(), AB::Expr::zero(), local.addr.into()];
-            values.extend(value.map(Into::into));
-            builder.send(
-                AirInteraction::new(values, local.is_real.into(), InteractionKind::Memory),
-                InteractionScope::Global,
+            values.extend(value.clone().map(Into::into));
+            GlobalInteractionOperation::<AB::F>::eval_single_digest_memory(
+                builder,
+                AB::Expr::zero(),
+                AB::Expr::zero(),
+                local.addr.into(),
+                value,
+                local.global_interaction_cols,
+                false,
+                local.is_real,
             );
         } else {
             let mut values = vec![local.shard.into(), local.timestamp.into(), local.addr.into()];
-            values.extend(value);
-            builder.receive(
-                AirInteraction::new(values, local.is_real.into(), InteractionKind::Memory),
-                InteractionScope::Global,
+            values.extend(value.clone());
+            GlobalInteractionOperation::<AB::F>::eval_single_digest_memory(
+                builder,
+                local.shard.into(),
+                local.timestamp.into(),
+                local.addr.into(),
+                value,
+                local.global_interaction_cols,
+                true,
+                local.is_real,
             );
         }
+
+        GlobalAccumulationOperation::<AB::F, 1>::eval_accumulation(
+            builder,
+            [local.global_interaction_cols],
+            [local.is_real],
+            [next.is_real],
+            local.global_accumulation_cols,
+            next.global_accumulation_cols,
+        );
 
         // Canonically decompose the address into bits so we can do comparisons.
         BabyBearBitDecomposition::<AB::F>::range_check(
@@ -369,6 +487,7 @@ mod tests {
     };
     use p3_baby_bear::BabyBear;
     use sp1_core_executor::{programs::tests::simple_program, Executor};
+    use sp1_stark::InteractionKind;
     use sp1_stark::{
         baby_bear_poseidon2::BabyBearPoseidon2, debug_interactions_with_all_chips, SP1CoreOpts,
         StarkMachine,

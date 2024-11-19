@@ -1,4 +1,5 @@
 use sp1_recursion_core::air::RecursionPublicValues;
+use sp1_stark::septic_curve::SepticCurve;
 
 use super::{
     Array, CircuitV2FriFoldInput, CircuitV2FriFoldOutput, Config, Ext, Felt, FriFoldInput,
@@ -273,6 +274,13 @@ pub enum DslIr<C: Config> {
     /// Asserts that the inputted var is equal the circuit's committed values digest public input.
     /// Should only be used when target is a gnark circuit.
     CircuitCommitCommittedValuesDigest(Var<C::N>),
+
+    /// Adds two elliptic curve points. (sum, point_1, point_2).
+    CircuitV2HintAddCurve(
+        SepticCurve<Felt<C::F>>,
+        SepticCurve<Felt<C::F>>,
+        SepticCurve<Felt<C::F>>,
+    ),
 
     // FRI specific instructions.
     /// Executes a FRI fold operation. 1st field is the size of the fri fold input array.  2nd
