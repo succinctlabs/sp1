@@ -13,6 +13,11 @@ pub type BoxedHook<'a> = Arc<RwLock<dyn Hook + Send + Sync + 'a>>;
 /// The file descriptor through which to access `hook_ecrecover`.
 pub const FD_ECRECOVER_HOOK: u32 = 5;
 
+// Note: we skip 6 because we have an eddsa hook in dev.
+
+/// The file descriptor through which to access `hook_ecrecover_2`.
+pub const FD_ECRECOVER_HOOK_2: u32 = 7;
+
 /// A runtime hook. May be called during execution by writing to a specified file descriptor,
 /// accepting and returning arbitrary data.
 pub trait Hook {
@@ -76,6 +81,7 @@ impl<'a> Default for HookRegistry<'a> {
             // Note: To ensure any `fd` value is synced with `zkvm/precompiles/src/io.rs`,
             // add an assertion to the test `hook_fds_match` below.
             (FD_ECRECOVER_HOOK, hookify(hook_ecrecover)),
+            (FD_ECRECOVER_HOOK_2, hookify(hook_ecrecover_v2)),
         ]);
 
         Self { table }
@@ -117,6 +123,7 @@ pub struct HookEnv<'a, 'b: 'a> {
 /// WARNING: This function is used to recover the public key outside of the zkVM context. These
 /// values must be constrained by the zkVM for correctness.
 #[must_use]
+#[deprecated = "Use `hook_ecrecover_v2` instead."]
 pub fn hook_ecrecover(_: HookEnv, buf: &[u8]) -> Vec<Vec<u8>> {
     assert_eq!(buf.len(), 65 + 32, "ecrecover input should have length 65 + 32");
     let (sig, msg_hash) = buf.split_at(65);
@@ -139,6 +146,52 @@ pub fn hook_ecrecover(_: HookEnv, buf: &[u8]) -> Vec<Vec<u8>> {
     let s_inverse = s.invert();
 
     vec![bytes.to_vec(), s_inverse.to_bytes().to_vec()]
+}
+
+/// Recovers the public key from the signature and message hash using the k256 crate.
+///
+/// # Arguments
+///
+/// * `env` - The environment in which the hook is invoked.
+/// * `buf` - The buffer containing the signature and message hash.
+///     - The signature is 65 bytes, the first 64 bytes are the signature and the last byte is the
+///       recovery ID.
+///     - The message hash is 32 bytes.
+///
+/// The result is returned as a status and a pair of bytes, where the first 32 bytes are the X coordinate
+/// and the second 32 bytes are the Y coordinate of the decompressed point.
+///
+/// A status of 0 indicates that the public key could not be recovered.
+///
+/// WARNING: This function is used to recover the public key outside of the zkVM context. These
+/// values must be constrained by the zkVM for correctness.
+#[must_use]
+pub fn hook_ecrecover_v2(_: HookEnv, buf: &[u8]) -> Vec<Vec<u8>> {
+    assert_eq!(buf.len(), 65 + 32, "ecrecover input should have length 65 + 32, this is a bug.");
+    let (sig, msg_hash) = buf.split_at(65);
+    let sig: &[u8; 65] = sig.try_into().unwrap();
+    let msg_hash: &[u8; 32] = msg_hash.try_into().unwrap();
+
+    let mut recovery_id = sig[64];
+    let mut sig = Signature::from_slice(&sig[..64]).unwrap();
+
+    if let Some(sig_normalized) = sig.normalize_s() {
+        sig = sig_normalized;
+        recovery_id ^= 1;
+    };
+    let recid = RecoveryId::from_byte(recovery_id).expect("Computed recovery ID is invalid, this is a bug.");
+    
+    // Attempting to recvover the public key has failed, write a 0 to indicate to the caller.
+    let Ok(recovered_key) = VerifyingKey::recover_from_prehash(&msg_hash[..], &sig, recid) else {
+        return vec![vec![0]];
+    };
+
+    let bytes = recovered_key.to_sec1_bytes();
+
+    let (_, s) = sig.split_scalars();
+    let s_inverse = s.invert();
+
+    vec![vec![1], bytes.to_vec(), s_inverse.to_bytes().to_vec()]
 }
 
 #[cfg(test)]
