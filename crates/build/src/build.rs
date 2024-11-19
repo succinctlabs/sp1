@@ -48,6 +48,8 @@ pub fn execute_build_program(
 
     let target_elf_paths = generate_elf_paths(&program_metadata, Some(args))?;
 
+    print_elf_paths_cargo_directives(&target_elf_paths);
+
     Ok(target_elf_paths)
 }
 
@@ -67,7 +69,10 @@ pub(crate) fn build_program_internal(path: &str, args: Option<BuildArgs>) {
         .unwrap_or(false);
     if skip_program_build {
         // Still need to set ELF env vars even if build is skipped.
-        generate_elf_paths(&metadata, args.as_ref()).expect("failed to collect target ELF paths");
+        let target_elf_paths = generate_elf_paths(&metadata, args.as_ref())
+            .expect("failed to collect target ELF paths");
+
+        print_elf_paths_cargo_directives(&target_elf_paths);
 
         println!(
             "cargo:warning=Build skipped for {} at {} due to SP1_SKIP_PROGRAM_BUILD flag",
@@ -88,7 +93,10 @@ pub(crate) fn build_program_internal(path: &str, args: Option<BuildArgs>) {
         .unwrap_or(false);
     if is_clippy_driver {
         // Still need to set ELF env vars even if build is skipped.
-        generate_elf_paths(&metadata, args.as_ref()).expect("failed to collect target ELF paths");
+        let target_elf_paths = generate_elf_paths(&metadata, args.as_ref())
+            .expect("failed to collect target ELF paths");
+
+        print_elf_paths_cargo_directives(&target_elf_paths);
 
         println!("cargo:warning=Skipping build due to clippy invocation.");
         return;
@@ -107,9 +115,8 @@ pub(crate) fn build_program_internal(path: &str, args: Option<BuildArgs>) {
     println!("cargo:warning={} built at {}", root_package_name, current_datetime());
 }
 
-/// Collects the list of targets that would be built and their output ELF file paths. Also prints
-/// cargo directives setting relevant `SP1_ELF_` environment variables.
-fn generate_elf_paths(
+/// Collects the list of targets that would be built and their output ELF file paths.
+pub fn generate_elf_paths(
     metadata: &cargo_metadata::Metadata,
     args: Option<&BuildArgs>,
 ) -> Result<Vec<(String, Utf8PathBuf)>> {
@@ -164,9 +171,12 @@ fn generate_elf_paths(
         }
     }
 
+    Ok(target_elf_paths)
+}
+
+/// Prints cargo directives setting relevant `SP1_ELF_` environment variables.
+fn print_elf_paths_cargo_directives(target_elf_paths: &[(String, Utf8PathBuf)]) {
     for (target_name, elf_path) in target_elf_paths.iter() {
         println!("cargo:rustc-env=SP1_ELF_{}={}", target_name, elf_path);
     }
-
-    Ok(target_elf_paths)
 }

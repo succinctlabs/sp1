@@ -2,7 +2,7 @@ mod build;
 mod command;
 mod utils;
 use build::build_program_internal;
-pub use build::execute_build_program;
+pub use build::{execute_build_program, generate_elf_paths};
 
 use clap::Parser;
 
