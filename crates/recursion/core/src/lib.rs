@@ -227,12 +227,14 @@ pub struct BatchFRIIo<V> {
 
 /// The extension-field-valued single inputs to the batch FRI operation.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[repr(C)]
 pub struct BatchFRIExtSingleIo<V> {
     pub acc: V,
 }
 
 /// The extension-field-valued vector inputs to the batch FRI operation.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[repr(C)]
 pub struct BatchFRIExtVecIo<V> {
     pub p_at_z: V,
     pub alpha_pow: V,
@@ -240,6 +242,7 @@ pub struct BatchFRIExtVecIo<V> {
 
 /// The base-field-valued vector inputs to the batch FRI operation.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[repr(C)]
 pub struct BatchFRIBaseVecIo<V> {
     pub p_at_x: V,
 }
@@ -258,6 +261,7 @@ pub struct BatchFRIInstr<F> {
 /// For any given event, we are accessing a single element of the `Vec` inputs, so that the event
 /// is not a type alias for `BatchFRIIo` like many of the other events.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[repr(C)]
 pub struct BatchFRIEvent<F> {
     pub base_vec: BatchFRIBaseVecIo<F>,
     pub ext_single: BatchFRIExtSingleIo<Block<F>>,
