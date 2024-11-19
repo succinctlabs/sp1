@@ -72,6 +72,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for BatchFRIChip<DEGREE
     fn preprocessed_width(&self) -> usize {
         NUM_BATCH_FRI_PREPROCESSED_COLS
     }
+
     fn generate_preprocessed_trace(&self, program: &Self::Program) -> Option<RowMajorMatrix<F>> {
         let mut rows: Vec<[F; NUM_BATCH_FRI_PREPROCESSED_COLS]> = Vec::new();
         program
@@ -227,5 +228,32 @@ where
         builder.assert_eq(lhs, rhs);
 
         self.eval_batch_fri::<AB>(builder, local, next, prepr_local, prepr_next);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{BatchFRIBaseVecIo, BatchFRIEvent, BatchFRIExtSingleIo, BatchFRIExtVecIo};
+    use p3_baby_bear::BabyBear;
+    use p3_field::AbstractField;
+    use p3_matrix::dense::RowMajorMatrix;
+
+    use super::*;
+
+    #[test]
+    fn generate_trace() {
+        type F = BabyBear;
+
+        let shard = ExecutionRecord {
+            batch_fri_events: vec![BatchFRIEvent {
+                ext_single: BatchFRIExtSingleIo { acc: Block::default() },
+                ext_vec: BatchFRIExtVecIo { alpha_pow: Block::default(), p_at_z: Block::default() },
+                base_vec: BatchFRIBaseVecIo { p_at_x: F::one() },
+            }],
+            ..Default::default()
+        };
+        let chip = BatchFRIChip::<2>;
+        let trace: RowMajorMatrix<F> = chip.generate_trace(&shard, &mut ExecutionRecord::default());
+        println!("{:?}", trace.values)
     }
 }

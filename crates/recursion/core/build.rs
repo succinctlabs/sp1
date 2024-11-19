@@ -105,6 +105,7 @@ mod sys {
             .include_item("BaseAluValueCols")
             .include_item("ExtAluIo")
             .include_item("ExtAluValueCols")
+            .include_item("BatchFRIEvent")
             .with_namespace("sp1_recursion_core_sys")
             .with_crate(crate_dir)
             .generate()
