@@ -113,6 +113,8 @@ mod sys {
             .include_item("FriFoldCols")
             .include_item("SelectEvent")
             .include_item("SelectCols")
+            .include_item("CommitPublicValuesEvent")
+            .include_item("PublicValuesCols")
             .with_namespace("sp1_recursion_core_sys")
             .with_crate(crate_dir)
             .generate()

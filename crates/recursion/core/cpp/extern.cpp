@@ -5,6 +5,7 @@
 #include "exp_reverse_bits.hpp"
 #include "fri_fold.hpp"
 #include "select.hpp"
+#include "public_values.hpp"
 
 using namespace sp1_core_machine_sys;
 
@@ -37,6 +38,12 @@ extern "C" void fri_fold_event_to_row_babybear(const sp1_recursion_core_sys::Fri
     recursion::fri_fold::event_to_row<BabyBear>(
         *reinterpret_cast<const sp1_recursion_core_sys::FriFoldEvent<BabyBear>*>(io),
         *reinterpret_cast<sp1_recursion_core_sys::FriFoldCols<BabyBear>*>(cols));
+}
+extern "C" void public_values_event_to_row_babybear(const sp1_recursion_core_sys::CommitPublicValuesEvent<BabyBearP3>* io, size_t digest_idx, sp1_recursion_core_sys::PublicValuesCols<BabyBearP3>* cols) {
+    recursion::public_values::event_to_row<BabyBear>(
+        *reinterpret_cast<const sp1_recursion_core_sys::CommitPublicValuesEvent<BabyBear>*>(io),
+        digest_idx,
+        *reinterpret_cast<sp1_recursion_core_sys::PublicValuesCols<BabyBear>*>(cols));
 }
 extern "C" void select_event_to_row_babybear(const sp1_recursion_core_sys::SelectEvent<BabyBearP3>* io, sp1_recursion_core_sys::SelectCols<BabyBearP3>* cols) {
     recursion::select::event_to_row<BabyBear>(
