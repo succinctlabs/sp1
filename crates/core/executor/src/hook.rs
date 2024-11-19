@@ -13,7 +13,7 @@ pub type BoxedHook<'a> = Arc<RwLock<dyn Hook + Send + Sync + 'a>>;
 /// The file descriptor through which to access `hook_ecrecover`.
 pub const FD_ECRECOVER_HOOK: u32 = 5;
 
-// note: we skip 6 because we have an eddsa hook in dev
+// Note: we skip 6 because we have an eddsa hook in dev.
 
 /// The file descriptor through which to access `hook_ecrecover_2`.
 pub const FD_ECRECOVER_HOOK_2: u32 = 7;
@@ -81,7 +81,7 @@ impl<'a> Default for HookRegistry<'a> {
             // Note: To ensure any `fd` value is synced with `zkvm/precompiles/src/io.rs`,
             // add an assertion to the test `hook_fds_match` below.
             (FD_ECRECOVER_HOOK, hookify(hook_ecrecover)),
-            (FD_ECRECOVER_HOOK_2, hookify(hook_ecrecover_2)),
+            (FD_ECRECOVER_HOOK_2, hookify(hook_ecrecover_v2)),
         ]);
 
         Self { table }
@@ -122,9 +122,8 @@ pub struct HookEnv<'a, 'b: 'a> {
 ///
 /// WARNING: This function is used to recover the public key outside of the zkVM context. These
 /// values must be constrained by the zkVM for correctness.
-///
-/// Note: This hook will be deprecated in future versions.
 #[must_use]
+#[deprecated = "Use `hook_ecrecover_v2` instead."]
 pub fn hook_ecrecover(_: HookEnv, buf: &[u8]) -> Vec<Vec<u8>> {
     assert_eq!(buf.len(), 65 + 32, "ecrecover input should have length 65 + 32");
     let (sig, msg_hash) = buf.split_at(65);
@@ -159,14 +158,16 @@ pub fn hook_ecrecover(_: HookEnv, buf: &[u8]) -> Vec<Vec<u8>> {
 ///       recovery ID.
 ///     - The message hash is 32 bytes.
 ///
-/// The result is returned as a pair of bytes, where the first 32 bytes are the X coordinate
+/// The result is returned as a status and a pair of bytes, where the first 32 bytes are the X coordinate
 /// and the second 32 bytes are the Y coordinate of the decompressed point.
+///
+/// A status of 0 indicates that the public key could not be recovered.
 ///
 /// WARNING: This function is used to recover the public key outside of the zkVM context. These
 /// values must be constrained by the zkVM for correctness.
 #[must_use]
-pub fn hook_ecrecover_2(_: HookEnv, buf: &[u8]) -> Vec<Vec<u8>> {
-    assert_eq!(buf.len(), 65 + 32, "ecrecover input should have length 65 + 32");
+pub fn hook_ecrecover_v2(_: HookEnv, buf: &[u8]) -> Vec<Vec<u8>> {
+    assert_eq!(buf.len(), 65 + 32, "ecrecover input should have length 65 + 32, this is a bug.");
     let (sig, msg_hash) = buf.split_at(65);
     let sig: &[u8; 65] = sig.try_into().unwrap();
     let msg_hash: &[u8; 32] = msg_hash.try_into().unwrap();
@@ -178,9 +179,9 @@ pub fn hook_ecrecover_2(_: HookEnv, buf: &[u8]) -> Vec<Vec<u8>> {
         sig = sig_normalized;
         recovery_id ^= 1;
     };
-    let recid = RecoveryId::from_byte(recovery_id).expect("Computed recovery ID is invalid!");
-
-    // recovery failed, indicate to the caller
+    let recid = RecoveryId::from_byte(recovery_id).expect("Computed recovery ID is invalid, this is a bug.");
+    
+    // Attempting to recvover the public key has failed, write a 0 to indicate to the caller.
     let Ok(recovered_key) = VerifyingKey::recover_from_prehash(&msg_hash[..], &sig, recid) else {
         return vec![vec![0]];
     };
