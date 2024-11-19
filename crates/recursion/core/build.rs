@@ -105,6 +105,8 @@ mod sys {
             .include_item("BatchFRICols")
             .include_item("BaseAluIo")
             .include_item("BaseAluValueCols")
+            .include_item("BaseAluAccessCols")
+            .include_item("BaseAluInstr")
             .include_item("ExtAluIo")
             .include_item("ExtAluValueCols")
             .include_item("ExpReverseBitsEventC")

@@ -304,4 +304,95 @@ mod tests {
 
         RowMajorMatrix::new(values, NUM_BASE_ALU_COLS)
     }
+
+    #[test]
+    fn generate_preprocessed_trace() {
+        type F = BabyBear;
+
+        let program = RecursionProgram {
+            instructions: vec![Instruction::BaseAlu(BaseAluInstr {
+                opcode: BaseAluOpcode::AddF,
+                mult: F::one(),
+                addrs: BaseAluIo {
+                    out: Address(F::zero()),
+                    in1: Address(F::one()),
+                    in2: Address(F::two()),
+                },
+            })],
+            ..Default::default()
+        };
+
+        let chip = BaseAluChip;
+        let trace = chip.generate_preprocessed_trace(&program).unwrap();
+        println!("{:?}", trace.values);
+    }
+
+    #[cfg(feature = "sys")]
+    #[test]
+    fn test_generate_preprocessed_trace_ffi_eq_rust() {
+        type F = BabyBear;
+
+        let program = RecursionProgram {
+            instructions: vec![Instruction::BaseAlu(BaseAluInstr {
+                opcode: BaseAluOpcode::AddF,
+                mult: F::one(),
+                addrs: BaseAluIo {
+                    out: Address(F::zero()),
+                    in1: Address(F::one()),
+                    in2: Address(F::two()),
+                },
+            })],
+            ..Default::default()
+        };
+
+        let chip = BaseAluChip;
+        let trace = chip.generate_preprocessed_trace(&program).unwrap();
+        let trace_ffi = generate_preprocessed_trace_ffi(&program);
+
+        assert_eq!(trace_ffi, trace);
+    }
+
+    #[cfg(feature = "sys")]
+    fn generate_preprocessed_trace_ffi(
+        program: &RecursionProgram<BabyBear>,
+    ) -> RowMajorMatrix<BabyBear> {
+        type F = BabyBear;
+
+        let instrs = program
+            .instructions
+            .iter()
+            .filter_map(|instruction| match instruction {
+                Instruction::BaseAlu(x) => Some(x),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+
+        let nb_rows = instrs.len().div_ceil(NUM_BASE_ALU_ENTRIES_PER_ROW);
+        let fixed_log2_rows = program.fixed_log2_rows(&BaseAluChip);
+        let padded_nb_rows = match fixed_log2_rows {
+            Some(log2_rows) => 1 << log2_rows,
+            None => next_power_of_two(nb_rows, None),
+        };
+        let mut values = vec![F::zero(); padded_nb_rows * NUM_BASE_ALU_PREPROCESSED_COLS];
+
+        let chunk_size = std::cmp::max(instrs.len() / num_cpus::get(), 1);
+        let populate_len = instrs.len() * NUM_BASE_ALU_ACCESS_COLS;
+
+        values[..populate_len]
+            .par_chunks_mut(chunk_size * NUM_BASE_ALU_ACCESS_COLS)
+            .enumerate()
+            .for_each(|(i, rows)| {
+                rows.chunks_mut(NUM_BASE_ALU_ACCESS_COLS).enumerate().for_each(|(j, row)| {
+                    let idx = i * chunk_size + j;
+                    if idx < instrs.len() {
+                        let access: &mut BaseAluAccessCols<_> = row.borrow_mut();
+                        unsafe {
+                            crate::sys::alu_base_instr_to_row_babybear(instrs[idx], access);
+                        }
+                    }
+                });
+            });
+
+        RowMajorMatrix::new(values, NUM_BASE_ALU_PREPROCESSED_COLS)
+    }
 }
