@@ -131,14 +131,18 @@ pub fn hook_ecrecover(_: HookEnv, buf: &[u8]) -> Vec<Vec<u8>> {
         recovery_id ^= 1;
     };
     let recid = RecoveryId::from_byte(recovery_id).expect("Computed recovery ID is invalid!");
+    
+    // recovery failed, indicate to the caller
+    let Ok(recovered_key) = VerifyingKey::recover_from_prehash(&msg_hash[..], &sig, recid) else {
+        return vec![vec![0]];
+    };
 
-    let recovered_key = VerifyingKey::recover_from_prehash(&msg_hash[..], &sig, recid).unwrap();
     let bytes = recovered_key.to_sec1_bytes();
 
     let (_, s) = sig.split_scalars();
     let s_inverse = s.invert();
 
-    vec![bytes.to_vec(), s_inverse.to_bytes().to_vec()]
+    vec![vec![1], bytes.to_vec(), s_inverse.to_bytes().to_vec()]
 }
 
 #[cfg(test)]
