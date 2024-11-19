@@ -89,6 +89,7 @@ mod sys {
         match cbindgen::Builder::new()
             .with_pragma_once(true)
             .with_autogen_warning(AUTOGEN_WARNING)
+            .with_no_includes()
             .with_sys_include("cstdint")
             .with_parse_deps(true)
             .with_parse_include(&[
@@ -100,7 +101,9 @@ mod sys {
             ])
             .with_parse_extra_bindings(&["sp1-stark", "sp1-primitives", "p3-baby-bear"])
             .rename_item("BabyBear", "BabyBearP3")
-            .with_namespace("sp1")
+            .include_item("BaseAluIo")
+            .include_item("BaseAluCols")
+            .with_namespace("sp1_recursion_core_sys")
             .with_crate(crate_dir)
             .generate()
         {
