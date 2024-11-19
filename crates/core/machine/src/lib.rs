@@ -19,6 +19,7 @@ pub mod alu;
 pub mod bytes;
 pub mod cpu;
 pub mod io;
+pub mod sys;
 pub mod memory;
 pub mod operations;
 pub mod program;

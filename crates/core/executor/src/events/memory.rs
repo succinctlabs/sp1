@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 /// This object encapsulates the information needed to prove a memory access operation. This
 /// includes the shard, timestamp, and value of the memory address.
 #[derive(Debug, Copy, Clone, Default, Serialize, Deserialize)]
+#[repr(C)]
 pub struct MemoryRecord {
     /// The shard number.
     pub shard: u32,
@@ -39,6 +40,7 @@ pub enum MemoryAccessPosition {
 /// includes the value, shard, timestamp, and previous shard and timestamp.
 #[allow(clippy::manual_non_exhaustive)]
 #[derive(Debug, Copy, Clone, Default, Serialize, Deserialize)]
+#[repr(C)]
 pub struct MemoryReadRecord {
     /// The value.
     pub value: u32,
@@ -58,6 +60,7 @@ pub struct MemoryReadRecord {
 /// includes the value, shard, timestamp, previous value, previous shard, and previous timestamp.
 #[allow(clippy::manual_non_exhaustive)]
 #[derive(Debug, Copy, Clone, Default, Serialize, Deserialize)]
+#[repr(C)]
 pub struct MemoryWriteRecord {
     /// The value.
     pub value: u32,

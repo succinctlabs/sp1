@@ -4,7 +4,7 @@ mod trace;
 
 use p3_keccak_air::KeccakAir;
 
-pub(crate) const STATE_SIZE: usize = 25;
+pub const STATE_SIZE: usize = 25;
 
 // The permutation state is 25 u64's.  Our word size is 32 bits, so it is 50 words.
 pub const STATE_NUM_WORDS: usize = STATE_SIZE * 2;

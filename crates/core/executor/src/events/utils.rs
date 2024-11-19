@@ -7,7 +7,7 @@ use std::{
 
 /// A unique identifier for lookups.
 #[derive(Deserialize, Serialize, Debug, Clone, Copy, Default, Eq, Hash, PartialEq)]
-
+#[repr(C)]
 pub struct LookupId(pub u64);
 
 /// Create a random lookup id. This is slower than `record.create_lookup_id()` but is useful for

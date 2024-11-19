@@ -8,6 +8,7 @@ license = { workspace = true }
 repository = { workspace = true }
 keywords = { workspace = true }
 categories = { workspace = true }
+links = "sp1_core_machine_sys"
 
 [dependencies]
 bincode = "1.3.3"
@@ -66,10 +67,20 @@ rand = "0.8.5"
 sp1-zkvm = { workspace = true }
 sp1-core-executor = { workspace = true, features = ["programs"] }
 
+[build-dependencies]
+sp1-stark = { workspace = true }
+sp1-primitives = { workspace = true }
+p3-baby-bear = { workspace = true }
+cbindgen = "0.27.0"
+cc = "1.1"
+pathdiff = "0.2.1"
+glob = "0.3.1"
+
 [features]
 programs = []
 debug = []
 bigint-rug = ["sp1-curves/bigint-rug"]
+sys = []
 
 [lib]
 bench = false

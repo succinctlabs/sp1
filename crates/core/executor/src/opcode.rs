@@ -24,6 +24,7 @@ use serde::{Deserialize, Serialize};
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, PartialOrd, Ord, Enum,
 )]
+#[repr(u8)]
 pub enum Opcode {
     /// rd ← rs1 + rs2, pc ← pc + 4
     ADD = 0,

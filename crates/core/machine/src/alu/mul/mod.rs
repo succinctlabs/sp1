@@ -45,7 +45,7 @@ use sp1_core_executor::{
     ByteOpcode, ExecutionRecord, Opcode, Program,
 };
 use sp1_derive::AlignedBorrow;
-use sp1_primitives::consts::WORD_SIZE;
+use sp1_primitives::consts::{WORD_SIZE, BYTE_SIZE, LONG_WORD_SIZE};
 use sp1_stark::{air::MachineAir, Word};
 
 use crate::{
@@ -56,13 +56,6 @@ use crate::{
 
 /// The number of main trace columns for `MulChip`.
 pub const NUM_MUL_COLS: usize = size_of::<MulCols<u8>>();
-
-/// The number of digits in the product is at most the sum of the number of digits in the
-/// multiplicands.
-const PRODUCT_SIZE: usize = 2 * WORD_SIZE;
-
-/// The number of bits in a byte.
-const BYTE_SIZE: usize = 8;
 
 /// The mask for a byte.
 const BYTE_MASK: u8 = 0xff;
@@ -91,10 +84,10 @@ pub struct MulCols<T> {
     pub c: Word<T>,
 
     /// Trace.
-    pub carry: [T; PRODUCT_SIZE],
+    pub carry: [T; LONG_WORD_SIZE],
 
     /// An array storing the product of `b * c` after the carry propagation.
-    pub product: [T; PRODUCT_SIZE],
+    pub product: [T; LONG_WORD_SIZE],
 
     /// The most significant bit of `b`.
     pub b_msb: T,
@@ -220,13 +213,13 @@ impl MulChip {
             // If b is signed and it is negative, sign extend b.
             if (event.opcode == Opcode::MULH || event.opcode == Opcode::MULHSU) && b_msb == 1 {
                 cols.b_sign_extend = F::one();
-                b.resize(PRODUCT_SIZE, BYTE_MASK);
+                b.resize(LONG_WORD_SIZE, BYTE_MASK);
             }
 
             // If c is signed and it is negative, sign extend c.
             if event.opcode == Opcode::MULH && c_msb == 1 {
                 cols.c_sign_extend = F::one();
-                c.resize(PRODUCT_SIZE, BYTE_MASK);
+                c.resize(LONG_WORD_SIZE, BYTE_MASK);
             }
 
             // Insert the MSB lookup events.
@@ -248,10 +241,10 @@ impl MulChip {
             }
         }
 
-        let mut product = [0u32; PRODUCT_SIZE];
+        let mut product = [0u32; LONG_WORD_SIZE];
         for i in 0..b.len() {
             for j in 0..c.len() {
-                if i + j < PRODUCT_SIZE {
+                if i + j < LONG_WORD_SIZE {
                     product[i + j] += (b[i] as u32) * (c[j] as u32);
                 }
             }
@@ -260,11 +253,11 @@ impl MulChip {
         // Calculate the correct product using the `product` array. We store the
         // correct carry value for verification.
         let base = (1 << BYTE_SIZE) as u32;
-        let mut carry = [0u32; PRODUCT_SIZE];
-        for i in 0..PRODUCT_SIZE {
+        let mut carry = [0u32; LONG_WORD_SIZE];
+        for i in 0..LONG_WORD_SIZE {
             carry[i] = product[i] / base;
             product[i] %= base;
-            if i + 1 < PRODUCT_SIZE {
+            if i + 1 < LONG_WORD_SIZE {
                 product[i + 1] += carry[i];
             }
             cols.carry[i] = F::from_canonical_u32(carry[i]);
@@ -342,9 +335,9 @@ where
 
         // Sign extend local.b and local.c whenever appropriate.
         let (b, c) = {
-            let mut b: Vec<AB::Expr> = vec![AB::F::zero().into(); PRODUCT_SIZE];
-            let mut c: Vec<AB::Expr> = vec![AB::F::zero().into(); PRODUCT_SIZE];
-            for i in 0..PRODUCT_SIZE {
+            let mut b: Vec<AB::Expr> = vec![AB::F::zero().into(); LONG_WORD_SIZE];
+            let mut c: Vec<AB::Expr> = vec![AB::F::zero().into(); LONG_WORD_SIZE];
+            for i in 0..LONG_WORD_SIZE {
                 if i < WORD_SIZE {
                     b[i] = local.b[i].into();
                     c[i] = local.c[i].into();
@@ -357,10 +350,10 @@ where
         };
 
         // Compute the uncarried product b(x) * c(x) = m(x).
-        let mut m: Vec<AB::Expr> = vec![AB::F::zero().into(); PRODUCT_SIZE];
-        for i in 0..PRODUCT_SIZE {
-            for j in 0..PRODUCT_SIZE {
-                if i + j < PRODUCT_SIZE {
+        let mut m: Vec<AB::Expr> = vec![AB::F::zero().into(); LONG_WORD_SIZE];
+        for i in 0..LONG_WORD_SIZE {
+            for j in 0..LONG_WORD_SIZE {
+                if i + j < LONG_WORD_SIZE {
                     m[i + j] = m[i + j].clone() + b[i].clone() * c[j].clone();
                 }
             }
@@ -368,7 +361,7 @@ where
 
         // Propagate carry.
         let product = {
-            for i in 0..PRODUCT_SIZE {
+            for i in 0..LONG_WORD_SIZE {
                 if i == 0 {
                     builder.assert_eq(local.product[i], m[i].clone() - local.carry[i] * base);
                 } else {

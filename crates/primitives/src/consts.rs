@@ -1,8 +1,14 @@
 /// The maximum size of the memory in bytes.
 pub const MAXIMUM_MEMORY_SIZE: u32 = u32::MAX;
 
+/// The number of bits in a byte.
+pub const BYTE_SIZE: usize = 8;
+
 /// The size of a word in bytes.
 pub const WORD_SIZE: usize = 4;
+
+/// The number of bytes necessary to represent a 64-bit integer.
+pub const LONG_WORD_SIZE: usize = 2 * WORD_SIZE;
 
 /// Converts a slice of words to a byte vector in little endian.
 pub fn words_to_bytes_le_vec(words: &[u32]) -> Vec<u8> {
