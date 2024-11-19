@@ -2,8 +2,10 @@ use crate::air::Block;
 use crate::chips::alu_base::BaseAluValueCols;
 use crate::chips::alu_ext::ExtAluValueCols;
 use crate::chips::batch_fri::BatchFRICols;
+use crate::chips::exp_reverse_bits::ExpReverseBitsLenCols;
 use crate::BaseAluIo;
 use crate::BatchFRIEvent;
+use crate::ExpReverseBitsEventC;
 use crate::ExtAluIo;
 use p3_baby_bear::BabyBear;
 
@@ -20,5 +22,9 @@ extern "C-unwind" {
     pub fn batch_fri_event_to_row_babybear(
         io: &BatchFRIEvent<BabyBear>,
         cols: &mut BatchFRICols<BabyBear>,
+    );
+    pub fn exp_reverse_bits_event_to_row_babybear(
+        io: &ExpReverseBitsEventC<BabyBear>,
+        cols: &mut ExpReverseBitsLenCols<BabyBear>,
     );
 }
