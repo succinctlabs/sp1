@@ -3,8 +3,8 @@
 #include "sp1_recursion_core_sys-cbindgen.hpp"
 
 namespace recursion::alu_base {
-template <class F> __SP1_HOSTDEV__ void event_to_row(const sp1_recursion_core_sys::BaseAluIo<F> &io, sp1_recursion_core_sys::BaseAluValueCols<F> &cols) {
-  cols.vals = io;
+template <class F> __SP1_HOSTDEV__ void event_to_row(const sp1_recursion_core_sys::BaseAluEvent<F> &event, sp1_recursion_core_sys::BaseAluValueCols<F> &cols) {
+  cols.vals = event;
 }
 
 template <class F> __SP1_HOSTDEV__ void instr_to_row(
