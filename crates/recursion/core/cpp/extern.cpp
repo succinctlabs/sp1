@@ -26,6 +26,11 @@ extern void alu_ext_event_to_row_babybear(const sp1_recursion_core_sys::ExtAluIo
         *reinterpret_cast<const sp1_recursion_core_sys::ExtAluIo<sp1_recursion_core_sys::Block<BabyBear>>*>(io),
         *reinterpret_cast<sp1_recursion_core_sys::ExtAluValueCols<BabyBear>*>(cols));
 }
+extern void alu_ext_instr_to_row_babybear(const sp1_recursion_core_sys::ExtAluInstr<BabyBearP3>* instr, sp1_recursion_core_sys::ExtAluAccessCols<BabyBearP3>* access) {
+    recursion::alu_ext::instr_to_row<BabyBear>(
+        *reinterpret_cast<const sp1_recursion_core_sys::ExtAluInstr<BabyBear>*>(instr),
+        *reinterpret_cast<sp1_recursion_core_sys::ExtAluAccessCols<BabyBear>*>(access));
+}
 
 extern void batch_fri_event_to_row_babybear(const sp1_recursion_core_sys::BatchFRIEvent<BabyBearP3>* io, sp1_recursion_core_sys::BatchFRICols<BabyBearP3>* cols) {
     recursion::batch_fri::event_to_row<BabyBear>(

@@ -2,7 +2,7 @@ use crate::{
     air::Block,
     chips::{
         alu_base::{BaseAluAccessCols, BaseAluValueCols},
-        alu_ext::ExtAluValueCols,
+        alu_ext::{ExtAluAccessCols, ExtAluValueCols},
         batch_fri::BatchFRICols,
         exp_reverse_bits::ExpReverseBitsLenCols,
         fri_fold::FriFoldCols,
@@ -10,7 +10,7 @@ use crate::{
         select::SelectCols,
     },
     BaseAluInstr, BaseAluIo, BatchFRIEvent, CommitPublicValuesEvent, ExpReverseBitsEventC,
-    ExtAluIo, FriFoldEvent, SelectEvent,
+    ExtAluInstr, ExtAluIo, FriFoldEvent, SelectEvent,
 };
 use p3_baby_bear::BabyBear;
 
@@ -28,6 +28,10 @@ extern "C-unwind" {
     pub fn alu_ext_event_to_row_babybear(
         io: &ExtAluIo<Block<BabyBear>>,
         cols: &mut ExtAluValueCols<BabyBear>,
+    );
+    pub fn alu_ext_instr_to_row_babybear(
+        instr: &ExtAluInstr<BabyBear>,
+        cols: &mut ExtAluAccessCols<BabyBear>,
     );
 
     pub fn batch_fri_event_to_row_babybear(
