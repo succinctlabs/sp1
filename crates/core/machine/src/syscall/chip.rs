@@ -1,13 +1,8 @@
-use core::fmt;
-use std::{
-    borrow::{Borrow, BorrowMut},
-    mem::size_of,
-};
-
 use crate::{
     operations::GlobalAccumulationOperation, operations::GlobalInteractionOperation,
     utils::pad_rows_fixed,
 };
+use core::fmt;
 use hashbrown::HashMap;
 use itertools::Itertools;
 use p3_air::{Air, BaseAir};
@@ -24,6 +19,10 @@ use sp1_core_executor::{events::SyscallEvent, ExecutionRecord, Program};
 use sp1_derive::AlignedBorrow;
 use sp1_stark::air::{InteractionScope, MachineAir, SP1AirBuilder};
 use sp1_stark::septic_digest::SepticDigest;
+use std::{
+    borrow::{Borrow, BorrowMut},
+    mem::size_of,
+};
 /// The number of main trace columns for `SyscallChip`.
 pub const NUM_SYSCALL_COLS: usize = size_of::<SyscallCols<u8>>();
 

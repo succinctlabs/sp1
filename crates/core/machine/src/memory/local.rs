@@ -10,14 +10,21 @@ use itertools::Itertools;
 use p3_air::{Air, BaseAir};
 use p3_field::PrimeField32;
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
+use p3_maybe_rayon::prelude::IndexedParallelIterator;
+use p3_maybe_rayon::prelude::IntoParallelIterator;
+use p3_maybe_rayon::prelude::IntoParallelRefMutIterator;
 use p3_maybe_rayon::prelude::{ParallelBridge, ParallelIterator, ParallelSlice};
+use rayon_scan::ScanParallelIterator;
 use sp1_core_executor::events::ByteLookupEvent;
 use sp1_core_executor::events::ByteRecord;
 use sp1_core_executor::{ExecutionRecord, Program};
 use sp1_derive::AlignedBorrow;
 use sp1_stark::{
     air::{AirInteraction, InteractionScope, MachineAir, SP1AirBuilder},
+    septic_curve::SepticCurve,
+    septic_curve::SepticCurveComplete,
     septic_digest::SepticDigest,
+    septic_extension::SepticExtension,
     InteractionKind, Word,
 };
 pub const NUM_LOCAL_MEMORY_ENTRIES_PER_ROW: usize = 4;
@@ -129,6 +136,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryLocalChip {
                 blu
             })
             .collect::<Vec<_>>();
+
         output.add_sharded_byte_lookup_events(blu_batches.iter().collect_vec());
     }
 
@@ -143,13 +151,21 @@ impl<F: PrimeField32> MachineAir<F> for MemoryLocalChip {
         let size_log2 = input.fixed_log2_rows::<F, _>(self);
         let padded_nb_rows = next_power_of_two(nb_rows, size_log2);
         let mut values = zeroed_f_vec(padded_nb_rows * NUM_MEMORY_LOCAL_INIT_COLS);
-        let chunk_size = std::cmp::max((nb_rows + 1) / num_cpus::get(), 1);
+        let chunk_size = std::cmp::max(nb_rows / num_cpus::get(), 0) + 1;
 
-        values
+        let mut chunks = values[..nb_rows * NUM_MEMORY_LOCAL_INIT_COLS]
             .chunks_mut(chunk_size * NUM_MEMORY_LOCAL_INIT_COLS)
+            .collect::<Vec<_>>();
+
+        let point_chunks = chunks
+            .par_iter_mut()
             .enumerate()
-            .par_bridge()
-            .for_each(|(i, rows)| {
+            .map(|(i, rows)| {
+                let mut point_chunks =
+                    Vec::with_capacity(chunk_size * NUM_LOCAL_MEMORY_ENTRIES_PER_ROW * 2 + 1);
+                if i == 0 {
+                    point_chunks.push(SepticCurveComplete::Affine(SepticDigest::<F>::zero().0));
+                }
                 rows.chunks_mut(NUM_MEMORY_LOCAL_INIT_COLS).enumerate().for_each(|(j, row)| {
                     let idx = (i * chunk_size + j) * NUM_LOCAL_MEMORY_ENTRIES_PER_ROW;
 
@@ -179,6 +195,14 @@ impl<F: PrimeField32> MachineAir<F> for MemoryLocalChip {
                                 true,
                                 &mut blu,
                             );
+                            point_chunks.push(SepticCurveComplete::Affine(SepticCurve {
+                                x: SepticExtension(
+                                    cols.initial_global_interaction_cols.x_coordinate.0,
+                                ),
+                                y: SepticExtension(
+                                    cols.initial_global_interaction_cols.y_coordinate.0,
+                                ),
+                            }));
                             cols.final_global_interaction_cols.populate_memory(
                                 event.final_mem_access.shard,
                                 event.final_mem_access.timestamp,
@@ -188,54 +212,81 @@ impl<F: PrimeField32> MachineAir<F> for MemoryLocalChip {
                                 true,
                                 &mut blu,
                             );
+                            point_chunks.push(SepticCurveComplete::Affine(SepticCurve {
+                                x: SepticExtension(
+                                    cols.final_global_interaction_cols.x_coordinate.0,
+                                ),
+                                y: SepticExtension(
+                                    cols.final_global_interaction_cols.y_coordinate.0,
+                                ),
+                            }));
+                        } else {
+                            cols.initial_global_interaction_cols.populate_dummy();
+                            cols.final_global_interaction_cols.populate_dummy();
                         }
                     }
                 });
+                point_chunks
+            })
+            .collect::<Vec<_>>();
+
+        let mut points = Vec::with_capacity(1 + events.len() * 2);
+        for mut point_chunk in point_chunks {
+            points.append(&mut point_chunk);
+        }
+
+        if events.is_empty() {
+            points = vec![SepticCurveComplete::Affine(SepticDigest::<F>::zero().0)];
+        }
+
+        let cumulative_sum = points
+            .into_par_iter()
+            .with_min_len(1 << 15)
+            .scan(|a, b| *a + *b, SepticCurveComplete::Infinity)
+            .collect::<Vec<SepticCurveComplete<F>>>();
+
+        let final_digest = cumulative_sum.last().unwrap().point();
+        let dummy = SepticCurve::<F>::dummy();
+        let final_sum_checker = SepticCurve::<F>::sum_checker_x(final_digest, dummy, final_digest);
+
+        let chunk_size = std::cmp::max(padded_nb_rows / num_cpus::get(), 0) + 1;
+        values
+            .chunks_mut(chunk_size * NUM_MEMORY_LOCAL_INIT_COLS)
+            .enumerate()
+            .par_bridge()
+            .for_each(|(i, rows)| {
+                rows.chunks_mut(NUM_MEMORY_LOCAL_INIT_COLS).enumerate().for_each(|(j, row)| {
+                    let idx = i * chunk_size + j;
+
+                    let cols: &mut MemoryLocalCols<F> = row.borrow_mut();
+                    if idx < nb_rows {
+                        let start = NUM_LOCAL_MEMORY_ENTRIES_PER_ROW * 2 * idx;
+                        let end = std::cmp::min(
+                            NUM_LOCAL_MEMORY_ENTRIES_PER_ROW * 2 * (idx + 1) + 1,
+                            cumulative_sum.len(),
+                        );
+                        cols.global_accumulation_cols.populate_real(
+                            &cumulative_sum[start..end],
+                            final_digest,
+                            final_sum_checker,
+                        );
+                    } else {
+                        for k in 0..NUM_LOCAL_MEMORY_ENTRIES_PER_ROW {
+                            cols.memory_local_entries[k]
+                                .initial_global_interaction_cols
+                                .populate_dummy();
+                            cols.memory_local_entries[k]
+                                .final_global_interaction_cols
+                                .populate_dummy();
+                        }
+                        cols.global_accumulation_cols
+                            .populate_dummy(final_digest, final_sum_checker);
+                    }
+                })
             });
 
         // Convert the trace to a row major matrix.
-        let mut trace = RowMajorMatrix::new(values, NUM_MEMORY_LOCAL_INIT_COLS);
-
-        for i in 0..trace.height() {
-            if (i + 1) * NUM_LOCAL_MEMORY_ENTRIES_PER_ROW < events.len() {
-                continue;
-            }
-            let cols: &mut MemoryLocalCols<F> = trace.values
-                [i * NUM_MEMORY_LOCAL_INIT_COLS..(i + 1) * NUM_MEMORY_LOCAL_INIT_COLS]
-                .borrow_mut();
-            for (idx, cols) in cols.memory_local_entries.iter_mut().enumerate() {
-                if i * NUM_LOCAL_MEMORY_ENTRIES_PER_ROW + idx >= events.len() {
-                    cols.initial_global_interaction_cols.populate_dummy();
-                    cols.final_global_interaction_cols.populate_dummy();
-                }
-            }
-        }
-
-        let mut global_cumulative_sum = SepticDigest::<F>::zero().0;
-
-        for i in 0..trace.height() {
-            let cols: &mut MemoryLocalCols<F> = trace.values
-                [i * NUM_MEMORY_LOCAL_INIT_COLS..(i + 1) * NUM_MEMORY_LOCAL_INIT_COLS]
-                .borrow_mut();
-            let mut global_interaction_cols = Vec::new();
-            let mut is_reals = Vec::new();
-            for idx in 0..NUM_LOCAL_MEMORY_ENTRIES_PER_ROW {
-                global_interaction_cols
-                    .push(cols.memory_local_entries[idx].initial_global_interaction_cols);
-                global_interaction_cols
-                    .push(cols.memory_local_entries[idx].final_global_interaction_cols);
-                is_reals.push(cols.memory_local_entries[idx].is_real);
-                is_reals.push(cols.memory_local_entries[idx].is_real);
-            }
-
-            cols.global_accumulation_cols.populate(
-                &mut global_cumulative_sum,
-                global_interaction_cols.try_into().unwrap(),
-                is_reals.try_into().unwrap(),
-            );
-        }
-
-        trace
+        RowMajorMatrix::new(values, NUM_MEMORY_LOCAL_INIT_COLS)
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
@@ -262,9 +313,9 @@ where
         let next = main.row_slice(1);
         let next: &MemoryLocalCols<AB::Var> = (*next).borrow();
 
-        let mut global_interaction_cols = Vec::new();
-        let mut local_is_reals = Vec::new();
-        let mut next_is_reals = Vec::new();
+        let mut global_interaction_cols = Vec::with_capacity(8);
+        let mut local_is_reals = Vec::with_capacity(8);
+        let mut next_is_reals = Vec::with_capacity(8);
 
         for local in local.memory_local_entries.iter() {
             builder.assert_eq(

@@ -144,11 +144,6 @@ where
         let empty = Vec::new();
         let local_sends = scoped_sends.get(&InteractionScope::Local).unwrap_or(&empty);
         let local_receives = scoped_receives.get(&InteractionScope::Local).unwrap_or(&empty);
-        // let global_sends = scoped_sends.get(&InteractionScope::Global).unwrap_or(&empty);
-        // let global_receives = scoped_receives.get(&InteractionScope::Global).unwrap_or(&empty);
-
-        // let global_permutation_width =
-        //     global_permutation_trace_width(global_sends.len() + global_receives.len());
 
         local_permutation_trace_width(
             local_sends.len() + local_receives.len(),

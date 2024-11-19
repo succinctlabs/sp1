@@ -24,6 +24,7 @@ pub const DIGEST_SUM_START_Y: [u32; 7] =
 /// A global cumulative sum digest, a point on the elliptic curve that `SepticCurve<F>` represents.
 /// As these digests start with the `CURVE_CUMULATIVE_SUM_START` point, they require special summing logic.
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[repr(C)]
 pub struct SepticDigest<F>(pub SepticCurve<F>);
 
 impl<F: AbstractField> SepticDigest<F> {

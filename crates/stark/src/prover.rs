@@ -165,6 +165,9 @@ pub trait MachineProvingKey<SC: StarkGenericConfig>: Send + Sync {
     /// The start pc.
     fn pc_start(&self) -> Val<SC>;
 
+    /// The initial global cumulative sum.
+    fn initial_global_cumulative_sum(&self) -> SepticDigest<Val<SC>>;
+
     /// Observe itself in the challenger.
     fn observe_into(&self, challenger: &mut Challenger<SC>);
 }
@@ -650,6 +653,10 @@ where
 
     fn pc_start(&self) -> Val<SC> {
         self.pc_start
+    }
+
+    fn initial_global_cumulative_sum(&self) -> SepticDigest<Val<SC>> {
+        self.initial_global_cumulative_sum
     }
 
     fn observe_into(&self, challenger: &mut Challenger<SC>) {

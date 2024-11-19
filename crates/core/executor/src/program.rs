@@ -11,10 +11,11 @@ use hashbrown::HashMap;
 use p3_field::AbstractExtensionField;
 use p3_field::Field;
 use p3_field::PrimeField;
+use p3_maybe_rayon::prelude::IntoParallelIterator;
 use p3_maybe_rayon::prelude::{ParallelBridge, ParallelIterator};
 use serde::{Deserialize, Serialize};
 use sp1_stark::air::{MachineAir, MachineProgram};
-use sp1_stark::septic_curve::SepticCurve;
+use sp1_stark::septic_curve::{SepticCurve, SepticCurveComplete};
 use sp1_stark::septic_digest::SepticDigest;
 use sp1_stark::septic_extension::SepticExtension;
 use sp1_stark::InteractionKind;
@@ -109,8 +110,7 @@ impl<F: PrimeField> MachineProgram<F> for Program {
     }
 
     fn initial_global_cumulative_sum(&self) -> SepticDigest<F> {
-        let mut global_cumulative_sum = SepticDigest::<F>::zero().0;
-        let digests: Vec<SepticCurve<F>> = self
+        let mut digests: Vec<SepticCurveComplete<F>> = self
             .memory_image
             .iter()
             .par_bridge()
@@ -127,12 +127,12 @@ impl<F: PrimeField> MachineProgram<F> for Program {
                 let x_start =
                     SepticExtension::<F>::from_base_fn(|i| F::from_canonical_u32(values[i]));
                 let (point, _) = SepticCurve::<F>::lift_x(x_start);
-                point.neg()
+                SepticCurveComplete::Affine(point.neg())
             })
             .collect();
-        for digest in digests {
-            global_cumulative_sum.add_assign(digest);
-        }
-        SepticDigest(global_cumulative_sum)
+        digests.push(SepticCurveComplete::Affine(SepticDigest::<F>::zero().0));
+        SepticDigest(
+            digests.into_par_iter().reduce(|| SepticCurveComplete::Infinity, |a, b| a + b).point(),
+        )
     }
 }

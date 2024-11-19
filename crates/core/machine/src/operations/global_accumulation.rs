@@ -7,6 +7,7 @@ use p3_field::PrimeField32;
 use sp1_derive::AlignedBorrow;
 use sp1_stark::air::BaseAirBuilder;
 use sp1_stark::air::SepticExtensionAirBuilder;
+use sp1_stark::septic_curve::SepticCurveComplete;
 use sp1_stark::{
     air::SP1AirBuilder,
     septic_curve::SepticCurve,
@@ -67,6 +68,43 @@ impl<F: PrimeField32, const N: usize> GlobalAccumulationOperation<F, N> {
             self.cumulative_sum[i][0] = SepticBlock::from(sum_point.x.0);
             self.cumulative_sum[i][1] = SepticBlock::from(sum_point.y.0);
             *initial_digest = sum_point;
+        }
+    }
+
+    pub fn populate_dummy(
+        &mut self,
+        final_digest: SepticCurve<F>,
+        final_sum_checker: SepticExtension<F>,
+    ) {
+        self.initial_digest[0] = SepticBlock::from(final_digest.x.0);
+        self.initial_digest[1] = SepticBlock::from(final_digest.y.0);
+        for i in 0..N {
+            self.sum_checker[i] = SepticBlock::from(final_sum_checker.0);
+            self.cumulative_sum[i][0] = SepticBlock::from(final_digest.x.0);
+            self.cumulative_sum[i][1] = SepticBlock::from(final_digest.y.0);
+        }
+    }
+
+    pub fn populate_real(
+        &mut self,
+        sums: &[SepticCurveComplete<F>],
+        final_digest: SepticCurve<F>,
+        final_sum_checker: SepticExtension<F>,
+    ) {
+        let len = sums.len();
+        let sums = sums.iter().map(|complete_point| complete_point.point()).collect::<Vec<_>>();
+        self.initial_digest[0] = SepticBlock::from(sums[0].x.0);
+        self.initial_digest[1] = SepticBlock::from(sums[0].y.0);
+        for i in 0..N {
+            if len >= i + 2 {
+                self.sum_checker[i] = SepticBlock([F::zero(); 7]);
+                self.cumulative_sum[i][0] = SepticBlock::from(sums[i + 1].x.0);
+                self.cumulative_sum[i][1] = SepticBlock::from(sums[i + 1].y.0);
+            } else {
+                self.sum_checker[i] = SepticBlock::from(final_sum_checker.0);
+                self.cumulative_sum[i][0] = SepticBlock::from(final_digest.x.0);
+                self.cumulative_sum[i][1] = SepticBlock::from(final_digest.y.0);
+            }
         }
     }
 }

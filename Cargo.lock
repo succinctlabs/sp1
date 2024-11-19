@@ -5474,6 +5474,7 @@ dependencies = [
  "p3-util",
  "rand 0.8.5",
  "rayon",
+ "rayon-scan",
  "serde",
  "size",
  "snowbridge-amcl",

@@ -15,6 +15,7 @@ use crate::air::{SP1AirBuilder, SepticExtensionAirBuilder};
 ///
 /// The field can be constructed as `F_{p^7} = F_p[z]/(z^7 - 2z - 5)`.
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[repr(C)]
 pub struct SepticExtension<F>(pub [F; 7]);
 
 impl<F: AbstractField> AbstractField for SepticExtension<F> {
@@ -260,7 +261,7 @@ impl<F: AbstractField> Sub for SepticExtension<F> {
     fn sub(self, rhs: Self) -> Self::Output {
         let mut res = self.0;
         for (r, rhs_val) in res.iter_mut().zip(rhs.0) {
-            *r -= rhs_val;
+            *r = (*r).clone() - rhs_val;
         }
         Self(res)
     }
