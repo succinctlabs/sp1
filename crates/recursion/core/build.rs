@@ -14,7 +14,7 @@ mod sys {
 
     /// The library name, used for the static library archive and the headers.
     /// Should be chosen as to not conflict with other library/header names.
-    const LIB_NAME: &str = "sp1-core-machine-sys";
+    const LIB_NAME: &str = "sp1_recursion_core_sys";
 
     /// The name of all include directories involved, used to find and output header files.
     const INCLUDE_DIRNAME: &str = "include";
@@ -89,7 +89,6 @@ mod sys {
         match cbindgen::Builder::new()
             .with_pragma_once(true)
             .with_autogen_warning(AUTOGEN_WARNING)
-            .with_no_includes()
             .with_sys_include("cstdint")
             .with_parse_deps(true)
             .with_parse_include(&[
@@ -101,9 +100,7 @@ mod sys {
             ])
             .with_parse_extra_bindings(&["sp1-stark", "sp1-primitives", "p3-baby-bear"])
             .rename_item("BabyBear", "BabyBearP3")
-            .include_item("MemoryRecord") // Just for convenience. Not exposed, so we need to manually do this.
-            .include_item("SyscallCode") // Required for populating the CPU columns for ECALL.
-            .with_namespace("sp1_core_machine_sys")
+            .with_namespace("sp1")
             .with_crate(crate_dir)
             .generate()
         {
@@ -135,9 +132,12 @@ mod sys {
             rel_symlink_file(dst, target_include_dir_fixed.join(relpath));
         }
 
+        println!("cargo::rustc-link-lib=static=sp1-core-machine-sys");
+        let include_dir = env::var("DEP_SP1_CORE_MACHINE_SYS_INCLUDE").unwrap();
+
         // Use the `cc` crate to build the library and statically link it to the crate.
         let mut cc_builder = cc::Build::new();
-        cc_builder.files(&compilation_units).include(target_include_dir);
+        cc_builder.files(&compilation_units).include(target_include_dir).include(include_dir);
         cc_builder.cpp(true).std("c++20");
         cc_builder.compile(LIB_NAME)
     }

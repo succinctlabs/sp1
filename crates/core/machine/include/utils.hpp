@@ -5,7 +5,7 @@
 
 #include "prelude.hpp"
 
-namespace sp1 {
+namespace sp1_core_machine_sys {
 
 // Compiles to a no-op with -O3 and the like.
 __SP1_HOSTDEV__ __SP1_INLINE__ array_t<uint8_t, 4> u32_to_le_bytes(uint32_t n) {

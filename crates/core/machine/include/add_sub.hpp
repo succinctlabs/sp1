@@ -3,7 +3,7 @@
 #include "prelude.hpp"
 #include "utils.hpp"
 
-namespace sp1::add_sub {
+namespace sp1_core_machine_sys::add_sub {
 template<class F>
 __SP1_HOSTDEV__ __SP1_INLINE__ uint32_t
 populate(AddOperation<F>& op, const uint32_t a_u32, const uint32_t b_u32) {

@@ -5763,7 +5763,10 @@ name = "sp1-recursion-core"
 version = "3.0.0"
 dependencies = [
  "backtrace",
+ "cbindgen",
+ "cc",
  "ff 0.13.0",
+ "glob",
  "hashbrown 0.14.5",
  "itertools 0.13.0",
  "p3-air",
@@ -5780,6 +5783,7 @@ dependencies = [
  "p3-poseidon2",
  "p3-symmetric",
  "p3-util",
+ "pathdiff",
  "rand 0.8.5",
  "serde",
  "sp1-core-machine",

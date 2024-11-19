@@ -1,13 +1,13 @@
 #pragma once
 
-#include "sp1_core_machine_sys-cbindgen.hpp"
+#include "sp1-core-machine-sys-cbindgen.hpp"
 
 #ifndef __CUDACC__
     #define __SP1_HOSTDEV__
     #define __SP1_INLINE__ inline
     #include <array>
 
-namespace sp1 {
+namespace sp1_core_machine_sys {
 template<class T, std::size_t N>
 using array_t = std::array<T, N>;
 }  // namespace sp1
@@ -16,7 +16,7 @@ using array_t = std::array<T, N>;
     #define __SP1_INLINE__ __forceinline__
     #include <cuda/std/array>
 
-namespace sp1 {
+namespace sp1_core_machine_sys {
 template<class T, std::size_t N>
 using array_t = cuda::std::array<T, N>;
 }  // namespace sp1

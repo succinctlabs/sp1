@@ -5,7 +5,7 @@
 #include "prelude.hpp"
 #include "utils.hpp"
 
-namespace sp1::memory {
+namespace sp1_core_machine_sys::memory {
 __SP1_HOSTDEV__ __SP1_INLINE__ uint32_t unwrap_value(const OptionMemoryRecordEnum& record) {
     switch (record.tag) {
         case OptionMemoryRecordEnum::Tag::Read:

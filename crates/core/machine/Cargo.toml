@@ -8,7 +8,7 @@ license = { workspace = true }
 repository = { workspace = true }
 keywords = { workspace = true }
 categories = { workspace = true }
-links = "sp1_core_machine_sys"
+links = "sp1-core-machine-sys"
 
 [dependencies]
 bincode = "1.3.3"

@@ -5,7 +5,7 @@
 #include "prelude.hpp"
 #include "utils.hpp"
 
-namespace sp1::lt {
+namespace sp1_core_machine_sys::lt {
 template<class F>
 __SP1_HOSTDEV__ void event_to_row(const AluEvent& event, LtCols<decltype(F::val)>& cols) {
     array_t<uint8_t, 4> a = u32_to_le_bytes(event.a);

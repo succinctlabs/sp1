@@ -3,7 +3,7 @@
 #include "prelude.hpp"
 #include "utils.hpp"
 
-namespace sp1::mul {
+namespace sp1_core_machine_sys::mul {
 template<class F>
 __SP1_HOSTDEV__ void event_to_row(const AluEvent& event, MulCols<decltype(F::val)>& cols) {
     // // Ensure that the opcode is MUL, MULHU, MULH, or MULHSU.

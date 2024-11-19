@@ -3,7 +3,7 @@
 #include "prelude.hpp"
 #include "utils.hpp"
 
-namespace sp1::bitwise {
+namespace sp1_core_machine_sys::bitwise {
 template<class F>
 __SP1_HOSTDEV__ void event_to_row(const AluEvent& event, BitwiseCols<decltype(F::val)>& cols) {
     cols.shard = F::from_canonical_u32(event.shard).val;

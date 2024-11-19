@@ -7,7 +7,7 @@
 #include "prelude.hpp"
 #include "utils.hpp"
 
-namespace sp1::cpu {
+namespace sp1_core_machine_sys::cpu {
 
 template<class F>
 __SP1_HOSTDEV__ void populate_shard_clk(const CpuEventFfi& event, CpuCols<decltype(F::val)>& cols) {

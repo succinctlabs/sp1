@@ -1,8 +1,7 @@
 #include "babybear.hpp"
 #include "sys.hpp"
 
-// Extern function implementations.
-namespace sp1 {
+namespace sp1_core_machine_sys {
 extern void add_sub_event_to_row_babybear(const AluEvent* event, AddSubCols<BabyBearP3>* cols) {
     add_sub::event_to_row<BabyBear>(*event, *reinterpret_cast<AddSubCols<BabyBear>*>(cols));
 }

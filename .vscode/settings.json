@@ -71,4 +71,8 @@
         "${workspaceFolder}/target/include",
     ],
     "C_Cpp.intelliSenseEngine": "Tag Parser",
+    "files.associations": {
+        "random": "cpp",
+        "chrono": "cpp"
+    },
 }

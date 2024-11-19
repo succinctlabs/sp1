@@ -4,7 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 
-using namespace sp1;
+using namespace sp1_core_machine_sys;
 
 /// Returns a BabyBear field element representing zero.
 BabyBear BabyBear::zero() {

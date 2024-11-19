@@ -1,9 +1,9 @@
 #pragma once
 
 #include "prelude.hpp"
-#include "sp1_core_machine_sys-cbindgen.hpp"
+#include "sp1-core-machine-sys-cbindgen.hpp"
 
-namespace sp1 {
+namespace sp1_core_machine_sys {
 struct BabyBear {
     /// The value of the BabyBear field element in Montgomery form.
     BabyBearP3 val;

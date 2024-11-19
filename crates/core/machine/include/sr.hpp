@@ -5,7 +5,7 @@
 #include "prelude.hpp"
 #include "utils.hpp"
 
-namespace sp1::sr {
+namespace sp1_core_machine_sys::sr {
 template<class F>
 __SP1_HOSTDEV__ void event_to_row(const AluEvent& event, ShiftRightCols<decltype(F::val)>& cols) {
     // Initialize cols with basic operands and flags derived from the current event.
