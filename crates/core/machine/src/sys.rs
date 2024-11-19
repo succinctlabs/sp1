@@ -5,9 +5,8 @@ use crate::{
 use hashbrown::HashMap;
 use p3_baby_bear::BabyBear;
 
-use sp1_core_executor::{
-    events::{AluEvent, CpuEvent, LookupId, MemoryReadRecord, MemoryRecordEnum, MemoryWriteRecord},
-    Instruction,
+use sp1_core_executor::events::{
+    AluEvent, CpuEvent, LookupId, MemoryReadRecord, MemoryRecordEnum, MemoryWriteRecord,
 };
 
 #[link(name = "sp1-core-machine-sys", kind = "static")]
