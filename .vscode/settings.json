@@ -66,4 +66,9 @@
     // "rust-analyzer.check.workspace": false,
     // "rust-analyzer.check.invocationStrategy": "once",
     // "rust-analyzer.cargo.buildScripts.invocationStrategy": "once",
+    "C_Cpp.default.includePath": [
+        "${workspaceFolder}/crates/**/include",
+        "${workspaceFolder}/target/include",
+    ],
+    "C_Cpp.intelliSenseEngine": "Tag Parser",
 }
