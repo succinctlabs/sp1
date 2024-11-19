@@ -27,6 +27,7 @@ extern "C-unwind" {
     );
     pub fn exp_reverse_bits_event_to_row_babybear(
         io: &ExpReverseBitsEventC<BabyBear>,
+        i: usize,
         cols: &mut ExpReverseBitsLenCols<BabyBear>,
     );
     pub fn fri_fold_event_to_row_babybear(

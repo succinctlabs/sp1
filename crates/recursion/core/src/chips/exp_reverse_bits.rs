@@ -428,20 +428,16 @@ mod tests {
                 rows.iter_mut().enumerate().for_each(|(i, row)| {
                     let cols: &mut ExpReverseBitsLenCols<F> = row.as_mut_slice().borrow_mut();
                     unsafe {
-                        crate::sys::exp_reverse_bits_event_to_row_babybear(&event.to_c(), cols);
+                        crate::sys::exp_reverse_bits_event_to_row_babybear(&event.to_c(), i, cols);
                     }
 
+                    // Accumulate after the event is converted to a row
                     let prev_accum = accum;
-                    accum = prev_accum
-                        * prev_accum
-                        * if event.exp[i] == F::one() { event.base } else { F::one() };
+                    accum = prev_accum * prev_accum * cols.multiplier;
 
-                    cols.x = event.base;
-                    cols.current_bit = event.exp[i];
                     cols.accum = accum;
                     cols.accum_squared = accum * accum;
                     cols.prev_accum_squared = prev_accum * prev_accum;
-                    cols.multiplier = if event.exp[i] == F::one() { event.base } else { F::one() };
                     cols.prev_accum_squared_times_multiplier =
                         cols.prev_accum_squared * cols.multiplier;
                 });
