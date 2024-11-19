@@ -253,4 +253,55 @@ mod tests {
 
         run_recursion_test_machines(program);
     }
+
+    #[cfg(feature = "sys")]
+    #[test]
+    fn test_generate_trace_ffi_eq_rust() {
+        type F = BabyBear;
+
+        let shard = ExecutionRecord {
+            base_alu_events: vec![BaseAluIo { out: F::one(), in1: F::one(), in2: F::one() }],
+            ..Default::default()
+        };
+
+        let chip = BaseAluChip;
+        let trace: RowMajorMatrix<F> = chip.generate_trace(&shard, &mut ExecutionRecord::default());
+        let trace_ffi = generate_trace_ffi(&shard);
+
+        assert_eq!(trace_ffi, trace);
+    }
+
+    #[cfg(feature = "sys")]
+    fn generate_trace_ffi(input: &ExecutionRecord<BabyBear>) -> RowMajorMatrix<BabyBear> {
+        type F = BabyBear;
+
+        let events = &input.base_alu_events;
+        let nb_rows = events.len().div_ceil(NUM_BASE_ALU_ENTRIES_PER_ROW);
+        let fixed_log2_rows = input.fixed_log2_rows(&BaseAluChip);
+        let padded_nb_rows = match fixed_log2_rows {
+            Some(log2_rows) => 1 << log2_rows,
+            None => next_power_of_two(nb_rows, None),
+        };
+        let mut values = vec![F::zero(); padded_nb_rows * NUM_BASE_ALU_COLS];
+
+        let chunk_size = std::cmp::max(events.len() / num_cpus::get(), 1);
+        let populate_len = events.len() * NUM_BASE_ALU_VALUE_COLS;
+
+        values[..populate_len]
+            .par_chunks_mut(chunk_size * NUM_BASE_ALU_VALUE_COLS)
+            .enumerate()
+            .for_each(|(i, rows)| {
+                rows.chunks_mut(NUM_BASE_ALU_VALUE_COLS).enumerate().for_each(|(j, row)| {
+                    let idx = i * chunk_size + j;
+                    if idx < events.len() {
+                        let cols: &mut BaseAluValueCols<_> = row.borrow_mut();
+                        unsafe {
+                            crate::sys::alu_base_event_to_row_babybear(&events[idx], cols);
+                        }
+                    }
+                });
+            });
+
+        RowMajorMatrix::new(values, NUM_BASE_ALU_COLS)
+    }
 }
