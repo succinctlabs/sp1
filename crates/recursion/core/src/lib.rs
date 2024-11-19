@@ -160,6 +160,28 @@ pub struct ExpReverseBitsInstr<F> {
     pub mult: F,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[repr(C)]
+pub struct ExpReverseBitsInstrC<'a, F> {
+    pub base: &'a Address<F>,
+    pub exp_ptr: *const Address<F>,
+    pub exp_len: usize,
+    pub result: &'a Address<F>,
+    pub mult: &'a F,
+}
+
+impl<F> ExpReverseBitsInstr<F> {
+    pub fn to_c(&self) -> ExpReverseBitsInstrC<'_, F> {
+        ExpReverseBitsInstrC {
+            base: &self.addrs.base,
+            exp_ptr: self.addrs.exp.as_ptr(),
+            exp_len: self.addrs.exp.len(),
+            result: &self.addrs.result,
+            mult: &self.mult,
+        }
+    }
+}
+
 /// The event encoding the inputs and outputs of an exp-reverse-bits operation. The `len` operand is
 /// now stored as the length of the `exp` field.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

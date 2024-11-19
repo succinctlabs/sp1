@@ -8,4 +8,34 @@ template <class F> __SP1_HOSTDEV__ void event_to_row(const sp1_recursion_core_sy
     cols.current_bit = event.exp_ptr[i];
     cols.multiplier = (event.exp_ptr[i] == F::one()) ? *event.base : F::one();
 }
+
+template <class F> __SP1_HOSTDEV__ void instr_to_row(
+    const sp1_recursion_core_sys::ExpReverseBitsInstrC<F> &instr,
+    sp1_recursion_core_sys::ExpReverseBitsLenPreprocessedCols<F> &cols) {
+    // cols.is_real = F::one();
+    // cols.iteration_num = F::from_canonical_u32(0);
+    // cols.is_first = F::one();
+    // cols.is_last = F::zero();
+    
+    // cols.x_mem.addr = *instr.base;
+    // cols.x_mem.mult = F::neg_one();
+    // cols.x_mem.value = F::zero();
+    // cols.x_mem.prev_timestamp = F::zero();
+    // cols.x_mem.diff_16bit_limb = F::zero();
+    // cols.x_mem.diff_12bit_limb = F::zero();
+    
+    // cols.exponent_mem.addr = instr.exp_ptr[0];
+    // cols.exponent_mem.mult = F::neg_one();
+    // cols.exponent_mem.value = F::zero();
+    // cols.exponent_mem.prev_timestamp = F::zero();
+    // cols.exponent_mem.diff_16bit_limb = F::zero();
+    // cols.exponent_mem.diff_12bit_limb = F::zero();
+    
+    // cols.result_mem.addr = *instr.result;
+    // cols.result_mem.mult = *instr.mult;
+    // cols.result_mem.value = F::zero();
+    // cols.result_mem.prev_timestamp = F::zero();
+    // cols.result_mem.diff_16bit_limb = F::zero();
+    // cols.result_mem.diff_12bit_limb = F::zero();
+}
 } // namespace recursion::exp_reverse_bits

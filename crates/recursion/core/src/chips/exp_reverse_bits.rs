@@ -16,7 +16,7 @@ use crate::{
     ExpReverseBitsInstr, Instruction,
 };
 
-use super::mem::MemoryAccessCols;
+use super::mem::{MemoryAccessCols, MemoryAccessColsChips};
 
 pub const NUM_EXP_REVERSE_BITS_LEN_COLS: usize = core::mem::size_of::<ExpReverseBitsLenCols<u8>>();
 pub const NUM_EXP_REVERSE_BITS_LEN_PREPROCESSED_COLS: usize =
@@ -28,9 +28,9 @@ pub struct ExpReverseBitsLenChip<const DEGREE: usize>;
 #[derive(AlignedBorrow, Clone, Copy, Debug)]
 #[repr(C)]
 pub struct ExpReverseBitsLenPreprocessedCols<T: Copy> {
-    pub x_mem: MemoryAccessCols<T>,
-    pub exponent_mem: MemoryAccessCols<T>,
-    pub result_mem: MemoryAccessCols<T>,
+    pub x_mem: MemoryAccessColsChips<T>,
+    pub exponent_mem: MemoryAccessColsChips<T>,
+    pub result_mem: MemoryAccessColsChips<T>,
     pub iteration_num: T,
     pub is_first: T,
     pub is_last: T,

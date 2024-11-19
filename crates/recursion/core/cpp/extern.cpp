@@ -52,6 +52,11 @@ extern void exp_reverse_bits_event_to_row_babybear(
         i,
         *reinterpret_cast<sp1_recursion_core_sys::ExpReverseBitsLenCols<BabyBear>*>(cols));
 }
+extern void exp_reverse_bits_instr_to_row_babybear(const sp1_recursion_core_sys::ExpReverseBitsInstrC<BabyBearP3>* instr, sp1_recursion_core_sys::ExpReverseBitsLenPreprocessedCols<BabyBearP3>* cols) {
+    recursion::exp_reverse_bits::instr_to_row<BabyBear>(
+        *reinterpret_cast<const sp1_recursion_core_sys::ExpReverseBitsInstrC<BabyBear>*>(instr),
+        *reinterpret_cast<sp1_recursion_core_sys::ExpReverseBitsLenPreprocessedCols<BabyBear>*>(cols));
+}
 
 extern void fri_fold_event_to_row_babybear(const sp1_recursion_core_sys::FriFoldEvent<BabyBearP3>* io, sp1_recursion_core_sys::FriFoldCols<BabyBearP3>* cols) {
     recursion::fri_fold::event_to_row<BabyBear>(
