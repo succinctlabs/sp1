@@ -17,7 +17,6 @@ template <class F> __SP1_HOSTDEV__ void instr_to_row(
     access.is_div = F(0);
     access.mult = instr.mult;
 
-    // Set the appropriate flag based on opcode
     switch (instr.opcode) {
         case sp1_recursion_core_sys::BaseAluOpcode::AddF:
             access.is_add = F(1);
