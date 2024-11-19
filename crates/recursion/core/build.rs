@@ -109,6 +109,8 @@ mod sys {
             .include_item("ExtAluValueCols")
             .include_item("ExpReverseBitsEventC")
             .include_item("ExpReverseBitsLenCols")
+            .include_item("FriFoldEvent")
+            .include_item("FriFoldCols")
             .with_namespace("sp1_recursion_core_sys")
             .with_crate(crate_dir)
             .generate()

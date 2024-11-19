@@ -3,6 +3,7 @@
 #include "alu_ext.hpp"
 #include "batch_fri.hpp"
 #include "exp_reverse_bits.hpp"
+#include "fri_fold.hpp"
 
 using namespace sp1_core_machine_sys;
 
@@ -26,5 +27,10 @@ extern "C" void exp_reverse_bits_event_to_row_babybear(const sp1_recursion_core_
     recursion::exp_reverse_bits::event_to_row<BabyBear>(
         *reinterpret_cast<const sp1_recursion_core_sys::ExpReverseBitsEventC<BabyBear>*>(io),
         *reinterpret_cast<sp1_recursion_core_sys::ExpReverseBitsLenCols<BabyBear>*>(cols));
+}
+extern "C" void fri_fold_event_to_row_babybear(const sp1_recursion_core_sys::FriFoldEvent<BabyBearP3>* io, sp1_recursion_core_sys::FriFoldCols<BabyBearP3>* cols) {
+    recursion::fri_fold::event_to_row<BabyBear>(
+        *reinterpret_cast<const sp1_recursion_core_sys::FriFoldEvent<BabyBear>*>(io),
+        *reinterpret_cast<sp1_recursion_core_sys::FriFoldCols<BabyBear>*>(cols));
 }
 }  // namespace sp1_recursion_core_sys

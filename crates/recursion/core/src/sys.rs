@@ -3,10 +3,12 @@ use crate::chips::alu_base::BaseAluValueCols;
 use crate::chips::alu_ext::ExtAluValueCols;
 use crate::chips::batch_fri::BatchFRICols;
 use crate::chips::exp_reverse_bits::ExpReverseBitsLenCols;
+use crate::chips::fri_fold::FriFoldCols;
 use crate::BaseAluIo;
 use crate::BatchFRIEvent;
 use crate::ExpReverseBitsEventC;
 use crate::ExtAluIo;
+use crate::FriFoldEvent;
 use p3_baby_bear::BabyBear;
 
 #[link(name = "sp1_recursion_core_sys", kind = "static")]
@@ -26,5 +28,9 @@ extern "C-unwind" {
     pub fn exp_reverse_bits_event_to_row_babybear(
         io: &ExpReverseBitsEventC<BabyBear>,
         cols: &mut ExpReverseBitsLenCols<BabyBear>,
+    );
+    pub fn fri_fold_event_to_row_babybear(
+        io: &FriFoldEvent<BabyBear>,
+        cols: &mut FriFoldCols<BabyBear>,
     );
 }
