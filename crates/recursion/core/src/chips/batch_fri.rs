@@ -256,4 +256,57 @@ mod tests {
         let trace: RowMajorMatrix<F> = chip.generate_trace(&shard, &mut ExecutionRecord::default());
         println!("{:?}", trace.values)
     }
+
+    #[cfg(feature = "sys")]
+    #[test]
+    fn test_generate_trace_ffi_eq_rust() {
+        type F = BabyBear;
+
+        let shard = ExecutionRecord {
+            batch_fri_events: vec![BatchFRIEvent {
+                ext_single: BatchFRIExtSingleIo { acc: Block::default() },
+                ext_vec: BatchFRIExtVecIo { alpha_pow: Block::default(), p_at_z: Block::default() },
+                base_vec: BatchFRIBaseVecIo { p_at_x: F::one() },
+            }],
+            ..Default::default()
+        };
+
+        let chip = BatchFRIChip::<2>;
+        let trace: RowMajorMatrix<F> = chip.generate_trace(&shard, &mut ExecutionRecord::default());
+        let trace_ffi = generate_trace_ffi(&shard);
+
+        assert_eq!(trace_ffi, trace);
+    }
+
+    #[cfg(feature = "sys")]
+    fn generate_trace_ffi(input: &ExecutionRecord<BabyBear>) -> RowMajorMatrix<BabyBear> {
+        type F = BabyBear;
+
+        let events = &input.batch_fri_events;
+        let mut rows = vec![[F::zero(); NUM_BATCH_FRI_COLS]; events.len()];
+
+        // Process chunks in parallel similar to alu_ext
+        let chunk_size = std::cmp::max(events.len() / num_cpus::get(), 1);
+        rows.chunks_mut(chunk_size).enumerate().for_each(|(i, chunk)| {
+            chunk.iter_mut().enumerate().for_each(|(j, row)| {
+                let idx = i * chunk_size + j;
+                if idx < events.len() {
+                    let cols: &mut BatchFRICols<F> = row.as_mut_slice().borrow_mut();
+                    unsafe {
+                        crate::sys::batch_fri_event_to_row_babybear(&events[idx], cols);
+                    }
+                }
+            });
+        });
+
+        // Pad the trace to a power of two
+        pad_rows_fixed(
+            &mut rows,
+            || [F::zero(); NUM_BATCH_FRI_COLS],
+            input.fixed_log2_rows(&BatchFRIChip::<2>),
+        );
+
+        // Convert to row major matrix
+        RowMajorMatrix::new(rows.into_iter().flatten().collect(), NUM_BATCH_FRI_COLS)
+    }
 }
