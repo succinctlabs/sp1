@@ -1,5 +1,4 @@
 use std::{
-    collections::VecDeque,
     fs::File,
     io::{
         Seek, {self},
@@ -9,20 +8,17 @@ use std::{
 use web_time::Instant;
 
 use crate::riscv::{CoreShapeConfig, RiscvAir};
-use p3_challenger::FieldChallenger;
 use p3_maybe_rayon::prelude::*;
 use serde::{de::DeserializeOwned, Serialize};
 use size::Size;
 use sp1_stark::{
-    air::InteractionScope, baby_bear_poseidon2::BabyBearPoseidon2, MachineProvingKey,
-    MachineVerificationError,
+    baby_bear_poseidon2::BabyBearPoseidon2, MachineProvingKey, MachineVerificationError,
 };
 use std::thread::ScopedJoinHandle;
 use thiserror::Error;
 
 use p3_baby_bear::BabyBear;
 use p3_field::PrimeField32;
-use p3_matrix::Matrix;
 
 use crate::{
     io::SP1Stdin,
@@ -198,259 +194,34 @@ where
                 })
             });
 
-        // Spawn the workers for phase 1 record generation.
-        let p1_record_gen_sync = Arc::new(TurnBasedSync::new());
-        let p1_trace_gen_sync = Arc::new(TurnBasedSync::new());
-        let (p1_records_and_traces_tx, p1_records_and_traces_rx) =
-            sync_channel::<(Vec<ExecutionRecord>, Vec<Vec<(String, RowMajorMatrix<Val<SC>>)>>)>(
-                opts.records_and_traces_channel_capacity,
-            );
-        let p1_records_and_traces_tx = Arc::new(Mutex::new(p1_records_and_traces_tx));
-        let checkpoints_rx = Arc::new(Mutex::new(checkpoints_rx));
-
-        let checkpoints = Arc::new(Mutex::new(VecDeque::new()));
-        let state = Arc::new(Mutex::new(PublicValues::<u32, u32>::default().reset()));
-        let deferred = Arc::new(Mutex::new(ExecutionRecord::new(program.clone().into())));
-        let mut p1_record_and_trace_gen_handles = Vec::new();
-        for _ in 0..opts.trace_gen_workers {
-            let record_gen_sync = Arc::clone(&p1_record_gen_sync);
-            let trace_gen_sync = Arc::clone(&p1_trace_gen_sync);
-            let checkpoints_rx = Arc::clone(&checkpoints_rx);
-            let records_and_traces_tx = Arc::clone(&p1_records_and_traces_tx);
-
-            let checkpoints = Arc::clone(&checkpoints);
-            let state = Arc::clone(&state);
-            let deferred = Arc::clone(&deferred);
-            let program = program.clone();
-
-            let span = tracing::Span::current().clone();
-
-            let handle = s.spawn(move || {
-                let _span = span.enter();
-                tracing::debug_span!("phase 1 trace generation").in_scope(|| {
-                    loop {
-                        // Receive the latest checkpoint.
-                        let received = { checkpoints_rx.lock().unwrap().recv() };
-
-                        if let Ok((index, mut checkpoint, done)) = received {
-                            // Trace the checkpoint and reconstruct the execution records.
-                            let (mut records, _) = tracing::debug_span!("trace checkpoint")
-                                .in_scope(|| {
-                                    trace_checkpoint::<SC>(
-                                        program.clone(),
-                                        &checkpoint,
-                                        opts,
-                                        shape_config,
-                                    )
-                                });
-                            log::info!("generated {} records", records.len());
-                            reset_seek(&mut checkpoint);
-
-                            // Wait for our turn to update the state.
-                            log::info!("waiting for turn {}", index);
-                            record_gen_sync.wait_for_turn(index);
-
-                            // Update the public values & prover state for the shards which contain
-                            // "cpu events".
-                            let mut state = state.lock().unwrap();
-                            for record in records.iter_mut() {
-                                state.shard += 1;
-                                state.execution_shard = record.public_values.execution_shard;
-                                state.start_pc = record.public_values.start_pc;
-                                state.next_pc = record.public_values.next_pc;
-                                state.committed_value_digest =
-                                    record.public_values.committed_value_digest;
-                                state.deferred_proofs_digest =
-                                    record.public_values.deferred_proofs_digest;
-                                record.public_values = *state;
-                            }
-
-                            // Defer events that are too expensive to include in every shard.
-                            let mut deferred = deferred.lock().unwrap();
-                            for record in records.iter_mut() {
-                                deferred.append(&mut record.defer());
-                            }
-
-                            // See if any deferred shards are ready to be committed to.
-                            let mut deferred = deferred.split(done, opts.split_opts);
-                            log::info!("deferred {} records", deferred.len());
-
-                            // Update the public values & prover state for the shards which do not
-                            // contain "cpu events" before committing to them.
-                            if !done {
-                                state.execution_shard += 1;
-                            }
-                            for record in deferred.iter_mut() {
-                                state.shard += 1;
-                                state.previous_init_addr_bits =
-                                    record.public_values.previous_init_addr_bits;
-                                state.last_init_addr_bits =
-                                    record.public_values.last_init_addr_bits;
-                                state.previous_finalize_addr_bits =
-                                    record.public_values.previous_finalize_addr_bits;
-                                state.last_finalize_addr_bits =
-                                    record.public_values.last_finalize_addr_bits;
-                                state.start_pc = state.next_pc;
-                                record.public_values = *state;
-                            }
-                            records.append(&mut deferred);
-
-                            // Collect the checkpoints to be used again in the phase 2 prover.
-                            log::info!("collecting checkpoints");
-                            let mut checkpoints = checkpoints.lock().unwrap();
-                            checkpoints.push_back((index, checkpoint, done));
-
-                            // Let another worker update the state.
-                            record_gen_sync.advance_turn();
-
-                            // Fix the shape of the records.
-                            if let Some(shape_config) = shape_config {
-                                for record in records.iter_mut() {
-                                    tracing::info!("fixing shape");
-                                    shape_config.fix_shape(record).unwrap();
-                                }
-                            }
-
-                            // Generate the traces.
-                            let mut traces = vec![];
-                            tracing::debug_span!("generate traces", index).in_scope(|| {
-                                traces = records
-                                    .par_iter()
-                                    .map(|record| {
-                                        prover.generate_traces(record, InteractionScope::Global)
-                                    })
-                                    .collect::<Vec<_>>();
-                            });
-
-                            // Wait for our turn.
-                            trace_gen_sync.wait_for_turn(index);
-
-                            // Send the records to the phase 1 prover.
-                            let chunked_records = chunk_vec(records, opts.shard_batch_size);
-                            let chunked_traces = chunk_vec(traces, opts.shard_batch_size);
-                            chunked_records.into_iter().zip(chunked_traces).for_each(
-                                |(records, traces)| {
-                                    records_and_traces_tx
-                                        .lock()
-                                        .unwrap()
-                                        .send((records, traces))
-                                        .unwrap();
-                                },
-                            );
-
-                            trace_gen_sync.advance_turn();
-                        } else {
-                            break;
-                        }
-                    }
-                })
-            });
-            p1_record_and_trace_gen_handles.push(handle);
-        }
-        drop(p1_records_and_traces_tx);
-
         // Create the challenger and observe the verifying key.
         let mut challenger = prover.config().challenger();
         pk.observe_into(&mut challenger);
 
-        // Spawn the phase 1 prover thread.
-        let phase_1_prover_span = tracing::Span::current().clone();
-        let phase_1_prover_handle = s.spawn(move || {
-            let _span = phase_1_prover_span.enter();
-            tracing::debug_span!("phase 1 prover").in_scope(|| {
-                for (records, traces) in p1_records_and_traces_rx.iter() {
-                    tracing::debug_span!("batch").in_scope(|| {
-                        let span = tracing::Span::current().clone();
-
-                        // Collect the public values.
-                        let public_values = records
-                            .iter()
-                            .map(|record| {
-                                record.public_values::<SC::Val>()[0..prover.machine().num_pv_elts()]
-                                    .to_vec()
-                            })
-                            .collect::<Vec<_>>();
-
-                        // Commit to each shard.
-                        let commitments = records
-                            .into_par_iter()
-                            .zip(traces.into_par_iter())
-                            .map(|(record, traces)| {
-                                let _span = span.enter();
-
-                                for (name, trace) in traces.clone() {
-                                    let trace_width = trace.width();
-                                    let trace_height = trace.height();
-                                    tracing::debug!(
-                                        "Phase 1 area: {:<15} | Main Cols = {:<5} | Rows = {:<5} | Cells = {:<10}",
-                                        name,
-                                        trace_width,
-                                        trace_height,
-                                        trace_width * trace_height,
-                                    );
-
-                                }
-
-                                let data = prover.commit(&record, traces);
-                                let phase1_main_commit = data.main_commit.clone();
-                                drop(data);
-                                phase1_main_commit
-                            })
-                            .collect::<Vec<_>>();
-
-                        //  the commitments.
-                        for (commit, public_values) in
-                            commitments.into_iter().zip(public_values.into_iter())
-                        {
-                            prover.observe(&mut challenger, commit.clone(), &public_values);
-                        }
-                    });
-                }
-            });
-
-            challenger
-        });
-
         // Wait until the checkpoint generator handle has fully finished.
         let public_values_stream = checkpoint_generator_handle.join().unwrap().unwrap();
-
-        // Wait until the records and traces have been fully generated.
-        p1_record_and_trace_gen_handles.into_iter().for_each(|handle| handle.join().unwrap());
-
-        // Wait until the phase 1 prover has completely finished.
-        let mut challenger = phase_1_prover_handle.join().unwrap();
-
-        // Sample for the global permutation challenges.
-        // Obtain the challenges used for the global permutation argument.
-        let mut global_permutation_challenges: Vec<SC::Challenge> = Vec::new();
-        for _ in 0..2 {
-            global_permutation_challenges.push(challenger.sample_ext_element());
-        }
 
         // Spawn the phase 2 record generator thread.
         let p2_record_gen_sync = Arc::new(TurnBasedSync::new());
         let p2_trace_gen_sync = Arc::new(TurnBasedSync::new());
         let (p2_records_and_traces_tx, p2_records_and_traces_rx) =
-            sync_channel::<(
-                Vec<ExecutionRecord>,
-                (
-                    Vec<Vec<(String, RowMajorMatrix<Val<SC>>)>>,
-                    Vec<Vec<(String, RowMajorMatrix<Val<SC>>)>>,
-                ),
-            )>(opts.records_and_traces_channel_capacity);
+            sync_channel::<(Vec<ExecutionRecord>, Vec<Vec<(String, RowMajorMatrix<Val<SC>>)>>)>(
+                opts.records_and_traces_channel_capacity,
+            );
         let p2_records_and_traces_tx = Arc::new(Mutex::new(p2_records_and_traces_tx));
 
         let report_aggregate = Arc::new(Mutex::new(ExecutionReport::default()));
         let state = Arc::new(Mutex::new(PublicValues::<u32, u32>::default().reset()));
         let deferred = Arc::new(Mutex::new(ExecutionRecord::new(program.clone().into())));
         let mut p2_record_and_trace_gen_handles = Vec::new();
+        let checkpoints_rx = Arc::new(Mutex::new(checkpoints_rx));
         for _ in 0..opts.trace_gen_workers {
             let record_gen_sync = Arc::clone(&p2_record_gen_sync);
             let trace_gen_sync = Arc::clone(&p2_trace_gen_sync);
             let records_and_traces_tx = Arc::clone(&p2_records_and_traces_tx);
+            let checkpoints_rx = Arc::clone(&checkpoints_rx);
 
             let report_aggregate = Arc::clone(&report_aggregate);
-            let checkpoints = Arc::clone(&checkpoints);
             let state = Arc::clone(&state);
             let deferred = Arc::clone(&deferred);
             let program = program.clone();
@@ -465,8 +236,8 @@ where
                 tracing::debug_span!("phase 2 trace generation").in_scope(|| {
                     loop {
                         // Receive the latest checkpoint.
-                        let received = { checkpoints.lock().unwrap().pop_front() };
-                        if let Some((index, mut checkpoint, done)) = received {
+                        let received = { checkpoints_rx.lock().unwrap().recv() };
+                        if let Ok((index, mut checkpoint, done)) = received {
                             // Trace the checkpoint and reconstruct the execution records.
                             let (mut records, report) = tracing::debug_span!("trace checkpoint")
                                 .in_scope(|| {
@@ -547,24 +318,11 @@ where
                             #[cfg(feature = "debug")]
                             all_records_tx.send(records.clone()).unwrap();
 
-                            // Generate the traces.
-                            let mut local_traces = Vec::new();
-                            tracing::debug_span!("generate local traces", index).in_scope(|| {
-                                local_traces = records
+                            let mut main_traces = Vec::new();
+                            tracing::debug_span!("generate main traces", index).in_scope(|| {
+                                main_traces = records
                                     .par_iter()
-                                    .map(|record| {
-                                        prover.generate_traces(record, InteractionScope::Local)
-                                    })
-                                    .collect::<Vec<_>>();
-                            });
-
-                            let mut global_traces = Vec::new();
-                            tracing::debug_span!("generate global traces", index).in_scope(|| {
-                                global_traces = records
-                                    .par_iter()
-                                    .map(|record| {
-                                        prover.generate_traces(record, InteractionScope::Global)
-                                    })
+                                    .map(|record| prover.generate_traces(record))
                                     .collect::<Vec<_>>();
                             });
 
@@ -572,19 +330,15 @@ where
 
                             // Send the records to the phase 2 prover.
                             let chunked_records = chunk_vec(records, opts.shard_batch_size);
-                            let chunked_global_traces =
-                                chunk_vec(global_traces, opts.shard_batch_size);
-                            let chunked_local_traces =
-                                chunk_vec(local_traces, opts.shard_batch_size);
+                            let chunked_main_traces = chunk_vec(main_traces, opts.shard_batch_size);
                             chunked_records
                                 .into_iter()
-                                .zip(chunked_global_traces.into_iter())
-                                .zip(chunked_local_traces.into_iter())
-                                .for_each(|((records, global_traces), local_traces)| {
+                                .zip(chunked_main_traces.into_iter())
+                                .for_each(|(records, main_traces)| {
                                     records_and_traces_tx
                                         .lock()
                                         .unwrap()
-                                        .send((records, (global_traces, local_traces)))
+                                        .send((records, main_traces))
                                         .unwrap();
                                 });
 
@@ -612,27 +366,14 @@ where
                         let span = tracing::Span::current().clone();
                         shard_proofs.par_extend(
                             records.into_par_iter().zip(traces.into_par_iter()).map(
-                                |(record, (global_traces, local_traces))| {
+                                |(record, main_traces)| {
                                     let _span = span.enter();
 
-                                    let global_commit_span =
-                                        tracing::debug_span!("commit to global traces").entered();
-                                    let global_data = prover.commit(&record, global_traces);
-                                    global_commit_span.exit();
-                                    let local_commit_span =
-                                        tracing::debug_span!("commit to local traces").entered();
-                                    let local_data = prover.commit(&record, local_traces);
-                                    local_commit_span.exit();
+                                    let main_data = prover.commit(&record, main_traces);
 
                                     let opening_span = tracing::debug_span!("opening").entered();
                                     let proof = prover
-                                        .open(
-                                            pk,
-                                            Some(global_data),
-                                            local_data,
-                                            &mut challenger.clone(),
-                                            &global_permutation_challenges,
-                                        )
+                                        .open(pk, main_data, &mut challenger.clone())
                                         .unwrap();
                                     opening_span.exit();
 

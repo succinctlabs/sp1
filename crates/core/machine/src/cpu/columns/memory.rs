@@ -33,7 +33,4 @@ pub struct MemoryColumns<T> {
     // LE bit decomposition for the most significant byte of memory value.  This is used to
     // determine the sign for that value (used for LB and LH).
     pub most_sig_byte_decomp: [T; 8],
-
-    pub addr_word_nonce: T,
-    pub unsigned_mem_val_nonce: T,
 }

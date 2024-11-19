@@ -9,7 +9,7 @@ use sp1_stark::{air::MachineAir, MachineRecord, ProofShape};
 use thiserror::Error;
 
 use crate::{
-    memory::{MemoryLocalChip, MemoryProgramChip, NUM_LOCAL_MEMORY_ENTRIES_PER_ROW},
+    memory::{MemoryLocalChip, NUM_LOCAL_MEMORY_ENTRIES_PER_ROW},
     riscv::MemoryChipType::{Finalize, Initialize},
 };
 
@@ -347,11 +347,11 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
     fn default() -> Self {
         // Preprocessed chip heights.
         let program_heights = vec![Some(19), Some(20), Some(21), Some(22)];
-        let program_memory_heights = vec![Some(19), Some(20), Some(21), Some(22)];
+        // let program_memory_heights = vec![Some(19), Some(20), Some(21), Some(22)];
 
         let allowed_preprocessed_log_heights = HashMap::from([
             (RiscvAir::Program(ProgramChip::default()), program_heights),
-            (RiscvAir::ProgramMemory(MemoryProgramChip::default()), program_memory_heights),
+            //    (RiscvAir::ProgramMemory(MemoryProgramChip::default()), program_memory_heights),
             (RiscvAir::ByteLookup(ByteChip::default()), vec![Some(16)]),
         ]);
 
@@ -728,8 +728,7 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
 pub mod tests {
     use std::fmt::Debug;
 
-    use p3_challenger::{CanObserve, FieldChallenger};
-    use sp1_stark::{air::InteractionScope, Dom, MachineProver, StarkGenericConfig};
+    use sp1_stark::{Dom, MachineProver, StarkGenericConfig};
 
     use super::*;
 
@@ -750,30 +749,15 @@ pub mod tests {
         let (pk, _) = prover.setup(&program);
 
         // Try to generate traces.
-        let global_traces = prover.generate_traces(&record, InteractionScope::Global);
-        let local_traces = prover.generate_traces(&record, InteractionScope::Local);
+        let main_traces = prover.generate_traces(&record);
 
         // Try to commit the traces.
-        let global_data = prover.commit(&record, global_traces);
-        let local_data = prover.commit(&record, local_traces);
+        let main_data = prover.commit(&record, main_traces);
 
         let mut challenger = prover.machine().config().challenger();
-        challenger.observe(global_data.main_commit.clone());
-        challenger.observe(local_data.main_commit.clone());
-
-        let global_permutation_challenges: [<SC as StarkGenericConfig>::Challenge; 2] =
-            [challenger.sample_ext_element(), challenger.sample_ext_element()];
 
         // Try to "open".
-        prover
-            .open(
-                &pk,
-                Some(global_data),
-                local_data,
-                &mut challenger,
-                &global_permutation_challenges,
-            )
-            .unwrap();
+        prover.open(&pk, main_data, &mut challenger).unwrap();
     }
 
     #[test]
@@ -800,7 +784,7 @@ pub mod tests {
 
         let preprocessed_log_heights = [
             (RiscvAir::<BabyBear>::Program(ProgramChip::default()), 10),
-            (RiscvAir::<BabyBear>::ProgramMemory(MemoryProgramChip::default()), 10),
+            //    (RiscvAir::<BabyBear>::ProgramMemory(MemoryProgramChip::default()), 10),
             (RiscvAir::<BabyBear>::ByteLookup(ByteChip::default()), 16),
         ];
 
