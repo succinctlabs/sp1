@@ -1,12 +1,14 @@
 use crate::{
     alu::{AddSubCols, BitwiseCols, LtCols, MulCols, ShiftLeftCols, ShiftRightCols},
     cpu::columns::CpuCols,
+    operations::GlobalInteractionOperation,
 };
 use hashbrown::HashMap;
 use p3_baby_bear::BabyBear;
 
 use sp1_core_executor::events::{
-    AluEvent, CpuEvent, LookupId, MemoryReadRecord, MemoryRecordEnum, MemoryWriteRecord,
+    AluEvent, CpuEvent, LookupId, MemoryLocalEvent, MemoryReadRecord, MemoryRecordEnum,
+    MemoryWriteRecord,
 };
 
 #[link(name = "sp1-core-machine-sys", kind = "static")]
@@ -18,6 +20,10 @@ extern "C-unwind" {
     pub fn sll_event_to_row_babybear(event: &AluEvent, cols: &mut ShiftLeftCols<BabyBear>);
     pub fn sr_event_to_row_babybear(event: &AluEvent, cols: &mut ShiftRightCols<BabyBear>);
     pub fn cpu_event_to_row_babybear(event: &CpuEventFfi, cols: &mut CpuCols<BabyBear>);
+    pub fn memory_local_event_to_row_babybear(
+        event: &MemoryLocalEvent,
+        cols: &mut GlobalInteractionOperation<BabyBear>,
+    );
 }
 
 /// An alternative to `Option<MemoryRecordEnum>` that is FFI-safe.

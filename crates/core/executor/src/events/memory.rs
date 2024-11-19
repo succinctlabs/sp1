@@ -227,6 +227,7 @@ impl From<MemoryWriteRecord> for MemoryRecordEnum {
 /// shard. This includes the address, initial memory access, and final memory access within a
 /// shard.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[repr(C)]
 pub struct MemoryLocalEvent {
     /// The address.
     pub addr: u32,

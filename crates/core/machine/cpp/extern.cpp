@@ -29,4 +29,8 @@ extern void sr_event_to_row_babybear(const AluEvent* event, ShiftRightCols<BabyB
 extern void cpu_event_to_row_babybear(const CpuEventFfi* event, CpuCols<BabyBearP3>* cols) {
     cpu::event_to_row<BabyBear>(*event, *cols);
 }
+
+extern void memory_local_event_to_row_babybear(const MemoryLocalEvent* event, GlobalInteractionOperation<BabyBearP3>* cols) {
+    memory_local::event_to_row<BabyBear>(*event, *cols);
+}
 }  // namespace sp1
