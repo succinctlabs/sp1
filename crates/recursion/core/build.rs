@@ -103,6 +103,8 @@ mod sys {
             .rename_item("BabyBear", "BabyBearP3")
             .include_item("BaseAluIo")
             .include_item("BaseAluValueCols")
+            .include_item("ExtAluIo")
+            .include_item("ExtAluValueCols")
             .with_namespace("sp1_recursion_core_sys")
             .with_crate(crate_dir)
             .generate()
