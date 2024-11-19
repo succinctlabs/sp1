@@ -48,7 +48,7 @@ impl Syscall for VerifySyscall {
                         )
                     });
             }
-            DeferredProofVerification::Disabled => {},
+            DeferredProofVerification::Disabled => {}
         }
 
         None
