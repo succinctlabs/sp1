@@ -50,6 +50,8 @@ extern "C-unwind" {
     );
     pub fn exp_reverse_bits_instr_to_row_babybear(
         instr: &ExpReverseBitsInstrC<BabyBear>,
+        i: usize,
+        len: usize,
         cols: &mut ExpReverseBitsLenPreprocessedCols<BabyBear>,
     );
 

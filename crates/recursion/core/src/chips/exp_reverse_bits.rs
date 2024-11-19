@@ -312,7 +312,8 @@ mod tests {
         machine::tests::run_recursion_test_machines,
         runtime::{instruction as instr, ExecutionRecord},
         stark::BabyBearPoseidon2Outer,
-        ExpReverseBitsEvent, Instruction, MemAccessKind, RecursionProgram,
+        Address, ExpReverseBitsEvent, ExpReverseBitsIo, Instruction, MemAccessKind,
+        RecursionProgram,
     };
 
     use super::*;
@@ -390,6 +391,27 @@ mod tests {
         println!("{:?}", trace.values)
     }
 
+    #[test]
+    fn generate_erbl_preprocessed_trace() {
+        type F = BabyBear;
+
+        let program = RecursionProgram {
+            instructions: vec![Instruction::ExpReverseBitsLen(ExpReverseBitsInstr {
+                addrs: ExpReverseBitsIo {
+                    base: Address(F::zero()),
+                    exp: vec![Address(F::one()), Address(F::zero()), Address(F::one())],
+                    result: Address(F::from_canonical_u32(4)),
+                },
+                mult: F::one(),
+            })],
+            ..Default::default()
+        };
+
+        let chip = ExpReverseBitsLenChip::<3>;
+        let trace = chip.generate_preprocessed_trace(&program).unwrap();
+        println!("{:?}", trace.values);
+    }
+
     #[cfg(feature = "sys")]
     #[test]
     fn test_generate_trace_ffi_eq_rust() {
@@ -455,6 +477,98 @@ mod tests {
         RowMajorMatrix::new(
             overall_rows.into_iter().flatten().collect(),
             NUM_EXP_REVERSE_BITS_LEN_COLS,
+        )
+    }
+
+    #[test]
+    fn generate_preprocessed_trace() {
+        type F = BabyBear;
+
+        let program = RecursionProgram::<F> {
+            instructions: vec![Instruction::ExpReverseBitsLen(ExpReverseBitsInstr {
+                addrs: ExpReverseBitsIo {
+                    base: Address(F::zero()),
+                    exp: vec![Address(F::zero()), Address(F::one())],
+                    result: Address(F::zero()),
+                },
+                mult: F::one(),
+            })],
+            ..Default::default()
+        };
+
+        let chip = ExpReverseBitsLenChip::<3>;
+        let trace = chip.generate_preprocessed_trace(&program).unwrap();
+        println!("{:?}", trace.values);
+    }
+
+    #[cfg(feature = "sys")]
+    #[test]
+    fn test_generate_preprocessed_trace_ffi_eq_rust() {
+        type F = BabyBear;
+
+        let program = RecursionProgram::<F> {
+            instructions: vec![Instruction::ExpReverseBitsLen(ExpReverseBitsInstr {
+                addrs: ExpReverseBitsIo {
+                    base: Address(F::zero()),
+                    exp: vec![Address(F::zero()), Address(F::one())],
+                    result: Address(F::zero()),
+                },
+                mult: F::one(),
+            })],
+            ..Default::default()
+        };
+
+        let chip = ExpReverseBitsLenChip::<3>;
+        let trace = chip.generate_preprocessed_trace(&program).unwrap();
+        let trace_ffi = generate_preprocessed_trace_ffi(&program);
+
+        assert_eq!(trace_ffi, trace);
+    }
+
+    #[cfg(feature = "sys")]
+    fn generate_preprocessed_trace_ffi(
+        program: &RecursionProgram<BabyBear>,
+    ) -> RowMajorMatrix<BabyBear> {
+        type F = BabyBear;
+
+        let instrs = program
+            .instructions
+            .iter()
+            .filter_map(|instruction| match instruction {
+                Instruction::ExpReverseBitsLen(x) => Some(x),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+
+        let mut rows = Vec::new();
+        instrs.iter().for_each(|instruction| {
+            let len = instruction.addrs.exp.len();
+            let mut row_add = vec![[F::zero(); NUM_EXP_REVERSE_BITS_LEN_PREPROCESSED_COLS]; len];
+
+            row_add.iter_mut().enumerate().for_each(|(i, row)| {
+                let cols: &mut ExpReverseBitsLenPreprocessedCols<F> =
+                    row.as_mut_slice().borrow_mut();
+                unsafe {
+                    crate::sys::exp_reverse_bits_instr_to_row_babybear(
+                        &instruction.to_c(),
+                        i,
+                        len,
+                        cols,
+                    );
+                }
+            });
+            rows.extend(row_add);
+        });
+
+        pad_rows_fixed(
+            &mut rows,
+            || [F::zero(); NUM_EXP_REVERSE_BITS_LEN_PREPROCESSED_COLS],
+            program.fixed_log2_rows(&ExpReverseBitsLenChip::<3>),
+        );
+
+        RowMajorMatrix::new(
+            rows.into_iter().flatten().collect(),
+            NUM_EXP_REVERSE_BITS_LEN_PREPROCESSED_COLS,
         )
     }
 }
