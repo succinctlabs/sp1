@@ -41,7 +41,7 @@ impl NetworkProver {
         Self::new_from_key(&private_key)
     }
 
-    /// Skip simulation when running `prove`.
+    /// Set skip simulation when running `request_proof`.
     pub fn set_skip_simulation(&mut self, skip: bool) {
         self.skip_simulation = skip;
     }
