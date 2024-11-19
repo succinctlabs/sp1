@@ -285,7 +285,6 @@ mod tests {
         let events = &input.batch_fri_events;
         let mut rows = vec![[F::zero(); NUM_BATCH_FRI_COLS]; events.len()];
 
-        // Process chunks in parallel similar to alu_ext
         let chunk_size = std::cmp::max(events.len() / num_cpus::get(), 1);
         rows.chunks_mut(chunk_size).enumerate().for_each(|(i, chunk)| {
             chunk.iter_mut().enumerate().for_each(|(j, row)| {
@@ -299,14 +298,12 @@ mod tests {
             });
         });
 
-        // Pad the trace to a power of two
         pad_rows_fixed(
             &mut rows,
             || [F::zero(); NUM_BATCH_FRI_COLS],
             input.fixed_log2_rows(&BatchFRIChip::<2>),
         );
 
-        // Convert to row major matrix
         RowMajorMatrix::new(rows.into_iter().flatten().collect(), NUM_BATCH_FRI_COLS)
     }
 }

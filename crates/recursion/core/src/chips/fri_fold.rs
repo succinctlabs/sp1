@@ -592,7 +592,6 @@ mod tests {
         let events = &input.fri_fold_events;
         let mut rows = events.iter().map(|_| [F::zero(); NUM_FRI_FOLD_COLS]).collect_vec();
 
-        // Process chunks in parallel
         let chunk_size = std::cmp::max(events.len() / num_cpus::get(), 1);
         rows.chunks_mut(chunk_size).enumerate().for_each(|(i, chunk)| {
             chunk.iter_mut().enumerate().for_each(|(j, row)| {
@@ -606,14 +605,12 @@ mod tests {
             });
         });
 
-        // Pad the trace to a power of two
         pad_rows_fixed(
             &mut rows,
             || [F::zero(); NUM_FRI_FOLD_COLS],
             input.fixed_log2_rows(&FriFoldChip::<3>::default()),
         );
 
-        // Convert to row major matrix
         RowMajorMatrix::new(rows.into_iter().flatten().collect(), NUM_FRI_FOLD_COLS)
     }
 }

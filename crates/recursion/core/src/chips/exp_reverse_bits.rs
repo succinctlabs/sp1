@@ -315,6 +315,8 @@ mod tests {
         ExpReverseBitsEvent, Instruction, MemAccessKind, RecursionProgram,
     };
 
+    use super::*;
+
     #[test]
     fn prove_babybear_circuit_erbl() {
         setup_logger();
@@ -386,5 +388,77 @@ mod tests {
         let chip = ExpReverseBitsLenChip::<3>;
         let trace: RowMajorMatrix<F> = chip.generate_trace(&shard, &mut ExecutionRecord::default());
         println!("{:?}", trace.values)
+    }
+
+    #[cfg(feature = "sys")]
+    #[test]
+    fn test_generate_trace_ffi_eq_rust() {
+        type F = BabyBear;
+
+        let shard = ExecutionRecord {
+            exp_reverse_bits_len_events: vec![ExpReverseBitsEvent {
+                base: F::two(),
+                exp: vec![F::zero(), F::one(), F::one()],
+                result: F::two().exp_u64(0b110),
+            }],
+            ..Default::default()
+        };
+
+        let chip = ExpReverseBitsLenChip::<3>;
+        let trace: RowMajorMatrix<F> = chip.generate_trace(&shard, &mut ExecutionRecord::default());
+        let trace_ffi = generate_trace_ffi(&shard);
+
+        assert_eq!(trace_ffi, trace);
+    }
+
+    #[cfg(feature = "sys")]
+    fn generate_trace_ffi(input: &ExecutionRecord<BabyBear>) -> RowMajorMatrix<BabyBear> {
+        type F = BabyBear;
+
+        let events = &input.exp_reverse_bits_len_events;
+        let mut overall_rows = Vec::new();
+
+        let chunk_size = std::cmp::max(events.len() / num_cpus::get(), 1);
+        events.chunks(chunk_size).for_each(|chunk| {
+            chunk.iter().for_each(|event| {
+                let mut rows =
+                    vec![vec![F::zero(); NUM_EXP_REVERSE_BITS_LEN_COLS]; event.exp.len()];
+                let mut accum = F::one();
+
+                rows.iter_mut().enumerate().for_each(|(i, row)| {
+                    let cols: &mut ExpReverseBitsLenCols<F> = row.as_mut_slice().borrow_mut();
+                    unsafe {
+                        crate::sys::exp_reverse_bits_event_to_row_babybear(&event.to_c(), cols);
+                    }
+
+                    let prev_accum = accum;
+                    accum = prev_accum
+                        * prev_accum
+                        * if event.exp[i] == F::one() { event.base } else { F::one() };
+
+                    cols.x = event.base;
+                    cols.current_bit = event.exp[i];
+                    cols.accum = accum;
+                    cols.accum_squared = accum * accum;
+                    cols.prev_accum_squared = prev_accum * prev_accum;
+                    cols.multiplier = if event.exp[i] == F::one() { event.base } else { F::one() };
+                    cols.prev_accum_squared_times_multiplier =
+                        cols.prev_accum_squared * cols.multiplier;
+                });
+
+                overall_rows.extend(rows);
+            });
+        });
+
+        pad_rows_fixed(
+            &mut overall_rows,
+            || [F::zero(); NUM_EXP_REVERSE_BITS_LEN_COLS].to_vec(),
+            input.fixed_log2_rows(&ExpReverseBitsLenChip::<3>),
+        );
+
+        RowMajorMatrix::new(
+            overall_rows.into_iter().flatten().collect(),
+            NUM_EXP_REVERSE_BITS_LEN_COLS,
+        )
     }
 }
