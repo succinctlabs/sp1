@@ -11,6 +11,7 @@ pub mod machine;
 pub mod runtime;
 pub mod shape;
 pub mod stark;
+pub mod sys;
 
 pub use runtime::*;
 

@@ -102,7 +102,7 @@ mod sys {
             .with_parse_extra_bindings(&["sp1-stark", "sp1-primitives", "p3-baby-bear"])
             .rename_item("BabyBear", "BabyBearP3")
             .include_item("BaseAluIo")
-            .include_item("BaseAluCols")
+            .include_item("BaseAluValueCols")
             .with_namespace("sp1_recursion_core_sys")
             .with_crate(crate_dir)
             .generate()

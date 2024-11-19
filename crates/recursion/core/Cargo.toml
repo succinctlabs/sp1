@@ -39,6 +39,7 @@ backtrace = { version = "0.3.71", features = ["serde"] }
 static_assertions = "1.1.0"
 thiserror = "1.0.60"
 vec_map = "0.8.2"
+num_cpus = "1.16.0"
 
 [dev-dependencies]
 rand = "0.8.5"
