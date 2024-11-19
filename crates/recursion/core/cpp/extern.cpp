@@ -4,6 +4,7 @@
 #include "batch_fri.hpp"
 #include "exp_reverse_bits.hpp"
 #include "fri_fold.hpp"
+#include "select.hpp"
 
 using namespace sp1_core_machine_sys;
 
@@ -36,5 +37,10 @@ extern "C" void fri_fold_event_to_row_babybear(const sp1_recursion_core_sys::Fri
     recursion::fri_fold::event_to_row<BabyBear>(
         *reinterpret_cast<const sp1_recursion_core_sys::FriFoldEvent<BabyBear>*>(io),
         *reinterpret_cast<sp1_recursion_core_sys::FriFoldCols<BabyBear>*>(cols));
+}
+extern "C" void select_event_to_row_babybear(const sp1_recursion_core_sys::SelectEvent<BabyBearP3>* io, sp1_recursion_core_sys::SelectCols<BabyBearP3>* cols) {
+    recursion::select::event_to_row<BabyBear>(
+        *reinterpret_cast<const sp1_recursion_core_sys::SelectEvent<BabyBear>*>(io),
+        *reinterpret_cast<sp1_recursion_core_sys::SelectCols<BabyBear>*>(cols));
 }
 }  // namespace sp1_recursion_core_sys

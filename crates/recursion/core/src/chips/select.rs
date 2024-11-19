@@ -229,4 +229,60 @@ mod tests {
 
         run_recursion_test_machines(program);
     }
+
+    #[cfg(feature = "sys")]
+    #[test]
+    fn test_generate_trace_ffi_eq_rust() {
+        type F = BabyBear;
+
+        let shard = ExecutionRecord {
+            select_events: vec![SelectIo {
+                bit: F::one(),
+                out1: F::from_canonical_u32(5),
+                out2: F::from_canonical_u32(3),
+                in1: F::from_canonical_u32(3),
+                in2: F::from_canonical_u32(5),
+            }],
+            ..Default::default()
+        };
+
+        let chip = SelectChip;
+        let trace: RowMajorMatrix<F> = chip.generate_trace(&shard, &mut ExecutionRecord::default());
+        let trace_ffi = generate_trace_ffi(&shard);
+
+        assert_eq!(trace_ffi, trace);
+    }
+
+    #[cfg(feature = "sys")]
+    fn generate_trace_ffi(input: &ExecutionRecord<BabyBear>) -> RowMajorMatrix<BabyBear> {
+        type F = BabyBear;
+
+        let events = &input.select_events;
+        let nb_rows = events.len();
+        let fixed_log2_rows = input.fixed_log2_rows(&SelectChip);
+        let padded_nb_rows = match fixed_log2_rows {
+            Some(log2_rows) => 1 << log2_rows,
+            None => next_power_of_two(nb_rows, None),
+        };
+        let mut values = vec![F::zero(); padded_nb_rows * SELECT_COLS];
+
+        let chunk_size = std::cmp::max(events.len() / num_cpus::get(), 1);
+        let populate_len = events.len() * SELECT_COLS;
+
+        values[..populate_len].par_chunks_mut(chunk_size * SELECT_COLS).enumerate().for_each(
+            |(i, rows)| {
+                rows.chunks_mut(SELECT_COLS).enumerate().for_each(|(j, row)| {
+                    let idx = i * chunk_size + j;
+                    if idx < events.len() {
+                        let cols: &mut SelectCols<_> = row.borrow_mut();
+                        unsafe {
+                            crate::sys::select_event_to_row_babybear(&events[idx], cols);
+                        }
+                    }
+                });
+            },
+        );
+
+        RowMajorMatrix::new(values, SELECT_COLS)
+    }
 }

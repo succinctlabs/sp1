@@ -111,6 +111,8 @@ mod sys {
             .include_item("ExpReverseBitsLenCols")
             .include_item("FriFoldEvent")
             .include_item("FriFoldCols")
+            .include_item("SelectEvent")
+            .include_item("SelectCols")
             .with_namespace("sp1_recursion_core_sys")
             .with_crate(crate_dir)
             .generate()

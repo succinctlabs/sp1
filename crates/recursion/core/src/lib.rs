@@ -119,6 +119,7 @@ pub type Poseidon2Event<F> = Poseidon2Io<F>;
 
 /// The inputs and outputs to a select operation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[repr(C)]
 pub struct SelectIo<V> {
     pub bit: V,
     pub out1: V,
