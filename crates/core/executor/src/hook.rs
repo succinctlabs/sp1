@@ -123,7 +123,7 @@ pub struct HookEnv<'a, 'b: 'a> {
 /// WARNING: This function is used to recover the public key outside of the zkVM context. These
 /// values must be constrained by the zkVM for correctness.
 ///
-/// Note: This hook will be deperecated in future versions.
+/// Note: This hook will be deprecated in future versions.
 #[must_use]
 pub fn hook_ecrecover(_: HookEnv, buf: &[u8]) -> Vec<Vec<u8>> {
     assert_eq!(buf.len(), 65 + 32, "ecrecover input should have length 65 + 32");
