@@ -15,6 +15,9 @@ pub const FD_HINT: u32 = 4;
 /// The file descriptor for the `ecreover` hook.
 pub const FD_ECRECOVER_HOOK: u32 = 5;
 
+/// The file descriptor through which to access `hook_ecrecover_2`.
+pub const FD_ECRECOVER_HOOK_2: u32 = 7;
+
 /// A writer that writes to a file descriptor inside the zkVM.
 struct SyscallWriter {
     fd: u32,
