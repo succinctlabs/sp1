@@ -26,7 +26,6 @@ template <class F> __SP1_HOSTDEV__ void instr_to_row(
     cols.is_real = F::one();
     cols.is_first = F::from_bool(i == 0);
 
-    // Single value memory accesses (only needed on first iteration)
     cols.z_mem.addr = instr.ext_single_addrs->z;
     cols.z_mem.mult = F::zero() - F::from_bool(i == 0);
     
@@ -36,7 +35,6 @@ template <class F> __SP1_HOSTDEV__ void instr_to_row(
     cols.alpha_mem.addr = instr.ext_single_addrs->alpha;
     cols.alpha_mem.mult = F::zero() - F::from_bool(i == 0);
 
-    // Input vector memory accesses
     cols.alpha_pow_input_mem.addr = instr.ext_vec_addrs_alpha_pow_input_ptr[i];
     cols.alpha_pow_input_mem.mult = F::zero() - F::one();
     
@@ -49,7 +47,6 @@ template <class F> __SP1_HOSTDEV__ void instr_to_row(
     cols.p_at_x_mem.addr = instr.ext_vec_addrs_mat_opening_ptr[i];
     cols.p_at_x_mem.mult = F::zero() - F::one();
 
-    // Output vector memory accesses
     cols.alpha_pow_output_mem.addr = instr.ext_vec_addrs_alpha_pow_output_ptr[i];
     cols.alpha_pow_output_mem.mult = instr.alpha_pow_mults_ptr[i];
     
