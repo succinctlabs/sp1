@@ -37,6 +37,11 @@ extern void batch_fri_event_to_row_babybear(const sp1_recursion_core_sys::BatchF
         *reinterpret_cast<const sp1_recursion_core_sys::BatchFRIEvent<BabyBear>*>(io),
         *reinterpret_cast<sp1_recursion_core_sys::BatchFRICols<BabyBear>*>(cols));
 }
+extern void batch_fri_instr_to_row_babybear(const sp1_recursion_core_sys::BatchFRIInstrC<BabyBearP3>* instr, sp1_recursion_core_sys::BatchFRIPreprocessedCols<BabyBearP3>* cols) {
+    recursion::batch_fri::instr_to_row<BabyBear>(
+        *reinterpret_cast<const sp1_recursion_core_sys::BatchFRIInstrC<BabyBear>*>(instr),
+        *reinterpret_cast<sp1_recursion_core_sys::BatchFRIPreprocessedCols<BabyBear>*>(cols));
+}
 
 extern void exp_reverse_bits_event_to_row_babybear(
     const sp1_recursion_core_sys::ExpReverseBitsEventC<BabyBearP3>* io,

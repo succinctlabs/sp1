@@ -277,11 +277,40 @@ pub struct BatchFRIBaseVecIo<V> {
 /// An instruction invoking the batch FRI operation. Addresses for extension field elements are of
 /// the same type as for base field elements.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[repr(C)]
 pub struct BatchFRIInstr<F> {
     pub base_vec_addrs: BatchFRIBaseVecIo<Vec<Address<F>>>,
     pub ext_single_addrs: BatchFRIExtSingleIo<Address<F>>,
     pub ext_vec_addrs: BatchFRIExtVecIo<Vec<Address<F>>>,
     pub acc_mult: F,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[repr(C)]
+pub struct BatchFRIInstrC<'a, F> {
+    pub base_vec_addrs_p_at_x_ptr: *const Address<F>,
+    pub base_vec_addrs_p_at_x_len: usize,
+    pub ext_single_addrs: *const BatchFRIExtSingleIo<Address<F>>,
+    pub ext_vec_addrs_p_at_z_ptr: *const Address<F>,
+    pub ext_vec_addrs_p_at_z_len: usize,
+    pub ext_vec_addrs_alpha_pow_ptr: *const Address<F>,
+    pub ext_vec_addrs_alpha_pow_len: usize,
+    pub acc_mult: &'a F,
+}
+
+impl<F> BatchFRIInstr<F> {
+    pub fn to_c(&self) -> BatchFRIInstrC<'_, F> {
+        BatchFRIInstrC {
+            base_vec_addrs_p_at_x_ptr: self.base_vec_addrs.p_at_x.as_ptr(),
+            base_vec_addrs_p_at_x_len: self.base_vec_addrs.p_at_x.len(),
+            ext_single_addrs: &self.ext_single_addrs,
+            ext_vec_addrs_p_at_z_ptr: self.ext_vec_addrs.p_at_z.as_ptr(),
+            ext_vec_addrs_p_at_z_len: self.ext_vec_addrs.p_at_z.len(),
+            ext_vec_addrs_alpha_pow_ptr: self.ext_vec_addrs.alpha_pow.as_ptr(),
+            ext_vec_addrs_alpha_pow_len: self.ext_vec_addrs.alpha_pow.len(),
+            acc_mult: &self.acc_mult,
+        }
+    }
 }
 
 /// The event encoding the data of a single iteration within the batch FRI operation.
