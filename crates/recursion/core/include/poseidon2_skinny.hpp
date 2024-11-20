@@ -10,5 +10,5 @@ __SP1_HOSTDEV__ void event_to_row(const Poseidon2Event<F>& event, size_t len,
 template <class F>
 __SP1_HOSTDEV__ void instr_to_row(const Poseidon2Instr<F>& instr, size_t i,
                                   size_t len,
-                                  Poseidon2PreprocessedCols<F>* cols) {}
+                                  Poseidon2PreprocessedColsSkinny<F>* cols) {}
 }  // namespace sp1_recursion_core_sys::poseidon2_skinny

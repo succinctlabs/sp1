@@ -13,7 +13,9 @@ pub struct RoundCountersPreprocessedCols<T: Copy> {
 
 #[derive(AlignedBorrow, Clone, Copy, Debug)]
 #[repr(C)]
-pub struct Poseidon2PreprocessedCols<T: Copy> {
+pub struct Poseidon2PreprocessedColsSkinny<T: Copy> {
     pub memory_preprocessed: [MemoryAccessColsChips<T>; WIDTH],
     pub round_counters_preprocessed: RoundCountersPreprocessedCols<T>,
 }
+
+pub type Poseidon2PreprocessedCols<T> = Poseidon2PreprocessedColsSkinny<T>;

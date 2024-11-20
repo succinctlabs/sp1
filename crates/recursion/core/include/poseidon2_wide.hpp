@@ -19,5 +19,5 @@ __SP1_HOSTDEV__ void event_to_row(const T (&input)[WIDTH],
 template <class T>
 __SP1_HOSTDEV__ void instr_to_row(const Poseidon2SkinnyInstr<T>& instr,
                                   size_t len,
-                                  Poseidon2PreprocessedCols<T>* cols) {}
+                                  Poseidon2PreprocessedColsWide<T>* cols) {}
 }  // namespace sp1_recursion_core_sys::poseidon2_wide

@@ -103,14 +103,28 @@ extern void select_instr_to_row_babybear(
       *reinterpret_cast<SelectPreprocessedCols<bb31_t>*>(cols));
 }
 
-extern void poseidon2_wide_event_to_row_babybear(
-    const BabyBearP3 (&input)[WIDTH],
-    BabyBearP3 (*external_rounds_state)[WIDTH],
-    BabyBearP3 internal_rounds_state[WIDTH],
-    BabyBearP3 internal_rounds_s0[NUM_INTERNAL_ROUNDS - 1],
-    BabyBearP3 external_sbox[WIDTH][NUM_EXTERNAL_ROUNDS],
-    BabyBearP3 internal_sbox[NUM_INTERNAL_ROUNDS],
-    BabyBearP3 output_state[WIDTH]) {
+extern void poseidon2_skinny_event_to_row_babybear(
+    const Poseidon2Event<BabyBearP3>* event, size_t len,
+    Poseidon2<BabyBearP3>* cols) {
+  poseidon2_skinny::event_to_row<bb31_t>(
+      *reinterpret_cast<const Poseidon2Event<bb31_t>*>(event), len,
+      reinterpret_cast<Poseidon2<bb31_t>*>(cols));
+}
+
+extern void poseidon2_skinny_instr_to_row_babybear(
+    const Poseidon2Instr<BabyBearP3>* instr, size_t i, size_t len,
+    Poseidon2PreprocessedColsSkinny<BabyBearP3>* cols) {
+  poseidon2_skinny::instr_to_row<bb31_t>(
+      *reinterpret_cast<const Poseidon2Instr<bb31_t>*>(instr), i, len,
+      reinterpret_cast<Poseidon2PreprocessedColsSkinny<bb31_t>*>(cols));
+}
+
+extern "C" void poseidon2_wide_event_to_row_babybear(
+    const BabyBearP3* input, BabyBearP3* external_rounds_state,
+    BabyBearP3* internal_rounds_state, BabyBearP3* internal_rounds_s0,
+    BabyBearP3* external_sbox, BabyBearP3* internal_sbox,
+    BabyBearP3* output_state) {
+
   bb31_t temp_input[WIDTH];
   bb31_t temp_internal_rounds_state[WIDTH];
   bb31_t temp_internal_rounds_s0[NUM_INTERNAL_ROUNDS - 1];
@@ -119,28 +133,54 @@ extern void poseidon2_wide_event_to_row_babybear(
   bb31_t temp_output_state[WIDTH];
   bb31_t temp_external_rounds_state[NUM_EXTERNAL_ROUNDS][WIDTH];
 
+  // Convert input array
   for (size_t i = 0; i < WIDTH; i++) {
     temp_input[i] = *reinterpret_cast<const bb31_t*>(&input[i]);
-  }
-
-  for (size_t i = 0; i < NUM_EXTERNAL_ROUNDS; i++) {
-    for (size_t j = 0; j < WIDTH; j++) {
-      temp_external_rounds_state[i][j] =
-          *reinterpret_cast<bb31_t*>(&external_rounds_state[i][j]);
-    }
   }
 
   poseidon2_wide::event_to_row<bb31_t>(
       temp_input, temp_external_rounds_state, temp_internal_rounds_state,
       temp_internal_rounds_s0, temp_external_sbox, temp_internal_sbox,
       temp_output_state);
-}
 
+  // Copy back results
+  for (size_t i = 0; i < NUM_EXTERNAL_ROUNDS; i++) {
+    for (size_t j = 0; j < WIDTH; j++) {
+      external_rounds_state[i * WIDTH + j] =
+          *reinterpret_cast<BabyBearP3*>(&temp_external_rounds_state[i][j]);
+    }
+  }
+
+  for (size_t i = 0; i < WIDTH; i++) {
+    internal_rounds_state[i] =
+        *reinterpret_cast<BabyBearP3*>(&temp_internal_rounds_state[i]);
+  }
+
+  for (size_t i = 0; i < NUM_INTERNAL_ROUNDS - 1; i++) {
+    internal_rounds_s0[i] =
+        *reinterpret_cast<BabyBearP3*>(&temp_internal_rounds_s0[i]);
+  }
+
+  for (size_t i = 0; i < WIDTH; i++) {
+    for (size_t j = 0; j < NUM_EXTERNAL_ROUNDS; j++) {
+      external_sbox[i * NUM_EXTERNAL_ROUNDS + j] =
+          *reinterpret_cast<BabyBearP3*>(&temp_external_sbox[i][j]);
+    }
+  }
+
+  for (size_t i = 0; i < NUM_INTERNAL_ROUNDS; i++) {
+    internal_sbox[i] = *reinterpret_cast<BabyBearP3*>(&temp_internal_sbox[i]);
+  }
+
+  for (size_t i = 0; i < WIDTH; i++) {
+    output_state[i] = *reinterpret_cast<BabyBearP3*>(&temp_output_state[i]);
+  }
+}
 extern void poseidon2_wide_instr_to_row_babybear(
     const Poseidon2SkinnyInstr<BabyBearP3>* instr, size_t len,
-    Poseidon2PreprocessedCols<BabyBearP3>* cols) {
+    Poseidon2PreprocessedColsWide<BabyBearP3>* cols) {
   poseidon2_wide::instr_to_row<bb31_t>(
       *reinterpret_cast<const Poseidon2SkinnyInstr<bb31_t>*>(instr), len,
-      reinterpret_cast<Poseidon2PreprocessedCols<bb31_t>*>(cols));
+      reinterpret_cast<Poseidon2PreprocessedColsWide<bb31_t>*>(cols));
 }
 }  // namespace sp1_recursion_core_sys

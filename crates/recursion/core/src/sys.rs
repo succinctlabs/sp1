@@ -7,9 +7,10 @@ use crate::{
         exp_reverse_bits::{ExpReverseBitsLenCols, ExpReverseBitsLenPreprocessedCols},
         fri_fold::{FriFoldCols, FriFoldPreprocessedCols},
         poseidon2_skinny::{
-            columns::{preprocessed::Poseidon2PreprocessedCols, Poseidon2},
+            columns::{preprocessed::Poseidon2PreprocessedColsSkinny, Poseidon2},
             NUM_EXTERNAL_ROUNDS, NUM_INTERNAL_ROUNDS,
         },
+        poseidon2_wide::columns::preprocessed::Poseidon2PreprocessedColsWide,
         public_values::{PublicValuesCols, PublicValuesPreprocessedCols},
         select::{SelectCols, SelectPreprocessedCols},
     },
@@ -99,7 +100,7 @@ extern "C-unwind" {
         instr: &Poseidon2Instr<BabyBear>,
         i: usize,
         len: usize,
-        cols: &mut Poseidon2PreprocessedCols<BabyBear>,
+        cols: &mut Poseidon2PreprocessedColsSkinny<BabyBear>,
     );
 
     pub fn poseidon2_wide_event_to_row_babybear(
@@ -114,6 +115,6 @@ extern "C-unwind" {
     pub fn poseidon2_wide_instr_to_row_babybear(
         instr: &Poseidon2Instr<BabyBear>,
         len: usize,
-        cols: &mut Poseidon2PreprocessedCols<BabyBear>,
+        cols: &mut Poseidon2PreprocessedColsWide<BabyBear>,
     );
 }
