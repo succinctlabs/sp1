@@ -47,7 +47,7 @@ __SP1_HOSTDEV__ __SP1_INLINE__ void populate_internal_rounds(
 }
 
 template <class F>
-__SP1_HOSTDEV__ void event_to_row(const Poseidon2Event<F>& event, size_t len,
+__SP1_HOSTDEV__ void event_to_row(const Poseidon2Event<F>& event,
                                   Poseidon2<F>* cols) {
   Poseidon2<F>& first_row = cols[0];
   for (size_t i = 0; i < 16; i++) {
