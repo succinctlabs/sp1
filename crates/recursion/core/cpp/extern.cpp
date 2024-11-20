@@ -176,10 +176,10 @@ extern "C" void poseidon2_wide_event_to_row_babybear(
   }
 }
 extern void poseidon2_wide_instr_to_row_babybear(
-    const Poseidon2SkinnyInstr<BabyBearP3>* instr, size_t len,
+    const Poseidon2SkinnyInstr<BabyBearP3>* instr,
     Poseidon2PreprocessedColsWide<BabyBearP3>* cols) {
   poseidon2_wide::instr_to_row<bb31_t>(
-      *reinterpret_cast<const Poseidon2SkinnyInstr<bb31_t>*>(instr), len,
-      reinterpret_cast<Poseidon2PreprocessedColsWide<bb31_t>*>(cols));
+      *reinterpret_cast<const Poseidon2SkinnyInstr<bb31_t>*>(instr),
+      *reinterpret_cast<Poseidon2PreprocessedColsWide<bb31_t>*>(cols));
 }
 }  // namespace sp1_recursion_core_sys

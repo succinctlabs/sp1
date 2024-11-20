@@ -486,11 +486,7 @@ mod tests {
             .for_each(|(row, instr)| {
                 let cols: &mut Poseidon2PreprocessedCols<_> = row.borrow_mut();
                 unsafe {
-                    crate::sys::poseidon2_wide_instr_to_row_babybear(
-                        instr,
-                        PREPROCESSED_POSEIDON2_WIDTH,
-                        cols,
-                    );
+                    crate::sys::poseidon2_wide_instr_to_row_babybear(instr, cols);
                 }
             });
 

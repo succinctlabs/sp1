@@ -113,7 +113,6 @@ extern "C-unwind" {
     );
     pub fn poseidon2_wide_instr_to_row_babybear(
         instr: &Poseidon2Instr<BabyBear>,
-        len: usize,
         cols: &mut Poseidon2PreprocessedColsWide<BabyBear>,
     );
 }
