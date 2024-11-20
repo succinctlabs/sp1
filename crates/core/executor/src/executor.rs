@@ -27,6 +27,15 @@ use crate::{
     Instruction, Opcode, Program, Register,
 };
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Whether to verify deferred proofs during execution.
+pub enum DeferredProofVerification {
+    /// Verify deferred proofs during execution.
+    Enabled,
+    /// Skip verification of deferred proofs
+    Disabled,
+}
+
 /// An executor for the SP1 RISC-V zkVM.
 ///
 /// The exeuctor is responsible for executing a user program and tracing important events which
@@ -77,6 +86,9 @@ pub struct Executor<'a> {
 
     /// The maximum number of cpu cycles to use for execution.
     pub max_cycles: Option<u64>,
+
+    /// Skip deferred proof verification.
+    pub deferred_proof_verification: DeferredProofVerification,
 
     /// The state of the execution.
     pub state: ExecutionState,
@@ -228,6 +240,11 @@ impl<'a> Executor<'a> {
             hook_registry,
             opts,
             max_cycles: context.max_cycles,
+            deferred_proof_verification: if context.skip_deferred_proof_verification {
+                DeferredProofVerification::Disabled
+            } else {
+                DeferredProofVerification::Enabled
+            },
             memory_checkpoint: PagedMemory::new_preallocated(),
             uninitialized_memory_checkpoint: PagedMemory::new_preallocated(),
             local_memory_access: HashMap::new(),
