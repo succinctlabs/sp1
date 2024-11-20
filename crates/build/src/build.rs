@@ -1,9 +1,5 @@
-use std::{
-    io::{BufRead, BufReader},
-    path::{Path, PathBuf},
-};
-
-use anyhow::{Context, Result};
+use std::path::{Path, PathBuf};
+use anyhow::Result;
 use cargo_metadata::camino::Utf8PathBuf;
 
 use crate::{
@@ -199,17 +195,6 @@ fn print_elf_paths_cargo_directives(target_elf_paths: &[(String, Utf8PathBuf)]) 
 ///
 /// This is also correct if future releases sharing the workspace version, which should be the case.
 fn verify_locked_version(program_dir: impl AsRef<Path>) -> Result<()> {
-    #[derive(serde::Deserialize)]
-    struct LockFile {
-        package: Vec<Package>,
-    }
-
-    #[derive(serde::Deserialize)]
-    struct Package {
-        name: String,
-        version: String,
-    }
-
     // we need an exception for our test fixtures
     if env!("CARGO_PKG_NAME") != "test-artifacts" {
         return Ok(());
@@ -239,26 +224,18 @@ fn verify_locked_version(program_dir: impl AsRef<Path>) -> Result<()> {
 
     println!("cargo:warning=Found Cargo.lock at {}", lock_path.display());
 
-    // strip any comments for serialization and the rust compiler header
-    let reader = BufReader::new(std::fs::File::open(&lock_path)?).lines();
-    let toml_string = reader
-        .skip(4)
-        .map(|line| line.context("Failed to readline from cargo lock file"))
-        .map(|line| line.map(|line| line + "\n"))
-        .collect::<Result<String>>()?;
+    let lock_file = cargo_lock::Lockfile::load(lock_path)?;
 
-    let locked = toml::from_str::<LockFile>(&toml_string)?;
-
-    let vm_package = locked
-        .package
+    let vm_package = lock_file
+        .packages
         .iter()
-        .find(|p| p.name == "sp1-zkvm")
+        .find(|p| p.name.as_str() == "sp1-zkvm")
         .ok_or_else(|| anyhow::anyhow!("sp1-zkvm not found in lock file!"))?;
 
-    let sp1_sdk = locked
-        .package
+    let sp1_sdk = lock_file
+        .packages
         .iter()
-        .find(|p| p.name == "sp1-sdk")
+        .find(|p| p.name.as_str() == "sp1-sdk")
         .ok_or_else(|| anyhow::anyhow!("sp1-sdk not found in lock file!"))?;
 
     // print these just to be useful
@@ -267,17 +244,21 @@ fn verify_locked_version(program_dir: impl AsRef<Path>) -> Result<()> {
     println!("cargo:warning=Locked version of sp1-sdk is {}", sp1_sdk.version);
     println!("cargo:warning=Current toolchain version = {}", toolchain_version);
 
-    let vm_version = semver::Version::parse(&vm_package.version)?;
     let toolchain_version = semver::Version::parse(toolchain_version)?;
-    let sp1_sdk_version = semver::Version::parse(&sp1_sdk.version)?;
+    let vm_version = &vm_package.version;
+    let sp1_sdk_version = &sp1_sdk.version;
 
-    if vm_version.major != toolchain_version.major
-        || vm_version.minor != toolchain_version.minor
-        || sp1_sdk_version.major != toolchain_version.major
+    if vm_version.major != toolchain_version.major || vm_version.minor != toolchain_version.minor {
+        return Err(anyhow::anyhow!(
+            "Locked version of sp1-zkvm is incompatible with the current toolchain version"
+        ));
+    }
+
+    if sp1_sdk_version.major != toolchain_version.major
         || sp1_sdk_version.minor != toolchain_version.minor
     {
         return Err(anyhow::anyhow!(
-            "Locked version of sp1-zkvm or sp1-sdk is incompatible with the current toolchain version"
+            "Locked version of sp1-sdk is incompatible with the current toolchain version"
         ));
     }
 
