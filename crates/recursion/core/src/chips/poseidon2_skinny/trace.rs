@@ -431,12 +431,7 @@ mod tests {
                     let cols: &mut Poseidon2PreprocessedCols<_> =
                         (*row).as_mut_slice().borrow_mut();
                     unsafe {
-                        crate::sys::poseidon2_skinny_instr_to_row_babybear(
-                            instruction,
-                            i,
-                            PREPROCESSED_POSEIDON2_WIDTH,
-                            cols,
-                        );
+                        crate::sys::poseidon2_skinny_instr_to_row_babybear(instruction, i, cols);
                     }
                 });
             },
