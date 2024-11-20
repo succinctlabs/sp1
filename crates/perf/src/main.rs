@@ -1,9 +1,12 @@
-use std::time::{Duration, Instant};
+use std::{
+    env,
+    time::{Duration, Instant},
+};
 
-use clap::{command, Parser, ValueEnum};
+use clap::{command, Parser};
 use sp1_cuda::SP1CudaProver;
-use sp1_prover::components::DefaultProverComponents;
 use sp1_prover::HashableKey;
+use sp1_prover::{components::DefaultProverComponents, ProverMode};
 use sp1_sdk::{self, ProverClient, SP1Context, SP1Prover, SP1Stdin};
 use sp1_stark::SP1ProverOpts;
 use test_artifacts::VERIFY_PROOF_ELF;
@@ -32,13 +35,6 @@ struct PerfResult {
     pub verify_shrink_duration: Duration,
     pub wrap_duration: Duration,
     pub verify_wrap_duration: Duration,
-}
-
-#[derive(Debug, Clone, ValueEnum, PartialEq, Eq)]
-enum ProverMode {
-    Cpu,
-    Cuda,
-    Network,
 }
 
 pub fn time_operation<T, F: FnOnce() -> T>(operation: F) -> (T, std::time::Duration) {
@@ -180,7 +176,23 @@ fn main() {
             println!("{:?}", result);
         }
         ProverMode::Network => {
-            let prover = ProverClient::network();
+            let private_key = env::var("SP1_PRIVATE_KEY")
+                .expect("SP1_PRIVATE_KEY must be set for remote proving");
+            let rpc_url = env::var("PROVER_NETWORK_RPC").ok();
+            let skip_simulation =
+                env::var("SKIP_SIMULATION").map(|val| val == "true").unwrap_or_default();
+
+            let mut prover_builder = ProverClient::builder().mode(ProverMode::Network);
+
+            if let Some(rpc_url) = rpc_url {
+                prover_builder = prover_builder.rpc_url(rpc_url);
+            }
+
+            if skip_simulation {
+                prover_builder = prover_builder.skip_simulation();
+            }
+
+            let prover = prover_builder.private_key(private_key).build();
             let (_, _) = time_operation(|| prover.execute(&elf, stdin.clone()));
 
             let (proof, _) =
@@ -192,5 +204,6 @@ fn main() {
 
             let (_, _) = time_operation(|| prover.verify(&proof, &vk));
         }
+        ProverMode::Mock => unreachable!(),
     };
 }
