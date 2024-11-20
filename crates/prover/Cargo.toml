@@ -82,6 +82,8 @@ required-features = ["export-tests"]
 
 
 [features]
+cuda = []
+network = []
 native-gnark = ["sp1-recursion-gnark-ffi/native"]
 export-tests = ["dep:test-artifacts"]
 debug = ["sp1-core-machine/debug"]

@@ -1,4 +1,3 @@
-use cfg_if::cfg_if;
 use std::path::PathBuf;
 
 #[cfg(any(feature = "network", feature = "network-v2"))]
@@ -42,18 +41,18 @@ pub fn try_install_circuit_artifacts(artifacts_type: &str) -> PathBuf {
             build_dir.display()
         );
     } else {
-        cfg_if! {
-            if #[cfg(any(feature = "network", feature = "network-v2"))] {
-                println!(
-                    "[sp1] {} circuit artifacts for version {} do not exist at {}. downloading...",
-                    artifacts_type,
-                    SP1_CIRCUIT_VERSION,
-                    build_dir.display()
-                );
-                install_circuit_artifacts(build_dir.clone(), artifacts_type);
-            }
-        }
+        #[cfg(any(feature = "network", feature = "network-v2"))] 
+        {
+            println!(
+                "[sp1] {} circuit artifacts for version {} do not exist at {}. downloading...",
+                artifacts_type,
+                SP1_CIRCUIT_VERSION,
+                build_dir.display()
+            );
+            install_circuit_artifacts(build_dir.clone(), artifacts_type);
+        };
     }
+
     build_dir
 }
 

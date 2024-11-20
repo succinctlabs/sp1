@@ -48,6 +48,9 @@ pub use sp1_prover::{
     SP1VerifyingKey,
 };
 
+#[cfg(any(feature = "network", feature = "network-v2"))]
+use conflicting::conflicting;
+
 /// A client for interacting with SP1.
 pub struct ProverClient {
     /// The underlying prover implementation.
@@ -71,6 +74,7 @@ impl ProverClient {
     /// std::env::set_var("SP1_PROVER", "local");
     /// let client = ProverClient::new();
     /// ```
+    #[deprecated = "Use `ProverClient::builder` instead"]
     pub fn new() -> Self {
         #[allow(unreachable_code)]
         match env::var("SP1_PROVER").unwrap_or("local".to_string()).to_lowercase().as_str() {
@@ -185,18 +189,18 @@ impl ProverClient {
     ///
     /// let client = ProverClient::network(private_key, rpc_url, skip_simulation);
     /// ```
+    #[cfg(any(feature = "network", feature = "network-v2"))]
     pub fn network(private_key: String, rpc_url: Option<String>, skip_simulation: bool) -> Self {
-        cfg_if! {
-            if #[cfg(feature = "network-v2")] {
-                Self {
-                    prover: Box::new(NetworkProverV2::new(&private_key, rpc_url, skip_simulation)),
-                }
-            } else if #[cfg(feature = "network")] {
+        conflicting! {
+            "network" => {
                 Self {
                     prover: Box::new(NetworkProverV1::new(&private_key, rpc_url, skip_simulation)),
                 }
-            } else {
-                panic!("network feature is not enabled")
+            },
+            "network-v2" => {
+                Self {
+                    prover: Box::new(NetworkProverV2::new(&private_key, rpc_url, skip_simulation)),
+                }
             }
         }
     }
@@ -315,7 +319,7 @@ impl ProverClient {
 
 impl Default for ProverClient {
     fn default() -> Self {
-        Self::new()
+        Self::cpu()
     }
 }
 
@@ -323,8 +327,11 @@ impl Default for ProverClient {
 #[derive(Debug, Default)]
 pub struct ProverClientBuilder {
     mode: Option<ProverMode>,
+    #[cfg(any(feature = "network", feature = "network-v2"))]
     private_key: Option<String>,
+    #[cfg(any(feature = "network", feature = "network-v2"))]
     rpc_url: Option<String>,
+    #[cfg(any(feature = "network", feature = "network-v2"))]
     skip_simulation: bool,
 }
 
@@ -336,18 +343,21 @@ impl ProverClientBuilder {
     }
 
     ///  Sets the private key.
+    #[cfg(any(feature = "network", feature = "network-v2"))]
     pub fn private_key(mut self, private_key: String) -> Self {
         self.private_key = Some(private_key);
         self
     }
 
     /// Sets the RPC URL.
+    #[cfg(any(feature = "network", feature = "network-v2"))]
     pub fn rpc_url(mut self, rpc_url: String) -> Self {
         self.rpc_url = Some(rpc_url);
         self
     }
 
     /// Skips simulation.
+    #[cfg(any(feature = "network", feature = "network-v2"))]
     pub fn skip_simulation(mut self) -> Self {
         self.skip_simulation = true;
         self
@@ -357,79 +367,29 @@ impl ProverClientBuilder {
     pub fn build(self) -> ProverClient {
         match self.mode.expect("The prover mode is required") {
             ProverMode::Cpu => ProverClient::cpu(),
+            #[cfg(feature = "cuda")]
             ProverMode::Cuda => {
-                cfg_if! {
-                    if #[cfg(feature = "cuda")] {
-                        ProverClient::cuda()
-                    } else {
-                        panic!("cuda feature is not enabled")
-                    }
-                }
+                ProverClient::cuda()
             }
+            #[cfg(any(feature = "network", feature = "network-v2"))]
             ProverMode::Network => {
                 let private_key = self.private_key.expect("The private key is required");
 
-                cfg_if! {
-                    if #[cfg(feature = "network-v2")] {
-                        ProverClient {
-                            prover: Box::new(NetworkProverV2::new(&private_key, self.rpc_url, self.skip_simulation)),
-                        }
-                    } else if #[cfg(feature = "network")] {
+                conflicting! {
+                    "network" => {
                         ProverClient {
                             prover: Box::new(NetworkProverV1::new(&private_key, self.rpc_url, self.skip_simulation)),
                         }
-                    } else {
-                        panic!("network feature is not enabled")
+                    },
+                    "network-v2" => {
+                        ProverClient {
+                            prover: Box::new(NetworkProverV2::new(&private_key, self.rpc_url, self.skip_simulation)),
+                        }
                     }
                 }
             }
             ProverMode::Mock => ProverClient::mock(),
         }
-    }
-}
-
-/// Builder type for network prover.
-#[cfg(any(feature = "network", feature = "network-v2"))]
-#[derive(Debug, Default)]
-pub struct NetworkProverBuilder {
-    private_key: Option<String>,
-    rpc_url: Option<String>,
-    skip_simulation: bool,
-}
-
-impl NetworkProverBuilder {
-    ///  Sets the private key.
-    pub fn private_key(mut self, private_key: String) -> Self {
-        self.private_key = Some(private_key);
-        self
-    }
-
-    /// Sets the RPC URL.
-    pub fn rpc_url(mut self, rpc_url: String) -> Self {
-        self.rpc_url = Some(rpc_url);
-        self
-    }
-
-    /// Skips simulation.
-    pub fn skip_simulation(mut self) -> Self {
-        self.skip_simulation = true;
-        self
-    }
-
-    /// Creates a new [NetworkProverV1].
-    #[cfg(feature = "network")]
-    pub fn build(self) -> NetworkProverV1 {
-        let private_key = self.private_key.expect("The private key is required");
-
-        NetworkProverV1::new(&private_key, self.rpc_url, self.skip_simulation)
-    }
-
-    /// Creates a new [NetworkProverV2].
-    #[cfg(feature = "network-v2")]
-    pub fn build_v2(self) -> NetworkProverV2 {
-        let private_key = self.private_key.expect("The private key is required");
-
-        NetworkProverV2::new(&private_key, self.rpc_url, self.skip_simulation)
     }
 }
 

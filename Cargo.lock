@@ -1464,6 +1464,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "conflicting"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "39614d6ae60f980e4d1b0aa93c4b4305304cdf9e74cef76e8895fb08e0c403f3"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.87",
+]
+
+[[package]]
 name = "console"
 version = "0.15.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5944,6 +5955,7 @@ dependencies = [
  "backoff",
  "bincode",
  "cfg-if",
+ "conflicting",
  "dirs",
  "futures",
  "hashbrown 0.14.5",

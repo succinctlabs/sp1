@@ -188,7 +188,9 @@ impl SP1Bn254ProofData {
 pub enum ProverMode {
     #[default]
     Cpu,
+    #[cfg(feature = "cuda")]
     Cuda,
+    #[cfg(feature = "network")]
     Network,
     #[value(skip)]
     Mock,
