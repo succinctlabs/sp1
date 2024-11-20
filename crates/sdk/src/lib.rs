@@ -112,7 +112,7 @@ impl ProverClient {
         }
     }
 
-    /// Returns a [ProverClientBuilder] to easily creating a [ProverClient].
+    /// Returns a [ProverClientBuilder] to easily create a [ProverClient].
     pub fn builder() -> ProverClientBuilder {
         ProverClientBuilder::default()
     }
