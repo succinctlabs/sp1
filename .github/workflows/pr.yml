@@ -36,6 +36,15 @@ jobs:
       - name: Setup CI
         uses: ./.github/actions/setup
 
+      - name: Cleanup disk space
+        run: |
+          df -h
+          sudo rm -rf /opt/hostedtoolcache
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/share/boost
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+          df -h
+
       - name: Install SP1 toolchain
         run: |
           curl -L https://sp1.succinct.xyz | bash
@@ -77,6 +86,15 @@ jobs:
 
       - name: Setup CI
         uses: ./.github/actions/setup
+
+      - name: Cleanup disk space
+        run: |
+          df -h
+          sudo rm -rf /opt/hostedtoolcache
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/share/boost
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+          df -h
 
       - name: Install SP1 toolchain
         run: |
@@ -273,6 +291,15 @@ jobs:
     steps:
       - name: Checkout sources
         uses: actions/checkout@v4
+
+      - name: Cleanup disk space
+        run: |
+          df -h
+          sudo rm -rf /opt/hostedtoolcache
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/share/boost
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+          df -h
 
       - name: Setup CI
         uses: ./.github/actions/setup
