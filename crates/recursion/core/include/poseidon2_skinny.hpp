@@ -582,6 +582,30 @@ __SP1_HOSTDEV__ void populate_external_round(F* round_state, size_t r,
 }
 
 template <class F>
+__SP1_HOSTDEV__ void populate_internal_rounds(F* state, F* internal_rounds_s0,
+                                              F* next_state_var) {
+  for (size_t i = 0; i < WIDTH; i++) {
+    next_state_var[i] = state[i];
+  }
+
+  for (size_t r = 0; r < NUM_INTERNAL_ROUNDS; r++) {
+    size_t round = r + NUM_EXTERNAL_ROUNDS / 2;
+    F add_rc = next_state_var[0] + F(F::to_monty(RC_16_30_U32[round][0]));
+
+    F sbox_deg_3 = add_rc * add_rc * add_rc;
+    F sbox_deg_7 = sbox_deg_3 * sbox_deg_3 * add_rc;
+
+    next_state_var[0] = sbox_deg_7;
+    // TODO
+    // internal_linear_layer<F>(next_state_var);
+
+    if (r < NUM_INTERNAL_ROUNDS - 1) {
+      internal_rounds_s0[r] = next_state_var[0];
+    }
+  }
+}
+
+template <class F>
 __SP1_HOSTDEV__ void event_to_row(const Poseidon2Event<F>& event, size_t len,
                                   Poseidon2<F>* cols) {
   Poseidon2<F>& first_row = cols[0];
