@@ -25,7 +25,7 @@ jobs:
         runs-on,
         runner=64cpu-linux-x64,
         spot=false,
-        hdd=41,
+        disk=large,
         "run-id=${{ github.run_id }}",
       ]
     env:
@@ -68,7 +68,7 @@ jobs:
         runs-on,
         runner=64cpu-linux-arm64,
         spot=false,
-        hdd=41,
+        disk=large,
         "run-id=${{ github.run_id }}",
       ]
     env:
@@ -153,7 +153,7 @@ jobs:
         runs-on,
         runner=64cpu-linux-x64,
         spot=false,
-        hdd=41,
+        disk=large,
         "run-id=${{ github.run_id }}",
       ]
     env:
@@ -268,7 +268,7 @@ jobs:
         runs-on,
         "ram=${{ matrix.mem_limit}}",
         family=c7a,
-        hdd=41,
+        disk=large,
         image=ubuntu22-full-x64,
         "run-id=${{ github.run_id }}",
       ]
@@ -431,7 +431,7 @@ jobs:
         runs-on,
         runner=64cpu-linux-x64,
         spot=false,
-        hdd=41,
+        disk=large,
         "run-id=${{ github.run_id }}",
       ]    
     env:
