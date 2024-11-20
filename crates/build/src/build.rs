@@ -195,7 +195,7 @@ fn print_elf_paths_cargo_directives(target_elf_paths: &[(String, Utf8PathBuf)]) 
 ///
 /// This is also correct if future releases sharing the workspace version, which should be the case.
 fn verify_locked_version(program_dir: impl AsRef<Path>) -> Result<()> {
-    // we need an exception for our test fixtures
+    // We need an exception for our test fixtures.
     if env!("CARGO_PKG_NAME") != "test-artifacts" {
         return Ok(());
     }
@@ -238,7 +238,7 @@ fn verify_locked_version(program_dir: impl AsRef<Path>) -> Result<()> {
         .find(|p| p.name.as_str() == "sp1-sdk")
         .ok_or_else(|| anyhow::anyhow!("sp1-sdk not found in lock file!"))?;
 
-    // print these just to be useful
+    // Print these just to be useful.
     let toolchain_version = env!("CARGO_PKG_VERSION");
     println!("cargo:warning=Locked version of sp1-zkvm is {}", vm_package.version);
     println!("cargo:warning=Locked version of sp1-sdk is {}", sp1_sdk.version);
