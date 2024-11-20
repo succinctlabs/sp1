@@ -5,7 +5,7 @@ use crate::{
         client::NetworkClient,
         proto::network::{ProofMode, ProofStatus},
     },
-    NetworkProverBuilder, Prover, SP1Context, SP1ProofKind, SP1ProofWithPublicValues,
+    Prover, SP1Context, SP1ProofKind, SP1ProofWithPublicValues,
     SP1ProvingKey, SP1VerifyingKey,
 };
 use anyhow::Result;
@@ -37,11 +37,6 @@ impl NetworkProver {
 
         let local_prover = CpuProver::new();
         Self { client: NetworkClient::new(private_key, rpc_url), local_prover, skip_simulation }
-    }
-
-    /// Creates a new network prover builder. See [`NetworkProverBuilder`] for more details.
-    pub fn builder() -> NetworkProverBuilder {
-        NetworkProverBuilder::default()
     }
 
     /// Requests a proof from the prover network, returning the proof ID.
