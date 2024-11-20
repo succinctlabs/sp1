@@ -3,7 +3,7 @@
 #include "prelude.hpp"
 #include "babybear.hpp"
 
-namespace sp1_core_machine_sys::septic {
+namespace sp1_core_machine_sys {
     struct BabyBearSeptic {
         // The value of BabyBear septic extension element, in Montgomery form. 
         BabyBear value[7];

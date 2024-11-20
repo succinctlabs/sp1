@@ -22,7 +22,8 @@ extern "C-unwind" {
     pub fn cpu_event_to_row_babybear(event: &CpuEventFfi, cols: &mut CpuCols<BabyBear>);
     pub fn memory_local_event_to_row_babybear(
         event: &MemoryLocalEvent,
-        cols: &mut GlobalInteractionOperation<BabyBear>,
+        cols_init: &mut GlobalInteractionOperation<BabyBear>,
+        cols_final: &mut GlobalInteractionOperation<BabyBear>,
     );
 }
 

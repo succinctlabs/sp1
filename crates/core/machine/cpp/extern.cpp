@@ -1,4 +1,5 @@
 #include "babybear.hpp"
+#include "babybear_septic.hpp"
 #include "sys.hpp"
 
 namespace sp1_core_machine_sys {
@@ -30,7 +31,7 @@ extern void cpu_event_to_row_babybear(const CpuEventFfi* event, CpuCols<BabyBear
     cpu::event_to_row<BabyBear>(*event, *cols);
 }
 
-extern void memory_local_event_to_row_babybear(const MemoryLocalEvent* event, GlobalInteractionOperation<BabyBearP3>* cols) {
-    memory_local::event_to_row<BabyBear>(*event, *cols);
+extern void memory_local_event_to_row_babybear(const MemoryLocalEvent* event, GlobalInteractionOperation<BabyBearP3>* cols_init, GlobalInteractionOperation<BabyBearP3>* cols_final) {
+    memory_local::event_to_row<BabyBear, BabyBearSeptic>(*event, *cols_init, *cols_final);
 }
 }  // namespace sp1

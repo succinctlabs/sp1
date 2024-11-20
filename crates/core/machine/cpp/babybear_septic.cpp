@@ -5,7 +5,6 @@
 #include <cstdint>
 
 using namespace sp1_core_machine_sys;
-using namespace sp1_core_machine_sys::septic;
 
 BabyBearSeptic BabyBearSeptic::zero() {
     return BabyBearSeptic(BabyBear::zero());
