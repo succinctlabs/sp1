@@ -209,6 +209,8 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for FriFoldChip<DEGREE>
             })
             .collect_vec();
 
+        println!("num rows for fri fold: {}", rows.len());
+
         // Pad the trace to a power of two.
         if self.pad {
             pad_rows_fixed(&mut rows, || [F::zero(); NUM_FRI_FOLD_COLS], self.fixed_log2_rows);

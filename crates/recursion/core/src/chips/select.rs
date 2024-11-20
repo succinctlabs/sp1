@@ -96,6 +96,9 @@ impl<F: PrimeField32> MachineAir<F> for SelectChip {
     fn generate_trace(&self, input: &Self::Record, _: &mut Self::Record) -> RowMajorMatrix<F> {
         let events = &input.select_events;
         let nb_rows = events.len();
+
+        println!("num rows for select: {}", nb_rows);
+
         let fixed_log2_rows = input.fixed_log2_rows(self);
         let padded_nb_rows = match fixed_log2_rows {
             Some(log2_rows) => 1 << log2_rows,
