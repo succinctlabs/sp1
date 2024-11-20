@@ -6,12 +6,12 @@ use crate::{
         batch_fri::{BatchFRICols, BatchFRIPreprocessedCols},
         exp_reverse_bits::{ExpReverseBitsLenCols, ExpReverseBitsLenPreprocessedCols},
         fri_fold::{FriFoldCols, FriFoldPreprocessedCols},
-        public_values::PublicValuesCols,
+        public_values::{PublicValuesCols, PublicValuesPreprocessedCols},
         select::SelectCols,
     },
     BaseAluInstr, BaseAluIo, BatchFRIEvent, BatchFRIInstrC, CommitPublicValuesEvent,
-    ExpReverseBitsEventC, ExpReverseBitsInstrC, ExtAluInstr, ExtAluIo, FriFoldEvent, FriFoldInstrC,
-    SelectEvent,
+    CommitPublicValuesInstr, ExpReverseBitsEventC, ExpReverseBitsInstrC, ExtAluInstr, ExtAluIo,
+    FriFoldEvent, FriFoldInstrC, SelectEvent,
 };
 use p3_baby_bear::BabyBear;
 
@@ -71,6 +71,11 @@ extern "C-unwind" {
         io: &CommitPublicValuesEvent<BabyBear>,
         digest_idx: usize,
         cols: &mut PublicValuesCols<BabyBear>,
+    );
+    pub fn public_values_instr_to_row_babybear(
+        instr: &CommitPublicValuesInstr<BabyBear>,
+        digest_idx: usize,
+        cols: &mut PublicValuesPreprocessedCols<BabyBear>,
     );
 
     pub fn select_event_to_row_babybear(

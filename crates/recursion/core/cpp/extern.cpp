@@ -83,6 +83,12 @@ extern void public_values_event_to_row_babybear(const sp1_recursion_core_sys::Co
         digest_idx,
         *reinterpret_cast<sp1_recursion_core_sys::PublicValuesCols<BabyBear>*>(cols));
 }
+extern void public_values_instr_to_row_babybear(const sp1_recursion_core_sys::CommitPublicValuesInstr<BabyBearP3>* instr, size_t digest_idx, sp1_recursion_core_sys::PublicValuesPreprocessedCols<BabyBearP3>* cols) {
+    recursion::public_values::instr_to_row<BabyBear>(
+        *reinterpret_cast<const sp1_recursion_core_sys::CommitPublicValuesInstr<BabyBear>*>(instr),
+        digest_idx,
+        *reinterpret_cast<sp1_recursion_core_sys::PublicValuesPreprocessedCols<BabyBear>*>(cols));
+}
 
 extern void select_event_to_row_babybear(const sp1_recursion_core_sys::SelectEvent<BabyBearP3>* io, sp1_recursion_core_sys::SelectCols<BabyBearP3>* cols) {
     recursion::select::event_to_row<BabyBear>(

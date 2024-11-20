@@ -16,7 +16,7 @@ use crate::{
 
 use crate::DIGEST_SIZE;
 
-use super::mem::MemoryAccessCols;
+use super::mem::{MemoryAccessCols, MemoryAccessColsChips};
 
 pub const NUM_PUBLIC_VALUES_COLS: usize = core::mem::size_of::<PublicValuesCols<u8>>();
 pub const NUM_PUBLIC_VALUES_PREPROCESSED_COLS: usize =
@@ -32,7 +32,7 @@ pub struct PublicValuesChip;
 #[repr(C)]
 pub struct PublicValuesPreprocessedCols<T: Copy> {
     pub pv_idx: [T; DIGEST_SIZE],
-    pub pv_mem: MemoryAccessCols<T>,
+    pub pv_mem: MemoryAccessColsChips<T>,
 }
 
 /// The cols for a CommitPVHash invocation.
@@ -307,5 +307,92 @@ mod tests {
         );
 
         RowMajorMatrix::new(rows.into_iter().flatten().collect(), NUM_PUBLIC_VALUES_COLS)
+    }
+
+    #[test]
+    fn generate_public_values_preprocessed_trace() {
+        type F = BabyBear;
+
+        let addr = 0u32;
+        let public_values_a: [u32; RECURSIVE_PROOF_NUM_PV_ELTS] =
+            array::from_fn(|i| i as u32 + addr);
+        let public_values: &RecursionPublicValues<u32> = public_values_a.as_slice().borrow();
+
+        let program = RecursionProgram::<F> {
+            instructions: vec![instr::commit_public_values(public_values)],
+            ..Default::default()
+        };
+
+        let chip = PublicValuesChip;
+        let trace = chip.generate_preprocessed_trace(&program).unwrap();
+        println!("{:?}", trace.values);
+    }
+
+    #[cfg(feature = "sys")]
+    #[test]
+    fn test_generate_preprocessed_trace_ffi_eq_rust() {
+        let addr = 0u32;
+        let public_values_a: [u32; RECURSIVE_PROOF_NUM_PV_ELTS] =
+            array::from_fn(|i| i as u32 + addr);
+        let public_values: &RecursionPublicValues<u32> = public_values_a.as_slice().borrow();
+
+        let program = RecursionProgram {
+            instructions: vec![instr::commit_public_values(public_values)],
+            ..Default::default()
+        };
+
+        let chip = PublicValuesChip;
+        let trace = chip.generate_preprocessed_trace(&program).unwrap();
+        let trace_ffi = generate_preprocessed_trace_ffi(&program);
+
+        assert_eq!(trace_ffi, trace);
+    }
+
+    #[cfg(feature = "sys")]
+    fn generate_preprocessed_trace_ffi(
+        program: &RecursionProgram<BabyBear>,
+    ) -> RowMajorMatrix<BabyBear> {
+        type F = BabyBear;
+
+        let mut rows: Vec<[F; NUM_PUBLIC_VALUES_PREPROCESSED_COLS]> = Vec::new();
+        let commit_pv_hash_instrs = program
+            .instructions
+            .iter()
+            .filter_map(|instruction| {
+                if let Instruction::CommitPublicValues(instr) = instruction {
+                    Some(instr)
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>();
+
+        if commit_pv_hash_instrs.len() != 1 {
+            tracing::warn!("Expected exactly one CommitPVHash instruction.");
+        }
+
+        // We only take 1 commit pv hash instruction
+        for instr in commit_pv_hash_instrs.iter().take(1) {
+            for i in 0..DIGEST_SIZE {
+                let mut row = [F::zero(); NUM_PUBLIC_VALUES_PREPROCESSED_COLS];
+                let cols: &mut PublicValuesPreprocessedCols<F> = row.as_mut_slice().borrow_mut();
+                unsafe {
+                    crate::sys::public_values_instr_to_row_babybear(instr, i, cols);
+                }
+                rows.push(row);
+            }
+        }
+
+        // Pad the preprocessed rows to 8 rows
+        pad_rows_fixed(
+            &mut rows,
+            || [F::zero(); NUM_PUBLIC_VALUES_PREPROCESSED_COLS],
+            Some(PUB_VALUES_LOG_HEIGHT),
+        );
+
+        RowMajorMatrix::new(
+            rows.into_iter().flatten().collect(),
+            NUM_PUBLIC_VALUES_PREPROCESSED_COLS,
+        )
     }
 }
