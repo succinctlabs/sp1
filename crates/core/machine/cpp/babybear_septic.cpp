@@ -3,7 +3,7 @@
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
-
+#include <iostream>
 using namespace sp1_core_machine_sys;
 
 BabyBearSeptic BabyBearSeptic::zero() {
@@ -55,6 +55,9 @@ BabyBearSeptic& BabyBearSeptic::operator*=(const BabyBear b) {
 
 BabyBearSeptic& BabyBearSeptic::operator*=(const BabyBearSeptic b) {
     BabyBear res[13] = {};
+    for(uintptr_t i = 0 ; i < 13 ; i++) {
+        res[i] = BabyBear::zero();
+    }
     for(uintptr_t i = 0 ; i < 7 ; i++) {
         for(uintptr_t j = 0 ; j < 7 ; j++) {
             res[i + j] += value[i] * b.value[j];
@@ -83,6 +86,9 @@ BabyBearSeptic BabyBearSeptic::frobenius() const {
     BabyBear res[7] = {};
     res[0] = value[0];
     for(uintptr_t i = 1 ; i < 7 ; i++) {
+        res[i] = BabyBear::zero();
+    }
+    for(uintptr_t i = 1 ; i < 7 ; i++) {
         for(uintptr_t j = 0 ; j < 7 ; j++) {
             res[j] += value[i] * frobenius_const[i][j];
         }
@@ -93,6 +99,9 @@ BabyBearSeptic BabyBearSeptic::frobenius() const {
 BabyBearSeptic BabyBearSeptic::double_frobenius() const {
     BabyBear res[7] = {};
     res[0] = value[0];
+    for(uintptr_t i = 1 ; i < 7 ; i++) {
+        res[i] = BabyBear::zero();
+    }
     for(uintptr_t i = 1 ; i < 7 ; i++) {
         for(uintptr_t j = 0 ; j < 7 ; j++) {
             res[j] += value[i] * double_frobenius_const[i][j];
@@ -110,8 +119,8 @@ BabyBearSeptic BabyBearSeptic::pow_r_1() const {
 }
 
 BabyBear BabyBearSeptic::pow_r() const {
-    BabyBearSeptic pow_r_1 = this->pow_r_1();
-    BabyBearSeptic pow_r = pow_r_1 * *this;
+    BabyBearSeptic pow_r1 = pow_r_1();
+    BabyBearSeptic pow_r = pow_r1 * *this;
     for(uintptr_t i = 1 ; i < 7 ; i++) {
         assert(pow_r.value[i] == BabyBear::zero());
     }
@@ -171,6 +180,20 @@ BabyBearSeptic BabyBearSeptic::curve_formula() const {
     BabyBearSeptic result = (*this * *this + BabyBear::two()) * *this;
     result.value[5] += BabyBear::from_canonical_u32(26);
     return result;
+}
+
+bool BabyBearSeptic::is_receive() const {
+    uint32_t limb = value[6].as_canonical_u32();
+    return 1 <= limb && limb <= (BabyBear::MOD - 1) / 2;
+}
+
+bool BabyBearSeptic::is_send() const {
+    uint32_t limb = value[6].as_canonical_u32();
+    return (BabyBear::MOD + 1) / 2 <= limb && limb <= (BabyBear::MOD - 1);
+}
+
+bool BabyBearSeptic::is_exception() const {
+    return value[6] == BabyBear::zero();
 }
 
 BabyBearCipolla BabyBearCipolla::one() {

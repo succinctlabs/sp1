@@ -31,7 +31,11 @@ extern void cpu_event_to_row_babybear(const CpuEventFfi* event, CpuCols<BabyBear
     cpu::event_to_row<BabyBear>(*event, *cols);
 }
 
-extern void memory_local_event_to_row_babybear(const MemoryLocalEvent* event, GlobalInteractionOperation<BabyBearP3>* cols_init, GlobalInteractionOperation<BabyBearP3>* cols_final) {
-    memory_local::event_to_row<BabyBear, BabyBearSeptic>(*event, *cols_init, *cols_final);
+extern void memory_local_event_to_row_babybear(const MemoryLocalEvent* event, SingleMemoryLocal<BabyBearP3>* cols) {
+    memory_local::event_to_row<BabyBear, BabyBearSeptic>(*event, *cols);
 }
+
+/*extern void memory_local_event_to_row_babybear_padding(SingleMemoryLocal<BabyBearP3>* cols) {
+    memory_local::event_to_row_padding<BabyBear, BabyBearSeptic>(*cols);
+}*/
 }  // namespace sp1

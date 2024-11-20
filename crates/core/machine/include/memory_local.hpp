@@ -21,17 +21,49 @@ namespace sp1_core_machine_sys::memory_local {
             EF7 y_sq = x_trial.curve_formula();
             F y_sq_pow_r = y_sq.pow_r();
             if(y_sq_pow_r.is_square()) {
-                break;
+                EF7 y = y_sq.sqrt(y_sq_pow_r);
+                if (y.is_exception()) {
+                    continue;
+                }
+                if (y.is_receive() != is_receive) {
+                    y = EF7::zero() - y;
+                }
+                // x_trial, y
+                cols.offset = F::from_canonical_u32(offset).val;
+                for(uintptr_t i = 0 ; i < 7 ; i++) {
+                    cols.x_coordinate._0[i] = x_trial.value[i].val;
+                    cols.y_coordinate._0[i] = y.value[i].val;
+                }
+                uint32_t range_check_value;
+                if (is_receive) {
+                    range_check_value = y.value[6].as_canonical_u32() - 1;
+                } else {
+                    range_check_value = y.value[6].as_canonical_u32() - (F::MOD + 1) / 2;
+                }
+                write_word_from_u32<F>(cols.y6_byte_decomp, range_check_value);
+                /*cols.y6_byte_decomp._0[0] = F::from_canonical_u8(range_check_value).val;
+                cols.y6_byte_decomp._0[1] = F::from_canonical_u8(range_check_value >> 8).val;
+                cols.y6_byte_decomp._0[2] = F::from_canonical_u8(range_check_value >> 16).val;
+                cols.y6_byte_decomp._0[3] = F::from_canonical_u8(range_check_value >> 24).val;*/
+                return;
             }
-            
         }
-
-
     }
 
     template<class F, class EF7>
-    __SP1_HOSTDEV__ void event_to_row(const MemoryLocalEvent& event, GlobalInteractionOperation<decltype(F::val)>& cols_init, GlobalInteractionOperation<decltype(F::val)>& cols_final) {
-        populate_memory<F, EF7>(cols_init, event.initial_mem_access, event.addr, true);
-        populate_memory<F, EF7>(cols_final, event.final_mem_access, event.addr, false);
+    __SP1_HOSTDEV__ void event_to_row(const MemoryLocalEvent& event, SingleMemoryLocal<decltype(F::val)>& cols) {
+        populate_memory<F, EF7>(cols.initial_global_interaction_cols, event.initial_mem_access, event.addr, true);
+        populate_memory<F, EF7>(cols.final_global_interaction_cols, event.final_mem_access, event.addr, false);
+        cols.addr = F::from_canonical_u32(event.addr).val;
+        
+        cols.initial_shard = F::from_canonical_u32(event.initial_mem_access.shard).val;
+        cols.initial_clk = F::from_canonical_u32(event.initial_mem_access.timestamp).val;
+        write_word_from_u32<F>(cols.initial_value, event.initial_mem_access.value);
+        
+        cols.final_shard = F::from_canonical_u32(event.final_mem_access.shard).val;
+        cols.final_clk = F::from_canonical_u32(event.final_mem_access.timestamp).val;
+        write_word_from_u32<F>(cols.final_value, event.final_mem_access.value);
+
+        cols.is_real = F::one().val;
     }
 }  // namespace sp1::memory_local

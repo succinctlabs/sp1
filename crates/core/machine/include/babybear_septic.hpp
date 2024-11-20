@@ -143,6 +143,12 @@ namespace sp1_core_machine_sys {
         BabyBearSeptic universal_hash() const;
 
         BabyBearSeptic curve_formula() const;
+
+        bool is_receive() const;
+
+        bool is_send() const;
+
+        bool is_exception() const;
     };
 
     struct BabyBearSepticCurve {
