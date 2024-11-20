@@ -7,4 +7,5 @@
 #include "fri_fold.hpp"
 #include "public_values.hpp"
 #include "select.hpp"
+#include "poseidon2_skinny.hpp"
 #include "sp1-recursion-core-sys-cbindgen.hpp"
