@@ -533,6 +533,25 @@ constexpr uint32_t RC_16_30_U32[30][16] = {
         3799795076U,
     }};
 
+static const bb31_t POSEIDON2_INTERNAL_MATRIX_DIAG_16_BABYBEAR_MONTY[16] = {
+    bb31_t::from_canonical_u32(0x78000001u - 2),  // BabyBear::ORDER_U32 - 2
+    bb31_t::from_canonical_u32(1),                // 1
+    bb31_t::from_canonical_u32(1 << 1),           // 1 << 1
+    bb31_t::from_canonical_u32(1 << 2),           // 1 << 2
+    bb31_t::from_canonical_u32(1 << 3),           // 1 << 3
+    bb31_t::from_canonical_u32(1 << 4),           // 1 << 4
+    bb31_t::from_canonical_u32(1 << 5),           // 1 << 5
+    bb31_t::from_canonical_u32(1 << 6),           // 1 << 6
+    bb31_t::from_canonical_u32(1 << 7),           // 1 << 7
+    bb31_t::from_canonical_u32(1 << 8),           // 1 << 8
+    bb31_t::from_canonical_u32(1 << 9),           // 1 << 9
+    bb31_t::from_canonical_u32(1 << 10),          // 1 << 10
+    bb31_t::from_canonical_u32(1 << 11),          // 1 << 11
+    bb31_t::from_canonical_u32(1 << 12),          // 1 << 12
+    bb31_t::from_canonical_u32(1 << 13),          // 1 << 13
+    bb31_t::from_canonical_u32(1 << 15),          // 1 << 15
+};
+
 template <class F>
 __SP1_HOSTDEV__ __SP1_INLINE__ void external_linear_layer(F* state_var) {
   for (size_t j = 0; j < WIDTH; j += 4) {
@@ -566,8 +585,9 @@ __SP1_HOSTDEV__ __SP1_INLINE__ void external_linear_layer(F* state_var) {
 }
 
 template <class F>
-__SP1_HOSTDEV__ void populate_external_round(F* round_state, size_t r,
-                                             F* next_state_var) {
+__SP1_HOSTDEV__ __SP1_INLINE__ void populate_external_round(F* round_state,
+                                                            size_t r,
+                                                            F* next_state_var) {
   size_t round =
       (r < NUM_EXTERNAL_ROUNDS / 2) ? r : r + NUM_INTERNAL_ROUNDS - 1;
 
@@ -582,8 +602,8 @@ __SP1_HOSTDEV__ void populate_external_round(F* round_state, size_t r,
 }
 
 template <class F>
-__SP1_HOSTDEV__ void populate_internal_rounds(F* state, F* internal_rounds_s0,
-                                              F* next_state_var) {
+__SP1_HOSTDEV__ __SP1_INLINE__ void populate_internal_rounds(
+    F* state, F* internal_rounds_s0, F* next_state_var) {
   for (size_t i = 0; i < WIDTH; i++) {
     next_state_var[i] = state[i];
   }
@@ -596,12 +616,21 @@ __SP1_HOSTDEV__ void populate_internal_rounds(F* state, F* internal_rounds_s0,
     F sbox_deg_7 = sbox_deg_3 * sbox_deg_3 * add_rc;
 
     next_state_var[0] = sbox_deg_7;
-    // TODO
-    // internal_linear_layer<F>(next_state_var);
+    internal_linear_layer<F>(next_state_var);
 
     if (r < NUM_INTERNAL_ROUNDS - 1) {
       internal_rounds_s0[r] = next_state_var[0];
     }
+  }
+}
+
+template <class F>
+__SP1_HOSTDEV__ __SP1_INLINE__ void internal_linear_layer(F* state) {
+  F matmul_constants[WIDTH];
+  for (size_t i = 0; i < WIDTH; i++) {
+    matmul_constants[i] =
+        F(F::to_monty(POSEIDON2_INTERNAL_MATRIX_DIAG_16_BABYBEAR_MONTY[i]
+                          .as_canonical_u32()));
   }
 }
 
