@@ -1,8 +1,11 @@
 #pragma once
 
+#include "poseidon2.hpp"
 #include "prelude.hpp"
 
 namespace sp1_recursion_core_sys::poseidon2_wide {
+using namespace poseidon2;
+
 template <class T>
 __SP1_HOSTDEV__ void event_to_row(const T (&input)[WIDTH],
                                   T (*external_rounds_state)[WIDTH],
