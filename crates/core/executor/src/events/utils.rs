@@ -64,7 +64,6 @@ where
 /// It's possible to hide rows with 0 count by setting `hide_zeros` to true.
 pub fn generate_execution_report<'a, K, V>(
     table: impl IntoIterator<Item = (K, &'a V)> + 'a,
-    hide_zeros: bool,
 ) -> impl Iterator<Item = String> + 'a
 where
     K: Ord + Display + 'a,
@@ -73,6 +72,6 @@ where
     let (width, lines) = sorted_table_lines(table);
 
     lines
-        .filter(move |(_, count)| !hide_zeros || **count != 0_u64)
+        .filter(move |(_, count)| **count != 0)
         .map(move |(label, count)| format!("  {}", format_table_line(&width, &label, count)))
 }
