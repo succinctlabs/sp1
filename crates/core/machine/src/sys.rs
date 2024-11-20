@@ -1,6 +1,5 @@
 use crate::{
     alu::{AddSubCols, BitwiseCols, LtCols, MulCols, ShiftLeftCols, ShiftRightCols},
-    cpu::columns::CpuCols,
     memory::SingleMemoryLocal,
 };
 use hashbrown::HashMap;
@@ -19,7 +18,6 @@ extern "C-unwind" {
     pub fn lt_event_to_row_babybear(event: &AluEvent, cols: &mut LtCols<BabyBear>);
     pub fn sll_event_to_row_babybear(event: &AluEvent, cols: &mut ShiftLeftCols<BabyBear>);
     pub fn sr_event_to_row_babybear(event: &AluEvent, cols: &mut ShiftRightCols<BabyBear>);
-    pub fn cpu_event_to_row_babybear(event: &CpuEventFfi, cols: &mut CpuCols<BabyBear>);
     pub fn memory_local_event_to_row_babybear(
         event: &MemoryLocalEvent,
         cols: &mut SingleMemoryLocal<BabyBear>,

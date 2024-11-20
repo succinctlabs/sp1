@@ -55,8 +55,8 @@ write_word_from_u32(Word<decltype(F::val)>& word, const uint32_t value) {
 }
 
 template<class F>
-__SP1_HOSTDEV__ __SP1_INLINE__ void write_word_from_u32_v2(Word<F>& word, const uint32_t value) {
-    // Coercion to `uint8_t` truncates the number.
+__SP1_HOSTDEV__ __SP1_INLINE__ void
+write_word_from_u32_v2(Word<F>& word, const uint32_t value) {
     word._0[0] = F::from_canonical_u8(value);
     word._0[1] = F::from_canonical_u8(value >> 8);
     word._0[2] = F::from_canonical_u8(value >> 16);
@@ -64,16 +64,19 @@ __SP1_HOSTDEV__ __SP1_INLINE__ void write_word_from_u32_v2(Word<F>& word, const 
 }
 
 template<class F>
-__SP1_HOSTDEV__ __SP1_INLINE__ uint32_t word_to_u32(const Word<decltype(F::val)>& word) {
-    return ((uint8_t)F(word._0[0]).as_canonical_u32())  // Comments required to
-        + ((uint8_t)F(word._0[1]).as_canonical_u32() << 8)  // make my editor format
-        + ((uint8_t)F(word._0[1]).as_canonical_u32() << 16)  // the code nicely.
+__SP1_HOSTDEV__ __SP1_INLINE__ uint32_t
+word_to_u32(const Word<decltype(F::val)>& word) {
+    return ((uint8_t)F(word._0[0]).as_canonical_u32())
+        + ((uint8_t)F(word._0[1]).as_canonical_u32() << 8)
+        + ((uint8_t)F(word._0[1]).as_canonical_u32() << 16)
         + ((uint8_t)F(word._0[1]).as_canonical_u32() << 24);
 }
 
 template<class F>
-__SP1_HOSTDEV__ __SP1_INLINE__ void
-word_from_le_bytes(Word<decltype(F::val)>& word, const array_t<uint8_t, 4> bytes) {
+__SP1_HOSTDEV__ __SP1_INLINE__ void word_from_le_bytes(
+    Word<decltype(F::val)>& word,
+    const array_t<uint8_t, 4> bytes
+) {
     // Coercion to `uint8_t` truncates the number.
     word._0[0] = F::from_canonical_u8(bytes[0]).val;
     word._0[1] = F::from_canonical_u8(bytes[1]).val;
@@ -81,7 +84,8 @@ word_from_le_bytes(Word<decltype(F::val)>& word, const array_t<uint8_t, 4> bytes
     word._0[3] = F::from_canonical_u8(bytes[3]).val;
 }
 
-__SP1_HOSTDEV__ __SP1_INLINE__ uint8_t get_msb(const array_t<uint8_t, WORD_SIZE> a) {
+__SP1_HOSTDEV__ __SP1_INLINE__ uint8_t
+get_msb(const array_t<uint8_t, WORD_SIZE> a) {
     return (a[WORD_SIZE - 1] >> (BYTE_SIZE - 1)) & 1;
 }
 
@@ -127,4 +131,4 @@ namespace opcode_utils {
     }
 
 }  // namespace opcode_utils
-}  // namespace sp1
+}  // namespace sp1_core_machine_sys

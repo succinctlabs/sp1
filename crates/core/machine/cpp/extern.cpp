@@ -1,41 +1,18 @@
-#include "babybear.hpp"
-#include "babybear_septic.hpp"
+#include "bb31_t.hpp"
+#include "bb31_septic_extension_t.hpp"
 #include "sys.hpp"
 
 namespace sp1_core_machine_sys {
-extern void add_sub_event_to_row_babybear(const AluEvent* event, AddSubCols<BabyBearP3>* cols) {
-    add_sub::event_to_row<BabyBear>(*event, *reinterpret_cast<AddSubCols<BabyBear>*>(cols));
-}
-
-extern void mul_event_to_row_babybear(const AluEvent* event, MulCols<BabyBearP3>* cols) {
-    mul::event_to_row<BabyBear>(*event, *cols);
-}
-
-extern void bitwise_event_to_row_babybear(const AluEvent* event, BitwiseCols<BabyBearP3>* cols) {
-    bitwise::event_to_row<BabyBear>(*event, *cols);
-}
-
-extern void lt_event_to_row_babybear(const AluEvent* event, LtCols<BabyBearP3>* cols) {
-    lt::event_to_row<BabyBear>(*event, *cols);
-}
-
-extern void sll_event_to_row_babybear(const AluEvent* event, ShiftLeftCols<BabyBearP3>* cols) {
-    sll::event_to_row<BabyBear>(*event, *cols);
-}
-
-extern void sr_event_to_row_babybear(const AluEvent* event, ShiftRightCols<BabyBearP3>* cols) {
-    sr::event_to_row<BabyBear>(*event, *cols);
-}
-
-extern void cpu_event_to_row_babybear(const CpuEventFfi* event, CpuCols<BabyBearP3>* cols) {
-    cpu::event_to_row<BabyBear>(*event, *cols);
+extern void add_sub_event_to_row_babybear(
+    const AluEvent* event,
+    AddSubCols<BabyBearP3>* cols
+) {
+    AddSubCols<bb31_t>* cols_bb31 = reinterpret_cast<AddSubCols<bb31_t>*>(cols);
+    add_sub::event_to_row<bb31_t>(*event, *cols_bb31);
 }
 
 extern void memory_local_event_to_row_babybear(const MemoryLocalEvent* event, SingleMemoryLocal<BabyBearP3>* cols) {
-    memory_local::event_to_row<BabyBear, BabyBearSeptic>(*event, *cols);
+    SingleMemoryLocal<bb31_t>* cols_bb31 = reinterpret_cast<SingleMemoryLocal<bb31_t>*>(cols);
+    memory_local::event_to_row<bb31_t, bb31_septic_extension_t>(*event, *cols_bb31);
 }
-
-/*extern void memory_local_event_to_row_babybear_padding(SingleMemoryLocal<BabyBearP3>* cols) {
-    memory_local::event_to_row_padding<BabyBear, BabyBearSeptic>(*cols);
-}*/
-}  // namespace sp1
+} // namespace sp1_core_machine_sys
