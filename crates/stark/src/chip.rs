@@ -20,13 +20,13 @@ use super::{
 /// An Air that encodes lookups based on interactions.
 pub struct Chip<F: Field, A> {
     /// The underlying AIR of the chip for constraint evaluation.
-    air: A,
+    pub air: A,
     /// The interactions that the chip sends.
-    sends: Vec<Interaction<F>>,
+    pub sends: Vec<Interaction<F>>,
     /// The interactions that the chip receives.
-    receives: Vec<Interaction<F>>,
+    pub receives: Vec<Interaction<F>>,
     /// The relative log degree of the quotient polynomial, i.e. `log2(max_constraint_degree - 1)`.
-    log_quotient_degree: usize,
+    pub log_quotient_degree: usize,
 }
 
 impl<F: Field, A> Chip<F, A> {
