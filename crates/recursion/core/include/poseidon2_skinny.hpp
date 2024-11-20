@@ -566,10 +566,10 @@ __SP1_HOSTDEV__ __SP1_INLINE__ void external_linear_layer(F* state_var) {
     // The order here is important. Need to overwrite x[0] and x[2] after x[1] and x[3].
     state_var[j + 3] =
         t01233 +
-        (state_var[j + 0] * state_var[j + 0]);  // 3*x[0] + x[1] + x[2] + 2*x[3]
+        (state_var[j + 0] + state_var[j + 0]);  // 3*x[0] + x[1] + x[2] + 2*x[3]
     state_var[j + 1] =
         t01123 +
-        (state_var[j + 2] * state_var[j + 2]);  // x[0] + 2*x[1] + 3*x[2] + x[3]
+        (state_var[j + 2] + state_var[j + 2]);  // x[0] + 2*x[1] + 3*x[2] + x[3]
     state_var[j + 0] = t01123 + t01;            // 2*x[0] + 3*x[1] + x[2] + x[3]
     state_var[j + 2] = t01233 + t23;            // x[0] + x[1] + 2*x[2] + 3*x[3]
   }
