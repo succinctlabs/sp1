@@ -368,9 +368,7 @@ impl ProverClientBuilder {
         match self.mode.expect("The prover mode is required") {
             ProverMode::Cpu => ProverClient::cpu(),
             #[cfg(feature = "cuda")]
-            ProverMode::Cuda => {
-                ProverClient::cuda()
-            }
+            ProverMode::Cuda => ProverClient::cuda(),
             #[cfg(any(feature = "network", feature = "network-v2"))]
             ProverMode::Network => {
                 let private_key = self.private_key.expect("The private key is required");

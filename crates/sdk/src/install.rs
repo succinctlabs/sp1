@@ -41,7 +41,7 @@ pub fn try_install_circuit_artifacts(artifacts_type: &str) -> PathBuf {
             build_dir.display()
         );
     } else {
-        #[cfg(any(feature = "network", feature = "network-v2"))] 
+        #[cfg(any(feature = "network", feature = "network-v2"))]
         {
             println!(
                 "[sp1] {} circuit artifacts for version {} do not exist at {}. downloading...",

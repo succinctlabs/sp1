@@ -5,8 +5,7 @@ use crate::{
         client::NetworkClient,
         proto::network::{ProofMode, ProofStatus},
     },
-    Prover, SP1Context, SP1ProofKind, SP1ProofWithPublicValues,
-    SP1ProvingKey, SP1VerifyingKey,
+    Prover, SP1Context, SP1ProofKind, SP1ProofWithPublicValues, SP1ProvingKey, SP1VerifyingKey,
 };
 use anyhow::Result;
 use sp1_core_machine::io::SP1Stdin;
