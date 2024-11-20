@@ -132,6 +132,7 @@ pub struct SelectIo<V> {
 
 /// An instruction invoking the select operation.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+#[repr(C)]
 pub struct SelectInstr<F> {
     pub addrs: SelectIo<Address<F>>,
     pub mult1: F,

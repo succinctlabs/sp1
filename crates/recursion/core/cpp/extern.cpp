@@ -95,4 +95,9 @@ extern void select_event_to_row_babybear(const sp1_recursion_core_sys::SelectEve
         *reinterpret_cast<const sp1_recursion_core_sys::SelectEvent<BabyBear>*>(io),
         *reinterpret_cast<sp1_recursion_core_sys::SelectCols<BabyBear>*>(cols));
 }
+extern void select_instr_to_row_babybear(const sp1_recursion_core_sys::SelectInstr<BabyBearP3>* instr, sp1_recursion_core_sys::SelectPreprocessedCols<BabyBearP3>* cols) {
+    recursion::select::instr_to_row<BabyBear>(
+        *reinterpret_cast<const sp1_recursion_core_sys::SelectInstr<BabyBear>*>(instr),
+        *reinterpret_cast<sp1_recursion_core_sys::SelectPreprocessedCols<BabyBear>*>(cols));
+}
 }  // namespace sp1_recursion_core_sys
