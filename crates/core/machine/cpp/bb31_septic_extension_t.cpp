@@ -200,6 +200,41 @@ bool bb31_septic_extension_t::is_exception() const {
     return value[6] == bb31_t::zero();
 }
 
+bb31_septic_curve_complete_t& bb31_septic_curve_complete_t::operator+=(const bb31_septic_curve_complete_t b) {
+    if (!b.is_affine) {
+        return *this;
+    }
+    if (!is_affine) {
+        *this = b;
+        return *this;
+    }
+    bb31_septic_curve_t point1 = point;
+    bb31_septic_curve_t point2 = b.point;
+    if (point1.x == point2.x) {
+        if (point1.y == point2.y) {
+            bb31_septic_extension_t slope = (point1.x * point1.x * bb31_t::from_canonical_u8(3) + bb31_t::two()) / (point1.y * bb31_t::two());
+            bb31_septic_extension_t result_x = slope * slope - point1.x - point2.x;
+            bb31_septic_extension_t result_y = slope * (point1.x - result_x) - point.y;
+            is_affine = true;
+            point = bb31_septic_curve_t(result_x, result_y);
+            return *this;
+        }
+        else {
+            is_affine = false;
+            point = bb31_septic_curve_t(bb31_septic_extension_t::zero(), bb31_septic_extension_t::zero());
+            return *this;
+        }
+    }
+    else {
+        bb31_septic_extension_t slope = (point2.y - point1.y) / (point2.x - point1.x);
+        bb31_septic_extension_t result_x = slope * slope - point1.x - point2.x;
+        bb31_septic_extension_t result_y = slope * (point1.x - result_x) - point.y;
+        is_affine = true;
+        point = bb31_septic_curve_t(result_x, result_y);
+        return *this;
+    }
+}
+
 bb31_cipolla_t bb31_cipolla_t::one() {
     return bb31_cipolla_t(bb31_t::one(), bb31_t::zero());
 }

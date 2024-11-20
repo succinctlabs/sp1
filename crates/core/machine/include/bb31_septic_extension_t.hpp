@@ -136,9 +136,31 @@ namespace sp1_core_machine_sys {
         bb31_septic_extension_t x;
         bb31_septic_extension_t y;
 
+        __SP1_INLINE__ bb31_septic_curve_t() {}
+
         __SP1_INLINE__ bb31_septic_curve_t(bb31_septic_extension_t x, bb31_septic_extension_t y) {
             this->x = x;
             this->y = y;
+        }
+    };
+
+    struct bb31_septic_curve_complete_t {
+        bool is_affine;
+        bb31_septic_curve_t point;
+
+        __SP1_INLINE__ bb31_septic_curve_complete_t(bb31_septic_extension_t x, bb31_septic_extension_t y) {
+            this->is_affine = true;
+            this->point = bb31_septic_curve_t(x, y);
+        }
+
+        __SP1_INLINE__ bb31_septic_curve_complete_t() {
+            this->is_affine = false;
+        }
+
+        bb31_septic_curve_complete_t& operator+=(const bb31_septic_curve_complete_t b);
+
+        friend __SP1_INLINE__ bb31_septic_curve_complete_t operator+(bb31_septic_curve_complete_t a, const bb31_septic_curve_complete_t b) {
+            return a += b;
         }
     };
 
