@@ -11,10 +11,10 @@ impl<V> Default for Page<V> {
     }
 }
 
-const LOG_PAGE_LEN: usize = 15;
+const LOG_PAGE_LEN: usize = 14;
 const PAGE_LEN: usize = 1 << LOG_PAGE_LEN;
 const MAX_PAGE_COUNT: usize = ((1 << 31) - (1 << 27)) / 4 / PAGE_LEN + 1;
-const NO_PAGE: usize = usize::MAX;
+const NO_PAGE: u16 = u16::MAX;
 const PAGE_MASK: usize = PAGE_LEN - 1;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -41,7 +41,7 @@ impl<V: Copy> Default for NewPage<V> {
 pub struct PagedMemory<V: Copy> {
     /// The internal page table.
     pub page_table: Vec<NewPage<V>>,
-    pub index: Vec<usize>,
+    pub index: Vec<u16>,
 }
 
 impl<V: Copy> PagedMemory<V> {
@@ -50,8 +50,7 @@ impl<V: Copy> PagedMemory<V> {
     /// The number of registers in the virtual machine.
     const NUM_REGISTERS: usize = 32;
     /// The offset subtracted from the main address space to make it contiguous.
-    const ADDR_COMPRESS_OFFSET: usize =
-        Self::NUM_REGISTERS - (Self::NUM_REGISTERS >> Self::NUM_IGNORED_LOWER_BITS);
+    const ADDR_COMPRESS_OFFSET: usize = Self::NUM_REGISTERS;
 
     /// Create a `PagedMemory` with capacity `MAX_PAGE_COUNT`.
     pub fn new_preallocated() -> Self {
@@ -65,7 +64,7 @@ impl<V: Copy> PagedMemory<V> {
         if index == NO_PAGE {
             None
         } else {
-            self.page_table[index].0[lower].as_ref()
+            self.page_table[index as usize].0[lower].as_ref()
         }
     }
 
@@ -76,7 +75,7 @@ impl<V: Copy> PagedMemory<V> {
         if index == NO_PAGE {
             None
         } else {
-            self.page_table[index].0[lower].as_mut()
+            self.page_table[index as usize].0[lower].as_mut()
         }
     }
 
@@ -85,11 +84,11 @@ impl<V: Copy> PagedMemory<V> {
         let (upper, lower) = Self::indices(addr);
         let mut index = self.index[upper];
         if index == NO_PAGE {
-            index = self.page_table.len();
+            index = self.page_table.len() as u16;
             self.index[upper] = index;
             self.page_table.push(NewPage::new());
         }
-        self.page_table[index].0[lower].replace(value)
+        self.page_table[index as usize].0[lower].replace(value)
     }
 
     /// Remove the value at the given address if it exists, returning it.
@@ -99,7 +98,7 @@ impl<V: Copy> PagedMemory<V> {
         if index == NO_PAGE {
             None
         } else {
-            self.page_table[index].0[lower].take()
+            self.page_table[index as usize].0[lower].take()
         }
     }
 
@@ -109,11 +108,11 @@ impl<V: Copy> PagedMemory<V> {
         let index = self.index[upper];
         if index == NO_PAGE {
             let index = self.page_table.len();
-            self.index[upper] = index;
+            self.index[upper] = index as u16;
             self.page_table.push(NewPage::new());
             Entry::Vacant(VacantEntry { entry: &mut self.page_table[index].0[lower] })
         } else {
-            let option = &mut self.page_table[index].0[lower];
+            let option = &mut self.page_table[index as usize].0[lower];
             match option {
                 Some(_) => Entry::Occupied(OccupiedEntry { entry: option }),
                 None => Entry::Vacant(VacantEntry { entry: option }),
@@ -125,7 +124,7 @@ impl<V: Copy> PagedMemory<V> {
     pub fn keys(&self) -> impl Iterator<Item = u32> + '_ {
         self.index.iter().enumerate().filter(|(_, &i)| i != NO_PAGE).flat_map(|(i, index)| {
             let upper = i << LOG_PAGE_LEN;
-            self.page_table[*index]
+            self.page_table[*index as usize]
                 .0
                 .iter()
                 .enumerate()
@@ -275,7 +274,7 @@ impl<V: Copy + 'static> IntoIterator for PagedMemory<V> {
             move |(i, index)| {
                 let upper = i << LOG_PAGE_LEN;
                 let replacement = NewPage::new();
-                std::mem::replace(&mut self.page_table[index], replacement)
+                std::mem::replace(&mut self.page_table[index as usize], replacement)
                     .0
                     .into_iter()
                     .enumerate()

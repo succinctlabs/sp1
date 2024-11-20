@@ -233,7 +233,7 @@ impl ByteOpcode {
             ByteOpcode::MSB,
             ByteOpcode::U16Range,
         ];
-        assert_eq!(opcodes.len(), NUM_BYTE_OPS);
+        debug_assert_eq!(opcodes.len(), NUM_BYTE_OPS);
         opcodes
     }
 
