@@ -1,9 +1,9 @@
 #pragma once
 
-#include "sp1_recursion_core_sys-cbindgen.hpp"
+#include "prelude.hpp"
 
-namespace recursion::fri_fold {
-template <class F> __SP1_HOSTDEV__ void event_to_row(const sp1_recursion_core_sys::FriFoldEvent<F> &event, sp1_recursion_core_sys::FriFoldCols<F> &cols) {
+namespace sp1_recursion_core_sys::fri_fold {
+template <class F> __SP1_HOSTDEV__ void event_to_row(const FriFoldEvent<F> &event, FriFoldCols<F> &cols) {
     cols.x = event.base_single.x;
     cols.z = event.ext_single.z;
     cols.alpha = event.ext_single.alpha;
@@ -18,9 +18,9 @@ template <class F> __SP1_HOSTDEV__ void event_to_row(const sp1_recursion_core_sy
 }
 
 template <class F> __SP1_HOSTDEV__ void instr_to_row(
-    const sp1_recursion_core_sys::FriFoldInstrC<F> &instr,
+    const FriFoldInstrC<F> &instr,
     size_t i,
-    sp1_recursion_core_sys::FriFoldPreprocessedCols<F> &cols) {
+    FriFoldPreprocessedCols<F> &cols) {
     
     cols.is_real = F::one();
     cols.is_first = F::from_bool(i == 0);
@@ -52,4 +52,4 @@ template <class F> __SP1_HOSTDEV__ void instr_to_row(
     cols.ro_output_mem.addr = instr.ext_vec_addrs_ro_output_ptr[i];
     cols.ro_output_mem.mult = instr.ro_mults_ptr[i];
 }
-} // namespace recursion::fri_fold
+} // namespace sp1_recursion_core_sys::fri_fold

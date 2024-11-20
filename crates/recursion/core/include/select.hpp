@@ -1,16 +1,16 @@
 #pragma once
 
-#include "sp1_recursion_core_sys-cbindgen.hpp"
+#include "prelude.hpp"
 
-namespace recursion::select {
-template <class F> __SP1_HOSTDEV__ void event_to_row(const sp1_recursion_core_sys::SelectEvent<F> &event, sp1_recursion_core_sys::SelectCols<F> &cols) {
+namespace sp1_recursion_core_sys::select {
+template <class F> __SP1_HOSTDEV__ void event_to_row(const SelectEvent<F> &event, SelectCols<F> &cols) {
     cols.vals = event;
 }
 
-template <class F> __SP1_HOSTDEV__ void instr_to_row(const sp1_recursion_core_sys::SelectInstr<F> &instr, sp1_recursion_core_sys::SelectPreprocessedCols<F> &cols) {
+template <class F> __SP1_HOSTDEV__ void instr_to_row(const SelectInstr<F> &instr, SelectPreprocessedCols<F> &cols) {
     cols.is_real = F::one();
     cols.addrs = instr.addrs;
     cols.mult1 = instr.mult1;
     cols.mult2 = instr.mult2;
 }
-} // namespace recursion::select
+} // namespace sp1_recursion_core_sys::select
