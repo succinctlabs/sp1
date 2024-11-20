@@ -552,8 +552,6 @@ static const bb31_t POSEIDON2_INTERNAL_MATRIX_DIAG_16_BABYBEAR_MONTY[16] = {
     bb31_t::from_canonical_u32(1 << 15),          // 1 << 15
 };
 
-static const bb31_t MONTY_INVERSE = bb31_t::from_canonical_u32(1);
-
 template <class F>
 __SP1_HOSTDEV__ __SP1_INLINE__ void external_linear_layer(F* state_var) {
   for (size_t j = 0; j < WIDTH; j += 4) {
@@ -621,7 +619,7 @@ __SP1_HOSTDEV__ __SP1_INLINE__ void internal_linear_layer(F* state) {
     state[i] = state[i] + sum;
   }
 
-  F monty_inverse = F(F::to_monty(F::from_monty(MONTY_INVERSE.val)));
+  F monty_inverse = F(F::to_monty(F::from_monty(1)));
   for (size_t i = 0; i < WIDTH; i++) {
     state[i] = state[i] * monty_inverse;
   }
