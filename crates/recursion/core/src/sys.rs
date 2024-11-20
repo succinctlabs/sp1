@@ -6,13 +6,16 @@ use crate::{
         batch_fri::{BatchFRICols, BatchFRIPreprocessedCols},
         exp_reverse_bits::{ExpReverseBitsLenCols, ExpReverseBitsLenPreprocessedCols},
         fri_fold::{FriFoldCols, FriFoldPreprocessedCols},
-        poseidon2_skinny::columns::{preprocessed::Poseidon2PreprocessedCols, Poseidon2},
+        poseidon2_skinny::{
+            columns::{preprocessed::Poseidon2PreprocessedCols, Poseidon2},
+            NUM_EXTERNAL_ROUNDS, NUM_INTERNAL_ROUNDS,
+        },
         public_values::{PublicValuesCols, PublicValuesPreprocessedCols},
         select::{SelectCols, SelectPreprocessedCols},
     },
     BaseAluInstr, BaseAluIo, BatchFRIEvent, BatchFRIInstrFFI, CommitPublicValuesEvent,
     CommitPublicValuesInstr, ExpReverseBitsEventFFI, ExpReverseBitsInstrFFI, ExtAluInstr, ExtAluIo,
-    FriFoldEvent, FriFoldInstrFFI, Poseidon2Event, Poseidon2Instr, SelectEvent, SelectInstr,
+    FriFoldEvent, FriFoldInstrFFI, Poseidon2Event, Poseidon2Instr, SelectEvent, SelectInstr, WIDTH,
 };
 use p3_baby_bear::BabyBear;
 
@@ -89,11 +92,28 @@ extern "C-unwind" {
 
     pub fn poseidon2_skinny_event_to_row_babybear(
         io: &Poseidon2Event<BabyBear>,
+        len: usize,
         cols: &mut Poseidon2<BabyBear>,
     );
     pub fn poseidon2_skinny_instr_to_row_babybear(
         instr: &Poseidon2Instr<BabyBear>,
         i: usize,
+        len: usize,
+        cols: &mut Poseidon2PreprocessedCols<BabyBear>,
+    );
+
+    pub fn poseidon2_wide_event_to_row_babybear(
+        input: &[BabyBear; WIDTH],
+        external_rounds_state: *mut BabyBear,
+        internal_rounds_state: &mut [BabyBear; WIDTH],
+        internal_rounds_s0: &mut [BabyBear; NUM_INTERNAL_ROUNDS - 1],
+        external_sbox: &mut [[BabyBear; NUM_EXTERNAL_ROUNDS]; WIDTH],
+        internal_sbox: &mut [BabyBear; NUM_INTERNAL_ROUNDS],
+        output_state: &mut [BabyBear; WIDTH],
+    );
+    pub fn poseidon2_wide_instr_to_row_babybear(
+        instr: &Poseidon2Instr<BabyBear>,
+        len: usize,
         cols: &mut Poseidon2PreprocessedCols<BabyBear>,
     );
 }

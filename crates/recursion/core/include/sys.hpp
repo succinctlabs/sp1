@@ -8,4 +8,5 @@
 #include "public_values.hpp"
 #include "select.hpp"
 #include "poseidon2_skinny.hpp"
+#include "poseidon2_wide.hpp"
 #include "sp1-recursion-core-sys-cbindgen.hpp"

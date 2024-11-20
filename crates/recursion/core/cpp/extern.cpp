@@ -109,17 +109,70 @@ namespace sp1_recursion_core_sys
             *reinterpret_cast<SelectPreprocessedCols<BabyBear> *>(cols));
     }
 
-    extern void poseidon2_skinny_event_to_row_babybear(const Poseidon2Event<BabyBearP3> *io, Poseidon2<BabyBearP3> *cols[NUM_EXTERNAL_ROUNDS + 3])
+    extern void poseidon2_skinny_event_to_row_babybear(const Poseidon2Event<BabyBearP3> *io, size_t len, Poseidon2<BabyBearP3> *cols)
     {
         poseidon2_skinny::event_to_row<BabyBear>(
             *reinterpret_cast<const Poseidon2Event<BabyBear> *>(io),
-            *reinterpret_cast<Poseidon2<BabyBear> *(*)[NUM_EXTERNAL_ROUNDS + 3]>(&cols));
+            len,
+            reinterpret_cast<Poseidon2<BabyBear> *>(cols));
     }
-    extern void poseidon2_skinny_instr_to_row_babybear(const Poseidon2Instr<BabyBearP3> *instr, size_t i, Poseidon2PreprocessedCols<BabyBearP3> *cols)
+    extern void poseidon2_skinny_instr_to_row_babybear(const Poseidon2Instr<BabyBearP3> *instr, size_t i, size_t len, Poseidon2PreprocessedCols<BabyBearP3> *cols)
     {
         poseidon2_skinny::instr_to_row<BabyBear>(
             *reinterpret_cast<const Poseidon2Instr<BabyBear> *>(instr),
             i,
+            len,
+            reinterpret_cast<Poseidon2PreprocessedCols<BabyBear> *>(cols));
+    }
+
+    extern void poseidon2_wide_event_to_row_babybear(
+        const BabyBearP3 (&input)[WIDTH],
+        BabyBearP3 (*external_rounds_state)[WIDTH],
+        BabyBearP3 internal_rounds_state[WIDTH],
+        BabyBearP3 internal_rounds_s0[NUM_INTERNAL_ROUNDS - 1],
+        BabyBearP3 external_sbox[WIDTH][NUM_EXTERNAL_ROUNDS],
+        BabyBearP3 internal_sbox[NUM_INTERNAL_ROUNDS],
+        BabyBearP3 output_state[WIDTH])
+    {
+        BabyBear temp_input[WIDTH];
+        BabyBear temp_internal_rounds_state[WIDTH];
+        BabyBear temp_internal_rounds_s0[NUM_INTERNAL_ROUNDS - 1];
+        BabyBear temp_external_sbox[WIDTH][NUM_EXTERNAL_ROUNDS];
+        BabyBear temp_internal_sbox[NUM_INTERNAL_ROUNDS];
+        BabyBear temp_output_state[WIDTH];
+        BabyBear temp_external_rounds_state[NUM_EXTERNAL_ROUNDS][WIDTH];
+
+        for (size_t i = 0; i < WIDTH; i++)
+        {
+            temp_input[i] = *reinterpret_cast<const BabyBear *>(&input[i]);
+        }
+
+        for (size_t i = 0; i < NUM_EXTERNAL_ROUNDS; i++)
+        {
+            for (size_t j = 0; j < WIDTH; j++)
+            {
+                temp_external_rounds_state[i][j] = *reinterpret_cast<BabyBear *>(&external_rounds_state[i][j]);
+            }
+        }
+
+        poseidon2_wide::event_to_row<BabyBear>(
+            temp_input,
+            temp_external_rounds_state,
+            temp_internal_rounds_state,
+            temp_internal_rounds_s0,
+            temp_external_sbox,
+            temp_internal_sbox,
+            temp_output_state);
+    }
+
+    extern void poseidon2_wide_instr_to_row_babybear(
+        const Poseidon2SkinnyInstr<BabyBearP3> *instr,
+        size_t len,
+        Poseidon2PreprocessedCols<BabyBearP3> *cols)
+    {
+        poseidon2_wide::instr_to_row<BabyBear>(
+            *reinterpret_cast<const Poseidon2SkinnyInstr<BabyBear> *>(instr),
+            len,
             reinterpret_cast<Poseidon2PreprocessedCols<BabyBear> *>(cols));
     }
 } // namespace sp1_recursion_core_sys
