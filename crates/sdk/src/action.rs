@@ -88,7 +88,6 @@ pub struct Prove<'a> {
     core_opts: SP1CoreOpts,
     recursion_opts: SP1CoreOpts,
     timeout: Option<Duration>,
-    skip_deferred_proof_verification: bool,
 }
 
 impl<'a> Prove<'a> {
@@ -110,7 +109,6 @@ impl<'a> Prove<'a> {
             core_opts: SP1CoreOpts::default(),
             recursion_opts: SP1CoreOpts::recursion(),
             timeout: None,
-            skip_deferred_proof_verification: false,
         }
     }
 
@@ -125,11 +123,9 @@ impl<'a> Prove<'a> {
             core_opts,
             recursion_opts,
             timeout,
-            skip_deferred_proof_verification,
         } = self;
         let opts = SP1ProverOpts { core_opts, recursion_opts };
         let proof_opts = ProofOpts { sp1_prover_opts: opts, timeout };
-        context_builder.set_skip_deferred_proof_verification(skip_deferred_proof_verification);
         let context = context_builder.build();
 
         // Dump the program and stdin to files for debugging if `SP1_DUMP` is set.
@@ -230,7 +226,7 @@ impl<'a> Prove<'a> {
 
     /// Set the skip deferred proof verification flag.
     pub fn set_skip_deferred_proof_verification(mut self, value: bool) -> Self {
-        self.skip_deferred_proof_verification = value;
+        self.context_builder.set_skip_deferred_proof_verification(value);
         self
     }
 }
