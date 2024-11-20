@@ -54,5 +54,6 @@ pathdiff = "0.2.1"
 glob = "0.3.1"
 
 [features]
-default = ["sys"]
+default = ["sys", "cbindgen"]
 sys = ["sp1-core-machine/sys"]
+cbindgen = [] 

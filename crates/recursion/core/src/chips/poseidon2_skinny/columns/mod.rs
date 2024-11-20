@@ -21,3 +21,23 @@ pub struct Poseidon2<T: Copy> {
     pub state_var: [T; WIDTH],
     pub internal_rounds_s0: [T; NUM_INTERNAL_ROUNDS - 1],
 }
+
+/// FFI version of Poseidon2
+#[derive(AlignedBorrow, Clone, Copy)]
+#[repr(C)]
+pub struct Poseidon2FFI<T> {
+    pub state_var: [T; WIDTH],
+    pub internal_rounds_s0: [T; NUM_INTERNAL_ROUNDS - 1],
+}
+
+impl<T: Copy> From<Poseidon2<T>> for Poseidon2FFI<T> {
+    fn from(value: Poseidon2<T>) -> Self {
+        Self { state_var: value.state_var, internal_rounds_s0: value.internal_rounds_s0 }
+    }
+}
+
+impl<T: Copy> From<Poseidon2FFI<T>> for Poseidon2<T> {
+    fn from(value: Poseidon2FFI<T>) -> Self {
+        Self { state_var: value.state_var, internal_rounds_s0: value.internal_rounds_s0 }
+    }
+}

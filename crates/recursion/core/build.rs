@@ -131,6 +131,8 @@ mod sys {
             .include_item("SelectCols")
             .include_item("SelectInstr")
             .include_item("SelectPreprocessedCols")
+            .include_item("Poseidon2Event")
+            .include_item("Poseidon2FFI")
             .with_namespace("sp1_recursion_core_sys")
             .with_crate(crate_dir)
             .generate()

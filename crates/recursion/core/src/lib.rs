@@ -105,6 +105,7 @@ pub enum MemAccessKind {
 
 /// The inputs and outputs to a Poseidon2 permutation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[repr(C)]
 pub struct Poseidon2Io<V> {
     pub input: [V; WIDTH],
     pub output: [V; WIDTH],
