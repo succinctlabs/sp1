@@ -288,8 +288,10 @@ mod tests {
 
     use crate::{
         chips::poseidon2_wide::{Poseidon2WideChip, WIDTH},
-        ExecutionRecord, Poseidon2Event,
+        Address, ExecutionRecord, Poseidon2Event, Poseidon2Instr, Poseidon2Io,
     };
+
+    use super::*;
 
     #[test]
     fn generate_trace_deg_3() {
@@ -333,5 +335,25 @@ mod tests {
         };
         let chip_9 = Poseidon2WideChip::<9>;
         let _: RowMajorMatrix<F> = chip_9.generate_trace(&shard, &mut ExecutionRecord::default());
+    }
+
+    #[test]
+    fn generate_preprocessed_trace() {
+        type F = BabyBear;
+
+        let program = RecursionProgram::<BabyBear> {
+            instructions: vec![Poseidon2(Box::new(Poseidon2Instr {
+                addrs: Poseidon2Io {
+                    input: [Address(F::one()); WIDTH],
+                    output: [Address(F::two()); WIDTH],
+                },
+                mults: [F::one(); WIDTH],
+            }))],
+            ..Default::default()
+        };
+
+        let chip_9 = Poseidon2WideChip::<9>;
+        let preprocessed: Option<RowMajorMatrix<F>> = chip_9.generate_preprocessed_trace(&program);
+        assert!(preprocessed.is_some());
     }
 }
