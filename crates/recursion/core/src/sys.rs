@@ -94,7 +94,7 @@ extern "C-unwind" {
     pub fn poseidon2_skinny_event_to_row_babybear(
         io: &Poseidon2Event<BabyBear>,
         len: usize,
-        cols: &mut Poseidon2<BabyBear>,
+        cols: *mut Poseidon2<BabyBear>,
     );
     pub fn poseidon2_skinny_instr_to_row_babybear(
         instr: &Poseidon2Instr<BabyBear>,
