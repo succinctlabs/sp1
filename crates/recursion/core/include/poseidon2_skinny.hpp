@@ -4,6 +4,7 @@
 
 namespace sp1_recursion_core_sys::poseidon2_skinny {
 constexpr size_t OUTPUT_ROUND_IDX = NUM_EXTERNAL_ROUNDS + 2;
+constexpr size_t INPUT_ROUND_IDX = 0;
 constexpr size_t INTERNAL_ROUND_IDX = NUM_EXTERNAL_ROUNDS / 2 + 1;
 
 constexpr uint32_t RC_16_30_U32[30][16] = {
@@ -679,5 +680,42 @@ __SP1_HOSTDEV__ void event_to_row(const Poseidon2Event<F>& event, size_t len,
 template <class F>
 __SP1_HOSTDEV__ void instr_to_row(const Poseidon2Instr<F>& instr, size_t i,
                                   size_t len,
-                                  Poseidon2PreprocessedColsSkinny<F>* cols) {}
+                                  Poseidon2PreprocessedColsSkinny<F>* cols) {
+  auto& current_cols = cols[i];
+
+  current_cols.round_counters_preprocessed.is_input_round =
+      F::from_bool(i == INPUT_ROUND_IDX);
+  bool is_external_round =
+      i != INPUT_ROUND_IDX && i != INTERNAL_ROUND_IDX && i != OUTPUT_ROUND_IDX;
+  current_cols.round_counters_preprocessed.is_external_round =
+      F::from_bool(is_external_round);
+  current_cols.round_counters_preprocessed.is_internal_round =
+      F::from_bool(i == INTERNAL_ROUND_IDX);
+
+  for (size_t j = 0; j < WIDTH; j++) {
+    if (is_external_round) {
+      size_t r = i - 1;
+      size_t round = (i < INTERNAL_ROUND_IDX) ? r : r + NUM_INTERNAL_ROUNDS - 1;
+      current_cols.round_counters_preprocessed.round_constants[j] =
+          F(F::to_monty(RC_16_30_U32[round][j]));
+    } else if (i == INTERNAL_ROUND_IDX) {
+      current_cols.round_counters_preprocessed.round_constants[j] =
+          F(F::to_monty(RC_16_30_U32[NUM_EXTERNAL_ROUNDS / 2 + j][0]));
+    } else {
+      current_cols.round_counters_preprocessed.round_constants[j] = F::zero();
+    }
+  }
+
+  if (i == INPUT_ROUND_IDX) {
+    for (size_t j = 0; j < WIDTH; j++) {
+      current_cols.memory_preprocessed[j].addr = instr.addrs.input[j];
+      current_cols.memory_preprocessed[j].mult = F::zero() - F::one();
+    }
+  } else if (i == OUTPUT_ROUND_IDX) {
+    for (size_t j = 0; j < WIDTH; j++) {
+      current_cols.memory_preprocessed[j].addr = instr.addrs.output[j];
+      current_cols.memory_preprocessed[j].mult = instr.mults[j];
+    }
+  }
+}
 }  // namespace sp1_recursion_core_sys::poseidon2_skinny
