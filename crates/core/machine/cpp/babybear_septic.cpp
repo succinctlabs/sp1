@@ -163,6 +163,16 @@ BabyBearSeptic BabyBearSeptic::sqrt(BabyBear pow_r) const {
     return denominator * x.real;
 }
 
+BabyBearSeptic BabyBearSeptic::universal_hash() const {
+    return *this * BabyBearSeptic(A_EC_LOGUP) + BabyBearSeptic(B_EC_LOGUP);
+}
+
+BabyBearSeptic BabyBearSeptic::curve_formula() const {
+    BabyBearSeptic result = (*this * *this + BabyBear::two()) * *this;
+    result.value[5] += BabyBear::from_canonical_u32(26);
+    return result;
+}
+
 BabyBearCipolla BabyBearCipolla::one() {
     return BabyBearCipolla(BabyBear::one(), BabyBear::zero());
 }

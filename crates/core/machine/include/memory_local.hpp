@@ -15,6 +15,17 @@ namespace sp1_core_machine_sys::memory_local {
         value[6] = F::from_canonical_u32((record.value >> 24) & 255);
 
         EF7 x_start = EF7(value);
+        for(uint32_t offset = 0 ; offset < 256 ; offset++) {
+            EF7 m_trial = x_start + F::from_canonical_u32(offset << 16);
+            EF7 x_trial = m_trial.universal_hash();
+            EF7 y_sq = x_trial.curve_formula();
+            F y_sq_pow_r = y_sq.pow_r();
+            if(y_sq_pow_r.is_square()) {
+                break;
+            }
+            
+        }
+
 
     }
 

@@ -28,6 +28,10 @@ namespace sp1_core_machine_sys {
             {BabyBear(int(738287111)), BabyBear(int(1955364991)), BabyBear(int(552724293)), BabyBear(int(1175775744)), BabyBear(int(341623997)), BabyBear(int(1454022463)), BabyBear(int(408193320))}
         };
 
+        static constexpr BabyBear A_EC_LOGUP[7] = {BabyBear(int(0x31415926)), BabyBear(int(0x53589793)), BabyBear(int(0x23846264)), BabyBear(int(0x33832795)), BabyBear(int(0x02884197)), BabyBear(int(0x16939937)), BabyBear(int(0x51058209))};
+
+        static constexpr BabyBear B_EC_LOGUP[7] = {BabyBear(int(0x74944592)), BabyBear(int(0x30781640)), BabyBear(int(0x62862089)), BabyBear(int(0x9862803)), BabyBear(int(0x48253421)), BabyBear(int(0x17067982)), BabyBear(int(0x14808651))};
+        
         __SP1_INLINE__ BabyBearSeptic() {} 
 
         __SP1_INLINE__ BabyBearSeptic(BabyBearP3 value) {
@@ -51,6 +55,12 @@ namespace sp1_core_machine_sys {
         }
 
         __SP1_INLINE__ BabyBearSeptic(BabyBear value[7]) {
+            for (uintptr_t i = 0 ; i < 7 ; i++) {
+                this->value[i] = value[i];
+            }
+        }
+
+        __SP1_INLINE__ BabyBearSeptic(const BabyBear value[7]) {
             for (uintptr_t i = 0 ; i < 7 ; i++) {
                 this->value[i] = value[i];
             }
@@ -129,6 +139,10 @@ namespace sp1_core_machine_sys {
         }
 
         BabyBearSeptic sqrt(BabyBear pow_r) const;
+
+        BabyBearSeptic universal_hash() const;
+
+        BabyBearSeptic curve_formula() const;
     };
 
     struct BabyBearSepticCurve {
