@@ -552,6 +552,8 @@ static const bb31_t POSEIDON2_INTERNAL_MATRIX_DIAG_16_BABYBEAR_MONTY[16] = {
     bb31_t::from_canonical_u32(1 << 15),          // 1 << 15
 };
 
+static const bb31_t MONTY_INVERSE = bb31_t::from_canonical_u32(1);
+
 template <class F>
 __SP1_HOSTDEV__ __SP1_INLINE__ void external_linear_layer(F* state_var) {
   for (size_t j = 0; j < WIDTH; j += 4) {
@@ -602,6 +604,30 @@ __SP1_HOSTDEV__ __SP1_INLINE__ void populate_external_round(F* round_state,
 }
 
 template <class F>
+__SP1_HOSTDEV__ __SP1_INLINE__ void internal_linear_layer(F* state) {
+  F matmul_constants[WIDTH];
+  for (size_t i = 0; i < WIDTH; i++) {
+    matmul_constants[i] = F(F::to_monty(F::from_monty(
+        POSEIDON2_INTERNAL_MATRIX_DIAG_16_BABYBEAR_MONTY[i].val)));
+  }
+
+  F sum = F::zero();
+  for (size_t i = 0; i < WIDTH; i++) {
+    sum = sum + state[i];
+  }
+
+  for (size_t i = 0; i < WIDTH; i++) {
+    state[i] = state[i] * matmul_constants[i];
+    state[i] = state[i] + sum;
+  }
+
+  F monty_inverse = F(F::to_monty(F::from_monty(MONTY_INVERSE.val)));
+  for (size_t i = 0; i < WIDTH; i++) {
+    state[i] = state[i] * monty_inverse;
+  }
+}
+
+template <class F>
 __SP1_HOSTDEV__ __SP1_INLINE__ void populate_internal_rounds(
     F* state, F* internal_rounds_s0, F* next_state_var) {
   for (size_t i = 0; i < WIDTH; i++) {
@@ -621,16 +647,6 @@ __SP1_HOSTDEV__ __SP1_INLINE__ void populate_internal_rounds(
     if (r < NUM_INTERNAL_ROUNDS - 1) {
       internal_rounds_s0[r] = next_state_var[0];
     }
-  }
-}
-
-template <class F>
-__SP1_HOSTDEV__ __SP1_INLINE__ void internal_linear_layer(F* state) {
-  F matmul_constants[WIDTH];
-  for (size_t i = 0; i < WIDTH; i++) {
-    matmul_constants[i] =
-        F(F::to_monty(POSEIDON2_INTERNAL_MATRIX_DIAG_16_BABYBEAR_MONTY[i]
-                          .as_canonical_u32()));
   }
 }
 
@@ -655,6 +671,9 @@ __SP1_HOSTDEV__ void event_to_row(const Poseidon2Event<F>& event, size_t len,
 
     if (i != INTERNAL_ROUND_IDX) {
       populate_external_round<F>(col.state_var, i - 1, next_row_cols.state_var);
+    } else {
+      populate_internal_rounds<F>(col.state_var, col.internal_rounds_s0,
+                                  next_row_cols.state_var);
     }
   }
 }
