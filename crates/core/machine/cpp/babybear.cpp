@@ -122,6 +122,12 @@ BabyBear& BabyBear::operator^=(int p) {
     return *this;
 }
 
+bool BabyBear::is_square() const {
+    BabyBear base = *this;
+    base^=1006632960;
+    return base == BabyBear::one();
+}
+
 /// Checks if two BabyBear field elements are equal.
 bool BabyBear::operator==(const BabyBear rhs) const {
     return val == rhs.val;

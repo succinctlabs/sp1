@@ -88,6 +88,8 @@ struct BabyBear {
         return a ^= b;
     }
 
+    bool is_square() const;
+
     /// Checks if two BabyBear field elements are equal.
     bool operator==(const BabyBear rhs) const;
 
