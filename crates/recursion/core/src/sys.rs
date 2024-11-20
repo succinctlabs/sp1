@@ -63,7 +63,6 @@ extern "C-unwind" {
     pub fn fri_fold_instr_to_row_babybear(
         instr: &FriFoldInstrC<BabyBear>,
         i: usize,
-        len: usize,
         cols: &mut FriFoldPreprocessedCols<BabyBear>,
     );
 

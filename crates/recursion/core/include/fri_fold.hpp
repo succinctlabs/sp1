@@ -20,7 +20,6 @@ template <class F> __SP1_HOSTDEV__ void event_to_row(const sp1_recursion_core_sy
 template <class F> __SP1_HOSTDEV__ void instr_to_row(
     const sp1_recursion_core_sys::FriFoldInstrC<F> &instr,
     size_t i,
-    size_t len,
     sp1_recursion_core_sys::FriFoldPreprocessedCols<F> &cols) {
     
     cols.is_real = F::one();

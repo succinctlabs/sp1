@@ -723,7 +723,6 @@ mod tests {
                         crate::sys::fri_fold_instr_to_row_babybear(
                             &instruction.to_c(),
                             row_idx,
-                            instruction.ext_vec_addrs.ps_at_z.len(),
                             cols,
                         );
                     }
