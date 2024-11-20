@@ -21,6 +21,9 @@ pub struct SP1Context<'a> {
 
     /// The maximum number of cpu cycles to use for execution.
     pub max_cycles: Option<u64>,
+
+    /// Skip deferred proof verification.
+    pub skip_deferred_proof_verification: bool,
 }
 
 /// A builder for [`SP1Context`].
@@ -30,6 +33,7 @@ pub struct SP1ContextBuilder<'a> {
     hook_registry_entries: Vec<(u32, BoxedHook<'a>)>,
     subproof_verifier: Option<Arc<dyn SubproofVerifier + 'a>>,
     max_cycles: Option<u64>,
+    skip_deferred_proof_verification: bool,
 }
 
 impl<'a> SP1Context<'a> {
@@ -68,7 +72,13 @@ impl<'a> SP1ContextBuilder<'a> {
             });
         let subproof_verifier = take(&mut self.subproof_verifier);
         let cycle_limit = take(&mut self.max_cycles);
-        SP1Context { hook_registry, subproof_verifier, max_cycles: cycle_limit }
+        let skip_deferred_proof_verification = take(&mut self.skip_deferred_proof_verification);
+        SP1Context {
+            hook_registry,
+            subproof_verifier,
+            max_cycles: cycle_limit,
+            skip_deferred_proof_verification,
+        }
     }
 
     /// Add a runtime [Hook](super::Hook) into the context.
@@ -110,6 +120,12 @@ impl<'a> SP1ContextBuilder<'a> {
         self.max_cycles = Some(max_cycles);
         self
     }
+
+    /// Set the skip deferred proof verification flag.
+    pub fn set_skip_deferred_proof_verification(&mut self, skip: bool) -> &mut Self {
+        self.skip_deferred_proof_verification = skip;
+        self
+    }
 }
 
 #[cfg(test)]
@@ -120,7 +136,7 @@ mod tests {
 
     #[test]
     fn defaults() {
-        let SP1Context { hook_registry, subproof_verifier, max_cycles: cycle_limit } =
+        let SP1Context { hook_registry, subproof_verifier, max_cycles: cycle_limit, .. } =
             SP1Context::builder().build();
         assert!(hook_registry.is_none());
         assert!(subproof_verifier.is_none());
