@@ -14,7 +14,7 @@ mod sys {
 
     /// The library name, used for the static library archive and the headers.
     /// Should be chosen as to not conflict with other library/header names.
-    const LIB_NAME: &str = "sp1_recursion_core_sys";
+    const LIB_NAME: &str = "sp1-recursion-core-sys";
 
     /// The name of all include directories involved, used to find and output header files.
     const INCLUDE_DIRNAME: &str = "include";

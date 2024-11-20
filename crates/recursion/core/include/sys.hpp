@@ -7,4 +7,4 @@
 #include "fri_fold.hpp"
 #include "public_values.hpp"
 #include "select.hpp"
-#include "sp1_recursion_core_sys-cbindgen.hpp"
+#include "sp1-recursion-core-sys-cbindgen.hpp"

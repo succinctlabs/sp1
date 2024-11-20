@@ -15,7 +15,7 @@ use crate::{
 };
 use p3_baby_bear::BabyBear;
 
-#[link(name = "sp1_recursion_core_sys", kind = "static")]
+#[link(name = "sp1-recursion-core-sys", kind = "static")]
 extern "C-unwind" {
     pub fn alu_base_event_to_row_babybear(
         io: &BaseAluIo<BabyBear>,

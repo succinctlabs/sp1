@@ -32,5 +32,4 @@ template <class F> __SP1_HOSTDEV__ void instr_to_row(
             break;
     }
 }
-
 } // namespace sp1_recursion_core_sys::alu_ext

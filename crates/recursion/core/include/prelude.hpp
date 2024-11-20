@@ -1,6 +1,6 @@
 #pragma once
 
-#include "sp1_recursion_core_sys-cbindgen.hpp"
+#include "sp1-recursion-core-sys-cbindgen.hpp"
 
 #ifndef __CUDACC__
     #define __SP1_HOSTDEV__
