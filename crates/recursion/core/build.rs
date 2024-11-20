@@ -133,6 +133,8 @@ mod sys {
             .include_item("SelectPreprocessedCols")
             .include_item("Poseidon2Event")
             .include_item("Poseidon2")
+            .include_item("Poseidon2Instr")
+            .include_item("Poseidon2PreprocessedCols")
             .with_namespace("sp1_recursion_core_sys")
             .with_crate(crate_dir)
             .generate()

@@ -6,13 +6,13 @@ use crate::{
         batch_fri::{BatchFRICols, BatchFRIPreprocessedCols},
         exp_reverse_bits::{ExpReverseBitsLenCols, ExpReverseBitsLenPreprocessedCols},
         fri_fold::{FriFoldCols, FriFoldPreprocessedCols},
-        poseidon2_skinny::columns::Poseidon2,
+        poseidon2_skinny::columns::{preprocessed::Poseidon2PreprocessedCols, Poseidon2},
         public_values::{PublicValuesCols, PublicValuesPreprocessedCols},
         select::{SelectCols, SelectPreprocessedCols},
     },
     BaseAluInstr, BaseAluIo, BatchFRIEvent, BatchFRIInstrFFI, CommitPublicValuesEvent,
     CommitPublicValuesInstr, ExpReverseBitsEventFFI, ExpReverseBitsInstrFFI, ExtAluInstr, ExtAluIo,
-    FriFoldEvent, FriFoldInstrFFI, Poseidon2Event, SelectEvent, SelectInstr,
+    FriFoldEvent, FriFoldInstrFFI, Poseidon2Event, Poseidon2Instr, SelectEvent, SelectInstr,
 };
 use p3_baby_bear::BabyBear;
 
@@ -90,5 +90,10 @@ extern "C-unwind" {
     pub fn poseidon2_skinny_event_to_row_babybear(
         io: &Poseidon2Event<BabyBear>,
         cols: &mut Poseidon2<BabyBear>,
+    );
+    pub fn poseidon2_skinny_instr_to_row_babybear(
+        instr: &Poseidon2Instr<BabyBear>,
+        i: usize,
+        cols: &mut Poseidon2PreprocessedCols<BabyBear>,
     );
 }

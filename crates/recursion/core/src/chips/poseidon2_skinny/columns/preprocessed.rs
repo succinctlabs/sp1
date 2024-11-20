@@ -1,6 +1,6 @@
 use sp1_derive::AlignedBorrow;
 
-use crate::chips::{mem::MemoryAccessCols, poseidon2_skinny::WIDTH};
+use crate::chips::{mem::MemoryAccessColsChips, poseidon2_skinny::WIDTH};
 
 #[derive(AlignedBorrow, Clone, Copy, Debug)]
 #[repr(C)]
@@ -14,6 +14,6 @@ pub struct RoundCountersPreprocessedCols<T: Copy> {
 #[derive(AlignedBorrow, Clone, Copy, Debug)]
 #[repr(C)]
 pub struct Poseidon2PreprocessedCols<T: Copy> {
-    pub memory_preprocessed: [MemoryAccessCols<T>; WIDTH],
+    pub memory_preprocessed: [MemoryAccessColsChips<T>; WIDTH],
     pub round_counters_preprocessed: RoundCountersPreprocessedCols<T>,
 }

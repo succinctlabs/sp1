@@ -115,4 +115,11 @@ namespace sp1_recursion_core_sys
             *reinterpret_cast<const Poseidon2Event<BabyBear> *>(io),
             *reinterpret_cast<Poseidon2<BabyBear> *(*)[NUM_EXTERNAL_ROUNDS + 3]>(&cols));
     }
+    extern void poseidon2_skinny_instr_to_row_babybear(const Poseidon2Instr<BabyBearP3> *instr, size_t i, Poseidon2PreprocessedCols<BabyBearP3> *cols)
+    {
+        poseidon2_skinny::instr_to_row<BabyBear>(
+            *reinterpret_cast<const Poseidon2Instr<BabyBear> *>(instr),
+            i,
+            reinterpret_cast<Poseidon2PreprocessedCols<BabyBear> *>(cols));
+    }
 } // namespace sp1_recursion_core_sys
