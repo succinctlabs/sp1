@@ -45,7 +45,7 @@ use sp1_core_executor::{
     ByteOpcode, ExecutionRecord, Opcode, Program,
 };
 use sp1_derive::AlignedBorrow;
-use sp1_primitives::consts::{WORD_SIZE, BYTE_SIZE, LONG_WORD_SIZE};
+use sp1_primitives::consts::{BYTE_SIZE, LONG_WORD_SIZE, WORD_SIZE};
 use sp1_stark::{air::MachineAir, Word};
 
 use crate::{

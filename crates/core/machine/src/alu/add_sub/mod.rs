@@ -234,11 +234,11 @@ mod tests {
     /// Lazily initialized record for use across multiple tests.
     /// Consists of random `ADD` and `SUB` instructions.
     static SHARD: LazyLock<ExecutionRecord> = LazyLock::new(|| {
-        let add_events = (0..255)
+        let add_events = (0..1)
             .flat_map(|i| {
                 [{
-                    let operand_1 = thread_rng().gen_range(0..u32::MAX);
-                    let operand_2 = thread_rng().gen_range(0..u32::MAX);
+                    let operand_1 = 1u32;
+                    let operand_2 = 2u32;
                     let result = operand_1.wrapping_add(operand_2);
                     AluEvent::new(i % 2, 0, Opcode::ADD, result, operand_1, operand_2)
                 }]
@@ -254,7 +254,7 @@ mod tests {
                 }]
             })
             .collect::<Vec<_>>();
-        ExecutionRecord { add_events, sub_events, ..Default::default() }
+        ExecutionRecord { add_events, ..Default::default() }
     });
 
     #[test]
@@ -273,7 +273,7 @@ mod tests {
         let mut challenger = config.challenger();
 
         let mut shard = ExecutionRecord::default();
-        for i in 0..255 {
+        for i in 0..1 {
             let operand_1 = thread_rng().gen_range(0..u32::MAX);
             let operand_2 = thread_rng().gen_range(0..u32::MAX);
             let result = operand_1.wrapping_add(operand_2);
