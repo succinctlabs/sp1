@@ -25,6 +25,7 @@ jobs:
         runs-on,
         runner=64cpu-linux-x64,
         spot=false,
+        hdd=41,
         "run-id=${{ github.run_id }}",
       ]
     env:
@@ -35,15 +36,6 @@ jobs:
 
       - name: Setup CI
         uses: ./.github/actions/setup
-
-      - name: Cleanup disk space
-        run: |
-          df -h
-          sudo rm -rf /opt/hostedtoolcache
-          sudo rm -rf /usr/share/dotnet
-          sudo rm -rf /usr/local/share/boost
-          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
-          df -h
 
       - name: Install SP1 toolchain
         run: |
@@ -76,6 +68,7 @@ jobs:
         runs-on,
         runner=64cpu-linux-arm64,
         spot=false,
+        hdd=41,
         "run-id=${{ github.run_id }}",
       ]
     env:
@@ -86,15 +79,6 @@ jobs:
 
       - name: Setup CI
         uses: ./.github/actions/setup
-
-      - name: Cleanup disk space
-        run: |
-          df -h
-          sudo rm -rf /opt/hostedtoolcache
-          sudo rm -rf /usr/share/dotnet
-          sudo rm -rf /usr/local/share/boost
-          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
-          df -h
 
       - name: Install SP1 toolchain
         run: |
@@ -169,6 +153,7 @@ jobs:
         runs-on,
         runner=64cpu-linux-x64,
         spot=false,
+        hdd=41,
         "run-id=${{ github.run_id }}",
       ]
     env:
@@ -445,7 +430,7 @@ jobs:
         runs-on,
         runner=64cpu-linux-x64,
         spot=false,
-        hdd=80,
+        hdd=41,
         "run-id=${{ github.run_id }}",
       ]    
     env:
