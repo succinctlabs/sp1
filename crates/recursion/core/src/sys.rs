@@ -9,9 +9,9 @@ use crate::{
         public_values::{PublicValuesCols, PublicValuesPreprocessedCols},
         select::{SelectCols, SelectPreprocessedCols},
     },
-    BaseAluInstr, BaseAluIo, BatchFRIEvent, BatchFRIInstrC, CommitPublicValuesEvent,
-    CommitPublicValuesInstr, ExpReverseBitsEventC, ExpReverseBitsInstrC, ExtAluInstr, ExtAluIo,
-    FriFoldEvent, FriFoldInstrC, SelectEvent, SelectInstr,
+    BaseAluInstr, BaseAluIo, BatchFRIEvent, BatchFRIInstrFFI, CommitPublicValuesEvent,
+    CommitPublicValuesInstr, ExpReverseBitsEventFFI, ExpReverseBitsInstrFFI, ExtAluInstr, ExtAluIo,
+    FriFoldEvent, FriFoldInstrFFI, SelectEvent, SelectInstr,
 };
 use p3_baby_bear::BabyBear;
 
@@ -40,17 +40,17 @@ extern "C-unwind" {
         cols: &mut BatchFRICols<BabyBear>,
     );
     pub fn batch_fri_instr_to_row_babybear(
-        instr: &BatchFRIInstrC<BabyBear>,
+        instr: &BatchFRIInstrFFI<BabyBear>,
         cols: &mut BatchFRIPreprocessedCols<BabyBear>,
     );
 
     pub fn exp_reverse_bits_event_to_row_babybear(
-        io: &ExpReverseBitsEventC<BabyBear>,
+        io: &ExpReverseBitsEventFFI<BabyBear>,
         i: usize,
         cols: &mut ExpReverseBitsLenCols<BabyBear>,
     );
     pub fn exp_reverse_bits_instr_to_row_babybear(
-        instr: &ExpReverseBitsInstrC<BabyBear>,
+        instr: &ExpReverseBitsInstrFFI<BabyBear>,
         i: usize,
         len: usize,
         cols: &mut ExpReverseBitsLenPreprocessedCols<BabyBear>,
@@ -61,7 +61,7 @@ extern "C-unwind" {
         cols: &mut FriFoldCols<BabyBear>,
     );
     pub fn fri_fold_instr_to_row_babybear(
-        instr: &FriFoldInstrC<BabyBear>,
+        instr: &FriFoldInstrFFI<BabyBear>,
         i: usize,
         cols: &mut FriFoldPreprocessedCols<BabyBear>,
     );

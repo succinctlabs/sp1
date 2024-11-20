@@ -380,7 +380,7 @@ mod tests {
             row_add.iter_mut().for_each(|row| {
                 let cols: &mut BatchFRIPreprocessedCols<F> = row.as_mut_slice().borrow_mut();
                 unsafe {
-                    crate::sys::batch_fri_instr_to_row_babybear(&instruction.to_c(), cols);
+                    crate::sys::batch_fri_instr_to_row_babybear(&instruction.into(), cols);
                 }
             });
             rows.extend(row_add);

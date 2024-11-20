@@ -450,7 +450,7 @@ mod tests {
                 rows.iter_mut().enumerate().for_each(|(i, row)| {
                     let cols: &mut ExpReverseBitsLenCols<F> = row.as_mut_slice().borrow_mut();
                     unsafe {
-                        crate::sys::exp_reverse_bits_event_to_row_babybear(&event.to_c(), i, cols);
+                        crate::sys::exp_reverse_bits_event_to_row_babybear(&event.into(), i, cols);
                     }
 
                     // Accumulate after the event is converted to a row
@@ -550,7 +550,7 @@ mod tests {
                     row.as_mut_slice().borrow_mut();
                 unsafe {
                     crate::sys::exp_reverse_bits_instr_to_row_babybear(
-                        &instruction.to_c(),
+                        &(*instruction).into(),
                         i,
                         len,
                         cols,

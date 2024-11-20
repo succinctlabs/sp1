@@ -721,7 +721,7 @@ mod tests {
                     let cols: &mut FriFoldPreprocessedCols<F> = row.as_mut_slice().borrow_mut();
                     unsafe {
                         crate::sys::fri_fold_instr_to_row_babybear(
-                            &instruction.to_c(),
+                            &instruction.into(),
                             row_idx,
                             cols,
                         );

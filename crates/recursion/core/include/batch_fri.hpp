@@ -11,7 +11,7 @@ template <class F> __SP1_HOSTDEV__ void event_to_row(const BatchFRIEvent<F> &eve
 }
 
 template <class F> __SP1_HOSTDEV__ void instr_to_row(
-    const BatchFRIInstrC<F> &instr,
+    const BatchFRIInstrFFI<F> &instr,
     BatchFRIPreprocessedCols<F> &cols) {
     cols.is_real = F(1);
     cols.is_end = F(instr.ext_vec_addrs_p_at_z_ptr == instr.ext_vec_addrs_p_at_z_ptr + instr.ext_vec_addrs_p_at_z_len - 1);

@@ -18,7 +18,7 @@ template <class F> __SP1_HOSTDEV__ void event_to_row(const FriFoldEvent<F> &even
 }
 
 template <class F> __SP1_HOSTDEV__ void instr_to_row(
-    const FriFoldInstrC<F> &instr,
+    const FriFoldInstrFFI<F> &instr,
     size_t i,
     FriFoldPreprocessedCols<F> &cols) {
     

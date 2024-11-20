@@ -163,22 +163,24 @@ pub struct ExpReverseBitsInstr<F> {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[repr(C)]
-pub struct ExpReverseBitsInstrC<'a, F> {
+pub struct ExpReverseBitsInstrFFI<'a, F> {
     pub base: &'a Address<F>,
     pub exp_ptr: *const Address<F>,
     pub exp_len: usize,
     pub result: &'a Address<F>,
+
     pub mult: &'a F,
 }
 
-impl<F> ExpReverseBitsInstr<F> {
-    pub fn to_c(&self) -> ExpReverseBitsInstrC<'_, F> {
-        ExpReverseBitsInstrC {
-            base: &self.addrs.base,
-            exp_ptr: self.addrs.exp.as_ptr(),
-            exp_len: self.addrs.exp.len(),
-            result: &self.addrs.result,
-            mult: &self.mult,
+impl<'a, F> From<&'a ExpReverseBitsInstr<F>> for ExpReverseBitsInstrFFI<'a, F> {
+    fn from(instr: &'a ExpReverseBitsInstr<F>) -> Self {
+        Self {
+            base: &instr.addrs.base,
+            exp_ptr: instr.addrs.exp.as_ptr(),
+            exp_len: instr.addrs.exp.len(),
+            result: &instr.addrs.result,
+
+            mult: &instr.mult,
         }
     }
 }
@@ -194,20 +196,20 @@ pub struct ExpReverseBitsEvent<F> {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[repr(C)]
-pub struct ExpReverseBitsEventC<'a, F> {
+pub struct ExpReverseBitsEventFFI<'a, F> {
     pub base: &'a F,
     pub exp_ptr: *const F,
     pub exp_len: usize,
     pub result: &'a F,
 }
 
-impl<F> ExpReverseBitsEvent<F> {
-    pub fn to_c(&self) -> ExpReverseBitsEventC<'_, F> {
-        ExpReverseBitsEventC {
-            base: &self.base,
-            exp_ptr: self.exp.as_ptr(),
-            exp_len: self.exp.len(),
-            result: &self.result,
+impl<'a, F> From<&'a ExpReverseBitsEvent<F>> for ExpReverseBitsEventFFI<'a, F> {
+    fn from(event: &'a ExpReverseBitsEvent<F>) -> Self {
+        Self {
+            base: &event.base,
+            exp_ptr: event.exp.as_ptr(),
+            exp_len: event.exp.len(),
+            result: &event.result,
         }
     }
 }
@@ -259,7 +261,7 @@ pub struct FriFoldInstr<F> {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[repr(C)]
-pub struct FriFoldInstrC<'a, F> {
+pub struct FriFoldInstrFFI<'a, F> {
     pub base_single_addrs: &'a FriFoldBaseIo<Address<F>>,
     pub ext_single_addrs: &'a FriFoldExtSingleIo<Address<F>>,
 
@@ -283,31 +285,37 @@ pub struct FriFoldInstrC<'a, F> {
     pub ro_mults_len: usize,
 }
 
-impl<F> FriFoldInstr<F> {
-    pub fn to_c(&self) -> FriFoldInstrC<'_, F> {
-        FriFoldInstrC {
-            base_single_addrs: &self.base_single_addrs,
-            ext_single_addrs: &self.ext_single_addrs,
+impl<'a, F> From<&'a FriFoldInstr<F>> for FriFoldInstrFFI<'a, F> {
+    fn from(instr: &'a FriFoldInstr<F>) -> Self {
+        Self {
+            base_single_addrs: &instr.base_single_addrs,
+            ext_single_addrs: &instr.ext_single_addrs,
 
-            ext_vec_addrs_mat_opening_ptr: self.ext_vec_addrs.mat_opening.as_ptr(),
-            ext_vec_addrs_mat_opening_len: self.ext_vec_addrs.mat_opening.len(),
-            ext_vec_addrs_ps_at_z_ptr: self.ext_vec_addrs.ps_at_z.as_ptr(),
-            ext_vec_addrs_ps_at_z_len: self.ext_vec_addrs.ps_at_z.len(),
-            ext_vec_addrs_alpha_pow_input_ptr: self.ext_vec_addrs.alpha_pow_input.as_ptr(),
-            ext_vec_addrs_alpha_pow_input_len: self.ext_vec_addrs.alpha_pow_input.len(),
-            ext_vec_addrs_ro_input_ptr: self.ext_vec_addrs.ro_input.as_ptr(),
-            ext_vec_addrs_ro_input_len: self.ext_vec_addrs.ro_input.len(),
-            ext_vec_addrs_alpha_pow_output_ptr: self.ext_vec_addrs.alpha_pow_output.as_ptr(),
-            ext_vec_addrs_alpha_pow_output_len: self.ext_vec_addrs.alpha_pow_output.len(),
-            ext_vec_addrs_ro_output_ptr: self.ext_vec_addrs.ro_output.as_ptr(),
-            ext_vec_addrs_ro_output_len: self.ext_vec_addrs.ro_output.len(),
+            ext_vec_addrs_mat_opening_ptr: instr.ext_vec_addrs.mat_opening.as_ptr(),
+            ext_vec_addrs_mat_opening_len: instr.ext_vec_addrs.mat_opening.len(),
+            ext_vec_addrs_ps_at_z_ptr: instr.ext_vec_addrs.ps_at_z.as_ptr(),
+            ext_vec_addrs_ps_at_z_len: instr.ext_vec_addrs.ps_at_z.len(),
+            ext_vec_addrs_alpha_pow_input_ptr: instr.ext_vec_addrs.alpha_pow_input.as_ptr(),
+            ext_vec_addrs_alpha_pow_input_len: instr.ext_vec_addrs.alpha_pow_input.len(),
+            ext_vec_addrs_ro_input_ptr: instr.ext_vec_addrs.ro_input.as_ptr(),
+            ext_vec_addrs_ro_input_len: instr.ext_vec_addrs.ro_input.len(),
+            ext_vec_addrs_alpha_pow_output_ptr: instr.ext_vec_addrs.alpha_pow_output.as_ptr(),
+            ext_vec_addrs_alpha_pow_output_len: instr.ext_vec_addrs.alpha_pow_output.len(),
+            ext_vec_addrs_ro_output_ptr: instr.ext_vec_addrs.ro_output.as_ptr(),
+            ext_vec_addrs_ro_output_len: instr.ext_vec_addrs.ro_output.len(),
 
-            alpha_pow_mults_ptr: self.alpha_pow_mults.as_ptr(),
-            alpha_pow_mults_len: self.alpha_pow_mults.len(),
+            alpha_pow_mults_ptr: instr.alpha_pow_mults.as_ptr(),
+            alpha_pow_mults_len: instr.alpha_pow_mults.len(),
 
-            ro_mults_ptr: self.ro_mults.as_ptr(),
-            ro_mults_len: self.ro_mults.len(),
+            ro_mults_ptr: instr.ro_mults.as_ptr(),
+            ro_mults_len: instr.ro_mults.len(),
         }
+    }
+}
+
+impl<'a, F> From<&'a Box<FriFoldInstr<F>>> for FriFoldInstrFFI<'a, F> {
+    fn from(instr: &'a Box<FriFoldInstr<F>>) -> Self {
+        Self::from(instr.as_ref())
     }
 }
 
@@ -354,7 +362,6 @@ pub struct BatchFRIBaseVecIo<V> {
 /// An instruction invoking the batch FRI operation. Addresses for extension field elements are of
 /// the same type as for base field elements.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[repr(C)]
 pub struct BatchFRIInstr<F> {
     pub base_vec_addrs: BatchFRIBaseVecIo<Vec<Address<F>>>,
     pub ext_single_addrs: BatchFRIExtSingleIo<Address<F>>,
@@ -364,7 +371,7 @@ pub struct BatchFRIInstr<F> {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[repr(C)]
-pub struct BatchFRIInstrC<'a, F> {
+pub struct BatchFRIInstrFFI<'a, F> {
     pub base_vec_addrs_p_at_x_ptr: *const Address<F>,
     pub base_vec_addrs_p_at_x_len: usize,
 
@@ -378,21 +385,27 @@ pub struct BatchFRIInstrC<'a, F> {
     pub acc_mult: &'a F,
 }
 
-impl<F> BatchFRIInstr<F> {
-    pub fn to_c(&self) -> BatchFRIInstrC<'_, F> {
-        BatchFRIInstrC {
-            base_vec_addrs_p_at_x_ptr: self.base_vec_addrs.p_at_x.as_ptr(),
-            base_vec_addrs_p_at_x_len: self.base_vec_addrs.p_at_x.len(),
+impl<'a, F> From<&'a BatchFRIInstr<F>> for BatchFRIInstrFFI<'a, F> {
+    fn from(instr: &'a BatchFRIInstr<F>) -> Self {
+        Self {
+            base_vec_addrs_p_at_x_ptr: instr.base_vec_addrs.p_at_x.as_ptr(),
+            base_vec_addrs_p_at_x_len: instr.base_vec_addrs.p_at_x.len(),
 
-            ext_single_addrs: &self.ext_single_addrs,
+            ext_single_addrs: &instr.ext_single_addrs,
 
-            ext_vec_addrs_p_at_z_ptr: self.ext_vec_addrs.p_at_z.as_ptr(),
-            ext_vec_addrs_p_at_z_len: self.ext_vec_addrs.p_at_z.len(),
-            ext_vec_addrs_alpha_pow_ptr: self.ext_vec_addrs.alpha_pow.as_ptr(),
-            ext_vec_addrs_alpha_pow_len: self.ext_vec_addrs.alpha_pow.len(),
+            ext_vec_addrs_p_at_z_ptr: instr.ext_vec_addrs.p_at_z.as_ptr(),
+            ext_vec_addrs_p_at_z_len: instr.ext_vec_addrs.p_at_z.len(),
+            ext_vec_addrs_alpha_pow_ptr: instr.ext_vec_addrs.alpha_pow.as_ptr(),
+            ext_vec_addrs_alpha_pow_len: instr.ext_vec_addrs.alpha_pow.len(),
 
-            acc_mult: &self.acc_mult,
+            acc_mult: &instr.acc_mult,
         }
+    }
+}
+
+impl<'a, 'b: 'a, F> From<&'b &'b Box<BatchFRIInstr<F>>> for BatchFRIInstrFFI<'a, F> {
+    fn from(instr: &'b &'b Box<BatchFRIInstr<F>>) -> Self {
+        Self::from(instr.as_ref())
     }
 }
 

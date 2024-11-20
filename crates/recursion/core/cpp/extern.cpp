@@ -31,28 +31,28 @@ extern void batch_fri_event_to_row_babybear(const BatchFRIEvent<BabyBearP3>* io,
         *reinterpret_cast<const BatchFRIEvent<BabyBear>*>(io),
         *reinterpret_cast<BatchFRICols<BabyBear>*>(cols));
 }
-extern void batch_fri_instr_to_row_babybear(const BatchFRIInstrC<BabyBearP3>* instr, BatchFRIPreprocessedCols<BabyBearP3>* cols) {
+extern void batch_fri_instr_to_row_babybear(const BatchFRIInstrFFI<BabyBearP3>* instr, BatchFRIPreprocessedCols<BabyBearP3>* cols) {
     batch_fri::instr_to_row<BabyBear>(
-        *reinterpret_cast<const BatchFRIInstrC<BabyBear>*>(instr),
+        *reinterpret_cast<const BatchFRIInstrFFI<BabyBear>*>(instr),
         *reinterpret_cast<BatchFRIPreprocessedCols<BabyBear>*>(cols));
 }
 
 extern void exp_reverse_bits_event_to_row_babybear(
-    const ExpReverseBitsEventC<BabyBearP3>* io,
+    const ExpReverseBitsEventFFI<BabyBearP3>* io,
     size_t i,
     ExpReverseBitsLenCols<BabyBearP3>* cols) {
     exp_reverse_bits::event_to_row<BabyBear>(
-        *reinterpret_cast<const ExpReverseBitsEventC<BabyBear>*>(io),
+        *reinterpret_cast<const ExpReverseBitsEventFFI<BabyBear>*>(io),
         i,
         *reinterpret_cast<ExpReverseBitsLenCols<BabyBear>*>(cols));
 }
 extern void exp_reverse_bits_instr_to_row_babybear(
-    const ExpReverseBitsInstrC<BabyBearP3>* instr,
+    const ExpReverseBitsInstrFFI<BabyBearP3>* instr,
     size_t i,
     size_t len,
     ExpReverseBitsLenPreprocessedCols<BabyBearP3>* cols) {
     exp_reverse_bits::instr_to_row<BabyBear>(
-        *reinterpret_cast<const ExpReverseBitsInstrC<BabyBear>*>(instr),
+        *reinterpret_cast<const ExpReverseBitsInstrFFI<BabyBear>*>(instr),
         i,
         len,
         *reinterpret_cast<ExpReverseBitsLenPreprocessedCols<BabyBear>*>(cols));
@@ -63,9 +63,9 @@ extern void fri_fold_event_to_row_babybear(const FriFoldEvent<BabyBearP3>* io, F
         *reinterpret_cast<const FriFoldEvent<BabyBear>*>(io),
         *reinterpret_cast<FriFoldCols<BabyBear>*>(cols));
 }
-extern void fri_fold_instr_to_row_babybear(const FriFoldInstrC<BabyBearP3>* instr, size_t i, FriFoldPreprocessedCols<BabyBearP3>* cols) {
+extern void fri_fold_instr_to_row_babybear(const FriFoldInstrFFI<BabyBearP3>* instr, size_t i, FriFoldPreprocessedCols<BabyBearP3>* cols) {
     fri_fold::instr_to_row<BabyBear>(
-        *reinterpret_cast<const FriFoldInstrC<BabyBear>*>(instr),
+        *reinterpret_cast<const FriFoldInstrFFI<BabyBear>*>(instr),
         i,
         *reinterpret_cast<FriFoldPreprocessedCols<BabyBear>*>(cols));
 }

@@ -3,14 +3,14 @@
 #include "prelude.hpp"
 
 namespace sp1_recursion_core_sys::exp_reverse_bits {
-template <class F> __SP1_HOSTDEV__ void event_to_row(const ExpReverseBitsEventC<F> &event, size_t i, ExpReverseBitsLenCols<F> &cols) {
+template <class F> __SP1_HOSTDEV__ void event_to_row(const ExpReverseBitsEventFFI<F> &event, size_t i, ExpReverseBitsLenCols<F> &cols) {
     cols.x = *event.base;
     cols.current_bit = event.exp_ptr[i];
     cols.multiplier = (event.exp_ptr[i] == F::one()) ? *event.base : F::one();
 }
 
 template <class F> __SP1_HOSTDEV__ void instr_to_row(
-    const ExpReverseBitsInstrC<F> &instr,
+    const ExpReverseBitsInstrFFI<F> &instr,
     size_t i,
     size_t len,
     ExpReverseBitsLenPreprocessedCols<F> &cols) {
