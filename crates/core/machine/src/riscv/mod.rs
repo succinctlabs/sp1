@@ -10,7 +10,8 @@ use sp1_core_executor::{
 
 use crate::{
     memory::{
-        MemoryChipType, MemoryLocalChip, MemoryProgramChip, NUM_LOCAL_MEMORY_ENTRIES_PER_ROW,
+        MemoryChipType, MemoryInstructionsChip, MemoryLocalChip, MemoryProgramChip,
+        NUM_LOCAL_MEMORY_ENTRIES_PER_ROW,
     },
     riscv::MemoryChipType::{Finalize, Initialize},
     syscall::precompiles::fptower::{Fp2AddSubAssignChip, Fp2MulAssignChip, FpOpChip},
@@ -409,6 +410,10 @@ impl<F: PrimeField32> RiscvAir<F> {
                     .chunks(NUM_LOCAL_MEMORY_ENTRIES_PER_ROW)
                     .into_iter()
                     .count(),
+            ),
+            (
+                RiscvAir::MemoryInstructions(MemoryInstructionsChip::default()),
+                record.memory_instructions_events.len(),
             ),
             (RiscvAir::SyscallCore(SyscallChip::core()), record.syscall_events.len()),
         ]

@@ -82,7 +82,7 @@ impl CpuChip {
             );
 
             // When we are branching, calculate branch_cols.next_pc <==> branch_cols.pc + c.
-            builder.send_alu(
+            builder.send_instruction(
                 Opcode::ADD.as_field::<AB::F>(),
                 branch_cols.next_pc,
                 branch_cols.pc,
@@ -177,7 +177,7 @@ impl CpuChip {
 
         // Calculate a_lt_b <==> a < b (using appropriate signedness).
         let use_signed_comparison = local.selectors.is_blt + local.selectors.is_bge;
-        builder.send_alu(
+        builder.send_instruction(
             use_signed_comparison.clone() * Opcode::SLT.as_field::<AB::F>()
                 + (AB::Expr::one() - use_signed_comparison.clone())
                     * Opcode::SLTU.as_field::<AB::F>(),
@@ -190,7 +190,7 @@ impl CpuChip {
         );
 
         // Calculate a_gt_b <==> a > b (using appropriate signedness).
-        builder.send_alu(
+        builder.send_instruction(
             use_signed_comparison.clone() * Opcode::SLT.as_field::<AB::F>()
                 + (AB::Expr::one() - use_signed_comparison) * Opcode::SLTU.as_field::<AB::F>(),
             Word::extend_var::<AB>(branch_cols.a_gt_b),

@@ -441,7 +441,7 @@ where
         }
 
         // Receive the arguments.
-        builder.receive_alu(
+        builder.receive_instruction(
             opcode,
             local.a,
             local.b,

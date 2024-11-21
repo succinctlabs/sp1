@@ -193,7 +193,7 @@ where
 
         // Receive the arguments.  There are separate receives for ADD and SUB.
         // For add, `add_operation.value` is `a`, `operand_1` is `b`, and `operand_2` is `c`.
-        builder.receive_alu(
+        builder.receive_instruction(
             Opcode::ADD.as_field::<AB::F>(),
             local.add_operation.value,
             local.operand_1,
@@ -204,7 +204,7 @@ where
         );
 
         // For sub, `operand_1` is `a`, `add_operation.value` is `b`, and `operand_2` is `c`.
-        builder.receive_alu(
+        builder.receive_instruction(
             Opcode::SUB.as_field::<AB::F>(),
             local.operand_1,
             local.add_operation.value,

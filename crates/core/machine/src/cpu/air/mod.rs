@@ -1,6 +1,5 @@
 pub mod branch;
 pub mod ecall;
-pub mod memory;
 pub mod register;
 
 use core::borrow::Borrow;
@@ -47,20 +46,14 @@ where
         );
 
         // Compute some flags for which type of instruction we are dealing with.
-        let is_memory_instruction: AB::Expr = self.is_memory_instruction::<AB>(&local.selectors);
         let is_branch_instruction: AB::Expr = self.is_branch_instruction::<AB>(&local.selectors);
         let is_alu_instruction: AB::Expr = self.is_alu_instruction::<AB>(&local.selectors);
 
         // Register constraints.
         self.eval_registers::<AB>(builder, local, is_branch_instruction.clone());
 
-        // Memory instructions.
-        self.eval_memory_address_and_access::<AB>(builder, local, is_memory_instruction.clone());
-        self.eval_memory_load::<AB>(builder, local);
-        self.eval_memory_store::<AB>(builder, local);
-
         // ALU instructions.
-        builder.send_alu(
+        builder.send_instruction(
             local.instruction.opcode,
             local.op_a_val(),
             local.op_b_val(),
@@ -190,7 +183,7 @@ impl CpuChip {
         );
 
         // Verify that the new pc is calculated correctly for JAL instructions.
-        builder.send_alu(
+        builder.send_instruction(
             AB::Expr::from_canonical_u32(Opcode::ADD as u32),
             jump_columns.next_pc,
             jump_columns.pc,
@@ -201,7 +194,7 @@ impl CpuChip {
         );
 
         // Verify that the new pc is calculated correctly for JALR instructions.
-        builder.send_alu(
+        builder.send_instruction(
             AB::Expr::from_canonical_u32(Opcode::ADD as u32),
             jump_columns.next_pc,
             local.op_b_val(),
@@ -229,7 +222,7 @@ impl CpuChip {
         );
 
         // Verify that op_a == pc + op_b.
-        builder.send_alu(
+        builder.send_instruction(
             AB::Expr::from_canonical_u32(Opcode::ADD as u32),
             local.op_a_val(),
             auipc_columns.pc,

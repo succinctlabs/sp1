@@ -205,7 +205,7 @@ where
             + local.is_and * Opcode::AND.as_field::<AB::F>();
 
         // Receive the arguments.
-        builder.receive_alu(
+        builder.receive_instruction(
             cpu_opcode,
             local.a,
             local.b,

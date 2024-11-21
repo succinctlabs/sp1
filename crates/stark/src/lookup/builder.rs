@@ -244,7 +244,7 @@ mod tests {
                 AirInteraction::new(
                     vec![x.into(), y.into()],
                     AB::F::from_canonical_u32(3).into(),
-                    InteractionKind::Alu,
+                    InteractionKind::Instruction,
                 ),
                 InteractionScope::Local,
             );
@@ -252,7 +252,7 @@ mod tests {
                 AirInteraction::new(
                     vec![x + y, z.into()],
                     AB::F::from_canonical_u32(5).into(),
-                    InteractionKind::Alu,
+                    InteractionKind::Instruction,
                 ),
                 InteractionScope::Local,
             );

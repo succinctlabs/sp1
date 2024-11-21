@@ -441,7 +441,7 @@ where
         builder.assert_bool(local.is_slt + local.is_sltu);
 
         // Receive the arguments.
-        builder.receive_alu(
+        builder.receive_instruction(
             local.is_slt * AB::F::from_canonical_u32(Opcode::SLT as u32)
                 + local.is_sltu * AB::F::from_canonical_u32(Opcode::SLTU as u32),
             local.a,

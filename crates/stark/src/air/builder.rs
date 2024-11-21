@@ -175,17 +175,16 @@ pub trait ByteAirBuilder: BaseAirBuilder {
     }
 }
 
-/// A trait which contains methods related to ALU interactions in an AIR.
-pub trait AluAirBuilder: BaseAirBuilder {
+/// A trait which contains methods related to RISC-V instruction interactions in an AIR.
+pub trait InstructionAirBuilder: BaseAirBuilder {
     /// Sends an ALU operation to be processed.
     #[allow(clippy::too_many_arguments)]
-    fn send_alu(
+    fn send_instruction(
         &mut self,
         opcode: impl Into<Self::Expr>,
         a: Word<impl Into<Self::Expr>>,
         b: Word<impl Into<Self::Expr>>,
         c: Word<impl Into<Self::Expr>>,
-        shard: impl Into<Self::Expr>,
         nonce: impl Into<Self::Expr>,
         multiplicity: impl Into<Self::Expr>,
     ) {
@@ -193,19 +192,18 @@ pub trait AluAirBuilder: BaseAirBuilder {
             .chain(a.0.into_iter().map(Into::into))
             .chain(b.0.into_iter().map(Into::into))
             .chain(c.0.into_iter().map(Into::into))
-            .chain(once(shard.into()))
             .chain(once(nonce.into()))
             .collect();
 
         self.send(
-            AirInteraction::new(values, multiplicity.into(), InteractionKind::Alu),
+            AirInteraction::new(values, multiplicity.into(), InteractionKind::Instruction),
             InteractionScope::Local,
         );
     }
 
     /// Receives an ALU operation to be processed.
     #[allow(clippy::too_many_arguments)]
-    fn receive_alu(
+    fn receive_instruction(
         &mut self,
         opcode: impl Into<Self::Expr>,
         a: Word<impl Into<Self::Expr>>,
@@ -224,7 +222,7 @@ pub trait AluAirBuilder: BaseAirBuilder {
             .collect();
 
         self.receive(
-            AirInteraction::new(values, multiplicity.into(), InteractionKind::Alu),
+            AirInteraction::new(values, multiplicity.into(), InteractionKind::Instruction),
             InteractionScope::Local,
         );
     }
@@ -345,7 +343,7 @@ pub trait MachineAirBuilder:
 }
 
 /// A trait which contains all helper methods for building SP1 machine AIRs.
-pub trait SP1AirBuilder: MachineAirBuilder + ByteAirBuilder + AluAirBuilder {}
+pub trait SP1AirBuilder: MachineAirBuilder + ByteAirBuilder + InstructionAirBuilder {}
 
 impl<'a, AB: AirBuilder + MessageBuilder<M>, M> MessageBuilder<M> for FilteredAirBuilder<'a, AB> {
     fn send(&mut self, message: M, scope: InteractionScope) {
@@ -359,7 +357,7 @@ impl<'a, AB: AirBuilder + MessageBuilder<M>, M> MessageBuilder<M> for FilteredAi
 
 impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> BaseAirBuilder for AB {}
 impl<AB: BaseAirBuilder> ByteAirBuilder for AB {}
-impl<AB: BaseAirBuilder> AluAirBuilder for AB {}
+impl<AB: BaseAirBuilder> InstructionAirBuilder for AB {}
 
 impl<AB: BaseAirBuilder> ExtensionAirBuilder for AB {}
 impl<AB: BaseAirBuilder + AirBuilderWithPublicValues> MachineAirBuilder for AB {}

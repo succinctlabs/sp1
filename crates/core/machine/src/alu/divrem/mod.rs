@@ -496,7 +496,7 @@ where
             ];
 
             // The lower 4 bytes of c_times_quotient must match the lower 4 bytes of (c * quotient).
-            builder.send_alu(
+            builder.send_instruction(
                 AB::Expr::from_canonical_u32(Opcode::MUL as u32),
                 Word(lower_half),
                 local.quotient,
@@ -521,7 +521,7 @@ where
                 local.c_times_quotient[7].into(),
             ];
 
-            builder.send_alu(
+            builder.send_instruction(
                 opcode_for_upper_half,
                 Word(upper_half),
                 local.quotient,
@@ -679,7 +679,7 @@ where
             }
             // In the case that `c` or `rem` is negative, instead check that their sum is zero by
             // sending an AddEvent.
-            builder.send_alu(
+            builder.send_instruction(
                 AB::Expr::from_canonical_u32(Opcode::ADD as u32),
                 Word([zero.clone(), zero.clone(), zero.clone(), zero.clone()]),
                 local.c,
@@ -688,7 +688,7 @@ where
                 local.abs_c_alu_event_nonce,
                 local.abs_c_alu_event,
             );
-            builder.send_alu(
+            builder.send_instruction(
                 AB::Expr::from_canonical_u32(Opcode::ADD as u32),
                 Word([zero.clone(), zero.clone(), zero.clone(), zero.clone()]),
                 local.remainder,
@@ -734,7 +734,7 @@ where
 
             // Dispatch abs(remainder) < max(abs(c), 1), this is equivalent to abs(remainder) <
             // abs(c) if not division by 0.
-            builder.send_alu(
+            builder.send_instruction(
                 AB::Expr::from_canonical_u32(Opcode::SLTU as u32),
                 Word([one.clone(), zero.clone(), zero.clone(), zero.clone()]),
                 local.abs_remainder,
@@ -816,7 +816,7 @@ where
                     + local.is_rem * rem
             };
 
-            builder.receive_alu(
+            builder.receive_instruction(
                 opcode,
                 local.a,
                 local.b,
