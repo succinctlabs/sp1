@@ -72,6 +72,6 @@
 
 - [Usage in CI](./developers/usage-in-ci.md)
 
-- [RV32IM Specification](./developers/rv32im-specification.md)
+- [RV32IM Deviations](./developers/rv32im-deviations.md)
 
 - [Building Circuit Artifacts](./developers/building-circuit-artifacts.md)
