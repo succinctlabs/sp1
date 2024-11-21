@@ -54,7 +54,39 @@ __SP1_HOSTDEV__ __SP1_INLINE__ void populate_external_round(
 template <class F>
 __SP1_HOSTDEV__ __SP1_INLINE__ void populate_internal_rounds(
     const F* internal_rounds_state, F* internal_rounds_s0, F* sbox,
-    F* ret_state) {}
+    F* ret_state) {
+  F state[WIDTH];
+  for (size_t i = 0; i < WIDTH; i++) {
+    state[i] = internal_rounds_state[i];
+  }
+
+  F sbox_deg_3[NUM_INTERNAL_ROUNDS];
+  for (size_t r = 0; r < NUM_INTERNAL_ROUNDS; r++) {
+    size_t round = r + NUM_EXTERNAL_ROUNDS / 2;
+    F add_rc = state[0] + F(F::to_monty(RC_16_30_U32[round][0]));
+
+    sbox_deg_3[r] = add_rc * add_rc * add_rc;
+    F sbox_deg_7 = sbox_deg_3[r] * sbox_deg_3[r] * add_rc;
+
+    state[0] = sbox_deg_7;
+    internal_linear_layer<F>(state);
+
+    if (r < NUM_INTERNAL_ROUNDS - 1) {
+      internal_rounds_s0[r] = state[0];
+    }
+  }
+
+  for (size_t i = 0; i < WIDTH; i++) {
+    ret_state[i] = state[i];
+  }
+
+  // Store sbox values if pointer is not null
+  if (sbox != nullptr) {
+    for (size_t r = 0; r < NUM_INTERNAL_ROUNDS; r++) {
+      sbox[r] = sbox_deg_3[r];
+    }
+  }
+}
 
 template <class F>
 __SP1_HOSTDEV__ void event_to_row(const F* input, F* external_rounds_state,
