@@ -50,9 +50,18 @@ pub(crate) fn get_program_build_args(args: &BuildArgs) -> Vec<String> {
 
 /// Rust flags for compilation of C libraries.
 pub(crate) fn get_rust_compiler_flags(args: &BuildArgs) -> String {
-    let rust_flags =
-        ["-C", "passes=loweratomic", "-C", "link-arg=-Ttext=0x00200800", "-C", "panic=abort",
-            "-C", "strip=symbols", "-C", "opt-level=z"];
+    let rust_flags = [
+        "-C",
+        "passes=loweratomic",
+        "-C",
+        "link-arg=-Ttext=0x00200800",
+        "-C",
+        "panic=abort",
+        "-C",
+        "strip=symbols",
+        "-C",
+        "opt-level=z",
+    ];
     let rust_flags: Vec<_> =
         rust_flags.into_iter().chain(args.rustflags.iter().map(String::as_str)).collect();
     rust_flags.join("\x1f")
