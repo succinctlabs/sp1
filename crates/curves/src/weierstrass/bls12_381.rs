@@ -192,7 +192,7 @@ mod tests {
 
                 (result, is_odd)
             };
-            assert_eq!(point, bls12381_decompress(&compressed_point, is_odd));
+            assert_eq!(point, bls12381_decompress(&compressed_point, is_odd).unwrap());
 
             // Double the point to create a "random" point for the next iteration.
             point = point.clone().sw_double();

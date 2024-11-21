@@ -182,7 +182,7 @@ mod tests {
 
                 CompressedEdwardsY(compressed)
             };
-            assert_eq!(point, decompress(&compressed_point));
+            assert_eq!(point, decompress(&compressed_point).unwrap());
 
             // Double the point to create a "random" point for the next iteration.
             point = point.clone() + point.clone();
