@@ -4,7 +4,6 @@ use sp1_stark::air::SP1AirBuilder;
 use crate::{
     air::{MemoryAirBuilder, WordAirBuilder},
     cpu::{columns::CpuCols, CpuChip},
-    memory::MemoryCols,
 };
 use sp1_core_executor::events::MemoryAccessPosition;
 

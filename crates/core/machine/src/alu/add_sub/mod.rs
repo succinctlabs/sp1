@@ -147,12 +147,11 @@ impl AddSubChip {
         cols: &mut AddSubCols<F>,
         blu: &mut impl ByteRecord,
     ) {
+        cols.pc = F::from_canonical_u32(event.pc);
+
         let is_add = event.opcode == Opcode::ADD;
         cols.is_add = F::from_bool(is_add);
         cols.is_sub = F::from_bool(!is_add);
-
-        cols.from_cpu = F::from_bool(event.from_cpu);
-        cols.pc = F::from_canonical_u32(event.pc);
 
         let operand_1 = if is_add { event.b } else { event.a };
         let operand_2 = event.c;

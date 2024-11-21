@@ -15,7 +15,6 @@ use crate::{
         columns::{CpuCols, OpcodeSelectorCols},
         CpuChip,
     },
-    memory::MemoryCols,
     operations::{BabyBearWordRangeChecker, IsZeroOperation},
 };
 
