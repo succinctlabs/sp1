@@ -342,6 +342,7 @@ mod tests {
         println!("{:?}", trace.values);
     }
 
+    #[cfg(feature = "sys")]
     #[test]
     fn test_generate_preprocessed_trace_ffi_eq_rust() {
         type F = BabyBear;
