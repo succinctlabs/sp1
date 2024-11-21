@@ -77,8 +77,8 @@ extern void public_values_event_to_row_babybear(
     const CommitPublicValuesEvent<BabyBearP3>* io, size_t digest_idx,
     PublicValuesCols<BabyBearP3>* cols) {
   public_values::event_to_row<bb31_t>(
-      *reinterpret_cast<const CommitPublicValuesEvent<bb31_t>*>(io),
-      digest_idx, *reinterpret_cast<PublicValuesCols<bb31_t>*>(cols));
+      *reinterpret_cast<const CommitPublicValuesEvent<bb31_t>*>(io), digest_idx,
+      *reinterpret_cast<PublicValuesCols<bb31_t>*>(cols));
 }
 extern void public_values_instr_to_row_babybear(
     const CommitPublicValuesInstr<BabyBearP3>* instr, size_t digest_idx,
@@ -101,5 +101,41 @@ extern void select_instr_to_row_babybear(
   select::instr_to_row<bb31_t>(
       *reinterpret_cast<const SelectInstr<bb31_t>*>(instr),
       *reinterpret_cast<SelectPreprocessedCols<bb31_t>*>(cols));
+}
+
+extern void poseidon2_skinny_event_to_row_babybear(
+    const Poseidon2Event<BabyBearP3>* event, Poseidon2<BabyBearP3>* cols) {
+  poseidon2_skinny::event_to_row<bb31_t>(
+      *reinterpret_cast<const Poseidon2Event<bb31_t>*>(event),
+      reinterpret_cast<Poseidon2<bb31_t>*>(cols));
+}
+extern void poseidon2_skinny_instr_to_row_babybear(
+    const Poseidon2Instr<BabyBearP3>* instr, size_t i,
+    Poseidon2PreprocessedColsSkinny<BabyBearP3>* cols) {
+  poseidon2_skinny::instr_to_row<bb31_t>(
+      *reinterpret_cast<const Poseidon2Instr<bb31_t>*>(instr), i,
+      *reinterpret_cast<Poseidon2PreprocessedColsSkinny<bb31_t>*>(cols));
+}
+
+extern "C" void poseidon2_wide_event_to_row_babybear(
+    const BabyBearP3* input, BabyBearP3* external_rounds_state,
+    BabyBearP3* internal_rounds_state, BabyBearP3* internal_rounds_s0,
+    BabyBearP3* external_sbox, BabyBearP3* internal_sbox,
+    BabyBearP3* output_state) {
+  poseidon2_wide::event_to_row<bb31_t>(
+      reinterpret_cast<const bb31_t*>(input),
+      reinterpret_cast<bb31_t*>(external_rounds_state),
+      reinterpret_cast<bb31_t*>(internal_rounds_state),
+      reinterpret_cast<bb31_t*>(internal_rounds_s0),
+      reinterpret_cast<bb31_t*>(external_sbox),
+      reinterpret_cast<bb31_t*>(internal_sbox),
+      reinterpret_cast<bb31_t*>(output_state));
+}
+extern void poseidon2_wide_instr_to_row_babybear(
+    const Poseidon2SkinnyInstr<BabyBearP3>* instr,
+    Poseidon2PreprocessedColsWide<BabyBearP3>* cols) {
+  poseidon2_wide::instr_to_row<bb31_t>(
+      *reinterpret_cast<const Poseidon2SkinnyInstr<bb31_t>*>(instr),
+      *reinterpret_cast<Poseidon2PreprocessedColsWide<bb31_t>*>(cols));
 }
 }  // namespace sp1_recursion_core_sys
