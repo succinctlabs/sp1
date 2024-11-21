@@ -21,12 +21,11 @@ impl Syscall for Uint256MulSyscall {
         let clk = rt.clk;
 
         let x_ptr = arg1;
-        if x_ptr % 4 != 0 {
-            panic!();
-        }
         let y_ptr = arg2;
-        if y_ptr % 4 != 0 {
-            panic!();
+        
+        // Check alignment.
+        if x_ptr % 4 > 0 || y_ptr % 4 > 0 {
+            return rt.invariant_violated();
         }
 
         // First read the words for the x value. We can read a slice_unsafe here because we write
@@ -44,6 +43,12 @@ impl Syscall for Uint256MulSyscall {
         let uint256_x = BigUint::from_bytes_le(&words_to_bytes_le_vec(&x));
         let uint256_y = BigUint::from_bytes_le(&words_to_bytes_le_vec(&y));
         let uint256_modulus = BigUint::from_bytes_le(&words_to_bytes_le_vec(&modulus));
+
+        if uint256_x >= uint256_modulus || uint256_y >= uint256_modulus {
+            eprintln!("Uint256 Precompile Invariant violated: x or y is greater than or equal to the modulus.");
+
+            return rt.invariant_violated();
+        }
 
         // Perform the multiplication and take the result modulo the modulus.
         let result: BigUint = if uint256_modulus.is_zero() {

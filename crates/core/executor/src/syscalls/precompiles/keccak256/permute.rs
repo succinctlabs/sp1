@@ -27,7 +27,8 @@ impl Syscall for Keccak256PermuteSyscall {
         let start_clk = rt.clk;
         let state_ptr = arg1;
         if arg2 != 0 {
-            panic!("Expected arg2 to be 0, got {arg2}");
+            eprintln!("Expected arg2 to be 0, got {arg2}, this violates the Keccak precompile invariant.");
+            return rt.invariant_violated();
         }
 
         let mut state_read_records = Vec::new();
