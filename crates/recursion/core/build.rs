@@ -91,6 +91,7 @@ mod sys {
             .with_autogen_warning(AUTOGEN_WARNING)
             .with_no_includes()
             .with_sys_include("cstdint")
+            .with_sys_include("cstddef")
             .with_parse_deps(true)
             .with_parse_include(&[
                 "sp1-stark",
