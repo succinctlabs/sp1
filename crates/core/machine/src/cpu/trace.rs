@@ -69,65 +69,6 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
             },
         );
 
-        let mut instruction_group_by = HashMap::<String, usize>::new();
-        for cpu_event in input.cpu_events.iter() {
-            let instruction = &input.program.fetch(cpu_event.pc);
-
-            match instruction.opcode {
-                Opcode::ADD | Opcode::SUB => {
-                    *instruction_group_by.entry("AddSub".to_string()).or_insert(0) += 1;
-                }
-                Opcode::SLT | Opcode::SLTU => {
-                    *instruction_group_by.entry("Lt".to_string()).or_insert(0) += 1;
-                }
-                Opcode::SLL => {
-                    *instruction_group_by.entry("ShiftLeft".to_string()).or_insert(0) += 1;
-                }
-                Opcode::SRL | Opcode::SRA => {
-                    *instruction_group_by.entry("ShiftRight".to_string()).or_insert(0) += 1;
-                }
-                Opcode::XOR | Opcode::OR | Opcode::AND => {
-                    *instruction_group_by.entry("Bitwise".to_string()).or_insert(0) += 1;
-                }
-                Opcode::MUL | Opcode::MULH | Opcode::MULHSU | Opcode::MULHU => {
-                    *instruction_group_by.entry("Mul".to_string()).or_insert(0) += 1;
-                }
-                Opcode::DIV | Opcode::DIVU | Opcode::REM | Opcode::REMU => {
-                    *instruction_group_by.entry("DivRem".to_string()).or_insert(0) += 1;
-                }
-                Opcode::LB
-                | Opcode::LH
-                | Opcode::LW
-                | Opcode::LBU
-                | Opcode::LHU
-                | Opcode::SB
-                | Opcode::SH
-                | Opcode::SW => {
-                    *instruction_group_by.entry("MEMORY".to_string()).or_insert(0) += 1;
-                }
-                Opcode::BEQ
-                | Opcode::BNE
-                | Opcode::BLT
-                | Opcode::BGE
-                | Opcode::BLTU
-                | Opcode::BGEU => {
-                    *instruction_group_by.entry("BRANCH".to_string()).or_insert(0) += 1;
-                }
-                Opcode::JALR | Opcode::JAL => {
-                    *instruction_group_by.entry("JUMP".to_string()).or_insert(0) += 1;
-                }
-                Opcode::AUIPC => {
-                    *instruction_group_by.entry("AUIPC".to_string()).or_insert(0) += 1;
-                }
-                Opcode::ECALL => {
-                    *instruction_group_by.entry("ECALL".to_string()).or_insert(0) += 1;
-                }
-                _ => unreachable!(),
-            }
-        }
-
-        println!("instruction_group_by: {:?}", instruction_group_by);
-
         // Convert the trace to a row major matrix.
         RowMajorMatrix::new(values, NUM_CPU_COLS)
     }

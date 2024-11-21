@@ -107,8 +107,6 @@ pub struct CpuCols<T: Copy> {
     /// This is true for all instructions that are not jumps, branches, and halt.  Those
     /// instructions may move the program counter to a non sequential instruction.
     pub is_sequential_instr: T,
-
-    pub dummy_cols: [MemoryReadWriteCols<T>; 15],
 }
 
 impl<T: Copy> CpuCols<T> {

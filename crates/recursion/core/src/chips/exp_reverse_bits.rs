@@ -168,8 +168,6 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for ExpReverseBitsLenCh
             overall_rows.extend(rows);
         });
 
-        println!("num rows for exp reverse bits len: {}", overall_rows.len());
-
         // Pad the trace to a power of two.
         pad_rows_fixed(
             &mut overall_rows,

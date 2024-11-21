@@ -137,8 +137,6 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for BatchFRIChip<DEGREE
             })
             .collect_vec();
 
-        println!("num rows for batch fri: {}", rows.len());
-
         // Pad the trace to a power of two.
         pad_rows_fixed(&mut rows, || [F::zero(); NUM_BATCH_FRI_COLS], input.fixed_log2_rows(self));
 
