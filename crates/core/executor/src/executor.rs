@@ -26,6 +26,8 @@ use crate::{
     Instruction, Opcode, Program, Register,
 };
 
+/// The default increment for the program counter.  Is used for all instructions except
+/// for branches and jumps.
 pub const DEFAULT_PC_INC: u32 = 4;
 /// This is used in the `InstrEvent` to indicate that the instruction is not from the CPU.
 /// A valid pc should be divisible by 4, so we use 1 to indicate that the pc is not used.
