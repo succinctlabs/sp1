@@ -54,6 +54,7 @@ impl<P: FpOpField> Syscall for Fp2MulSyscall<P> {
         let modulus = &BigUint::from_bytes_le(P::MODULUS);
 
         if ac0 >= modulus || ac1 >= modulus || bc0 >= modulus || bc1 >= modulus {
+            eprintln!("Fp2MulSyscall: invariant violation, inputs greater than modulus");
             return rt.invariant_violated();
         }
 

@@ -109,10 +109,12 @@ pub fn create_ec_add_event<E: EllipticCurve>(
     let start_clk = rt.clk;
     let p_ptr = arg1;
     if p_ptr % 4 > 0 {
+        eprintln!("EC_ADD: ptr alignment violation");
         return rt.invariant_violated();
     }
     let q_ptr = arg2;
     if q_ptr % 4 > 0 {
+        eprintln!("EC_ADD: ptr alignment violation");
         return rt.invariant_violated();
     }
 
@@ -127,11 +129,13 @@ pub fn create_ec_add_event<E: EllipticCurve>(
 
     let p_affine = AffinePoint::<E>::from_words_le(&p);
     if !E::is_valid_point(&p_affine) {
+        eprintln!("EC_ADD: invalid p point, invariant violation");
         return rt.invariant_violated();
     }
 
     let q_affine = AffinePoint::<E>::from_words_le(&q);
     if !E::is_valid_point(&q_affine) {
+        eprintln!("EC_ADD: invalid q point, invariant violation");
         return rt.invariant_violated();
     }
 
@@ -176,6 +180,7 @@ pub fn create_ec_double_event<E: EllipticCurve>(
 
     let p_affine = AffinePoint::<E>::from_words_le(&p);
     if !E::is_valid_point(&p_affine) {
+        eprintln!("EC_DOUBLE: invalid point, invariant violation");
         return rt.invariant_violated();
     }
 
@@ -226,9 +231,9 @@ pub fn create_ec_decompress_event<E: EllipticCurve>(
         x_bytes_be.reverse();
         x_bytes_be
     };
-   
+
     // The decompress_fn takes in an X coordinate and a parity,
-    // This means whatever point we get is guarnteed to be on the curve 
+    // This means whatever point we get is guarnteed to be on the curve
     // (it computes the corresponding y)
     //
     // However its falliable if the X coordinate is not in the field
@@ -240,6 +245,7 @@ pub fn create_ec_decompress_event<E: EllipticCurve>(
     };
 
     let Some(computed_point) = decompress_fn(&x_bytes_be, sign_bit) else {
+        eprintln!("EC_DECOMPRESS: decompression failed, invariant violation");
         return rt.invariant_violated();
     };
 

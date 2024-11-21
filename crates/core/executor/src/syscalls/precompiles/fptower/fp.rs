@@ -35,9 +35,9 @@ impl<P: FpOpField> Syscall for FpOpSyscall<P> {
         let y_ptr = arg2;
         // Need to check alignment
         if x_ptr % 4 > 0 || y_ptr % 4 > 0 {
+            eprintln!("FpOpSyscall: alignment violation");
             return rt.invariant_violated();
         }
-
 
         let num_words = <P as NumWords>::WordsFieldElement::USIZE;
 
@@ -47,11 +47,13 @@ impl<P: FpOpField> Syscall for FpOpSyscall<P> {
         let modulus = &BigUint::from_bytes_le(P::MODULUS);
         let a = BigUint::from_slice(&x);
         if &a >= modulus {
+            eprintln!("FpOpSyscall: a >= modulus, invariant violation");
             return rt.invariant_violated();
         }
 
         let b = BigUint::from_slice(&y);
         if &b >= modulus {
+            eprintln!("FpOpSyscall: b >= modulus, invariant violation");
             return rt.invariant_violated();
         }
 

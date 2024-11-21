@@ -25,6 +25,7 @@ impl Syscall for Uint256MulSyscall {
         
         // Check alignment.
         if x_ptr % 4 > 0 || y_ptr % 4 > 0 {
+            eprintln!("Uint256 Precompile: Ptr alignment violation.");
             return rt.invariant_violated();
         }
 
