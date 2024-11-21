@@ -98,11 +98,14 @@ pub struct EllipticCurveDecompressEvent {
 /// The generic parameter `N` is the number of u32 words in the point representation. For example,
 /// for the secp256k1 curve, `N` would be 16 (64 bytes) because the x and y coordinates are 32 bytes
 /// each.
+///
+/// This function also checks if the inputs are valid curve points, setting the invariant violated
+/// flag if not.
 pub fn create_ec_add_event<E: EllipticCurve>(
     rt: &mut SyscallContext,
     arg1: u32,
     arg2: u32,
-) -> EllipticCurveAddEvent {
+) -> Option<EllipticCurveAddEvent> {
     let start_clk = rt.clk;
     let p_ptr = arg1;
     if p_ptr % 4 != 0 {
@@ -123,14 +126,22 @@ pub fn create_ec_add_event<E: EllipticCurve>(
     rt.clk += 1;
 
     let p_affine = AffinePoint::<E>::from_words_le(&p);
+    if !E::is_valid_point(&p_affine) {
+        return rt.invariant_violated();
+    }
+
     let q_affine = AffinePoint::<E>::from_words_le(&q);
+    if !E::is_valid_point(&q_affine) {
+        return rt.invariant_violated();
+    }
+
     let result_affine = p_affine + q_affine;
 
     let result_words = result_affine.to_words_le();
 
     let p_memory_records = rt.mw_slice(p_ptr, &result_words);
 
-    EllipticCurveAddEvent {
+    Some(EllipticCurveAddEvent {
         lookup_id: rt.syscall_lookup_id,
         shard: rt.current_shard(),
         clk: start_clk,
@@ -141,7 +152,7 @@ pub fn create_ec_add_event<E: EllipticCurve>(
         p_memory_records,
         q_memory_records,
         local_mem_access: rt.postprocess(),
-    }
+    })
 }
 
 /// Create an elliptic curve double event.
@@ -186,14 +197,19 @@ pub fn create_ec_double_event<E: EllipticCurve>(
 ///
 /// It takes a pointer to a memory location, reads the point from memory, decompresses it, and
 /// writes the result back to the memory location.
+///
+/// This function also checks if the input is a valid curve point, setting the invariant `invariant_violated`
+/// flag if not.
 pub fn create_ec_decompress_event<E: EllipticCurve>(
     rt: &mut SyscallContext,
     slice_ptr: u32,
     sign_bit: u32,
-) -> EllipticCurveDecompressEvent {
+) -> Option<EllipticCurveDecompressEvent> {
     let start_clk = rt.clk;
-    assert!(slice_ptr % 4 == 0, "slice_ptr must be 4-byte aligned");
-    assert!(sign_bit <= 1, "is_odd must be 0 or 1");
+
+    if slice_ptr % 4 > 0 || sign_bit > 1 {
+        return rt.invariant_violated();
+    }
 
     let num_limbs = <E::BaseField as NumLimbs>::Limbs::USIZE;
     let num_words_field_element = num_limbs / 4;
@@ -202,9 +218,17 @@ pub fn create_ec_decompress_event<E: EllipticCurve>(
         rt.mr_slice(slice_ptr + (num_limbs as u32), num_words_field_element);
 
     let x_bytes = words_to_bytes_le_vec(&x_vec);
-    let mut x_bytes_be = x_bytes.clone();
-    x_bytes_be.reverse();
-
+    let x_bytes_be = {
+        let mut x_bytes_be = x_bytes.clone();
+        x_bytes_be.reverse();
+        x_bytes_be
+    };
+   
+    // The decompress_fn takes in an X coordinate and a parity,
+    // This means whatever point we get is guarnteed to be on the curve 
+    // (it computes the corresponding y)
+    //
+    // However its falliable if the X coordinate is not in the field
     let decompress_fn = match E::CURVE_TYPE {
         CurveType::Secp256k1 => secp256k1_decompress::<E>,
         CurveType::Secp256r1 => secp256r1_decompress::<E>,
@@ -212,7 +236,9 @@ pub fn create_ec_decompress_event<E: EllipticCurve>(
         _ => panic!("Unsupported curve"),
     };
 
-    let computed_point: AffinePoint<E> = decompress_fn(&x_bytes_be, sign_bit);
+    let Some(computed_point) = decompress_fn(&x_bytes_be, sign_bit) else {
+        return rt.invariant_violated();
+    };
 
     let mut decompressed_y_bytes = computed_point.y.to_bytes_le();
     decompressed_y_bytes.resize(num_limbs, 0u8);
@@ -220,7 +246,7 @@ pub fn create_ec_decompress_event<E: EllipticCurve>(
 
     let y_memory_records = rt.mw_slice(slice_ptr, &y_words);
 
-    EllipticCurveDecompressEvent {
+    Some(EllipticCurveDecompressEvent {
         lookup_id: rt.syscall_lookup_id,
         shard: rt.current_shard(),
         clk: start_clk,
@@ -231,5 +257,5 @@ pub fn create_ec_decompress_event<E: EllipticCurve>(
         x_memory_records,
         y_memory_records,
         local_mem_access: rt.postprocess(),
-    }
+    })
 }

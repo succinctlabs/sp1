@@ -978,7 +978,6 @@ impl<'a> Executor<'a> {
                             return Err(ExecutionError::SyscallInvariantViolation(syscall));
                         }
 
-
                         if let Some(val) = res {
                             a = val;
                         } else {

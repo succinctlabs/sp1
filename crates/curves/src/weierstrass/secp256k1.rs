@@ -92,14 +92,15 @@ impl WeierstrassParameters for Secp256k1Parameters {
     }
 }
 
-pub fn secp256k1_decompress<E: EllipticCurve>(bytes_be: &[u8], sign: u32) -> AffinePoint<E> {
+pub fn secp256k1_decompress<E: EllipticCurve>(bytes_be: &[u8], sign: u32) -> Option<AffinePoint<E>> {
     let computed_point =
-        k256::AffinePoint::decompress(bytes_be.into(), Choice::from(sign as u8)).unwrap();
+        k256::AffinePoint::decompress(bytes_be.into(), Choice::from(sign as u8)).into_option()?;
+
     let point = computed_point.to_encoded_point(false);
 
     let x = BigUint::from_bytes_be(point.x().unwrap());
     let y = BigUint::from_bytes_be(point.y().unwrap());
-    AffinePoint::<E>::new(x, y)
+    Some(AffinePoint::<E>::new(x, y))
 }
 
 pub fn secp256k1_sqrt(n: &BigUint) -> BigUint {

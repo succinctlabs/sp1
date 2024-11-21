@@ -106,6 +106,28 @@ impl<E: WeierstrassParameters> EllipticCurve for SwCurve<E> {
         let modulus = E::BaseField::modulus();
         AffinePoint::new(p.x.clone(), modulus - &p.y)
     }
+
+    fn is_valid_point(p: &AffinePoint<Self>) -> bool {
+        // Checking the weisterstrass equation: y^2 = x^3 + ax + b
+        let modulus = E::BaseField::modulus();
+        let x = &p.x;
+        if x >= &modulus {
+            return false;
+        }
+
+        let y = &p.y;
+        if y >= &modulus {
+            return false;
+        }
+
+        let a = E::a_int();
+        let b = E::b_int();
+
+        let lhs = (y * y) % &modulus;
+        let rhs = (x * x * x + &a * x + &b) % &modulus;
+
+        lhs == rhs
+    }
 }
 
 impl<E: WeierstrassParameters> SwCurve<E> {

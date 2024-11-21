@@ -54,7 +54,7 @@ impl<'a, 'b> SyscallContext<'a, 'b> {
     ///
     /// This only happens in precompiles.
     /// This is a convience function for returning `None` and setting the invariant violation flag.
-    pub fn invariant_violated(&mut self) -> Option<u32> {
+    pub fn invariant_violated<T>(&mut self) -> Option<T> {
         self.invariant_violation = true;
 
         None

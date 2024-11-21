@@ -105,6 +105,20 @@ impl<E: EdwardsParameters> EllipticCurve for EdwardsCurve<E> {
         let modulus = E::BaseField::modulus();
         AffinePoint::new(&modulus - &p.x, p.y.clone())
     }
+
+    fn is_valid_point(p: &AffinePoint<Self>) -> bool {
+        // Checking the Edwards Curve equation:
+        // x^2 + y^2 = 1 + d * x^2 * y^2
+        let modulus = E::BaseField::modulus();
+
+        let x2 = &p.x * &p.x % &modulus;
+        let y2 = &p.y * &p.y % &modulus;
+
+        let lhs = (&x2 + &y2) % &modulus;
+        let rhs = (1u32 + &E::d_biguint() * x2 * y2) % &modulus;
+
+        lhs == rhs
+    }
 }
 
 impl<E: EdwardsParameters> AffinePoint<EdwardsCurve<E>> {
