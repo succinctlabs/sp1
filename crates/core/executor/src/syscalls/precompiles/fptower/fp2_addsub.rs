@@ -32,12 +32,10 @@ impl<P: FpOpField> Syscall for Fp2AddSubSyscall<P> {
     ) -> Option<u32> {
         let clk = rt.clk;
         let x_ptr = arg1;
-        if x_ptr % 4 != 0 {
-            panic!();
-        }
         let y_ptr = arg2;
-        if y_ptr % 4 != 0 {
-            panic!();
+        // Need to check alignment
+        if x_ptr % 4 > 0 || y_ptr % 4 > 0 {
+            return rt.invariant_violated();
         }
 
         let num_words = <P as NumWords>::WordsCurvePoint::USIZE;
@@ -54,6 +52,10 @@ impl<P: FpOpField> Syscall for Fp2AddSubSyscall<P> {
         let bc0 = &BigUint::from_slice(bc0);
         let bc1 = &BigUint::from_slice(bc1);
         let modulus = &BigUint::from_bytes_le(P::MODULUS);
+
+        if ac0 >= modulus || ac1 >= modulus || bc0 >= modulus || bc1 >= modulus {
+            return rt.invariant_violated();
+        }
 
         let (c0, c1) = match self.op {
             FieldOperation::Add => ((ac0 + bc0) % modulus, (ac1 + bc1) % modulus),

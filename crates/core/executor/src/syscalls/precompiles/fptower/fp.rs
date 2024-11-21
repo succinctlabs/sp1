@@ -32,13 +32,12 @@ impl<P: FpOpField> Syscall for FpOpSyscall<P> {
     ) -> Option<u32> {
         let clk = rt.clk;
         let x_ptr = arg1;
-        if x_ptr % 4 != 0 {
-            panic!();
-        }
         let y_ptr = arg2;
-        if y_ptr % 4 != 0 {
-            panic!();
+        // Need to check alignment
+        if x_ptr % 4 > 0 || y_ptr % 4 > 0 {
+            return rt.invariant_violated();
         }
+
 
         let num_words = <P as NumWords>::WordsFieldElement::USIZE;
 
