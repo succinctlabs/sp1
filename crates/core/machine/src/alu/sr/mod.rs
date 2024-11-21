@@ -54,7 +54,7 @@ use p3_field::{AbstractField, PrimeField};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use p3_maybe_rayon::prelude::{ParallelBridge, ParallelIterator, ParallelSlice};
 use sp1_core_executor::{
-    events::{AluEvent, ByteLookupEvent, ByteRecord},
+    events::{InstrEvent, ByteLookupEvent, ByteRecord},
     ByteOpcode, ExecutionRecord, Opcode, Program,
 };
 use sp1_derive::AlignedBorrow;
@@ -211,7 +211,7 @@ impl ShiftRightChip {
     /// Create a row from an event.
     fn event_to_row<F: PrimeField>(
         &self,
-        event: &AluEvent,
+        event: &InstrEvent,
         cols: &mut ShiftRightCols<F>,
         blu: &mut impl ByteRecord,
     ) {
@@ -524,7 +524,7 @@ mod tests {
     use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
     use p3_baby_bear::BabyBear;
     use p3_matrix::dense::RowMajorMatrix;
-    use sp1_core_executor::{events::AluEvent, ExecutionRecord, Opcode};
+    use sp1_core_executor::{events::InstrEvent, ExecutionRecord, Opcode};
     use sp1_stark::{air::MachineAir, baby_bear_poseidon2::BabyBearPoseidon2, StarkGenericConfig};
 
     use super::ShiftRightChip;
@@ -532,7 +532,7 @@ mod tests {
     #[test]
     fn generate_trace() {
         let mut shard = ExecutionRecord::default();
-        shard.shift_right_events = vec![AluEvent::new(0, 0, Opcode::SRL, 6, 12, 1)];
+        shard.shift_right_events = vec![InstrEvent::new(0, 0, Opcode::SRL, 6, 12, 1)];
         let chip = ShiftRightChip::default();
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&shard, &mut ExecutionRecord::default());
@@ -581,9 +581,9 @@ mod tests {
             (Opcode::SRA, 0xfffe0606, 0x81818181, 14),
             (Opcode::SRA, 0xffffffff, 0x81818181, 31),
         ];
-        let mut shift_events: Vec<AluEvent> = Vec::new();
+        let mut shift_events: Vec<InstrEvent> = Vec::new();
         for t in shifts.iter() {
-            shift_events.push(AluEvent::new(0, 0, t.0, t.1, t.2, t.3));
+            shift_events.push(InstrEvent::new(0, 0, t.0, t.1, t.2, t.3));
         }
         let mut shard = ExecutionRecord::default();
         shard.shift_right_events = shift_events;

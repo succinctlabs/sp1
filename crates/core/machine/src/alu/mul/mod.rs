@@ -41,7 +41,7 @@ use p3_field::{AbstractField, PrimeField};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use p3_maybe_rayon::prelude::{ParallelBridge, ParallelIterator, ParallelSlice};
 use sp1_core_executor::{
-    events::{AluEvent, ByteLookupEvent, ByteRecord},
+    events::{InstrEvent, ByteLookupEvent, ByteRecord},
     ByteOpcode, ExecutionRecord, Opcode, Program,
 };
 use sp1_derive::AlignedBorrow;
@@ -199,7 +199,7 @@ impl MulChip {
     /// Create a row from an event.
     fn event_to_row<F: PrimeField>(
         &self,
-        event: &AluEvent,
+        event: &InstrEvent,
         cols: &mut MulCols<F>,
         blu: &mut impl ByteRecord,
     ) {
@@ -459,7 +459,7 @@ mod tests {
     use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
     use p3_baby_bear::BabyBear;
     use p3_matrix::dense::RowMajorMatrix;
-    use sp1_core_executor::{events::AluEvent, ExecutionRecord, Opcode};
+    use sp1_core_executor::{events::InstrEvent, ExecutionRecord, Opcode};
     use sp1_stark::{air::MachineAir, baby_bear_poseidon2::BabyBearPoseidon2, StarkGenericConfig};
 
     use super::MulChip;
@@ -469,9 +469,9 @@ mod tests {
         let mut shard = ExecutionRecord::default();
 
         // Fill mul_events with 10^7 MULHSU events.
-        let mut mul_events: Vec<AluEvent> = Vec::new();
+        let mut mul_events: Vec<InstrEvent> = Vec::new();
         for _ in 0..10i32.pow(7) {
-            mul_events.push(AluEvent::new(
+            mul_events.push(InstrEvent::new(
                 0,
                 0,
                 Opcode::MULHSU,
@@ -492,7 +492,7 @@ mod tests {
         let mut challenger = config.challenger();
 
         let mut shard = ExecutionRecord::default();
-        let mut mul_events: Vec<AluEvent> = Vec::new();
+        let mut mul_events: Vec<InstrEvent> = Vec::new();
 
         let mul_instructions: Vec<(Opcode, u32, u32, u32)> = vec![
             (Opcode::MUL, 0x00001200, 0x00007e00, 0xb6db6db7),
@@ -547,12 +547,12 @@ mod tests {
             (Opcode::MULH, 0xffffffff, 0x00000001, 0xffffffff),
         ];
         for t in mul_instructions.iter() {
-            mul_events.push(AluEvent::new(0, 0, t.0, t.1, t.2, t.3));
+            mul_events.push(InstrEvent::new(0, 0, t.0, t.1, t.2, t.3));
         }
 
         // Append more events until we have 1000 tests.
         for _ in 0..(1000 - mul_instructions.len()) {
-            mul_events.push(AluEvent::new(0, 0, Opcode::MUL, 1, 1, 1));
+            mul_events.push(InstrEvent::new(0, 0, Opcode::MUL, 1, 1, 1));
         }
 
         shard.mul_events = mul_events;

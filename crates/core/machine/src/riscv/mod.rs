@@ -413,7 +413,7 @@ impl<F: PrimeField32> RiscvAir<F> {
             ),
             (
                 RiscvAir::MemoryInstructions(MemoryInstructionsChip::default()),
-                record.memory_instructions_events.len(),
+                record.memory_instr_events.len(),
             ),
             (RiscvAir::SyscallCore(SyscallChip::core()), record.syscall_events.len()),
         ]

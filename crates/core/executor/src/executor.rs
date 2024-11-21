@@ -13,7 +13,7 @@ use crate::{
     context::SP1Context,
     dependencies::{emit_cpu_dependencies, emit_divrem_dependencies},
     events::{
-        AluEvent, CpuEvent, LookupId, MemoryAccessPosition, MemoryInitializeFinalizeEvent,
+        CpuEvent, InstrEvent, LookupId, MemoryAccessPosition, MemoryInitializeFinalizeEvent,
         MemoryLocalEvent, MemoryReadRecord, MemoryRecord, MemoryWriteRecord, SyscallEvent,
     },
     hook::{HookEnv, HookRegistry},
@@ -643,8 +643,16 @@ impl<'a> Executor<'a> {
     }
 
     /// Emit an ALU event.
-    fn emit_alu(&mut self, clk: u32, opcode: Opcode, a: u32, b: u32, c: u32, lookup_id: LookupId) {
-        let event = AluEvent {
+    fn emit_instruction(
+        &mut self,
+        clk: u32,
+        opcode: Opcode,
+        a: u32,
+        b: u32,
+        c: u32,
+        lookup_id: LookupId,
+    ) {
+        let event = InstrEvent {
             lookup_id,
             shard: self.shard(),
             clk,
@@ -679,6 +687,16 @@ impl<'a> Executor<'a> {
             Opcode::DIVU | Opcode::REMU | Opcode::DIV | Opcode::REM => {
                 self.record.divrem_events.push(event);
                 emit_divrem_dependencies(self, event);
+            }
+            Opcode::LB
+            | Opcode::LH
+            | Opcode::LW
+            | Opcode::LBU
+            | Opcode::LHU
+            | Opcode::SB
+            | Opcode::SH
+            | Opcode::SW => {
+                self.record.memory_instr_events.push(event);
             }
             _ => {}
         }
@@ -748,7 +766,7 @@ impl<'a> Executor<'a> {
     ) {
         self.rw(rd, a);
         if self.executor_mode == ExecutorMode::Trace {
-            self.emit_alu(self.state.clk, instruction.opcode, a, b, c, lookup_id);
+            self.emit_instruction(self.state.clk, instruction.opcode, a, b, c, lookup_id);
         }
     }
 

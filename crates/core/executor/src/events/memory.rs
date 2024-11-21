@@ -232,12 +232,3 @@ pub struct MemoryLocalEvent {
     /// The final memory access.
     pub final_mem_access: MemoryRecord,
 }
-
-/// Memory Instructions Event.
-///
-/// This object encapsulates the information needed to prove a memory instruction operation.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct MemoryInstructionsEvent {
-    /// The address.
-    pub addr: u32,
-}

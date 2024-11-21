@@ -1,12 +1,12 @@
 use crate::{
-    events::AluEvent,
+    events::InstrEvent,
     utils::{get_msb, get_quotient_and_remainder, is_signed_operation},
     Executor, Opcode,
 };
 
 /// Emits the dependencies for division and remainder operations.
 #[allow(clippy::too_many_lines)]
-pub fn emit_divrem_dependencies(executor: &mut Executor, event: AluEvent) {
+pub fn emit_divrem_dependencies(executor: &mut Executor, event: InstrEvent) {
     let shard = executor.shard();
     let (quotient, remainder) = get_quotient_and_remainder(event.b, event.c, event.opcode);
     let c_msb = get_msb(event.c);
@@ -21,7 +21,7 @@ pub fn emit_divrem_dependencies(executor: &mut Executor, event: AluEvent) {
 
     if c_neg == 1 {
         let ids = executor.record.create_lookup_ids();
-        executor.record.add_events.push(AluEvent {
+        executor.record.add_events.push(InstrEvent {
             lookup_id: event.sub_lookups[4],
             shard,
             clk: event.clk,
@@ -34,7 +34,7 @@ pub fn emit_divrem_dependencies(executor: &mut Executor, event: AluEvent) {
     }
     if rem_neg == 1 {
         let ids = executor.record.create_lookup_ids();
-        executor.record.add_events.push(AluEvent {
+        executor.record.add_events.push(InstrEvent {
             lookup_id: event.sub_lookups[5],
             shard,
             clk: event.clk,
@@ -56,7 +56,7 @@ pub fn emit_divrem_dependencies(executor: &mut Executor, event: AluEvent) {
     let lower_word = u32::from_le_bytes(c_times_quotient[0..4].try_into().unwrap());
     let upper_word = u32::from_le_bytes(c_times_quotient[4..8].try_into().unwrap());
 
-    let lower_multiplication = AluEvent {
+    let lower_multiplication = InstrEvent {
         lookup_id: event.sub_lookups[0],
         shard,
         clk: event.clk,
@@ -68,7 +68,7 @@ pub fn emit_divrem_dependencies(executor: &mut Executor, event: AluEvent) {
     };
     executor.record.mul_events.push(lower_multiplication);
 
-    let upper_multiplication = AluEvent {
+    let upper_multiplication = InstrEvent {
         lookup_id: event.sub_lookups[1],
         shard,
         clk: event.clk,
@@ -87,7 +87,7 @@ pub fn emit_divrem_dependencies(executor: &mut Executor, event: AluEvent) {
     executor.record.mul_events.push(upper_multiplication);
 
     let lt_event = if is_signed_operation {
-        AluEvent {
+        InstrEvent {
             lookup_id: event.sub_lookups[2],
             shard,
             opcode: Opcode::SLTU,
@@ -98,7 +98,7 @@ pub fn emit_divrem_dependencies(executor: &mut Executor, event: AluEvent) {
             sub_lookups: executor.record.create_lookup_ids(),
         }
     } else {
-        AluEvent {
+        InstrEvent {
             lookup_id: event.sub_lookups[3],
             shard,
             opcode: Opcode::SLTU,
@@ -134,7 +134,7 @@ pub fn emit_cpu_dependencies(executor: &mut Executor, index: usize) {
     ) {
         let memory_addr = event.b.wrapping_add(event.c);
         // Add event to ALU check to check that addr == b + c
-        let add_event = AluEvent {
+        let add_event = InstrEvent {
             lookup_id: event.memory_add_lookup_id,
             shard,
             clk: event.clk,
@@ -169,7 +169,7 @@ pub fn emit_cpu_dependencies(executor: &mut Executor, index: usize) {
             };
 
             if most_sig_mem_value_byte >> 7 & 0x01 == 1 {
-                let sub_event = AluEvent {
+                let sub_event = InstrEvent {
                     lookup_id: event.memory_sub_lookup_id,
                     shard,
                     clk: event.clk,
@@ -200,7 +200,7 @@ pub fn emit_cpu_dependencies(executor: &mut Executor, index: usize) {
 
         let alu_op_code = if use_signed_comparison { Opcode::SLT } else { Opcode::SLTU };
         // Add the ALU events for the comparisons
-        let lt_comp_event = AluEvent {
+        let lt_comp_event = InstrEvent {
             lookup_id: event.branch_lt_lookup_id,
             shard,
             clk: event.clk,
@@ -210,7 +210,7 @@ pub fn emit_cpu_dependencies(executor: &mut Executor, index: usize) {
             c: event.b,
             sub_lookups: executor.record.create_lookup_ids(),
         };
-        let gt_comp_event = AluEvent {
+        let gt_comp_event = InstrEvent {
             lookup_id: event.branch_gt_lookup_id,
             shard,
             clk: event.clk,
@@ -231,7 +231,7 @@ pub fn emit_cpu_dependencies(executor: &mut Executor, index: usize) {
         };
         if branching {
             let next_pc = event.pc.wrapping_add(event.c);
-            let add_event = AluEvent {
+            let add_event = InstrEvent {
                 lookup_id: event.branch_add_lookup_id,
                 shard,
                 clk: event.clk,
@@ -249,7 +249,7 @@ pub fn emit_cpu_dependencies(executor: &mut Executor, index: usize) {
         match instruction.opcode {
             Opcode::JAL => {
                 let next_pc = event.pc.wrapping_add(event.b);
-                let add_event = AluEvent {
+                let add_event = InstrEvent {
                     lookup_id: event.jump_jal_lookup_id,
                     shard,
                     clk: event.clk,
@@ -263,7 +263,7 @@ pub fn emit_cpu_dependencies(executor: &mut Executor, index: usize) {
             }
             Opcode::JALR => {
                 let next_pc = event.b.wrapping_add(event.c);
-                let add_event = AluEvent {
+                let add_event = InstrEvent {
                     lookup_id: event.jump_jalr_lookup_id,
                     shard,
                     clk: event.clk,
@@ -280,7 +280,7 @@ pub fn emit_cpu_dependencies(executor: &mut Executor, index: usize) {
     }
 
     if matches!(instruction.opcode, Opcode::AUIPC) {
-        let add_event = AluEvent {
+        let add_event = InstrEvent {
             lookup_id: event.auipc_lookup_id,
             shard,
             clk: event.clk,
