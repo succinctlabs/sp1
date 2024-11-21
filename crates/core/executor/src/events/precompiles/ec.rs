@@ -108,12 +108,12 @@ pub fn create_ec_add_event<E: EllipticCurve>(
 ) -> Option<EllipticCurveAddEvent> {
     let start_clk = rt.clk;
     let p_ptr = arg1;
-    if p_ptr % 4 != 0 {
-        panic!();
+    if p_ptr % 4 > 0 {
+        return rt.invariant_violated();
     }
     let q_ptr = arg2;
-    if q_ptr % 4 != 0 {
-        panic!();
+    if q_ptr % 4 > 0 {
+        return rt.invariant_violated();
     }
 
     let num_words = <E::BaseField as NumWords>::WordsCurvePoint::USIZE;
@@ -163,11 +163,11 @@ pub fn create_ec_double_event<E: EllipticCurve>(
     rt: &mut SyscallContext,
     arg1: u32,
     _: u32,
-) -> EllipticCurveDoubleEvent {
+) -> Option<EllipticCurveDoubleEvent> {
     let start_clk = rt.clk;
     let p_ptr = arg1;
-    if p_ptr % 4 != 0 {
-        panic!();
+    if p_ptr % 4 > 0 {
+        return rt.invariant_violated();
     }
 
     let num_words = <E::BaseField as NumWords>::WordsCurvePoint::USIZE;
@@ -175,6 +175,9 @@ pub fn create_ec_double_event<E: EllipticCurve>(
     let p = rt.slice_unsafe(p_ptr, num_words);
 
     let p_affine = AffinePoint::<E>::from_words_le(&p);
+    if !E::is_valid_point(&p_affine) {
+        return rt.invariant_violated();
+    }
 
     let result_affine = E::ec_double(&p_affine);
 
@@ -182,7 +185,7 @@ pub fn create_ec_double_event<E: EllipticCurve>(
 
     let p_memory_records = rt.mw_slice(p_ptr, &result_words);
 
-    EllipticCurveDoubleEvent {
+    Some(EllipticCurveDoubleEvent {
         lookup_id: rt.syscall_lookup_id,
         shard: rt.current_shard(),
         clk: start_clk,
@@ -190,7 +193,7 @@ pub fn create_ec_double_event<E: EllipticCurve>(
         p,
         p_memory_records,
         local_mem_access: rt.postprocess(),
-    }
+    })
 }
 
 /// Create an elliptic curve decompress event.
