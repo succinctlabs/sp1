@@ -21,7 +21,7 @@ impl Syscall for Sha256ExtendSyscall {
         let w_ptr = arg1;
         if arg2 != 0 {
             eprintln!("Warning: sha256_extend syscall arg2 is not zero, this violates the precompile invariants");
-            
+
             return rt.invariant_violated();
         }
 

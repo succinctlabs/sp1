@@ -146,7 +146,7 @@ pub fn decompress(compressed_point: &CompressedEdwardsY) -> Option<AffinePoint<E
         x = modulus - &x;
     }
 
-    Some(AffinePoint::new(x, y.clone()))  
+    Some(AffinePoint::new(x, y.clone()))
 }
 
 #[cfg(test)]

@@ -98,7 +98,10 @@ impl WeierstrassParameters for Secp256r1Parameters {
     }
 }
 
-pub fn secp256r1_decompress<E: EllipticCurve>(bytes_be: &[u8], sign: u32) -> Option<AffinePoint<E>> {
+pub fn secp256r1_decompress<E: EllipticCurve>(
+    bytes_be: &[u8],
+    sign: u32,
+) -> Option<AffinePoint<E>> {
     let computed_point =
         p256::AffinePoint::decompress(bytes_be.into(), Choice::from(sign as u8)).into_option()?;
 

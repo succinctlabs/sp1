@@ -22,7 +22,7 @@ impl Syscall for Uint256MulSyscall {
 
         let x_ptr = arg1;
         let y_ptr = arg2;
-        
+
         // Check alignment.
         if x_ptr % 4 > 0 || y_ptr % 4 > 0 {
             eprintln!("Uint256 Precompile: Ptr alignment violation.");
