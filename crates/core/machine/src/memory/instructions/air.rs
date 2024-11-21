@@ -1,6 +1,9 @@
 use p3_air::{Air, AirBuilder};
 use p3_field::AbstractField;
-use sp1_stark::{air::SP1AirBuilder, Word};
+use sp1_stark::{
+    air::{PublicValues, SP1AirBuilder, SP1_PROOF_NUM_PV_ELTS},
+    Word,
+};
 
 use crate::{
     air::{SP1CoreAirBuilder, WordAirBuilder},
@@ -20,7 +23,13 @@ where
     fn eval(&self, builder: &mut AB) {
         let local = builder.local();
 
-        self.eval_memory_address_and_access::<AB>(builder, local);
+        let public_values_slice: [AB::PublicVar; SP1_PROOF_NUM_PV_ELTS] =
+            core::array::from_fn(|i| builder.public_values()[i]);
+        let public_values: &PublicValues<Word<AB::PublicVar>, AB::PublicVar> =
+            public_values_slice.as_slice().borrow();
+        let shard: AB::Expr = public_values.shard.into();
+
+        self.eval_memory_address_and_access::<AB>(builder, local, shard);
         self.eval_memory_load::<AB>(builder, local);
         self.eval_memory_store::<AB>(builder, local);
 
@@ -69,6 +78,7 @@ impl MemoryInstructionsChip {
         &self,
         builder: &mut AB,
         local: &MemoryInstructionsColumns<AB::Var>,
+        shard: AB::Expr,
     ) {
         // Send to the ALU table to verify correct calculation of addr_word.
         builder.send_instruction(
@@ -120,7 +130,7 @@ impl MemoryInstructionsChip {
         // For operations that require reading from memory (not registers), we need to read the
         // value into the memory columns.
         builder.eval_memory_access(
-            local.shard,
+            shard,
             local.clk + AB::F::from_canonical_u32(MemoryAccessPosition::Memory as u32),
             local.addr_aligned,
             &local.memory_access,
@@ -170,7 +180,6 @@ impl MemoryInstructionsChip {
             local.op_a_val(),
             local.unsigned_mem_val,
             signed_value,
-            local.shard,
             local.unsigned_mem_val_nonce,
             local.mem_value_is_neg_not_x0,
         );
