@@ -46,8 +46,15 @@ impl<P: FpOpField> Syscall for FpOpSyscall<P> {
         let (y_memory_records, y) = rt.mr_slice(y_ptr, num_words);
 
         let modulus = &BigUint::from_bytes_le(P::MODULUS);
-        let a = BigUint::from_slice(&x) % modulus;
-        let b = BigUint::from_slice(&y) % modulus;
+        let a = BigUint::from_slice(&x);
+        if &a >= modulus {
+            return rt.invariant_violated();
+        }
+
+        let b = BigUint::from_slice(&y);
+        if &b >= modulus {
+            return rt.invariant_violated();
+        }
 
         let result = match self.op {
             FieldOperation::Add => (a + b) % modulus,

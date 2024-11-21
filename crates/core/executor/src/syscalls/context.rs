@@ -29,6 +29,8 @@ pub struct SyscallContext<'a, 'b: 'a> {
     pub syscall_lookup_id: LookupId,
     /// The local memory access events for the syscall.
     pub local_memory_access: HashMap<u32, MemoryLocalEvent>,
+    /// An invariant of the syscall has been violated.
+    pub invariant_violation: bool,
 }
 
 impl<'a, 'b> SyscallContext<'a, 'b> {
@@ -44,7 +46,18 @@ impl<'a, 'b> SyscallContext<'a, 'b> {
             rt: runtime,
             syscall_lookup_id: LookupId::default(),
             local_memory_access: HashMap::new(),
+            invariant_violation: false,
         }
+    }
+
+    /// An invariant of the current syscall has been violated.
+    ///
+    /// This only happens in precompiles.
+    /// This is a convience function for returning `None` and setting the invariant violation flag.
+    pub fn invariant_violated(&mut self) -> Option<u32> {
+        self.invariant_violation = true;
+
+        None
     }
 
     /// Get a mutable reference to the execution record.

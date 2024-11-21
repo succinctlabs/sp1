@@ -155,6 +155,10 @@ pub enum ExecutionError {
     #[error("unimplemented syscall {0}")]
     UnsupportedSyscall(u32),
 
+    /// An invariant of the syscall has been violated.
+    #[error("A syscall invariant has been violated. Syscall code: {0}")]
+    SyscallInvariantViolation(SyscallCode),
+
     /// The execution failed with a breakpoint.
     #[error("breakpoint encountered")]
     Breakpoint(),
@@ -970,6 +974,11 @@ impl<'a> Executor<'a> {
                         // register. If it returns None, we just keep the
                         // syscall_id in t0.
                         let res = syscall_impl.execute(&mut precompile_rt, syscall, b, c);
+                        if precompile_rt.invariant_violation {
+                            return Err(ExecutionError::SyscallInvariantViolation(syscall));
+                        }
+
+
                         if let Some(val) = res {
                             a = val;
                         } else {
