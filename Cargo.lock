@@ -5770,6 +5770,7 @@ dependencies = [
  "glob",
  "hashbrown 0.14.5",
  "itertools 0.13.0",
+ "num_cpus",
  "p3-air",
  "p3-baby-bear",
  "p3-bn254-fr",

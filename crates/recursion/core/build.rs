@@ -14,7 +14,7 @@ mod sys {
 
     /// The library name, used for the static library archive and the headers.
     /// Should be chosen as to not conflict with other library/header names.
-    const LIB_NAME: &str = "sp1_recursion_core_sys";
+    const LIB_NAME: &str = "sp1-recursion-core-sys";
 
     /// The name of all include directories involved, used to find and output header files.
     const INCLUDE_DIRNAME: &str = "include";
@@ -89,7 +89,9 @@ mod sys {
         match cbindgen::Builder::new()
             .with_pragma_once(true)
             .with_autogen_warning(AUTOGEN_WARNING)
+            .with_no_includes()
             .with_sys_include("cstdint")
+            .with_sys_include("cstddef")
             .with_parse_deps(true)
             .with_parse_include(&[
                 "sp1-stark",
@@ -100,7 +102,37 @@ mod sys {
             ])
             .with_parse_extra_bindings(&["sp1-stark", "sp1-primitives", "p3-baby-bear"])
             .rename_item("BabyBear", "BabyBearP3")
-            .with_namespace("sp1")
+            .include_item("BaseAluEvent")
+            .include_item("BaseAluValueCols")
+            .include_item("BaseAluAccessCols")
+            .include_item("BaseAluInstr")
+            .include_item("ExtAluEvent")
+            .include_item("ExtAluValueCols")
+            .include_item("ExtAluInstr")
+            .include_item("ExtAluAccessCols")
+            .include_item("BatchFRIEvent")
+            .include_item("BatchFRICols")
+            .include_item("BatchFRIInstrFFI")
+            .include_item("BatchFRIPreprocessedCols")
+            .include_item("ExpReverseBitsEventFFI")
+            .include_item("ExpReverseBitsLenCols")
+            .include_item("ExpReverseBitsInstrFFI")
+            .include_item("ExpReverseBitsLenPreprocessedCols")
+            .include_item("FriFoldEvent")
+            .include_item("FriFoldCols")
+            .include_item("FriFoldInstrFFI")
+            .include_item("FriFoldPreprocessedCols")
+            .include_item("SelectEvent")
+            .include_item("SelectCols")
+            .include_item("CommitPublicValuesEvent")
+            .include_item("PublicValuesCols")
+            .include_item("CommitPublicValuesInstr")
+            .include_item("PublicValuesPreprocessedCols")
+            .include_item("SelectEvent")
+            .include_item("SelectCols")
+            .include_item("SelectInstr")
+            .include_item("SelectPreprocessedCols")
+            .with_namespace("sp1_recursion_core_sys")
             .with_crate(crate_dir)
             .generate()
         {

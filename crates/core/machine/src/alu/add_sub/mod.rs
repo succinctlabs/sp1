@@ -218,13 +218,11 @@ mod tests {
     use p3_baby_bear::BabyBear;
     use p3_field::AbstractField;
     use p3_matrix::dense::RowMajorMatrix;
-    use p3_matrix::Matrix;
     use p3_maybe_rayon::prelude::ParallelSlice;
     use rand::{thread_rng, Rng};
     use sp1_core_executor::{events::AluEvent, ExecutionRecord, Opcode};
     use sp1_stark::{air::MachineAir, baby_bear_poseidon2::BabyBearPoseidon2, StarkGenericConfig};
     use std::borrow::BorrowMut;
-    use std::iter::once;
     use std::sync::LazyLock;
 
     use super::*;
@@ -244,7 +242,7 @@ mod tests {
                 }]
             })
             .collect::<Vec<_>>();
-        let sub_events = (0..255)
+        let _sub_events = (0..255)
             .flat_map(|i| {
                 [{
                     let operand_1 = thread_rng().gen_range(0..u32::MAX);

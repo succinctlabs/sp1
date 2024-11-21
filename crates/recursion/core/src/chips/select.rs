@@ -229,4 +229,168 @@ mod tests {
 
         run_recursion_test_machines(program);
     }
+
+    #[cfg(feature = "sys")]
+    #[test]
+    fn test_generate_trace_ffi_eq_rust() {
+        type F = BabyBear;
+
+        let shard = ExecutionRecord {
+            select_events: vec![SelectIo {
+                bit: F::one(),
+                out1: F::from_canonical_u32(5),
+                out2: F::from_canonical_u32(3),
+                in1: F::from_canonical_u32(3),
+                in2: F::from_canonical_u32(5),
+            }],
+            ..Default::default()
+        };
+
+        let chip = SelectChip;
+        let trace: RowMajorMatrix<F> = chip.generate_trace(&shard, &mut ExecutionRecord::default());
+        let trace_ffi = generate_trace_ffi(&shard);
+
+        assert_eq!(trace_ffi, trace);
+    }
+
+    #[cfg(feature = "sys")]
+    fn generate_trace_ffi(input: &ExecutionRecord<BabyBear>) -> RowMajorMatrix<BabyBear> {
+        type F = BabyBear;
+
+        let events = &input.select_events;
+        let nb_rows = events.len();
+        let fixed_log2_rows = input.fixed_log2_rows(&SelectChip);
+        let padded_nb_rows = match fixed_log2_rows {
+            Some(log2_rows) => 1 << log2_rows,
+            None => next_power_of_two(nb_rows, None),
+        };
+        let mut values = vec![F::zero(); padded_nb_rows * SELECT_COLS];
+
+        let chunk_size = std::cmp::max(events.len() / num_cpus::get(), 1);
+        let populate_len = events.len() * SELECT_COLS;
+
+        values[..populate_len].par_chunks_mut(chunk_size * SELECT_COLS).enumerate().for_each(
+            |(i, rows)| {
+                rows.chunks_mut(SELECT_COLS).enumerate().for_each(|(j, row)| {
+                    let idx = i * chunk_size + j;
+                    if idx < events.len() {
+                        let cols: &mut SelectCols<_> = row.borrow_mut();
+                        unsafe {
+                            crate::sys::select_event_to_row_babybear(&events[idx], cols);
+                        }
+                    }
+                });
+            },
+        );
+
+        RowMajorMatrix::new(values, SELECT_COLS)
+    }
+
+    #[test]
+    fn generate_preprocessed_trace() {
+        type F = BabyBear;
+
+        let program = RecursionProgram {
+            instructions: vec![
+                Instruction::Select(SelectInstr {
+                    addrs: SelectIo {
+                        bit: Address(F::zero()),
+                        out1: Address(F::one()),
+                        out2: Address(F::from_canonical_u32(2)),
+                        in1: Address(F::from_canonical_u32(3)),
+                        in2: Address(F::from_canonical_u32(4)),
+                    },
+                    mult1: F::one(),
+                    mult2: F::one(),
+                }),
+                Instruction::Select(SelectInstr {
+                    addrs: SelectIo {
+                        bit: Address(F::from_canonical_u32(5)),
+                        out1: Address(F::from_canonical_u32(6)),
+                        out2: Address(F::from_canonical_u32(7)),
+                        in1: Address(F::from_canonical_u32(8)),
+                        in2: Address(F::from_canonical_u32(9)),
+                    },
+                    mult1: F::one(),
+                    mult2: F::one(),
+                }),
+            ],
+            ..Default::default()
+        };
+
+        let chip = SelectChip;
+        let trace = chip.generate_preprocessed_trace(&program).unwrap();
+        println!("{:?}", trace.values);
+    }
+
+    #[cfg(feature = "sys")]
+    #[test]
+    fn test_generate_preprocessed_trace_ffi_eq_rust() {
+        type F = BabyBear;
+
+        let program = RecursionProgram {
+            instructions: vec![Instruction::Select(SelectInstr {
+                addrs: SelectIo {
+                    bit: Address(F::zero()),
+                    out1: Address(F::one()),
+                    out2: Address(F::from_canonical_u32(2)),
+                    in1: Address(F::from_canonical_u32(3)),
+                    in2: Address(F::from_canonical_u32(4)),
+                },
+                mult1: F::one(),
+                mult2: F::one(),
+            })],
+            ..Default::default()
+        };
+
+        let chip = SelectChip;
+        let trace = chip.generate_preprocessed_trace(&program).unwrap();
+        let trace_ffi = generate_preprocessed_trace_ffi(&program);
+
+        assert_eq!(trace_ffi, trace);
+    }
+
+    #[cfg(feature = "sys")]
+    fn generate_preprocessed_trace_ffi(
+        program: &RecursionProgram<BabyBear>,
+    ) -> RowMajorMatrix<BabyBear> {
+        type F = BabyBear;
+
+        let instrs = program
+            .instructions
+            .iter()
+            .filter_map(|instruction| match instruction {
+                Instruction::Select(x) => Some(x),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+
+        let nb_rows = instrs.len();
+        let fixed_log2_rows = program.fixed_log2_rows(&SelectChip);
+        let padded_nb_rows = match fixed_log2_rows {
+            Some(log2_rows) => 1 << log2_rows,
+            None => next_power_of_two(nb_rows, None),
+        };
+        let mut values = vec![F::zero(); padded_nb_rows * SELECT_PREPROCESSED_COLS];
+
+        let chunk_size = std::cmp::max(instrs.len() / num_cpus::get(), 1);
+        let populate_len = instrs.len() * SELECT_PREPROCESSED_COLS;
+
+        values[..populate_len]
+            .par_chunks_mut(chunk_size * SELECT_PREPROCESSED_COLS)
+            .enumerate()
+            .for_each(|(i, rows)| {
+                rows.chunks_mut(SELECT_PREPROCESSED_COLS).enumerate().for_each(|(j, row)| {
+                    let idx = i * chunk_size + j;
+                    if idx < instrs.len() {
+                        let cols: &mut SelectPreprocessedCols<_> = row.borrow_mut();
+                        unsafe {
+                            crate::sys::select_instr_to_row_babybear(instrs[idx], cols);
+                        }
+                    }
+                });
+            });
+
+        RowMajorMatrix::new(values, SELECT_PREPROCESSED_COLS)
+    }
 }
