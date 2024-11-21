@@ -32,7 +32,7 @@ pub trait ByteRecord {
     /// Adds a new [`ByteLookupEvent`] to the record.
     fn add_byte_lookup_event(&mut self, blu_event: ByteLookupEvent);
 
-    /// Adds a list of [`ByteLookupEvent`] mapss to the record.
+    /// Adds a list of [`ByteLookupEvent`] maps to the record.
     fn add_byte_lookup_events_fron_maps(
         &mut self,
         sharded_blu_events_vec: Vec<&HashMap<ByteLookupEvent, usize>>,
