@@ -119,7 +119,7 @@ pub fn ed25519_sqrt(a: &BigUint) -> BigUint {
     beta
 }
 
-pub fn decompress(compressed_point: &CompressedEdwardsY) -> AffinePoint<Ed25519> {
+pub fn decompress(compressed_point: &CompressedEdwardsY) -> Option<AffinePoint<Ed25519>> {
     let mut point_bytes = *compressed_point.as_bytes();
     let sign = point_bytes[31] >> 7 == 1;
     // mask out the sign bit
@@ -127,6 +127,10 @@ pub fn decompress(compressed_point: &CompressedEdwardsY) -> AffinePoint<Ed25519>
     let modulus = &Ed25519BaseField::modulus();
 
     let y = &BigUint::from_bytes_le(&point_bytes);
+    if y > modulus {
+        return None;
+    }
+
     let yy = &((y * y) % modulus);
     let u = (yy - BigUint::one()) % modulus; // u =  y²-1
     let v = &((yy * &Ed25519Parameters::d_biguint()) + &BigUint::one()) % modulus; // v = dy²+1
@@ -142,7 +146,7 @@ pub fn decompress(compressed_point: &CompressedEdwardsY) -> AffinePoint<Ed25519>
         x = modulus - &x;
     }
 
-    AffinePoint::new(x, y.clone())
+    Some(AffinePoint::new(x, y.clone()))  
 }
 
 #[cfg(test)]

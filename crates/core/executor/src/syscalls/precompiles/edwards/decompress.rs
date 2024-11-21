@@ -33,8 +33,9 @@ impl<E: EdwardsParameters> Syscall for EdwardsDecompressSyscall<E> {
     ) -> Option<u32> {
         let start_clk = rt.clk;
         let slice_ptr = arg1;
-        assert!(slice_ptr % 4 == 0, "Pointer must be 4-byte aligned.");
-        assert!(sign <= 1, "Sign bit must be 0 or 1.");
+        if slice_ptr % 4 > 0 || sign > 1 {
+            return rt.invariant_violated();
+        }
 
         let (y_memory_records_vec, y_vec) =
             rt.mr_slice(slice_ptr + (COMPRESSED_POINT_BYTES as u32), WORDS_FIELD_ELEMENT);
@@ -53,7 +54,10 @@ impl<E: EdwardsParameters> Syscall for EdwardsDecompressSyscall<E> {
 
         // Compute actual decompressed X
         let compressed_y = CompressedEdwardsY(compressed_edwards_y);
-        let decompressed = decompress(&compressed_y);
+        // This is falliable as Y might not be a valid field element
+        let Some(decompressed) = decompress(&compressed_y) else {
+            return rt.invariant_violated();
+        };
 
         let mut decompressed_x_bytes = decompressed.x.to_bytes_le();
         decompressed_x_bytes.resize(32, 0u8);
