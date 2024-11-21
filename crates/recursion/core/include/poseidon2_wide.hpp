@@ -8,7 +8,29 @@ using namespace poseidon2;
 
 template <class F>
 __SP1_HOSTDEV__ __SP1_INLINE__ void populate_external_round(
-    const F* external_rounds_state, F* sbox, size_t r, F* next_state) {}
+    const F* external_rounds_state, F* sbox, size_t r, F* next_state) {
+  F round_state[WIDTH];
+  if (r == 0) {
+    // external_linear_layer_immut
+    F temp_round_state[WIDTH];
+    for (size_t i = 0; i < WIDTH; i++) {
+      temp_round_state[i] = external_rounds_state[r * WIDTH + i];
+    }
+    external_linear_layer<F>(temp_round_state);
+    for (size_t i = 0; i < WIDTH; i++) {
+      round_state[i] = temp_round_state[i];
+    }
+  } else {
+    for (size_t i = 0; i < WIDTH; i++) {
+      round_state[i] = external_rounds_state[r * WIDTH + i];
+    }
+  }
+
+  size_t round = r < NUM_EXTERNAL_ROUNDS / 2 ? r : r + NUM_INTERNAL_ROUNDS;
+  for (size_t i = 0; i < WIDTH; i++) {
+    round_state[i] = round_state[i] + F(F::to_monty(RC_16_30_U32[round][i]));
+  }
+}
 
 template <class F>
 __SP1_HOSTDEV__ __SP1_INLINE__ void populate_internal_rounds(
