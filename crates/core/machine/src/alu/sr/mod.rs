@@ -54,8 +54,8 @@ use p3_field::{AbstractField, PrimeField};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use p3_maybe_rayon::prelude::{ParallelBridge, ParallelIterator, ParallelSlice};
 use sp1_core_executor::{
-    events::{InstrEvent, ByteLookupEvent, ByteRecord},
-    ByteOpcode, ExecutionRecord, Opcode, Program,
+    events::{ByteLookupEvent, ByteRecord, InstrEvent},
+    ByteOpcode, ExecutionRecord, Opcode, Program, DEFAULT_PC_INC,
 };
 use sp1_derive::AlignedBorrow;
 use sp1_primitives::consts::WORD_SIZE;
@@ -85,8 +85,8 @@ pub struct ShiftRightChip;
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct ShiftRightCols<T> {
-    /// The shard number, used for byte lookup table.
-    pub shard: T,
+    /// The program counter.
+    pub pc: T,
 
     /// The nonce of the operation.
     pub nonce: T,
@@ -217,7 +217,7 @@ impl ShiftRightChip {
     ) {
         // Initialize cols with basic operands and flags derived from the current event.
         {
-            cols.shard = F::from_canonical_u32(event.shard);
+            cols.pc = F::from_canonical_u32(event.pc);
             cols.a = Word::from(event.a);
             cols.b = Word::from(event.b);
             cols.c = Word::from(event.c);
@@ -236,7 +236,6 @@ impl ShiftRightChip {
             // Insert the MSB lookup event.
             let most_significant_byte = event.b.to_le_bytes()[WORD_SIZE - 1];
             blu.add_byte_lookup_events(vec![ByteLookupEvent {
-                shard: event.shard,
                 opcode: ByteOpcode::MSB,
                 a1: ((most_significant_byte >> 7) & 1) as u16,
                 a2: 0,
@@ -285,7 +284,6 @@ impl ShiftRightChip {
                 let (shift, carry) = shr_carry(byte_shift_result[i], num_bits_to_shift as u8);
 
                 let byte_event = ByteLookupEvent {
-                    shard: event.shard,
                     opcode: ByteOpcode::ShrCarry,
                     a1: shift as u16,
                     a2: carry,
@@ -307,10 +305,10 @@ impl ShiftRightChip {
                 debug_assert_eq!(cols.a[i], cols.bit_shift_result[i].clone());
             }
             // Range checks.
-            blu.add_u8_range_checks(event.shard, &byte_shift_result);
-            blu.add_u8_range_checks(event.shard, &bit_shift_result);
-            blu.add_u8_range_checks(event.shard, &shr_carry_output_carry);
-            blu.add_u8_range_checks(event.shard, &shr_carry_output_shifted_byte);
+            blu.add_u8_range_checks(&byte_shift_result);
+            blu.add_u8_range_checks(&bit_shift_result);
+            blu.add_u8_range_checks(&shr_carry_output_carry);
+            blu.add_u8_range_checks(&shr_carry_output_shifted_byte);
         }
     }
 }
@@ -507,12 +505,13 @@ where
 
         // Receive the arguments.
         builder.receive_instruction(
+            local.pc,
+            local.pc + AB::Expr::from_canonical_usize(DEFAULT_PC_INC),
             local.is_srl * AB::F::from_canonical_u32(Opcode::SRL as u32)
                 + local.is_sra * AB::F::from_canonical_u32(Opcode::SRA as u32),
             local.a,
             local.b,
             local.c,
-            local.shard,
             local.nonce,
             local.is_real,
         );
@@ -532,7 +531,7 @@ mod tests {
     #[test]
     fn generate_trace() {
         let mut shard = ExecutionRecord::default();
-        shard.shift_right_events = vec![InstrEvent::new(0, 0, Opcode::SRL, 6, 12, 1)];
+        shard.shift_right_events = vec![InstrEvent::new(0, Opcode::SRL, 6, 12, 1)];
         let chip = ShiftRightChip::default();
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&shard, &mut ExecutionRecord::default());
@@ -583,7 +582,7 @@ mod tests {
         ];
         let mut shift_events: Vec<InstrEvent> = Vec::new();
         for t in shifts.iter() {
-            shift_events.push(InstrEvent::new(0, 0, t.0, t.1, t.2, t.3));
+            shift_events.push(InstrEvent::new(0, t.0, t.1, t.2, t.3));
         }
         let mut shard = ExecutionRecord::default();
         shard.shift_right_events = shift_events;

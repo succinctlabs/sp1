@@ -10,8 +10,8 @@ use p3_field::{AbstractField, PrimeField};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use p3_maybe_rayon::prelude::{ParallelBridge, ParallelIterator};
 use sp1_core_executor::{
-    events::{InstrEvent, ByteLookupEvent, ByteRecord},
-    ExecutionRecord, Opcode, Program,
+    events::{ByteLookupEvent, ByteRecord, InstrEvent},
+    ExecutionRecord, Opcode, Program, DEFAULT_PC_INC,
 };
 use sp1_derive::AlignedBorrow;
 use sp1_stark::{
@@ -40,8 +40,8 @@ pub struct AddSubChip;
 #[derive(AlignedBorrow, Default, Clone, Copy)]
 #[repr(C)]
 pub struct AddSubCols<T> {
-    /// The shard number, used for byte lookup table.
-    pub shard: T,
+    /// The program counter.
+    pub pc: T,
 
     /// The nonce of the operation.
     pub nonce: T,
@@ -148,9 +148,11 @@ impl AddSubChip {
         blu: &mut impl ByteRecord,
     ) {
         let is_add = event.opcode == Opcode::ADD;
-        cols.shard = F::from_canonical_u32(event.shard);
         cols.is_add = F::from_bool(is_add);
         cols.is_sub = F::from_bool(!is_add);
+
+        cols.from_cpu = F::from_bool(event.from_cpu);
+        cols.pc = F::from_canonical_u32(event.pc);
 
         let operand_1 = if is_add { event.b } else { event.a };
         let operand_2 = event.c;
@@ -178,6 +180,14 @@ where
         let next = main.row_slice(1);
         let next: &AddSubCols<AB::Var> = (*next).borrow();
 
+        let is_real = local.is_add + local.is_sub;
+
+        // Calculate the opcode.
+        // local.is_add == 1 -> opcode == 0
+        // local.is_sub == 1 -> opcode == 1
+        // We also constrain the local.is_add and local.is_sub are bool and never both true.
+        let opcode = local.is_sub;
+
         // Constrain the incrementing nonce.
         builder.when_first_row().assert_zero(local.nonce);
         builder.when_transition().assert_eq(local.nonce + AB::Expr::one(), next.nonce);
@@ -188,33 +198,22 @@ where
             local.operand_1,
             local.operand_2,
             local.add_operation,
-            local.is_add + local.is_sub,
+            is_real,
         );
 
         // Receive the arguments.  There are separate receives for ADD and SUB.
         // For add, `add_operation.value` is `a`, `operand_1` is `b`, and `operand_2` is `c`.
         builder.receive_instruction(
-            Opcode::ADD.as_field::<AB::F>(),
+            local.pc,
+            local.pc + AB::Expr::from_canonical_usize(DEFAULT_PC_INC),
+            opcode,
             local.add_operation.value,
             local.operand_1,
             local.operand_2,
-            local.shard,
             local.nonce,
-            local.is_add,
+            is_real,
         );
 
-        // For sub, `operand_1` is `a`, `add_operation.value` is `b`, and `operand_2` is `c`.
-        builder.receive_instruction(
-            Opcode::SUB.as_field::<AB::F>(),
-            local.operand_1,
-            local.add_operation.value,
-            local.operand_2,
-            local.shard,
-            local.nonce,
-            local.is_sub,
-        );
-
-        let is_real = local.is_add + local.is_sub;
         builder.assert_bool(local.is_add);
         builder.assert_bool(local.is_sub);
         builder.assert_bool(is_real);
@@ -226,7 +225,7 @@ mod tests {
     use p3_baby_bear::BabyBear;
     use p3_matrix::dense::RowMajorMatrix;
     use rand::{thread_rng, Rng};
-    use sp1_core_executor::{events::InstrEvent, ExecutionRecord, Opcode};
+    use sp1_core_executor::{events::InstrEvent, ExecutionRecord, Opcode, DEFAULT_PC_INC};
     use sp1_stark::{air::MachineAir, baby_bear_poseidon2::BabyBearPoseidon2, StarkGenericConfig};
 
     use super::AddSubChip;
@@ -235,7 +234,7 @@ mod tests {
     #[test]
     fn generate_trace() {
         let mut shard = ExecutionRecord::default();
-        shard.add_events = vec![InstrEvent::new(0, 0, Opcode::ADD, 14, 8, 6)];
+        shard.add_events = vec![InstrEvent::new(0, Opcode::ADD, 14, 8, 6)];
         let chip = AddSubChip::default();
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&shard, &mut ExecutionRecord::default());
@@ -253,8 +252,7 @@ mod tests {
             let operand_2 = thread_rng().gen_range(0..u32::MAX);
             let result = operand_1.wrapping_add(operand_2);
             shard.add_events.push(InstrEvent::new(
-                i % 2,
-                0,
+                i * DEFAULT_PC_INC,
                 Opcode::ADD,
                 result,
                 operand_1,
@@ -266,8 +264,7 @@ mod tests {
             let operand_2 = thread_rng().gen_range(0..u32::MAX);
             let result = operand_1.wrapping_sub(operand_2);
             shard.add_events.push(InstrEvent::new(
-                i % 2,
-                0,
+                i % DEFAULT_PC_INC,
                 Opcode::SUB,
                 result,
                 operand_1,

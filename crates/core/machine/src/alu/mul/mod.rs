@@ -41,8 +41,8 @@ use p3_field::{AbstractField, PrimeField};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use p3_maybe_rayon::prelude::{ParallelBridge, ParallelIterator, ParallelSlice};
 use sp1_core_executor::{
-    events::{InstrEvent, ByteLookupEvent, ByteRecord},
-    ByteOpcode, ExecutionRecord, Opcode, Program,
+    events::{ByteLookupEvent, ByteRecord, InstrEvent},
+    ByteOpcode, ExecutionRecord, Opcode, Program, DEFAULT_PC_INC,
 };
 use sp1_derive::AlignedBorrow;
 use sp1_primitives::consts::WORD_SIZE;
@@ -75,8 +75,8 @@ pub struct MulChip;
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct MulCols<T> {
-    /// The shard number, used for byte lookup table.
-    pub shard: T,
+    /// The program counter.
+    pub pc: T,
 
     /// The nonce of the operation.
     pub nonce: T,
@@ -203,6 +203,8 @@ impl MulChip {
         cols: &mut MulCols<F>,
         blu: &mut impl ByteRecord,
     ) {
+        cols.pc = F::from_canonical_u32(event.pc);
+
         let a_word = event.a.to_le_bytes();
         let b_word = event.b.to_le_bytes();
         let c_word = event.c.to_le_bytes();
@@ -236,7 +238,6 @@ impl MulChip {
                 for word in words.iter() {
                     let most_significant_byte = word[WORD_SIZE - 1];
                     blu_events.push(ByteLookupEvent {
-                        shard: event.shard,
                         opcode: ByteOpcode::MSB,
                         a1: get_msb(*word) as u16,
                         a2: 0,
@@ -283,8 +284,8 @@ impl MulChip {
 
         // Range check.
         {
-            blu.add_u16_range_checks(event.shard, &carry.map(|x| x as u16));
-            blu.add_u8_range_checks(event.shard, &product.map(|x| x as u8));
+            blu.add_u16_range_checks(&carry.map(|x| x as u16));
+            blu.add_u8_range_checks(&product.map(|x| x as u8));
         }
     }
 }
@@ -442,11 +443,12 @@ where
 
         // Receive the arguments.
         builder.receive_instruction(
+            local.pc,
+            local.pc + AB::Expr::from_canonical_u32(DEFAULT_PC_INC),
             opcode,
             local.a,
             local.b,
             local.c,
-            local.shard,
             local.nonce,
             local.is_real,
         );
@@ -471,14 +473,7 @@ mod tests {
         // Fill mul_events with 10^7 MULHSU events.
         let mut mul_events: Vec<InstrEvent> = Vec::new();
         for _ in 0..10i32.pow(7) {
-            mul_events.push(InstrEvent::new(
-                0,
-                0,
-                Opcode::MULHSU,
-                0x80004000,
-                0x80000000,
-                0xffff8000,
-            ));
+            mul_events.push(InstrEvent::new(0, Opcode::MULHSU, 0x80004000, 0x80000000, 0xffff8000));
         }
         shard.mul_events = mul_events;
         let chip = MulChip::default();
@@ -547,12 +542,12 @@ mod tests {
             (Opcode::MULH, 0xffffffff, 0x00000001, 0xffffffff),
         ];
         for t in mul_instructions.iter() {
-            mul_events.push(InstrEvent::new(0, 0, t.0, t.1, t.2, t.3));
+            mul_events.push(InstrEvent::new(0, t.0, t.1, t.2, t.3));
         }
 
         // Append more events until we have 1000 tests.
         for _ in 0..(1000 - mul_instructions.len()) {
-            mul_events.push(InstrEvent::new(0, 0, Opcode::MUL, 1, 1, 1));
+            mul_events.push(InstrEvent::new(0, Opcode::MUL, 1, 1, 1));
         }
 
         shard.mul_events = mul_events;

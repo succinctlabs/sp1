@@ -10,8 +10,8 @@ use p3_field::{AbstractField, Field, PrimeField32};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use p3_maybe_rayon::prelude::*;
 use sp1_core_executor::{
-    events::{InstrEvent, ByteLookupEvent, ByteRecord},
-    ByteOpcode, ExecutionRecord, Opcode, Program,
+    events::{ByteLookupEvent, ByteRecord, InstrEvent},
+    ByteOpcode, ExecutionRecord, Opcode, Program, DEFAULT_PC_INC,
 };
 use sp1_derive::AlignedBorrow;
 use sp1_stark::{
@@ -32,8 +32,8 @@ pub struct LtChip;
 #[derive(AlignedBorrow, Default, Clone, Copy)]
 #[repr(C)]
 pub struct LtCols<T> {
-    /// The shard number, used for byte lookup table.
-    pub shard: T,
+    /// The program counter.
+    pub pc: T,
 
     /// The nonce of the operation.
     pub nonce: T,
@@ -175,7 +175,8 @@ impl LtChip {
         let b = event.b.to_le_bytes();
         let c = event.c.to_le_bytes();
 
-        cols.shard = F::from_canonical_u32(event.shard);
+        cols.pc = F::from_canonical_u32(event.pc);
+
         cols.a = Word(a.map(F::from_canonical_u8));
         cols.b = Word(b.map(F::from_canonical_u8));
         cols.c = Word(c.map(F::from_canonical_u8));
@@ -188,7 +189,6 @@ impl LtChip {
 
         // Send the masked interaction.
         blu.add_byte_lookup_event(ByteLookupEvent {
-            shard: event.shard,
             opcode: ByteOpcode::AND,
             a1: masked_b as u16,
             a2: 0,
@@ -196,7 +196,6 @@ impl LtChip {
             c: 0x7f,
         });
         blu.add_byte_lookup_event(ByteLookupEvent {
-            shard: event.shard,
             opcode: ByteOpcode::AND,
             a1: masked_c as u16,
             a2: 0,
@@ -245,7 +244,6 @@ impl LtChip {
         assert_eq!(cols.a[0], cols.bit_b * (F::one() - cols.bit_c) + cols.is_sign_eq * cols.sltu);
 
         blu.add_byte_lookup_event(ByteLookupEvent {
-            shard: event.shard,
             opcode: ByteOpcode::LTU,
             a1: cols.sltu.as_canonical_u32() as u16,
             a2: 0,
@@ -442,12 +440,13 @@ where
 
         // Receive the arguments.
         builder.receive_instruction(
+            local.pc,
+            local.pc + AB::Expr::from_canonical_usize(DEFAULT_PC_INC),
             local.is_slt * AB::F::from_canonical_u32(Opcode::SLT as u32)
                 + local.is_sltu * AB::F::from_canonical_u32(Opcode::SLTU as u32),
             local.a,
             local.b,
             local.c,
-            local.shard,
             local.nonce,
             is_real,
         );
@@ -468,7 +467,7 @@ mod tests {
     #[test]
     fn generate_trace() {
         let mut shard = ExecutionRecord::default();
-        shard.lt_events = vec![InstrEvent::new(0, 0, Opcode::SLT, 0, 3, 2)];
+        shard.lt_events = vec![InstrEvent::new(0, Opcode::SLT, 0, 3, 2)];
         let chip = LtChip::default();
         let generate_trace = chip.generate_trace(&shard, &mut ExecutionRecord::default());
         let trace: RowMajorMatrix<BabyBear> = generate_trace;
@@ -496,21 +495,21 @@ mod tests {
         const NEG_4: u32 = 0b11111111111111111111111111111100;
         shard.lt_events = vec![
             // 0 == 3 < 2
-            InstrEvent::new(0, 0, Opcode::SLT, 0, 3, 2),
+            InstrEvent::new(0, Opcode::SLT, 0, 3, 2),
             // 1 == 2 < 3
-            InstrEvent::new(0, 1, Opcode::SLT, 1, 2, 3),
+            InstrEvent::new(4, Opcode::SLT, 1, 2, 3),
             // 0 == 5 < -3
-            InstrEvent::new(0, 3, Opcode::SLT, 0, 5, NEG_3),
+            InstrEvent::new(8, Opcode::SLT, 0, 5, NEG_3),
             // 1 == -3 < 5
-            InstrEvent::new(0, 2, Opcode::SLT, 1, NEG_3, 5),
+            InstrEvent::new(12, Opcode::SLT, 1, NEG_3, 5),
             // 0 == -3 < -4
-            InstrEvent::new(0, 4, Opcode::SLT, 0, NEG_3, NEG_4),
+            InstrEvent::new(16, Opcode::SLT, 0, NEG_3, NEG_4),
             // 1 == -4 < -3
-            InstrEvent::new(0, 4, Opcode::SLT, 1, NEG_4, NEG_3),
+            InstrEvent::new(20, Opcode::SLT, 1, NEG_4, NEG_3),
             // 0 == 3 < 3
-            InstrEvent::new(0, 5, Opcode::SLT, 0, 3, 3),
+            InstrEvent::new(24, Opcode::SLT, 0, 3, 3),
             // 0 == -3 < -3
-            InstrEvent::new(0, 5, Opcode::SLT, 0, NEG_3, NEG_3),
+            InstrEvent::new(28, Opcode::SLT, 0, NEG_3, NEG_3),
         ];
 
         prove_babybear_template(&mut shard);
@@ -523,17 +522,17 @@ mod tests {
         const LARGE: u32 = 0b11111111111111111111111111111101;
         shard.lt_events = vec![
             // 0 == 3 < 2
-            InstrEvent::new(0, 0, Opcode::SLTU, 0, 3, 2),
+            InstrEvent::new(0, Opcode::SLTU, 0, 3, 2),
             // 1 == 2 < 3
-            InstrEvent::new(0, 1, Opcode::SLTU, 1, 2, 3),
+            InstrEvent::new(4, Opcode::SLTU, 1, 2, 3),
             // 0 == LARGE < 5
-            InstrEvent::new(0, 2, Opcode::SLTU, 0, LARGE, 5),
+            InstrEvent::new(8, Opcode::SLTU, 0, LARGE, 5),
             // 1 == 5 < LARGE
-            InstrEvent::new(0, 3, Opcode::SLTU, 1, 5, LARGE),
+            InstrEvent::new(12, Opcode::SLTU, 1, 5, LARGE),
             // 0 == 0 < 0
-            InstrEvent::new(0, 5, Opcode::SLTU, 0, 0, 0),
+            InstrEvent::new(16, Opcode::SLTU, 0, 0, 0),
             // 0 == LARGE < LARGE
-            InstrEvent::new(0, 5, Opcode::SLTU, 0, LARGE, LARGE),
+            InstrEvent::new(20, Opcode::SLTU, 0, LARGE, LARGE),
         ];
 
         prove_babybear_template(&mut shard);

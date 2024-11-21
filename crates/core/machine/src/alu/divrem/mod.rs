@@ -71,7 +71,7 @@ use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use sp1_core_executor::{
     events::{ByteLookupEvent, ByteRecord},
     get_msb, get_quotient_and_remainder, is_signed_operation, ByteOpcode, ExecutionRecord, Opcode,
-    Program,
+    Program, DEFAULT_PC_INC, UNUSED_PC,
 };
 use sp1_derive::AlignedBorrow;
 use sp1_primitives::consts::WORD_SIZE;
@@ -100,8 +100,8 @@ pub struct DivRemChip;
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct DivRemCols<T> {
-    /// The shard number, used for byte lookup table.
-    pub shard: T,
+    /// The program counter.
+    pub pc: T,
 
     /// The nonce of the operation.
     pub nonce: T,
@@ -236,6 +236,8 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
             let mut row = [F::zero(); NUM_DIVREM_COLS];
             let cols: &mut DivRemCols<F> = row.as_mut_slice().borrow_mut();
 
+            cols.pc = F::from_canonical_u32(event.pc);
+
             // Initialize cols with basic operands and flags derived from the current event.
             {
                 cols.a = Word::from(event.a);
@@ -301,7 +303,6 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
                     for word in words.iter() {
                         let most_significant_byte = word.to_le_bytes()[WORD_SIZE - 1];
                         blu_events.push(ByteLookupEvent {
-                            shard: event.shard,
                             opcode: ByteOpcode::MSB,
                             a1: get_msb(*word) as u16,
                             a2: 0,
@@ -386,9 +387,9 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
 
                 // Range check.
                 {
-                    output.add_u8_range_checks(event.shard, &quotient.to_le_bytes());
-                    output.add_u8_range_checks(event.shard, &remainder.to_le_bytes());
-                    output.add_u8_range_checks(event.shard, &c_times_quotient);
+                    output.add_u8_range_checks(&quotient.to_le_bytes());
+                    output.add_u8_range_checks(&remainder.to_le_bytes());
+                    output.add_u8_range_checks(&c_times_quotient);
                 }
             }
 
@@ -497,11 +498,12 @@ where
 
             // The lower 4 bytes of c_times_quotient must match the lower 4 bytes of (c * quotient).
             builder.send_instruction(
+                AB::Expr::from_canonical_u32(UNUSED_PC),
+                AB::Expr::from_canonical_u32(UNUSED_PC + DEFAULT_PC_INC),
                 AB::Expr::from_canonical_u32(Opcode::MUL as u32),
                 Word(lower_half),
                 local.quotient,
                 local.c,
-                local.shard,
                 local.lower_nonce,
                 local.is_real,
             );
@@ -522,11 +524,12 @@ where
             ];
 
             builder.send_instruction(
+                AB::Expr::from_canonical_u32(UNUSED_PC),
+                AB::Expr::from_canonical_u32(UNUSED_PC + DEFAULT_PC_INC),
                 opcode_for_upper_half,
                 Word(upper_half),
                 local.quotient,
                 local.c,
-                local.shard,
                 local.upper_nonce,
                 local.is_real,
             );
@@ -680,20 +683,22 @@ where
             // In the case that `c` or `rem` is negative, instead check that their sum is zero by
             // sending an AddEvent.
             builder.send_instruction(
+                AB::Expr::from_canonical_u32(UNUSED_PC),
+                AB::Expr::from_canonical_u32(UNUSED_PC + DEFAULT_PC_INC),
                 AB::Expr::from_canonical_u32(Opcode::ADD as u32),
                 Word([zero.clone(), zero.clone(), zero.clone(), zero.clone()]),
                 local.c,
                 local.abs_c,
-                local.shard,
                 local.abs_c_alu_event_nonce,
                 local.abs_c_alu_event,
             );
             builder.send_instruction(
+                AB::Expr::from_canonical_u32(UNUSED_PC),
+                AB::Expr::from_canonical_u32(UNUSED_PC + DEFAULT_PC_INC),
                 AB::Expr::from_canonical_u32(Opcode::ADD as u32),
                 Word([zero.clone(), zero.clone(), zero.clone(), zero.clone()]),
                 local.remainder,
                 local.abs_remainder,
-                local.shard,
                 local.abs_rem_alu_event_nonce,
                 local.abs_rem_alu_event,
             );
@@ -735,11 +740,12 @@ where
             // Dispatch abs(remainder) < max(abs(c), 1), this is equivalent to abs(remainder) <
             // abs(c) if not division by 0.
             builder.send_instruction(
+                AB::Expr::from_canonical_u32(UNUSED_PC),
+                AB::Expr::from_canonical_u32(UNUSED_PC + DEFAULT_PC_INC),
                 AB::Expr::from_canonical_u32(Opcode::SLTU as u32),
                 Word([one.clone(), zero.clone(), zero.clone(), zero.clone()]),
                 local.abs_remainder,
                 local.max_abs_c_or_1,
-                local.shard,
                 local.abs_nonce,
                 local.remainder_check_multiplicity,
             );
@@ -817,11 +823,12 @@ where
             };
 
             builder.receive_instruction(
+                local.pc,
+                local.pc + AB::Expr::from_canonical_usize(DEFAULT_PC_INC),
                 opcode,
                 local.a,
                 local.b,
                 local.c,
-                local.shard,
                 local.nonce,
                 local.is_real,
             );
@@ -843,7 +850,7 @@ mod tests {
     #[test]
     fn generate_trace() {
         let mut shard = ExecutionRecord::default();
-        shard.divrem_events = vec![InstrEvent::new(0, 0, Opcode::DIVU, 2, 17, 3)];
+        shard.divrem_events = vec![InstrEvent::new(0, Opcode::DIVU, 2, 17, 3)];
         let chip = DivRemChip::default();
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&shard, &mut ExecutionRecord::default());
@@ -896,12 +903,12 @@ mod tests {
             (Opcode::REM, 0, 1 << 31, neg(1)),
         ];
         for t in divrems.iter() {
-            divrem_events.push(InstrEvent::new(0, 0, t.0, t.1, t.2, t.3));
+            divrem_events.push(InstrEvent::new(0, t.0, t.1, t.2, t.3));
         }
 
         // Append more events until we have 1000 tests.
         for _ in 0..(1000 - divrems.len()) {
-            divrem_events.push(InstrEvent::new(0, 0, Opcode::DIVU, 1, 1, 1));
+            divrem_events.push(InstrEvent::new(0, Opcode::DIVU, 1, 1, 1));
         }
 
         let mut shard = ExecutionRecord::default();

@@ -10,8 +10,8 @@ use p3_field::{AbstractField, PrimeField};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use p3_maybe_rayon::prelude::{IntoParallelRefIterator, ParallelIterator, ParallelSlice};
 use sp1_core_executor::{
-    events::{InstrEvent, ByteLookupEvent, ByteRecord},
-    ByteOpcode, ExecutionRecord, Opcode, Program,
+    events::{ByteLookupEvent, ByteRecord, InstrEvent},
+    ByteOpcode, ExecutionRecord, Opcode, Program, DEFAULT_PC_INC,
 };
 use sp1_derive::AlignedBorrow;
 use sp1_stark::{
@@ -32,8 +32,8 @@ pub struct BitwiseChip;
 #[derive(AlignedBorrow, Default, Clone, Copy)]
 #[repr(C)]
 pub struct BitwiseCols<T> {
-    /// The shard number, used for byte lookup table.
-    pub shard: T,
+    /// The program counter.
+    pub pc: T,
 
     /// The nonce of the operation.
     pub nonce: T,
@@ -140,6 +140,8 @@ impl BitwiseChip {
         cols: &mut BitwiseCols<F>,
         blu: &mut impl ByteRecord,
     ) {
+        cols.pc = F::from_canonical_u32(event.pc);
+
         let a = event.a.to_le_bytes();
         let b = event.b.to_le_bytes();
         let c = event.c.to_le_bytes();
@@ -155,7 +157,6 @@ impl BitwiseChip {
 
         for ((b_a, b_b), b_c) in a.into_iter().zip(b).zip(c) {
             let byte_event = ByteLookupEvent {
-                shard: event.shard,
                 opcode: ByteOpcode::from(event.opcode),
                 a1: b_a as u16,
                 a2: 0,
@@ -206,11 +207,12 @@ where
 
         // Receive the arguments.
         builder.receive_instruction(
+            local.pc,
+            local.pc + AB::Expr::from_canonical_usize(DEFAULT_PC_INC),
             cpu_opcode,
             local.a,
             local.b,
             local.c,
-            local.shard,
             local.nonce,
             local.is_xor + local.is_or + local.is_and,
         );
@@ -237,7 +239,7 @@ mod tests {
     #[test]
     fn generate_trace() {
         let mut shard = ExecutionRecord::default();
-        shard.bitwise_events = vec![InstrEvent::new(0, 0, Opcode::XOR, 25, 10, 19)];
+        shard.bitwise_events = vec![InstrEvent::new(0, Opcode::XOR, 25, 10, 19)];
         let chip = BitwiseChip::default();
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&shard, &mut ExecutionRecord::default());
@@ -251,9 +253,9 @@ mod tests {
 
         let mut shard = ExecutionRecord::default();
         shard.bitwise_events = [
-            InstrEvent::new(0, 0, Opcode::XOR, 25, 10, 19),
-            InstrEvent::new(0, 0, Opcode::OR, 27, 10, 19),
-            InstrEvent::new(0, 0, Opcode::AND, 2, 10, 19),
+            InstrEvent::new(0, Opcode::XOR, 25, 10, 19),
+            InstrEvent::new(0, Opcode::OR, 27, 10, 19),
+            InstrEvent::new(0, Opcode::AND, 2, 10, 19),
         ]
         .repeat(1000);
         let chip = BitwiseChip::default();

@@ -136,7 +136,6 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
     fn generate_dependencies(&self, input: &ExecutionRecord, output: &mut ExecutionRecord) {
         // Generate the trace rows for each event.
         let chunk_size = std::cmp::max(input.cpu_events.len() / num_cpus::get(), 1);
-        let shard = input.public_values.execution_shard;
 
         let blu_events: Vec<_> = input
             .cpu_events
@@ -153,7 +152,7 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
                         &input.nonce_lookup,
                         cols,
                         &mut blu,
-                        shard,
+                        input.public_values.execution_shard,
                         instruction,
                     );
                 });
@@ -222,7 +221,6 @@ impl CpuChip {
             .map(|x| x.as_canonical_u32())
             .collect::<Vec<_>>();
         blu_events.add_byte_lookup_event(ByteLookupEvent {
-            shard,
             opcode: ByteOpcode::U8Range,
             a1: 0,
             a2: 0,
@@ -230,7 +228,6 @@ impl CpuChip {
             c: a_bytes[1] as u8,
         });
         blu_events.add_byte_lookup_event(ByteLookupEvent {
-            shard,
             opcode: ByteOpcode::U8Range,
             a1: 0,
             a2: 0,
@@ -260,7 +257,6 @@ impl CpuChip {
         blu_events: &mut impl ByteRecord,
         shard: u32,
     ) {
-        cols.shard = F::from_canonical_u32(shard);
         cols.clk = F::from_canonical_u32(event.clk);
 
         let clk_16bit_limb = (event.clk & 0xffff) as u16;
@@ -268,24 +264,11 @@ impl CpuChip {
         cols.clk_16bit_limb = F::from_canonical_u16(clk_16bit_limb);
         cols.clk_8bit_limb = F::from_canonical_u8(clk_8bit_limb);
 
+        // TODO:  Since we are getting the shard from the public values, I don't think we need to do
+        // this range check.
+        blu_events.add_byte_lookup_event(ByteLookupEvent::new(U16Range, shard as u16, 0, 0, 0));
+        blu_events.add_byte_lookup_event(ByteLookupEvent::new(U16Range, clk_16bit_limb, 0, 0, 0));
         blu_events.add_byte_lookup_event(ByteLookupEvent::new(
-            shard,
-            U16Range,
-            shard as u16,
-            0,
-            0,
-            0,
-        ));
-        blu_events.add_byte_lookup_event(ByteLookupEvent::new(
-            shard,
-            U16Range,
-            clk_16bit_limb,
-            0,
-            0,
-            0,
-        ));
-        blu_events.add_byte_lookup_event(ByteLookupEvent::new(
-            shard,
             ByteOpcode::U8Range,
             0,
             0,

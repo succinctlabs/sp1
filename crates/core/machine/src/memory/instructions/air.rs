@@ -10,7 +10,7 @@ use crate::{
     memory::MemoryCols,
     operations::BabyBearWordRangeChecker,
 };
-use sp1_core_executor::{events::MemoryAccessPosition, Opcode};
+use sp1_core_executor::{events::MemoryAccessPosition, Opcode, DEFAULT_PC_INC, UNUSED_PC};
 
 use super::{columns::MemoryInstructionsColumns, MemoryInstructionsChip};
 
@@ -37,6 +37,8 @@ where
         self.receive_instruction(
             builder,
             opcode,
+            local.pc,
+            local.next_pc,
             local.op_a_value,
             local.op_b_value,
             local.op_c_value,
@@ -82,6 +84,8 @@ impl MemoryInstructionsChip {
     ) {
         // Send to the ALU table to verify correct calculation of addr_word.
         builder.send_instruction(
+            AB::Expr::from_canonical_usize(UNUSED_PC),
+            AB::Expr::from_canonical_usize(UNUSED_PC + DEFAULT_PC_INC),
             AB::Expr::from_canonical_u32(Opcode::ADD as u32),
             local.addr_word,
             local.op_b_val(),
@@ -176,6 +180,8 @@ impl MemoryInstructionsChip {
             AB::Expr::zero(),
         ]);
         builder.send_instruction(
+            AB::Expr::from_canonical_usize(UNUSED_PC),
+            AB::Expr::from_canonical_usize(UNUSED_PC + DEFAULT_PC_INC),
             Opcode::SUB.as_field::<AB::F>(),
             local.op_a_val(),
             local.unsigned_mem_val,

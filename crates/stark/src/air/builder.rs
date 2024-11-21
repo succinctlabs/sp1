@@ -181,6 +181,8 @@ pub trait InstructionAirBuilder: BaseAirBuilder {
     #[allow(clippy::too_many_arguments)]
     fn send_instruction(
         &mut self,
+        pc: impl Into<Self::Expr>,
+        next_pc: impl Into<Self::Expr>,
         opcode: impl Into<Self::Expr>,
         a: Word<impl Into<Self::Expr>>,
         b: Word<impl Into<Self::Expr>>,
@@ -188,7 +190,9 @@ pub trait InstructionAirBuilder: BaseAirBuilder {
         nonce: impl Into<Self::Expr>,
         multiplicity: impl Into<Self::Expr>,
     ) {
-        let values = once(opcode.into())
+        let values = once(pc.into())
+            .chain(once(next_pc.into()))
+            .chain(once(opcode.into()))
             .chain(a.0.into_iter().map(Into::into))
             .chain(b.0.into_iter().map(Into::into))
             .chain(c.0.into_iter().map(Into::into))
@@ -205,19 +209,21 @@ pub trait InstructionAirBuilder: BaseAirBuilder {
     #[allow(clippy::too_many_arguments)]
     fn receive_instruction(
         &mut self,
+        pc: impl Into<Self::Expr>,
+        next_pc: impl Into<Self::Expr>,
         opcode: impl Into<Self::Expr>,
         a: Word<impl Into<Self::Expr>>,
         b: Word<impl Into<Self::Expr>>,
         c: Word<impl Into<Self::Expr>>,
-        shard: impl Into<Self::Expr>,
         nonce: impl Into<Self::Expr>,
         multiplicity: impl Into<Self::Expr>,
     ) {
-        let values = once(opcode.into())
+        let values = once(pc.into())
+            .chain(once(next_pc.into()))
+            .chain(once(opcode.into()))
             .chain(a.0.into_iter().map(Into::into))
             .chain(b.0.into_iter().map(Into::into))
             .chain(c.0.into_iter().map(Into::into))
-            .chain(once(shard.into()))
             .chain(once(nonce.into()))
             .collect();
 

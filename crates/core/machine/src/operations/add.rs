@@ -51,9 +51,9 @@ impl<F: Field> AddOperation<F> {
 
         // Range check
         {
-            record.add_u8_range_checks(shard, &a);
-            record.add_u8_range_checks(shard, &b);
-            record.add_u8_range_checks(shard, &expected.to_le_bytes());
+            record.add_u8_range_checks(&a);
+            record.add_u8_range_checks(&b);
+            record.add_u8_range_checks(&expected.to_le_bytes());
         }
         expected
     }

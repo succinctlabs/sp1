@@ -42,8 +42,8 @@ use p3_field::{AbstractField, PrimeField};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use p3_maybe_rayon::prelude::{ParallelIterator, ParallelSlice};
 use sp1_core_executor::{
-    events::{InstrEvent, ByteLookupEvent, ByteRecord},
-    ExecutionRecord, Opcode, Program,
+    events::{ByteLookupEvent, ByteRecord, InstrEvent},
+    ExecutionRecord, Opcode, Program, DEFAULT_PC_INC,
 };
 use sp1_derive::AlignedBorrow;
 use sp1_primitives::consts::WORD_SIZE;
@@ -65,8 +65,8 @@ pub struct ShiftLeft;
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct ShiftLeftCols<T> {
-    /// The shard number, used for byte lookup table.
-    pub shard: T,
+    /// The program counter.
+    pub pc: T,
 
     /// The nonce of the operation.
     pub nonce: T,
@@ -200,10 +200,11 @@ impl ShiftLeft {
         cols: &mut ShiftLeftCols<F>,
         blu: &mut impl ByteRecord,
     ) {
+        cols.pc = F::from_canonical_u32(event.pc);
+
         let a = event.a.to_le_bytes();
         let b = event.b.to_le_bytes();
         let c = event.c.to_le_bytes();
-        cols.shard = F::from_canonical_u32(event.shard);
         cols.a = Word(a.map(F::from_canonical_u8));
         cols.b = Word(b.map(F::from_canonical_u8));
         cols.c = Word(c.map(F::from_canonical_u8));
@@ -242,8 +243,8 @@ impl ShiftLeft {
 
         // Range checks.
         {
-            blu.add_u8_range_checks(event.shard, &bit_shift_result);
-            blu.add_u8_range_checks(event.shard, &bit_shift_result_carry);
+            blu.add_u8_range_checks(&bit_shift_result);
+            blu.add_u8_range_checks(&bit_shift_result_carry);
         }
 
         // Sanity check.
@@ -387,11 +388,12 @@ where
 
         // Receive the arguments.
         builder.receive_instruction(
+            local.pc,
+            local.pc + AB::Expr::from_canonical_usize(DEFAULT_PC_INC),
             AB::F::from_canonical_u32(Opcode::SLL as u32),
             local.a,
             local.b,
             local.c,
-            local.shard,
             local.nonce,
             local.is_real,
         );
@@ -412,7 +414,7 @@ mod tests {
     #[test]
     fn generate_trace() {
         let mut shard = ExecutionRecord::default();
-        shard.shift_left_events = vec![InstrEvent::new(0, 0, Opcode::SLL, 16, 8, 1)];
+        shard.shift_left_events = vec![InstrEvent::new(0, Opcode::SLL, 16, 8, 1)];
         let chip = ShiftLeft::default();
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&shard, &mut ExecutionRecord::default());
@@ -447,7 +449,7 @@ mod tests {
             (Opcode::SLL, 0x00000000, 0x21212120, 0xffffffff),
         ];
         for t in shift_instructions.iter() {
-            shift_events.push(InstrEvent::new(0, 0, t.0, t.1, t.2, t.3));
+            shift_events.push(InstrEvent::new(0, t.0, t.1, t.2, t.3));
         }
 
         // Append more events until we have 1000 tests.

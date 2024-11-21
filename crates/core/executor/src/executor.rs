@@ -26,6 +26,11 @@ use crate::{
     Instruction, Opcode, Program, Register,
 };
 
+pub const DEFAULT_PC_INC: u32 = 4;
+/// This is used in the `InstrEvent` to indicate that the instruction is not from the CPU.
+/// A valid pc should be divisible by 4, so we use 1 to indicate that the pc is not used.
+pub const UNUSED_PC: u32 = 1;
+
 /// An executor for the SP1 RISC-V zkVM.
 ///
 /// The exeuctor is responsible for executing a user program and tracing important events which
@@ -643,19 +648,10 @@ impl<'a> Executor<'a> {
     }
 
     /// Emit an ALU event.
-    fn emit_instruction(
-        &mut self,
-        clk: u32,
-        opcode: Opcode,
-        a: u32,
-        b: u32,
-        c: u32,
-        lookup_id: LookupId,
-    ) {
+    fn emit_instruction(&mut self, opcode: Opcode, a: u32, b: u32, c: u32, lookup_id: LookupId) {
         let event = InstrEvent {
             lookup_id,
-            shard: self.shard(),
-            clk,
+            pc: self.state.pc,
             opcode,
             a,
             b,
@@ -766,7 +762,7 @@ impl<'a> Executor<'a> {
     ) {
         self.rw(rd, a);
         if self.executor_mode == ExecutorMode::Trace {
-            self.emit_instruction(self.state.clk, instruction.opcode, a, b, c, lookup_id);
+            self.emit_instruction(instruction.opcode, a, b, c, lookup_id);
         }
     }
 

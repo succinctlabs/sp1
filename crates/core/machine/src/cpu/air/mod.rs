@@ -6,7 +6,7 @@ use core::borrow::Borrow;
 use p3_air::{Air, AirBuilder, AirBuilderWithPublicValues, BaseAir};
 use p3_field::AbstractField;
 use p3_matrix::Matrix;
-use sp1_core_executor::ByteOpcode;
+use sp1_core_executor::{ByteOpcode, DEFAULT_PC_INC, UNUSED_PC};
 use sp1_stark::{
     air::{BaseAirBuilder, PublicValues, SP1AirBuilder, SP1_PROOF_NUM_PV_ELTS},
     Word,
@@ -48,19 +48,21 @@ where
         // Compute some flags for which type of instruction we are dealing with.
         let is_branch_instruction: AB::Expr = self.is_branch_instruction::<AB>(&local.selectors);
         let is_alu_instruction: AB::Expr = self.is_alu_instruction::<AB>(&local.selectors);
+        let is_memory_instruction: AB::Expr = self.is_memory_instruction::<AB>(&local.selectors);
 
         // Register constraints.
         self.eval_registers::<AB>(builder, local, is_branch_instruction.clone());
 
         // ALU instructions.
         builder.send_instruction(
+            local.pc,
+            local.next_pc,
             local.instruction.opcode,
             local.op_a_val(),
             local.op_b_val(),
             local.op_c_val(),
-            local.shard,
             local.nonce,
-            is_alu_instruction,
+            is_alu_instruction + is_memory_instruction,
         );
 
         // Branch instructions.
@@ -184,22 +186,24 @@ impl CpuChip {
 
         // Verify that the new pc is calculated correctly for JAL instructions.
         builder.send_instruction(
+            AB::Expr::from_canonical_usize(UNUSED_PC),
+            AB::Expr::from_canonical_usize(UNUSED_PC + DEFAULT_PC_INC),
             AB::Expr::from_canonical_u32(Opcode::ADD as u32),
             jump_columns.next_pc,
             jump_columns.pc,
             local.op_b_val(),
-            local.shard,
             jump_columns.jal_nonce,
             local.selectors.is_jal,
         );
 
         // Verify that the new pc is calculated correctly for JALR instructions.
         builder.send_instruction(
+            AB::Expr::from_canonical_usize(UNUSED_PC),
+            AB::Expr::from_canonical_usize(UNUSED_PC + DEFAULT_PC_INC),
             AB::Expr::from_canonical_u32(Opcode::ADD as u32),
             jump_columns.next_pc,
             local.op_b_val(),
             local.op_c_val(),
-            local.shard,
             jump_columns.jalr_nonce,
             local.selectors.is_jalr,
         );
@@ -223,11 +227,12 @@ impl CpuChip {
 
         // Verify that op_a == pc + op_b.
         builder.send_instruction(
+            AB::Expr::from_canonical_usize(UNUSED_PC),
+            AB::Expr::from_canonical_usize(UNUSED_PC + DEFAULT_PC_INC),
             AB::Expr::from_canonical_u32(Opcode::ADD as u32),
             local.op_a_val(),
             auipc_columns.pc,
             local.op_b_val(),
-            local.shard,
             auipc_columns.auipc_nonce,
             local.selectors.is_auipc,
         );
