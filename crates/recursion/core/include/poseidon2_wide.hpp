@@ -27,9 +27,28 @@ __SP1_HOSTDEV__ __SP1_INLINE__ void populate_external_round(
   }
 
   size_t round = r < NUM_EXTERNAL_ROUNDS / 2 ? r : r + NUM_INTERNAL_ROUNDS;
+  F add_rc[WIDTH];
   for (size_t i = 0; i < WIDTH; i++) {
-    round_state[i] = round_state[i] + F(F::to_monty(RC_16_30_U32[round][i]));
+    add_rc[i] = round_state[i] + F(F::to_monty(RC_16_30_U32[round][i]));
   }
+
+  F sbox_deg_3[WIDTH];
+  F sbox_deg_7[WIDTH];
+  for (size_t i = 0; i < WIDTH; i++) {
+    sbox_deg_3[i] = add_rc[i] * add_rc[i] * add_rc[i];
+    sbox_deg_7[i] = sbox_deg_3[i] * sbox_deg_3[i] * add_rc[i];
+  }
+
+  if (sbox != nullptr) {
+    for (size_t i = 0; i < WIDTH; i++) {
+      sbox[r * WIDTH + i] = sbox_deg_3[i];
+    }
+  }
+
+  for (size_t i = 0; i < WIDTH; i++) {
+    next_state[i] = sbox_deg_7[i];
+  }
+  external_linear_layer<F>(next_state);
 }
 
 template <class F>
