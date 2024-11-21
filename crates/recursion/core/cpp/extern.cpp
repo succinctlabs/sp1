@@ -122,57 +122,14 @@ extern "C" void poseidon2_wide_event_to_row_babybear(
     BabyBearP3* internal_rounds_state, BabyBearP3* internal_rounds_s0,
     BabyBearP3* external_sbox, BabyBearP3* internal_sbox,
     BabyBearP3* output_state) {
-
-  bb31_t temp_input[WIDTH];
-  bb31_t temp_internal_rounds_state[WIDTH];
-  bb31_t temp_internal_rounds_s0[NUM_INTERNAL_ROUNDS - 1];
-  bb31_t temp_external_sbox[WIDTH][NUM_EXTERNAL_ROUNDS];
-  bb31_t temp_internal_sbox[NUM_INTERNAL_ROUNDS];
-  bb31_t temp_output_state[WIDTH];
-  bb31_t temp_external_rounds_state[NUM_EXTERNAL_ROUNDS][WIDTH];
-
-  // Convert input array
-  for (size_t i = 0; i < WIDTH; i++) {
-    temp_input[i] = *reinterpret_cast<const bb31_t*>(&input[i]);
-  }
-
   poseidon2_wide::event_to_row<bb31_t>(
-      temp_input, temp_external_rounds_state, temp_internal_rounds_state,
-      temp_internal_rounds_s0, temp_external_sbox, temp_internal_sbox,
-      temp_output_state);
-
-  // Copy back results
-  for (size_t i = 0; i < NUM_EXTERNAL_ROUNDS; i++) {
-    for (size_t j = 0; j < WIDTH; j++) {
-      external_rounds_state[i * WIDTH + j] =
-          *reinterpret_cast<BabyBearP3*>(&temp_external_rounds_state[i][j]);
-    }
-  }
-
-  for (size_t i = 0; i < WIDTH; i++) {
-    internal_rounds_state[i] =
-        *reinterpret_cast<BabyBearP3*>(&temp_internal_rounds_state[i]);
-  }
-
-  for (size_t i = 0; i < NUM_INTERNAL_ROUNDS - 1; i++) {
-    internal_rounds_s0[i] =
-        *reinterpret_cast<BabyBearP3*>(&temp_internal_rounds_s0[i]);
-  }
-
-  for (size_t i = 0; i < WIDTH; i++) {
-    for (size_t j = 0; j < NUM_EXTERNAL_ROUNDS; j++) {
-      external_sbox[i * NUM_EXTERNAL_ROUNDS + j] =
-          *reinterpret_cast<BabyBearP3*>(&temp_external_sbox[i][j]);
-    }
-  }
-
-  for (size_t i = 0; i < NUM_INTERNAL_ROUNDS; i++) {
-    internal_sbox[i] = *reinterpret_cast<BabyBearP3*>(&temp_internal_sbox[i]);
-  }
-
-  for (size_t i = 0; i < WIDTH; i++) {
-    output_state[i] = *reinterpret_cast<BabyBearP3*>(&temp_output_state[i]);
-  }
+      reinterpret_cast<const bb31_t*>(input),
+      reinterpret_cast<bb31_t*>(external_rounds_state),
+      reinterpret_cast<bb31_t*>(internal_rounds_state),
+      reinterpret_cast<bb31_t*>(internal_rounds_s0),
+      reinterpret_cast<bb31_t*>(external_sbox),
+      reinterpret_cast<bb31_t*>(internal_sbox),
+      reinterpret_cast<bb31_t*>(output_state));
 }
 extern void poseidon2_wide_instr_to_row_babybear(
     const Poseidon2SkinnyInstr<BabyBearP3>* instr,
