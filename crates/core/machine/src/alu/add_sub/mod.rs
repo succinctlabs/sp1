@@ -242,6 +242,16 @@ mod tests {
                 }]
             })
             .collect::<Vec<_>>();
+        let _sub_events = (0..255)
+            .flat_map(|i| {
+                [{
+                    let operand_1 = thread_rng().gen_range(0..u32::MAX);
+                    let operand_2 = thread_rng().gen_range(0..u32::MAX);
+                    let result = operand_1.wrapping_add(operand_2);
+                    AluEvent::new(i % 2, 0, Opcode::SUB, result, operand_1, operand_2)
+                }]
+            })
+            .collect::<Vec<_>>();
         ExecutionRecord { add_events, ..Default::default() }
     });
 
