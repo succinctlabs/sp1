@@ -106,8 +106,8 @@ extern "C-unwind" {
         external_rounds_state: *mut BabyBear,
         internal_rounds_state: &mut [BabyBear; WIDTH],
         internal_rounds_s0: &mut [BabyBear; NUM_INTERNAL_ROUNDS - 1],
-        external_sbox: &mut [[BabyBear; NUM_EXTERNAL_ROUNDS]; WIDTH],
-        internal_sbox: &mut [BabyBear; NUM_INTERNAL_ROUNDS],
+        external_sbox: *mut [[BabyBear; NUM_EXTERNAL_ROUNDS]; WIDTH],
+        internal_sbox: *mut [BabyBear; NUM_INTERNAL_ROUNDS],
         output_state: &mut [BabyBear; WIDTH],
     );
     pub fn poseidon2_wide_instr_to_row_babybear(

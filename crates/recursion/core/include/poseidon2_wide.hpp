@@ -37,6 +37,21 @@ __SP1_HOSTDEV__ void event_to_row(const F* input, F* external_rounds_state,
         external_rounds_state[(r + 1) * WIDTH + i] = next_state[i];
       }
     }
+
+    for (size_t r = NUM_EXTERNAL_ROUNDS / 2; r < NUM_EXTERNAL_ROUNDS; r++) {
+      F next_state[WIDTH];
+      populate_external_round<F>(external_rounds_state, external_sbox, r,
+                                 next_state);
+      if (r == NUM_EXTERNAL_ROUNDS - 1) {
+        for (size_t i = 0; i < WIDTH; i++) {
+          output_state[i] = next_state[i];
+        }
+      } else {
+        for (size_t i = 0; i < WIDTH; i++) {
+          external_rounds_state[(r + 1) * WIDTH + i] = next_state[i];
+        }
+      }
+    }
   }
 
   F ret_state[WIDTH];

@@ -379,33 +379,14 @@ mod tests {
 
         join(
             || {
-                values_pop.par_chunks_mut(num_columns).zip_eq(&input.poseidon2_events).for_each(
-                    |(row, event)| unsafe {
-                        crate::sys::poseidon2_wide_event_to_row_babybear(
-                            &event.input,
-                            row.as_mut_ptr(),
-                            &mut [F::zero(); WIDTH],
-                            &mut [F::zero(); NUM_INTERNAL_ROUNDS - 1],
-                            &mut [[F::zero(); NUM_EXTERNAL_ROUNDS]; WIDTH],
-                            &mut [F::zero(); NUM_INTERNAL_ROUNDS],
-                            &mut [F::zero(); WIDTH],
-                        );
-                    },
-                )
+                values_pop
+                    .par_chunks_mut(num_columns)
+                    .zip_eq(&input.poseidon2_events)
+                    .for_each(|(row, event)| populate_perm_ffi::<9>(&event.input, row))
             },
             || {
                 let mut dummy_row = vec![F::zero(); num_columns];
-                unsafe {
-                    crate::sys::poseidon2_wide_event_to_row_babybear(
-                        &[F::zero(); WIDTH],
-                        dummy_row.as_mut_ptr(),
-                        &mut [F::zero(); WIDTH],
-                        &mut [F::zero(); NUM_INTERNAL_ROUNDS - 1],
-                        &mut [[F::zero(); NUM_EXTERNAL_ROUNDS]; WIDTH],
-                        &mut [F::zero(); NUM_INTERNAL_ROUNDS],
-                        &mut [F::zero(); WIDTH],
-                    );
-                }
+                populate_perm_ffi::<9>(&[F::zero(); WIDTH], &mut dummy_row);
                 values_dummy
                     .par_chunks_mut(num_columns)
                     .for_each(|row| row.copy_from_slice(&dummy_row))
@@ -413,6 +394,76 @@ mod tests {
         );
 
         RowMajorMatrix::new(values, num_columns)
+    }
+
+    #[cfg(feature = "sys")]
+    fn populate_perm_ffi<const DEGREE: usize>(
+        input: &[BabyBear; WIDTH],
+        input_row: &mut [BabyBear],
+    ) {
+        let permutation = permutation_mut::<BabyBear, DEGREE>(input_row);
+
+        let (
+            external_rounds_state,
+            internal_rounds_state,
+            internal_rounds_s0,
+            mut external_sbox,
+            mut internal_sbox,
+            output_state,
+        ) = permutation.get_cols_mut();
+
+        // Create temporary arrays with the correct types
+        let mut ext_rounds = [[BabyBear::zero(); WIDTH]; NUM_EXTERNAL_ROUNDS];
+        for (dst, src) in ext_rounds.iter_mut().zip(external_rounds_state.iter()) {
+            *dst = *src;
+        }
+
+        // Handle external_sbox - create temporary array only if Some
+        let mut ext_sbox = [[BabyBear::zero(); NUM_EXTERNAL_ROUNDS]; WIDTH];
+        if let Some(sbox) = external_sbox.as_mut() {
+            for i in 0..WIDTH {
+                for j in 0..NUM_EXTERNAL_ROUNDS {
+                    ext_sbox[i][j] = sbox[j][i];
+                }
+            }
+        }
+
+        // Create temporary array for internal_sbox only if Some
+        let mut int_sbox = [BabyBear::zero(); NUM_INTERNAL_ROUNDS];
+        if let Some(sbox) = internal_sbox.as_mut() {
+            int_sbox.copy_from_slice(sbox.as_slice());
+        }
+
+        unsafe {
+            crate::sys::poseidon2_wide_event_to_row_babybear(
+                input,
+                ext_rounds.as_mut_ptr() as *mut _,
+                internal_rounds_state,
+                internal_rounds_s0,
+                if external_sbox.is_some() { &mut ext_sbox } else { std::ptr::null_mut() },
+                if internal_sbox.is_some() { &mut int_sbox } else { std::ptr::null_mut() },
+                output_state,
+            );
+
+            // Copy back the results if needed
+            for (dst, src) in external_rounds_state.iter_mut().zip(ext_rounds.iter()) {
+                *dst = *src;
+            }
+
+            // Copy back external_sbox results if needed
+            if let Some(sbox) = external_sbox.as_mut() {
+                for i in 0..WIDTH {
+                    for j in 0..NUM_EXTERNAL_ROUNDS {
+                        sbox[j][i] = ext_sbox[i][j];
+                    }
+                }
+            }
+
+            // Copy back internal_sbox results if needed
+            if let Some(sbox) = internal_sbox.as_mut() {
+                sbox.copy_from_slice(&int_sbox);
+            }
+        }
     }
 
     #[test]
