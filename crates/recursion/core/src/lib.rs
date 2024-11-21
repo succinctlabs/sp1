@@ -225,7 +225,7 @@ pub struct FriFoldIo<V> {
 }
 
 /// The extension-field-valued single inputs to the FRI fold operation.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[repr(C)]
 pub struct FriFoldExtSingleIo<V> {
     pub z: V,
@@ -233,7 +233,7 @@ pub struct FriFoldExtSingleIo<V> {
 }
 
 /// The extension-field-valued vector inputs to the FRI fold operation.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[repr(C)]
 pub struct FriFoldExtVecIo<V> {
     pub mat_opening: V,
@@ -245,7 +245,7 @@ pub struct FriFoldExtVecIo<V> {
 }
 
 /// The base-field-valued inputs to the FRI fold operation.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[repr(C)]
 pub struct FriFoldBaseIo<V> {
     pub x: V,
@@ -325,7 +325,7 @@ impl<'a, F> From<&'a Box<FriFoldInstr<F>>> for FriFoldInstrFFI<'a, F> {
 /// The event encoding the data of a single iteration within the FRI fold operation.
 /// For any given event, we are accessing a single element of the `Vec` inputs, so that the event
 /// is not a type alias for `FriFoldIo` like many of the other events.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[repr(C)]
 pub struct FriFoldEvent<F> {
     pub base_single: FriFoldBaseIo<F>,
