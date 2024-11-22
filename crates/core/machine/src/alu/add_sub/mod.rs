@@ -210,7 +210,19 @@ where
             local.operand_1,
             local.operand_2,
             local.nonce,
-            is_real.clone(),
+            local.is_add,
+        );
+
+        // For sub, `operand_1` is `a`, `add_operation.value` is `b`, and `operand_2` is `c`.
+        builder.receive_instruction(
+            local.pc,
+            local.pc + AB::Expr::from_canonical_u32(DEFAULT_PC_INC),
+            opcode,
+            local.operand_1,
+            local.add_operation.value,
+            local.operand_2,
+            local.nonce,
+            local.is_sub,
         );
 
         builder.assert_bool(local.is_add);
