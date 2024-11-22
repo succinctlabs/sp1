@@ -80,18 +80,19 @@ impl<F: PrimeField32> MachineAir<F> for MemoryGlobalChip {
             .map(|events| {
                 let mut blu: HashMap<u32, HashMap<ByteLookupEvent, usize>> = HashMap::new();
                 events.iter().for_each(|event| {
-                    let MemoryInitializeFinalizeEvent { addr, value, shard, timestamp, used } =
-                        event.to_owned();
+                    let MemoryInitializeFinalizeEvent {
+                        addr: _addr,
+                        value,
+                        shard,
+                        timestamp: _timestamp,
+                        used,
+                    } = event.to_owned();
                     let interaction_shard = if is_receive { shard } else { 0 };
-                    let interaction_clk = if is_receive { timestamp } else { 0 };
                     let mut row = [F::zero(); NUM_MEMORY_INIT_COLS];
                     let cols: &mut MemoryInitCols<F> = row.as_mut_slice().borrow_mut();
-                    cols.global_interaction_cols.populate_memory(
+                    cols.global_interaction_cols.populate_memory_range_check_witness(
                         interaction_shard,
-                        interaction_clk,
-                        addr,
                         value,
-                        is_receive,
                         used != 0,
                         &mut blu,
                     );
@@ -140,7 +141,6 @@ impl<F: PrimeField32> MachineAir<F> for MemoryGlobalChip {
                 cols.value = array::from_fn(|i| F::from_canonical_u32((value >> i) & 1));
                 cols.is_real = F::from_canonical_u32(used);
 
-                let mut blu = Vec::new();
                 let interaction_shard = if is_receive { shard } else { 0 };
                 let interaction_clk = if is_receive { timestamp } else { 0 };
 
@@ -151,7 +151,6 @@ impl<F: PrimeField32> MachineAir<F> for MemoryGlobalChip {
                     value,
                     is_receive,
                     used != 0,
-                    &mut blu,
                 );
 
                 row

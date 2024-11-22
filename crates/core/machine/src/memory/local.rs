@@ -5,7 +5,6 @@ use std::{
 
 use crate::utils::{indices_arr, next_power_of_two, zeroed_f_vec};
 use crate::{operations::GlobalAccumulationOperation, operations::GlobalInteractionOperation};
-use elliptic_curve::bigint::const_assert_eq;
 use hashbrown::HashMap;
 use itertools::Itertools;
 use p3_air::{Air, BaseAir};
@@ -40,7 +39,7 @@ const MEMORY_LOCAL_COL_MAP: MemoryLocalCols<usize> = make_col_map();
 pub const MEMORY_LOCAL_INITIAL_DIGEST_POS: usize =
     MEMORY_LOCAL_COL_MAP.global_accumulation_cols.initial_digest[0].0[0];
 
-pub const MEMORY_LOCAL_INITIAL_DIGEST_POS_COPY: usize = 208;
+pub const MEMORY_LOCAL_INITIAL_DIGEST_POS_COPY: usize = 480;
 
 #[repr(C)]
 pub struct Ghost {
@@ -133,21 +132,16 @@ impl<F: PrimeField32> MachineAir<F> for MemoryLocalChip {
                         let cols = &mut cols.memory_local_entries[k];
                         if k < events.len() {
                             let event = events[k];
-                            cols.initial_global_interaction_cols.populate_memory(
-                                event.initial_mem_access.shard,
-                                event.initial_mem_access.timestamp,
-                                event.addr,
-                                event.initial_mem_access.value,
-                                true,
-                                true,
-                                &mut blu,
-                            );
-                            cols.final_global_interaction_cols.populate_memory(
+                            cols.initial_global_interaction_cols
+                                .populate_memory_range_check_witness(
+                                    event.initial_mem_access.shard,
+                                    event.initial_mem_access.value,
+                                    true,
+                                    &mut blu,
+                                );
+                            cols.final_global_interaction_cols.populate_memory_range_check_witness(
                                 event.final_mem_access.shard,
-                                event.final_mem_access.timestamp,
-                                event.addr,
                                 event.final_mem_access.value,
-                                false,
                                 true,
                                 &mut blu,
                             );
@@ -206,7 +200,6 @@ impl<F: PrimeField32> MachineAir<F> for MemoryLocalChip {
                             cols.initial_value = event.initial_mem_access.value.into();
                             cols.final_value = event.final_mem_access.value.into();
                             cols.is_real = F::one();
-                            let mut blu = Vec::new();
                             cols.initial_global_interaction_cols.populate_memory(
                                 event.initial_mem_access.shard,
                                 event.initial_mem_access.timestamp,
@@ -214,7 +207,6 @@ impl<F: PrimeField32> MachineAir<F> for MemoryLocalChip {
                                 event.initial_mem_access.value,
                                 true,
                                 true,
-                                &mut blu,
                             );
                             point_chunks.push(SepticCurveComplete::Affine(SepticCurve {
                                 x: SepticExtension(
@@ -231,7 +223,6 @@ impl<F: PrimeField32> MachineAir<F> for MemoryLocalChip {
                                 event.final_mem_access.value,
                                 false,
                                 true,
-                                &mut blu,
                             );
                             point_chunks.push(SepticCurveComplete::Affine(SepticCurve {
                                 x: SepticExtension(

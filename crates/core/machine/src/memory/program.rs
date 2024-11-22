@@ -122,11 +122,11 @@ impl<F: PrimeField32> MachineAir<F> for MemoryProgramChip {
 
         let mut blu: HashMap<u32, HashMap<ByteLookupEvent, usize>> = HashMap::new();
 
-        program_memory.iter().for_each(|(&addr, &word)| {
+        program_memory.iter().for_each(|(&_addr, &word)| {
             let mut row = [F::zero(); NUM_MEMORY_PROGRAM_MULT_COLS];
             let cols: &mut MemoryProgramMultCols<F> = row.as_mut_slice().borrow_mut();
             cols.global_interaction_cols
-                .populate_memory(0, 0, addr, word, false, mult_bool, &mut blu);
+                .populate_memory_range_check_witness(0, word, mult_bool, &mut blu);
         });
 
         output.add_sharded_byte_lookup_events(vec![&blu]);
@@ -149,11 +149,9 @@ impl<F: PrimeField32> MachineAir<F> for MemoryProgramChip {
             .map(|(&addr, &word)| {
                 let mut row = [F::zero(); NUM_MEMORY_PROGRAM_MULT_COLS];
                 let cols: &mut MemoryProgramMultCols<F> = row.as_mut_slice().borrow_mut();
-                let mut blu = Vec::new();
                 cols.multiplicity = mult;
                 cols.is_first_shard.populate(input.public_values.shard - 1);
-                cols.global_interaction_cols
-                    .populate_memory(0, 0, addr, word, false, mult_bool, &mut blu);
+                cols.global_interaction_cols.populate_memory(0, 0, addr, word, false, mult_bool);
                 cols.global_accumulation_cols.populate(
                     &mut global_cumulative_sum,
                     [cols.global_interaction_cols],

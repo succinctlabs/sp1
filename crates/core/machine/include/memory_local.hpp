@@ -33,7 +33,9 @@ namespace sp1_core_machine_sys::memory_local {
                     y = EF7::zero() - y;
                 }
                 // x_trial, y
-                cols->offset = F::from_canonical_u32(offset);
+                for(uint32_t idx = 0 ; idx < 8 ; idx++ ) {
+                    cols->offset_bits[idx] = F::from_canonical_u32((offset >> idx) & 1);
+                }
                 for(uintptr_t i = 0 ; i < 7 ; i++) {
                     cols->x_coordinate._0[i] = x_trial.value[i];
                     cols->y_coordinate._0[i] = y.value[i];
@@ -44,7 +46,15 @@ namespace sp1_core_machine_sys::memory_local {
                 } else {
                     range_check_value = y.value[6].as_canonical_u32() - (F::MOD + 1) / 2;
                 }
-                write_word_from_u32_v2<F>(cols->y6_byte_decomp, range_check_value);
+                F top_4_bits = F::zero();
+                for(uint32_t idx = 0 ; idx < 30 ; idx++) {
+                    cols->y6_bit_decomp[idx] = F::from_canonical_u32((range_check_value >> idx) & 1);
+                    if (idx >= 26) {
+                        top_4_bits += cols->y6_bit_decomp[idx];
+                    }
+                }
+                top_4_bits -= F::from_canonical_u32(4);
+                cols->range_check_witness = top_4_bits.reciprocal();
                 return;
             }
             x_start += F::from_canonical_u32(1 << 16);

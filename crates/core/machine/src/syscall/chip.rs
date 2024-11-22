@@ -100,10 +100,6 @@ impl<F: PrimeField32> MachineAir<F> for SyscallChip {
                 .map(|(event, _)| event.to_owned())
                 .collect::<Vec<_>>(),
         };
-        let is_receive = match self.shard_kind {
-            SyscallShardKind::Core => false,
-            SyscallShardKind::Precompile => true,
-        };
         let chunk_size = std::cmp::max(events.len() / num_cpus::get(), 1);
         let blu_batches = events
             .par_chunks(chunk_size)
@@ -114,14 +110,11 @@ impl<F: PrimeField32> MachineAir<F> for SyscallChip {
                     let cols: &mut SyscallCols<F> = row.as_mut_slice().borrow_mut();
                     let clk_16 = (event.clk & 65535) as u16;
                     let clk_8 = (event.clk >> 16) as u8;
-                    cols.global_interaction_cols.populate_syscall(
+                    cols.global_interaction_cols.populate_syscall_range_check_witness(
                         event.shard,
                         clk_16,
                         clk_8,
                         event.syscall_id,
-                        event.arg1,
-                        event.arg2,
-                        is_receive,
                         true,
                         &mut blu,
                     );
@@ -143,8 +136,7 @@ impl<F: PrimeField32> MachineAir<F> for SyscallChip {
             let mut row = [F::zero(); NUM_SYSCALL_COLS];
             let cols: &mut SyscallCols<F> = row.as_mut_slice().borrow_mut();
 
-            let mut blu = Vec::new();
-            assert!(syscall_event.clk < (1 << 24));
+            debug_assert!(syscall_event.clk < (1 << 24));
             let clk_16 = (syscall_event.clk & 65535) as u16;
             let clk_8 = (syscall_event.clk >> 16) as u8;
 
@@ -164,7 +156,6 @@ impl<F: PrimeField32> MachineAir<F> for SyscallChip {
                 syscall_event.arg2,
                 is_receive,
                 true,
-                &mut blu,
             );
             row
         };
