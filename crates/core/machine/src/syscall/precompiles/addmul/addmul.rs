@@ -245,3 +245,132 @@ impl<F> BaseAir<F> for AddMulChip {
         NUM_COLS
     }
 }
+
+impl<AB> Air<AB> for AddMulChip
+where
+    AB: SP1AirBuilder,
+    Limbs<AB::Var, <U256Field as NumLimbs>::Limbs>: Copy,
+{
+    fn eval(&self, builder: &mut AB) {
+        let main = builder.main();
+        let local = main.row_slice(0);
+        let local: &AddMulChipCols<AB::Var> = (*local).borrow();
+        let next = main.row_slice(1);
+        let next: &AddMulChipCols<AB::Var> = (*next).borrow();
+
+        // 1. Basic boolean and nonce constraints
+        builder.assert_bool(local.is_real);
+        builder.when_first_row().assert_zero(local.nonce);
+        builder.when_transition().assert_eq(local.nonce + AB::Expr::one(), next.nonce);
+
+        // 2. Memory access constraints for inputs
+        builder.eval_memory_access_slice(
+            local.shard,
+            local.clk.into(),
+            local.a_ptr,
+            &local.a_memory,
+            local.is_real,
+        );
+        builder.eval_memory_access_slice(
+            local.shard,
+            local.clk.into(),
+            local.b_ptr,
+            &local.b_memory,
+            local.is_real,
+        );
+        builder.eval_memory_access_slice(
+            local.shard,
+            local.clk.into(),
+            local.c_ptr,
+            &local.c_memory,
+            local.is_real,
+        );
+        builder.eval_memory_access_slice(
+            local.shard,
+            local.clk.into(),
+            local.d_ptr,
+            &local.d_memory,
+            local.is_real,
+        );
+
+        // 3. First multiplication (a * b)
+        let a_limbs = limbs_from_access(&local.a_memory);
+        let b_limbs = limbs_from_access(&local.b_memory);
+        let modulus_2_256 = {
+            let mut coeff = Vec::new();
+            coeff.resize(32, AB::Expr::zero());
+            coeff.push(AB::Expr::one());
+            Polynomial::from_coefficients(&coeff)
+        };
+
+        // Verify first multiplication
+        local.mul1_output.eval(
+            builder,
+            &a_limbs,
+            &b_limbs,
+            // &modulus_2_256,
+            FieldOperation::Mul,
+            local.is_real,
+        );
+
+        // Range check for mul1
+        local.mul1_range_check.eval(
+            builder,
+            &local.mul1_output.result,
+            &limbs_from_polynomial(&modulus_2_256),
+            local.is_real,
+        );
+
+        // 4. Second multiplication (c * d)
+        let c_limbs = limbs_from_access(&local.c_memory);
+        let d_limbs = limbs_from_access(&local.d_memory);
+
+        // Verify second multiplication
+        local.mul2_output.eval(
+            builder,
+            &c_limbs,
+            &d_limbs,
+            // &modulus_2_256,
+            FieldOperation::Mul,
+            local.is_real,
+        );
+
+        // Range check for mul2
+        local.mul2_range_check.eval(
+            builder,
+            &local.mul2_output.result,
+            &limbs_from_polynomial(&modulus_2_256),
+            local.is_real,
+        );
+
+        // Final addition ((a*b) + (c*d))
+        local.final_output.eval(
+            builder,
+            &local.mul1_output.result,
+            &local.mul2_output.result,
+            // &modulus_2_256,
+            FieldOperation::Add,
+            local.is_real,
+        );
+
+        // Range check for final result
+        local.final_range_check.eval(
+            builder,
+            &local.final_output.result,
+            &limbs_from_polynomial(&modulus_2_256),
+            local.is_real,
+        );
+
+        // Syscall verification
+        builder.receive_syscall(
+            local.shard,
+            local.clk,
+            local.nonce,
+            AB::F::from_canonical_u32(SyscallCode::ADD_MUL.syscall_id()),
+            local.a_ptr,  
+            local.b_ptr, 
+            local.is_real,
+            InteractionScope::Local,
+        );
+    }
+}
