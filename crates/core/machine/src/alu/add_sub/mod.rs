@@ -180,13 +180,12 @@ where
         let next: &AddSubCols<AB::Var> = (*next).borrow();
 
         let is_real = local.is_add + local.is_sub;
+        builder.assert_bool(local.is_add);
+        builder.assert_bool(local.is_sub);
+        builder.assert_bool(is_real.clone());
 
-        // Calculate the opcode.
-        // For add instruction, we should set Opcode == 0.
-        // For sub instruction, we should set Opcode == 1.
-        // We can simply set opcode = local.is_sub since local.is_add and local.is_sub are
-        // contraints to be bool and mutually exclusive.
-        let opcode = local.is_sub;
+        let opcode = AB::Expr::from_f(Opcode::ADD.as_field()) * local.is_add
+            + AB::Expr::from_f(Opcode::SUB.as_field()) * local.is_sub;
 
         // Constrain the incrementing nonce.
         builder.when_first_row().assert_zero(local.nonce);
@@ -206,7 +205,7 @@ where
         builder.receive_instruction(
             local.pc,
             local.pc + AB::Expr::from_canonical_u32(DEFAULT_PC_INC),
-            opcode,
+            opcode.clone(),
             local.add_operation.value,
             local.operand_1,
             local.operand_2,
@@ -225,10 +224,6 @@ where
             local.nonce,
             local.is_sub,
         );
-
-        builder.assert_bool(local.is_add);
-        builder.assert_bool(local.is_sub);
-        builder.assert_bool(is_real);
     }
 }
 
