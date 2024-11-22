@@ -91,3 +91,9 @@ To view these profiles, we recommend [Samply](https://github.com/mstange/samply)
 
 Samply uses the Firefox profiler to create a nice visualization of your programs execution.
 ![An example screenshot of the Firefox Profiler](../profiling.png)
+
+#### Interpreting the Profile
+- The "time" measurement in the profiler is actually the number of cycles spent, 
+in general the less cycles for a given callframe the better.
+
+- The CPU usage of the program will always be constant, as its running in the VM which is single threaded.
