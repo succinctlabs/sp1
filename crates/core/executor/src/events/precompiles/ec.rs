@@ -108,12 +108,8 @@ pub fn create_ec_add_event<E: EllipticCurve>(
 ) -> Option<EllipticCurveAddEvent> {
     let start_clk = rt.clk;
     let p_ptr = arg1;
-    if p_ptr % 4 > 0 {
-        eprintln!("EC_ADD: ptr alignment violation");
-        return rt.invariant_violated();
-    }
     let q_ptr = arg2;
-    if q_ptr % 4 > 0 {
+    if p_ptr % 4 > 0 || q_ptr % 4 > 0 {
         eprintln!("EC_ADD: ptr alignment violation");
         return rt.invariant_violated();
     }
