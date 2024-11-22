@@ -14,8 +14,6 @@ pub enum ProfilerError {
     Serde(#[from] serde_json::Error),
 }
 
-/// The ZKVM Profiler.
-///
 /// During execution, the profiler always keeps track of the callstack
 /// and will occasionally save the stack according to the sample rate.
 pub struct Profiler {
@@ -51,8 +49,8 @@ impl Profiler {
         let mut function_ranges = Vec::new();
         let mut builder = ThreadBuilder::new(1, 0, std::time::Instant::now(), false, false);
 
-        // We need to extract all the functions from the elf file
-        // and thier corresponding PC ranges.
+        // We need to extract all the functions from the ELF file
+        // and their corresponding PC ranges.
         let mut main_idx = None;
         for sym in &elf.syms {
             // check if its a function
@@ -63,7 +61,7 @@ impl Profiler {
                 let start_address = sym.st_value;
                 let end_address = start_address + size - 4;
 
-                // Now that we have the name lets immediately intern it so we only need to copy
+                // Now that we have the name let's immediately intern it so we only need to copy
                 // around a usize
                 let demangled_name = demangled_name.to_string();
                 let string_idx = builder.intern_string(&demangled_name);
@@ -180,7 +178,7 @@ impl Profiler {
                 last_known_time,
                 sample.stack.into_iter(),
                 // We don't have a way to know the duration of each sample, so we just use 1us for
-                // all instructions
+                // all instructions.
                 std::time::Duration::from_micros(self.sample_rate),
             );
 

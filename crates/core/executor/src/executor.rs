@@ -111,7 +111,9 @@ pub struct Executor<'a> {
     /// A buffer for stdout and stderr IO.
     pub io_buf: HashMap<u32, String>,
 
-    /// The ZKVM profiler.
+    /// The ZKVM program profiler.
+    ///
+    /// Keeps track of the number of cycles spent in each function.
     #[cfg(feature = "profiling")]
     pub profiler: Option<(Profiler, BufWriter<File>)>,
 
@@ -192,7 +194,7 @@ impl<'a> Executor<'a> {
         Self::with_context(program, opts, SP1Context::default())
     }
 
-    /// Crete a new runtime for the program, and setup the profiler if `TRACE_FILE` env var is set
+    /// Create a new runtime for the program, and setup the profiler if `TRACE_FILE` env var is set
     /// and the feature flag `profiling` is enabled.
     #[must_use]
     pub fn with_context_and_elf(
