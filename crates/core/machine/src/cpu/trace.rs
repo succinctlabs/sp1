@@ -42,7 +42,6 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
             n_real_rows.next_power_of_two()
         };
         let mut values = zeroed_f_vec(padded_nb_rows * NUM_CPU_COLS);
-        let shard = input.public_values.execution_shard;
 
         let chunk_size = std::cmp::max(input.cpu_events.len() / num_cpus::get(), 1);
         values.chunks_mut(chunk_size * NUM_CPU_COLS).enumerate().par_bridge().for_each(
@@ -63,7 +62,7 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
                             &input.nonce_lookup,
                             cols,
                             &mut byte_lookup_events,
-                            shard,
+                            input.public_values.execution_shard,
                             instruction,
                         );
                     }
@@ -207,6 +206,7 @@ impl CpuChip {
         blu_events: &mut impl ByteRecord,
         shard: u32,
     ) {
+        cols.shard = F::from_canonical_u32(shard);
         cols.clk = F::from_canonical_u32(event.clk);
 
         let clk_16bit_limb = (event.clk & 0xffff) as u16;

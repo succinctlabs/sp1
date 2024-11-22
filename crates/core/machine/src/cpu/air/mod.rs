@@ -37,12 +37,6 @@ where
         let local: &CpuCols<AB::Var> = (*local).borrow();
         let next: &CpuCols<AB::Var> = (*next).borrow();
 
-        let public_values_slice: [AB::PublicVar; SP1_PROOF_NUM_PV_ELTS] =
-            core::array::from_fn(|i| builder.public_values()[i]);
-        let public_values: &PublicValues<Word<AB::PublicVar>, AB::PublicVar> =
-            public_values_slice.as_slice().borrow();
-        let shard: AB::Expr = public_values.execution_shard.into();
-
         // Program constraints.
         builder.send_program(local.pc, local.instruction, local.selectors, local.is_real);
 
@@ -52,15 +46,10 @@ where
         let is_alu_instruction: AB::Expr = self.is_alu_instruction::<AB>(&local.selectors);
 
         // Register constraints.
-        self.eval_registers::<AB>(builder, local, is_branch_instruction.clone(), shard.clone());
+        self.eval_registers::<AB>(builder, local, is_branch_instruction.clone());
 
         // Memory instructions.
-        self.eval_memory_address_and_access::<AB>(
-            builder,
-            local,
-            is_memory_instruction.clone(),
-            shard.clone(),
-        );
+        self.eval_memory_address_and_access::<AB>(builder, local, is_memory_instruction.clone());
         self.eval_memory_load::<AB>(builder, local);
         self.eval_memory_store::<AB>(builder, local);
 
@@ -86,9 +75,14 @@ where
         self.eval_auipc(builder, local);
 
         // ECALL instruction.
-        self.eval_ecall(builder, local, shard.clone());
+        self.eval_ecall(builder, local);
 
         // COMMIT/COMMIT_DEFERRED_PROOFS ecall instruction.
+        let public_values_slice: [AB::PublicVar; SP1_PROOF_NUM_PV_ELTS] =
+            core::array::from_fn(|i| builder.public_values()[i]);
+        let public_values: &PublicValues<Word<AB::PublicVar>, AB::PublicVar> =
+            public_values_slice.as_slice().borrow();
+        let shard: AB::Expr = public_values.execution_shard.into();
         self.eval_commit(
             builder,
             local,

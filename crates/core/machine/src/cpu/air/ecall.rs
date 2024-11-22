@@ -33,12 +33,7 @@ impl CpuChip {
     /// This method will do the following:
     /// 1. Send the syscall to the precompile table, if needed.
     /// 2. Check for valid op_a values.
-    pub(crate) fn eval_ecall<AB: SP1AirBuilder>(
-        &self,
-        builder: &mut AB,
-        local: &CpuCols<AB::Var>,
-        shard: AB::Expr,
-    ) {
+    pub(crate) fn eval_ecall<AB: SP1AirBuilder>(&self, builder: &mut AB, local: &CpuCols<AB::Var>) {
         let ecall_cols = local.opcode_specific_columns.ecall();
         let is_ecall_instruction = self.is_ecall_instruction::<AB>(&local.selectors);
 
@@ -57,7 +52,7 @@ impl CpuChip {
             .assert_eq(local.ecall_mul_send_to_table, send_to_table * is_ecall_instruction.clone());
 
         builder.send_syscall(
-            shard,
+            local.shard,
             local.clk,
             ecall_cols.syscall_nonce,
             syscall_id,

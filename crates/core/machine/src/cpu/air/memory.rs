@@ -61,7 +61,6 @@ impl CpuChip {
         builder: &mut AB,
         local: &CpuCols<AB::Var>,
         is_memory_instruction: AB::Expr,
-        shard: AB::Expr,
     ) {
         // Get the memory specific columns.
         let memory_columns = local.opcode_specific_columns.memory();
@@ -124,7 +123,7 @@ impl CpuChip {
         // For operations that require reading from memory (not registers), we need to read the
         // value into the memory columns.
         builder.eval_memory_access(
-            shard,
+            local.shard,
             local.clk + AB::F::from_canonical_u32(MemoryAccessPosition::Memory as u32),
             memory_columns.addr_aligned,
             &memory_columns.memory_access,
