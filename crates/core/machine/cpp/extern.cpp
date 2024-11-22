@@ -13,6 +13,6 @@ extern void add_sub_event_to_row_babybear(
 
 extern void memory_local_event_to_row_babybear(const MemoryLocalEvent* event, SingleMemoryLocal<BabyBearP3>* cols) {
     SingleMemoryLocal<bb31_t>* cols_bb31 = reinterpret_cast<SingleMemoryLocal<bb31_t>*>(cols);
-    memory_local::event_to_row<bb31_t, bb31_septic_extension_t>(*event, *cols_bb31);
+    memory_local::event_to_row<bb31_t, bb31_septic_extension_t>(event, cols_bb31);
 }
 } // namespace sp1_core_machine_sys

@@ -1,10 +1,11 @@
 use std::{
     borrow::{Borrow, BorrowMut},
-    mem::size_of,
+    mem::{size_of, transmute},
 };
 
-use crate::utils::{next_power_of_two, zeroed_f_vec};
+use crate::utils::{indices_arr, next_power_of_two, zeroed_f_vec};
 use crate::{operations::GlobalAccumulationOperation, operations::GlobalInteractionOperation};
+use elliptic_curve::bigint::const_assert_eq;
 use hashbrown::HashMap;
 use itertools::Itertools;
 use p3_air::{Air, BaseAir};
@@ -27,6 +28,25 @@ use sp1_stark::{
     septic_extension::SepticExtension,
     InteractionKind, Word,
 };
+
+/// Creates the column map for the CPU.
+const fn make_col_map() -> MemoryLocalCols<usize> {
+    let indices_arr = indices_arr::<NUM_MEMORY_LOCAL_INIT_COLS>();
+    unsafe { transmute::<[usize; NUM_MEMORY_LOCAL_INIT_COLS], MemoryLocalCols<usize>>(indices_arr) }
+}
+
+const MEMORY_LOCAL_COL_MAP: MemoryLocalCols<usize> = make_col_map();
+
+pub const MEMORY_LOCAL_INITIAL_DIGEST_POS: usize =
+    MEMORY_LOCAL_COL_MAP.global_accumulation_cols.initial_digest[0].0[0];
+
+pub const MEMORY_LOCAL_INITIAL_DIGEST_POS_COPY: usize = 208;
+
+#[repr(C)]
+pub struct Ghost {
+    pub v: [usize; MEMORY_LOCAL_INITIAL_DIGEST_POS_COPY],
+}
+
 pub const NUM_LOCAL_MEMORY_ENTRIES_PER_ROW: usize = 4;
 
 pub(crate) const NUM_MEMORY_LOCAL_INIT_COLS: usize = size_of::<MemoryLocalCols<u8>>();
@@ -83,6 +103,7 @@ impl MemoryLocalChip {
 
 impl<F> BaseAir<F> for MemoryLocalChip {
     fn width(&self) -> usize {
+        assert_eq!(MEMORY_LOCAL_INITIAL_DIGEST_POS_COPY, MEMORY_LOCAL_INITIAL_DIGEST_POS);
         NUM_MEMORY_LOCAL_INIT_COLS
     }
 }

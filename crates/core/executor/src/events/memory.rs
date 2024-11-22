@@ -226,7 +226,7 @@ impl From<MemoryWriteRecord> for MemoryRecordEnum {
 /// This object encapsulates the information needed to prove a memory access operation within a
 /// shard. This includes the address, initial memory access, and final memory access within a
 /// shard.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 #[repr(C)]
 pub struct MemoryLocalEvent {
     /// The address.

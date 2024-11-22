@@ -85,6 +85,10 @@ class bb31_t {
 
   static inline bb31_t from_bool(bool x) { return bb31_t(x * one().val); }
 
+  inline uint32_t as_canonical_u32() const {
+    return monty_reduce((uint64_t)val);
+  }
+
   inline bb31_t exp_power_of_two(size_t log_power) {
     bb31_t ret = *this;
     for (size_t i = 0; i < log_power; i++) {
@@ -151,6 +155,8 @@ class bb31_t {
   static inline bb31_t cneg(bb31_t a, bool flag) { return a.cneg(flag); }
 
   inline bb31_t operator-() const { return cneg(*this, true); }
+
+  inline bool operator==(const bb31_t rhs) const { return val == rhs.val; }
 
   inline bool is_one() const { return val == ONE; }
 
@@ -277,6 +283,8 @@ class bb31_t {
   inline bb31_t operator()(int p) {
     return *this ^ p;
   }
+
+  inline bb31_t square() { return *this * *this; }
 
   friend inline bb31_t sqr(bb31_t a) {
     return a.sqr();
