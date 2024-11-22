@@ -185,7 +185,7 @@ where
         // For add instruction, we should set Opcode == 0.
         // For sub instruction, we should set Opcode == 1.
         // We can simply set opcode = local.is_sub since local.is_add and local.is_sub are
-        // contraints to be bool and mutually exclusive.
+        // constraints to be bool and mutually exclusive.
         let opcode = local.is_sub;
 
         // Constrain the incrementing nonce.
