@@ -51,6 +51,8 @@ impl SyscallChip {
     }
 }
 
+pub const SYSCALL_INITIAL_DIGEST_POS_COPY: usize = 60;
+
 /// The column layout for the chip.
 #[derive(AlignedBorrow, Default, Clone, Copy)]
 #[repr(C)]

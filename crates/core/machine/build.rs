@@ -108,6 +108,8 @@ mod sys {
             .include_item("MemoryLocalCols")
             .include_item("MEMORY_LOCAL_INITIAL_DIGEST_POS")
             .include_item("Ghost")
+            .include_item("MemoryInitCols")
+            .include_item("MemoryInitializeFinalizeEvent")
             .with_namespace("sp1_core_machine_sys")
             .with_crate(crate_dir)
             .generate()

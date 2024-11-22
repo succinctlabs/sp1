@@ -238,6 +238,8 @@ impl<F: PrimeField32> MachineAir<F> for MemoryGlobalChip {
     }
 }
 
+pub const MEMORY_GLOBAL_INITIAL_DIGEST_POS_COPY: usize = 161;
+
 #[derive(AlignedBorrow, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct MemoryInitCols<T> {
