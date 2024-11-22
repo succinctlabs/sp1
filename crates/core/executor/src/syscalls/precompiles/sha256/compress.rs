@@ -32,7 +32,10 @@ impl Syscall for Sha256CompressSyscall {
     ) -> Option<u32> {
         let w_ptr = arg1;
         let h_ptr = arg2;
-        assert_ne!(w_ptr, h_ptr);
+        if w_ptr == h_ptr {
+            eprintln!("w_ptr == h_ptr, violation of the sha256 invariant");
+            return rt.invariant_violated();
+        }
 
         let start_clk = rt.clk;
         let mut h_read_records = Vec::new();
