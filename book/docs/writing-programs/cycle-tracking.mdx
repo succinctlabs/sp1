@@ -56,11 +56,13 @@ fn main() {
 
 This will log the cycle count for `block name` and include it in the `ExecutionReport` in the `cycle_tracker` map.
 
-### Profiling the ZKVM 
+### Profiling a ZKVM program 
 
-Profiling the VM is a good way to get an understanding of what is bottlenecking your program, note only one program may be profiled at a time.
+Profiling a zkvm program is a good way to get an understanding of what is bottlenecking your program, note only one program may be profiled at a time.
 
-To profile a program, you have to setup a script to execute the program, many examples can be found in the repo, such as this ['fibonacci'](https://github.com/succinctlabs/sp1/blob/12f212e386ae4c2da30cf6a61a7d87615d56bdac/examples/fibonacci/script/src/main.rs#L22) script.
+To profile a program, you have to setup a script to execute the program, 
+many examples can be found in the repo, such as this ['fibonacci'](https://github.com/succinctlabs/sp1/blob/12f212e386ae4c2da30cf6a61a7d87615d56bdac/examples/fibonacci/script/src/main.rs#L22) script.
+
 Once you have your script it should contain the following code:
 ```rs 
     // Execute the program using the `ProverClient.execute` method, without generating a proof.
@@ -82,3 +84,5 @@ To view these profiles, we recommend [Samply](https://github.com/mstange/samply)
     cargo install --locked samply
     samply load output.json
 ```
+
+Samply uses the firefox profiler to create a nice visualization for your programs execution.
