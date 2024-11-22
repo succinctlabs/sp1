@@ -294,14 +294,12 @@ class bb31_septic_extension_t {
             return pow_r.value[0];
         }
 
-        /// Inverts a bb31_t septic extension field element.
         FUN bb31_septic_extension_t reciprocal() const {
             bb31_septic_extension_t pow_r1 = pow_r_1();
             bb31_septic_extension_t pow_r = pow_r1 * *this;
             return pow_r1 * pow_r.value[0].reciprocal();
         }
 
-        /// Divides one bb31_t field element by another.
         friend FUN bb31_septic_extension_t operator/(bb31_septic_extension_t a, bb31_septic_extension_t b) {
             return a * b.reciprocal();
         }
@@ -442,14 +440,12 @@ class bb31_septic_curve_t {
         }
 
         FUN bb31_septic_curve_t& operator+=(const bb31_septic_curve_t b) {
-            // printf("%d +=: %d\n", this->x.value[0].as_canonical_u32(), b.x.value[0].as_canonical_u32());
             if (b.is_infinity()) {
-                // printf("-1\n");
                 return *this;
             }
             if (is_infinity()) {
-                // printf("-2\n");
-                *this = b;
+                x = b.x;
+                y = b.y;
                 return *this;
             }
             if (x == b.x) {
@@ -459,13 +455,11 @@ class bb31_septic_curve_t {
                     bb31_septic_extension_t result_y = slope * (x - result_x) - y;
                     x = result_x;
                     y = result_y;
-                    // printf("1\n");
                     return *this;
                 }
                 else {
                     x = bb31_septic_extension_t::zero();
                     y = bb31_septic_extension_t::zero();
-                    // printf("2\n");
                     return *this;
                 }
             }
@@ -475,13 +469,11 @@ class bb31_septic_curve_t {
                 bb31_septic_extension_t result_y = slope * (x - result_x) - y;
                 x = result_x;
                 y = result_y;
-                // printf("3\n");
                 return *this;
             }
         }
 
         friend FUN bb31_septic_curve_t operator+(bb31_septic_curve_t a, const bb31_septic_curve_t b) {
-            // printf("%d + %d\n", a.x.value[0].as_canonical_u32(), b.x.value[0].as_canonical_u32());
             return a += b;
         }
 
@@ -490,10 +482,8 @@ class bb31_septic_curve_t {
             const bb31_septic_curve_t& p2,
             const bb31_septic_curve_t& p3
         ) {
-            // (p1.x + p2.x + p3.x) * (p2.x - p1.x)^2 - (p2.y - p1.y)^2
             bb31_septic_extension_t x_diff = p2.x - p1.x;
             bb31_septic_extension_t y_diff = p2.y - p1.y;
-            
             return (p1.x + p2.x + p3.x) * x_diff * x_diff - y_diff * y_diff;
         }
 };

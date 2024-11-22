@@ -18,66 +18,6 @@ namespace sp1_core_machine_sys::memory_local {
             x_start.value[6] = F::from_canonical_u32((record->value >> 24) & 255);
         }
 
-        /*EF7 y_start;
-
-        {
-            y_start.value[0] = F::from_canonical_u32(record->shard + (1 << 24));
-            y_start.value[1] = F::from_canonical_u32(record->timestamp);
-            y_start.value[2] = F::from_canonical_u32(addr);
-            y_start.value[3] = F::from_canonical_u32(record->value & 255);
-            y_start.value[4] = F::from_canonical_u32((record->value >> 8) & 255);
-            y_start.value[5] = F::from_canonical_u32((record->value >> 16) & 255);
-            y_start.value[6] = F::from_canonical_u32((record->value >> 24) & 255);
-        }
-
-        EF7 z_start;
-
-        {
-            z_start.value[0] = F::from_canonical_u32(record->shard + (1 << 24));
-            z_start.value[1] = F::from_canonical_u32(record->timestamp);
-            z_start.value[2] = F::from_canonical_u32(addr);
-            z_start.value[3] = F::from_canonical_u32(record->value & 255);
-            z_start.value[4] = F::from_canonical_u32((record->value >> 8) & 255);
-            z_start.value[5] = F::from_canonical_u32((record->value >> 16) & 255);
-            z_start.value[6] = F::from_canonical_u32((record->value >> 24) & 255);
-        }
-
-        EF7 w_start;
-
-        {
-            w_start.value[0] = F::from_canonical_u32(record->shard + (1 << 24));
-            w_start.value[1] = F::from_canonical_u32(record->timestamp);
-            w_start.value[2] = F::from_canonical_u32(addr);
-            w_start.value[3] = F::from_canonical_u32(record->value & 255);
-            w_start.value[4] = F::from_canonical_u32((record->value >> 8) & 255);
-            w_start.value[5] = F::from_canonical_u32((record->value >> 16) & 255);
-            w_start.value[6] = F::from_canonical_u32((record->value >> 24) & 255);
-        }
-
-        EF7 u_start;
-
-        {
-            u_start.value[0] = F::from_canonical_u32(record->shard + (1 << 24));
-            u_start.value[1] = F::from_canonical_u32(record->timestamp);
-            u_start.value[2] = F::from_canonical_u32(addr);
-            u_start.value[3] = F::from_canonical_u32(record->value & 255);
-            u_start.value[4] = F::from_canonical_u32((record->value >> 8) & 255);
-            u_start.value[5] = F::from_canonical_u32((record->value >> 16) & 255);
-            u_start.value[6] = F::from_canonical_u32((record->value >> 24) & 255);
-        }
-
-        EF7 v_start;
-
-        {
-            v_start.value[0] = F::from_canonical_u32(record->shard + (1 << 24));
-            v_start.value[1] = F::from_canonical_u32(record->timestamp);
-            v_start.value[2] = F::from_canonical_u32(addr);
-            v_start.value[3] = F::from_canonical_u32(record->value & 255);
-            v_start.value[4] = F::from_canonical_u32((record->value >> 8) & 255);
-            v_start.value[5] = F::from_canonical_u32((record->value >> 16) & 255);
-            v_start.value[6] = F::from_canonical_u32((record->value >> 24) & 255);
-        }*/
-
         #pragma unroll(1)
         for(uint32_t offset = 0 ; offset < 256 ; offset++) {
             EF7 x_trial = x_start.universal_hash();
