@@ -14,6 +14,7 @@ use crate::syscall::precompiles::keccak256::KeccakPermuteChip;
 use crate::syscall::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
 use crate::syscall::precompiles::u256x2048_mul::U256x2048MulChip;
 use crate::syscall::precompiles::uint256::Uint256MulChip;
+use crate::syscall::precompiles::addmul::AddMulChip;
 use crate::syscall::precompiles::weierstrass::WeierstrassAddAssignChip;
 use crate::syscall::precompiles::weierstrass::WeierstrassDecompressChip;
 use crate::syscall::precompiles::weierstrass::WeierstrassDoubleAssignChip;
@@ -154,6 +155,9 @@ pub enum SyscallCode {
 
     /// Executes the `BN254_FP2_MUL` precompile.
     BN254_FP2_MUL = 0x00_01_01_2B,
+
+    /// Executes the `ADDMUL` precompile.
+    ADDMUL = 0x00_01_01_2C,
 }
 
 impl SyscallCode {
@@ -199,6 +203,7 @@ impl SyscallCode {
             0x00_01_01_2A => SyscallCode::BN254_FP2_SUB,
             0x00_01_01_2B => SyscallCode::BN254_FP2_MUL,
             0x00_00_01_1C => SyscallCode::BLS12381_DECOMPRESS,
+            0x00_00_01_1D => SyscallCode::ADDMUL,
             _ => panic!("invalid syscall number: {}", value),
         }
     }
@@ -448,6 +453,7 @@ pub fn default_syscall_map() -> HashMap<SyscallCode, Arc<dyn Syscall>> {
         Arc::new(WeierstrassDecompressChip::<Bls12381>::with_lexicographic_rule()),
     );
     syscall_map.insert(SyscallCode::UINT256_MUL, Arc::new(Uint256MulChip::new()));
+    syscall_map.insert(SyscallCode::ADDMUL, Arc::new(AddMulChip::new()));
 
     syscall_map
 }
@@ -585,6 +591,9 @@ mod tests {
                 }
                 SyscallCode::BN254_FP2_MUL => {
                     assert_eq!(code as u32, sp1_zkvm::syscalls::BN254_FP2_MUL)
+                }
+                SyscallCode::ADDMUL => {
+                    assert_eq!(code as u32, sp1_zkvm::syscalls::ADDMUL)
                 }
             }
         }

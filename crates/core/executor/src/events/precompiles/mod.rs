@@ -75,6 +75,8 @@ pub enum PrecompileEvent {
     Uint256Mul(Uint256MulEvent),
     /// U256XU2048 mul precompile event.
     U256xU2048Mul(U256xU2048MulEvent),
+    /// ADDMul precompile event.
+    ADDMul(AddMulEvent),
 }
 
 /// Trait to retrieve all the local memory events from a vec of precompile events.
@@ -134,6 +136,9 @@ impl PrecompileLocalMemory for Vec<(SyscallEvent, PrecompileEvent)> {
                 }
                 PrecompileEvent::Bls12381Fp2Mul(e) | PrecompileEvent::Bn254Fp2Mul(e) => {
                     iterators.push(e.local_mem_access.iter());
+                }
+                PrecompileEvent::ADDMul(e) | PrecompileEvent::ADDMul(e) => {
+                    iterators.push(e.local_mem_access.iter())
                 }
             }
         }

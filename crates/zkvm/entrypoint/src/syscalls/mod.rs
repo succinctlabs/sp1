@@ -15,6 +15,7 @@ mod sys;
 mod u256x2048_mul;
 mod uint256_mul;
 mod unconstrained;
+mod addmul;
 #[cfg(feature = "verify")]
 mod verify;
 
@@ -35,6 +36,7 @@ pub use sys::*;
 pub use u256x2048_mul::*;
 pub use uint256_mul::*;
 pub use unconstrained::*;
+pub use addmul::*;
 #[cfg(feature = "verify")]
 pub use verify::*;
 
@@ -157,3 +159,6 @@ pub const BN254_FP2_SUB: u32 = 0x00_01_01_2A;
 
 /// Executes the `BN254_FP2_MUL` precompile.
 pub const BN254_FP2_MUL: u32 = 0x00_01_01_2B;
+
+/// Executes the `ADDMUL` precompile.
+pub const ADDMUL: u32  = 0x00_00_01_1D;
