@@ -197,22 +197,22 @@ pub struct ExpReverseBitsEvent<F> {
     pub result: F,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(C)]
-pub struct ExpReverseBitsEventFFI<'a, F> {
-    pub base: &'a F,
+pub struct ExpReverseBitsEventFFI<F> {
+    pub base: F,
     pub exp_ptr: *const F,
     pub exp_len: usize,
-    pub result: &'a F,
+    pub result: F,
 }
 
-impl<'a, F> From<&'a ExpReverseBitsEvent<F>> for ExpReverseBitsEventFFI<'a, F> {
-    fn from(event: &'a ExpReverseBitsEvent<F>) -> Self {
+impl<F: Clone> From<&ExpReverseBitsEvent<F>> for ExpReverseBitsEventFFI<F> {
+    fn from(event: &ExpReverseBitsEvent<F>) -> Self {
         Self {
-            base: &event.base,
+            base: event.base.clone(),
             exp_ptr: event.exp.as_ptr(),
             exp_len: event.exp.len(),
-            result: &event.result,
+            result: event.result.clone(),
         }
     }
 }

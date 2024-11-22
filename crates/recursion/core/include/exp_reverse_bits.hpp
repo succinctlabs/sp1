@@ -6,9 +6,9 @@ namespace sp1_recursion_core_sys::exp_reverse_bits {
 template <class F>
 __SP1_HOSTDEV__ void event_to_row(const ExpReverseBitsEventFFI<F>& event,
                                   size_t i, ExpReverseBitsLenCols<F>& cols) {
-  cols.x = *event.base;
+  cols.x = event.base;
   cols.current_bit = event.exp_ptr[i];
-  cols.multiplier = (event.exp_ptr[i] == F::one()) ? *event.base : F::one();
+  cols.multiplier = (event.exp_ptr[i] == F::one()) ? event.base : F::one();
 }
 
 template <class F>
