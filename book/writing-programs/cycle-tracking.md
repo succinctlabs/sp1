@@ -58,20 +58,24 @@ This will log the cycle count for `block name` and include it in the `ExecutionR
 
 ### Profiling a ZKVM program 
 
-Profiling a zkvm program is a good way to get an understanding of what is bottlenecking your program, note only one program may be profiled at a time.
+Profiling a zkvm program is a good way to get an understanding of what is bottlenecking your program. Note only one program may be profiled at a time.
 
-To profile a program, you have to setup a script to execute the program, 
-many examples can be found in the repo, such as this ['fibonacci'](https://github.com/succinctlabs/sp1/blob/12f212e386ae4c2da30cf6a61a7d87615d56bdac/examples/fibonacci/script/src/main.rs#L22) script.
+To profile a program, you have to setup a script to execute the program.
 
-Once you have your script it should contain the following code:
+Many examples can be found in the repo, such as this ['fibonacci'](https://github.com/succinctlabs/sp1/blob/12f212e386ae4c2da30cf6a61a7d87615d56bdac/examples/fibonacci/script/src/main.rs#L22) script.
+
+Once you have your script it should look like the following: 
 ```rs 
     // Execute the program using the `ProverClient.execute` method, without generating a proof.
     let (_, report) = client.execute(ELF, stdin.clone()).run().unwrap();
 ```
 
-The data captured by the profiler can be quite large, you can set the sample rate using the `TRACE_SAMPLE_RATE` env var.
-To enable profiling, set the `TRACE_FILE` env var to the path where you want the profile to be saved.
+As well you must enable the profiling feature on the SDK:
+```toml
+    sp1-sdk = { version = "3.0.0", features = ["profiling"] }
+```
 
+The `TRACE_FILE` env var tells the executor where to save the profile, and the `TRACE_SAMPLE_RATE` env var tells the executor how often to sample the program.
 A larger sample rate will give you a smaller profile, it is the number of instructions in between each sample.
 
 The full command to profile should look something like this
@@ -85,4 +89,5 @@ To view these profiles, we recommend [Samply](https://github.com/mstange/samply)
     samply load output.json
 ```
 
-Samply uses the firefox profiler to create a nice visualization for your programs execution.
+Samply uses the Firefox profiler to create a nice visualization of your programs execution.
+![An example screenshot of the Firefox Profiler](../profiling.png)
