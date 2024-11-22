@@ -206,7 +206,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         let vk_verification =
             env::var("VERIFY_VK").map(|v| v.eq_ignore_ascii_case("true")).unwrap_or(false);
 
-        tracing::info!("vk verification: {}", vk_verification);
+        tracing::debug!("vk verification: {}", vk_verification);
 
         // Read the shapes from the shapes directory and deserialize them into memory.
         let allowed_vk_map: BTreeMap<[BabyBear; DIGEST_SIZE], usize> = if vk_verification {
@@ -1412,11 +1412,10 @@ pub mod tests {
         opts: SP1ProverOpts,
     ) -> Result<()> {
         // Test program which proves the Keccak-256 hash of various inputs.
-        let keccak_elf = include_bytes!("../../../tests/keccak256/elf/riscv32im-succinct-zkvm-elf");
+        let keccak_elf = test_artifacts::KECCAK256_ELF;
 
         // Test program which verifies proofs of a vkey and a list of committed inputs.
-        let verify_elf =
-            include_bytes!("../../../tests/verify-proof/elf/riscv32im-succinct-zkvm-elf");
+        let verify_elf = test_artifacts::VERIFY_PROOF_ELF;
 
         tracing::info!("initializing prover");
         let prover = SP1Prover::<C>::new();
@@ -1511,7 +1510,7 @@ pub mod tests {
     #[test]
     #[serial]
     fn test_e2e() -> Result<()> {
-        let elf = include_bytes!("../../../tests/fibonacci/elf/riscv32im-succinct-zkvm-elf");
+        let elf = test_artifacts::FIBONACCI_ELF;
         setup_logger();
         let opts = SP1ProverOpts::default();
         // TODO(mattstam): We should Test::Plonk here, but this uses the existing

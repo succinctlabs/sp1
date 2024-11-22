@@ -31,6 +31,7 @@ members = [
   "crates/verifier",
   "crates/stark",
   "crates/zkvm/*",
+  "crates/test-artifacts",
 ]
 exclude = ["examples/target"]
 resolver = "2"
@@ -71,6 +72,9 @@ sp1-lib = { path = "crates/zkvm/lib", version = "3.0.0", default-features = fals
 # NOTE: The version in this crate is manually set to 3.0.1 right now. When upgrading SP1 versions,
 # make sure to update this crate.
 sp1-zkvm = { path = "crates/zkvm/entrypoint", version = "3.0.1", default-features = false }
+
+# For testing.
+test-artifacts = { path = "crates/test-artifacts", version = "3.0.0" }
 
 # p3
 # p3-air = "0.1.4-succinct"
@@ -137,6 +141,14 @@ p3-bn254-fr = { git = "https://github.com/Plonky3/Plonky3", branch = "sp1-v4" }
 # p3-uni-stark = { path = "../Plonky3/uni-stark" }
 # p3-maybe-rayon = { path = "../Plonky3/maybe-rayon" }
 # p3-bn254-fr = { path = "../Plonky3/bn254-fr" }
+
+# misc
+hashbrown = "0.14.5"
+itertools = "0.13.0"
+serde = "1.0.204"
+serde_json = "1.0.132"
+tracing = "0.1.40"
+tracing-subscriber = "0.3.18"
 
 [workspace.metadata.typos]
 # TODO: Fix in next version since CommitCommitedValuesDigest is retained since it's present in constraints.json

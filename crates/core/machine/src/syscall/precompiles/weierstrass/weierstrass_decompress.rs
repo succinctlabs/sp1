@@ -535,10 +535,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        io::SP1Stdin,
-        utils::{self, tests::BLS12381_DECOMPRESS_ELF},
-    };
+    use crate::{io::SP1Stdin, utils};
     use amcl::{
         bls381::bls381::{basic::key_pair_generate_g2, utils::deserialize_g1},
         rand::RAND,
@@ -547,10 +544,11 @@ mod tests {
     use rand::{thread_rng, Rng};
     use sp1_core_executor::Program;
     use sp1_stark::CpuProver;
-
-    use crate::utils::{
-        run_test_io, tests::SECP256K1_DECOMPRESS_ELF, tests::SECP256R1_DECOMPRESS_ELF,
+    use test_artifacts::{
+        BLS12381_DECOMPRESS_ELF, SECP256K1_DECOMPRESS_ELF, SECP256R1_DECOMPRESS_ELF,
     };
+
+    use crate::utils::run_test_io;
 
     #[test]
     fn test_weierstrass_bls_decompress() {

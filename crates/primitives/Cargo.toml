@@ -18,5 +18,5 @@ p3-field = { workspace = true }
 p3-baby-bear = { workspace = true }
 p3-poseidon2 = { workspace = true }
 p3-symmetric = { workspace = true }
-serde = { version = "1.0.207", features = ["derive"] }
+serde = { workspace = true, features = ["derive"] }
 sha2 = "0.10.8"
