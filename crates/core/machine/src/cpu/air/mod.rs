@@ -41,7 +41,7 @@ where
             core::array::from_fn(|i| builder.public_values()[i]);
         let public_values: &PublicValues<Word<AB::PublicVar>, AB::PublicVar> =
             public_values_slice.as_slice().borrow();
-        let shard: AB::Expr = public_values.shard.into();
+        let shard: AB::Expr = public_values.execution_shard.into();
 
         // Program constraints.
         builder.send_program(local.pc, local.instruction, local.selectors, local.is_real);
