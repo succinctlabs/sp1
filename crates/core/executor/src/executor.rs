@@ -703,6 +703,16 @@ impl<'a> Executor<'a> {
                 self.record.divrem_events.push(event);
                 emit_divrem_dependencies(self, event);
             }
+            Opcode::LB
+            | Opcode::LH
+            | Opcode::LW
+            | Opcode::LBU
+            | Opcode::LHU
+            | Opcode::SB
+            | Opcode::SH
+            | Opcode::SW => {
+                self.record.memory_instr_events.push(event);
+            }
             _ => {}
         }
     }

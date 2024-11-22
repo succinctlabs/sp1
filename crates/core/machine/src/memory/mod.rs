@@ -1,11 +1,12 @@
-mod columns;
+mod consistency;
 mod global;
+mod instructions;
 mod local;
 mod program;
-mod trace;
 
-pub use columns::*;
+pub use consistency::*;
 pub use global::*;
+pub use instructions::*;
 pub use local::*;
 pub use program::*;
 
