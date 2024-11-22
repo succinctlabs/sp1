@@ -307,12 +307,13 @@ impl CpuChip {
                 - (is_branch_instruction
                     + local.selectors.is_jal
                     + local.selectors.is_jalr
+                    + local.selectors.is_alu
                     + is_halt),
         );
 
-        // Verify that the pc increments by 4 for all instructions except branch, jump and halt
-        // instructions. The other case is handled by eval_jump, eval_branch and eval_ecall
-        // (for halt).
+        // Verify that the pc increments by 4 for all instructions except branch, jump, halt, and
+        // ALU instructions. The other case is handled by eval_jump, eval_branch, eval_ecall
+        // (for halt), and the ALU specific tables.
         builder
             .when_transition()
             .when(next.is_real)

@@ -182,9 +182,10 @@ where
         let is_real = local.is_add + local.is_sub;
 
         // Calculate the opcode.
-        // local.is_add == 1 -> opcode == 0
-        // local.is_sub == 1 -> opcode == 1
-        // We also constrain the local.is_add and local.is_sub are bool and never both true.
+        // For add instruction, we should set Opcode == 0.
+        // For sub instruction, we should set Opcode == 1.
+        // We can simply set opcode = local.is_sub since local.is_add and local.is_sub are
+        // contraints to be bool and mutually exclusive.
         let opcode = local.is_sub;
 
         // Constrain the incrementing nonce.

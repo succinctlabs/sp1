@@ -191,7 +191,10 @@ impl CpuChip {
         let is_halt = self.populate_ecall(cols, event, nonce_lookup);
 
         cols.is_sequential_instr = F::from_bool(
-            !instruction.is_branch_instruction() && !instruction.is_jump_instruction() && !is_halt,
+            !instruction.is_branch_instruction()
+                && !instruction.is_jump_instruction()
+                && !is_halt
+                && !instruction.is_alu_instruction(),
         );
 
         // Assert that the instruction is not a no-op.

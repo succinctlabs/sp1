@@ -666,7 +666,7 @@ impl<'a> Executor<'a> {
         emit_cpu_dependencies(self, self.record.cpu_events.len() - 1);
     }
 
-    /// Emit an ALU event.
+    /// Emit an instruction event.
     fn emit_instruction(&mut self, opcode: Opcode, a: u32, b: u32, c: u32, lookup_id: LookupId) {
         let event = InstrEvent {
             lookup_id,

@@ -161,7 +161,6 @@ impl ExecutionRecord {
     }
 
     /// Take out events from the [`ExecutionRecord`] that should be deferred to a separate shard.
-    /// Take out events from the [`ExecutionRecord`] that should be deferred to a separate shard.
     ///
     /// Note: we usually defer events that would increase the recursion cost significantly if
     /// included in every shard.
