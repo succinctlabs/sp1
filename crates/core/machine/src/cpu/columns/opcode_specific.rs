@@ -6,7 +6,7 @@ use std::{
 
 use static_assertions::const_assert;
 
-use super::ecall::EcallCols;
+use super::{ecall::EcallCols, MemoryColumns};
 
 pub const NUM_OPCODE_SPECIFIC_COLS: usize = size_of::<OpcodeSpecificCols<u8>>();
 

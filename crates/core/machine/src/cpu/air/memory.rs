@@ -11,7 +11,7 @@ use crate::{
     memory::MemoryCols,
     operations::BabyBearWordRangeChecker,
 };
-use sp1_core_executor::{events::MemoryAccessPosition, Opcode};
+use sp1_core_executor::{events::MemoryAccessPosition, Opcode, DEFAULT_PC_INC, UNUSED_PC};
 
 impl CpuChip {
     /// Computes whether the opcode is a memory instruction.
@@ -61,17 +61,19 @@ impl CpuChip {
         builder: &mut AB,
         local: &CpuCols<AB::Var>,
         is_memory_instruction: AB::Expr,
+        shard: AB::Expr,
     ) {
         // Get the memory specific columns.
         let memory_columns = local.opcode_specific_columns.memory();
 
         // Send to the ALU table to verify correct calculation of addr_word.
-        builder.send_alu(
+        builder.send_instruction(
+            AB::Expr::from_canonical_u32(UNUSED_PC),
+            AB::Expr::from_canonical_u32(UNUSED_PC + DEFAULT_PC_INC),
             AB::Expr::from_canonical_u32(Opcode::ADD as u32),
             memory_columns.addr_word,
             local.op_b_val(),
             local.op_c_val(),
-            local.shard,
             memory_columns.addr_word_nonce,
             is_memory_instruction.clone(),
         );
@@ -122,7 +124,7 @@ impl CpuChip {
         // For operations that require reading from memory (not registers), we need to read the
         // value into the memory columns.
         builder.eval_memory_access(
-            local.shard,
+            shard,
             local.clk + AB::F::from_canonical_u32(MemoryAccessPosition::Memory as u32),
             memory_columns.addr_aligned,
             &memory_columns.memory_access,
@@ -168,12 +170,13 @@ impl CpuChip {
             AB::Expr::one() * local.selectors.is_lh,
             AB::Expr::zero(),
         ]);
-        builder.send_alu(
+        builder.send_instruction(
+            AB::Expr::from_canonical_u32(UNUSED_PC),
+            AB::Expr::from_canonical_u32(UNUSED_PC + DEFAULT_PC_INC),
             Opcode::SUB.as_field::<AB::F>(),
             local.op_a_val(),
             local.unsigned_mem_val,
             signed_value,
-            local.shard,
             local.unsigned_mem_val_nonce,
             local.mem_value_is_neg_not_x0,
         );

@@ -1,5 +1,6 @@
 pub mod branch;
 pub mod ecall;
+pub mod memory;
 pub mod register;
 
 use core::borrow::Borrow;
@@ -36,14 +37,14 @@ where
         let local: &CpuCols<AB::Var> = (*local).borrow();
         let next: &CpuCols<AB::Var> = (*next).borrow();
 
+        let public_values_slice: [AB::PublicVar; SP1_PROOF_NUM_PV_ELTS] =
+            core::array::from_fn(|i| builder.public_values()[i]);
+        let public_values: &PublicValues<Word<AB::PublicVar>, AB::PublicVar> =
+            public_values_slice.as_slice().borrow();
+        let shard: AB::Expr = public_values.shard.into();
+
         // Program constraints.
-        builder.send_program(
-            local.pc,
-            local.instruction,
-            local.selectors,
-            local.shard,
-            local.is_real,
-        );
+        builder.send_program(local.pc, local.instruction, local.selectors, local.is_real);
 
         // Compute some flags for which type of instruction we are dealing with.
         let is_memory_instruction: AB::Expr = self.is_memory_instruction::<AB>(&local.selectors);
@@ -51,10 +52,15 @@ where
         let is_alu_instruction: AB::Expr = self.is_alu_instruction::<AB>(&local.selectors);
 
         // Register constraints.
-        self.eval_registers::<AB>(builder, local, is_branch_instruction.clone());
+        self.eval_registers::<AB>(builder, local, is_branch_instruction.clone(), shard.clone());
 
         // Memory instructions.
-        self.eval_memory_address_and_access::<AB>(builder, local, is_memory_instruction.clone());
+        self.eval_memory_address_and_access::<AB>(
+            builder,
+            local,
+            is_memory_instruction.clone(),
+            shard.clone(),
+        );
         self.eval_memory_load::<AB>(builder, local);
         self.eval_memory_store::<AB>(builder, local);
 
@@ -80,13 +86,9 @@ where
         self.eval_auipc(builder, local);
 
         // ECALL instruction.
-        self.eval_ecall(builder, local);
+        self.eval_ecall(builder, local, shard.clone());
 
         // COMMIT/COMMIT_DEFERRED_PROOFS ecall instruction.
-        let public_values_slice: [AB::PublicVar; SP1_PROOF_NUM_PV_ELTS] =
-            core::array::from_fn(|i| builder.public_values()[i]);
-        let public_values: &PublicValues<Word<AB::PublicVar>, AB::PublicVar> =
-            public_values_slice.as_slice().borrow();
         self.eval_commit(
             builder,
             local,
@@ -98,7 +100,7 @@ where
         self.eval_halt_unimpl(builder, local, next, public_values);
 
         // Check that the shard and clk is updated correctly.
-        self.eval_shard_clk(builder, local, next);
+        self.eval_shard_clk(builder, local, next, shard.clone());
 
         // Check that the pc is updated correctly.
         self.eval_pc(builder, local, next, is_branch_instruction.clone());
@@ -191,8 +193,8 @@ impl CpuChip {
 
         // Verify that the new pc is calculated correctly for JAL instructions.
         builder.send_instruction(
-            AB::Expr::from_canonical_usize(UNUSED_PC),
-            AB::Expr::from_canonical_usize(UNUSED_PC + DEFAULT_PC_INC),
+            AB::Expr::from_canonical_u32(UNUSED_PC),
+            AB::Expr::from_canonical_u32(UNUSED_PC + DEFAULT_PC_INC),
             AB::Expr::from_canonical_u32(Opcode::ADD as u32),
             jump_columns.next_pc,
             jump_columns.pc,
@@ -203,8 +205,8 @@ impl CpuChip {
 
         // Verify that the new pc is calculated correctly for JALR instructions.
         builder.send_instruction(
-            AB::Expr::from_canonical_usize(UNUSED_PC),
-            AB::Expr::from_canonical_usize(UNUSED_PC + DEFAULT_PC_INC),
+            AB::Expr::from_canonical_u32(UNUSED_PC),
+            AB::Expr::from_canonical_u32(UNUSED_PC + DEFAULT_PC_INC),
             AB::Expr::from_canonical_u32(Opcode::ADD as u32),
             jump_columns.next_pc,
             local.op_b_val(),
@@ -232,8 +234,8 @@ impl CpuChip {
 
         // Verify that op_a == pc + op_b.
         builder.send_instruction(
-            AB::Expr::from_canonical_usize(UNUSED_PC),
-            AB::Expr::from_canonical_usize(UNUSED_PC + DEFAULT_PC_INC),
+            AB::Expr::from_canonical_u32(UNUSED_PC),
+            AB::Expr::from_canonical_u32(UNUSED_PC + DEFAULT_PC_INC),
             AB::Expr::from_canonical_u32(Opcode::ADD as u32),
             local.op_a_val(),
             auipc_columns.pc,
@@ -255,14 +257,12 @@ impl CpuChip {
         builder: &mut AB,
         local: &CpuCols<AB::Var>,
         next: &CpuCols<AB::Var>,
+        shard: AB::Expr,
     ) {
-        // Verify that all shard values are the same.
-        builder.when_transition().when(next.is_real).assert_eq(local.shard, next.shard);
-
         // Verify that the shard value is within 16 bits.
         builder.send_byte(
             AB::Expr::from_canonical_u8(ByteOpcode::U16Range as u8),
-            local.shard,
+            shard,
             AB::Expr::zero(),
             AB::Expr::zero(),
             local.is_real,
@@ -340,9 +340,6 @@ impl CpuChip {
         next: &CpuCols<AB::Var>,
         public_values: &PublicValues<Word<AB::PublicVar>, AB::PublicVar>,
     ) {
-        // Verify the public value's shard.
-        builder.when(local.is_real).assert_eq(public_values.execution_shard, local.shard);
-
         // Verify the public value's start pc.
         builder.when_first_row().assert_eq(public_values.start_pc, local.pc);
 

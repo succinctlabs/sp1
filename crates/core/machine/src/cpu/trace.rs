@@ -85,7 +85,7 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
             .par_chunks(chunk_size)
             .map(|ops: &[CpuEvent]| {
                 // The blu map stores shard -> map(byte lookup event -> multiplicity).
-                let mut blu: HashMap<u32, HashMap<ByteLookupEvent, usize>> = HashMap::new();
+                let mut blu: HashMap<ByteLookupEvent, usize> = HashMap::new();
                 ops.iter().for_each(|op| {
                     let mut row = [F::zero(); NUM_CPU_COLS];
                     let cols: &mut CpuCols<F> = row.as_mut_slice().borrow_mut();
@@ -103,7 +103,7 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
             })
             .collect::<Vec<_>>();
 
-        output.add_sharded_byte_lookup_events(blu_events.iter().collect_vec());
+        output.add_byte_lookup_events_from_maps(blu_events.iter().collect_vec());
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
@@ -185,7 +185,7 @@ impl CpuChip {
         }
 
         // Populate memory, branch, jump, and auipc specific fields.
-        self.populate_memory(cols, event, blu_events, nonce_lookup, shard, instruction);
+        self.populate_memory(cols, event, blu_events, nonce_lookup, instruction);
         self.populate_branch(cols, event, nonce_lookup, instruction);
         self.populate_jump(cols, event, nonce_lookup, instruction);
         self.populate_auipc(cols, event, nonce_lookup, instruction);
@@ -234,7 +234,6 @@ impl CpuChip {
         event: &CpuEvent,
         blu_events: &mut impl ByteRecord,
         nonce_lookup: &[u32],
-        shard: u32,
         instruction: &Instruction,
     ) {
         if !matches!(

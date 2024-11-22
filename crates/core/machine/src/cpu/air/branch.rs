@@ -83,8 +83,8 @@ impl CpuChip {
 
             // When we are branching, calculate branch_cols.next_pc <==> branch_cols.pc + c.
             builder.send_instruction(
-                AB::Expr::from_canonical_usize(UNUSED_PC),
-                AB::Expr::from_canonical_usize(UNUSED_PC + DEFAULT_PC_INC),
+                AB::Expr::from_canonical_u32(UNUSED_PC),
+                AB::Expr::from_canonical_u32(UNUSED_PC + DEFAULT_PC_INC),
                 Opcode::ADD.as_field::<AB::F>(),
                 branch_cols.next_pc,
                 branch_cols.pc,
@@ -179,8 +179,8 @@ impl CpuChip {
         // Calculate a_lt_b <==> a < b (using appropriate signedness).
         let use_signed_comparison = local.selectors.is_blt + local.selectors.is_bge;
         builder.send_instruction(
-            AB::Expr::from_canonical_usize(UNUSED_PC),
-            AB::Expr::from_canonical_usize(UNUSED_PC + DEFAULT_PC_INC),
+            AB::Expr::from_canonical_u32(UNUSED_PC),
+            AB::Expr::from_canonical_u32(UNUSED_PC + DEFAULT_PC_INC),
             use_signed_comparison.clone() * Opcode::SLT.as_field::<AB::F>()
                 + (AB::Expr::one() - use_signed_comparison.clone())
                     * Opcode::SLTU.as_field::<AB::F>(),
@@ -193,8 +193,8 @@ impl CpuChip {
 
         // Calculate a_gt_b <==> a > b (using appropriate signedness).
         builder.send_instruction(
-            AB::Expr::from_canonical_usize(UNUSED_PC),
-            AB::Expr::from_canonical_usize(UNUSED_PC + DEFAULT_PC_INC),
+            AB::Expr::from_canonical_u32(UNUSED_PC),
+            AB::Expr::from_canonical_u32(UNUSED_PC + DEFAULT_PC_INC),
             use_signed_comparison.clone() * Opcode::SLT.as_field::<AB::F>()
                 + (AB::Expr::one() - use_signed_comparison) * Opcode::SLTU.as_field::<AB::F>(),
             Word::extend_var::<AB>(branch_cols.a_gt_b),

@@ -141,7 +141,7 @@ impl<F: PrimeField32> MachineAir<F> for LtChip {
             .lt_events
             .par_chunks(chunk_size)
             .map(|events| {
-                let mut blu: HashMap<u32, HashMap<ByteLookupEvent, usize>> = HashMap::new();
+                let mut blu: HashMap<ByteLookupEvent, usize> = HashMap::new();
                 events.iter().for_each(|event| {
                     let mut row = [F::zero(); NUM_LT_COLS];
                     let cols: &mut LtCols<F> = row.as_mut_slice().borrow_mut();
@@ -151,7 +151,7 @@ impl<F: PrimeField32> MachineAir<F> for LtChip {
             })
             .collect::<Vec<_>>();
 
-        output.add_sharded_byte_lookup_events(blu_batches.iter().collect_vec());
+        output.add_byte_lookup_events_from_maps(blu_batches.iter().collect_vec());
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
@@ -441,7 +441,7 @@ where
         // Receive the arguments.
         builder.receive_instruction(
             local.pc,
-            local.pc + AB::Expr::from_canonical_usize(DEFAULT_PC_INC),
+            local.pc + AB::Expr::from_canonical_u32(DEFAULT_PC_INC),
             local.is_slt * AB::F::from_canonical_u32(Opcode::SLT as u32)
                 + local.is_sltu * AB::F::from_canonical_u32(Opcode::SLTU as u32),
             local.a,

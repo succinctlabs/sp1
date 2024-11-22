@@ -33,7 +33,7 @@ pub trait ByteRecord {
     fn add_byte_lookup_event(&mut self, blu_event: ByteLookupEvent);
 
     /// Adds a list of [`ByteLookupEvent`] maps to the record.
-    fn add_byte_lookup_events_fron_maps(
+    fn add_byte_lookup_events_from_maps(
         &mut self,
         sharded_blu_events_vec: Vec<&HashMap<ByteLookupEvent, usize>>,
     );
@@ -119,7 +119,7 @@ impl ByteRecord for Vec<ByteLookupEvent> {
         self.push(blu_event);
     }
 
-    fn add_byte_lookup_events_fron_maps(&mut self, _: Vec<&HashMap<ByteLookupEvent, usize>>) {
+    fn add_byte_lookup_events_from_maps(&mut self, _: Vec<&HashMap<ByteLookupEvent, usize>>) {
         unimplemented!()
     }
 }
@@ -130,7 +130,7 @@ impl ByteRecord for HashMap<ByteLookupEvent, usize> {
         self.entry(blu_event).and_modify(|e| *e += 1).or_insert(1);
     }
 
-    fn add_byte_lookup_events_fron_maps(
+    fn add_byte_lookup_events_from_maps(
         &mut self,
         new_events: Vec<&HashMap<ByteLookupEvent, usize>>,
     ) {

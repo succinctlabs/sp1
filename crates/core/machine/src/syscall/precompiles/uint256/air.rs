@@ -158,7 +158,6 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
                             if modulus.is_zero() { BigUint::one() << 256 } else { modulus.clone() };
                         let result = cols.output.populate_with_modulus(
                             &mut new_byte_lookup_events,
-                            event.shard,
                             &x,
                             &y,
                             &effective_modulus,
@@ -170,7 +169,6 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
                         if cols.modulus_is_not_zero == F::one() {
                             cols.output_range_check.populate(
                                 &mut new_byte_lookup_events,
-                                event.shard,
                                 &result,
                                 &effective_modulus,
                             );
@@ -199,7 +197,7 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
 
                 let x = BigUint::zero();
                 let y = BigUint::zero();
-                cols.output.populate(&mut vec![], 0, &x, &y, FieldOperation::Mul);
+                cols.output.populate(&mut vec![], &x, &y, FieldOperation::Mul);
 
                 row
             },

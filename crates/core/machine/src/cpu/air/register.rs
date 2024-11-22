@@ -4,6 +4,7 @@ use sp1_stark::air::SP1AirBuilder;
 use crate::{
     air::{MemoryAirBuilder, WordAirBuilder},
     cpu::{columns::CpuCols, CpuChip},
+    memory::MemoryCols,
 };
 use sp1_core_executor::events::MemoryAccessPosition;
 
@@ -14,6 +15,7 @@ impl CpuChip {
         builder: &mut AB,
         local: &CpuCols<AB::Var>,
         is_branch_instruction: AB::Expr,
+        shard: AB::Expr,
     ) {
         // Load immediates into b and c, if the immediate flags are on.
         builder
@@ -25,7 +27,7 @@ impl CpuChip {
 
         // If they are not immediates, read `b` and `c` from memory.
         builder.eval_memory_access(
-            local.shard,
+            shard.clone(),
             local.clk + AB::F::from_canonical_u32(MemoryAccessPosition::B as u32),
             local.instruction.op_b[0],
             &local.op_b_access,
@@ -33,7 +35,7 @@ impl CpuChip {
         );
 
         builder.eval_memory_access(
-            local.shard,
+            shard.clone(),
             local.clk + AB::F::from_canonical_u32(MemoryAccessPosition::C as u32),
             local.instruction.op_c[0],
             &local.op_c_access,
@@ -46,7 +48,7 @@ impl CpuChip {
         // Write the `a` or the result to the first register described in the instruction unless
         // we are performing a branch or a store.
         builder.eval_memory_access(
-            local.shard,
+            shard.clone(),
             local.clk + AB::F::from_canonical_u32(MemoryAccessPosition::A as u32),
             local.instruction.op_a[0],
             &local.op_a_access,

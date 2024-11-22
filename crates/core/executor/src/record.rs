@@ -370,7 +370,7 @@ impl MachineRecord for ExecutionRecord {
         if self.byte_lookups.is_empty() {
             self.byte_lookups = std::mem::take(&mut other.byte_lookups);
         } else {
-            self.add_byte_lookup_events_fron_maps(vec![&other.byte_lookups]);
+            self.add_byte_lookup_events_from_maps(vec![&other.byte_lookups]);
         }
 
         self.global_memory_initialize_events.append(&mut other.global_memory_initialize_events);
@@ -424,7 +424,7 @@ impl ByteRecord for ExecutionRecord {
     }
 
     #[inline]
-    fn add_byte_lookup_events_fron_maps(
+    fn add_byte_lookup_events_from_maps(
         &mut self,
         new_events: Vec<&HashMap<ByteLookupEvent, usize>>,
     ) {

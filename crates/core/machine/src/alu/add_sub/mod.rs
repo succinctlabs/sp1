@@ -117,7 +117,7 @@ impl<F: PrimeField> MachineAir<F> for AddSubChip {
         let blu_batches = event_iter
             .par_bridge()
             .map(|events| {
-                let mut blu: HashMap<u32, HashMap<ByteLookupEvent, usize>> = HashMap::new();
+                let mut blu: HashMap<ByteLookupEvent, usize> = HashMap::new();
                 events.iter().for_each(|event| {
                     let mut row = [F::zero(); NUM_ADD_SUB_COLS];
                     let cols: &mut AddSubCols<F> = row.as_mut_slice().borrow_mut();
@@ -127,7 +127,7 @@ impl<F: PrimeField> MachineAir<F> for AddSubChip {
             })
             .collect::<Vec<_>>();
 
-        output.add_sharded_byte_lookup_events(blu_batches.iter().collect_vec());
+        output.add_byte_lookup_events_from_maps(blu_batches.iter().collect_vec());
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
@@ -156,7 +156,7 @@ impl AddSubChip {
         let operand_1 = if is_add { event.b } else { event.a };
         let operand_2 = event.c;
 
-        cols.add_operation.populate(blu, event.shard, operand_1, operand_2);
+        cols.add_operation.populate(blu, operand_1, operand_2);
         cols.operand_1 = Word::from(operand_1);
         cols.operand_2 = Word::from(operand_2);
     }
@@ -197,20 +197,20 @@ where
             local.operand_1,
             local.operand_2,
             local.add_operation,
-            is_real,
+            is_real.clone(),
         );
 
         // Receive the arguments.  There are separate receives for ADD and SUB.
         // For add, `add_operation.value` is `a`, `operand_1` is `b`, and `operand_2` is `c`.
         builder.receive_instruction(
             local.pc,
-            local.pc + AB::Expr::from_canonical_usize(DEFAULT_PC_INC),
+            local.pc + AB::Expr::from_canonical_u32(DEFAULT_PC_INC),
             opcode,
             local.add_operation.value,
             local.operand_1,
             local.operand_2,
             local.nonce,
-            is_real,
+            is_real.clone(),
         );
 
         builder.assert_bool(local.is_add);

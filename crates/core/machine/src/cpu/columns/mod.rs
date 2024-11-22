@@ -3,6 +3,7 @@ mod branch;
 mod ecall;
 mod instruction;
 mod jump;
+mod memory;
 mod opcode;
 mod opcode_specific;
 
@@ -11,6 +12,7 @@ pub use branch::*;
 pub use ecall::*;
 pub use instruction::*;
 pub use jump::*;
+pub use memory::*;
 pub use opcode::*;
 pub use opcode_specific::*;
 

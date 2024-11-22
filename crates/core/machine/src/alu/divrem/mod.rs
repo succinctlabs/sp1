@@ -243,7 +243,6 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
                 cols.a = Word::from(event.a);
                 cols.b = Word::from(event.b);
                 cols.c = Word::from(event.c);
-                cols.shard = F::from_canonical_u32(event.shard);
                 cols.is_real = F::one();
                 cols.is_divu = F::from_bool(event.opcode == Opcode::DIVU);
                 cols.is_remu = F::from_bool(event.opcode == Opcode::REMU);
@@ -824,7 +823,7 @@ where
 
             builder.receive_instruction(
                 local.pc,
-                local.pc + AB::Expr::from_canonical_usize(DEFAULT_PC_INC),
+                local.pc + AB::Expr::from_canonical_u32(DEFAULT_PC_INC),
                 opcode,
                 local.a,
                 local.b,

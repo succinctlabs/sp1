@@ -170,7 +170,7 @@ impl<F: PrimeField> MachineAir<F> for ShiftLeft {
             .shift_left_events
             .par_chunks(chunk_size)
             .map(|events| {
-                let mut blu: HashMap<u32, HashMap<ByteLookupEvent, usize>> = HashMap::new();
+                let mut blu: HashMap<ByteLookupEvent, usize> = HashMap::new();
                 events.iter().for_each(|event| {
                     let mut row = [F::zero(); NUM_SHIFT_LEFT_COLS];
                     let cols: &mut ShiftLeftCols<F> = row.as_mut_slice().borrow_mut();
@@ -180,7 +180,7 @@ impl<F: PrimeField> MachineAir<F> for ShiftLeft {
             })
             .collect::<Vec<_>>();
 
-        output.add_sharded_byte_lookup_events(blu_batches.iter().collect_vec());
+        output.add_byte_lookup_events_from_maps(blu_batches.iter().collect_vec());
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
@@ -389,7 +389,7 @@ where
         // Receive the arguments.
         builder.receive_instruction(
             local.pc,
-            local.pc + AB::Expr::from_canonical_usize(DEFAULT_PC_INC),
+            local.pc + AB::Expr::from_canonical_u32(DEFAULT_PC_INC),
             AB::F::from_canonical_u32(Opcode::SLL as u32),
             local.a,
             local.b,

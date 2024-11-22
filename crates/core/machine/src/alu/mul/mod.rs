@@ -173,7 +173,7 @@ impl<F: PrimeField> MachineAir<F> for MulChip {
             .mul_events
             .par_chunks(chunk_size)
             .map(|events| {
-                let mut blu: HashMap<u32, HashMap<ByteLookupEvent, usize>> = HashMap::new();
+                let mut blu: HashMap<ByteLookupEvent, usize> = HashMap::new();
                 events.iter().for_each(|event| {
                     let mut row = [F::zero(); NUM_MUL_COLS];
                     let cols: &mut MulCols<F> = row.as_mut_slice().borrow_mut();
@@ -183,7 +183,7 @@ impl<F: PrimeField> MachineAir<F> for MulChip {
             })
             .collect::<Vec<_>>();
 
-        output.add_sharded_byte_lookup_events(blu_batches.iter().collect::<Vec<_>>());
+        output.add_byte_lookup_events_from_maps(blu_batches.iter().collect::<Vec<_>>());
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
@@ -280,7 +280,6 @@ impl MulChip {
         cols.is_mulh = F::from_bool(event.opcode == Opcode::MULH);
         cols.is_mulhu = F::from_bool(event.opcode == Opcode::MULHU);
         cols.is_mulhsu = F::from_bool(event.opcode == Opcode::MULHSU);
-        cols.shard = F::from_canonical_u32(event.shard);
 
         // Range check.
         {
