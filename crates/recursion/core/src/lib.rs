@@ -432,7 +432,7 @@ pub struct CommitPublicValuesInstr<F> {
 }
 
 /// The event for committing to the public values.
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 #[repr(C)]
 pub struct CommitPublicValuesEvent<F> {
     pub public_values: RecursionPublicValues<F>,
