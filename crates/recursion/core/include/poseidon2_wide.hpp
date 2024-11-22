@@ -4,6 +4,7 @@
 #include "prelude.hpp"
 
 namespace sp1_recursion_core_sys::poseidon2_wide {
+using namespace constants;
 using namespace poseidon2;
 
 template <class F>
