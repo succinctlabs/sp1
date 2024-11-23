@@ -198,9 +198,6 @@ where
         let mut challenger = prover.config().challenger();
         pk.observe_into(&mut challenger);
 
-        // Wait until the checkpoint generator handle has fully finished.
-        let public_values_stream = checkpoint_generator_handle.join().unwrap().unwrap();
-
         // Spawn the phase 2 record generator thread.
         let p2_record_gen_sync = Arc::new(TurnBasedSync::new());
         let p2_trace_gen_sync = Arc::new(TurnBasedSync::new());
@@ -400,6 +397,9 @@ where
             });
             shard_proofs
         });
+
+        // Wait until the checkpoint generator handle has fully finished.
+        let public_values_stream = checkpoint_generator_handle.join().unwrap().unwrap();
 
         // Wait until the records and traces have been fully generated for phase 2.
         p2_record_and_trace_gen_handles.into_iter().for_each(|handle| handle.join().unwrap());

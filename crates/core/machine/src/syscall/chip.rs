@@ -49,6 +49,10 @@ impl SyscallChip {
     pub const fn precompile() -> Self {
         Self::new(SyscallShardKind::Precompile)
     }
+
+    pub fn shard_kind(&self) -> SyscallShardKind {
+        self.shard_kind
+    }
 }
 
 pub const SYSCALL_INITIAL_DIGEST_POS_COPY: usize = 60;
