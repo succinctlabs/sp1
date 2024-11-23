@@ -148,7 +148,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - update groth16 build ([#758](https://github.com/succinctlabs/sp1/pull/758))
 - _(prover)_ expose functions for getting core/deferred inputs ([#755](https://github.com/succinctlabs/sp1/pull/755))
 - use actual ffi for gnark ([#738](https://github.com/succinctlabs/sp1/pull/738))
-- get_cycles don't need emit events ([#697](https://github.com/succinctlabs/sp1/pull/697))
+- get_cycles don't need to emit events ([#697](https://github.com/succinctlabs/sp1/pull/697))
 - update all dependencies ([#689](https://github.com/succinctlabs/sp1/pull/689))
 - _(recursion)_ poseidon2 loose ends ([#672](https://github.com/succinctlabs/sp1/pull/672))
 - gnark folder ([#677](https://github.com/succinctlabs/sp1/pull/677))
