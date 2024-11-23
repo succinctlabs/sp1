@@ -16,7 +16,7 @@ Note that printing out the total number of executed cycles and the full executio
 
 ## Step 2: Generate proofs
 
-After you have iterated on your program and finalized that it works correctly, you can generate proofs for your program for final end to end testing or production use.
+After you have iterated on your program and finalized that it works correctly, you can generate proofs for your program for final end-to-end testing or production use.
 
 ### Generating proofs on the prover network (recommended)
 
