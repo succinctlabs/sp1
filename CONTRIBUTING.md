@@ -56,7 +56,7 @@ current best-effort attempt at keeping up-to-date information.
 
 The most important pieces of information we need in a bug report are:
 
-- The SP1 version you are on (and that it is up to date)
+- The SP1 version you are on (and that it is up-to-date)
 - The platform you are on (Windows, macOS, an M1 Mac or Linux)
 - Code snippets if this is happening in relation to testing or building code
 - Concrete steps to reproduce the bug
