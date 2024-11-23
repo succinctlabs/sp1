@@ -26,7 +26,7 @@ contract SP1Verifier is PlonkVerifier, ISP1VerifierWithHash {
         return {VERIFIER_HASH};
     }
 
-    /// @notice Hashes the public values to a field elements inside Bn254.
+    /// @notice Hashes the public values to field elements inside Bn254.
     /// @param publicValues The public values.
     function hashPublicValues(
         bytes calldata publicValues
