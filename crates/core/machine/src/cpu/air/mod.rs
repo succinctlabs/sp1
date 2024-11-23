@@ -7,7 +7,7 @@ use core::borrow::Borrow;
 use p3_air::{Air, AirBuilder, AirBuilderWithPublicValues, BaseAir};
 use p3_field::AbstractField;
 use p3_matrix::Matrix;
-use sp1_core_executor::ByteOpcode;
+use sp1_core_executor::{ByteOpcode, DEFAULT_PC_INC, UNUSED_PC};
 use sp1_stark::{
     air::{BaseAirBuilder, PublicValues, SP1AirBuilder, SP1_PROOF_NUM_PV_ELTS},
     Word,
@@ -38,13 +38,7 @@ where
         let next: &CpuCols<AB::Var> = (*next).borrow();
 
         // Program constraints.
-        builder.send_program(
-            local.pc,
-            local.instruction,
-            local.selectors,
-            local.shard,
-            local.is_real,
-        );
+        builder.send_program(local.pc, local.instruction, local.selectors, local.is_real);
 
         // Compute some flags for which type of instruction we are dealing with.
         let is_memory_instruction: AB::Expr = self.is_memory_instruction::<AB>(&local.selectors);
@@ -60,12 +54,13 @@ where
         self.eval_memory_store::<AB>(builder, local);
 
         // ALU instructions.
-        builder.send_alu(
+        builder.send_instruction(
+            local.pc,
+            local.next_pc,
             local.instruction.opcode,
             local.op_a_val(),
             local.op_b_val(),
             local.op_c_val(),
-            local.shard,
             local.nonce,
             is_alu_instruction,
         );
@@ -190,23 +185,25 @@ impl CpuChip {
         );
 
         // Verify that the new pc is calculated correctly for JAL instructions.
-        builder.send_alu(
+        builder.send_instruction(
+            AB::Expr::from_canonical_u32(UNUSED_PC),
+            AB::Expr::from_canonical_u32(UNUSED_PC + DEFAULT_PC_INC),
             AB::Expr::from_canonical_u32(Opcode::ADD as u32),
             jump_columns.next_pc,
             jump_columns.pc,
             local.op_b_val(),
-            local.shard,
             jump_columns.jal_nonce,
             local.selectors.is_jal,
         );
 
         // Verify that the new pc is calculated correctly for JALR instructions.
-        builder.send_alu(
+        builder.send_instruction(
+            AB::Expr::from_canonical_u32(UNUSED_PC),
+            AB::Expr::from_canonical_u32(UNUSED_PC + DEFAULT_PC_INC),
             AB::Expr::from_canonical_u32(Opcode::ADD as u32),
             jump_columns.next_pc,
             local.op_b_val(),
             local.op_c_val(),
-            local.shard,
             jump_columns.jalr_nonce,
             local.selectors.is_jalr,
         );
@@ -229,12 +226,13 @@ impl CpuChip {
         );
 
         // Verify that op_a == pc + op_b.
-        builder.send_alu(
+        builder.send_instruction(
+            AB::Expr::from_canonical_u32(UNUSED_PC),
+            AB::Expr::from_canonical_u32(UNUSED_PC + DEFAULT_PC_INC),
             AB::Expr::from_canonical_u32(Opcode::ADD as u32),
             local.op_a_val(),
             auipc_columns.pc,
             local.op_b_val(),
-            local.shard,
             auipc_columns.auipc_nonce,
             local.selectors.is_auipc,
         );
@@ -309,12 +307,13 @@ impl CpuChip {
                 - (is_branch_instruction
                     + local.selectors.is_jal
                     + local.selectors.is_jalr
+                    + local.selectors.is_alu
                     + is_halt),
         );
 
-        // Verify that the pc increments by 4 for all instructions except branch, jump and halt
-        // instructions. The other case is handled by eval_jump, eval_branch and eval_ecall
-        // (for halt).
+        // Verify that the pc increments by 4 for all instructions except branch, jump, halt, and
+        // ALU instructions. The other case is handled by eval_jump, eval_branch, eval_ecall
+        // (for halt), and the ALU specific tables.
         builder
             .when_transition()
             .when(next.is_real)

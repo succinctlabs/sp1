@@ -106,7 +106,6 @@ impl<F: PrimeField32, P: FieldParameters> FieldOpCols<F, P> {
     pub fn populate_with_modulus(
         &mut self,
         record: &mut impl ByteRecord,
-        shard: u32,
         a: &BigUint,
         b: &BigUint,
         modulus: &BigUint,
@@ -163,10 +162,10 @@ impl<F: PrimeField32, P: FieldParameters> FieldOpCols<F, P> {
         };
 
         // Range checks
-        record.add_u8_range_checks_field(shard, &self.result.0);
-        record.add_u8_range_checks_field(shard, &self.carry.0);
-        record.add_u8_range_checks_field(shard, &self.witness_low.0);
-        record.add_u8_range_checks_field(shard, &self.witness_high.0);
+        record.add_u8_range_checks_field(&self.result.0);
+        record.add_u8_range_checks_field(&self.carry.0);
+        record.add_u8_range_checks_field(&self.witness_low.0);
+        record.add_u8_range_checks_field(&self.witness_high.0);
 
         result
     }
@@ -176,12 +175,11 @@ impl<F: PrimeField32, P: FieldParameters> FieldOpCols<F, P> {
     pub fn populate(
         &mut self,
         record: &mut impl ByteRecord,
-        shard: u32,
         a: &BigUint,
         b: &BigUint,
         op: FieldOperation,
     ) -> BigUint {
-        self.populate_with_modulus(record, shard, a, b, &P::modulus(), op)
+        self.populate_with_modulus(record, a, b, &P::modulus(), op)
     }
 }
 
@@ -389,7 +387,7 @@ mod tests {
                     let cols: &mut TestCols<F, P> = row.as_mut_slice().borrow_mut();
                     cols.a = P::to_limbs_field::<F, _>(a);
                     cols.b = P::to_limbs_field::<F, _>(b);
-                    cols.a_op_b.populate(&mut blu_events, 1, a, b, self.operation);
+                    cols.a_op_b.populate(&mut blu_events, a, b, self.operation);
                     output.add_byte_lookup_events(blu_events);
                     row
                 })

@@ -42,7 +42,6 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
             n_real_rows.next_power_of_two()
         };
         let mut values = zeroed_f_vec(padded_nb_rows * NUM_CPU_COLS);
-        let shard = input.public_values.execution_shard;
 
         let chunk_size = std::cmp::max(input.cpu_events.len() / num_cpus::get(), 1);
         values.chunks_mut(chunk_size * NUM_CPU_COLS).enumerate().par_bridge().for_each(
@@ -63,7 +62,7 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
                             &input.nonce_lookup,
                             cols,
                             &mut byte_lookup_events,
-                            shard,
+                            input.public_values.execution_shard,
                             instruction,
                         );
                     }
@@ -79,14 +78,13 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
     fn generate_dependencies(&self, input: &ExecutionRecord, output: &mut ExecutionRecord) {
         // Generate the trace rows for each event.
         let chunk_size = std::cmp::max(input.cpu_events.len() / num_cpus::get(), 1);
-        let shard = input.public_values.execution_shard;
 
         let blu_events: Vec<_> = input
             .cpu_events
             .par_chunks(chunk_size)
             .map(|ops: &[CpuEvent]| {
                 // The blu map stores shard -> map(byte lookup event -> multiplicity).
-                let mut blu: HashMap<u32, HashMap<ByteLookupEvent, usize>> = HashMap::new();
+                let mut blu: HashMap<ByteLookupEvent, usize> = HashMap::new();
                 ops.iter().for_each(|op| {
                     let mut row = [F::zero(); NUM_CPU_COLS];
                     let cols: &mut CpuCols<F> = row.as_mut_slice().borrow_mut();
@@ -96,7 +94,7 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
                         &input.nonce_lookup,
                         cols,
                         &mut blu,
-                        shard,
+                        input.public_values.execution_shard,
                         instruction,
                     );
                 });
@@ -104,7 +102,7 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
             })
             .collect::<Vec<_>>();
 
-        output.add_sharded_byte_lookup_events(blu_events.iter().collect_vec());
+        output.add_byte_lookup_events_from_maps(blu_events.iter().collect_vec());
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
@@ -165,7 +163,6 @@ impl CpuChip {
             .map(|x| x.as_canonical_u32())
             .collect::<Vec<_>>();
         blu_events.add_byte_lookup_event(ByteLookupEvent {
-            shard,
             opcode: ByteOpcode::U8Range,
             a1: 0,
             a2: 0,
@@ -173,7 +170,6 @@ impl CpuChip {
             c: a_bytes[1] as u8,
         });
         blu_events.add_byte_lookup_event(ByteLookupEvent {
-            shard,
             opcode: ByteOpcode::U8Range,
             a1: 0,
             a2: 0,
@@ -188,14 +184,17 @@ impl CpuChip {
         }
 
         // Populate memory, branch, jump, and auipc specific fields.
-        self.populate_memory(cols, event, blu_events, nonce_lookup, shard, instruction);
+        self.populate_memory(cols, event, blu_events, nonce_lookup, instruction);
         self.populate_branch(cols, event, nonce_lookup, instruction);
         self.populate_jump(cols, event, nonce_lookup, instruction);
         self.populate_auipc(cols, event, nonce_lookup, instruction);
         let is_halt = self.populate_ecall(cols, event, nonce_lookup);
 
         cols.is_sequential_instr = F::from_bool(
-            !instruction.is_branch_instruction() && !instruction.is_jump_instruction() && !is_halt,
+            !instruction.is_branch_instruction()
+                && !instruction.is_jump_instruction()
+                && !is_halt
+                && !instruction.is_alu_instruction(),
         );
 
         // Assert that the instruction is not a no-op.
@@ -218,24 +217,9 @@ impl CpuChip {
         cols.clk_16bit_limb = F::from_canonical_u16(clk_16bit_limb);
         cols.clk_8bit_limb = F::from_canonical_u8(clk_8bit_limb);
 
+        blu_events.add_byte_lookup_event(ByteLookupEvent::new(U16Range, shard as u16, 0, 0, 0));
+        blu_events.add_byte_lookup_event(ByteLookupEvent::new(U16Range, clk_16bit_limb, 0, 0, 0));
         blu_events.add_byte_lookup_event(ByteLookupEvent::new(
-            shard,
-            U16Range,
-            shard as u16,
-            0,
-            0,
-            0,
-        ));
-        blu_events.add_byte_lookup_event(ByteLookupEvent::new(
-            shard,
-            U16Range,
-            clk_16bit_limb,
-            0,
-            0,
-            0,
-        ));
-        blu_events.add_byte_lookup_event(ByteLookupEvent::new(
-            shard,
             ByteOpcode::U8Range,
             0,
             0,
@@ -251,7 +235,6 @@ impl CpuChip {
         event: &CpuEvent,
         blu_events: &mut impl ByteRecord,
         nonce_lookup: &[u32],
-        shard: u32,
         instruction: &Instruction,
     ) {
         if !matches!(
@@ -353,7 +336,6 @@ impl CpuChip {
         let addr_bytes = memory_addr.to_le_bytes();
         for byte_pair in addr_bytes.chunks_exact(2) {
             blu_events.add_byte_lookup_event(ByteLookupEvent {
-                shard,
                 opcode: ByteOpcode::U8Range,
                 a1: 0,
                 a2: 0,

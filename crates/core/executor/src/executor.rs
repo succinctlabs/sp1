@@ -13,7 +13,7 @@ use crate::{
     context::SP1Context,
     dependencies::{emit_cpu_dependencies, emit_divrem_dependencies},
     events::{
-        AluEvent, CpuEvent, LookupId, MemoryAccessPosition, MemoryInitializeFinalizeEvent,
+        CpuEvent, InstrEvent, LookupId, MemoryAccessPosition, MemoryInitializeFinalizeEvent,
         MemoryLocalEvent, MemoryReadRecord, MemoryRecord, MemoryWriteRecord, SyscallEvent,
     },
     hook::{HookEnv, HookRegistry},
@@ -25,6 +25,13 @@ use crate::{
     syscalls::{default_syscall_map, Syscall, SyscallCode, SyscallContext},
     Instruction, Opcode, Program, Register,
 };
+
+/// The default increment for the program counter.  Is used for all instructions except
+/// for branches and jumps.
+pub const DEFAULT_PC_INC: u32 = 4;
+/// This is used in the `InstrEvent` to indicate that the instruction is not from the CPU.
+/// A valid pc should be divisible by 4, so we use 1 to indicate that the pc is not used.
+pub const UNUSED_PC: u32 = 1;
 
 /// An executor for the SP1 RISC-V zkVM.
 ///
@@ -642,12 +649,11 @@ impl<'a> Executor<'a> {
         emit_cpu_dependencies(self, self.record.cpu_events.len() - 1);
     }
 
-    /// Emit an ALU event.
-    fn emit_alu(&mut self, clk: u32, opcode: Opcode, a: u32, b: u32, c: u32, lookup_id: LookupId) {
-        let event = AluEvent {
+    /// Emit an instruction event.
+    fn emit_instruction(&mut self, opcode: Opcode, a: u32, b: u32, c: u32, lookup_id: LookupId) {
+        let event = InstrEvent {
+            pc: self.state.pc,
             lookup_id,
-            shard: self.shard(),
-            clk,
             opcode,
             a,
             b,
@@ -748,7 +754,7 @@ impl<'a> Executor<'a> {
     ) {
         self.rw(rd, a);
         if self.executor_mode == ExecutorMode::Trace {
-            self.emit_alu(self.state.clk, instruction.opcode, a, b, c, lookup_id);
+            self.emit_instruction(instruction.opcode, a, b, c, lookup_id);
         }
     }
 

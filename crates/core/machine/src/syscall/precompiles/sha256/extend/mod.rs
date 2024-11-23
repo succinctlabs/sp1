@@ -34,7 +34,7 @@ pub mod extend_tests {
 
     use p3_matrix::dense::RowMajorMatrix;
     use sp1_core_executor::{
-        events::AluEvent, syscalls::SyscallCode, ExecutionRecord, Instruction, Opcode, Program,
+        events::InstrEvent, syscalls::SyscallCode, ExecutionRecord, Instruction, Opcode, Program,
     };
     use sp1_stark::{air::MachineAir, CpuProver};
 
@@ -66,7 +66,7 @@ pub mod extend_tests {
     #[test]
     fn generate_trace() {
         let mut shard = ExecutionRecord::default();
-        shard.add_events = vec![AluEvent::new(0, 0, Opcode::ADD, 14, 8, 6)];
+        shard.add_events = vec![InstrEvent::new(0, Opcode::ADD, 14, 8, 6)];
         let chip = ShaExtendChip::new();
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&shard, &mut ExecutionRecord::default());

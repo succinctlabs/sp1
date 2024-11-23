@@ -11,7 +11,7 @@ use crate::{
     memory::MemoryCols,
     operations::BabyBearWordRangeChecker,
 };
-use sp1_core_executor::{events::MemoryAccessPosition, Opcode};
+use sp1_core_executor::{events::MemoryAccessPosition, Opcode, DEFAULT_PC_INC, UNUSED_PC};
 
 impl CpuChip {
     /// Computes whether the opcode is a memory instruction.
@@ -65,13 +65,14 @@ impl CpuChip {
         // Get the memory specific columns.
         let memory_columns = local.opcode_specific_columns.memory();
 
-        // Send to the ALU table to verify correct calculation of addr_word.
-        builder.send_alu(
+        // Send to the ADD_SUB table to verify correct calculation of addr_word.
+        builder.send_instruction(
+            AB::Expr::from_canonical_u32(UNUSED_PC),
+            AB::Expr::from_canonical_u32(UNUSED_PC + DEFAULT_PC_INC),
             AB::Expr::from_canonical_u32(Opcode::ADD as u32),
             memory_columns.addr_word,
             local.op_b_val(),
             local.op_c_val(),
-            local.shard,
             memory_columns.addr_word_nonce,
             is_memory_instruction.clone(),
         );
@@ -168,12 +169,13 @@ impl CpuChip {
             AB::Expr::one() * local.selectors.is_lh,
             AB::Expr::zero(),
         ]);
-        builder.send_alu(
+        builder.send_instruction(
+            AB::Expr::from_canonical_u32(UNUSED_PC),
+            AB::Expr::from_canonical_u32(UNUSED_PC + DEFAULT_PC_INC),
             Opcode::SUB.as_field::<AB::F>(),
             local.op_a_val(),
             local.unsigned_mem_val,
             signed_value,
-            local.shard,
             local.unsigned_mem_val_nonce,
             local.mem_value_is_neg_not_x0,
         );

@@ -35,7 +35,6 @@ impl<F: PrimeField32, P: FieldParameters> FieldDenCols<F, P> {
     pub fn populate(
         &mut self,
         record: &mut impl ByteRecord,
-        shard: u32,
         a: &BigUint,
         b: &BigUint,
         sign: bool,
@@ -83,10 +82,10 @@ impl<F: PrimeField32, P: FieldParameters> FieldDenCols<F, P> {
         self.witness_high = Limbs(p_witness_high.try_into().unwrap());
 
         // Range checks
-        record.add_u8_range_checks_field(shard, &self.result.0);
-        record.add_u8_range_checks_field(shard, &self.carry.0);
-        record.add_u8_range_checks_field(shard, &self.witness_low.0);
-        record.add_u8_range_checks_field(shard, &self.witness_high.0);
+        record.add_u8_range_checks_field(&self.result.0);
+        record.add_u8_range_checks_field(&self.carry.0);
+        record.add_u8_range_checks_field(&self.witness_low.0);
+        record.add_u8_range_checks_field(&self.witness_high.0);
 
         result
     }
@@ -230,7 +229,7 @@ mod tests {
                     let cols: &mut TestCols<F, P> = row.as_mut_slice().borrow_mut();
                     cols.a = P::to_limbs_field::<F, _>(a);
                     cols.b = P::to_limbs_field::<F, _>(b);
-                    cols.a_den_b.populate(output, 0, a, b, self.sign);
+                    cols.a_den_b.populate(output, a, b, self.sign);
                     row
                 })
                 .collect::<Vec<_>>();

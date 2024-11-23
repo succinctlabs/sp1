@@ -67,7 +67,6 @@ impl<P: FpOpField> Fp2MulAssignChip<P> {
     #[allow(clippy::too_many_arguments)]
     fn populate_field_ops<F: PrimeField32>(
         blu_events: &mut Vec<ByteLookupEvent>,
-        shard: u32,
         cols: &mut Fp2MulAssignCols<F, P>,
         p_x: BigUint,
         p_y: BigUint,
@@ -78,7 +77,6 @@ impl<P: FpOpField> Fp2MulAssignChip<P> {
         let modulus = BigUint::from_bytes_le(modulus_bytes);
         let a0_mul_b0 = cols.a0_mul_b0.populate_with_modulus(
             blu_events,
-            shard,
             &p_x,
             &q_x,
             &modulus,
@@ -86,7 +84,6 @@ impl<P: FpOpField> Fp2MulAssignChip<P> {
         );
         let a1_mul_b1 = cols.a1_mul_b1.populate_with_modulus(
             blu_events,
-            shard,
             &p_y,
             &q_y,
             &modulus,
@@ -94,7 +91,6 @@ impl<P: FpOpField> Fp2MulAssignChip<P> {
         );
         let a0_mul_b1 = cols.a0_mul_b1.populate_with_modulus(
             blu_events,
-            shard,
             &p_x,
             &q_y,
             &modulus,
@@ -102,7 +98,6 @@ impl<P: FpOpField> Fp2MulAssignChip<P> {
         );
         let a1_mul_b0 = cols.a1_mul_b0.populate_with_modulus(
             blu_events,
-            shard,
             &p_y,
             &q_x,
             &modulus,
@@ -110,7 +105,6 @@ impl<P: FpOpField> Fp2MulAssignChip<P> {
         );
         cols.c0.populate_with_modulus(
             blu_events,
-            shard,
             &a0_mul_b0,
             &a1_mul_b1,
             &modulus,
@@ -118,7 +112,6 @@ impl<P: FpOpField> Fp2MulAssignChip<P> {
         );
         cols.c1.populate_with_modulus(
             blu_events,
-            shard,
             &a0_mul_b1,
             &a1_mul_b0,
             &modulus,
@@ -171,15 +164,7 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for Fp2MulAssignChip<P> {
             cols.x_ptr = F::from_canonical_u32(event.x_ptr);
             cols.y_ptr = F::from_canonical_u32(event.y_ptr);
 
-            Self::populate_field_ops(
-                &mut new_byte_lookup_events,
-                event.shard,
-                cols,
-                p_x,
-                p_y,
-                q_x,
-                q_y,
-            );
+            Self::populate_field_ops(&mut new_byte_lookup_events, cols, p_x, p_y, q_x, q_y);
 
             // Populate the memory access columns.
             for i in 0..cols.y_access.len() {
@@ -201,7 +186,6 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for Fp2MulAssignChip<P> {
                 let zero = BigUint::zero();
                 Self::populate_field_ops(
                     &mut vec![],
-                    0,
                     cols,
                     zero.clone(),
                     zero.clone(),

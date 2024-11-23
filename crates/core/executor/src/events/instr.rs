@@ -4,18 +4,16 @@ use crate::Opcode;
 
 use super::{create_random_lookup_ids, LookupId};
 
-/// Arithmetic Logic Unit (ALU) Event.
+/// Instruction Event.
 ///
-/// This object encapsulated the information needed to prove an ALU operation. This includes its
-/// shard, opcode, operands, and other relevant information.
+/// This object encapsulated the information needed to prove a RISC-V operation. This includes its
+/// pc, opcode, operands, and other relevant information.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-pub struct AluEvent {
+pub struct InstrEvent {
+    /// The program counter.
+    pub pc: u32,
     /// The lookup identifier.
     pub lookup_id: LookupId,
-    /// The shard number.
-    pub shard: u32,
-    /// The clock cycle.
-    pub clk: u32,
     /// The opcode.
     pub opcode: Opcode,
     /// The first operand.
@@ -28,14 +26,13 @@ pub struct AluEvent {
     pub sub_lookups: [LookupId; 6],
 }
 
-impl AluEvent {
-    /// Create a new [`AluEvent`].
+impl InstrEvent {
+    /// Create a new [`InstrEvent`].
     #[must_use]
-    pub fn new(shard: u32, clk: u32, opcode: Opcode, a: u32, b: u32, c: u32) -> Self {
+    pub fn new(pc: u32, opcode: Opcode, a: u32, b: u32, c: u32) -> Self {
         Self {
+            pc,
             lookup_id: LookupId::default(),
-            shard,
-            clk,
             opcode,
             a,
             b,
