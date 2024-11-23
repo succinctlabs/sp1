@@ -166,24 +166,24 @@ impl MemoryInstructionsChip {
         // Assert that correct value of `mem_value_is_neg_not_x0`.
         builder.assert_eq(
             local.mem_value_is_neg_not_x0,
-            (local.selectors.is_lb + local.selectors.is_lh)
-                * memory_columns.most_sig_byte_decomp[7]
-                * (AB::Expr::one() - local.instruction.op_a_0),
+            (local.is_lb + local.is_lh)
+                * local.most_sig_byte_decomp[7]
+                * (AB::Expr::one() - local.op_a_0),
         );
 
         // When the memory value is negative and not writing to x0, use the SUB opcode to compute
         // the signed value of the memory value and verify that the op_a value is correct.
         let signed_value = Word([
             AB::Expr::zero(),
-            AB::Expr::one() * local.selectors.is_lb,
-            AB::Expr::one() * local.selectors.is_lh,
+            AB::Expr::one() * local.is_lb,
+            AB::Expr::one() * local.is_lh,
             AB::Expr::zero(),
         ]);
         builder.send_instruction(
-            AB::Expr::from_canonical_usize(UNUSED_PC),
-            AB::Expr::from_canonical_usize(UNUSED_PC + DEFAULT_PC_INC),
+            AB::Expr::from_canonical_u32(UNUSED_PC),
+            AB::Expr::from_canonical_u32(UNUSED_PC + DEFAULT_PC_INC),
             Opcode::SUB.as_field::<AB::F>(),
-            local.op_a_val(),
+            local.op_a_value,
             local.unsigned_mem_val,
             signed_value,
             local.unsigned_mem_val_nonce,
@@ -191,21 +191,19 @@ impl MemoryInstructionsChip {
         );
 
         // Assert that correct value of `mem_value_is_pos_not_x0`.
-        let mem_value_is_pos = (local.selectors.is_lb + local.selectors.is_lh)
-            * (AB::Expr::one() - memory_columns.most_sig_byte_decomp[7])
-            + local.selectors.is_lbu
-            + local.selectors.is_lhu
-            + local.selectors.is_lw;
+        let mem_value_is_pos = (local.is_lb + local.is_lh)
+            * (AB::Expr::one() - local.most_sig_byte_decomp[7])
+            + local.is_load * local.is_unsigned;
         builder.assert_eq(
             local.mem_value_is_pos_not_x0,
-            mem_value_is_pos * (AB::Expr::one() - local.instruction.op_a_0),
+            mem_value_is_pos * (AB::Expr::one() - local.op_a_0),
         );
 
         // When the memory value is not positive and not writing to x0, assert that op_a value is
         // equal to the unsigned memory value.
         builder
             .when(local.mem_value_is_pos_not_x0)
-            .assert_word_eq(local.unsigned_mem_val, local.op_a_val());
+            .assert_word_eq(local.unsigned_mem_val, local.op_a_value);
     }
 
     /// Evaluates constraints related to storing to memory.
@@ -224,7 +222,7 @@ impl MemoryInstructionsChip {
 
         // Compute the expected stored value for a SB instruction.
         let one = AB::Expr::one();
-        let a_val = local.op_a_val();
+        let a_val = local.op_a_value;
         let mem_val = *local.memory_access.value();
         let prev_mem_val = *local.memory_access.prev_value();
         let sb_expected_stored_value = Word([
@@ -235,17 +233,19 @@ impl MemoryInstructionsChip {
             a_val[0] * local.offset_is_three
                 + (one.clone() - local.offset_is_three) * prev_mem_val[3],
         ]);
+        let is_store = AB::Expr::one() - local.is_load;
         builder
-            .when(local.selectors.is_sb)
+            .when(is_store.clone() * local.is_byte)
             .assert_word_eq(mem_val.map(|x| x.into()), sb_expected_stored_value);
 
         // When the instruction is SH, make sure both offset one and three are off.
         builder
-            .when(local.selectors.is_sh)
+            .when(is_store.clone() * local.is_half)
             .assert_zero(local.offset_is_one + local.offset_is_three);
 
         // When the instruction is SW, ensure that the offset is 0.
-        builder.when(local.selectors.is_sw).assert_one(offset_is_zero.clone());
+        let is_word = AB::Expr::one() - (local.is_byte + local.is_half);
+        builder.when(is_store.clone() * is_word.clone()).assert_one(offset_is_zero.clone());
 
         // Compute the expected stored value for a SH instruction.
         let a_is_lower_half = offset_is_zero;
@@ -258,12 +258,12 @@ impl MemoryInstructionsChip {
             a_val[1] * a_is_upper_half + (one.clone() - a_is_upper_half) * prev_mem_val[3],
         ]);
         builder
-            .when(local.selectors.is_sh)
+            .when(is_store.clone() * local.is_half)
             .assert_word_eq(mem_val.map(|x| x.into()), sh_expected_stored_value);
 
         // When the instruction is SW, just use the word without masking.
         builder
-            .when(local.selectors.is_sw)
+            .when(is_store * is_word)
             .assert_word_eq(mem_val.map(|x| x.into()), a_val.map(|x| x.into()));
     }
 
@@ -291,16 +291,17 @@ impl MemoryInstructionsChip {
 
         // When the instruction is LB or LBU, just use the lower byte.
         builder
-            .when(local.selectors.is_lb + local.selectors.is_lbu)
+            .when(local.is_load * local.is_byte)
             .assert_word_eq(byte_value, local.unsigned_mem_val.map(|x| x.into()));
 
         // When the instruction is LH or LHU, use the lower half.
         builder
-            .when(local.selectors.is_lh + local.selectors.is_lhu)
+            .when(local.is_load * local.is_half)
             .assert_zero(local.offset_is_one + local.offset_is_three);
 
         // When the instruction is LW, ensure that the offset is zero.
-        builder.when(local.selectors.is_lw).assert_one(offset_is_zero.clone());
+        let is_word = AB::Expr::one() - (local.is_byte + local.is_half);
+        builder.when(local.is_load * is_word.clone()).assert_one(offset_is_zero.clone());
 
         let use_lower_half = offset_is_zero;
         let use_upper_half = local.offset_is_two;
@@ -311,11 +312,11 @@ impl MemoryInstructionsChip {
             AB::Expr::zero(),
         ]);
         builder
-            .when(local.selectors.is_lh + local.selectors.is_lhu)
+            .when(local.is_load * local.is_half)
             .assert_word_eq(half_value, local.unsigned_mem_val.map(|x| x.into()));
 
         // When the instruction is LW, just use the word.
-        builder.when(local.selectors.is_lw).assert_word_eq(mem_val, local.unsigned_mem_val);
+        builder.when(local.is_load * is_word).assert_word_eq(mem_val, local.unsigned_mem_val);
     }
 
     /// Evaluates the decomposition of the most significant byte of the memory value.
@@ -325,15 +326,15 @@ impl MemoryInstructionsChip {
         local: &MemoryInstructionsColumns<AB::Var>,
         unsigned_mem_val: &Word<AB::Var>,
     ) {
-        let is_mem = self.is_memory_instruction::<AB>(&local.selectors);
         let mut recomposed_byte = AB::Expr::zero();
         for i in 0..8 {
-            builder.when(is_mem.clone()).assert_bool(local.most_sig_byte_decomp[i]);
+            builder.assert_bool(local.most_sig_byte_decomp[i]);
             recomposed_byte = recomposed_byte.clone()
                 + local.most_sig_byte_decomp[i] * AB::Expr::from_canonical_u8(1 << i);
         }
-        builder.when(local.selectors.is_lb).assert_eq(recomposed_byte.clone(), unsigned_mem_val[0]);
-        builder.when(local.selectors.is_lh).assert_eq(recomposed_byte, unsigned_mem_val[1]);
+        // Note that only the load instruction will be signed.
+        builder.when(local.is_lb).assert_eq(recomposed_byte.clone(), unsigned_mem_val[0]);
+        builder.when(local.is_lh).assert_eq(recomposed_byte, unsigned_mem_val[1]);
     }
 
     /// Evaluates the offset value flags.

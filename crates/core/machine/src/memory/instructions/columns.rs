@@ -29,11 +29,15 @@ pub struct MemoryInstructionsColumns<T> {
     pub op_a_value: Word<T>,
     pub op_b_value: Word<T>,
     pub op_c_value: Word<T>,
+    pub op_a_0: T,
 
     pub is_load: T,
     pub is_byte: T,
     pub is_half: T,
     pub is_unsigned: T,
+
+    pub is_lb: T,
+    pub is_lh: T,
 
     // An addr that we are reading from or writing to as a word. We are guaranteed that this does
     // not overflow the field when reduced.
@@ -55,9 +59,15 @@ pub struct MemoryInstructionsColumns<T> {
     pub offset_is_two: T,
     pub offset_is_three: T,
 
+    pub unsigned_mem_val: Word<T>,
+
     // LE bit decomposition for the most significant byte of memory value.  This is used to
     // determine the sign for that value (used for LB and LH).
     pub most_sig_byte_decomp: [T; 8],
+
+    /// Flag for load mem instructions where the value is positive.
+    pub mem_value_is_neg_not_x0: T,
+    pub mem_value_is_pos_not_x0: T,
 
     pub addr_word_nonce: T,
     pub unsigned_mem_val_nonce: T,
