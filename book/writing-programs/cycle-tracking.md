@@ -60,7 +60,11 @@ This will log the cycle count for `block name` and include it in the `ExecutionR
 
 Profiling a zkvm program is a good way to get an understanding of what is bottlenecking your program. Note only one program may be profiled at a time.
 
-To profile a program, you have to setup a script to execute the program.
+To profile a program, you simply need to:
+1. Enable the profiling feature for `sp1-sdk` in `script/Cargo.toml`
+2. Set the env variable `TRACE_FILE=trace.json` and then call `ProverClient::execute()` in your script.
+
+If you're executing a larger program (>100M cycles), you should set `TRACE_SAMPLE_RATE` to reduce the size of the trace file. A sample rate of `1000` means that 1 in every 1000 VM cycles is sampled. By default, every cycle is sampled.
 
 Many examples can be found in the repo, such as this ['fibonacci'](https://github.com/succinctlabs/sp1/blob/12f212e386ae4c2da30cf6a61a7d87615d56bdac/examples/fibonacci/script/src/main.rs#L22) script.
 
