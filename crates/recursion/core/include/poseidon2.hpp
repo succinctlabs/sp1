@@ -11,23 +11,22 @@ constexpr size_t INPUT_ROUND_IDX = 0;
 constexpr size_t INTERNAL_ROUND_IDX = NUM_EXTERNAL_ROUNDS / 2 + 1;
 
 template <class F>
-__SP1_HOSTDEV__ __SP1_INLINE__ void external_linear_layer(F state_var[WIDTH]) {
-  for (size_t j = 0; j < WIDTH; j += 4) {
-    F t01 = state_var[j + 0] + state_var[j + 1];
-    F t23 = state_var[j + 2] + state_var[j + 3];
-    F t0123 = t01 + t23;
-    F t01123 = t0123 + state_var[j + 1];
-    F t01233 = t0123 + state_var[j + 3];
+__SP1_HOSTDEV__ __SP1_INLINE__ void mdsLightPermutation4x4(F state[4]) {
+  F t01 = state[0] + state[1];
+  F t23 = state[2] + state[3];
+  F t0123 = t01 + t23;
+  F t01123 = t0123 + state[1];
+  F t01233 = t0123 + state[3];
+  state[3] = t01233 + operator<<(state[0], 1);
+  state[1] = t01123 + operator<<(state[2], 1);
+  state[0] = t01123 + t01;
+  state[2] = t01233 + t23;
+}
 
-    // The order here is important. Need to overwrite x[0] and x[2] after x[1] and x[3].
-    state_var[j + 3] =
-        t01233 +
-        (state_var[j + 0] + state_var[j + 0]);  // 3*x[0] + x[1] + x[2] + 2*x[3]
-    state_var[j + 1] =
-        t01123 +
-        (state_var[j + 2] + state_var[j + 2]);  // x[0] + 2*x[1] + 3*x[2] + x[3]
-    state_var[j + 0] = t01123 + t01;            // 2*x[0] + 3*x[1] + x[2] + x[3]
-    state_var[j + 2] = t01233 + t23;            // x[0] + x[1] + 2*x[2] + 3*x[3]
+template <class F>
+__SP1_HOSTDEV__ __SP1_INLINE__ void external_linear_layer(F state_var[WIDTH]) {
+  for (int i = 0; i < WIDTH; i += 4) {
+    mdsLightPermutation4x4(state_var + i);
   }
 
   F sums[4] = {F::zero(), F::zero(), F::zero(), F::zero()};
