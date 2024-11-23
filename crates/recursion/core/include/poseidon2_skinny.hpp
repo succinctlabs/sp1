@@ -8,9 +8,8 @@ using namespace constants;
 using namespace poseidon2;
 
 template <class F>
-__SP1_HOSTDEV__ __SP1_INLINE__ void populate_external_round(F* round_state,
-                                                            size_t r,
-                                                            F* next_state_var) {
+__SP1_HOSTDEV__ __SP1_INLINE__ void populate_external_round(
+    F round_state[WIDTH], size_t r, F next_state_var[WIDTH]) {
   size_t round =
       (r < NUM_EXTERNAL_ROUNDS / 2) ? r : r + NUM_INTERNAL_ROUNDS - 1;
 
@@ -26,7 +25,8 @@ __SP1_HOSTDEV__ __SP1_INLINE__ void populate_external_round(F* round_state,
 
 template <class F>
 __SP1_HOSTDEV__ __SP1_INLINE__ void populate_internal_rounds(
-    F* state, F* internal_rounds_s0, F* next_state_var) {
+    F state[WIDTH], F internal_rounds_s0[NUM_INTERNAL_ROUNDS_S0],
+    F next_state_var[WIDTH]) {
   for (size_t i = 0; i < WIDTH; i++) {
     next_state_var[i] = state[i];
   }

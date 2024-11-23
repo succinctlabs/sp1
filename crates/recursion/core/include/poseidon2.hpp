@@ -11,7 +11,7 @@ constexpr size_t INPUT_ROUND_IDX = 0;
 constexpr size_t INTERNAL_ROUND_IDX = NUM_EXTERNAL_ROUNDS / 2 + 1;
 
 template <class F>
-__SP1_HOSTDEV__ __SP1_INLINE__ void external_linear_layer(F* state_var) {
+__SP1_HOSTDEV__ __SP1_INLINE__ void external_linear_layer(F state_var[WIDTH]) {
   for (size_t j = 0; j < WIDTH; j += 4) {
     F t01 = state_var[j + 0] + state_var[j + 1];
     F t23 = state_var[j + 2] + state_var[j + 3];
@@ -43,7 +43,7 @@ __SP1_HOSTDEV__ __SP1_INLINE__ void external_linear_layer(F* state_var) {
 }
 
 template <class F>
-__SP1_HOSTDEV__ __SP1_INLINE__ void internal_linear_layer(F* state) {
+__SP1_HOSTDEV__ __SP1_INLINE__ void internal_linear_layer(F state[WIDTH]) {
   F matmul_constants[WIDTH];
   for (size_t i = 0; i < WIDTH; i++) {
     matmul_constants[i] = F(F::to_monty(F::from_monty(

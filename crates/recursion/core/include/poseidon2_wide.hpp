@@ -9,7 +9,7 @@ using namespace poseidon2;
 
 template <class F>
 __SP1_HOSTDEV__ __SP1_INLINE__ void populate_external_round(
-    const F* external_rounds_state, F* sbox, size_t r, F* next_state) {
+    const F* external_rounds_state, F* sbox, size_t r, F next_state[WIDTH]) {
   F round_state[WIDTH];
   if (r == 0) {
     // external_linear_layer_immut
