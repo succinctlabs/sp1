@@ -58,7 +58,7 @@ This will log the cycle count for `block name` and include it in the `ExecutionR
 
 ### Profiling a ZKVM program 
 
-Profiling a zkvm program is a good way to get an understanding of what is bottlenecking your program. Note only one program may be profiled at a time.
+Profiling a zkVM program produces a profile ([example link](https://share.firefox.dev/3Om1pzz)) which makes it easy to examine program performance and see exactly where exactly VM cycles are being spent without needing to modify the program at all.
 
 To profile a program, you simply need to:
 1. Enable the profiling feature for `sp1-sdk` in `script/Cargo.toml`
