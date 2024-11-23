@@ -117,15 +117,24 @@ where
     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
         let vk = self.vk.read(builder);
         let shard_proofs = self.shard_proofs.read(builder);
+        let reconstruct_deferred_digest = self.reconstruct_deferred_digest.read(builder);
         let is_complete = InnerVal::from_bool(self.is_complete).read(builder);
         let is_first_shard = InnerVal::from_bool(self.is_first_shard).read(builder);
         let vk_root = self.vk_root.read(builder);
-        SP1RecursionWitnessVariable { vk, shard_proofs, is_complete, is_first_shard, vk_root }
+        SP1RecursionWitnessVariable {
+            vk,
+            shard_proofs,
+            is_complete,
+            is_first_shard,
+            reconstruct_deferred_digest,
+            vk_root,
+        }
     }
 
     fn write(&self, witness: &mut impl WitnessWriter<C>) {
         self.vk.write(witness);
         self.shard_proofs.write(witness);
+        self.reconstruct_deferred_digest.write(witness);
         self.is_complete.write(witness);
         self.is_first_shard.write(witness);
         self.vk_root.write(witness);
