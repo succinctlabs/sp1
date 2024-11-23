@@ -1,4 +1,4 @@
-use crate::cpu::columns::{AuipcCols, BranchCols, JumpCols, MemoryColumns};
+use crate::cpu::columns::{AuipcCols, BranchCols, JumpCols};
 use std::{
     fmt::{Debug, Formatter},
     mem::{size_of, transmute},
@@ -14,7 +14,6 @@ pub const NUM_OPCODE_SPECIFIC_COLS: usize = size_of::<OpcodeSpecificCols<u8>>();
 #[derive(Clone, Copy)]
 #[repr(C)]
 pub union OpcodeSpecificCols<T: Copy> {
-    memory: MemoryColumns<T>,
     branch: BranchCols<T>,
     jump: JumpCols<T>,
     auipc: AuipcCols<T>,
@@ -24,9 +23,9 @@ pub union OpcodeSpecificCols<T: Copy> {
 impl<T: Copy + Default> Default for OpcodeSpecificCols<T> {
     fn default() -> Self {
         // We must use the largest field to avoid uninitialized padding bytes.
-        const_assert!(size_of::<MemoryColumns<u8>>() == size_of::<OpcodeSpecificCols<u8>>());
+        const_assert!(size_of::<JumpCols<u8>>() == size_of::<OpcodeSpecificCols<u8>>());
 
-        OpcodeSpecificCols { memory: MemoryColumns::default() }
+        OpcodeSpecificCols { jump: JumpCols::default() }
     }
 }
 
@@ -40,12 +39,6 @@ impl<T: Copy + Debug> Debug for OpcodeSpecificCols<T> {
 
 // SAFETY: Each view is a valid interpretation of the underlying array.
 impl<T: Copy> OpcodeSpecificCols<T> {
-    pub fn memory(&self) -> &MemoryColumns<T> {
-        unsafe { &self.memory }
-    }
-    pub fn memory_mut(&mut self) -> &mut MemoryColumns<T> {
-        unsafe { &mut self.memory }
-    }
     pub fn branch(&self) -> &BranchCols<T> {
         unsafe { &self.branch }
     }
