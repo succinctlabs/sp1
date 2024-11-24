@@ -18,47 +18,53 @@ mod tests {
         Program,
     };
 
-    use crate::utils;
+    use crate::{io::SP1Stdin, utils};
 
     #[test]
     fn test_bls12381_fp_ops() {
         utils::setup_logger();
         let program = Program::from(BLS12381_FP_ELF).unwrap();
-        utils::run_test::<CpuProver<_, _>>(program).unwrap();
+        let stdin = SP1Stdin::new();
+        utils::run_test::<CpuProver<_, _>>(program, stdin).unwrap();
     }
 
     #[test]
     fn test_bls12381_fp2_addsub() {
         utils::setup_logger();
         let program = Program::from(BLS12381_FP2_ADDSUB_ELF).unwrap();
-        utils::run_test::<CpuProver<_, _>>(program).unwrap();
+        let stdin = SP1Stdin::new();
+        utils::run_test::<CpuProver<_, _>>(program, stdin).unwrap();
     }
 
     #[test]
     fn test_bls12381_fp2_mul() {
         utils::setup_logger();
         let program = Program::from(BLS12381_FP2_MUL_ELF).unwrap();
-        utils::run_test::<CpuProver<_, _>>(program).unwrap();
+        let stdin = SP1Stdin::new();
+        utils::run_test::<CpuProver<_, _>>(program, stdin).unwrap();
     }
 
     #[test]
     fn test_bn254_fp_ops() {
         utils::setup_logger();
         let program = Program::from(BN254_FP_ELF).unwrap();
-        utils::run_test::<CpuProver<_, _>>(program).unwrap();
+        let stdin = SP1Stdin::new();
+        utils::run_test::<CpuProver<_, _>>(program, stdin).unwrap();
     }
 
     #[test]
     fn test_bn254_fp2_addsub() {
         utils::setup_logger();
         let program = Program::from(BN254_FP2_ADDSUB_ELF).unwrap();
-        utils::run_test::<CpuProver<_, _>>(program).unwrap();
+        let stdin = SP1Stdin::new();
+        utils::run_test::<CpuProver<_, _>>(program, stdin).unwrap();
     }
 
     #[test]
     fn test_bn254_fp2_mul() {
         utils::setup_logger();
         let program = Program::from(BN254_FP2_MUL_ELF).unwrap();
-        utils::run_test::<CpuProver<_, _>>(program).unwrap();
+        let stdin = SP1Stdin::new();
+        utils::run_test::<CpuProver<_, _>>(program, stdin).unwrap();
     }
 }

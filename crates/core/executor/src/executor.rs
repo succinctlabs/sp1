@@ -70,8 +70,9 @@ pub struct Executor<'a> {
     /// checkpoints.
     pub memory_checkpoint: PagedMemory<Option<MemoryRecord>>,
 
-    /// Memory addresses that were initialized in this batch of shards. Used to minimize the size of
-    /// checkpoints. The value stored is whether or not it had a value at the beginning of the batch.
+    /// Memory addresses that were initialized in this batch of shards. Used to minimize the size
+    /// of checkpoints. The value stored is whether or not it had a value at the beginning of
+    /// the batch.
     pub uninitialized_memory_checkpoint: PagedMemory<bool>,
 
     /// The memory accesses for the current cycle.
