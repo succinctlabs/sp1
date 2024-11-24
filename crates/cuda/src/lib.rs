@@ -106,12 +106,8 @@ impl SP1CudaProver {
     /// [SP1ProverClient] that can be used to communicate with the container.
     pub fn new() -> Result<Self, Box<dyn StdError>> {
         let container_name = "sp1-gpu";
-<<<<<<< HEAD
-        let image_name = "jtguibas/sp1-gpu:v4.0.0-rc1";
-=======
         let image_name = std::env::var("SP1_GPU_IMAGE")
             .unwrap_or_else(|_| "public.ecr.aws/succinct-labs/sp1-gpu:bfe21cf".to_string());
->>>>>>> john/eclogup-tracegen
 
         let cleaned_up = Arc::new(AtomicBool::new(false));
         let cleanup_name = container_name;

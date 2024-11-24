@@ -313,6 +313,7 @@ where
                             trace_gen_sync.wait_for_turn(index);
 
                             // Send the shapes to the channel, if necessary.
+                            // TODO: on gpu the shape is wrong cause of the way we do tracegen on gpu
                             for main_trace in main_traces.iter() {
                                 shape_tx
                                     .lock()
