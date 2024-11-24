@@ -234,7 +234,10 @@ mod tests {
     use p3_baby_bear::BabyBear;
     use p3_matrix::dense::RowMajorMatrix;
     use rand::{thread_rng, Rng};
-    use sp1_core_executor::{events::InstrEvent, ExecutionRecord, Opcode, DEFAULT_PC_INC};
+    use sp1_core_executor::{
+        events::{InstrEvent, LookupId},
+        ExecutionRecord, Opcode, DEFAULT_PC_INC,
+    };
     use sp1_stark::{air::MachineAir, baby_bear_poseidon2::BabyBearPoseidon2, StarkGenericConfig};
 
     use super::AddSubChip;
@@ -243,7 +246,17 @@ mod tests {
     #[test]
     fn generate_trace() {
         let mut shard = ExecutionRecord::default();
-        shard.add_events = vec![InstrEvent::new(0, Opcode::ADD, 14, 8, 6)];
+        shard.add_events = vec![InstrEvent::new(
+            0,
+            Opcode::ADD,
+            14,
+            8,
+            6,
+            false,
+            None,
+            LookupId::default(),
+            LookupId::default(),
+        )];
         let chip = AddSubChip::default();
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&shard, &mut ExecutionRecord::default());
@@ -266,6 +279,10 @@ mod tests {
                 result,
                 operand_1,
                 operand_2,
+                false,
+                None,
+                LookupId::default(),
+                LookupId::default(),
             ));
         }
         for i in 0..255 {
@@ -278,6 +295,10 @@ mod tests {
                 result,
                 operand_1,
                 operand_2,
+                false,
+                None,
+                LookupId::default(),
+                LookupId::default(),
             ));
         }
 

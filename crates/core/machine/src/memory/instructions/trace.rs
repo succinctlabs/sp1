@@ -1,9 +1,20 @@
+use std::borrow::BorrowMut;
+
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
-use sp1_core_executor::{ExecutionRecord, Program};
+use rayon::iter::{ParallelBridge, ParallelIterator};
+use sp1_core_executor::{
+    events::{ByteLookupEvent, InstrEvent},
+    ExecutionRecord, Program,
+};
 use sp1_stark::air::MachineAir;
 
-use super::MemoryInstructionsChip;
+use crate::utils::{next_power_of_two, zeroed_f_vec};
+
+use super::{
+    columns::{MemoryInstructionsColumns, NUM_MEMORY_INSTRUCTIONS_COLUMNS},
+    MemoryInstructionsChip,
+};
 
 impl<F: PrimeField32> MachineAir<F> for MemoryInstructionsChip {
     type Record = ExecutionRecord;
@@ -19,52 +30,82 @@ impl<F: PrimeField32> MachineAir<F> for MemoryInstructionsChip {
         input: &ExecutionRecord,
         _: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
-        let n_real_rows = input.memory_instr_events.len();
-        let padded_nb_rows = if let Some(shape) = &input.shape {
-            1 << shape.inner[&MachineAir::<F>::name(self)]
-        } else if n_real_rows < 16 {
-            16
-        } else {
-            n_real_rows.next_power_of_two()
-        };
-        let mut values = zeroed_f_vec(padded_nb_rows * NUM_CPU_COLS);
+        let chunk_size = std::cmp::max((input.memory_instr_events.len()) / num_cpus::get(), 1);
+        let nb_rows = input.memory_instr_events.len();
+        let size_log2 = input.fixed_log2_rows::<F, _>(self);
+        let padded_nb_rows = next_power_of_two(nb_rows, size_log2);
+        let mut values = zeroed_f_vec(padded_nb_rows * NUM_MEMORY_INSTRUCTIONS_COLUMNS);
 
-        // Populate memory accesses for reading from memory.
-        let memory_columns = cols.opcode_specific_columns.memory_mut();
-        if let Some(record) = event.memory_record {
-            memory_columns.memory_access.populate(record, blu_events)
+        values
+            .chunks_mut(chunk_size * NUM_MEMORY_INSTRUCTIONS_COLUMNS)
+            .enumerate()
+            .par_bridge()
+            .for_each(|(i, rows)| {
+                rows.chunks_mut(NUM_MEMORY_INSTRUCTIONS_COLUMNS).enumerate().for_each(
+                    |(j, row)| {
+                        let idx = i * chunk_size + j;
+                        let cols: &mut MemoryInstructionsColumns<F> = row.borrow_mut();
+
+                        if idx < input.memory_instr_events.len() {
+                            let mut byte_lookup_events = Vec::new();
+                            let event = &input.memory_instr_events[idx];
+                            self.event_to_row(event, cols, &mut byte_lookup_events);
+                        }
+                    },
+                );
+            });
+
+        // Convert the trace to a row major matrix.
+        RowMajorMatrix::new(values, NUM_MEMORY_INSTRUCTIONS_COLUMNS)
+    }
+
+    fn included(&self, shard: &Self::Record) -> bool {
+        if let Some(shape) = shard.shape.as_ref() {
+            shape.included::<F, _>(self)
+        } else {
+            shard.contains_memory()
         }
+    }
+}
+
+impl MemoryInstructionsChip {
+    fn event_to_row<F: PrimeField32>(
+        &self,
+        event: &InstrEvent,
+        cols: &mut MemoryInstructionsColumns<F>,
+        byte_lookup_events: &mut Vec<ByteLookupEvent>,
+    ) {
+        // Populate memory accesses for reading from memory.
+        cols.memory_access
+            .populate(event.mem_access.expect("Memory access is required"), byte_lookup_events);
 
         // Populate addr_word and addr_aligned columns.
-        let memory_columns = cols.opcode_specific_columns.memory_mut();
         let memory_addr = event.b.wrapping_add(event.c);
         let aligned_addr = memory_addr - memory_addr % WORD_SIZE as u32;
-        memory_columns.addr_word = memory_addr.into();
-        memory_columns.addr_word_range_checker.populate(memory_addr);
-        memory_columns.addr_aligned = F::from_canonical_u32(aligned_addr);
+        cols.addr_word = memory_addr.into();
+        cols.addr_word_range_checker.populate(memory_addr);
+        cols.addr_aligned = F::from_canonical_u32(aligned_addr);
 
         // Populate the aa_least_sig_byte_decomp columns.
         assert!(aligned_addr % 4 == 0);
         let aligned_addr_ls_byte = (aligned_addr & 0x000000FF) as u8;
         let bits: [bool; 8] = array::from_fn(|i| aligned_addr_ls_byte & (1 << i) != 0);
-        memory_columns.aa_least_sig_byte_decomp = array::from_fn(|i| F::from_bool(bits[i + 2]));
-        memory_columns.addr_word_nonce = F::from_canonical_u32(
+        cols.aa_least_sig_byte_decomp = array::from_fn(|i| F::from_bool(bits[i + 2]));
+        cols.addr_word_nonce = F::from_canonical_u32(
             nonce_lookup.get(event.memory_add_lookup_id.0 as usize).copied().unwrap_or_default(),
         );
 
         // Populate memory offsets.
         let addr_offset = (memory_addr % WORD_SIZE as u32) as u8;
-        memory_columns.addr_offset = F::from_canonical_u8(addr_offset);
-        memory_columns.offset_is_one = F::from_bool(addr_offset == 1);
-        memory_columns.offset_is_two = F::from_bool(addr_offset == 2);
-        memory_columns.offset_is_three = F::from_bool(addr_offset == 3);
+        cols.addr_offset = F::from_canonical_u8(addr_offset);
+        cols.offset_is_one = F::from_bool(addr_offset == 1);
+        cols.offset_is_two = F::from_bool(addr_offset == 2);
+        cols.offset_is_three = F::from_bool(addr_offset == 3);
 
         // If it is a load instruction, set the unsigned_mem_val column.
         let mem_value = event.memory_record.unwrap().value();
-        if matches!(
-            instruction.opcode,
-            Opcode::LB | Opcode::LBU | Opcode::LH | Opcode::LHU | Opcode::LW
-        ) {
+        if matches!(event.opcode, Opcode::LB | Opcode::LBU | Opcode::LH | Opcode::LHU | Opcode::LW)
+        {
             match instruction.opcode {
                 Opcode::LB | Opcode::LBU => {
                     cols.unsigned_mem_val =
@@ -85,7 +126,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryInstructionsChip {
             }
 
             // For the signed load instructions, we need to check if the loaded value is negative.
-            if matches!(instruction.opcode, Opcode::LB | Opcode::LH) {
+            if matches!(event.opcode, Opcode::LB | Opcode::LH) {
                 let most_sig_mem_value_byte = if matches!(instruction.opcode, Opcode::LB) {
                     cols.unsigned_mem_val.to_u32().to_le_bytes()[0]
                 } else {
@@ -119,22 +160,13 @@ impl<F: PrimeField32> MachineAir<F> for MemoryInstructionsChip {
         // Add event to byte lookup for byte range checking each byte in the memory addr
         let addr_bytes = memory_addr.to_le_bytes();
         for byte_pair in addr_bytes.chunks_exact(2) {
-            blu_events.add_byte_lookup_event(ByteLookupEvent {
-                shard,
+            byte_lookup_events.add_byte_lookup_event(ByteLookupEvent {
                 opcode: ByteOpcode::U8Range,
                 a1: 0,
                 a2: 0,
                 b: byte_pair[0],
                 c: byte_pair[1],
             });
-        }
-    }
-
-    fn included(&self, shard: &Self::Record) -> bool {
-        if let Some(shape) = shard.shape.as_ref() {
-            shape.included::<F, _>(self)
-        } else {
-            shard.contains_memory()
         }
     }
 }
