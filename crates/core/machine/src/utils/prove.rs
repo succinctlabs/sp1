@@ -387,17 +387,17 @@ where
                                     }
 
                                     // Verify the proof.
-                                    tracing::debug!(
-                                        "verifying proof {}",
-                                        record.public_values.shard
-                                    );
-                                    let mut challenger = prover.config().challenger();
-                                    let pk_host = prover.pk_to_host(pk);
-                                    prover.machine().debug_constraints(
-                                        &pk_host,
-                                        vec![record],
-                                        &mut challenger,
-                                    );
+                                    // tracing::debug!(
+                                    //     "verifying proof {}",
+                                    //     record.public_values.shard
+                                    // );
+                                    // let mut challenger = prover.config().challenger();
+                                    // let pk_host = prover.pk_to_host(pk);
+                                    // prover.machine().debug_constraints(
+                                    //     &pk_host,
+                                    //     vec![record],
+                                    //     &mut challenger,
+                                    // );
                                     // prover
                                     //     .machine()
                                     //     .verify(
