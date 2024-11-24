@@ -101,7 +101,4 @@ runs:
         fi
 
     - name: Set up Docker
-      uses: docker/setup-docker@v3
-
-    - name: Set up Docker
       uses: docker/setup-buildx-action@v3
