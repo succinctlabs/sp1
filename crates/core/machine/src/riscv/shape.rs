@@ -37,6 +37,8 @@ pub enum CoreShapeError {
 /// A structure that enables fixing the shape of an executionrecord.
 pub struct CoreShapeConfig<F: PrimeField32> {
     included_shapes: Vec<HashMap<String, usize>>,
+    // Shapes for shards with a CPU chip and memory initialize/finalize events.
+    shapes_with_cpu_and_memory_finalize: Vec<HashMap<RiscvAir<F>, Vec<Option<usize>>>>,
     allowed_preprocessed_log_heights: HashMap<RiscvAir<F>, Vec<Option<usize>>>,
     allowed_core_log_heights: Vec<HashMap<RiscvAir<F>, Vec<Option<usize>>>>,
     maximal_core_log_heights_mask: Vec<bool>,
@@ -119,10 +121,21 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
             // If cpu is included, try to fix the shape as a core.
 
             // Get the heights of the core airs in the record.
-            let heights = RiscvAir::<F>::core_heights(record);
+            let mut heights = RiscvAir::<F>::core_heights(record);
 
-            // Try to find a shape within the included shapes.
-            for (i, allowed_log_heights) in self.allowed_core_log_heights.iter().enumerate() {
+            let mut shape_candidates = self.allowed_core_log_heights.iter().collect::<Vec<_>>();
+
+            // If the record has global memory init/finalize events, replace the candidates with
+            // shapes that include the memory initialize/finalize chip.
+            if !record.global_memory_finalize_events.is_empty()
+                || !record.global_memory_initialize_events.is_empty()
+            {
+                heights.extend(RiscvAir::<F>::get_memory_init_final_heights(record));
+                shape_candidates = self.shapes_with_cpu_and_memory_finalize.iter().collect();
+            }
+
+            // Try to find a shape fitting within at least one of the candidate shapes.
+            for (i, allowed_log_heights) in shape_candidates.iter().enumerate() {
                 if let Some(shape) =
                     Self::find_shape_from_allowed_heights(&heights, allowed_log_heights)
                 {
@@ -151,7 +164,8 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
             return Err(CoreShapeError::ShapeError(record.stats()));
         }
 
-        // If the record is a global memory init/finalize record, try to fix the shape as such.
+        // If the record is a does not have the CPU chip and is a global memory init/finalize
+        // record, try to fix the shape as such.
         if !record.global_memory_initialize_events.is_empty()
             || !record.global_memory_finalize_events.is_empty()
         {
@@ -648,6 +662,20 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
                 divrem_height: vec![Some(10), Some(16), Some(17)],
                 is_potentially_maximal: true,
             },
+                        // Shards with mainly arithmetic, few memory accesses, and no division.
+                        CoreShapeSpec {
+                            cpu_height: vec![Some(21)],
+                            add_sub_height: vec![Some(21)],
+                            lt_height: vec![Some(19)],
+                            bitwise_height: vec![Some(6)],
+                            shift_right_height: vec![Some(19)],
+                            shift_left_height: vec![Some(6)],
+                            syscall_core_height: vec![Some(0)],
+                            memory_local_height: vec![Some(6)],
+                            mul_height: vec![Some(19)],
+                            divrem_height: vec![Some(0)],
+                            is_potentially_maximal: true,
+                        },
             // Shards with basic arithmetic and branching.
             CoreShapeSpec {
                 cpu_height: vec![Some(21)],
@@ -714,6 +742,147 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
                 .insert(air, (mem_events_per_row, precompile_heights.clone()));
         }
 
+        // Shapes for shards with a CPU chip and memory initialize/finalize events.
+        let shapes_with_cpu_and_memory_finalize = vec![
+                                    // Small shape with few Muls and LTs.
+                                    HashMap::from([
+                                        (RiscvAir::<F>::Cpu(CpuChip::default()), vec![Some(13)]),
+                                        (RiscvAir::<F>::Add(AddSubChip::default()), vec![Some(12)]),
+                                        (RiscvAir::<F>::Bitwise(BitwiseChip::default()), vec![Some(11)]),
+                                        (RiscvAir::<F>::Mul(MulChip::default()), vec![Some(4)]),
+                                        (RiscvAir::<F>::ShiftRight(ShiftRightChip::default()), vec![Some(10)]),
+                                        (RiscvAir::<F>::ShiftLeft(ShiftLeft::default()), vec![Some(10)]),
+                                        (RiscvAir::<F>::Lt(LtChip::default()), vec![Some(8)]),
+                                        (RiscvAir::<F>::MemoryLocal(MemoryLocalChip::new()), vec![Some(6)]),
+                                        (RiscvAir::<F>::SyscallCore(SyscallChip::core()), vec![None]),
+                                        (RiscvAir::<F>::DivRem(DivRemChip::default()), vec![None]),
+                                        (RiscvAir::<F>::MemoryGlobalInit(MemoryGlobalChip::new(Initialize)), vec![Some(8)]),
+                                        (RiscvAir::<F>::MemoryGlobalFinal(MemoryGlobalChip::new(Finalize)), vec![Some(15)]),
+                                    ]),
+            // Small shape with few Muls.
+            HashMap::from([
+                (RiscvAir::<F>::Cpu(CpuChip::default()), vec![Some(14)]),
+                (RiscvAir::<F>::Add(AddSubChip::default()), vec![Some(14)]),
+                (RiscvAir::<F>::Bitwise(BitwiseChip::default()), vec![Some(11)]),
+                (RiscvAir::<F>::Mul(MulChip::default()), vec![Some(4)]),
+                (RiscvAir::<F>::ShiftRight(ShiftRightChip::default()), vec![Some(10)]),
+                (RiscvAir::<F>::ShiftLeft(ShiftLeft::default()), vec![Some(10)]),
+                (RiscvAir::<F>::Lt(LtChip::default()), vec![Some(13)]),
+                (RiscvAir::<F>::MemoryLocal(MemoryLocalChip::new()), vec![Some(6)]),
+                (RiscvAir::<F>::SyscallCore(SyscallChip::core()), vec![None]),
+                (RiscvAir::<F>::DivRem(DivRemChip::default()), vec![None]),
+                (RiscvAir::<F>::MemoryGlobalInit(MemoryGlobalChip::new(Initialize)), vec![Some(8)]),
+                (RiscvAir::<F>::MemoryGlobalFinal(MemoryGlobalChip::new(Finalize)), vec![Some(15)]),
+            ]),
+
+            // Small shape with many Muls.
+            HashMap::from([
+                (RiscvAir::<F>::Cpu(CpuChip::default()), vec![Some(15)]),
+                (RiscvAir::<F>::Add(AddSubChip::default()), vec![Some(14)]),
+                (RiscvAir::<F>::Bitwise(BitwiseChip::default()), vec![Some(11)]),
+                (RiscvAir::<F>::Mul(MulChip::default()), vec![Some(12)]),
+                (RiscvAir::<F>::ShiftRight(ShiftRightChip::default()), vec![Some(12)]),
+                (RiscvAir::<F>::ShiftLeft(ShiftLeft::default()), vec![Some(10)]),
+                (RiscvAir::<F>::Lt(LtChip::default()), vec![Some(12)]),
+                (RiscvAir::<F>::MemoryLocal(MemoryLocalChip::new()), vec![Some(7)]),
+                (RiscvAir::<F>::SyscallCore(SyscallChip::core()), vec![None]),
+                (RiscvAir::<F>::DivRem(DivRemChip::default()), vec![None]),
+                (RiscvAir::<F>::MemoryGlobalInit(MemoryGlobalChip::new(Initialize)), vec![Some(8)]),
+                (RiscvAir::<F>::MemoryGlobalFinal(MemoryGlobalChip::new(Finalize)), vec![Some(15)]),
+            ]),
+            // Medium shape with few muls.
+            HashMap::from([
+                (RiscvAir::<F>::Cpu(CpuChip::default()), vec![Some(17)]),
+                (RiscvAir::<F>::Add(AddSubChip::default()), vec![Some(17)]),
+                (RiscvAir::<F>::Bitwise(BitwiseChip::default()), vec![Some(11)]),
+                (RiscvAir::<F>::Mul(MulChip::default()), vec![Some(4)]),
+                (RiscvAir::<F>::ShiftRight(ShiftRightChip::default()), vec![Some(10)]),
+                (RiscvAir::<F>::ShiftLeft(ShiftLeft::default()), vec![Some(10)]),
+                (RiscvAir::<F>::Lt(LtChip::default()), vec![Some(16)]),
+                (RiscvAir::<F>::MemoryLocal(MemoryLocalChip::new()), vec![Some(6)]),
+                (RiscvAir::<F>::SyscallCore(SyscallChip::core()), vec![None]),
+                (RiscvAir::<F>::DivRem(DivRemChip::default()), vec![None]),
+                (RiscvAir::<F>::MemoryGlobalInit(MemoryGlobalChip::new(Initialize)), vec![Some(8)]),
+                (RiscvAir::<F>::MemoryGlobalFinal(MemoryGlobalChip::new(Finalize)), vec![Some(15)]),
+            ]),
+            // Medium shape with many Muls.
+            HashMap::from([
+                (RiscvAir::<F>::Cpu(CpuChip::default()), vec![Some(18)]),
+                (RiscvAir::<F>::Add(AddSubChip::default()), vec![Some(17)]),
+                (RiscvAir::<F>::Bitwise(BitwiseChip::default()), vec![Some(11)]),
+                (RiscvAir::<F>::Mul(MulChip::default()), vec![Some(15)]),
+                (RiscvAir::<F>::ShiftRight(ShiftRightChip::default()), vec![Some(15)]),
+                (RiscvAir::<F>::ShiftLeft(ShiftLeft::default()), vec![Some(10)]),
+                (RiscvAir::<F>::Lt(LtChip::default()), vec![Some(15)]),
+                (RiscvAir::<F>::MemoryLocal(MemoryLocalChip::new()), vec![Some(7)]),
+                (RiscvAir::<F>::SyscallCore(SyscallChip::core()), vec![None]),
+                (RiscvAir::<F>::DivRem(DivRemChip::default()), vec![None]),
+                (RiscvAir::<F>::MemoryGlobalInit(MemoryGlobalChip::new(Initialize)), vec![Some(8)]),
+                (RiscvAir::<F>::MemoryGlobalFinal(MemoryGlobalChip::new(Finalize)), vec![Some(15)]),
+            ]),
+            // Large shapes
+            HashMap::from([
+                (RiscvAir::<F>::Cpu(CpuChip::default()), vec![Some(20)]),
+                (RiscvAir::<F>::Add(AddSubChip::default()), vec![Some(20)]),
+                (RiscvAir::<F>::Bitwise(BitwiseChip::default()), vec![Some(11)]),
+                (RiscvAir::<F>::Mul(MulChip::default()), vec![Some(4)]),
+                (RiscvAir::<F>::ShiftRight(ShiftRightChip::default()), vec![Some(10)]),
+                (RiscvAir::<F>::ShiftLeft(ShiftLeft::default()), vec![Some(10)]),
+                (RiscvAir::<F>::Lt(LtChip::default()), vec![Some(19)]),
+                (RiscvAir::<F>::MemoryLocal(MemoryLocalChip::new()), vec![Some(6)]),
+                (RiscvAir::<F>::SyscallCore(SyscallChip::core()), vec![None]),
+                (RiscvAir::<F>::DivRem(DivRemChip::default()), vec![None]),
+                (RiscvAir::<F>::MemoryGlobalInit(MemoryGlobalChip::new(Initialize)), vec![Some(8)]),
+                (RiscvAir::<F>::MemoryGlobalFinal(MemoryGlobalChip::new(Finalize)), vec![Some(15)]),
+            ]),
+            HashMap::from([
+                (RiscvAir::<F>::Cpu(CpuChip::default()), vec![Some(20)]),
+                (RiscvAir::<F>::Add(AddSubChip::default()), vec![Some(20)]),
+                (RiscvAir::<F>::Bitwise(BitwiseChip::default()), vec![Some(11)]),
+                (RiscvAir::<F>::Mul(MulChip::default()), vec![Some(4)]),
+                (RiscvAir::<F>::ShiftRight(ShiftRightChip::default()), vec![Some(11)]),
+                (RiscvAir::<F>::ShiftLeft(ShiftLeft::default()), vec![Some(10)]),
+                (RiscvAir::<F>::Lt(LtChip::default()), vec![Some(19)]),
+                (RiscvAir::<F>::MemoryLocal(MemoryLocalChip::new()), vec![Some(6)]),
+                (RiscvAir::<F>::SyscallCore(SyscallChip::core()), vec![Some(1)]),
+                (RiscvAir::<F>::DivRem(DivRemChip::default()), vec![Some(1)]),
+                (RiscvAir::<F>::MemoryGlobalInit(MemoryGlobalChip::new(Initialize)), vec![Some(8)]),
+                (RiscvAir::<F>::MemoryGlobalFinal(MemoryGlobalChip::new(Finalize)), vec![Some(15)]),
+            ]),
+            HashMap::from([
+                (RiscvAir::<F>::Cpu(CpuChip::default()), vec![Some(21)]),
+                (RiscvAir::<F>::Add(AddSubChip::default()), vec![Some(21)]),
+                (RiscvAir::<F>::Bitwise(BitwiseChip::default()), vec![Some(11)]),
+                (RiscvAir::<F>::Mul(MulChip::default()), vec![Some(19)]),
+                (RiscvAir::<F>::ShiftRight(ShiftRightChip::default()), vec![Some(19)]),
+                (RiscvAir::<F>::ShiftLeft(ShiftLeft::default()), vec![Some(10)]),
+                (RiscvAir::<F>::Lt(LtChip::default()), vec![Some(19)]),
+                (RiscvAir::<F>::MemoryLocal(MemoryLocalChip::new()), vec![Some(7)]),
+                (RiscvAir::<F>::SyscallCore(SyscallChip::core()), vec![None]),
+                (RiscvAir::<F>::DivRem(DivRemChip::default()), vec![None]),
+                (RiscvAir::<F>::MemoryGlobalInit(MemoryGlobalChip::new(Initialize)), vec![Some(8)]),
+                (RiscvAir::<F>::MemoryGlobalFinal(MemoryGlobalChip::new(Finalize)), vec![Some(15)]),
+            ]),
+            // Catchall shape.
+            HashMap::from([
+                (RiscvAir::<F>::Cpu(CpuChip::default()), vec![Some(21)]),
+                (RiscvAir::<F>::Add(AddSubChip::default()), vec![Some(21)]),
+                (RiscvAir::<F>::Bitwise(BitwiseChip::default()), vec![Some(19)]),
+                (RiscvAir::<F>::Mul(MulChip::default()), vec![Some(19)]),
+                (RiscvAir::<F>::ShiftRight(ShiftRightChip::default()), vec![Some(19)]),
+                (RiscvAir::<F>::ShiftLeft(ShiftLeft::default()), vec![Some(19)]),
+                (RiscvAir::<F>::Lt(LtChip::default()), vec![Some(20)]),
+                (RiscvAir::<F>::MemoryLocal(MemoryLocalChip::new()), vec![Some(19)]),
+                (RiscvAir::<F>::SyscallCore(SyscallChip::core()), vec![Some(19)]),
+                (RiscvAir::<F>::DivRem(DivRemChip::default()), vec![Some(21)]),
+                (
+                    RiscvAir::<F>::MemoryGlobalInit(MemoryGlobalChip::new(Initialize)),
+                    vec![Some(19)],
+                ),
+                (RiscvAir::<F>::MemoryGlobalFinal(MemoryGlobalChip::new(Finalize)), vec![Some(19)]),
+            ]),
+        ];
+
         Self {
             included_shapes: vec![],
             allowed_preprocessed_log_heights,
@@ -721,6 +890,7 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
             maximal_core_log_heights_mask,
             memory_allowed_log_heights,
             precompile_allowed_log_heights,
+            shapes_with_cpu_and_memory_finalize,
         }
     }
 }
@@ -775,8 +945,7 @@ pub mod tests {
     fn test_dummy_record() {
         use crate::utils::setup_logger;
         use p3_baby_bear::BabyBear;
-        use sp1_stark::baby_bear_poseidon2::BabyBearPoseidon2;
-        use sp1_stark::CpuProver;
+        use sp1_stark::{baby_bear_poseidon2::BabyBearPoseidon2, CpuProver};
 
         type SC = BabyBearPoseidon2;
         type A = RiscvAir<BabyBear>;

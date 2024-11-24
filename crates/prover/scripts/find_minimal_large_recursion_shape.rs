@@ -43,12 +43,14 @@ fn main() {
         prover.recursion_shape_config.as_ref().expect("recursion shape config not found");
 
     // Create the maximal shape from all of the shapes in recursion_shape_config, then add 2 to
-    // all the log-heights of that shape. This is the starting candidate for the "minimal large shape".
+    // all the log-heights of that shape. This is the starting candidate for the "minimal large
+    // shape".
     let candidate = recursion_shape_config.union_config_with_extra_room().first().unwrap().clone();
 
     prover.recursion_shape_config = Some(RecursionShapeConfig::from_hash_map(&candidate));
 
-    // Check that this candidate is big enough for all core shapes, including those with precompiles.
+    // Check that this candidate is big enough for all core shapes, including those with
+    // precompiles.
     assert!(check_shapes(reduce_batch_size, false, num_compiler_workers, &prover,));
 
     let mut answer = candidate.clone();
@@ -91,8 +93,8 @@ fn main() {
     // Repeat this process to tune the shrink shape.
     let mut shrink_shape = ShrinkAir::<BabyBear>::shrink_shape().clone_into_hash_map();
 
-    // First, check that the current shrink shape is compatible with the compress shape choice arising
-    // from the tuning process above.
+    // First, check that the current shrink shape is compatible with the compress shape choice
+    // arising from the tuning process above.
     assert!({
         prover.recursion_shape_config = Some(RecursionShapeConfig::from_hash_map(&answer));
         catch_unwind(AssertUnwindSafe(|| {

@@ -14,11 +14,12 @@ use sp1_recursion_compiler::{
     prelude::Felt,
 };
 use sp1_stark::{
-    air::InteractionScope, baby_bear_poseidon2::BabyBearPoseidon2, AirOpenedValues, Challenger,
-    Chip, ChipOpenedValues, InnerChallenge, ProofShape, ShardCommitment, ShardOpenedValues,
-    ShardProof, Val, PROOF_MAX_NUM_PVS,
+    air::{InteractionScope, MachineAir},
+    baby_bear_poseidon2::BabyBearPoseidon2,
+    AirOpenedValues, Challenger, Chip, ChipOpenedValues, InnerChallenge, ProofShape,
+    ShardCommitment, ShardOpenedValues, ShardProof, StarkGenericConfig, StarkMachine,
+    StarkVerifyingKey, Val, PROOF_MAX_NUM_PVS,
 };
-use sp1_stark::{air::MachineAir, StarkGenericConfig, StarkMachine, StarkVerifyingKey};
 
 use crate::{
     challenger::CanObserveVariable,
@@ -492,8 +493,7 @@ impl<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVariable<C>> ShardProof
 #[allow(unused_imports)]
 #[cfg(any(test, feature = "export-tests"))]
 pub mod tests {
-    use std::collections::VecDeque;
-    use std::fmt::Debug;
+    use std::{collections::VecDeque, fmt::Debug};
 
     use crate::{
         challenger::{CanCopyChallenger, CanObserveVariable, DuplexChallengerVariable},
@@ -501,11 +501,11 @@ pub mod tests {
         BabyBearFriConfig,
     };
 
-    use sp1_core_executor::{programs::tests::FIBONACCI_ELF, Program};
+    use sp1_core_executor::{programs::tests::FIBONACCI_ELF, Program, SP1Context};
     use sp1_core_machine::{
         io::SP1Stdin,
         riscv::RiscvAir,
-        utils::{prove, setup_logger},
+        utils::{prove_core, prove_core_stream, setup_logger},
     };
     use sp1_recursion_compiler::{
         config::{InnerConfig, OuterConfig},
@@ -537,16 +537,23 @@ pub mod tests {
     ) -> (TracedVec<DslIr<C>>, Vec<Block<BabyBear>>) {
         setup_logger();
 
+        let program = Program::from(elf).unwrap();
         let machine = RiscvAir::<C::F>::machine(SC::default());
-        let (_, vk) = machine.setup(&Program::from(elf).unwrap());
-        let (proof, _, _) = prove::<_, CoreP>(
-            Program::from(elf).unwrap(),
+        let prover = CoreP::new(machine);
+        let (pk, vk) = prover.setup(&program);
+
+        let (proof, _, _) = prove_core::<_, CoreP>(
+            &prover,
+            &pk,
+            program,
             &SP1Stdin::new(),
-            SC::default(),
             opts,
+            SP1Context::default(),
             None,
         )
         .unwrap();
+
+        let machine = RiscvAir::<C::F>::machine(SC::default());
         let mut challenger = machine.config().challenger();
         machine.verify(&vk, &proof, &mut challenger).unwrap();
 

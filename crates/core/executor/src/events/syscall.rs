@@ -4,8 +4,8 @@ use super::LookupId;
 
 /// Syscall Event.
 ///
-/// This object encapsulated the information needed to prove a syscall invocation from the CPU table.
-/// This includes its shard, clk, syscall id, arguments, other relevant information.
+/// This object encapsulated the information needed to prove a syscall invocation from the CPU
+/// table. This includes its shard, clk, syscall id, arguments, other relevant information.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 #[repr(C)]
 pub struct SyscallEvent {

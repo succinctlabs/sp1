@@ -1,9 +1,11 @@
 use std::{
     fs::File,
-    io::{
-        Seek, {self},
+    io::{self, Seek, SeekFrom},
+    sync::{
+        mpsc::{channel, sync_channel, Sender},
+        Arc, Mutex,
     },
-    sync::{mpsc::sync_channel, Arc, Mutex},
+    thread::ScopedJoinHandle,
 };
 use web_time::Instant;
 
@@ -14,7 +16,6 @@ use size::Size;
 use sp1_stark::{
     baby_bear_poseidon2::BabyBearPoseidon2, MachineProvingKey, MachineVerificationError,
 };
-use std::thread::ScopedJoinHandle;
 use thiserror::Error;
 
 use p3_baby_bear::BabyBear;
@@ -24,102 +25,22 @@ use crate::{
     io::SP1Stdin,
     utils::{chunk_vec, concurrency::TurnBasedSync},
 };
-use sp1_core_executor::{events::sorted_table_lines, ExecutionState};
-use sp1_primitives::io::SP1PublicValues;
+
+use p3_challenger::FieldChallenger;
+use p3_matrix::{dense::RowMajorMatrix, Matrix};
+use p3_maybe_rayon::prelude::*;
 
 use sp1_core_executor::{
-    subproof::NoOpSubproofVerifier, ExecutionError, ExecutionRecord, ExecutionReport, Executor,
-    Program, SP1Context,
+    events::sorted_table_lines, subproof::NoOpSubproofVerifier, ExecutionError, ExecutionRecord,
+    ExecutionReport, ExecutionState, Executor, Program, SP1Context,
 };
 use sp1_stark::{
-    air::{MachineAir, PublicValues},
-    Com, CpuProver, DebugConstraintBuilder, InteractionBuilder, MachineProof, MachineProver,
-    MachineRecord, OpeningProof, PcsProverData, ProverConstraintFolder, SP1CoreOpts,
-    StarkGenericConfig, StarkMachine, StarkProvingKey, StarkVerifyingKey, UniConfig, Val,
-    VerifierConstraintFolder,
+    air::{InteractionScope, PublicValues},
+    Com, MachineProof, MachineProver, MachineRecord, OpeningProof, PcsProverData, ProofShape,
+    SP1CoreOpts, ShardProof, StarkGenericConfig, Val,
 };
 
-#[derive(Error, Debug)]
-pub enum SP1CoreProverError {
-    #[error("failed to execute program: {0}")]
-    ExecutionError(ExecutionError),
-    #[error("io error: {0}")]
-    IoError(io::Error),
-    #[error("serialization error: {0}")]
-    SerializationError(bincode::Error),
-}
-
-pub fn prove_simple<SC: StarkGenericConfig, P: MachineProver<SC, RiscvAir<SC::Val>>>(
-    config: SC,
-    mut runtime: Executor,
-) -> Result<(MachineProof<SC>, u64), SP1CoreProverError>
-where
-    SC::Challenger: Clone,
-    OpeningProof<SC>: Send + Sync,
-    Com<SC>: Send + Sync,
-    PcsProverData<SC>: Send + Sync,
-    // ShardMainData<SC>: Serialize + DeserializeOwned,
-    <SC as StarkGenericConfig>::Val: PrimeField32,
-{
-    // Setup the machine.
-    let machine = RiscvAir::machine(config);
-    let prover = P::new(machine);
-    let (pk, _) = prover.setup(runtime.program.as_ref());
-
-    // Set the shard numbers.
-    runtime.records.iter_mut().enumerate().for_each(|(i, shard)| {
-        shard.public_values.shard = (i + 1) as u32;
-    });
-
-    // Prove the program.
-    let mut challenger = prover.config().challenger();
-    let proving_start = Instant::now();
-    let proof =
-        prover.prove(&pk, runtime.records, &mut challenger, SP1CoreOpts::default()).unwrap();
-    let proving_duration = proving_start.elapsed().as_millis();
-    let nb_bytes = bincode::serialize(&proof).unwrap().len();
-
-    // Print the summary.
-    tracing::info!(
-        "summary: cycles={}, e2e={}, khz={:.2}, proofSize={}",
-        runtime.state.global_clk,
-        proving_duration,
-        (runtime.state.global_clk as f64 / proving_duration as f64),
-        Size::from_bytes(nb_bytes),
-    );
-
-    Ok((proof, runtime.state.global_clk))
-}
-
-pub fn prove<SC: StarkGenericConfig, P: MachineProver<SC, RiscvAir<SC::Val>>>(
-    program: Program,
-    stdin: &SP1Stdin,
-    config: SC,
-    opts: SP1CoreOpts,
-    shape_config: Option<&CoreShapeConfig<SC::Val>>,
-) -> Result<(MachineProof<SC>, Vec<u8>, u64), SP1CoreProverError>
-where
-    SC::Challenger: 'static + Clone + Send,
-    <SC as StarkGenericConfig>::Val: PrimeField32,
-    OpeningProof<SC>: Send,
-    Com<SC>: Send + Sync,
-    PcsProverData<SC>: Send + Sync,
-{
-    let machine = RiscvAir::machine(config);
-    let prover = P::new(machine);
-    let (pk, _) = prover.setup(&program);
-    prove_with_context::<SC, _>(
-        &prover,
-        &pk,
-        program,
-        stdin,
-        opts,
-        Default::default(),
-        shape_config,
-    )
-}
-
-pub fn prove_with_context<SC: StarkGenericConfig, P: MachineProver<SC, RiscvAir<SC::Val>>>(
+pub fn prove_core<SC: StarkGenericConfig, P: MachineProver<SC, RiscvAir<SC::Val>>>(
     prover: &P,
     pk: &P::DeviceProvingKey,
     program: Program,
@@ -128,6 +49,46 @@ pub fn prove_with_context<SC: StarkGenericConfig, P: MachineProver<SC, RiscvAir<
     context: SP1Context,
     shape_config: Option<&CoreShapeConfig<SC::Val>>,
 ) -> Result<(MachineProof<SC>, Vec<u8>, u64), SP1CoreProverError>
+where
+    SC::Val: PrimeField32,
+    SC::Challenger: 'static + Clone + Send,
+    OpeningProof<SC>: Send,
+    Com<SC>: Send + Sync,
+    PcsProverData<SC>: Send + Sync,
+{
+    let (proof_tx, proof_rx) = channel();
+    let (shape_tx, shape_rx) = channel();
+    let (public_values, cycles) = prove_core_stream(
+        prover,
+        pk,
+        program,
+        stdin,
+        opts,
+        context,
+        shape_config,
+        proof_tx,
+        shape_tx,
+    )?;
+
+    let _: Vec<_> = shape_rx.iter().collect();
+    let shard_proofs: Vec<ShardProof<SC>> = proof_rx.iter().collect();
+    let proof = MachineProof { shard_proofs };
+
+    Ok((proof, public_values, cycles))
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn prove_core_stream<SC: StarkGenericConfig, P: MachineProver<SC, RiscvAir<SC::Val>>>(
+    prover: &P,
+    pk: &P::DeviceProvingKey,
+    program: Program,
+    stdin: &SP1Stdin,
+    opts: SP1CoreOpts,
+    context: SP1Context,
+    shape_config: Option<&CoreShapeConfig<SC::Val>>,
+    proof_tx: Sender<ShardProof<SC>>,
+    shape_tx: Sender<ProofShape>,
+) -> Result<(Vec<u8>, u64), SP1CoreProverError>
 where
     SC::Val: PrimeField32,
     SC::Challenger: 'static + Clone + Send,
@@ -157,7 +118,7 @@ where
         // Spawn the checkpoint generator thread.
         let checkpoint_generator_span = tracing::Span::current().clone();
         let (checkpoints_tx, checkpoints_rx) =
-            sync_channel::<(usize, File, bool)>(opts.checkpoints_channel_capacity);
+            sync_channel::<(usize, File, bool, u64)>(opts.checkpoints_channel_capacity);
         let checkpoint_generator_handle: ScopedJoinHandle<Result<_, SP1CoreProverError>> =
             s.spawn(move || {
                 let _span = checkpoint_generator_span.enter();
@@ -181,7 +142,9 @@ where
                             .map_err(SP1CoreProverError::IoError)?;
 
                         // Send the checkpoint.
-                        checkpoints_tx.send((index, checkpoint_file, done)).unwrap();
+                        checkpoints_tx
+                            .send((index, checkpoint_file, done, runtime.state.global_clk))
+                            .unwrap();
 
                         // If we've reached the final checkpoint, break out of the loop.
                         if done {
@@ -207,6 +170,7 @@ where
             );
         let p2_records_and_traces_tx = Arc::new(Mutex::new(p2_records_and_traces_tx));
 
+        let shape_tx = Arc::new(Mutex::new(shape_tx));
         let report_aggregate = Arc::new(Mutex::new(ExecutionReport::default()));
         let state = Arc::new(Mutex::new(PublicValues::<u32, u32>::default().reset()));
         let deferred = Arc::new(Mutex::new(ExecutionRecord::new(program.clone().into())));
@@ -218,11 +182,11 @@ where
             let records_and_traces_tx = Arc::clone(&p2_records_and_traces_tx);
             let checkpoints_rx = Arc::clone(&checkpoints_rx);
 
+            let shape_tx = Arc::clone(&shape_tx);
             let report_aggregate = Arc::clone(&report_aggregate);
             let state = Arc::clone(&state);
             let deferred = Arc::clone(&deferred);
             let program = program.clone();
-
             let span = tracing::Span::current().clone();
 
             #[cfg(feature = "debug")]
@@ -232,10 +196,8 @@ where
                 let _span = span.enter();
                 tracing::debug_span!("phase 2 trace generation").in_scope(|| {
                     loop {
-                        // Receive the latest checkpoint.
                         let received = { checkpoints_rx.lock().unwrap().recv() };
-                        if let Ok((index, mut checkpoint, done)) = received {
-                            // Trace the checkpoint and reconstruct the execution records.
+                        if let Ok((index, mut checkpoint, done, num_cycles)) = received {
                             let (mut records, report) = tracing::debug_span!("trace checkpoint")
                                 .in_scope(|| {
                                     trace_checkpoint::<SC>(
@@ -245,9 +207,13 @@ where
                                         shape_config,
                                     )
                                 });
+
+                            // Trace the checkpoint and reconstruct the execution records.
                             log::info!("generated {} records", records.len());
                             *report_aggregate.lock().unwrap() += report;
-                            reset_seek(&mut checkpoint);
+                            checkpoint
+                                .seek(SeekFrom::Start(0))
+                                .expect("failed to seek to start of tempfile");
 
                             // Wait for our turn to update the state.
                             record_gen_sync.wait_for_turn(index);
@@ -267,14 +233,33 @@ where
                                 record.public_values = *state;
                             }
 
+                            tracing::info!("Records length:{}, done: {}", records.len(), done);
+
                             // Defer events that are too expensive to include in every shard.
                             let mut deferred = deferred.lock().unwrap();
                             for record in records.iter_mut() {
                                 deferred.append(&mut record.defer());
                             }
 
+                            // tracing::info!("Deferred length: {}", deferred.len());
+
+                            let last_record = if done
+                                && num_cycles < 1 << 26
+                                && deferred.global_memory_initialize_events.len()
+                                    < opts.split_opts.memory / 4
+                                && deferred.global_memory_finalize_events.len()
+                                    < opts.split_opts.memory / 4
+                            {
+                                tracing::info!("Number of cycles: {}", num_cycles);
+                                records.last_mut()
+                            } else {
+                                None
+                            };
+
+                            tracing::info!("Last record is some: {:?}", last_record.is_some());
+
                             // See if any deferred shards are ready to be committed to.
-                            let mut deferred = deferred.split(done, opts.split_opts);
+                            let mut deferred = deferred.split(done, last_record, opts.split_opts);
                             log::info!("deferred {} records", deferred.len());
 
                             // Update the public values & prover state for the shards which do not
@@ -325,6 +310,15 @@ where
 
                             trace_gen_sync.wait_for_turn(index);
 
+                            // Send the shapes to the channel, if necessary.
+                            for main_trace in main_traces.iter() {
+                                shape_tx
+                                    .lock()
+                                    .unwrap()
+                                    .send(ProofShape::from_traces(main_trace))
+                                    .unwrap();
+                            }
+
                             // Send the records to the phase 2 prover.
                             let chunked_records = chunk_vec(records, opts.shard_batch_size);
                             let chunked_main_traces = chunk_vec(main_traces, opts.shard_batch_size);
@@ -354,48 +348,52 @@ where
 
         // Spawn the phase 2 prover thread.
         let p2_prover_span = tracing::Span::current().clone();
+        let proof_tx = Arc::new(Mutex::new(proof_tx));
         let p2_prover_handle = s.spawn(move || {
             let _span = p2_prover_span.enter();
-            let mut shard_proofs = Vec::new();
             tracing::debug_span!("phase 2 prover").in_scope(|| {
                 for (records, traces) in p2_records_and_traces_rx.into_iter() {
                     tracing::debug_span!("batch").in_scope(|| {
                         let span = tracing::Span::current().clone();
-                        shard_proofs.par_extend(
-                            records.into_par_iter().zip(traces.into_par_iter()).map(
-                                |(record, main_traces)| {
-                                    let _span = span.enter();
+                        let proofs = records
+                            .into_par_iter()
+                            .zip(traces.into_par_iter())
+                            .map(|(record, main_traces)| {
+                                let _span = span.enter();
 
-                                    let main_data = prover.commit(&record, main_traces);
+                                let main_data = prover.commit(&record, main_traces);
 
-                                    let opening_span = tracing::debug_span!("opening").entered();
-                                    let proof = prover
-                                        .open(pk, main_data, &mut challenger.clone())
-                                        .unwrap();
-                                    opening_span.exit();
+                                let opening_span = tracing::debug_span!("opening").entered();
+                                let proof =
+                                    prover.open(pk, main_data, &mut challenger.clone()).unwrap();
+                                opening_span.exit();
 
-                                    #[cfg(debug_assertions)]
-                                    {
-                                        if let Some(shape) = record.shape.as_ref() {
-                                            assert_eq!(
-                                                proof.shape(),
-                                                shape.clone().into_iter().collect(),
-                                            );
-                                        }
+                                #[cfg(debug_assertions)]
+                                {
+                                    if let Some(shape) = record.shape.as_ref() {
+                                        assert_eq!(
+                                            proof.shape(),
+                                            shape.clone().into_iter().collect(),
+                                        );
                                     }
+                                }
 
-                                    rayon::spawn(move || {
-                                        drop(record);
-                                    });
+                                rayon::spawn(move || {
+                                    drop(record);
+                                });
 
-                                    proof
-                                },
-                            ),
-                        );
+                                proof
+                            })
+                            .collect::<Vec<_>>();
+
+                        // Send the batch of proofs to the channel.
+                        let proof_tx = proof_tx.lock().unwrap();
+                        for proof in proofs {
+                            proof_tx.send(proof).unwrap();
+                        }
                     });
                 }
             });
-            shard_proofs
         });
 
         // Wait until the checkpoint generator handle has fully finished.
@@ -405,7 +403,7 @@ where
         p2_record_and_trace_gen_handles.into_iter().for_each(|handle| handle.join().unwrap());
 
         // Wait until the phase 2 prover has finished.
-        let shard_proofs = p2_prover_handle.join().unwrap();
+        p2_prover_handle.join().unwrap();
 
         // Log some of the `ExecutionReport` information.
         let report_aggregate = report_aggregate.lock().unwrap();
@@ -427,17 +425,15 @@ where
             tracing::info!("  {line}");
         }
 
-        let proof = MachineProof::<SC> { shard_proofs };
         let cycles = report_aggregate.total_instruction_count();
 
         // Print the summary.
         let proving_time = proving_start.elapsed().as_secs_f64();
         tracing::info!(
-            "summary: cycles={}, e2e={}s, khz={:.2}, proofSize={}",
+            "summary: cycles={}, e2e={}s, khz={:.2}",
             cycles,
             proving_time,
             (cycles as f64 / (proving_time * 1000.0) as f64),
-            bincode::serialize(&proof).unwrap().len(),
         );
 
         #[cfg(feature = "debug")]
@@ -448,143 +444,11 @@ where
             prover.machine().debug_constraints(&pk_host, all_records, &mut challenger);
         }
 
-        Ok((proof, public_values_stream, cycles))
+        Ok((public_values_stream, cycles))
     })
 }
 
-/// Runs a program and returns the public values stream.
-pub fn run_test_io<P: MachineProver<BabyBearPoseidon2, RiscvAir<BabyBear>>>(
-    mut program: Program,
-    inputs: SP1Stdin,
-) -> Result<SP1PublicValues, MachineVerificationError<BabyBearPoseidon2>> {
-    let shape_config = CoreShapeConfig::<BabyBear>::default();
-    shape_config.fix_preprocessed_shape(&mut program).unwrap();
-    let runtime = tracing::debug_span!("runtime.run(...)").in_scope(|| {
-        let mut runtime = Executor::new(program, SP1CoreOpts::default());
-        runtime.maximal_shapes =
-            Some(shape_config.maximal_core_shapes().into_iter().map(|s| s.inner).collect());
-        runtime.write_vecs(&inputs.buffer);
-        runtime.run().unwrap();
-        runtime
-    });
-    let public_values = SP1PublicValues::from(&runtime.state.public_values_stream);
-
-    let _ = run_test_core::<P>(runtime, inputs, Some(&shape_config))?;
-    Ok(public_values)
-}
-
-pub fn run_test<P: MachineProver<BabyBearPoseidon2, RiscvAir<BabyBear>>>(
-    mut program: Program,
-) -> Result<MachineProof<BabyBearPoseidon2>, MachineVerificationError<BabyBearPoseidon2>> {
-    let shape_config = CoreShapeConfig::default();
-    shape_config.fix_preprocessed_shape(&mut program).unwrap();
-    let runtime = tracing::debug_span!("runtime.run(...)").in_scope(|| {
-        let mut runtime = Executor::new(program, SP1CoreOpts::default());
-        runtime.maximal_shapes =
-            Some(shape_config.maximal_core_shapes().into_iter().map(|s| s.inner).collect());
-        runtime.run().unwrap();
-        runtime
-    });
-    run_test_core::<P>(runtime, SP1Stdin::new(), Some(&shape_config))
-}
-
-#[allow(unused_variables)]
-pub fn run_test_core<P: MachineProver<BabyBearPoseidon2, RiscvAir<BabyBear>>>(
-    runtime: Executor,
-    inputs: SP1Stdin,
-    shape_config: Option<&CoreShapeConfig<BabyBear>>,
-) -> Result<MachineProof<BabyBearPoseidon2>, MachineVerificationError<BabyBearPoseidon2>> {
-    let config = BabyBearPoseidon2::new();
-    let machine = RiscvAir::machine(config);
-    let prover = P::new(machine);
-
-    let (pk, _) = prover.setup(runtime.program.as_ref());
-    let (proof, output, _) = prove_with_context(
-        &prover,
-        &pk,
-        Program::clone(&runtime.program),
-        &inputs,
-        SP1CoreOpts::default(),
-        SP1Context::default(),
-        shape_config,
-    )
-    .unwrap();
-
-    let config = BabyBearPoseidon2::new();
-    let machine = RiscvAir::machine(config);
-    let (pk, vk) = machine.setup(runtime.program.as_ref());
-    let mut challenger = machine.config().challenger();
-    machine.verify(&vk, &proof, &mut challenger).unwrap();
-
-    Ok(proof)
-}
-
-#[allow(unused_variables)]
-pub fn run_test_machine_with_prover<SC, A, P: MachineProver<SC, A>>(
-    prover: &P,
-    records: Vec<A::Record>,
-    pk: P::DeviceProvingKey,
-    vk: StarkVerifyingKey<SC>,
-) -> Result<MachineProof<SC>, MachineVerificationError<SC>>
-where
-    A: MachineAir<SC::Val>
-        + Air<InteractionBuilder<Val<SC>>>
-        + for<'a> Air<VerifierConstraintFolder<'a, SC>>
-        + for<'a> Air<DebugConstraintBuilder<'a, Val<SC>, SC::Challenge>>,
-    A::Record: MachineRecord<Config = SP1CoreOpts>,
-    SC: StarkGenericConfig,
-    SC::Val: p3_field::PrimeField32,
-    SC::Challenger: Clone,
-    Com<SC>: Send + Sync,
-    PcsProverData<SC>: Send + Sync + Serialize + DeserializeOwned,
-    OpeningProof<SC>: Send + Sync,
-{
-    let mut challenger = prover.config().challenger();
-    let prove_span = tracing::debug_span!("prove").entered();
-
-    #[cfg(feature = "debug")]
-    prover.machine().debug_constraints(
-        &prover.pk_to_host(&pk),
-        records.clone(),
-        &mut challenger.clone(),
-    );
-
-    let proof = prover.prove(&pk, records, &mut challenger, SP1CoreOpts::default()).unwrap();
-    prove_span.exit();
-    let nb_bytes = bincode::serialize(&proof).unwrap().len();
-
-    let mut challenger = prover.config().challenger();
-    prover.machine().verify(&vk, &proof, &mut challenger)?;
-
-    Ok(proof)
-}
-
-#[allow(unused_variables)]
-pub fn run_test_machine<SC, A>(
-    records: Vec<A::Record>,
-    machine: StarkMachine<SC, A>,
-    pk: StarkProvingKey<SC>,
-    vk: StarkVerifyingKey<SC>,
-) -> Result<MachineProof<SC>, MachineVerificationError<SC>>
-where
-    A: MachineAir<SC::Val>
-        + for<'a> Air<ProverConstraintFolder<'a, SC>>
-        + Air<InteractionBuilder<Val<SC>>>
-        + for<'a> Air<VerifierConstraintFolder<'a, SC>>
-        + for<'a> Air<DebugConstraintBuilder<'a, Val<SC>, SC::Challenge>>,
-    A::Record: MachineRecord<Config = SP1CoreOpts>,
-    SC: StarkGenericConfig,
-    SC::Val: p3_field::PrimeField32,
-    SC::Challenger: Clone,
-    Com<SC>: Send + Sync,
-    PcsProverData<SC>: Send + Sync + Serialize + DeserializeOwned,
-    OpeningProof<SC>: Send + Sync,
-{
-    let prover = CpuProver::new(machine);
-    run_test_machine_with_prover::<SC, A, CpuProver<_, _>>(&prover, records, pk, vk)
-}
-
-fn trace_checkpoint<SC: StarkGenericConfig>(
+pub fn trace_checkpoint<SC: StarkGenericConfig>(
     program: Program,
     file: &File,
     opts: SP1CoreOpts,
@@ -610,74 +474,12 @@ where
     (records, runtime.report)
 }
 
-fn reset_seek(file: &mut File) {
-    file.seek(std::io::SeekFrom::Start(0)).expect("failed to seek to start of tempfile");
+#[derive(Error, Debug)]
+pub enum SP1CoreProverError {
+    #[error("failed to execute program: {0}")]
+    ExecutionError(ExecutionError),
+    #[error("io error: {0}")]
+    IoError(io::Error),
+    #[error("serialization error: {0}")]
+    SerializationError(bincode::Error),
 }
-
-#[cfg(debug_assertions)]
-#[cfg(not(doctest))]
-pub fn uni_stark_prove<SC, A>(
-    config: &SC,
-    air: &A,
-    challenger: &mut SC::Challenger,
-    trace: RowMajorMatrix<SC::Val>,
-) -> Proof<UniConfig<SC>>
-where
-    SC: StarkGenericConfig,
-    A: Air<p3_uni_stark::SymbolicAirBuilder<SC::Val>>
-        + for<'a> Air<p3_uni_stark::ProverConstraintFolder<'a, UniConfig<SC>>>
-        + for<'a> Air<p3_uni_stark::DebugConstraintBuilder<'a, SC::Val>>,
-{
-    p3_uni_stark::prove(&UniConfig(config.clone()), air, challenger, trace, &vec![])
-}
-
-#[cfg(not(debug_assertions))]
-pub fn uni_stark_prove<SC, A>(
-    config: &SC,
-    air: &A,
-    challenger: &mut SC::Challenger,
-    trace: RowMajorMatrix<SC::Val>,
-) -> Proof<UniConfig<SC>>
-where
-    SC: StarkGenericConfig,
-    A: Air<p3_uni_stark::SymbolicAirBuilder<SC::Val>>
-        + for<'a> Air<p3_uni_stark::ProverConstraintFolder<'a, UniConfig<SC>>>,
-{
-    p3_uni_stark::prove(&UniConfig(config.clone()), air, challenger, trace, &vec![])
-}
-
-#[cfg(debug_assertions)]
-#[cfg(not(doctest))]
-pub fn uni_stark_verify<SC, A>(
-    config: &SC,
-    air: &A,
-    challenger: &mut SC::Challenger,
-    proof: &Proof<UniConfig<SC>>,
-) -> Result<(), p3_uni_stark::VerificationError>
-where
-    SC: StarkGenericConfig,
-    A: Air<p3_uni_stark::SymbolicAirBuilder<SC::Val>>
-        + for<'a> Air<p3_uni_stark::VerifierConstraintFolder<'a, UniConfig<SC>>>
-        + for<'a> Air<p3_uni_stark::DebugConstraintBuilder<'a, SC::Val>>,
-{
-    p3_uni_stark::verify(&UniConfig(config.clone()), air, challenger, proof, &vec![])
-}
-
-#[cfg(not(debug_assertions))]
-pub fn uni_stark_verify<SC, A>(
-    config: &SC,
-    air: &A,
-    challenger: &mut SC::Challenger,
-    proof: &Proof<UniConfig<SC>>,
-) -> Result<(), p3_uni_stark::VerificationError>
-where
-    SC: StarkGenericConfig,
-    A: Air<p3_uni_stark::SymbolicAirBuilder<SC::Val>>
-        + for<'a> Air<p3_uni_stark::VerifierConstraintFolder<'a, UniConfig<SC>>>,
-{
-    p3_uni_stark::verify(&UniConfig(config.clone()), air, challenger, proof, &vec![])
-}
-
-use p3_air::Air;
-use p3_matrix::dense::RowMajorMatrix;
-use p3_uni_stark::Proof;

@@ -121,7 +121,8 @@ pub enum DslIr<C: Config> {
     /// Inverts an extension field element (ext = 1 / ext).
     InvE(Ext<C::F, C::EF>, Ext<C::F, C::EF>),
 
-    /// Selects order of felts based on a bit (should_swap, first result, second result, first input, second input)
+    /// Selects order of felts based on a bit (should_swap, first result, second result, first
+    /// input, second input)
     Select(Felt<C::F>, Felt<C::F>, Felt<C::F>, Felt<C::F>, Felt<C::F>),
 
     // Control flow.
@@ -291,7 +292,8 @@ pub enum DslIr<C: Config> {
     /// more details.
     CircuitV2FriFold(Box<(CircuitV2FriFoldOutput<C>, CircuitV2FriFoldInput<C>)>),
     // FRI specific instructions.
-    /// Executes a Batch FRI loop. Input is the power of alphas, evaluations at z, and evaluations at x.
+    /// Executes a Batch FRI loop. Input is the power of alphas, evaluations at z, and evaluations
+    /// at x.
     CircuitV2BatchFRI(
         Box<(Ext<C::F, C::EF>, Vec<Ext<C::F, C::EF>>, Vec<Ext<C::F, C::EF>>, Vec<Felt<C::F>>)>,
     ),
