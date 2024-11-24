@@ -323,11 +323,13 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
     ) -> Result<SP1CoreProof, SP1CoreProverError> {
         context.subproof_verifier.replace(Arc::new(self));
         let program = self.get_program(&pk.elf).unwrap();
+        let vk = &pk.vk.vk;
         let pk = self.core_prover.pk_to_device(&pk.pk);
         let (proof, public_values_stream, cycles) =
             sp1_core_machine::utils::prove_with_context::<_, C::CoreProver>(
                 &self.core_prover,
                 &pk,
+                vk,
                 program,
                 stdin,
                 opts.core_opts,

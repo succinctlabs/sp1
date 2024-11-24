@@ -107,10 +107,11 @@ where
 {
     let machine = RiscvAir::machine(config);
     let prover = P::new(machine);
-    let (pk, _) = prover.setup(&program);
+    let (pk, vk) = prover.setup(&program);
     prove_with_context::<SC, _>(
         &prover,
         &pk,
+        &vk,
         program,
         stdin,
         opts,
@@ -122,6 +123,7 @@ where
 pub fn prove_with_context<SC: StarkGenericConfig, P: MachineProver<SC, RiscvAir<SC::Val>>>(
     prover: &P,
     pk: &P::DeviceProvingKey,
+    vk: &StarkVerifyingKey<SC>,
     program: Program,
     stdin: &SP1Stdin,
     opts: SP1CoreOpts,
@@ -384,6 +386,21 @@ where
                                         }
                                     }
 
+                                    // Verify the proof.
+                                    tracing::debug!(
+                                        "verifying proof {}",
+                                        record.public_values.shard
+                                    );
+                                    let mut challenger = prover.config().challenger();
+                                    prover
+                                        .machine()
+                                        .verify(
+                                            &vk,
+                                            &MachineProof { shard_proofs: vec![proof.clone()] },
+                                            &mut challenger,
+                                        )
+                                        .unwrap();
+
                                     rayon::spawn(move || {
                                         drop(record);
                                     });
@@ -498,10 +515,11 @@ pub fn run_test_core<P: MachineProver<BabyBearPoseidon2, RiscvAir<BabyBear>>>(
     let machine = RiscvAir::machine(config);
     let prover = P::new(machine);
 
-    let (pk, _) = prover.setup(runtime.program.as_ref());
+    let (pk, vk) = prover.setup(runtime.program.as_ref());
     let (proof, output, _) = prove_with_context(
         &prover,
         &pk,
+        &vk,
         Program::clone(&runtime.program),
         &inputs,
         SP1CoreOpts::default(),
