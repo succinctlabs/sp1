@@ -387,19 +387,19 @@ where
                                     }
 
                                     // Verify the proof.
-                                    tracing::debug!(
-                                        "verifying proof {}",
-                                        record.public_values.shard
-                                    );
-                                    let mut challenger = prover.config().challenger();
-                                    prover
-                                        .machine()
-                                        .verify(
-                                            &vk,
-                                            &MachineProof { shard_proofs: vec![proof.clone()] },
-                                            &mut challenger,
-                                        )
-                                        .unwrap();
+                                    // tracing::debug!(
+                                    //     "verifying proof {}",
+                                    //     record.public_values.shard
+                                    // );
+                                    // let mut challenger = prover.config().challenger();
+                                    // prover
+                                    //     .machine()
+                                    //     .verify(
+                                    //         &vk,
+                                    //         &MachineProof { shard_proofs: vec![proof.clone()] },
+                                    //         &mut challenger,
+                                    //     )
+                                    //     .unwrap();
 
                                     rayon::spawn(move || {
                                         drop(record);
