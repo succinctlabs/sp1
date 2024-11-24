@@ -1389,6 +1389,7 @@ impl<'a> Executor<'a> {
         let done = tracing::debug_span!("execute").in_scope(|| self.execute())?;
         // Create a checkpoint using `memory_checkpoint`. Just include all memory if `done` since we
         // need it all for MemoryFinalize.
+        let next_pc = self.state.pc;
         tracing::debug_span!("create memory checkpoint").in_scope(|| {
             let memory_checkpoint = std::mem::take(&mut self.memory_checkpoint);
             let uninitialized_memory_checkpoint =
@@ -1424,7 +1425,9 @@ impl<'a> Executor<'a> {
                     .collect();
             }
         });
-        let public_values = self.records.last().as_ref().unwrap().public_values;
+        let mut public_values = self.records.last().as_ref().unwrap().public_values;
+        public_values.start_pc = next_pc;
+        public_values.next_pc = next_pc;
         println!("public values: {public_values:?}");
         if !done {
             self.records.clear();
