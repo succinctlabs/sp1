@@ -99,6 +99,9 @@ runs:
         else
           echo "pkg-config and libssl-dev are already installed."
         fi
-      
+
+    - name: Set up Docker
+      uses: docker/setup-docker@v3
+
     - name: Set up Docker
       uses: docker/setup-buildx-action@v3
