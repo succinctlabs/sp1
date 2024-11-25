@@ -196,7 +196,7 @@ impl Profiler {
         Ok(())
     }
 
-    /// Simple check to makes sure we have valid main function that lasts 
+    /// Simple check to makes sure we have valid main function that lasts
     /// for most of the exeuction time.
     fn check_samples(&self) {
         let Some(main_idx) = self.main_idx else {
