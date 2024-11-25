@@ -316,7 +316,7 @@ where
         input1: SepticCurve<Felt<C::F>>,
         input2: SepticCurve<Felt<C::F>>,
     ) -> Instruction<C::F> {
-        Instruction::HintAddCurve(HintAddCurveInstr {
+        Instruction::HintAddCurve(Box::new(HintAddCurveInstr {
             output_x_addrs_mults: output
                 .x
                 .0
@@ -333,7 +333,7 @@ where
             input1_y_addrs: input1.y.0.into_iter().map(|value| value.read_ghost(self)).collect(),
             input2_x_addrs: input2.x.0.into_iter().map(|value| value.read_ghost(self)).collect(),
             input2_y_addrs: input2.y.0.into_iter().map(|value| value.read_ghost(self)).collect(),
-        })
+        }))
     }
 
     fn fri_fold(
@@ -687,11 +687,10 @@ where
                             .iter_mut()
                             .for_each(|(addr, mult)| backfill((mult, addr)));
                     }
-                    Instruction::HintAddCurve(HintAddCurveInstr {
-                        output_x_addrs_mults,
-                        output_y_addrs_mults,
-                        ..
-                    }) => {
+                    Instruction::HintAddCurve(instr) => {
+                        let HintAddCurveInstr {
+                            output_x_addrs_mults, output_y_addrs_mults, ..
+                        } = instr.as_mut();
                         output_x_addrs_mults
                             .iter_mut()
                             .for_each(|(addr, mult)| backfill((mult, addr)));

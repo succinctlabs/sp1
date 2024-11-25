@@ -14,7 +14,7 @@ pub enum Instruction<F> {
     Select(SelectInstr<F>),
     ExpReverseBitsLen(ExpReverseBitsInstr<F>),
     HintBits(HintBitsInstr<F>),
-    HintAddCurve(HintAddCurveInstr<F>),
+    HintAddCurve(Box<HintAddCurveInstr<F>>),
     FriFold(Box<FriFoldInstr<F>>),
     BatchFRI(Box<BatchFRIInstr<F>>),
     Print(PrintInstr<F>),
