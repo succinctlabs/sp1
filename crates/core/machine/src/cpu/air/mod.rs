@@ -40,6 +40,7 @@ where
         builder.send_program(local.pc, local.instruction, local.selectors, local.is_real);
 
         // Compute some flags for which type of instruction we are dealing with.
+        let is_memory_instruction: AB::Expr = self.is_memory_instruction::<AB>(&local.selectors);
         let is_branch_instruction: AB::Expr = self.is_branch_instruction::<AB>(&local.selectors);
         let is_alu_instruction: AB::Expr = self.is_alu_instruction::<AB>(&local.selectors);
 
@@ -56,7 +57,7 @@ where
             local.op_c_val(),
             local.nonce,
             local.is_mem_store,
-            is_alu_instruction,
+            is_alu_instruction + is_memory_instruction,
         );
 
         // Branch instructions.
@@ -118,6 +119,20 @@ impl CpuChip {
         opcode_selectors: &OpcodeSelectorCols<AB::Var>,
     ) -> AB::Expr {
         opcode_selectors.is_alu.into()
+    }
+
+    pub(crate) fn is_memory_instruction<AB: SP1AirBuilder>(
+        &self,
+        opcode_selectors: &OpcodeSelectorCols<AB::Var>,
+    ) -> AB::Expr {
+        opcode_selectors.is_lb
+            + opcode_selectors.is_lbu
+            + opcode_selectors.is_lh
+            + opcode_selectors.is_lhu
+            + opcode_selectors.is_lw
+            + opcode_selectors.is_sb
+            + opcode_selectors.is_sh
+            + opcode_selectors.is_sw
     }
 
     /// Constraints related to jump operations.

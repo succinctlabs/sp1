@@ -1,5 +1,7 @@
 use std::{array, borrow::BorrowMut};
 
+use hashbrown::HashMap;
+use itertools::Itertools;
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
 use rayon::iter::{ParallelBridge, ParallelIterator};
@@ -65,6 +67,27 @@ impl<F: PrimeField32> MachineAir<F> for MemoryInstructionsChip {
         RowMajorMatrix::new(values, NUM_MEMORY_INSTRUCTIONS_COLUMNS)
     }
 
+    fn generate_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
+        let chunk_size = std::cmp::max((input.memory_instr_events.len()) / num_cpus::get(), 1);
+
+        let blu_batches = input
+            .memory_instr_events
+            .chunks(chunk_size)
+            .par_bridge()
+            .map(|events| {
+                let mut blu: HashMap<ByteLookupEvent, usize> = HashMap::new();
+                events.iter().for_each(|event| {
+                    let mut row = [F::zero(); NUM_MEMORY_INSTRUCTIONS_COLUMNS];
+                    let cols: &mut MemoryInstructionsColumns<F> = row.as_mut_slice().borrow_mut();
+                    self.event_to_row(event, cols, &input.nonce_lookup, &mut blu);
+                });
+                blu
+            })
+            .collect::<Vec<_>>();
+
+        output.add_byte_lookup_events_from_maps(blu_batches.iter().collect_vec());
+    }
+
     fn included(&self, shard: &Self::Record) -> bool {
         if let Some(shape) = shard.shape.as_ref() {
             shape.included::<F, _>(self)
@@ -80,8 +103,10 @@ impl MemoryInstructionsChip {
         event: &InstrEvent,
         cols: &mut MemoryInstructionsColumns<F>,
         nonce_lookup: &[u32],
-        byte_lookup_events: &mut Vec<ByteLookupEvent>,
+        byte_lookup_events: &mut impl ByteRecord,
     ) {
+        cols.is_real = F::one();
+
         // Populate memory accesses for reading from memory.
         cols.memory_access
             .populate(event.mem_access.expect("Memory access is required"), byte_lookup_events);

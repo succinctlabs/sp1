@@ -415,11 +415,13 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
                     .par_iter()
                     .zip(traces.par_iter_mut())
                     .map(|(chip, (main_trace, pre_trace))| {
+                        println!("generate_perm_trace for chip: {:?}", chip.name());
                         let (trace, global_sum, local_sum) = chip.generate_permutation_trace(
                             *pre_trace,
                             main_trace,
                             &permutation_challenges,
                         );
+                        println!("generate_perm_trace for chip success: {:?}", chip.name());
                         (trace, [global_sum, local_sum])
                     })
                     .unzip_into_vecs(&mut permutation_traces, &mut cumulative_sums);

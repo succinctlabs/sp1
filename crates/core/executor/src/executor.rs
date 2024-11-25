@@ -630,7 +630,6 @@ impl<'a> Executor<'a> {
             b_record: record.b,
             c,
             c_record: record.c,
-            memory_record: record.memory,
             exit_code,
             alu_lookup_id: lookup_id,
             syscall_lookup_id,
@@ -705,6 +704,9 @@ impl<'a> Executor<'a> {
             | Opcode::SH
             | Opcode::SW => {
                 self.record.memory_instr_events.push(event);
+                if self.memory_accesses.memory.is_none() {
+                    println!("event is {event:?}");
+                }
                 emit_memory_dependencies(
                     self,
                     event,
@@ -1143,7 +1145,16 @@ impl<'a> Executor<'a> {
             _ => unreachable!(),
         };
         self.rw(rd, a);
-        self.emit_instruction(instruction.opcode, a, b, c, rd == Register::X0, LookupId::default());
+        if self.executor_mode == ExecutorMode::Trace {
+            self.emit_instruction(
+                instruction.opcode,
+                a,
+                b,
+                c,
+                rd == Register::X0,
+                LookupId::default(),
+            );
+        }
         Ok((a, b, c))
     }
 
@@ -1173,7 +1184,9 @@ impl<'a> Executor<'a> {
             _ => unreachable!(),
         };
         self.mw_cpu(align(addr), memory_store_value, MemoryAccessPosition::Memory);
-        self.emit_instruction(instruction.opcode, a, b, c, false, LookupId::default());
+        if self.executor_mode == ExecutorMode::Trace {
+            self.emit_instruction(instruction.opcode, a, b, c, false, LookupId::default());
+        }
 
         Ok((a, b, c))
     }

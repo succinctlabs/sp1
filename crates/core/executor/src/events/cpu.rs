@@ -26,8 +26,6 @@ pub struct CpuEvent {
     pub c: u32,
     /// The third operand memory record.
     pub c_record: Option<MemoryRecordEnum>,
-    /// The memory record.
-    pub memory_record: Option<MemoryRecordEnum>,
     /// The exit code.
     pub exit_code: u32,
     /// The ALU lookup id.
