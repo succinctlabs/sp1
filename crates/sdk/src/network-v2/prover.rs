@@ -35,7 +35,7 @@ impl NetworkProver {
     /// Creates a new [NetworkProver] with the given private key.
     pub fn new(private_key: &str, rpc_url: Option<String>, skip_simulation: bool) -> Self {
         let version = SP1_CIRCUIT_VERSION;
-        log::info!("Client circuit version: {}", version);
+        tracing::info!("Client circuit version: {}", version);
         let local_prover = CpuProver::new();
         let client = NetworkClient::new(private_key, rpc_url);
         Self { client, local_prover, skip_simulation }
@@ -59,10 +59,10 @@ impl NetworkProver {
             let (_, report) =
                 self.local_prover.sp1_prover().execute(elf, &stdin, Default::default())?;
             let cycles = report.total_instruction_count();
-            log::info!("Simulation complete, cycles: {}", cycles);
+            tracing::info!("Simulation complete, cycles: {}", cycles);
             cycles
         } else {
-            log::info!("Skipping simulation");
+            tracing::info!("Skipping simulation");
             DEFAULT_CYCLE_LIMIT
         };
 
@@ -72,7 +72,7 @@ impl NetworkProver {
         // Get the timeout.
         let timeout_secs = timeout.map(|dur| dur.as_secs()).unwrap_or(TIMEOUT_SECS);
 
-        log::info!("Requesting proof with cycle limit: {}", cycle_limit);
+        tracing::info!("Requesting proof with cycle limit: {}", cycle_limit);
 
         // Request the proof.
         let response = self
@@ -89,11 +89,11 @@ impl NetworkProver {
             )
             .await?;
 
-        // Log the request ID and transaction hash.
+        // tracing the request ID and transaction hash.
         let tx_hash_hex = "0x".to_string() + &hex::encode(response.tx_hash);
         let request_id = response.body.unwrap().request_id;
         let request_id_hex = "0x".to_string() + &hex::encode(request_id.clone());
-        log::info!("Created request {} in transaction {}", request_id_hex, tx_hash_hex);
+        tracing::info!("Created request {} in transaction {}", request_id_hex, tx_hash_hex);
 
         Ok(request_id)
     }
@@ -131,25 +131,25 @@ impl NetworkProver {
                         if let Some(status) = e.downcast_ref::<tonic::Status>() {
                             match status.code() {
                                 Code::NotFound => {
-                                    log::error!("Proof request not found: {}", status.message());
+                                    tracing::error!("Proof request not found: {}", status.message());
                                     Err(backoff::Error::permanent(e))
                                 }
                                 Code::Unavailable => {
-                                    log::warn!(
+                                    tracing::warn!(
                                         "Network temporarily unavailable, retrying: {}",
                                         status.message()
                                     );
                                     Err(backoff::Error::transient(e))
                                 }
                                 Code::DeadlineExceeded => {
-                                    log::warn!(
+                                    tracing::warn!(
                                         "Request deadline exceeded, retrying: {}",
                                         status.message()
                                     );
                                     Err(backoff::Error::transient(e))
                                 }
                                 _ => {
-                                    log::error!(
+                                    tracing::error!(
                                         "Permanent error encountered: {} ({})",
                                         status.message(),
                                         status.code()
@@ -158,7 +158,7 @@ impl NetworkProver {
                                 }
                             }
                         } else {
-                            log::error!("Unexpected error type: {}", e);
+                            tracing::error!("Unexpected error type: {}", e);
                             Err(backoff::Error::permanent(e))
                         }
                     }
@@ -173,7 +173,7 @@ impl NetworkProver {
                     }
                     ProofStatus::Assigned => {
                         if !is_assigned {
-                            log::info!("Proof request assigned, proving...");
+                            tracing::info!("Proof request assigned, proving...");
                             is_assigned = true;
                         }
                     }

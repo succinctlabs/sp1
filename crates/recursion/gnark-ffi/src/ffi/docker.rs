@@ -39,7 +39,7 @@ fn get_docker_image() -> String {
 
 /// Calls `docker run` with the given arguments and bind mounts.
 fn call_docker(args: &[&str], mounts: &[(&str, &str)]) -> Result<()> {
-    log::info!("Running {} in docker", args[0]);
+    tracing::info!("Running {} in docker", args[0]);
     let mut cmd = Command::new("docker");
     cmd.args(["run", "--rm"]);
     for (src, dest) in mounts {
@@ -49,8 +49,8 @@ fn call_docker(args: &[&str], mounts: &[(&str, &str)]) -> Result<()> {
     cmd.args(args);
     let result = cmd.status()?;
     if !result.success() {
-        log::error!("Failed to run `docker run`: {:?}", cmd);
-        log::error!("Execution result: {:?}", result);
+        tracing::error!("Failed to run `docker run`: {:?}", cmd);
+        tracing::error!("Execution result: {:?}", result);
         return Err(anyhow!("docker command failed"));
     }
     Ok(())

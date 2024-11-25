@@ -33,7 +33,7 @@ impl NetworkProver {
     /// Creates a new [NetworkProver] with the given private key.
     pub fn new(private_key: &str, rpc_url: Option<String>, skip_simulation: bool) -> Self {
         let version = SP1_CIRCUIT_VERSION;
-        log::info!("Client circuit version: {}", version);
+        tracing::info!("Client circuit version: {}", version);
 
         let local_prover = CpuProver::new();
         Self { client: NetworkClient::new(private_key, rpc_url), local_prover, skip_simulation }
@@ -56,16 +56,16 @@ impl NetworkProver {
         if !self.skip_simulation {
             let (_, report) =
                 self.local_prover.sp1_prover().execute(elf, &stdin, Default::default())?;
-            log::info!("Simulation complete, cycles: {}", report.total_instruction_count());
+            tracing::info!("Simulation complete, cycles: {}", report.total_instruction_count());
         } else {
-            log::info!("Skipping simulation");
+            tracing::info!("Skipping simulation");
         }
 
         let proof_id = client.create_proof(elf, &stdin, mode, SP1_CIRCUIT_VERSION).await?;
-        log::info!("Created {}", proof_id);
+        tracing::info!("Created {}", proof_id);
 
         if self.client.is_using_prover_network {
-            log::info!("View in explorer: https://explorer.succinct.xyz/{}", proof_id);
+            tracing::info!("View in explorer: https://explorer.succinct.xyz/{}", proof_id);
         }
         Ok(proof_id)
     }
@@ -92,7 +92,7 @@ impl NetworkProver {
 
             if let Err(e) = result {
                 consecutive_errors += 1;
-                log::warn!(
+                tracing::warn!(
                     "Failed to get proof status ({}/{}): {:?}",
                     consecutive_errors,
                     MAX_CONSECUTIVE_ERRORS,
@@ -116,7 +116,7 @@ impl NetworkProver {
                 }
                 ProofStatus::ProofClaimed => {
                     if !is_claimed {
-                        log::info!("Proof request claimed, proving...");
+                        tracing::info!("Proof request claimed, proving...");
                         is_claimed = true;
                     }
                 }

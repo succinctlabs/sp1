@@ -481,7 +481,7 @@ where
                                         shape_config,
                                     )
                                 });
-                            log::debug!("generated {} records", records.len());
+                            tracing::debug!("generated {} records", records.len());
                             *report_aggregate.lock().unwrap() += report;
                             reset_seek(&mut checkpoint);
 
@@ -511,7 +511,7 @@ where
 
                             // See if any deferred shards are ready to be committed to.
                             let mut deferred = deferred.split(done, opts.split_opts);
-                            log::debug!("deferred {} records", deferred.len());
+                            tracing::debug!("deferred {} records", deferred.len());
 
                             // Update the public values & prover state for the shards which do not
                             // contain "cpu events" before committing to them.

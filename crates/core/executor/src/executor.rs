@@ -1299,7 +1299,7 @@ impl<'a> Executor<'a> {
                     }
 
                     if !shape_match_found {
-                        log::warn!(
+                        tracing::warn!(
                             "stopping shard early due to no shapes fitting: \
                             nb_cycles={}, \
                             addsub_count={}, \
@@ -1341,7 +1341,7 @@ impl<'a> Executor<'a> {
             || self.state.pc.wrapping_sub(self.program.pc_base)
                 >= (self.program.instructions.len() * 4) as u32;
         if done && self.unconstrained {
-            log::error!("program ended in unconstrained mode at clk {}", self.state.global_clk);
+            tracing::error!("program ended in unconstrained mode at clk {}", self.state.global_clk);
             return Err(ExecutionError::EndInUnconstrained());
         }
         Ok(done)
@@ -1658,7 +1658,7 @@ impl<'a> Executor<'a> {
         }
 
         if !self.unconstrained && self.state.global_clk % 10_000_000 == 0 {
-            log::info!("clk = {} pc = 0x{:x?}", self.state.global_clk, self.state.pc);
+            tracing::info!("clk = {} pc = 0x{:x?}", self.state.global_clk, self.state.pc);
         }
     }
 }

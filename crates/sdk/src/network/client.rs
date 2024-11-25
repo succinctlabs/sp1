@@ -105,7 +105,7 @@ impl NetworkClient {
 
         let proof = match res.status() {
             ProofStatus::ProofFulfilled => {
-                log::info!("Proof request fulfilled");
+                tracing::info!("Proof request fulfilled");
                 let proof_bytes = self
                     .http
                     .get(res.proof_url.as_ref().expect("no proof url"))
