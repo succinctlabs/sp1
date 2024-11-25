@@ -104,7 +104,7 @@ extern void select_instr_to_row_babybear(
 }
 
 extern void poseidon2_skinny_event_to_row_babybear(
-    const Poseidon2Event<BabyBearP3>* event, Poseidon2<BabyBearP3>* cols) {
+    const Poseidon2Event<BabyBearP3>* event, Poseidon2<BabyBearP3> cols[11]) {
   poseidon2_skinny::event_to_row<bb31_t>(
       *reinterpret_cast<const Poseidon2Event<bb31_t>*>(event),
       reinterpret_cast<Poseidon2<bb31_t>*>(cols));

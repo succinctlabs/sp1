@@ -49,7 +49,7 @@ __SP1_HOSTDEV__ __SP1_INLINE__ void populate_internal_rounds(
 
 template <class F>
 __SP1_HOSTDEV__ void event_to_row(const Poseidon2Event<F>& event,
-                                  Poseidon2<F>* cols) {
+                                  Poseidon2<F> cols[OUTPUT_ROUND_IDX + 1]) {
   Poseidon2<F>& first_row = cols[0];
   for (size_t i = 0; i < 16; i++) {
     first_row.state_var[i] = event.input[i];
