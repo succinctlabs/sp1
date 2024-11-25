@@ -146,6 +146,24 @@ jobs:
         env:
           CARGO_INCREMENTAL: 1
 
+  check:
+    name: Cargo Check
+    runs-on: [runs-on, runner=8cpu-linux-x64, disk=large, "run-id=${{ github.run_id }}"]
+    env:
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+
+      - name: Setup CI
+        uses: ./.github/actions/setup
+
+      - name: Install SP1 toolchain
+        run: |
+          curl -L https://sp1.succinct.xyz | bash
+          ~/.sp1/bin/sp1up 
+          ~/.sp1/bin/cargo-prove prove --version
+
       - name: Check workspace no features
         uses: actions-rs/cargo@v1
         with:
@@ -163,8 +181,6 @@ jobs:
         with:
           command: check
           args: --workspace --all-targets --all-features
-
-
 
   examples:
     name: Examples
