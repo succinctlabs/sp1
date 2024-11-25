@@ -154,6 +154,8 @@ fn main() {
             let (_, execution_duration) =
                 time_operation(|| prover.execute(&elf, &stdin, context.clone()));
 
+            let (_, _) = time_operation(|| server.setup(&elf).unwrap());
+
             let (core_proof, prove_core_duration) =
                 time_operation(|| server.prove_core(&stdin).unwrap());
 
