@@ -106,7 +106,8 @@ impl Default for BuildArgs {
 ///
 /// # Arguments
 ///
-/// * `path` - A string slice that holds the path to the program directory.
+/// * `path` - A path to the guest program directory, if not absolute, assumed to be relative to
+///            the caller manifest directory.
 ///
 /// This function is useful for automatically rebuilding the program during development
 /// when changes are made to the source code or its dependencies.
@@ -121,7 +122,9 @@ pub fn build_program(path: impl AsRef<Path>) {
 ///
 /// # Arguments
 ///
-/// * `path` - A string slice that holds the path to the program directory.
+/// * `path` - A path to the guest program directory, if not absolute, assumed to be relative to
+///            the caller manifest directory.
+///
 /// * `args` - A [`BuildArgs`] struct that contains various build configuration options.
 ///
 /// Set the `SP1_SKIP_PROGRAM_BUILD` environment variable to `true` to skip building the program.

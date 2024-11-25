@@ -61,7 +61,7 @@ pub(crate) fn build_program_internal(path: impl AsRef<Path>, args: Option<BuildA
     //
     // Note:
     // You _MUST_ read the `CARGO_MANIFEST_DIR` at runtime (`std::env::var` as opposed to `env!`).
-    // Othewise it will be the manifest dir of this crate, not the caller.
+    // Otherwise it will be the manifest dir of this crate, not the caller.
     let mut program_dir = path.as_ref().to_path_buf();
     if program_dir.is_relative() {
         program_dir = Path::new(&std::env::var("CARGO_MANIFEST_DIR").unwrap()).join(program_dir);
