@@ -504,6 +504,7 @@ where
                 local.quotient,
                 local.c,
                 local.lower_nonce,
+                AB::Expr::zero(),
                 local.is_real,
             );
 
@@ -530,6 +531,7 @@ where
                 local.quotient,
                 local.c,
                 local.upper_nonce,
+                AB::Expr::zero(),
                 local.is_real,
             );
         }
@@ -689,6 +691,7 @@ where
                 local.c,
                 local.abs_c,
                 local.abs_c_alu_event_nonce,
+                AB::Expr::zero(),
                 local.abs_c_alu_event,
             );
             builder.send_instruction(
@@ -699,6 +702,7 @@ where
                 local.remainder,
                 local.abs_remainder,
                 local.abs_rem_alu_event_nonce,
+                AB::Expr::zero(),
                 local.abs_rem_alu_event,
             );
 
@@ -746,6 +750,7 @@ where
                 local.abs_remainder,
                 local.max_abs_c_or_1,
                 local.abs_nonce,
+                AB::Expr::zero(),
                 local.remainder_check_multiplicity,
             );
         }
@@ -829,6 +834,7 @@ where
                 local.b,
                 local.c,
                 local.nonce,
+                AB::Expr::zero(),
                 local.is_real,
             );
         }
@@ -841,7 +847,10 @@ mod tests {
     use crate::utils::{uni_stark_prove, uni_stark_verify};
     use p3_baby_bear::BabyBear;
     use p3_matrix::dense::RowMajorMatrix;
-    use sp1_core_executor::{events::InstrEvent, ExecutionRecord, Opcode};
+    use sp1_core_executor::{
+        events::{InstrEvent, LookupId},
+        ExecutionRecord, Opcode,
+    };
     use sp1_stark::{air::MachineAir, baby_bear_poseidon2::BabyBearPoseidon2, StarkGenericConfig};
 
     use super::DivRemChip;
@@ -849,7 +858,17 @@ mod tests {
     #[test]
     fn generate_trace() {
         let mut shard = ExecutionRecord::default();
-        shard.divrem_events = vec![InstrEvent::new(0, Opcode::DIVU, 2, 17, 3)];
+        shard.divrem_events = vec![InstrEvent::new(
+            0,
+            Opcode::DIVU,
+            2,
+            17,
+            3,
+            false,
+            None,
+            LookupId::default(),
+            LookupId::default(),
+        )];
         let chip = DivRemChip::default();
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&shard, &mut ExecutionRecord::default());
@@ -902,12 +921,32 @@ mod tests {
             (Opcode::REM, 0, 1 << 31, neg(1)),
         ];
         for t in divrems.iter() {
-            divrem_events.push(InstrEvent::new(0, t.0, t.1, t.2, t.3));
+            divrem_events.push(InstrEvent::new(
+                0,
+                t.0,
+                t.1,
+                t.2,
+                t.3,
+                false,
+                None,
+                LookupId::default(),
+                LookupId::default(),
+            ));
         }
 
         // Append more events until we have 1000 tests.
         for _ in 0..(1000 - divrems.len()) {
-            divrem_events.push(InstrEvent::new(0, Opcode::DIVU, 1, 1, 1));
+            divrem_events.push(InstrEvent::new(
+                0,
+                Opcode::DIVU,
+                1,
+                1,
+                1,
+                false,
+                None,
+                LookupId::default(),
+                LookupId::default(),
+            ));
         }
 
         let mut shard = ExecutionRecord::default();

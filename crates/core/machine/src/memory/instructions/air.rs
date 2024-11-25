@@ -47,6 +47,7 @@ where
             local.op_b_value,
             local.op_c_value,
             AB::Expr::zero(),
+            AB::Expr::one() - local.is_load,
             local.is_real,
         );
     }
@@ -94,6 +95,7 @@ impl MemoryInstructionsChip {
             local.op_b_value,
             local.op_c_value,
             local.addr_word_nonce,
+            AB::Expr::zero(),
             local.is_real,
         );
 
@@ -187,6 +189,7 @@ impl MemoryInstructionsChip {
             local.unsigned_mem_val,
             signed_value,
             local.unsigned_mem_val_nonce,
+            AB::Expr::zero(),
             local.mem_value_is_neg_not_x0,
         );
 

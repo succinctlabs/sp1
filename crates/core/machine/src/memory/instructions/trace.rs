@@ -1,12 +1,13 @@
-use std::borrow::BorrowMut;
+use std::{array, borrow::BorrowMut};
 
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
 use rayon::iter::{ParallelBridge, ParallelIterator};
 use sp1_core_executor::{
-    events::{ByteLookupEvent, InstrEvent},
-    ExecutionRecord, Program,
+    events::{ByteLookupEvent, ByteRecord, InstrEvent},
+    ByteOpcode, ExecutionRecord, Opcode, Program,
 };
+use sp1_primitives::consts::WORD_SIZE;
 use sp1_stark::air::MachineAir;
 
 use crate::utils::{next_power_of_two, zeroed_f_vec};
@@ -49,7 +50,12 @@ impl<F: PrimeField32> MachineAir<F> for MemoryInstructionsChip {
                         if idx < input.memory_instr_events.len() {
                             let mut byte_lookup_events = Vec::new();
                             let event = &input.memory_instr_events[idx];
-                            self.event_to_row(event, cols, &mut byte_lookup_events);
+                            self.event_to_row(
+                                event,
+                                cols,
+                                &input.nonce_lookup,
+                                &mut byte_lookup_events,
+                            );
                         }
                     },
                 );
@@ -63,7 +69,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryInstructionsChip {
         if let Some(shape) = shard.shape.as_ref() {
             shape.included::<F, _>(self)
         } else {
-            shard.contains_memory()
+            !shard.memory_instr_events.is_empty()
         }
     }
 }
@@ -73,6 +79,7 @@ impl MemoryInstructionsChip {
         &self,
         event: &InstrEvent,
         cols: &mut MemoryInstructionsColumns<F>,
+        nonce_lookup: &[u32],
         byte_lookup_events: &mut Vec<ByteLookupEvent>,
     ) {
         // Populate memory accesses for reading from memory.
@@ -103,10 +110,10 @@ impl MemoryInstructionsChip {
         cols.offset_is_three = F::from_bool(addr_offset == 3);
 
         // If it is a load instruction, set the unsigned_mem_val column.
-        let mem_value = event.memory_record.unwrap().value();
+        let mem_value = event.mem_access.expect("Memory access is required").value();
         if matches!(event.opcode, Opcode::LB | Opcode::LBU | Opcode::LH | Opcode::LHU | Opcode::LW)
         {
-            match instruction.opcode {
+            match event.opcode {
                 Opcode::LB | Opcode::LBU => {
                     cols.unsigned_mem_val =
                         (mem_value.to_le_bytes()[addr_offset as usize] as u32).into();
@@ -127,18 +134,18 @@ impl MemoryInstructionsChip {
 
             // For the signed load instructions, we need to check if the loaded value is negative.
             if matches!(event.opcode, Opcode::LB | Opcode::LH) {
-                let most_sig_mem_value_byte = if matches!(instruction.opcode, Opcode::LB) {
+                let most_sig_mem_value_byte = if matches!(event.opcode, Opcode::LB) {
                     cols.unsigned_mem_val.to_u32().to_le_bytes()[0]
                 } else {
                     cols.unsigned_mem_val.to_u32().to_le_bytes()[1]
                 };
 
                 for i in (0..8).rev() {
-                    memory_columns.most_sig_byte_decomp[i] =
+                    cols.most_sig_byte_decomp[i] =
                         F::from_canonical_u8(most_sig_mem_value_byte >> i & 0x01);
                 }
-                if memory_columns.most_sig_byte_decomp[7] == F::one() {
-                    cols.mem_value_is_neg_not_x0 = F::from_bool(instruction.op_a != (X0 as u8));
+                if cols.most_sig_byte_decomp[7] == F::one() {
+                    cols.mem_value_is_neg_not_x0 = F::from_bool(event.op_a_0);
                     cols.unsigned_mem_val_nonce = F::from_canonical_u32(
                         nonce_lookup
                             .get(event.memory_sub_lookup_id.0 as usize)
@@ -150,11 +157,11 @@ impl MemoryInstructionsChip {
 
             // Set the `mem_value_is_pos_not_x0` composite flag.
             cols.mem_value_is_pos_not_x0 = F::from_bool(
-                ((matches!(instruction.opcode, Opcode::LB | Opcode::LH)
-                    && (memory_columns.most_sig_byte_decomp[7] == F::zero()))
-                    || matches!(instruction.opcode, Opcode::LBU | Opcode::LHU | Opcode::LW))
-                    && instruction.op_a != (X0 as u8),
-            );
+                ((matches!(event.opcode, Opcode::LB | Opcode::LH)
+                    && (cols.most_sig_byte_decomp[7] == F::zero()))
+                    || matches!(event.opcode, Opcode::LBU | Opcode::LHU | Opcode::LW))
+                    && !event.op_a_0,
+            )
         }
 
         // Add event to byte lookup for byte range checking each byte in the memory addr

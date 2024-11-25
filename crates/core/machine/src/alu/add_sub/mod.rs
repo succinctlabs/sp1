@@ -212,6 +212,7 @@ where
             local.operand_1,
             local.operand_2,
             local.nonce,
+            AB::Expr::zero(),
             local.is_add,
         );
 
@@ -224,6 +225,7 @@ where
             local.add_operation.value,
             local.operand_2,
             local.nonce,
+            AB::Expr::zero(),
             local.is_sub,
         );
     }

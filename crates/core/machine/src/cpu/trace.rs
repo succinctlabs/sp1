@@ -135,6 +135,8 @@ impl CpuChip {
         cols.pc = F::from_canonical_u32(event.pc);
         cols.next_pc = F::from_canonical_u32(event.next_pc);
         cols.instruction.populate(instruction);
+        cols.is_mem_store =
+            F::from_bool(matches!(instruction.opcode, Opcode::SB | Opcode::SH | Opcode::SW));
         cols.selectors.populate(instruction);
         *cols.op_a_access.value_mut() = event.a.into();
         *cols.op_b_access.value_mut() = event.b.into();

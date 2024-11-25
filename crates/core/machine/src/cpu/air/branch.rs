@@ -90,6 +90,7 @@ impl CpuChip {
                 branch_cols.pc,
                 local.op_c_val(),
                 branch_cols.next_pc_nonce,
+                AB::Expr::zero(),
                 local.branching,
             );
 
@@ -188,6 +189,7 @@ impl CpuChip {
             local.op_a_val(),
             local.op_b_val(),
             branch_cols.a_lt_b_nonce,
+            AB::Expr::zero(),
             is_branch_instruction.clone(),
         );
 
@@ -201,6 +203,7 @@ impl CpuChip {
             local.op_b_val(),
             local.op_a_val(),
             branch_cols.a_gt_b_nonce,
+            AB::Expr::zero(),
             is_branch_instruction.clone(),
         );
     }

@@ -188,6 +188,7 @@ pub trait InstructionAirBuilder: BaseAirBuilder {
         b: Word<impl Into<Self::Expr>>,
         c: Word<impl Into<Self::Expr>>,
         nonce: impl Into<Self::Expr>,
+        is_mem_store: impl Into<Self::Expr>,
         multiplicity: impl Into<Self::Expr>,
     ) {
         let values = once(pc.into())
@@ -197,6 +198,7 @@ pub trait InstructionAirBuilder: BaseAirBuilder {
             .chain(b.0.into_iter().map(Into::into))
             .chain(c.0.into_iter().map(Into::into))
             .chain(once(nonce.into()))
+            .chain(once(is_mem_store.into()))
             .collect();
 
         self.send(
@@ -216,6 +218,7 @@ pub trait InstructionAirBuilder: BaseAirBuilder {
         b: Word<impl Into<Self::Expr>>,
         c: Word<impl Into<Self::Expr>>,
         nonce: impl Into<Self::Expr>,
+        is_mem_store: impl Into<Self::Expr>,
         multiplicity: impl Into<Self::Expr>,
     ) {
         let values = once(pc.into())
@@ -225,6 +228,7 @@ pub trait InstructionAirBuilder: BaseAirBuilder {
             .chain(b.0.into_iter().map(Into::into))
             .chain(c.0.into_iter().map(Into::into))
             .chain(once(nonce.into()))
+            .chain(once(is_mem_store.into()))
             .collect();
 
         self.receive(

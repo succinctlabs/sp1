@@ -60,7 +60,7 @@ impl CpuChip {
 
         // If we are performing a branch or a store, then the value of `a` is the previous value.
         builder
-            .when(is_branch_instruction.clone() + self.is_store_instruction::<AB>(&local.selectors))
+            .when(is_branch_instruction.clone() + local.is_mem_store)
             .assert_word_eq(local.op_a_val(), local.op_a_access.prev_value);
     }
 }

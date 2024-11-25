@@ -1,6 +1,5 @@
 pub mod branch;
 pub mod ecall;
-pub mod memory;
 pub mod register;
 
 use core::borrow::Borrow;
@@ -41,17 +40,11 @@ where
         builder.send_program(local.pc, local.instruction, local.selectors, local.is_real);
 
         // Compute some flags for which type of instruction we are dealing with.
-        let is_memory_instruction: AB::Expr = self.is_memory_instruction::<AB>(&local.selectors);
         let is_branch_instruction: AB::Expr = self.is_branch_instruction::<AB>(&local.selectors);
         let is_alu_instruction: AB::Expr = self.is_alu_instruction::<AB>(&local.selectors);
 
         // Register constraints.
         self.eval_registers::<AB>(builder, local, is_branch_instruction.clone());
-
-        // Memory instructions.
-        self.eval_memory_address_and_access::<AB>(builder, local, is_memory_instruction.clone());
-        self.eval_memory_load::<AB>(builder, local);
-        self.eval_memory_store::<AB>(builder, local);
 
         // ALU instructions.
         builder.send_instruction(
@@ -62,6 +55,7 @@ where
             local.op_b_val(),
             local.op_c_val(),
             local.nonce,
+            local.is_mem_store,
             is_alu_instruction,
         );
 
@@ -193,6 +187,7 @@ impl CpuChip {
             jump_columns.pc,
             local.op_b_val(),
             jump_columns.jal_nonce,
+            AB::Expr::zero(),
             local.selectors.is_jal,
         );
 
@@ -205,6 +200,7 @@ impl CpuChip {
             local.op_b_val(),
             local.op_c_val(),
             jump_columns.jalr_nonce,
+            AB::Expr::zero(),
             local.selectors.is_jalr,
         );
     }
@@ -234,6 +230,7 @@ impl CpuChip {
             auipc_columns.pc,
             local.op_b_val(),
             auipc_columns.auipc_nonce,
+            AB::Expr::zero(),
             local.selectors.is_auipc,
         );
     }

@@ -37,6 +37,7 @@ pub struct InstrEvent {
 impl InstrEvent {
     /// Create a new [`InstrEvent`].
     #[must_use]
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         pc: u32,
         opcode: Opcode,

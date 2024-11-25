@@ -395,6 +395,7 @@ where
             local.b,
             local.c,
             local.nonce,
+            AB::Expr::zero(),
             local.is_real,
         );
     }
@@ -406,7 +407,10 @@ mod tests {
     use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
     use p3_baby_bear::BabyBear;
     use p3_matrix::dense::RowMajorMatrix;
-    use sp1_core_executor::{events::InstrEvent, ExecutionRecord, Opcode};
+    use sp1_core_executor::{
+        events::{InstrEvent, LookupId},
+        ExecutionRecord, Opcode,
+    };
     use sp1_stark::{air::MachineAir, baby_bear_poseidon2::BabyBearPoseidon2, StarkGenericConfig};
 
     use super::ShiftLeft;
@@ -414,7 +418,17 @@ mod tests {
     #[test]
     fn generate_trace() {
         let mut shard = ExecutionRecord::default();
-        shard.shift_left_events = vec![InstrEvent::new(0, Opcode::SLL, 16, 8, 1)];
+        shard.shift_left_events = vec![InstrEvent::new(
+            0,
+            Opcode::SLL,
+            16,
+            8,
+            1,
+            false,
+            None,
+            LookupId::default(),
+            LookupId::default(),
+        )];
         let chip = ShiftLeft::default();
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&shard, &mut ExecutionRecord::default());
@@ -449,7 +463,17 @@ mod tests {
             (Opcode::SLL, 0x00000000, 0x21212120, 0xffffffff),
         ];
         for t in shift_instructions.iter() {
-            shift_events.push(InstrEvent::new(0, t.0, t.1, t.2, t.3));
+            shift_events.push(InstrEvent::new(
+                0,
+                t.0,
+                t.1,
+                t.2,
+                t.3,
+                false,
+                None,
+                LookupId::default(),
+                LookupId::default(),
+            ));
         }
 
         // Append more events until we have 1000 tests.

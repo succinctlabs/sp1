@@ -449,6 +449,7 @@ where
             local.b,
             local.c,
             local.nonce,
+            AB::Expr::zero(),
             local.is_real,
         );
     }
@@ -460,7 +461,10 @@ mod tests {
     use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
     use p3_baby_bear::BabyBear;
     use p3_matrix::dense::RowMajorMatrix;
-    use sp1_core_executor::{events::InstrEvent, ExecutionRecord, Opcode};
+    use sp1_core_executor::{
+        events::{InstrEvent, LookupId},
+        ExecutionRecord, Opcode,
+    };
     use sp1_stark::{air::MachineAir, baby_bear_poseidon2::BabyBearPoseidon2, StarkGenericConfig};
 
     use super::MulChip;
@@ -472,7 +476,17 @@ mod tests {
         // Fill mul_events with 10^7 MULHSU events.
         let mut mul_events: Vec<InstrEvent> = Vec::new();
         for _ in 0..10i32.pow(7) {
-            mul_events.push(InstrEvent::new(0, Opcode::MULHSU, 0x80004000, 0x80000000, 0xffff8000));
+            mul_events.push(InstrEvent::new(
+                0,
+                Opcode::MULHSU,
+                0x80004000,
+                0x80000000,
+                0xffff8000,
+                false,
+                None,
+                LookupId::default(),
+                LookupId::default(),
+            ));
         }
         shard.mul_events = mul_events;
         let chip = MulChip::default();
@@ -541,12 +555,32 @@ mod tests {
             (Opcode::MULH, 0xffffffff, 0x00000001, 0xffffffff),
         ];
         for t in mul_instructions.iter() {
-            mul_events.push(InstrEvent::new(0, t.0, t.1, t.2, t.3));
+            mul_events.push(InstrEvent::new(
+                0,
+                t.0,
+                t.1,
+                t.2,
+                t.3,
+                false,
+                None,
+                LookupId::default(),
+                LookupId::default(),
+            ));
         }
 
         // Append more events until we have 1000 tests.
         for _ in 0..(1000 - mul_instructions.len()) {
-            mul_events.push(InstrEvent::new(0, Opcode::MUL, 1, 1, 1));
+            mul_events.push(InstrEvent::new(
+                0,
+                Opcode::MUL,
+                1,
+                1,
+                1,
+                false,
+                None,
+                LookupId::default(),
+                LookupId::default(),
+            ));
         }
 
         shard.mul_events = mul_events;

@@ -11,7 +11,7 @@ use thiserror::Error;
 
 use crate::{
     context::SP1Context,
-    dependencies::{emit_cpu_dependencies, emit_divrem_dependencies},
+    dependencies::{emit_cpu_dependencies, emit_divrem_dependencies, emit_memory_dependencies},
     events::{
         CpuEvent, InstrEvent, LookupId, MemoryAccessPosition, MemoryInitializeFinalizeEvent,
         MemoryLocalEvent, MemoryReadRecord, MemoryRecord, MemoryWriteRecord, SyscallEvent,
@@ -614,8 +614,6 @@ impl<'a> Executor<'a> {
         lookup_id: LookupId,
         syscall_lookup_id: LookupId,
     ) {
-        let memory_add_lookup_id = self.record.create_lookup_id();
-        let memory_sub_lookup_id = self.record.create_lookup_id();
         let branch_lt_lookup_id = self.record.create_lookup_id();
         let branch_gt_lookup_id = self.record.create_lookup_id();
         let branch_add_lookup_id = self.record.create_lookup_id();
@@ -636,8 +634,6 @@ impl<'a> Executor<'a> {
             exit_code,
             alu_lookup_id: lookup_id,
             syscall_lookup_id,
-            memory_add_lookup_id,
-            memory_sub_lookup_id,
             branch_lt_lookup_id,
             branch_gt_lookup_id,
             branch_add_lookup_id,
@@ -650,7 +646,17 @@ impl<'a> Executor<'a> {
     }
 
     /// Emit an instruction event.
-    fn emit_instruction(&mut self, opcode: Opcode, a: u32, b: u32, c: u32, lookup_id: LookupId) {
+    fn emit_instruction(
+        &mut self,
+        opcode: Opcode,
+        a: u32,
+        b: u32,
+        c: u32,
+        op_a_0: bool,
+        lookup_id: LookupId,
+    ) {
+        let memory_add_lookup_id = self.record.create_lookup_id();
+        let memory_sub_lookup_id = self.record.create_lookup_id();
         let event = InstrEvent {
             pc: self.state.pc,
             lookup_id,
@@ -658,7 +664,11 @@ impl<'a> Executor<'a> {
             a,
             b,
             c,
+            op_a_0,
+            memory_add_lookup_id,
+            memory_sub_lookup_id,
             sub_lookups: self.record.create_lookup_ids(),
+            mem_access: self.memory_accesses.memory,
         };
         match opcode {
             Opcode::ADD => {
@@ -695,6 +705,11 @@ impl<'a> Executor<'a> {
             | Opcode::SH
             | Opcode::SW => {
                 self.record.memory_instr_events.push(event);
+                emit_memory_dependencies(
+                    self,
+                    event,
+                    self.memory_accesses.memory.expect("Must have memory access").current_record(),
+                );
             }
             _ => {}
         }
@@ -753,6 +768,7 @@ impl<'a> Executor<'a> {
     }
 
     /// Set the destination register with the result and emit an ALU event.
+    #[allow(clippy::too_many_arguments)]
     fn alu_rw(
         &mut self,
         instruction: &Instruction,
@@ -760,11 +776,12 @@ impl<'a> Executor<'a> {
         a: u32,
         b: u32,
         c: u32,
+        op_a_0: bool,
         lookup_id: LookupId,
     ) {
         self.rw(rd, a);
         if self.executor_mode == ExecutorMode::Trace {
-            self.emit_instruction(instruction.opcode, a, b, c, lookup_id);
+            self.emit_instruction(instruction.opcode, a, b, c, op_a_0, lookup_id);
         }
     }
 
@@ -1093,7 +1110,7 @@ impl<'a> Executor<'a> {
             }
             _ => unreachable!(),
         };
-        self.alu_rw(instruction, rd, a, b, c, lookup_id);
+        self.alu_rw(instruction, rd, a, b, c, rd == Register::X0, lookup_id);
         (a, b, c)
     }
 
@@ -1126,6 +1143,7 @@ impl<'a> Executor<'a> {
             _ => unreachable!(),
         };
         self.rw(rd, a);
+        self.emit_instruction(instruction.opcode, a, b, c, rd == Register::X0, LookupId::default());
         Ok((a, b, c))
     }
 
@@ -1155,6 +1173,8 @@ impl<'a> Executor<'a> {
             _ => unreachable!(),
         };
         self.mw_cpu(align(addr), memory_store_value, MemoryAccessPosition::Memory);
+        self.emit_instruction(instruction.opcode, a, b, c, false, LookupId::default());
+
         Ok((a, b, c))
     }
 
