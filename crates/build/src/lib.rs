@@ -113,6 +113,10 @@ impl Default for BuildArgs {
 /// when changes are made to the source code or its dependencies.
 ///
 /// Set the `SP1_SKIP_PROGRAM_BUILD` environment variable to `true` to skip building the program.
+///
+///
+/// ## Note: Using this function without an absolute path is not recommended.
+/// Try using the `build_program_from_path!` macro instead.
 pub fn build_program(path: impl AsRef<Path>) {
     build_program_internal(path, None)
 }
@@ -122,12 +126,14 @@ pub fn build_program(path: impl AsRef<Path>) {
 ///
 /// # Arguments
 ///
-/// * `path` - A path to the guest program directory, if not absolute, assumed to be relative to
-///            the caller manifest directory.
+/// * `path` - A path to the guest program directory
 ///
 /// * `args` - A [`BuildArgs`] struct that contains various build configuration options.
 ///
 /// Set the `SP1_SKIP_PROGRAM_BUILD` environment variable to `true` to skip building the program.
+///
+/// ## Note: Using this function without an absolute path is not recommended.
+/// Try using the `build_program_from_path!` macro instead.
 pub fn build_program_with_args(path: impl AsRef<Path>, args: BuildArgs) {
     build_program_internal(path, Some(args))
 }
@@ -140,11 +146,11 @@ pub fn build_program_with_maybe_args(path: impl AsRef<Path>, args: Option<BuildA
     build_program_internal(path, args)
 }
 
-/// Build a program with the given _RELATIVE_ path.
+/// Build a program at the given path.
 ///
 /// # Arguments
 /// * `path` - A path to the guest program directory, if not absolute, assumed to be relative to
-///            the caller manifest directory.
+///           the callers manifest directory.
 ///
 ///   `args` - A [`BuildArgs`] struct that contains various build configuration options.
 ///            If not provided, the default options are used.
@@ -153,7 +159,7 @@ macro_rules! build_program_from_path {
     ($path:expr, $args:expr) => {
         const MANIFEST: &str = std::env!("CARGO_MANIFEST_DIR");
 
-        fn adjust_path(p: impl AsRef<::std::path::Path>) -> ::std::path::PathBuf { 
+        fn adjust_path(p: impl AsRef<::std::path::Path>) -> ::std::path::PathBuf {
             let p = p.as_ref();
             if p.is_absolute() {
                 p.to_path_buf()
@@ -166,7 +172,7 @@ macro_rules! build_program_from_path {
     };
     ($path:expr) => {
         ::sp1_build::build_program_from_path!($path, None)
-    }
+    };
 }
 
 /// Returns the raw ELF bytes by the zkVM program target name.
