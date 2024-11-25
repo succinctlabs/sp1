@@ -131,7 +131,10 @@ impl NetworkProver {
                         if let Some(status) = e.downcast_ref::<tonic::Status>() {
                             match status.code() {
                                 Code::NotFound => {
-                                    tracing::error!("Proof request not found: {}", status.message());
+                                    tracing::error!(
+                                        "Proof request not found: {}",
+                                        status.message()
+                                    );
                                     Err(backoff::Error::permanent(e))
                                 }
                                 Code::Unavailable => {
