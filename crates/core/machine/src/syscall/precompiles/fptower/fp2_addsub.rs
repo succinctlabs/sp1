@@ -90,8 +90,8 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for Fp2AddSubAssignChip<P> {
     }
 
     fn generate_trace(&self, input: &Self::Record, output: &mut Self::Record) -> RowMajorMatrix<F> {
-        // All the fp2 sub and add events for a given curve are coalesce to the curve's Add operation.  Only retrieve
-        // precompile events for that operation.
+        // All the fp2 sub and add events for a given curve are coalesce to the curve's Add
+        // operation.  Only retrieve precompile events for that operation.
         // TODO:  Fix this.
 
         let events = match P::FIELD_TYPE {
@@ -181,8 +181,8 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for Fp2AddSubAssignChip<P> {
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
-        // All the fp2 sub and add events for a given curve are coalesce to the curve's Add operation.  Only retrieve
-        // precompile events for that operation.
+        // All the fp2 sub and add events for a given curve are coalesce to the curve's Add
+        // operation.  Only retrieve precompile events for that operation.
         // TODO:  Fix this.
 
         assert!(

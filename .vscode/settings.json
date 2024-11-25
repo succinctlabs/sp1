@@ -82,6 +82,6 @@
         "tuple": "cpp",
         "type_traits": "cpp",
         "utility": "cpp",
-        "cstdio": "cpp"
+        "cmath": "cpp"
     },
 }

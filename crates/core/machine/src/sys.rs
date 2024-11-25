@@ -1,9 +1,15 @@
-use crate::alu::{AddSubCols, BitwiseCols, LtCols, MulCols, ShiftLeftCols, ShiftRightCols};
+use crate::{
+    alu::{AddSubCols, BitwiseCols, LtCols, MulCols, ShiftLeftCols, ShiftRightCols},
+    memory::MemoryInitCols,
+    memory::SingleMemoryLocal,
+    syscall::chip::SyscallCols,
+};
 use hashbrown::HashMap;
 use p3_baby_bear::BabyBear;
 
 use sp1_core_executor::events::{
-    AluEvent, CpuEvent, LookupId, MemoryReadRecord, MemoryRecordEnum, MemoryWriteRecord,
+    AluEvent, CpuEvent, LookupId, MemoryInitializeFinalizeEvent, MemoryLocalEvent,
+    MemoryReadRecord, MemoryRecordEnum, MemoryWriteRecord, SyscallEvent,
 };
 
 #[link(name = "sp1-core-machine-sys", kind = "static")]
@@ -14,6 +20,20 @@ extern "C-unwind" {
     pub fn lt_event_to_row_babybear(event: &AluEvent, cols: &mut LtCols<BabyBear>);
     pub fn sll_event_to_row_babybear(event: &AluEvent, cols: &mut ShiftLeftCols<BabyBear>);
     pub fn sr_event_to_row_babybear(event: &AluEvent, cols: &mut ShiftRightCols<BabyBear>);
+    pub fn memory_local_event_to_row_babybear(
+        event: &MemoryLocalEvent,
+        cols: &mut SingleMemoryLocal<BabyBear>,
+    );
+    pub fn memory_global_event_to_row_babybear(
+        event: &MemoryInitializeFinalizeEvent,
+        is_receive: bool,
+        cols: &mut MemoryInitCols<BabyBear>,
+    );
+    pub fn syscall_event_to_row_babybear(
+        event: &SyscallEvent,
+        is_receive: bool,
+        cols: &mut SyscallCols<BabyBear>,
+    );
 }
 
 /// An alternative to `Option<MemoryRecordEnum>` that is FFI-safe.

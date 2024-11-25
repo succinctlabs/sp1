@@ -103,6 +103,13 @@ mod sys {
             .rename_item("BabyBear", "BabyBearP3")
             .include_item("MemoryRecord") // Just for convenience. Not exposed, so we need to manually do this.
             .include_item("SyscallCode") // Required for populating the CPU columns for ECALL.
+            .include_item("SepticExtension")
+            .include_item("SepticCurve")
+            .include_item("MemoryLocalCols")
+            .include_item("MEMORY_LOCAL_INITIAL_DIGEST_POS")
+            .include_item("Ghost")
+            .include_item("MemoryInitCols")
+            .include_item("MemoryInitializeFinalizeEvent")
             .with_namespace("sp1_core_machine_sys")
             .with_crate(crate_dir)
             .generate()

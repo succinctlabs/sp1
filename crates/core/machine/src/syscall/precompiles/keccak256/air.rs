@@ -135,14 +135,15 @@ mod test {
     use crate::{
         io::SP1Stdin,
         riscv::RiscvAir,
-        utils::{prove, setup_logger, tests::KECCAK256_ELF},
+        utils::{prove_core, setup_logger, tests::KECCAK256_ELF},
     };
     use sp1_primitives::io::SP1PublicValues;
 
     use rand::{Rng, SeedableRng};
-    use sp1_core_executor::Program;
+    use sp1_core_executor::{Program, SP1Context};
     use sp1_stark::{
-        baby_bear_poseidon2::BabyBearPoseidon2, CpuProver, SP1CoreOpts, StarkGenericConfig,
+        baby_bear_poseidon2::BabyBearPoseidon2, CpuProver, MachineProver, SP1CoreOpts,
+        StarkGenericConfig,
     };
     use tiny_keccak::Hasher;
 
@@ -175,9 +176,21 @@ mod test {
         let config = BabyBearPoseidon2::new();
 
         let program = Program::from(KECCAK256_ELF).unwrap();
-        let (proof, public_values, _) =
-            prove::<_, CpuProver<_, _>>(program, &stdin, config, SP1CoreOpts::default(), None)
-                .unwrap();
+        let opts = SP1CoreOpts::default();
+        let machine = RiscvAir::machine(config);
+        let prover = CpuProver::new(machine);
+        let (pk, vk) = prover.setup(&program);
+        let (proof, public_values, _) = prove_core::<_, _>(
+            &prover,
+            &pk,
+            &vk,
+            program,
+            &stdin,
+            opts,
+            SP1Context::default(),
+            None,
+        )
+        .unwrap();
         let mut public_values = SP1PublicValues::from(&public_values);
 
         let config = BabyBearPoseidon2::new();

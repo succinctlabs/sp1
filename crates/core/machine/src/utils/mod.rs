@@ -4,21 +4,23 @@ mod logger;
 mod programs;
 mod prove;
 mod span;
-mod tracer;
+mod test;
+mod uni_stark;
 
 pub use logger::*;
-use p3_field::Field;
-pub use prove::*;
-use sp1_curves::params::Limbs;
-pub use span::*;
-pub use tracer::*;
-
 #[cfg(any(test, feature = "programs"))]
 pub use programs::*;
+pub use prove::*;
+pub use span::*;
+pub use test::*;
+pub use uni_stark::*;
 
 use crate::memory::MemoryCols;
+
 use generic_array::ArrayLength;
+use p3_field::Field;
 use p3_maybe_rayon::prelude::{ParallelBridge, ParallelIterator};
+use sp1_curves::params::Limbs;
 
 pub const fn indices_arr<const N: usize>() -> [usize; N] {
     let mut indices_arr = [0; N];

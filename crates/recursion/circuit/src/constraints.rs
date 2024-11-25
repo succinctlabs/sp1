@@ -155,8 +155,9 @@ where
                             - C::F::one();
                         (
                             {
-                                // We use the precomputed powers of zeta to compute (inline) the value of
-                                // `other_domain.zp_at_point_variable(builder, zeta)`.
+                                // We use the precomputed powers of zeta to compute (inline) the
+                                // value of `other_domain.
+                                // zp_at_point_variable(builder, zeta)`.
                                 let z: Ext<_, _> = builder.eval(
                                     zetas[other_domain.log_n] * SymbolicFelt::from_f(shift_power)
                                         - SymbolicExt::from_f(C::EF::one()),

@@ -4,7 +4,7 @@ use p3_field::AbstractExtensionField;
 use p3_field::AbstractField;
 use p3_field::Field;
 use p3_field::PrimeField32;
-use sp1_core_executor::events::{ByteLookupEvent, ByteRecord};
+use sp1_core_executor::events::ByteRecord;
 use sp1_core_executor::ByteOpcode;
 use sp1_derive::AlignedBorrow;
 use sp1_stark::air::SepticExtensionAirBuilder;
@@ -12,17 +12,18 @@ use sp1_stark::{
     air::SP1AirBuilder,
     septic_curve::{SepticCurve, CURVE_WITNESS_DUMMY_POINT_X, CURVE_WITNESS_DUMMY_POINT_Y},
     septic_extension::{SepticBlock, SepticExtension},
-    InteractionKind, Word,
+    InteractionKind,
 };
 
 /// A set of columns needed to compute the global interaction elliptic curve digest.
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct GlobalInteractionOperation<T> {
-    pub offset: T,
+    pub offset_bits: [T; 8],
     pub x_coordinate: SepticBlock<T>,
     pub y_coordinate: SepticBlock<T>,
-    pub y6_byte_decomp: Word<T>,
+    pub y6_bit_decomp: [T; 30],
+    pub range_check_witness: T,
 }
 
 impl<F: PrimeField32> GlobalInteractionOperation<F> {
@@ -46,11 +47,12 @@ impl<F: PrimeField32> GlobalInteractionOperation<F> {
         is_receive: bool,
         is_real: bool,
         kind: InteractionKind,
-        blu: &mut impl ByteRecord,
     ) {
         if is_real {
             let (point, offset) = Self::get_digest(values, is_receive, kind);
-            self.offset = F::from_canonical_u8(offset);
+            for i in 0..8 {
+                self.offset_bits[i] = F::from_canonical_u8((offset >> i) & 1);
+            }
             self.x_coordinate = SepticBlock::<F>::from(point.x.0);
             self.y_coordinate = SepticBlock::<F>::from(point.y.0);
             let range_check_value = if is_receive {
@@ -58,26 +60,31 @@ impl<F: PrimeField32> GlobalInteractionOperation<F> {
             } else {
                 point.y.0[6].as_canonical_u32() - (F::ORDER_U32 + 1) / 2
             };
-            self.y6_byte_decomp = Word::from(range_check_value);
-            blu.add_byte_lookup_event(ByteLookupEvent {
-                shard: values[0],
-                opcode: ByteOpcode::U8Range,
-                a1: 0,
-                a2: 0,
-                b: offset,
-                c: 0,
-            });
-            blu.add_byte_lookup_event(ByteLookupEvent {
-                shard: values[0],
-                opcode: ByteOpcode::LTU,
-                a1: 1,
-                a2: 0,
-                b: (range_check_value >> 24) as u8,
-                c: 60,
-            });
-            blu.add_u8_range_checks(values[0], &range_check_value.to_le_bytes());
+            let mut top_4_bits = F::zero();
+            for i in 0..30 {
+                self.y6_bit_decomp[i] = F::from_canonical_u32((range_check_value >> i) & 1);
+                if i >= 26 {
+                    top_4_bits += self.y6_bit_decomp[i];
+                }
+            }
+            top_4_bits -= F::from_canonical_u32(4);
+            self.range_check_witness = top_4_bits.inverse();
         } else {
             self.populate_dummy();
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn populate_memory_range_check_witness(
+        &self,
+        shard: u32,
+        value: u32,
+        is_real: bool,
+        blu: &mut impl ByteRecord,
+    ) {
+        if is_real {
+            blu.add_u8_range_checks(shard, &value.to_le_bytes());
+            blu.add_u16_range_check(shard, shard as u16);
         }
     }
 
@@ -90,7 +97,6 @@ impl<F: PrimeField32> GlobalInteractionOperation<F> {
         value: u32,
         is_receive: bool,
         is_real: bool,
-        blu: &mut impl ByteRecord,
     ) {
         self.populate(
             SepticBlock([
@@ -105,11 +111,22 @@ impl<F: PrimeField32> GlobalInteractionOperation<F> {
             is_receive,
             is_real,
             InteractionKind::Memory,
-            blu,
         );
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn populate_syscall_range_check_witness(
+        &self,
+        shard: u32,
+        clk_16: u16,
+        clk_8: u8,
+        syscall_id: u32,
+        is_real: bool,
+        blu: &mut impl ByteRecord,
+    ) {
         if is_real {
-            blu.add_u8_range_checks(shard, &value.to_le_bytes());
-            blu.add_u16_range_check(shard, shard as u16);
+            blu.add_u16_range_checks(shard, &[shard as u16, clk_16]);
+            blu.add_u8_range_checks(shard, &[clk_8, syscall_id as u8]);
         }
     }
 
@@ -124,30 +141,29 @@ impl<F: PrimeField32> GlobalInteractionOperation<F> {
         arg2: u32,
         is_receive: bool,
         is_real: bool,
-        blu: &mut impl ByteRecord,
     ) {
         self.populate(
             SepticBlock([shard, clk_16.into(), clk_8.into(), syscall_id, arg1, arg2, 0]),
             is_receive,
             is_real,
             InteractionKind::Syscall,
-            blu,
         );
-        if is_real {
-            blu.add_u16_range_checks(shard, &[shard as u16, clk_16]);
-            blu.add_u8_range_checks(shard, &[clk_8, syscall_id as u8]);
-        }
     }
 
     pub fn populate_dummy(&mut self) {
-        self.offset = F::from_canonical_u32(0);
-        self.y6_byte_decomp = Word::from(0);
+        for i in 0..8 {
+            self.offset_bits[i] = F::zero();
+        }
         self.x_coordinate = SepticBlock::<F>::from_base_fn(|i| {
             F::from_canonical_u32(CURVE_WITNESS_DUMMY_POINT_X[i])
         });
         self.y_coordinate = SepticBlock::<F>::from_base_fn(|i| {
             F::from_canonical_u32(CURVE_WITNESS_DUMMY_POINT_Y[i])
         });
+        for i in 0..30 {
+            self.y6_bit_decomp[i] = F::zero();
+        }
+        self.range_check_witness = F::zero();
     }
 }
 
@@ -165,19 +181,17 @@ impl<F: Field> GlobalInteractionOperation<F> {
         // Constrain that the `is_real` is boolean.
         builder.assert_bool(is_real);
 
-        // Constrain that the `offset` is a byte.
-        builder.send_byte(
-            AB::Expr::from_canonical_u8(ByteOpcode::U8Range as u8),
-            AB::Expr::zero(),
-            cols.offset,
-            AB::Expr::zero(),
-            is_real,
-        );
+        // Compute the offset and range check each bits, ensuring that the offset is a byte.
+        let mut offset = AB::Expr::zero();
+        for i in 0..8 {
+            builder.assert_bool(cols.offset_bits[i]);
+            offset = offset.clone() + cols.offset_bits[i] * AB::F::from_canonical_u32(1 << i);
+        }
 
         // Compute the message.
         let message = SepticExtension(values)
             + SepticExtension::<AB::Expr>::from_base(
-                cols.offset.into() * AB::F::from_canonical_u32(1 << 16)
+                offset * AB::F::from_canonical_u32(1 << 16)
                     + AB::F::from_canonical_u32(kind as u32) * AB::F::from_canonical_u32(1 << 24),
             );
 
@@ -198,10 +212,17 @@ impl<F: Field> GlobalInteractionOperation<F> {
 
         builder.assert_septic_ext_eq(y2, x3_2x_26z5);
 
-        // Constrain that y6_byte_decomp is a valid Word.
-        builder.slice_range_check_u8(&cols.y6_byte_decomp.0, is_real);
-
-        let y6_value = cols.y6_byte_decomp.reduce::<AB>();
+        let mut y6_value = AB::Expr::zero();
+        let mut top_4_bits = AB::Expr::zero();
+        for i in 0..30 {
+            builder.assert_bool(cols.y6_bit_decomp[i]);
+            y6_value = y6_value.clone() + cols.y6_bit_decomp[i] * AB::F::from_canonical_u32(1 << i);
+            if i >= 26 {
+                top_4_bits = top_4_bits.clone() + cols.y6_bit_decomp[i];
+            }
+        }
+        top_4_bits = top_4_bits.clone() - AB::Expr::from_canonical_u32(4);
+        builder.when(is_real).assert_eq(cols.range_check_witness * top_4_bits, AB::Expr::one());
 
         // Constrain that y has correct sign.
         // If it's a receive: 0 <= y_6 - 1 < (p - 1) / 2 = 2^30 - 2^26
@@ -214,14 +235,6 @@ impl<F: Field> GlobalInteractionOperation<F> {
                 AB::Expr::from_canonical_u32((1 << 30) - (1 << 26) + 1) + y6_value,
             );
         }
-
-        builder.send_byte(
-            AB::Expr::from_canonical_u8(ByteOpcode::LTU as u8),
-            AB::Expr::one(),
-            cols.y6_byte_decomp[3],
-            AB::Expr::from_canonical_u32(60),
-            is_real,
-        );
     }
 
     #[allow(clippy::too_many_arguments)]

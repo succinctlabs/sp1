@@ -1,9 +1,9 @@
 use std::{
     borrow::{Borrow, BorrowMut},
-    mem::size_of,
+    mem::{size_of, transmute},
 };
 
-use crate::utils::{next_power_of_two, zeroed_f_vec};
+use crate::utils::{indices_arr, next_power_of_two, zeroed_f_vec};
 use crate::{operations::GlobalAccumulationOperation, operations::GlobalInteractionOperation};
 use hashbrown::HashMap;
 use itertools::Itertools;
@@ -27,13 +27,32 @@ use sp1_stark::{
     septic_extension::SepticExtension,
     InteractionKind, Word,
 };
+
+/// Creates the column map for the CPU.
+const fn make_col_map() -> MemoryLocalCols<usize> {
+    let indices_arr = indices_arr::<NUM_MEMORY_LOCAL_INIT_COLS>();
+    unsafe { transmute::<[usize; NUM_MEMORY_LOCAL_INIT_COLS], MemoryLocalCols<usize>>(indices_arr) }
+}
+
+const MEMORY_LOCAL_COL_MAP: MemoryLocalCols<usize> = make_col_map();
+
+pub const MEMORY_LOCAL_INITIAL_DIGEST_POS: usize =
+    MEMORY_LOCAL_COL_MAP.global_accumulation_cols.initial_digest[0].0[0];
+
+pub const MEMORY_LOCAL_INITIAL_DIGEST_POS_COPY: usize = 480;
+
+#[repr(C)]
+pub struct Ghost {
+    pub v: [usize; MEMORY_LOCAL_INITIAL_DIGEST_POS_COPY],
+}
+
 pub const NUM_LOCAL_MEMORY_ENTRIES_PER_ROW: usize = 4;
 
 pub(crate) const NUM_MEMORY_LOCAL_INIT_COLS: usize = size_of::<MemoryLocalCols<u8>>();
 
 #[derive(AlignedBorrow, Debug, Clone, Copy)]
 #[repr(C)]
-struct SingleMemoryLocal<T> {
+pub struct SingleMemoryLocal<T> {
     /// The address of the memory access.
     pub addr: T,
 
@@ -83,6 +102,7 @@ impl MemoryLocalChip {
 
 impl<F> BaseAir<F> for MemoryLocalChip {
     fn width(&self) -> usize {
+        assert_eq!(MEMORY_LOCAL_INITIAL_DIGEST_POS_COPY, MEMORY_LOCAL_INITIAL_DIGEST_POS);
         NUM_MEMORY_LOCAL_INIT_COLS
     }
 }
@@ -112,21 +132,16 @@ impl<F: PrimeField32> MachineAir<F> for MemoryLocalChip {
                         let cols = &mut cols.memory_local_entries[k];
                         if k < events.len() {
                             let event = events[k];
-                            cols.initial_global_interaction_cols.populate_memory(
-                                event.initial_mem_access.shard,
-                                event.initial_mem_access.timestamp,
-                                event.addr,
-                                event.initial_mem_access.value,
-                                true,
-                                true,
-                                &mut blu,
-                            );
-                            cols.final_global_interaction_cols.populate_memory(
+                            cols.initial_global_interaction_cols
+                                .populate_memory_range_check_witness(
+                                    event.initial_mem_access.shard,
+                                    event.initial_mem_access.value,
+                                    true,
+                                    &mut blu,
+                                );
+                            cols.final_global_interaction_cols.populate_memory_range_check_witness(
                                 event.final_mem_access.shard,
-                                event.final_mem_access.timestamp,
-                                event.addr,
                                 event.final_mem_access.value,
-                                false,
                                 true,
                                 &mut blu,
                             );
@@ -185,7 +200,6 @@ impl<F: PrimeField32> MachineAir<F> for MemoryLocalChip {
                             cols.initial_value = event.initial_mem_access.value.into();
                             cols.final_value = event.final_mem_access.value.into();
                             cols.is_real = F::one();
-                            let mut blu = Vec::new();
                             cols.initial_global_interaction_cols.populate_memory(
                                 event.initial_mem_access.shard,
                                 event.initial_mem_access.timestamp,
@@ -193,7 +207,6 @@ impl<F: PrimeField32> MachineAir<F> for MemoryLocalChip {
                                 event.initial_mem_access.value,
                                 true,
                                 true,
-                                &mut blu,
                             );
                             point_chunks.push(SepticCurveComplete::Affine(SepticCurve {
                                 x: SepticExtension(
@@ -210,7 +223,6 @@ impl<F: PrimeField32> MachineAir<F> for MemoryLocalChip {
                                 event.final_mem_access.value,
                                 false,
                                 true,
-                                &mut blu,
                             );
                             point_chunks.push(SepticCurveComplete::Affine(SepticCurve {
                                 x: SepticExtension(
@@ -388,8 +400,12 @@ where
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use p3_baby_bear::BabyBear;
     use p3_matrix::dense::RowMajorMatrix;
+    use rand::thread_rng;
+    use rand::Rng;
+    use sp1_core_executor::events::{MemoryLocalEvent, MemoryRecord};
     use sp1_core_executor::{programs::tests::simple_program, ExecutionRecord, Executor};
     use sp1_stark::{
         air::{InteractionScope, MachineAir},
@@ -481,5 +497,168 @@ mod tests {
             vec![InteractionKind::Byte],
             InteractionScope::Global,
         );
+    }
+
+    #[cfg(feature = "sys")]
+    fn get_test_execution_record() -> ExecutionRecord {
+        let cpu_local_memory_access = (0..=255)
+            .flat_map(|_| {
+                [{
+                    let addr = thread_rng().gen_range(0..BabyBear::ORDER_U32);
+                    let init_value = thread_rng().gen_range(0..u32::MAX);
+                    let init_shard = thread_rng().gen_range(0..(1u32 << 16));
+                    let init_timestamp = thread_rng().gen_range(0..(1u32 << 24));
+                    let final_value = thread_rng().gen_range(0..u32::MAX);
+                    let final_timestamp = thread_rng().gen_range(0..(1u32 << 24));
+                    let final_shard = thread_rng().gen_range(0..(1u32 << 16));
+                    MemoryLocalEvent {
+                        addr,
+                        initial_mem_access: MemoryRecord {
+                            shard: init_shard,
+                            timestamp: init_timestamp,
+                            value: init_value,
+                        },
+                        final_mem_access: MemoryRecord {
+                            shard: final_shard,
+                            timestamp: final_timestamp,
+                            value: final_value,
+                        },
+                    }
+                }]
+            })
+            .collect::<Vec<_>>();
+        ExecutionRecord { cpu_local_memory_access, ..Default::default() }
+    }
+
+    #[cfg(feature = "sys")]
+    #[test]
+    fn test_generate_trace_ffi_eq_rust() {
+        let record = get_test_execution_record();
+        let chip = MemoryLocalChip::new();
+        let trace: RowMajorMatrix<BabyBear> =
+            chip.generate_trace(&record, &mut ExecutionRecord::default());
+        let trace_ffi = generate_trace_ffi(&record, trace.height());
+
+        assert_eq!(trace_ffi, trace);
+    }
+
+    #[cfg(feature = "sys")]
+    fn generate_trace_ffi(input: &ExecutionRecord, height: usize) -> RowMajorMatrix<BabyBear> {
+        type F = BabyBear;
+        // Generate the trace rows for each event.
+        let events = input.get_local_mem_events().collect::<Vec<_>>();
+        let nb_rows = (events.len() + 3) / 4;
+        let padded_nb_rows = height;
+        let mut values = zeroed_f_vec(padded_nb_rows * NUM_MEMORY_LOCAL_INIT_COLS);
+        let chunk_size = std::cmp::max(nb_rows / num_cpus::get(), 0) + 1;
+
+        let mut chunks = values[..nb_rows * NUM_MEMORY_LOCAL_INIT_COLS]
+            .chunks_mut(chunk_size * NUM_MEMORY_LOCAL_INIT_COLS)
+            .collect::<Vec<_>>();
+
+        let point_chunks = chunks
+            .par_iter_mut()
+            .enumerate()
+            .map(|(i, rows)| {
+                let mut point_chunks =
+                    Vec::with_capacity(chunk_size * NUM_LOCAL_MEMORY_ENTRIES_PER_ROW * 2 + 1);
+                if i == 0 {
+                    point_chunks.push(SepticCurveComplete::Affine(SepticDigest::<F>::zero().0));
+                }
+                rows.chunks_mut(NUM_MEMORY_LOCAL_INIT_COLS).enumerate().for_each(|(j, row)| {
+                    let idx = (i * chunk_size + j) * NUM_LOCAL_MEMORY_ENTRIES_PER_ROW;
+                    let cols: &mut MemoryLocalCols<F> = row.borrow_mut();
+                    for k in 0..NUM_LOCAL_MEMORY_ENTRIES_PER_ROW {
+                        let cols = &mut cols.memory_local_entries[k];
+                        if idx + k < events.len() {
+                            unsafe {
+                                crate::sys::memory_local_event_to_row_babybear(
+                                    events[idx + k],
+                                    cols,
+                                );
+                            }
+                            point_chunks.push(SepticCurveComplete::Affine(SepticCurve {
+                                x: SepticExtension(
+                                    cols.initial_global_interaction_cols.x_coordinate.0,
+                                ),
+                                y: SepticExtension(
+                                    cols.initial_global_interaction_cols.y_coordinate.0,
+                                ),
+                            }));
+                            point_chunks.push(SepticCurveComplete::Affine(SepticCurve {
+                                x: SepticExtension(
+                                    cols.final_global_interaction_cols.x_coordinate.0,
+                                ),
+                                y: SepticExtension(
+                                    cols.final_global_interaction_cols.y_coordinate.0,
+                                ),
+                            }));
+                        } else {
+                            cols.initial_global_interaction_cols.populate_dummy();
+                            cols.final_global_interaction_cols.populate_dummy();
+                        }
+                    }
+                });
+                point_chunks
+            })
+            .collect::<Vec<_>>();
+
+        let mut points = Vec::with_capacity(1 + events.len() * 2);
+        for mut point_chunk in point_chunks {
+            points.append(&mut point_chunk);
+        }
+
+        if events.is_empty() {
+            points = vec![SepticCurveComplete::Affine(SepticDigest::<F>::zero().0)];
+        }
+
+        let cumulative_sum = points
+            .into_par_iter()
+            .with_min_len(1 << 15)
+            .scan(|a, b| *a + *b, SepticCurveComplete::Infinity)
+            .collect::<Vec<SepticCurveComplete<F>>>();
+
+        let final_digest = cumulative_sum.last().unwrap().point();
+        let dummy = SepticCurve::<F>::dummy();
+        let final_sum_checker = SepticCurve::<F>::sum_checker_x(final_digest, dummy, final_digest);
+
+        let chunk_size = std::cmp::max(padded_nb_rows / num_cpus::get(), 0) + 1;
+        values
+            .chunks_mut(chunk_size * NUM_MEMORY_LOCAL_INIT_COLS)
+            .enumerate()
+            .par_bridge()
+            .for_each(|(i, rows)| {
+                rows.chunks_mut(NUM_MEMORY_LOCAL_INIT_COLS).enumerate().for_each(|(j, row)| {
+                    let idx = i * chunk_size + j;
+
+                    let cols: &mut MemoryLocalCols<F> = row.borrow_mut();
+                    if idx < nb_rows {
+                        let start = NUM_LOCAL_MEMORY_ENTRIES_PER_ROW * 2 * idx;
+                        let end = std::cmp::min(
+                            NUM_LOCAL_MEMORY_ENTRIES_PER_ROW * 2 * (idx + 1) + 1,
+                            cumulative_sum.len(),
+                        );
+                        cols.global_accumulation_cols.populate_real(
+                            &cumulative_sum[start..end],
+                            final_digest,
+                            final_sum_checker,
+                        );
+                    } else {
+                        for k in 0..NUM_LOCAL_MEMORY_ENTRIES_PER_ROW {
+                            cols.memory_local_entries[k]
+                                .initial_global_interaction_cols
+                                .populate_dummy();
+                            cols.memory_local_entries[k]
+                                .final_global_interaction_cols
+                                .populate_dummy();
+                        }
+                        cols.global_accumulation_cols
+                            .populate_dummy(final_digest, final_sum_checker);
+                    }
+                })
+            });
+
+        // Convert the trace to a row major matrix.
+        RowMajorMatrix::new(values, NUM_MEMORY_LOCAL_INIT_COLS)
     }
 }

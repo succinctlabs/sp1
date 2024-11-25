@@ -38,9 +38,12 @@ pub mod extend_tests {
     };
     use sp1_stark::{air::MachineAir, CpuProver};
 
-    use crate::utils::{
-        self, run_test,
-        tests::{SHA2_ELF, SHA_EXTEND_ELF},
+    use crate::{
+        io::SP1Stdin,
+        utils::{
+            self, run_test,
+            tests::{SHA2_ELF, SHA_EXTEND_ELF},
+        },
     };
 
     use super::ShaExtendChip;
@@ -77,20 +80,23 @@ pub mod extend_tests {
     fn test_sha_prove() {
         utils::setup_logger();
         let program = sha_extend_program();
-        run_test::<CpuProver<_, _>>(program).unwrap();
+        let stdin = SP1Stdin::new();
+        run_test::<CpuProver<_, _>>(program, stdin).unwrap();
     }
 
     #[test]
     fn test_sha256_program() {
         utils::setup_logger();
         let program = Program::from(SHA2_ELF).unwrap();
-        run_test::<CpuProver<_, _>>(program).unwrap();
+        let stdin = SP1Stdin::new();
+        run_test::<CpuProver<_, _>>(program, stdin).unwrap();
     }
 
     #[test]
     fn test_sha_extend_program() {
         utils::setup_logger();
         let program = Program::from(SHA_EXTEND_ELF).unwrap();
-        run_test::<CpuProver<_, _>>(program).unwrap();
+        let stdin = SP1Stdin::new();
+        run_test::<CpuProver<_, _>>(program, stdin).unwrap();
     }
 }

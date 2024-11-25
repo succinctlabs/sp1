@@ -9,3 +9,6 @@
 #include "sll.hpp"
 #include "sp1-core-machine-sys-cbindgen.hpp"
 #include "sr.hpp"
+#include "memory_local.hpp"
+#include "memory_global.hpp"
+#include "syscall.hpp"

@@ -540,7 +540,8 @@ mod tests {
     use sp1_stark::CpuProver;
 
     use crate::utils::{
-        run_test_io, tests::SECP256K1_DECOMPRESS_ELF, tests::SECP256R1_DECOMPRESS_ELF,
+        run_test,
+        tests::{SECP256K1_DECOMPRESS_ELF, SECP256R1_DECOMPRESS_ELF},
     };
 
     #[test]
@@ -558,11 +559,9 @@ mod tests {
             let (_, compressed) = key_pair_generate_g2(&mut rand);
 
             let stdin = SP1Stdin::from(&compressed);
-            let mut public_values = run_test_io::<CpuProver<_, _>>(
-                Program::from(BLS12381_DECOMPRESS_ELF).unwrap(),
-                stdin,
-            )
-            .unwrap();
+            let mut public_values =
+                run_test::<CpuProver<_, _>>(Program::from(BLS12381_DECOMPRESS_ELF).unwrap(), stdin)
+                    .unwrap();
 
             let mut result = [0; 96];
             public_values.read_slice(&mut result);
@@ -592,7 +591,7 @@ mod tests {
 
             let inputs = SP1Stdin::from(&compressed);
 
-            let mut public_values = run_test_io::<CpuProver<_, _>>(
+            let mut public_values = run_test::<CpuProver<_, _>>(
                 Program::from(SECP256K1_DECOMPRESS_ELF).unwrap(),
                 inputs,
             )
@@ -621,7 +620,7 @@ mod tests {
 
             let inputs = SP1Stdin::from(compressed);
 
-            let mut public_values = run_test_io::<CpuProver<_, _>>(
+            let mut public_values = run_test::<CpuProver<_, _>>(
                 Program::from(SECP256R1_DECOMPRESS_ELF).unwrap(),
                 inputs,
             )
