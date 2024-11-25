@@ -146,6 +146,26 @@ jobs:
         env:
           CARGO_INCREMENTAL: 1
 
+      - name: Check workspace no features
+        uses: actions-rs/cargo@v1
+        with:
+          command: check
+          args: --workspace --all-targets --no-default-features
+
+      - name: Check workspace with default features
+        uses: actions-rs/cargo@v1
+        with:
+          command: check
+          args: --workspace --all-targets
+
+      - name: Check workspace with all features
+        uses: actions-rs/cargo@v1
+        with:
+          command: check
+          args: --workspace --all-targets --all-features
+
+
+
   examples:
     name: Examples
     runs-on:
