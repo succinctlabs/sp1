@@ -165,6 +165,15 @@ impl MemoryInstructionsChip {
         // of the most significant byte to get it's sign.
         self.eval_most_sig_byte_bit_decomp(builder, local, &local.unsigned_mem_val);
 
+        builder.assert_eq(
+            local.is_lb,
+            local.is_load * local.is_byte * (AB::Expr::one() - local.is_unsigned),
+        );
+        builder.assert_eq(
+            local.is_lh,
+            local.is_load * local.is_half * (AB::Expr::one() - local.is_unsigned),
+        );
+
         // Assert that correct value of `mem_value_is_neg_not_x0`.
         builder.assert_eq(
             local.mem_value_is_neg_not_x0,
@@ -236,12 +245,12 @@ impl MemoryInstructionsChip {
             a_val[0] * local.offset_is_three
                 + (one.clone() - local.offset_is_three) * prev_mem_val[3],
         ]);
-        let is_store = AB::Expr::one() - local.is_load;
         builder
-            .when(is_store.clone() * local.is_byte)
+            .when(local.is_sb)
             .assert_word_eq(mem_val.map(|x| x.into()), sb_expected_stored_value);
 
         // When the instruction is SH, make sure both offset one and three are off.
+        let is_store = AB::Expr::one() - local.is_load;
         builder
             .when(is_store.clone() * local.is_half)
             .assert_zero(local.offset_is_one + local.offset_is_three);
@@ -261,7 +270,7 @@ impl MemoryInstructionsChip {
             a_val[1] * a_is_upper_half + (one.clone() - a_is_upper_half) * prev_mem_val[3],
         ]);
         builder
-            .when(is_store.clone() * local.is_half)
+            .when(local.is_sh)
             .assert_word_eq(mem_val.map(|x| x.into()), sh_expected_stored_value);
 
         // When the instruction is SW, just use the word without masking.
@@ -294,12 +303,12 @@ impl MemoryInstructionsChip {
 
         // When the instruction is LB or LBU, just use the lower byte.
         builder
-            .when(local.is_load * local.is_byte)
+            .when(local.is_lb + local.is_lbu)
             .assert_word_eq(byte_value, local.unsigned_mem_val.map(|x| x.into()));
 
         // When the instruction is LH or LHU, use the lower half.
         builder
-            .when(local.is_load * local.is_half)
+            .when(local.is_lh + local.is_lhu)
             .assert_zero(local.offset_is_one + local.offset_is_three);
 
         // When the instruction is LW, ensure that the offset is zero.
@@ -315,7 +324,7 @@ impl MemoryInstructionsChip {
             AB::Expr::zero(),
         ]);
         builder
-            .when(local.is_load * local.is_half)
+            .when(local.is_lh + local.is_lhu)
             .assert_word_eq(half_value, local.unsigned_mem_val.map(|x| x.into()));
 
         // When the instruction is LW, just use the word.

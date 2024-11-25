@@ -458,13 +458,11 @@ where
                     .map(|(chip, shard_data)| {
                         let preprocessed_trace =
                             pk.chip_ordering.get(&chip.name()).map(|&index| &pk.traces[index]);
-                        println!("generate_perm_trace for chip: {:?}", chip.name());
                         let (perm_trace, global_sum, local_sum) = chip.generate_permutation_trace(
                             preprocessed_trace,
                             shard_data.trace,
                             &permutation_challenges,
                         );
-                        println!("generate_perm_trace for chip success: {:?}", chip.name());
                         ((perm_trace, preprocessed_trace), [global_sum, local_sum])
                     })
                     .unzip()

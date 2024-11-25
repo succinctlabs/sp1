@@ -37,7 +37,11 @@ pub struct MemoryInstructionsColumns<T> {
     pub is_unsigned: T,
 
     pub is_lb: T,
+    pub is_lbu: T,
     pub is_lh: T,
+    pub is_lhu: T,
+    pub is_sb: T,
+    pub is_sh: T,
 
     // An addr that we are reading from or writing to as a word. We are guaranteed that this does
     // not overflow the field when reduced.

@@ -189,6 +189,19 @@ impl MemoryInstructionsChip {
             )
         }
 
+        cols.is_load = F::from_bool(matches!(
+            event.opcode,
+            Opcode::LB | Opcode::LH | Opcode::LBU | Opcode::LHU | Opcode::LW
+        ));
+        cols.is_byte = F::from_bool(matches!(event.opcode, Opcode::LB | Opcode::LBU | Opcode::SB));
+        cols.is_half = F::from_bool(matches!(event.opcode, Opcode::LH | Opcode::LHU | Opcode::SH));
+        cols.is_unsigned = F::from_bool(matches!(event.opcode, Opcode::LBU | Opcode::LHU));
+        cols.is_lb = F::from_bool(matches!(event.opcode, Opcode::LB));
+        cols.is_lbu = F::from_bool(matches!(event.opcode, Opcode::LBU));
+        cols.is_lh = F::from_bool(matches!(event.opcode, Opcode::LH));
+        cols.is_sb = F::from_bool(matches!(event.opcode, Opcode::SB));
+        cols.is_sh = F::from_bool(matches!(event.opcode, Opcode::SH));
+
         // Add event to byte lookup for byte range checking each byte in the memory addr
         let addr_bytes = memory_addr.to_le_bytes();
         for byte_pair in addr_bytes.chunks_exact(2) {
