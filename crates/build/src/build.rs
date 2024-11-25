@@ -54,19 +54,9 @@ pub fn execute_build_program(
 }
 
 /// Internal helper function to build the program with or without arguments.
-///
-/// If the path is not absolute, it is assumed to be relative to the `CARGO_MANIFEST_DIR`.
 pub(crate) fn build_program_internal(path: impl AsRef<Path>, args: Option<BuildArgs>) {
     // Get the root package name and metadata.
-    //
-    // Note:
-    // You _MUST_ read the `CARGO_MANIFEST_DIR` at runtime (`std::env::var` as opposed to `env!`).
-    // Otherwise it will be the manifest dir of this crate, not the caller.
-    let mut program_dir = path.as_ref().to_path_buf();
-    if program_dir.is_relative() {
-        program_dir = Path::new(&std::env::var("CARGO_MANIFEST_DIR").unwrap()).join(program_dir);
-    }
-
+    let program_dir = path.as_ref().to_path_buf();
     let metadata_file = program_dir.join("Cargo.toml");
     let mut metadata_cmd = cargo_metadata::MetadataCommand::new();
     let metadata = metadata_cmd.manifest_path(metadata_file).exec().unwrap();
