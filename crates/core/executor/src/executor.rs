@@ -206,16 +206,16 @@ impl<'a> Executor<'a> {
 
         #[cfg(not(feature = "profiling"))]
         return Self::with_context(program, opts, context);
-        
+
         #[cfg(feature = "profiling")]
         {
             let mut this = Self::with_context(program, opts, context);
-        
+
             let trace_buf = std::env::var("TRACE_FILE").ok().map(|file| {
                 let file = File::create(file).unwrap();
                 BufWriter::new(file)
             });
-            
+
             if let Some(trace_buf) = trace_buf {
                 println!("Profiling enabled");
 
@@ -228,7 +228,8 @@ impl<'a> Executor<'a> {
                     .unwrap_or(1);
 
                 this.profiler = Some((
-                    Profiler::new(elf_bytes, sample_rate as u64).expect("Failed to create profiler"),
+                    Profiler::new(elf_bytes, sample_rate as u64)
+                        .expect("Failed to create profiler"),
                     trace_buf,
                 ));
             }
@@ -1521,7 +1522,7 @@ impl<'a> Executor<'a> {
         self.executor_mode = ExecutorMode::Trace;
         self.print_report = true;
         while !self.execute()? {}
-        
+
         #[cfg(feature = "profiling")]
         if let Some((profiler, writer)) = self.profiler.take() {
             profiler.write(writer).expect("Failed to write profile to output file");
