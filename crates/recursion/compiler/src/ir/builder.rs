@@ -33,16 +33,18 @@ impl<T> From<Vec<T>> for TracedVec<T> {
 }
 
 impl<T> TracedVec<T> {
-    pub const fn new() -> Self {
-        Self { vec: Vec::new(), traces: Vec::new() }
+    pub fn new() -> Self {
+        Self { vec: Vec::with_capacity(10000000), traces: Vec::new() }
     }
 
+    #[inline(always)]
     pub fn push(&mut self, value: T) {
         self.vec.push(value);
         self.traces.push(None);
     }
 
     /// Pushes a value to the vector and records a backtrace if SP1_DEBUG is enabled
+    #[inline(always)]
     pub fn trace_push(&mut self, value: T) {
         self.vec.push(value);
         if sp1_debug_mode() {

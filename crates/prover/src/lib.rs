@@ -353,7 +353,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                 )
             });
 
-            // Receive the first few shapes and compile the recursion programs.
+            // Receive the first few shapes and comile the recursion programs.
             for _ in 0..3 {
                 if let Ok((shape, is_complete)) = shape_rx.recv() {
                     let compress_shape = SP1CompressProgramShape::Recursion(SP1RecursionShape {
@@ -1592,6 +1592,7 @@ pub mod tests {
         // docker image which has a different API than the current. So we need to wait until the
         // next release (v1.2.0+), and then switch it back.
         let prover = SP1Prover::<DefaultProverComponents>::new();
+
         test_e2e_prover::<DefaultProverComponents>(
             &prover,
             elf,

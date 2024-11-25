@@ -440,6 +440,7 @@ where
     ///
     /// We do not simply return a `Vec` for performance reasons --- results would be immediately fed
     /// to `flat_map`, so we employ fusion/deforestation to eliminate intermediate data structures.
+    #[inline]
     pub fn compile_one<F>(
         &mut self,
         ir_instr: DslIr<C>,
@@ -536,9 +537,7 @@ where
             DslIr::CircuitV2CommitPublicValues(public_values) => {
                 f(self.commit_public_values(&public_values))
             }
-            DslIr::CircuitV2HintAddCurve(output, point1, point2) => {
-                f(self.add_curve(output, point1, point2))
-            }
+            DslIr::CircuitV2HintAddCurve(data) => f(self.add_curve(data.0, data.1, data.2)),
 
             DslIr::PrintV(dst) => f(self.print_f(dst)),
             DslIr::PrintF(dst) => f(self.print_f(dst)),
@@ -709,7 +708,7 @@ where
         // Initialize constants.
         let total_consts = self.consts.len();
         let instrs_consts =
-            self.consts.drain().sorted_by_key(|x| x.1 .0 .0).map(|(imm, (addr, mult))| {
+            self.consts.drain().sorted_by_key(|x| x.1.0.0).map(|(imm, (addr, mult))| {
                 Instruction::Mem(MemInstr {
                     addrs: MemIo { inner: addr },
                     vals: MemIo { inner: imm.as_block() },

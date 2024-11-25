@@ -116,4 +116,8 @@
 //     println!("groth16 proof: {:?}",
 // String::from_utf8(hex::encode(proof.encoded_proof)).unwrap()); }
 
-pub fn main() {}
+use sp1_prover::{components::DefaultProverComponents, SP1Prover};
+
+pub fn main() {
+    let prover = SP1Prover::<DefaultProverComponents>::new();
+}
