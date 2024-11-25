@@ -4,6 +4,8 @@ mod utils;
 use build::build_program_internal;
 pub use build::{execute_build_program, generate_elf_paths};
 
+use std::path::Path;
+
 use clap::Parser;
 
 const BUILD_TARGET: &str = "riscv32im-succinct-zkvm-elf";
@@ -110,7 +112,7 @@ impl Default for BuildArgs {
 /// when changes are made to the source code or its dependencies.
 ///
 /// Set the `SP1_SKIP_PROGRAM_BUILD` environment variable to `true` to skip building the program.
-pub fn build_program(path: &str) {
+pub fn build_program(path: impl AsRef<Path>) {
     build_program_internal(path, None)
 }
 
@@ -123,7 +125,7 @@ pub fn build_program(path: &str) {
 /// * `args` - A [`BuildArgs`] struct that contains various build configuration options.
 ///
 /// Set the `SP1_SKIP_PROGRAM_BUILD` environment variable to `true` to skip building the program.
-pub fn build_program_with_args(path: &str, args: BuildArgs) {
+pub fn build_program_with_args(path: impl AsRef<Path>, args: BuildArgs) {
     build_program_internal(path, Some(args))
 }
 

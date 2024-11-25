@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use cargo_metadata::camino::Utf8PathBuf;
@@ -54,9 +54,19 @@ pub fn execute_build_program(
 }
 
 /// Internal helper function to build the program with or without arguments.
-pub(crate) fn build_program_internal(path: &str, args: Option<BuildArgs>) {
+///
+/// If the path is not absolute, it is assumed to be relative to the `CARGO_MANIFEST_DIR`.
+pub(crate) fn build_program_internal(path: impl AsRef<Path>, args: Option<BuildArgs>) {
     // Get the root package name and metadata.
-    let program_dir = std::path::Path::new(path);
+    //
+    // Note:
+    // You _MUST_ read the `CARGO_MANIFEST_DIR` at runtime (`std::env::var` as opposed to `env!`).
+    // Othewise it will be the manifest dir of this crate, not the caller.
+    let mut program_dir = path.as_ref().to_path_buf();
+    if program_dir.is_relative() {
+        program_dir = Path::new(&std::env::var("CARGO_MANIFEST_DIR").unwrap()).join(program_dir);
+    }
+
     let metadata_file = program_dir.join("Cargo.toml");
     let mut metadata_cmd = cargo_metadata::MetadataCommand::new();
     let metadata = metadata_cmd.manifest_path(metadata_file).exec().unwrap();
@@ -83,7 +93,7 @@ pub(crate) fn build_program_internal(path: &str, args: Option<BuildArgs>) {
     }
 
     // Activate the build command if the dependencies change.
-    cargo_rerun_if_changed(&metadata, program_dir);
+    cargo_rerun_if_changed(&metadata, &program_dir);
 
     // Check if RUSTC_WORKSPACE_WRAPPER is set to clippy-driver (i.e. if `cargo clippy` is the
     // current compiler). If so, don't execute `cargo prove build` because it breaks
