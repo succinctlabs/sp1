@@ -458,10 +458,6 @@ class bb31_t {
   inline void shfl_bfly(uint32_t laneMask) {
     val = __shfl_xor_sync(0xFFFFFFFF, val, laneMask);
   }
-
-  inline __device__ bool operator==(const bb31_t rhs) const { 
-    return val == rhs.val; 
-  }
 };
 
 #undef inline
