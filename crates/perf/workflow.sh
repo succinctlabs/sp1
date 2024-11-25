@@ -39,13 +39,6 @@ CUDA_WORKLOADS=(
     "vector-01j6xzy366ff5tbkzcrs8pma02"
     "vector-01j6y06de0fdaafemr8b1t69z3"
     "raiko-a7-10"   
-    "op-succinct-op-sepolia-1818303090-18303120"
-    "op-succinct-op-sepolia-18200000-18200030" 
-    "op-succinct-op-sepolia-18250000-18250030"
-    "op-succinct-op-sepolia-18303044-18303074"
-    "op-succinct-op-sepolia-range-17685896-17685897"
-    "op-succinct-op-sepolia-range-17985900-17985905"
-    "op-succinct-op-sepolia-range-18129400-18129401"
 )
 
 # Define the list of network workloads.

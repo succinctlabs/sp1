@@ -293,19 +293,6 @@ where
                                 }
                             }
 
-                            #[cfg(feature = "debug")]
-                            all_records_tx.send(records.clone()).unwrap();
-
-                            let mut main_traces = Vec::new();
-                            tracing::debug_span!("generate main traces", index).in_scope(|| {
-                                main_traces = records
-                                    .par_iter()
-                                    .map(|record| prover.generate_traces(record))
-                                    .collect::<Vec<_>>();
-                            });
-
-                            trace_gen_sync.wait_for_turn(index);
-
                             // Send the shapes to the channel, if necessary.
                             for record in records.iter() {
                                 let mut heights = vec![];
@@ -321,6 +308,19 @@ where
                                     .send((ProofShape::from_log2_heights(&heights), done))
                                     .unwrap();
                             }
+
+                            #[cfg(feature = "debug")]
+                            all_records_tx.send(records.clone()).unwrap();
+
+                            let mut main_traces = Vec::new();
+                            tracing::debug_span!("generate main traces", index).in_scope(|| {
+                                main_traces = records
+                                    .par_iter()
+                                    .map(|record| prover.generate_traces(record))
+                                    .collect::<Vec<_>>();
+                            });
+
+                            trace_gen_sync.wait_for_turn(index);
 
                             // Send the records to the phase 2 prover.
                             let chunked_records = chunk_vec(records, opts.shard_batch_size);
