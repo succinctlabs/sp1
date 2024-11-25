@@ -35,7 +35,6 @@ use std::{
 use crate::shapes::SP1CompressProgramShape;
 use lru::LruCache;
 use p3_baby_bear::BabyBear;
-use p3_challenger::CanObserve;
 use p3_field::{AbstractField, PrimeField, PrimeField32};
 use p3_matrix::dense::RowMajorMatrix;
 use shapes::SP1ProofShape;
@@ -75,7 +74,6 @@ use sp1_recursion_core::{
 };
 pub use sp1_recursion_gnark_ffi::proof::{Groth16Bn254Proof, PlonkBn254Proof};
 use sp1_recursion_gnark_ffi::{groth16_bn254::Groth16Bn254Prover, plonk_bn254::PlonkBn254Prover};
-use sp1_stark::Challenger;
 use sp1_stark::{
     air::PublicValues, baby_bear_poseidon2::BabyBearPoseidon2, Challenge, MachineProver,
     SP1CoreOpts, SP1ProverOpts, ShardProof, StarkGenericConfig, StarkVerifyingKey, Val, Word,

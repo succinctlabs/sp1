@@ -11,15 +11,10 @@ use web_time::Instant;
 
 use crate::riscv::{CoreShapeConfig, RiscvAir};
 use p3_maybe_rayon::prelude::*;
-use serde::{de::DeserializeOwned, Serialize};
-use size::Size;
+use sp1_stark::MachineProvingKey;
 use sp1_stark::StarkVerifyingKey;
-use sp1_stark::{
-    baby_bear_poseidon2::BabyBearPoseidon2, MachineProvingKey, MachineVerificationError,
-};
 use thiserror::Error;
 
-use p3_baby_bear::BabyBear;
 use p3_field::PrimeField32;
 use sp1_stark::air::MachineAir;
 
@@ -28,24 +23,22 @@ use crate::{
     utils::{chunk_vec, concurrency::TurnBasedSync},
 };
 
-use p3_challenger::FieldChallenger;
-use p3_matrix::{dense::RowMajorMatrix, Matrix};
-use p3_maybe_rayon::prelude::*;
+use p3_matrix::dense::RowMajorMatrix;
 
 use sp1_core_executor::{
     events::sorted_table_lines, subproof::NoOpSubproofVerifier, ExecutionError, ExecutionRecord,
     ExecutionReport, ExecutionState, Executor, Program, SP1Context,
 };
 use sp1_stark::{
-    air::{InteractionScope, PublicValues},
-    Com, MachineProof, MachineProver, MachineRecord, OpeningProof, PcsProverData, ProofShape,
-    SP1CoreOpts, ShardProof, StarkGenericConfig, Val,
+    air::PublicValues, Com, MachineProof, MachineProver, MachineRecord, OpeningProof,
+    PcsProverData, ProofShape, SP1CoreOpts, ShardProof, StarkGenericConfig, Val,
 };
 
+#[allow(clippy::too_many_arguments)]
 pub fn prove_core<SC: StarkGenericConfig, P: MachineProver<SC, RiscvAir<SC::Val>>>(
     prover: &P,
     pk: &P::DeviceProvingKey,
-    vk: &StarkVerifyingKey<SC>,
+    _: &StarkVerifyingKey<SC>,
     program: Program,
     stdin: &SP1Stdin,
     opts: SP1CoreOpts,
