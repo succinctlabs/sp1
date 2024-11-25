@@ -355,18 +355,18 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                 )
             });
 
-            // Only receive up to first three shapes, since having more would just not be cached.
-            // for _ in 0..3 {
-            //     if let Ok(shape) = shape_rx.recv() {
-            //         let compress_shape = SP1CompressProgramShape::Recursion(SP1RecursionShape {
-            //             proof_shapes: vec![shape],
-            //             is_complete: false,
-            //         });
+            // Receive the first few shapes and compile the recursion programs.
+            for _ in 0..3 {
+                if let Ok((shape, is_complete)) = shape_rx.recv() {
+                    let compress_shape = SP1CompressProgramShape::Recursion(SP1RecursionShape {
+                        proof_shapes: vec![shape],
+                        is_complete,
+                    });
 
-            //         // Insert the program into the cache.
-            //         self.program_from_shape(false, compress_shape, None);
-            //     }
-            // }
+                    // Insert the program into the cache.
+                    self.program_from_shape(false, compress_shape, None);
+                }
+            }
 
             // Collect the shard proofs and the public values stream.
             let shard_proofs: Vec<ShardProof<_>> = proof_rx.iter().collect();
