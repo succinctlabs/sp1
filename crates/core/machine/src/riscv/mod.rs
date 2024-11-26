@@ -9,7 +9,7 @@ use sp1_core_executor::{
 };
 
 use crate::{
-    control_flow::AUIPCChip,
+    control_flow::{AUIPCChip, BranchChip},
     memory::{
         MemoryChipType, MemoryInstructionsChip, MemoryLocalChip, MemoryProgramChip,
         NUM_LOCAL_MEMORY_ENTRIES_PER_ROW,
@@ -92,6 +92,8 @@ pub enum RiscvAir<F: PrimeField32> {
     Memory(MemoryInstructionsChip),
     /// An AIR for RISC-V AUIPC instruction.
     AUIPC(AUIPCChip),
+    /// An AIR for RISC-V branch instructions.
+    Branch(BranchChip),
     /// A lookup table for byte operations.
     ByteLookup(ByteChip<F>),
     /// A table for initializing the global memory state.
@@ -360,6 +362,10 @@ impl<F: PrimeField32> RiscvAir<F> {
         costs.insert(RiscvAirDiscriminants::AUIPC, auipc.cost());
         chips.push(auipc);
 
+        let branch = Chip::new(RiscvAir::Branch(BranchChip::default()));
+        costs.insert(RiscvAirDiscriminants::Branch, branch.cost());
+        chips.push(branch);
+
         let memory_global_init = Chip::new(RiscvAir::MemoryGlobalInit(MemoryGlobalChip::new(
             MemoryChipType::Initialize,
         )));
@@ -419,6 +425,7 @@ impl<F: PrimeField32> RiscvAir<F> {
             ),
             (RiscvAir::Memory(MemoryInstructionsChip::default()), record.memory_instr_events.len()),
             (RiscvAir::AUIPC(AUIPCChip::default()), record.auipc_events.len()),
+            (RiscvAir::Branch(BranchChip::default()), record.branch_events.len()),
             (RiscvAir::SyscallCore(SyscallChip::core()), record.syscall_events.len()),
         ]
     }
@@ -434,6 +441,8 @@ impl<F: PrimeField32> RiscvAir<F> {
             RiscvAir::ShiftLeft(ShiftLeft::default()),
             RiscvAir::ShiftRight(ShiftRightChip::default()),
             RiscvAir::Memory(MemoryInstructionsChip::default()),
+            RiscvAir::AUIPC(AUIPCChip::default()),
+            RiscvAir::Branch(BranchChip::default()),
             RiscvAir::MemoryLocal(MemoryLocalChip::new()),
             RiscvAir::SyscallCore(SyscallChip::core()),
         ]
@@ -541,6 +550,7 @@ impl<F: PrimeField32> RiscvAir<F> {
             Self::ShiftLeft(_) => unreachable!("Invalid for core chip"),
             Self::Memory(_) => unreachable!("Invalid for memory chip"),
             Self::AUIPC(_) => unreachable!("Invalid for auipc chip"),
+            Self::Branch(_) => unreachable!("Invalid for branch chip"),
             Self::ByteLookup(_) => unreachable!("Invalid for core chip"),
             Self::SyscallCore(_) => unreachable!("Invalid for core chip"),
             Self::SyscallPrecompile(_) => unreachable!("Invalid for syscall precompile chip"),
