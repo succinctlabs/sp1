@@ -187,6 +187,7 @@ pub trait InstructionAirBuilder: BaseAirBuilder {
         a: Word<impl Into<Self::Expr>>,
         b: Word<impl Into<Self::Expr>>,
         c: Word<impl Into<Self::Expr>>,
+        op_a_0: impl Into<Self::Expr>,
         nonce: impl Into<Self::Expr>,
         is_mem_store: impl Into<Self::Expr>,
         multiplicity: impl Into<Self::Expr>,
@@ -197,6 +198,7 @@ pub trait InstructionAirBuilder: BaseAirBuilder {
             .chain(a.0.into_iter().map(Into::into))
             .chain(b.0.into_iter().map(Into::into))
             .chain(c.0.into_iter().map(Into::into))
+            .chain(once(op_a_0.into()))
             .chain(once(nonce.into()))
             .chain(once(is_mem_store.into()))
             .collect();
@@ -217,6 +219,7 @@ pub trait InstructionAirBuilder: BaseAirBuilder {
         a: Word<impl Into<Self::Expr>>,
         b: Word<impl Into<Self::Expr>>,
         c: Word<impl Into<Self::Expr>>,
+        op_a_0: impl Into<Self::Expr>,
         nonce: impl Into<Self::Expr>,
         is_mem_store: impl Into<Self::Expr>,
         multiplicity: impl Into<Self::Expr>,
@@ -227,6 +230,7 @@ pub trait InstructionAirBuilder: BaseAirBuilder {
             .chain(a.0.into_iter().map(Into::into))
             .chain(b.0.into_iter().map(Into::into))
             .chain(c.0.into_iter().map(Into::into))
+            .chain(once(op_a_0.into()))
             .chain(once(nonce.into()))
             .chain(once(is_mem_store.into()))
             .collect();

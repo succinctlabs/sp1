@@ -28,7 +28,6 @@ pub struct AluEvent {
 impl AluEvent {
     /// Create a new [`AluEvent`].
     #[must_use]
-    #[allow(clippy::too_many_arguments)]
     pub fn new(pc: u32, opcode: Opcode, a: u32, b: u32, c: u32) -> Self {
         Self {
             pc,

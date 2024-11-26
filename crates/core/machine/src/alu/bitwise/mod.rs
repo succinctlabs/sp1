@@ -212,6 +212,7 @@ where
             local.a,
             local.b,
             local.c,
+            AB::Expr::zero(),
             local.nonce,
             AB::Expr::zero(),
             local.is_xor + local.is_or + local.is_and,

@@ -51,6 +51,8 @@ pub struct CpuCols<T: Copy> {
 
     /// Columns related to the instruction.
     pub instruction: InstructionCols<T>,
+
+    /// Whether this is a memory store instruction.
     pub is_mem_store: T,
 
     /// Selectors for the opcode.

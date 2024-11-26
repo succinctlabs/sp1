@@ -686,6 +686,7 @@ impl<'a> Executor<'a> {
         }
     }
 
+    /// Emit a memory instruction event.
     fn emit_mem_instr_event(&mut self, opcode: Opcode, a: u32, b: u32, c: u32, op_a_0: bool) {
         let event = MemInstrEvent {
             shard: self.shard(),
@@ -774,7 +775,6 @@ impl<'a> Executor<'a> {
     }
 
     /// Set the destination register with the result and emit an ALU event.
-    #[allow(clippy::too_many_arguments)]
     fn alu_rw(
         &mut self,
         instruction: &Instruction,
@@ -1149,7 +1149,13 @@ impl<'a> Executor<'a> {
         };
         self.rw(rd, a);
         if self.executor_mode == ExecutorMode::Trace {
-            self.emit_mem_instr_event(instruction.opcode, a, b, c, rd == Register::X0);
+            self.emit_mem_instr_event(
+                instruction.opcode,
+                a,
+                b,
+                c,
+                instruction.op_a == Register::X0 as u8,
+            );
         }
         Ok((a, b, c))
     }
@@ -1181,7 +1187,13 @@ impl<'a> Executor<'a> {
         };
         self.mw_cpu(align(addr), memory_store_value, MemoryAccessPosition::Memory);
         if self.executor_mode == ExecutorMode::Trace {
-            self.emit_mem_instr_event(instruction.opcode, a, b, c, false);
+            self.emit_mem_instr_event(
+                instruction.opcode,
+                a,
+                b,
+                c,
+                instruction.op_a == Register::X0 as u8,
+            );
         }
 
         Ok((a, b, c))
