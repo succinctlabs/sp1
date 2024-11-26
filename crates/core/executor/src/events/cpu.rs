@@ -42,6 +42,4 @@ pub struct CpuEvent {
     pub jump_jal_lookup_id: LookupId,
     /// The jump jalr lookup id.
     pub jump_jalr_lookup_id: LookupId,
-    /// The auipc lookup id.
-    pub auipc_lookup_id: LookupId,
 }

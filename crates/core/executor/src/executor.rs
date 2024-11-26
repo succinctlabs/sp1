@@ -11,9 +11,12 @@ use thiserror::Error;
 
 use crate::{
     context::SP1Context,
-    dependencies::{emit_cpu_dependencies, emit_divrem_dependencies, emit_memory_dependencies},
+    dependencies::{
+        emit_auipc_dependency, emit_cpu_dependencies, emit_divrem_dependencies,
+        emit_memory_dependencies,
+    },
     events::{
-        AluEvent, CpuEvent, LookupId, MemInstrEvent, MemoryAccessPosition,
+        AUIPCEvent, AluEvent, CpuEvent, LookupId, MemInstrEvent, MemoryAccessPosition,
         MemoryInitializeFinalizeEvent, MemoryLocalEvent, MemoryReadRecord, MemoryRecord,
         MemoryWriteRecord, SyscallEvent,
     },
@@ -620,7 +623,6 @@ impl<'a> Executor<'a> {
         let branch_add_lookup_id = self.record.create_lookup_id();
         let jump_jal_lookup_id = self.record.create_lookup_id();
         let jump_jalr_lookup_id = self.record.create_lookup_id();
-        let auipc_lookup_id = self.record.create_lookup_id();
         self.record.cpu_events.push(CpuEvent {
             clk,
             pc,
@@ -639,7 +641,6 @@ impl<'a> Executor<'a> {
             branch_add_lookup_id,
             jump_jal_lookup_id,
             jump_jalr_lookup_id,
-            auipc_lookup_id,
         });
 
         emit_cpu_dependencies(self, self.record.cpu_events.len() - 1);
@@ -720,6 +721,14 @@ impl<'a> Executor<'a> {
             }
             _ => unreachable!(),
         }
+    }
+
+    /// Emit an AUIPC event.
+    fn emit_auipc_event(&mut self, opcode: Opcode, a: u32, b: u32) {
+        let auipc_nonce = self.record.create_lookup_id();
+        let event = AUIPCEvent::new(self.state.pc, opcode, a, b, auipc_nonce);
+        self.record.auipc_events.push(event);
+        emit_auipc_dependency(self, event);
     }
 
     #[inline]
@@ -938,6 +947,9 @@ impl<'a> Executor<'a> {
                 (b, c) = (imm, imm);
                 a = self.state.pc.wrapping_add(b);
                 self.rw(rd, a);
+                if self.executor_mode == ExecutorMode::Trace {
+                    self.emit_auipc_event(instruction.opcode, a, b);
+                }
             }
 
             // System instructions.

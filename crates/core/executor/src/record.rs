@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use super::{program::Program, Opcode};
 use crate::{
     events::{
-        AluEvent, ByteLookupEvent, ByteRecord, CpuEvent, LookupId, MemInstrEvent,
+        AUIPCEvent, AluEvent, ByteLookupEvent, ByteRecord, CpuEvent, LookupId, MemInstrEvent,
         MemoryInitializeFinalizeEvent, MemoryLocalEvent, MemoryRecordEnum, PrecompileEvent,
         PrecompileEvents, SyscallEvent,
     },
@@ -47,6 +47,8 @@ pub struct ExecutionRecord {
     pub lt_events: Vec<AluEvent>,
     /// A trace of the memory instructions.
     pub memory_instr_events: Vec<MemInstrEvent>,
+    /// A trace of the AUIPC events.
+    pub auipc_events: Vec<AUIPCEvent>,
     /// A trace of the byte lookups that are needed.
     pub byte_lookups: HashMap<ByteLookupEvent, usize>,
     /// A trace of the precompile events.
@@ -83,6 +85,7 @@ impl Default for ExecutionRecord {
             divrem_events: Vec::default(),
             lt_events: Vec::default(),
             memory_instr_events: Vec::default(),
+            auipc_events: Vec::default(),
             byte_lookups: HashMap::default(),
             precompile_events: PrecompileEvents::default(),
             global_memory_initialize_events: Vec::default(),
@@ -167,6 +170,11 @@ impl ExecutionRecord {
     /// Add a memory instructions event to the execution record.
     pub fn add_memory_instructions_event(&mut self, memory_instructions_event: MemInstrEvent) {
         self.memory_instr_events.push(memory_instructions_event);
+    }
+
+    /// Add an AUIPC event to the execution record.
+    pub fn add_auipc_event(&mut self, auipc_event: AUIPCEvent) {
+        self.auipc_events.push(auipc_event);
     }
 
     /// Take out events from the [`ExecutionRecord`] that should be deferred to a separate shard.
@@ -340,6 +348,7 @@ impl MachineRecord for ExecutionRecord {
         stats.insert("divrem_events".to_string(), self.divrem_events.len());
         stats.insert("lt_events".to_string(), self.lt_events.len());
         stats.insert("memory_instructions_events".to_string(), self.memory_instr_events.len());
+        stats.insert("auipc_events".to_string(), self.auipc_events.len());
 
         for (syscall_code, events) in self.precompile_events.iter() {
             stats.insert(format!("syscall {syscall_code:?}"), events.len());
@@ -373,6 +382,7 @@ impl MachineRecord for ExecutionRecord {
         self.divrem_events.append(&mut other.divrem_events);
         self.lt_events.append(&mut other.lt_events);
         self.memory_instr_events.append(&mut other.memory_instr_events);
+        self.auipc_events.append(&mut other.auipc_events);
         self.syscall_events.append(&mut other.syscall_events);
 
         self.precompile_events.append(&mut other.precompile_events);

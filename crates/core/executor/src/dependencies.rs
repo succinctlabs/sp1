@@ -1,5 +1,5 @@
 use crate::{
-    events::{AluEvent, MemInstrEvent, MemoryRecord},
+    events::{AUIPCEvent, AluEvent, MemInstrEvent, MemoryRecord},
     utils::{get_msb, get_quotient_and_remainder, is_signed_operation},
     Executor, Opcode, UNUSED_PC,
 };
@@ -108,6 +108,7 @@ pub fn emit_divrem_dependencies(executor: &mut Executor, event: AluEvent) {
     }
 }
 
+/// Emit the dependencies for memory instructions.
 pub fn emit_memory_dependencies(
     executor: &mut Executor,
     event: MemInstrEvent,
@@ -162,6 +163,20 @@ pub fn emit_memory_dependencies(
             executor.record.add_events.push(sub_event);
         }
     }
+}
+
+/// Emit the dependency for AUIPC instructions.
+pub fn emit_auipc_dependency(executor: &mut Executor, event: AUIPCEvent) {
+    let add_event = AluEvent {
+        pc: UNUSED_PC,
+        lookup_id: event.auipc_nonce,
+        opcode: Opcode::ADD,
+        a: event.a,
+        b: event.pc,
+        c: event.b,
+        sub_lookups: executor.record.create_lookup_ids(),
+    };
+    executor.record.add_events.push(add_event);
 }
 
 /// Emit the dependencies for CPU events.
@@ -258,18 +273,5 @@ pub fn emit_cpu_dependencies(executor: &mut Executor, index: usize) {
             }
             _ => unreachable!(),
         }
-    }
-
-    if matches!(instruction.opcode, Opcode::AUIPC) {
-        let add_event = AluEvent {
-            pc: UNUSED_PC,
-            lookup_id: event.auipc_lookup_id,
-            opcode: Opcode::ADD,
-            a: event.a,
-            b: event.pc,
-            c: event.b,
-            sub_lookups: executor.record.create_lookup_ids(),
-        };
-        executor.record.add_events.push(add_event);
     }
 }

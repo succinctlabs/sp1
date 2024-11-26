@@ -102,3 +102,28 @@ impl MemInstrEvent {
         }
     }
 }
+
+/// AUIPC Instruction Event.
+///
+/// This object encapsulated the information needed to prove a RISC-V memory operation.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub struct AUIPCEvent {
+    /// The program counter.
+    pub pc: u32,
+    /// The opcode.
+    pub opcode: Opcode,
+    /// The first operand value.
+    pub a: u32,
+    /// The second operand value.
+    pub b: u32,
+    /// The AUIPC add lookup id.
+    pub auipc_nonce: LookupId,
+}
+
+impl AUIPCEvent {
+    /// Create a new [`AUIPCEvent`].
+    #[must_use]
+    pub fn new(pc: u32, opcode: Opcode, a: u32, b: u32, auipc_nonce: LookupId) -> Self {
+        Self { pc, opcode, a, b, auipc_nonce }
+    }
+}
