@@ -234,6 +234,9 @@ where
         let next = main.row_slice(1);
         let next: &Fp2AddSubAssignCols<AB::Var, P> = (*next).borrow();
 
+        // Constrain `is_real` to be boolean.
+        builder.assert_bool(local.is_real);
+
         // Constrain the `is_add` flag to be boolean.
         builder.assert_bool(local.is_add);
 

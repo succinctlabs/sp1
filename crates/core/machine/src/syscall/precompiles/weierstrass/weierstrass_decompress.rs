@@ -338,6 +338,9 @@ where
         let next: &WeierstrassDecompressCols<AB::Var, E::BaseField> =
             (*next)[0..weierstrass_cols].borrow();
 
+        // Constrain `is_real` to be boolean.
+        builder.assert_bool(local.is_real);
+
         // Constrain the incrementing nonce.
         builder.when_first_row().assert_zero(local.nonce);
         builder.when_transition().assert_eq(local.nonce + AB::Expr::one(), next.nonce);

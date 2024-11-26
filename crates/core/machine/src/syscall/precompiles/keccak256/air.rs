@@ -33,6 +33,9 @@ where
         let local: &KeccakMemCols<AB::Var> = (*local).borrow();
         let next: &KeccakMemCols<AB::Var> = (*next).borrow();
 
+        // Constrain `is_real` to be boolean.
+        builder.assert_bool(local.is_real);
+
         // Constrain the incrementing nonce.
         builder.when_first_row().assert_zero(local.nonce);
         builder.when_transition().assert_eq(local.nonce + AB::Expr::one(), next.nonce);

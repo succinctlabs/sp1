@@ -226,6 +226,9 @@ where
         builder.when_first_row().assert_zero(local.nonce);
         builder.when_transition().assert_eq(local.nonce + AB::Expr::one(), next.nonce);
 
+        // Constrain `is_real` to be boolean.
+        builder.assert_bool(local.is_real);
+
         // Check that operations flags are boolean.
         builder.assert_bool(local.is_add);
         builder.assert_bool(local.is_sub);

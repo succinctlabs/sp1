@@ -264,6 +264,9 @@ where
         let next = main.row_slice(1);
         let next: &Fp2MulAssignCols<AB::Var, P> = (*next).borrow();
 
+        // Constrain `is_real` to be boolean.
+        builder.assert_bool(local.is_real);
+
         builder.when_first_row().assert_zero(local.nonce);
         builder.when_transition().assert_eq(local.nonce + AB::Expr::one(), next.nonce);
         let num_words_field_element = <P as NumLimbs>::Limbs::USIZE / 4;
