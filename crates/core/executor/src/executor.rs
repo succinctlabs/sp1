@@ -6,7 +6,7 @@ use std::{
 
 use hashbrown::HashMap;
 use serde::{Deserialize, Serialize};
-use sp1_stark::SP1CoreOpts;
+use sp1_stark::{air::PublicValues, SP1CoreOpts};
 use thiserror::Error;
 
 use crate::{
@@ -1374,7 +1374,7 @@ impl<'a> Executor<'a> {
     pub fn execute_state(
         &mut self,
         emit_global_memory_events: bool,
-    ) -> Result<(ExecutionState, bool), ExecutionError> {
+    ) -> Result<(ExecutionState, PublicValues<u32, u32>, bool), ExecutionError> {
         self.memory_checkpoint.clear();
         self.executor_mode = ExecutorMode::Checkpoint;
         self.emit_global_memory_events = emit_global_memory_events;
@@ -1389,6 +1389,7 @@ impl<'a> Executor<'a> {
         let done = tracing::debug_span!("execute").in_scope(|| self.execute())?;
         // Create a checkpoint using `memory_checkpoint`. Just include all memory if `done` since we
         // need it all for MemoryFinalize.
+        let next_pc = self.state.pc;
         tracing::debug_span!("create memory checkpoint").in_scope(|| {
             let memory_checkpoint = std::mem::take(&mut self.memory_checkpoint);
             let uninitialized_memory_checkpoint =
@@ -1424,10 +1425,14 @@ impl<'a> Executor<'a> {
                     .collect();
             }
         });
+        let mut public_values = self.records.last().as_ref().unwrap().public_values;
+        public_values.start_pc = next_pc;
+        public_values.next_pc = next_pc;
+        println!("public values: {public_values:?}");
         if !done {
             self.records.clear();
         }
-        Ok((checkpoint, done))
+        Ok((checkpoint, public_values, done))
     }
 
     fn initialize(&mut self) {

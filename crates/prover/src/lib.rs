@@ -75,9 +75,8 @@ use sp1_recursion_core::{
 pub use sp1_recursion_gnark_ffi::proof::{Groth16Bn254Proof, PlonkBn254Proof};
 use sp1_recursion_gnark_ffi::{groth16_bn254::Groth16Bn254Prover, plonk_bn254::PlonkBn254Prover};
 use sp1_stark::{
-    air::PublicValues, baby_bear_poseidon2::BabyBearPoseidon2, Challenge, MachineProver,
-    SP1CoreOpts, SP1ProverOpts, ShardProof, StarkGenericConfig, StarkVerifyingKey, Val, Word,
-    DIGEST_SIZE,
+    baby_bear_poseidon2::BabyBearPoseidon2, Challenge, MachineProver, SP1CoreOpts, SP1ProverOpts,
+    ShardProof, StarkGenericConfig, StarkVerifyingKey, Val, Word, DIGEST_SIZE,
 };
 use sp1_stark::{MachineProvingKey, ProofShape};
 use tracing::instrument;
@@ -1096,6 +1095,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         shard_proofs: &[ShardProof<CoreSC>],
         batch_size: usize,
         is_complete: bool,
+        deferred_digest: [Val<CoreSC>; 8],
     ) -> Vec<SP1RecursionWitnessValues<CoreSC>> {
         let mut core_inputs = Vec::new();
 
@@ -1109,19 +1109,18 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                 is_complete,
                 is_first_shard: batch_idx == 0,
                 vk_root: self.vk_root,
+                reconstruct_deferred_digest: deferred_digest,
             });
         }
-
         core_inputs
     }
 
     pub fn get_recursion_deferred_inputs<'a>(
         &'a self,
         vk: &'a StarkVerifyingKey<CoreSC>,
-        last_proof_pv: &PublicValues<Word<BabyBear>, BabyBear>,
         deferred_proofs: &[SP1ReduceProof<InnerSC>],
         batch_size: usize,
-    ) -> Vec<SP1DeferredWitnessValues<InnerSC>> {
+    ) -> (Vec<SP1DeferredWitnessValues<InnerSC>>, [BabyBear; 8]) {
         // Prepare the inputs for the deferred proofs recursive verification.
         let mut deferred_digest = [Val::<InnerSC>::zero(); DIGEST_SIZE];
         let mut deferred_inputs = Vec::new();
@@ -1140,18 +1139,18 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                 start_reconstruct_deferred_digest: deferred_digest,
                 is_complete: false,
                 sp1_vk_digest: vk.hash_babybear(),
-                end_pc: Val::<InnerSC>::zero(),
-                end_shard: last_proof_pv.shard + BabyBear::one(),
-                end_execution_shard: last_proof_pv.execution_shard,
-                init_addr_bits: last_proof_pv.last_init_addr_bits,
-                finalize_addr_bits: last_proof_pv.last_finalize_addr_bits,
-                committed_value_digest: last_proof_pv.committed_value_digest,
-                deferred_proofs_digest: last_proof_pv.deferred_proofs_digest,
+                end_pc: vk.pc_start,
+                end_shard: BabyBear::one(),
+                end_execution_shard: BabyBear::one(),
+                init_addr_bits: [BabyBear::zero(); 32],
+                finalize_addr_bits: [BabyBear::zero(); 32],
+                committed_value_digest: [Word::<BabyBear>([BabyBear::zero(); 4]); 8],
+                deferred_proofs_digest: [BabyBear::zero(); 8],
             });
 
             deferred_digest = Self::hash_deferred_proofs(deferred_digest, batch);
         }
-        deferred_inputs
+        (deferred_inputs, deferred_digest)
     }
 
     /// Generate the inputs for the first layer of recursive proofs.
@@ -1163,16 +1162,21 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         deferred_proofs: &[SP1ReduceProof<InnerSC>],
         batch_size: usize,
     ) -> Vec<SP1CircuitWitness> {
+        let (deferred_inputs, deferred_digest) =
+            self.get_recursion_deferred_inputs(&vk.vk, deferred_proofs, batch_size);
+
         let is_complete = shard_proofs.len() == 1 && deferred_proofs.is_empty();
-        let core_inputs =
-            self.get_recursion_core_inputs(&vk.vk, shard_proofs, batch_size, is_complete);
-        let last_proof_pv = shard_proofs.last().unwrap().public_values.as_slice().borrow();
-        let deferred_inputs =
-            self.get_recursion_deferred_inputs(&vk.vk, last_proof_pv, deferred_proofs, batch_size);
+        let core_inputs = self.get_recursion_core_inputs(
+            &vk.vk,
+            shard_proofs,
+            batch_size,
+            is_complete,
+            deferred_digest,
+        );
 
         let mut inputs = Vec::new();
-        inputs.extend(core_inputs.into_iter().map(SP1CircuitWitness::Core));
         inputs.extend(deferred_inputs.into_iter().map(SP1CircuitWitness::Deferred));
+        inputs.extend(core_inputs.into_iter().map(SP1CircuitWitness::Core));
         inputs
     }
 
