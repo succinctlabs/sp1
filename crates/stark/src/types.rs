@@ -99,6 +99,15 @@ impl ProofShape {
             .sorted_by_key(|(_, height)| *height)
             .collect()
     }
+
+    #[must_use]
+    pub fn from_log2_heights(traces: &[(String, usize)]) -> Self {
+        traces
+            .iter()
+            .map(|(name, height)| (name.clone(), *height))
+            .sorted_by_key(|(_, height)| *height)
+            .collect()
+    }
 }
 
 impl<SC: StarkGenericConfig> Debug for ShardProof<SC> {

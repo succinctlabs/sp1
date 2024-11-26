@@ -11,40 +11,34 @@ use web_time::Instant;
 
 use crate::riscv::{CoreShapeConfig, RiscvAir};
 use p3_maybe_rayon::prelude::*;
-use serde::{de::DeserializeOwned, Serialize};
-use size::Size;
+use sp1_stark::MachineProvingKey;
 use sp1_stark::StarkVerifyingKey;
-use sp1_stark::{
-    baby_bear_poseidon2::BabyBearPoseidon2, MachineProvingKey, MachineVerificationError,
-};
 use thiserror::Error;
 
-use p3_baby_bear::BabyBear;
 use p3_field::PrimeField32;
+use sp1_stark::air::MachineAir;
 
 use crate::{
     io::SP1Stdin,
     utils::{chunk_vec, concurrency::TurnBasedSync},
 };
 
-use p3_challenger::FieldChallenger;
-use p3_matrix::{dense::RowMajorMatrix, Matrix};
-use p3_maybe_rayon::prelude::*;
+use p3_matrix::dense::RowMajorMatrix;
 
 use sp1_core_executor::{
     events::sorted_table_lines, subproof::NoOpSubproofVerifier, ExecutionError, ExecutionRecord,
     ExecutionReport, ExecutionState, Executor, Program, SP1Context,
 };
 use sp1_stark::{
-    air::{InteractionScope, PublicValues},
-    Com, MachineProof, MachineProver, MachineRecord, OpeningProof, PcsProverData, ProofShape,
-    SP1CoreOpts, ShardProof, StarkGenericConfig, Val,
+    air::PublicValues, Com, MachineProof, MachineProver, MachineRecord, OpeningProof,
+    PcsProverData, ProofShape, SP1CoreOpts, ShardProof, StarkGenericConfig, Val,
 };
 
+#[allow(clippy::too_many_arguments)]
 pub fn prove_core<SC: StarkGenericConfig, P: MachineProver<SC, RiscvAir<SC::Val>>>(
     prover: &P,
     pk: &P::DeviceProvingKey,
-    vk: &StarkVerifyingKey<SC>,
+    _: &StarkVerifyingKey<SC>,
     program: Program,
     stdin: &SP1Stdin,
     opts: SP1CoreOpts,
@@ -89,7 +83,7 @@ pub fn prove_core_stream<SC: StarkGenericConfig, P: MachineProver<SC, RiscvAir<S
     context: SP1Context,
     shape_config: Option<&CoreShapeConfig<SC::Val>>,
     proof_tx: Sender<ShardProof<SC>>,
-    shape_tx: Sender<ProofShape>,
+    shape_and_done_tx: Sender<(ProofShape, bool)>,
 ) -> Result<(Vec<u8>, u64), SP1CoreProverError>
 where
     SC::Val: PrimeField32,
@@ -132,7 +126,7 @@ where
                         let _span = span.enter();
 
                         // Execute the runtime until we reach a checkpoint.
-                        let (checkpoint, done) = runtime
+                        let (checkpoint, _, done) = runtime
                             .execute_state(false)
                             .map_err(SP1CoreProverError::ExecutionError)?;
 
@@ -172,7 +166,7 @@ where
             );
         let p2_records_and_traces_tx = Arc::new(Mutex::new(p2_records_and_traces_tx));
 
-        let shape_tx = Arc::new(Mutex::new(shape_tx));
+        let shape_tx = Arc::new(Mutex::new(shape_and_done_tx));
         let report_aggregate = Arc::new(Mutex::new(ExecutionReport::default()));
         let state = Arc::new(Mutex::new(PublicValues::<u32, u32>::default().reset()));
         let deferred = Arc::new(Mutex::new(ExecutionRecord::new(program.clone().into())));
@@ -299,6 +293,22 @@ where
                                 }
                             }
 
+                            // Send the shapes to the channel, if necessary.
+                            for record in records.iter() {
+                                let mut heights = vec![];
+                                let chips = prover.shard_chips(record).collect::<Vec<_>>();
+                                let shape = record.shape.as_ref().expect("shape not set");
+                                for chip in chips.iter() {
+                                    let height = shape.inner[&chip.name()];
+                                    heights.push((chip.name().clone(), height));
+                                }
+                                shape_tx
+                                    .lock()
+                                    .unwrap()
+                                    .send((ProofShape::from_log2_heights(&heights), done))
+                                    .unwrap();
+                            }
+
                             #[cfg(feature = "debug")]
                             all_records_tx.send(records.clone()).unwrap();
 
@@ -311,16 +321,6 @@ where
                             });
 
                             trace_gen_sync.wait_for_turn(index);
-
-                            // Send the shapes to the channel, if necessary.
-                            // TODO: on gpu the shape is wrong cause of the way we do tracegen on gpu
-                            for main_trace in main_traces.iter() {
-                                shape_tx
-                                    .lock()
-                                    .unwrap()
-                                    .send(ProofShape::from_traces(main_trace))
-                                    .unwrap();
-                            }
 
                             // Send the records to the phase 2 prover.
                             let chunked_records = chunk_vec(records, opts.shard_batch_size);

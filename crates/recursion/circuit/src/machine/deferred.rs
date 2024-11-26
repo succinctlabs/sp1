@@ -161,10 +161,10 @@ where
             challenger.observe(builder, zero);
 
             // Observe the and public values.
-            challenger.observe_slice(
-                builder,
-                shard_proof.public_values[0..machine.num_pv_elts()].iter().copied(),
-            );
+            // challenger.observe_slice(
+            //     builder,
+            //     shard_proof.public_values[0..machine.num_pv_elts()].iter().copied(),
+            // );
 
             StarkVerifier::verify_shard(builder, &vk, machine, &mut challenger, &shard_proof);
 

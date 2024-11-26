@@ -1,3 +1,5 @@
+#![deny(clippy::large_enum_variant)]
+
 use sp1_recursion_core::air::RecursionPublicValues;
 use sp1_stark::septic_curve::SepticCurve;
 
@@ -278,9 +280,7 @@ pub enum DslIr<C: Config> {
 
     /// Adds two elliptic curve points. (sum, point_1, point_2).
     CircuitV2HintAddCurve(
-        SepticCurve<Felt<C::F>>,
-        SepticCurve<Felt<C::F>>,
-        SepticCurve<Felt<C::F>>,
+        Box<(SepticCurve<Felt<C::F>>, SepticCurve<Felt<C::F>>, SepticCurve<Felt<C::F>>)>,
     ),
 
     // FRI specific instructions.

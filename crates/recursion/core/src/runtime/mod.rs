@@ -419,14 +419,15 @@ where
                         self.record.mem_var_events.push(MemEvent { inner: bit });
                     }
                 }
-                Instruction::HintAddCurve(HintAddCurveInstr {
-                    output_x_addrs_mults,
-                    output_y_addrs_mults,
-                    input1_x_addrs,
-                    input1_y_addrs,
-                    input2_x_addrs,
-                    input2_y_addrs,
-                }) => {
+                Instruction::HintAddCurve(instr) => {
+                    let HintAddCurveInstr {
+                        output_x_addrs_mults,
+                        output_y_addrs_mults,
+                        input1_x_addrs,
+                        input1_y_addrs,
+                        input2_x_addrs,
+                        input2_y_addrs,
+                    } = *instr;
                     let input1_x = SepticExtension::<F>::from_base_fn(|i| {
                         self.memory.mr_mult(input1_x_addrs[i], F::zero()).val[0]
                     });

@@ -51,6 +51,7 @@ pub struct SP1RecursionWitnessVariable<
 > {
     pub vk: VerifyingKeyVariable<C, SC>,
     pub shard_proofs: Vec<ShardProofVariable<C, SC>>,
+    pub reconstruct_deferred_digest: [Felt<C::F>; DIGEST_SIZE],
     pub is_complete: Felt<C::F>,
     pub is_first_shard: Felt<C::F>,
     pub vk_root: [Felt<C::F>; DIGEST_SIZE],
@@ -65,6 +66,7 @@ pub struct SP1RecursionWitnessValues<SC: StarkGenericConfig> {
     pub is_complete: bool,
     pub is_first_shard: bool,
     pub vk_root: [SC::Val; DIGEST_SIZE],
+    pub reconstruct_deferred_digest: [SC::Val; 8],
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -82,10 +84,10 @@ pub struct SP1RecursiveVerifier<C: Config, SC: BabyBearFriConfig> {
 impl<C, SC> SP1RecursiveVerifier<C, SC>
 where
     SC: BabyBearFriConfigVariable<
-            C,
-            FriChallengerVariable = DuplexChallengerVariable<C>,
-            DigestVariable = [Felt<BabyBear>; DIGEST_SIZE],
-        >,
+        C,
+        FriChallengerVariable = DuplexChallengerVariable<C>,
+        DigestVariable = [Felt<BabyBear>; DIGEST_SIZE],
+    >,
     C: CircuitConfig<F = SC::Val, EF = SC::Challenge, Bit = Felt<BabyBear>>,
     <SC::ValMmcs as Mmcs<BabyBear>>::ProverData<RowMajorMatrix<BabyBear>>: Clone,
 {
@@ -121,8 +123,14 @@ where
         input: SP1RecursionWitnessVariable<C, SC>,
     ) {
         // Read input.
-        let SP1RecursionWitnessVariable { vk, shard_proofs, is_complete, is_first_shard, vk_root } =
-            input;
+        let SP1RecursionWitnessVariable {
+            vk,
+            shard_proofs,
+            is_complete,
+            is_first_shard,
+            vk_root,
+            reconstruct_deferred_digest,
+        } = input;
 
         // Initialize shard variables.
         let mut initial_shard: Felt<_> = unsafe { MaybeUninit::zeroed().assume_init() };
@@ -525,12 +533,8 @@ where
             // Compute the vk digest.
             let vk_digest = vk.hash(builder);
 
-            // Collect the deferred proof digests.
-            let zero: Felt<_> = builder.eval(C::F::zero());
-            let start_deferred_digest = [zero; POSEIDON_NUM_WORDS];
-            let end_deferred_digest = [zero; POSEIDON_NUM_WORDS];
-
             // Initialize the public values we will commit to.
+            let zero: Felt<_> = builder.eval(C::F::zero());
             let mut recursion_public_values_stream = [zero; RECURSIVE_PROOF_NUM_PV_ELTS];
             let recursion_public_values: &mut RecursionPublicValues<_> =
                 recursion_public_values_stream.as_mut_slice().borrow_mut();
@@ -549,8 +553,8 @@ where
             recursion_public_values.last_finalize_addr_bits = current_finalize_addr_bits;
             recursion_public_values.sp1_vk_digest = vk_digest;
             recursion_public_values.global_cumulative_sum = global_cumulative_sum;
-            recursion_public_values.start_reconstruct_deferred_digest = start_deferred_digest;
-            recursion_public_values.end_reconstruct_deferred_digest = end_deferred_digest;
+            recursion_public_values.start_reconstruct_deferred_digest = reconstruct_deferred_digest;
+            recursion_public_values.end_reconstruct_deferred_digest = reconstruct_deferred_digest;
             recursion_public_values.exit_code = exit_code;
             recursion_public_values.is_complete = is_complete;
             // Set the contains an execution shard flag.
@@ -588,6 +592,7 @@ impl SP1RecursionWitnessValues<BabyBearPoseidon2> {
         Self {
             vk,
             shard_proofs,
+            reconstruct_deferred_digest: [BabyBear::zero(); DIGEST_SIZE],
             is_complete: shape.is_complete,
             is_first_shard: false,
             vk_root: [BabyBear::zero(); DIGEST_SIZE],

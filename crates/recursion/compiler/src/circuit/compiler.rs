@@ -248,6 +248,7 @@ where
         f(self.ext_alu(DivE, out, Imm::EF(C::EF::one()), diff));
     }
 
+    #[inline(always)]
     fn poseidon2_permute(
         &mut self,
         dst: [impl Reg<C>; WIDTH],
@@ -262,6 +263,7 @@ where
         }))
     }
 
+    #[inline(always)]
     fn select(
         &mut self,
         bit: impl Reg<C>,
@@ -316,7 +318,7 @@ where
         input1: SepticCurve<Felt<C::F>>,
         input2: SepticCurve<Felt<C::F>>,
     ) -> Instruction<C::F> {
-        Instruction::HintAddCurve(HintAddCurveInstr {
+        Instruction::HintAddCurve(Box::new(HintAddCurveInstr {
             output_x_addrs_mults: output
                 .x
                 .0
@@ -333,7 +335,7 @@ where
             input1_y_addrs: input1.y.0.into_iter().map(|value| value.read_ghost(self)).collect(),
             input2_x_addrs: input2.x.0.into_iter().map(|value| value.read_ghost(self)).collect(),
             input2_y_addrs: input2.y.0.into_iter().map(|value| value.read_ghost(self)).collect(),
-        })
+        }))
     }
 
     fn fri_fold(
@@ -440,6 +442,7 @@ where
     ///
     /// We do not simply return a `Vec` for performance reasons --- results would be immediately fed
     /// to `flat_map`, so we employ fusion/deforestation to eliminate intermediate data structures.
+    #[inline]
     pub fn compile_one<F>(
         &mut self,
         ir_instr: DslIr<C>,
@@ -536,9 +539,7 @@ where
             DslIr::CircuitV2CommitPublicValues(public_values) => {
                 f(self.commit_public_values(&public_values))
             }
-            DslIr::CircuitV2HintAddCurve(output, point1, point2) => {
-                f(self.add_curve(output, point1, point2))
-            }
+            DslIr::CircuitV2HintAddCurve(data) => f(self.add_curve(data.0, data.1, data.2)),
 
             DslIr::PrintV(dst) => f(self.print_f(dst)),
             DslIr::PrintF(dst) => f(self.print_f(dst)),
@@ -577,6 +578,7 @@ where
                         Ok(instr) => {
                             span_builder.item(instr_name(&instr));
                             instrs.push(instr);
+                            #[cfg(feature = "debug")]
                             traces.push(trace.clone());
                         }
                         Err(CompileOneErr::CycleTrackerEnter(name)) => {
@@ -687,11 +689,10 @@ where
                             .iter_mut()
                             .for_each(|(addr, mult)| backfill((mult, addr)));
                     }
-                    Instruction::HintAddCurve(HintAddCurveInstr {
-                        output_x_addrs_mults,
-                        output_y_addrs_mults,
-                        ..
-                    }) => {
+                    Instruction::HintAddCurve(instr) => {
+                        let HintAddCurveInstr {
+                            output_x_addrs_mults, output_y_addrs_mults, ..
+                        } = instr.as_mut();
                         output_x_addrs_mults
                             .iter_mut()
                             .for_each(|(addr, mult)| backfill((mult, addr)));
@@ -710,7 +711,7 @@ where
         // Initialize constants.
         let total_consts = self.consts.len();
         let instrs_consts =
-            self.consts.drain().sorted_by_key(|x| x.1 .0 .0).map(|(imm, (addr, mult))| {
+            self.consts.drain().sorted_by_key(|x| x.1.0.0).map(|(imm, (addr, mult))| {
                 Instruction::Mem(MemInstr {
                     addrs: MemIo { inner: addr },
                     vals: MemIo { inner: imm.as_block() },
