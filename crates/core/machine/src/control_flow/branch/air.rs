@@ -61,7 +61,7 @@ where
             local.op_a_value,
             local.op_b_value,
             local.op_c_value,
-            AB::Expr::zero(),
+            local.op_a_0,
             AB::Expr::zero(),
             AB::Expr::zero(),
             is_real.clone(),

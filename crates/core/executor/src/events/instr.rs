@@ -120,6 +120,8 @@ pub struct BranchEvent {
     pub b: u32,
     /// The third operand value.
     pub c: u32,
+    /// Whether the first operand is register 0.
+    pub op_a_0: bool,
     /// The branch gt lookup id.
     pub branch_gt_lookup_id: LookupId,
     /// The branch lt lookup id.
@@ -139,6 +141,7 @@ impl BranchEvent {
         a: u32,
         b: u32,
         c: u32,
+        op_a_0: bool,
         branch_gt_lookup_id: LookupId,
         branch_lt_lookup_id: LookupId,
         branch_add_lookup_id: LookupId,
@@ -150,6 +153,7 @@ impl BranchEvent {
             a,
             b,
             c,
+            op_a_0,
             branch_gt_lookup_id,
             branch_lt_lookup_id,
             branch_add_lookup_id,

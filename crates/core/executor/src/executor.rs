@@ -718,7 +718,15 @@ impl<'a> Executor<'a> {
     }
 
     /// Emit a branch event.
-    fn emit_branch_event(&mut self, opcode: Opcode, a: u32, b: u32, c: u32, next_pc: u32) {
+    fn emit_branch_event(
+        &mut self,
+        opcode: Opcode,
+        a: u32,
+        b: u32,
+        c: u32,
+        op_a_0: bool,
+        next_pc: u32,
+    ) {
         let event = BranchEvent {
             pc: self.state.pc,
             next_pc,
@@ -726,6 +734,7 @@ impl<'a> Executor<'a> {
             a,
             b,
             c,
+            op_a_0,
             branch_gt_lookup_id: self.record.create_lookup_id(),
             branch_lt_lookup_id: self.record.create_lookup_id(),
             branch_add_lookup_id: self.record.create_lookup_id(),
@@ -1243,7 +1252,14 @@ impl<'a> Executor<'a> {
             next_pc = self.state.pc.wrapping_add(c);
         }
         if self.executor_mode == ExecutorMode::Trace {
-            self.emit_branch_event(instruction.opcode, a, b, c, next_pc);
+            self.emit_branch_event(
+                instruction.opcode,
+                a,
+                b,
+                c,
+                instruction.op_a == Register::X0 as u8,
+                next_pc,
+            );
         }
         (a, b, c, next_pc)
     }

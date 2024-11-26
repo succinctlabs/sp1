@@ -78,6 +78,7 @@ impl BranchChip {
         cols.op_a_value = event.a.into();
         cols.op_b_value = event.b.into();
         cols.op_c_value = event.c.into();
+        cols.op_a_0 = F::from_bool(event.op_a_0);
 
         let a_eq_b = event.a == event.b;
 

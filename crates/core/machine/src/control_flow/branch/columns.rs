@@ -25,6 +25,9 @@ pub struct BranchColumns<T> {
     /// The value of the third operand.
     pub op_c_value: Word<T>,
 
+    /// Whether the first operand is register 0.
+    pub op_a_0: T,
+
     /// Branch Instructions.
     pub is_beq: T,
     pub is_bne: T,

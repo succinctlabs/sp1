@@ -63,9 +63,6 @@ where
                 + local.selectors.is_auipc,
         );
 
-        // Verify that next.pc is correct.
-        builder.when_transition().when(local.is_real).assert_eq(local.next_pc, next.pc);
-
         // Jump instructions.
         self.eval_jump_ops::<AB>(builder, local, next);
 
