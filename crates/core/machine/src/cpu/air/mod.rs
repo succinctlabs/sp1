@@ -1,4 +1,3 @@
-pub mod branch;
 pub mod ecall;
 pub mod register;
 
@@ -131,6 +130,18 @@ impl CpuChip {
             + opcode_selectors.is_sb
             + opcode_selectors.is_sh
             + opcode_selectors.is_sw
+    }
+
+    pub(crate) fn is_branch_instruction<AB: SP1AirBuilder>(
+        &self,
+        opcode_selectors: &OpcodeSelectorCols<AB::Var>,
+    ) -> AB::Expr {
+        opcode_selectors.is_beq
+            + opcode_selectors.is_bne
+            + opcode_selectors.is_blt
+            + opcode_selectors.is_bge
+            + opcode_selectors.is_bltu
+            + opcode_selectors.is_bgeu
     }
 
     /// Constraints related to jump operations.
