@@ -339,7 +339,6 @@ mod tests {
 
     #[cfg(feature = "sys")]
     #[test]
-    #[ignore]
     fn test_generate_trace_deg_3_ffi_eq_rust() {
         type F = BabyBear;
         let input_0 = [F::one(); WIDTH];
@@ -360,7 +359,7 @@ mod tests {
 
         let chip = Poseidon2WideChip::<3>;
         let trace_rust = chip.generate_trace(&shard, &mut ExecutionRecord::default());
-        let trace_ffi = generate_trace_ffi(&shard);
+        let trace_ffi = generate_trace_ffi::<3>(&shard);
 
         assert_eq!(trace_ffi, trace_rust);
     }
@@ -387,19 +386,22 @@ mod tests {
 
         let chip = Poseidon2WideChip::<9>;
         let trace_rust = chip.generate_trace(&shard, &mut ExecutionRecord::default());
-        let trace_ffi = generate_trace_ffi(&shard);
+        let trace_ffi = generate_trace_ffi::<9>(&shard);
 
         assert_eq!(trace_ffi, trace_rust);
     }
 
     #[cfg(feature = "sys")]
-    fn generate_trace_ffi(input: &ExecutionRecord<BabyBear>) -> RowMajorMatrix<BabyBear> {
+    fn generate_trace_ffi<const DEGREE: usize>(
+        input: &ExecutionRecord<BabyBear>,
+    ) -> RowMajorMatrix<BabyBear> {
         type F = BabyBear;
-        let padded_nb_rows = match input.fixed_log2_rows(&Poseidon2WideChip::<9>) {
+        let padded_nb_rows = match input.fixed_log2_rows(&Poseidon2WideChip::<DEGREE>) {
             Some(log2_rows) => 1 << log2_rows,
             None => next_power_of_two(input.poseidon2_events.len(), None),
         };
-        let num_columns = <Poseidon2WideChip<9> as BaseAir<F>>::width(&Poseidon2WideChip::<9>);
+        let num_columns =
+            <Poseidon2WideChip<DEGREE> as BaseAir<F>>::width(&Poseidon2WideChip::<DEGREE>);
         let mut values = vec![F::zero(); padded_nb_rows * num_columns];
 
         let populate_len = input.poseidon2_events.len() * num_columns;
@@ -410,11 +412,11 @@ mod tests {
                 values_pop
                     .par_chunks_mut(num_columns)
                     .zip_eq(&input.poseidon2_events)
-                    .for_each(|(row, event)| populate_perm_ffi::<9>(&event.input, row))
+                    .for_each(|(row, event)| populate_perm_ffi::<DEGREE>(&event.input, row))
             },
             || {
                 let mut dummy_row = vec![F::zero(); num_columns];
-                populate_perm_ffi::<9>(&[F::zero(); WIDTH], &mut dummy_row);
+                populate_perm_ffi::<DEGREE>(&[F::zero(); WIDTH], &mut dummy_row);
                 values_dummy
                     .par_chunks_mut(num_columns)
                     .for_each(|row| row.copy_from_slice(&dummy_row))

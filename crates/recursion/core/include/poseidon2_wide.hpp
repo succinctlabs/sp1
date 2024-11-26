@@ -171,17 +171,17 @@ __SP1_HOSTDEV__ void event_to_row(const F input[WIDTH], F* input_row,
     input_row[cursor + i] = output_state[i];
   }
 
-  // if (sbox_state) {
-  //   cursor += WIDTH;
-  //   for (size_t i = 0; i < (WIDTH * NUM_EXTERNAL_ROUNDS); i++) {
-  //     input_row[cursor + i] = external_sbox[i];
-  //   }
+  if (sbox_state) {
+    cursor += WIDTH;
+    for (size_t i = 0; i < (WIDTH * NUM_EXTERNAL_ROUNDS); i++) {
+      input_row[cursor + i] = external_sbox[i];
+    }
 
-  //   cursor += WIDTH * NUM_EXTERNAL_ROUNDS;
-  //   for (size_t i = 0; i < NUM_INTERNAL_ROUNDS; i++) {
-  //     input_row[cursor + i] = internal_sbox[i];
-  //   }
-  // }
+    cursor += WIDTH * NUM_EXTERNAL_ROUNDS;
+    for (size_t i = 0; i < NUM_INTERNAL_ROUNDS; i++) {
+      input_row[cursor + i] = internal_sbox[i];
+    }
+  }
 }
 
 template <class F>
