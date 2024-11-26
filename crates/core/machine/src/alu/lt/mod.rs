@@ -473,6 +473,8 @@ mod tests {
         let mut shard = ExecutionRecord::default();
         shard.lt_events = vec![InstrEvent::new(
             0,
+            0,
+            0,
             Opcode::SLT,
             0,
             3,
@@ -511,6 +513,8 @@ mod tests {
             // 0 == 3 < 2
             InstrEvent::new(
                 0,
+                0,
+                0,
                 Opcode::SLT,
                 0,
                 3,
@@ -522,6 +526,8 @@ mod tests {
             ),
             // 1 == 2 < 3
             InstrEvent::new(
+                0,
+                0,
                 0,
                 Opcode::SLT,
                 1,
@@ -535,6 +541,8 @@ mod tests {
             // 0 == 5 < -3
             InstrEvent::new(
                 0,
+                0,
+                0,
                 Opcode::SLT,
                 0,
                 5,
@@ -546,6 +554,8 @@ mod tests {
             ),
             // 1 == -3 < 5
             InstrEvent::new(
+                0,
+                0,
                 0,
                 Opcode::SLT,
                 1,
@@ -559,6 +569,8 @@ mod tests {
             // 0 == -3 < -4
             InstrEvent::new(
                 0,
+                0,
+                0,
                 Opcode::SLT,
                 0,
                 NEG_3,
@@ -570,6 +582,8 @@ mod tests {
             ),
             // 1 == -4 < -3
             InstrEvent::new(
+                0,
+                0,
                 0,
                 Opcode::SLT,
                 1,
@@ -583,6 +597,8 @@ mod tests {
             // 0 == 3 < 3
             InstrEvent::new(
                 0,
+                0,
+                0,
                 Opcode::SLT,
                 0,
                 3,
@@ -594,6 +610,8 @@ mod tests {
             ),
             // 0 == -3 < -3
             InstrEvent::new(
+                0,
+                0,
                 0,
                 Opcode::SLT,
                 0,
@@ -618,6 +636,8 @@ mod tests {
             // 0 == 3 < 2
             InstrEvent::new(
                 0,
+                0,
+                0,
                 Opcode::SLTU,
                 0,
                 3,
@@ -629,6 +649,8 @@ mod tests {
             ),
             // 1 == 2 < 3
             InstrEvent::new(
+                0,
+                0,
                 0,
                 Opcode::SLTU,
                 1,
@@ -642,6 +664,8 @@ mod tests {
             // 0 == LARGE < 5
             InstrEvent::new(
                 0,
+                0,
+                0,
                 Opcode::SLTU,
                 0,
                 LARGE,
@@ -653,6 +677,8 @@ mod tests {
             ),
             // 1 == 5 < LARGE
             InstrEvent::new(
+                0,
+                0,
                 0,
                 Opcode::SLTU,
                 1,
@@ -666,6 +692,8 @@ mod tests {
             // 0 == 0 < 0
             InstrEvent::new(
                 0,
+                0,
+                0,
                 Opcode::SLTU,
                 0,
                 0,
@@ -677,6 +705,8 @@ mod tests {
             ),
             // 0 == LARGE < LARGE
             InstrEvent::new(
+                0,
+                0,
                 0,
                 Opcode::SLTU,
                 0,

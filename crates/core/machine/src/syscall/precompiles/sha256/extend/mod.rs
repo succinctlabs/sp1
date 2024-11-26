@@ -70,6 +70,8 @@ pub mod extend_tests {
         let mut shard = ExecutionRecord::default();
         shard.add_events = vec![InstrEvent::new(
             0,
+            0,
+            0,
             Opcode::ADD,
             14,
             8,

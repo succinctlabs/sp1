@@ -860,6 +860,8 @@ mod tests {
         let mut shard = ExecutionRecord::default();
         shard.divrem_events = vec![InstrEvent::new(
             0,
+            0,
+            0,
             Opcode::DIVU,
             2,
             17,
@@ -923,6 +925,8 @@ mod tests {
         for t in divrems.iter() {
             divrem_events.push(InstrEvent::new(
                 0,
+                0,
+                0,
                 t.0,
                 t.1,
                 t.2,
@@ -937,6 +941,8 @@ mod tests {
         // Append more events until we have 1000 tests.
         for _ in 0..(1000 - divrems.len()) {
             divrem_events.push(InstrEvent::new(
+                0,
+                0,
                 0,
                 Opcode::DIVU,
                 1,

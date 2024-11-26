@@ -244,6 +244,8 @@ mod tests {
         let mut shard = ExecutionRecord::default();
         shard.bitwise_events = vec![InstrEvent::new(
             0,
+            0,
+            0,
             Opcode::XOR,
             25,
             10,
@@ -268,6 +270,8 @@ mod tests {
         shard.bitwise_events = [
             InstrEvent::new(
                 0,
+                0,
+                0,
                 Opcode::XOR,
                 25,
                 10,
@@ -279,6 +283,8 @@ mod tests {
             ),
             InstrEvent::new(
                 0,
+                0,
+                0,
                 Opcode::OR,
                 27,
                 10,
@@ -289,6 +295,8 @@ mod tests {
                 LookupId::default(),
             ),
             InstrEvent::new(
+                0,
+                0,
                 0,
                 Opcode::AND,
                 2,

@@ -420,6 +420,8 @@ mod tests {
         let mut shard = ExecutionRecord::default();
         shard.shift_left_events = vec![InstrEvent::new(
             0,
+            0,
+            0,
             Opcode::SLL,
             16,
             8,
@@ -464,6 +466,8 @@ mod tests {
         ];
         for t in shift_instructions.iter() {
             shift_events.push(InstrEvent::new(
+                0,
+                0,
                 0,
                 t.0,
                 t.1,

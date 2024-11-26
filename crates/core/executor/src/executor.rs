@@ -657,6 +657,8 @@ impl<'a> Executor<'a> {
         let memory_add_lookup_id = self.record.create_lookup_id();
         let memory_sub_lookup_id = self.record.create_lookup_id();
         let event = InstrEvent {
+            shard: self.shard(),
+            clk: self.state.clk,
             pc: self.state.pc,
             lookup_id,
             opcode,
@@ -704,9 +706,6 @@ impl<'a> Executor<'a> {
             | Opcode::SH
             | Opcode::SW => {
                 self.record.memory_instr_events.push(event);
-                if self.memory_accesses.memory.is_none() {
-                    println!("event is {event:?}");
-                }
                 emit_memory_dependencies(
                     self,
                     event,

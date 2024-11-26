@@ -478,6 +478,8 @@ mod tests {
         for _ in 0..10i32.pow(7) {
             mul_events.push(InstrEvent::new(
                 0,
+                0,
+                0,
                 Opcode::MULHSU,
                 0x80004000,
                 0x80000000,
@@ -557,6 +559,8 @@ mod tests {
         for t in mul_instructions.iter() {
             mul_events.push(InstrEvent::new(
                 0,
+                0,
+                0,
                 t.0,
                 t.1,
                 t.2,
@@ -571,6 +575,8 @@ mod tests {
         // Append more events until we have 1000 tests.
         for _ in 0..(1000 - mul_instructions.len()) {
             mul_events.push(InstrEvent::new(
+                0,
+                0,
                 0,
                 Opcode::MUL,
                 1,

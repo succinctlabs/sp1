@@ -250,6 +250,8 @@ mod tests {
         let mut shard = ExecutionRecord::default();
         shard.add_events = vec![InstrEvent::new(
             0,
+            0,
+            0,
             Opcode::ADD,
             14,
             8,
@@ -276,6 +278,8 @@ mod tests {
             let operand_2 = thread_rng().gen_range(0..u32::MAX);
             let result = operand_1.wrapping_add(operand_2);
             shard.add_events.push(InstrEvent::new(
+                0,
+                0,
                 i * DEFAULT_PC_INC,
                 Opcode::ADD,
                 result,
@@ -292,6 +296,8 @@ mod tests {
             let operand_2 = thread_rng().gen_range(0..u32::MAX);
             let result = operand_1.wrapping_sub(operand_2);
             shard.add_events.push(InstrEvent::new(
+                0,
+                0,
                 i * DEFAULT_PC_INC,
                 Opcode::SUB,
                 result,

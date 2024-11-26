@@ -3,10 +3,7 @@ use std::borrow::Borrow;
 use p3_air::{Air, AirBuilder};
 use p3_field::AbstractField;
 use p3_matrix::Matrix;
-use sp1_stark::{
-    air::{PublicValues, SP1AirBuilder, SP1_PROOF_NUM_PV_ELTS},
-    Word,
-};
+use sp1_stark::{air::SP1AirBuilder, Word};
 
 use crate::{
     air::{SP1CoreAirBuilder, WordAirBuilder},
@@ -28,13 +25,7 @@ where
         let local = main.row_slice(0);
         let local: &MemoryInstructionsColumns<AB::Var> = (*local).borrow();
 
-        let public_values_slice: [AB::PublicVar; SP1_PROOF_NUM_PV_ELTS] =
-            core::array::from_fn(|i| builder.public_values()[i]);
-        let public_values: &PublicValues<Word<AB::PublicVar>, AB::PublicVar> =
-            public_values_slice.as_slice().borrow();
-        let shard: AB::Expr = public_values.shard.into();
-
-        self.eval_memory_address_and_access::<AB>(builder, local, shard);
+        self.eval_memory_address_and_access::<AB>(builder, local);
         self.eval_memory_load::<AB>(builder, local);
         self.eval_memory_store::<AB>(builder, local);
 
@@ -65,11 +56,14 @@ impl MemoryInstructionsChip {
         builder.assert_bool(local.is_half);
         builder.assert_bool(local.is_unsigned);
 
+        let is_word = AB::Expr::one() - (local.is_byte + local.is_half);
+
         // See https://www.notion.so/succinctlabs/Idea-2-Selector-Optimizations-122e020fb42f8054a227cc80f80e5acc
         // for the derivation of this formula.
         AB::Expr::from_canonical_u32(10)
             + (AB::Expr::one() - local.is_load) * AB::Expr::from_canonical_u32(5)
-            + local.is_half * AB::Expr::from_canonical_u32(2)
+            + local.is_half
+            + is_word * AB::Expr::from_canonical_u32(2)
             + local.is_unsigned * AB::Expr::from_canonical_u32(3)
     }
 
@@ -84,7 +78,6 @@ impl MemoryInstructionsChip {
         &self,
         builder: &mut AB,
         local: &MemoryInstructionsColumns<AB::Var>,
-        shard: AB::Expr,
     ) {
         // Send to the ALU table to verify correct calculation of addr_word.
         builder.send_instruction(
@@ -139,7 +132,7 @@ impl MemoryInstructionsChip {
         // For operations that require reading from memory (not registers), we need to read the
         // value into the memory columns.
         builder.eval_memory_access(
-            shard,
+            local.shard,
             local.clk + AB::F::from_canonical_u32(MemoryAccessPosition::Memory as u32),
             local.addr_aligned,
             &local.memory_access,
@@ -149,6 +142,7 @@ impl MemoryInstructionsChip {
         // On memory load instructions, make sure that the memory value is not changed.
         builder
             .when(local.is_real)
+            .when(local.is_load)
             .assert_word_eq(*local.memory_access.value(), *local.memory_access.prev_value());
     }
 
@@ -203,9 +197,12 @@ impl MemoryInstructionsChip {
         );
 
         // Assert that correct value of `mem_value_is_pos_not_x0`.
+        let is_word = AB::Expr::one() - (local.is_byte + local.is_half);
         let mem_value_is_pos = (local.is_lb + local.is_lh)
             * (AB::Expr::one() - local.most_sig_byte_decomp[7])
-            + local.is_load * local.is_unsigned;
+            + local.is_lbu
+            + local.is_lhu
+            + local.is_load * is_word;
         builder.assert_eq(
             local.mem_value_is_pos_not_x0,
             mem_value_is_pos * (AB::Expr::one() - local.op_a_0),

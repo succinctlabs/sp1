@@ -7,7 +7,7 @@ use p3_matrix::dense::RowMajorMatrix;
 use rayon::iter::{ParallelBridge, ParallelIterator};
 use sp1_core_executor::{
     events::{ByteLookupEvent, ByteRecord, InstrEvent},
-    ByteOpcode, ExecutionRecord, Opcode, Program,
+    ByteOpcode, ExecutionRecord, Opcode, Program, DEFAULT_PC_INC,
 };
 use sp1_primitives::consts::WORD_SIZE;
 use sp1_stark::air::MachineAir;
@@ -105,6 +105,16 @@ impl MemoryInstructionsChip {
         nonce_lookup: &[u32],
         byte_lookup_events: &mut impl ByteRecord,
     ) {
+        cols.shard = F::from_canonical_u32(event.shard);
+        assert!(cols.shard != F::zero());
+        cols.clk = F::from_canonical_u32(event.clk);
+        cols.pc = F::from_canonical_u32(event.pc);
+        cols.next_pc = F::from_canonical_u32(event.pc + DEFAULT_PC_INC);
+        cols.opcode = F::from_canonical_u32(event.opcode as u32);
+        cols.op_a_value = event.a.into();
+        cols.op_b_value = event.b.into();
+        cols.op_c_value = event.c.into();
+        cols.op_a_0 = F::from_bool(event.op_a_0);
         cols.is_real = F::one();
 
         // Populate memory accesses for reading from memory.
@@ -170,7 +180,7 @@ impl MemoryInstructionsChip {
                         F::from_canonical_u8(most_sig_mem_value_byte >> i & 0x01);
                 }
                 if cols.most_sig_byte_decomp[7] == F::one() {
-                    cols.mem_value_is_neg_not_x0 = F::from_bool(event.op_a_0);
+                    cols.mem_value_is_neg_not_x0 = F::from_bool(!event.op_a_0);
                     cols.unsigned_mem_val_nonce = F::from_canonical_u32(
                         nonce_lookup
                             .get(event.memory_sub_lookup_id.0 as usize)

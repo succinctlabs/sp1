@@ -10,6 +10,10 @@ use super::{create_random_lookup_ids, LookupId, MemoryRecordEnum};
 /// pc, opcode, operands, and other relevant information.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct InstrEvent {
+    /// The shard.
+    pub shard: u32,
+    /// The clk.
+    pub clk: u32,
     /// The program counter.
     pub pc: u32,
     /// The lookup identifier.
@@ -39,6 +43,8 @@ impl InstrEvent {
     #[must_use]
     #[allow(clippy::too_many_arguments)]
     pub fn new(
+        shard: u32,
+        clk: u32,
         pc: u32,
         opcode: Opcode,
         a: u32,
@@ -50,6 +56,8 @@ impl InstrEvent {
         memory_sub_lookup_id: LookupId,
     ) -> Self {
         Self {
+            shard,
+            clk,
             pc,
             lookup_id: LookupId::default(),
             opcode,
