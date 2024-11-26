@@ -70,6 +70,4 @@ pub struct BranchColumns<T> {
 
     /// The nonce of the operation to compute `next_pc`.
     pub next_pc_nonce: T,
-
-    pub is_real: T,
 }

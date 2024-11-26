@@ -68,7 +68,16 @@ impl BranchChip {
         cols: &mut BranchColumns<F>,
         nonce_lookup: &[u32],
     ) {
-        cols.is_real = F::one();
+        cols.is_beq = F::from_bool(matches!(event.opcode, Opcode::BEQ));
+        cols.is_bne = F::from_bool(matches!(event.opcode, Opcode::BNE));
+        cols.is_blt = F::from_bool(matches!(event.opcode, Opcode::BLT));
+        cols.is_bge = F::from_bool(matches!(event.opcode, Opcode::BGE));
+        cols.is_bltu = F::from_bool(matches!(event.opcode, Opcode::BLTU));
+        cols.is_bgeu = F::from_bool(matches!(event.opcode, Opcode::BGEU));
+
+        cols.op_a_value = event.a.into();
+        cols.op_b_value = event.b.into();
+        cols.op_c_value = event.c.into();
 
         let a_eq_b = event.a == event.b;
 
@@ -105,11 +114,10 @@ impl BranchChip {
             _ => unreachable!(),
         };
 
-        let next_pc = event.pc.wrapping_add(event.c);
         cols.pc = event.pc.into();
-        cols.next_pc = next_pc.into();
+        cols.next_pc = event.next_pc.into();
         cols.pc_range_checker.populate(event.pc);
-        cols.next_pc_range_checker.populate(next_pc);
+        cols.next_pc_range_checker.populate(event.next_pc);
 
         if branching {
             cols.is_branching = F::one();

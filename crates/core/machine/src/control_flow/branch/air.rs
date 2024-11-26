@@ -33,7 +33,19 @@ where
         let local = main.row_slice(0);
         let local: &BranchColumns<AB::Var> = (*local).borrow();
 
-        builder.assert_bool(local.is_real);
+        builder.assert_bool(local.is_beq);
+        builder.assert_bool(local.is_bne);
+        builder.assert_bool(local.is_blt);
+        builder.assert_bool(local.is_bge);
+        builder.assert_bool(local.is_bltu);
+        builder.assert_bool(local.is_bgeu);
+        let is_real = local.is_beq
+            + local.is_bne
+            + local.is_blt
+            + local.is_bge
+            + local.is_bltu
+            + local.is_bgeu;
+        builder.assert_bool(is_real.clone());
 
         let opcode = local.is_beq * Opcode::BEQ.as_field::<AB::F>()
             + local.is_bne * Opcode::BNE.as_field::<AB::F>()
@@ -52,7 +64,7 @@ where
             AB::Expr::zero(),
             AB::Expr::zero(),
             AB::Expr::zero(),
-            local.is_real,
+            is_real.clone(),
         );
 
         // Evaluate program counter constraints.
@@ -62,13 +74,13 @@ where
                 builder,
                 local.pc,
                 local.pc_range_checker,
-                local.is_real.into(),
+                is_real.clone(),
             );
             BabyBearWordRangeChecker::<AB::F>::range_check(
                 builder,
                 local.next_pc,
                 local.next_pc_range_checker,
-                local.is_real.into(),
+                is_real.clone(),
             );
 
             // When we are branching, calculate branch_cols.next_pc <==> branch_cols.pc + c.
@@ -86,19 +98,19 @@ where
             );
 
             // When we are not branching, assert that local.pc + 4 <==> next.pc.
-            builder.when(local.is_real).when(local.not_branching).assert_eq(
+            builder.when(is_real.clone()).when(local.not_branching).assert_eq(
                 local.pc.reduce::<AB>() + AB::Expr::from_canonical_u32(DEFAULT_PC_INC),
                 local.next_pc.reduce::<AB>(),
             );
 
             // When local.not_branching is true, assert that local.is_real is true.
-            builder.when(local.not_branching).assert_one(local.is_real);
+            builder.when(local.not_branching).assert_one(is_real.clone());
 
             // Assert that either we are branching or not branching when the instruction is a
             // branch.
-            builder.when(local.is_real).assert_one(local.is_branching + local.not_branching);
-            builder.when(local.is_real).assert_bool(local.is_branching);
-            builder.when(local.is_real).assert_bool(local.not_branching);
+            builder.when(is_real.clone()).assert_one(local.is_branching + local.not_branching);
+            builder.when(is_real.clone()).assert_bool(local.is_branching);
+            builder.when(is_real.clone()).assert_bool(local.not_branching);
         }
 
         // Evaluate branching value constraints.
@@ -147,11 +159,11 @@ where
 
         // When it's a branch instruction and a_eq_b, assert that a == b.
         builder
-            .when(local.is_real * local.a_eq_b)
+            .when(is_real.clone() * local.a_eq_b)
             .assert_word_eq(local.op_a_value, local.op_b_value);
 
         //  To prevent this ALU send to be arbitrarily large when is_branch_instruction is false.
-        builder.when_not(local.is_real).assert_zero(local.is_branching);
+        builder.when_not(is_real.clone()).assert_zero(local.is_branching);
 
         // Calculate a_lt_b <==> a < b (using appropriate signedness).
         let use_signed_comparison = local.is_blt + local.is_bge;
@@ -167,7 +179,7 @@ where
             AB::Expr::zero(),
             local.a_lt_b_nonce,
             AB::Expr::zero(),
-            local.is_real,
+            is_real.clone(),
         );
 
         // Calculate a_gt_b <==> a > b (using appropriate signedness).
@@ -182,7 +194,7 @@ where
             AB::Expr::zero(),
             local.a_gt_b_nonce,
             AB::Expr::zero(),
-            local.is_real,
+            is_real.clone(),
         );
     }
 }
