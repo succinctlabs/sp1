@@ -185,6 +185,7 @@ impl ProverClient {
     ///
     /// let client = ProverClient::network(private_key, rpc_url, skip_simulation);
     /// ```
+    #[cfg(any(feature = "network", feature = "network-v2"))]
     pub fn network(private_key: String, rpc_url: Option<String>, skip_simulation: bool) -> Self {
         cfg_if! {
             if #[cfg(feature = "network-v2")] {
@@ -397,6 +398,7 @@ pub struct NetworkProverBuilder {
     skip_simulation: bool,
 }
 
+#[cfg(any(feature = "network", feature = "network-v2"))]
 impl NetworkProverBuilder {
     ///  Sets the private key.
     pub fn private_key(mut self, private_key: String) -> Self {
