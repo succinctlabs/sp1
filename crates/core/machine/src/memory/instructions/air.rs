@@ -136,7 +136,7 @@ impl MemoryInstructionsChip {
                 acc + AB::Expr::from_canonical_usize(index + 1) * value
             });
         let mut recomposed_byte = AB::Expr::zero();
-        local.aa_least_sig_byte_decomp.iter().enumerate().for_each(|(i, value)| {
+        local.addr_alligned_least_sig_byte_decomp.iter().enumerate().for_each(|(i, value)| {
             builder.when(is_real.clone()).assert_bool(*value);
 
             recomposed_byte =

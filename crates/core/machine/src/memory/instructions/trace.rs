@@ -129,7 +129,7 @@ impl MemoryInstructionsChip {
         assert!(aligned_addr % 4 == 0);
         let aligned_addr_ls_byte = (aligned_addr & 0x000000FF) as u8;
         let bits: [bool; 8] = array::from_fn(|i| aligned_addr_ls_byte & (1 << i) != 0);
-        cols.aa_least_sig_byte_decomp = array::from_fn(|i| F::from_bool(bits[i + 2]));
+        cols.addr_alligned_least_sig_byte_decomp = array::from_fn(|i| F::from_bool(bits[i + 2]));
         cols.addr_word_nonce = F::from_canonical_u32(
             nonce_lookup.get(event.memory_add_lookup_id.0 as usize).copied().unwrap_or_default(),
         );
