@@ -10,7 +10,7 @@ use p3_field::{AbstractField, Field, PrimeField32};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use p3_maybe_rayon::prelude::*;
 use sp1_core_executor::{
-    events::{ByteLookupEvent, ByteRecord, InstrEvent},
+    events::{AluEvent, ByteLookupEvent, ByteRecord},
     ByteOpcode, ExecutionRecord, Opcode, Program, DEFAULT_PC_INC,
 };
 use sp1_derive::AlignedBorrow;
@@ -167,7 +167,7 @@ impl LtChip {
     /// Create a row from an event.
     fn event_to_row<F: PrimeField32>(
         &self,
-        event: &InstrEvent,
+        event: &AluEvent,
         cols: &mut LtCols<F>,
         blu: &mut impl ByteRecord,
     ) {
@@ -460,10 +460,7 @@ mod tests {
     use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
     use p3_baby_bear::BabyBear;
     use p3_matrix::dense::RowMajorMatrix;
-    use sp1_core_executor::{
-        events::{InstrEvent, LookupId},
-        ExecutionRecord, Opcode,
-    };
+    use sp1_core_executor::{events::AluEvent, ExecutionRecord, Opcode};
     use sp1_stark::{air::MachineAir, baby_bear_poseidon2::BabyBearPoseidon2, StarkGenericConfig};
 
     use super::LtChip;
@@ -471,19 +468,7 @@ mod tests {
     #[test]
     fn generate_trace() {
         let mut shard = ExecutionRecord::default();
-        shard.lt_events = vec![InstrEvent::new(
-            0,
-            0,
-            0,
-            Opcode::SLT,
-            0,
-            3,
-            2,
-            false,
-            None,
-            LookupId::default(),
-            LookupId::default(),
-        )];
+        shard.lt_events = vec![AluEvent::new(0, Opcode::SLT, 0, 3, 2)];
         let chip = LtChip::default();
         let generate_trace = chip.generate_trace(&shard, &mut ExecutionRecord::default());
         let trace: RowMajorMatrix<BabyBear> = generate_trace;
@@ -511,117 +496,21 @@ mod tests {
         const NEG_4: u32 = 0b11111111111111111111111111111100;
         shard.lt_events = vec![
             // 0 == 3 < 2
-            InstrEvent::new(
-                0,
-                0,
-                0,
-                Opcode::SLT,
-                0,
-                3,
-                2,
-                false,
-                None,
-                LookupId::default(),
-                LookupId::default(),
-            ),
+            AluEvent::new(0, Opcode::SLT, 0, 3, 2),
             // 1 == 2 < 3
-            InstrEvent::new(
-                0,
-                0,
-                0,
-                Opcode::SLT,
-                1,
-                2,
-                3,
-                false,
-                None,
-                LookupId::default(),
-                LookupId::default(),
-            ),
+            AluEvent::new(0, Opcode::SLT, 1, 2, 3),
             // 0 == 5 < -3
-            InstrEvent::new(
-                0,
-                0,
-                0,
-                Opcode::SLT,
-                0,
-                5,
-                NEG_3,
-                false,
-                None,
-                LookupId::default(),
-                LookupId::default(),
-            ),
+            AluEvent::new(0, Opcode::SLT, 0, 5, NEG_3),
             // 1 == -3 < 5
-            InstrEvent::new(
-                0,
-                0,
-                0,
-                Opcode::SLT,
-                1,
-                NEG_3,
-                5,
-                false,
-                None,
-                LookupId::default(),
-                LookupId::default(),
-            ),
+            AluEvent::new(0, Opcode::SLT, 1, NEG_3, 5),
             // 0 == -3 < -4
-            InstrEvent::new(
-                0,
-                0,
-                0,
-                Opcode::SLT,
-                0,
-                NEG_3,
-                NEG_4,
-                false,
-                None,
-                LookupId::default(),
-                LookupId::default(),
-            ),
+            AluEvent::new(0, Opcode::SLT, 0, NEG_3, NEG_4),
             // 1 == -4 < -3
-            InstrEvent::new(
-                0,
-                0,
-                0,
-                Opcode::SLT,
-                1,
-                NEG_4,
-                NEG_3,
-                false,
-                None,
-                LookupId::default(),
-                LookupId::default(),
-            ),
+            AluEvent::new(0, Opcode::SLT, 1, NEG_4, NEG_3),
             // 0 == 3 < 3
-            InstrEvent::new(
-                0,
-                0,
-                0,
-                Opcode::SLT,
-                0,
-                3,
-                3,
-                false,
-                None,
-                LookupId::default(),
-                LookupId::default(),
-            ),
+            AluEvent::new(0, Opcode::SLT, 0, 3, 3),
             // 0 == -3 < -3
-            InstrEvent::new(
-                0,
-                0,
-                0,
-                Opcode::SLT,
-                0,
-                NEG_3,
-                NEG_3,
-                false,
-                None,
-                LookupId::default(),
-                LookupId::default(),
-            ),
+            AluEvent::new(0, Opcode::SLT, 0, NEG_3, NEG_3),
         ];
 
         prove_babybear_template(&mut shard);
@@ -634,89 +523,17 @@ mod tests {
         const LARGE: u32 = 0b11111111111111111111111111111101;
         shard.lt_events = vec![
             // 0 == 3 < 2
-            InstrEvent::new(
-                0,
-                0,
-                0,
-                Opcode::SLTU,
-                0,
-                3,
-                2,
-                false,
-                None,
-                LookupId::default(),
-                LookupId::default(),
-            ),
+            AluEvent::new(0, Opcode::SLTU, 0, 3, 2),
             // 1 == 2 < 3
-            InstrEvent::new(
-                0,
-                0,
-                0,
-                Opcode::SLTU,
-                1,
-                2,
-                3,
-                false,
-                None,
-                LookupId::default(),
-                LookupId::default(),
-            ),
+            AluEvent::new(0, Opcode::SLTU, 1, 2, 3),
             // 0 == LARGE < 5
-            InstrEvent::new(
-                0,
-                0,
-                0,
-                Opcode::SLTU,
-                0,
-                LARGE,
-                5,
-                false,
-                None,
-                LookupId::default(),
-                LookupId::default(),
-            ),
+            AluEvent::new(0, Opcode::SLTU, 0, LARGE, 5),
             // 1 == 5 < LARGE
-            InstrEvent::new(
-                0,
-                0,
-                0,
-                Opcode::SLTU,
-                1,
-                5,
-                LARGE,
-                false,
-                None,
-                LookupId::default(),
-                LookupId::default(),
-            ),
+            AluEvent::new(0, Opcode::SLTU, 1, 5, LARGE),
             // 0 == 0 < 0
-            InstrEvent::new(
-                0,
-                0,
-                0,
-                Opcode::SLTU,
-                0,
-                0,
-                0,
-                false,
-                None,
-                LookupId::default(),
-                LookupId::default(),
-            ),
+            AluEvent::new(0, Opcode::SLTU, 0, 0, 0),
             // 0 == LARGE < LARGE
-            InstrEvent::new(
-                0,
-                0,
-                0,
-                Opcode::SLTU,
-                0,
-                LARGE,
-                LARGE,
-                false,
-                None,
-                LookupId::default(),
-                LookupId::default(),
-            ),
+            AluEvent::new(0, Opcode::SLTU, 0, LARGE, LARGE),
         ];
 
         prove_babybear_template(&mut shard);

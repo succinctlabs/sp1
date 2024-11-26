@@ -13,8 +13,9 @@ use crate::{
     context::SP1Context,
     dependencies::{emit_cpu_dependencies, emit_divrem_dependencies, emit_memory_dependencies},
     events::{
-        CpuEvent, InstrEvent, LookupId, MemoryAccessPosition, MemoryInitializeFinalizeEvent,
-        MemoryLocalEvent, MemoryReadRecord, MemoryRecord, MemoryWriteRecord, SyscallEvent,
+        AluEvent, CpuEvent, LookupId, MemInstrEvent, MemoryAccessPosition,
+        MemoryInitializeFinalizeEvent, MemoryLocalEvent, MemoryReadRecord, MemoryRecord,
+        MemoryWriteRecord, SyscallEvent,
     },
     hook::{HookEnv, HookRegistry},
     memory::{Entry, PagedMemory},
@@ -644,32 +645,16 @@ impl<'a> Executor<'a> {
         emit_cpu_dependencies(self, self.record.cpu_events.len() - 1);
     }
 
-    /// Emit an instruction event.
-    fn emit_instruction(
-        &mut self,
-        opcode: Opcode,
-        a: u32,
-        b: u32,
-        c: u32,
-        op_a_0: bool,
-        lookup_id: LookupId,
-    ) {
-        let memory_add_lookup_id = self.record.create_lookup_id();
-        let memory_sub_lookup_id = self.record.create_lookup_id();
-        let event = InstrEvent {
-            shard: self.shard(),
-            clk: self.state.clk,
+    /// Emit an ALU event.
+    fn emit_alu_event(&mut self, opcode: Opcode, a: u32, b: u32, c: u32, lookup_id: LookupId) {
+        let event = AluEvent {
             pc: self.state.pc,
             lookup_id,
             opcode,
             a,
             b,
             c,
-            op_a_0,
-            memory_add_lookup_id,
-            memory_sub_lookup_id,
             sub_lookups: self.record.create_lookup_ids(),
-            mem_access: self.memory_accesses.memory,
         };
         match opcode {
             Opcode::ADD => {
@@ -697,6 +682,26 @@ impl<'a> Executor<'a> {
                 self.record.divrem_events.push(event);
                 emit_divrem_dependencies(self, event);
             }
+            _ => unreachable!(),
+        }
+    }
+
+    fn emit_mem_instr_event(&mut self, opcode: Opcode, a: u32, b: u32, c: u32, op_a_0: bool) {
+        let event = MemInstrEvent {
+            shard: self.shard(),
+            clk: self.state.clk,
+            pc: self.state.pc,
+            opcode,
+            a,
+            b,
+            c,
+            op_a_0,
+            mem_access: self.memory_accesses.memory.expect("Must have memory access"),
+            memory_add_lookup_id: self.record.create_lookup_id(),
+            memory_sub_lookup_id: self.record.create_lookup_id(),
+        };
+
+        match opcode {
             Opcode::LB
             | Opcode::LH
             | Opcode::LW
@@ -712,7 +717,7 @@ impl<'a> Executor<'a> {
                     self.memory_accesses.memory.expect("Must have memory access").current_record(),
                 );
             }
-            _ => {}
+            _ => unreachable!(),
         }
     }
 
@@ -777,12 +782,11 @@ impl<'a> Executor<'a> {
         a: u32,
         b: u32,
         c: u32,
-        op_a_0: bool,
         lookup_id: LookupId,
     ) {
         self.rw(rd, a);
         if self.executor_mode == ExecutorMode::Trace {
-            self.emit_instruction(instruction.opcode, a, b, c, op_a_0, lookup_id);
+            self.emit_alu_event(instruction.opcode, a, b, c, lookup_id);
         }
     }
 
@@ -1111,7 +1115,7 @@ impl<'a> Executor<'a> {
             }
             _ => unreachable!(),
         };
-        self.alu_rw(instruction, rd, a, b, c, rd == Register::X0, lookup_id);
+        self.alu_rw(instruction, rd, a, b, c, lookup_id);
         (a, b, c)
     }
 
@@ -1145,14 +1149,7 @@ impl<'a> Executor<'a> {
         };
         self.rw(rd, a);
         if self.executor_mode == ExecutorMode::Trace {
-            self.emit_instruction(
-                instruction.opcode,
-                a,
-                b,
-                c,
-                rd == Register::X0,
-                LookupId::default(),
-            );
+            self.emit_mem_instr_event(instruction.opcode, a, b, c, rd == Register::X0);
         }
         Ok((a, b, c))
     }
@@ -1184,7 +1181,7 @@ impl<'a> Executor<'a> {
         };
         self.mw_cpu(align(addr), memory_store_value, MemoryAccessPosition::Memory);
         if self.executor_mode == ExecutorMode::Trace {
-            self.emit_instruction(instruction.opcode, a, b, c, false, LookupId::default());
+            self.emit_mem_instr_event(instruction.opcode, a, b, c, false);
         }
 
         Ok((a, b, c))

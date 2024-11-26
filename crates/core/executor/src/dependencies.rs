@@ -1,12 +1,12 @@
 use crate::{
-    events::{InstrEvent, LookupId, MemoryRecord},
+    events::{AluEvent, MemInstrEvent, MemoryRecord},
     utils::{get_msb, get_quotient_and_remainder, is_signed_operation},
     Executor, Opcode, UNUSED_PC,
 };
 
 /// Emits the dependencies for division and remainder operations.
 #[allow(clippy::too_many_lines)]
-pub fn emit_divrem_dependencies(executor: &mut Executor, event: InstrEvent) {
+pub fn emit_divrem_dependencies(executor: &mut Executor, event: AluEvent) {
     let (quotient, remainder) = get_quotient_and_remainder(event.b, event.c, event.opcode);
     let c_msb = get_msb(event.c);
     let rem_msb = get_msb(remainder);
@@ -20,9 +20,7 @@ pub fn emit_divrem_dependencies(executor: &mut Executor, event: InstrEvent) {
 
     if c_neg == 1 {
         let ids = executor.record.create_lookup_ids();
-        executor.record.add_events.push(InstrEvent {
-            shard: executor.shard(),
-            clk: executor.state.clk,
+        executor.record.add_events.push(AluEvent {
             pc: UNUSED_PC,
             lookup_id: event.sub_lookups[4],
             opcode: Opcode::ADD,
@@ -30,17 +28,11 @@ pub fn emit_divrem_dependencies(executor: &mut Executor, event: InstrEvent) {
             b: event.c,
             c: (event.c as i32).unsigned_abs(),
             sub_lookups: ids,
-            op_a_0: false,
-            mem_access: None,
-            memory_add_lookup_id: LookupId::default(),
-            memory_sub_lookup_id: LookupId::default(),
         });
     }
     if rem_neg == 1 {
         let ids = executor.record.create_lookup_ids();
-        executor.record.add_events.push(InstrEvent {
-            shard: executor.shard(),
-            clk: executor.state.clk,
+        executor.record.add_events.push(AluEvent {
             pc: UNUSED_PC,
             lookup_id: event.sub_lookups[5],
             opcode: Opcode::ADD,
@@ -48,10 +40,6 @@ pub fn emit_divrem_dependencies(executor: &mut Executor, event: InstrEvent) {
             b: remainder,
             c: (remainder as i32).unsigned_abs(),
             sub_lookups: ids,
-            op_a_0: false,
-            mem_access: None,
-            memory_add_lookup_id: LookupId::default(),
-            memory_sub_lookup_id: LookupId::default(),
         });
     }
 
@@ -65,9 +53,7 @@ pub fn emit_divrem_dependencies(executor: &mut Executor, event: InstrEvent) {
     let lower_word = u32::from_le_bytes(c_times_quotient[0..4].try_into().unwrap());
     let upper_word = u32::from_le_bytes(c_times_quotient[4..8].try_into().unwrap());
 
-    let lower_multiplication = InstrEvent {
-        shard: executor.shard(),
-        clk: executor.state.clk,
+    let lower_multiplication = AluEvent {
         pc: UNUSED_PC,
         lookup_id: event.sub_lookups[0],
         opcode: Opcode::MUL,
@@ -75,16 +61,10 @@ pub fn emit_divrem_dependencies(executor: &mut Executor, event: InstrEvent) {
         c: event.c,
         b: quotient,
         sub_lookups: executor.record.create_lookup_ids(),
-        op_a_0: false,
-        mem_access: None,
-        memory_add_lookup_id: LookupId::default(),
-        memory_sub_lookup_id: LookupId::default(),
     };
     executor.record.mul_events.push(lower_multiplication);
 
-    let upper_multiplication = InstrEvent {
-        shard: executor.shard(),
-        clk: executor.state.clk,
+    let upper_multiplication = AluEvent {
         pc: UNUSED_PC,
         lookup_id: event.sub_lookups[1],
         opcode: {
@@ -98,17 +78,11 @@ pub fn emit_divrem_dependencies(executor: &mut Executor, event: InstrEvent) {
         c: event.c,
         b: quotient,
         sub_lookups: executor.record.create_lookup_ids(),
-        op_a_0: false,
-        mem_access: None,
-        memory_add_lookup_id: LookupId::default(),
-        memory_sub_lookup_id: LookupId::default(),
     };
     executor.record.mul_events.push(upper_multiplication);
 
     let lt_event = if is_signed_operation {
-        InstrEvent {
-            shard: executor.shard(),
-            clk: executor.state.clk,
+        AluEvent {
             pc: UNUSED_PC,
             lookup_id: event.sub_lookups[2],
             opcode: Opcode::SLTU,
@@ -116,15 +90,9 @@ pub fn emit_divrem_dependencies(executor: &mut Executor, event: InstrEvent) {
             b: (remainder as i32).unsigned_abs(),
             c: u32::max(1, (event.c as i32).unsigned_abs()),
             sub_lookups: executor.record.create_lookup_ids(),
-            op_a_0: false,
-            mem_access: None,
-            memory_add_lookup_id: LookupId::default(),
-            memory_sub_lookup_id: LookupId::default(),
         }
     } else {
-        InstrEvent {
-            shard: executor.shard(),
-            clk: executor.state.clk,
+        AluEvent {
             pc: UNUSED_PC,
             lookup_id: event.sub_lookups[3],
             opcode: Opcode::SLTU,
@@ -132,10 +100,6 @@ pub fn emit_divrem_dependencies(executor: &mut Executor, event: InstrEvent) {
             b: remainder,
             c: u32::max(1, event.c),
             sub_lookups: executor.record.create_lookup_ids(),
-            op_a_0: false,
-            mem_access: None,
-            memory_add_lookup_id: LookupId::default(),
-            memory_sub_lookup_id: LookupId::default(),
         }
     };
 
@@ -146,14 +110,12 @@ pub fn emit_divrem_dependencies(executor: &mut Executor, event: InstrEvent) {
 
 pub fn emit_memory_dependencies(
     executor: &mut Executor,
-    event: InstrEvent,
+    event: MemInstrEvent,
     memory_record: MemoryRecord,
 ) {
     let memory_addr = event.b.wrapping_add(event.c);
     // Add event to ALU check to check that addr == b + c
-    let add_event = InstrEvent {
-        shard: executor.shard(),
-        clk: executor.state.clk,
+    let add_event = AluEvent {
         pc: UNUSED_PC,
         lookup_id: event.memory_add_lookup_id,
         opcode: Opcode::ADD,
@@ -161,11 +123,8 @@ pub fn emit_memory_dependencies(
         b: event.b,
         c: event.c,
         sub_lookups: executor.record.create_lookup_ids(),
-        op_a_0: false,
-        mem_access: None,
-        memory_add_lookup_id: LookupId::default(),
-        memory_sub_lookup_id: LookupId::default(),
     };
+
     executor.record.add_events.push(add_event);
     let addr_offset = (memory_addr % 4_u32) as u8;
     let mem_value = memory_record.value;
@@ -191,9 +150,7 @@ pub fn emit_memory_dependencies(
         };
 
         if most_sig_mem_value_byte >> 7 & 0x01 == 1 {
-            let sub_event = InstrEvent {
-                shard: executor.shard(),
-                clk: executor.state.clk,
+            let sub_event = AluEvent {
                 pc: UNUSED_PC,
                 lookup_id: event.memory_sub_lookup_id,
                 opcode: Opcode::SUB,
@@ -201,10 +158,6 @@ pub fn emit_memory_dependencies(
                 b: unsigned_mem_val,
                 c: sign_value,
                 sub_lookups: executor.record.create_lookup_ids(),
-                op_a_0: false,
-                mem_access: None,
-                memory_add_lookup_id: LookupId::default(),
-                memory_sub_lookup_id: LookupId::default(),
             };
             executor.record.add_events.push(sub_event);
         }
@@ -233,9 +186,7 @@ pub fn emit_cpu_dependencies(executor: &mut Executor, index: usize) {
 
         let alu_op_code = if use_signed_comparison { Opcode::SLT } else { Opcode::SLTU };
         // Add the ALU events for the comparisons
-        let lt_comp_event = InstrEvent {
-            shard: executor.shard(),
-            clk: executor.state.clk,
+        let lt_comp_event = AluEvent {
             pc: UNUSED_PC,
             lookup_id: event.branch_lt_lookup_id,
             opcode: alu_op_code,
@@ -243,14 +194,8 @@ pub fn emit_cpu_dependencies(executor: &mut Executor, index: usize) {
             b: event.a,
             c: event.b,
             sub_lookups: executor.record.create_lookup_ids(),
-            op_a_0: false,
-            mem_access: None,
-            memory_add_lookup_id: LookupId::default(),
-            memory_sub_lookup_id: LookupId::default(),
         };
-        let gt_comp_event = InstrEvent {
-            shard: executor.shard(),
-            clk: executor.state.clk,
+        let gt_comp_event = AluEvent {
             pc: UNUSED_PC,
             lookup_id: event.branch_gt_lookup_id,
             opcode: alu_op_code,
@@ -258,10 +203,6 @@ pub fn emit_cpu_dependencies(executor: &mut Executor, index: usize) {
             b: event.b,
             c: event.a,
             sub_lookups: executor.record.create_lookup_ids(),
-            op_a_0: false,
-            mem_access: None,
-            memory_add_lookup_id: LookupId::default(),
-            memory_sub_lookup_id: LookupId::default(),
         };
         executor.record.lt_events.push(lt_comp_event);
         executor.record.lt_events.push(gt_comp_event);
@@ -274,9 +215,7 @@ pub fn emit_cpu_dependencies(executor: &mut Executor, index: usize) {
         };
         if branching {
             let next_pc = event.pc.wrapping_add(event.c);
-            let add_event = InstrEvent {
-                shard: executor.shard(),
-                clk: executor.state.clk,
+            let add_event = AluEvent {
                 pc: UNUSED_PC,
                 lookup_id: event.branch_add_lookup_id,
                 opcode: Opcode::ADD,
@@ -284,10 +223,6 @@ pub fn emit_cpu_dependencies(executor: &mut Executor, index: usize) {
                 b: event.pc,
                 c: event.c,
                 sub_lookups: executor.record.create_lookup_ids(),
-                op_a_0: false,
-                mem_access: None,
-                memory_add_lookup_id: LookupId::default(),
-                memory_sub_lookup_id: LookupId::default(),
             };
             executor.record.add_events.push(add_event);
         }
@@ -297,9 +232,7 @@ pub fn emit_cpu_dependencies(executor: &mut Executor, index: usize) {
         match instruction.opcode {
             Opcode::JAL => {
                 let next_pc = event.pc.wrapping_add(event.b);
-                let add_event = InstrEvent {
-                    shard: executor.shard(),
-                    clk: executor.state.clk,
+                let add_event = AluEvent {
                     pc: UNUSED_PC,
                     lookup_id: event.jump_jal_lookup_id,
                     opcode: Opcode::ADD,
@@ -307,18 +240,12 @@ pub fn emit_cpu_dependencies(executor: &mut Executor, index: usize) {
                     b: event.pc,
                     c: event.b,
                     sub_lookups: executor.record.create_lookup_ids(),
-                    op_a_0: false,
-                    mem_access: None,
-                    memory_add_lookup_id: LookupId::default(),
-                    memory_sub_lookup_id: LookupId::default(),
                 };
                 executor.record.add_events.push(add_event);
             }
             Opcode::JALR => {
                 let next_pc = event.b.wrapping_add(event.c);
-                let add_event = InstrEvent {
-                    shard: executor.shard(),
-                    clk: executor.state.clk,
+                let add_event = AluEvent {
                     pc: UNUSED_PC,
                     lookup_id: event.jump_jalr_lookup_id,
                     opcode: Opcode::ADD,
@@ -326,10 +253,6 @@ pub fn emit_cpu_dependencies(executor: &mut Executor, index: usize) {
                     b: event.b,
                     c: event.c,
                     sub_lookups: executor.record.create_lookup_ids(),
-                    op_a_0: false,
-                    mem_access: None,
-                    memory_add_lookup_id: LookupId::default(),
-                    memory_sub_lookup_id: LookupId::default(),
                 };
                 executor.record.add_events.push(add_event);
             }
@@ -338,9 +261,7 @@ pub fn emit_cpu_dependencies(executor: &mut Executor, index: usize) {
     }
 
     if matches!(instruction.opcode, Opcode::AUIPC) {
-        let add_event = InstrEvent {
-            shard: executor.shard(),
-            clk: executor.state.clk,
+        let add_event = AluEvent {
             pc: UNUSED_PC,
             lookup_id: event.auipc_lookup_id,
             opcode: Opcode::ADD,
@@ -348,10 +269,6 @@ pub fn emit_cpu_dependencies(executor: &mut Executor, index: usize) {
             b: event.pc,
             c: event.b,
             sub_lookups: executor.record.create_lookup_ids(),
-            op_a_0: false,
-            mem_access: None,
-            memory_add_lookup_id: LookupId::default(),
-            memory_sub_lookup_id: LookupId::default(),
         };
         executor.record.add_events.push(add_event);
     }

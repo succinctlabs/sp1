@@ -847,10 +847,7 @@ mod tests {
     use crate::utils::{uni_stark_prove, uni_stark_verify};
     use p3_baby_bear::BabyBear;
     use p3_matrix::dense::RowMajorMatrix;
-    use sp1_core_executor::{
-        events::{InstrEvent, LookupId},
-        ExecutionRecord, Opcode,
-    };
+    use sp1_core_executor::{events::AluEvent, ExecutionRecord, Opcode};
     use sp1_stark::{air::MachineAir, baby_bear_poseidon2::BabyBearPoseidon2, StarkGenericConfig};
 
     use super::DivRemChip;
@@ -858,19 +855,7 @@ mod tests {
     #[test]
     fn generate_trace() {
         let mut shard = ExecutionRecord::default();
-        shard.divrem_events = vec![InstrEvent::new(
-            0,
-            0,
-            0,
-            Opcode::DIVU,
-            2,
-            17,
-            3,
-            false,
-            None,
-            LookupId::default(),
-            LookupId::default(),
-        )];
+        shard.divrem_events = vec![AluEvent::new(0, Opcode::DIVU, 2, 17, 3)];
         let chip = DivRemChip::default();
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&shard, &mut ExecutionRecord::default());
@@ -886,7 +871,7 @@ mod tests {
         let config = BabyBearPoseidon2::new();
         let mut challenger = config.challenger();
 
-        let mut divrem_events: Vec<InstrEvent> = Vec::new();
+        let mut divrem_events: Vec<AluEvent> = Vec::new();
 
         let divrems: Vec<(Opcode, u32, u32, u32)> = vec![
             (Opcode::DIVU, 3, 20, 6),
@@ -923,36 +908,12 @@ mod tests {
             (Opcode::REM, 0, 1 << 31, neg(1)),
         ];
         for t in divrems.iter() {
-            divrem_events.push(InstrEvent::new(
-                0,
-                0,
-                0,
-                t.0,
-                t.1,
-                t.2,
-                t.3,
-                false,
-                None,
-                LookupId::default(),
-                LookupId::default(),
-            ));
+            divrem_events.push(AluEvent::new(0, t.0, t.1, t.2, t.3));
         }
 
         // Append more events until we have 1000 tests.
         for _ in 0..(1000 - divrems.len()) {
-            divrem_events.push(InstrEvent::new(
-                0,
-                0,
-                0,
-                Opcode::DIVU,
-                1,
-                1,
-                1,
-                false,
-                None,
-                LookupId::default(),
-                LookupId::default(),
-            ));
+            divrem_events.push(AluEvent::new(0, Opcode::DIVU, 1, 1, 1));
         }
 
         let mut shard = ExecutionRecord::default();

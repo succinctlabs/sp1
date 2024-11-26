@@ -12,8 +12,9 @@ use serde::{Deserialize, Serialize};
 use super::{program::Program, Opcode};
 use crate::{
     events::{
-        ByteLookupEvent, ByteRecord, CpuEvent, InstrEvent, LookupId, MemoryInitializeFinalizeEvent,
-        MemoryLocalEvent, MemoryRecordEnum, PrecompileEvent, PrecompileEvents, SyscallEvent,
+        AluEvent, ByteLookupEvent, ByteRecord, CpuEvent, LookupId, MemInstrEvent,
+        MemoryInitializeFinalizeEvent, MemoryLocalEvent, MemoryRecordEnum, PrecompileEvent,
+        PrecompileEvents, SyscallEvent,
     },
     syscalls::SyscallCode,
     CoreShape,
@@ -29,23 +30,23 @@ pub struct ExecutionRecord {
     /// A trace of the CPU events which get emitted during execution.
     pub cpu_events: Vec<CpuEvent>,
     /// A trace of the ADD, and ADDI events.
-    pub add_events: Vec<InstrEvent>,
+    pub add_events: Vec<AluEvent>,
     /// A trace of the MUL events.
-    pub mul_events: Vec<InstrEvent>,
+    pub mul_events: Vec<AluEvent>,
     /// A trace of the SUB events.
-    pub sub_events: Vec<InstrEvent>,
+    pub sub_events: Vec<AluEvent>,
     /// A trace of the XOR, XORI, OR, ORI, AND, and ANDI events.
-    pub bitwise_events: Vec<InstrEvent>,
+    pub bitwise_events: Vec<AluEvent>,
     /// A trace of the SLL and SLLI events.
-    pub shift_left_events: Vec<InstrEvent>,
+    pub shift_left_events: Vec<AluEvent>,
     /// A trace of the SRL, SRLI, SRA, and SRAI events.
-    pub shift_right_events: Vec<InstrEvent>,
+    pub shift_right_events: Vec<AluEvent>,
     /// A trace of the DIV, DIVU, REM, and REMU events.
-    pub divrem_events: Vec<InstrEvent>,
+    pub divrem_events: Vec<AluEvent>,
     /// A trace of the SLT, SLTI, SLTU, and SLTIU events.
-    pub lt_events: Vec<InstrEvent>,
+    pub lt_events: Vec<AluEvent>,
     /// A trace of the memory instructions.
-    pub memory_instr_events: Vec<InstrEvent>,
+    pub memory_instr_events: Vec<MemInstrEvent>,
     /// A trace of the byte lookups that are needed.
     pub byte_lookups: HashMap<ByteLookupEvent, usize>,
     /// A trace of the precompile events.
@@ -122,17 +123,17 @@ impl ExecutionRecord {
     }
 
     /// Add a mul event to the execution record.
-    pub fn add_mul_event(&mut self, mul_event: InstrEvent) {
+    pub fn add_mul_event(&mut self, mul_event: AluEvent) {
         self.mul_events.push(mul_event);
     }
 
     /// Add a lt event to the execution record.
-    pub fn add_lt_event(&mut self, lt_event: InstrEvent) {
+    pub fn add_lt_event(&mut self, lt_event: AluEvent) {
         self.lt_events.push(lt_event);
     }
 
     /// Add a batch of alu events to the execution record.
-    pub fn add_alu_events(&mut self, mut alu_events: HashMap<Opcode, Vec<InstrEvent>>) {
+    pub fn add_alu_events(&mut self, mut alu_events: HashMap<Opcode, Vec<AluEvent>>) {
         for (opcode, value) in &mut alu_events {
             match opcode {
                 Opcode::ADD => {
@@ -164,7 +165,7 @@ impl ExecutionRecord {
     }
 
     /// Add a memory instructions event to the execution record.
-    pub fn add_memory_instructions_event(&mut self, memory_instructions_event: InstrEvent) {
+    pub fn add_memory_instructions_event(&mut self, memory_instructions_event: MemInstrEvent) {
         self.memory_instr_events.push(memory_instructions_event);
     }
 

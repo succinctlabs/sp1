@@ -10,7 +10,7 @@ use p3_field::{AbstractField, PrimeField};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use p3_maybe_rayon::prelude::{IntoParallelRefIterator, ParallelIterator, ParallelSlice};
 use sp1_core_executor::{
-    events::{ByteLookupEvent, ByteRecord, InstrEvent},
+    events::{AluEvent, ByteLookupEvent, ByteRecord},
     ByteOpcode, ExecutionRecord, Opcode, Program, DEFAULT_PC_INC,
 };
 use sp1_derive::AlignedBorrow;
@@ -136,7 +136,7 @@ impl BitwiseChip {
     /// Create a row from an event.
     fn event_to_row<F: PrimeField>(
         &self,
-        event: &InstrEvent,
+        event: &AluEvent,
         cols: &mut BitwiseCols<F>,
         blu: &mut impl ByteRecord,
     ) {
@@ -229,10 +229,7 @@ where
 mod tests {
     use p3_baby_bear::BabyBear;
     use p3_matrix::dense::RowMajorMatrix;
-    use sp1_core_executor::{
-        events::{InstrEvent, LookupId},
-        ExecutionRecord, Opcode,
-    };
+    use sp1_core_executor::{events::AluEvent, ExecutionRecord, Opcode};
     use sp1_stark::{air::MachineAir, baby_bear_poseidon2::BabyBearPoseidon2, StarkGenericConfig};
 
     use crate::utils::{uni_stark_prove, uni_stark_verify};
@@ -242,19 +239,7 @@ mod tests {
     #[test]
     fn generate_trace() {
         let mut shard = ExecutionRecord::default();
-        shard.bitwise_events = vec![InstrEvent::new(
-            0,
-            0,
-            0,
-            Opcode::XOR,
-            25,
-            10,
-            19,
-            false,
-            None,
-            LookupId::default(),
-            LookupId::default(),
-        )];
+        shard.bitwise_events = vec![AluEvent::new(0, Opcode::XOR, 25, 10, 19)];
         let chip = BitwiseChip::default();
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&shard, &mut ExecutionRecord::default());
@@ -268,45 +253,9 @@ mod tests {
 
         let mut shard = ExecutionRecord::default();
         shard.bitwise_events = [
-            InstrEvent::new(
-                0,
-                0,
-                0,
-                Opcode::XOR,
-                25,
-                10,
-                19,
-                false,
-                None,
-                LookupId::default(),
-                LookupId::default(),
-            ),
-            InstrEvent::new(
-                0,
-                0,
-                0,
-                Opcode::OR,
-                27,
-                10,
-                19,
-                false,
-                None,
-                LookupId::default(),
-                LookupId::default(),
-            ),
-            InstrEvent::new(
-                0,
-                0,
-                0,
-                Opcode::AND,
-                2,
-                10,
-                19,
-                false,
-                None,
-                LookupId::default(),
-                LookupId::default(),
-            ),
+            AluEvent::new(0, Opcode::XOR, 25, 10, 19),
+            AluEvent::new(0, Opcode::OR, 27, 10, 19),
+            AluEvent::new(0, Opcode::AND, 2, 10, 19),
         ]
         .repeat(1000);
         let chip = BitwiseChip::default();

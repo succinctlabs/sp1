@@ -6,7 +6,7 @@ use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
 use rayon::iter::{ParallelBridge, ParallelIterator};
 use sp1_core_executor::{
-    events::{ByteLookupEvent, ByteRecord, InstrEvent},
+    events::{ByteLookupEvent, ByteRecord, MemInstrEvent},
     ByteOpcode, ExecutionRecord, Opcode, Program, DEFAULT_PC_INC,
 };
 use sp1_primitives::consts::WORD_SIZE;
@@ -100,7 +100,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryInstructionsChip {
 impl MemoryInstructionsChip {
     fn event_to_row<F: PrimeField32>(
         &self,
-        event: &InstrEvent,
+        event: &MemInstrEvent,
         cols: &mut MemoryInstructionsColumns<F>,
         nonce_lookup: &[u32],
         byte_lookup_events: &mut impl ByteRecord,
@@ -116,8 +116,7 @@ impl MemoryInstructionsChip {
         cols.op_a_0 = F::from_bool(event.op_a_0);
 
         // Populate memory accesses for reading from memory.
-        cols.memory_access
-            .populate(event.mem_access.expect("Memory access is required"), byte_lookup_events);
+        cols.memory_access.populate(event.mem_access, byte_lookup_events);
 
         // Populate addr_word and addr_aligned columns.
         let memory_addr = event.b.wrapping_add(event.c);
@@ -143,7 +142,7 @@ impl MemoryInstructionsChip {
         cols.offset_is_three = F::from_bool(addr_offset == 3);
 
         // If it is a load instruction, set the unsigned_mem_val column.
-        let mem_value = event.mem_access.expect("Memory access is required").value();
+        let mem_value = event.mem_access.value();
         if matches!(event.opcode, Opcode::LB | Opcode::LBU | Opcode::LH | Opcode::LHU | Opcode::LW)
         {
             match event.opcode {

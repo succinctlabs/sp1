@@ -42,7 +42,7 @@ use p3_field::{AbstractField, PrimeField};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use p3_maybe_rayon::prelude::{ParallelIterator, ParallelSlice};
 use sp1_core_executor::{
-    events::{ByteLookupEvent, ByteRecord, InstrEvent},
+    events::{AluEvent, ByteLookupEvent, ByteRecord},
     ExecutionRecord, Opcode, Program, DEFAULT_PC_INC,
 };
 use sp1_derive::AlignedBorrow;
@@ -196,7 +196,7 @@ impl ShiftLeft {
     /// Create a row from an event.
     fn event_to_row<F: PrimeField>(
         &self,
-        event: &InstrEvent,
+        event: &AluEvent,
         cols: &mut ShiftLeftCols<F>,
         blu: &mut impl ByteRecord,
     ) {
@@ -407,10 +407,7 @@ mod tests {
     use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
     use p3_baby_bear::BabyBear;
     use p3_matrix::dense::RowMajorMatrix;
-    use sp1_core_executor::{
-        events::{InstrEvent, LookupId},
-        ExecutionRecord, Opcode,
-    };
+    use sp1_core_executor::{events::AluEvent, ExecutionRecord, Opcode};
     use sp1_stark::{air::MachineAir, baby_bear_poseidon2::BabyBearPoseidon2, StarkGenericConfig};
 
     use super::ShiftLeft;
@@ -418,19 +415,7 @@ mod tests {
     #[test]
     fn generate_trace() {
         let mut shard = ExecutionRecord::default();
-        shard.shift_left_events = vec![InstrEvent::new(
-            0,
-            0,
-            0,
-            Opcode::SLL,
-            16,
-            8,
-            1,
-            false,
-            None,
-            LookupId::default(),
-            LookupId::default(),
-        )];
+        shard.shift_left_events = vec![AluEvent::new(0, Opcode::SLL, 16, 8, 1)];
         let chip = ShiftLeft::default();
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&shard, &mut ExecutionRecord::default());
@@ -442,7 +427,7 @@ mod tests {
         let config = BabyBearPoseidon2::new();
         let mut challenger = config.challenger();
 
-        let mut shift_events: Vec<InstrEvent> = Vec::new();
+        let mut shift_events: Vec<AluEvent> = Vec::new();
         let shift_instructions: Vec<(Opcode, u32, u32, u32)> = vec![
             (Opcode::SLL, 0x00000002, 0x00000001, 1),
             (Opcode::SLL, 0x00000080, 0x00000001, 7),
@@ -465,19 +450,7 @@ mod tests {
             (Opcode::SLL, 0x00000000, 0x21212120, 0xffffffff),
         ];
         for t in shift_instructions.iter() {
-            shift_events.push(InstrEvent::new(
-                0,
-                0,
-                0,
-                t.0,
-                t.1,
-                t.2,
-                t.3,
-                false,
-                None,
-                LookupId::default(),
-                LookupId::default(),
-            ));
+            shift_events.push(AluEvent::new(0, t.0, t.1, t.2, t.3));
         }
 
         // Append more events until we have 1000 tests.

@@ -10,7 +10,7 @@ use p3_field::{AbstractField, PrimeField};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use p3_maybe_rayon::prelude::{ParallelBridge, ParallelIterator};
 use sp1_core_executor::{
-    events::{ByteLookupEvent, ByteRecord, InstrEvent},
+    events::{AluEvent, ByteLookupEvent, ByteRecord},
     ExecutionRecord, Opcode, Program, DEFAULT_PC_INC,
 };
 use sp1_derive::AlignedBorrow;
@@ -145,7 +145,7 @@ impl AddSubChip {
     /// Create a row from an event.
     fn event_to_row<F: PrimeField>(
         &self,
-        event: &InstrEvent,
+        event: &AluEvent,
         cols: &mut AddSubCols<F>,
         blu: &mut impl ByteRecord,
     ) {
@@ -236,10 +236,7 @@ mod tests {
     use p3_baby_bear::BabyBear;
     use p3_matrix::dense::RowMajorMatrix;
     use rand::{thread_rng, Rng};
-    use sp1_core_executor::{
-        events::{InstrEvent, LookupId},
-        ExecutionRecord, Opcode, DEFAULT_PC_INC,
-    };
+    use sp1_core_executor::{events::AluEvent, ExecutionRecord, Opcode, DEFAULT_PC_INC};
     use sp1_stark::{air::MachineAir, baby_bear_poseidon2::BabyBearPoseidon2, StarkGenericConfig};
 
     use super::AddSubChip;
@@ -248,19 +245,7 @@ mod tests {
     #[test]
     fn generate_trace() {
         let mut shard = ExecutionRecord::default();
-        shard.add_events = vec![InstrEvent::new(
-            0,
-            0,
-            0,
-            Opcode::ADD,
-            14,
-            8,
-            6,
-            false,
-            None,
-            LookupId::default(),
-            LookupId::default(),
-        )];
+        shard.add_events = vec![AluEvent::new(0, Opcode::ADD, 14, 8, 6)];
         let chip = AddSubChip::default();
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&shard, &mut ExecutionRecord::default());
@@ -277,36 +262,24 @@ mod tests {
             let operand_1 = thread_rng().gen_range(0..u32::MAX);
             let operand_2 = thread_rng().gen_range(0..u32::MAX);
             let result = operand_1.wrapping_add(operand_2);
-            shard.add_events.push(InstrEvent::new(
-                0,
-                0,
+            shard.add_events.push(AluEvent::new(
                 i * DEFAULT_PC_INC,
                 Opcode::ADD,
                 result,
                 operand_1,
                 operand_2,
-                false,
-                None,
-                LookupId::default(),
-                LookupId::default(),
             ));
         }
         for i in 0..255 {
             let operand_1 = thread_rng().gen_range(0..u32::MAX);
             let operand_2 = thread_rng().gen_range(0..u32::MAX);
             let result = operand_1.wrapping_sub(operand_2);
-            shard.add_events.push(InstrEvent::new(
-                0,
-                0,
+            shard.add_events.push(AluEvent::new(
                 i * DEFAULT_PC_INC,
                 Opcode::SUB,
                 result,
                 operand_1,
                 operand_2,
-                false,
-                None,
-                LookupId::default(),
-                LookupId::default(),
             ));
         }
 
