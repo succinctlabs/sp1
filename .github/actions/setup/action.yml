@@ -13,6 +13,9 @@ inputs:
     description: "Whether to install AWS CLI or not"
     required: false
     default: "true"
+  gh_token:
+    description: 'The Github token to use for the action'
+    required: true
 runs:
   using: "composite"
   steps:
@@ -110,4 +113,4 @@ runs:
       with:
         registry: ${{ env.REGISTRY }}
         username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
+        password: ${{ inputs.gh_token }}

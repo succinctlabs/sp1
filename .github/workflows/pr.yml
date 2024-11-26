@@ -20,7 +20,6 @@ concurrency:
 jobs:
   test-x86:
     name: Test (x86-64)
-    secrets: inherit
     runs-on:
       [
         runs-on,
@@ -37,12 +36,14 @@ jobs:
 
       - name: Setup CI
         uses: ./.github/actions/setup
+        with:
+          gh_token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install SP1 toolchain from repo
         run: |
           cargo run -p sp1-cli -- prove install-toolchain
           cd crates/cli
-          cargo install --locked --path .
+          cargo install --force --locked --path .
           cargo clean
 
       - name: Run cargo check
@@ -65,7 +66,6 @@ jobs:
 
   test-arm:
     name: Test (ARM)
-    secrets: inherit
     runs-on:
       [
         runs-on,
@@ -82,12 +82,15 @@ jobs:
 
       - name: Setup CI
         uses: ./.github/actions/setup
+        with:
+          gh_token: ${{ secrets.GITHUB_TOKEN }}
+
 
       - name: Install SP1 toolchain from repo
         run: |
           cargo run -p sp1-cli -- prove install-toolchain
           cd crates/cli
-          cargo install --locked --path .
+          cargo install --force --locked --path .
           cargo clean
 
       - name: Run cargo check
@@ -110,7 +113,6 @@ jobs:
 
   lint:
     name: Formatting & Clippy
-    secrets: inherit
     runs-on: [runs-on, runner=16cpu-linux-x64, "run-id=${{ github.run_id }}"]
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
@@ -120,12 +122,14 @@ jobs:
 
       - name: Setup CI
         uses: ./.github/actions/setup
+        with:
+          gh_token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install SP1 toolchain from repo
         run: |
           cargo run -p sp1-cli -- prove install-toolchain
           cd crates/cli
-          cargo install --locked --path .
+          cargo install --force --locked --path .
           cargo clean
 
       - name: Run cargo fmt
@@ -154,7 +158,6 @@ jobs:
 
   check:
     name: Cargo Check
-    secrets: inherit
     runs-on: [runs-on, runner=16cpu-linux-x64, disk=medium, "run-id=${{ github.run_id }}"]
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
@@ -164,12 +167,14 @@ jobs:
 
       - name: Setup CI
         uses: ./.github/actions/setup
+        with:
+          gh_token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install SP1 toolchain from repo
         run: |
           cargo run -p sp1-cli -- prove install-toolchain
           cd crates/cli
-          cargo install --locked --path .
+          cargo install --force --locked --path .
           cargo clean
 
       - name: Check workspace no features
@@ -192,7 +197,6 @@ jobs:
 
   examples:
     name: Examples
-    secrets: inherit
     runs-on:
       [
         runs-on,
@@ -209,12 +213,14 @@ jobs:
 
       - name: Setup CI
         uses: ./.github/actions/setup
+        with:
+          gh_token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install SP1 toolchain from repo
         run: |
           cargo run -p sp1-cli -- prove install-toolchain
           cd crates/cli
-          cargo install --locked --path .
+          cargo install --force --locked --path .
           cargo clean
 
       - name: Run cargo fmt
@@ -234,7 +240,6 @@ jobs:
 
   cli:
     name: CLI
-    secrets: inherit
     runs-on: [runs-on, runner=8cpu-linux-x64, disk=large, "run-id=${{ github.run_id }}"]
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
@@ -244,12 +249,14 @@ jobs:
 
       - name: Setup CI
         uses: ./.github/actions/setup
+        with:
+          gh_token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install SP1 toolchain from repo
         run: |
           cargo run -p sp1-cli -- prove install-toolchain
           cd crates/cli
-          cargo install --locked --path .
+          cargo install --force --locked --path .
           cargo clean
 
       - name: Run cargo prove new
@@ -269,7 +276,6 @@ jobs:
 
   performance:
     name: Performance
-    secrets: inherit
     runs-on: [runs-on, family=c7a.48xlarge, "run-id=${{ github.run_id }}"]
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
@@ -279,12 +285,14 @@ jobs:
 
       - name: Setup CI
         uses: ./.github/actions/setup
+        with:
+          gh_token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install SP1 toolchain from repo
         run: |
           cargo run -p sp1-cli -- prove install-toolchain
           cd crates/cli
-          cargo install --locked --path .
+          cargo install --force --locked --path .
           cargo clean
 
       - name: Run Evaluation
@@ -326,12 +334,14 @@ jobs:
 
       - name: Setup CI
         uses: ./.github/actions/setup
+        with:
+          gh_token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install SP1 toolchain from repo
         run: |
           cargo run -p sp1-cli -- prove install-toolchain
           cd crates/cli
-          cargo install --locked --path .
+          cargo install --force --locked --path .
           cargo clean
 
       - name: Run tendermint script
@@ -458,7 +468,6 @@ jobs:
 
   lock-files:
     name: "Check lock files"
-    secrets: inherit
     runs-on:
       [
         runs-on,
@@ -478,6 +487,8 @@ jobs:
 
       - name: Setup CI
         uses: ./.github/actions/setup
+        with:
+          gh_token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: "Remove lock files"
         run: |
