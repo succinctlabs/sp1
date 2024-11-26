@@ -1,9 +1,6 @@
 use anyhow::Result;
 use cargo_metadata::camino::Utf8PathBuf;
-use std::{
-    os::unix::process::CommandExt,
-    path::{Path, PathBuf},
-};
+use std::path::{Path, PathBuf};
 
 use crate::{
     command::{docker::create_docker_command, local::create_local_command, utils::execute_command},
@@ -34,6 +31,8 @@ pub fn execute_build_program(
     let program_dir: Utf8PathBuf =
         program_dir.try_into().expect("Failed to convert PathBuf to Utf8PathBuf");
 
+    verify_locked_version(&program_dir, args.verbose).expect("Version check mismatch");
+
     // Get the program metadata.
     let program_metadata_file = program_dir.join("Cargo.toml");
     let mut program_metadata_cmd = cargo_metadata::MetadataCommand::new();
@@ -62,7 +61,8 @@ pub fn execute_build_program(
 pub(crate) fn build_program_internal(path: &str, args: Option<BuildArgs>) {
     // Get the root package name and metadata.
     let program_dir = std::path::Path::new(path);
-    verify_locked_version(program_dir).expect("locked version mismatch");
+    verify_locked_version(program_dir, args.as_ref().map(|args| args.verbose).unwrap_or(false))
+        .expect("Locked version mismatch");
 
     let metadata_file = program_dir.join("Cargo.toml");
     let mut metadata_cmd = cargo_metadata::MetadataCommand::new();
@@ -197,14 +197,31 @@ fn print_elf_paths_cargo_directives(target_elf_paths: &[(String, Utf8PathBuf)]) 
 /// semver.
 ///
 /// This is also correct if future releases sharing the workspace version, which should be the case.
-fn verify_locked_version(program_dir: impl AsRef<Path>) -> Result<()> {
-    // We need an exception for our test fixtures.
-    if env!("CARGO_PKG_NAME") != "test-artifacts" {
+///
+/// # Errors:
+/// - If the locked version of `sp1-zkvm` is incompatible with the current toolchain version.
+/// - If the locked version of `sp1-sdk` is incompatible with the current toolchain version.
+/// -
+///
+/// # Panics
+/// - If we cant IO
+/// - If we cant find your lockfile
+/// - If we cant parse the version from the `cargo-prove`
+fn verify_locked_version(program_dir: impl AsRef<Path>, verbose: bool) -> Result<()> {
+    if std::env::var("DEV_SP1_SKIP_VERSION_CHECK").is_ok() {
+        println!("cargo:warning=Skipping version check");
         return Ok(());
     }
 
-    // This might be a workspace, need optionally search parent dirs for lock files
-    let canon = program_dir.as_ref().canonicalize()?;
+    // We need an exception for our test fixtures.
+    if std::env::var("CARGO_PKG_NAME").unwrap_or_default() == "test-artifacts" {
+        return Ok(());
+    }
+
+    // This might be a workspace, need to optionally search parent dirs for lock files
+    let canon =
+        program_dir.as_ref().canonicalize().expect("Failed to canonicalize path to program dir");
+
     let mut lock_path = canon.join("Cargo.lock");
     if !lock_path.is_file() {
         let mut curr_path: &Path = canon.as_ref();
@@ -221,20 +238,20 @@ fn verify_locked_version(program_dir: impl AsRef<Path>) -> Result<()> {
         }
 
         if !lock_path.is_file() {
-            return Err(anyhow::anyhow!("Cargo.lock not found"));
+            panic!("Failed to find Cargo.lock in the program directory or its parent directories");
         }
     }
 
     println!("cargo:warning=Found Cargo.lock at {}", lock_path.display());
 
-    let lock_file = cargo_lock::Lockfile::load(lock_path)?;
+    let lock_file = cargo_lock::Lockfile::load(lock_path).expect("Failed to load Cargo.lock");
 
     // You need an entrypoint, therefore you need sp1-zkvm.
     let vm_version = &lock_file
         .packages
         .iter()
         .find(|p| p.name.as_str() == "sp1-zkvm")
-        .ok_or_else(|| anyhow::anyhow!("sp1-zkvm not found in lock file!"))?
+        .expect("The guest program should have a sp1-zkvm dependency")
         .version;
 
     let maybe_sdk =
@@ -245,23 +262,29 @@ fn verify_locked_version(program_dir: impl AsRef<Path>) -> Result<()> {
     // so we can just use the cargo-prove version.
     let toolchain_version = {
         let output = std::process::Command::new("cargo")
-            .args(["prove", "--version"]).output().expect("Failed to find check toolchain version, see https://docs.succinct.xyz/getting-started/install.html");
+            .args(["prove", "--version"])
+            .output()
+            .expect("Failed to find check toolchain version, see https://docs.succinct.xyz/getting-started/install.html");
 
         let version = String::from_utf8(output.stdout).expect("Failed to parse version string");
 
         semver::Version::parse(
-            version.split_once('\n').expect("The version should have whitespace, this is a bug").1,
-        )?
+            version
+                .split_once('\n')
+                .expect("The version should have whitespace, this is a bug")
+                .1
+                .trim(),
+        )
+        .expect("Failed to parse version string, this is a bug")
     };
 
-    // Print these just to be useful.
-    if let Some(ref sdk) = maybe_sdk {
-        println!("cargo:warning=Locked version of sp1-sdk is {}", sdk);
-    } else {
-        println!("cargo:warning=sp1-sdk not found in lock file!");
+    if verbose {
+        maybe_sdk.inspect(|v| {
+            println!("cargo:warning=Locked version of sp1-sdk is {}", v);
+        });
+        println!("cargo:warning=Locked version of sp1-zkvm is {}", vm_version);
+        println!("cargo:warning=Current toolchain version = {}", toolchain_version);
     }
-    println!("cargo:warning=Locked version of sp1-zkvm is {}", vm_version);
-    println!("cargo:warning=Current toolchain version = {}", toolchain_version);
 
     if vm_version.major != toolchain_version.major || vm_version.minor != toolchain_version.minor {
         return Err(anyhow::anyhow!(

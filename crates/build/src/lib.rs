@@ -76,6 +76,8 @@ pub struct BuildArgs {
         default_value = DEFAULT_OUTPUT_DIR
     )]
     pub output_directory: String,
+    #[clap(long, action, help = "Any debug logs from the build script will be printed to stdout")]
+    pub verbose: bool,
 }
 
 // Implement default args to match clap defaults.
@@ -93,6 +95,7 @@ impl Default for BuildArgs {
             output_directory: DEFAULT_OUTPUT_DIR.to_string(),
             locked: false,
             no_default_features: false,
+            verbose: false,
         }
     }
 }
