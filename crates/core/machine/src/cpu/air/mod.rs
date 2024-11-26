@@ -58,7 +58,7 @@ where
             local.instruction.op_a_0,
             local.nonce,
             local.is_mem_store,
-            is_alu_instruction + is_memory_instruction,
+            is_alu_instruction + is_memory_instruction + local.selectors.is_auipc,
         );
 
         // Branch instructions.
@@ -66,9 +66,6 @@ where
 
         // Jump instructions.
         self.eval_jump_ops::<AB>(builder, local, next);
-
-        // AUIPC instruction.
-        self.eval_auipc(builder, local);
 
         // ECALL instruction.
         self.eval_ecall(builder, local);
@@ -220,37 +217,6 @@ impl CpuChip {
             jump_columns.jalr_nonce,
             AB::Expr::zero(),
             local.selectors.is_jalr,
-        );
-    }
-
-    /// Constraints related to the AUIPC opcode.
-    pub(crate) fn eval_auipc<AB: SP1AirBuilder>(&self, builder: &mut AB, local: &CpuCols<AB::Var>) {
-        // Get the auipc specific columns.
-        let auipc_columns = local.opcode_specific_columns.auipc();
-
-        // Verify that the word form of local.pc is correct.
-        builder.when(local.selectors.is_auipc).assert_eq(auipc_columns.pc.reduce::<AB>(), local.pc);
-
-        // Range check the pc.
-        BabyBearWordRangeChecker::<AB::F>::range_check(
-            builder,
-            auipc_columns.pc,
-            auipc_columns.pc_range_checker,
-            local.selectors.is_auipc.into(),
-        );
-
-        // Verify that op_a == pc + op_b.
-        builder.send_instruction(
-            AB::Expr::from_canonical_u32(UNUSED_PC),
-            AB::Expr::from_canonical_u32(UNUSED_PC + DEFAULT_PC_INC),
-            AB::Expr::from_canonical_u32(Opcode::ADD as u32),
-            local.op_a_val(),
-            auipc_columns.pc,
-            local.op_b_val(),
-            AB::Expr::zero(),
-            auipc_columns.auipc_nonce,
-            AB::Expr::zero(),
-            local.selectors.is_auipc,
         );
     }
 
