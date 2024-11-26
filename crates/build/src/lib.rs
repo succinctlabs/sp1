@@ -126,7 +126,7 @@ pub fn build_program(path: impl AsRef<Path>) {
 ///
 /// # Arguments
 ///
-/// * `path` - A path to the guest program directory
+/// * `path` - A path to the guest program directory.
 ///
 /// * `args` - A [`BuildArgs`] struct that contains various build configuration options.
 ///
@@ -162,7 +162,7 @@ macro_rules! build_program_from_path {
         {
             // Inline this crates manifest path at compile time.
             const MANIFEST: &str = std::env!("CARGO_MANIFEST_DIR");
-            
+
             // Adjust the path to be relative to the manifest directory, unless its absolute.
             fn ___adjust_path(p: impl AsRef<::std::path::Path>) -> ::std::path::PathBuf {
                 let p = p.as_ref();
