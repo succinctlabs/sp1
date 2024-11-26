@@ -3,7 +3,6 @@ use std::time::Duration;
 use alloy_signer::SignerSync;
 use alloy_signer_local::PrivateKeySigner;
 use anyhow::{Context, Ok, Result};
-use reqwest_middleware::ClientWithMiddleware as HttpClientWithMiddleware;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sp1_core_machine::io::SP1Stdin;
@@ -30,7 +29,7 @@ pub const DEFAULT_PROVER_NETWORK_RPC: &str = "https://rpc.production.succinct.to
 
 pub struct NetworkClient {
     signer: PrivateKeySigner,
-    http: HttpClientWithMiddleware,
+    http: reqwest::Client,
     rpc_url: String,
 }
 
@@ -47,7 +46,7 @@ impl NetworkClient {
 
         Self {
             signer,
-            http: http_client.into(),
+            http: http_client,
             rpc_url: rpc_url.unwrap_or_else(|| DEFAULT_PROVER_NETWORK_RPC.to_string()),
         }
     }

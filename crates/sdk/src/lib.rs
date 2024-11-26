@@ -35,7 +35,7 @@ pub use provers::SP1VerificationError;
 use sp1_prover::components::DefaultProverComponents;
 
 #[cfg(any(feature = "network", feature = "network-v2"))]
-use {std::future::Future, tokio::task::block_in_place};
+use std::future::Future;
 
 pub use provers::{CpuProver, MockProver, Prover};
 
@@ -443,11 +443,32 @@ impl NetworkProverBuilder {
 pub fn block_on<T>(fut: impl Future<Output = T>) -> T {
     // Handle case if we're already in an tokio runtime.
     if let Ok(handle) = tokio::runtime::Handle::try_current() {
-        block_in_place(|| handle.block_on(fut))
+        #[cfg(not(target_family = "wasm"))]
+        {
+            tokio::task::block_in_place(|| handle.block_on(fut))
+        }
+        
+        // Wasm is single threaded, so we can't block in place.
+        #[cfg(target_family = "wasm")]
+        {
+            handle.block_on(fut)
+        }
     } else {
         // Otherwise create a new runtime.
-        let rt = tokio::runtime::Runtime::new().expect("Failed to create a new runtime");
-        rt.block_on(fut)
+        #[cfg(not(target_family = "wasm"))]
+        {
+            let rt = tokio::runtime::Runtime::new().expect("Failed to create a new runtime");
+            rt.block_on(fut)
+        }
+
+        #[cfg(target_family = "wasm")]
+        {
+            let rt = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("Failed to create a new runtime");
+            rt.block_on(fut)
+        }
     }
 }
 

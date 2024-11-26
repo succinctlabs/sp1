@@ -4770,21 +4770,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "reqwest-middleware"
-version = "0.3.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "562ceb5a604d3f7c885a792d42c199fd8af239d0a51b2fa6a78aafa092452b04"
-dependencies = [
- "anyhow",
- "async-trait",
- "http 1.1.0",
- "reqwest",
- "serde",
- "thiserror 1.0.69",
- "tower-service",
-]
-
-[[package]]
 name = "rfc6979"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5956,7 +5941,6 @@ dependencies = [
  "p3-fri",
  "prost",
  "reqwest",
- "reqwest-middleware",
  "serde",
  "sp1-build",
  "sp1-core-executor",
@@ -5973,7 +5957,7 @@ dependencies = [
  "tokio",
  "tonic",
  "tracing",
- "twirp-rs",
+ "twirp",
  "vergen",
 ]
 
@@ -6862,6 +6846,26 @@ dependencies = [
  "thiserror 1.0.69",
  "url",
  "utf-8",
+]
+
+[[package]]
+name = "twirp"
+version = "0.7.0"
+source = "git+https://github.com/nhtyy/twirp-rs?branch=n/wasm#0cfefcc7d5d03aa718abced70c140592c004aa20"
+dependencies = [
+ "async-trait",
+ "axum",
+ "futures",
+ "http 1.1.0",
+ "http-body-util",
+ "hyper",
+ "prost",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.3",
+ "tokio",
+ "url",
 ]
 
 [[package]]

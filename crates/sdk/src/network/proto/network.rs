@@ -619,64 +619,6 @@ where
         T::get_relay_status(&*self, ctx, req).await
     }
 }
-pub fn router<T>(api: T) -> twirp::Router
-where
-    T: NetworkService + Clone + Send + Sync + 'static,
-{
-    twirp::details::TwirpRouterBuilder::new(api)
-        .route("/CreateProof", |api: T, ctx: twirp::Context, req: CreateProofRequest| async move {
-            api.create_proof(ctx, req).await
-        })
-        .route("/SubmitProof", |api: T, ctx: twirp::Context, req: SubmitProofRequest| async move {
-            api.submit_proof(ctx, req).await
-        })
-        .route("/ClaimProof", |api: T, ctx: twirp::Context, req: ClaimProofRequest| async move {
-            api.claim_proof(ctx, req).await
-        })
-        .route(
-            "/UnclaimProof",
-            |api: T, ctx: twirp::Context, req: UnclaimProofRequest| async move {
-                api.unclaim_proof(ctx, req).await
-            },
-        )
-        .route(
-            "/ModifyCpuCycles",
-            |api: T, ctx: twirp::Context, req: ModifyCpuCyclesRequest| async move {
-                api.modify_cpu_cycles(ctx, req).await
-            },
-        )
-        .route(
-            "/FulfillProof",
-            |api: T, ctx: twirp::Context, req: FulfillProofRequest| async move {
-                api.fulfill_proof(ctx, req).await
-            },
-        )
-        .route("/RelayProof", |api: T, ctx: twirp::Context, req: RelayProofRequest| async move {
-            api.relay_proof(ctx, req).await
-        })
-        .route("/GetNonce", |api: T, ctx: twirp::Context, req: GetNonceRequest| async move {
-            api.get_nonce(ctx, req).await
-        })
-        .route(
-            "/GetProofStatus",
-            |api: T, ctx: twirp::Context, req: GetProofStatusRequest| async move {
-                api.get_proof_status(ctx, req).await
-            },
-        )
-        .route(
-            "/GetProofRequests",
-            |api: T, ctx: twirp::Context, req: GetProofRequestsRequest| async move {
-                api.get_proof_requests(ctx, req).await
-            },
-        )
-        .route(
-            "/GetRelayStatus",
-            |api: T, ctx: twirp::Context, req: GetRelayStatusRequest| async move {
-                api.get_relay_status(ctx, req).await
-            },
-        )
-        .build()
-}
 #[twirp::async_trait::async_trait]
 pub trait NetworkServiceClient: Send + Sync + std::fmt::Debug {
     async fn create_proof(

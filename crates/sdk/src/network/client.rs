@@ -12,7 +12,6 @@ use crate::{
 use anyhow::{Context, Ok, Result};
 use futures::{future::join_all, Future};
 use reqwest::{Client as HttpClient, Url};
-use reqwest_middleware::ClientWithMiddleware as HttpClientWithMiddleware;
 use sp1_core_machine::io::SP1Stdin;
 use std::{
     result::Result::Ok as StdOk,
@@ -38,7 +37,7 @@ const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 
 pub struct NetworkClient {
     pub rpc: TwirpClient,
-    pub http: HttpClientWithMiddleware,
+    pub http: HttpClient,
     pub auth: NetworkAuth,
     pub is_using_prover_network: bool,
 }
@@ -69,7 +68,7 @@ impl NetworkClient {
         Self {
             auth,
             rpc,
-            http: http_client.into(),
+            http: http_client,
             is_using_prover_network: rpc_url == DEFAULT_PROVER_NETWORK_RPC,
         }
     }
