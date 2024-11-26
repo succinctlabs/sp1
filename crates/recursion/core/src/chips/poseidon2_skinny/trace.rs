@@ -337,9 +337,11 @@ mod tests {
             // We have one row for input, one row for output, NUM_EXTERNAL_ROUNDS rows for the
             // external rounds, and one row for all internal rounds.
             let mut row_add = [[F::zero(); NUM_POSEIDON2_COLS]; NUM_EXTERNAL_ROUNDS + 3];
-            let cols_ptr = row_add.as_mut_ptr() as *mut Poseidon2Cols<BabyBear>;
             unsafe {
-                crate::sys::poseidon2_skinny_event_to_row_babybear(event, cols_ptr);
+                crate::sys::poseidon2_skinny_event_to_row_babybear(
+                    event,
+                    row_add.as_mut_ptr() as *mut Poseidon2Cols<BabyBear>,
+                );
             }
 
             rows.extend(row_add.into_iter());
