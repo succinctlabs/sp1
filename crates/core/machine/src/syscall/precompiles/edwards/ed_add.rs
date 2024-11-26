@@ -328,14 +328,9 @@ where
 mod tests {
     use sp1_core_executor::Program;
     use sp1_stark::CpuProver;
+    use test_artifacts::{ED25519_ELF, ED_ADD_ELF};
 
-    use crate::{
-        io::SP1Stdin,
-        utils::{
-            self,
-            tests::{ED25519_ELF, ED_ADD_ELF},
-        },
-    };
+    use crate::{io::SP1Stdin, utils};
 
     #[test]
     fn test_ed_add_simple() {

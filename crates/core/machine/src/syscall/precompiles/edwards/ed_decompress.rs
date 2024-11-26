@@ -278,11 +278,9 @@ where
 pub mod tests {
     use sp1_core_executor::Program;
     use sp1_stark::CpuProver;
+    use test_artifacts::ED_DECOMPRESS_ELF;
 
-    use crate::{
-        io::SP1Stdin,
-        utils::{self, tests::ED_DECOMPRESS_ELF},
-    };
+    use crate::{io::SP1Stdin, utils};
 
     #[test]
     fn test_ed_decompress() {

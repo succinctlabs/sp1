@@ -12,8 +12,8 @@ links = "sp1-core-machine-sys"
 
 [dependencies]
 bincode = "1.3.3"
-serde = { version = "1.0", features = ["derive", "rc"] }
-itertools = "0.13.0"
+serde = { workspace = true, features = ["derive", "rc"] }
+itertools = { workspace = true }
 log = "0.4.22"
 num = { version = "0.4.3" }
 p3-air = { workspace = true }
@@ -45,15 +45,15 @@ p256 = { version = "0.13.2", features = ["expose-field"] }
 num_cpus = "1.16.0"
 size = "0.4.1"
 tempfile = "3.10.1"
-tracing = "0.1.40"
+tracing = { workspace = true }
 tracing-forest = { version = "0.1.6", features = ["ansi", "smallvec"] }
-tracing-subscriber = { version = "0.3.18", features = ["std", "env-filter"] }
+tracing-subscriber = { workspace = true, features = ["std", "env-filter"] }
 strum_macros = "0.26"
 strum = "0.26"
 web-time = "1.1.0"
 thiserror = "1.0.63"
 rand = "0.8.5"
-hashbrown = { version = "0.14.5", features = ["serde", "inline-more"] }
+hashbrown = { workspace = true, features = ["serde", "inline-more"] }
 static_assertions = "1.1.0"
 
 sp1-stark = { workspace = true }
@@ -67,6 +67,7 @@ num = { version = "0.4.3", features = ["rand"] }
 rand = "0.8.5"
 sp1-zkvm = { workspace = true }
 sp1-core-executor = { workspace = true, features = ["programs"] }
+test-artifacts = { workspace = true }
 
 [build-dependencies]
 sp1-stark = { workspace = true }

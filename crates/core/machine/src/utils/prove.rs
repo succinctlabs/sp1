@@ -1,3 +1,4 @@
+use p3_matrix::dense::RowMajorMatrix;
 use std::{
     fs::File,
     io::{self, Seek, SeekFrom},
@@ -22,12 +23,14 @@ use crate::{
     io::SP1Stdin,
     utils::{chunk_vec, concurrency::TurnBasedSync},
 };
-
-use p3_matrix::dense::RowMajorMatrix;
+use sp1_core_executor::{
+    events::{format_table_line, sorted_table_lines},
+    ExecutionState,
+};
 
 use sp1_core_executor::{
-    events::sorted_table_lines, subproof::NoOpSubproofVerifier, ExecutionError, ExecutionRecord,
-    ExecutionReport, ExecutionState, Executor, Program, SP1Context,
+    subproof::NoOpSubproofVerifier, ExecutionError, ExecutionRecord, ExecutionReport, Executor,
+    Program, SP1Context,
 };
 use sp1_stark::{
     air::PublicValues, Com, MachineProof, MachineProver, MachineRecord, OpeningProof,
@@ -297,16 +300,17 @@ where
                             for record in records.iter() {
                                 let mut heights = vec![];
                                 let chips = prover.shard_chips(record).collect::<Vec<_>>();
-                                let shape = record.shape.as_ref().expect("shape not set");
-                                for chip in chips.iter() {
-                                    let height = shape.inner[&chip.name()];
-                                    heights.push((chip.name().clone(), height));
+                                if let Some(shape) = record.shape.as_ref() {
+                                    for chip in chips.iter() {
+                                        let height = shape.inner[&chip.name()];
+                                        heights.push((chip.name().clone(), height));
+                                    }
+                                    shape_tx
+                                        .lock()
+                                        .unwrap()
+                                        .send((ProofShape::from_log2_heights(&heights), done))
+                                        .unwrap();
                                 }
-                                shape_tx
-                                    .lock()
-                                    .unwrap()
-                                    .send((ProofShape::from_log2_heights(&heights), done))
-                                    .unwrap();
                             }
 
                             #[cfg(feature = "debug")]
@@ -420,12 +424,23 @@ where
         // Print the opcode and syscall count tables like `du`: sorted by count (descending) and
         // with the count in the first column.
         tracing::info!("execution report (opcode counts):");
-        for line in sorted_table_lines(report_aggregate.opcode_counts.as_ref()) {
-            tracing::info!("  {line}");
+        let (width, lines) = sorted_table_lines(report_aggregate.opcode_counts.as_ref());
+        for (label, count) in lines {
+            if *count > 0 {
+                tracing::info!("  {}", format_table_line(&width, &label, count));
+            } else {
+                tracing::debug!("  {}", format_table_line(&width, &label, count));
+            }
         }
+
         tracing::info!("execution report (syscall counts):");
-        for line in sorted_table_lines(report_aggregate.syscall_counts.as_ref()) {
-            tracing::info!("  {line}");
+        let (width, lines) = sorted_table_lines(report_aggregate.syscall_counts.as_ref());
+        for (label, count) in lines {
+            if *count > 0 {
+                tracing::info!("  {}", format_table_line(&width, &label, count));
+            } else {
+                tracing::debug!("  {}", format_table_line(&width, &label, count));
+            }
         }
 
         let cycles = report_aggregate.total_instruction_count();
@@ -463,7 +478,7 @@ where
     let mut reader = std::io::BufReader::new(file);
     let state: ExecutionState =
         bincode::deserialize_from(&mut reader).expect("failed to deserialize state");
-    let mut runtime = Executor::recover(program.clone(), state.clone(), opts);
+    let mut runtime = Executor::recover(program, state, opts);
     runtime.maximal_shapes = shape_config
         .map(|config| config.maximal_core_shapes().into_iter().map(|s| s.inner).collect());
 

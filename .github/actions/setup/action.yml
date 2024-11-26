@@ -1,3 +1,5 @@
+# Note: this is only compatible with Linux runners.
+
 name: Test setup
 inputs:
   pull_token:

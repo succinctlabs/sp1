@@ -26,6 +26,15 @@ use crate::{
     Instruction, Opcode, Program, Register,
 };
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Whether to verify deferred proofs during execution.
+pub enum DeferredProofVerification {
+    /// Verify deferred proofs during execution.
+    Enabled,
+    /// Skip verification of deferred proofs
+    Disabled,
+}
+
 /// An executor for the SP1 RISC-V zkVM.
 ///
 /// The exeuctor is responsible for executing a user program and tracing important events which
@@ -80,6 +89,9 @@ pub struct Executor<'a> {
 
     /// The maximum number of cpu cycles to use for execution.
     pub max_cycles: Option<u64>,
+
+    /// Skip deferred proof verification.
+    pub deferred_proof_verification: DeferredProofVerification,
 
     /// The state of the execution.
     pub state: ExecutionState,
@@ -232,6 +244,11 @@ impl<'a> Executor<'a> {
             hook_registry,
             opts,
             max_cycles: context.max_cycles,
+            deferred_proof_verification: if context.skip_deferred_proof_verification {
+                DeferredProofVerification::Disabled
+            } else {
+                DeferredProofVerification::Enabled
+            },
             memory_checkpoint: PagedMemory::new_preallocated(),
             uninitialized_memory_checkpoint: PagedMemory::new_preallocated(),
             local_memory_access: HashMap::new(),
@@ -1676,7 +1693,7 @@ mod tests {
 
     use crate::programs::tests::{
         fibonacci_program, panic_program, secp256r1_add_program, secp256r1_double_program,
-        simple_memory_program, simple_program, ssz_withdrawals_program,
+        simple_memory_program, simple_program, ssz_withdrawals_program, u256xu2048_mul_program,
     };
 
     use crate::Register;
@@ -1715,6 +1732,13 @@ mod tests {
     #[test]
     fn test_secp256r1_double_program_run() {
         let program = secp256r1_double_program();
+        let mut runtime = Executor::new(program, SP1CoreOpts::default());
+        runtime.run().unwrap();
+    }
+
+    #[test]
+    fn test_u256xu2048_mul() {
+        let program = u256xu2048_mul_program();
         let mut runtime = Executor::new(program, SP1CoreOpts::default());
         runtime.run().unwrap();
     }

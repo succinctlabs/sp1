@@ -153,9 +153,10 @@ mod tests {
         StarkGenericConfig,
     };
 
+    use crate::utils::uni_stark::{uni_stark_prove, uni_stark_verify};
+
     use super::{FieldDenCols, Limbs};
 
-    use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
     use core::{
         borrow::{Borrow, BorrowMut},
         mem::size_of,
@@ -287,9 +288,9 @@ mod tests {
         // This it to test that the proof DOESN'T work if messed up.
         // let row = trace.row_mut(0);
         // row[0] = BabyBear::from_canonical_u8(0);
-        let proof = prove::<BabyBearPoseidon2, _>(&config, &chip, &mut challenger, trace);
+        let proof = uni_stark_prove::<BabyBearPoseidon2, _>(&config, &chip, &mut challenger, trace);
 
         let mut challenger = config.challenger();
-        verify(&config, &chip, &mut challenger, &proof).unwrap();
+        uni_stark_verify(&config, &chip, &mut challenger, &proof).unwrap();
     }
 }

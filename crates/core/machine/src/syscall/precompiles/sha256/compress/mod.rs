@@ -34,10 +34,11 @@ pub mod compress_tests {
 
     use sp1_core_executor::{syscalls::SyscallCode, Instruction, Opcode, Program};
     use sp1_stark::CpuProver;
+    use test_artifacts::SHA_COMPRESS_ELF;
 
     use crate::{
         io::SP1Stdin,
-        utils::{run_test, setup_logger, tests::SHA_COMPRESS_ELF},
+        utils::{run_test, setup_logger},
     };
 
     pub fn sha_compress_program() -> Program {

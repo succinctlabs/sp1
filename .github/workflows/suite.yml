@@ -82,7 +82,7 @@ jobs:
       [
         "runs-on",
         "family=g6.4xlarge",
-        "hdd=200",
+        "disk=large",
         "ami=ami-0a63dc9cb9e934ba3",
         "spot=false",
         "run-id=${{ github.run_id }}",

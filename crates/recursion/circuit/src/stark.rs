@@ -501,7 +501,7 @@ pub mod tests {
         BabyBearFriConfig,
     };
 
-    use sp1_core_executor::{programs::tests::FIBONACCI_ELF, Program, SP1Context};
+    use sp1_core_executor::Program;
     use sp1_core_machine::{
         io::SP1Stdin,
         riscv::RiscvAir,
@@ -512,11 +512,13 @@ pub mod tests {
         ir::{Builder, DslIr, TracedVec},
     };
 
+    use sp1_core_executor::SP1Context;
     use sp1_recursion_core::{air::Block, machine::RecursionAir, stark::BabyBearPoseidon2Outer};
     use sp1_stark::{
         baby_bear_poseidon2::BabyBearPoseidon2, CpuProver, InnerVal, MachineProver, SP1CoreOpts,
         ShardProof,
     };
+    use test_artifacts::FIBONACCI_ELF;
 
     use super::*;
     use crate::witness::*;

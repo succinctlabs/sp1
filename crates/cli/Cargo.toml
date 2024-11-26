@@ -32,7 +32,7 @@ indicatif = "0.17.8"
 tokio = { version = "1", features = ["full"] }
 dirs = "5.0"
 rand = "0.8"
-serde_json = "1.0.121"
+serde_json = { workspace = true }
 yansi = "1.0.1"
 hex = "0.4.3"
 anstyle = "1.0.8"
@@ -43,3 +43,4 @@ regex = "1.5.4"
 prettytable-rs = "0.10"
 textwrap = "0.16.0"
 ctrlc = "3.4.2"
+cargo_metadata = "0.18.1"

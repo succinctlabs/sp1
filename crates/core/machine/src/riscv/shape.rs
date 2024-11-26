@@ -895,7 +895,7 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
     }
 }
 
-#[cfg(any(test, feature = "programs"))]
+#[cfg(test)]
 pub mod tests {
     use std::fmt::Debug;
 
