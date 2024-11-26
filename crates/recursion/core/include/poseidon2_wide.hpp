@@ -139,7 +139,7 @@ __SP1_HOSTDEV__ __SP1_INLINE__ void populate_perm(
 
 template <class F>
 __SP1_HOSTDEV__ void event_to_row(const F input[WIDTH], F* input_row,
-                                  bool sbox_state) {
+                                  size_t cursor, bool sbox_state) {
   F external_rounds_state[WIDTH * NUM_EXTERNAL_ROUNDS];
   F internal_rounds_state[WIDTH];
   F internal_rounds_s0[NUM_INTERNAL_ROUNDS - 1];
@@ -151,7 +151,6 @@ __SP1_HOSTDEV__ void event_to_row(const F input[WIDTH], F* input_row,
                    internal_rounds_s0, external_sbox, internal_sbox,
                    output_state);
 
-  size_t cursor = 0;
   for (size_t i = 0; i < (WIDTH * NUM_EXTERNAL_ROUNDS); i++) {
     input_row[cursor + i] = external_rounds_state[i];
   }

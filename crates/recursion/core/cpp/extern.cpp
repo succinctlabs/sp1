@@ -124,7 +124,7 @@ extern "C" void poseidon2_wide_event_to_row_babybear(const BabyBearP3* input,
                                                      BabyBearP3* input_row,
                                                      bool sbox_state) {
   poseidon2_wide::event_to_row<bb31_t>(reinterpret_cast<const bb31_t*>(input),
-                                       reinterpret_cast<bb31_t*>(input_row),
+                                       reinterpret_cast<bb31_t*>(input_row), 0,
                                        sbox_state);
 }
 extern void poseidon2_wide_instr_to_row_babybear(
