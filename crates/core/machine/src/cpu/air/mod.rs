@@ -58,8 +58,14 @@ where
             local.instruction.op_a_0,
             local.nonce,
             local.is_mem_store,
-            is_alu_instruction + is_memory_instruction + local.selectors.is_auipc,
+            is_alu_instruction
+                + is_memory_instruction
+                + is_branch_instruction
+                + local.selectors.is_auipc,
         );
+
+        // Verify that next.pc is correct.
+        builder.when_transition().when(local.is_real).assert_eq(local.next_pc, next.pc);
 
         // Jump instructions.
         self.eval_jump_ops::<AB>(builder, local, next);
@@ -83,13 +89,10 @@ where
         self.eval_halt_unimpl(builder, local, next, public_values);
 
         // Check that the shard and clk is updated correctly.
-        self.eval_shard_clk(builder, local, next);
+        self.eval_shard_clk(builder, local, next, public_values);
 
         // Check that the pc is updated correctly.
-        self.eval_pc(builder, local, next, is_branch_instruction.clone());
-
-        // Check public values constraints.
-        self.eval_public_values(builder, local, next, public_values);
+        self.eval_pc(builder, local, next, public_values);
 
         // Check that the is_real flag is correct.
         self.eval_is_real(builder, local, next);
@@ -229,7 +232,11 @@ impl CpuChip {
         builder: &mut AB,
         local: &CpuCols<AB::Var>,
         next: &CpuCols<AB::Var>,
+        public_values: &PublicValues<Word<AB::PublicVar>, AB::PublicVar>,
     ) {
+        // Verify the public value's shard.
+        builder.when(local.is_real).assert_eq(public_values.execution_shard, local.shard);
+
         // Verify that all shard values are the same.
         builder.when_transition().when(next.is_real).assert_eq(local.shard, next.shard);
 
@@ -275,51 +282,12 @@ impl CpuChip {
         builder: &mut AB,
         local: &CpuCols<AB::Var>,
         next: &CpuCols<AB::Var>,
-        is_branch_instruction: AB::Expr,
-    ) {
-        // When is_sequential_instr is true, assert that instruction is not branch, jump, or halt.
-        // Note that the condition `when(local_is_real)` is implied from the previous constraint.
-        let is_halt = self.get_is_halt_syscall::<AB>(builder, local);
-        builder.when(local.is_real).assert_eq(
-            local.is_sequential_instr,
-            AB::Expr::one()
-                - (is_branch_instruction
-                    + local.selectors.is_jal
-                    + local.selectors.is_jalr
-                    + local.selectors.is_alu
-                    + is_halt),
-        );
-
-        // Verify that the pc increments by 4 for all instructions except branch, jump, halt, and
-        // ALU instructions. The other case is handled by eval_jump, eval_branch, eval_ecall
-        // (for halt), and the ALU specific tables.
-        builder
-            .when_transition()
-            .when(next.is_real)
-            .when(local.is_sequential_instr)
-            .assert_eq(local.pc + AB::Expr::from_canonical_u8(4), next.pc);
-
-        // When the last row is real and it's a sequential instruction, assert that local.next_pc
-        // <==> local.pc + 4
-        builder
-            .when(local.is_real)
-            .when(local.is_sequential_instr)
-            .assert_eq(local.pc + AB::Expr::from_canonical_u8(4), local.next_pc);
-    }
-
-    /// Constraints related to the public values.
-    pub(crate) fn eval_public_values<AB: SP1AirBuilder>(
-        &self,
-        builder: &mut AB,
-        local: &CpuCols<AB::Var>,
-        next: &CpuCols<AB::Var>,
         public_values: &PublicValues<Word<AB::PublicVar>, AB::PublicVar>,
     ) {
-        // Verify the public value's shard.
-        builder.when(local.is_real).assert_eq(public_values.execution_shard, local.shard);
-
         // Verify the public value's start pc.
         builder.when_first_row().assert_eq(public_values.start_pc, local.pc);
+
+        builder.when_transition().when(next.is_real).assert_eq(local.next_pc, next.pc);
 
         // Verify the public value's next pc.  We need to handle two cases:
         // 1. The last real row is a transition row.

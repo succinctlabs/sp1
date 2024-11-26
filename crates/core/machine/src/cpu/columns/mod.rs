@@ -62,31 +62,11 @@ pub struct CpuCols<T: Copy> {
     /// Selector to label whether this row is a non padded row.
     pub is_real: T,
 
-    /// The branching column is equal to:
-    ///
-    /// > is_beq & a_eq_b ||
-    /// > is_bne & (a_lt_b | a_gt_b) ||
-    /// > (is_blt | is_bltu) & a_lt_b ||
-    /// > (is_bge | is_bgeu) & (a_eq_b | a_gt_b)
-    pub branching: T,
-
-    /// The not branching column is equal to:
-    ///
-    /// > is_beq & !a_eq_b ||
-    /// > is_bne & !(a_lt_b | a_gt_b) ||
-    /// > (is_blt | is_bltu) & !a_lt_b ||
-    /// > (is_bge | is_bgeu) & !(a_eq_b | a_gt_b)
-    pub not_branching: T,
-
     /// The result of selectors.is_ecall * the send_to_table column for the ECALL opcode.
     pub ecall_mul_send_to_table: T,
 
     /// The result of selectors.is_ecall * (is_halt || is_commit_deferred_proofs)
     pub ecall_range_check_operand: T,
-
-    /// This is true for all instructions that are not jumps, branches, and halt.  Those
-    /// instructions may move the program counter to a non sequential instruction.
-    pub is_sequential_instr: T,
 }
 
 impl<T: Copy> CpuCols<T> {
