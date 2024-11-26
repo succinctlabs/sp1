@@ -2,6 +2,8 @@
 #include "sys.hpp"
 
 namespace sp1_recursion_core_sys {
+using namespace poseidon2;
+
 extern void alu_base_event_to_row_babybear(const BaseAluIo<BabyBearP3>* io,
                                            BaseAluValueCols<BabyBearP3>* cols) {
   alu_base::event_to_row<bb31_t>(
@@ -104,7 +106,8 @@ extern void select_instr_to_row_babybear(
 }
 
 extern void poseidon2_skinny_event_to_row_babybear(
-    const Poseidon2Event<BabyBearP3>* event, Poseidon2<BabyBearP3> cols[11]) {
+    const Poseidon2Event<BabyBearP3>* event,
+    Poseidon2<BabyBearP3> cols[poseidon2::OUTPUT_ROUND_IDX + 1]) {
   poseidon2_skinny::event_to_row<bb31_t>(
       *reinterpret_cast<const Poseidon2Event<bb31_t>*>(event),
       reinterpret_cast<Poseidon2<bb31_t>*>(cols));

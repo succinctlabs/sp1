@@ -90,10 +90,12 @@ __SP1_HOSTDEV__ __SP1_INLINE__ void populate_internal_rounds(
 }
 
 template <class F>
-__SP1_HOSTDEV__ void event_to_row(const F* input, F* external_rounds_state,
-                                  F* internal_rounds_state,
-                                  F* internal_rounds_s0, F* external_sbox,
-                                  F* internal_sbox, F* output_state) {
+__SP1_HOSTDEV__ void event_to_row(const F input[WIDTH],
+                                  F external_rounds_state[WIDTH],
+                                  F internal_rounds_state[WIDTH],
+                                  F internal_rounds_s0[NUM_INTERNAL_ROUNDS - 1],
+                                  F* external_sbox, F* internal_sbox,
+                                  F* output_state) {
   for (size_t i = 0; i < WIDTH; i++) {
     external_rounds_state[i] = input[i];
   }
