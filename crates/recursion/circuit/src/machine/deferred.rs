@@ -92,10 +92,10 @@ pub struct SP1DeferredWitnessVariable<
 impl<C, SC, A> SP1DeferredVerifier<C, SC, A>
 where
     SC: BabyBearFriConfigVariable<
-        C,
-        FriChallengerVariable = DuplexChallengerVariable<C>,
-        DigestVariable = [Felt<BabyBear>; DIGEST_SIZE],
-    >,
+            C,
+            FriChallengerVariable = DuplexChallengerVariable<C>,
+            DigestVariable = [Felt<BabyBear>; DIGEST_SIZE],
+        >,
     C: CircuitConfig<F = SC::Val, EF = SC::Challenge, Bit = Felt<BabyBear>>,
     <SC::ValMmcs as Mmcs<BabyBear>>::ProverData<RowMajorMatrix<BabyBear>>: Clone,
     A: MachineAir<SC::Val> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, C>>,
@@ -161,10 +161,10 @@ where
             challenger.observe(builder, zero);
 
             // Observe the and public values.
-            // challenger.observe_slice(
-            //     builder,
-            //     shard_proof.public_values[0..machine.num_pv_elts()].iter().copied(),
-            // );
+            challenger.observe_slice(
+                builder,
+                shard_proof.public_values[0..machine.num_pv_elts()].iter().copied(),
+            );
 
             StarkVerifier::verify_shard(builder, &vk, machine, &mut challenger, &shard_proof);
 

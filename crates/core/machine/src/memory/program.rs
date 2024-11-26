@@ -2,6 +2,7 @@ use core::{
     borrow::{Borrow, BorrowMut},
     mem::size_of,
 };
+use itertools::Itertools;
 use p3_air::{Air, AirBuilder, AirBuilderWithPublicValues, BaseAir, PairBuilder};
 use p3_field::AbstractField;
 use p3_matrix::{dense::RowMajorMatrix, Matrix};

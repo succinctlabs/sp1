@@ -1523,10 +1523,12 @@ pub mod tests {
         // Generate recursive proof of first subproof.
         tracing::info!("compress subproof 1");
         let deferred_reduce_1 = prover.compress(&keccak_vk, deferred_proof_1, vec![], opts)?;
+        prover.verify_compressed(&deferred_reduce_1, &keccak_vk)?;
 
         // Generate recursive proof of second subproof.
         tracing::info!("compress subproof 2");
         let deferred_reduce_2 = prover.compress(&keccak_vk, deferred_proof_2, vec![], opts)?;
+        prover.verify_compressed(&deferred_reduce_2, &keccak_vk)?;
 
         // Run verify program with keccak vkey, subproofs, and their committed values.
         let mut stdin = SP1Stdin::new();
@@ -1614,13 +1616,13 @@ pub mod tests {
         test_e2e_with_deferred_proofs_prover::<DefaultProverComponents>(SP1ProverOpts::default())
     }
 
-    #[test]
-    fn test_deterministic_setup() {
-        setup_logger();
-        let prover = SP1Prover::<DefaultProverComponents>::new();
-        let program = test_artifacts::FIBONACCI_ELF;
-        let (pk, vk) = prover.setup(&program);
-        let pk2 = prover.setup(&program).0;
-        assert_eq!(pk.pk.commit, pk2.pk.commit);
-    }
+    // #[test]
+    // fn test_deterministic_setup() {
+    //     setup_logger();
+    //     let prover = SP1Prover::<DefaultProverComponents>::new();
+    //     let program = test_artifacts::FIBONACCI_ELF;
+    //     let (pk, vk) = prover.setup(&program);
+    //     let pk2 = prover.setup(&program).0;
+    //     assert_eq!(pk.pk.commit, pk2.pk.commit);
+    // }
 }

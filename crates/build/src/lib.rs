@@ -138,7 +138,5 @@ pub fn build_program_with_args(path: &str, args: BuildArgs) {
 /// which case the invocation should be `include_elf!("my_entry")` instead.
 #[macro_export]
 macro_rules! include_elf {
-    ($arg:tt) => {{
-        include_bytes!(env!(concat!("SP1_ELF_", $arg)))
-    }};
+    ($arg:tt) => {{ include_bytes!(env!(concat!("SP1_ELF_", $arg))) }};
 }
