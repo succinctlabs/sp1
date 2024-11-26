@@ -1,6 +1,9 @@
 use anyhow::Result;
 use cargo_metadata::camino::Utf8PathBuf;
-use std::path::{Path, PathBuf};
+use std::{
+    os::unix::process::CommandExt,
+    path::{Path, PathBuf},
+};
 
 use crate::{
     command::{docker::create_docker_command, local::create_local_command, utils::execute_command},
@@ -200,7 +203,7 @@ fn verify_locked_version(program_dir: impl AsRef<Path>) -> Result<()> {
         return Ok(());
     }
 
-    // This might be a workspace, so we need optionally search parent dirs for lock files
+    // This might be a workspace, need optionally search parent dirs for lock files
     let canon = program_dir.as_ref().canonicalize()?;
     let mut lock_path = canon.join("Cargo.lock");
     if !lock_path.is_file() {
@@ -226,27 +229,39 @@ fn verify_locked_version(program_dir: impl AsRef<Path>) -> Result<()> {
 
     let lock_file = cargo_lock::Lockfile::load(lock_path)?;
 
-    let vm_package = lock_file
+    // You need an entrypoint, therefore you need sp1-zkvm.
+    let vm_version = &lock_file
         .packages
         .iter()
         .find(|p| p.name.as_str() == "sp1-zkvm")
-        .ok_or_else(|| anyhow::anyhow!("sp1-zkvm not found in lock file!"))?;
+        .ok_or_else(|| anyhow::anyhow!("sp1-zkvm not found in lock file!"))?
+        .version;
 
-    let sp1_sdk = lock_file
-        .packages
-        .iter()
-        .find(|p| p.name.as_str() == "sp1-sdk")
-        .ok_or_else(|| anyhow::anyhow!("sp1-sdk not found in lock file!"))?;
+    let maybe_sdk =
+        lock_file.packages.iter().find(|p| p.name.as_str() == "sp1-sdk").map(|p| &p.version);
 
     // Print these just to be useful.
-    let toolchain_version = env!("CARGO_PKG_VERSION");
-    println!("cargo:warning=Locked version of sp1-zkvm is {}", vm_package.version);
-    println!("cargo:warning=Locked version of sp1-sdk is {}", sp1_sdk.version);
-    println!("cargo:warning=Current toolchain version = {}", toolchain_version);
+    // Most people will install the actual rust toolchain along with thier cargo-prove,
+    // so we can just use the cargo-prove version.
+    let toolchain_version = {
+        let output = std::process::Command::new("cargo")
+            .args(["prove", "--version"]).output().expect("Failed to find check toolchain version, see https://docs.succinct.xyz/getting-started/install.html");
 
-    let toolchain_version = semver::Version::parse(toolchain_version)?;
-    let vm_version = &vm_package.version;
-    let sp1_sdk_version = &sp1_sdk.version;
+        let version = String::from_utf8(output.stdout).expect("Failed to parse version string");
+
+        semver::Version::parse(
+            version.split_once('\n').expect("The version should have whitespace, this is a bug").1,
+        )?
+    };
+
+    // Print these just to be useful.
+    if let Some(ref sdk) = maybe_sdk {
+        println!("cargo:warning=Locked version of sp1-sdk is {}", sdk);
+    } else {
+        println!("cargo:warning=sp1-sdk not found in lock file!");
+    }
+    println!("cargo:warning=Locked version of sp1-zkvm is {}", vm_version);
+    println!("cargo:warning=Current toolchain version = {}", toolchain_version);
 
     if vm_version.major != toolchain_version.major || vm_version.minor != toolchain_version.minor {
         return Err(anyhow::anyhow!(
@@ -254,12 +269,14 @@ fn verify_locked_version(program_dir: impl AsRef<Path>) -> Result<()> {
         ));
     }
 
-    if sp1_sdk_version.major != toolchain_version.major
-        || sp1_sdk_version.minor != toolchain_version.minor
-    {
-        return Err(anyhow::anyhow!(
-            "Locked version of sp1-sdk is incompatible with the current toolchain version"
-        ));
+    if let Some(sdk_version) = maybe_sdk {
+        if sdk_version.major != toolchain_version.major
+            || sdk_version.minor != toolchain_version.minor
+        {
+            return Err(anyhow::anyhow!(
+                "Locked version of sp1-sdk is incompatible with the current toolchain version"
+            ));
+        }
     }
 
     Ok(())
