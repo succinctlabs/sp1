@@ -63,6 +63,8 @@ where
         let local = main.row_slice(0);
         let local: &AUIPCColumns<AB::Var> = (*local).borrow();
 
+        builder.assert_bool(local.is_real);
+
         builder.receive_instruction(
             local.pc.reduce::<AB>(),
             local.pc.reduce::<AB>() + AB::Expr::from_canonical_u32(DEFAULT_PC_INC),
