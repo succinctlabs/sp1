@@ -25,24 +25,19 @@ pub struct MemoryInstructionsColumns<T> {
     pub shard: T,
     pub clk: T,
 
-    pub opcode: T,
     pub op_a_value: Word<T>,
     pub op_b_value: Word<T>,
     pub op_c_value: Word<T>,
     pub op_a_0: T,
 
-    pub is_load: T,
-    pub is_byte: T,
-    pub is_half: T,
-    pub is_unsigned: T,
-
     pub is_lb: T,
     pub is_lbu: T,
     pub is_lh: T,
     pub is_lhu: T,
+    pub is_lw: T,
     pub is_sb: T,
     pub is_sh: T,
-
+    pub is_sw: T,
     // An addr that we are reading from or writing to as a word. We are guaranteed that this does
     // not overflow the field when reduced.
 
@@ -75,6 +70,4 @@ pub struct MemoryInstructionsColumns<T> {
 
     pub addr_word_nonce: T,
     pub unsigned_mem_val_nonce: T,
-
-    pub is_real: T,
 }

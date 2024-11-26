@@ -110,12 +110,10 @@ impl MemoryInstructionsChip {
         cols.clk = F::from_canonical_u32(event.clk);
         cols.pc = F::from_canonical_u32(event.pc);
         cols.next_pc = F::from_canonical_u32(event.pc + DEFAULT_PC_INC);
-        cols.opcode = F::from_canonical_u32(event.opcode as u32);
         cols.op_a_value = event.a.into();
         cols.op_b_value = event.b.into();
         cols.op_c_value = event.c.into();
         cols.op_a_0 = F::from_bool(event.op_a_0);
-        cols.is_real = F::one();
 
         // Populate memory accesses for reading from memory.
         cols.memory_access
@@ -199,18 +197,14 @@ impl MemoryInstructionsChip {
             )
         }
 
-        cols.is_load = F::from_bool(matches!(
-            event.opcode,
-            Opcode::LB | Opcode::LH | Opcode::LBU | Opcode::LHU | Opcode::LW
-        ));
-        cols.is_byte = F::from_bool(matches!(event.opcode, Opcode::LB | Opcode::LBU | Opcode::SB));
-        cols.is_half = F::from_bool(matches!(event.opcode, Opcode::LH | Opcode::LHU | Opcode::SH));
-        cols.is_unsigned = F::from_bool(matches!(event.opcode, Opcode::LBU | Opcode::LHU));
         cols.is_lb = F::from_bool(matches!(event.opcode, Opcode::LB));
         cols.is_lbu = F::from_bool(matches!(event.opcode, Opcode::LBU));
         cols.is_lh = F::from_bool(matches!(event.opcode, Opcode::LH));
+        cols.is_lhu = F::from_bool(matches!(event.opcode, Opcode::LHU));
+        cols.is_lw = F::from_bool(matches!(event.opcode, Opcode::LW));
         cols.is_sb = F::from_bool(matches!(event.opcode, Opcode::SB));
         cols.is_sh = F::from_bool(matches!(event.opcode, Opcode::SH));
+        cols.is_sw = F::from_bool(matches!(event.opcode, Opcode::SW));
 
         // Add event to byte lookup for byte range checking each byte in the memory addr
         let addr_bytes = memory_addr.to_le_bytes();
