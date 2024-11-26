@@ -61,9 +61,6 @@ where
             is_alu_instruction + is_memory_instruction + local.selectors.is_auipc,
         );
 
-        // Branch instructions.
-        self.eval_branch_ops::<AB>(builder, is_branch_instruction.clone(), local, next);
-
         // Jump instructions.
         self.eval_jump_ops::<AB>(builder, local, next);
 

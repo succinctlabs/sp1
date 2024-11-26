@@ -1,4 +1,4 @@
-use crate::cpu::columns::{BranchCols, JumpCols};
+use crate::cpu::columns::JumpCols;
 use std::{
     fmt::{Debug, Formatter},
     mem::{size_of, transmute},
@@ -14,7 +14,6 @@ pub const NUM_OPCODE_SPECIFIC_COLS: usize = size_of::<OpcodeSpecificCols<u8>>();
 #[derive(Clone, Copy)]
 #[repr(C)]
 pub union OpcodeSpecificCols<T: Copy> {
-    branch: BranchCols<T>,
     jump: JumpCols<T>,
     ecall: EcallCols<T>,
 }
@@ -38,12 +37,6 @@ impl<T: Copy + Debug> Debug for OpcodeSpecificCols<T> {
 
 // SAFETY: Each view is a valid interpretation of the underlying array.
 impl<T: Copy> OpcodeSpecificCols<T> {
-    pub fn branch(&self) -> &BranchCols<T> {
-        unsafe { &self.branch }
-    }
-    pub fn branch_mut(&mut self) -> &mut BranchCols<T> {
-        unsafe { &mut self.branch }
-    }
     pub fn jump(&self) -> &JumpCols<T> {
         unsafe { &self.jump }
     }
