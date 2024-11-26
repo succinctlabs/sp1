@@ -120,19 +120,12 @@ extern void poseidon2_skinny_instr_to_row_babybear(
       *reinterpret_cast<Poseidon2PreprocessedColsSkinny<bb31_t>*>(cols));
 }
 
-extern "C" void poseidon2_wide_event_to_row_babybear(
-    const BabyBearP3* input, BabyBearP3* external_rounds_state,
-    BabyBearP3* internal_rounds_state, BabyBearP3* internal_rounds_s0,
-    BabyBearP3* external_sbox, BabyBearP3* internal_sbox,
-    BabyBearP3* output_state) {
-  poseidon2_wide::event_to_row<bb31_t>(
-      reinterpret_cast<const bb31_t*>(input),
-      reinterpret_cast<bb31_t*>(external_rounds_state),
-      reinterpret_cast<bb31_t*>(internal_rounds_state),
-      reinterpret_cast<bb31_t*>(internal_rounds_s0),
-      reinterpret_cast<bb31_t*>(external_sbox),
-      reinterpret_cast<bb31_t*>(internal_sbox),
-      reinterpret_cast<bb31_t*>(output_state));
+extern "C" void poseidon2_wide_event_to_row_babybear(const BabyBearP3* input,
+                                                 BabyBearP3* input_row,
+                                                 bool sbox_state) {
+  poseidon2_wide::event_to_row<bb31_t>(reinterpret_cast<const bb31_t*>(input),
+                                       reinterpret_cast<bb31_t*>(input_row),
+                                       sbox_state);
 }
 extern void poseidon2_wide_instr_to_row_babybear(
     const Poseidon2SkinnyInstr<BabyBearP3>* instr,

@@ -9,7 +9,8 @@ using namespace poseidon2;
 
 template <class F>
 __SP1_HOSTDEV__ __SP1_INLINE__ void populate_external_round(
-    const F* external_rounds_state, F* sbox, size_t r, F next_state[WIDTH]) {
+    const F external_rounds_state[WIDTH * NUM_EXTERNAL_ROUNDS],
+    F sbox[WIDTH * NUM_EXTERNAL_ROUNDS], size_t r, F next_state[WIDTH]) {
   F round_state[WIDTH];
   if (r == 0) {
     // external_linear_layer_immut
@@ -40,10 +41,8 @@ __SP1_HOSTDEV__ __SP1_INLINE__ void populate_external_round(
     sbox_deg_7[i] = sbox_deg_3[i] * sbox_deg_3[i] * add_rc[i];
   }
 
-  if (sbox != nullptr) {
-    for (size_t i = 0; i < WIDTH; i++) {
-      sbox[r * WIDTH + i] = sbox_deg_3[i];
-    }
+  for (size_t i = 0; i < WIDTH; i++) {
+    sbox[r * WIDTH + i] = sbox_deg_3[i];
   }
 
   for (size_t i = 0; i < WIDTH; i++) {
@@ -54,8 +53,9 @@ __SP1_HOSTDEV__ __SP1_INLINE__ void populate_external_round(
 
 template <class F>
 __SP1_HOSTDEV__ __SP1_INLINE__ void populate_internal_rounds(
-    const F* internal_rounds_state, F* internal_rounds_s0, F* sbox,
-    F* ret_state) {
+    const F internal_rounds_state[WIDTH],
+    F internal_rounds_s0[NUM_INTERNAL_ROUNDS - 1], F sbox[NUM_INTERNAL_ROUNDS],
+    F ret_state[WIDTH]) {
   F state[WIDTH];
   for (size_t i = 0; i < WIDTH; i++) {
     state[i] = internal_rounds_state[i];
@@ -82,20 +82,18 @@ __SP1_HOSTDEV__ __SP1_INLINE__ void populate_internal_rounds(
   }
 
   // Store sbox values if pointer is not null
-  if (sbox != nullptr) {
-    for (size_t r = 0; r < NUM_INTERNAL_ROUNDS; r++) {
-      sbox[r] = sbox_deg_3[r];
-    }
+  for (size_t r = 0; r < NUM_INTERNAL_ROUNDS; r++) {
+    sbox[r] = sbox_deg_3[r];
   }
 }
 
 template <class F>
-__SP1_HOSTDEV__ void event_to_row(const F input[WIDTH],
-                                  F external_rounds_state[WIDTH],
-                                  F internal_rounds_state[WIDTH],
-                                  F internal_rounds_s0[NUM_INTERNAL_ROUNDS - 1],
-                                  F* external_sbox, F* internal_sbox,
-                                  F* output_state) {
+__SP1_HOSTDEV__ __SP1_INLINE__ void populate_perm(
+    const F input[WIDTH], F external_rounds_state[WIDTH * NUM_EXTERNAL_ROUNDS],
+    F internal_rounds_state[WIDTH],
+    F internal_rounds_s0[NUM_INTERNAL_ROUNDS - 1],
+    F external_sbox[WIDTH * NUM_EXTERNAL_ROUNDS],
+    F internal_sbox[NUM_INTERNAL_ROUNDS], F output_state[WIDTH]) {
   for (size_t i = 0; i < WIDTH; i++) {
     external_rounds_state[i] = input[i];
   }
@@ -137,6 +135,53 @@ __SP1_HOSTDEV__ void event_to_row(const F input[WIDTH],
       }
     }
   }
+}
+
+template <class F>
+__SP1_HOSTDEV__ void event_to_row(const F input[WIDTH], F* input_row,
+                                  bool sbox_state) {
+  F external_rounds_state[WIDTH * NUM_EXTERNAL_ROUNDS];
+  F internal_rounds_state[WIDTH];
+  F internal_rounds_s0[NUM_INTERNAL_ROUNDS - 1];
+  F output_state[WIDTH];
+  F external_sbox[WIDTH * NUM_EXTERNAL_ROUNDS];
+  F internal_sbox[NUM_INTERNAL_ROUNDS];
+
+  populate_perm<F>(input, external_rounds_state, internal_rounds_state,
+                   internal_rounds_s0, external_sbox, internal_sbox,
+                   output_state);
+
+  size_t cursor = 0;
+  for (size_t i = 0; i < (WIDTH * NUM_EXTERNAL_ROUNDS); i++) {
+    input_row[cursor + i] = external_rounds_state[i];
+  }
+
+  cursor += WIDTH * NUM_EXTERNAL_ROUNDS;
+  for (size_t i = 0; i < WIDTH; i++) {
+    input_row[cursor + i] = internal_rounds_state[i];
+  }
+
+  cursor += WIDTH;
+  for (size_t i = 0; i < (NUM_INTERNAL_ROUNDS - 1); i++) {
+    input_row[cursor + i] = internal_rounds_s0[i];
+  }
+
+  cursor += NUM_INTERNAL_ROUNDS - 1;
+  for (size_t i = 0; i < WIDTH; i++) {
+    input_row[cursor + i] = output_state[i];
+  }
+
+  // if (sbox_state) {
+  //   cursor += WIDTH;
+  //   for (size_t i = 0; i < (WIDTH * NUM_EXTERNAL_ROUNDS); i++) {
+  //     input_row[cursor + i] = external_sbox[i];
+  //   }
+
+  //   cursor += WIDTH * NUM_EXTERNAL_ROUNDS;
+  //   for (size_t i = 0; i < NUM_INTERNAL_ROUNDS; i++) {
+  //     input_row[cursor + i] = internal_sbox[i];
+  //   }
+  // }
 }
 
 template <class F>

@@ -6,17 +6,14 @@ use crate::{
         batch_fri::{BatchFRICols, BatchFRIPreprocessedCols},
         exp_reverse_bits::{ExpReverseBitsLenCols, ExpReverseBitsLenPreprocessedCols},
         fri_fold::{FriFoldCols, FriFoldPreprocessedCols},
-        poseidon2_skinny::{
-            columns::{preprocessed::Poseidon2PreprocessedColsSkinny, Poseidon2},
-            NUM_EXTERNAL_ROUNDS, NUM_INTERNAL_ROUNDS,
-        },
+        poseidon2_skinny::columns::{preprocessed::Poseidon2PreprocessedColsSkinny, Poseidon2},
         poseidon2_wide::columns::preprocessed::Poseidon2PreprocessedColsWide,
         public_values::{PublicValuesCols, PublicValuesPreprocessedCols},
         select::{SelectCols, SelectPreprocessedCols},
     },
     BaseAluInstr, BaseAluIo, BatchFRIEvent, BatchFRIInstrFFI, CommitPublicValuesEvent,
     CommitPublicValuesInstr, ExpReverseBitsEventFFI, ExpReverseBitsInstrFFI, ExtAluInstr, ExtAluIo,
-    FriFoldEvent, FriFoldInstrFFI, Poseidon2Event, Poseidon2Instr, SelectEvent, SelectInstr, WIDTH,
+    FriFoldEvent, FriFoldInstrFFI, Poseidon2Event, Poseidon2Instr, SelectEvent, SelectInstr,
 };
 use p3_baby_bear::BabyBear;
 
@@ -102,13 +99,9 @@ extern "C-unwind" {
     );
 
     pub fn poseidon2_wide_event_to_row_babybear(
-        input: &[BabyBear; WIDTH],
-        external_rounds_state: *mut BabyBear,
-        internal_rounds_state: &mut [BabyBear; WIDTH],
-        internal_rounds_s0: &mut [BabyBear; NUM_INTERNAL_ROUNDS - 1],
-        external_sbox: *mut [[BabyBear; NUM_EXTERNAL_ROUNDS]; WIDTH],
-        internal_sbox: *mut [BabyBear; NUM_INTERNAL_ROUNDS],
-        output_state: &mut [BabyBear; WIDTH],
+        input: *const BabyBear,
+        input_row: *mut BabyBear,
+        sbox_state: bool,
     );
     pub fn poseidon2_wide_instr_to_row_babybear(
         instr: &Poseidon2Instr<BabyBear>,

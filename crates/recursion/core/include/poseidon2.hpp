@@ -10,8 +10,12 @@ constexpr size_t OUTPUT_ROUND_IDX = NUM_EXTERNAL_ROUNDS + 2;
 constexpr size_t INPUT_ROUND_IDX = 0;
 constexpr size_t INTERNAL_ROUND_IDX = NUM_EXTERNAL_ROUNDS / 2 + 1;
 
-constexpr size_t NUM_POSEIDON2_DEGREE3_COLS = 172;
-constexpr size_t NUM_POSEIDON2_DEGREE9_COLS = 313;
+constexpr size_t NUM_ROUNDS = OUTPUT_ROUND_IDX + 1;
+
+// constexpr size_t PERMUTATION_NO_SBOX =
+//     (WIDTH * NUM_EXTERNAL_ROUNDS) + WIDTH + (NUM_INTERNAL_ROUNDS - 1) + WIDTH;
+// constexpr size_t PERMUTATION_SBOX =
+//     PERMUTATION_NO_SBOX + (WIDTH * NUM_EXTERNAL_ROUNDS) + NUM_INTERNAL_ROUNDS;
 
 template <class F>
 __SP1_HOSTDEV__ __SP1_INLINE__ void mdsLightPermutation4x4(F state[4]) {
