@@ -27,6 +27,7 @@ namespace sp1_core_machine_sys::syscall {
             if(is_square == F::one()) {
                 EF7 y = y_sq.sqrt(y_sq_pow_r);
                 if (y.is_exception()) {
+                    x_start += F::from_canonical_u32(1 << 16);
                     continue;
                 }
                 if (y.is_receive() != is_receive) {
