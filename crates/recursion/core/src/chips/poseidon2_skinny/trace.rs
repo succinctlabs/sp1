@@ -30,7 +30,7 @@ const PREPROCESSED_POSEIDON2_WIDTH: usize = size_of::<Poseidon2PreprocessedCols<
 
 const INTERNAL_ROUND_IDX: usize = NUM_EXTERNAL_ROUNDS / 2 + 1;
 const INPUT_ROUND_IDX: usize = 0;
-const OUTPUT_ROUND_IDX: usize = NUM_EXTERNAL_ROUNDS + 2;
+pub const OUTPUT_ROUND_IDX: usize = NUM_EXTERNAL_ROUNDS + 2;
 
 impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2SkinnyChip<DEGREE> {
     type Record = ExecutionRecord<F>;

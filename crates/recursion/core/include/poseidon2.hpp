@@ -6,7 +6,6 @@
 namespace sp1_recursion_core_sys::poseidon2 {
 using namespace constants;
 
-constexpr size_t OUTPUT_ROUND_IDX = NUM_EXTERNAL_ROUNDS + 2;
 constexpr size_t INPUT_ROUND_IDX = 0;
 constexpr size_t INTERNAL_ROUND_IDX = NUM_EXTERNAL_ROUNDS / 2 + 1;
 
