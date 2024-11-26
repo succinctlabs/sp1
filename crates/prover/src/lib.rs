@@ -1540,8 +1540,8 @@ pub mod tests {
         setup_logger();
         let prover = SP1Prover::<DefaultProverComponents>::new();
         let program = test_artifacts::FIBONACCI_ELF;
-        let (pk, vk) = prover.setup(&program);
-        let pk2 = prover.setup(&program).0;
+        let (pk, _) = prover.setup(program);
+        let pk2 = prover.setup(program).0;
         assert_eq!(pk.pk.commit, pk2.pk.commit);
     }
 }
