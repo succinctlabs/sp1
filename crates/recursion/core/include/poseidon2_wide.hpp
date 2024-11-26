@@ -139,7 +139,8 @@ __SP1_HOSTDEV__ __SP1_INLINE__ void populate_perm(
 
 template <class F>
 __SP1_HOSTDEV__ void event_to_row(const F input[WIDTH], F* input_row,
-                                  size_t cursor, bool sbox_state) {
+                                  size_t start, size_t stride,
+                                  bool sbox_state) {
   F external_rounds_state[WIDTH * NUM_EXTERNAL_ROUNDS];
   F internal_rounds_state[WIDTH];
   F internal_rounds_s0[NUM_INTERNAL_ROUNDS - 1];
@@ -151,34 +152,35 @@ __SP1_HOSTDEV__ void event_to_row(const F input[WIDTH], F* input_row,
                    internal_rounds_s0, external_sbox, internal_sbox,
                    output_state);
 
+  size_t cursor = 0;
   for (size_t i = 0; i < (WIDTH * NUM_EXTERNAL_ROUNDS); i++) {
-    input_row[cursor + i] = external_rounds_state[i];
+    input_row[start + (cursor + i) * stride] = external_rounds_state[i];
   }
 
   cursor += WIDTH * NUM_EXTERNAL_ROUNDS;
   for (size_t i = 0; i < WIDTH; i++) {
-    input_row[cursor + i] = internal_rounds_state[i];
+    input_row[start + (cursor + i) * stride] = internal_rounds_state[i];
   }
 
   cursor += WIDTH;
   for (size_t i = 0; i < (NUM_INTERNAL_ROUNDS - 1); i++) {
-    input_row[cursor + i] = internal_rounds_s0[i];
+    input_row[start + (cursor + i) * stride] = internal_rounds_s0[i];
   }
 
   cursor += NUM_INTERNAL_ROUNDS - 1;
   for (size_t i = 0; i < WIDTH; i++) {
-    input_row[cursor + i] = output_state[i];
+    input_row[start + (cursor + i) * stride] = output_state[i];
   }
 
   if (sbox_state) {
     cursor += WIDTH;
     for (size_t i = 0; i < (WIDTH * NUM_EXTERNAL_ROUNDS); i++) {
-      input_row[cursor + i] = external_sbox[i];
+      input_row[start + (cursor + i) * stride] = external_sbox[i];
     }
 
     cursor += WIDTH * NUM_EXTERNAL_ROUNDS;
     for (size_t i = 0; i < NUM_INTERNAL_ROUNDS; i++) {
-      input_row[cursor + i] = internal_sbox[i];
+      input_row[start + (cursor + i) * stride] = internal_sbox[i];
     }
   }
 }
