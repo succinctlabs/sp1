@@ -1,4 +1,4 @@
-use crate::cpu::columns::{AuipcCols, BranchCols, JumpCols};
+use crate::cpu::columns::{BranchCols, JumpCols};
 use std::{
     fmt::{Debug, Formatter},
     mem::{size_of, transmute},
@@ -16,7 +16,6 @@ pub const NUM_OPCODE_SPECIFIC_COLS: usize = size_of::<OpcodeSpecificCols<u8>>();
 pub union OpcodeSpecificCols<T: Copy> {
     branch: BranchCols<T>,
     jump: JumpCols<T>,
-    auipc: AuipcCols<T>,
     ecall: EcallCols<T>,
 }
 
@@ -50,12 +49,6 @@ impl<T: Copy> OpcodeSpecificCols<T> {
     }
     pub fn jump_mut(&mut self) -> &mut JumpCols<T> {
         unsafe { &mut self.jump }
-    }
-    pub fn auipc(&self) -> &AuipcCols<T> {
-        unsafe { &self.auipc }
-    }
-    pub fn auipc_mut(&mut self) -> &mut AuipcCols<T> {
-        unsafe { &mut self.auipc }
     }
     pub fn ecall(&self) -> &EcallCols<T> {
         unsafe { &self.ecall }

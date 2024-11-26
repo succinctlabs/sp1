@@ -3,15 +3,16 @@ use sp1_derive::AlignedBorrow;
 use sp1_stark::Word;
 use std::mem::size_of;
 
-use crate::{memory::MemoryReadWriteCols, operations::BabyBearWordRangeChecker};
+use crate::operations::BabyBearWordRangeChecker;
 
-use super::MemoryInstructionsChip;
+#[derive(Default)]
+pub struct AUIPCChip;
 
-pub const NUM_MEMORY_INSTRUCTIONS_COLUMNS: usize = size_of::<MemoryInstructionsColumns<u8>>();
+pub const NUM_AUIPC_COLS: usize = size_of::<AUIPCColumns<u8>>();
 
-impl<F> BaseAir<F> for MemoryInstructionsChip {
+impl<F> BaseAir<F> for AUIPCChip {
     fn width(&self) -> usize {
-        NUM_MEMORY_INSTRUCTIONS_COLUMNS
+        NUM_AUIPC_COLS
     }
 }
 

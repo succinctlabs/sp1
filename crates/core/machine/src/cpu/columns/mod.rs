@@ -1,4 +1,3 @@
-mod auipc;
 mod branch;
 mod ecall;
 mod instruction;
@@ -6,7 +5,6 @@ mod jump;
 mod opcode;
 mod opcode_specific;
 
-pub use auipc::*;
 pub use branch::*;
 pub use ecall::*;
 pub use instruction::*;

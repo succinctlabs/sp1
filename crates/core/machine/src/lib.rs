@@ -17,6 +17,7 @@
 pub mod air;
 pub mod alu;
 pub mod bytes;
+pub mod control_flow;
 pub mod cpu;
 pub mod io;
 pub mod memory;
