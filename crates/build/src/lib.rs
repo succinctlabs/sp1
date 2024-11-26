@@ -158,18 +158,23 @@ pub fn build_program_with_maybe_args(path: impl AsRef<Path>, args: Option<BuildA
 #[macro_export]
 macro_rules! build_program_from_path {
     ($path:expr, $args:expr) => {
-        const MANIFEST: &str = std::env!("CARGO_MANIFEST_DIR");
-
-        fn ___adjust_path(p: impl AsRef<::std::path::Path>) -> ::std::path::PathBuf {
-            let p = p.as_ref();
-            if p.is_absolute() {
-                p.to_path_buf()
-            } else {
-                ::std::path::Path::new(MANIFEST).join(p)
+        // Scope to avoid polluting the macro namespace.
+        {
+            // Inline this crates manifest path at compile time.
+            const MANIFEST: &str = std::env!("CARGO_MANIFEST_DIR");
+            
+            // Adjust the path to be relative to the manifest directory, unless its absolute.
+            fn ___adjust_path(p: impl AsRef<::std::path::Path>) -> ::std::path::PathBuf {
+                let p = p.as_ref();
+                if p.is_absolute() {
+                    p.to_path_buf()
+                } else {
+                    ::std::path::Path::new(MANIFEST).join(p)
+                }
             }
-        }
 
-        ::sp1_build::build_program_with_maybe_args(___adjust_path($path), $args)
+            ::sp1_build::build_program_with_maybe_args(___adjust_path($path), $args)
+        }
     };
     ($path:expr) => {
         ::sp1_build::build_program_from_path!($path, None)
