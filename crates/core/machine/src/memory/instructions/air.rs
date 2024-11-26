@@ -52,7 +52,7 @@ where
         let opcode = self.compute_opcode::<AB>(local);
         builder.receive_instruction(
             local.pc,
-            local.next_pc,
+            local.pc + AB::Expr::from_canonical_u32(DEFAULT_PC_INC),
             opcode,
             local.op_a_value,
             local.op_b_value,

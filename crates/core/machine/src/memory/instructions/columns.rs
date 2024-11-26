@@ -21,8 +21,6 @@ impl<F> BaseAir<F> for MemoryInstructionsChip {
 pub struct MemoryInstructionsColumns<T> {
     /// The program counter of the instruction.
     pub pc: T,
-    /// The next program counter after execution of the instruction.
-    pub next_pc: T,
 
     /// The shard number.
     pub shard: T,
