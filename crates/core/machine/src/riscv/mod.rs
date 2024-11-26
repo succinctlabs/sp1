@@ -9,6 +9,7 @@ use sp1_core_executor::{
 };
 
 use crate::{
+    control_flow::AUIPCChip,
     memory::{
         MemoryChipType, MemoryInstructionsChip, MemoryLocalChip, MemoryProgramChip,
         NUM_LOCAL_MEMORY_ENTRIES_PER_ROW,
@@ -89,6 +90,8 @@ pub enum RiscvAir<F: PrimeField32> {
     ShiftRight(ShiftRightChip),
     /// An AIR for RISC-V memory instructions.
     Memory(MemoryInstructionsChip),
+    /// An AIR for RISC-V AUIPC instruction.
+    AUIPC(AUIPCChip),
     /// A lookup table for byte operations.
     ByteLookup(ByteChip<F>),
     /// A table for initializing the global memory state.
@@ -353,6 +356,10 @@ impl<F: PrimeField32> RiscvAir<F> {
         costs.insert(RiscvAirDiscriminants::Memory, memory_instructions.cost());
         chips.push(memory_instructions);
 
+        let auipc = Chip::new(RiscvAir::AUIPC(AUIPCChip::default()));
+        costs.insert(RiscvAirDiscriminants::AUIPC, auipc.cost());
+        chips.push(auipc);
+
         let memory_global_init = Chip::new(RiscvAir::MemoryGlobalInit(MemoryGlobalChip::new(
             MemoryChipType::Initialize,
         )));
@@ -411,6 +418,7 @@ impl<F: PrimeField32> RiscvAir<F> {
                     .count(),
             ),
             (RiscvAir::Memory(MemoryInstructionsChip::default()), record.memory_instr_events.len()),
+            (RiscvAir::AUIPC(AUIPCChip::default()), record.auipc_events.len()),
             (RiscvAir::SyscallCore(SyscallChip::core()), record.syscall_events.len()),
         ]
     }
@@ -532,6 +540,7 @@ impl<F: PrimeField32> RiscvAir<F> {
             Self::ShiftRight(_) => unreachable!("Invalid for core chip"),
             Self::ShiftLeft(_) => unreachable!("Invalid for core chip"),
             Self::Memory(_) => unreachable!("Invalid for memory chip"),
+            Self::AUIPC(_) => unreachable!("Invalid for auipc chip"),
             Self::ByteLookup(_) => unreachable!("Invalid for core chip"),
             Self::SyscallCore(_) => unreachable!("Invalid for core chip"),
             Self::SyscallPrecompile(_) => unreachable!("Invalid for syscall precompile chip"),

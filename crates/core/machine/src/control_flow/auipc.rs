@@ -40,6 +40,8 @@ pub struct AUIPCColumns<T> {
     pub op_a_value: Word<T>,
     /// The value of the second operand.
     pub op_b_value: Word<T>,
+    /// The value of the third operand.
+    pub op_c_value: Word<T>,
 
     /// BabyBear range checker for the program counter.
     pub pc_range_checker: BabyBearWordRangeChecker<T>,
@@ -67,7 +69,7 @@ where
             AB::Expr::from_canonical_u32(Opcode::AUIPC as u32),
             local.op_a_value,
             local.op_b_value,
-            Word::zero::<AB>(),
+            local.op_c_value,
             AB::Expr::zero(),
             AB::Expr::zero(),
             AB::Expr::zero(),
@@ -126,8 +128,12 @@ impl<F: PrimeField32> MachineAir<F> for AUIPCChip {
 
                     if idx < input.auipc_events.len() {
                         let event = &input.auipc_events[idx];
-                        cols.pc = Word::from(event.pc);
+                        cols.is_real = F::one();
+                        cols.pc = event.pc.into();
                         cols.pc_range_checker.populate(event.pc);
+                        cols.op_a_value = event.a.into();
+                        cols.op_b_value = event.b.into();
+                        cols.op_c_value = event.c.into();
                         cols.auipc_nonce = F::from_canonical_u32(
                             input
                                 .nonce_lookup

@@ -116,6 +116,8 @@ pub struct AUIPCEvent {
     pub a: u32,
     /// The second operand value.
     pub b: u32,
+    /// The third operand value.
+    pub c: u32,
     /// The AUIPC add lookup id.
     pub auipc_nonce: LookupId,
 }
@@ -123,7 +125,7 @@ pub struct AUIPCEvent {
 impl AUIPCEvent {
     /// Create a new [`AUIPCEvent`].
     #[must_use]
-    pub fn new(pc: u32, opcode: Opcode, a: u32, b: u32, auipc_nonce: LookupId) -> Self {
-        Self { pc, opcode, a, b, auipc_nonce }
+    pub fn new(pc: u32, opcode: Opcode, a: u32, b: u32, c: u32, auipc_nonce: LookupId) -> Self {
+        Self { pc, opcode, a, b, c, auipc_nonce }
     }
 }

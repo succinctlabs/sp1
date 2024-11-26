@@ -724,9 +724,9 @@ impl<'a> Executor<'a> {
     }
 
     /// Emit an AUIPC event.
-    fn emit_auipc_event(&mut self, opcode: Opcode, a: u32, b: u32) {
+    fn emit_auipc_event(&mut self, opcode: Opcode, a: u32, b: u32, c: u32) {
         let auipc_nonce = self.record.create_lookup_id();
-        let event = AUIPCEvent::new(self.state.pc, opcode, a, b, auipc_nonce);
+        let event = AUIPCEvent::new(self.state.pc, opcode, a, b, c, auipc_nonce);
         self.record.auipc_events.push(event);
         emit_auipc_dependency(self, event);
     }
@@ -948,7 +948,7 @@ impl<'a> Executor<'a> {
                 a = self.state.pc.wrapping_add(b);
                 self.rw(rd, a);
                 if self.executor_mode == ExecutorMode::Trace {
-                    self.emit_auipc_event(instruction.opcode, a, b);
+                    self.emit_auipc_event(instruction.opcode, a, b, c);
                 }
             }
 
