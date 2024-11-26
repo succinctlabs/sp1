@@ -12,11 +12,11 @@ use thiserror::Error;
 use crate::{
     context::SP1Context,
     dependencies::{
-        emit_auipc_dependency, emit_cpu_dependencies, emit_divrem_dependencies,
-        emit_memory_dependencies,
+        emit_auipc_dependency, emit_branch_dependencies, emit_cpu_dependencies,
+        emit_divrem_dependencies, emit_memory_dependencies,
     },
     events::{
-        AUIPCEvent, AluEvent, CpuEvent, LookupId, MemInstrEvent, MemoryAccessPosition,
+        AUIPCEvent, AluEvent, BranchEvent, CpuEvent, LookupId, MemInstrEvent, MemoryAccessPosition,
         MemoryInitializeFinalizeEvent, MemoryLocalEvent, MemoryReadRecord, MemoryRecord,
         MemoryWriteRecord, SyscallEvent,
     },
@@ -618,9 +618,6 @@ impl<'a> Executor<'a> {
         lookup_id: LookupId,
         syscall_lookup_id: LookupId,
     ) {
-        let branch_lt_lookup_id = self.record.create_lookup_id();
-        let branch_gt_lookup_id = self.record.create_lookup_id();
-        let branch_add_lookup_id = self.record.create_lookup_id();
         let jump_jal_lookup_id = self.record.create_lookup_id();
         let jump_jalr_lookup_id = self.record.create_lookup_id();
         self.record.cpu_events.push(CpuEvent {
@@ -636,9 +633,6 @@ impl<'a> Executor<'a> {
             exit_code,
             alu_lookup_id: lookup_id,
             syscall_lookup_id,
-            branch_lt_lookup_id,
-            branch_gt_lookup_id,
-            branch_add_lookup_id,
             jump_jal_lookup_id,
             jump_jalr_lookup_id,
         });
@@ -721,6 +715,23 @@ impl<'a> Executor<'a> {
             }
             _ => unreachable!(),
         }
+    }
+
+    /// Emit a branch event.
+    fn emit_branch_event(&mut self, opcode: Opcode, a: u32, b: u32, c: u32, next_pc: u32) {
+        let event = BranchEvent {
+            pc: self.state.pc,
+            next_pc,
+            opcode,
+            a,
+            b,
+            c,
+            branch_gt_lookup_id: self.record.create_lookup_id(),
+            branch_lt_lookup_id: self.record.create_lookup_id(),
+            branch_add_lookup_id: self.record.create_lookup_id(),
+        };
+        self.record.branch_events.push(event);
+        emit_branch_dependencies(self, event);
     }
 
     /// Emit an AUIPC event.
@@ -1230,6 +1241,9 @@ impl<'a> Executor<'a> {
         };
         if branch {
             next_pc = self.state.pc.wrapping_add(c);
+        }
+        if self.executor_mode == ExecutorMode::Trace {
+            self.emit_branch_event(instruction.opcode, a, b, c, next_pc);
         }
         (a, b, c, next_pc)
     }

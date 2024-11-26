@@ -1,5 +1,5 @@
 use crate::{
-    events::{AUIPCEvent, AluEvent, MemInstrEvent, MemoryRecord},
+    events::{AUIPCEvent, AluEvent, BranchEvent, MemInstrEvent, MemoryRecord},
     utils::{get_msb, get_quotient_and_remainder, is_signed_operation},
     Executor, Opcode, UNUSED_PC,
 };
@@ -165,6 +165,59 @@ pub fn emit_memory_dependencies(
     }
 }
 
+/// Emit the dependencies for branch instructions.
+pub fn emit_branch_dependencies(executor: &mut Executor, event: BranchEvent) {
+    let a_eq_b = event.a == event.b;
+    let use_signed_comparison = matches!(event.opcode, Opcode::BLT | Opcode::BGE);
+    let a_lt_b =
+        if use_signed_comparison { (event.a as i32) < (event.b as i32) } else { event.a < event.b };
+    let a_gt_b =
+        if use_signed_comparison { (event.a as i32) > (event.b as i32) } else { event.a > event.b };
+
+    let alu_op_code = if use_signed_comparison { Opcode::SLT } else { Opcode::SLTU };
+    // Add the ALU events for the comparisons
+    let lt_comp_event = AluEvent {
+        pc: UNUSED_PC,
+        lookup_id: event.branch_lt_lookup_id,
+        opcode: alu_op_code,
+        a: a_lt_b as u32,
+        b: event.a,
+        c: event.b,
+        sub_lookups: executor.record.create_lookup_ids(),
+    };
+    let gt_comp_event = AluEvent {
+        pc: UNUSED_PC,
+        lookup_id: event.branch_gt_lookup_id,
+        opcode: alu_op_code,
+        a: a_gt_b as u32,
+        b: event.b,
+        c: event.a,
+        sub_lookups: executor.record.create_lookup_ids(),
+    };
+    executor.record.lt_events.push(lt_comp_event);
+    executor.record.lt_events.push(gt_comp_event);
+    let branching = match event.opcode {
+        Opcode::BEQ => a_eq_b,
+        Opcode::BNE => !a_eq_b,
+        Opcode::BLT | Opcode::BLTU => a_lt_b,
+        Opcode::BGE | Opcode::BGEU => a_eq_b || a_gt_b,
+        _ => unreachable!(),
+    };
+    if branching {
+        let next_pc = event.pc.wrapping_add(event.c);
+        let add_event = AluEvent {
+            pc: UNUSED_PC,
+            lookup_id: event.branch_add_lookup_id,
+            opcode: Opcode::ADD,
+            a: next_pc,
+            b: event.pc,
+            c: event.c,
+            sub_lookups: executor.record.create_lookup_ids(),
+        };
+        executor.record.add_events.push(add_event);
+    }
+}
+
 /// Emit the dependency for AUIPC instructions.
 pub fn emit_auipc_dependency(executor: &mut Executor, event: AUIPCEvent) {
     let add_event = AluEvent {
@@ -184,64 +237,6 @@ pub fn emit_auipc_dependency(executor: &mut Executor, event: AUIPCEvent) {
 pub fn emit_cpu_dependencies(executor: &mut Executor, index: usize) {
     let event = executor.record.cpu_events[index];
     let instruction = &executor.program.fetch(event.pc);
-
-    if instruction.is_branch_instruction() {
-        let a_eq_b = event.a == event.b;
-        let use_signed_comparison = matches!(instruction.opcode, Opcode::BLT | Opcode::BGE);
-        let a_lt_b = if use_signed_comparison {
-            (event.a as i32) < (event.b as i32)
-        } else {
-            event.a < event.b
-        };
-        let a_gt_b = if use_signed_comparison {
-            (event.a as i32) > (event.b as i32)
-        } else {
-            event.a > event.b
-        };
-
-        let alu_op_code = if use_signed_comparison { Opcode::SLT } else { Opcode::SLTU };
-        // Add the ALU events for the comparisons
-        let lt_comp_event = AluEvent {
-            pc: UNUSED_PC,
-            lookup_id: event.branch_lt_lookup_id,
-            opcode: alu_op_code,
-            a: a_lt_b as u32,
-            b: event.a,
-            c: event.b,
-            sub_lookups: executor.record.create_lookup_ids(),
-        };
-        let gt_comp_event = AluEvent {
-            pc: UNUSED_PC,
-            lookup_id: event.branch_gt_lookup_id,
-            opcode: alu_op_code,
-            a: a_gt_b as u32,
-            b: event.b,
-            c: event.a,
-            sub_lookups: executor.record.create_lookup_ids(),
-        };
-        executor.record.lt_events.push(lt_comp_event);
-        executor.record.lt_events.push(gt_comp_event);
-        let branching = match instruction.opcode {
-            Opcode::BEQ => a_eq_b,
-            Opcode::BNE => !a_eq_b,
-            Opcode::BLT | Opcode::BLTU => a_lt_b,
-            Opcode::BGE | Opcode::BGEU => a_eq_b || a_gt_b,
-            _ => unreachable!(),
-        };
-        if branching {
-            let next_pc = event.pc.wrapping_add(event.c);
-            let add_event = AluEvent {
-                pc: UNUSED_PC,
-                lookup_id: event.branch_add_lookup_id,
-                opcode: Opcode::ADD,
-                a: next_pc,
-                b: event.pc,
-                c: event.c,
-                sub_lookups: executor.record.create_lookup_ids(),
-            };
-            executor.record.add_events.push(add_event);
-        }
-    }
 
     if instruction.is_jump_instruction() {
         match instruction.opcode {

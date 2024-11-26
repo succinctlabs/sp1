@@ -131,6 +131,7 @@ pub struct BranchEvent {
 impl BranchEvent {
     /// Create a new [`BranchEvent`].
     #[must_use]
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         pc: u32,
         next_pc: u32,

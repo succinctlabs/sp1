@@ -12,9 +12,9 @@ use serde::{Deserialize, Serialize};
 use super::{program::Program, Opcode};
 use crate::{
     events::{
-        AUIPCEvent, AluEvent, ByteLookupEvent, ByteRecord, CpuEvent, LookupId, MemInstrEvent,
-        MemoryInitializeFinalizeEvent, MemoryLocalEvent, MemoryRecordEnum, PrecompileEvent,
-        PrecompileEvents, SyscallEvent,
+        AUIPCEvent, AluEvent, BranchEvent, ByteLookupEvent, ByteRecord, CpuEvent, LookupId,
+        MemInstrEvent, MemoryInitializeFinalizeEvent, MemoryLocalEvent, MemoryRecordEnum,
+        PrecompileEvent, PrecompileEvents, SyscallEvent,
     },
     syscalls::SyscallCode,
     CoreShape,
@@ -49,6 +49,8 @@ pub struct ExecutionRecord {
     pub memory_instr_events: Vec<MemInstrEvent>,
     /// A trace of the AUIPC events.
     pub auipc_events: Vec<AUIPCEvent>,
+    /// A trace of the branch events.
+    pub branch_events: Vec<BranchEvent>,
     /// A trace of the byte lookups that are needed.
     pub byte_lookups: HashMap<ByteLookupEvent, usize>,
     /// A trace of the precompile events.
@@ -86,6 +88,7 @@ impl Default for ExecutionRecord {
             lt_events: Vec::default(),
             memory_instr_events: Vec::default(),
             auipc_events: Vec::default(),
+            branch_events: Vec::default(),
             byte_lookups: HashMap::default(),
             precompile_events: PrecompileEvents::default(),
             global_memory_initialize_events: Vec::default(),
@@ -170,6 +173,11 @@ impl ExecutionRecord {
     /// Add a memory instructions event to the execution record.
     pub fn add_memory_instructions_event(&mut self, memory_instructions_event: MemInstrEvent) {
         self.memory_instr_events.push(memory_instructions_event);
+    }
+
+    /// Add a branch event to the execution record.
+    pub fn add_branch_event(&mut self, branch_event: BranchEvent) {
+        self.branch_events.push(branch_event);
     }
 
     /// Add an AUIPC event to the execution record.
