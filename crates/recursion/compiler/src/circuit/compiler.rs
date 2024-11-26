@@ -248,6 +248,7 @@ where
         f(self.ext_alu(DivE, out, Imm::EF(C::EF::one()), diff));
     }
 
+    #[inline(always)]
     fn poseidon2_permute(
         &mut self,
         dst: [impl Reg<C>; WIDTH],
@@ -262,6 +263,7 @@ where
         }))
     }
 
+    #[inline(always)]
     fn select(
         &mut self,
         bit: impl Reg<C>,
@@ -576,6 +578,7 @@ where
                         Ok(instr) => {
                             span_builder.item(instr_name(&instr));
                             instrs.push(instr);
+                            #[cfg(feature = "debug")]
                             traces.push(trace.clone());
                         }
                         Err(CompileOneErr::CycleTrackerEnter(name)) => {
