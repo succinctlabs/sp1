@@ -168,6 +168,8 @@ jobs:
       - name: Install SP1 toolchain
         run: |
           cargo run -p sp1-cli -- prove install-toolchain
+          cd crates/cli
+          cargo install --locked --path .
 
       - name: Run cargo fmt
         run: |
