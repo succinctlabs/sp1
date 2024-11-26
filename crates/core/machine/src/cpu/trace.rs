@@ -178,16 +178,8 @@ impl CpuChip {
         });
 
         // Populate branch, jump, and auipc specific fields.
-        self.populate_branch(cols, event, nonce_lookup, instruction);
         self.populate_jump(cols, event, nonce_lookup, instruction);
         let is_halt = self.populate_ecall(cols, event, nonce_lookup);
-
-        cols.is_sequential_instr = F::from_bool(
-            !instruction.is_branch_instruction()
-                && !instruction.is_jump_instruction()
-                && !is_halt
-                && !instruction.is_alu_instruction(),
-        );
 
         // Assert that the instruction is not a no-op.
         cols.is_real = F::one();
@@ -218,72 +210,6 @@ impl CpuChip {
             0,
             clk_8bit_limb as u8,
         ));
-    }
-
-    /// Populates columns related to branching.
-    fn populate_branch<F: PrimeField>(
-        &self,
-        cols: &mut CpuCols<F>,
-        event: &CpuEvent,
-        nonce_lookup: &[u32],
-        instruction: &Instruction,
-    ) {
-        if instruction.is_branch_instruction() {
-            let branch_columns = cols.opcode_specific_columns.branch_mut();
-
-            let a_eq_b = event.a == event.b;
-
-            let use_signed_comparison = matches!(instruction.opcode, Opcode::BLT | Opcode::BGE);
-
-            let a_lt_b = if use_signed_comparison {
-                (event.a as i32) < (event.b as i32)
-            } else {
-                event.a < event.b
-            };
-            let a_gt_b = if use_signed_comparison {
-                (event.a as i32) > (event.b as i32)
-            } else {
-                event.a > event.b
-            };
-
-            branch_columns.a_lt_b_nonce = F::from_canonical_u32(
-                nonce_lookup.get(event.branch_lt_lookup_id.0 as usize).copied().unwrap_or_default(),
-            );
-
-            branch_columns.a_gt_b_nonce = F::from_canonical_u32(
-                nonce_lookup.get(event.branch_gt_lookup_id.0 as usize).copied().unwrap_or_default(),
-            );
-
-            branch_columns.a_eq_b = F::from_bool(a_eq_b);
-            branch_columns.a_lt_b = F::from_bool(a_lt_b);
-            branch_columns.a_gt_b = F::from_bool(a_gt_b);
-
-            let branching = match instruction.opcode {
-                Opcode::BEQ => a_eq_b,
-                Opcode::BNE => !a_eq_b,
-                Opcode::BLT | Opcode::BLTU => a_lt_b,
-                Opcode::BGE | Opcode::BGEU => a_eq_b || a_gt_b,
-                _ => unreachable!(),
-            };
-
-            let next_pc = event.pc.wrapping_add(event.c);
-            branch_columns.pc = Word::from(event.pc);
-            branch_columns.next_pc = Word::from(next_pc);
-            branch_columns.pc_range_checker.populate(event.pc);
-            branch_columns.next_pc_range_checker.populate(next_pc);
-
-            if branching {
-                cols.branching = F::one();
-                branch_columns.next_pc_nonce = F::from_canonical_u32(
-                    nonce_lookup
-                        .get(event.branch_add_lookup_id.0 as usize)
-                        .copied()
-                        .unwrap_or_default(),
-                );
-            } else {
-                cols.not_branching = F::one();
-            }
-        }
     }
 
     /// Populate columns related to jumping.
