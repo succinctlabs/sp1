@@ -65,7 +65,6 @@ pub struct MemoryInstructionsColumns<T> {
     pub addr_aligned: T,
     /// The LE bit decomp of the least significant byte of address aligned.
     pub addr_aligned_least_sig_byte_decomp: [T; 6],
-++ b/crates/core/machine/src/memory/instructions/trace.rs
 
     /// The address offset.
     pub addr_offset: T,

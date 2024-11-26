@@ -137,7 +137,6 @@ impl MemoryInstructionsChip {
             });
         let mut recomposed_byte = AB::Expr::zero();
         local.addr_aligned_least_sig_byte_decomp.iter().enumerate().for_each(|(i, value)| {
-++ b/crates/core/machine/src/memory/instructions/columns.rs
             builder.when(is_real.clone()).assert_bool(*value);
 
             recomposed_byte =
