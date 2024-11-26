@@ -180,7 +180,6 @@ impl CpuChip {
         // Populate branch, jump, and auipc specific fields.
         self.populate_branch(cols, event, nonce_lookup, instruction);
         self.populate_jump(cols, event, nonce_lookup, instruction);
-        self.populate_auipc(cols, event, nonce_lookup, instruction);
         let is_halt = self.populate_ecall(cols, event, nonce_lookup);
 
         cols.is_sequential_instr = F::from_bool(
@@ -327,25 +326,6 @@ impl CpuChip {
                 }
                 _ => unreachable!(),
             }
-        }
-    }
-
-    /// Populate columns related to AUIPC.
-    fn populate_auipc<F: PrimeField>(
-        &self,
-        cols: &mut CpuCols<F>,
-        event: &CpuEvent,
-        nonce_lookup: &[u32],
-        instruction: &Instruction,
-    ) {
-        if matches!(instruction.opcode, Opcode::AUIPC) {
-            let auipc_columns = cols.opcode_specific_columns.auipc_mut();
-
-            auipc_columns.pc = Word::from(event.pc);
-            auipc_columns.pc_range_checker.populate(event.pc);
-            auipc_columns.auipc_nonce = F::from_canonical_u32(
-                nonce_lookup.get(event.auipc_lookup_id.0 as usize).copied().unwrap_or_default(),
-            );
         }
     }
 

@@ -1,12 +1,22 @@
 use p3_air::{Air, BaseAir};
-use p3_field::AbstractField;
-use p3_matrix::Matrix;
-use sp1_core_executor::{Opcode, DEFAULT_PC_INC, UNUSED_PC};
+use p3_field::{AbstractField, PrimeField32};
+use p3_matrix::{dense::RowMajorMatrix, Matrix};
+use rayon::iter::{ParallelBridge, ParallelIterator};
+use sp1_core_executor::{ExecutionRecord, Opcode, Program, DEFAULT_PC_INC, UNUSED_PC};
 use sp1_derive::AlignedBorrow;
-use sp1_stark::{air::SP1AirBuilder, Word};
-use std::{borrow::Borrow, mem::size_of};
+use sp1_stark::{
+    air::{MachineAir, SP1AirBuilder},
+    Word,
+};
+use std::{
+    borrow::{Borrow, BorrowMut},
+    mem::size_of,
+};
 
-use crate::operations::BabyBearWordRangeChecker;
+use crate::{
+    operations::BabyBearWordRangeChecker,
+    utils::{next_power_of_two, zeroed_f_vec},
+};
 
 #[derive(Default)]
 pub struct AUIPCChip;
@@ -85,5 +95,63 @@ where
             AB::Expr::zero(),
             local.is_real,
         );
+    }
+}
+
+impl<F: PrimeField32> MachineAir<F> for AUIPCChip {
+    type Record = ExecutionRecord;
+
+    type Program = Program;
+
+    fn name(&self) -> String {
+        "AUIPC".to_string()
+    }
+
+    fn generate_trace(
+        &self,
+        input: &ExecutionRecord,
+        _: &mut ExecutionRecord,
+    ) -> RowMajorMatrix<F> {
+        let chunk_size = std::cmp::max((input.auipc_events.len()) / num_cpus::get(), 1);
+        let nb_rows = input.auipc_events.len();
+        let size_log2 = input.fixed_log2_rows::<F, _>(self);
+        let padded_nb_rows = next_power_of_two(nb_rows, size_log2);
+        let mut values = zeroed_f_vec(padded_nb_rows * NUM_AUIPC_COLS);
+
+        values.chunks_mut(chunk_size * NUM_AUIPC_COLS).enumerate().par_bridge().for_each(
+            |(i, rows)| {
+                rows.chunks_mut(NUM_AUIPC_COLS).enumerate().for_each(|(j, row)| {
+                    let idx = i * chunk_size + j;
+                    let cols: &mut AUIPCColumns<F> = row.borrow_mut();
+
+                    if idx < input.auipc_events.len() {
+                        let event = &input.auipc_events[idx];
+                        cols.pc = Word::from(event.pc);
+                        cols.pc_range_checker.populate(event.pc);
+                        cols.auipc_nonce = F::from_canonical_u32(
+                            input
+                                .nonce_lookup
+                                .get(event.auipc_nonce.0 as usize)
+                                .copied()
+                                .unwrap_or_default(),
+                        );
+                    }
+                });
+            },
+        );
+
+        // Convert the trace to a row major matrix.
+        RowMajorMatrix::new(values, NUM_AUIPC_COLS)
+    }
+
+    /// Generate dependencies is a no-op for AUIPC.
+    fn generate_dependencies(&self, _: &Self::Record, _: &mut Self::Record) {}
+
+    fn included(&self, shard: &Self::Record) -> bool {
+        if let Some(shape) = shard.shape.as_ref() {
+            shape.included::<F, _>(self)
+        } else {
+            !shard.auipc_events.is_empty()
+        }
     }
 }
