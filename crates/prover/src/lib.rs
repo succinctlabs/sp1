@@ -1534,4 +1534,14 @@ pub mod tests {
         setup_logger();
         test_e2e_with_deferred_proofs_prover::<DefaultProverComponents>(SP1ProverOpts::default())
     }
+
+    #[test]
+    fn test_deterministic_setup() {
+        setup_logger();
+        let prover = SP1Prover::<DefaultProverComponents>::new();
+        let program = test_artifacts::FIBONACCI_ELF;
+        let (pk, vk) = prover.setup(&program);
+        let pk2 = prover.setup(&program).0;
+        assert_eq!(pk.pk.commit, pk2.pk.commit);
+    }
 }
