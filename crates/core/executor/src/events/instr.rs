@@ -103,6 +103,59 @@ impl MemInstrEvent {
     }
 }
 
+/// Branch Instruction Event.
+///
+/// This object encapsulated the information needed to prove a RISC-V branch operation.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub struct BranchEvent {
+    /// The program counter.
+    pub pc: u32,
+    /// The next program counter.
+    pub next_pc: u32,
+    /// The opcode.
+    pub opcode: Opcode,
+    /// The first operand value.
+    pub a: u32,
+    /// The second operand value.
+    pub b: u32,
+    /// The third operand value.
+    pub c: u32,
+    /// The branch gt lookup id.
+    pub branch_gt_lookup_id: LookupId,
+    /// The branch lt lookup id.
+    pub branch_lt_lookup_id: LookupId,
+    /// The branch add lookup id.
+    pub branch_add_lookup_id: LookupId,
+}
+
+impl BranchEvent {
+    /// Create a new [`BranchEvent`].
+    #[must_use]
+    pub fn new(
+        pc: u32,
+        next_pc: u32,
+        opcode: Opcode,
+        a: u32,
+        b: u32,
+        c: u32,
+        branch_gt_lookup_id: LookupId,
+        branch_lt_lookup_id: LookupId,
+        branch_add_lookup_id: LookupId,
+    ) -> Self {
+        Self {
+            pc,
+            next_pc,
+            opcode,
+            a,
+            b,
+            c,
+            branch_gt_lookup_id,
+            branch_lt_lookup_id,
+            branch_add_lookup_id,
+        }
+    }
+}
+
 /// AUIPC Instruction Event.
 ///
 /// This object encapsulated the information needed to prove a RISC-V memory operation.

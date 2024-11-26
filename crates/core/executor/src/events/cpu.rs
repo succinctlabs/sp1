@@ -32,12 +32,6 @@ pub struct CpuEvent {
     pub alu_lookup_id: LookupId,
     /// The syscall lookup id.
     pub syscall_lookup_id: LookupId,
-    /// The branch gt lookup id.
-    pub branch_gt_lookup_id: LookupId,
-    /// The branch lt lookup id.
-    pub branch_lt_lookup_id: LookupId,
-    /// The branch add lookup id.
-    pub branch_add_lookup_id: LookupId,
     /// The jump jal lookup id.
     pub jump_jal_lookup_id: LookupId,
     /// The jump jalr lookup id.
