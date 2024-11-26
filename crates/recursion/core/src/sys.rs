@@ -12,7 +12,7 @@ use crate::{
         select::{SelectCols, SelectPreprocessedCols},
     },
     BaseAluInstr, BaseAluIo, BatchFRIEvent, BatchFRIInstrFFI, CommitPublicValuesEvent,
-    CommitPublicValuesInstr, ExpReverseBitsEventFFI, ExpReverseBitsInstrFFI, ExtAluInstr, ExtAluIo,
+    CommitPublicValuesInstr, ExpReverseBitsEvent, ExpReverseBitsInstrFFI, ExtAluInstr, ExtAluIo,
     FriFoldEvent, FriFoldInstrFFI, Poseidon2Event, Poseidon2Instr, SelectEvent, SelectInstr,
 };
 use p3_baby_bear::BabyBear;
@@ -47,7 +47,7 @@ extern "C-unwind" {
     );
 
     pub fn exp_reverse_bits_event_to_row_babybear(
-        io: &ExpReverseBitsEventFFI<BabyBear>,
+        io: &ExpReverseBitsEvent<BabyBear>,
         i: usize,
         cols: &mut ExpReverseBitsLenCols<BabyBear>,
     );

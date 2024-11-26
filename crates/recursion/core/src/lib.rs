@@ -188,33 +188,14 @@ impl<'a, F> From<&'a ExpReverseBitsInstr<F>> for ExpReverseBitsInstrFFI<'a, F> {
     }
 }
 
-/// The event encoding the inputs and outputs of an exp-reverse-bits operation. The `len` operand is
-/// now stored as the length of the `exp` field.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+/// The event encoding the inputs and outputs of an exp-reverse-bits operation.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[repr(C)]
 pub struct ExpReverseBitsEvent<F> {
     pub base: F,
-    pub exp: Vec<F>,
+    pub exp: [F; 32],
+    pub len: usize,
     pub result: F,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[repr(C)]
-pub struct ExpReverseBitsEventFFI<F> {
-    pub base: F,
-    pub exp_ptr: *const F,
-    pub exp_len: usize,
-    pub result: F,
-}
-
-impl<F: Clone> From<&ExpReverseBitsEvent<F>> for ExpReverseBitsEventFFI<F> {
-    fn from(event: &ExpReverseBitsEvent<F>) -> Self {
-        Self {
-            base: event.base.clone(),
-            exp_ptr: event.exp.as_ptr(),
-            exp_len: event.exp.len(),
-            result: event.result.clone(),
-        }
-    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

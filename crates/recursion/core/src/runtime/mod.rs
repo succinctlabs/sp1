@@ -388,19 +388,22 @@ where
                 }) => {
                     self.nb_exp_reverse_bits += 1;
                     let base_val = self.memory.mr(base).val[0];
-                    let exp_bits: Vec<_> =
-                        exp.iter().map(|bit| self.memory.mr(*bit).val[0]).collect();
-                    let exp_val = exp_bits
+                    let mut exp_bits = [F::zero(); 32];
+                    let len = exp.len();
+                    for (i, bit) in exp.iter().enumerate() {
+                        exp_bits[i] = self.memory.mr(*bit).val[0];
+                    }
+                    let exp_val = exp_bits[..len]
                         .iter()
                         .enumerate()
                         .fold(0, |acc, (i, &val)| acc + val.as_canonical_u32() * (1 << i));
-                    let out =
-                        base_val.exp_u64(reverse_bits_len(exp_val as usize, exp_bits.len()) as u64);
+                    let out = base_val.exp_u64(reverse_bits_len(exp_val as usize, len) as u64);
                     self.memory.mw(result, Block::from(out), mult);
                     self.record.exp_reverse_bits_len_events.push(ExpReverseBitsEvent {
                         result: out,
                         base: base_val,
                         exp: exp_bits,
+                        len,
                     });
                 }
                 Instruction::HintBits(HintBitsInstr { output_addrs_mults, input_addr }) => {
