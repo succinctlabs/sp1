@@ -6,7 +6,7 @@ use sp1_core_executor::{
     ByteOpcode::{self, U16Range},
     ExecutionRecord, Instruction, Opcode, Program,
 };
-use sp1_stark::{air::MachineAir, Word};
+use sp1_stark::air::MachineAir;
 use std::borrow::BorrowMut;
 
 use p3_field::{PrimeField, PrimeField32};
@@ -178,7 +178,6 @@ impl CpuChip {
         });
 
         // Populate branch, jump, and auipc specific fields.
-        self.populate_jump(cols, event, nonce_lookup, instruction);
         let is_halt = self.populate_ecall(cols, event, nonce_lookup);
 
         // Assert that the instruction is not a no-op.
@@ -210,49 +209,6 @@ impl CpuChip {
             0,
             clk_8bit_limb as u8,
         ));
-    }
-
-    /// Populate columns related to jumping.
-    fn populate_jump<F: PrimeField>(
-        &self,
-        cols: &mut CpuCols<F>,
-        event: &CpuEvent,
-        nonce_lookup: &[u32],
-        instruction: &Instruction,
-    ) {
-        if instruction.is_jump_instruction() {
-            let jump_columns = cols.opcode_specific_columns.jump_mut();
-
-            match instruction.opcode {
-                Opcode::JAL => {
-                    let next_pc = event.pc.wrapping_add(event.b);
-                    jump_columns.op_a_range_checker.populate(event.a);
-                    jump_columns.pc = Word::from(event.pc);
-                    jump_columns.pc_range_checker.populate(event.pc);
-                    jump_columns.next_pc = Word::from(next_pc);
-                    jump_columns.next_pc_range_checker.populate(next_pc);
-                    jump_columns.jal_nonce = F::from_canonical_u32(
-                        nonce_lookup
-                            .get(event.jump_jal_lookup_id.0 as usize)
-                            .copied()
-                            .unwrap_or_default(),
-                    );
-                }
-                Opcode::JALR => {
-                    let next_pc = event.b.wrapping_add(event.c);
-                    jump_columns.op_a_range_checker.populate(event.a);
-                    jump_columns.next_pc = Word::from(next_pc);
-                    jump_columns.next_pc_range_checker.populate(next_pc);
-                    jump_columns.jalr_nonce = F::from_canonical_u32(
-                        nonce_lookup
-                            .get(event.jump_jalr_lookup_id.0 as usize)
-                            .copied()
-                            .unwrap_or_default(),
-                    );
-                }
-                _ => unreachable!(),
-            }
-        }
     }
 
     /// Populate columns related to ECALL.

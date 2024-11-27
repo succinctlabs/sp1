@@ -1,5 +1,6 @@
 mod air;
 mod columns;
+mod trace;
 
 pub use columns::*;
 use p3_air::BaseAir;
