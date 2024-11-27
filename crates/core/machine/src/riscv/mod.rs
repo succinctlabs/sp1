@@ -9,7 +9,7 @@ use sp1_core_executor::{
 };
 
 use crate::{
-    control_flow::{AUIPCChip, BranchChip},
+    control_flow::{AUIPCChip, BranchChip, JumpChip},
     memory::{
         MemoryChipType, MemoryInstructionsChip, MemoryLocalChip, MemoryProgramChip,
         NUM_LOCAL_MEMORY_ENTRIES_PER_ROW,
@@ -94,6 +94,8 @@ pub enum RiscvAir<F: PrimeField32> {
     AUIPC(AUIPCChip),
     /// An AIR for RISC-V branch instructions.
     Branch(BranchChip),
+    /// An AIR for RISC-V jump instructions.
+    Jump(JumpChip),
     /// A lookup table for byte operations.
     ByteLookup(ByteChip<F>),
     /// A table for initializing the global memory state.
@@ -366,6 +368,10 @@ impl<F: PrimeField32> RiscvAir<F> {
         costs.insert(RiscvAirDiscriminants::Branch, branch.cost());
         chips.push(branch);
 
+        let jump = Chip::new(RiscvAir::Jump(JumpChip::default()));
+        costs.insert(RiscvAirDiscriminants::Jump, jump.cost());
+        chips.push(jump);
+
         let memory_global_init = Chip::new(RiscvAir::MemoryGlobalInit(MemoryGlobalChip::new(
             MemoryChipType::Initialize,
         )));
@@ -443,6 +449,7 @@ impl<F: PrimeField32> RiscvAir<F> {
             RiscvAir::Memory(MemoryInstructionsChip::default()),
             RiscvAir::AUIPC(AUIPCChip::default()),
             RiscvAir::Branch(BranchChip::default()),
+            RiscvAir::Jump(JumpChip::default()),
             RiscvAir::MemoryLocal(MemoryLocalChip::new()),
             RiscvAir::SyscallCore(SyscallChip::core()),
         ]
@@ -551,6 +558,7 @@ impl<F: PrimeField32> RiscvAir<F> {
             Self::Memory(_) => unreachable!("Invalid for memory chip"),
             Self::AUIPC(_) => unreachable!("Invalid for auipc chip"),
             Self::Branch(_) => unreachable!("Invalid for branch chip"),
+            Self::Jump(_) => unreachable!("Invalid for jump chip"),
             Self::ByteLookup(_) => unreachable!("Invalid for core chip"),
             Self::SyscallCore(_) => unreachable!("Invalid for core chip"),
             Self::SyscallPrecompile(_) => unreachable!("Invalid for syscall precompile chip"),

@@ -19,12 +19,25 @@ use strum_macros::EnumIter;
 ///   memory accesses is bounded.
 /// - Byte 3: Currently unused.
 #[derive(
-    Debug, Copy, Clone, PartialEq, Eq, Hash, EnumIter, Ord, PartialOrd, Serialize, Deserialize, Enum,
+    Debug,
+    Copy,
+    Clone,
+    PartialEq,
+    Eq,
+    Hash,
+    EnumIter,
+    Ord,
+    PartialOrd,
+    Serialize,
+    Deserialize,
+    Enum,
+    Default,
 )]
 #[allow(non_camel_case_types)]
 #[allow(clippy::upper_case_acronyms)]
 pub enum SyscallCode {
     /// Halts the program.
+    #[default]
     HALT = 0x00_00_00_00,
 
     /// Write to the output buffer.

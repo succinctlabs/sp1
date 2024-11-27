@@ -182,6 +182,92 @@ impl Opcode {
     pub fn as_field<F: Field>(self) -> F {
         F::from_canonical_u32(self as u32)
     }
+
+    /// Whether the opcode is an ALU operation.
+    #[must_use]
+    #[inline]
+    pub const fn is_alu(&self) -> bool {
+        matches!(
+            self,
+            Opcode::ADD
+                | Opcode::SUB
+                | Opcode::XOR
+                | Opcode::OR
+                | Opcode::AND
+                | Opcode::SLL
+                | Opcode::SRL
+                | Opcode::SRA
+                | Opcode::SLT
+                | Opcode::SLTU
+                | Opcode::MUL
+                | Opcode::MULH
+                | Opcode::MULHU
+                | Opcode::MULHSU
+                | Opcode::DIV
+                | Opcode::DIVU
+                | Opcode::REM
+                | Opcode::REMU
+        )
+    }
+
+    /// Whether the opcode is a load operation.
+    #[must_use]
+    #[inline]
+    pub const fn is_load(&self) -> bool {
+        matches!(self, Opcode::LB | Opcode::LH | Opcode::LW | Opcode::LBU | Opcode::LHU)
+    }
+
+    /// Whether the opcode is a store operation.
+    #[must_use]
+    #[inline]
+    pub const fn is_store(&self) -> bool {
+        matches!(self, Opcode::SB | Opcode::SH | Opcode::SW)
+    }
+
+    /// Whether the opcode is a branch operation.
+    #[must_use]
+    #[inline]
+    pub const fn is_branch(&self) -> bool {
+        matches!(
+            self,
+            Opcode::BEQ | Opcode::BNE | Opcode::BLT | Opcode::BGE | Opcode::BLTU | Opcode::BGEU
+        )
+    }
+
+    /// Whether the opcode is a jump operation.
+    #[must_use]
+    #[inline]
+    pub const fn is_jump(&self) -> bool {
+        matches!(self, Opcode::JAL | Opcode::JALR)
+    }
+
+    /// Whether the opcode is an auipc operation.
+    #[must_use]
+    #[inline]
+    pub const fn is_auipc(&self) -> bool {
+        matches!(self, Opcode::AUIPC)
+    }
+
+    /// Whether the opcode is an ecall operation.
+    #[must_use]
+    #[inline]
+    pub const fn is_ecall(&self) -> bool {
+        matches!(self, Opcode::ECALL)
+    }
+
+    /// Whether the opcode is an ebreak operation.
+    #[must_use]
+    #[inline]
+    pub const fn is_ebreak(&self) -> bool {
+        matches!(self, Opcode::EBREAK)
+    }
+
+    /// Whether the opcode is an unimp operation.
+    #[must_use]
+    #[inline]
+    pub const fn is_unimp(&self) -> bool {
+        matches!(self, Opcode::UNIMP)
+    }
 }
 
 impl Display for Opcode {
