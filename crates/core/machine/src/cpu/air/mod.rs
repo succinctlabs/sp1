@@ -58,7 +58,9 @@ where
             is_alu_instruction
                 + is_memory_instruction
                 + is_branch_instruction
-                + local.selectors.is_auipc,
+                + local.selectors.is_auipc
+                + local.selectors.is_jal
+                + local.selectors.is_jalr,
         );
 
         // ECALL instruction.
