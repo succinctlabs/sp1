@@ -117,6 +117,7 @@ impl Default for BuildArgs {
 ///
 /// ## Note: Using this function without an absolute path is not recommended.
 /// Try using the `build_program_from_path!` macro instead.
+#[deprecated(note = "Please use `build_program_from_path!` macro instead.")]
 pub fn build_program(path: impl AsRef<Path>) {
     build_program_internal(path, None)
 }
@@ -134,6 +135,7 @@ pub fn build_program(path: impl AsRef<Path>) {
 ///
 /// ## Note: Using this function without an absolute path is not recommended.
 /// Try using the `build_program_from_path!` macro instead.
+#[deprecated(note = "Please use `build_program_from_path!` macro instead.")]
 pub fn build_program_with_args(path: impl AsRef<Path>, args: BuildArgs) {
     build_program_internal(path, Some(args))
 }
@@ -143,6 +145,7 @@ pub fn build_program_with_args(path: impl AsRef<Path>, args: BuildArgs) {
 /// ### Note:
 /// This function is only exposed to support the `build_program_from_path!` macro.
 /// It is not recommended to use this function directly.
+#[doc(hidden)]
 pub fn build_program_with_maybe_args(path: impl AsRef<Path>, args: Option<BuildArgs>) {
     build_program_internal(path, args)
 }
