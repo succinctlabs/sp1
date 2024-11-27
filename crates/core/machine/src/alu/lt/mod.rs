@@ -450,6 +450,7 @@ where
             AB::Expr::zero(),
             local.nonce,
             AB::Expr::zero(),
+            AB::Expr::zero(),
             is_real,
         );
     }

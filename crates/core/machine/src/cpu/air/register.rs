@@ -14,7 +14,6 @@ impl CpuChip {
         &self,
         builder: &mut AB,
         local: &CpuCols<AB::Var>,
-        is_branch_instruction: AB::Expr,
     ) {
         // Load immediates into b and c, if the immediate flags are on.
         builder
@@ -60,7 +59,7 @@ impl CpuChip {
 
         // If we are performing a branch or a store, then the value of `a` is the previous value.
         builder
-            .when(is_branch_instruction.clone() + local.is_mem_store)
+            .when(local.is_branch + local.is_mem_store)
             .assert_word_eq(local.op_a_val(), local.op_a_access.prev_value);
     }
 }

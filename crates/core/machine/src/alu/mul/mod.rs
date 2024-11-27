@@ -451,6 +451,7 @@ where
             AB::Expr::zero(),
             local.nonce,
             AB::Expr::zero(),
+            AB::Expr::zero(),
             local.is_real,
         );
     }

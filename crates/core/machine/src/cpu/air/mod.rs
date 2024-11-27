@@ -42,7 +42,7 @@ where
         let is_alu_instruction: AB::Expr = self.is_alu_instruction::<AB>(&local.selectors);
 
         // Register constraints.
-        self.eval_registers::<AB>(builder, local, is_branch_instruction.clone());
+        self.eval_registers::<AB>(builder, local);
 
         // ALU instructions.
         builder.send_instruction(
@@ -55,6 +55,7 @@ where
             local.instruction.op_a_0,
             local.nonce,
             local.is_mem_store,
+            local.is_branch,
             is_alu_instruction
                 + is_memory_instruction
                 + is_branch_instruction

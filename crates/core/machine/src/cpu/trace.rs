@@ -137,6 +137,7 @@ impl CpuChip {
         cols.instruction.populate(instruction);
         cols.is_mem_store =
             F::from_bool(matches!(instruction.opcode, Opcode::SB | Opcode::SH | Opcode::SW));
+        cols.is_branch = F::from_bool(instruction.is_branch_instruction());
         cols.selectors.populate(instruction);
         *cols.op_a_access.value_mut() = event.a.into();
         *cols.op_b_access.value_mut() = event.b.into();
