@@ -1,4 +1,7 @@
+#![deny(clippy::large_enum_variant)]
+
 use sp1_recursion_core::air::RecursionPublicValues;
+use sp1_stark::septic_curve::SepticCurve;
 
 use super::{
     Array, CircuitV2FriFoldInput, CircuitV2FriFoldOutput, Config, Ext, Felt, FriFoldInput,
@@ -120,7 +123,8 @@ pub enum DslIr<C: Config> {
     /// Inverts an extension field element (ext = 1 / ext).
     InvE(Ext<C::F, C::EF>, Ext<C::F, C::EF>),
 
-    /// Selects order of felts based on a bit (should_swap, first result, second result, first input, second input)
+    /// Selects order of felts based on a bit (should_swap, first result, second result, first
+    /// input, second input)
     Select(Felt<C::F>, Felt<C::F>, Felt<C::F>, Felt<C::F>, Felt<C::F>),
 
     // Control flow.
@@ -274,6 +278,11 @@ pub enum DslIr<C: Config> {
     /// Should only be used when target is a gnark circuit.
     CircuitCommitCommittedValuesDigest(Var<C::N>),
 
+    /// Adds two elliptic curve points. (sum, point_1, point_2).
+    CircuitV2HintAddCurve(
+        Box<(SepticCurve<Felt<C::F>>, SepticCurve<Felt<C::F>>, SepticCurve<Felt<C::F>>)>,
+    ),
+
     // FRI specific instructions.
     /// Executes a FRI fold operation. 1st field is the size of the fri fold input array.  2nd
     /// field is the fri fold input array.  See [`FriFoldInput`] for more details.
@@ -283,7 +292,8 @@ pub enum DslIr<C: Config> {
     /// more details.
     CircuitV2FriFold(Box<(CircuitV2FriFoldOutput<C>, CircuitV2FriFoldInput<C>)>),
     // FRI specific instructions.
-    /// Executes a Batch FRI loop. Input is the power of alphas, evaluations at z, and evaluations at x.
+    /// Executes a Batch FRI loop. Input is the power of alphas, evaluations at z, and evaluations
+    /// at x.
     CircuitV2BatchFRI(
         Box<(Ext<C::F, C::EF>, Vec<Ext<C::F, C::EF>>, Vec<Ext<C::F, C::EF>>, Vec<Felt<C::F>>)>,
     ),

@@ -34,8 +34,12 @@ pub mod compress_tests {
 
     use sp1_core_executor::{syscalls::SyscallCode, Instruction, Opcode, Program};
     use sp1_stark::CpuProver;
+    use test_artifacts::SHA_COMPRESS_ELF;
 
-    use crate::utils::{run_test, setup_logger, tests::SHA_COMPRESS_ELF};
+    use crate::{
+        io::SP1Stdin,
+        utils::{run_test, setup_logger},
+    };
 
     pub fn sha_compress_program() -> Program {
         let w_ptr = 100;
@@ -66,13 +70,15 @@ pub mod compress_tests {
     fn prove_babybear() {
         setup_logger();
         let program = sha_compress_program();
-        run_test::<CpuProver<_, _>>(program).unwrap();
+        let stdin = SP1Stdin::new();
+        run_test::<CpuProver<_, _>>(program, stdin).unwrap();
     }
 
     #[test]
     fn test_sha_compress_program() {
         setup_logger();
         let program = Program::from(SHA_COMPRESS_ELF).unwrap();
-        run_test::<CpuProver<_, _>>(program).unwrap();
+        let stdin = SP1Stdin::new();
+        run_test::<CpuProver<_, _>>(program, stdin).unwrap();
     }
 }

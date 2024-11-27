@@ -13,7 +13,7 @@ use super::error::Groth16Error;
 /// Load the Groth16 proof from the given byte slice.
 ///
 /// The byte slice is represented as 2 uncompressed g1 points, and one uncompressed g2 point,
-/// as outputted from gnark.
+/// as outputted from Gnark.
 pub(crate) fn load_groth16_proof_from_bytes(buffer: &[u8]) -> Result<Groth16Proof, Groth16Error> {
     let ar = uncompressed_bytes_to_g1_point(&buffer[..64])?;
     let bs = uncompressed_bytes_to_g2_point(&buffer[64..192])?;
@@ -24,8 +24,8 @@ pub(crate) fn load_groth16_proof_from_bytes(buffer: &[u8]) -> Result<Groth16Proo
 
 /// Load the Groth16 verification key from the given byte slice.
 ///
-/// The gnark verification key includes a lot of extraneous information. We only extract the necessary
-/// elements to verify a proof.
+/// The gnark verification key includes a lot of extraneous information. We only extract the
+/// necessary elements to verify a proof.
 pub(crate) fn load_groth16_verifying_key_from_bytes(
     buffer: &[u8],
 ) -> Result<Groth16VerifyingKey, Groth16Error> {

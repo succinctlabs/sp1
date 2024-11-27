@@ -2,7 +2,6 @@ use std::{cell::UnsafeCell, iter::Zip, ptr, vec::IntoIter};
 
 use backtrace::Backtrace;
 use p3_field::AbstractField;
-use sp1_core_machine::utils::sp1_debug_mode;
 use sp1_primitives::types::RecursionProgramType;
 
 use super::{
@@ -33,22 +32,27 @@ impl<T> From<Vec<T>> for TracedVec<T> {
 }
 
 impl<T> TracedVec<T> {
-    pub const fn new() -> Self {
-        Self { vec: Vec::new(), traces: Vec::new() }
+    pub fn new() -> Self {
+        Self { vec: Vec::with_capacity(10_000_000), traces: Vec::new() }
     }
 
+    #[inline(always)]
     pub fn push(&mut self, value: T) {
         self.vec.push(value);
-        self.traces.push(None);
+
+        #[cfg(feature = "debug")]
+        {
+            self.traces.push(None);
+        }
     }
 
     /// Pushes a value to the vector and records a backtrace if SP1_DEBUG is enabled
     pub fn trace_push(&mut self, value: T) {
         self.vec.push(value);
-        if sp1_debug_mode() {
+
+        #[cfg(feature = "debug")]
+        {
             self.traces.push(Some(Backtrace::new_unresolved()));
-        } else {
-            self.traces.push(None);
         }
     }
 
@@ -73,7 +77,12 @@ impl<T> IntoIterator for TracedVec<T> {
     type IntoIter = Zip<IntoIter<T>, IntoIter<Option<Backtrace>>>;
 
     fn into_iter(self) -> Self::IntoIter {
-        self.vec.into_iter().zip(self.traces)
+        let vec_len = self.vec.len();
+        let mut traces = self.traces;
+        if traces.len() < vec_len {
+            traces.extend(std::iter::repeat(None).take(vec_len - traces.len()));
+        }
+        self.vec.into_iter().zip(traces)
     }
 }
 
@@ -162,6 +171,7 @@ impl<C: Config> Builder<C> {
     }
 
     /// Pushes an operation to the builder.
+    #[inline(always)]
     pub fn push_op(&mut self, op: DslIr<C>) {
         self.inner.get_mut().operations.push(op);
     }
@@ -684,8 +694,8 @@ impl<'a, C: Config> IfBuilder<'a, C> {
         //         let lhs: Var<C::N> = self.builder.eval(lhs);
         //         IfCondition::NeI(lhs, rhs)
         //     }
-        //     (SymbolicVar::Val(lhs, _), SymbolicVar::Val(rhs, _), true) => IfCondition::Eq(lhs, rhs),
-        //     (SymbolicVar::Val(lhs, _), SymbolicVar::Val(rhs, _), false) => {
+        //     (SymbolicVar::Val(lhs, _), SymbolicVar::Val(rhs, _), true) => IfCondition::Eq(lhs,
+        // rhs),     (SymbolicVar::Val(lhs, _), SymbolicVar::Val(rhs, _), false) => {
         //         IfCondition::Ne(lhs, rhs)
         //     }
         //     (SymbolicVar::Val(lhs, _), rhs, true) => {

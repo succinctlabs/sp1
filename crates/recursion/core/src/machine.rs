@@ -231,6 +231,10 @@ impl<F> AddAssign<&Instruction<F>> for RecursionAirEventCount {
             Instruction::BatchFRI(instr) => {
                 self.batch_fri_events += instr.base_vec_addrs.p_at_x.len()
             }
+            Instruction::HintAddCurve(instr) => {
+                self.mem_var_events += instr.output_x_addrs_mults.len();
+                self.mem_var_events += instr.output_y_addrs_mults.len();
+            }
             Instruction::CommitPublicValues(_) => {}
             Instruction::Print(_) => {}
         }

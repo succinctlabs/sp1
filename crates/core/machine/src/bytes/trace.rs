@@ -1,6 +1,6 @@
 use std::borrow::BorrowMut;
 
-use p3_field::Field;
+use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 use sp1_core_executor::{ByteOpcode, ExecutionRecord, Program};
 use sp1_stark::air::MachineAir;
@@ -14,7 +14,7 @@ use super::{
 
 pub const NUM_ROWS: usize = 1 << 16;
 
-impl<F: Field> MachineAir<F> for ByteChip<F> {
+impl<F: PrimeField> MachineAir<F> for ByteChip<F> {
     type Record = ExecutionRecord;
 
     type Program = Program;

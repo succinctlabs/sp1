@@ -4,7 +4,7 @@ mod trace;
 
 use p3_keccak_air::KeccakAir;
 
-pub(crate) const STATE_SIZE: usize = 25;
+pub const STATE_SIZE: usize = 25;
 
 // The permutation state is 25 u64's.  Our word size is 32 bits, so it is 50 words.
 pub const STATE_NUM_WORDS: usize = STATE_SIZE * 2;
@@ -23,8 +23,12 @@ impl KeccakPermuteChip {
 pub mod permute_tests {
     use sp1_core_executor::{syscalls::SyscallCode, Executor, Instruction, Opcode, Program};
     use sp1_stark::{CpuProver, SP1CoreOpts};
+    use test_artifacts::KECCAK_PERMUTE_ELF;
 
-    use crate::utils::{self, run_test, tests::KECCAK_PERMUTE_ELF};
+    use crate::{
+        io::SP1Stdin,
+        utils::{self},
+    };
 
     pub fn keccak_permute_program() -> Program {
         let digest_ptr = 100;
@@ -57,13 +61,15 @@ pub mod permute_tests {
         utils::setup_logger();
 
         let program = keccak_permute_program();
-        run_test::<CpuProver<_, _>>(program).unwrap();
+        let stdin = SP1Stdin::new();
+        utils::run_test::<CpuProver<_, _>>(program, stdin).unwrap();
     }
 
     #[test]
     fn test_keccak_permute_program_prove() {
         utils::setup_logger();
         let program = Program::from(KECCAK_PERMUTE_ELF).unwrap();
-        run_test::<CpuProver<_, _>>(program).unwrap();
+        let stdin = SP1Stdin::new();
+        utils::run_test::<CpuProver<_, _>>(program, stdin).unwrap();
     }
 }

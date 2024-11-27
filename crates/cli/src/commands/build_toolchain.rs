@@ -64,7 +64,8 @@ impl BuildToolchainCmd {
         std::fs::write(&config_file, config_toml)
             .with_context(|| format!("while writing configuration to {:?}", config_file))?;
 
-        // Work around target sanity check added in rust-lang/rust@09c076810cb7649e5817f316215010d49e78e8d7.
+        // Work around target sanity check added in
+        // rust-lang/rust@09c076810cb7649e5817f316215010d49e78e8d7.
         let temp_dir = std::env::temp_dir().join("rustc-targets");
         if !temp_dir.exists() {
             std::fs::create_dir_all(&temp_dir)?;

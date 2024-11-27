@@ -14,7 +14,7 @@ To build a program while developing, simply run the following command in the cra
 cargo prove build
 ```
 
-This will compile the ELF that can be executed in the zkVM and put it in the file `elf/riscv32im-succinct-zkvm-elf`. The output from the command will look something like this:
+This will compile the ELF that can be executed in the zkVM. The output from the command will look something like this:
 
 ```bash
 [sp1]     Compiling version_check v0.9.4

@@ -155,7 +155,7 @@ impl SplitOpts {
             keccak: deferred_shift_threshold / 24,
             sha_extend: deferred_shift_threshold / 48,
             sha_compress: deferred_shift_threshold / 80,
-            memory: deferred_shift_threshold * 4,
+            memory: deferred_shift_threshold * 16,
         }
     }
 }
