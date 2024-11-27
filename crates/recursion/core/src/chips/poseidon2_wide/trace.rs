@@ -10,21 +10,11 @@ use sp1_stark::air::MachineAir;
 use tracing::instrument;
 
 use crate::{
-    chips::{
-        mem::MemoryAccessCols,
-        poseidon2_wide::{
-            columns::permutation::permutation_mut, external_linear_layer_immut, Poseidon2WideChip,
-            NUM_EXTERNAL_ROUNDS, WIDTH,
-        },
-    },
-    instruction::Instruction::Poseidon2,
-    ExecutionRecord, RecursionProgram,
+    chips::mem::MemoryAccessCols, instruction::Instruction::Poseidon2, ExecutionRecord,
+    RecursionProgram,
 };
 
-use super::{
-    columns::preprocessed::Poseidon2PreprocessedCols, external_linear_layer, internal_linear_layer,
-    NUM_INTERNAL_ROUNDS,
-};
+use super::columns::preprocessed::Poseidon2PreprocessedCols;
 
 const PREPROCESSED_POSEIDON2_WIDTH: usize = size_of::<Poseidon2PreprocessedCols<u8>>();
 
@@ -193,7 +183,7 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
         let mut state = {
             // For the first round, apply the linear layer.
             let round_state: &[F; WIDTH] = if r == 0 {
-                &external_linear_layer_immut(&external_rounds_state[r])
+                &external_linear_layer(&external_rounds_state[r])
             } else {
                 &external_rounds_state[r]
             };
@@ -228,7 +218,7 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
         };
 
         // Apply the linear layer.
-        external_linear_layer(&mut state);
+        external_linear_layer_mut(&mut state);
         state
     }
 
@@ -255,7 +245,7 @@ impl<const DEGREE: usize> Poseidon2WideChip<DEGREE> {
 
             // Apply the linear layer.
             state[0] = sbox_deg_7;
-            internal_linear_layer(&mut state);
+            internal_linear_layer_mut(&mut state);
 
             // Optimization: since we're only applying the sbox to the 0th state element, we only
             // need to have columns for the 0th state element at every step. This is because the
