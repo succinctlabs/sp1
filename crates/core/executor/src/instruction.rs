@@ -68,24 +68,20 @@ impl Instruction {
 
     /// Returns if the instruction is a ecall instruction.
     #[must_use]
-    pub fn is_ecall_instruction(&self) -> bool {
-        self.opcode == Opcode::ECALL
+    pub const fn is_ecall_instruction(&self) -> bool {
+        matches!(self.opcode, Opcode::ECALL)
     }
 
-    /// Returns if the instruction is a memory instruction.
+    /// Returns if the instruction is a memory load instruction.
     #[must_use]
-    pub const fn is_memory_instruction(&self) -> bool {
-        matches!(
-            self.opcode,
-            Opcode::LB
-                | Opcode::LH
-                | Opcode::LW
-                | Opcode::LBU
-                | Opcode::LHU
-                | Opcode::SB
-                | Opcode::SH
-                | Opcode::SW
-        )
+    pub const fn is_memory_load_instruction(&self) -> bool {
+        matches!(self.opcode, Opcode::LB | Opcode::LH | Opcode::LW | Opcode::LBU | Opcode::LHU)
+    }
+
+    /// Returns if the instruction is a memory store instruction.
+    #[must_use]
+    pub const fn is_memory_store_instruction(&self) -> bool {
+        matches!(self.opcode, Opcode::SB | Opcode::SH | Opcode::SW)
     }
 
     /// Returns if the instruction is a branch instruction.
@@ -101,6 +97,18 @@ impl Instruction {
     #[must_use]
     pub const fn is_jump_instruction(&self) -> bool {
         matches!(self.opcode, Opcode::JAL | Opcode::JALR)
+    }
+
+    /// Returns if the instruction is an auipc instruction.
+    #[must_use]
+    pub const fn is_auipc_instruction(&self) -> bool {
+        matches!(self.opcode, Opcode::AUIPC)
+    }
+
+    /// Returns if the instruction is a divrem instruction.
+    #[must_use]
+    pub const fn is_divrem_instruction(&self) -> bool {
+        matches!(self.opcode, Opcode::DIV | Opcode::DIVU | Opcode::REM | Opcode::REMU)
     }
 }
 

@@ -610,7 +610,7 @@ impl<'a> Executor<'a> {
         clk: u32,
         pc: u32,
         next_pc: u32,
-        opcode: Opcode,
+        instruction: &Instruction,
         syscall: SyscallCode,
         a: u32,
         b: u32,
@@ -624,22 +624,23 @@ impl<'a> Executor<'a> {
 
         self.emit_cpu(clk, pc, next_pc, a, b, c, record, exit_code, lookup_id, syscall_lookup_id);
 
-        if opcode.is_alu() {
-            self.emit_alu_event(opcode, a, b, c, lookup_id);
-        } else if opcode.is_load() || opcode.is_store() {
-            self.emit_mem_instr_event(opcode, a, b, c, op_a_0);
-        } else if opcode.is_branch() {
-            self.emit_branch_event(opcode, a, b, c, op_a_0, next_pc);
-        } else if opcode.is_jump() {
-            self.emit_jump_event(opcode, a, b, c, op_a_0, next_pc);
-        } else if opcode.is_auipc() {
-            self.emit_auipc_event(opcode, a, b, c);
-        } else if opcode.is_ecall() {
+        if instruction.is_alu_instruction() {
+            self.emit_alu_event(instruction.opcode, a, b, c, lookup_id);
+        } else if instruction.is_memory_load_instruction()
+            || instruction.is_memory_store_instruction()
+        {
+            self.emit_mem_instr_event(instruction.opcode, a, b, c, op_a_0);
+        } else if instruction.is_branch_instruction() {
+            self.emit_branch_event(instruction.opcode, a, b, c, op_a_0, next_pc);
+        } else if instruction.is_jump_instruction() {
+            self.emit_jump_event(instruction.opcode, a, b, c, op_a_0, next_pc);
+        } else if instruction.is_auipc_instruction() {
+            self.emit_auipc_event(instruction.opcode, a, b, c);
+        } else if instruction.is_ecall_instruction() {
             if syscall.should_send() == 1 {
                 self.emit_syscall(clk, syscall.syscall_id(), b, c, syscall_lookup_id);
             }
         } else {
-            println!("unreachable: {:?}", opcode);
             unreachable!()
         }
     }
@@ -922,47 +923,36 @@ impl<'a> Executor<'a> {
         if !self.unconstrained {
             self.report.opcode_counts[instruction.opcode] += 1;
             self.report.event_counts[instruction.opcode] += 1;
-            match instruction.opcode {
-                Opcode::LB | Opcode::LH | Opcode::LW | Opcode::LBU | Opcode::LHU => {
-                    self.report.event_counts[Opcode::ADD] += 2;
-                }
-                Opcode::JAL | Opcode::JALR | Opcode::AUIPC => {
-                    self.report.event_counts[Opcode::ADD] += 1;
-                }
-                Opcode::BEQ
-                | Opcode::BNE
-                | Opcode::BLT
-                | Opcode::BGE
-                | Opcode::BLTU
-                | Opcode::BGEU => {
-                    self.report.event_counts[Opcode::ADD] += 1;
-                    self.report.event_counts[Opcode::SLTU] += 2;
-                }
-                Opcode::DIVU | Opcode::REMU | Opcode::DIV | Opcode::REM => {
-                    self.report.event_counts[Opcode::MUL] += 2;
-                    self.report.event_counts[Opcode::ADD] += 2;
-                    self.report.event_counts[Opcode::SLTU] += 1;
-                }
-                _ => {}
-            };
+            if instruction.is_memory_load_instruction() {
+                self.report.event_counts[Opcode::ADD] += 2;
+            } else if instruction.is_jump_instruction() {
+                self.report.event_counts[Opcode::ADD] += 1;
+            } else if instruction.is_branch_instruction() {
+                self.report.event_counts[Opcode::ADD] += 1;
+                self.report.event_counts[Opcode::SLTU] += 2;
+            } else if instruction.is_divrem_instruction() {
+                self.report.event_counts[Opcode::MUL] += 2;
+                self.report.event_counts[Opcode::ADD] += 2;
+                self.report.event_counts[Opcode::SLTU] += 1;
+            }
         }
 
-        if instruction.opcode.is_alu() {
+        if instruction.is_alu_instruction() {
             (a, b, c) = self.execute_alu(instruction);
-        } else if instruction.opcode.is_load() {
+        } else if instruction.is_memory_load_instruction() {
             (a, b, c) = self.execute_load(instruction)?;
-        } else if instruction.opcode.is_store() {
+        } else if instruction.is_memory_store_instruction() {
             (a, b, c) = self.execute_store(instruction)?;
-        } else if instruction.opcode.is_branch() {
+        } else if instruction.is_branch_instruction() {
             (a, b, c, next_pc) = self.execute_branch(instruction, next_pc);
-        } else if instruction.opcode.is_jump() {
+        } else if instruction.is_jump_instruction() {
             (a, b, c, next_pc) = self.execute_jump(instruction);
-        } else if instruction.opcode.is_auipc() {
+        } else if instruction.is_auipc_instruction() {
             let (rd, imm) = instruction.u_type();
             (b, c) = (imm, imm);
             a = self.state.pc.wrapping_add(b);
             self.rw(rd, a);
-        } else if instruction.opcode.is_ecall() {
+        } else if instruction.is_ecall_instruction() {
             let t0 = Register::X5;
             let syscall_id = self.register(t0);
             c = self.rr(Register::X11, MemoryAccessPosition::C);
@@ -1059,7 +1049,7 @@ impl<'a> Executor<'a> {
                 clk,
                 pc,
                 next_pc,
-                instruction.opcode,
+                instruction,
                 syscall,
                 a,
                 b,
