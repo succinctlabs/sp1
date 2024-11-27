@@ -75,6 +75,7 @@ where
             AB::Expr::zero(),
             AB::Expr::zero(),
             AB::Expr::zero(),
+            AB::Expr::zero(),
             local.is_real,
         );
 
@@ -96,6 +97,7 @@ where
             local.op_b_value,
             AB::Expr::zero(),
             local.auipc_nonce,
+            AB::Expr::zero(),
             AB::Expr::zero(),
             local.is_real,
         );

@@ -64,6 +64,7 @@ where
             local.op_a_0,
             AB::Expr::zero(),
             AB::Expr::zero(),
+            AB::Expr::one(),
             is_real.clone(),
         );
 
@@ -93,6 +94,7 @@ where
                 local.op_c_value,
                 AB::Expr::zero(),
                 local.next_pc_nonce,
+                AB::Expr::zero(),
                 AB::Expr::zero(),
                 local.is_branching,
             );
@@ -179,6 +181,7 @@ where
             AB::Expr::zero(),
             local.a_lt_b_nonce,
             AB::Expr::zero(),
+            AB::Expr::zero(),
             is_real.clone(),
         );
 
@@ -193,6 +196,7 @@ where
             local.op_a_value,
             AB::Expr::zero(),
             local.a_gt_b_nonce,
+            AB::Expr::zero(),
             AB::Expr::zero(),
             is_real.clone(),
         );

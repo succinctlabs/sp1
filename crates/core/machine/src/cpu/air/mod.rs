@@ -44,7 +44,7 @@ where
         let is_alu_instruction: AB::Expr = self.is_alu_instruction::<AB>(&local.selectors);
 
         // Register constraints.
-        self.eval_registers::<AB>(builder, local, is_branch_instruction.clone());
+        self.eval_registers::<AB>(builder, local);
 
         // ALU instructions.
         builder.send_instruction(
@@ -57,6 +57,7 @@ where
             local.instruction.op_a_0,
             local.nonce,
             local.is_mem_store,
+            local.is_branch,
             is_alu_instruction
                 + is_memory_instruction
                 + is_branch_instruction
@@ -210,6 +211,7 @@ impl CpuChip {
             AB::Expr::zero(),
             jump_columns.jal_nonce,
             AB::Expr::zero(),
+            AB::Expr::zero(),
             local.selectors.is_jal,
         );
 
@@ -223,6 +225,7 @@ impl CpuChip {
             local.op_c_val(),
             AB::Expr::zero(),
             jump_columns.jalr_nonce,
+            AB::Expr::zero(),
             AB::Expr::zero(),
             local.selectors.is_jalr,
         );

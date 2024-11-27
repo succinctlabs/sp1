@@ -49,6 +49,9 @@ pub struct CpuCols<T: Copy> {
     /// Whether this is a memory store instruction.
     pub is_mem_store: T,
 
+    /// Whether this is a branch instruction.
+    pub is_branch: T,
+
     /// Selectors for the opcode.
     pub selectors: OpcodeSelectorCols<T>,
 
