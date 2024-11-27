@@ -1,12 +1,10 @@
 mod ecall;
 mod instruction;
-mod jump;
 mod opcode;
 mod opcode_specific;
 
 pub use ecall::*;
 pub use instruction::*;
-pub use jump::*;
 pub use opcode::*;
 pub use opcode_specific::*;
 

@@ -1,4 +1,3 @@
-use crate::cpu::columns::JumpCols;
 use std::{
     fmt::{Debug, Formatter},
     mem::{size_of, transmute},
@@ -14,16 +13,15 @@ pub const NUM_OPCODE_SPECIFIC_COLS: usize = size_of::<OpcodeSpecificCols<u8>>();
 #[derive(Clone, Copy)]
 #[repr(C)]
 pub union OpcodeSpecificCols<T: Copy> {
-    jump: JumpCols<T>,
     ecall: EcallCols<T>,
 }
 
 impl<T: Copy + Default> Default for OpcodeSpecificCols<T> {
     fn default() -> Self {
         // We must use the largest field to avoid uninitialized padding bytes.
-        const_assert!(size_of::<JumpCols<u8>>() == size_of::<OpcodeSpecificCols<u8>>());
+        const_assert!(size_of::<EcallCols<u8>>() == size_of::<OpcodeSpecificCols<u8>>());
 
-        OpcodeSpecificCols { jump: JumpCols::default() }
+        OpcodeSpecificCols { ecall: EcallCols::default() }
     }
 }
 
@@ -37,12 +35,6 @@ impl<T: Copy + Debug> Debug for OpcodeSpecificCols<T> {
 
 // SAFETY: Each view is a valid interpretation of the underlying array.
 impl<T: Copy> OpcodeSpecificCols<T> {
-    pub fn jump(&self) -> &JumpCols<T> {
-        unsafe { &self.jump }
-    }
-    pub fn jump_mut(&mut self) -> &mut JumpCols<T> {
-        unsafe { &mut self.jump }
-    }
     pub fn ecall(&self) -> &EcallCols<T> {
         unsafe { &self.ecall }
     }
