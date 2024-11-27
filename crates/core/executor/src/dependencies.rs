@@ -1,5 +1,5 @@
 use crate::{
-    events::{AUIPCEvent, AluEvent, BranchEvent, MemInstrEvent, MemoryRecord},
+    events::{AUIPCEvent, AluEvent, BranchEvent, JumpEvent, MemInstrEvent, MemoryRecord},
     utils::{get_msb, get_quotient_and_remainder, is_signed_operation},
     Executor, Opcode, UNUSED_PC,
 };
@@ -218,6 +218,39 @@ pub fn emit_branch_dependencies(executor: &mut Executor, event: BranchEvent) {
     }
 }
 
+/// Emit the dependencies for jump instructions.
+pub fn emit_jump_dependencies(executor: &mut Executor, event: JumpEvent) {
+    match event.opcode {
+        Opcode::JAL => {
+            let next_pc = event.pc.wrapping_add(event.b);
+            let add_event = AluEvent {
+                pc: UNUSED_PC,
+                lookup_id: event.jump_jal_lookup_id,
+                opcode: Opcode::ADD,
+                a: next_pc,
+                b: event.pc,
+                c: event.b,
+                sub_lookups: executor.record.create_lookup_ids(),
+            };
+            executor.record.add_events.push(add_event);
+        }
+        Opcode::JALR => {
+            let next_pc = event.b.wrapping_add(event.c);
+            let add_event = AluEvent {
+                pc: UNUSED_PC,
+                lookup_id: event.jump_jalr_lookup_id,
+                opcode: Opcode::ADD,
+                a: next_pc,
+                b: event.b,
+                c: event.c,
+                sub_lookups: executor.record.create_lookup_ids(),
+            };
+            executor.record.add_events.push(add_event);
+        }
+        _ => unreachable!(),
+    }
+}
+
 /// Emit the dependency for AUIPC instructions.
 pub fn emit_auipc_dependency(executor: &mut Executor, event: AUIPCEvent) {
     let add_event = AluEvent {
@@ -230,43 +263,4 @@ pub fn emit_auipc_dependency(executor: &mut Executor, event: AUIPCEvent) {
         sub_lookups: executor.record.create_lookup_ids(),
     };
     executor.record.add_events.push(add_event);
-}
-
-/// Emit the dependencies for CPU events.
-#[allow(clippy::too_many_lines)]
-pub fn emit_cpu_dependencies(executor: &mut Executor, index: usize) {
-    let event = executor.record.cpu_events[index];
-    let instruction = &executor.program.fetch(event.pc);
-
-    if instruction.is_jump_instruction() {
-        match instruction.opcode {
-            Opcode::JAL => {
-                let next_pc = event.pc.wrapping_add(event.b);
-                let add_event = AluEvent {
-                    pc: UNUSED_PC,
-                    lookup_id: event.jump_jal_lookup_id,
-                    opcode: Opcode::ADD,
-                    a: next_pc,
-                    b: event.pc,
-                    c: event.b,
-                    sub_lookups: executor.record.create_lookup_ids(),
-                };
-                executor.record.add_events.push(add_event);
-            }
-            Opcode::JALR => {
-                let next_pc = event.b.wrapping_add(event.c);
-                let add_event = AluEvent {
-                    pc: UNUSED_PC,
-                    lookup_id: event.jump_jalr_lookup_id,
-                    opcode: Opcode::ADD,
-                    a: next_pc,
-                    b: event.b,
-                    c: event.c,
-                    sub_lookups: executor.record.create_lookup_ids(),
-                };
-                executor.record.add_events.push(add_event);
-            }
-            _ => unreachable!(),
-        }
-    }
 }

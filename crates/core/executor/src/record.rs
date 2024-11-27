@@ -12,8 +12,8 @@ use serde::{Deserialize, Serialize};
 use super::{program::Program, Opcode};
 use crate::{
     events::{
-        AUIPCEvent, AluEvent, BranchEvent, ByteLookupEvent, ByteRecord, CpuEvent, LookupId,
-        MemInstrEvent, MemoryInitializeFinalizeEvent, MemoryLocalEvent, MemoryRecordEnum,
+        AUIPCEvent, AluEvent, BranchEvent, ByteLookupEvent, ByteRecord, CpuEvent, JumpEvent,
+        LookupId, MemInstrEvent, MemoryInitializeFinalizeEvent, MemoryLocalEvent, MemoryRecordEnum,
         PrecompileEvent, PrecompileEvents, SyscallEvent,
     },
     syscalls::SyscallCode,
@@ -51,6 +51,8 @@ pub struct ExecutionRecord {
     pub auipc_events: Vec<AUIPCEvent>,
     /// A trace of the branch events.
     pub branch_events: Vec<BranchEvent>,
+    /// A trace of the jump events.
+    pub jump_events: Vec<JumpEvent>,
     /// A trace of the byte lookups that are needed.
     pub byte_lookups: HashMap<ByteLookupEvent, usize>,
     /// A trace of the precompile events.
@@ -89,6 +91,7 @@ impl Default for ExecutionRecord {
             memory_instr_events: Vec::default(),
             auipc_events: Vec::default(),
             branch_events: Vec::default(),
+            jump_events: Vec::default(),
             byte_lookups: HashMap::default(),
             precompile_events: PrecompileEvents::default(),
             global_memory_initialize_events: Vec::default(),
@@ -178,6 +181,11 @@ impl ExecutionRecord {
     /// Add a branch event to the execution record.
     pub fn add_branch_event(&mut self, branch_event: BranchEvent) {
         self.branch_events.push(branch_event);
+    }
+
+    /// Add a jump event to the execution record.
+    pub fn add_jump_event(&mut self, jump_event: JumpEvent) {
+        self.jump_events.push(jump_event);
     }
 
     /// Add an AUIPC event to the execution record.
@@ -356,6 +364,8 @@ impl MachineRecord for ExecutionRecord {
         stats.insert("divrem_events".to_string(), self.divrem_events.len());
         stats.insert("lt_events".to_string(), self.lt_events.len());
         stats.insert("memory_instructions_events".to_string(), self.memory_instr_events.len());
+        stats.insert("branch_events".to_string(), self.branch_events.len());
+        stats.insert("jump_events".to_string(), self.jump_events.len());
         stats.insert("auipc_events".to_string(), self.auipc_events.len());
 
         for (syscall_code, events) in self.precompile_events.iter() {
@@ -390,6 +400,8 @@ impl MachineRecord for ExecutionRecord {
         self.divrem_events.append(&mut other.divrem_events);
         self.lt_events.append(&mut other.lt_events);
         self.memory_instr_events.append(&mut other.memory_instr_events);
+        self.branch_events.append(&mut other.branch_events);
+        self.jump_events.append(&mut other.jump_events);
         self.auipc_events.append(&mut other.auipc_events);
         self.syscall_events.append(&mut other.syscall_events);
 

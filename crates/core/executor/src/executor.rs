@@ -12,13 +12,13 @@ use thiserror::Error;
 use crate::{
     context::SP1Context,
     dependencies::{
-        emit_auipc_dependency, emit_branch_dependencies, emit_cpu_dependencies,
-        emit_divrem_dependencies, emit_memory_dependencies,
+        emit_auipc_dependency, emit_branch_dependencies, emit_divrem_dependencies,
+        emit_jump_dependencies, emit_memory_dependencies,
     },
     events::{
-        AUIPCEvent, AluEvent, BranchEvent, CpuEvent, LookupId, MemInstrEvent, MemoryAccessPosition,
-        MemoryInitializeFinalizeEvent, MemoryLocalEvent, MemoryReadRecord, MemoryRecord,
-        MemoryWriteRecord, SyscallEvent,
+        AUIPCEvent, AluEvent, BranchEvent, CpuEvent, JumpEvent, LookupId, MemInstrEvent,
+        MemoryAccessPosition, MemoryInitializeFinalizeEvent, MemoryLocalEvent, MemoryReadRecord,
+        MemoryRecord, MemoryWriteRecord, SyscallEvent,
     },
     hook::{HookEnv, HookRegistry},
     memory::{Entry, PagedMemory},
@@ -618,8 +618,6 @@ impl<'a> Executor<'a> {
         lookup_id: LookupId,
         syscall_lookup_id: LookupId,
     ) {
-        let jump_jal_lookup_id = self.record.create_lookup_id();
-        let jump_jalr_lookup_id = self.record.create_lookup_id();
         self.record.cpu_events.push(CpuEvent {
             clk,
             pc,
@@ -633,11 +631,7 @@ impl<'a> Executor<'a> {
             exit_code,
             alu_lookup_id: lookup_id,
             syscall_lookup_id,
-            jump_jal_lookup_id,
-            jump_jalr_lookup_id,
         });
-
-        emit_cpu_dependencies(self, self.record.cpu_events.len() - 1);
     }
 
     /// Emit an ALU event.
@@ -741,6 +735,31 @@ impl<'a> Executor<'a> {
         };
         self.record.branch_events.push(event);
         emit_branch_dependencies(self, event);
+    }
+
+    /// Emit a jump event.
+    fn emit_jump_event(
+        &mut self,
+        opcode: Opcode,
+        a: u32,
+        b: u32,
+        c: u32,
+        op_a_0: bool,
+        next_pc: u32,
+    ) {
+        let event = JumpEvent::new(
+            self.state.pc,
+            next_pc,
+            opcode,
+            a,
+            b,
+            c,
+            op_a_0,
+            self.record.create_lookup_id(),
+            self.record.create_lookup_id(),
+        );
+        self.record.jump_events.push(event);
+        emit_jump_dependencies(self, event);
     }
 
     /// Emit an AUIPC event.
@@ -946,19 +965,8 @@ impl<'a> Executor<'a> {
             }
 
             // Jump instructions.
-            Opcode::JAL => {
-                let (rd, imm) = instruction.j_type();
-                (b, c) = (imm, 0);
-                a = self.state.pc + 4;
-                self.rw(rd, a);
-                next_pc = self.state.pc.wrapping_add(imm);
-            }
-            Opcode::JALR => {
-                let (rd, rs1, imm) = instruction.i_type();
-                (b, c) = (self.rr(rs1, MemoryAccessPosition::B), imm);
-                a = self.state.pc + 4;
-                self.rw(rd, a);
-                next_pc = b.wrapping_add(c);
+            Opcode::JAL | Opcode::JALR => {
+                (a, b, c, next_pc) = self.execute_jump(instruction);
             }
 
             // Upper immediate instructions.
@@ -1261,6 +1269,41 @@ impl<'a> Executor<'a> {
                 next_pc,
             );
         }
+        (a, b, c, next_pc)
+    }
+
+    fn execute_jump(&mut self, instruction: &Instruction) -> (u32, u32, u32, u32) {
+        let (a, b, c, next_pc) = match instruction.opcode {
+            Opcode::JAL => {
+                let (rd, imm) = instruction.j_type();
+                let (b, c) = (imm, 0);
+                let a = self.state.pc + 4;
+                self.rw(rd, a);
+                let next_pc = self.state.pc.wrapping_add(imm);
+                (a, b, c, next_pc)
+            }
+            Opcode::JALR => {
+                let (rd, rs1, imm) = instruction.i_type();
+                let (b, c) = (self.rr(rs1, MemoryAccessPosition::B), imm);
+                let a = self.state.pc + 4;
+                self.rw(rd, a);
+                let next_pc = b.wrapping_add(c);
+                (a, b, c, next_pc)
+            }
+            _ => unreachable!(),
+        };
+
+        if self.executor_mode == ExecutorMode::Trace {
+            self.emit_jump_event(
+                instruction.opcode,
+                a,
+                b,
+                c,
+                instruction.op_a == Register::X0 as u8,
+                next_pc,
+            );
+        }
+
         (a, b, c, next_pc)
     }
 
