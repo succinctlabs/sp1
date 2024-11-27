@@ -47,10 +47,10 @@ extern void batch_fri_instr_to_row_babybear(
 }
 
 extern void exp_reverse_bits_event_to_row_babybear(
-    const ExpReverseBitsEvent<BabyBearP3>* io, size_t i,
+    const ExpReverseBitsEventFFI<BabyBearP3>* io, size_t i,
     ExpReverseBitsLenCols<BabyBearP3>* cols) {
   exp_reverse_bits::event_to_row<bb31_t>(
-      *reinterpret_cast<const ExpReverseBitsEvent<bb31_t>*>(io), i,
+      *reinterpret_cast<const ExpReverseBitsEventFFI<bb31_t>*>(io), i,
       *reinterpret_cast<ExpReverseBitsLenCols<bb31_t>*>(cols));
 }
 extern void exp_reverse_bits_instr_to_row_babybear(

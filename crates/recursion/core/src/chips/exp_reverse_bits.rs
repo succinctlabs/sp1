@@ -140,7 +140,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for ExpReverseBitsLenCh
     ) -> RowMajorMatrix<F> {
         let mut overall_rows = Vec::new();
         input.exp_reverse_bits_len_events.iter().for_each(|event| {
-            let mut rows = vec![vec![F::zero(); NUM_EXP_REVERSE_BITS_LEN_COLS]; event.len];
+            let mut rows = vec![vec![F::zero(); NUM_EXP_REVERSE_BITS_LEN_COLS]; event.exp.len()];
 
             let mut accum = F::one();
 
@@ -381,8 +381,7 @@ mod tests {
         let shard = ExecutionRecord {
             exp_reverse_bits_len_events: vec![ExpReverseBitsEvent {
                 base: F::two(),
-                exp: to_fixed_array(vec![F::zero(), F::one(), F::one()]),
-                len: 3,
+                exp: vec![F::zero(), F::one(), F::one()],
                 result: F::two().exp_u64(0b110),
             }],
             ..Default::default()
@@ -390,14 +389,6 @@ mod tests {
         let chip = ExpReverseBitsLenChip::<3>;
         let trace: RowMajorMatrix<F> = chip.generate_trace(&shard, &mut ExecutionRecord::default());
         println!("{:?}", trace.values)
-    }
-
-    fn to_fixed_array<F: PrimeField32>(vec: Vec<F>) -> [F; 32] {
-        let mut arr = [F::zero(); 32];
-        for (i, val) in vec.into_iter().take(32).enumerate() {
-            arr[i] = val;
-        }
-        arr
     }
 
     #[test]
@@ -429,8 +420,7 @@ mod tests {
         let shard = ExecutionRecord {
             exp_reverse_bits_len_events: vec![ExpReverseBitsEvent {
                 base: F::two(),
-                exp: to_fixed_array(vec![F::zero(), F::one(), F::one()]),
-                len: 3,
+                exp: vec![F::zero(), F::one(), F::one()],
                 result: F::two().exp_u64(0b110),
             }],
             ..Default::default()
@@ -453,13 +443,14 @@ mod tests {
         let chunk_size = std::cmp::max(events.len() / num_cpus::get(), 1);
         events.chunks(chunk_size).for_each(|chunk| {
             chunk.iter().for_each(|event| {
-                let mut rows = vec![vec![F::zero(); NUM_EXP_REVERSE_BITS_LEN_COLS]; event.len];
+                let mut rows =
+                    vec![vec![F::zero(); NUM_EXP_REVERSE_BITS_LEN_COLS]; event.exp.len()];
                 let mut accum = F::one();
 
                 rows.iter_mut().enumerate().for_each(|(i, row)| {
                     let cols: &mut ExpReverseBitsLenCols<F> = row.as_mut_slice().borrow_mut();
                     unsafe {
-                        crate::sys::exp_reverse_bits_event_to_row_babybear(event, i, cols);
+                        crate::sys::exp_reverse_bits_event_to_row_babybear(&event.into(), i, cols);
                     }
 
                     // Accumulate after the event is converted to a row

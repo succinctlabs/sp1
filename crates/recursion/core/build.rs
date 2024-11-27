@@ -114,7 +114,7 @@ mod sys {
             .include_item("BatchFRICols")
             .include_item("BatchFRIInstrFFI")
             .include_item("BatchFRIPreprocessedCols")
-            .include_item("ExpReverseBitsEvent")
+            .include_item("ExpReverseBitsEventFFI")
             .include_item("ExpReverseBitsLenCols")
             .include_item("ExpReverseBitsInstrFFI")
             .include_item("ExpReverseBitsLenPreprocessedCols")
