@@ -114,10 +114,10 @@ pub struct SP1CompressWithVKeyWitnessValues<SC: StarkGenericConfig + FieldHasher
 impl<C, SC, A> SP1CompressWithVKeyVerifier<C, SC, A>
 where
     SC: BabyBearFriConfigVariable<
-            C,
-            FriChallengerVariable = DuplexChallengerVariable<C>,
-            DigestVariable = [Felt<BabyBear>; DIGEST_SIZE],
-        >,
+        C,
+        FriChallengerVariable = DuplexChallengerVariable<C>,
+        DigestVariable = [Felt<BabyBear>; DIGEST_SIZE],
+    >,
     C: CircuitConfig<F = SC::Val, EF = SC::Challenge, Bit = Felt<BabyBear>>,
     <SC::ValMmcs as Mmcs<BabyBear>>::ProverData<RowMajorMatrix<BabyBear>>: Clone,
     A: MachineAir<SC::Val> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, C>>,

@@ -662,20 +662,20 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
                 divrem_height: vec![Some(10), Some(16), Some(17)],
                 is_potentially_maximal: true,
             },
-                        // Shards with mainly arithmetic, few memory accesses, and no division.
-                        CoreShapeSpec {
-                            cpu_height: vec![Some(21)],
-                            add_sub_height: vec![Some(21)],
-                            lt_height: vec![Some(19)],
-                            bitwise_height: vec![Some(6)],
-                            shift_right_height: vec![Some(19)],
-                            shift_left_height: vec![Some(6)],
-                            syscall_core_height: vec![Some(0)],
-                            memory_local_height: vec![Some(6)],
-                            mul_height: vec![Some(19)],
-                            divrem_height: vec![Some(0)],
-                            is_potentially_maximal: true,
-                        },
+            // Shards with mainly arithmetic, few memory accesses, and no division.
+            CoreShapeSpec {
+                cpu_height: vec![Some(21)],
+                add_sub_height: vec![Some(21)],
+                lt_height: vec![Some(19)],
+                bitwise_height: vec![Some(6)],
+                shift_right_height: vec![Some(19)],
+                shift_left_height: vec![Some(6)],
+                syscall_core_height: vec![Some(0)],
+                memory_local_height: vec![Some(6)],
+                mul_height: vec![Some(19)],
+                divrem_height: vec![Some(0)],
+                is_potentially_maximal: true,
+            },
             // Shards with basic arithmetic and branching.
             CoreShapeSpec {
                 cpu_height: vec![Some(21)],
@@ -744,21 +744,21 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
 
         // Shapes for shards with a CPU chip and memory initialize/finalize events.
         let shapes_with_cpu_and_memory_finalize = vec![
-                                    // Small shape with few Muls and LTs.
-                                    HashMap::from([
-                                        (RiscvAir::<F>::Cpu(CpuChip::default()), vec![Some(13)]),
-                                        (RiscvAir::<F>::Add(AddSubChip::default()), vec![Some(12)]),
-                                        (RiscvAir::<F>::Bitwise(BitwiseChip::default()), vec![Some(11)]),
-                                        (RiscvAir::<F>::Mul(MulChip::default()), vec![Some(4)]),
-                                        (RiscvAir::<F>::ShiftRight(ShiftRightChip::default()), vec![Some(10)]),
-                                        (RiscvAir::<F>::ShiftLeft(ShiftLeft::default()), vec![Some(10)]),
-                                        (RiscvAir::<F>::Lt(LtChip::default()), vec![Some(8)]),
-                                        (RiscvAir::<F>::MemoryLocal(MemoryLocalChip::new()), vec![Some(6)]),
-                                        (RiscvAir::<F>::SyscallCore(SyscallChip::core()), vec![None]),
-                                        (RiscvAir::<F>::DivRem(DivRemChip::default()), vec![None]),
-                                        (RiscvAir::<F>::MemoryGlobalInit(MemoryGlobalChip::new(Initialize)), vec![Some(8)]),
-                                        (RiscvAir::<F>::MemoryGlobalFinal(MemoryGlobalChip::new(Finalize)), vec![Some(15)]),
-                                    ]),
+            // Small shape with few Muls and LTs.
+            HashMap::from([
+                (RiscvAir::<F>::Cpu(CpuChip::default()), vec![Some(13)]),
+                (RiscvAir::<F>::Add(AddSubChip::default()), vec![Some(12)]),
+                (RiscvAir::<F>::Bitwise(BitwiseChip::default()), vec![Some(11)]),
+                (RiscvAir::<F>::Mul(MulChip::default()), vec![Some(4)]),
+                (RiscvAir::<F>::ShiftRight(ShiftRightChip::default()), vec![Some(10)]),
+                (RiscvAir::<F>::ShiftLeft(ShiftLeft::default()), vec![Some(10)]),
+                (RiscvAir::<F>::Lt(LtChip::default()), vec![Some(8)]),
+                (RiscvAir::<F>::MemoryLocal(MemoryLocalChip::new()), vec![Some(6)]),
+                (RiscvAir::<F>::SyscallCore(SyscallChip::core()), vec![None]),
+                (RiscvAir::<F>::DivRem(DivRemChip::default()), vec![None]),
+                (RiscvAir::<F>::MemoryGlobalInit(MemoryGlobalChip::new(Initialize)), vec![Some(8)]),
+                (RiscvAir::<F>::MemoryGlobalFinal(MemoryGlobalChip::new(Finalize)), vec![Some(15)]),
+            ]),
             // Small shape with few Muls.
             HashMap::from([
                 (RiscvAir::<F>::Cpu(CpuChip::default()), vec![Some(14)]),
@@ -774,7 +774,6 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
                 (RiscvAir::<F>::MemoryGlobalInit(MemoryGlobalChip::new(Initialize)), vec![Some(8)]),
                 (RiscvAir::<F>::MemoryGlobalFinal(MemoryGlobalChip::new(Finalize)), vec![Some(15)]),
             ]),
-
             // Small shape with many Muls.
             HashMap::from([
                 (RiscvAir::<F>::Cpu(CpuChip::default()), vec![Some(15)]),

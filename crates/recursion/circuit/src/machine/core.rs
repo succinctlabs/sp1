@@ -40,7 +40,7 @@ use sp1_recursion_core::{
 
 use crate::{
     challenger::{CanObserveVariable, DuplexChallengerVariable},
-    machine::{assert_complete, recursion_public_values_digest},
+    machine::recursion_public_values_digest,
     stark::{dummy_vk_and_shard_proof, ShardProofVariable, StarkVerifier},
     BabyBearFriConfig, BabyBearFriConfigVariable, CircuitConfig, VerifyingKeyVariable,
 };
@@ -84,10 +84,10 @@ pub struct SP1RecursiveVerifier<C: Config, SC: BabyBearFriConfig> {
 impl<C, SC> SP1RecursiveVerifier<C, SC>
 where
     SC: BabyBearFriConfigVariable<
-            C,
-            FriChallengerVariable = DuplexChallengerVariable<C>,
-            DigestVariable = [Felt<BabyBear>; DIGEST_SIZE],
-        >,
+        C,
+        FriChallengerVariable = DuplexChallengerVariable<C>,
+        DigestVariable = [Felt<BabyBear>; DIGEST_SIZE],
+    >,
     C: CircuitConfig<F = SC::Val, EF = SC::Challenge, Bit = Felt<BabyBear>>,
     <SC::ValMmcs as Mmcs<BabyBear>>::ProverData<RowMajorMatrix<BabyBear>>: Clone,
 {

@@ -711,7 +711,7 @@ where
         // Initialize constants.
         let total_consts = self.consts.len();
         let instrs_consts =
-            self.consts.drain().sorted_by_key(|x| x.1.0.0).map(|(imm, (addr, mult))| {
+            self.consts.drain().sorted_by_key(|x| x.1 .0 .0).map(|(imm, (addr, mult))| {
                 Instruction::Mem(MemInstr {
                     addrs: MemIo { inner: addr },
                     vals: MemIo { inner: imm.as_block() },
