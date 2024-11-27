@@ -224,70 +224,7 @@ where
         program: &A::Program,
         vk: &StarkVerifyingKey<SC>,
     ) -> Self::DeviceProvingKey {
-        let parent_span = tracing::debug_span!("generate preprocessed traces");
-        let mut named_preprocessed_traces = parent_span.in_scope(|| {
-            self.machine()
-                .chips()
-                .par_iter()
-                .filter_map(|chip| {
-                    let chip_name = chip.name();
-                    let begin = Instant::now();
-                    let prep_trace = chip.generate_preprocessed_trace(program);
-                    tracing::debug!(
-                        parent: &parent_span,
-                        "generated preprocessed trace for chip {} in {:?}",
-                        chip_name,
-                        begin.elapsed()
-                    );
-                    // Assert that the chip width data is correct.
-                    let expected_width = prep_trace.as_ref().map(|t| t.width()).unwrap_or(0);
-                    assert_eq!(
-                        expected_width,
-                        chip.preprocessed_width(),
-                        "Incorrect number of preprocessed columns for chip {chip_name}"
-                    );
-                    prep_trace.map(move |t| (chip_name, chip.local_only(), t))
-                })
-                .collect::<Vec<_>>()
-        });
-
-        // Order the chips and traces by trace size (biggest first), and get the ordering map.
-        named_preprocessed_traces
-            .sort_by_key(|(name, _, trace)| (Reverse(trace.height()), name.clone()));
-
-        let pcs = self.machine().config().pcs();
-        let (_, domains_and_traces): (Vec<_>, Vec<_>) = named_preprocessed_traces
-            .iter()
-            .map(|(name, _, trace)| {
-                let domain = pcs.natural_domain_for_degree(trace.height());
-                ((name.to_owned(), domain, trace.dimensions()), (domain, trace.to_owned()))
-            })
-            .unzip();
-
-        // Commit to the batch of traces.
-        let (commit, data) = tracing::debug_span!("commit to preprocessed traces")
-            .in_scope(|| pcs.commit(domains_and_traces));
-
-        let local_only = named_preprocessed_traces
-            .iter()
-            .map(|(_, local_only, _)| local_only.to_owned())
-            .collect::<Vec<_>>();
-
-        // Get the preprocessed traces
-        let traces =
-            named_preprocessed_traces.into_iter().map(|(_, _, trace)| trace).collect::<Vec<_>>();
-
-        let StarkVerifyingKey { pc_start, initial_global_cumulative_sum, chip_ordering, .. } = vk;
-
-        StarkProvingKey {
-            commit,
-            pc_start: *pc_start,
-            initial_global_cumulative_sum: initial_global_cumulative_sum.clone(),
-            traces,
-            data,
-            chip_ordering: chip_ordering.clone(),
-            local_only,
-        }
+        self.machine().setup_core(program, vk.initial_global_cumulative_sum).0
     }
 
     fn pk_to_device(&self, pk: &StarkProvingKey<SC>) -> Self::DeviceProvingKey {
