@@ -19,7 +19,7 @@ pub trait CircuitV2Builder<C: Config> {
     ) -> Felt<C::F>;
     fn num2bits_v2_f(&mut self, num: Felt<C::F>, num_bits: usize) -> Vec<Felt<C::F>>;
     fn exp_reverse_bits_v2(&mut self, input: Felt<C::F>, power_bits: Vec<Felt<C::F>>)
-    -> Felt<C::F>;
+        -> Felt<C::F>;
     fn batch_fri_v2(
         &mut self,
         alphas: Vec<Ext<C::F, C::EF>>,
@@ -41,7 +41,7 @@ pub trait CircuitV2Builder<C: Config> {
     ) -> SepticCurve<Felt<C::F>>;
     fn assert_digest_zero_v2(&mut self, is_real: Felt<C::F>, digest: SepticDigest<Felt<C::F>>);
     fn sum_digest_v2(&mut self, digests: Vec<SepticDigest<Felt<C::F>>>)
-    -> SepticDigest<Felt<C::F>>;
+        -> SepticDigest<Felt<C::F>>;
     fn select_global_cumulative_sum(
         &mut self,
         is_first_shard: Felt<C::F>,

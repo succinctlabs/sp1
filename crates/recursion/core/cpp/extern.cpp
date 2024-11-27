@@ -2,6 +2,8 @@
 #include "sys.hpp"
 
 namespace sp1_recursion_core_sys {
+using namespace poseidon2;
+
 extern void alu_base_event_to_row_babybear(const BaseAluIo<BabyBearP3>* io,
                                            BaseAluValueCols<BabyBearP3>* cols) {
   alu_base::event_to_row<bb31_t>(
@@ -104,7 +106,8 @@ extern void select_instr_to_row_babybear(
 }
 
 extern void poseidon2_skinny_event_to_row_babybear(
-    const Poseidon2Event<BabyBearP3>* event, Poseidon2<BabyBearP3>* cols) {
+    const Poseidon2Event<BabyBearP3>* event,
+    Poseidon2<BabyBearP3> cols[OUTPUT_ROUND_IDX + 1]) {
   poseidon2_skinny::event_to_row<bb31_t>(
       *reinterpret_cast<const Poseidon2Event<bb31_t>*>(event),
       reinterpret_cast<Poseidon2<bb31_t>*>(cols));
@@ -117,19 +120,12 @@ extern void poseidon2_skinny_instr_to_row_babybear(
       *reinterpret_cast<Poseidon2PreprocessedColsSkinny<bb31_t>*>(cols));
 }
 
-extern "C" void poseidon2_wide_event_to_row_babybear(
-    const BabyBearP3* input, BabyBearP3* external_rounds_state,
-    BabyBearP3* internal_rounds_state, BabyBearP3* internal_rounds_s0,
-    BabyBearP3* external_sbox, BabyBearP3* internal_sbox,
-    BabyBearP3* output_state) {
-  poseidon2_wide::event_to_row<bb31_t>(
-      reinterpret_cast<const bb31_t*>(input),
-      reinterpret_cast<bb31_t*>(external_rounds_state),
-      reinterpret_cast<bb31_t*>(internal_rounds_state),
-      reinterpret_cast<bb31_t*>(internal_rounds_s0),
-      reinterpret_cast<bb31_t*>(external_sbox),
-      reinterpret_cast<bb31_t*>(internal_sbox),
-      reinterpret_cast<bb31_t*>(output_state));
+extern "C" void poseidon2_wide_event_to_row_babybear(const BabyBearP3* input,
+                                                     BabyBearP3* input_row,
+                                                     bool sbox_state) {
+  poseidon2_wide::event_to_row<bb31_t>(reinterpret_cast<const bb31_t*>(input),
+                                       reinterpret_cast<bb31_t*>(input_row), 0,
+                                       1, sbox_state);
 }
 extern void poseidon2_wide_instr_to_row_babybear(
     const Poseidon2SkinnyInstr<BabyBearP3>* instr,

@@ -45,7 +45,7 @@ class bb31_t {
 
   inline bb31_t() {}
 
-  inline bb31_t(const uint32_t a) { val = a; }
+  inline constexpr bb31_t(const uint32_t a) { val = a; }
 
   inline bb31_t(const uint32_t* p) { val = *p; }
 
@@ -57,7 +57,7 @@ class bb31_t {
 
   static inline const bb31_t two() { return from_canonical_u32(2); }
 
-  static inline uint32_t to_monty(uint32_t x) {
+  static inline constexpr uint32_t to_monty(uint32_t x) {
     return (((uint64_t)x << MONTY_BITS) % MOD);
   }
 
@@ -69,6 +69,10 @@ class bb31_t {
     uint32_t x_sub_u_hi = (uint32_t)(x_sub_u >> MONTY_BITS);
     uint32_t corr = over ? MOD : 0;
     return x_sub_u_hi + corr;
+  }
+
+  static inline uint32_t from_monty(uint32_t x) {
+    return monty_reduce((uint64_t)x);
   }
 
   static inline bb31_t from_canonical_u32(uint32_t x) {
@@ -483,9 +487,9 @@ class bb31_t {
   static const uint32_t NBITS = 31;
   static const uint32_t MOD = 0x78000001;
 
-  inline bb31_t() {}
+  inline constexpr bb31_t() {}
 
-  inline bb31_t(uint32_t a) : val(a) {}
+  inline constexpr bb31_t(uint32_t a) : val(a) {}
 
   inline constexpr bb31_t(int a) : val(((uint64_t)a << 32) % MOD) {}
 
@@ -495,7 +499,7 @@ class bb31_t {
 
   static inline const bb31_t two() { return bb31_t(to_monty(2)); }
 
-  static inline uint32_t to_monty(uint32_t x) {
+  static inline constexpr uint32_t to_monty(uint32_t x) {
     return (((uint64_t)x << MONTY_BITS) % MOD);
   }
 
