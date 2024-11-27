@@ -37,11 +37,12 @@ jobs:
       - name: Setup CI
         uses: ./.github/actions/setup
 
-      - name: Install SP1 toolchain
+      - name: Install SP1 toolchain from repo
         run: |
-          curl -L https://sp1.succinct.xyz | bash
-          ~/.sp1/bin/sp1up 
-          ~/.sp1/bin/cargo-prove prove --version
+          cargo run -p sp1-cli -- prove install-toolchain
+          cd crates/cli
+          cargo install --force --locked --path .
+          cargo clean
 
       - name: Run cargo check
         uses: actions-rs/cargo@v1
@@ -80,11 +81,12 @@ jobs:
       - name: Setup CI
         uses: ./.github/actions/setup
 
-      - name: Install SP1 toolchain
+      - name: Install SP1 toolchain from repo
         run: |
-          curl -L https://sp1.succinct.xyz | bash
-          ~/.sp1/bin/sp1up 
-          ~/.sp1/bin/cargo-prove prove --version
+          cargo run -p sp1-cli -- prove install-toolchain
+          cd crates/cli
+          cargo install --force --locked --path .
+          cargo clean
 
       - name: Run cargo check
         uses: actions-rs/cargo@v1
@@ -106,7 +108,7 @@ jobs:
 
   lint:
     name: Formatting & Clippy
-    runs-on: [runs-on, runner=8cpu-linux-x64, "run-id=${{ github.run_id }}"]
+    runs-on: [runs-on, runner=16cpu-linux-x64, "run-id=${{ github.run_id }}"]
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
@@ -116,11 +118,12 @@ jobs:
       - name: Setup CI
         uses: ./.github/actions/setup
 
-      - name: Install SP1 toolchain
+      - name: Install SP1 toolchain from repo
         run: |
-          curl -L https://sp1.succinct.xyz | bash
-          ~/.sp1/bin/sp1up 
-          ~/.sp1/bin/cargo-prove prove --version
+          cargo run -p sp1-cli -- prove install-toolchain
+          cd crates/cli
+          cargo install --force --locked --path .
+          cargo clean
 
       - name: Run cargo fmt
         uses: actions-rs/cargo@v1
@@ -146,6 +149,43 @@ jobs:
         env:
           CARGO_INCREMENTAL: 1
 
+  check:
+    name: Cargo Check
+    runs-on: [runs-on, runner=16cpu-linux-x64, disk=medium, "run-id=${{ github.run_id }}"]
+    env:
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+
+      - name: Setup CI
+        uses: ./.github/actions/setup
+
+      - name: Install SP1 toolchain from repo
+        run: |
+          cargo run -p sp1-cli -- prove install-toolchain
+          cd crates/cli
+          cargo install --force --locked --path .
+          cargo clean
+
+      - name: Check workspace no features
+        uses: actions-rs/cargo@v1
+        with:
+          command: check
+          args: --workspace --all-targets --no-default-features
+
+      - name: Check workspace with default features
+        uses: actions-rs/cargo@v1
+        with:
+          command: check
+          args: --workspace --all-targets
+
+      - name: Check workspace with all features
+        uses: actions-rs/cargo@v1
+        with:
+          command: check
+          args: --workspace --all-targets --all-features
+
   examples:
     name: Examples
     runs-on:
@@ -165,9 +205,12 @@ jobs:
       - name: Setup CI
         uses: ./.github/actions/setup
 
-      - name: Install SP1 toolchain
+      - name: Install SP1 toolchain from repo
         run: |
           cargo run -p sp1-cli -- prove install-toolchain
+          cd crates/cli
+          cargo install --force --locked --path .
+          cargo clean
 
       - name: Run cargo fmt
         run: |
@@ -186,7 +229,7 @@ jobs:
 
   cli:
     name: CLI
-    runs-on: [runs-on, runner=8cpu-linux-x64, "run-id=${{ github.run_id }}"]
+    runs-on: [runs-on, runner=8cpu-linux-x64, disk=large, "run-id=${{ github.run_id }}"]
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
@@ -196,17 +239,12 @@ jobs:
       - name: Setup CI
         uses: ./.github/actions/setup
 
-      - name: Install SP1 toolchain
+      - name: Install SP1 toolchain from repo
         run: |
-          curl -L https://sp1.succinct.xyz | bash
-          ~/.sp1/bin/sp1up 
-          ~/.sp1/bin/cargo-prove prove --version
-
-      - name: Install SP1 CLI
-        run: |
+          cargo run -p sp1-cli -- prove install-toolchain
           cd crates/cli
           cargo install --force --locked --path .
-          cd ~
+          cargo clean
 
       - name: Run cargo prove new
         run: |
@@ -235,11 +273,12 @@ jobs:
       - name: Setup CI
         uses: ./.github/actions/setup
 
-      - name: Install SP1 toolchain
+      - name: Install SP1 toolchain from repo
         run: |
-          curl -L https://sp1.succinct.xyz | bash
-          ~/.sp1/bin/sp1up 
-          ~/.sp1/bin/cargo-prove prove --version
+          cargo run -p sp1-cli -- prove install-toolchain
+          cd crates/cli
+          cargo install --force --locked --path .
+          cargo clean
 
       - name: Run Evaluation
         run: |
@@ -267,6 +306,7 @@ jobs:
       [
         runs-on,
         "ram=${{ matrix.mem_limit}}",
+        disk=large,
         family=c7a,
         image=ubuntu22-full-x64,
         "run-id=${{ github.run_id }}",
@@ -280,17 +320,12 @@ jobs:
       - name: Setup CI
         uses: ./.github/actions/setup
 
-      - name: Install SP1 toolchain
+      - name: Install SP1 toolchain from repo
         run: |
-          curl -L https://sp1.succinct.xyz | bash
-          ~/.sp1/bin/sp1up
-          ~/.sp1/bin/cargo-prove prove --version
-
-      - name: Install SP1 CLI
-        run: |
+          cargo run -p sp1-cli -- prove install-toolchain
           cd crates/cli
           cargo install --force --locked --path .
-          cd ~
+          cargo clean
 
       - name: Run tendermint script
         run: |
@@ -334,7 +369,7 @@ jobs:
 
   #     - name: "Install cargo-prove"
   #       run: |
-  #         cargo install --locked --path ./crates/cli
+  #         cargo install --force --locked --path ./crates/cli
 
   #     - name: "Install SP1 toolchain"
   #       run: |
