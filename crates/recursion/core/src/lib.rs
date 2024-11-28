@@ -70,7 +70,7 @@ pub struct ExtAluIo<V> {
 pub type ExtAluEvent<F> = ExtAluIo<Block<F>>;
 
 /// An instruction invoking the extension field ALU.
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 #[repr(C)]
 pub struct ExtAluInstr<F> {
     pub opcode: ExtAluOpcode,
