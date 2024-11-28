@@ -1,12 +1,8 @@
 mod ecall;
 mod instruction;
-mod opcode;
-mod opcode_specific;
 
 pub use ecall::*;
 pub use instruction::*;
-pub use opcode::*;
-pub use opcode_specific::*;
 
 use p3_util::indices_arr;
 use sp1_derive::AlignedBorrow;
@@ -50,24 +46,19 @@ pub struct CpuCols<T: Copy> {
     /// Whether this is a branch instruction.
     pub is_branch: T,
 
-    /// Selectors for the opcode.
-    pub selectors: OpcodeSelectorCols<T>,
+    /// Whether this is a syscall instruction.
+    pub is_syscall: T,
+
+    /// The number of extra cycles to add to the clk for a syscall instruction.
+    pub num_extra_cycles: T,
 
     /// Operand values, either from registers or immediate values.
     pub op_a_access: MemoryReadWriteCols<T>,
     pub op_b_access: MemoryReadCols<T>,
     pub op_c_access: MemoryReadCols<T>,
 
-    pub opcode_specific_columns: OpcodeSpecificCols<T>,
-
     /// Selector to label whether this row is a non padded row.
     pub is_real: T,
-
-    /// The result of selectors.is_ecall * the send_to_table column for the ECALL opcode.
-    pub ecall_mul_send_to_table: T,
-
-    /// The result of selectors.is_ecall * (is_halt || is_commit_deferred_proofs)
-    pub ecall_range_check_operand: T,
 }
 
 impl<T: Copy> CpuCols<T> {

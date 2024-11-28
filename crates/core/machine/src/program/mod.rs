@@ -16,7 +16,7 @@ use sp1_core_executor::{ExecutionRecord, Program};
 use sp1_derive::AlignedBorrow;
 use sp1_stark::air::{MachineAir, SP1AirBuilder};
 
-use crate::cpu::columns::{InstructionCols, OpcodeSelectorCols};
+use crate::cpu::columns::InstructionCols;
 
 /// The number of preprocessed program columns.
 pub const NUM_PROGRAM_PREPROCESSED_COLS: usize = size_of::<ProgramPreprocessedCols<u8>>();
@@ -30,7 +30,6 @@ pub const NUM_PROGRAM_MULT_COLS: usize = size_of::<ProgramMultiplicityCols<u8>>(
 pub struct ProgramPreprocessedCols<T> {
     pub pc: T,
     pub instruction: InstructionCols<T>,
-    pub selectors: OpcodeSelectorCols<T>,
 }
 
 /// The column layout for the chip.
@@ -89,7 +88,6 @@ impl<F: PrimeField> MachineAir<F> for ProgramChip {
                         let pc = program.pc_base + (idx as u32 * 4);
                         cols.pc = F::from_canonical_u32(pc);
                         cols.instruction.populate(instruction);
-                        cols.selectors.populate(instruction);
                     }
                 });
             });
@@ -168,12 +166,7 @@ where
         let mult_local: &ProgramMultiplicityCols<AB::Var> = (*mult_local).borrow();
 
         // Constrain the interaction with CPU table
-        builder.receive_program(
-            prep_local.pc,
-            prep_local.instruction,
-            prep_local.selectors,
-            mult_local.multiplicity,
-        );
+        builder.receive_program(prep_local.pc, prep_local.instruction, mult_local.multiplicity);
     }
 }
 

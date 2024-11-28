@@ -57,6 +57,7 @@ where
         builder.receive_instruction(
             local.pc.reduce::<AB>(),
             local.next_pc.reduce::<AB>(),
+            AB::Expr::zero(),
             opcode,
             local.op_a_value,
             local.op_b_value,
@@ -65,6 +66,7 @@ where
             AB::Expr::zero(),
             AB::Expr::zero(),
             AB::Expr::one(),
+            AB::Expr::zero(),
             is_real.clone(),
         );
 
@@ -88,12 +90,14 @@ where
             builder.send_instruction(
                 AB::Expr::from_canonical_u32(UNUSED_PC),
                 AB::Expr::from_canonical_u32(UNUSED_PC + DEFAULT_PC_INC),
+                AB::Expr::zero(),
                 Opcode::ADD.as_field::<AB::F>(),
                 local.next_pc,
                 local.pc,
                 local.op_c_value,
                 AB::Expr::zero(),
                 local.next_pc_nonce,
+                AB::Expr::zero(),
                 AB::Expr::zero(),
                 AB::Expr::zero(),
                 local.is_branching,
@@ -172,6 +176,7 @@ where
         builder.send_instruction(
             AB::Expr::from_canonical_u32(UNUSED_PC),
             AB::Expr::from_canonical_u32(UNUSED_PC + DEFAULT_PC_INC),
+            AB::Expr::zero(),
             use_signed_comparison.clone() * Opcode::SLT.as_field::<AB::F>()
                 + (AB::Expr::one() - use_signed_comparison.clone())
                     * Opcode::SLTU.as_field::<AB::F>(),
@@ -182,6 +187,7 @@ where
             local.a_lt_b_nonce,
             AB::Expr::zero(),
             AB::Expr::zero(),
+            AB::Expr::zero(),
             is_real.clone(),
         );
 
@@ -189,6 +195,7 @@ where
         builder.send_instruction(
             AB::Expr::from_canonical_u32(UNUSED_PC),
             AB::Expr::from_canonical_u32(UNUSED_PC + DEFAULT_PC_INC),
+            AB::Expr::zero(),
             use_signed_comparison.clone() * Opcode::SLT.as_field::<AB::F>()
                 + (AB::Expr::one() - use_signed_comparison) * Opcode::SLTU.as_field::<AB::F>(),
             Word::extend_var::<AB>(local.a_gt_b),
@@ -196,6 +203,7 @@ where
             local.op_a_value,
             AB::Expr::zero(),
             local.a_gt_b_nonce,
+            AB::Expr::zero(),
             AB::Expr::zero(),
             AB::Expr::zero(),
             is_real.clone(),

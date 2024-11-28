@@ -1,42 +1,98 @@
-use p3_air::AirBuilder;
+use std::borrow::Borrow;
+
+use p3_air::Air;
 use p3_field::AbstractField;
-use sp1_core_executor::syscalls::SyscallCode;
+use p3_matrix::Matrix;
+use sp1_core_executor::{events::MemoryAccessPosition, Opcode, Register::X5};
 use sp1_stark::{
-    air::{
-        BaseAirBuilder, InteractionScope, PublicValues, SP1AirBuilder, POSEIDON_NUM_WORDS,
-        PV_DIGEST_NUM_WORDS,
-    },
+    air::{InteractionScope, PublicValues, SP1AirBuilder, SP1_PROOF_NUM_PV_ELTS},
     Word,
 };
 
 use crate::{
-    air::WordAirBuilder,
-    cpu::{
-        columns::{CpuCols, OpcodeSelectorCols},
-        CpuChip,
-    },
+    air::{MemoryAirBuilder, WordAirBuilder},
     memory::MemoryCols,
-    operations::{BabyBearWordRangeChecker, IsZeroOperation},
 };
 
-impl CpuChip {
-    /// Whether the instruction is an ECALL instruction.
-    pub(crate) fn is_ecall_instruction<AB: SP1AirBuilder>(
-        &self,
-        opcode_selectors: &OpcodeSelectorCols<AB::Var>,
-    ) -> AB::Expr {
-        opcode_selectors.is_ecall.into()
-    }
+use super::{columns::SyscallInstrColumns, SyscallInstrsChip};
 
+impl<AB> Air<AB> for SyscallInstrsChip
+where
+    AB: SP1AirBuilder,
+    AB::Var: Sized,
+{
+    #[inline(never)]
+    fn eval(&self, builder: &mut AB) {
+        let main = builder.main();
+        let (local, next) = (main.row_slice(0), main.row_slice(1));
+        let local: &SyscallInstrColumns<AB::Var> = (*local).borrow();
+        let next: &SyscallInstrColumns<AB::Var> = (*next).borrow();
+
+        let public_values_slice: [AB::PublicVar; SP1_PROOF_NUM_PV_ELTS] =
+            core::array::from_fn(|i| builder.public_values()[i]);
+        let public_values: &PublicValues<Word<AB::PublicVar>, AB::PublicVar> =
+            public_values_slice.as_slice().borrow();
+
+        builder.assert_bool(local.is_ecall);
+        builder.assert_bool(local.is_unimpl);
+        let is_real = local.is_ecall + local.is_unimpl;
+        builder.assert_bool(is_real.clone());
+
+        let opcode = local.is_ecall * Opcode::ECALL.as_field::<AB::F>()
+            + local.is_unimpl * Opcode::UNIMP.as_field::<AB::F>();
+
+        builder.receive_instruction(
+            local.pc,
+            local.next_pc,
+            local.num_extra_cycles,
+            opcode,
+            *local.op_a_access.value(),
+            local.op_b_value,
+            local.op_c_value,
+            AB::Expr::zero(),
+            AB::Expr::zero(),
+            AB::Expr::zero(),
+            AB::Expr::zero(),
+            AB::Expr::one(),
+            is_real.clone(),
+        );
+
+        // Do the memory eval for op_a. For syscall instructions, we need to eval at register X5.
+        builder.eval_memory_access(
+            local.shard,
+            local.clk + AB::F::from_canonical_u32(MemoryAccessPosition::A as u32),
+            AB::Expr::from_canonical_u32(X5 as u32),
+            &local.op_a_access,
+            local.is_ecall,
+        );
+
+        // ECALL instruction.
+        self.eval_ecall(builder, local);
+
+        // COMMIT/COMMIT_DEFERRED_PROOFS ecall instruction.
+        self.eval_commit(
+            builder,
+            local,
+            public_values.committed_value_digest,
+            public_values.deferred_proofs_digest,
+        );
+
+        // HALT ecall and UNIMPL instruction.
+        self.eval_halt_unimpl(builder, local, next, public_values);
+    }
+}
+
+impl SyscallInstrsChip {
     /// Constraints related to the ECALL opcode.
     ///
     /// This method will do the following:
     /// 1. Send the syscall to the precompile table, if needed.
     /// 2. Check for valid op_a values.
-    pub(crate) fn eval_ecall<AB: SP1AirBuilder>(&self, builder: &mut AB, local: &CpuCols<AB::Var>) {
-        let ecall_cols = local.opcode_specific_columns.ecall();
-        let is_ecall_instruction = self.is_ecall_instruction::<AB>(&local.selectors);
-
+    pub(crate) fn eval_ecall<AB: SP1AirBuilder>(
+        &self,
+        builder: &mut AB,
+        local: &SyscallInstrColumns<AB::Var>,
+    ) {
         // The syscall code is the read-in value of op_a at the start of the instruction.
         let syscall_code = local.op_a_access.prev_value();
 
@@ -45,20 +101,14 @@ impl CpuChip {
         let syscall_id = syscall_code[0];
         let send_to_table = syscall_code[1];
 
-        // Handle cases:
-        // - is_ecall_instruction = 1 => ecall_mul_send_to_table == send_to_table
-        // - is_ecall_instruction = 0 => ecall_mul_send_to_table == 0
-        builder
-            .assert_eq(local.ecall_mul_send_to_table, send_to_table * is_ecall_instruction.clone());
-
         builder.send_syscall(
             local.shard,
             local.clk,
-            ecall_cols.syscall_nonce,
+            local.syscall_nonce,
             syscall_id,
-            local.op_b_val().reduce::<AB>(),
-            local.op_c_val().reduce::<AB>(),
-            local.ecall_mul_send_to_table,
+            local.op_b_value,
+            local.op_c_value,
+            send_to_table,
             InteractionScope::Local,
         );
 

@@ -1,4 +1,3 @@
-pub mod ecall;
 pub mod register;
 
 use core::borrow::Borrow;
@@ -14,12 +13,10 @@ use sp1_stark::{
 use crate::{
     air::{MemoryAirBuilder, SP1CoreAirBuilder},
     cpu::{
-        columns::{CpuCols, OpcodeSelectorCols, NUM_CPU_COLS},
+        columns::{CpuCols, NUM_CPU_COLS},
         CpuChip,
     },
 };
-
-use super::columns::OPCODE_SELECTORS_COL_MAP;
 
 impl<AB> Air<AB> for CpuChip
 where
@@ -33,21 +30,21 @@ where
         let local: &CpuCols<AB::Var> = (*local).borrow();
         let next: &CpuCols<AB::Var> = (*next).borrow();
 
-        // Program constraints.
-        builder.send_program(local.pc, local.instruction, local.selectors, local.is_real);
+        let public_values_slice: [AB::PublicVar; SP1_PROOF_NUM_PV_ELTS] =
+            core::array::from_fn(|i| builder.public_values()[i]);
+        let public_values: &PublicValues<Word<AB::PublicVar>, AB::PublicVar> =
+            public_values_slice.as_slice().borrow();
 
-        // Compute some flags for which type of instruction we are dealing with.
-        let is_memory_instruction: AB::Expr = self.is_memory_instruction::<AB>(&local.selectors);
-        let is_branch_instruction: AB::Expr = self.is_branch_instruction::<AB>(&local.selectors);
-        let is_alu_instruction: AB::Expr = self.is_alu_instruction::<AB>(&local.selectors);
+        // Program constraints.
+        builder.send_program(local.pc, local.instruction, local.is_real);
 
         // Register constraints.
         self.eval_registers::<AB>(builder, local);
 
-        // ALU instructions.
         builder.send_instruction(
             local.pc,
             local.next_pc,
+            local.num_extra_cycles,
             local.instruction.opcode,
             local.op_a_val(),
             local.op_b_val(),
@@ -56,31 +53,9 @@ where
             local.nonce,
             local.is_mem_store,
             local.is_branch,
-            is_alu_instruction
-                + is_memory_instruction
-                + is_branch_instruction
-                + local.selectors.is_auipc
-                + local.selectors.is_jal
-                + local.selectors.is_jalr,
+            local.is_syscall,
+            local.is_real,
         );
-
-        // ECALL instruction.
-        self.eval_ecall(builder, local);
-
-        // COMMIT/COMMIT_DEFERRED_PROOFS ecall instruction.
-        let public_values_slice: [AB::PublicVar; SP1_PROOF_NUM_PV_ELTS] =
-            core::array::from_fn(|i| builder.public_values()[i]);
-        let public_values: &PublicValues<Word<AB::PublicVar>, AB::PublicVar> =
-            public_values_slice.as_slice().borrow();
-        self.eval_commit(
-            builder,
-            local,
-            public_values.committed_value_digest,
-            public_values.deferred_proofs_digest,
-        );
-
-        // HALT ecall and UNIMPL instruction.
-        self.eval_halt_unimpl(builder, local, next, public_values);
 
         // Check that the shard and clk is updated correctly.
         self.eval_shard_clk(builder, local, next, public_values);
@@ -92,53 +67,14 @@ where
         self.eval_is_real(builder, local, next);
 
         // Check that when `is_real=0` that all flags that send interactions are zero.
-        local.selectors.into_iter().enumerate().for_each(|(i, selector)| {
-            if i == OPCODE_SELECTORS_COL_MAP.imm_b {
-                builder.when(AB::Expr::one() - local.is_real).assert_one(local.selectors.imm_b);
-            } else if i == OPCODE_SELECTORS_COL_MAP.imm_c {
-                builder.when(AB::Expr::one() - local.is_real).assert_one(local.selectors.imm_c);
-            } else {
-                builder.when(AB::Expr::one() - local.is_real).assert_zero(selector);
-            }
-        });
+        let not_real = AB::Expr::one() - local.is_real;
+        builder.when(not_real.clone()).assert_zero(AB::Expr::one() - local.instruction.imm_b);
+        builder.when(not_real.clone()).assert_zero(AB::Expr::one() - local.instruction.imm_c);
+        builder.when(not_real.clone()).assert_zero(AB::Expr::one() - local.is_syscall);
     }
 }
 
 impl CpuChip {
-    /// Whether the instruction is an ALU instruction.
-    pub(crate) fn is_alu_instruction<AB: SP1AirBuilder>(
-        &self,
-        opcode_selectors: &OpcodeSelectorCols<AB::Var>,
-    ) -> AB::Expr {
-        opcode_selectors.is_alu.into()
-    }
-
-    pub(crate) fn is_memory_instruction<AB: SP1AirBuilder>(
-        &self,
-        opcode_selectors: &OpcodeSelectorCols<AB::Var>,
-    ) -> AB::Expr {
-        opcode_selectors.is_lb
-            + opcode_selectors.is_lbu
-            + opcode_selectors.is_lh
-            + opcode_selectors.is_lhu
-            + opcode_selectors.is_lw
-            + opcode_selectors.is_sb
-            + opcode_selectors.is_sh
-            + opcode_selectors.is_sw
-    }
-
-    pub(crate) fn is_branch_instruction<AB: SP1AirBuilder>(
-        &self,
-        opcode_selectors: &OpcodeSelectorCols<AB::Var>,
-    ) -> AB::Expr {
-        opcode_selectors.is_beq
-            + opcode_selectors.is_bne
-            + opcode_selectors.is_blt
-            + opcode_selectors.is_bge
-            + opcode_selectors.is_bltu
-            + opcode_selectors.is_bgeu
-    }
-
     /// Constraints related to the shard and clk.
     ///
     /// This method ensures that all of the shard values are the same and that the clk starts at 0
@@ -171,14 +107,11 @@ impl CpuChip {
         // Verify that the first row has a clk value of 0.
         builder.when_first_row().assert_zero(local.clk);
 
-        // Verify that the clk increments are correct.  Most clk increment should be 4, but for some
-        // precompiles, there are additional cycles.
-        let num_extra_cycles = self.get_num_extra_ecall_cycles::<AB>(local);
-
         // We already assert that `local.clk < 2^24`. `num_extra_cycles` is an entry of a word and
         // therefore less than `2^8`, this means that the sum cannot overflow in a 31 bit field.
-        let expected_next_clk =
-            local.clk + AB::Expr::from_canonical_u32(DEFAULT_PC_INC) + num_extra_cycles.clone();
+        let expected_next_clk = local.clk
+            + AB::Expr::from_canonical_u32(DEFAULT_PC_INC)
+            + local.num_extra_cycles.clone();
 
         builder.when_transition().when(next.is_real).assert_eq(expected_next_clk.clone(), next.clk);
 

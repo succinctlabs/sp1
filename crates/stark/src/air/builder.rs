@@ -183,6 +183,7 @@ pub trait InstructionAirBuilder: BaseAirBuilder {
         &mut self,
         pc: impl Into<Self::Expr>,
         next_pc: impl Into<Self::Expr>,
+        num_extra_cycles: impl Into<Self::Expr>,
         opcode: impl Into<Self::Expr>,
         a: Word<impl Into<Self::Expr>>,
         b: Word<impl Into<Self::Expr>>,
@@ -191,10 +192,12 @@ pub trait InstructionAirBuilder: BaseAirBuilder {
         nonce: impl Into<Self::Expr>,
         is_mem_store: impl Into<Self::Expr>,
         is_branch: impl Into<Self::Expr>,
+        is_syscall: impl Into<Self::Expr>,
         multiplicity: impl Into<Self::Expr>,
     ) {
         let values = once(pc.into())
             .chain(once(next_pc.into()))
+            .chain(once(num_extra_cycles.into()))
             .chain(once(opcode.into()))
             .chain(a.0.into_iter().map(Into::into))
             .chain(b.0.into_iter().map(Into::into))
@@ -202,6 +205,7 @@ pub trait InstructionAirBuilder: BaseAirBuilder {
             .chain(once(op_a_0.into()))
             .chain(once(nonce.into()))
             .chain(once(is_mem_store.into()))
+            .chain(once(is_syscall.into()))
             .chain(once(is_branch.into()))
             .collect();
 
@@ -217,6 +221,7 @@ pub trait InstructionAirBuilder: BaseAirBuilder {
         &mut self,
         pc: impl Into<Self::Expr>,
         next_pc: impl Into<Self::Expr>,
+        num_extra_cycles: impl Into<Self::Expr>,
         opcode: impl Into<Self::Expr>,
         a: Word<impl Into<Self::Expr>>,
         b: Word<impl Into<Self::Expr>>,
@@ -225,10 +230,12 @@ pub trait InstructionAirBuilder: BaseAirBuilder {
         nonce: impl Into<Self::Expr>,
         is_mem_store: impl Into<Self::Expr>,
         is_branch: impl Into<Self::Expr>,
+        is_syscall: impl Into<Self::Expr>,
         multiplicity: impl Into<Self::Expr>,
     ) {
         let values = once(pc.into())
             .chain(once(next_pc.into()))
+            .chain(once(num_extra_cycles.into()))
             .chain(once(opcode.into()))
             .chain(a.0.into_iter().map(Into::into))
             .chain(b.0.into_iter().map(Into::into))
@@ -237,6 +244,7 @@ pub trait InstructionAirBuilder: BaseAirBuilder {
             .chain(once(nonce.into()))
             .chain(once(is_mem_store.into()))
             .chain(once(is_branch.into()))
+            .chain(once(is_syscall.into()))
             .collect();
 
         self.receive(
