@@ -900,22 +900,17 @@ impl<'a> Executor<'a> {
     /// Execute the given instruction over the current state of the runtime.
     #[allow(clippy::too_many_lines)]
     fn execute_instruction(&mut self, instruction: &Instruction) -> Result<(), ExecutionError> {
-        let mut pc = self.state.pc;
-        let mut clk = self.state.clk;
+        let pc = self.state.pc;
+        let clk = self.state.clk;
         let mut exit_code = 0u32;
-
         let mut next_pc = self.state.pc.wrapping_add(4);
+        let mut syscall_lookup_id = LookupId::default();
 
         let (mut a, b, c): (u32, u32, u32);
 
         if self.executor_mode == ExecutorMode::Trace {
             self.memory_accesses = MemoryAccessRecord::default();
         }
-        let syscall_lookup_id = if self.executor_mode == ExecutorMode::Trace {
-            self.record.create_lookup_id()
-        } else {
-            LookupId::default()
-        };
 
         // The syscall id for precompiles.  This is only used/set when opcode == ECALL.
         let mut syscall = SyscallCode::default();
@@ -953,80 +948,7 @@ impl<'a> Executor<'a> {
             a = self.state.pc.wrapping_add(b);
             self.rw(rd, a);
         } else if instruction.is_ecall_instruction() {
-            let t0 = Register::X5;
-            let syscall_id = self.register(t0);
-            c = self.rr(Register::X11, MemoryAccessPosition::C);
-            b = self.rr(Register::X10, MemoryAccessPosition::B);
-            syscall = SyscallCode::from_u32(syscall_id);
-
-            if self.print_report && !self.unconstrained {
-                self.report.syscall_counts[syscall] += 1;
-            }
-
-            // `hint_slice` is allowed in unconstrained mode since it is used to write the hint.
-            // Other syscalls are not allowed because they can lead to non-deterministic
-            // behavior, especially since many syscalls modify memory in place,
-            // which is not permitted in unconstrained mode. This will result in
-            // non-zero memory interactions when generating a proof.
-
-            if self.unconstrained
-                && (syscall != SyscallCode::EXIT_UNCONSTRAINED && syscall != SyscallCode::WRITE)
-            {
-                return Err(ExecutionError::InvalidSyscallUsage(syscall_id as u64));
-            }
-
-            // Update the syscall counts.
-            let syscall_for_count = syscall.count_map();
-            let syscall_count = self.state.syscall_counts.entry(syscall_for_count).or_insert(0);
-            let (threshold, multiplier) = match syscall_for_count {
-                SyscallCode::KECCAK_PERMUTE => (self.opts.split_opts.keccak, 24),
-                SyscallCode::SHA_EXTEND => (self.opts.split_opts.sha_extend, 48),
-                SyscallCode::SHA_COMPRESS => (self.opts.split_opts.sha_compress, 80),
-                _ => (self.opts.split_opts.deferred, 1),
-            };
-            let nonce = (((*syscall_count as usize) % threshold) * multiplier) as u32;
-            self.record.nonce_lookup[syscall_lookup_id.0 as usize] = nonce;
-            *syscall_count += 1;
-
-            let syscall_impl = self.get_syscall(syscall).cloned();
-            let mut precompile_rt = SyscallContext::new(self);
-            precompile_rt.syscall_lookup_id = syscall_lookup_id;
-            let (precompile_next_pc, precompile_cycles, returned_exit_code) =
-                if let Some(syscall_impl) = syscall_impl {
-                    // Executing a syscall optionally returns a value to write to the t0
-                    // register. If it returns None, we just keep the
-                    // syscall_id in t0.
-                    let res = syscall_impl.execute(&mut precompile_rt, syscall, b, c);
-                    if let Some(val) = res {
-                        a = val;
-                    } else {
-                        a = syscall_id;
-                    }
-
-                    // If the syscall is `HALT` and the exit code is non-zero, return an error.
-                    if syscall == SyscallCode::HALT && precompile_rt.exit_code != 0 {
-                        return Err(ExecutionError::HaltWithNonZeroExitCode(
-                            precompile_rt.exit_code,
-                        ));
-                    }
-
-                    (
-                        precompile_rt.next_pc,
-                        syscall_impl.num_extra_cycles(),
-                        precompile_rt.exit_code,
-                    )
-                } else {
-                    return Err(ExecutionError::UnsupportedSyscall(syscall_id));
-                };
-
-            // Allow the syscall impl to modify state.clk/pc (exit unconstrained does this)
-            clk = self.state.clk;
-            pc = self.state.pc;
-
-            self.rw(t0, a);
-            next_pc = precompile_next_pc;
-            self.state.clk += precompile_cycles;
-            exit_code = returned_exit_code;
+            (a, b, c, next_pc, syscall, syscall_lookup_id, exit_code) = self.execute_ecall()?;
         } else if instruction.opcode.is_ebreak() {
             return Err(ExecutionError::Breakpoint());
         } else if instruction.opcode.is_unimp() {
@@ -1070,6 +992,7 @@ impl<'a> Executor<'a> {
         Ok(())
     }
 
+    /// Execute an ALU instruction.
     fn execute_alu(&mut self, instruction: &Instruction) -> (u32, u32, u32) {
         let (rd, b, c) = self.alu_rr(instruction);
         let a = match instruction.opcode {
@@ -1133,6 +1056,7 @@ impl<'a> Executor<'a> {
         (a, b, c)
     }
 
+    /// Execute a load instruction.
     fn execute_load(
         &mut self,
         instruction: &Instruction,
@@ -1165,6 +1089,7 @@ impl<'a> Executor<'a> {
         Ok((a, b, c))
     }
 
+    /// Execute a store instruction.
     fn execute_store(
         &mut self,
         instruction: &Instruction,
@@ -1194,6 +1119,7 @@ impl<'a> Executor<'a> {
         Ok((a, b, c))
     }
 
+    /// Execute a branch instruction.
     fn execute_branch(
         &mut self,
         instruction: &Instruction,
@@ -1217,6 +1143,82 @@ impl<'a> Executor<'a> {
         (a, b, c, next_pc)
     }
 
+    /// Execute an ecall instruction.
+    #[allow(clippy::type_complexity)]
+    fn execute_ecall(
+        &mut self,
+    ) -> Result<(u32, u32, u32, u32, SyscallCode, LookupId, u32), ExecutionError> {
+        // We peek at register x5 to get the syscall id. The reason we don't `self.rr` this
+        // register is that we write to it later.
+        let t0 = Register::X5;
+        let syscall_id = self.register(t0);
+        let c = self.rr(Register::X11, MemoryAccessPosition::C);
+        let b = self.rr(Register::X10, MemoryAccessPosition::B);
+        let syscall = SyscallCode::from_u32(syscall_id);
+
+        let syscall_lookup_id = if self.executor_mode == ExecutorMode::Trace {
+            self.record.create_lookup_id()
+        } else {
+            LookupId::default()
+        };
+
+        if self.print_report && !self.unconstrained {
+            self.report.syscall_counts[syscall] += 1;
+        }
+
+        // `hint_slice` is allowed in unconstrained mode since it is used to write the hint.
+        // Other syscalls are not allowed because they can lead to non-deterministic
+        // behavior, especially since many syscalls modify memory in place,
+        // which is not permitted in unconstrained mode. This will result in
+        // non-zero memory interactions when generating a proof.
+
+        if self.unconstrained
+            && (syscall != SyscallCode::EXIT_UNCONSTRAINED && syscall != SyscallCode::WRITE)
+        {
+            return Err(ExecutionError::InvalidSyscallUsage(syscall_id as u64));
+        }
+
+        // Update the syscall counts.
+        let syscall_for_count = syscall.count_map();
+        let syscall_count = self.state.syscall_counts.entry(syscall_for_count).or_insert(0);
+        let (threshold, multiplier) = match syscall_for_count {
+            SyscallCode::KECCAK_PERMUTE => (self.opts.split_opts.keccak, 24),
+            SyscallCode::SHA_EXTEND => (self.opts.split_opts.sha_extend, 48),
+            SyscallCode::SHA_COMPRESS => (self.opts.split_opts.sha_compress, 80),
+            _ => (self.opts.split_opts.deferred, 1),
+        };
+        let nonce = (((*syscall_count as usize) % threshold) * multiplier) as u32;
+        self.record.nonce_lookup[syscall_lookup_id.0 as usize] = nonce;
+        *syscall_count += 1;
+
+        let syscall_impl = self.get_syscall(syscall).cloned();
+        let mut precompile_rt = SyscallContext::new(self);
+        precompile_rt.syscall_lookup_id = syscall_lookup_id;
+        let (a, precompile_next_pc, precompile_cycles, returned_exit_code) =
+            if let Some(syscall_impl) = syscall_impl {
+                // Executing a syscall optionally returns a value to write to the t0
+                // register. If it returns None, we just keep the
+                // syscall_id in t0.
+                let res = syscall_impl.execute(&mut precompile_rt, syscall, b, c);
+                let a = if let Some(val) = res { val } else { syscall_id };
+
+                // If the syscall is `HALT` and the exit code is non-zero, return an error.
+                if syscall == SyscallCode::HALT && precompile_rt.exit_code != 0 {
+                    return Err(ExecutionError::HaltWithNonZeroExitCode(precompile_rt.exit_code));
+                }
+
+                (a, precompile_rt.next_pc, syscall_impl.num_extra_cycles(), precompile_rt.exit_code)
+            } else {
+                return Err(ExecutionError::UnsupportedSyscall(syscall_id));
+            };
+
+        // Allow the syscall impl to modify state.clk/pc (exit unconstrained does this)
+        self.rw(t0, a);
+        self.state.clk += precompile_cycles;
+        Ok((a, b, c, precompile_next_pc, syscall, syscall_lookup_id, returned_exit_code))
+    }
+
+    /// Execute a jump instruction.
     fn execute_jump(&mut self, instruction: &Instruction) -> (u32, u32, u32, u32) {
         let (a, b, c, next_pc) = match instruction.opcode {
             Opcode::JAL => {

@@ -5,7 +5,7 @@ use core::borrow::Borrow;
 use p3_air::{Air, AirBuilder, AirBuilderWithPublicValues, BaseAir};
 use p3_field::AbstractField;
 use p3_matrix::Matrix;
-use sp1_core_executor::ByteOpcode;
+use sp1_core_executor::{ByteOpcode, DEFAULT_PC_INC};
 use sp1_stark::{
     air::{BaseAirBuilder, PublicValues, SP1AirBuilder, SP1_PROOF_NUM_PV_ELTS},
     Word,
@@ -178,7 +178,7 @@ impl CpuChip {
         // We already assert that `local.clk < 2^24`. `num_extra_cycles` is an entry of a word and
         // therefore less than `2^8`, this means that the sum cannot overflow in a 31 bit field.
         let expected_next_clk =
-            local.clk + AB::Expr::from_canonical_u32(4) + num_extra_cycles.clone();
+            local.clk + AB::Expr::from_canonical_u32(DEFAULT_PC_INC) + num_extra_cycles.clone();
 
         builder.when_transition().when(next.is_real).assert_eq(expected_next_clk.clone(), next.clk);
 

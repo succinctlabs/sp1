@@ -206,7 +206,7 @@ impl JumpEvent {
 }
 /// AUIPC Instruction Event.
 ///
-/// This object encapsulated the information needed to prove a RISC-V memory operation.
+/// This object encapsulated the information needed to prove a RISC-V AUIPC operation.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct AUIPCEvent {
     /// The program counter.
@@ -230,3 +230,40 @@ impl AUIPCEvent {
         Self { pc, opcode, a, b, c, auipc_nonce }
     }
 }
+
+// /// ECALL Instruction Event.
+// ///
+// /// This object encapsulated the information needed to prove a RISC-V ecall/syscall and unimplemented operation.
+// #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+// pub struct SyscallEvent {
+//     /// The program counter.
+//     pub pc: u32,
+//     /// The next program counter.
+//     pub next_pc: u32,
+//     /// The opcode.
+//     pub opcode: Opcode,
+//     /// The first operand value.
+//     pub a: u32,
+//     /// The second operand value.
+//     pub b: u32,
+//     /// The third operand value.
+//     pub c: u32,
+//     /// The syscall lookup id.
+//     pub syscall_lookup_id: LookupId,
+// }
+
+// impl SyscallEvent {
+//     /// Create a new [`SyscallEvent`].
+//     #[must_use]
+//     pub fn new(
+//         pc: u32,
+//         next_pc: u32,
+//         opcode: Opcode,
+//         a: u32,
+//         b: u32,
+//         c: u32,
+//         syscall_lookup_id: LookupId,
+//     ) -> Self {
+//         Self { pc, next_pc, opcode, a, b, c, syscall_lookup_id }
+//     }
+// }
