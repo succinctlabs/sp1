@@ -18,6 +18,9 @@ pub const FD_ECRECOVER_HOOK: u32 = 5;
 /// The file descriptor through which to access `hook_ecrecover_2`.
 pub const FD_ECRECOVER_HOOK_2: u32 = 7;
 
+/// The file descriptor through which to access `hook_ed_decompress`.
+pub const FD_EDDECOMPRESS: u32 = 8;
+
 /// A runtime hook. May be called during execution by writing to a specified file descriptor,
 /// accepting and returning arbitrary data.
 pub trait Hook {
@@ -82,6 +85,7 @@ impl<'a> Default for HookRegistry<'a> {
             // add an assertion to the test `hook_fds_match` below.
             (FD_ECRECOVER_HOOK, hookify(hook_ecrecover)),
             (FD_ECRECOVER_HOOK_2, hookify(hook_ecrecover_v2)),
+            (FD_EDDECOMPRESS, hookify(hook_ed_decompress)),
         ]);
 
         Self { table }
@@ -179,8 +183,9 @@ pub fn hook_ecrecover_v2(_: HookEnv, buf: &[u8]) -> Vec<Vec<u8>> {
         sig = sig_normalized;
         recovery_id ^= 1;
     };
-    let recid = RecoveryId::from_byte(recovery_id).expect("Computed recovery ID is invalid, this is a bug.");
-    
+    let recid = RecoveryId::from_byte(recovery_id)
+        .expect("Computed recovery ID is invalid, this is a bug.");
+
     // Attempting to recvover the public key has failed, write a 0 to indicate to the caller.
     let Ok(recovered_key) = VerifyingKey::recover_from_prehash(&msg_hash[..], &sig, recid) else {
         return vec![vec![0]];
@@ -192,6 +197,31 @@ pub fn hook_ecrecover_v2(_: HookEnv, buf: &[u8]) -> Vec<Vec<u8>> {
     let s_inverse = s.invert();
 
     vec![vec![1], bytes.to_vec(), s_inverse.to_bytes().to_vec()]
+}
+
+/// Checks if a compressed Edwards point can be decompressed.
+///
+/// # Arguments
+/// * `env` - The environment in which the hook is invoked.
+/// * `buf` - The buffer containing the compressed Edwards point.
+///    - The compressed Edwards point is 32 bytes.
+///    - The high bit of the last byte is the sign bit.
+///
+/// The result is either `0` if the point cannot be decompressed, or `1` if it can.
+///
+/// WARNING: This function merely hints at the validity of the compressed point. These values must
+/// be constrained by the zkVM for correctness.
+#[must_use]
+pub fn hook_ed_decompress(_: HookEnv, buf: &[u8]) -> Vec<Vec<u8>> {
+    let Ok(point) = sp1_curves::curve25519_dalek::CompressedEdwardsY::from_slice(buf) else {
+        return vec![vec![0]];
+    };
+
+    if sp1_curves::edwards::ed25519::decompress(&point).is_some() {
+        vec![vec![1]]
+    } else {
+        vec![vec![0]]
+    }
 }
 
 #[cfg(test)]

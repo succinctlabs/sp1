@@ -61,7 +61,7 @@ sp1-lib = { path = "../crates/zkvm/lib", default-features = false }
 sp1-zkvm = { path = "../crates/zkvm/entrypoint", default-features = false }
 
 [patch.crates-io]
-curve25519-dalek = { git = "https://github.com/sp1-patches/curve25519-dalek", tag = "curve25519_dalek-v4.1.3-patch-v1" }
+# curve25519-dalek = { git = "https://github.com/sp1-patches/curve25519-dalek", tag = "curve25519_dalek-v4.1.3-patch-v1" }
 curve25519-dalek-ng = { git = "https://github.com/sp1-patches/curve25519-dalek-ng", tag = "curve25519_dalek_ng-v4.1.1-patch-v1" } 
 ecdsa-core = { git = "https://github.com/sp1-patches/signatures", package = "ecdsa", branch = "umadayal/secp256r1" }
 ed25519-consensus = { git = "https://github.com/sp1-patches/ed25519-consensus", tag = "ed25519_consensus-v2.1.0-patch-v1" }
@@ -73,3 +73,8 @@ sha2-v0-9-8 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", packag
 tiny-keccak = { git = "https://github.com/sp1-patches/tiny-keccak", tag = "tiny_keccak-v2.0.2-patch-v1" }
 substrate-bn = { git = "https://github.com/sp1-patches/bn", tag = "substrate_bn-v0.6.0-patch-v1" }
 bls12_381 = { git = "https://github.com/sp1-patches/bls12_381", tag = "bls12_381-v0.8.0-patch-v1" }
+
+# todo remove
+sp1-lib = { path = "../crates/zkvm/lib" }
+sp1-curves = { path = "../crates/curves" }
+curve25519-dalek = { git = "https://github.com/sp1-patches/curve25519-dalek", branch = "n/patch-eddecompress-panic" }
