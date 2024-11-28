@@ -32,6 +32,7 @@ const DEFAULT_CYCLE_LIMIT: u64 = 1_000_000_000;
 pub struct NetworkProver {
     client: NetworkClient,
     local_prover: CpuProver,
+    strategy: FulfillmentStrategy,
 }
 
 impl NetworkProver {
@@ -48,7 +49,12 @@ impl NetworkProver {
         log::info!("Client circuit version: {}", version);
         let local_prover = CpuProver::new();
         let client = NetworkClient::new(private_key);
-        Self { client, local_prover }
+        Self { client, local_prover, strategy: FulfillmentStrategy::Hosted }
+    }
+
+    /// Sets the fulfillment strategy for the client. By default, the strategy is set to `Hosted`.
+    pub fn with_strategy(&mut self, strategy: FulfillmentStrategy) {
+        self.strategy = strategy;
     }
 
     /// Requests a proof from the prover network, returning the request ID.
@@ -90,7 +96,7 @@ impl NetworkProver {
                         &vk,
                         mode,
                         SP1_CIRCUIT_VERSION,
-                        FulfillmentStrategy::Hosted,
+                        self.strategy,
                         timeout_secs,
                         cycle_limit,
                     )
