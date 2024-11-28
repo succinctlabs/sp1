@@ -48,7 +48,7 @@ pub struct BaseAluIo<V> {
 pub type BaseAluEvent<F> = BaseAluIo<F>;
 
 /// An instruction invoking the extension field ALU.
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 #[repr(C)]
 pub struct BaseAluInstr<F> {
     pub opcode: BaseAluOpcode,
