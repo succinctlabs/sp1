@@ -14,6 +14,9 @@ template <class F>
 __SP1_HOSTDEV__ void instr_to_row(const CommitPublicValuesInstr<F>& instr,
                                   size_t digest_idx,
                                   PublicValuesPreprocessedCols<F>& cols) {
+  for (size_t i = 0; i < DIGEST_SIZE; ++i) {
+    cols.pv_idx[i] = F::zero();
+  }
   cols.pv_idx[digest_idx] = F::one();
   cols.pv_mem.addr = instr.pv_addrs.digest[digest_idx];
   cols.pv_mem.mult = F::zero() - F::one();

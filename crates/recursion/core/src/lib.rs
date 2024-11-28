@@ -425,7 +425,7 @@ pub struct BatchFRIEvent<F> {
 
 /// An instruction that will save the public values to the execution record and will commit to
 /// it's digest.
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 #[repr(C)]
 pub struct CommitPublicValuesInstr<F> {
     pub pv_addrs: RecursionPublicValues<Address<F>>,
