@@ -2,9 +2,9 @@
 
 use std::{borrow::Borrow, ops::Deref};
 
-use p3_baby_bear::{MONTY_INVERSE, POSEIDON2_INTERNAL_MATRIX_DIAG_16_BABYBEAR_MONTY};
-use p3_field::{AbstractField, PrimeField32};
-use p3_poseidon2::matmul_internal;
+use sp1_core_machine::operations::poseidon2::permutation::{
+    Poseidon2Cols, Poseidon2Degree3Cols, Poseidon2Degree9Cols,
+};
 
 pub mod air;
 pub mod columns;
@@ -45,11 +45,12 @@ pub(crate) mod tests {
     use p3_field::{AbstractField, PrimeField32};
     use p3_symmetric::Permutation;
 
-    use sp1_core_machine::utils::{run_test_machine, setup_logger};
+    use sp1_core_machine::{
+        operations::poseidon2::WIDTH,
+        utils::{run_test_machine, setup_logger},
+    };
     use sp1_stark::{baby_bear_poseidon2::BabyBearPoseidon2, inner_perm, StarkGenericConfig};
     use zkhash::ark_ff::UniformRand;
-
-    use super::WIDTH;
 
     #[test]
     fn test_poseidon2() {

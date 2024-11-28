@@ -21,7 +21,6 @@ pub mod cpu;
 pub mod io;
 pub mod memory;
 pub mod operations;
-pub mod poseidon2;
 pub mod program;
 pub mod riscv;
 #[cfg(feature = "sys")]

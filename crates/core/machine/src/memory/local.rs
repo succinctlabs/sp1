@@ -47,12 +47,13 @@ pub struct Ghost {
 }
 
 pub const NUM_LOCAL_MEMORY_ENTRIES_PER_ROW: usize = 4;
+pub const NUM_LOCAL_MEMORY_INTERACTIONS_PER_ROW: usize = NUM_LOCAL_MEMORY_ENTRIES_PER_ROW * 2;
 
 pub(crate) const NUM_MEMORY_LOCAL_INIT_COLS: usize = size_of::<MemoryLocalCols<u8>>();
 
-#[derive(AlignedBorrow, Debug, Clone, Copy)]
+#[derive(AlignedBorrow, Clone, Copy)]
 #[repr(C)]
-pub struct SingleMemoryLocal<T> {
+pub struct SingleMemoryLocal<T: Copy> {
     /// The address of the memory access.
     pub addr: T,
 
@@ -84,11 +85,12 @@ pub struct SingleMemoryLocal<T> {
     pub is_real: T,
 }
 
-#[derive(AlignedBorrow, Debug, Clone, Copy)]
+#[derive(AlignedBorrow, Clone, Copy)]
 #[repr(C)]
-pub struct MemoryLocalCols<T> {
+pub struct MemoryLocalCols<T: Copy> {
     memory_local_entries: [SingleMemoryLocal<T>; NUM_LOCAL_MEMORY_ENTRIES_PER_ROW],
-    pub global_accumulation_cols: GlobalAccumulationOperation<T, 8>,
+    pub global_accumulation_cols:
+        GlobalAccumulationOperation<T, NUM_LOCAL_MEMORY_INTERACTIONS_PER_ROW>,
 }
 
 pub struct MemoryLocalChip {}
@@ -118,7 +120,12 @@ impl<F: PrimeField32> MachineAir<F> for MemoryLocalChip {
 
     fn generate_dependencies(&self, input: &ExecutionRecord, output: &mut ExecutionRecord) {
         let events = input.get_local_mem_events().collect::<Vec<_>>();
-        let nb_rows = (events.len() + 3) / 4;
+        let nb_rows = if NUM_LOCAL_MEMORY_ENTRIES_PER_ROW > 1 {
+            (events.len() + (NUM_LOCAL_MEMORY_ENTRIES_PER_ROW - 1))
+                / NUM_LOCAL_MEMORY_ENTRIES_PER_ROW
+        } else {
+            events.len()
+        };
         let chunk_size = std::cmp::max((nb_rows + 1) / num_cpus::get(), 1);
 
         let blu_batches = events
@@ -162,7 +169,12 @@ impl<F: PrimeField32> MachineAir<F> for MemoryLocalChip {
     ) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
         let events = input.get_local_mem_events().collect::<Vec<_>>();
-        let nb_rows = (events.len() + 3) / 4;
+        let nb_rows = if NUM_LOCAL_MEMORY_ENTRIES_PER_ROW > 1 {
+            (events.len() + (NUM_LOCAL_MEMORY_ENTRIES_PER_ROW - 1))
+                / NUM_LOCAL_MEMORY_ENTRIES_PER_ROW
+        } else {
+            events.len()
+        };
         let size_log2 = input.fixed_log2_rows::<F, _>(self);
         let padded_nb_rows = next_power_of_two(nb_rows, size_log2);
         let mut values = zeroed_f_vec(padded_nb_rows * NUM_MEMORY_LOCAL_INIT_COLS);
@@ -385,7 +397,7 @@ where
             next_is_reals.push(next.is_real);
         }
 
-        GlobalAccumulationOperation::<AB::F, 8>::eval_accumulation(
+        GlobalAccumulationOperation::<AB::F, NUM_LOCAL_MEMORY_INTERACTIONS_PER_ROW>::eval_accumulation(
             builder,
             global_interaction_cols
                 .try_into()

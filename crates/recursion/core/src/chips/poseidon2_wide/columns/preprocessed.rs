@@ -1,3 +1,4 @@
+use sp1_core_machine::operations::poseidon2::WIDTH;
 use sp1_derive::AlignedBorrow;
 
 use crate::{chips::mem::MemoryAccessColsChips, Address};

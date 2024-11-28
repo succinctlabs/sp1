@@ -58,9 +58,9 @@ impl SyscallChip {
 pub const SYSCALL_INITIAL_DIGEST_POS_COPY: usize = 60;
 
 /// The column layout for the chip.
-#[derive(AlignedBorrow, Default, Clone, Copy)]
+#[derive(AlignedBorrow, Clone, Copy)]
 #[repr(C)]
-pub struct SyscallCols<T> {
+pub struct SyscallCols<T: Copy> {
     /// The shard number of the syscall.
     pub shard: T,
 

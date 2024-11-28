@@ -188,8 +188,6 @@ mod tests {
     use p3_field::AbstractField;
     use p3_matrix::dense::RowMajorMatrix;
 
-    use super::*;
-
     use crate::{
         air::{RecursionPublicValues, NUM_PV_ELMS_TO_HASH, RECURSIVE_PROOF_NUM_PV_ELTS},
         chips::public_values::PublicValuesChip,

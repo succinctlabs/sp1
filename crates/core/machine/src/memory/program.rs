@@ -40,9 +40,9 @@ pub struct MemoryProgramPreprocessedCols<T> {
 }
 
 /// Multiplicity columns.
-#[derive(AlignedBorrow, Clone, Copy, Default)]
+#[derive(AlignedBorrow, Clone, Copy)]
 #[repr(C)]
-pub struct MemoryProgramMultCols<T> {
+pub struct MemoryProgramMultCols<T: Copy> {
     /// The multiplicity of the event.
     ///
     /// This column is technically redundant with `is_real`, but it's included for clarity.

@@ -16,9 +16,9 @@ use sp1_stark::{
 };
 
 /// A set of columns needed to compute the global interaction elliptic curve digest.
-#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[derive(AlignedBorrow, Clone, Copy)]
 #[repr(C)]
-pub struct GlobalInteractionOperation<T> {
+pub struct GlobalInteractionOperation<T: Copy> {
     pub offset_bits: [T; 8],
     pub x_coordinate: SepticBlock<T>,
     pub y_coordinate: SepticBlock<T>,

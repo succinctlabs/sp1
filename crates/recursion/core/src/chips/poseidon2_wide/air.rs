@@ -1,17 +1,14 @@
-use std::{array, borrow::Borrow};
+use std::borrow::Borrow;
 
 use p3_air::{Air, BaseAir, PairBuilder};
-use p3_field::AbstractField;
 use p3_matrix::Matrix;
-use sp1_core_machine::poseidon2::air::eval_external_round;
-use sp1_core_machine::poseidon2::air::eval_internal_rounds;
-use sp1_core_machine::poseidon2::columns::{
-    NUM_POSEIDON2_DEGREE3_COLS, NUM_POSEIDON2_DEGREE9_COLS,
-};
-use sp1_core_machine::poseidon2::NUM_EXTERNAL_ROUNDS;
-use sp1_core_machine::poseidon2::WIDTH;
-use sp1_primitives::RC_16_30_U32;
-use sp1_stark::air::MachineAirBuilder;
+use sp1_core_machine::operations::poseidon2::air::eval_external_round;
+use sp1_core_machine::operations::poseidon2::air::eval_internal_rounds;
+
+use sp1_core_machine::operations::poseidon2::permutation::NUM_POSEIDON2_DEGREE3_COLS;
+use sp1_core_machine::operations::poseidon2::permutation::NUM_POSEIDON2_DEGREE9_COLS;
+use sp1_core_machine::operations::poseidon2::NUM_EXTERNAL_ROUNDS;
+use sp1_core_machine::operations::poseidon2::WIDTH;
 
 use super::Poseidon2WideChip;
 use crate::builder::SP1RecursionAirBuilder;

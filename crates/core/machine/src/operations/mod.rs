@@ -21,6 +21,7 @@ mod is_zero_word;
 mod lt;
 mod not;
 mod or;
+pub mod poseidon2;
 mod xor;
 
 pub use add::*;
