@@ -10,7 +10,7 @@ will automatically route your SP1 proof to the correct verifier based on the SP1
 
 ## Canonical Verifier Gateways
 
-There are different verifier gateway for each proof system: Groth16 and PLONK. This means that you
+There are different verifier gateways for each proof system: Groth16 and PLONK. This means that you
 must use the correct verifier gateway depending on if you are verifying a Groth16 or PLONK proof.
 
 ### Groth16
