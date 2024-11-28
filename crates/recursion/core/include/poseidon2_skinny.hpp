@@ -78,6 +78,13 @@ __SP1_HOSTDEV__ void event_to_row(const Poseidon2Event<F>& event,
 template <class F>
 __SP1_HOSTDEV__ void instr_to_row(const Poseidon2Instr<F>& instr, size_t i,
                                   Poseidon2PreprocessedColsSkinny<F>& cols) {
+
+  for (size_t i = 0; i < WIDTH; ++i) {
+    cols.memory_preprocessed[i].addr = F::zero();
+    cols.memory_preprocessed[i].mult = F::zero();
+    cols.round_counters_preprocessed.round_constants[i] = F::zero();
+  }
+
   cols.round_counters_preprocessed.is_input_round =
       F::from_bool(i == INPUT_ROUND_IDX);
   bool is_external_round =

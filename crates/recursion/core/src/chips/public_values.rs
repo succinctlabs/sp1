@@ -22,7 +22,7 @@ pub const NUM_PUBLIC_VALUES_COLS: usize = core::mem::size_of::<PublicValuesCols<
 pub const NUM_PUBLIC_VALUES_PREPROCESSED_COLS: usize =
     core::mem::size_of::<PublicValuesPreprocessedCols<u8>>();
 
-pub(crate) const PUB_VALUES_LOG_HEIGHT: usize = 4;
+pub const PUB_VALUES_LOG_HEIGHT: usize = 4;
 
 #[derive(Default)]
 pub struct PublicValuesChip;

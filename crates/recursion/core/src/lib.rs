@@ -113,7 +113,7 @@ pub struct Poseidon2Io<V> {
 }
 
 /// An instruction invoking the Poseidon2 permutation.
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 #[repr(C)]
 pub struct Poseidon2SkinnyInstr<F> {
     pub addrs: Poseidon2Io<Address<F>>,
