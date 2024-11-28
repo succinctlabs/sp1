@@ -1,4 +1,4 @@
-//! An implementation of an exucutor for the SP1 RISC-V zkVM.
+//! An implementation of an executor for the SP1 RISC-V zkVM.
 
 #![warn(clippy::pedantic)]
 #![allow(clippy::similar_names)]
