@@ -139,9 +139,7 @@ impl CpuChip {
         cols.is_mem_store =
             F::from_bool(matches!(instruction.opcode, Opcode::SB | Opcode::SH | Opcode::SW));
         cols.is_branch = F::from_bool(instruction.is_branch_instruction());
-        cols.is_syscall =
-            F::from_bool(instruction.is_ecall_instruction() || instruction.is_unimp());
-        cols.is_halt_or_umimp = F::from_bool(instruction.is_halt_or_umimp());
+        cols.is_syscall = F::from_bool(instruction.is_ecall_instruction());
         *cols.op_a_access.value_mut() = event.a.into();
         *cols.op_b_access.value_mut() = event.b.into();
         *cols.op_c_access.value_mut() = event.c.into();
@@ -158,10 +156,8 @@ impl CpuChip {
         }
 
         let syscall_id = cols.op_a_access.prev_value[0];
-        cols.is_halt_or_umimp = F::from_bool(
-            syscall_id == F::from_canonical_u32(SyscallCode::HALT.syscall_id())
-                || instruction.is_unimp(),
-        );
+        cols.is_halt =
+            F::from_bool(syscall_id == F::from_canonical_u32(SyscallCode::HALT.syscall_id()));
 
         // Populate range checks for a.
         let a_bytes = cols

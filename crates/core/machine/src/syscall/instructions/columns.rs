@@ -25,10 +25,6 @@ pub struct SyscallInstrColumns<T> {
     /// The number of extra cycles to add to the clk for a syscall instruction.
     pub num_extra_cycles: T,
 
-    /// Whether the current instruction is an ecall instruction.
-    pub is_ecall: T,
-    /// Whether the current instruction is an unimpl instruction.
-    pub is_unimpl: T,
     /// Whether the current instruction is a halt instruction.  This is verified by the is_halt_check
     /// operation.
     pub is_halt: T,
@@ -70,4 +66,7 @@ pub struct SyscallInstrColumns<T> {
 
     /// The result of selectors.is_ecall * (is_halt || is_commit_deferred_proofs)
     pub ecall_range_check_operand: T,
+
+    /// Whether the current instruction is a real instruction.
+    pub is_real: T,
 }

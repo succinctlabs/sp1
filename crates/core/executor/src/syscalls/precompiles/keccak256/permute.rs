@@ -76,8 +76,7 @@ impl Syscall for Keccak256PermuteSyscall {
             state_addr: state_ptr,
             local_mem_access: rt.postprocess(),
         });
-        let syscall_event =
-            rt.rt.syscall_event(start_clk, syscall_code.syscall_id(), arg1, arg2, lookup_id);
+        let syscall_event = rt.rt.syscall_event(start_clk, syscall_code, arg1, arg2, lookup_id);
         rt.add_precompile_event(syscall_code, syscall_event, event);
 
         None

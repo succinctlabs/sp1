@@ -91,29 +91,24 @@ impl<F: PrimeField32> MachineAir<F> for SyscallChip {
 
             cols.shard = F::from_canonical_u32(syscall_event.shard);
             cols.clk = F::from_canonical_u32(syscall_event.clk);
-            cols.syscall_id = F::from_canonical_u32(syscall_event.syscall_id);
+            cols.syscall_id = F::from_canonical_u32(syscall_event.syscall_code.syscall_id());
             cols.nonce = F::from_canonical_u32(syscall_event.nonce);
             cols.arg1 = F::from_canonical_u32(syscall_event.arg1);
             cols.arg2 = F::from_canonical_u32(syscall_event.arg2);
             cols.is_real = F::one();
             row
         };
-
-        match self.shard_kind {
-            SyscallShardKind::Core => {
-                for event in input.syscall_events.iter() {
-                    let row = row_fn(event);
-                    rows.push(row);
-                }
-            }
+        let event_iter: Box<dyn Iterator<Item = &SyscallEvent>> = match self.shard_kind {
+            SyscallShardKind::Core => Box::new(input.syscall_events.iter()),
             SyscallShardKind::Precompile => {
-                for event in input.precompile_events.all_events().map(|(event, _)| event) {
-                    let row = row_fn(event);
-                    rows.push(row);
-                }
+                Box::new(input.precompile_events.all_events().map(|(event, _)| event))
             }
         };
 
+        for event in event_iter.filter(|event| event.syscall_code.should_send() == 1) {
+            let row = row_fn(event);
+            rows.push(row);
+        }
         // Pad the trace to a power of two depending on the proof shape in `input`.
         pad_rows_fixed(
             &mut rows,

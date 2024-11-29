@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use crate::syscalls::SyscallCode;
+
 use super::LookupId;
 
 /// Syscall Event.
@@ -14,8 +16,8 @@ pub struct SyscallEvent {
     pub clk: u32,
     /// The lookup id.
     pub lookup_id: LookupId,
-    /// The syscall id.
-    pub syscall_id: u32,
+    /// The syscall code.
+    pub syscall_code: SyscallCode,
     /// The first argument.
     pub arg1: u32,
     /// The second operand.

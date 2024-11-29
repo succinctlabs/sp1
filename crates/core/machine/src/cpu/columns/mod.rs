@@ -49,8 +49,8 @@ pub struct CpuCols<T: Copy> {
     /// Whether this is a syscall instruction.
     pub is_syscall: T,
 
-    /// Whether this is a halt or unimplemented instruction.
-    pub is_halt_or_umimp: T,
+    /// Whether this is a halt instruction.
+    pub is_halt: T,
 
     /// The number of extra cycles to add to the clk for a syscall instruction.
     pub num_extra_cycles: T,

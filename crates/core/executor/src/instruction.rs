@@ -111,9 +111,15 @@ impl Instruction {
         matches!(self.opcode, Opcode::DIV | Opcode::DIVU | Opcode::REM | Opcode::REMU)
     }
 
+    /// Returns if the instruction is an ebreak instruction.
+    #[must_use]
+    pub const fn is_ebreak_instruction(&self) -> bool {
+        matches!(self.opcode, Opcode::EBREAK)
+    }
+
     /// Returns if the instruction is an unimplemented instruction.
     #[must_use]
-    pub const fn is_unimp(&self) -> bool {
+    pub const fn is_unimp_instruction(&self) -> bool {
         matches!(self.opcode, Opcode::UNIMP)
     }
 }

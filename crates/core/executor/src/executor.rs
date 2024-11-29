@@ -611,7 +611,7 @@ impl<'a> Executor<'a> {
         pc: u32,
         next_pc: u32,
         instruction: &Instruction,
-        syscall: SyscallCode,
+        syscall_code: SyscallCode,
         a: u32,
         b: u32,
         c: u32,
@@ -637,9 +637,7 @@ impl<'a> Executor<'a> {
         } else if instruction.is_auipc_instruction() {
             self.emit_auipc_event(instruction.opcode, a, b, c);
         } else if instruction.is_ecall_instruction() {
-            if syscall.should_send() == 1 {
-                self.emit_syscall(clk, syscall.syscall_id(), b, c, syscall_lookup_id);
-            }
+            self.emit_syscall_event(clk, syscall_code, b, c, syscall_lookup_id);
         } else {
             unreachable!()
         }
@@ -808,7 +806,7 @@ impl<'a> Executor<'a> {
     pub(crate) fn syscall_event(
         &self,
         clk: u32,
-        syscall_id: u32,
+        syscall_code: SyscallCode,
         arg1: u32,
         arg2: u32,
         lookup_id: LookupId,
@@ -816,7 +814,7 @@ impl<'a> Executor<'a> {
         SyscallEvent {
             shard: self.shard(),
             clk,
-            syscall_id,
+            syscall_code,
             arg1,
             arg2,
             lookup_id,
@@ -824,15 +822,15 @@ impl<'a> Executor<'a> {
         }
     }
 
-    fn emit_syscall(
+    fn emit_syscall_event(
         &mut self,
         clk: u32,
-        syscall_id: u32,
+        syscall_code: SyscallCode,
         arg1: u32,
         arg2: u32,
         lookup_id: LookupId,
     ) {
-        let syscall_event = self.syscall_event(clk, syscall_id, arg1, arg2, lookup_id);
+        let syscall_event = self.syscall_event(clk, syscall_code, arg1, arg2, lookup_id);
 
         self.record.syscall_events.push(syscall_event);
     }
@@ -901,9 +899,12 @@ impl<'a> Executor<'a> {
     #[allow(clippy::too_many_lines)]
     fn execute_instruction(&mut self, instruction: &Instruction) -> Result<(), ExecutionError> {
         let pc = self.state.pc;
+        // The `clk` variable contains the cycle before the current instruction is executed.  The
+        // `state.clk` can be updated before the end of this function by precompiles' execution.
         let clk = self.state.clk;
         let mut exit_code = 0u32;
         let mut next_pc = self.state.pc.wrapping_add(4);
+        // Will be set to a non-default value if the instruction is a syscall.
         let mut syscall_lookup_id = LookupId::default();
 
         let (mut a, b, c): (u32, u32, u32);
@@ -949,9 +950,9 @@ impl<'a> Executor<'a> {
             self.rw(rd, a);
         } else if instruction.is_ecall_instruction() {
             (a, b, c, next_pc, syscall, syscall_lookup_id, exit_code) = self.execute_ecall()?;
-        } else if instruction.opcode.is_ebreak() {
+        } else if instruction.is_ebreak_instruction() {
             return Err(ExecutionError::Breakpoint());
-        } else if instruction.opcode.is_unimp() {
+        } else if instruction.is_unimp_instruction() {
             // See https://github.com/riscv-non-isa/riscv-asm-manual/blob/master/riscv-asm.md#instruction-aliases
             return Err(ExecutionError::Unimplemented());
         } else {

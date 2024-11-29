@@ -38,22 +38,16 @@ where
         let public_values: &PublicValues<Word<AB::PublicVar>, AB::PublicVar> =
             public_values_slice.as_slice().borrow();
 
-        builder.assert_bool(local.is_ecall);
-        builder.assert_bool(local.is_unimpl);
-        let is_real = local.is_ecall + local.is_unimpl;
-        builder.assert_bool(is_real.clone());
+        builder.assert_bool(local.is_real);
 
         // Verify that local.is_halt is correct.
         self.eval_is_halt_syscall(builder, local);
-
-        let opcode = local.is_ecall * Opcode::ECALL.as_field::<AB::F>()
-            + local.is_unimpl * Opcode::UNIMP.as_field::<AB::F>();
 
         builder.receive_instruction(
             local.pc,
             local.next_pc,
             local.num_extra_cycles,
-            opcode,
+            Opcode::ECALL.as_field::<AB::F>(),
             *local.op_a_access.value(),
             local.op_b_value,
             local.op_c_value,
@@ -62,8 +56,8 @@ where
             AB::Expr::zero(),
             AB::Expr::zero(),
             AB::Expr::one(),
-            local.is_halt + local.is_unimpl,
-            is_real.clone(),
+            local.is_halt,
+            local.is_real,
         );
 
         // Do the memory eval for op_a. For syscall instructions, we need to eval at register X5.
@@ -72,7 +66,7 @@ where
             local.clk + AB::F::from_canonical_u32(MemoryAccessPosition::A as u32),
             AB::Expr::from_canonical_u32(X5 as u32),
             &local.op_a_access,
-            local.is_ecall,
+            local.is_real,
         );
 
         // ECALL instruction.
@@ -128,7 +122,7 @@ impl SyscallInstrsChip {
                 syscall_id
                     - AB::Expr::from_canonical_u32(SyscallCode::ENTER_UNCONSTRAINED.syscall_id()),
                 local.is_enter_unconstrained,
-                local.is_ecall.into(),
+                local.is_real.into(),
             );
             local.is_enter_unconstrained.result
         };
@@ -139,7 +133,7 @@ impl SyscallInstrsChip {
                 builder,
                 syscall_id - AB::Expr::from_canonical_u32(SyscallCode::HINT_LEN.syscall_id()),
                 local.is_hint_len,
-                local.is_ecall.into(),
+                local.is_real.into(),
             );
             local.is_hint_len.result
         };
@@ -147,20 +141,20 @@ impl SyscallInstrsChip {
         // When syscall_id is ENTER_UNCONSTRAINED, the new value of op_a should be 0.
         let zero_word = Word::<AB::F>::from(0);
         builder
-            .when(local.is_ecall)
+            .when(local.is_real)
             .when(is_enter_unconstrained)
             .assert_word_eq(*local.op_a_access.value(), zero_word);
 
         // When the syscall is not one of ENTER_UNCONSTRAINED or HINT_LEN, op_a shouldn't change.
         builder
-            .when(local.is_ecall)
+            .when(local.is_real)
             .when_not(is_enter_unconstrained + is_hint_len)
             .assert_word_eq(*local.op_a_access.value(), *local.op_a_access.prev_value());
 
         // Verify value of ecall_range_check_operand column.
         builder.assert_eq(
             local.ecall_range_check_operand,
-            local.is_ecall * (local.is_halt_check.result + local.is_commit_deferred_proofs.result),
+            local.is_real * (local.is_halt_check.result + local.is_commit_deferred_proofs.result),
         );
 
         // Babybear range check the operand_to_check word.
@@ -187,31 +181,31 @@ impl SyscallInstrsChip {
         let mut bitmap_sum = AB::Expr::zero();
         // They should all be bools.
         for bit in local.index_bitmap.iter() {
-            builder.when(local.is_ecall).assert_bool(*bit);
+            builder.when(local.is_real).assert_bool(*bit);
             bitmap_sum = bitmap_sum.clone() + (*bit).into();
         }
         // When the syscall is COMMIT or COMMIT_DEFERRED_PROOFS, there should be one set bit.
         builder
-            .when(local.is_ecall)
+            .when(local.is_real)
             .when(is_commit.clone() + is_commit_deferred_proofs.clone())
             .assert_one(bitmap_sum.clone());
         // When it's some other syscall, there should be no set bits.
         builder
-            .when(local.is_ecall)
+            .when(local.is_real)
             .when(AB::Expr::one() - (is_commit.clone() + is_commit_deferred_proofs.clone()))
             .assert_zero(bitmap_sum);
 
         // Verify that word_idx corresponds to the set bit in index bitmap.
         for (i, bit) in local.index_bitmap.iter().enumerate() {
             builder
-                .when(local.is_ecall)
+                .when(local.is_real)
                 .when(*bit)
                 .assert_eq(local.op_b_value[0], AB::Expr::from_canonical_u32(i as u32));
         }
         // Verify that the 3 upper bytes of the word_idx are 0.
         for i in 0..3 {
             builder
-                .when(local.is_ecall)
+                .when(local.is_real)
                 .when(is_commit.clone() + is_commit_deferred_proofs.clone())
                 .assert_zero(local.op_b_value[i + 1]);
         }
@@ -227,7 +221,7 @@ impl SyscallInstrsChip {
 
         // Verify the public_values_digest_word.
         builder
-            .when(local.is_ecall)
+            .when(local.is_real)
             .when(is_commit.clone())
             .assert_word_eq(expected_pv_digest_word, digest_word);
 
@@ -236,12 +230,12 @@ impl SyscallInstrsChip {
 
         // Verify that the operand that was range checked is digest_word.
         builder
-            .when(local.is_ecall)
+            .when(local.is_real)
             .when(is_commit_deferred_proofs.clone())
             .assert_word_eq(digest_word, local.operand_to_check);
 
         builder
-            .when(local.is_ecall)
+            .when(local.is_real)
             .when(is_commit_deferred_proofs.clone())
             .assert_eq(expected_deferred_proofs_digest_element, digest_word.reduce::<AB>());
     }
@@ -280,13 +274,13 @@ impl SyscallInstrsChip {
                 builder,
                 syscall_id - AB::Expr::from_canonical_u32(SyscallCode::HALT.syscall_id()),
                 local.is_halt_check,
-                local.is_ecall.into(),
+                local.is_real.into(),
             );
             local.is_halt_check.result
         };
 
         // Verify that the is_halt flag is correct.
-        builder.assert_eq(local.is_halt, is_halt * local.is_ecall);
+        builder.assert_eq(local.is_halt, is_halt * local.is_real);
 
         local.is_halt.into()
     }
@@ -309,7 +303,7 @@ impl SyscallInstrsChip {
                 builder,
                 syscall_id - AB::Expr::from_canonical_u32(SyscallCode::COMMIT.syscall_id()),
                 local.is_commit,
-                local.is_ecall.into(),
+                local.is_real.into(),
             );
             local.is_commit.result
         };
@@ -323,7 +317,7 @@ impl SyscallInstrsChip {
                         SyscallCode::COMMIT_DEFERRED_PROOFS.syscall_id(),
                     ),
                 local.is_commit_deferred_proofs,
-                local.is_ecall.into(),
+                local.is_real.into(),
             );
             local.is_commit_deferred_proofs.result
         };
@@ -341,6 +335,6 @@ impl SyscallInstrsChip {
 
         let num_extra_cycles = syscall_code[2];
 
-        num_extra_cycles * local.is_ecall
+        num_extra_cycles * local.is_real
     }
 }

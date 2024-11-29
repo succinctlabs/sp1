@@ -54,7 +54,7 @@ where
             local.is_mem_store,
             local.is_branch,
             local.is_syscall,
-            local.is_halt_or_umimp,
+            local.is_halt,
             local.is_real,
         );
 
@@ -173,7 +173,7 @@ impl CpuChip {
         builder.when_transition().when_not(local.is_real).assert_zero(next.is_real);
 
         // If we're halting and it's a transition, then the next.is_real should be 0.
-        builder.when_transition().when(local.is_halt_or_umimp).assert_zero(next.is_real);
+        builder.when_transition().when(local.is_halt).assert_zero(next.is_real);
     }
 }
 

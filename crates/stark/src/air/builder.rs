@@ -193,7 +193,7 @@ pub trait InstructionAirBuilder: BaseAirBuilder {
         is_mem_store: impl Into<Self::Expr>,
         is_branch: impl Into<Self::Expr>,
         is_syscall: impl Into<Self::Expr>,
-        is_halt_or_unimpl: impl Into<Self::Expr>,
+        is_halt: impl Into<Self::Expr>,
         multiplicity: impl Into<Self::Expr>,
     ) {
         let values = once(pc.into())
@@ -208,7 +208,7 @@ pub trait InstructionAirBuilder: BaseAirBuilder {
             .chain(once(is_mem_store.into()))
             .chain(once(is_syscall.into()))
             .chain(once(is_branch.into()))
-            .chain(once(is_halt_or_unimpl.into()))
+            .chain(once(is_halt.into()))
             .collect();
 
         self.send(
@@ -233,7 +233,7 @@ pub trait InstructionAirBuilder: BaseAirBuilder {
         is_mem_store: impl Into<Self::Expr>,
         is_branch: impl Into<Self::Expr>,
         is_syscall: impl Into<Self::Expr>,
-        is_halt_or_unimpl: impl Into<Self::Expr>,
+        is_halt: impl Into<Self::Expr>,
         multiplicity: impl Into<Self::Expr>,
     ) {
         let values = once(pc.into())
@@ -248,7 +248,7 @@ pub trait InstructionAirBuilder: BaseAirBuilder {
             .chain(once(is_mem_store.into()))
             .chain(once(is_branch.into()))
             .chain(once(is_syscall.into()))
-            .chain(once(is_halt_or_unimpl.into()))
+            .chain(once(is_halt.into()))
             .collect();
 
         self.receive(
