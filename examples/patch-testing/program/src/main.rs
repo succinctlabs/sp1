@@ -85,14 +85,11 @@ fn test_curve25519_dalek() {
 
     // This y-coordinate is not square, and therefore not on the curve
     let limbs: [u64; 4] =
-        [8083970408152925034, 11907700107021980321, 16259949789167878387, 5695861037411660086];
+        [8083970408152925034, 11907700107021980321, 16259949789167878387, 5645861033211660086];
 
     // convert to bytes
-    let mut input_failing = [0u8; 32];
-    for (i, limb) in limbs.iter().enumerate() {
-        let bytes = limb.to_be_bytes();
-        input_failing[i..i + 8].copy_from_slice(&bytes);
-    }
+    let input_failing: [u8; 32] =
+        limbs.iter().flat_map(|l| l.to_be_bytes()).collect::<Vec<u8>>().try_into().unwrap();
 
     let y_passing = CompressedEdwardsY_dalek(input_passing);
 
