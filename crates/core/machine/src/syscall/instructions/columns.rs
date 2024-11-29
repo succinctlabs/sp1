@@ -29,6 +29,9 @@ pub struct SyscallInstrColumns<T> {
     pub is_ecall: T,
     /// Whether the current instruction is an unimpl instruction.
     pub is_unimpl: T,
+    /// Whether the current instruction is a halt instruction.  This is verified by the is_halt_check
+    /// operation.
+    pub is_halt: T,
 
     /// The access columns for the first operand.
     pub op_a_access: MemoryReadWriteCols<T>,
@@ -44,7 +47,7 @@ pub struct SyscallInstrColumns<T> {
     pub is_hint_len: IsZeroOperation<T>,
 
     /// Whether the current ecall is HALT.
-    pub is_halt: IsZeroOperation<T>,
+    pub is_halt_check: IsZeroOperation<T>,
 
     /// Whether the current ecall is a COMMIT.
     pub is_commit: IsZeroOperation<T>,

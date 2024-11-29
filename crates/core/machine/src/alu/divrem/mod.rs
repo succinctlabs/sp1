@@ -509,6 +509,7 @@ where
                 AB::Expr::zero(),
                 AB::Expr::zero(),
                 AB::Expr::zero(),
+                AB::Expr::zero(),
                 local.is_real,
             );
 
@@ -537,6 +538,7 @@ where
                 local.c,
                 AB::Expr::zero(),
                 local.upper_nonce,
+                AB::Expr::zero(),
                 AB::Expr::zero(),
                 AB::Expr::zero(),
                 AB::Expr::zero(),
@@ -704,6 +706,7 @@ where
                 AB::Expr::zero(),
                 AB::Expr::zero(),
                 AB::Expr::zero(),
+                AB::Expr::zero(),
                 local.abs_c_alu_event,
             );
             builder.send_instruction(
@@ -716,6 +719,7 @@ where
                 local.abs_remainder,
                 AB::Expr::zero(),
                 local.abs_rem_alu_event_nonce,
+                AB::Expr::zero(),
                 AB::Expr::zero(),
                 AB::Expr::zero(),
                 AB::Expr::zero(),
@@ -768,6 +772,7 @@ where
                 local.max_abs_c_or_1,
                 AB::Expr::zero(),
                 local.abs_nonce,
+                AB::Expr::zero(),
                 AB::Expr::zero(),
                 AB::Expr::zero(),
                 AB::Expr::zero(),
@@ -856,6 +861,7 @@ where
                 local.c,
                 AB::Expr::zero(),
                 local.nonce,
+                AB::Expr::zero(),
                 AB::Expr::zero(),
                 AB::Expr::zero(),
                 AB::Expr::zero(),

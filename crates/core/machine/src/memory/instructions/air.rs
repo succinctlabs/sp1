@@ -63,6 +63,7 @@ where
             local.is_sb + local.is_sh + local.is_sw,
             AB::Expr::zero(),
             AB::Expr::zero(),
+            AB::Expr::zero(),
             is_real,
         );
     }
@@ -108,6 +109,7 @@ impl MemoryInstructionsChip {
             local.op_c_value,
             AB::Expr::zero(),
             local.addr_word_nonce,
+            AB::Expr::zero(),
             AB::Expr::zero(),
             AB::Expr::zero(),
             AB::Expr::zero(),
@@ -206,6 +208,7 @@ impl MemoryInstructionsChip {
             signed_value,
             AB::Expr::zero(),
             local.unsigned_mem_val_nonce,
+            AB::Expr::zero(),
             AB::Expr::zero(),
             AB::Expr::zero(),
             AB::Expr::zero(),
