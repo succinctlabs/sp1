@@ -18,8 +18,8 @@ impl<F: PrimeField32> MachineAir<F> for ShaExtendChip {
 
     type Program = Program;
 
-    fn name(&self) -> String {
-        "ShaExtend".to_string()
+    fn name(&self) -> &'static str {
+        "ShaExtend"
     }
 
     fn generate_trace(

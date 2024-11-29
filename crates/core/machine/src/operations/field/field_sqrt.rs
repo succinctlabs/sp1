@@ -193,8 +193,8 @@ mod tests {
 
         type Program = Program;
 
-        fn name(&self) -> String {
-            "EdSqrtChip".to_string()
+        fn name(&self) -> &'static str {
+            "EdSqrtChip"
         }
 
         fn generate_trace(

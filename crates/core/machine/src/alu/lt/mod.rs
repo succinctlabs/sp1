@@ -97,8 +97,8 @@ impl<F: PrimeField32> MachineAir<F> for LtChip {
 
     type Program = Program;
 
-    fn name(&self) -> String {
-        "Lt".to_string()
+    fn name(&self) -> &'static str {
+        "Lt"
     }
 
     fn generate_trace(

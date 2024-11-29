@@ -161,7 +161,7 @@ pub fn dummy_vk_and_shard_proof<A: MachineAir<BabyBear>>(
                 <BabyBearPoseidon2 as StarkGenericConfig>::Challenge,
                 <BabyBearPoseidon2 as StarkGenericConfig>::Challenger,
             >>::natural_domain_for_degree(pcs, 1 << log_height);
-            (name.to_owned(), domain, Dimensions { width: *width, height: 1 << log_height })
+            (name.to_string(), domain, Dimensions { width: *width, height: 1 << log_height })
         })
         .collect();
 
@@ -169,7 +169,7 @@ pub fn dummy_vk_and_shard_proof<A: MachineAir<BabyBear>>(
     let preprocessed_chip_ordering = preprocessed_names_and_dimensions
         .iter()
         .enumerate()
-        .map(|(i, (name, _, _))| (name.to_owned(), i))
+        .map(|(i, (name, _, _))| (name.to_string(), i))
         .collect::<HashMap<_, _>>();
 
     let vk = StarkVerifyingKey {

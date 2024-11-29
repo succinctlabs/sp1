@@ -68,8 +68,8 @@ impl<F: PrimeField> MachineAir<F> for AddSubChip {
 
     type Program = Program;
 
-    fn name(&self) -> String {
-        "AddSub".to_string()
+    fn name(&self) -> &'static str {
+        "AddSub"
     }
 
     fn generate_trace(

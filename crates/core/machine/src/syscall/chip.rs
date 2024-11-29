@@ -70,8 +70,11 @@ impl<F: PrimeField32> MachineAir<F> for SyscallChip {
 
     type Program = Program;
 
-    fn name(&self) -> String {
-        format!("Syscall{}", self.shard_kind).to_string()
+    fn name(&self) -> &'static str {
+        match self.shard_kind {
+            SyscallShardKind::Core => "SyscallCore",
+            SyscallShardKind::Precompile => "SyscallPrecompile",
+        }
     }
 
     fn generate_dependencies(&self, _input: &ExecutionRecord, _output: &mut ExecutionRecord) {

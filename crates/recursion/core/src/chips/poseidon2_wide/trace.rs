@@ -1,4 +1,4 @@
-use std::{borrow::BorrowMut, mem::size_of};
+use std::{borrow::BorrowMut, mem::size_of, sync::OnceLock};
 
 use p3_air::BaseAir;
 use p3_field::PrimeField32;
@@ -33,8 +33,21 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
 
     type Program = RecursionProgram<F>;
 
-    fn name(&self) -> String {
-        format!("Poseidon2WideDeg{}", DEGREE)
+    fn name(&self) -> &'static str {
+        static NAME: OnceLock<&'static str> = OnceLock::new();
+
+        // Note: Rust Team will eventually provide a better way to do this.
+        // (<num>::to_string should be const)
+        //
+        // you could probably do this now using transpose and converting to ascii in a const fn
+
+        // Leak the str only once to avoid future allocations.
+        // This should be cleaned up by the system when the program exits.
+        // OnceLock ensures its only called once.
+        NAME.get_or_init(|| {
+            let name = format!("Poseidon2WideDeg{}", DEGREE);
+            Box::leak(name.into_boxed_str())
+        })
     }
 
     fn generate_dependencies(&self, _: &Self::Record, _: &mut Self::Record) {

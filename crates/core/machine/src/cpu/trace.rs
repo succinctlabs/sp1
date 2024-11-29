@@ -24,8 +24,8 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
 
     type Program = Program;
 
-    fn name(&self) -> String {
-        "CPU".to_string()
+    fn name(&self) -> &'static str {
+        "CPU"
     }
 
     fn generate_trace(
@@ -35,7 +35,7 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
     ) -> RowMajorMatrix<F> {
         let n_real_rows = input.cpu_events.len();
         let padded_nb_rows = if let Some(shape) = &input.shape {
-            1 << shape.inner[&MachineAir::<F>::name(self)]
+            1 << shape.inner[MachineAir::<F>::name(self)]
         } else if n_real_rows < 16 {
             16
         } else {

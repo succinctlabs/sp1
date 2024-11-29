@@ -129,8 +129,8 @@ impl<F: PrimeField> MachineAir<F> for MulChip {
 
     type Program = Program;
 
-    fn name(&self) -> String {
-        "Mul".to_string()
+    fn name(&self) -> &'static str {
+        "Mul"
     }
 
     fn generate_trace(

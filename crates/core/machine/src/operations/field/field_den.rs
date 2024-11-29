@@ -194,8 +194,8 @@ mod tests {
 
         type Program = Program;
 
-        fn name(&self) -> String {
-            "FieldDen".to_string()
+        fn name(&self) -> &'static str {
+            "FieldDen"
         }
 
         fn generate_trace(

@@ -88,17 +88,24 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> Default
 {
     fn default() -> Self {
         // Get the names of all the recursion airs to make the shape specification more readable.
-        let mem_const = RecursionAir::<F, DEGREE>::MemoryConst(MemoryConstChip::default()).name();
-        let mem_var = RecursionAir::<F, DEGREE>::MemoryVar(MemoryVarChip::default()).name();
-        let base_alu = RecursionAir::<F, DEGREE>::BaseAlu(BaseAluChip).name();
-        let ext_alu = RecursionAir::<F, DEGREE>::ExtAlu(ExtAluChip).name();
-        let poseidon2_wide =
-            RecursionAir::<F, DEGREE>::Poseidon2Wide(Poseidon2WideChip::<DEGREE>).name();
-        let batch_fri = RecursionAir::<F, DEGREE>::BatchFRI(BatchFRIChip::<DEGREE>).name();
-        let select = RecursionAir::<F, DEGREE>::Select(SelectChip).name();
+        let mem_const =
+            RecursionAir::<F, DEGREE>::MemoryConst(MemoryConstChip::default()).name().to_string();
+        let mem_var =
+            RecursionAir::<F, DEGREE>::MemoryVar(MemoryVarChip::default()).name().to_string();
+        let base_alu = RecursionAir::<F, DEGREE>::BaseAlu(BaseAluChip).name().to_string();
+        let ext_alu = RecursionAir::<F, DEGREE>::ExtAlu(ExtAluChip).name().to_string();
+        let poseidon2_wide = RecursionAir::<F, DEGREE>::Poseidon2Wide(Poseidon2WideChip::<DEGREE>)
+            .name()
+            .to_string();
+        let batch_fri =
+            RecursionAir::<F, DEGREE>::BatchFRI(BatchFRIChip::<DEGREE>).name().to_string();
+        let select = RecursionAir::<F, DEGREE>::Select(SelectChip).name().to_string();
         let exp_reverse_bits_len =
-            RecursionAir::<F, DEGREE>::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE>).name();
-        let public_values = RecursionAir::<F, DEGREE>::PublicValues(PublicValuesChip).name();
+            RecursionAir::<F, DEGREE>::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE>)
+                .name()
+                .to_string();
+        let public_values =
+            RecursionAir::<F, DEGREE>::PublicValues(PublicValuesChip).name().to_string();
 
         // Specify allowed shapes.
         let allowed_shapes = [

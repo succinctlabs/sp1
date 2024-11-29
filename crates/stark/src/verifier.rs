@@ -497,9 +497,9 @@ pub enum VerificationError<SC: StarkGenericConfig> {
     /// Out-of-domain evaluation mismatch.
     ///
     /// `constraints(zeta)` did not match `quotient(zeta) Z_H(zeta)`.
-    OodEvaluationMismatch(String),
+    OodEvaluationMismatch(&'static str),
     /// The shape of the opening arguments is invalid.
-    OpeningShapeError(String, OpeningShapeError),
+    OpeningShapeError(&'static str, OpeningShapeError),
     /// The cpu chip is missing.
     MissingCpuChip,
     /// The length of the chip opening does not match the expected length.

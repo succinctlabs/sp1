@@ -53,8 +53,8 @@ impl<F: PrimeField32> MachineAir<F> for PublicValuesChip {
 
     type Program = RecursionProgram<F>;
 
-    fn name(&self) -> String {
-        "PublicValues".to_string()
+    fn name(&self) -> &'static str {
+        "PublicValues"
     }
 
     fn generate_dependencies(&self, _: &Self::Record, _: &mut Self::Record) {

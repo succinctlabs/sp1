@@ -92,8 +92,8 @@ impl<F: PrimeField32> MachineAir<F> for U256x2048MulChip {
     type Record = ExecutionRecord;
     type Program = Program;
 
-    fn name(&self) -> String {
-        "U256XU2048Mul".to_string()
+    fn name(&self) -> &'static str {
+        "U256XU2048Mul"
     }
 
     fn generate_trace(

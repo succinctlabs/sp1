@@ -87,7 +87,7 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
                     let allowed_height =
                         if allowed_log_height != 0 { 1 << allowed_log_height } else { 0 };
                     if *height <= allowed_height {
-                        return Some((air.name(), allowed_log_height));
+                        return Some((air.name().to_string(), allowed_log_height));
                     }
                 }
                 None
@@ -132,12 +132,12 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
                         i
                     );
                     for (air, height) in heights.iter() {
-                        if shape.inner.contains_key(&air.name()) {
+                        if shape.inner.contains_key(air.name()) {
                             tracing::debug!(
                                 "Chip {:<20}: {:<3} -> {:<3}",
                                 air.name(),
                                 log2_ceil_usize(*height),
-                                shape.inner[&air.name()],
+                                shape.inner[air.name()],
                             );
                         }
                     }
@@ -208,9 +208,11 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
             .rev()
             .map(|rows_per_event| {
                 [
-                    (air.name(), allowed_log_height),
+                    (air.name().to_string(), allowed_log_height),
                     (
-                        RiscvAir::<F>::SyscallPrecompile(SyscallChip::precompile()).name(),
+                        RiscvAir::<F>::SyscallPrecompile(SyscallChip::precompile())
+                            .name()
+                            .to_string(),
                         ((1 << allowed_log_height)
                             .div_ceil(&air.rows_per_event())
                             .next_power_of_two()
@@ -218,7 +220,7 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
                             .max(4),
                     ),
                     (
-                        RiscvAir::<F>::MemoryLocal(MemoryLocalChip::new()).name(),
+                        RiscvAir::<F>::MemoryLocal(MemoryLocalChip::new()).name().to_string(),
                         (((1 << allowed_log_height) * mem_events_per_row)
                             .div_ceil(NUM_LOCAL_MEMORY_ENTRIES_PER_ROW * rows_per_event)
                             .next_power_of_two()
@@ -251,12 +253,12 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
         let preprocessed_heights = self
             .allowed_preprocessed_log_heights
             .iter()
-            .map(|(air, heights)| (air.name(), heights.clone()));
+            .map(|(air, heights)| (air.name().to_string(), heights.clone()));
 
         let mut memory_heights = self
             .memory_allowed_log_heights
             .iter()
-            .map(|(air, heights)| (air.name(), heights.clone()))
+            .map(|(air, heights)| (air.name().to_string(), heights.clone()))
             .collect::<HashMap<_, _>>();
         memory_heights.extend(preprocessed_heights.clone());
 
@@ -288,7 +290,7 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
                 Self::generate_all_shapes_from_allowed_log_heights({
                     let mut log_heights = allowed_log_heights
                         .iter()
-                        .map(|(air, heights)| (air.name(), heights.clone()))
+                        .map(|(air, heights)| (air.name().to_string(), heights.clone()))
                         .collect::<HashMap<_, _>>();
                     log_heights.extend(preprocessed_heights.clone());
                     log_heights
@@ -299,10 +301,10 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
     }
 
     pub fn maximal_core_shapes(&self) -> Vec<CoreShape> {
-        let max_preprocessed = self
-            .allowed_preprocessed_log_heights
-            .iter()
-            .map(|(air, allowed_heights)| (air.name(), allowed_heights.last().unwrap().unwrap()));
+        let max_preprocessed =
+            self.allowed_preprocessed_log_heights.iter().map(|(air, allowed_heights)| {
+                (air.name().to_string(), allowed_heights.last().unwrap().unwrap())
+            });
 
         let max_core_shapes = self
             .allowed_core_log_heights
@@ -313,7 +315,7 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
                 max_preprocessed
                     .clone()
                     .chain(allowed_log_heights.iter().map(|(air, allowed_heights)| {
-                        (air.name(), allowed_heights.last().unwrap().unwrap())
+                        (air.name().to_string(), allowed_heights.last().unwrap().unwrap())
                     }))
                     .collect::<CoreShape>()
             });
@@ -799,7 +801,7 @@ pub mod tests {
         let height_map = preprocessed_log_heights
             .into_iter()
             .chain(core_log_heights)
-            .map(|(air, log_height)| (air.name(), log_height))
+            .map(|(air, log_height)| (air.name().to_string(), log_height))
             .collect::<HashMap<_, _>>();
 
         let shape = CoreShape { inner: height_map };

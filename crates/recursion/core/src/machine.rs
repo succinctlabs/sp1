@@ -164,7 +164,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAi
                 (Self::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE>), 17),
                 (Self::PublicValues(PublicValuesChip), PUB_VALUES_LOG_HEIGHT),
             ]
-            .map(|(chip, log_height)| (chip.name(), log_height)),
+            .map(|(chip, log_height)| (chip.name().to_string(), log_height)),
         );
         RecursionShape { inner: shape }
     }
@@ -201,7 +201,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAi
             ),
             (Self::PublicValues(PublicValuesChip), PUB_VALUES_LOG_HEIGHT),
         ]
-        .map(|(chip, log_height)| (chip.name(), log_height))
+        .map(|(chip, log_height)| (chip.name().to_string(), log_height))
         .to_vec()
     }
 }

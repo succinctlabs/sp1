@@ -181,7 +181,7 @@ pub type PermutationNoSboxHalfExternal<T> = PermutationNoSbox<T>;
 
 pub fn permutation_mut<'a, 'b: 'a, T, const DEGREE: usize>(
     row: &'b mut [T],
-) -> Box<&mut (dyn Poseidon2Mut<T> + 'a)>
+) -> Box<&'b mut (dyn Poseidon2Mut<T> + 'a)>
 where
     T: Copy,
 {

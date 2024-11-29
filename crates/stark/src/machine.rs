@@ -160,13 +160,13 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
     {
         self.chips
             .iter()
-            .filter(|chip| chip_ordering.contains_key(&chip.name()))
-            .sorted_by_key(|chip| chip_ordering.get(&chip.name()))
+            .filter(|chip| chip_ordering.contains_key(chip.name()))
+            .sorted_by_key(|chip| chip_ordering.get(chip.name()))
     }
 
     /// Returns the indices of the chips in the machine that are included in the given shard.
     pub fn chips_sorted_indices(&self, proof: &ShardProof<SC>) -> Vec<Option<usize>> {
-        self.chips().iter().map(|chip| proof.chip_ordering.get(&chip.name()).copied()).collect()
+        self.chips().iter().map(|chip| proof.chip_ordering.get(chip.name()).copied()).collect()
     }
 
     /// The setup preprocessing phase.
@@ -204,15 +204,14 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
         });
 
         // Order the chips and traces by trace size (biggest first), and get the ordering map.
-        named_preprocessed_traces
-            .sort_by_key(|(name, _, trace)| (Reverse(trace.height()), name.clone()));
+        named_preprocessed_traces.sort_by_key(|(name, _, trace)| (Reverse(trace.height()), *name));
 
         let pcs = self.config.pcs();
         let (chip_information, domains_and_traces): (Vec<_>, Vec<_>) = named_preprocessed_traces
             .iter()
             .map(|(name, _, trace)| {
                 let domain = pcs.natural_domain_for_degree(trace.height());
-                ((name.to_owned(), domain, trace.dimensions()), (domain, trace.to_owned()))
+                (((*name).to_string(), domain, trace.dimensions()), (domain, trace.to_owned()))
             })
             .unzip();
 
@@ -224,7 +223,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
         let chip_ordering = named_preprocessed_traces
             .iter()
             .enumerate()
-            .map(|(i, (name, _, _))| (name.to_owned(), i))
+            .map(|(i, (name, _, _))| ((*name).to_string(), i))
             .collect::<HashMap<_, _>>();
 
         let local_only = named_preprocessed_traces
@@ -264,7 +263,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
             .iter()
             .filter(|chip| {
                 if let Some(chips_filter) = chips_filter {
-                    chips_filter.contains(&chip.name())
+                    chips_filter.iter().find(|name| name == &chip.name()).is_some()
                 } else {
                     true
                 }
@@ -399,7 +398,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
             // Generate the main trace for each chip.
             let pre_traces = chips
                 .iter()
-                .map(|chip| pk.chip_ordering.get(&chip.name()).map(|index| &pk.traces[*index]))
+                .map(|chip| pk.chip_ordering.get(chip.name()).map(|index| &pk.traces[*index]))
                 .collect::<Vec<_>>();
             let mut traces = chips
                 .par_iter()
@@ -466,7 +465,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
                 tracing::info_span!("debug constraints").in_scope(|| {
                     for i in 0..chips.len() {
                         let preprocessed_trace =
-                            pk.chip_ordering.get(&chips[i].name()).map(|index| &pk.traces[*index]);
+                            pk.chip_ordering.get(chips[i].name()).map(|index| &pk.traces[*index]);
                         debug_constraints::<SC, A>(
                             chips[i],
                             preprocessed_trace,

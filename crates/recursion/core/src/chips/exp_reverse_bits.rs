@@ -73,8 +73,8 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for ExpReverseBitsLenCh
 
     type Program = RecursionProgram<F>;
 
-    fn name(&self) -> String {
-        "ExpReverseBitsLen".to_string()
+    fn name(&self) -> &'static str {
+        "ExpReverseBitsLen"
     }
 
     fn generate_dependencies(&self, _: &Self::Record, _: &mut Self::Record) {

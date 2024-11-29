@@ -14,7 +14,7 @@ use crate::{
 #[derive(Debug)]
 pub struct InteractionData<F: Field> {
     /// The chip name.
-    pub chip_name: String,
+    pub chip_name: &'static str,
     /// The kind of interaction.
     pub kind: InteractionKind,
     /// The row of the interaction.
@@ -72,7 +72,7 @@ pub fn debug_interactions<SC: StarkGenericConfig, A: MachineAir<Val<SC>>>(
     let trace = chip.generate_trace(record, &mut A::Record::default());
     let mut pre_traces = pkey.traces.clone();
     let mut preprocessed_trace =
-        pkey.chip_ordering.get(&chip.name()).map(|&index| pre_traces.get_mut(index).unwrap());
+        pkey.chip_ordering.get(chip.name()).map(|&index| pre_traces.get_mut(index).unwrap());
     let mut main = trace.clone();
     let height = trace.clone().height();
 

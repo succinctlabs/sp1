@@ -44,8 +44,8 @@ impl<F: PrimeField32> MachineAir<F> for SelectChip {
 
     type Program = crate::RecursionProgram<F>;
 
-    fn name(&self) -> String {
-        "Select".to_string()
+    fn name(&self) -> &'static str {
+        "Select"
     }
 
     fn preprocessed_width(&self) -> usize {

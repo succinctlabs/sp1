@@ -19,8 +19,8 @@ impl<F: Field> MachineAir<F> for ByteChip<F> {
 
     type Program = Program;
 
-    fn name(&self) -> String {
-        "Byte".to_string()
+    fn name(&self) -> &'static str {
+        "Byte"
     }
 
     fn preprocessed_width(&self) -> usize {

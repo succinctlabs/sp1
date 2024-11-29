@@ -139,8 +139,8 @@ impl<F: PrimeField> MachineAir<F> for ShiftRightChip {
 
     type Program = Program;
 
-    fn name(&self) -> String {
-        "ShiftRight".to_string()
+    fn name(&self) -> &'static str {
+        "ShiftRight"
     }
 
     fn generate_trace(

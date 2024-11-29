@@ -40,7 +40,7 @@ impl CoreShape {
 
     /// Determines whether the execution record contains a trace for a given chip.
     pub fn included<F: PrimeField, A: MachineAir<F>>(&self, air: &A) -> bool {
-        self.inner.contains_key(&air.name())
+        self.inner.contains_key(air.name())
     }
 }
 

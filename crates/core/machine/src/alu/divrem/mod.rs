@@ -214,8 +214,8 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
 
     type Program = Program;
 
-    fn name(&self) -> String {
-        "DivRem".to_string()
+    fn name(&self) -> &'static str {
+        "DivRem"
     }
 
     fn generate_trace(
