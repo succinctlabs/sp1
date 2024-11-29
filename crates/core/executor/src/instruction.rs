@@ -110,6 +110,12 @@ impl Instruction {
     pub const fn is_divrem_instruction(&self) -> bool {
         matches!(self.opcode, Opcode::DIV | Opcode::DIVU | Opcode::REM | Opcode::REMU)
     }
+
+    /// Returns if the instruction is an unimplemented instruction.
+    #[must_use]
+    pub const fn is_unimp(&self) -> bool {
+        matches!(self.opcode, Opcode::UNIMP)
+    }
 }
 
 impl Debug for Instruction {
