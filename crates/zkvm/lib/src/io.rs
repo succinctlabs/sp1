@@ -18,6 +18,9 @@ pub const FD_ECRECOVER_HOOK: u32 = 5;
 /// The file descriptor through which to access `hook_ecrecover_2`.
 pub const FD_ECRECOVER_HOOK_2: u32 = 7;
 
+/// The file descriptor through which to access `hook_ed_decompress`.
+pub const FD_EDDECOMPRESS: u32 = 8;
+
 /// A writer that writes to a file descriptor inside the zkVM.
 struct SyscallWriter {
     fd: u32,
