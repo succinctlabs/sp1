@@ -1,0 +1,12 @@
+[workspace]
+members = [
+    "lib",
+    "program",
+]
+resolver = "2"
+
+[workspace.dependencies]
+alloy-sol-types = "0.7.7"
+sha2 = "0.10.8"
+sp1-zkvm = { version = "3.3.0", features = ["verify"] }
+serde = { version = "1.0.209", features = ["derive"] }
