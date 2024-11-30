@@ -267,7 +267,7 @@ impl SyscallInstrsChip {
         &self,
         builder: &mut AB,
         local: &SyscallInstrColumns<AB::Var>,
-    ) -> AB::Expr {
+    ) {
         // The syscall code is the read-in value of op_a at the start of the instruction.
         let syscall_code = local.op_a_access.prev_value();
 
@@ -286,8 +286,6 @@ impl SyscallInstrsChip {
 
         // Verify that the is_halt flag is correct.
         builder.assert_eq(local.is_halt, is_halt * local.is_real);
-
-        local.is_halt.into()
     }
 
     /// Returns two boolean expression indicating whether the instruction is a COMMIT or

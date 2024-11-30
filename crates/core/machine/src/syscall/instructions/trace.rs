@@ -39,7 +39,7 @@ impl<F: PrimeField32> MachineAir<F> for SyscallInstrsChip {
         let padded_nb_rows = next_power_of_two(nb_rows, size_log2);
         let mut values = zeroed_f_vec(padded_nb_rows * NUM_SYSCALL_INSTR_COLS);
 
-        let blue_events = values
+        let blu_events = values
             .chunks_mut(chunk_size * NUM_SYSCALL_INSTR_COLS)
             .enumerate()
             .par_bridge()
@@ -58,7 +58,7 @@ impl<F: PrimeField32> MachineAir<F> for SyscallInstrsChip {
             })
             .collect::<Vec<_>>();
 
-        output.add_byte_lookup_events_from_maps(blue_events.iter().collect_vec());
+        output.add_byte_lookup_events_from_maps(blu_events.iter().collect_vec());
 
         // Convert the trace to a row major matrix.
         RowMajorMatrix::new(values, NUM_SYSCALL_INSTR_COLS)
@@ -80,10 +80,16 @@ impl SyscallInstrsChip {
         cols: &mut SyscallInstrColumns<F>,
         byte_lookup_events: &mut impl ByteRecord,
     ) {
+        cols.is_real = F::one();
         cols.pc = F::from_canonical_u32(event.pc);
         cols.next_pc = F::from_canonical_u32(event.next_pc);
         cols.shard = F::from_canonical_u32(event.shard);
         cols.clk = F::from_canonical_u32(event.clk);
+
+        cols.op_a_access
+            .populate(event.a_record.expect("a_record is required"), byte_lookup_events);
+        cols.op_b_value = event.arg1.into();
+        cols.op_c_value = event.arg2.into();
 
         let syscall_id = cols.op_a_access.prev_value[0];
         let num_cycles = cols.op_a_access.prev_value[2];
@@ -91,11 +97,6 @@ impl SyscallInstrsChip {
         cols.num_extra_cycles = num_cycles;
         cols.is_halt =
             F::from_bool(syscall_id == F::from_canonical_u32(SyscallCode::HALT.syscall_id()));
-
-        cols.op_a_access
-            .populate(event.a_record.expect("a_record is required"), byte_lookup_events);
-        cols.op_b_value = event.arg1.into();
-        cols.op_c_value = event.arg2.into();
 
         // Populate `is_enter_unconstrained`.
         cols.is_enter_unconstrained.populate_from_field_element(

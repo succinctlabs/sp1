@@ -206,8 +206,8 @@ pub trait InstructionAirBuilder: BaseAirBuilder {
             .chain(once(op_a_0.into()))
             .chain(once(nonce.into()))
             .chain(once(is_mem_store.into()))
-            .chain(once(is_syscall.into()))
             .chain(once(is_branch.into()))
+            .chain(once(is_syscall.into()))
             .chain(once(is_halt.into()))
             .collect();
 
