@@ -7,7 +7,7 @@
 #![no_main]
 sp1_zkvm::entrypoint!(main);
 
-use recursive_lib::{cubic, verify_proof, merkle_tree_public_input, CircuitInput};
+use recursive_lib::{acc_cubic, verify_proof, merkle_tree_public_input, CircuitInput};
 
 pub fn main() {
     // Read prover's sequence number
@@ -18,10 +18,10 @@ pub fn main() {
     let circuit_input = sp1_zkvm::io::read::<CircuitInput>();
 
     // Do cubic computation
-    let result = cubic(circuit_input.public_value);
+    let result = acc_cubic(circuit_input.public_value, circuit_input.private_value);
     // Verify proof output by last prover 
     if seq != 0 {
-        verify_proof(&vkey_u32_hash, &circuit_input.public_input_merkle_root);
+        verify_proof(&vkey_u32_hash, &circuit_input.public_input_merkle_root, circuit_input.private_value);
     }
     // Construct a merkle root of all public inputs
     let merkle_root = merkle_tree_public_input(

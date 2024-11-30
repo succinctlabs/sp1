@@ -10,13 +10,14 @@
 //! RUST_LOG=info cargo run --release -- --prove
 //! ```
 
-use alloy_sol_types::SolType;
 use clap::Parser;
-use fibonacci_lib::PublicValuesStruct;
 use sp1_sdk::{include_elf, ProverClient, SP1Stdin};
+use recursive_lib::CircuitInput;
+use sp1_sdk::SP1Proof;
+use sp1_sdk::HashableKey;
 
 /// The ELF (executable and linkable format) file for the Succinct RISC-V zkVM.
-pub const FIBONACCI_ELF: &[u8] = include_elf!("fibonacci-program");
+pub const RECURSIVE_ELF: &[u8] = include_elf!("recursive-program");
 
 /// The arguments for the command.
 #[derive(Parser, Debug)]
@@ -43,49 +44,68 @@ fn main() {
         eprintln!("Error: You must specify either --execute or --prove");
         std::process::exit(1);
     }
-
-    // Setup the prover client.
-    let client = ProverClient::new();
-
-    // Setup the inputs.
-    let mut stdin = SP1Stdin::new();
-    stdin.write(&args.n);
-
-    println!("n: {}", args.n);
+    assert_eq!(args.n > 0, true, "n must be greater than 0");
+    let test_public_values = (0..args.n).map(|i| 100 + i).collect::<Vec<_>>();
 
     if args.execute {
-        // Execute the program
-        let (output, report) = client.execute(FIBONACCI_ELF, stdin).run().unwrap();
-        println!("Program executed successfully.");
+        let client = ProverClient::new();
+        let (recursive_prover_pk, recursive_prover_vk) = client.setup(RECURSIVE_ELF);
 
-        // Read the output.
-        let decoded = PublicValuesStruct::abi_decode(output.as_slice(), true).unwrap();
-        let PublicValuesStruct { n, a, b } = decoded;
-        println!("n: {}", n);
-        println!("a: {}", a);
-        println!("b: {}", b);
+        // For the very first prover 
+        // initialized public and private values for the very first prover 
+        let mut vkey_hash = [0u32; 8];
+        let mut public_input_merkle_root = [0u8; 32];
+        let mut public_value = test_public_values[0];
+        let mut private_value = 0u32;
+        let mut witness: Vec<u32> = vec![];
+        let mut circuit_input = CircuitInput::new(public_input_merkle_root, public_value, private_value, witness);
 
-        let (expected_a, expected_b) = fibonacci_lib::fibonacci(n);
-        assert_eq!(a, expected_a);
-        assert_eq!(b, expected_b);
-        println!("Values are correct!");
-
-        // Record the number of cycles executed.
-        println!("Number of cycles: {}", report.total_instruction_count());
-    } else {
-        // Setup the program for proving.
-        let (pk, vk) = client.setup(FIBONACCI_ELF);
-
-        // Generate the proof
-        let proof = client
-            .prove(&pk, stdin)
+        // just fill in STDIN
+        let mut stdin = SP1Stdin::new();
+        // write sequence number
+        stdin.write(&(0 as u32));
+        // write vkey u32 hash
+        stdin.write(&vkey_hash);
+        // write circuit input 
+        stdin.write(&circuit_input);
+        // generate proof for the very first prover
+        let mut last_prover_proof = client
+            .prove(&recursive_prover_pk, stdin)
+            .compressed()
             .run()
-            .expect("failed to generate proof");
+            .expect("proving failed");
+        println!("## Generating proof for the very first prover succeeds!");
 
-        println!("Successfully generated proof!");
+        // For the rest of the provers
+        for seq in 1..args.n {
+            // public and private values for the rest of provers
+            vkey_hash = recursive_prover_vk.hash_u32();
+            public_input_merkle_root = last_prover_proof.public_values.read::<[u8; 32]>();
+            private_value = last_prover_proof.public_values.read::<u32>();
+            public_value = test_public_values[seq as usize];
+            witness = test_public_values[..seq as usize].to_vec();
+            circuit_input = CircuitInput::new(public_input_merkle_root, public_value, private_value, witness);
+            
+            // just fill in STDIN
+            stdin = SP1Stdin::new();
+            stdin.write(&(seq as u32));
+            stdin.write(&vkey_hash);
+            stdin.write(&circuit_input);
+            let SP1Proof::Compressed(proof) = last_prover_proof.proof else {
+                panic!()
+            };
+            // write proof and vkey as private value
+            stdin.write_proof(*proof, recursive_prover_vk.vk.clone());
+            last_prover_proof = client
+                .prove(&recursive_prover_pk, stdin)
+                .compressed()
+                .run()
+                .expect("proving failed");
+            println!("## Generating proof for one of the rest provers succeeds!");
+        }
 
-        // Verify the proof.
-        client.verify(&proof, &vk).expect("failed to verify proof");
-        println!("Successfully verified proof!");
+            
+    } else {
+        unimplemented!();
     }
 }
