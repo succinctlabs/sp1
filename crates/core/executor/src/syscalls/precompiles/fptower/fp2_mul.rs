@@ -82,7 +82,8 @@ impl<P: FpOpField> Syscall for Fp2MulSyscall<P> {
             y_memory_records,
             local_mem_access: rt.postprocess(),
         };
-        let syscall_event = rt.rt.syscall_event(clk, syscall_code, arg1, arg2, event.lookup_id);
+        let syscall_event =
+            rt.rt.syscall_event(clk, None, syscall_code, arg1, arg2, event.lookup_id, rt.next_pc);
         match P::FIELD_TYPE {
             FieldType::Bn254 => rt.add_precompile_event(
                 syscall_code,

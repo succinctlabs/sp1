@@ -78,8 +78,15 @@ impl<E: EdwardsParameters> Syscall for EdwardsDecompressSyscall<E> {
             y_memory_records,
             local_mem_access: rt.postprocess(),
         };
-        let syscall_event =
-            rt.rt.syscall_event(start_clk, syscall_code, arg1, sign, event.lookup_id);
+        let syscall_event = rt.rt.syscall_event(
+            start_clk,
+            None,
+            syscall_code,
+            arg1,
+            sign,
+            event.lookup_id,
+            rt.next_pc,
+        );
         rt.add_precompile_event(syscall_code, syscall_event, PrecompileEvent::EdDecompress(event));
         None
     }

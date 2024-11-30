@@ -97,8 +97,15 @@ impl<P: FpOpField> Syscall for Fp2AddSubSyscall<P> {
                     _ => unreachable!(),
                 };
 
-                let syscall_event =
-                    rt.rt.syscall_event(clk, syscall_code, arg1, arg2, event.lookup_id);
+                let syscall_event = rt.rt.syscall_event(
+                    clk,
+                    None,
+                    syscall_code,
+                    arg1,
+                    arg2,
+                    event.lookup_id,
+                    rt.next_pc,
+                );
                 rt.add_precompile_event(
                     syscall_code_key,
                     syscall_event,
@@ -113,8 +120,15 @@ impl<P: FpOpField> Syscall for Fp2AddSubSyscall<P> {
                     _ => unreachable!(),
                 };
 
-                let syscall_event =
-                    rt.rt.syscall_event(clk, syscall_code, arg1, arg2, event.lookup_id);
+                let syscall_event = rt.rt.syscall_event(
+                    clk,
+                    None,
+                    syscall_code,
+                    arg1,
+                    arg2,
+                    event.lookup_id,
+                    rt.next_pc,
+                );
                 rt.add_precompile_event(
                     syscall_code_key,
                     syscall_event,

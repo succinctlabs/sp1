@@ -18,7 +18,7 @@ use crate::{
     events::{
         AUIPCEvent, AluEvent, BranchEvent, CpuEvent, JumpEvent, LookupId, MemInstrEvent,
         MemoryAccessPosition, MemoryInitializeFinalizeEvent, MemoryLocalEvent, MemoryReadRecord,
-        MemoryRecord, MemoryWriteRecord, SyscallEvent,
+        MemoryRecord, MemoryRecordEnum, MemoryWriteRecord, SyscallEvent,
     },
     hook::{HookEnv, HookRegistry},
     memory::{Entry, PagedMemory},
@@ -608,7 +608,6 @@ impl<'a> Executor<'a> {
     fn emit_events(
         &mut self,
         clk: u32,
-        pc: u32,
         next_pc: u32,
         instruction: &Instruction,
         syscall_code: SyscallCode,
@@ -622,7 +621,7 @@ impl<'a> Executor<'a> {
     ) {
         let lookup_id = self.record.create_lookup_id();
 
-        self.emit_cpu(clk, pc, next_pc, a, b, c, record, exit_code, lookup_id, syscall_lookup_id);
+        self.emit_cpu(clk, next_pc, a, b, c, record, exit_code, lookup_id, syscall_lookup_id);
 
         if instruction.is_alu_instruction() {
             self.emit_alu_event(instruction.opcode, a, b, c, lookup_id);
@@ -637,7 +636,7 @@ impl<'a> Executor<'a> {
         } else if instruction.is_auipc_instruction() {
             self.emit_auipc_event(instruction.opcode, a, b, c);
         } else if instruction.is_ecall_instruction() {
-            self.emit_syscall_event(clk, syscall_code, b, c, syscall_lookup_id);
+            self.emit_syscall_event(clk, record.a, syscall_code, b, c, syscall_lookup_id, next_pc);
         } else {
             unreachable!()
         }
@@ -649,7 +648,6 @@ impl<'a> Executor<'a> {
     fn emit_cpu(
         &mut self,
         clk: u32,
-        pc: u32,
         next_pc: u32,
         a: u32,
         b: u32,
@@ -661,7 +659,7 @@ impl<'a> Executor<'a> {
     ) {
         self.record.cpu_events.push(CpuEvent {
             clk,
-            pc,
+            pc: self.state.pc,
             next_pc,
             a,
             a_record: record.a,
@@ -802,35 +800,46 @@ impl<'a> Executor<'a> {
         emit_auipc_dependency(self, event);
     }
 
+    /// Create a syscall event.
+    #[allow(clippy::too_many_arguments)]
     #[inline]
     pub(crate) fn syscall_event(
         &self,
         clk: u32,
+        a_record: Option<MemoryRecordEnum>,
         syscall_code: SyscallCode,
         arg1: u32,
         arg2: u32,
         lookup_id: LookupId,
+        next_pc: u32,
     ) -> SyscallEvent {
         SyscallEvent {
             shard: self.shard(),
             clk,
+            pc: self.state.pc,
+            next_pc,
+            a_record,
             syscall_code,
             arg1,
             arg2,
-            lookup_id,
             nonce: self.record.nonce_lookup[lookup_id.0 as usize],
         }
     }
 
+    /// Emit a syscall event.
+    #[allow(clippy::too_many_arguments)]
     fn emit_syscall_event(
         &mut self,
         clk: u32,
+        a_record: Option<MemoryRecordEnum>,
         syscall_code: SyscallCode,
         arg1: u32,
         arg2: u32,
         lookup_id: LookupId,
+        next_pc: u32,
     ) {
-        let syscall_event = self.syscall_event(clk, syscall_code, arg1, arg2, lookup_id);
+        let syscall_event =
+            self.syscall_event(clk, a_record, syscall_code, arg1, arg2, lookup_id, next_pc);
 
         self.record.syscall_events.push(syscall_event);
     }
@@ -898,7 +907,6 @@ impl<'a> Executor<'a> {
     /// Execute the given instruction over the current state of the runtime.
     #[allow(clippy::too_many_lines)]
     fn execute_instruction(&mut self, instruction: &Instruction) -> Result<(), ExecutionError> {
-        let pc = self.state.pc;
         // The `clk` variable contains the cycle before the current instruction is executed.  The
         // `state.clk` can be updated before the end of this function by precompiles' execution.
         let clk = self.state.clk;
@@ -970,7 +978,6 @@ impl<'a> Executor<'a> {
         if self.executor_mode == ExecutorMode::Trace {
             self.emit_events(
                 clk,
-                pc,
                 next_pc,
                 instruction,
                 syscall,

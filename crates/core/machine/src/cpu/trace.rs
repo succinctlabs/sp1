@@ -155,9 +155,13 @@ impl CpuChip {
             cols.op_c_access.populate(record, blu_events);
         }
 
-        let syscall_id = cols.op_a_access.prev_value[0];
-        cols.is_halt =
-            F::from_bool(syscall_id == F::from_canonical_u32(SyscallCode::HALT.syscall_id()));
+        if instruction.is_ecall_instruction() {
+            let syscall_id = cols.op_a_access.prev_value[0];
+            let num_extra_cycles = cols.op_a_access.prev_value[2];
+            cols.is_halt =
+                F::from_bool(syscall_id == F::from_canonical_u32(SyscallCode::HALT.syscall_id()));
+            cols.num_extra_cycles = num_extra_cycles;
+        }
 
         // Populate range checks for a.
         let a_bytes = cols

@@ -60,6 +60,11 @@ where
             local.is_real,
         );
 
+        builder.assert_eq::<AB::Var, AB::Expr>(
+            local.num_extra_cycles,
+            self.get_num_extra_ecall_cycles::<AB>(local),
+        );
+
         // Do the memory eval for op_a. For syscall instructions, we need to eval at register X5.
         builder.eval_memory_access(
             local.shard,

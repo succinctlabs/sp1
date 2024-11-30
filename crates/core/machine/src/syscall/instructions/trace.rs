@@ -1,9 +1,23 @@
+use std::borrow::BorrowMut;
+
+use hashbrown::HashMap;
+use itertools::Itertools;
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
-use sp1_core_executor::{syscalls::SyscallCode, ExecutionRecord, Program};
+use rayon::iter::{ParallelBridge, ParallelIterator};
+use sp1_core_executor::{
+    events::{ByteLookupEvent, ByteRecord, SyscallEvent},
+    syscalls::SyscallCode,
+    ExecutionRecord, Program,
+};
 use sp1_stark::air::MachineAir;
 
-use super::SyscallInstrsChip;
+use crate::utils::{next_power_of_two, zeroed_f_vec};
+
+use super::{
+    columns::{SyscallInstrColumns, NUM_SYSCALL_INSTR_COLS},
+    SyscallInstrsChip,
+};
 
 impl<F: PrimeField32> MachineAir<F> for SyscallInstrsChip {
     type Record = ExecutionRecord;
@@ -17,80 +31,121 @@ impl<F: PrimeField32> MachineAir<F> for SyscallInstrsChip {
     fn generate_trace(
         &self,
         input: &ExecutionRecord,
-        _: &mut ExecutionRecord,
+        output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
-        let mut is_halt = false;
+        let chunk_size = std::cmp::max((input.syscall_events.len()) / num_cpus::get(), 1);
+        let nb_rows = input.syscall_events.len();
+        let size_log2 = input.fixed_log2_rows::<F, _>(self);
+        let padded_nb_rows = next_power_of_two(nb_rows, size_log2);
+        let mut values = zeroed_f_vec(padded_nb_rows * NUM_SYSCALL_INSTR_COLS);
 
-        if cols.selectors.is_ecall == F::one() {
-            // The send_to_table column is the 1st entry of the op_a_access column prev_value field.
-            // Look at `ecall_eval` in cpu/air/mod.rs for the corresponding constraint and
-            // explanation.
-            let ecall_cols = cols.opcode_specific_columns.ecall_mut();
+        let blue_events = values
+            .chunks_mut(chunk_size * NUM_SYSCALL_INSTR_COLS)
+            .enumerate()
+            .par_bridge()
+            .map(|(i, rows)| {
+                let mut blu: HashMap<ByteLookupEvent, usize> = HashMap::new();
+                rows.chunks_mut(NUM_SYSCALL_INSTR_COLS).enumerate().for_each(|(j, row)| {
+                    let idx = i * chunk_size + j;
+                    let cols: &mut SyscallInstrColumns<F> = row.borrow_mut();
 
-            cols.ecall_mul_send_to_table = cols.selectors.is_ecall * cols.op_a_access.prev_value[1];
+                    if idx < input.syscall_events.len() {
+                        let event = &input.syscall_events[idx];
+                        self.event_to_row(event, cols, &mut blu);
+                    }
+                });
+                blu
+            })
+            .collect::<Vec<_>>();
 
-            let syscall_id = cols.op_a_access.prev_value[0];
-            // let send_to_table = cols.op_a_access.prev_value[1];
-            // let num_cycles = cols.op_a_access.prev_value[2];
+        output.add_byte_lookup_events_from_maps(blue_events.iter().collect_vec());
 
-            // Populate `is_enter_unconstrained`.
-            ecall_cols.is_enter_unconstrained.populate_from_field_element(
-                syscall_id - F::from_canonical_u32(SyscallCode::ENTER_UNCONSTRAINED.syscall_id()),
-            );
+        // Convert the trace to a row major matrix.
+        RowMajorMatrix::new(values, NUM_SYSCALL_INSTR_COLS)
+    }
 
-            // Populate `is_hint_len`.
-            ecall_cols.is_hint_len.populate_from_field_element(
-                syscall_id - F::from_canonical_u32(SyscallCode::HINT_LEN.syscall_id()),
-            );
+    fn included(&self, shard: &Self::Record) -> bool {
+        if let Some(shape) = shard.shape.as_ref() {
+            shape.included::<F, _>(self)
+        } else {
+            !shard.syscall_events.is_empty()
+        }
+    }
+}
 
-            // Populate `is_halt`.
-            ecall_cols.is_halt.populate_from_field_element(
-                syscall_id - F::from_canonical_u32(SyscallCode::HALT.syscall_id()),
-            );
+impl SyscallInstrsChip {
+    fn event_to_row<F: PrimeField32>(
+        &self,
+        event: &SyscallEvent,
+        cols: &mut SyscallInstrColumns<F>,
+        byte_lookup_events: &mut impl ByteRecord,
+    ) {
+        cols.pc = F::from_canonical_u32(event.pc);
+        cols.next_pc = F::from_canonical_u32(event.next_pc);
+        cols.shard = F::from_canonical_u32(event.shard);
+        cols.clk = F::from_canonical_u32(event.clk);
 
-            // Populate `is_commit`.
-            ecall_cols.is_commit.populate_from_field_element(
-                syscall_id - F::from_canonical_u32(SyscallCode::COMMIT.syscall_id()),
-            );
+        let syscall_id = cols.op_a_access.prev_value[0];
+        let num_cycles = cols.op_a_access.prev_value[2];
 
-            // Populate `is_commit_deferred_proofs`.
-            ecall_cols.is_commit_deferred_proofs.populate_from_field_element(
-                syscall_id
-                    - F::from_canonical_u32(SyscallCode::COMMIT_DEFERRED_PROOFS.syscall_id()),
-            );
+        cols.num_extra_cycles = num_cycles;
+        cols.is_halt =
+            F::from_bool(syscall_id == F::from_canonical_u32(SyscallCode::HALT.syscall_id()));
 
-            // If the syscall is `COMMIT` or `COMMIT_DEFERRED_PROOFS`, set the index bitmap and
-            // digest word.
-            if syscall_id == F::from_canonical_u32(SyscallCode::COMMIT.syscall_id())
-                || syscall_id
-                    == F::from_canonical_u32(SyscallCode::COMMIT_DEFERRED_PROOFS.syscall_id())
-            {
-                let digest_idx = cols.op_b_access.value().to_u32() as usize;
-                ecall_cols.index_bitmap[digest_idx] = F::one();
-            }
+        cols.op_a_access
+            .populate(event.a_record.expect("a_record is required"), byte_lookup_events);
+        cols.op_b_value = event.arg1.into();
+        cols.op_c_value = event.arg2.into();
 
-            // Write the syscall nonce.
-            ecall_cols.syscall_nonce =
-                F::from_canonical_u32(nonce_lookup[event.syscall_lookup_id.0 as usize]);
+        // Populate `is_enter_unconstrained`.
+        cols.is_enter_unconstrained.populate_from_field_element(
+            syscall_id - F::from_canonical_u32(SyscallCode::ENTER_UNCONSTRAINED.syscall_id()),
+        );
 
-            is_halt = syscall_id == F::from_canonical_u32(SyscallCode::HALT.syscall_id());
+        // Populate `is_hint_len`.
+        cols.is_hint_len.populate_from_field_element(
+            syscall_id - F::from_canonical_u32(SyscallCode::HINT_LEN.syscall_id()),
+        );
 
-            // For halt and commit deferred proofs syscalls, we need to baby bear range check one of
-            // it's operands.
-            if is_halt {
-                ecall_cols.operand_to_check = event.b.into();
-                ecall_cols.operand_range_check_cols.populate(event.b);
-                cols.ecall_range_check_operand = F::one();
-            }
+        // Populate `is_halt`.
+        cols.is_halt_check.populate_from_field_element(
+            syscall_id - F::from_canonical_u32(SyscallCode::HALT.syscall_id()),
+        );
 
-            if syscall_id == F::from_canonical_u32(SyscallCode::COMMIT_DEFERRED_PROOFS.syscall_id())
-            {
-                ecall_cols.operand_to_check = event.c.into();
-                ecall_cols.operand_range_check_cols.populate(event.c);
-                cols.ecall_range_check_operand = F::one();
-            }
+        // Populate `is_commit`.
+        cols.is_commit.populate_from_field_element(
+            syscall_id - F::from_canonical_u32(SyscallCode::COMMIT.syscall_id()),
+        );
+
+        // Populate `is_commit_deferred_proofs`.
+        cols.is_commit_deferred_proofs.populate_from_field_element(
+            syscall_id - F::from_canonical_u32(SyscallCode::COMMIT_DEFERRED_PROOFS.syscall_id()),
+        );
+
+        // If the syscall is `COMMIT` or `COMMIT_DEFERRED_PROOFS`, set the index bitmap and
+        // digest word.
+        if syscall_id == F::from_canonical_u32(SyscallCode::COMMIT.syscall_id())
+            || syscall_id == F::from_canonical_u32(SyscallCode::COMMIT_DEFERRED_PROOFS.syscall_id())
+        {
+            let digest_idx = cols.op_b_value.to_u32() as usize;
+            cols.index_bitmap[digest_idx] = F::one();
         }
 
-        is_halt
+        // Write the syscall nonce.
+        cols.syscall_nonce = F::from_canonical_u32(event.nonce);
+
+        // For halt and commit deferred proofs syscalls, we need to baby bear range check one of
+        // it's operands.
+        if cols.is_halt == F::one() {
+            cols.operand_to_check = event.arg1.into();
+            cols.operand_range_check_cols.populate(event.arg1);
+            cols.ecall_range_check_operand = F::one();
+        }
+
+        if syscall_id == F::from_canonical_u32(SyscallCode::COMMIT_DEFERRED_PROOFS.syscall_id()) {
+            cols.operand_to_check = event.arg2.into();
+            cols.operand_range_check_cols.populate(event.arg2);
+            cols.ecall_range_check_operand = F::one();
+        }
     }
 }

@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::syscalls::SyscallCode;
 
-use super::LookupId;
+use super::MemoryRecordEnum;
 
 /// Syscall Event.
 ///
@@ -10,13 +10,17 @@ use super::LookupId;
 /// This includes its shard, clk, syscall id, arguments, other relevant information.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct SyscallEvent {
+    /// The program counter.
+    pub pc: u32,
+    /// The next program counter.
+    pub next_pc: u32,
     /// The shard number.
     pub shard: u32,
     /// The clock cycle.
     pub clk: u32,
+    /// The first operand memory record.
+    pub a_record: Option<MemoryRecordEnum>,
     /// The lookup id.
-    pub lookup_id: LookupId,
-    /// The syscall code.
     pub syscall_code: SyscallCode,
     /// The first argument.
     pub arg1: u32,
