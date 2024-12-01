@@ -55,6 +55,8 @@ where
             + local.is_bgeu * Opcode::BGEU.as_field::<AB::F>();
 
         builder.receive_instruction(
+            AB::Expr::zero(),
+            AB::Expr::zero(),
             local.pc.reduce::<AB>(),
             local.next_pc.reduce::<AB>(),
             AB::Expr::zero(),
@@ -63,7 +65,6 @@ where
             local.op_b_value,
             local.op_c_value,
             local.op_a_0,
-            AB::Expr::zero(),
             AB::Expr::zero(),
             AB::Expr::one(),
             AB::Expr::zero(),
@@ -89,6 +90,8 @@ where
 
             // When we are branching, calculate branch_cols.next_pc <==> branch_cols.pc + c.
             builder.send_instruction(
+                AB::Expr::zero(),
+                AB::Expr::zero(),
                 AB::Expr::from_canonical_u32(UNUSED_PC),
                 AB::Expr::from_canonical_u32(UNUSED_PC + DEFAULT_PC_INC),
                 AB::Expr::zero(),
@@ -98,7 +101,6 @@ where
                 local.op_c_value,
                 AB::Expr::zero(),
                 local.next_pc_nonce,
-                AB::Expr::zero(),
                 AB::Expr::zero(),
                 AB::Expr::zero(),
                 AB::Expr::zero(),
@@ -176,6 +178,8 @@ where
         // Calculate a_lt_b <==> a < b (using appropriate signedness).
         let use_signed_comparison = local.is_blt + local.is_bge;
         builder.send_instruction(
+            AB::Expr::zero(),
+            AB::Expr::zero(),
             AB::Expr::from_canonical_u32(UNUSED_PC),
             AB::Expr::from_canonical_u32(UNUSED_PC + DEFAULT_PC_INC),
             AB::Expr::zero(),
@@ -190,12 +194,13 @@ where
             AB::Expr::zero(),
             AB::Expr::zero(),
             AB::Expr::zero(),
-            AB::Expr::zero(),
             is_real.clone(),
         );
 
         // Calculate a_gt_b <==> a > b (using appropriate signedness).
         builder.send_instruction(
+            AB::Expr::zero(),
+            AB::Expr::zero(),
             AB::Expr::from_canonical_u32(UNUSED_PC),
             AB::Expr::from_canonical_u32(UNUSED_PC + DEFAULT_PC_INC),
             AB::Expr::zero(),
@@ -206,7 +211,6 @@ where
             local.op_a_value,
             AB::Expr::zero(),
             local.a_gt_b_nonce,
-            AB::Expr::zero(),
             AB::Expr::zero(),
             AB::Expr::zero(),
             AB::Expr::zero(),

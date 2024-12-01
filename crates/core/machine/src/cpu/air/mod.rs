@@ -41,7 +41,18 @@ where
         // Register constraints.
         self.eval_registers::<AB>(builder, local);
 
+        // Assert the shard and clk to send.
+        let expected_shard_to_send =
+            builder.if_else(local.is_memory + local.is_syscall, local.shard, AB::Expr::zero());
+        let expected_clk_to_send =
+            builder.if_else(local.is_memory + local.is_syscall, local.clk, AB::Expr::zero());
+        builder.when(local.is_real).assert_eq(local.shard_to_send, expected_shard_to_send);
+        builder.when(local.is_real).assert_eq(local.clk_to_send, expected_clk_to_send);
+
+        // Send the instruction.
         builder.send_instruction(
+            local.shard_to_send,
+            local.clk_to_send,
             local.pc,
             local.next_pc,
             local.num_extra_cycles,
@@ -51,8 +62,7 @@ where
             local.op_c_val(),
             local.instruction.op_a_0,
             local.nonce,
-            local.is_mem_store,
-            local.is_branch,
+            local.op_a_immutable,
             local.is_syscall,
             local.is_halt,
             local.is_real,

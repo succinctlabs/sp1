@@ -63,7 +63,7 @@ impl CpuChip {
 
         // If we are performing a branch or a store, then the value of `a` is the previous value.
         builder
-            .when(local.is_branch + local.is_mem_store)
+            .when(local.op_a_immutable)
             .assert_word_eq(local.op_a_val(), local.op_a_access.prev_value);
     }
 }

@@ -81,6 +81,8 @@ where
             + AB::Expr::from_canonical_u32(Opcode::EBREAK as u32) * local.is_ebreak;
 
         builder.receive_instruction(
+            AB::Expr::zero(),
+            AB::Expr::zero(),
             local.pc.reduce::<AB>(),
             local.pc.reduce::<AB>() + AB::Expr::from_canonical_u32(DEFAULT_PC_INC),
             AB::Expr::zero(),
@@ -88,7 +90,6 @@ where
             local.op_a_value,
             local.op_b_value,
             local.op_c_value,
-            AB::Expr::zero(),
             AB::Expr::zero(),
             AB::Expr::zero(),
             AB::Expr::zero(),
@@ -111,6 +112,8 @@ where
 
         // Verify that op_a == pc + op_b.
         builder.send_instruction(
+            AB::Expr::zero(),
+            AB::Expr::zero(),
             AB::Expr::from_canonical_u32(UNUSED_PC),
             AB::Expr::from_canonical_u32(UNUSED_PC + DEFAULT_PC_INC),
             AB::Expr::zero(),
@@ -120,7 +123,6 @@ where
             local.op_b_value,
             AB::Expr::zero(),
             local.auipc_nonce,
-            AB::Expr::zero(),
             AB::Expr::zero(),
             AB::Expr::zero(),
             AB::Expr::zero(),

@@ -497,6 +497,8 @@ where
 
             // The lower 4 bytes of c_times_quotient must match the lower 4 bytes of (c * quotient).
             builder.send_instruction(
+                AB::Expr::zero(),
+                AB::Expr::zero(),
                 AB::Expr::from_canonical_u32(UNUSED_PC),
                 AB::Expr::from_canonical_u32(UNUSED_PC + DEFAULT_PC_INC),
                 AB::Expr::zero(),
@@ -506,7 +508,6 @@ where
                 local.c,
                 AB::Expr::zero(),
                 local.lower_nonce,
-                AB::Expr::zero(),
                 AB::Expr::zero(),
                 AB::Expr::zero(),
                 AB::Expr::zero(),
@@ -529,6 +530,8 @@ where
             ];
 
             builder.send_instruction(
+                AB::Expr::zero(),
+                AB::Expr::zero(),
                 AB::Expr::from_canonical_u32(UNUSED_PC),
                 AB::Expr::from_canonical_u32(UNUSED_PC + DEFAULT_PC_INC),
                 AB::Expr::zero(),
@@ -538,7 +541,6 @@ where
                 local.c,
                 AB::Expr::zero(),
                 local.upper_nonce,
-                AB::Expr::zero(),
                 AB::Expr::zero(),
                 AB::Expr::zero(),
                 AB::Expr::zero(),
@@ -694,6 +696,8 @@ where
             // In the case that `c` or `rem` is negative, instead check that their sum is zero by
             // sending an AddEvent.
             builder.send_instruction(
+                AB::Expr::zero(),
+                AB::Expr::zero(),
                 AB::Expr::from_canonical_u32(UNUSED_PC),
                 AB::Expr::from_canonical_u32(UNUSED_PC + DEFAULT_PC_INC),
                 AB::Expr::zero(),
@@ -706,10 +710,11 @@ where
                 AB::Expr::zero(),
                 AB::Expr::zero(),
                 AB::Expr::zero(),
-                AB::Expr::zero(),
                 local.abs_c_alu_event,
             );
             builder.send_instruction(
+                AB::Expr::zero(),
+                AB::Expr::zero(),
                 AB::Expr::from_canonical_u32(UNUSED_PC),
                 AB::Expr::from_canonical_u32(UNUSED_PC + DEFAULT_PC_INC),
                 AB::Expr::zero(),
@@ -719,7 +724,6 @@ where
                 local.abs_remainder,
                 AB::Expr::zero(),
                 local.abs_rem_alu_event_nonce,
-                AB::Expr::zero(),
                 AB::Expr::zero(),
                 AB::Expr::zero(),
                 AB::Expr::zero(),
@@ -763,6 +767,8 @@ where
             // Dispatch abs(remainder) < max(abs(c), 1), this is equivalent to abs(remainder) <
             // abs(c) if not division by 0.
             builder.send_instruction(
+                AB::Expr::zero(),
+                AB::Expr::zero(),
                 AB::Expr::from_canonical_u32(UNUSED_PC),
                 AB::Expr::from_canonical_u32(UNUSED_PC + DEFAULT_PC_INC),
                 AB::Expr::zero(),
@@ -772,7 +778,6 @@ where
                 local.max_abs_c_or_1,
                 AB::Expr::zero(),
                 local.abs_nonce,
-                AB::Expr::zero(),
                 AB::Expr::zero(),
                 AB::Expr::zero(),
                 AB::Expr::zero(),
@@ -852,6 +857,8 @@ where
             };
 
             builder.receive_instruction(
+                AB::Expr::zero(),
+                AB::Expr::zero(),
                 local.pc,
                 local.pc + AB::Expr::from_canonical_u32(DEFAULT_PC_INC),
                 AB::Expr::zero(),
@@ -861,7 +868,6 @@ where
                 local.c,
                 AB::Expr::zero(),
                 local.nonce,
-                AB::Expr::zero(),
                 AB::Expr::zero(),
                 AB::Expr::zero(),
                 AB::Expr::zero(),

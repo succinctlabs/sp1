@@ -205,6 +205,8 @@ where
         // Receive the arguments.  There are separate receives for ADD and SUB.
         // For add, `add_operation.value` is `a`, `operand_1` is `b`, and `operand_2` is `c`.
         builder.receive_instruction(
+            AB::Expr::zero(),
+            AB::Expr::zero(),
             local.pc,
             local.pc + AB::Expr::from_canonical_u32(DEFAULT_PC_INC),
             AB::Expr::zero(),
@@ -217,12 +219,13 @@ where
             AB::Expr::zero(),
             AB::Expr::zero(),
             AB::Expr::zero(),
-            AB::Expr::zero(),
             local.is_add,
         );
 
         // For sub, `operand_1` is `a`, `add_operation.value` is `b`, and `operand_2` is `c`.
         builder.receive_instruction(
+            AB::Expr::zero(),
+            AB::Expr::zero(),
             local.pc,
             local.pc + AB::Expr::from_canonical_u32(DEFAULT_PC_INC),
             AB::Expr::zero(),
@@ -232,7 +235,6 @@ where
             local.operand_2,
             AB::Expr::zero(),
             local.nonce,
-            AB::Expr::zero(),
             AB::Expr::zero(),
             AB::Expr::zero(),
             AB::Expr::zero(),

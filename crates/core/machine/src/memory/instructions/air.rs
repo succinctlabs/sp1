@@ -51,6 +51,8 @@ where
 
         let opcode = self.compute_opcode::<AB>(local);
         builder.receive_instruction(
+            local.shard,
+            local.clk,
             local.pc,
             local.pc + AB::Expr::from_canonical_u32(DEFAULT_PC_INC),
             AB::Expr::zero(),
@@ -61,7 +63,6 @@ where
             local.op_a_0,
             AB::Expr::zero(),
             local.is_sb + local.is_sh + local.is_sw,
-            AB::Expr::zero(),
             AB::Expr::zero(),
             AB::Expr::zero(),
             is_real,
@@ -100,6 +101,8 @@ impl MemoryInstructionsChip {
     ) {
         // Send to the ALU table to verify correct calculation of addr_word.
         builder.send_instruction(
+            AB::Expr::zero(),
+            AB::Expr::zero(),
             AB::Expr::from_canonical_u32(UNUSED_PC),
             AB::Expr::from_canonical_u32(UNUSED_PC + DEFAULT_PC_INC),
             AB::Expr::from_canonical_u32(Opcode::ADD as u32),
@@ -109,7 +112,6 @@ impl MemoryInstructionsChip {
             local.op_c_value,
             AB::Expr::zero(),
             local.addr_word_nonce,
-            AB::Expr::zero(),
             AB::Expr::zero(),
             AB::Expr::zero(),
             AB::Expr::zero(),
@@ -199,6 +201,8 @@ impl MemoryInstructionsChip {
             AB::Expr::zero(),
         ]);
         builder.send_instruction(
+            AB::Expr::zero(),
+            AB::Expr::zero(),
             AB::Expr::from_canonical_u32(UNUSED_PC),
             AB::Expr::from_canonical_u32(UNUSED_PC + DEFAULT_PC_INC),
             AB::Expr::zero(),
@@ -208,7 +212,6 @@ impl MemoryInstructionsChip {
             signed_value,
             AB::Expr::zero(),
             local.unsigned_mem_val_nonce,
-            AB::Expr::zero(),
             AB::Expr::zero(),
             AB::Expr::zero(),
             AB::Expr::zero(),

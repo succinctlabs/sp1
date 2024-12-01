@@ -20,6 +20,7 @@ pub struct CpuCols<T: Copy> {
     /// The current shard.
     pub shard: T,
 
+    /// The nonce for ALU instructions.
     pub nonce: T,
 
     /// The clock cycle value.  This should be within 24 bits.
@@ -28,6 +29,13 @@ pub struct CpuCols<T: Copy> {
     pub clk_16bit_limb: T,
     /// The most significant 8 bit limb of clk.
     pub clk_8bit_limb: T,
+
+    /// The shard to send to the opcode specific tables.  This should be 0 for all instructions other   
+    /// than the ecall and memory instructions.
+    pub shard_to_send: T,
+    /// The clk to send to the opcode specific tables.  This should be 0 for all instructions other
+    /// than the ecall and memory instructions.
+    pub clk_to_send: T,
 
     /// The program counter value.
     pub pc: T,
@@ -38,11 +46,12 @@ pub struct CpuCols<T: Copy> {
     /// Columns related to the instruction.
     pub instruction: InstructionCols<T>,
 
-    /// Whether this is a memory store instruction.
-    pub is_mem_store: T,
+    /// Whether op_a should not be changed by the instruction.  This should be true for
+    /// memory store and branch instructions.
+    pub op_a_immutable: T,
 
-    /// Whether this is a branch instruction.
-    pub is_branch: T,
+    /// Whether this is a memory instruction.
+    pub is_memory: T,
 
     /// Whether this is a syscall instruction.
     pub is_syscall: T,

@@ -44,6 +44,8 @@ where
         self.eval_is_halt_syscall(builder, local);
 
         builder.receive_instruction(
+            local.shard,
+            local.clk,
             local.pc,
             local.next_pc,
             local.num_extra_cycles,
@@ -51,7 +53,6 @@ where
             *local.op_a_access.value(),
             local.op_b_value,
             local.op_c_value,
-            AB::Expr::zero(),
             AB::Expr::zero(),
             AB::Expr::zero(),
             AB::Expr::zero(),

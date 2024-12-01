@@ -388,6 +388,8 @@ where
 
         // Receive the arguments.
         builder.receive_instruction(
+            AB::Expr::zero(),
+            AB::Expr::zero(),
             local.pc,
             local.pc + AB::Expr::from_canonical_u32(DEFAULT_PC_INC),
             AB::Expr::zero(),
@@ -397,7 +399,6 @@ where
             local.c,
             AB::Expr::zero(),
             local.nonce,
-            AB::Expr::zero(),
             AB::Expr::zero(),
             AB::Expr::zero(),
             AB::Expr::zero(),

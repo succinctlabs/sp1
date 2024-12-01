@@ -30,6 +30,8 @@ where
             + local.is_jalr * Opcode::JALR.as_field::<AB::F>();
 
         builder.receive_instruction(
+            AB::Expr::zero(),
+            AB::Expr::zero(),
             local.pc.reduce::<AB>(),
             local.next_pc.reduce::<AB>(),
             AB::Expr::zero(),
@@ -38,7 +40,6 @@ where
             local.op_b_value,
             local.op_c_value,
             local.op_a_0,
-            AB::Expr::zero(),
             AB::Expr::zero(),
             AB::Expr::zero(),
             AB::Expr::zero(),
@@ -77,6 +78,8 @@ where
 
         // Verify that the new pc is calculated correctly for JAL instructions.
         builder.send_instruction(
+            AB::Expr::zero(),
+            AB::Expr::zero(),
             AB::Expr::from_canonical_u32(UNUSED_PC),
             AB::Expr::from_canonical_u32(UNUSED_PC + DEFAULT_PC_INC),
             AB::Expr::zero(),
@@ -89,12 +92,13 @@ where
             AB::Expr::zero(),
             AB::Expr::zero(),
             AB::Expr::zero(),
-            AB::Expr::zero(),
             local.is_jal,
         );
 
         // Verify that the new pc is calculated correctly for JALR instructions.
         builder.send_instruction(
+            AB::Expr::zero(),
+            AB::Expr::zero(),
             AB::Expr::from_canonical_u32(UNUSED_PC),
             AB::Expr::from_canonical_u32(UNUSED_PC + DEFAULT_PC_INC),
             AB::Expr::zero(),
@@ -104,7 +108,6 @@ where
             local.op_c_value,
             AB::Expr::zero(),
             local.jalr_nonce,
-            AB::Expr::zero(),
             AB::Expr::zero(),
             AB::Expr::zero(),
             AB::Expr::zero(),

@@ -4,7 +4,7 @@ use sp1_core_executor::{
     events::{ByteLookupEvent, ByteRecord, CpuEvent, MemoryRecordEnum},
     syscalls::SyscallCode,
     ByteOpcode::{self, U16Range},
-    ExecutionRecord, Instruction, Opcode, Program,
+    ExecutionRecord, Instruction, Program,
 };
 use sp1_stark::air::MachineAir;
 use std::borrow::BorrowMut;
@@ -136,13 +136,33 @@ impl CpuChip {
         cols.pc = F::from_canonical_u32(event.pc);
         cols.next_pc = F::from_canonical_u32(event.next_pc);
         cols.instruction.populate(instruction);
-        cols.is_mem_store =
-            F::from_bool(matches!(instruction.opcode, Opcode::SB | Opcode::SH | Opcode::SW));
-        cols.is_branch = F::from_bool(instruction.is_branch_instruction());
+        cols.op_a_immutable = F::from_bool(
+            instruction.is_memory_store_instruction() || instruction.is_branch_instruction(),
+        );
+        cols.is_memory = F::from_bool(
+            instruction.is_memory_load_instruction() || instruction.is_memory_store_instruction(),
+        );
         cols.is_syscall = F::from_bool(instruction.is_ecall_instruction());
         *cols.op_a_access.value_mut() = event.a.into();
         *cols.op_b_access.value_mut() = event.b.into();
         *cols.op_c_access.value_mut() = event.c.into();
+
+        cols.shard_to_send = if instruction.is_memory_load_instruction()
+            || instruction.is_memory_store_instruction()
+            || instruction.is_ecall_instruction()
+        {
+            cols.shard
+        } else {
+            F::zero()
+        };
+        cols.clk_to_send = if instruction.is_memory_load_instruction()
+            || instruction.is_memory_store_instruction()
+            || instruction.is_ecall_instruction()
+        {
+            cols.clk
+        } else {
+            F::zero()
+        };
 
         // Populate memory accesses for a, b, and c.
         if let Some(record) = event.a_record {

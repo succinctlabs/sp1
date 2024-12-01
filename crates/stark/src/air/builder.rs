@@ -181,6 +181,8 @@ pub trait InstructionAirBuilder: BaseAirBuilder {
     #[allow(clippy::too_many_arguments)]
     fn send_instruction(
         &mut self,
+        shard: impl Into<Self::Expr> + Clone,
+        clk: impl Into<Self::Expr> + Clone,
         pc: impl Into<Self::Expr>,
         next_pc: impl Into<Self::Expr>,
         num_extra_cycles: impl Into<Self::Expr>,
@@ -190,13 +192,14 @@ pub trait InstructionAirBuilder: BaseAirBuilder {
         c: Word<impl Into<Self::Expr>>,
         op_a_0: impl Into<Self::Expr>,
         nonce: impl Into<Self::Expr>,
-        is_mem_store: impl Into<Self::Expr>,
-        is_branch: impl Into<Self::Expr>,
+        op_a_immutable: impl Into<Self::Expr>,
         is_syscall: impl Into<Self::Expr>,
         is_halt: impl Into<Self::Expr>,
         multiplicity: impl Into<Self::Expr>,
     ) {
-        let values = once(pc.into())
+        let values = once(shard.into())
+            .chain(once(clk.into()))
+            .chain(once(pc.into()))
             .chain(once(next_pc.into()))
             .chain(once(num_extra_cycles.into()))
             .chain(once(opcode.into()))
@@ -205,8 +208,7 @@ pub trait InstructionAirBuilder: BaseAirBuilder {
             .chain(c.0.into_iter().map(Into::into))
             .chain(once(op_a_0.into()))
             .chain(once(nonce.into()))
-            .chain(once(is_mem_store.into()))
-            .chain(once(is_branch.into()))
+            .chain(once(op_a_immutable.into()))
             .chain(once(is_syscall.into()))
             .chain(once(is_halt.into()))
             .collect();
@@ -221,6 +223,8 @@ pub trait InstructionAirBuilder: BaseAirBuilder {
     #[allow(clippy::too_many_arguments)]
     fn receive_instruction(
         &mut self,
+        shard: impl Into<Self::Expr> + Clone,
+        clk: impl Into<Self::Expr> + Clone,
         pc: impl Into<Self::Expr>,
         next_pc: impl Into<Self::Expr>,
         num_extra_cycles: impl Into<Self::Expr>,
@@ -230,13 +234,14 @@ pub trait InstructionAirBuilder: BaseAirBuilder {
         c: Word<impl Into<Self::Expr>>,
         op_a_0: impl Into<Self::Expr>,
         nonce: impl Into<Self::Expr>,
-        is_mem_store: impl Into<Self::Expr>,
-        is_branch: impl Into<Self::Expr>,
+        op_a_immutable: impl Into<Self::Expr>,
         is_syscall: impl Into<Self::Expr>,
         is_halt: impl Into<Self::Expr>,
         multiplicity: impl Into<Self::Expr>,
     ) {
-        let values = once(pc.into())
+        let values = once(shard.into())
+            .chain(once(clk.into()))
+            .chain(once(pc.into()))
             .chain(once(next_pc.into()))
             .chain(once(num_extra_cycles.into()))
             .chain(once(opcode.into()))
@@ -245,8 +250,7 @@ pub trait InstructionAirBuilder: BaseAirBuilder {
             .chain(c.0.into_iter().map(Into::into))
             .chain(once(op_a_0.into()))
             .chain(once(nonce.into()))
-            .chain(once(is_mem_store.into()))
-            .chain(once(is_branch.into()))
+            .chain(once(op_a_immutable.into()))
             .chain(once(is_syscall.into()))
             .chain(once(is_halt.into()))
             .collect();
