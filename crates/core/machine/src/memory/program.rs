@@ -11,14 +11,17 @@ use crate::{operations::GlobalAccumulationOperation, operations::GlobalInteracti
 use hashbrown::HashMap;
 use p3_field::PrimeField32;
 use p3_maybe_rayon::prelude::{ParallelBridge, ParallelIterator};
-use sp1_core_executor::events::ByteLookupEvent;
 use sp1_core_executor::events::ByteRecord;
+use sp1_core_executor::events::{ByteLookupEvent, GlobalInteractionEvent};
 use sp1_core_executor::{ExecutionRecord, Program};
 use sp1_derive::AlignedBorrow;
 use sp1_stark::{
-    air::{InteractionScope, MachineAir, PublicValues, SP1AirBuilder, SP1_PROOF_NUM_PV_ELTS},
+    air::{
+        AirInteraction, InteractionScope, MachineAir, PublicValues, SP1AirBuilder,
+        SP1_PROOF_NUM_PV_ELTS,
+    },
     septic_digest::SepticDigest,
-    Word,
+    InteractionKind, Word,
 };
 
 use crate::{
@@ -50,12 +53,11 @@ pub struct MemoryProgramMultCols<T: Copy> {
 
     /// Whether the shard is the first shard.
     pub is_first_shard: IsZeroOperation<T>,
+    // The columns for the global interaction.
+    // pub global_interaction_cols: GlobalInteractionOperation<T>,
 
-    /// The columns for the global interaction.
-    pub global_interaction_cols: GlobalInteractionOperation<T>,
-
-    /// The columns for accumulating the elliptic curve digests.
-    pub global_accumulation_cols: GlobalAccumulationOperation<T, 1>,
+    // The columns for accumulating the elliptic curve digests.
+    // pub global_accumulation_cols: GlobalAccumulationOperation<T, 1>,
 }
 
 /// Chip that initializes memory that is provided from the program. The table is preprocessed and
@@ -119,18 +121,34 @@ impl<F: PrimeField32> MachineAir<F> for MemoryProgramChip {
     fn generate_dependencies(&self, input: &ExecutionRecord, output: &mut ExecutionRecord) {
         let program_memory = &input.program.memory_image;
 
-        let mult_bool = input.public_values.shard == 1;
+        // let mult_bool = input.public_values.shard == 1;
 
-        let mut blu: HashMap<u32, HashMap<ByteLookupEvent, usize>> = HashMap::new();
+        // let mut blu: HashMap<u32, HashMap<ByteLookupEvent, usize>> = HashMap::new();
 
-        program_memory.iter().for_each(|(&_addr, &word)| {
-            let mut row = [F::zero(); NUM_MEMORY_PROGRAM_MULT_COLS];
-            let cols: &mut MemoryProgramMultCols<F> = row.as_mut_slice().borrow_mut();
-            cols.global_interaction_cols
-                .populate_memory_range_check_witness(0, word, mult_bool, &mut blu);
+        let mut events = Vec::new();
+        program_memory.iter().for_each(|(&addr, &word)| {
+            // let mut row = [F::zero(); NUM_MEMORY_PROGRAM_MULT_COLS];
+            // let cols: &mut MemoryProgramMultCols<F> = row.as_mut_slice().borrow_mut();
+            // cols.global_interaction_cols
+            //     .populate_memory_range_check_witness(0, word, mult_bool, &mut blu);
+
+            events.push(GlobalInteractionEvent {
+                message: [
+                    0,
+                    0,
+                    addr,
+                    word & 255,
+                    (word >> 8) & 255,
+                    (word >> 16) & 255,
+                    (word >> 24) & 255,
+                ],
+                is_receive: false,
+            });
         });
 
-        output.add_sharded_byte_lookup_events(vec![&blu]);
+        output.global_interaction_events.extend(events);
+
+        // output.add_sharded_byte_lookup_events(vec![&blu]);
     }
 
     fn generate_trace(
@@ -152,12 +170,12 @@ impl<F: PrimeField32> MachineAir<F> for MemoryProgramChip {
                 let cols: &mut MemoryProgramMultCols<F> = row.as_mut_slice().borrow_mut();
                 cols.multiplicity = mult;
                 cols.is_first_shard.populate(input.public_values.shard - 1);
-                cols.global_interaction_cols.populate_memory(0, 0, addr, word, false, mult_bool);
-                cols.global_accumulation_cols.populate(
-                    &mut global_cumulative_sum,
-                    [cols.global_interaction_cols],
-                    [cols.multiplicity],
-                );
+                // cols.global_interaction_cols.populate_memory(0, 0, addr, word, false, mult_bool);
+                // cols.global_accumulation_cols.populate(
+                //     &mut global_cumulative_sum,
+                //     [cols.global_interaction_cols],
+                //     [cols.multiplicity],
+                // );
                 row
             })
             .collect::<Vec<_>>();
@@ -180,12 +198,12 @@ impl<F: PrimeField32> MachineAir<F> for MemoryProgramChip {
             let cols: &mut MemoryProgramMultCols<F> = trace.values
                 [i * NUM_MEMORY_PROGRAM_MULT_COLS..(i + 1) * NUM_MEMORY_PROGRAM_MULT_COLS]
                 .borrow_mut();
-            cols.global_interaction_cols.populate_dummy();
-            cols.global_accumulation_cols.populate(
-                &mut global_cumulative_sum,
-                [cols.global_interaction_cols],
-                [cols.multiplicity],
-            );
+            // cols.global_interaction_cols.populate_dummy();
+            // cols.global_accumulation_cols.populate(
+            //     &mut global_cumulative_sum,
+            //     [cols.global_interaction_cols],
+            //     [cols.multiplicity],
+            // );
         }
 
         trace
@@ -196,7 +214,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryProgramChip {
     }
 
     fn commit_scope(&self) -> InteractionScope {
-        InteractionScope::Global
+        InteractionScope::Local
     }
 }
 
@@ -250,25 +268,46 @@ where
 
         let mut values = vec![AB::Expr::zero(), AB::Expr::zero(), prep_local.addr.into()];
         values.extend(prep_local.value.map(Into::into));
-        GlobalInteractionOperation::<AB::F>::eval_single_digest_memory(
-            builder,
-            AB::Expr::zero(),
-            AB::Expr::zero(),
-            prep_local.addr.into(),
-            prep_local.value.map(Into::into).0,
-            mult_local.global_interaction_cols,
-            mult_local.multiplicity * AB::Expr::zero(),
-            mult_local.multiplicity * AB::Expr::one(),
-            mult_local.multiplicity,
+
+        // TODO: need to send is_send or is_receive here
+        builder.send(
+            AirInteraction::new(
+                vec![
+                    AB::Expr::zero(),
+                    AB::Expr::zero(),
+                    prep_local.addr.into(),
+                    prep_local.value[0].into(),
+                    prep_local.value[1].into(),
+                    prep_local.value[2].into(),
+                    prep_local.value[3].into(),
+                    prep_local.is_real.into() * AB::Expr::zero(),
+                    prep_local.is_real.into() * AB::Expr::one(),
+                ],
+                prep_local.is_real.into(),
+                InteractionKind::Memory,
+            ),
+            InteractionScope::Local,
         );
 
-        GlobalAccumulationOperation::<AB::F, 1>::eval_accumulation(
-            builder,
-            [mult_local.global_interaction_cols],
-            [mult_local.multiplicity],
-            [mult_next.multiplicity],
-            mult_local.global_accumulation_cols,
-            mult_next.global_accumulation_cols,
-        );
+        // GlobalInteractionOperation::<AB::F>::eval_single_digest_memory(
+        //     builder,
+        //     AB::Expr::zero(),
+        //     AB::Expr::zero(),
+        //     prep_local.addr.into(),
+        //     prep_local.value.map(Into::into).0,
+        //     mult_local.global_interaction_cols,
+        //     mult_local.multiplicity * AB::Expr::zero(),
+        //     mult_local.multiplicity * AB::Expr::one(),
+        //     mult_local.multiplicity,
+        // );
+
+        // GlobalAccumulationOperation::<AB::F, 1>::eval_accumulation(
+        //     builder,
+        //     [mult_local.global_interaction_cols],
+        //     [mult_local.multiplicity],
+        //     [mult_next.multiplicity],
+        //     mult_local.global_accumulation_cols,
+        //     mult_next.global_accumulation_cols,
+        // );
     }
 }

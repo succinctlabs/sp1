@@ -8,7 +8,7 @@ use rayon::iter::{
     ParallelIterator,
 };
 use rayon_scan::ScanParallelIterator;
-use sp1_core_executor::{ExecutionRecord, Program};
+use sp1_core_executor::{events::GlobalInteractionEvent, ExecutionRecord, Program};
 use sp1_stark::{
     air::{AirInteraction, InteractionScope, MachineAir, SP1AirBuilder},
     septic_curve::{SepticCurve, SepticCurveComplete},
@@ -40,11 +40,6 @@ pub struct GlobalCols<T: Copy> {
     pub accumulation: GlobalAccumulationOperation<T, 1>,
 }
 
-pub struct GlobalInteractionEvent {
-    pub message: [u32; 7],
-    pub is_receive: bool,
-}
-
 impl<F: PrimeField32> MachineAir<F> for GlobalChip {
     type Record = ExecutionRecord;
 
@@ -55,34 +50,7 @@ impl<F: PrimeField32> MachineAir<F> for GlobalChip {
     }
 
     fn generate_trace(&self, input: &Self::Record, output: &mut Self::Record) -> RowMajorMatrix<F> {
-        let mut events = Vec::with_capacity(input.get_local_mem_events().count() * 2);
-
-        input.get_local_mem_events().for_each(|mem_event| {
-            events.push(GlobalInteractionEvent {
-                message: [
-                    mem_event.initial_mem_access.shard,
-                    mem_event.initial_mem_access.timestamp,
-                    mem_event.addr,
-                    mem_event.initial_mem_access.value & 255,
-                    (mem_event.initial_mem_access.value >> 8) & 255,
-                    (mem_event.initial_mem_access.value >> 16) & 255,
-                    (mem_event.initial_mem_access.value >> 24) & 255,
-                ],
-                is_receive: true,
-            });
-            events.push(GlobalInteractionEvent {
-                message: [
-                    mem_event.final_mem_access.shard,
-                    mem_event.final_mem_access.timestamp,
-                    mem_event.addr,
-                    mem_event.final_mem_access.value & 255,
-                    (mem_event.final_mem_access.value >> 8) & 255,
-                    (mem_event.final_mem_access.value >> 16) & 255,
-                    (mem_event.final_mem_access.value >> 24) & 255,
-                ],
-                is_receive: false,
-            });
-        });
+        let events = &input.global_interaction_events;
 
         let nb_rows = events.len();
         println!("nb_rows: {}", nb_rows);
@@ -196,7 +164,17 @@ where
 
         builder.receive(
             AirInteraction::new(
-                local.message.to_vec().into_iter().map(Into::into).collect(),
+                vec![
+                    local.message[0].into(),
+                    local.message[1].into(),
+                    local.message[2].into(),
+                    local.message[3].into(),
+                    local.message[4].into(),
+                    local.message[5].into(),
+                    local.message[6].into(),
+                    local.is_send.into(),
+                    local.is_receive.into(),
+                ],
                 local.is_real.into(),
                 InteractionKind::Memory,
             ),

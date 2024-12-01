@@ -16,8 +16,8 @@ use p3_maybe_rayon::prelude::IntoParallelIterator;
 use p3_maybe_rayon::prelude::IntoParallelRefMutIterator;
 use p3_maybe_rayon::prelude::{ParallelBridge, ParallelIterator, ParallelSlice};
 use rayon_scan::ScanParallelIterator;
-use sp1_core_executor::events::ByteLookupEvent;
 use sp1_core_executor::events::ByteRecord;
+use sp1_core_executor::events::{ByteLookupEvent, GlobalInteractionEvent};
 use sp1_core_executor::{ExecutionRecord, Program};
 use sp1_derive::AlignedBorrow;
 use sp1_stark::{
@@ -120,6 +120,38 @@ impl<F: PrimeField32> MachineAir<F> for MemoryLocalChip {
     }
 
     fn generate_dependencies(&self, input: &ExecutionRecord, output: &mut ExecutionRecord) {
+        let mut events = Vec::new();
+        println!("local mem events: {}", input.get_local_mem_events().count());
+
+        input.get_local_mem_events().for_each(|mem_event| {
+            events.push(GlobalInteractionEvent {
+                message: [
+                    mem_event.initial_mem_access.shard,
+                    mem_event.initial_mem_access.timestamp,
+                    mem_event.addr,
+                    mem_event.initial_mem_access.value & 255,
+                    (mem_event.initial_mem_access.value >> 8) & 255,
+                    (mem_event.initial_mem_access.value >> 16) & 255,
+                    (mem_event.initial_mem_access.value >> 24) & 255,
+                ],
+                is_receive: true,
+            });
+            events.push(GlobalInteractionEvent {
+                message: [
+                    mem_event.final_mem_access.shard,
+                    mem_event.final_mem_access.timestamp,
+                    mem_event.addr,
+                    mem_event.final_mem_access.value & 255,
+                    (mem_event.final_mem_access.value >> 8) & 255,
+                    (mem_event.final_mem_access.value >> 16) & 255,
+                    (mem_event.final_mem_access.value >> 24) & 255,
+                ],
+                is_receive: false,
+            });
+        });
+
+        output.global_interaction_events.extend(events);
+
         // let events = input.get_local_mem_events().collect::<Vec<_>>();
         // let nb_rows = if NUM_LOCAL_MEMORY_ENTRIES_PER_ROW > 1 {
         //     (events.len() + (NUM_LOCAL_MEMORY_ENTRIES_PER_ROW - 1))
@@ -366,6 +398,8 @@ where
                         local.initial_value[1].into(),
                         local.initial_value[2].into(),
                         local.initial_value[3].into(),
+                        local.is_real.into() * AB::Expr::zero(),
+                        local.is_real.into() * AB::Expr::one(),
                     ],
                     local.is_real.into(),
                     InteractionKind::Memory,
@@ -382,6 +416,8 @@ where
                         local.final_value[1].into(),
                         local.final_value[2].into(),
                         local.final_value[3].into(),
+                        local.is_real.into() * AB::Expr::one(),
+                        local.is_real.into() * AB::Expr::zero(),
                     ],
                     local.is_real.into(),
                     InteractionKind::Memory,
