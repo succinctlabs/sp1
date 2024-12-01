@@ -16,7 +16,7 @@ use sp1_stark::{
 };
 
 /// A set of columns needed to compute the global interaction elliptic curve digest.
-#[derive(AlignedBorrow, Clone, Copy)]
+#[derive(AlignedBorrow, Clone, Copy, Default)]
 #[repr(C)]
 pub struct GlobalInteractionOperation<T: Copy> {
     pub offset_bits: [T; 8],
@@ -170,11 +170,12 @@ impl<F: PrimeField32> GlobalInteractionOperation<F> {
 impl<F: Field> GlobalInteractionOperation<F> {
     /// Constrain that the y coordinate is correct decompression, and send the resulting digest coordinate to the permutation trace.
     /// The first value in `values` must be a value range checked to u16.
-    fn eval_single_digest<AB: SP1AirBuilder>(
+    pub fn eval_single_digest<AB: SP1AirBuilder>(
         builder: &mut AB,
         values: [AB::Expr; 7],
         cols: GlobalInteractionOperation<AB::Var>,
-        is_receive: bool,
+        is_receive: AB::Expr,
+        is_send: AB::Expr,
         is_real: AB::Var,
         kind: InteractionKind,
     ) {
@@ -227,14 +228,13 @@ impl<F: Field> GlobalInteractionOperation<F> {
         // Constrain that y has correct sign.
         // If it's a receive: 0 <= y_6 - 1 < (p - 1) / 2 = 2^30 - 2^26
         // If it's a send: 0 <= y_6 - (p + 1) / 2 < (p - 1) / 2 = 2^30 - 2^26
-        if is_receive {
-            builder.when(is_real).assert_eq(y.0[6].clone(), AB::Expr::one() + y6_value);
-        } else {
-            builder.when(is_real).assert_eq(
-                y.0[6].clone(),
-                AB::Expr::from_canonical_u32((1 << 30) - (1 << 26) + 1) + y6_value,
-            );
-        }
+        builder
+            .when(is_receive.clone())
+            .assert_eq(y.0[6].clone(), AB::Expr::one() + y6_value.clone());
+        builder.when(is_send).assert_eq(
+            y.0[6].clone(),
+            AB::Expr::from_canonical_u32((1 << 30) - (1 << 26) + 1) + y6_value.clone(),
+        );
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -245,7 +245,8 @@ impl<F: Field> GlobalInteractionOperation<F> {
         addr: AB::Expr,
         value: [AB::Expr; 4],
         cols: GlobalInteractionOperation<AB::Var>,
-        is_receive: bool,
+        is_receive: AB::Expr,
+        is_send: AB::Expr,
         is_real: AB::Var,
     ) {
         let values = [
@@ -263,6 +264,7 @@ impl<F: Field> GlobalInteractionOperation<F> {
             values,
             cols,
             is_receive,
+            is_send,
             is_real,
             InteractionKind::Memory,
         );
@@ -290,7 +292,8 @@ impl<F: Field> GlobalInteractionOperation<F> {
         arg1: AB::Expr,
         arg2: AB::Expr,
         cols: GlobalInteractionOperation<AB::Var>,
-        is_receive: bool,
+        is_receive: AB::Expr,
+        is_send: AB::Expr,
         is_real: AB::Var,
     ) {
         let values = [
@@ -308,6 +311,7 @@ impl<F: Field> GlobalInteractionOperation<F> {
             values,
             cols,
             is_receive,
+            is_send,
             is_real,
             InteractionKind::Syscall,
         );

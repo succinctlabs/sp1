@@ -257,7 +257,8 @@ where
             prep_local.addr.into(),
             prep_local.value.map(Into::into).0,
             mult_local.global_interaction_cols,
-            false,
+            mult_local.multiplicity * AB::Expr::zero(),
+            mult_local.multiplicity * AB::Expr::one(),
             mult_local.multiplicity,
         );
 

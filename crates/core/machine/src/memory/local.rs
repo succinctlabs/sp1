@@ -8,6 +8,7 @@ use crate::{operations::GlobalAccumulationOperation, operations::GlobalInteracti
 use hashbrown::HashMap;
 use itertools::Itertools;
 use p3_air::{Air, BaseAir};
+use p3_field::AbstractField;
 use p3_field::PrimeField32;
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use p3_maybe_rayon::prelude::IndexedParallelIterator;
@@ -36,15 +37,15 @@ const fn make_col_map() -> MemoryLocalCols<usize> {
 
 const MEMORY_LOCAL_COL_MAP: MemoryLocalCols<usize> = make_col_map();
 
-pub const MEMORY_LOCAL_INITIAL_DIGEST_POS: usize =
-    MEMORY_LOCAL_COL_MAP.global_accumulation_cols.initial_digest[0].0[0];
+// pub const MEMORY_LOCAL_INITIAL_DIGEST_POS: usize =
+//     MEMORY_LOCAL_COL_MAP.global_accumulation_cols.initial_digest[0].0[0];
 
-pub const MEMORY_LOCAL_INITIAL_DIGEST_POS_COPY: usize = 480;
+// pub const MEMORY_LOCAL_INITIAL_DIGEST_POS_COPY: usize = 56;
 
-#[repr(C)]
-pub struct Ghost {
-    pub v: [usize; MEMORY_LOCAL_INITIAL_DIGEST_POS_COPY],
-}
+// #[repr(C)]
+// pub struct Ghost {
+//     pub v: [usize; MEMORY_LOCAL_INITIAL_DIGEST_POS_COPY],
+// }
 
 pub const NUM_LOCAL_MEMORY_ENTRIES_PER_ROW: usize = 4;
 pub const NUM_LOCAL_MEMORY_INTERACTIONS_PER_ROW: usize = NUM_LOCAL_MEMORY_ENTRIES_PER_ROW * 2;
@@ -76,10 +77,10 @@ pub struct SingleMemoryLocal<T: Copy> {
     pub final_value: Word<T>,
 
     /// The global interaction columns for initial access.
-    pub initial_global_interaction_cols: GlobalInteractionOperation<T>,
+    // pub initial_global_interaction_cols: GlobalInteractionOperation<T>,
 
     /// The global interaction columns for final access.
-    pub final_global_interaction_cols: GlobalInteractionOperation<T>,
+    // pub final_global_interaction_cols: GlobalInteractionOperation<T>,
 
     /// Whether the memory access is a real access.
     pub is_real: T,
@@ -89,8 +90,8 @@ pub struct SingleMemoryLocal<T: Copy> {
 #[repr(C)]
 pub struct MemoryLocalCols<T: Copy> {
     memory_local_entries: [SingleMemoryLocal<T>; NUM_LOCAL_MEMORY_ENTRIES_PER_ROW],
-    pub global_accumulation_cols:
-        GlobalAccumulationOperation<T, NUM_LOCAL_MEMORY_INTERACTIONS_PER_ROW>,
+    // pub global_accumulation_cols:
+    //     GlobalAccumulationOperation<T, NUM_LOCAL_MEMORY_INTERACTIONS_PER_ROW>,
 }
 
 pub struct MemoryLocalChip {}
@@ -104,7 +105,7 @@ impl MemoryLocalChip {
 
 impl<F> BaseAir<F> for MemoryLocalChip {
     fn width(&self) -> usize {
-        assert_eq!(MEMORY_LOCAL_INITIAL_DIGEST_POS_COPY, MEMORY_LOCAL_INITIAL_DIGEST_POS);
+        // assert_eq!(MEMORY_LOCAL_INITIAL_DIGEST_POS_COPY, MEMORY_LOCAL_INITIAL_DIGEST_POS);
         NUM_MEMORY_LOCAL_INIT_COLS
     }
 }
@@ -119,47 +120,47 @@ impl<F: PrimeField32> MachineAir<F> for MemoryLocalChip {
     }
 
     fn generate_dependencies(&self, input: &ExecutionRecord, output: &mut ExecutionRecord) {
-        let events = input.get_local_mem_events().collect::<Vec<_>>();
-        let nb_rows = if NUM_LOCAL_MEMORY_ENTRIES_PER_ROW > 1 {
-            (events.len() + (NUM_LOCAL_MEMORY_ENTRIES_PER_ROW - 1))
-                / NUM_LOCAL_MEMORY_ENTRIES_PER_ROW
-        } else {
-            events.len()
-        };
-        let chunk_size = std::cmp::max((nb_rows + 1) / num_cpus::get(), 1);
+        // let events = input.get_local_mem_events().collect::<Vec<_>>();
+        // let nb_rows = if NUM_LOCAL_MEMORY_ENTRIES_PER_ROW > 1 {
+        //     (events.len() + (NUM_LOCAL_MEMORY_ENTRIES_PER_ROW - 1))
+        //         / NUM_LOCAL_MEMORY_ENTRIES_PER_ROW
+        // } else {
+        //     events.len()
+        // };
+        // let chunk_size = std::cmp::max((nb_rows + 1) / num_cpus::get(), 1);
 
-        let blu_batches = events
-            .par_chunks(chunk_size * NUM_LOCAL_MEMORY_ENTRIES_PER_ROW)
-            .map(|events| {
-                let mut blu: HashMap<u32, HashMap<ByteLookupEvent, usize>> = HashMap::new();
-                events.chunks(NUM_LOCAL_MEMORY_ENTRIES_PER_ROW).for_each(|events| {
-                    let mut row = [F::zero(); NUM_MEMORY_LOCAL_INIT_COLS];
-                    let cols: &mut MemoryLocalCols<F> = row.as_mut_slice().borrow_mut();
-                    for k in 0..NUM_LOCAL_MEMORY_ENTRIES_PER_ROW {
-                        let cols = &mut cols.memory_local_entries[k];
-                        if k < events.len() {
-                            let event = events[k];
-                            cols.initial_global_interaction_cols
-                                .populate_memory_range_check_witness(
-                                    event.initial_mem_access.shard,
-                                    event.initial_mem_access.value,
-                                    true,
-                                    &mut blu,
-                                );
-                            cols.final_global_interaction_cols.populate_memory_range_check_witness(
-                                event.final_mem_access.shard,
-                                event.final_mem_access.value,
-                                true,
-                                &mut blu,
-                            );
-                        }
-                    }
-                });
-                blu
-            })
-            .collect::<Vec<_>>();
+        // let blu_batches = events
+        //     .par_chunks(chunk_size * NUM_LOCAL_MEMORY_ENTRIES_PER_ROW)
+        //     .map(|events| {
+        //         let mut blu: HashMap<u32, HashMap<ByteLookupEvent, usize>> = HashMap::new();
+        //         events.chunks(NUM_LOCAL_MEMORY_ENTRIES_PER_ROW).for_each(|events| {
+        //             let mut row = [F::zero(); NUM_MEMORY_LOCAL_INIT_COLS];
+        //             let cols: &mut MemoryLocalCols<F> = row.as_mut_slice().borrow_mut();
+        //             for k in 0..NUM_LOCAL_MEMORY_ENTRIES_PER_ROW {
+        //                 let cols = &mut cols.memory_local_entries[k];
+        //                 if k < events.len() {
+        //                     let event = events[k];
+        //                     cols.initial_global_interaction_cols
+        //                         .populate_memory_range_check_witness(
+        //                             event.initial_mem_access.shard,
+        //                             event.initial_mem_access.value,
+        //                             true,
+        //                             &mut blu,
+        //                         );
+        //                     cols.final_global_interaction_cols.populate_memory_range_check_witness(
+        //                         event.final_mem_access.shard,
+        //                         event.final_mem_access.value,
+        //                         true,
+        //                         &mut blu,
+        //                     );
+        //                 }
+        //             }
+        //         });
+        //         blu
+        //     })
+        //     .collect::<Vec<_>>();
 
-        output.add_sharded_byte_lookup_events(blu_batches.iter().collect_vec());
+        // output.add_sharded_byte_lookup_events(blu_batches.iter().collect_vec());
     }
 
     fn generate_trace(
@@ -212,41 +213,41 @@ impl<F: PrimeField32> MachineAir<F> for MemoryLocalChip {
                             cols.initial_value = event.initial_mem_access.value.into();
                             cols.final_value = event.final_mem_access.value.into();
                             cols.is_real = F::one();
-                            cols.initial_global_interaction_cols.populate_memory(
-                                event.initial_mem_access.shard,
-                                event.initial_mem_access.timestamp,
-                                event.addr,
-                                event.initial_mem_access.value,
-                                true,
-                                true,
-                            );
-                            point_chunks.push(SepticCurveComplete::Affine(SepticCurve {
-                                x: SepticExtension(
-                                    cols.initial_global_interaction_cols.x_coordinate.0,
-                                ),
-                                y: SepticExtension(
-                                    cols.initial_global_interaction_cols.y_coordinate.0,
-                                ),
-                            }));
-                            cols.final_global_interaction_cols.populate_memory(
-                                event.final_mem_access.shard,
-                                event.final_mem_access.timestamp,
-                                event.addr,
-                                event.final_mem_access.value,
-                                false,
-                                true,
-                            );
-                            point_chunks.push(SepticCurveComplete::Affine(SepticCurve {
-                                x: SepticExtension(
-                                    cols.final_global_interaction_cols.x_coordinate.0,
-                                ),
-                                y: SepticExtension(
-                                    cols.final_global_interaction_cols.y_coordinate.0,
-                                ),
-                            }));
+                            // cols.initial_global_interaction_cols.populate_memory(
+                            //     event.initial_mem_access.shard,
+                            //     event.initial_mem_access.timestamp,
+                            //     event.addr,
+                            //     event.initial_mem_access.value,
+                            //     true,
+                            //     true,
+                            // );
+                            // point_chunks.push(SepticCurveComplete::Affine(SepticCurve {
+                            //     x: SepticExtension(
+                            //         cols.initial_global_interaction_cols.x_coordinate.0,
+                            //     ),
+                            //     y: SepticExtension(
+                            //         cols.initial_global_interaction_cols.y_coordinate.0,
+                            //     ),
+                            // }));
+                            // cols.final_global_interaction_cols.populate_memory(
+                            //     event.final_mem_access.shard,
+                            //     event.final_mem_access.timestamp,
+                            //     event.addr,
+                            //     event.final_mem_access.value,
+                            //     false,
+                            //     true,
+                            // );
+                            // point_chunks.push(SepticCurveComplete::Affine(SepticCurve {
+                            //     x: SepticExtension(
+                            //         cols.final_global_interaction_cols.x_coordinate.0,
+                            //     ),
+                            //     y: SepticExtension(
+                            //         cols.final_global_interaction_cols.y_coordinate.0,
+                            //     ),
+                            // }));
                         } else {
-                            cols.initial_global_interaction_cols.populate_dummy();
-                            cols.final_global_interaction_cols.populate_dummy();
+                            // cols.initial_global_interaction_cols.populate_dummy();
+                            // cols.final_global_interaction_cols.populate_dummy();
                         }
                     }
                 });
@@ -289,22 +290,22 @@ impl<F: PrimeField32> MachineAir<F> for MemoryLocalChip {
                             NUM_LOCAL_MEMORY_ENTRIES_PER_ROW * 2 * (idx + 1) + 1,
                             cumulative_sum.len(),
                         );
-                        cols.global_accumulation_cols.populate_real(
-                            &cumulative_sum[start..end],
-                            final_digest,
-                            final_sum_checker,
-                        );
+                        // cols.global_accumulation_cols.populate_real(
+                        //     &cumulative_sum[start..end],
+                        //     final_digest,
+                        //     final_sum_checker,
+                        // );
                     } else {
                         for k in 0..NUM_LOCAL_MEMORY_ENTRIES_PER_ROW {
-                            cols.memory_local_entries[k]
-                                .initial_global_interaction_cols
-                                .populate_dummy();
-                            cols.memory_local_entries[k]
-                                .final_global_interaction_cols
-                                .populate_dummy();
+                            // cols.memory_local_entries[k]
+                            //     .initial_global_interaction_cols
+                            //     .populate_dummy();
+                            // cols.memory_local_entries[k]
+                            //     .final_global_interaction_cols
+                            //     .populate_dummy();
                         }
-                        cols.global_accumulation_cols
-                            .populate_dummy(final_digest, final_sum_checker);
+                        // cols.global_accumulation_cols
+                        //     .populate_dummy(final_digest, final_sum_checker);
                     }
                 })
             });
@@ -322,7 +323,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryLocalChip {
     }
 
     fn commit_scope(&self) -> InteractionScope {
-        InteractionScope::Global
+        InteractionScope::Local
     }
 }
 
@@ -337,9 +338,9 @@ where
         let next = main.row_slice(1);
         let next: &MemoryLocalCols<AB::Var> = (*next).borrow();
 
-        let mut global_interaction_cols = Vec::with_capacity(8);
-        let mut local_is_reals = Vec::with_capacity(8);
-        let mut next_is_reals = Vec::with_capacity(8);
+        // let mut global_interaction_cols = Vec::with_capacity(8);
+        // let mut local_is_reals = Vec::with_capacity(8);
+        // let mut next_is_reals = Vec::with_capacity(8);
 
         for local in local.memory_local_entries.iter() {
             builder.assert_eq(
@@ -355,19 +356,53 @@ where
                 InteractionScope::Local,
             );
 
-            GlobalInteractionOperation::<AB::F>::eval_single_digest_memory(
-                builder,
-                local.initial_shard.into(),
-                local.initial_clk.into(),
-                local.addr.into(),
-                local.initial_value.map(Into::into).0,
-                local.initial_global_interaction_cols,
-                true,
-                local.is_real,
+            builder.send(
+                AirInteraction::new(
+                    vec![
+                        local.initial_shard.into(),
+                        local.initial_clk.into(),
+                        local.addr.into(),
+                        local.initial_value[0].into(),
+                        local.initial_value[1].into(),
+                        local.initial_value[2].into(),
+                        local.initial_value[3].into(),
+                    ],
+                    local.is_real.into(),
+                    InteractionKind::Memory,
+                ),
+                InteractionScope::Local,
+            );
+            builder.send(
+                AirInteraction::new(
+                    vec![
+                        local.final_shard.into(),
+                        local.final_clk.into(),
+                        local.addr.into(),
+                        local.final_value[0].into(),
+                        local.final_value[1].into(),
+                        local.final_value[2].into(),
+                        local.final_value[3].into(),
+                    ],
+                    local.is_real.into(),
+                    InteractionKind::Memory,
+                ),
+                InteractionScope::Local,
             );
 
-            global_interaction_cols.push(local.initial_global_interaction_cols);
-            local_is_reals.push(local.is_real);
+            // GlobalInteractionOperation::<AB::F>::eval_single_digest_memory(
+            //     builder,
+            //     local.initial_shard.into(),
+            //     local.initial_clk.into(),
+            //     local.addr.into(),
+            //     local.initial_value.map(Into::into).0,
+            //     local.initial_global_interaction_cols,
+            //     local.is_real * AB::Expr::one(),
+            //     local.is_real * AB::Expr::zero(),
+            //     local.is_real,
+            // );
+
+            // global_interaction_cols.push(local.initial_global_interaction_cols);
+            // local_is_reals.push(local.is_real);
 
             let mut values =
                 vec![local.final_shard.into(), local.final_clk.into(), local.addr.into()];
@@ -377,36 +412,37 @@ where
                 InteractionScope::Local,
             );
 
-            GlobalInteractionOperation::<AB::F>::eval_single_digest_memory(
-                builder,
-                local.final_shard.into(),
-                local.final_clk.into(),
-                local.addr.into(),
-                local.final_value.map(Into::into).0,
-                local.final_global_interaction_cols,
-                false,
-                local.is_real,
-            );
+            // GlobalInteractionOperation::<AB::F>::eval_single_digest_memory(
+            //     builder,
+            //     local.final_shard.into(),
+            //     local.final_clk.into(),
+            //     local.addr.into(),
+            //     local.final_value.map(Into::into).0,
+            //     local.final_global_interaction_cols,
+            //     local.is_real * AB::Expr::zero(),
+            //     local.is_real * AB::Expr::one(),
+            //     local.is_real,
+            // );
 
-            global_interaction_cols.push(local.final_global_interaction_cols);
-            local_is_reals.push(local.is_real);
+            // global_interaction_cols.push(local.final_global_interaction_cols);
+            // local_is_reals.push(local.is_real);
         }
 
-        for next in next.memory_local_entries.iter() {
-            next_is_reals.push(next.is_real);
-            next_is_reals.push(next.is_real);
-        }
+        // for next in next.memory_local_entries.iter() {
+        //     next_is_reals.push(next.is_real);
+        //     next_is_reals.push(next.is_real);
+        // }
 
-        GlobalAccumulationOperation::<AB::F, NUM_LOCAL_MEMORY_INTERACTIONS_PER_ROW>::eval_accumulation(
-            builder,
-            global_interaction_cols
-                .try_into()
-                .unwrap_or_else(|_| panic!("There should be 8 interactions")),
-            local_is_reals.try_into().unwrap_or_else(|_| panic!("There should be 8 interactions")),
-            next_is_reals.try_into().unwrap_or_else(|_| panic!("There should be 8 interactions")),
-            local.global_accumulation_cols,
-            next.global_accumulation_cols,
-        );
+        // GlobalAccumulationOperation::<AB::F, NUM_LOCAL_MEMORY_INTERACTIONS_PER_ROW>::eval_accumulation(
+        //     builder,
+        //     global_interaction_cols
+        //         .try_into()
+        //         .unwrap_or_else(|_| panic!("There should be 8 interactions")),
+        //     local_is_reals.try_into().unwrap_or_else(|_| panic!("There should be 8 interactions")),
+        //     next_is_reals.try_into().unwrap_or_else(|_| panic!("There should be 8 interactions")),
+        //     local.global_accumulation_cols,
+        //     next.global_accumulation_cols,
+        // );
     }
 }
 

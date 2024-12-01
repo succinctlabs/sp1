@@ -9,6 +9,7 @@ use sp1_core_executor::{
 };
 
 use crate::{
+    global::GlobalChip,
     memory::{MemoryChipType, MemoryLocalChip, NUM_LOCAL_MEMORY_ENTRIES_PER_ROW},
     riscv::MemoryChipType::{Finalize, Initialize},
     syscall::precompiles::fptower::{Fp2AddSubAssignChip, Fp2MulAssignChip, FpOpChip},
@@ -99,6 +100,8 @@ pub enum RiscvAir<F: PrimeField32> {
     SyscallCore(SyscallChip),
     /// A table for all the precompile invocations.
     SyscallPrecompile(SyscallChip),
+    /// A table for all the global interactions.
+    Global(GlobalChip),
     /// A precompile for sha256 extend.
     Sha256Extend(ShaExtendChip),
     /// A precompile for sha256 compress.
@@ -366,6 +369,10 @@ impl<F: PrimeField32> RiscvAir<F> {
         costs.insert(RiscvAirDiscriminants::MemoryLocal, memory_local.cost());
         chips.push(memory_local);
 
+        let global = Chip::new(RiscvAir::Global(GlobalChip));
+        costs.insert(RiscvAirDiscriminants::Global, global.cost());
+        chips.push(global);
+
         // let memory_program = Chip::new(RiscvAir::ProgramMemory(MemoryProgramChip::default()));
         // costs.insert(RiscvAirDiscriminants::ProgramMemory, memory_program.cost());
         // chips.push(memory_program);
@@ -408,6 +415,7 @@ impl<F: PrimeField32> RiscvAir<F> {
                     .into_iter()
                     .count(),
             ),
+            (RiscvAir::Global(GlobalChip), record.get_local_mem_events().into_iter().count()),
             (RiscvAir::SyscallCore(SyscallChip::core()), record.syscall_events.len()),
         ]
     }
@@ -423,6 +431,7 @@ impl<F: PrimeField32> RiscvAir<F> {
             RiscvAir::ShiftLeft(ShiftLeft::default()),
             RiscvAir::ShiftRight(ShiftRightChip::default()),
             RiscvAir::MemoryLocal(MemoryLocalChip::new()),
+            RiscvAir::Global(GlobalChip),
             RiscvAir::SyscallCore(SyscallChip::core()),
         ]
     }
@@ -522,6 +531,7 @@ impl<F: PrimeField32> RiscvAir<F> {
             Self::MemoryGlobalInit(_) => unreachable!("Invalid for memory init/final"),
             Self::MemoryGlobalFinal(_) => unreachable!("Invalid for memory init/final"),
             Self::MemoryLocal(_) => unreachable!("Invalid for memory local"),
+            Self::Global(_) => unreachable!("Invalid for global chip"),
             // Self::ProgramMemory(_) => unreachable!("Invalid for memory program"),
             Self::Program(_) => unreachable!("Invalid for core chip"),
             Self::Mul(_) => unreachable!("Invalid for core chip"),

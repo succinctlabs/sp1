@@ -323,7 +323,8 @@ where
                 local.addr.into(),
                 value,
                 local.global_interaction_cols,
-                false,
+                local.is_real * AB::Expr::zero(),
+                local.is_real * AB::Expr::one(),
                 local.is_real,
             );
         } else {
@@ -336,7 +337,8 @@ where
                 local.addr.into(),
                 value,
                 local.global_interaction_cols,
-                true,
+                local.is_real * AB::Expr::one(),
+                local.is_real * AB::Expr::zero(),
                 local.is_real,
             );
         }
