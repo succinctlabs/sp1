@@ -109,6 +109,10 @@ impl SyscallInstrsChip {
         let syscall_id = syscall_code[0];
         let send_to_table = syscall_code[1];
 
+        // Asssert that for non real row, the send_to_table value is 0 so that the `send_syscall`
+        // interaction is not activated.
+        builder.when(AB::Expr::one() - local.is_real).assert_zero(send_to_table);
+
         builder.send_syscall(
             local.shard,
             local.clk,

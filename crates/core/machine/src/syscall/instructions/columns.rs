@@ -64,7 +64,7 @@ pub struct SyscallInstrColumns<T> {
     /// The operand value to babybear range check.
     pub operand_to_check: Word<T>,
 
-    /// The result of selectors.is_ecall * (is_halt || is_commit_deferred_proofs)
+    /// The result of is_real * (is_halt || is_commit_deferred_proofs)
     pub ecall_range_check_operand: T,
 
     /// Whether the current instruction is a real instruction.
