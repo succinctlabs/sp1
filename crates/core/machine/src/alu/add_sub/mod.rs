@@ -40,8 +40,6 @@ pub struct AddSubChip;
 #[derive(AlignedBorrow, Default, Clone, Copy)]
 #[repr(C)]
 pub struct AddSubCols<T> {
-    /// The shard number, used for byte lookup table.
-    pub shard: T,
     /// The program counter.
     pub pc: T,
 

@@ -35,17 +35,20 @@ where
         let public_values: &PublicValues<Word<AB::PublicVar>, AB::PublicVar> =
             public_values_slice.as_slice().borrow();
 
+        let clk =
+            AB::Expr::from_canonical_u32(1u32 << 16) * local.clk_8bit_limb + local.clk_16bit_limb;
+
         // Program constraints.
         builder.send_program(local.pc, local.instruction, local.is_real);
 
         // Register constraints.
-        self.eval_registers::<AB>(builder, local);
+        self.eval_registers::<AB>(builder, local, clk.clone());
 
         // Assert the shard and clk to send.
         let expected_shard_to_send =
             builder.if_else(local.is_memory + local.is_syscall, local.shard, AB::Expr::zero());
         let expected_clk_to_send =
-            builder.if_else(local.is_memory + local.is_syscall, local.clk, AB::Expr::zero());
+            builder.if_else(local.is_memory + local.is_syscall, clk.clone(), AB::Expr::zero());
         builder.when(local.is_real).assert_eq(local.shard_to_send, expected_shard_to_send);
         builder.when(local.is_real).assert_eq(local.clk_to_send, expected_clk_to_send);
 
@@ -69,7 +72,7 @@ where
         );
 
         // Check that the shard and clk is updated correctly.
-        self.eval_shard_clk(builder, local, next, public_values);
+        self.eval_shard_clk(builder, local, next, public_values, clk.clone());
 
         // Check that the pc is updated correctly.
         self.eval_pc(builder, local, next, public_values);
@@ -99,6 +102,7 @@ impl CpuChip {
         local: &CpuCols<AB::Var>,
         next: &CpuCols<AB::Var>,
         public_values: &PublicValues<Word<AB::PublicVar>, AB::PublicVar>,
+        clk: AB::Expr,
     ) {
         // Verify the public value's shard.
         builder.when(local.is_real).assert_eq(public_values.execution_shard, local.shard);
@@ -116,18 +120,20 @@ impl CpuChip {
         );
 
         // Verify that the first row has a clk value of 0.
-        builder.when_first_row().assert_zero(local.clk);
+        builder.when_first_row().assert_zero(clk.clone());
 
         // We already assert that `local.clk < 2^24`. `num_extra_cycles` is an entry of a word and
         // therefore less than `2^8`, this means that the sum cannot overflow in a 31 bit field.
         let expected_next_clk =
-            local.clk + AB::Expr::from_canonical_u32(DEFAULT_PC_INC) + local.num_extra_cycles;
+            clk.clone() + AB::Expr::from_canonical_u32(DEFAULT_PC_INC) + local.num_extra_cycles;
 
-        builder.when_transition().when(next.is_real).assert_eq(expected_next_clk.clone(), next.clk);
+        let next_clk =
+            AB::Expr::from_canonical_u32(2u32 << 16) * next.clk_8bit_limb + next.clk_16bit_limb;
+        builder.when_transition().when(next.is_real).assert_eq(expected_next_clk, next_clk);
 
         // Range check that the clk is within 24 bits using it's limb values.
         builder.eval_range_check_24bits(
-            local.clk,
+            clk,
             local.clk_16bit_limb,
             local.clk_8bit_limb,
             local.is_real,

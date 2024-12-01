@@ -159,7 +159,7 @@ impl CpuChip {
             || instruction.is_memory_store_instruction()
             || instruction.is_ecall_instruction()
         {
-            cols.clk
+            F::from_canonical_u32(event.clk)
         } else {
             F::zero()
         };
@@ -227,7 +227,6 @@ impl CpuChip {
         shard: u32,
     ) {
         cols.shard = F::from_canonical_u32(shard);
-        cols.clk = F::from_canonical_u32(event.clk);
 
         let clk_16bit_limb = (event.clk & 0xffff) as u16;
         let clk_8bit_limb = ((event.clk >> 16) & 0xff) as u8;

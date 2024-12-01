@@ -14,6 +14,7 @@ impl CpuChip {
         &self,
         builder: &mut AB,
         local: &CpuCols<AB::Var>,
+        clk: AB::Expr,
     ) {
         // Load immediates into b and c, if the immediate flags are on.
         builder
@@ -26,7 +27,7 @@ impl CpuChip {
         // If they are not immediates, read `b` and `c` from memory.
         builder.eval_memory_access(
             local.shard,
-            local.clk + AB::F::from_canonical_u32(MemoryAccessPosition::B as u32),
+            clk.clone() + AB::F::from_canonical_u32(MemoryAccessPosition::B as u32),
             local.instruction.op_b[0],
             &local.op_b_access,
             AB::Expr::one() - local.instruction.imm_b,
@@ -34,7 +35,7 @@ impl CpuChip {
 
         builder.eval_memory_access(
             local.shard,
-            local.clk + AB::F::from_canonical_u32(MemoryAccessPosition::C as u32),
+            clk.clone() + AB::F::from_canonical_u32(MemoryAccessPosition::C as u32),
             local.instruction.op_c[0],
             &local.op_c_access,
             AB::Expr::one() - local.instruction.imm_c,
@@ -51,7 +52,7 @@ impl CpuChip {
         // chips.
         builder.eval_memory_access(
             local.shard,
-            local.clk + AB::F::from_canonical_u32(MemoryAccessPosition::A as u32),
+            clk + AB::F::from_canonical_u32(MemoryAccessPosition::A as u32),
             local.instruction.op_a[0],
             &local.op_a_access,
             AB::Expr::one() - local.is_syscall,
