@@ -29,7 +29,7 @@ impl<F> BaseAir<F> for AUIPCChip {
     }
 }
 
-/// The column layout for memory.
+/// The column layout for AUIPC/UNIMP/EBREAK instructions.
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct AUIPCColumns<T> {
@@ -49,7 +49,14 @@ pub struct AUIPCColumns<T> {
     /// The AUIPC nonce for the ADD operation.
     pub auipc_nonce: T,
 
-    pub is_real: T,
+    /// Whether the instruction is an AUIPC instruction.
+    pub is_auipc: T,
+
+    /// Whether the instruction is an unimplemented instruction.
+    pub is_unimp: T,
+
+    /// Whether the instruction is an ebreak instruction.
+    pub is_ebreak: T,
 }
 
 impl<AB> Air<AB> for AUIPCChip
@@ -63,13 +70,21 @@ where
         let local = main.row_slice(0);
         let local: &AUIPCColumns<AB::Var> = (*local).borrow();
 
-        builder.assert_bool(local.is_real);
+        builder.assert_bool(local.is_auipc);
+        builder.assert_bool(local.is_unimp);
+        builder.assert_bool(local.is_ebreak);
+        let is_real = local.is_auipc + local.is_unimp + local.is_ebreak;
+        builder.assert_bool(is_real.clone());
+
+        let opcode = AB::Expr::from_canonical_u32(Opcode::AUIPC as u32) * local.is_auipc
+            + AB::Expr::from_canonical_u32(Opcode::UNIMP as u32) * local.is_unimp
+            + AB::Expr::from_canonical_u32(Opcode::EBREAK as u32) * local.is_ebreak;
 
         builder.receive_instruction(
             local.pc.reduce::<AB>(),
             local.pc.reduce::<AB>() + AB::Expr::from_canonical_u32(DEFAULT_PC_INC),
             AB::Expr::zero(),
-            AB::Expr::from_canonical_u32(Opcode::AUIPC as u32),
+            opcode,
             local.op_a_value,
             local.op_b_value,
             local.op_c_value,
@@ -79,15 +94,19 @@ where
             AB::Expr::zero(),
             AB::Expr::zero(),
             AB::Expr::zero(),
-            local.is_real,
+            is_real,
         );
+
+        // Verify that the opcode is never UNIMP or EBREAK.
+        builder.assert_zero(local.is_unimp);
+        builder.assert_zero(local.is_ebreak);
 
         // Range check the pc.
         BabyBearWordRangeChecker::<AB::F>::range_check(
             builder,
             local.pc,
             local.pc_range_checker,
-            local.is_real.into(),
+            local.is_auipc.into(),
         );
 
         // Verify that op_a == pc + op_b.
@@ -105,7 +124,7 @@ where
             AB::Expr::zero(),
             AB::Expr::zero(),
             AB::Expr::zero(),
-            local.is_real,
+            local.is_auipc,
         );
     }
 }
@@ -138,7 +157,9 @@ impl<F: PrimeField32> MachineAir<F> for AUIPCChip {
 
                     if idx < input.auipc_events.len() {
                         let event = &input.auipc_events[idx];
-                        cols.is_real = F::one();
+                        cols.is_auipc = F::from_bool(event.opcode == Opcode::AUIPC);
+                        cols.is_unimp = F::from_bool(event.opcode == Opcode::UNIMP);
+                        cols.is_ebreak = F::from_bool(event.opcode == Opcode::EBREAK);
                         cols.pc = event.pc.into();
                         cols.pc_range_checker.populate(event.pc);
                         cols.op_a_value = event.a.into();
