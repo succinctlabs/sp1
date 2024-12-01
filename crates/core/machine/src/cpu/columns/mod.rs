@@ -1,7 +1,5 @@
-mod ecall;
 mod instruction;
 
-pub use ecall::*;
 pub use instruction::*;
 
 use p3_util::indices_arr;
