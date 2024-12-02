@@ -123,7 +123,9 @@ impl<C: CircuitConfig<F = BabyBear, Bit = Felt<BabyBear>>> FieldHasherVariable<C
         a: Self::DigestVariable,
         b: Self::DigestVariable,
     ) {
-        zip(a, b).for_each(|(e1, e2)| builder.assert_felt_eq(e1, e2));
+        // Push the instruction directly instead of passing through `assert_felt_eq` in order to
+        //avoid symbolic expression overhead.
+        zip(a, b).for_each(|(e1, e2)| builder.push_op(DslIr::AssertEqF(e1, e2)));
     }
 
     fn select_chain_digest(
