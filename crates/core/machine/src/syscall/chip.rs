@@ -15,10 +15,13 @@ use p3_maybe_rayon::prelude::ParallelIterator;
 use p3_maybe_rayon::prelude::ParallelSlice;
 use sp1_core_executor::events::ByteLookupEvent;
 use sp1_core_executor::events::ByteRecord;
+use sp1_core_executor::events::GlobalInteractionEvent;
 use sp1_core_executor::{events::SyscallEvent, ExecutionRecord, Program};
 use sp1_derive::AlignedBorrow;
+use sp1_stark::air::AirInteraction;
 use sp1_stark::air::{InteractionScope, MachineAir, SP1AirBuilder};
 use sp1_stark::septic_digest::SepticDigest;
+use sp1_stark::InteractionKind;
 use std::{
     borrow::{Borrow, BorrowMut},
     mem::size_of,
@@ -80,12 +83,11 @@ pub struct SyscallCols<T: Copy> {
     pub arg2: T,
 
     pub is_real: T,
+    // The global interaction columns.
+    // pub global_interaction_cols: GlobalInteractionOperation<T>,
 
-    /// The global interaction columns.
-    pub global_interaction_cols: GlobalInteractionOperation<T>,
-
-    /// The columns for accumulating the elliptic curve digests.
-    pub global_accumulation_cols: GlobalAccumulationOperation<T, 1>,
+    // The columns for accumulating the elliptic curve digests.
+    // pub global_accumulation_cols: GlobalAccumulationOperation<T, 1>,
 }
 
 impl<F: PrimeField32> MachineAir<F> for SyscallChip {
@@ -106,29 +108,52 @@ impl<F: PrimeField32> MachineAir<F> for SyscallChip {
                 .map(|(event, _)| event.to_owned())
                 .collect::<Vec<_>>(),
         };
-        let chunk_size = std::cmp::max(events.len() / num_cpus::get(), 1);
-        let blu_batches = events
-            .par_chunks(chunk_size)
-            .map(|events| {
-                let mut blu: HashMap<u32, HashMap<ByteLookupEvent, usize>> = HashMap::new();
-                events.iter().for_each(|event| {
-                    let mut row = [F::zero(); NUM_SYSCALL_COLS];
-                    let cols: &mut SyscallCols<F> = row.as_mut_slice().borrow_mut();
-                    let clk_16 = (event.clk & 65535) as u16;
-                    let clk_8 = (event.clk >> 16) as u8;
-                    cols.global_interaction_cols.populate_syscall_range_check_witness(
+
+        let events = events
+            .into_iter()
+            .map(|event| {
+                let clk_16 = ((event.clk & 65535) as u16) as u32;
+                let clk_8 = ((event.clk >> 16) as u8) as u32;
+
+                GlobalInteractionEvent {
+                    message: [
                         event.shard,
                         clk_16,
                         clk_8,
                         event.syscall_id,
-                        true,
-                        &mut blu,
-                    );
-                });
-                blu
+                        event.arg1,
+                        event.arg2,
+                        0,
+                    ],
+                    is_receive: self.shard_kind == SyscallShardKind::Precompile,
+                }
             })
-            .collect::<Vec<_>>();
-        output.add_sharded_byte_lookup_events(blu_batches.iter().collect_vec());
+            .collect_vec();
+        output.global_interaction_events.extend(events);
+
+        // let chunk_size = std::cmp::max(events.len() / num_cpus::get(), 1);
+        // let blu_batches = events
+        //     .par_chunks(chunk_size)
+        //     .map(|events| {
+        //         let mut blu: HashMap<u32, HashMap<ByteLookupEvent, usize>> = HashMap::new();
+        //         events.iter().for_each(|event| {
+        //             let mut row = [F::zero(); NUM_SYSCALL_COLS];
+        //             let cols: &mut SyscallCols<F> = row.as_mut_slice().borrow_mut();
+        //             let clk_16 = (event.clk & 65535) as u16;
+        //             let clk_8 = (event.clk >> 16) as u8;
+        //             cols.global_interaction_cols.populate_syscall_range_check_witness(
+        //                 event.shard,
+        //                 clk_16,
+        //                 clk_8,
+        //                 event.syscall_id,
+        //                 true,
+        //                 &mut blu,
+        //             );
+        //         });
+        //         blu
+        //     })
+        //     .collect::<Vec<_>>();
+        // output.add_sharded_byte_lookup_events(blu_batches.iter().collect_vec());
     }
 
     fn generate_trace(
@@ -153,16 +178,16 @@ impl<F: PrimeField32> MachineAir<F> for SyscallChip {
             cols.arg1 = F::from_canonical_u32(syscall_event.arg1);
             cols.arg2 = F::from_canonical_u32(syscall_event.arg2);
             cols.is_real = F::one();
-            cols.global_interaction_cols.populate_syscall(
-                syscall_event.shard,
-                clk_16,
-                clk_8,
-                syscall_event.syscall_id,
-                syscall_event.arg1,
-                syscall_event.arg2,
-                is_receive,
-                true,
-            );
+            // cols.global_interaction_cols.populate_syscall(
+            //     syscall_event.shard,
+            //     clk_16,
+            //     clk_8,
+            //     syscall_event.syscall_id,
+            //     syscall_event.arg1,
+            //     syscall_event.arg2,
+            //     is_receive,
+            //     true,
+            // );
             row
         };
 
@@ -185,11 +210,11 @@ impl<F: PrimeField32> MachineAir<F> for SyscallChip {
 
         for i in 0..num_events {
             let cols: &mut SyscallCols<F> = rows[i].as_mut_slice().borrow_mut();
-            cols.global_accumulation_cols.populate(
-                &mut global_cumulative_sum,
-                [cols.global_interaction_cols],
-                [cols.is_real],
-            );
+            // cols.global_accumulation_cols.populate(
+            //     &mut global_cumulative_sum,
+            //     [cols.global_interaction_cols],
+            //     [cols.is_real],
+            // );
         }
 
         // Pad the trace to a power of two depending on the proof shape in `input`.
@@ -205,12 +230,12 @@ impl<F: PrimeField32> MachineAir<F> for SyscallChip {
         for i in num_events..trace.height() {
             let cols: &mut SyscallCols<F> =
                 trace.values[i * NUM_SYSCALL_COLS..(i + 1) * NUM_SYSCALL_COLS].borrow_mut();
-            cols.global_interaction_cols.populate_dummy();
-            cols.global_accumulation_cols.populate(
-                &mut global_cumulative_sum,
-                [cols.global_interaction_cols],
-                [cols.is_real],
-            );
+            // cols.global_interaction_cols.populate_dummy();
+            // cols.global_accumulation_cols.populate(
+            //     &mut global_cumulative_sum,
+            //     [cols.global_interaction_cols],
+            //     [cols.is_real],
+            // );
         }
 
         trace
@@ -233,7 +258,7 @@ impl<F: PrimeField32> MachineAir<F> for SyscallChip {
     }
 
     fn commit_scope(&self) -> InteractionScope {
-        InteractionScope::Global
+        InteractionScope::Local
     }
 }
 
@@ -265,20 +290,39 @@ where
                     InteractionScope::Local,
                 );
 
-                // Send the call to the global bus to/from the precompile chips.
-                GlobalInteractionOperation::<AB::F>::eval_single_digest_syscall(
-                    builder,
-                    local.shard.into(),
-                    local.clk_16.into(),
-                    local.clk_8.into(),
-                    local.syscall_id.into(),
-                    local.arg1.into(),
-                    local.arg2.into(),
-                    local.global_interaction_cols,
-                    local.is_real * AB::Expr::zero(),
-                    local.is_real * AB::Expr::one(),
-                    local.is_real,
+                builder.send(
+                    AirInteraction::new(
+                        vec![
+                            local.shard.into(),
+                            local.clk_16.into(),
+                            local.clk_8.into(),
+                            local.syscall_id.into(),
+                            local.arg1.into(),
+                            local.arg2.into(),
+                            AB::Expr::zero(),
+                            local.is_real.into() * AB::Expr::one(),
+                            local.is_real.into() * AB::Expr::zero(),
+                        ],
+                        local.is_real.into(),
+                        InteractionKind::Memory,
+                    ),
+                    InteractionScope::Local,
                 );
+
+                // Send the call to the global bus to/from the precompile chips.
+                // GlobalInteractionOperation::<AB::F>::eval_single_digest_syscall(
+                //     builder,
+                //     local.shard.into(),
+                //     local.clk_16.into(),
+                //     local.clk_8.into(),
+                //     local.syscall_id.into(),
+                //     local.arg1.into(),
+                //     local.arg2.into(),
+                //     local.global_interaction_cols,
+                //     local.is_real * AB::Expr::zero(),
+                //     local.is_real * AB::Expr::one(),
+                //     local.is_real,
+                // );
             }
             SyscallShardKind::Precompile => {
                 builder.send_syscall(
@@ -291,30 +335,49 @@ where
                     InteractionScope::Local,
                 );
 
-                GlobalInteractionOperation::<AB::F>::eval_single_digest_syscall(
-                    builder,
-                    local.shard.into(),
-                    local.clk_16.into(),
-                    local.clk_8.into(),
-                    local.syscall_id.into(),
-                    local.arg1.into(),
-                    local.arg2.into(),
-                    local.global_interaction_cols,
-                    local.is_real * AB::Expr::one(),
-                    local.is_real * AB::Expr::zero(),
-                    local.is_real,
+                builder.send(
+                    AirInteraction::new(
+                        vec![
+                            local.shard.into(),
+                            local.clk_16.into(),
+                            local.clk_8.into(),
+                            local.syscall_id.into(),
+                            local.arg1.into(),
+                            local.arg2.into(),
+                            AB::Expr::zero(),
+                            local.is_real.into() * AB::Expr::zero(),
+                            local.is_real.into() * AB::Expr::one(),
+                        ],
+                        local.is_real.into(),
+                        InteractionKind::Memory,
+                    ),
+                    InteractionScope::Local,
                 );
+
+                // GlobalInteractionOperation::<AB::F>::eval_single_digest_syscall(
+                //     builder,
+                //     local.shard.into(),
+                //     local.clk_16.into(),
+                //     local.clk_8.into(),
+                //     local.syscall_id.into(),
+                //     local.arg1.into(),
+                //     local.arg2.into(),
+                //     local.global_interaction_cols,
+                //     local.is_real * AB::Expr::one(),
+                //     local.is_real * AB::Expr::zero(),
+                //     local.is_real,
+                // );
             }
         }
 
-        GlobalAccumulationOperation::<AB::F, 1>::eval_accumulation(
-            builder,
-            [local.global_interaction_cols],
-            [local.is_real],
-            [next.is_real],
-            local.global_accumulation_cols,
-            next.global_accumulation_cols,
-        );
+        // GlobalAccumulationOperation::<AB::F, 1>::eval_accumulation(
+        //     builder,
+        //     [local.global_interaction_cols],
+        //     [local.is_real],
+        //     [next.is_real],
+        //     local.global_accumulation_cols,
+        //     next.global_accumulation_cols,
+        // );
     }
 }
 

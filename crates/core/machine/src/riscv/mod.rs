@@ -440,6 +440,7 @@ impl<F: PrimeField32> RiscvAir<F> {
         vec![
             RiscvAir::MemoryGlobalInit(MemoryGlobalChip::new(MemoryChipType::Initialize)),
             RiscvAir::MemoryGlobalFinal(MemoryGlobalChip::new(MemoryChipType::Finalize)),
+            RiscvAir::Global(GlobalChip),
         ]
     }
 
@@ -452,6 +453,11 @@ impl<F: PrimeField32> RiscvAir<F> {
             (
                 RiscvAir::MemoryGlobalFinal(MemoryGlobalChip::new(Finalize)),
                 record.global_memory_finalize_events.len(),
+            ),
+            (
+                RiscvAir::Global(GlobalChip),
+                record.global_memory_finalize_events.len()
+                    + record.global_memory_initialize_events.len(),
             ),
         ]
     }

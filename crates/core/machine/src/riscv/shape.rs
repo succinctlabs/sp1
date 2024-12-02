@@ -174,6 +174,7 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
             let shape =
                 Self::find_shape_from_allowed_heights(&heights, &self.memory_allowed_log_heights)
                     .ok_or(CoreShapeError::ShapeError(record.stats()))?;
+            println!("memory shape: {:?}", shape);
             record.shape.as_mut().unwrap().extend(shape);
             return Ok(());
         }
@@ -743,9 +744,11 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
             vec![None, Some(10), Some(16), Some(18), Some(19), Some(20), Some(21)];
         let memory_finalize_heights =
             vec![None, Some(10), Some(16), Some(18), Some(19), Some(20), Some(21)];
+        let global_heights = vec![None, Some(11), Some(17), Some(19), Some(21), Some(22)];
         let memory_allowed_log_heights = HashMap::from([
             (RiscvAir::MemoryGlobalInit(MemoryGlobalChip::new(Initialize)), memory_init_heights),
             (RiscvAir::MemoryGlobalFinal(MemoryGlobalChip::new(Finalize)), memory_finalize_heights),
+            (RiscvAir::Global(GlobalChip), global_heights),
         ]);
 
         let mut precompile_allowed_log_heights = HashMap::new();

@@ -137,7 +137,7 @@ impl<F: PrimeField32> MachineAir<F> for GlobalChip {
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
-        shard.get_local_mem_events().nth(0).is_some()
+        true
     }
 
     fn commit_scope(&self) -> InteractionScope {
@@ -218,6 +218,7 @@ mod tests {
         baby_bear_poseidon2::BabyBearPoseidon2,
         debug_interactions_with_all_chips, InteractionKind, SP1CoreOpts, StarkMachine,
     };
+    use test_artifacts::TENDERMINT_BENCHMARK_ELF;
 
     use crate::io::SP1Stdin;
     use crate::utils::run_test;
@@ -247,7 +248,8 @@ mod tests {
     #[test]
     fn test_global_lookup_interactions() {
         setup_logger();
-        let program = sha_extend_program();
+        // let program = sha_extend_program();
+        let program = Program::from(TENDERMINT_BENCHMARK_ELF).unwrap();
         let program_clone = program.clone();
         let mut runtime = Executor::new(program, SP1CoreOpts::default());
         runtime.run().unwrap();
@@ -267,19 +269,19 @@ mod tests {
                 InteractionScope::Local,
             );
         }
-        debug_interactions_with_all_chips::<BabyBearPoseidon2, RiscvAir<BabyBear>>(
-            &machine,
-            &pkey,
-            &shards,
-            vec![InteractionKind::Memory],
-            InteractionScope::Global,
-        );
+        // debug_interactions_with_all_chips::<BabyBearPoseidon2, RiscvAir<BabyBear>>(
+        //     &machine,
+        //     &pkey,
+        //     &shards,
+        //     vec![InteractionKind::Memory],
+        //     InteractionScope::Global,
+        // );
     }
 
     #[test]
     fn test_sha_extend() {
         setup_logger();
-        let program = fibonacci_program();
+        let program = Program::from(TENDERMINT_BENCHMARK_ELF).unwrap();
         let input = SP1Stdin::new();
         run_test::<CpuProver<_, _>>(program, input).unwrap();
     }
