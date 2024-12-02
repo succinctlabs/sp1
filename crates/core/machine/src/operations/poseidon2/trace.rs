@@ -1,11 +1,24 @@
+use std::borrow::{Borrow, BorrowMut};
+
 use p3_field::PrimeField32;
 use sp1_primitives::RC_16_30_U32;
 
 use super::{
     air::{external_linear_layer, external_linear_layer_mut, internal_linear_layer_mut},
     permutation::permutation_mut,
-    NUM_EXTERNAL_ROUNDS, NUM_INTERNAL_ROUNDS, WIDTH,
+    Poseidon2Operation, NUM_EXTERNAL_ROUNDS, NUM_INTERNAL_ROUNDS, NUM_POSEIDON2_OPERATION_COLUMNS,
+    WIDTH,
 };
+
+pub fn populate_perm_deg3<F: PrimeField32>(
+    input: [F; WIDTH],
+    expected_output: Option<[F; WIDTH]>,
+) -> Poseidon2Operation<F> {
+    let mut row: Vec<F> = vec![F::zero(); NUM_POSEIDON2_OPERATION_COLUMNS];
+    populate_perm::<F, 3>(input, expected_output, row.as_mut_slice());
+    let op: &Poseidon2Operation<F> = row.as_slice().borrow();
+    op.clone()
+}
 
 pub fn populate_perm<F: PrimeField32, const DEGREE: usize>(
     input: [F; WIDTH],

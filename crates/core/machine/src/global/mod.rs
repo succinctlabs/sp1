@@ -218,6 +218,7 @@ mod tests {
         baby_bear_poseidon2::BabyBearPoseidon2,
         debug_interactions_with_all_chips, InteractionKind, SP1CoreOpts, StarkMachine,
     };
+    use test_artifacts::FIBONACCI_ELF;
     use test_artifacts::TENDERMINT_BENCHMARK_ELF;
 
     use crate::io::SP1Stdin;

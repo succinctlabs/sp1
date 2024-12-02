@@ -20,6 +20,9 @@ pub const NUM_INTERNAL_ROUNDS: usize = 13;
 /// The total number of rounds.
 pub const NUM_ROUNDS: usize = NUM_EXTERNAL_ROUNDS + NUM_INTERNAL_ROUNDS;
 
+/// The number of columns in the Poseidon2 operation.
+pub const NUM_POSEIDON2_OPERATION_COLUMNS: usize = std::mem::size_of::<Poseidon2Operation<u8>>();
+
 /// A set of columns needed to compute the Poseidon2 operation.
 #[derive(AlignedBorrow, Clone, Copy)]
 #[repr(C)]

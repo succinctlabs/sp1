@@ -1,13 +1,16 @@
 use crate::air::WordAirBuilder;
 use p3_air::AirBuilder;
+use p3_baby_bear::BabyBear;
 use p3_field::AbstractExtensionField;
 use p3_field::AbstractField;
 use p3_field::Field;
 use p3_field::PrimeField32;
+use p3_symmetric::Permutation;
 use sp1_core_executor::events::ByteRecord;
 use sp1_core_executor::ByteOpcode;
 use sp1_derive::AlignedBorrow;
 use sp1_stark::air::SepticExtensionAirBuilder;
+use sp1_stark::baby_bear_poseidon2::BabyBearPoseidon2;
 use sp1_stark::{
     air::SP1AirBuilder,
     septic_curve::{SepticCurve, CURVE_WITNESS_DUMMY_POINT_X, CURVE_WITNESS_DUMMY_POINT_Y},
@@ -15,6 +18,8 @@ use sp1_stark::{
     InteractionKind,
 };
 
+use super::poseidon2::permutation::Poseidon2Cols;
+use super::poseidon2::trace::populate_perm_deg3;
 use super::poseidon2::Poseidon2Operation;
 
 /// A set of columns needed to compute the global interaction elliptic curve digest.
@@ -34,14 +39,14 @@ impl<F: PrimeField32> GlobalInteractionOperation<F> {
         values: SepticBlock<u32>,
         is_receive: bool,
         kind: InteractionKind,
-    ) -> (SepticCurve<F>, u8) {
+    ) -> (SepticCurve<F>, u8, [F; 16], [F; 16]) {
         let x_start = SepticExtension::<F>::from_base_fn(|i| F::from_canonical_u32(values.0[i]))
             + SepticExtension::from_base(F::from_canonical_u32((kind as u32) << 24));
-        let (point, offset) = SepticCurve::<F>::lift_x(x_start);
+        let (point, offset, m_trial, m_hash) = SepticCurve::<F>::lift_x(x_start);
         if !is_receive {
-            return (point.neg(), offset);
+            return (point.neg(), offset, m_trial, m_hash);
         }
-        (point, offset)
+        (point, offset, m_trial, m_hash)
     }
 
     pub fn populate(
@@ -52,7 +57,7 @@ impl<F: PrimeField32> GlobalInteractionOperation<F> {
         kind: InteractionKind,
     ) {
         if is_real {
-            let (point, offset) = Self::get_digest(values, is_receive, kind);
+            let (point, offset, m_trial, m_hash) = Self::get_digest(values, is_receive, kind);
             for i in 0..8 {
                 self.offset_bits[i] = F::from_canonical_u8((offset >> i) & 1);
             }
@@ -72,8 +77,12 @@ impl<F: PrimeField32> GlobalInteractionOperation<F> {
             }
             top_4_bits -= F::from_canonical_u32(4);
             self.range_check_witness = top_4_bits.inverse();
+            self.permutation = populate_perm_deg3(m_trial, Some(m_hash));
+
+            assert_eq!(self.x_coordinate.0[0], self.permutation.permutation.perm_output()[0]);
         } else {
             self.populate_dummy();
+            assert_eq!(self.x_coordinate.0[0], self.permutation.permutation.perm_output()[0]);
         }
     }
 
@@ -167,6 +176,7 @@ impl<F: PrimeField32> GlobalInteractionOperation<F> {
             self.y6_bit_decomp[i] = F::zero();
         }
         self.range_check_witness = F::zero();
+        self.permutation = populate_perm_deg3([F::zero(); 16], None);
     }
 }
 
@@ -192,20 +202,46 @@ impl<F: Field> GlobalInteractionOperation<F> {
             offset = offset.clone() + cols.offset_bits[i] * AB::F::from_canonical_u32(1 << i);
         }
 
+        let m_trial = [
+            values[0].clone(),
+            values[1].clone(),
+            values[2].clone(),
+            values[3].clone(),
+            values[4].clone(),
+            values[5].clone(),
+            values[6].clone(),
+            offset.clone(),
+            AB::Expr::zero(),
+            AB::Expr::zero(),
+            AB::Expr::zero(),
+            AB::Expr::zero(),
+            AB::Expr::zero(),
+            AB::Expr::zero(),
+            AB::Expr::zero(),
+            AB::Expr::zero(),
+        ];
+
+        let m_hash = cols.permutation.permutation.perm_output();
+
+        // TODO: constrain hash
+
         // Compute the message.
-        let message = SepticExtension(values)
-            + SepticExtension::<AB::Expr>::from_base(
-                offset * AB::F::from_canonical_u32(1 << 16)
-                    + AB::F::from_canonical_u32(kind as u32) * AB::F::from_canonical_u32(1 << 24),
-            );
+        // let message = SepticExtension(values)
+        //     + SepticExtension::<AB::Expr>::from_base(
+        //         offset * AB::F::from_canonical_u32(1 << 16)
+        //             + AB::F::from_canonical_u32(kind as u32) * AB::F::from_canonical_u32(1 << 24),
+        //     );
 
         // Compute a * m + b.
-        let am_plus_b = SepticCurve::<AB::Expr>::universal_hash(message);
+        // let am_plus_b = SepticCurve::<AB::Expr>::universal_hash(message);
 
         let x = SepticExtension::<AB::Expr>::from_base_fn(|i| cols.x_coordinate[i].into());
 
         // Constrain that when `is_real` is true, then `x == a * m + b`.
-        builder.when(is_real).assert_septic_ext_eq(x.clone(), am_plus_b);
+        for i in 0..7 {
+            builder.when(is_real).assert_eq(cols.x_coordinate[i].into(), m_hash[i].clone());
+        }
+        // When not real, constraint to dummy?
 
         // Constrain that y is a valid y-coordinate.
         let y = SepticExtension::<AB::Expr>::from_base_fn(|i| cols.y_coordinate[i].into());

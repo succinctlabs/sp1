@@ -25,6 +25,7 @@ p3-matrix = { workspace = true }
 p3-maybe-rayon = { workspace = true, features = ["parallel"] }
 p3-uni-stark = { workspace = true }
 p3-util = { workspace = true }
+p3-symmetric = { workspace = true }
 sp1-derive = { workspace = true }
 sp1-primitives = { workspace = true }
 
