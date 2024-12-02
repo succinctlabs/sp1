@@ -29,7 +29,7 @@ const NUM_GLOBAL_COLS: usize = size_of::<GlobalCols<u8>>();
 #[derive(Default)]
 pub struct GlobalChip;
 
-#[derive(AlignedBorrow, Default)]
+#[derive(AlignedBorrow)]
 #[repr(C)]
 pub struct GlobalCols<T: Copy> {
     pub message: [T; 7],

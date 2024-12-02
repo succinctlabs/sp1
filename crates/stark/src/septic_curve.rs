@@ -129,7 +129,7 @@ impl<F: PrimeField> SepticCurve<F> {
         for offset in 0..=255 {
             let m_trial =
                 m + SepticExtension::from_base(F::from_canonical_u32((offset as u32) << 16));
-            let x_trial = Self::universal_hash(m_trial);
+            let x_trial = Self::universal_hash(m_trial); // TODO: FIX
             let y_sq = Self::curve_formula(x_trial);
             if let Some(y) = y_sq.sqrt() {
                 if y.is_exception() {

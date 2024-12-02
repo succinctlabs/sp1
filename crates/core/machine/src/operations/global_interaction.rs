@@ -15,8 +15,10 @@ use sp1_stark::{
     InteractionKind,
 };
 
+use super::poseidon2::Poseidon2Operation;
+
 /// A set of columns needed to compute the global interaction elliptic curve digest.
-#[derive(AlignedBorrow, Clone, Copy, Default)]
+#[derive(AlignedBorrow, Clone, Copy)]
 #[repr(C)]
 pub struct GlobalInteractionOperation<T: Copy> {
     pub offset_bits: [T; 8],
@@ -24,6 +26,7 @@ pub struct GlobalInteractionOperation<T: Copy> {
     pub y_coordinate: SepticBlock<T>,
     pub y6_bit_decomp: [T; 30],
     pub range_check_witness: T,
+    pub permutation: Poseidon2Operation<T>,
 }
 
 impl<F: PrimeField32> GlobalInteractionOperation<F> {
