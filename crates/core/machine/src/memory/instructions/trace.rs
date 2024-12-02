@@ -31,7 +31,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryInstructionsChip {
     fn generate_trace(
         &self,
         input: &ExecutionRecord,
-        _: &mut ExecutionRecord,
+        output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
         let chunk_size = std::cmp::max((input.memory_instr_events.len()) / num_cpus::get(), 1);
         let nb_rows = input.memory_instr_events.len();
@@ -39,53 +39,31 @@ impl<F: PrimeField32> MachineAir<F> for MemoryInstructionsChip {
         let padded_nb_rows = next_power_of_two(nb_rows, size_log2);
         let mut values = zeroed_f_vec(padded_nb_rows * NUM_MEMORY_INSTRUCTIONS_COLUMNS);
 
-        values
+        let blu_events = values
             .chunks_mut(chunk_size * NUM_MEMORY_INSTRUCTIONS_COLUMNS)
             .enumerate()
             .par_bridge()
-            .for_each(|(i, rows)| {
+            .map(|(i, rows)| {
+                let mut blu: HashMap<ByteLookupEvent, usize> = HashMap::new();
                 rows.chunks_mut(NUM_MEMORY_INSTRUCTIONS_COLUMNS).enumerate().for_each(
                     |(j, row)| {
                         let idx = i * chunk_size + j;
                         let cols: &mut MemoryInstructionsColumns<F> = row.borrow_mut();
 
                         if idx < input.memory_instr_events.len() {
-                            let mut byte_lookup_events = Vec::new();
                             let event = &input.memory_instr_events[idx];
-                            self.event_to_row(
-                                event,
-                                cols,
-                                &input.nonce_lookup,
-                                &mut byte_lookup_events,
-                            );
+                            self.event_to_row(event, cols, &input.nonce_lookup, &mut blu);
                         }
                     },
                 );
-            });
-
-        // Convert the trace to a row major matrix.
-        RowMajorMatrix::new(values, NUM_MEMORY_INSTRUCTIONS_COLUMNS)
-    }
-
-    fn generate_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
-        let chunk_size = std::cmp::max((input.memory_instr_events.len()) / num_cpus::get(), 1);
-
-        let blu_batches = input
-            .memory_instr_events
-            .chunks(chunk_size)
-            .par_bridge()
-            .map(|events| {
-                let mut blu: HashMap<ByteLookupEvent, usize> = HashMap::new();
-                events.iter().for_each(|event| {
-                    let mut row = [F::zero(); NUM_MEMORY_INSTRUCTIONS_COLUMNS];
-                    let cols: &mut MemoryInstructionsColumns<F> = row.as_mut_slice().borrow_mut();
-                    self.event_to_row(event, cols, &input.nonce_lookup, &mut blu);
-                });
                 blu
             })
             .collect::<Vec<_>>();
 
-        output.add_byte_lookup_events_from_maps(blu_batches.iter().collect_vec());
+        output.add_byte_lookup_events_from_maps(blu_events.iter().collect_vec());
+
+        // Convert the trace to a row major matrix.
+        RowMajorMatrix::new(values, NUM_MEMORY_INSTRUCTIONS_COLUMNS)
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
@@ -103,7 +81,7 @@ impl MemoryInstructionsChip {
         event: &MemInstrEvent,
         cols: &mut MemoryInstructionsColumns<F>,
         nonce_lookup: &[u32],
-        byte_lookup_events: &mut impl ByteRecord,
+        blu: &mut HashMap<ByteLookupEvent, usize>,
     ) {
         cols.shard = F::from_canonical_u32(event.shard);
         assert!(cols.shard != F::zero());
@@ -115,13 +93,13 @@ impl MemoryInstructionsChip {
         cols.op_a_0 = F::from_bool(event.op_a_0);
 
         // Populate memory accesses for reading from memory.
-        cols.memory_access.populate(event.mem_access, byte_lookup_events);
+        cols.memory_access.populate(event.mem_access, blu);
 
         // Populate addr_word and addr_aligned columns.
         let memory_addr = event.b.wrapping_add(event.c);
         let aligned_addr = memory_addr - memory_addr % WORD_SIZE as u32;
         cols.addr_word = memory_addr.into();
-        cols.addr_word_range_checker.populate(memory_addr);
+        cols.addr_word_range_checker.populate(cols.addr_word, blu);
         cols.addr_aligned = F::from_canonical_u32(aligned_addr);
 
         // Populate the aa_least_sig_byte_decomp columns.
@@ -207,7 +185,7 @@ impl MemoryInstructionsChip {
         // Add event to byte lookup for byte range checking each byte in the memory addr
         let addr_bytes = memory_addr.to_le_bytes();
         for byte_pair in addr_bytes.chunks_exact(2) {
-            byte_lookup_events.add_byte_lookup_event(ByteLookupEvent {
+            blu.add_byte_lookup_event(ByteLookupEvent {
                 opcode: ByteOpcode::U8Range,
                 a1: 0,
                 a2: 0,

@@ -1,9 +1,14 @@
 use std::borrow::BorrowMut;
 
+use hashbrown::HashMap;
+use itertools::Itertools;
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
 use rayon::iter::{ParallelBridge, ParallelIterator};
-use sp1_core_executor::{events::JumpEvent, ExecutionRecord, Opcode, Program};
+use sp1_core_executor::{
+    events::{ByteLookupEvent, ByteRecord, JumpEvent},
+    ExecutionRecord, Opcode, Program,
+};
 use sp1_stark::air::MachineAir;
 
 use crate::utils::{next_power_of_two, zeroed_f_vec};
@@ -22,7 +27,7 @@ impl<F: PrimeField32> MachineAir<F> for JumpChip {
     fn generate_trace(
         &self,
         input: &ExecutionRecord,
-        _: &mut ExecutionRecord,
+        output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
         let chunk_size = std::cmp::max((input.jump_events.len()) / num_cpus::get(), 1);
         let nb_rows = input.jump_events.len();
@@ -30,26 +35,30 @@ impl<F: PrimeField32> MachineAir<F> for JumpChip {
         let padded_nb_rows = next_power_of_two(nb_rows, size_log2);
         let mut values = zeroed_f_vec(padded_nb_rows * NUM_JUMP_COLS);
 
-        values.chunks_mut(chunk_size * NUM_JUMP_COLS).enumerate().par_bridge().for_each(
-            |(i, rows)| {
+        let blu_events = values
+            .chunks_mut(chunk_size * NUM_JUMP_COLS)
+            .enumerate()
+            .par_bridge()
+            .map(|(i, rows)| {
+                let mut blu: HashMap<ByteLookupEvent, usize> = HashMap::new();
                 rows.chunks_mut(NUM_JUMP_COLS).enumerate().for_each(|(j, row)| {
                     let idx = i * chunk_size + j;
                     let cols: &mut JumpColumns<F> = row.borrow_mut();
 
                     if idx < input.jump_events.len() {
                         let event = &input.jump_events[idx];
-                        self.event_to_row(event, cols, &input.nonce_lookup);
+                        self.event_to_row(event, cols, &input.nonce_lookup, &mut blu);
                     }
                 });
-            },
-        );
+                blu
+            })
+            .collect::<Vec<_>>();
+
+        output.add_byte_lookup_events_from_maps(blu_events.iter().collect_vec());
 
         // Convert the trace to a row major matrix.
         RowMajorMatrix::new(values, NUM_JUMP_COLS)
     }
-
-    /// Generate dependencies is a no-op for jump instructions.
-    fn generate_dependencies(&self, _: &Self::Record, _: &mut Self::Record) {}
 
     fn included(&self, shard: &Self::Record) -> bool {
         if let Some(shape) = shard.shape.as_ref() {
@@ -67,6 +76,7 @@ impl JumpChip {
         event: &JumpEvent,
         cols: &mut JumpColumns<F>,
         nonce_lookup: &[u32],
+        blu: &mut HashMap<ByteLookupEvent, usize>,
     ) {
         cols.is_jal = F::from_bool(matches!(event.opcode, Opcode::JAL));
         cols.is_jalr = F::from_bool(matches!(event.opcode, Opcode::JALR));
@@ -75,6 +85,11 @@ impl JumpChip {
         cols.op_b_value = event.b.into();
         cols.op_c_value = event.c.into();
         cols.op_a_0 = F::from_bool(event.op_a_0);
+
+        cols.op_a_range_checker.populate(cols.op_a_value, blu);
+
+        cols.pc = event.pc.into();
+        cols.pc_range_checker.populate(cols.pc, blu);
 
         let next_pc = match event.opcode {
             Opcode::JAL => {
@@ -90,7 +105,7 @@ impl JumpChip {
             Opcode::JALR => {
                 let next_pc = event.b.wrapping_add(event.c);
                 cols.next_pc = next_pc.into();
-                cols.next_pc_range_checker.populate(next_pc);
+                cols.next_pc_range_checker.populate(cols.next_pc, blu);
                 cols.jalr_nonce = F::from_canonical_u32(
                     nonce_lookup
                         .get(event.jump_jalr_lookup_id.0 as usize)
@@ -102,11 +117,6 @@ impl JumpChip {
             _ => unreachable!(),
         };
 
-        cols.op_a_range_checker.populate(event.a);
-        cols.pc = event.pc.into();
-        cols.pc_range_checker.populate(event.pc);
         cols.next_pc = next_pc.into();
-        cols.next_pc_range_checker.populate(next_pc);
-        cols.op_a_range_checker.populate(event.a);
     }
 }

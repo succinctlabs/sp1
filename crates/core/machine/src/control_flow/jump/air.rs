@@ -73,7 +73,7 @@ where
             builder,
             local.next_pc,
             local.next_pc_range_checker,
-            is_real.clone(),
+            local.is_jalr.into(),
         );
 
         // Verify that the new pc is calculated correctly for JAL instructions.

@@ -78,7 +78,7 @@ impl SyscallInstrsChip {
         &self,
         event: &SyscallEvent,
         cols: &mut SyscallInstrColumns<F>,
-        byte_lookup_events: &mut impl ByteRecord,
+        blu: &mut impl ByteRecord,
     ) {
         cols.is_real = F::one();
         cols.pc = F::from_canonical_u32(event.pc);
@@ -86,8 +86,7 @@ impl SyscallInstrsChip {
         cols.shard = F::from_canonical_u32(event.shard);
         cols.clk = F::from_canonical_u32(event.clk);
 
-        cols.op_a_access
-            .populate(event.a_record.expect("a_record is required"), byte_lookup_events);
+        cols.op_a_access.populate(event.a_record.expect("a_record is required"), blu);
         cols.op_b_value = event.arg1.into();
         cols.op_c_value = event.arg2.into();
 
@@ -139,13 +138,13 @@ impl SyscallInstrsChip {
         // it's operands.
         if cols.is_halt == F::one() {
             cols.operand_to_check = event.arg1.into();
-            cols.operand_range_check_cols.populate(event.arg1);
+            cols.operand_range_check_cols.populate(cols.operand_to_check, blu);
             cols.ecall_range_check_operand = F::one();
         }
 
         if syscall_id == F::from_canonical_u32(SyscallCode::COMMIT_DEFERRED_PROOFS.syscall_id()) {
             cols.operand_to_check = event.arg2.into();
-            cols.operand_range_check_cols.populate(event.arg2);
+            cols.operand_range_check_cols.populate(cols.operand_to_check, blu);
             cols.ecall_range_check_operand = F::one();
         }
     }

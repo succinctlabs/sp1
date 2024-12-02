@@ -1,8 +1,13 @@
+use hashbrown::HashMap;
+use itertools::Itertools;
 use p3_air::{Air, BaseAir};
 use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use rayon::iter::{ParallelBridge, ParallelIterator};
-use sp1_core_executor::{ExecutionRecord, Opcode, Program, DEFAULT_PC_INC, UNUSED_PC};
+use sp1_core_executor::{
+    events::{ByteLookupEvent, ByteRecord},
+    ExecutionRecord, Opcode, Program, DEFAULT_PC_INC, UNUSED_PC,
+};
 use sp1_derive::AlignedBorrow;
 use sp1_stark::{
     air::{MachineAir, SP1AirBuilder},
@@ -143,7 +148,7 @@ impl<F: PrimeField32> MachineAir<F> for AUIPCChip {
     fn generate_trace(
         &self,
         input: &ExecutionRecord,
-        _: &mut ExecutionRecord,
+        output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
         let chunk_size = std::cmp::max((input.auipc_events.len()) / num_cpus::get(), 1);
         let nb_rows = input.auipc_events.len();
@@ -151,8 +156,12 @@ impl<F: PrimeField32> MachineAir<F> for AUIPCChip {
         let padded_nb_rows = next_power_of_two(nb_rows, size_log2);
         let mut values = zeroed_f_vec(padded_nb_rows * NUM_AUIPC_COLS);
 
-        values.chunks_mut(chunk_size * NUM_AUIPC_COLS).enumerate().par_bridge().for_each(
-            |(i, rows)| {
+        let blu_events = values
+            .chunks_mut(chunk_size * NUM_AUIPC_COLS)
+            .enumerate()
+            .par_bridge()
+            .map(|(i, rows)| {
+                let mut blu: HashMap<ByteLookupEvent, usize> = HashMap::new();
                 rows.chunks_mut(NUM_AUIPC_COLS).enumerate().for_each(|(j, row)| {
                     let idx = i * chunk_size + j;
                     let cols: &mut AUIPCColumns<F> = row.borrow_mut();
@@ -163,7 +172,9 @@ impl<F: PrimeField32> MachineAir<F> for AUIPCChip {
                         cols.is_unimp = F::from_bool(event.opcode == Opcode::UNIMP);
                         cols.is_ebreak = F::from_bool(event.opcode == Opcode::EBREAK);
                         cols.pc = event.pc.into();
-                        cols.pc_range_checker.populate(event.pc);
+                        if event.opcode == Opcode::AUIPC {
+                            cols.pc_range_checker.populate(cols.pc, &mut blu);
+                        }
                         cols.op_a_value = event.a.into();
                         cols.op_b_value = event.b.into();
                         cols.op_c_value = event.c.into();
@@ -176,15 +187,15 @@ impl<F: PrimeField32> MachineAir<F> for AUIPCChip {
                         );
                     }
                 });
-            },
-        );
+                blu
+            })
+            .collect::<Vec<_>>();
+
+        output.add_byte_lookup_events_from_maps(blu_events.iter().collect_vec());
 
         // Convert the trace to a row major matrix.
         RowMajorMatrix::new(values, NUM_AUIPC_COLS)
     }
-
-    /// Generate dependencies is a no-op for AUIPC.
-    fn generate_dependencies(&self, _: &Self::Record, _: &mut Self::Record) {}
 
     fn included(&self, shard: &Self::Record) -> bool {
         if let Some(shape) = shard.shape.as_ref() {
