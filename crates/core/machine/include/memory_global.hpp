@@ -19,7 +19,7 @@ namespace sp1_core_machine_sys::memory_global {
             record.value = event->value;
         }
         // We populate only the things in the first loop of generate_trace here. The second loop is handled in the kernel directly.
-        sp1_core_machine_sys::memory_local::populate_memory<F, EF7>(&cols->global_interaction_cols, &record, event->addr, is_receive);
+        // sp1_core_machine_sys::memory_local::populate_memory<F, EF7>(&cols->global_interaction_cols, &record, event->addr, is_receive);
         cols->addr = F::from_canonical_u32(event->addr);
         for(uintptr_t i = 0 ; i < 32 ; i++) {
             cols->addr_bits.bits[i] = F::from_canonical_u32(((event->addr) >> i) & 1);

@@ -16,9 +16,9 @@ use crate::{
     RecursionProgram,
 };
 
-use super::{columns::preprocessed::Poseidon2PreprocessedCols, Poseidon2WideChip};
+use super::{columns::preprocessed::Poseidon2PreprocessedColsWide, Poseidon2WideChip};
 
-const PREPROCESSED_POSEIDON2_WIDTH: usize = size_of::<Poseidon2PreprocessedCols<u8>>();
+const PREPROCESSED_POSEIDON2_WIDTH: usize = size_of::<Poseidon2PreprocessedColsWide<u8>>();
 
 impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<DEGREE> {
     type Record = ExecutionRecord<F>;
@@ -106,7 +106,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
             .for_each(|(row, instr)| {
                 // Set the memory columns. We read once, at the first iteration,
                 // and write once, at the last iteration.
-                *row.borrow_mut() = Poseidon2PreprocessedCols {
+                *row.borrow_mut() = Poseidon2PreprocessedColsWide {
                     input: instr.addrs.input,
                     output: std::array::from_fn(|j| MemoryAccessCols {
                         addr: instr.addrs.output[j],
@@ -351,7 +351,7 @@ mod tests {
             .par_chunks_mut(PREPROCESSED_POSEIDON2_WIDTH)
             .zip_eq(instrs)
             .for_each(|(row, instr)| {
-                let cols: &mut Poseidon2PreprocessedCols<_> = row.borrow_mut();
+                let cols: &mut Poseidon2PreprocessedColsWide<_> = row.borrow_mut();
                 unsafe {
                     crate::sys::poseidon2_wide_instr_to_row_babybear(instr, cols);
                 }

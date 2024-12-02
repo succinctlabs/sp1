@@ -12,7 +12,7 @@ use sp1_core_machine::operations::poseidon2::WIDTH;
 
 use super::Poseidon2WideChip;
 use crate::builder::SP1RecursionAirBuilder;
-use crate::chips::poseidon2_wide::columns::preprocessed::Poseidon2PreprocessedCols;
+use crate::chips::poseidon2_wide::columns::preprocessed::Poseidon2PreprocessedColsWide;
 
 impl<F, const DEGREE: usize> BaseAir<F> for Poseidon2WideChip<DEGREE> {
     fn width(&self) -> usize {
@@ -36,7 +36,7 @@ where
         let prepr = builder.preprocessed();
         let local_row = Self::convert::<AB::Var>(main.row_slice(0));
         let prep_local = prepr.row_slice(0);
-        let prep_local: &Poseidon2PreprocessedCols<_> = (*prep_local).borrow();
+        let prep_local: &Poseidon2PreprocessedColsWide<_> = (*prep_local).borrow();
 
         // Dummy constraints to normalize to DEGREE.
         let lhs = (0..DEGREE)

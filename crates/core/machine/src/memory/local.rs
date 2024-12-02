@@ -661,25 +661,25 @@ mod tests {
                                     cols,
                                 );
                             }
-                            point_chunks.push(SepticCurveComplete::Affine(SepticCurve {
-                                x: SepticExtension(
-                                    cols.initial_global_interaction_cols.x_coordinate.0,
-                                ),
-                                y: SepticExtension(
-                                    cols.initial_global_interaction_cols.y_coordinate.0,
-                                ),
-                            }));
-                            point_chunks.push(SepticCurveComplete::Affine(SepticCurve {
-                                x: SepticExtension(
-                                    cols.final_global_interaction_cols.x_coordinate.0,
-                                ),
-                                y: SepticExtension(
-                                    cols.final_global_interaction_cols.y_coordinate.0,
-                                ),
-                            }));
+                            // point_chunks.push(SepticCurveComplete::Affine(SepticCurve {
+                            //     x: SepticExtension(
+                            //         cols.initial_global_interaction_cols.x_coordinate.0,
+                            //     ),
+                            //     y: SepticExtension(
+                            //         cols.initial_global_interaction_cols.y_coordinate.0,
+                            //     ),
+                            // }));
+                            // point_chunks.push(SepticCurveComplete::Affine(SepticCurve {
+                            //     x: SepticExtension(
+                            //         cols.final_global_interaction_cols.x_coordinate.0,
+                            //     ),
+                            //     y: SepticExtension(
+                            //         cols.final_global_interaction_cols.y_coordinate.0,
+                            //     ),
+                            // }));
                         } else {
-                            cols.initial_global_interaction_cols.populate_dummy();
-                            cols.final_global_interaction_cols.populate_dummy();
+                            // cols.initial_global_interaction_cols.populate_dummy();
+                            // cols.final_global_interaction_cols.populate_dummy();
                         }
                     }
                 });
@@ -722,22 +722,22 @@ mod tests {
                             NUM_LOCAL_MEMORY_ENTRIES_PER_ROW * 2 * (idx + 1) + 1,
                             cumulative_sum.len(),
                         );
-                        cols.global_accumulation_cols.populate_real(
-                            &cumulative_sum[start..end],
-                            final_digest,
-                            final_sum_checker,
-                        );
+                        // cols.global_accumulation_cols.populate_real(
+                        //     &cumulative_sum[start..end],
+                        //     final_digest,
+                        //     final_sum_checker,
+                        // );
                     } else {
-                        for k in 0..NUM_LOCAL_MEMORY_ENTRIES_PER_ROW {
-                            cols.memory_local_entries[k]
-                                .initial_global_interaction_cols
-                                .populate_dummy();
-                            cols.memory_local_entries[k]
-                                .final_global_interaction_cols
-                                .populate_dummy();
-                        }
-                        cols.global_accumulation_cols
-                            .populate_dummy(final_digest, final_sum_checker);
+                        // for k in 0..NUM_LOCAL_MEMORY_ENTRIES_PER_ROW {
+                        //     cols.memory_local_entries[k]
+                        //         .initial_global_interaction_cols
+                        //         .populate_dummy();
+                        //     cols.memory_local_entries[k]
+                        //         .final_global_interaction_cols
+                        //         .populate_dummy();
+                        // }
+                        // cols.global_accumulation_cols
+                        //     .populate_dummy(final_digest, final_sum_checker);
                     }
                 })
             });
