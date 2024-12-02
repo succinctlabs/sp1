@@ -1,6 +1,6 @@
 use std::{borrow::Borrow, mem::transmute};
 
-use p3_air::{Air, BaseAir};
+use p3_air::{Air, BaseAir, PairBuilder};
 use p3_field::{PrimeField, PrimeField32};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use rayon::iter::{
@@ -19,7 +19,13 @@ use sp1_stark::{
 use std::borrow::BorrowMut;
 
 use crate::{
-    operations::{GlobalAccumulationOperation, GlobalInteractionOperation},
+    operations::{
+        poseidon2::{
+            air::{eval_external_round, eval_internal_rounds},
+            NUM_EXTERNAL_ROUNDS,
+        },
+        GlobalAccumulationOperation, GlobalInteractionOperation,
+    },
     utils::{next_power_of_two, zeroed_f_vec},
 };
 use sp1_derive::AlignedBorrow;
@@ -153,7 +159,7 @@ impl<F> BaseAir<F> for GlobalChip {
 
 impl<AB> Air<AB> for GlobalChip
 where
-    AB: SP1AirBuilder,
+    AB: SP1AirBuilder + PairBuilder,
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
@@ -199,6 +205,12 @@ where
             local.accumulation,
             next.accumulation,
         );
+
+        // Constraint the permutation.
+        for r in 0..NUM_EXTERNAL_ROUNDS {
+            eval_external_round(builder, &local.interaction.permutation.permutation, r);
+        }
+        eval_internal_rounds(builder, &local.interaction.permutation.permutation);
     }
 }
 
