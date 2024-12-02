@@ -128,7 +128,7 @@ impl CpuChip {
             clk.clone() + AB::Expr::from_canonical_u32(DEFAULT_PC_INC) + local.num_extra_cycles;
 
         let next_clk =
-            AB::Expr::from_canonical_u32(2u32 << 16) * next.clk_8bit_limb + next.clk_16bit_limb;
+            AB::Expr::from_canonical_u32(1u32 << 16) * next.clk_8bit_limb + next.clk_16bit_limb;
         builder.when_transition().when(next.is_real).assert_eq(expected_next_clk, next_clk);
 
         // Range check that the clk is within 24 bits using it's limb values.
