@@ -52,17 +52,15 @@ pub struct MemoryInstructionsColumns<T> {
 
     /// The aligned address.
     pub addr_aligned: T,
-    /// The LE bit decomp of the least significant byte of address aligned.
-    pub addr_aligned_least_sig_byte_decomp: [T; 6],
+    /// The address's least significant two bits.
+    pub addr_ls_two_bits: T,
 
-    /// The address offset.
-    pub addr_offset: T,
-    /// Whether the address offset is one.
-    pub offset_is_one: T,
-    /// Whether the address offset is two.
-    pub offset_is_two: T,
-    /// Whether the address offset is three.
-    pub offset_is_three: T,
+    /// Whether the least significant two bits of the address are one.
+    pub ls_bits_is_one: T,
+    /// Whether the least significant two bits of the address are two.
+    pub ls_bits_is_two: T,
+    /// Whether the least significant two bits of the address are three.
+    pub ls_bits_is_three: T,
 
     /// Gadget to verify that the address word is within the Baby-Bear field.
     pub addr_word_range_checker: BabyBearWordRangeChecker<T>,
@@ -73,9 +71,12 @@ pub struct MemoryInstructionsColumns<T> {
     /// Used for load memory instructions to store the unsigned memory value.
     pub unsigned_mem_val: Word<T>,
 
-    // LE bit decomposition for the most significant byte of `unsigned_mem_val`.  This is used to
-    // determine the sign for that value (used for LB and LH).
-    pub most_sig_byte_decomp: [T; 8],
+    /// The most significant bit of `unsigned_mem_val`.  This is relevant for LB and LH instructions.
+    pub most_sig_bit: T,
+
+    /// The most significant byte of `unsigned_mem_val`.  This is relevant for LB and LH instructions.
+    /// For LB this is equal to unsigned_mem_val[0] and for LH this is equal to unsigned_mem_val[1].
+    pub most_sig_byte: T,
 
     /// Flag for load memory instructions that contains bool value of
     /// (memory value is neg) && (op_a != registor 0).

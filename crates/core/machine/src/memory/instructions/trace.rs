@@ -1,4 +1,4 @@
-use std::{array, borrow::BorrowMut};
+use std::borrow::BorrowMut;
 
 use hashbrown::HashMap;
 use itertools::Itertools;
@@ -25,7 +25,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryInstructionsChip {
     type Program = Program;
 
     fn name(&self) -> String {
-        "MemoryInstructions".to_string()
+        "MemoryInstrs".to_string()
     }
 
     fn generate_trace(
@@ -104,19 +104,25 @@ impl MemoryInstructionsChip {
 
         // Populate the aa_least_sig_byte_decomp columns.
         assert!(aligned_addr % 4 == 0);
-        let aligned_addr_ls_byte = (aligned_addr & 0x000000FF) as u8;
-        let bits: [bool; 8] = array::from_fn(|i| aligned_addr_ls_byte & (1 << i) != 0);
-        cols.addr_aligned_least_sig_byte_decomp = array::from_fn(|i| F::from_bool(bits[i + 2]));
         cols.addr_word_nonce = F::from_canonical_u32(
             nonce_lookup.get(event.memory_add_lookup_id.0 as usize).copied().unwrap_or_default(),
         );
 
         // Populate memory offsets.
-        let addr_offset = (memory_addr % WORD_SIZE as u32) as u8;
-        cols.addr_offset = F::from_canonical_u8(addr_offset);
-        cols.offset_is_one = F::from_bool(addr_offset == 1);
-        cols.offset_is_two = F::from_bool(addr_offset == 2);
-        cols.offset_is_three = F::from_bool(addr_offset == 3);
+        let addr_ls_two_bits = (memory_addr % WORD_SIZE as u32) as u8;
+        cols.addr_ls_two_bits = F::from_canonical_u8(addr_ls_two_bits);
+        cols.ls_bits_is_one = F::from_bool(addr_ls_two_bits == 1);
+        cols.ls_bits_is_two = F::from_bool(addr_ls_two_bits == 2);
+        cols.ls_bits_is_three = F::from_bool(addr_ls_two_bits == 3);
+
+        // Add byte lookup event to verify correct calculation of addr_ls_two_bits.
+        blu.add_byte_lookup_event(ByteLookupEvent {
+            opcode: ByteOpcode::AND,
+            a1: addr_ls_two_bits as u16,
+            a2: 0,
+            b: cols.addr_word[0].as_canonical_u32() as u8,
+            c: 0b11,
+        });
 
         // If it is a load instruction, set the unsigned_mem_val column.
         let mem_value = event.mem_access.value();
@@ -125,10 +131,10 @@ impl MemoryInstructionsChip {
             match event.opcode {
                 Opcode::LB | Opcode::LBU => {
                     cols.unsigned_mem_val =
-                        (mem_value.to_le_bytes()[addr_offset as usize] as u32).into();
+                        (mem_value.to_le_bytes()[addr_ls_two_bits as usize] as u32).into();
                 }
                 Opcode::LH | Opcode::LHU => {
-                    let value = match (addr_offset >> 1) % 2 {
+                    let value = match (addr_ls_two_bits >> 1) % 2 {
                         0 => mem_value & 0x0000FFFF,
                         1 => (mem_value & 0xFFFF0000) >> 16,
                         _ => unreachable!(),
@@ -149,11 +155,8 @@ impl MemoryInstructionsChip {
                     cols.unsigned_mem_val.to_u32().to_le_bytes()[1]
                 };
 
-                for i in (0..8).rev() {
-                    cols.most_sig_byte_decomp[i] =
-                        F::from_canonical_u8(most_sig_mem_value_byte >> i & 0x01);
-                }
-                if cols.most_sig_byte_decomp[7] == F::one() {
+                let most_sig_mem_value_bit = most_sig_mem_value_byte >> 7;
+                if most_sig_mem_value_bit == 1 {
                     cols.mem_value_is_neg_not_x0 = F::from_bool(!event.op_a_0);
                     cols.unsigned_mem_val_nonce = F::from_canonical_u32(
                         nonce_lookup
@@ -162,12 +165,23 @@ impl MemoryInstructionsChip {
                             .unwrap_or_default(),
                     );
                 }
+
+                cols.most_sig_byte = F::from_canonical_u8(most_sig_mem_value_byte);
+                cols.most_sig_bit = F::from_canonical_u8(most_sig_mem_value_bit);
+
+                blu.add_byte_lookup_event(ByteLookupEvent {
+                    opcode: ByteOpcode::MSB,
+                    a1: most_sig_mem_value_bit as u16,
+                    a2: 0,
+                    b: most_sig_mem_value_byte,
+                    c: 0,
+                });
             }
 
             // Set the `mem_value_is_pos_not_x0` composite flag.
             cols.mem_value_is_pos_not_x0 = F::from_bool(
                 ((matches!(event.opcode, Opcode::LB | Opcode::LH)
-                    && (cols.most_sig_byte_decomp[7] == F::zero()))
+                    && (cols.most_sig_bit == F::zero()))
                     || matches!(event.opcode, Opcode::LBU | Opcode::LHU | Opcode::LW))
                     && !event.op_a_0,
             )
