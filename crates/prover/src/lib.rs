@@ -40,9 +40,15 @@ use p3_matrix::dense::RowMajorMatrix;
 use shapes::SP1ProofShape;
 use sp1_core_executor::{ExecutionError, ExecutionReport, Executor, Program, SP1Context};
 use sp1_core_machine::{
+    alu::{AddSubChip, BitwiseChip, DivRemChip, LtChip, MulChip, ShiftLeft, ShiftRightChip},
+    cpu::CpuChip,
     io::SP1Stdin,
+    memory::{
+        MemoryChipType::{Finalize, Initialize},
+        MemoryLocalChip,
+    },
     reduce::SP1ReduceProof,
-    riscv::{CoreShapeConfig, RiscvAir},
+    riscv::{ByteChip, CoreShapeConfig, MemoryGlobalChip, ProgramChip, RiscvAir, SyscallChip},
     utils::{concurrency::TurnBasedSync, SP1CoreProverError},
 };
 use sp1_primitives::{hash_deferred_proof, io::SP1PublicValues};
@@ -74,6 +80,7 @@ use sp1_recursion_core::{
 };
 pub use sp1_recursion_gnark_ffi::proof::{Groth16Bn254Proof, PlonkBn254Proof};
 use sp1_recursion_gnark_ffi::{groth16_bn254::Groth16Bn254Prover, plonk_bn254::PlonkBn254Prover};
+use sp1_stark::air::MachineAir;
 use sp1_stark::{
     baby_bear_poseidon2::BabyBearPoseidon2, Challenge, MachineProver, SP1CoreOpts, SP1ProverOpts,
     ShardProof, StarkGenericConfig, StarkVerifyingKey, Val, Word, DIGEST_SIZE,
@@ -162,6 +169,8 @@ pub struct SP1Prover<C: SP1ProverComponents = DefaultProverComponents> {
     pub wrap_vk: OnceLock<StarkVerifyingKey<OuterSC>>,
 
     pub vk_verification: bool,
+
+    pub single_shard_program: Arc<RecursionProgram<BabyBear>>,
 }
 
 impl<C: SP1ProverComponents> SP1Prover<C> {
@@ -240,6 +249,40 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             });
         }
 
+        let shape = ProofShape::from_log2_heights(&vec![
+            (MachineAir::<BabyBear>::name(&CpuChip), 21),
+            (MachineAir::<BabyBear>::name(&AddSubChip), 21),
+            (MachineAir::<BabyBear>::name(&BitwiseChip), 19),
+            (MachineAir::<BabyBear>::name(&MulChip), 19),
+            (MachineAir::<BabyBear>::name(&ShiftRightChip), 19),
+            (MachineAir::<BabyBear>::name(&ShiftLeft), 19),
+            (MachineAir::<BabyBear>::name(&LtChip), 20),
+            (MachineAir::<BabyBear>::name(&MemoryLocalChip::new()), 19),
+            (MachineAir::<BabyBear>::name(&SyscallChip::core()), 19),
+            (MachineAir::<BabyBear>::name(&DivRemChip), 21),
+            (MachineAir::<BabyBear>::name(&MemoryGlobalChip::new(Initialize)), 19),
+            (MachineAir::<BabyBear>::name(&MemoryGlobalChip::new(Finalize)), 19),
+            (MachineAir::<BabyBear>::name(&ProgramChip), 22),
+            //    (RiscvAir::ProgramMemory(MemoryProgramChip::default()), program_memory_heights),
+            (MachineAir::<BabyBear>::name(&ByteChip::default()), 16),
+        ]);
+
+        let input = SP1RecursionWitnessValues::dummy(
+            core_prover.machine(),
+            &SP1RecursionShape { proof_shapes: vec![shape], is_complete: true },
+        );
+        let mut builder = Builder::<InnerConfig>::default();
+
+        let input = input.read(&mut builder);
+        SP1RecursiveVerifier::verify(&mut builder, core_prover.machine(), input);
+        let operations = builder.into_operations();
+
+        // Compile the program.
+        let mut compiler = AsmCompiler::<InnerConfig>::default();
+        let mut program = compiler.compile(operations);
+
+        let single_shard_program = Arc::new(program);
+
         Self {
             core_prover,
             compress_prover,
@@ -255,6 +298,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             core_shape_config,
             recursion_shape_config,
             vk_verification,
+            single_shard_program,
             wrap_program: OnceLock::new(),
             wrap_vk: OnceLock::new(),
         }
@@ -394,6 +438,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         let first_layer_batch_size = 1;
 
         let shard_proofs = &proof.proof.0;
+        let is_single_shard = shard_proofs.len() == 1;
 
         // Generate the first layer inputs.
         let first_layer_inputs =
@@ -458,7 +503,13 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                                 SP1CircuitWitness::Core(input) => {
                                     let mut witness_stream = Vec::new();
                                     Witnessable::<InnerConfig>::write(&input, &mut witness_stream);
-                                    (self.recursion_program(&input), witness_stream)
+                                    let program = if is_single_shard {
+                                        self.single_shard_program.clone()
+                                        // self.recursion_program(&input)
+                                    } else {
+                                        self.recursion_program(&input)
+                                    };
+                                    (program, witness_stream)
                                 }
                                 SP1CircuitWitness::Deferred(input) => {
                                     let mut witness_stream = Vec::new();
