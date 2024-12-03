@@ -164,7 +164,7 @@ pub struct SP1Prover<C: SP1ProverComponents = DefaultProverComponents> {
 
     pub vk_verification: bool,
 
-    pub single_shard_programs: BTreeMap<SP1RecursionShape, Arc<RecursionProgram<BabyBear>>>,
+    pub single_shard_programs: Option<BTreeMap<SP1RecursionShape, Arc<RecursionProgram<BabyBear>>>>,
 }
 
 impl<C: SP1ProverComponents> SP1Prover<C> {
@@ -243,42 +243,46 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             });
         }
 
-        let mut single_shard_programs = BTreeMap::new();
+        let mut single_shard_programs = None;
 
-        for log_heights in &core_shape_config.as_ref().unwrap().shapes_with_cpu_and_memory_finalize
-        {
-            let shape = ProofShape::from_log2_heights(
-                &log_heights
-                    .into_iter()
-                    .filter(|(_, v)| v[0].is_some())
-                    .map(|(k, v)| (k.name(), Arc::new(v.last().unwrap()).unwrap_or(0)))
-                    .chain(vec![
-                        (MachineAir::<BabyBear>::name(&ProgramChip), 19),
-                        (MachineAir::<BabyBear>::name(&ByteChip::default()), 16),
-                    ])
-                    .collect::<Vec<_>>(),
-            );
+        if let Some(inn_core_shape_config) = &core_shape_config {
+            let mut single_shard_programs_inner = BTreeMap::new();
 
-            let input = SP1RecursionWitnessValues::dummy(
-                core_prover.machine(),
-                &SP1RecursionShape { proof_shapes: vec![shape], is_complete: true },
-            );
-            let mut builder = Builder::<InnerConfig>::default();
+            for log_heights in &inn_core_shape_config.shapes_with_cpu_and_memory_finalize {
+                let shape = ProofShape::from_log2_heights(
+                    &log_heights
+                        .into_iter()
+                        .filter(|(_, v)| v[0].is_some())
+                        .map(|(k, v)| (k.name(), Arc::new(v.last().unwrap()).unwrap_or(0)))
+                        .chain(vec![
+                            (MachineAir::<BabyBear>::name(&ProgramChip), 19),
+                            (MachineAir::<BabyBear>::name(&ByteChip::default()), 16),
+                        ])
+                        .collect::<Vec<_>>(),
+                );
 
-            let recursion_shape = input.shape();
+                let input = SP1RecursionWitnessValues::dummy(
+                    core_prover.machine(),
+                    &SP1RecursionShape { proof_shapes: vec![shape], is_complete: true },
+                );
+                let mut builder = Builder::<InnerConfig>::default();
 
-            let input = input.read(&mut builder);
-            SP1RecursiveVerifier::verify(&mut builder, core_prover.machine(), input);
-            let operations = builder.into_operations();
+                let recursion_shape = input.shape();
 
-            // Compile the program.
-            let mut compiler = AsmCompiler::<InnerConfig>::default();
-            let mut program = compiler.compile(operations);
+                let input = input.read(&mut builder);
+                SP1RecursiveVerifier::verify(&mut builder, core_prover.machine(), input);
+                let operations = builder.into_operations();
 
-            recursion_shape_config.as_ref().unwrap().fix_shape(&mut program);
+                // Compile the program.
+                let mut compiler = AsmCompiler::<InnerConfig>::default();
+                let mut program = compiler.compile(operations);
 
-            let single_shard_program = Arc::new(program);
-            single_shard_programs.insert(recursion_shape, single_shard_program);
+                recursion_shape_config.as_ref().unwrap().fix_shape(&mut program);
+
+                let single_shard_program = Arc::new(program);
+                single_shard_programs_inner.insert(recursion_shape, single_shard_program);
+            }
+            let _ = single_shard_programs.insert(single_shard_programs_inner);
         }
 
         Self {
@@ -440,7 +444,6 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         let first_layer_batch_size = 1;
 
         let shard_proofs = &proof.proof.0;
-        let is_single_shard = shard_proofs.len() == 1;
 
         // Generate the first layer inputs.
         let first_layer_inputs =
@@ -505,15 +508,12 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                                 SP1CircuitWitness::Core(input) => {
                                     let mut witness_stream = Vec::new();
                                     Witnessable::<InnerConfig>::write(&input, &mut witness_stream);
-                                    let program = if is_single_shard {
-                                        self.single_shard_programs
-                                            .get(&input.shape())
-                                            .unwrap()
-                                            .clone()
-                                        // self.recursion_program(&input)
-                                    } else {
-                                        self.recursion_program(&input)
-                                    };
+                                    let program = self
+                                        .single_shard_programs
+                                        .as_ref()
+                                        .and_then(|x| x.get(&input.shape()))
+                                        .map(Clone::clone)
+                                        .unwrap_or_else(|| self.recursion_program(&input));
                                     (program, witness_stream)
                                 }
                                 SP1CircuitWitness::Deferred(input) => {

@@ -291,12 +291,8 @@ where
 
                             // Fix the shape of the records.
                             if let Some(shape_config) = shape_config {
-                                if records.len() == 1 {
-                                    shape_config.fix_shape(&mut records[0], true).unwrap();
-                                } else {
-                                    for record in records.iter_mut() {
-                                        shape_config.fix_shape(record, false).unwrap();
-                                    }
+                                for record in records.iter_mut() {
+                                    shape_config.fix_shape(record).unwrap();
                                 }
                             }
 

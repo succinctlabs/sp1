@@ -106,22 +106,13 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
     }
 
     /// Fix the shape of the proof.
-    pub fn fix_shape(
-        &self,
-        record: &mut ExecutionRecord,
-        is_single_shard: bool,
-    ) -> Result<(), CoreShapeError> {
+    pub fn fix_shape(&self, record: &mut ExecutionRecord) -> Result<(), CoreShapeError> {
         if record.program.preprocessed_shape.is_none() {
             return Err(CoreShapeError::PrepcocessedShapeMissing);
         }
         if record.shape.is_some() {
             return Err(CoreShapeError::ShapeAlreadyFixed);
         }
-        // if is_single_shard {
-        //     record.shape =
-        //         Some(CoreShape { inner: self.single_shard_shape.clone().into_iter().collect() });
-        //     return Ok(());
-        // }
 
         // Set the shape of the chips with prepcoded shapes to match the preprocessed shape from the
         // program.
