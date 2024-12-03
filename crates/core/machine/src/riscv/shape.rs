@@ -110,7 +110,7 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
             .map(|log_heights| {
                 ProofShape::from_log2_heights(
                     &log_heights
-                        .into_iter()
+                        .iter()
                         .filter(|(_, v)| v[0].is_some())
                         .map(|(k, v)| (k.name(), v.last().unwrap().unwrap()))
                         .chain(vec![
