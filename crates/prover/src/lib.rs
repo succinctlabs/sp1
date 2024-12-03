@@ -42,7 +42,7 @@ use sp1_core_executor::{ExecutionError, ExecutionReport, Executor, Program, SP1C
 use sp1_core_machine::{
     io::SP1Stdin,
     reduce::SP1ReduceProof,
-    riscv::{ByteChip, CoreShapeConfig, ProgramChip, RiscvAir},
+    riscv::{CoreShapeConfig, RiscvAir},
     utils::{concurrency::TurnBasedSync, SP1CoreProverError},
 };
 use sp1_primitives::{hash_deferred_proof, io::SP1PublicValues};
@@ -74,7 +74,6 @@ use sp1_recursion_core::{
 };
 pub use sp1_recursion_gnark_ffi::proof::{Groth16Bn254Proof, PlonkBn254Proof};
 use sp1_recursion_gnark_ffi::{groth16_bn254::Groth16Bn254Prover, plonk_bn254::PlonkBn254Prover};
-use sp1_stark::air::MachineAir;
 use sp1_stark::{
     baby_bear_poseidon2::BabyBearPoseidon2, Challenge, MachineProver, SP1CoreOpts, SP1ProverOpts,
     ShardProof, StarkGenericConfig, StarkVerifyingKey, Val, Word, DIGEST_SIZE,
@@ -248,19 +247,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         if let Some(inn_core_shape_config) = &core_shape_config {
             let mut single_shard_programs_inner = BTreeMap::new();
 
-            for log_heights in &inn_core_shape_config.shapes_with_cpu_and_memory_finalize {
-                let shape = ProofShape::from_log2_heights(
-                    &log_heights
-                        .into_iter()
-                        .filter(|(_, v)| v[0].is_some())
-                        .map(|(k, v)| (k.name(), Arc::new(v.last().unwrap()).unwrap_or(0)))
-                        .chain(vec![
-                            (MachineAir::<BabyBear>::name(&ProgramChip), 19),
-                            (MachineAir::<BabyBear>::name(&ByteChip::default()), 16),
-                        ])
-                        .collect::<Vec<_>>(),
-                );
-
+            for shape in inn_core_shape_config.small_program_shapes() {
                 let input = SP1RecursionWitnessValues::dummy(
                     core_prover.machine(),
                     &SP1RecursionShape { proof_shapes: vec![shape], is_complete: true },

@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use itertools::Itertools;
 
 use hashbrown::HashMap;
@@ -39,13 +41,12 @@ pub enum CoreShapeError {
 pub struct CoreShapeConfig<F: PrimeField32> {
     included_shapes: Vec<HashMap<String, usize>>,
     // Shapes for shards with a CPU chip and memory initialize/finalize events.
-    pub shapes_with_cpu_and_memory_finalize: Vec<HashMap<RiscvAir<F>, Vec<Option<usize>>>>,
+    shapes_with_cpu_and_memory_finalize: Vec<HashMap<RiscvAir<F>, Vec<Option<usize>>>>,
     allowed_preprocessed_log_heights: HashMap<RiscvAir<F>, Vec<Option<usize>>>,
     allowed_core_log_heights: Vec<HashMap<RiscvAir<F>, Vec<Option<usize>>>>,
     maximal_core_log_heights_mask: Vec<bool>,
     memory_allowed_log_heights: HashMap<RiscvAir<F>, Vec<Option<usize>>>,
     precompile_allowed_log_heights: HashMap<RiscvAir<F>, (usize, Vec<usize>)>,
-    pub single_shard_shape: Vec<(String, usize)>,
 }
 
 struct CoreShapeSpec {
@@ -103,6 +104,25 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
 
         let shape = CoreShape { inner };
         Some(shape)
+    }
+
+    pub fn small_program_shapes(&self) -> Vec<ProofShape> {
+        self.shapes_with_cpu_and_memory_finalize
+            .iter()
+            .map(|log_heights| {
+                ProofShape::from_log2_heights(
+                    &log_heights
+                        .into_iter()
+                        .filter(|(_, v)| v[0].is_some())
+                        .map(|(k, v)| (k.name(), Arc::new(v.last().unwrap()).unwrap_or(0)))
+                        .chain(vec![
+                            (MachineAir::<BabyBear>::name(&ProgramChip), 19),
+                            (MachineAir::<BabyBear>::name(&ByteChip::default()), 16),
+                        ])
+                        .collect::<Vec<_>>(),
+                )
+            })
+            .collect()
     }
 
     /// Fix the shape of the proof.
@@ -884,21 +904,6 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
             ]),
         ];
 
-        let single_shard_shape = vec![
-            (MachineAir::<BabyBear>::name(&CpuChip), 14),
-            (MachineAir::<BabyBear>::name(&AddSubChip), 14),
-            (MachineAir::<BabyBear>::name(&BitwiseChip), 11),
-            (MachineAir::<BabyBear>::name(&MulChip), 4),
-            (MachineAir::<BabyBear>::name(&ShiftRightChip), 10),
-            (MachineAir::<BabyBear>::name(&ShiftLeft), 10),
-            (MachineAir::<BabyBear>::name(&LtChip), 13),
-            (MachineAir::<BabyBear>::name(&MemoryLocalChip::new()), 6),
-            (MachineAir::<BabyBear>::name(&MemoryGlobalChip::new(Initialize)), 8),
-            (MachineAir::<BabyBear>::name(&MemoryGlobalChip::new(Finalize)), 15),
-            (MachineAir::<BabyBear>::name(&ProgramChip), 19),
-            (MachineAir::<BabyBear>::name(&ByteChip::default()), 16),
-        ];
-
         Self {
             included_shapes: vec![],
             allowed_preprocessed_log_heights,
@@ -907,7 +912,6 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
             memory_allowed_log_heights,
             precompile_allowed_log_heights,
             shapes_with_cpu_and_memory_finalize,
-            single_shard_shape,
         }
     }
 }
