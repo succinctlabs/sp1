@@ -249,23 +249,8 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             });
         }
 
-        let shape = ProofShape::from_log2_heights(&vec![
-            (MachineAir::<BabyBear>::name(&CpuChip), 21),
-            (MachineAir::<BabyBear>::name(&AddSubChip), 21),
-            (MachineAir::<BabyBear>::name(&BitwiseChip), 19),
-            (MachineAir::<BabyBear>::name(&MulChip), 19),
-            (MachineAir::<BabyBear>::name(&ShiftRightChip), 19),
-            (MachineAir::<BabyBear>::name(&ShiftLeft), 19),
-            (MachineAir::<BabyBear>::name(&LtChip), 20),
-            (MachineAir::<BabyBear>::name(&MemoryLocalChip::new()), 19),
-            (MachineAir::<BabyBear>::name(&SyscallChip::core()), 19),
-            (MachineAir::<BabyBear>::name(&DivRemChip), 21),
-            (MachineAir::<BabyBear>::name(&MemoryGlobalChip::new(Initialize)), 19),
-            (MachineAir::<BabyBear>::name(&MemoryGlobalChip::new(Finalize)), 19),
-            (MachineAir::<BabyBear>::name(&ProgramChip), 22),
-            //    (RiscvAir::ProgramMemory(MemoryProgramChip::default()), program_memory_heights),
-            (MachineAir::<BabyBear>::name(&ByteChip::default()), 16),
-        ]);
+        let shape =
+            ProofShape::from_log2_heights(&core_shape_config.as_ref().unwrap().single_shard_shape);
 
         let input = SP1RecursionWitnessValues::dummy(
             core_prover.machine(),
@@ -397,15 +382,19 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             });
 
             // Receive the first few shapes and comile the recursion programs.
-            for _ in 0..3 {
+            for i in 0..3 {
                 if let Ok((shape, is_complete)) = shape_rx.recv() {
-                    let compress_shape = SP1CompressProgramShape::Recursion(SP1RecursionShape {
-                        proof_shapes: vec![shape],
-                        is_complete,
-                    });
+                    // Only need to compile the recursion program if we're not in the one-shard case.
+                    if !(i == 0 && is_complete) {
+                        let compress_shape =
+                            SP1CompressProgramShape::Recursion(SP1RecursionShape {
+                                proof_shapes: vec![shape],
+                                is_complete,
+                            });
 
-                    // Insert the program into the cache.
-                    self.program_from_shape(false, compress_shape, None);
+                        // Insert the program into the cache.
+                        self.program_from_shape(false, compress_shape, None);
+                    }
                 }
             }
 

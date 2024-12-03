@@ -84,8 +84,6 @@ pub fn dummy_vk_and_shard_proof<A: MachineAir<BabyBear>>(
             .collect(),
     };
 
-    println!("Shard chips: {:?}", shard_chips.iter().map(|chip| chip.name()).collect::<Vec<_>>());
-
     let mut preprocessed_names_and_dimensions = vec![];
     let mut preprocessed_batch_shape = vec![];
     let mut main_batch_shape = vec![];
@@ -130,8 +128,6 @@ pub fn dummy_vk_and_shard_proof<A: MachineAir<BabyBear>>(
         PolynomialBatchShape { shapes: permutation_batch_shape },
         PolynomialBatchShape { shapes: quotient_batch_shape },
     ];
-
-    println!("batch_shapes: {:?}", batch_shapes);
 
     let fri_queries = machine.config().fri_config().num_queries;
     let log_blowup = machine.config().fri_config().log_blowup;
