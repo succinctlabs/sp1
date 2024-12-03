@@ -1,5 +1,3 @@
-use std::{iter::once, sync::Arc};
-
 use itertools::Itertools;
 
 use hashbrown::HashMap;
@@ -114,7 +112,7 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
                     &log_heights
                         .into_iter()
                         .filter(|(_, v)| v[0].is_some())
-                        .map(|(k, v)| (k.name(), Arc::new(v.last().unwrap()).unwrap_or(0)))
+                        .map(|(k, v)| (k.name(), v.last().unwrap().unwrap()))
                         .chain(vec![
                             (MachineAir::<BabyBear>::name(&ProgramChip), 19),
                             (MachineAir::<BabyBear>::name(&ByteChip::default()), 16),
