@@ -393,19 +393,21 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             });
 
             // Receive the first few shapes and comile the recursion programs.
-            for i in 0..3 {
+            for _ in 0..3 {
                 if let Ok((shape, is_complete)) = shape_rx.recv() {
-                    // Only need to compile the recursion program if we're not in the one-shard case.
-                    if !(i == 0 && is_complete) {
-                        let compress_shape =
-                            SP1CompressProgramShape::Recursion(SP1RecursionShape {
-                                proof_shapes: vec![shape],
-                                is_complete,
-                            });
-
-                        // Insert the program into the cache.
-                        self.program_from_shape(false, compress_shape, None);
+                    let recursion_shape =
+                        SP1RecursionShape { proof_shapes: vec![shape], is_complete };
+                    if let Some(programs) = &self.single_shard_programs {
+                        // Don't compile the program if it's already in the cache.
+                        if programs.contains_key(&recursion_shape) {
+                            continue;
+                        }
                     }
+                    // Only need to compile the recursion program if we're not in the one-shard case.
+                    let compress_shape = SP1CompressProgramShape::Recursion(recursion_shape);
+
+                    // Insert the program into the cache.
+                    self.program_from_shape(false, compress_shape, None);
                 }
             }
 
