@@ -39,7 +39,7 @@ pub enum CoreShapeError {
 pub struct CoreShapeConfig<F: PrimeField32> {
     included_shapes: Vec<HashMap<String, usize>>,
     // Shapes for shards with a CPU chip and memory initialize/finalize events.
-    shapes_with_cpu_and_memory_finalize: Vec<HashMap<RiscvAir<F>, Vec<Option<usize>>>>,
+    pub shapes_with_cpu_and_memory_finalize: Vec<HashMap<RiscvAir<F>, Vec<Option<usize>>>>,
     allowed_preprocessed_log_heights: HashMap<RiscvAir<F>, Vec<Option<usize>>>,
     allowed_core_log_heights: Vec<HashMap<RiscvAir<F>, Vec<Option<usize>>>>,
     maximal_core_log_heights_mask: Vec<bool>,
@@ -117,11 +117,11 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
         if record.shape.is_some() {
             return Err(CoreShapeError::ShapeAlreadyFixed);
         }
-        if is_single_shard {
-            record.shape =
-                Some(CoreShape { inner: self.single_shard_shape.clone().into_iter().collect() });
-            return Ok(());
-        }
+        // if is_single_shard {
+        //     record.shape =
+        //         Some(CoreShape { inner: self.single_shard_shape.clone().into_iter().collect() });
+        //     return Ok(());
+        // }
 
         // Set the shape of the chips with prepcoded shapes to match the preprocessed shape from the
         // program.
@@ -894,20 +894,17 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
         ];
 
         let single_shard_shape = vec![
-            (MachineAir::<BabyBear>::name(&CpuChip), 16),
-            (MachineAir::<BabyBear>::name(&AddSubChip), 16),
-            (MachineAir::<BabyBear>::name(&BitwiseChip), 16),
-            (MachineAir::<BabyBear>::name(&MulChip), 16),
-            (MachineAir::<BabyBear>::name(&ShiftRightChip), 16),
-            (MachineAir::<BabyBear>::name(&ShiftLeft), 16),
-            (MachineAir::<BabyBear>::name(&LtChip), 16),
-            (MachineAir::<BabyBear>::name(&MemoryLocalChip::new()), 16),
-            (MachineAir::<BabyBear>::name(&SyscallChip::core()), 16),
-            (MachineAir::<BabyBear>::name(&DivRemChip), 16),
-            (MachineAir::<BabyBear>::name(&MemoryGlobalChip::new(Initialize)), 19),
-            (MachineAir::<BabyBear>::name(&MemoryGlobalChip::new(Finalize)), 19),
+            (MachineAir::<BabyBear>::name(&CpuChip), 14),
+            (MachineAir::<BabyBear>::name(&AddSubChip), 14),
+            (MachineAir::<BabyBear>::name(&BitwiseChip), 11),
+            (MachineAir::<BabyBear>::name(&MulChip), 4),
+            (MachineAir::<BabyBear>::name(&ShiftRightChip), 10),
+            (MachineAir::<BabyBear>::name(&ShiftLeft), 10),
+            (MachineAir::<BabyBear>::name(&LtChip), 13),
+            (MachineAir::<BabyBear>::name(&MemoryLocalChip::new()), 6),
+            (MachineAir::<BabyBear>::name(&MemoryGlobalChip::new(Initialize)), 8),
+            (MachineAir::<BabyBear>::name(&MemoryGlobalChip::new(Finalize)), 15),
             (MachineAir::<BabyBear>::name(&ProgramChip), 19),
-            //    (RiscvAir::ProgramMemory(MemoryProgramChip::default()), program_memory_heights),
             (MachineAir::<BabyBear>::name(&ByteChip::default()), 16),
         ];
 
