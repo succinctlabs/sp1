@@ -242,7 +242,6 @@ where
         let mut values = vec![AB::Expr::zero(), AB::Expr::zero(), prep_local.addr.into()];
         values.extend(prep_local.value.map(Into::into));
 
-        // TODO: need to send is_send or is_receive here
         builder.send(
             AirInteraction::new(
                 vec![

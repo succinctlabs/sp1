@@ -130,8 +130,6 @@ impl<F: PrimeField32> SepticCurve<F> {
     pub fn lift_x(m: SepticExtension<F>) -> (Self, u8, [F; 16], [F; 16]) {
         let perm = BabyBearPoseidon2::new().perm;
         for offset in 0..=255 {
-            // let m_trial =
-            //     m + SepticExtension::from_base(F::from_canonical_u32((offset as u32) << 16));
             let m_trial = [
                 m.0[0],
                 m.0[1],

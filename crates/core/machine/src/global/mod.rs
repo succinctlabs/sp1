@@ -156,11 +156,9 @@ impl<F: PrimeField32> MachineAir<F> for GlobalChip {
         RowMajorMatrix::new(values, NUM_GLOBAL_COLS)
     }
 
-    fn generate_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
-        // TODO: not necessary since only used ofr range checks
-    }
+    fn generate_dependencies(&self, _: &Self::Record, _: &mut Self::Record) {}
 
-    fn included(&self, shard: &Self::Record) -> bool {
+    fn included(&self, _: &Self::Record) -> bool {
         true
     }
 

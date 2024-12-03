@@ -73,7 +73,6 @@ impl<F: PrimeField32> MachineAir<F> for MemoryGlobalChip {
         };
 
         memory_events.sort_by_key(|event| event.addr);
-        // let chunk_size = std::cmp::max(memory_events.len() / num_cpus::get(), 1);
 
         let events = memory_events.into_iter().map(|event| {
             let interaction_shard = if is_receive { event.shard } else { 0 };
@@ -170,12 +169,6 @@ impl<F: PrimeField32> MachineAir<F> for MemoryGlobalChip {
             if i == memory_events.len() - 1 {
                 cols.is_last_addr = F::one();
             }
-
-            // cols.global_accumulation_cols.populate(
-            //     &mut global_cumulative_sum,
-            //     [cols.global_interaction_cols],
-            //     [cols.is_real],
-            // );
         }
 
         // Pad the trace to a power of two depending on the proof shape in `input`.
