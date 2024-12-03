@@ -4,6 +4,8 @@ mod utils;
 use build::build_program_internal;
 pub use build::{execute_build_program, generate_elf_paths};
 
+use std::path::Path;
+
 use clap::Parser;
 
 const BUILD_TARGET: &str = "riscv32im-succinct-zkvm-elf";
@@ -104,13 +106,19 @@ impl Default for BuildArgs {
 ///
 /// # Arguments
 ///
-/// * `path` - A string slice that holds the path to the program directory.
+/// * `path` - A path to the guest program directory, if not absolute, assumed to be relative to
+///            the caller manifest directory.
 ///
 /// This function is useful for automatically rebuilding the program during development
 /// when changes are made to the source code or its dependencies.
 ///
 /// Set the `SP1_SKIP_PROGRAM_BUILD` environment variable to `true` to skip building the program.
-pub fn build_program(path: &str) {
+///
+///
+/// ## Note: Using this function without an absolute path is not recommended.
+/// Try using the `build_program_from_path!` macro instead.
+#[deprecated(note = "Please use `build_program_from_path!` macro instead.")]
+pub fn build_program(path: impl AsRef<Path>) {
     build_program_internal(path, None)
 }
 
@@ -119,12 +127,61 @@ pub fn build_program(path: &str) {
 ///
 /// # Arguments
 ///
-/// * `path` - A string slice that holds the path to the program directory.
+/// * `path` - A path to the guest program directory.
+///
 /// * `args` - A [`BuildArgs`] struct that contains various build configuration options.
 ///
 /// Set the `SP1_SKIP_PROGRAM_BUILD` environment variable to `true` to skip building the program.
-pub fn build_program_with_args(path: &str, args: BuildArgs) {
+///
+/// ## Note: Using this function without an absolute path is not recommended.
+/// Try using the `build_program_from_path!` macro instead.
+#[deprecated(note = "Please use `build_program_from_path!` macro instead.")]
+pub fn build_program_with_args(path: impl AsRef<Path>, args: BuildArgs) {
     build_program_internal(path, Some(args))
+}
+
+/// Builds the program with the given arguments if the program at path, or one of its dependencies,
+///
+/// ### Note:
+/// This function is only exposed to support the `build_program_from_path!` macro.
+/// It is not recommended to use this function directly.
+#[doc(hidden)]
+pub fn build_program_with_maybe_args(path: impl AsRef<Path>, args: Option<BuildArgs>) {
+    build_program_internal(path, args)
+}
+
+/// Build a program at the given path.
+///
+/// # Arguments
+/// * `path` - A path to the guest program directory, if not absolute, assumed to be relative to
+///           the callers manifest directory.
+///
+///   `args` - A [`BuildArgs`] struct that contains various build configuration options.
+///            If not provided, the default options are used.
+#[macro_export]
+macro_rules! build_program_from_path {
+    ($path:expr, $args:expr) => {
+        // Scope to avoid polluting the macro namespace.
+        {
+            // Inline this crates manifest path at compile time.
+            const MANIFEST: &str = std::env!("CARGO_MANIFEST_DIR");
+
+            // Adjust the path to be relative to the manifest directory, unless its absolute.
+            fn ___adjust_path(p: impl AsRef<::std::path::Path>) -> ::std::path::PathBuf {
+                let p = p.as_ref();
+                if p.is_absolute() {
+                    p.to_path_buf()
+                } else {
+                    ::std::path::Path::new(MANIFEST).join(p)
+                }
+            }
+
+            ::sp1_build::build_program_with_maybe_args(___adjust_path($path), $args)
+        }
+    };
+    ($path:expr) => {
+        ::sp1_build::build_program_from_path!($path, None)
+    };
 }
 
 /// Returns the raw ELF bytes by the zkVM program target name.

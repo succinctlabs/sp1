@@ -1,4 +1,4 @@
 fn main() {
-    sp1_build::build_program("../program");
-    sp1_build::build_program("../../fibonacci/program");
+    sp1_build::build_program_from_path!("../program");
+    sp1_build::build_program_from_path!("../../fibonacci/program");
 }
