@@ -225,10 +225,10 @@ where
         );
 
         // Constraint the permutation.
-        // for r in 0..NUM_EXTERNAL_ROUNDS {
-        //     eval_external_round(builder, &local.interaction.permutation.permutation, r);
-        // }
-        // eval_internal_rounds(builder, &local.interaction.permutation.permutation);
+        for r in 0..NUM_EXTERNAL_ROUNDS {
+            eval_external_round(builder, &local.interaction.permutation.permutation, r);
+        }
+        eval_internal_rounds(builder, &local.interaction.permutation.permutation);
     }
 }
 
