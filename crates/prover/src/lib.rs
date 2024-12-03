@@ -207,6 +207,9 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             .unwrap_or(true)
             .then_some(RecursionShapeConfig::default());
 
+        let small_program_cache =
+            env::var("SMALL_PROGRAM_CACHE").map(|v| v.eq_ignore_ascii_case("true")).unwrap_or(true);
+
         let vk_verification =
             env::var("VERIFY_VK").map(|v| v.eq_ignore_ascii_case("true")).unwrap_or(false);
         tracing::info!("vk verification: {}", vk_verification);
@@ -244,32 +247,34 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 
         let mut single_shard_programs = None;
 
-        if let Some(inn_core_shape_config) = &core_shape_config {
-            let mut single_shard_programs_inner = BTreeMap::new();
+        if let Some(core_shape_config_inner) = &core_shape_config {
+            if small_program_cache {
+                let mut single_shard_programs_inner = BTreeMap::new();
 
-            for shape in inn_core_shape_config.small_program_shapes() {
-                let input = SP1RecursionWitnessValues::dummy(
-                    core_prover.machine(),
-                    &SP1RecursionShape { proof_shapes: vec![shape], is_complete: true },
-                );
-                let mut builder = Builder::<InnerConfig>::default();
+                for shape in core_shape_config_inner.small_program_shapes() {
+                    let input = SP1RecursionWitnessValues::dummy(
+                        core_prover.machine(),
+                        &SP1RecursionShape { proof_shapes: vec![shape], is_complete: true },
+                    );
+                    let mut builder = Builder::<InnerConfig>::default();
 
-                let recursion_shape = input.shape();
+                    let recursion_shape = input.shape();
 
-                let input = input.read(&mut builder);
-                SP1RecursiveVerifier::verify(&mut builder, core_prover.machine(), input);
-                let operations = builder.into_operations();
+                    let input = input.read(&mut builder);
+                    SP1RecursiveVerifier::verify(&mut builder, core_prover.machine(), input);
+                    let operations = builder.into_operations();
 
-                // Compile the program.
-                let mut compiler = AsmCompiler::<InnerConfig>::default();
-                let mut program = compiler.compile(operations);
+                    // Compile the program.
+                    let mut compiler = AsmCompiler::<InnerConfig>::default();
+                    let mut program = compiler.compile(operations);
 
-                recursion_shape_config.as_ref().unwrap().fix_shape(&mut program);
+                    recursion_shape_config.as_ref().unwrap().fix_shape(&mut program);
 
-                let single_shard_program = Arc::new(program);
-                single_shard_programs_inner.insert(recursion_shape, single_shard_program);
+                    let single_shard_program = Arc::new(program);
+                    single_shard_programs_inner.insert(recursion_shape, single_shard_program);
+                }
+                let _ = single_shard_programs.insert(single_shard_programs_inner);
             }
-            let _ = single_shard_programs.insert(single_shard_programs_inner);
         }
 
         Self {

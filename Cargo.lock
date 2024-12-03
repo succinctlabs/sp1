@@ -5811,7 +5811,6 @@ dependencies = [
  "clap",
  "dirs",
  "eyre",
- "hashbrown 0.14.5",
  "itertools 0.13.0",
  "lru",
  "num-bigint 0.4.6",
