@@ -154,7 +154,6 @@ impl<F: PrimeField32> SepticCurve<F> {
                 .map(|x| F::from_canonical_u32(x.as_canonical_u32()));
             let x_trial = SepticExtension(m_hash[..7].try_into().unwrap());
 
-            // let x_trial = Self::universal_hash(m_trial); // TODO: FIX
             let y_sq = Self::curve_formula(x_trial);
             if let Some(y) = y_sq.sqrt() {
                 if y.is_exception() {

@@ -203,7 +203,7 @@ impl<F: Field> GlobalInteractionOperation<F> {
         }
 
         let m_trial = [
-            values[0].clone(),
+            values[0].clone() + AB::Expr::from_canonical_u32(1 << 24),
             values[1].clone(),
             values[2].clone(),
             values[3].clone(),
@@ -221,10 +221,19 @@ impl<F: Field> GlobalInteractionOperation<F> {
             AB::Expr::zero(),
         ];
 
+        // Constraint the input of the permutation to be the message.
+        for i in 0..16 {
+            builder.when(is_real).assert_eq(
+                cols.permutation.permutation.external_rounds_state()[0][i].into(),
+                m_trial[i].clone(),
+            );
+        }
+
+        // Constrain that the x-coordinate is the hash of the message.
         let m_hash = cols.permutation.permutation.perm_output();
-
-        // TODO: CONSTRAIN HASH TO BE X_COORDINATE
-
+        for i in 0..7 {
+            builder.when(is_real).assert_eq(cols.x_coordinate[i].into(), m_hash[i].clone());
+        }
         let x = SepticExtension::<AB::Expr>::from_base_fn(|i| cols.x_coordinate[i].into());
 
         // Constrain that when `is_real` is true, then `x == a * m + b`.

@@ -455,8 +455,10 @@ class bb31_septic_curve_t {
                     bb31_septic_extension_t y2 = y + y; 
                     bb31_septic_extension_t x2 = x * x;
                     bb31_septic_extension_t slope = (x2 + x2 + x2 + bb31_t::two()) / y2;
-                    x = slope * slope - x - x;
-                    y = slope * (x2 - x) - y;
+                    bb31_septic_extension_t result_x = slope * slope - x - x;
+                    bb31_septic_extension_t result_y = slope * (x - result_x) - y;
+                    x = result_x;
+                    y = result_y;
                     return *this;
                 }
                 else {
