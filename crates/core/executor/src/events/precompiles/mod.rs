@@ -247,4 +247,13 @@ impl PrecompileEvents {
 
         iterators.into_iter().flatten()
     }
+
+    /// Get the number of local memory events.
+    pub(crate) fn num_local_mem_events(&self) -> usize {
+        let mut sum = 0;
+        for events in self.events.values() {
+            sum += events.len();
+        }
+        sum
+    }
 }

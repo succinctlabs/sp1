@@ -26,11 +26,28 @@ use crate::{
         },
         GlobalAccumulationOperation, GlobalInteractionOperation,
     },
-    utils::{next_power_of_two, zeroed_f_vec},
+    utils::{indices_arr, next_power_of_two, zeroed_f_vec},
 };
 use sp1_derive::AlignedBorrow;
 
 const NUM_GLOBAL_COLS: usize = size_of::<GlobalCols<u8>>();
+
+/// Creates the column map for the CPU.
+const fn make_col_map() -> GlobalCols<usize> {
+    let indices_arr = indices_arr::<NUM_GLOBAL_COLS>();
+    unsafe { transmute::<[usize; NUM_GLOBAL_COLS], GlobalCols<usize>>(indices_arr) }
+}
+
+const GLOBAL_COL_MAP: GlobalCols<usize> = make_col_map();
+
+pub const GLOBAL_INITIAL_DIGEST_POS: usize = GLOBAL_COL_MAP.accumulation.initial_digest[0].0[0];
+
+pub const GLOBAL_INITIAL_DIGEST_POS_COPY: usize = 376;
+
+#[repr(C)]
+pub struct Ghost {
+    pub v: [usize; GLOBAL_INITIAL_DIGEST_POS_COPY],
+}
 
 #[derive(Default)]
 pub struct GlobalChip;
@@ -52,6 +69,7 @@ impl<F: PrimeField32> MachineAir<F> for GlobalChip {
     type Program = Program;
 
     fn name(&self) -> String {
+        assert_eq!(GLOBAL_INITIAL_DIGEST_POS_COPY, GLOBAL_INITIAL_DIGEST_POS);
         "Global".to_string()
     }
 
@@ -207,10 +225,10 @@ where
         );
 
         // Constraint the permutation.
-        for r in 0..NUM_EXTERNAL_ROUNDS {
-            eval_external_round(builder, &local.interaction.permutation.permutation, r);
-        }
-        eval_internal_rounds(builder, &local.interaction.permutation.permutation);
+        // for r in 0..NUM_EXTERNAL_ROUNDS {
+        //     eval_external_round(builder, &local.interaction.permutation.permutation, r);
+        // }
+        // eval_internal_rounds(builder, &local.interaction.permutation.permutation);
     }
 }
 

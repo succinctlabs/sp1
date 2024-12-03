@@ -331,6 +331,12 @@ impl ExecutionRecord {
         let precompile_local_mem_events = self.precompile_events.get_local_mem_events();
         precompile_local_mem_events.chain(self.cpu_local_memory_access.iter())
     }
+
+    /// Get all the local memory events.
+    #[inline]
+    pub fn num_local_mem_events(&self) -> usize {
+        self.precompile_events.num_local_mem_events() + self.cpu_local_memory_access.len()
+    }
 }
 
 /// A memory access record.

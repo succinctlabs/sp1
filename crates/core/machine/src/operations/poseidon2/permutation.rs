@@ -52,13 +52,15 @@ pub struct Poseidon2Degree9Cols<T: Copy> {
     pub state: Poseidon2StateCols<T>,
 }
 
+pub const GHOST: usize = NUM_INTERNAL_ROUNDS - 1;
+
 /// A column layout for the intermediate states of a Poseidon2 AIR across all rounds.
 #[derive(AlignedBorrow, Clone, Copy)]
 #[repr(C)]
-pub struct Poseidon2StateCols<T: Copy> {
+pub struct Poseidon2StateCols<T> {
     pub external_rounds_state: [[T; WIDTH]; NUM_EXTERNAL_ROUNDS],
     pub internal_rounds_state: [T; WIDTH],
-    pub internal_rounds_s0: [T; NUM_INTERNAL_ROUNDS - 1],
+    pub internal_rounds_s0: [T; GHOST],
     pub output_state: [T; WIDTH],
 }
 
