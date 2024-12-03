@@ -120,12 +120,18 @@ impl NetworkClient {
     }
 
     /// Get all the proof requests for a given status. Also filter by version if provided.
+    #[allow(clippy::too_many_arguments)]
     pub async fn get_filtered_proof_requests(
         &self,
         version: Option<String>,
         fulfillment_status: Option<i32>,
         execution_status: Option<i32>,
         minimum_deadline: Option<u64>,
+        program_id: Option<Vec<u8>>,
+        requester: Option<Vec<u8>>,
+        fulfiller: Option<Vec<u8>>,
+        from: Option<u64>,
+        to: Option<u64>,
         limit: Option<u32>,
         page: Option<u32>,
         mode: Option<i32>,
@@ -137,6 +143,11 @@ impl NetworkClient {
                 fulfillment_status,
                 execution_status,
                 minimum_deadline,
+                program_id,
+                requester,
+                fulfiller,
+                from,
+                to,
                 limit,
                 page,
                 mode,
