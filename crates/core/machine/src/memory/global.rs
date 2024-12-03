@@ -92,33 +92,6 @@ impl<F: PrimeField32> MachineAir<F> for MemoryGlobalChip {
             }
         });
         output.global_interaction_events.extend(events);
-
-        // let blu_batches = memory_events
-        //     .par_chunks(chunk_size)
-        //     .map(|events| {
-        //         let mut blu: HashMap<u32, HashMap<ByteLookupEvent, usize>> = HashMap::new();
-        //         events.iter().for_each(|event| {
-        //             let MemoryInitializeFinalizeEvent {
-        //                 addr: _addr,
-        //                 value,
-        //                 shard,
-        //                 timestamp: _timestamp,
-        //                 used,
-        //             } = event.to_owned();
-        //             let interaction_shard = if is_receive { shard } else { 0 };
-        //             let mut row = [F::zero(); NUM_MEMORY_INIT_COLS];
-        //             let cols: &mut MemoryInitCols<F> = row.as_mut_slice().borrow_mut();
-        //             cols.global_interaction_cols.populate_memory_range_check_witness(
-        //                 interaction_shard,
-        //                 value,
-        //                 used != 0,
-        //                 &mut blu,
-        //             );
-        //         });
-        //         blu
-        //     })
-        //     .collect::<Vec<_>>();
-        // output.add_sharded_byte_lookup_events(blu_batches.iter().collect_vec());
     }
 
     fn generate_trace(
@@ -161,15 +134,6 @@ impl<F: PrimeField32> MachineAir<F> for MemoryGlobalChip {
 
                 let interaction_shard = if is_receive { shard } else { 0 };
                 let interaction_clk = if is_receive { timestamp } else { 0 };
-
-                // cols.global_interaction_cols.populate_memory(
-                //     interaction_shard,
-                //     interaction_clk,
-                //     addr,
-                //     value,
-                //     is_receive,
-                //     used != 0,
-                // );
 
                 row
             })
@@ -229,12 +193,6 @@ impl<F: PrimeField32> MachineAir<F> for MemoryGlobalChip {
         for i in memory_events.len()..trace.height() {
             let cols: &mut MemoryInitCols<F> =
                 trace.values[i * NUM_MEMORY_INIT_COLS..(i + 1) * NUM_MEMORY_INIT_COLS].borrow_mut();
-            // cols.global_interaction_cols.populate_dummy();
-            // cols.global_accumulation_cols.populate(
-            //     &mut global_cumulative_sum,
-            //     [cols.global_interaction_cols],
-            //     [cols.is_real],
-            // );
         }
 
         trace
@@ -282,9 +240,6 @@ pub struct MemoryInitCols<T: Copy> {
     /// Whether the memory access is a real access.
     pub is_real: T,
 
-    /// The columns for sending a global interaction.
-    // pub global_interaction_cols: GlobalInteractionOperation<T>,
-
     /// Whether or not we are making the assertion `addr < addr_next`.
     pub is_next_comp: T,
 
@@ -296,8 +251,6 @@ pub struct MemoryInitCols<T: Copy> {
 
     /// A flag to indicate the last non-padded address. An auxiliary column needed for degree 3.
     pub is_last_addr: T,
-    // The columns for accumulating the elliptic curve digests.
-    // pub global_accumulation_cols: GlobalAccumulationOperation<T, 1>,
 }
 
 pub(crate) const NUM_MEMORY_INIT_COLS: usize = size_of::<MemoryInitCols<u8>>();
@@ -333,17 +286,6 @@ where
         if self.kind == MemoryChipType::Initialize {
             let mut values = vec![AB::Expr::zero(), AB::Expr::zero(), local.addr.into()];
             values.extend(value.clone().map(Into::into));
-            // GlobalInteractionOperation::<AB::F>::eval_single_digest_memory(
-            //     builder,
-            //     AB::Expr::zero(),
-            //     AB::Expr::zero(),
-            //     local.addr.into(),
-            //     value,
-            //     local.global_interaction_cols,
-            //     local.is_real * AB::Expr::zero(),
-            //     local.is_real * AB::Expr::one(),
-            //     local.is_real,
-            // );
 
             builder.send(
                 AirInteraction::new(
@@ -366,17 +308,6 @@ where
         } else {
             let mut values = vec![local.shard.into(), local.timestamp.into(), local.addr.into()];
             values.extend(value.clone());
-            // GlobalInteractionOperation::<AB::F>::eval_single_digest_memory(
-            //     builder,
-            //     local.shard.into(),
-            //     local.timestamp.into(),
-            //     local.addr.into(),
-            //     value,
-            //     local.global_interaction_cols,
-            //     local.is_real * AB::Expr::one(),
-            //     local.is_real * AB::Expr::zero(),
-            //     local.is_real,
-            // );
 
             builder.send(
                 AirInteraction::new(
@@ -397,15 +328,6 @@ where
                 InteractionScope::Local,
             );
         }
-
-        // GlobalAccumulationOperation::<AB::F, 1>::eval_accumulation(
-        //     builder,
-        //     [local.global_interaction_cols],
-        //     [local.is_real],
-        //     [next.is_real],
-        //     local.global_accumulation_cols,
-        //     next.global_accumulation_cols,
-        // );
 
         // Canonically decompose the address into bits so we can do comparisons.
         BabyBearBitDecomposition::<AB::F>::range_check(

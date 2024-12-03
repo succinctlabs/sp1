@@ -223,17 +223,7 @@ impl<F: Field> GlobalInteractionOperation<F> {
 
         let m_hash = cols.permutation.permutation.perm_output();
 
-        // TODO: constrain hash
-
-        // Compute the message.
-        // let message = SepticExtension(values)
-        //     + SepticExtension::<AB::Expr>::from_base(
-        //         offset * AB::F::from_canonical_u32(1 << 16)
-        //             + AB::F::from_canonical_u32(kind as u32) * AB::F::from_canonical_u32(1 << 24),
-        //     );
-
-        // Compute a * m + b.
-        // let am_plus_b = SepticCurve::<AB::Expr>::universal_hash(message);
+        // TODO: CONSTRAIN HASH TO BE X_COORDINATE
 
         let x = SepticExtension::<AB::Expr>::from_base_fn(|i| cols.x_coordinate[i].into());
 

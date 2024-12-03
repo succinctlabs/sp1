@@ -141,7 +141,7 @@ impl<F: PrimeField32> MachineAir<F> for GlobalChip {
                     let cols: &mut GlobalCols<F> = row.borrow_mut();
                     if idx < nb_rows {
                         cols.accumulation.populate_real(
-                            &cumulative_sum[idx..idx + 2], // TODO: check if this is correct
+                            &cumulative_sum[idx..idx + 2],
                             final_digest,
                             final_sum_checker,
                         );
