@@ -104,8 +104,6 @@ impl JumpChip {
             }
             Opcode::JALR => {
                 let next_pc = event.b.wrapping_add(event.c);
-                cols.next_pc = next_pc.into();
-                cols.next_pc_range_checker.populate(cols.next_pc, blu);
                 cols.jalr_nonce = F::from_canonical_u32(
                     nonce_lookup
                         .get(event.jump_jalr_lookup_id.0 as usize)
@@ -118,5 +116,6 @@ impl JumpChip {
         };
 
         cols.next_pc = next_pc.into();
+        cols.next_pc_range_checker.populate(cols.next_pc, blu);
     }
 }

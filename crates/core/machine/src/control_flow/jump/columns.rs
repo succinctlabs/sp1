@@ -36,6 +36,4 @@ pub struct JumpColumns<T> {
 
     pub jal_nonce: T,
     pub jalr_nonce: T,
-
-    pub is_real: T,
 }

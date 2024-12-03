@@ -18,13 +18,13 @@ pub struct SyscallEvent {
     pub shard: u32,
     /// The clock cycle.
     pub clk: u32,
-    /// The first operand memory record.
+    /// The `op_a` memory record.
     pub a_record: Option<MemoryRecordEnum>,
-    /// The lookup id.
+    /// The syscall code.
     pub syscall_code: SyscallCode,
-    /// The first argument.
+    /// The first operand value (`op_b`).
     pub arg1: u32,
-    /// The second operand.
+    /// The second operand value (`op_c`).
     pub arg2: u32,
     /// The nonce for the syscall.
     pub nonce: u32,

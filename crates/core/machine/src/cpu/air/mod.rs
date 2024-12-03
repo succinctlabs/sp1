@@ -44,7 +44,8 @@ where
         // Register constraints.
         self.eval_registers::<AB>(builder, local, clk.clone());
 
-        // Assert the shard and clk to send.
+        // Assert the shard and clk to send.  Only the memory and syscall instructions need the
+        // actual shard and clk values for memory access evals.
         let expected_shard_to_send =
             builder.if_else(local.is_memory + local.is_syscall, local.shard, AB::Expr::zero());
         let expected_clk_to_send =
