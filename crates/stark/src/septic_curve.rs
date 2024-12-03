@@ -1,7 +1,7 @@
 //! Elliptic Curve `y^2 = x^3 + 2x + 26z^5` over the `F_{p^7} = F_p[z]/(z^7 - 2z - 5)` extension field.
 use crate::{baby_bear_poseidon2::BabyBearPoseidon2, septic_extension::SepticExtension};
 use p3_baby_bear::BabyBear;
-use p3_field::{AbstractExtensionField, AbstractField, Field, PrimeField, PrimeField32};
+use p3_field::{AbstractExtensionField, AbstractField, Field, PrimeField32};
 use p3_symmetric::Permutation;
 use serde::{Deserialize, Serialize};
 use std::ops::Add;

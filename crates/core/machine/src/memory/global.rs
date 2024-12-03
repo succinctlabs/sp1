@@ -1,7 +1,5 @@
 use super::MemoryChipType;
 use crate::{
-    operations::GlobalAccumulationOperation,
-    operations::GlobalInteractionOperation,
     operations::{AssertLtColsBits, BabyBearBitDecomposition, IsZeroOperation},
     utils::pad_rows_fixed,
 };
@@ -9,24 +7,19 @@ use core::{
     borrow::{Borrow, BorrowMut},
     mem::size_of,
 };
-use hashbrown::HashMap;
-use itertools::Itertools;
+
 use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
-use p3_maybe_rayon::prelude::{IntoParallelRefIterator, ParallelIterator, ParallelSlice};
-use sp1_core_executor::events::{ByteLookupEvent, GlobalInteractionEvent};
-use sp1_core_executor::{
-    events::{ByteRecord, MemoryInitializeFinalizeEvent},
-    ExecutionRecord, Program,
-};
+use p3_maybe_rayon::prelude::{IntoParallelRefIterator, ParallelIterator};
+use sp1_core_executor::events::GlobalInteractionEvent;
+use sp1_core_executor::{events::MemoryInitializeFinalizeEvent, ExecutionRecord, Program};
 use sp1_derive::AlignedBorrow;
 use sp1_stark::{
     air::{
         AirInteraction, BaseAirBuilder, InteractionScope, MachineAir, PublicValues, SP1AirBuilder,
         SP1_PROOF_NUM_PV_ELTS,
     },
-    septic_digest::SepticDigest,
     InteractionKind, Word,
 };
 use std::array;
@@ -108,13 +101,6 @@ impl<F: PrimeField32> MachineAir<F> for MemoryGlobalChip {
             MemoryChipType::Finalize => input.public_values.previous_finalize_addr_bits,
         };
 
-        let is_receive = match self.kind {
-            MemoryChipType::Initialize => false,
-            MemoryChipType::Finalize => true,
-        };
-
-        let mut global_cumulative_sum = SepticDigest::<F>::zero().0;
-
         memory_events.sort_by_key(|event| event.addr);
         let mut rows: Vec<[F; NUM_MEMORY_INIT_COLS]> = memory_events
             .par_iter()
@@ -130,9 +116,6 @@ impl<F: PrimeField32> MachineAir<F> for MemoryGlobalChip {
                 cols.timestamp = F::from_canonical_u32(timestamp);
                 cols.value = array::from_fn(|i| F::from_canonical_u32((value >> i) & 1));
                 cols.is_real = F::from_canonical_u32(used);
-
-                let interaction_shard = if is_receive { shard } else { 0 };
-                let interaction_clk = if is_receive { timestamp } else { 0 };
 
                 row
             })
@@ -178,17 +161,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryGlobalChip {
             input.fixed_log2_rows::<F, Self>(self),
         );
 
-        let mut trace = RowMajorMatrix::new(
-            rows.into_iter().flatten().collect::<Vec<_>>(),
-            NUM_MEMORY_INIT_COLS,
-        );
-
-        for i in memory_events.len()..trace.height() {
-            let cols: &mut MemoryInitCols<F> =
-                trace.values[i * NUM_MEMORY_INIT_COLS..(i + 1) * NUM_MEMORY_INIT_COLS].borrow_mut();
-        }
-
-        trace
+        RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_MEMORY_INIT_COLS)
     }
 
     fn included(&self, shard: &Self::Record) -> bool {

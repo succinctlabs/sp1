@@ -1,16 +1,12 @@
 use crate::air::WordAirBuilder;
 use p3_air::AirBuilder;
-use p3_baby_bear::BabyBear;
 use p3_field::AbstractExtensionField;
 use p3_field::AbstractField;
 use p3_field::Field;
 use p3_field::PrimeField32;
-use p3_symmetric::Permutation;
 use sp1_core_executor::events::ByteRecord;
 use sp1_core_executor::ByteOpcode;
 use sp1_derive::AlignedBorrow;
-use sp1_stark::air::SepticExtensionAirBuilder;
-use sp1_stark::baby_bear_poseidon2::BabyBearPoseidon2;
 use sp1_stark::{
     air::SP1AirBuilder,
     septic_curve::{SepticCurve, CURVE_WITNESS_DUMMY_POINT_X, CURVE_WITNESS_DUMMY_POINT_Y},
@@ -203,7 +199,8 @@ impl<F: Field> GlobalInteractionOperation<F> {
         }
 
         let m_trial = [
-            values[0].clone() + AB::Expr::from_canonical_u32(1 << 24),
+            values[0].clone()
+                + AB::Expr::from_canonical_u32(kind as u32) * AB::Expr::from_canonical_u32(1 << 24),
             values[1].clone(),
             values[2].clone(),
             values[3].clone(),

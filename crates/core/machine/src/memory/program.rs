@@ -7,12 +7,9 @@ use p3_air::{Air, AirBuilder, AirBuilderWithPublicValues, BaseAir, PairBuilder};
 use p3_field::AbstractField;
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 
-use crate::{operations::GlobalAccumulationOperation, operations::GlobalInteractionOperation};
-use hashbrown::HashMap;
 use p3_field::PrimeField32;
 use p3_maybe_rayon::prelude::{ParallelBridge, ParallelIterator};
-use sp1_core_executor::events::ByteRecord;
-use sp1_core_executor::events::{ByteLookupEvent, GlobalInteractionEvent};
+use sp1_core_executor::events::GlobalInteractionEvent;
 use sp1_core_executor::{ExecutionRecord, Program};
 use sp1_derive::AlignedBorrow;
 use sp1_stark::{
@@ -20,7 +17,6 @@ use sp1_stark::{
         AirInteraction, InteractionScope, MachineAir, PublicValues, SP1AirBuilder,
         SP1_PROOF_NUM_PV_ELTS,
     },
-    septic_digest::SepticDigest,
     InteractionKind, Word,
 };
 
@@ -145,16 +141,14 @@ impl<F: PrimeField32> MachineAir<F> for MemoryProgramChip {
         let mult_bool = input.public_values.shard == 1;
         let mult = F::from_bool(mult_bool);
 
-        let mut global_cumulative_sum = SepticDigest::<F>::zero().0;
         // Generate the trace rows for each event.
         let mut rows = program_memory
             .iter()
-            .map(|(&addr, &word)| {
+            .map(|(&_, &_)| {
                 let mut row = [F::zero(); NUM_MEMORY_PROGRAM_MULT_COLS];
                 let cols: &mut MemoryProgramMultCols<F> = row.as_mut_slice().borrow_mut();
                 cols.multiplicity = mult;
                 cols.is_first_shard.populate(input.public_values.shard - 1);
-
                 row
             })
             .collect::<Vec<_>>();
@@ -167,19 +161,10 @@ impl<F: PrimeField32> MachineAir<F> for MemoryProgramChip {
         );
 
         // Convert the trace to a row major matrix.
-        let mut trace = RowMajorMatrix::new(
+        RowMajorMatrix::new(
             rows.into_iter().flatten().collect::<Vec<_>>(),
             NUM_MEMORY_PROGRAM_MULT_COLS,
-        );
-
-        let len = input.program.memory_image.len();
-        for i in len..trace.height() {
-            let cols: &mut MemoryProgramMultCols<F> = trace.values
-                [i * NUM_MEMORY_PROGRAM_MULT_COLS..(i + 1) * NUM_MEMORY_PROGRAM_MULT_COLS]
-                .borrow_mut();
-        }
-
-        trace
+        )
     }
 
     fn included(&self, _: &Self::Record) -> bool {
@@ -210,9 +195,6 @@ where
 
         let mult_local = main.row_slice(0);
         let mult_local: &MemoryProgramMultCols<AB::Var> = (*mult_local).borrow();
-
-        let mult_next = main.row_slice(1);
-        let mult_next: &MemoryProgramMultCols<AB::Var> = (*mult_next).borrow();
 
         // Get shard from public values and evaluate whether it is the first shard.
         let public_values_slice: [AB::Expr; SP1_PROOF_NUM_PV_ELTS] =

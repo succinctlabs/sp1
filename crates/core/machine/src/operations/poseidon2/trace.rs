@@ -1,4 +1,4 @@
-use std::borrow::{Borrow, BorrowMut};
+use std::borrow::Borrow;
 
 use p3_field::PrimeField32;
 use sp1_primitives::RC_16_30_U32;

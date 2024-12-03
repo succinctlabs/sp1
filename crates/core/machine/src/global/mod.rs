@@ -1,7 +1,7 @@
 use std::{borrow::Borrow, mem::transmute};
 
 use p3_air::{Air, BaseAir, PairBuilder};
-use p3_field::{PrimeField, PrimeField32};
+use p3_field::PrimeField32;
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use rayon::iter::{
     IndexedParallelIterator, IntoParallelIterator, IntoParallelRefMutIterator, ParallelBridge,
@@ -73,7 +73,7 @@ impl<F: PrimeField32> MachineAir<F> for GlobalChip {
         "Global".to_string()
     }
 
-    fn generate_trace(&self, input: &Self::Record, output: &mut Self::Record) -> RowMajorMatrix<F> {
+    fn generate_trace(&self, input: &Self::Record, _: &mut Self::Record) -> RowMajorMatrix<F> {
         let events = &input.global_interaction_events;
 
         let nb_rows = events.len();
@@ -121,8 +121,7 @@ impl<F: PrimeField32> MachineAir<F> for GlobalChip {
             })
             .collect::<Vec<_>>();
 
-        let mut points = point_chunks.into_iter().flatten().collect::<Vec<_>>();
-
+        let points = point_chunks.into_iter().flatten().collect::<Vec<_>>();
         let cumulative_sum = points
             .into_par_iter()
             .with_min_len(1 << 15)
@@ -235,26 +234,8 @@ mod tests {
     use super::*;
     use p3_baby_bear::BabyBear;
     use p3_matrix::dense::RowMajorMatrix;
-    use rand::thread_rng;
-    use rand::Rng;
-    use sp1_core_executor::events::{MemoryLocalEvent, MemoryRecord};
-    use sp1_core_executor::programs::tests::fibonacci_program;
     use sp1_core_executor::{programs::tests::simple_program, ExecutionRecord, Executor};
-    use sp1_stark::CpuProver;
-    use sp1_stark::{
-        air::{InteractionScope, MachineAir},
-        baby_bear_poseidon2::BabyBearPoseidon2,
-        debug_interactions_with_all_chips, InteractionKind, SP1CoreOpts, StarkMachine,
-    };
-    use test_artifacts::FIBONACCI_ELF;
-    use test_artifacts::TENDERMINT_BENCHMARK_ELF;
-
-    use crate::io::SP1Stdin;
-    use crate::utils::run_test;
-    use crate::{
-        memory::MemoryLocalChip, riscv::RiscvAir,
-        syscall::precompiles::sha256::extend_tests::sha_extend_program, utils::setup_logger,
-    };
+    use sp1_stark::{air::MachineAir, SP1CoreOpts};
 
     #[test]
     fn test_global_generate_trace() {
@@ -272,46 +253,5 @@ mod tests {
         for mem_event in shard.global_memory_finalize_events {
             println!("{:?}", mem_event);
         }
-    }
-
-    #[test]
-    fn test_global_lookup_interactions() {
-        setup_logger();
-        // let program = sha_extend_program();
-        let program = Program::from(TENDERMINT_BENCHMARK_ELF).unwrap();
-        let program_clone = program.clone();
-        let mut runtime = Executor::new(program, SP1CoreOpts::default());
-        runtime.run().unwrap();
-        let machine: StarkMachine<BabyBearPoseidon2, RiscvAir<BabyBear>> =
-            RiscvAir::machine(BabyBearPoseidon2::new());
-        let (pkey, _) = machine.setup(&program_clone);
-        let opts = SP1CoreOpts::default();
-        machine.generate_dependencies(&mut runtime.records, &opts, None);
-
-        let shards = runtime.records;
-        for shard in shards.clone() {
-            debug_interactions_with_all_chips::<BabyBearPoseidon2, RiscvAir<BabyBear>>(
-                &machine,
-                &pkey,
-                &[shard],
-                vec![InteractionKind::Memory],
-                InteractionScope::Local,
-            );
-        }
-        // debug_interactions_with_all_chips::<BabyBearPoseidon2, RiscvAir<BabyBear>>(
-        //     &machine,
-        //     &pkey,
-        //     &shards,
-        //     vec![InteractionKind::Memory],
-        //     InteractionScope::Global,
-        // );
-    }
-
-    #[test]
-    fn test_sha_extend() {
-        setup_logger();
-        let program = Program::from(TENDERMINT_BENCHMARK_ELF).unwrap();
-        let input = SP1Stdin::new();
-        run_test::<CpuProver<_, _>>(program, input).unwrap();
     }
 }

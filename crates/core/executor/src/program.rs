@@ -9,7 +9,6 @@ use crate::{
 };
 use hashbrown::HashMap;
 use p3_field::Field;
-use p3_field::PrimeField;
 use p3_field::{AbstractExtensionField, PrimeField32};
 use p3_maybe_rayon::prelude::IntoParallelIterator;
 use p3_maybe_rayon::prelude::{ParallelBridge, ParallelIterator};

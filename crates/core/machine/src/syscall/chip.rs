@@ -1,9 +1,5 @@
-use crate::{
-    operations::GlobalAccumulationOperation, operations::GlobalInteractionOperation,
-    utils::pad_rows_fixed,
-};
+use crate::utils::pad_rows_fixed;
 use core::fmt;
-use hashbrown::HashMap;
 use itertools::Itertools;
 use p3_air::{Air, BaseAir};
 use p3_field::AbstractField;
@@ -12,15 +8,11 @@ use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use p3_maybe_rayon::prelude::IntoParallelRefIterator;
 use p3_maybe_rayon::prelude::ParallelBridge;
 use p3_maybe_rayon::prelude::ParallelIterator;
-use p3_maybe_rayon::prelude::ParallelSlice;
-use sp1_core_executor::events::ByteLookupEvent;
-use sp1_core_executor::events::ByteRecord;
 use sp1_core_executor::events::GlobalInteractionEvent;
 use sp1_core_executor::{events::SyscallEvent, ExecutionRecord, Program};
 use sp1_derive::AlignedBorrow;
 use sp1_stark::air::AirInteraction;
 use sp1_stark::air::{InteractionScope, MachineAir, SP1AirBuilder};
-use sp1_stark::septic_digest::SepticDigest;
 use sp1_stark::InteractionKind;
 use std::{
     borrow::{Borrow, BorrowMut},
@@ -132,9 +124,7 @@ impl<F: PrimeField32> MachineAir<F> for SyscallChip {
         input: &ExecutionRecord,
         _output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
-        let mut global_cumulative_sum = SepticDigest::<F>::zero().0;
-
-        let row_fn = |syscall_event: &SyscallEvent, is_receive: bool| {
+        let row_fn = |syscall_event: &SyscallEvent, _: bool| {
             let mut row = [F::zero(); NUM_SYSCALL_COLS];
             let cols: &mut SyscallCols<F> = row.as_mut_slice().borrow_mut();
 
@@ -168,12 +158,6 @@ impl<F: PrimeField32> MachineAir<F> for SyscallChip {
                 .collect::<Vec<_>>(),
         };
 
-        let num_events = rows.len();
-
-        for i in 0..num_events {
-            let cols: &mut SyscallCols<F> = rows[i].as_mut_slice().borrow_mut();
-        }
-
         // Pad the trace to a power of two depending on the proof shape in `input`.
         pad_rows_fixed(
             &mut rows,
@@ -181,15 +165,7 @@ impl<F: PrimeField32> MachineAir<F> for SyscallChip {
             input.fixed_log2_rows::<F, _>(self),
         );
 
-        let mut trace =
-            RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_SYSCALL_COLS);
-
-        for i in num_events..trace.height() {
-            let cols: &mut SyscallCols<F> =
-                trace.values[i * NUM_SYSCALL_COLS..(i + 1) * NUM_SYSCALL_COLS].borrow_mut();
-        }
-
-        trace
+        RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_SYSCALL_COLS)
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
@@ -221,8 +197,6 @@ where
         let main = builder.main();
         let local = main.row_slice(0);
         let local: &SyscallCols<AB::Var> = (*local).borrow();
-        let next = main.row_slice(1);
-        let next: &SyscallCols<AB::Var> = (*next).borrow();
 
         builder.assert_eq(
             local.is_real * local.is_real * local.is_real,

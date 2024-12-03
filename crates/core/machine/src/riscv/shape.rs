@@ -244,10 +244,10 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
                     ),
                     (
                         RiscvAir::<F>::Global(GlobalChip).name(),
-                        (((1 << allowed_log_height) * mem_events_per_row)
-                            .div_ceil(1)
-                            .next_power_of_two()
-                            .ilog2() as usize)
+                        (((1 << allowed_log_height) * mem_events_per_row
+                            + (1 << allowed_log_height).div_ceil(&air.rows_per_event()))
+                        .next_power_of_two()
+                        .ilog2() as usize)
                             .max(4),
                     ),
                 ]
@@ -866,8 +866,8 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
                 (RiscvAir::<F>::Lt(LtChip::default()), vec![Some(19)]),
                 (RiscvAir::<F>::MemoryLocal(MemoryLocalChip::new()), vec![Some(6)]),
                 (RiscvAir::<F>::Global(GlobalChip), vec![Some(10)]),
-                (RiscvAir::<F>::SyscallCore(SyscallChip::core()), vec![Some(1)]),
-                (RiscvAir::<F>::DivRem(DivRemChip::default()), vec![Some(1)]),
+                (RiscvAir::<F>::SyscallCore(SyscallChip::core()), vec![Some(3)]),
+                (RiscvAir::<F>::DivRem(DivRemChip::default()), vec![Some(3)]),
                 (RiscvAir::<F>::MemoryGlobalInit(MemoryGlobalChip::new(Initialize)), vec![Some(8)]),
                 (RiscvAir::<F>::MemoryGlobalFinal(MemoryGlobalChip::new(Finalize)), vec![Some(15)]),
             ]),

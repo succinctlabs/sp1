@@ -474,6 +474,7 @@ impl<F: PrimeField32> RiscvAir<F> {
 
         // Remove the preprocessed chips.
         airs.remove(&Self::Program(ProgramChip::default()));
+        // TODO: why is this removed
         // airs.remove(&Self::ProgramMemory(MemoryProgramChip::default()));
         airs.remove(&Self::ByteLookup(ByteChip::default()));
 
