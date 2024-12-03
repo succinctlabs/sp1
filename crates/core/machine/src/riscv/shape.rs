@@ -5,7 +5,10 @@ use num::Integer;
 use p3_field::PrimeField32;
 use p3_util::log2_ceil_usize;
 use sp1_core_executor::{CoreShape, ExecutionRecord, Program};
-use sp1_stark::{air::MachineAir, MachineRecord, ProofShape};
+use sp1_stark::{
+    air::MachineAir, Dom, MachineProver, MachineRecord, ProofShape, StarkGenericConfig,
+};
+use std::fmt::Debug;
 use thiserror::Error;
 
 use crate::{
@@ -894,41 +897,34 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
     }
 }
 
+pub fn try_generate_dummy_proof<SC: StarkGenericConfig, P: MachineProver<SC, RiscvAir<SC::Val>>>(
+    prover: &P,
+    shape: &CoreShape,
+) where
+    SC::Val: PrimeField32,
+    Dom<SC>: Debug,
+{
+    let program = shape.dummy_program();
+    let record = shape.dummy_record();
+
+    // Try doing setup.
+    let (pk, _) = prover.setup(&program);
+
+    // Try to generate traces.
+    let main_traces = prover.generate_traces(&record);
+
+    // Try to commit the traces.
+    let main_data = prover.commit(&record, main_traces);
+
+    let mut challenger = prover.machine().config().challenger();
+
+    // Try to "open".
+    prover.open(&pk, main_data, &mut challenger).unwrap();
+}
+
 #[cfg(test)]
 pub mod tests {
-    use std::fmt::Debug;
-
-    use sp1_stark::{Dom, MachineProver, StarkGenericConfig};
-
     use super::*;
-
-    pub fn try_generate_dummy_proof<
-        SC: StarkGenericConfig,
-        P: MachineProver<SC, RiscvAir<SC::Val>>,
-    >(
-        prover: &P,
-        shape: &CoreShape,
-    ) where
-        SC::Val: PrimeField32,
-        Dom<SC>: Debug,
-    {
-        let program = shape.dummy_program();
-        let record = shape.dummy_record();
-
-        // Try doing setup.
-        let (pk, _) = prover.setup(&program);
-
-        // Try to generate traces.
-        let main_traces = prover.generate_traces(&record);
-
-        // Try to commit the traces.
-        let main_data = prover.commit(&record, main_traces);
-
-        let mut challenger = prover.machine().config().challenger();
-
-        // Try to "open".
-        prover.open(&pk, main_data, &mut challenger).unwrap();
-    }
 
     #[test]
     #[ignore]

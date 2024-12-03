@@ -119,5 +119,5 @@
 use sp1_prover::{components::DefaultProverComponents, SP1Prover};
 
 pub fn main() {
-    let prover = SP1Prover::<DefaultProverComponents>::new();
+    let _prover = SP1Prover::<DefaultProverComponents>::new();
 }
