@@ -268,7 +268,9 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                     let mut compiler = AsmCompiler::<InnerConfig>::default();
                     let mut program = compiler.compile(operations);
 
-                    recursion_shape_config.as_ref().unwrap().fix_shape(&mut program);
+                    if let Some(recursion_shape_config_inner) = &recursion_shape_config {
+                        recursion_shape_config_inner.fix_shape(&mut program);
+                    }
 
                     let single_shard_program = Arc::new(program);
                     single_shard_programs_inner.insert(recursion_shape, single_shard_program);
