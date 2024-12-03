@@ -128,6 +128,7 @@ impl NetworkClient {
         minimum_deadline: Option<u64>,
         limit: Option<u32>,
         page: Option<u32>,
+        mode: Option<i32>,
     ) -> Result<GetFilteredProofRequestsResponse> {
         let mut rpc = self.get_rpc().await?;
         let res = rpc
@@ -138,6 +139,7 @@ impl NetworkClient {
                 minimum_deadline,
                 limit,
                 page,
+                mode,
             })
             .await?
             .into_inner();
