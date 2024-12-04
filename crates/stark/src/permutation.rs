@@ -130,6 +130,18 @@ pub fn generate_permutation_trace<F: PrimeField, EF: ExtensionField<F>>(
 
     if !local_sends.is_empty() || !local_receives.is_empty() {
         if let Some(prep) = preprocessed {
+            assert_eq!(
+                prep.height(),
+                main.height(),
+                "preprocessed and main have different heights: main width = {}, preprocessed width = {}",
+                main.width(),
+                prep.width()
+            );
+            assert_eq!(
+                permutation_trace.height(),
+                main.height(),
+                "permutation trace and main have different heights"
+            );
             permutation_trace
                 .par_rows_mut()
                 .zip_eq(prep.par_row_slices())
@@ -324,6 +336,8 @@ pub fn eval_permutation_constraints<'a, F, AB>(
     }
 
     // Handle global permutations.
+    //
+    // TODO: FIX HARDCODED OFFSETS
     let global_cumulative_sum = builder.global_cumulative_sum();
     if commit_scope == InteractionScope::Global {
         for i in 0..7 {

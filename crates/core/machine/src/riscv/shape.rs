@@ -12,6 +12,7 @@ use std::fmt::Debug;
 use thiserror::Error;
 
 use crate::{
+    global::GlobalChip,
     memory::{MemoryLocalChip, NUM_LOCAL_MEMORY_ENTRIES_PER_ROW},
     riscv::MemoryChipType::{Finalize, Initialize},
 };
@@ -176,6 +177,7 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
             let shape =
                 Self::find_shape_from_allowed_heights(&heights, &self.memory_allowed_log_heights)
                     .ok_or(CoreShapeError::ShapeError(record.stats()))?;
+            println!("memory shape: {:?}", shape);
             record.shape.as_mut().unwrap().extend(shape);
             return Ok(());
         }
@@ -220,7 +222,7 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
         air: &RiscvAir<F>,
         mem_events_per_row: usize,
         allowed_log_height: usize,
-    ) -> Vec<[(String, usize); 3]> {
+    ) -> Vec<[(String, usize); 4]> {
         // TODO: this is a temporary fix to the shape, concretely fix this
         (1..=4 * air.rows_per_event())
             .rev()
@@ -241,6 +243,14 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
                             .div_ceil(NUM_LOCAL_MEMORY_ENTRIES_PER_ROW * rows_per_event)
                             .next_power_of_two()
                             .ilog2() as usize)
+                            .max(4),
+                    ),
+                    (
+                        RiscvAir::<F>::Global(GlobalChip).name(),
+                        (((1 << allowed_log_height) * mem_events_per_row
+                            + (1 << allowed_log_height).div_ceil(&air.rows_per_event()))
+                        .next_power_of_two()
+                        .ilog2() as usize)
                             .max(4),
                     ),
                 ]
@@ -721,7 +731,11 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
                 (RiscvAir::ShiftRight(ShiftRightChip::default()), spec.shift_right_height),
                 (RiscvAir::ShiftLeft(ShiftLeft::default()), spec.shift_left_height),
                 (RiscvAir::Lt(LtChip::default()), spec.lt_height),
-                (RiscvAir::MemoryLocal(MemoryLocalChip::new()), spec.memory_local_height),
+                (RiscvAir::MemoryLocal(MemoryLocalChip::new()), spec.memory_local_height.clone()),
+                (
+                    RiscvAir::Global(GlobalChip),
+                    spec.memory_local_height.into_iter().map(|x| x.map(|y| y + 3)).collect(),
+                ),
                 (RiscvAir::SyscallCore(SyscallChip::core()), spec.syscall_core_height),
             ]);
             allowed_core_log_heights.push(short_allowed_log_heights);
@@ -733,9 +747,11 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
             vec![None, Some(10), Some(16), Some(18), Some(19), Some(20), Some(21)];
         let memory_finalize_heights =
             vec![None, Some(10), Some(16), Some(18), Some(19), Some(20), Some(21)];
+        let global_heights = vec![None, Some(11), Some(17), Some(19), Some(21), Some(22)];
         let memory_allowed_log_heights = HashMap::from([
             (RiscvAir::MemoryGlobalInit(MemoryGlobalChip::new(Initialize)), memory_init_heights),
             (RiscvAir::MemoryGlobalFinal(MemoryGlobalChip::new(Finalize)), memory_finalize_heights),
+            (RiscvAir::Global(GlobalChip), global_heights),
         ]);
 
         let mut precompile_allowed_log_heights = HashMap::new();
@@ -757,6 +773,7 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
                 (RiscvAir::<F>::ShiftLeft(ShiftLeft::default()), vec![Some(10)]),
                 (RiscvAir::<F>::Lt(LtChip::default()), vec![Some(8)]),
                 (RiscvAir::<F>::MemoryLocal(MemoryLocalChip::new()), vec![Some(6)]),
+                (RiscvAir::<F>::Global(GlobalChip), vec![Some(16)]),
                 (RiscvAir::<F>::SyscallCore(SyscallChip::core()), vec![None]),
                 (RiscvAir::<F>::DivRem(DivRemChip::default()), vec![None]),
                 (RiscvAir::<F>::MemoryGlobalInit(MemoryGlobalChip::new(Initialize)), vec![Some(8)]),
@@ -772,6 +789,7 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
                 (RiscvAir::<F>::ShiftLeft(ShiftLeft::default()), vec![Some(10)]),
                 (RiscvAir::<F>::Lt(LtChip::default()), vec![Some(13)]),
                 (RiscvAir::<F>::MemoryLocal(MemoryLocalChip::new()), vec![Some(6)]),
+                (RiscvAir::<F>::Global(GlobalChip), vec![Some(12)]),
                 (RiscvAir::<F>::SyscallCore(SyscallChip::core()), vec![None]),
                 (RiscvAir::<F>::DivRem(DivRemChip::default()), vec![None]),
                 (RiscvAir::<F>::MemoryGlobalInit(MemoryGlobalChip::new(Initialize)), vec![Some(8)]),
@@ -787,6 +805,7 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
                 (RiscvAir::<F>::ShiftLeft(ShiftLeft::default()), vec![Some(10)]),
                 (RiscvAir::<F>::Lt(LtChip::default()), vec![Some(12)]),
                 (RiscvAir::<F>::MemoryLocal(MemoryLocalChip::new()), vec![Some(7)]),
+                (RiscvAir::<F>::Global(GlobalChip), vec![Some(16)]),
                 (RiscvAir::<F>::SyscallCore(SyscallChip::core()), vec![None]),
                 (RiscvAir::<F>::DivRem(DivRemChip::default()), vec![None]),
                 (RiscvAir::<F>::MemoryGlobalInit(MemoryGlobalChip::new(Initialize)), vec![Some(8)]),
@@ -802,6 +821,7 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
                 (RiscvAir::<F>::ShiftLeft(ShiftLeft::default()), vec![Some(10)]),
                 (RiscvAir::<F>::Lt(LtChip::default()), vec![Some(16)]),
                 (RiscvAir::<F>::MemoryLocal(MemoryLocalChip::new()), vec![Some(6)]),
+                (RiscvAir::<F>::Global(GlobalChip), vec![Some(7)]),
                 (RiscvAir::<F>::SyscallCore(SyscallChip::core()), vec![None]),
                 (RiscvAir::<F>::DivRem(DivRemChip::default()), vec![None]),
                 (RiscvAir::<F>::MemoryGlobalInit(MemoryGlobalChip::new(Initialize)), vec![Some(8)]),
@@ -817,6 +837,7 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
                 (RiscvAir::<F>::ShiftLeft(ShiftLeft::default()), vec![Some(10)]),
                 (RiscvAir::<F>::Lt(LtChip::default()), vec![Some(15)]),
                 (RiscvAir::<F>::MemoryLocal(MemoryLocalChip::new()), vec![Some(7)]),
+                (RiscvAir::<F>::Global(GlobalChip), vec![Some(11)]),
                 (RiscvAir::<F>::SyscallCore(SyscallChip::core()), vec![None]),
                 (RiscvAir::<F>::DivRem(DivRemChip::default()), vec![None]),
                 (RiscvAir::<F>::MemoryGlobalInit(MemoryGlobalChip::new(Initialize)), vec![Some(8)]),
@@ -832,6 +853,7 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
                 (RiscvAir::<F>::ShiftLeft(ShiftLeft::default()), vec![Some(10)]),
                 (RiscvAir::<F>::Lt(LtChip::default()), vec![Some(19)]),
                 (RiscvAir::<F>::MemoryLocal(MemoryLocalChip::new()), vec![Some(6)]),
+                (RiscvAir::<F>::Global(GlobalChip), vec![Some(10)]),
                 (RiscvAir::<F>::SyscallCore(SyscallChip::core()), vec![None]),
                 (RiscvAir::<F>::DivRem(DivRemChip::default()), vec![None]),
                 (RiscvAir::<F>::MemoryGlobalInit(MemoryGlobalChip::new(Initialize)), vec![Some(8)]),
@@ -846,8 +868,9 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
                 (RiscvAir::<F>::ShiftLeft(ShiftLeft::default()), vec![Some(10)]),
                 (RiscvAir::<F>::Lt(LtChip::default()), vec![Some(19)]),
                 (RiscvAir::<F>::MemoryLocal(MemoryLocalChip::new()), vec![Some(6)]),
-                (RiscvAir::<F>::SyscallCore(SyscallChip::core()), vec![Some(1)]),
-                (RiscvAir::<F>::DivRem(DivRemChip::default()), vec![Some(1)]),
+                (RiscvAir::<F>::Global(GlobalChip), vec![Some(10)]),
+                (RiscvAir::<F>::SyscallCore(SyscallChip::core()), vec![Some(3)]),
+                (RiscvAir::<F>::DivRem(DivRemChip::default()), vec![Some(3)]),
                 (RiscvAir::<F>::MemoryGlobalInit(MemoryGlobalChip::new(Initialize)), vec![Some(8)]),
                 (RiscvAir::<F>::MemoryGlobalFinal(MemoryGlobalChip::new(Finalize)), vec![Some(15)]),
             ]),
@@ -860,6 +883,7 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
                 (RiscvAir::<F>::ShiftLeft(ShiftLeft::default()), vec![Some(10)]),
                 (RiscvAir::<F>::Lt(LtChip::default()), vec![Some(19)]),
                 (RiscvAir::<F>::MemoryLocal(MemoryLocalChip::new()), vec![Some(7)]),
+                (RiscvAir::<F>::Global(GlobalChip), vec![Some(11)]),
                 (RiscvAir::<F>::SyscallCore(SyscallChip::core()), vec![None]),
                 (RiscvAir::<F>::DivRem(DivRemChip::default()), vec![None]),
                 (RiscvAir::<F>::MemoryGlobalInit(MemoryGlobalChip::new(Initialize)), vec![Some(8)]),
@@ -875,6 +899,7 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
                 (RiscvAir::<F>::ShiftLeft(ShiftLeft::default()), vec![Some(19)]),
                 (RiscvAir::<F>::Lt(LtChip::default()), vec![Some(20)]),
                 (RiscvAir::<F>::MemoryLocal(MemoryLocalChip::new()), vec![Some(19)]),
+                (RiscvAir::<F>::Global(GlobalChip), vec![Some(10)]),
                 (RiscvAir::<F>::SyscallCore(SyscallChip::core()), vec![Some(19)]),
                 (RiscvAir::<F>::DivRem(DivRemChip::default()), vec![Some(21)]),
                 (
@@ -949,7 +974,6 @@ pub mod tests {
 
         let preprocessed_log_heights = [
             (RiscvAir::<BabyBear>::Program(ProgramChip::default()), 10),
-            //    (RiscvAir::<BabyBear>::ProgramMemory(MemoryProgramChip::default()), 10),
             (RiscvAir::<BabyBear>::ByteLookup(ByteChip::default()), 16),
         ];
 
@@ -964,6 +988,7 @@ pub mod tests {
             (RiscvAir::<BabyBear>::Lt(LtChip::default()), 10),
             (RiscvAir::<BabyBear>::MemoryLocal(MemoryLocalChip::new()), 10),
             (RiscvAir::<BabyBear>::SyscallCore(SyscallChip::core()), 10),
+            (RiscvAir::<BabyBear>::Global(GlobalChip), 10),
         ];
 
         let height_map = preprocessed_log_heights

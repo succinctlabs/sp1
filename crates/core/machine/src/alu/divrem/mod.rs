@@ -66,7 +66,7 @@ use core::{
 };
 
 use p3_air::{Air, AirBuilder, BaseAir};
-use p3_field::{AbstractField, PrimeField};
+use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use sp1_core_executor::{
     events::{ByteLookupEvent, ByteRecord},
@@ -195,7 +195,7 @@ pub struct DivRemCols<T> {
     pub remainder_check_multiplicity: T,
 }
 
-impl<F: PrimeField> MachineAir<F> for DivRemChip {
+impl<F: PrimeField32> MachineAir<F> for DivRemChip {
     type Record = ExecutionRecord;
 
     type Program = Program;

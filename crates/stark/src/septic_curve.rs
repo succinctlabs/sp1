@@ -1,6 +1,8 @@
 //! Elliptic Curve `y^2 = x^3 + 2x + 26z^5` over the `F_{p^7} = F_p[z]/(z^7 - 2z - 5)` extension field.
-use crate::septic_extension::SepticExtension;
-use p3_field::{AbstractExtensionField, AbstractField, Field, PrimeField};
+use crate::{baby_bear_poseidon2::BabyBearPoseidon2, septic_extension::SepticExtension};
+use p3_baby_bear::BabyBear;
+use p3_field::{AbstractExtensionField, AbstractField, Field, PrimeField32};
+use p3_symmetric::Permutation;
 use serde::{Deserialize, Serialize};
 use std::ops::Add;
 
@@ -120,25 +122,47 @@ impl<F: AbstractField> SepticCurve<F> {
     }
 }
 
-impl<F: PrimeField> SepticCurve<F> {
+impl<F: PrimeField32> SepticCurve<F> {
     /// Lift an x coordinate into an elliptic curve.
     /// As an x-coordinate may not be a valid one, we allow additions of [0, 256) * 2^16 to the first entry of the x-coordinate.
     /// Also, we always return the curve point with y-coordinate within [0, (p-1)/2), where p is the characteristic.
     /// The returned values are the curve point and the offset used.
-    pub fn lift_x(m: SepticExtension<F>) -> (Self, u8) {
+    pub fn lift_x(m: SepticExtension<F>) -> (Self, u8, [F; 16], [F; 16]) {
+        let perm = BabyBearPoseidon2::new().perm;
         for offset in 0..=255 {
-            let m_trial =
-                m + SepticExtension::from_base(F::from_canonical_u32((offset as u32) << 16));
-            let x_trial = Self::universal_hash(m_trial);
+            let m_trial = [
+                m.0[0],
+                m.0[1],
+                m.0[2],
+                m.0[3],
+                m.0[4],
+                m.0[5],
+                m.0[6],
+                F::from_canonical_u8(offset),
+                F::zero(),
+                F::zero(),
+                F::zero(),
+                F::zero(),
+                F::zero(),
+                F::zero(),
+                F::zero(),
+                F::zero(),
+            ];
+
+            let m_hash = perm
+                .permute(m_trial.map(|x| BabyBear::from_canonical_u32(x.as_canonical_u32())))
+                .map(|x| F::from_canonical_u32(x.as_canonical_u32()));
+            let x_trial = SepticExtension(m_hash[..7].try_into().unwrap());
+
             let y_sq = Self::curve_formula(x_trial);
             if let Some(y) = y_sq.sqrt() {
                 if y.is_exception() {
                     continue;
                 }
                 if y.is_send() {
-                    return (Self { x: x_trial, y: -y }, offset);
+                    return (Self { x: x_trial, y: -y }, offset, m_trial, m_hash);
                 }
-                return (Self { x: x_trial, y }, offset);
+                return (Self { x: x_trial, y }, offset, m_trial, m_hash);
             }
         }
         panic!("curve point couldn't be found after 256 attempts");
@@ -246,9 +270,9 @@ mod tests {
             BabyBear::from_canonical_u32(0x2016),
             BabyBear::from_canonical_u32(0x2017),
         ]);
-        let (curve_point, _) = SepticCurve::<BabyBear>::lift_x(x);
+        let (curve_point, _, _, _) = SepticCurve::<BabyBear>::lift_x(x);
         assert!(curve_point.check_on_point());
-        assert!(curve_point.x.is_receive());
+        assert!(!curve_point.x.is_receive());
     }
 
     #[test]
@@ -262,7 +286,7 @@ mod tests {
             BabyBear::from_canonical_u32(0x2016),
             BabyBear::from_canonical_u32(0x2017),
         ]);
-        let (curve_point, _) = SepticCurve::<BabyBear>::lift_x(x);
+        let (curve_point, _, _, _) = SepticCurve::<BabyBear>::lift_x(x);
         let double_point = curve_point.double();
         assert!(double_point.check_on_point());
     }
@@ -284,7 +308,7 @@ mod tests {
                 BabyBear::from_canonical_u32(32 * i + 196),
                 BabyBear::from_canonical_u32(64 * i + 667),
             ]);
-            let (curve_point, _) = SepticCurve::<BabyBear>::lift_x(x);
+            let (curve_point, _, _, _) = SepticCurve::<BabyBear>::lift_x(x);
             vec.push(curve_point);
         }
         println!("Time elapsed: {:?}", start.elapsed());
@@ -323,7 +347,7 @@ mod tests {
                 BabyBear::from_canonical_u32(32 * i + 196),
                 BabyBear::from_canonical_u32(64 * i + 667),
             ]);
-            let (curve_point, _) = SepticCurve::<BabyBear>::lift_x(x);
+            let (curve_point, _, _, _) = SepticCurve::<BabyBear>::lift_x(x);
             vec.push(SepticCurveComplete::Affine(curve_point));
         }
         println!("Time elapsed: {:?}", start.elapsed());

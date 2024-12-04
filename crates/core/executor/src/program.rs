@@ -8,9 +8,8 @@ use crate::{
     CoreShape,
 };
 use hashbrown::HashMap;
-use p3_field::AbstractExtensionField;
 use p3_field::Field;
-use p3_field::PrimeField;
+use p3_field::{AbstractExtensionField, PrimeField32};
 use p3_maybe_rayon::prelude::IntoParallelIterator;
 use p3_maybe_rayon::prelude::{ParallelBridge, ParallelIterator};
 use serde::{Deserialize, Serialize};
@@ -104,7 +103,7 @@ impl Program {
     }
 }
 
-impl<F: PrimeField> MachineProgram<F> for Program {
+impl<F: PrimeField32> MachineProgram<F> for Program {
     fn pc_start(&self) -> F {
         F::from_canonical_u32(self.pc_start)
     }
@@ -116,7 +115,7 @@ impl<F: PrimeField> MachineProgram<F> for Program {
             .par_bridge()
             .map(|(&addr, &word)| {
                 let values = [
-                    (InteractionKind::Memory as u32) << 24,
+                    (InteractionKind::Global as u32) << 24,
                     0,
                     addr,
                     word & 255,
@@ -126,7 +125,7 @@ impl<F: PrimeField> MachineProgram<F> for Program {
                 ];
                 let x_start =
                     SepticExtension::<F>::from_base_fn(|i| F::from_canonical_u32(values[i]));
-                let (point, _) = SepticCurve::<F>::lift_x(x_start);
+                let (point, _, _, _) = SepticCurve::<F>::lift_x(x_start);
                 SepticCurveComplete::Affine(point.neg())
             })
             .collect();

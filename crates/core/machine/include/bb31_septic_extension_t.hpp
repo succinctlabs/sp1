@@ -448,10 +448,14 @@ class bb31_septic_curve_t {
                 y = b.y;
                 return *this;
             }
-            if (x == b.x) {
+
+            bb31_septic_extension_t x_diff = b.x - x;
+            if (x_diff == bb31_septic_extension_t::zero()) {
                 if (y == b.y) {
-                    bb31_septic_extension_t slope = (x * x * bb31_t::from_canonical_u8(3) + bb31_t::two()) / (y * bb31_t::two());
-                    bb31_septic_extension_t result_x = slope * slope - x - b.x;
+                    bb31_septic_extension_t y2 = y + y; 
+                    bb31_septic_extension_t x2 = x * x;
+                    bb31_septic_extension_t slope = (x2 + x2 + x2 + bb31_t::two()) / y2;
+                    bb31_septic_extension_t result_x = slope * slope - x - x;
                     bb31_septic_extension_t result_y = slope * (x - result_x) - y;
                     x = result_x;
                     y = result_y;
@@ -464,11 +468,10 @@ class bb31_septic_curve_t {
                 }
             }
             else {
-                bb31_septic_extension_t slope = (b.y - y) / (b.x - x);
-                bb31_septic_extension_t result_x = slope * slope - x - b.x;
-                bb31_septic_extension_t result_y = slope * (x - result_x) - y;
-                x = result_x;
-                y = result_y;
+                bb31_septic_extension_t slope = (b.y - y) / x_diff;
+                bb31_septic_extension_t new_x = slope * slope - x - b.x;
+                y = slope * (x - new_x) - y;
+                x = new_x;
                 return *this;
             }
         }
