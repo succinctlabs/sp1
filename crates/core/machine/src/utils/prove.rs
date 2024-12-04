@@ -96,375 +96,381 @@ where
     PcsProverData<SC>: Send + Sync,
 {
     // Setup the runtime.
-    let mut runtime = Executor::with_context(program.clone(), opts, context);
-    runtime.maximal_shapes = shape_config
-        .map(|config| config.maximal_core_shapes().into_iter().map(|s| s.inner).collect());
-    runtime.write_vecs(&stdin.buffer);
-    for proof in stdin.proofs.iter() {
-        let (proof, vk) = proof.clone();
-        runtime.write_proof(proof, vk);
-    }
+    // let mut runtime = Executor::with_context(program.clone(), opts, context);
+    // runtime.maximal_shapes = shape_config
+    //     .map(|config| config.maximal_core_shapes().into_iter().map(|s| s.inner).collect());
+    // runtime.write_vecs(&stdin.buffer);
+    // for proof in stdin.proofs.iter() {
+    //     let (proof, vk) = proof.clone();
+    //     runtime.write_proof(proof, vk);
+    // }
+
+    // #[cfg(feature = "debug")]
+    // let (all_records_tx, all_records_rx) = std::sync::mpsc::channel::<Vec<ExecutionRecord>>();
+
+    // // Record the start of the process.
+    // let proving_start = Instant::now();
+    // let span = tracing::Span::current().clone();
+    // std::thread::scope(move |s| {
+    //     let _span = span.enter();
+
+    //     // Spawn the checkpoint generator thread.
+    //     let checkpoint_generator_span = tracing::Span::current().clone();
+    //     let (checkpoints_tx, checkpoints_rx) =
+    //         sync_channel::<(usize, File, bool, u64)>(opts.checkpoints_channel_capacity);
+    //     let checkpoint_generator_handle: ScopedJoinHandle<Result<_, SP1CoreProverError>> =
+    //         s.spawn(move || {
+    //             let _span = checkpoint_generator_span.enter();
+    //             tracing::debug_span!("checkpoint generator").in_scope(|| {
+    //                 let mut index = 0;
+    //                 loop {
+    //                     // Enter the span.
+    //                     let span = tracing::debug_span!("batch");
+    //                     let _span = span.enter();
+
+    //                     // Execute the runtime until we reach a checkpoint.
+    //                     let (checkpoint, _, done) = runtime
+    //                         .execute_state(false)
+    //                         .map_err(SP1CoreProverError::ExecutionError)?;
+
+    //                     // Save the checkpoint to a temp file.
+    //                     let mut checkpoint_file =
+    //                         tempfile::tempfile().map_err(SP1CoreProverError::IoError)?;
+    //                     checkpoint
+    //                         .save(&mut checkpoint_file)
+    //                         .map_err(SP1CoreProverError::IoError)?;
+
+    //                     // Send the checkpoint.
+    //                     checkpoints_tx
+    //                         .send((index, checkpoint_file, done, runtime.state.global_clk))
+    //                         .unwrap();
+
+    //                     // If we've reached the final checkpoint, break out of the loop.
+    //                     if done {
+    //                         break Ok(runtime.state.public_values_stream);
+    //                     }
+
+    //                     // Update the index.
+    //                     index += 1;
+    //                 }
+    //             })
+    //         });
+
+    //     // Create the challenger and observe the verifying key.
+    //     let mut challenger = prover.config().challenger();
+    //     pk.observe_into(&mut challenger);
+
+    //     // Spawn the phase 2 record generator thread.
+    //     let p2_record_gen_sync = Arc::new(TurnBasedSync::new());
+    //     let p2_trace_gen_sync = Arc::new(TurnBasedSync::new());
+    //     let (p2_records_and_traces_tx, p2_records_and_traces_rx) =
+    //         sync_channel::<(Vec<ExecutionRecord>, Vec<Vec<(String, RowMajorMatrix<Val<SC>>)>>)>(
+    //             opts.records_and_traces_channel_capacity,
+    //         );
+    //     let p2_records_and_traces_tx = Arc::new(Mutex::new(p2_records_and_traces_tx));
+
+    //     let shape_tx = Arc::new(Mutex::new(shape_and_done_tx));
+    //     let report_aggregate = Arc::new(Mutex::new(ExecutionReport::default()));
+    //     let state = Arc::new(Mutex::new(PublicValues::<u32, u32>::default().reset()));
+    //     let deferred = Arc::new(Mutex::new(ExecutionRecord::new(program.clone().into())));
+    //     let mut p2_record_and_trace_gen_handles = Vec::new();
+    //     let checkpoints_rx = Arc::new(Mutex::new(checkpoints_rx));
+    //     for _ in 0..opts.trace_gen_workers {
+    //         let record_gen_sync = Arc::clone(&p2_record_gen_sync);
+    //         let trace_gen_sync = Arc::clone(&p2_trace_gen_sync);
+    //         let records_and_traces_tx = Arc::clone(&p2_records_and_traces_tx);
+    //         let checkpoints_rx = Arc::clone(&checkpoints_rx);
+
+    //         let shape_tx = Arc::clone(&shape_tx);
+    //         let report_aggregate = Arc::clone(&report_aggregate);
+    //         let state = Arc::clone(&state);
+    //         let deferred = Arc::clone(&deferred);
+    //         let program = program.clone();
+    //         let span = tracing::Span::current().clone();
+
+    //         #[cfg(feature = "debug")]
+    //         let all_records_tx = all_records_tx.clone();
+
+    //         let handle = s.spawn(move || {
+    //             let _span = span.enter();
+    //             tracing::debug_span!("phase 2 trace generation").in_scope(|| {
+    //                 loop {
+    //                     let received = { checkpoints_rx.lock().unwrap().recv() };
+    //                     if let Ok((index, mut checkpoint, done, num_cycles)) = received {
+    //                         let (mut records, report) = tracing::debug_span!("trace checkpoint")
+    //                             .in_scope(|| {
+    //                                 trace_checkpoint::<SC>(
+    //                                     program.clone(),
+    //                                     &checkpoint,
+    //                                     opts,
+    //                                     shape_config,
+    //                                 )
+    //                             });
+
+    //                         // Trace the checkpoint and reconstruct the execution records.
+    //                         log::info!("generated {} records", records.len());
+    //                         *report_aggregate.lock().unwrap() += report;
+    //                         checkpoint
+    //                             .seek(SeekFrom::Start(0))
+    //                             .expect("failed to seek to start of tempfile");
+
+    //                         // Wait for our turn to update the state.
+    //                         record_gen_sync.wait_for_turn(index);
+
+    //                         // Update the public values & prover state for the shards which contain
+    //                         // "cpu events".
+    //                         let mut state = state.lock().unwrap();
+    //                         for record in records.iter_mut() {
+    //                             state.shard += 1;
+    //                             state.execution_shard = record.public_values.execution_shard;
+    //                             state.start_pc = record.public_values.start_pc;
+    //                             state.next_pc = record.public_values.next_pc;
+    //                             state.committed_value_digest =
+    //                                 record.public_values.committed_value_digest;
+    //                             state.deferred_proofs_digest =
+    //                                 record.public_values.deferred_proofs_digest;
+    //                             record.public_values = *state;
+    //                         }
+
+    //                         tracing::info!("Records length:{}, done: {}", records.len(), done);
+
+    //                         // Defer events that are too expensive to include in every shard.
+    //                         let mut deferred = deferred.lock().unwrap();
+    //                         for record in records.iter_mut() {
+    //                             deferred.append(&mut record.defer());
+    //                         }
+
+    //                         // tracing::info!("Deferred length: {}", deferred.len());
+
+    //                         let last_record = if done
+    //                             && num_cycles < 1 << 26
+    //                             && deferred.global_memory_initialize_events.len()
+    //                                 < opts.split_opts.memory / 4
+    //                             && deferred.global_memory_finalize_events.len()
+    //                                 < opts.split_opts.memory / 4
+    //                         {
+    //                             tracing::info!("Number of cycles: {}", num_cycles);
+    //                             records.last_mut()
+    //                         } else {
+    //                             None
+    //                         };
+
+    //                         tracing::info!("Last record is some: {:?}", last_record.is_some());
+
+    //                         // See if any deferred shards are ready to be committed to.
+    //                         let mut deferred = deferred.split(done, last_record, opts.split_opts);
+    //                         log::info!("deferred {} records", deferred.len());
+
+    //                         // Update the public values & prover state for the shards which do not
+    //                         // contain "cpu events" before committing to them.
+    //                         if !done {
+    //                             state.execution_shard += 1;
+    //                         }
+    //                         for record in deferred.iter_mut() {
+    //                             state.shard += 1;
+    //                             state.previous_init_addr_bits =
+    //                                 record.public_values.previous_init_addr_bits;
+    //                             state.last_init_addr_bits =
+    //                                 record.public_values.last_init_addr_bits;
+    //                             state.previous_finalize_addr_bits =
+    //                                 record.public_values.previous_finalize_addr_bits;
+    //                             state.last_finalize_addr_bits =
+    //                                 record.public_values.last_finalize_addr_bits;
+    //                             state.start_pc = state.next_pc;
+    //                             record.public_values = *state;
+    //                         }
+    //                         records.append(&mut deferred);
+
+    //                         // Generate the dependencies.
+    //                         tracing::debug_span!("generate dependencies", index).in_scope(|| {
+    //                             prover.machine().generate_dependencies(&mut records, &opts, None);
+    //                         });
+
+    //                         // Let another worker update the state.
+    //                         record_gen_sync.advance_turn();
+
+    //                         // Fix the shape of the records.
+    //                         if let Some(shape_config) = shape_config {
+    //                             for record in records.iter_mut() {
+    //                                 shape_config.fix_shape(record).unwrap();
+    //                             }
+    //                         }
+
+    //                         // Send the shapes to the channel, if necessary.
+    //                         for record in records.iter() {
+    //                             let mut heights = vec![];
+    //                             let chips = prover.shard_chips(record).collect::<Vec<_>>();
+    //                             if let Some(shape) = record.shape.as_ref() {
+    //                                 println!("shape: {:?}", shape);
+    //                                 for chip in chips.iter() {
+    //                                     let height = shape.inner[&chip.name()];
+    //                                     heights.push((chip.name().clone(), height));
+    //                                 }
+    //                                 shape_tx
+    //                                     .lock()
+    //                                     .unwrap()
+    //                                     .send((ProofShape::from_log2_heights(&heights), done))
+    //                                     .unwrap();
+    //                             }
+    //                         }
+
+    //                         #[cfg(feature = "debug")]
+    //                         all_records_tx.send(records.clone()).unwrap();
+
+    //                         let mut main_traces = Vec::new();
+    //                         tracing::debug_span!("generate main traces", index).in_scope(|| {
+    //                             main_traces = records
+    //                                 .par_iter()
+    //                                 .map(|record| prover.generate_traces(record))
+    //                                 .collect::<Vec<_>>();
+    //                         });
+
+    //                         trace_gen_sync.wait_for_turn(index);
+
+    //                         // Send the records to the phase 2 prover.
+    //                         let chunked_records = chunk_vec(records, opts.shard_batch_size);
+    //                         let chunked_main_traces = chunk_vec(main_traces, opts.shard_batch_size);
+    //                         chunked_records
+    //                             .into_iter()
+    //                             .zip(chunked_main_traces.into_iter())
+    //                             .for_each(|(records, main_traces)| {
+    //                                 records_and_traces_tx
+    //                                     .lock()
+    //                                     .unwrap()
+    //                                     .send((records, main_traces))
+    //                                     .unwrap();
+    //                             });
+
+    //                         trace_gen_sync.advance_turn();
+    //                     } else {
+    //                         break;
+    //                     }
+    //                 }
+    //             })
+    //         });
+    //         p2_record_and_trace_gen_handles.push(handle);
+    //     }
+    //     drop(p2_records_and_traces_tx);
+    //     #[cfg(feature = "debug")]
+    //     drop(all_records_tx);
+
+    //     // Spawn the phase 2 prover thread.
+    //     let p2_prover_span = tracing::Span::current().clone();
+    //     let proof_tx = Arc::new(Mutex::new(proof_tx));
+    //     let p2_prover_handle = s.spawn(move || {
+    //         let _span = p2_prover_span.enter();
+    //         tracing::debug_span!("phase 2 prover").in_scope(|| {
+    //             for (records, traces) in p2_records_and_traces_rx.into_iter() {
+    //                 tracing::debug_span!("batch").in_scope(|| {
+    //                     let span = tracing::Span::current().clone();
+    //                     let proofs = records
+    //                         .into_par_iter()
+    //                         .zip(traces.into_par_iter())
+    //                         .map(|(record, main_traces)| {
+    //                             let _span = span.enter();
+
+    //                             let main_data = prover.commit(&record, main_traces);
+
+    //                             let opening_span = tracing::debug_span!("opening").entered();
+    //                             let proof =
+    //                                 prover.open(pk, main_data, &mut challenger.clone()).unwrap();
+    //                             opening_span.exit();
+
+    //                             #[cfg(debug_assertions)]
+    //                             {
+    //                                 if let Some(shape) = record.shape.as_ref() {
+    //                                     assert_eq!(
+    //                                         proof.shape(),
+    //                                         shape.clone().into_iter().collect(),
+    //                                     );
+    //                                 }
+    //                             }
+
+    //                             rayon::spawn(move || {
+    //                                 drop(record);
+    //                             });
+
+    //                             proof
+    //                         })
+    //                         .collect::<Vec<_>>();
+
+    //                     // Send the batch of proofs to the channel.
+    //                     let proof_tx = proof_tx.lock().unwrap();
+    //                     for proof in proofs {
+    //                         proof_tx.send(proof).unwrap();
+    //                     }
+    //                 });
+    //             }
+    //         });
+    //     });
+
+    //     // Wait until the checkpoint generator handle has fully finished.
+    //     let public_values_stream = checkpoint_generator_handle.join().unwrap().unwrap();
+
+    //     // Wait until the records and traces have been fully generated for phase 2.
+    //     p2_record_and_trace_gen_handles.into_iter().for_each(|handle| handle.join().unwrap());
+
+    //     // Wait until the phase 2 prover has finished.
+    //     p2_prover_handle.join().unwrap();
+
+    //     // Log some of the `ExecutionReport` information.
+    //     let report_aggregate = report_aggregate.lock().unwrap();
+    //     tracing::info!(
+    //         "execution report (totals): total_cycles={}, total_syscall_cycles={}, touched_memory_addresses={}",
+    //         report_aggregate.total_instruction_count(),
+    //         report_aggregate.total_syscall_count(),
+    //         report_aggregate.touched_memory_addresses,
+    //     );
+
+    //     // Print the opcode and syscall count tables like `du`: sorted by count (descending) and
+    //     // with the count in the first column.
+    //     tracing::info!("execution report (opcode counts):");
+    //     let (width, lines) = sorted_table_lines(report_aggregate.opcode_counts.as_ref());
+    //     for (label, count) in lines {
+    //         if *count > 0 {
+    //             tracing::info!("  {}", format_table_line(&width, &label, count));
+    //         } else {
+    //             tracing::debug!("  {}", format_table_line(&width, &label, count));
+    //         }
+    //     }
+
+    //     tracing::info!("execution report (syscall counts):");
+    //     let (width, lines) = sorted_table_lines(report_aggregate.syscall_counts.as_ref());
+    //     for (label, count) in lines {
+    //         if *count > 0 {
+    //             tracing::info!("  {}", format_table_line(&width, &label, count));
+    //         } else {
+    //             tracing::debug!("  {}", format_table_line(&width, &label, count));
+    //         }
+    //     }
+
+    //     let cycles = report_aggregate.total_instruction_count();
+
+    //     // Print the summary.
+    //     let proving_time = proving_start.elapsed().as_secs_f64();
+    //     tracing::info!(
+    //         "summary: cycles={}, e2e={}s, khz={:.2}",
+    //         cycles,
+    //         proving_time,
+    //         (cycles as f64 / (proving_time * 1000.0) as f64),
+    //     );
 
     #[cfg(feature = "debug")]
-    let (all_records_tx, all_records_rx) = std::sync::mpsc::channel::<Vec<ExecutionRecord>>();
+    {
+        // let all_records = all_records_rx.iter().flatten().collect::<Vec<_>>()[43..44].to_vec();
+        // let all_records_bytes = bincode::serialize(&all_records).unwrap();
+        // std::fs::write("all_records.bin", all_records_bytes).unwrap();
+        let all_records_bytes = std::fs::read("all_records.bin").unwrap();
+        let all_records: Vec<ExecutionRecord> = bincode::deserialize(&all_records_bytes).unwrap();
+        let mut challenger = prover.machine().config().challenger();
+        let pk_host = prover.pk_to_host(pk);
+        prover.machine().debug_constraints(&pk_host, all_records, &mut challenger);
+    }
 
-    // Record the start of the process.
-    let proving_start = Instant::now();
-    let span = tracing::Span::current().clone();
-    std::thread::scope(move |s| {
-        let _span = span.enter();
+    todo!()
 
-        // Spawn the checkpoint generator thread.
-        let checkpoint_generator_span = tracing::Span::current().clone();
-        let (checkpoints_tx, checkpoints_rx) =
-            sync_channel::<(usize, File, bool, u64)>(opts.checkpoints_channel_capacity);
-        let checkpoint_generator_handle: ScopedJoinHandle<Result<_, SP1CoreProverError>> =
-            s.spawn(move || {
-                let _span = checkpoint_generator_span.enter();
-                tracing::debug_span!("checkpoint generator").in_scope(|| {
-                    let mut index = 0;
-                    loop {
-                        // Enter the span.
-                        let span = tracing::debug_span!("batch");
-                        let _span = span.enter();
-
-                        // Execute the runtime until we reach a checkpoint.
-                        let (checkpoint, _, done) = runtime
-                            .execute_state(false)
-                            .map_err(SP1CoreProverError::ExecutionError)?;
-
-                        // Save the checkpoint to a temp file.
-                        let mut checkpoint_file =
-                            tempfile::tempfile().map_err(SP1CoreProverError::IoError)?;
-                        checkpoint
-                            .save(&mut checkpoint_file)
-                            .map_err(SP1CoreProverError::IoError)?;
-
-                        // Send the checkpoint.
-                        checkpoints_tx
-                            .send((index, checkpoint_file, done, runtime.state.global_clk))
-                            .unwrap();
-
-                        // If we've reached the final checkpoint, break out of the loop.
-                        if done {
-                            break Ok(runtime.state.public_values_stream);
-                        }
-
-                        // Update the index.
-                        index += 1;
-                    }
-                })
-            });
-
-        // Create the challenger and observe the verifying key.
-        let mut challenger = prover.config().challenger();
-        pk.observe_into(&mut challenger);
-
-        // Spawn the phase 2 record generator thread.
-        let p2_record_gen_sync = Arc::new(TurnBasedSync::new());
-        let p2_trace_gen_sync = Arc::new(TurnBasedSync::new());
-        let (p2_records_and_traces_tx, p2_records_and_traces_rx) =
-            sync_channel::<(Vec<ExecutionRecord>, Vec<Vec<(String, RowMajorMatrix<Val<SC>>)>>)>(
-                opts.records_and_traces_channel_capacity,
-            );
-        let p2_records_and_traces_tx = Arc::new(Mutex::new(p2_records_and_traces_tx));
-
-        let shape_tx = Arc::new(Mutex::new(shape_and_done_tx));
-        let report_aggregate = Arc::new(Mutex::new(ExecutionReport::default()));
-        let state = Arc::new(Mutex::new(PublicValues::<u32, u32>::default().reset()));
-        let deferred = Arc::new(Mutex::new(ExecutionRecord::new(program.clone().into())));
-        let mut p2_record_and_trace_gen_handles = Vec::new();
-        let checkpoints_rx = Arc::new(Mutex::new(checkpoints_rx));
-        for _ in 0..opts.trace_gen_workers {
-            let record_gen_sync = Arc::clone(&p2_record_gen_sync);
-            let trace_gen_sync = Arc::clone(&p2_trace_gen_sync);
-            let records_and_traces_tx = Arc::clone(&p2_records_and_traces_tx);
-            let checkpoints_rx = Arc::clone(&checkpoints_rx);
-
-            let shape_tx = Arc::clone(&shape_tx);
-            let report_aggregate = Arc::clone(&report_aggregate);
-            let state = Arc::clone(&state);
-            let deferred = Arc::clone(&deferred);
-            let program = program.clone();
-            let span = tracing::Span::current().clone();
-
-            #[cfg(feature = "debug")]
-            let all_records_tx = all_records_tx.clone();
-
-            let handle = s.spawn(move || {
-                let _span = span.enter();
-                tracing::debug_span!("phase 2 trace generation").in_scope(|| {
-                    loop {
-                        let received = { checkpoints_rx.lock().unwrap().recv() };
-                        if let Ok((index, mut checkpoint, done, num_cycles)) = received {
-                            let (mut records, report) = tracing::debug_span!("trace checkpoint")
-                                .in_scope(|| {
-                                    trace_checkpoint::<SC>(
-                                        program.clone(),
-                                        &checkpoint,
-                                        opts,
-                                        shape_config,
-                                    )
-                                });
-
-                            // Trace the checkpoint and reconstruct the execution records.
-                            log::info!("generated {} records", records.len());
-                            *report_aggregate.lock().unwrap() += report;
-                            checkpoint
-                                .seek(SeekFrom::Start(0))
-                                .expect("failed to seek to start of tempfile");
-
-                            // Wait for our turn to update the state.
-                            record_gen_sync.wait_for_turn(index);
-
-                            // Update the public values & prover state for the shards which contain
-                            // "cpu events".
-                            let mut state = state.lock().unwrap();
-                            for record in records.iter_mut() {
-                                state.shard += 1;
-                                state.execution_shard = record.public_values.execution_shard;
-                                state.start_pc = record.public_values.start_pc;
-                                state.next_pc = record.public_values.next_pc;
-                                state.committed_value_digest =
-                                    record.public_values.committed_value_digest;
-                                state.deferred_proofs_digest =
-                                    record.public_values.deferred_proofs_digest;
-                                record.public_values = *state;
-                            }
-
-                            tracing::info!("Records length:{}, done: {}", records.len(), done);
-
-                            // Defer events that are too expensive to include in every shard.
-                            let mut deferred = deferred.lock().unwrap();
-                            for record in records.iter_mut() {
-                                deferred.append(&mut record.defer());
-                            }
-
-                            // tracing::info!("Deferred length: {}", deferred.len());
-
-                            let last_record = if done
-                                && num_cycles < 1 << 26
-                                && deferred.global_memory_initialize_events.len()
-                                    < opts.split_opts.memory / 4
-                                && deferred.global_memory_finalize_events.len()
-                                    < opts.split_opts.memory / 4
-                            {
-                                tracing::info!("Number of cycles: {}", num_cycles);
-                                records.last_mut()
-                            } else {
-                                None
-                            };
-
-                            tracing::info!("Last record is some: {:?}", last_record.is_some());
-
-                            // See if any deferred shards are ready to be committed to.
-                            let mut deferred = deferred.split(done, last_record, opts.split_opts);
-                            log::info!("deferred {} records", deferred.len());
-
-                            // Update the public values & prover state for the shards which do not
-                            // contain "cpu events" before committing to them.
-                            if !done {
-                                state.execution_shard += 1;
-                            }
-                            for record in deferred.iter_mut() {
-                                state.shard += 1;
-                                state.previous_init_addr_bits =
-                                    record.public_values.previous_init_addr_bits;
-                                state.last_init_addr_bits =
-                                    record.public_values.last_init_addr_bits;
-                                state.previous_finalize_addr_bits =
-                                    record.public_values.previous_finalize_addr_bits;
-                                state.last_finalize_addr_bits =
-                                    record.public_values.last_finalize_addr_bits;
-                                state.start_pc = state.next_pc;
-                                record.public_values = *state;
-                            }
-                            records.append(&mut deferred);
-
-                            // Generate the dependencies.
-                            tracing::debug_span!("generate dependencies", index).in_scope(|| {
-                                prover.machine().generate_dependencies(&mut records, &opts, None);
-                            });
-
-                            // Let another worker update the state.
-                            record_gen_sync.advance_turn();
-
-                            // Fix the shape of the records.
-                            if let Some(shape_config) = shape_config {
-                                for record in records.iter_mut() {
-                                    shape_config.fix_shape(record).unwrap();
-                                }
-                            }
-
-                            // Send the shapes to the channel, if necessary.
-                            for record in records.iter() {
-                                let mut heights = vec![];
-                                let chips = prover.shard_chips(record).collect::<Vec<_>>();
-                                if let Some(shape) = record.shape.as_ref() {
-                                    println!("shape: {:?}", shape);
-                                    for chip in chips.iter() {
-                                        let height = shape.inner[&chip.name()];
-                                        heights.push((chip.name().clone(), height));
-                                    }
-                                    shape_tx
-                                        .lock()
-                                        .unwrap()
-                                        .send((ProofShape::from_log2_heights(&heights), done))
-                                        .unwrap();
-                                }
-                            }
-
-                            #[cfg(feature = "debug")]
-                            all_records_tx.send(records.clone()).unwrap();
-
-                            let mut main_traces = Vec::new();
-                            tracing::debug_span!("generate main traces", index).in_scope(|| {
-                                main_traces = records
-                                    .par_iter()
-                                    .map(|record| prover.generate_traces(record))
-                                    .collect::<Vec<_>>();
-                            });
-
-                            trace_gen_sync.wait_for_turn(index);
-
-                            // Send the records to the phase 2 prover.
-                            let chunked_records = chunk_vec(records, opts.shard_batch_size);
-                            let chunked_main_traces = chunk_vec(main_traces, opts.shard_batch_size);
-                            chunked_records
-                                .into_iter()
-                                .zip(chunked_main_traces.into_iter())
-                                .for_each(|(records, main_traces)| {
-                                    records_and_traces_tx
-                                        .lock()
-                                        .unwrap()
-                                        .send((records, main_traces))
-                                        .unwrap();
-                                });
-
-                            trace_gen_sync.advance_turn();
-                        } else {
-                            break;
-                        }
-                    }
-                })
-            });
-            p2_record_and_trace_gen_handles.push(handle);
-        }
-        drop(p2_records_and_traces_tx);
-        #[cfg(feature = "debug")]
-        drop(all_records_tx);
-
-        // Spawn the phase 2 prover thread.
-        let p2_prover_span = tracing::Span::current().clone();
-        let proof_tx = Arc::new(Mutex::new(proof_tx));
-        let p2_prover_handle = s.spawn(move || {
-            let _span = p2_prover_span.enter();
-            tracing::debug_span!("phase 2 prover").in_scope(|| {
-                for (records, traces) in p2_records_and_traces_rx.into_iter() {
-                    tracing::debug_span!("batch").in_scope(|| {
-                        let span = tracing::Span::current().clone();
-                        let proofs = records
-                            .into_par_iter()
-                            .zip(traces.into_par_iter())
-                            .map(|(record, main_traces)| {
-                                let _span = span.enter();
-
-                                let main_data = prover.commit(&record, main_traces);
-
-                                let opening_span = tracing::debug_span!("opening").entered();
-                                let proof =
-                                    prover.open(pk, main_data, &mut challenger.clone()).unwrap();
-                                opening_span.exit();
-
-                                #[cfg(debug_assertions)]
-                                {
-                                    if let Some(shape) = record.shape.as_ref() {
-                                        assert_eq!(
-                                            proof.shape(),
-                                            shape.clone().into_iter().collect(),
-                                        );
-                                    }
-                                }
-
-                                rayon::spawn(move || {
-                                    drop(record);
-                                });
-
-                                proof
-                            })
-                            .collect::<Vec<_>>();
-
-                        // Send the batch of proofs to the channel.
-                        let proof_tx = proof_tx.lock().unwrap();
-                        for proof in proofs {
-                            proof_tx.send(proof).unwrap();
-                        }
-                    });
-                }
-            });
-        });
-
-        // Wait until the checkpoint generator handle has fully finished.
-        let public_values_stream = checkpoint_generator_handle.join().unwrap().unwrap();
-
-        // Wait until the records and traces have been fully generated for phase 2.
-        p2_record_and_trace_gen_handles.into_iter().for_each(|handle| handle.join().unwrap());
-
-        // Wait until the phase 2 prover has finished.
-        p2_prover_handle.join().unwrap();
-
-        // Log some of the `ExecutionReport` information.
-        let report_aggregate = report_aggregate.lock().unwrap();
-        tracing::info!(
-            "execution report (totals): total_cycles={}, total_syscall_cycles={}, touched_memory_addresses={}",
-            report_aggregate.total_instruction_count(),
-            report_aggregate.total_syscall_count(),
-            report_aggregate.touched_memory_addresses,
-        );
-
-        // Print the opcode and syscall count tables like `du`: sorted by count (descending) and
-        // with the count in the first column.
-        tracing::info!("execution report (opcode counts):");
-        let (width, lines) = sorted_table_lines(report_aggregate.opcode_counts.as_ref());
-        for (label, count) in lines {
-            if *count > 0 {
-                tracing::info!("  {}", format_table_line(&width, &label, count));
-            } else {
-                tracing::debug!("  {}", format_table_line(&width, &label, count));
-            }
-        }
-
-        tracing::info!("execution report (syscall counts):");
-        let (width, lines) = sorted_table_lines(report_aggregate.syscall_counts.as_ref());
-        for (label, count) in lines {
-            if *count > 0 {
-                tracing::info!("  {}", format_table_line(&width, &label, count));
-            } else {
-                tracing::debug!("  {}", format_table_line(&width, &label, count));
-            }
-        }
-
-        let cycles = report_aggregate.total_instruction_count();
-
-        // Print the summary.
-        let proving_time = proving_start.elapsed().as_secs_f64();
-        tracing::info!(
-            "summary: cycles={}, e2e={}s, khz={:.2}",
-            cycles,
-            proving_time,
-            (cycles as f64 / (proving_time * 1000.0) as f64),
-        );
-
-        #[cfg(feature = "debug")]
-        {
-            let all_records = all_records_rx.iter().flatten().collect::<Vec<_>>();
-            let mut challenger = prover.machine().config().challenger();
-            let pk_host = prover.pk_to_host(pk);
-            prover.machine().debug_constraints(&pk_host, all_records, &mut challenger);
-        }
-
-        Ok((public_values_stream, cycles))
-    })
+    // Ok((public_values_stream, cycles))
+    // })
 }
 
 pub fn trace_checkpoint<SC: StarkGenericConfig>(

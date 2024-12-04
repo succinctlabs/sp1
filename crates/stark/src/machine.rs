@@ -400,9 +400,6 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
         global_cumulative_sums.push(pk.initial_global_cumulative_sum);
 
         for (i, shard) in records.iter().enumerate() {
-            if i < 30 {
-                continue;
-            }
             tracing::debug!("debug constraints: shard = {}", i);
 
             // Filter the chips based on what is used.
@@ -455,19 +452,19 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
             let local_cumulative_sum =
                 chip_cumulative_sums.iter().map(|sums| sums.1).sum::<SC::Challenge>();
 
-            // if !local_cumulative_sum.is_zero() {
-            //     tracing::warn!("Local cumulative sum is not zero");
-            //     tracing::debug_span!("debug local interactions").in_scope(|| {
-            //         debug_interactions_with_all_chips::<SC, A>(
-            //             self,
-            //             pk,
-            //             &[shard.clone()],
-            //             InteractionKind::all_kinds(),
-            //             InteractionScope::Local,
-            //         )
-            //     });
-            //     panic!("Local cumulative sum is not zero");
-            // }
+            if !local_cumulative_sum.is_zero() {
+                tracing::warn!("Local cumulative sum is not zero");
+                tracing::debug_span!("debug local interactions").in_scope(|| {
+                    debug_interactions_with_all_chips::<SC, A>(
+                        self,
+                        pk,
+                        &[shard.clone()],
+                        InteractionKind::all_kinds(),
+                        InteractionScope::Local,
+                    )
+                });
+                panic!("Local cumulative sum is not zero");
+            }
 
             // Compute some statistics.
             for i in 0..chips.len() {
@@ -513,19 +510,19 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
             global_cumulative_sums.iter().copied().sum();
 
         // If the global cumulative sum is not zero, debug the interactions.
-        if !global_cumulative_sum.is_zero() {
-            tracing::warn!("Global cumulative sum is not zero");
-            tracing::debug_span!("debug global interactions").in_scope(|| {
-                debug_interactions_with_all_chips::<SC, A>(
-                    self,
-                    pk,
-                    &records,
-                    InteractionKind::all_kinds(),
-                    InteractionScope::Global,
-                )
-            });
-            panic!("Global cumulative sum is not zero");
-        }
+        // if !global_cumulative_sum.is_zero() {
+        //     tracing::warn!("Global cumulative sum is not zero");
+        //     tracing::debug_span!("debug global interactions").in_scope(|| {
+        //         debug_interactions_with_all_chips::<SC, A>(
+        //             self,
+        //             pk,
+        //             &records,
+        //             InteractionKind::all_kinds(),
+        //             InteractionScope::Global,
+        //         )
+        //     });
+        //     panic!("Global cumulative sum is not zero");
+        // }
     }
 }
 
