@@ -19,9 +19,8 @@ use crate::network_v2::proto::artifact::{
 };
 use crate::network_v2::proto::network::{
     prover_network_client::ProverNetworkClient, FulfillmentStatus, FulfillmentStrategy,
-    GetFilteredProofRequestsRequest, GetFilteredProofRequestsResponse, GetNonceRequest,
-    GetProofRequestStatusRequest, GetProofRequestStatusResponse, ProofMode, RequestProofRequest,
-    RequestProofRequestBody, RequestProofResponse,
+    GetNonceRequest, GetProofRequestStatusRequest, GetProofRequestStatusResponse, ProofMode,
+    RequestProofRequest, RequestProofRequestBody, RequestProofResponse,
 };
 use crate::network_v2::Signable;
 
@@ -117,34 +116,6 @@ impl NetworkClient {
         };
 
         Ok((res, proof))
-    }
-
-    /// Get all the proof requests for a given status. Also filter by version if provided.
-    pub async fn get_filtered_proof_requests(
-        &self,
-        version: Option<String>,
-        fulfillment_status: Option<i32>,
-        execution_status: Option<i32>,
-        minimum_deadline: Option<u64>,
-        limit: Option<u32>,
-        page: Option<u32>,
-        mode: Option<i32>,
-    ) -> Result<GetFilteredProofRequestsResponse> {
-        let mut rpc = self.get_rpc().await?;
-        let res = rpc
-            .get_filtered_proof_requests(GetFilteredProofRequestsRequest {
-                version,
-                fulfillment_status,
-                execution_status,
-                minimum_deadline,
-                limit,
-                page,
-                mode,
-            })
-            .await?
-            .into_inner();
-
-        Ok(res)
     }
 
     /// Creates a proof request with the given ELF and stdin.
