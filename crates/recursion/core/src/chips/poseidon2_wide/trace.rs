@@ -1,5 +1,7 @@
-use std::{borrow::BorrowMut, mem::size_of};
-
+use crate::{
+    chips::mem::MemoryAccessCols, instruction::Instruction::Poseidon2, ExecutionRecord,
+    RecursionProgram,
+};
 use p3_air::BaseAir;
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
@@ -9,12 +11,8 @@ use sp1_core_machine::{
     utils::next_power_of_two,
 };
 use sp1_stark::air::MachineAir;
+use std::{borrow::BorrowMut, mem::size_of};
 use tracing::instrument;
-
-use crate::{
-    chips::mem::MemoryAccessCols, instruction::Instruction::Poseidon2, ExecutionRecord,
-    RecursionProgram,
-};
 
 use super::{columns::preprocessed::Poseidon2PreprocessedColsWide, Poseidon2WideChip};
 
