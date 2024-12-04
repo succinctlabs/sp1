@@ -118,9 +118,9 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for BatchFRIChip<DEGREE
         Some(trace)
     }
 
-    fn num_rows(&self, input: &Self::Record) -> usize {
+    fn num_rows(&self, input: &Self::Record) -> Option<usize> {
         let events = &input.batch_fri_events;
-        next_power_of_two(events.len(), input.fixed_log2_rows(self))
+        Some(next_power_of_two(events.len(), input.fixed_log2_rows(self)))
     }
 
     #[instrument(name = "generate batch fri trace", level = "debug", skip_all, fields(rows = input.batch_fri_events.len()))]
@@ -144,7 +144,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for BatchFRIChip<DEGREE
             .collect_vec();
 
         // Pad the trace to a power of two.
-        rows.resize(self.num_rows(input), [F::zero(); NUM_BATCH_FRI_COLS]);
+        rows.resize(self.num_rows(input).unwrap(), [F::zero(); NUM_BATCH_FRI_COLS]);
 
         // Convert the trace to a row major matrix.
         let trace = RowMajorMatrix::new(rows.into_iter().flatten().collect(), NUM_BATCH_FRI_COLS);
@@ -317,7 +317,10 @@ mod tests {
             });
         });
 
-        rows.resize(BatchFRIChip::<DEGREE>.num_rows(input), [F::zero(); NUM_BATCH_FRI_COLS]);
+        rows.resize(
+            BatchFRIChip::<DEGREE>.num_rows(input).unwrap(),
+            [F::zero(); NUM_BATCH_FRI_COLS],
+        );
 
         RowMajorMatrix::new(rows.into_iter().flatten().collect(), NUM_BATCH_FRI_COLS)
     }

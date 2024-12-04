@@ -209,8 +209,8 @@ where
         <A as MachineAir<F>>::generate_preprocessed_trace(&self.air, program)
     }
 
-    fn num_rows(&self, input: &A::Record) -> usize {
-        self.air.num_rows(input)
+    fn num_rows(&self, input: &A::Record) -> Option<usize> {
+        <A as MachineAir<F>>::num_rows(&self.air, input)
     }
 
     fn generate_trace(&self, input: &A::Record, output: &mut A::Record) -> RowMajorMatrix<F> {

@@ -117,18 +117,18 @@ impl<F: PrimeField32> MachineAir<F> for BaseAluChip {
         // This is a no-op.
     }
 
-    fn num_rows(&self, input: &Self::Record) -> usize {
+    fn num_rows(&self, input: &Self::Record) -> Option<usize> {
         let nb_rows = input.base_alu_events.len().div_ceil(NUM_BASE_ALU_ENTRIES_PER_ROW);
         let fixed_log2_rows = input.fixed_log2_rows(self);
-        match fixed_log2_rows {
+        Some(match fixed_log2_rows {
             Some(log2_rows) => 1 << log2_rows,
             None => next_power_of_two(nb_rows, None),
-        }
+        })
     }
 
     fn generate_trace(&self, input: &Self::Record, _: &mut Self::Record) -> RowMajorMatrix<F> {
         let events = &input.base_alu_events;
-        let padded_nb_rows = self.num_rows(input);
+        let padded_nb_rows = self.num_rows(input).unwrap();
         let mut values = vec![F::zero(); padded_nb_rows * NUM_BASE_ALU_COLS];
 
         // Generate the trace rows & corresponding records for each chunk of events in parallel.
@@ -264,7 +264,7 @@ mod tests {
         _: &mut ExecutionRecord<BabyBear>,
     ) -> RowMajorMatrix<BabyBear> {
         let events = &input.base_alu_events;
-        let padded_nb_rows = BaseAluChip.num_rows(input);
+        let padded_nb_rows = BaseAluChip.num_rows(input).unwrap();
         let mut values = vec![BabyBear::zero(); padded_nb_rows * NUM_BASE_ALU_COLS];
 
         let populate_len = events.len() * NUM_BASE_ALU_VALUE_COLS;

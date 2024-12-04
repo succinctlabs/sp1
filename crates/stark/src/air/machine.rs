@@ -20,8 +20,8 @@ pub trait MachineAir<F: Field>: BaseAir<F> + 'static + Send + Sync {
     fn name(&self) -> String;
 
     /// The number of rows in the trace
-    fn num_rows(&self, _input: &Self::Record) -> usize {
-        0
+    fn num_rows(&self, _input: &Self::Record) -> Option<usize> {
+        None
     }
 
     /// Generate the trace for a given execution record.
