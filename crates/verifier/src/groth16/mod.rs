@@ -96,12 +96,14 @@ impl Groth16Verifier {
         public_inputs: &[[u8; 32]],
         groth16_vk: &[u8],
     ) -> Result<(), Groth16Error> {
-        let proof = load_groth16_proof_from_bytes(proof).unwrap();
-        let groth16_vk = load_groth16_verifying_key_from_bytes(groth16_vk).unwrap();
+        let proof = load_groth16_proof_from_bytes(proof)?;
+        let groth16_vk = load_groth16_verifying_key_from_bytes(groth16_vk)?;
 
-        let public_inputs =
-            public_inputs.iter().map(|input| Fr::from_slice(input).unwrap()).collect::<Vec<_>>();
-
-        verify_groth16_algerbraic(&groth16_vk, &proof, &public_inputs)
+        let public_inputs = public_inputs
+            .iter()
+            .map(|input| Fr::from_slice(input))
+            .collect::<Result<Vec<_>, bn::FieldError>>()
+            .map_err(|_| Groth16Error::GeneralError(Error::InvalidData))?;
+        verify_groth16_algebraic(&groth16_vk, &proof, &public_inputs)
     }
 }

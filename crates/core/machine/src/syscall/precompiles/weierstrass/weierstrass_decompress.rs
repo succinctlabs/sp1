@@ -542,6 +542,8 @@ mod tests {
         BLS12381_DECOMPRESS_ELF, SECP256K1_DECOMPRESS_ELF, SECP256R1_DECOMPRESS_ELF,
     };
 
+    use crate::utils::run_test_io;
+
     #[test]
     fn test_weierstrass_bls_decompress() {
         utils::setup_logger();

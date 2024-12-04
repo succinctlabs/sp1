@@ -77,6 +77,9 @@ sp1-zkvm = { path = "crates/zkvm/entrypoint", version = "=4.0.0-rc.1", default-f
 # For testing.
 test-artifacts = { path = "crates/test-artifacts", version = "=4.0.0-rc.1" }
 
+# For testing.
+test-artifacts = { path = "crates/test-artifacts", version = "3.0.0" }
+
 # p3
 # p3-air = "0.1.4-succinct"
 # p3-field = "0.1.4-succinct"

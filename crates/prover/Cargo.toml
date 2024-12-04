@@ -65,6 +65,22 @@ path = "scripts/post_trusted_setup.rs"
 name = "find_minimal_large_recursion_shape"
 path = "scripts/find_minimal_large_recursion_shape.rs"
 
+[[bin]]
+name = "fibonacci_groth16"
+path = "scripts/fibonacci_groth16.rs"
+required-features = ["export-tests"]
+
+[[bin]]
+name = "fibonacci_sweep"
+path = "scripts/fibonacci_sweep.rs"
+required-features = ["export-tests"]
+
+[[bin]]
+name = "tendermint_sweep"
+path = "scripts/tendermint_sweep.rs"
+required-features = ["export-tests"]
+
+
 [features]
 native-gnark = ["sp1-recursion-gnark-ffi/native"]
 export-tests = ["dep:test-artifacts"]
