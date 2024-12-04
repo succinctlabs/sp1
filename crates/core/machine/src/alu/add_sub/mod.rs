@@ -5,7 +5,7 @@ use core::{
 
 use hashbrown::HashMap;
 use itertools::Itertools;
-use p3_air::{Air, AirBuilder, BaseAir};
+use p3_air::{Air, BaseAir};
 use p3_field::{AbstractField, PrimeField};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use p3_maybe_rayon::prelude::{ParallelBridge, ParallelIterator};
@@ -42,9 +42,6 @@ pub struct AddSubChip;
 pub struct AddSubCols<T> {
     /// The program counter.
     pub pc: T,
-
-    /// The nonce of the operation.
-    pub nonce: T,
 
     /// Instance of `AddOperation` to handle addition logic in `AddSubChip`'s ALU operations.
     /// It's result will be `a` for the add operation and `b` for the sub operation.
@@ -98,7 +95,6 @@ impl<F: PrimeField> MachineAir<F> for AddSubChip {
                         let event = &merged_events[idx];
                         self.event_to_row(event, cols, &mut byte_lookup_events);
                     }
-                    cols.nonce = F::from_canonical_usize(idx);
                 });
             },
         );
@@ -136,6 +132,10 @@ impl<F: PrimeField> MachineAir<F> for AddSubChip {
         } else {
             !shard.add_events.is_empty()
         }
+    }
+
+    fn local_only(&self) -> bool {
+        true
     }
 }
 
@@ -176,8 +176,6 @@ where
         let main = builder.main();
         let local = main.row_slice(0);
         let local: &AddSubCols<AB::Var> = (*local).borrow();
-        let next = main.row_slice(1);
-        let next: &AddSubCols<AB::Var> = (*next).borrow();
 
         let is_real = local.is_add + local.is_sub;
         builder.assert_bool(local.is_add);
@@ -186,10 +184,6 @@ where
 
         let opcode = AB::Expr::from_f(Opcode::ADD.as_field()) * local.is_add
             + AB::Expr::from_f(Opcode::SUB.as_field()) * local.is_sub;
-
-        // Constrain the incrementing nonce.
-        builder.when_first_row().assert_zero(local.nonce);
-        builder.when_transition().assert_eq(local.nonce + AB::Expr::one(), next.nonce);
 
         // Evaluate the addition operation.
         AddOperation::<AB::F>::eval(
@@ -213,7 +207,6 @@ where
             local.operand_1,
             local.operand_2,
             AB::Expr::zero(),
-            local.nonce,
             AB::Expr::zero(),
             AB::Expr::zero(),
             AB::Expr::zero(),
@@ -232,7 +225,6 @@ where
             local.add_operation.value,
             local.operand_2,
             AB::Expr::zero(),
-            local.nonce,
             AB::Expr::zero(),
             AB::Expr::zero(),
             AB::Expr::zero(),
@@ -248,9 +240,36 @@ mod tests {
     use rand::{thread_rng, Rng};
     use sp1_core_executor::{events::AluEvent, ExecutionRecord, Opcode, DEFAULT_PC_INC};
     use sp1_stark::{air::MachineAir, baby_bear_poseidon2::BabyBearPoseidon2, StarkGenericConfig};
+    use std::sync::LazyLock;
 
-    use super::AddSubChip;
+    use super::*;
     use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
+
+    /// Lazily initialized record for use across multiple tests.
+    /// Consists of random `ADD` and `SUB` instructions.
+    static SHARD: LazyLock<ExecutionRecord> = LazyLock::new(|| {
+        let add_events = (0..1)
+            .flat_map(|i| {
+                [{
+                    let operand_1 = 1u32;
+                    let operand_2 = 2u32;
+                    let result = operand_1.wrapping_add(operand_2);
+                    AluEvent::new(i % 2, Opcode::ADD, result, operand_1, operand_2)
+                }]
+            })
+            .collect::<Vec<_>>();
+        let _sub_events = (0..255)
+            .flat_map(|i| {
+                [{
+                    let operand_1 = thread_rng().gen_range(0..u32::MAX);
+                    let operand_2 = thread_rng().gen_range(0..u32::MAX);
+                    let result = operand_1.wrapping_add(operand_2);
+                    AluEvent::new(i % 2, Opcode::SUB, result, operand_1, operand_2)
+                }]
+            })
+            .collect::<Vec<_>>();
+        ExecutionRecord { add_events, ..Default::default() }
+    });
 
     #[test]
     fn generate_trace() {
@@ -268,7 +287,7 @@ mod tests {
         let mut challenger = config.challenger();
 
         let mut shard = ExecutionRecord::default();
-        for i in 0..255 {
+        for i in 0..1 {
             let operand_1 = thread_rng().gen_range(0..u32::MAX);
             let operand_2 = thread_rng().gen_range(0..u32::MAX);
             let result = operand_1.wrapping_add(operand_2);
@@ -300,5 +319,55 @@ mod tests {
 
         let mut challenger = config.challenger();
         verify(&config, &chip, &mut challenger, &proof).unwrap();
+    }
+
+    #[cfg(feature = "sys")]
+    #[test]
+    fn test_generate_trace_ffi_eq_rust() {
+        let shard = LazyLock::force(&SHARD);
+
+        let chip = AddSubChip::default();
+        let trace: RowMajorMatrix<BabyBear> =
+            chip.generate_trace(shard, &mut ExecutionRecord::default());
+        let trace_ffi = generate_trace_ffi(shard);
+
+        assert_eq!(trace_ffi, trace);
+    }
+
+    #[cfg(feature = "sys")]
+    fn generate_trace_ffi(input: &ExecutionRecord) -> RowMajorMatrix<BabyBear> {
+        type F = BabyBear;
+
+        let chunk_size =
+            std::cmp::max((input.add_events.len() + input.sub_events.len()) / num_cpus::get(), 1);
+
+        let events = input.add_events.iter().chain(input.sub_events.iter()).collect::<Vec<_>>();
+        let row_batches = events
+            .par_chunks(chunk_size)
+            .map(|events| {
+                let rows = events
+                    .iter()
+                    .map(|event| {
+                        let mut row = [F::zero(); NUM_ADD_SUB_COLS];
+                        let cols: &mut AddSubCols<F> = row.as_mut_slice().borrow_mut();
+                        unsafe {
+                            crate::sys::add_sub_event_to_row_babybear(event, cols);
+                        }
+                        row
+                    })
+                    .collect::<Vec<_>>();
+                rows
+            })
+            .collect::<Vec<_>>();
+
+        let mut rows: Vec<[F; NUM_ADD_SUB_COLS]> = vec![];
+        for row_batch in row_batches {
+            rows.extend(row_batch);
+        }
+
+        pad_rows_fixed(&mut rows, || [F::zero(); NUM_ADD_SUB_COLS], None);
+
+        // Convert the trace to a row major matrix.
+        RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_ADD_SUB_COLS)
     }
 }

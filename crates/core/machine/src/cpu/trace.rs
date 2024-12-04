@@ -58,7 +58,6 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
                         let instruction = &input.program.fetch(event.pc);
                         self.event_to_row(
                             event,
-                            &input.nonce_lookup,
                             cols,
                             &mut byte_lookup_events,
                             input.public_values.execution_shard,
@@ -90,7 +89,6 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
                     let instruction = &input.program.fetch(op.pc);
                     self.event_to_row::<F>(
                         op,
-                        &input.nonce_lookup,
                         cols,
                         &mut blu,
                         input.public_values.execution_shard,
@@ -118,7 +116,6 @@ impl CpuChip {
     fn event_to_row<F: PrimeField32>(
         &self,
         event: &CpuEvent,
-        nonce_lookup: &[u32],
         cols: &mut CpuCols<F>,
         blu_events: &mut impl ByteRecord,
         shard: u32,
@@ -126,11 +123,6 @@ impl CpuChip {
     ) {
         // Populate shard and clk columns.
         self.populate_shard_clk(cols, event, blu_events, shard);
-
-        // Populate the nonce.
-        cols.nonce = F::from_canonical_u32(
-            nonce_lookup.get(event.alu_lookup_id.0 as usize).copied().unwrap_or_default(),
-        );
 
         // Populate basic fields.
         cols.pc = F::from_canonical_u32(event.pc);

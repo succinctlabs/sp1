@@ -65,7 +65,6 @@ where
             local.op_b_val(),
             local.op_c_val(),
             local.instruction.op_a_0,
-            local.nonce,
             local.op_a_immutable,
             local.is_syscall,
             local.is_halt,

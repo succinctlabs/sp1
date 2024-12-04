@@ -43,7 +43,6 @@ where
             AB::Expr::zero(),
             AB::Expr::zero(),
             AB::Expr::zero(),
-            AB::Expr::zero(),
             is_real.clone(),
         );
 
@@ -88,7 +87,6 @@ where
             local.pc,
             local.op_b_value,
             AB::Expr::zero(),
-            local.jal_nonce,
             AB::Expr::zero(),
             AB::Expr::zero(),
             AB::Expr::zero(),
@@ -107,7 +105,6 @@ where
             local.op_b_value,
             local.op_c_value,
             AB::Expr::zero(),
-            local.jalr_nonce,
             AB::Expr::zero(),
             AB::Expr::zero(),
             AB::Expr::zero(),

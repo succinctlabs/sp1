@@ -88,9 +88,6 @@ pub struct ShiftRightCols<T> {
     /// The program counter.
     pub pc: T,
 
-    /// The nonce of the operation.
-    pub nonce: T,
-
     /// The output operand.
     pub a: Word<T>,
 
@@ -169,7 +166,6 @@ impl<F: PrimeField> MachineAir<F> for ShiftRightChip {
                         cols.shift_by_n_bits[0] = F::one();
                         cols.shift_by_n_bytes[0] = F::one();
                     }
-                    cols.nonce = F::from_canonical_usize(idx);
                 });
             },
         );
@@ -204,6 +200,10 @@ impl<F: PrimeField> MachineAir<F> for ShiftRightChip {
         } else {
             !shard.shift_right_events.is_empty()
         }
+    }
+
+    fn local_only(&self) -> bool {
+        true
     }
 }
 
@@ -327,14 +327,8 @@ where
         let main = builder.main();
         let local = main.row_slice(0);
         let local: &ShiftRightCols<AB::Var> = (*local).borrow();
-        let next = main.row_slice(1);
-        let next: &ShiftRightCols<AB::Var> = (*next).borrow();
         let zero: AB::Expr = AB::F::zero().into();
         let one: AB::Expr = AB::F::one().into();
-
-        // Constrain the incrementing nonce.
-        builder.when_first_row().assert_zero(local.nonce);
-        builder.when_transition().assert_eq(local.nonce + AB::Expr::one(), next.nonce);
 
         // Check that the MSB of most_significant_byte matches local.b_msb using lookup.
         {
@@ -516,7 +510,6 @@ where
             local.b,
             local.c,
             AB::Expr::zero(),
-            local.nonce,
             AB::Expr::zero(),
             AB::Expr::zero(),
             AB::Expr::zero(),

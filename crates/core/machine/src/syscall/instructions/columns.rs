@@ -55,9 +55,6 @@ pub struct SyscallInstrColumns<T> {
     /// should be set to 1 and everything else set to 0.
     pub index_bitmap: [T; PV_DIGEST_NUM_WORDS],
 
-    /// The nonce of the syscall operation.
-    pub syscall_nonce: T,
-
     /// Columns to babybear range check the halt/commit_deferred_proofs operand.
     pub operand_range_check_cols: BabyBearWordRangeChecker<T>,
 

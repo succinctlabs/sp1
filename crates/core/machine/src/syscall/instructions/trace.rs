@@ -131,9 +131,6 @@ impl SyscallInstrsChip {
             cols.index_bitmap[digest_idx] = F::one();
         }
 
-        // Write the syscall nonce.
-        cols.syscall_nonce = F::from_canonical_u32(event.nonce);
-
         // For halt and commit deferred proofs syscalls, we need to baby bear range check one of
         // it's operands.
         if cols.is_halt == F::one() {

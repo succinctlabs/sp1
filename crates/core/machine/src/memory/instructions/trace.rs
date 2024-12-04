@@ -52,7 +52,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryInstructionsChip {
 
                         if idx < input.memory_instr_events.len() {
                             let event = &input.memory_instr_events[idx];
-                            self.event_to_row(event, cols, &input.nonce_lookup, &mut blu);
+                            self.event_to_row(event, cols, &mut blu);
                         }
                     },
                 );
@@ -80,7 +80,6 @@ impl MemoryInstructionsChip {
         &self,
         event: &MemInstrEvent,
         cols: &mut MemoryInstructionsColumns<F>,
-        nonce_lookup: &[u32],
         blu: &mut HashMap<ByteLookupEvent, usize>,
     ) {
         cols.shard = F::from_canonical_u32(event.shard);
@@ -104,10 +103,6 @@ impl MemoryInstructionsChip {
 
         // Populate the aa_least_sig_byte_decomp columns.
         assert!(aligned_addr % 4 == 0);
-        cols.addr_word_nonce = F::from_canonical_u32(
-            nonce_lookup.get(event.memory_add_lookup_id.0 as usize).copied().unwrap_or_default(),
-        );
-
         // Populate memory offsets.
         let addr_ls_two_bits = (memory_addr % WORD_SIZE as u32) as u8;
         cols.addr_ls_two_bits = F::from_canonical_u8(addr_ls_two_bits);
@@ -158,12 +153,6 @@ impl MemoryInstructionsChip {
                 let most_sig_mem_value_bit = most_sig_mem_value_byte >> 7;
                 if most_sig_mem_value_bit == 1 {
                     cols.mem_value_is_neg_not_x0 = F::from_bool(!event.op_a_0);
-                    cols.unsigned_mem_val_nonce = F::from_canonical_u32(
-                        nonce_lookup
-                            .get(event.memory_sub_lookup_id.0 as usize)
-                            .copied()
-                            .unwrap_or_default(),
-                    );
                 }
 
                 cols.most_sig_byte = F::from_canonical_u8(most_sig_mem_value_byte);

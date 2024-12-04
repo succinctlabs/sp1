@@ -20,9 +20,6 @@ pub struct CpuCols<T: Copy> {
     /// The current shard.
     pub shard: T,
 
-    /// The nonce for ALU instructions.
-    pub nonce: T,
-
     /// The least significant 16 bit limb of clk.
     pub clk_16bit_limb: T,
     /// The most significant 8 bit limb of clk.

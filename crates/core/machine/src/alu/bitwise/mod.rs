@@ -5,7 +5,7 @@ use core::{
 
 use hashbrown::HashMap;
 use itertools::Itertools;
-use p3_air::{Air, AirBuilder, BaseAir};
+use p3_air::{Air, BaseAir};
 use p3_field::{AbstractField, PrimeField};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use p3_maybe_rayon::prelude::{IntoParallelRefIterator, ParallelIterator, ParallelSlice};
@@ -34,9 +34,6 @@ pub struct BitwiseChip;
 pub struct BitwiseCols<T> {
     /// The program counter.
     pub pc: T,
-
-    /// The nonce of the operation.
-    pub nonce: T,
 
     /// The output operand.
     pub a: Word<T>,
@@ -91,16 +88,7 @@ impl<F: PrimeField> MachineAir<F> for BitwiseChip {
         );
 
         // Convert the trace to a row major matrix.
-        let mut trace =
-            RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_BITWISE_COLS);
-
-        for i in 0..trace.height() {
-            let cols: &mut BitwiseCols<F> =
-                trace.values[i * NUM_BITWISE_COLS..(i + 1) * NUM_BITWISE_COLS].borrow_mut();
-            cols.nonce = F::from_canonical_usize(i);
-        }
-
-        trace
+        RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_BITWISE_COLS)
     }
 
     fn generate_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
@@ -129,6 +117,10 @@ impl<F: PrimeField> MachineAir<F> for BitwiseChip {
         } else {
             !shard.bitwise_events.is_empty()
         }
+    }
+
+    fn local_only(&self) -> bool {
+        true
     }
 }
 
@@ -181,12 +173,6 @@ where
         let main = builder.main();
         let local = main.row_slice(0);
         let local: &BitwiseCols<AB::Var> = (*local).borrow();
-        let next = main.row_slice(1);
-        let next: &BitwiseCols<AB::Var> = (*next).borrow();
-
-        // Constrain the incrementing nonce.
-        builder.when_first_row().assert_zero(local.nonce);
-        builder.when_transition().assert_eq(local.nonce + AB::Expr::one(), next.nonce);
 
         // Get the opcode for the operation.
         let opcode = local.is_xor * ByteOpcode::XOR.as_field::<AB::F>()
@@ -216,7 +202,6 @@ where
             local.b,
             local.c,
             AB::Expr::zero(),
-            local.nonce,
             AB::Expr::zero(),
             AB::Expr::zero(),
             AB::Expr::zero(),

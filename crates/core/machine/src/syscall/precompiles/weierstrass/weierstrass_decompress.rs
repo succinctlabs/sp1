@@ -49,7 +49,6 @@ pub struct WeierstrassDecompressCols<T, P: FieldParameters + NumWords> {
     pub is_real: T,
     pub shard: T,
     pub clk: T,
-    pub nonce: T,
     pub ptr: T,
     pub sign_bit: T,
     pub x_access: GenericArray<MemoryReadCols<T>, P::WordsFieldElement>,
@@ -273,16 +272,7 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
             input.fixed_log2_rows::<F, _>(self),
         );
 
-        let mut trace = RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), width);
-
-        // Write the nonces to the trace.
-        for i in 0..trace.height() {
-            let cols: &mut WeierstrassDecompressCols<F, E::BaseField> =
-                trace.values[i * width..i * width + weierstrass_width].borrow_mut();
-            cols.nonce = F::from_canonical_usize(i);
-        }
-
-        trace
+        RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), width)
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
@@ -302,6 +292,10 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
                 _ => panic!("Unsupported curve"),
             }
         }
+    }
+
+    fn local_only(&self) -> bool {
+        true
     }
 }
 
@@ -329,13 +323,6 @@ where
         let local_slice = main.row_slice(0);
         let local: &WeierstrassDecompressCols<AB::Var, E::BaseField> =
             (*local_slice)[0..weierstrass_cols].borrow();
-        let next = main.row_slice(1);
-        let next: &WeierstrassDecompressCols<AB::Var, E::BaseField> =
-            (*next)[0..weierstrass_cols].borrow();
-
-        // Constrain the incrementing nonce.
-        builder.when_first_row().assert_zero(local.nonce);
-        builder.when_transition().assert_eq(local.nonce + AB::Expr::one(), next.nonce);
 
         let num_limbs = <E::BaseField as NumLimbs>::Limbs::USIZE;
         let num_words_field_element = num_limbs / 4;
@@ -523,7 +510,6 @@ where
         builder.receive_syscall(
             local.shard,
             local.clk,
-            local.nonce,
             syscall_id,
             local.ptr,
             local.sign_bit,
@@ -537,7 +523,7 @@ where
 mod tests {
     use crate::{
         io::SP1Stdin,
-        utils::{self, tests::BLS12381_DECOMPRESS_ELF},
+        utils::{self, run_test},
     };
     use amcl::{
         bls381::bls381::{basic::key_pair_generate_g2, utils::deserialize_g1},
@@ -547,9 +533,8 @@ mod tests {
     use rand::{thread_rng, Rng};
     use sp1_core_executor::Program;
     use sp1_stark::CpuProver;
-
-    use crate::utils::{
-        run_test_io, tests::SECP256K1_DECOMPRESS_ELF, tests::SECP256R1_DECOMPRESS_ELF,
+    use test_artifacts::{
+        BLS12381_DECOMPRESS_ELF, SECP256K1_DECOMPRESS_ELF, SECP256R1_DECOMPRESS_ELF,
     };
 
     #[test]
@@ -567,11 +552,9 @@ mod tests {
             let (_, compressed) = key_pair_generate_g2(&mut rand);
 
             let stdin = SP1Stdin::from(&compressed);
-            let mut public_values = run_test_io::<CpuProver<_, _>>(
-                Program::from(BLS12381_DECOMPRESS_ELF).unwrap(),
-                stdin,
-            )
-            .unwrap();
+            let mut public_values =
+                run_test::<CpuProver<_, _>>(Program::from(BLS12381_DECOMPRESS_ELF).unwrap(), stdin)
+                    .unwrap();
 
             let mut result = [0; 96];
             public_values.read_slice(&mut result);
@@ -601,7 +584,7 @@ mod tests {
 
             let inputs = SP1Stdin::from(&compressed);
 
-            let mut public_values = run_test_io::<CpuProver<_, _>>(
+            let mut public_values = run_test::<CpuProver<_, _>>(
                 Program::from(SECP256K1_DECOMPRESS_ELF).unwrap(),
                 inputs,
             )
@@ -630,7 +613,7 @@ mod tests {
 
             let inputs = SP1Stdin::from(compressed);
 
-            let mut public_values = run_test_io::<CpuProver<_, _>>(
+            let mut public_values = run_test::<CpuProver<_, _>>(
                 Program::from(SECP256R1_DECOMPRESS_ELF).unwrap(),
                 inputs,
             )

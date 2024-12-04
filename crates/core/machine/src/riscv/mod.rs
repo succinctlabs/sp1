@@ -11,8 +11,7 @@ use sp1_core_executor::{
 use crate::{
     control_flow::{AUIPCChip, BranchChip, JumpChip},
     memory::{
-        MemoryChipType, MemoryInstructionsChip, MemoryLocalChip, MemoryProgramChip,
-        NUM_LOCAL_MEMORY_ENTRIES_PER_ROW,
+        MemoryChipType, MemoryInstructionsChip, MemoryLocalChip, NUM_LOCAL_MEMORY_ENTRIES_PER_ROW,
     },
     riscv::MemoryChipType::{Finalize, Initialize},
     syscall::{
@@ -48,6 +47,7 @@ pub(crate) mod riscv_chips {
                 edwards::{EdAddAssignChip, EdDecompressChip},
                 keccak256::KeccakPermuteChip,
                 sha256::{ShaCompressChip, ShaExtendChip},
+                u256x2048_mul::U256x2048MulChip,
                 uint256::Uint256MulChip,
                 weierstrass::{
                     WeierstrassAddAssignChip, WeierstrassDecompressChip,
@@ -110,7 +110,7 @@ pub enum RiscvAir<F: PrimeField32> {
     /// A table for the local memory state.
     MemoryLocal(MemoryLocalChip),
     /// A table for initializing the program memory.
-    ProgramMemory(MemoryProgramChip),
+    // ProgramMemory(MemoryProgramChip),
     /// A table for all the syscall invocations.
     SyscallCore(SyscallChip),
     /// A table for all the precompile invocations.
@@ -147,6 +147,8 @@ pub enum RiscvAir<F: PrimeField32> {
     Bls12381Double(WeierstrassDoubleAssignChip<SwCurve<Bls12381Parameters>>),
     /// A precompile for uint256 mul.
     Uint256Mul(Uint256MulChip),
+    /// A precompile for u256x2048 mul.
+    U256x2048Mul(U256x2048MulChip),
     /// A precompile for decompressing a point on the BLS12-381 curve.
     Bls12381Decompress(WeierstrassDecompressChip<SwCurve<Bls12381Parameters>>),
     /// A precompile for BLS12-381 fp operation.
@@ -290,6 +292,10 @@ impl<F: PrimeField32> RiscvAir<F> {
         costs.insert(RiscvAirDiscriminants::Uint256Mul, uint256_mul.cost());
         chips.push(uint256_mul);
 
+        let u256x2048_mul = Chip::new(RiscvAir::U256x2048Mul(U256x2048MulChip::default()));
+        costs.insert(RiscvAirDiscriminants::U256x2048Mul, u256x2048_mul.cost());
+        chips.push(u256x2048_mul);
+
         let bls12381_fp = Chip::new(RiscvAir::Bls12381Fp(FpOpChip::<Bls12381BaseField>::new()));
         costs.insert(RiscvAirDiscriminants::Bls12381Fp, bls12381_fp.cost());
         chips.push(bls12381_fp);
@@ -396,9 +402,9 @@ impl<F: PrimeField32> RiscvAir<F> {
         costs.insert(RiscvAirDiscriminants::MemoryLocal, memory_local.cost());
         chips.push(memory_local);
 
-        let memory_program = Chip::new(RiscvAir::ProgramMemory(MemoryProgramChip::default()));
-        costs.insert(RiscvAirDiscriminants::ProgramMemory, memory_program.cost());
-        chips.push(memory_program);
+        // let memory_program = Chip::new(RiscvAir::ProgramMemory(MemoryProgramChip::default()));
+        // costs.insert(RiscvAirDiscriminants::ProgramMemory, memory_program.cost());
+        // chips.push(memory_program);
 
         let byte = Chip::new(RiscvAir::ByteLookup(ByteChip::default()));
         costs.insert(RiscvAirDiscriminants::ByteLookup, byte.cost());
@@ -411,7 +417,7 @@ impl<F: PrimeField32> RiscvAir<F> {
     pub(crate) fn preprocessed_heights(program: &Program) -> Vec<(Self, usize)> {
         vec![
             (RiscvAir::Program(ProgramChip::default()), program.instructions.len()),
-            (RiscvAir::ProgramMemory(MemoryProgramChip::default()), program.memory_image.len()),
+            // (RiscvAir::ProgramMemory(MemoryProgramChip::default()), program.memory_image.len()),
             (RiscvAir::ByteLookup(ByteChip::default()), 1 << 16),
         ]
     }
@@ -499,7 +505,7 @@ impl<F: PrimeField32> RiscvAir<F> {
 
         // Remove the preprocessed chips.
         airs.remove(&Self::Program(ProgramChip::default()));
-        airs.remove(&Self::ProgramMemory(MemoryProgramChip::default()));
+        // airs.remove(&Self::ProgramMemory(MemoryProgramChip::default()));
         airs.remove(&Self::ByteLookup(ByteChip::default()));
 
         airs.into_iter()
@@ -547,6 +553,7 @@ impl<F: PrimeField32> RiscvAir<F> {
             Self::Sha256Compress(_) => SyscallCode::SHA_COMPRESS,
             Self::Sha256Extend(_) => SyscallCode::SHA_EXTEND,
             Self::Uint256Mul(_) => SyscallCode::UINT256_MUL,
+            Self::U256x2048Mul(_) => SyscallCode::U256XU2048_MUL,
             Self::Bls12381Decompress(_) => SyscallCode::BLS12381_DECOMPRESS,
             Self::K256Decompress(_) => SyscallCode::SECP256K1_DECOMPRESS,
             Self::P256Decompress(_) => SyscallCode::SECP256R1_DECOMPRESS,
@@ -561,7 +568,7 @@ impl<F: PrimeField32> RiscvAir<F> {
             Self::MemoryGlobalInit(_) => unreachable!("Invalid for memory init/final"),
             Self::MemoryGlobalFinal(_) => unreachable!("Invalid for memory init/final"),
             Self::MemoryLocal(_) => unreachable!("Invalid for memory local"),
-            Self::ProgramMemory(_) => unreachable!("Invalid for memory program"),
+            // Self::ProgramMemory(_) => unreachable!("Invalid for memory program"),
             Self::Program(_) => unreachable!("Invalid for core chip"),
             Self::Mul(_) => unreachable!("Invalid for core chip"),
             Self::Lt(_) => unreachable!("Invalid for core chip"),
@@ -621,26 +628,26 @@ pub mod tests {
     use crate::{
         io::SP1Stdin,
         riscv::RiscvAir,
-        utils,
-        utils::{prove, run_test, setup_logger},
+        utils::{self, prove_core, run_test, setup_logger},
     };
 
     use sp1_core_executor::{
         programs::tests::{
             fibonacci_program, simple_memory_program, simple_program, ssz_withdrawals_program,
         },
-        Instruction, Opcode, Program,
+        Instruction, Opcode, Program, SP1Context,
     };
     use sp1_stark::{
-        baby_bear_poseidon2::BabyBearPoseidon2, CpuProver, SP1CoreOpts, StarkProvingKey,
-        StarkVerifyingKey,
+        baby_bear_poseidon2::BabyBearPoseidon2, CpuProver, MachineProver, SP1CoreOpts,
+        StarkProvingKey, StarkVerifyingKey,
     };
 
     #[test]
     fn test_simple_prove() {
         utils::setup_logger();
         let program = simple_program();
-        run_test::<CpuProver<_, _>>(program).unwrap();
+        let stdin = SP1Stdin::new();
+        run_test::<CpuProver<_, _>>(program, stdin).unwrap();
     }
 
     #[test]
@@ -657,7 +664,8 @@ pub mod tests {
                     Instruction::new(*shift_op, 31, 29, 3, false, false),
                 ];
                 let program = Program::new(instructions, 0, 0);
-                run_test::<CpuProver<_, _>>(program).unwrap();
+                let stdin = SP1Stdin::new();
+                run_test::<CpuProver<_, _>>(program, stdin).unwrap();
             }
         }
     }
@@ -671,7 +679,8 @@ pub mod tests {
             Instruction::new(Opcode::SUB, 31, 30, 29, false, false),
         ];
         let program = Program::new(instructions, 0, 0);
-        run_test::<CpuProver<_, _>>(program).unwrap();
+        let stdin = SP1Stdin::new();
+        run_test::<CpuProver<_, _>>(program, stdin).unwrap();
     }
 
     #[test]
@@ -683,7 +692,8 @@ pub mod tests {
             Instruction::new(Opcode::ADD, 31, 30, 29, false, false),
         ];
         let program = Program::new(instructions, 0, 0);
-        run_test::<CpuProver<_, _>>(program).unwrap();
+        let stdin = SP1Stdin::new();
+        run_test::<CpuProver<_, _>>(program, stdin).unwrap();
     }
 
     #[test]
@@ -700,7 +710,8 @@ pub mod tests {
                     Instruction::new(*mul_op, 31, 30, 29, false, false),
                 ];
                 let program = Program::new(instructions, 0, 0);
-                run_test::<CpuProver<_, _>>(program).unwrap();
+                let stdin = SP1Stdin::new();
+                run_test::<CpuProver<_, _>>(program, stdin).unwrap();
             }
         }
     }
@@ -716,7 +727,8 @@ pub mod tests {
                 Instruction::new(*lt_op, 31, 30, 29, false, false),
             ];
             let program = Program::new(instructions, 0, 0);
-            run_test::<CpuProver<_, _>>(program).unwrap();
+            let stdin = SP1Stdin::new();
+            run_test::<CpuProver<_, _>>(program, stdin).unwrap();
         }
     }
 
@@ -732,7 +744,8 @@ pub mod tests {
                 Instruction::new(*bitwise_op, 31, 30, 29, false, false),
             ];
             let program = Program::new(instructions, 0, 0);
-            run_test::<CpuProver<_, _>>(program).unwrap();
+            let stdin = SP1Stdin::new();
+            run_test::<CpuProver<_, _>>(program, stdin).unwrap();
         }
     }
 
@@ -755,7 +768,8 @@ pub mod tests {
                     Instruction::new(*div_rem_op, 31, 29, 30, false, false),
                 ];
                 let program = Program::new(instructions, 0, 0);
-                run_test::<CpuProver<_, _>>(program).unwrap();
+                let stdin = SP1Stdin::new();
+                run_test::<CpuProver<_, _>>(program, stdin).unwrap();
             }
         }
     }
@@ -764,7 +778,8 @@ pub mod tests {
     fn test_fibonacci_prove_simple() {
         setup_logger();
         let program = fibonacci_program();
-        run_test::<CpuProver<_, _>>(program).unwrap();
+        let stdin = SP1Stdin::new();
+        run_test::<CpuProver<_, _>>(program, stdin).unwrap();
     }
 
     #[test]
@@ -776,7 +791,13 @@ pub mod tests {
         let mut opts = SP1CoreOpts::default();
         opts.shard_size = 1024;
         opts.shard_batch_size = 2;
-        prove::<_, CpuProver<_, _>>(program, &stdin, BabyBearPoseidon2::new(), opts, None).unwrap();
+
+        let config = BabyBearPoseidon2::new();
+        let machine = RiscvAir::machine(config);
+        let prover = CpuProver::new(machine);
+        let (pk, vk) = prover.setup(&program);
+        prove_core::<_, _>(&prover, &pk, &vk, program, &stdin, opts, SP1Context::default(), None)
+            .unwrap();
     }
 
     #[test]
@@ -784,28 +805,30 @@ pub mod tests {
         setup_logger();
         let program = fibonacci_program();
         let stdin = SP1Stdin::new();
-        prove::<_, CpuProver<_, _>>(
-            program,
-            &stdin,
-            BabyBearPoseidon2::new(),
-            SP1CoreOpts::default(),
-            None,
-        )
-        .unwrap();
+
+        let opts = SP1CoreOpts::default();
+        let config = BabyBearPoseidon2::new();
+        let machine = RiscvAir::machine(config);
+        let prover = CpuProver::new(machine);
+        let (pk, vk) = prover.setup(&program);
+        prove_core::<_, _>(&prover, &pk, &vk, program, &stdin, opts, SP1Context::default(), None)
+            .unwrap();
     }
 
     #[test]
     fn test_simple_memory_program_prove() {
         setup_logger();
         let program = simple_memory_program();
-        run_test::<CpuProver<_, _>>(program).unwrap();
+        let stdin = SP1Stdin::new();
+        run_test::<CpuProver<_, _>>(program, stdin).unwrap();
     }
 
     #[test]
     fn test_ssz_withdrawal() {
         setup_logger();
         let program = ssz_withdrawals_program();
-        run_test::<CpuProver<_, _>>(program).unwrap();
+        let stdin = SP1Stdin::new();
+        run_test::<CpuProver<_, _>>(program, stdin).unwrap();
     }
 
     #[test]

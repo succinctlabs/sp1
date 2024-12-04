@@ -1,12 +1,12 @@
-use std::{
-    env,
-    time::{Duration, Instant},
-};
+use std::time::{Duration, Instant};
 
 use crate::{
-    network::client::{NetworkClient, DEFAULT_PROVER_NETWORK_RPC},
-    network::proto::network::{ProofMode, ProofStatus},
-    Prover, SP1Context, SP1ProofKind, SP1ProofWithPublicValues, SP1ProvingKey, SP1VerifyingKey,
+    network::{
+        client::NetworkClient,
+        proto::network::{ProofMode, ProofStatus},
+    },
+    NetworkProverBuilder, Prover, SP1Context, SP1ProofKind, SP1ProofWithPublicValues,
+    SP1ProvingKey, SP1VerifyingKey,
 };
 use anyhow::Result;
 use sp1_core_machine::io::SP1Stdin;
@@ -15,7 +15,8 @@ use sp1_stark::SP1ProverOpts;
 
 use super::proto::network::GetProofStatusResponse;
 
-use {crate::block_on, tokio::time::sleep};
+use crate::block_on;
+use tokio::time::sleep;
 
 use crate::provers::{CpuProver, ProofOpts, ProverType};
 
@@ -26,23 +27,22 @@ const MAX_CONSECUTIVE_ERRORS: usize = 10;
 pub struct NetworkProver {
     client: NetworkClient,
     local_prover: CpuProver,
+    skip_simulation: bool,
 }
 
 impl NetworkProver {
-    /// Creates a new [NetworkProver] with the private key set in `SP1_PRIVATE_KEY`.
-    pub fn new() -> Self {
-        let private_key = env::var("SP1_PRIVATE_KEY")
-            .unwrap_or_else(|_| panic!("SP1_PRIVATE_KEY must be set for remote proving"));
-        Self::new_from_key(&private_key)
-    }
-
     /// Creates a new [NetworkProver] with the given private key.
-    pub fn new_from_key(private_key: &str) -> Self {
+    pub fn new(private_key: &str, rpc_url: Option<String>, skip_simulation: bool) -> Self {
         let version = SP1_CIRCUIT_VERSION;
         log::info!("Client circuit version: {}", version);
 
         let local_prover = CpuProver::new();
-        Self { client: NetworkClient::new(private_key), local_prover }
+        Self { client: NetworkClient::new(private_key, rpc_url), local_prover, skip_simulation }
+    }
+
+    /// Creates a new network prover builder. See [`NetworkProverBuilder`] for more details.
+    pub fn builder() -> NetworkProverBuilder {
+        NetworkProverBuilder::default()
     }
 
     /// Requests a proof from the prover network, returning the proof ID.
@@ -54,9 +54,7 @@ impl NetworkProver {
     ) -> Result<String> {
         let client = &self.client;
 
-        let skip_simulation = env::var("SKIP_SIMULATION").map(|val| val == "true").unwrap_or(false);
-
-        if !skip_simulation {
+        if !self.skip_simulation {
             let (_, report) =
                 self.local_prover.sp1_prover().execute(elf, &stdin, Default::default())?;
             log::info!("Simulation complete, cycles: {}", report.total_instruction_count());
@@ -67,7 +65,7 @@ impl NetworkProver {
         let proof_id = client.create_proof(elf, &stdin, mode, SP1_CIRCUIT_VERSION).await?;
         log::info!("Created {}", proof_id);
 
-        if NetworkClient::rpc_url() == DEFAULT_PROVER_NETWORK_RPC {
+        if self.client.is_using_prover_network {
             log::info!("View in explorer: https://explorer.succinct.xyz/{}", proof_id);
         }
         Ok(proof_id)
@@ -180,12 +178,6 @@ impl Prover<DefaultProverComponents> for NetworkProver {
     ) -> Result<SP1ProofWithPublicValues> {
         warn_if_not_default(&opts.sp1_prover_opts, &context);
         block_on(self.prove(&pk.elf, stdin, kind.into(), opts.timeout))
-    }
-}
-
-impl Default for NetworkProver {
-    fn default() -> Self {
-        Self::new()
     }
 }
 

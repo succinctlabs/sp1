@@ -35,9 +35,6 @@ pub struct LtCols<T> {
     /// The program counter.
     pub pc: T,
 
-    /// The nonce of the operation.
-    pub nonce: T,
-
     /// If the opcode is SLT.
     pub is_slt: T,
 
@@ -124,7 +121,6 @@ impl<F: PrimeField32> MachineAir<F> for LtChip {
                         let event = &input.lt_events[idx];
                         self.event_to_row(event, cols, &mut byte_lookup_events);
                     }
-                    cols.nonce = F::from_canonical_usize(idx);
                 });
             },
         );
@@ -160,6 +156,10 @@ impl<F: PrimeField32> MachineAir<F> for LtChip {
         } else {
             !shard.lt_events.is_empty()
         }
+    }
+
+    fn local_only(&self) -> bool {
+        true
     }
 }
 
@@ -267,12 +267,6 @@ where
         let main = builder.main();
         let local = main.row_slice(0);
         let local: &LtCols<AB::Var> = (*local).borrow();
-        let next = main.row_slice(1);
-        let next: &LtCols<AB::Var> = (*next).borrow();
-
-        // Constrain the incrementing nonce.
-        builder.when_first_row().assert_zero(local.nonce);
-        builder.when_transition().assert_eq(local.nonce + AB::Expr::one(), next.nonce);
 
         let is_real = local.is_slt + local.is_sltu;
 
@@ -451,7 +445,6 @@ where
             local.b,
             local.c,
             AB::Expr::zero(),
-            local.nonce,
             AB::Expr::zero(),
             AB::Expr::zero(),
             AB::Expr::zero(),

@@ -4,8 +4,10 @@ mod fptower;
 mod keccak256_permute;
 mod sha256_compress;
 mod sha256_extend;
+mod u256x2048_mul;
 mod uint256;
 
+use crate::syscalls::SyscallCode;
 pub use ec::*;
 pub use edwards::*;
 pub use fptower::*;
@@ -15,9 +17,8 @@ use serde::{Deserialize, Serialize};
 pub use sha256_compress::*;
 pub use sha256_extend::*;
 use strum::{EnumIter, IntoEnumIterator};
+pub use u256x2048_mul::*;
 pub use uint256::*;
-
-use crate::syscalls::SyscallCode;
 
 use super::{MemoryLocalEvent, SyscallEvent};
 
@@ -72,6 +73,8 @@ pub enum PrecompileEvent {
     Bls12381Fp2Mul(Fp2MulEvent),
     /// Uint256 mul precompile event.
     Uint256Mul(Uint256MulEvent),
+    /// U256XU2048 mul precompile event.
+    U256xU2048Mul(U256xU2048MulEvent),
 }
 
 /// Trait to retrieve all the local memory events from a vec of precompile events.
@@ -120,6 +123,9 @@ impl PrecompileLocalMemory for Vec<(SyscallEvent, PrecompileEvent)> {
                 PrecompileEvent::Uint256Mul(e) => {
                     iterators.push(e.local_mem_access.iter());
                 }
+                PrecompileEvent::U256xU2048Mul(e) => {
+                    iterators.push(e.local_mem_access.iter());
+                }
                 PrecompileEvent::Bls12381Fp(e) | PrecompileEvent::Bn254Fp(e) => {
                     iterators.push(e.local_mem_access.iter());
                 }
@@ -166,7 +172,7 @@ impl PrecompileEvents {
 
     #[inline]
     /// Add a precompile event for a given syscall code.
-    pub(crate) fn add_event(
+    pub fn add_event(
         &mut self,
         syscall_code: SyscallCode,
         syscall_event: SyscallEvent,

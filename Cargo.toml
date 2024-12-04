@@ -1,5 +1,5 @@
 [workspace.package]
-version = "3.0.0"
+version = "4.0.0-rc.1"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 rust-version = "1.79"
@@ -31,6 +31,7 @@ members = [
   "crates/verifier",
   "crates/stark",
   "crates/zkvm/*",
+  "crates/test-artifacts",
 ]
 exclude = ["examples/target"]
 resolver = "2"
@@ -48,29 +49,32 @@ debug-assertions = true
 
 [workspace.dependencies]
 # sp1
-sp1-build = { path = "crates/build", version = "3.0.0" }
-sp1-cli = { path = "crates/cli", version = "3.0.0", default-features = false }
-sp1-core-machine = { path = "crates/core/machine", version = "3.0.0" }
-sp1-core-executor = { path = "crates/core/executor", version = "3.0.0" }
-sp1-curves = { path = "crates/curves", version = "3.0.0" }
-sp1-derive = { path = "crates/derive", version = "3.0.0" }
-sp1-eval = { path = "crates/eval", version = "3.0.0" }
-sp1-helper = { path = "crates/helper", version = "3.0.0", default-features = false }
-sp1-primitives = { path = "crates/primitives", version = "3.0.0" }
-sp1-prover = { path = "crates/prover", version = "3.0.0" }
-sp1-recursion-compiler = { path = "crates/recursion/compiler", version = "3.0.0" }
-sp1-recursion-core = { path = "crates/recursion/core", version = "3.0.0", default-features = false }
-sp1-recursion-derive = { path = "crates/recursion/derive", version = "3.0.0", default-features = false }
-sp1-recursion-gnark-ffi = { path = "crates/recursion/gnark-ffi", version = "3.0.0", default-features = false }
-sp1-recursion-circuit = { path = "crates/recursion/circuit", version = "3.0.0", default-features = false }
-sp1-sdk = { path = "crates/sdk", version = "3.0.0" }
-sp1-cuda = { path = "crates/cuda", version = "3.0.0" }
-sp1-stark = { path = "crates/stark", version = "3.0.0" }
-sp1-lib = { path = "crates/zkvm/lib", version = "3.0.0", default-features = false }
+sp1-build = { path = "crates/build", version = "4.0.0-rc.1" }
+sp1-cli = { path = "crates/cli", version = "4.0.0-rc.1", default-features = false }
+sp1-core-machine = { path = "crates/core/machine", version = "4.0.0-rc.1" }
+sp1-core-executor = { path = "crates/core/executor", version = "4.0.0-rc.1" }
+sp1-curves = { path = "crates/curves", version = "4.0.0-rc.1" }
+sp1-derive = { path = "crates/derive", version = "4.0.0-rc.1" }
+sp1-eval = { path = "crates/eval", version = "4.0.0-rc.1" }
+sp1-helper = { path = "crates/helper", version = "4.0.0-rc.1", default-features = false }
+sp1-primitives = { path = "crates/primitives", version = "4.0.0-rc.1" }
+sp1-prover = { path = "crates/prover", version = "4.0.0-rc.1" }
+sp1-recursion-compiler = { path = "crates/recursion/compiler", version = "4.0.0-rc.1" }
+sp1-recursion-core = { path = "crates/recursion/core", version = "4.0.0-rc.1", default-features = false }
+sp1-recursion-derive = { path = "crates/recursion/derive", version = "4.0.0-rc.1", default-features = false }
+sp1-recursion-gnark-ffi = { path = "crates/recursion/gnark-ffi", version = "4.0.0-rc.1", default-features = false }
+sp1-recursion-circuit = { path = "crates/recursion/circuit", version = "4.0.0-rc.1", default-features = false }
+sp1-sdk = { path = "crates/sdk", version = "4.0.0-rc.1" }
+sp1-cuda = { path = "crates/cuda", version = "4.0.0-rc.1" }
+sp1-stark = { path = "crates/stark", version = "4.0.0-rc.1" }
+sp1-lib = { path = "crates/zkvm/lib", version = "4.0.0-rc.1", default-features = false }
 
 # NOTE: The version in this crate is manually set to 3.0.1 right now. When upgrading SP1 versions,
 # make sure to update this crate.
 sp1-zkvm = { path = "crates/zkvm/entrypoint", version = "3.0.1", default-features = false }
+
+# For testing.
+test-artifacts = { path = "crates/test-artifacts", version = "4.0.0-rc.1" }
 
 # p3
 # p3-air = "0.1.4-succinct"
@@ -137,6 +141,14 @@ p3-bn254-fr = { git = "https://github.com/Plonky3/Plonky3", branch = "sp1-v4" }
 # p3-uni-stark = { path = "../Plonky3/uni-stark" }
 # p3-maybe-rayon = { path = "../Plonky3/maybe-rayon" }
 # p3-bn254-fr = { path = "../Plonky3/bn254-fr" }
+
+# misc
+hashbrown = "0.14.5"
+itertools = "0.13.0"
+serde = "1.0.204"
+serde_json = "1.0.132"
+tracing = "0.1.40"
+tracing-subscriber = "0.3.18"
 
 [workspace.metadata.typos]
 # TODO: Fix in next version since CommitCommitedValuesDigest is retained since it's present in constraints.json

@@ -26,7 +26,7 @@ pub trait CostEstimator {
 impl CostEstimator for ExecutionReport {
     fn estimate_area(&self) -> u64 {
         let mut total_area = 0;
-        let mut total_chips = 3;
+        let mut total_chips = 2;
         let (chips, costs) = RiscvAir::<BabyBear>::get_chips_and_costs();
 
         let cpu_events = self.total_instruction_count();
@@ -101,6 +101,10 @@ impl CostEstimator for ExecutionReport {
 
         let uint256_mul_events = self.syscall_counts[SyscallCode::UINT256_MUL];
         total_area += (uint256_mul_events as u64) * costs[&RiscvAirDiscriminants::Uint256Mul];
+        total_chips += 1;
+
+        let u256xu2048_mul_events = self.syscall_counts[SyscallCode::U256XU2048_MUL];
+        total_area += (u256xu2048_mul_events as u64) * costs[&RiscvAirDiscriminants::U256x2048Mul];
         total_chips += 1;
 
         let bls12381_fp_events = self.syscall_counts[SyscallCode::BLS12381_FP_ADD]

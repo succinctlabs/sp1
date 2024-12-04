@@ -51,9 +51,6 @@ pub struct AUIPCColumns<T> {
     /// BabyBear range checker for the program counter.
     pub pc_range_checker: BabyBearWordRangeChecker<T>,
 
-    /// The AUIPC nonce for the ADD operation.
-    pub auipc_nonce: T,
-
     /// Whether the instruction is an AUIPC instruction.
     pub is_auipc: T,
 
@@ -99,7 +96,6 @@ where
             AB::Expr::zero(),
             AB::Expr::zero(),
             AB::Expr::zero(),
-            AB::Expr::zero(),
             is_real,
         );
 
@@ -127,7 +123,6 @@ where
             local.pc,
             local.op_b_value,
             AB::Expr::zero(),
-            local.auipc_nonce,
             AB::Expr::zero(),
             AB::Expr::zero(),
             AB::Expr::zero(),
@@ -178,13 +173,6 @@ impl<F: PrimeField32> MachineAir<F> for AUIPCChip {
                         cols.op_a_value = event.a.into();
                         cols.op_b_value = event.b.into();
                         cols.op_c_value = event.c.into();
-                        cols.auipc_nonce = F::from_canonical_u32(
-                            input
-                                .nonce_lookup
-                                .get(event.auipc_nonce.0 as usize)
-                                .copied()
-                                .unwrap_or_default(),
-                        );
                     }
                 });
                 blu
@@ -203,5 +191,9 @@ impl<F: PrimeField32> MachineAir<F> for AUIPCChip {
         } else {
             !shard.auipc_events.is_empty()
         }
+    }
+
+    fn local_only(&self) -> bool {
+        true
     }
 }

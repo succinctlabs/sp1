@@ -2,17 +2,23 @@
 
 use std::{fs::File, io::Read};
 
-use hashbrown::HashMap;
-use p3_field::Field;
-use serde::{Deserialize, Serialize};
-use sp1_stark::air::{MachineAir, MachineProgram};
-
 use crate::{
     disassembler::{transpile, Elf},
     instruction::Instruction,
     CoreShape,
 };
-
+use hashbrown::HashMap;
+use p3_field::AbstractExtensionField;
+use p3_field::Field;
+use p3_field::PrimeField;
+use p3_maybe_rayon::prelude::IntoParallelIterator;
+use p3_maybe_rayon::prelude::{ParallelBridge, ParallelIterator};
+use serde::{Deserialize, Serialize};
+use sp1_stark::air::{MachineAir, MachineProgram};
+use sp1_stark::septic_curve::{SepticCurve, SepticCurveComplete};
+use sp1_stark::septic_digest::SepticDigest;
+use sp1_stark::septic_extension::SepticExtension;
+use sp1_stark::InteractionKind;
 /// A program that can be executed by the SP1 zkVM.
 ///
 /// Contains a series of instructions along with the initial memory image. It also contains the
@@ -98,8 +104,35 @@ impl Program {
     }
 }
 
-impl<F: Field> MachineProgram<F> for Program {
+impl<F: PrimeField> MachineProgram<F> for Program {
     fn pc_start(&self) -> F {
         F::from_canonical_u32(self.pc_start)
+    }
+
+    fn initial_global_cumulative_sum(&self) -> SepticDigest<F> {
+        let mut digests: Vec<SepticCurveComplete<F>> = self
+            .memory_image
+            .iter()
+            .par_bridge()
+            .map(|(&addr, &word)| {
+                let values = [
+                    (InteractionKind::Memory as u32) << 24,
+                    0,
+                    addr,
+                    word & 255,
+                    (word >> 8) & 255,
+                    (word >> 16) & 255,
+                    (word >> 24) & 255,
+                ];
+                let x_start =
+                    SepticExtension::<F>::from_base_fn(|i| F::from_canonical_u32(values[i]));
+                let (point, _) = SepticCurve::<F>::lift_x(x_start);
+                SepticCurveComplete::Affine(point.neg())
+            })
+            .collect();
+        digests.push(SepticCurveComplete::Affine(SepticDigest::<F>::zero().0));
+        SepticDigest(
+            digests.into_par_iter().reduce(|| SepticCurveComplete::Infinity, |a, b| a + b).point(),
+        )
     }
 }

@@ -8,7 +8,7 @@ use crate::{air::MemoryAirBuilder, utils::zeroed_f_vec};
 use generic_array::GenericArray;
 use itertools::Itertools;
 use num::{BigUint, Zero};
-use p3_air::{Air, AirBuilder, BaseAir};
+use p3_air::{Air, BaseAir};
 use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use sp1_core_executor::{
@@ -40,7 +40,6 @@ pub const fn num_fp2_addsub_cols<P: FpOpField>() -> usize {
 pub struct Fp2AddSubAssignCols<T, P: FpOpField> {
     pub is_real: T,
     pub shard: T,
-    pub nonce: T,
     pub clk: T,
     pub is_add: T,
     pub x_ptr: T,
@@ -90,8 +89,8 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for Fp2AddSubAssignChip<P> {
     }
 
     fn generate_trace(&self, input: &Self::Record, output: &mut Self::Record) -> RowMajorMatrix<F> {
-        // All the fp2 sub and add events for a given curve are coalesce to the curve's Add operation.  Only retrieve
-        // precompile events for that operation.
+        // All the fp2 sub and add events for a given curve are coalesce to the curve's Add
+        // operation.  Only retrieve precompile events for that operation.
         // TODO:  Fix this.
 
         let events = match P::FIELD_TYPE {
@@ -172,25 +171,15 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for Fp2AddSubAssignChip<P> {
         );
 
         // Convert the trace to a row major matrix.
-        let mut trace = RowMajorMatrix::new(
+        RowMajorMatrix::new(
             rows.into_iter().flatten().collect::<Vec<_>>(),
             num_fp2_addsub_cols::<P>(),
-        );
-
-        // Write the nonces to the trace.
-        for i in 0..trace.height() {
-            let cols: &mut Fp2AddSubAssignCols<F, P> = trace.values
-                [i * num_fp2_addsub_cols::<P>()..(i + 1) * num_fp2_addsub_cols::<P>()]
-                .borrow_mut();
-            cols.nonce = F::from_canonical_usize(i);
-        }
-
-        trace
+        )
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
-        // All the fp2 sub and add events for a given curve are coalesce to the curve's Add operation.  Only retrieve
-        // precompile events for that operation.
+        // All the fp2 sub and add events for a given curve are coalesce to the curve's Add
+        // operation.  Only retrieve precompile events for that operation.
         // TODO:  Fix this.
 
         assert!(
@@ -211,6 +200,10 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for Fp2AddSubAssignChip<P> {
             }
         }
     }
+
+    fn local_only(&self) -> bool {
+        true
+    }
 }
 
 impl<F, P: FpOpField> BaseAir<F> for Fp2AddSubAssignChip<P> {
@@ -228,14 +221,10 @@ where
         let main = builder.main();
         let local = main.row_slice(0);
         let local: &Fp2AddSubAssignCols<AB::Var, P> = (*local).borrow();
-        let next = main.row_slice(1);
-        let next: &Fp2AddSubAssignCols<AB::Var, P> = (*next).borrow();
 
         // Constrain the `is_add` flag to be boolean.
         builder.assert_bool(local.is_add);
 
-        builder.when_first_row().assert_zero(local.nonce);
-        builder.when_transition().assert_eq(local.nonce + AB::Expr::one(), next.nonce);
         let num_words_field_element = <P as NumLimbs>::Limbs::USIZE / 4;
 
         let p_x = limbs_from_prev_access(&local.x_access[0..num_words_field_element]);
@@ -315,7 +304,6 @@ where
         builder.receive_syscall(
             local.shard,
             local.clk,
-            local.nonce,
             syscall_id_felt,
             local.x_ptr,
             local.y_ptr,

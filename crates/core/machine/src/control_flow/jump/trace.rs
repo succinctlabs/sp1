@@ -47,7 +47,7 @@ impl<F: PrimeField32> MachineAir<F> for JumpChip {
 
                     if idx < input.jump_events.len() {
                         let event = &input.jump_events[idx];
-                        self.event_to_row(event, cols, &input.nonce_lookup, &mut blu);
+                        self.event_to_row(event, cols, &mut blu);
                     }
                 });
                 blu
@@ -67,6 +67,10 @@ impl<F: PrimeField32> MachineAir<F> for JumpChip {
             !shard.jump_events.is_empty()
         }
     }
+
+    fn local_only(&self) -> bool {
+        true
+    }
 }
 
 impl JumpChip {
@@ -75,7 +79,6 @@ impl JumpChip {
         &self,
         event: &JumpEvent,
         cols: &mut JumpColumns<F>,
-        nonce_lookup: &[u32],
         blu: &mut HashMap<ByteLookupEvent, usize>,
     ) {
         cols.is_jal = F::from_bool(matches!(event.opcode, Opcode::JAL));
@@ -92,26 +95,8 @@ impl JumpChip {
         cols.pc_range_checker.populate(cols.pc, blu);
 
         let next_pc = match event.opcode {
-            Opcode::JAL => {
-                let next_pc = event.pc.wrapping_add(event.b);
-                cols.jal_nonce = F::from_canonical_u32(
-                    nonce_lookup
-                        .get(event.jump_jal_lookup_id.0 as usize)
-                        .copied()
-                        .unwrap_or_default(),
-                );
-                next_pc
-            }
-            Opcode::JALR => {
-                let next_pc = event.b.wrapping_add(event.c);
-                cols.jalr_nonce = F::from_canonical_u32(
-                    nonce_lookup
-                        .get(event.jump_jalr_lookup_id.0 as usize)
-                        .copied()
-                        .unwrap_or_default(),
-                );
-                next_pc
-            }
+            Opcode::JAL => event.pc.wrapping_add(event.b),
+            Opcode::JALR => event.b.wrapping_add(event.c),
             _ => unreachable!(),
         };
 

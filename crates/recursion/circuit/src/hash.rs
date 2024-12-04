@@ -1,5 +1,7 @@
-use std::fmt::Debug;
-use std::iter::{repeat, zip};
+use std::{
+    fmt::Debug,
+    iter::{repeat, zip},
+};
 
 use itertools::Itertools;
 use p3_baby_bear::BabyBear;
@@ -11,11 +13,11 @@ use sp1_recursion_compiler::{
     circuit::CircuitV2Builder,
     ir::{Builder, Config, DslIr, Felt, Var},
 };
-use sp1_recursion_core::stark::{outer_perm, OUTER_MULTI_FIELD_CHALLENGER_WIDTH};
-use sp1_recursion_core::{stark::BabyBearPoseidon2Outer, DIGEST_SIZE};
-use sp1_recursion_core::{HASH_RATE, PERMUTATION_WIDTH};
-use sp1_stark::baby_bear_poseidon2::BabyBearPoseidon2;
-use sp1_stark::inner_perm;
+use sp1_recursion_core::{
+    stark::{outer_perm, BabyBearPoseidon2Outer, OUTER_MULTI_FIELD_CHALLENGER_WIDTH},
+    DIGEST_SIZE, HASH_RATE, PERMUTATION_WIDTH,
+};
+use sp1_stark::{baby_bear_poseidon2::BabyBearPoseidon2, inner_perm};
 
 use crate::{
     challenger::{reduce_32, POSEIDON_2_BB_RATE},
@@ -121,7 +123,9 @@ impl<C: CircuitConfig<F = BabyBear, Bit = Felt<BabyBear>>> FieldHasherVariable<C
         a: Self::DigestVariable,
         b: Self::DigestVariable,
     ) {
-        zip(a, b).for_each(|(e1, e2)| builder.assert_felt_eq(e1, e2));
+        // Push the instruction directly instead of passing through `assert_felt_eq` in order to
+        //avoid symbolic expression overhead.
+        zip(a, b).for_each(|(e1, e2)| builder.push_op(DslIr::AssertEqF(e1, e2)));
     }
 
     fn select_chain_digest(

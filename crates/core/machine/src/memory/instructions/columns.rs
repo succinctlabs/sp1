@@ -84,8 +84,4 @@ pub struct MemoryInstructionsColumns<T> {
     /// Flag for load memory instructions that contains bool value of
     /// (memory value is pos) && (op_a != registor 0).
     pub mem_value_is_pos_not_x0: T,
-
-    /// Nonces for the ALU operations.
-    pub addr_word_nonce: T,
-    pub unsigned_mem_val_nonce: T,
 }

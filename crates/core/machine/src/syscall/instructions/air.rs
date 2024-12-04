@@ -55,7 +55,6 @@ where
             local.op_c_value,
             AB::Expr::zero(),
             AB::Expr::zero(),
-            AB::Expr::zero(),
             AB::Expr::one(),
             local.is_halt,
             local.is_real,
@@ -117,7 +116,6 @@ impl SyscallInstrsChip {
         builder.send_syscall(
             local.shard,
             local.clk,
-            local.syscall_nonce,
             syscall_id,
             local.op_b_value.reduce::<AB>(),
             local.op_c_value.reduce::<AB>(),

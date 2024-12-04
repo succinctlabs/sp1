@@ -6,7 +6,7 @@ use std::{
 
 use hashbrown::HashMap;
 use serde::{Deserialize, Serialize};
-use sp1_stark::SP1CoreOpts;
+use sp1_stark::{air::PublicValues, SP1CoreOpts};
 use thiserror::Error;
 
 use crate::{
@@ -36,6 +36,15 @@ pub const DEFAULT_PC_INC: u32 = 4;
 /// This is used in the `InstrEvent` to indicate that the instruction is not from the CPU.
 /// A valid pc should be divisible by 4, so we use 1 to indicate that the pc is not used.
 pub const UNUSED_PC: u32 = 1;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Whether to verify deferred proofs during execution.
+pub enum DeferredProofVerification {
+    /// Verify deferred proofs during execution.
+    Enabled,
+    /// Skip verification of deferred proofs
+    Disabled,
+}
 
 /// An executor for the SP1 RISC-V zkVM.
 ///
@@ -81,8 +90,9 @@ pub struct Executor<'a> {
     /// checkpoints.
     pub memory_checkpoint: PagedMemory<Option<MemoryRecord>>,
 
-    /// Memory addresses that were initialized in this batch of shards. Used to minimize the size of
-    /// checkpoints. The value stored is whether or not it had a value at the beginning of the batch.
+    /// Memory addresses that were initialized in this batch of shards. Used to minimize the size
+    /// of checkpoints. The value stored is whether or not it had a value at the beginning of
+    /// the batch.
     pub uninitialized_memory_checkpoint: PagedMemory<bool>,
 
     /// The memory accesses for the current cycle.
@@ -90,6 +100,9 @@ pub struct Executor<'a> {
 
     /// The maximum number of cpu cycles to use for execution.
     pub max_cycles: Option<u64>,
+
+    /// Skip deferred proof verification.
+    pub deferred_proof_verification: DeferredProofVerification,
 
     /// The state of the execution.
     pub state: ExecutionState,
@@ -242,6 +255,11 @@ impl<'a> Executor<'a> {
             hook_registry,
             opts,
             max_cycles: context.max_cycles,
+            deferred_proof_verification: if context.skip_deferred_proof_verification {
+                DeferredProofVerification::Disabled
+            } else {
+                DeferredProofVerification::Enabled
+            },
             memory_checkpoint: PagedMemory::new_preallocated(),
             uninitialized_memory_checkpoint: PagedMemory::new_preallocated(),
             local_memory_access: HashMap::new(),
@@ -1458,7 +1476,7 @@ impl<'a> Executor<'a> {
     pub fn execute_state(
         &mut self,
         emit_global_memory_events: bool,
-    ) -> Result<(ExecutionState, bool), ExecutionError> {
+    ) -> Result<(ExecutionState, PublicValues<u32, u32>, bool), ExecutionError> {
         self.memory_checkpoint.clear();
         self.executor_mode = ExecutorMode::Checkpoint;
         self.emit_global_memory_events = emit_global_memory_events;
@@ -1473,6 +1491,7 @@ impl<'a> Executor<'a> {
         let done = tracing::debug_span!("execute").in_scope(|| self.execute())?;
         // Create a checkpoint using `memory_checkpoint`. Just include all memory if `done` since we
         // need it all for MemoryFinalize.
+        let next_pc = self.state.pc;
         tracing::debug_span!("create memory checkpoint").in_scope(|| {
             let memory_checkpoint = std::mem::take(&mut self.memory_checkpoint);
             let uninitialized_memory_checkpoint =
@@ -1508,10 +1527,14 @@ impl<'a> Executor<'a> {
                     .collect();
             }
         });
+        let mut public_values = self.records.last().as_ref().unwrap().public_values;
+        public_values.start_pc = next_pc;
+        public_values.next_pc = next_pc;
+        println!("public values: {public_values:?}");
         if !done {
             self.records.clear();
         }
-        Ok((checkpoint, done))
+        Ok((checkpoint, public_values, done))
     }
 
     fn initialize(&mut self) {
@@ -1755,7 +1778,7 @@ mod tests {
 
     use crate::programs::tests::{
         fibonacci_program, panic_program, secp256r1_add_program, secp256r1_double_program,
-        simple_memory_program, simple_program, ssz_withdrawals_program,
+        simple_memory_program, simple_program, ssz_withdrawals_program, u256xu2048_mul_program,
     };
 
     use crate::Register;
@@ -1794,6 +1817,13 @@ mod tests {
     #[test]
     fn test_secp256r1_double_program_run() {
         let program = secp256r1_double_program();
+        let mut runtime = Executor::new(program, SP1CoreOpts::default());
+        runtime.run().unwrap();
+    }
+
+    #[test]
+    fn test_u256xu2048_mul() {
+        let program = u256xu2048_mul_program();
         let mut runtime = Executor::new(program, SP1CoreOpts::default());
         runtime.run().unwrap();
     }

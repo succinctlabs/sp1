@@ -8,6 +8,7 @@ use super::{create_random_lookup_ids, LookupId, MemoryRecordEnum};
 ///
 /// This object encapsulated the information needed to prove a RISC-V ALU operation.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[repr(C)]
 pub struct AluEvent {
     /// The program counter.
     pub pc: u32,
@@ -45,6 +46,7 @@ impl AluEvent {
 ///
 /// This object encapsulated the information needed to prove a RISC-V memory operation.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[repr(C)]
 pub struct MemInstrEvent {
     /// The shard.
     pub shard: u32,
@@ -107,6 +109,7 @@ impl MemInstrEvent {
 ///
 /// This object encapsulated the information needed to prove a RISC-V branch operation.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[repr(C)]
 pub struct BranchEvent {
     /// The program counter.
     pub pc: u32,
@@ -165,6 +168,7 @@ impl BranchEvent {
 ///
 /// This object encapsulated the information needed to prove a RISC-V jump operation.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[repr(C)]
 pub struct JumpEvent {
     /// The program counter.
     pub pc: u32,
@@ -208,6 +212,7 @@ impl JumpEvent {
 ///
 /// This object encapsulated the information needed to prove a RISC-V AUIPC operation.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[repr(C)]
 pub struct AUIPCEvent {
     /// The program counter.
     pub pc: u32,

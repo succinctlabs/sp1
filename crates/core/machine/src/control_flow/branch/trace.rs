@@ -47,7 +47,7 @@ impl<F: PrimeField32> MachineAir<F> for BranchChip {
 
                     if idx < input.branch_events.len() {
                         let event = &input.branch_events[idx];
-                        self.event_to_row(event, cols, &input.nonce_lookup, &mut blu);
+                        self.event_to_row(event, cols, &mut blu);
                     }
                 });
                 blu
@@ -67,6 +67,10 @@ impl<F: PrimeField32> MachineAir<F> for BranchChip {
             !shard.branch_events.is_empty()
         }
     }
+
+    fn local_only(&self) -> bool {
+        true
+    }
 }
 
 impl BranchChip {
@@ -75,7 +79,6 @@ impl BranchChip {
         &self,
         event: &BranchEvent,
         cols: &mut BranchColumns<F>,
-        nonce_lookup: &[u32],
         blu: &mut HashMap<ByteLookupEvent, usize>,
     ) {
         cols.is_beq = F::from_bool(matches!(event.opcode, Opcode::BEQ));
@@ -105,14 +108,6 @@ impl BranchChip {
             event.a > event.b
         };
 
-        cols.a_lt_b_nonce = F::from_canonical_u32(
-            nonce_lookup.get(event.branch_lt_lookup_id.0 as usize).copied().unwrap_or_default(),
-        );
-
-        cols.a_gt_b_nonce = F::from_canonical_u32(
-            nonce_lookup.get(event.branch_gt_lookup_id.0 as usize).copied().unwrap_or_default(),
-        );
-
         cols.a_eq_b = F::from_bool(a_eq_b);
         cols.a_lt_b = F::from_bool(a_lt_b);
         cols.a_gt_b = F::from_bool(a_gt_b);
@@ -132,12 +127,6 @@ impl BranchChip {
 
         if branching {
             cols.is_branching = F::one();
-            cols.next_pc_nonce = F::from_canonical_u32(
-                nonce_lookup
-                    .get(event.branch_add_lookup_id.0 as usize)
-                    .copied()
-                    .unwrap_or_default(),
-            );
         } else {
             cols.not_branching = F::one();
         }

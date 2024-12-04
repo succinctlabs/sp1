@@ -14,10 +14,12 @@ const fn make_col_map_degree9() -> Poseidon2<usize> {
 }
 pub const POSEIDON2_DEGREE9_COL_MAP: Poseidon2<usize> = make_col_map_degree9();
 
+pub const NUM_INTERNAL_ROUNDS_S0: usize = NUM_INTERNAL_ROUNDS - 1;
+
 /// Struct for the poseidon2 skinny non preprocessed column.
 #[derive(AlignedBorrow, Clone, Copy)]
 #[repr(C)]
 pub struct Poseidon2<T: Copy> {
     pub state_var: [T; WIDTH],
-    pub internal_rounds_s0: [T; NUM_INTERNAL_ROUNDS - 1],
+    pub internal_rounds_s0: [T; NUM_INTERNAL_ROUNDS_S0],
 }

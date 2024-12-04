@@ -6,7 +6,7 @@ to be generated using the [SP1 SDK](../sdk).
 ## Features
 
 Groth16 and Plonk proof verification are supported in `no-std` environments. Verification in the
-SP1 ZKVM context is patched, in order to make use of the
+SP1 zkVM context is patched, in order to make use of the
 [bn254 precompiles](https://blog.succinct.xyz/succinctshipsprecompiles/).
 
 ### Pre-generated verification keys
