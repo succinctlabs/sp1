@@ -301,6 +301,7 @@ where
                                 let mut heights = vec![];
                                 let chips = prover.shard_chips(record).collect::<Vec<_>>();
                                 if let Some(shape) = record.shape.as_ref() {
+                                    println!("shape: {:?}", shape);
                                     for chip in chips.iter() {
                                         let height = shape.inner[&chip.name()];
                                         heights.push((chip.name().clone(), height));

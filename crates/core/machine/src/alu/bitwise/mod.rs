@@ -6,7 +6,7 @@ use core::{
 use hashbrown::HashMap;
 use itertools::Itertools;
 use p3_air::{Air, BaseAir};
-use p3_field::PrimeField;
+use p3_field::{PrimeField, PrimeField32};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use p3_maybe_rayon::prelude::{IntoParallelRefIterator, ParallelIterator, ParallelSlice};
 use sp1_core_executor::{
@@ -54,7 +54,7 @@ pub struct BitwiseCols<T> {
     pub is_and: T,
 }
 
-impl<F: PrimeField> MachineAir<F> for BitwiseChip {
+impl<F: PrimeField32> MachineAir<F> for BitwiseChip {
     type Record = ExecutionRecord;
 
     type Program = Program;

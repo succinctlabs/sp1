@@ -9,7 +9,7 @@ use crate::{
     utils::{next_power_of_two, pad_rows_fixed, zeroed_f_vec},
 };
 use p3_air::{Air, BaseAir, PairBuilder};
-use p3_field::PrimeField;
+use p3_field::PrimeField32;
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use p3_maybe_rayon::prelude::{ParallelBridge, ParallelIterator};
 use sp1_core_executor::{ExecutionRecord, Program};
@@ -51,7 +51,7 @@ impl ProgramChip {
     }
 }
 
-impl<F: PrimeField> MachineAir<F> for ProgramChip {
+impl<F: PrimeField32> MachineAir<F> for ProgramChip {
     type Record = ExecutionRecord;
 
     type Program = Program;
