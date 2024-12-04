@@ -84,7 +84,7 @@ impl<F: PrimeField32> MachineAir<F> for BaseAluChip {
     fn generate_preprocessed_trace(&self, program: &Self::Program) -> Option<RowMajorMatrix<F>> {
         let instrs = extract_base_alu_instrs(program);
         let padded_nb_rows = self.preprocessed_num_rows(program, instrs.len()).unwrap();
-        let mut values = vec![F::zero(); padded_nb_rows * self.preprocessed_width()];
+        let mut values = vec![F::zero(); padded_nb_rows * NUM_BASE_ALU_PREPROCESSED_COLS];
 
         // Generate the trace rows & corresponding records for each chunk of events in parallel.
         let populate_len = instrs.len() * NUM_BASE_ALU_ACCESS_COLS;
@@ -111,7 +111,7 @@ impl<F: PrimeField32> MachineAir<F> for BaseAluChip {
         );
 
         // Convert the trace to a row major matrix.
-        Some(RowMajorMatrix::new(values, self.preprocessed_width()))
+        Some(RowMajorMatrix::new(values, NUM_BASE_ALU_PREPROCESSED_COLS))
     }
 
     fn generate_dependencies(&self, _: &Self::Record, _: &mut Self::Record) {
@@ -130,7 +130,7 @@ impl<F: PrimeField32> MachineAir<F> for BaseAluChip {
     fn generate_trace(&self, input: &Self::Record, _: &mut Self::Record) -> RowMajorMatrix<F> {
         let events = &input.base_alu_events;
         let padded_nb_rows = self.num_rows(input);
-        let mut values = vec![F::zero(); padded_nb_rows * self.width()];
+        let mut values = vec![F::zero(); padded_nb_rows * NUM_BASE_ALU_COLS];
 
         // Generate the trace rows & corresponding records for each chunk of events in parallel.
         let populate_len = events.len() * NUM_BASE_ALU_VALUE_COLS;
@@ -142,7 +142,7 @@ impl<F: PrimeField32> MachineAir<F> for BaseAluChip {
         );
 
         // Convert the trace to a row major matrix.
-        RowMajorMatrix::new(values, self.width())
+        RowMajorMatrix::new(values, NUM_BASE_ALU_COLS)
     }
 
     fn included(&self, _record: &Self::Record) -> bool {
@@ -266,7 +266,7 @@ mod tests {
     ) -> RowMajorMatrix<BabyBear> {
         let events = &input.base_alu_events;
         let padded_nb_rows = BaseAluChip.num_rows(input);
-        let mut values = vec![BabyBear::zero(); padded_nb_rows * BaseAluChip.width()];
+        let mut values = vec![BabyBear::zero(); padded_nb_rows * NUM_BASE_ALU_COLS];
 
         let populate_len = events.len() * NUM_BASE_ALU_VALUE_COLS;
         values[..populate_len].par_chunks_mut(NUM_BASE_ALU_VALUE_COLS).zip_eq(events).for_each(
@@ -278,7 +278,7 @@ mod tests {
             },
         );
 
-        RowMajorMatrix::new(values, BaseAluChip.width())
+        RowMajorMatrix::new(values, NUM_BASE_ALU_COLS)
     }
 
     #[test]
@@ -300,7 +300,7 @@ mod tests {
 
         let instrs = extract_base_alu_instrs(program);
         let padded_nb_rows = BaseAluChip.preprocessed_num_rows(program, instrs.len()).unwrap();
-        let mut values = vec![F::zero(); padded_nb_rows * BaseAluChip.preprocessed_width()];
+        let mut values = vec![F::zero(); padded_nb_rows * NUM_BASE_ALU_PREPROCESSED_COLS];
 
         let populate_len = instrs.len() * NUM_BASE_ALU_ACCESS_COLS;
         values[..populate_len].par_chunks_mut(NUM_BASE_ALU_ACCESS_COLS).zip_eq(instrs).for_each(
@@ -312,7 +312,7 @@ mod tests {
             },
         );
 
-        RowMajorMatrix::new(values, BaseAluChip.preprocessed_width())
+        RowMajorMatrix::new(values, NUM_BASE_ALU_PREPROCESSED_COLS)
     }
 
     #[test]
