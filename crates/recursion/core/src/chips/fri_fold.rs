@@ -2,7 +2,7 @@
 
 use core::borrow::Borrow;
 use itertools::Itertools;
-use sp1_core_machine::utils::pad_rows_fixed;
+use sp1_core_machine::utils::{next_power_of_two, pad_rows_fixed};
 use sp1_stark::air::{BinomialExtension, MachineAir};
 use std::borrow::BorrowMut;
 use tracing::instrument;
@@ -106,12 +106,9 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for FriFoldChip<DEGREE>
         program
             .instructions
             .iter()
-            .filter_map(|instruction| {
-                if let Instruction::FriFold(instr) = instruction {
-                    Some(instr)
-                } else {
-                    None
-                }
+            .filter_map(|instruction| match instruction {
+                Instruction::FriFold(instr) => Some(instr),
+                _ => None,
             })
             .for_each(|instruction| {
                 let FriFoldInstr {
@@ -180,6 +177,11 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for FriFoldChip<DEGREE>
         Some(trace)
     }
 
+    fn num_rows(&self, input: &Self::Record) -> Option<usize> {
+        let events = &input.fri_fold_events;
+        Some(next_power_of_two(events.len(), input.fixed_log2_rows(self)))
+    }
+
     #[instrument(name = "generate fri fold trace", level = "debug", skip_all, fields(rows = input.fri_fold_events.len()))]
     fn generate_trace(
         &self,
@@ -212,7 +214,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for FriFoldChip<DEGREE>
 
         // Pad the trace to a power of two.
         if self.pad {
-            pad_rows_fixed(&mut rows, || [F::zero(); NUM_FRI_FOLD_COLS], self.fixed_log2_rows);
+            rows.resize(self.num_rows(input).unwrap(), [F::zero(); NUM_FRI_FOLD_COLS]);
         }
 
         // Convert the trace to a row major matrix.
@@ -353,18 +355,6 @@ where
 
 #[cfg(test)]
 mod tests {
-    use p3_field::AbstractExtensionField;
-    use rand::{rngs::StdRng, Rng, SeedableRng};
-    use sp1_core_machine::utils::setup_logger;
-    use sp1_stark::{air::MachineAir, StarkGenericConfig};
-    use std::mem::size_of;
-
-    use p3_baby_bear::BabyBear;
-    use p3_field::AbstractField;
-    use p3_matrix::dense::RowMajorMatrix;
-
-    use super::*;
-
     use crate::{
         air::Block,
         chips::fri_fold::FriFoldChip,
@@ -374,6 +364,18 @@ mod tests {
         Address, FriFoldBaseIo, FriFoldEvent, FriFoldExtSingleIo, FriFoldExtVecIo, Instruction,
         MemAccessKind, RecursionProgram,
     };
+    use p3_baby_bear::BabyBear;
+    use p3_field::AbstractExtensionField;
+    use p3_field::AbstractField;
+    use p3_matrix::dense::RowMajorMatrix;
+    use rand::{rngs::StdRng, Rng, SeedableRng};
+    use sp1_core_machine::utils::setup_logger;
+    use sp1_stark::{air::MachineAir, StarkGenericConfig};
+    use std::mem::size_of;
+
+    use super::*;
+
+    const DEGREE: usize = 3;
 
     #[test]
     fn prove_babybear_circuit_fri_fold() {
@@ -549,9 +551,36 @@ mod tests {
         println!("{:?}", trace.values)
     }
 
-    #[cfg(feature = "sys")]
+    fn generate_trace_ffi<const DEGREE: usize>(
+        input: &ExecutionRecord<BabyBear>,
+        _: &mut ExecutionRecord<BabyBear>,
+    ) -> RowMajorMatrix<BabyBear> {
+        type F = BabyBear;
+
+        let mut rows = input
+            .fri_fold_events
+            .iter()
+            .map(|event| {
+                let mut row = [F::zero(); NUM_FRI_FOLD_COLS];
+                let cols: &mut FriFoldCols<F> = row.as_mut_slice().borrow_mut();
+                unsafe {
+                    crate::sys::fri_fold_event_to_row_babybear(event, cols);
+                }
+
+                row
+            })
+            .collect_vec();
+
+        rows.resize(
+            FriFoldChip::<DEGREE>::default().num_rows(input).unwrap(),
+            [F::zero(); NUM_FRI_FOLD_COLS],
+        );
+
+        RowMajorMatrix::new(rows.into_iter().flatten().collect(), NUM_FRI_FOLD_COLS)
+    }
+
     #[test]
-    fn test_generate_trace_ffi_eq_rust() {
+    fn test_generate_trace() {
         type F = BabyBear;
 
         let mut rng = StdRng::seed_from_u64(0xDEADBEEF);
@@ -578,41 +607,49 @@ mod tests {
                 .collect(),
             ..Default::default()
         };
+        let mut execution_record = ExecutionRecord::<BabyBear>::default();
+        let chip = FriFoldChip::<DEGREE>::default();
+        let trace: RowMajorMatrix<F> = chip.generate_trace(&shard, &mut execution_record);
 
-        let chip = FriFoldChip::<3>::default();
-        let trace: RowMajorMatrix<F> = chip.generate_trace(&shard, &mut ExecutionRecord::default());
-        let trace_ffi = generate_trace_ffi(&shard);
-
-        assert_eq!(trace_ffi, trace);
+        assert_eq!(trace, generate_trace_ffi::<DEGREE>(&shard, &mut execution_record));
     }
 
-    #[cfg(feature = "sys")]
-    fn generate_trace_ffi(input: &ExecutionRecord<BabyBear>) -> RowMajorMatrix<BabyBear> {
+    fn generate_preprocessed_trace_ffi<const DEGREE: usize>(
+        program: &RecursionProgram<BabyBear>,
+    ) -> RowMajorMatrix<BabyBear> {
         type F = BabyBear;
 
-        let events = &input.fri_fold_events;
-        let mut rows = events.iter().map(|_| [F::zero(); NUM_FRI_FOLD_COLS]).collect_vec();
+        let mut rows = Vec::new();
+        program
+            .instructions
+            .iter()
+            .filter_map(|instruction| match instruction {
+                Instruction::FriFold(instr) => Some(instr),
+                _ => None,
+            })
+            .for_each(|instruction| {
+                let mut row_add = vec![
+                    [F::zero(); NUM_FRI_FOLD_PREPROCESSED_COLS];
+                    instruction.ext_vec_addrs.ps_at_z.len()
+                ];
 
-        let chunk_size = std::cmp::max(events.len() / num_cpus::get(), 1);
-        rows.chunks_mut(chunk_size).enumerate().for_each(|(i, chunk)| {
-            chunk.iter_mut().enumerate().for_each(|(j, row)| {
-                let idx = i * chunk_size + j;
-                if idx < events.len() {
-                    let cols: &mut FriFoldCols<F> = row.as_mut_slice().borrow_mut();
+                row_add.iter_mut().enumerate().for_each(|(row_idx, row)| {
+                    let cols: &mut FriFoldPreprocessedCols<F> = row.as_mut_slice().borrow_mut();
                     unsafe {
-                        crate::sys::fri_fold_event_to_row_babybear(&events[idx], cols);
+                        crate::sys::fri_fold_instr_to_row_babybear(
+                            &instruction.into(),
+                            row_idx,
+                            cols,
+                        );
                     }
-                }
+                });
+
+                rows.extend(row_add);
             });
-        });
 
-        pad_rows_fixed(
-            &mut rows,
-            || [F::zero(); NUM_FRI_FOLD_COLS],
-            input.fixed_log2_rows(&FriFoldChip::<3>::default()),
-        );
+        pad_rows_fixed(&mut rows, || [F::zero(); NUM_FRI_FOLD_PREPROCESSED_COLS], None);
 
-        RowMajorMatrix::new(rows.into_iter().flatten().collect(), NUM_FRI_FOLD_COLS)
+        RowMajorMatrix::new(rows.into_iter().flatten().collect(), NUM_FRI_FOLD_PREPROCESSED_COLS)
     }
 
     #[test]
@@ -648,91 +685,9 @@ mod tests {
             ..Default::default()
         };
 
-        let chip = FriFoldChip::<3>::default();
+        let chip = FriFoldChip::<DEGREE>::default();
         let trace = chip.generate_preprocessed_trace(&program).unwrap();
-        println!("{:?}", trace.values);
-    }
 
-    #[cfg(feature = "sys")]
-    #[test]
-    fn test_generate_preprocessed_trace_ffi_eq_rust() {
-        type F = BabyBear;
-
-        let mut rng = StdRng::seed_from_u64(0xDEADBEEF);
-        let mut random_addr = move || -> F { F::from_canonical_u32(rng.gen_range(0..1 << 16)) };
-
-        // Create a program with a few FriFold instructions
-        let program = RecursionProgram::<F> {
-            instructions: (0..17)
-                .map(|_| {
-                    Instruction::FriFold(Box::new(FriFoldInstr::<F> {
-                        base_single_addrs: FriFoldBaseIo { x: Address(random_addr()) },
-                        ext_single_addrs: FriFoldExtSingleIo {
-                            z: Address(random_addr()),
-                            alpha: Address(random_addr()),
-                        },
-                        ext_vec_addrs: FriFoldExtVecIo {
-                            mat_opening: vec![Address(random_addr())],
-                            ps_at_z: vec![Address(random_addr())],
-                            alpha_pow_input: vec![Address(random_addr())],
-                            ro_input: vec![Address(random_addr())],
-                            alpha_pow_output: vec![Address(random_addr())],
-                            ro_output: vec![Address(random_addr())],
-                        },
-                        alpha_pow_mults: vec![F::one()],
-                        ro_mults: vec![F::one()],
-                    }))
-                })
-                .collect(),
-            ..Default::default()
-        };
-
-        let chip = FriFoldChip::<3>::default();
-        let trace_rust = chip.generate_preprocessed_trace(&program).unwrap();
-        let trace_ffi = generate_preprocessed_trace_ffi(&program);
-
-        assert_eq!(trace_ffi, trace_rust);
-    }
-
-    #[cfg(feature = "sys")]
-    fn generate_preprocessed_trace_ffi(
-        program: &RecursionProgram<BabyBear>,
-    ) -> RowMajorMatrix<BabyBear> {
-        type F = BabyBear;
-
-        let mut rows = Vec::new();
-        program
-            .instructions
-            .iter()
-            .filter_map(|instruction| {
-                if let Instruction::FriFold(instr) = instruction {
-                    Some(instr)
-                } else {
-                    None
-                }
-            })
-            .for_each(|instruction| {
-                let mut row_add = vec![
-                    [F::zero(); NUM_FRI_FOLD_PREPROCESSED_COLS];
-                    instruction.ext_vec_addrs.ps_at_z.len()
-                ];
-
-                row_add.iter_mut().enumerate().for_each(|(row_idx, row)| {
-                    let cols: &mut FriFoldPreprocessedCols<F> = row.as_mut_slice().borrow_mut();
-                    unsafe {
-                        crate::sys::fri_fold_instr_to_row_babybear(
-                            &instruction.into(),
-                            row_idx,
-                            cols,
-                        );
-                    }
-                });
-
-                rows.extend(row_add);
-            });
-
-        pad_rows_fixed(&mut rows, || [F::zero(); NUM_FRI_FOLD_PREPROCESSED_COLS], None);
-
-        RowMajorMatrix::new(rows.into_iter().flatten().collect(), NUM_FRI_FOLD_PREPROCESSED_COLS)
+        assert_eq!(trace, generate_preprocessed_trace_ffi::<DEGREE>(&program));
     }
 }
