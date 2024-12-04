@@ -11,7 +11,7 @@ use itertools::Itertools;
 use p3_air::{Air, AirBuilder, BaseAir, PairBuilder};
 use p3_field::PrimeField32;
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
-use sp1_core_machine::utils::next_power_of_two;
+use sp1_core_machine::utils::{next_power_of_two, pad_rows_fixed};
 use sp1_derive::AlignedBorrow;
 use sp1_stark::air::ExtensionAirBuilder;
 use sp1_stark::air::{BaseAirBuilder, BinomialExtension, MachineAir};
@@ -70,10 +70,6 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for BatchFRIChip<DEGREE
         NUM_BATCH_FRI_PREPROCESSED_COLS
     }
 
-    fn preprocessed_num_rows(&self, program: &Self::Program, instrs_len: usize) -> Option<usize> {
-        Some(next_power_of_two(instrs_len, program.fixed_log2_rows(self)))
-    }
-
     fn generate_preprocessed_trace(&self, program: &Self::Program) -> Option<RowMajorMatrix<F>> {
         let mut rows: Vec<[F; NUM_BATCH_FRI_PREPROCESSED_COLS]> = Vec::new();
         program
@@ -103,9 +99,10 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for BatchFRIChip<DEGREE
             });
 
         // Pad the trace to a power of two.
-        rows.resize(
-            self.preprocessed_num_rows(program, rows.len()).unwrap(),
-            [F::zero(); NUM_BATCH_FRI_PREPROCESSED_COLS],
+        pad_rows_fixed(
+            &mut rows,
+            || [F::zero(); NUM_BATCH_FRI_PREPROCESSED_COLS],
+            program.fixed_log2_rows(self),
         );
 
         let trace = RowMajorMatrix::new(
@@ -360,9 +357,10 @@ mod tests {
             rows.extend(row_add);
         });
 
-        rows.resize(
-            BatchFRIChip::<DEGREE>.preprocessed_num_rows(program, rows.len()).unwrap(),
-            [F::zero(); NUM_BATCH_FRI_PREPROCESSED_COLS],
+        pad_rows_fixed(
+            &mut rows,
+            || [F::zero(); NUM_BATCH_FRI_PREPROCESSED_COLS],
+            program.fixed_log2_rows(&BatchFRIChip::<DEGREE>),
         );
 
         RowMajorMatrix::new(rows.into_iter().flatten().collect(), NUM_BATCH_FRI_PREPROCESSED_COLS)
