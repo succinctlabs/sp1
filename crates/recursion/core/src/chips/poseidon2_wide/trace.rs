@@ -146,8 +146,10 @@ mod tests {
 
     fn generate_trace_ffi<const DEGREE: usize>(
         input: &ExecutionRecord<BabyBear>,
+        _: &mut ExecutionRecord<BabyBear>,
     ) -> RowMajorMatrix<BabyBear> {
         type F = BabyBear;
+
         let padded_nb_rows = match input.fixed_log2_rows(&Poseidon2WideChip::<DEGREE>) {
             Some(log2_rows) => 1 << log2_rows,
             None => next_power_of_two(input.poseidon2_events.len(), None),
@@ -204,9 +206,10 @@ mod tests {
             ],
             ..Default::default()
         };
+        let mut execution_record = ExecutionRecord::<BabyBear>::default();
         let chip = Poseidon2WideChip::<DEGREE_3>;
         let trace_rust = chip.generate_trace(&shard, &mut ExecutionRecord::default());
-        let trace_ffi = generate_trace_ffi::<DEGREE_3>(&shard);
+        let trace_ffi = generate_trace_ffi::<DEGREE_3>(&shard, &mut execution_record);
 
         assert_eq!(trace_ffi, trace_rust);
     }
@@ -229,9 +232,10 @@ mod tests {
             ],
             ..Default::default()
         };
+        let mut execution_record = ExecutionRecord::<BabyBear>::default();
         let chip = Poseidon2WideChip::<DEGREE_9>;
-        let trace_rust = chip.generate_trace(&shard, &mut ExecutionRecord::default());
-        let trace_ffi = generate_trace_ffi::<DEGREE_9>(&shard);
+        let trace_rust = chip.generate_trace(&shard, &mut execution_record);
+        let trace_ffi = generate_trace_ffi::<DEGREE_9>(&shard, &mut execution_record);
 
         assert_eq!(trace_ffi, trace_rust);
     }
