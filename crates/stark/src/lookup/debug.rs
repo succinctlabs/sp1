@@ -49,7 +49,11 @@ pub fn vec_to_string<F: Field>(vec: Vec<F>) -> String {
 fn field_to_int<F: PrimeField32>(x: F) -> i32 {
     let modulus = BabyBear::ORDER_U64;
     let val = x.as_canonical_u64();
-    if val > modulus / 2 { val as i32 - modulus as i32 } else { val as i32 }
+    if val > modulus / 2 {
+        val as i32 - modulus as i32
+    } else {
+        val as i32
+    }
 }
 
 /// Debugs the interactions of a chip.
