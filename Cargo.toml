@@ -30,6 +30,7 @@ members = [
   "crates/cuda",
   "crates/verifier",
   "crates/stark",
+  "crates/verifier",
   "crates/zkvm/*",
   "crates/test-artifacts",
 ]

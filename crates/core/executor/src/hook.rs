@@ -14,9 +14,17 @@ use crate::Executor;
 pub type BoxedHook<'a> = Arc<RwLock<dyn Hook + Send + Sync + 'a>>;
 
 /// The file descriptor through which to access `hook_k1_ecrecover`.
-pub const K1_ECRECOVER_HOOK: u32 = 5;
+pub const FD_K1_ECRECOVER_HOOK: u32 = 5;
 /// The file descriptor through which to access `hook_r1_ecrecover`.
-pub const R1_ECRECOVER_HOOK: u32 = 6;
+pub const FD_R1_ECRECOVER_HOOK: u32 = 6;
+
+// Note: we skip 6 because we have an eddsa hook in dev.
+
+/// The file descriptor through which to access `hook_ecrecover_2`.
+pub const FD_ECRECOVER_HOOK_2: u32 = 7;
+
+/// The file descriptor through which to access `hook_ed_decompress`.
+pub const FD_EDDECOMPRESS: u32 = 8;
 
 /// A runtime hook. May be called during execution by writing to a specified file descriptor,
 /// accepting and returning arbitrary data.
@@ -80,8 +88,10 @@ impl<'a> Default for HookRegistry<'a> {
         let table = HashMap::from([
             // Note: To ensure any `fd` value is synced with `zkvm/precompiles/src/io.rs`,
             // add an assertion to the test `hook_fds_match` below.
-            (K1_ECRECOVER_HOOK, hookify(hook_k1_ecrecover)),
-            (R1_ECRECOVER_HOOK, hookify(hook_r1_ecrecover)),
+            (FD_K1_ECRECOVER_HOOK, hookify(hook_k1_ecrecover)),
+            (FD_R1_ECRECOVER_HOOK, hookify(hook_r1_ecrecover)),
+            (FD_ECRECOVER_HOOK, hookify(hook_ecrecover_v2)),
+            (FD_EDDECOMPRESS, hookify(hook_ed_decompress)),
         ]);
 
         Self { table }
@@ -117,14 +127,16 @@ pub struct HookEnv<'a, 'b: 'a> {
 ///       recovery ID.
 ///     - The message hash is 32 bytes.
 ///
-/// The result is returned as a pair of bytes, where the first 32 bytes are the X coordinate
+/// The result is returned as a status and a pair of bytes, where the first 32 bytes are the X coordinate
 /// and the second 32 bytes are the Y coordinate of the decompressed point.
+///
+/// A status of 0 indicates that the public key could not be recovered.
 ///
 /// WARNING: This function is used to recover the public key outside of the zkVM context. These
 /// values must be constrained by the zkVM for correctness.
 #[must_use]
 pub fn hook_k1_ecrecover(_: HookEnv, buf: &[u8]) -> Vec<Vec<u8>> {
-    assert_eq!(buf.len(), 65 + 32, "ecrecover input should have length 65 + 32");
+    assert_eq!(buf.len(), 65 + 32, "ecrecover input should have length 65 + 32, this is a bug.");
     let (sig, msg_hash) = buf.split_at(65);
     let sig: &[u8; 65] = sig.try_into().unwrap();
     let msg_hash: &[u8; 32] = msg_hash.try_into().unwrap();
@@ -136,18 +148,48 @@ pub fn hook_k1_ecrecover(_: HookEnv, buf: &[u8]) -> Vec<Vec<u8>> {
         sig = sig_normalized;
         recovery_id ^= 1;
     };
-    let recid = RecoveryId::from_byte(recovery_id).expect("Computed recovery ID is invalid!");
+    let recid = RecoveryId::from_byte(recovery_id)
+        .expect("Computed recovery ID is invalid, this is a bug.");
 
-    let recovered_key = VerifyingKey::recover_from_prehash(&msg_hash[..], &sig, recid).unwrap();
+    // Attempting to recvover the public key has failed, write a 0 to indicate to the caller.
+    let Ok(recovered_key) = VerifyingKey::recover_from_prehash(&msg_hash[..], &sig, recid) else {
+        return vec![vec![0]];
+    };
+
     let bytes = recovered_key.to_sec1_bytes();
 
     let (_, s) = sig.split_scalars();
     let s_inverse = s.invert();
 
-    vec![bytes.to_vec(), s_inverse.to_bytes().to_vec()]
+    vec![vec![1], bytes.to_vec(), s_inverse.to_bytes().to_vec()]
 }
 
-/// Recovers s inverse from the signature using the secp256r1 crate.
+/// Checks if a compressed Edwards point can be decompressed.
+///
+/// # Arguments
+/// * `env` - The environment in which the hook is invoked.
+/// * `buf` - The buffer containing the compressed Edwards point.
+///    - The compressed Edwards point is 32 bytes.
+///    - The high bit of the last byte is the sign bit.
+///
+/// The result is either `0` if the point cannot be decompressed, or `1` if it can.
+///
+/// WARNING: This function merely hints at the validity of the compressed point. These values must
+/// be constrained by the zkVM for correctness.
+#[must_use]
+pub fn hook_ed_decompress(_: HookEnv, buf: &[u8]) -> Vec<Vec<u8>> {
+    let Ok(point) = sp1_curves::curve25519_dalek::CompressedEdwardsY::from_slice(buf) else {
+        return vec![vec![0]];
+    };
+
+    if sp1_curves::edwards::ed25519::decompress(&point).is_some() {
+        vec![vec![1]]
+    } else {
+        vec![vec![0]]
+    }
+}
+
+/// Recovers the public key from the signature and message hash using the p256 crate.
 ///
 /// # Arguments
 ///

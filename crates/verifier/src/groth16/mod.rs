@@ -101,6 +101,7 @@ impl Groth16Verifier {
 
         let public_inputs =
             public_inputs.iter().map(|input| Fr::from_slice(input).unwrap()).collect::<Vec<_>>();
-        verify_groth16_algebraic(&groth16_vk, &proof, &public_inputs)
+
+        verify_groth16_algerbraic(&groth16_vk, &proof, &public_inputs)
     }
 }
