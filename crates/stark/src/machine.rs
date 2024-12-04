@@ -178,14 +178,12 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
         self.chips().iter().map(|chip| proof.chip_ordering.get(&chip.name()).copied()).collect()
     }
 
-    /// The setup preprocessing phase.
-    ///
-    /// Given a program, this function generates the proving and verifying keys. The keys correspond
-    /// to the program code and other preprocessed colunms such as lookup tables.
-    #[instrument("setup machine", level = "debug", skip_all)]
-    #[allow(clippy::map_unwrap_or)]
-    #[allow(clippy::redundant_closure_for_method_calls)]
-    pub fn setup(&self, program: &A::Program) -> (StarkProvingKey<SC>, StarkVerifyingKey<SC>) {
+    /// The setup preprocessing phase. Same as `setup` but initial global cumulative sum is precomputed.
+    pub fn setup_core(
+        &self,
+        program: &A::Program,
+        initial_global_cumulative_sum: SepticDigest<Val<SC>>,
+    ) -> (StarkProvingKey<SC>, StarkVerifyingKey<SC>) {
         let parent_span = tracing::debug_span!("generate preprocessed traces");
         let mut named_preprocessed_traces = parent_span.in_scope(|| {
             self.chips()
@@ -246,7 +244,6 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
             named_preprocessed_traces.into_iter().map(|(_, _, trace)| trace).collect::<Vec<_>>();
 
         let pc_start = program.pc_start();
-        let initial_global_cumulative_sum = program.initial_global_cumulative_sum();
 
         (
             StarkProvingKey {
@@ -266,6 +263,18 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
                 chip_ordering,
             },
         )
+    }
+
+    /// The setup preprocessing phase.
+    ///
+    /// Given a program, this function generates the proving and verifying keys. The keys correspond
+    /// to the program code and other preprocessed colunms such as lookup tables.
+    #[instrument("setup machine", level = "debug", skip_all)]
+    #[allow(clippy::map_unwrap_or)]
+    #[allow(clippy::redundant_closure_for_method_calls)]
+    pub fn setup(&self, program: &A::Program) -> (StarkProvingKey<SC>, StarkVerifyingKey<SC>) {
+        let initial_global_cumulative_sum = program.initial_global_cumulative_sum();
+        self.setup_core(program, initial_global_cumulative_sum)
     }
 
     /// Generates the dependencies of the given records.

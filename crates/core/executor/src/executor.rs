@@ -1445,7 +1445,6 @@ impl<'a> Executor<'a> {
         let mut public_values = self.records.last().as_ref().unwrap().public_values;
         public_values.start_pc = next_pc;
         public_values.next_pc = next_pc;
-        println!("public values: {public_values:?}");
         if !done {
             self.records.clear();
         }
