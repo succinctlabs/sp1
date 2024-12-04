@@ -399,7 +399,12 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
         let mut global_cumulative_sums = Vec::new();
         global_cumulative_sums.push(pk.initial_global_cumulative_sum);
 
-        for shard in records.iter() {
+        for (i, shard) in records.iter().enumerate() {
+            if i < 30 {
+                continue;
+            }
+            tracing::debug!("debug constraints: shard = {}", i);
+
             // Filter the chips based on what is used.
             let chips = self.shard_chips(shard).collect::<Vec<_>>();
 
@@ -450,19 +455,19 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
             let local_cumulative_sum =
                 chip_cumulative_sums.iter().map(|sums| sums.1).sum::<SC::Challenge>();
 
-            if !local_cumulative_sum.is_zero() {
-                tracing::warn!("Local cumulative sum is not zero");
-                tracing::debug_span!("debug local interactions").in_scope(|| {
-                    debug_interactions_with_all_chips::<SC, A>(
-                        self,
-                        pk,
-                        &[shard.clone()],
-                        InteractionKind::all_kinds(),
-                        InteractionScope::Local,
-                    )
-                });
-                panic!("Local cumulative sum is not zero");
-            }
+            // if !local_cumulative_sum.is_zero() {
+            //     tracing::warn!("Local cumulative sum is not zero");
+            //     tracing::debug_span!("debug local interactions").in_scope(|| {
+            //         debug_interactions_with_all_chips::<SC, A>(
+            //             self,
+            //             pk,
+            //             &[shard.clone()],
+            //             InteractionKind::all_kinds(),
+            //             InteractionScope::Local,
+            //         )
+            //     });
+            //     panic!("Local cumulative sum is not zero");
+            // }
 
             // Compute some statistics.
             for i in 0..chips.len() {

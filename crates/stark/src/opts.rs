@@ -11,7 +11,7 @@ const DEFAULT_CHECKPOINTS_CHANNEL_CAPACITY: usize = 128;
 const DEFAULT_RECORDS_AND_TRACES_CHANNEL_CAPACITY: usize = 1;
 
 /// The threshold for splitting deferred events.
-pub const MAX_DEFERRED_SPLIT_THRESHOLD: usize = 1 << 18;
+pub const MAX_DEFERRED_SPLIT_THRESHOLD: usize = 1 << 15;
 
 /// Options to configure the SP1 prover for core and recursive proofs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

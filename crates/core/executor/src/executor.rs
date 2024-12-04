@@ -933,7 +933,7 @@ impl<'a> Executor<'a> {
     fn execute_instruction(&mut self, instruction: &Instruction) -> Result<(), ExecutionError> {
         // The `clk` variable contains the cycle before the current instruction is executed.  The
         // `state.clk` can be updated before the end of this function by precompiles' execution.
-        let clk = self.state.clk;
+        let mut clk = self.state.clk;
         let mut exit_code = 0u32;
         let mut next_pc = self.state.pc.wrapping_add(4);
         // Will be set to a non-default value if the instruction is a syscall.
@@ -981,7 +981,8 @@ impl<'a> Executor<'a> {
             a = self.state.pc.wrapping_add(b);
             self.rw(rd, a);
         } else if instruction.is_ecall_instruction() {
-            (a, b, c, next_pc, syscall, syscall_lookup_id, exit_code) = self.execute_ecall()?;
+            (a, b, c, clk, next_pc, syscall, syscall_lookup_id, exit_code) =
+                self.execute_ecall()?;
         } else if instruction.is_ebreak_instruction() {
             return Err(ExecutionError::Breakpoint());
         } else if instruction.is_unimp_instruction() {
@@ -1179,7 +1180,7 @@ impl<'a> Executor<'a> {
     #[allow(clippy::type_complexity)]
     fn execute_ecall(
         &mut self,
-    ) -> Result<(u32, u32, u32, u32, SyscallCode, LookupId, u32), ExecutionError> {
+    ) -> Result<(u32, u32, u32, u32, u32, SyscallCode, LookupId, u32), ExecutionError> {
         // We peek at register x5 to get the syscall id. The reason we don't `self.rr` this
         // register is that we write to it later.
         let t0 = Register::X5;
@@ -1246,8 +1247,9 @@ impl<'a> Executor<'a> {
 
         // Allow the syscall impl to modify state.clk/pc (exit unconstrained does this)
         self.rw(t0, a);
+        let clk = self.state.clk;
         self.state.clk += precompile_cycles;
-        Ok((a, b, c, precompile_next_pc, syscall, syscall_lookup_id, returned_exit_code))
+        Ok((a, b, c, clk, precompile_next_pc, syscall, syscall_lookup_id, returned_exit_code))
     }
 
     /// Execute a jump instruction.
