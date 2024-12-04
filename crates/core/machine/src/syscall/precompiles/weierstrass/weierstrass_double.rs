@@ -488,8 +488,6 @@ pub mod tests {
         utils::{run_test, setup_logger},
     };
 
-    use crate::utils::{run_test, setup_logger};
-
     #[test]
     fn test_secp256k1_double_simple() {
         setup_logger();

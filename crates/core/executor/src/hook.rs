@@ -17,12 +17,6 @@ pub type BoxedHook<'a> = Arc<RwLock<dyn Hook + Send + Sync + 'a>>;
 pub const FD_K1_ECRECOVER_HOOK: u32 = 5;
 /// The file descriptor through which to access `hook_r1_ecrecover`.
 pub const FD_R1_ECRECOVER_HOOK: u32 = 6;
-
-// Note: we skip 6 because we have an eddsa hook in dev.
-
-/// The file descriptor through which to access `hook_ecrecover_2`.
-pub const FD_ECRECOVER_HOOK_2: u32 = 7;
-
 /// The file descriptor through which to access `hook_ed_decompress`.
 pub const FD_EDDECOMPRESS: u32 = 8;
 
@@ -90,7 +84,6 @@ impl<'a> Default for HookRegistry<'a> {
             // add an assertion to the test `hook_fds_match` below.
             (FD_K1_ECRECOVER_HOOK, hookify(hook_k1_ecrecover)),
             (FD_R1_ECRECOVER_HOOK, hookify(hook_r1_ecrecover)),
-            (FD_ECRECOVER_HOOK, hookify(hook_ecrecover_v2)),
             (FD_EDDECOMPRESS, hookify(hook_ed_decompress)),
         ]);
 
@@ -217,8 +210,8 @@ pub mod tests {
     #[test]
     pub fn hook_fds_match() {
         use sp1_zkvm::lib::io;
-        assert_eq!(K1_ECRECOVER_HOOK, io::K1_ECRECOVER_HOOK);
-        assert_eq!(R1_ECRECOVER_HOOK, io::R1_ECRECOVER_HOOK);
+        assert_eq!(FD_K1_ECRECOVER_HOOK, io::FD_K1_ECRECOVER_HOOK);
+        assert_eq!(FD_R1_ECRECOVER_HOOK, io::FD_R1_ECRECOVER_HOOK);
     }
 
     #[test]
