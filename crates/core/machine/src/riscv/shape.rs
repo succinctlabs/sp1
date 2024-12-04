@@ -978,7 +978,6 @@ pub mod tests {
 
         let preprocessed_log_heights = [
             (RiscvAir::<BabyBear>::Program(ProgramChip::default()), 10),
-            //    (RiscvAir::<BabyBear>::ProgramMemory(MemoryProgramChip::default()), 10),
             (RiscvAir::<BabyBear>::ByteLookup(ByteChip::default()), 16),
         ];
 
@@ -993,6 +992,7 @@ pub mod tests {
             (RiscvAir::<BabyBear>::Lt(LtChip::default()), 10),
             (RiscvAir::<BabyBear>::MemoryLocal(MemoryLocalChip::new()), 10),
             (RiscvAir::<BabyBear>::SyscallCore(SyscallChip::core()), 10),
+            (RiscvAir::<BabyBear>::Global(GlobalChip), 10),
         ];
 
         let height_map = preprocessed_log_heights

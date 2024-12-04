@@ -77,7 +77,6 @@ impl<F: PrimeField32> MachineAir<F> for GlobalChip {
         let events = &input.global_interaction_events;
 
         let nb_rows = events.len();
-        println!("nb_rows: {}", nb_rows);
         let size_log2 = input.fixed_log2_rows::<F, _>(self);
         let padded_nb_rows = next_power_of_two(nb_rows, size_log2);
         let mut values = zeroed_f_vec(padded_nb_rows * NUM_GLOBAL_COLS);
@@ -128,7 +127,10 @@ impl<F: PrimeField32> MachineAir<F> for GlobalChip {
             .scan(|a, b| *a + *b, SepticCurveComplete::Infinity)
             .collect::<Vec<SepticCurveComplete<F>>>();
 
-        let final_digest = cumulative_sum.last().unwrap().point();
+        let final_digest = match cumulative_sum.last() {
+            Some(digest) => digest.point(),
+            None => SepticCurve::<F>::dummy(),
+        };
         let dummy = SepticCurve::<F>::dummy();
         let final_sum_checker = SepticCurve::<F>::sum_checker_x(final_digest, dummy, final_digest);
 
