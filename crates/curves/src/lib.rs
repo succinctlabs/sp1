@@ -56,6 +56,10 @@ pub mod p256 {
     };
 }
 
+pub mod ecdsa {
+    pub use ecdsa::RecoveryId;
+}
+
 use params::{FieldParameters, NumWords};
 use sp1_primitives::consts::WORD_SIZE;
 use std::{

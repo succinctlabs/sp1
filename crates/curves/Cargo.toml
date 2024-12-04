@@ -19,6 +19,7 @@ generic-array = { version = "1.1.0", features = ["alloc", "serde"] }
 amcl = { package = "snowbridge-amcl", version = "1.0.2", default-features = false, features = [
   "bls381",
 ] }
+ecdsa = "0.16.9"
 elliptic-curve = "0.13.8"
 dashu = "0.4.2"
 

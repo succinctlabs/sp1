@@ -1821,6 +1821,7 @@ version = "4.0.0-rc.1"
 dependencies = [
  "cfg-if",
  "dashu",
+ "ecdsa",
  "elliptic-curve 0.13.8",
  "generic-array 1.1.1",
  "itertools 0.13.0",
