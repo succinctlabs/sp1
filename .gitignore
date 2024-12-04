@@ -16,6 +16,7 @@ pgo-data.profdata
 **/proof-with-io.bin
 **/program.bin
 **/stdin.bin
+**/node_modules
 
 # Benchmark
 benchmark.csv
