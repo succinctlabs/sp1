@@ -1,5 +1,10 @@
 #![allow(clippy::needless_range_loop)]
 
+use crate::{
+    builder::SP1RecursionAirBuilder,
+    runtime::{ExecutionRecord, RecursionProgram},
+    ExpReverseBitsInstr, Instruction,
+};
 use core::borrow::Borrow;
 use p3_air::{Air, AirBuilder, BaseAir, PairBuilder};
 use p3_field::{AbstractField, PrimeField32};
@@ -9,12 +14,6 @@ use sp1_derive::AlignedBorrow;
 use sp1_stark::air::{BaseAirBuilder, ExtensionAirBuilder, MachineAir, SP1AirBuilder};
 use std::borrow::BorrowMut;
 use tracing::instrument;
-
-use crate::{
-    builder::SP1RecursionAirBuilder,
-    runtime::{ExecutionRecord, RecursionProgram},
-    ExpReverseBitsInstr, Instruction,
-};
 
 use super::mem::{MemoryAccessCols, MemoryAccessColsChips};
 
@@ -296,17 +295,6 @@ where
 
 #[cfg(test)]
 mod tests {
-    use itertools::Itertools;
-    use p3_util::reverse_bits_len;
-    use rand::{rngs::StdRng, Rng, SeedableRng};
-    use sp1_core_machine::utils::setup_logger;
-    use sp1_stark::{air::MachineAir, StarkGenericConfig};
-    use std::iter::once;
-
-    use p3_baby_bear::BabyBear;
-    use p3_field::{AbstractField, PrimeField32};
-    use p3_matrix::dense::RowMajorMatrix;
-
     use crate::{
         chips::exp_reverse_bits::ExpReverseBitsLenChip,
         machine::tests::run_recursion_test_machines,
@@ -315,8 +303,19 @@ mod tests {
         Address, ExpReverseBitsEvent, ExpReverseBitsIo, Instruction, MemAccessKind,
         RecursionProgram,
     };
+    use itertools::Itertools;
+    use p3_baby_bear::BabyBear;
+    use p3_field::{AbstractField, PrimeField32};
+    use p3_matrix::dense::RowMajorMatrix;
+    use p3_util::reverse_bits_len;
+    use rand::{rngs::StdRng, Rng, SeedableRng};
+    use sp1_core_machine::utils::setup_logger;
+    use sp1_stark::{air::MachineAir, StarkGenericConfig};
+    use std::iter::once;
 
     use super::*;
+
+    const DEGREE: usize = 3;
 
     #[test]
     fn prove_babybear_circuit_erbl() {
@@ -412,9 +411,51 @@ mod tests {
         println!("{:?}", trace.values);
     }
 
-    #[cfg(feature = "sys")]
+    fn generate_trace_ffi<const DEGREE: usize>(
+        input: &ExecutionRecord<BabyBear>,
+        _: &mut ExecutionRecord<BabyBear>,
+    ) -> RowMajorMatrix<BabyBear> {
+        type F = BabyBear;
+
+        let events = &input.exp_reverse_bits_len_events;
+        let mut overall_rows = Vec::new();
+
+        events.iter().for_each(|event| {
+            let mut rows = vec![vec![F::zero(); NUM_EXP_REVERSE_BITS_LEN_COLS]; event.exp.len()];
+            let mut accum = F::one();
+
+            rows.iter_mut().enumerate().for_each(|(i, row)| {
+                let cols: &mut ExpReverseBitsLenCols<F> = row.as_mut_slice().borrow_mut();
+                unsafe {
+                    crate::sys::exp_reverse_bits_event_to_row_babybear(&event.into(), i, cols);
+                }
+
+                let prev_accum = accum;
+                accum = prev_accum * prev_accum * cols.multiplier;
+
+                cols.accum = accum;
+                cols.accum_squared = accum * accum;
+                cols.prev_accum_squared = prev_accum * prev_accum;
+                cols.prev_accum_squared_times_multiplier =
+                    cols.prev_accum_squared * cols.multiplier;
+            });
+            overall_rows.extend(rows);
+        });
+
+        pad_rows_fixed(
+            &mut overall_rows,
+            || [F::zero(); NUM_EXP_REVERSE_BITS_LEN_COLS].to_vec(),
+            input.fixed_log2_rows(&ExpReverseBitsLenChip::<DEGREE>),
+        );
+
+        RowMajorMatrix::new(
+            overall_rows.into_iter().flatten().collect(),
+            NUM_EXP_REVERSE_BITS_LEN_COLS,
+        )
+    }
+
     #[test]
-    fn test_generate_trace_ffi_eq_rust() {
+    fn test_generate_trace() {
         type F = BabyBear;
 
         let shard = ExecutionRecord {
@@ -426,106 +467,13 @@ mod tests {
             ..Default::default()
         };
 
-        let chip = ExpReverseBitsLenChip::<3>;
-        let trace: RowMajorMatrix<F> = chip.generate_trace(&shard, &mut ExecutionRecord::default());
-        let trace_ffi = generate_trace_ffi(&shard);
+        let mut execution_record = ExecutionRecord::<BabyBear>::default();
+        let trace: RowMajorMatrix<F> =
+            ExpReverseBitsLenChip::<DEGREE>.generate_trace(&shard, &mut execution_record);
 
-        assert_eq!(trace_ffi, trace);
+        assert_eq!(trace, generate_trace_ffi::<DEGREE>(&shard, &mut execution_record));
     }
 
-    #[cfg(feature = "sys")]
-    fn generate_trace_ffi(input: &ExecutionRecord<BabyBear>) -> RowMajorMatrix<BabyBear> {
-        type F = BabyBear;
-
-        let events = &input.exp_reverse_bits_len_events;
-        let mut overall_rows = Vec::new();
-
-        let chunk_size = std::cmp::max(events.len() / num_cpus::get(), 1);
-        events.chunks(chunk_size).for_each(|chunk| {
-            chunk.iter().for_each(|event| {
-                let mut rows =
-                    vec![vec![F::zero(); NUM_EXP_REVERSE_BITS_LEN_COLS]; event.exp.len()];
-                let mut accum = F::one();
-
-                rows.iter_mut().enumerate().for_each(|(i, row)| {
-                    let cols: &mut ExpReverseBitsLenCols<F> = row.as_mut_slice().borrow_mut();
-                    unsafe {
-                        crate::sys::exp_reverse_bits_event_to_row_babybear(&event.into(), i, cols);
-                    }
-
-                    // Accumulate after the event is converted to a row
-                    let prev_accum = accum;
-                    accum = prev_accum * prev_accum * cols.multiplier;
-
-                    cols.accum = accum;
-                    cols.accum_squared = accum * accum;
-                    cols.prev_accum_squared = prev_accum * prev_accum;
-                    cols.prev_accum_squared_times_multiplier =
-                        cols.prev_accum_squared * cols.multiplier;
-                });
-
-                overall_rows.extend(rows);
-            });
-        });
-
-        pad_rows_fixed(
-            &mut overall_rows,
-            || [F::zero(); NUM_EXP_REVERSE_BITS_LEN_COLS].to_vec(),
-            input.fixed_log2_rows(&ExpReverseBitsLenChip::<3>),
-        );
-
-        RowMajorMatrix::new(
-            overall_rows.into_iter().flatten().collect(),
-            NUM_EXP_REVERSE_BITS_LEN_COLS,
-        )
-    }
-
-    #[test]
-    fn generate_preprocessed_trace() {
-        type F = BabyBear;
-
-        let program = RecursionProgram::<F> {
-            instructions: vec![Instruction::ExpReverseBitsLen(ExpReverseBitsInstr {
-                addrs: ExpReverseBitsIo {
-                    base: Address(F::zero()),
-                    exp: vec![Address(F::zero()), Address(F::one())],
-                    result: Address(F::zero()),
-                },
-                mult: F::one(),
-            })],
-            ..Default::default()
-        };
-
-        let chip = ExpReverseBitsLenChip::<3>;
-        let trace = chip.generate_preprocessed_trace(&program).unwrap();
-        println!("{:?}", trace.values);
-    }
-
-    #[cfg(feature = "sys")]
-    #[test]
-    fn test_generate_preprocessed_trace_ffi_eq_rust() {
-        type F = BabyBear;
-
-        let program = RecursionProgram::<F> {
-            instructions: vec![Instruction::ExpReverseBitsLen(ExpReverseBitsInstr {
-                addrs: ExpReverseBitsIo {
-                    base: Address(F::zero()),
-                    exp: vec![Address(F::zero()), Address(F::one())],
-                    result: Address(F::zero()),
-                },
-                mult: F::one(),
-            })],
-            ..Default::default()
-        };
-
-        let chip = ExpReverseBitsLenChip::<3>;
-        let trace = chip.generate_preprocessed_trace(&program).unwrap();
-        let trace_ffi = generate_preprocessed_trace_ffi(&program);
-
-        assert_eq!(trace_ffi, trace);
-    }
-
-    #[cfg(feature = "sys")]
     fn generate_preprocessed_trace_ffi(
         program: &RecursionProgram<BabyBear>,
     ) -> RowMajorMatrix<BabyBear> {
@@ -570,5 +518,25 @@ mod tests {
             rows.into_iter().flatten().collect(),
             NUM_EXP_REVERSE_BITS_LEN_PREPROCESSED_COLS,
         )
+    }
+
+    #[test]
+    fn generate_preprocessed_trace() {
+        type F = BabyBear;
+
+        let program = RecursionProgram::<F> {
+            instructions: vec![Instruction::ExpReverseBitsLen(ExpReverseBitsInstr {
+                addrs: ExpReverseBitsIo {
+                    base: Address(F::zero()),
+                    exp: vec![Address(F::zero()), Address(F::one())],
+                    result: Address(F::zero()),
+                },
+                mult: F::one(),
+            })],
+            ..Default::default()
+        };
+        let trace = ExpReverseBitsLenChip::<DEGREE>.generate_preprocessed_trace(&program).unwrap();
+
+        assert_eq!(trace, generate_preprocessed_trace_ffi(&program));
     }
 }

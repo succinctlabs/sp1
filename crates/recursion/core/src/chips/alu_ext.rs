@@ -287,8 +287,7 @@ mod tests {
             ..Default::default()
         };
         let mut execution_record = ExecutionRecord::<BabyBear>::default();
-        let trace: RowMajorMatrix<F> =
-            ExtAluChip.generate_trace(&shard, &mut ExecutionRecord::default());
+        let trace: RowMajorMatrix<F> = ExtAluChip.generate_trace(&shard, &mut execution_record);
 
         assert_eq!(trace, generate_trace_ffi(&shard, &mut execution_record));
     }

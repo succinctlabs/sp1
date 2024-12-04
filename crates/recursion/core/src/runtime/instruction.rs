@@ -43,6 +43,7 @@ pub mod extractors {
     create_extractor!(extract_base_alu_instrs, BaseAlu, BaseAluInstr<F>);
     create_extractor!(extract_ext_alu_instrs, ExtAlu, ExtAluInstr<F>);
     create_extractor!(extract_batch_fri_instrs, BatchFRI, Box<BatchFRIInstr<F>>);
+    create_extractor!(extract_exp_reverse_bits_instrs, ExpReverseBitsLen, ExpReverseBitsInstr<F>);
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

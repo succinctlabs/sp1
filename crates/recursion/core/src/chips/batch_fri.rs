@@ -79,12 +79,9 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for BatchFRIChip<DEGREE
         program
             .instructions
             .iter()
-            .filter_map(|instruction| {
-                if let Instruction::BatchFRI(instr) = instruction {
-                    Some(instr)
-                } else {
-                    None
-                }
+            .filter_map(|instruction| match instruction {
+                Instruction::BatchFRI(instr) => Some(instr),
+                _ => None,
             })
             .for_each(|instruction| {
                 let BatchFRIInstr { base_vec_addrs, ext_single_addrs, ext_vec_addrs, acc_mult } =
@@ -298,6 +295,7 @@ mod tests {
 
     fn generate_trace_ffi<const DEGREE: usize>(
         input: &ExecutionRecord<BabyBear>,
+        _: &mut ExecutionRecord<BabyBear>,
     ) -> RowMajorMatrix<BabyBear> {
         type F = BabyBear;
 
@@ -333,10 +331,11 @@ mod tests {
             batch_fri_events: test_fixtures::sample_batch_fri_events(),
             ..Default::default()
         };
+        let mut execution_record = ExecutionRecord::<BabyBear>::default();
         let trace: RowMajorMatrix<F> =
-            BatchFRIChip::<DEGREE>.generate_trace(&shard, &mut ExecutionRecord::default());
+            BatchFRIChip::<DEGREE>.generate_trace(&shard, &mut execution_record);
 
-        assert_eq!(trace, generate_trace_ffi::<DEGREE>(&shard));
+        assert_eq!(trace, generate_trace_ffi::<DEGREE>(&shard, &mut execution_record));
     }
 
     fn generate_preprocessed_trace_ffi<const DEGREE: usize>(
