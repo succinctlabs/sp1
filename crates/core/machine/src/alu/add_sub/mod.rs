@@ -336,6 +336,10 @@ mod tests {
 
     #[cfg(feature = "sys")]
     fn generate_trace_ffi(input: &ExecutionRecord) -> RowMajorMatrix<BabyBear> {
+        use rayon::slice::ParallelSlice;
+
+        use crate::utils::pad_rows_fixed;
+
         type F = BabyBear;
 
         let chunk_size =

@@ -14,7 +14,6 @@ use crate::{
     memory::{
         MemoryChipType, MemoryInstructionsChip, MemoryLocalChip, NUM_LOCAL_MEMORY_ENTRIES_PER_ROW,
     },
-    memory::{MemoryChipType, MemoryLocalChip, NUM_LOCAL_MEMORY_ENTRIES_PER_ROW},
     riscv::MemoryChipType::{Finalize, Initialize},
     syscall::{
         instructions::SyscallInstrsChip,

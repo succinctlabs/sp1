@@ -831,12 +831,17 @@ impl<'a> Executor<'a> {
         lookup_id: LookupId,
         next_pc: u32,
     ) -> SyscallEvent {
+        let (write, is_real) = match a_record {
+            Some(MemoryRecordEnum::Write(record)) => (record, true),
+            _ => (MemoryWriteRecord::default(), false),
+        };
         SyscallEvent {
             shard: self.shard(),
             clk,
             pc: self.state.pc,
             next_pc,
-            a_record,
+            a_record: write,
+            a_record_is_real: is_real,
             syscall_code,
             syscall_id: syscall_code.syscall_id(),
             arg1,

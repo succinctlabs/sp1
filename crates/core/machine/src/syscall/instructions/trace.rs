@@ -6,7 +6,7 @@ use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
 use rayon::iter::{ParallelBridge, ParallelIterator};
 use sp1_core_executor::{
-    events::{ByteLookupEvent, ByteRecord, SyscallEvent},
+    events::{ByteLookupEvent, ByteRecord, MemoryRecord, MemoryRecordEnum, SyscallEvent},
     syscalls::SyscallCode,
     ExecutionRecord, Program,
 };
@@ -86,7 +86,7 @@ impl SyscallInstrsChip {
         cols.shard = F::from_canonical_u32(event.shard);
         cols.clk = F::from_canonical_u32(event.clk);
 
-        cols.op_a_access.populate(event.a_record.expect("a_record is required"), blu);
+        cols.op_a_access.populate(MemoryRecordEnum::Write(event.a_record), blu);
         cols.op_b_value = event.arg1.into();
         cols.op_c_value = event.arg2.into();
 

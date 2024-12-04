@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::syscalls::SyscallCode;
 
-use super::MemoryRecordEnum;
+use super::MemoryWriteRecord;
 
 /// Syscall Event.
 ///
@@ -19,8 +19,10 @@ pub struct SyscallEvent {
     pub shard: u32,
     /// The clock cycle.
     pub clk: u32,
-    /// The `op_a` memory record.
-    pub a_record: Option<MemoryRecordEnum>,
+    /// The `op_a` memory write record.
+    pub a_record: MemoryWriteRecord,
+    /// Whether the `op_a` memory write record is real.
+    pub a_record_is_real: bool,
     /// The syscall code.
     pub syscall_code: SyscallCode,
     /// The syscall id.

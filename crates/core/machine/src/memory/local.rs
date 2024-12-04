@@ -354,6 +354,10 @@ mod tests {
 
     #[cfg(feature = "sys")]
     fn get_test_execution_record() -> ExecutionRecord {
+        use p3_field::PrimeField32;
+        use rand::{thread_rng, Rng};
+        use sp1_core_executor::events::{MemoryLocalEvent, MemoryRecord};
+
         let cpu_local_memory_access = (0..=255)
             .flat_map(|_| {
                 [{
@@ -386,6 +390,8 @@ mod tests {
     #[cfg(feature = "sys")]
     #[test]
     fn test_generate_trace_ffi_eq_rust() {
+        use p3_matrix::Matrix;
+
         let record = get_test_execution_record();
         let chip = MemoryLocalChip::new();
         let trace: RowMajorMatrix<BabyBear> =
@@ -397,6 +403,17 @@ mod tests {
 
     #[cfg(feature = "sys")]
     fn generate_trace_ffi(input: &ExecutionRecord, height: usize) -> RowMajorMatrix<BabyBear> {
+        use std::borrow::BorrowMut;
+
+        use rayon::iter::{IndexedParallelIterator, IntoParallelRefMutIterator, ParallelIterator};
+
+        use crate::{
+            memory::{
+                MemoryLocalCols, NUM_LOCAL_MEMORY_ENTRIES_PER_ROW, NUM_MEMORY_LOCAL_INIT_COLS,
+            },
+            utils::zeroed_f_vec,
+        };
+
         type F = BabyBear;
         // Generate the trace rows for each event.
         let events = input.get_local_mem_events().collect::<Vec<_>>();

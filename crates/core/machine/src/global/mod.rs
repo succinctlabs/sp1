@@ -87,18 +87,15 @@ impl<F: PrimeField32> MachineAir<F> for GlobalChip {
             .chunks(chunk_size)
             .par_bridge()
             .map(|events| {
-                let mut blu: HashMap<u32, HashMap<ByteLookupEvent, usize>> = HashMap::new();
+                let mut blu: Vec<ByteLookupEvent> = Vec::new();
                 events.iter().for_each(|event| {
-                    blu.add_u16_range_check(
-                        input.public_values.shard,
-                        event.message[0].try_into().unwrap(),
-                    );
+                    blu.add_u16_range_check(event.message[0].try_into().unwrap());
                 });
                 blu
             })
             .collect::<Vec<_>>();
 
-        output.add_sharded_byte_lookup_events(blu_batches.iter().collect());
+        output.add_byte_lookup_events(blu_batches.into_iter().flatten().collect());
     }
 
     fn generate_trace(&self, input: &Self::Record, _: &mut Self::Record) -> RowMajorMatrix<F> {
