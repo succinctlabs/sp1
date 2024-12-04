@@ -15,6 +15,7 @@ use sp1_core_machine::io::SP1Stdin;
 use sp1_prover::{components::DefaultProverComponents, SP1Prover, SP1_CIRCUIT_VERSION};
 use sp1_stark::SP1ProverOpts;
 use tonic::Code;
+use crate::network_v2::client::DEFAULT_PROVER_NETWORK_RPC;
 
 use {crate::block_on, tokio::time::sleep};
 
@@ -47,6 +48,7 @@ impl NetworkProver {
     /// Sets the fulfillment strategy for the client. By default, the strategy is set to `Hosted`.
     pub fn with_strategy(&mut self, strategy: FulfillmentStrategy) {
         self.strategy = strategy;
+    }
 
     /// Creates a new network prover builder. See [`NetworkProverBuilder`] for more details.
     pub fn builder() -> NetworkProverBuilder {
@@ -108,7 +110,7 @@ impl NetworkProver {
         let request_id_hex = "0x".to_string() + &hex::encode(request_id.clone());
         log::info!("Created request {} in transaction {}", request_id_hex, tx_hash_hex);
 
-        if NetworkClient::rpc_url() == DEFAULT_PROVER_NETWORK_RPC {
+        if self.client.rpc_url() == DEFAULT_PROVER_NETWORK_RPC {
             log::info!("View in explorer: https://network.succinct.xyz/request/{}", request_id_hex);
         }
 
@@ -155,7 +157,7 @@ impl NetworkProver {
             }
 
             // Check the fulfillment status.
-            match FulfillmentStatus::try_from(status.fulfillment_proof_status) {
+            match FulfillmentStatus::try_from(status.fulfillment_status) {
                 Ok(FulfillmentStatus::Fulfilled) => {
                     return Ok(maybe_proof.unwrap());
                 }

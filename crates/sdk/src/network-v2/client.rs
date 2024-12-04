@@ -94,6 +94,34 @@ impl NetworkClient {
         Ok(res.into_inner().nonce)
     }
 
+    // /// Attempts to get program info, returns None if program doesn't exist
+    // async fn get_program(&self, vk: &SP1VerifyingKey) -> Result<Option<GetProgramResponse>> {
+    //     let response =
+    //         self.rpc.get_program(GetProgramRequest { verifying_key: vk.to_bytes() }).await?;
+
+    //     Ok(Some(response))
+    // }
+
+    // /// Creates a new program.
+    // async fn create_program(
+    //     &self,
+    //     vk: &SP1VerifyingKey,
+    //     program_uri: String,
+    // ) -> Result<CreateProgramResponse> {
+    //     let nonce = self.get_nonce().await?;
+    //     let signature = self.sign_create_program_message(nonce, vk, &program_uri).await?;
+
+    //     self.rpc
+    //         .create_program(CreateProgramRequest {
+    //             signature,
+    //             nonce,
+    //             verifying_key: vk.to_bytes(),
+    //             program_uri,
+    //         })
+    //         .await?
+    //         .into_inner()
+    // }
+
     /// Get the status of a given proof. If the status is Fulfilled, the proof is also returned.
     pub async fn get_proof_request_status<P: DeserializeOwned>(
         &self,
