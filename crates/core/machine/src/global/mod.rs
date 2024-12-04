@@ -1,5 +1,7 @@
 use std::{borrow::Borrow, mem::transmute};
 
+use crate::air::WordAirBuilder;
+use hashbrown::HashMap;
 use p3_air::{Air, BaseAir, PairBuilder};
 use p3_field::PrimeField32;
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
@@ -8,7 +10,10 @@ use rayon::iter::{
     ParallelIterator,
 };
 use rayon_scan::ScanParallelIterator;
-use sp1_core_executor::{events::GlobalInteractionEvent, ExecutionRecord, Program};
+use sp1_core_executor::{
+    events::{ByteLookupEvent, ByteRecord, GlobalInteractionEvent},
+    ExecutionRecord, Program,
+};
 use sp1_stark::{
     air::{AirInteraction, InteractionScope, MachineAir, SP1AirBuilder},
     septic_curve::{SepticCurve, SepticCurveComplete},
@@ -71,6 +76,29 @@ impl<F: PrimeField32> MachineAir<F> for GlobalChip {
     fn name(&self) -> String {
         assert_eq!(GLOBAL_INITIAL_DIGEST_POS_COPY, GLOBAL_INITIAL_DIGEST_POS);
         "Global".to_string()
+    }
+
+    fn generate_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
+        let events = &input.global_interaction_events;
+
+        let chunk_size = std::cmp::max(events.len() / num_cpus::get(), 1);
+
+        let blu_batches = events
+            .chunks(chunk_size)
+            .par_bridge()
+            .map(|events| {
+                let mut blu: HashMap<u32, HashMap<ByteLookupEvent, usize>> = HashMap::new();
+                events.iter().for_each(|event| {
+                    blu.add_u16_range_check(
+                        input.public_values.shard,
+                        event.message[0].try_into().unwrap(),
+                    );
+                });
+                blu
+            })
+            .collect::<Vec<_>>();
+
+        output.add_sharded_byte_lookup_events(blu_batches.iter().collect());
     }
 
     fn generate_trace(&self, input: &Self::Record, _: &mut Self::Record) -> RowMajorMatrix<F> {
@@ -157,8 +185,6 @@ impl<F: PrimeField32> MachineAir<F> for GlobalChip {
         RowMajorMatrix::new(values, NUM_GLOBAL_COLS)
     }
 
-    fn generate_dependencies(&self, _: &Self::Record, _: &mut Self::Record) {}
-
     fn included(&self, _: &Self::Record) -> bool {
         true
     }
@@ -185,6 +211,7 @@ where
         let next = main.row_slice(1);
         let next: &GlobalCols<AB::Var> = (*next).borrow();
 
+        // Receive the arguments.
         builder.receive(
             AirInteraction::new(
                 vec![
@@ -204,6 +231,7 @@ where
             InteractionScope::Local,
         );
 
+        // Evaluate the interaction.
         GlobalInteractionOperation::<AB::F>::eval_single_digest(
             builder,
             local.message.map(Into::into),
@@ -214,6 +242,7 @@ where
             InteractionKind::Global,
         );
 
+        // Evaluate the accumulation.
         GlobalAccumulationOperation::<AB::F, 1>::eval_accumulation(
             builder,
             [local.interaction],
@@ -228,6 +257,10 @@ where
             eval_external_round(builder, &local.interaction.permutation.permutation, r);
         }
         eval_internal_rounds(builder, &local.interaction.permutation.permutation);
+
+        // Range check the first element in the message to be "small" so that we can encode
+        // the interaction kind in the upper 8 bits.
+        builder.slice_range_check_u16(&local.message[0..1], local.is_real);
     }
 }
 

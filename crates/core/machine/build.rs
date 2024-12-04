@@ -114,6 +114,7 @@ mod sys {
             .include_item("GlobalInteractionEvent")
             .include_item("Poseidon2StateCols")
             .include_item("GlobalCols")
+            .include_item("INTERACTION_KIND_GLOBAL")
             .with_namespace("sp1_core_machine_sys")
             .with_crate(crate_dir)
             .generate()
