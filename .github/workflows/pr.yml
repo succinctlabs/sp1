@@ -108,7 +108,7 @@ jobs:
 
   lint:
     name: Formatting & Clippy
-    runs-on: [runs-on, runner=16cpu-linux-x64, "run-id=${{ github.run_id }}"]
+    runs-on: [runs-on, runner=16cpu-linux-x64, disk=large, "run-id=${{ github.run_id }}"]
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
@@ -151,7 +151,7 @@ jobs:
 
   check:
     name: Cargo Check
-    runs-on: [runs-on, runner=16cpu-linux-x64, disk=medium, "run-id=${{ github.run_id }}"]
+    runs-on: [runs-on, runner=16cpu-linux-x64, disk=large, "run-id=${{ github.run_id }}"]
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
@@ -263,7 +263,7 @@ jobs:
 
   performance:
     name: Performance
-    runs-on: [runs-on, family=c7a.48xlarge, "run-id=${{ github.run_id }}"]
+    runs-on: [runs-on, family=c7a.48xlarge, disk=large, "run-id=${{ github.run_id }}"]
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
