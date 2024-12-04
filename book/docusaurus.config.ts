@@ -19,9 +19,11 @@ const config: Config = {
   // If you aren't using GitHub pages, you don't need these.
   organizationName: 'succinctlabs', // Usually your GitHub org/user name.
   projectName: 'sp1', // Usually your repo name.
+  deploymentBranch: 'main',
+  trailingSlash: false,
 
-  onBrokenLinks: 'throw',
-  onBrokenMarkdownLinks: 'warn',
+  onBrokenLinks: 'warn',
+  onBrokenMarkdownLinks: 'throw',
 
   // Even if you don't use internationalization, you can use this field to set
   // useful metadata like html lang. For example, if your site is Chinese, you
@@ -80,7 +82,7 @@ const config: Config = {
           items: [
             {
               label: 'Home',
-              to: '/docs/summary',
+              to: '/',
             },
           ],
         },
