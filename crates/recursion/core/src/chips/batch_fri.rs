@@ -287,6 +287,7 @@ pub mod test_fixtures {
 
 #[cfg(test)]
 mod tests {
+    use crate::extract_batch_fri_instrs;
     use p3_baby_bear::BabyBear;
     use p3_field::AbstractField;
     use p3_matrix::dense::RowMajorMatrix;
@@ -335,46 +336,46 @@ mod tests {
         assert_eq!(trace, generate_trace_ffi::<DEGREE>(&shard));
     }
 
-    // fn generate_preprocessed_trace_ffi<const DEGREE: usize>(
-    //     program: &RecursionProgram<BabyBear>,
-    // ) -> RowMajorMatrix<BabyBear> {
-    //     type F = BabyBear;
+    fn generate_preprocessed_trace_ffi<const DEGREE: usize>(
+        program: &RecursionProgram<BabyBear>,
+    ) -> RowMajorMatrix<BabyBear> {
+        type F = BabyBear;
 
-    //     let mut rows = Vec::new();
-    //     extract_batch_fri_instrs(program).iter().for_each(|instruction| {
-    //         let BatchFRIInstr { base_vec_addrs: _, ext_single_addrs: _, ext_vec_addrs, acc_mult } =
-    //             instruction.as_ref();
-    //         let len = ext_vec_addrs.p_at_z.len();
-    //         let mut row_add = vec![[F::zero(); NUM_BATCH_FRI_PREPROCESSED_COLS]; len];
-    //         debug_assert_eq!(*acc_mult, F::one());
+        let mut rows = Vec::new();
+        extract_batch_fri_instrs(program).iter().for_each(|instruction| {
+            let BatchFRIInstr { base_vec_addrs: _, ext_single_addrs: _, ext_vec_addrs, acc_mult } =
+                instruction.as_ref();
+            let len = ext_vec_addrs.p_at_z.len();
+            let mut row_add = vec![[F::zero(); NUM_BATCH_FRI_PREPROCESSED_COLS]; len];
+            debug_assert_eq!(*acc_mult, F::one());
 
-    //         row_add.iter_mut().for_each(|row| {
-    //             let cols: &mut BatchFRIPreprocessedCols<F> = row.as_mut_slice().borrow_mut();
-    //             unsafe {
-    //                 crate::sys::batch_fri_instr_to_row_babybear(&instruction.into(), cols);
-    //             }
-    //         });
-    //         rows.extend(row_add);
-    //     });
+            row_add.iter_mut().enumerate().for_each(|(i, row)| {
+                let cols: &mut BatchFRIPreprocessedCols<F> = row.as_mut_slice().borrow_mut();
+                unsafe {
+                    crate::sys::batch_fri_instr_to_row_babybear(&instruction.into(), cols, i);
+                }
+            });
+            rows.extend(row_add);
+        });
 
-    //     rows.resize(
-    //         BatchFRIChip::<DEGREE>.preprocessed_num_rows(program, rows.len()).unwrap(),
-    //         [F::zero(); NUM_BATCH_FRI_PREPROCESSED_COLS],
-    //     );
+        rows.resize(
+            BatchFRIChip::<DEGREE>.preprocessed_num_rows(program, rows.len()).unwrap(),
+            [F::zero(); NUM_BATCH_FRI_PREPROCESSED_COLS],
+        );
 
-    //     RowMajorMatrix::new(rows.into_iter().flatten().collect(), NUM_BATCH_FRI_PREPROCESSED_COLS)
-    // }
+        RowMajorMatrix::new(rows.into_iter().flatten().collect(), NUM_BATCH_FRI_PREPROCESSED_COLS)
+    }
 
-    // #[test]
-    // fn generate_preprocessed_trace() {
-    //     type F = BabyBear;
+    #[test]
+    fn generate_preprocessed_trace() {
+        type F = BabyBear;
 
-    //     let program = RecursionProgram::<F> {
-    //         instructions: test_fixtures::sample_batch_fri_instructions(),
-    //         ..Default::default()
-    //     };
-    //     let trace = BatchFRIChip::<DEGREE>.generate_preprocessed_trace(&program).unwrap();
+        let program = RecursionProgram::<F> {
+            instructions: test_fixtures::sample_batch_fri_instructions(),
+            ..Default::default()
+        };
+        let trace = BatchFRIChip::<DEGREE>.generate_preprocessed_trace(&program).unwrap();
 
-    //     assert_eq!(trace, generate_preprocessed_trace_ffi::<DEGREE>(&program));
-    // }
+        assert_eq!(trace, generate_preprocessed_trace_ffi::<DEGREE>(&program));
+    }
 }

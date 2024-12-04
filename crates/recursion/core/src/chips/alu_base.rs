@@ -1,3 +1,4 @@
+use crate::{builder::SP1RecursionAirBuilder, *};
 use core::borrow::Borrow;
 use p3_air::{Air, AirBuilder, BaseAir, PairBuilder};
 use p3_field::{Field, PrimeField32};
@@ -7,8 +8,6 @@ use sp1_core_machine::utils::next_power_of_two;
 use sp1_derive::AlignedBorrow;
 use sp1_stark::air::MachineAir;
 use std::{borrow::BorrowMut, iter::zip};
-
-use crate::{builder::SP1RecursionAirBuilder, *};
 
 pub const NUM_BASE_ALU_ENTRIES_PER_ROW: usize = 4;
 
