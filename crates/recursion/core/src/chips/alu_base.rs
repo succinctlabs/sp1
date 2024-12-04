@@ -72,23 +72,18 @@ impl<F: PrimeField32> MachineAir<F> for BaseAluChip {
         NUM_BASE_ALU_PREPROCESSED_COLS
     }
 
-    fn generate_preprocessed_trace(&self, program: &Self::Program) -> Option<RowMajorMatrix<F>> {
-        // Allocating an intermediate `Vec` is faster.
-        let instrs = program
-            .instructions
-            .iter() // Faster than using `rayon` for some reason. Maybe vectorization?
-            .filter_map(|instruction| match instruction {
-                Instruction::BaseAlu(x) => Some(x),
-                _ => None,
-            })
-            .collect::<Vec<_>>();
-
-        let nb_rows = instrs.len().div_ceil(NUM_BASE_ALU_ENTRIES_PER_ROW);
+    fn preprocessed_num_rows(&self, program: &Self::Program, instrs_len: usize) -> Option<usize> {
+        let nb_rows = instrs_len.div_ceil(NUM_BASE_ALU_ENTRIES_PER_ROW);
         let fixed_log2_rows = program.fixed_log2_rows(self);
-        let padded_nb_rows = match fixed_log2_rows {
+        Some(match fixed_log2_rows {
             Some(log2_rows) => 1 << log2_rows,
             None => next_power_of_two(nb_rows, None),
-        };
+        })
+    }
+
+    fn generate_preprocessed_trace(&self, program: &Self::Program) -> Option<RowMajorMatrix<F>> {
+        let instrs = extract_base_alu_instrs(program);
+        let padded_nb_rows = self.preprocessed_num_rows(program, instrs.len()).unwrap();
         let mut values = vec![F::zero(); padded_nb_rows * NUM_BASE_ALU_PREPROCESSED_COLS];
 
         // Generate the trace rows & corresponding records for each chunk of events in parallel.
@@ -123,14 +118,18 @@ impl<F: PrimeField32> MachineAir<F> for BaseAluChip {
         // This is a no-op.
     }
 
-    fn generate_trace(&self, input: &Self::Record, _: &mut Self::Record) -> RowMajorMatrix<F> {
-        let events = &input.base_alu_events;
-        let nb_rows = events.len().div_ceil(NUM_BASE_ALU_ENTRIES_PER_ROW);
+    fn num_rows(&self, input: &Self::Record, events_len: usize) -> usize {
+        let nb_rows = events_len.div_ceil(NUM_BASE_ALU_ENTRIES_PER_ROW);
         let fixed_log2_rows = input.fixed_log2_rows(self);
-        let padded_nb_rows = match fixed_log2_rows {
+        match fixed_log2_rows {
             Some(log2_rows) => 1 << log2_rows,
             None => next_power_of_two(nb_rows, None),
-        };
+        }
+    }
+
+    fn generate_trace(&self, input: &Self::Record, _: &mut Self::Record) -> RowMajorMatrix<F> {
+        let events = &input.base_alu_events;
+        let padded_nb_rows = self.num_rows(input, events.len());
         let mut values = vec![F::zero(); padded_nb_rows * NUM_BASE_ALU_COLS];
 
         // Generate the trace rows & corresponding records for each chunk of events in parallel.
@@ -191,30 +190,141 @@ where
 }
 
 #[cfg(test)]
+pub mod test_fixtures {
+    use super::*;
+    use p3_baby_bear::BabyBear;
+    use p3_field::AbstractField;
+    use rand::{rngs::StdRng, Rng, SeedableRng};
+
+    const SEED: u64 = 12345;
+    const NUM_TEST_CASES: usize = 10000;
+
+    pub fn sample_base_alu_events() -> Vec<BaseAluIo<BabyBear>> {
+        let mut rng = StdRng::seed_from_u64(SEED);
+        let mut events = Vec::with_capacity(NUM_TEST_CASES);
+
+        for _ in 0..NUM_TEST_CASES {
+            let in1 = BabyBear::from_wrapped_u32(rng.gen());
+            let in2 = BabyBear::from_wrapped_u32(rng.gen());
+            let out = match rng.gen_range(0..4) {
+                0 => in1 + in2, // Add
+                1 => in1 - in2, // Sub
+                2 => in1 * in2, // Mul
+                _ => {
+                    // Div (ensure in2 != 0)
+                    let in2 = if in2.is_zero() { BabyBear::one() } else { in2 };
+                    in1 / in2
+                }
+            };
+
+            events.push(BaseAluIo { out, in1, in2 });
+        }
+        events
+    }
+
+    pub fn sample_base_alu_instructions() -> Vec<Instruction<BabyBear>> {
+        let mut rng = StdRng::seed_from_u64(SEED);
+        let mut instructions = Vec::with_capacity(NUM_TEST_CASES);
+
+        for _ in 0..NUM_TEST_CASES {
+            let opcode = match rng.gen_range(0..4) {
+                0 => BaseAluOpcode::AddF,
+                1 => BaseAluOpcode::SubF,
+                2 => BaseAluOpcode::MulF,
+                _ => BaseAluOpcode::DivF,
+            };
+
+            let addr_out = Address(BabyBear::from_wrapped_u32(rng.gen()));
+            let addr_in1 = Address(BabyBear::from_wrapped_u32(rng.gen()));
+            let addr_in2 = Address(BabyBear::from_wrapped_u32(rng.gen()));
+            let mult = BabyBear::from_wrapped_u32(rng.gen());
+
+            instructions.push(Instruction::BaseAlu(BaseAluInstr {
+                opcode,
+                mult,
+                addrs: BaseAluIo { out: addr_out, in1: addr_in1, in2: addr_in2 },
+            }));
+        }
+        instructions
+    }
+}
+
+#[cfg(test)]
 mod tests {
+    use crate::runtime::instruction as instr;
     use machine::tests::run_recursion_test_machines;
     use p3_baby_bear::BabyBear;
     use p3_field::AbstractField;
     use p3_matrix::dense::RowMajorMatrix;
-
     use rand::{rngs::StdRng, Rng, SeedableRng};
     use sp1_stark::{baby_bear_poseidon2::BabyBearPoseidon2, StarkGenericConfig};
 
     use super::*;
 
-    use crate::runtime::instruction as instr;
+    fn generate_trace_ffi(
+        input: &ExecutionRecord<BabyBear>,
+        _: &mut ExecutionRecord<BabyBear>,
+    ) -> RowMajorMatrix<BabyBear> {
+        let events = &input.base_alu_events;
+        let padded_nb_rows = BaseAluChip.num_rows(input, events.len());
+        let mut values = vec![BabyBear::zero(); padded_nb_rows * NUM_BASE_ALU_COLS];
+
+        let populate_len = events.len() * NUM_BASE_ALU_VALUE_COLS;
+        values[..populate_len].par_chunks_mut(NUM_BASE_ALU_VALUE_COLS).zip_eq(events).for_each(
+            |(row, &vals)| {
+                let cols: &mut BaseAluValueCols<_> = row.borrow_mut();
+                unsafe {
+                    crate::sys::alu_base_event_to_row_babybear(&vals, cols);
+                }
+            },
+        );
+
+        RowMajorMatrix::new(values, NUM_BASE_ALU_COLS)
+    }
 
     #[test]
     fn generate_trace() {
-        type F = BabyBear;
-
         let shard = ExecutionRecord {
-            base_alu_events: vec![BaseAluIo { out: F::one(), in1: F::one(), in2: F::one() }],
+            base_alu_events: test_fixtures::sample_base_alu_events(),
             ..Default::default()
         };
-        let chip = BaseAluChip;
-        let trace: RowMajorMatrix<F> = chip.generate_trace(&shard, &mut ExecutionRecord::default());
-        println!("{:?}", trace.values)
+        let mut execution_record = ExecutionRecord::<BabyBear>::default();
+        let trace = BaseAluChip.generate_trace(&shard, &mut execution_record);
+
+        assert_eq!(trace, generate_trace_ffi(&shard, &mut execution_record));
+    }
+
+    fn generate_preprocessed_trace_ffi(
+        program: &RecursionProgram<BabyBear>,
+    ) -> RowMajorMatrix<BabyBear> {
+        type F = BabyBear;
+
+        let instrs = extract_base_alu_instrs(program);
+        let padded_nb_rows = BaseAluChip.preprocessed_num_rows(program, instrs.len()).unwrap();
+        let mut values = vec![F::zero(); padded_nb_rows * NUM_BASE_ALU_PREPROCESSED_COLS];
+
+        let populate_len = instrs.len() * NUM_BASE_ALU_ACCESS_COLS;
+        values[..populate_len].par_chunks_mut(NUM_BASE_ALU_ACCESS_COLS).zip_eq(instrs).for_each(
+            |(row, instr)| {
+                let access: &mut BaseAluAccessCols<_> = row.borrow_mut();
+                unsafe {
+                    crate::sys::alu_base_instr_to_row_babybear(instr, access);
+                }
+            },
+        );
+
+        RowMajorMatrix::new(values, NUM_BASE_ALU_PREPROCESSED_COLS)
+    }
+
+    #[test]
+    fn generate_preprocessed_trace() {
+        let program = RecursionProgram {
+            instructions: test_fixtures::sample_base_alu_instructions(),
+            ..Default::default()
+        };
+        let trace = BaseAluChip.generate_preprocessed_trace(&program).unwrap();
+
+        assert_eq!(trace, generate_preprocessed_trace_ffi(&program));
     }
 
     #[test]
@@ -252,147 +362,5 @@ mod tests {
         let program = RecursionProgram { instructions, ..Default::default() };
 
         run_recursion_test_machines(program);
-    }
-
-    #[cfg(feature = "sys")]
-    #[test]
-    fn test_generate_trace_ffi_eq_rust() {
-        type F = BabyBear;
-
-        let shard = ExecutionRecord {
-            base_alu_events: vec![BaseAluIo { out: F::one(), in1: F::one(), in2: F::one() }],
-            ..Default::default()
-        };
-
-        let chip = BaseAluChip;
-        let trace: RowMajorMatrix<F> = chip.generate_trace(&shard, &mut ExecutionRecord::default());
-        let trace_ffi = generate_trace_ffi(&shard);
-
-        assert_eq!(trace_ffi, trace);
-    }
-
-    #[cfg(feature = "sys")]
-    fn generate_trace_ffi(input: &ExecutionRecord<BabyBear>) -> RowMajorMatrix<BabyBear> {
-        type F = BabyBear;
-
-        let events = &input.base_alu_events;
-        let nb_rows = events.len().div_ceil(NUM_BASE_ALU_ENTRIES_PER_ROW);
-        let fixed_log2_rows = input.fixed_log2_rows(&BaseAluChip);
-        let padded_nb_rows = match fixed_log2_rows {
-            Some(log2_rows) => 1 << log2_rows,
-            None => next_power_of_two(nb_rows, None),
-        };
-        let mut values = vec![F::zero(); padded_nb_rows * NUM_BASE_ALU_COLS];
-
-        let chunk_size = std::cmp::max(events.len() / num_cpus::get(), 1);
-        let populate_len = events.len() * NUM_BASE_ALU_VALUE_COLS;
-
-        values[..populate_len]
-            .par_chunks_mut(chunk_size * NUM_BASE_ALU_VALUE_COLS)
-            .enumerate()
-            .for_each(|(i, rows)| {
-                rows.chunks_mut(NUM_BASE_ALU_VALUE_COLS).enumerate().for_each(|(j, row)| {
-                    let idx = i * chunk_size + j;
-                    if idx < events.len() {
-                        let cols: &mut BaseAluValueCols<_> = row.borrow_mut();
-                        unsafe {
-                            crate::sys::alu_base_event_to_row_babybear(&events[idx], cols);
-                        }
-                    }
-                });
-            });
-
-        RowMajorMatrix::new(values, NUM_BASE_ALU_COLS)
-    }
-
-    #[test]
-    fn generate_preprocessed_trace() {
-        type F = BabyBear;
-
-        let program = RecursionProgram {
-            instructions: vec![Instruction::BaseAlu(BaseAluInstr {
-                opcode: BaseAluOpcode::AddF,
-                mult: F::one(),
-                addrs: BaseAluIo {
-                    out: Address(F::zero()),
-                    in1: Address(F::one()),
-                    in2: Address(F::two()),
-                },
-            })],
-            ..Default::default()
-        };
-
-        let chip = BaseAluChip;
-        let trace = chip.generate_preprocessed_trace(&program).unwrap();
-        println!("{:?}", trace.values);
-    }
-
-    #[cfg(feature = "sys")]
-    #[test]
-    fn test_generate_preprocessed_trace_ffi_eq_rust() {
-        type F = BabyBear;
-
-        let program = RecursionProgram {
-            instructions: vec![Instruction::BaseAlu(BaseAluInstr {
-                opcode: BaseAluOpcode::AddF,
-                mult: F::one(),
-                addrs: BaseAluIo {
-                    out: Address(F::zero()),
-                    in1: Address(F::one()),
-                    in2: Address(F::two()),
-                },
-            })],
-            ..Default::default()
-        };
-
-        let chip = BaseAluChip;
-        let trace = chip.generate_preprocessed_trace(&program).unwrap();
-        let trace_ffi = generate_preprocessed_trace_ffi(&program);
-
-        assert_eq!(trace_ffi, trace);
-    }
-
-    #[cfg(feature = "sys")]
-    fn generate_preprocessed_trace_ffi(
-        program: &RecursionProgram<BabyBear>,
-    ) -> RowMajorMatrix<BabyBear> {
-        type F = BabyBear;
-
-        let instrs = program
-            .instructions
-            .iter()
-            .filter_map(|instruction| match instruction {
-                Instruction::BaseAlu(x) => Some(x),
-                _ => None,
-            })
-            .collect::<Vec<_>>();
-
-        let nb_rows = instrs.len().div_ceil(NUM_BASE_ALU_ENTRIES_PER_ROW);
-        let fixed_log2_rows = program.fixed_log2_rows(&BaseAluChip);
-        let padded_nb_rows = match fixed_log2_rows {
-            Some(log2_rows) => 1 << log2_rows,
-            None => next_power_of_two(nb_rows, None),
-        };
-        let mut values = vec![F::zero(); padded_nb_rows * NUM_BASE_ALU_PREPROCESSED_COLS];
-
-        let chunk_size = std::cmp::max(instrs.len() / num_cpus::get(), 1);
-        let populate_len = instrs.len() * NUM_BASE_ALU_ACCESS_COLS;
-
-        values[..populate_len]
-            .par_chunks_mut(chunk_size * NUM_BASE_ALU_ACCESS_COLS)
-            .enumerate()
-            .for_each(|(i, rows)| {
-                rows.chunks_mut(NUM_BASE_ALU_ACCESS_COLS).enumerate().for_each(|(j, row)| {
-                    let idx = i * chunk_size + j;
-                    if idx < instrs.len() {
-                        let access: &mut BaseAluAccessCols<_> = row.borrow_mut();
-                        unsafe {
-                            crate::sys::alu_base_instr_to_row_babybear(instrs[idx], access);
-                        }
-                    }
-                });
-            });
-
-        RowMajorMatrix::new(values, NUM_BASE_ALU_PREPROCESSED_COLS)
     }
 }

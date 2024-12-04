@@ -8,7 +8,7 @@ mod record;
 use backtrace::Backtrace as Trace;
 use hashbrown::HashMap;
 use instruction::HintAddCurveInstr;
-pub use instruction::Instruction;
+pub use instruction::{extractors::*, Instruction};
 use instruction::{FieldEltType, HintBitsInstr, HintExt2FeltsInstr, HintInstr, PrintInstr};
 use itertools::Itertools;
 use machine::RecursionAirEventCount;

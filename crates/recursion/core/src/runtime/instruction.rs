@@ -1,9 +1,7 @@
-use std::borrow::Borrow;
-
+use crate::*;
 use p3_field::{AbstractExtensionField, AbstractField};
 use serde::{Deserialize, Serialize};
-
-use crate::*;
+use std::borrow::Borrow;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Instruction<F> {
@@ -21,6 +19,28 @@ pub enum Instruction<F> {
     HintExt2Felts(HintExt2FeltsInstr<F>),
     CommitPublicValues(Box<CommitPublicValuesInstr<F>>),
     Hint(HintInstr<F>),
+}
+
+pub mod extractors {
+    use super::*;
+
+    macro_rules! create_extractor {
+        ($name:ident, $variant:ident, $type:ty) => {
+            pub fn $name<F>(program: &RecursionProgram<F>) -> Vec<&$type> {
+                program
+                    .instructions
+                    .iter()
+                    .filter_map(|instruction| match instruction {
+                        Instruction::$variant(x) => Some(x),
+                        _ => None,
+                    })
+                    .collect::<Vec<_>>()
+            }
+        };
+    }
+
+    create_extractor!(extract_base_alu_instrs, BaseAlu, BaseAluInstr<F>);
+    create_extractor!(extract_ext_alu_instrs, ExtAlu, ExtAluInstr<F>);
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
