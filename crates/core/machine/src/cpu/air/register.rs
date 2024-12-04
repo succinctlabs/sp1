@@ -47,9 +47,10 @@ impl CpuChip {
         // Write the `a` or the result to the first register described in the instruction unless
         // we are performing a branch or a store.  Note that for syscall instructions, we will eval
         // the memory access for op_a in the syscall instructions chip.  The reason we do that is
-        // to eval syscall instructions, op_a prev value is needed.  That value is not needed for all
-        // other instructions' eval, and it will be wasteful to put that column in all other instruction
-        // chips.
+        // to eval syscall instructions, op_a prev value is needed, specifically to get the syscall_id.
+        // Sending op_a prev value via an interaction is wasteful, since it would require that all
+        // receviers of the interaction to witness the value.  It will be wasteful to put that column
+        // in all other instruction chips.
         builder.eval_memory_access(
             local.shard,
             clk + AB::F::from_canonical_u32(MemoryAccessPosition::A as u32),

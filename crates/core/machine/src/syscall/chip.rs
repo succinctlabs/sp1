@@ -105,6 +105,7 @@ impl<F: PrimeField32> MachineAir<F> for SyscallChip {
             }
         };
 
+        // Only include syscalls that are actually sent (e.g. precompile syscalls).
         for event in event_iter.filter(|event| event.syscall_code.should_send() == 1) {
             let row = row_fn(event);
             rows.push(row);
