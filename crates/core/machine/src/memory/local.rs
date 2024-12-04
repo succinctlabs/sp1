@@ -73,6 +73,14 @@ impl<F> BaseAir<F> for MemoryLocalChip {
     }
 }
 
+fn nb_rows(count: usize) -> usize {
+    if NUM_LOCAL_MEMORY_ENTRIES_PER_ROW > 1 {
+        (count + (NUM_LOCAL_MEMORY_ENTRIES_PER_ROW - 1)) / NUM_LOCAL_MEMORY_ENTRIES_PER_ROW
+    } else {
+        count
+    }
+}
+
 impl<F: PrimeField32> MachineAir<F> for MemoryLocalChip {
     type Record = ExecutionRecord;
 
@@ -82,7 +90,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryLocalChip {
         "MemoryLocal".to_string()
     }
 
-    fn generate_dependencies(&self, input: &ExecutionRecord, output: &mut ExecutionRecord) {
+    fn generate_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
         let mut events = Vec::new();
         println!("local mem events: {}", input.get_local_mem_events().count());
 
@@ -116,21 +124,22 @@ impl<F: PrimeField32> MachineAir<F> for MemoryLocalChip {
         output.global_interaction_events.extend(events);
     }
 
+    fn num_rows(&self, input: &Self::Record) -> usize {
+        let count = input.get_local_mem_events().count();
+        let nb_rows = nb_rows(count);
+        let size_log2 = input.fixed_log2_rows::<F, _>(self);
+        next_power_of_two(nb_rows, size_log2)
+    }
+
     fn generate_trace(
         &self,
-        input: &ExecutionRecord,
-        _output: &mut ExecutionRecord,
+        input: &Self::Record,
+        _output: &mut Self::Record,
     ) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
         let events = input.get_local_mem_events().collect::<Vec<_>>();
-        let nb_rows = if NUM_LOCAL_MEMORY_ENTRIES_PER_ROW > 1 {
-            (events.len() + (NUM_LOCAL_MEMORY_ENTRIES_PER_ROW - 1))
-                / NUM_LOCAL_MEMORY_ENTRIES_PER_ROW
-        } else {
-            events.len()
-        };
-        let size_log2 = input.fixed_log2_rows::<F, _>(self);
-        let padded_nb_rows = next_power_of_two(nb_rows, size_log2);
+        let nb_rows = nb_rows(events.len());
+        let padded_nb_rows = <MemoryLocalChip as MachineAir<F>>::num_rows(self, input);
         let mut values = zeroed_f_vec(padded_nb_rows * NUM_MEMORY_LOCAL_INIT_COLS);
         let chunk_size = std::cmp::max(nb_rows / num_cpus::get(), 0) + 1;
 

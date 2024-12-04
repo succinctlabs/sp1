@@ -118,8 +118,8 @@ impl<F: PrimeField32> MachineAir<F> for BaseAluChip {
         // This is a no-op.
     }
 
-    fn num_rows(&self, input: &Self::Record, events_len: usize) -> usize {
-        let nb_rows = events_len.div_ceil(NUM_BASE_ALU_ENTRIES_PER_ROW);
+    fn num_rows(&self, input: &Self::Record) -> usize {
+        let nb_rows = input.base_alu_events.len().div_ceil(NUM_BASE_ALU_ENTRIES_PER_ROW);
         let fixed_log2_rows = input.fixed_log2_rows(self);
         match fixed_log2_rows {
             Some(log2_rows) => 1 << log2_rows,
@@ -129,7 +129,7 @@ impl<F: PrimeField32> MachineAir<F> for BaseAluChip {
 
     fn generate_trace(&self, input: &Self::Record, _: &mut Self::Record) -> RowMajorMatrix<F> {
         let events = &input.base_alu_events;
-        let padded_nb_rows = self.num_rows(input, events.len());
+        let padded_nb_rows = self.num_rows(input);
         let mut values = vec![F::zero(); padded_nb_rows * NUM_BASE_ALU_COLS];
 
         // Generate the trace rows & corresponding records for each chunk of events in parallel.
@@ -211,7 +211,6 @@ pub mod test_fixtures {
                 1 => in1 - in2, // Sub
                 2 => in1 * in2, // Mul
                 _ => {
-                    // Div (ensure in2 != 0)
                     let in2 = if in2.is_zero() { BabyBear::one() } else { in2 };
                     in1 / in2
                 }
@@ -266,7 +265,7 @@ mod tests {
         _: &mut ExecutionRecord<BabyBear>,
     ) -> RowMajorMatrix<BabyBear> {
         let events = &input.base_alu_events;
-        let padded_nb_rows = BaseAluChip.num_rows(input, events.len());
+        let padded_nb_rows = BaseAluChip.num_rows(input);
         let mut values = vec![BabyBear::zero(); padded_nb_rows * NUM_BASE_ALU_COLS];
 
         let populate_len = events.len() * NUM_BASE_ALU_VALUE_COLS;
