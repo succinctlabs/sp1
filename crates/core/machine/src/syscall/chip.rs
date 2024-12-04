@@ -98,7 +98,12 @@ impl<F: PrimeField32> MachineAir<F> for SyscallChip {
 
     fn generate_dependencies(&self, input: &ExecutionRecord, output: &mut ExecutionRecord) {
         let events = match self.shard_kind {
-            SyscallShardKind::Core => &input.syscall_events,
+            SyscallShardKind::Core => &input
+                .syscall_events
+                .iter()
+                .filter(|e| e.syscall_code.should_send() == 1)
+                .copied()
+                .collect::<Vec<_>>(),
             SyscallShardKind::Precompile => &input
                 .precompile_events
                 .all_events()
@@ -221,7 +226,15 @@ impl<F: PrimeField32> MachineAir<F> for SyscallChip {
             shape.included::<F, _>(self)
         } else {
             match self.shard_kind {
-                SyscallShardKind::Core => !shard.syscall_events.is_empty(),
+                SyscallShardKind::Core => {
+                    shard
+                        .syscall_events
+                        .iter()
+                        .filter(|e| e.syscall_code.should_send() == 1)
+                        .take(1)
+                        .count()
+                        > 0
+                }
                 SyscallShardKind::Precompile => {
                     !shard.precompile_events.is_empty()
                         && shard.cpu_events.is_empty()
