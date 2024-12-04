@@ -70,24 +70,19 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for ExtAluChip {
         NUM_EXT_ALU_PREPROCESSED_COLS
     }
 
-    fn generate_preprocessed_trace(&self, program: &Self::Program) -> Option<RowMajorMatrix<F>> {
-        // Allocating an intermediate `Vec` is faster.
-        let instrs = program
-            .instructions
-            .iter() // Faster than using `rayon` for some reason. Maybe vectorization?
-            .filter_map(|instruction| match instruction {
-                Instruction::ExtAlu(x) => Some(x),
-                _ => None,
-            })
-            .collect::<Vec<_>>();
-
-        let nb_rows = instrs.len().div_ceil(NUM_EXT_ALU_ENTRIES_PER_ROW);
+    fn preprocessed_num_rows(&self, program: &Self::Program, instrs_len: usize) -> Option<usize> {
+        let nb_rows = instrs_len.div_ceil(NUM_EXT_ALU_ENTRIES_PER_ROW);
         let fixed_log2_rows = program.fixed_log2_rows(self);
-        let padded_nb_rows = match fixed_log2_rows {
+        Some(match fixed_log2_rows {
             Some(log2_rows) => 1 << log2_rows,
             None => next_power_of_two(nb_rows, None),
-        };
-        let mut values = vec![F::zero(); padded_nb_rows * NUM_EXT_ALU_PREPROCESSED_COLS];
+        })
+    }
+
+    fn generate_preprocessed_trace(&self, program: &Self::Program) -> Option<RowMajorMatrix<F>> {
+        let instrs = extract_ext_alu_instrs(program);
+        let padded_nb_rows = self.preprocessed_num_rows(program, instrs.len()).unwrap();
+        let mut values = vec![F::zero(); padded_nb_rows * self.preprocessed_width()];
 
         // Generate the trace rows & corresponding records for each chunk of events in parallel.
         let populate_len = instrs.len() * NUM_EXT_ALU_ACCESS_COLS;
@@ -114,22 +109,27 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for ExtAluChip {
         );
 
         // Convert the trace to a row major matrix.
-        Some(RowMajorMatrix::new(values, NUM_EXT_ALU_PREPROCESSED_COLS))
+        Some(RowMajorMatrix::new(values, self.preprocessed_width()))
     }
 
     fn generate_dependencies(&self, _: &Self::Record, _: &mut Self::Record) {
         // This is a no-op.
     }
 
-    fn generate_trace(&self, input: &Self::Record, _: &mut Self::Record) -> RowMajorMatrix<F> {
+    fn num_rows(&self, input: &Self::Record) -> usize {
         let events = &input.ext_alu_events;
         let nb_rows = events.len().div_ceil(NUM_EXT_ALU_ENTRIES_PER_ROW);
         let fixed_log2_rows = input.fixed_log2_rows(self);
-        let padded_nb_rows = match fixed_log2_rows {
+        match fixed_log2_rows {
             Some(log2_rows) => 1 << log2_rows,
             None => next_power_of_two(nb_rows, None),
-        };
-        let mut values = vec![F::zero(); padded_nb_rows * NUM_EXT_ALU_COLS];
+        }
+    }
+
+    fn generate_trace(&self, input: &Self::Record, _: &mut Self::Record) -> RowMajorMatrix<F> {
+        let events = &input.ext_alu_events;
+        let padded_nb_rows = self.num_rows(input);
+        let mut values = vec![F::zero(); padded_nb_rows * self.width()];
 
         // Generate the trace rows & corresponding records for each chunk of events in parallel.
         let populate_len = events.len() * NUM_EXT_ALU_VALUE_COLS;
@@ -141,7 +141,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for ExtAluChip {
         );
 
         // Convert the trace to a row major matrix.
-        RowMajorMatrix::new(values, NUM_EXT_ALU_COLS)
+        RowMajorMatrix::new(values, self.width())
     }
 
     fn included(&self, _record: &Self::Record) -> bool {
@@ -195,35 +195,160 @@ where
 }
 
 #[cfg(test)]
+pub mod test_fixtures {
+    use super::*;
+    use p3_baby_bear::BabyBear;
+    use p3_field::{extension::BinomialExtensionField, AbstractField};
+    use rand::{rngs::StdRng, Rng, SeedableRng};
+
+    const SEED: u64 = 12345;
+    const NUM_TEST_CASES: usize = 10000;
+
+    pub fn sample_ext_alu_events() -> Vec<ExtAluIo<Block<BabyBear>>> {
+        let mut rng = StdRng::seed_from_u64(SEED);
+        let mut events = Vec::with_capacity(NUM_TEST_CASES);
+
+        for _ in 0..NUM_TEST_CASES {
+            // Generate random extension field elements by creating arrays of base field elements
+            let in1: [BabyBear; 4] =
+                core::array::from_fn(|_| BabyBear::from_wrapped_u32(rng.gen()));
+            let in2: [BabyBear; 4] =
+                core::array::from_fn(|_| BabyBear::from_wrapped_u32(rng.gen()));
+            let in1_ext = BinomialExtensionField::<BabyBear, D>::from_base_slice(&in1);
+            let in2_ext = BinomialExtensionField::<BabyBear, D>::from_base_slice(&in2);
+
+            let out_ext = match rng.gen_range(0..4) {
+                0 => in1_ext + in2_ext, // AddE
+                1 => in1_ext - in2_ext, // SubE
+                2 => in1_ext * in2_ext, // MulE
+                _ => {
+                    let in2_ext = if in2_ext.is_zero() {
+                        BinomialExtensionField::<BabyBear, D>::one()
+                    } else {
+                        in2_ext
+                    };
+                    in1_ext / in2_ext
+                }
+            };
+
+            events.push(ExtAluIo {
+                out: Block::from(out_ext),
+                in1: Block::from(in1_ext),
+                in2: Block::from(in2_ext),
+            });
+        }
+        events
+    }
+
+    pub fn sample_ext_alu_instructions() -> Vec<Instruction<BabyBear>> {
+        let mut rng = StdRng::seed_from_u64(SEED);
+        let mut instructions = Vec::with_capacity(NUM_TEST_CASES);
+
+        for _ in 0..NUM_TEST_CASES {
+            let opcode = match rng.gen_range(0..4) {
+                0 => ExtAluOpcode::AddE,
+                1 => ExtAluOpcode::SubE,
+                2 => ExtAluOpcode::MulE,
+                _ => ExtAluOpcode::DivE,
+            };
+
+            let addr_out = Address(BabyBear::from_wrapped_u32(rng.gen()));
+            let addr_in1 = Address(BabyBear::from_wrapped_u32(rng.gen()));
+            let addr_in2 = Address(BabyBear::from_wrapped_u32(rng.gen()));
+            let mult = BabyBear::from_wrapped_u32(rng.gen());
+
+            instructions.push(Instruction::ExtAlu(ExtAluInstr {
+                opcode,
+                mult,
+                addrs: ExtAluIo { out: addr_out, in1: addr_in1, in2: addr_in2 },
+            }));
+        }
+        instructions
+    }
+}
+
+#[cfg(test)]
 mod tests {
+    use crate::runtime::instruction as instr;
     use machine::tests::run_recursion_test_machines;
     use p3_baby_bear::BabyBear;
     use p3_field::{extension::BinomialExtensionField, AbstractExtensionField, AbstractField};
     use p3_matrix::dense::RowMajorMatrix;
-
     use rand::{rngs::StdRng, Rng, SeedableRng};
     use sp1_stark::StarkGenericConfig;
     use stark::BabyBearPoseidon2Outer;
 
     use super::*;
 
-    use crate::runtime::instruction as instr;
+    fn generate_trace_ffi(
+        input: &ExecutionRecord<BabyBear>,
+        _: &mut ExecutionRecord<BabyBear>,
+    ) -> RowMajorMatrix<BabyBear> {
+        let events = &input.ext_alu_events;
+        let padded_nb_rows = ExtAluChip.num_rows(input);
+        let mut values = vec![BabyBear::zero(); padded_nb_rows * ExtAluChip.width()];
+
+        let populate_len = events.len() * NUM_EXT_ALU_VALUE_COLS;
+        values[..populate_len].par_chunks_mut(NUM_EXT_ALU_VALUE_COLS).zip_eq(events).for_each(
+            |(row, &vals)| {
+                let cols: &mut ExtAluValueCols<_> = row.borrow_mut();
+                unsafe {
+                    crate::sys::alu_ext_event_to_row_babybear(&vals, cols);
+                }
+            },
+        );
+
+        RowMajorMatrix::new(values, ExtAluChip.width())
+    }
 
     #[test]
     fn generate_trace() {
         type F = BabyBear;
 
         let shard = ExecutionRecord {
-            ext_alu_events: vec![ExtAluIo {
-                out: F::one().into(),
-                in1: F::one().into(),
-                in2: F::one().into(),
-            }],
+            ext_alu_events: test_fixtures::sample_ext_alu_events(),
             ..Default::default()
         };
-        let chip = ExtAluChip;
-        let trace: RowMajorMatrix<F> = chip.generate_trace(&shard, &mut ExecutionRecord::default());
-        println!("{:?}", trace.values)
+        let mut execution_record = ExecutionRecord::<BabyBear>::default();
+        let trace: RowMajorMatrix<F> =
+            ExtAluChip.generate_trace(&shard, &mut ExecutionRecord::default());
+
+        assert_eq!(trace, generate_trace_ffi(&shard, &mut execution_record));
+    }
+
+    fn generate_preprocessed_trace_ffi(
+        program: &RecursionProgram<BabyBear>,
+    ) -> RowMajorMatrix<BabyBear> {
+        type F = BabyBear;
+
+        let instrs = extract_ext_alu_instrs(program);
+        let padded_nb_rows = ExtAluChip.preprocessed_num_rows(program, instrs.len()).unwrap();
+        let mut values = vec![F::zero(); padded_nb_rows * ExtAluChip.preprocessed_width()];
+
+        let populate_len = instrs.len() * NUM_EXT_ALU_ACCESS_COLS;
+        values[..populate_len].par_chunks_mut(NUM_EXT_ALU_ACCESS_COLS).zip_eq(instrs).for_each(
+            |(row, instr)| {
+                let access: &mut ExtAluAccessCols<_> = row.borrow_mut();
+                unsafe {
+                    crate::sys::alu_ext_instr_to_row_babybear(instr, access);
+                }
+            },
+        );
+
+        RowMajorMatrix::new(values, ExtAluChip.preprocessed_width())
+    }
+
+    #[test]
+    fn generate_preprocessed_trace() {
+        type F = BabyBear;
+
+        let program = RecursionProgram {
+            instructions: test_fixtures::sample_ext_alu_instructions(),
+            ..Default::default()
+        };
+        let trace = ExtAluChip.generate_preprocessed_trace(&program).unwrap();
+
+        assert_eq!(trace, generate_preprocessed_trace_ffi(&program));
     }
 
     #[test]
@@ -264,150 +389,5 @@ mod tests {
         let program = RecursionProgram { instructions, ..Default::default() };
 
         run_recursion_test_machines(program);
-    }
-
-    #[cfg(feature = "sys")]
-    #[test]
-    fn test_generate_trace_ffi_eq_rust() {
-        type F = BabyBear;
-
-        let shard = ExecutionRecord {
-            ext_alu_events: vec![ExtAluIo {
-                out: F::one().into(),
-                in1: F::one().into(),
-                in2: F::one().into(),
-            }],
-            ..Default::default()
-        };
-
-        let chip = ExtAluChip;
-        let trace: RowMajorMatrix<F> = chip.generate_trace(&shard, &mut ExecutionRecord::default());
-        let trace_ffi = generate_trace_ffi(&shard);
-
-        assert_eq!(trace_ffi, trace);
-    }
-
-    #[cfg(feature = "sys")]
-    fn generate_trace_ffi(input: &ExecutionRecord<BabyBear>) -> RowMajorMatrix<BabyBear> {
-        type F = BabyBear;
-
-        let events = &input.ext_alu_events;
-        let nb_rows = events.len().div_ceil(NUM_EXT_ALU_ENTRIES_PER_ROW);
-        let fixed_log2_rows = input.fixed_log2_rows(&ExtAluChip);
-        let padded_nb_rows = match fixed_log2_rows {
-            Some(log2_rows) => 1 << log2_rows,
-            None => next_power_of_two(nb_rows, None),
-        };
-        let mut values = vec![F::zero(); padded_nb_rows * NUM_EXT_ALU_COLS];
-
-        let chunk_size = std::cmp::max(events.len() / num_cpus::get(), 1);
-        let populate_len = events.len() * NUM_EXT_ALU_VALUE_COLS;
-
-        values[..populate_len]
-            .par_chunks_mut(chunk_size * NUM_EXT_ALU_VALUE_COLS)
-            .enumerate()
-            .for_each(|(i, rows)| {
-                rows.chunks_mut(NUM_EXT_ALU_VALUE_COLS).enumerate().for_each(|(j, row)| {
-                    let idx = i * chunk_size + j;
-                    if idx < events.len() {
-                        let cols: &mut ExtAluValueCols<_> = row.borrow_mut();
-                        unsafe {
-                            crate::sys::alu_ext_event_to_row_babybear(&events[idx], cols);
-                        }
-                    }
-                });
-            });
-
-        RowMajorMatrix::new(values, NUM_EXT_ALU_COLS)
-    }
-
-    #[test]
-    fn generate_preprocessed_trace() {
-        type F = BabyBear;
-
-        let program = RecursionProgram {
-            instructions: vec![Instruction::ExtAlu(ExtAluInstr {
-                opcode: ExtAluOpcode::AddE,
-                mult: F::one(),
-                addrs: ExtAluIo {
-                    out: Address(F::zero()),
-                    in1: Address(F::one()),
-                    in2: Address(F::two()),
-                },
-            })],
-            ..Default::default()
-        };
-        let chip = ExtAluChip;
-        let trace = chip.generate_preprocessed_trace(&program).unwrap();
-        println!("{:?}", trace.values);
-    }
-
-    #[cfg(feature = "sys")]
-    #[test]
-    fn test_generate_preprocessed_trace_ffi_eq_rust() {
-        type F = BabyBear;
-
-        let program = RecursionProgram {
-            instructions: vec![Instruction::ExtAlu(ExtAluInstr {
-                opcode: ExtAluOpcode::AddE,
-                mult: F::one(),
-                addrs: ExtAluIo {
-                    out: Address(F::zero()),
-                    in1: Address(F::one()),
-                    in2: Address(F::two()),
-                },
-            })],
-            ..Default::default()
-        };
-
-        let chip = ExtAluChip;
-        let trace = chip.generate_preprocessed_trace(&program).unwrap();
-        let trace_ffi = generate_preprocessed_trace_ffi(&program);
-
-        assert_eq!(trace_ffi, trace);
-    }
-
-    #[cfg(feature = "sys")]
-    fn generate_preprocessed_trace_ffi(
-        program: &RecursionProgram<BabyBear>,
-    ) -> RowMajorMatrix<BabyBear> {
-        type F = BabyBear;
-
-        let instrs = program
-            .instructions
-            .iter()
-            .filter_map(|instruction| match instruction {
-                Instruction::ExtAlu(x) => Some(x),
-                _ => None,
-            })
-            .collect::<Vec<_>>();
-
-        let nb_rows = instrs.len().div_ceil(NUM_EXT_ALU_ENTRIES_PER_ROW);
-        let fixed_log2_rows = program.fixed_log2_rows(&ExtAluChip);
-        let padded_nb_rows = match fixed_log2_rows {
-            Some(log2_rows) => 1 << log2_rows,
-            None => next_power_of_two(nb_rows, None),
-        };
-        let mut values = vec![F::zero(); padded_nb_rows * NUM_EXT_ALU_PREPROCESSED_COLS];
-
-        let chunk_size = std::cmp::max(instrs.len() / num_cpus::get(), 1);
-        let populate_len = instrs.len() * NUM_EXT_ALU_ACCESS_COLS;
-
-        values[..populate_len]
-            .par_chunks_mut(chunk_size * NUM_EXT_ALU_ACCESS_COLS)
-            .enumerate()
-            .for_each(|(i, rows)| {
-                rows.chunks_mut(NUM_EXT_ALU_ACCESS_COLS).enumerate().for_each(|(j, row)| {
-                    let idx = i * chunk_size + j;
-                    if idx < instrs.len() {
-                        let access: &mut ExtAluAccessCols<_> = row.borrow_mut();
-                        unsafe {
-                            crate::sys::alu_ext_instr_to_row_babybear(instrs[idx], access);
-                        }
-                    }
-                });
-            });
-
-        RowMajorMatrix::new(values, NUM_EXT_ALU_PREPROCESSED_COLS)
     }
 }

@@ -26,10 +26,11 @@ pub mod extractors {
 
     macro_rules! create_extractor {
         ($name:ident, $variant:ident, $type:ty) => {
+            // Allocating an intermediate `Vec` is faster.
             pub fn $name<F>(program: &RecursionProgram<F>) -> Vec<&$type> {
                 program
                     .instructions
-                    .iter()
+                    .iter() // Faster than using `rayon` for some reason. Maybe vectorization?
                     .filter_map(|instruction| match instruction {
                         Instruction::$variant(x) => Some(x),
                         _ => None,
