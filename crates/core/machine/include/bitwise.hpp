@@ -6,7 +6,7 @@
 namespace sp1_core_machine_sys::bitwise {
 template<class F>
 __SP1_HOSTDEV__ void event_to_row(const AluEvent& event, BitwiseCols<F>& cols) {
-    cols.shard = F::from_canonical_u32(event.shard);
+    cols.pc = F::from_canonical_u32(event.pc);
     write_word_from_u32<F>(cols.a, event.a);
     write_word_from_u32<F>(cols.b, event.b);
     write_word_from_u32<F>(cols.c, event.c);

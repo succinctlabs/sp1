@@ -50,7 +50,7 @@ use core::{
 use hashbrown::HashMap;
 use itertools::Itertools;
 use p3_air::{Air, AirBuilder, BaseAir};
-use p3_field::{AbstractField, PrimeField};
+use p3_field::{AbstractField, PrimeField, PrimeField32};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use p3_maybe_rayon::prelude::{ParallelBridge, ParallelIterator, ParallelSlice};
 use sp1_core_executor::{
@@ -131,7 +131,7 @@ pub struct ShiftRightCols<T> {
     pub is_real: T,
 }
 
-impl<F: PrimeField> MachineAir<F> for ShiftRightChip {
+impl<F: PrimeField32> MachineAir<F> for ShiftRightChip {
     type Record = ExecutionRecord;
 
     type Program = Program;

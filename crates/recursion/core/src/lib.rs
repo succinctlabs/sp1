@@ -48,7 +48,7 @@ pub struct BaseAluIo<V> {
 pub type BaseAluEvent<F> = BaseAluIo<F>;
 
 /// An instruction invoking the extension field ALU.
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 #[repr(C)]
 pub struct BaseAluInstr<F> {
     pub opcode: BaseAluOpcode,
@@ -70,7 +70,7 @@ pub struct ExtAluIo<V> {
 pub type ExtAluEvent<F> = ExtAluIo<Block<F>>;
 
 /// An instruction invoking the extension field ALU.
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 #[repr(C)]
 pub struct ExtAluInstr<F> {
     pub opcode: ExtAluOpcode,
@@ -113,7 +113,7 @@ pub struct Poseidon2Io<V> {
 }
 
 /// An instruction invoking the Poseidon2 permutation.
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 #[repr(C)]
 pub struct Poseidon2SkinnyInstr<F> {
     pub addrs: Poseidon2Io<Address<F>>,
@@ -425,7 +425,7 @@ pub struct BatchFRIEvent<F> {
 
 /// An instruction that will save the public values to the execution record and will commit to
 /// it's digest.
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 #[repr(C)]
 pub struct CommitPublicValuesInstr<F> {
     pub pv_addrs: RecursionPublicValues<Address<F>>,

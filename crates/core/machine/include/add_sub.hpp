@@ -23,8 +23,9 @@ populate(AddOperation<F>& op, const uint32_t a_u32, const uint32_t b_u32) {
 
 template<class F>
 __SP1_HOSTDEV__ void event_to_row(const AluEvent& event, AddSubCols<F>& cols) {
+    cols.pc = F::from_canonical_u32(event.pc);
+
     bool is_add = event.opcode == Opcode::ADD;
-    cols.shard = F::from_canonical_u32(event.shard);
     cols.is_add = F::from_bool(is_add);
     cols.is_sub = F::from_bool(!is_add);
 

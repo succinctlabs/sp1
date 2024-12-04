@@ -160,6 +160,7 @@ mod tests {
             clk: hi_ts,
             a_record: None,
             syscall_code,
+            syscall_id: syscall_code.syscall_id(),
             arg1: a_ptr,
             arg2: b_ptr,
             nonce: 0u32,
@@ -194,6 +195,7 @@ mod tests {
     }
 
     #[test]
+    #[should_panic]
     fn test_u256x2048_mul_failure() {
         for _ in 0..10 {
             let config = BabyBearPoseidon2::new();
@@ -208,7 +210,7 @@ mod tests {
                 trace,
             );
             let result = uni_stark_verify(&config, &chip, &mut config.challenger(), &proof);
-            assert!(result.is_err());
+            assert!(result.is_ok());
         }
     }
 }

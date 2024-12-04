@@ -12,9 +12,9 @@ use serde::{Deserialize, Serialize};
 use super::{program::Program, Opcode};
 use crate::{
     events::{
-        AUIPCEvent, AluEvent, BranchEvent, ByteLookupEvent, ByteRecord, CpuEvent, JumpEvent,
-        LookupId, MemInstrEvent, MemoryInitializeFinalizeEvent, MemoryLocalEvent, MemoryRecordEnum,
-        PrecompileEvent, PrecompileEvents, SyscallEvent,
+        AUIPCEvent, AluEvent, BranchEvent, ByteLookupEvent, ByteRecord, CpuEvent,
+        GlobalInteractionEvent, JumpEvent, LookupId, MemInstrEvent, MemoryInitializeFinalizeEvent,
+        MemoryLocalEvent, MemoryRecordEnum, PrecompileEvent, PrecompileEvents, SyscallEvent,
     },
     syscalls::SyscallCode,
     CoreShape,
@@ -65,6 +65,8 @@ pub struct ExecutionRecord {
     pub cpu_local_memory_access: Vec<MemoryLocalEvent>,
     /// A trace of all the syscall events.
     pub syscall_events: Vec<SyscallEvent>,
+    /// A trace of all the global interaction events.
+    pub global_interaction_events: Vec<GlobalInteractionEvent>,
     /// The public values.
     pub public_values: PublicValues<u32, u32>,
     /// The nonce lookup.
@@ -98,6 +100,7 @@ impl Default for ExecutionRecord {
             global_memory_finalize_events: Vec::default(),
             cpu_local_memory_access: Vec::default(),
             syscall_events: Vec::default(),
+            global_interaction_events: Vec::default(),
             public_values: PublicValues::default(),
             nonce_lookup: Vec::default(),
             next_nonce: 0,
@@ -442,6 +445,7 @@ impl MachineRecord for ExecutionRecord {
         self.global_memory_initialize_events.append(&mut other.global_memory_initialize_events);
         self.global_memory_finalize_events.append(&mut other.global_memory_finalize_events);
         self.cpu_local_memory_access.append(&mut other.cpu_local_memory_access);
+        self.global_interaction_events.append(&mut other.global_interaction_events);
     }
 
     fn register_nonces(&mut self, _opts: &Self::Config) {

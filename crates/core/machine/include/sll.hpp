@@ -11,7 +11,7 @@ __SP1_HOSTDEV__ void event_to_row(const AluEvent& event, ShiftLeftCols<decltype(
     array_t<uint8_t, 4> a = u32_to_le_bytes(event.a);
     array_t<uint8_t, 4> b = u32_to_le_bytes(event.b);
     array_t<uint8_t, 4> c = u32_to_le_bytes(event.c);
-    cols.shard = F::from_canonical_u32(event.shard).val;
+    cols.pc = F::from_canonical_u32(event.pc).val;
     word_from_le_bytes<F>(cols.a, a);
     word_from_le_bytes<F>(cols.b, b);
     word_from_le_bytes<F>(cols.c, c);

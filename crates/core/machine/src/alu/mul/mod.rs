@@ -37,7 +37,7 @@ use core::{
 
 use hashbrown::HashMap;
 use p3_air::{Air, AirBuilder, BaseAir};
-use p3_field::{AbstractField, PrimeField};
+use p3_field::{AbstractField, PrimeField, PrimeField32};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use p3_maybe_rayon::prelude::{ParallelBridge, ParallelIterator, ParallelSlice};
 use sp1_core_executor::{
@@ -114,7 +114,7 @@ pub struct MulCols<T> {
     pub is_real: T,
 }
 
-impl<F: PrimeField> MachineAir<F> for MulChip {
+impl<F: PrimeField32> MachineAir<F> for MulChip {
     type Record = ExecutionRecord;
 
     type Program = Program;

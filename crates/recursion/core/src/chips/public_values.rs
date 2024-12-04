@@ -22,7 +22,7 @@ pub const NUM_PUBLIC_VALUES_COLS: usize = core::mem::size_of::<PublicValuesCols<
 pub const NUM_PUBLIC_VALUES_PREPROCESSED_COLS: usize =
     core::mem::size_of::<PublicValuesPreprocessedCols<u8>>();
 
-pub(crate) const PUB_VALUES_LOG_HEIGHT: usize = 4;
+pub const PUB_VALUES_LOG_HEIGHT: usize = 4;
 
 #[derive(Default)]
 pub struct PublicValuesChip;
@@ -188,8 +188,6 @@ mod tests {
     use p3_field::AbstractField;
     use p3_matrix::dense::RowMajorMatrix;
 
-    use super::*;
-
     use crate::{
         air::{RecursionPublicValues, NUM_PV_ELMS_TO_HASH, RECURSIVE_PROOF_NUM_PV_ELTS},
         chips::public_values::PublicValuesChip,
@@ -278,6 +276,14 @@ mod tests {
 
     #[cfg(feature = "sys")]
     fn generate_trace_ffi(input: &ExecutionRecord<BabyBear>) -> RowMajorMatrix<BabyBear> {
+        use std::borrow::BorrowMut;
+
+        use sp1_core_machine::utils::pad_rows_fixed;
+
+        use crate::chips::public_values::{
+            PublicValuesCols, NUM_PUBLIC_VALUES_COLS, PUB_VALUES_LOG_HEIGHT,
+        };
+
         type F = BabyBear;
 
         if input.commit_pv_hash_events.len() != 1 {
@@ -352,6 +358,18 @@ mod tests {
     fn generate_preprocessed_trace_ffi(
         program: &RecursionProgram<BabyBear>,
     ) -> RowMajorMatrix<BabyBear> {
+        use std::borrow::BorrowMut;
+
+        use sp1_core_machine::utils::pad_rows_fixed;
+
+        use crate::{
+            chips::public_values::{
+                PublicValuesPreprocessedCols, NUM_PUBLIC_VALUES_PREPROCESSED_COLS,
+                PUB_VALUES_LOG_HEIGHT,
+            },
+            Instruction,
+        };
+
         type F = BabyBear;
 
         let mut rows: Vec<[F; NUM_PUBLIC_VALUES_PREPROCESSED_COLS]> = Vec::new();

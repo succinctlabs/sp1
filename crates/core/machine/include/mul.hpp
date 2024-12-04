@@ -100,7 +100,7 @@ __SP1_HOSTDEV__ void event_to_row(const AluEvent& event, MulCols<decltype(F::val
     cols.is_mulh = F::from_bool(event.opcode == Opcode::MULH).val;
     cols.is_mulhu = F::from_bool(event.opcode == Opcode::MULHU).val;
     cols.is_mulhsu = F::from_bool(event.opcode == Opcode::MULHSU).val;
-    cols.shard = F::from_canonical_u32(event.shard).val;
+    cols.pc = F::from_canonical_u32(event.pc).val;
 
     // // Range check.
     // {

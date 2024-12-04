@@ -838,6 +838,7 @@ impl<'a> Executor<'a> {
             next_pc,
             a_record,
             syscall_code,
+            syscall_id: syscall_code.syscall_id(),
             arg1,
             arg2,
             nonce: self.record.nonce_lookup[lookup_id.0 as usize],
@@ -1530,7 +1531,6 @@ impl<'a> Executor<'a> {
         let mut public_values = self.records.last().as_ref().unwrap().public_values;
         public_values.start_pc = next_pc;
         public_values.next_pc = next_pc;
-        println!("public values: {public_values:?}");
         if !done {
             self.records.clear();
         }

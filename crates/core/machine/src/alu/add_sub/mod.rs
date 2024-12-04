@@ -6,7 +6,7 @@ use core::{
 use hashbrown::HashMap;
 use itertools::Itertools;
 use p3_air::{Air, BaseAir};
-use p3_field::{AbstractField, PrimeField};
+use p3_field::{AbstractField, PrimeField, PrimeField32};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use p3_maybe_rayon::prelude::{ParallelBridge, ParallelIterator};
 use sp1_core_executor::{
@@ -60,7 +60,7 @@ pub struct AddSubCols<T> {
     pub is_sub: T,
 }
 
-impl<F: PrimeField> MachineAir<F> for AddSubChip {
+impl<F: PrimeField32> MachineAir<F> for AddSubChip {
     type Record = ExecutionRecord;
 
     type Program = Program;

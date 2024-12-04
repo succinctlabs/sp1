@@ -23,6 +23,8 @@ pub struct SyscallEvent {
     pub a_record: Option<MemoryRecordEnum>,
     /// The syscall code.
     pub syscall_code: SyscallCode,
+    /// The syscall id.
+    pub syscall_id: u32,
     /// The first operand value (`op_b`).
     pub arg1: u32,
     /// The second operand value (`op_c`).

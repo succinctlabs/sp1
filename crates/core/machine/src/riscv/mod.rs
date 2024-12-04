@@ -10,9 +10,11 @@ use sp1_core_executor::{
 
 use crate::{
     control_flow::{AUIPCChip, BranchChip, JumpChip},
+    global::GlobalChip,
     memory::{
         MemoryChipType, MemoryInstructionsChip, MemoryLocalChip, NUM_LOCAL_MEMORY_ENTRIES_PER_ROW,
     },
+    memory::{MemoryChipType, MemoryLocalChip, NUM_LOCAL_MEMORY_ENTRIES_PER_ROW},
     riscv::MemoryChipType::{Finalize, Initialize},
     syscall::{
         instructions::SyscallInstrsChip,
@@ -115,6 +117,8 @@ pub enum RiscvAir<F: PrimeField32> {
     SyscallCore(SyscallChip),
     /// A table for all the precompile invocations.
     SyscallPrecompile(SyscallChip),
+    /// A table for all the global interactions.
+    Global(GlobalChip),
     /// A precompile for sha256 extend.
     Sha256Extend(ShaExtendChip),
     /// A precompile for sha256 compress.
@@ -402,6 +406,10 @@ impl<F: PrimeField32> RiscvAir<F> {
         costs.insert(RiscvAirDiscriminants::MemoryLocal, memory_local.cost());
         chips.push(memory_local);
 
+        let global = Chip::new(RiscvAir::Global(GlobalChip));
+        costs.insert(RiscvAirDiscriminants::Global, global.cost());
+        chips.push(global);
+
         // let memory_program = Chip::new(RiscvAir::ProgramMemory(MemoryProgramChip::default()));
         // costs.insert(RiscvAirDiscriminants::ProgramMemory, memory_program.cost());
         // chips.push(memory_program);
@@ -448,6 +456,7 @@ impl<F: PrimeField32> RiscvAir<F> {
             (RiscvAir::AUIPC(AUIPCChip::default()), record.auipc_events.len()),
             (RiscvAir::Branch(BranchChip::default()), record.branch_events.len()),
             (RiscvAir::Jump(JumpChip::default()), record.jump_events.len()),
+            (RiscvAir::Global(GlobalChip), record.get_local_mem_events().count()),
             (RiscvAir::SyscallCore(SyscallChip::core()), record.syscall_events.len()),
             (RiscvAir::SyscallInstrs(SyscallInstrsChip::default()), record.syscall_events.len()),
         ]
@@ -469,6 +478,7 @@ impl<F: PrimeField32> RiscvAir<F> {
             RiscvAir::Jump(JumpChip::default()),
             RiscvAir::SyscallInstrs(SyscallInstrsChip::default()),
             RiscvAir::MemoryLocal(MemoryLocalChip::new()),
+            RiscvAir::Global(GlobalChip),
             RiscvAir::SyscallCore(SyscallChip::core()),
         ]
     }
@@ -477,6 +487,7 @@ impl<F: PrimeField32> RiscvAir<F> {
         vec![
             RiscvAir::MemoryGlobalInit(MemoryGlobalChip::new(MemoryChipType::Initialize)),
             RiscvAir::MemoryGlobalFinal(MemoryGlobalChip::new(MemoryChipType::Finalize)),
+            RiscvAir::Global(GlobalChip),
         ]
     }
 
@@ -489,6 +500,11 @@ impl<F: PrimeField32> RiscvAir<F> {
             (
                 RiscvAir::MemoryGlobalFinal(MemoryGlobalChip::new(Finalize)),
                 record.global_memory_finalize_events.len(),
+            ),
+            (
+                RiscvAir::Global(GlobalChip),
+                record.global_memory_finalize_events.len()
+                    + record.global_memory_initialize_events.len(),
             ),
         ]
     }
@@ -505,6 +521,7 @@ impl<F: PrimeField32> RiscvAir<F> {
 
         // Remove the preprocessed chips.
         airs.remove(&Self::Program(ProgramChip::default()));
+        // TODO: why is this removed
         // airs.remove(&Self::ProgramMemory(MemoryProgramChip::default()));
         airs.remove(&Self::ByteLookup(ByteChip::default()));
 
@@ -568,6 +585,7 @@ impl<F: PrimeField32> RiscvAir<F> {
             Self::MemoryGlobalInit(_) => unreachable!("Invalid for memory init/final"),
             Self::MemoryGlobalFinal(_) => unreachable!("Invalid for memory init/final"),
             Self::MemoryLocal(_) => unreachable!("Invalid for memory local"),
+            Self::Global(_) => unreachable!("Invalid for global chip"),
             // Self::ProgramMemory(_) => unreachable!("Invalid for memory program"),
             Self::Program(_) => unreachable!("Invalid for core chip"),
             Self::Mul(_) => unreachable!("Invalid for core chip"),
