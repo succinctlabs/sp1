@@ -354,6 +354,79 @@ where
 }
 
 #[cfg(test)]
+pub mod test_fixtures {
+    use super::*;
+    use crate::{
+        Address, FriFoldBaseIo, FriFoldEvent, FriFoldExtSingleIo, FriFoldExtVecIo, Instruction,
+    };
+    use p3_baby_bear::BabyBear;
+    use p3_field::AbstractField;
+    use rand::{rngs::StdRng, Rng, SeedableRng};
+
+    const SEED: u64 = 12345;
+    const NUM_TEST_CASES: usize = 10000;
+
+    pub fn sample_fri_fold_events() -> Vec<FriFoldEvent<BabyBear>> {
+        let mut rng = StdRng::seed_from_u64(SEED);
+        let mut events = Vec::with_capacity(NUM_TEST_CASES);
+
+        let random_block =
+            |rng: &mut StdRng| Block::from([BabyBear::from_wrapped_u32(rng.gen()); 4]);
+
+        for _ in 0..NUM_TEST_CASES {
+            events.push(FriFoldEvent {
+                base_single: FriFoldBaseIo { x: BabyBear::from_wrapped_u32(rng.gen()) },
+                ext_single: FriFoldExtSingleIo {
+                    z: random_block(&mut rng),
+                    alpha: random_block(&mut rng),
+                },
+                ext_vec: FriFoldExtVecIo {
+                    mat_opening: random_block(&mut rng),
+                    ps_at_z: random_block(&mut rng),
+                    alpha_pow_input: random_block(&mut rng),
+                    ro_input: random_block(&mut rng),
+                    alpha_pow_output: random_block(&mut rng),
+                    ro_output: random_block(&mut rng),
+                },
+            });
+        }
+        events
+    }
+
+    pub fn sample_fri_fold_instructions() -> Vec<Instruction<BabyBear>> {
+        let mut rng = StdRng::seed_from_u64(SEED);
+        let mut instructions = Vec::with_capacity(NUM_TEST_CASES);
+
+        let random_addr = |rng: &mut StdRng| Address(BabyBear::from_wrapped_u32(rng.gen()));
+        let random_addrs =
+            |rng: &mut StdRng, len: usize| (0..len).map(|_| random_addr(rng)).collect();
+
+        for _ in 0..NUM_TEST_CASES {
+            let len = rng.gen_range(1..5); // Random vector length
+
+            instructions.push(Instruction::FriFold(Box::new(FriFoldInstr {
+                base_single_addrs: FriFoldBaseIo { x: random_addr(&mut rng) },
+                ext_single_addrs: FriFoldExtSingleIo {
+                    z: random_addr(&mut rng),
+                    alpha: random_addr(&mut rng),
+                },
+                ext_vec_addrs: FriFoldExtVecIo {
+                    mat_opening: random_addrs(&mut rng, len),
+                    ps_at_z: random_addrs(&mut rng, len),
+                    alpha_pow_input: random_addrs(&mut rng, len),
+                    ro_input: random_addrs(&mut rng, len),
+                    alpha_pow_output: random_addrs(&mut rng, len),
+                    ro_output: random_addrs(&mut rng, len),
+                },
+                alpha_pow_mults: vec![BabyBear::one(); len],
+                ro_mults: vec![BabyBear::one(); len],
+            })));
+        }
+        instructions
+    }
+}
+
+#[cfg(test)]
 mod tests {
     use crate::{
         air::Block,
@@ -361,7 +434,7 @@ mod tests {
         machine::tests::run_recursion_test_machines,
         runtime::{instruction as instr, ExecutionRecord},
         stark::BabyBearPoseidon2Outer,
-        Address, FriFoldBaseIo, FriFoldEvent, FriFoldExtSingleIo, FriFoldExtVecIo, Instruction,
+        FriFoldBaseIo, FriFoldEvent, FriFoldExtSingleIo, FriFoldExtVecIo, Instruction,
         MemAccessKind, RecursionProgram,
     };
     use p3_baby_bear::BabyBear;
@@ -583,28 +656,8 @@ mod tests {
     fn test_generate_trace() {
         type F = BabyBear;
 
-        let mut rng = StdRng::seed_from_u64(0xDEADBEEF);
-        let mut rng2 = StdRng::seed_from_u64(0xDEADBEEF);
-        let mut random_felt = move || -> F { F::from_canonical_u32(rng.gen_range(0..1 << 16)) };
-        let mut random_block = move || Block::from([random_felt(); 4]);
-
         let shard = ExecutionRecord {
-            fri_fold_events: (0..17)
-                .map(|_| FriFoldEvent {
-                    base_single: FriFoldBaseIo {
-                        x: F::from_canonical_u32(rng2.gen_range(0..1 << 16)),
-                    },
-                    ext_single: FriFoldExtSingleIo { z: random_block(), alpha: random_block() },
-                    ext_vec: crate::FriFoldExtVecIo {
-                        mat_opening: random_block(),
-                        ps_at_z: random_block(),
-                        alpha_pow_input: random_block(),
-                        ro_input: random_block(),
-                        alpha_pow_output: random_block(),
-                        ro_output: random_block(),
-                    },
-                })
-                .collect(),
+            fri_fold_events: test_fixtures::sample_fri_fold_events(),
             ..Default::default()
         };
         let mut execution_record = ExecutionRecord::<BabyBear>::default();
@@ -656,35 +709,11 @@ mod tests {
     fn generate_preprocessed_trace() {
         type F = BabyBear;
 
-        let mut rng = StdRng::seed_from_u64(0xDEADBEEF);
-        let mut random_addr = move || -> F { F::from_canonical_u32(rng.gen_range(0..1 << 16)) };
-
         // Create a program with a few FriFold instructions
         let program = RecursionProgram::<F> {
-            instructions: (0..17)
-                .map(|_| {
-                    Instruction::FriFold(Box::new(FriFoldInstr::<F> {
-                        base_single_addrs: FriFoldBaseIo { x: Address(random_addr()) },
-                        ext_single_addrs: FriFoldExtSingleIo {
-                            z: Address(random_addr()),
-                            alpha: Address(random_addr()),
-                        },
-                        ext_vec_addrs: FriFoldExtVecIo {
-                            mat_opening: vec![Address(random_addr())],
-                            ps_at_z: vec![Address(random_addr())],
-                            alpha_pow_input: vec![Address(random_addr())],
-                            ro_input: vec![Address(random_addr())],
-                            alpha_pow_output: vec![Address(random_addr())],
-                            ro_output: vec![Address(random_addr())],
-                        },
-                        alpha_pow_mults: vec![F::one()],
-                        ro_mults: vec![F::one()],
-                    }))
-                })
-                .collect(),
+            instructions: test_fixtures::sample_fri_fold_instructions(),
             ..Default::default()
         };
-
         let chip = FriFoldChip::<DEGREE>::default();
         let trace = chip.generate_preprocessed_trace(&program).unwrap();
 
