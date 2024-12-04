@@ -17,7 +17,7 @@ pub fn populate_perm_deg3<F: PrimeField32>(
     let mut row: Vec<F> = vec![F::zero(); NUM_POSEIDON2_OPERATION_COLUMNS];
     populate_perm::<F, 3>(input, expected_output, row.as_mut_slice());
     let op: &Poseidon2Operation<F> = row.as_slice().borrow();
-    op.clone()
+    *op
 }
 
 pub fn populate_perm<F: PrimeField32, const DEGREE: usize>(

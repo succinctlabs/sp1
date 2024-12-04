@@ -103,7 +103,7 @@ impl<F: PrimeField32> MachineAir<F> for GlobalChip {
                         SepticBlock(event.message),
                         event.is_receive,
                         true,
-                        InteractionKind::Memory,
+                        InteractionKind::Global,
                     );
                     cols.is_real = F::one();
                     if event.is_receive {
@@ -199,7 +199,7 @@ where
                     local.is_receive.into(),
                 ],
                 local.is_real.into(),
-                InteractionKind::Memory,
+                InteractionKind::Global,
             ),
             InteractionScope::Local,
         );
@@ -211,7 +211,7 @@ where
             local.is_receive.into(),
             local.is_send.into(),
             local.is_real,
-            InteractionKind::Memory,
+            InteractionKind::Global,
         );
 
         GlobalAccumulationOperation::<AB::F, 1>::eval_accumulation(

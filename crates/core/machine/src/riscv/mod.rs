@@ -415,7 +415,7 @@ impl<F: PrimeField32> RiscvAir<F> {
                     .into_iter()
                     .count(),
             ),
-            (RiscvAir::Global(GlobalChip), record.get_local_mem_events().into_iter().count()),
+            (RiscvAir::Global(GlobalChip), record.get_local_mem_events().count()),
             (RiscvAir::SyscallCore(SyscallChip::core()), record.syscall_events.len()),
         ]
     }

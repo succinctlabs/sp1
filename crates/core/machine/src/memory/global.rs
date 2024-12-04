@@ -253,6 +253,7 @@ where
             let mut values = vec![AB::Expr::zero(), AB::Expr::zero(), local.addr.into()];
             values.extend(value.clone().map(Into::into));
 
+            // Send the interaction to the global table.
             builder.send(
                 AirInteraction::new(
                     vec![
@@ -267,7 +268,7 @@ where
                         local.is_real.into() * AB::Expr::zero(),
                     ],
                     local.is_real.into(),
-                    InteractionKind::Memory,
+                    InteractionKind::Global,
                 ),
                 InteractionScope::Local,
             );
@@ -275,6 +276,7 @@ where
             let mut values = vec![local.shard.into(), local.timestamp.into(), local.addr.into()];
             values.extend(value.clone());
 
+            // Send the interaction to the global table.
             builder.send(
                 AirInteraction::new(
                     vec![
@@ -289,7 +291,7 @@ where
                         local.is_real.into() * AB::Expr::one(),
                     ],
                     local.is_real.into(),
-                    InteractionKind::Memory,
+                    InteractionKind::Global,
                 ),
                 InteractionScope::Local,
             );

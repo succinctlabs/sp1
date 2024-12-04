@@ -201,6 +201,7 @@ where
                 InteractionScope::Local,
             );
 
+            // Send the interaction to the global table.
             builder.send(
                 AirInteraction::new(
                     vec![
@@ -215,10 +216,12 @@ where
                         local.is_real.into() * AB::Expr::one(),
                     ],
                     local.is_real.into(),
-                    InteractionKind::Memory,
+                    InteractionKind::Global,
                 ),
                 InteractionScope::Local,
             );
+
+            // Send the interaction to the global table.
             builder.send(
                 AirInteraction::new(
                     vec![
@@ -233,7 +236,7 @@ where
                         local.is_real.into() * AB::Expr::zero(),
                     ],
                     local.is_real.into(),
-                    InteractionKind::Memory,
+                    InteractionKind::Global,
                 ),
                 InteractionScope::Local,
             );

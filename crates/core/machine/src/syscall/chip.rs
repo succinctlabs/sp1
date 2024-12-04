@@ -97,7 +97,7 @@ impl<F: PrimeField32> MachineAir<F> for SyscallChip {
         };
 
         let events = events
-            .into_iter()
+            .iter()
             .map(|event| {
                 let clk_16 = ((event.clk & 65535) as u16) as u32;
                 let clk_8 = ((event.clk >> 16) as u8) as u32;
@@ -215,6 +215,7 @@ where
                     InteractionScope::Local,
                 );
 
+                // Send the interaction to the global table.
                 builder.send(
                     AirInteraction::new(
                         vec![
@@ -229,7 +230,7 @@ where
                             local.is_real.into() * AB::Expr::zero(),
                         ],
                         local.is_real.into(),
-                        InteractionKind::Memory,
+                        InteractionKind::Global,
                     ),
                     InteractionScope::Local,
                 );
@@ -245,6 +246,7 @@ where
                     InteractionScope::Local,
                 );
 
+                // Send the interaction to the global table.
                 builder.send(
                     AirInteraction::new(
                         vec![
@@ -259,7 +261,7 @@ where
                             local.is_real.into() * AB::Expr::one(),
                         ],
                         local.is_real.into(),
-                        InteractionKind::Memory,
+                        InteractionKind::Global,
                     ),
                     InteractionScope::Local,
                 );

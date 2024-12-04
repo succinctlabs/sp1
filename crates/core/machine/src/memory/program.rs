@@ -224,6 +224,7 @@ where
         let mut values = vec![AB::Expr::zero(), AB::Expr::zero(), prep_local.addr.into()];
         values.extend(prep_local.value.map(Into::into));
 
+        // Send the interaction to the global table.
         builder.send(
             AirInteraction::new(
                 vec![
@@ -238,7 +239,7 @@ where
                     prep_local.is_real.into() * AB::Expr::one(),
                 ],
                 prep_local.is_real.into(),
-                InteractionKind::Memory,
+                InteractionKind::Global,
             ),
             InteractionScope::Local,
         );

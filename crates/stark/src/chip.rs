@@ -127,7 +127,6 @@ where
         A: MachineAir<F>,
     {
         let batch_size = self.logup_batch_size();
-        println!("name = {}, width = {}", self.name(), self.width());
         generate_permutation_trace::<F, EF>(
             &self.sends,
             &self.receives,
