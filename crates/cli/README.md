@@ -21,7 +21,7 @@ cargo run --bin cargo-prove -- prove trace --elf <...> --trace <...>
 You can install the CLI locally from source by running the following command:
 
 ```bash
-cargo install --locked --path .
+cargo install --locked --force --path .
 ```
 
 ### Running the CLI after installing
