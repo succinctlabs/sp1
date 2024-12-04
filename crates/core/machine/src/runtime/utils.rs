@@ -42,7 +42,7 @@ impl<'a> Runtime<'a> {
         // If RUST_LOG is set to "trace", then log the current state of the runtime every cycle.
         let width = 12;
         let registers = self.registers();
-        log::trace!(
+        tracing::trace!(
             "clk={} [pc=0x{:x?}] {:<width$?} |         x0={:<width$} x1={:<width$} x2={:<width$} x3={:<width$} x4={:<width$} x5={:<width$} x6={:<width$} x7={:<width$} x8={:<width$} x9={:<width$} x10={:<width$} x11={:<width$} x12={:<width$} x13={:<width$} x14={:<width$} x15={:<width$} x16={:<width$} x17={:<width$} x18={:<width$}",
             self.state.global_clk,
             self.state.pc,
@@ -69,7 +69,7 @@ impl<'a> Runtime<'a> {
         );
 
         if !self.unconstrained && self.state.global_clk % 10_000_000 == 0 {
-            log::info!("clk = {} pc = 0x{:x?}", self.state.global_clk, self.state.pc);
+            tracing::info!("clk = {} pc = 0x{:x?}", self.state.global_clk, self.state.pc);
         }
     }
 }
