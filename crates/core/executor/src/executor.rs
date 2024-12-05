@@ -654,6 +654,28 @@ impl<'a> Executor<'a> {
         } else if instruction.is_auipc_instruction() {
             self.emit_auipc_event(instruction.opcode, a, b, c);
         } else if instruction.is_ecall_instruction() {
+            if !self.unconstrained
+                && (b != self.memory_accesses.b.unwrap().current_record().value
+                    || c != self.memory_accesses.c.unwrap().current_record().value)
+            {
+                println!(
+                    "ecall mem mismatch: a={}, b={}, c={}, a_mem={}, b_mem={}, c_mem={}, a_old={}, b_old={}, c_old={}, clk={}, next_pc={}, shard={}, code={}, instr={:?}",
+                    a,
+                    b,
+                    c,
+                    self.memory_accesses.a.unwrap().current_record().value,
+                    self.memory_accesses.b.unwrap().current_record().value,
+                    self.memory_accesses.c.unwrap().current_record().value,
+                    self.memory_accesses.a.unwrap().previous_record().value,
+                    self.memory_accesses.b.unwrap().previous_record().value,
+                    self.memory_accesses.c.unwrap().previous_record().value,
+                    clk,
+                    next_pc,
+                    self.state.current_shard,
+                    syscall_code,
+                    instruction
+                );
+            }
             self.emit_syscall_event(clk, record.a, syscall_code, b, c, syscall_lookup_id, next_pc);
         } else {
             unreachable!()
@@ -1249,6 +1271,19 @@ impl<'a> Executor<'a> {
         self.rw(t0, a);
         let clk = self.state.clk;
         self.state.clk += precompile_cycles;
+
+        let a = if syscall == SyscallCode::EXIT_UNCONSTRAINED { 0 } else { a };
+        let b = if syscall == SyscallCode::EXIT_UNCONSTRAINED {
+            self.register(Register::X10)
+        } else {
+            b
+        };
+        let c = if syscall == SyscallCode::EXIT_UNCONSTRAINED {
+            self.register(Register::X11)
+        } else {
+            c
+        };
+
         Ok((a, b, c, clk, precompile_next_pc, syscall, syscall_lookup_id, returned_exit_code))
     }
 

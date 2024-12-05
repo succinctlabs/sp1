@@ -15,6 +15,7 @@ macro_rules! unconstrained {
         unsafe {
             continue_unconstrained = syscall_enter_unconstrained();
         }
+        // VM SHOULD BE HERE
 
         // If continue_unconstrained is true (only possible in the runtime), execute
         // the inner code. Otherwise, nothing happens.
@@ -31,5 +32,5 @@ macro_rules! unconstrained {
             }
         }
 
-    };
+    }
 }
