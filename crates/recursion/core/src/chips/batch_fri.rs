@@ -1,25 +1,22 @@
 #![allow(clippy::needless_range_loop)]
 
-use core::borrow::Borrow;
-use itertools::Itertools;
-use sp1_core_machine::utils::pad_rows_fixed;
-use sp1_stark::air::{BaseAirBuilder, BinomialExtension, MachineAir};
-use std::borrow::BorrowMut;
-use tracing::instrument;
-
-use p3_air::{Air, AirBuilder, BaseAir, PairBuilder};
-use p3_field::PrimeField32;
-use p3_matrix::{dense::RowMajorMatrix, Matrix};
-use sp1_stark::air::ExtensionAirBuilder;
-
-use sp1_derive::AlignedBorrow;
-
 use crate::{
     air::Block,
     builder::SP1RecursionAirBuilder,
     runtime::{Instruction, RecursionProgram},
     Address, BatchFRIInstr, ExecutionRecord,
 };
+use core::borrow::Borrow;
+use itertools::Itertools;
+use p3_air::{Air, AirBuilder, BaseAir, PairBuilder};
+use p3_field::PrimeField32;
+use p3_matrix::{dense::RowMajorMatrix, Matrix};
+use sp1_core_machine::utils::{next_power_of_two, pad_rows_fixed};
+use sp1_derive::AlignedBorrow;
+use sp1_stark::air::ExtensionAirBuilder;
+use sp1_stark::air::{BaseAirBuilder, BinomialExtension, MachineAir};
+use std::borrow::BorrowMut;
+use tracing::instrument;
 
 pub const NUM_BATCH_FRI_COLS: usize = core::mem::size_of::<BatchFRICols<u8>>();
 pub const NUM_BATCH_FRI_PREPROCESSED_COLS: usize =
@@ -78,12 +75,9 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for BatchFRIChip<DEGREE
         program
             .instructions
             .iter()
-            .filter_map(|instruction| {
-                if let Instruction::BatchFRI(instr) = instruction {
-                    Some(instr)
-                } else {
-                    None
-                }
+            .filter_map(|instruction| match instruction {
+                Instruction::BatchFRI(instr) => Some(instr),
+                _ => None,
             })
             .for_each(|instruction| {
                 let BatchFRIInstr { base_vec_addrs, ext_single_addrs, ext_vec_addrs, acc_mult } =
@@ -118,6 +112,11 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for BatchFRIChip<DEGREE
         Some(trace)
     }
 
+    fn num_rows(&self, input: &Self::Record) -> Option<usize> {
+        let events = &input.batch_fri_events;
+        Some(next_power_of_two(events.len(), input.fixed_log2_rows(self)))
+    }
+
     #[instrument(name = "generate batch fri trace", level = "debug", skip_all, fields(rows = input.batch_fri_events.len()))]
     fn generate_trace(
         &self,
@@ -139,7 +138,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for BatchFRIChip<DEGREE
             .collect_vec();
 
         // Pad the trace to a power of two.
-        pad_rows_fixed(&mut rows, || [F::zero(); NUM_BATCH_FRI_COLS], input.fixed_log2_rows(self));
+        rows.resize(self.num_rows(input).unwrap(), [F::zero(); NUM_BATCH_FRI_COLS]);
 
         // Convert the trace to a row major matrix.
         let trace = RowMajorMatrix::new(rows.into_iter().flatten().collect(), NUM_BATCH_FRI_COLS);
@@ -233,53 +232,20 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::{BatchFRIBaseVecIo, BatchFRIEvent, BatchFRIExtSingleIo, BatchFRIExtVecIo};
+    use crate::{chips::test_fixtures, extract_batch_fri_instrs};
     use p3_baby_bear::BabyBear;
     use p3_field::AbstractField;
     use p3_matrix::dense::RowMajorMatrix;
 
     use super::*;
 
-    #[test]
-    fn generate_trace() {
-        type F = BabyBear;
-
-        let shard = ExecutionRecord {
-            batch_fri_events: vec![BatchFRIEvent {
-                ext_single: BatchFRIExtSingleIo { acc: Block::default() },
-                ext_vec: BatchFRIExtVecIo { alpha_pow: Block::default(), p_at_z: Block::default() },
-                base_vec: BatchFRIBaseVecIo { p_at_x: F::one() },
-            }],
-            ..Default::default()
-        };
-        let chip = BatchFRIChip::<2>;
-        let trace: RowMajorMatrix<F> = chip.generate_trace(&shard, &mut ExecutionRecord::default());
-        println!("{:?}", trace.values)
-    }
+    const DEGREE: usize = 2;
 
     #[cfg(feature = "sys")]
-    #[test]
-    fn test_generate_trace_ffi_eq_rust() {
-        type F = BabyBear;
-
-        let shard = ExecutionRecord {
-            batch_fri_events: vec![BatchFRIEvent {
-                ext_single: BatchFRIExtSingleIo { acc: Block::default() },
-                ext_vec: BatchFRIExtVecIo { alpha_pow: Block::default(), p_at_z: Block::default() },
-                base_vec: BatchFRIBaseVecIo { p_at_x: F::one() },
-            }],
-            ..Default::default()
-        };
-
-        let chip = BatchFRIChip::<2>;
-        let trace: RowMajorMatrix<F> = chip.generate_trace(&shard, &mut ExecutionRecord::default());
-        let trace_ffi = generate_trace_ffi(&shard);
-
-        assert_eq!(trace_ffi, trace);
-    }
-
-    #[cfg(feature = "sys")]
-    fn generate_trace_ffi(input: &ExecutionRecord<BabyBear>) -> RowMajorMatrix<BabyBear> {
+    fn generate_trace_ffi<const DEGREE: usize>(
+        input: &ExecutionRecord<BabyBear>,
+        _: &mut ExecutionRecord<BabyBear>,
+    ) -> RowMajorMatrix<BabyBear> {
         type F = BabyBear;
 
         let events = &input.batch_fri_events;
@@ -298,89 +264,43 @@ mod tests {
             });
         });
 
-        pad_rows_fixed(
-            &mut rows,
-            || [F::zero(); NUM_BATCH_FRI_COLS],
-            input.fixed_log2_rows(&BatchFRIChip::<2>),
+        rows.resize(
+            BatchFRIChip::<DEGREE>.num_rows(input).unwrap(),
+            [F::zero(); NUM_BATCH_FRI_COLS],
         );
 
         RowMajorMatrix::new(rows.into_iter().flatten().collect(), NUM_BATCH_FRI_COLS)
     }
 
+    #[cfg(feature = "sys")]
     #[test]
-    fn generate_preprocessed_trace() {
-        type F = BabyBear;
+    fn generate_trace() {
+        let shard = test_fixtures::shard();
+        let mut execution_record = test_fixtures::default_execution_record();
+        let trace = BatchFRIChip::<DEGREE>.generate_trace(&shard, &mut execution_record);
+        assert!(trace.height() >= test_fixtures::MIN_TEST_CASES);
 
-        let program = RecursionProgram::<F> {
-            instructions: vec![Instruction::BatchFRI(Box::new(BatchFRIInstr {
-                base_vec_addrs: BatchFRIBaseVecIo { p_at_x: vec![Address(F::zero())] },
-                ext_single_addrs: BatchFRIExtSingleIo { acc: Address(F::zero()) },
-                ext_vec_addrs: BatchFRIExtVecIo {
-                    alpha_pow: vec![Address(F::zero())],
-                    p_at_z: vec![Address(F::zero())],
-                },
-                acc_mult: F::one(),
-            }))],
-            ..Default::default()
-        };
-
-        let chip = BatchFRIChip::<2>;
-        let trace = chip.generate_preprocessed_trace(&program).unwrap();
-        println!("{:?}", trace.values);
+        assert_eq!(trace, generate_trace_ffi::<DEGREE>(&shard, &mut execution_record));
     }
 
     #[cfg(feature = "sys")]
-    #[test]
-    fn test_generate_preprocessed_trace_ffi_eq_rust() {
-        type F = BabyBear;
-
-        let program = RecursionProgram::<F> {
-            instructions: vec![Instruction::BatchFRI(Box::new(BatchFRIInstr {
-                base_vec_addrs: BatchFRIBaseVecIo { p_at_x: vec![Address(F::zero())] },
-                ext_single_addrs: BatchFRIExtSingleIo { acc: Address(F::zero()) },
-                ext_vec_addrs: BatchFRIExtVecIo {
-                    alpha_pow: vec![Address(F::zero())],
-                    p_at_z: vec![Address(F::zero())],
-                },
-                acc_mult: F::one(),
-            }))],
-            ..Default::default()
-        };
-
-        let chip = BatchFRIChip::<2>;
-        let trace = chip.generate_preprocessed_trace(&program).unwrap();
-        let trace_ffi = generate_preprocessed_trace_ffi(&program);
-
-        assert_eq!(trace_ffi, trace);
-    }
-
-    #[cfg(feature = "sys")]
-    fn generate_preprocessed_trace_ffi(
+    fn generate_preprocessed_trace_ffi<const DEGREE: usize>(
         program: &RecursionProgram<BabyBear>,
     ) -> RowMajorMatrix<BabyBear> {
         type F = BabyBear;
 
-        let instrs = program
-            .instructions
-            .iter()
-            .filter_map(|instruction| match instruction {
-                Instruction::BatchFRI(x) => Some(x),
-                _ => None,
-            })
-            .collect::<Vec<_>>();
-
         let mut rows = Vec::new();
-        instrs.iter().for_each(|instruction| {
+        extract_batch_fri_instrs(program).iter().for_each(|instruction| {
             let BatchFRIInstr { base_vec_addrs: _, ext_single_addrs: _, ext_vec_addrs, acc_mult } =
                 instruction.as_ref();
             let len = ext_vec_addrs.p_at_z.len();
             let mut row_add = vec![[F::zero(); NUM_BATCH_FRI_PREPROCESSED_COLS]; len];
             debug_assert_eq!(*acc_mult, F::one());
 
-            row_add.iter_mut().for_each(|row| {
+            row_add.iter_mut().enumerate().for_each(|(i, row)| {
                 let cols: &mut BatchFRIPreprocessedCols<F> = row.as_mut_slice().borrow_mut();
                 unsafe {
-                    crate::sys::batch_fri_instr_to_row_babybear(&instruction.into(), cols);
+                    crate::sys::batch_fri_instr_to_row_babybear(&instruction.into(), cols, i);
                 }
             });
             rows.extend(row_add);
@@ -389,9 +309,19 @@ mod tests {
         pad_rows_fixed(
             &mut rows,
             || [F::zero(); NUM_BATCH_FRI_PREPROCESSED_COLS],
-            program.fixed_log2_rows(&BatchFRIChip::<2>),
+            program.fixed_log2_rows(&BatchFRIChip::<DEGREE>),
         );
 
         RowMajorMatrix::new(rows.into_iter().flatten().collect(), NUM_BATCH_FRI_PREPROCESSED_COLS)
+    }
+
+    #[cfg(feature = "sys")]
+    #[test]
+    fn generate_preprocessed_trace() {
+        let program = test_fixtures::program();
+        let trace = BatchFRIChip::<DEGREE>.generate_preprocessed_trace(&program).unwrap();
+        assert!(trace.height() >= test_fixtures::MIN_TEST_CASES);
+
+        assert_eq!(trace, generate_preprocessed_trace_ffi::<DEGREE>(&program));
     }
 }

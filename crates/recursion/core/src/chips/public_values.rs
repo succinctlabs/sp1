@@ -1,20 +1,16 @@
-use std::borrow::{Borrow, BorrowMut};
-
+use crate::{
+    air::{RecursionPublicValues, RECURSIVE_PROOF_NUM_PV_ELTS},
+    builder::SP1RecursionAirBuilder,
+    runtime::{Instruction, RecursionProgram},
+    ExecutionRecord, DIGEST_SIZE,
+};
 use p3_air::{Air, AirBuilder, BaseAir, PairBuilder};
 use p3_field::PrimeField32;
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use sp1_core_machine::utils::pad_rows_fixed;
 use sp1_derive::AlignedBorrow;
 use sp1_stark::air::MachineAir;
-
-use crate::{
-    air::{RecursionPublicValues, RECURSIVE_PROOF_NUM_PV_ELTS},
-    builder::SP1RecursionAirBuilder,
-    runtime::{Instruction, RecursionProgram},
-    ExecutionRecord,
-};
-
-use crate::DIGEST_SIZE;
+use std::borrow::{Borrow, BorrowMut};
 
 use super::mem::{MemoryAccessCols, MemoryAccessColsChips};
 
@@ -178,23 +174,29 @@ where
 
 #[cfg(test)]
 mod tests {
-    use rand::{rngs::StdRng, Rng, SeedableRng};
-    use sp1_core_machine::utils::setup_logger;
-
-    use sp1_stark::{air::MachineAir, StarkGenericConfig};
-    use std::{array, borrow::Borrow};
-
-    use p3_baby_bear::BabyBear;
-    use p3_field::AbstractField;
-    use p3_matrix::dense::RowMajorMatrix;
-
     use crate::{
         air::{RecursionPublicValues, NUM_PV_ELMS_TO_HASH, RECURSIVE_PROOF_NUM_PV_ELTS},
-        chips::public_values::PublicValuesChip,
+        chips::{
+            public_values::{
+                PublicValuesChip, PublicValuesCols, PublicValuesPreprocessedCols,
+                NUM_PUBLIC_VALUES_COLS, NUM_PUBLIC_VALUES_PREPROCESSED_COLS, PUB_VALUES_LOG_HEIGHT,
+            },
+            test_fixtures,
+        },
         machine::tests::run_recursion_test_machines,
         runtime::{instruction as instr, ExecutionRecord},
         stark::BabyBearPoseidon2Outer,
-        CommitPublicValuesEvent, MemAccessKind, RecursionProgram, DIGEST_SIZE,
+        Instruction, MemAccessKind, RecursionProgram, DIGEST_SIZE,
+    };
+    use p3_baby_bear::BabyBear;
+    use p3_field::AbstractField;
+    use p3_matrix::{dense::RowMajorMatrix, Matrix};
+    use rand::{rngs::StdRng, Rng, SeedableRng};
+    use sp1_core_machine::utils::{pad_rows_fixed, setup_logger};
+    use sp1_stark::{air::MachineAir, StarkGenericConfig};
+    use std::{
+        array,
+        borrow::{Borrow, BorrowMut},
     };
 
     #[test]
@@ -231,59 +233,29 @@ mod tests {
     }
 
     #[test]
-    fn generate_public_values_circuit_trace() {
+    fn generate_public_values_preprocessed_trace() {
         type F = BabyBear;
 
-        let mut rng = StdRng::seed_from_u64(0xDEADBEEF);
-        let random_felts: [F; RECURSIVE_PROOF_NUM_PV_ELTS] =
-            array::from_fn(|_| F::from_canonical_u32(rng.gen_range(0..1 << 16)));
-        let random_public_values: &RecursionPublicValues<F> = random_felts.as_slice().borrow();
+        let addr = 0u32;
+        let public_values_a: [u32; RECURSIVE_PROOF_NUM_PV_ELTS] =
+            array::from_fn(|i| i as u32 + addr);
+        let public_values: &RecursionPublicValues<u32> = public_values_a.as_slice().borrow();
 
-        let shard = ExecutionRecord {
-            commit_pv_hash_events: vec![CommitPublicValuesEvent {
-                public_values: *random_public_values,
-            }],
-            ..Default::default()
-        };
-        let chip = PublicValuesChip;
-        let trace: RowMajorMatrix<F> = chip.generate_trace(&shard, &mut ExecutionRecord::default());
-        println!("{:?}", trace.values)
-    }
-
-    #[cfg(feature = "sys")]
-    #[test]
-    fn test_generate_trace_ffi_eq_rust() {
-        type F = BabyBear;
-
-        let mut rng = StdRng::seed_from_u64(0xDEADBEEF);
-        let random_felts: [F; RECURSIVE_PROOF_NUM_PV_ELTS] =
-            array::from_fn(|_| F::from_canonical_u32(rng.gen_range(0..1 << 16)));
-        let random_public_values: &RecursionPublicValues<F> = random_felts.as_slice().borrow();
-
-        let shard = ExecutionRecord {
-            commit_pv_hash_events: vec![CommitPublicValuesEvent {
-                public_values: *random_public_values,
-            }],
+        let program = RecursionProgram::<F> {
+            instructions: vec![instr::commit_public_values(public_values)],
             ..Default::default()
         };
 
         let chip = PublicValuesChip;
-        let trace: RowMajorMatrix<F> = chip.generate_trace(&shard, &mut ExecutionRecord::default());
-        let trace_ffi = generate_trace_ffi(&shard);
-
-        assert_eq!(trace_ffi, trace);
+        let trace = chip.generate_preprocessed_trace(&program).unwrap();
+        println!("{:?}", trace.values);
     }
 
     #[cfg(feature = "sys")]
-    fn generate_trace_ffi(input: &ExecutionRecord<BabyBear>) -> RowMajorMatrix<BabyBear> {
-        use std::borrow::BorrowMut;
-
-        use sp1_core_machine::utils::pad_rows_fixed;
-
-        use crate::chips::public_values::{
-            PublicValuesCols, NUM_PUBLIC_VALUES_COLS, PUB_VALUES_LOG_HEIGHT,
-        };
-
+    fn generate_trace_ffi(
+        input: &ExecutionRecord<BabyBear>,
+        _: &mut ExecutionRecord<BabyBear>,
+    ) -> RowMajorMatrix<BabyBear> {
         type F = BabyBear;
 
         if input.commit_pv_hash_events.len() != 1 {
@@ -315,61 +287,20 @@ mod tests {
         RowMajorMatrix::new(rows.into_iter().flatten().collect(), NUM_PUBLIC_VALUES_COLS)
     }
 
-    #[test]
-    fn generate_public_values_preprocessed_trace() {
-        type F = BabyBear;
-
-        let addr = 0u32;
-        let public_values_a: [u32; RECURSIVE_PROOF_NUM_PV_ELTS] =
-            array::from_fn(|i| i as u32 + addr);
-        let public_values: &RecursionPublicValues<u32> = public_values_a.as_slice().borrow();
-
-        let program = RecursionProgram::<F> {
-            instructions: vec![instr::commit_public_values(public_values)],
-            ..Default::default()
-        };
-
-        let chip = PublicValuesChip;
-        let trace = chip.generate_preprocessed_trace(&program).unwrap();
-        println!("{:?}", trace.values);
-    }
-
     #[cfg(feature = "sys")]
     #[test]
-    fn test_generate_preprocessed_trace_ffi_eq_rust() {
-        let addr = 0u32;
-        let public_values_a: [u32; RECURSIVE_PROOF_NUM_PV_ELTS] =
-            array::from_fn(|i| i as u32 + addr);
-        let public_values: &RecursionPublicValues<u32> = public_values_a.as_slice().borrow();
+    fn test_generate_trace() {
+        let shard = test_fixtures::shard();
+        let trace = PublicValuesChip.generate_trace(&shard, &mut ExecutionRecord::default());
+        assert_eq!(trace.height(), 16);
 
-        let program = RecursionProgram {
-            instructions: vec![instr::commit_public_values(public_values)],
-            ..Default::default()
-        };
-
-        let chip = PublicValuesChip;
-        let trace = chip.generate_preprocessed_trace(&program).unwrap();
-        let trace_ffi = generate_preprocessed_trace_ffi(&program);
-
-        assert_eq!(trace_ffi, trace);
+        assert_eq!(trace, generate_trace_ffi(&shard, &mut ExecutionRecord::default()));
     }
 
     #[cfg(feature = "sys")]
     fn generate_preprocessed_trace_ffi(
         program: &RecursionProgram<BabyBear>,
     ) -> RowMajorMatrix<BabyBear> {
-        use std::borrow::BorrowMut;
-
-        use sp1_core_machine::utils::pad_rows_fixed;
-
-        use crate::{
-            chips::public_values::{
-                PublicValuesPreprocessedCols, NUM_PUBLIC_VALUES_PREPROCESSED_COLS,
-                PUB_VALUES_LOG_HEIGHT,
-            },
-            Instruction,
-        };
-
         type F = BabyBear;
 
         let mut rows: Vec<[F; NUM_PUBLIC_VALUES_PREPROCESSED_COLS]> = Vec::new();
@@ -412,5 +343,15 @@ mod tests {
             rows.into_iter().flatten().collect(),
             NUM_PUBLIC_VALUES_PREPROCESSED_COLS,
         )
+    }
+
+    #[cfg(feature = "sys")]
+    #[test]
+    fn test_generate_preprocessed_trace() {
+        let program = test_fixtures::program();
+        let trace = PublicValuesChip.generate_preprocessed_trace(&program).unwrap();
+        assert_eq!(trace.height(), 16);
+
+        assert_eq!(trace, generate_preprocessed_trace_ffi(&program));
     }
 }
