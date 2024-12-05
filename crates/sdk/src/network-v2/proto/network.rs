@@ -1782,7 +1782,7 @@ pub mod prover_network_client {
             req.extensions_mut().insert(GrpcMethod::new("network.ProverNetwork", "SetProgramName"));
             self.inner.unary(req, path, codec).await
         }
-        /// Get the avaliable balance of an account.
+        /// Get the available balance of an account.
         pub async fn get_balance(
             &mut self,
             request: impl tonic::IntoRequest<super::GetBalanceRequest>,
@@ -2130,7 +2130,7 @@ pub mod prover_network_server {
             &self,
             request: tonic::Request<super::SetProgramNameRequest>,
         ) -> std::result::Result<tonic::Response<super::SetProgramNameResponse>, tonic::Status>;
-        /// Get the avaliable balance of an account.
+        /// Get the available balance of an account.
         async fn get_balance(
             &self,
             request: tonic::Request<super::GetBalanceRequest>,
