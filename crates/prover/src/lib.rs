@@ -162,6 +162,8 @@ pub struct SP1Prover<C: SP1ProverComponents = DefaultProverComponents> {
     pub wrap_vk: OnceLock<StarkVerifyingKey<OuterSC>>,
 
     pub vk_verification: bool,
+
+    pub single_shard_programs: Option<BTreeMap<SP1RecursionShape, Arc<RecursionProgram<BabyBear>>>>,
 }
 
 impl<C: SP1ProverComponents> SP1Prover<C> {
@@ -205,6 +207,9 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             .unwrap_or(true)
             .then_some(RecursionShapeConfig::default());
 
+        let small_program_cache =
+            env::var("SMALL_PROGRAM_CACHE").map(|v| v.eq_ignore_ascii_case("true")).unwrap_or(true);
+
         let vk_verification =
             env::var("VERIFY_VK").map(|v| v.eq_ignore_ascii_case("true")).unwrap_or(false);
         tracing::info!("vk verification: {}", vk_verification);
@@ -240,6 +245,40 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             });
         }
 
+        let mut single_shard_programs = None;
+
+        if let Some(core_shape_config_inner) = &core_shape_config {
+            if small_program_cache {
+                let mut single_shard_programs_inner = BTreeMap::new();
+
+                for shape in core_shape_config_inner.small_program_shapes() {
+                    let input = SP1RecursionWitnessValues::dummy(
+                        core_prover.machine(),
+                        &SP1RecursionShape { proof_shapes: vec![shape], is_complete: true },
+                    );
+                    let mut builder = Builder::<InnerConfig>::default();
+
+                    let recursion_shape = input.shape();
+
+                    let input = input.read(&mut builder);
+                    SP1RecursiveVerifier::verify(&mut builder, core_prover.machine(), input);
+                    let operations = builder.into_operations();
+
+                    // Compile the program.
+                    let mut compiler = AsmCompiler::<InnerConfig>::default();
+                    let mut program = compiler.compile(operations);
+
+                    if let Some(recursion_shape_config_inner) = &recursion_shape_config {
+                        recursion_shape_config_inner.fix_shape(&mut program);
+                    }
+
+                    let single_shard_program = Arc::new(program);
+                    single_shard_programs_inner.insert(recursion_shape, single_shard_program);
+                }
+                let _ = single_shard_programs.insert(single_shard_programs_inner);
+            }
+        }
+
         Self {
             core_prover,
             compress_prover,
@@ -255,6 +294,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             core_shape_config,
             recursion_shape_config,
             vk_verification,
+            single_shard_programs,
             wrap_program: OnceLock::new(),
             wrap_vk: OnceLock::new(),
         }
@@ -355,10 +395,16 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             // Receive the first few shapes and comile the recursion programs.
             for _ in 0..3 {
                 if let Ok((shape, is_complete)) = shape_rx.recv() {
-                    let compress_shape = SP1CompressProgramShape::Recursion(SP1RecursionShape {
-                        proof_shapes: vec![shape],
-                        is_complete,
-                    });
+                    let recursion_shape =
+                        SP1RecursionShape { proof_shapes: vec![shape], is_complete };
+                    if let Some(programs) = &self.single_shard_programs {
+                        // Don't compile the program if it's already in the cache.
+                        if programs.contains_key(&recursion_shape) {
+                            continue;
+                        }
+                    }
+                    // Only need to compile the recursion program if we're not in the one-shard case.
+                    let compress_shape = SP1CompressProgramShape::Recursion(recursion_shape);
 
                     // Insert the program into the cache.
                     self.program_from_shape(false, compress_shape, None);
@@ -458,7 +504,13 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                                 SP1CircuitWitness::Core(input) => {
                                     let mut witness_stream = Vec::new();
                                     Witnessable::<InnerConfig>::write(&input, &mut witness_stream);
-                                    (self.recursion_program(&input), witness_stream)
+                                    let program = self
+                                        .single_shard_programs
+                                        .as_ref()
+                                        .and_then(|x| x.get(&input.shape()))
+                                        .map(Clone::clone)
+                                        .unwrap_or_else(|| self.recursion_program(&input));
+                                    (program, witness_stream)
                                 }
                                 SP1CircuitWitness::Deferred(input) => {
                                     let mut witness_stream = Vec::new();
@@ -948,8 +1000,8 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                 let compiler_span = tracing::debug_span!("compile recursion program").entered();
                 let mut compiler = AsmCompiler::<InnerConfig>::default();
                 let mut program = compiler.compile(operations);
-                if let Some(recursion_shape_config) = &self.recursion_shape_config {
-                    recursion_shape_config.fix_shape(&mut program);
+                if let Some(inn_recursion_shape_config) = &self.recursion_shape_config {
+                    inn_recursion_shape_config.fix_shape(&mut program);
                 }
                 let program = Arc::new(program);
                 compiler_span.exit();

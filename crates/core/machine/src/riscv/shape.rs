@@ -2,6 +2,7 @@ use itertools::Itertools;
 
 use hashbrown::HashMap;
 use num::Integer;
+use p3_baby_bear::BabyBear;
 use p3_field::PrimeField32;
 use p3_util::log2_ceil_usize;
 use sp1_core_executor::{CoreShape, ExecutionRecord, Program};
@@ -105,6 +106,25 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
 
         let shape = CoreShape { inner };
         Some(shape)
+    }
+
+    pub fn small_program_shapes(&self) -> Vec<ProofShape> {
+        self.shapes_with_cpu_and_memory_finalize
+            .iter()
+            .map(|log_heights| {
+                ProofShape::from_log2_heights(
+                    &log_heights
+                        .iter()
+                        .filter(|(_, v)| v[0].is_some())
+                        .map(|(k, v)| (k.name(), v.last().unwrap().unwrap()))
+                        .chain(vec![
+                            (MachineAir::<BabyBear>::name(&ProgramChip), 19),
+                            (MachineAir::<BabyBear>::name(&ByteChip::default()), 16),
+                        ])
+                        .collect::<Vec<_>>(),
+                )
+            })
+            .collect()
     }
 
     /// Fix the shape of the proof.
