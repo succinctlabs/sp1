@@ -6,7 +6,7 @@ use hashbrown::HashMap;
 use sp1_curves::{
     ecdsa::RecoveryId as ecdsaRecoveryId,
     k256::{Invert, RecoveryId, Signature, VerifyingKey},
-    p256::{Signature as p256Signature, VerifyingKey as p256VerifyingKey},
+    p256::{Invert as p256Invert, Signature as p256Signature, VerifyingKey as p256VerifyingKey},
 };
 
 use crate::Executor;
@@ -223,7 +223,8 @@ pub fn hook_r1_ecrecover(_: HookEnv, buf: &[u8]) -> Vec<Vec<u8>> {
         return vec![vec![0]];
     };
 
-    let bytes = recovered_key.to_sec1_bytes();
+    let recovered_key_encoded = recovered_key.to_encoded_point(true);
+    let bytes = recovered_key_encoded.as_bytes();
 
     let (_, s) = sig.split_scalars();
     let s_inverse = s.invert();
