@@ -10,12 +10,9 @@ use p3_field::AbstractField;
 use p3_field::PrimeField32;
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use p3_maybe_rayon::prelude::{
-    IndexedParallelIterator, IntoParallelRefMutIterator, ParallelBridge, ParallelIterator,
-    ParallelSlice,
+    IndexedParallelIterator, IntoParallelRefMutIterator, ParallelIterator,
 };
-use rayon_scan::ScanParallelIterator;
 use sp1_core_executor::events::GlobalInteractionEvent;
-use sp1_core_executor::events::{ByteLookupEvent, ByteRecord};
 use sp1_core_executor::{ExecutionRecord, Program};
 use sp1_derive::AlignedBorrow;
 use sp1_stark::{

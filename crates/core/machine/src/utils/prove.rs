@@ -458,14 +458,8 @@ where
         #[cfg(feature = "debug")]
         {
             let all_records = all_records_rx.iter().flatten().collect::<Vec<_>>();
-            // let all_records_bytes = bincode::serialize(&all_records).unwrap();
-            // std::fs::write("all_records.bin", all_records_bytes).unwrap();
-            // let all_records_bytes = std::fs::read("all_records.bin").unwrap();
-            // let all_records: Vec<ExecutionRecord> =
-            //     bincode::deserialize(&all_records_bytes).unwrap();
             let mut challenger = prover.machine().config().challenger();
             let pk_host = prover.pk_to_host(pk);
-            // let record = all_records[0].clone();
             prover.machine().debug_constraints(&pk_host, all_records, &mut challenger);
         }
 

@@ -1,7 +1,6 @@
 use std::{borrow::Borrow, mem::transmute};
 
 use crate::air::WordAirBuilder;
-use hashbrown::HashMap;
 use p3_air::{Air, BaseAir, PairBuilder};
 use p3_field::PrimeField32;
 use p3_matrix::{dense::RowMajorMatrix, Matrix};

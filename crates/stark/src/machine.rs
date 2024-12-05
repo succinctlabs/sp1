@@ -199,7 +199,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
                         begin.elapsed()
                     );
                     // Assert that the chip width data is correct.
-                    let expected_width = prep_trace.as_ref().map(|t| t.width()).unwrap_or(0);
+                    let expected_width = prep_trace.as_ref().map_or(0, p3_matrix::Matrix::width);
                     assert_eq!(
                         expected_width,
                         chip.preprocessed_width(),
@@ -399,9 +399,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
         let mut global_cumulative_sums = Vec::new();
         global_cumulative_sums.push(pk.initial_global_cumulative_sum);
 
-        for (i, shard) in records.iter().enumerate() {
-            tracing::debug!("debug constraints: shard = {}", i);
-
+        for shard in records.iter() {
             // Filter the chips based on what is used.
             let chips = self.shard_chips(shard).collect::<Vec<_>>();
 
@@ -510,19 +508,19 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
             global_cumulative_sums.iter().copied().sum();
 
         // If the global cumulative sum is not zero, debug the interactions.
-        // if !global_cumulative_sum.is_zero() {
-        //     tracing::warn!("Global cumulative sum is not zero");
-        //     tracing::debug_span!("debug global interactions").in_scope(|| {
-        //         debug_interactions_with_all_chips::<SC, A>(
-        //             self,
-        //             pk,
-        //             &records,
-        //             InteractionKind::all_kinds(),
-        //             InteractionScope::Global,
-        //         )
-        //     });
-        //     panic!("Global cumulative sum is not zero");
-        // }
+        if !global_cumulative_sum.is_zero() {
+            tracing::warn!("Global cumulative sum is not zero");
+            tracing::debug_span!("debug global interactions").in_scope(|| {
+                debug_interactions_with_all_chips::<SC, A>(
+                    self,
+                    pk,
+                    &records,
+                    InteractionKind::all_kinds(),
+                    InteractionScope::Global,
+                )
+            });
+            panic!("Global cumulative sum is not zero");
+        }
     }
 }
 

@@ -4,12 +4,11 @@ use crate::{
     memory::SingleMemoryLocal,
     syscall::chip::SyscallCols,
 };
-use hashbrown::HashMap;
 use p3_baby_bear::BabyBear;
 
 use sp1_core_executor::events::{
-    AluEvent, CpuEvent, LookupId, MemoryInitializeFinalizeEvent, MemoryLocalEvent,
-    MemoryReadRecord, MemoryRecordEnum, MemoryWriteRecord, SyscallEvent,
+    AluEvent, MemoryInitializeFinalizeEvent, MemoryLocalEvent, MemoryReadRecord, MemoryRecordEnum,
+    MemoryWriteRecord, SyscallEvent,
 };
 
 #[link(name = "sp1-core-machine-sys", kind = "static")]
