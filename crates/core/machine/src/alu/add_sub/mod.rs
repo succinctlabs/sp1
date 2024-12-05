@@ -72,7 +72,7 @@ impl<F: PrimeField32> MachineAir<F> for AddSubChip {
     fn num_rows(&self, input: &Self::Record) -> Option<usize> {
         let nb_rows = next_power_of_two(
             input.add_events.len() + input.sub_events.len(),
-            input.fixed_log2_rows::<F, Self>(self),
+            input.fixed_log2_rows::<F, _>(self),
         );
         Some(nb_rows)
     }

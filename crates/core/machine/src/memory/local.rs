@@ -127,7 +127,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryLocalChip {
     fn num_rows(&self, input: &Self::Record) -> Option<usize> {
         let count = input.get_local_mem_events().count();
         let nb_rows = nb_rows(count);
-        let size_log2 = input.fixed_log2_rows::<F, Self>(self);
+        let size_log2 = input.fixed_log2_rows::<F, _>(self);
         Some(next_power_of_two(nb_rows, size_log2))
     }
 
