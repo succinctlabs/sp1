@@ -1,20 +1,19 @@
-use std::time::Duration;
+use std::result::Result::Ok as StdOk;
+use std::str::FromStr;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use alloy_signer::SignerSync;
 use alloy_signer_local::PrivateKeySigner;
 use anyhow::{Context, Ok, Result};
 use reqwest_middleware::ClientWithMiddleware as HttpClientWithMiddleware;
-use serde::de::DeserializeOwned;
-use serde::Serialize;
+use serde::{de::DeserializeOwned, Serialize};
+use tonic::{
+    transport::{channel::ClientTlsConfig, Channel},
+    Code,
+};
+
 use sp1_core_machine::io::SP1Stdin;
-use sp1_prover::HashableKey;
-use sp1_prover::SP1VerifyingKey;
-use std::result::Result::Ok as StdOk;
-use std::str::FromStr;
-use std::time::{SystemTime, UNIX_EPOCH};
-use tonic::transport::channel::ClientTlsConfig;
-use tonic::transport::Channel;
-use tonic::Code;
+use sp1_prover::{HashableKey, SP1VerifyingKey};
 
 use crate::network_v2::proto::artifact::{
     artifact_store_client::ArtifactStoreClient, CreateArtifactRequest,
