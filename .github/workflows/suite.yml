@@ -59,6 +59,13 @@ jobs:
           command: clean
           toolchain: 1.81.0
 
+      - name: Install SP1 toolchain from repo
+        run: |
+          cargo run -p sp1-cli -- prove install-toolchain
+          cd crates/cli
+          cargo install --locked --force --path .
+          cargo clean
+
       - name: Run sp1-perf
         uses: actions-rs/cargo@v1
         with:
@@ -113,6 +120,13 @@ jobs:
           command: clean
           toolchain: 1.81.0
 
+      - name: Install SP1 toolchain from repo
+        run: |
+          cargo run -p sp1-cli -- prove install-toolchain
+          cd crates/cli
+          cargo install --locked --force --path .
+          cargo clean
+
       - name: Run sp1-perf
         uses: actions-rs/cargo@v1
         with:
@@ -165,6 +179,13 @@ jobs:
         with:
           command: clean
           toolchain: 1.81.0
+
+      - name: Install SP1 toolchain from repo
+        run: |
+          cargo run -p sp1-cli -- prove install-toolchain
+          cd crates/cli
+          cargo install --locked --force --path .
+          cargo clean
 
       - name: Run sp1-perf
         uses: actions-rs/cargo@v1
