@@ -7,7 +7,7 @@ publish = false
 
 [dependencies]
 hex = "0.4.3"
-sp1-sdk = { workspace = true, features = ["network-v2"] }
+sp1-sdk = { workspace = true }
 
 [build-dependencies]
 sp1-build = { workspace = true }
