@@ -154,10 +154,14 @@ mod tests {
 
         let syscall_code = SyscallCode::U256XU2048_MUL;
         let syscall_event = SyscallEvent {
+            pc: 32,
+            next_pc: 36,
             shard: 0u32,
             clk: hi_ts,
-            lookup_id,
-            syscall_id: syscall_code as u32,
+            a_record: MemoryWriteRecord::default(),
+            a_record_is_real: false,
+            syscall_code,
+            syscall_id: syscall_code.syscall_id(),
             arg1: a_ptr,
             arg2: b_ptr,
             nonce: 0u32,

@@ -109,21 +109,20 @@ impl<E: EllipticCurve + WeierstrassParameters> WeierstrassDecompressChip<E> {
 
     fn populate_field_ops<F: PrimeField32>(
         record: &mut impl ByteRecord,
-        shard: u32,
         cols: &mut WeierstrassDecompressCols<F, E::BaseField>,
         x: BigUint,
     ) {
         // Y = sqrt(x^3 + ax + b)
-        cols.range_x.populate(record, shard, &x, &E::BaseField::modulus());
-        let x_2 = cols.x_2.populate(record, shard, &x.clone(), &x.clone(), FieldOperation::Mul);
-        let x_3 = cols.x_3.populate(record, shard, &x_2, &x, FieldOperation::Mul);
+        cols.range_x.populate(record, &x, &E::BaseField::modulus());
+        let x_2 = cols.x_2.populate(record, &x.clone(), &x.clone(), FieldOperation::Mul);
+        let x_3 = cols.x_3.populate(record, &x_2, &x, FieldOperation::Mul);
         let b = E::b_int();
         let a = E::a_int();
         let param_vec = vec![a, b];
         let x_vec = vec![x, BigUint::one()];
-        let ax_plus_b = cols.ax_plus_b.populate(record, shard, &param_vec, &x_vec);
+        let ax_plus_b = cols.ax_plus_b.populate(record, &param_vec, &x_vec);
         let x_3_plus_b_plus_ax =
-            cols.x_3_plus_b_plus_ax.populate(record, shard, &x_3, &ax_plus_b, FieldOperation::Add);
+            cols.x_3_plus_b_plus_ax.populate(record, &x_3, &ax_plus_b, FieldOperation::Add);
 
         let sqrt_fn = match E::CURVE_TYPE {
             CurveType::Secp256k1 => secp256k1_sqrt,
@@ -132,9 +131,9 @@ impl<E: EllipticCurve + WeierstrassParameters> WeierstrassDecompressChip<E> {
             _ => panic!("Unsupported curve"),
         };
 
-        let y = cols.y.populate(record, shard, &x_3_plus_b_plus_ax, sqrt_fn);
+        let y = cols.y.populate(record, &x_3_plus_b_plus_ax, sqrt_fn);
         let zero = BigUint::zero();
-        cols.neg_y.populate(record, shard, &zero, &y, FieldOperation::Sub);
+        cols.neg_y.populate(record, &zero, &y, FieldOperation::Sub);
     }
 }
 
@@ -192,7 +191,7 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
             cols.sign_bit = F::from_bool(event.sign_bit);
 
             let x = BigUint::from_bytes_le(&event.x_bytes);
-            Self::populate_field_ops(&mut new_byte_lookup_events, event.shard, cols, x);
+            Self::populate_field_ops(&mut new_byte_lookup_events, cols, x);
 
             for i in 0..cols.x_access.len() {
                 cols.x_access[i].populate(event.x_memory_records[i], &mut new_byte_lookup_events);
@@ -217,14 +216,12 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
                 if is_y_eq_sqrt_y_result {
                     choice_cols.neg_y_range_check.populate(
                         &mut new_byte_lookup_events,
-                        event.shard,
                         &neg_y,
                         &modulus,
                     );
                 } else {
                     choice_cols.neg_y_range_check.populate(
                         &mut new_byte_lookup_events,
-                        event.shard,
                         &decompressed_y,
                         &modulus,
                     );
@@ -235,7 +232,6 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
                     choice_cols.when_neg_y_res_is_lt = F::from_bool(is_y_eq_sqrt_y_result);
                     choice_cols.comparison_lt_cols.populate(
                         &mut new_byte_lookup_events,
-                        event.shard,
                         &neg_y,
                         &decompressed_y,
                     );
@@ -245,7 +241,6 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
                     choice_cols.when_neg_y_res_is_lt = F::from_bool(!is_y_eq_sqrt_y_result);
                     choice_cols.comparison_lt_cols.populate(
                         &mut new_byte_lookup_events,
-                        event.shard,
                         &decompressed_y,
                         &neg_y,
                     );
@@ -271,7 +266,7 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
                     cols.x_access[i].access.value = words[i].into();
                 }
 
-                Self::populate_field_ops(&mut vec![], 0, cols, dummy_value);
+                Self::populate_field_ops(&mut vec![], cols, dummy_value);
                 row
             },
             input.fixed_log2_rows::<F, _>(self),

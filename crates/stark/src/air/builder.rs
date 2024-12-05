@@ -177,52 +177,84 @@ pub trait ByteAirBuilder: BaseAirBuilder {
     }
 }
 
-/// A trait which contains methods related to ALU interactions in an AIR.
-pub trait AluAirBuilder: BaseAirBuilder {
-    /// Sends an ALU operation to be processed.
+/// A trait which contains methods related to RISC-V instruction interactions in an AIR.
+pub trait InstructionAirBuilder: BaseAirBuilder {
+    /// Sends a RISC-V instruction to be processed.
     #[allow(clippy::too_many_arguments)]
-    fn send_alu(
+    fn send_instruction(
         &mut self,
+        shard: impl Into<Self::Expr> + Clone,
+        clk: impl Into<Self::Expr> + Clone,
+        pc: impl Into<Self::Expr>,
+        next_pc: impl Into<Self::Expr>,
+        num_extra_cycles: impl Into<Self::Expr>,
         opcode: impl Into<Self::Expr>,
         a: Word<impl Into<Self::Expr>>,
         b: Word<impl Into<Self::Expr>>,
         c: Word<impl Into<Self::Expr>>,
-        shard: impl Into<Self::Expr>,
+        op_a_0: impl Into<Self::Expr>,
+        op_a_immutable: impl Into<Self::Expr>,
+        is_syscall: impl Into<Self::Expr>,
+        is_halt: impl Into<Self::Expr>,
         multiplicity: impl Into<Self::Expr>,
     ) {
-        let values = once(opcode.into())
+        let values = once(shard.into())
+            .chain(once(clk.into()))
+            .chain(once(pc.into()))
+            .chain(once(next_pc.into()))
+            .chain(once(num_extra_cycles.into()))
+            .chain(once(opcode.into()))
             .chain(a.0.into_iter().map(Into::into))
             .chain(b.0.into_iter().map(Into::into))
             .chain(c.0.into_iter().map(Into::into))
-            .chain(once(shard.into()))
+            .chain(once(op_a_0.into()))
+            .chain(once(op_a_immutable.into()))
+            .chain(once(is_syscall.into()))
+            .chain(once(is_halt.into()))
             .collect();
 
         self.send(
-            AirInteraction::new(values, multiplicity.into(), InteractionKind::Alu),
+            AirInteraction::new(values, multiplicity.into(), InteractionKind::Instruction),
             InteractionScope::Local,
         );
     }
 
     /// Receives an ALU operation to be processed.
     #[allow(clippy::too_many_arguments)]
-    fn receive_alu(
+    fn receive_instruction(
         &mut self,
+        shard: impl Into<Self::Expr> + Clone,
+        clk: impl Into<Self::Expr> + Clone,
+        pc: impl Into<Self::Expr>,
+        next_pc: impl Into<Self::Expr>,
+        num_extra_cycles: impl Into<Self::Expr>,
         opcode: impl Into<Self::Expr>,
         a: Word<impl Into<Self::Expr>>,
         b: Word<impl Into<Self::Expr>>,
         c: Word<impl Into<Self::Expr>>,
-        shard: impl Into<Self::Expr>,
+        op_a_0: impl Into<Self::Expr>,
+        op_a_immutable: impl Into<Self::Expr>,
+        is_syscall: impl Into<Self::Expr>,
+        is_halt: impl Into<Self::Expr>,
         multiplicity: impl Into<Self::Expr>,
     ) {
-        let values = once(opcode.into())
+        let values = once(shard.into())
+            .chain(once(clk.into()))
+            .chain(once(pc.into()))
+            .chain(once(next_pc.into()))
+            .chain(once(num_extra_cycles.into()))
+            .chain(once(opcode.into()))
             .chain(a.0.into_iter().map(Into::into))
             .chain(b.0.into_iter().map(Into::into))
             .chain(c.0.into_iter().map(Into::into))
-            .chain(once(shard.into()))
+            .chain(once(op_a_0.into()))
+            .chain(once(op_a_immutable.into()))
+            .chain(once(is_syscall.into()))
+            .chain(once(is_halt.into()))
             .collect();
 
         self.receive(
-            AirInteraction::new(values, multiplicity.into(), InteractionKind::Alu),
+            AirInteraction::new(values, multiplicity.into(), InteractionKind::Instruction),
             InteractionScope::Local,
         );
     }
@@ -359,7 +391,7 @@ pub trait MachineAirBuilder:
 }
 
 /// A trait which contains all helper methods for building SP1 machine AIRs.
-pub trait SP1AirBuilder: MachineAirBuilder + ByteAirBuilder + AluAirBuilder {}
+pub trait SP1AirBuilder: MachineAirBuilder + ByteAirBuilder + InstructionAirBuilder {}
 
 impl<'a, AB: AirBuilder + MessageBuilder<M>, M> MessageBuilder<M> for FilteredAirBuilder<'a, AB> {
     fn send(&mut self, message: M, scope: InteractionScope) {
@@ -373,7 +405,7 @@ impl<'a, AB: AirBuilder + MessageBuilder<M>, M> MessageBuilder<M> for FilteredAi
 
 impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> BaseAirBuilder for AB {}
 impl<AB: BaseAirBuilder> ByteAirBuilder for AB {}
-impl<AB: BaseAirBuilder> AluAirBuilder for AB {}
+impl<AB: BaseAirBuilder> InstructionAirBuilder for AB {}
 
 impl<AB: BaseAirBuilder> ExtensionAirBuilder for AB {}
 impl<AB: BaseAirBuilder> SepticExtensionAirBuilder for AB {}

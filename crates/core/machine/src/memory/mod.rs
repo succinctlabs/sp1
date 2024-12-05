@@ -1,15 +1,16 @@
-mod columns;
+mod consistency;
 mod global;
+mod instructions;
 mod local;
 mod program;
-mod trace;
 
-pub use columns::*;
+pub use consistency::*;
 pub use global::*;
+pub use instructions::*;
 pub use local::*;
 pub use program::*;
 
-/// The type of memory chip that is being initialized.
+/// The type of global/local memory chip that is being initialized.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MemoryChipType {
     Initialize,

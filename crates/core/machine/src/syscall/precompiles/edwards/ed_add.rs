@@ -72,7 +72,6 @@ impl<E: EllipticCurve + EdwardsParameters> EdAddAssignChip<E> {
     #[allow(clippy::too_many_arguments)]
     fn populate_field_ops<F: PrimeField32>(
         record: &mut impl ByteRecord,
-        shard: u32,
         cols: &mut EdAddAssignCols<F>,
         p_x: BigUint,
         p_y: BigUint,
@@ -81,25 +80,23 @@ impl<E: EllipticCurve + EdwardsParameters> EdAddAssignChip<E> {
     ) {
         let x3_numerator = cols.x3_numerator.populate(
             record,
-            shard,
             &[p_x.clone(), q_x.clone()],
             &[q_y.clone(), p_y.clone()],
         );
         let y3_numerator = cols.y3_numerator.populate(
             record,
-            shard,
             &[p_y.clone(), p_x.clone()],
             &[q_y.clone(), q_x.clone()],
         );
-        let x1_mul_y1 = cols.x1_mul_y1.populate(record, shard, &p_x, &p_y, FieldOperation::Mul);
-        let x2_mul_y2 = cols.x2_mul_y2.populate(record, shard, &q_x, &q_y, FieldOperation::Mul);
-        let f = cols.f.populate(record, shard, &x1_mul_y1, &x2_mul_y2, FieldOperation::Mul);
+        let x1_mul_y1 = cols.x1_mul_y1.populate(record, &p_x, &p_y, FieldOperation::Mul);
+        let x2_mul_y2 = cols.x2_mul_y2.populate(record, &q_x, &q_y, FieldOperation::Mul);
+        let f = cols.f.populate(record, &x1_mul_y1, &x2_mul_y2, FieldOperation::Mul);
 
         let d = E::d_biguint();
-        let d_mul_f = cols.d_mul_f.populate(record, shard, &f, &d, FieldOperation::Mul);
+        let d_mul_f = cols.d_mul_f.populate(record, &f, &d, FieldOperation::Mul);
 
-        cols.x3_ins.populate(record, shard, &x3_numerator, &d_mul_f, true);
-        cols.y3_ins.populate(record, shard, &y3_numerator, &d_mul_f, false);
+        cols.x3_ins.populate(record, &x3_numerator, &d_mul_f, true);
+        cols.y3_ins.populate(record, &y3_numerator, &d_mul_f, false);
     }
 }
 
@@ -144,7 +141,6 @@ impl<F: PrimeField32, E: EllipticCurve + EdwardsParameters> MachineAir<F> for Ed
                 let zero = BigUint::zero();
                 Self::populate_field_ops(
                     &mut vec![],
-                    0,
                     cols,
                     zero.clone(),
                     zero.clone(),
@@ -167,7 +163,7 @@ impl<F: PrimeField32, E: EllipticCurve + EdwardsParameters> MachineAir<F> for Ed
         let blu_batches = events
             .par_chunks(chunk_size)
             .map(|events| {
-                let mut blu: HashMap<u32, HashMap<ByteLookupEvent, usize>> = HashMap::new();
+                let mut blu: HashMap<ByteLookupEvent, usize> = HashMap::new();
                 events.iter().for_each(|(_, event)| {
                     let event = if let PrecompileEvent::EdAdd(event) = event {
                         event
@@ -183,7 +179,7 @@ impl<F: PrimeField32, E: EllipticCurve + EdwardsParameters> MachineAir<F> for Ed
             })
             .collect::<Vec<_>>();
 
-        output.add_sharded_byte_lookup_events(blu_batches.iter().collect_vec());
+        output.add_byte_lookup_events_from_maps(blu_batches.iter().collect_vec());
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
@@ -222,7 +218,7 @@ impl<E: EllipticCurve + EdwardsParameters> EdAddAssignChip<E> {
         cols.p_ptr = F::from_canonical_u32(event.p_ptr);
         cols.q_ptr = F::from_canonical_u32(event.q_ptr);
 
-        Self::populate_field_ops(blu, event.shard, cols, p_x, p_y, q_x, q_y);
+        Self::populate_field_ops(blu, cols, p_x, p_y, q_x, q_y);
 
         // Populate the memory access columns.
         for i in 0..WORDS_CURVE_POINT {

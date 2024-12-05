@@ -11,10 +11,14 @@ use thiserror::Error;
 
 use crate::{
     context::SP1Context,
-    dependencies::{emit_cpu_dependencies, emit_divrem_dependencies},
+    dependencies::{
+        emit_auipc_dependency, emit_branch_dependencies, emit_divrem_dependencies,
+        emit_jump_dependencies, emit_memory_dependencies,
+    },
     events::{
-        AluEvent, CpuEvent, LookupId, MemoryAccessPosition, MemoryInitializeFinalizeEvent,
-        MemoryLocalEvent, MemoryReadRecord, MemoryRecord, MemoryWriteRecord, SyscallEvent,
+        AUIPCEvent, AluEvent, BranchEvent, CpuEvent, JumpEvent, LookupId, MemInstrEvent,
+        MemoryAccessPosition, MemoryInitializeFinalizeEvent, MemoryLocalEvent, MemoryReadRecord,
+        MemoryRecord, MemoryRecordEnum, MemoryWriteRecord, SyscallEvent,
     },
     hook::{HookEnv, HookRegistry},
     memory::{Entry, PagedMemory},
@@ -25,6 +29,13 @@ use crate::{
     syscalls::{default_syscall_map, Syscall, SyscallCode, SyscallContext},
     Instruction, Opcode, Program, Register,
 };
+
+/// The default increment for the program counter.  Is used for all instructions except
+/// for branches and jumps.
+pub const DEFAULT_PC_INC: u32 = 4;
+/// This is used in the `InstrEvent` to indicate that the instruction is not from the CPU.
+/// A valid pc should be divisible by 4, so we use 1 to indicate that the pc is not used.
+pub const UNUSED_PC: u32 = 1;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 /// Whether to verify deferred proofs during execution.
@@ -610,12 +621,51 @@ impl<'a> Executor<'a> {
         }
     }
 
+    /// Emit events for this cycle.
+    #[allow(clippy::too_many_arguments)]
+    fn emit_events(
+        &mut self,
+        clk: u32,
+        next_pc: u32,
+        instruction: &Instruction,
+        syscall_code: SyscallCode,
+        a: u32,
+        b: u32,
+        c: u32,
+        op_a_0: bool,
+        record: MemoryAccessRecord,
+        exit_code: u32,
+        syscall_lookup_id: LookupId,
+    ) {
+        let lookup_id = self.record.create_lookup_id();
+
+        self.emit_cpu(clk, next_pc, a, b, c, record, exit_code, lookup_id, syscall_lookup_id);
+
+        if instruction.is_alu_instruction() {
+            self.emit_alu_event(instruction.opcode, a, b, c, lookup_id);
+        } else if instruction.is_memory_load_instruction()
+            || instruction.is_memory_store_instruction()
+        {
+            self.emit_mem_instr_event(instruction.opcode, a, b, c, op_a_0);
+        } else if instruction.is_branch_instruction() {
+            self.emit_branch_event(instruction.opcode, a, b, c, op_a_0, next_pc);
+        } else if instruction.is_jump_instruction() {
+            self.emit_jump_event(instruction.opcode, a, b, c, op_a_0, next_pc);
+        } else if instruction.is_auipc_instruction() {
+            self.emit_auipc_event(instruction.opcode, a, b, c);
+        } else if instruction.is_ecall_instruction() {
+            self.emit_syscall_event(clk, record.a, syscall_code, b, c, syscall_lookup_id, next_pc);
+        } else {
+            unreachable!()
+        }
+    }
+
     /// Emit a CPU event.
     #[allow(clippy::too_many_arguments)]
+    #[inline]
     fn emit_cpu(
         &mut self,
         clk: u32,
-        pc: u32,
         next_pc: u32,
         a: u32,
         b: u32,
@@ -625,17 +675,9 @@ impl<'a> Executor<'a> {
         lookup_id: LookupId,
         syscall_lookup_id: LookupId,
     ) {
-        let memory_add_lookup_id = self.record.create_lookup_id();
-        let memory_sub_lookup_id = self.record.create_lookup_id();
-        let branch_lt_lookup_id = self.record.create_lookup_id();
-        let branch_gt_lookup_id = self.record.create_lookup_id();
-        let branch_add_lookup_id = self.record.create_lookup_id();
-        let jump_jal_lookup_id = self.record.create_lookup_id();
-        let jump_jalr_lookup_id = self.record.create_lookup_id();
-        let auipc_lookup_id = self.record.create_lookup_id();
         self.record.cpu_events.push(CpuEvent {
             clk,
-            pc,
+            pc: self.state.pc,
             next_pc,
             a,
             a_record: record.a,
@@ -643,29 +685,17 @@ impl<'a> Executor<'a> {
             b_record: record.b,
             c,
             c_record: record.c,
-            memory_record: record.memory,
             exit_code,
             alu_lookup_id: lookup_id,
             syscall_lookup_id,
-            memory_add_lookup_id,
-            memory_sub_lookup_id,
-            branch_lt_lookup_id,
-            branch_gt_lookup_id,
-            branch_add_lookup_id,
-            jump_jal_lookup_id,
-            jump_jalr_lookup_id,
-            auipc_lookup_id,
         });
-
-        emit_cpu_dependencies(self, self.record.cpu_events.len() - 1);
     }
 
     /// Emit an ALU event.
-    fn emit_alu(&mut self, clk: u32, opcode: Opcode, a: u32, b: u32, c: u32, lookup_id: LookupId) {
+    fn emit_alu_event(&mut self, opcode: Opcode, a: u32, b: u32, c: u32, lookup_id: LookupId) {
         let event = AluEvent {
+            pc: self.state.pc,
             lookup_id,
-            shard: self.shard(),
-            clk,
             opcode,
             a,
             b,
@@ -698,39 +728,142 @@ impl<'a> Executor<'a> {
                 self.record.divrem_events.push(event);
                 emit_divrem_dependencies(self, event);
             }
-            _ => {}
+            _ => unreachable!(),
         }
     }
 
+    /// Emit a memory instruction event.
+    #[inline]
+    fn emit_mem_instr_event(&mut self, opcode: Opcode, a: u32, b: u32, c: u32, op_a_0: bool) {
+        let event = MemInstrEvent {
+            shard: self.shard(),
+            clk: self.state.clk,
+            pc: self.state.pc,
+            opcode,
+            a,
+            b,
+            c,
+            op_a_0,
+            mem_access: self.memory_accesses.memory.expect("Must have memory access"),
+            memory_add_lookup_id: self.record.create_lookup_id(),
+            memory_sub_lookup_id: self.record.create_lookup_id(),
+        };
+
+        self.record.memory_instr_events.push(event);
+        emit_memory_dependencies(
+            self,
+            event,
+            self.memory_accesses.memory.expect("Must have memory access").current_record(),
+        );
+    }
+
+    /// Emit a branch event.
+    #[inline]
+    fn emit_branch_event(
+        &mut self,
+        opcode: Opcode,
+        a: u32,
+        b: u32,
+        c: u32,
+        op_a_0: bool,
+        next_pc: u32,
+    ) {
+        let event = BranchEvent {
+            pc: self.state.pc,
+            next_pc,
+            opcode,
+            a,
+            b,
+            c,
+            op_a_0,
+            branch_gt_lookup_id: self.record.create_lookup_id(),
+            branch_lt_lookup_id: self.record.create_lookup_id(),
+            branch_add_lookup_id: self.record.create_lookup_id(),
+        };
+        self.record.branch_events.push(event);
+        emit_branch_dependencies(self, event);
+    }
+
+    /// Emit a jump event.
+    #[inline]
+    fn emit_jump_event(
+        &mut self,
+        opcode: Opcode,
+        a: u32,
+        b: u32,
+        c: u32,
+        op_a_0: bool,
+        next_pc: u32,
+    ) {
+        let event = JumpEvent::new(
+            self.state.pc,
+            next_pc,
+            opcode,
+            a,
+            b,
+            c,
+            op_a_0,
+            self.record.create_lookup_id(),
+            self.record.create_lookup_id(),
+        );
+        self.record.jump_events.push(event);
+        emit_jump_dependencies(self, event);
+    }
+
+    /// Emit an AUIPC event.
+    #[inline]
+    fn emit_auipc_event(&mut self, opcode: Opcode, a: u32, b: u32, c: u32) {
+        let event = AUIPCEvent::new(self.state.pc, opcode, a, b, c, self.record.create_lookup_id());
+        self.record.auipc_events.push(event);
+        emit_auipc_dependency(self, event);
+    }
+
+    /// Create a syscall event.
+    #[allow(clippy::too_many_arguments)]
     #[inline]
     pub(crate) fn syscall_event(
         &self,
         clk: u32,
-        syscall_id: u32,
+        a_record: Option<MemoryRecordEnum>,
+        syscall_code: SyscallCode,
         arg1: u32,
         arg2: u32,
         lookup_id: LookupId,
+        next_pc: u32,
     ) -> SyscallEvent {
+        let (write, is_real) = match a_record {
+            Some(MemoryRecordEnum::Write(record)) => (record, true),
+            _ => (MemoryWriteRecord::default(), false),
+        };
         SyscallEvent {
             shard: self.shard(),
             clk,
-            syscall_id,
+            pc: self.state.pc,
+            next_pc,
+            a_record: write,
+            a_record_is_real: is_real,
+            syscall_code,
+            syscall_id: syscall_code.syscall_id(),
             arg1,
             arg2,
-            lookup_id,
             nonce: self.record.nonce_lookup[lookup_id.0 as usize],
         }
     }
 
-    fn emit_syscall(
+    /// Emit a syscall event.
+    #[allow(clippy::too_many_arguments)]
+    fn emit_syscall_event(
         &mut self,
         clk: u32,
-        syscall_id: u32,
+        a_record: Option<MemoryRecordEnum>,
+        syscall_code: SyscallCode,
         arg1: u32,
         arg2: u32,
         lookup_id: LookupId,
+        next_pc: u32,
     ) {
-        let syscall_event = self.syscall_event(clk, syscall_id, arg1, arg2, lookup_id);
+        let syscall_event =
+            self.syscall_event(clk, a_record, syscall_code, arg1, arg2, lookup_id, next_pc);
 
         self.record.syscall_events.push(syscall_event);
     }
@@ -754,20 +887,10 @@ impl<'a> Executor<'a> {
         }
     }
 
-    /// Set the destination register with the result and emit an ALU event.
-    fn alu_rw(
-        &mut self,
-        instruction: &Instruction,
-        rd: Register,
-        a: u32,
-        b: u32,
-        c: u32,
-        lookup_id: LookupId,
-    ) {
+    /// Set the destination register with the result.
+    #[inline]
+    fn alu_rw(&mut self, rd: Register, a: u32) {
         self.rw(rd, a);
-        if self.executor_mode == ExecutorMode::Trace {
-            self.emit_alu(self.state.clk, instruction.opcode, a, b, c, lookup_id);
-        }
     }
 
     /// Fetch the input operand values for a load instruction.
@@ -808,209 +931,90 @@ impl<'a> Executor<'a> {
     /// Execute the given instruction over the current state of the runtime.
     #[allow(clippy::too_many_lines)]
     fn execute_instruction(&mut self, instruction: &Instruction) -> Result<(), ExecutionError> {
-        let mut pc = self.state.pc;
+        // The `clk` variable contains the cycle before the current instruction is executed.  The
+        // `state.clk` can be updated before the end of this function by precompiles' execution.
         let mut clk = self.state.clk;
         let mut exit_code = 0u32;
-
         let mut next_pc = self.state.pc.wrapping_add(4);
+        // Will be set to a non-default value if the instruction is a syscall.
+        let mut syscall_lookup_id = LookupId::default();
 
-        let (a, b, c): (u32, u32, u32);
+        let (mut a, b, c): (u32, u32, u32);
 
         if self.executor_mode == ExecutorMode::Trace {
             self.memory_accesses = MemoryAccessRecord::default();
         }
-        let lookup_id = if self.executor_mode == ExecutorMode::Trace {
-            self.record.create_lookup_id()
-        } else {
-            LookupId::default()
-        };
-        let syscall_lookup_id = if self.executor_mode == ExecutorMode::Trace {
-            self.record.create_lookup_id()
-        } else {
-            LookupId::default()
-        };
+
+        // The syscall id for precompiles.  This is only used/set when opcode == ECALL.
+        let mut syscall = SyscallCode::default();
 
         if !self.unconstrained {
             self.report.opcode_counts[instruction.opcode] += 1;
             self.report.event_counts[instruction.opcode] += 1;
-            match instruction.opcode {
-                Opcode::LB | Opcode::LH | Opcode::LW | Opcode::LBU | Opcode::LHU => {
-                    self.report.event_counts[Opcode::ADD] += 2;
-                }
-                Opcode::JAL | Opcode::JALR | Opcode::AUIPC => {
-                    self.report.event_counts[Opcode::ADD] += 1;
-                }
-                Opcode::BEQ
-                | Opcode::BNE
-                | Opcode::BLT
-                | Opcode::BGE
-                | Opcode::BLTU
-                | Opcode::BGEU => {
-                    self.report.event_counts[Opcode::ADD] += 1;
-                    self.report.event_counts[Opcode::SLTU] += 2;
-                }
-                Opcode::DIVU | Opcode::REMU | Opcode::DIV | Opcode::REM => {
-                    self.report.event_counts[Opcode::MUL] += 2;
-                    self.report.event_counts[Opcode::ADD] += 2;
-                    self.report.event_counts[Opcode::SLTU] += 1;
-                }
-                _ => {}
-            };
+            if instruction.is_memory_load_instruction() {
+                self.report.event_counts[Opcode::ADD] += 2;
+            } else if instruction.is_jump_instruction() {
+                self.report.event_counts[Opcode::ADD] += 1;
+            } else if instruction.is_branch_instruction() {
+                self.report.event_counts[Opcode::ADD] += 1;
+                self.report.event_counts[Opcode::SLTU] += 2;
+            } else if instruction.is_divrem_instruction() {
+                self.report.event_counts[Opcode::MUL] += 2;
+                self.report.event_counts[Opcode::ADD] += 2;
+                self.report.event_counts[Opcode::SLTU] += 1;
+            }
         }
 
-        match instruction.opcode {
-            // Arithmetic instructions.
-            Opcode::ADD
-            | Opcode::SUB
-            | Opcode::XOR
-            | Opcode::OR
-            | Opcode::AND
-            | Opcode::SLL
-            | Opcode::SRL
-            | Opcode::SRA
-            | Opcode::SLT
-            | Opcode::SLTU
-            | Opcode::MUL
-            | Opcode::MULH
-            | Opcode::MULHU
-            | Opcode::MULHSU
-            | Opcode::DIV
-            | Opcode::DIVU
-            | Opcode::REM
-            | Opcode::REMU => {
-                (a, b, c) = self.execute_alu(instruction, lookup_id);
-            }
-
-            // Load instructions.
-            Opcode::LB | Opcode::LH | Opcode::LW | Opcode::LBU | Opcode::LHU => {
-                (a, b, c) = self.execute_load(instruction)?;
-            }
-
-            // Store instructions.
-            Opcode::SB | Opcode::SH | Opcode::SW => {
-                (a, b, c) = self.execute_store(instruction)?;
-            }
-
-            // Branch instructions.
-            Opcode::BEQ | Opcode::BNE | Opcode::BLT | Opcode::BGE | Opcode::BLTU | Opcode::BGEU => {
-                (a, b, c, next_pc) = self.execute_branch(instruction, next_pc);
-            }
-
-            // Jump instructions.
-            Opcode::JAL => {
-                let (rd, imm) = instruction.j_type();
-                (b, c) = (imm, 0);
-                a = self.state.pc + 4;
-                self.rw(rd, a);
-                next_pc = self.state.pc.wrapping_add(imm);
-            }
-            Opcode::JALR => {
-                let (rd, rs1, imm) = instruction.i_type();
-                (b, c) = (self.rr(rs1, MemoryAccessPosition::B), imm);
-                a = self.state.pc + 4;
-                self.rw(rd, a);
-                next_pc = b.wrapping_add(c);
-            }
-
-            // Upper immediate instructions.
-            Opcode::AUIPC => {
-                let (rd, imm) = instruction.u_type();
-                (b, c) = (imm, imm);
-                a = self.state.pc.wrapping_add(b);
-                self.rw(rd, a);
-            }
-
-            // System instructions.
-            Opcode::ECALL => {
-                // We peek at register x5 to get the syscall id. The reason we don't `self.rr` this
-                // register is that we write to it later.
-                let t0 = Register::X5;
-                let syscall_id = self.register(t0);
-                c = self.rr(Register::X11, MemoryAccessPosition::C);
-                b = self.rr(Register::X10, MemoryAccessPosition::B);
-                let syscall = SyscallCode::from_u32(syscall_id);
-
-                if self.print_report && !self.unconstrained {
-                    self.report.syscall_counts[syscall] += 1;
-                }
-
-                // `hint_slice` is allowed in unconstrained mode since it is used to write the hint.
-                // Other syscalls are not allowed because they can lead to non-deterministic
-                // behavior, especially since many syscalls modify memory in place,
-                // which is not permitted in unconstrained mode. This will result in
-                // non-zero memory interactions when generating a proof.
-
-                if self.unconstrained
-                    && (syscall != SyscallCode::EXIT_UNCONSTRAINED && syscall != SyscallCode::WRITE)
-                {
-                    return Err(ExecutionError::InvalidSyscallUsage(syscall_id as u64));
-                }
-
-                // Update the syscall counts.
-                let syscall_for_count = syscall.count_map();
-                let syscall_count = self.state.syscall_counts.entry(syscall_for_count).or_insert(0);
-                let (threshold, multiplier) = match syscall_for_count {
-                    SyscallCode::KECCAK_PERMUTE => (self.opts.split_opts.keccak, 24),
-                    SyscallCode::SHA_EXTEND => (self.opts.split_opts.sha_extend, 48),
-                    SyscallCode::SHA_COMPRESS => (self.opts.split_opts.sha_compress, 80),
-                    _ => (self.opts.split_opts.deferred, 1),
-                };
-                let nonce = (((*syscall_count as usize) % threshold) * multiplier) as u32;
-                self.record.nonce_lookup[syscall_lookup_id.0 as usize] = nonce;
-                *syscall_count += 1;
-
-                let syscall_impl = self.get_syscall(syscall).cloned();
-                if syscall.should_send() != 0 && self.executor_mode == ExecutorMode::Trace {
-                    self.emit_syscall(clk, syscall.syscall_id(), b, c, syscall_lookup_id);
-                }
-                let mut precompile_rt = SyscallContext::new(self);
-                precompile_rt.syscall_lookup_id = syscall_lookup_id;
-                let (precompile_next_pc, precompile_cycles, returned_exit_code) =
-                    if let Some(syscall_impl) = syscall_impl {
-                        // Executing a syscall optionally returns a value to write to the t0
-                        // register. If it returns None, we just keep the
-                        // syscall_id in t0.
-                        let res = syscall_impl.execute(&mut precompile_rt, syscall, b, c);
-                        if let Some(val) = res {
-                            a = val;
-                        } else {
-                            a = syscall_id;
-                        }
-
-                        // If the syscall is `HALT` and the exit code is non-zero, return an error.
-                        if syscall == SyscallCode::HALT && precompile_rt.exit_code != 0 {
-                            return Err(ExecutionError::HaltWithNonZeroExitCode(
-                                precompile_rt.exit_code,
-                            ));
-                        }
-
-                        (
-                            precompile_rt.next_pc,
-                            syscall_impl.num_extra_cycles(),
-                            precompile_rt.exit_code,
-                        )
-                    } else {
-                        return Err(ExecutionError::UnsupportedSyscall(syscall_id));
-                    };
-
-                // Allow the syscall impl to modify state.clk/pc (exit unconstrained does this)
-                clk = self.state.clk;
-                pc = self.state.pc;
-
-                self.rw(t0, a);
-                next_pc = precompile_next_pc;
-                self.state.clk += precompile_cycles;
-                exit_code = returned_exit_code;
-            }
-            Opcode::EBREAK => {
-                return Err(ExecutionError::Breakpoint());
-            }
-
+        if instruction.is_alu_instruction() {
+            (a, b, c) = self.execute_alu(instruction);
+        } else if instruction.is_memory_load_instruction() {
+            (a, b, c) = self.execute_load(instruction)?;
+        } else if instruction.is_memory_store_instruction() {
+            (a, b, c) = self.execute_store(instruction)?;
+        } else if instruction.is_branch_instruction() {
+            (a, b, c, next_pc) = self.execute_branch(instruction, next_pc);
+        } else if instruction.is_jump_instruction() {
+            (a, b, c, next_pc) = self.execute_jump(instruction);
+        } else if instruction.is_auipc_instruction() {
+            let (rd, imm) = instruction.u_type();
+            (b, c) = (imm, imm);
+            a = self.state.pc.wrapping_add(b);
+            self.rw(rd, a);
+        } else if instruction.is_ecall_instruction() {
+            (a, b, c, clk, next_pc, syscall, syscall_lookup_id, exit_code) =
+                self.execute_ecall()?;
+        } else if instruction.is_ebreak_instruction() {
+            return Err(ExecutionError::Breakpoint());
+        } else if instruction.is_unimp_instruction() {
             // See https://github.com/riscv-non-isa/riscv-asm-manual/blob/master/riscv-asm.md#instruction-aliases
-            Opcode::UNIMP => {
-                return Err(ExecutionError::Unimplemented());
-            }
+            return Err(ExecutionError::Unimplemented());
+        } else {
+            println!("unreachable: {:?}", instruction.opcode);
+            unreachable!()
         }
+
+        // If the destination register is x0, then we need to make sure that a's value is 0.
+        let op_a_0 = instruction.op_a == Register::X0 as u8;
+        if op_a_0 {
+            a = 0;
+        }
+
+        // Emit the events for this cycle.
+        if self.executor_mode == ExecutorMode::Trace {
+            self.emit_events(
+                clk,
+                next_pc,
+                instruction,
+                syscall,
+                a,
+                b,
+                c,
+                op_a_0,
+                self.memory_accesses,
+                exit_code,
+                syscall_lookup_id,
+            );
+        };
 
         // Update the program counter.
         self.state.pc = next_pc;
@@ -1018,25 +1022,11 @@ impl<'a> Executor<'a> {
         // Update the clk to the next cycle.
         self.state.clk += 4;
 
-        // Emit the CPU event for this cycle.
-        if self.executor_mode == ExecutorMode::Trace {
-            self.emit_cpu(
-                clk,
-                pc,
-                next_pc,
-                a,
-                b,
-                c,
-                self.memory_accesses,
-                exit_code,
-                lookup_id,
-                syscall_lookup_id,
-            );
-        };
         Ok(())
     }
 
-    fn execute_alu(&mut self, instruction: &Instruction, lookup_id: LookupId) -> (u32, u32, u32) {
+    /// Execute an ALU instruction.
+    fn execute_alu(&mut self, instruction: &Instruction) -> (u32, u32, u32) {
         let (rd, b, c) = self.alu_rr(instruction);
         let a = match instruction.opcode {
             Opcode::ADD => b.wrapping_add(c),
@@ -1095,10 +1085,11 @@ impl<'a> Executor<'a> {
             }
             _ => unreachable!(),
         };
-        self.alu_rw(instruction, rd, a, b, c, lookup_id);
+        self.alu_rw(rd, a);
         (a, b, c)
     }
 
+    /// Execute a load instruction.
     fn execute_load(
         &mut self,
         instruction: &Instruction,
@@ -1131,6 +1122,7 @@ impl<'a> Executor<'a> {
         Ok((a, b, c))
     }
 
+    /// Execute a store instruction.
     fn execute_store(
         &mut self,
         instruction: &Instruction,
@@ -1160,6 +1152,7 @@ impl<'a> Executor<'a> {
         Ok((a, b, c))
     }
 
+    /// Execute a branch instruction.
     fn execute_branch(
         &mut self,
         instruction: &Instruction,
@@ -1180,6 +1173,116 @@ impl<'a> Executor<'a> {
         if branch {
             next_pc = self.state.pc.wrapping_add(c);
         }
+        (a, b, c, next_pc)
+    }
+
+    /// Execute an ecall instruction.
+    #[allow(clippy::type_complexity)]
+    fn execute_ecall(
+        &mut self,
+    ) -> Result<(u32, u32, u32, u32, u32, SyscallCode, LookupId, u32), ExecutionError> {
+        // We peek at register x5 to get the syscall id. The reason we don't `self.rr` this
+        // register is that we write to it later.
+        let t0 = Register::X5;
+        let syscall_id = self.register(t0);
+        let c = self.rr(Register::X11, MemoryAccessPosition::C);
+        let b = self.rr(Register::X10, MemoryAccessPosition::B);
+        let syscall = SyscallCode::from_u32(syscall_id);
+
+        let syscall_lookup_id = if self.executor_mode == ExecutorMode::Trace {
+            self.record.create_lookup_id()
+        } else {
+            LookupId::default()
+        };
+
+        if self.print_report && !self.unconstrained {
+            self.report.syscall_counts[syscall] += 1;
+        }
+
+        // `hint_slice` is allowed in unconstrained mode since it is used to write the hint.
+        // Other syscalls are not allowed because they can lead to non-deterministic
+        // behavior, especially since many syscalls modify memory in place,
+        // which is not permitted in unconstrained mode. This will result in
+        // non-zero memory interactions when generating a proof.
+
+        if self.unconstrained
+            && (syscall != SyscallCode::EXIT_UNCONSTRAINED && syscall != SyscallCode::WRITE)
+        {
+            return Err(ExecutionError::InvalidSyscallUsage(syscall_id as u64));
+        }
+
+        // Update the syscall counts.
+        let syscall_for_count = syscall.count_map();
+        let syscall_count = self.state.syscall_counts.entry(syscall_for_count).or_insert(0);
+        let (threshold, multiplier) = match syscall_for_count {
+            SyscallCode::KECCAK_PERMUTE => (self.opts.split_opts.keccak, 24),
+            SyscallCode::SHA_EXTEND => (self.opts.split_opts.sha_extend, 48),
+            SyscallCode::SHA_COMPRESS => (self.opts.split_opts.sha_compress, 80),
+            _ => (self.opts.split_opts.deferred, 1),
+        };
+        let nonce = (((*syscall_count as usize) % threshold) * multiplier) as u32;
+        self.record.nonce_lookup[syscall_lookup_id.0 as usize] = nonce;
+        *syscall_count += 1;
+
+        let syscall_impl = self.get_syscall(syscall).cloned();
+        let mut precompile_rt = SyscallContext::new(self);
+        precompile_rt.syscall_lookup_id = syscall_lookup_id;
+        let (a, precompile_next_pc, precompile_cycles, returned_exit_code) =
+            if let Some(syscall_impl) = syscall_impl {
+                // Executing a syscall optionally returns a value to write to the t0
+                // register. If it returns None, we just keep the
+                // syscall_id in t0.
+                let res = syscall_impl.execute(&mut precompile_rt, syscall, b, c);
+                let a = if let Some(val) = res { val } else { syscall_id };
+
+                // If the syscall is `HALT` and the exit code is non-zero, return an error.
+                if syscall == SyscallCode::HALT && precompile_rt.exit_code != 0 {
+                    return Err(ExecutionError::HaltWithNonZeroExitCode(precompile_rt.exit_code));
+                }
+
+                (a, precompile_rt.next_pc, syscall_impl.num_extra_cycles(), precompile_rt.exit_code)
+            } else {
+                return Err(ExecutionError::UnsupportedSyscall(syscall_id));
+            };
+
+        // If the syscall is `EXIT_UNCONSTRAINED`, the memory was restored to pre-unconstrained code
+        // in the execute function, so we need to re-read from x10 and x11.  Just do a peek on the
+        // registers.
+        let (b, c) = if syscall == SyscallCode::EXIT_UNCONSTRAINED {
+            (self.register(Register::X10), self.register(Register::X11))
+        } else {
+            (b, c)
+        };
+
+        // Allow the syscall impl to modify state.clk/pc (exit unconstrained does this)
+        self.rw(t0, a);
+        let clk = self.state.clk;
+        self.state.clk += precompile_cycles;
+
+        Ok((a, b, c, clk, precompile_next_pc, syscall, syscall_lookup_id, returned_exit_code))
+    }
+
+    /// Execute a jump instruction.
+    fn execute_jump(&mut self, instruction: &Instruction) -> (u32, u32, u32, u32) {
+        let (a, b, c, next_pc) = match instruction.opcode {
+            Opcode::JAL => {
+                let (rd, imm) = instruction.j_type();
+                let (b, c) = (imm, 0);
+                let a = self.state.pc + 4;
+                self.rw(rd, a);
+                let next_pc = self.state.pc.wrapping_add(imm);
+                (a, b, c, next_pc)
+            }
+            Opcode::JALR => {
+                let (rd, rs1, imm) = instruction.i_type();
+                let (b, c) = (self.rr(rs1, MemoryAccessPosition::B), imm);
+                let a = self.state.pc + 4;
+                self.rw(rd, a);
+                let next_pc = b.wrapping_add(c);
+                (a, b, c, next_pc)
+            }
+            _ => unreachable!(),
+        };
         (a, b, c, next_pc)
     }
 

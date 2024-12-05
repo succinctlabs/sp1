@@ -77,7 +77,7 @@ impl<F: PrimeField32> EdDecompressCols<F> {
         }
 
         let y = &BigUint::from_bytes_le(&event.y_bytes);
-        self.populate_field_ops::<E>(&mut new_byte_lookup_events, event.shard, y);
+        self.populate_field_ops::<E>(&mut new_byte_lookup_events, y);
 
         record.add_byte_lookup_events(new_byte_lookup_events);
     }
@@ -85,18 +85,17 @@ impl<F: PrimeField32> EdDecompressCols<F> {
     fn populate_field_ops<E: EdwardsParameters>(
         &mut self,
         blu_events: &mut Vec<ByteLookupEvent>,
-        shard: u32,
         y: &BigUint,
     ) {
         let one = BigUint::one();
-        self.y_range.populate(blu_events, shard, y, &Ed25519BaseField::modulus());
-        let yy = self.yy.populate(blu_events, shard, y, y, FieldOperation::Mul);
-        let u = self.u.populate(blu_events, shard, &yy, &one, FieldOperation::Sub);
-        let dyy = self.dyy.populate(blu_events, shard, &E::d_biguint(), &yy, FieldOperation::Mul);
-        let v = self.v.populate(blu_events, shard, &one, &dyy, FieldOperation::Add);
-        let u_div_v = self.u_div_v.populate(blu_events, shard, &u, &v, FieldOperation::Div);
-        let x = self.x.populate(blu_events, shard, &u_div_v, ed25519_sqrt);
-        self.neg_x.populate(blu_events, shard, &BigUint::zero(), &x, FieldOperation::Sub);
+        self.y_range.populate(blu_events, y, &Ed25519BaseField::modulus());
+        let yy = self.yy.populate(blu_events, y, y, FieldOperation::Mul);
+        let u = self.u.populate(blu_events, &yy, &one, FieldOperation::Sub);
+        let dyy = self.dyy.populate(blu_events, &E::d_biguint(), &yy, FieldOperation::Mul);
+        let v = self.v.populate(blu_events, &one, &dyy, FieldOperation::Add);
+        let u_div_v = self.u_div_v.populate(blu_events, &u, &v, FieldOperation::Div);
+        let x = self.x.populate(blu_events, &u_div_v, ed25519_sqrt);
+        self.neg_x.populate(blu_events, &BigUint::zero(), &x, FieldOperation::Sub);
     }
 }
 
@@ -233,7 +232,7 @@ impl<F: PrimeField32, E: EdwardsParameters> MachineAir<F> for EdDecompressChip<E
                 let mut row = [F::zero(); NUM_ED_DECOMPRESS_COLS];
                 let cols: &mut EdDecompressCols<F> = row.as_mut_slice().borrow_mut();
                 let zero = BigUint::zero();
-                cols.populate_field_ops::<E>(&mut vec![], 0, &zero);
+                cols.populate_field_ops::<E>(&mut vec![], &zero);
                 row
             },
             input.fixed_log2_rows::<F, _>(self),
