@@ -157,16 +157,20 @@ fn test_p256_patch() {
 
     let mut recid_byte = recid.to_byte();
 
-    if let Some(sig_normalized) = signature.normalize_s() {
-        signature = sig_normalized;
-        recid_byte ^= 1;
-    }
+    assert!(signature.normalize_s().is_some());
 
-    let recid = ecdsaRecoveryId::from_byte(recid_byte).unwrap();
+    //if let Some(sig_normalized) = signature.normalize_s() {
+    //    signature = sig_normalized;
+    //    recid_byte ^= 1;
+    //}
+    //
+    //let recid = ecdsaRecoveryId::from_byte(recid_byte).unwrap();
 
     println!("cycle-tracker-start: p256 recovery");
     let recovered_key =
         P256VerifyingKey::recover_from_prehash(&message_prehash, &signature, recid).unwrap();
+
+    assert_eq!(&recovered_key, signing_key.verifying_key());
     println!("cycle-tracker-end: p256 recovery");
 }
 
@@ -243,8 +247,8 @@ fn test_secp256k1_patch() {
 
 /// To add testing for a new patch, add a new case to the function below.
 pub fn main() {
-    // TODO: Specify which syscalls are linked to each function invocation, iterate
-    // over this list that is shared between the program and script.
+    //TODO: Specify which syscalls are linked to each function invocation, iterate
+    //over this list that is shared between the program and script.
     test_keccak();
     test_sha256();
 
