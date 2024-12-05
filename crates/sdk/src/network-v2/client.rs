@@ -14,7 +14,7 @@ use std::str::FromStr;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tonic::transport::channel::ClientTlsConfig;
 use tonic::transport::Channel;
-use tonic::Status;
+use tonic::Code;
 
 use crate::network_v2::proto::artifact::{
     artifact_store_client::ArtifactStoreClient, CreateArtifactRequest,
@@ -99,11 +99,10 @@ impl NetworkClient {
     }
 
     /// Get the verifying key hash from a verifying key. The verifying key hash is used to identify
-    /// a program.  
+    /// a program.
     pub fn get_vk_hash(vk: &SP1VerifyingKey) -> Result<Vec<u8>> {
         let vk_hash_str = vk.bytes32();
-        let vk_hash = hex::decode(vk_hash_str.strip_prefix("0x").unwrap_or(&vk_hash_str))
-            .map_err(|_| Status::invalid_argument("failed to decode verification key hash"))?;
+        let vk_hash = hex::decode(vk_hash_str.strip_prefix("0x").unwrap_or(&vk_hash_str))?;
         Ok(vk_hash)
     }
 
@@ -111,14 +110,14 @@ impl NetworkClient {
     pub async fn register_program(&self, vk: &SP1VerifyingKey, elf: &[u8]) -> Result<Vec<u8>> {
         let vk_hash = Self::get_vk_hash(vk)?;
 
-        // Try to get existing program.
+        // Try to get the existing program.
         match self.get_program(&vk_hash).await? {
             Some(_) => {
-                // Program already exists.
+                // The program already exists.
                 Ok(vk_hash)
             }
             None => {
-                // Program doesn't exist, create it.
+                // The program doesn't exist, create it.
                 self.create_program(&vk_hash, vk, elf).await?;
                 log::info!("Registered program 0x{}", hex::encode(vk_hash.clone()));
                 Ok(vk_hash)
@@ -131,7 +130,7 @@ impl NetworkClient {
         let mut rpc = self.get_rpc().await?;
         match rpc.get_program(GetProgramRequest { vk_hash: vk_hash.to_vec() }).await {
             StdOk(response) => Ok(Some(response.into_inner())),
-            Err(status) if status.code() == tonic::Code::NotFound => Ok(None),
+            Err(status) if status.code() == Code::NotFound => Ok(None),
             Err(e) => Err(e.into()),
         }
     }
