@@ -13,7 +13,9 @@ pub mod test_fixtures {
     use crate::*;
     use p3_baby_bear::BabyBear;
     use p3_field::{AbstractField, Field, PrimeField32};
+    use p3_symmetric::Permutation;
     use rand::{prelude::SliceRandom, rngs::StdRng, Rng, SeedableRng};
+    use sp1_stark::inner_perm;
     use std::{array, borrow::Borrow};
 
     const SEED: u64 = 12345;
@@ -29,6 +31,7 @@ pub mod test_fixtures {
             fri_fold_events: fri_fold_events(),
             commit_pv_hash_events: public_values_events(),
             select_events: select_events(),
+            poseidon2_events: poseidon2_events(),
             ..Default::default()
         }
     }
@@ -42,6 +45,7 @@ pub mod test_fixtures {
         instructions.push(fri_fold_instructions());
         instructions.push(public_values_instructions());
         instructions.push(select_instructions());
+        instructions.push(poseidon2_instructions());
 
         let mut rng = StdRng::seed_from_u64(SEED);
         let mut flattened: Vec<_> = instructions.into_iter().flatten().collect();
@@ -171,6 +175,19 @@ pub mod test_fixtures {
             let in2 = BabyBear::from_wrapped_u32(rng.gen());
             let (out1, out2) = if bit == BabyBear::one() { (in1, in2) } else { (in2, in1) };
             events.push(SelectIo { bit, out1, out2, in1, in2 });
+        }
+        events
+    }
+
+    fn poseidon2_events() -> Vec<Poseidon2Event<BabyBear>> {
+        let (mut rng, num_test_cases) = initialize();
+        let mut events = Vec::with_capacity(num_test_cases);
+        for _ in 0..num_test_cases {
+            let input = array::from_fn(|_| BabyBear::from_wrapped_u32(rng.gen()));
+            let permuter = inner_perm();
+            let output = permuter.permute(input);
+
+            events.push(Poseidon2Event { input, output });
         }
         events
     }
@@ -315,6 +332,23 @@ pub mod test_fixtures {
                 mult1: BabyBear::from_wrapped_u32(rng.gen()),
                 mult2: BabyBear::from_wrapped_u32(rng.gen()),
             }));
+        }
+        instructions
+    }
+
+    fn poseidon2_instructions() -> Vec<Instruction<BabyBear>> {
+        let (mut rng, num_test_cases) = initialize();
+        let mut instructions = Vec::with_capacity(num_test_cases);
+
+        for _ in 0..num_test_cases {
+            let input = array::from_fn(|_| Address(BabyBear::from_wrapped_u32(rng.gen())));
+            let output = array::from_fn(|_| Address(BabyBear::from_wrapped_u32(rng.gen())));
+            let mults = array::from_fn(|_| BabyBear::from_wrapped_u32(rng.gen()));
+
+            instructions.push(Instruction::Poseidon2(Box::new(Poseidon2Instr {
+                addrs: Poseidon2Io { input, output },
+                mults,
+            })));
         }
         instructions
     }

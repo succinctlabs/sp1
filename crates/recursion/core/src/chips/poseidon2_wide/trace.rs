@@ -129,15 +129,13 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
 #[cfg(test)]
 mod tests {
     use crate::{
-        chips::poseidon2_wide::Poseidon2WideChip, Address, ExecutionRecord, Poseidon2Event,
-        Poseidon2Instr, Poseidon2Io,
+        chips::{poseidon2_wide::Poseidon2WideChip, test_fixtures},
+        ExecutionRecord,
     };
     use p3_baby_bear::BabyBear;
     use p3_field::AbstractField;
-    use p3_matrix::dense::RowMajorMatrix;
-    use p3_symmetric::Permutation;
-    use sp1_stark::{air::MachineAir, inner_perm};
-    use zkhash::ark_ff::UniformRand;
+    use p3_matrix::{dense::RowMajorMatrix, Matrix};
+    use sp1_stark::air::MachineAir;
 
     use super::*;
 
@@ -192,55 +190,25 @@ mod tests {
     #[cfg(feature = "sys")]
     #[test]
     fn test_generate_trace_deg_3() {
-        type F = BabyBear;
-
-        let input_0 = [F::one(); WIDTH];
-        let permuter = inner_perm();
-        let output_0 = permuter.permute(input_0);
-        let mut rng = rand::thread_rng();
-        let input_1 = [F::rand(&mut rng); WIDTH];
-        let output_1 = permuter.permute(input_1);
-
-        let shard = ExecutionRecord {
-            poseidon2_events: vec![
-                Poseidon2Event { input: input_0, output: output_0 },
-                Poseidon2Event { input: input_1, output: output_1 },
-            ],
-            ..Default::default()
-        };
-        let mut execution_record = ExecutionRecord::<BabyBear>::default();
+        let shard = test_fixtures::shard();
+        let mut execution_record = test_fixtures::default_execution_record();
         let chip = Poseidon2WideChip::<DEGREE_3>;
-        let trace_rust = chip.generate_trace(&shard, &mut ExecutionRecord::default());
-        let trace_ffi = generate_trace_ffi::<DEGREE_3>(&shard, &mut execution_record);
+        let trace = chip.generate_trace(&shard, &mut execution_record);
+        assert!(trace.height() >= test_fixtures::MIN_TEST_CASES);
 
-        assert_eq!(trace_ffi, trace_rust);
+        assert_eq!(trace, generate_trace_ffi::<DEGREE_3>(&shard, &mut execution_record));
     }
 
     #[cfg(feature = "sys")]
     #[test]
     fn test_generate_trace_deg_9() {
-        type F = BabyBear;
-
-        let input_0 = [F::one(); WIDTH];
-        let permuter = inner_perm();
-        let output_0 = permuter.permute(input_0);
-        let mut rng = rand::thread_rng();
-        let input_1 = [F::rand(&mut rng); WIDTH];
-        let output_1 = permuter.permute(input_1);
-
-        let shard = ExecutionRecord {
-            poseidon2_events: vec![
-                Poseidon2Event { input: input_0, output: output_0 },
-                Poseidon2Event { input: input_1, output: output_1 },
-            ],
-            ..Default::default()
-        };
-        let mut execution_record = ExecutionRecord::<BabyBear>::default();
+        let shard = test_fixtures::shard();
+        let mut execution_record = test_fixtures::default_execution_record();
         let chip = Poseidon2WideChip::<DEGREE_9>;
-        let trace_rust = chip.generate_trace(&shard, &mut execution_record);
-        let trace_ffi = generate_trace_ffi::<DEGREE_9>(&shard, &mut execution_record);
+        let trace = chip.generate_trace(&shard, &mut execution_record);
+        assert!(trace.height() >= test_fixtures::MIN_TEST_CASES);
 
-        assert_eq!(trace_ffi, trace_rust);
+        assert_eq!(trace, generate_trace_ffi::<DEGREE_9>(&shard, &mut execution_record));
     }
 
     #[cfg(feature = "sys")]
@@ -282,29 +250,10 @@ mod tests {
     #[cfg(feature = "sys")]
     #[test]
     fn test_generate_preprocessed_trace_deg_3() {
-        type F = BabyBear;
-
-        let program = RecursionProgram::<BabyBear> {
-            instructions: vec![
-                Poseidon2(Box::new(Poseidon2Instr {
-                    addrs: Poseidon2Io {
-                        input: [Address(F::one()); WIDTH],
-                        output: [Address(F::two()); WIDTH],
-                    },
-                    mults: [F::one(); WIDTH],
-                })),
-                Poseidon2(Box::new(Poseidon2Instr {
-                    addrs: Poseidon2Io {
-                        input: [Address(F::one()); WIDTH],
-                        output: [Address(F::two()); WIDTH],
-                    },
-                    mults: [F::one(); WIDTH],
-                })),
-            ],
-            ..Default::default()
-        };
+        let program = test_fixtures::program();
         let chip = Poseidon2WideChip::<DEGREE_3>;
         let trace = chip.generate_preprocessed_trace(&program).unwrap();
+        assert!(trace.height() >= test_fixtures::MIN_TEST_CASES);
 
         assert_eq!(trace, generate_preprocessed_trace_ffi::<DEGREE_3>(&program));
     }
@@ -312,20 +261,10 @@ mod tests {
     #[cfg(feature = "sys")]
     #[test]
     fn test_generate_preprocessed_trace_deg_9() {
-        type F = BabyBear;
-
-        let program = RecursionProgram::<BabyBear> {
-            instructions: vec![Poseidon2(Box::new(Poseidon2Instr {
-                addrs: Poseidon2Io {
-                    input: [Address(F::one()); WIDTH],
-                    output: [Address(F::two()); WIDTH],
-                },
-                mults: [F::one(); WIDTH],
-            }))],
-            ..Default::default()
-        };
+        let program = test_fixtures::program();
         let chip = Poseidon2WideChip::<DEGREE_9>;
         let trace = chip.generate_preprocessed_trace(&program).unwrap();
+        assert!(trace.height() >= test_fixtures::MIN_TEST_CASES);
 
         assert_eq!(trace, generate_preprocessed_trace_ffi::<DEGREE_9>(&program));
     }
