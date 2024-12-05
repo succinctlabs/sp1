@@ -14,7 +14,8 @@ use sp1_prover::{components::DefaultProverComponents, SP1Prover, SP1_CIRCUIT_VER
 use sp1_stark::SP1ProverOpts;
 use tonic::Code;
 
-use {crate::block_on, tokio::time::sleep};
+use crate::block_on;
+use tokio::time::sleep;
 
 use crate::provers::{CpuProver, ProofOpts, ProverType};
 

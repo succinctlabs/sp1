@@ -9,6 +9,7 @@ use super::{create_random_lookup_ids, LookupId};
 /// This object encapsulated the information needed to prove an ALU operation. This includes its
 /// shard, opcode, operands, and other relevant information.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[repr(C)]
 pub struct AluEvent {
     /// The lookup identifier.
     pub lookup_id: LookupId,

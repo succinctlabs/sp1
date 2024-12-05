@@ -41,3 +41,6 @@ crates/prover/vk
 
 # Example legacy elf
 examples/elf 
+# Example fibonacci groth16 / plonk proofs
+examples/fibonacci/fibonacci-groth16.bin
+examples/fibonacci/fibonacci-plonk.bin

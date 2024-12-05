@@ -1,5 +1,5 @@
 use bn::{CurveError, FieldError, GroupError};
-use thiserror::Error;
+use thiserror_no_std::Error;
 
 #[derive(Error, Debug)]
 pub enum Error {

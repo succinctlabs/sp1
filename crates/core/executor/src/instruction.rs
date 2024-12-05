@@ -11,6 +11,7 @@ use crate::opcode::Opcode;
 /// as 32-bit words, but instead use a custom encoding that is more friendly to decode in the
 /// SP1 zkVM.
 #[derive(Clone, Copy, Serialize, Deserialize)]
+#[repr(C)]
 pub struct Instruction {
     /// The operation to execute.
     pub opcode: Opcode,

@@ -278,7 +278,6 @@ where
         builder.receive_syscall(
             local.shard,
             local.clk,
-            local.nonce,
             AB::F::from_canonical_u32(SyscallCode::U256XU2048_MUL.syscall_id()),
             local.a_ptr,
             local.b_ptr,

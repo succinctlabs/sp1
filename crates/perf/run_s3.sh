@@ -1,13 +1,21 @@
 #!/bin/bash
 
-# Check if both arguments are provided
-if [ $# -ne 2 ]; then
-    echo "Usage: $0 <s3_path> <cpu|cuda>"
+# Set the default value for the stage argument
+stage="prove"
+
+# Check the number of arguments
+if [ $# -lt 2 ] || [ $# -gt 3 ]; then
+    echo "Usage: $0 <s3_path> <cpu|cuda> [execute|prove]"
     exit 1
 fi
 
+# If the third argument is provided, override the default value
+if [ $# -eq 3 ]; then
+    stage="$3"
+fi
+
 s3_path=$1
-stage=$2
+kind=$2
 
 # Download files from S3
 aws s3 cp s3://sp1-testing-suite/$s3_path/program.bin /tmp/program.bin
@@ -20,4 +28,4 @@ export RUST_LOG=debug
 export SP1_DEBUG=1
 
 # Run moongate-perf
-cargo run -p sp1-perf -- --program /tmp/program.bin --stdin /tmp/stdin.bin --mode $stage
+cargo run -p sp1-perf -- --program /tmp/program.bin --stdin /tmp/stdin.bin --mode $kind --stage $stage

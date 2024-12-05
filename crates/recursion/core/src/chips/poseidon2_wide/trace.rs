@@ -288,8 +288,10 @@ mod tests {
 
     use crate::{
         chips::poseidon2_wide::{Poseidon2WideChip, WIDTH},
-        ExecutionRecord, Poseidon2Event,
+        Address, ExecutionRecord, Poseidon2Event, Poseidon2Instr, Poseidon2Io,
     };
+
+    use super::*;
 
     #[test]
     fn generate_trace_deg_3() {
@@ -333,5 +335,212 @@ mod tests {
         };
         let chip_9 = Poseidon2WideChip::<9>;
         let _: RowMajorMatrix<F> = chip_9.generate_trace(&shard, &mut ExecutionRecord::default());
+    }
+
+    #[cfg(feature = "sys")]
+    #[test]
+    fn test_generate_trace_ffi_eq_rust() {
+        type F = BabyBear;
+        let input_0 = [F::one(); WIDTH];
+        let permuter = inner_perm();
+        let output_0 = permuter.permute(input_0);
+        let mut rng = rand::thread_rng();
+
+        let input_1 = [F::rand(&mut rng); WIDTH];
+        let output_1 = permuter.permute(input_1);
+
+        let shard = ExecutionRecord {
+            poseidon2_events: vec![
+                Poseidon2Event { input: input_0, output: output_0 },
+                Poseidon2Event { input: input_1, output: output_1 },
+            ],
+            ..Default::default()
+        };
+
+        let chip = Poseidon2WideChip::<9>;
+        let trace_rust = chip.generate_trace(&shard, &mut ExecutionRecord::default());
+        let trace_ffi = generate_trace_ffi(&shard);
+
+        assert_eq!(trace_ffi, trace_rust);
+    }
+
+    #[cfg(feature = "sys")]
+    fn generate_trace_ffi(input: &ExecutionRecord<BabyBear>) -> RowMajorMatrix<BabyBear> {
+        type F = BabyBear;
+        let padded_nb_rows = match input.fixed_log2_rows(&Poseidon2WideChip::<9>) {
+            Some(log2_rows) => 1 << log2_rows,
+            None => next_power_of_two(input.poseidon2_events.len(), None),
+        };
+        let num_columns = <Poseidon2WideChip<9> as BaseAir<F>>::width(&Poseidon2WideChip::<9>);
+        let mut values = vec![F::zero(); padded_nb_rows * num_columns];
+
+        let populate_len = input.poseidon2_events.len() * num_columns;
+        let (values_pop, values_dummy) = values.split_at_mut(populate_len);
+
+        join(
+            || {
+                values_pop
+                    .par_chunks_mut(num_columns)
+                    .zip_eq(&input.poseidon2_events)
+                    .for_each(|(row, event)| populate_perm_ffi::<9>(&event.input, row))
+            },
+            || {
+                let mut dummy_row = vec![F::zero(); num_columns];
+                populate_perm_ffi::<9>(&[F::zero(); WIDTH], &mut dummy_row);
+                values_dummy
+                    .par_chunks_mut(num_columns)
+                    .for_each(|row| row.copy_from_slice(&dummy_row))
+            },
+        );
+
+        RowMajorMatrix::new(values, num_columns)
+    }
+
+    #[cfg(feature = "sys")]
+    fn populate_perm_ffi<const DEGREE: usize>(
+        input: &[BabyBear; WIDTH],
+        input_row: &mut [BabyBear],
+    ) {
+        let permutation = permutation_mut::<BabyBear, DEGREE>(input_row);
+
+        let (
+            external_rounds_state,
+            internal_rounds_state,
+            internal_rounds_s0,
+            mut external_sbox,
+            mut internal_sbox,
+            output_state,
+        ) = permutation.get_cols_mut();
+
+        // Create temporary arrays with the correct types
+        let mut ext_rounds = [[BabyBear::zero(); WIDTH]; NUM_EXTERNAL_ROUNDS];
+        for (dst, src) in ext_rounds.iter_mut().zip(external_rounds_state.iter()) {
+            *dst = *src;
+        }
+
+        // Handle external_sbox - create temporary array only if Some
+        let mut ext_sbox = [[BabyBear::zero(); NUM_EXTERNAL_ROUNDS]; WIDTH];
+        if let Some(sbox) = external_sbox.as_mut() {
+            for i in 0..WIDTH {
+                for j in 0..NUM_EXTERNAL_ROUNDS {
+                    ext_sbox[i][j] = sbox[j][i];
+                }
+            }
+        }
+
+        // Create temporary array for internal_sbox only if Some
+        let mut int_sbox = [BabyBear::zero(); NUM_INTERNAL_ROUNDS];
+        if let Some(sbox) = internal_sbox.as_mut() {
+            int_sbox.copy_from_slice(sbox.as_slice());
+        }
+
+        unsafe {
+            crate::sys::poseidon2_wide_event_to_row_babybear(
+                input,
+                ext_rounds.as_mut_ptr() as *mut _,
+                internal_rounds_state,
+                internal_rounds_s0,
+                if external_sbox.is_some() { &mut ext_sbox } else { std::ptr::null_mut() },
+                if internal_sbox.is_some() { &mut int_sbox } else { std::ptr::null_mut() },
+                output_state,
+            );
+
+            // Copy back the results if needed
+            for (dst, src) in external_rounds_state.iter_mut().zip(ext_rounds.iter()) {
+                *dst = *src;
+            }
+
+            // Copy back external_sbox results if needed
+            if let Some(sbox) = external_sbox.as_mut() {
+                for i in 0..WIDTH {
+                    for j in 0..NUM_EXTERNAL_ROUNDS {
+                        sbox[j][i] = ext_sbox[i][j];
+                    }
+                }
+            }
+
+            // Copy back internal_sbox results if needed
+            if let Some(sbox) = internal_sbox.as_mut() {
+                sbox.copy_from_slice(&int_sbox);
+            }
+        }
+    }
+
+    #[test]
+    fn generate_preprocessed_trace() {
+        type F = BabyBear;
+
+        let program = RecursionProgram::<BabyBear> {
+            instructions: vec![Poseidon2(Box::new(Poseidon2Instr {
+                addrs: Poseidon2Io {
+                    input: [Address(F::one()); WIDTH],
+                    output: [Address(F::two()); WIDTH],
+                },
+                mults: [F::one(); WIDTH],
+            }))],
+            ..Default::default()
+        };
+
+        let chip_9 = Poseidon2WideChip::<9>;
+        let preprocessed: Option<RowMajorMatrix<F>> = chip_9.generate_preprocessed_trace(&program);
+        assert!(preprocessed.is_some());
+    }
+
+    #[cfg(feature = "sys")]
+    #[test]
+    fn test_generate_preprocessed_trace_ffi_eq_rust() {
+        type F = BabyBear;
+
+        let program = RecursionProgram::<BabyBear> {
+            instructions: vec![Poseidon2(Box::new(Poseidon2Instr {
+                addrs: Poseidon2Io {
+                    input: [Address(F::one()); WIDTH],
+                    output: [Address(F::two()); WIDTH],
+                },
+                mults: [F::one(); WIDTH],
+            }))],
+            ..Default::default()
+        };
+
+        let chip = Poseidon2WideChip::<9>;
+        let trace_rust = chip.generate_preprocessed_trace(&program).unwrap();
+        let trace_ffi = generate_preprocessed_trace_ffi(&program);
+
+        assert_eq!(trace_ffi, trace_rust);
+    }
+
+    #[cfg(feature = "sys")]
+    fn generate_preprocessed_trace_ffi(
+        program: &RecursionProgram<BabyBear>,
+    ) -> RowMajorMatrix<BabyBear> {
+        type F = BabyBear;
+
+        let instrs = program
+            .instructions
+            .iter()
+            .filter_map(|instruction| match instruction {
+                Poseidon2(instr) => Some(instr.as_ref()),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+
+        let padded_nb_rows = match program.fixed_log2_rows(&Poseidon2WideChip::<9>) {
+            Some(log2_rows) => 1 << log2_rows,
+            None => next_power_of_two(instrs.len(), None),
+        };
+        let mut values = vec![F::zero(); padded_nb_rows * PREPROCESSED_POSEIDON2_WIDTH];
+
+        let populate_len = instrs.len() * PREPROCESSED_POSEIDON2_WIDTH;
+        values[..populate_len]
+            .par_chunks_mut(PREPROCESSED_POSEIDON2_WIDTH)
+            .zip_eq(instrs)
+            .for_each(|(row, instr)| {
+                let cols: &mut Poseidon2PreprocessedCols<_> = row.borrow_mut();
+                unsafe {
+                    crate::sys::poseidon2_wide_instr_to_row_babybear(instr, cols);
+                }
+            });
+
+        RowMajorMatrix::new(values, PREPROCESSED_POSEIDON2_WIDTH)
     }
 }

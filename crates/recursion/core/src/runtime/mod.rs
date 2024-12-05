@@ -6,14 +6,23 @@ mod record;
 
 // Avoid triggering annoying branch of thiserror derive macro.
 use backtrace::Backtrace as Trace;
+use hashbrown::HashMap;
+use instruction::HintAddCurveInstr;
 pub use instruction::Instruction;
 use instruction::{FieldEltType, HintBitsInstr, HintExt2FeltsInstr, HintInstr, PrintInstr};
+use itertools::Itertools;
 use machine::RecursionAirEventCount;
 use memory::*;
 pub use opcode::*;
+use p3_field::AbstractExtensionField;
+use p3_field::{AbstractField, ExtensionField, PrimeField32};
+use p3_poseidon2::{Poseidon2, Poseidon2ExternalMatrixGeneral};
+use p3_symmetric::{CryptographicPermutation, Permutation};
+use p3_util::reverse_bits_len;
 pub use program::*;
 pub use record::*;
-
+use sp1_stark::septic_curve::SepticCurve;
+use sp1_stark::septic_extension::SepticExtension;
 use std::{
     array,
     borrow::Borrow,
@@ -24,13 +33,6 @@ use std::{
     marker::PhantomData,
     sync::Arc,
 };
-
-use hashbrown::HashMap;
-use itertools::Itertools;
-use p3_field::{AbstractField, ExtensionField, PrimeField32};
-use p3_poseidon2::{Poseidon2, Poseidon2ExternalMatrixGeneral};
-use p3_symmetric::{CryptographicPermutation, Permutation};
-use p3_util::reverse_bits_len;
 use thiserror::Error;
 
 use crate::air::{Block, RECURSIVE_PROOF_NUM_PV_ELTS};
@@ -40,9 +42,8 @@ use crate::*;
 
 /// The heap pointer address.
 pub const HEAP_PTR: i32 = -4;
-pub const HEAP_START_ADDRESS: usize = STACK_SIZE + 4;
-
 pub const STACK_SIZE: usize = 1 << 24;
+pub const HEAP_START_ADDRESS: usize = STACK_SIZE + 4;
 pub const MEMORY_SIZE: usize = 1 << 28;
 
 /// The width of the Poseidon2 permutation.
@@ -413,6 +414,44 @@ where
                     for (bit, (addr, mult)) in bits.into_iter().zip(output_addrs_mults) {
                         self.memory.mw(addr, bit, mult);
                         self.record.mem_var_events.push(MemEvent { inner: bit });
+                    }
+                }
+                Instruction::HintAddCurve(instr) => {
+                    let HintAddCurveInstr {
+                        output_x_addrs_mults,
+                        output_y_addrs_mults,
+                        input1_x_addrs,
+                        input1_y_addrs,
+                        input2_x_addrs,
+                        input2_y_addrs,
+                    } = *instr;
+                    let input1_x = SepticExtension::<F>::from_base_fn(|i| {
+                        self.memory.mr_mult(input1_x_addrs[i], F::zero()).val[0]
+                    });
+                    let input1_y = SepticExtension::<F>::from_base_fn(|i| {
+                        self.memory.mr_mult(input1_y_addrs[i], F::zero()).val[0]
+                    });
+                    let input2_x = SepticExtension::<F>::from_base_fn(|i| {
+                        self.memory.mr_mult(input2_x_addrs[i], F::zero()).val[0]
+                    });
+                    let input2_y = SepticExtension::<F>::from_base_fn(|i| {
+                        self.memory.mr_mult(input2_y_addrs[i], F::zero()).val[0]
+                    });
+                    let point1 = SepticCurve { x: input1_x, y: input1_y };
+                    let point2 = SepticCurve { x: input2_x, y: input2_y };
+                    let output = point1.add_incomplete(point2);
+
+                    for (val, (addr, mult)) in
+                        output.x.0.into_iter().zip(output_x_addrs_mults.into_iter())
+                    {
+                        self.memory.mw(addr, Block::from(val), mult);
+                        self.record.mem_var_events.push(MemEvent { inner: Block::from(val) });
+                    }
+                    for (val, (addr, mult)) in
+                        output.y.0.into_iter().zip(output_y_addrs_mults.into_iter())
+                    {
+                        self.memory.mw(addr, Block::from(val), mult);
+                        self.record.mem_var_events.push(MemEvent { inner: Block::from(val) });
                     }
                 }
 

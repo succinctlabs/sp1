@@ -110,9 +110,9 @@ impl<'a, 'b> SyscallContext<'a, 'b> {
         let mut syscall_local_mem_events = Vec::new();
 
         if !self.rt.unconstrained && self.rt.executor_mode == ExecutorMode::Trace {
-            // Will need to transfer the existing memory local events in the executor to it's record,
-            // and return all the syscall memory local events.  This is similar to what
-            // `bump_record` does.
+            // Will need to transfer the existing memory local events in the executor to it's
+            // record, and return all the syscall memory local events.  This is similar
+            // to what `bump_record` does.
             for (addr, event) in self.local_memory_access.drain() {
                 let local_mem_access = self.rt.local_memory_access.remove(&addr);
 

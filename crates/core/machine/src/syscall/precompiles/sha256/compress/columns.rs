@@ -25,7 +25,6 @@ pub const NUM_SHA_COMPRESS_COLS: usize = size_of::<ShaCompressCols<u8>>();
 pub struct ShaCompressCols<T> {
     /// Inputs.
     pub shard: T,
-    pub nonce: T,
     pub clk: T,
     pub w_ptr: T,
     pub h_ptr: T,

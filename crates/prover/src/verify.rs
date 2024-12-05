@@ -228,12 +228,14 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         // - `deferred_proofs_digest` should be zero.
         //
         // Transition:
-        // - If `committed_value_digest_prev` is not zero, then `committed_value_digest` should equal
+        // - If `committed_value_digest_prev` is not zero, then `committed_value_digest` should
+        //   equal
         //  `committed_value_digest_prev`. Otherwise, `committed_value_digest` should equal zero.
         // - If `deferred_proofs_digest_prev` is not zero, then `deferred_proofs_digest` should
         //   equal
         //  `deferred_proofs_digest_prev`. Otherwise, `deferred_proofs_digest` should equal zero.
-        // - If it's not a shard with "CPU", then `committed_value_digest` should not change from the
+        // - If it's not a shard with "CPU", then `committed_value_digest` should not change from
+        //   the
         //  previous shard.
         // - If it's not a shard with "CPU", then `deferred_proofs_digest` should not change from
         //   the

@@ -1,5 +1,7 @@
-use std::fmt::Debug;
-use std::iter::{repeat, zip};
+use std::{
+    fmt::Debug,
+    iter::{repeat, zip},
+};
 
 use itertools::Itertools;
 use p3_baby_bear::BabyBear;
@@ -11,11 +13,11 @@ use sp1_recursion_compiler::{
     circuit::CircuitV2Builder,
     ir::{Builder, Config, DslIr, Felt, Var},
 };
-use sp1_recursion_core::stark::{outer_perm, OUTER_MULTI_FIELD_CHALLENGER_WIDTH};
-use sp1_recursion_core::{stark::BabyBearPoseidon2Outer, DIGEST_SIZE};
-use sp1_recursion_core::{HASH_RATE, PERMUTATION_WIDTH};
-use sp1_stark::baby_bear_poseidon2::BabyBearPoseidon2;
-use sp1_stark::inner_perm;
+use sp1_recursion_core::{
+    stark::{outer_perm, BabyBearPoseidon2Outer, OUTER_MULTI_FIELD_CHALLENGER_WIDTH},
+    DIGEST_SIZE, HASH_RATE, PERMUTATION_WIDTH,
+};
+use sp1_stark::{baby_bear_poseidon2::BabyBearPoseidon2, inner_perm};
 
 use crate::{
     challenger::{reduce_32, POSEIDON_2_BB_RATE},

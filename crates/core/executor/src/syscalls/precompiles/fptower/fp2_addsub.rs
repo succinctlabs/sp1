@@ -86,8 +86,8 @@ impl<P: FpOpField> Syscall for Fp2AddSubSyscall<P> {
             local_mem_access: rt.postprocess(),
         };
         match P::FIELD_TYPE {
-            // All the fp2 add and sub events for a given curve are coalesced to the curve's fp2 add operation.  Only check for
-            // that operation.
+            // All the fp2 add and sub events for a given curve are coalesced to the curve's fp2 add
+            // operation.  Only check for that operation.
             // TODO:  Fix this.
             FieldType::Bn254 => {
                 let syscall_code_key = match syscall_code {

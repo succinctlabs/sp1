@@ -2,7 +2,7 @@ use p3_air::BaseAir;
 use p3_field::Field;
 use p3_matrix::dense::RowMajorMatrix;
 
-use crate::MachineRecord;
+use crate::{septic_digest::SepticDigest, MachineRecord};
 
 pub use sp1_derive::MachineAir;
 
@@ -59,4 +59,6 @@ pub trait MachineAir<F: Field>: BaseAir<F> + 'static + Send + Sync {
 pub trait MachineProgram<F>: Send + Sync {
     /// Gets the starting program counter.
     fn pc_start(&self) -> F;
+    /// Gets the initial global cumulative sum.
+    fn initial_global_cumulative_sum(&self) -> SepticDigest<F>;
 }

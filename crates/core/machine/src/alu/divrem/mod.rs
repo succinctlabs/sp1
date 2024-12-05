@@ -103,9 +103,6 @@ pub struct DivRemCols<T> {
     /// The shard number, used for byte lookup table.
     pub shard: T,
 
-    /// The nonce of the operation.
-    pub nonce: T,
-
     /// The output operand.
     pub a: Word<T>,
 
@@ -185,22 +182,11 @@ pub struct DivRemCols<T> {
     /// Flag to indicate whether `c` is negative.
     pub c_neg: T,
 
-    /// The lower nonce of the operation.
-    pub lower_nonce: T,
-
-    /// The upper nonce of the operation.
-    pub upper_nonce: T,
-
-    /// The absolute nonce of the operation.
-    pub abs_nonce: T,
-
     /// Selector to determine whether an ALU Event is sent for absolute value computation of `c`.
     pub abs_c_alu_event: T,
-    pub abs_c_alu_event_nonce: T,
 
     /// Selector to determine whether an ALU Event is sent for absolute value computation of `rem`.
     pub abs_rem_alu_event: T,
-    pub abs_rem_alu_event_nonce: T,
 
     /// Selector to know whether this row is enabled.
     pub is_real: T,
@@ -278,21 +264,7 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
 
                 // Set the `alu_event` flags.
                 cols.abs_c_alu_event = cols.c_neg * cols.is_real;
-                cols.abs_c_alu_event_nonce = F::from_canonical_u32(
-                    input
-                        .nonce_lookup
-                        .get(event.sub_lookups[4].0 as usize)
-                        .copied()
-                        .unwrap_or_default(),
-                );
                 cols.abs_rem_alu_event = cols.rem_neg * cols.is_real;
-                cols.abs_rem_alu_event_nonce = F::from_canonical_u32(
-                    input
-                        .nonce_lookup
-                        .get(event.sub_lookups[5].0 as usize)
-                        .copied()
-                        .unwrap_or_default(),
-                );
 
                 // Insert the MSB lookup events.
                 {
@@ -349,41 +321,6 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
                     cols.carry[i] = F::from_canonical_u32(carry[i]);
                 }
 
-                // Insert the necessary multiplication & LT events.
-                {
-                    cols.lower_nonce = F::from_canonical_u32(
-                        input
-                            .nonce_lookup
-                            .get(event.sub_lookups[0].0 as usize)
-                            .copied()
-                            .unwrap_or_default(),
-                    );
-                    cols.upper_nonce = F::from_canonical_u32(
-                        input
-                            .nonce_lookup
-                            .get(event.sub_lookups[1].0 as usize)
-                            .copied()
-                            .unwrap_or_default(),
-                    );
-                    if is_signed_operation(event.opcode) {
-                        cols.abs_nonce = F::from_canonical_u32(
-                            input
-                                .nonce_lookup
-                                .get(event.sub_lookups[2].0 as usize)
-                                .copied()
-                                .unwrap_or_default(),
-                        );
-                    } else {
-                        cols.abs_nonce = F::from_canonical_u32(
-                            input
-                                .nonce_lookup
-                                .get(event.sub_lookups[3].0 as usize)
-                                .copied()
-                                .unwrap_or_default(),
-                        );
-                    };
-                }
-
                 // Range check.
                 {
                     output.add_u8_range_checks(event.shard, &quotient.to_le_bytes());
@@ -426,13 +363,6 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
             trace.values[i] = padded_row_template[i % NUM_DIVREM_COLS];
         }
 
-        // Write the nonces to the trace.
-        for i in 0..trace.height() {
-            let cols: &mut DivRemCols<F> =
-                trace.values[i * NUM_DIVREM_COLS..(i + 1) * NUM_DIVREM_COLS].borrow_mut();
-            cols.nonce = F::from_canonical_usize(i);
-        }
-
         trace
     }
 
@@ -442,6 +372,10 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
         } else {
             !shard.divrem_events.is_empty()
         }
+    }
+
+    fn local_only(&self) -> bool {
+        true
     }
 }
 
@@ -459,15 +393,9 @@ where
         let main = builder.main();
         let local = main.row_slice(0);
         let local: &DivRemCols<AB::Var> = (*local).borrow();
-        let next = main.row_slice(1);
-        let next: &DivRemCols<AB::Var> = (*next).borrow();
         let base = AB::F::from_canonical_u32(1 << 8);
         let one: AB::Expr = AB::F::one().into();
         let zero: AB::Expr = AB::F::zero().into();
-
-        // Constrain the incrementing nonce.
-        builder.when_first_row().assert_zero(local.nonce);
-        builder.when_transition().assert_eq(local.nonce + AB::Expr::one(), next.nonce);
 
         // Calculate whether b, remainder, and c are negative.
         {
@@ -502,7 +430,6 @@ where
                 local.quotient,
                 local.c,
                 local.shard,
-                local.lower_nonce,
                 local.is_real,
             );
 
@@ -527,7 +454,6 @@ where
                 local.quotient,
                 local.c,
                 local.shard,
-                local.upper_nonce,
                 local.is_real,
             );
         }
@@ -685,7 +611,6 @@ where
                 local.c,
                 local.abs_c,
                 local.shard,
-                local.abs_c_alu_event_nonce,
                 local.abs_c_alu_event,
             );
             builder.send_alu(
@@ -694,7 +619,6 @@ where
                 local.remainder,
                 local.abs_remainder,
                 local.shard,
-                local.abs_rem_alu_event_nonce,
                 local.abs_rem_alu_event,
             );
 
@@ -740,7 +664,6 @@ where
                 local.abs_remainder,
                 local.max_abs_c_or_1,
                 local.shard,
-                local.abs_nonce,
                 local.remainder_check_multiplicity,
             );
         }
@@ -816,15 +739,7 @@ where
                     + local.is_rem * rem
             };
 
-            builder.receive_alu(
-                opcode,
-                local.a,
-                local.b,
-                local.c,
-                local.shard,
-                local.nonce,
-                local.is_real,
-            );
+            builder.receive_alu(opcode, local.a, local.b, local.c, local.shard, local.is_real);
         }
     }
 }

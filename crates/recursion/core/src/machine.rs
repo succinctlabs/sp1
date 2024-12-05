@@ -156,10 +156,10 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAi
             [
                 (Self::MemoryConst(MemoryConstChip::default()), 17),
                 (Self::MemoryVar(MemoryVarChip::default()), 18),
-                (Self::BaseAlu(BaseAluChip), 20),
-                (Self::ExtAlu(ExtAluChip), 18),
+                (Self::BaseAlu(BaseAluChip), 15),
+                (Self::ExtAlu(ExtAluChip), 15),
                 (Self::Poseidon2Wide(Poseidon2WideChip::<DEGREE>), 16),
-                (Self::BatchFRI(BatchFRIChip::<DEGREE>), 18),
+                (Self::BatchFRI(BatchFRIChip::<DEGREE>), 17),
                 (Self::Select(SelectChip), 18),
                 (Self::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE>), 17),
                 (Self::PublicValues(PublicValuesChip), PUB_VALUES_LOG_HEIGHT),
@@ -230,6 +230,10 @@ impl<F> AddAssign<&Instruction<F>> for RecursionAirEventCount {
             Instruction::FriFold(_) => self.fri_fold_events += 1,
             Instruction::BatchFRI(instr) => {
                 self.batch_fri_events += instr.base_vec_addrs.p_at_x.len()
+            }
+            Instruction::HintAddCurve(instr) => {
+                self.mem_var_events += instr.output_x_addrs_mults.len();
+                self.mem_var_events += instr.output_y_addrs_mults.len();
             }
             Instruction::CommitPublicValues(_) => {}
             Instruction::Print(_) => {}

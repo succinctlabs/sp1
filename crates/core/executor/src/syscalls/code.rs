@@ -23,6 +23,7 @@ use strum_macros::EnumIter;
 )]
 #[allow(non_camel_case_types)]
 #[allow(clippy::upper_case_acronyms)]
+#[repr(u32)]
 pub enum SyscallCode {
     /// Halts the program.
     HALT = 0x00_00_00_00,

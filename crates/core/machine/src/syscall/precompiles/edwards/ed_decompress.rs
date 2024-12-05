@@ -45,7 +45,6 @@ pub struct EdDecompressCols<T> {
     pub is_real: T,
     pub shard: T,
     pub clk: T,
-    pub nonce: T,
     pub ptr: T,
     pub sign: T,
     pub x_access: GenericArray<MemoryWriteCols<T>, WordsFieldElement>,
@@ -71,9 +70,6 @@ impl<F: PrimeField32> EdDecompressCols<F> {
         self.shard = F::from_canonical_u32(event.shard);
         self.clk = F::from_canonical_u32(event.clk);
         self.ptr = F::from_canonical_u32(event.ptr);
-        self.nonce = F::from_canonical_u32(
-            record.nonce_lookup.get(event.lookup_id.0 as usize).copied().unwrap_or_default(),
-        );
         self.sign = F::from_bool(event.sign);
         for i in 0..8 {
             self.x_access[i].populate(event.x_memory_records[i], &mut new_byte_lookup_events);
@@ -99,7 +95,9 @@ impl<F: PrimeField32> EdDecompressCols<F> {
         let dyy = self.dyy.populate(blu_events, shard, &E::d_biguint(), &yy, FieldOperation::Mul);
         let v = self.v.populate(blu_events, shard, &one, &dyy, FieldOperation::Add);
         let u_div_v = self.u_div_v.populate(blu_events, shard, &u, &v, FieldOperation::Div);
-        let x = self.x.populate(blu_events, shard, &u_div_v, ed25519_sqrt);
+        let x = self.x.populate(blu_events, shard, &u_div_v, |p| {
+            ed25519_sqrt(p).expect("ed25519_sqrt failed, syscall invariant violated")
+        });
         self.neg_x.populate(blu_events, shard, &BigUint::zero(), &x, FieldOperation::Sub);
     }
 }
@@ -181,7 +179,6 @@ impl<V: Copy> EdDecompressCols<V> {
         builder.receive_syscall(
             self.shard,
             self.clk,
-            self.nonce,
             AB::F::from_canonical_u32(SyscallCode::ED_DECOMPRESS.syscall_id()),
             self.ptr,
             self.sign,
@@ -244,20 +241,7 @@ impl<F: PrimeField32, E: EdwardsParameters> MachineAir<F> for EdDecompressChip<E
             input.fixed_log2_rows::<F, _>(self),
         );
 
-        let mut trace = RowMajorMatrix::new(
-            rows.into_iter().flatten().collect::<Vec<_>>(),
-            NUM_ED_DECOMPRESS_COLS,
-        );
-
-        // Write the nonces to the trace.
-        for i in 0..trace.height() {
-            let cols: &mut EdDecompressCols<F> = trace.values
-                [i * NUM_ED_DECOMPRESS_COLS..(i + 1) * NUM_ED_DECOMPRESS_COLS]
-                .borrow_mut();
-            cols.nonce = F::from_canonical_usize(i);
-        }
-
-        trace
+        RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_ED_DECOMPRESS_COLS)
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
@@ -266,6 +250,10 @@ impl<F: PrimeField32, E: EdwardsParameters> MachineAir<F> for EdDecompressChip<E
         } else {
             !shard.get_precompile_events(SyscallCode::ED_DECOMPRESS).is_empty()
         }
+    }
+
+    fn local_only(&self) -> bool {
+        true
     }
 }
 
@@ -283,12 +271,6 @@ where
         let main = builder.main();
         let local = main.row_slice(0);
         let local: &EdDecompressCols<AB::Var> = (*local).borrow();
-        let next = main.row_slice(1);
-        let next: &EdDecompressCols<AB::Var> = (*next).borrow();
-
-        // Constrain the incrementing nonce.
-        builder.when_first_row().assert_zero(local.nonce);
-        builder.when_transition().assert_eq(local.nonce + AB::Expr::one(), next.nonce);
 
         local.eval::<AB, E::BaseField, E>(builder);
     }
@@ -300,12 +282,13 @@ pub mod tests {
     use sp1_stark::CpuProver;
     use test_artifacts::ED_DECOMPRESS_ELF;
 
-    use crate::utils;
+    use crate::{io::SP1Stdin, utils};
 
     #[test]
     fn test_ed_decompress() {
         utils::setup_logger();
         let program = Program::from(ED_DECOMPRESS_ELF).unwrap();
-        utils::run_test::<CpuProver<_, _>>(program).unwrap();
+        let stdin = SP1Stdin::new();
+        utils::run_test::<CpuProver<_, _>>(program, stdin).unwrap();
     }
 }

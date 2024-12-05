@@ -10,8 +10,7 @@ pub use mock::MockProver;
 
 use itertools::Itertools;
 use p3_field::PrimeField32;
-use std::borrow::Borrow;
-use std::time::Duration;
+use std::{borrow::Borrow, time::Duration};
 
 use anyhow::Result;
 use sp1_core_executor::SP1Context;
@@ -24,8 +23,9 @@ use sp1_stark::{air::PublicValues, MachineVerificationError, SP1ProverOpts, Word
 use strum_macros::EnumString;
 use thiserror::Error;
 
-use crate::install::try_install_circuit_artifacts;
-use crate::{SP1Proof, SP1ProofKind, SP1ProofWithPublicValues};
+use crate::{
+    install::try_install_circuit_artifacts, SP1Proof, SP1ProofKind, SP1ProofWithPublicValues,
+};
 
 /// The type of prover.
 #[derive(Debug, PartialEq, EnumString)]

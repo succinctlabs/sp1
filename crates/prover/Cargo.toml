@@ -62,8 +62,8 @@ name = "post_trusted_setup"
 path = "scripts/post_trusted_setup.rs"
 
 [[bin]]
-name = "e2e"
-path = "scripts/e2e.rs"
+name = "find_minimal_large_recursion_shape"
+path = "scripts/find_minimal_large_recursion_shape.rs"
 
 [[bin]]
 name = "fibonacci_groth16"

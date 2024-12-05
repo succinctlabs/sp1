@@ -404,8 +404,8 @@ pub fn dummy_query_proof(
     }
 }
 
-/// Make a dummy PCS proof for a given proof shape. Used to generate vkey information for fixed proof
-/// shapes.
+/// Make a dummy PCS proof for a given proof shape. Used to generate vkey information for fixed
+/// proof shapes.
 ///
 /// The parameter `batch_shapes` contains (width, height) data for each matrix in each batch.
 pub fn dummy_pcs_proof(

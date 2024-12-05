@@ -8,7 +8,8 @@ pub trait AffinePoint<const N: usize>: Clone + Sized {
     /// Returns a reference to the limbs.
     fn limbs_ref(&self) -> &[u32; N];
 
-    /// Returns a mutable reference to the limbs. If the point is the infinity point, this will panic.
+    /// Returns a mutable reference to the limbs. If the point is the infinity point, this will
+    /// panic.
     fn limbs_mut(&mut self) -> &mut [u32; N];
 
     /// Creates a new [`AffinePoint`] from the given x and y coordinates.
@@ -48,7 +49,8 @@ pub trait AffinePoint<const N: usize>: Clone + Sized {
     fn add_assign(&mut self, other: &Self);
 
     /// Adds the given [`AffinePoint`] to `self`. Can be optionally overridden to use a different
-    /// implementation of addition in multi-scalar multiplication, which is used in secp256k1 recovery.
+    /// implementation of addition in multi-scalar multiplication, which is used in secp256k1
+    /// recovery.
     fn complete_add_assign(&mut self, other: &Self) {
         self.add_assign(other);
     }

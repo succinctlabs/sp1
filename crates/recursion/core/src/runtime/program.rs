@@ -1,10 +1,10 @@
+use crate::*;
 use backtrace::Backtrace;
 use p3_field::Field;
 use serde::{Deserialize, Serialize};
 use shape::RecursionShape;
 use sp1_stark::air::{MachineAir, MachineProgram};
-
-use crate::*;
+use sp1_stark::septic_digest::SepticDigest;
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct RecursionProgram<F> {
@@ -18,6 +18,10 @@ pub struct RecursionProgram<F> {
 impl<F: Field> MachineProgram<F> for RecursionProgram<F> {
     fn pc_start(&self) -> F {
         F::zero()
+    }
+
+    fn initial_global_cumulative_sum(&self) -> SepticDigest<F> {
+        SepticDigest::<F>::zero()
     }
 }
 

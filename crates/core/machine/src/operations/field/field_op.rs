@@ -390,7 +390,8 @@ mod tests {
 
     use super::{FieldOpCols, FieldOperation, Limbs};
 
-    use crate::utils::{pad_to_power_of_two, uni_stark_prove as prove, uni_stark_verify as verify};
+    use crate::utils::pad_to_power_of_two;
+    use crate::utils::uni_stark::{uni_stark_prove, uni_stark_verify};
     use core::borrow::{Borrow, BorrowMut};
     use num::bigint::RandBigInt;
     use p3_air::Air;
@@ -535,10 +536,11 @@ mod tests {
             let shard = ExecutionRecord::default();
             let trace: RowMajorMatrix<BabyBear> =
                 chip.generate_trace(&shard, &mut ExecutionRecord::default());
-            let proof = prove::<BabyBearPoseidon2, _>(&config, &chip, &mut challenger, trace);
+            let proof =
+                uni_stark_prove::<BabyBearPoseidon2, _>(&config, &chip, &mut challenger, trace);
 
             let mut challenger = config.challenger();
-            verify(&config, &chip, &mut challenger, &proof).unwrap();
+            uni_stark_verify(&config, &chip, &mut challenger, &proof).unwrap();
         }
     }
 }

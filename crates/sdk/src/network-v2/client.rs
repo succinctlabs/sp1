@@ -4,26 +4,28 @@ use alloy_signer::SignerSync;
 use alloy_signer_local::PrivateKeySigner;
 use anyhow::{Context, Ok, Result};
 use reqwest_middleware::ClientWithMiddleware as HttpClientWithMiddleware;
-use serde::de::DeserializeOwned;
-use serde::Serialize;
+use serde::{de::DeserializeOwned, Serialize};
 use sp1_core_machine::io::SP1Stdin;
 use sp1_prover::SP1VerifyingKey;
-use std::str::FromStr;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::{
+    str::FromStr,
+    time::{SystemTime, UNIX_EPOCH},
+};
 use tokio::try_join;
-use tonic::transport::channel::ClientTlsConfig;
-use tonic::transport::Channel;
+use tonic::transport::{channel::ClientTlsConfig, Channel};
 
-use crate::network_v2::proto::artifact::{
-    artifact_store_client::ArtifactStoreClient, CreateArtifactRequest,
+use crate::network_v2::{
+    proto::{
+        artifact::{artifact_store_client::ArtifactStoreClient, CreateArtifactRequest},
+        network::{
+            prover_network_client::ProverNetworkClient, GetFilteredProofRequestsRequest,
+            GetFilteredProofRequestsResponse, GetNonceRequest, GetProofRequestStatusRequest,
+            GetProofRequestStatusResponse, ProofMode, ProofStatus, ProofStrategy,
+            RequestProofRequest, RequestProofRequestBody, RequestProofResponse,
+        },
+    },
+    Signable,
 };
-use crate::network_v2::proto::network::{
-    prover_network_client::ProverNetworkClient, GetFilteredProofRequestsRequest,
-    GetFilteredProofRequestsResponse, GetNonceRequest, GetProofRequestStatusRequest,
-    GetProofRequestStatusResponse, ProofMode, ProofStatus, ProofStrategy, RequestProofRequest,
-    RequestProofRequestBody, RequestProofResponse,
-};
-use crate::network_v2::Signable;
 
 /// The default RPC endpoint for the Succinct prover network.
 pub const DEFAULT_PROVER_NETWORK_RPC: &str = "https://rpc.production.succinct.tools/";

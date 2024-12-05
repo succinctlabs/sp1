@@ -88,7 +88,6 @@ impl CpuChip {
                 branch_cols.pc,
                 local.op_c_val(),
                 local.shard,
-                branch_cols.next_pc_nonce,
                 local.branching,
             );
 
@@ -185,7 +184,6 @@ impl CpuChip {
             local.op_a_val(),
             local.op_b_val(),
             local.shard,
-            branch_cols.a_lt_b_nonce,
             is_branch_instruction.clone(),
         );
 
@@ -197,7 +195,6 @@ impl CpuChip {
             local.op_b_val(),
             local.op_a_val(),
             local.shard,
-            branch_cols.a_gt_b_nonce,
             is_branch_instruction.clone(),
         );
     }

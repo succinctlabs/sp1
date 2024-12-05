@@ -178,7 +178,15 @@ impl ExecutionRecord {
 
     /// Splits the deferred [`ExecutionRecord`] into multiple [`ExecutionRecord`]s, each which
     /// contain a "reasonable" number of deferred events.
-    pub fn split(&mut self, last: bool, opts: SplitOpts) -> Vec<ExecutionRecord> {
+    ///
+    /// The optional `last_record` will be provided if there are few enough deferred events that
+    /// they can all be packed into the already existing last record.
+    pub fn split(
+        &mut self,
+        last: bool,
+        last_record: Option<&mut ExecutionRecord>,
+        opts: SplitOpts,
+    ) -> Vec<ExecutionRecord> {
         let mut shards = Vec::new();
 
         let precompile_events = take(&mut self.precompile_events);
@@ -216,6 +224,18 @@ impl ExecutionRecord {
             self.global_memory_initialize_events.sort_by_key(|event| event.addr);
             self.global_memory_finalize_events.sort_by_key(|event| event.addr);
 
+            // If there are no precompile shards, and `last_record` is Some, pack the memory events
+            // into the last record.
+            let pack_memory_events_into_last_record = last_record.is_some() && shards.is_empty();
+            let mut blank_record = ExecutionRecord::new(self.program.clone());
+
+            // If `last_record` is None, use a blank record to store the memory events.
+            let last_record_ref = if pack_memory_events_into_last_record {
+                last_record.unwrap()
+            } else {
+                &mut blank_record
+            };
+
             let mut init_addr_bits = [0; 32];
             let mut finalize_addr_bits = [0; 32];
             for mem_chunks in self
@@ -230,28 +250,34 @@ impl ExecutionRecord {
                     EitherOrBoth::Left(mem_init_chunk) => (mem_init_chunk, [].as_slice()),
                     EitherOrBoth::Right(mem_finalize_chunk) => ([].as_slice(), mem_finalize_chunk),
                 };
-                let mut shard = ExecutionRecord::new(self.program.clone());
-                shard.global_memory_initialize_events.extend_from_slice(mem_init_chunk);
-                shard.public_values.previous_init_addr_bits = init_addr_bits;
+                last_record_ref.global_memory_initialize_events.extend_from_slice(mem_init_chunk);
+                last_record_ref.public_values.previous_init_addr_bits = init_addr_bits;
                 if let Some(last_event) = mem_init_chunk.last() {
                     let last_init_addr_bits = core::array::from_fn(|i| (last_event.addr >> i) & 1);
                     init_addr_bits = last_init_addr_bits;
                 }
-                shard.public_values.last_init_addr_bits = init_addr_bits;
+                last_record_ref.public_values.last_init_addr_bits = init_addr_bits;
 
-                shard.global_memory_finalize_events.extend_from_slice(mem_finalize_chunk);
-                shard.public_values.previous_finalize_addr_bits = finalize_addr_bits;
+                last_record_ref.global_memory_finalize_events.extend_from_slice(mem_finalize_chunk);
+                last_record_ref.public_values.previous_finalize_addr_bits = finalize_addr_bits;
                 if let Some(last_event) = mem_finalize_chunk.last() {
                     let last_finalize_addr_bits =
                         core::array::from_fn(|i| (last_event.addr >> i) & 1);
                     finalize_addr_bits = last_finalize_addr_bits;
                 }
-                shard.public_values.last_finalize_addr_bits = finalize_addr_bits;
+                last_record_ref.public_values.last_finalize_addr_bits = finalize_addr_bits;
 
-                shards.push(shard);
+                if !pack_memory_events_into_last_record {
+                    // If not packing memory events into the last record, add 'last_record_ref'
+                    // to the returned records. `take` replaces `blank_program` with the default.
+                    shards.push(take(last_record_ref));
+
+                    // Reset the last record so its program is the correct one. (The default program
+                    // provided by `take` contains no instructions.)
+                    last_record_ref.program = self.program.clone();
+                }
             }
         }
-
         shards
     }
 

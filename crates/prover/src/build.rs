@@ -157,12 +157,12 @@ pub fn dummy_proof() -> (StarkVerifyingKey<OuterSC>, ShardProof<OuterSC>) {
     let context = SP1Context::default();
 
     tracing::info!("setup elf");
-    let (pk, vk) = prover.setup(elf);
+    let (_, pk_d, program, vk) = prover.setup(elf);
 
     tracing::info!("prove core");
     let mut stdin = SP1Stdin::new();
     stdin.write(&500u32);
-    let core_proof = prover.prove_core(&pk, &stdin, opts, context).unwrap();
+    let core_proof = prover.prove_core(&pk_d, program, &stdin, opts, context).unwrap();
 
     tracing::info!("compress");
     let compressed_proof = prover.compress(&vk, core_proof, vec![], opts).unwrap();

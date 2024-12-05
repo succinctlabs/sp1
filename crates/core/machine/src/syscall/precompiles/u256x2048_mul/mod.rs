@@ -24,7 +24,10 @@ mod tests {
 
     use crate::{
         io::SP1Stdin,
-        utils::{self, run_test_io, uni_stark_prove as prove, uni_stark_verify as verify},
+        utils::{
+            self, run_test,
+            uni_stark::{uni_stark_prove, uni_stark_verify},
+        },
     };
     use crate::{
         syscall::precompiles::u256x2048_mul::air::U256x2048MulChip, utils::words_to_bytes_le_vec,
@@ -169,7 +172,7 @@ mod tests {
     fn test_uint256_mul() {
         utils::setup_logger();
         let program = Program::from(U256XU2048_MUL_ELF).unwrap();
-        run_test_io::<CpuProver<_, _>>(program, SP1Stdin::new()).unwrap();
+        run_test::<CpuProver<_, _>>(program, SP1Stdin::new()).unwrap();
     }
 
     #[test]
@@ -179,8 +182,13 @@ mod tests {
         let chip = U256x2048MulChip::new();
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&execution_record, &mut ExecutionRecord::default());
-        let proof = prove::<BabyBearPoseidon2, _>(&config, &chip, &mut config.challenger(), trace);
-        verify(&config, &chip, &mut config.challenger(), &proof).unwrap();
+        let proof = uni_stark_prove::<BabyBearPoseidon2, _>(
+            &config,
+            &chip,
+            &mut config.challenger(),
+            trace,
+        );
+        uni_stark_verify(&config, &chip, &mut config.challenger(), &proof).unwrap();
     }
 
     #[test]
@@ -191,9 +199,13 @@ mod tests {
             let chip = U256x2048MulChip::new();
             let trace: RowMajorMatrix<BabyBear> =
                 chip.generate_trace(&execution_record, &mut ExecutionRecord::default());
-            let proof =
-                prove::<BabyBearPoseidon2, _>(&config, &chip, &mut config.challenger(), trace);
-            let result = verify(&config, &chip, &mut config.challenger(), &proof);
+            let proof = uni_stark_prove::<BabyBearPoseidon2, _>(
+                &config,
+                &chip,
+                &mut config.challenger(),
+                trace,
+            );
+            let result = uni_stark_verify(&config, &chip, &mut config.challenger(), &proof);
             assert!(result.is_err());
         }
     }

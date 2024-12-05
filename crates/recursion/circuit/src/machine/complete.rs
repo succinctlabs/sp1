@@ -1,6 +1,7 @@
 use itertools::Itertools;
+use p3_baby_bear::BabyBear;
 use p3_field::AbstractField;
-
+use sp1_recursion_compiler::circuit::CircuitV2Builder;
 use sp1_recursion_compiler::ir::{Builder, Config, Felt};
 use sp1_recursion_core::air::RecursionPublicValues;
 
@@ -8,7 +9,7 @@ use sp1_recursion_core::air::RecursionPublicValues;
 ///
 /// The assertions consist of checking all the expected boundary conditions from a compress proof
 /// that represents the end of the recursion tower.
-pub(crate) fn assert_complete<C: Config>(
+pub(crate) fn assert_complete<C: Config<F = BabyBear>>(
     builder: &mut Builder<C>,
     public_values: &RecursionPublicValues<Felt<C::F>>,
     is_complete: Felt<C::F>,
@@ -19,11 +20,9 @@ pub(crate) fn assert_complete<C: Config>(
         start_shard,
         next_shard,
         start_execution_shard,
-        cumulative_sum,
         start_reconstruct_deferred_digest,
         end_reconstruct_deferred_digest,
-        leaf_challenger,
-        end_reconstruct_challenger,
+        global_cumulative_sum,
         contains_execution_shard,
         ..
     } = public_values;
@@ -48,13 +47,6 @@ pub(crate) fn assert_complete<C: Config>(
     // Assert that the start execution shard is equal to 1.
     builder.assert_felt_eq(is_complete * (*start_execution_shard - C::F::one()), C::F::zero());
 
-    // Assert that the end reconstruct challenger is equal to the leaf challenger.
-    for (end_challenger_d, leaf_challenger_d) in
-        end_reconstruct_challenger.into_iter().zip(*leaf_challenger)
-    {
-        builder.assert_felt_eq(is_complete * (end_challenger_d - leaf_challenger_d), C::F::zero());
-    }
-
     // The start reconstruct deferred digest should be zero.
     for start_digest_word in start_reconstruct_deferred_digest {
         builder.assert_felt_eq(is_complete * *start_digest_word, C::F::zero());
@@ -68,8 +60,5 @@ pub(crate) fn assert_complete<C: Config>(
             .assert_felt_eq(is_complete * (*end_digest_word - *deferred_digest_word), C::F::zero());
     }
 
-    // Assert that the cumulative sum is zero.
-    for b in cumulative_sum.iter() {
-        builder.assert_felt_eq(is_complete * *b, C::F::zero());
-    }
+    builder.assert_digest_zero_v2(is_complete, *global_cumulative_sum);
 }

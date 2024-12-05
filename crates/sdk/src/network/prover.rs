@@ -15,7 +15,8 @@ use sp1_stark::SP1ProverOpts;
 
 use super::proto::network::GetProofStatusResponse;
 
-use {crate::block_on, tokio::time::sleep};
+use crate::block_on;
+use tokio::time::sleep;
 
 use crate::provers::{CpuProver, ProofOpts, ProverType};
 

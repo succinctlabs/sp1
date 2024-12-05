@@ -23,8 +23,7 @@ mod error;
 mod utils;
 pub use utils::*;
 
-pub use groth16::error::Groth16Error;
-pub use groth16::Groth16Verifier;
+pub use groth16::{error::Groth16Error, Groth16Verifier};
 mod groth16;
 
 #[cfg(feature = "ark")]

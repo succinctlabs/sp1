@@ -89,14 +89,22 @@ where
     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
         let commitment = self.commit.read(builder);
         let pc_start = self.pc_start.read(builder);
+        let initial_global_cumulative_sum = self.initial_global_cumulative_sum.read(builder);
         let chip_information = self.chip_information.clone();
         let chip_ordering = self.chip_ordering.clone();
-        VerifyingKeyVariable { commitment, pc_start, chip_information, chip_ordering }
+        VerifyingKeyVariable {
+            commitment,
+            pc_start,
+            initial_global_cumulative_sum,
+            chip_information,
+            chip_ordering,
+        }
     }
 
     fn write(&self, witness: &mut impl WitnessWriter<C>) {
         self.commit.write(witness);
         self.pc_start.write(witness);
+        self.initial_global_cumulative_sum.write(witness);
     }
 }
 
@@ -109,18 +117,16 @@ where
     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
         let vk = self.vk.read(builder);
         let shard_proofs = self.shard_proofs.read(builder);
-        let leaf_challenger = self.leaf_challenger.read(builder);
-        let initial_reconstruct_challenger = self.initial_reconstruct_challenger.read(builder);
+        let reconstruct_deferred_digest = self.reconstruct_deferred_digest.read(builder);
         let is_complete = InnerVal::from_bool(self.is_complete).read(builder);
         let is_first_shard = InnerVal::from_bool(self.is_first_shard).read(builder);
         let vk_root = self.vk_root.read(builder);
         SP1RecursionWitnessVariable {
             vk,
             shard_proofs,
-            leaf_challenger,
-            initial_reconstruct_challenger,
             is_complete,
             is_first_shard,
+            reconstruct_deferred_digest,
             vk_root,
         }
     }
@@ -128,8 +134,7 @@ where
     fn write(&self, witness: &mut impl WitnessWriter<C>) {
         self.vk.write(witness);
         self.shard_proofs.write(witness);
-        self.leaf_challenger.write(witness);
-        self.initial_reconstruct_challenger.write(witness);
+        self.reconstruct_deferred_digest.write(witness);
         self.is_complete.write(witness);
         self.is_first_shard.write(witness);
         self.vk_root.write(witness);
@@ -169,7 +174,6 @@ where
         let start_reconstruct_deferred_digest =
             self.start_reconstruct_deferred_digest.read(builder);
         let sp1_vk_digest = self.sp1_vk_digest.read(builder);
-        let leaf_challenger = self.leaf_challenger.read(builder);
         let committed_value_digest = self.committed_value_digest.read(builder);
         let deferred_proofs_digest = self.deferred_proofs_digest.read(builder);
         let end_pc = self.end_pc.read(builder);
@@ -184,7 +188,6 @@ where
             vk_merkle_data,
             start_reconstruct_deferred_digest,
             sp1_vk_digest,
-            leaf_challenger,
             committed_value_digest,
             deferred_proofs_digest,
             end_pc,
@@ -201,7 +204,6 @@ where
         self.vk_merkle_data.write(witness);
         self.start_reconstruct_deferred_digest.write(witness);
         self.sp1_vk_digest.write(witness);
-        self.leaf_challenger.write(witness);
         self.committed_value_digest.write(witness);
         self.deferred_proofs_digest.write(witness);
         self.end_pc.write(witness);
