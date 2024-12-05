@@ -137,6 +137,7 @@ mod sys {
             .include_item("Poseidon2Instr")
             .include_item("Poseidon2PreprocessedColsSkinny")
             .include_item("Poseidon2PreprocessedColsWide")
+            .include_item("OUTPUT_ROUND_IDX")
             .with_namespace("sp1_recursion_core_sys")
             .with_crate(crate_dir)
             .generate()
