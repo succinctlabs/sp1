@@ -96,6 +96,7 @@ where
             AB::Expr::zero(),
             AB::Expr::zero(),
             AB::Expr::zero(),
+            AB::Expr::zero(),
             is_real,
         );
 
@@ -122,6 +123,7 @@ where
             local.op_a_value,
             local.pc,
             local.op_b_value,
+            AB::Expr::zero(),
             AB::Expr::zero(),
             AB::Expr::zero(),
             AB::Expr::zero(),

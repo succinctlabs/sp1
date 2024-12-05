@@ -438,6 +438,7 @@ where
                 AB::Expr::zero(),
                 AB::Expr::zero(),
                 AB::Expr::zero(),
+                AB::Expr::zero(),
                 local.is_real,
             );
 
@@ -466,6 +467,7 @@ where
                 Word(upper_half),
                 local.quotient,
                 local.c,
+                AB::Expr::zero(),
                 AB::Expr::zero(),
                 AB::Expr::zero(),
                 AB::Expr::zero(),
@@ -635,6 +637,7 @@ where
                 AB::Expr::zero(),
                 AB::Expr::zero(),
                 AB::Expr::zero(),
+                AB::Expr::zero(),
                 local.abs_c_alu_event,
             );
             builder.send_instruction(
@@ -647,6 +650,7 @@ where
                 Word([zero.clone(), zero.clone(), zero.clone(), zero.clone()]),
                 local.remainder,
                 local.abs_remainder,
+                AB::Expr::zero(),
                 AB::Expr::zero(),
                 AB::Expr::zero(),
                 AB::Expr::zero(),
@@ -700,6 +704,7 @@ where
                 Word([one.clone(), zero.clone(), zero.clone(), zero.clone()]),
                 local.abs_remainder,
                 local.max_abs_c_or_1,
+                AB::Expr::zero(),
                 AB::Expr::zero(),
                 AB::Expr::zero(),
                 AB::Expr::zero(),
@@ -789,6 +794,7 @@ where
                 local.a,
                 local.b,
                 local.c,
+                AB::Expr::zero(),
                 AB::Expr::zero(),
                 AB::Expr::zero(),
                 AB::Expr::zero(),

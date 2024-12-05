@@ -205,6 +205,7 @@ where
             AB::Expr::zero(),
             AB::Expr::zero(),
             AB::Expr::zero(),
+            AB::Expr::zero(),
             local.is_xor + local.is_or + local.is_and,
         );
 

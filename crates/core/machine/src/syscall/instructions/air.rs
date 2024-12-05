@@ -55,6 +55,7 @@ where
             local.op_c_value,
             AB::Expr::zero(),
             AB::Expr::zero(),
+            AB::Expr::zero(),
             AB::Expr::one(),
             local.is_halt,
             local.is_real,

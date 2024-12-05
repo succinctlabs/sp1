@@ -68,6 +68,7 @@ where
             AB::Expr::one(),
             AB::Expr::zero(),
             AB::Expr::zero(),
+            AB::Expr::zero(),
             is_real.clone(),
         );
 
@@ -98,6 +99,7 @@ where
                 local.next_pc,
                 local.pc,
                 local.op_c_value,
+                AB::Expr::zero(),
                 AB::Expr::zero(),
                 AB::Expr::zero(),
                 AB::Expr::zero(),
@@ -191,6 +193,7 @@ where
             AB::Expr::zero(),
             AB::Expr::zero(),
             AB::Expr::zero(),
+            AB::Expr::zero(),
             is_real.clone(),
         );
 
@@ -206,6 +209,7 @@ where
             Word::extend_var::<AB>(local.a_gt_b),
             local.op_b_value,
             local.op_a_value,
+            AB::Expr::zero(),
             AB::Expr::zero(),
             AB::Expr::zero(),
             AB::Expr::zero(),
