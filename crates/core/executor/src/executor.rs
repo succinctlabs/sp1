@@ -1245,22 +1245,19 @@ impl<'a> Executor<'a> {
                 return Err(ExecutionError::UnsupportedSyscall(syscall_id));
             };
 
+        // If the syscall is `EXIT_UNCONSTRAINED`, the memory was restored to pre-unconstrained code
+        // in the execute function, so we need to re-read from x10 and x11.  Just do a peek on the
+        // registers.
+        let (b, c) = if syscall == SyscallCode::EXIT_UNCONSTRAINED {
+            (self.register(Register::X10), self.register(Register::X11))
+        } else {
+            (b, c)
+        };
+
         // Allow the syscall impl to modify state.clk/pc (exit unconstrained does this)
         self.rw(t0, a);
         let clk = self.state.clk;
         self.state.clk += precompile_cycles;
-
-        let a = if syscall == SyscallCode::EXIT_UNCONSTRAINED { 0 } else { a };
-        let b = if syscall == SyscallCode::EXIT_UNCONSTRAINED {
-            self.register(Register::X10)
-        } else {
-            b
-        };
-        let c = if syscall == SyscallCode::EXIT_UNCONSTRAINED {
-            self.register(Register::X11)
-        } else {
-            c
-        };
 
         Ok((a, b, c, clk, precompile_next_pc, syscall, syscall_lookup_id, returned_exit_code))
     }
