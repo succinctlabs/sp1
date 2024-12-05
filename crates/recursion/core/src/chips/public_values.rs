@@ -190,7 +190,7 @@ mod tests {
     };
     use p3_baby_bear::BabyBear;
     use p3_field::AbstractField;
-    use p3_matrix::dense::RowMajorMatrix;
+    use p3_matrix::{dense::RowMajorMatrix, Matrix};
     use rand::{rngs::StdRng, Rng, SeedableRng};
     use sp1_core_machine::utils::{pad_rows_fixed, setup_logger};
     use sp1_stark::{air::MachineAir, StarkGenericConfig};
@@ -292,6 +292,7 @@ mod tests {
     fn test_generate_trace() {
         let shard = test_fixtures::shard();
         let trace = PublicValuesChip.generate_trace(&shard, &mut ExecutionRecord::default());
+        assert!(trace.height() > 0);
 
         assert_eq!(trace, generate_trace_ffi(&shard, &mut ExecutionRecord::default()));
     }
@@ -349,6 +350,7 @@ mod tests {
     fn test_generate_preprocessed_trace() {
         let program = test_fixtures::program();
         let trace = PublicValuesChip.generate_preprocessed_trace(&program).unwrap();
+        assert!(trace.height() > 0);
 
         assert_eq!(trace, generate_preprocessed_trace_ffi(&program));
     }
