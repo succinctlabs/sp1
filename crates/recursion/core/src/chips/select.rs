@@ -224,7 +224,7 @@ mod tests {
         let shard = test_fixtures::shard();
         let mut execution_record = test_fixtures::default_execution_record();
         let trace = SelectChip.generate_trace(&shard, &mut execution_record);
-        assert!(trace.height() > 0);
+        assert!(trace.height() >= test_fixtures::MIN_TEST_CASES);
 
         assert_eq!(trace, generate_trace_ffi(&shard, &mut execution_record));
     }
@@ -257,7 +257,7 @@ mod tests {
     fn generate_preprocessed_trace() {
         let program = test_fixtures::program();
         let trace = SelectChip.generate_preprocessed_trace(&program).unwrap();
-        assert!(trace.height() > 0);
+        assert!(trace.height() >= test_fixtures::MIN_TEST_CASES);
 
         assert_eq!(trace, generate_preprocessed_trace_ffi(&program));
     }

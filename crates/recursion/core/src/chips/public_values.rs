@@ -292,7 +292,7 @@ mod tests {
     fn test_generate_trace() {
         let shard = test_fixtures::shard();
         let trace = PublicValuesChip.generate_trace(&shard, &mut ExecutionRecord::default());
-        assert!(trace.height() > 0);
+        assert_eq!(trace.height(), 16);
 
         assert_eq!(trace, generate_trace_ffi(&shard, &mut ExecutionRecord::default()));
     }
@@ -350,7 +350,7 @@ mod tests {
     fn test_generate_preprocessed_trace() {
         let program = test_fixtures::program();
         let trace = PublicValuesChip.generate_preprocessed_trace(&program).unwrap();
-        assert!(trace.height() > 0);
+        assert_eq!(trace.height(), 16);
 
         assert_eq!(trace, generate_preprocessed_trace_ffi(&program));
     }

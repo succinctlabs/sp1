@@ -17,7 +17,7 @@ pub mod test_fixtures {
     use std::{array, borrow::Borrow};
 
     const SEED: u64 = 12345;
-    const MIN_TEST_CASES: usize = 1000;
+    pub const MIN_TEST_CASES: usize = 1000;
     const MAX_TEST_CASES: usize = 10000;
 
     pub fn shard() -> ExecutionRecord<BabyBear> {
