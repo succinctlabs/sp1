@@ -84,7 +84,6 @@ impl<F: PrimeField32> MachineAir<F> for MemoryLocalChip {
 
     fn generate_dependencies(&self, input: &ExecutionRecord, output: &mut ExecutionRecord) {
         let mut events = Vec::new();
-        println!("local mem events: {}", input.get_local_mem_events().count());
 
         input.get_local_mem_events().for_each(|mem_event| {
             events.push(GlobalInteractionEvent {
