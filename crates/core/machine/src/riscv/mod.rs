@@ -9,7 +9,7 @@ use sp1_core_executor::{
 };
 
 use crate::{
-    control_flow::{AUIPCChip, BranchChip, JumpChip},
+    control_flow::{AuipcChip, BranchChip, JumpChip},
     global::GlobalChip,
     memory::{
         MemoryChipType, MemoryInstructionsChip, MemoryLocalChip, NUM_LOCAL_MEMORY_ENTRIES_PER_ROW,
@@ -95,7 +95,7 @@ pub enum RiscvAir<F: PrimeField32> {
     /// An AIR for RISC-V memory instructions.
     Memory(MemoryInstructionsChip),
     /// An AIR for RISC-V AUIPC instruction.
-    AUIPC(AUIPCChip),
+    AUIPC(AuipcChip),
     /// An AIR for RISC-V branch instructions.
     Branch(BranchChip),
     /// An AIR for RISC-V jump instructions.
@@ -374,7 +374,7 @@ impl<F: PrimeField32> RiscvAir<F> {
         costs.insert(RiscvAirDiscriminants::Memory, memory_instructions.cost());
         chips.push(memory_instructions);
 
-        let auipc = Chip::new(RiscvAir::AUIPC(AUIPCChip::default()));
+        let auipc = Chip::new(RiscvAir::AUIPC(AuipcChip::default()));
         costs.insert(RiscvAirDiscriminants::AUIPC, auipc.cost());
         chips.push(auipc);
 
@@ -452,7 +452,7 @@ impl<F: PrimeField32> RiscvAir<F> {
                     .count(),
             ),
             (RiscvAir::Memory(MemoryInstructionsChip::default()), record.memory_instr_events.len()),
-            (RiscvAir::AUIPC(AUIPCChip::default()), record.auipc_events.len()),
+            (RiscvAir::AUIPC(AuipcChip::default()), record.auipc_events.len()),
             (RiscvAir::Branch(BranchChip::default()), record.branch_events.len()),
             (RiscvAir::Jump(JumpChip::default()), record.jump_events.len()),
             (RiscvAir::Global(GlobalChip), record.get_local_mem_events().count()),
@@ -472,7 +472,7 @@ impl<F: PrimeField32> RiscvAir<F> {
             RiscvAir::ShiftLeft(ShiftLeft::default()),
             RiscvAir::ShiftRight(ShiftRightChip::default()),
             RiscvAir::Memory(MemoryInstructionsChip::default()),
-            RiscvAir::AUIPC(AUIPCChip::default()),
+            RiscvAir::AUIPC(AuipcChip::default()),
             RiscvAir::Branch(BranchChip::default()),
             RiscvAir::Jump(JumpChip::default()),
             RiscvAir::SyscallInstrs(SyscallInstrsChip::default()),

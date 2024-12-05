@@ -24,11 +24,11 @@ use crate::{
 };
 
 #[derive(Default)]
-pub struct AUIPCChip;
+pub struct AuipcChip;
 
 pub const NUM_AUIPC_COLS: usize = size_of::<AUIPCColumns<u8>>();
 
-impl<F> BaseAir<F> for AUIPCChip {
+impl<F> BaseAir<F> for AuipcChip {
     fn width(&self) -> usize {
         NUM_AUIPC_COLS
     }
@@ -61,7 +61,7 @@ pub struct AUIPCColumns<T> {
     pub is_ebreak: T,
 }
 
-impl<AB> Air<AB> for AUIPCChip
+impl<AB> Air<AB> for AuipcChip
 where
     AB: SP1AirBuilder,
     AB::Var: Sized,
@@ -131,13 +131,13 @@ where
     }
 }
 
-impl<F: PrimeField32> MachineAir<F> for AUIPCChip {
+impl<F: PrimeField32> MachineAir<F> for AuipcChip {
     type Record = ExecutionRecord;
 
     type Program = Program;
 
     fn name(&self) -> String {
-        "AUIPC".to_string()
+        "Auipc".to_string()
     }
 
     fn generate_trace(
