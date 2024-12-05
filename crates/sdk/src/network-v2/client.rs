@@ -98,11 +98,18 @@ impl NetworkClient {
         Ok(res.into_inner().nonce)
     }
 
-    /// Registers a program if it is not already registered.
-    pub async fn register_program(&self, vk: &SP1VerifyingKey, elf: &[u8]) -> Result<Vec<u8>> {
+    /// Get the verifying key hash from a verifying key. The verifying key hash is used to identify
+    /// a program.  
+    pub fn get_vk_hash(vk: &SP1VerifyingKey) -> Result<Vec<u8>> {
         let vk_hash_str = vk.bytes32();
         let vk_hash = hex::decode(vk_hash_str.strip_prefix("0x").unwrap_or(&vk_hash_str))
             .map_err(|_| Status::invalid_argument("failed to decode verification key hash"))?;
+        Ok(vk_hash)
+    }
+
+    /// Registers a program if it is not already registered.
+    pub async fn register_program(&self, vk: &SP1VerifyingKey, elf: &[u8]) -> Result<Vec<u8>> {
+        let vk_hash = Self::get_vk_hash(vk)?;
 
         // Try to get existing program.
         match self.get_program(&vk_hash).await? {
@@ -140,7 +147,7 @@ impl NetworkClient {
         let mut store = self.get_store().await?;
         let program_uri = self.create_artifact_with_content(&mut store, &elf).await?;
 
-        // Serialize the vkey.
+        // Serialize the verifying key.
         let vk_encoded = bincode::serialize(&vk)?;
 
         // Send the request.
