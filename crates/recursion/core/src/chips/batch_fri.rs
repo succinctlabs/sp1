@@ -2,7 +2,7 @@
 
 use crate::{
     air::Block, builder::SP1RecursionAirBuilder, extract_batch_fri_instrs,
-    runtime::RecursionProgram, Address, BatchFRIInstr, ExecutionRecord,
+    runtime::RecursionProgram, Address, BatchFRIEvent, BatchFRIInstr, ExecutionRecord,
 };
 use core::borrow::Borrow;
 use itertools::Itertools;
@@ -122,21 +122,25 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for BatchFRIChip<DEGREE
             .batch_fri_events
             .iter()
             .map(|event| {
-                let mut row = [F::zero(); NUM_BATCH_FRI_COLS];
-                let cols: &mut BatchFRICols<F> = row.as_mut_slice().borrow_mut();
-                cols.acc = event.ext_single.acc;
-                cols.alpha_pow = event.ext_vec.alpha_pow;
-                cols.p_at_z = event.ext_vec.p_at_z;
-                cols.p_at_x = event.base_vec.p_at_x;
+                let bb_event: &BatchFRIEvent<BabyBear> = unsafe { std::mem::transmute(event) };
+                let mut row = [BabyBear::zero(); NUM_BATCH_FRI_COLS];
+                let cols: &mut BatchFRICols<BabyBear> = row.as_mut_slice().borrow_mut();
+                cols.acc = bb_event.ext_single.acc;
+                cols.alpha_pow = bb_event.ext_vec.alpha_pow;
+                cols.p_at_z = bb_event.ext_vec.p_at_z;
+                cols.p_at_x = bb_event.base_vec.p_at_x;
                 row
             })
             .collect_vec();
 
         // Pad the trace to a power of two.
-        rows.resize(self.num_rows(input).unwrap(), [F::zero(); NUM_BATCH_FRI_COLS]);
+        rows.resize(self.num_rows(input).unwrap(), [BabyBear::zero(); NUM_BATCH_FRI_COLS]);
 
         // Convert the trace to a row major matrix.
-        let trace = RowMajorMatrix::new(rows.into_iter().flatten().collect(), NUM_BATCH_FRI_COLS);
+        let trace = RowMajorMatrix::new(
+            unsafe { std::mem::transmute(rows.into_iter().flatten().collect::<Vec<BabyBear>>()) },
+            NUM_BATCH_FRI_COLS,
+        );
 
         #[cfg(debug_assertions)]
         println!(
@@ -242,21 +246,19 @@ mod tests {
     ) -> RowMajorMatrix<BabyBear> {
         type F = BabyBear;
 
-        let events = &input.batch_fri_events;
-        let mut rows = vec![[F::zero(); NUM_BATCH_FRI_COLS]; events.len()];
-
-        let chunk_size = std::cmp::max(events.len() / num_cpus::get(), 1);
-        rows.chunks_mut(chunk_size).enumerate().for_each(|(i, chunk)| {
-            chunk.iter_mut().enumerate().for_each(|(j, row)| {
-                let idx = i * chunk_size + j;
-                if idx < events.len() {
-                    let cols: &mut BatchFRICols<F> = row.as_mut_slice().borrow_mut();
-                    unsafe {
-                        crate::sys::batch_fri_event_to_row_babybear(&events[idx], cols);
-                    }
-                }
-            });
-        });
+        let mut rows = input
+            .batch_fri_events
+            .iter()
+            .map(|event| {
+                let mut row = [F::zero(); NUM_BATCH_FRI_COLS];
+                let cols: &mut BatchFRICols<F> = row.as_mut_slice().borrow_mut();
+                cols.acc = event.ext_single.acc;
+                cols.alpha_pow = event.ext_vec.alpha_pow;
+                cols.p_at_z = event.ext_vec.p_at_z;
+                cols.p_at_x = event.base_vec.p_at_x;
+                row
+            })
+            .collect_vec();
 
         rows.resize(
             BatchFRIChip::<DEGREE>.num_rows(input).unwrap(),
