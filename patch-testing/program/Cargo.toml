@@ -1,0 +1,41 @@
+[package]
+name = "patch-testing-program"
+version = "1.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+sp1-zkvm = { path = "../../crates/zkvm/entrypoint" }
+serde = { version = "1.0.215", features = ["derive"] }
+
+[target.'cfg(target_os = "zkvm")'.dependencies]
+sha2-v0-9-8 = { version = "0.9.8", package = "sha2" }
+# Note: Can't have sha2-v0-10-6 and v0-10-8 at the same time due to crate resolution.
+sha2-v0-10-6 = { version = "0.10.6", package = "sha2" }
+# sha2-v0-10-8 = { version = "0.10.8", package = "sha2" }
+
+ed25519-consensus = "2.1.0"
+ed25519-dalek = "2.1.0"
+tiny-keccak = { version = "2.0.2", features = ["keccak"] }
+curve25519-dalek = { version = "4.1.3", default-features = false, features = ["alloc"] }
+curve25519-dalek-ng = { version = "4.1", default-features = false, features = ["u32_backend", "alloc"] }
+k256 = { version = "0.13.3", default-features = false, features = ["ecdsa"] }
+p256 = { version = "0.13.2", default-features = false, features = ["ecdsa"] }
+alloy-primitives = { version = "0.8", features = ["k256"] }
+secp256k1 = { version = "0.29", features = ["recovery", "global-context"] }
+
+revm-precompile = { version = "11.0.1", default-features = false, features = ["kzg-rs", "secp256r1"] }
+
+[patch.crates-io]
+curve25519-dalek = { git = "https://github.com/sp1-patches/curve25519-dalek", tag = "patch-v4.1.3-v3.4.0" }
+curve25519-dalek-ng = { git = "https://github.com/sp1-patches/curve25519-dalek-ng", tag = "curve25519_dalek_ng-v4.1.1-patch-v1" } 
+ecdsa-core = { git = "https://github.com/sp1-patches/signatures", package = "ecdsa", branch = "ecdsa-v0.16.9-patch-v4.0.0-rc.2" }
+ed25519-consensus = { git = "https://github.com/sp1-patches/ed25519-consensus", tag = "ed25519_consensus-v2.1.0-patch-v1" }
+secp256k1 = { git = "https://github.com/sp1-patches/rust-secp256k1", tag = "patch-v0.29.1-v4.0.0" }
+sha2-v0-10-8 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", package = "sha2", tag = "sha2-v0.10.8-patch-v1" }
+sha2-v0-10-6 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", package = "sha2", tag = "sha2-v0.10.6-patch-v1" }
+sha2-v0-9-9 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", package = "sha2", tag = "sha2-v0.9.9-patch-v1" }
+sha2-v0-9-8 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", package = "sha2", tag = "sha2-v0.9.8-patch-v1" }
+tiny-keccak = { git = "https://github.com/sp1-patches/tiny-keccak", tag = "tiny_keccak-v2.0.2-patch-v1" }
+substrate-bn = { git = "https://github.com/sp1-patches/bn", tag = "substrate_bn-v0.6.0-patch-v1" }
+bls12_381 = { git = "https://github.com/sp1-patches/bls12_381", tag = "bls12_381-v0.8.0-patch-v1" }

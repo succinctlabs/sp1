@@ -34,7 +34,7 @@ members = [
   "crates/zkvm/*",
   "crates/test-artifacts",
 ]
-exclude = ["examples/target"]
+exclude = ["examples/target", "patch-testing/program", "patch-testing/tests"]
 resolver = "2"
 
 [profile.release]

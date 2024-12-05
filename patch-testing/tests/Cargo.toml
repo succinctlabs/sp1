@@ -1,0 +1,12 @@
+[package]
+name = "patch-testing-tests"
+version = "1.0.0" 
+edition = "2021" 
+publish = false
+
+[dependencies]
+patch-testing-program = { path = "../program" }
+sp1-sdk = { path = "../../crates/sdk" }
+
+[build-dependencies]
+sp1-build = { path = "../../crates/build" }
