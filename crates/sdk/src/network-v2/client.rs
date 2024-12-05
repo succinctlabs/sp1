@@ -7,20 +7,24 @@ use reqwest_middleware::ClientWithMiddleware as HttpClientWithMiddleware;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sp1_core_machine::io::SP1Stdin;
+use sp1_prover::HashableKey;
 use sp1_prover::SP1VerifyingKey;
+use std::result::Result::Ok as StdOk;
 use std::str::FromStr;
 use std::time::{SystemTime, UNIX_EPOCH};
-use tokio::try_join;
 use tonic::transport::channel::ClientTlsConfig;
 use tonic::transport::Channel;
+use tonic::Status;
 
 use crate::network_v2::proto::artifact::{
     artifact_store_client::ArtifactStoreClient, CreateArtifactRequest,
 };
 use crate::network_v2::proto::network::{
-    prover_network_client::ProverNetworkClient, FulfillmentStatus, FulfillmentStrategy,
-    GetNonceRequest, GetProofRequestStatusRequest, GetProofRequestStatusResponse, ProofMode,
-    RequestProofRequest, RequestProofRequestBody, RequestProofResponse,
+    prover_network_client::ProverNetworkClient, CreateProgramRequest, CreateProgramRequestBody,
+    CreateProgramResponse, FulfillmentStatus, FulfillmentStrategy, GetNonceRequest,
+    GetProgramRequest, GetProgramResponse, GetProofRequestStatusRequest,
+    GetProofRequestStatusResponse, ProofMode, RequestProofRequest, RequestProofRequestBody,
+    RequestProofResponse,
 };
 use crate::network_v2::Signable;
 
@@ -94,33 +98,69 @@ impl NetworkClient {
         Ok(res.into_inner().nonce)
     }
 
-    // /// Attempts to get program info, returns None if program doesn't exist
-    // async fn get_program(&self, vk: &SP1VerifyingKey) -> Result<Option<GetProgramResponse>> {
-    //     let response =
-    //         self.rpc.get_program(GetProgramRequest { verifying_key: vk.to_bytes() }).await?;
+    /// Registers a program if it is not already registered.
+    pub async fn register_program(&self, vk: &SP1VerifyingKey, elf: &[u8]) -> Result<Vec<u8>> {
+        let vk_hash_str = vk.bytes32();
+        let vk_hash = hex::decode(vk_hash_str.strip_prefix("0x").unwrap_or(&vk_hash_str))
+            .map_err(|_| Status::invalid_argument("failed to decode verification key hash"))?;
 
-    //     Ok(Some(response))
-    // }
+        // Try to get existing program.
+        match self.get_program(&vk_hash).await? {
+            Some(_) => {
+                // Program already exists.
+                Ok(vk_hash)
+            }
+            None => {
+                // Program doesn't exist, create it.
+                self.create_program(&vk_hash, vk, elf).await?;
+                log::info!("Registered program 0x{}", hex::encode(vk_hash.clone()));
+                Ok(vk_hash)
+            }
+        }
+    }
 
-    // /// Creates a new program.
-    // async fn create_program(
-    //     &self,
-    //     vk: &SP1VerifyingKey,
-    //     program_uri: String,
-    // ) -> Result<CreateProgramResponse> {
-    //     let nonce = self.get_nonce().await?;
-    //     let signature = self.sign_create_program_message(nonce, vk, &program_uri).await?;
+    /// Attempts to get program info, returns None if program doesn't exist.
+    async fn get_program(&self, vk_hash: &[u8]) -> Result<Option<GetProgramResponse>> {
+        let mut rpc = self.get_rpc().await?;
+        match rpc.get_program(GetProgramRequest { vk_hash: vk_hash.to_vec() }).await {
+            StdOk(response) => Ok(Some(response.into_inner())),
+            Err(status) if status.code() == tonic::Code::NotFound => Ok(None),
+            Err(e) => Err(e.into()),
+        }
+    }
 
-    //     self.rpc
-    //         .create_program(CreateProgramRequest {
-    //             signature,
-    //             nonce,
-    //             verifying_key: vk.to_bytes(),
-    //             program_uri,
-    //         })
-    //         .await?
-    //         .into_inner()
-    // }
+    /// Creates a new program.
+    async fn create_program(
+        &self,
+        vk_hash: &[u8],
+        vk: &SP1VerifyingKey,
+        elf: &[u8],
+    ) -> Result<CreateProgramResponse> {
+        // Create the program artifact.
+        let mut store = self.get_store().await?;
+        let program_uri = self.create_artifact_with_content(&mut store, &elf).await?;
+
+        // Serialize the vkey.
+        let vk_encoded = bincode::serialize(&vk)?;
+
+        // Send the request.
+        let mut rpc = self.get_rpc().await?;
+        let nonce = self.get_nonce().await?;
+        let request_body = CreateProgramRequestBody {
+            nonce,
+            vk_hash: vk_hash.to_vec(),
+            vk: vk_encoded,
+            program_uri,
+        };
+
+        Ok(rpc
+            .create_program(CreateProgramRequest {
+                signature: request_body.sign(&self.signer).into(),
+                body: Some(request_body),
+            })
+            .await?
+            .into_inner())
+    }
 
     /// Get the status of a given proof. If the status is Fulfilled, the proof is also returned.
     pub async fn get_proof_request_status<P: DeserializeOwned>(
@@ -151,13 +191,12 @@ impl NetworkClient {
         Ok((res, proof))
     }
 
-    /// Creates a proof request with the given ELF and stdin.
+    /// Creates a proof request with the given verifying key hash and stdin.
     #[allow(clippy::too_many_arguments)]
     pub async fn request_proof(
         &self,
-        elf: &[u8],
+        vk_hash: &[u8],
         stdin: &SP1Stdin,
-        vk: &SP1VerifyingKey,
         mode: ProofMode,
         version: &str,
         strategy: FulfillmentStrategy,
@@ -169,15 +208,9 @@ impl NetworkClient {
         let since_the_epoch = start.duration_since(UNIX_EPOCH).expect("Invalid start time");
         let deadline = since_the_epoch.as_secs() + timeout_secs;
 
-        // Create the program and stdin artifacts.
+        // Create the stdin artifact.
         let mut store = self.get_store().await?;
-        let mut store_clone = store.clone();
-        let program_promise = self.create_artifact_with_content(&mut store, &elf);
-        let stdin_promise = self.create_artifact_with_content(&mut store_clone, &stdin);
-        let (program_uri, stdin_uri) = try_join!(program_promise, stdin_promise)?;
-
-        // Serialize the vkey.
-        let vkey = bincode::serialize(&vk)?;
+        let stdin_uri = self.create_artifact_with_content(&mut store, &stdin).await?;
 
         // Send the request.
         let mut rpc = self.get_rpc().await?;
@@ -185,10 +218,9 @@ impl NetworkClient {
         let request_body = RequestProofRequestBody {
             nonce,
             version: format!("sp1-{}", version),
-            vkey,
+            vk_hash: vk_hash.to_vec(),
             mode: mode.into(),
             strategy: strategy.into(),
-            program_uri,
             stdin_uri,
             deadline,
             cycle_limit,
