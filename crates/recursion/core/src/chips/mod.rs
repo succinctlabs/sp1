@@ -310,7 +310,7 @@ pub mod test_fixtures {
         let mut instructions = Vec::with_capacity(num_test_cases);
         for _ in 0..num_test_cases {
             let public_values_a: [u32; air::RECURSIVE_PROOF_NUM_PV_ELTS] =
-                array::from_fn(|_| rng.gen());
+                array::from_fn(|_| BabyBear::from_wrapped_u32(rng.gen()).as_canonical_u32());
             let public_values: &RecursionPublicValues<u32> = public_values_a.as_slice().borrow();
             instructions.push(runtime::instruction::commit_public_values(public_values));
         }
