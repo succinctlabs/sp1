@@ -176,14 +176,17 @@ where
 mod tests {
     use crate::{
         air::{RecursionPublicValues, NUM_PV_ELMS_TO_HASH, RECURSIVE_PROOF_NUM_PV_ELTS},
-        chips::public_values::{
-            PublicValuesChip, PublicValuesCols, PublicValuesPreprocessedCols,
-            NUM_PUBLIC_VALUES_COLS, NUM_PUBLIC_VALUES_PREPROCESSED_COLS, PUB_VALUES_LOG_HEIGHT,
+        chips::{
+            public_values::{
+                PublicValuesChip, PublicValuesCols, PublicValuesPreprocessedCols,
+                NUM_PUBLIC_VALUES_COLS, NUM_PUBLIC_VALUES_PREPROCESSED_COLS, PUB_VALUES_LOG_HEIGHT,
+            },
+            test_fixtures,
         },
         machine::tests::run_recursion_test_machines,
         runtime::{instruction as instr, ExecutionRecord},
         stark::BabyBearPoseidon2Outer,
-        CommitPublicValuesEvent, Instruction, MemAccessKind, RecursionProgram, DIGEST_SIZE,
+        Instruction, MemAccessKind, RecursionProgram, DIGEST_SIZE,
     };
     use p3_baby_bear::BabyBear;
     use p3_field::AbstractField;
@@ -249,7 +252,10 @@ mod tests {
     }
 
     #[cfg(feature = "sys")]
-    fn generate_trace_ffi(input: &ExecutionRecord<BabyBear>) -> RowMajorMatrix<BabyBear> {
+    fn generate_trace_ffi(
+        input: &ExecutionRecord<BabyBear>,
+        _: &mut ExecutionRecord<BabyBear>,
+    ) -> RowMajorMatrix<BabyBear> {
         type F = BabyBear;
 
         if input.commit_pv_hash_events.len() != 1 {
@@ -284,23 +290,10 @@ mod tests {
     #[cfg(feature = "sys")]
     #[test]
     fn test_generate_trace() {
-        type F = BabyBear;
+        let shard = test_fixtures::shard();
+        let trace = PublicValuesChip.generate_trace(&shard, &mut ExecutionRecord::default());
 
-        let mut rng = StdRng::seed_from_u64(0xDEADBEEF);
-        let random_felts: [F; RECURSIVE_PROOF_NUM_PV_ELTS] =
-            array::from_fn(|_| F::from_canonical_u32(rng.gen_range(0..1 << 16)));
-        let random_public_values: &RecursionPublicValues<F> = random_felts.as_slice().borrow();
-
-        let shard = ExecutionRecord {
-            commit_pv_hash_events: vec![CommitPublicValuesEvent {
-                public_values: *random_public_values,
-            }],
-            ..Default::default()
-        };
-        let trace: RowMajorMatrix<F> =
-            PublicValuesChip.generate_trace(&shard, &mut ExecutionRecord::default());
-
-        assert_eq!(trace, generate_trace_ffi(&shard));
+        assert_eq!(trace, generate_trace_ffi(&shard, &mut ExecutionRecord::default()));
     }
 
     #[cfg(feature = "sys")]
@@ -354,15 +347,7 @@ mod tests {
     #[cfg(feature = "sys")]
     #[test]
     fn test_generate_preprocessed_trace() {
-        let addr = 0u32;
-        let public_values_a: [u32; RECURSIVE_PROOF_NUM_PV_ELTS] =
-            array::from_fn(|i| i as u32 + addr);
-        let public_values: &RecursionPublicValues<u32> = public_values_a.as_slice().borrow();
-
-        let program = RecursionProgram {
-            instructions: vec![instr::commit_public_values(public_values)],
-            ..Default::default()
-        };
+        let program = test_fixtures::program();
         let trace = PublicValuesChip.generate_preprocessed_trace(&program).unwrap();
 
         assert_eq!(trace, generate_preprocessed_trace_ffi(&program));

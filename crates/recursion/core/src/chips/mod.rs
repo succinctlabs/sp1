@@ -14,6 +14,7 @@ pub mod test_fixtures {
     use p3_baby_bear::BabyBear;
     use p3_field::{AbstractField, Field, PrimeField32};
     use rand::{prelude::SliceRandom, rngs::StdRng, Rng, SeedableRng};
+    use std::{array, borrow::Borrow};
 
     const SEED: u64 = 12345;
     const MIN_TEST_CASES: usize = 1000;
@@ -26,6 +27,8 @@ pub mod test_fixtures {
             batch_fri_events: batch_fri_events(),
             exp_reverse_bits_len_events: exp_reverse_bits_events(),
             fri_fold_events: fri_fold_events(),
+            commit_pv_hash_events: public_values_events(),
+            select_events: select_events(),
             ..Default::default()
         }
     }
@@ -37,6 +40,8 @@ pub mod test_fixtures {
         instructions.push(batch_fri_instructions());
         instructions.push(exp_reverse_bits_instructions());
         instructions.push(fri_fold_instructions());
+        instructions.push(public_values_instructions());
+        instructions.push(select_instructions());
 
         let mut rng = StdRng::seed_from_u64(SEED);
         let mut flattened: Vec<_> = instructions.into_iter().flatten().collect();
@@ -141,6 +146,31 @@ pub mod test_fixtures {
                     ro_output: random_block(&mut rng),
                 },
             });
+        }
+        events
+    }
+
+    fn public_values_events() -> Vec<CommitPublicValuesEvent<BabyBear>> {
+        let (mut rng, num_test_cases) = initialize();
+        let mut events = Vec::with_capacity(num_test_cases);
+        for _ in 0..num_test_cases {
+            let random_felts: [BabyBear; air::RECURSIVE_PROOF_NUM_PV_ELTS] =
+                array::from_fn(|_| BabyBear::from_wrapped_u32(rng.gen()));
+            events
+                .push(CommitPublicValuesEvent { public_values: *random_felts.as_slice().borrow() });
+        }
+        events
+    }
+
+    fn select_events() -> Vec<SelectIo<BabyBear>> {
+        let (mut rng, num_test_cases) = initialize();
+        let mut events = Vec::with_capacity(num_test_cases);
+        for _ in 0..num_test_cases {
+            let bit = if rng.gen_bool(0.5) { BabyBear::one() } else { BabyBear::zero() };
+            let in1 = BabyBear::from_wrapped_u32(rng.gen());
+            let in2 = BabyBear::from_wrapped_u32(rng.gen());
+            let (out1, out2) = if bit == BabyBear::one() { (in1, in2) } else { (in2, in1) };
+            events.push(SelectIo { bit, out1, out2, in1, in2 });
         }
         events
     }
@@ -254,6 +284,37 @@ pub mod test_fixtures {
                 alpha_pow_mults: vec![BabyBear::one(); len],
                 ro_mults: vec![BabyBear::one(); len],
             })));
+        }
+        instructions
+    }
+
+    fn public_values_instructions() -> Vec<Instruction<BabyBear>> {
+        let (mut rng, num_test_cases) = initialize();
+        let mut instructions = Vec::with_capacity(num_test_cases);
+        for _ in 0..num_test_cases {
+            let public_values_a: [u32; air::RECURSIVE_PROOF_NUM_PV_ELTS] =
+                array::from_fn(|_| rng.gen());
+            let public_values: &RecursionPublicValues<u32> = public_values_a.as_slice().borrow();
+            instructions.push(runtime::instruction::commit_public_values(public_values));
+        }
+        instructions
+    }
+
+    fn select_instructions() -> Vec<Instruction<BabyBear>> {
+        let (mut rng, num_test_cases) = initialize();
+        let mut instructions = Vec::with_capacity(num_test_cases);
+        for _ in 0..num_test_cases {
+            instructions.push(Instruction::Select(SelectInstr {
+                addrs: SelectIo {
+                    bit: Address(BabyBear::from_wrapped_u32(rng.gen())),
+                    out1: Address(BabyBear::from_wrapped_u32(rng.gen())),
+                    out2: Address(BabyBear::from_wrapped_u32(rng.gen())),
+                    in1: Address(BabyBear::from_wrapped_u32(rng.gen())),
+                    in2: Address(BabyBear::from_wrapped_u32(rng.gen())),
+                },
+                mult1: BabyBear::from_wrapped_u32(rng.gen()),
+                mult2: BabyBear::from_wrapped_u32(rng.gen()),
+            }));
         }
         instructions
     }
