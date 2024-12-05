@@ -466,6 +466,7 @@ mod tests {
         println!("{:?}", trace.values);
     }
 
+    #[cfg(feature = "sys")]
     fn generate_trace_ffi<const DEGREE: usize>(
         input: &ExecutionRecord<BabyBear>,
         _: &mut ExecutionRecord<BabyBear>,
@@ -509,6 +510,7 @@ mod tests {
         )
     }
 
+    #[cfg(feature = "sys")]
     #[test]
     fn test_generate_trace() {
         type F = BabyBear;
@@ -525,6 +527,7 @@ mod tests {
         assert_eq!(trace, generate_trace_ffi::<DEGREE>(&shard, &mut execution_record));
     }
 
+    #[cfg(feature = "sys")]
     fn generate_preprocessed_trace_ffi(
         program: &RecursionProgram<BabyBear>,
     ) -> RowMajorMatrix<BabyBear> {
@@ -571,6 +574,7 @@ mod tests {
         )
     }
 
+    #[cfg(feature = "sys")]
     #[test]
     fn generate_preprocessed_trace() {
         type F = BabyBear;

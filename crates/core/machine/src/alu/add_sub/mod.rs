@@ -87,7 +87,7 @@ impl<F: PrimeField32> MachineAir<F> for AddSubChip {
             std::cmp::max((input.add_events.len() + input.sub_events.len()) / num_cpus::get(), 1);
         let merged_events =
             input.add_events.iter().chain(input.sub_events.iter()).collect::<Vec<_>>();
-        let padded_nb_rows = <AddSubChip as MachineAir<F>>::num_rows(&self, input).unwrap();
+        let padded_nb_rows = <AddSubChip as MachineAir<F>>::num_rows(self, input).unwrap();
         let mut values = zeroed_f_vec(padded_nb_rows * NUM_ADD_SUB_COLS);
 
         values.chunks_mut(chunk_size * NUM_ADD_SUB_COLS).enumerate().par_bridge().for_each(

@@ -144,6 +144,7 @@ mod tests {
     const DEGREE_3: usize = 3;
     const DEGREE_9: usize = 9;
 
+    #[cfg(feature = "sys")]
     fn generate_trace_ffi<const DEGREE: usize>(
         input: &ExecutionRecord<BabyBear>,
         _: &mut ExecutionRecord<BabyBear>,
@@ -188,6 +189,7 @@ mod tests {
         RowMajorMatrix::new(values, num_columns)
     }
 
+    #[cfg(feature = "sys")]
     #[test]
     fn test_generate_trace_deg_3() {
         type F = BabyBear;
@@ -214,6 +216,7 @@ mod tests {
         assert_eq!(trace_ffi, trace_rust);
     }
 
+    #[cfg(feature = "sys")]
     #[test]
     fn test_generate_trace_deg_9() {
         type F = BabyBear;
@@ -240,6 +243,7 @@ mod tests {
         assert_eq!(trace_ffi, trace_rust);
     }
 
+    #[cfg(feature = "sys")]
     fn generate_preprocessed_trace_ffi<const DEGREE: usize>(
         program: &RecursionProgram<BabyBear>,
     ) -> RowMajorMatrix<BabyBear> {
@@ -275,6 +279,7 @@ mod tests {
         RowMajorMatrix::new(values, PREPROCESSED_POSEIDON2_WIDTH)
     }
 
+    #[cfg(feature = "sys")]
     #[test]
     fn test_generate_preprocessed_trace_deg_3() {
         type F = BabyBear;
@@ -304,6 +309,7 @@ mod tests {
         assert_eq!(trace, generate_preprocessed_trace_ffi::<DEGREE_3>(&program));
     }
 
+    #[cfg(feature = "sys")]
     #[test]
     fn test_generate_preprocessed_trace_deg_9() {
         type F = BabyBear;

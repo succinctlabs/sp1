@@ -34,7 +34,7 @@ __SP1_HOSTDEV__ __SP1_INLINE__ void mdsLightPermutation4x4(F state[4]) {
 template <class F>
 __SP1_HOSTDEV__ __SP1_INLINE__ void external_linear_layer(
     F state_var[POSEIDON2_WIDTH]) {
-  for (int i = 0; i < POSEIDON2_WIDTH; i += 4) {
+  for (size_t i = 0; i < POSEIDON2_WIDTH; i += 4) {
     mdsLightPermutation4x4(state_var + i);
   }
 

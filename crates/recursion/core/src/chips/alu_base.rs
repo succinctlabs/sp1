@@ -259,6 +259,7 @@ mod tests {
 
     use super::*;
 
+    #[cfg(feature = "sys")]
     fn generate_trace_ffi(
         input: &ExecutionRecord<BabyBear>,
         _: &mut ExecutionRecord<BabyBear>,
@@ -280,6 +281,7 @@ mod tests {
         RowMajorMatrix::new(values, NUM_BASE_ALU_COLS)
     }
 
+    #[cfg(feature = "sys")]
     #[test]
     fn generate_trace() {
         let shard = ExecutionRecord {
@@ -292,6 +294,7 @@ mod tests {
         assert_eq!(trace, generate_trace_ffi(&shard, &mut execution_record));
     }
 
+    #[cfg(feature = "sys")]
     fn generate_preprocessed_trace_ffi(
         program: &RecursionProgram<BabyBear>,
     ) -> RowMajorMatrix<BabyBear> {
@@ -314,6 +317,7 @@ mod tests {
         RowMajorMatrix::new(values, NUM_BASE_ALU_PREPROCESSED_COLS)
     }
 
+    #[cfg(feature = "sys")]
     #[test]
     fn generate_preprocessed_trace() {
         let program = RecursionProgram {

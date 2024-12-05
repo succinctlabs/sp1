@@ -175,7 +175,7 @@ impl<F: PrimeField32> MachineAir<F> for SyscallChip {
 
         // Pad the trace to a power of two depending on the proof shape in `input`.
         rows.resize(
-            <SyscallChip as MachineAir<F>>::num_rows(&self, input).unwrap(),
+            <SyscallChip as MachineAir<F>>::num_rows(self, input).unwrap(),
             [F::zero(); NUM_SYSCALL_COLS],
         );
 

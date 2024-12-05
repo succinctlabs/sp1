@@ -199,7 +199,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
                         begin.elapsed()
                     );
                     // Assert that the chip width data is correct.
-                    let expected_width = prep_trace.as_ref().map(|t| t.width()).unwrap_or(0);
+                    let expected_width = prep_trace.as_ref().map_or(0, p3_matrix::Matrix::width);
                     assert_eq!(
                         expected_width,
                         chip.preprocessed_width(),

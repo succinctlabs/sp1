@@ -167,7 +167,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryGlobalChip {
 
         // Pad the trace to a power of two depending on the proof shape in `input`.
         rows.resize(
-            <MemoryGlobalChip as MachineAir<F>>::num_rows(&self, input).unwrap(),
+            <MemoryGlobalChip as MachineAir<F>>::num_rows(self, input).unwrap(),
             [F::zero(); NUM_MEMORY_INIT_COLS],
         );
 

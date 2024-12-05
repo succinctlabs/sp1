@@ -248,6 +248,7 @@ mod tests {
         println!("{:?}", trace.values);
     }
 
+    #[cfg(feature = "sys")]
     fn generate_trace_ffi(input: &ExecutionRecord<BabyBear>) -> RowMajorMatrix<BabyBear> {
         type F = BabyBear;
 
@@ -280,6 +281,7 @@ mod tests {
         RowMajorMatrix::new(rows.into_iter().flatten().collect(), NUM_PUBLIC_VALUES_COLS)
     }
 
+    #[cfg(feature = "sys")]
     #[test]
     fn test_generate_trace() {
         type F = BabyBear;
@@ -301,6 +303,7 @@ mod tests {
         assert_eq!(trace, generate_trace_ffi(&shard));
     }
 
+    #[cfg(feature = "sys")]
     fn generate_preprocessed_trace_ffi(
         program: &RecursionProgram<BabyBear>,
     ) -> RowMajorMatrix<BabyBear> {
@@ -348,6 +351,7 @@ mod tests {
         )
     }
 
+    #[cfg(feature = "sys")]
     #[test]
     fn test_generate_preprocessed_trace() {
         let addr = 0u32;

@@ -290,6 +290,7 @@ mod tests {
 
     const DEGREE: usize = 9;
 
+    #[cfg(feature = "sys")]
     fn generate_trace_ffi<const DEGREE: usize>(
         input: &ExecutionRecord<BabyBear>,
         _: &mut ExecutionRecord<BabyBear>,
@@ -317,6 +318,7 @@ mod tests {
         RowMajorMatrix::new(rows.into_iter().flatten().collect(), NUM_POSEIDON2_COLS)
     }
 
+    #[cfg(feature = "sys")]
     #[test]
     fn test_generate_trace() {
         type F = BabyBear;
@@ -342,6 +344,7 @@ mod tests {
         assert_eq!(trace_ffi, trace_rust);
     }
 
+    #[cfg(feature = "sys")]
     fn generate_preprocessed_trace_ffi<const DEGREE: usize>(
         program: &RecursionProgram<BabyBear>,
     ) -> RowMajorMatrix<BabyBear> {
@@ -372,7 +375,7 @@ mod tests {
 
         rows.resize(
             Poseidon2SkinnyChip::<DEGREE>::default()
-                .preprocessed_num_rows(&program, rows.len())
+                .preprocessed_num_rows(program, rows.len())
                 .unwrap(),
             [F::zero(); PREPROCESSED_POSEIDON2_WIDTH],
         );
@@ -383,6 +386,7 @@ mod tests {
         )
     }
 
+    #[cfg(feature = "sys")]
     #[test]
     fn generate_preprocessed_trace() {
         type F = BabyBear;
