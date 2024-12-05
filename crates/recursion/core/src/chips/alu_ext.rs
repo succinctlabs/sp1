@@ -195,58 +195,8 @@ where
 }
 
 #[cfg(test)]
-pub mod test_fixtures {
-    use super::*;
-    use p3_baby_bear::BabyBear;
-    use p3_field::AbstractField;
-    use rand::{rngs::StdRng, Rng, SeedableRng};
-
-    const SEED: u64 = 12345;
-    const NUM_TEST_CASES: usize = 10000;
-
-    pub fn sample_ext_alu_events() -> Vec<ExtAluIo<Block<BabyBear>>> {
-        let mut events = Vec::with_capacity(NUM_TEST_CASES);
-
-        for _ in 0..NUM_TEST_CASES {
-            events.push(ExtAluIo {
-                out: BabyBear::one().into(),
-                in1: BabyBear::one().into(),
-                in2: BabyBear::one().into(),
-            });
-        }
-        events
-    }
-
-    pub fn sample_ext_alu_instructions() -> Vec<Instruction<BabyBear>> {
-        let mut rng = StdRng::seed_from_u64(SEED);
-        let mut instructions = Vec::with_capacity(NUM_TEST_CASES);
-
-        for _ in 0..NUM_TEST_CASES {
-            let opcode = match rng.gen_range(0..4) {
-                0 => ExtAluOpcode::AddE,
-                1 => ExtAluOpcode::SubE,
-                2 => ExtAluOpcode::MulE,
-                _ => ExtAluOpcode::DivE,
-            };
-
-            let addr_out = Address(BabyBear::from_wrapped_u32(rng.gen()));
-            let addr_in1 = Address(BabyBear::from_wrapped_u32(rng.gen()));
-            let addr_in2 = Address(BabyBear::from_wrapped_u32(rng.gen()));
-            let mult = BabyBear::from_wrapped_u32(rng.gen());
-
-            instructions.push(Instruction::ExtAlu(ExtAluInstr {
-                opcode,
-                mult,
-                addrs: ExtAluIo { out: addr_out, in1: addr_in1, in2: addr_in2 },
-            }));
-        }
-        instructions
-    }
-}
-
-#[cfg(test)]
 mod tests {
-    use crate::runtime::instruction as instr;
+    use crate::{chips::test_fixtures, runtime::instruction as instr};
     use machine::tests::run_recursion_test_machines;
     use p3_baby_bear::BabyBear;
     use p3_field::{extension::BinomialExtensionField, AbstractExtensionField, AbstractField};
@@ -282,14 +232,9 @@ mod tests {
     #[cfg(feature = "sys")]
     #[test]
     fn generate_trace() {
-        type F = BabyBear;
-
-        let shard = ExecutionRecord {
-            ext_alu_events: test_fixtures::sample_ext_alu_events(),
-            ..Default::default()
-        };
-        let mut execution_record = ExecutionRecord::<BabyBear>::default();
-        let trace: RowMajorMatrix<F> = ExtAluChip.generate_trace(&shard, &mut execution_record);
+        let shard = test_fixtures::shard();
+        let mut execution_record = test_fixtures::default_execution_record();
+        let trace = ExtAluChip.generate_trace(&shard, &mut execution_record);
 
         assert_eq!(trace, generate_trace_ffi(&shard, &mut execution_record));
     }
@@ -320,10 +265,7 @@ mod tests {
     #[cfg(feature = "sys")]
     #[test]
     fn generate_preprocessed_trace() {
-        let program = RecursionProgram {
-            instructions: test_fixtures::sample_ext_alu_instructions(),
-            ..Default::default()
-        };
+        let program = test_fixtures::program();
         let trace = ExtAluChip.generate_preprocessed_trace(&program).unwrap();
 
         assert_eq!(trace, generate_preprocessed_trace_ffi(&program));

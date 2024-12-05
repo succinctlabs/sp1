@@ -294,64 +294,9 @@ where
 }
 
 #[cfg(test)]
-pub mod test_fixtures {
-    use crate::{Address, ExpReverseBitsEvent, ExpReverseBitsIo};
-    use p3_baby_bear::BabyBear;
-    use p3_field::AbstractField;
-    use rand::{rngs::StdRng, Rng, SeedableRng};
-
-    use super::*;
-
-    const SEED: u64 = 12345;
-    const NUM_TEST_CASES: usize = 10000;
-
-    pub fn sample_exp_reverse_bits_events() -> Vec<ExpReverseBitsEvent<BabyBear>> {
-        let mut rng = StdRng::seed_from_u64(SEED);
-        let mut events = Vec::with_capacity(NUM_TEST_CASES);
-
-        for _ in 0..NUM_TEST_CASES {
-            let base = BabyBear::from_wrapped_u32(rng.gen());
-            let len = rng.gen_range(1..8); // Random length between 1 and 7 bits
-            let exp: Vec<BabyBear> =
-                (0..len).map(|_| BabyBear::from_canonical_u32(rng.gen_range(0..2))).collect();
-
-            let exp_num = exp
-                .iter()
-                .enumerate()
-                .fold(0u32, |acc, (i, &bit)| acc + (bit.as_canonical_u32() << i));
-            let result = base.exp_u64(exp_num as u64);
-
-            events.push(ExpReverseBitsEvent { base, exp, result });
-        }
-        events
-    }
-
-    pub fn sample_exp_reverse_bits_instructions() -> Vec<Instruction<BabyBear>> {
-        let mut rng = StdRng::seed_from_u64(SEED);
-        let mut instructions = Vec::with_capacity(NUM_TEST_CASES);
-
-        for _ in 0..NUM_TEST_CASES {
-            let len = rng.gen_range(1..8); // Random length between 1 and 7 bits
-            let exp: Vec<Address<BabyBear>> =
-                (0..len).map(|_| Address(BabyBear::from_wrapped_u32(rng.gen()))).collect();
-
-            let base = Address(BabyBear::from_wrapped_u32(rng.gen()));
-            let result = Address(BabyBear::from_wrapped_u32(rng.gen()));
-            let mult = BabyBear::from_wrapped_u32(rng.gen());
-
-            instructions.push(Instruction::ExpReverseBitsLen(ExpReverseBitsInstr {
-                addrs: ExpReverseBitsIo { base, exp, result },
-                mult,
-            }));
-        }
-        instructions
-    }
-}
-
-#[cfg(test)]
 mod tests {
     use crate::{
-        chips::exp_reverse_bits::ExpReverseBitsLenChip,
+        chips::{exp_reverse_bits::ExpReverseBitsLenChip, test_fixtures},
         machine::tests::run_recursion_test_machines,
         runtime::{instruction as instr, ExecutionRecord},
         stark::BabyBearPoseidon2Outer,
@@ -513,16 +458,9 @@ mod tests {
     #[cfg(feature = "sys")]
     #[test]
     fn test_generate_trace() {
-        type F = BabyBear;
-
-        let shard = ExecutionRecord {
-            exp_reverse_bits_len_events: test_fixtures::sample_exp_reverse_bits_events(),
-            ..Default::default()
-        };
-
-        let mut execution_record = ExecutionRecord::<BabyBear>::default();
-        let trace: RowMajorMatrix<F> =
-            ExpReverseBitsLenChip::<DEGREE>.generate_trace(&shard, &mut execution_record);
+        let shard = test_fixtures::shard();
+        let mut execution_record = test_fixtures::default_execution_record();
+        let trace = ExpReverseBitsLenChip::<DEGREE>.generate_trace(&shard, &mut execution_record);
 
         assert_eq!(trace, generate_trace_ffi::<DEGREE>(&shard, &mut execution_record));
     }
@@ -577,12 +515,7 @@ mod tests {
     #[cfg(feature = "sys")]
     #[test]
     fn generate_preprocessed_trace() {
-        type F = BabyBear;
-
-        let program = RecursionProgram::<F> {
-            instructions: test_fixtures::sample_exp_reverse_bits_instructions(),
-            ..Default::default()
-        };
+        let program = test_fixtures::program();
         let trace = ExpReverseBitsLenChip::<DEGREE>.generate_preprocessed_trace(&program).unwrap();
 
         assert_eq!(trace, generate_preprocessed_trace_ffi(&program));

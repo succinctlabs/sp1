@@ -189,67 +189,8 @@ where
 }
 
 #[cfg(test)]
-pub mod test_fixtures {
-    use super::*;
-    use p3_baby_bear::BabyBear;
-    use p3_field::AbstractField;
-    use rand::{rngs::StdRng, Rng, SeedableRng};
-
-    const SEED: u64 = 12345;
-    const NUM_TEST_CASES: usize = 10000;
-
-    pub fn sample_base_alu_events() -> Vec<BaseAluIo<BabyBear>> {
-        let mut rng = StdRng::seed_from_u64(SEED);
-        let mut events = Vec::with_capacity(NUM_TEST_CASES);
-
-        for _ in 0..NUM_TEST_CASES {
-            let in1 = BabyBear::from_wrapped_u32(rng.gen());
-            let in2 = BabyBear::from_wrapped_u32(rng.gen());
-            let out = match rng.gen_range(0..4) {
-                0 => in1 + in2, // Add
-                1 => in1 - in2, // Sub
-                2 => in1 * in2, // Mul
-                _ => {
-                    let in2 = if in2.is_zero() { BabyBear::one() } else { in2 };
-                    in1 / in2
-                }
-            };
-
-            events.push(BaseAluIo { out, in1, in2 });
-        }
-        events
-    }
-
-    pub fn sample_base_alu_instructions() -> Vec<Instruction<BabyBear>> {
-        let mut rng = StdRng::seed_from_u64(SEED);
-        let mut instructions = Vec::with_capacity(NUM_TEST_CASES);
-
-        for _ in 0..NUM_TEST_CASES {
-            let opcode = match rng.gen_range(0..4) {
-                0 => BaseAluOpcode::AddF,
-                1 => BaseAluOpcode::SubF,
-                2 => BaseAluOpcode::MulF,
-                _ => BaseAluOpcode::DivF,
-            };
-
-            let addr_out = Address(BabyBear::from_wrapped_u32(rng.gen()));
-            let addr_in1 = Address(BabyBear::from_wrapped_u32(rng.gen()));
-            let addr_in2 = Address(BabyBear::from_wrapped_u32(rng.gen()));
-            let mult = BabyBear::from_wrapped_u32(rng.gen());
-
-            instructions.push(Instruction::BaseAlu(BaseAluInstr {
-                opcode,
-                mult,
-                addrs: BaseAluIo { out: addr_out, in1: addr_in1, in2: addr_in2 },
-            }));
-        }
-        instructions
-    }
-}
-
-#[cfg(test)]
 mod tests {
-    use crate::runtime::instruction as instr;
+    use crate::{chips::test_fixtures, runtime::instruction as instr};
     use machine::tests::run_recursion_test_machines;
     use p3_baby_bear::BabyBear;
     use p3_field::AbstractField;
@@ -284,11 +225,8 @@ mod tests {
     #[cfg(feature = "sys")]
     #[test]
     fn generate_trace() {
-        let shard = ExecutionRecord {
-            base_alu_events: test_fixtures::sample_base_alu_events(),
-            ..Default::default()
-        };
-        let mut execution_record = ExecutionRecord::<BabyBear>::default();
+        let shard = test_fixtures::shard();
+        let mut execution_record = test_fixtures::default_execution_record();
         let trace = BaseAluChip.generate_trace(&shard, &mut execution_record);
 
         assert_eq!(trace, generate_trace_ffi(&shard, &mut execution_record));
@@ -320,10 +258,7 @@ mod tests {
     #[cfg(feature = "sys")]
     #[test]
     fn generate_preprocessed_trace() {
-        let program = RecursionProgram {
-            instructions: test_fixtures::sample_base_alu_instructions(),
-            ..Default::default()
-        };
+        let program = test_fixtures::program();
         let trace = BaseAluChip.generate_preprocessed_trace(&program).unwrap();
 
         assert_eq!(trace, generate_preprocessed_trace_ffi(&program));

@@ -231,57 +231,8 @@ where
 }
 
 #[cfg(test)]
-pub mod test_fixtures {
-    use crate::{BatchFRIBaseVecIo, BatchFRIEvent, BatchFRIExtSingleIo, BatchFRIExtVecIo};
-    use p3_baby_bear::BabyBear;
-    use p3_field::AbstractField;
-    use rand::{rngs::StdRng, Rng, SeedableRng};
-
-    use super::*;
-
-    const SEED: u64 = 12345;
-    const NUM_TEST_CASES: usize = 10000;
-
-    pub fn sample_batch_fri_events() -> Vec<BatchFRIEvent<BabyBear>> {
-        let mut events = Vec::with_capacity(NUM_TEST_CASES);
-
-        for _ in 0..NUM_TEST_CASES {
-            events.push(BatchFRIEvent {
-                ext_single: BatchFRIExtSingleIo { acc: Block::default() },
-                ext_vec: BatchFRIExtVecIo { alpha_pow: Block::default(), p_at_z: Block::default() },
-                base_vec: BatchFRIBaseVecIo { p_at_x: BabyBear::one() },
-            });
-        }
-        events
-    }
-
-    pub fn sample_batch_fri_instructions() -> Vec<Instruction<BabyBear>> {
-        let mut rng = StdRng::seed_from_u64(SEED);
-        let mut instructions = Vec::with_capacity(NUM_TEST_CASES);
-
-        for _ in 0..NUM_TEST_CASES {
-            let len = rng.gen_range(1..5); // Random number of addresses in vectors
-
-            let p_at_x = (0..len).map(|_| Address(BabyBear::from_wrapped_u32(rng.gen()))).collect();
-            let alpha_pow =
-                (0..len).map(|_| Address(BabyBear::from_wrapped_u32(rng.gen()))).collect();
-            let p_at_z = (0..len).map(|_| Address(BabyBear::from_wrapped_u32(rng.gen()))).collect();
-            let acc = Address(BabyBear::from_wrapped_u32(rng.gen()));
-
-            instructions.push(Instruction::BatchFRI(Box::new(BatchFRIInstr {
-                base_vec_addrs: BatchFRIBaseVecIo { p_at_x },
-                ext_single_addrs: BatchFRIExtSingleIo { acc },
-                ext_vec_addrs: BatchFRIExtVecIo { alpha_pow, p_at_z },
-                acc_mult: BabyBear::one(), // BatchFRI always uses mult of 1
-            })));
-        }
-        instructions
-    }
-}
-
-#[cfg(test)]
 mod tests {
-    use crate::extract_batch_fri_instrs;
+    use crate::{chips::test_fixtures, extract_batch_fri_instrs};
     use p3_baby_bear::BabyBear;
     use p3_field::AbstractField;
     use p3_matrix::dense::RowMajorMatrix;
@@ -324,15 +275,10 @@ mod tests {
     #[cfg(feature = "sys")]
     #[test]
     fn generate_trace() {
-        type F = BabyBear;
-
-        let shard = ExecutionRecord {
-            batch_fri_events: test_fixtures::sample_batch_fri_events(),
-            ..Default::default()
-        };
-        let mut execution_record = ExecutionRecord::<BabyBear>::default();
-        let trace: RowMajorMatrix<F> =
-            BatchFRIChip::<DEGREE>.generate_trace(&shard, &mut execution_record);
+        let shard = test_fixtures::shard();
+        let mut execution_record = test_fixtures::default_execution_record();
+        let trace = BatchFRIChip::<DEGREE>.generate_trace(&shard, &mut execution_record);
+        assert!(trace.height() > 0);
 
         assert_eq!(trace, generate_trace_ffi::<DEGREE>(&shard, &mut execution_record));
     }
@@ -372,13 +318,9 @@ mod tests {
     #[cfg(feature = "sys")]
     #[test]
     fn generate_preprocessed_trace() {
-        type F = BabyBear;
-
-        let program = RecursionProgram::<F> {
-            instructions: test_fixtures::sample_batch_fri_instructions(),
-            ..Default::default()
-        };
+        let program = test_fixtures::program();
         let trace = BatchFRIChip::<DEGREE>.generate_preprocessed_trace(&program).unwrap();
+        assert!(trace.height() > 0);
 
         assert_eq!(trace, generate_preprocessed_trace_ffi::<DEGREE>(&program));
     }
