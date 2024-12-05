@@ -62,7 +62,6 @@ impl<P: FpOpField> Fp2AddSubAssignChip<P> {
     #[allow(clippy::too_many_arguments)]
     fn populate_field_ops<F: PrimeField32>(
         blu_events: &mut Vec<ByteLookupEvent>,
-        shard: u32,
         cols: &mut Fp2AddSubAssignCols<F, P>,
         p_x: BigUint,
         p_y: BigUint,
@@ -72,8 +71,8 @@ impl<P: FpOpField> Fp2AddSubAssignChip<P> {
     ) {
         let modulus_bytes = P::MODULUS;
         let modulus = BigUint::from_bytes_le(modulus_bytes);
-        cols.c0.populate_with_modulus(blu_events, shard, &p_x, &q_x, &modulus, op);
-        cols.c1.populate_with_modulus(blu_events, shard, &p_y, &q_y, &modulus, op);
+        cols.c0.populate_with_modulus(blu_events, &p_x, &q_x, &modulus, op);
+        cols.c1.populate_with_modulus(blu_events, &p_y, &q_y, &modulus, op);
     }
 }
 
@@ -130,7 +129,6 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for Fp2AddSubAssignChip<P> {
 
             Self::populate_field_ops(
                 &mut new_byte_lookup_events,
-                event.shard,
                 cols,
                 p_x,
                 p_y,
@@ -160,7 +158,6 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for Fp2AddSubAssignChip<P> {
                 let zero = BigUint::zero();
                 Self::populate_field_ops(
                     &mut vec![],
-                    0,
                     cols,
                     zero.clone(),
                     zero.clone(),

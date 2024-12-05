@@ -62,7 +62,6 @@ impl<P: FpOpField> FpOpChip<P> {
     #[allow(clippy::too_many_arguments)]
     fn populate_field_ops<F: PrimeField32>(
         blu_events: &mut Vec<ByteLookupEvent>,
-        shard: u32,
         cols: &mut FpOpCols<F, P>,
         p: BigUint,
         q: BigUint,
@@ -70,7 +69,7 @@ impl<P: FpOpField> FpOpChip<P> {
     ) {
         let modulus_bytes = P::MODULUS;
         let modulus = BigUint::from_bytes_le(modulus_bytes);
-        cols.output.populate_with_modulus(blu_events, shard, &p, &q, &modulus, op);
+        cols.output.populate_with_modulus(blu_events, &p, &q, &modulus, op);
     }
 }
 
@@ -122,14 +121,7 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for FpOpChip<P> {
             cols.x_ptr = F::from_canonical_u32(event.x_ptr);
             cols.y_ptr = F::from_canonical_u32(event.y_ptr);
 
-            Self::populate_field_ops(
-                &mut new_byte_lookup_events,
-                event.shard,
-                cols,
-                p,
-                q,
-                event.op,
-            );
+            Self::populate_field_ops(&mut new_byte_lookup_events, cols, p, q, event.op);
 
             // Populate the memory access columns.
             for i in 0..cols.y_access.len() {
@@ -152,7 +144,6 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for FpOpChip<P> {
                 cols.is_add = F::from_canonical_u8(1);
                 Self::populate_field_ops(
                     &mut vec![],
-                    0,
                     cols,
                     zero.clone(),
                     zero,

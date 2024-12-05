@@ -27,13 +27,7 @@ pub struct FieldLtCols<T, P: FieldParameters> {
 }
 
 impl<F: PrimeField32, P: FieldParameters> FieldLtCols<F, P> {
-    pub fn populate(
-        &mut self,
-        record: &mut impl ByteRecord,
-        shard: u32,
-        lhs: &BigUint,
-        rhs: &BigUint,
-    ) {
+    pub fn populate(&mut self, record: &mut impl ByteRecord, lhs: &BigUint, rhs: &BigUint) {
         assert!(lhs < rhs);
 
         let value_limbs = P::to_limbs(lhs);
@@ -51,7 +45,6 @@ impl<F: PrimeField32, P: FieldParameters> FieldLtCols<F, P> {
                 self.rhs_comparison_byte = F::from_canonical_u8(*modulus_byte);
                 record.add_byte_lookup_event(ByteLookupEvent {
                     opcode: ByteOpcode::LTU,
-                    shard,
                     a1: 1,
                     a2: 0,
                     b: *byte,

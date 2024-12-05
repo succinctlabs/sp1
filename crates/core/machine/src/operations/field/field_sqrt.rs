@@ -42,7 +42,6 @@ impl<F: PrimeField32, P: FieldParameters> FieldSqrtCols<F, P> {
     pub fn populate(
         &mut self,
         record: &mut impl ByteRecord,
-        shard: u32,
         a: &BigUint,
         sqrt_fn: impl Fn(&BigUint) -> BigUint,
     ) -> BigUint {
@@ -51,8 +50,7 @@ impl<F: PrimeField32, P: FieldParameters> FieldSqrtCols<F, P> {
         let sqrt = sqrt_fn(a);
 
         // Use FieldOpCols to compute result * result.
-        let sqrt_squared =
-            self.multiplication.populate(record, shard, &sqrt, &sqrt, FieldOperation::Mul);
+        let sqrt_squared = self.multiplication.populate(record, &sqrt, &sqrt, FieldOperation::Mul);
 
         // If the result is indeed the square root of a, then result * result = a.
         assert_eq!(sqrt_squared, a.clone());
@@ -62,13 +60,12 @@ impl<F: PrimeField32, P: FieldParameters> FieldSqrtCols<F, P> {
         self.multiplication.result = P::to_limbs_field::<F, _>(&sqrt);
 
         // Populate the range columns.
-        self.range.populate(record, shard, &sqrt, &modulus);
+        self.range.populate(record, &sqrt, &modulus);
 
         let sqrt_bytes = P::to_limbs(&sqrt);
         self.lsb = F::from_canonical_u8(sqrt_bytes[0] & 1);
 
         let and_event = ByteLookupEvent {
-            shard,
             opcode: ByteOpcode::AND,
             a1: self.lsb.as_canonical_u32() as u16,
             a2: 0,
@@ -79,7 +76,6 @@ impl<F: PrimeField32, P: FieldParameters> FieldSqrtCols<F, P> {
 
         // Add the byte range check for `sqrt`.
         record.add_u8_range_checks(
-            shard,
             self.multiplication
                 .result
                 .0
@@ -227,7 +223,7 @@ mod tests {
                     let mut row = [F::zero(); NUM_TEST_COLS];
                     let cols: &mut TestCols<F, P> = row.as_mut_slice().borrow_mut();
                     cols.a = P::to_limbs_field::<F, _>(a);
-                    cols.sqrt.populate(&mut blu_events, 1, a, ed25519_sqrt);
+                    cols.sqrt.populate(&mut blu_events, a, ed25519_sqrt);
                     output.add_byte_lookup_events(blu_events);
                     row
                 })

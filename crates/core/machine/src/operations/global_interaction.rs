@@ -91,8 +91,8 @@ impl<F: PrimeField32> GlobalInteractionOperation<F> {
         blu: &mut impl ByteRecord,
     ) {
         if is_real {
-            blu.add_u8_range_checks(shard, &value.to_le_bytes());
-            blu.add_u16_range_check(shard, shard as u16);
+            blu.add_u8_range_checks(&value.to_le_bytes());
+            blu.add_u16_range_check(shard as u16);
         }
     }
 
@@ -133,8 +133,8 @@ impl<F: PrimeField32> GlobalInteractionOperation<F> {
         blu: &mut impl ByteRecord,
     ) {
         if is_real {
-            blu.add_u16_range_checks(shard, &[shard as u16, clk_16]);
-            blu.add_u8_range_checks(shard, &[clk_8, syscall_id as u8]);
+            blu.add_u16_range_checks(&[shard as u16, clk_16]);
+            blu.add_u8_range_checks(&[clk_8, syscall_id as u8]);
         }
     }
 

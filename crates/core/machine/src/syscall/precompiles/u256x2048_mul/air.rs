@@ -182,7 +182,6 @@ impl<F: PrimeField32> MachineAir<F> for U256x2048MulChip {
                         for (i, col) in ab_plus_carry_cols.iter_mut().enumerate() {
                             let (_, carry) = col.populate_mul_and_carry(
                                 &mut new_byte_lookup_events,
-                                event.shard,
                                 &a,
                                 &b_array[i],
                                 &carries[i],
@@ -217,14 +216,14 @@ impl<F: PrimeField32> MachineAir<F> for U256x2048MulChip {
                 let modulus = BigUint::one() << 256;
 
                 // Populate all the mul and carry columns with zero values.
-                cols.a_mul_b1.populate(&mut vec![], 0, &x, &y, FieldOperation::Mul);
-                cols.ab2_plus_carry.populate_mul_and_carry(&mut vec![], 0, &x, &y, &z, &modulus);
-                cols.ab3_plus_carry.populate_mul_and_carry(&mut vec![], 0, &x, &y, &z, &modulus);
-                cols.ab4_plus_carry.populate_mul_and_carry(&mut vec![], 0, &x, &y, &z, &modulus);
-                cols.ab5_plus_carry.populate_mul_and_carry(&mut vec![], 0, &x, &y, &z, &modulus);
-                cols.ab6_plus_carry.populate_mul_and_carry(&mut vec![], 0, &x, &y, &z, &modulus);
-                cols.ab7_plus_carry.populate_mul_and_carry(&mut vec![], 0, &x, &y, &z, &modulus);
-                cols.ab8_plus_carry.populate_mul_and_carry(&mut vec![], 0, &x, &y, &z, &modulus);
+                cols.a_mul_b1.populate(&mut vec![], &x, &y, FieldOperation::Mul);
+                cols.ab2_plus_carry.populate_mul_and_carry(&mut vec![], &x, &y, &z, &modulus);
+                cols.ab3_plus_carry.populate_mul_and_carry(&mut vec![], &x, &y, &z, &modulus);
+                cols.ab4_plus_carry.populate_mul_and_carry(&mut vec![], &x, &y, &z, &modulus);
+                cols.ab5_plus_carry.populate_mul_and_carry(&mut vec![], &x, &y, &z, &modulus);
+                cols.ab6_plus_carry.populate_mul_and_carry(&mut vec![], &x, &y, &z, &modulus);
+                cols.ab7_plus_carry.populate_mul_and_carry(&mut vec![], &x, &y, &z, &modulus);
+                cols.ab8_plus_carry.populate_mul_and_carry(&mut vec![], &x, &y, &z, &modulus);
 
                 row
             },

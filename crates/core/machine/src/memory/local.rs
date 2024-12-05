@@ -9,9 +9,9 @@ use p3_air::{Air, BaseAir};
 use p3_field::AbstractField;
 use p3_field::PrimeField32;
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
-use p3_maybe_rayon::prelude::IndexedParallelIterator;
-use p3_maybe_rayon::prelude::IntoParallelRefMutIterator;
-use p3_maybe_rayon::prelude::ParallelIterator;
+use p3_maybe_rayon::prelude::{
+    IndexedParallelIterator, IntoParallelRefMutIterator, ParallelIterator,
+};
 use sp1_core_executor::events::GlobalInteractionEvent;
 use sp1_core_executor::{ExecutionRecord, Program};
 use sp1_derive::AlignedBorrow;
@@ -84,7 +84,6 @@ impl<F: PrimeField32> MachineAir<F> for MemoryLocalChip {
 
     fn generate_dependencies(&self, input: &ExecutionRecord, output: &mut ExecutionRecord) {
         let mut events = Vec::new();
-        println!("local mem events: {}", input.get_local_mem_events().count());
 
         input.get_local_mem_events().for_each(|mem_event| {
             events.push(GlobalInteractionEvent {
@@ -254,12 +253,8 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use p3_baby_bear::BabyBear;
     use p3_matrix::dense::RowMajorMatrix;
-    use rand::thread_rng;
-    use rand::Rng;
-    use sp1_core_executor::events::{MemoryLocalEvent, MemoryRecord};
     use sp1_core_executor::{programs::tests::simple_program, ExecutionRecord, Executor};
     use sp1_stark::{
         air::{InteractionScope, MachineAir},
@@ -355,6 +350,10 @@ mod tests {
 
     #[cfg(feature = "sys")]
     fn get_test_execution_record() -> ExecutionRecord {
+        use p3_field::PrimeField32;
+        use rand::{thread_rng, Rng};
+        use sp1_core_executor::events::{MemoryLocalEvent, MemoryRecord};
+
         let cpu_local_memory_access = (0..=255)
             .flat_map(|_| {
                 [{
@@ -387,6 +386,8 @@ mod tests {
     #[cfg(feature = "sys")]
     #[test]
     fn test_generate_trace_ffi_eq_rust() {
+        use p3_matrix::Matrix;
+
         let record = get_test_execution_record();
         let chip = MemoryLocalChip::new();
         let trace: RowMajorMatrix<BabyBear> =
@@ -398,6 +399,17 @@ mod tests {
 
     #[cfg(feature = "sys")]
     fn generate_trace_ffi(input: &ExecutionRecord, height: usize) -> RowMajorMatrix<BabyBear> {
+        use std::borrow::BorrowMut;
+
+        use rayon::iter::{IndexedParallelIterator, IntoParallelRefMutIterator, ParallelIterator};
+
+        use crate::{
+            memory::{
+                MemoryLocalCols, NUM_LOCAL_MEMORY_ENTRIES_PER_ROW, NUM_MEMORY_LOCAL_INIT_COLS,
+            },
+            utils::zeroed_f_vec,
+        };
+
         type F = BabyBear;
         // Generate the trace rows for each event.
         let events = input.get_local_mem_events().collect::<Vec<_>>();

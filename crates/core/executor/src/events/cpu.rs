@@ -26,28 +26,10 @@ pub struct CpuEvent {
     pub c: u32,
     /// The third operand memory record.
     pub c_record: Option<MemoryRecordEnum>,
-    /// The memory record.
-    pub memory_record: Option<MemoryRecordEnum>,
     /// The exit code.
     pub exit_code: u32,
     /// The ALU lookup id.
     pub alu_lookup_id: LookupId,
     /// The syscall lookup id.
     pub syscall_lookup_id: LookupId,
-    /// The memory add lookup id.
-    pub memory_add_lookup_id: LookupId,
-    /// The memory sub lookup id.
-    pub memory_sub_lookup_id: LookupId,
-    /// The branch gt lookup id.
-    pub branch_gt_lookup_id: LookupId,
-    /// The branch lt lookup id.
-    pub branch_lt_lookup_id: LookupId,
-    /// The branch add lookup id.
-    pub branch_add_lookup_id: LookupId,
-    /// The jump jal lookup id.
-    pub jump_jal_lookup_id: LookupId,
-    /// The jump jalr lookup id.
-    pub jump_jalr_lookup_id: LookupId,
-    /// The auipc lookup id.
-    pub auipc_lookup_id: LookupId,
 }

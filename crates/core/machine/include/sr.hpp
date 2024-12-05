@@ -10,7 +10,7 @@ template<class F>
 __SP1_HOSTDEV__ void event_to_row(const AluEvent& event, ShiftRightCols<decltype(F::val)>& cols) {
     // Initialize cols with basic operands and flags derived from the current event.
     {
-        cols.shard = F::from_canonical_u32(event.shard).val;
+        cols.pc = F::from_canonical_u32(event.pc).val;
         write_word_from_u32<F>(cols.a, event.a);
         write_word_from_u32<F>(cols.b, event.b);
         write_word_from_u32<F>(cols.c, event.c);
