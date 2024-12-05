@@ -129,7 +129,7 @@ impl<F: PrimeField32> MachineAir<F> for SyscallChip {
                 .collect::<Vec<_>>(),
         };
         let nb_rows = events.len();
-        let size_log2 = input.fixed_log2_rows::<F, _>(self);
+        let size_log2 = input.fixed_log2_rows::<F, Self>(self);
         let padded_nb_rows = next_power_of_two(nb_rows, size_log2);
         Some(padded_nb_rows)
     }
