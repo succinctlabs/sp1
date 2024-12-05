@@ -5548,7 +5548,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-build"
-version = "4.0.0-rc.1"
+version = "4.0.0-rc.2"
 dependencies = [
  "anyhow",
  "cargo_metadata",
@@ -5559,7 +5559,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-cli"
-version = "4.0.0-rc.1"
+version = "4.0.0-rc.2"
 dependencies = [
  "anstyle",
  "anyhow",
@@ -5588,7 +5588,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-core-executor"
-version = "4.0.0-rc.1"
+version = "4.0.0-rc.2"
 dependencies = [
  "bincode",
  "bytemuck",
@@ -5622,7 +5622,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-core-machine"
-version = "4.0.0-rc.1"
+version = "4.0.0-rc.2"
 dependencies = [
  "bincode",
  "cbindgen",
@@ -5678,7 +5678,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-cuda"
-version = "4.0.0-rc.1"
+version = "4.0.0-rc.2"
 dependencies = [
  "bincode",
  "ctrlc",
@@ -5696,7 +5696,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-curves"
-version = "4.0.0-rc.1"
+version = "4.0.0-rc.2"
 dependencies = [
  "cfg-if",
  "dashu",
@@ -5719,7 +5719,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-derive"
-version = "4.0.0-rc.1"
+version = "4.0.0-rc.2"
 dependencies = [
  "quote",
  "syn 1.0.109",
@@ -5727,7 +5727,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-eval"
-version = "4.0.0-rc.1"
+version = "4.0.0-rc.2"
 dependencies = [
  "anyhow",
  "bincode",
@@ -5745,7 +5745,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-helper"
-version = "4.0.0-rc.1"
+version = "4.0.0-rc.2"
 dependencies = [
  "sp1-build",
 ]
@@ -5762,7 +5762,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-lib"
-version = "4.0.0-rc.1"
+version = "4.0.0-rc.2"
 dependencies = [
  "bincode",
  "serde",
@@ -5770,7 +5770,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-perf"
-version = "4.0.0-rc.1"
+version = "4.0.0-rc.2"
 dependencies = [
  "bincode",
  "clap",
@@ -5786,7 +5786,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-primitives"
-version = "4.0.0-rc.1"
+version = "4.0.0-rc.2"
 dependencies = [
  "bincode",
  "hex",
@@ -5802,7 +5802,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-prover"
-version = "4.0.0-rc.1"
+version = "4.0.0-rc.2"
 dependencies = [
  "anyhow",
  "bincode",
@@ -5839,7 +5839,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-circuit"
-version = "4.0.0-rc.1"
+version = "4.0.0-rc.2"
 dependencies = [
  "ff 0.13.0",
  "hashbrown 0.14.5",
@@ -5876,7 +5876,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-compiler"
-version = "4.0.0-rc.1"
+version = "4.0.0-rc.2"
 dependencies = [
  "backtrace",
  "criterion",
@@ -5901,7 +5901,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-core"
-version = "4.0.0-rc.1"
+version = "4.0.0-rc.2"
 dependencies = [
  "backtrace",
  "cbindgen",
@@ -5941,7 +5941,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-derive"
-version = "4.0.0-rc.1"
+version = "4.0.0-rc.2"
 dependencies = [
  "quote",
  "syn 1.0.109",
@@ -5949,7 +5949,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-gnark-cli"
-version = "4.0.0-rc.1"
+version = "4.0.0-rc.2"
 dependencies = [
  "bincode",
  "clap",
@@ -5958,7 +5958,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-gnark-ffi"
-version = "4.0.0-rc.1"
+version = "4.0.0-rc.2"
 dependencies = [
  "anyhow",
  "bincode",
@@ -5982,7 +5982,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-sdk"
-version = "4.0.0-rc.1"
+version = "4.0.0-rc.2"
 dependencies = [
  "alloy-primitives",
  "alloy-signer",
@@ -6028,7 +6028,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-stark"
-version = "4.0.0-rc.1"
+version = "4.0.0-rc.2"
 dependencies = [
  "arrayref",
  "hashbrown 0.14.5",
@@ -6062,7 +6062,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-verifier"
-version = "4.0.0-rc.1"
+version = "4.0.0-rc.2"
 dependencies = [
  "ark-bn254",
  "ark-ec",
@@ -6081,7 +6081,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-zkvm"
-version = "4.0.0-rc.1"
+version = "4.0.0-rc.2"
 dependencies = [
  "cfg-if",
  "getrandom 0.2.15",
@@ -6091,7 +6091,7 @@ dependencies = [
  "p3-field",
  "rand 0.8.5",
  "sha2 0.10.8",
- "sp1-lib 4.0.0-rc.1",
+ "sp1-lib 4.0.0-rc.2",
  "sp1-primitives",
 ]
 
@@ -6410,7 +6410,7 @@ dependencies = [
 
 [[package]]
 name = "test-artifacts"
-version = "4.0.0-rc.1"
+version = "4.0.0-rc.2"
 dependencies = [
  "sp1-build",
 ]

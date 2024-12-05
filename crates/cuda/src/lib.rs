@@ -133,7 +133,7 @@ impl SP1CudaProver {
                 "-e",
                 "FIX_RECURSION_SHAPES=false",
                 "-e",
-                "FIX_CORE_SHAPE=false",
+                "FIX_CORE_SHAPES=false",
                 "-p",
                 "3000:3000",
                 "--rm",

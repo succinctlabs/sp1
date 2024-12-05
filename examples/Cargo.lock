@@ -1826,7 +1826,7 @@ dependencies = [
  "hex-literal",
  "rfc6979",
  "signature",
- "sp1-lib 4.0.0-rc.1 (git+https://github.com/succinctlabs/sp1.git?branch=v4.0.0-rc.2)",
+ "sp1-lib 4.0.0-rc.1",
  "spki 0.7.3",
 ]
 
@@ -5715,7 +5715,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-build"
-version = "4.0.0-rc.1"
+version = "4.0.0-rc.2"
 dependencies = [
  "anyhow",
  "cargo_metadata",
@@ -5726,7 +5726,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-core-executor"
-version = "4.0.0-rc.1"
+version = "4.0.0-rc.2"
 dependencies = [
  "bincode",
  "bytemuck",
@@ -5758,7 +5758,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-core-machine"
-version = "4.0.0-rc.1"
+version = "4.0.0-rc.2"
 dependencies = [
  "bincode",
  "cbindgen",
@@ -5810,7 +5810,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-cuda"
-version = "4.0.0-rc.1"
+version = "4.0.0-rc.2"
 dependencies = [
  "bincode",
  "ctrlc",
@@ -5825,7 +5825,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-curves"
-version = "4.0.0-rc.1"
+version = "4.0.0-rc.2"
 dependencies = [
  "cfg-if",
  "dashu",
@@ -5846,7 +5846,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-derive"
-version = "4.0.0-rc.1"
+version = "4.0.0-rc.2"
 dependencies = [
  "quote",
  "syn 1.0.109",
@@ -5879,14 +5879,6 @@ dependencies = [
 [[package]]
 name = "sp1-lib"
 version = "4.0.0-rc.1"
-dependencies = [
- "bincode",
- "serde",
-]
-
-[[package]]
-name = "sp1-lib"
-version = "4.0.0-rc.1"
 source = "git+https://github.com/succinctlabs/sp1.git?branch=v4.0.0-rc.2#e1c2fb381e96cb1eb9d21eee28fd5d888dd225f3"
 dependencies = [
  "bincode",
@@ -5894,8 +5886,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "sp1-lib"
+version = "4.0.0-rc.2"
+dependencies = [
+ "bincode",
+ "serde",
+]
+
+[[package]]
 name = "sp1-primitives"
-version = "4.0.0-rc.1"
+version = "4.0.0-rc.2"
 dependencies = [
  "bincode",
  "hex",
@@ -5911,7 +5911,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-prover"
-version = "4.0.0-rc.1"
+version = "4.0.0-rc.2"
 dependencies = [
  "anyhow",
  "bincode",
@@ -5947,7 +5947,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-circuit"
-version = "4.0.0-rc.1"
+version = "4.0.0-rc.2"
 dependencies = [
  "hashbrown 0.14.5",
  "itertools 0.13.0",
@@ -5979,7 +5979,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-compiler"
-version = "4.0.0-rc.1"
+version = "4.0.0-rc.2"
 dependencies = [
  "backtrace",
  "itertools 0.13.0",
@@ -5999,7 +5999,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-core"
-version = "4.0.0-rc.1"
+version = "4.0.0-rc.2"
 dependencies = [
  "backtrace",
  "cbindgen",
@@ -6038,7 +6038,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-derive"
-version = "4.0.0-rc.1"
+version = "4.0.0-rc.2"
 dependencies = [
  "quote",
  "syn 1.0.109",
@@ -6046,7 +6046,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-gnark-ffi"
-version = "4.0.0-rc.1"
+version = "4.0.0-rc.2"
 dependencies = [
  "anyhow",
  "bincode",
@@ -6070,7 +6070,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-sdk"
-version = "4.0.0-rc.1"
+version = "4.0.0-rc.2"
 dependencies = [
  "alloy-signer",
  "alloy-signer-local",
@@ -6112,7 +6112,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-stark"
-version = "4.0.0-rc.1"
+version = "4.0.0-rc.2"
 dependencies = [
  "arrayref",
  "hashbrown 0.14.5",
@@ -6145,7 +6145,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-verifier"
-version = "4.0.0-rc.1"
+version = "4.0.0-rc.2"
 dependencies = [
  "hex",
  "lazy_static",
@@ -6156,7 +6156,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-zkvm"
-version = "4.0.0-rc.1"
+version = "4.0.0-rc.2"
 dependencies = [
  "cfg-if",
  "getrandom",
@@ -6166,7 +6166,7 @@ dependencies = [
  "p3-field",
  "rand 0.8.5",
  "sha2 0.10.8",
- "sp1-lib 4.0.0-rc.1",
+ "sp1-lib 4.0.0-rc.2",
  "sp1-primitives",
 ]
 
