@@ -19,7 +19,7 @@ use crate::{
     air::Block,
     builder::SP1RecursionAirBuilder,
     runtime::{Instruction, RecursionProgram},
-    ExecutionRecord, FriFoldInstr,
+    ExecutionRecord, FriFoldEvent, FriFoldInstr,
 };
 
 use super::mem::MemoryAccessColsChips;
@@ -163,25 +163,20 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for FriFoldChip<DEGREE>
         input: &ExecutionRecord<F>,
         _: &mut ExecutionRecord<F>,
     ) -> RowMajorMatrix<F> {
-        let mut rows = input
-            .fri_fold_events
+        if std::any::TypeId::of::<F>() != std::any::TypeId::of::<BabyBear>() {
+            panic!("generate_trace only supports BabyBear field");
+        }
+
+        let events: &Vec<FriFoldEvent<BabyBear>> =
+            unsafe { std::mem::transmute(&input.fri_fold_events) };
+        let mut rows = events
             .iter()
             .map(|event| {
-                let mut row = [F::zero(); NUM_FRI_FOLD_COLS];
-
-                let cols: &mut FriFoldCols<F> = row.as_mut_slice().borrow_mut();
-
-                cols.x = event.base_single.x;
-                cols.z = event.ext_single.z;
-                cols.alpha = event.ext_single.alpha;
-
-                cols.p_at_z = event.ext_vec.ps_at_z;
-                cols.p_at_x = event.ext_vec.mat_opening;
-                cols.alpha_pow_input = event.ext_vec.alpha_pow_input;
-                cols.ro_input = event.ext_vec.ro_input;
-
-                cols.alpha_pow_output = event.ext_vec.alpha_pow_output;
-                cols.ro_output = event.ext_vec.ro_output;
+                let mut row = [BabyBear::zero(); NUM_FRI_FOLD_COLS];
+                let cols: &mut FriFoldCols<BabyBear> = row.as_mut_slice().borrow_mut();
+                unsafe {
+                    crate::sys::fri_fold_event_to_row_babybear(event, cols);
+                }
 
                 row
             })
@@ -189,11 +184,14 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for FriFoldChip<DEGREE>
 
         // Pad the trace to a power of two.
         if self.pad {
-            rows.resize(self.num_rows(input).unwrap(), [F::zero(); NUM_FRI_FOLD_COLS]);
+            rows.resize(self.num_rows(input).unwrap(), [BabyBear::zero(); NUM_FRI_FOLD_COLS]);
         }
 
         // Convert the trace to a row major matrix.
-        let trace = RowMajorMatrix::new(rows.into_iter().flatten().collect(), NUM_FRI_FOLD_COLS);
+        let trace = RowMajorMatrix::new(
+            unsafe { std::mem::transmute(rows.into_iter().flatten().collect::<Vec<BabyBear>>()) },
+            NUM_FRI_FOLD_COLS,
+        );
 
         #[cfg(debug_assertions)]
         println!("fri fold trace dims is width: {:?}, height: {:?}", trace.width(), trace.height());
@@ -526,8 +524,7 @@ mod tests {
         println!("{:?}", trace.values)
     }
 
-    #[cfg(feature = "sys")]
-    fn generate_trace_ffi<const DEGREE: usize>(
+    fn generate_trace_reference<const DEGREE: usize>(
         input: &ExecutionRecord<BabyBear>,
         _: &mut ExecutionRecord<BabyBear>,
     ) -> RowMajorMatrix<BabyBear> {
@@ -538,10 +535,20 @@ mod tests {
             .iter()
             .map(|event| {
                 let mut row = [F::zero(); NUM_FRI_FOLD_COLS];
+
                 let cols: &mut FriFoldCols<F> = row.as_mut_slice().borrow_mut();
-                unsafe {
-                    crate::sys::fri_fold_event_to_row_babybear(event, cols);
-                }
+
+                cols.x = event.base_single.x;
+                cols.z = event.ext_single.z;
+                cols.alpha = event.ext_single.alpha;
+
+                cols.p_at_z = event.ext_vec.ps_at_z;
+                cols.p_at_x = event.ext_vec.mat_opening;
+                cols.alpha_pow_input = event.ext_vec.alpha_pow_input;
+                cols.ro_input = event.ext_vec.ro_input;
+
+                cols.alpha_pow_output = event.ext_vec.alpha_pow_output;
+                cols.ro_output = event.ext_vec.ro_output;
 
                 row
             })
@@ -555,7 +562,6 @@ mod tests {
         RowMajorMatrix::new(rows.into_iter().flatten().collect(), NUM_FRI_FOLD_COLS)
     }
 
-    #[cfg(feature = "sys")]
     #[test]
     fn test_generate_trace() {
         let shard = test_fixtures::shard();
@@ -564,11 +570,10 @@ mod tests {
         let trace = chip.generate_trace(&shard, &mut execution_record);
         assert!(trace.height() >= test_fixtures::MIN_TEST_CASES);
 
-        assert_eq!(trace, generate_trace_ffi::<DEGREE>(&shard, &mut execution_record));
+        assert_eq!(trace, generate_trace_reference::<DEGREE>(&shard, &mut execution_record));
     }
 
-    #[cfg(feature = "sys")]
-    fn generate_preprocessed_trace_ffi<const DEGREE: usize>(
+    fn generate_preprocessed_trace_reference<const DEGREE: usize>(
         program: &RecursionProgram<BabyBear>,
     ) -> RowMajorMatrix<BabyBear> {
         type F = BabyBear;
@@ -637,7 +642,6 @@ mod tests {
         RowMajorMatrix::new(rows.into_iter().flatten().collect(), NUM_FRI_FOLD_PREPROCESSED_COLS)
     }
 
-    #[cfg(feature = "sys")]
     #[test]
     fn generate_preprocessed_trace() {
         let program = test_fixtures::program();
@@ -645,6 +649,6 @@ mod tests {
         let trace = chip.generate_preprocessed_trace(&program).unwrap();
         assert!(trace.height() >= test_fixtures::MIN_TEST_CASES);
 
-        assert_eq!(trace, generate_preprocessed_trace_ffi::<DEGREE>(&program));
+        assert_eq!(trace, generate_preprocessed_trace_reference::<DEGREE>(&program));
     }
 }
