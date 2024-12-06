@@ -4,7 +4,25 @@ version.workspace = true
 edition.workspace = true
 publish.workspace = true
 
+[[bin]]
+name = "k256_recover"
+path = "bin/recover.rs"
+
+[[bin]]
+name = "k256_recover_fail"
+path = "bin/recover_fail.rs"
+
+[[bin]]
+name = "k256_verify"
+path = "bin/verify.rs"
+
+[[bin]]
+name = "k256_verify_fail"
+path = "bin/verify_fail.rs"
+
 [dependencies]
+hex-literal = { workspace = true }
+rand_core = "0.6.4"
 sp1-zkvm = { workspace = true }
 k256 = { workspace = true }
 alloy-primitives = { workspace = true }
