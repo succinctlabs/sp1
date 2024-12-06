@@ -44,8 +44,9 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2SkinnyChip
         input: &ExecutionRecord<F>,
         _output: &mut ExecutionRecord<F>,
     ) -> RowMajorMatrix<F> {
-        assert!(
-            std::any::TypeId::of::<F>() == std::any::TypeId::of::<BabyBear>(),
+        assert_eq!(
+            std::any::TypeId::of::<F>(),
+            std::any::TypeId::of::<BabyBear>(),
             "generate_trace only supports BabyBear field"
         );
 
@@ -85,8 +86,9 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2SkinnyChip
     }
 
     fn generate_preprocessed_trace(&self, program: &Self::Program) -> Option<RowMajorMatrix<F>> {
-        assert!(
-            std::any::TypeId::of::<F>() == std::any::TypeId::of::<BabyBear>(),
+        assert_eq!(
+            std::any::TypeId::of::<F>(),
+            std::any::TypeId::of::<BabyBear>(),
             "generate_preprocessed_trace only supports BabyBear field"
         );
 
