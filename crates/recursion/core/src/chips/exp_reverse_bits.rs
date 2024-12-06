@@ -144,46 +144,49 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for ExpReverseBitsLenCh
         input: &ExecutionRecord<F>,
         _: &mut ExecutionRecord<F>,
     ) -> RowMajorMatrix<F> {
-        let mut overall_rows = Vec::new();
-        input.exp_reverse_bits_len_events.iter().for_each(|event| {
-            let mut rows = vec![vec![F::zero(); NUM_EXP_REVERSE_BITS_LEN_COLS]; event.exp.len()];
+        if std::any::TypeId::of::<F>() != std::any::TypeId::of::<BabyBear>() {
+            panic!("generate_trace only supports BabyBear field");
+        }
 
-            let mut accum = F::one();
+        let events: &Vec<crate::ExpReverseBitsEvent<BabyBear>> =
+            unsafe { std::mem::transmute(&input.exp_reverse_bits_len_events) };
+        let mut overall_rows = Vec::new();
+
+        events.iter().for_each(|event| {
+            let mut rows =
+                vec![vec![BabyBear::zero(); NUM_EXP_REVERSE_BITS_LEN_COLS]; event.exp.len()];
+            let mut accum = BabyBear::one();
 
             rows.iter_mut().enumerate().for_each(|(i, row)| {
-                let cols: &mut ExpReverseBitsLenCols<F> = row.as_mut_slice().borrow_mut();
+                let cols: &mut ExpReverseBitsLenCols<BabyBear> = row.as_mut_slice().borrow_mut();
+                unsafe {
+                    crate::sys::exp_reverse_bits_event_to_row_babybear(&event.into(), i, cols);
+                }
 
                 let prev_accum = accum;
-                accum = prev_accum
-                    * prev_accum
-                    * if event.exp[i] == F::one() { event.base } else { F::one() };
+                accum = prev_accum * prev_accum * cols.multiplier;
 
-                cols.x = event.base;
-                cols.current_bit = event.exp[i];
                 cols.accum = accum;
                 cols.accum_squared = accum * accum;
                 cols.prev_accum_squared = prev_accum * prev_accum;
-                cols.multiplier = if event.exp[i] == F::one() { event.base } else { F::one() };
                 cols.prev_accum_squared_times_multiplier =
                     cols.prev_accum_squared * cols.multiplier;
-                if i == event.exp.len() {
-                    assert_eq!(event.result, accum);
-                }
             });
-
             overall_rows.extend(rows);
         });
 
         // Pad the trace to a power of two.
         pad_rows_fixed(
             &mut overall_rows,
-            || [F::zero(); NUM_EXP_REVERSE_BITS_LEN_COLS].to_vec(),
+            || [BabyBear::zero(); NUM_EXP_REVERSE_BITS_LEN_COLS].to_vec(),
             input.fixed_log2_rows(self),
         );
 
         // Convert the trace to a row major matrix.
         let trace = RowMajorMatrix::new(
-            overall_rows.into_iter().flatten().collect(),
+            unsafe {
+                std::mem::transmute(overall_rows.into_iter().flatten().collect::<Vec<BabyBear>>())
+            },
             NUM_EXP_REVERSE_BITS_LEN_COLS,
         );
 
@@ -418,34 +421,39 @@ mod tests {
         println!("{:?}", trace.values);
     }
 
-    fn generate_trace_ffi<const DEGREE: usize>(
+    fn generate_trace_reference<const DEGREE: usize>(
         input: &ExecutionRecord<BabyBear>,
         _: &mut ExecutionRecord<BabyBear>,
     ) -> RowMajorMatrix<BabyBear> {
         type F = BabyBear;
 
-        let events = &input.exp_reverse_bits_len_events;
         let mut overall_rows = Vec::new();
-
-        events.iter().for_each(|event| {
+        input.exp_reverse_bits_len_events.iter().for_each(|event| {
             let mut rows = vec![vec![F::zero(); NUM_EXP_REVERSE_BITS_LEN_COLS]; event.exp.len()];
+
             let mut accum = F::one();
 
             rows.iter_mut().enumerate().for_each(|(i, row)| {
                 let cols: &mut ExpReverseBitsLenCols<F> = row.as_mut_slice().borrow_mut();
-                unsafe {
-                    crate::sys::exp_reverse_bits_event_to_row_babybear(&event.into(), i, cols);
-                }
 
                 let prev_accum = accum;
-                accum = prev_accum * prev_accum * cols.multiplier;
+                accum = prev_accum
+                    * prev_accum
+                    * if event.exp[i] == F::one() { event.base } else { F::one() };
 
+                cols.x = event.base;
+                cols.current_bit = event.exp[i];
                 cols.accum = accum;
                 cols.accum_squared = accum * accum;
                 cols.prev_accum_squared = prev_accum * prev_accum;
+                cols.multiplier = if event.exp[i] == F::one() { event.base } else { F::one() };
                 cols.prev_accum_squared_times_multiplier =
                     cols.prev_accum_squared * cols.multiplier;
+                if i == event.exp.len() {
+                    assert_eq!(event.result, accum);
+                }
             });
+
             overall_rows.extend(rows);
         });
 
@@ -468,7 +476,7 @@ mod tests {
         let trace = ExpReverseBitsLenChip::<DEGREE>.generate_trace(&shard, &mut execution_record);
         assert!(trace.height() >= test_fixtures::MIN_TEST_CASES);
 
-        assert_eq!(trace, generate_trace_ffi::<DEGREE>(&shard, &mut execution_record));
+        assert_eq!(trace, generate_trace_reference::<DEGREE>(&shard, &mut execution_record));
     }
 
     fn generate_preprocessed_trace_reference(
