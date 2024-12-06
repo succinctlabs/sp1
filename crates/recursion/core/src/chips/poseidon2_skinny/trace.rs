@@ -1,22 +1,19 @@
 use crate::{
-    chips::{
-        mem::MemoryAccessCols,
-        poseidon2_skinny::{
-            columns::{Poseidon2 as Poseidon2Cols, NUM_POSEIDON2_COLS},
-            external_linear_layer, Poseidon2SkinnyChip, NUM_EXTERNAL_ROUNDS, NUM_INTERNAL_ROUNDS,
-        },
+    chips::poseidon2_skinny::{
+        columns::{Poseidon2 as Poseidon2Cols, NUM_POSEIDON2_COLS},
+        external_linear_layer, Poseidon2SkinnyChip, NUM_EXTERNAL_ROUNDS, NUM_INTERNAL_ROUNDS,
     },
     instruction::Instruction::Poseidon2,
-    ExecutionRecord, RecursionProgram,
+    ExecutionRecord, Poseidon2SkinnyInstr, RecursionProgram,
 };
 use itertools::Itertools;
-use p3_field::PrimeField32;
+use p3_baby_bear::BabyBear;
+use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::dense::RowMajorMatrix;
 use sp1_core_machine::utils::next_power_of_two;
 use sp1_primitives::RC_16_30_U32;
 use sp1_stark::air::MachineAir;
 use std::{
-    array,
     borrow::{Borrow, BorrowMut},
     mem::size_of,
 };
@@ -126,77 +123,42 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2SkinnyChip
     fn generate_preprocessed_trace(&self, program: &Self::Program) -> Option<RowMajorMatrix<F>> {
         let instructions =
             program.instructions.iter().filter_map(|instruction| match instruction {
-                Poseidon2(instr) => Some(instr),
+                Poseidon2(instr) => Some(unsafe {
+                    std::mem::transmute::<
+                        &Box<Poseidon2SkinnyInstr<F>>,
+                        &Box<Poseidon2SkinnyInstr<BabyBear>>,
+                    >(instr)
+                }),
                 _ => None,
             });
         let num_instructions = instructions.clone().count();
         let mut rows = vec![
-            [F::zero(); PREPROCESSED_POSEIDON2_WIDTH];
+            [BabyBear::zero(); PREPROCESSED_POSEIDON2_WIDTH];
             num_instructions * (NUM_EXTERNAL_ROUNDS + 3)
         ];
-
-        // Iterate over the instructions and take NUM_EXTERNAL_ROUNDS + 3 rows for each instruction.
-        // We have one extra round for the internal rounds, one extra round for the input,
-        // and one extra round for the output.
         instructions.zip_eq(&rows.iter_mut().chunks(NUM_EXTERNAL_ROUNDS + 3)).for_each(
             |(instruction, row_add)| {
                 row_add.into_iter().enumerate().for_each(|(i, row)| {
                     let cols: &mut Poseidon2PreprocessedCols<_> =
                         (*row).as_mut_slice().borrow_mut();
-
-                    // Set the round-counter columns.
-                    cols.round_counters_preprocessed.is_input_round =
-                        F::from_bool(i == INPUT_ROUND_IDX);
-                    let is_external_round =
-                        i != INPUT_ROUND_IDX && i != INTERNAL_ROUND_IDX && i != OUTPUT_ROUND_IDX;
-                    cols.round_counters_preprocessed.is_external_round =
-                        F::from_bool(is_external_round);
-                    cols.round_counters_preprocessed.is_internal_round =
-                        F::from_bool(i == INTERNAL_ROUND_IDX);
-
-                    (0..WIDTH).for_each(|j| {
-                        cols.round_counters_preprocessed.round_constants[j] = if is_external_round {
-                            let r = i - 1;
-                            let round = if i < INTERNAL_ROUND_IDX {
-                                r
-                            } else {
-                                r + NUM_INTERNAL_ROUNDS - 1
-                            };
-
-                            F::from_wrapped_u32(RC_16_30_U32[round][j])
-                        } else if i == INTERNAL_ROUND_IDX {
-                            F::from_wrapped_u32(RC_16_30_U32[NUM_EXTERNAL_ROUNDS / 2 + j][0])
-                        } else {
-                            F::zero()
-                        };
-                    });
-
-                    // Set the memory columns. We read once, at the first iteration,
-                    // and write once, at the last iteration.
-                    if i == INPUT_ROUND_IDX {
-                        cols.memory_preprocessed = instruction
-                            .addrs
-                            .input
-                            .map(|addr| MemoryAccessCols { addr, mult: F::neg_one() });
-                    } else if i == OUTPUT_ROUND_IDX {
-                        cols.memory_preprocessed = array::from_fn(|i| MemoryAccessCols {
-                            addr: instruction.addrs.output[i],
-                            mult: instruction.mults[i],
-                        });
+                    unsafe {
+                        crate::sys::poseidon2_skinny_instr_to_row_babybear(instruction, i, cols);
                     }
                 });
             },
         );
 
-        // Pad the trace to a power of two.
-        // This may need to be adjusted when the AIR constraints are implemented.
         rows.resize(
-            self.preprocessed_num_rows(program, rows.len()).unwrap(),
-            [F::zero(); PREPROCESSED_POSEIDON2_WIDTH],
+            Poseidon2SkinnyChip::<DEGREE>::default()
+                .preprocessed_num_rows(program, rows.len())
+                .unwrap(),
+            [BabyBear::zero(); PREPROCESSED_POSEIDON2_WIDTH],
         );
 
-        let trace_rows = rows.into_iter().flatten().collect::<Vec<_>>();
-        Some(RowMajorMatrix::new(trace_rows, PREPROCESSED_POSEIDON2_WIDTH))
+        Some(RowMajorMatrix::new(
+            unsafe { std::mem::transmute(rows.into_iter().flatten().collect::<Vec<BabyBear>>()) },
+            PREPROCESSED_POSEIDON2_WIDTH,
+        ))
     }
 }
 
@@ -273,20 +235,20 @@ impl<const DEGREE: usize> Poseidon2SkinnyChip<DEGREE> {
 #[cfg(test)]
 mod tests {
     use crate::{
-        chips::{poseidon2_skinny::Poseidon2SkinnyChip, test_fixtures},
+        chips::{mem::MemoryAccessCols, poseidon2_skinny::Poseidon2SkinnyChip, test_fixtures},
         ExecutionRecord,
     };
     use p3_baby_bear::BabyBear;
     use p3_field::AbstractField;
     use p3_matrix::{dense::RowMajorMatrix, Matrix};
     use sp1_stark::air::MachineAir;
+    use std::array;
 
     use super::*;
 
     const DEGREE: usize = 9;
 
-    #[cfg(feature = "sys")]
-    fn generate_trace_ffi<const DEGREE: usize>(
+    fn generate_trace_reference<const DEGREE: usize>(
         input: &ExecutionRecord<BabyBear>,
         _: &mut ExecutionRecord<BabyBear>,
     ) -> RowMajorMatrix<BabyBear> {
@@ -313,7 +275,6 @@ mod tests {
         RowMajorMatrix::new(rows.into_iter().flatten().collect(), NUM_POSEIDON2_COLS)
     }
 
-    #[cfg(feature = "sys")]
     #[test]
     fn test_generate_trace() {
         let shard = test_fixtures::shard();
@@ -322,11 +283,10 @@ mod tests {
         let trace = chip.generate_trace(&shard, &mut execution_record);
         assert!(trace.height() >= test_fixtures::MIN_TEST_CASES);
 
-        assert_eq!(trace, generate_trace_ffi::<DEGREE>(&shard, &mut execution_record));
+        assert_eq!(trace, generate_trace_reference::<DEGREE>(&shard, &mut execution_record));
     }
 
-    #[cfg(feature = "sys")]
-    fn generate_preprocessed_trace_ffi<const DEGREE: usize>(
+    fn generate_preprocessed_trace_reference<const DEGREE: usize>(
         program: &RecursionProgram<BabyBear>,
     ) -> RowMajorMatrix<BabyBear> {
         type F = BabyBear;
@@ -336,38 +296,78 @@ mod tests {
                 Poseidon2(instr) => Some(instr),
                 _ => None,
             });
-
         let num_instructions = instructions.clone().count();
         let mut rows = vec![
             [F::zero(); PREPROCESSED_POSEIDON2_WIDTH];
             num_instructions * (NUM_EXTERNAL_ROUNDS + 3)
         ];
+
+        // Iterate over the instructions and take NUM_EXTERNAL_ROUNDS + 3 rows for each instruction.
+        // We have one extra round for the internal rounds, one extra round for the input,
+        // and one extra round for the output.
         instructions.zip_eq(&rows.iter_mut().chunks(NUM_EXTERNAL_ROUNDS + 3)).for_each(
             |(instruction, row_add)| {
                 row_add.into_iter().enumerate().for_each(|(i, row)| {
                     let cols: &mut Poseidon2PreprocessedCols<_> =
                         (*row).as_mut_slice().borrow_mut();
-                    unsafe {
-                        crate::sys::poseidon2_skinny_instr_to_row_babybear(instruction, i, cols);
+
+                    // Set the round-counter columns.
+                    cols.round_counters_preprocessed.is_input_round =
+                        F::from_bool(i == INPUT_ROUND_IDX);
+                    let is_external_round =
+                        i != INPUT_ROUND_IDX && i != INTERNAL_ROUND_IDX && i != OUTPUT_ROUND_IDX;
+                    cols.round_counters_preprocessed.is_external_round =
+                        F::from_bool(is_external_round);
+                    cols.round_counters_preprocessed.is_internal_round =
+                        F::from_bool(i == INTERNAL_ROUND_IDX);
+
+                    (0..WIDTH).for_each(|j| {
+                        cols.round_counters_preprocessed.round_constants[j] = if is_external_round {
+                            let r = i - 1;
+                            let round = if i < INTERNAL_ROUND_IDX {
+                                r
+                            } else {
+                                r + NUM_INTERNAL_ROUNDS - 1
+                            };
+
+                            F::from_wrapped_u32(RC_16_30_U32[round][j])
+                        } else if i == INTERNAL_ROUND_IDX {
+                            F::from_wrapped_u32(RC_16_30_U32[NUM_EXTERNAL_ROUNDS / 2 + j][0])
+                        } else {
+                            F::zero()
+                        };
+                    });
+
+                    // Set the memory columns. We read once, at the first iteration,
+                    // and write once, at the last iteration.
+                    if i == INPUT_ROUND_IDX {
+                        cols.memory_preprocessed = instruction
+                            .addrs
+                            .input
+                            .map(|addr| MemoryAccessCols { addr, mult: F::neg_one() });
+                    } else if i == OUTPUT_ROUND_IDX {
+                        cols.memory_preprocessed = array::from_fn(|i| MemoryAccessCols {
+                            addr: instruction.addrs.output[i],
+                            mult: instruction.mults[i],
+                        });
                     }
                 });
             },
         );
 
+        // Pad the trace to a power of two.
+        // This may need to be adjusted when the AIR constraints are implemented.
         rows.resize(
             Poseidon2SkinnyChip::<DEGREE>::default()
                 .preprocessed_num_rows(program, rows.len())
                 .unwrap(),
-            [F::zero(); PREPROCESSED_POSEIDON2_WIDTH],
+            [BabyBear::zero(); PREPROCESSED_POSEIDON2_WIDTH],
         );
 
-        RowMajorMatrix::new(
-            rows.into_iter().flatten().collect::<Vec<_>>(),
-            PREPROCESSED_POSEIDON2_WIDTH,
-        )
+        let trace_rows = rows.into_iter().flatten().collect::<Vec<_>>();
+        RowMajorMatrix::new(trace_rows, PREPROCESSED_POSEIDON2_WIDTH)
     }
 
-    #[cfg(feature = "sys")]
     #[test]
     fn generate_preprocessed_trace() {
         let program = test_fixtures::program();
@@ -375,6 +375,6 @@ mod tests {
         let trace = chip.generate_preprocessed_trace(&program).unwrap();
         assert!(trace.height() >= test_fixtures::MIN_TEST_CASES);
 
-        assert_eq!(trace, generate_preprocessed_trace_ffi::<DEGREE>(&program));
+        assert_eq!(trace, generate_preprocessed_trace_reference::<DEGREE>(&program));
     }
 }
