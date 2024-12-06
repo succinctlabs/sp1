@@ -13,29 +13,26 @@ pub struct RequestProofRequestBody {
     /// The account nonce of the sender.
     #[prost(uint64, tag = "1")]
     pub nonce: u64,
+    /// The verification key hash of the program.
+    #[prost(bytes = "vec", tag = "2")]
+    pub vk_hash: ::prost::alloc::vec::Vec<u8>,
     /// The version of the prover to use.
-    #[prost(string, tag = "2")]
+    #[prost(string, tag = "3")]
     pub version: ::prost::alloc::string::String,
-    /// The verification key.
-    #[prost(bytes = "vec", tag = "3")]
-    pub vkey: ::prost::alloc::vec::Vec<u8>,
     /// The mode for the request.
     #[prost(enumeration = "ProofMode", tag = "4")]
     pub mode: i32,
     /// The strategy for fulfiller assignment.
     #[prost(enumeration = "FulfillmentStrategy", tag = "5")]
     pub strategy: i32,
-    /// The program resource identifier.
-    #[prost(string, tag = "6")]
-    pub program_uri: ::prost::alloc::string::String,
     /// The stdin resource identifier.
-    #[prost(string, tag = "7")]
+    #[prost(string, tag = "6")]
     pub stdin_uri: ::prost::alloc::string::String,
     /// The deadline for the request.
-    #[prost(uint64, tag = "8")]
+    #[prost(uint64, tag = "7")]
     pub deadline: u64,
     /// The cycle limit for the request.
-    #[prost(uint64, tag = "9")]
+    #[prost(uint64, tag = "8")]
     pub cycle_limit: u64,
 }
 #[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
@@ -188,9 +185,9 @@ pub struct ProofRequest {
     /// The request identifier.
     #[prost(bytes = "vec", tag = "1")]
     pub request_id: ::prost::alloc::vec::Vec<u8>,
-    /// The program identifier.
+    /// The verification key hash of the program.
     #[prost(bytes = "vec", tag = "2")]
-    pub program_id: ::prost::alloc::vec::Vec<u8>,
+    pub vk_hash: ::prost::alloc::vec::Vec<u8>,
     /// The version of the prover to use.
     #[prost(string, tag = "3")]
     pub version: ::prost::alloc::string::String,
@@ -242,12 +239,21 @@ pub struct ProofRequest {
     /// The unix timestamp of when the request was updated.
     #[prost(uint64, tag = "19")]
     pub updated_at: u64,
+    /// The unix timestamp of when the request was fulfilled.
+    #[prost(uint64, optional, tag = "20")]
+    pub fulfilled_at: ::core::option::Option<u64>,
     /// The transaction hash of the request.
-    #[prost(bytes = "vec", tag = "20")]
+    #[prost(bytes = "vec", tag = "21")]
     pub tx_hash: ::prost::alloc::vec::Vec<u8>,
     /// The cycle count for the request.
-    #[prost(uint64, optional, tag = "21")]
+    #[prost(uint64, optional, tag = "22")]
     pub cycles: ::core::option::Option<u64>,
+    /// The amount deducted from the fulfiller's balance.
+    #[prost(string, optional, tag = "23")]
+    pub deduction_amount: ::core::option::Option<::prost::alloc::string::String>,
+    /// The amount refunded to the fulfiller's balance.
+    #[prost(string, optional, tag = "24")]
+    pub refund_amount: ::core::option::Option<::prost::alloc::string::String>,
 }
 #[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
 pub struct GetProofRequestStatusRequest {
@@ -302,9 +308,9 @@ pub struct GetFilteredProofRequestsRequest {
     /// Only returns requests with deadlines after this timestamp.
     #[prost(uint64, optional, tag = "4")]
     pub minimum_deadline: ::core::option::Option<u64>,
-    /// The optional program identifier to filter for.
+    /// The optional verification key hash of the program to filter for.
     #[prost(bytes = "vec", optional, tag = "5")]
-    pub program_id: ::core::option::Option<::prost::alloc::vec::Vec<u8>>,
+    pub vk_hash: ::core::option::Option<::prost::alloc::vec::Vec<u8>>,
     /// The optional requester address to filter for.
     #[prost(bytes = "vec", optional, tag = "6")]
     pub requester: ::core::option::Option<::prost::alloc::vec::Vec<u8>>,
@@ -604,6 +610,74 @@ pub struct GetAccountNameResponse {
     pub name: ::core::option::Option<::prost::alloc::string::String>,
 }
 #[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct Program {
+    /// The verification key hash.
+    #[prost(bytes = "vec", tag = "1")]
+    pub vk_hash: ::prost::alloc::vec::Vec<u8>,
+    /// The verification key.
+    #[prost(bytes = "vec", tag = "2")]
+    pub vk: ::prost::alloc::vec::Vec<u8>,
+    /// The program resource identifier.
+    #[prost(string, tag = "3")]
+    pub program_uri: ::prost::alloc::string::String,
+    /// The optional name of the program.
+    #[prost(string, optional, tag = "4")]
+    pub name: ::core::option::Option<::prost::alloc::string::String>,
+    /// The owner of the program.
+    #[prost(bytes = "vec", tag = "5")]
+    pub owner: ::prost::alloc::vec::Vec<u8>,
+    /// The unix timestamp of when the program was created.
+    #[prost(uint64, tag = "6")]
+    pub created_at: u64,
+}
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct GetProgramRequest {
+    /// The verification key hash of the program.
+    #[prost(bytes = "vec", tag = "1")]
+    pub vk_hash: ::prost::alloc::vec::Vec<u8>,
+}
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct GetProgramResponse {
+    /// The program details.
+    #[prost(message, optional, tag = "1")]
+    pub program: ::core::option::Option<Program>,
+}
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct CreateProgramRequest {
+    /// The signature of the sender.
+    #[prost(bytes = "vec", tag = "1")]
+    pub signature: ::prost::alloc::vec::Vec<u8>,
+    /// The body of the request.
+    #[prost(message, optional, tag = "2")]
+    pub body: ::core::option::Option<CreateProgramRequestBody>,
+}
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct CreateProgramRequestBody {
+    /// The account nonce of the sender.
+    #[prost(uint64, tag = "1")]
+    pub nonce: u64,
+    /// The verification key hash.
+    #[prost(bytes = "vec", tag = "2")]
+    pub vk_hash: ::prost::alloc::vec::Vec<u8>,
+    /// The verification key.
+    #[prost(bytes = "vec", tag = "3")]
+    pub vk: ::prost::alloc::vec::Vec<u8>,
+    /// The program resource identifier.
+    #[prost(string, tag = "4")]
+    pub program_uri: ::prost::alloc::string::String,
+}
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct CreateProgramResponse {
+    /// The transaction hash.
+    #[prost(bytes = "vec", tag = "1")]
+    pub tx_hash: ::prost::alloc::vec::Vec<u8>,
+    /// The body of the response.
+    #[prost(message, optional, tag = "2")]
+    pub body: ::core::option::Option<CreateProgramResponseBody>,
+}
+#[derive(serde::Serialize, serde::Deserialize, Clone, Copy, PartialEq, ::prost::Message)]
+pub struct CreateProgramResponseBody {}
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
 pub struct SetProgramNameRequest {
     /// The signature of the sender.
     #[prost(bytes = "vec", tag = "1")]
@@ -620,7 +694,7 @@ pub struct SetProgramNameRequestBody {
     /// The identifier of the program to update the name of. Only the original
     /// program creator can update the name unless authorized.
     #[prost(bytes = "vec", tag = "2")]
-    pub program_id: ::prost::alloc::vec::Vec<u8>,
+    pub vk_hash: ::prost::alloc::vec::Vec<u8>,
     /// The name of the program. Must be unique.
     #[prost(string, tag = "3")]
     pub name: ::prost::alloc::string::String,
@@ -1653,7 +1727,43 @@ pub mod prover_network_client {
             req.extensions_mut().insert(GrpcMethod::new("network.ProverNetwork", "GetAccountName"));
             self.inner.unary(req, path, codec).await
         }
-        /// Set the name of the program.
+        /// Get metadata about a program.
+        pub async fn get_program(
+            &mut self,
+            request: impl tonic::IntoRequest<super::GetProgramRequest>,
+        ) -> std::result::Result<tonic::Response<super::GetProgramResponse>, tonic::Status>
+        {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static("/network.ProverNetwork/GetProgram");
+            let mut req = request.into_request();
+            req.extensions_mut().insert(GrpcMethod::new("network.ProverNetwork", "GetProgram"));
+            self.inner.unary(req, path, codec).await
+        }
+        /// Create a new program. Must be called before requesting proofs.
+        pub async fn create_program(
+            &mut self,
+            request: impl tonic::IntoRequest<super::CreateProgramRequest>,
+        ) -> std::result::Result<tonic::Response<super::CreateProgramResponse>, tonic::Status>
+        {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static("/network.ProverNetwork/CreateProgram");
+            let mut req = request.into_request();
+            req.extensions_mut().insert(GrpcMethod::new("network.ProverNetwork", "CreateProgram"));
+            self.inner.unary(req, path, codec).await
+        }
+        /// Set the name of the program. Only callable by the owner.
         pub async fn set_program_name(
             &mut self,
             request: impl tonic::IntoRequest<super::SetProgramNameRequest>,
@@ -1672,7 +1782,7 @@ pub mod prover_network_client {
             req.extensions_mut().insert(GrpcMethod::new("network.ProverNetwork", "SetProgramName"));
             self.inner.unary(req, path, codec).await
         }
-        /// Get the avaliable balance of an account.
+        /// Get the available balance of an account.
         pub async fn get_balance(
             &mut self,
             request: impl tonic::IntoRequest<super::GetBalanceRequest>,
@@ -2005,12 +2115,22 @@ pub mod prover_network_server {
             &self,
             request: tonic::Request<super::GetAccountNameRequest>,
         ) -> std::result::Result<tonic::Response<super::GetAccountNameResponse>, tonic::Status>;
-        /// Set the name of the program.
+        /// Get metadata about a program.
+        async fn get_program(
+            &self,
+            request: tonic::Request<super::GetProgramRequest>,
+        ) -> std::result::Result<tonic::Response<super::GetProgramResponse>, tonic::Status>;
+        /// Create a new program. Must be called before requesting proofs.
+        async fn create_program(
+            &self,
+            request: tonic::Request<super::CreateProgramRequest>,
+        ) -> std::result::Result<tonic::Response<super::CreateProgramResponse>, tonic::Status>;
+        /// Set the name of the program. Only callable by the owner.
         async fn set_program_name(
             &self,
             request: tonic::Request<super::SetProgramNameRequest>,
         ) -> std::result::Result<tonic::Response<super::SetProgramNameResponse>, tonic::Status>;
-        /// Get the avaliable balance of an account.
+        /// Get the available balance of an account.
         async fn get_balance(
             &self,
             request: tonic::Request<super::GetBalanceRequest>,
@@ -2925,6 +3045,86 @@ pub mod prover_network_server {
                     let inner = self.inner.clone();
                     let fut = async move {
                         let method = GetAccountNameSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/network.ProverNetwork/GetProgram" => {
+                    #[allow(non_camel_case_types)]
+                    struct GetProgramSvc<T: ProverNetwork>(pub Arc<T>);
+                    impl<T: ProverNetwork> tonic::server::UnaryService<super::GetProgramRequest> for GetProgramSvc<T> {
+                        type Response = super::GetProgramResponse;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::GetProgramRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as ProverNetwork>::get_program(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = GetProgramSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/network.ProverNetwork/CreateProgram" => {
+                    #[allow(non_camel_case_types)]
+                    struct CreateProgramSvc<T: ProverNetwork>(pub Arc<T>);
+                    impl<T: ProverNetwork> tonic::server::UnaryService<super::CreateProgramRequest>
+                        for CreateProgramSvc<T>
+                    {
+                        type Response = super::CreateProgramResponse;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::CreateProgramRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as ProverNetwork>::create_program(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = CreateProgramSvc(inner);
                         let codec = tonic::codec::ProstCodec::default();
                         let mut grpc = tonic::server::Grpc::new(codec)
                             .apply_compression_config(

@@ -3,8 +3,9 @@ use std::{
     time::{Duration, Instant},
 };
 
+use crate::network_v2::client::DEFAULT_PROVER_NETWORK_RPC;
 use crate::{
-    network_v2::client::{NetworkClient, DEFAULT_PROVER_NETWORK_RPC},
+    network_v2::client::NetworkClient,
     network_v2::proto::network::{
         ExecutionStatus, FulfillmentStatus, FulfillmentStrategy, ProofMode,
     },
@@ -57,30 +58,33 @@ impl NetworkProver {
         self.strategy = strategy;
     }
 
+    /// Registers a program if it is not already registered.
+    pub async fn register_program(&self, vk: &SP1VerifyingKey, elf: &[u8]) -> Result<Vec<u8>> {
+        self.client.register_program(vk, elf).await
+    }
+
+    /// Get the cycle limit, either by simulating or using the default cycle limit.
+    fn get_cycle_limit(&self, elf: &[u8], stdin: &SP1Stdin) -> Result<u64> {
+        let skip_simulation = env::var("SKIP_SIMULATION").map(|val| val == "true").unwrap_or(false);
+        if !skip_simulation {
+            let (_, report) =
+                self.local_prover.sp1_prover().execute(elf, stdin, Default::default())?;
+            let cycles = report.total_instruction_count();
+            Ok(cycles)
+        } else {
+            Ok(DEFAULT_CYCLE_LIMIT)
+        }
+    }
+
     /// Requests a proof from the prover network, returning the request ID.
     pub async fn request_proof(
         &self,
-        elf: &[u8],
-        stdin: SP1Stdin,
+        vk_hash: &[u8],
+        stdin: &SP1Stdin,
         mode: ProofMode,
+        cycle_limit: u64,
         timeout: Option<Duration>,
     ) -> Result<Vec<u8>> {
-        // Simulate and get the cycle limit.
-        let skip_simulation = env::var("SKIP_SIMULATION").map(|val| val == "true").unwrap_or(false);
-        let cycle_limit = if !skip_simulation {
-            let (_, report) =
-                self.local_prover.sp1_prover().execute(elf, &stdin, Default::default())?;
-            let cycles = report.total_instruction_count();
-            log::info!("Simulation complete, cycles: {}", cycles);
-            cycles
-        } else {
-            log::info!("Skipping simulation");
-            DEFAULT_CYCLE_LIMIT
-        };
-
-        // Get the verifying key.
-        let (_, vk) = self.setup(elf);
-
         // Get the timeout.
         let timeout_secs = timeout.map(|dur| dur.as_secs()).unwrap_or(TIMEOUT_SECS);
 
@@ -91,9 +95,8 @@ impl NetworkProver {
             || async {
                 self.client
                     .request_proof(
-                        elf,
-                        &stdin,
-                        &vk,
+                        vk_hash,
+                        stdin,
                         mode,
                         SP1_CIRCUIT_VERSION,
                         self.strategy,
@@ -183,12 +186,14 @@ impl NetworkProver {
     /// Requests a proof from the prover network and waits for it to be generated.
     pub async fn prove(
         &self,
-        elf: &[u8],
+        pk: &SP1ProvingKey,
         stdin: SP1Stdin,
         mode: ProofMode,
         timeout: Option<Duration>,
     ) -> Result<SP1ProofWithPublicValues> {
-        let request_id = self.request_proof(elf, stdin, mode, timeout).await?;
+        let vk_hash = self.register_program(&pk.vk, &pk.elf).await?;
+        let cycle_limit = self.get_cycle_limit(&pk.elf, &stdin)?;
+        let request_id = self.request_proof(&vk_hash, &stdin, mode, cycle_limit, timeout).await?;
         self.wait_proof(&request_id, timeout).await
     }
 }
@@ -215,7 +220,7 @@ impl Prover<DefaultProverComponents> for NetworkProver {
         kind: SP1ProofKind,
     ) -> Result<SP1ProofWithPublicValues> {
         warn_if_not_default(&opts.sp1_prover_opts, &context);
-        block_on(self.prove(&pk.elf, stdin, kind.into(), opts.timeout))
+        block_on(self.prove(pk, stdin, kind.into(), opts.timeout))
     }
 }
 
@@ -315,7 +320,6 @@ where
                         error_msg.contains("broken pipe") ||
                         error_msg.contains("transport error") ||
                         error_msg.contains("failed to lookup");
-                    
                     if is_transient {
                         log::warn!(
                             "Transient transport error when {}: {}, retrying...",
