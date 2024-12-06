@@ -1,4 +1,5 @@
 pub mod client;
+mod json;
 pub mod prover;
 mod sign_message;
 #[rustfmt::skip]

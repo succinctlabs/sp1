@@ -22,8 +22,8 @@ use crate::network_v2::proto::network::{
     prover_network_client::ProverNetworkClient, CreateProgramRequest, CreateProgramRequestBody,
     CreateProgramResponse, FulfillmentStatus, FulfillmentStrategy, GetNonceRequest,
     GetProgramRequest, GetProgramResponse, GetProofRequestStatusRequest,
-    GetProofRequestStatusResponse, ProofMode, RequestProofRequest, RequestProofRequestBody,
-    RequestProofResponse,
+    GetProofRequestStatusResponse, MessageFormat, ProofMode, RequestProofRequest,
+    RequestProofRequestBody, RequestProofResponse,
 };
 use crate::network_v2::Signable;
 
@@ -160,6 +160,7 @@ impl NetworkClient {
 
         Ok(rpc
             .create_program(CreateProgramRequest {
+                format: MessageFormat::Binary.into(),
                 signature: request_body.sign(&self.signer).into(),
                 body: Some(request_body),
             })
@@ -232,6 +233,7 @@ impl NetworkClient {
         };
         let request_response = rpc
             .request_proof(RequestProofRequest {
+                format: MessageFormat::Binary.into(),
                 signature: request_body.sign(&self.signer).into(),
                 body: Some(request_body),
             })
