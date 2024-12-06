@@ -2,8 +2,6 @@
 
 set -e
 
-# Loop over each folder in 'programs/' and extract the binary name
-# from the "name" field of Cargo.toml
 CARGO_TOML='[package]
 name = "patch-testing-tests"
 version = "1.0.0" 
@@ -16,16 +14,6 @@ sp1-sdk = { path = "../../crates/sdk" }
 [build-dependencies]
 sp1-build = { path = "../../crates/build" }'
 
-rm -rf tests
-
-# Write the cargo toml 
-mkdir -p tests
-mkdir -p tests/src
-echo "$CARGO_TOML" > tests/Cargo.toml
-
-touch tests/src/lib.rs
-touch tests/build.rs
-
 generate_test_template() {
     local binary_name="$1"
     local underscored=$(echo $binary_name | tr '-' '_')
@@ -36,49 +24,80 @@ generate_test_template() {
         return 1
     fi
 
-    # Generate the template
     cat <<EOF
     #[test]
     fn test_${underscored}() {
         const PATCH_TEST_ELF: &[u8] = sp1_sdk::include_elf!("${binary_name}");
-        let mut stdin = sp1_sdk::SP1Stdin::new();
+        let stdin = sp1_sdk::SP1Stdin::new();
 
         let client = sp1_sdk::ProverClient::new();
         let (_, _) = client.execute(PATCH_TEST_ELF, stdin).run().expect("executing failed");
     }
 EOF
-
 }
 
-BUILD_COMMANDS='fn main() {\n'
+# Silent pushd
+_pushd() {
+  pushd $1 &> /dev/null
+}
 
-for folder in programs/*; do
-    if [[ -d "$folder" && -f "$folder/Cargo.toml" ]]; then
-        echo "Generating tests for $folder"
+# Silent popd
+_popd() {
+  popd &> /dev/null
+}
 
-        # Extract the binary name from Cargo.toml using awk
-        binary_name=$(awk -F'"' '/^name =/ {print $2}' "$folder/Cargo.toml" || echo "unknown")
+# Make sure were in the right directory
+cd $(dirname $0)
 
-        if [[ "$binary_name" != "unknown" ]]; then
-            echo "Binary name: $binary_name"
+# Remove the tests directory
+rm -rf tests
 
-            # Generate the test file
-            echo "Generating test file for $binary_name"
+# Write the cargo toml 
+mkdir -p tests
+mkdir -p tests/src
+echo "$CARGO_TOML" > tests/Cargo.toml
 
-            generate_test_template "$binary_name" >> tests/src/lib.rs
+# Setup the test and build scripts
+touch tests/src/lib.rs
+touch tests/build.rs
 
-            # Make sure we setup the build script
-            BUILD_COMMANDS="$BUILD_COMMANDS sp1_build::build_program(\"../$folder\");\n"
+TEST_PROGRAM_WORKSPACE=$(readlink -f programs)
 
-        else
-            echo "No binary name found in $folder/Cargo.toml"
-        fi
-    else
-        echo "Skipping $folder (not a directory or missing Cargo.toml)"
-    fi
+# Open the build.rs
+echo -e 'fn main() {\n' > tests/build.rs
+
+_pushd programs
+# Extract metadata for all binaries
+METADATA=$(cargo metadata --no-deps --format-version 1 | jq -c '.packages[].targets[]')
+_popd
+
+# Loop over each binary target
+echo "$METADATA" | while IFS= read -r bin; do
+  BIN_NAME=$(echo "$bin" | jq -r '.name')
+  BIN_SRC=$(echo "$bin" | jq -r '.src_path')
+
+  echo "Processing $BIN_NAME @ $BIN_SRC"
+
+  # Strip TEST_PROGRAM_WORKSPACE from BIN_SRC
+  RELATIVE_SRC=$(echo "$BIN_SRC" | sed "s|$TEST_PROGRAM_WORKSPACE/||" | cut -d'/' -f1)
+
+  # Generate the test
+  generate_test_template "$BIN_NAME" >> tests/src/lib.rs
+
+  # Append build command
+  echo -e "sp1_build::build_program(\"../programs/$RELATIVE_SRC\");" >> tests/build.rs
 done
 
-BUILD_COMMANDS+='}'
+# Close the build.rs
+echo -e "}" >> tests/build.rs
 
-echo "Creating build.rs"
-echo -e $BUILD_COMMANDS > tests/build.rs
+# Format the code 
+_pushd tests
+cargo fmt --all &> /dev/null 
+_popd
+
+if [[ -z "$NO_RUN" ]]; then
+  echo "Running tests in release mode..."
+  # Run the tests
+  cargo test --manifest-path tests/Cargo.toml --release
+fi
