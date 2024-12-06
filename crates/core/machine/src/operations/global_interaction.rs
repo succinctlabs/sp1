@@ -1,22 +1,22 @@
-use crate::air::WordAirBuilder;
+use super::poseidon2::permutation::Poseidon2Cols;
+use super::poseidon2::trace::populate_perm_deg3;
+use super::poseidon2::Poseidon2Operation;
+use super::poseidon2::{
+    air::{eval_external_round, eval_internal_rounds},
+    NUM_EXTERNAL_ROUNDS,
+};
 use p3_air::AirBuilder;
 use p3_field::AbstractExtensionField;
 use p3_field::AbstractField;
 use p3_field::Field;
 use p3_field::PrimeField32;
-use sp1_core_executor::events::ByteRecord;
 use sp1_core_executor::ByteOpcode;
 use sp1_derive::AlignedBorrow;
 use sp1_stark::{
     air::SP1AirBuilder,
     septic_curve::{SepticCurve, CURVE_WITNESS_DUMMY_POINT_X, CURVE_WITNESS_DUMMY_POINT_Y},
     septic_extension::{SepticBlock, SepticExtension},
-    InteractionKind,
 };
-
-use super::poseidon2::permutation::Poseidon2Cols;
-use super::poseidon2::trace::populate_perm_deg3;
-use super::poseidon2::Poseidon2Operation;
 
 /// A set of columns needed to compute the global interaction elliptic curve digest.
 #[derive(AlignedBorrow, Clone, Copy)]
@@ -34,10 +34,10 @@ impl<F: PrimeField32> GlobalInteractionOperation<F> {
     pub fn get_digest(
         values: SepticBlock<u32>,
         is_receive: bool,
-        kind: InteractionKind,
+        kind: u8,
     ) -> (SepticCurve<F>, u8, [F; 16], [F; 16]) {
         let x_start = SepticExtension::<F>::from_base_fn(|i| F::from_canonical_u32(values.0[i]))
-            + SepticExtension::from_base(F::from_canonical_u32((kind as u32) << 24));
+            + SepticExtension::from_base(F::from_canonical_u32((kind as u32) << 16));
         let (point, offset, m_trial, m_hash) = SepticCurve::<F>::lift_x(x_start);
         if !is_receive {
             return (point.neg(), offset, m_trial, m_hash);
@@ -50,7 +50,7 @@ impl<F: PrimeField32> GlobalInteractionOperation<F> {
         values: SepticBlock<u32>,
         is_receive: bool,
         is_real: bool,
-        kind: InteractionKind,
+        kind: u8,
     ) {
         if is_real {
             let (point, offset, m_trial, m_hash) = Self::get_digest(values, is_receive, kind);
@@ -82,82 +82,6 @@ impl<F: PrimeField32> GlobalInteractionOperation<F> {
         }
     }
 
-    #[allow(clippy::too_many_arguments)]
-    pub fn populate_memory_range_check_witness(
-        &self,
-        shard: u32,
-        value: u32,
-        is_real: bool,
-        blu: &mut impl ByteRecord,
-    ) {
-        if is_real {
-            blu.add_u8_range_checks(&value.to_le_bytes());
-            blu.add_u16_range_check(shard as u16);
-        }
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    pub fn populate_memory(
-        &mut self,
-        shard: u32,
-        clk: u32,
-        addr: u32,
-        value: u32,
-        is_receive: bool,
-        is_real: bool,
-    ) {
-        self.populate(
-            SepticBlock([
-                shard,
-                clk,
-                addr,
-                value & 255,
-                (value >> 8) & 255,
-                (value >> 16) & 255,
-                (value >> 24) & 255,
-            ]),
-            is_receive,
-            is_real,
-            InteractionKind::Memory,
-        );
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    pub fn populate_syscall_range_check_witness(
-        &self,
-        shard: u32,
-        clk_16: u16,
-        clk_8: u8,
-        syscall_id: u32,
-        is_real: bool,
-        blu: &mut impl ByteRecord,
-    ) {
-        if is_real {
-            blu.add_u16_range_checks(&[shard as u16, clk_16]);
-            blu.add_u8_range_checks(&[clk_8, syscall_id as u8]);
-        }
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    pub fn populate_syscall(
-        &mut self,
-        shard: u32,
-        clk_16: u16,
-        clk_8: u8,
-        syscall_id: u32,
-        arg1: u32,
-        arg2: u32,
-        is_receive: bool,
-        is_real: bool,
-    ) {
-        self.populate(
-            SepticBlock([shard, clk_16.into(), clk_8.into(), syscall_id, arg1, arg2, 0]),
-            is_receive,
-            is_real,
-            InteractionKind::Syscall,
-        );
-    }
-
     pub fn populate_dummy(&mut self) {
         for i in 0..8 {
             self.offset_bits[i] = F::zero();
@@ -179,14 +103,14 @@ impl<F: PrimeField32> GlobalInteractionOperation<F> {
 impl<F: Field> GlobalInteractionOperation<F> {
     /// Constrain that the y coordinate is correct decompression, and send the resulting digest coordinate to the permutation trace.
     /// The first value in `values` must be a value range checked to u16.
-    pub fn eval_single_digest<AB: SP1AirBuilder>(
+    pub fn eval_single_digest<AB: SP1AirBuilder + p3_air::PairBuilder>(
         builder: &mut AB,
         values: [AB::Expr; 7],
         cols: GlobalInteractionOperation<AB::Var>,
         is_receive: AB::Expr,
         is_send: AB::Expr,
         is_real: AB::Var,
-        kind: InteractionKind,
+        kind: AB::Var,
     ) {
         // Constrain that the `is_real` is boolean.
         builder.assert_bool(is_real);
@@ -198,8 +122,18 @@ impl<F: Field> GlobalInteractionOperation<F> {
             offset = offset.clone() + cols.offset_bits[i] * AB::F::from_canonical_u32(1 << i);
         }
 
+        // Range check the first element in the message to be "small" so that we can encode
+        // the interaction kind in the upper 8 bits.
+        builder.send_byte(
+            AB::Expr::from_canonical_u8(ByteOpcode::U16Range as u8),
+            values[0].clone(),
+            AB::Expr::zero(),
+            AB::Expr::zero(),
+            is_real,
+        );
+
         let m_trial = [
-            values[0].clone() + AB::Expr::from_canonical_u32((kind as u32) << 24),
+            values[0].clone() + AB::Expr::from_canonical_u32(1 << 16) * kind,
             values[1].clone(),
             values[2].clone(),
             values[3].clone(),
@@ -224,6 +158,12 @@ impl<F: Field> GlobalInteractionOperation<F> {
                 m_trial[i].clone(),
             );
         }
+
+        // Constraint the permutation.
+        for r in 0..NUM_EXTERNAL_ROUNDS {
+            eval_external_round(builder, &cols.permutation.permutation, r);
+        }
+        eval_internal_rounds(builder, &cols.permutation.permutation);
 
         // Constrain that the x-coordinate is the hash of the message.
         let m_hash = cols.permutation.permutation.perm_output();
@@ -268,108 +208,6 @@ impl<F: Field> GlobalInteractionOperation<F> {
         builder.when(is_send).assert_eq(
             y.0[6].clone(),
             AB::Expr::from_canonical_u32((1 << 30) - (1 << 26) + 1) + y6_value.clone(),
-        );
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    pub fn eval_single_digest_memory<AB: SP1AirBuilder>(
-        builder: &mut AB,
-        shard: AB::Expr,
-        clk: AB::Expr,
-        addr: AB::Expr,
-        value: [AB::Expr; 4],
-        cols: GlobalInteractionOperation<AB::Var>,
-        is_receive: AB::Expr,
-        is_send: AB::Expr,
-        is_real: AB::Var,
-    ) {
-        let values = [
-            shard.clone(),
-            clk.clone(),
-            addr.clone(),
-            value[0].clone(),
-            value[1].clone(),
-            value[2].clone(),
-            value[3].clone(),
-        ];
-
-        Self::eval_single_digest(
-            builder,
-            values,
-            cols,
-            is_receive,
-            is_send,
-            is_real,
-            InteractionKind::Memory,
-        );
-
-        // Range check for message space.
-        // Range check shard to be a valid u16.
-        builder.send_byte(
-            AB::Expr::from_canonical_u8(ByteOpcode::U16Range as u8),
-            shard,
-            AB::Expr::zero(),
-            AB::Expr::zero(),
-            is_real,
-        );
-        // Range check the word value to be valid u8 word.
-        builder.slice_range_check_u8(&value, is_real);
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    pub fn eval_single_digest_syscall<AB: SP1AirBuilder>(
-        builder: &mut AB,
-        shard: AB::Expr,
-        clk_16: AB::Expr,
-        clk_8: AB::Expr,
-        syscall_id: AB::Expr,
-        arg1: AB::Expr,
-        arg2: AB::Expr,
-        cols: GlobalInteractionOperation<AB::Var>,
-        is_receive: AB::Expr,
-        is_send: AB::Expr,
-        is_real: AB::Var,
-    ) {
-        let values = [
-            shard.clone(),
-            clk_16.clone(),
-            clk_8.clone(),
-            syscall_id.clone(),
-            arg1.clone(),
-            arg2.clone(),
-            AB::Expr::zero(),
-        ];
-
-        Self::eval_single_digest(
-            builder,
-            values,
-            cols,
-            is_receive,
-            is_send,
-            is_real,
-            InteractionKind::Syscall,
-        );
-
-        // Range check for message space.
-        // Range check shard to be a valid u16.
-        builder.send_byte(
-            AB::Expr::from_canonical_u8(ByteOpcode::U16Range as u8),
-            shard,
-            AB::Expr::zero(),
-            AB::Expr::zero(),
-            is_real,
-        );
-
-        // Range check clk_8 and syscall_id to be u8.
-        builder.slice_range_check_u8(&[clk_8, syscall_id], is_real);
-
-        // Range check clk_16 to be u16.
-        builder.send_byte(
-            AB::Expr::from_canonical_u8(ByteOpcode::U16Range as u8),
-            clk_16,
-            AB::Expr::zero(),
-            AB::Expr::zero(),
-            is_real,
         );
     }
 }

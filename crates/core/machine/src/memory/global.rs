@@ -81,6 +81,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryGlobalChip {
                     ((event.value >> 24) & 255) as u32,
                 ],
                 is_receive,
+                kind: InteractionKind::Memory as u8,
             }
         });
         output.global_interaction_events.extend(events);
@@ -276,6 +277,7 @@ where
                         value[3].clone(),
                         local.is_real.into() * AB::Expr::one(),
                         local.is_real.into() * AB::Expr::zero(),
+                        AB::Expr::from_canonical_u8(InteractionKind::Memory as u8),
                     ],
                     local.is_real.into(),
                     InteractionKind::Global,
@@ -299,6 +301,7 @@ where
                         value[3].clone(),
                         local.is_real.into() * AB::Expr::zero(),
                         local.is_real.into() * AB::Expr::one(),
+                        AB::Expr::from_canonical_u8(InteractionKind::Memory as u8),
                     ],
                     local.is_real.into(),
                     InteractionKind::Global,

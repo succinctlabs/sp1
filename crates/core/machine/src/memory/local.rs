@@ -107,6 +107,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryLocalChip {
                     (mem_event.initial_mem_access.value >> 24) & 255,
                 ],
                 is_receive: true,
+                kind: InteractionKind::Memory as u8,
             });
             events.push(GlobalInteractionEvent {
                 message: [
@@ -119,6 +120,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryLocalChip {
                     (mem_event.final_mem_access.value >> 24) & 255,
                 ],
                 is_receive: false,
+                kind: InteractionKind::Memory as u8,
             });
         });
 
@@ -198,6 +200,8 @@ where
         let local: &MemoryLocalCols<AB::Var> = (*local).borrow();
 
         for local in local.memory_local_entries.iter() {
+            builder.assert_bool(local.is_real);
+
             builder.assert_eq(
                 local.is_real * local.is_real * local.is_real,
                 local.is_real * local.is_real * local.is_real,
@@ -224,6 +228,7 @@ where
                         local.initial_value[3].into(),
                         local.is_real.into() * AB::Expr::zero(),
                         local.is_real.into() * AB::Expr::one(),
+                        AB::Expr::from_canonical_u8(InteractionKind::Memory as u8),
                     ],
                     local.is_real.into(),
                     InteractionKind::Global,
@@ -244,6 +249,7 @@ where
                         local.final_value[3].into(),
                         local.is_real.into() * AB::Expr::one(),
                         local.is_real.into() * AB::Expr::zero(),
+                        AB::Expr::from_canonical_u8(InteractionKind::Memory as u8),
                     ],
                     local.is_real.into(),
                     InteractionKind::Global,

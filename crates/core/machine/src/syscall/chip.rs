@@ -119,6 +119,7 @@ impl<F: PrimeField32> MachineAir<F> for SyscallChip {
                         0,
                     ],
                     is_receive: self.shard_kind == SyscallShardKind::Precompile,
+                    kind: InteractionKind::Syscall as u8,
                 }
             })
             .collect_vec();
@@ -226,6 +227,8 @@ where
         let local = main.row_slice(0);
         let local: &SyscallCols<AB::Var> = (*local).borrow();
 
+        builder.assert_bool(local.is_real);
+
         builder.assert_eq(
             local.is_real * local.is_real * local.is_real,
             local.is_real * local.is_real * local.is_real,
@@ -256,6 +259,7 @@ where
                             AB::Expr::zero(),
                             local.is_real.into() * AB::Expr::one(),
                             local.is_real.into() * AB::Expr::zero(),
+                            AB::Expr::from_canonical_u8(InteractionKind::Syscall as u8),
                         ],
                         local.is_real.into(),
                         InteractionKind::Global,
@@ -287,6 +291,7 @@ where
                             AB::Expr::zero(),
                             local.is_real.into() * AB::Expr::zero(),
                             local.is_real.into() * AB::Expr::one(),
+                            AB::Expr::from_canonical_u8(InteractionKind::Syscall as u8),
                         ],
                         local.is_real.into(),
                         InteractionKind::Global,

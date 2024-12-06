@@ -124,8 +124,8 @@ impl<F: AbstractField> SepticCurve<F> {
 
 impl<F: PrimeField32> SepticCurve<F> {
     /// Lift an x coordinate into an elliptic curve.
-    /// As an x-coordinate may not be a valid one, we allow additions of [0, 256) * 2^16 to the first entry of the x-coordinate.
-    /// Also, we always return the curve point with y-coordinate within [0, (p-1)/2), where p is the characteristic.
+    /// As an x-coordinate may not be a valid one, we allow an additional value in [0, 256) to the hash input.
+    /// Also, we always return the curve point with y-coordinate within [1, (p-1)/2], where p is the characteristic.
     /// The returned values are the curve point and the offset used.
     pub fn lift_x(m: SepticExtension<F>) -> (Self, u8, [F; 16], [F; 16]) {
         let perm = BabyBearPoseidon2::new().perm;
