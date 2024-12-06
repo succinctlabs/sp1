@@ -16,19 +16,11 @@ pub struct SepticCurve<F> {
     pub y: SepticExtension<F>,
 }
 
-/// Linear coefficient for pairwise independent hash, derived from digits of pi.
-pub const A_EC_LOGUP: [u32; 7] =
-    [0x31415926, 0x53589793, 0x23846264, 0x33832795, 0x02884197, 0x16939937, 0x51058209];
-
-/// Constant coefficient for pairwise independent hash, derived from digits of pi.
-pub const B_EC_LOGUP: [u32; 7] =
-    [0x74944592, 0x30781640, 0x62862089, 0x9862803, 0x48253421, 0x17067982, 0x14808651];
-
-/// The x-coordinate for a curve point used as a witness for padding interactions.
+/// The x-coordinate for a curve point used as a witness for padding interactions, derived from `e`.
 pub const CURVE_WITNESS_DUMMY_POINT_X: [u32; 7] =
     [0x2738281, 0x8284590, 0x4523536, 0x0287471, 0x3526624, 0x9775724, 0x7093699];
 
-/// The y-coordinate for a curve point used as a witness for padding interactions.
+/// The y-coordinate for a curve point used as a witness for padding interactions, derived from `e`.
 pub const CURVE_WITNESS_DUMMY_POINT_Y: [u32; 7] =
     [48041908, 550064556, 415267377, 1726976249, 1253299140, 209439863, 1302309485];
 
@@ -97,15 +89,6 @@ impl<F: Field> SepticCurve<F> {
 }
 
 impl<F: AbstractField> SepticCurve<F> {
-    /// Convert a message into an x-coordinate by a pairwise independent hash `am + b`.
-    pub fn universal_hash(m: SepticExtension<F>) -> SepticExtension<F> {
-        let a_ec_logup =
-            SepticExtension::<F>::from_base_fn(|i| F::from_canonical_u32(A_EC_LOGUP[i]));
-        let b_ec_logup =
-            SepticExtension::<F>::from_base_fn(|i| F::from_canonical_u32(B_EC_LOGUP[i]));
-        a_ec_logup * m + b_ec_logup
-    }
-
     /// Evaluates the curve formula x^3 + 2x + 26z^5
     pub fn curve_formula(x: SepticExtension<F>) -> SepticExtension<F> {
         x.cube()
@@ -124,8 +107,8 @@ impl<F: AbstractField> SepticCurve<F> {
 
 impl<F: PrimeField32> SepticCurve<F> {
     /// Lift an x coordinate into an elliptic curve.
-    /// As an x-coordinate may not be a valid one, we allow an additional value in [0, 256) to the hash input.
-    /// Also, we always return the curve point with y-coordinate within [1, (p-1)/2], where p is the characteristic.
+    /// As an x-coordinate may not be a valid one, we allow an additional value in `[0, 256)` to the hash input.
+    /// Also, we always return the curve point with y-coordinate within `[1, (p-1)/2]`, where p is the characteristic.
     /// The returned values are the curve point and the offset used.
     pub fn lift_x(m: SepticExtension<F>) -> (Self, u8, [F; 16], [F; 16]) {
         let perm = BabyBearPoseidon2::new().perm;
