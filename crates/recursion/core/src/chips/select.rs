@@ -91,21 +91,23 @@ impl<F: PrimeField32> MachineAir<F> for SelectChip {
     }
 
     fn generate_trace(&self, input: &Self::Record, _: &mut Self::Record) -> RowMajorMatrix<F> {
-        let events = &input.select_events;
+        let events: &Vec<SelectIo<BabyBear>> = unsafe { std::mem::transmute(&input.select_events) };
         let padded_nb_rows = self.num_rows(input).unwrap();
-        let mut values = vec![F::zero(); padded_nb_rows * SELECT_COLS];
+        let mut values = vec![BabyBear::zero(); padded_nb_rows * SELECT_COLS];
 
         // Generate the trace rows & corresponding records for each chunk of events in parallel.
         let populate_len = events.len() * SELECT_COLS;
         values[..populate_len].par_chunks_mut(SELECT_COLS).zip_eq(events).for_each(
             |(row, &vals)| {
                 let cols: &mut SelectCols<_> = row.borrow_mut();
-                *cols = SelectCols { vals };
+                unsafe {
+                    crate::sys::select_event_to_row_babybear(&vals, cols);
+                }
             },
         );
 
         // Convert the trace to a row major matrix.
-        RowMajorMatrix::new(values, SELECT_COLS)
+        RowMajorMatrix::new(unsafe { std::mem::transmute(values) }, SELECT_COLS)
     }
 
     fn included(&self, _record: &Self::Record) -> bool {
@@ -206,9 +208,7 @@ mod tests {
         values[..populate_len].par_chunks_mut(SELECT_COLS).zip_eq(events).for_each(
             |(row, &vals)| {
                 let cols: &mut SelectCols<_> = row.borrow_mut();
-                unsafe {
-                    crate::sys::select_event_to_row_babybear(&vals, cols);
-                }
+                *cols = SelectCols { vals };
             },
         );
 
