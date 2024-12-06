@@ -1,0 +1,11 @@
+[package]
+name = "k256"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+sp1-zkvm = { workspace = true }
+k256 = { workspace = true }
+alloy-primitives = { workspace = true }
+revm-precompile = { workspace = true }

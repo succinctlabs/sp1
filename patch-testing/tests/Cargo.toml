@@ -5,7 +5,6 @@ edition = "2021"
 publish = false
 
 [dependencies]
-patch-testing-program = { path = "../program" }
 sp1-sdk = { path = "../../crates/sdk" }
 
 [build-dependencies]

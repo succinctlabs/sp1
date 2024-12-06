@@ -31,7 +31,7 @@ checksum = "ea59dc42102bc9a1905dc57901edc6dd48b9f38115df86c7d252acba70d71d04"
 dependencies = [
  "alloy-primitives",
  "alloy-rlp",
- "k256",
+ "k256 0.13.4",
 ]
 
 [[package]]
@@ -50,7 +50,7 @@ dependencies = [
  "hex-literal",
  "indexmap",
  "itoa",
- "k256",
+ "k256 0.13.4",
  "keccak-asm",
  "paste",
  "proptest",
@@ -457,6 +457,15 @@ dependencies = [
 
 [[package]]
 name = "curve25519-dalek-ng"
+version = "1.1.0"
+dependencies = [
+ "curve25519-dalek-ng 4.1.1 (git+https://github.com/sp1-patches/curve25519-dalek-ng?tag=curve25519_dalek_ng-v4.1.1-patch-v1)",
+ "hex-literal",
+ "sp1-zkvm",
+]
+
+[[package]]
+name = "curve25519-dalek-ng"
 version = "4.1.1"
 source = "git+https://github.com/sp1-patches/curve25519-dalek-ng?tag=curve25519_dalek_ng-v4.1.1-patch-v1#3fb3e7f6047ddeef0f0c9212f4604bd30d64bd28"
 dependencies = [
@@ -583,6 +592,15 @@ dependencies = [
 
 [[package]]
 name = "ed25519-consensus"
+version = "1.1.0"
+dependencies = [
+ "ed25519-consensus 2.1.0",
+ "hex-literal",
+ "sp1-zkvm",
+]
+
+[[package]]
+name = "ed25519-consensus"
 version = "2.1.0"
 source = "git+https://github.com/sp1-patches/ed25519-consensus?tag=ed25519_consensus-v2.1.0-patch-v1#2b2c4b43344bc4daf5b1326f367f2d9d661eeabb"
 dependencies = [
@@ -593,6 +611,15 @@ dependencies = [
  "sha2 0.9.9",
  "thiserror",
  "zeroize",
+]
+
+[[package]]
+name = "ed25519-dalek"
+version = "1.1.0"
+dependencies = [
+ "ed25519-dalek 2.1.1",
+ "hex-literal",
+ "sp1-zkvm",
 ]
 
 [[package]]
@@ -865,6 +892,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "k256"
+version = "1.1.0"
+dependencies = [
+ "alloy-primitives",
+ "k256 0.13.4",
+ "revm-precompile",
+ "sp1-zkvm",
+]
+
+[[package]]
+name = "keccack"
+version = "1.1.0"
+dependencies = [
+ "hex-literal",
+ "sp1-zkvm",
+ "tiny-keccak",
+]
+
+[[package]]
 name = "keccak"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1039,6 +1085,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "p256"
+version = "1.1.0"
+dependencies = [
+ "hex-literal",
+ "p256 0.13.2",
+ "sp1-zkvm",
+]
+
+[[package]]
 name = "pairing"
 version = "0.23.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1078,26 +1133,6 @@ name = "paste"
 version = "1.0.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a"
-
-[[package]]
-name = "patch-testing-program"
-version = "1.1.0"
-dependencies = [
- "alloy-primitives",
- "curve25519-dalek",
- "curve25519-dalek-ng 4.1.1 (git+https://github.com/sp1-patches/curve25519-dalek-ng?tag=curve25519_dalek_ng-v4.1.1-patch-v1)",
- "ed25519-consensus",
- "ed25519-dalek",
- "k256",
- "p256",
- "revm-precompile",
- "secp256k1",
- "serde",
- "sha2 0.10.8",
- "sha2 0.9.9",
- "sp1-zkvm",
- "tiny-keccak",
-]
 
 [[package]]
 name = "pest"
@@ -1261,10 +1296,10 @@ checksum = "3198c06247e8d4ad0d1312591edf049b0de4ddffa9fecb625c318fd67db8639b"
 dependencies = [
  "aurora-engine-modexp",
  "cfg-if",
- "k256",
+ "k256 0.13.4",
  "kzg-rs",
  "once_cell",
- "p256",
+ "p256 0.13.2",
  "revm-primitives",
  "ripemd",
  "sha2 0.10.8",
@@ -1449,8 +1484,18 @@ dependencies = [
  "cfg-if",
  "ecdsa",
  "elliptic-curve",
- "k256",
+ "k256 0.13.4",
  "secp256k1-sys",
+]
+
+[[package]]
+name = "secp256k1"
+version = "1.1.0"
+dependencies = [
+ "hex",
+ "hex-literal",
+ "secp256k1 0.29.1",
+ "sp1-zkvm",
 ]
 
 [[package]]
@@ -1506,6 +1551,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "sha"
+version = "1.1.0"
+dependencies = [
+ "hex-literal",
+ "sha2 0.10.8",
+ "sha2 0.9.9",
+ "sp1-zkvm",
+]
+
+[[package]]
 name = "sha2"
 version = "0.9.9"
 source = "git+https://github.com/sp1-patches/RustCrypto-hashes?tag=sha2-v0.9.9-patch-v1#db82a4848f8d033eab544255e1efa036cc06f054"
@@ -1555,9 +1610,9 @@ checksum = "0fda2ff0d084019ba4d7c6f371c95d8fd75ce3524c3cb8fb653a3023f6323e64"
 
 [[package]]
 name = "signature"
-version = "2.1.0"
+version = "2.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5e1788eed21689f9cf370582dfc467ef36ed9c707f073528ddafa8d83e3b8500"
+checksum = "77549399552de45a898a580c1b41d445bf730df867cc44e6c0233bbc4b8329de"
 dependencies = [
  "digest 0.10.7",
  "rand_core",
