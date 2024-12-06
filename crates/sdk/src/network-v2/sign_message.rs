@@ -2,20 +2,26 @@ use alloy_primitives::{Address, Signature};
 use prost::Message;
 use thiserror::Error;
 
-use crate::network_v2::proto::network::{FulfillProofRequest, RequestProofRequest};
+use crate::network_v2::json::{format_json_message, JsonFormatError};
+use crate::network_v2::proto::network::{FulfillProofRequest, MessageFormat, RequestProofRequest};
 
 #[allow(dead_code)]
 pub trait SignedMessage {
     fn signature(&self) -> Vec<u8>;
     fn nonce(&self) -> Result<u64, MessageError>;
     fn message(&self) -> Result<Vec<u8>, MessageError>;
-    fn recover_sender(&self) -> Result<Address, RecoverSenderError>;
+    fn recover_sender(&self) -> Result<(Address, Vec<u8>), RecoverSenderError>;
 }
 
 #[derive(Error, Debug)]
+#[allow(dead_code)]
 pub enum MessageError {
     #[error("Empty message")]
     EmptyMessage,
+    #[error("JSON error: {0}")]
+    JsonError(String),
+    #[error("Binary error: {0}")]
+    BinaryError(String),
 }
 
 #[derive(Error, Debug)]
@@ -43,15 +49,32 @@ macro_rules! impl_signed_message {
             }
 
             fn message(&self) -> Result<Vec<u8>, MessageError> {
+                let format = MessageFormat::try_from(self.format).unwrap_or(MessageFormat::Binary);
+
                 match &self.body {
-                    Some(body) => Ok(body.encode_to_vec()),
+                    Some(body) => match format {
+                        MessageFormat::Json => format_json_message(body).map_err(|e| match e {
+                            JsonFormatError::SerializationError(msg) => {
+                                MessageError::JsonError(msg)
+                            }
+                        }),
+                        MessageFormat::Binary => {
+                            let proto_bytes = body.encode_to_vec();
+                            Ok(proto_bytes)
+                        }
+                        MessageFormat::UnspecifiedMessageFormat => {
+                            let proto_bytes = body.encode_to_vec();
+                            Ok(proto_bytes)
+                        }
+                    },
                     None => Err(MessageError::EmptyMessage),
                 }
             }
 
-            fn recover_sender(&self) -> Result<Address, RecoverSenderError> {
+            fn recover_sender(&self) -> Result<(Address, Vec<u8>), RecoverSenderError> {
                 let message = self.message().map_err(|_| RecoverSenderError::EmptyMessage)?;
-                recover_sender_raw(self.signature.clone(), message)
+                let sender = recover_sender_raw(self.signature.clone(), message.clone())?;
+                Ok((sender, message))
             }
         }
     };

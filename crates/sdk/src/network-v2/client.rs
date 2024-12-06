@@ -7,20 +7,25 @@ use reqwest_middleware::ClientWithMiddleware as HttpClientWithMiddleware;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sp1_core_machine::io::SP1Stdin;
+use sp1_prover::HashableKey;
 use sp1_prover::SP1VerifyingKey;
+use std::result::Result::Ok as StdOk;
 use std::str::FromStr;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::try_join;
 use tonic::transport::channel::ClientTlsConfig;
 use tonic::transport::Channel;
+use tonic::Code;
 
 use crate::network_v2::proto::artifact::{
     artifact_store_client::ArtifactStoreClient, CreateArtifactRequest,
 };
 use crate::network_v2::proto::network::{
-    prover_network_client::ProverNetworkClient, FulfillmentStatus, FulfillmentStrategy,
-    GetNonceRequest, GetProofRequestStatusRequest, GetProofRequestStatusResponse, ProofMode,
-    RequestProofRequest, RequestProofRequestBody, RequestProofResponse,
+    prover_network_client::ProverNetworkClient, CreateProgramRequest, CreateProgramRequestBody,
+    CreateProgramResponse, FulfillmentStatus, FulfillmentStrategy, GetNonceRequest,
+    GetProgramRequest, GetProgramResponse, GetProofRequestStatusRequest,
+    GetProofRequestStatusResponse, MessageFormat, ProofMode, RequestProofRequest,
+    RequestProofRequestBody, RequestProofResponse,
 };
 use crate::network_v2::Signable;
 
@@ -87,6 +92,77 @@ impl NetworkClient {
         let res =
             rpc.get_nonce(GetNonceRequest { address: self.signer.address().to_vec() }).await?;
         Ok(res.into_inner().nonce)
+    }
+
+    /// Get the verifying key hash from a verifying key. The verifying key hash is used to identify
+    /// a program.
+    pub fn get_vk_hash(vk: &SP1VerifyingKey) -> Result<Vec<u8>> {
+        let vk_hash_str = vk.bytes32();
+        let vk_hash = hex::decode(vk_hash_str.strip_prefix("0x").unwrap_or(&vk_hash_str))?;
+        Ok(vk_hash)
+    }
+
+    /// Registers a program if it is not already registered.
+    pub async fn register_program(&self, vk: &SP1VerifyingKey, elf: &[u8]) -> Result<Vec<u8>> {
+        let vk_hash = Self::get_vk_hash(vk)?;
+
+        // Try to get the existing program.
+        match self.get_program(&vk_hash).await? {
+            Some(_) => {
+                // The program already exists.
+                Ok(vk_hash)
+            }
+            None => {
+                // The program doesn't exist, create it.
+                self.create_program(&vk_hash, vk, elf).await?;
+                log::info!("Registered program 0x{}", hex::encode(vk_hash.clone()));
+                Ok(vk_hash)
+            }
+        }
+    }
+
+    /// Attempts to get program info, returns None if program doesn't exist.
+    async fn get_program(&self, vk_hash: &[u8]) -> Result<Option<GetProgramResponse>> {
+        let mut rpc = self.get_rpc().await?;
+        match rpc.get_program(GetProgramRequest { vk_hash: vk_hash.to_vec() }).await {
+            StdOk(response) => Ok(Some(response.into_inner())),
+            Err(status) if status.code() == Code::NotFound => Ok(None),
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    /// Creates a new program.
+    async fn create_program(
+        &self,
+        vk_hash: &[u8],
+        vk: &SP1VerifyingKey,
+        elf: &[u8],
+    ) -> Result<CreateProgramResponse> {
+        // Create the program artifact.
+        let mut store = self.get_store().await?;
+        let program_uri = self.create_artifact_with_content(&mut store, &elf).await?;
+
+        // Serialize the verifying key.
+        let vk_encoded = bincode::serialize(&vk)?;
+
+        // Send the request.
+        let mut rpc = self.get_rpc().await?;
+        let nonce = self.get_nonce().await?;
+        let request_body = CreateProgramRequestBody {
+            nonce,
+            vk_hash: vk_hash.to_vec(),
+            vk: vk_encoded,
+            program_uri,
+        };
+
+        Ok(rpc
+            .create_program(CreateProgramRequest {
+                format: MessageFormat::Binary.into(),
+                signature: request_body.sign(&self.signer).into(),
+                body: Some(request_body),
+            })
+            .await?
+            .into_inner())
     }
 
     /// Get the status of a given proof. If the status is Fulfilled, the proof is also returned.
@@ -162,6 +238,7 @@ impl NetworkClient {
         };
         let request_response = rpc
             .request_proof(RequestProofRequest {
+                format: MessageFormat::Binary.into(),
                 signature: request_body.sign(&self.signer).into(),
                 body: Some(request_body),
             })
