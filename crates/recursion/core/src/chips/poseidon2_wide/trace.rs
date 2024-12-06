@@ -1,15 +1,13 @@
 use crate::{
     chips::mem::MemoryAccessCols, instruction::Instruction::Poseidon2, ExecutionRecord,
-    RecursionProgram,
+    Poseidon2Io, RecursionProgram,
 };
 use p3_air::BaseAir;
-use p3_field::PrimeField32;
+use p3_baby_bear::BabyBear;
+use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::dense::RowMajorMatrix;
 use p3_maybe_rayon::prelude::*;
-use sp1_core_machine::{
-    operations::poseidon2::{trace::populate_perm, WIDTH},
-    utils::next_power_of_two,
-};
+use sp1_core_machine::{operations::poseidon2::WIDTH, utils::next_power_of_two};
 use sp1_stark::air::MachineAir;
 use std::{borrow::BorrowMut, mem::size_of};
 use tracing::instrument;
@@ -45,32 +43,44 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
         input: &ExecutionRecord<F>,
         _output: &mut ExecutionRecord<F>,
     ) -> RowMajorMatrix<F> {
-        let events = &input.poseidon2_events;
+        if std::any::TypeId::of::<F>() != std::any::TypeId::of::<BabyBear>() {
+            panic!("generate_trace only supports BabyBear field");
+        }
+
+        let events: &Vec<Poseidon2Io<BabyBear>> =
+            unsafe { std::mem::transmute(&input.poseidon2_events) };
         let padded_nb_rows = self.num_rows(input).unwrap();
         let num_columns = <Self as BaseAir<F>>::width(self);
-        let mut values = vec![F::zero(); padded_nb_rows * num_columns];
+        let mut values = vec![BabyBear::zero(); padded_nb_rows * num_columns];
 
-        let populate_len = events.len() * num_columns;
+        let populate_len = input.poseidon2_events.len() * num_columns;
         let (values_pop, values_dummy) = values.split_at_mut(populate_len);
+
+        let populate_perm_ffi = |input: &[BabyBear; WIDTH], input_row: &mut [BabyBear]| unsafe {
+            crate::sys::poseidon2_wide_event_to_row_babybear(
+                input.as_ptr(),
+                input_row.as_mut_ptr(),
+                DEGREE == 3,
+            )
+        };
+
         join(
             || {
-                values_pop.par_chunks_mut(num_columns).zip_eq(&input.poseidon2_events).for_each(
-                    |(row, &event)| {
-                        populate_perm::<F, DEGREE>(event.input, Some(event.output), row);
-                    },
-                )
+                values_pop
+                    .par_chunks_mut(num_columns)
+                    .zip_eq(events)
+                    .for_each(|(row, event)| populate_perm_ffi(&event.input, row))
             },
             || {
-                let mut dummy_row = vec![F::zero(); num_columns];
-                populate_perm::<F, DEGREE>([F::zero(); WIDTH], None, &mut dummy_row);
+                let mut dummy_row = vec![BabyBear::zero(); num_columns];
+                populate_perm_ffi(&[BabyBear::zero(); WIDTH], &mut dummy_row);
                 values_dummy
                     .par_chunks_mut(num_columns)
                     .for_each(|row| row.copy_from_slice(&dummy_row))
             },
         );
 
-        // Convert the trace to a row major matrix.
-        RowMajorMatrix::new(values, num_columns)
+        RowMajorMatrix::new(unsafe { std::mem::transmute(values) }, num_columns)
     }
 
     fn included(&self, _record: &Self::Record) -> bool {
@@ -93,6 +103,10 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
     }
 
     fn generate_preprocessed_trace(&self, program: &Self::Program) -> Option<RowMajorMatrix<F>> {
+        if std::any::TypeId::of::<F>() != std::any::TypeId::of::<BabyBear>() {
+            panic!("generate_preprocessed_trace only supports BabyBear field");
+        }
+
         // Allocating an intermediate `Vec` is faster.
         let instrs = program
             .instructions
@@ -135,6 +149,7 @@ mod tests {
     use p3_baby_bear::BabyBear;
     use p3_field::AbstractField;
     use p3_matrix::{dense::RowMajorMatrix, Matrix};
+    use sp1_core_machine::operations::poseidon2::{trace::populate_perm, WIDTH};
     use sp1_stark::air::MachineAir;
 
     use super::*;
@@ -142,52 +157,41 @@ mod tests {
     const DEGREE_3: usize = 3;
     const DEGREE_9: usize = 9;
 
-    #[cfg(feature = "sys")]
-    fn generate_trace_ffi<const DEGREE: usize>(
+    fn generate_trace_reference<const DEGREE: usize>(
         input: &ExecutionRecord<BabyBear>,
         _: &mut ExecutionRecord<BabyBear>,
     ) -> RowMajorMatrix<BabyBear> {
         type F = BabyBear;
 
-        let padded_nb_rows = match input.fixed_log2_rows(&Poseidon2WideChip::<DEGREE>) {
-            Some(log2_rows) => 1 << log2_rows,
-            None => next_power_of_two(input.poseidon2_events.len(), None),
-        };
-        let num_columns =
-            <Poseidon2WideChip<DEGREE> as BaseAir<F>>::width(&Poseidon2WideChip::<DEGREE>);
+        let events = &input.poseidon2_events;
+        let chip = Poseidon2WideChip::<DEGREE>;
+        let padded_nb_rows = chip.num_rows(input).unwrap();
+        let num_columns = <Poseidon2WideChip<DEGREE> as BaseAir<F>>::width(&chip);
         let mut values = vec![F::zero(); padded_nb_rows * num_columns];
 
-        let populate_len = input.poseidon2_events.len() * num_columns;
+        let populate_len = events.len() * num_columns;
         let (values_pop, values_dummy) = values.split_at_mut(populate_len);
-
-        let populate_perm_ffi = |input: &[BabyBear; WIDTH], input_row: &mut [BabyBear]| unsafe {
-            crate::sys::poseidon2_wide_event_to_row_babybear(
-                input.as_ptr(),
-                input_row.as_mut_ptr(),
-                DEGREE == 3,
-            )
-        };
-
         join(
             || {
-                values_pop
-                    .par_chunks_mut(num_columns)
-                    .zip_eq(&input.poseidon2_events)
-                    .for_each(|(row, event)| populate_perm_ffi(&event.input, row))
+                values_pop.par_chunks_mut(num_columns).zip_eq(&input.poseidon2_events).for_each(
+                    |(row, &event)| {
+                        populate_perm::<F, DEGREE>(event.input, Some(event.output), row);
+                    },
+                )
             },
             || {
                 let mut dummy_row = vec![F::zero(); num_columns];
-                populate_perm_ffi(&[F::zero(); WIDTH], &mut dummy_row);
+                populate_perm::<F, DEGREE>([F::zero(); WIDTH], None, &mut dummy_row);
                 values_dummy
                     .par_chunks_mut(num_columns)
                     .for_each(|row| row.copy_from_slice(&dummy_row))
             },
         );
 
+        // Convert the trace to a row major matrix.
         RowMajorMatrix::new(values, num_columns)
     }
 
-    #[cfg(feature = "sys")]
     #[test]
     fn test_generate_trace_deg_3() {
         let shard = test_fixtures::shard();
@@ -196,10 +200,9 @@ mod tests {
         let trace = chip.generate_trace(&shard, &mut execution_record);
         assert!(trace.height() >= test_fixtures::MIN_TEST_CASES);
 
-        assert_eq!(trace, generate_trace_ffi::<DEGREE_3>(&shard, &mut execution_record));
+        assert_eq!(trace, generate_trace_reference::<DEGREE_3>(&shard, &mut execution_record));
     }
 
-    #[cfg(feature = "sys")]
     #[test]
     fn test_generate_trace_deg_9() {
         let shard = test_fixtures::shard();
@@ -208,10 +211,9 @@ mod tests {
         let trace = chip.generate_trace(&shard, &mut execution_record);
         assert!(trace.height() >= test_fixtures::MIN_TEST_CASES);
 
-        assert_eq!(trace, generate_trace_ffi::<DEGREE_9>(&shard, &mut execution_record));
+        assert_eq!(trace, generate_trace_reference::<DEGREE_9>(&shard, &mut execution_record));
     }
 
-    #[cfg(feature = "sys")]
     fn generate_preprocessed_trace_ffi<const DEGREE: usize>(
         program: &RecursionProgram<BabyBear>,
     ) -> RowMajorMatrix<BabyBear> {
@@ -247,7 +249,6 @@ mod tests {
         RowMajorMatrix::new(values, PREPROCESSED_POSEIDON2_WIDTH)
     }
 
-    #[cfg(feature = "sys")]
     #[test]
     fn test_generate_preprocessed_trace_deg_3() {
         let program = test_fixtures::program();
@@ -258,7 +259,6 @@ mod tests {
         assert_eq!(trace, generate_preprocessed_trace_ffi::<DEGREE_3>(&program));
     }
 
-    #[cfg(feature = "sys")]
     #[test]
     fn test_generate_preprocessed_trace_deg_9() {
         let program = test_fixtures::program();

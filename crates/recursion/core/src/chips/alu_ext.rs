@@ -124,7 +124,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for ExtAluChip {
 
     fn generate_trace(&self, input: &Self::Record, _: &mut Self::Record) -> RowMajorMatrix<F> {
         if std::any::TypeId::of::<F>() != std::any::TypeId::of::<BabyBear>() {
-            panic!("generate_preprocessed_trace only supports BabyBear field");
+            panic!("generate_trace only supports BabyBear field");
         }
 
         let events: &Vec<ExtAluIo<Block<BabyBear>>> =
