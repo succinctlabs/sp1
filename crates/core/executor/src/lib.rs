@@ -29,6 +29,8 @@ mod instruction;
 mod io;
 mod memory;
 mod opcode;
+#[cfg(feature = "profiling")]
+mod profiler;
 mod program;
 #[cfg(any(test, feature = "programs"))]
 pub mod programs;
