@@ -10,6 +10,14 @@ const DEFAULT_TRACE_GEN_WORKERS: usize = 1;
 const DEFAULT_CHECKPOINTS_CHANNEL_CAPACITY: usize = 128;
 const DEFAULT_RECORDS_AND_TRACES_CHANNEL_CAPACITY: usize = 1;
 
+/// Set the global threshold according to shard size.
+pub const fn default_max_global_threshold(shard_size: usize) -> usize {
+    match shard_size {
+        x if x >= 1 << 22 => 1 << 19,
+        _ => 1 << 20,
+    }
+}
+
 /// The threshold for splitting deferred events.
 pub const MAX_DEFERRED_SPLIT_THRESHOLD: usize = 1 << 15;
 
@@ -35,6 +43,8 @@ pub struct SP1CoreOpts {
     pub shard_size: usize,
     /// The size of a batch of shards in terms of cycles.
     pub shard_batch_size: usize,
+    /// The maximum size of global events per shard.
+    pub global_threshold: usize,
     /// Options for splitting deferred events.
     pub split_opts: SplitOpts,
     /// Whether to reconstruct the commitments.
@@ -90,11 +100,18 @@ impl Default for SP1CoreOpts {
         let default_shard_size = shard_size(total_available_mem);
         let default_shard_batch_size = shard_batch_size(total_available_mem);
 
+        let shard_size = env::var("SHARD_SIZE").map_or_else(
+            |_| default_shard_size,
+            |s| s.parse::<usize>().unwrap_or(default_shard_size),
+        );
+
+        let global_threshold = env::var("GLOBAL_THRESHOLD").map_or_else(
+            |_| default_max_global_threshold(shard_size),
+            |s| s.parse::<usize>().unwrap_or(default_max_global_threshold(shard_size)),
+        );
+
         Self {
-            shard_size: env::var("SHARD_SIZE").map_or_else(
-                |_| default_shard_size,
-                |s| s.parse::<usize>().unwrap_or(default_shard_size),
-            ),
+            shard_size,
             shard_batch_size: env::var("SHARD_BATCH_SIZE").map_or_else(
                 |_| default_shard_batch_size,
                 |s| s.parse::<usize>().unwrap_or(default_shard_batch_size),
@@ -114,6 +131,7 @@ impl Default for SP1CoreOpts {
                     |_| DEFAULT_RECORDS_AND_TRACES_CHANNEL_CAPACITY,
                     |s| s.parse::<usize>().unwrap_or(DEFAULT_RECORDS_AND_TRACES_CHANNEL_CAPACITY),
                 ),
+            global_threshold,
         }
     }
 }
@@ -128,6 +146,12 @@ impl SP1CoreOpts {
         // Recursion only supports [RECURSION_MAX_SHARD_SIZE] shard size.
         opts.shard_size = RECURSION_MAX_SHARD_SIZE;
         opts
+    }
+
+    /// Set the shard size to a new value, changing the global threshold accordingly.
+    pub fn set_shard_size(&mut self, shard_size: usize) {
+        self.global_threshold = default_max_global_threshold(shard_size);
+        self.shard_size = shard_size;
     }
 }
 
@@ -155,7 +179,7 @@ impl SplitOpts {
             keccak: deferred_shift_threshold / 24,
             sha_extend: deferred_shift_threshold / 48,
             sha_compress: deferred_shift_threshold / 80,
-            memory: deferred_shift_threshold * 16,
+            memory: deferred_shift_threshold * 4,
         }
     }
 }

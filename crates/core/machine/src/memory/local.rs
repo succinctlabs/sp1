@@ -21,8 +21,10 @@ use sp1_stark::{
 };
 
 pub const NUM_LOCAL_MEMORY_ENTRIES_PER_ROW: usize = 4;
-pub const NUM_LOCAL_MEMORY_INTERACTIONS_PER_ROW: usize = NUM_LOCAL_MEMORY_ENTRIES_PER_ROW * 2;
+// pub const NUM_LOCAL_MEMORY_INTERACTIONS_PER_ROW: usize = NUM_LOCAL_MEMORY_ENTRIES_PER_ROW * 2;
 pub(crate) const NUM_MEMORY_LOCAL_INIT_COLS: usize = size_of::<MemoryLocalCols<u8>>();
+
+// const_assert!(NUM_LOCAL_MEMORY_ENTRIES_PER_ROW_EXEC == NUM_LOCAL_MEMORY_ENTRIES_PER_ROW);
 
 #[derive(AlignedBorrow, Clone, Copy)]
 #[repr(C)]

@@ -185,7 +185,6 @@ pub fn build_vk_map<C: SP1ProverComponents>(
                 let panic_tx = panic_tx.clone();
                 s.spawn(move || {
                     while let Ok((i, shape)) = shape_rx.lock().unwrap().recv() {
-                        println!("shape {} is {:?}", i, shape);
                         let program = catch_unwind(AssertUnwindSafe(|| {
                             prover.program_from_shape(false, shape.clone(), None)
                         }));
@@ -331,9 +330,9 @@ impl SP1ProofShape {
         no_precompiles: bool,
     ) -> impl Iterator<Item = Self> + 'a {
         let core_shape_iter = if no_precompiles {
-            core_shape_config.maximal_core_shapes().into_iter()
+            core_shape_config.maximal_core_shapes(21).into_iter()
         } else {
-            core_shape_config.maximal_core_plus_precompile_shapes().into_iter()
+            core_shape_config.maximal_core_plus_precompile_shapes(21).into_iter()
         };
         core_shape_iter
             .map(|core_shape| {
@@ -422,6 +421,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
 
     #[test]

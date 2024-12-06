@@ -11,8 +11,6 @@ use crate::{events::generate_execution_report, syscalls::SyscallCode, Opcode};
 /// An execution report.
 #[derive(Default, Debug, Clone, PartialEq, Eq)]
 pub struct ExecutionReport {
-    /// The event counts.
-    pub event_counts: Box<EnumMap<Opcode, u64>>,
     /// The opcode counts.
     pub opcode_counts: Box<EnumMap<Opcode, u64>>,
     /// The syscall counts.

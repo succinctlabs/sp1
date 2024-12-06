@@ -12,11 +12,15 @@ categories = { workspace = true }
 [dependencies]
 sp1-prover = { workspace = true }
 sp1-core-executor = { workspace = true, features = ["programs"] }
+sp1-core-machine = { workspace = true }
 sp1-sdk = { workspace = true }
 p3-baby-bear = { workspace = true }
 sp1-stark = { workspace = true }
 sp1-cuda = { workspace = true }
 test-artifacts = { workspace = true }
+
+tracing = { workspace = true }
+serde_json = { workspace = true }
 
 clap = { version = "4.5.9", features = ["derive"] }
 bincode = "1.3.3"

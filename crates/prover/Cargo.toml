@@ -38,6 +38,7 @@ dirs = "5.0.1"
 serial_test = "3.1.1"
 num-bigint = "0.4.6"
 thiserror = "1.0.63"
+rayon = "1.10.0"
 lru = "0.12.4"
 eyre = "0.6.12"
 test-artifacts = { workspace = true, optional = true }
@@ -56,6 +57,10 @@ path = "scripts/build_groth16_bn254.rs"
 [[bin]]
 name = "build_compress_vks"
 path = "scripts/build_compress_vks.rs"
+
+[[bin]]
+name = "maximal_core_shapes"
+path = "scripts/maximal_core_shapes.rs"
 
 [[bin]]
 name = "post_trusted_setup"
