@@ -2,10 +2,13 @@ pub mod cost;
 
 mod shape;
 
+use core::fmt;
+
 use itertools::Itertools;
 pub use shape::*;
 use sp1_core_executor::{
-    events::PrecompileLocalMemory, syscalls::SyscallCode, ExecutionRecord, Program,
+    events::PrecompileLocalMemory, syscalls::SyscallCode, CoreAir, CoreAirCosts, ExecutionRecord,
+    Program,
 };
 
 use crate::{
@@ -421,43 +424,49 @@ impl<F: PrimeField32> RiscvAir<F> {
     }
 
     /// Get the heights of the preprocessed chips for a given program.
-    pub(crate) fn preprocessed_heights(program: &Program) -> Vec<(Self, usize)> {
+    pub(crate) fn preprocessed_heights(program: &Program) -> Vec<(String, usize)> {
         vec![
-            (RiscvAir::Program(ProgramChip::default()), program.instructions.len()),
+            (Self::Program(ProgramChip::default()).name(), program.instructions.len()),
             // (RiscvAir::ProgramMemory(MemoryProgramChip::default()), program.memory_image.len()),
-            (RiscvAir::ByteLookup(ByteChip::default()), 1 << 16),
+            (Self::ByteLookup(ByteChip::default()).name(), 1 << 16),
         ]
     }
 
     /// Get the heights of the chips for a given execution record.
-    pub(crate) fn core_heights(record: &ExecutionRecord) -> Vec<(Self, usize)> {
+    pub fn core_heights(record: &ExecutionRecord) -> Vec<(String, usize)> {
         vec![
-            (RiscvAir::Cpu(CpuChip::default()), record.cpu_events.len()),
-            (RiscvAir::DivRem(DivRemChip::default()), record.divrem_events.len()),
+            (Self::Cpu(CpuChip::default()).name(), record.cpu_events.len()),
+            (Self::DivRem(DivRemChip::default()).name(), record.divrem_events.len()),
             (
-                RiscvAir::Add(AddSubChip::default()),
+                Self::Add(AddSubChip::default()).name(),
                 record.add_events.len() + record.sub_events.len(),
             ),
-            (RiscvAir::Bitwise(BitwiseChip::default()), record.bitwise_events.len()),
-            (RiscvAir::Mul(MulChip::default()), record.mul_events.len()),
-            (RiscvAir::ShiftRight(ShiftRightChip::default()), record.shift_right_events.len()),
-            (RiscvAir::ShiftLeft(ShiftLeft::default()), record.shift_left_events.len()),
-            (RiscvAir::Lt(LtChip::default()), record.lt_events.len()),
+            (Self::Bitwise(BitwiseChip::default()).name(), record.bitwise_events.len()),
+            (Self::Mul(MulChip::default()).name(), record.mul_events.len()),
+            (Self::ShiftRight(ShiftRightChip::default()).name(), record.shift_right_events.len()),
+            (Self::ShiftLeft(ShiftLeft::default()).name(), record.shift_left_events.len()),
+            (Self::Lt(LtChip::default()).name(), record.lt_events.len()),
             (
-                RiscvAir::MemoryLocal(MemoryLocalChip::new()),
+                Self::MemoryLocal(MemoryLocalChip::new()).name(),
                 record
                     .get_local_mem_events()
                     .chunks(NUM_LOCAL_MEMORY_ENTRIES_PER_ROW)
                     .into_iter()
                     .count(),
             ),
-            (RiscvAir::Memory(MemoryInstructionsChip::default()), record.memory_instr_events.len()),
-            (RiscvAir::AUIPC(AuipcChip::default()), record.auipc_events.len()),
-            (RiscvAir::Branch(BranchChip::default()), record.branch_events.len()),
-            (RiscvAir::Jump(JumpChip::default()), record.jump_events.len()),
-            (RiscvAir::Global(GlobalChip), record.get_local_mem_events().count()),
-            (RiscvAir::SyscallCore(SyscallChip::core()), record.syscall_events.len()),
-            (RiscvAir::SyscallInstrs(SyscallInstrsChip::default()), record.syscall_events.len()),
+            (
+                Self::Memory(MemoryInstructionsChip::default()).name(),
+                record.memory_instr_events.len(),
+            ),
+            (Self::AUIPC(AuipcChip::default()).name(), record.auipc_events.len()),
+            (Self::Branch(BranchChip::default()).name(), record.branch_events.len()),
+            (Self::Jump(JumpChip::default()).name(), record.jump_events.len()),
+            (
+                Self::Global(GlobalChip).name(),
+                2 * record.get_local_mem_events().count() + record.syscall_events.len(),
+            ),
+            (Self::SyscallCore(SyscallChip::core()).name(), record.syscall_events.len()),
+            (Self::SyscallInstrs(SyscallInstrsChip::default()).name(), record.syscall_events.len()),
         ]
     }
 
@@ -482,6 +491,19 @@ impl<F: PrimeField32> RiscvAir<F> {
         ]
     }
 
+    pub fn core_air_costs() -> CoreAirCosts<F> {
+        let mut costs = CoreAirCosts::new();
+        let preprocessed_airs =
+            [Self::Program(ProgramChip::default()), Self::ByteLookup(ByteChip::default())];
+        for air in preprocessed_airs.into_iter().chain(Self::get_all_core_airs()) {
+            let chip = Chip::new(air);
+            let cost = chip.cost();
+            let air = CoreAir::from_name(&chip.name());
+            costs[air] = cost as usize;
+        }
+        costs
+    }
+
     pub(crate) fn memory_init_final_airs() -> Vec<Self> {
         vec![
             RiscvAir::MemoryGlobalInit(MemoryGlobalChip::new(MemoryChipType::Initialize)),
@@ -490,18 +512,18 @@ impl<F: PrimeField32> RiscvAir<F> {
         ]
     }
 
-    pub(crate) fn get_memory_init_final_heights(record: &ExecutionRecord) -> Vec<(Self, usize)> {
+    pub(crate) fn get_memory_init_final_heights(record: &ExecutionRecord) -> Vec<(String, usize)> {
         vec![
             (
-                RiscvAir::MemoryGlobalInit(MemoryGlobalChip::new(Initialize)),
+                Self::MemoryGlobalInit(MemoryGlobalChip::new(Initialize)).name(),
                 record.global_memory_initialize_events.len(),
             ),
             (
-                RiscvAir::MemoryGlobalFinal(MemoryGlobalChip::new(Finalize)),
+                Self::MemoryGlobalFinal(MemoryGlobalChip::new(Finalize)).name(),
                 record.global_memory_finalize_events.len(),
             ),
             (
-                RiscvAir::Global(GlobalChip),
+                Self::Global(GlobalChip).name(),
                 record.global_memory_finalize_events.len()
                     + record.global_memory_initialize_events.len(),
             ),
@@ -610,7 +632,7 @@ impl<F: PrimeField32> RiscvAir<F> {
     pub(crate) fn get_precompile_heights(
         &self,
         record: &ExecutionRecord,
-    ) -> Option<(usize, usize)> {
+    ) -> Option<(usize, usize, usize)> {
         record
             .precompile_events
             .get_events(self.syscall_code())
@@ -619,6 +641,7 @@ impl<F: PrimeField32> RiscvAir<F> {
                 (
                     events.len() * self.rows_per_event(),
                     events.get_local_mem_events().into_iter().count(),
+                    record.global_interaction_events.len(),
                 )
             })
     }
@@ -638,6 +661,12 @@ impl<F: PrimeField32> core::hash::Hash for RiscvAir<F> {
     }
 }
 
+impl<F: PrimeField32> fmt::Debug for RiscvAir<F> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.name())
+    }
+}
+
 #[cfg(test)]
 #[allow(non_snake_case)]
 pub mod tests {
@@ -648,16 +677,42 @@ pub mod tests {
         utils::{self, prove_core, run_test, setup_logger},
     };
 
+    use p3_baby_bear::BabyBear;
     use sp1_core_executor::{
         programs::tests::{
             fibonacci_program, simple_memory_program, simple_program, ssz_withdrawals_program,
         },
-        Instruction, Opcode, Program, SP1Context,
+        CoreAirCosts, Instruction, Opcode, Program, SP1Context,
     };
     use sp1_stark::{
         baby_bear_poseidon2::BabyBearPoseidon2, CpuProver, MachineProver, SP1CoreOpts,
         StarkProvingKey, StarkVerifyingKey,
     };
+
+    #[test]
+    fn core_air_cost_consistency() {
+        // Load air costs from file
+        let file = std::fs::File::open("../executor/core_air_costs.json").unwrap();
+        let costs: CoreAirCosts<BabyBear> = serde_json::from_reader(file).unwrap();
+        // Compare with costs computed by machine
+        let machine_costs = RiscvAir::<BabyBear>::core_air_costs();
+        assert_eq!(costs, machine_costs);
+    }
+
+    #[test]
+    #[ignore]
+    fn write_core_air_costs() {
+        let costs = RiscvAir::<BabyBear>::core_air_costs();
+        println!("{:?}", costs);
+        // write to file
+        // Create directory if it doesn't exist
+        let dir = std::path::Path::new("../executor");
+        if !dir.exists() {
+            std::fs::create_dir_all(dir).unwrap();
+        }
+        let file = std::fs::File::create(dir.join("core_air_costs.json")).unwrap();
+        serde_json::to_writer_pretty(file, &costs).unwrap();
+    }
 
     #[test]
     fn test_simple_prove() {

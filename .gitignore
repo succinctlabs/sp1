@@ -27,6 +27,9 @@ benchmark.csv
 # Environment
 .env
 
+# scripts
+crates/prover/maximal_shapes.sh
+
 # Build Artifacts
 recursion/gnark-ffi/build
 crates/prover/build

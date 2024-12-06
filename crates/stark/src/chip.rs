@@ -153,8 +153,15 @@ where
 
     /// Returns the cost of a row in the chip.
     #[inline]
-    pub fn cost(&self) -> u64 {
-        (self.width() + 4 * self.permutation_width()) as u64
+    pub fn cost(&self) -> u64
+    where
+        A: MachineAir<F>,
+    {
+        let preprocessed_cols = self.preprocessed_width();
+        let main_cols = self.width();
+        let permutation_cols = self.permutation_width() * 4;
+        let quotient_cols = self.quotient_width() * 4;
+        (preprocessed_cols + main_cols + permutation_cols + quotient_cols) as u64
     }
 
     /// Returns the width of the quotient polynomial.

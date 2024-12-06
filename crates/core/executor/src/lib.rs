@@ -19,6 +19,7 @@
 #![allow(clippy::explicit_iter_loop)]
 #![warn(missing_docs)]
 
+mod air;
 mod context;
 mod dependencies;
 mod disassembler;
@@ -42,6 +43,7 @@ pub mod subproof;
 pub mod syscalls;
 mod utils;
 
+pub use air::*;
 pub use context::*;
 pub use executor::*;
 pub use hook::*;

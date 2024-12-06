@@ -60,7 +60,7 @@ sp1-helper = { path = "crates/helper", version = "4.0.0-rc.1", default-features 
 sp1-primitives = { path = "crates/primitives", version = "4.0.0-rc.1" }
 sp1-prover = { path = "crates/prover", version = "4.0.0-rc.1" }
 sp1-recursion-compiler = { path = "crates/recursion/compiler", version = "4.0.0-rc.1" }
-sp1-recursion-core = { path = "crates/recursion/core", version = "4.0.0-rc.1", default-features = false }
+sp1-recursion-core = { path = "crates/recursion/core", version = "4.0.0-rc.1" }
 sp1-recursion-derive = { path = "crates/recursion/derive", version = "4.0.0-rc.1", default-features = false }
 sp1-recursion-gnark-ffi = { path = "crates/recursion/gnark-ffi", version = "4.0.0-rc.1", default-features = false }
 sp1-recursion-circuit = { path = "crates/recursion/circuit", version = "4.0.0-rc.1", default-features = false }

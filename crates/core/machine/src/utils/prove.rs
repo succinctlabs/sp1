@@ -97,8 +97,13 @@ where
 {
     // Setup the runtime.
     let mut runtime = Executor::with_context(program.clone(), opts, context);
-    runtime.maximal_shapes = shape_config
-        .map(|config| config.maximal_core_shapes().into_iter().map(|s| s.inner).collect());
+    runtime.maximal_shapes = shape_config.map(|config| {
+        config
+            .maximal_core_shapes(opts.shard_size.ilog2() as usize)
+            .into_iter()
+            .map(|s| s.inner)
+            .collect()
+    });
     runtime.write_vecs(&stdin.buffer);
     for proof in stdin.proofs.iter() {
         let (proof, vk) = proof.clone();
@@ -242,18 +247,19 @@ where
 
                             // tracing::info!("Deferred length: {}", deferred.len());
 
-                            let last_record = if done
-                                && num_cycles < 1 << 26
-                                && deferred.global_memory_initialize_events.len()
-                                    < opts.split_opts.memory / 4
-                                && deferred.global_memory_finalize_events.len()
-                                    < opts.split_opts.memory / 4
-                            {
-                                tracing::info!("Number of cycles: {}", num_cycles);
-                                records.last_mut()
-                            } else {
-                                None
-                            };
+                            // let last_record = if done
+                            //     && num_cycles < 1 << 26
+                            //     && deferred.global_memory_initialize_events.len()
+                            //         < opts.split_opts.memory / 4
+                            //     && deferred.global_memory_finalize_events.len()
+                            //         < opts.split_opts.memory / 4
+                            // {
+                            //     tracing::info!("Number of cycles: {}", num_cycles);
+                            //     records.last_mut()
+                            // } else {
+                            //     None
+                            // };
+                            let last_record = None;
 
                             tracing::info!("Last record is some: {:?}", last_record.is_some());
 
@@ -292,7 +298,9 @@ where
                             // Fix the shape of the records.
                             if let Some(shape_config) = shape_config {
                                 for record in records.iter_mut() {
+                                    let fix_shape_span = tracing::info_span!("fix shape").entered();
                                     shape_config.fix_shape(record).unwrap();
+                                    fix_shape_span.exit();
                                 }
                             }
 
@@ -301,7 +309,6 @@ where
                                 let mut heights = vec![];
                                 let chips = prover.shard_chips(record).collect::<Vec<_>>();
                                 if let Some(shape) = record.shape.as_ref() {
-                                    println!("shape: {:?}", shape);
                                     for chip in chips.iter() {
                                         let height = shape.inner[&chip.name()];
                                         heights.push((chip.name().clone(), height));
@@ -318,7 +325,7 @@ where
                             all_records_tx.send(records.clone()).unwrap();
 
                             let mut main_traces = Vec::new();
-                            tracing::debug_span!("generate main traces", index).in_scope(|| {
+                            tracing::info_span!("generate main traces", index).in_scope(|| {
                                 main_traces = records
                                     .par_iter()
                                     .map(|record| prover.generate_traces(record))
@@ -480,8 +487,13 @@ where
     let state: ExecutionState =
         bincode::deserialize_from(&mut reader).expect("failed to deserialize state");
     let mut runtime = Executor::recover(program, state, opts);
-    runtime.maximal_shapes = shape_config
-        .map(|config| config.maximal_core_shapes().into_iter().map(|s| s.inner).collect());
+    runtime.maximal_shapes = shape_config.map(|config| {
+        config
+            .maximal_core_shapes(opts.shard_size.ilog2() as usize)
+            .into_iter()
+            .map(|s| s.inner)
+            .collect()
+    });
 
     // We already passed the deferred proof verifier when creating checkpoints, so the proofs were
     // already verified. So here we use a noop verifier to not print any warnings.
