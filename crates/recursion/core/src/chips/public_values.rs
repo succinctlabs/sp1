@@ -2,17 +2,18 @@ use crate::{
     air::{RecursionPublicValues, RECURSIVE_PROOF_NUM_PV_ELTS},
     builder::SP1RecursionAirBuilder,
     runtime::{Instruction, RecursionProgram},
-    ExecutionRecord, DIGEST_SIZE,
+    CommitPublicValuesInstr, ExecutionRecord, DIGEST_SIZE,
 };
 use p3_air::{Air, AirBuilder, BaseAir, PairBuilder};
-use p3_field::PrimeField32;
+use p3_baby_bear::BabyBear;
+use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use sp1_core_machine::utils::pad_rows_fixed;
 use sp1_derive::AlignedBorrow;
 use sp1_stark::air::MachineAir;
 use std::borrow::{Borrow, BorrowMut};
 
-use super::mem::{MemoryAccessCols, MemoryAccessColsChips};
+use super::mem::MemoryAccessColsChips;
 
 pub const NUM_PUBLIC_VALUES_COLS: usize = core::mem::size_of::<PublicValuesCols<u8>>();
 pub const NUM_PUBLIC_VALUES_PREPROCESSED_COLS: usize =
@@ -62,13 +63,17 @@ impl<F: PrimeField32> MachineAir<F> for PublicValuesChip {
     }
 
     fn generate_preprocessed_trace(&self, program: &Self::Program) -> Option<RowMajorMatrix<F>> {
-        let mut rows: Vec<[F; NUM_PUBLIC_VALUES_PREPROCESSED_COLS]> = Vec::new();
-        let commit_pv_hash_instrs = program
+        if std::any::TypeId::of::<F>() != std::any::TypeId::of::<BabyBear>() {
+            panic!("generate_trace only supports BabyBear field");
+        }
+
+        let mut rows: Vec<[BabyBear; NUM_PUBLIC_VALUES_PREPROCESSED_COLS]> = Vec::new();
+        let commit_pv_hash_instrs: Vec<&Box<CommitPublicValuesInstr<BabyBear>>> = program
             .instructions
             .iter()
             .filter_map(|instruction| {
                 if let Instruction::CommitPublicValues(instr) = instruction {
-                    Some(instr)
+                    Some(unsafe { std::mem::transmute(instr) })
                 } else {
                     None
                 }
@@ -82,11 +87,13 @@ impl<F: PrimeField32> MachineAir<F> for PublicValuesChip {
         // We only take 1 commit pv hash instruction, since our air only checks for one public
         // values hash.
         for instr in commit_pv_hash_instrs.iter().take(1) {
-            for (i, addr) in instr.pv_addrs.digest.iter().enumerate() {
-                let mut row = [F::zero(); NUM_PUBLIC_VALUES_PREPROCESSED_COLS];
-                let cols: &mut PublicValuesPreprocessedCols<F> = row.as_mut_slice().borrow_mut();
-                cols.pv_idx[i] = F::one();
-                cols.pv_mem = MemoryAccessCols { addr: *addr, mult: F::neg_one() };
+            for i in 0..DIGEST_SIZE {
+                let mut row = [BabyBear::zero(); NUM_PUBLIC_VALUES_PREPROCESSED_COLS];
+                let cols: &mut PublicValuesPreprocessedCols<BabyBear> =
+                    row.as_mut_slice().borrow_mut();
+                unsafe {
+                    crate::sys::public_values_instr_to_row_babybear(instr, i, cols);
+                }
                 rows.push(row);
             }
         }
@@ -95,12 +102,12 @@ impl<F: PrimeField32> MachineAir<F> for PublicValuesChip {
         // gpu code breaks for small traces
         pad_rows_fixed(
             &mut rows,
-            || [F::zero(); NUM_PUBLIC_VALUES_PREPROCESSED_COLS],
+            || [BabyBear::zero(); NUM_PUBLIC_VALUES_PREPROCESSED_COLS],
             Some(PUB_VALUES_LOG_HEIGHT),
         );
 
         let trace = RowMajorMatrix::new(
-            rows.into_iter().flatten().collect(),
+            unsafe { std::mem::transmute(rows.into_iter().flatten().collect::<Vec<BabyBear>>()) },
             NUM_PUBLIC_VALUES_PREPROCESSED_COLS,
         );
         Some(trace)
@@ -177,6 +184,7 @@ mod tests {
     use crate::{
         air::{RecursionPublicValues, NUM_PV_ELMS_TO_HASH, RECURSIVE_PROOF_NUM_PV_ELTS},
         chips::{
+            mem::MemoryAccessCols,
             public_values::{
                 PublicValuesChip, PublicValuesCols, PublicValuesPreprocessedCols,
                 NUM_PUBLIC_VALUES_COLS, NUM_PUBLIC_VALUES_PREPROCESSED_COLS, PUB_VALUES_LOG_HEIGHT,
@@ -251,8 +259,7 @@ mod tests {
         println!("{:?}", trace.values);
     }
 
-    #[cfg(feature = "sys")]
-    fn generate_trace_ffi(
+    fn generate_trace_reference(
         input: &ExecutionRecord<BabyBear>,
         _: &mut ExecutionRecord<BabyBear>,
     ) -> RowMajorMatrix<BabyBear> {
@@ -287,18 +294,16 @@ mod tests {
         RowMajorMatrix::new(rows.into_iter().flatten().collect(), NUM_PUBLIC_VALUES_COLS)
     }
 
-    #[cfg(feature = "sys")]
     #[test]
     fn test_generate_trace() {
         let shard = test_fixtures::shard();
         let trace = PublicValuesChip.generate_trace(&shard, &mut ExecutionRecord::default());
         assert_eq!(trace.height(), 16);
 
-        assert_eq!(trace, generate_trace_ffi(&shard, &mut ExecutionRecord::default()));
+        assert_eq!(trace, generate_trace_reference(&shard, &mut ExecutionRecord::default()));
     }
 
-    #[cfg(feature = "sys")]
-    fn generate_preprocessed_trace_ffi(
+    fn generate_preprocessed_trace_reference(
         program: &RecursionProgram<BabyBear>,
     ) -> RowMajorMatrix<BabyBear> {
         type F = BabyBear;
@@ -322,12 +327,11 @@ mod tests {
 
         // We only take 1 commit pv hash instruction
         for instr in commit_pv_hash_instrs.iter().take(1) {
-            for i in 0..DIGEST_SIZE {
+            for (i, addr) in instr.pv_addrs.digest.iter().enumerate() {
                 let mut row = [F::zero(); NUM_PUBLIC_VALUES_PREPROCESSED_COLS];
                 let cols: &mut PublicValuesPreprocessedCols<F> = row.as_mut_slice().borrow_mut();
-                unsafe {
-                    crate::sys::public_values_instr_to_row_babybear(instr, i, cols);
-                }
+                cols.pv_idx[i] = F::one();
+                cols.pv_mem = MemoryAccessCols { addr: *addr, mult: F::neg_one() };
                 rows.push(row);
             }
         }
@@ -345,13 +349,12 @@ mod tests {
         )
     }
 
-    #[cfg(feature = "sys")]
     #[test]
     fn test_generate_preprocessed_trace() {
         let program = test_fixtures::program();
         let trace = PublicValuesChip.generate_preprocessed_trace(&program).unwrap();
         assert_eq!(trace.height(), 16);
 
-        assert_eq!(trace, generate_preprocessed_trace_ffi(&program));
+        assert_eq!(trace, generate_preprocessed_trace_reference(&program));
     }
 }
