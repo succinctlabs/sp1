@@ -62,8 +62,8 @@ impl<F: PrimeField> MachineAir<F> for BitwiseChip {
 
     type Program = Program;
 
-    fn name(&self) -> String {
-        "Bitwise".to_string()
+    fn name(&self) -> &'static str {
+        "Bitwise"
     }
 
     fn generate_trace(

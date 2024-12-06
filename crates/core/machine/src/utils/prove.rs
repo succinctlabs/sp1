@@ -205,10 +205,12 @@ where
         // Spawn the workers for phase 1 record generation.
         let p1_record_gen_sync = Arc::new(TurnBasedSync::new());
         let p1_trace_gen_sync = Arc::new(TurnBasedSync::new());
-        let (p1_records_and_traces_tx, p1_records_and_traces_rx) =
-            sync_channel::<(Vec<ExecutionRecord>, Vec<Vec<(String, RowMajorMatrix<Val<SC>>)>>)>(
-                opts.records_and_traces_channel_capacity,
-            );
+        let (p1_records_and_traces_tx, p1_records_and_traces_rx) = sync_channel::<(
+            Vec<ExecutionRecord>,
+            Vec<Vec<(&'static str, RowMajorMatrix<Val<SC>>)>>,
+        )>(
+            opts.records_and_traces_channel_capacity,
+        );
         let p1_records_and_traces_tx = Arc::new(Mutex::new(p1_records_and_traces_tx));
         let checkpoints_rx = Arc::new(Mutex::new(checkpoints_rx));
 
@@ -438,8 +440,8 @@ where
             sync_channel::<(
                 Vec<ExecutionRecord>,
                 (
-                    Vec<Vec<(String, RowMajorMatrix<Val<SC>>)>>,
-                    Vec<Vec<(String, RowMajorMatrix<Val<SC>>)>>,
+                    Vec<Vec<(&'static str, RowMajorMatrix<Val<SC>>)>>,
+                    Vec<Vec<(&'static str, RowMajorMatrix<Val<SC>>)>>,
                 ),
             )>(opts.records_and_traces_channel_capacity);
         let p2_records_and_traces_tx = Arc::new(Mutex::new(p2_records_and_traces_tx));

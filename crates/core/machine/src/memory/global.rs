@@ -47,10 +47,10 @@ impl<F: PrimeField32> MachineAir<F> for MemoryGlobalChip {
 
     type Program = Program;
 
-    fn name(&self) -> String {
+    fn name(&self) -> &'static str {
         match self.kind {
-            MemoryChipType::Initialize => "MemoryGlobalInit".to_string(),
-            MemoryChipType::Finalize => "MemoryGlobalFinalize".to_string(),
+            MemoryChipType::Initialize => "MemoryGlobalInit",
+            MemoryChipType::Finalize => "MemoryGlobalFinalize",
         }
     }
 

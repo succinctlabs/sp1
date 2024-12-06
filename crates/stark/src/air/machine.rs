@@ -17,7 +17,7 @@ pub trait MachineAir<F: Field>: BaseAir<F> + 'static + Send + Sync {
     type Program: MachineProgram<F>;
 
     /// A unique identifier for this AIR as part of a machine.
-    fn name(&self) -> String;
+    fn name(&self) -> &'static str;
 
     /// Generate the trace for a given execution record.
     ///

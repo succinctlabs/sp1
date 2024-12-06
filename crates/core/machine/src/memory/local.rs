@@ -73,8 +73,8 @@ impl<F: PrimeField32> MachineAir<F> for MemoryLocalChip {
 
     type Program = Program;
 
-    fn name(&self) -> String {
-        "MemoryLocal".to_string()
+    fn name(&self) -> &'static str {
+        "MemoryLocal"
     }
 
     fn generate_dependencies(&self, _input: &ExecutionRecord, _output: &mut ExecutionRecord) {
