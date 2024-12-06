@@ -1,11 +1,14 @@
 pub mod client;
+mod error;
 mod json;
 pub mod prover;
 mod sign_message;
+pub mod types;
 #[rustfmt::skip]
 pub mod proto;
 
 use alloy_signer::{Signature, SignerSync};
+pub use error::*;
 use prost::Message;
 pub use serde::{Deserialize, Serialize};
 

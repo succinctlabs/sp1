@@ -25,6 +25,9 @@ use crate::network_v2::proto::network::{
     GetProofRequestStatusResponse, MessageFormat, ProofMode, RequestProofRequest,
     RequestProofRequestBody, RequestProofResponse,
 };
+use crate::network_v2::types::HashType;
+use crate::network_v2::types::{RequestId, TransactionHash, VerifyingKeyHash};
+use crate::network_v2::Error;
 use crate::network_v2::Signable;
 
 /// The default RPC endpoint for the Succinct prover network.
@@ -97,16 +100,19 @@ impl NetworkClient {
         Ok(res.into_inner().nonce)
     }
 
-    /// Get the verifying key hash from a verifying key. The verifying key hash is used to identify
-    /// a program.
-    pub fn get_vk_hash(vk: &SP1VerifyingKey) -> Result<Vec<u8>> {
+    /// Get the verifying key hash from a verifying key.
+    pub fn get_vk_hash(vk: &SP1VerifyingKey) -> Result<VerifyingKeyHash> {
         let vk_hash_str = vk.bytes32();
         let vk_hash = hex::decode(vk_hash_str.strip_prefix("0x").unwrap_or(&vk_hash_str))?;
-        Ok(vk_hash)
+        Ok(VerifyingKeyHash::new(vk_hash))
     }
 
     /// Registers a program if it is not already registered.
-    pub async fn register_program(&self, vk: &SP1VerifyingKey, elf: &[u8]) -> Result<Vec<u8>> {
+    pub async fn register_program(
+        &self,
+        vk: &SP1VerifyingKey,
+        elf: &[u8],
+    ) -> Result<VerifyingKeyHash> {
         let vk_hash = Self::get_vk_hash(vk)?;
 
         // Try to get the existing program.
@@ -118,16 +124,16 @@ impl NetworkClient {
             None => {
                 // The program doesn't exist, create it.
                 self.create_program(&vk_hash, vk, elf).await?;
-                log::info!("Registered program 0x{}", hex::encode(vk_hash.clone()));
+                log::info!("Registered program {}", vk_hash);
                 Ok(vk_hash)
             }
         }
     }
 
     /// Attempts to get program info, returns None if program doesn't exist.
-    async fn get_program(&self, vk_hash: &[u8]) -> Result<Option<GetProgramResponse>> {
+    async fn get_program(&self, vk_hash: &VerifyingKeyHash) -> Result<Option<GetProgramResponse>> {
         let mut rpc = self.get_rpc().await?;
-        match rpc.get_program(GetProgramRequest { vk_hash: vk_hash.to_vec() }).await {
+        match rpc.get_program(GetProgramRequest { vk_hash: vk_hash.as_bytes().to_vec() }).await {
             StdOk(response) => Ok(Some(response.into_inner())),
             Err(status) if status.code() == Code::NotFound => Ok(None),
             Err(e) => Err(e.into()),
@@ -137,7 +143,7 @@ impl NetworkClient {
     /// Creates a new program.
     async fn create_program(
         &self,
-        vk_hash: &[u8],
+        vk_hash: &VerifyingKeyHash,
         vk: &SP1VerifyingKey,
         elf: &[u8],
     ) -> Result<CreateProgramResponse> {
@@ -153,7 +159,7 @@ impl NetworkClient {
         let nonce = self.get_nonce().await?;
         let request_body = CreateProgramRequestBody {
             nonce,
-            vk_hash: vk_hash.to_vec(),
+            vk_hash: vk_hash.as_bytes().to_vec(),
             vk: vk_encoded,
             program_uri,
         };
@@ -171,12 +177,12 @@ impl NetworkClient {
     /// Get the status of a given proof. If the status is Fulfilled, the proof is also returned.
     pub async fn get_proof_request_status<P: DeserializeOwned>(
         &self,
-        request_id: &[u8],
+        request_id: &RequestId,
     ) -> Result<(GetProofRequestStatusResponse, Option<P>)> {
         let mut rpc = self.get_rpc().await?;
         let res = rpc
             .get_proof_request_status(GetProofRequestStatusRequest {
-                request_id: request_id.to_vec(),
+                request_id: request_id.as_bytes().to_vec(),
             })
             .await?
             .into_inner();
@@ -198,17 +204,16 @@ impl NetworkClient {
     }
 
     /// Creates a proof request with the given verifying key hash and stdin.
-    #[allow(clippy::too_many_arguments)]
     pub async fn request_proof(
         &self,
-        vk_hash: &[u8],
+        vk_hash: &VerifyingKeyHash,
         stdin: &SP1Stdin,
-        mode: ProofMode,
         version: &str,
+        mode: ProofMode,
         strategy: FulfillmentStrategy,
         timeout_secs: u64,
         cycle_limit: u64,
-    ) -> Result<RequestProofResponse> {
+    ) -> Result<(TransactionHash, RequestId)> {
         // Calculate the deadline.
         let start = SystemTime::now();
         let since_the_epoch = start.duration_since(UNIX_EPOCH).expect("Invalid start time");
@@ -224,14 +229,14 @@ impl NetworkClient {
         let request_body = RequestProofRequestBody {
             nonce,
             version: format!("sp1-{}", version),
-            vk_hash: vk_hash.to_vec(),
+            vk_hash: vk_hash.as_bytes().to_vec(),
             mode: mode.into(),
             strategy: strategy.into(),
             stdin_uri,
             deadline,
             cycle_limit,
         };
-        let request_response = rpc
+        let response = rpc
             .request_proof(RequestProofRequest {
                 format: MessageFormat::Binary.into(),
                 signature: request_body.sign(&self.signer).into(),
@@ -240,7 +245,15 @@ impl NetworkClient {
             .await?
             .into_inner();
 
-        Ok(request_response)
+        let tx_hash = TransactionHash::new(response.tx_hash);
+        let request_id = RequestId::new(
+            response
+                .body
+                .ok_or_else(|| Error::Other(anyhow::anyhow!("Missing response body")))?
+                .request_id,
+        );
+
+        Ok((tx_hash, request_id))
     }
 
     /// Uses the artifact store to to create an artifact, upload the content, and return the URI.
