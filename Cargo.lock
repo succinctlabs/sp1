@@ -5958,6 +5958,7 @@ dependencies = [
  "reqwest",
  "reqwest-middleware",
  "serde",
+ "serde_json",
  "sp1-build",
  "sp1-core-executor",
  "sp1-core-machine",
