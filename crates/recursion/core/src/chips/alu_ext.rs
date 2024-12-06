@@ -81,9 +81,10 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for ExtAluChip {
     }
 
     fn generate_preprocessed_trace(&self, program: &Self::Program) -> Option<RowMajorMatrix<F>> {
-        if std::any::TypeId::of::<F>() != std::any::TypeId::of::<BabyBear>() {
-            panic!("generate_preprocessed_trace only supports BabyBear field");
-        }
+        assert!(
+            std::any::TypeId::of::<F>() == std::any::TypeId::of::<BabyBear>(),
+            "generate_preprocessed_trace only supports BabyBear field"
+        );
 
         let instrs: Vec<&ExtAluInstr<BabyBear>> =
             unsafe { std::mem::transmute(extract_ext_alu_instrs(program)) };
@@ -123,9 +124,10 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for ExtAluChip {
     }
 
     fn generate_trace(&self, input: &Self::Record, _: &mut Self::Record) -> RowMajorMatrix<F> {
-        if std::any::TypeId::of::<F>() != std::any::TypeId::of::<BabyBear>() {
-            panic!("generate_trace only supports BabyBear field");
-        }
+        assert!(
+            std::any::TypeId::of::<F>() == std::any::TypeId::of::<BabyBear>(),
+            "generate_trace only supports BabyBear field"
+        );
 
         let events: &Vec<ExtAluIo<Block<BabyBear>>> =
             unsafe { std::mem::transmute(&input.ext_alu_events) };

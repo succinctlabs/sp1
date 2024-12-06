@@ -61,9 +61,10 @@ impl<F: PrimeField32> MachineAir<F> for SelectChip {
     }
 
     fn generate_preprocessed_trace(&self, program: &Self::Program) -> Option<RowMajorMatrix<F>> {
-        if std::any::TypeId::of::<F>() != std::any::TypeId::of::<BabyBear>() {
-            panic!("generate_preprocessed_trace only supports BabyBear field");
-        }
+        assert!(
+            std::any::TypeId::of::<F>() == std::any::TypeId::of::<BabyBear>(),
+            "generate_preprocessed_trace only supports BabyBear field"
+        );
 
         let instrs: Vec<&SelectInstr<BabyBear>> =
             unsafe { std::mem::transmute(extract_select_instrs(program)) };
@@ -95,9 +96,10 @@ impl<F: PrimeField32> MachineAir<F> for SelectChip {
     }
 
     fn generate_trace(&self, input: &Self::Record, _: &mut Self::Record) -> RowMajorMatrix<F> {
-        if std::any::TypeId::of::<F>() != std::any::TypeId::of::<BabyBear>() {
-            panic!("generate_trace only supports BabyBear field");
-        }
+        assert!(
+            std::any::TypeId::of::<F>() == std::any::TypeId::of::<BabyBear>(),
+            "generate_trace only supports BabyBear field"
+        );
 
         let events: &Vec<SelectIo<BabyBear>> = unsafe { std::mem::transmute(&input.select_events) };
         let padded_nb_rows = self.num_rows(input).unwrap();

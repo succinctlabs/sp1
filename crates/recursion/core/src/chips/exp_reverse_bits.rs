@@ -86,9 +86,10 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for ExpReverseBitsLenCh
     }
 
     fn generate_preprocessed_trace(&self, program: &Self::Program) -> Option<RowMajorMatrix<F>> {
-        if std::any::TypeId::of::<F>() != std::any::TypeId::of::<BabyBear>() {
-            panic!("generate_preprocessed_trace only supports BabyBear field");
-        }
+        assert!(
+            std::any::TypeId::of::<F>() == std::any::TypeId::of::<BabyBear>(),
+            "generate_preprocessed_trace only supports BabyBear field"
+        );
 
         let mut rows: Vec<[BabyBear; NUM_EXP_REVERSE_BITS_LEN_PREPROCESSED_COLS]> = Vec::new();
         program
@@ -144,9 +145,10 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for ExpReverseBitsLenCh
         input: &ExecutionRecord<F>,
         _: &mut ExecutionRecord<F>,
     ) -> RowMajorMatrix<F> {
-        if std::any::TypeId::of::<F>() != std::any::TypeId::of::<BabyBear>() {
-            panic!("generate_trace only supports BabyBear field");
-        }
+        assert!(
+            std::any::TypeId::of::<F>() == std::any::TypeId::of::<BabyBear>(),
+            "generate_trace only supports BabyBear field"
+        );
 
         let events: &Vec<crate::ExpReverseBitsEvent<BabyBear>> =
             unsafe { std::mem::transmute(&input.exp_reverse_bits_len_events) };

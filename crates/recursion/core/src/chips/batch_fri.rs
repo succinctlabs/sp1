@@ -70,9 +70,10 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for BatchFRIChip<DEGREE
     }
 
     fn generate_preprocessed_trace(&self, program: &Self::Program) -> Option<RowMajorMatrix<F>> {
-        if std::any::TypeId::of::<F>() != std::any::TypeId::of::<BabyBear>() {
-            panic!("generate_preprocessed_trace only supports BabyBear field");
-        }
+        assert!(
+            std::any::TypeId::of::<F>() == std::any::TypeId::of::<BabyBear>(),
+            "generate_preprocessed_trace only supports BabyBear field"
+        );
 
         let mut rows = Vec::new();
         let instrs: Vec<&Box<BatchFRIInstr<BabyBear>>> =
@@ -118,9 +119,10 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for BatchFRIChip<DEGREE
         input: &ExecutionRecord<F>,
         _: &mut ExecutionRecord<F>,
     ) -> RowMajorMatrix<F> {
-        if std::any::TypeId::of::<F>() != std::any::TypeId::of::<BabyBear>() {
-            panic!("generate_trace only supports BabyBear field");
-        }
+        assert!(
+            std::any::TypeId::of::<F>() == std::any::TypeId::of::<BabyBear>(),
+            "generate_trace only supports BabyBear field"
+        );
 
         let mut rows = input
             .batch_fri_events
