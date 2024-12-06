@@ -53,7 +53,7 @@ where
             *local.op_a_access.value(),
             local.op_b_value,
             local.op_c_value,
-            AB::Expr::zero(),
+            AB::Expr::zero(), // Op a is always register 5 for ecall instructions.
             AB::Expr::zero(),
             AB::Expr::zero(),
             AB::Expr::one(),

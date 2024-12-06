@@ -34,6 +34,7 @@ impl<E: EllipticCurve + EdwardsParameters> Syscall for EdwardsAddAssignSyscall<E
         let syscall_event = rt.rt.syscall_event(
             event.clk,
             None,
+            None,
             syscall_code,
             arg1,
             arg2,

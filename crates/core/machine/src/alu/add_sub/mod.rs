@@ -5,7 +5,7 @@ use core::{
 
 use hashbrown::HashMap;
 use itertools::Itertools;
-use p3_air::{Air, BaseAir};
+use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::{AbstractField, PrimeField, PrimeField32};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use p3_maybe_rayon::prelude::{ParallelBridge, ParallelIterator};
@@ -52,6 +52,9 @@ pub struct AddSubCols<T> {
 
     /// The second input operand.  This will be `c` for both operations.
     pub operand_2: Word<T>,
+
+    /// Whether the first operand is not register 0.
+    pub op_a_not_0: T,
 
     /// Boolean to indicate whether the row is for an add operation.
     pub is_add: T,
@@ -165,6 +168,7 @@ impl AddSubChip {
         cols.add_operation.populate(blu, operand_1, operand_2);
         cols.operand_1 = Word::from(operand_1);
         cols.operand_2 = Word::from(operand_2);
+        cols.op_a_not_0 = F::from_bool(!event.op_a_0);
     }
 }
 
@@ -197,8 +201,10 @@ where
             local.operand_1,
             local.operand_2,
             local.add_operation,
-            is_real.clone(),
+            local.op_a_not_0.into(),
         );
+
+        builder.when(local.op_a_not_0).assert_one(is_real.clone());
 
         // Receive the arguments.  There are separate receives for ADD and SUB.
         // For add, `add_operation.value` is `a`, `operand_1` is `b`, and `operand_2` is `c`.
@@ -212,7 +218,7 @@ where
             local.add_operation.value,
             local.operand_1,
             local.operand_2,
-            AB::Expr::zero(),
+            AB::Expr::one() - local.op_a_not_0,
             AB::Expr::zero(),
             AB::Expr::zero(),
             AB::Expr::zero(),
@@ -231,7 +237,7 @@ where
             local.operand_1,
             local.add_operation.value,
             local.operand_2,
-            AB::Expr::zero(),
+            AB::Expr::one() - local.op_a_not_0,
             AB::Expr::zero(),
             AB::Expr::zero(),
             AB::Expr::zero(),
@@ -262,7 +268,7 @@ mod tests {
                     let operand_1 = 1u32;
                     let operand_2 = 2u32;
                     let result = operand_1.wrapping_add(operand_2);
-                    AluEvent::new(i % 2, Opcode::ADD, result, operand_1, operand_2)
+                    AluEvent::new(i % 2, Opcode::ADD, result, operand_1, operand_2, false)
                 }]
             })
             .collect::<Vec<_>>();
@@ -272,7 +278,7 @@ mod tests {
                     let operand_1 = thread_rng().gen_range(0..u32::MAX);
                     let operand_2 = thread_rng().gen_range(0..u32::MAX);
                     let result = operand_1.wrapping_add(operand_2);
-                    AluEvent::new(i % 2, Opcode::SUB, result, operand_1, operand_2)
+                    AluEvent::new(i % 2, Opcode::SUB, result, operand_1, operand_2, false)
                 }]
             })
             .collect::<Vec<_>>();
@@ -282,7 +288,7 @@ mod tests {
     #[test]
     fn generate_trace() {
         let mut shard = ExecutionRecord::default();
-        shard.add_events = vec![AluEvent::new(0, Opcode::ADD, 14, 8, 6)];
+        shard.add_events = vec![AluEvent::new(0, Opcode::ADD, 14, 8, 6, false)];
         let chip = AddSubChip::default();
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&shard, &mut ExecutionRecord::default());
@@ -305,6 +311,7 @@ mod tests {
                 result,
                 operand_1,
                 operand_2,
+                false,
             ));
         }
         for i in 0..255 {
@@ -317,6 +324,7 @@ mod tests {
                 result,
                 operand_1,
                 operand_2,
+                false,
             ));
         }
 

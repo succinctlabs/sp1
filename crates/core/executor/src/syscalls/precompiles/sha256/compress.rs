@@ -108,8 +108,16 @@ impl Syscall for Sha256CompressSyscall {
             h_write_records: h_write_records.try_into().unwrap(),
             local_mem_access: rt.postprocess(),
         });
-        let syscall_event =
-            rt.rt.syscall_event(start_clk, None, syscall_code, arg1, arg2, lookup_id, rt.next_pc);
+        let syscall_event = rt.rt.syscall_event(
+            start_clk,
+            None,
+            None,
+            syscall_code,
+            arg1,
+            arg2,
+            lookup_id,
+            rt.next_pc,
+        );
         rt.add_precompile_event(syscall_code, syscall_event, event);
 
         None

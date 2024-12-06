@@ -6040,6 +6040,7 @@ dependencies = [
  "p3-symmetric",
  "p3-util",
  "pathdiff",
+ "rand 0.8.5",
  "serde",
  "sp1-core-machine",
  "sp1-derive",

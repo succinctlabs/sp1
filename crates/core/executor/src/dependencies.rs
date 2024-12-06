@@ -28,6 +28,7 @@ pub fn emit_divrem_dependencies(executor: &mut Executor, event: AluEvent) {
             b: event.c,
             c: (event.c as i32).unsigned_abs(),
             sub_lookups: ids,
+            op_a_0: false,
         });
     }
     if rem_neg == 1 {
@@ -40,6 +41,7 @@ pub fn emit_divrem_dependencies(executor: &mut Executor, event: AluEvent) {
             b: remainder,
             c: (remainder as i32).unsigned_abs(),
             sub_lookups: ids,
+            op_a_0: false,
         });
     }
 
@@ -61,6 +63,7 @@ pub fn emit_divrem_dependencies(executor: &mut Executor, event: AluEvent) {
         c: event.c,
         b: quotient,
         sub_lookups: executor.record.create_lookup_ids(),
+        op_a_0: false,
     };
     executor.record.mul_events.push(lower_multiplication);
 
@@ -78,6 +81,7 @@ pub fn emit_divrem_dependencies(executor: &mut Executor, event: AluEvent) {
         c: event.c,
         b: quotient,
         sub_lookups: executor.record.create_lookup_ids(),
+        op_a_0: false,
     };
     executor.record.mul_events.push(upper_multiplication);
 
@@ -90,6 +94,7 @@ pub fn emit_divrem_dependencies(executor: &mut Executor, event: AluEvent) {
             b: (remainder as i32).unsigned_abs(),
             c: u32::max(1, (event.c as i32).unsigned_abs()),
             sub_lookups: executor.record.create_lookup_ids(),
+            op_a_0: false,
         }
     } else {
         AluEvent {
@@ -100,6 +105,7 @@ pub fn emit_divrem_dependencies(executor: &mut Executor, event: AluEvent) {
             b: remainder,
             c: u32::max(1, event.c),
             sub_lookups: executor.record.create_lookup_ids(),
+            op_a_0: false,
         }
     };
 
@@ -124,6 +130,7 @@ pub fn emit_memory_dependencies(
         b: event.b,
         c: event.c,
         sub_lookups: executor.record.create_lookup_ids(),
+        op_a_0: false,
     };
 
     executor.record.add_events.push(add_event);
@@ -159,6 +166,7 @@ pub fn emit_memory_dependencies(
                 b: unsigned_mem_val,
                 c: sign_value,
                 sub_lookups: executor.record.create_lookup_ids(),
+                op_a_0: false,
             };
             executor.record.add_events.push(sub_event);
         }
@@ -184,6 +192,7 @@ pub fn emit_branch_dependencies(executor: &mut Executor, event: BranchEvent) {
         b: event.a,
         c: event.b,
         sub_lookups: executor.record.create_lookup_ids(),
+        op_a_0: false,
     };
     let gt_comp_event = AluEvent {
         pc: UNUSED_PC,
@@ -193,6 +202,7 @@ pub fn emit_branch_dependencies(executor: &mut Executor, event: BranchEvent) {
         b: event.b,
         c: event.a,
         sub_lookups: executor.record.create_lookup_ids(),
+        op_a_0: false,
     };
     executor.record.lt_events.push(lt_comp_event);
     executor.record.lt_events.push(gt_comp_event);
@@ -213,6 +223,7 @@ pub fn emit_branch_dependencies(executor: &mut Executor, event: BranchEvent) {
             b: event.pc,
             c: event.c,
             sub_lookups: executor.record.create_lookup_ids(),
+            op_a_0: false,
         };
         executor.record.add_events.push(add_event);
     }
@@ -231,6 +242,7 @@ pub fn emit_jump_dependencies(executor: &mut Executor, event: JumpEvent) {
                 b: event.pc,
                 c: event.b,
                 sub_lookups: executor.record.create_lookup_ids(),
+                op_a_0: false,
             };
             executor.record.add_events.push(add_event);
         }
@@ -244,6 +256,7 @@ pub fn emit_jump_dependencies(executor: &mut Executor, event: JumpEvent) {
                 b: event.b,
                 c: event.c,
                 sub_lookups: executor.record.create_lookup_ids(),
+                op_a_0: false,
             };
             executor.record.add_events.push(add_event);
         }
@@ -261,6 +274,7 @@ pub fn emit_auipc_dependency(executor: &mut Executor, event: AUIPCEvent) {
         b: event.pc,
         c: event.b,
         sub_lookups: executor.record.create_lookup_ids(),
+        op_a_0: false,
     };
     executor.record.add_events.push(add_event);
 }

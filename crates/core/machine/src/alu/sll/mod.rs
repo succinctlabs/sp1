@@ -77,6 +77,9 @@ pub struct ShiftLeftCols<T> {
     /// The second input operand.
     pub c: Word<T>,
 
+    /// Flag indicating whether `a` is not register 0.
+    pub op_0_not_0: T,
+
     /// The least significant byte of `c`. Used to verify `shift_by_n_bits` and `shift_by_n_bytes`.
     pub c_least_sig_byte: [T; BYTE_SIZE],
 
@@ -203,6 +206,7 @@ impl ShiftLeft {
         cols.a = Word(a.map(F::from_canonical_u8));
         cols.b = Word(b.map(F::from_canonical_u8));
         cols.c = Word(c.map(F::from_canonical_u8));
+        cols.op_0_not_0 = F::from_bool(!event.op_a_0);
         cols.is_real = F::one();
         for i in 0..BYTE_SIZE {
             cols.c_least_sig_byte[i] = F::from_canonical_u32((event.c >> i) & 1);
@@ -338,9 +342,11 @@ where
             for i in 0..WORD_SIZE {
                 if i < num_bytes_to_shift {
                     // The first num_bytes_to_shift bytes must be zero.
-                    shifting.assert_eq(local.a[i], zero.clone());
+                    shifting.when(local.op_0_not_0).assert_eq(local.a[i], zero.clone());
                 } else {
-                    shifting.assert_eq(local.a[i], local.bit_shift_result[i - num_bytes_to_shift]);
+                    shifting
+                        .when(local.op_0_not_0)
+                        .assert_eq(local.a[i], local.bit_shift_result[i - num_bytes_to_shift]);
                 }
             }
         }
@@ -386,13 +392,15 @@ where
             local.a,
             local.b,
             local.c,
-            AB::Expr::zero(),
+            AB::Expr::one() - local.op_0_not_0,
             AB::Expr::zero(),
             AB::Expr::zero(),
             AB::Expr::zero(),
             AB::Expr::zero(),
             local.is_real,
         );
+
+        builder.when(local.op_0_not_0).assert_one(local.is_real);
     }
 }
 
@@ -410,7 +418,7 @@ mod tests {
     #[test]
     fn generate_trace() {
         let mut shard = ExecutionRecord::default();
-        shard.shift_left_events = vec![AluEvent::new(0, Opcode::SLL, 16, 8, 1)];
+        shard.shift_left_events = vec![AluEvent::new(0, Opcode::SLL, 16, 8, 1, false)];
         let chip = ShiftLeft::default();
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&shard, &mut ExecutionRecord::default());
@@ -445,7 +453,7 @@ mod tests {
             (Opcode::SLL, 0x00000000, 0x21212120, 0xffffffff),
         ];
         for t in shift_instructions.iter() {
-            shift_events.push(AluEvent::new(0, t.0, t.1, t.2, t.3));
+            shift_events.push(AluEvent::new(0, t.0, t.1, t.2, t.3, false));
         }
 
         // Append more events until we have 1000 tests.

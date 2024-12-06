@@ -79,7 +79,7 @@ impl Syscall for U256xU2048MulSyscall {
         });
 
         let sycall_event =
-            rt.rt.syscall_event(clk, None, syscall_code, arg1, arg2, lookup_id, rt.next_pc);
+            rt.rt.syscall_event(clk, None, None, syscall_code, arg1, arg2, lookup_id, rt.next_pc);
         rt.add_precompile_event(syscall_code, sycall_event, event);
 
         None

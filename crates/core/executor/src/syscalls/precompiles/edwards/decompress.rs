@@ -81,6 +81,7 @@ impl<E: EdwardsParameters> Syscall for EdwardsDecompressSyscall<E> {
         let syscall_event = rt.rt.syscall_event(
             start_clk,
             None,
+            None,
             syscall_code,
             arg1,
             sign,

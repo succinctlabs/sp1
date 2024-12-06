@@ -5,7 +5,7 @@ use core::{
 
 use hashbrown::HashMap;
 use itertools::Itertools;
-use p3_air::{Air, BaseAir};
+use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::{AbstractField, PrimeField, PrimeField32};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use p3_maybe_rayon::prelude::{IntoParallelRefIterator, ParallelIterator, ParallelSlice};
@@ -43,6 +43,9 @@ pub struct BitwiseCols<T> {
 
     /// The second input operand.
     pub c: Word<T>,
+
+    /// Whether the first operand is not register 0.
+    pub op_a_not_0: T,
 
     /// If the opcode is XOR.
     pub is_xor: T,
@@ -141,20 +144,23 @@ impl BitwiseChip {
         cols.a = Word::from(event.a);
         cols.b = Word::from(event.b);
         cols.c = Word::from(event.c);
+        cols.op_a_not_0 = F::from_bool(!event.op_a_0);
 
         cols.is_xor = F::from_bool(event.opcode == Opcode::XOR);
         cols.is_or = F::from_bool(event.opcode == Opcode::OR);
         cols.is_and = F::from_bool(event.opcode == Opcode::AND);
 
-        for ((b_a, b_b), b_c) in a.into_iter().zip(b).zip(c) {
-            let byte_event = ByteLookupEvent {
-                opcode: ByteOpcode::from(event.opcode),
-                a1: b_a as u16,
-                a2: 0,
-                b: b_b,
-                c: b_c,
-            };
-            blu.add_byte_lookup_event(byte_event);
+        if !event.op_a_0 {
+            for ((b_a, b_b), b_c) in a.into_iter().zip(b).zip(c) {
+                let byte_event = ByteLookupEvent {
+                    opcode: ByteOpcode::from(event.opcode),
+                    a1: b_a as u16,
+                    a2: 0,
+                    b: b_b,
+                    c: b_c,
+                };
+                blu.add_byte_lookup_event(byte_event);
+            }
         }
     }
 }
@@ -182,8 +188,9 @@ where
         // Get a multiplicity of `1` only for a true row.
         let mult = local.is_xor + local.is_or + local.is_and;
         for ((a, b), c) in local.a.into_iter().zip(local.b).zip(local.c) {
-            builder.send_byte(opcode.clone(), a, b, c, mult.clone());
+            builder.send_byte(opcode.clone(), a, b, c, local.op_a_not_0);
         }
+        builder.when(local.op_a_not_0).assert_one(mult.clone());
 
         // Get the cpu opcode, which corresponds to the opcode being sent in the CPU table.
         let cpu_opcode = local.is_xor * Opcode::XOR.as_field::<AB::F>()
@@ -201,7 +208,7 @@ where
             local.a,
             local.b,
             local.c,
-            AB::Expr::zero(),
+            AB::Expr::one() - local.op_a_not_0,
             AB::Expr::zero(),
             AB::Expr::zero(),
             AB::Expr::zero(),
@@ -231,7 +238,7 @@ mod tests {
     #[test]
     fn generate_trace() {
         let mut shard = ExecutionRecord::default();
-        shard.bitwise_events = vec![AluEvent::new(0, Opcode::XOR, 25, 10, 19)];
+        shard.bitwise_events = vec![AluEvent::new(0, Opcode::XOR, 25, 10, 19, false)];
         let chip = BitwiseChip::default();
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&shard, &mut ExecutionRecord::default());
@@ -245,9 +252,9 @@ mod tests {
 
         let mut shard = ExecutionRecord::default();
         shard.bitwise_events = [
-            AluEvent::new(0, Opcode::XOR, 25, 10, 19),
-            AluEvent::new(0, Opcode::OR, 27, 10, 19),
-            AluEvent::new(0, Opcode::AND, 2, 10, 19),
+            AluEvent::new(0, Opcode::XOR, 25, 10, 19, false),
+            AluEvent::new(0, Opcode::OR, 27, 10, 19, false),
+            AluEvent::new(0, Opcode::AND, 2, 10, 19, false),
         ]
         .repeat(1000);
         let chip = BitwiseChip::default();

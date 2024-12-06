@@ -97,6 +97,9 @@ pub struct ShiftRightCols<T> {
     /// The second input operand.
     pub c: Word<T>,
 
+    /// Flag indicating whether `a` is not register 0.
+    pub op_a_not_0: T,
+
     /// A boolean array whose `i`th element indicates whether `num_bits_to_shift = i`.
     pub shift_by_n_bits: [T; BYTE_SIZE],
 
@@ -221,6 +224,7 @@ impl ShiftRightChip {
             cols.a = Word::from(event.a);
             cols.b = Word::from(event.b);
             cols.c = Word::from(event.c);
+            cols.op_a_not_0 = F::from_bool(!event.op_a_0);
 
             cols.b_msb = F::from_canonical_u32((event.b >> 31) & 1);
 
@@ -454,7 +458,7 @@ where
         // inaccurate.
         {
             for i in 0..WORD_SIZE {
-                builder.assert_eq(local.a[i], local.bit_shift_result[i]);
+                builder.when(local.op_a_not_0).assert_eq(local.a[i], local.bit_shift_result[i]);
             }
         }
 
@@ -509,13 +513,15 @@ where
             local.a,
             local.b,
             local.c,
-            AB::Expr::zero(),
+            AB::Expr::one() - local.op_a_not_0,
             AB::Expr::zero(),
             AB::Expr::zero(),
             AB::Expr::zero(),
             AB::Expr::zero(),
             local.is_real,
         );
+
+        builder.when(local.op_a_not_0).assert_one(local.is_real);
     }
 }
 
@@ -532,7 +538,7 @@ mod tests {
     #[test]
     fn generate_trace() {
         let mut shard = ExecutionRecord::default();
-        shard.shift_right_events = vec![AluEvent::new(0, Opcode::SRL, 6, 12, 1)];
+        shard.shift_right_events = vec![AluEvent::new(0, Opcode::SRL, 6, 12, 1, false)];
         let chip = ShiftRightChip::default();
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&shard, &mut ExecutionRecord::default());
@@ -583,7 +589,7 @@ mod tests {
         ];
         let mut shift_events: Vec<AluEvent> = Vec::new();
         for t in shifts.iter() {
-            shift_events.push(AluEvent::new(0, t.0, t.1, t.2, t.3));
+            shift_events.push(AluEvent::new(0, t.0, t.1, t.2, t.3, false));
         }
         let mut shard = ExecutionRecord::default();
         shard.shift_right_events = shift_events;

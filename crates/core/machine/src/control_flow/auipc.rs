@@ -1,6 +1,6 @@
 use hashbrown::HashMap;
 use itertools::Itertools;
-use p3_air::{Air, BaseAir};
+use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use rayon::iter::{ParallelBridge, ParallelIterator};
@@ -48,6 +48,9 @@ pub struct AUIPCColumns<T> {
     /// The value of the third operand.
     pub op_c_value: Word<T>,
 
+    /// Whether the first operand is not register 0.
+    pub op_a_not_0: T,
+
     /// BabyBear range checker for the program counter.
     pub pc_range_checker: BabyBearWordRangeChecker<T>,
 
@@ -92,12 +95,12 @@ where
             local.op_a_value,
             local.op_b_value,
             local.op_c_value,
+            AB::Expr::one() - local.op_a_not_0,
             AB::Expr::zero(),
             AB::Expr::zero(),
             AB::Expr::zero(),
             AB::Expr::zero(),
-            AB::Expr::zero(),
-            is_real,
+            is_real.clone(),
         );
 
         // Verify that the opcode is never UNIMP or EBREAK.
@@ -128,8 +131,10 @@ where
             AB::Expr::zero(),
             AB::Expr::zero(),
             AB::Expr::zero(),
-            local.is_auipc,
+            local.op_a_not_0,
         );
+
+        builder.when(local.op_a_not_0).assert_one(is_real);
     }
 }
 
@@ -175,6 +180,7 @@ impl<F: PrimeField32> MachineAir<F> for AuipcChip {
                         cols.op_a_value = event.a.into();
                         cols.op_b_value = event.b.into();
                         cols.op_c_value = event.c.into();
+                        cols.op_a_not_0 = F::from_bool(!event.op_a_0);
                     }
                 });
                 blu

@@ -22,6 +22,8 @@ pub struct AluEvent {
     pub b: u32,
     /// The third operand value.
     pub c: u32,
+    /// Whether the first operand is register 0.
+    pub op_a_0: bool,
     /// The result of the operation in the format of [``LookupId``; 6]
     pub sub_lookups: [LookupId; 6],
 }
@@ -29,7 +31,7 @@ pub struct AluEvent {
 impl AluEvent {
     /// Create a new [`AluEvent`].
     #[must_use]
-    pub fn new(pc: u32, opcode: Opcode, a: u32, b: u32, c: u32) -> Self {
+    pub fn new(pc: u32, opcode: Opcode, a: u32, b: u32, c: u32, op_a_0: bool) -> Self {
         Self {
             pc,
             lookup_id: LookupId::default(),
@@ -37,6 +39,7 @@ impl AluEvent {
             a,
             b,
             c,
+            op_a_0,
             sub_lookups: create_random_lookup_ids(),
         }
     }
@@ -224,6 +227,8 @@ pub struct AUIPCEvent {
     pub b: u32,
     /// The third operand value.
     pub c: u32,
+    /// Whether the first operand is register 0.
+    pub op_a_0: bool,
     /// The AUIPC add lookup id.
     pub auipc_nonce: LookupId,
 }
@@ -231,7 +236,15 @@ pub struct AUIPCEvent {
 impl AUIPCEvent {
     /// Create a new [`AUIPCEvent`].
     #[must_use]
-    pub fn new(pc: u32, opcode: Opcode, a: u32, b: u32, c: u32, auipc_nonce: LookupId) -> Self {
-        Self { pc, opcode, a, b, c, auipc_nonce }
+    pub fn new(
+        pc: u32,
+        opcode: Opcode,
+        a: u32,
+        b: u32,
+        c: u32,
+        op_a_0: bool,
+        auipc_nonce: LookupId,
+    ) -> Self {
+        Self { pc, opcode, a, b, c, op_a_0, auipc_nonce }
     }
 }

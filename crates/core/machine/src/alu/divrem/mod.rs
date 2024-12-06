@@ -112,6 +112,9 @@ pub struct DivRemCols<T> {
     /// The second input operand.
     pub c: Word<T>,
 
+    /// Whether the first operand is not register 0.
+    pub op_a_not_0: T,
+
     /// Results of dividing `b` by `c`.
     pub quotient: Word<T>,
 
@@ -229,6 +232,7 @@ impl<F: PrimeField32> MachineAir<F> for DivRemChip {
                 cols.a = Word::from(event.a);
                 cols.b = Word::from(event.b);
                 cols.c = Word::from(event.c);
+                cols.op_a_not_0 = F::from_bool(!event.op_a_0);
                 cols.is_real = F::one();
                 cols.is_divu = F::from_bool(event.opcode == Opcode::DIVU);
                 cols.is_remu = F::from_bool(event.opcode == Opcode::REMU);
@@ -562,8 +566,14 @@ where
 
         // a must equal remainder or quotient depending on the opcode.
         for i in 0..WORD_SIZE {
-            builder.when(local.is_divu + local.is_div).assert_eq(local.quotient[i], local.a[i]);
-            builder.when(local.is_remu + local.is_rem).assert_eq(local.remainder[i], local.a[i]);
+            builder
+                .when(local.op_a_not_0)
+                .when(local.is_divu + local.is_div)
+                .assert_eq(local.quotient[i], local.a[i]);
+            builder
+                .when(local.op_a_not_0)
+                .when(local.is_remu + local.is_rem)
+                .assert_eq(local.remainder[i], local.a[i]);
         }
 
         // remainder and b must have the same sign. Due to the intricate nature of sign logic in ZK,
@@ -794,13 +804,15 @@ where
                 local.a,
                 local.b,
                 local.c,
-                AB::Expr::zero(),
+                AB::Expr::one() - local.op_a_not_0,
                 AB::Expr::zero(),
                 AB::Expr::zero(),
                 AB::Expr::zero(),
                 AB::Expr::zero(),
                 local.is_real,
             );
+
+            builder.when(local.op_a_not_0).assert_one(local.is_real);
         }
     }
 }
@@ -819,7 +831,7 @@ mod tests {
     #[test]
     fn generate_trace() {
         let mut shard = ExecutionRecord::default();
-        shard.divrem_events = vec![AluEvent::new(0, Opcode::DIVU, 2, 17, 3)];
+        shard.divrem_events = vec![AluEvent::new(0, Opcode::DIVU, 2, 17, 3, false)];
         let chip = DivRemChip::default();
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&shard, &mut ExecutionRecord::default());
@@ -872,12 +884,12 @@ mod tests {
             (Opcode::REM, 0, 1 << 31, neg(1)),
         ];
         for t in divrems.iter() {
-            divrem_events.push(AluEvent::new(0, t.0, t.1, t.2, t.3));
+            divrem_events.push(AluEvent::new(0, t.0, t.1, t.2, t.3, false));
         }
 
         // Append more events until we have 1000 tests.
         for _ in 0..(1000 - divrems.len()) {
-            divrem_events.push(AluEvent::new(0, Opcode::DIVU, 1, 1, 1));
+            divrem_events.push(AluEvent::new(0, Opcode::DIVU, 1, 1, 1, false));
         }
 
         let mut shard = ExecutionRecord::default();

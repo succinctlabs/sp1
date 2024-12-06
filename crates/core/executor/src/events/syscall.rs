@@ -23,6 +23,8 @@ pub struct SyscallEvent {
     pub a_record: MemoryWriteRecord,
     /// Whether the `op_a` memory write record is real.
     pub a_record_is_real: bool,
+    /// Whether the first operand is register 0.
+    pub op_a_0: bool,
     /// The syscall code.
     pub syscall_code: SyscallCode,
     /// The syscall id.
