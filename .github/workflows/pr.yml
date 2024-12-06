@@ -36,6 +36,8 @@ jobs:
 
       - name: Setup CI
         uses: ./.github/actions/setup
+        with:
+          gh_token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install SP1 toolchain from repo
         run: |
@@ -80,6 +82,9 @@ jobs:
 
       - name: Setup CI
         uses: ./.github/actions/setup
+        with:
+          gh_token: ${{ secrets.GITHUB_TOKEN }}
+
 
       - name: Install SP1 toolchain from repo
         run: |
@@ -117,6 +122,8 @@ jobs:
 
       - name: Setup CI
         uses: ./.github/actions/setup
+        with:
+          gh_token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install SP1 toolchain from repo
         run: |
@@ -160,6 +167,8 @@ jobs:
 
       - name: Setup CI
         uses: ./.github/actions/setup
+        with:
+          gh_token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install SP1 toolchain from repo
         run: |
@@ -204,6 +213,8 @@ jobs:
 
       - name: Setup CI
         uses: ./.github/actions/setup
+        with:
+          gh_token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install SP1 toolchain from repo
         run: |
@@ -238,6 +249,8 @@ jobs:
 
       - name: Setup CI
         uses: ./.github/actions/setup
+        with:
+          gh_token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install SP1 toolchain from repo
         run: |
@@ -272,6 +285,8 @@ jobs:
 
       - name: Setup CI
         uses: ./.github/actions/setup
+        with:
+          gh_token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install SP1 toolchain from repo
         run: |
@@ -319,6 +334,8 @@ jobs:
 
       - name: Setup CI
         uses: ./.github/actions/setup
+        with:
+          gh_token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install SP1 toolchain from repo
         run: |
@@ -470,6 +487,8 @@ jobs:
 
       - name: Setup CI
         uses: ./.github/actions/setup
+        with:
+          gh_token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: "Remove lock files"
         run: |
