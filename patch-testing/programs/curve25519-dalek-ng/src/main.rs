@@ -15,3 +15,6 @@ pub fn main() {
     let compressed_key = decompressed_key.unwrap().compress();
     assert_eq!(compressed_key, y);
 }
+
+
+// todo add test for fail decompression, probably need to change patch
