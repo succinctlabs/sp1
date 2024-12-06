@@ -1,5 +1,6 @@
 use core::borrow::Borrow;
 use p3_air::{Air, BaseAir, PairBuilder};
+use p3_baby_bear::BabyBear;
 use p3_field::{AbstractField, Field, PrimeField32};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use p3_maybe_rayon::prelude::*;
@@ -60,27 +61,24 @@ impl<F: PrimeField32> MachineAir<F> for SelectChip {
     }
 
     fn generate_preprocessed_trace(&self, program: &Self::Program) -> Option<RowMajorMatrix<F>> {
-        let instrs = extract_select_instrs(program);
+        let instrs: Vec<&SelectInstr<BabyBear>> =
+            unsafe { std::mem::transmute(extract_select_instrs(program)) };
         let padded_nb_rows = self.preprocessed_num_rows(program, instrs.len()).unwrap();
-        let mut values = vec![F::zero(); padded_nb_rows * SELECT_PREPROCESSED_COLS];
+        let mut values = vec![BabyBear::zero(); padded_nb_rows * SELECT_PREPROCESSED_COLS];
 
         // Generate the trace rows & corresponding records for each chunk of events in parallel.
         let populate_len = instrs.len() * SELECT_PREPROCESSED_COLS;
         values[..populate_len].par_chunks_mut(SELECT_PREPROCESSED_COLS).zip_eq(instrs).for_each(
             |(row, instr)| {
-                let SelectInstr { addrs, mult1, mult2 } = instr;
-                let access: &mut SelectPreprocessedCols<_> = row.borrow_mut();
-                *access = SelectPreprocessedCols {
-                    is_real: F::one(),
-                    addrs: addrs.to_owned(),
-                    mult1: mult1.to_owned(),
-                    mult2: mult2.to_owned(),
-                };
+                let cols: &mut SelectPreprocessedCols<_> = row.borrow_mut();
+                unsafe {
+                    crate::sys::select_instr_to_row_babybear(instr, cols);
+                }
             },
         );
 
         // Convert the trace to a row major matrix.
-        Some(RowMajorMatrix::new(values, SELECT_PREPROCESSED_COLS))
+        Some(RowMajorMatrix::new(unsafe { std::mem::transmute(values) }, SELECT_PREPROCESSED_COLS))
     }
 
     fn generate_dependencies(&self, _: &Self::Record, _: &mut Self::Record) {
@@ -194,8 +192,7 @@ mod tests {
         run_recursion_test_machines(program);
     }
 
-    #[cfg(feature = "sys")]
-    fn generate_trace_ffi(
+    fn generate_trace_reference(
         input: &ExecutionRecord<BabyBear>,
         _: &mut ExecutionRecord<BabyBear>,
     ) -> RowMajorMatrix<BabyBear> {
@@ -218,7 +215,6 @@ mod tests {
         RowMajorMatrix::new(values, SELECT_COLS)
     }
 
-    #[cfg(feature = "sys")]
     #[test]
     fn generate_trace() {
         let shard = test_fixtures::shard();
@@ -226,11 +222,10 @@ mod tests {
         let trace = SelectChip.generate_trace(&shard, &mut execution_record);
         assert!(trace.height() >= test_fixtures::MIN_TEST_CASES);
 
-        assert_eq!(trace, generate_trace_ffi(&shard, &mut execution_record));
+        assert_eq!(trace, generate_trace_reference(&shard, &mut execution_record));
     }
 
-    #[cfg(feature = "sys")]
-    fn generate_preprocessed_trace_ffi(
+    fn generate_preprocessed_trace_reference(
         program: &RecursionProgram<BabyBear>,
     ) -> RowMajorMatrix<BabyBear> {
         type F = BabyBear;
@@ -242,23 +237,26 @@ mod tests {
         let populate_len = instrs.len() * SELECT_PREPROCESSED_COLS;
         values[..populate_len].par_chunks_mut(SELECT_PREPROCESSED_COLS).zip_eq(instrs).for_each(
             |(row, instr)| {
-                let cols: &mut SelectPreprocessedCols<_> = row.borrow_mut();
-                unsafe {
-                    crate::sys::select_instr_to_row_babybear(instr, cols);
-                }
+                let SelectInstr { addrs, mult1, mult2 } = instr;
+                let access: &mut SelectPreprocessedCols<_> = row.borrow_mut();
+                *access = SelectPreprocessedCols {
+                    is_real: F::one(),
+                    addrs: addrs.to_owned(),
+                    mult1: mult1.to_owned(),
+                    mult2: mult2.to_owned(),
+                };
             },
         );
 
         RowMajorMatrix::new(values, SELECT_PREPROCESSED_COLS)
     }
 
-    #[cfg(feature = "sys")]
     #[test]
     fn generate_preprocessed_trace() {
         let program = test_fixtures::program();
         let trace = SelectChip.generate_preprocessed_trace(&program).unwrap();
         assert!(trace.height() >= test_fixtures::MIN_TEST_CASES);
 
-        assert_eq!(trace, generate_preprocessed_trace_ffi(&program));
+        assert_eq!(trace, generate_preprocessed_trace_reference(&program));
     }
 }
