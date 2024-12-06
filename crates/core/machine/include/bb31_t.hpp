@@ -250,13 +250,9 @@ class bb31_t {
     return *this;
   }
 
-  friend inline bb31_t operator^(bb31_t a, uint32_t p) {
-    return a ^= p;
-  }
+  friend inline bb31_t operator^(bb31_t a, uint32_t p) { return a ^= p; }
 
-  inline bb31_t operator()(uint32_t p) {
-    return *this ^ p;
-  }
+  inline bb31_t operator()(uint32_t p) { return *this ^ p; }
 
   // raise to a constant power, e.g. x^7, to be unrolled at compile time
   inline bb31_t& operator^=(int p) {
@@ -280,31 +276,19 @@ class bb31_t {
     return *this;
   }
 
-  friend inline bb31_t operator^(bb31_t a, int p) {
-    return a ^= p;
-  }
+  friend inline bb31_t operator^(bb31_t a, int p) { return a ^= p; }
 
-  inline bb31_t operator()(int p) {
-    return *this ^ p;
-  }
+  inline bb31_t operator()(int p) { return *this ^ p; }
 
   inline bb31_t square() { return *this * *this; }
 
-  friend inline bb31_t sqr(bb31_t a) {
-    return a.sqr();
-  }
+  friend inline bb31_t sqr(bb31_t a) { return a.sqr(); }
 
-  inline bb31_t& sqr() {
-    return mul(*this);
-  }
+  inline bb31_t& sqr() { return mul(*this); }
 
-  inline void to() {
-    mul(RR);
-  }
+  inline void to() { mul(RR); }
 
-  inline void from() {
-    val = mul_by_1();
-  }
+  inline void from() { val = mul_by_1(); }
 
   template <size_t T>
   static inline bb31_t dot_product(const bb31_t a[T], const bb31_t b[T]) {
@@ -435,9 +419,7 @@ class bb31_t {
     return a * b.reciprocal();
   }
 
-  inline bb31_t& operator/=(const bb31_t a) {
-    return *this *= a.reciprocal();
-  }
+  inline bb31_t& operator/=(const bb31_t a) { return *this *= a.reciprocal(); }
 
   inline bb31_t heptaroot() const {
     bb31_t x03, x18, x1b, ret = *this;
@@ -620,16 +602,16 @@ class bb31_t {
 
   inline bool operator==(const bb31_t rhs) const { return val == rhs.val; }
 
-  inline bb31_t &operator^=(int b) { 
-      bb31_t sqr = *this;
-      if ((b & 1) == 0)
-          *this = one();
-      while (b >>= 1) {
-          sqr = sqr.square();
-          if (b & 1)
-              *this *= sqr;
-      }
-      return *this;
+  inline bb31_t& operator^=(int b) {
+    bb31_t sqr = *this;
+    if ((b & 1) == 0)
+      *this = one();
+    while (b >>= 1) {
+      sqr = sqr.square();
+      if (b & 1)
+        *this *= sqr;
+    }
+    return *this;
   }
 
   friend bb31_t operator^(bb31_t a, uint32_t b) { return a ^= b; }

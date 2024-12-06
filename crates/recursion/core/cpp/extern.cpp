@@ -40,10 +40,10 @@ extern void batch_fri_event_to_row_babybear(const BatchFRIEvent<BabyBearP3>* io,
 }
 extern void batch_fri_instr_to_row_babybear(
     const BatchFRIInstrFFI<BabyBearP3>* instr,
-    BatchFRIPreprocessedCols<BabyBearP3>* cols) {
+    BatchFRIPreprocessedCols<BabyBearP3>* cols, size_t index) {
   batch_fri::instr_to_row<bb31_t>(
       *reinterpret_cast<const BatchFRIInstrFFI<bb31_t>*>(instr),
-      *reinterpret_cast<BatchFRIPreprocessedCols<bb31_t>*>(cols));
+      *reinterpret_cast<BatchFRIPreprocessedCols<bb31_t>*>(cols), index);
 }
 
 extern void exp_reverse_bits_event_to_row_babybear(

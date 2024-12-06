@@ -8,7 +8,7 @@
 namespace sp1_core_machine_sys::memory_global {
     template<class F, class EF7>
     __SP1_HOSTDEV__ void event_to_row(const MemoryInitializeFinalizeEvent* event, const bool is_receive, MemoryInitCols<F>* cols) {
-        MemoryRecord record;
+        [[maybe_unused]]MemoryRecord record;
         if (is_receive) {
             record.shard = event->shard;
             record.timestamp = event->timestamp;

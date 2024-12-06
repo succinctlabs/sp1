@@ -1,9 +1,7 @@
-use std::borrow::Borrow;
-
+use crate::*;
 use p3_field::{AbstractExtensionField, AbstractField};
 use serde::{Deserialize, Serialize};
-
-use crate::*;
+use std::borrow::Borrow;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Instruction<F> {
@@ -21,6 +19,31 @@ pub enum Instruction<F> {
     HintExt2Felts(HintExt2FeltsInstr<F>),
     CommitPublicValues(Box<CommitPublicValuesInstr<F>>),
     Hint(HintInstr<F>),
+}
+
+pub mod extractors {
+    use super::*;
+
+    macro_rules! create_extractor {
+        ($name:ident, $variant:ident, $type:ty) => {
+            // Allocating an intermediate `Vec` is faster.
+            pub fn $name<F>(program: &RecursionProgram<F>) -> Vec<&$type> {
+                program
+                    .instructions
+                    .iter() // Faster than using `rayon` for some reason. Maybe vectorization?
+                    .filter_map(|instruction| match instruction {
+                        Instruction::$variant(x) => Some(x),
+                        _ => None,
+                    })
+                    .collect::<Vec<_>>()
+            }
+        };
+    }
+
+    create_extractor!(extract_base_alu_instrs, BaseAlu, BaseAluInstr<F>);
+    create_extractor!(extract_ext_alu_instrs, ExtAlu, ExtAluInstr<F>);
+    create_extractor!(extract_batch_fri_instrs, BatchFRI, Box<BatchFRIInstr<F>>);
+    create_extractor!(extract_select_instrs, Select, SelectInstr<F>);
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

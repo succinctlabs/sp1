@@ -44,6 +44,7 @@ extern "C-unwind" {
     pub fn batch_fri_instr_to_row_babybear(
         instr: &BatchFRIInstrFFI<BabyBear>,
         cols: &mut BatchFRIPreprocessedCols<BabyBear>,
+        index: usize,
     );
 
     pub fn exp_reverse_bits_event_to_row_babybear(

@@ -1,7 +1,7 @@
 use super::MemoryChipType;
 use crate::{
     operations::{AssertLtColsBits, BabyBearBitDecomposition, IsZeroOperation},
-    utils::pad_rows_fixed,
+    utils::next_power_of_two,
 };
 use core::{
     borrow::{Borrow, BorrowMut},
@@ -86,6 +86,17 @@ impl<F: PrimeField32> MachineAir<F> for MemoryGlobalChip {
         output.global_interaction_events.extend(events);
     }
 
+    fn num_rows(&self, input: &Self::Record) -> Option<usize> {
+        let events = match self.kind {
+            MemoryChipType::Initialize => &input.global_memory_initialize_events,
+            MemoryChipType::Finalize => &input.global_memory_finalize_events,
+        };
+        let nb_rows = events.len();
+        let size_log2 = input.fixed_log2_rows::<F, Self>(self);
+        let padded_nb_rows = next_power_of_two(nb_rows, size_log2);
+        Some(padded_nb_rows)
+    }
+
     fn generate_trace(
         &self,
         input: &ExecutionRecord,
@@ -155,10 +166,9 @@ impl<F: PrimeField32> MachineAir<F> for MemoryGlobalChip {
         }
 
         // Pad the trace to a power of two depending on the proof shape in `input`.
-        pad_rows_fixed(
-            &mut rows,
-            || [F::zero(); NUM_MEMORY_INIT_COLS],
-            input.fixed_log2_rows::<F, Self>(self),
+        rows.resize(
+            <MemoryGlobalChip as MachineAir<F>>::num_rows(self, input).unwrap(),
+            [F::zero(); NUM_MEMORY_INIT_COLS],
         );
 
         RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_MEMORY_INIT_COLS)
