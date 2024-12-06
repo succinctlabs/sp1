@@ -2,13 +2,14 @@
 
 use core::borrow::Borrow;
 use itertools::Itertools;
+use p3_baby_bear::BabyBear;
 use sp1_core_machine::utils::{next_power_of_two, pad_rows_fixed};
 use sp1_stark::air::{BinomialExtension, MachineAir};
 use std::borrow::BorrowMut;
 use tracing::instrument;
 
 use p3_air::{Air, AirBuilder, BaseAir, PairBuilder};
-use p3_field::PrimeField32;
+use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use sp1_stark::air::{BaseAirBuilder, ExtensionAirBuilder};
 
@@ -21,7 +22,7 @@ use crate::{
     ExecutionRecord, FriFoldInstr,
 };
 
-use super::mem::{MemoryAccessCols, MemoryAccessColsChips};
+use super::mem::MemoryAccessColsChips;
 
 pub const NUM_FRI_FOLD_COLS: usize = core::mem::size_of::<FriFoldCols<u8>>();
 pub const NUM_FRI_FOLD_PREPROCESSED_COLS: usize =
@@ -102,62 +103,36 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for FriFoldChip<DEGREE>
     }
 
     fn generate_preprocessed_trace(&self, program: &Self::Program) -> Option<RowMajorMatrix<F>> {
-        let mut rows: Vec<[F; NUM_FRI_FOLD_PREPROCESSED_COLS]> = Vec::new();
+        if std::any::TypeId::of::<F>() != std::any::TypeId::of::<BabyBear>() {
+            panic!("generate_trace only supports BabyBear field");
+        }
+
+        let mut rows: Vec<[BabyBear; NUM_FRI_FOLD_PREPROCESSED_COLS]> = Vec::new();
         program
             .instructions
             .iter()
             .filter_map(|instruction| match instruction {
-                Instruction::FriFold(instr) => Some(instr),
+                Instruction::FriFold(instr) => Some(unsafe { std::mem::transmute(instr) }),
                 _ => None,
             })
-            .for_each(|instruction| {
-                let FriFoldInstr {
-                    base_single_addrs,
-                    ext_single_addrs,
-                    ext_vec_addrs,
-                    alpha_pow_mults,
-                    ro_mults,
-                } = instruction.as_ref();
-                let mut row_add =
-                    vec![[F::zero(); NUM_FRI_FOLD_PREPROCESSED_COLS]; ext_vec_addrs.ps_at_z.len()];
+            .for_each(|instruction: &Box<FriFoldInstr<BabyBear>>| {
+                let mut row_add = vec![
+                    [BabyBear::zero(); NUM_FRI_FOLD_PREPROCESSED_COLS];
+                    instruction.ext_vec_addrs.ps_at_z.len()
+                ];
 
-                row_add.iter_mut().enumerate().for_each(|(i, row)| {
-                    let row: &mut FriFoldPreprocessedCols<F> = row.as_mut_slice().borrow_mut();
-                    row.is_first = F::from_bool(i == 0);
-
-                    // Only need to read z, x, and alpha on the first iteration, hence the
-                    // multiplicities are i==0.
-                    row.z_mem =
-                        MemoryAccessCols { addr: ext_single_addrs.z, mult: -F::from_bool(i == 0) };
-                    row.x_mem =
-                        MemoryAccessCols { addr: base_single_addrs.x, mult: -F::from_bool(i == 0) };
-                    row.alpha_mem = MemoryAccessCols {
-                        addr: ext_single_addrs.alpha,
-                        mult: -F::from_bool(i == 0),
-                    };
-
-                    // Read the memory for the input vectors.
-                    row.alpha_pow_input_mem = MemoryAccessCols {
-                        addr: ext_vec_addrs.alpha_pow_input[i],
-                        mult: F::neg_one(),
-                    };
-                    row.ro_input_mem =
-                        MemoryAccessCols { addr: ext_vec_addrs.ro_input[i], mult: F::neg_one() };
-                    row.p_at_z_mem =
-                        MemoryAccessCols { addr: ext_vec_addrs.ps_at_z[i], mult: F::neg_one() };
-                    row.p_at_x_mem =
-                        MemoryAccessCols { addr: ext_vec_addrs.mat_opening[i], mult: F::neg_one() };
-
-                    // Write the memory for the output vectors.
-                    row.alpha_pow_output_mem = MemoryAccessCols {
-                        addr: ext_vec_addrs.alpha_pow_output[i],
-                        mult: alpha_pow_mults[i],
-                    };
-                    row.ro_output_mem =
-                        MemoryAccessCols { addr: ext_vec_addrs.ro_output[i], mult: ro_mults[i] };
-
-                    row.is_real = F::one();
+                row_add.iter_mut().enumerate().for_each(|(row_idx, row)| {
+                    let cols: &mut FriFoldPreprocessedCols<BabyBear> =
+                        row.as_mut_slice().borrow_mut();
+                    unsafe {
+                        crate::sys::fri_fold_instr_to_row_babybear(
+                            &instruction.into(),
+                            row_idx,
+                            cols,
+                        );
+                    }
                 });
+
                 rows.extend(row_add);
             });
 
@@ -165,13 +140,13 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for FriFoldChip<DEGREE>
         if self.pad {
             pad_rows_fixed(
                 &mut rows,
-                || [F::zero(); NUM_FRI_FOLD_PREPROCESSED_COLS],
+                || [BabyBear::zero(); NUM_FRI_FOLD_PREPROCESSED_COLS],
                 self.fixed_log2_rows,
             );
         }
 
         let trace = RowMajorMatrix::new(
-            rows.into_iter().flatten().collect(),
+            unsafe { std::mem::transmute(rows.into_iter().flatten().collect::<Vec<BabyBear>>()) },
             NUM_FRI_FOLD_PREPROCESSED_COLS,
         );
         Some(trace)
@@ -357,7 +332,7 @@ where
 mod tests {
     use crate::{
         air::Block,
-        chips::{fri_fold::FriFoldChip, test_fixtures},
+        chips::{fri_fold::FriFoldChip, mem::MemoryAccessCols, test_fixtures},
         machine::tests::run_recursion_test_machines,
         runtime::{instruction as instr, ExecutionRecord},
         stark::BabyBearPoseidon2Outer,
@@ -598,7 +573,7 @@ mod tests {
     ) -> RowMajorMatrix<BabyBear> {
         type F = BabyBear;
 
-        let mut rows = Vec::new();
+        let mut rows: Vec<[F; NUM_FRI_FOLD_PREPROCESSED_COLS]> = Vec::new();
         program
             .instructions
             .iter()
@@ -607,22 +582,53 @@ mod tests {
                 _ => None,
             })
             .for_each(|instruction| {
-                let mut row_add = vec![
-                    [F::zero(); NUM_FRI_FOLD_PREPROCESSED_COLS];
-                    instruction.ext_vec_addrs.ps_at_z.len()
-                ];
+                let FriFoldInstr {
+                    base_single_addrs,
+                    ext_single_addrs,
+                    ext_vec_addrs,
+                    alpha_pow_mults,
+                    ro_mults,
+                } = instruction.as_ref();
+                let mut row_add =
+                    vec![[F::zero(); NUM_FRI_FOLD_PREPROCESSED_COLS]; ext_vec_addrs.ps_at_z.len()];
 
-                row_add.iter_mut().enumerate().for_each(|(row_idx, row)| {
-                    let cols: &mut FriFoldPreprocessedCols<F> = row.as_mut_slice().borrow_mut();
-                    unsafe {
-                        crate::sys::fri_fold_instr_to_row_babybear(
-                            &instruction.into(),
-                            row_idx,
-                            cols,
-                        );
-                    }
+                row_add.iter_mut().enumerate().for_each(|(i, row)| {
+                    let row: &mut FriFoldPreprocessedCols<F> = row.as_mut_slice().borrow_mut();
+                    row.is_first = F::from_bool(i == 0);
+
+                    // Only need to read z, x, and alpha on the first iteration, hence the
+                    // multiplicities are i==0.
+                    row.z_mem =
+                        MemoryAccessCols { addr: ext_single_addrs.z, mult: -F::from_bool(i == 0) };
+                    row.x_mem =
+                        MemoryAccessCols { addr: base_single_addrs.x, mult: -F::from_bool(i == 0) };
+                    row.alpha_mem = MemoryAccessCols {
+                        addr: ext_single_addrs.alpha,
+                        mult: -F::from_bool(i == 0),
+                    };
+
+                    // Read the memory for the input vectors.
+                    row.alpha_pow_input_mem = MemoryAccessCols {
+                        addr: ext_vec_addrs.alpha_pow_input[i],
+                        mult: F::neg_one(),
+                    };
+                    row.ro_input_mem =
+                        MemoryAccessCols { addr: ext_vec_addrs.ro_input[i], mult: F::neg_one() };
+                    row.p_at_z_mem =
+                        MemoryAccessCols { addr: ext_vec_addrs.ps_at_z[i], mult: F::neg_one() };
+                    row.p_at_x_mem =
+                        MemoryAccessCols { addr: ext_vec_addrs.mat_opening[i], mult: F::neg_one() };
+
+                    // Write the memory for the output vectors.
+                    row.alpha_pow_output_mem = MemoryAccessCols {
+                        addr: ext_vec_addrs.alpha_pow_output[i],
+                        mult: alpha_pow_mults[i],
+                    };
+                    row.ro_output_mem =
+                        MemoryAccessCols { addr: ext_vec_addrs.ro_output[i], mult: ro_mults[i] };
+
+                    row.is_real = F::one();
                 });
-
                 rows.extend(row_add);
             });
 
