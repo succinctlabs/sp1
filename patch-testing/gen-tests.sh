@@ -46,11 +46,16 @@ _popd() {
   popd &> /dev/null
 }
 
+if [[ -z "RUN" ]]; then
+  echo "Autorun Usage: RUN=1 ./gen-tests.sh" 
+fi
+
 # Make sure were in the right directory
 cd $(dirname $0)
 
-# Remove the tests directory
-rm -rf tests
+# Remove the tests directory, if they exist
+rm -rf tests/src
+rm -rf tests/build.rs
 
 # Write the cargo toml 
 mkdir -p tests
@@ -96,7 +101,7 @@ _pushd tests
 cargo fmt --all &> /dev/null 
 _popd
 
-if [[ -z "$NO_RUN" ]]; then
+if [[ ! -z "$RUN" ]]; then
   echo "Running tests in release mode..."
   # Run the tests
   cargo test --manifest-path tests/Cargo.toml --release

@@ -24,6 +24,14 @@ name = "p256_high_sig_verify"
 path = "bin/high_sig_verify.rs"
 description = "Test a p256 high signature verification"
 
+[[bin]]
+name = "p256_recovery_fail"
+path = "bin/recovery_fail.rs"
+
+[[bin]]
+name = "p256_verify_fail"
+path = "bin/verify_fail.rs"
+
 [dependencies]
 sp1-zkvm = { workspace = true }
 p256 = { workspace = true }

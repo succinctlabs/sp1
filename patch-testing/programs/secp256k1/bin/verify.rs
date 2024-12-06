@@ -1,4 +1,3 @@
-
 #![no_main]
 sp1_zkvm::entrypoint!(main);
 
@@ -14,6 +13,7 @@ use hex_literal::hex;
 
 /// Emits SECP256K1_ADD, SECP256K1_DOUBLE, and SECP256K1_DECOMPRESS syscalls.
 pub fn main() {
+    // This is a low s signature
     let secp = secp256k1::Secp256k1::new();
     let recovery_id = Secp256k1RecoveryId::from_i32(1).unwrap();
     let signature = Secp256k1RecoverableSignature::from_compact(

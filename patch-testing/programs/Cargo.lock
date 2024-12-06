@@ -1486,6 +1486,7 @@ dependencies = [
  "ecdsa",
  "elliptic-curve",
  "k256 0.13.4",
+ "rand",
  "secp256k1-sys",
 ]
 
