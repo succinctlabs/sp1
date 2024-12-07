@@ -1,0 +1,9 @@
+[package]
+version = "0.1.0"
+name = "recursive-program"
+edition = "2021"
+
+[dependencies]
+alloy-sol-types = { workspace = true }
+sp1-zkvm = "3.0.0-rc4"
+recursive-lib = { path = "../lib" }
