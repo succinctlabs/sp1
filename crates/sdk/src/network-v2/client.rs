@@ -25,10 +25,8 @@ use crate::network_v2::proto::network::{
     GetProofRequestStatusResponse, MessageFormat, ProofMode, RequestProofRequest,
     RequestProofRequestBody,
 };
-use crate::network_v2::types::HashType;
-use crate::network_v2::types::{RequestId, TransactionHash, VerifyingKeyHash};
-use crate::network_v2::Error;
-use crate::network_v2::Signable;
+use crate::network_v2::types::{HashType, RequestId, TransactionHash, VerifyingKeyHash};
+use crate::network_v2::{Error, Signable};
 
 /// The default RPC endpoint for the Succinct prover network.
 pub const DEFAULT_PROVER_NETWORK_RPC: &str = "https://rpc.production.succinct.tools/";

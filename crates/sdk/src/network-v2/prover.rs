@@ -1,28 +1,27 @@
 use std::time::{Duration, Instant};
 
-use crate::network_v2::client::DEFAULT_PROVER_NETWORK_RPC;
-use crate::{
-    network_v2::client::NetworkClient,
-    network_v2::proto::network::{
-        ExecutionStatus, FulfillmentStatus, FulfillmentStrategy, ProofMode,
-    },
-    NetworkProverBuilder, Prover, SP1Context, SP1ProofKind, SP1ProofWithPublicValues,
-    SP1ProvingKey, SP1VerifyingKey,
-};
 use anyhow::Result;
 use backoff::{future::retry, Error as BackoffError, ExponentialBackoff};
 use serde::de::DeserializeOwned;
+use tokio::time::sleep;
+use tonic::Code;
+
 use sp1_core_machine::io::SP1Stdin;
 use sp1_prover::{components::DefaultProverComponents, SP1Prover, SP1_CIRCUIT_VERSION};
 use sp1_stark::SP1ProverOpts;
-use tonic::Code;
 
-use {crate::block_on, tokio::time::sleep};
-
-use crate::network_v2::types::HashType;
-use crate::network_v2::types::{RequestId, VerifyingKeyHash};
-use crate::network_v2::Error;
-use crate::provers::{CpuProver, ProofOpts, ProverType};
+use crate::network_v2::{
+    client::{NetworkClient, DEFAULT_PROVER_NETWORK_RPC},
+    proto::network::{ExecutionStatus, FulfillmentStatus, FulfillmentStrategy, ProofMode},
+    types::{HashType, RequestId, VerifyingKeyHash},
+    Error,
+};
+use crate::{
+    block_on,
+    provers::{CpuProver, ProofOpts, ProverType},
+    NetworkProverBuilder, Prover, SP1Context, SP1ProofKind, SP1ProofWithPublicValues,
+    SP1ProvingKey, SP1VerifyingKey,
+};
 
 /// The default proof mode to use for proof requests.
 pub const DEFAULT_PROOF_MODE: ProofMode = ProofMode::Groth16;
