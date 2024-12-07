@@ -17,7 +17,6 @@ async fn main() {
     // Setup logging.
     utils::setup_logger();
 
-
     // Create the prover.
     let private_key = env::var("SP1_PRIVATE_KEY").expect("PRIVATE_KEY must be set");
     let prover = NetworkProver::new(&private_key, None, false)
@@ -34,18 +33,11 @@ async fn main() {
     let mut stdin = SP1Stdin::new();
     stdin.write(&1000u32);
 
+    // Send the proof request to the prover network.
     let proof_result = prover.prove(&pk, stdin).await;
     let mut proof = match proof_result {
         Ok(proof) => proof,
         Err(e) => match e {
-            Error::SimulationFailed => {
-                eprintln!("Failed to simulate program execution. Try setting a manual cycle limit with skip_simulation()");
-                std::process::exit(1);
-            }
-            Error::RequestTimedOut => {
-                eprintln!("Proof generation timed out. Try increasing the timeout duration");
-                std::process::exit(1);
-            }
             Error::RequestUnexecutable => {
                 eprintln!("Program is not executable. Check your input parameters");
                 std::process::exit(1);
@@ -54,15 +46,7 @@ async fn main() {
                 eprintln!("No prover available to fulfill the request. Try again later");
                 std::process::exit(1);
             }
-            Error::RegistrationFailed => {
-                eprintln!("Failed to register program with the network");
-                std::process::exit(1);
-            }
-            Error::NetworkError(status) => {
-                eprintln!("Network communication error: {}", status);
-                std::process::exit(1);
-            }
-            Error::Other(e) => {
+            _ => {
                 eprintln!("Unexpected error: {}", e);
                 std::process::exit(1);
             }

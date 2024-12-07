@@ -186,10 +186,12 @@ impl NetworkProver {
         vk: &SP1VerifyingKey,
         elf: &[u8],
     ) -> Result<VerifyingKeyHash> {
+        log::info!("Registering program with verifying key hash");
         self.client.register_program(vk, elf).await
     }
 
     /// Requests a proof from the prover network, returning the request ID.
+    #[allow(clippy::too_many_arguments)]
     pub async fn request_proof(
         &self,
         vk_hash: &VerifyingKeyHash,
@@ -290,7 +292,7 @@ impl NetworkProver {
         stdin: SP1Stdin,
     ) -> Result<SP1ProofWithPublicValues, Error> {
         // Ensure the program is registered.
-        let vk_hash = self.register_program(&pk.vk, &pk.elf).await.map_err(Error::Other)?;
+        let vk_hash = self.register_program(&pk.vk, &pk.elf).await?;
 
         // Get the configured settings.
         let version = SP1_CIRCUIT_VERSION;
@@ -302,8 +304,7 @@ impl NetworkProver {
         // Request the proof.
         let request_id = self
             .request_proof(&vk_hash, &stdin, version, mode, strategy, timeout_secs, cycle_limit)
-            .await
-            .map_err(Error::Other)?;
+            .await?;
 
         // Wait for the proof to be generated.
         self.wait_proof(&request_id, timeout_secs).await

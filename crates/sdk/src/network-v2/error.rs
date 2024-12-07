@@ -15,11 +15,14 @@ pub enum Error {
     #[error("Proof request timed out")]
     RequestTimedOut,
 
-    #[error("Registration failed")]
-    RegistrationFailed,
+    #[error("Artifact upload failed: {message}")]
+    ArtifactUpload { message: String },
 
-    #[error("Network error")]
-    NetworkError(#[from] Status),
+    #[error("Artifact download failed: {message}")]
+    ArtifactDownload { message: String },
+
+    #[error("RPC error")]
+    RpcError(#[from] Status),
 
     #[error("Other error: {0}")]
     Other(#[from] anyhow::Error),

@@ -23,7 +23,7 @@ use crate::network_v2::proto::network::{
     CreateProgramResponse, FulfillmentStatus, FulfillmentStrategy, GetNonceRequest,
     GetProgramRequest, GetProgramResponse, GetProofRequestStatusRequest,
     GetProofRequestStatusResponse, MessageFormat, ProofMode, RequestProofRequest,
-    RequestProofRequestBody, RequestProofResponse,
+    RequestProofRequestBody,
 };
 use crate::network_v2::types::HashType;
 use crate::network_v2::types::{RequestId, TransactionHash, VerifyingKeyHash};
@@ -194,7 +194,10 @@ impl NetworkClient {
                     .proof_uri
                     .as_ref()
                     .ok_or_else(|| anyhow::anyhow!("No proof URI provided"))?;
-                let proof_bytes = self.download_artifact(proof_uri).await?;
+                let proof_bytes = self
+                    .download_artifact(proof_uri)
+                    .await
+                    .map_err(|e| Error::ArtifactDownload { message: e.to_string() })?;
                 Some(bincode::deserialize(&proof_bytes).context("Failed to deserialize proof")?)
             }
             _ => None,
@@ -204,6 +207,7 @@ impl NetworkClient {
     }
 
     /// Creates a proof request with the given verifying key hash and stdin.
+    #[allow(clippy::too_many_arguments)]
     pub async fn request_proof(
         &self,
         vk_hash: &VerifyingKeyHash,
@@ -216,7 +220,9 @@ impl NetworkClient {
     ) -> Result<(TransactionHash, RequestId)> {
         // Calculate the deadline.
         let start = SystemTime::now();
-        let since_the_epoch = start.duration_since(UNIX_EPOCH).expect("Invalid start time");
+        let since_the_epoch = start
+            .duration_since(UNIX_EPOCH)
+            .map_err(|e| Error::Other(anyhow::anyhow!("Invalid system time: {}", e)))?;
         let deadline = since_the_epoch.as_secs() + timeout_secs;
 
         // Create the stdin artifact.
@@ -273,21 +279,30 @@ impl NetworkClient {
             self.http.put(&presigned_url).body(bincode::serialize::<T>(item)?).send().await?;
 
         if !response.status().is_success() {
-            log::debug!("Artifact upload failed with status: {}", response.status());
+            let status = response.status();
+            let text = response
+                .text()
+                .await
+                .unwrap_or_else(|e| format!("Failed to get error response text: {}", e));
+            return Err(anyhow::anyhow!("HTTP {}: {}", status, text));
         }
-        assert!(response.status().is_success());
 
         Ok(uri)
     }
 
     /// Download an artifact from a URI.
     async fn download_artifact(&self, uri: &str) -> Result<Vec<u8>> {
-        let response = self.http.get(uri).send().await.context("Failed to download from URI")?;
+        let response = self.http.get(uri).send().await?;
 
         if !response.status().is_success() {
-            return Err(anyhow::anyhow!("Failed to download artifact: HTTP {}", response.status()));
+            let status = response.status();
+            let text = response
+                .text()
+                .await
+                .unwrap_or_else(|e| format!("Failed to get error response text: {}", e));
+            return Err(anyhow::anyhow!("HTTP {}: {}", status, text));
         }
 
-        Ok(response.bytes().await.context("Failed to read response body")?.to_vec())
+        Ok(response.bytes().await?.to_vec())
     }
 }

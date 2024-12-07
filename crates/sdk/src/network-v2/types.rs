@@ -1,6 +1,7 @@
 use std::fmt;
 
-const DEFAULT_EXPLORER_URL: &str = "https://network.succinct.xyz";
+/// The default URL for the proof network explorer.
+pub const DEFAULT_EXPLORER_URL: &str = "https://network.succinct.xyz";
 
 /// A 32-byte hash that uniquely identifies a proof request.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -18,7 +19,6 @@ pub struct VerifyingKeyHash(Vec<u8>);
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TransactionHash(Vec<u8>);
 
-// Common trait for hex formatting and explorer URLs
 pub trait HashType: Sized {
     fn as_bytes(&self) -> &[u8];
     fn new(bytes: Vec<u8>) -> Self;
