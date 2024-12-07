@@ -1,6 +1,10 @@
 use crate::*;
 use p3_field::{AbstractExtensionField, AbstractField};
 use serde::{Deserialize, Serialize};
+
+#[cfg(feature = "program_validation")]
+use smallvec::SmallVec;
+
 use std::borrow::Borrow;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -21,29 +25,113 @@ pub enum Instruction<F> {
     Hint(HintInstr<F>),
 }
 
-pub mod extractors {
-    use super::*;
+impl<F: Copy> Instruction<F> {
+    #[cfg(feature = "program_validation")]
+    #[allow(clippy::type_complexity)]
+    #[must_use]
+    pub(crate) fn io_addrs(&self) -> (SmallVec<[Address<F>; 4]>, SmallVec<[Address<F>; 4]>) {
+        use smallvec::{smallvec as svec, *};
+        use std::iter;
 
-    macro_rules! create_extractor {
-        ($name:ident, $variant:ident, $type:ty) => {
-            // Allocating an intermediate `Vec` is faster.
-            pub fn $name<F>(program: &RecursionProgram<F>) -> Vec<&$type> {
-                program
-                    .instructions
-                    .iter() // Faster than using `rayon` for some reason. Maybe vectorization?
-                    .filter_map(|instruction| match instruction {
-                        Instruction::$variant(x) => Some(x),
-                        _ => None,
-                    })
-                    .collect::<Vec<_>>()
+        match *self {
+            Instruction::BaseAlu(BaseAluInstr { addrs: BaseAluIo { out, in1, in2 }, .. }) => {
+                (svec![in1, in2], svec![out])
             }
-        };
+            Instruction::ExtAlu(ExtAluInstr { addrs: ExtAluIo { out, in1, in2 }, .. }) => {
+                (svec![in1, in2], svec![out])
+            }
+            Instruction::Mem(MemInstr { addrs: MemIo { inner }, .. }) => (svec![], svec![inner]),
+            Instruction::Poseidon2(ref instr) => {
+                let Poseidon2SkinnyInstr { addrs: Poseidon2Io { input, output }, .. } =
+                    instr.as_ref();
+                (SmallVec::from_slice(input), SmallVec::from_slice(output))
+            }
+            Instruction::Select(SelectInstr {
+                addrs: SelectIo { bit, out1, out2, in1, in2 },
+                ..
+            }) => (svec![bit, in1, in2], svec![out1, out2]),
+            Instruction::ExpReverseBitsLen(ExpReverseBitsInstr {
+                addrs: ExpReverseBitsIo { base, ref exp, result },
+                ..
+            }) => (exp.iter().copied().chain(iter::once(base)).collect(), svec![result]),
+            Instruction::HintBits(HintBitsInstr { ref output_addrs_mults, input_addr }) => {
+                (svec![input_addr], output_addrs_mults.iter().map(|(a, _)| *a).collect())
+            }
+            Instruction::HintAddCurve(ref instr) => {
+                let HintAddCurveInstr {
+                    output_x_addrs_mults,
+                    output_y_addrs_mults,
+                    input1_x_addrs,
+                    input1_y_addrs,
+                    input2_x_addrs,
+                    input2_y_addrs,
+                } = instr.as_ref();
+                (
+                    [input1_x_addrs, input1_y_addrs, input2_x_addrs, input2_y_addrs]
+                        .into_iter()
+                        .flatten()
+                        .copied()
+                        .collect(),
+                    [output_x_addrs_mults, output_y_addrs_mults]
+                        .into_iter()
+                        .flatten()
+                        .map(|&(addr, _)| addr)
+                        .collect(),
+                )
+            }
+            Instruction::FriFold(ref instr) => {
+                let FriFoldInstr {
+                    base_single_addrs: FriFoldBaseIo { x },
+                    ext_single_addrs: FriFoldExtSingleIo { z, alpha },
+                    ext_vec_addrs:
+                        FriFoldExtVecIo {
+                            ref mat_opening,
+                            ref ps_at_z,
+                            ref alpha_pow_input,
+                            ref ro_input,
+                            ref alpha_pow_output,
+                            ref ro_output,
+                        },
+                    ..
+                } = *instr.as_ref();
+                (
+                    [mat_opening, ps_at_z, alpha_pow_input, ro_input]
+                        .into_iter()
+                        .flatten()
+                        .copied()
+                        .chain([x, z, alpha])
+                        .collect(),
+                    [alpha_pow_output, ro_output].into_iter().flatten().copied().collect(),
+                )
+            }
+            Instruction::BatchFRI(ref instr) => {
+                let BatchFRIInstr { base_vec_addrs, ext_single_addrs, ext_vec_addrs, .. } =
+                    instr.as_ref();
+                (
+                    [
+                        base_vec_addrs.p_at_x.as_slice(),
+                        ext_vec_addrs.p_at_z.as_slice(),
+                        ext_vec_addrs.alpha_pow.as_slice(),
+                    ]
+                    .concat()
+                    .to_vec()
+                    .into(),
+                    svec![ext_single_addrs.acc],
+                )
+            }
+            Instruction::Print(_) => Default::default(),
+            Instruction::HintExt2Felts(HintExt2FeltsInstr { output_addrs_mults, input_addr }) => {
+                (svec![input_addr], output_addrs_mults.iter().map(|(a, _)| *a).collect())
+            }
+            Instruction::CommitPublicValues(ref instr) => {
+                let CommitPublicValuesInstr { pv_addrs } = instr.as_ref();
+                (pv_addrs.as_array().to_vec().into(), svec![])
+            }
+            Instruction::Hint(HintInstr { ref output_addrs_mults }) => {
+                (svec![], output_addrs_mults.iter().map(|(a, _)| *a).collect())
+            }
+        }
     }
-
-    create_extractor!(extract_base_alu_instrs, BaseAlu, BaseAluInstr<F>);
-    create_extractor!(extract_ext_alu_instrs, ExtAlu, ExtAluInstr<F>);
-    create_extractor!(extract_batch_fri_instrs, BatchFRI, Box<BatchFRIInstr<F>>);
-    create_extractor!(extract_select_instrs, Select, SelectInstr<F>);
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

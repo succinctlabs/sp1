@@ -62,7 +62,7 @@ use sp1_recursion_circuit::{
 use sp1_recursion_compiler::{
     circuit::AsmCompiler,
     config::InnerConfig,
-    ir::{Builder, Witness},
+    ir::{Builder, DslIrProgram, Witness},
 };
 use sp1_recursion_core::{
     air::RecursionPublicValues,
@@ -262,11 +262,14 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 
                     let input = input.read(&mut builder);
                     SP1RecursiveVerifier::verify(&mut builder, core_prover.machine(), input);
-                    let operations = builder.into_operations();
+                    let block = builder.into_root_block();
+                    // SAFETY: The circuit is well-formed. It does not use synchronization primitives
+                    // (or possibly other means) to violate the invariants.
+                    let dsl_program = unsafe { DslIrProgram::new_unchecked(block) };
 
                     // Compile the program.
                     let mut compiler = AsmCompiler::<InnerConfig>::default();
-                    let mut program = compiler.compile(operations);
+                    let mut program = compiler.compile(dsl_program);
 
                     if let Some(recursion_shape_config_inner) = &recursion_shape_config {
                         recursion_shape_config_inner.fix_shape(&mut program);
@@ -991,15 +994,22 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                 let builder_span = tracing::debug_span!("build recursion program").entered();
                 let mut builder = Builder::<InnerConfig>::default();
 
-                let input = input.read(&mut builder);
-                SP1RecursiveVerifier::verify(&mut builder, self.core_prover.machine(), input);
-                let operations = builder.into_operations();
+                let input =
+                    tracing::debug_span!("read input").in_scope(|| input.read(&mut builder));
+                tracing::debug_span!("verify").in_scope(|| {
+                    SP1RecursiveVerifier::verify(&mut builder, self.core_prover.machine(), input)
+                });
+                let block =
+                    tracing::debug_span!("build block").in_scope(|| builder.into_root_block());
                 builder_span.exit();
+                // SAFETY: The circuit is well-formed. It does not use synchronization primitives
+                // (or possibly other means) to violate the invariants.
+                let dsl_program = unsafe { DslIrProgram::new_unchecked(block) };
 
                 // Compile the program.
                 let compiler_span = tracing::debug_span!("compile recursion program").entered();
                 let mut compiler = AsmCompiler::<InnerConfig>::default();
-                let mut program = compiler.compile(operations);
+                let mut program = compiler.compile(dsl_program);
                 if let Some(inn_recursion_shape_config) = &self.recursion_shape_config {
                     inn_recursion_shape_config.fix_shape(&mut program);
                 }
@@ -1045,15 +1055,18 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             self.vk_verification,
             PublicValuesOutputDigest::Reduce,
         );
-        let operations = builder.into_operations();
+        let block = builder.into_root_block();
         builder_span.exit();
+        // SAFETY: The circuit is well-formed. It does not use synchronization primitives
+        // (or possibly other means) to violate the invariants.
+        let dsl_program = unsafe { DslIrProgram::new_unchecked(block) };
 
         // Compile the program.
         let compiler_span = tracing::debug_span!("compile shrink program").entered();
         let mut compiler = AsmCompiler::<InnerConfig>::default();
-        let mut program = compiler.compile(operations);
+        let mut program = compiler.compile(dsl_program);
 
-        program.shape = Some(shrink_shape);
+        *program.shape_mut() = Some(shrink_shape);
         let program = Arc::new(program);
         compiler_span.exit();
         program
@@ -1091,13 +1104,16 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                     PublicValuesOutputDigest::Root,
                 );
 
-                let operations = builder.into_operations();
+                let block = builder.into_root_block();
                 builder_span.exit();
+                // SAFETY: The circuit is well-formed. It does not use synchronization primitives
+                // (or possibly other means) to violate the invariants.
+                let dsl_program = unsafe { DslIrProgram::new_unchecked(block) };
 
                 // Compile the program.
                 let compiler_span = tracing::debug_span!("compile compress program").entered();
                 let mut compiler = AsmCompiler::<WrapConfig>::default();
-                let program = Arc::new(compiler.compile(operations));
+                let program = Arc::new(compiler.compile(dsl_program));
                 compiler_span.exit();
                 program
             })
@@ -1127,12 +1143,15 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             self.vk_verification,
         );
         verify_span.exit();
-        let operations = builder.into_operations();
+        let block = builder.into_root_block();
         operations_span.exit();
+        // SAFETY: The circuit is well-formed. It does not use synchronization primitives
+        // (or possibly other means) to violate the invariants.
+        let dsl_program = unsafe { DslIrProgram::new_unchecked(block) };
 
         let compiler_span = tracing::debug_span!("compile deferred program").entered();
         let mut compiler = AsmCompiler::<InnerConfig>::default();
-        let mut program = compiler.compile(operations);
+        let mut program = compiler.compile(dsl_program);
         if let Some(recursion_shape_config) = &self.recursion_shape_config {
             recursion_shape_config.fix_shape(&mut program);
         }
@@ -1322,13 +1341,16 @@ pub fn compress_program_from_input<C: SP1ProverComponents>(
         vk_verification,
         PublicValuesOutputDigest::Reduce,
     );
-    let operations = builder.into_operations();
+    let block = builder.into_root_block();
     builder_span.exit();
+    // SAFETY: The circuit is well-formed. It does not use synchronization primitives
+    // (or possibly other means) to violate the invariants.
+    let dsl_program = unsafe { DslIrProgram::new_unchecked(block) };
 
     // Compile the program.
     let compiler_span = tracing::debug_span!("compile compress program").entered();
     let mut compiler = AsmCompiler::<InnerConfig>::default();
-    let mut program = compiler.compile(operations);
+    let mut program = compiler.compile(dsl_program);
     if let Some(config) = config {
         config.fix_shape(&mut program);
     }

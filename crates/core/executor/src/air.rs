@@ -52,6 +52,7 @@ impl CoreAir {
     /// Create a `CoreAir` from a chip name.
     ///
     /// This function panics if the name is not a valid chip name.
+    #[must_use]
     pub fn from_name(name: &str) -> Self {
         match name {
             "Program" => Self::Program,
@@ -76,7 +77,9 @@ impl CoreAir {
         }
     }
 
-    pub fn name(&self) -> &'static str {
+    /// Get the chip name of the `CoreAir`.
+    #[must_use]
+    pub const fn name(&self) -> &'static str {
         match self {
             Self::Program => "Program",
             Self::Byte => "Byte",
@@ -109,6 +112,7 @@ pub struct CoreAirCosts<F> {
 
 impl<F: Field> CoreAirCosts<F> {
     /// Create a new `CoreAirCosts` instance, with all costs set to 0.
+    #[must_use]
     pub fn new() -> Self {
         Self { costs: EnumMap::default(), _marker: std::marker::PhantomData }
     }

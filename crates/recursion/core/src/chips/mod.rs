@@ -9,6 +9,7 @@ pub mod poseidon2_wide;
 pub mod public_values;
 pub mod select;
 
+#[cfg(test)]
 pub mod test_fixtures {
     use crate::*;
     use p3_baby_bear::BabyBear;
@@ -37,21 +38,22 @@ pub mod test_fixtures {
     }
 
     pub fn program() -> RecursionProgram<BabyBear> {
-        let mut instructions = Vec::new();
-        instructions.push(base_alu_instructions());
-        instructions.push(ext_alu_instructions());
-        instructions.push(batch_fri_instructions());
-        instructions.push(exp_reverse_bits_instructions());
-        instructions.push(fri_fold_instructions());
-        instructions.push(public_values_instructions());
-        instructions.push(select_instructions());
-        instructions.push(poseidon2_instructions());
+        let mut instructions = [
+            base_alu_instructions(),
+            ext_alu_instructions(),
+            batch_fri_instructions(),
+            exp_reverse_bits_instructions(),
+            fri_fold_instructions(),
+            public_values_instructions(),
+            select_instructions(),
+            poseidon2_instructions(),
+        ]
+        .concat();
 
         let mut rng = StdRng::seed_from_u64(SEED);
-        let mut flattened: Vec<_> = instructions.into_iter().flatten().collect();
-        flattened.shuffle(&mut rng);
+        instructions.shuffle(&mut rng);
 
-        RecursionProgram { instructions: flattened, ..Default::default() }
+        linear_program(instructions).unwrap()
     }
 
     pub fn default_execution_record() -> ExecutionRecord<BabyBear> {

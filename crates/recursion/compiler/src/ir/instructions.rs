@@ -1,4 +1,7 @@
-#![deny(clippy::large_enum_variant)]
+use std::{
+    borrow::Cow,
+    ops::{Deref, Range},
+};
 
 use sp1_recursion_core::air::RecursionPublicValues;
 use sp1_stark::septic_curve::SepticCurve;
@@ -254,9 +257,9 @@ pub enum DslIr<C: Config> {
     /// Hint an array of extension field elements.
     HintExts(Array<C, Ext<C::F, C::EF>>),
     /// Hint an array of field elements.
-    CircuitV2HintFelts(Vec<Felt<C::F>>),
+    CircuitV2HintFelts(Felt<C::F>, usize),
     /// Hint an array of extension field elements.
-    CircuitV2HintExts(Vec<Ext<C::F, C::EF>>),
+    CircuitV2HintExts(Ext<C::F, C::EF>, usize),
     /// Witness a variable. Should only be used when target is a gnark circuit.
     WitnessVar(Var<C::N>, u32),
     /// Witness a field element. Should only be used when target is a gnark circuit.
@@ -317,12 +320,68 @@ pub enum DslIr<C: Config> {
     /// Tracks the number of cycles used by a block of code annotated by the string input.
     CycleTracker(String),
     /// Tracks the number of cycles used by a block of code annotated by the string input.
-    CycleTrackerV2Enter(String),
+    CycleTrackerV2Enter(Cow<'static, str>),
     /// Tracks the number of cycles used by a block of code annotated by the string input.
     CycleTrackerV2Exit,
 
-    // Reverse bits exponentiation.
+    /// Reverse bits exponentiation.
     ExpReverseBitsLen(Ptr<C::N>, Var<C::N>, Var<C::N>),
     /// Reverse bits exponentiation. Output, base, exponent bits.
     CircuitV2ExpReverseBits(Felt<C::F>, Felt<C::F>, Vec<Felt<C::F>>),
+
+    // Structuring IR constructors.
+    /// Blocks that may be executed in parallel.
+    Parallel(Vec<DslIrBlock<C>>),
+}
+
+/// A block of instructions.
+#[derive(Clone, Default, Debug)]
+pub struct DslIrBlock<C: Config> {
+    pub ops: TracedVec<DslIr<C>>,
+    pub addrs_written: Range<u32>,
+}
+
+#[derive(Clone, Debug)]
+pub struct DslIrProgram<C: Config>(DslIrBlock<C>);
+
+impl<C: Config> DslIrProgram<C> {
+    /// # Safety
+    /// The given block must represent a well formed program. This is defined as the following:
+    /// - reads are performed after writes, according to a "happens-before" relation; and
+    /// - an address is written to at most once.
+    ///
+    /// The "happens-before" relation is defined as follows:
+    /// - It is a strict partial order, meaning it is transitive, irreflexive, and asymmetric.
+    /// - Contiguous sequences of instructions that are not [`DslIr::Parallel`] in a [`DslIrBlock`]
+    ///   are linearly ordered. Call these sequences "sequential blocks."
+    /// - For each `DslIrBlock` in the `DslIr::Parallel` variant:
+    ///   - The block's first instruction comes after the last instruction in the parent's previous
+    ///     sequential block. if it exists.
+    ///   - The block's last instruction comes before the first instruction in the parent's next
+    ///     sequential block, if it exists.
+    ///   - If the sequential blocks mentioned in eiither of the previous two rules do not exist,
+    ///     then the situation is that of two consecutive [`DslIr::Parallel`] instructions `x` and `y`.
+    ///     Then each last instruction of `x` comes before each first instruction of `y`.
+    pub unsafe fn new_unchecked(block: DslIrBlock<C>) -> Self {
+        Self(block)
+    }
+
+    pub fn into_inner(self) -> DslIrBlock<C> {
+        self.0
+    }
+}
+
+impl<C: Config> Default for DslIrProgram<C> {
+    fn default() -> Self {
+        // SAFETY: An empty block is always well formed.
+        unsafe { Self::new_unchecked(DslIrBlock::default()) }
+    }
+}
+
+impl<C: Config> Deref for DslIrProgram<C> {
+    type Target = DslIrBlock<C>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
 }

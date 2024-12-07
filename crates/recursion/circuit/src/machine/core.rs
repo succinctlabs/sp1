@@ -292,7 +292,9 @@ where
                 builder,
                 shard_proof.public_values[0..machine.num_pv_elts()].iter().copied(),
             );
-            StarkVerifier::verify_shard(builder, &vk, machine, &mut challenger, &shard_proof);
+            tracing::debug_span!("verify shard").in_scope(|| {
+                StarkVerifier::verify_shard(builder, &vk, machine, &mut challenger, &shard_proof)
+            });
 
             let chips = machine.shard_chips_ordered(&shard_proof.chip_ordering).collect::<Vec<_>>();
 
