@@ -1554,7 +1554,7 @@ impl<'a> Executor<'a> {
                         log2_ceil_usize(global_count),
                     );
                     if normal_lde_size > MAX_LDE_SIZE {
-                        panic!("LDE size exceeded limit: {}", normal_lde_size);
+                        panic!("LDE size exceeded limit: {normal_lde_size}");
                     }
                     shape_match_found = false;
                 }

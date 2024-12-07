@@ -74,7 +74,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize>
 
         if let Some(shape) = closest_shape {
             let shape = RecursionShape { inner: shape };
-            program.shape = Some(shape);
+            *program.shape_mut() = Some(shape);
         } else {
             panic!("no shape found for heights: {:?}", heights);
         }

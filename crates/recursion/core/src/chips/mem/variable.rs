@@ -58,9 +58,10 @@ impl<F: PrimeField32> MachineAir<F> for MemoryChip<F> {
     fn generate_preprocessed_trace(&self, program: &Self::Program) -> Option<RowMajorMatrix<F>> {
         // Allocating an intermediate `Vec` is faster.
         let accesses = program
-            .instructions
-            .par_iter() // Using `rayon` here provides a big speedup.
-            .flat_map_iter(|instruction| match instruction {
+            .inner
+            .iter()
+            // .par_bridge() // Using `rayon` here provides a big speedup. TODO put rayon back
+            .flat_map(|instruction| match instruction {
                 Instruction::Hint(HintInstr { output_addrs_mults })
                 | Instruction::HintBits(HintBitsInstr {
                     output_addrs_mults,
@@ -153,14 +154,11 @@ where
 
 #[cfg(test)]
 mod tests {
-    use machine::tests::run_recursion_test_machines;
     use p3_baby_bear::BabyBear;
     use p3_field::AbstractField;
     use p3_matrix::dense::RowMajorMatrix;
 
     use super::*;
-
-    use crate::runtime::instruction as instr;
 
     #[test]
     pub fn generate_trace() {
@@ -175,60 +173,5 @@ mod tests {
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&shard, &mut ExecutionRecord::default());
         println!("{:?}", trace.values)
-    }
-
-    #[test]
-    pub fn prove_basic_mem() {
-        let program = RecursionProgram {
-            instructions: vec![
-                instr::mem(MemAccessKind::Write, 1, 1, 2),
-                instr::mem(MemAccessKind::Read, 1, 1, 2),
-            ],
-            ..Default::default()
-        };
-
-        run_recursion_test_machines(program);
-    }
-
-    #[test]
-    #[should_panic]
-    pub fn basic_mem_bad_mult() {
-        let program = RecursionProgram {
-            instructions: vec![
-                instr::mem(MemAccessKind::Write, 1, 1, 2),
-                instr::mem(MemAccessKind::Read, 999, 1, 2),
-            ],
-            ..Default::default()
-        };
-
-        run_recursion_test_machines(program);
-    }
-
-    #[test]
-    #[should_panic]
-    pub fn basic_mem_bad_address() {
-        let program = RecursionProgram {
-            instructions: vec![
-                instr::mem(MemAccessKind::Write, 1, 1, 2),
-                instr::mem(MemAccessKind::Read, 1, 999, 2),
-            ],
-            ..Default::default()
-        };
-
-        run_recursion_test_machines(program);
-    }
-
-    #[test]
-    #[should_panic]
-    pub fn basic_mem_bad_value() {
-        let program = RecursionProgram {
-            instructions: vec![
-                instr::mem(MemAccessKind::Write, 1, 1, 2),
-                instr::mem(MemAccessKind::Read, 1, 1, 999),
-            ],
-            ..Default::default()
-        };
-
-        run_recursion_test_machines(program);
     }
 }

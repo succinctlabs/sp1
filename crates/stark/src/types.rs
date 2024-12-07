@@ -234,7 +234,7 @@ impl fmt::Display for ProofShape {
         // Print the proof shapes in a human-readable format
         writeln!(f, "Proofshape:")?;
         for (name, log_degree) in &self.chip_information {
-            writeln!(f, "{name}: {}", log_degree)?;
+            writeln!(f, "{name}: {log_degree}")?;
         }
         Ok(())
     }

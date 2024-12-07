@@ -81,7 +81,7 @@ fn main() {
 
     if args.reset {
         for log_shard_size in args.shard_sizes.iter() {
-            if let Some(m) = all_maximal_shapes.shard_map.get_mut(&log_shard_size) {
+            if let Some(m) = all_maximal_shapes.shard_map.get_mut(log_shard_size) {
                 m.clear();
             }
         }

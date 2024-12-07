@@ -217,6 +217,6 @@ mod tests {
             }
         }
 
-        run_test_recursion(builder.into_operations(), std::iter::empty());
+        run_test_recursion(builder.into_root_block(), std::iter::empty());
     }
 }

@@ -171,7 +171,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAi
 
     pub fn heights(program: &RecursionProgram<F>) -> Vec<(String, usize)> {
         let heights = program
-            .instructions
+            .inner
             .iter()
             .fold(RecursionAirEventCount::default(), |heights, instruction| heights + instruction);
 
@@ -291,24 +291,20 @@ pub mod tests {
         // Run with the poseidon2 wide chip.
         let machine = A::machine_wide_with_all_chips(BabyBearPoseidon2::default());
         let (pk, vk) = machine.setup(&program);
-        let result = run_test_machine(vec![runtime.record.clone()], machine, pk, vk);
-        if let Err(e) = result {
-            panic!("Verification failed: {:?}", e);
-        }
+        run_test_machine(vec![runtime.record.clone()], machine, pk, vk)
+            .expect("Verification failed");
 
         // Run with the poseidon2 skinny chip.
         let skinny_machine =
             B::machine_skinny_with_all_chips(BabyBearPoseidon2::ultra_compressed());
         let (pk, vk) = skinny_machine.setup(&program);
-        let result = run_test_machine(vec![runtime.record], skinny_machine, pk, vk);
-        if let Err(e) = result {
-            panic!("Verification failed: {:?}", e);
-        }
+        run_test_machine(vec![runtime.record], skinny_machine, pk, vk)
+            .expect("Verification failed");
     }
 
-    fn test_instructions(instructions: Vec<Instruction<F>>) {
-        let program = RecursionProgram { instructions, ..Default::default() };
-        run_recursion_test_machines(program);
+    /// Constructs a linear program and runs it on machines that use the wide and skinny Poseidon2 chips.
+    pub fn test_recursion_linear_program(instrs: Vec<Instruction<F>>) {
+        run_recursion_test_machines(linear_program(instrs).unwrap());
     }
 
     #[test]
@@ -322,7 +318,7 @@ pub mod tests {
             .chain(once(instr::mem(MemAccessKind::Read, 2, n, 55)))
             .collect::<Vec<_>>();
 
-        test_instructions(instructions);
+        test_recursion_linear_program(instructions);
     }
 
     #[test]
@@ -335,7 +331,7 @@ pub mod tests {
             instr::mem(MemAccessKind::Read, 1, 2, 1),
         ];
 
-        test_instructions(instructions);
+        test_recursion_linear_program(instructions);
     }
 
     #[test]
@@ -347,7 +343,7 @@ pub mod tests {
             instr::mem(MemAccessKind::Read, 1, 2, 1),
         ];
 
-        test_instructions(instructions);
+        test_recursion_linear_program(instructions);
     }
 
     #[test]
@@ -380,6 +376,6 @@ pub mod tests {
             addr += 1;
         }
 
-        test_instructions(instructions);
+        test_recursion_linear_program(instructions);
     }
 }
