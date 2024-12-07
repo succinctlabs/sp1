@@ -21,6 +21,7 @@
 
 mod air;
 mod context;
+mod cost;
 mod dependencies;
 mod disassembler;
 pub mod events;
@@ -45,6 +46,7 @@ mod utils;
 
 pub use air::*;
 pub use context::*;
+pub use cost::*;
 pub use executor::*;
 pub use hook::*;
 pub use instruction::*;

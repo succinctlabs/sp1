@@ -1,27 +1,17 @@
 use std::collections::BTreeMap;
 
-use itertools::Itertools;
-
-use serde::{Deserialize, Serialize};
-
 use hashbrown::HashMap;
+use itertools::Itertools;
 use num::Integer;
 use p3_baby_bear::BabyBear;
 use p3_field::PrimeField32;
 use p3_util::log2_ceil_usize;
-use sp1_core_executor::{
-    CoreAir, CoreAirCosts, CoreShape, ExecutionRecord, MaximalShapes, Program, CORE_AIR_COSTS,
-};
+use serde::{Deserialize, Serialize};
+use sp1_core_executor::{CoreShape, ExecutionRecord, MaximalShapes, Program};
 use sp1_stark::{
     air::MachineAir, Dom, MachineProver, MachineRecord, ProofShape, StarkGenericConfig,
 };
 use thiserror::Error;
-
-const MAXIMAL_SHAPES: &[u8] = include_bytes!("../../maximal_shapes.json");
-const AVERAGE_SHAPES: &[u8] = include_bytes!("../../average_shapes.json");
-
-const MIN_LOG_HEIGHT_THRESHOLD: usize = 18;
-const LOG_HEIGHT_BUFFER: usize = 10;
 
 use crate::{
     global::GlobalChip,
@@ -33,6 +23,36 @@ use super::{
     AddSubChip, BitwiseChip, ByteChip, CpuChip, DivRemChip, LtChip, MemoryGlobalChip, MulChip,
     ProgramChip, RiscvAir, ShiftLeft, ShiftRightChip, SyscallChip,
 };
+
+/// The set of maximal shapes.
+///
+/// These shapes define the "worst-case" shapes for typical shards that are proving `rv32im`
+/// execution. We use a variant of a cartesian product of the allowed log heights to generate
+/// smaller shapes from these ones.
+const MAXIMAL_SHAPES: &[u8] = include_bytes!("../../maximal_shapes.json");
+
+// /// The set of average shapes.
+// ///
+// /// These shapes define the "average" shapes for typical shards that are proving `rv32im`
+// /// execution. We then use a heuristic algorihtm to generate them.
+// const AVERAGE_SHAPES: &[u8] = include_bytes!("../../average_shapes.json");
+
+/// The minimum log height threshold for allowed log heights.
+const MIN_LOG_HEIGHT_THRESHOLD: usize = 18;
+
+/// The log height buffer.
+const LOG_HEIGHT_BUFFER: usize = 10;
+
+/// A structure that enables fixing the shape of an execution record.
+pub struct CoreShapeConfig<F: PrimeField32> {
+    included_shapes: Vec<HashMap<String, usize>>,
+    shapes_with_cpu_and_memory_finalize: Vec<ShapeCluster<F>>,
+    allowed_preprocessed_log_heights: ShapeCluster<F>,
+    allowed_core_log_heights: BTreeMap<usize, Vec<ShapeCluster<F>>>,
+    memory_allowed_log_heights: ShapeCluster<F>,
+    precompile_allowed_log_heights: HashMap<RiscvAir<F>, (usize, Vec<usize>)>,
+    core_costs: HashMap<String, usize>,
+}
 
 #[derive(Debug, Error)]
 pub enum CoreShapeError {
@@ -50,19 +70,6 @@ pub enum CoreShapeError {
     PrecompileNotIncluded(HashMap<String, usize>),
 }
 
-/// A structure that enables fixing the shape of an execution record.
-pub struct CoreShapeConfig<F: PrimeField32> {
-    included_shapes: Vec<HashMap<String, usize>>,
-    // Shapes for shards with a CPU chip and memory initialize/finalize events.
-    shapes_with_cpu_and_memory_finalize: Vec<ShapeCluster<F>>,
-    allowed_preprocessed_log_heights: ShapeCluster<F>,
-    allowed_core_log_heights: BTreeMap<usize, Vec<ShapeCluster<F>>>,
-    // maximal_core_log_heights_mask: Vec<bool>,
-    memory_allowed_log_heights: ShapeCluster<F>,
-    precompile_allowed_log_heights: HashMap<RiscvAir<F>, (usize, Vec<usize>)>,
-    core_costs: CoreAirCosts<F>,
-}
-
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 struct ShapeCluster<F> {
     log_heights: HashMap<String, Vec<Option<usize>>>,
@@ -75,34 +82,23 @@ impl<F: PrimeField32> ShapeCluster<F> {
     }
 
     fn find_shape(&self, heights: &[(String, usize)]) -> Option<CoreShape> {
-        // tracing::info!("trying to find shape for heights");
-        // for (air, height) in heights {
-        //     tracing::info!("(air, log_height): {:?}", (air, height.next_power_of_two().ilog2()));
-        // }
-        // tracing::info!("with shape cluster: {:?}", self);
+        // Find the shape that is larger or equal to the given heights.
         let shape: Option<HashMap<String, Option<usize>>> = heights
             .iter()
             .map(|(air, height)| {
                 for maybe_allowed_log_height in self.log_heights.get(air).into_iter().flatten() {
-                    // let allowed_log_height = maybe_allowed_log_height.unwrap_or_default();
                     let allowed_height = maybe_allowed_log_height
                         .map(|log_height| 1 << log_height)
                         .unwrap_or_default();
-                    // if allowed_log_height != 0 { 1 << allowed_log_height } else { 0 };
                     if *height <= allowed_height {
                         return Some((air.clone(), *maybe_allowed_log_height));
                     }
                 }
-                // tracing::info!("shape not found for {:?} with height {:?}", air, height);
                 None
             })
             .collect();
 
-        // if shape.is_some() {
-        //     tracing::info!("shape found");
-        // } else {
-        //     tracing::info!("shape not found");
-        // }
+        // Filter the shape so that HashMap<String, Option<usize>> becomes HashMap<String, usize>.
         let mut inner = shape?;
         inner.retain(|_, &mut value| value.is_some());
         let inner = inner
@@ -110,6 +106,7 @@ impl<F: PrimeField32> ShapeCluster<F> {
             .map(|(air, maybe_log_height)| (air, maybe_log_height.unwrap()))
             .collect();
 
+        // Create the shape.
         let shape = CoreShape { inner };
         Some(shape)
     }
@@ -202,11 +199,7 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
 
     #[inline]
     fn trace_area(&self, shape: &CoreShape) -> usize {
-        shape
-            .inner
-            .iter()
-            .map(|(air, height)| self.core_costs[CoreAir::from_name(air)] * height)
-            .sum()
+        shape.inner.iter().map(|(air, height)| self.core_costs[air] * height).sum()
     }
 
     pub fn small_program_shapes(&self) -> Vec<ProofShape> {
@@ -321,29 +314,11 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
                 // Try to find a shape fitting within at least one of the candidate shapes.
                 for (i, allowed_log_heights) in shape_candidates.iter().enumerate() {
                     if let Some(shape) = allowed_log_heights.find_shape(&heights) {
-                        // tracing::info!(
-                        //     "Shard Lifted: Index={}, Cluster={}",
-                        //     record.public_values.shard,
-                        //     i
-                        // );
-                        // for (air, height) in heights.iter() {
-                        //     if shape.inner.contains_key(air) {
-                        //         tracing::info!(
-                        //             "Chip {:<20}: {:<3} -> {:<3}",
-                        //             air,
-                        //             log2_ceil_usize(*height),
-                        //             shape.inner[air],
-                        //         );
-                        //     }
-                        // }
                         if self.trace_area(&shape) < found_area {
                             found_area = self.trace_area(&shape);
                             found_shape = Some(shape);
                             found_cluster = Some(i);
                         }
-
-                        // record.shape.as_mut().unwrap().extend(shape);
-                        // return Ok(());
                     }
                 }
             }
@@ -583,8 +558,10 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
             },
         );
 
-        let precompile_shapes = precompile_only_shapes
-            .map(|x| max_preprocessed.clone().chain(x).collect::<CoreShape>());
+        let precompile_shapes: Vec<CoreShape> = precompile_only_shapes
+            .map(|x| max_preprocessed.clone().chain(x).collect::<CoreShape>())
+            .filter(|shape| shape.inner["Global"] < 21)
+            .collect();
 
         self.maximal_core_shapes(max_log_shard_size).into_iter().chain(precompile_shapes).collect()
     }
@@ -593,8 +570,9 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
 impl<F: PrimeField32> Default for CoreShapeConfig<F> {
     fn default() -> Self {
         let maximal_core_shapes: MaximalShapes = serde_json::from_slice(MAXIMAL_SHAPES).unwrap();
-        let included_shapes: Vec<HashMap<String, usize>> =
-            serde_json::from_slice(AVERAGE_SHAPES).unwrap();
+        // let included_shapes: Vec<HashMap<String, usize>> =
+        //     serde_json::from_slice(AVERAGE_SHAPES).unwrap();
+        let included_shapes: Vec<HashMap<String, usize>> = vec![];
 
         // Preprocessed chip heights.
         let program_heights = vec![Some(19), Some(20), Some(21), Some(22)];
@@ -882,7 +860,10 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
                 .into_iter()
                 .map(|log_heights| ShapeCluster::new(log_heights))
                 .collect::<Vec<_>>(),
-            core_costs: serde_json::from_str(CORE_AIR_COSTS).unwrap(),
+            core_costs: serde_json::from_str(include_str!(
+                "../../../executor/src/artifacts/rv32im_costs.json"
+            ))
+            .unwrap(), // TODO: load from file
         }
     }
 }

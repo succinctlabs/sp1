@@ -389,7 +389,7 @@ impl SP1CompressProgramShape {
 impl<C: SP1ProverComponents> SP1Prover<C> {
     pub fn program_from_shape(
         &self,
-        shape_tuning: bool,
+        shape_tuning: bool, // TODO: document, eugene says its a boolean used for when you're tryning to find the recursion shapes.
         shape: SP1CompressProgramShape,
         shrink_shape: Option<RecursionShape>,
     ) -> Arc<RecursionProgram<BabyBear>> {

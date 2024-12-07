@@ -18,7 +18,6 @@ members = [
   "crates/eval",
   "crates/helper",
   "crates/perf",
-  "crates/primitives",
   "crates/prover",
   "crates/recursion/circuit",
   "crates/recursion/compiler",

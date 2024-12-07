@@ -1,6 +1,7 @@
 use std::{
     fs::File,
     io::{BufWriter, Write},
+    str::FromStr,
     sync::Arc,
 };
 
@@ -17,6 +18,7 @@ use crate::{
         emit_auipc_dependency, emit_branch_dependencies, emit_divrem_dependencies,
         emit_jump_dependencies, emit_memory_dependencies,
     },
+    estimate_riscv_event_counts, estimate_riscv_lde_size,
     events::{
         AUIPCEvent, AluEvent, BranchEvent, CpuEvent, JumpEvent, LookupId, MemInstrEvent,
         MemoryAccessPosition, MemoryInitializeFinalizeEvent, MemoryLocalEvent, MemoryReadRecord,
@@ -25,12 +27,13 @@ use crate::{
     },
     hook::{HookEnv, HookRegistry},
     memory::{Entry, PagedMemory},
+    pad_rv32im_event_counts,
     record::{ExecutionRecord, MemoryAccessRecord},
     report::ExecutionReport,
     state::{ExecutionState, ForkState},
     subproof::{DefaultSubproofVerifier, SubproofVerifier},
     syscalls::{default_syscall_map, Syscall, SyscallCode, SyscallContext},
-    CoreAir, CoreAirCosts, Instruction, Opcode, Program, Register,
+    Instruction, Opcode, Program, Register, RiscvAirId,
 };
 
 /// The default increment for the program counter.  Is used for all instructions except
@@ -45,10 +48,8 @@ pub const MAX_PROGRAM_SIZE: usize = 1 << 22;
 
 const CORE_LOG_BLOWUP: usize = 1;
 // The LDE threshold, not including the "program" area.
-const LDE_THRESHOLD: usize = 13000000000;
-const MAX_LDE_SIZE: usize = 14400000000;
-/// The costs for the core airs.
-pub const CORE_AIR_COSTS: &str = include_str!("../core_air_costs.json");
+const LDE_THRESHOLD: u64 = 13000000000;
+const MAX_LDE_SIZE: u64 = 14400000000;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 /// Whether to verify deferred proofs during execution.
@@ -158,7 +159,8 @@ pub struct Executor<'a> {
     /// The maximal shapes for the program.
     pub maximal_shapes: Option<Vec<HashMap<String, usize>>>,
 
-    costs: CoreAirCosts<BabyBear>,
+    /// The costs of the program.
+    pub costs: HashMap<RiscvAirId, usize>,
 }
 
 /// The different modes the executor can run in.
@@ -265,7 +267,10 @@ impl<'a> Executor<'a> {
             context.subproof_verifier.unwrap_or_else(|| Arc::new(DefaultSubproofVerifier::new()));
         let hook_registry = context.hook_registry.unwrap_or_default();
 
-        let costs: CoreAirCosts<BabyBear> = serde_json::from_str(CORE_AIR_COSTS).unwrap();
+        let costs: HashMap<String, usize> =
+            serde_json::from_str(include_str!("./artifacts/rv32im_costs.json")).unwrap();
+        let costs: HashMap<RiscvAirId, usize> =
+            costs.into_iter().map(|(k, v)| (RiscvAirId::from_str(&k).unwrap(), v)).collect();
 
         Self {
             record,
@@ -299,8 +304,8 @@ impl<'a> Executor<'a> {
             memory_checkpoint: PagedMemory::new_preallocated(),
             uninitialized_memory_checkpoint: PagedMemory::new_preallocated(),
             local_memory_access: HashMap::new(),
-            costs,
             maximal_shapes: None,
+            costs,
         }
     }
 
@@ -1369,200 +1374,48 @@ impl<'a> Executor<'a> {
             // If we're close to not fitting, early stop the shard to ensure we don't OOM.
             let mut shape_match_found = true;
             if self.state.global_clk % (CHECK_CYCLE as u64) == 0 {
-                let mut trace_area = self.costs[CoreAir::Byte] * (1 << 16)
-                    + self.costs[CoreAir::Program] * MAX_PROGRAM_SIZE;
-                let mut normal_trace_area = trace_area;
+                // Estimate the number of events in the trace.
+                let event_counts = estimate_riscv_event_counts(
+                    (self.state.clk >> 2) as u64, // TODO: FIX
+                    self.local_counts.local_mem as u64,
+                    self.local_counts.syscalls_sent as u64, // TODO: FIX
+                    *self.local_counts.event_counts,
+                );
 
-                let cpu_count = (self.state.clk >> 2) as usize;
-                trace_area +=
-                    (cpu_count + CHECK_CYCLE).next_power_of_two() * self.costs[CoreAir::Cpu];
-                normal_trace_area += (cpu_count).next_power_of_two() * self.costs[CoreAir::Cpu];
+                // Compute the log2 of the event counts.
+                let log2_event_counts: EnumMap<RiscvAirId, usize> = event_counts
+                    .iter()
+                    .map(|(k, &v)| (k.clone(), log2_ceil_usize(v as usize)))
+                    .collect();
 
-                let addsub_count = (self.local_counts.event_counts[Opcode::ADD]
-                    + self.local_counts.event_counts[Opcode::SUB])
-                    as usize;
-                trace_area += (addsub_count + 5 * CHECK_CYCLE).next_power_of_two()
-                    * self.costs[CoreAir::AddSub];
-                normal_trace_area += addsub_count.next_power_of_two() * self.costs[CoreAir::AddSub];
+                // Pad the event counts to account for the worst case jump across N cycles.
+                let padded_event_counts = pad_rv32im_event_counts(event_counts, CHECK_CYCLE as u64);
 
-                let mul_count = (self.local_counts.event_counts[Opcode::MUL]
-                    + self.local_counts.event_counts[Opcode::MULH]
-                    + self.local_counts.event_counts[Opcode::MULHU]
-                    + self.local_counts.event_counts[Opcode::MULHSU])
-                    as usize;
-                trace_area +=
-                    (mul_count + 4 * CHECK_CYCLE).next_power_of_two() * self.costs[CoreAir::Mul];
-                normal_trace_area += mul_count.next_power_of_two() * self.costs[CoreAir::Mul];
+                // Estimate the LDE area in terms of bytes.
+                let costs = self.costs.iter().map(|(k, &v)| (k.clone(), v as u64)).collect();
+                let current_lde_size = estimate_riscv_lde_size(event_counts, &costs);
+                let next_lde_size = estimate_riscv_lde_size(padded_event_counts, &costs);
 
-                let bitwise_count = (self.local_counts.event_counts[Opcode::XOR]
-                    + self.local_counts.event_counts[Opcode::OR]
-                    + self.local_counts.event_counts[Opcode::AND])
-                    as usize;
-                trace_area += (bitwise_count + 3 * CHECK_CYCLE).next_power_of_two()
-                    * self.costs[CoreAir::Bitwise];
-                normal_trace_area +=
-                    bitwise_count.next_power_of_two() * self.costs[CoreAir::Bitwise];
-
-                let shift_left_count = self.local_counts.event_counts[Opcode::SLL] as usize;
-                trace_area += (shift_left_count + CHECK_CYCLE).next_power_of_two()
-                    * self.costs[CoreAir::ShiftLeft];
-                normal_trace_area +=
-                    shift_left_count.next_power_of_two() * self.costs[CoreAir::ShiftLeft];
-
-                let shift_right_count = (self.local_counts.event_counts[Opcode::SRL]
-                    + self.local_counts.event_counts[Opcode::SRA])
-                    as usize;
-                trace_area += (shift_right_count + CHECK_CYCLE).next_power_of_two()
-                    * self.costs[CoreAir::ShiftRight];
-                normal_trace_area +=
-                    shift_right_count.next_power_of_two() * self.costs[CoreAir::ShiftRight];
-
-                let divrem_count = (self.local_counts.event_counts[Opcode::DIV]
-                    + self.local_counts.event_counts[Opcode::DIVU]
-                    + self.local_counts.event_counts[Opcode::REM]
-                    + self.local_counts.event_counts[Opcode::REMU])
-                    as usize;
-                trace_area += (divrem_count + 4 * CHECK_CYCLE).next_power_of_two()
-                    * self.costs[CoreAir::DivRem];
-                normal_trace_area += divrem_count.next_power_of_two() * self.costs[CoreAir::DivRem];
-
-                let lt_count = (self.local_counts.event_counts[Opcode::SLT]
-                    + self.local_counts.event_counts[Opcode::SLTU])
-                    as usize;
-                trace_area +=
-                    (lt_count + 2 * CHECK_CYCLE).next_power_of_two() * self.costs[CoreAir::Lt];
-                normal_trace_area += lt_count.next_power_of_two() * self.costs[CoreAir::Lt];
-
-                let local_mem_count =
-                    self.local_counts.local_mem.div_ceil(NUM_LOCAL_MEMORY_ENTRIES_PER_ROW_EXEC);
-                trace_area += (local_mem_count + 64 * CHECK_CYCLE).next_power_of_two()
-                    * self.costs[CoreAir::MemoryLocal];
-                normal_trace_area +=
-                    local_mem_count.next_power_of_two() * self.costs[CoreAir::MemoryLocal];
-
-                // Branch events happen for Opcode::BEQ | Opcode::BNE | Opcode::BLT | Opcode::BGE
-                // | Opcode::BLTU | Opcode::BGEU
-                let branch_count = (self.local_counts.event_counts[Opcode::BEQ]
-                    + self.local_counts.event_counts[Opcode::BNE]
-                    + self.local_counts.event_counts[Opcode::BLT]
-                    + self.local_counts.event_counts[Opcode::BGE]
-                    + self.local_counts.event_counts[Opcode::BLTU]
-                    + self.local_counts.event_counts[Opcode::BGEU])
-                    as usize;
-                trace_area += (branch_count + 8 * CHECK_CYCLE).next_power_of_two()
-                    * self.costs[CoreAir::Branch];
-                normal_trace_area += branch_count.next_power_of_two() * self.costs[CoreAir::Branch];
-
-                // Jump events happen for Opcode::JAL | Opcode::JALR
-                let jump_count = (self.local_counts.event_counts[Opcode::JAL]
-                    + self.local_counts.event_counts[Opcode::JALR])
-                    as usize;
-                trace_area +=
-                    (jump_count + 2 * CHECK_CYCLE).next_power_of_two() * self.costs[CoreAir::Jump];
-                normal_trace_area += jump_count.next_power_of_two() * self.costs[CoreAir::Jump];
-
-                // Auipc events happen for Opcode::AUIPC | Opcode::UNIMP | Opcode::EBREAK
-                let auipc_count = (self.local_counts.event_counts[Opcode::AUIPC]
-                    + self.local_counts.event_counts[Opcode::UNIMP]
-                    + self.local_counts.event_counts[Opcode::EBREAK])
-                    as usize;
-                trace_area += (auipc_count + 3 * CHECK_CYCLE).next_power_of_two()
-                    * self.costs[CoreAir::Auipc];
-                normal_trace_area += auipc_count.next_power_of_two() * self.costs[CoreAir::Auipc];
-
-                // Memory instruction events happen for Opcode::LB | Opcode::LH | Opcode::LW
-                // | Opcode::LBU | Opcode::LHU | Opcode::SB | Opcode::SH | Opcode::SW
-                let memory_instr_count = (self.local_counts.event_counts[Opcode::LB]
-                    + self.local_counts.event_counts[Opcode::LH]
-                    + self.local_counts.event_counts[Opcode::LW]
-                    + self.local_counts.event_counts[Opcode::LBU]
-                    + self.local_counts.event_counts[Opcode::LHU]
-                    + self.local_counts.event_counts[Opcode::SB]
-                    + self.local_counts.event_counts[Opcode::SH]
-                    + self.local_counts.event_counts[Opcode::SW])
-                    as usize;
-                trace_area += (memory_instr_count + 8 * CHECK_CYCLE).next_power_of_two()
-                    * self.costs[CoreAir::MemoryInstrs];
-                normal_trace_area +=
-                    memory_instr_count.next_power_of_two() * self.costs[CoreAir::MemoryInstrs];
-
-                // Syscall instruction events happen for Opcode::ECALL
-                let syscall_instr_count = self.local_counts.event_counts[Opcode::ECALL] as usize;
-                trace_area += (syscall_instr_count + CHECK_CYCLE).next_power_of_two()
-                    * self.costs[CoreAir::SyscallInstrs];
-                normal_trace_area +=
-                    syscall_instr_count.next_power_of_two() * self.costs[CoreAir::SyscallInstrs];
-
-                let syscall_count = self.local_counts.syscalls_sent;
-                trace_area += (syscall_count + 2 * CHECK_CYCLE).next_power_of_two()
-                    * self.costs[CoreAir::SyscallCore];
-                normal_trace_area +=
-                    syscall_count.next_power_of_two() * self.costs[CoreAir::SyscallCore];
-
-                let global_count = 2 * self.local_counts.local_mem + syscall_count;
-                trace_area += (global_count + 64 * CHECK_CYCLE).next_power_of_two()
-                    * self.costs[CoreAir::Global];
-                normal_trace_area += global_count.next_power_of_two() * self.costs[CoreAir::Global];
-
-                // stopping logic to avoid OOM.
-                let lde_size = (trace_area * core::mem::size_of::<BabyBear>()) << CORE_LOG_BLOWUP;
-                let normal_lde_size =
-                    (normal_trace_area * core::mem::size_of::<BabyBear>()) << CORE_LOG_BLOWUP;
-
-                if lde_size > LDE_THRESHOLD {
+                if next_lde_size > LDE_THRESHOLD {
                     tracing::warn!(
-                        "stopping shard early due to LDE size: normal={}, pessimistic={}",
-                        normal_lde_size,
-                        lde_size
+                        "stopping shard early due to LDE size too big: current={}, next={}",
+                        current_lde_size,
+                        next_lde_size
                     );
                     tracing::warn!(
                         "Counter log heighs:
                         clk: {},
                         clk_usage: {},
-                        addsub: {},
-                        mul: {},
-                        bitwise: {},
-                        shift_left: {},
-                        shift_right: {},
-                        divrem: {},
-                        lt: {},
-                        local_mem: {},
-                        memory_instrs: {},
-                        auipc: {},
-                        branch: {},
-                        jump: {},
-                        syscall: {},
-                        syscall_instrs: {},
-                        global: {},
-                        ",
+                        log2_event_counts: {:?}",
                         (self.state.clk / 4).next_power_of_two().ilog2(),
                         ((self.state.clk / 4) as f64).log2(),
-                        log2_ceil_usize(addsub_count),
-                        log2_ceil_usize(mul_count),
-                        log2_ceil_usize(bitwise_count),
-                        log2_ceil_usize(shift_left_count),
-                        log2_ceil_usize(shift_right_count),
-                        log2_ceil_usize(divrem_count),
-                        log2_ceil_usize(lt_count),
-                        log2_ceil_usize(local_mem_count),
-                        log2_ceil_usize(memory_instr_count),
-                        log2_ceil_usize(auipc_count),
-                        log2_ceil_usize(branch_count),
-                        log2_ceil_usize(jump_count),
-                        log2_ceil_usize(syscall_count),
-                        log2_ceil_usize(syscall_instr_count),
-                        log2_ceil_usize(global_count),
+                        log2_event_counts
                     );
-                    if normal_lde_size > MAX_LDE_SIZE {
-                        panic!("LDE size exceeded limit: {}", normal_lde_size);
+                    if current_lde_size > MAX_LDE_SIZE {
+                        panic!("LDE size exceeded limit: {}", current_lde_size);
                     }
                     shape_match_found = false;
                 }
-                // if (self.state.clk > (1 << 23) - CHECK_CYCLE as u32)
-                //     && (global_count > self.opts.global_threshold - 2 * CHECK_CYCLE)
-                // {
-                //     shape_match_found = false;
-                // }
 
                 if let Some(maximal_shapes) = &self.maximal_shapes {
                     let distance = |threshold: usize, count: usize| {
@@ -1577,160 +1430,24 @@ impl<'a> Executor<'a> {
                             continue;
                         }
 
-                        let addsub_threshold = 1 << shape["AddSub"];
-                        if addsub_count > addsub_threshold {
-                            continue;
+                        let mut distances = Vec::new();
+                        for air in RiscvAirId::core() {
+                            if air == RiscvAirId::Cpu {
+                                continue;
+                            }
+                            let threshold =
+                                shape.get(air.as_str()).map_or(0, |log_degree| 1 << log_degree);
+                            if log2_event_counts[air] > threshold {
+                                continue;
+                            }
+                            distances.push(distance(threshold, log2_event_counts[air]));
                         }
-                        let addsub_distance = distance(addsub_threshold, addsub_count);
 
-                        let mul_threshold =
-                            shape.get("Mul").map_or(0, |log_degree| 1 << log_degree);
-                        if mul_count > mul_threshold {
-                            continue;
-                        }
-                        let mul_distance = distance(mul_threshold, mul_count);
-
-                        let bitwise_threshold =
-                            shape.get("Bitwise").map_or(0, |log_degree| 1 << log_degree);
-                        if bitwise_count > bitwise_threshold {
-                            continue;
-                        }
-                        let bitwise_distance = distance(bitwise_threshold, bitwise_count);
-
-                        let shift_left_threshold =
-                            shape.get("ShiftLeft").map_or(0, |log_degree| 1 << log_degree);
-                        if shift_left_count > shift_left_threshold {
-                            continue;
-                        }
-                        let shift_left_distance = distance(shift_left_threshold, shift_left_count);
-
-                        let shift_right_threshold =
-                            shape.get("ShiftRight").map_or(0, |log_degree| 1 << log_degree);
-                        if shift_right_count > shift_right_threshold {
-                            continue;
-                        }
-                        let shift_right_distance =
-                            distance(shift_right_threshold, shift_right_count);
-
-                        let divrem_threshold =
-                            shape.get("DivRem").map_or(0, |log_degree| 1 << log_degree);
-                        if divrem_count > divrem_threshold {
-                            continue;
-                        }
-                        let divrem_distance = distance(divrem_threshold, divrem_count);
-
-                        let lt_threshold = shape.get("Lt").map_or(0, |log_degree| 1 << log_degree);
-                        if lt_count > lt_threshold {
-                            continue;
-                        }
-                        let lt_distance = distance(lt_threshold, lt_count);
-
-                        let local_mem_threshold =
-                            shape.get("MemoryLocal").map_or(0, |log_degree| 1 << log_degree);
-                        if local_mem_count > local_mem_threshold {
-                            continue;
-                        }
-                        let local_mem_distance = distance(local_mem_threshold, local_mem_count);
-
-                        let memory_instrs_threshold =
-                            shape.get("MemoryInstrs").map_or(0, |log_degree| 1 << log_degree);
-                        if memory_instr_count > memory_instrs_threshold {
-                            continue;
-                        }
-                        let memory_instrs_distance =
-                            distance(memory_instrs_threshold, memory_instr_count);
-
-                        let auipc_threshold =
-                            shape.get("Auipc").map_or(0, |log_degree| 1 << log_degree);
-                        if auipc_count > auipc_threshold {
-                            continue;
-                        }
-                        let auipc_distance = distance(auipc_threshold, auipc_count);
-
-                        let branch_threshold =
-                            shape.get("Branch").map_or(0, |log_degree| 1 << log_degree);
-                        if branch_count > branch_threshold {
-                            continue;
-                        }
-                        let branch_distance = distance(branch_threshold, branch_count);
-
-                        let jump_threshold =
-                            shape.get("Jump").map_or(0, |log_degree| 1 << log_degree);
-                        if jump_count > jump_threshold {
-                            continue;
-                        }
-                        let jump_distance = distance(jump_threshold, jump_count);
-
-                        let syscall_threshold =
-                            shape.get("SyscallCore").map_or(0, |log_degree| 1 << log_degree);
-                        if syscall_count > syscall_threshold {
-                            continue;
-                        }
-                        let syscall_distance = distance(syscall_threshold, syscall_count);
-
-                        let syscall_instrs_threshold =
-                            shape.get("SyscallInstrs").map_or(0, |log_degree| 1 << log_degree);
-                        if syscall_instr_count > syscall_instrs_threshold {
-                            continue;
-                        }
-                        let syscall_instrs_distance =
-                            distance(syscall_instrs_threshold, syscall_instr_count);
-
-                        let global_threshold =
-                            shape.get("Global").map_or(0, |log_degree| 1 << log_degree);
-                        if global_count > global_threshold {
-                            continue;
-                        }
-                        let global_distance = distance(global_threshold, global_count);
-
-                        let l_infinity = vec![
-                            addsub_distance,
-                            mul_distance,
-                            bitwise_distance,
-                            shift_left_distance,
-                            shift_right_distance,
-                            divrem_distance,
-                            lt_distance,
-                            local_mem_distance,
-                            memory_instrs_distance,
-                            auipc_distance,
-                            branch_distance,
-                            jump_distance,
-                            syscall_distance,
-                            syscall_instrs_distance,
-                            global_distance,
-                        ]
-                        .into_iter()
-                        .min()
-                        .unwrap();
+                        let l_infinity = distances.into_iter().min().unwrap();
 
                         if l_infinity >= 2 * CHECK_CYCLE {
                             shape_match_found = true;
                             break;
-                        } else {
-                            //     tracing::warn!(
-                            //         "distance too small: {}\n
-                            //         Distances: addsub: {}, mul: {}, bitwise: {}, shift_left: {},\
-                            //          shift_right: {}, divrem: {}, lt: {}, local_mem: {},\
-                            //           memory_instrs: {}, auipc: {}, branch: {}, jump: {}, \
-                            //          syscall: {}, syscall_instrs: {}, global: {}",
-                            //         l_infinity,
-                            //         addsub_distance,
-                            //         mul_distance,
-                            //         bitwise_distance,
-                            //         shift_left_distance,
-                            //         shift_right_distance,
-                            //         divrem_distance,
-                            //         lt_distance,
-                            //         local_mem_distance,
-                            //         memory_instrs_distance,
-                            //         auipc_distance,
-                            //         branch_distance,
-                            //         jump_distance,
-                            //         syscall_distance,
-                            //         syscall_instrs_distance,
-                            //         global_distance,
-                            //     );
                         }
                     }
 
@@ -1738,39 +1455,9 @@ impl<'a> Executor<'a> {
                         log::warn!(
                             "stopping shard early due to no shapes fitting: \
                             clk: {},
-                            clk_usage: {},
-                            addsub_count={}, \
-                            mul_count={}, \
-                            bitwise_count={}, \
-                            shift_left_count={}, \
-                            shift_right_count={}, \
-                            divrem_count={}, \
-                            lt_count={}, \
-                            local_mem_count={}, \
-                            memory_instr_count={}, \
-                            auipc_count={}, \
-                            branch_count={}, \
-                            jump_count={}, \
-                            syscall_count={}, \
-                            syscall_instr_count={}, \
-                            global_count={}",
+                            clk_usage: {}",
                             (self.state.clk / 4).next_power_of_two().ilog2(),
                             ((self.state.clk / 4) as f64).log2(),
-                            log2_ceil_usize(addsub_count),
-                            log2_ceil_usize(mul_count),
-                            log2_ceil_usize(bitwise_count),
-                            log2_ceil_usize(shift_left_count),
-                            log2_ceil_usize(shift_right_count),
-                            log2_ceil_usize(divrem_count),
-                            log2_ceil_usize(lt_count),
-                            log2_ceil_usize(local_mem_count),
-                            log2_ceil_usize(memory_instr_count),
-                            log2_ceil_usize(auipc_count),
-                            log2_ceil_usize(branch_count),
-                            log2_ceil_usize(jump_count),
-                            log2_ceil_usize(syscall_count),
-                            log2_ceil_usize(syscall_instr_count),
-                            log2_ceil_usize(global_count),
                         );
                     }
                 }

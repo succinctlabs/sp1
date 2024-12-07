@@ -41,7 +41,7 @@ pub use provers::{CpuProver, MockProver, Prover};
 
 pub use sp1_build::include_elf;
 pub use sp1_core_executor::{ExecutionReport, HookEnv, SP1Context, SP1ContextBuilder};
-pub use sp1_core_machine::{io::SP1Stdin, riscv::cost::CostEstimator, SP1_CIRCUIT_VERSION};
+pub use sp1_core_machine::{io::SP1Stdin, SP1_CIRCUIT_VERSION};
 pub use sp1_primitives::io::SP1PublicValues;
 pub use sp1_prover::{
     CoreSC, HashableKey, InnerSC, OuterSC, PlonkBn254Proof, ProverMode, SP1Prover, SP1ProvingKey,
@@ -77,7 +77,9 @@ impl ProverClient {
             "mock" => Self { prover: Box::new(MockProver::new()) },
             "local" => {
                 #[cfg(debug_assertions)]
-                eprintln!("Warning: Local prover in dev mode is not recommended. Proof generation may be slow.");
+                eprintln!(
+                    "Warning: Local prover in dev mode is not recommended. Proof generation may be slow."
+                );
                 Self {
                     #[cfg(not(feature = "cuda"))]
                     prover: Box::new(CpuProver::new()),
@@ -456,18 +458,7 @@ mod tests {
 
     use sp1_primitives::io::SP1PublicValues;
 
-    use crate::{utils, CostEstimator, ProverClient, SP1Stdin};
-
-    #[test]
-    fn test_execute() {
-        utils::setup_logger();
-        let client = ProverClient::cpu();
-        let elf = test_artifacts::FIBONACCI_ELF;
-        let mut stdin = SP1Stdin::new();
-        stdin.write(&10usize);
-        let (_, report) = client.execute(elf, stdin).run().unwrap();
-        tracing::info!("gas = {}", report.estimate_gas());
-    }
+    use crate::{utils, ProverClient, SP1Stdin};
 
     #[test]
     #[should_panic]
