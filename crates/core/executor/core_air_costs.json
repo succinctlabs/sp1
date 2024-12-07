@@ -4,7 +4,7 @@
     "Byte": 52,
     "Cpu": 109,
     "AddSub": 47,
-    "Bitwise": 40,
+    "Bitwise": 41,
     "Mul": 83,
     "DivRem": 146,
     "Lt": 53,
