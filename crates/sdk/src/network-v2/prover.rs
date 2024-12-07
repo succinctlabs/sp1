@@ -55,24 +55,33 @@ pub struct NetworkProver {
 
 impl NetworkProver {
     /// Creates a new `NetworkProver` with the given private key.
-    pub fn new(private_key: &str, rpc_url: Option<String>, skip_simulation: bool) -> Self {
+    pub fn new(private_key: &str) -> Self {
         let version = SP1_CIRCUIT_VERSION;
         log::info!("Client circuit version: {}", version);
 
         Self {
-            client: NetworkClient::new(private_key, rpc_url),
+            client: NetworkClient::new(private_key),
             local_prover: CpuProver::new(),
             mode: DEFAULT_PROOF_MODE,
             strategy: DEFAULT_FULFILLMENT_STRATEGY,
             timeout_secs: DEFAULT_TIMEOUT_SECS,
             cycle_limit: None,
-            skip_simulation,
+            skip_simulation: false,
         }
     }
 
     /// Sets up the proving key and verifying key for the given ELF.
     pub fn setup(&self, elf: &[u8]) -> (SP1ProvingKey, SP1VerifyingKey) {
         self.local_prover.setup(elf)
+    }
+
+    /// Sets the RPC URL for the prover network.
+    ///
+    /// This configures the endpoint that will be used for all network operations.
+    /// If not set, the default RPC URL will be used.
+    pub fn with_rpc_url(mut self, rpc_url: impl Into<String>) -> Self {
+        self.client = self.client.with_rpc_url(rpc_url);
+        self
     }
 
     /// Sets the mode to use for proof requests.
@@ -185,7 +194,6 @@ impl NetworkProver {
         vk: &SP1VerifyingKey,
         elf: &[u8],
     ) -> Result<VerifyingKeyHash> {
-        log::info!("Registering program with verifying key hash");
         self.client.register_program(vk, elf).await
     }
 
@@ -467,7 +475,7 @@ mod tests {
 
     #[test]
     fn test_builder_pattern() {
-        let prover = NetworkProver::new(TEST_PRIVATE_KEY, None, false)
+        let prover = NetworkProver::new(TEST_PRIVATE_KEY)
             .with_timeout_secs(100)
             .with_cycle_limit(1000)
             .with_mode(ProofMode::Core)
@@ -484,24 +492,23 @@ mod tests {
     #[test]
     fn test_timeout_bounds() {
         // Test minimum bound
-        let prover = NetworkProver::new(TEST_PRIVATE_KEY, None, false).with_timeout_secs(1);
+        let prover = NetworkProver::new(TEST_PRIVATE_KEY).with_timeout_secs(1);
         assert_eq!(prover.timeout_secs, MIN_TIMEOUT_SECS);
 
         // Test maximum bound
-        let prover = NetworkProver::new(TEST_PRIVATE_KEY, None, false)
-            .with_timeout_secs(MAX_TIMEOUT_SECS + 1000);
+        let prover =
+            NetworkProver::new(TEST_PRIVATE_KEY).with_timeout_secs(MAX_TIMEOUT_SECS + 1000);
         assert_eq!(prover.timeout_secs, MAX_TIMEOUT_SECS);
 
         // Test value within bounds
         let valid_timeout = 3600; // 1 hour
-        let prover =
-            NetworkProver::new(TEST_PRIVATE_KEY, None, false).with_timeout_secs(valid_timeout);
+        let prover = NetworkProver::new(TEST_PRIVATE_KEY).with_timeout_secs(valid_timeout);
         assert_eq!(prover.timeout_secs, valid_timeout);
     }
 
     #[test]
     fn test_default_values() {
-        let prover = NetworkProver::new(TEST_PRIVATE_KEY, None, false);
+        let prover = NetworkProver::new(TEST_PRIVATE_KEY);
 
         assert_eq!(prover.timeout_secs, DEFAULT_TIMEOUT_SECS);
         assert_eq!(prover.mode, ProofMode::Core);
@@ -512,7 +519,7 @@ mod tests {
 
     #[test]
     fn test_cycle_limit_handling() {
-        let prover = NetworkProver::new(TEST_PRIVATE_KEY, None, false);
+        let prover = NetworkProver::new(TEST_PRIVATE_KEY);
         let dummy_stdin = SP1Stdin::new();
         let elf = test_artifacts::FIBONACCI_ELF;
 

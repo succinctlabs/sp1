@@ -20,12 +20,17 @@ async fn main() {
     // Setup logging.
     utils::setup_logger();
 
-    // Create the prover.
-    let private_key = env::var("SP1_PRIVATE_KEY").expect("PRIVATE_KEY must be set");
-    let prover = NetworkProver::new(&private_key, None, false)
-        .with_cycle_limit(20_000) // Set manual cycle limit
-        .with_timeout_secs(3600) // 1 hour timeout
-        .with_strategy(FulfillmentStrategy::Hosted) // Use hosted strategy
+    // Read environment variables.
+    let private_key = env::var("SP1_PRIVATE_KEY")
+    .expect("SP1_PRIVATE_KEY must be set for remote proving");
+    let rpc_url = env::var("PROVER_NETWORK_RPC").ok();
+
+    // Create the network prover client.
+    let prover = NetworkProver::new(&private_key)
+        .with_rpc_url(rpc_url)
+        .with_cycle_limit(20_000) // Set a manual cycle limit
+        .with_timeout_secs(3600) // Set a 1 hour timeout
+        .with_strategy(FulfillmentStrategy::Hosted) // Use the hosted strategy
         .skip_simulation(); // Skip simulation since we know our cycle requirements
 
     // Setup proving key and verifying key.

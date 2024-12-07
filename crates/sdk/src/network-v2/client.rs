@@ -39,7 +39,7 @@ pub struct NetworkClient {
 
 impl NetworkClient {
     /// Create a new network client with the given private key.
-    pub fn new(private_key: &str, rpc_url: Option<String>) -> Self {
+    pub fn new(private_key: &str) -> Self {
         let signer = PrivateKeySigner::from_str(private_key).unwrap();
 
         let http_client = reqwest::Client::builder()
@@ -48,11 +48,13 @@ impl NetworkClient {
             .build()
             .unwrap();
 
-        Self {
-            signer,
-            http: http_client.into(),
-            rpc_url: rpc_url.unwrap_or_else(|| DEFAULT_PROVER_NETWORK_RPC.to_string()),
-        }
+        Self { signer, http: http_client.into(), rpc_url: DEFAULT_PROVER_NETWORK_RPC.to_string() }
+    }
+
+    /// Update the RPC URL for the client.
+    pub fn with_rpc_url(mut self, rpc_url: impl Into<String>) -> Self {
+        self.rpc_url = rpc_url.into();
+        self
     }
 
     /// Returns the currently configured RPC endpoint for the Succinct prover network.
