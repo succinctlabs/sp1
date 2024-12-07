@@ -31,10 +31,10 @@ __SP1_HOSTDEV__ void event_to_row(const AluEvent& event, AddSubCols<F>& cols) {
 
     auto operand_1 = is_add ? event.b : event.a;
     auto operand_2 = event.c;
-    auto op_a_not_0 = F::from_bool(!event.op_a_0);
 
     populate<F>(cols.add_operation, operand_1, operand_2);
     write_word_from_u32_v2<F>(cols.operand_1, operand_1);
     write_word_from_u32_v2<F>(cols.operand_2, operand_2);
+    cols.op_a_not_0 = F::from_bool(!event.op_a_0);
 }
 }  // namespace sp1::add_sub
