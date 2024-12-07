@@ -95,6 +95,7 @@ __SP1_HOSTDEV__ void event_to_row(const AluEvent& event, MulCols<decltype(F::val
     word_from_le_bytes<F>(cols.a, a);
     word_from_le_bytes<F>(cols.b, b);
     word_from_le_bytes<F>(cols.c, c);
+    cols.op_a_not_0 = F::from_bool(!event.op_a_0);
     cols.is_real = F::one().val;
     cols.is_mul = F::from_bool(event.opcode == Opcode::MUL).val;
     cols.is_mulh = F::from_bool(event.opcode == Opcode::MULH).val;

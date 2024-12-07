@@ -13,6 +13,7 @@ __SP1_HOSTDEV__ void event_to_row(const AluEvent& event, BitwiseCols<F>& cols) {
     cols.is_xor = F::from_bool(event.opcode == Opcode::XOR);
     cols.is_or = F::from_bool(event.opcode == Opcode::OR);
     cols.is_and = F::from_bool(event.opcode == Opcode::AND);
+    cols.op_a_not_0 = F::from_bool(!event.op_a_0);
 
     // No byte lookup yet.
 }
