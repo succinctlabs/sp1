@@ -61,6 +61,12 @@ where
             local.is_real,
         );
 
+        // If the syscall is not halt, then next_pc should be pc + 4.
+        builder
+            .when(local.is_real)
+            .when(AB::Expr::one() - local.is_halt)
+            .assert_eq(local.next_pc, local.pc + AB::Expr::from_canonical_u32(4));
+
         builder.assert_eq::<AB::Var, AB::Expr>(
             local.num_extra_cycles,
             self.get_num_extra_ecall_cycles::<AB>(local),
