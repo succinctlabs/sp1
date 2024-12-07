@@ -1,10 +1,13 @@
-use sp1_sdk::network_v2::prover::NetworkProver;
-use sp1_sdk::Prover;
-use sp1_sdk::SP1Stdin;
 use sp1_sdk::{
     include_elf,
-    network_v2::{proto::network::FulfillmentStrategy, Error},
-    utils, ProverClient,
+    network_v2::{
+        prover::NetworkProver,
+        proto::network::FulfillmentStrategy,
+        Error,
+    },
+    utils,
+    SP1Stdin,
+    Prover
 };
 use std::env;
 use tokio;
@@ -33,17 +36,17 @@ async fn main() {
     let mut stdin = SP1Stdin::new();
     stdin.write(&1000u32);
 
-    // Send the proof request to the prover network.
+    // Send the proof request to the prover network, with examples of how to handle errors.
     let proof_result = prover.prove(&pk, stdin).await;
     let mut proof = match proof_result {
         Ok(proof) => proof,
         Err(e) => match e {
             Error::RequestUnexecutable => {
-                eprintln!("Program is not executable. Check your input parameters");
+                eprintln!("Error executing: {}", e);
                 std::process::exit(1);
             }
             Error::RequestUnfulfillable => {
-                eprintln!("No prover available to fulfill the request. Try again later");
+                eprintln!("Error proving: {}", e);
                 std::process::exit(1);
             }
             _ => {
