@@ -19,7 +19,7 @@ use std::env;
 #[cfg(feature = "network")]
 pub use crate::network::prover::NetworkProver as NetworkProverV1;
 #[cfg(feature = "network-v2")]
-pub use crate::network_v2::prover::NetworkProver as NetworkProverV2;
+pub use crate::network_v2::NetworkProver as NetworkProverV2;
 #[cfg(feature = "cuda")]
 pub use crate::provers::CudaProver;
 
@@ -88,16 +88,17 @@ impl ProverClient {
             "network" => {
                 let private_key = env::var("SP1_PRIVATE_KEY")
                     .expect("SP1_PRIVATE_KEY must be set for remote proving");
-                let rpc_url = env::var("PROVER_NETWORK_RPC").ok();
-                let skip_simulation =
-                    env::var("SKIP_SIMULATION").map(|val| val == "true").unwrap_or_default();
 
                 cfg_if! {
                     if #[cfg(feature = "network-v2")] {
                         Self {
-                            prover: Box::new(NetworkProverV2::new(&private_key, rpc_url, skip_simulation)),
+                            prover: Box::new(NetworkProverV2::new(&private_key)),
                         }
                     } else if #[cfg(feature = "network")] {
+                        let rpc_url = env::var("PROVER_NETWORK_RPC").ok();
+                        let skip_simulation =
+                            env::var("SKIP_SIMULATION").map(|val| val == "true").unwrap_or_default();
+
                         Self {
                             prover: Box::new(NetworkProverV1::new(&private_key, rpc_url, skip_simulation)),
                         }
@@ -186,11 +187,12 @@ impl ProverClient {
     /// let client = ProverClient::network(private_key, rpc_url, skip_simulation);
     /// ```
     #[cfg(any(feature = "network", feature = "network-v2"))]
+    #[allow(unused_variables)]
     pub fn network(private_key: String, rpc_url: Option<String>, skip_simulation: bool) -> Self {
         cfg_if! {
             if #[cfg(feature = "network-v2")] {
                 Self {
-                    prover: Box::new(NetworkProverV2::new(&private_key, rpc_url, skip_simulation)),
+                    prover: Box::new(NetworkProverV2::new(&private_key)),
                 }
             } else if #[cfg(feature = "network")] {
                 Self {
@@ -373,7 +375,7 @@ impl ProverClientBuilder {
                 cfg_if! {
                     if #[cfg(feature = "network-v2")] {
                         ProverClient {
-                            prover: Box::new(NetworkProverV2::new(&private_key, self.rpc_url, self.skip_simulation)),
+                            prover: Box::new(NetworkProverV2::new(&private_key)),
                         }
                     } else if #[cfg(feature = "network")] {
                         ProverClient {
@@ -431,7 +433,7 @@ impl NetworkProverBuilder {
     pub fn build_v2(self) -> NetworkProverV2 {
         let private_key = self.private_key.expect("The private key is required");
 
-        NetworkProverV2::new(&private_key, self.rpc_url, self.skip_simulation)
+        NetworkProverV2::new(&private_key)
     }
 }
 
