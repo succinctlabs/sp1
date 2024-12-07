@@ -96,15 +96,10 @@ impl<K: Eq + Hash> Shape<K> {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Maximal<K> {
-    pub shapes: Vec<K>,
-}
-
 /// A set of maximal shapes, under the normal ordering.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct MaximalShapes<K: Eq + Hash> {
-    pub shard_map: BTreeMap<usize, Maximal<Shape<K>>>,
+    pub shard_map: BTreeMap<usize, Vec<Shape<K>>>,
 }
 
 impl Shape<RiscvAirId> {

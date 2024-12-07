@@ -31,7 +31,7 @@ use super::{
 /// These shapes define the "worst-case" shapes for typical shards that are proving `rv32im`
 /// execution. We use a variant of a cartesian product of the allowed log heights to generate
 /// smaller shapes from these ones.
-const MAXIMAL_SHAPES: &[u8] = include_bytes!("../../maximal_shapes.json");
+const MAXIMAL_SHAPES: &[u8] = include_bytes!("../../maximal_shapes_v2.json");
 
 // /// The set of average shapes.
 // ///
@@ -609,6 +609,7 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
     fn default() -> Self {
         let maximal_core_shapes: MaximalShapes<RiscvAirId> =
             serde_json::from_slice(MAXIMAL_SHAPES).unwrap();
+
         // let included_shapes: Vec<HashMap<String, usize>> =
         //     serde_json::from_slice(AVERAGE_SHAPES).unwrap();
         let included_shapes: Vec<HashMap<RiscvAirId, u64>> = vec![];
@@ -626,7 +627,7 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
         for (log_shard_size, maximal_shapes) in maximal_core_shapes.shard_map {
             let mut core_log_heights: Vec<ShapeCluster<RiscvAirId>> = vec![];
             let mut maximal_core_log_heights_mask = vec![];
-            for shape in maximal_shapes.shapes {
+            for shape in maximal_shapes {
                 core_log_heights.push(ShapeCluster::from_maximal_shape(&shape));
                 maximal_core_log_heights_mask.push(true);
             }
