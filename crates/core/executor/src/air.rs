@@ -109,6 +109,7 @@ pub enum RiscvAirId {
 
 impl RiscvAirId {
     /// Returns the AIRs that are not part of precompile shards and not the program or byte AIR.
+    #[must_use]
     pub fn core() -> Vec<RiscvAirId> {
         vec![
             RiscvAirId::Cpu,
@@ -129,6 +130,7 @@ impl RiscvAirId {
     }
 
     /// Returns the string representation of the AIR.
+    #[must_use]
     pub fn as_str(&self) -> &str {
         match self {
             Self::Cpu => "CPU",
@@ -187,7 +189,7 @@ impl FromStr for RiscvAirId {
         let air = Self::iter().find(|chip| chip.as_str() == s);
         match air {
             Some(air) => Ok(air),
-            None => Err(format!("Invalid RV32IMAir: {}", s)),
+            None => Err(format!("Invalid RV32IMAir: {s}")),
         }
     }
 }

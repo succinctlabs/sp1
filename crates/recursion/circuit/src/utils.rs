@@ -93,12 +93,9 @@ pub(crate) mod tests {
     use std::sync::Arc;
 
     use sp1_core_machine::utils::{run_test_machine_with_prover, setup_logger};
-    use sp1_recursion_compiler::{
-        circuit::{AsmCompiler, AsmConfig},
-        ir::DslIr,
-    };
+    use sp1_recursion_compiler::circuit::{AsmCompiler, AsmConfig};
 
-    use sp1_recursion_compiler::ir::TracedVec;
+    use sp1_recursion_compiler::ir::DslIrBlock;
     use sp1_recursion_core::{machine::RecursionAir, Runtime};
     use sp1_stark::{
         baby_bear_poseidon2::BabyBearPoseidon2, CpuProver, InnerChallenge, InnerVal, MachineProver,
@@ -114,14 +111,14 @@ pub(crate) mod tests {
     /// Takes in a program and runs it with the given witness and generates a proof with a variety
     /// of machines depending on the provided test_config.
     pub(crate) fn run_test_recursion_with_prover<P: MachineProver<SC, RecursionAir<F, 3>>>(
-        operations: TracedVec<DslIr<AsmConfig<F, EF>>>,
+        block: DslIrBlock<AsmConfig<F, EF>>,
         witness_stream: impl IntoIterator<Item = WitnessBlock<AsmConfig<F, EF>>>,
     ) {
         setup_logger();
 
         let compile_span = tracing::debug_span!("compile").entered();
         let mut compiler = AsmCompiler::<AsmConfig<F, EF>>::default();
-        let program = Arc::new(compiler.compile(operations));
+        let program = Arc::new(compiler.compile_inner(block).validate().unwrap());
         compile_span.exit();
 
         let config = SC::default();
@@ -151,9 +148,9 @@ pub(crate) mod tests {
 
     #[allow(dead_code)]
     pub(crate) fn run_test_recursion(
-        operations: TracedVec<DslIr<AsmConfig<F, EF>>>,
+        block: DslIrBlock<AsmConfig<F, EF>>,
         witness_stream: impl IntoIterator<Item = WitnessBlock<AsmConfig<F, EF>>>,
     ) {
-        run_test_recursion_with_prover::<CpuProver<_, _>>(operations, witness_stream)
+        run_test_recursion_with_prover::<CpuProver<_, _>>(block, witness_stream)
     }
 }

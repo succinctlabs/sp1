@@ -264,22 +264,24 @@ where
             public_values,
         } = proof;
 
-        // Assert that the byte multiplicities don't overflow.
-        let mut max_byte_lookup_mult = 0u64;
-        chips.iter().zip(opened_values.chips.iter()).for_each(|(chip, val)| {
-            max_byte_lookup_mult = max_byte_lookup_mult
-                .checked_add(
-                    (chip.num_sent_byte_lookups() as u64)
-                        .checked_mul(1u64.checked_shl(val.log_degree as u32).unwrap())
-                        .unwrap(),
-                )
-                .unwrap();
-        });
+        tracing::debug_span!("assert byte multiplicities").in_scope(|| {
+            // Assert that the byte multiplicities don't overflow.
+            let mut max_byte_lookup_mult = 0u64;
+            chips.iter().zip(opened_values.chips.iter()).for_each(|(chip, val)| {
+                max_byte_lookup_mult = max_byte_lookup_mult
+                    .checked_add(
+                        (chip.num_sent_byte_lookups() as u64)
+                            .checked_mul(1u64.checked_shl(val.log_degree as u32).unwrap())
+                            .unwrap(),
+                    )
+                    .unwrap();
+            });
 
-        assert!(
-            max_byte_lookup_mult <= SC::Val::order().to_u64().unwrap(),
-            "Byte multiplicities overflow"
-        );
+            assert!(
+                max_byte_lookup_mult <= SC::Val::order().to_u64().unwrap(),
+                "Byte multiplicities overflow"
+            );
+        });
 
         let log_degrees = opened_values.chips.iter().map(|val| val.log_degree).collect::<Vec<_>>();
 
@@ -432,33 +434,40 @@ where
         let rounds = vec![prep_round, main_round, perm_round, quotient_round];
 
         // Verify the pcs proof
-        builder.cycle_tracker_v2_enter("stage-d-verify-pcs".to_string());
+        builder.cycle_tracker_v2_enter("stage-d-verify-pcs");
         let config = machine.config().fri_config();
-        verify_two_adic_pcs::<C, SC>(builder, config, opening_proof, challenger, rounds);
+        tracing::debug_span!("2adic pcs").in_scope(|| {
+            verify_two_adic_pcs::<C, SC>(builder, config, opening_proof, challenger, rounds);
+        });
         builder.cycle_tracker_v2_exit();
 
         // Verify the constrtaint evaluations.
-        builder.cycle_tracker_v2_enter("stage-e-verify-constraints".to_string());
+        builder.cycle_tracker_v2_enter("stage-e-verify-constraints");
         let permutation_challenges = local_permutation_challenges;
 
-        for (chip, trace_domain, qc_domains, values) in
-            izip!(chips.iter(), trace_domains, quotient_chunk_domains, opened_values.chips.iter(),)
-        {
-            // Verify the shape of the opening arguments matches the expected values.
-            Self::verify_opening_shape(chip, values).unwrap();
-            // Verify the constraint evaluation.
-            Self::verify_constraints(
-                builder,
-                chip,
-                values,
-                trace_domain,
-                qc_domains,
-                zeta,
-                alpha,
-                &permutation_challenges,
-                public_values,
-            );
-        }
+        tracing::debug_span!("verify constraints").in_scope(|| {
+            for (chip, trace_domain, qc_domains, values) in izip!(
+                chips.iter(),
+                trace_domains,
+                quotient_chunk_domains,
+                opened_values.chips.iter(),
+            ) {
+                // Verify the shape of the opening arguments matches the expected values.
+                Self::verify_opening_shape(chip, values).unwrap();
+                // Verify the constraint evaluation.
+                Self::verify_constraints(
+                    builder,
+                    chip,
+                    values,
+                    trace_domain,
+                    qc_domains,
+                    zeta,
+                    alpha,
+                    &permutation_challenges,
+                    public_values,
+                );
+            }
+        });
 
         // Verify that the chips' local_cumulative_sum sum to 0.
         let local_cumulative_sum: Ext<C::F, C::EF> = opened_values
@@ -511,7 +520,7 @@ pub mod tests {
     };
     use sp1_recursion_compiler::{
         config::{InnerConfig, OuterConfig},
-        ir::{Builder, DslIr, TracedVec},
+        ir::{Builder, DslIr, DslIrBlock, TracedVec},
     };
 
     use sp1_core_executor::SP1Context;
@@ -538,7 +547,7 @@ pub mod tests {
         elf: &[u8],
         opts: SP1CoreOpts,
         num_shards_in_batch: Option<usize>,
-    ) -> (TracedVec<DslIr<C>>, Vec<Block<BabyBear>>) {
+    ) -> (DslIrBlock<C>, Vec<Block<BabyBear>>) {
         setup_logger();
 
         let program = Program::from(elf).unwrap();
@@ -592,7 +601,7 @@ pub mod tests {
             challenger.observe_slice(&mut builder, pv_slice.iter().cloned());
             StarkVerifier::verify_shard(&mut builder, &vk, &machine, &mut challenger, &proof);
         }
-        (builder.into_operations(), witness_stream)
+        (builder.into_root_block(), witness_stream)
     }
 
     #[test]

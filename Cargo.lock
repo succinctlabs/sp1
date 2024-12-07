@@ -2450,6 +2450,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1d758ba1b47b00caf47f24925c0074ecb20d6dfcffe7f6d53395c0465674841a"
 
 [[package]]
+name = "gen_ops"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "304de19db7028420975a296ab0fcbbc8e69438c4ed254a1e41e2a7f37d5f0e0a"
+
+[[package]]
 name = "generic-array"
 version = "0.14.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4658,6 +4664,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "range-set-blaze"
+version = "0.1.16"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8421b5d459262eabbe49048d362897ff3e3830b44eac6cfe341d6acb2f0f13d2"
+dependencies = [
+ "gen_ops",
+ "itertools 0.12.1",
+ "num-integer",
+ "num-traits",
+]
+
+[[package]]
 name = "rayon"
 version = "1.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5521,6 +5539,9 @@ name = "smallvec"
 version = "1.13.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3c5e1a9a646d36c3599cd173a41282daf47c44583ad367b8e6837255952e5c67"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "smawk"
@@ -5938,10 +5959,13 @@ dependencies = [
  "p3-util",
  "pathdiff",
  "rand 0.8.5",
+ "range-set-blaze",
  "serde",
+ "smallvec",
  "sp1-core-machine",
  "sp1-derive",
  "sp1-primitives",
+ "sp1-recursion-core",
  "sp1-stark",
  "static_assertions",
  "thiserror 1.0.68",

@@ -1,6 +1,6 @@
 //! An implementation of Poseidon2 over BN254.
 
-use std::iter::repeat;
+use std::{borrow::Cow, iter::repeat};
 
 use crate::prelude::*;
 use itertools::Itertools;
@@ -48,7 +48,7 @@ pub trait CircuitV2Builder<C: Config> {
         vk_digest: SepticDigest<Felt<C::F>>,
     ) -> SepticDigest<Felt<C::F>>;
     fn commit_public_values_v2(&mut self, public_values: RecursionPublicValues<Felt<C::F>>);
-    fn cycle_tracker_v2_enter(&mut self, name: String);
+    fn cycle_tracker_v2_enter(&mut self, name: impl Into<Cow<'static, str>>);
     fn cycle_tracker_v2_exit(&mut self);
     fn hint_ext_v2(&mut self) -> Ext<C::F, C::EF>;
     fn hint_felt_v2(&mut self) -> Felt<C::F>;
@@ -306,8 +306,8 @@ impl<C: Config<F = BabyBear>> CircuitV2Builder<C> for Builder<C> {
         self.push_op(DslIr::CircuitV2CommitPublicValues(Box::new(public_values)));
     }
 
-    fn cycle_tracker_v2_enter(&mut self, name: String) {
-        self.push_op(DslIr::CycleTrackerV2Enter(name));
+    fn cycle_tracker_v2_enter(&mut self, name: impl Into<Cow<'static, str>>) {
+        self.push_op(DslIr::CycleTrackerV2Enter(name.into()));
     }
 
     fn cycle_tracker_v2_exit(&mut self) {
@@ -327,14 +327,14 @@ impl<C: Config<F = BabyBear>> CircuitV2Builder<C> for Builder<C> {
     /// Hint a vector of felts.
     fn hint_felts_v2(&mut self, len: usize) -> Vec<Felt<C::F>> {
         let arr = std::iter::from_fn(|| Some(self.uninit())).take(len).collect::<Vec<_>>();
-        self.push_op(DslIr::CircuitV2HintFelts(arr.clone()));
+        self.push_op(DslIr::CircuitV2HintFelts(arr[0], len));
         arr
     }
 
     /// Hint a vector of exts.
     fn hint_exts_v2(&mut self, len: usize) -> Vec<Ext<C::F, C::EF>> {
         let arr = std::iter::from_fn(|| Some(self.uninit())).take(len).collect::<Vec<_>>();
-        self.push_op(DslIr::CircuitV2HintExts(arr.clone()));
+        self.push_op(DslIr::CircuitV2HintExts(arr[0], len));
         arr
     }
 }

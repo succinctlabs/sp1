@@ -20,7 +20,7 @@ use super::prove_core;
 
 /// The canonical entry point for testing a [`Program`] and [`SP1Stdin`] with a [`MachineProver`].
 pub fn run_test<P: MachineProver<BabyBearPoseidon2, RiscvAir<BabyBear>>>(
-    mut program: Program,
+    program: Program,
     inputs: SP1Stdin,
 ) -> Result<SP1PublicValues, MachineVerificationError<BabyBearPoseidon2>> {
     // let shape_config = CoreShapeConfig::<BabyBear>::default();

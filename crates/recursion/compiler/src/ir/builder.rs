@@ -5,9 +5,9 @@ use p3_field::AbstractField;
 use sp1_primitives::types::RecursionProgramType;
 
 use super::{
-    Array, Config, DslIr, Ext, ExtHandle, ExtOperations, Felt, FeltHandle, FeltOperations,
-    FromConstant, SymbolicExt, SymbolicFelt, SymbolicUsize, SymbolicVar, Usize, Var, VarHandle,
-    VarOperations, Variable,
+    Array, Config, DslIr, DslIrBlock, Ext, ExtHandle, ExtOperations, Felt, FeltHandle,
+    FeltOperations, FromConstant, SymbolicExt, SymbolicFelt, SymbolicUsize, SymbolicVar, Usize,
+    Var, VarHandle, VarOperations, Variable,
 };
 
 /// TracedVec is a Vec wrapper that records a trace whenever an element is pushed. When extending
@@ -170,6 +170,17 @@ impl<C: Config> Builder<C> {
         builder
     }
 
+    /// Convenience function for creating a new sub builder.
+    pub fn sub_builder(&self) -> Self {
+        Builder::<C>::new_sub_builder(
+            self.variable_count(),
+            self.nb_public_values,
+            self.p2_hash_num,
+            self.debug,
+            self.program_type,
+        )
+    }
+
     /// Pushes an operation to the builder.
     #[inline(always)]
     pub fn push_op(&mut self, op: DslIr<C>) {
@@ -189,8 +200,25 @@ impl<C: Config> Builder<C> {
         unsafe { (*self.inner.get()).variable_count }
     }
 
+    pub fn set_variable_count(&mut self, variable_count: u32) {
+        self.inner.get_mut().variable_count = variable_count;
+    }
+
     pub fn into_operations(self) -> TracedVec<DslIr<C>> {
         self.inner.into_inner().operations
+    }
+
+    pub fn into_root_block(self) -> DslIrBlock<C> {
+        let addrs_written = 0..self.variable_count();
+        DslIrBlock { ops: self.inner.into_inner().operations, addrs_written }
+    }
+
+    /// Get a mutable reference to the list of operations.
+    /// Can be used for adjusting evaluation order using the utility functions from [`std::mem`].
+    ///
+    /// One use case is to move "lazy" evaluation out of a parallel context.
+    pub fn get_mut_operations(&mut self) -> &mut TracedVec<DslIr<C>> {
+        &mut self.inner.get_mut().operations
     }
 
     /// Creates an uninitialized variable.

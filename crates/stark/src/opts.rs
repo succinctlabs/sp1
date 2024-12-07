@@ -11,6 +11,7 @@ const DEFAULT_CHECKPOINTS_CHANNEL_CAPACITY: usize = 128;
 const DEFAULT_RECORDS_AND_TRACES_CHANNEL_CAPACITY: usize = 1;
 
 /// Set the global threshold according to shard size.
+#[must_use]
 pub const fn default_max_global_threshold(shard_size: usize) -> usize {
     match shard_size {
         x if x >= 1 << 22 => 1 << 19,
