@@ -69,7 +69,7 @@ pub fn check_shapes<C: SP1ProverComponents>(
     let (panic_tx, panic_rx) = std::sync::mpsc::channel();
     let core_shape_config = prover.core_shape_config.as_ref().expect("core shape config not found");
     let recursion_shape_config =
-        prover.recursion_shape_config.as_ref().expect("recursion shape config not found");
+        prover.compress_shape_config.as_ref().expect("recursion shape config not found");
 
     let shape_rx = Mutex::new(shape_rx);
 
@@ -142,7 +142,7 @@ pub fn build_vk_map<C: SP1ProverComponents>(
     prover.vk_verification = !dummy;
     let core_shape_config = prover.core_shape_config.as_ref().expect("core shape config not found");
     let recursion_shape_config =
-        prover.recursion_shape_config.as_ref().expect("recursion shape config not found");
+        prover.compress_shape_config.as_ref().expect("recursion shape config not found");
 
     tracing::info!("building compress vk map");
     let (vk_set, panic_indices, height) = if dummy {
@@ -337,7 +337,10 @@ impl SP1ProofShape {
         core_shape_iter
             .map(|core_shape| {
                 Self::Recursion(ProofShape {
-                    chip_information: core_shape.inner.into_iter().collect(),
+                    chip_information: core_shape
+                        .into_iter()
+                        .map(|(k, v)| (k.to_string(), v as usize))
+                        .collect(),
                 })
             })
             .chain((1..=reduce_batch_size).flat_map(|batch_size| {

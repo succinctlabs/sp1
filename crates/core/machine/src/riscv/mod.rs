@@ -688,13 +688,6 @@ pub mod tests {
     }
 
     #[test]
-    fn test_get_chips_and_costs() {
-        let (chips, costs) = RiscvAir::<BabyBear>::get_chips_and_costs();
-        // println!("costs: {:?}", costs);
-        println!("chips: {:?}", chips.iter().map(|chip| chip.name()).collect_vec());
-    }
-
-    #[test]
     fn core_air_cost_consistency() {
         // Load air costs from file
         let file = std::fs::File::open("../executor/src/artifacts/rv32im_costs.json").unwrap();

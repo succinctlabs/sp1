@@ -2,7 +2,7 @@ use std::{collections::BTreeMap, path::PathBuf, sync::mpsc};
 
 use clap::Parser;
 use p3_baby_bear::BabyBear;
-use sp1_core_executor::{CoreShape, Executor, Maximal, MaximalShapes, Program, SP1Context};
+use sp1_core_executor::{Executor, MaximalShapes, Program, SP1Context, Shape};
 use sp1_core_machine::{io::SP1Stdin, riscv::RiscvAir, utils::setup_logger};
 use sp1_stark::SP1CoreOpts;
 
@@ -21,12 +21,12 @@ struct Args {
     reset: bool,
 }
 
-pub fn get_maximal_core_shapes(
+fn get_maximal_core_shapes(
     elf: &[u8],
     stdin: &SP1Stdin,
     opts: SP1CoreOpts,
     context: SP1Context,
-) -> Maximal<CoreShape> {
+) -> Vec<Shape<String>> {
     let program = Program::from(elf).unwrap();
     let mut runtime = Executor::with_context(program, opts, context);
     runtime.write_vecs(&stdin.buffer);
@@ -34,7 +34,7 @@ pub fn get_maximal_core_shapes(
         runtime.write_proof(proof.clone(), vkey.clone());
     }
 
-    let mut maximal_core_shapes = Maximal::new();
+    let mut maximal_core_shapes = Vec::new();
 
     let mut finished = false;
     while !finished {
@@ -43,14 +43,14 @@ pub fn get_maximal_core_shapes(
         for mut record in records {
             if record.contains_cpu() {
                 let _ = record.defer();
-                let core_shape: CoreShape = RiscvAir::<BabyBear>::core_heights(&record)
+                let core_shape: Shape<String> = RiscvAir::<BabyBear>::core_heights(&record)
                     .into_iter()
                     .filter_map(|(air, height)| {
                         (height != 0).then(|| (air, height.next_power_of_two().ilog2() as usize))
                     })
                     .collect();
 
-                maximal_core_shapes.insert(core_shape);
+                maximal_core_shapes.push(core_shape);
             }
         }
     }
@@ -64,7 +64,7 @@ fn main() {
 
     let mut opts = SP1CoreOpts::default();
 
-    let mut all_maximal_shapes: MaximalShapes = if let Some(initial) = args.initial {
+    let mut all_maximal_shapes: MaximalShapes<String> = if let Some(initial) = args.initial {
         // Verify or append .json extension
         let initial = if !initial.to_string_lossy().ends_with(".json") {
             initial.with_extension("json")

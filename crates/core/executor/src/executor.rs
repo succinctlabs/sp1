@@ -7,7 +7,6 @@ use std::{
 
 use enum_map::EnumMap;
 use hashbrown::HashMap;
-use p3_baby_bear::BabyBear;
 use serde::{Deserialize, Serialize};
 use sp1_stark::{air::PublicValues, SP1CoreOpts};
 use thiserror::Error;
@@ -23,7 +22,6 @@ use crate::{
         AUIPCEvent, AluEvent, BranchEvent, CpuEvent, JumpEvent, LookupId, MemInstrEvent,
         MemoryAccessPosition, MemoryInitializeFinalizeEvent, MemoryLocalEvent, MemoryReadRecord,
         MemoryRecord, MemoryRecordEnum, MemoryWriteRecord, SyscallEvent,
-        NUM_LOCAL_MEMORY_ENTRIES_PER_ROW_EXEC,
     },
     hook::{HookEnv, HookRegistry},
     memory::{Entry, PagedMemory},
@@ -33,7 +31,7 @@ use crate::{
     state::{ExecutionState, ForkState},
     subproof::{DefaultSubproofVerifier, SubproofVerifier},
     syscalls::{default_syscall_map, Syscall, SyscallCode, SyscallContext},
-    Instruction, Opcode, Program, Register, RiscvAirId,
+    Instruction, Opcode, Program, Register, RiscvAirId, Shape,
 };
 
 /// The default increment for the program counter.  Is used for all instructions except
@@ -46,7 +44,6 @@ pub const UNUSED_PC: u32 = 1;
 /// The maximum number of instructions in a program.
 pub const MAX_PROGRAM_SIZE: usize = 1 << 22;
 
-const CORE_LOG_BLOWUP: usize = 1;
 // The LDE threshold, not including the "program" area.
 const LDE_THRESHOLD: u64 = 13000000000;
 const MAX_LDE_SIZE: u64 = 14400000000;
@@ -157,7 +154,7 @@ pub struct Executor<'a> {
     pub hook_registry: HookRegistry<'a>,
 
     /// The maximal shapes for the program.
-    pub maximal_shapes: Option<Vec<HashMap<String, usize>>>,
+    pub maximal_shapes: Option<Vec<Shape<RiscvAirId>>>,
 
     /// The costs of the program.
     pub costs: HashMap<RiscvAirId, usize>,
@@ -1383,16 +1380,14 @@ impl<'a> Executor<'a> {
                 );
 
                 // Compute the log2 of the event counts.
-                let log2_event_counts: EnumMap<RiscvAirId, usize> = event_counts
-                    .iter()
-                    .map(|(k, &v)| (k.clone(), log2_ceil_usize(v as usize)))
-                    .collect();
+                let log2_event_counts: EnumMap<RiscvAirId, usize> =
+                    event_counts.iter().map(|(k, &v)| (k, log2_ceil_usize(v as usize))).collect();
 
                 // Pad the event counts to account for the worst case jump across N cycles.
                 let padded_event_counts = pad_rv32im_event_counts(event_counts, CHECK_CYCLE as u64);
 
                 // Estimate the LDE area in terms of bytes.
-                let costs = self.costs.iter().map(|(k, &v)| (k.clone(), v as u64)).collect();
+                let costs = self.costs.iter().map(|(k, &v)| (*k, v as u64)).collect();
                 let current_lde_size = estimate_riscv_lde_size(event_counts, &costs);
                 let next_lde_size = estimate_riscv_lde_size(padded_event_counts, &costs);
 
@@ -1412,7 +1407,7 @@ impl<'a> Executor<'a> {
                         log2_event_counts
                     );
                     if current_lde_size > MAX_LDE_SIZE {
-                        panic!("LDE size exceeded limit: {}", current_lde_size);
+                        panic!("LDE size exceeded limit: {current_lde_size}");
                     }
                     shape_match_found = false;
                 }
@@ -1425,7 +1420,7 @@ impl<'a> Executor<'a> {
                     shape_match_found = false;
 
                     for shape in maximal_shapes.iter() {
-                        let cpu_threshold = shape.get("CPU").unwrap();
+                        let cpu_threshold = shape.get(&RiscvAirId::Cpu).unwrap();
                         if self.state.clk > ((1 << cpu_threshold) << 2) {
                             continue;
                         }
@@ -1435,8 +1430,7 @@ impl<'a> Executor<'a> {
                             if air == RiscvAirId::Cpu {
                                 continue;
                             }
-                            let threshold =
-                                shape.get(air.as_str()).map_or(0, |log_degree| 1 << log_degree);
+                            let threshold = shape.get(&air).map_or(0, |log_degree| 1 << log_degree);
                             if log2_event_counts[air] > threshold {
                                 continue;
                             }

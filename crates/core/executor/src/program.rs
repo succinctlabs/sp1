@@ -1,11 +1,11 @@
 //! Programs that can be executed by the SP1 zkVM.
 
-use std::{fs::File, io::Read};
+use std::{fs::File, io::Read, str::FromStr};
 
 use crate::{
     disassembler::{transpile, Elf},
     instruction::Instruction,
-    CoreShape,
+    RiscvAirId, Shape,
 };
 use hashbrown::HashMap;
 use p3_field::Field;
@@ -33,7 +33,7 @@ pub struct Program {
     /// The initial memory image, useful for global constants.
     pub memory_image: HashMap<u32, u32>,
     /// The shape for the preprocessed tables.
-    pub preprocessed_shape: Option<CoreShape>,
+    pub preprocessed_shape: Option<Shape<RiscvAirId>>,
 }
 
 impl Program {
@@ -84,15 +84,12 @@ impl Program {
 
     /// Custom logic for padding the trace to a power of two according to the proof shape.
     pub fn fixed_log2_rows<F: Field, A: MachineAir<F>>(&self, air: &A) -> Option<usize> {
-        self.preprocessed_shape
-            .as_ref()
-            .map(|shape| {
-                shape
-                    .inner
-                    .get(&air.name())
-                    .unwrap_or_else(|| panic!("Chip {} not found in specified shape", air.name()))
-            })
-            .copied()
+        let id = RiscvAirId::from_str(&air.name()).unwrap();
+        self.preprocessed_shape.as_ref().map(|shape| {
+            shape
+                .get(&id)
+                .unwrap_or_else(|| panic!("Chip {} not found in specified shape", air.name()))
+        })
     }
 
     #[must_use]

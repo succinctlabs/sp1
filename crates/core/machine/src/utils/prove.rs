@@ -2,6 +2,7 @@ use p3_matrix::dense::RowMajorMatrix;
 use std::{
     fs::File,
     io::{self, Seek, SeekFrom},
+    str::FromStr,
     sync::{
         mpsc::{channel, sync_channel, Sender},
         Arc, Mutex,
@@ -25,7 +26,7 @@ use crate::{
 };
 use sp1_core_executor::{
     events::{format_table_line, sorted_table_lines},
-    ExecutionState,
+    ExecutionState, RiscvAirId,
 };
 
 use sp1_core_executor::{
@@ -98,11 +99,7 @@ where
     // Setup the runtime.
     let mut runtime = Executor::with_context(program.clone(), opts, context);
     runtime.maximal_shapes = shape_config.map(|config| {
-        config
-            .maximal_core_shapes(opts.shard_size.ilog2() as usize)
-            .into_iter()
-            .map(|s| s.inner)
-            .collect()
+        config.maximal_core_shapes(opts.shard_size.ilog2() as usize).into_iter().collect()
     });
     runtime.write_vecs(&stdin.buffer);
     for proof in stdin.proofs.iter() {
@@ -201,7 +198,7 @@ where
                 tracing::debug_span!("phase 2 trace generation").in_scope(|| {
                     loop {
                         let received = { checkpoints_rx.lock().unwrap().recv() };
-                        if let Ok((index, mut checkpoint, done, num_cycles)) = received {
+                        if let Ok((index, mut checkpoint, done, _)) = received {
                             let (mut records, report) = tracing::debug_span!("trace checkpoint")
                                 .in_scope(|| {
                                     trace_checkpoint::<SC>(
@@ -310,7 +307,8 @@ where
                                 let chips = prover.shard_chips(record).collect::<Vec<_>>();
                                 if let Some(shape) = record.shape.as_ref() {
                                     for chip in chips.iter() {
-                                        let height = shape.inner[&chip.name()];
+                                        let id = RiscvAirId::from_str(&chip.name()).unwrap();
+                                        let height = shape.get(&id).unwrap();
                                         heights.push((chip.name().clone(), height));
                                     }
                                     shape_tx
@@ -388,7 +386,11 @@ where
                                     if let Some(shape) = record.shape.as_ref() {
                                         assert_eq!(
                                             proof.shape(),
-                                            shape.clone().into_iter().collect(),
+                                            shape
+                                                .clone()
+                                                .into_iter()
+                                                .map(|(k, v)| (k.to_string(), v as usize))
+                                                .collect(),
                                         );
                                     }
                                 }
@@ -488,11 +490,7 @@ where
         bincode::deserialize_from(&mut reader).expect("failed to deserialize state");
     let mut runtime = Executor::recover(program, state, opts);
     runtime.maximal_shapes = shape_config.map(|config| {
-        config
-            .maximal_core_shapes(opts.shard_size.ilog2() as usize)
-            .into_iter()
-            .map(|s| s.inner)
-            .collect()
+        config.maximal_core_shapes(opts.shard_size.ilog2() as usize).into_iter().collect()
     });
 
     // We already passed the deferred proof verifier when creating checkpoints, so the proofs were

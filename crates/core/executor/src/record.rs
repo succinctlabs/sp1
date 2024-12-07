@@ -5,7 +5,7 @@ use sp1_stark::{
     air::{MachineAir, PublicValues},
     MachineRecord, SP1CoreOpts, SplitOpts,
 };
-use std::{mem::take, sync::Arc};
+use std::{mem::take, str::FromStr, sync::Arc};
 
 use serde::{Deserialize, Serialize};
 
@@ -17,7 +17,7 @@ use crate::{
         MemoryLocalEvent, MemoryRecordEnum, PrecompileEvent, PrecompileEvents, SyscallEvent,
     },
     syscalls::SyscallCode,
-    CoreShape,
+    RiscvAirId, Shape,
 };
 
 /// A record of the execution of a program.
@@ -74,7 +74,7 @@ pub struct ExecutionRecord {
     /// The next nonce to use for a new lookup.
     pub next_nonce: u64,
     /// The shape of the proof.
-    pub shape: Option<CoreShape>,
+    pub shape: Option<Shape<RiscvAirId>>,
 }
 
 impl Default for ExecutionRecord {
@@ -319,15 +319,11 @@ impl ExecutionRecord {
     /// Return the number of rows needed for a chip, according to the proof shape specified in the
     /// struct.
     pub fn fixed_log2_rows<F: PrimeField, A: MachineAir<F>>(&self, air: &A) -> Option<usize> {
-        self.shape
-            .as_ref()
-            .map(|shape| {
-                shape
-                    .inner
-                    .get(&air.name())
-                    .unwrap_or_else(|| panic!("Chip {} not found in specified shape", air.name()))
-            })
-            .copied()
+        self.shape.as_ref().map(|shape| {
+            shape
+                .get(&RiscvAirId::from_str(&air.name()).unwrap())
+                .unwrap_or_else(|| panic!("Chip {} not found in specified shape", air.name()))
+        })
     }
 
     /// Determines whether the execution record contains CPU events.

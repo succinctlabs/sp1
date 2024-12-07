@@ -1,4 +1,6 @@
 use std::collections::BTreeMap;
+use std::hash::Hash;
+use std::str::FromStr;
 
 use hashbrown::HashMap;
 use itertools::Itertools;
@@ -7,7 +9,7 @@ use p3_baby_bear::BabyBear;
 use p3_field::PrimeField32;
 use p3_util::log2_ceil_usize;
 use serde::{Deserialize, Serialize};
-use sp1_core_executor::{CoreShape, ExecutionRecord, MaximalShapes, Program};
+use sp1_core_executor::{ExecutionRecord, MaximalShapes, Program, RiscvAirId, Shape};
 use sp1_stark::{
     air::MachineAir, Dom, MachineProver, MachineRecord, ProofShape, StarkGenericConfig,
 };
@@ -45,13 +47,13 @@ const LOG_HEIGHT_BUFFER: usize = 10;
 
 /// A structure that enables fixing the shape of an execution record.
 pub struct CoreShapeConfig<F: PrimeField32> {
-    included_shapes: Vec<HashMap<String, usize>>,
-    shapes_with_cpu_and_memory_finalize: Vec<ShapeCluster<F>>,
-    allowed_preprocessed_log_heights: ShapeCluster<F>,
-    allowed_core_log_heights: BTreeMap<usize, Vec<ShapeCluster<F>>>,
-    memory_allowed_log_heights: ShapeCluster<F>,
+    included_shapes: Vec<HashMap<RiscvAirId, u64>>,
+    shapes_with_cpu_and_memory_finalize: Vec<ShapeCluster<RiscvAirId>>,
+    allowed_preprocessed_log_heights: ShapeCluster<RiscvAirId>,
+    allowed_core_log_heights: BTreeMap<usize, Vec<ShapeCluster<RiscvAirId>>>,
+    memory_allowed_log_heights: ShapeCluster<RiscvAirId>,
     precompile_allowed_log_heights: HashMap<RiscvAir<F>, (usize, Vec<usize>)>,
-    core_costs: HashMap<String, usize>,
+    core_costs: HashMap<String, u64>,
 }
 
 #[derive(Debug, Error)]
@@ -71,53 +73,49 @@ pub enum CoreShapeError {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-struct ShapeCluster<F> {
-    log_heights: HashMap<String, Vec<Option<usize>>>,
-    _marker: std::marker::PhantomData<F>,
+struct ShapeCluster<K: Eq + Hash + FromStr> {
+    maybe_log2_heights: HashMap<K, Vec<Option<usize>>>,
 }
 
-impl<F: PrimeField32> ShapeCluster<F> {
-    fn new(log_heights: HashMap<String, Vec<Option<usize>>>) -> Self {
-        Self { log_heights, _marker: std::marker::PhantomData }
+impl<K: Clone + Eq + Hash + FromStr> ShapeCluster<K> {
+    fn new(maybe_log2_heights: HashMap<K, Vec<Option<usize>>>) -> Self {
+        Self { maybe_log2_heights }
     }
 
-    fn find_shape(&self, heights: &[(String, usize)]) -> Option<CoreShape> {
+    fn find_shape(&self, heights: &[(K, usize)]) -> Option<Shape<K>> {
         // Find the shape that is larger or equal to the given heights.
-        let shape: Option<HashMap<String, Option<usize>>> = heights
+        let shape: Option<HashMap<K, Option<usize>>> = heights
             .iter()
             .map(|(air, height)| {
-                for maybe_allowed_log_height in self.log_heights.get(air).into_iter().flatten() {
-                    let allowed_height = maybe_allowed_log_height
-                        .map(|log_height| 1 << log_height)
-                        .unwrap_or_default();
+                for maybe_log2_height in self.maybe_log2_heights.get(air).into_iter().flatten() {
+                    let allowed_height =
+                        maybe_log2_height.map(|log_height| 1 << log_height).unwrap_or_default();
                     if *height <= allowed_height {
-                        return Some((air.clone(), *maybe_allowed_log_height));
+                        return Some((air.clone(), *maybe_log2_height));
                     }
                 }
                 None
             })
             .collect();
 
-        // Filter the shape so that HashMap<String, Option<usize>> becomes HashMap<String, usize>.
         let mut inner = shape?;
         inner.retain(|_, &mut value| value.is_some());
-        let inner = inner
+
+        let shape = inner
             .into_iter()
             .map(|(air, maybe_log_height)| (air, maybe_log_height.unwrap()))
-            .collect();
+            .collect::<Shape<K>>();
 
-        // Create the shape.
-        let shape = CoreShape { inner };
         Some(shape)
     }
 
     #[inline]
     fn range(
-        log_max_height: Option<&usize>,
+        log_max_height: Option<usize>,
         min_offset: usize,
         _optional: bool,
     ) -> Vec<Option<usize>> {
-        if let Some(&log_max_height) = log_max_height {
+        if let Some(log_max_height) = log_max_height {
             let log_height = std::cmp::max(log_max_height, MIN_LOG_HEIGHT_THRESHOLD);
             let min_log_height = log_height.saturating_sub(min_offset);
 
@@ -131,52 +129,65 @@ impl<F: PrimeField32> ShapeCluster<F> {
             vec![None, Some(LOG_HEIGHT_BUFFER)]
         }
     }
+}
 
-    fn from_maximal_shape(shape: &CoreShape) -> Self {
+impl ShapeCluster<RiscvAirId> {
+    fn from_maximal_shape(shape: &Shape<RiscvAirId>) -> Self {
         let mut log_heights = HashMap::new();
 
-        let cpu_log_height = shape.inner.get("CPU");
-        log_heights.insert("CPU".to_string(), Self::range(cpu_log_height, 0, false));
-        let addsub_log_height = shape.inner.get("AddSub");
-        log_heights.insert("AddSub".to_string(), Self::range(addsub_log_height, 0, false));
-        let lt_log_height = shape.inner.get("Lt");
-        log_heights.insert("Lt".to_string(), Self::range(lt_log_height, 0, false));
-        let memory_local_log_height = shape.inner.get("MemoryLocal");
-        log_heights
-            .insert("MemoryLocal".to_string(), Self::range(memory_local_log_height, 0, false));
-        let divrem_log_height = shape.inner.get("DivRem");
-        log_heights.insert("DivRem".to_string(), Self::range(divrem_log_height, 1, true));
-        let bitwise_log_height = shape.inner.get("Bitwise");
-        log_heights.insert("Bitwise".to_string(), Self::range(bitwise_log_height, 1, false));
-        let mul_log_height = shape.inner.get("Mul");
-        log_heights.insert("Mul".to_string(), Self::range(mul_log_height, 1, true));
-        let shift_right_log_height = shape.inner.get("ShiftRight");
-        log_heights.insert("ShiftRight".to_string(), Self::range(shift_right_log_height, 1, true));
-        let shift_left_log_height = shape.inner.get("ShiftLeft");
-        log_heights.insert("ShiftLeft".to_string(), Self::range(shift_left_log_height, 1, true));
+        let cpu_log_height = shape.get(&RiscvAirId::Cpu);
+        log_heights.insert(RiscvAirId::Cpu, Self::range(cpu_log_height, 0, false));
 
-        let memory_instrs_log_height = shape.inner.get("MemoryInstrs");
-        log_heights
-            .insert("MemoryInstrs".to_string(), Self::range(memory_instrs_log_height, 0, true));
-        let auipc_log_height = shape.inner.get("Auipc");
-        log_heights.insert("Auipc".to_string(), Self::range(auipc_log_height, 0, true));
-        let branch_log_height = shape.inner.get("Branch");
-        log_heights.insert("Branch".to_string(), Self::range(branch_log_height, 0, true));
-        let jump_log_height = shape.inner.get("Jump");
-        log_heights.insert("Jump".to_string(), Self::range(jump_log_height, 0, false));
-        let syscall_core_log_height = shape.inner.get("SyscallCore");
-        log_heights
-            .insert("SyscallCore".to_string(), Self::range(syscall_core_log_height, 0, true));
-        let syscall_instrs_log_height = shape.inner.get("SyscallInstrs");
-        log_heights
-            .insert("SyscallInstrs".to_string(), Self::range(syscall_instrs_log_height, 0, true));
+        let addsub_log_height = shape.get(&RiscvAirId::AddSub);
+        log_heights.insert(RiscvAirId::AddSub, Self::range(addsub_log_height, 0, false));
 
-        let global_log_height = shape.inner.get("Global");
-        log_heights.insert("Global".to_string(), Self::range(global_log_height, 1, false));
+        let lt_log_height = shape.get(&RiscvAirId::Lt);
+        log_heights.insert(RiscvAirId::Lt, Self::range(lt_log_height, 0, false));
 
-        assert!(log_heights.len() >= shape.inner.len(), "not all chips were included in the shape");
+        let memory_local_log_height = shape.get(&RiscvAirId::MemoryLocal);
+        log_heights.insert(RiscvAirId::MemoryLocal, Self::range(memory_local_log_height, 0, false));
 
-        Self { log_heights, _marker: std::marker::PhantomData }
+        let divrem_log_height = shape.get(&RiscvAirId::DivRem);
+        log_heights.insert(RiscvAirId::DivRem, Self::range(divrem_log_height, 1, true));
+
+        let bitwise_log_height = shape.get(&RiscvAirId::Bitwise);
+        log_heights.insert(RiscvAirId::Bitwise, Self::range(bitwise_log_height, 1, false));
+
+        let mul_log_height = shape.get(&RiscvAirId::Mul);
+        log_heights.insert(RiscvAirId::Mul, Self::range(mul_log_height, 1, true));
+
+        let shift_right_log_height = shape.get(&RiscvAirId::ShiftRight);
+        log_heights.insert(RiscvAirId::ShiftRight, Self::range(shift_right_log_height, 1, true));
+
+        let shift_left_log_height = shape.get(&RiscvAirId::ShiftLeft);
+        log_heights.insert(RiscvAirId::ShiftLeft, Self::range(shift_left_log_height, 1, true));
+
+        let memory_instrs_log_height = shape.get(&RiscvAirId::MemoryInstrs);
+        log_heights
+            .insert(RiscvAirId::MemoryInstrs, Self::range(memory_instrs_log_height, 0, true));
+
+        let auipc_log_height = shape.get(&RiscvAirId::Auipc);
+        log_heights.insert(RiscvAirId::Auipc, Self::range(auipc_log_height, 0, true));
+
+        let branch_log_height = shape.get(&RiscvAirId::Branch);
+        log_heights.insert(RiscvAirId::Branch, Self::range(branch_log_height, 0, true));
+
+        let jump_log_height = shape.get(&RiscvAirId::Jump);
+        log_heights.insert(RiscvAirId::Jump, Self::range(jump_log_height, 0, false));
+
+        let syscall_core_log_height = shape.get(&RiscvAirId::SyscallCore);
+        log_heights.insert(RiscvAirId::SyscallCore, Self::range(syscall_core_log_height, 0, true));
+
+        let syscall_instrs_log_height = shape.get(&RiscvAirId::SyscallInstrs);
+        log_heights
+            .insert(RiscvAirId::SyscallInstrs, Self::range(syscall_instrs_log_height, 0, true));
+
+        let global_log_height = shape.get(&RiscvAirId::Global);
+        log_heights.insert(RiscvAirId::Global, Self::range(global_log_height, 1, false));
+
+        assert!(log_heights.len() >= shape.len(), "not all chips were included in the shape");
+
+        Self { maybe_log2_heights: log_heights }
     }
 }
 
@@ -187,7 +198,10 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
             return Err(CoreShapeError::PreprocessedShapeAlreadyFixed);
         }
 
-        let heights = RiscvAir::<F>::preprocessed_heights(program);
+        let heights = RiscvAir::<F>::preprocessed_heights(program)
+            .into_iter()
+            .map(|(air, height)| (RiscvAirId::from_str(&air).unwrap(), height))
+            .collect::<Vec<_>>();
         let prep_shape = self
             .allowed_preprocessed_log_heights
             .find_shape(&heights)
@@ -197,9 +211,8 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
         Ok(())
     }
 
-    #[inline]
-    fn trace_area(&self, shape: &CoreShape) -> usize {
-        shape.inner.iter().map(|(air, height)| self.core_costs[air] * height).sum()
+    fn trace_area(&self, shape: &Shape<RiscvAirId>) -> u64 {
+        shape.iter().map(|(air, height)| self.core_costs[&air.to_string()] * *height).sum()
     }
 
     pub fn small_program_shapes(&self) -> Vec<ProofShape> {
@@ -208,7 +221,7 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
             .map(|log_heights| {
                 ProofShape::from_log2_heights(
                     &log_heights
-                        .log_heights
+                        .maybe_log2_heights
                         .iter()
                         .filter(|(_, v)| v[0].is_some())
                         .map(|(k, v)| (k.to_string(), v.last().unwrap().unwrap()))
@@ -244,6 +257,10 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
             // Get the heights of the core airs in the record.
             let mut heights = RiscvAir::<F>::core_heights(record);
             heights.extend(RiscvAir::<F>::get_memory_init_final_heights(record));
+            let heights = heights
+                .into_iter()
+                .map(|(air, height)| (RiscvAirId::from_str(&air).unwrap(), height))
+                .collect::<Vec<_>>();
 
             // Try to find a shape fitting within at least one of the candidate shapes.
             for (i, allowed_log_heights) in
@@ -256,12 +273,12 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
                         i
                     );
                     for (air, height) in heights.iter() {
-                        if shape.inner.contains_key(air) {
+                        if shape.contains(air) {
                             tracing::info!(
                                 "Chip {:<20}: {:<3} -> {:<3}",
                                 air,
                                 log2_ceil_usize(*height),
-                                shape.inner[air],
+                                shape.get(air).unwrap(),
                             );
                         }
                     }
@@ -281,6 +298,10 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
 
             // Get the heights of the core airs in the record.
             let heights = RiscvAir::<F>::core_heights(record);
+            let heights = heights
+                .into_iter()
+                .map(|(air, height)| (RiscvAirId::from_str(&air).unwrap(), height))
+                .collect::<Vec<_>>();
 
             // Iterate over all included shapes and see if there is a match. A match is defined as
             // the shape containing the air and the height being less than or equal to than
@@ -290,7 +311,7 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
                 .iter()
                 .find(|shape| {
                     for (air, height) in heights.iter() {
-                        if !shape.contains_key(air) || *height > (1 << shape[air]) {
+                        if !shape.contains_key(air) || *height > (1 << shape.get(air).unwrap()) {
                             return false;
                         }
                     }
@@ -308,7 +329,7 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
             tracing::debug!("log_shard_size: {log_shard_size}");
 
             let mut found_shape = None;
-            let mut found_area = usize::MAX;
+            let mut found_area = u64::MAX;
             let mut found_cluster = None;
             for (_, shape_candidates) in self.allowed_core_log_heights.range(log_shard_size..) {
                 // Try to find a shape fitting within at least one of the candidate shapes.
@@ -330,12 +351,12 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
                     found_cluster.unwrap()
                 );
                 for (air, height) in heights.iter() {
-                    if shape.inner.contains_key(air) {
+                    if shape.contains(air) {
                         tracing::info!(
                             "Chip {:<20}: {:<3} -> {:<3}",
                             air,
                             log2_ceil_usize(*height),
-                            shape.inner[air],
+                            shape.get(air).unwrap(),
                         );
                     }
                 }
@@ -353,6 +374,10 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
             || !record.global_memory_finalize_events.is_empty()
         {
             let heights = RiscvAir::<F>::get_memory_init_final_heights(record);
+            let heights = heights
+                .into_iter()
+                .map(|(air, height)| (RiscvAirId::from_str(&air).unwrap(), height))
+                .collect::<Vec<_>>();
             let shape = self
                 .memory_allowed_log_heights
                 .find_shape(&heights)
@@ -460,20 +485,23 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
     pub fn generate_all_allowed_shapes(&self) -> impl Iterator<Item = ProofShape> + '_ {
         let preprocessed_heights = self
             .allowed_preprocessed_log_heights
-            .log_heights
+            .maybe_log2_heights
             .iter()
             .map(|(air, heights)| (air.to_string(), heights.clone()));
 
         let mut memory_heights = self
             .memory_allowed_log_heights
-            .log_heights
+            .maybe_log2_heights
             .iter()
             .map(|(air, heights)| (air.to_string(), heights.clone()))
             .collect::<HashMap<_, _>>();
         memory_heights.extend(preprocessed_heights.clone());
 
-        let included_shapes =
-            self.included_shapes.iter().cloned().map(|map| map.into_iter().collect::<ProofShape>());
+        let included_shapes = self.included_shapes.iter().cloned().map(|map| {
+            map.into_iter()
+                .map(|(air, log_height)| (air.to_string(), log_height as usize))
+                .collect::<ProofShape>()
+        });
 
         let precompile_only_shapes = self.precompile_allowed_log_heights.iter().flat_map(
             move |(air, (mem_events_per_row, allowed_log_heights))| {
@@ -500,7 +528,7 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
                 move |allowed_log_heights| {
                     Self::generate_all_shapes_from_allowed_log_heights({
                         let mut log_heights = allowed_log_heights
-                            .log_heights
+                            .maybe_log2_heights
                             .iter()
                             .map(|(air, heights)| (air.to_string(), heights.clone()))
                             .collect::<HashMap<_, _>>();
@@ -513,7 +541,7 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
             .chain(precompile_shapes)
     }
 
-    pub fn maximal_core_shapes(&self, max_log_shard_size: usize) -> Vec<CoreShape> {
+    pub fn maximal_core_shapes(&self, max_log_shard_size: usize) -> Vec<Shape<RiscvAirId>> {
         let max_shard_size: usize = core::cmp::max(
             1 << max_log_shard_size,
             1 << self.allowed_core_log_heights.keys().min().unwrap(),
@@ -521,7 +549,7 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
 
         let log_shard_size = max_shard_size.ilog2() as usize;
         debug_assert_eq!(1 << log_shard_size, max_shard_size);
-        let max_preprocessed = self.allowed_preprocessed_log_heights.log_heights.iter().map(
+        let max_preprocessed = self.allowed_preprocessed_log_heights.maybe_log2_heights.iter().map(
             |(air, allowed_heights)| (air.to_string(), allowed_heights.last().unwrap().unwrap()),
         );
 
@@ -529,7 +557,7 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
             self.allowed_core_log_heights[&log_shard_size].iter().map(|allowed_log_heights| {
                 max_preprocessed
                     .clone()
-                    .chain(allowed_log_heights.log_heights.iter().flat_map(
+                    .chain(allowed_log_heights.maybe_log2_heights.iter().flat_map(
                         |(air, allowed_heights)| {
                             allowed_heights
                                 .last()
@@ -537,14 +565,18 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
                                 .map(|log_height| (air.to_string(), log_height))
                         },
                     ))
-                    .collect::<CoreShape>()
+                    .map(|(air, log_height)| (RiscvAirId::from_str(&air).unwrap(), log_height))
+                    .collect::<Shape<RiscvAirId>>()
             });
 
         max_core_shapes.collect()
     }
 
-    pub fn maximal_core_plus_precompile_shapes(&self, max_log_shard_size: usize) -> Vec<CoreShape> {
-        let max_preprocessed = self.allowed_preprocessed_log_heights.log_heights.iter().map(
+    pub fn maximal_core_plus_precompile_shapes(
+        &self,
+        max_log_shard_size: usize,
+    ) -> Vec<Shape<RiscvAirId>> {
+        let max_preprocessed = self.allowed_preprocessed_log_heights.maybe_log2_heights.iter().map(
             |(air, allowed_heights)| (air.to_string(), allowed_heights.last().unwrap().unwrap()),
         );
 
@@ -558,9 +590,15 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
             },
         );
 
-        let precompile_shapes: Vec<CoreShape> = precompile_only_shapes
-            .map(|x| max_preprocessed.clone().chain(x).collect::<CoreShape>())
-            .filter(|shape| shape.inner["Global"] < 21)
+        let precompile_shapes: Vec<Shape<RiscvAirId>> = precompile_only_shapes
+            .map(|x| {
+                max_preprocessed
+                    .clone()
+                    .chain(x)
+                    .map(|(air, log_height)| (RiscvAirId::from_str(&air).unwrap(), log_height))
+                    .collect::<Shape<RiscvAirId>>()
+            })
+            .filter(|shape| shape.get(&RiscvAirId::Global).unwrap() < 21)
             .collect();
 
         self.maximal_core_shapes(max_log_shard_size).into_iter().chain(precompile_shapes).collect()
@@ -569,25 +607,26 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
 
 impl<F: PrimeField32> Default for CoreShapeConfig<F> {
     fn default() -> Self {
-        let maximal_core_shapes: MaximalShapes = serde_json::from_slice(MAXIMAL_SHAPES).unwrap();
+        let maximal_core_shapes: MaximalShapes<RiscvAirId> =
+            serde_json::from_slice(MAXIMAL_SHAPES).unwrap();
         // let included_shapes: Vec<HashMap<String, usize>> =
         //     serde_json::from_slice(AVERAGE_SHAPES).unwrap();
-        let included_shapes: Vec<HashMap<String, usize>> = vec![];
+        let included_shapes: Vec<HashMap<RiscvAirId, u64>> = vec![];
 
         // Preprocessed chip heights.
         let program_heights = vec![Some(19), Some(20), Some(21), Some(22)];
 
         let allowed_preprocessed_log_heights = HashMap::from([
-            (RiscvAir::<F>::Program(ProgramChip::default()).name(), program_heights),
-            (RiscvAir::<F>::ByteLookup(ByteChip::default()).name(), vec![Some(16)]),
+            (RiscvAirId::Program, program_heights),
+            (RiscvAirId::Byte, vec![Some(16)]),
         ]);
 
         let mut allowed_core_log_heights = BTreeMap::new();
 
         for (log_shard_size, maximal_shapes) in maximal_core_shapes.shard_map {
-            let mut core_log_heights: Vec<ShapeCluster<F>> = vec![];
+            let mut core_log_heights: Vec<ShapeCluster<RiscvAirId>> = vec![];
             let mut maximal_core_log_heights_mask = vec![];
-            for shape in maximal_shapes {
+            for shape in maximal_shapes.shapes {
                 core_log_heights.push(ShapeCluster::from_maximal_shape(&shape));
                 maximal_core_log_heights_mask.push(true);
             }
@@ -602,17 +641,11 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
         let global_heights = vec![None, Some(11), Some(17), Some(19), Some(21), Some(22)];
         let memory_allowed_log_heights = HashMap::from(
             [
-                (
-                    RiscvAir::<F>::MemoryGlobalInit(MemoryGlobalChip::new(Initialize)),
-                    memory_init_heights,
-                ),
-                (
-                    RiscvAir::<F>::MemoryGlobalFinal(MemoryGlobalChip::new(Finalize)),
-                    memory_finalize_heights,
-                ),
-                (RiscvAir::<F>::Global(GlobalChip), global_heights),
+                (RiscvAirId::MemoryGlobalInit, memory_init_heights),
+                (RiscvAirId::MemoryGlobalFinalize, memory_finalize_heights),
+                (RiscvAirId::Global, global_heights),
             ]
-            .map(|(air, log_heights)| (air.name(), log_heights)),
+            .map(|(air, log_heights)| (air, log_heights)),
         );
 
         let mut precompile_allowed_log_heights = HashMap::new();
@@ -625,228 +658,147 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
         // Shapes for shards with a CPU chip and memory initialize/finalize events.
         let shapes_with_cpu_and_memory_finalize = vec![
             // Small shape with few Muls and LTs.
-            HashMap::from(
-                [
-                    (RiscvAir::<F>::Cpu(CpuChip::default()), vec![Some(13)]),
-                    (RiscvAir::<F>::Add(AddSubChip::default()), vec![Some(12)]),
-                    (RiscvAir::<F>::Bitwise(BitwiseChip::default()), vec![Some(11)]),
-                    (RiscvAir::<F>::Mul(MulChip::default()), vec![Some(4)]),
-                    (RiscvAir::<F>::ShiftRight(ShiftRightChip::default()), vec![Some(10)]),
-                    (RiscvAir::<F>::ShiftLeft(ShiftLeft::default()), vec![Some(10)]),
-                    (RiscvAir::<F>::Lt(LtChip::default()), vec![Some(8)]),
-                    (RiscvAir::<F>::MemoryLocal(MemoryLocalChip::new()), vec![Some(6)]),
-                    (RiscvAir::<F>::Global(GlobalChip), vec![Some(16)]),
-                    (RiscvAir::<F>::SyscallCore(SyscallChip::core()), vec![None]),
-                    (RiscvAir::<F>::DivRem(DivRemChip::default()), vec![None]),
-                    (
-                        RiscvAir::<F>::MemoryGlobalInit(MemoryGlobalChip::new(Initialize)),
-                        vec![Some(8)],
-                    ),
-                    (
-                        RiscvAir::<F>::MemoryGlobalFinal(MemoryGlobalChip::new(Finalize)),
-                        vec![Some(15)],
-                    ),
-                ]
-                .map(|(air, log_heights)| (air.name(), log_heights)),
-            ),
+            HashMap::from([
+                (RiscvAirId::Cpu, vec![Some(13)]),
+                (RiscvAirId::AddSub, vec![Some(12)]),
+                (RiscvAirId::Bitwise, vec![Some(11)]),
+                (RiscvAirId::Mul, vec![Some(4)]),
+                (RiscvAirId::ShiftRight, vec![Some(10)]),
+                (RiscvAirId::ShiftLeft, vec![Some(10)]),
+                (RiscvAirId::Lt, vec![Some(8)]),
+                (RiscvAirId::MemoryLocal, vec![Some(6)]),
+                (RiscvAirId::Global, vec![Some(16)]),
+                (RiscvAirId::SyscallCore, vec![None]),
+                (RiscvAirId::DivRem, vec![None]),
+                (RiscvAirId::MemoryGlobalInit, vec![Some(8)]),
+                (RiscvAirId::MemoryGlobalFinalize, vec![Some(15)]),
+            ]),
             // Small shape with few Muls.
-            HashMap::from(
-                [
-                    (RiscvAir::<F>::Cpu(CpuChip::default()), vec![Some(14)]),
-                    (RiscvAir::<F>::Add(AddSubChip::default()), vec![Some(14)]),
-                    (RiscvAir::<F>::Bitwise(BitwiseChip::default()), vec![Some(11)]),
-                    (RiscvAir::<F>::Mul(MulChip::default()), vec![Some(4)]),
-                    (RiscvAir::<F>::ShiftRight(ShiftRightChip::default()), vec![Some(10)]),
-                    (RiscvAir::<F>::ShiftLeft(ShiftLeft::default()), vec![Some(10)]),
-                    (RiscvAir::<F>::Lt(LtChip::default()), vec![Some(13)]),
-                    (RiscvAir::<F>::MemoryLocal(MemoryLocalChip::new()), vec![Some(6)]),
-                    (RiscvAir::<F>::Global(GlobalChip), vec![Some(12)]),
-                    (RiscvAir::<F>::SyscallCore(SyscallChip::core()), vec![None]),
-                    (RiscvAir::<F>::DivRem(DivRemChip::default()), vec![None]),
-                    (
-                        RiscvAir::<F>::MemoryGlobalInit(MemoryGlobalChip::new(Initialize)),
-                        vec![Some(8)],
-                    ),
-                    (
-                        RiscvAir::<F>::MemoryGlobalFinal(MemoryGlobalChip::new(Finalize)),
-                        vec![Some(15)],
-                    ),
-                ]
-                .map(|(air, log_heights)| (air.name(), log_heights)),
-            ),
+            HashMap::from([
+                (RiscvAirId::Cpu, vec![Some(14)]),
+                (RiscvAirId::AddSub, vec![Some(14)]),
+                (RiscvAirId::Bitwise, vec![Some(11)]),
+                (RiscvAirId::Mul, vec![Some(4)]),
+                (RiscvAirId::ShiftRight, vec![Some(10)]),
+                (RiscvAirId::ShiftLeft, vec![Some(10)]),
+                (RiscvAirId::Lt, vec![Some(13)]),
+                (RiscvAirId::MemoryLocal, vec![Some(6)]),
+                (RiscvAirId::Global, vec![Some(12)]),
+                (RiscvAirId::SyscallCore, vec![None]),
+                (RiscvAirId::DivRem, vec![None]),
+                (RiscvAirId::MemoryGlobalInit, vec![Some(8)]),
+                (RiscvAirId::MemoryGlobalFinalize, vec![Some(15)]),
+            ]),
             // Small shape with many Muls.
-            HashMap::from(
-                [
-                    (RiscvAir::<F>::Cpu(CpuChip::default()), vec![Some(15)]),
-                    (RiscvAir::<F>::Add(AddSubChip::default()), vec![Some(14)]),
-                    (RiscvAir::<F>::Bitwise(BitwiseChip::default()), vec![Some(11)]),
-                    (RiscvAir::<F>::Mul(MulChip::default()), vec![Some(12)]),
-                    (RiscvAir::<F>::ShiftRight(ShiftRightChip::default()), vec![Some(12)]),
-                    (RiscvAir::<F>::ShiftLeft(ShiftLeft::default()), vec![Some(10)]),
-                    (RiscvAir::<F>::Lt(LtChip::default()), vec![Some(12)]),
-                    (RiscvAir::<F>::MemoryLocal(MemoryLocalChip::new()), vec![Some(7)]),
-                    (RiscvAir::<F>::Global(GlobalChip), vec![Some(16)]),
-                    (RiscvAir::<F>::SyscallCore(SyscallChip::core()), vec![None]),
-                    (RiscvAir::<F>::DivRem(DivRemChip::default()), vec![None]),
-                    (
-                        RiscvAir::<F>::MemoryGlobalInit(MemoryGlobalChip::new(Initialize)),
-                        vec![Some(8)],
-                    ),
-                    (
-                        RiscvAir::<F>::MemoryGlobalFinal(MemoryGlobalChip::new(Finalize)),
-                        vec![Some(15)],
-                    ),
-                ]
-                .map(|(air, log_heights)| (air.name(), log_heights)),
-            ),
+            HashMap::from([
+                (RiscvAirId::Cpu, vec![Some(15)]),
+                (RiscvAirId::AddSub, vec![Some(14)]),
+                (RiscvAirId::Bitwise, vec![Some(11)]),
+                (RiscvAirId::Mul, vec![Some(12)]),
+                (RiscvAirId::ShiftRight, vec![Some(12)]),
+                (RiscvAirId::ShiftLeft, vec![Some(10)]),
+                (RiscvAirId::Lt, vec![Some(12)]),
+                (RiscvAirId::MemoryLocal, vec![Some(7)]),
+                (RiscvAirId::Global, vec![Some(16)]),
+                (RiscvAirId::SyscallCore, vec![None]),
+                (RiscvAirId::DivRem, vec![None]),
+                (RiscvAirId::MemoryGlobalInit, vec![Some(8)]),
+                (RiscvAirId::MemoryGlobalFinalize, vec![Some(15)]),
+            ]),
             // Medium shape with few muls.
-            HashMap::from(
-                [
-                    (RiscvAir::<F>::Cpu(CpuChip::default()), vec![Some(17)]),
-                    (RiscvAir::<F>::Add(AddSubChip::default()), vec![Some(17)]),
-                    (RiscvAir::<F>::Bitwise(BitwiseChip::default()), vec![Some(11)]),
-                    (RiscvAir::<F>::Mul(MulChip::default()), vec![Some(4)]),
-                    (RiscvAir::<F>::ShiftRight(ShiftRightChip::default()), vec![Some(10)]),
-                    (RiscvAir::<F>::ShiftLeft(ShiftLeft::default()), vec![Some(10)]),
-                    (RiscvAir::<F>::Lt(LtChip::default()), vec![Some(16)]),
-                    (RiscvAir::<F>::MemoryLocal(MemoryLocalChip::new()), vec![Some(6)]),
-                    (RiscvAir::<F>::Global(GlobalChip), vec![Some(7)]),
-                    (RiscvAir::<F>::SyscallCore(SyscallChip::core()), vec![None]),
-                    (RiscvAir::<F>::DivRem(DivRemChip::default()), vec![None]),
-                    (
-                        RiscvAir::<F>::MemoryGlobalInit(MemoryGlobalChip::new(Initialize)),
-                        vec![Some(8)],
-                    ),
-                    (
-                        RiscvAir::<F>::MemoryGlobalFinal(MemoryGlobalChip::new(Finalize)),
-                        vec![Some(15)],
-                    ),
-                ]
-                .map(|(air, log_heights)| (air.name(), log_heights)),
-            ),
+            HashMap::from([
+                (RiscvAirId::Cpu, vec![Some(17)]),
+                (RiscvAirId::AddSub, vec![Some(17)]),
+                (RiscvAirId::Bitwise, vec![Some(11)]),
+                (RiscvAirId::Mul, vec![Some(4)]),
+                (RiscvAirId::ShiftRight, vec![Some(10)]),
+                (RiscvAirId::ShiftLeft, vec![Some(10)]),
+                (RiscvAirId::Lt, vec![Some(16)]),
+                (RiscvAirId::MemoryLocal, vec![Some(6)]),
+                (RiscvAirId::Global, vec![Some(7)]),
+                (RiscvAirId::SyscallCore, vec![None]),
+                (RiscvAirId::DivRem, vec![None]),
+                (RiscvAirId::MemoryGlobalInit, vec![Some(8)]),
+                (RiscvAirId::MemoryGlobalFinalize, vec![Some(15)]),
+            ]),
             // Medium shape with many Muls.
-            HashMap::from(
-                [
-                    (RiscvAir::<F>::Cpu(CpuChip::default()), vec![Some(18)]),
-                    (RiscvAir::<F>::Add(AddSubChip::default()), vec![Some(17)]),
-                    (RiscvAir::<F>::Bitwise(BitwiseChip::default()), vec![Some(11)]),
-                    (RiscvAir::<F>::Mul(MulChip::default()), vec![Some(15)]),
-                    (RiscvAir::<F>::ShiftRight(ShiftRightChip::default()), vec![Some(15)]),
-                    (RiscvAir::<F>::ShiftLeft(ShiftLeft::default()), vec![Some(10)]),
-                    (RiscvAir::<F>::Lt(LtChip::default()), vec![Some(15)]),
-                    (RiscvAir::<F>::MemoryLocal(MemoryLocalChip::new()), vec![Some(7)]),
-                    (RiscvAir::<F>::Global(GlobalChip), vec![Some(11)]),
-                    (RiscvAir::<F>::SyscallCore(SyscallChip::core()), vec![None]),
-                    (RiscvAir::<F>::DivRem(DivRemChip::default()), vec![None]),
-                    (
-                        RiscvAir::<F>::MemoryGlobalInit(MemoryGlobalChip::new(Initialize)),
-                        vec![Some(8)],
-                    ),
-                    (
-                        RiscvAir::<F>::MemoryGlobalFinal(MemoryGlobalChip::new(Finalize)),
-                        vec![Some(15)],
-                    ),
-                ]
-                .map(|(air, log_heights)| (air.name(), log_heights)),
-            ),
+            HashMap::from([
+                (RiscvAirId::Cpu, vec![Some(18)]),
+                (RiscvAirId::AddSub, vec![Some(17)]),
+                (RiscvAirId::Bitwise, vec![Some(11)]),
+                (RiscvAirId::Mul, vec![Some(15)]),
+                (RiscvAirId::ShiftRight, vec![Some(15)]),
+                (RiscvAirId::ShiftLeft, vec![Some(10)]),
+                (RiscvAirId::Lt, vec![Some(15)]),
+                (RiscvAirId::MemoryLocal, vec![Some(7)]),
+                (RiscvAirId::Global, vec![Some(11)]),
+                (RiscvAirId::SyscallCore, vec![None]),
+                (RiscvAirId::DivRem, vec![None]),
+                (RiscvAirId::MemoryGlobalInit, vec![Some(8)]),
+                (RiscvAirId::MemoryGlobalFinalize, vec![Some(15)]),
+            ]),
             // Large shapes
-            HashMap::from(
-                [
-                    (RiscvAir::<F>::Cpu(CpuChip::default()), vec![Some(20)]),
-                    (RiscvAir::<F>::Add(AddSubChip::default()), vec![Some(20)]),
-                    (RiscvAir::<F>::Bitwise(BitwiseChip::default()), vec![Some(11)]),
-                    (RiscvAir::<F>::Mul(MulChip::default()), vec![Some(4)]),
-                    (RiscvAir::<F>::ShiftRight(ShiftRightChip::default()), vec![Some(10)]),
-                    (RiscvAir::<F>::ShiftLeft(ShiftLeft::default()), vec![Some(10)]),
-                    (RiscvAir::<F>::Lt(LtChip::default()), vec![Some(19)]),
-                    (RiscvAir::<F>::MemoryLocal(MemoryLocalChip::new()), vec![Some(6)]),
-                    (RiscvAir::<F>::Global(GlobalChip), vec![Some(10)]),
-                    (RiscvAir::<F>::SyscallCore(SyscallChip::core()), vec![None]),
-                    (RiscvAir::<F>::DivRem(DivRemChip::default()), vec![None]),
-                    (
-                        RiscvAir::<F>::MemoryGlobalInit(MemoryGlobalChip::new(Initialize)),
-                        vec![Some(8)],
-                    ),
-                    (
-                        RiscvAir::<F>::MemoryGlobalFinal(MemoryGlobalChip::new(Finalize)),
-                        vec![Some(15)],
-                    ),
-                ]
-                .map(|(air, log_heights)| (air.name(), log_heights)),
-            ),
-            HashMap::from(
-                [
-                    (RiscvAir::<F>::Cpu(CpuChip::default()), vec![Some(20)]),
-                    (RiscvAir::<F>::Add(AddSubChip::default()), vec![Some(20)]),
-                    (RiscvAir::<F>::Bitwise(BitwiseChip::default()), vec![Some(11)]),
-                    (RiscvAir::<F>::Mul(MulChip::default()), vec![Some(4)]),
-                    (RiscvAir::<F>::ShiftRight(ShiftRightChip::default()), vec![Some(11)]),
-                    (RiscvAir::<F>::ShiftLeft(ShiftLeft::default()), vec![Some(10)]),
-                    (RiscvAir::<F>::Lt(LtChip::default()), vec![Some(19)]),
-                    (RiscvAir::<F>::MemoryLocal(MemoryLocalChip::new()), vec![Some(6)]),
-                    (RiscvAir::<F>::Global(GlobalChip), vec![Some(10)]),
-                    (RiscvAir::<F>::SyscallCore(SyscallChip::core()), vec![Some(3)]),
-                    (RiscvAir::<F>::DivRem(DivRemChip::default()), vec![Some(3)]),
-                    (
-                        RiscvAir::<F>::MemoryGlobalInit(MemoryGlobalChip::new(Initialize)),
-                        vec![Some(8)],
-                    ),
-                    (
-                        RiscvAir::<F>::MemoryGlobalFinal(MemoryGlobalChip::new(Finalize)),
-                        vec![Some(15)],
-                    ),
-                ]
-                .map(|(air, log_heights)| (air.name(), log_heights)),
-            ),
-            HashMap::from(
-                [
-                    (RiscvAir::<F>::Cpu(CpuChip::default()), vec![Some(21)]),
-                    (RiscvAir::<F>::Add(AddSubChip::default()), vec![Some(21)]),
-                    (RiscvAir::<F>::Bitwise(BitwiseChip::default()), vec![Some(11)]),
-                    (RiscvAir::<F>::Mul(MulChip::default()), vec![Some(19)]),
-                    (RiscvAir::<F>::ShiftRight(ShiftRightChip::default()), vec![Some(19)]),
-                    (RiscvAir::<F>::ShiftLeft(ShiftLeft::default()), vec![Some(10)]),
-                    (RiscvAir::<F>::Lt(LtChip::default()), vec![Some(19)]),
-                    (RiscvAir::<F>::MemoryLocal(MemoryLocalChip::new()), vec![Some(7)]),
-                    (RiscvAir::<F>::Global(GlobalChip), vec![Some(11)]),
-                    (RiscvAir::<F>::SyscallCore(SyscallChip::core()), vec![None]),
-                    (RiscvAir::<F>::DivRem(DivRemChip::default()), vec![None]),
-                    (
-                        RiscvAir::<F>::MemoryGlobalInit(MemoryGlobalChip::new(Initialize)),
-                        vec![Some(8)],
-                    ),
-                    (
-                        RiscvAir::<F>::MemoryGlobalFinal(MemoryGlobalChip::new(Finalize)),
-                        vec![Some(15)],
-                    ),
-                ]
-                .map(|(air, log_heights)| (air.name(), log_heights)),
-            ),
+            HashMap::from([
+                (RiscvAirId::Cpu, vec![Some(20)]),
+                (RiscvAirId::AddSub, vec![Some(20)]),
+                (RiscvAirId::Bitwise, vec![Some(11)]),
+                (RiscvAirId::Mul, vec![Some(4)]),
+                (RiscvAirId::ShiftRight, vec![Some(10)]),
+                (RiscvAirId::ShiftLeft, vec![Some(10)]),
+                (RiscvAirId::Lt, vec![Some(19)]),
+                (RiscvAirId::MemoryLocal, vec![Some(6)]),
+                (RiscvAirId::Global, vec![Some(10)]),
+                (RiscvAirId::SyscallCore, vec![None]),
+                (RiscvAirId::DivRem, vec![None]),
+                (RiscvAirId::MemoryGlobalInit, vec![Some(8)]),
+                (RiscvAirId::MemoryGlobalFinalize, vec![Some(15)]),
+            ]),
+            HashMap::from([
+                (RiscvAirId::Cpu, vec![Some(20)]),
+                (RiscvAirId::AddSub, vec![Some(20)]),
+                (RiscvAirId::Bitwise, vec![Some(11)]),
+                (RiscvAirId::Mul, vec![Some(4)]),
+                (RiscvAirId::ShiftRight, vec![Some(11)]),
+                (RiscvAirId::ShiftLeft, vec![Some(10)]),
+                (RiscvAirId::Lt, vec![Some(19)]),
+                (RiscvAirId::MemoryLocal, vec![Some(6)]),
+                (RiscvAirId::Global, vec![Some(10)]),
+                (RiscvAirId::SyscallCore, vec![Some(3)]),
+                (RiscvAirId::DivRem, vec![Some(3)]),
+                (RiscvAirId::MemoryGlobalInit, vec![Some(8)]),
+                (RiscvAirId::MemoryGlobalFinalize, vec![Some(15)]),
+            ]),
+            HashMap::from([
+                (RiscvAirId::Cpu, vec![Some(21)]),
+                (RiscvAirId::AddSub, vec![Some(21)]),
+                (RiscvAirId::Bitwise, vec![Some(11)]),
+                (RiscvAirId::Mul, vec![Some(19)]),
+                (RiscvAirId::ShiftRight, vec![Some(19)]),
+                (RiscvAirId::ShiftLeft, vec![Some(10)]),
+                (RiscvAirId::Lt, vec![Some(19)]),
+                (RiscvAirId::MemoryLocal, vec![Some(7)]),
+                (RiscvAirId::Global, vec![Some(11)]),
+                (RiscvAirId::SyscallCore, vec![None]),
+                (RiscvAirId::DivRem, vec![None]),
+                (RiscvAirId::MemoryGlobalInit, vec![Some(8)]),
+                (RiscvAirId::MemoryGlobalFinalize, vec![Some(15)]),
+            ]),
             // Catchall shape.
-            HashMap::from(
-                [
-                    (RiscvAir::<F>::Cpu(CpuChip::default()), vec![Some(21)]),
-                    (RiscvAir::<F>::Add(AddSubChip::default()), vec![Some(21)]),
-                    (RiscvAir::<F>::Bitwise(BitwiseChip::default()), vec![Some(19)]),
-                    (RiscvAir::<F>::Mul(MulChip::default()), vec![Some(19)]),
-                    (RiscvAir::<F>::ShiftRight(ShiftRightChip::default()), vec![Some(19)]),
-                    (RiscvAir::<F>::ShiftLeft(ShiftLeft::default()), vec![Some(19)]),
-                    (RiscvAir::<F>::Lt(LtChip::default()), vec![Some(20)]),
-                    (RiscvAir::<F>::MemoryLocal(MemoryLocalChip::new()), vec![Some(19)]),
-                    (RiscvAir::<F>::Global(GlobalChip), vec![Some(10)]),
-                    (RiscvAir::<F>::SyscallCore(SyscallChip::core()), vec![Some(19)]),
-                    (RiscvAir::<F>::DivRem(DivRemChip::default()), vec![Some(21)]),
-                    (
-                        RiscvAir::<F>::MemoryGlobalInit(MemoryGlobalChip::new(Initialize)),
-                        vec![Some(19)],
-                    ),
-                    (
-                        RiscvAir::<F>::MemoryGlobalFinal(MemoryGlobalChip::new(Finalize)),
-                        vec![Some(19)],
-                    ),
-                ]
-                .map(|(air, log_heights)| (air.name(), log_heights)),
-            ),
+            HashMap::from([
+                (RiscvAirId::Cpu, vec![Some(21)]),
+                (RiscvAirId::AddSub, vec![Some(21)]),
+                (RiscvAirId::Bitwise, vec![Some(19)]),
+                (RiscvAirId::Mul, vec![Some(19)]),
+                (RiscvAirId::ShiftRight, vec![Some(19)]),
+                (RiscvAirId::ShiftLeft, vec![Some(19)]),
+                (RiscvAirId::Lt, vec![Some(20)]),
+                (RiscvAirId::MemoryLocal, vec![Some(19)]),
+                (RiscvAirId::Global, vec![Some(10)]),
+                (RiscvAirId::SyscallCore, vec![Some(19)]),
+                (RiscvAirId::DivRem, vec![Some(21)]),
+                (RiscvAirId::MemoryGlobalInit, vec![Some(19)]),
+                (RiscvAirId::MemoryGlobalFinalize, vec![Some(19)]),
+            ]),
         ];
 
         Self {
@@ -870,7 +822,7 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
 
 pub fn try_generate_dummy_proof<SC: StarkGenericConfig, P: MachineProver<SC, RiscvAir<SC::Val>>>(
     prover: &P,
-    shape: &CoreShape,
+    shape: &Shape<RiscvAirId>,
 ) where
     SC::Val: PrimeField32,
     Dom<SC>: core::fmt::Debug,
@@ -918,32 +870,29 @@ pub mod tests {
 
         setup_logger();
 
-        let preprocessed_log_heights = [
-            (RiscvAir::<BabyBear>::Program(ProgramChip::default()), 10),
-            (RiscvAir::<BabyBear>::ByteLookup(ByteChip::default()), 16),
-        ];
+        let preprocessed_log_heights = [(RiscvAirId::Program, 10), (RiscvAirId::Byte, 16)];
 
         let core_log_heights = [
-            (RiscvAir::<BabyBear>::Cpu(CpuChip::default()), 11),
-            (RiscvAir::<BabyBear>::DivRem(DivRemChip::default()), 11),
-            (RiscvAir::<BabyBear>::Add(AddSubChip::default()), 10),
-            (RiscvAir::<BabyBear>::Bitwise(BitwiseChip::default()), 10),
-            (RiscvAir::<BabyBear>::Mul(MulChip::default()), 10),
-            (RiscvAir::<BabyBear>::ShiftRight(ShiftRightChip::default()), 10),
-            (RiscvAir::<BabyBear>::ShiftLeft(ShiftLeft::default()), 10),
-            (RiscvAir::<BabyBear>::Lt(LtChip::default()), 10),
-            (RiscvAir::<BabyBear>::MemoryLocal(MemoryLocalChip::new()), 10),
-            (RiscvAir::<BabyBear>::SyscallCore(SyscallChip::core()), 10),
-            (RiscvAir::<BabyBear>::Global(GlobalChip), 10),
+            (RiscvAirId::Cpu, 11),
+            (RiscvAirId::DivRem, 11),
+            (RiscvAirId::AddSub, 10),
+            (RiscvAirId::Bitwise, 10),
+            (RiscvAirId::Mul, 10),
+            (RiscvAirId::ShiftRight, 10),
+            (RiscvAirId::ShiftLeft, 10),
+            (RiscvAirId::Lt, 10),
+            (RiscvAirId::MemoryLocal, 10),
+            (RiscvAirId::SyscallCore, 10),
+            (RiscvAirId::Global, 10),
         ];
 
         let height_map = preprocessed_log_heights
             .into_iter()
             .chain(core_log_heights)
-            .map(|(air, log_height)| (air.name(), log_height))
+            .map(|(air, log_height)| (air, log_height))
             .collect::<HashMap<_, _>>();
 
-        let shape = CoreShape { inner: height_map };
+        let shape = Shape::new(height_map);
 
         // Try generating preprocessed traces.
         let config = SC::default();

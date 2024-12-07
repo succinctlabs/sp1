@@ -113,56 +113,44 @@ pub type CompressAir<F> = RecursionAir<F, COMPRESS_DEGREE>;
 pub type ShrinkAir<F> = RecursionAir<F, SHRINK_DEGREE>;
 pub type WrapAir<F> = RecursionAir<F, WRAP_DEGREE>;
 
-#[allow(clippy::type_complexity)]
-enum TracesOrInput {
-    ProgramRecordTraces(
-        Box<(
-            Arc<RecursionProgram<BabyBear>>,
-            ExecutionRecord<BabyBear>,
-            Vec<(String, RowMajorMatrix<BabyBear>)>,
-        )>,
-    ),
-    CircuitWitness(Box<SP1CircuitWitness>),
-}
-
-/// A end-to-end prover implementation for the SP1 RISC-V zkVM.
+/// A end-to-end for the SP1 RISC-V zkVM.
+///
+/// This object coordinates the proving along all the steps: core, compression, shrinkage, and
+/// wrapping.
 pub struct SP1Prover<C: SP1ProverComponents = DefaultProverComponents> {
-    /// The machine used for proving the core step.
+    /// The core prover.
     pub core_prover: C::CoreProver,
-
-    /// The machine used for proving the recursive and reduction steps.
+    /// The compress prover (for both lift and join).
     pub compress_prover: C::CompressProver,
-
-    /// The machine used for proving the shrink step.
+    /// The shrink prover.
     pub shrink_prover: C::ShrinkProver,
-
-    /// The machine used for proving the wrapping step.
+    /// The wrap prover.
     pub wrap_prover: C::WrapProver,
-
-    pub recursion_programs: Mutex<LruCache<SP1RecursionShape, Arc<RecursionProgram<BabyBear>>>>,
-
-    pub recursion_cache_misses: AtomicUsize,
-
-    pub compress_programs: BTreeMap<SP1CompressWithVkeyShape, Arc<RecursionProgram<BabyBear>>>,
-
-    pub compress_cache_misses: AtomicUsize,
-
-    pub vk_root: <InnerSC as FieldHasher<BabyBear>>::Digest,
-
-    pub allowed_vk_map: BTreeMap<<InnerSC as FieldHasher<BabyBear>>::Digest, usize>,
-
-    pub vk_merkle_tree: MerkleTree<BabyBear, InnerSC>,
-
+    /// The cache of compiled recursion programs.
+    pub lift_programs_lru: Mutex<LruCache<SP1RecursionShape, Arc<RecursionProgram<BabyBear>>>>,
+    /// The number of cache misses for recursion programs.
+    pub lift_cache_misses: AtomicUsize,
+    /// The cache of compiled compression programs.
+    pub join_programs_map: BTreeMap<SP1CompressWithVkeyShape, Arc<RecursionProgram<BabyBear>>>,
+    /// The number of cache misses for compression programs.
+    pub join_cache_misses: AtomicUsize,
+    /// The root of the allowed recursion verification keys.
+    pub recursion_vk_root: <InnerSC as FieldHasher<BabyBear>>::Digest,
+    /// The allowed VKs and their corresponding indices.
+    pub recursion_vk_map: BTreeMap<<InnerSC as FieldHasher<BabyBear>>::Digest, usize>,
+    /// The Merkle tree for the allowed VKs.
+    pub recursion_vk_tree: MerkleTree<BabyBear, InnerSC>,
+    /// The core shape configuration.
     pub core_shape_config: Option<CoreShapeConfig<BabyBear>>,
-
-    pub recursion_shape_config: Option<RecursionShapeConfig<BabyBear, CompressAir<BabyBear>>>,
-
+    /// The recursion shape configuration.
+    pub compress_shape_config: Option<RecursionShapeConfig<BabyBear, CompressAir<BabyBear>>>,
+    /// The program for wrapping.
     pub wrap_program: OnceLock<Arc<RecursionProgram<BabyBear>>>,
-
+    /// The verifying key for wrapping.
     pub wrap_vk: OnceLock<StarkVerifyingKey<OuterSC>>,
-
+    /// Whether to verify verification keys.
     pub vk_verification: bool,
-
+    /// The cache of single-shard programs.
     pub single_shard_programs: Option<BTreeMap<SP1RecursionShape, Arc<RecursionProgram<BabyBear>>>>,
 }
 
@@ -287,15 +275,15 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             compress_prover,
             shrink_prover,
             wrap_prover,
-            recursion_programs: Mutex::new(LruCache::new(core_cache_size)),
-            recursion_cache_misses: AtomicUsize::new(0),
-            compress_programs,
-            compress_cache_misses: AtomicUsize::new(0),
-            vk_root: root,
-            vk_merkle_tree: merkle_tree,
-            allowed_vk_map,
+            lift_programs_lru: Mutex::new(LruCache::new(core_cache_size)),
+            lift_cache_misses: AtomicUsize::new(0),
+            join_programs_map: compress_programs,
+            join_cache_misses: AtomicUsize::new(0),
+            recursion_vk_root: root,
+            recursion_vk_tree: merkle_tree,
+            recursion_vk_map: allowed_vk_map,
             core_shape_config,
-            recursion_shape_config,
+            compress_shape_config: recursion_shape_config,
             vk_verification,
             single_shard_programs,
             wrap_program: OnceLock::new(),
@@ -437,6 +425,18 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         deferred_proofs: Vec<SP1ReduceProof<InnerSC>>,
         opts: SP1ProverOpts,
     ) -> Result<SP1ReduceProof<InnerSC>, SP1RecursionProverError> {
+        #[allow(clippy::type_complexity)]
+        enum TracesOrInput {
+            ProgramRecordTraces(
+                Box<(
+                    Arc<RecursionProgram<BabyBear>>,
+                    ExecutionRecord<BabyBear>,
+                    Vec<(String, RowMajorMatrix<BabyBear>)>,
+                )>,
+            ),
+            CircuitWitness(Box<SP1CircuitWitness>),
+        }
+
         // The batch size for reducing two layers of recursion.
         let batch_size = REDUCE_BATCH_SIZE;
         // The batch size for reducing the first layer of recursion.
@@ -984,11 +984,11 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         input: &SP1RecursionWitnessValues<CoreSC>,
     ) -> Arc<RecursionProgram<BabyBear>> {
         println!("getting recursion program: {:?}", input.shape());
-        let mut cache = self.recursion_programs.lock().unwrap_or_else(|e| e.into_inner());
+        let mut cache = self.lift_programs_lru.lock().unwrap_or_else(|e| e.into_inner());
         println!("inserting to cache");
         cache
             .get_or_insert(input.shape(), || {
-                let misses = self.recursion_cache_misses.fetch_add(1, Ordering::Relaxed);
+                let misses = self.lift_cache_misses.fetch_add(1, Ordering::Relaxed);
                 tracing::debug!("core cache miss, misses: {}", misses);
                 // Get the operations.
                 let builder_span = tracing::debug_span!("build recursion program").entered();
@@ -1010,7 +1010,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                 let compiler_span = tracing::debug_span!("compile recursion program").entered();
                 let mut compiler = AsmCompiler::<InnerConfig>::default();
                 let mut program = compiler.compile(dsl_program);
-                if let Some(inn_recursion_shape_config) = &self.recursion_shape_config {
+                if let Some(inn_recursion_shape_config) = &self.compress_shape_config {
                     inn_recursion_shape_config.fix_shape(&mut program);
                 }
                 let program = Arc::new(program);
@@ -1025,12 +1025,12 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         shape_tuning: bool, // TODO: document, eugene says its a boolean used for when you're tryning to find the recursion shapes.
         input: &SP1CompressWithVKeyWitnessValues<InnerSC>,
     ) -> Arc<RecursionProgram<BabyBear>> {
-        if self.recursion_shape_config.is_some() && !shape_tuning {
-            self.compress_programs.get(&input.shape()).map(Clone::clone).unwrap()
+        if self.compress_shape_config.is_some() && !shape_tuning {
+            self.join_programs_map.get(&input.shape()).map(Clone::clone).unwrap()
         } else {
             // Get the operations.
             Arc::new(compress_program_from_input::<C>(
-                self.recursion_shape_config.as_ref(),
+                self.compress_shape_config.as_ref(),
                 &self.compress_prover,
                 self.vk_verification,
                 input,
@@ -1083,7 +1083,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                 let input_shape = SP1CompressShape::from(vec![shrink_shape]);
                 let shape = SP1CompressWithVkeyShape {
                     compress_shape: input_shape,
-                    merkle_tree_height: self.vk_merkle_tree.height,
+                    merkle_tree_height: self.recursion_vk_tree.height,
                 };
                 let dummy_input =
                     SP1CompressWithVKeyWitnessValues::dummy(self.shrink_prover.machine(), &shape);
@@ -1092,7 +1092,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 
                 // Attest that the merkle tree root is correct.
                 let root = input.merkle_var.root;
-                for (val, expected) in root.iter().zip(self.vk_root.iter()) {
+                for (val, expected) in root.iter().zip(self.recursion_vk_root.iter()) {
                     builder.assert_felt_eq(*val, *expected);
                 }
                 // Verify the proof.
@@ -1152,7 +1152,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         let compiler_span = tracing::debug_span!("compile deferred program").entered();
         let mut compiler = AsmCompiler::<InnerConfig>::default();
         let mut program = compiler.compile(dsl_program);
-        if let Some(recursion_shape_config) = &self.recursion_shape_config {
+        if let Some(recursion_shape_config) = &self.compress_shape_config {
             recursion_shape_config.fix_shape(&mut program);
         }
         let program = Arc::new(program);
@@ -1179,7 +1179,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                 shard_proofs: proofs.clone(),
                 is_complete,
                 is_first_shard: batch_idx == 0,
-                vk_root: self.vk_root,
+                vk_root: self.recursion_vk_root,
                 reconstruct_deferred_digest: deferred_digest,
             });
         }
@@ -1274,14 +1274,14 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         &self,
         input: SP1CompressWitnessValues<CoreSC>,
     ) -> SP1CompressWithVKeyWitnessValues<CoreSC> {
-        let num_vks = self.allowed_vk_map.len();
+        let num_vks = self.recursion_vk_map.len();
         let (vk_indices, vk_digest_values): (Vec<_>, Vec<_>) = if self.vk_verification {
             input
                 .vks_and_proofs
                 .iter()
                 .map(|(vk, _)| {
                     let vk_digest = vk.hash_babybear();
-                    let index = self.allowed_vk_map.get(&vk_digest).expect("vk not allowed");
+                    let index = self.recursion_vk_map.get(&vk_digest).expect("vk not allowed");
                     (index, vk_digest)
                 })
                 .unzip()
@@ -1300,13 +1300,13 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         let proofs = vk_indices
             .iter()
             .map(|index| {
-                let (_, proof) = MerkleTree::open(&self.vk_merkle_tree, *index);
+                let (_, proof) = MerkleTree::open(&self.recursion_vk_tree, *index);
                 proof
             })
             .collect();
 
         let merkle_val = SP1MerkleProofWitnessValues {
-            root: self.vk_root,
+            root: self.recursion_vk_root,
             values: vk_digest_values,
             vk_merkle_proofs: proofs,
         };

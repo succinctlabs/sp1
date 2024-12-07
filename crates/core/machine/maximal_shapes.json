@@ -5,7 +5,7 @@
         {
           "inner": {
             "Mul": 19,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 5,
             "Branch": 18,
             "ShiftRight": 19,
@@ -26,7 +26,7 @@
             "Bitwise": 19,
             "Mul": 14,
             "Lt": 19,
-            "CPU": 21,
+            "Cpu": 21,
             "ShiftLeft": 16,
             "MemoryLocal": 14,
             "Auipc": 15,
@@ -42,7 +42,7 @@
         {
           "inner": {
             "Mul": 13,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 10,
             "DivRem": 7,
             "ShiftRight": 17,
@@ -62,7 +62,7 @@
         {
           "inner": {
             "Mul": 17,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 14,
             "DivRem": 4,
             "ShiftRight": 17,
@@ -82,7 +82,7 @@
         {
           "inner": {
             "Mul": 14,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 1,
             "DivRem": 8,
             "ShiftRight": 17,
@@ -102,7 +102,7 @@
         {
           "inner": {
             "Mul": 17,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 14,
             "Branch": 17,
             "ShiftRight": 17,
@@ -121,7 +121,7 @@
         {
           "inner": {
             "Mul": 11,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 9,
             "Branch": 19,
             "ShiftRight": 15,
@@ -140,7 +140,7 @@
         {
           "inner": {
             "Mul": 18,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 14,
             "Branch": 17,
             "ShiftRight": 18,
@@ -159,7 +159,7 @@
         {
           "inner": {
             "Mul": 16,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 13,
             "DivRem": 6,
             "ShiftRight": 17,
@@ -179,7 +179,7 @@
         {
           "inner": {
             "Mul": 16,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 13,
             "Branch": 18,
             "ShiftRight": 17,
@@ -198,7 +198,7 @@
         {
           "inner": {
             "Mul": 19,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 3,
             "DivRem": 5,
             "ShiftRight": 14,
@@ -218,7 +218,7 @@
         {
           "inner": {
             "Mul": 18,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 5,
             "DivRem": 1,
             "ShiftRight": 10,
@@ -238,7 +238,7 @@
         {
           "inner": {
             "Mul": 13,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 11,
             "DivRem": 2,
             "ShiftRight": 18,
@@ -258,7 +258,7 @@
         {
           "inner": {
             "Mul": 14,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 4,
             "DivRem": 8,
             "ShiftRight": 17,
@@ -278,7 +278,7 @@
         {
           "inner": {
             "Mul": 18,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 15,
             "Branch": 17,
             "ShiftRight": 18,
@@ -297,7 +297,7 @@
         {
           "inner": {
             "Mul": 13,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 13,
             "Branch": 18,
             "ShiftRight": 18,
@@ -316,7 +316,7 @@
         {
           "inner": {
             "Mul": 18,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 14,
             "Branch": 17,
             "ShiftRight": 18,
@@ -335,7 +335,7 @@
         {
           "inner": {
             "Mul": 17,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 14,
             "Branch": 18,
             "ShiftRight": 18,
@@ -354,7 +354,7 @@
         {
           "inner": {
             "Mul": 13,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 13,
             "Branch": 18,
             "ShiftRight": 18,
@@ -373,7 +373,7 @@
         {
           "inner": {
             "Mul": 17,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 14,
             "Branch": 17,
             "ShiftRight": 18,
@@ -392,7 +392,7 @@
         {
           "inner": {
             "Mul": 16,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 13,
             "Branch": 17,
             "ShiftRight": 18,
@@ -411,7 +411,7 @@
         {
           "inner": {
             "Mul": 18,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 14,
             "Branch": 17,
             "ShiftRight": 17,
@@ -430,7 +430,7 @@
         {
           "inner": {
             "Mul": 18,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 14,
             "Branch": 17,
             "ShiftRight": 17,
@@ -449,7 +449,7 @@
         {
           "inner": {
             "Mul": 18,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 14,
             "Branch": 17,
             "ShiftRight": 18,
@@ -468,7 +468,7 @@
         {
           "inner": {
             "Mul": 6,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 1,
             "Branch": 19,
             "ShiftRight": 12,
@@ -487,7 +487,7 @@
         {
           "inner": {
             "Mul": 7,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 4,
             "Branch": 17,
             "ShiftRight": 18,
@@ -506,7 +506,7 @@
         {
           "inner": {
             "Mul": 18,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 1,
             "Branch": 18,
             "ShiftRight": 16,
@@ -527,7 +527,7 @@
             "Bitwise": 18,
             "Mul": 19,
             "Lt": 18,
-            "CPU": 21,
+            "Cpu": 21,
             "ShiftLeft": 17,
             "MemoryLocal": 11,
             "Auipc": 14,
@@ -542,7 +542,7 @@
         {
           "inner": {
             "Mul": 19,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 7,
             "DivRem": 4,
             "ShiftRight": 17,
@@ -562,7 +562,7 @@
         {
           "inner": {
             "Mul": 14,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 7,
             "DivRem": 4,
             "ShiftRight": 17,
@@ -584,7 +584,7 @@
             "Bitwise": 16,
             "Mul": 19,
             "Lt": 20,
-            "CPU": 21,
+            "Cpu": 21,
             "ShiftLeft": 12,
             "MemoryLocal": 12,
             "Auipc": 3,
@@ -602,7 +602,7 @@
             "Bitwise": 16,
             "Mul": 18,
             "Lt": 20,
-            "CPU": 21,
+            "Cpu": 21,
             "ShiftLeft": 12,
             "MemoryLocal": 13,
             "Auipc": 11,
@@ -619,7 +619,7 @@
             "Bitwise": 18,
             "Mul": 17,
             "Lt": 20,
-            "CPU": 21,
+            "Cpu": 21,
             "ShiftLeft": 16,
             "MemoryLocal": 14,
             "Auipc": 10,
@@ -637,7 +637,7 @@
             "Bitwise": 17,
             "Mul": 18,
             "Lt": 20,
-            "CPU": 21,
+            "Cpu": 21,
             "ShiftLeft": 15,
             "MemoryLocal": 13,
             "Auipc": 10,
@@ -654,7 +654,7 @@
             "Bitwise": 17,
             "Mul": 17,
             "Lt": 20,
-            "CPU": 21,
+            "Cpu": 21,
             "ShiftLeft": 15,
             "MemoryLocal": 14,
             "Auipc": 9,
@@ -671,7 +671,7 @@
             "Bitwise": 18,
             "Mul": 17,
             "Lt": 20,
-            "CPU": 21,
+            "Cpu": 21,
             "ShiftLeft": 16,
             "MemoryLocal": 14,
             "Auipc": 9,
@@ -686,7 +686,7 @@
         {
           "inner": {
             "Mul": 8,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 12,
             "Branch": 19,
             "ShiftRight": 12,
@@ -705,7 +705,7 @@
         {
           "inner": {
             "Mul": 16,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 15,
             "Branch": 18,
             "ShiftRight": 16,
@@ -724,7 +724,7 @@
         {
           "inner": {
             "Mul": 14,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 13,
             "DivRem": 4,
             "ShiftRight": 17,
@@ -744,7 +744,7 @@
         {
           "inner": {
             "Mul": 14,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 4,
             "DivRem": 3,
             "ShiftRight": 17,
@@ -764,7 +764,7 @@
         {
           "inner": {
             "Mul": 15,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 4,
             "DivRem": 3,
             "ShiftRight": 17,
@@ -784,7 +784,7 @@
         {
           "inner": {
             "Mul": 14,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 7,
             "DivRem": 4,
             "ShiftRight": 17,
@@ -804,7 +804,7 @@
         {
           "inner": {
             "Mul": 14,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 10,
             "DivRem": 2,
             "ShiftRight": 17,
@@ -824,7 +824,7 @@
         {
           "inner": {
             "Mul": 13,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 6,
             "Branch": 19,
             "ShiftRight": 17,
@@ -843,7 +843,7 @@
         {
           "inner": {
             "Mul": 16,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 3,
             "DivRem": 4,
             "ShiftRight": 16,
@@ -863,7 +863,7 @@
         {
           "inner": {
             "Mul": 11,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 10,
             "DivRem": 6,
             "ShiftRight": 15,
@@ -883,7 +883,7 @@
         {
           "inner": {
             "Mul": 12,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 8,
             "Branch": 19,
             "ShiftRight": 15,
@@ -904,7 +904,7 @@
             "Bitwise": 20,
             "Mul": 11,
             "Lt": 17,
-            "CPU": 21,
+            "Cpu": 21,
             "ShiftLeft": 18,
             "MemoryLocal": 13,
             "Auipc": 12,
@@ -921,7 +921,7 @@
             "Bitwise": 17,
             "Mul": 18,
             "Lt": 20,
-            "CPU": 21,
+            "Cpu": 21,
             "ShiftLeft": 15,
             "MemoryLocal": 13,
             "Auipc": 15,
@@ -936,7 +936,7 @@
         {
           "inner": {
             "Mul": 15,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 0,
             "Branch": 18,
             "ShiftRight": 16,
@@ -955,7 +955,7 @@
         {
           "inner": {
             "Mul": 18,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 1,
             "Branch": 17,
             "ShiftRight": 17,
@@ -974,7 +974,7 @@
         {
           "inner": {
             "Mul": 15,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 0,
             "DivRem": 2,
             "ShiftRight": 17,
@@ -994,7 +994,7 @@
         {
           "inner": {
             "Mul": 17,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 0,
             "DivRem": 2,
             "ShiftRight": 17,
@@ -1014,7 +1014,7 @@
         {
           "inner": {
             "Mul": 18,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 0,
             "DivRem": 0,
             "ShiftRight": 17,
@@ -1034,7 +1034,7 @@
         {
           "inner": {
             "Mul": 14,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 1,
             "Branch": 17,
             "ShiftRight": 17,
@@ -1053,7 +1053,7 @@
         {
           "inner": {
             "Mul": 10,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 1,
             "Branch": 16,
             "ShiftRight": 18,
@@ -1074,7 +1074,7 @@
             "Bitwise": 20,
             "Mul": 12,
             "Lt": 17,
-            "CPU": 21,
+            "Cpu": 21,
             "ShiftLeft": 18,
             "MemoryLocal": 12,
             "Auipc": 12,
@@ -1091,7 +1091,7 @@
             "Bitwise": 20,
             "Mul": 13,
             "Lt": 19,
-            "CPU": 21,
+            "Cpu": 21,
             "ShiftLeft": 17,
             "MemoryLocal": 13,
             "Auipc": 14,
@@ -1108,7 +1108,7 @@
             "Bitwise": 20,
             "Mul": 12,
             "Lt": 19,
-            "CPU": 21,
+            "Cpu": 21,
             "ShiftLeft": 17,
             "MemoryLocal": 13,
             "Auipc": 15,
@@ -1125,7 +1125,7 @@
             "Bitwise": 20,
             "Mul": 11,
             "Lt": 18,
-            "CPU": 21,
+            "Cpu": 21,
             "ShiftLeft": 18,
             "MemoryLocal": 12,
             "Auipc": 14,
@@ -1142,7 +1142,7 @@
             "Bitwise": 18,
             "Mul": 14,
             "Lt": 20,
-            "CPU": 21,
+            "Cpu": 21,
             "ShiftLeft": 16,
             "MemoryLocal": 14,
             "Auipc": 16,
@@ -1159,7 +1159,7 @@
             "Bitwise": 19,
             "Mul": 14,
             "Lt": 20,
-            "CPU": 21,
+            "Cpu": 21,
             "ShiftLeft": 16,
             "MemoryLocal": 14,
             "Auipc": 15,
@@ -1174,7 +1174,7 @@
         {
           "inner": {
             "Mul": 11,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 0,
             "Branch": 17,
             "ShiftRight": 18,
@@ -1193,7 +1193,7 @@
         {
           "inner": {
             "Mul": 14,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 5,
             "Branch": 17,
             "ShiftRight": 17,
@@ -1212,7 +1212,7 @@
         {
           "inner": {
             "Mul": 14,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 7,
             "DivRem": 4,
             "ShiftRight": 14,
@@ -1234,7 +1234,7 @@
             "Bitwise": 19,
             "Mul": 14,
             "Lt": 19,
-            "CPU": 21,
+            "Cpu": 21,
             "ShiftLeft": 18,
             "MemoryLocal": 17,
             "Auipc": 15,
@@ -1249,7 +1249,7 @@
         {
           "inner": {
             "Mul": 12,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 13,
             "Branch": 18,
             "ShiftRight": 13,
@@ -1269,7 +1269,7 @@
           "inner": {
             "Bitwise": 17,
             "Lt": 18,
-            "CPU": 21,
+            "Cpu": 21,
             "ShiftLeft": 12,
             "MemoryLocal": 17,
             "Auipc": 16,
@@ -1287,7 +1287,7 @@
           "inner": {
             "Bitwise": 18,
             "Lt": 19,
-            "CPU": 21,
+            "Cpu": 21,
             "ShiftLeft": 17,
             "MemoryLocal": 17,
             "Auipc": 15,
@@ -1304,7 +1304,7 @@
         {
           "inner": {
             "Mul": 10,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 14,
             "Branch": 17,
             "ShiftRight": 14,
@@ -1324,7 +1324,7 @@
           "inner": {
             "Bitwise": 16,
             "Lt": 17,
-            "CPU": 21,
+            "Cpu": 21,
             "ShiftLeft": 11,
             "MemoryLocal": 18,
             "Auipc": 15,
@@ -1342,7 +1342,7 @@
           "inner": {
             "Bitwise": 17,
             "Lt": 19,
-            "CPU": 21,
+            "Cpu": 21,
             "MemoryLocal": 17,
             "Auipc": 15,
             "SyscallCore": 15,
@@ -1360,7 +1360,7 @@
             "Bitwise": 15,
             "Mul": 6,
             "Lt": 19,
-            "CPU": 21,
+            "Cpu": 21,
             "ShiftLeft": 15,
             "MemoryLocal": 18,
             "Auipc": 8,
@@ -1377,7 +1377,7 @@
             "Bitwise": 19,
             "Mul": 2,
             "Lt": 18,
-            "CPU": 21,
+            "Cpu": 21,
             "ShiftLeft": 19,
             "MemoryLocal": 18,
             "Auipc": 5,
@@ -1392,7 +1392,7 @@
         {
           "inner": {
             "Mul": 12,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 8,
             "Branch": 18,
             "ShiftRight": 18,
@@ -1411,7 +1411,7 @@
         {
           "inner": {
             "Mul": 16,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 12,
             "DivRem": 7,
             "ShiftRight": 16,
@@ -1431,7 +1431,7 @@
         {
           "inner": {
             "Mul": 14,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 5,
             "DivRem": 0,
             "ShiftRight": 16,
@@ -1451,7 +1451,7 @@
         {
           "inner": {
             "Mul": 15,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 12,
             "DivRem": 4,
             "ShiftRight": 15,
@@ -1471,7 +1471,7 @@
         {
           "inner": {
             "Mul": 13,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 10,
             "DivRem": 4,
             "ShiftRight": 17,
@@ -1491,7 +1491,7 @@
         {
           "inner": {
             "Mul": 14,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 11,
             "DivRem": 4,
             "ShiftRight": 17,
@@ -1511,7 +1511,7 @@
         {
           "inner": {
             "Mul": 15,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 4,
             "Branch": 19,
             "ShiftRight": 17,
@@ -1530,7 +1530,7 @@
         {
           "inner": {
             "Mul": 13,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 12,
             "DivRem": 2,
             "ShiftRight": 17,
@@ -1552,7 +1552,7 @@
             "Bitwise": 18,
             "Mul": 14,
             "Lt": 19,
-            "CPU": 21,
+            "Cpu": 21,
             "ShiftLeft": 18,
             "MemoryLocal": 18,
             "Auipc": 14,
@@ -1567,7 +1567,7 @@
         {
           "inner": {
             "Mul": 13,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 10,
             "Branch": 18,
             "ShiftRight": 14,
@@ -1587,7 +1587,7 @@
           "inner": {
             "Bitwise": 17,
             "Lt": 19,
-            "CPU": 21,
+            "Cpu": 21,
             "ShiftLeft": 12,
             "MemoryLocal": 17,
             "Auipc": 16,
@@ -1604,7 +1604,7 @@
         {
           "inner": {
             "Mul": 14,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 14,
             "DivRem": 0,
             "ShiftRight": 13,
@@ -1624,7 +1624,7 @@
         {
           "inner": {
             "Mul": 11,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 14,
             "Branch": 18,
             "ShiftRight": 17,
@@ -1645,7 +1645,7 @@
             "Bitwise": 18,
             "Mul": 5,
             "Lt": 20,
-            "CPU": 21,
+            "Cpu": 21,
             "ShiftLeft": 17,
             "MemoryLocal": 17,
             "Auipc": 14,
@@ -1661,7 +1661,7 @@
           "inner": {
             "Bitwise": 1,
             "Lt": 20,
-            "CPU": 21,
+            "Cpu": 21,
             "ShiftLeft": 3,
             "MemoryLocal": 18,
             "Auipc": 1,
@@ -1675,7 +1675,7 @@
         {
           "inner": {
             "Mul": 12,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 9,
             "Branch": 18,
             "ShiftRight": 17,
@@ -1696,7 +1696,7 @@
             "Bitwise": 15,
             "Mul": 7,
             "Lt": 21,
-            "CPU": 21,
+            "Cpu": 21,
             "ShiftLeft": 14,
             "MemoryLocal": 17,
             "Auipc": 12,
@@ -1711,7 +1711,7 @@
         {
           "inner": {
             "Mul": 15,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 11,
             "Branch": 19,
             "ShiftRight": 17,
@@ -1730,7 +1730,7 @@
         {
           "inner": {
             "Mul": 14,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 6,
             "DivRem": 2,
             "ShiftRight": 17,
@@ -1750,7 +1750,7 @@
         {
           "inner": {
             "Mul": 14,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 12,
             "DivRem": 4,
             "ShiftRight": 16,
@@ -1770,7 +1770,7 @@
         {
           "inner": {
             "Mul": 16,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 12,
             "DivRem": 6,
             "ShiftRight": 16,
@@ -1790,7 +1790,7 @@
         {
           "inner": {
             "Mul": 14,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 11,
             "Branch": 19,
             "ShiftRight": 17,
@@ -1809,7 +1809,7 @@
         {
           "inner": {
             "Mul": 14,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 5,
             "DivRem": 6,
             "ShiftRight": 16,
@@ -1829,7 +1829,7 @@
         {
           "inner": {
             "Mul": 13,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 10,
             "Branch": 18,
             "ShiftRight": 17,
@@ -1848,7 +1848,7 @@
         {
           "inner": {
             "Mul": 14,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 11,
             "DivRem": 5,
             "ShiftRight": 16,
@@ -1868,7 +1868,7 @@
         {
           "inner": {
             "Mul": 12,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 11,
             "Branch": 17,
             "ShiftRight": 17,
@@ -1889,7 +1889,7 @@
             "Bitwise": 16,
             "Mul": 6,
             "Lt": 20,
-            "CPU": 21,
+            "Cpu": 21,
             "ShiftLeft": 15,
             "MemoryLocal": 18,
             "Auipc": 12,
@@ -1906,7 +1906,7 @@
             "Bitwise": 18,
             "Mul": 5,
             "Lt": 20,
-            "CPU": 21,
+            "Cpu": 21,
             "ShiftLeft": 18,
             "MemoryLocal": 17,
             "Auipc": 12,
@@ -1921,7 +1921,7 @@
         {
           "inner": {
             "Mul": 13,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 8,
             "Branch": 18,
             "ShiftRight": 17,
@@ -1940,7 +1940,7 @@
         {
           "inner": {
             "Mul": 11,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 8,
             "Branch": 18,
             "ShiftRight": 18,
@@ -1959,7 +1959,7 @@
         {
           "inner": {
             "Mul": 13,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 10,
             "DivRem": 3,
             "ShiftRight": 17,
@@ -1979,7 +1979,7 @@
         {
           "inner": {
             "Mul": 13,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 12,
             "Branch": 18,
             "ShiftRight": 17,
@@ -1998,7 +1998,7 @@
         {
           "inner": {
             "Mul": 14,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 13,
             "Branch": 19,
             "ShiftRight": 16,
@@ -2017,7 +2017,7 @@
         {
           "inner": {
             "Mul": 15,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 10,
             "DivRem": 6,
             "ShiftRight": 16,
@@ -2037,7 +2037,7 @@
         {
           "inner": {
             "Mul": 14,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 12,
             "DivRem": 4,
             "ShiftRight": 16,
@@ -2057,7 +2057,7 @@
         {
           "inner": {
             "Mul": 11,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 7,
             "Branch": 17,
             "ShiftRight": 19,
@@ -2076,7 +2076,7 @@
         {
           "inner": {
             "Mul": 13,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 9,
             "DivRem": 3,
             "ShiftRight": 18,
@@ -2096,7 +2096,7 @@
         {
           "inner": {
             "Mul": 13,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 11,
             "DivRem": 4,
             "ShiftRight": 16,
@@ -2116,7 +2116,7 @@
         {
           "inner": {
             "Mul": 12,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 11,
             "DivRem": 4,
             "ShiftRight": 17,
@@ -2136,7 +2136,7 @@
         {
           "inner": {
             "Mul": 13,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 11,
             "DivRem": 0,
             "ShiftRight": 16,
@@ -2156,7 +2156,7 @@
         {
           "inner": {
             "Mul": 11,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 15,
             "Branch": 18,
             "ShiftRight": 14,
@@ -2175,7 +2175,7 @@
         {
           "inner": {
             "Mul": 14,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 11,
             "DivRem": 3,
             "ShiftRight": 16,
@@ -2195,7 +2195,7 @@
         {
           "inner": {
             "Mul": 15,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 6,
             "Branch": 18,
             "ShiftRight": 17,
@@ -2214,7 +2214,7 @@
         {
           "inner": {
             "Mul": 14,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 10,
             "DivRem": 0,
             "ShiftRight": 17,
@@ -2234,7 +2234,7 @@
         {
           "inner": {
             "Mul": 13,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 11,
             "Branch": 17,
             "ShiftRight": 17,
@@ -2253,7 +2253,7 @@
         {
           "inner": {
             "Mul": 15,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 14,
             "DivRem": 4,
             "ShiftRight": 16,
@@ -2273,7 +2273,7 @@
         {
           "inner": {
             "Mul": 11,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 15,
             "Branch": 19,
             "ShiftRight": 8,
@@ -2294,7 +2294,7 @@
             "Bitwise": 17,
             "Mul": 7,
             "Lt": 20,
-            "CPU": 21,
+            "Cpu": 21,
             "ShiftLeft": 17,
             "MemoryLocal": 17,
             "Auipc": 13,
@@ -2311,7 +2311,7 @@
             "Bitwise": 18,
             "Mul": 5,
             "Lt": 20,
-            "CPU": 21,
+            "Cpu": 21,
             "ShiftLeft": 18,
             "MemoryLocal": 16,
             "Auipc": 12,
@@ -2326,7 +2326,7 @@
         {
           "inner": {
             "Mul": 13,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 9,
             "Branch": 18,
             "ShiftRight": 16,
@@ -2345,7 +2345,7 @@
         {
           "inner": {
             "Mul": 13,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 10,
             "DivRem": 4,
             "ShiftRight": 18,
@@ -2365,7 +2365,7 @@
         {
           "inner": {
             "Mul": 15,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 5,
             "Branch": 19,
             "ShiftRight": 17,
@@ -2384,7 +2384,7 @@
         {
           "inner": {
             "Mul": 13,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 10,
             "Branch": 18,
             "ShiftRight": 15,
@@ -2403,7 +2403,7 @@
         {
           "inner": {
             "Mul": 15,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 11,
             "DivRem": 3,
             "ShiftRight": 16,
@@ -2423,7 +2423,7 @@
         {
           "inner": {
             "Mul": 13,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 11,
             "DivRem": 4,
             "ShiftRight": 17,
@@ -2443,7 +2443,7 @@
         {
           "inner": {
             "Mul": 15,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 13,
             "DivRem": 4,
             "ShiftRight": 16,
@@ -2463,7 +2463,7 @@
         {
           "inner": {
             "Mul": 14,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 10,
             "DivRem": 5,
             "ShiftRight": 16,
@@ -2483,7 +2483,7 @@
         {
           "inner": {
             "Mul": 13,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 11,
             "DivRem": 3,
             "ShiftRight": 16,
@@ -2503,7 +2503,7 @@
         {
           "inner": {
             "Mul": 14,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 14,
             "DivRem": 0,
             "ShiftRight": 12,
@@ -2523,7 +2523,7 @@
         {
           "inner": {
             "Mul": 15,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 10,
             "DivRem": 5,
             "ShiftRight": 16,
@@ -2543,7 +2543,7 @@
         {
           "inner": {
             "Mul": 13,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 12,
             "Branch": 17,
             "ShiftRight": 16,
@@ -2562,7 +2562,7 @@
         {
           "inner": {
             "Mul": 16,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 11,
             "DivRem": 7,
             "ShiftRight": 16,
@@ -2582,7 +2582,7 @@
         {
           "inner": {
             "Mul": 13,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 10,
             "DivRem": 3,
             "ShiftRight": 17,
@@ -2602,7 +2602,7 @@
         {
           "inner": {
             "Mul": 13,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 12,
             "Branch": 18,
             "ShiftRight": 17,
@@ -2622,7 +2622,7 @@
           "inner": {
             "Bitwise": 16,
             "Lt": 18,
-            "CPU": 21,
+            "Cpu": 21,
             "MemoryLocal": 18,
             "Auipc": 15,
             "SyscallCore": 15,
@@ -2638,7 +2638,7 @@
         {
           "inner": {
             "Mul": 13,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 11,
             "DivRem": 2,
             "ShiftRight": 16,
@@ -2658,7 +2658,7 @@
         {
           "inner": {
             "Mul": 14,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 11,
             "DivRem": 3,
             "ShiftRight": 17,
@@ -2678,7 +2678,7 @@
         {
           "inner": {
             "Mul": 14,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 12,
             "DivRem": 2,
             "ShiftRight": 17,
@@ -2698,7 +2698,7 @@
         {
           "inner": {
             "Mul": 15,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 11,
             "DivRem": 2,
             "ShiftRight": 16,
@@ -2718,7 +2718,7 @@
         {
           "inner": {
             "Mul": 14,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 7,
             "DivRem": 4,
             "ShiftRight": 14,
@@ -2738,7 +2738,7 @@
         {
           "inner": {
             "Mul": 13,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 12,
             "Branch": 18,
             "ShiftRight": 16,
@@ -2757,7 +2757,7 @@
         {
           "inner": {
             "Mul": 12,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 13,
             "Branch": 18,
             "ShiftRight": 14,
@@ -2776,7 +2776,7 @@
         {
           "inner": {
             "Mul": 14,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 14,
             "DivRem": 0,
             "ShiftRight": 13,
@@ -2796,7 +2796,7 @@
         {
           "inner": {
             "Mul": 11,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 12,
             "Branch": 18,
             "ShiftRight": 17,
@@ -2815,7 +2815,7 @@
         {
           "inner": {
             "Mul": 13,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 10,
             "Branch": 18,
             "ShiftRight": 18,
@@ -2834,7 +2834,7 @@
         {
           "inner": {
             "Mul": 12,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 11,
             "Branch": 17,
             "ShiftRight": 18,
@@ -2853,7 +2853,7 @@
         {
           "inner": {
             "Mul": 12,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 11,
             "Branch": 17,
             "ShiftRight": 18,
@@ -2872,7 +2872,7 @@
         {
           "inner": {
             "Mul": 14,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 12,
             "Branch": 18,
             "ShiftRight": 17,
@@ -2891,7 +2891,7 @@
         {
           "inner": {
             "Mul": 13,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 9,
             "DivRem": 4,
             "ShiftRight": 18,
@@ -2911,7 +2911,7 @@
         {
           "inner": {
             "Mul": 14,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 10,
             "Branch": 18,
             "ShiftRight": 17,
@@ -2930,7 +2930,7 @@
         {
           "inner": {
             "Mul": 13,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 10,
             "Branch": 17,
             "ShiftRight": 17,
@@ -2949,7 +2949,7 @@
         {
           "inner": {
             "Mul": 14,
-            "CPU": 21,
+            "Cpu": 21,
             "SyscallInstrs": 13,
             "DivRem": 4,
             "ShiftRight": 16,

@@ -8,6 +8,8 @@ pub use sp1_derive::MachineAir;
 
 use super::InteractionScope;
 
+// TODO: add Id type and also fn id()
+
 /// An AIR that is part of a multi table AIR arithmetization.
 pub trait MachineAir<F: Field>: BaseAir<F> + 'static + Send + Sync {
     /// The execution record containing events for producing the air trace.
