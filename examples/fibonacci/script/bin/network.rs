@@ -4,6 +4,7 @@ use sp1_sdk::{
         NetworkProver,
         FulfillmentStrategy,
         Error,
+        DEFAULT_PROVER_NETWORK_RPC,
     },
     utils,
     SP1Stdin,
@@ -22,8 +23,9 @@ async fn main() {
 
     // Read environment variables.
     let private_key = env::var("SP1_PRIVATE_KEY")
-    .expect("SP1_PRIVATE_KEY must be set for remote proving");
-    let rpc_url = env::var("PROVER_NETWORK_RPC").ok();
+        .expect("SP1_PRIVATE_KEY must be set for remote proving");
+    let rpc_url = env::var("PROVER_NETWORK_RPC")
+        .unwrap_or_else(|_| DEFAULT_PROVER_NETWORK_RPC.to_string());
 
     // Create the network prover client.
     let prover = NetworkProver::new(&private_key)
