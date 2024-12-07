@@ -1,16 +1,20 @@
-pub mod client;
+mod client;
 mod error;
 mod json;
-pub mod prover;
+mod prover;
 mod sign_message;
-pub mod types;
+mod types;
 #[rustfmt::skip]
-pub mod proto;
+mod proto;
+
+pub use client::*;
+pub use error::*;
+pub use proto::network::*;
+pub use prover::*;
+pub use types::*;
 
 use alloy_signer::{Signature, SignerSync};
-pub use error::*;
 use prost::Message;
-pub use serde::{Deserialize, Serialize};
 
 pub trait Signable: Message {
     fn sign<S: SignerSync>(&self, signer: &S) -> Signature;

@@ -1,8 +1,8 @@
 use sp1_sdk::{
     include_elf,
     network_v2::{
-        prover::NetworkProver,
-        proto::network::FulfillmentStrategy,
+        NetworkProver,
+        FulfillmentStrategy,
         Error,
     },
     utils,
@@ -31,8 +31,7 @@ async fn main() {
     // Setup proving key and verifying key.
     let (pk, vk) = prover.setup(ELF);
 
-    // The input stream that the program will read from using `sp1_zkvm::io::read`. Note that the
-    // types of the elements in the input stream must match the types being read in the program.
+    // Write the input to the stdin.
     let mut stdin = SP1Stdin::new();
     stdin.write(&1000u32);
 
