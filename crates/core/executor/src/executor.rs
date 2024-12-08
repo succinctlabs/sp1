@@ -10,6 +10,7 @@ use hashbrown::HashMap;
 use serde::{Deserialize, Serialize};
 use sp1_stark::{air::PublicValues, shape::Shape, SP1CoreOpts};
 use thiserror::Error;
+use tracing::event;
 
 use crate::{
     context::SP1Context,
@@ -1387,26 +1388,26 @@ impl<'a> Executor<'a> {
                 let current_lde_size = estimate_riscv_lde_size(event_counts, &costs);
                 let next_lde_size = estimate_riscv_lde_size(padded_event_counts, &costs);
 
-                if next_lde_size > LDE_THRESHOLD {
-                    tracing::warn!(
-                        "stopping shard early due to LDE size too big: current={}, next={}",
-                        current_lde_size,
-                        next_lde_size
-                    );
-                    tracing::warn!(
-                        "Counter log heighs:
-                        clk: {},
-                        clk_usage: {}",
-                        (self.state.clk / 4).next_power_of_two().ilog2(),
-                        ((self.state.clk / 4) as f64).log2(),
-                    );
-                    // TODO: FIX
-                    //
-                    // if current_lde_size > MAX_LDE_SIZE {
-                    //     panic!("LDE size exceeded limit: {current_lde_size}");
-                    // }
-                    shape_match_found = false;
-                }
+                // if next_lde_size > LDE_THRESHOLD {
+                //     tracing::warn!(
+                //         "stopping shard early due to LDE size too big: current={}, next={}",
+                //         current_lde_size,
+                //         next_lde_size
+                //     );
+                //     tracing::warn!(
+                //         "Counter log heighs:
+                //         clk: {},
+                //         clk_usage: {}",
+                //         (self.state.clk / 4).next_power_of_two().ilog2(),
+                //         ((self.state.clk / 4) as f64).log2(),
+                //     );
+                //     // TODO: FIX
+                //     //
+                //     // if current_lde_size > MAX_LDE_SIZE {
+                //     //     panic!("LDE size exceeded limit: {current_lde_size}");
+                //     // }
+                //     shape_match_found = false;
+                // }
 
                 if let Some(maximal_shapes) = &self.maximal_shapes {
                     let distance = |threshold: usize, count: usize| {
@@ -1422,15 +1423,24 @@ impl<'a> Executor<'a> {
                         }
 
                         let mut distances = Vec::new();
+                        let mut shape_too_small = false;
                         for air in RiscvAirId::core() {
                             if air == RiscvAirId::Cpu {
                                 continue;
                             }
+
                             let threshold = shape.height(&air).unwrap_or_default();
-                            if (event_counts[air] as usize) > threshold {
-                                continue;
+                            let count = event_counts[air] as usize;
+                            if count > threshold {
+                                shape_too_small = true;
+                                break;
                             }
-                            distances.push(distance(threshold, event_counts[air] as usize));
+
+                            distances.push(distance(threshold, count));
+                        }
+
+                        if shape_too_small {
+                            continue;
                         }
 
                         let l_infinity = distances.into_iter().min().unwrap();

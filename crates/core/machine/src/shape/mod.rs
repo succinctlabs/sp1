@@ -87,8 +87,6 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
 
             // Try to find a shape fitting within at least one of the candidate shapes.
             for (i, cluster) in self.tiny_shapes.iter().enumerate() {
-                println!("cluster: {:?}", cluster);
-                println!("heights: {:?}", heights);
                 if let Some(shape) = cluster.find_shape(&heights) {
                     let shard = record.public_values.shard;
                     tracing::info!("Shard Lifted: Index={}, Cluster={}", shard, i);
@@ -117,6 +115,10 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
         if record.contains_cpu() {
             // Get the heights of the core airs in the record.
             let heights = RiscvAir::<F>::core_heights(record);
+            let log2_heights = heights
+                .iter()
+                .map(|(air, height)| (*air, log2_ceil_usize(*height)))
+                .collect::<Vec<_>>();
 
             // Try to find the smallest shape fitting within at least one of the candidate shapes.
             let log2_shard_size = record.cpu_events.len().next_power_of_two().ilog2() as usize;
