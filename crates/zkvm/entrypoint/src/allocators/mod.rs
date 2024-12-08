@@ -1,4 +1,4 @@
-#[cfg(feature = "bump")]
+#[cfg(not(feature = "embedded"))]
 mod bump;
 
 #[cfg(feature = "embedded")]

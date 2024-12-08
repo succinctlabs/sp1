@@ -4239,9 +4239,6 @@ name = "linked_list_allocator"
 version = "0.10.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9afa463f5405ee81cdb9cc2baf37e08ec7e4c8209442b5d72c04cfb2cd6e6286"
-dependencies = [
- "spinning_top",
-]
 
 [[package]]
 name = "linux-raw-sys"
@@ -7254,7 +7251,6 @@ dependencies = [
  "getrandom 0.2.15",
  "lazy_static",
  "libm",
- "linked_list_allocator",
  "p3-baby-bear",
  "p3-field",
  "rand 0.8.5",

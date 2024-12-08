@@ -25,10 +25,9 @@ p3-field = { workspace = true, optional = true }
 
 embedded-alloc = "0.6.0"
 critical-section = "1.2.0"
-linked_list_allocator = "0.10.5"
 
 [features]
-default = ["libm", "lib", "bump"]
+default = ["libm", "lib"]
 libm = ["dep:libm"]
 lib = ["dep:sp1-lib"]
 verify = [
@@ -38,4 +37,3 @@ verify = [
   "sp1-lib/verify",
 ]
 embedded = []
-bump = []

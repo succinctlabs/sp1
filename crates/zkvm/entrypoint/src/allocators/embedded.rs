@@ -22,6 +22,6 @@ pub fn init() {
         static _end: u8;
     }
     let heap_pos: usize = unsafe { (&_end) as *const u8 as usize };
-    let heap_size: usize = crate::MAX_MEMORY - heap_pos;
+    let heap_size: usize = crate::syscalls::MAX_MEMORY - heap_pos;
     unsafe { HEAP.init(heap_pos, heap_size) }
 }

@@ -43,6 +43,9 @@ mod zkvm {
     #[no_mangle]
     unsafe extern "C" fn __start() {
         {
+            #[cfg(feature = "embedded")]
+            crate::allocators::embedded::init();
+            
             PUBLIC_VALUES_HASHER = Some(Sha256::new());
             #[cfg(feature = "verify")]
             {
