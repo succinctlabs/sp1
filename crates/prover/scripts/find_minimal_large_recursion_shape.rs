@@ -9,7 +9,7 @@ use sp1_prover::{
     SP1Prover, ShrinkAir, REDUCE_BATCH_SIZE,
 };
 use sp1_recursion_core::shape::RecursionShapeConfig;
-use sp1_stark::{MachineProver, ProofShape};
+use sp1_stark::{shape::OrderedShape, MachineProver};
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
@@ -114,8 +114,8 @@ fn main() {
             prover.shrink_prover.setup(&prover.program_from_shape(
                 true,
                 sp1_prover::shapes::SP1CompressProgramShape::from_proof_shape(
-                    SP1ProofShape::Shrink(ProofShape {
-                        chip_information: answer.clone().into_iter().collect::<Vec<_>>(),
+                    SP1ProofShape::Shrink(OrderedShape {
+                        inner: answer.clone().into_iter().collect::<Vec<_>>(),
                     }),
                     5,
                 ),
@@ -138,8 +138,8 @@ fn main() {
                     prover.shrink_prover.setup(&prover.program_from_shape(
                         true,
                         sp1_prover::shapes::SP1CompressProgramShape::from_proof_shape(
-                            SP1ProofShape::Shrink(ProofShape {
-                                chip_information: answer.clone().into_iter().collect::<Vec<_>>(),
+                            SP1ProofShape::Shrink(OrderedShape {
+                                inner: answer.clone().into_iter().collect::<Vec<_>>(),
                             }),
                             5,
                         ),

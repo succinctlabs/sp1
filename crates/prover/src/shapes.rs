@@ -20,17 +20,17 @@ use sp1_recursion_core::{
     shape::{RecursionShape, RecursionShapeConfig},
     RecursionProgram,
 };
-use sp1_stark::{MachineProver, ProofShape, DIGEST_SIZE};
+use sp1_stark::{shape::OrderedShape, MachineProver, DIGEST_SIZE};
 use thiserror::Error;
 
 use crate::{components::SP1ProverComponents, CompressAir, HashableKey, SP1Prover, ShrinkAir};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum SP1ProofShape {
-    Recursion(ProofShape),
-    Compress(Vec<ProofShape>),
-    Deferred(ProofShape),
-    Shrink(ProofShape),
+    Recursion(OrderedShape),
+    Compress(Vec<OrderedShape>),
+    Deferred(OrderedShape),
+    Shrink(OrderedShape),
 }
 
 #[derive(Debug, Clone, Hash)]
@@ -318,7 +318,7 @@ impl SP1ProofShape {
     pub fn generate_compress_shapes(
         recursion_shape_config: &'_ RecursionShapeConfig<BabyBear, CompressAir<BabyBear>>,
         reduce_batch_size: usize,
-    ) -> impl Iterator<Item = Vec<ProofShape>> + '_ {
+    ) -> impl Iterator<Item = Vec<OrderedShape>> + '_ {
         recursion_shape_config.get_all_shape_combinations(reduce_batch_size)
     }
 
@@ -335,11 +335,8 @@ impl SP1ProofShape {
         };
         core_shape_iter
             .map(|core_shape| {
-                Self::Recursion(ProofShape {
-                    chip_information: core_shape
-                        .into_iter()
-                        .map(|(k, v)| (k.to_string(), v))
-                        .collect(),
+                Self::Recursion(OrderedShape {
+                    inner: core_shape.into_iter().map(|(k, v)| (k.to_string(), v)).collect(),
                 })
             })
             .chain((1..=reduce_batch_size).flat_map(|batch_size| {

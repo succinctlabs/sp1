@@ -1,19 +1,15 @@
 #![allow(missing_docs)]
 
-use core::fmt;
-use std::{cmp::Reverse, collections::BTreeSet, fmt::Debug};
+use std::fmt::Debug;
 
 use hashbrown::HashMap;
 use itertools::Itertools;
-use p3_matrix::{
-    dense::{RowMajorMatrix, RowMajorMatrixView},
-    stack::VerticalPair,
-    Matrix,
-};
+use p3_matrix::{dense::RowMajorMatrixView, stack::VerticalPair};
 use serde::{Deserialize, Serialize};
 
 use super::{Challenge, Com, OpeningProof, StarkGenericConfig, Val};
 use crate::septic_digest::SepticDigest;
+use crate::shape::OrderedShape;
 
 pub type QuotientOpenedValues<T> = Vec<T>;
 
@@ -83,31 +79,6 @@ pub struct ShardProof<SC: StarkGenericConfig> {
     pub opening_proof: OpeningProof<SC>,
     pub chip_ordering: HashMap<String, usize>,
     pub public_values: Vec<Val<SC>>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, PartialOrd, Ord, Eq, Hash)]
-pub struct ProofShape {
-    pub chip_information: Vec<(String, usize)>,
-}
-
-impl ProofShape {
-    #[must_use]
-    pub fn from_traces<V: Clone + Send + Sync>(traces: &[(String, RowMajorMatrix<V>)]) -> Self {
-        traces
-            .iter()
-            .map(|(name, trace)| (name.clone(), trace.height().ilog2() as usize))
-            .sorted_by_key(|(_, height)| *height)
-            .collect()
-    }
-
-    #[must_use]
-    pub fn from_log2_heights(traces: &[(String, usize)]) -> Self {
-        traces
-            .iter()
-            .map(|(name, height)| (name.clone(), *height))
-            .sorted_by_key(|(_, height)| *height)
-            .collect()
-    }
 }
 
 impl<SC: StarkGenericConfig> Debug for ShardProof<SC> {
@@ -191,9 +162,9 @@ impl From<[u32; 8]> for DeferredDigest {
 }
 
 impl<SC: StarkGenericConfig> ShardProof<SC> {
-    pub fn shape(&self) -> ProofShape {
-        ProofShape {
-            chip_information: self
+    pub fn shape(&self) -> OrderedShape {
+        OrderedShape {
+            inner: self
                 .chip_ordering
                 .iter()
                 .sorted_by_key(|(_, idx)| *idx)
@@ -201,41 +172,5 @@ impl<SC: StarkGenericConfig> ShardProof<SC> {
                 .map(|((name, _), values)| (name.to_owned(), values.log_degree))
                 .collect(),
         }
-    }
-}
-
-impl FromIterator<(String, usize)> for ProofShape {
-    fn from_iter<T: IntoIterator<Item = (String, usize)>>(iter: T) -> Self {
-        let set = iter
-            .into_iter()
-            .map(|(name, log_degree)| (Reverse(log_degree), name))
-            .collect::<BTreeSet<_>>();
-        Self {
-            chip_information: set
-                .into_iter()
-                .map(|(Reverse(log_degree), name)| (name, log_degree))
-                .collect(),
-        }
-    }
-}
-
-impl IntoIterator for ProofShape {
-    type Item = (String, usize);
-
-    type IntoIter = <Vec<(String, usize)> as IntoIterator>::IntoIter;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.chip_information.into_iter()
-    }
-}
-
-impl fmt::Display for ProofShape {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // Print the proof shapes in a human-readable format
-        writeln!(f, "Proofshape:")?;
-        for (name, log_degree) in &self.chip_information {
-            writeln!(f, "{name}: {log_degree}")?;
-        }
-        Ok(())
     }
 }

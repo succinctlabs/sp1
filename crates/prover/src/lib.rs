@@ -79,7 +79,7 @@ use sp1_stark::{
     baby_bear_poseidon2::BabyBearPoseidon2, Challenge, MachineProver, SP1CoreOpts, SP1ProverOpts,
     ShardProof, StarkGenericConfig, StarkVerifyingKey, Val, Word, DIGEST_SIZE,
 };
-use sp1_stark::{MachineProvingKey, ProofShape};
+use sp1_stark::{shape::OrderedShape, MachineProvingKey};
 use tracing::instrument;
 
 pub use types::*;
@@ -1080,7 +1080,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                 let builder_span = tracing::debug_span!("build compress program").entered();
                 let mut builder = Builder::<WrapConfig>::default();
 
-                let shrink_shape: ProofShape = ShrinkAir::<BabyBear>::shrink_shape().into();
+                let shrink_shape: OrderedShape = ShrinkAir::<BabyBear>::shrink_shape().into();
                 let input_shape = SP1CompressShape::from(vec![shrink_shape]);
                 let shape = SP1CompressWithVkeyShape {
                     compress_shape: input_shape,

@@ -16,9 +16,10 @@ use sp1_recursion_compiler::{
 use sp1_stark::{
     air::{InteractionScope, MachineAir},
     baby_bear_poseidon2::BabyBearPoseidon2,
-    AirOpenedValues, Challenger, Chip, ChipOpenedValues, InnerChallenge, ProofShape,
-    ShardCommitment, ShardOpenedValues, ShardProof, StarkGenericConfig, StarkMachine,
-    StarkVerifyingKey, Val, PROOF_MAX_NUM_PVS,
+    shape::OrderedShape,
+    AirOpenedValues, Challenger, Chip, ChipOpenedValues, InnerChallenge, ShardCommitment,
+    ShardOpenedValues, ShardProof, StarkGenericConfig, StarkMachine, StarkVerifyingKey, Val,
+    PROOF_MAX_NUM_PVS,
 };
 
 use crate::{
@@ -57,7 +58,7 @@ pub fn dummy_challenger(config: &BabyBearPoseidon2) -> Challenger<BabyBearPoseid
 /// Make a dummy shard proof for a given proof shape.
 pub fn dummy_vk_and_shard_proof<A: MachineAir<BabyBear>>(
     machine: &StarkMachine<BabyBearPoseidon2, A>,
-    shape: &ProofShape,
+    shape: &OrderedShape,
 ) -> (StarkVerifyingKey<BabyBearPoseidon2>, ShardProof<BabyBearPoseidon2>) {
     println!("shape: {:?}", shape);
     // Make a dummy commitment.
@@ -69,7 +70,7 @@ pub fn dummy_vk_and_shard_proof<A: MachineAir<BabyBear>>(
 
     // Get dummy opened values by reading the chip ordering from the shape.
     let chip_ordering = shape
-        .chip_information
+        .inner
         .iter()
         .enumerate()
         .map(|(i, (name, _))| (name.clone(), i))
@@ -78,7 +79,7 @@ pub fn dummy_vk_and_shard_proof<A: MachineAir<BabyBear>>(
     let opened_values = ShardOpenedValues {
         chips: shard_chips
             .iter()
-            .zip_eq(shape.chip_information.iter())
+            .zip_eq(shape.inner.iter())
             .map(|(chip, (_, log_degree))| {
                 dummy_opened_values::<_, InnerChallenge, _>(chip, *log_degree)
             })

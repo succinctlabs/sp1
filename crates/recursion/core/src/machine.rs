@@ -4,7 +4,8 @@ use hashbrown::HashMap;
 use p3_field::{extension::BinomiallyExtendable, PrimeField32};
 use sp1_stark::{
     air::{InteractionScope, MachineAir},
-    Chip, ProofShape, StarkGenericConfig, StarkMachine, PROOF_MAX_NUM_PVS,
+    shape::OrderedShape,
+    Chip, StarkGenericConfig, StarkMachine, PROOF_MAX_NUM_PVS,
 };
 
 use crate::{
@@ -250,7 +251,7 @@ impl<F> Add<&Instruction<F>> for RecursionAirEventCount {
     }
 }
 
-impl From<RecursionShape> for ProofShape {
+impl From<RecursionShape> for OrderedShape {
     fn from(value: RecursionShape) -> Self {
         value.inner.into_iter().collect()
     }

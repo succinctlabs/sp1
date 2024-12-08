@@ -22,8 +22,8 @@ use sp1_recursion_core::air::{RecursionPublicValues, RECURSIVE_PROOF_NUM_PV_ELTS
 use sp1_stark::{
     air::{MachineAir, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS},
     baby_bear_poseidon2::BabyBearPoseidon2,
-    Dom, ProofShape, ShardProof, StarkGenericConfig, StarkMachine, StarkVerifyingKey, Word,
-    DIGEST_SIZE,
+    shape::OrderedShape,
+    Dom, ShardProof, StarkGenericConfig, StarkMachine, StarkVerifyingKey, Word, DIGEST_SIZE,
 };
 
 use crate::{
@@ -70,7 +70,7 @@ pub struct SP1CompressWitnessValues<SC: StarkGenericConfig> {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SP1CompressShape {
-    proof_shapes: Vec<ProofShape>,
+    proof_shapes: Vec<OrderedShape>,
 }
 
 impl<C, SC, A> SP1CompressVerifier<C, SC, A>
@@ -525,8 +525,8 @@ impl SP1CompressWitnessValues<BabyBearPoseidon2> {
     }
 }
 
-impl From<Vec<ProofShape>> for SP1CompressShape {
-    fn from(proof_shapes: Vec<ProofShape>) -> Self {
+impl From<Vec<OrderedShape>> for SP1CompressShape {
+    fn from(proof_shapes: Vec<OrderedShape>) -> Self {
         Self { proof_shapes }
     }
 }

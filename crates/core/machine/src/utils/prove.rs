@@ -35,8 +35,8 @@ use sp1_core_executor::{
     Program, SP1Context,
 };
 use sp1_stark::{
-    air::PublicValues, Com, MachineProof, MachineProver, MachineRecord, OpeningProof,
-    PcsProverData, ProofShape, SP1CoreOpts, ShardProof, StarkGenericConfig, Val,
+    air::PublicValues, shape::OrderedShape, Com, MachineProof, MachineProver, MachineRecord,
+    OpeningProof, PcsProverData, SP1CoreOpts, ShardProof, StarkGenericConfig, Val,
 };
 
 #[allow(clippy::too_many_arguments)]
@@ -88,7 +88,7 @@ pub fn prove_core_stream<SC: StarkGenericConfig, P: MachineProver<SC, RiscvAir<S
     context: SP1Context,
     shape_config: Option<&CoreShapeConfig<SC::Val>>,
     proof_tx: Sender<ShardProof<SC>>,
-    shape_and_done_tx: Sender<(ProofShape, bool)>,
+    shape_and_done_tx: Sender<(OrderedShape, bool)>,
 ) -> Result<(Vec<u8>, u64), SP1CoreProverError>
 where
     SC::Val: PrimeField32,
@@ -315,7 +315,7 @@ where
                                     shape_tx
                                         .lock()
                                         .unwrap()
-                                        .send((ProofShape::from_log2_heights(&heights), done))
+                                        .send((OrderedShape::from_log2_heights(&heights), done))
                                         .unwrap();
                                 }
                             }

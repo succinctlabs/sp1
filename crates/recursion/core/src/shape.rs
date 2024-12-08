@@ -5,7 +5,7 @@ use hashbrown::HashMap;
 use itertools::Itertools;
 use p3_field::{extension::BinomiallyExtendable, PrimeField32};
 use serde::{Deserialize, Serialize};
-use sp1_stark::{air::MachineAir, ProofShape};
+use sp1_stark::{air::MachineAir, shape::OrderedShape};
 
 use crate::{
     chips::{
@@ -83,13 +83,13 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize>
     pub fn get_all_shape_combinations(
         &self,
         batch_size: usize,
-    ) -> impl Iterator<Item = Vec<ProofShape>> + '_ {
+    ) -> impl Iterator<Item = Vec<OrderedShape>> + '_ {
         (0..batch_size)
             .map(|_| {
                 self.allowed_shapes
                     .iter()
                     .cloned()
-                    .map(|map| map.into_iter().collect::<ProofShape>())
+                    .map(|map| map.into_iter().collect::<OrderedShape>())
             })
             .multi_cartesian_product()
     }
