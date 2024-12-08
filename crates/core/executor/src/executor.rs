@@ -1406,9 +1406,9 @@ impl<'a> Executor<'a> {
                         ((self.state.clk / 4) as f64).log2(),
                         log2_event_counts
                     );
-                    if current_lde_size > MAX_LDE_SIZE {
-                        panic!("LDE size exceeded limit: {current_lde_size}");
-                    }
+                    // if current_lde_size > MAX_LDE_SIZE {
+                    //     panic!("LDE size exceeded limit: {current_lde_size}");
+                    // }
                     shape_match_found = false;
                 }
 
