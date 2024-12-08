@@ -234,6 +234,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             });
         }
 
+        // TODO: CLEANUP
         let mut single_shard_programs = None;
         if let Some(core_shape_config_inner) = &core_shape_config {
             if small_program_cache {
