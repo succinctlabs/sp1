@@ -236,40 +236,40 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 
         let mut single_shard_programs = None;
 
-        if let Some(core_shape_config_inner) = &core_shape_config {
-            if small_program_cache {
-                let mut single_shard_programs_inner = BTreeMap::new();
+        // if let Some(core_shape_config_inner) = &core_shape_config {
+        //     if small_program_cache {
+        //         let mut single_shard_programs_inner = BTreeMap::new();
 
-                for shape in core_shape_config_inner.small_program_shapes() {
-                    let input = SP1RecursionWitnessValues::dummy(
-                        core_prover.machine(),
-                        &SP1RecursionShape { proof_shapes: vec![shape], is_complete: true },
-                    );
-                    let mut builder = Builder::<InnerConfig>::default();
+        //         for shape in core_shape_config_inner.small_program_shapes() {
+        //             let input = SP1RecursionWitnessValues::dummy(
+        //                 core_prover.machine(),
+        //                 &SP1RecursionShape { proof_shapes: vec![shape], is_complete: true },
+        //             );
+        //             let mut builder = Builder::<InnerConfig>::default();
 
-                    let recursion_shape = input.shape();
+        //             let recursion_shape = input.shape();
 
-                    let input = input.read(&mut builder);
-                    SP1RecursiveVerifier::verify(&mut builder, core_prover.machine(), input);
-                    let block = builder.into_root_block();
-                    // SAFETY: The circuit is well-formed. It does not use synchronization primitives
-                    // (or possibly other means) to violate the invariants.
-                    let dsl_program = unsafe { DslIrProgram::new_unchecked(block) };
+        //             let input = input.read(&mut builder);
+        //             SP1RecursiveVerifier::verify(&mut builder, core_prover.machine(), input);
+        //             let block = builder.into_root_block();
+        //             // SAFETY: The circuit is well-formed. It does not use synchronization primitives
+        //             // (or possibly other means) to violate the invariants.
+        //             let dsl_program = unsafe { DslIrProgram::new_unchecked(block) };
 
-                    // Compile the program.
-                    let mut compiler = AsmCompiler::<InnerConfig>::default();
-                    let mut program = compiler.compile(dsl_program);
+        //             // Compile the program.
+        //             let mut compiler = AsmCompiler::<InnerConfig>::default();
+        //             let mut program = compiler.compile(dsl_program);
 
-                    if let Some(recursion_shape_config_inner) = &recursion_shape_config {
-                        recursion_shape_config_inner.fix_shape(&mut program);
-                    }
+        //             if let Some(recursion_shape_config_inner) = &recursion_shape_config {
+        //                 recursion_shape_config_inner.fix_shape(&mut program);
+        //             }
 
-                    let single_shard_program = Arc::new(program);
-                    single_shard_programs_inner.insert(recursion_shape, single_shard_program);
-                }
-                let _ = single_shard_programs.insert(single_shard_programs_inner);
-            }
-        }
+        //             let single_shard_program = Arc::new(program);
+        //             single_shard_programs_inner.insert(recursion_shape, single_shard_program);
+        //         }
+        //         let _ = single_shard_programs.insert(single_shard_programs_inner);
+        //     }
+        // }
 
         Self {
             core_prover,
@@ -389,12 +389,17 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                 if let Ok((shape, is_complete)) = shape_rx.recv() {
                     let recursion_shape =
                         SP1RecursionShape { proof_shapes: vec![shape], is_complete };
+
+                    // Don't compile the program if it's already in the cache.
                     if let Some(programs) = &self.single_shard_programs {
-                        // Don't compile the program if it's already in the cache.
                         if programs.contains_key(&recursion_shape) {
+                            println!("program already in cache so not compiling");
                             continue;
                         }
+                        println!("program not already in cache so compiling");
                     }
+                    println!("c");
+
                     // Only need to compile the recursion program if we're not in the one-shard case.
                     let compress_shape = SP1CompressProgramShape::Recursion(recursion_shape);
 
@@ -1437,7 +1442,6 @@ pub mod tests {
             let mut shapes = BTreeSet::new();
             for proof in core_proof.proof.0.iter() {
                 let shape = SP1ProofShape::Recursion(proof.shape());
-                tracing::info!("shape: {:?}", shape);
                 shapes.insert(shape);
             }
 

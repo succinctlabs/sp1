@@ -293,9 +293,7 @@ where
                             // Fix the shape of the records.
                             if let Some(shape_config) = shape_config {
                                 for record in records.iter_mut() {
-                                    let fix_shape_span = tracing::info_span!("fix shape").entered();
                                     shape_config.fix_shape(record).unwrap();
-                                    fix_shape_span.exit();
                                 }
                             }
 

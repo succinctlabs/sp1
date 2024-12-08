@@ -1,4 +1,4 @@
-use std::{hash::Hash, str::FromStr};
+use std::{fmt::Debug, hash::Hash, str::FromStr};
 
 use hashbrown::HashMap;
 use serde::{Deserialize, Serialize};
@@ -13,7 +13,7 @@ pub struct ShapeCluster<K: Eq + Hash + FromStr> {
     inner: HashMap<K, Vec<Option<usize>>>,
 }
 
-impl<K: Clone + Eq + Hash + FromStr> ShapeCluster<K> {
+impl<K: Debug + Clone + Eq + Hash + FromStr> ShapeCluster<K> {
     /// Create a new shape cluster.
     #[must_use]
     pub fn new(inner: HashMap<K, Vec<Option<usize>>>) -> Self {

@@ -28,8 +28,10 @@ use crate::{
 /// execution. We use a variant of a cartesian product of the allowed log heights to generate
 /// smaller shapes from these ones.
 const MAXIMAL_SHAPES: &[u8] = include_bytes!("../../maximal_shapes_v3.json");
+const TINY_SHAPES: &[u8] = include_bytes!("../../tiny_shapes.json");
 
 /// A configuration for what shapes are allowed to be used by the prover.
+#[derive(Debug)]
 pub struct CoreShapeConfig<F: PrimeField32> {
     partial_preprocessed_shapes: ShapeCluster<RiscvAirId>,
     partial_core_shapes: BTreeMap<usize, Vec<ShapeCluster<RiscvAirId>>>,
@@ -85,6 +87,8 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
 
             // Try to find a shape fitting within at least one of the candidate shapes.
             for (i, cluster) in self.tiny_shapes.iter().enumerate() {
+                println!("cluster: {:?}", cluster);
+                println!("heights: {:?}", heights);
                 if let Some(shape) = cluster.find_shape(&heights) {
                     let shard = record.public_values.shard;
                     tracing::info!("Shard Lifted: Index={}, Cluster={}", shard, i);
@@ -424,6 +428,7 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
         // Load the maximal shapes.
         let maximal_shapes: BTreeMap<usize, Vec<Shape<RiscvAirId>>> =
             serde_json::from_slice(MAXIMAL_SHAPES).unwrap();
+        let tiny_shapes: Vec<Shape<RiscvAirId>> = serde_json::from_slice(TINY_SHAPES).unwrap();
 
         // Set the allowed preprocessed log2 heights.
         let allowed_preprocessed_log2_heights = HashMap::from([
@@ -470,158 +475,17 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
                 .insert(air, (memory_events_per_row, precompile_heights.clone()));
         }
 
-        // Define the hand-selected shapes for tiny programs.
-        let tiny_shapes = vec![
-            // Small shape with few Muls and LTs.
-            HashMap::from([
-                (RiscvAirId::Cpu, vec![Some(13)]),
-                (RiscvAirId::AddSub, vec![Some(12)]),
-                (RiscvAirId::Bitwise, vec![Some(11)]),
-                (RiscvAirId::Mul, vec![Some(4)]),
-                (RiscvAirId::ShiftRight, vec![Some(10)]),
-                (RiscvAirId::ShiftLeft, vec![Some(10)]),
-                (RiscvAirId::Lt, vec![Some(8)]),
-                (RiscvAirId::MemoryLocal, vec![Some(6)]),
-                (RiscvAirId::Global, vec![Some(16)]),
-                (RiscvAirId::SyscallCore, vec![None]),
-                (RiscvAirId::DivRem, vec![None]),
-                (RiscvAirId::MemoryGlobalInit, vec![Some(8)]),
-                (RiscvAirId::MemoryGlobalFinalize, vec![Some(15)]),
-            ]),
-            // Small shape with few Muls.
-            HashMap::from([
-                (RiscvAirId::Cpu, vec![Some(14)]),
-                (RiscvAirId::AddSub, vec![Some(14)]),
-                (RiscvAirId::Bitwise, vec![Some(11)]),
-                (RiscvAirId::Mul, vec![Some(4)]),
-                (RiscvAirId::ShiftRight, vec![Some(10)]),
-                (RiscvAirId::ShiftLeft, vec![Some(10)]),
-                (RiscvAirId::Lt, vec![Some(13)]),
-                (RiscvAirId::MemoryLocal, vec![Some(6)]),
-                (RiscvAirId::Global, vec![Some(12)]),
-                (RiscvAirId::SyscallCore, vec![None]),
-                (RiscvAirId::DivRem, vec![None]),
-                (RiscvAirId::MemoryGlobalInit, vec![Some(8)]),
-                (RiscvAirId::MemoryGlobalFinalize, vec![Some(15)]),
-            ]),
-            // Small shape with many Muls.
-            HashMap::from([
-                (RiscvAirId::Cpu, vec![Some(15)]),
-                (RiscvAirId::AddSub, vec![Some(14)]),
-                (RiscvAirId::Bitwise, vec![Some(11)]),
-                (RiscvAirId::Mul, vec![Some(12)]),
-                (RiscvAirId::ShiftRight, vec![Some(12)]),
-                (RiscvAirId::ShiftLeft, vec![Some(10)]),
-                (RiscvAirId::Lt, vec![Some(12)]),
-                (RiscvAirId::MemoryLocal, vec![Some(7)]),
-                (RiscvAirId::Global, vec![Some(16)]),
-                (RiscvAirId::SyscallCore, vec![None]),
-                (RiscvAirId::DivRem, vec![None]),
-                (RiscvAirId::MemoryGlobalInit, vec![Some(8)]),
-                (RiscvAirId::MemoryGlobalFinalize, vec![Some(15)]),
-            ]),
-            // Medium shape with few muls.
-            HashMap::from([
-                (RiscvAirId::Cpu, vec![Some(17)]),
-                (RiscvAirId::AddSub, vec![Some(17)]),
-                (RiscvAirId::Bitwise, vec![Some(11)]),
-                (RiscvAirId::Mul, vec![Some(4)]),
-                (RiscvAirId::ShiftRight, vec![Some(10)]),
-                (RiscvAirId::ShiftLeft, vec![Some(10)]),
-                (RiscvAirId::Lt, vec![Some(16)]),
-                (RiscvAirId::MemoryLocal, vec![Some(6)]),
-                (RiscvAirId::Global, vec![Some(7)]),
-                (RiscvAirId::SyscallCore, vec![None]),
-                (RiscvAirId::DivRem, vec![None]),
-                (RiscvAirId::MemoryGlobalInit, vec![Some(8)]),
-                (RiscvAirId::MemoryGlobalFinalize, vec![Some(15)]),
-            ]),
-            // Medium shape with many Muls.
-            HashMap::from([
-                (RiscvAirId::Cpu, vec![Some(18)]),
-                (RiscvAirId::AddSub, vec![Some(17)]),
-                (RiscvAirId::Bitwise, vec![Some(11)]),
-                (RiscvAirId::Mul, vec![Some(15)]),
-                (RiscvAirId::ShiftRight, vec![Some(15)]),
-                (RiscvAirId::ShiftLeft, vec![Some(10)]),
-                (RiscvAirId::Lt, vec![Some(15)]),
-                (RiscvAirId::MemoryLocal, vec![Some(7)]),
-                (RiscvAirId::Global, vec![Some(11)]),
-                (RiscvAirId::SyscallCore, vec![None]),
-                (RiscvAirId::DivRem, vec![None]),
-                (RiscvAirId::MemoryGlobalInit, vec![Some(8)]),
-                (RiscvAirId::MemoryGlobalFinalize, vec![Some(15)]),
-            ]),
-            // Large shapes
-            HashMap::from([
-                (RiscvAirId::Cpu, vec![Some(20)]),
-                (RiscvAirId::AddSub, vec![Some(20)]),
-                (RiscvAirId::Bitwise, vec![Some(11)]),
-                (RiscvAirId::Mul, vec![Some(4)]),
-                (RiscvAirId::ShiftRight, vec![Some(10)]),
-                (RiscvAirId::ShiftLeft, vec![Some(10)]),
-                (RiscvAirId::Lt, vec![Some(19)]),
-                (RiscvAirId::MemoryLocal, vec![Some(6)]),
-                (RiscvAirId::Global, vec![Some(10)]),
-                (RiscvAirId::SyscallCore, vec![None]),
-                (RiscvAirId::DivRem, vec![None]),
-                (RiscvAirId::MemoryGlobalInit, vec![Some(8)]),
-                (RiscvAirId::MemoryGlobalFinalize, vec![Some(15)]),
-            ]),
-            HashMap::from([
-                (RiscvAirId::Cpu, vec![Some(20)]),
-                (RiscvAirId::AddSub, vec![Some(20)]),
-                (RiscvAirId::Bitwise, vec![Some(11)]),
-                (RiscvAirId::Mul, vec![Some(4)]),
-                (RiscvAirId::ShiftRight, vec![Some(11)]),
-                (RiscvAirId::ShiftLeft, vec![Some(10)]),
-                (RiscvAirId::Lt, vec![Some(19)]),
-                (RiscvAirId::MemoryLocal, vec![Some(6)]),
-                (RiscvAirId::Global, vec![Some(10)]),
-                (RiscvAirId::SyscallCore, vec![Some(3)]),
-                (RiscvAirId::DivRem, vec![Some(3)]),
-                (RiscvAirId::MemoryGlobalInit, vec![Some(8)]),
-                (RiscvAirId::MemoryGlobalFinalize, vec![Some(15)]),
-            ]),
-            HashMap::from([
-                (RiscvAirId::Cpu, vec![Some(21)]),
-                (RiscvAirId::AddSub, vec![Some(21)]),
-                (RiscvAirId::Bitwise, vec![Some(11)]),
-                (RiscvAirId::Mul, vec![Some(19)]),
-                (RiscvAirId::ShiftRight, vec![Some(19)]),
-                (RiscvAirId::ShiftLeft, vec![Some(10)]),
-                (RiscvAirId::Lt, vec![Some(19)]),
-                (RiscvAirId::MemoryLocal, vec![Some(7)]),
-                (RiscvAirId::Global, vec![Some(11)]),
-                (RiscvAirId::SyscallCore, vec![None]),
-                (RiscvAirId::DivRem, vec![None]),
-                (RiscvAirId::MemoryGlobalInit, vec![Some(8)]),
-                (RiscvAirId::MemoryGlobalFinalize, vec![Some(15)]),
-            ]),
-            // Catchall shape.
-            HashMap::from([
-                (RiscvAirId::Cpu, vec![Some(21)]),
-                (RiscvAirId::AddSub, vec![Some(21)]),
-                (RiscvAirId::Bitwise, vec![Some(19)]),
-                (RiscvAirId::Mul, vec![Some(19)]),
-                (RiscvAirId::ShiftRight, vec![Some(19)]),
-                (RiscvAirId::ShiftLeft, vec![Some(19)]),
-                (RiscvAirId::Lt, vec![Some(20)]),
-                (RiscvAirId::MemoryLocal, vec![Some(19)]),
-                (RiscvAirId::Global, vec![Some(10)]),
-                (RiscvAirId::SyscallCore, vec![Some(19)]),
-                (RiscvAirId::DivRem, vec![Some(21)]),
-                (RiscvAirId::MemoryGlobalInit, vec![Some(19)]),
-                (RiscvAirId::MemoryGlobalFinalize, vec![Some(19)]),
-            ]),
-        ];
-
         Self {
             partial_preprocessed_shapes: ShapeCluster::new(allowed_preprocessed_log2_heights),
             partial_core_shapes: core_allowed_log2_heights,
             partial_memory_shapes: ShapeCluster::new(memory_allowed_log2_heights),
             partial_precompile_shapes: precompile_allowed_log2_heights,
-            tiny_shapes: tiny_shapes.into_iter().map(ShapeCluster::new).collect::<Vec<_>>(),
+            tiny_shapes: tiny_shapes
+                .into_iter()
+                .map(|x| {
+                    ShapeCluster::new(x.into_iter().map(|(k, v)| (k, vec![Some(v)])).collect())
+                })
+                .collect(),
             core_costs: serde_json::from_str(include_str!(
                 "../../../executor/src/artifacts/rv32im_costs.json"
             ))

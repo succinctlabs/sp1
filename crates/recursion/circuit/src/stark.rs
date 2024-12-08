@@ -60,7 +60,6 @@ pub fn dummy_vk_and_shard_proof<A: MachineAir<BabyBear>>(
     machine: &StarkMachine<BabyBearPoseidon2, A>,
     shape: &OrderedShape,
 ) -> (StarkVerifyingKey<BabyBearPoseidon2>, ShardProof<BabyBearPoseidon2>) {
-    println!("shape: {:?}", shape);
     // Make a dummy commitment.
     let commitment = ShardCommitment {
         main_commit: dummy_hash(),
@@ -130,7 +129,6 @@ pub fn dummy_vk_and_shard_proof<A: MachineAir<BabyBear>>(
         PolynomialBatchShape { shapes: permutation_batch_shape },
         PolynomialBatchShape { shapes: quotient_batch_shape },
     ];
-    println!("batch_shapes: {:?}", batch_shapes);
 
     let fri_queries = machine.config().fri_config().num_queries;
     let log_blowup = machine.config().fri_config().log_blowup;
