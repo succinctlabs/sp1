@@ -199,7 +199,7 @@ where
                 tracing::debug_span!("phase 2 trace generation").in_scope(|| {
                     loop {
                         let received = { checkpoints_rx.lock().unwrap().recv() };
-                        if let Ok((index, mut checkpoint, done, _)) = received {
+                        if let Ok((index, mut checkpoint, done, num_cycles)) = received {
                             let (mut records, report) = tracing::debug_span!("trace checkpoint")
                                 .in_scope(|| {
                                     trace_checkpoint::<SC>(
@@ -243,23 +243,20 @@ where
                                 deferred.append(&mut record.defer());
                             }
 
-                            // tracing::info!("Deferred length: {}", deferred.len());
-
-                            // let last_record = if done
-                            //     && num_cycles < 1 << 26
-                            //     && deferred.global_memory_initialize_events.len()
-                            //         < opts.split_opts.memory / 4
-                            //     && deferred.global_memory_finalize_events.len()
-                            //         < opts.split_opts.memory / 4
-                            // {
-                            //     tracing::info!("Number of cycles: {}", num_cycles);
-                            //     records.last_mut()
-                            // } else {
-                            //     None
-                            // };
-                            let last_record = None;
-
-                            tracing::info!("Last record is some: {:?}", last_record.is_some());
+                            // TODO: double check this logic
+                            let last_record = if done
+                                && num_cycles < 1 << 26
+                                && deferred.global_memory_initialize_events.len()
+                                    < opts.split_opts.memory / 4
+                                && deferred.global_memory_finalize_events.len()
+                                    < opts.split_opts.memory / 4
+                            {
+                                tracing::info!("Number of cycles: {}", num_cycles);
+                                records.last_mut()
+                            } else {
+                                None
+                            };
+                            tracing::info!("last record is some: {:?}", last_record.is_some());
 
                             // See if any deferred shards are ready to be committed to.
                             let mut deferred = deferred.split(done, last_record, opts.split_opts);

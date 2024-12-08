@@ -1379,10 +1379,6 @@ impl<'a> Executor<'a> {
                     *self.local_counts.event_counts,
                 );
 
-                // Compute the log2 of the event counts.
-                let log2_event_counts: EnumMap<RiscvAirId, usize> =
-                    event_counts.iter().map(|(k, &v)| (k, log2_ceil_usize(v as usize))).collect();
-
                 // Pad the event counts to account for the worst case jump across N cycles.
                 let padded_event_counts = pad_rv32im_event_counts(event_counts, CHECK_CYCLE as u64);
 
@@ -1400,12 +1396,12 @@ impl<'a> Executor<'a> {
                     tracing::warn!(
                         "Counter log heighs:
                         clk: {},
-                        clk_usage: {},
-                        log2_event_counts: {:?}",
+                        clk_usage: {}",
                         (self.state.clk / 4).next_power_of_two().ilog2(),
                         ((self.state.clk / 4) as f64).log2(),
-                        log2_event_counts
                     );
+                    // TODO: FIX
+                    //
                     // if current_lde_size > MAX_LDE_SIZE {
                     //     panic!("LDE size exceeded limit: {current_lde_size}");
                     // }
@@ -1430,16 +1426,14 @@ impl<'a> Executor<'a> {
                             if air == RiscvAirId::Cpu {
                                 continue;
                             }
-                            let threshold =
-                                shape.log2_height(&air).map_or(0, |log_degree| 1 << log_degree);
-                            if log2_event_counts[air] > threshold {
+                            let threshold = shape.height(&air).unwrap_or_default();
+                            if (event_counts[air] as usize) > threshold {
                                 continue;
                             }
-                            distances.push(distance(threshold, log2_event_counts[air]));
+                            distances.push(distance(threshold, event_counts[air] as usize));
                         }
 
                         let l_infinity = distances.into_iter().min().unwrap();
-
                         if l_infinity >= 2 * CHECK_CYCLE {
                             shape_match_found = true;
                             break;
