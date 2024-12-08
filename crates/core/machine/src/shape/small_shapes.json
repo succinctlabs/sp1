@@ -266,7 +266,7 @@
     {
         "inner": {
             "Cpu": 21,
-            "SyscallCore": 8,
+            "SyscallCore": 17,
             "AddSub": 21,
             "Bitwise": 19,
             "Mul": 19,
@@ -277,12 +277,12 @@
             "Auipc": 19,
             "Branch": 20,
             "Jump": 20,
-            "SyscallInstrs": 8,
+            "SyscallInstrs": 17,
             "MemoryLocal": 19,
-            "Global": 16,
-            "MemoryGlobalInit": 16,
-            "MemoryGlobalFinalize": 16,
-            "DivRem": 10
+            "Global": 17,
+            "MemoryGlobalInit": 17,
+            "MemoryGlobalFinalize": 17,
+            "DivRem": 17
         }
     }
 ]

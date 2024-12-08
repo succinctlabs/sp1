@@ -30,11 +30,6 @@ impl<K: Debug + Clone + Eq + Hash + FromStr> ShapeCluster<K> {
                         maybe_log2_height.map(|log_height| 1 << log_height).unwrap_or_default();
                     if *height <= allowed_height {
                         return Some((air.clone(), *maybe_log2_height));
-                    } else {
-                        println!(
-                            "air: {:?}, height: {height} > allowed_height: {allowed_height}",
-                            air
-                        );
                     }
                 }
                 None

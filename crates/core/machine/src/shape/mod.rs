@@ -27,8 +27,12 @@ use crate::{
 /// These shapes define the "worst-case" shapes for typical shards that are proving `rv32im`
 /// execution. We use a variant of a cartesian product of the allowed log heights to generate
 /// smaller shapes from these ones.
-const MAXIMAL_SHAPES: &[u8] = include_bytes!("../../maximal_shapes_v3.json");
-const TINY_SHAPES: &[u8] = include_bytes!("../../tiny_shapes.json");
+const MAXIMAL_SHAPES: &[u8] = include_bytes!("maximal_shapes.json");
+
+/// The set of tiny shapes.
+///
+/// These shapes are used to optimize performance for smaller programs.
+const SMALL_SHAPES: &[u8] = include_bytes!("small_shapes.json");
 
 /// A configuration for what shapes are allowed to be used by the prover.
 #[derive(Debug)]
@@ -37,8 +41,8 @@ pub struct CoreShapeConfig<F: PrimeField32> {
     partial_core_shapes: BTreeMap<usize, Vec<ShapeCluster<RiscvAirId>>>,
     partial_memory_shapes: ShapeCluster<RiscvAirId>,
     partial_precompile_shapes: HashMap<RiscvAir<F>, (usize, Vec<usize>)>,
-    tiny_shapes: Vec<ShapeCluster<RiscvAirId>>,
-    core_costs: HashMap<String, usize>,
+    small_shapes: Vec<ShapeCluster<RiscvAirId>>,
+    costs: HashMap<RiscvAirId, usize>,
 }
 
 impl<F: PrimeField32> CoreShapeConfig<F> {
@@ -86,7 +90,7 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
             heights.extend(RiscvAir::<F>::memory_heights(record));
 
             // Try to find a shape fitting within at least one of the candidate shapes.
-            for (i, cluster) in self.tiny_shapes.iter().enumerate() {
+            for (i, cluster) in self.small_shapes.iter().enumerate() {
                 if let Some(shape) = cluster.find_shape(&heights) {
                     let shard = record.public_values.shard;
                     tracing::info!("Shard Lifted: Index={}, Cluster={}", shard, i);
@@ -115,10 +119,6 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
         if record.contains_cpu() {
             // Get the heights of the core airs in the record.
             let heights = RiscvAir::<F>::core_heights(record);
-            let log2_heights = heights
-                .iter()
-                .map(|(air, height)| (*air, log2_ceil_usize(*height)))
-                .collect::<Vec<_>>();
 
             // Try to find the smallest shape fitting within at least one of the candidate shapes.
             let log2_shard_size = record.cpu_events.len().next_power_of_two().ilog2() as usize;
@@ -401,12 +401,12 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
     }
 
     fn estimate_lde_size(&self, shape: &Shape<RiscvAirId>) -> usize {
-        shape.iter().map(|(air, height)| self.core_costs[&air.to_string()] * height).sum()
+        shape.iter().map(|(air, height)| self.costs[air] * height).sum()
     }
 
     // TODO: cleanup..
     pub fn small_program_shapes(&self) -> Vec<OrderedShape> {
-        self.tiny_shapes
+        self.small_shapes
             .iter()
             .map(|log_heights| {
                 OrderedShape::from_log2_heights(
@@ -430,7 +430,7 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
         // Load the maximal shapes.
         let maximal_shapes: BTreeMap<usize, Vec<Shape<RiscvAirId>>> =
             serde_json::from_slice(MAXIMAL_SHAPES).unwrap();
-        let tiny_shapes: Vec<Shape<RiscvAirId>> = serde_json::from_slice(TINY_SHAPES).unwrap();
+        let tiny_shapes: Vec<Shape<RiscvAirId>> = serde_json::from_slice(SMALL_SHAPES).unwrap();
 
         // Set the allowed preprocessed log2 heights.
         let allowed_preprocessed_log2_heights = HashMap::from([
@@ -482,13 +482,13 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
             partial_core_shapes: core_allowed_log2_heights,
             partial_memory_shapes: ShapeCluster::new(memory_allowed_log2_heights),
             partial_precompile_shapes: precompile_allowed_log2_heights,
-            tiny_shapes: tiny_shapes
+            small_shapes: tiny_shapes
                 .into_iter()
                 .map(|x| {
                     ShapeCluster::new(x.into_iter().map(|(k, v)| (k, vec![Some(v)])).collect())
                 })
                 .collect(),
-            core_costs: serde_json::from_str(include_str!(
+            costs: serde_json::from_str(include_str!(
                 "../../../executor/src/artifacts/rv32im_costs.json"
             ))
             .unwrap(),

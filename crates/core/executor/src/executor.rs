@@ -10,7 +10,6 @@ use hashbrown::HashMap;
 use serde::{Deserialize, Serialize};
 use sp1_stark::{air::PublicValues, shape::Shape, SP1CoreOpts};
 use thiserror::Error;
-use tracing::event;
 
 use crate::{
     context::SP1Context,
@@ -18,7 +17,7 @@ use crate::{
         emit_auipc_dependency, emit_branch_dependencies, emit_divrem_dependencies,
         emit_jump_dependencies, emit_memory_dependencies,
     },
-    estimate_riscv_event_counts, estimate_riscv_lde_size,
+    estimate_riscv_event_counts,
     events::{
         AUIPCEvent, AluEvent, BranchEvent, CpuEvent, JumpEvent, LookupId, MemInstrEvent,
         MemoryAccessPosition, MemoryInitializeFinalizeEvent, MemoryLocalEvent, MemoryReadRecord,
@@ -26,7 +25,6 @@ use crate::{
     },
     hook::{HookEnv, HookRegistry},
     memory::{Entry, PagedMemory},
-    pad_rv32im_event_counts,
     record::{ExecutionRecord, MemoryAccessRecord},
     report::ExecutionReport,
     state::{ExecutionState, ForkState},
@@ -44,10 +42,6 @@ pub const UNUSED_PC: u32 = 1;
 
 /// The maximum number of instructions in a program.
 pub const MAX_PROGRAM_SIZE: usize = 1 << 22;
-
-// The LDE threshold, not including the "program" area.
-const LDE_THRESHOLD: u64 = 13000000000;
-const MAX_LDE_SIZE: u64 = 14400000000;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 /// Whether to verify deferred proofs during execution.
@@ -1374,40 +1368,11 @@ impl<'a> Executor<'a> {
             if self.state.global_clk % (CHECK_CYCLE as u64) == 0 {
                 // Estimate the number of events in the trace.
                 let event_counts = estimate_riscv_event_counts(
-                    (self.state.clk >> 2) as u64, // TODO: FIX
+                    (self.state.clk >> 2) as u64,
                     self.local_counts.local_mem as u64,
-                    self.local_counts.syscalls_sent as u64, // TODO: FIX
+                    self.local_counts.syscalls_sent as u64,
                     *self.local_counts.event_counts,
                 );
-
-                // Pad the event counts to account for the worst case jump across N cycles.
-                let padded_event_counts = pad_rv32im_event_counts(event_counts, CHECK_CYCLE as u64);
-
-                // Estimate the LDE area in terms of bytes.
-                let costs = self.costs.iter().map(|(k, &v)| (*k, v as u64)).collect();
-                let current_lde_size = estimate_riscv_lde_size(event_counts, &costs);
-                let next_lde_size = estimate_riscv_lde_size(padded_event_counts, &costs);
-
-                // if next_lde_size > LDE_THRESHOLD {
-                //     tracing::warn!(
-                //         "stopping shard early due to LDE size too big: current={}, next={}",
-                //         current_lde_size,
-                //         next_lde_size
-                //     );
-                //     tracing::warn!(
-                //         "Counter log heighs:
-                //         clk: {},
-                //         clk_usage: {}",
-                //         (self.state.clk / 4).next_power_of_two().ilog2(),
-                //         ((self.state.clk / 4) as f64).log2(),
-                //     );
-                //     // TODO: FIX
-                //     //
-                //     // if current_lde_size > MAX_LDE_SIZE {
-                //     //     panic!("LDE size exceeded limit: {current_lde_size}");
-                //     // }
-                //     shape_match_found = false;
-                // }
 
                 if let Some(maximal_shapes) = &self.maximal_shapes {
                     let distance = |threshold: usize, count: usize| {
@@ -1813,15 +1778,10 @@ impl Default for ExecutorMode {
     }
 }
 
-// TODO: FIX
 /// Aligns an address to the nearest word below or equal to it.
 #[must_use]
 pub const fn align(addr: u32) -> u32 {
     addr - addr % 4
-}
-
-fn log2_ceil_usize(n: usize) -> usize {
-    (usize::BITS - n.saturating_sub(1).leading_zeros()) as usize
 }
 
 #[cfg(test)]

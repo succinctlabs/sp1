@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 /// A way to keep track of the log2 heights of some set of chips and in canonical order.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, PartialOrd, Ord, Eq, Hash)]
 pub struct OrderedShape {
+    /// The inner data.
     pub inner: Vec<(String, usize)>,
 }
 
