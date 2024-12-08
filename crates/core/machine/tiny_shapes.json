@@ -133,6 +133,28 @@
     },
     {
         "inner": {
+            "Mul": 17,
+            "Cpu": 20,
+            "SyscallInstrs": 8,
+            "Branch": 18,
+            "ShiftRight": 16,
+            "Bitwise": 16,
+            "Lt": 20,
+            "ShiftLeft": 10,
+            "MemoryLocal": 6,
+            "Auipc": 4,
+            "SyscallCore": 8,
+            "Global": 15,
+            "AddSub": 20,
+            "MemoryInstrs": 18,
+            "Jump": 5,
+            "MemoryGlobalInit": 16,
+            "MemoryGlobalFinalize": 16,
+            "DivRem": 10
+        }
+    },
+    {
+        "inner": {
             "Mul": 0,
             "Cpu": 20,
             "SyscallInstrs": 5,
@@ -244,7 +266,7 @@
     {
         "inner": {
             "Cpu": 21,
-            "SyscallCore": 5,
+            "SyscallCore": 8,
             "AddSub": 21,
             "Bitwise": 19,
             "Mul": 19,
@@ -255,7 +277,7 @@
             "Auipc": 19,
             "Branch": 20,
             "Jump": 20,
-            "SyscallInstrs": 5,
+            "SyscallInstrs": 8,
             "MemoryLocal": 19,
             "Global": 16,
             "MemoryGlobalInit": 16,
