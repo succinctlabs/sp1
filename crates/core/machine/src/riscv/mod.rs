@@ -9,7 +9,7 @@ use hashbrown::{HashMap, HashSet};
 use itertools::Itertools;
 use p3_field::PrimeField32;
 use sp1_core_executor::{
-    events::PrecompileLocalMemory, syscalls::SyscallCode, ExecutionRecord, Program,
+    events::PrecompileLocalMemory, syscalls::SyscallCode, ExecutionRecord, Program, RiscvAirId,
 };
 use sp1_curves::weierstrass::{bls12_381::Bls12381BaseField, bn254::Bn254BaseField};
 use sp1_stark::{
@@ -424,10 +424,10 @@ impl<F: PrimeField32> RiscvAir<F> {
     }
 
     /// Get the heights of the preprocessed chips for a given program.
-    pub(crate) fn preprocessed_heights(program: &Program) -> Vec<(String, usize)> {
+    pub(crate) fn preprocessed_heights(program: &Program) -> Vec<(RiscvAirId, usize)> {
         vec![
-            (Self::Program(ProgramChip::default()).name(), program.instructions.len()),
-            (Self::ByteLookup(ByteChip::default()).name(), BYTE_CHIP_NUM_ROWS),
+            (RiscvAirId::Program, program.instructions.len()),
+            (RiscvAirId::Byte, BYTE_CHIP_NUM_ROWS),
         ]
     }
 

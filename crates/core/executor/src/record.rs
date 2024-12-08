@@ -3,6 +3,7 @@ use itertools::{EitherOrBoth, Itertools};
 use p3_field::{AbstractField, PrimeField};
 use sp1_stark::{
     air::{MachineAir, PublicValues},
+    shape::Shape,
     MachineRecord, SP1CoreOpts, SplitOpts,
 };
 use std::{mem::take, str::FromStr, sync::Arc};
@@ -17,7 +18,7 @@ use crate::{
         MemoryLocalEvent, MemoryRecordEnum, PrecompileEvent, PrecompileEvents, SyscallEvent,
     },
     syscalls::SyscallCode,
-    RiscvAirId, Shape,
+    RiscvAirId,
 };
 
 /// A record of the execution of a program.
@@ -321,7 +322,7 @@ impl ExecutionRecord {
     pub fn fixed_log2_rows<F: PrimeField, A: MachineAir<F>>(&self, air: &A) -> Option<usize> {
         self.shape.as_ref().map(|shape| {
             shape
-                .get(&RiscvAirId::from_str(&air.name()).unwrap())
+                .log2_height(&RiscvAirId::from_str(&air.name()).unwrap())
                 .unwrap_or_else(|| panic!("Chip {} not found in specified shape", air.name()))
         })
     }

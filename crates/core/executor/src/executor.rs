@@ -8,7 +8,7 @@ use std::{
 use enum_map::EnumMap;
 use hashbrown::HashMap;
 use serde::{Deserialize, Serialize};
-use sp1_stark::{air::PublicValues, SP1CoreOpts};
+use sp1_stark::{air::PublicValues, shape::Shape, SP1CoreOpts};
 use thiserror::Error;
 
 use crate::{
@@ -31,7 +31,7 @@ use crate::{
     state::{ExecutionState, ForkState},
     subproof::{DefaultSubproofVerifier, SubproofVerifier},
     syscalls::{default_syscall_map, Syscall, SyscallCode, SyscallContext},
-    Instruction, Opcode, Program, Register, RiscvAirId, Shape,
+    Instruction, Opcode, Program, Register, RiscvAirId,
 };
 
 /// The default increment for the program counter.  Is used for all instructions except
@@ -1420,7 +1420,7 @@ impl<'a> Executor<'a> {
                     shape_match_found = false;
 
                     for shape in maximal_shapes.iter() {
-                        let cpu_threshold = shape.get(&RiscvAirId::Cpu).unwrap();
+                        let cpu_threshold = shape.log2_height(&RiscvAirId::Cpu).unwrap();
                         if self.state.clk > ((1 << cpu_threshold) << 2) {
                             continue;
                         }
@@ -1430,7 +1430,8 @@ impl<'a> Executor<'a> {
                             if air == RiscvAirId::Cpu {
                                 continue;
                             }
-                            let threshold = shape.get(&air).map_or(0, |log_degree| 1 << log_degree);
+                            let threshold =
+                                shape.log2_height(&air).map_or(0, |log_degree| 1 << log_degree);
                             if log2_event_counts[air] > threshold {
                                 continue;
                             }

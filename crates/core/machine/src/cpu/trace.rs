@@ -33,7 +33,7 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
     ) -> RowMajorMatrix<F> {
         let n_real_rows = input.cpu_events.len();
         let padded_nb_rows = if let Some(shape) = &input.shape {
-            1 << shape.get(&self.id()).unwrap()
+            shape.height(&self.id()).unwrap()
         } else if n_real_rows < 16 {
             16
         } else {
