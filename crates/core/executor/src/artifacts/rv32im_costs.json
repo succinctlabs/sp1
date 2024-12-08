@@ -1,6 +1,6 @@
 {
   "U256XU2048Mul": 5850,
-  "CPU": 109,
+  "Cpu": 109,
   "Bn254Fp2MulAssign": 2885,
   "Bls12831Fp2AddSubAssign": 2070,
   "SyscallInstrs": 80,

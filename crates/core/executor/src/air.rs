@@ -133,7 +133,7 @@ impl RiscvAirId {
     #[must_use]
     pub fn as_str(&self) -> &str {
         match self {
-            Self::Cpu => "CPU",
+            Self::Cpu => "Cpu",
             Self::Program => "Program",
             Self::ShaExtend => "ShaExtend",
             Self::ShaCompress => "ShaCompress",

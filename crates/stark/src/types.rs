@@ -106,12 +106,12 @@ impl<SC: StarkGenericConfig> ShardProof<SC> {
     }
 
     pub fn log_degree_cpu(&self) -> usize {
-        let idx = self.chip_ordering.get("CPU").expect("CPU chip not found");
+        let idx = self.chip_ordering.get("Cpu").expect("Cpu chip not found");
         self.opened_values.chips[*idx].log_degree
     }
 
     pub fn contains_cpu(&self) -> bool {
-        self.chip_ordering.contains_key("CPU")
+        self.chip_ordering.contains_key("Cpu")
     }
 
     pub fn contains_global_memory_init(&self) -> bool {
