@@ -23,8 +23,12 @@ sp1-primitives = { workspace = true, optional = true }
 p3-baby-bear = { workspace = true, optional = true }
 p3-field = { workspace = true, optional = true }
 
+embedded-alloc = "0.6.0"
+critical-section = "1.2.0"
+linked_list_allocator = "0.10.5"
+
 [features]
-default = ["libm", "lib"]
+default = ["libm", "lib", "bump"]
 libm = ["dep:libm"]
 lib = ["dep:sp1-lib"]
 verify = [
@@ -33,3 +37,5 @@ verify = [
   "dep:p3-field",
   "sp1-lib/verify",
 ]
+embedded = []
+bump = []
