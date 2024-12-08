@@ -8,12 +8,10 @@ use std::{
 };
 
 use eyre::Result;
-use serde::{Deserialize, Serialize};
-use thiserror::Error;
-
 use p3_baby_bear::BabyBear;
 use p3_field::AbstractField;
-use sp1_core_machine::riscv::CoreShapeConfig;
+use serde::{Deserialize, Serialize};
+use sp1_core_machine::shape::CoreShapeConfig;
 use sp1_recursion_circuit::machine::{
     SP1CompressWithVKeyWitnessValues, SP1CompressWithVkeyShape, SP1DeferredShape,
     SP1DeferredWitnessValues, SP1RecursionShape, SP1RecursionWitnessValues,
@@ -23,6 +21,7 @@ use sp1_recursion_core::{
     RecursionProgram,
 };
 use sp1_stark::{MachineProver, ProofShape, DIGEST_SIZE};
+use thiserror::Error;
 
 use crate::{components::SP1ProverComponents, CompressAir, HashableKey, SP1Prover, ShrinkAir};
 
@@ -299,7 +298,7 @@ impl SP1ProofShape {
         reduce_batch_size: usize,
     ) -> impl Iterator<Item = Self> + 'a {
         core_shape_config
-            .generate_all_allowed_shapes()
+            .all_shapes()
             .map(Self::Recursion)
             .chain((1..=reduce_batch_size).flat_map(|batch_size| {
                 recursion_shape_config.get_all_shape_combinations(batch_size).map(Self::Compress)
@@ -339,7 +338,7 @@ impl SP1ProofShape {
                 Self::Recursion(ProofShape {
                     chip_information: core_shape
                         .into_iter()
-                        .map(|(k, v)| (k.to_string(), v as usize))
+                        .map(|(k, v)| (k.to_string(), v))
                         .collect(),
                 })
             })

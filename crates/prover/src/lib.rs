@@ -42,7 +42,8 @@ use sp1_core_executor::{ExecutionError, ExecutionReport, Executor, Program, SP1C
 use sp1_core_machine::{
     io::SP1Stdin,
     reduce::SP1ReduceProof,
-    riscv::{CoreShapeConfig, RiscvAir},
+    riscv::RiscvAir,
+    shape::CoreShapeConfig,
     utils::{concurrency::TurnBasedSync, SP1CoreProverError},
 };
 use sp1_primitives::{hash_deferred_proof, io::SP1PublicValues};

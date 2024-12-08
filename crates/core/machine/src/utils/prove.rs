@@ -11,7 +11,8 @@ use std::{
 };
 use web_time::Instant;
 
-use crate::riscv::{CoreShapeConfig, RiscvAir};
+use crate::riscv::RiscvAir;
+use crate::shape::CoreShapeConfig;
 use p3_maybe_rayon::prelude::*;
 use sp1_stark::MachineProvingKey;
 use sp1_stark::StarkVerifyingKey;

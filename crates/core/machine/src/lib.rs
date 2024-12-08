@@ -25,6 +25,7 @@ pub mod memory;
 pub mod operations;
 pub mod program;
 pub mod riscv;
+pub mod shape;
 #[cfg(feature = "sys")]
 pub mod sys;
 pub mod syscall;

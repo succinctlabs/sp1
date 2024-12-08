@@ -1,17 +1,17 @@
+use std::borrow::BorrowMut;
+
 use hashbrown::HashMap;
 use itertools::Itertools;
+use p3_field::{PrimeField, PrimeField32};
+use p3_matrix::dense::RowMajorMatrix;
+use p3_maybe_rayon::prelude::{ParallelBridge, ParallelIterator, ParallelSlice};
 use sp1_core_executor::{
     events::{ByteLookupEvent, ByteRecord, CpuEvent, MemoryRecordEnum},
     syscalls::SyscallCode,
     ByteOpcode::{self, U16Range},
-    ExecutionRecord, Instruction, Program, RiscvAirId,
+    ExecutionRecord, Instruction, Program,
 };
 use sp1_stark::air::MachineAir;
-use std::{borrow::BorrowMut, str::FromStr};
-
-use p3_field::{PrimeField, PrimeField32};
-use p3_matrix::dense::RowMajorMatrix;
-use p3_maybe_rayon::prelude::{ParallelBridge, ParallelIterator, ParallelSlice};
 use tracing::instrument;
 
 use super::{columns::NUM_CPU_COLS, CpuChip};

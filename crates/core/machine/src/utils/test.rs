@@ -11,10 +11,7 @@ use sp1_stark::{
     VerifierConstraintFolder,
 };
 
-use crate::{
-    io::SP1Stdin,
-    riscv::{CoreShapeConfig, RiscvAir},
-};
+use crate::{io::SP1Stdin, riscv::RiscvAir, shape::CoreShapeConfig};
 
 use super::prove_core;
 

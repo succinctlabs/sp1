@@ -1,7 +1,4 @@
-mod shape;
-
 pub use riscv_chips::*;
-pub use shape::*;
 
 use core::fmt;
 
@@ -17,7 +14,6 @@ use sp1_stark::{
     Chip, InteractionKind, StarkGenericConfig, StarkMachine,
 };
 use strum_macros::{EnumDiscriminants, EnumIter};
-use tracing::instrument;
 
 use crate::bytes::trace::NUM_ROWS as BYTE_CHIP_NUM_ROWS;
 use crate::{
@@ -26,7 +22,6 @@ use crate::{
     memory::{
         MemoryChipType, MemoryInstructionsChip, MemoryLocalChip, NUM_LOCAL_MEMORY_ENTRIES_PER_ROW,
     },
-    riscv::MemoryChipType::{Finalize, Initialize},
     syscall::{
         instructions::SyscallInstrsChip,
         precompiles::fptower::{Fp2AddSubAssignChip, Fp2MulAssignChip, FpOpChip},
@@ -172,7 +167,6 @@ pub enum RiscvAir<F: PrimeField32> {
 }
 
 impl<F: PrimeField32> RiscvAir<F> {
-    #[instrument("construct RiscvAir machine", level = "debug", skip_all)]
     pub fn machine<SC: StarkGenericConfig<Val = F>>(config: SC) -> StarkMachine<SC, Self> {
         let chips = Self::chips();
         StarkMachine::new(config, chips, SP1_PROOF_NUM_PV_ELTS, true)
@@ -432,41 +426,64 @@ impl<F: PrimeField32> RiscvAir<F> {
     }
 
     /// Get the heights of the chips for a given execution record.
-    pub fn core_heights(record: &ExecutionRecord) -> Vec<(String, usize)> {
+    pub fn core_heights(record: &ExecutionRecord) -> Vec<(RiscvAirId, usize)> {
         vec![
-            (Self::Cpu(CpuChip::default()).name(), record.cpu_events.len()),
-            (Self::DivRem(DivRemChip::default()).name(), record.divrem_events.len()),
+            (RiscvAirId::Cpu, record.cpu_events.len()),
+            (RiscvAirId::DivRem, record.divrem_events.len()),
+            (RiscvAirId::AddSub, record.add_events.len() + record.sub_events.len()),
+            (RiscvAirId::Bitwise, record.bitwise_events.len()),
+            (RiscvAirId::Mul, record.mul_events.len()),
+            (RiscvAirId::ShiftRight, record.shift_right_events.len()),
+            (RiscvAirId::ShiftLeft, record.shift_left_events.len()),
+            (RiscvAirId::Lt, record.lt_events.len()),
             (
-                Self::Add(AddSubChip::default()).name(),
-                record.add_events.len() + record.sub_events.len(),
-            ),
-            (Self::Bitwise(BitwiseChip::default()).name(), record.bitwise_events.len()),
-            (Self::Mul(MulChip::default()).name(), record.mul_events.len()),
-            (Self::ShiftRight(ShiftRightChip::default()).name(), record.shift_right_events.len()),
-            (Self::ShiftLeft(ShiftLeft::default()).name(), record.shift_left_events.len()),
-            (Self::Lt(LtChip::default()).name(), record.lt_events.len()),
-            (
-                Self::MemoryLocal(MemoryLocalChip::new()).name(),
+                RiscvAirId::MemoryLocal,
                 record
                     .get_local_mem_events()
                     .chunks(NUM_LOCAL_MEMORY_ENTRIES_PER_ROW)
                     .into_iter()
                     .count(),
             ),
+            (RiscvAirId::MemoryInstrs, record.memory_instr_events.len()),
+            (RiscvAirId::Auipc, record.auipc_events.len()),
+            (RiscvAirId::Branch, record.branch_events.len()),
+            (RiscvAirId::Jump, record.jump_events.len()),
             (
-                Self::Memory(MemoryInstructionsChip::default()).name(),
-                record.memory_instr_events.len(),
-            ),
-            (Self::AUIPC(AuipcChip::default()).name(), record.auipc_events.len()),
-            (Self::Branch(BranchChip::default()).name(), record.branch_events.len()),
-            (Self::Jump(JumpChip::default()).name(), record.jump_events.len()),
-            (
-                Self::Global(GlobalChip).name(),
+                RiscvAirId::Global,
                 2 * record.get_local_mem_events().count() + record.syscall_events.len(),
             ),
-            (Self::SyscallCore(SyscallChip::core()).name(), record.syscall_events.len()),
-            (Self::SyscallInstrs(SyscallInstrsChip::default()).name(), record.syscall_events.len()),
+            (RiscvAirId::SyscallCore, record.syscall_events.len()),
+            (RiscvAirId::SyscallInstrs, record.syscall_events.len()),
         ]
+    }
+
+    pub(crate) fn memory_heights(record: &ExecutionRecord) -> Vec<(RiscvAirId, usize)> {
+        vec![
+            (RiscvAirId::MemoryGlobalInit, record.global_memory_initialize_events.len()),
+            (RiscvAirId::MemoryGlobalFinalize, record.global_memory_finalize_events.len()),
+            (
+                RiscvAirId::Global,
+                record.global_memory_finalize_events.len()
+                    + record.global_memory_initialize_events.len(),
+            ),
+        ]
+    }
+
+    pub(crate) fn precompile_heights(
+        &self,
+        record: &ExecutionRecord,
+    ) -> Option<(usize, usize, usize)> {
+        record
+            .precompile_events
+            .get_events(self.syscall_code())
+            .filter(|events| !events.is_empty())
+            .map(|events| {
+                (
+                    events.len() * self.rows_per_event(),
+                    events.get_local_mem_events().into_iter().count(),
+                    record.global_interaction_events.len(),
+                )
+            })
     }
 
     pub(crate) fn get_all_core_airs() -> Vec<Self> {
@@ -479,7 +496,7 @@ impl<F: PrimeField32> RiscvAir<F> {
             RiscvAir::Lt(LtChip::default()),
             RiscvAir::ShiftLeft(ShiftLeft::default()),
             RiscvAir::ShiftRight(ShiftRightChip::default()),
-            RiscvAir::Memory(MemoryInstructionsChip::default()), // TODO: naming is not consistent
+            RiscvAir::Memory(MemoryInstructionsChip::default()),
             RiscvAir::AUIPC(AuipcChip::default()),
             RiscvAir::Branch(BranchChip::default()),
             RiscvAir::Jump(JumpChip::default()),
@@ -498,44 +515,28 @@ impl<F: PrimeField32> RiscvAir<F> {
         ]
     }
 
-    pub(crate) fn get_memory_init_final_heights(record: &ExecutionRecord) -> Vec<(String, usize)> {
-        vec![
-            (
-                Self::MemoryGlobalInit(MemoryGlobalChip::new(Initialize)).name(),
-                record.global_memory_initialize_events.len(),
-            ),
-            (
-                Self::MemoryGlobalFinal(MemoryGlobalChip::new(Finalize)).name(),
-                record.global_memory_finalize_events.len(),
-            ),
-            (
-                Self::Global(GlobalChip).name(),
-                record.global_memory_finalize_events.len()
-                    + record.global_memory_initialize_events.len(),
-            ),
-        ]
-    }
-
-    pub(crate) fn get_all_precompile_airs() -> Vec<(Self, usize)> {
+    pub(crate) fn precompile_airs_with_memory_events_per_row() -> Vec<(Self, usize)> {
         let mut airs: HashSet<_> = Self::get_airs_and_costs().0.into_iter().collect();
+
+        // Remove the core airs.
         for core_air in Self::get_all_core_airs() {
             airs.remove(&core_air);
         }
+
+        // Remove the memory init/finalize airs.
         for memory_air in Self::memory_init_final_airs() {
             airs.remove(&memory_air);
         }
-        airs.remove(&Self::SyscallPrecompile(SyscallChip::precompile()));
 
-        // Remove the preprocessed chips.
+        // Remove the syscall, program, and byte lookup airs.
+        airs.remove(&Self::SyscallPrecompile(SyscallChip::precompile()));
         airs.remove(&Self::Program(ProgramChip::default()));
-        // TODO: why is this removed
-        // airs.remove(&Self::ProgramMemory(MemoryProgramChip::default()));
         airs.remove(&Self::ByteLookup(ByteChip::default()));
 
         airs.into_iter()
             .map(|air| {
                 let chip = Chip::new(air);
-                let local_mem_events: usize = chip
+                let local_mem_events_per_row: usize = chip
                     .sends()
                     .iter()
                     .chain(chip.receives())
@@ -545,7 +546,7 @@ impl<F: PrimeField32> RiscvAir<F> {
                     })
                     .count();
 
-                (chip.into_inner(), local_mem_events)
+                (chip.into_inner(), local_mem_events_per_row)
             })
             .collect()
     }
@@ -608,28 +609,6 @@ impl<F: PrimeField32> RiscvAir<F> {
             Self::SyscallCore(_) => unreachable!("Invalid for core chip"),
             Self::SyscallPrecompile(_) => unreachable!("Invalid for syscall precompile chip"),
         }
-    }
-
-    /// Get the height of the corresponding precompile chip.
-    ///
-    /// If the precompile is not included in the record, returns `None`. Otherwise, returns
-    /// `Some(num_rows, num_local_mem_events)`, where `num_rows` is the number of rows of the
-    /// corresponding chip and `num_local_mem_events` is the number of local memory events.
-    pub(crate) fn get_precompile_heights(
-        &self,
-        record: &ExecutionRecord,
-    ) -> Option<(usize, usize, usize)> {
-        record
-            .precompile_events
-            .get_events(self.syscall_code())
-            .filter(|events| !events.is_empty())
-            .map(|events| {
-                (
-                    events.len() * self.rows_per_event(),
-                    events.get_local_mem_events().into_iter().count(),
-                    record.global_interaction_events.len(),
-                )
-            })
     }
 }
 
