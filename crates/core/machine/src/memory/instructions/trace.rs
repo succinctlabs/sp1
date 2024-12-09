@@ -73,6 +73,10 @@ impl<F: PrimeField32> MachineAir<F> for MemoryInstructionsChip {
             !shard.memory_instr_events.is_empty()
         }
     }
+
+    fn local_only(&self) -> bool {
+        true
+    }
 }
 
 impl MemoryInstructionsChip {
@@ -199,5 +203,15 @@ impl MemoryInstructionsChip {
 
         cols.most_sig_bytes_zero
             .populate_from_field_element(cols.addr_word[1] + cols.addr_word[2] + cols.addr_word[3]);
+
+        if cols.most_sig_bytes_zero.result == F::one() {
+            blu.add_byte_lookup_event(ByteLookupEvent {
+                opcode: ByteOpcode::LTU,
+                a1: 1,
+                a2: 0,
+                b: 32,
+                c: cols.addr_word[0].as_canonical_u32() as u8,
+            });
+        }
     }
 }
