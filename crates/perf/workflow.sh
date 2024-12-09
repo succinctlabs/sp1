@@ -43,8 +43,8 @@ CUDA_WORKLOADS=(
 
 # Define the list of network workloads.
 NETWORK_WORKLOADS=(
-    # "fibonacci-17k"
-    # "ssz-withdrawals"
+    "fibonacci-17k"
+    "ssz-withdrawals"
     # "tendermint"
     # "rsp-20526624"
     # "rsa"
@@ -69,8 +69,8 @@ NETWORK_WORKLOADS=(
 
 # Define the list of simple executor workloads.
 SIMPLE_WORKLOADS=(
-    "fibonacci-17k"
-    "ssz-withdrawals"
+    # "fibonacci-17k"
+    # "ssz-withdrawals"
     # "tendermint"
     # "rsp-20526624"
     # "rsa"
@@ -88,8 +88,8 @@ SIMPLE_WORKLOADS=(
 
 # Define the list of checkpoint executor workloads.
 CHECKPOINT_WORKLOADS=(
-    "fibonacci-17k"
-    "ssz-withdrawals"
+    # "fibonacci-17k"
+    # "ssz-withdrawals"
     # "tendermint"
     # "rsp-20526624"
     # "rsa"
@@ -107,8 +107,8 @@ CHECKPOINT_WORKLOADS=(
 
 # Define the list of trace executor workloads.
 TRACE_WORKLOADS=(
-    "fibonacci-17k"
-    "ssz-withdrawals"
+    # "fibonacci-17k"
+    # "ssz-withdrawals"
     # "tendermint"
     # "rsp-20526624"
     # "rsa"
