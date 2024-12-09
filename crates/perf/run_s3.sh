@@ -5,7 +5,7 @@ stage="prove"
 
 # Check the number of arguments
 if [ $# -lt 2 ] || [ $# -gt 3 ]; then
-    echo "Usage: $0 <s3_path> <cpu|cuda> [execute|prove]"
+    echo "Usage: $0 <s3_path> <cpu|cuda|network> [execute|prove]"
     exit 1
 fi
 
@@ -28,4 +28,4 @@ export RUST_LOG=debug
 export SP1_DEBUG=1
 
 # Run moongate-perf
-cargo run -p sp1-perf -- --program program.bin --stdin stdin.bin --mode $kind --stage $stage
+cargo run -p sp1-perf -- --program program.bin --stdin stdin.bin --prover-mode $kind

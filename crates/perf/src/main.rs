@@ -128,24 +128,6 @@ fn main() {
                 }
                 ExecutorMode::ShapeCollection => unimplemented!(),
             }
-<<<<<<< HEAD
-
-            let prover = prover_builder.private_key(private_key).build();
-            let (_, _) = time_operation(|| prover.execute(&elf, stdin.clone()));
-
-            let (proof, _) =
-                time_operation(|| prover.prove(&pk, stdin.clone()).compressed().run().unwrap());
-
-            // let (proof, _) =
-            //     time_operation(|| prover.prove(&pk, stdin.clone()).groth16().run().unwrap());
-
-            // let (_, _) = time_operation(|| prover.verify(&proof, &vk));
-
-            // let (proof, _) = time_operation(|| prover.prove(&pk, stdin).plonk().run().unwrap());
-
-            let (_, _) = time_operation(|| prover.verify(&proof, &vk));
-=======
->>>>>>> 3c43a65b4e12407aaae054dff7c7b4681bf0e9ce
         }
         (None, Some(prover_mode)) => {
             let prover = SP1Prover::<DefaultProverComponents>::new();
@@ -309,15 +291,21 @@ fn main() {
                     let (_, _) = time_operation(|| prover.execute(&elf, stdin.clone()));
 
                     let (proof, _) = time_operation(|| {
-                        prover.prove(&pk, stdin.clone()).groth16().run().unwrap()
+                        prover.prove(&pk, stdin.clone()).compressed().run().unwrap()
                     });
 
                     let (_, _) = time_operation(|| prover.verify(&proof, &vk));
 
-                    let (proof, _) =
-                        time_operation(|| prover.prove(&pk, stdin).plonk().run().unwrap());
+                    // let (proof, _) = time_operation(|| {
+                    //     prover.prove(&pk, stdin.clone()).groth16().run().unwrap()
+                    // });
 
-                    let (_, _) = time_operation(|| prover.verify(&proof, &vk));
+                    // let (_, _) = time_operation(|| prover.verify(&proof, &vk));
+
+                    // let (proof, _) =
+                    //     time_operation(|| prover.prove(&pk, stdin).plonk().run().unwrap());
+
+                    // let (_, _) = time_operation(|| prover.verify(&proof, &vk));
                 }
                 ProverMode::Mock => unreachable!(),
             };
