@@ -209,7 +209,7 @@ impl MemoryInstructionsChip {
                 opcode: ByteOpcode::LTU,
                 a1: 1,
                 a2: 0,
-                b: 32,
+                b: 31,
                 c: cols.addr_word[0].as_canonical_u32() as u8,
             });
         }

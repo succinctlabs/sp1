@@ -135,7 +135,7 @@ impl MemoryInstructionsChip {
         builder.send_byte(
             ByteOpcode::LTU.as_field::<AB::F>(),
             AB::Expr::one(),
-            AB::Expr::from_canonical_u8(32),
+            AB::Expr::from_canonical_u8(31),
             local.addr_word[0],
             local.most_sig_bytes_zero.result,
         );
