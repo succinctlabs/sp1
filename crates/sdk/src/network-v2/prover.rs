@@ -86,7 +86,7 @@ impl NetworkProver {
     /// - If a cycle limit was explicitly set, use that
     /// - If simulation is enabled (default), calculate limit by simulating
     /// - Otherwise use the default cycle limit
-    #[must_use = "cycle limit is required for proof generation and should be handled"]
+    #[allow(clippy::must_use_candidate)]
     fn get_cycle_limit(
         &self,
         elf: &[u8],
