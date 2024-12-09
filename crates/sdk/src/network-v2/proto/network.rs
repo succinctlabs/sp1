@@ -16,29 +16,26 @@ pub struct RequestProofRequestBody {
     /// The account nonce of the sender.
     #[prost(uint64, tag = "1")]
     pub nonce: u64,
+    /// The verification key hash of the program.
+    #[prost(bytes = "vec", tag = "2")]
+    pub vk_hash: ::prost::alloc::vec::Vec<u8>,
     /// The version of the prover to use.
-    #[prost(string, tag = "2")]
+    #[prost(string, tag = "3")]
     pub version: ::prost::alloc::string::String,
-    /// The verification key.
-    #[prost(bytes = "vec", tag = "3")]
-    pub vkey: ::prost::alloc::vec::Vec<u8>,
     /// The mode for the request.
     #[prost(enumeration = "ProofMode", tag = "4")]
     pub mode: i32,
     /// The strategy for fulfiller assignment.
     #[prost(enumeration = "FulfillmentStrategy", tag = "5")]
     pub strategy: i32,
-    /// The program resource identifier.
-    #[prost(string, tag = "6")]
-    pub program_uri: ::prost::alloc::string::String,
     /// The stdin resource identifier.
-    #[prost(string, tag = "7")]
+    #[prost(string, tag = "6")]
     pub stdin_uri: ::prost::alloc::string::String,
     /// The deadline for the request.
-    #[prost(uint64, tag = "8")]
+    #[prost(uint64, tag = "7")]
     pub deadline: u64,
     /// The cycle limit for the request.
-    #[prost(uint64, tag = "9")]
+    #[prost(uint64, tag = "8")]
     pub cycle_limit: u64,
 }
 #[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
@@ -203,9 +200,9 @@ pub struct ProofRequest {
     /// The request identifier.
     #[prost(bytes = "vec", tag = "1")]
     pub request_id: ::prost::alloc::vec::Vec<u8>,
-    /// The program identifier.
+    /// The verification key hash of the program.
     #[prost(bytes = "vec", tag = "2")]
-    pub program_id: ::prost::alloc::vec::Vec<u8>,
+    pub vk_hash: ::prost::alloc::vec::Vec<u8>,
     /// The version of the prover to use.
     #[prost(string, tag = "3")]
     pub version: ::prost::alloc::string::String,
@@ -257,12 +254,21 @@ pub struct ProofRequest {
     /// The unix timestamp of when the request was updated.
     #[prost(uint64, tag = "19")]
     pub updated_at: u64,
+    /// The unix timestamp of when the request was fulfilled.
+    #[prost(uint64, optional, tag = "20")]
+    pub fulfilled_at: ::core::option::Option<u64>,
     /// The transaction hash of the request.
-    #[prost(bytes = "vec", tag = "20")]
+    #[prost(bytes = "vec", tag = "21")]
     pub tx_hash: ::prost::alloc::vec::Vec<u8>,
     /// The cycle count for the request.
-    #[prost(uint64, optional, tag = "21")]
+    #[prost(uint64, optional, tag = "22")]
     pub cycles: ::core::option::Option<u64>,
+    /// The amount deducted from the fulfiller's balance.
+    #[prost(string, optional, tag = "23")]
+    pub deduction_amount: ::core::option::Option<::prost::alloc::string::String>,
+    /// The amount refunded to the fulfiller's balance.
+    #[prost(string, optional, tag = "24")]
+    pub refund_amount: ::core::option::Option<::prost::alloc::string::String>,
 }
 #[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
 pub struct GetProofRequestStatusRequest {
@@ -317,9 +323,9 @@ pub struct GetFilteredProofRequestsRequest {
     /// Only returns requests with deadlines after this timestamp.
     #[prost(uint64, optional, tag = "4")]
     pub minimum_deadline: ::core::option::Option<u64>,
-    /// The optional program identifier to filter for.
+    /// The optional verification key hash of the program to filter for.
     #[prost(bytes = "vec", optional, tag = "5")]
-    pub program_id: ::core::option::Option<::prost::alloc::vec::Vec<u8>>,
+    pub vk_hash: ::core::option::Option<::prost::alloc::vec::Vec<u8>>,
     /// The optional requester address to filter for.
     #[prost(bytes = "vec", optional, tag = "6")]
     pub requester: ::core::option::Option<::prost::alloc::vec::Vec<u8>>,
@@ -765,7 +771,7 @@ pub struct SetProgramNameRequestBody {
     /// The identifier of the program to update the name of. Only the original
     /// program creator can update the name unless authorized.
     #[prost(bytes = "vec", tag = "2")]
-    pub program_id: ::prost::alloc::vec::Vec<u8>,
+    pub vk_hash: ::prost::alloc::vec::Vec<u8>,
     /// The name of the program. Must be unique.
     #[prost(string, tag = "3")]
     pub name: ::prost::alloc::string::String,
@@ -1953,7 +1959,7 @@ pub mod prover_network_client {
             req.extensions_mut().insert(GrpcMethod::new("network.ProverNetwork", "SetProgramName"));
             self.inner.unary(req, path, codec).await
         }
-        /// Get the avaliable balance of an account.
+        /// Get the available balance of an account.
         pub async fn get_balance(
             &mut self,
             request: impl tonic::IntoRequest<super::GetBalanceRequest>,
@@ -2311,7 +2317,7 @@ pub mod prover_network_server {
             &self,
             request: tonic::Request<super::SetProgramNameRequest>,
         ) -> std::result::Result<tonic::Response<super::SetProgramNameResponse>, tonic::Status>;
-        /// Get the avaliable balance of an account.
+        /// Get the available balance of an account.
         async fn get_balance(
             &self,
             request: tonic::Request<super::GetBalanceRequest>,

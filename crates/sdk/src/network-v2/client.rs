@@ -1,21 +1,19 @@
-use std::{env, time::Duration};
+use std::result::Result::Ok as StdOk;
+use std::str::FromStr;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use alloy_signer::SignerSync;
 use alloy_signer_local::PrivateKeySigner;
 use anyhow::{Context, Ok, Result};
 use reqwest_middleware::ClientWithMiddleware as HttpClientWithMiddleware;
-use serde::de::DeserializeOwned;
-use serde::Serialize;
+use serde::{de::DeserializeOwned, Serialize};
+use tonic::{
+    transport::{channel::ClientTlsConfig, Channel},
+    Code,
+};
+
 use sp1_core_machine::io::SP1Stdin;
-use sp1_prover::HashableKey;
-use sp1_prover::SP1VerifyingKey;
-use std::result::Result::Ok as StdOk;
-use std::str::FromStr;
-use std::time::{SystemTime, UNIX_EPOCH};
-use tokio::try_join;
-use tonic::transport::channel::ClientTlsConfig;
-use tonic::transport::Channel;
-use tonic::Code;
+use sp1_prover::{HashableKey, SP1VerifyingKey};
 
 use crate::network_v2::proto::artifact::{
     artifact_store_client::ArtifactStoreClient, CreateArtifactRequest,
@@ -35,11 +33,12 @@ pub const DEFAULT_PROVER_NETWORK_RPC: &str = "https://rpc.production.succinct.to
 pub struct NetworkClient {
     signer: PrivateKeySigner,
     http: HttpClientWithMiddleware,
+    rpc_url: String,
 }
 
 impl NetworkClient {
     /// Create a new network client with the given private key.
-    pub fn new(private_key: &str) -> Self {
+    pub fn new(private_key: &str, rpc_url: Option<String>) -> Self {
         let signer = PrivateKeySigner::from_str(private_key).unwrap();
 
         let http_client = reqwest::Client::builder()
@@ -48,17 +47,21 @@ impl NetworkClient {
             .build()
             .unwrap();
 
-        Self { signer, http: http_client.into() }
+        Self {
+            signer,
+            http: http_client.into(),
+            rpc_url: rpc_url.unwrap_or_else(|| DEFAULT_PROVER_NETWORK_RPC.to_string()),
+        }
     }
 
     /// Returns the currently configured RPC endpoint for the Succinct prover network.
-    pub fn rpc_url() -> String {
-        env::var("PROVER_NETWORK_RPC").unwrap_or_else(|_| DEFAULT_PROVER_NETWORK_RPC.to_string())
+    pub fn rpc_url(&self) -> String {
+        self.rpc_url.clone()
     }
 
     /// Get a connected RPC client.
     async fn get_rpc(&self) -> Result<ProverNetworkClient<Channel>> {
-        let rpc_url = Self::rpc_url();
+        let rpc_url = self.rpc_url();
         let mut endpoint = Channel::from_shared(rpc_url.clone())?;
 
         // Check if the URL scheme is HTTPS and configure TLS.
@@ -73,7 +76,7 @@ impl NetworkClient {
 
     /// Get a connected artifact store client.
     async fn get_store(&self) -> Result<ArtifactStoreClient<Channel>> {
-        let rpc_url = Self::rpc_url();
+        let rpc_url = self.rpc_url();
         let mut endpoint = Channel::from_shared(rpc_url.clone())?;
 
         // Check if the URL scheme is HTTPS and configure TLS.
@@ -194,13 +197,12 @@ impl NetworkClient {
         Ok((res, proof))
     }
 
-    /// Creates a proof request with the given ELF and stdin.
+    /// Creates a proof request with the given verifying key hash and stdin.
     #[allow(clippy::too_many_arguments)]
     pub async fn request_proof(
         &self,
-        elf: &[u8],
+        vk_hash: &[u8],
         stdin: &SP1Stdin,
-        vk: &SP1VerifyingKey,
         mode: ProofMode,
         version: &str,
         strategy: FulfillmentStrategy,
@@ -212,15 +214,9 @@ impl NetworkClient {
         let since_the_epoch = start.duration_since(UNIX_EPOCH).expect("Invalid start time");
         let deadline = since_the_epoch.as_secs() + timeout_secs;
 
-        // Create the program and stdin artifacts.
+        // Create the stdin artifact.
         let mut store = self.get_store().await?;
-        let mut store_clone = store.clone();
-        let program_promise = self.create_artifact_with_content(&mut store, &elf);
-        let stdin_promise = self.create_artifact_with_content(&mut store_clone, &stdin);
-        let (program_uri, stdin_uri) = try_join!(program_promise, stdin_promise)?;
-
-        // Serialize the vkey.
-        let vkey = bincode::serialize(&vk)?;
+        let stdin_uri = self.create_artifact_with_content(&mut store, &stdin).await?;
 
         // Send the request.
         let mut rpc = self.get_rpc().await?;
@@ -228,10 +224,9 @@ impl NetworkClient {
         let request_body = RequestProofRequestBody {
             nonce,
             version: format!("sp1-{}", version),
-            vkey,
+            vk_hash: vk_hash.to_vec(),
             mode: mode.into(),
             strategy: strategy.into(),
-            program_uri,
             stdin_uri,
             deadline,
             cycle_limit,
