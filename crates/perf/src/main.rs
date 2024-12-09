@@ -3,26 +3,44 @@ use std::{
     time::{Duration, Instant},
 };
 
-use clap::ValueEnum;
 use clap::{command, Parser};
+use p3_baby_bear::BabyBear;
+use sp1_core_executor::{Executor, ExecutorMode, Program};
+use sp1_core_machine::shape::CoreShapeConfig;
 use sp1_cuda::SP1CudaProver;
 use sp1_prover::HashableKey;
 use sp1_prover::{components::DefaultProverComponents, ProverMode};
 use sp1_sdk::{self, ProverClient, SP1Context, SP1Prover, SP1Stdin};
-use sp1_stark::SP1ProverOpts;
+use sp1_stark::{SP1CoreOpts, SP1ProverOpts};
 use test_artifacts::VERIFY_PROOF_ELF;
 
 #[derive(Parser, Clone)]
 #[command(about = "Evaluate the performance of SP1 on programs.")]
+#[command(group(
+    clap::ArgGroup::new("modes")
+        .required(true)
+        .args(["executor_mode", "prover_mode"]),
+))]
 struct PerfArgs {
+    /// The program to evaluate.
     #[arg(short, long)]
     pub program: String,
+
+    /// The input to the program being evaluated.
     #[arg(short, long)]
     pub stdin: String,
-    #[arg(short, long)]
-    pub mode: ProverMode,
-    #[arg(short, long, default_value = "prove")]
-    pub stage: Stage,
+
+    /// The prover mode to use.
+    ///
+    /// Provide this only in prove mode.
+    #[arg(short, long, group = "modes")]
+    pub prover_mode: Option<ProverMode>,
+
+    /// The executor mode to use.
+    ///
+    /// Provide this only in execute mode.
+    #[arg(short, long, group = "modes")]
+    pub executor_mode: Option<ExecutorMode>,
 }
 
 #[derive(Default, Debug, Clone)]
@@ -40,12 +58,6 @@ struct PerfResult {
     pub verify_wrap_duration: Duration,
 }
 
-#[derive(Debug, Clone, ValueEnum, PartialEq, Eq)]
-enum Stage {
-    Execute,
-    Prove,
-}
-
 pub fn time_operation<T, F: FnOnce() -> T>(operation: F) -> (T, std::time::Duration) {
     let start = Instant::now();
     let result = operation();
@@ -61,156 +73,62 @@ fn main() {
     let stdin = std::fs::read(args.stdin).expect("failed to read stdin");
     let stdin: SP1Stdin = bincode::deserialize(&stdin).expect("failed to deserialize stdin");
 
-    let prover = SP1Prover::<DefaultProverComponents>::new();
-    let (pk, pk_d, program, vk) = prover.setup(&elf);
-    let cycles = sp1_prover::utils::get_cycles(&elf, &stdin);
-    let stage = args.stage;
-    if stage == Stage::Execute {
-        println!("Program executed successfully, number of cycles: {}", cycles);
-        return;
-    }
     let opts = SP1ProverOpts::default();
 
-    match args.mode {
-        ProverMode::Cpu => {
-            let context = SP1Context::default();
-            let (_, execution_duration) =
-                time_operation(|| prover.execute(&elf, &stdin, context.clone()));
+    match (args.executor_mode, args.prover_mode) {
+        (Some(executor_mode), None) => {
+            let mut program = Program::from(&elf).expect("failed to parse program");
+            let shape_config = CoreShapeConfig::<BabyBear>::default();
+            shape_config.fix_preprocessed_shape(&mut program).unwrap();
+            let maximal_shapes = shape_config
+                .maximal_core_shapes(opts.core_opts.shard_size.ilog2() as usize)
+                .into_iter()
+                .collect::<Vec<_>>();
 
-            let (core_proof, prove_core_duration) = time_operation(|| {
-                prover.prove_core(&pk_d, program, &stdin, opts, context).unwrap()
-            });
-
-            let (_, verify_core_duration) =
-                time_operation(|| prover.verify(&core_proof.proof, &vk));
-
-            let proofs = stdin.proofs.into_iter().map(|(proof, _)| proof).collect::<Vec<_>>();
-            let (compress_proof, compress_duration) =
-                time_operation(|| prover.compress(&vk, core_proof.clone(), proofs, opts).unwrap());
-
-            let (_, verify_compressed_duration) =
-                time_operation(|| prover.verify_compressed(&compress_proof, &vk));
-
-            let (shrink_proof, shrink_duration) =
-                time_operation(|| prover.shrink(compress_proof.clone(), opts).unwrap());
-
-            let (_, verify_shrink_duration) =
-                time_operation(|| prover.verify_shrink(&shrink_proof, &vk));
-
-            let (wrapped_bn254_proof, wrap_duration) =
-                time_operation(|| prover.wrap_bn254(shrink_proof, opts).unwrap());
-
-            let (_, verify_wrap_duration) =
-                time_operation(|| prover.verify_wrap_bn254(&wrapped_bn254_proof, &vk));
-
-            // Generate a proof that verifies two deferred proofs from the proof above.
-            let (_, pk_verify_proof_d, pk_verify_program, vk_verify_proof) =
-                prover.setup(VERIFY_PROOF_ELF);
-            let pv = core_proof.public_values.to_vec();
-
-            let mut stdin = SP1Stdin::new();
-            let vk_u32 = vk.hash_u32();
-            stdin.write::<[u32; 8]>(&vk_u32);
-            stdin.write::<Vec<Vec<u8>>>(&vec![pv.clone(), pv.clone()]);
-            stdin.write_proof(compress_proof.clone(), vk.vk.clone());
-            stdin.write_proof(compress_proof.clone(), vk.vk.clone());
-
-            let context = SP1Context::default();
-            let (core_proof, _) = time_operation(|| {
-                prover
-                    .prove_core(&pk_verify_proof_d, pk_verify_program, &stdin, opts, context)
-                    .unwrap()
-            });
-            let deferred_proofs =
-                stdin.proofs.into_iter().map(|(proof, _)| proof).collect::<Vec<_>>();
-            let (compress_proof, _) = time_operation(|| {
-                prover
-                    .compress(&vk_verify_proof, core_proof.clone(), deferred_proofs, opts)
-                    .unwrap()
-            });
-            prover.verify_compressed(&compress_proof, &vk_verify_proof).unwrap();
-
-            let result = PerfResult {
-                cycles,
-                execution_duration,
-                prove_core_duration,
-                verify_core_duration,
-                compress_duration,
-                verify_compressed_duration,
-                shrink_duration,
-                verify_shrink_duration,
-                wrap_duration,
-                verify_wrap_duration,
-            };
-
-            println!("{:?}", result);
-        }
-        ProverMode::Cuda => {
-            let server = SP1CudaProver::new().expect("failed to initialize CUDA prover");
-
-            let context = SP1Context::default();
-            let (_, execution_duration) =
-                time_operation(|| prover.execute(&elf, &stdin, context.clone()));
-
-            let (_, _) = time_operation(|| server.setup(&elf).unwrap());
-
-            let (core_proof, prove_core_duration) =
-                time_operation(|| server.prove_core(&stdin).unwrap());
-
-            let (_, verify_core_duration) = time_operation(|| {
-                prover.verify(&core_proof.proof, &vk).expect("Proof verification failed")
-            });
-
-            let proofs = stdin.proofs.into_iter().map(|(proof, _)| proof).collect::<Vec<_>>();
-            let (compress_proof, compress_duration) =
-                time_operation(|| server.compress(&vk, core_proof, proofs).unwrap());
-
-            let (_, verify_compressed_duration) =
-                time_operation(|| prover.verify_compressed(&compress_proof, &vk));
-
-            let (shrink_proof, shrink_duration) =
-                time_operation(|| server.shrink(compress_proof).unwrap());
-
-            let (_, verify_shrink_duration) =
-                time_operation(|| prover.verify_shrink(&shrink_proof, &vk));
-
-            let (_, wrap_duration) = time_operation(|| server.wrap_bn254(shrink_proof).unwrap());
-
-            // TODO: FIX
-            // let (_, verify_wrap_duration) =
-            //     time_operation(|| prover.verify_wrap_bn254(&wrapped_bn254_proof, &vk));
-
-            let result = PerfResult {
-                cycles,
-                execution_duration,
-                prove_core_duration,
-                verify_core_duration,
-                compress_duration,
-                verify_compressed_duration,
-                shrink_duration,
-                verify_shrink_duration,
-                wrap_duration,
-                ..Default::default()
-            };
-
-            println!("{:?}", result);
-        }
-        ProverMode::Network => {
-            let private_key = env::var("SP1_PRIVATE_KEY")
-                .expect("SP1_PRIVATE_KEY must be set for remote proving");
-            let rpc_url = env::var("PROVER_NETWORK_RPC").ok();
-            let skip_simulation =
-                env::var("SKIP_SIMULATION").map(|val| val == "true").unwrap_or_default();
-
-            let mut prover_builder = ProverClient::builder().mode(ProverMode::Network);
-
-            if let Some(rpc_url) = rpc_url {
-                prover_builder = prover_builder.rpc_url(rpc_url);
+            let mut executor = Executor::new(program, SP1CoreOpts::default());
+            executor.maximal_shapes = Some(maximal_shapes);
+            executor.write_vecs(&stdin.buffer);
+            for (proof, vkey) in stdin.proofs.iter() {
+                executor.write_proof(proof.clone(), vkey.clone());
             }
 
-            if skip_simulation {
-                prover_builder = prover_builder.skip_simulation();
+            match executor_mode {
+                ExecutorMode::Simple => {
+                    let (_, execution_duration) = time_operation(|| executor.run_fast());
+                    println!("Simple mode:");
+                    println!("cycles: {}", executor.state.global_clk);
+                    println!(
+                        "MHZ: {}",
+                        executor.state.global_clk as f64
+                            / 1_000_000.0
+                            / execution_duration.as_secs_f64()
+                    );
+                }
+                ExecutorMode::Checkpoint => {
+                    let (_, execution_duration) = time_operation(|| executor.run_checkpoint(true));
+                    println!("Checkpoint mode:");
+                    println!("cycles: {}", executor.state.global_clk);
+                    println!(
+                        "MHZ: {}",
+                        executor.state.global_clk as f64
+                            / 1_000_000.0
+                            / execution_duration.as_secs_f64()
+                    );
+                }
+                ExecutorMode::Trace => {
+                    let (_, execution_duration) = time_operation(|| executor.run());
+                    println!("Trace mode:");
+                    println!("cycles: {}", executor.state.global_clk);
+                    println!(
+                        "MHZ: {}",
+                        executor.state.global_clk as f64
+                            / 1_000_000.0
+                            / execution_duration.as_secs_f64()
+                    );
+                }
+                ExecutorMode::ShapeCollection => unimplemented!(),
             }
+<<<<<<< HEAD
 
             let prover = prover_builder.private_key(private_key).build();
             let (_, _) = time_operation(|| prover.execute(&elf, stdin.clone()));
@@ -226,7 +144,184 @@ fn main() {
             // let (proof, _) = time_operation(|| prover.prove(&pk, stdin).plonk().run().unwrap());
 
             let (_, _) = time_operation(|| prover.verify(&proof, &vk));
+=======
+>>>>>>> 3c43a65b4e12407aaae054dff7c7b4681bf0e9ce
         }
-        ProverMode::Mock => unreachable!(),
-    };
+        (None, Some(prover_mode)) => {
+            let prover = SP1Prover::<DefaultProverComponents>::new();
+            let (pk, pk_d, program, vk) = prover.setup(&elf);
+            match prover_mode {
+                ProverMode::Cpu => {
+                    let context = SP1Context::default();
+                    let (report, execution_duration) =
+                        time_operation(|| prover.execute(&elf, &stdin, context.clone()));
+
+                    let cycles = report.expect("execution failed").1.total_instruction_count();
+
+                    let (core_proof, prove_core_duration) = time_operation(|| {
+                        prover.prove_core(&pk_d, program, &stdin, opts, context).unwrap()
+                    });
+
+                    let (_, verify_core_duration) =
+                        time_operation(|| prover.verify(&core_proof.proof, &vk));
+
+                    let proofs =
+                        stdin.proofs.into_iter().map(|(proof, _)| proof).collect::<Vec<_>>();
+                    let (compress_proof, compress_duration) = time_operation(|| {
+                        prover.compress(&vk, core_proof.clone(), proofs, opts).unwrap()
+                    });
+
+                    let (_, verify_compressed_duration) =
+                        time_operation(|| prover.verify_compressed(&compress_proof, &vk));
+
+                    let (shrink_proof, shrink_duration) =
+                        time_operation(|| prover.shrink(compress_proof.clone(), opts).unwrap());
+
+                    let (_, verify_shrink_duration) =
+                        time_operation(|| prover.verify_shrink(&shrink_proof, &vk));
+
+                    let (wrapped_bn254_proof, wrap_duration) =
+                        time_operation(|| prover.wrap_bn254(shrink_proof, opts).unwrap());
+
+                    let (_, verify_wrap_duration) =
+                        time_operation(|| prover.verify_wrap_bn254(&wrapped_bn254_proof, &vk));
+
+                    // Generate a proof that verifies two deferred proofs from the proof above.
+                    let (_, pk_verify_proof_d, pk_verify_program, vk_verify_proof) =
+                        prover.setup(VERIFY_PROOF_ELF);
+                    let pv = core_proof.public_values.to_vec();
+
+                    let mut stdin = SP1Stdin::new();
+                    let vk_u32 = vk.hash_u32();
+                    stdin.write::<[u32; 8]>(&vk_u32);
+                    stdin.write::<Vec<Vec<u8>>>(&vec![pv.clone(), pv.clone()]);
+                    stdin.write_proof(compress_proof.clone(), vk.vk.clone());
+                    stdin.write_proof(compress_proof.clone(), vk.vk.clone());
+
+                    let context = SP1Context::default();
+                    let (core_proof, _) = time_operation(|| {
+                        prover
+                            .prove_core(
+                                &pk_verify_proof_d,
+                                pk_verify_program,
+                                &stdin,
+                                opts,
+                                context,
+                            )
+                            .unwrap()
+                    });
+                    let deferred_proofs =
+                        stdin.proofs.into_iter().map(|(proof, _)| proof).collect::<Vec<_>>();
+                    let (compress_proof, _) = time_operation(|| {
+                        prover
+                            .compress(&vk_verify_proof, core_proof.clone(), deferred_proofs, opts)
+                            .unwrap()
+                    });
+                    prover.verify_compressed(&compress_proof, &vk_verify_proof).unwrap();
+
+                    let result = PerfResult {
+                        cycles,
+                        execution_duration,
+                        prove_core_duration,
+                        verify_core_duration,
+                        compress_duration,
+                        verify_compressed_duration,
+                        shrink_duration,
+                        verify_shrink_duration,
+                        wrap_duration,
+                        verify_wrap_duration,
+                    };
+
+                    println!("{:?}", result);
+                }
+                ProverMode::Cuda => {
+                    let server = SP1CudaProver::new().expect("failed to initialize CUDA prover");
+
+                    let context = SP1Context::default();
+                    let (report, execution_duration) =
+                        time_operation(|| prover.execute(&elf, &stdin, context.clone()));
+
+                    let cycles = report.expect("execution failed").1.total_instruction_count();
+
+                    let (_, _) = time_operation(|| server.setup(&elf).unwrap());
+
+                    let (core_proof, prove_core_duration) =
+                        time_operation(|| server.prove_core(&stdin).unwrap());
+
+                    let (_, verify_core_duration) = time_operation(|| {
+                        prover.verify(&core_proof.proof, &vk).expect("Proof verification failed")
+                    });
+
+                    let proofs =
+                        stdin.proofs.into_iter().map(|(proof, _)| proof).collect::<Vec<_>>();
+                    let (compress_proof, compress_duration) =
+                        time_operation(|| server.compress(&vk, core_proof, proofs).unwrap());
+
+                    let (_, verify_compressed_duration) =
+                        time_operation(|| prover.verify_compressed(&compress_proof, &vk));
+
+                    let (shrink_proof, shrink_duration) =
+                        time_operation(|| server.shrink(compress_proof).unwrap());
+
+                    let (_, verify_shrink_duration) =
+                        time_operation(|| prover.verify_shrink(&shrink_proof, &vk));
+
+                    let (_, wrap_duration) =
+                        time_operation(|| server.wrap_bn254(shrink_proof).unwrap());
+
+                    // TODO: FIX
+                    // let (_, verify_wrap_duration) =
+                    //     time_operation(|| prover.verify_wrap_bn254(&wrapped_bn254_proof, &vk));
+
+                    let result = PerfResult {
+                        cycles,
+                        execution_duration,
+                        prove_core_duration,
+                        verify_core_duration,
+                        compress_duration,
+                        verify_compressed_duration,
+                        shrink_duration,
+                        verify_shrink_duration,
+                        wrap_duration,
+                        ..Default::default()
+                    };
+
+                    println!("{:?}", result);
+                }
+                ProverMode::Network => {
+                    let private_key = env::var("SP1_PRIVATE_KEY")
+                        .expect("SP1_PRIVATE_KEY must be set for remote proving");
+                    let rpc_url = env::var("PROVER_NETWORK_RPC").ok();
+                    let skip_simulation =
+                        env::var("SKIP_SIMULATION").map(|val| val == "true").unwrap_or_default();
+
+                    let mut prover_builder = ProverClient::builder().mode(ProverMode::Network);
+
+                    if let Some(rpc_url) = rpc_url {
+                        prover_builder = prover_builder.rpc_url(rpc_url);
+                    }
+
+                    if skip_simulation {
+                        prover_builder = prover_builder.skip_simulation();
+                    }
+
+                    let prover = prover_builder.private_key(private_key).build();
+                    let (_, _) = time_operation(|| prover.execute(&elf, stdin.clone()));
+
+                    let (proof, _) = time_operation(|| {
+                        prover.prove(&pk, stdin.clone()).groth16().run().unwrap()
+                    });
+
+                    let (_, _) = time_operation(|| prover.verify(&proof, &vk));
+
+                    let (proof, _) =
+                        time_operation(|| prover.prove(&pk, stdin).plonk().run().unwrap());
+
+                    let (_, _) = time_operation(|| prover.verify(&proof, &vk));
+                }
+                ProverMode::Mock => unreachable!(),
+            };
+        }
+        _ => unreachable!("Exactly one of `executor_mode` or `prover_mode` must be provided"),
+    }
 }

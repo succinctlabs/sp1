@@ -14,7 +14,7 @@ use typenum::Unsigned;
 use crate::{
     events::{
         memory::{MemoryReadRecord, MemoryWriteRecord},
-        LookupId, MemoryLocalEvent,
+        MemoryLocalEvent,
     },
     syscalls::SyscallContext,
 };
@@ -24,7 +24,6 @@ use crate::{
 /// This event is emitted when an elliptic curve addition operation is performed.
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
 pub struct EllipticCurveAddEvent {
-    pub(crate) lookup_id: LookupId,
     /// The shard number.
     pub shard: u32,
     /// The clock cycle.
@@ -50,8 +49,6 @@ pub struct EllipticCurveAddEvent {
 /// This event is emitted when an elliptic curve doubling operation is performed.
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
 pub struct EllipticCurveDoubleEvent {
-    /// The lookup identifier.
-    pub lookup_id: LookupId,
     /// The shard number.
     pub shard: u32,
     /// The clock cycle.
@@ -71,8 +68,6 @@ pub struct EllipticCurveDoubleEvent {
 /// This event is emitted when an elliptic curve point decompression operation is performed.
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
 pub struct EllipticCurveDecompressEvent {
-    /// The lookup identifier.
-    pub lookup_id: LookupId,
     /// The shard number.
     pub shard: u32,
     /// The clock cycle.
@@ -131,7 +126,6 @@ pub fn create_ec_add_event<E: EllipticCurve>(
     let p_memory_records = rt.mw_slice(p_ptr, &result_words);
 
     EllipticCurveAddEvent {
-        lookup_id: rt.syscall_lookup_id,
         shard: rt.current_shard(),
         clk: start_clk,
         p_ptr,
@@ -172,7 +166,6 @@ pub fn create_ec_double_event<E: EllipticCurve>(
     let p_memory_records = rt.mw_slice(p_ptr, &result_words);
 
     EllipticCurveDoubleEvent {
-        lookup_id: rt.syscall_lookup_id,
         shard: rt.current_shard(),
         clk: start_clk,
         p_ptr,
@@ -221,7 +214,6 @@ pub fn create_ec_decompress_event<E: EllipticCurve>(
     let y_memory_records = rt.mw_slice(slice_ptr, &y_words);
 
     EllipticCurveDecompressEvent {
-        lookup_id: rt.syscall_lookup_id,
         shard: rt.current_shard(),
         clk: start_clk,
         ptr: slice_ptr,

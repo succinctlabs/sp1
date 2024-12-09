@@ -496,7 +496,7 @@ where
     // Execute from the checkpoint.
     let (records, _) = runtime.execute_record(true).unwrap();
 
-    (records, runtime.report)
+    (records.into_iter().map(|r| *r).collect(), runtime.report)
 }
 
 #[derive(Error, Debug)]
