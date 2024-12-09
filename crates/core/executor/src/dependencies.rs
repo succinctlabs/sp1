@@ -19,27 +19,21 @@ pub fn emit_divrem_dependencies(executor: &mut Executor, event: AluEvent) {
     }
 
     if c_neg == 1 {
-        let ids = executor.record.create_lookup_ids();
         executor.record.add_events.push(AluEvent {
             pc: UNUSED_PC,
-            lookup_id: event.sub_lookups[4],
             opcode: Opcode::ADD,
             a: 0,
             b: event.c,
             c: (event.c as i32).unsigned_abs(),
-            sub_lookups: ids,
         });
     }
     if rem_neg == 1 {
-        let ids = executor.record.create_lookup_ids();
         executor.record.add_events.push(AluEvent {
             pc: UNUSED_PC,
-            lookup_id: event.sub_lookups[5],
             opcode: Opcode::ADD,
             a: 0,
             b: remainder,
             c: (remainder as i32).unsigned_abs(),
-            sub_lookups: ids,
         });
     }
 
@@ -53,20 +47,12 @@ pub fn emit_divrem_dependencies(executor: &mut Executor, event: AluEvent) {
     let lower_word = u32::from_le_bytes(c_times_quotient[0..4].try_into().unwrap());
     let upper_word = u32::from_le_bytes(c_times_quotient[4..8].try_into().unwrap());
 
-    let lower_multiplication = AluEvent {
-        pc: UNUSED_PC,
-        lookup_id: event.sub_lookups[0],
-        opcode: Opcode::MUL,
-        a: lower_word,
-        c: event.c,
-        b: quotient,
-        sub_lookups: executor.record.create_lookup_ids(),
-    };
+    let lower_multiplication =
+        AluEvent { pc: UNUSED_PC, opcode: Opcode::MUL, a: lower_word, c: event.c, b: quotient };
     executor.record.mul_events.push(lower_multiplication);
 
     let upper_multiplication = AluEvent {
         pc: UNUSED_PC,
-        lookup_id: event.sub_lookups[1],
         opcode: {
             if is_signed_operation {
                 Opcode::MULH
@@ -77,29 +63,24 @@ pub fn emit_divrem_dependencies(executor: &mut Executor, event: AluEvent) {
         a: upper_word,
         c: event.c,
         b: quotient,
-        sub_lookups: executor.record.create_lookup_ids(),
     };
     executor.record.mul_events.push(upper_multiplication);
 
     let lt_event = if is_signed_operation {
         AluEvent {
             pc: UNUSED_PC,
-            lookup_id: event.sub_lookups[2],
             opcode: Opcode::SLTU,
             a: 1,
             b: (remainder as i32).unsigned_abs(),
             c: u32::max(1, (event.c as i32).unsigned_abs()),
-            sub_lookups: executor.record.create_lookup_ids(),
         }
     } else {
         AluEvent {
             pc: UNUSED_PC,
-            lookup_id: event.sub_lookups[3],
             opcode: Opcode::SLTU,
             a: 1,
             b: remainder,
             c: u32::max(1, event.c),
-            sub_lookups: executor.record.create_lookup_ids(),
         }
     };
 
@@ -116,15 +97,8 @@ pub fn emit_memory_dependencies(
 ) {
     let memory_addr = event.b.wrapping_add(event.c);
     // Add event to ALU check to check that addr == b + c
-    let add_event = AluEvent {
-        pc: UNUSED_PC,
-        lookup_id: event.memory_add_lookup_id,
-        opcode: Opcode::ADD,
-        a: memory_addr,
-        b: event.b,
-        c: event.c,
-        sub_lookups: executor.record.create_lookup_ids(),
-    };
+    let add_event =
+        AluEvent { pc: UNUSED_PC, opcode: Opcode::ADD, a: memory_addr, b: event.b, c: event.c };
 
     executor.record.add_events.push(add_event);
     let addr_offset = (memory_addr % 4_u32) as u8;
@@ -153,12 +127,10 @@ pub fn emit_memory_dependencies(
         if most_sig_mem_value_byte >> 7 & 0x01 == 1 {
             let sub_event = AluEvent {
                 pc: UNUSED_PC,
-                lookup_id: event.memory_sub_lookup_id,
                 opcode: Opcode::SUB,
                 a: event.a,
                 b: unsigned_mem_val,
                 c: sign_value,
-                sub_lookups: executor.record.create_lookup_ids(),
             };
             executor.record.add_events.push(sub_event);
         }
@@ -176,24 +148,10 @@ pub fn emit_branch_dependencies(executor: &mut Executor, event: BranchEvent) {
 
     let alu_op_code = if use_signed_comparison { Opcode::SLT } else { Opcode::SLTU };
     // Add the ALU events for the comparisons
-    let lt_comp_event = AluEvent {
-        pc: UNUSED_PC,
-        lookup_id: event.branch_lt_lookup_id,
-        opcode: alu_op_code,
-        a: a_lt_b as u32,
-        b: event.a,
-        c: event.b,
-        sub_lookups: executor.record.create_lookup_ids(),
-    };
-    let gt_comp_event = AluEvent {
-        pc: UNUSED_PC,
-        lookup_id: event.branch_gt_lookup_id,
-        opcode: alu_op_code,
-        a: a_gt_b as u32,
-        b: event.b,
-        c: event.a,
-        sub_lookups: executor.record.create_lookup_ids(),
-    };
+    let lt_comp_event =
+        AluEvent { pc: UNUSED_PC, opcode: alu_op_code, a: a_lt_b as u32, b: event.a, c: event.b };
+    let gt_comp_event =
+        AluEvent { pc: UNUSED_PC, opcode: alu_op_code, a: a_gt_b as u32, b: event.b, c: event.a };
     executor.record.lt_events.push(lt_comp_event);
     executor.record.lt_events.push(gt_comp_event);
     let branching = match event.opcode {
@@ -205,15 +163,8 @@ pub fn emit_branch_dependencies(executor: &mut Executor, event: BranchEvent) {
     };
     if branching {
         let next_pc = event.pc.wrapping_add(event.c);
-        let add_event = AluEvent {
-            pc: UNUSED_PC,
-            lookup_id: event.branch_add_lookup_id,
-            opcode: Opcode::ADD,
-            a: next_pc,
-            b: event.pc,
-            c: event.c,
-            sub_lookups: executor.record.create_lookup_ids(),
-        };
+        let add_event =
+            AluEvent { pc: UNUSED_PC, opcode: Opcode::ADD, a: next_pc, b: event.pc, c: event.c };
         executor.record.add_events.push(add_event);
     }
 }
@@ -225,26 +176,17 @@ pub fn emit_jump_dependencies(executor: &mut Executor, event: JumpEvent) {
             let next_pc = event.pc.wrapping_add(event.b);
             let add_event = AluEvent {
                 pc: UNUSED_PC,
-                lookup_id: event.jump_jal_lookup_id,
                 opcode: Opcode::ADD,
                 a: next_pc,
                 b: event.pc,
                 c: event.b,
-                sub_lookups: executor.record.create_lookup_ids(),
             };
             executor.record.add_events.push(add_event);
         }
         Opcode::JALR => {
             let next_pc = event.b.wrapping_add(event.c);
-            let add_event = AluEvent {
-                pc: UNUSED_PC,
-                lookup_id: event.jump_jalr_lookup_id,
-                opcode: Opcode::ADD,
-                a: next_pc,
-                b: event.b,
-                c: event.c,
-                sub_lookups: executor.record.create_lookup_ids(),
-            };
+            let add_event =
+                AluEvent { pc: UNUSED_PC, opcode: Opcode::ADD, a: next_pc, b: event.b, c: event.c };
             executor.record.add_events.push(add_event);
         }
         _ => unreachable!(),
@@ -253,14 +195,7 @@ pub fn emit_jump_dependencies(executor: &mut Executor, event: JumpEvent) {
 
 /// Emit the dependency for AUIPC instructions.
 pub fn emit_auipc_dependency(executor: &mut Executor, event: AUIPCEvent) {
-    let add_event = AluEvent {
-        pc: UNUSED_PC,
-        lookup_id: event.auipc_nonce,
-        opcode: Opcode::ADD,
-        a: event.a,
-        b: event.pc,
-        c: event.b,
-        sub_lookups: executor.record.create_lookup_ids(),
-    };
+    let add_event =
+        AluEvent { pc: UNUSED_PC, opcode: Opcode::ADD, a: event.a, b: event.pc, c: event.b };
     executor.record.add_events.push(add_event);
 }

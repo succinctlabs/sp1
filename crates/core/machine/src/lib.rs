@@ -31,6 +31,9 @@ pub mod sys;
 pub mod syscall;
 pub mod utils;
 
+#[cfg(test)]
+mod test_checkpoints;
+
 /// The global version for all components of SP1.
 ///
 /// This string should be updated whenever any step in verifying an SP1 proof changes, including

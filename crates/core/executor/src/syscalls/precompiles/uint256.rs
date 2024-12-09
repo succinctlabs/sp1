@@ -64,10 +64,8 @@ impl Syscall for Uint256MulSyscall {
         // Write the result to x and keep track of the memory records.
         let x_memory_records = rt.mw_slice(x_ptr, &result);
 
-        let lookup_id = rt.syscall_lookup_id;
         let shard = rt.current_shard();
         let event = PrecompileEvent::Uint256Mul(Uint256MulEvent {
-            lookup_id,
             shard,
             clk,
             x_ptr,
@@ -80,8 +78,7 @@ impl Syscall for Uint256MulSyscall {
             modulus_memory_records,
             local_mem_access: rt.postprocess(),
         });
-        let sycall_event =
-            rt.rt.syscall_event(clk, None, syscall_code, arg1, arg2, lookup_id, rt.next_pc);
+        let sycall_event = rt.rt.syscall_event(clk, None, syscall_code, arg1, arg2, rt.next_pc);
         rt.add_precompile_event(syscall_code, sycall_event, event);
 
         None

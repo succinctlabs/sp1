@@ -31,6 +31,4 @@ pub struct SyscallEvent {
     pub arg1: u32,
     /// The second operand value (`op_c`).
     pub arg2: u32,
-    /// The nonce for the syscall.
-    pub nonce: u32,
 }

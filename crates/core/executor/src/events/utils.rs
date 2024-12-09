@@ -1,17 +1,4 @@
-use serde::{Deserialize, Serialize};
 use std::fmt::Display;
-
-/// A unique identifier for lookups.
-#[derive(Deserialize, Serialize, Debug, Clone, Copy, Default, Eq, Hash, PartialEq)]
-#[repr(C)]
-pub struct LookupId(pub u64);
-
-/// Create a random lookup id. This is slower than `record.create_lookup_id()` but is useful for
-/// testing.
-#[must_use]
-pub(crate) fn create_random_lookup_ids() -> [LookupId; 6] {
-    std::array::from_fn(|_| LookupId(rand::random()))
-}
 
 /// Returns a tuple containing everything needed to to correctly display a table of counts
 /// (e.g. `opcode_counts`):

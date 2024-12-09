@@ -307,14 +307,18 @@ mod tests {
             RiscvAir::machine(BabyBearPoseidon2::new());
         let (pkey, _) = machine.setup(&program_clone);
         let opts = SP1CoreOpts::default();
-        machine.generate_dependencies(&mut runtime.records, &opts, None);
+        machine.generate_dependencies(
+            &mut runtime.records.clone().into_iter().map(|r| *r).collect::<Vec<_>>(),
+            &opts,
+            None,
+        );
 
         let shards = runtime.records;
         for shard in shards.clone() {
             debug_interactions_with_all_chips::<BabyBearPoseidon2, RiscvAir<BabyBear>>(
                 &machine,
                 &pkey,
-                &[shard],
+                &[*shard],
                 vec![InteractionKind::Memory],
                 InteractionScope::Local,
             );
@@ -322,7 +326,7 @@ mod tests {
         debug_interactions_with_all_chips::<BabyBearPoseidon2, RiscvAir<BabyBear>>(
             &machine,
             &pkey,
-            &shards,
+            &shards.into_iter().map(|r| *r).collect::<Vec<_>>(),
             vec![InteractionKind::Memory],
             InteractionScope::Global,
         );
@@ -338,14 +342,18 @@ mod tests {
         let machine = RiscvAir::machine(BabyBearPoseidon2::new());
         let (pkey, _) = machine.setup(&program_clone);
         let opts = SP1CoreOpts::default();
-        machine.generate_dependencies(&mut runtime.records, &opts, None);
+        machine.generate_dependencies(
+            &mut runtime.records.clone().into_iter().map(|r| *r).collect::<Vec<_>>(),
+            &opts,
+            None,
+        );
 
         let shards = runtime.records;
         for shard in shards.clone() {
             debug_interactions_with_all_chips::<BabyBearPoseidon2, RiscvAir<BabyBear>>(
                 &machine,
                 &pkey,
-                &[shard],
+                &[*shard],
                 vec![InteractionKind::Memory],
                 InteractionScope::Local,
             );
@@ -353,7 +361,7 @@ mod tests {
         debug_interactions_with_all_chips::<BabyBearPoseidon2, RiscvAir<BabyBear>>(
             &machine,
             &pkey,
-            &shards,
+            &shards.into_iter().map(|r| *r).collect::<Vec<_>>(),
             vec![InteractionKind::Byte],
             InteractionScope::Global,
         );
