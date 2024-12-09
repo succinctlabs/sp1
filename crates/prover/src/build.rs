@@ -12,14 +12,12 @@ use sp1_recursion_compiler::{
     constraints::{Constraint, ConstraintCompiler},
     ir::Builder,
 };
-
 use sp1_recursion_core::air::RecursionPublicValues;
-pub use sp1_recursion_core::stark::sp1_dev_mode;
-
-pub use sp1_recursion_circuit::witness::{OuterWitness, Witnessable};
-
 use sp1_recursion_gnark_ffi::{Groth16Bn254Prover, PlonkBn254Prover};
 use sp1_stark::{SP1ProverOpts, ShardProof, StarkVerifyingKey};
+
+pub use sp1_recursion_circuit::witness::{OuterWitness, Witnessable};
+pub use sp1_recursion_core::stark::sp1_dev_mode;
 
 use crate::{
     utils::{babybear_bytes_to_bn254, babybears_to_bn254, words_to_bytes},

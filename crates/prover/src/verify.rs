@@ -308,7 +308,8 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             public_values,
         );
 
-        if self.vk_verification && !self.allowed_vk_map.contains_key(&compress_vk.hash_babybear()) {
+        if self.vk_verification && !self.recursion_vk_map.contains_key(&compress_vk.hash_babybear())
+        {
             return Err(MachineVerificationError::InvalidVerificationKey);
         }
 
@@ -345,7 +346,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             public_values,
         );
 
-        if self.vk_verification && !self.allowed_vk_map.contains_key(&proof.vk.hash_babybear()) {
+        if self.vk_verification && !self.recursion_vk_map.contains_key(&proof.vk.hash_babybear()) {
             return Err(MachineVerificationError::InvalidVerificationKey);
         }
 

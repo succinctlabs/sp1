@@ -4,7 +4,8 @@ use hashbrown::HashMap;
 use p3_field::{extension::BinomiallyExtendable, PrimeField32};
 use sp1_stark::{
     air::{InteractionScope, MachineAir},
-    Chip, ProofShape, StarkGenericConfig, StarkMachine, PROOF_MAX_NUM_PVS,
+    shape::OrderedShape,
+    Chip, StarkGenericConfig, StarkMachine, PROOF_MAX_NUM_PVS,
 };
 
 use crate::{
@@ -142,7 +143,6 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAi
             RecursionAir::Poseidon2Skinny(Poseidon2SkinnyChip::<DEGREE>::default()),
             RecursionAir::BatchFRI(BatchFRIChip::<DEGREE>),
             RecursionAir::Select(SelectChip),
-            // RecursionAir::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE>),
             RecursionAir::PublicValues(PublicValuesChip),
         ]
         .map(Chip::new)
@@ -154,14 +154,14 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAi
     pub fn shrink_shape() -> RecursionShape {
         let shape = HashMap::from(
             [
-                (Self::MemoryConst(MemoryConstChip::default()), 17),
                 (Self::MemoryVar(MemoryVarChip::default()), 18),
-                (Self::BaseAlu(BaseAluChip), 15),
-                (Self::ExtAlu(ExtAluChip), 15),
-                (Self::Poseidon2Wide(Poseidon2WideChip::<DEGREE>), 16),
-                (Self::BatchFRI(BatchFRIChip::<DEGREE>), 17),
                 (Self::Select(SelectChip), 18),
+                (Self::MemoryConst(MemoryConstChip::default()), 17),
+                (Self::BatchFRI(BatchFRIChip::<DEGREE>), 17),
+                (Self::BaseAlu(BaseAluChip), 17),
+                (Self::ExtAlu(ExtAluChip), 15),
                 (Self::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE>), 17),
+                (Self::Poseidon2Wide(Poseidon2WideChip::<DEGREE>), 16),
                 (Self::PublicValues(PublicValuesChip), PUB_VALUES_LOG_HEIGHT),
             ]
             .map(|(chip, log_height)| (chip.name(), log_height)),
@@ -251,7 +251,7 @@ impl<F> Add<&Instruction<F>> for RecursionAirEventCount {
     }
 }
 
-impl From<RecursionShape> for ProofShape {
+impl From<RecursionShape> for OrderedShape {
     fn from(value: RecursionShape) -> Self {
         value.inner.into_iter().collect()
     }

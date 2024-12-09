@@ -1,0 +1,112 @@
+[
+    {
+        "inner": {
+            "Mul": 7,
+            "Cpu": 14,
+            "SyscallInstrs": 5,
+            "Branch": 12,
+            "ShiftRight": 10,
+            "Bitwise": 12,
+            "Lt": 13,
+            "ShiftLeft": 11,
+            "MemoryLocal": 8,
+            "Auipc": 7,
+            "SyscallCore": 5,
+            "Global": 15,
+            "AddSub": 14,
+            "MemoryInstrs": 12,
+            "Jump": 9,
+            "MemoryGlobalInit": 8,
+            "MemoryGlobalFinalize": 15,
+            "DivRem": 4
+        }
+    },
+    {
+        "inner": {
+            "Mul": 11,
+            "Cpu": 15,
+            "SyscallInstrs": 5,
+            "Branch": 11,
+            "ShiftRight": 12,
+            "Bitwise": 11,
+            "Lt": 13,
+            "ShiftLeft": 10,
+            "MemoryLocal": 6,
+            "Auipc": 5,
+            "SyscallCore": 5,
+            "Global": 9,
+            "AddSub": 15,
+            "MemoryInstrs": 10,
+            "Jump": 6,
+            "MemoryGlobalInit": 16,
+            "MemoryGlobalFinalize": 16,
+            "DivRem": 10
+        }
+    },
+    {
+        "inner": {
+            "Mul": 15,
+            "Cpu": 18,
+            "SyscallInstrs": 5,
+            "Branch": 15,
+            "ShiftRight": 15,
+            "Bitwise": 11,
+            "Lt": 16,
+            "ShiftLeft": 10,
+            "MemoryLocal": 7,
+            "Auipc": 6,
+            "SyscallCore": 5,
+            "Global": 15,
+            "AddSub": 18,
+            "MemoryInstrs": 15,
+            "Jump": 7,
+            "MemoryGlobalInit": 16,
+            "MemoryGlobalFinalize": 16,
+            "DivRem": 10
+        }
+    },
+    {
+        "inner": {
+            "Cpu": 21,
+            "SyscallCore": 5,
+            "AddSub": 21,
+            "Bitwise": 11,
+            "Mul": 19,
+            "ShiftRight": 19,
+            "ShiftLeft": 11,
+            "Lt": 21,
+            "MemoryInstrs": 19,
+            "Auipc": 6,
+            "Branch": 18,
+            "Jump": 16,
+            "SyscallInstrs": 5,
+            "MemoryLocal": 7,
+            "Global": 16,
+            "MemoryGlobalInit": 16,
+            "MemoryGlobalFinalize": 16,
+            "DivRem": 10
+        }
+    },
+    {
+        "inner": {
+            "Cpu": 21,
+            "SyscallCore": 17,
+            "AddSub": 21,
+            "Bitwise": 19,
+            "Mul": 19,
+            "ShiftRight": 19,
+            "ShiftLeft": 19,
+            "Lt": 21,
+            "MemoryInstrs": 19,
+            "Auipc": 19,
+            "Branch": 20,
+            "Jump": 20,
+            "SyscallInstrs": 17,
+            "MemoryLocal": 19,
+            "Global": 17,
+            "MemoryGlobalInit": 17,
+            "MemoryGlobalFinalize": 17,
+            "DivRem": 17
+        }
+    }
+]

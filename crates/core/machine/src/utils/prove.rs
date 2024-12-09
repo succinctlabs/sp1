@@ -2,6 +2,7 @@ use p3_matrix::dense::RowMajorMatrix;
 use std::{
     fs::File,
     io::{self, Seek, SeekFrom},
+    str::FromStr,
     sync::{
         mpsc::{channel, sync_channel, Sender},
         Arc, Mutex,
@@ -10,7 +11,8 @@ use std::{
 };
 use web_time::Instant;
 
-use crate::riscv::{CoreShapeConfig, RiscvAir};
+use crate::riscv::RiscvAir;
+use crate::shape::CoreShapeConfig;
 use p3_maybe_rayon::prelude::*;
 use sp1_stark::MachineProvingKey;
 use sp1_stark::StarkVerifyingKey;
@@ -25,7 +27,7 @@ use crate::{
 };
 use sp1_core_executor::{
     events::{format_table_line, sorted_table_lines},
-    ExecutionState,
+    ExecutionState, RiscvAirId,
 };
 
 use sp1_core_executor::{
@@ -33,8 +35,8 @@ use sp1_core_executor::{
     Program, SP1Context,
 };
 use sp1_stark::{
-    air::PublicValues, Com, MachineProof, MachineProver, MachineRecord, OpeningProof,
-    PcsProverData, ProofShape, SP1CoreOpts, ShardProof, StarkGenericConfig, Val,
+    air::PublicValues, shape::OrderedShape, Com, MachineProof, MachineProver, MachineRecord,
+    OpeningProof, PcsProverData, SP1CoreOpts, ShardProof, StarkGenericConfig, Val,
 };
 
 #[allow(clippy::too_many_arguments)]
@@ -86,7 +88,7 @@ pub fn prove_core_stream<SC: StarkGenericConfig, P: MachineProver<SC, RiscvAir<S
     context: SP1Context,
     shape_config: Option<&CoreShapeConfig<SC::Val>>,
     proof_tx: Sender<ShardProof<SC>>,
-    shape_and_done_tx: Sender<(ProofShape, bool)>,
+    shape_and_done_tx: Sender<(OrderedShape, bool)>,
 ) -> Result<(Vec<u8>, u64), SP1CoreProverError>
 where
     SC::Val: PrimeField32,
@@ -98,11 +100,7 @@ where
     // Setup the runtime.
     let mut runtime = Executor::with_context(program.clone(), opts, context);
     runtime.maximal_shapes = shape_config.map(|config| {
-        config
-            .maximal_core_shapes(opts.shard_size.ilog2() as usize)
-            .into_iter()
-            .map(|s| s.inner)
-            .collect()
+        config.maximal_core_shapes(opts.shard_size.ilog2() as usize).into_iter().collect()
     });
     runtime.write_vecs(&stdin.buffer);
     for proof in stdin.proofs.iter() {
@@ -245,23 +243,20 @@ where
                                 deferred.append(&mut record.defer());
                             }
 
-                            // tracing::info!("Deferred length: {}", deferred.len());
-
-                            // let last_record = if done
-                            //     && num_cycles < 1 << 26
-                            //     && deferred.global_memory_initialize_events.len()
-                            //         < opts.split_opts.memory / 4
-                            //     && deferred.global_memory_finalize_events.len()
-                            //         < opts.split_opts.memory / 4
-                            // {
-                            //     tracing::info!("Number of cycles: {}", num_cycles);
-                            //     records.last_mut()
-                            // } else {
-                            //     None
-                            // };
-                            let last_record = None;
-
-                            tracing::info!("Last record is some: {:?}", last_record.is_some());
+                            // TODO: double check this logic
+                            let last_record = if done
+                                && num_cycles < 1 << 26
+                                && deferred.global_memory_initialize_events.len()
+                                    < opts.split_opts.memory / 4
+                                && deferred.global_memory_finalize_events.len()
+                                    < opts.split_opts.memory / 4
+                            {
+                                tracing::info!("Number of cycles: {}", num_cycles);
+                                records.last_mut()
+                            } else {
+                                None
+                            };
+                            tracing::info!("last record is some: {:?}", last_record.is_some());
 
                             // See if any deferred shards are ready to be committed to.
                             let mut deferred = deferred.split(done, last_record, opts.split_opts);
@@ -298,9 +293,7 @@ where
                             // Fix the shape of the records.
                             if let Some(shape_config) = shape_config {
                                 for record in records.iter_mut() {
-                                    let fix_shape_span = tracing::info_span!("fix shape").entered();
                                     shape_config.fix_shape(record).unwrap();
-                                    fix_shape_span.exit();
                                 }
                             }
 
@@ -310,13 +303,14 @@ where
                                 let chips = prover.shard_chips(record).collect::<Vec<_>>();
                                 if let Some(shape) = record.shape.as_ref() {
                                     for chip in chips.iter() {
-                                        let height = shape.inner[&chip.name()];
+                                        let id = RiscvAirId::from_str(&chip.name()).unwrap();
+                                        let height = shape.log2_height(&id).unwrap();
                                         heights.push((chip.name().clone(), height));
                                     }
                                     shape_tx
                                         .lock()
                                         .unwrap()
-                                        .send((ProofShape::from_log2_heights(&heights), done))
+                                        .send((OrderedShape::from_log2_heights(&heights), done))
                                         .unwrap();
                                 }
                             }
@@ -388,7 +382,11 @@ where
                                     if let Some(shape) = record.shape.as_ref() {
                                         assert_eq!(
                                             proof.shape(),
-                                            shape.clone().into_iter().collect(),
+                                            shape
+                                                .clone()
+                                                .into_iter()
+                                                .map(|(k, v)| (k.to_string(), v as usize))
+                                                .collect(),
                                         );
                                     }
                                 }
@@ -488,11 +486,7 @@ where
         bincode::deserialize_from(&mut reader).expect("failed to deserialize state");
     let mut runtime = Executor::recover(program, state, opts);
     runtime.maximal_shapes = shape_config.map(|config| {
-        config
-            .maximal_core_shapes(opts.shard_size.ilog2() as usize)
-            .into_iter()
-            .map(|s| s.inner)
-            .collect()
+        config.maximal_core_shapes(opts.shard_size.ilog2() as usize).into_iter().collect()
     });
 
     // We already passed the deferred proof verifier when creating checkpoints, so the proofs were

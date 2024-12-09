@@ -8,12 +8,10 @@ use std::{
 };
 
 use eyre::Result;
-use serde::{Deserialize, Serialize};
-use thiserror::Error;
-
 use p3_baby_bear::BabyBear;
 use p3_field::AbstractField;
-use sp1_core_machine::riscv::CoreShapeConfig;
+use serde::{Deserialize, Serialize};
+use sp1_core_machine::shape::CoreShapeConfig;
 use sp1_recursion_circuit::machine::{
     SP1CompressWithVKeyWitnessValues, SP1CompressWithVkeyShape, SP1DeferredShape,
     SP1DeferredWitnessValues, SP1RecursionShape, SP1RecursionWitnessValues,
@@ -22,16 +20,17 @@ use sp1_recursion_core::{
     shape::{RecursionShape, RecursionShapeConfig},
     RecursionProgram,
 };
-use sp1_stark::{MachineProver, ProofShape, DIGEST_SIZE};
+use sp1_stark::{shape::OrderedShape, MachineProver, DIGEST_SIZE};
+use thiserror::Error;
 
 use crate::{components::SP1ProverComponents, CompressAir, HashableKey, SP1Prover, ShrinkAir};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum SP1ProofShape {
-    Recursion(ProofShape),
-    Compress(Vec<ProofShape>),
-    Deferred(ProofShape),
-    Shrink(ProofShape),
+    Recursion(OrderedShape),
+    Compress(Vec<OrderedShape>),
+    Deferred(OrderedShape),
+    Shrink(OrderedShape),
 }
 
 #[derive(Debug, Clone, Hash)]
@@ -69,7 +68,7 @@ pub fn check_shapes<C: SP1ProverComponents>(
     let (panic_tx, panic_rx) = std::sync::mpsc::channel();
     let core_shape_config = prover.core_shape_config.as_ref().expect("core shape config not found");
     let recursion_shape_config =
-        prover.recursion_shape_config.as_ref().expect("recursion shape config not found");
+        prover.compress_shape_config.as_ref().expect("recursion shape config not found");
 
     let shape_rx = Mutex::new(shape_rx);
 
@@ -142,7 +141,7 @@ pub fn build_vk_map<C: SP1ProverComponents>(
     prover.vk_verification = !dummy;
     let core_shape_config = prover.core_shape_config.as_ref().expect("core shape config not found");
     let recursion_shape_config =
-        prover.recursion_shape_config.as_ref().expect("recursion shape config not found");
+        prover.compress_shape_config.as_ref().expect("recursion shape config not found");
 
     tracing::info!("building compress vk map");
     let (vk_set, panic_indices, height) = if dummy {
@@ -299,7 +298,7 @@ impl SP1ProofShape {
         reduce_batch_size: usize,
     ) -> impl Iterator<Item = Self> + 'a {
         core_shape_config
-            .generate_all_allowed_shapes()
+            .all_shapes()
             .map(Self::Recursion)
             .chain((1..=reduce_batch_size).flat_map(|batch_size| {
                 recursion_shape_config.get_all_shape_combinations(batch_size).map(Self::Compress)
@@ -319,7 +318,7 @@ impl SP1ProofShape {
     pub fn generate_compress_shapes(
         recursion_shape_config: &'_ RecursionShapeConfig<BabyBear, CompressAir<BabyBear>>,
         reduce_batch_size: usize,
-    ) -> impl Iterator<Item = Vec<ProofShape>> + '_ {
+    ) -> impl Iterator<Item = Vec<OrderedShape>> + '_ {
         recursion_shape_config.get_all_shape_combinations(reduce_batch_size)
     }
 
@@ -336,8 +335,8 @@ impl SP1ProofShape {
         };
         core_shape_iter
             .map(|core_shape| {
-                Self::Recursion(ProofShape {
-                    chip_information: core_shape.inner.into_iter().collect(),
+                Self::Recursion(OrderedShape {
+                    inner: core_shape.into_iter().map(|(k, v)| (k.to_string(), v)).collect(),
                 })
             })
             .chain((1..=reduce_batch_size).flat_map(|batch_size| {
@@ -389,7 +388,7 @@ impl SP1CompressProgramShape {
 impl<C: SP1ProverComponents> SP1Prover<C> {
     pub fn program_from_shape(
         &self,
-        shape_tuning: bool,
+        shape_tuning: bool, // TODO: document, eugene says its a boolean used for when you're tryning to find the recursion shapes.
         shape: SP1CompressProgramShape,
         shrink_shape: Option<RecursionShape>,
     ) -> Arc<RecursionProgram<BabyBear>> {

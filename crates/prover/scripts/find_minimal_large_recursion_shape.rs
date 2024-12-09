@@ -9,7 +9,7 @@ use sp1_prover::{
     SP1Prover, ShrinkAir, REDUCE_BATCH_SIZE,
 };
 use sp1_recursion_core::shape::RecursionShapeConfig;
-use sp1_stark::{MachineProver, ProofShape};
+use sp1_stark::{shape::OrderedShape, MachineProver};
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
@@ -17,7 +17,7 @@ struct Args {
     #[clap(short, long, default_value_t = false)]
     dummy: bool,
     #[clap(short, long, default_value_t = REDUCE_BATCH_SIZE)]
-    reduce_batch_size: usize,
+    recursion_batch_size: usize,
     #[clap(short, long, default_value_t = 1)]
     num_compiler_workers: usize,
     #[clap(short, long, default_value_t = 1)]
@@ -29,29 +29,32 @@ struct Args {
 }
 
 fn main() {
+    // Setup the logger.
     setup_logger();
+
+    // Parse the arguments.
     let args = Args::parse();
 
-    let reduce_batch_size = args.reduce_batch_size;
-    let dummy = args.dummy;
-    let num_compiler_workers = args.num_compiler_workers;
-
+    // Initialize the prover.
     let mut prover = SP1Prover::<DefaultProverComponents>::new();
-    prover.vk_verification = !dummy;
 
-    let recursion_shape_config =
-        prover.recursion_shape_config.as_ref().expect("recursion shape config not found");
+    // Set whether to verify verification keys.
+    prover.vk_verification = !args.dummy;
+
+    // Get the default compress shape configuration.
+    let compress_shape_config =
+        prover.compress_shape_config.as_ref().expect("recursion shape config not found");
 
     // Create the maximal shape from all of the shapes in recursion_shape_config, then add 2 to
     // all the log-heights of that shape. This is the starting candidate for the "minimal large
     // shape".
-    let candidate = recursion_shape_config.union_config_with_extra_room().first().unwrap().clone();
+    let candidate = compress_shape_config.union_config_with_extra_room().first().unwrap().clone();
 
-    prover.recursion_shape_config = Some(RecursionShapeConfig::from_hash_map(&candidate));
+    prover.compress_shape_config = Some(RecursionShapeConfig::from_hash_map(&candidate));
 
     // Check that this candidate is big enough for all core shapes, including those with
     // precompiles.
-    assert!(check_shapes(reduce_batch_size, false, num_compiler_workers, &prover,));
+    assert!(check_shapes(args.recursion_batch_size, false, args.num_compiler_workers, &prover,));
 
     let mut answer = candidate.clone();
 
@@ -65,8 +68,13 @@ fn main() {
             while !done {
                 new_val -= 1;
                 answer.insert(key.clone(), new_val);
-                prover.recursion_shape_config = Some(RecursionShapeConfig::from_hash_map(&answer));
-                done = !check_shapes(reduce_batch_size, false, num_compiler_workers, &prover);
+                prover.compress_shape_config = Some(RecursionShapeConfig::from_hash_map(&answer));
+                done = !check_shapes(
+                    args.recursion_batch_size,
+                    false,
+                    args.num_compiler_workers,
+                    &prover,
+                );
             }
             answer.insert(key.clone(), new_val + 1);
         }
@@ -82,9 +90,14 @@ fn main() {
             while !done {
                 new_val -= 1;
                 no_precompile_answer.insert(key.clone(), new_val);
-                prover.recursion_shape_config =
+                prover.compress_shape_config =
                     Some(RecursionShapeConfig::from_hash_map(&no_precompile_answer));
-                done = !check_shapes(reduce_batch_size, true, num_compiler_workers, &prover);
+                done = !check_shapes(
+                    args.recursion_batch_size,
+                    true,
+                    args.num_compiler_workers,
+                    &prover,
+                );
             }
             no_precompile_answer.insert(key.clone(), new_val + 1);
         }
@@ -96,13 +109,13 @@ fn main() {
     // First, check that the current shrink shape is compatible with the compress shape choice
     // arising from the tuning process above.
     assert!({
-        prover.recursion_shape_config = Some(RecursionShapeConfig::from_hash_map(&answer));
+        prover.compress_shape_config = Some(RecursionShapeConfig::from_hash_map(&answer));
         catch_unwind(AssertUnwindSafe(|| {
             prover.shrink_prover.setup(&prover.program_from_shape(
                 true,
                 sp1_prover::shapes::SP1CompressProgramShape::from_proof_shape(
-                    SP1ProofShape::Shrink(ProofShape {
-                        chip_information: answer.clone().into_iter().collect::<Vec<_>>(),
+                    SP1ProofShape::Shrink(OrderedShape {
+                        inner: answer.clone().into_iter().collect::<Vec<_>>(),
                     }),
                     5,
                 ),
@@ -120,13 +133,13 @@ fn main() {
             while !done {
                 new_val -= 1;
                 shrink_shape.insert(key.clone(), new_val);
-                prover.recursion_shape_config = Some(RecursionShapeConfig::from_hash_map(&answer));
+                prover.compress_shape_config = Some(RecursionShapeConfig::from_hash_map(&answer));
                 done = catch_unwind(AssertUnwindSafe(|| {
                     prover.shrink_prover.setup(&prover.program_from_shape(
                         true,
                         sp1_prover::shapes::SP1CompressProgramShape::from_proof_shape(
-                            SP1ProofShape::Shrink(ProofShape {
-                                chip_information: answer.clone().into_iter().collect::<Vec<_>>(),
+                            SP1ProofShape::Shrink(OrderedShape {
+                                inner: answer.clone().into_iter().collect::<Vec<_>>(),
                             }),
                             5,
                         ),

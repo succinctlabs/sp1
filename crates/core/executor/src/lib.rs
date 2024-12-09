@@ -21,6 +21,7 @@
 
 mod air;
 mod context;
+mod cost;
 mod dependencies;
 mod disassembler;
 pub mod events;
@@ -37,7 +38,6 @@ mod record;
 mod reduce;
 mod register;
 mod report;
-mod shape;
 mod state;
 pub mod subproof;
 pub mod syscalls;
@@ -45,6 +45,7 @@ mod utils;
 
 pub use air::*;
 pub use context::*;
+pub use cost::*;
 pub use executor::*;
 pub use hook::*;
 pub use instruction::*;
@@ -54,6 +55,5 @@ pub use record::*;
 pub use reduce::*;
 pub use register::*;
 pub use report::*;
-pub use shape::*;
 pub use state::*;
 pub use utils::*;

@@ -23,7 +23,8 @@ use sp1_stark::air::MachineAir;
 use sp1_stark::{
     air::{PublicValues, POSEIDON_NUM_WORDS},
     baby_bear_poseidon2::BabyBearPoseidon2,
-    Dom, ProofShape, StarkMachine, Word,
+    shape::OrderedShape,
+    Dom, StarkMachine, Word,
 };
 
 use sp1_stark::{ShardProof, StarkGenericConfig, StarkVerifyingKey};
@@ -71,7 +72,7 @@ pub struct SP1RecursionWitnessValues<SC: StarkGenericConfig> {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SP1RecursionShape {
-    pub proof_shapes: Vec<ProofShape>,
+    pub proof_shapes: Vec<OrderedShape>,
     pub is_complete: bool,
 }
 
@@ -84,10 +85,10 @@ pub struct SP1RecursiveVerifier<C: Config, SC: BabyBearFriConfig> {
 impl<C, SC> SP1RecursiveVerifier<C, SC>
 where
     SC: BabyBearFriConfigVariable<
-        C,
-        FriChallengerVariable = DuplexChallengerVariable<C>,
-        DigestVariable = [Felt<BabyBear>; DIGEST_SIZE],
-    >,
+            C,
+            FriChallengerVariable = DuplexChallengerVariable<C>,
+            DigestVariable = [Felt<BabyBear>; DIGEST_SIZE],
+        >,
     C: CircuitConfig<F = SC::Val, EF = SC::Challenge, Bit = Felt<BabyBear>>,
     <SC::ValMmcs as Mmcs<BabyBear>>::ProverData<RowMajorMatrix<BabyBear>>: Clone,
 {
@@ -602,8 +603,8 @@ impl SP1RecursionWitnessValues<BabyBearPoseidon2> {
     }
 }
 
-impl From<ProofShape> for SP1RecursionShape {
-    fn from(proof_shape: ProofShape) -> Self {
+impl From<OrderedShape> for SP1RecursionShape {
+    fn from(proof_shape: OrderedShape) -> Self {
         Self { proof_shapes: vec![proof_shape], is_complete: false }
     }
 }

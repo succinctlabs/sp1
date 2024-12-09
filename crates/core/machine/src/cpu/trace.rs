@@ -1,5 +1,10 @@
+use std::borrow::BorrowMut;
+
 use hashbrown::HashMap;
 use itertools::Itertools;
+use p3_field::{PrimeField, PrimeField32};
+use p3_matrix::dense::RowMajorMatrix;
+use p3_maybe_rayon::prelude::{ParallelBridge, ParallelIterator, ParallelSlice};
 use sp1_core_executor::{
     events::{ByteLookupEvent, ByteRecord, CpuEvent, MemoryRecordEnum},
     syscalls::SyscallCode,
@@ -7,11 +12,6 @@ use sp1_core_executor::{
     ExecutionRecord, Instruction, Program,
 };
 use sp1_stark::air::MachineAir;
-use std::borrow::BorrowMut;
-
-use p3_field::{PrimeField, PrimeField32};
-use p3_matrix::dense::RowMajorMatrix;
-use p3_maybe_rayon::prelude::{ParallelBridge, ParallelIterator, ParallelSlice};
 use tracing::instrument;
 
 use super::{columns::NUM_CPU_COLS, CpuChip};
@@ -23,7 +23,7 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
     type Program = Program;
 
     fn name(&self) -> String {
-        "CPU".to_string()
+        self.id().to_string()
     }
 
     fn generate_trace(
@@ -33,7 +33,7 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
     ) -> RowMajorMatrix<F> {
         let n_real_rows = input.cpu_events.len();
         let padded_nb_rows = if let Some(shape) = &input.shape {
-            1 << shape.inner[&MachineAir::<F>::name(self)]
+            shape.height(&self.id()).unwrap()
         } else if n_real_rows < 16 {
             16
         } else {

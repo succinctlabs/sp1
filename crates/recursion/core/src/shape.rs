@@ -5,7 +5,7 @@ use hashbrown::HashMap;
 use itertools::Itertools;
 use p3_field::{extension::BinomiallyExtendable, PrimeField32};
 use serde::{Deserialize, Serialize};
-use sp1_stark::{air::MachineAir, ProofShape};
+use sp1_stark::{air::MachineAir, shape::OrderedShape};
 
 use crate::{
     chips::{
@@ -83,13 +83,13 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize>
     pub fn get_all_shape_combinations(
         &self,
         batch_size: usize,
-    ) -> impl Iterator<Item = Vec<ProofShape>> + '_ {
+    ) -> impl Iterator<Item = Vec<OrderedShape>> + '_ {
         (0..batch_size)
             .map(|_| {
                 self.allowed_shapes
                     .iter()
                     .cloned()
-                    .map(|map| map.into_iter().collect::<ProofShape>())
+                    .map(|map| map.into_iter().collect::<OrderedShape>())
             })
             .multi_cartesian_product()
     }
@@ -136,25 +136,25 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> Default
         // Specify allowed shapes.
         let allowed_shapes = [
             [
-                (ext_alu.clone(), 16),
-                (base_alu.clone(), 16),
                 (mem_var.clone(), 19),
-                (poseidon2_wide.clone(), 17),
+                (select.clone(), 20),
                 (mem_const.clone(), 18),
-                (batch_fri.clone(), 18),
+                (batch_fri.clone(), 20),
+                (base_alu.clone(), 16),
+                (ext_alu.clone(), 16),
                 (exp_reverse_bits_len.clone(), 18),
-                (select.clone(), 19),
+                (poseidon2_wide.clone(), 17),
                 (public_values.clone(), PUB_VALUES_LOG_HEIGHT),
             ],
             [
-                (ext_alu.clone(), 17),
-                (base_alu.clone(), 16),
                 (mem_var.clone(), 19),
-                (poseidon2_wide.clone(), 17),
-                (mem_const.clone(), 18),
-                (batch_fri.clone(), 21),
+                (select.clone(), 19),
+                (mem_const.clone(), 17),
+                (batch_fri.clone(), 19),
+                (base_alu.clone(), 16),
+                (ext_alu.clone(), 16),
                 (exp_reverse_bits_len.clone(), 18),
-                (select.clone(), 20),
+                (poseidon2_wide.clone(), 17),
                 (public_values.clone(), PUB_VALUES_LOG_HEIGHT),
             ],
         ]
