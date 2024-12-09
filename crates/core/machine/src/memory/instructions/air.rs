@@ -131,7 +131,7 @@ impl MemoryInstructionsChip {
         // Check that each addr_word element is a byte.
         builder.slice_range_check_u8(&local.addr_word.0, is_real.clone());
 
-        // Check that if the most significant bytes are zero, then the least signficant byte is greater than 32.
+        // Check that if the most significant bytes are zero, then the least significant byte is greater than 32.
         builder.send_byte(
             ByteOpcode::LTU.as_field::<AB::F>(),
             AB::Expr::one(),
