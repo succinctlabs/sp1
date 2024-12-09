@@ -3,7 +3,7 @@ use sp1_curves::{edwards::WORDS_FIELD_ELEMENT, COMPRESSED_POINT_BYTES, NUM_BYTES
 
 use crate::events::{
     memory::{MemoryReadRecord, MemoryWriteRecord},
-    LookupId, MemoryLocalEvent,
+    MemoryLocalEvent,
 };
 
 /// Edwards Decompress Event.
@@ -11,8 +11,6 @@ use crate::events::{
 /// This event is emitted when an edwards decompression operation is performed.
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
 pub struct EdDecompressEvent {
-    /// The lookup identifier.
-    pub lookup_id: LookupId,
     /// The shard number.
     pub shard: u32,
     /// The clock cycle.

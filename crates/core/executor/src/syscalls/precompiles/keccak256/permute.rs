@@ -64,9 +64,7 @@ impl Syscall for Keccak256PermuteSyscall {
 
         // Push the Keccak permute event.
         let shard = rt.current_shard();
-        let lookup_id = rt.syscall_lookup_id;
         let event = PrecompileEvent::KeccakPermute(KeccakPermuteEvent {
-            lookup_id,
             shard,
             clk: start_clk,
             pre_state: saved_state.as_slice().try_into().unwrap(),
@@ -76,16 +74,8 @@ impl Syscall for Keccak256PermuteSyscall {
             state_addr: state_ptr,
             local_mem_access: rt.postprocess(),
         });
-        let syscall_event = rt.rt.syscall_event(
-            start_clk,
-            None,
-            None,
-            syscall_code,
-            arg1,
-            arg2,
-            lookup_id,
-            rt.next_pc,
-        );
+        let syscall_event =
+            rt.rt.syscall_event(start_clk, None, None, syscall_code, arg1, arg2, rt.next_pc);
         rt.add_precompile_event(syscall_code, syscall_event, event);
 
         None

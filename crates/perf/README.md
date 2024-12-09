@@ -13,6 +13,9 @@ Set the workloads you want to run in the `workflow.sh` file. The workloads are k
 CPU_WORKLOADS=("fibonacci-17k" "ssz-withdrawals")
 CUDA_WORKLOADS=()
 NETWORK_WORKLOADS=()
+SIMPLE_WORKLOADS=()
+CHECKPOINT_WORKLOADS=()
+TRACE_WORKLOADS=()
 ```
 
 Run the workflow.

@@ -61,10 +61,8 @@ impl Syscall for Sha256ExtendSyscall {
         }
 
         // Push the SHA extend event.
-        let lookup_id = rt.syscall_lookup_id;
         let shard = rt.current_shard();
         let event = PrecompileEvent::ShaExtend(ShaExtendEvent {
-            lookup_id,
             shard,
             clk: clk_init,
             w_ptr: w_ptr_init,
@@ -75,16 +73,8 @@ impl Syscall for Sha256ExtendSyscall {
             w_i_writes,
             local_mem_access: rt.postprocess(),
         });
-        let syscall_event = rt.rt.syscall_event(
-            clk_init,
-            None,
-            None,
-            syscall_code,
-            arg1,
-            arg2,
-            lookup_id,
-            rt.next_pc,
-        );
+        let syscall_event =
+            rt.rt.syscall_event(clk_init, None, None, syscall_code, arg1, arg2, rt.next_pc);
         rt.add_precompile_event(syscall_code, syscall_event, event);
 
         None

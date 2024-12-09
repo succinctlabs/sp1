@@ -44,6 +44,7 @@ tiny-keccak = { version = "2.0.2", features = ["keccak"] }
 vec_map = { version = "0.8.2", features = ["serde"] }
 enum-map = { version = "2.7.3", features = ["serde"] }
 test-artifacts = { workspace = true, optional = true }
+clap = { version = "4.5.9", features = ["derive"] }
 
 [dev-dependencies]
 sp1-zkvm = { workspace = true, features = ["lib"] }

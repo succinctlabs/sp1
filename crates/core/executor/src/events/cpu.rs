@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use super::{memory::MemoryRecordEnum, LookupId};
+use super::memory::MemoryRecordEnum;
 
 /// CPU Event.
 ///
@@ -28,8 +28,4 @@ pub struct CpuEvent {
     pub c_record: Option<MemoryRecordEnum>,
     /// The exit code.
     pub exit_code: u32,
-    /// The ALU lookup id.
-    pub alu_lookup_id: LookupId,
-    /// The syscall lookup id.
-    pub syscall_lookup_id: LookupId,
 }

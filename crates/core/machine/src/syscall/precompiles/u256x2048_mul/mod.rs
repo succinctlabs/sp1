@@ -10,8 +10,7 @@ mod tests {
     use rand::Rng;
     use sp1_core_executor::{
         events::{
-            LookupId, MemoryReadRecord, MemoryWriteRecord, PrecompileEvent, SyscallEvent,
-            U256xU2048MulEvent,
+            MemoryReadRecord, MemoryWriteRecord, PrecompileEvent, SyscallEvent, U256xU2048MulEvent,
         },
         syscalls::SyscallCode,
         ExecutionRecord, Program,
@@ -129,10 +128,7 @@ mod tests {
             });
         }
 
-        let lookup_id = LookupId(rng.gen());
-
         let event = PrecompileEvent::U256xU2048Mul(U256xU2048MulEvent {
-            lookup_id,
             shard: 0u32,
             clk: hi_ts,
             a_ptr,
@@ -165,7 +161,6 @@ mod tests {
             syscall_id: syscall_code.syscall_id(),
             arg1: a_ptr,
             arg2: b_ptr,
-            nonce: 0u32,
         };
 
         execution_record.precompile_events.add_event(syscall_code, syscall_event, event);

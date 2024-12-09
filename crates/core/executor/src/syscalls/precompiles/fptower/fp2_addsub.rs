@@ -69,11 +69,9 @@ impl<P: FpOpField> Syscall for Fp2AddSubSyscall<P> {
         result.resize(num_words, 0);
         let x_memory_records = rt.mw_slice(x_ptr, &result);
 
-        let lookup_id = rt.syscall_lookup_id;
         let shard = rt.current_shard();
         let op = self.op;
         let event = Fp2AddSubEvent {
-            lookup_id,
             shard,
             clk,
             op,
@@ -97,16 +95,8 @@ impl<P: FpOpField> Syscall for Fp2AddSubSyscall<P> {
                     _ => unreachable!(),
                 };
 
-                let syscall_event = rt.rt.syscall_event(
-                    clk,
-                    None,
-                    None,
-                    syscall_code,
-                    arg1,
-                    arg2,
-                    event.lookup_id,
-                    rt.next_pc,
-                );
+                let syscall_event =
+                    rt.rt.syscall_event(clk, None, None, syscall_code, arg1, arg2, rt.next_pc);
                 rt.add_precompile_event(
                     syscall_code_key,
                     syscall_event,
@@ -121,16 +111,8 @@ impl<P: FpOpField> Syscall for Fp2AddSubSyscall<P> {
                     _ => unreachable!(),
                 };
 
-                let syscall_event = rt.rt.syscall_event(
-                    clk,
-                    None,
-                    None,
-                    syscall_code,
-                    arg1,
-                    arg2,
-                    event.lookup_id,
-                    rt.next_pc,
-                );
+                let syscall_event =
+                    rt.rt.syscall_event(clk, None, None, syscall_code, arg1, arg2, rt.next_pc);
                 rt.add_precompile_event(
                     syscall_code_key,
                     syscall_event,
