@@ -1410,8 +1410,9 @@ impl<'a> Executor<'a> {
     ) -> Result<(u32, u32, u32), ExecutionError> {
         let (rd, b, c, addr, memory_read_value) = self.load_rr(instruction);
 
-        // Check that the address is not in the register's addr range.
-        if addr < Register::X31 as u32 {
+        // Check that the address is in the valid range. Specifically it is not within the register's
+        // addr range and within babybear field.
+        if !(addr > Register::X31 as u32 && addr <= 0x78000000_u32) {
             return Err(ExecutionError::InvalidMemoryAccess(Opcode::LB, addr));
         }
 
@@ -1449,8 +1450,9 @@ impl<'a> Executor<'a> {
     ) -> Result<(u32, u32, u32), ExecutionError> {
         let (a, b, c, addr, memory_read_value) = self.store_rr(instruction);
 
-        // Check that the address is not in the register's addr range.
-        if addr < Register::X31 as u32 {
+        // Check that the address is in the valid range. Specifically it is not within the register's
+        // addr range and within babybear field.
+        if !(addr > Register::X31 as u32 && addr <= 0x78000000_u32) {
             return Err(ExecutionError::InvalidMemoryAccess(Opcode::LB, addr));
         }
 
