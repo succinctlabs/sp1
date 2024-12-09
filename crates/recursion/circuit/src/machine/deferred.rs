@@ -35,7 +35,7 @@ use crate::{
 };
 
 use super::{
-    recursion_public_values_digest, SP1CompressShape, SP1CompressWitnessValues,
+    assert_complete, recursion_public_values_digest, SP1CompressShape, SP1CompressWitnessValues,
     SP1MerkleProofVerifier, SP1MerkleProofWitnessValues, SP1MerkleProofWitnessVariable,
 };
 
@@ -240,6 +240,8 @@ where
         // Set the digest according to the previous values.
         deferred_public_values.digest =
             recursion_public_values_digest::<C, SC>(builder, deferred_public_values);
+
+        assert_complete(builder, deferred_public_values, is_complete);
 
         SC::commit_recursion_public_values(builder, *deferred_public_values);
     }

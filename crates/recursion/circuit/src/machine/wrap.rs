@@ -16,7 +16,7 @@ use crate::{
     BabyBearFriConfigVariable, CircuitConfig,
 };
 
-use super::SP1CompressWitnessVariable;
+use super::{assert_complete, SP1CompressWitnessVariable};
 
 /// A program that recursively verifies a proof made by [super::SP1RootVerifier].
 #[derive(Debug, Clone, Copy)]
@@ -49,7 +49,7 @@ where
         input: SP1CompressWitnessVariable<C, SC>,
     ) {
         // Read input.
-        let SP1CompressWitnessVariable { vks_and_proofs, .. } = input;
+        let SP1CompressWitnessVariable { vks_and_proofs, is_complete } = input;
 
         // Assert that there is only one proof, and get the verification key and proof.
         let [(vk, proof)] = vks_and_proofs.try_into().ok().unwrap();
@@ -77,6 +77,9 @@ where
         // Get the public values, and assert that they are valid.
         let public_values: &RootPublicValues<Felt<C::F>> = proof.public_values.as_slice().borrow();
         assert_root_public_values_valid::<C, SC>(builder, public_values);
+
+        assert_complete(builder, &public_values.inner, is_complete);
+        builder.assert_felt_eq(is_complete, C::F::one());
 
         // Reflect the public values to the next level.
         SC::commit_recursion_public_values(builder, public_values.inner);
