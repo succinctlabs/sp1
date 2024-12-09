@@ -30,7 +30,6 @@ use crate::network_v2::{Error, Signable};
 
 /// The default RPC endpoint for the Succinct prover network.
 pub const DEFAULT_PROVER_NETWORK_RPC: &str = "https://rpc.production.succinct.tools/";
-
 pub struct NetworkClient {
     signer: PrivateKeySigner,
     http: HttpClientWithMiddleware,

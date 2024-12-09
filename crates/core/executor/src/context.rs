@@ -126,6 +126,11 @@ impl<'a> SP1ContextBuilder<'a> {
         self.skip_deferred_proof_verification = skip;
         self
     }
+
+    /// Get the maximum number of cpu cycles to use for execution.
+    pub fn get_max_cycles(&self) -> Option<u64> {
+        self.max_cycles
+    }
 }
 
 #[cfg(test)]

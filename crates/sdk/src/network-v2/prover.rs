@@ -23,19 +23,16 @@ use crate::{
     SP1ProvingKey, SP1VerifyingKey,
 };
 
-/// The default proof mode to use for proof requests.
-pub const DEFAULT_PROOF_MODE: ProofMode = ProofMode::Groth16;
-
 /// The default fulfillment strategy to use for proof requests.
 pub const DEFAULT_FULFILLMENT_STRATEGY: FulfillmentStrategy = FulfillmentStrategy::Hosted;
 
 /// The default timeout for a proof request to be fulfilled (4 hours).
 pub const DEFAULT_TIMEOUT_SECS: u64 = 14400;
 
-/// Minimum allowed timeout in seconds (10 seconds)
+/// The minimum allowed timeout for a proof request to be fulfilled (10 seconds).
 pub const MIN_TIMEOUT_SECS: u64 = 10;
 
-/// Maximum allowed timeout in seconds (24 hours)
+/// The maximum allowed timeout for a proof request to be fulfilled (24 hours).
 pub const MAX_TIMEOUT_SECS: u64 = 86400;
 
 /// The default cycle limit for a proof request if simulation and the cycle limit is not explicitly
@@ -46,11 +43,6 @@ pub const DEFAULT_CYCLE_LIMIT: u64 = 100_000_000;
 pub struct NetworkProver {
     client: NetworkClient,
     local_prover: CpuProver,
-    mode: ProofMode,
-    strategy: FulfillmentStrategy,
-    timeout_secs: u64,
-    cycle_limit: Option<u64>,
-    skip_simulation: bool,
 }
 
 impl NetworkProver {
@@ -59,15 +51,7 @@ impl NetworkProver {
         let version = SP1_CIRCUIT_VERSION;
         log::info!("Client circuit version: {}", version);
 
-        Self {
-            client: NetworkClient::new(private_key),
-            local_prover: CpuProver::new(),
-            mode: DEFAULT_PROOF_MODE,
-            strategy: DEFAULT_FULFILLMENT_STRATEGY,
-            timeout_secs: DEFAULT_TIMEOUT_SECS,
-            cycle_limit: None,
-            skip_simulation: false,
-        }
+        Self { client: NetworkClient::new(private_key), local_prover: CpuProver::new() }
     }
 
     /// Sets up the proving key and verifying key for the given ELF.
@@ -84,82 +68,16 @@ impl NetworkProver {
         self
     }
 
-    /// Sets the mode to use for proof requests.
-    ///
-    /// See `ProofMode` for more details about each mode.
-    pub fn with_mode(mut self, mode: ProofMode) -> Self {
-        self.mode = mode;
-        self
-    }
-
-    /// Sets the fulfillment strategy for proof requests.
-    ///
-    /// See `FulfillmentStrategy` for more details about each strategy.
-    pub fn with_strategy(mut self, strategy: FulfillmentStrategy) -> Self {
-        self.strategy = strategy;
-        self
-    }
-
-    /// Sets the timeout for proof requests. The network will ignore any requests that take longer
-    /// than this timeout.
-    ///
-    /// Additionally, the `NetworkProver` will stop polling for the proof request status when this
-    /// timeout is reached.
-    ///
-    /// The timeout will be clamped between MIN_TIMEOUT_SECS and MAX_TIMEOUT_SECS.
-    /// If not set, the default timeout (DEFAULT_TIMEOUT_SECS) will be used.
-    pub fn with_timeout_secs(mut self, timeout_secs: u64) -> Self {
-        self.timeout_secs = timeout_secs.clamp(MIN_TIMEOUT_SECS, MAX_TIMEOUT_SECS);
-        self
-    }
-
-    /// Sets a fixed cycle limit for proof requests. The request fails if the cycles used exceed
-    /// this limit.
-    ///
-    /// When set, this value will always be used as the cycle limit, regardless of the
-    /// `skip_simulation` setting.
-    ///
-    /// If this is not set:
-    /// - The cycle limit will be calculated by simulating the program (if simulation is enabled)
-    /// - The default cycle limit will be used (if simulation is disabled via `skip_simulation()`)
-    ///
-    /// In the case that cycle limit is greater than the cycles used, a refund will be issued.
-    pub fn with_cycle_limit(mut self, cycle_limit: u64) -> Self {
-        self.cycle_limit = Some(cycle_limit);
-        self
-    }
-
-    /// Disables simulation for cycle limit calculation.
-    ///
-    /// This is useful if program execution requires significant computation, and you already have
-    /// an expected cycle count you can use with `with_cycle_limit()`.
-    ///
-    /// When simulation is disabled:
-    /// - If a cycle limit was set via `with_cycle_limit()`, that value will be used
-    /// - Otherwise, the default cycle limit will be used
-    pub fn skip_simulation(mut self) -> Self {
-        self.skip_simulation = true;
-        self
-    }
-
     /// Creates a new network prover builder. See [`NetworkProverBuilder`] for more details.
     pub fn builder() -> NetworkProverBuilder {
         NetworkProverBuilder::default()
     }
 
-    /// Gets the mode to use for a proof request.
-    fn get_mode(&self) -> ProofMode {
-        self.mode
-    }
-
-    /// Gets the fulfillment strategy to use for a proof request.
-    fn get_strategy(&self) -> FulfillmentStrategy {
-        self.strategy
-    }
-
-    /// Gets the configured timeout in seconds to use for a proof request.
-    fn get_timeout_secs(&self) -> u64 {
-        self.timeout_secs
+    /// Gets the clamped timeout in seconds from the provided options.
+    fn get_timeout_secs(timeout: Option<Duration>) -> u64 {
+        timeout
+            .map(|d| d.as_secs().clamp(MIN_TIMEOUT_SECS, MAX_TIMEOUT_SECS))
+            .unwrap_or(DEFAULT_TIMEOUT_SECS)
     }
 
     /// Get the cycle limit to used for a proof request.
@@ -168,14 +86,20 @@ impl NetworkProver {
     /// - If a cycle limit was explicitly set, use that
     /// - If simulation is enabled (default), calculate limit by simulating
     /// - Otherwise use the default cycle limit
-    fn get_cycle_limit(&self, elf: &[u8], stdin: &SP1Stdin) -> Result<u64, Error> {
+    fn get_cycle_limit(
+        &self,
+        elf: &[u8],
+        stdin: &SP1Stdin,
+        cycle_limit: Option<u64>,
+        skip_simulation: bool,
+    ) -> Result<u64, Error> {
         // If cycle_limit was explicitly set via with_cycle_limit(), always use that
-        if let Some(limit) = self.cycle_limit {
+        if let Some(limit) = cycle_limit {
             return Ok(limit);
         }
 
         // If simulation is enabled (default), simulate to get the limit.
-        if !self.skip_simulation {
+        if !skip_simulation {
             let (_, report) = self
                 .local_prover
                 .sp1_prover()
@@ -297,16 +221,19 @@ impl NetworkProver {
         &self,
         pk: &SP1ProvingKey,
         stdin: SP1Stdin,
+        opts: ProofOpts,
+        kind: SP1ProofKind,
     ) -> Result<SP1ProofWithPublicValues, Error> {
         // Ensure the program is registered.
         let vk_hash = self.register_program(&pk.vk, &pk.elf).await?;
 
         // Get the configured settings.
         let version = SP1_CIRCUIT_VERSION;
-        let mode = self.get_mode();
-        let strategy = self.get_strategy();
-        let timeout_secs = self.get_timeout_secs();
-        let cycle_limit = self.get_cycle_limit(&pk.elf, &stdin)?;
+        let mode = kind.into();
+        let strategy = opts.fulfillment_strategy.unwrap_or(DEFAULT_FULFILLMENT_STRATEGY);
+        let timeout_secs = Self::get_timeout_secs(opts.timeout);
+        let cycle_limit =
+            self.get_cycle_limit(&pk.elf, &stdin, opts.cycle_limit, opts.skip_simulation)?;
 
         // Request the proof.
         let request_id = self
@@ -315,19 +242,6 @@ impl NetworkProver {
 
         // Wait for the proof to be generated.
         self.wait_proof(&request_id, timeout_secs).await
-    }
-
-    /// Note: It is recommended to use NetworkProver::prove() with builder methods instead.
-    fn prove_with_config<'a>(
-        &'a self,
-        pk: &SP1ProvingKey,
-        stdin: SP1Stdin,
-        opts: ProofOpts,
-        context: SP1Context<'a>,
-        _kind: SP1ProofKind,
-    ) -> Result<SP1ProofWithPublicValues> {
-        warn_if_not_default(&opts.sp1_prover_opts, &context);
-        block_on(self.prove(pk, stdin)).map_err(Into::into)
     }
 }
 
@@ -352,7 +266,8 @@ impl Prover<DefaultProverComponents> for NetworkProver {
         context: SP1Context<'a>,
         kind: SP1ProofKind,
     ) -> Result<SP1ProofWithPublicValues> {
-        self.prove_with_config(pk, stdin, opts, context, kind)
+        warn_if_not_default(&opts.sp1_prover_opts, &context);
+        block_on(self.prove(pk, stdin, opts, kind)).map_err(Into::into)
     }
 }
 
@@ -469,71 +384,75 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use sp1_core_machine::io::SP1Stdin;
 
     const TEST_PRIVATE_KEY: &str =
         "0000000000000000000000000000000000000000000000000000000000000001";
 
     #[test]
-    fn test_builder_pattern() {
-        let prover = NetworkProver::new(TEST_PRIVATE_KEY)
-            .with_timeout_secs(100)
-            .with_cycle_limit(1000)
-            .with_mode(ProofMode::Core)
-            .with_strategy(FulfillmentStrategy::Hosted)
-            .skip_simulation();
+    fn test_proof_opts_configuration() {
+        let opts = ProofOpts {
+            timeout: Some(Duration::from_secs(100)),
+            cycle_limit: Some(1000),
+            fulfillment_strategy: Some(FulfillmentStrategy::Hosted),
+            skip_simulation: true,
+            ..Default::default()
+        };
 
-        assert_eq!(prover.timeout_secs, 100);
-        assert_eq!(prover.cycle_limit, Some(1000));
-        assert_eq!(prover.mode, ProofMode::Core);
-        assert_eq!(prover.strategy, FulfillmentStrategy::Hosted);
-        assert!(prover.skip_simulation);
+        assert_eq!(opts.timeout.unwrap().as_secs(), 100);
+        assert_eq!(opts.cycle_limit.unwrap(), 1000);
+        assert_eq!(opts.fulfillment_strategy.unwrap(), FulfillmentStrategy::Hosted);
+        assert!(opts.skip_simulation);
     }
 
     #[test]
-    fn test_timeout_bounds() {
-        // Test minimum bound
-        let prover = NetworkProver::new(TEST_PRIVATE_KEY).with_timeout_secs(1);
-        assert_eq!(prover.timeout_secs, MIN_TIMEOUT_SECS);
+    fn test_proof_opts_defaults() {
+        let opts = ProofOpts::default();
 
-        // Test maximum bound
-        let prover =
-            NetworkProver::new(TEST_PRIVATE_KEY).with_timeout_secs(MAX_TIMEOUT_SECS + 1000);
-        assert_eq!(prover.timeout_secs, MAX_TIMEOUT_SECS);
-
-        // Test value within bounds
-        let valid_timeout = 3600; // 1 hour
-        let prover = NetworkProver::new(TEST_PRIVATE_KEY).with_timeout_secs(valid_timeout);
-        assert_eq!(prover.timeout_secs, valid_timeout);
-    }
-
-    #[test]
-    fn test_default_values() {
-        let prover = NetworkProver::new(TEST_PRIVATE_KEY);
-
-        assert_eq!(prover.timeout_secs, DEFAULT_TIMEOUT_SECS);
-        assert_eq!(prover.mode, ProofMode::Core);
-        assert_eq!(prover.strategy, FulfillmentStrategy::Hosted);
-        assert_eq!(prover.cycle_limit, None);
-        assert!(!prover.skip_simulation);
+        assert_eq!(opts.timeout, None);
+        assert_eq!(opts.cycle_limit, None);
+        assert_eq!(opts.fulfillment_strategy, None);
+        assert!(!opts.skip_simulation);
     }
 
     #[test]
     fn test_cycle_limit_handling() {
         let prover = NetworkProver::new(TEST_PRIVATE_KEY);
-        let dummy_stdin = SP1Stdin::new();
-        let elf = test_artifacts::FIBONACCI_ELF;
-
-        // Test with simulation enabled (default)
-        let limit = prover.get_cycle_limit(elf, &dummy_stdin).unwrap();
-        assert!(limit > 0);
-
-        // Test with simulation disabled
-        let prover = prover.skip_simulation();
-        assert_eq!(prover.get_cycle_limit(elf, &dummy_stdin).unwrap(), DEFAULT_CYCLE_LIMIT);
+        let dummy_stdin = SP1Stdin::default();
+        let dummy_elf = test_artifacts::FIBONACCI_ELF;
 
         // Test with explicit cycle limit
-        let explicit_limit = 1000;
-        let prover = prover.with_cycle_limit(explicit_limit);
-        assert_eq!(prover.get_cycle_limit(elf, &dummy_stdin).unwrap(), explicit_limit);
+        let result = prover.get_cycle_limit(dummy_elf, &dummy_stdin, Some(1000), false);
+        assert_eq!(result.unwrap(), 1000);
+
+        // Test with simulation disabled, no explicit limit
+        let result = prover.get_cycle_limit(dummy_elf, &dummy_stdin, None, true);
+        assert_eq!(result.unwrap(), DEFAULT_CYCLE_LIMIT);
+
+        // Test with simulation enabled
+        let result = prover.get_cycle_limit(dummy_elf, &dummy_stdin, None, false);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_timeout_clamping() {
+        // Test minimum bound
+        let timeout_secs = NetworkProver::get_timeout_secs(Some(Duration::from_secs(1)));
+        assert_eq!(timeout_secs, MIN_TIMEOUT_SECS);
+
+        // Test maximum bound
+        let timeout_secs =
+            NetworkProver::get_timeout_secs(Some(Duration::from_secs(MAX_TIMEOUT_SECS + 1000)));
+        assert_eq!(timeout_secs, MAX_TIMEOUT_SECS);
+
+        // Test value within bounds
+        let valid_timeout = 3600;
+        let timeout_secs =
+            NetworkProver::get_timeout_secs(Some(Duration::from_secs(valid_timeout)));
+        assert_eq!(timeout_secs, valid_timeout);
+
+        // Test default when None
+        let timeout_secs = NetworkProver::get_timeout_secs(None);
+        assert_eq!(timeout_secs, DEFAULT_TIMEOUT_SECS);
     }
 }

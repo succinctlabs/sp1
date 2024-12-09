@@ -1,58 +1,35 @@
-use sp1_sdk::{
-    include_elf,
-    network_v2::{Error, FulfillmentStrategy, NetworkProver, DEFAULT_PROVER_NETWORK_RPC},
-    utils, Prover, SP1Stdin,
-};
-use std::env;
+use sp1_sdk::network_v2::FulfillmentStrategy;
+use sp1_sdk::{include_elf, utils, ProverClient, SP1ProofWithPublicValues, SP1Stdin};
+use std::time::Duration;
 
 /// The ELF we want to execute inside the zkVM.
 const ELF: &[u8] = include_elf!("fibonacci-program");
 
-#[tokio::main]
-async fn main() {
+fn main() {
     // Setup logging.
     utils::setup_logger();
 
-    // Read environment variables.
-    let private_key =
-        env::var("SP1_PRIVATE_KEY").expect("SP1_PRIVATE_KEY must be set for remote proving");
-    let rpc_url =
-        env::var("PROVER_NETWORK_RPC").unwrap_or_else(|_| DEFAULT_PROVER_NETWORK_RPC.to_string());
+    // Create an input stream and write '500' to it.
+    let n = 1000u32;
 
-    // Create the network prover client.
-    let prover = NetworkProver::new(&private_key)
-        .with_rpc_url(rpc_url)
-        .with_cycle_limit(20_000) // Set a manual cycle limit
-        .with_timeout_secs(3600) // Set a 1 hour timeout
-        .with_strategy(FulfillmentStrategy::Hosted) // Use the hosted strategy
-        .skip_simulation(); // Skip simulation since we know our cycle requirements
-
-    // Setup proving key and verifying key.
-    let (pk, vk) = prover.setup(ELF);
-
-    // Write the input to the stdin.
+    // The input stream that the program will read from using `sp1_zkvm::io::read`. Note that the
+    // types of the elements in the input stream must match the types being read in the program.
     let mut stdin = SP1Stdin::new();
-    stdin.write(&1000u32);
+    stdin.write(&n);
 
-    // Send the proof request to the prover network, with examples of how to handle errors.
-    let proof_result = prover.prove(&pk, stdin).await;
-    let mut proof = match proof_result {
-        Ok(proof) => proof,
-        Err(e) => match e {
-            Error::RequestUnexecutable => {
-                eprintln!("Error executing: {}", e);
-                std::process::exit(1);
-            }
-            Error::RequestUnfulfillable => {
-                eprintln!("Error proving: {}", e);
-                std::process::exit(1);
-            }
-            _ => {
-                eprintln!("Unexpected error: {}", e);
-                std::process::exit(1);
-            }
-        },
-    };
+    // Create a `ProverClient` method.
+    let client = ProverClient::new();
+
+    // Generate the proof for the given program and input, using the our network configuration.
+    let (pk, vk) = client.setup(ELF);
+    let mut proof = client
+        .prove(&pk, stdin)
+        .strategy(FulfillmentStrategy::Hosted)
+        .cycle_limit(20_000)
+        .timeout(Duration::from_secs(3600))
+        .skip_simulation()
+        .run()
+        .unwrap();
 
     println!("generated proof");
 
@@ -68,7 +45,15 @@ async fn main() {
     println!("b: {}", b);
 
     // Verify proof and public values
-    prover.verify(&proof, &vk).expect("verification failed");
+    client.verify(&proof, &vk).expect("verification failed");
 
-    println!("successfully generated and verified proof for the program!");
+    // Test a round trip of proof serialization and deserialization.
+    proof.save("proof-with-pis.bin").expect("saving proof failed");
+    let deserialized_proof =
+        SP1ProofWithPublicValues::load("proof-with-pis.bin").expect("loading proof failed");
+
+    // Verify the deserialized proof.
+    client.verify(&deserialized_proof, &vk).expect("verification failed");
+
+    println!("successfully generated and verified proof for the program!")
 }
