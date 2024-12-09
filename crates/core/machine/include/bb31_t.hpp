@@ -469,7 +469,7 @@ class bb31_t {
   static const uint32_t NBITS = 31;
   static const uint32_t MOD = 0x78000001;
 
-  inline constexpr bb31_t() {}
+  inline constexpr bb31_t() : val(0) {}
 
   inline constexpr bb31_t(uint32_t a) : val(a) {}
 
@@ -601,6 +601,8 @@ class bb31_t {
   }
 
   inline bool operator==(const bb31_t rhs) const { return val == rhs.val; }
+
+  inline bool operator!=(const bb31_t rhs) const { return !(*this == rhs); }
 
   inline bb31_t& operator^=(int b) {
     bb31_t sqr = *this;
