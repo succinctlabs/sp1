@@ -20,7 +20,7 @@ fn main() {
     // Create a `ProverClient` method.
     let client = ProverClient::new();
 
-    // Generate the proof for the given program and input, using the our network configuration.
+    // Generate the proof for the given program and input, using the specified network configuration.
     let (pk, vk) = client.setup(ELF);
     let mut proof = client
         .prove(&pk, stdin)
