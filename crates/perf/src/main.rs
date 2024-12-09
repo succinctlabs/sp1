@@ -9,7 +9,7 @@ use sp1_core_executor::{Executor, ExecutorMode, Program};
 use sp1_core_machine::shape::CoreShapeConfig;
 use sp1_cuda::SP1CudaProver;
 use sp1_prover::HashableKey;
-use sp1_prover::{components::DefaultProverComponents, ProverMode};
+use sp1_prover::{components::CpuProverComponents, ProverMode};
 use sp1_sdk::{self, ProverClient, SP1Context, SP1Prover, SP1Stdin};
 use sp1_stark::{SP1CoreOpts, SP1ProverOpts};
 use test_artifacts::VERIFY_PROOF_ELF;
@@ -73,7 +73,7 @@ fn main() {
     let stdin = std::fs::read(args.stdin).expect("failed to read stdin");
     let stdin: SP1Stdin = bincode::deserialize(&stdin).expect("failed to deserialize stdin");
 
-    let opts = SP1ProverOpts::default();
+    let opts = SP1ProverOpts::cpu();
 
     match (args.executor_mode, args.prover_mode) {
         (Some(executor_mode), None) => {
@@ -130,7 +130,7 @@ fn main() {
             }
         }
         (None, Some(prover_mode)) => {
-            let prover = SP1Prover::<DefaultProverComponents>::new();
+            let prover = SP1Prover::<CpuProverComponents>::new();
             let (pk, pk_d, program, vk) = prover.setup(&elf);
             match prover_mode {
                 ProverMode::Cpu => {

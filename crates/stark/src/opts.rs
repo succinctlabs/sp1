@@ -21,10 +21,16 @@ pub struct SP1ProverOpts {
 }
 
 impl SP1ProverOpts {
+    /// Get the default prover options for a prover on CPU.
+    #[must_use]
+    pub fn cpu() -> Self {
+        Self { core_opts: SP1CoreOpts::default(), recursion_opts: SP1CoreOpts::recursion() }
+    }
+
     /// Get the default prover options for a prover on GPU given the amount of CPU and GPU memory.
     #[must_use]
     pub fn gpu(cpu_ram_gb: usize, gpu_ram_gb: usize) -> Self {
-        let mut opts = SP1ProverOpts::default();
+        let mut opts = SP1ProverOpts::cpu();
 
         // Set the core options.
         if 24 <= gpu_ram_gb {
@@ -32,7 +38,7 @@ impl SP1ProverOpts {
             opts.core_opts.shard_size = 1 << log2_shard_size;
             opts.core_opts.shard_batch_size = 1;
 
-            let log2_deferred_threshold = 18;
+            let log2_deferred_threshold = 14;
             opts.core_opts.split_opts = SplitOpts::new(1 << log2_deferred_threshold);
 
             opts.core_opts.records_and_traces_channel_capacity = 4;
@@ -50,12 +56,6 @@ impl SP1ProverOpts {
         opts.recursion_opts.shard_batch_size = 1;
 
         opts
-    }
-}
-
-impl Default for SP1ProverOpts {
-    fn default() -> Self {
-        Self { core_opts: SP1CoreOpts::default(), recursion_opts: SP1CoreOpts::recursion() }
     }
 }
 
@@ -176,13 +176,13 @@ pub struct SplitOpts {
 impl SplitOpts {
     /// Create a new [`SplitOpts`] with the given threshold.
     #[must_use]
-    pub fn new(deferred_shift_threshold: usize) -> Self {
+    pub fn new(deferred_split_threshold: usize) -> Self {
         Self {
-            deferred: deferred_shift_threshold,
-            keccak: deferred_shift_threshold / 24,
-            sha_extend: deferred_shift_threshold / 48,
-            sha_compress: deferred_shift_threshold / 80,
-            memory: deferred_shift_threshold * 64,
+            deferred: deferred_split_threshold,
+            keccak: deferred_split_threshold / 24,
+            sha_extend: deferred_split_threshold / 48,
+            sha_compress: deferred_split_threshold / 80,
+            memory: deferred_split_threshold * 64,
         }
     }
 }

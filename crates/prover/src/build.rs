@@ -151,7 +151,7 @@ pub fn dummy_proof() -> (StarkVerifyingKey<OuterSC>, ShardProof<OuterSC>) {
 
     tracing::info!("initializing prover");
     let prover: SP1Prover = SP1Prover::new();
-    let opts = SP1ProverOpts::default();
+    let opts = SP1ProverOpts::cpu();
     let context = SP1Context::default();
 
     tracing::info!("setup elf");

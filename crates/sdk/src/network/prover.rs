@@ -10,7 +10,7 @@ use crate::{
 };
 use anyhow::Result;
 use sp1_core_machine::io::SP1Stdin;
-use sp1_prover::{components::DefaultProverComponents, SP1Prover, SP1_CIRCUIT_VERSION};
+use sp1_prover::{components::CpuProverComponents, SP1Prover, SP1_CIRCUIT_VERSION};
 use sp1_stark::SP1ProverOpts;
 
 use super::proto::network::GetProofStatusResponse;
@@ -155,7 +155,7 @@ impl NetworkProver {
     }
 }
 
-impl Prover<DefaultProverComponents> for NetworkProver {
+impl Prover<CpuProverComponents> for NetworkProver {
     fn id(&self) -> ProverType {
         ProverType::Network
     }
@@ -183,7 +183,7 @@ impl Prover<DefaultProverComponents> for NetworkProver {
 
 /// Warns if `opts` or `context` are not default values, since they are currently unsupported.
 fn warn_if_not_default(opts: &SP1ProverOpts, context: &SP1Context) {
-    if opts != &SP1ProverOpts::default() {
+    if opts != &SP1ProverOpts::cpu() {
         tracing::warn!("non-default opts will be ignored: {:?}", opts.core_opts);
         tracing::warn!("custom SP1ProverOpts are currently unsupported by the network prover");
     }
