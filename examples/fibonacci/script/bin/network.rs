@@ -1,4 +1,4 @@
-use sp1_sdk::network_v2::FulfillmentStrategy;
+use sp1_sdk::network_v2::{Error, FulfillmentStrategy};
 use sp1_sdk::{include_elf, utils, ProverClient, SP1ProofWithPublicValues, SP1Stdin};
 use std::time::Duration;
 
@@ -20,16 +20,43 @@ fn main() {
     // Create a `ProverClient` method.
     let client = ProverClient::new();
 
-    // Generate the proof for the given program and input, using the specified network configuration.
+    // Generate the proving key and verifying key for the given program.
     let (pk, vk) = client.setup(ELF);
-    let mut proof = client
+
+    // Generate the proof, using the specified network configuration.
+    let proof_result = client
         .prove(&pk, stdin)
         .strategy(FulfillmentStrategy::Hosted)
         .cycle_limit(20_000)
         .timeout(Duration::from_secs(3600))
         .skip_simulation()
-        .run()
-        .unwrap();
+        .run();
+
+    // Handle errors from proof generation.
+    let mut proof = match proof_result {
+        Ok(proof) => proof,
+        Err(e) => {
+            if let Some(network_error) = e.downcast_ref::<Error>() {
+                match network_error {
+                    Error::RequestUnexecutable => {
+                        eprintln!("Program is unexecutable: {}", e);
+                        std::process::exit(1);
+                    }
+                    Error::RequestUnfulfillable => {
+                        eprintln!("Proof request cannot be fulfilled: {}", e);
+                        std::process::exit(1);
+                    }
+                    _ => {
+                        eprintln!("Unexpected error: {}", e);
+                        std::process::exit(1);
+                    }
+                }
+            } else {
+                eprintln!("Unexpected error: {}", e);
+                std::process::exit(1);
+            }
+        }
+    };
 
     println!("generated proof");
 
