@@ -92,7 +92,14 @@ impl ProverClient {
                 cfg_if! {
                     if #[cfg(feature = "network-v2")] {
                         Self {
-                            prover: Box::new(NetworkProverV2::new(&private_key)),
+                            prover: Box::new(
+                                env::var("PROVER_NETWORK_RPC")
+                                    .ok()
+                                    .map_or_else(
+                                        || NetworkProverV2::new(&private_key),
+                                        |url| NetworkProverV2::new(&private_key).with_rpc_url(url)
+                                    )
+                            ),
                         }
                     } else if #[cfg(feature = "network")] {
                         let rpc_url = env::var("PROVER_NETWORK_RPC").ok();
