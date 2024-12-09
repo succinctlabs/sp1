@@ -60,6 +60,10 @@ jobs:
           cargo install --locked --force --path .
           cargo clean
 
+      - name: Install m4
+        run: |
+          sudo apt-get install m4
+
       - name: Run sp1-perf
         uses: actions-rs/cargo@v1
         with:
@@ -114,6 +118,10 @@ jobs:
           cd crates/cli
           cargo install --locked --force --path .
           cargo clean
+
+      - name: Install m4
+        run: |
+          sudo apt-get install m4
 
       - name: Run sp1-perf
         uses: actions-rs/cargo@v1
