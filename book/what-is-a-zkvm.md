@@ -1,6 +1,6 @@
 # What is a zkVM?
 
-A zero-knowledge virtual machine (zkVM) is zero-knowledge proof system that allows developers to prove the execution of arbitrary Rust (or other LLVM-compiled language) programs.
+A zero-knowledge virtual machine (zkVM) is a zero-knowledge proof system that allows developers to prove the execution of arbitrary Rust (or other LLVM-compiled language) programs.
 
 Conceptually, you can think of the SP1 zkVM as proving the evaluation of a function `f(x) = y` by following the steps below:
 
