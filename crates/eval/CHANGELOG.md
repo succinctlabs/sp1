@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - performance test + add to CI ([#1426](https://github.com/succinctlabs/sp1/pull/1426))
-- restore acknolwedgements
+- restore acknowledgements
 - update tg ([#1214](https://github.com/succinctlabs/sp1/pull/1214))
 - v1.0.1 ([#1165](https://github.com/succinctlabs/sp1/pull/1165))
 - new README img ([#226](https://github.com/succinctlabs/sp1/pull/226))
