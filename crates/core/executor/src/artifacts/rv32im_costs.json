@@ -42,6 +42,6 @@
   "Bn254Fp2AddSubAssign": 1382,
   "Bls12381FpOpAssign": 1048,
   "ShaCompress": 40480,
-  "MemoryInstrs": 97,
+  "MemoryInstrs": 93,
   "Secp256k1DoubleAssign": 4492
 }

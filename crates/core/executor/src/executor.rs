@@ -1409,6 +1409,12 @@ impl<'a> Executor<'a> {
         instruction: &Instruction,
     ) -> Result<(u32, u32, u32), ExecutionError> {
         let (rd, b, c, addr, memory_read_value) = self.load_rr(instruction);
+
+        // Check that the address is not in the register's addr range.
+        if addr < Register::X31 as u32 {
+            return Err(ExecutionError::InvalidMemoryAccess(Opcode::LB, addr));
+        }
+
         let a = match instruction.opcode {
             Opcode::LB => ((memory_read_value >> ((addr % 4) * 8)) & 0xFF) as i8 as i32 as u32,
             Opcode::LH => {
@@ -1442,6 +1448,12 @@ impl<'a> Executor<'a> {
         instruction: &Instruction,
     ) -> Result<(u32, u32, u32), ExecutionError> {
         let (a, b, c, addr, memory_read_value) = self.store_rr(instruction);
+
+        // Check that the address is not in the register's addr range.
+        if addr < Register::X31 as u32 {
+            return Err(ExecutionError::InvalidMemoryAccess(Opcode::LB, addr));
+        }
+
         let memory_store_value = match instruction.opcode {
             Opcode::SB => {
                 let shift = (addr % 4) * 8;
