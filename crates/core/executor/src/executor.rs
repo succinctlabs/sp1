@@ -26,6 +26,7 @@ use crate::{
     },
     hook::{HookEnv, HookRegistry},
     memory::{Entry, Memory},
+    pad_rv32im_event_counts,
     record::{ExecutionRecord, MemoryAccessRecord},
     report::ExecutionReport,
     state::{ExecutionState, ForkState},
@@ -1607,6 +1608,7 @@ impl<'a> Executor<'a> {
                     self.local_counts.syscalls_sent as u64,
                     *self.local_counts.event_counts,
                 );
+                let padded_event_counts = pad_rv32im_event_counts(event_counts, CHECK_CYCLE as u64);
 
                 if let Some(maximal_shapes) = &self.maximal_shapes {
                     let distance = |threshold: usize, count: usize| {
@@ -1629,7 +1631,7 @@ impl<'a> Executor<'a> {
                             }
 
                             let threshold = shape.height(&air).unwrap_or_default();
-                            let count = event_counts[air] as usize;
+                            let count = padded_event_counts[air] as usize;
                             if count > threshold {
                                 shape_too_small = true;
                                 break;
@@ -1643,7 +1645,7 @@ impl<'a> Executor<'a> {
                         }
 
                         let l_infinity = distances.into_iter().min().unwrap();
-                        if l_infinity >= 2 * CHECK_CYCLE {
+                        if l_infinity >= 128 {
                             shape_match_found = true;
                             break;
                         }

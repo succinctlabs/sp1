@@ -170,7 +170,7 @@ fn main() {
             let new_context = SP1Context::default();
             let s3_path = s3_path.clone();
             rayon::spawn(move || {
-                opts.set_shard_size(1 << log_shard_size);
+                opts.shard_size = 1 << log_shard_size;
                 let maximal_shapes = collect_maximal_shapes(&elf, &stdin, opts, new_context);
                 tracing::info!(
                     "there are {} maximal shapes for {} for log shard size {}",
