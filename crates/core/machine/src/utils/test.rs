@@ -25,8 +25,12 @@ pub fn run_test<P: MachineProver<BabyBearPoseidon2, RiscvAir<BabyBear>>>(
 
     let runtime = tracing::debug_span!("runtime.run(...)").in_scope(|| {
         let mut runtime = Executor::new(program, SP1CoreOpts::default());
-        runtime.maximal_shapes =
-            Some(shape_config.maximal_core_shapes(21).into_iter().map(|s| s.inner).collect());
+        runtime.maximal_shapes = Some(
+            shape_config
+                .maximal_core_shapes(SP1CoreOpts::default().shard_size.ilog2() as usize)
+                .into_iter()
+                .collect(),
+        );
         runtime.write_vecs(&inputs.buffer);
         runtime.run().unwrap();
         runtime

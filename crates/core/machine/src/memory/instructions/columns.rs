@@ -2,7 +2,10 @@ use sp1_derive::AlignedBorrow;
 use sp1_stark::Word;
 use std::mem::size_of;
 
-use crate::{memory::MemoryReadWriteCols, operations::BabyBearWordRangeChecker};
+use crate::{
+    memory::MemoryReadWriteCols,
+    operations::{BabyBearWordRangeChecker, IsZeroOperation},
+};
 
 pub const NUM_MEMORY_INSTRUCTIONS_COLUMNS: usize = size_of::<MemoryInstructionsColumns<u8>>();
 
@@ -84,4 +87,7 @@ pub struct MemoryInstructionsColumns<T> {
     /// Flag for load memory instructions that contains bool value of
     /// (memory value is pos) && (op_a != registor 0).
     pub mem_value_is_pos_not_x0: T,
+
+    /// This is used to check if the first three bytes of the memory address are zero.
+    pub most_sig_bytes_zero: IsZeroOperation<T>,
 }

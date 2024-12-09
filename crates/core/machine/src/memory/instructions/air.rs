@@ -8,7 +8,7 @@ use sp1_stark::{air::SP1AirBuilder, Word};
 use crate::{
     air::{SP1CoreAirBuilder, WordAirBuilder},
     memory::MemoryCols,
-    operations::BabyBearWordRangeChecker,
+    operations::{BabyBearWordRangeChecker, IsZeroOperation},
 };
 use sp1_core_executor::{
     events::MemoryAccessPosition, ByteOpcode, Opcode, DEFAULT_PC_INC, UNUSED_PC,
@@ -130,6 +130,28 @@ impl MemoryInstructionsChip {
 
         // Check that each addr_word element is a byte.
         builder.slice_range_check_u8(&local.addr_word.0, is_real.clone());
+
+        // Check that if the most significant bytes are zero, then the least signficant byte is greater than 32.
+        builder.send_byte(
+            ByteOpcode::LTU.as_field::<AB::F>(),
+            AB::Expr::one(),
+            AB::Expr::from_canonical_u8(32),
+            local.addr_word[0],
+            local.most_sig_bytes_zero.result,
+        );
+
+        // Check the most_sig_byte_zero flag.  Note that we can simple add up the three most significant bytes
+        // and check if that is zero.  Those bytes are going to be byte range checked, so the only way
+        // the sum is zero is if all bytes are 0.
+        IsZeroOperation::<AB::F>::eval(
+            builder,
+            local.addr_word[1] + local.addr_word[2] + local.addr_word[3],
+            local.most_sig_bytes_zero,
+            is_real.clone(),
+        );
+
+        // // One send the interaction for a row that has one of the opcode flags set.
+        builder.when(local.most_sig_bytes_zero.result).assert_one(is_real.clone());
 
         // Evaluate the addr_offset column and offset flags.
         self.eval_offset_value_flags(builder, local);

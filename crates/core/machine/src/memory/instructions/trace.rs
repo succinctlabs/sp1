@@ -196,5 +196,8 @@ impl MemoryInstructionsChip {
                 c: byte_pair[1],
             });
         }
+
+        cols.most_sig_bytes_zero
+            .populate_from_field_element(cols.addr_word[1] + cols.addr_word[2] + cols.addr_word[3]);
     }
 }
