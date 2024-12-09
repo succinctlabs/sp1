@@ -166,11 +166,18 @@ pub fn build_vk_map<C: SP1ProverComponents>(
         let program_rx = Mutex::new(program_rx);
 
         let indices_set = indices.map(|indices| indices.into_iter().collect::<HashSet<_>>());
-        let all_shapes =
+        // let all_shapes =
+        //     SP1ProofShape::generate(core_shape_config, recursion_shape_config, reduce_batch_size)
+        //         .collect::<BTreeSet<_>>();
+        let mut all_shapes = BTreeSet::new();
+        let start = std::time::Instant::now();
+        for shape in
             SP1ProofShape::generate(core_shape_config, recursion_shape_config, reduce_batch_size)
-                .collect::<BTreeSet<_>>();
+        {
+            all_shapes.insert(shape);
+        }
         let num_shapes = all_shapes.len();
-        tracing::info!("number of shapes: {}", num_shapes);
+        tracing::info!("number of shapes: {} in {:?}", num_shapes, start.elapsed());
 
         let height = num_shapes.next_power_of_two().ilog2() as usize;
         let chunk_size = indices_set.as_ref().map(|indices| indices.len()).unwrap_or(num_shapes);
