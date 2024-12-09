@@ -120,7 +120,8 @@ impl MemoryInstructionsChip {
             is_real.clone(),
         );
 
-        // Range check the addr_word to be a valid babybear word.
+        // Range check the addr_word to be a valid babybear word. Note that this will also implicitly
+        // do a byte range check on the most significant byte.
         BabyBearWordRangeChecker::<AB::F>::range_check(
             builder,
             local.addr_word,
@@ -128,8 +129,9 @@ impl MemoryInstructionsChip {
             is_real.clone(),
         );
 
-        // Check that each addr_word element is a byte.
-        builder.slice_range_check_u8(&local.addr_word.0, is_real.clone());
+        // Check that the 2nd and 3rd addr_word elements are bytes. We already check the most sig
+        // byte in the BabyBearWordRangeChecker, and the least sig one in the AND byte lookup below.
+        builder.slice_range_check_u8(&local.addr_word.0[1..3], is_real.clone());
 
         // Check that if the most significant bytes are zero, then the least significant byte is greater than 32.
         builder.send_byte(
@@ -140,8 +142,11 @@ impl MemoryInstructionsChip {
             local.most_sig_bytes_zero.result,
         );
 
-        // Check the most_sig_byte_zero flag.  Note that we can simple add up the three most significant bytes
-        // and check if that is zero.  Those bytes are going to be byte range checked, so the only way
+        // Check that the above interaction is only sent if one of the opcode flags is set.
+        builder.when(local.most_sig_bytes_zero.result).assert_one(is_real.clone());
+
+        // Check the most_sig_byte_zero flag.  Note that we can simply add up the three most significant bytes
+        // and check if the sum is zero.  Those bytes are going to be byte range checked, so the only way
         // the sum is zero is if all bytes are 0.
         IsZeroOperation::<AB::F>::eval(
             builder,
@@ -149,9 +154,6 @@ impl MemoryInstructionsChip {
             local.most_sig_bytes_zero,
             is_real.clone(),
         );
-
-        // // One send the interaction for a row that has one of the opcode flags set.
-        builder.when(local.most_sig_bytes_zero.result).assert_one(is_real.clone());
 
         // Evaluate the addr_offset column and offset flags.
         self.eval_offset_value_flags(builder, local);
@@ -162,7 +164,8 @@ impl MemoryInstructionsChip {
             local.addr_word.reduce::<AB>(),
         );
 
-        // Check the correct value of addr_ls_two_bits.
+        // Check the correct value of addr_ls_two_bits. Note that this lookup will implicitly do a
+        // byte range check on the last sig addr byte.
         builder.send_byte(
             ByteOpcode::AND.as_field::<AB::F>(),
             local.addr_ls_two_bits,

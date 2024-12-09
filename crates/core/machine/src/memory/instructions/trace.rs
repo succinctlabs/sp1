@@ -191,15 +191,13 @@ impl MemoryInstructionsChip {
 
         // Add event to byte lookup for byte range checking each byte in the memory addr
         let addr_bytes = memory_addr.to_le_bytes();
-        for byte_pair in addr_bytes.chunks_exact(2) {
-            blu.add_byte_lookup_event(ByteLookupEvent {
-                opcode: ByteOpcode::U8Range,
-                a1: 0,
-                a2: 0,
-                b: byte_pair[0],
-                c: byte_pair[1],
-            });
-        }
+        blu.add_byte_lookup_event(ByteLookupEvent {
+            opcode: ByteOpcode::U8Range,
+            a1: 0,
+            a2: 0,
+            b: addr_bytes[1],
+            c: addr_bytes[2],
+        });
 
         cols.most_sig_bytes_zero
             .populate_from_field_element(cols.addr_word[1] + cols.addr_word[2] + cols.addr_word[3]);
