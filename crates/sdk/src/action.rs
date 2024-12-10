@@ -7,6 +7,9 @@ use anyhow::{Ok, Result};
 use sp1_stark::{SP1CoreOpts, SP1ProverOpts};
 use std::time::Duration;
 
+#[cfg(feature = "network-v2")]
+use crate::network_v2::FulfillmentStrategy;
+
 use crate::{provers::ProofOpts, Prover, SP1ProofKind, SP1ProofWithPublicValues};
 
 /// Builder to prepare and configure execution of a program on an input.
@@ -88,6 +91,10 @@ pub struct Prove<'a> {
     core_opts: SP1CoreOpts,
     recursion_opts: SP1CoreOpts,
     timeout: Option<Duration>,
+    #[cfg(feature = "network-v2")]
+    fulfillment_strategy: Option<FulfillmentStrategy>,
+    #[cfg(feature = "network-v2")]
+    skip_simulation: bool,
 }
 
 impl<'a> Prove<'a> {
@@ -109,6 +116,10 @@ impl<'a> Prove<'a> {
             core_opts: SP1CoreOpts::default(),
             recursion_opts: SP1CoreOpts::recursion(),
             timeout: None,
+            #[cfg(feature = "network-v2")]
+            fulfillment_strategy: None,
+            #[cfg(feature = "network-v2")]
+            skip_simulation: false,
         }
     }
 
@@ -123,9 +134,22 @@ impl<'a> Prove<'a> {
             core_opts,
             recursion_opts,
             timeout,
+            #[cfg(feature = "network-v2")]
+            fulfillment_strategy,
+            #[cfg(feature = "network-v2")]
+            skip_simulation,
         } = self;
         let opts = SP1ProverOpts { core_opts, recursion_opts };
-        let proof_opts = ProofOpts { sp1_prover_opts: opts, timeout };
+        let proof_opts = ProofOpts {
+            sp1_prover_opts: opts,
+            timeout,
+            #[cfg(feature = "network-v2")]
+            fulfillment_strategy,
+            #[cfg(feature = "network-v2")]
+            cycle_limit: context_builder.get_max_cycles(),
+            #[cfg(feature = "network-v2")]
+            skip_simulation,
+        };
         let context = context_builder.build();
 
         // Dump the program and stdin to files for debugging if `SP1_DUMP` is set.
@@ -207,26 +231,60 @@ impl<'a> Prove<'a> {
         self
     }
 
-    /// Set the maximum number of cpu cycles to use for execution.
+    /// Set the skip deferred proof verification flag.
+    pub fn set_skip_deferred_proof_verification(mut self, value: bool) -> Self {
+        self.context_builder.set_skip_deferred_proof_verification(value);
+        self
+    }
+
+    /// Set the maximum number of cpu cycles to use for execution. The request fails if the cycles
+    /// used exceed this limit.
     ///
-    /// If the cycle limit is exceeded, execution will return
-    /// [`sp1_core_executor::ExecutionError::ExceededCycleLimit`].
+    /// When set, this value will always be used as the cycle limit, regardless of the
+    /// `skip_simulation` setting.
+    ///
+    /// If this is not set:
+    /// - The cycle limit will be calculated by simulating the program (if simulation is enabled)
+    /// - The default cycle limit will be used (if simulation is disabled via `skip_simulation()`)
+    ///
+    /// In the case that cycle limit is greater than the cycles used, a refund will be issued.
+    ///
+    /// In the case of running locally, if the cycle limit is exceeded, execution will return
+    /// [`sp1_core_executor::ExecutionError::ExceededCycleLimit`]
     pub fn cycle_limit(mut self, cycle_limit: u64) -> Self {
         self.context_builder.max_cycles(cycle_limit);
         self
     }
-
-    /// Set the timeout for the proof's generation.
+    /// Sets the timeout for the proof's generation. The network will ignore any requests that take longer
+    /// than this timeout.
     ///
-    /// This parameter is only used when the prover is run in network mode.
+    /// Additionally, the prover will stop polling for the proof request status when this
+    /// timeout is reached.
     pub fn timeout(mut self, timeout: Duration) -> Self {
         self.timeout = Some(timeout);
         self
     }
 
-    /// Set the skip deferred proof verification flag.
-    pub fn set_skip_deferred_proof_verification(mut self, value: bool) -> Self {
-        self.context_builder.set_skip_deferred_proof_verification(value);
+    /// Sets the fulfillment strategy for the proof's generation.
+    ///
+    /// See `FulfillmentStrategy` for more details about each strategy.
+    #[cfg(feature = "network-v2")]
+    pub fn strategy(mut self, strategy: FulfillmentStrategy) -> Self {
+        self.fulfillment_strategy = Some(strategy);
+        self
+    }
+
+    /// Disables simulation for cycle limit calculation.
+    ///
+    /// This is useful if program execution requires significant computation, and you already have
+    /// an expected cycle count you can use with `cycle_limit()`.
+    ///
+    /// When simulation is disabled:
+    /// - If a cycle limit was set via `cycle_limit()`, that value will be used
+    /// - Otherwise, the default cycle limit will be used
+    #[cfg(feature = "network-v2")]
+    pub fn skip_simulation(mut self) -> Self {
+        self.skip_simulation = true;
         self
     }
 }

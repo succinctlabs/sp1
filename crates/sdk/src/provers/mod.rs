@@ -24,6 +24,9 @@ use sp1_stark::{air::PublicValues, MachineVerificationError, SP1ProverOpts, Word
 use strum_macros::EnumString;
 use thiserror::Error;
 
+#[cfg(feature = "network-v2")]
+use crate::network_v2::FulfillmentStrategy;
+
 use crate::install::try_install_circuit_artifacts;
 use crate::{SP1Proof, SP1ProofKind, SP1ProofWithPublicValues};
 
@@ -43,6 +46,15 @@ pub struct ProofOpts {
     pub sp1_prover_opts: SP1ProverOpts,
     /// Optional timeout duration for proof generation.
     pub timeout: Option<Duration>,
+    /// Optional fulfillment strategy for proof generation. Only used for network proofs.
+    #[cfg(feature = "network-v2")]
+    pub fulfillment_strategy: Option<FulfillmentStrategy>,
+    /// Optional cycle limit for proof generation. Only used for network proofs.
+    #[cfg(feature = "network-v2")]
+    pub cycle_limit: Option<u64>,
+    /// Whether to skip simulation for proof generation. Only used for network proofs.
+    #[cfg(feature = "network-v2")]
+    pub skip_simulation: bool,
 }
 
 #[derive(Error, Debug)]
