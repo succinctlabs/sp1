@@ -8,16 +8,12 @@
 pub mod action;
 pub mod artifacts;
 pub mod install;
-#[cfg(feature = "network")]
-pub mod network;
 #[cfg(feature = "network-v2")]
 #[path = "network-v2/mod.rs"]
 pub mod network_v2;
 
 use std::env;
 
-#[cfg(feature = "network")]
-pub use crate::network::prover::NetworkProver as NetworkProverV1;
 #[cfg(feature = "network-v2")]
 pub use crate::network_v2::NetworkProver as NetworkProverV2;
 #[cfg(feature = "cuda")]
@@ -102,13 +98,7 @@ impl ProverClient {
                             ),
                         }
                     } else if #[cfg(feature = "network")] {
-                        let rpc_url = env::var("PROVER_NETWORK_RPC").ok();
-                        let skip_simulation =
-                            env::var("SKIP_SIMULATION").map(|val| val == "true").unwrap_or_default();
-
-                        Self {
-                            prover: Box::new(NetworkProverV1::new(&private_key, rpc_url, skip_simulation)),
-                        }
+                        panic!("network-v1 is not supported")
                     } else {
                         panic!("network feature is not enabled")
                     }
@@ -425,14 +415,6 @@ impl NetworkProverBuilder {
     pub fn skip_simulation(mut self) -> Self {
         self.skip_simulation = true;
         self
-    }
-
-    /// Creates a new [NetworkProverV1].
-    #[cfg(feature = "network")]
-    pub fn build(self) -> NetworkProverV1 {
-        let private_key = self.private_key.expect("The private key is required");
-
-        NetworkProverV1::new(&private_key, self.rpc_url, self.skip_simulation)
     }
 
     /// Creates a new [NetworkProverV2].
