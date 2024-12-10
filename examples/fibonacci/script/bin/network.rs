@@ -38,12 +38,16 @@ fn main() {
         Err(e) => {
             if let Some(network_error) = e.downcast_ref::<Error>() {
                 match network_error {
-                    Error::RequestUnexecutable => {
+                    Error::RequestUnexecutable { .. } => {
                         eprintln!("Program is unexecutable: {}", e);
                         std::process::exit(1);
                     }
-                    Error::RequestUnfulfillable => {
+                    Error::RequestUnfulfillable { .. } => {
                         eprintln!("Proof request cannot be fulfilled: {}", e);
+                        std::process::exit(1);
+                    }
+                    Error::RequestTimedOut { .. } => {
+                        eprintln!("Proof request timed out: {}", e);
                         std::process::exit(1);
                     }
                     _ => {

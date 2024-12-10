@@ -1,19 +1,21 @@
 use thiserror::Error;
 use tonic::Status;
 
+use crate::network_v2::types::RequestId;
+
 #[derive(Error, Debug)]
 pub enum Error {
-    #[error("Simulation failed")]
+    #[error("Program simulation failed")]
     SimulationFailed,
 
-    #[error("Proof request is unexecutable")]
-    RequestUnexecutable,
+    #[error("Proof request {request_id} is unexecutable")]
+    RequestUnexecutable { request_id: RequestId },
 
-    #[error("Proof request is unfulfillable")]
-    RequestUnfulfillable,
+    #[error("Proof request {request_id} is unfulfillable")]
+    RequestUnfulfillable { request_id: RequestId },
 
-    #[error("Proof request timed out")]
-    RequestTimedOut,
+    #[error("Proof request {request_id} timed out")]
+    RequestTimedOut { request_id: RequestId },
 
     #[error("Artifact upload failed: {message}")]
     ArtifactUpload { message: String },

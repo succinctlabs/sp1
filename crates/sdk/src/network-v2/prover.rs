@@ -182,7 +182,7 @@ impl NetworkProver {
         loop {
             // Check if we've exceeded the timeout.
             if start_time.elapsed() > timeout {
-                return Err(Error::RequestTimedOut);
+                return Err(Error::RequestTimedOut { request_id: request_id.clone() });
             }
             let remaining_timeout = timeout.saturating_sub(start_time.elapsed());
 
@@ -196,12 +196,14 @@ impl NetworkProver {
 
             // Check the deadline.
             if status.deadline < Instant::now().elapsed().as_secs() {
-                return Err(Error::RequestTimedOut);
+                return Err(Error::RequestTimedOut { request_id: request_id.clone() });
             }
 
             // Check the execution status.
-            if status.execution_status == ExecutionStatus::Unexecutable as i32 {
-                return Err(Error::RequestUnexecutable);
+            if let Ok(ExecutionStatus::Unexecutable) =
+                ExecutionStatus::try_from(status.execution_status)
+            {
+                return Err(Error::RequestUnexecutable { request_id: request_id.clone() });
             }
 
             // Check the fulfillment status.
@@ -216,7 +218,7 @@ impl NetworkProver {
                     }
                 }
                 Ok(FulfillmentStatus::Unfulfillable) => {
-                    return Err(Error::RequestUnfulfillable);
+                    return Err(Error::RequestUnfulfillable { request_id: request_id.clone() });
                 }
                 _ => {}
             }

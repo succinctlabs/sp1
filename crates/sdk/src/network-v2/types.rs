@@ -20,8 +20,8 @@ pub struct VerifyingKeyHash(Vec<u8>);
 pub struct TransactionHash(Vec<u8>);
 
 pub trait HashType: Sized {
-    fn as_bytes(&self) -> &[u8];
     fn new(bytes: Vec<u8>) -> Self;
+    fn as_bytes(&self) -> &[u8];
     fn to_hex(&self) -> String {
         format!("0x{}", hex::encode(self.as_bytes()))
     }
