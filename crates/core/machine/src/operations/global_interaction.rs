@@ -101,8 +101,7 @@ impl<F: PrimeField32> GlobalInteractionOperation<F> {
 }
 
 impl<F: Field> GlobalInteractionOperation<F> {
-    /// Constrain that the y coordinate is correct decompression, and send the resulting digest coordinate to the permutation trace.
-    /// The first value in `values` must be a value range checked to u16.
+    /// Constrain that the elliptic curve point for the global interaction is correctly derived.
     pub fn eval_single_digest<AB: SP1AirBuilder + p3_air::PairBuilder>(
         builder: &mut AB,
         values: [AB::Expr; 7],
@@ -122,8 +121,7 @@ impl<F: Field> GlobalInteractionOperation<F> {
             offset = offset.clone() + cols.offset_bits[i] * AB::F::from_canonical_u32(1 << i);
         }
 
-        // Range check the first element in the message to be "small" so that we can encode
-        // the interaction kind in the upper 8 bits.
+        // Range check the first element in the message to be a u16 so that we can encode the interaction kind in the upper 8 bits.
         builder.send_byte(
             AB::Expr::from_canonical_u8(ByteOpcode::U16Range as u8),
             values[0].clone(),
@@ -132,6 +130,8 @@ impl<F: Field> GlobalInteractionOperation<F> {
             is_real,
         );
 
+        // Turn the message into a hash input. Only the first 8 elements are non-zero, as the rate of the Poseidon2 hash is 8.
+        // Combining `values[0]` with `kind` is safe, as `values[0]` is range checked to be u16, and `kind` is known to be u8.
         let m_trial = [
             values[0].clone() + AB::Expr::from_canonical_u32(1 << 16) * kind,
             values[1].clone(),
@@ -151,7 +151,7 @@ impl<F: Field> GlobalInteractionOperation<F> {
             AB::Expr::zero(),
         ];
 
-        // Constraint the input of the permutation to be the message.
+        // Constrain the input of the permutation to be the message.
         for i in 0..16 {
             builder.when(is_real).assert_eq(
                 cols.permutation.permutation.external_rounds_state()[0][i].into(),
@@ -159,34 +159,28 @@ impl<F: Field> GlobalInteractionOperation<F> {
             );
         }
 
-        // Constraint the permutation.
+        // Constrain the permutation.
         for r in 0..NUM_EXTERNAL_ROUNDS {
             eval_external_round(builder, &cols.permutation.permutation, r);
         }
         eval_internal_rounds(builder, &cols.permutation.permutation);
 
-        // Constrain that the x-coordinate is the hash of the message.
+        // Constrain that when `is_real` is true, the x-coordinate is the hash of the message.
         let m_hash = cols.permutation.permutation.perm_output();
         for i in 0..7 {
             builder.when(is_real).assert_eq(cols.x_coordinate[i].into(), m_hash[i]);
         }
         let x = SepticExtension::<AB::Expr>::from_base_fn(|i| cols.x_coordinate[i].into());
-
-        // Constrain that when `is_real` is true, then `x == a * m + b`.
-        for i in 0..7 {
-            builder.when(is_real).assert_eq(cols.x_coordinate[i].into(), m_hash[i]);
-        }
-        // When not real, constraint to dummy?
-
-        // Constrain that y is a valid y-coordinate.
         let y = SepticExtension::<AB::Expr>::from_base_fn(|i| cols.y_coordinate[i].into());
 
         // Constrain that `(x, y)` is a valid point on the curve.
         let y2 = y.square();
         let x3_2x_26z5 = SepticCurve::<AB::Expr>::curve_formula(x);
-
         builder.assert_septic_ext_eq(y2, x3_2x_26z5);
 
+        // Constrain that `0 <= y6_value < (p - 1) / 2 = 2^30 - 2^26`.
+        // Decompose `y6_value` into 30 bits, and then constrain that the top 4 bits cannot be all 1.
+        // To do this, check that the sum of the top 4 bits is not equal to 4, which can be done by providing an inverse.
         let mut y6_value = AB::Expr::zero();
         let mut top_4_bits = AB::Expr::zero();
         for i in 0..30 {
@@ -196,15 +190,16 @@ impl<F: Field> GlobalInteractionOperation<F> {
                 top_4_bits = top_4_bits.clone() + cols.y6_bit_decomp[i];
             }
         }
-        top_4_bits = top_4_bits.clone() - AB::Expr::from_canonical_u32(4);
-        builder.when(is_real).assert_eq(cols.range_check_witness * top_4_bits, AB::Expr::one());
+        // If `is_real` is true, check that `top_4_bits - 4` is non-zero, by checking `range_check_witness` is an inverse of it.
+        builder.when(is_real).assert_eq(
+            cols.range_check_witness * (top_4_bits - AB::Expr::from_canonical_u8(4)),
+            AB::Expr::one(),
+        );
 
         // Constrain that y has correct sign.
-        // If it's a receive: 0 <= y_6 - 1 < (p - 1) / 2 = 2^30 - 2^26
-        // If it's a send: 0 <= y_6 - (p + 1) / 2 < (p - 1) / 2 = 2^30 - 2^26
-        builder
-            .when(is_receive.clone())
-            .assert_eq(y.0[6].clone(), AB::Expr::one() + y6_value.clone());
+        // If it's a receive: `1 <= y_6 <= (p - 1) / 2`, so `0 <= y_6 - 1 = y6_value < (p - 1) / 2`.
+        // If it's a send: `(p + 1) / 2 <= y_6 <= p - 1`, so `0 <= y_6 - (p + 1) / 2 = y6_value < (p - 1) / 2`.
+        builder.when(is_receive).assert_eq(y.0[6].clone(), AB::Expr::one() + y6_value.clone());
         builder.when(is_send).assert_eq(
             y.0[6].clone(),
             AB::Expr::from_canonical_u32((1 << 30) - (1 << 26) + 1) + y6_value.clone(),

@@ -200,6 +200,7 @@ where
         let local: &MemoryLocalCols<AB::Var> = (*local).borrow();
 
         for local in local.memory_local_entries.iter() {
+            // Constrain that `local.is_real` is boolean.
             builder.assert_bool(local.is_real);
 
             builder.assert_eq(
@@ -215,7 +216,7 @@ where
                 InteractionScope::Local,
             );
 
-            // Send the interaction to the global table.
+            // Send the "receive interaction" to the global table.
             builder.send(
                 AirInteraction::new(
                     vec![
@@ -226,8 +227,8 @@ where
                         local.initial_value[1].into(),
                         local.initial_value[2].into(),
                         local.initial_value[3].into(),
-                        local.is_real.into() * AB::Expr::zero(),
-                        local.is_real.into() * AB::Expr::one(),
+                        AB::Expr::zero(),
+                        AB::Expr::one(),
                         AB::Expr::from_canonical_u8(InteractionKind::Memory as u8),
                     ],
                     local.is_real.into(),
@@ -236,7 +237,7 @@ where
                 InteractionScope::Local,
             );
 
-            // Send the interaction to the global table.
+            // Send the "send interaction" to the global table.
             builder.send(
                 AirInteraction::new(
                     vec![
@@ -247,8 +248,8 @@ where
                         local.final_value[1].into(),
                         local.final_value[2].into(),
                         local.final_value[3].into(),
-                        local.is_real.into() * AB::Expr::one(),
-                        local.is_real.into() * AB::Expr::zero(),
+                        AB::Expr::one(),
+                        AB::Expr::zero(),
                         AB::Expr::from_canonical_u8(InteractionKind::Memory as u8),
                     ],
                     local.is_real.into(),
