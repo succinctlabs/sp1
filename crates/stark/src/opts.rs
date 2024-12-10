@@ -55,9 +55,9 @@ impl SP1ProverOpts {
         // We also make sure that the shard batch size is at least 1.
         let log2_gap_from_21 = 21 - log2_shard_size;
         let lde_size_gb = 14 / (1 << log2_gap_from_21);
-        let oom_shard_count = cpu_ram_gb / lde_size_gb;
+        let oom_shard_count = (cpu_ram_gb / lde_size_gb) + 1;
         let safe_shard_count = std::cmp::min(oom_shard_count / 2, MAX_SHARD_BATCH_SIZE);
-        opts.core_opts.shard_batch_size = std::cmp::max(safe_shard_count, 1);
+        opts.core_opts.shard_batch_size = std::cmp::max(safe_shard_count, 2);
 
         // We always have at least 1 record and trace channel to maximally use the prover threads.
         //
@@ -227,6 +227,9 @@ mod tests {
 
         let opts = SP1ProverOpts::cpu(32);
         println!("32: {:?}", opts.core_opts);
+
+        let opts = SP1ProverOpts::cpu(36);
+        println!("36: {:?}", opts.core_opts);
 
         let opts = SP1ProverOpts::cpu(64);
         println!("64: {:?}", opts.core_opts);
