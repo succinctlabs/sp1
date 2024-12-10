@@ -21,8 +21,6 @@ members = [
   "json/lib",
   "json/program",
   "json/script",
-  "patch-testing/program",
-  "patch-testing/script",
   "regex/program",
   "regex/script",
   "rsa/program",
