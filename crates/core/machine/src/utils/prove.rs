@@ -251,7 +251,6 @@ where
                                 && deferred.global_memory_finalize_events.len()
                                     < opts.split_opts.memory / 4
                             {
-                                tracing::info!("Number of cycles: {}", num_cycles);
                                 records.last_mut()
                             } else {
                                 None

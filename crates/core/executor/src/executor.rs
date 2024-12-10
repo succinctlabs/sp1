@@ -18,7 +18,7 @@ use crate::{
         emit_auipc_dependency, emit_branch_dependencies, emit_divrem_dependencies,
         emit_jump_dependencies, emit_memory_dependencies,
     },
-    estimate_riscv_event_counts,
+    estimate_riscv_event_counts, estimate_riscv_lde_size,
     events::{
         AUIPCEvent, AluEvent, BranchEvent, CpuEvent, JumpEvent, MemInstrEvent,
         MemoryAccessPosition, MemoryInitializeFinalizeEvent, MemoryLocalEvent, MemoryReadRecord,
@@ -26,6 +26,7 @@ use crate::{
     },
     hook::{HookEnv, HookRegistry},
     memory::{Entry, Memory},
+    pad_rv32im_event_counts,
     record::{ExecutionRecord, MemoryAccessRecord},
     report::ExecutionReport,
     state::{ExecutionState, ForkState},
@@ -52,8 +53,6 @@ pub enum DeferredProofVerification {
     /// Skip verification of deferred proofs
     Disabled,
 }
-
-const CHECK_CYCLE: usize = 16;
 
 /// An executor for the SP1 RISC-V zkVM.
 ///
@@ -149,10 +148,19 @@ pub struct Executor<'a> {
     pub maximal_shapes: Option<Vec<Shape<RiscvAirId>>>,
 
     /// The costs of the program.
-    pub costs: HashMap<RiscvAirId, usize>,
+    pub costs: HashMap<RiscvAirId, u64>,
 
     /// Skip deferred proof verification.
     pub deferred_proof_verification: DeferredProofVerification,
+
+    /// The frequency to check the stopping condition.
+    pub shape_check_frequency: u64,
+
+    /// Early exit if the estimate LDE size is too big.
+    pub lde_size_check: bool,
+
+    /// The maximum LDE size to allow.
+    pub lde_size_threshold: u64,
 }
 
 /// The different modes the executor can run in.
@@ -297,7 +305,10 @@ impl<'a> Executor<'a> {
             uninitialized_memory_checkpoint: Memory::default(),
             local_memory_access: HashMap::new(),
             maximal_shapes: None,
-            costs,
+            costs: costs.into_iter().map(|(k, v)| (k, v as u64)).collect(),
+            shape_check_frequency: 16,
+            lde_size_check: false,
+            lde_size_threshold: 0,
         }
     }
 
@@ -1601,7 +1612,7 @@ impl<'a> Executor<'a> {
             //
             // If we're close to not fitting, early stop the shard to ensure we don't OOM.
             let mut shape_match_found = true;
-            if self.state.global_clk % (CHECK_CYCLE as u64) == 0 {
+            if self.state.global_clk % self.shape_check_frequency == 0 {
                 // Estimate the number of events in the trace.
                 let event_counts = estimate_riscv_event_counts(
                     (self.state.clk >> 2) as u64,
@@ -1610,15 +1621,27 @@ impl<'a> Executor<'a> {
                     *self.local_counts.event_counts,
                 );
 
-                if let Some(maximal_shapes) = &self.maximal_shapes {
+                // Check if the LDE size is too large.
+                if self.lde_size_check {
+                    let padded_event_counts =
+                        pad_rv32im_event_counts(event_counts, self.shape_check_frequency);
+                    let padded_lde_size = estimate_riscv_lde_size(padded_event_counts, &self.costs);
+                    if padded_lde_size > self.lde_size_threshold {
+                        tracing::warn!(
+                            "stopping shard early due to lde size: {} gb",
+                            (padded_lde_size as u64) / 1_000_000_000
+                        );
+                        shape_match_found = false;
+                    }
+                }
+                // Check if we're too "close" to a maximal shape.
+                else if let Some(maximal_shapes) = &self.maximal_shapes {
                     let distance = |threshold: usize, count: usize| {
                         (count != 0).then(|| threshold - count).unwrap_or(usize::MAX)
                     };
 
                     shape_match_found = false;
 
-                    let mut t = Vec::new();
-                    let mut norms = Vec::new();
                     for shape in maximal_shapes.iter() {
                         let cpu_threshold = shape.log2_height(&RiscvAirId::Cpu).unwrap();
                         if self.state.clk > ((1 << cpu_threshold) << 2) {
@@ -1636,11 +1659,6 @@ impl<'a> Executor<'a> {
                             let count = event_counts[air] as usize;
                             if count > threshold {
                                 shape_too_small = true;
-                                t.push((
-                                    air,
-                                    p3_util::log2_ceil_usize(count),
-                                    p3_util::log2_ceil_usize(threshold),
-                                ));
                                 break;
                             }
 
@@ -1652,10 +1670,7 @@ impl<'a> Executor<'a> {
                         }
 
                         let l_infinity = distances.clone().into_iter().map(|x| x.1).min().unwrap();
-                        let l_infinity_idx =
-                            distances.clone().into_iter().position(|d| d.1 == l_infinity).unwrap();
-                        norms.push((distances[l_infinity_idx].0, l_infinity));
-                        if l_infinity >= 2 * CHECK_CYCLE {
+                        if l_infinity >= 2 * (self.shape_check_frequency as usize) {
                             shape_match_found = true;
                             break;
                         }
@@ -1666,11 +1681,9 @@ impl<'a> Executor<'a> {
                         log::warn!(
                             "stopping shard early due to no shapes fitting: \
                             clk: {},
-                            clk_usage: {}, t: {:?}, norms: {:?}",
+                            clk_usage: {}",
                             (self.state.clk / 4).next_power_of_two().ilog2(),
                             ((self.state.clk / 4) as f64).log2(),
-                            t,
-                            norms
                         );
                     }
                 }
