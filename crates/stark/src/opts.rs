@@ -21,16 +21,70 @@ pub struct SP1ProverOpts {
 }
 
 impl SP1ProverOpts {
-    /// Get the default prover options for a prover on CPU.
+    /// Get the default prover options.
     #[must_use]
-    pub fn cpu() -> Self {
-        Self { core_opts: SP1CoreOpts::default(), recursion_opts: SP1CoreOpts::recursion() }
+    pub fn auto() -> Self {
+        let cpu_ram_gb = System::new_all().total_memory() / (1024 * 1024 * 1024);
+        SP1ProverOpts::cpu(cpu_ram_gb as usize)
+    }
+
+    /// Get the default prover options for a prover on CPU based on the amount of CPU memory.
+    ///
+    /// We use a soft heuristic based on our understanding of the memory usage in the GPU prover.
+    #[must_use]
+    pub fn cpu(cpu_ram_gb: usize) -> Self {
+        let mut opts = SP1ProverOpts::default();
+
+        // For each 2^21 shard, we need to reserve pessimistically ~14 GB of memory.
+        //
+        // This means that:
+        // - 0..14 GB of RAM -> ~3.5 GB of RAM per shard
+        // - 14..32 GB of RAM -> ~7 GB of RAM per shard
+        // - 32..64 GB of RAM -> ~14 GB of RAM per shard
+        let log2_shard_size = match cpu_ram_gb {
+            0..14 => 19,
+            14..32 => 20,
+            32.. => 21,
+        };
+        opts.core_opts.shard_size = 1 << log2_shard_size;
+
+        // To calculate the optimal shard batch size, we estimate the number of shards that would
+        // result in an OOM error. We then divide this number by 2 to get the optimal shard batch
+        // size but we upper bound it by `MAX_SHARD_BATCH_SIZE`.
+        //
+        // We also make sure that the shard batch size is at least 1.
+        let log2_gap_from_21 = 21 - log2_shard_size;
+        let lde_size_gb = 14 / (1 << log2_gap_from_21);
+        let oom_shard_count = cpu_ram_gb / lde_size_gb;
+        let safe_shard_count = std::cmp::min(oom_shard_count / 2, MAX_SHARD_BATCH_SIZE);
+        opts.core_opts.shard_batch_size = std::cmp::max(safe_shard_count, 1);
+
+        // We always have at least 1 record and trace channel to maximally use the prover threads.
+        //
+        // In the CPU setting, the prover is much slower than the record/trace generation, so we
+        // can set these values to be very low.
+        opts.core_opts.records_and_traces_channel_capacity = 1;
+        opts.core_opts.trace_gen_workers = 1;
+
+        // We then divide all the parameters in the split opts by `1 << log2_gap_from_21` to ensure
+        // the memory / precompile shards also do not OOM.
+        //
+        // There could be some careful logic here to handle `combine_memory_threshold` but we
+        // don't need to do that for now.
+        let factor = 1 << log2_gap_from_21;
+        opts.core_opts.split_opts.deferred /= factor;
+        opts.core_opts.split_opts.keccak /= factor;
+        opts.core_opts.split_opts.sha_extend /= factor;
+        opts.core_opts.split_opts.sha_compress /= factor;
+        opts.core_opts.split_opts.memory /= factor;
+
+        opts
     }
 
     /// Get the default prover options for a prover on GPU given the amount of CPU and GPU memory.
     #[must_use]
     pub fn gpu(cpu_ram_gb: usize, gpu_ram_gb: usize) -> Self {
-        let mut opts = SP1ProverOpts::cpu();
+        let mut opts = SP1ProverOpts::default();
 
         // Set the core options.
         if 24 <= gpu_ram_gb {
@@ -76,34 +130,9 @@ pub struct SP1CoreOpts {
     pub records_and_traces_channel_capacity: usize,
 }
 
-/// Calculate the default shard size using an empirically determined formula.
-///
-/// For super memory constrained machines, we need to set shard size to 2^18.
-/// Otherwise, we use a linear formula derived from experimental results.
-/// The data comes from benchmarking the maximum physical memory usage
-/// of [rsp](https://github.com/succinctlabs/rsp) on a variety of shard sizes and
-/// shard batch sizes, and performing linear regression on the results.
-#[allow(clippy::cast_precision_loss)]
-fn shard_size(total_available_mem: u64) -> usize {
-    let log_shard_size = match total_available_mem {
-        0..=14 => 17,
-        m => (((m as f64).log2() * 0.619) + 16.2).floor() as usize,
-    };
-    std::cmp::min(1 << log_shard_size, MAX_SHARD_SIZE)
-}
-
-/// Calculate the default shard batch size using an empirically determined formula.
-///
-/// For memory constrained machines, we need to set shard batch size to either 1 or 2.
-/// For machines with a very large amount of memory, we can use batch size 8. Empirically,
-/// going above 8 doesn't result in a significant speedup.
-/// For most machines, we can just use batch size 4.
-fn shard_batch_size(total_available_mem: u64) -> usize {
-    match total_available_mem {
-        0..=16 => 1,
-        17..=48 => 2,
-        256.. => MAX_SHARD_BATCH_SIZE,
-        _ => 4,
+impl Default for SP1ProverOpts {
+    fn default() -> Self {
+        Self { core_opts: SP1CoreOpts::default(), recursion_opts: SP1CoreOpts::recursion() }
     }
 }
 
@@ -114,21 +143,14 @@ impl Default for SP1CoreOpts {
             .unwrap_or(MAX_DEFERRED_SPLIT_THRESHOLD)
             .max(MAX_DEFERRED_SPLIT_THRESHOLD);
 
-        let sys = System::new_all();
-        let total_available_mem = sys.total_memory() / (1024 * 1024 * 1024);
-        let default_shard_size = shard_size(total_available_mem);
-        let default_shard_batch_size = shard_batch_size(total_available_mem);
-
-        let shard_size = env::var("SHARD_SIZE").map_or_else(
-            |_| default_shard_size,
-            |s| s.parse::<usize>().unwrap_or(default_shard_size),
-        );
+        let shard_size = env::var("SHARD_SIZE")
+            .map_or_else(|_| MAX_SHARD_SIZE, |s| s.parse::<usize>().unwrap_or(MAX_SHARD_SIZE));
 
         Self {
             shard_size,
             shard_batch_size: env::var("SHARD_BATCH_SIZE").map_or_else(
-                |_| default_shard_batch_size,
-                |s| s.parse::<usize>().unwrap_or(default_shard_batch_size),
+                |_| MAX_SHARD_BATCH_SIZE,
+                |s| s.parse::<usize>().unwrap_or(MAX_SHARD_BATCH_SIZE),
             ),
             split_opts: SplitOpts::new(split_threshold),
             trace_gen_workers: env::var("TRACE_GEN_WORKERS").map_or_else(
@@ -191,5 +213,34 @@ impl SplitOpts {
             sha_compress: 32 * deferred_split_threshold / 80,
             memory: 64 * deferred_split_threshold,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_opts() {
+        let opts = SP1ProverOpts::cpu(16);
+        println!("16: {:?}", opts.core_opts);
+
+        let opts = SP1ProverOpts::cpu(32);
+        println!("32: {:?}", opts.core_opts);
+
+        let opts = SP1ProverOpts::cpu(64);
+        println!("64: {:?}", opts.core_opts);
+
+        let opts = SP1ProverOpts::cpu(128);
+        println!("128: {:?}", opts.core_opts);
+
+        let opts = SP1ProverOpts::cpu(256);
+        println!("256: {:?}", opts.core_opts);
+
+        let opts = SP1ProverOpts::cpu(512);
+        println!("512: {:?}", opts.core_opts);
+
+        let opts = SP1ProverOpts::auto();
+        println!("auto: {:?}", opts.core_opts);
     }
 }

@@ -5,6 +5,6 @@ use sp1_stark::SP1ProverOpts;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let opts = SP1ProverOpts::cpu();
+    let opts = SP1ProverOpts::auto();
     evaluate_performance::<CpuProverComponents>(opts).await
 }

@@ -1675,7 +1675,7 @@ pub mod tests {
     fn test_e2e() -> Result<()> {
         let elf = test_artifacts::FIBONACCI_ELF;
         setup_logger();
-        let opts = SP1ProverOpts::cpu();
+        let opts = SP1ProverOpts::auto();
         // TODO(mattstam): We should Test::Plonk here, but this uses the existing
         // docker image which has a different API than the current. So we need to wait until the
         // next release (v1.2.0+), and then switch it back.
@@ -1690,7 +1690,7 @@ pub mod tests {
     #[serial]
     fn test_e2e_with_deferred_proofs() -> Result<()> {
         setup_logger();
-        test_e2e_with_deferred_proofs_prover::<CpuProverComponents>(SP1ProverOpts::cpu())
+        test_e2e_with_deferred_proofs_prover::<CpuProverComponents>(SP1ProverOpts::auto())
     }
 
     // #[test]

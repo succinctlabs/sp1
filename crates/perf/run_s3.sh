@@ -20,4 +20,4 @@ export RUST_LOG=debug
 export SP1_DEBUG=1
 
 # Run sp1-perf
-cargo run -p sp1-perf --bin sp1-perf -- --program program.bin --stdin stdin.bin --prover-mode $kind
+cargo run -p sp1-perf --bin sp1-perf -- --program program.bin --stdin stdin.bin --mode $kind

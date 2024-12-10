@@ -231,7 +231,7 @@ impl Prover<CpuProverComponents> for NetworkProver {
 /// Warns if `opts` or `context` are not default values, since they are currently unsupported.
 fn warn_if_not_default(opts: &SP1ProverOpts, context: &SP1Context) {
     let _guard = tracing::warn_span!("network_prover").entered();
-    if opts != &SP1ProverOpts::cpu() {
+    if opts != &SP1ProverOpts::auto() {
         tracing::warn!("non-default opts will be ignored: {:?}", opts.core_opts);
         tracing::warn!("custom SP1ProverOpts are currently unsupported by the network prover");
     }

@@ -53,7 +53,7 @@ fn main() {
     let stdin = std::fs::read(args.stdin).expect("failed to read stdin");
     let stdin: SP1Stdin = bincode::deserialize(&stdin).expect("failed to deserialize stdin");
 
-    let opts = SP1ProverOpts::cpu();
+    let opts = SP1ProverOpts::auto();
 
     let mut program = Program::from(&elf).expect("failed to parse program");
     let shape_config = CoreShapeConfig::<BabyBear>::default();

@@ -59,7 +59,7 @@ fn main() {
     let stdin = std::fs::read(args.stdin).expect("failed to read stdin");
     let stdin: SP1Stdin = bincode::deserialize(&stdin).expect("failed to deserialize stdin");
 
-    let opts = SP1ProverOpts::cpu();
+    let opts = SP1ProverOpts::auto();
 
     let prover = SP1Prover::<CpuProverComponents>::new();
     let (pk, pk_d, program, vk) = prover.setup(&elf);
