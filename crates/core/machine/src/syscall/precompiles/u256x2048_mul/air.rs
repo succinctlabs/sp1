@@ -55,9 +55,6 @@ pub struct U256x2048MulCols<T> {
     /// The clock cycle of the syscall.
     pub clk: T,
 
-    /// The nonce of the operation.
-    pub nonce: T,
-
     /// The pointer to the first input.
     pub a_ptr: T,
 
@@ -231,17 +228,7 @@ impl<F: PrimeField32> MachineAir<F> for U256x2048MulChip {
         );
 
         // Convert the trace to a row major matrix.
-        let mut trace =
-            RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_COLS);
-
-        // Write the nonces to the trace.
-        for i in 0..trace.height() {
-            let cols: &mut U256x2048MulCols<F> =
-                trace.values[i * NUM_COLS..(i + 1) * NUM_COLS].borrow_mut();
-            cols.nonce = F::from_canonical_usize(i);
-        }
-
-        trace
+        RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_COLS)
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
@@ -250,6 +237,10 @@ impl<F: PrimeField32> MachineAir<F> for U256x2048MulChip {
         } else {
             !shard.get_precompile_events(SyscallCode::U256XU2048_MUL).is_empty()
         }
+    }
+
+    fn local_only(&self) -> bool {
+        true
     }
 }
 
@@ -267,8 +258,6 @@ where
         let main = builder.main();
         let local = main.row_slice(0);
         let local: &U256x2048MulCols<AB::Var> = (*local).borrow();
-        let next = main.row_slice(1);
-        let next: &U256x2048MulCols<AB::Var> = (*next).borrow();
 
         // Assert that is_real is a boolean.
         builder.assert_bool(local.is_real);
@@ -334,10 +323,6 @@ where
             &local.hi_memory,
             local.is_real,
         );
-
-        // Constrain the incrementing nonce.
-        builder.when_first_row().assert_zero(local.nonce);
-        builder.when_transition().assert_eq(local.nonce + AB::Expr::one(), next.nonce);
 
         let a_limbs =
             limbs_from_access::<AB::Var, <U256Field as NumLimbs>::Limbs, _>(&local.a_memory);
