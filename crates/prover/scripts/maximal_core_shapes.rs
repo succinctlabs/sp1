@@ -4,14 +4,14 @@ use clap::Parser;
 use p3_baby_bear::BabyBear;
 use sp1_core_executor::{Executor, Program, RiscvAirId, SP1Context};
 use sp1_core_machine::{io::SP1Stdin, riscv::RiscvAir, utils::setup_logger};
-use sp1_stark::{baby_bear_poseidon2::BabyBearPoseidon2, shape::Shape, SP1CoreOpts};
+use sp1_stark::{shape::Shape, SP1CoreOpts};
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
 struct Args {
-    #[clap(short, long, value_delimiter = ',')]
+    #[clap(short, long, value_delimiter = ' ')]
     list: Vec<PathBuf>,
-    #[clap(short, long, value_delimiter = ',')]
+    #[clap(short, long, value_delimiter = ' ')]
     shard_sizes: Vec<usize>,
     #[clap(short, long)]
     initial: Option<PathBuf>,
@@ -128,7 +128,7 @@ fn main() {
     }
 
     // For each program, collect the maximal shapes.
-    let (tx, rx) = mpsc::sync_channel(30);
+    let (tx, rx) = mpsc::sync_channel(10);
     let program_list = args.list;
     for s3_path in program_list {
         // Download program and stdin files from S3.
