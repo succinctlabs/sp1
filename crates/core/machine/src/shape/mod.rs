@@ -91,10 +91,9 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
 
             // Try to find a shape fitting within at least one of the candidate shapes.
             for (i, cluster) in self.small_shapes.iter().enumerate() {
+                let shard = record.public_values.shard;
                 if let Some(shape) = cluster.find_shape(&heights) {
-                    let shard = record.public_values.shard;
                     tracing::info!("Shard Lifted: Index={}, Cluster={}", shard, i);
-
                     for (air, height) in heights.iter() {
                         if let Some(log2_height) = shape.log2_height(air) {
                             tracing::info!(

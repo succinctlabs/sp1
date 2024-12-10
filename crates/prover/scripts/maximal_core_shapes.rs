@@ -4,7 +4,7 @@ use clap::Parser;
 use p3_baby_bear::BabyBear;
 use sp1_core_executor::{Executor, Program, RiscvAirId, SP1Context};
 use sp1_core_machine::{io::SP1Stdin, riscv::RiscvAir, utils::setup_logger};
-use sp1_stark::{shape::Shape, SP1CoreOpts};
+use sp1_stark::{baby_bear_poseidon2::BabyBearPoseidon2, shape::Shape, SP1CoreOpts};
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
@@ -42,7 +42,13 @@ fn collect_maximal_shapes(
         let (records, f) = executor.execute_record(true).unwrap();
         finished = f;
         for mut record in records {
+            // let config = BabyBearPoseidon2::new();
+            // let machine = RiscvAir::<BabyBear>::machine(config);
+            // let opts = SP1CoreOpts::default();
             if record.contains_cpu() {
+                // let mut records = vec![*record];
+                // machine.generate_dependencies(records.as_mut_slice(), &opts, None);
+                // let mut record = records.pop().unwrap();
                 let _ = record.defer();
                 let core_shape: Shape<RiscvAirId> = RiscvAir::<BabyBear>::core_heights(&record)
                     .into_iter()
@@ -122,7 +128,7 @@ fn main() {
     }
 
     // For each program, collect the maximal shapes.
-    let (tx, rx) = mpsc::sync_channel(10);
+    let (tx, rx) = mpsc::sync_channel(30);
     let program_list = args.list;
     for s3_path in program_list {
         // Download program and stdin files from S3.

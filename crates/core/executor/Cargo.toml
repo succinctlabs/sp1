@@ -19,6 +19,7 @@ sp1-stark = { workspace = true }
 p3-field = { workspace = true }
 p3-baby-bear = { workspace = true }
 p3-maybe-rayon = { workspace = true, features = ["parallel"] }
+p3-util = { workspace = true }
 
 # misc
 serde = { workspace = true, features = ["derive", "rc"] }
