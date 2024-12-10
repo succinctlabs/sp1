@@ -1,4 +1,7 @@
-use std::time::{Duration, Instant};
+use std::{
+    env,
+    time::{Duration, Instant},
+};
 
 use clap::{command, Parser, ValueEnum};
 use sp1_core_executor::programs::tests::VERIFY_PROOF_ELF;
@@ -180,7 +183,9 @@ fn main() {
             println!("{:?}", result);
         }
         ProverMode::Network => {
-            let prover = ProverClient::network();
+            let private_key = env::var("SP1_PRIVATE_KEY").unwrap();
+            let rpc_url = env::var("PROVER_NETWORK_RPC_URL").unwrap();
+            let prover = ProverClient::network(private_key, Some(rpc_url), false);
             let (_, _) = time_operation(|| prover.execute(&elf, stdin.clone()));
 
             let (proof, _) =

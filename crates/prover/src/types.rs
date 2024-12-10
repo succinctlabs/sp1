@@ -1,6 +1,7 @@
 use std::{fs::File, path::Path};
 
 use anyhow::Result;
+use clap::ValueEnum;
 use p3_baby_bear::BabyBear;
 use p3_bn254_fr::Bn254Fr;
 use p3_commit::{Pcs, TwoAdicMultiplicativeCoset};
@@ -216,4 +217,14 @@ pub enum SP1CircuitWitness {
     Core(SP1RecursionWitnessValues<CoreSC>),
     Deferred(SP1DeferredWitnessValues<InnerSC>),
     Compress(SP1CompressWitnessValues<InnerSC>),
+}
+
+#[derive(Debug, Default, Clone, ValueEnum, PartialEq, Eq)]
+pub enum ProverMode {
+    #[default]
+    Cpu,
+    Cuda,
+    Network,
+    #[value(skip)]
+    Mock,
 }

@@ -98,7 +98,7 @@ impl ProverClient {
                         }
                     } else if #[cfg(feature = "network")] {
                         Self {
-                            prover: Box::new(NetworkProverV1::new(&private_key, rpc_url, skip_simulation)),
+                            prover: Box::new(NetworkProverV1::new()),
                         }
                     } else {
                         panic!("network feature is not enabled")
@@ -193,7 +193,7 @@ impl ProverClient {
                 }
             } else if #[cfg(feature = "network")] {
                 Self {
-                    prover: Box::new(NetworkProverV1::new(&private_key, rpc_url, skip_simulation)),
+                    prover: Box::new(NetworkProverV1::new()),
                 }
             } else {
                 panic!("network feature is not enabled")
@@ -376,7 +376,7 @@ impl ProverClientBuilder {
                         }
                     } else if #[cfg(feature = "network")] {
                         ProverClient {
-                            prover: Box::new(NetworkProverV1::new(&private_key, self.rpc_url, self.skip_simulation)),
+                            prover: Box::new(NetworkProverV1::new()),
                         }
                     } else {
                         panic!("network feature is not enabled")
@@ -422,7 +422,7 @@ impl NetworkProverBuilder {
     pub fn build(self) -> NetworkProverV1 {
         let private_key = self.private_key.expect("The private key is required");
 
-        NetworkProverV1::new(&private_key, self.rpc_url, self.skip_simulation)
+        NetworkProverV1::new()
     }
 
     /// Creates a new [NetworkProverV2].
@@ -448,12 +448,4 @@ pub fn block_on<T>(fut: impl Future<Output = T>) -> T {
         let rt = tokio::runtime::Runtime::new().expect("Failed to create a new runtime");
         rt.block_on(fut)
     }
-}
-
-#[cfg(test)]
-mod tests {
-
-    use sp1_primitives::io::SP1PublicValues;
-
-    use crate::{utils, CostEstimator, ProverClient, SP1Stdin};
 }
