@@ -53,7 +53,7 @@ impl SP1ProverOpts {
         // We also make sure that the shard batch size is at least 1.
         let log2_gap_from_21 = 21 - log2_shard_size;
         let lde_size_gb = 14 / (1 << log2_gap_from_21);
-        let oom_shard_count = (cpu_ram_gb / lde_size_gb) + 1;
+        let oom_shard_count = (cpu_ram_gb / lde_size_gb) + if cpu_ram_gb > 15 { 1 } else { 0 };
         let safe_shard_count = std::cmp::min(oom_shard_count - 1, MAX_SHARD_BATCH_SIZE);
         opts.core_opts.shard_batch_size = std::cmp::max(safe_shard_count, 1);
 
@@ -222,6 +222,9 @@ mod tests {
     fn test_opts() {
         let opts = SP1ProverOpts::cpu(8);
         println!("8: {:?}", opts.core_opts);
+
+        let opts = SP1ProverOpts::cpu(15);
+        println!("15: {:?}", opts.core_opts);
 
         let opts = SP1ProverOpts::cpu(16);
         println!("16: {:?}", opts.core_opts);
