@@ -6,7 +6,7 @@ use std::{
 use clap::{command, Parser};
 use sp1_cuda::SP1CudaProver;
 use sp1_prover::HashableKey;
-use sp1_prover::{components::DefaultProverComponents, ProverMode};
+use sp1_prover::{components::CpuProverComponents, ProverMode};
 use sp1_sdk::{self, ProverClient, SP1Context, SP1Prover, SP1Stdin};
 use sp1_stark::SP1ProverOpts;
 use test_artifacts::VERIFY_PROOF_ELF;
@@ -26,7 +26,7 @@ struct PerfArgs {
     ///
     /// Provide this only in prove mode.
     #[arg(short, long)]
-    pub prover_mode: ProverMode,
+    pub mode: ProverMode,
 }
 
 #[derive(Default, Debug, Clone)]
@@ -59,10 +59,11 @@ fn main() {
     let stdin = std::fs::read(args.stdin).expect("failed to read stdin");
     let stdin: SP1Stdin = bincode::deserialize(&stdin).expect("failed to deserialize stdin");
 
-    let opts = SP1ProverOpts::default();
-    let prover = SP1Prover::<DefaultProverComponents>::new();
+    let opts = SP1ProverOpts::cpu();
+
+    let prover = SP1Prover::<CpuProverComponents>::new();
     let (pk, pk_d, program, vk) = prover.setup(&elf);
-    match args.prover_mode {
+    match args.mode {
         ProverMode::Cpu => {
             let context = SP1Context::default();
             let (report, execution_duration) =
@@ -210,16 +211,16 @@ fn main() {
             let prover = prover_builder.private_key(private_key).build();
             let (_, _) = time_operation(|| prover.execute(&elf, stdin.clone()));
 
-            let (proof, _) =
-                time_operation(|| prover.prove(&pk, stdin.clone()).compressed().run().unwrap());
-
-            let (_, _) = time_operation(|| prover.verify(&proof, &vk));
-
             // let (proof, _) = time_operation(|| {
-            //     prover.prove(&pk, stdin.clone()).groth16().run().unwrap()
+            //     prover.prove(&pk, stdin.clone()).compressed().run().unwrap()
             // });
 
             // let (_, _) = time_operation(|| prover.verify(&proof, &vk));
+
+            let (proof, _) =
+                time_operation(|| prover.prove(&pk, stdin.clone()).groth16().run().unwrap());
+
+            let (_, _) = time_operation(|| prover.verify(&proof, &vk));
 
             // let (proof, _) =
             //     time_operation(|| prover.prove(&pk, stdin).plonk().run().unwrap());
@@ -227,5 +228,5 @@ fn main() {
             // let (_, _) = time_operation(|| prover.verify(&proof, &vk));
         }
         ProverMode::Mock => unreachable!(),
-    }
+    };
 }

@@ -37,7 +37,7 @@ pub enum ProverType {
 }
 
 /// Options to configure proof generation.
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct ProofOpts {
     /// Options to configure the SP1 prover.
     pub sp1_prover_opts: SP1ProverOpts,

@@ -188,7 +188,7 @@ jobs:
         with:
           command: run
           toolchain: 1.81.0
-          args: --release -p sp1-perf --features "native-gnark,network-v2" -- --program workdir/program.bin --stdin workdir/stdin.bin --prover-mode network
+          args: --release -p sp1-perf --features "native-gnark" -- --program workdir/program.bin --stdin workdir/stdin.bin --prover-mode network
         env:
           RUST_LOG: info
           VERIFY_VK: false

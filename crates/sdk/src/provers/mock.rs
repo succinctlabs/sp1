@@ -15,7 +15,7 @@ use p3_baby_bear::BabyBear;
 use p3_field::{AbstractField, PrimeField};
 use p3_fri::{FriProof, TwoAdicFriPcsProof};
 use sp1_prover::{
-    components::DefaultProverComponents,
+    components::CpuProverComponents,
     verify::{verify_groth16_bn254_public_inputs, verify_plonk_bn254_public_inputs},
     Groth16Bn254Proof, HashableKey, PlonkBn254Proof, SP1Prover,
 };
@@ -35,7 +35,7 @@ impl MockProver {
     }
 }
 
-impl Prover<DefaultProverComponents> for MockProver {
+impl Prover<CpuProverComponents> for MockProver {
     fn id(&self) -> ProverType {
         ProverType::Mock
     }

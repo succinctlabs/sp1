@@ -1,7 +1,7 @@
 use anyhow::Result;
 use sp1_core_executor::SP1Context;
 use sp1_core_machine::io::SP1Stdin;
-use sp1_prover::{components::DefaultProverComponents, SP1Prover};
+use sp1_prover::{components::CpuProverComponents, SP1Prover};
 use sp1_stark::MachineProver;
 
 use crate::{
@@ -13,7 +13,7 @@ use super::ProverType;
 
 /// An implementation of [crate::ProverClient] that can generate end-to-end proofs locally.
 pub struct CpuProver {
-    prover: SP1Prover<DefaultProverComponents>,
+    prover: SP1Prover<CpuProverComponents>,
 }
 
 impl CpuProver {
@@ -24,12 +24,12 @@ impl CpuProver {
     }
 
     /// Creates a new [LocalProver] from an existing [SP1Prover].
-    pub fn from_prover(prover: SP1Prover<DefaultProverComponents>) -> Self {
+    pub fn from_prover(prover: SP1Prover<CpuProverComponents>) -> Self {
         Self { prover }
     }
 }
 
-impl Prover<DefaultProverComponents> for CpuProver {
+impl Prover<CpuProverComponents> for CpuProver {
     fn id(&self) -> ProverType {
         ProverType::Cpu
     }
@@ -39,7 +39,7 @@ impl Prover<DefaultProverComponents> for CpuProver {
         (pkey, vk)
     }
 
-    fn sp1_prover(&self) -> &SP1Prover<DefaultProverComponents> {
+    fn sp1_prover(&self) -> &SP1Prover<CpuProverComponents> {
         &self.prover
     }
 

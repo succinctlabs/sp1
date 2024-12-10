@@ -4,7 +4,7 @@ use clap::Parser;
 use p3_baby_bear::BabyBear;
 use sp1_core_machine::utils::setup_logger;
 use sp1_prover::{
-    components::DefaultProverComponents,
+    components::CpuProverComponents,
     shapes::{check_shapes, SP1ProofShape},
     SP1Prover, ShrinkAir, REDUCE_BATCH_SIZE,
 };
@@ -36,7 +36,7 @@ fn main() {
     let args = Args::parse();
 
     // Initialize the prover.
-    let mut prover = SP1Prover::<DefaultProverComponents>::new();
+    let mut prover = SP1Prover::<CpuProverComponents>::new();
 
     // Set whether to verify verification keys.
     prover.vk_verification = !args.dummy;

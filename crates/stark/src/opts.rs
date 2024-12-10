@@ -9,18 +9,7 @@ const MAX_SHARD_BATCH_SIZE: usize = 8;
 const DEFAULT_TRACE_GEN_WORKERS: usize = 1;
 const DEFAULT_CHECKPOINTS_CHANNEL_CAPACITY: usize = 128;
 const DEFAULT_RECORDS_AND_TRACES_CHANNEL_CAPACITY: usize = 1;
-
-/// Set the global threshold according to shard size.
-#[must_use]
-pub const fn default_max_global_threshold(shard_size: usize) -> usize {
-    match shard_size {
-        x if x >= 1 << 22 => 1 << 19,
-        _ => 1 << 20,
-    }
-}
-
-/// The threshold for splitting deferred events.
-pub const MAX_DEFERRED_SPLIT_THRESHOLD: usize = 1 << 15;
+const MAX_DEFERRED_SPLIT_THRESHOLD: usize = 1 << 15;
 
 /// Options to configure the SP1 prover for core and recursive proofs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -31,9 +20,42 @@ pub struct SP1ProverOpts {
     pub recursion_opts: SP1CoreOpts,
 }
 
-impl Default for SP1ProverOpts {
-    fn default() -> Self {
+impl SP1ProverOpts {
+    /// Get the default prover options for a prover on CPU.
+    #[must_use]
+    pub fn cpu() -> Self {
         Self { core_opts: SP1CoreOpts::default(), recursion_opts: SP1CoreOpts::recursion() }
+    }
+
+    /// Get the default prover options for a prover on GPU given the amount of CPU and GPU memory.
+    #[must_use]
+    pub fn gpu(cpu_ram_gb: usize, gpu_ram_gb: usize) -> Self {
+        let mut opts = SP1ProverOpts::cpu();
+
+        // Set the core options.
+        if 24 <= gpu_ram_gb {
+            let log2_shard_size = 21;
+            opts.core_opts.shard_size = 1 << log2_shard_size;
+            opts.core_opts.shard_batch_size = 1;
+
+            let log2_deferred_threshold = 14;
+            opts.core_opts.split_opts = SplitOpts::new(1 << log2_deferred_threshold);
+
+            opts.core_opts.records_and_traces_channel_capacity = 4;
+            opts.core_opts.trace_gen_workers = 4;
+
+            if cpu_ram_gb <= 20 {
+                opts.core_opts.records_and_traces_channel_capacity = 1;
+                opts.core_opts.trace_gen_workers = 2;
+            }
+        } else {
+            unreachable!("not enough gpu memory");
+        }
+
+        // Set the recursion options.
+        opts.recursion_opts.shard_batch_size = 1;
+
+        opts
     }
 }
 
@@ -44,12 +66,8 @@ pub struct SP1CoreOpts {
     pub shard_size: usize,
     /// The size of a batch of shards in terms of cycles.
     pub shard_batch_size: usize,
-    /// The maximum size of global events per shard.
-    pub global_threshold: usize,
     /// Options for splitting deferred events.
     pub split_opts: SplitOpts,
-    /// Whether to reconstruct the commitments.
-    pub reconstruct_commitments: bool,
     /// The number of workers to use for generating traces.
     pub trace_gen_workers: usize,
     /// The capacity of the channel for checkpoints.
@@ -106,11 +124,6 @@ impl Default for SP1CoreOpts {
             |s| s.parse::<usize>().unwrap_or(default_shard_size),
         );
 
-        let global_threshold = env::var("GLOBAL_THRESHOLD").map_or_else(
-            |_| default_max_global_threshold(shard_size),
-            |s| s.parse::<usize>().unwrap_or(default_max_global_threshold(shard_size)),
-        );
-
         Self {
             shard_size,
             shard_batch_size: env::var("SHARD_BATCH_SIZE").map_or_else(
@@ -118,7 +131,6 @@ impl Default for SP1CoreOpts {
                 |s| s.parse::<usize>().unwrap_or(default_shard_batch_size),
             ),
             split_opts: SplitOpts::new(split_threshold),
-            reconstruct_commitments: true,
             trace_gen_workers: env::var("TRACE_GEN_WORKERS").map_or_else(
                 |_| DEFAULT_TRACE_GEN_WORKERS,
                 |s| s.parse::<usize>().unwrap_or(DEFAULT_TRACE_GEN_WORKERS),
@@ -132,7 +144,6 @@ impl Default for SP1CoreOpts {
                     |_| DEFAULT_RECORDS_AND_TRACES_CHANNEL_CAPACITY,
                     |s| s.parse::<usize>().unwrap_or(DEFAULT_RECORDS_AND_TRACES_CHANNEL_CAPACITY),
                 ),
-            global_threshold,
         }
     }
 }
@@ -142,17 +153,8 @@ impl SP1CoreOpts {
     #[must_use]
     pub fn recursion() -> Self {
         let mut opts = Self::default();
-        opts.reconstruct_commitments = false;
-
-        // Recursion only supports [RECURSION_MAX_SHARD_SIZE] shard size.
         opts.shard_size = RECURSION_MAX_SHARD_SIZE;
         opts
-    }
-
-    /// Set the shard size to a new value, changing the global threshold accordingly.
-    pub fn set_shard_size(&mut self, shard_size: usize) {
-        self.global_threshold = default_max_global_threshold(shard_size);
-        self.shard_size = shard_size;
     }
 }
 
@@ -173,14 +175,17 @@ pub struct SplitOpts {
 
 impl SplitOpts {
     /// Create a new [`SplitOpts`] with the given threshold.
+    ///
+    /// The constants here need to be chosen very carefully to prevent OOM. Consult @jtguibas on
+    /// how to change them.
     #[must_use]
-    pub fn new(deferred_shift_threshold: usize) -> Self {
+    pub fn new(deferred_split_threshold: usize) -> Self {
         Self {
-            deferred: deferred_shift_threshold,
-            keccak: deferred_shift_threshold / 24,
-            sha_extend: deferred_shift_threshold / 48,
-            sha_compress: deferred_shift_threshold / 80,
-            memory: deferred_shift_threshold * 64,
+            deferred: deferred_split_threshold,
+            keccak: 8 * deferred_split_threshold / 24,
+            sha_extend: 32 * deferred_split_threshold / 48,
+            sha_compress: 32 * deferred_split_threshold / 80,
+            memory: 64 * deferred_split_threshold,
         }
     }
 }

@@ -685,6 +685,17 @@ impl<'a> Executor<'a> {
                 entry.insert(MemoryRecord { value: *value, shard: 0, timestamp: 0 })
             }
         };
+
+        // We update the local memory counter in two cases:
+        //  1. This is the first time the address is touched, this corresponds to the
+        //     condition record.shard != shard.
+        //  2. The address is being accessed in a syscall. In this case, we need to send it. We use
+        //     local_memory_access to detect this. *WARNING*: This means that we are counting
+        //     on the .is_some() condition to be true only in the SyscallContext.
+        if !self.unconstrained && (record.shard != shard || local_memory_access.is_some()) {
+            self.local_counts.local_mem += 1;
+        }
+
         let prev_record = *record;
         record.value = value;
         record.shard = shard;
@@ -707,6 +718,7 @@ impl<'a> Executor<'a> {
                     final_mem_access: *record,
                 });
         }
+
         // Construct the memory write record.
         MemoryWriteRecord::new(
             record.value,
@@ -769,16 +781,6 @@ impl<'a> Executor<'a> {
                 entry.insert(MemoryRecord { value: *value, shard: 0, timestamp: 0 })
             }
         };
-
-        // We update the local memory counter in two cases:
-        //  1. This is the first time the address is touched, this corresponds to the
-        //     condition record.shard != shard.
-        //  2. The address is being accessed in a syscall. In this case, we need to send it. We use
-        //     local_memory_access to detect this. *WARNING*: This means that we are counting
-        //     on the .is_some() condition to be true only in the SyscallContext.
-        if !self.unconstrained && (record.shard != shard || local_memory_access.is_some()) {
-            self.local_counts.local_mem += 1;
-        }
 
         let prev_record = *record;
         record.value = value;
@@ -1615,6 +1617,8 @@ impl<'a> Executor<'a> {
 
                     shape_match_found = false;
 
+                    let mut t = Vec::new();
+                    let mut norms = Vec::new();
                     for shape in maximal_shapes.iter() {
                         let cpu_threshold = shape.log2_height(&RiscvAirId::Cpu).unwrap();
                         if self.state.clk > ((1 << cpu_threshold) << 2) {
@@ -1632,17 +1636,25 @@ impl<'a> Executor<'a> {
                             let count = event_counts[air] as usize;
                             if count > threshold {
                                 shape_too_small = true;
+                                t.push((
+                                    air,
+                                    p3_util::log2_ceil_usize(count),
+                                    p3_util::log2_ceil_usize(threshold),
+                                ));
                                 break;
                             }
 
-                            distances.push(distance(threshold, count));
+                            distances.push((air, distance(threshold, count)));
                         }
 
                         if shape_too_small {
                             continue;
                         }
 
-                        let l_infinity = distances.into_iter().min().unwrap();
+                        let l_infinity = distances.clone().into_iter().map(|x| x.1).min().unwrap();
+                        let l_infinity_idx =
+                            distances.clone().into_iter().position(|d| d.1 == l_infinity).unwrap();
+                        norms.push((distances[l_infinity_idx].0, l_infinity));
                         if l_infinity >= 2 * CHECK_CYCLE {
                             shape_match_found = true;
                             break;
@@ -1650,12 +1662,15 @@ impl<'a> Executor<'a> {
                     }
 
                     if !shape_match_found {
+                        self.record.counts = Some(event_counts);
                         log::warn!(
                             "stopping shard early due to no shapes fitting: \
                             clk: {},
-                            clk_usage: {}",
+                            clk_usage: {}, t: {:?}, norms: {:?}",
                             (self.state.clk / 4).next_power_of_two().ilog2(),
                             ((self.state.clk / 4) as f64).log2(),
+                            t,
+                            norms
                         );
                     }
                 }

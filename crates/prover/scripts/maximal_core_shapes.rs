@@ -9,9 +9,9 @@ use sp1_stark::{shape::Shape, SP1CoreOpts};
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
 struct Args {
-    #[clap(short, long, value_delimiter = ',')]
+    #[clap(short, long, value_delimiter = ' ')]
     list: Vec<PathBuf>,
-    #[clap(short, long, value_delimiter = ',')]
+    #[clap(short, long, value_delimiter = ' ')]
     shard_sizes: Vec<usize>,
     #[clap(short, long)]
     initial: Option<PathBuf>,
@@ -42,7 +42,13 @@ fn collect_maximal_shapes(
         let (records, f) = executor.execute_record(true).unwrap();
         finished = f;
         for mut record in records {
+            // let config = BabyBearPoseidon2::new();
+            // let machine = RiscvAir::<BabyBear>::machine(config);
+            // let opts = SP1CoreOpts::default();
             if record.contains_cpu() {
+                // let mut records = vec![*record];
+                // machine.generate_dependencies(records.as_mut_slice(), &opts, None);
+                // let mut record = records.pop().unwrap();
                 let _ = record.defer();
                 let core_shape: Shape<RiscvAirId> = RiscvAir::<BabyBear>::core_heights(&record)
                     .into_iter()
@@ -170,7 +176,7 @@ fn main() {
             let new_context = SP1Context::default();
             let s3_path = s3_path.clone();
             rayon::spawn(move || {
-                opts.set_shard_size(1 << log_shard_size);
+                opts.shard_size = 1 << log_shard_size;
                 let maximal_shapes = collect_maximal_shapes(&elf, &stdin, opts, new_context);
                 tracing::info!(
                     "there are {} maximal shapes for {} for log shard size {}",

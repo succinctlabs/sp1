@@ -30,6 +30,8 @@ impl<K: Debug + Clone + Eq + Hash + FromStr> ShapeCluster<K> {
                         maybe_log2_height.map(|log_height| 1 << log_height).unwrap_or_default();
                     if *height <= allowed_height {
                         return Some((air.clone(), *maybe_log2_height));
+                    } else {
+                        tracing::debug!("{:?}: {} > {}", air, height, allowed_height);
                     }
                 }
                 None

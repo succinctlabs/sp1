@@ -164,6 +164,18 @@ pub fn estimate_riscv_event_counts(
     // Compute the number of events in the global chip.
     events_counts[RiscvAirId::Global] = 2 * touched_addresses + syscalls_sent;
 
+    // Adjust for divrem dependencies.
+    events_counts[RiscvAirId::Mul] += events_counts[RiscvAirId::DivRem];
+    events_counts[RiscvAirId::Lt] += events_counts[RiscvAirId::DivRem];
+
+    // We purposefully ignore the additional dependencies for addsub, since this is accounted
+    // for in the maximal shapes.
+    // events_counts[RiscvAirId::AddSub] += events_counts[RiscvAirId::DivRem];
+    // events_counts[RiscvAirId::AddSub] += events_counts[RiscvAirId::MemoryInstrs];
+    // events_counts[RiscvAirId::AddSub] += events_counts[RiscvAirId::Branch];
+    // events_counts[RiscvAirId::AddSub] += events_counts[RiscvAirId::Jump];
+    // events_counts[RiscvAirId::AddSub] += events_counts[RiscvAirId::Auipc];
+
     events_counts
 }
 

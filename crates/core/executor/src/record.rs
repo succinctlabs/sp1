@@ -1,3 +1,4 @@
+use enum_map::EnumMap;
 use hashbrown::HashMap;
 use itertools::{EitherOrBoth, Itertools};
 use p3_field::{AbstractField, PrimeField};
@@ -74,6 +75,8 @@ pub struct ExecutionRecord {
     pub next_nonce: u64,
     /// The shape of the proof.
     pub shape: Option<Shape<RiscvAirId>>,
+    /// The predicted counts of the proof.
+    pub counts: Option<EnumMap<RiscvAirId, u64>>,
 }
 
 impl ExecutionRecord {
