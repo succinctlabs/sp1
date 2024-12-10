@@ -183,8 +183,8 @@ impl SplitOpts {
         Self {
             deferred: deferred_split_threshold,
             keccak: 8 * deferred_split_threshold / 24,
-            sha_extend: deferred_split_threshold / 48,
-            sha_compress: deferred_split_threshold / 80,
+            sha_extend: 32 * deferred_split_threshold / 48,
+            sha_compress: 32 * deferred_split_threshold / 80,
             memory: 64 * deferred_split_threshold,
         }
     }

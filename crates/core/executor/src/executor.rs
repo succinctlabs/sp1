@@ -1608,6 +1608,8 @@ impl<'a> Executor<'a> {
                     self.local_counts.syscalls_sent as u64,
                     *self.local_counts.event_counts,
                 );
+
+                // TODO: why does this break global interactions?
                 let padded_event_counts = pad_rv32im_event_counts(event_counts, CHECK_CYCLE as u64);
 
                 if let Some(maximal_shapes) = &self.maximal_shapes {
@@ -1645,7 +1647,7 @@ impl<'a> Executor<'a> {
                         }
 
                         let l_infinity = distances.into_iter().min().unwrap();
-                        if l_infinity >= 128 {
+                        if l_infinity >= 2 * CHECK_CYCLE {
                             shape_match_found = true;
                             break;
                         }
