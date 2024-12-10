@@ -39,6 +39,9 @@ pub const MAX_TIMEOUT_SECS: u64 = 86400;
 /// set.
 pub const DEFAULT_CYCLE_LIMIT: u64 = 100_000_000;
 
+/// The number of seconds to wait between checking the status of a proof request.
+pub const STATUS_INTERVAL_SECS: u64 = 2;
+
 /// An implementation of [crate::ProverClient] that can generate proofs on a remote RPC server.
 pub struct NetworkProver {
     client: NetworkClient,
@@ -82,10 +85,10 @@ impl NetworkProver {
 
     /// Get the cycle limit to used for a proof request.
     ///
-    /// The cycle limit is determined according to the following rules:
-    /// - If a cycle limit was explicitly set, use that
-    /// - If simulation is enabled (default), calculate limit by simulating
-    /// - Otherwise use the default cycle limit
+    /// The cycle limit is determined according to the following priority:
+    /// 1. If a cycle limit was explicitly set, use the specified value
+    /// 2. If simulation is enabled (default), calculate the limit by simulating
+    /// 3. Otherwise use the default cycle limit
     #[allow(clippy::must_use_candidate)]
     fn get_cycle_limit(
         &self,
@@ -94,7 +97,7 @@ impl NetworkProver {
         cycle_limit: Option<u64>,
         skip_simulation: bool,
     ) -> Result<u64, Error> {
-        // If cycle_limit was explicitly set via with_cycle_limit(), always use that
+        // If cycle_limit was explicitly set, use it.
         if let Some(limit) = cycle_limit {
             return Ok(limit);
         }
@@ -191,6 +194,11 @@ impl NetworkProver {
             )
             .await?;
 
+            // Check the deadline.
+            if status.deadline < Instant::now().elapsed().as_secs() {
+                return Err(Error::RequestTimedOut);
+            }
+
             // Check the execution status.
             if status.execution_status == ExecutionStatus::Unexecutable as i32 {
                 return Err(Error::RequestUnexecutable);
@@ -213,7 +221,7 @@ impl NetworkProver {
                 _ => {}
             }
 
-            sleep(Duration::from_secs(2)).await;
+            sleep(Duration::from_secs(STATUS_INTERVAL_SECS)).await;
         }
     }
 

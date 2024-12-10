@@ -32,7 +32,7 @@ fn main() {
         .skip_simulation()
         .run();
 
-    // Handle errors from proof generation.
+    // Example of handling potential errors.
     let mut proof = match proof_result {
         Ok(proof) => proof,
         Err(e) => {

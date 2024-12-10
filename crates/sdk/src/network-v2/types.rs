@@ -67,7 +67,6 @@ impl HashType for TransactionHash {
     }
 }
 
-// Implement Display for nice formatting
 impl fmt::Display for RequestId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.to_hex())
