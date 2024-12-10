@@ -26,7 +26,6 @@ use crate::{
     },
     hook::{HookEnv, HookRegistry},
     memory::{Entry, Memory},
-    pad_rv32im_event_counts,
     record::{ExecutionRecord, MemoryAccessRecord},
     report::ExecutionReport,
     state::{ExecutionState, ForkState},
@@ -1663,6 +1662,7 @@ impl<'a> Executor<'a> {
                     }
 
                     if !shape_match_found {
+                        self.record.counts = Some(event_counts);
                         log::warn!(
                             "stopping shard early due to no shapes fitting: \
                             clk: {},

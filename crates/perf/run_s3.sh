@@ -1,17 +1,9 @@
 #!/bin/bash
 
-# Set the default value for the stage argument
-stage="prove"
-
 # Check the number of arguments
-if [ $# -lt 2 ] || [ $# -gt 3 ]; then
-    echo "Usage: $0 <s3_path> <cpu|cuda|network> [execute|prove]"
+if [ $# -lt 2 ] || [ $# -gt 2 ]; then
+    echo "Usage: $0 <s3_path> <cpu|cuda|network>"
     exit 1
-fi
-
-# If the third argument is provided, override the default value
-if [ $# -eq 3 ]; then
-    stage="$3"
 fi
 
 s3_path=$1
@@ -27,5 +19,5 @@ export RUST_BACKTRACE=1
 export RUST_LOG=debug
 export SP1_DEBUG=1
 
-# Run moongate-perf
-cargo run -p sp1-perf -- --program program.bin --stdin stdin.bin --prover-mode $kind
+# Run sp1-perf
+cargo run -p sp1-perf --bin sp1-perf -- --program program.bin --stdin stdin.bin --prover-mode $kind
