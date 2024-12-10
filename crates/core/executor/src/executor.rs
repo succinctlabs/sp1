@@ -1609,7 +1609,6 @@ impl<'a> Executor<'a> {
                     *self.local_counts.event_counts,
                 );
 
-                // TODO: why does this break global interactions?
                 let padded_event_counts = pad_rv32im_event_counts(event_counts, CHECK_CYCLE as u64);
 
                 if let Some(maximal_shapes) = &self.maximal_shapes {

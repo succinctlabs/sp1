@@ -119,6 +119,8 @@ impl RiscvAirId {
             RiscvAirId::ShiftLeft,
             RiscvAirId::ShiftRight,
             RiscvAirId::DivRem,
+            RiscvAirId::Lt,
+            RiscvAirId::Auipc,
             RiscvAirId::MemoryLocal,
             RiscvAirId::MemoryInstrs,
             RiscvAirId::Branch,
