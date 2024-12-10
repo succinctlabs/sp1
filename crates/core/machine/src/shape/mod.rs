@@ -469,7 +469,7 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
         );
 
         let mut precompile_allowed_log2_heights = HashMap::new();
-        let precompile_heights = (3..19).collect::<Vec<_>>();
+        let precompile_heights = (3..21).collect::<Vec<_>>();
         for (air, memory_events_per_row) in
             RiscvAir::<F>::precompile_airs_with_memory_events_per_row()
         {
