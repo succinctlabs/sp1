@@ -38,13 +38,11 @@ impl SP1ProverOpts {
         // For each 2^21 shard, we need to reserve pessimistically ~14 GB of memory.
         //
         // This means that:
-        // - 0..14 GB of RAM -> ~3.5 GB of RAM per shard
-        // - 14..32 GB of RAM -> ~7 GB of RAM per shard
-        // - 32..64 GB of RAM -> ~14 GB of RAM per shard
+        // - 0..32 GB of RAM -> ~7 GB of RAM per shard
+        // - 32.. GB of RAM -> ~14 GB of RAM per shard
         let log2_shard_size = match cpu_ram_gb {
-            0..14 => 19,
-            14..32 => 20,
-            32.. => 21,
+            0..30 => 20,
+            30.. => 21,
         };
         opts.core_opts.shard_size = 1 << log2_shard_size;
 
@@ -56,8 +54,8 @@ impl SP1ProverOpts {
         let log2_gap_from_21 = 21 - log2_shard_size;
         let lde_size_gb = 14 / (1 << log2_gap_from_21);
         let oom_shard_count = (cpu_ram_gb / lde_size_gb) + 1;
-        let safe_shard_count = std::cmp::min(oom_shard_count / 2, MAX_SHARD_BATCH_SIZE);
-        opts.core_opts.shard_batch_size = std::cmp::max(safe_shard_count, 2);
+        let safe_shard_count = std::cmp::min(oom_shard_count - 1, MAX_SHARD_BATCH_SIZE);
+        opts.core_opts.shard_batch_size = std::cmp::max(safe_shard_count, 1);
 
         // We always have at least 1 record and trace channel to maximally use the prover threads.
         //
@@ -222,6 +220,9 @@ mod tests {
 
     #[test]
     fn test_opts() {
+        let opts = SP1ProverOpts::cpu(8);
+        println!("8: {:?}", opts.core_opts);
+
         let opts = SP1ProverOpts::cpu(16);
         println!("16: {:?}", opts.core_opts);
 
