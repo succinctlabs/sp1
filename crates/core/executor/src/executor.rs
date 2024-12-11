@@ -441,6 +441,12 @@ impl<'a> Executor<'a> {
         timestamp: u32,
         local_memory_access: Option<&mut HashMap<u32, MemoryLocalEvent>>,
     ) -> MemoryReadRecord {
+        // Check that the memory address is within the babybear field and not within the registers'
+        // address space.  Also check that the address is aligned.
+        if addr % 4 != 0 || addr <= Register::X31 as u32 || addr >= BABYBEAR_PRIME {
+            panic!("Invalid memory access: addr={addr}");
+        }
+
         // Get the memory record entry.
         let entry = self.state.memory.page_table.entry(addr);
         if self.executor_mode == ExecutorMode::Checkpoint || self.unconstrained {
@@ -654,11 +660,11 @@ impl<'a> Executor<'a> {
         shard: u32,
         timestamp: u32,
         local_memory_access: Option<&mut HashMap<u32, MemoryLocalEvent>>,
-    ) -> Result<MemoryWriteRecord, ExecutionError> {
-        // Check that the memory address accessed within babybear field and not within the registers'
+    ) -> MemoryWriteRecord {
+        // Check that the memory address is within the babybear field and not within the registers'
         // address space.  Also check that the address is aligned.
         if addr % 4 != 0 || addr <= Register::X31 as u32 || addr >= BABYBEAR_PRIME {
-            return Err(ExecutionError::InvalidMemoryAccess(addr));
+            panic!("Invalid memory access: addr={addr}");
         }
 
         // Get the memory record entry.
@@ -732,14 +738,14 @@ impl<'a> Executor<'a> {
         }
 
         // Construct the memory write record.
-        Ok(MemoryWriteRecord::new(
+        MemoryWriteRecord::new(
             record.value,
             record.shard,
             record.timestamp,
             prev_record.value,
             prev_record.shard,
             prev_record.timestamp,
-        ))
+        )
     }
 
     /// Write a word to a register and create an access record.
@@ -920,21 +926,15 @@ impl<'a> Executor<'a> {
     ///
     /// This function will panic if the address is not aligned or if the memory accesses are already
     /// initialized.
-    pub fn mw_cpu(&mut self, addr: u32, value: u32) -> Result<(), ExecutionError> {
+    pub fn mw_cpu(&mut self, addr: u32, value: u32) {
         // Read the address from memory and create a memory read record.
-        let record = self.mw(
-            addr,
-            value,
-            self.shard(),
-            self.timestamp(&MemoryAccessPosition::Memory),
-            None,
-        )?;
+        let record =
+            self.mw(addr, value, self.shard(), self.timestamp(&MemoryAccessPosition::Memory), None);
         // If we're not in unconstrained mode, record the access for the current cycle.
         if self.executor_mode == ExecutorMode::Trace {
             debug_assert!(self.memory_accesses.memory.is_none());
             self.memory_accesses.memory = Some(record.into());
         }
-        Ok(())
     }
 
     /// Write to a register.
@@ -1401,12 +1401,6 @@ impl<'a> Executor<'a> {
     ) -> Result<(u32, u32, u32), ExecutionError> {
         let (rd, b, c, addr, memory_read_value) = self.load_rr(instruction);
 
-        // Check that the address is in the valid range. Specifically it is not within the register's
-        // addr range and within babybear field.
-        if !(addr > Register::X31 as u32 && addr <= 0x78000000_u32) {
-            return Err(ExecutionError::InvalidMemoryAccess(Opcode::LB, addr));
-        }
-
         let a = match instruction.opcode {
             Opcode::LB => ((memory_read_value >> ((addr % 4) * 8)) & 0xFF) as i8 as i32 as u32,
             Opcode::LH => {
@@ -1440,12 +1434,6 @@ impl<'a> Executor<'a> {
         instruction: &Instruction,
     ) -> Result<(u32, u32, u32), ExecutionError> {
         let (a, b, c, addr, memory_read_value) = self.store_rr(instruction);
-
-        // Check that the address is in the valid range. Specifically it is not within the register's
-        // addr range and within babybear field.
-        if !(addr > Register::X31 as u32 && addr <= 0x78000000_u32) {
-            return Err(ExecutionError::InvalidMemoryAccess(Opcode::LB, addr));
-        }
 
         let memory_store_value = match instruction.opcode {
             Opcode::SB => {
@@ -1536,7 +1524,7 @@ impl<'a> Executor<'a> {
                 // Executing a syscall optionally returns a value to write to the t0
                 // register. If it returns None, we just keep the
                 // syscall_id in t0.
-                let res = syscall_impl.execute(&mut precompile_rt, syscall, b, c)?;
+                let res = syscall_impl.execute(&mut precompile_rt, syscall, b, c);
                 let a = if let Some(val) = res { val } else { syscall_id };
 
                 // If the syscall is `HALT` and the exit code is non-zero, return an error.

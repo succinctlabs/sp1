@@ -5,7 +5,7 @@ use crate::{
         MemoryLocalEvent, MemoryReadRecord, MemoryWriteRecord, PrecompileEvent, SyscallEvent,
     },
     record::ExecutionRecord,
-    ExecutionError, Executor, ExecutorMode, Register,
+    Executor, ExecutorMode, Register,
 };
 
 use super::SyscallCode;
@@ -93,22 +93,18 @@ impl<'a, 'b> SyscallContext<'a, 'b> {
     /// Write a word to memory.
     ///
     /// `addr` must be a pointer to main memory, not a register.
-    pub fn mw(&mut self, addr: u32, value: u32) -> Result<MemoryWriteRecord, ExecutionError> {
+    pub fn mw(&mut self, addr: u32, value: u32) -> MemoryWriteRecord {
         self.rt.mw(addr, value, self.current_shard, self.clk, Some(&mut self.local_memory_access))
     }
 
     /// Write a slice of words to memory.
-    pub fn mw_slice(
-        &mut self,
-        addr: u32,
-        values: &[u32],
-    ) -> Result<Vec<MemoryWriteRecord>, ExecutionError> {
+    pub fn mw_slice(&mut self, addr: u32, values: &[u32]) -> Vec<MemoryWriteRecord> {
         let mut records = Vec::with_capacity(values.len());
         for i in 0..values.len() {
-            let record = self.mw(addr + i as u32 * 4, values[i])?;
+            let record = self.mw(addr + i as u32 * 4, values[i]);
             records.push(record);
         }
-        Ok(records)
+        records
     }
 
     /// Read a register and record the memory access.

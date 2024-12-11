@@ -47,7 +47,7 @@ use unconstrained::{EnterUnconstrainedSyscall, ExitUnconstrainedSyscall};
 use verify::VerifySyscall;
 use write::WriteSyscall;
 
-use crate::{events::FieldOperation, ExecutionError};
+use crate::events::FieldOperation;
 
 /// A system call in the SP1 RISC-V zkVM.
 ///
@@ -65,7 +65,7 @@ pub trait Syscall: Send + Sync {
         syscall_code: SyscallCode,
         arg1: u32,
         arg2: u32,
-    ) -> Result<Option<u32>, ExecutionError>;
+    ) -> Option<u32>;
 
     /// The number of extra cycles that the syscall takes to execute.
     ///
