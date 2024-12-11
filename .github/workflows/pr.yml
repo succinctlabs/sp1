@@ -283,6 +283,7 @@ jobs:
       - name: Run Evaluation
         run: |
           cd crates/perf
+          cargo build --bin evaluate --release
           RUSTFLAGS='-C target-cpu=native' cargo run --bin evaluate --release -- \
             --programs fibonacci,ssz-withdrawals,tendermint \
             --post-to-slack ${{ github.ref == 'refs/heads/dev' }} \
