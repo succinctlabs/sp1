@@ -68,7 +68,7 @@ where
         let zero: Felt<_> = builder.eval(C::F::zero());
         challenger.observe(builder, zero);
 
-        // Observe the main commitment and public values.
+        // Observe the public values.
         challenger
             .observe_slice(builder, proof.public_values[0..machine.num_pv_elts()].iter().copied());
 
@@ -78,6 +78,7 @@ where
         let public_values: &RootPublicValues<Felt<C::F>> = proof.public_values.as_slice().borrow();
         assert_root_public_values_valid::<C, SC>(builder, public_values);
 
+        // Assert the public values are of a complete proof.
         assert_complete(builder, &public_values.inner, is_complete);
         builder.assert_felt_eq(is_complete, C::F::one());
 

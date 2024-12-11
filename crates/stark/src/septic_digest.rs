@@ -76,6 +76,8 @@ impl<F: Field> Sum for SepticDigest<F> {
 
 #[cfg(test)]
 mod test {
+    use crate::septic_curve::{CURVE_WITNESS_DUMMY_POINT_X, CURVE_WITNESS_DUMMY_POINT_Y};
+
     use super::*;
     use p3_baby_bear::BabyBear;
     #[test]
@@ -92,6 +94,14 @@ mod test {
             SepticExtension::from_base_fn(|i| BabyBear::from_canonical_u32(DIGEST_SUM_START_X[i]));
         let y: SepticExtension<BabyBear> =
             SepticExtension::from_base_fn(|i| BabyBear::from_canonical_u32(DIGEST_SUM_START_Y[i]));
+        let point = SepticCurve { x, y };
+        assert!(point.check_on_point());
+        let x: SepticExtension<BabyBear> = SepticExtension::from_base_fn(|i| {
+            BabyBear::from_canonical_u32(CURVE_WITNESS_DUMMY_POINT_X[i])
+        });
+        let y: SepticExtension<BabyBear> = SepticExtension::from_base_fn(|i| {
+            BabyBear::from_canonical_u32(CURVE_WITNESS_DUMMY_POINT_Y[i])
+        });
         let point = SepticCurve { x, y };
         assert!(point.check_on_point());
     }

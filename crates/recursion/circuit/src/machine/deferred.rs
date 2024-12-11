@@ -242,6 +242,7 @@ where
             recursion_public_values_digest::<C, SC>(builder, deferred_public_values);
 
         assert_complete(builder, deferred_public_values, is_complete);
+        builder.assert_felt_eq(is_complete, C::F::zero());
 
         SC::commit_recursion_public_values(builder, *deferred_public_values);
     }

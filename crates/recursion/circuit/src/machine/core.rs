@@ -85,10 +85,10 @@ pub struct SP1RecursiveVerifier<C: Config, SC: BabyBearFriConfig> {
 impl<C, SC> SP1RecursiveVerifier<C, SC>
 where
     SC: BabyBearFriConfigVariable<
-            C,
-            FriChallengerVariable = DuplexChallengerVariable<C>,
-            DigestVariable = [Felt<BabyBear>; DIGEST_SIZE],
-        >,
+        C,
+        FriChallengerVariable = DuplexChallengerVariable<C>,
+        DigestVariable = [Felt<BabyBear>; DIGEST_SIZE],
+    >,
     C: CircuitConfig<F = SC::Val, EF = SC::Challenge, Bit = Felt<BabyBear>>,
     <SC::ValMmcs as Mmcs<BabyBear>>::ProverData<RowMajorMatrix<BabyBear>>: Clone,
 {
@@ -242,13 +242,16 @@ where
                 // flag, and make assertions for that are specific to the first shard using that
                 // flag.
 
-                // Assert that the shard is boolean.
+                // We assert that `is_first_shard == (initial_shard == 1)` in three steps.
+
+                // First, we assert that the `is_first_shard` flag is boolean.
                 builder
                     .assert_felt_eq(is_first_shard * (is_first_shard - C::F::one()), C::F::zero());
-                // Assert that if the flag is set to `1`, then the shard idex is `1`.
+                // Assert that if `is_first_shard == 1`, then `initial_shard == 1`.
                 builder
                     .assert_felt_eq(is_first_shard * (initial_shard - C::F::one()), C::F::zero());
-                // Assert that if the flag is set to `0`, then the shard index is not `1`.
+                // Assert that if `is_first_shard == 0`, then `initial_shard != 1`.
+                // This asserts that if `initial_shard == 1`, then `is_first_shard == 1`.
                 builder.assert_felt_ne(
                     (SymbolicFelt::one() - is_first_shard) * initial_shard,
                     C::F::one(),
@@ -258,6 +261,7 @@ where
                 // should be vk.pc_start.
                 builder.assert_felt_eq(is_first_shard * (start_pc - vk.pc_start), C::F::zero());
                 // If it's the first shard, we add the vk's `initial_global_cumulative_sum` to the digest.
+                // If it's not the first shard, we add the zero digest to the digest.
                 global_cumulative_sums.push(builder.select_global_cumulative_sum(
                     is_first_shard,
                     vk.initial_global_cumulative_sum,
@@ -289,6 +293,7 @@ where
             let zero: Felt<_> = builder.eval(C::F::zero());
             challenger.observe(builder, zero);
 
+            // Observe the public values.
             challenger.observe_slice(
                 builder,
                 shard_proof.public_values[0..machine.num_pv_elts()].iter().copied(),
@@ -518,7 +523,8 @@ where
             // have shard < 2^{MAX_LOG_NUMBER_OF_SHARDS}.
             C::range_check_felt(builder, public_values.shard, MAX_LOG_NUMBER_OF_SHARDS);
 
-            // Cumulative sum is updated by sums of all chips.
+            // We add the global cumulative sums of the global chips.
+            // Note that we constrain that the non-global chips have zero global cumulative sum in `verify_shard`.
             for (chip, values) in chips.iter().zip(shard_proof.opened_values.chips.iter()) {
                 if chip.commit_scope() == InteractionScope::Global {
                     global_cumulative_sums.push(values.global_cumulative_sum);
@@ -526,6 +532,7 @@ where
             }
         }
 
+        // We sum the digests in `global_cumulative_sums` to get the overall global cumulative sum.
         let global_cumulative_sum = builder.sum_digest_v2(global_cumulative_sums);
 
         // Assert that the last exit code is zero.

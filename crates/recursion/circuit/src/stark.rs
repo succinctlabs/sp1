@@ -10,7 +10,7 @@ use p3_field::{AbstractField, ExtensionField, Field, TwoAdicField};
 use p3_matrix::{dense::RowMajorMatrix, Dimensions};
 use sp1_recursion_compiler::{
     circuit::CircuitV2Builder,
-    ir::{Builder, Config, DslIr, Ext, ExtConst},
+    ir::{Builder, Config, Ext, ExtConst},
     prelude::Felt,
 };
 use sp1_stark::{
@@ -300,6 +300,8 @@ where
             (0..2).map(|_| challenger.sample_ext(builder)).collect::<Vec<_>>();
 
         challenger.observe(builder, permutation_commit);
+
+        // Observe all cumulative sums, and assert conditions on them.
         for (opening, chip) in opened_values.chips.iter().zip_eq(chips.iter()) {
             let local_sum = C::ext2felt(builder, opening.local_cumulative_sum);
             let global_sum = opening.global_cumulative_sum;
@@ -308,12 +310,13 @@ where
             challenger.observe_slice(builder, global_sum.0.x.0);
             challenger.observe_slice(builder, global_sum.0.y.0);
 
+            // If the chip is local, then `global_cumulative_sum` must be zero.
             if chip.commit_scope() == InteractionScope::Local {
-                let is_real: Felt<C::F> = builder.uninit();
-                builder.push_op(DslIr::ImmF(is_real, C::F::one()));
+                let is_real: Felt<C::F> = builder.constant(C::F::one());
                 builder.assert_digest_zero_v2(is_real, global_sum);
             }
 
+            // If the chip has no local interactions, then `local_cumulative_sum` must be zero.
             let has_local_interactions = chip
                 .sends()
                 .iter()

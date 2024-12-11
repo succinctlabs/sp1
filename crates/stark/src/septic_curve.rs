@@ -109,7 +109,7 @@ impl<F: PrimeField32> SepticCurve<F> {
     /// Lift an x coordinate into an elliptic curve.
     /// As an x-coordinate may not be a valid one, we allow an additional value in `[0, 256)` to the hash input.
     /// Also, we always return the curve point with y-coordinate within `[1, (p-1)/2]`, where p is the characteristic.
-    /// The returned values are the curve point and the offset used.
+    /// The returned values are the curve point, the offset used, and the hash input and output.
     pub fn lift_x(m: SepticExtension<F>) -> (Self, u8, [F; 16], [F; 16]) {
         let perm = BabyBearPoseidon2::new().perm;
         for offset in 0..=255 {
@@ -153,7 +153,7 @@ impl<F: PrimeField32> SepticCurve<F> {
 }
 
 impl<F: AbstractField> SepticCurve<F> {
-    /// Given three points p1, p2, p3, the function is zero if and only if p3.x == (p1 + p2).x assuming that p1 != p2.
+    /// Given three points p1, p2, p3, the function is zero if and only if p3.x == (p1 + p2).x assuming that no weierstrass edge cases occur.
     pub fn sum_checker_x(
         p1: SepticCurve<F>,
         p2: SepticCurve<F>,
@@ -163,7 +163,7 @@ impl<F: AbstractField> SepticCurve<F> {
             - (p2.y - p1.y).square()
     }
 
-    /// Given three points p1, p2, p3, the function is zero if and only if p3.y == (p1 + p2).y assuming that p1 != p2.
+    /// Given three points p1, p2, p3, the function is zero if and only if p3.y == (p1 + p2).y assuming that no weierstrass edge cases occur.
     pub fn sum_checker_y(
         p1: SepticCurve<F>,
         p2: SepticCurve<F>,

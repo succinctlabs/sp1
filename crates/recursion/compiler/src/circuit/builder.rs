@@ -210,16 +210,19 @@ impl<C: Config<F = BabyBear>> CircuitV2Builder<C> for Builder<C> {
         point1: SepticCurve<Felt<C::F>>,
         point2: SepticCurve<Felt<C::F>>,
     ) -> SepticCurve<Felt<C::F>> {
+        // Hint the curve addition result.
         let point_sum_x: [Felt<C::F>; 7] = core::array::from_fn(|_| self.uninit());
         let point_sum_y: [Felt<C::F>; 7] = core::array::from_fn(|_| self.uninit());
         let point =
             SepticCurve { x: SepticExtension(point_sum_x), y: SepticExtension(point_sum_y) };
         self.push_op(DslIr::CircuitV2HintAddCurve(Box::new((point, point1, point2))));
 
+        // Convert each point into a point over SymbolicFelt.
         let point1_symbolic = SepticCurve::convert(point1, |x| x.into());
         let point2_symbolic = SepticCurve::convert(point2, |x| x.into());
         let point_symbolic = SepticCurve::convert(point, |x| x.into());
 
+        // Evaluate `sum_checker_x` and `sum_checker_y`.
         let sum_checker_x = SepticCurve::<SymbolicFelt<C::F>>::sum_checker_x(
             point1_symbolic,
             point2_symbolic,
@@ -232,6 +235,7 @@ impl<C: Config<F = BabyBear>> CircuitV2Builder<C> for Builder<C> {
             point_symbolic,
         );
 
+        // Constrain `sum_checker_x` and `sum_checker_y` to be all zero.
         for limb in sum_checker_x.0 {
             self.assert_felt_eq(limb, C::F::zero());
         }
@@ -243,7 +247,7 @@ impl<C: Config<F = BabyBear>> CircuitV2Builder<C> for Builder<C> {
         point
     }
 
-    /// Asserts that the SepticDigest is zero.
+    /// Asserts that the `digest` is the zero digest when `is_real` is non-zero.
     fn assert_digest_zero_v2(&mut self, is_real: Felt<C::F>, digest: SepticDigest<Felt<C::F>>) {
         let zero = SepticDigest::<SymbolicFelt<C::F>>::zero();
         for (digest_limb_x, zero_limb_x) in digest.0.x.0.into_iter().zip_eq(zero.0.x.0.into_iter())
@@ -256,7 +260,8 @@ impl<C: Config<F = BabyBear>> CircuitV2Builder<C> for Builder<C> {
         }
     }
 
-    /// Returns the zero digest when `is_first_shard` is zero, and returns the `digest` when `is_first_shard` is one.
+    /// Returns the zero digest when `is_first_shard` is zero, and returns the `vk_digest` when `is_first_shard` is one.
+    /// It is assumed that `is_first_shard` is already checked to be a boolean.
     fn select_global_cumulative_sum(
         &mut self,
         is_first_shard: Felt<C::F>,
