@@ -53,6 +53,7 @@ alloy-signer-local = { version = "0.3.6", optional = true }
 alloy-primitives = { version = "0.8.7", optional = true }
 aws-sdk-s3 = { version = "1.53.0", optional = true }
 aws-config = { version = "1.5.7", optional = true }
+backoff = { version = "0.4", features = ["tokio"], optional = true }
 
 [features]
 default = ["network"]
@@ -83,6 +84,7 @@ network-v2 = [
   "dep:tonic",
   "dep:aws-sdk-s3",
   "dep:aws-config",
+  "dep:backoff",
 ]
 cuda = ["sp1-cuda"]
 
