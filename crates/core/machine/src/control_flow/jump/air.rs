@@ -21,6 +21,9 @@ where
         let local = main.row_slice(0);
         let local: &JumpColumns<AB::Var> = (*local).borrow();
 
+        // SAFETY: All selectors `is_jal`, `is_jalr` are checked to be boolean.
+        // Each "real" row has exactly one selector turned on, as `is_real = is_jal + is_jalr` is boolean.
+        // Therefore, the `opcode` matches the corresponding opcode.
         builder.assert_bool(local.is_jal);
         builder.assert_bool(local.is_jalr);
         let is_real = local.is_jal + local.is_jalr;
@@ -29,6 +32,13 @@ where
         let opcode = local.is_jal * Opcode::JAL.as_field::<AB::F>()
             + local.is_jalr * Opcode::JALR.as_field::<AB::F>();
 
+        // SAFETY: This checks the following.
+        // - `num_extra_cycles = 0`
+        // - `op_a_immutable = 0`
+        // - `is_memory = 0`
+        // - `is_syscall = 0`
+        // - `is_halt = 0`
+        // `next_pc` and `op_a_value` still has to be constrained, and this is done below.
         builder.receive_instruction(
             AB::Expr::zero(),
             AB::Expr::zero(),
@@ -57,12 +67,20 @@ where
         );
 
         // Range check op_a, pc, and next_pc.
+        // SAFETY: `is_real` is already checked to be boolean.
+        // `op_a_value` is checked to be a valid word, as it matches the one in the CpuChip.
+        // In the CpuChip's `eval_registers`, it's checked that this is a valid word.
+        // Combined with the `op_a_value = pc + 4` check above when `op_a_0 = 0`, this fully constrains `op_a_value`.
         BabyBearWordRangeChecker::<AB::F>::range_check(
             builder,
             local.op_a_value,
             local.op_a_range_checker,
             is_real.clone(),
         );
+        // SAFETY: `is_real` is already checked to be boolean.
+        // `local.pc`, `local.next_pc` are checked to a valid word when relevant.
+        // This is due to the ADD ALU table checking all inputs and outputs are valid words.
+        // This is done when the `AddOperation` is invoked in the ADD ALU table.
         BabyBearWordRangeChecker::<AB::F>::range_check(
             builder,
             local.pc,
@@ -76,7 +94,10 @@ where
             is_real,
         );
 
+        // We now constrain `next_pc`.
+
         // Verify that the new pc is calculated correctly for JAL instructions.
+        // SAFETY: `is_jal` is boolean, and zero for padding rows.
         builder.send_instruction(
             AB::Expr::zero(),
             AB::Expr::zero(),
@@ -96,6 +117,7 @@ where
         );
 
         // Verify that the new pc is calculated correctly for JALR instructions.
+        // SAFETY: `is_jalr` is boolean, and zero for padding rows.
         builder.send_instruction(
             AB::Expr::zero(),
             AB::Expr::zero(),

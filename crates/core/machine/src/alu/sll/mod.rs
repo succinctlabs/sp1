@@ -78,7 +78,7 @@ pub struct ShiftLeftCols<T> {
     pub c: Word<T>,
 
     /// Flag indicating whether `a` is not register 0.
-    pub op_0_not_0: T,
+    pub op_a_not_0: T,
 
     /// The least significant byte of `c`. Used to verify `shift_by_n_bits` and `shift_by_n_bytes`.
     pub c_least_sig_byte: [T; BYTE_SIZE],
@@ -206,7 +206,7 @@ impl ShiftLeft {
         cols.a = Word(a.map(F::from_canonical_u8));
         cols.b = Word(b.map(F::from_canonical_u8));
         cols.c = Word(c.map(F::from_canonical_u8));
-        cols.op_0_not_0 = F::from_bool(!event.op_a_0);
+        cols.op_a_not_0 = F::from_bool(!event.op_a_0);
         cols.is_real = F::one();
         for i in 0..BYTE_SIZE {
             cols.c_least_sig_byte[i] = F::from_canonical_u32((event.c >> i) & 1);
@@ -337,15 +337,16 @@ where
 
         // The bytes of a must match those of bit_shift_result, taking into account the byte
         // shifting.
+        // The constraints are done only when `op_a_not_0 == 1`.
         for num_bytes_to_shift in 0..WORD_SIZE {
             let mut shifting = builder.when(local.shift_by_n_bytes[num_bytes_to_shift]);
             for i in 0..WORD_SIZE {
                 if i < num_bytes_to_shift {
                     // The first num_bytes_to_shift bytes must be zero.
-                    shifting.when(local.op_0_not_0).assert_eq(local.a[i], zero.clone());
+                    shifting.when(local.op_a_not_0).assert_eq(local.a[i], zero.clone());
                 } else {
                     shifting
-                        .when(local.op_0_not_0)
+                        .when(local.op_a_not_0)
                         .assert_eq(local.a[i], local.bit_shift_result[i - num_bytes_to_shift]);
                 }
             }
@@ -379,9 +380,21 @@ where
             one.clone(),
         );
 
+        // SAFETY: `is_real` is checked to be boolean.
+        // All interactions are done with multiplicity `is_real`, so padding rows lead to no interactions.
+        // This chip only deals with the `SLL` opcode, so the opcode matches the instruction.
         builder.assert_bool(local.is_real);
 
         // Receive the arguments.
+        // SAFETY: This checks the following.
+        // - `next_pc = pc + 4`
+        // - `num_extra_cycles = 0`
+        // - `op_a_val` is constrained by the chip when `op_a_not_0 == 1`
+        // - `op_a_not_0` is correct, due to the sent `op_a_0` being equal to `1 - op_a_not_0`
+        // - `op_a_immutable = 0`
+        // - `is_memory = 0`
+        // - `is_syscall = 0`
+        // - `is_halt = 0`
         builder.receive_instruction(
             AB::Expr::zero(),
             AB::Expr::zero(),
@@ -392,7 +405,7 @@ where
             local.a,
             local.b,
             local.c,
-            AB::Expr::one() - local.op_0_not_0,
+            AB::Expr::one() - local.op_a_not_0,
             AB::Expr::zero(),
             AB::Expr::zero(),
             AB::Expr::zero(),
@@ -400,7 +413,7 @@ where
             local.is_real,
         );
 
-        builder.when(local.op_0_not_0).assert_one(local.is_real);
+        builder.when(local.op_a_not_0).assert_one(local.is_real);
     }
 }
 

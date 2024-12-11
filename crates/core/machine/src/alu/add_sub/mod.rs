@@ -187,6 +187,9 @@ where
         let local = main.row_slice(0);
         let local: &AddSubCols<AB::Var> = (*local).borrow();
 
+        // SAFETY: All selectors `is_add` and `is_sub` are checked to be boolean.
+        // Each "real" row has exactly one selector turned on, as `is_real = is_add + is_sub` is boolean.
+        // Therefore, the `opcode` matches the corresponding opcode of the instruction.
         let is_real = local.is_add + local.is_sub;
         builder.assert_bool(local.is_add);
         builder.assert_bool(local.is_sub);
@@ -196,6 +199,8 @@ where
             + AB::Expr::from_f(Opcode::SUB.as_field()) * local.is_sub;
 
         // Evaluate the addition operation.
+        // This is enforced only when `op_a_not_0 == 1`.
+        // `op_a_val` doesn't need to be constrained when `op_a_not_0 == 0`.
         AddOperation::<AB::F>::eval(
             builder,
             local.operand_1,
@@ -204,10 +209,20 @@ where
             local.op_a_not_0.into(),
         );
 
+        // SAFETY: We check that a padding row has `op_a_not_0 == 0`, to prevent a padding row sending byte lookups.
         builder.when(local.op_a_not_0).assert_one(is_real.clone());
 
         // Receive the arguments.  There are separate receives for ADD and SUB.
         // For add, `add_operation.value` is `a`, `operand_1` is `b`, and `operand_2` is `c`.
+        // SAFETY: This checks the following. Note that in this case `opcode = Opcode::ADD`
+        // - `next_pc = pc + 4`
+        // - `num_extra_cycles = 0`
+        // - `op_a_val` is constrained by the `AddOperation` when `op_a_not_0 == 1`
+        // - `op_a_not_0` is correct, due to the sent `op_a_0` being equal to `1 - op_a_not_0`
+        // - `op_a_immutable = 0`
+        // - `is_memory = 0`
+        // - `is_syscall = 0`
+        // - `is_halt = 0`
         builder.receive_instruction(
             AB::Expr::zero(),
             AB::Expr::zero(),
@@ -227,6 +242,15 @@ where
         );
 
         // For sub, `operand_1` is `a`, `add_operation.value` is `b`, and `operand_2` is `c`.
+        // SAFETY: This checks the following. Note that in this case `opcode = Opcode::SUB`
+        // - `next_pc = pc + 4`
+        // - `num_extra_cycles = 0`
+        // - `op_a_val` is constrained by the `AddOperation` when `op_a_not_0 == 1`
+        // - `op_a_not_0` is correct, due to the sent `op_a_0` being equal to `1 - op_a_not_0`
+        // - `op_a_immutable = 0`
+        // - `is_memory = 0`
+        // - `is_syscall = 0`
+        // - `is_halt = 0`
         builder.receive_instruction(
             AB::Expr::zero(),
             AB::Expr::zero(),

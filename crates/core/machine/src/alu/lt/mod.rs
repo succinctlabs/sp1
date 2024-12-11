@@ -339,6 +339,7 @@ where
         // Assert the final result `a` is correct.
 
         // Check that `a[0]` is set correctly.
+        // This check is done only when `op_a_not_0 == 1`.
         builder.when(local.op_a_not_0).assert_eq(
             local.a,
             local.bit_b * (AB::Expr::one() - local.bit_c) + local.is_sign_eq * local.sltu,
@@ -423,16 +424,26 @@ where
 
         // Constrain the operation flags.
 
+        // SAFETY: All selectors `is_slt`, `is_sltu` are checked to be boolean.
+        // Each "real" row has exactly one selector turned on, as `is_real = is_slt + is_sltu` is boolean.
+        // Therefore, the `opcode` matches the corresponding opcode.
+
         // Check that the operation flags are boolean.
         builder.assert_bool(local.is_slt);
         builder.assert_bool(local.is_sltu);
         // Check that at most one of the operation flags is set.
-        //
-        // *remark*: this is not strictly necessary since it's also covered by the bus multiplicity
-        // but this is included here to make sure the condition is met.
         builder.assert_bool(local.is_slt + local.is_sltu);
 
         // Receive the arguments.
+        // SAFETY: This checks the following.
+        // - `next_pc = pc + 4`
+        // - `num_extra_cycles = 0`
+        // - `op_a_val` is constrained by the chip when `op_a_not_0 == 1`
+        // - `op_a_not_0` is correct, due to the sent `op_a_0` being equal to `1 - op_a_not_0`
+        // - `op_a_immutable = 0`
+        // - `is_memory = 0`
+        // - `is_syscall = 0`
+        // - `is_halt = 0`
         builder.receive_instruction(
             AB::Expr::zero(),
             AB::Expr::zero(),

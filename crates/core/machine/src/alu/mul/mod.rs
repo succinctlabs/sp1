@@ -372,6 +372,7 @@ where
         };
 
         // Compare the product's appropriate bytes with that of the result.
+        // This constraint is only done when `op_a_not_0 == 1`.
         {
             let is_lower = local.is_mul;
             let is_upper = local.is_mulh + local.is_mulhu + local.is_mulhsu;
@@ -406,9 +407,14 @@ where
         builder.when(local.b_sign_extend).assert_eq(local.b_msb, one.clone());
         builder.when(local.c_sign_extend).assert_eq(local.c_msb, one.clone());
 
+        // SAFETY: All selectors `is_mul`, `is_mulh`, `is_mulhu`, `is_mulhsu` are checked to be boolean.
+        // Also, the multiplicity `is_real` is checked to be boolean, and `is_real = 0` leads to no interactions.
+        // Each "real" row has exactly one selector turned on, as constrained below.
+        // Therefore, in "real" rows, the `opcode` matches the corresponding opcode.
+
         // Calculate the opcode.
         let opcode = {
-            // Exactly one of the op codes must be on.
+            // Exactly one of the opcodes must be on.
             builder
                 .when(local.is_real)
                 .assert_one(local.is_mul + local.is_mulh + local.is_mulhu + local.is_mulhsu);
@@ -434,6 +440,15 @@ where
         }
 
         // Receive the arguments.
+        // SAFETY: This checks the following.
+        // - `next_pc = pc + 4`
+        // - `num_extra_cycles = 0`
+        // - `op_a_val` is constrained by the chip when `op_a_not_0 == 1`
+        // - `op_a_not_0` is correct, due to the sent `op_a_0` being equal to `1 - op_a_not_0`
+        // - `op_a_immutable = 0`
+        // - `is_memory = 0`
+        // - `is_syscall = 0`
+        // - `is_halt = 0`
         builder.receive_instruction(
             AB::Expr::zero(),
             AB::Expr::zero(),
