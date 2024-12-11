@@ -124,12 +124,12 @@ impl NetworkProverBuilder {
         Self { rpc_url: None, private_key: None }
     }
 
-    pub fn with_rpc_url(mut self, url: String) -> Self {
+    pub fn rpc_url(mut self, url: String) -> Self {
         self.rpc_url = Some(url);
         self
     }
 
-    pub fn with_private_key(mut self, key: String) -> Self {
+    pub fn private_key(mut self, key: String) -> Self {
         self.private_key = Some(key);
         self
     }
@@ -190,7 +190,7 @@ impl<'a> NetworkProofRequest<'a> {
         self
     }
 
-    pub async fn run(self) -> Result<SP1ProofWithPublicValues> {
+    async fn run(self) -> Result<SP1ProofWithPublicValues> {
         // Ensure the program is registered
         let vk_hash = self.prover.register_program(&self.pk.vk, &self.pk.elf).await?;
 
@@ -281,12 +281,5 @@ impl Prover for NetworkProver {
         vk: &SP1VerifyingKey,
     ) -> Result<(), SP1VerificationError> {
         verify::verify(&self.prover, SP1_CIRCUIT_VERSION, proof, vk)
-    }
-}
-
-#[cfg(feature = "blocking")]
-impl ProofRequest for NetworkProofRequest<'_> {
-    async fn run(self) -> Result<SP1ProofWithPublicValues> {
-        self.prover.prove_with_options(&self.pk, &self.stdin, &self.opts).await
     }
 }

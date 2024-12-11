@@ -63,26 +63,17 @@ impl ProverClient {
         self.inner.execute(elf, stdin).await
     }
 
-    // pub async fn prove(
-    //     &self,
-    //     pk: &SP1ProvingKey,
-    //     stdin: &SP1Stdin,
-    // ) -> Result<SP1ProofWithPublicValues> {
-    //     let opts = ProofOpts::default();
-    //     self.inner.prove_with_options(pk, stdin, &opts).await
-    // }
-
-    pub fn prove<'a>(&'a self, pk: &'a SP1ProvingKey, stdin: &'a SP1Stdin) -> DynProofRequest<'a> {
-        DynProofRequest::new(&*self.inner, pk, stdin, ProofOpts::default())
-    }
-
-    pub async fn prove_with_options(
+    pub async fn prove(
         &self,
         pk: &SP1ProvingKey,
         stdin: &SP1Stdin,
-        opts: &ProofOpts,
     ) -> Result<SP1ProofWithPublicValues> {
-        self.inner.prove_with_options(pk, stdin, opts).await
+        let opts = ProofOpts::default();
+        self.inner.prove_with_options(pk, stdin, &opts).await
+    }
+
+    pub fn prove<'a>(&'a self, pk: &'a SP1ProvingKey, stdin: &'a SP1Stdin) -> DynProofRequest<'a> {
+        DynProofRequest::new(&*self.inner, pk, stdin, ProofOpts::default())
     }
 
     pub async fn verify(
@@ -116,12 +107,12 @@ impl ProverClientBuilder<LocalProverBuilder> {
 
 impl ProverClientBuilder<NetworkProverBuilder> {
     pub fn with_rpc_url(mut self, url: String) -> Self {
-        self.inner_builder = self.inner_builder.with_rpc_url(url);
+        self.inner_builder = self.inner_builder.rpc_url(url);
         self
     }
 
     pub fn with_private_key(mut self, key: String) -> Self {
-        self.inner_builder = self.inner_builder.with_private_key(key);
+        self.inner_builder = self.inner_builder.private_key(key);
         self
     }
 

@@ -138,10 +138,3 @@ impl<'a> IntoFuture for LocalProofRequest<'a> {
         Box::pin(self.run())
     }
 }
-
-#[cfg(feature = "blocking")]
-impl<'a> ProofRequest for LocalProofRequest<'a> {
-    fn run(self) -> Result<SP1ProofWithPublicValues> {
-        executor::block_on(self.run())
-    }
-}

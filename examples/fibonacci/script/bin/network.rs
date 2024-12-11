@@ -47,7 +47,7 @@ async fn main() {
     // Generate the proof.
     let proof_result = client
         .prove(&pk, &stdin)
-        .core()
+        .compressed()
         .await;
 
     // Example of handling potential errors.

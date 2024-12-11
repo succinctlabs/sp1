@@ -8,7 +8,7 @@ use sp1_prover::{SP1ProvingKey, SP1VerifyingKey};
 use crate::{opts::ProofOpts, proof::SP1ProofWithPublicValues, provers::SP1VerificationError};
 
 #[async_trait]
-pub trait Prover: Send + Sync {
+pub trait Prover: Sync {
     async fn setup(&self, elf: &[u8]) -> (SP1ProvingKey, SP1VerifyingKey);
 
     async fn execute(
