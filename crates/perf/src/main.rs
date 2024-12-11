@@ -4,6 +4,7 @@ use std::{
 };
 
 use clap::{command, Parser};
+use rand::Rng;
 use sp1_cuda::SP1CudaProver;
 use sp1_prover::HashableKey;
 use sp1_prover::{components::CpuProverComponents, ProverMode};
@@ -81,9 +82,6 @@ fn main() {
             let proofs = stdin.proofs.into_iter().map(|(proof, _)| proof).collect::<Vec<_>>();
             let (compress_proof, compress_duration) =
                 time_operation(|| prover.compress(&vk, core_proof.clone(), proofs, opts).unwrap());
-
-            let compress_proof_bytes = bincode::serialize(&compress_proof).unwrap();
-            std::fs::write("compress_proof.bin", compress_proof_bytes).unwrap();
 
             let (_, verify_compressed_duration) =
                 time_operation(|| prover.verify_compressed(&compress_proof, &vk));
@@ -214,21 +212,17 @@ fn main() {
             let prover = prover_builder.private_key(private_key).build();
             let (_, _) = time_operation(|| prover.execute(&elf, stdin.clone()));
 
-            // let (proof, _) = time_operation(|| {
-            //     prover.prove(&pk, stdin.clone()).compressed().run().unwrap()
-            // });
+            let use_groth16: bool = rand::thread_rng().gen();
+            if use_groth16 {
+                let (proof, _) =
+                    time_operation(|| prover.prove(&pk, stdin.clone()).groth16().run().unwrap());
 
-            // let (_, _) = time_operation(|| prover.verify(&proof, &vk));
+                let (_, _) = time_operation(|| prover.verify(&proof, &vk));
+            } else {
+                let (proof, _) = time_operation(|| prover.prove(&pk, stdin).plonk().run().unwrap());
 
-            let (proof, _) =
-                time_operation(|| prover.prove(&pk, stdin.clone()).groth16().run().unwrap());
-
-            let (_, _) = time_operation(|| prover.verify(&proof, &vk));
-
-            // let (proof, _) =
-            //     time_operation(|| prover.prove(&pk, stdin).plonk().run().unwrap());
-
-            // let (_, _) = time_operation(|| prover.verify(&proof, &vk));
+                let (_, _) = time_operation(|| prover.verify(&proof, &vk));
+            }
         }
         ProverMode::Mock => unreachable!(),
     };

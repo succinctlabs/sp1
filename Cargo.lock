@@ -5805,6 +5805,7 @@ dependencies = [
  "bincode",
  "clap",
  "p3-baby-bear",
+ "rand 0.8.5",
  "serde_json",
  "sp1-core-executor",
  "sp1-core-machine",

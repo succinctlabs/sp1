@@ -27,12 +27,12 @@ use crate::{
 /// These shapes define the "worst-case" shapes for typical shards that are proving `rv32im`
 /// execution. We use a variant of a cartesian product of the allowed log heights to generate
 /// smaller shapes from these ones.
-const MAXIMAL_SHAPES: &[u8] = include_bytes!("maximal_shapes_v4_0_0_rc_3.json");
+const MAXIMAL_SHAPES: &[u8] = include_bytes!("maximal_shapes.json");
 
 /// The set of tiny shapes.
 ///
 /// These shapes are used to optimize performance for smaller programs.
-const SMALL_SHAPES: &[u8] = include_bytes!("small_shapes_v4_0_0_rc_3.json");
+const SMALL_SHAPES: &[u8] = include_bytes!("small_shapes.json");
 
 /// A configuration for what shapes are allowed to be used by the prover.
 #[derive(Debug)]
