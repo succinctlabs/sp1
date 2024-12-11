@@ -41,12 +41,7 @@ fn main() {
                 let mut small_shape = shape.clone();
                 small_shape.insert(RiscvAirId::MemoryGlobalInit, *log2_memory_height);
                 small_shape.insert(RiscvAirId::MemoryGlobalFinalize, *log2_memory_height);
-
-                let mut global_height = small_shape.height(&RiscvAirId::Global).unwrap();
-                global_height += small_shape.height(&RiscvAirId::MemoryGlobalInit).unwrap();
-                global_height += small_shape.height(&RiscvAirId::MemoryGlobalFinalize).unwrap();
-                small_shape.insert(RiscvAirId::Global, log2_ceil_usize(global_height));
-
+                small_shape.insert(RiscvAirId::Global, log2_memory_height + 1);
                 small_shapes.push(small_shape);
             }
         }
