@@ -39,6 +39,14 @@ fn main() {
         for shape in shapes.iter() {
             for log2_memory_height in args.log2_memory_heights.iter() {
                 let mut small_shape = shape.clone();
+                let log2_gap_from_21 = 21 - small_shape.log2_height(&RiscvAirId::Cpu).unwrap();
+                let min_log2_height_threshold = 18 - log2_gap_from_21;
+                for air in RiscvAirId::core() {
+                    let current_log2_height =
+                        small_shape.log2_height(&air.clone()).unwrap_or_default();
+                    small_shape
+                        .insert(air, std::cmp::max(current_log2_height, min_log2_height_threshold));
+                }
                 small_shape.insert(RiscvAirId::MemoryGlobalInit, *log2_memory_height);
                 small_shape.insert(RiscvAirId::MemoryGlobalFinalize, *log2_memory_height);
                 small_shape.insert(RiscvAirId::Global, log2_memory_height + 1);

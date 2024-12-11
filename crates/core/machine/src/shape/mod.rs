@@ -141,7 +141,10 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
 
             // No shape found, so return an error.
             return Err(CoreShapeError::ShapeError(
-                heights.into_iter().map(|(air, height)| (air.to_string(), height)).collect(),
+                heights
+                    .into_iter()
+                    .map(|(air, height)| (air.to_string(), log2_ceil_usize(height)))
+                    .collect(),
             ));
         }
 
