@@ -38,11 +38,25 @@ where
         let public_values: &PublicValues<Word<AB::PublicVar>, AB::PublicVar> =
             public_values_slice.as_slice().borrow();
 
+        // SAFETY: Only `ECALL` opcode can be received in this chip.
+        // `is_real` is checked to be boolean, and the `opcode` matches the corresponding opcode.
         builder.assert_bool(local.is_real);
 
         // Verify that local.is_halt is correct.
         self.eval_is_halt_syscall(builder, local);
 
+        // SAFETY: This checks the following.
+        // - `shard`, `clk` are correctly received from the CpuChip
+        // - `op_a_0 = 0` enforced, as `op_a = X5` for all ECALL
+        // - `op_a_immutable = 0`
+        // - `is_memory = 0`
+        // - `is_syscall = 1`
+        // `next_pc`, `num_extra_cycles`, `op_a_val`, `is_halt` need to be constrained. We outline the checks below.
+        // `next_pc` is constrained for the case where `is_halt` is true to be `0` in `eval_is_halt_unimpl`.
+        // `next_pc` is constrained for the case where `is_halt` is false to be `pc + 4` in `eval`.
+        // `num_extra_cycles` is checked to be equal to the return value of `get_num_extra_ecall_cycles`, in `eval`.
+        // `op_a_val` is constrained in `eval_ecall`.
+        // `is_halt` is checked to be correct in `eval_is_halt_syscall`.
         builder.receive_instruction(
             local.shard,
             local.clk,
@@ -53,7 +67,7 @@ where
             *local.op_a_access.value(),
             local.op_b_value,
             local.op_c_value,
-            AB::Expr::zero(), // Op a is always register 5 for ecall instructions.
+            AB::Expr::zero(), // op_a is always register 5 for ecall instructions.
             AB::Expr::zero(),
             AB::Expr::zero(),
             AB::Expr::one(),
@@ -62,11 +76,13 @@ where
         );
 
         // If the syscall is not halt, then next_pc should be pc + 4.
+        // `next_pc` is constrained for the case where `is_halt` is false to be `pc + 4`
         builder
             .when(local.is_real)
             .when(AB::Expr::one() - local.is_halt)
             .assert_eq(local.next_pc, local.pc + AB::Expr::from_canonical_u32(4));
 
+        // `num_extra_cycles` is checked to be equal to the return value of `get_num_extra_ecall_cycles`
         builder.assert_eq::<AB::Var, AB::Expr>(
             local.num_extra_cycles,
             self.get_num_extra_ecall_cycles::<AB>(local),
@@ -116,7 +132,7 @@ impl SyscallInstrsChip {
         let syscall_id = syscall_code[0];
         let send_to_table = syscall_code[1];
 
-        // Assert that for non real row, the send_to_table value is 0 so that the `send_syscall`
+        // SAFETY: Assert that for non real row, the send_to_table value is 0 so that the `send_syscall`
         // interaction is not activated.
         builder.when(AB::Expr::one() - local.is_real).assert_zero(send_to_table);
 
@@ -153,6 +169,8 @@ impl SyscallInstrsChip {
             local.is_hint_len.result
         };
 
+        // `op_a_val` is constrained.
+
         // When syscall_id is ENTER_UNCONSTRAINED, the new value of op_a should be 0.
         let zero_word = Word::<AB::F>::from(0);
         builder
@@ -166,13 +184,28 @@ impl SyscallInstrsChip {
             .when_not(is_enter_unconstrained + is_hint_len)
             .assert_word_eq(*local.op_a_access.value(), *local.op_a_access.prev_value());
 
+        // SAFETY: This leaves the case where syscall is `HINT_LEN`.
+        // In this case, `op_a`'s value can be arbitrary, but it still must be a valid word if `is_real = 1`.
+        // This is due to `op_a_val` being connected to the CpuChip.
+        // In the CpuChip, `op_a_val` is constrained to be a valid word via `eval_registers`.
+        // As this is a syscall for HINT, the value itself being arbitrary is fine, as long as it is a valid word.
+
         // Verify value of ecall_range_check_operand column.
+        // SAFETY: If `is_real = 0`, then `ecall_range_check_operand = 0`.
+        // If `is_real = 1`, then `is_halt_check` and `is_commit_deferred_proofs` are constrained.
+        // The two results will both be boolean due to `IsZeroOperation`, and both cannot be `1` at the same time.
+        // Both of them being `1` will require `syscall_id` being `HALT` and `COMMIT_DEFERRED_PROOFS` at the same time.
+        // This implies that if `is_real = 1`, `ecall_range_check_operand` will be correct, and boolean.
         builder.assert_eq(
             local.ecall_range_check_operand,
             local.is_real * (local.is_halt_check.result + local.is_commit_deferred_proofs.result),
         );
 
         // Babybear range check the operand_to_check word.
+        // SAFETY: `ecall_range_check_operand` is boolean, and no interactions can be made in padding rows.
+        // `operand_to_check` is already known to be a valid word, as it is either
+        // - `op_b_val` in the case of `HALT`
+        // - `op_c_val` in the case of `COMMIT_DEFERRED_PROOFS`
         BabyBearWordRangeChecker::<AB::F>::range_check::<AB>(
             builder,
             local.operand_to_check,
@@ -262,11 +295,13 @@ impl SyscallInstrsChip {
         local: &SyscallInstrColumns<AB::Var>,
         public_values: &PublicValues<Word<AB::PublicVar>, AB::PublicVar>,
     ) {
+        // `next_pc` is constrained for the case where `is_halt` is true to be `0`
         builder.when(local.is_halt).assert_zero(local.next_pc);
 
         // Verify that the operand that was range checked is op_b.
         builder.when(local.is_halt).assert_word_eq(local.op_b_value, local.operand_to_check);
 
+        // Check that the `op_b_value` reduced is the `public_values.exit_code`.
         builder
             .when(local.is_halt)
             .assert_eq(local.op_b_value.reduce::<AB>(), public_values.exit_code);
@@ -278,6 +313,8 @@ impl SyscallInstrsChip {
         builder: &mut AB,
         local: &SyscallInstrColumns<AB::Var>,
     ) {
+        // `is_halt` is checked to be correct in `eval_is_halt_syscall`.
+
         // The syscall code is the read-in value of op_a at the start of the instruction.
         let syscall_code = local.op_a_access.prev_value();
 
@@ -295,6 +332,8 @@ impl SyscallInstrsChip {
         };
 
         // Verify that the is_halt flag is correct.
+        // If `is_real = 0`, then `local.is_halt = 0`.
+        // If `is_real = 1`, then `is_halt_check.result` will be correct, so `local.is_halt` is correct.
         builder.assert_eq(local.is_halt, is_halt * local.is_real);
     }
 
@@ -348,6 +387,8 @@ impl SyscallInstrsChip {
 
         let num_extra_cycles = syscall_code[2];
 
+        // If `is_real = 0`, then the return value is `0` regardless of `num_extra_cycles`.
+        // If `is_real = 1`, then the `op_a_access` will be done, and `num_extra_cycles` will be correct.
         num_extra_cycles * local.is_real
     }
 }

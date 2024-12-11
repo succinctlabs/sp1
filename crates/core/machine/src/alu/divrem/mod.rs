@@ -565,6 +565,7 @@ where
         }
 
         // a must equal remainder or quotient depending on the opcode.
+        // This is only enforced when `op_a_not_0 == 1`.
         for i in 0..WORD_SIZE {
             builder
                 .when(local.op_a_not_0)
@@ -699,6 +700,7 @@ where
             // is_real
 
             // Check that the absolute value selector columns are computed correctly.
+            // This enforces the send multiplicities are zero when `is_real == 0`.
             builder.assert_eq(local.abs_c_alu_event, local.c_neg * local.is_real);
             builder.assert_eq(local.abs_rem_alu_event, local.rem_neg * local.is_real);
 
@@ -777,6 +779,9 @@ where
         // Receive the arguments.
         {
             // Exactly one of the opcode flags must be on.
+            // SAFETY: All selectors `is_divu`, `is_remu`, `is_div`, `is_rem` are checked to be boolean.
+            // Each row has exactly one selector turned on, as their sum is checked to be one.
+            // Therefore, the `opcode` matches the corresponding opcode of the instruction.
             builder.assert_eq(
                 one.clone(),
                 local.is_divu + local.is_remu + local.is_div + local.is_rem,
@@ -794,6 +799,15 @@ where
                     + local.is_rem * rem
             };
 
+            // SAFETY: This checks the following.
+            // - `next_pc = pc + 4`
+            // - `num_extra_cycles = 0`
+            // - `op_a_val` is constrained by the chip when `op_a_not_0 == 1`
+            // - `op_a_not_0` is correct, due to the sent `op_a_0` being equal to `1 - op_a_not_0`
+            // - `op_a_immutable = 0`
+            // - `is_memory = 0`
+            // - `is_syscall = 0`
+            // - `is_halt = 0`
             builder.receive_instruction(
                 AB::Expr::zero(),
                 AB::Expr::zero(),

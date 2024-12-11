@@ -456,6 +456,7 @@ where
 
         // The 4 least significant bytes must match a. The 4 most significant bytes of result may be
         // inaccurate.
+        // This check is only done when `op_a_not_0 == 1`.
         {
             for i in 0..WORD_SIZE {
                 builder.when(local.op_a_not_0).assert_eq(local.a[i], local.bit_shift_result[i]);
@@ -493,6 +494,11 @@ where
             }
         }
 
+        // SAFETY: All selectors `is_srl`, `is_sra` are checked to be boolean.
+        // Each "real" row has exactly one selector turned on, as `is_real = is_srl + is_sra` is boolean.
+        // All interactions are done with multiplicity `is_real`.
+        // Therefore, the `opcode` matches the corresponding opcode.
+
         // Check that the operation flags are boolean.
         builder.assert_bool(local.is_srl);
         builder.assert_bool(local.is_sra);
@@ -502,6 +508,15 @@ where
         builder.assert_eq(local.is_srl + local.is_sra, local.is_real);
 
         // Receive the arguments.
+        // SAFETY: This checks the following.
+        // - `next_pc = pc + 4`
+        // - `num_extra_cycles = 0`
+        // - `op_a_val` is constrained by the chip when `op_a_not_0 == 1`
+        // - `op_a_not_0` is correct, due to the sent `op_a_0` being equal to `1 - op_a_not_0`
+        // - `op_a_immutable = 0`
+        // - `is_memory = 0`
+        // - `is_syscall = 0`
+        // - `is_halt = 0`
         builder.receive_instruction(
             AB::Expr::zero(),
             AB::Expr::zero(),
