@@ -3,6 +3,8 @@ use sp1_sdk::{include_elf, utils, client::ProverClient, proof::SP1ProofWithPubli
 use std::time::Duration;
 use dotenv::dotenv;
 
+use std::sync::Arc;
+
 /// The ELF we want to execute inside the zkVM.
 const ELF: &[u8] = include_elf!("fibonacci-program");
 
@@ -42,11 +44,11 @@ async fn main() {
         .build();
 
     // Generate the proving key and verifying key for the given program.
-    let (pk, vk) = client.setup(ELF).await;
+    let pk = client.setup(Arc::from(&ELF[..])).await;
 
     // Generate the proof.
     let proof_result = client
-        .prove(&pk, &stdin)
+        .prove(pk, stdin)
         .compressed()
         .await;
 

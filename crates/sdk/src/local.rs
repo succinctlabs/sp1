@@ -72,8 +72,23 @@ impl<'a> LocalProofRequest<'a> {
         }
     }
 
-    pub fn with_mode(mut self, mode: Mode) -> Self {
-        self.mode = mode;
+    pub fn core(mut self) -> Self {
+        self.mode = Mode::Core;
+        self
+    }
+
+    pub fn compressed(mut self) -> Self {
+        self.mode = Mode::Compressed;
+        self
+    }
+
+    pub fn plonk(mut self) -> Self {
+        self.mode = Mode::Plonk;
+        self
+    }
+
+    pub fn groth16(mut self) -> Self {
+        self.mode = Mode::Groth16;
         self
     }
 

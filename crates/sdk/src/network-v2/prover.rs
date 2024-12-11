@@ -340,42 +340,43 @@ impl<'a> NetworkProofRequest<'a> {
         self
     }
 
-    fn run(self) -> Result<SP1ProofWithPublicValues> {
-        Runtime::new().unwrap().block_on(async move {
-            // Ensure the program is registered.
-            let vk_hash = self.prover.register_program(&self.pk.vk, &self.pk.elf).await?;
+    async fn run_inner(self) -> Result<SP1ProofWithPublicValues> {
+        let vk_hash = self.prover.register_program(&self.pk.vk, &self.pk.elf).await?;
 
-            // Get the cycle limit.
-            let cycle_limit = self.prover.get_cycle_limit(
-                &self.pk.elf,
+        // Get the cycle limit.
+        let cycle_limit = self.prover.get_cycle_limit(
+            &self.pk.elf,
+            &self.stdin,
+            self.cycle_limit,
+            self.skip_simulation,
+        )?;
+
+        // Request the proof.
+        let request_id = self
+            .prover
+            .request_proof(
+                &vk_hash,
                 &self.stdin,
-                self.cycle_limit,
-                self.skip_simulation,
-            )?;
+                &self.version,
+                self.mode,
+                self.strategy,
+                self.timeout,
+                cycle_limit,
+            )
+            .await?;
 
-            // Request the proof.
-            let request_id = self
-                .prover
-                .request_proof(
-                    &vk_hash,
-                    &self.stdin,
-                    &self.version,
-                    self.mode,
-                    self.strategy,
-                    self.timeout,
-                    cycle_limit,
-                )
-                .await?;
+        // Wait for proof generation.
+        let proof: SP1ProofWithPublicValues = self
+            .prover
+            .wait_proof(&request_id, self.timeout)
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to wait for proof: {}", e))?;
 
-            // Wait for proof generation.
-            let proof: SP1ProofWithPublicValues = self
-                .prover
-                .wait_proof(&request_id, self.timeout)
-                .await
-                .map_err(|e| anyhow::anyhow!("Failed to wait for proof: {}", e))?;
+        Ok(proof)
+    }
 
-            Ok(proof)
-        })
+    fn run(self) -> Result<SP1ProofWithPublicValues> {
+        Runtime::new().unwrap().block_on(async move { self.run_inner().await })
     }
 }
 
@@ -384,7 +385,7 @@ impl<'a> IntoFuture for NetworkProofRequest<'a> {
     type IntoFuture = Pin<Box<dyn Future<Output = Self::Output> + Send + 'a>>;
 
     fn into_future(self) -> Self::IntoFuture {
-        Box::pin(async move { self.run() })
+        Box::pin(async move { self.run_inner().await })
     }
 }
 
@@ -437,7 +438,7 @@ impl Prover for NetworkProver {
             .with_mode(opts.mode)
             .with_timeout(opts.timeout)
             .with_cycle_limit(opts.cycle_limit);
-        request.run()
+        request.run_inner().await
     }
 
     #[cfg(feature = "blocking")]
@@ -451,7 +452,7 @@ impl Prover for NetworkProver {
             .with_mode(opts.mode)
             .with_timeout(opts.timeout)
             .with_cycle_limit(opts.cycle_limit);
-        Runtime::new().unwrap().block_on(request.run())
+        request.run()
     }
 
     async fn verify(
