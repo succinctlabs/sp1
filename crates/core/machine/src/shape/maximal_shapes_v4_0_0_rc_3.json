@@ -33354,6 +33354,26 @@
         "MemoryInstrs": 18,
         "SyscallCore": 9
       }
+    },
+    {
+      "inner": {
+        "Cpu": 19,
+        "Global": 19,
+        "Lt": 17,
+        "SyscallInstrs": 12,
+        "Jump": 12,
+        "DivRem": 12,
+        "ShiftLeft": 18,
+        "Bitwise": 18,
+        "ShiftRight": 18,
+        "Mul": 12,
+        "MemoryLocal": 17,
+        "Auipc": 9,
+        "Branch": 16,
+        "AddSub": 19,
+        "MemoryInstrs": 19,
+        "SyscallCore": 12
+      }
     }
   ],
   "20": [
