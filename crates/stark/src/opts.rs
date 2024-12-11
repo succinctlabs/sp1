@@ -33,33 +33,28 @@ impl SP1ProverOpts {
     /// We use a soft heuristic based on our understanding of the memory usage in the GPU prover.
     #[must_use]
     pub fn cpu(cpu_ram_gb: usize) -> Self {
-        let mut opts = SP1ProverOpts::default();
-
-        let (log2_shard_size, shard_batch_size) = match cpu_ram_gb {
-            0..17 => (19, 1),
-            17..33 => (19, 2),
-            33..49 => (21, 1),
-            49..65 => (21, 2),
-            65..81 => (22, 3),
-            81.. => (22, 4),
+        let (log2_shard_size, shard_batch_size, log2_divisor) = match cpu_ram_gb {
+            0..17 => (19, 1, 3),
+            17..33 => (19, 2, 3),
+            33..49 => (20, 1, 2),
+            49..65 => (21, 2, 1),
+            65..81 => (21, 3, 1),
+            81.. => (21, 4, 1),
         };
+
+        let mut opts = SP1ProverOpts::default();
         opts.core_opts.shard_size = 1 << log2_shard_size;
         opts.core_opts.shard_batch_size = shard_batch_size;
 
-        // We always have at least 1 record and trace channel to maximally use the prover threads.
-        //
-        // In the CPU setting, the prover is much slower than the record/trace generation, so we
-        // can set these values to be very low.
         opts.core_opts.records_and_traces_channel_capacity = 1;
         opts.core_opts.trace_gen_workers = 1;
 
-        let log2_gap_from_21 = 21 - log2_shard_size;
-        let factor = 1 << log2_gap_from_21;
-        opts.core_opts.split_opts.deferred /= factor;
-        opts.core_opts.split_opts.keccak /= factor;
-        opts.core_opts.split_opts.sha_extend /= factor;
-        opts.core_opts.split_opts.sha_compress /= factor;
-        opts.core_opts.split_opts.memory /= factor;
+        let divisor = 1 << log2_divisor;
+        opts.core_opts.split_opts.deferred /= divisor;
+        opts.core_opts.split_opts.keccak /= divisor;
+        opts.core_opts.split_opts.sha_extend /= divisor;
+        opts.core_opts.split_opts.sha_compress /= divisor;
+        opts.core_opts.split_opts.memory /= divisor;
 
         opts
     }
