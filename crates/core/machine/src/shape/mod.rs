@@ -90,24 +90,53 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
             heights.extend(RiscvAir::<F>::memory_heights(record));
 
             // Try to find a shape fitting within at least one of the candidate shapes.
+            let log2_shard_size = record.cpu_events.len().next_power_of_two().ilog2() as usize;
+            let mut minimal_shape = None;
+            let mut minimal_area = usize::MAX;
+            let mut minimal_cluster = None;
             for (i, cluster) in self.small_shapes.iter().enumerate() {
-                let shard = record.public_values.shard;
                 if let Some(shape) = cluster.find_shape(&heights) {
-                    tracing::info!("Shard Lifted: Index={}, Cluster={}", shard, i);
-                    for (air, height) in heights.iter() {
-                        if let Some(log2_height) = shape.log2_height(air) {
-                            tracing::info!(
-                                "Chip {:<20}: {:<3} -> {:<3}",
-                                air,
-                                log2_ceil_usize(*height),
-                                log2_height,
-                            );
-                        }
+                    if self.estimate_lde_size(&shape) < minimal_area {
+                        minimal_area = self.estimate_lde_size(&shape);
+                        minimal_shape = Some(shape);
+                        minimal_cluster = Some(i);
                     }
+                    // tracing::info!("Shard Lifted: Index={}, Cluster={}", shard, i);
+                    // for (air, height) in heights.iter() {
+                    //     if let Some(log2_height) = shape.log2_height(air) {
+                    //         tracing::info!(
+                    //             "Chip {:<20}: {:<3} -> {:<3}",
+                    //             air,
+                    //             log2_ceil_usize(*height),
+                    //             log2_height,
+                    //         );
+                    //     }
+                    // }
 
-                    record.shape.as_mut().unwrap().extend(shape);
-                    return Ok(());
+                    // record.shape.as_mut().unwrap().extend(shape);
+                    // return Ok(());
                 }
+            }
+
+            if let Some(shape) = minimal_shape {
+                let shard = record.public_values.shard;
+                tracing::info!(
+                    "Shard Lifted: Index={}, Cluster={}",
+                    shard,
+                    minimal_cluster.unwrap()
+                );
+                for (air, height) in heights.iter() {
+                    if shape.contains(air) {
+                        tracing::info!(
+                            "Chip {:<20}: {:<3} -> {:<3}",
+                            air,
+                            log2_ceil_usize(*height),
+                            shape.log2_height(air).unwrap(),
+                        );
+                    }
+                }
+                record.shape.as_mut().unwrap().extend(shape);
+                return Ok(());
             }
 
             // No shape found, so return an error.
